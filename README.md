@@ -27,7 +27,8 @@ macOS and Linux: there are no ready-made downloads yet. See [For developers](#fo
 
 If Kenku FM has been used on this computer, Cue Desk copies its library the first time it starts: playlists, soundboards, bookmarks, settings (including your Discord bot token) and the window position. This happens once.
 
-- **Close Kenku FM before you start Cue Desk for the first time**, so its library is not being written while it is copied.
+- **Close Kenku FM before you start Cue Desk for the first time**, so its library is not being written while it is copied. On Windows, if Kenku FM is still open, Cue Desk says "Kenku FM is still running. Close it and restart Cue Desk to bring your library across." Choose **Quit**, close Kenku FM, then start Cue Desk again. (On macOS and Linux Cue Desk cannot tell whether Kenku FM is open, so close it yourself.)
+- If the copy goes wrong, Cue Desk tells you and offers to quit; the next time it starts, it tries again. If you choose to start with an empty library instead, the Kenku FM library will not be copied later.
 - Kenku FM's own files are only read, never changed or deleted. Kenku FM keeps working as before.
 - Your audio files are not copied. Playlists point to the files where they already are, so leave them in place.
 - Nothing is copied if Cue Desk already has a library of its own.
@@ -41,7 +42,7 @@ Where the libraries are kept on Windows:
 
 (On macOS: `~/Library/Application Support/`; on Linux: `~/.config/`.)
 
-**If your library did not appear**, and you have not added anything in Cue Desk yet: close Cue Desk, paste `%APPDATA%` into the File Explorer address bar, delete the `cue-desk` folder, close Kenku FM, then start Cue Desk again. The result of the copy is written to `data-carry-over.json` in the `cue-desk` folder; attach that file if you report a problem.
+**If your library did not appear**, and you have not added anything in Cue Desk yet: close Cue Desk, paste `%APPDATA%` into the File Explorer address bar, delete the `cue-desk` folder, close Kenku FM, then start Cue Desk again. Once the copy has succeeded (or there was nothing to copy), the result is written to `data-carry-over.json` in the `cue-desk` folder. It lists folder names only, no personal details; attach it if you report a problem.
 
 ## Connect your Discord bot
 

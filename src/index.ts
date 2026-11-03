@@ -1,10 +1,11 @@
 // FND-1: must stay the first import; it moves the data folder before anything uses it.
-import { runDataCarryOver } from "./main/migration";
+import { getDataCarryOverResult, runDataCarryOver } from "./main/migration";
 import os from "os";
 import {
   app,
   BrowserWindow,
   components,
+  dialog,
   shell,
   ipcMain,
   powerSaveBlocker,
@@ -18,20 +19,24 @@ import { getSavedBounds, saveWindowBounds } from "./bounds";
 import { openExternalIfAllowed } from "./main/security/externalLinks";
 import { lockAppPage } from "./main/security/navigationGuards";
 import { clearBrowsingData, secureSessions } from "./main/security/sessions";
+import { confirmStartAfterCarryOver, startApp } from "./main/startup";
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 
-runDataCarryOver();
-
-const hasSingleInstanceLock = app.requestSingleInstanceLock();
 let window: BrowserWindow | null = null;
 
-// Handle creating/removing shortcuts on Windows when installing/uninstalling.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-if (require("electron-squirrel-startup")) {
-  app.quit();
-}
+// FND-1: the Windows installer check and the single-instance lock come first,
+// so the Kenku FM library is copied only by the one real copy of the app,
+// before any window, session or settings file touches the data folder.
+const startupOutcome = startApp({
+  // Creates or removes shortcuts when the Windows installer runs the app.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  handleSquirrelEvent: () => Boolean(require("electron-squirrel-startup")),
+  requestSingleInstanceLock: () => app.requestSingleInstanceLock(),
+  runDataCarryOver,
+  quit: () => app.quit(),
+});
 
 const createWindow = (): BrowserWindow => {
   const minWidth = 800;
@@ -96,9 +101,7 @@ const createWindow = (): BrowserWindow => {
   return mainWindow;
 };
 
-if (!hasSingleInstanceLock) {
-  app.quit();
-} else {
+if (startupOutcome === "run") {
   // Workaround to allow for webpack support with widevine
   // https://github.com/castlabs/electron-releases/issues/116
   const widevine = components;
@@ -107,6 +110,16 @@ if (!hasSingleInstanceLock) {
   // initialization and is ready to create browser windows.
   // Some APIs can only be used after this event occurs.
   app.whenReady().then(async () => {
+    // FND-1: if Kenku FM was running or its library could not be copied,
+    // offer to quit before any page creates an empty library in its place.
+    const keepStarting = confirmStartAfterCarryOver(getDataCarryOverResult(), (prompt) =>
+      dialog.showMessageBoxSync(prompt),
+    );
+    if (!keepStarting) {
+      app.quit();
+      return;
+    }
+
     let hasWidevineError = false;
 
     try {

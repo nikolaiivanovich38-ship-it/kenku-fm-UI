@@ -6,10 +6,20 @@ import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
-import { evaluateAudit, main, parseAuditOutput, validateAllowlist } from "./audit-check.mjs";
+import {
+  combineAudits,
+  evaluateAudit,
+  expiredEntries,
+  main,
+  parseAuditOutput,
+  selectPackages,
+  SHIPPED_DEV_PACKAGES,
+  validateAllowlist,
+} from "./audit-check.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const sample = fs.readFileSync(path.join(here, "fixtures", "audit-sample.ndjson"), "utf8");
+const devSample = fs.readFileSync(path.join(here, "fixtures", "audit-dev-sample.ndjson"), "utf8");
 
 const fullAllowlist = {
   entries: [
@@ -61,6 +71,72 @@ describe("parseAuditOutput", () => {
   });
 });
 
+describe("Electron, the shipped runtime", () => {
+  it("is audited even though package.json lists it as a devDependency", () => {
+    assert.deepEqual(SHIPPED_DEV_PACKAGES, ["electron"]);
+  });
+
+  it("keeps only Electron's advisories from the devDependencies audit, not build tools", () => {
+    const electron = selectPackages(parseAuditOutput(devSample), SHIPPED_DEV_PACKAGES);
+    assert.deepEqual(
+      electron.advisories.map((advisory) => advisory.id),
+      ["GHSA-8337-3p73-46f4", "GHSA-5rqw-r77c-jp79"],
+    );
+    assert.deepEqual(electron.summary.vulnerabilities, { info: 0, low: 0, moderate: 1, high: 1, critical: 0 });
+  });
+
+  it("blocks a new Electron advisory like any shipped library", () => {
+    const combined = combineAudits(parseAuditOutput(sample), selectPackages(parseAuditOutput(devSample), SHIPPED_DEV_PACKAGES));
+    const { blocking } = evaluateAudit(combined.advisories, fullAllowlist);
+    assert.deepEqual(
+      blocking.map((advisory) => advisory.package),
+      ["electron"],
+    );
+    assert.equal(combined.summary.vulnerabilities.high, 4);
+  });
+});
+
+describe("allowlist review dates", () => {
+  const entry = { id: "GHSA-8337-3p73-46f4", package: "electron", reason: "r", backlog: "SEC-1", reviewBy: "2026-12-15" };
+
+  it("keeps an entry valid up to and including its reviewBy date", () => {
+    assert.deepEqual(expiredEntries({ entries: [entry] }, "2026-12-15"), []);
+  });
+
+  it("reports an entry once its reviewBy date has passed", () => {
+    assert.deepEqual(expiredEntries({ entries: [entry, { ...entry, reviewBy: undefined }] }, "2026-12-16"), [entry]);
+  });
+
+  it("rejects a reviewBy that is not a YYYY-MM-DD date", () => {
+    assert.match(validateAllowlist({ entries: [{ ...entry, reviewBy: "15/12/2026" }] })[0], /reviewBy/);
+  });
+
+  it("fails the gate with a clear message when an entry has expired", () => {
+    const allowlist = { entries: [...fullAllowlist.entries, { ...entry, reviewBy: "2020-01-01" }] };
+    const errors = [];
+    const { error } = console;
+    console.error = (message) => errors.push(message);
+    try {
+      withTempFile(allowlist, (allowlistFile) =>
+        withTempFile(sample, (input) => assert.equal(main(["--input", input, "--allowlist", allowlistFile]), 1)),
+      );
+    } finally {
+      console.error = error;
+    }
+    assert.match(errors.join("\n"), /GHSA-8337-3p73-46f4 electron .*review date 2020-01-01 has passed/);
+  });
+
+  it("gives every Electron entry in the checked-in allowlist a review date and SEC-1", () => {
+    const allowlist = JSON.parse(fs.readFileSync(path.join(here, "audit-allowlist.json"), "utf8"));
+    const electron = allowlist.entries.filter((item) => item.package === "electron");
+    assert.ok(electron.length > 0);
+    for (const item of electron) {
+      assert.equal(item.reviewBy, "2026-12-15");
+      assert.equal(item.backlog, "SEC-1");
+    }
+  });
+});
+
 describe("evaluateAudit", () => {
   it("passes when every high/critical advisory is allowlisted, ignoring moderate ones", () => {
     const { blocking, allowed, unused } = evaluateAudit(parseAuditOutput(sample).advisories, fullAllowlist);
@@ -106,6 +182,19 @@ describe("validateAllowlist", () => {
 });
 
 describe("main (command line)", () => {
+  it("checks a saved Electron audit too (--dev-input)", () => {
+    withTempFile(fullAllowlist, (allowlist) =>
+      withTempFile(sample, (input) =>
+        withTempFile(devSample, (devInput) =>
+          assert.equal(
+            silenced(() => main(["--input", input, "--dev-input", devInput, "--allowlist", allowlist])),
+            1,
+          ),
+        ),
+      ),
+    );
+  });
+
   it("exits 0 when everything severe is allowlisted", () => {
     withTempFile(fullAllowlist, (allowlist) =>
       withTempFile(sample, (input) =>

@@ -1,77 +1,13 @@
 {
-  "$comment": "Accepted high/critical advisories for scripts/audit-check.mjs (FND-5). Each entry needs id (GHSA), package, reason and the backlog item that removes it. Review at every release (docs/RELEASE_CHECKLIST.md). electron is not listed: it is a devDependency and the gate audits shipped libraries only; its upgrade is SEC-1 (WP1).",
+  "$comment": "Accepted high/critical advisories for scripts/audit-check.mjs (FND-5). Each entry needs id (GHSA), package, reason and the backlog item that removes it; reviewBy (YYYY-MM-DD) is optional and the gate fails once that date has passed. The gate audits the shipped libraries (dependencies) and Electron, which package.json lists as a devDependency but which is the runtime every user runs. Review at every release (docs/RELEASE_CHECKLIST.md).",
   "reviewed": "2026-11-03",
   "entries": [
-    {
-      "id": "GHSA-4c8g-83qw-93j6",
-      "package": "fast-uri",
-      "severity": "high",
-      "title": "fast-uri vulnerable to host confusion via failed IDN canonicalization",
-      "reason": "Pulled in by fastify 4 (fast-json-stringify, ajv-formats); goes away with the fastify 5 upgrade.",
-      "backlog": "SEC-9 (WP6)"
-    },
-    {
-      "id": "GHSA-7p8r-x3mc-p8w7",
-      "package": "fast-uri",
-      "severity": "high",
-      "title": "fast-uri vulnerable to host confusion via backslash authority introducer",
-      "reason": "Pulled in by fastify 4 (fast-json-stringify, ajv-formats); goes away with the fastify 5 upgrade.",
-      "backlog": "SEC-9 (WP6)"
-    },
-    {
-      "id": "GHSA-f65p-4m7j-42xc",
-      "package": "fast-uri",
-      "severity": "high",
-      "title": "fast-uri vulnerable to server-side request forgery via malformed IPv6 normalization",
-      "reason": "Pulled in by fastify 4 (fast-json-stringify, ajv-formats); goes away with the fastify 5 upgrade.",
-      "backlog": "SEC-9 (WP6)"
-    },
-    {
-      "id": "GHSA-jqff-g426-hqxp",
-      "package": "fast-uri",
-      "severity": "high",
-      "title": "fast-uri vulnerable to host confusion via percent-encoded scheme normalization",
-      "reason": "Pulled in by fastify 4 (fast-json-stringify, ajv-formats); goes away with the fastify 5 upgrade.",
-      "backlog": "SEC-9 (WP6)"
-    },
-    {
-      "id": "GHSA-q3j6-qgpj-74h6",
-      "package": "fast-uri",
-      "severity": "high",
-      "title": "fast-uri vulnerable to path traversal via percent-encoded dot segments",
-      "reason": "Pulled in by fastify 4 (fast-json-stringify, ajv-formats); goes away with the fastify 5 upgrade.",
-      "backlog": "SEC-9 (WP6)"
-    },
-    {
-      "id": "GHSA-qw65-cvwx-89v3",
-      "package": "fast-uri",
-      "severity": "high",
-      "title": "fast-uri vulnerable to authority injection via an unvalidated port in serialize",
-      "reason": "Pulled in by fastify 4 (fast-json-stringify, ajv-formats); goes away with the fastify 5 upgrade.",
-      "backlog": "SEC-9 (WP6)"
-    },
-    {
-      "id": "GHSA-v2hh-gcrm-f6hx",
-      "package": "fast-uri",
-      "severity": "high",
-      "title": "fast-uri vulnerable to host confusion via literal backslash authority delimiter",
-      "reason": "Pulled in by fastify 4 (fast-json-stringify, ajv-formats); goes away with the fastify 5 upgrade.",
-      "backlog": "SEC-9 (WP6)"
-    },
-    {
-      "id": "GHSA-v39h-62p7-jpjc",
-      "package": "fast-uri",
-      "severity": "high",
-      "title": "fast-uri vulnerable to host confusion via percent-encoded authority delimiters",
-      "reason": "Pulled in by fastify 4 (fast-json-stringify, ajv-formats); goes away with the fastify 5 upgrade.",
-      "backlog": "SEC-9 (WP6)"
-    },
     {
       "id": "GHSA-667r-xxjv-c9mm",
       "package": "fastify",
       "severity": "high",
       "title": "fastify vulnerable to request body replacement via an async validation result collision",
-      "reason": "Remote-control server only; fixes exist only in fastify 5. Upgrade planned.",
+      "reason": "Remote-control (Stream Deck) server only, and only while Remote is on in Settings. It listens on the address the user chooses: 127.0.0.1 by default, often changed so a Stream Deck on another machine can reach it. Fixes exist only in fastify 5; upgrade planned.",
       "backlog": "SEC-9 (WP6)"
     },
     {
@@ -79,7 +15,7 @@
       "package": "fastify",
       "severity": "high",
       "title": "fastify vulnerable to header validation bypass via incomplete schema case normalization",
-      "reason": "Remote-control server only; fixes exist only in fastify 5. Upgrade planned.",
+      "reason": "Remote-control (Stream Deck) server only, and only while Remote is on in Settings. It listens on the address the user chooses: 127.0.0.1 by default, often changed so a Stream Deck on another machine can reach it. Fixes exist only in fastify 5; upgrade planned.",
       "backlog": "SEC-9 (WP6)"
     },
     {
@@ -87,7 +23,7 @@
       "package": "fastify",
       "severity": "high",
       "title": "fastify vulnerable to request validation bypass via skipped boolean false schemas",
-      "reason": "Remote-control server only; fixes exist only in fastify 5. Upgrade planned.",
+      "reason": "Remote-control (Stream Deck) server only, and only while Remote is on in Settings. It listens on the address the user chooses: 127.0.0.1 by default, often changed so a Stream Deck on another machine can reach it. Fixes exist only in fastify 5; upgrade planned.",
       "backlog": "SEC-9 (WP6)"
     },
     {
@@ -95,7 +31,7 @@
       "package": "fastify",
       "severity": "high",
       "title": "Fastify's Content-Type header tab character allows body validation bypass",
-      "reason": "Remote-control server only; fixes exist only in fastify 5. Upgrade planned.",
+      "reason": "Remote-control (Stream Deck) server only, and only while Remote is on in Settings. It listens on the address the user chooses: 127.0.0.1 by default, often changed so a Stream Deck on another machine can reach it. Fixes exist only in fastify 5; upgrade planned.",
       "backlog": "SEC-9 (WP6)"
     },
     {
@@ -103,7 +39,7 @@
       "package": "fastify",
       "severity": "high",
       "title": "fastify vulnerable to authentication bypass via malformed URLs reaching encapsulated not-found handlers",
-      "reason": "Remote-control server only; fixes exist only in fastify 5. Upgrade planned.",
+      "reason": "Remote-control (Stream Deck) server only, and only while Remote is on in Settings. It listens on the address the user chooses: 127.0.0.1 by default, often changed so a Stream Deck on another machine can reach it. Fixes exist only in fastify 5; upgrade planned.",
       "backlog": "SEC-9 (WP6)"
     },
     {
@@ -115,20 +51,112 @@
       "backlog": "SEC-9 (WP6)"
     },
     {
-      "id": "GHSA-r5fr-rjxr-66jc",
-      "package": "lodash",
+      "id": "GHSA-532v-xpq5-8h95",
+      "package": "electron",
       "severity": "high",
-      "title": "lodash vulnerable to Code Injection via `_.template` imports key names",
-      "reason": "Only _.template is affected; discord.js reaches lodash through @sapphire/shapeshift, which uses lodash/get and lodash/uniqWith only. Fix: lodash 4.17.24+ via a resolution or a discord.js update.",
-      "backlog": "SEC-9"
+      "title": "Electron: Use-after-free in offscreen child window paint callback",
+      "reason": "Electron 37 is end-of-life; fixed by upgrading Electron (SEC-1, WP1)",
+      "backlog": "SEC-1",
+      "reviewBy": "2026-12-15"
     },
     {
-      "id": "GHSA-jqcg-44mw-7w3h",
-      "package": "proxy-addr",
-      "severity": "critical",
-      "title": "proxy-addr vulnerable to IP spoofing via IPv4-mapped IPv6 trust subnet",
-      "reason": "Used by fastify only when trustProxy is set; the remote-control server leaves it unset. Goes away with fastify 5.",
-      "backlog": "SEC-9 (WP6)"
+      "id": "GHSA-8337-3p73-46f4",
+      "package": "electron",
+      "severity": "high",
+      "title": "Electron: Use-after-free in WebContents fullscreen, pointer-lock, and keyboard-lock permission callbacks",
+      "reason": "Electron 37 is end-of-life; fixed by upgrading Electron (SEC-1, WP1)",
+      "backlog": "SEC-1",
+      "reviewBy": "2026-12-15"
+    },
+    {
+      "id": "GHSA-9f4c-93c8-jc8g",
+      "package": "electron",
+      "severity": "high",
+      "title": "Electron: Sandboxed iframe can bypass the allow-popups restriction via the OpenURL navigation path",
+      "reason": "Electron 37 is end-of-life; fixed by upgrading Electron (SEC-1, WP1)",
+      "backlog": "SEC-1",
+      "reviewBy": "2026-12-15"
+    },
+    {
+      "id": "GHSA-9qh4-3jw8-366w",
+      "package": "electron",
+      "severity": "high",
+      "title": "Electron: <webview> can enable Node.js integration in Web Workers despite embedder restrictions",
+      "reason": "Electron 37 is end-of-life; fixed by upgrading Electron (SEC-1, WP1)",
+      "backlog": "SEC-1",
+      "reviewBy": "2026-12-15"
+    },
+    {
+      "id": "GHSA-9wfr-w7mm-pc7f",
+      "package": "electron",
+      "severity": "high",
+      "title": "Electron: Renderer command-line switch injection via undocumented commandLineSwitches webPreference",
+      "reason": "Electron 37 is end-of-life; fixed by upgrading Electron (SEC-1, WP1)",
+      "backlog": "SEC-1",
+      "reviewBy": "2026-12-15"
+    },
+    {
+      "id": "GHSA-gr2m-v5gq-v685",
+      "package": "electron",
+      "severity": "high",
+      "title": "Electron: Windows opened from a sandboxed top-level document do not inherit its sandbox restrictions",
+      "reason": "Electron 37 is end-of-life; fixed by upgrading Electron (SEC-1, WP1)",
+      "backlog": "SEC-1",
+      "reviewBy": "2026-12-15"
+    },
+    {
+      "id": "GHSA-h7rp-cf8h-j98x",
+      "package": "electron",
+      "severity": "high",
+      "title": "Electron: Context isolation bypass via Function.prototype.bind hijack",
+      "reason": "Electron 37 is end-of-life; fixed by upgrading Electron (SEC-1, WP1)",
+      "backlog": "SEC-1",
+      "reviewBy": "2026-12-15"
+    },
+    {
+      "id": "GHSA-hq2x-r82h-9wj4",
+      "package": "electron",
+      "severity": "high",
+      "title": "Electron drops inherited HTML sandbox restrictions for popups opened through OpenURLFromTab",
+      "reason": "Electron 37 is end-of-life; fixed by upgrading Electron (SEC-1, WP1)",
+      "backlog": "SEC-1",
+      "reviewBy": "2026-12-15"
+    },
+    {
+      "id": "GHSA-j84w-jfhq-vhvj",
+      "package": "electron",
+      "severity": "high",
+      "title": "Electron: File and HTTP protocol handlers allow cross-origin reads without corsEnabled",
+      "reason": "Electron 37 is end-of-life; fixed by upgrading Electron (SEC-1, WP1)",
+      "backlog": "SEC-1",
+      "reviewBy": "2026-12-15"
+    },
+    {
+      "id": "GHSA-jjp3-mq3x-295m",
+      "package": "electron",
+      "severity": "high",
+      "title": "Electron: Use-after-free in PowerMonitor on Windows and macOS",
+      "reason": "Electron 37 is end-of-life; fixed by upgrading Electron (SEC-1, WP1)",
+      "backlog": "SEC-1",
+      "reviewBy": "2026-12-15"
+    },
+    {
+      "id": "GHSA-jr5w-w6x2-84p9",
+      "package": "electron",
+      "severity": "high",
+      "title": "Electron: Mitigation for compromised eMudhra intermediate certificates",
+      "reason": "Electron 37 is end-of-life; fixed by upgrading Electron (SEC-1, WP1)",
+      "backlog": "SEC-1",
+      "reviewBy": "2026-12-15"
+    },
+    {
+      "id": "GHSA-v3j7-r9gq-3gjw",
+      "package": "electron",
+      "severity": "high",
+      "title": "Electron: Custom protocol with supportFetchAPI but not corsEnabled allows cross-origin reads",
+      "reason": "Electron 37 is end-of-life; fixed by upgrading Electron (SEC-1, WP1)",
+      "backlog": "SEC-1",
+      "reviewBy": "2026-12-15"
     }
   ]
 }

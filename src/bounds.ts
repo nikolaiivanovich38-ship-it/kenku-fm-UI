@@ -2,10 +2,22 @@ import { BrowserWindow, Rectangle, screen } from "electron";
 import Store from "electron-store";
 import throttle from "lodash.throttle";
 
-const store = new Store<{
+type BoundsStore = Store<{
   bounds: Rectangle;
   maximized: boolean;
-}>();
+}>;
+
+let cachedStore: BoundsStore | null = null;
+
+/**
+ * FND-1: open config.json on first use, not on import. electron-store reads
+ * and may write the file as soon as it is created, which must not happen
+ * before the Kenku FM carry-over has copied the old config.json across.
+ */
+function store(): BoundsStore {
+  cachedStore ??= new Store();
+  return cachedStore;
+}
 
 export function getSavedBounds(
   minWidth: number,
@@ -14,8 +26,8 @@ export function getSavedBounds(
   bounds: Partial<Rectangle>;
   maximized: boolean;
 } {
-  const bounds = store.get("bounds");
-  const maximized = store.get("maximized");
+  const bounds = store().get("bounds");
+  const maximized = store().get("maximized");
   const savedBounds: Partial<Rectangle> = {};
   if (bounds) {
     const area = screen.getDisplayMatching(bounds).workArea;
@@ -42,8 +54,8 @@ export function getSavedBounds(
 export function saveWindowBounds(window: BrowserWindow) {
   function handleResizeOrMove() {
     if (!window.isDestroyed()) {
-      store.set("bounds", window.getNormalBounds());
-      store.set("maximized", false);
+      store().set("bounds", window.getNormalBounds());
+      store().set("maximized", false);
     }
   }
   const throttledResizeOrMove = throttle(handleResizeOrMove, 1000);
@@ -51,10 +63,10 @@ export function saveWindowBounds(window: BrowserWindow) {
   window.on("moved", throttledResizeOrMove);
 
   function handleMaximize() {
-    store.set("maximized", true);
+    store().set("maximized", true);
   }
   function handleUnmaximize() {
-    store.set("maximized", false);
+    store().set("maximized", false);
   }
   window.on("maximize", handleMaximize);
   window.on("unmaximize", handleUnmaximize);
