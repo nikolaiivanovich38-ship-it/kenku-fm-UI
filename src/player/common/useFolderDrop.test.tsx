@@ -79,8 +79,24 @@ describe("useFolderDrop overlay (BUG-1)", () => {
   it("closes when the window reports the drag left it", () => {
     render(<Harness onDrop={vi.fn()} />);
     startFileDrag();
-    fireEvent.dragLeave(document.body, { relatedTarget: null });
+    fireEvent.dragLeave(document.body, {
+      relatedTarget: null,
+      clientX: 0,
+      clientY: 300,
+    });
     expect(screen.queryByTestId("overlay")).not.toBeInTheDocument();
+  });
+
+  it("stays open on a dragleave inside the window without relatedTarget", () => {
+    // Chromium can omit relatedTarget on ordinary element-to-element moves.
+    render(<Harness onDrop={vi.fn()} />);
+    startFileDrag();
+    fireEvent.dragLeave(document.body, {
+      relatedTarget: null,
+      clientX: 200,
+      clientY: 200,
+    });
+    expect(screen.getByTestId("overlay")).toBeInTheDocument();
   });
 
   it("stays open while the pointer moves onto the overlay's own content", () => {
@@ -88,6 +104,8 @@ describe("useFolderDrop overlay (BUG-1)", () => {
     startFileDrag();
     fireEvent.dragLeave(screen.getByTestId("overlay"), {
       relatedTarget: screen.getByTestId("overlay-text"),
+      clientX: 200,
+      clientY: 200,
     });
     expect(screen.getByTestId("overlay")).toBeInTheDocument();
   });

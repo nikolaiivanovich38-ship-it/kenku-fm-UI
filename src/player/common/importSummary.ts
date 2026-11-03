@@ -113,7 +113,7 @@ export function summariseImport(
     sentences.push(unreadable);
   }
   if (added === 0 && looseFiles === 0 && result.unreadable.length === 0) {
-    sentences.push(`Kenku FM can play ${AUDIO_FORMATS_LABEL} files.`);
+    sentences.push(`Cue Desk can play ${AUDIO_FORMATS_LABEL} files.`);
   }
 
   let severity: Notification["severity"];

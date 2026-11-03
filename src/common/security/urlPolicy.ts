@@ -1,5 +1,5 @@
 /**
- * SEC-6 / SEC-10: which web addresses Kenku FM is willing to open.
+ * SEC-6 / SEC-10: which web addresses Cue Desk is willing to open.
  *
  * Pure module (no Electron import) so the same rules run in the main process,
  * which enforces them, and in the renderer, which uses them to explain a
@@ -83,6 +83,10 @@ function parseAllowed(
     return refuse("invalid");
   }
 
+  // Percent-encoding can make the normalised address much longer than the input.
+  if (url.href.length > MAX_URL_LENGTH) {
+    return refuse("too-long");
+  }
   if (!allowedProtocols.has(url.protocol)) {
     return refuse("scheme");
   }
@@ -127,6 +131,23 @@ export function checkExternalUrl(raw: string): ExternalUrlCheck {
 }
 
 /**
+ * A URL scheme at the start of an address ("https:", "chrome-extension:",
+ * "view-source:", "ms-settings:"), but not a host followed by a port number
+ * ("localhost:3000", "example.com:8080/path"), which is how people type
+ * local servers.
+ */
+const LEADING_SCHEME = /^[a-z][\w+.-]*:(?!\d+(?:[/?#]|$))/i;
+
+/**
+ * Unicode format characters (category Cf: zero-width space, byte-order mark,
+ * direction marks) are invisible, often come along when an address is copied
+ * from a chat or document, and could hide a scheme from the user.
+ */
+// Built with the constructor: the project's TypeScript target rejects the
+// "u" flag in a regex literal, but Chromium and Node support it.
+const FORMAT_CHARACTERS = new RegExp("\\p{Cf}", "gu");
+
+/**
  * Add `https://` to an address typed without a scheme ("youtube.com").
  * Anything that already names a scheme, or is a relative path, is returned
  * unchanged so that `checkTabUrl` can judge it. `localhost:3000` counts as a
@@ -134,22 +155,24 @@ export function checkExternalUrl(raw: string): ExternalUrlCheck {
  */
 export function prependHttp(raw: string): string {
   const url = raw.trim();
-  if (/^\.*\/|^(?!localhost)\w+?:/.test(url)) {
+  if (/^\.*\//.test(url) || LEADING_SCHEME.test(url)) {
     return url;
   }
-  return url.replace(/^(?!(?:\w+?:)?\/\/)/, "https://");
+  return `https://${url}`;
 }
 
 /**
  * SEC-6: check an address the user typed into the URL bar or a bookmark.
- * Applies the `prependHttp` convenience first, then the tab policy.
+ * Removes invisible formatting characters, applies the `prependHttp`
+ * convenience, then the tab policy.
  */
 export function checkTypedTabUrl(raw: string): TabUrlCheck {
   if (typeof raw !== "string") {
     return refuse("invalid");
   }
-  if (raw.trim() === "") {
+  const cleaned = raw.replace(FORMAT_CHARACTERS, "").trim();
+  if (cleaned === "") {
     return refuse("empty");
   }
-  return checkTabUrl(prependHttp(raw));
+  return checkTabUrl(prependHttp(cleaned));
 }

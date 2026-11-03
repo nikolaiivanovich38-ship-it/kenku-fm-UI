@@ -15,6 +15,7 @@ import {
 import { URLBar } from "./URLBar";
 import { TabBar } from "./TabBar";
 import { getBounds } from "./getBounds";
+import { openBrowserView } from "./openBrowserView";
 import {
   decreasePlayingMedia,
   increasePlayingMedia,
@@ -134,14 +135,10 @@ export function Tabs() {
     });
     window.kenku.on("BROWSER_VIEW_NEW_TAB", async (args) => {
       const url = args[0] ?? "";
-      const bounds = getBounds();
-      const id = await window.kenku.createBrowserView(
-        url,
-        bounds.x,
-        bounds.y,
-        bounds.width,
-        bounds.height,
-      );
+      const id = await openBrowserView(url);
+      if (id === undefined) {
+        return;
+      }
       dispatch(
         addTab({
           id,

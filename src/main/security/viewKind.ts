@@ -12,6 +12,12 @@ export interface PlayerEntry {
   preload: string | undefined;
 }
 
+/**
+ * SEC-3: classify a request to create a view.
+ * @returns "tab" for a website tab (no preload), "player" only when both the
+ *   URL and the preload are exactly the player's own entries, otherwise
+ *   "refused" (an unknown preload must never be loaded)
+ */
 export function classifyViewRequest(
   url: string,
   preload: string | undefined,

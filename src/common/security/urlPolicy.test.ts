@@ -108,6 +108,13 @@ describe("checkTabUrl (SEC-6)", () => {
     expect(checkTabUrl(raw)).toMatchObject({ ok: false, code: "too-long" });
   });
 
+  it("rejects an address that only becomes too long once normalised", () => {
+    // Each "é" in the path is percent-encoded to six characters.
+    const raw = `https://example.com/${"é".repeat(1024 * 1024)}`;
+    expect(raw.length).toBeLessThan(2 * 1024 * 1024);
+    expect(checkTabUrl(raw)).toMatchObject({ ok: false, code: "too-long" });
+  });
+
   it("gives plain-language reasons", () => {
     const result = checkTabUrl("garbage here");
     expect(result.ok).toBe(false);
@@ -127,6 +134,11 @@ describe("prependHttp", () => {
     ["javascript:alert(1)", "javascript:alert(1)"],
     ["file:///etc/passwd", "file:///etc/passwd"],
     ["./relative", "./relative"],
+    ["chrome-extension://abc/x.html", "chrome-extension://abc/x.html"],
+    ["view-source:https://example.com", "view-source:https://example.com"],
+    ["ms-settings:privacy", "ms-settings:privacy"],
+    ["example.com:8080/path", "https://example.com:8080/path"],
+    ["192.168.1.10:3000", "https://192.168.1.10:3000"],
   ])("%j -> %j", (raw, expected) => {
     expect(prependHttp(raw)).toBe(expected);
   });
@@ -149,6 +161,40 @@ describe("checkTypedTabUrl", () => {
 
   it("rejects empty input", () => {
     expect(checkTypedTabUrl("  ")).toMatchObject({ ok: false, code: "empty" });
+    expect(checkTypedTabUrl("\u200B")).toMatchObject({ ok: false, code: "empty" });
+  });
+
+  it("ignores invisible formatting characters pasted with the address", () => {
+    expect(checkTypedTabUrl("\u200Byoutube.com\uFEFF ")).toEqual({
+      ok: true,
+      url: "https://youtube.com/",
+      insecure: false,
+    });
+    expect(checkTypedTabUrl("you\u200Btube.com")).toMatchObject({
+      ok: true,
+      url: "https://youtube.com/",
+    });
+  });
+
+  it("refuses a scheme hidden behind an invisible character", () => {
+    expect(checkTypedTabUrl("\u200Bjavascript:alert(1)")).toMatchObject({
+      ok: false,
+      code: "scheme",
+    });
+  });
+
+  it("refuses other browser schemes instead of treating them as a host", () => {
+    expect(checkTypedTabUrl("chrome-extension://abc/x.html")).toMatchObject({
+      ok: false,
+      code: "scheme",
+    });
+  });
+
+  it("still treats host:port as a host", () => {
+    expect(checkTypedTabUrl("example.com:8080")).toMatchObject({
+      ok: true,
+      url: "https://example.com:8080/",
+    });
   });
 });
 

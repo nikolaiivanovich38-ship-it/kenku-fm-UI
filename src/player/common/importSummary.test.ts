@@ -88,7 +88,7 @@ describe("summariseImport", () => {
       result({ "/": 0 }, { skippedFiles: ["cover.jpg"] }),
       "playlist",
       "info",
-      "No audio files were found, so nothing was added. Skipped 1 file that isn't audio (cover.jpg). Kenku FM can play MP3, WAV, OGG, OPUS, FLAC, M4A, AAC or WEBM files.",
+      "No audio files were found, so nothing was added. Skipped 1 file that isn't audio (cover.jpg). Cue Desk can play MP3, WAV, OGG, OPUS, FLAC, M4A, AAC or WEBM files.",
     ],
     [
       "an unreadable folder",

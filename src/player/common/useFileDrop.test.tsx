@@ -95,6 +95,8 @@ describe("useFileDrop drag state (BUG-1)", () => {
     dragFilesIn();
     fireEvent.dragLeave(screen.getByTestId("zone"), {
       relatedTarget: screen.getByTestId("label"),
+      clientX: 200,
+      clientY: 200,
     });
     expect(screen.getByTestId("label")).toHaveTextContent("Drop the track here");
   });

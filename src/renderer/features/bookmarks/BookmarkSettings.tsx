@@ -9,7 +9,6 @@ import Button from "@mui/material/Button";
 import { useDispatch } from "react-redux";
 import { Bookmark, editBookmark } from "./bookmarksSlice";
 
-import { getDropURL } from "../../common/drop";
 import { showWindowControls } from "../../common/showWindowControls";
 import {
   checkTypedTabUrl,
@@ -24,10 +23,11 @@ type BookmarkSettingsProps = {
 
 /**
  * Edit a bookmark's address and name.
- * SEC-6: the address is edited locally and saved on "Done" only when it
- * passes the shared tab URL policy; otherwise the dialog stays open with a
- * plain-language message. Closing the dialog another way keeps the last
- * saved address.
+ * Both are edited locally and saved together on "Done". SEC-6: they are
+ * saved only when the address passes the shared tab URL policy; otherwise
+ * the dialog stays open with a plain-language message. "Cancel", Escape or
+ * closing the dialog another way keeps the saved bookmark unchanged. Links
+ * dropped on the address field are inserted as text by the browser.
  */
 export function BookmarkSettings({
   bookmark,
@@ -36,31 +36,24 @@ export function BookmarkSettings({
 }: BookmarkSettingsProps) {
   const dispatch = useDispatch();
   const [url, setUrl] = useState(bookmark.url);
+  const [title, setTitle] = useState(bookmark.title);
   const [urlError, setUrlError] = useState<string>();
 
   useEffect(() => {
     if (open) {
       setUrl(bookmark.url);
+      setTitle(bookmark.title);
       setUrlError(undefined);
     }
-  }, [open, bookmark.url]);
+  }, [open, bookmark.url, bookmark.title]);
 
   function handleURLChange(event: React.ChangeEvent<HTMLInputElement>) {
     setUrl(event.target.value);
     setUrlError(undefined);
   }
 
-  function handleURLDrop(event: React.DragEvent<HTMLInputElement>) {
-    event.preventDefault();
-    const droppedUrl = getDropURL(event.dataTransfer);
-    if (droppedUrl) {
-      setUrl(droppedUrl);
-      setUrlError(undefined);
-    }
-  }
-
   function handleTitleChange(event: React.ChangeEvent<HTMLInputElement>) {
-    dispatch(editBookmark({ id: bookmark.id, title: event.target.value }));
+    setTitle(event.target.value);
   }
 
   function handleClose() {
@@ -74,8 +67,8 @@ export function BookmarkSettings({
       setUrlError(check.reason);
       return;
     }
-    if (check.url !== bookmark.url) {
-      dispatch(editBookmark({ id: bookmark.id, url: check.url }));
+    if (check.url !== bookmark.url || title !== bookmark.title) {
+      dispatch(editBookmark({ id: bookmark.id, url: check.url, title }));
     }
     handleClose();
   }
@@ -113,7 +106,6 @@ export function BookmarkSettings({
             }}
             value={url}
             onChange={handleURLChange}
-            onDrop={handleURLDrop}
             error={Boolean(urlError)}
             helperText={urlError}
             FormHelperTextProps={{ role: "alert" }}
@@ -128,11 +120,12 @@ export function BookmarkSettings({
             InputLabelProps={{
               shrink: true,
             }}
-            value={bookmark.title}
+            value={title}
             onChange={handleTitleChange}
           />
         </DialogContent>
         <DialogActions sx={{ p: 2 }}>
+          <Button onClick={handleClose}>Cancel</Button>
           <Button type="submit">Done</Button>
         </DialogActions>
       </form>

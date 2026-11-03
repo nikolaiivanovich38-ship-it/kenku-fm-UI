@@ -8,6 +8,7 @@ import Alert from "@mui/material/Alert";
 import { ActionDrawer } from "../common/ActionDrawer";
 
 import { Tabs } from "../features/tabs/Tabs";
+import { onAppError } from "../common/appErrors";
 
 import icon from "../../assets/icon.svg";
 
@@ -44,7 +45,10 @@ export function App() {
       setFatalError(error);
     });
 
+    const stopAppErrors = onAppError(setError);
+
     return () => {
+      stopAppErrors();
       window.kenku.removeAllListeners("MESSAGE");
       window.kenku.removeAllListeners("ERROR");
       window.kenku.removeAllListeners("FATAL_ERROR");

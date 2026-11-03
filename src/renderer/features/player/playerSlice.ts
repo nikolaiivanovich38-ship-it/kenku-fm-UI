@@ -15,7 +15,7 @@ const initialState: PlayerState = {
     icon: icon,
     url: window.kenku.playerGetURL(),
     preload: window.kenku.playerGetPreloadURL(),
-    title: "Kenku Player",
+    title: "Cue Desk Player",
     playingMedia: 0,
     muted: false,
   },

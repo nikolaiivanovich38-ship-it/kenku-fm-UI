@@ -51,7 +51,7 @@ export function AudioSelector({
       } else if (rejectedNames.length > 0) {
         notify({
           severity: "info",
-          message: `"${rejectedNames[0]}" isn't an audio file Kenku FM can play. Choose an ${AUDIO_FORMATS_LABEL} file.`,
+          message: `"${rejectedNames[0]}" isn't an audio file Cue Desk can play. Choose an ${AUDIO_FORMATS_LABEL} file.`,
         });
       }
     },

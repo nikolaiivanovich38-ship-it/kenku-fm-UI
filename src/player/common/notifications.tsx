@@ -11,8 +11,9 @@ import Snackbar from "@mui/material/Snackbar";
 
 /**
  * App-wide plain-language messages for the player window (import summaries,
- * playback errors). Shown one at a time in a Snackbar; the Alert has
- * role="alert", so screen readers announce each message when it appears.
+ * playback errors). Shown one at a time in a Snackbar. Screen readers
+ * announce each message when it appears: errors and warnings interrupt
+ * (role="alert"), success and info wait their turn (role="status").
  */
 
 export type NotificationSeverity = "success" | "info" | "warning" | "error";
@@ -24,12 +25,27 @@ export type Notification = {
 
 export type Notify = (notification: Notification) => void;
 
-/** How long each kind of message stays up; errors stay longer to be read. */
-export const NOTIFICATION_DURATION_MS: Record<NotificationSeverity, number> = {
+/**
+ * How long each kind of message stays up. Errors and warnings stay until the
+ * user closes them (null), so nobody misses one because they read slowly or
+ * looked away (WCAG 2.2.1 Timing Adjustable).
+ */
+export const NOTIFICATION_DURATION_MS: Record<
+  NotificationSeverity,
+  number | null
+> = {
   success: 6000,
   info: 6000,
-  warning: 10000,
-  error: 10000,
+  warning: null,
+  error: null,
+};
+
+/** Live-region role for each kind of message. */
+const NOTIFICATION_ROLE: Record<NotificationSeverity, "alert" | "status"> = {
+  success: "status",
+  info: "status",
+  warning: "alert",
+  error: "alert",
 };
 
 type QueuedNotification = Notification & { key: number };
@@ -84,6 +100,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
         {current ? (
           <Alert
             severity={current.severity}
+            role={NOTIFICATION_ROLE[current.severity]}
             onClose={() => handleClose()}
             sx={{ width: "100%", maxWidth: 560 }}
           >

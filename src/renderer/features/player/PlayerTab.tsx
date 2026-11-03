@@ -4,7 +4,7 @@ import { RootState } from "../../app/store";
 import { useSelector, useDispatch } from "react-redux";
 import { enableRemote, setPlayerId } from "./playerSlice";
 import { TabItem } from "../tabs/TabItem";
-import { getBounds } from "../tabs/getBounds";
+import { openBrowserView } from "../tabs/openBrowserView";
 import { selectTab } from "../tabs/tabsSlice";
 
 export function PlayerTab() {
@@ -15,15 +15,10 @@ export function PlayerTab() {
 
   useEffect(() => {
     const createTab = async () => {
-      const bounds = getBounds();
-      const id = await window.kenku.createBrowserView(
-        player.tab.url,
-        bounds.x,
-        bounds.y,
-        bounds.width,
-        bounds.height,
-        player.tab.preload
-      );
+      const id = await openBrowserView(player.tab.url, player.tab.preload);
+      if (id === undefined) {
+        return;
+      }
       window.kenku.playerRegisterView(id);
       dispatch(setPlayerId(id));
       dispatch(selectTab(id));

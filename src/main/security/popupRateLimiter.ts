@@ -9,6 +9,12 @@ export interface RateLimiter<K> {
   forget(key: K): void;
 }
 
+/**
+ * SEC-6: allow at most `max` attempts per key within any `windowMs` span.
+ * Keys are tab ids, so each tab has its own allowance; call `forget` when a
+ * tab closes so the history does not grow.
+ * @param now clock in ms, replaceable in tests
+ */
 export function createRateLimiter<K>({
   max,
   windowMs,

@@ -12,7 +12,12 @@ import { useDispatch } from "react-redux";
 import { Bookmark, removeBookmark } from "./bookmarksSlice";
 import { BookmarkSettings } from "./BookmarkSettings";
 import { addTab, selectTab } from "../tabs/tabsSlice";
-import { getBounds } from "../tabs/getBounds";
+import { openBrowserView } from "../tabs/openBrowserView";
+import { showAppError } from "../../common/appErrors";
+import {
+  checkTypedTabUrl,
+  isRefused,
+} from "../../../common/security/urlPolicy";
 
 type BookmarkListItemProps = {
   bookmark: Bookmark;
@@ -24,19 +29,26 @@ export function BookmarkListItem({ bookmark, shadow }: BookmarkListItemProps) {
 
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  /**
+   * Open the bookmark in a new tab. Bookmarks saved by Kenku FM before
+   * SEC-6 may lack https:// ("youtube.com"), so the address is normalised
+   * like a typed one; a refused address is explained instead of opening a
+   * blank tab.
+   */
   async function select() {
-    const bounds = getBounds();
-    const id = await window.kenku.createBrowserView(
-      bookmark.url,
-      bounds.x,
-      bounds.y,
-      bounds.width,
-      bounds.height,
-    );
+    const check = checkTypedTabUrl(bookmark.url);
+    if (isRefused(check)) {
+      showAppError(`That page was not opened. ${check.reason}`);
+      return;
+    }
+    const id = await openBrowserView(check.url);
+    if (id === undefined) {
+      return;
+    }
     dispatch(
       addTab({
         id,
-        url: bookmark.url,
+        url: check.url,
         title: bookmark.title,
         icon: bookmark.icon,
         playingMedia: 0,

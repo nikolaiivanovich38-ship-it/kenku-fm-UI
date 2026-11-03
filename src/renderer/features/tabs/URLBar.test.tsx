@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { createEvent, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 const kenku = vi.hoisted(() => {
@@ -89,4 +89,29 @@ describe("URLBar (SEC-6)", () => {
     expect(screen.getByRole("button", { name: /forward/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /reload/i })).toBeInTheDocument();
   });
+
+  it("lets the browser insert a dropped link as text", () => {
+    render(<Harness />);
+    const input = screen.getByRole("textbox", { name: /web address/i });
+    const drop = createEvent.drop(input, {
+      dataTransfer: { types: ["text/uri-list", "text/plain"], files: [] },
+    });
+    fireEvent(input, drop);
+    expect(drop.defaultPrevented).toBe(false);
+  });
+
+  it("says when the page is not secure (http)", () => {
+    render(<Harness initial="http://192.168.1.20:8080/" />);
+    const input = screen.getByRole("textbox", { name: /web address/i });
+    expect(screen.getByText("Not secure")).toBeInTheDocument();
+    expect(input).toHaveAccessibleDescription(/not secure/i);
+  });
+
+  it.each(["https://example.com/", "", "example.com"])(
+    "shows no security warning for %j",
+    (initial) => {
+      render(<Harness initial={initial} />);
+      expect(screen.queryByText("Not secure")).not.toBeInTheDocument();
+    },
+  );
 });
