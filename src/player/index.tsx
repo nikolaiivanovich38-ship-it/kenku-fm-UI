@@ -12,8 +12,12 @@ import { App } from "./app/App";
 import { theme } from "../renderer/app/theme";
 import { store, persistor } from "./app/store";
 import { MemoryRouter } from "react-router-dom";
+import { installDocumentDropGuard } from "../common/security/dragGuard";
 
 import "./index.css";
+
+// SEC-7: a file dropped outside a drop zone must not replace this page
+installDocumentDropGuard(document);
 
 const container = document.getElementById("root");
 const root = createRoot(container);

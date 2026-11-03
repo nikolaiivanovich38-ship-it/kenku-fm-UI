@@ -12,6 +12,10 @@ import { App } from "./app/App";
 import { persistor, store } from "./app/store";
 import { theme } from "./app/theme";
 import ErrorBoundary from "./common/ErrorBoundary";
+import { installDocumentDropGuard } from "../common/security/dragGuard";
+
+// SEC-7: a file dropped outside a drop zone must not replace this page
+installDocumentDropGuard(document);
 
 const container = document.getElementById("root");
 const root = createRoot(container);
