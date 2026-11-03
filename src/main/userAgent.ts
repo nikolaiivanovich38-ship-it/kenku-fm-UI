@@ -6,7 +6,17 @@ const platformMap: Record<string, string> = {
   linux: "X11; Linux x86_64",
 };
 
-const chromeVersion = "138.0.7204.251";
+/**
+ * SEC-1: Chromium version of the bundled Electron (44.9.0). Used only when
+ * not running inside Electron (unit tests); update it with Electron.
+ */
+export const FALLBACK_CHROME_VERSION = "152.0.7977.167";
+
+/**
+ * SEC-1: the Chromium version Electron is really running, so sites see a
+ * current Chrome and the user agent cannot fall behind after an upgrade.
+ */
+const chromeVersion = process.versions.chrome || FALLBACK_CHROME_VERSION;
 
 /** Approximate the user agent for this platform */
 export function getUserAgent() {
