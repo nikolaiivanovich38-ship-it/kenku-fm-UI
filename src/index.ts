@@ -3,17 +3,19 @@ import {
   app,
   BrowserWindow,
   components,
-  session,
   shell,
   ipcMain,
   powerSaveBlocker,
 } from "electron";
 import "./menu";
 import icon from "./assets/icon.png";
-import { getMalformedUserAgent, getUserAgent } from "./main/userAgent";
+import { getUserAgent } from "./main/userAgent";
 import { SessionManager } from "./main/managers/SessionManager";
 import { runAutoUpdate } from "./autoUpdate";
 import { getSavedBounds, saveWindowBounds } from "./bounds";
+import { openExternalIfAllowed } from "./main/security/externalLinks";
+import { lockAppPage } from "./main/security/navigationGuards";
+import { clearBrowsingData, secureSessions } from "./main/security/sessions";
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
@@ -52,13 +54,14 @@ const createWindow = (): BrowserWindow => {
     mainWindow.maximize();
   }
 
+  // SEC-7/SEC-10: the main window stays on its own page; links it opens go to
+  // the system browser, and only when they are https web addresses.
+  lockAppPage(mainWindow.webContents, "main-window", {
+    onWindowOpen: (url) => openExternalIfAllowed(url, shell.openExternal),
+  });
+
   // and load the index.html of the app.
   mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
-
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url);
-    return { action: "deny" };
-  });
 
   let session = new SessionManager(mainWindow);
 
@@ -89,16 +92,6 @@ const createWindow = (): BrowserWindow => {
   return mainWindow;
 };
 
-const spoofUserAgent = () => {
-  session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
-    // Google blocks sign in on CEF so spoof user agent for network requests
-    details.requestHeaders["User-Agent"] = details.url.includes("google.com")
-      ? getMalformedUserAgent()
-      : getUserAgent();
-    callback({ cancel: false, requestHeaders: details.requestHeaders });
-  });
-};
-
 if (!hasSingleInstanceLock) {
   app.quit();
 } else {
@@ -121,9 +114,11 @@ if (!hasSingleInstanceLock) {
       console.error("components failed to load:", JSON.stringify(e, null, 2));
     }
 
-    window = createWindow();
+    // SEC-3: permission handlers and user-agent rewrite for the app session
+    // and the website-tab session, before any page loads.
+    secureSessions();
 
-    spoofUserAgent();
+    window = createWindow();
 
     if (hasWidevineError) {
       window.once("ready-to-show", () => {
@@ -170,10 +165,5 @@ if (!hasSingleInstanceLock) {
     event.returnValue = os.platform();
   });
 
-  ipcMain.handle("CLEAR_CACHE", async () => {
-    await session.defaultSession.clearCache();
-    await session.defaultSession.clearStorageData({
-      storages: ["cookies", "shadercache", "cachestorage"],
-    });
-  });
+  ipcMain.handle("CLEAR_CACHE", () => clearBrowsingData());
 }

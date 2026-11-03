@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
@@ -11,6 +11,10 @@ import { Bookmark, editBookmark } from "./bookmarksSlice";
 
 import { getDropURL } from "../../common/drop";
 import { showWindowControls } from "../../common/showWindowControls";
+import {
+  checkTypedTabUrl,
+  isRefused,
+} from "../../../common/security/urlPolicy";
 
 type BookmarkSettingsProps = {
   bookmark: Bookmark;
@@ -18,22 +22,40 @@ type BookmarkSettingsProps = {
   onClose: () => void;
 };
 
+/**
+ * Edit a bookmark's address and name.
+ * SEC-6: the address is edited locally and saved on "Done" only when it
+ * passes the shared tab URL policy; otherwise the dialog stays open with a
+ * plain-language message. Closing the dialog another way keeps the last
+ * saved address.
+ */
 export function BookmarkSettings({
   bookmark,
   open,
   onClose,
 }: BookmarkSettingsProps) {
   const dispatch = useDispatch();
+  const [url, setUrl] = useState(bookmark.url);
+  const [urlError, setUrlError] = useState<string>();
+
+  useEffect(() => {
+    if (open) {
+      setUrl(bookmark.url);
+      setUrlError(undefined);
+    }
+  }, [open, bookmark.url]);
 
   function handleURLChange(event: React.ChangeEvent<HTMLInputElement>) {
-    dispatch(editBookmark({ id: bookmark.id, url: event.target.value }));
+    setUrl(event.target.value);
+    setUrlError(undefined);
   }
 
   function handleURLDrop(event: React.DragEvent<HTMLInputElement>) {
     event.preventDefault();
-    const url = getDropURL(event.dataTransfer);
-    if (url) {
-      dispatch(editBookmark({ id: bookmark.id, url }));
+    const droppedUrl = getDropURL(event.dataTransfer);
+    if (droppedUrl) {
+      setUrl(droppedUrl);
+      setUrlError(undefined);
     }
   }
 
@@ -47,6 +69,14 @@ export function BookmarkSettings({
 
   function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
+    const check = checkTypedTabUrl(url);
+    if (isRefused(check)) {
+      setUrlError(check.reason);
+      return;
+    }
+    if (check.url !== bookmark.url) {
+      dispatch(editBookmark({ id: bookmark.id, url: check.url }));
+    }
     handleClose();
   }
 
@@ -81,9 +111,12 @@ export function BookmarkSettings({
             InputLabelProps={{
               shrink: true,
             }}
-            value={bookmark.url}
+            value={url}
             onChange={handleURLChange}
             onDrop={handleURLDrop}
+            error={Boolean(urlError)}
+            helperText={urlError}
+            FormHelperTextProps={{ role: "alert" }}
           />
           <TextField
             margin="dense"
