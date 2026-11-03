@@ -13,8 +13,20 @@ const state = vi.hoisted(() => {
     openExternal: undefined as unknown as Mock,
     secureSessions: undefined as unknown as Mock,
     clearBrowsingData: undefined as unknown as Mock,
+    startupCalls: [] as string[],
+    showMessageBoxSync: undefined as unknown as Mock,
   };
 });
+
+// FND-1: the migration module moves the data folder on import; here it only
+// records when the carry-over runs.
+vi.mock("./main/migration", () => ({
+  runDataCarryOver: vi.fn(() => {
+    state.startupCalls.push("carry-over");
+    return { status: "copied", errors: [] as unknown[] };
+  }),
+  getDataCarryOverResult: () => ({ status: "copied", errors: [] as unknown[] }),
+}));
 
 vi.mock("electron", async () => {
   const { EventEmitter } = await import("events");
@@ -47,9 +59,13 @@ vi.mock("electron", async () => {
       clearStorageData: vi.fn(),
     },
   };
+  state.showMessageBoxSync = vi.fn();
   return {
     app: {
-      requestSingleInstanceLock: () => true,
+      requestSingleInstanceLock: () => {
+        state.startupCalls.push("single-instance-lock");
+        return true;
+      },
       whenReady: () => Promise.resolve(),
       on: vi.fn(),
       quit: vi.fn(),
@@ -58,6 +74,7 @@ vi.mock("electron", async () => {
     },
     BrowserWindow,
     components: { whenReady: () => Promise.resolve(), status: () => ({}) },
+    dialog: { showMessageBoxSync: state.showMessageBoxSync },
     session,
     shell: { openExternal: state.openExternal },
     ipcMain: {
@@ -103,6 +120,17 @@ type FakeWindow = {
   };
 };
 const mainWindow = () => state.windows[0] as FakeWindow;
+
+describe("start-up order (FND-1)", () => {
+  it("copies the Kenku FM library only after taking the single-instance lock, before any window", () => {
+    expect(state.startupCalls).toEqual(["single-instance-lock", "carry-over"]);
+    expect(state.windows).toHaveLength(1);
+  });
+
+  it("does not interrupt start-up when the library was copied", () => {
+    expect(state.showMessageBoxSync).not.toHaveBeenCalled();
+  });
+});
 
 describe("main window (SEC-10, SEC-7, SEC-3)", () => {
   it("opens https links from the main window in the system browser", () => {

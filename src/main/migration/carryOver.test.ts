@@ -2,7 +2,14 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { carryOverLegacyData, describeCarryOver, MARKER_FILE_NAME } from "./carryOver";
+import {
+  carryOverLegacyData,
+  describeCarryOver,
+  isLockFileHeld,
+  LEGACY_APP_RUNNING_MESSAGE,
+  MARKER_FILE_NAME,
+  type LockFileIo,
+} from "./carryOver";
 
 let root: string;
 let source: string;
@@ -157,6 +164,81 @@ describe("carryOverLegacyData (FND-1 data carry-over)", () => {
     expect(describeCarryOver(result)).toContain("could not be copied");
   });
 
+  it("does not write the marker after a failure, so the next start tries again", () => {
+    makeOldKenkuFolder();
+    const realCopy = fs.copyFileSync;
+    const copy = vi.spyOn(fs, "copyFileSync").mockImplementation((from, to, mode) => {
+      if (String(from).endsWith("CURRENT")) {
+        throw Object.assign(new Error("EBUSY: resource busy or locked"), { code: "EBUSY" });
+      }
+      return realCopy(from, to, mode);
+    });
+
+    expect(carryOverLegacyData(source, dest).status).toBe("failed");
+    expect(fs.existsSync(path.join(dest, MARKER_FILE_NAME))).toBe(false);
+
+    copy.mockRestore();
+    const retry = carryOverLegacyData(source, dest);
+
+    expect(retry.status).toBe("copied");
+    expect(retry.copiedItems).toEqual(["Local Storage"]);
+    expect(read(path.join(dest, "Local Storage", "leveldb", "CURRENT"))).toBe("MANIFEST-000001");
+    expect(JSON.parse(read(path.join(dest, MARKER_FILE_NAME))).status).toBe("copied");
+  });
+
+  it("waits while Kenku FM is running: copies nothing, writes no marker and says what to do", () => {
+    makeOldKenkuFolder();
+    const isLegacyAppRunning = vi.fn(() => true);
+
+    const result = carryOverLegacyData(source, dest, { isLegacyAppRunning });
+
+    expect(isLegacyAppRunning).toHaveBeenCalledWith(source);
+    expect(result.status).toBe("legacy-app-running");
+    expect(result.reason).toBe(
+      "Kenku FM is still running. Close it and restart Cue Desk to bring your library across.",
+    );
+    expect(describeCarryOver(result)).toBe(LEGACY_APP_RUNNING_MESSAGE);
+    expect(result.copiedItems).toEqual([]);
+    expect(fs.existsSync(path.join(dest, MARKER_FILE_NAME))).toBe(false);
+    expect(fs.existsSync(path.join(dest, "config.json"))).toBe(false);
+
+    const afterClosing = carryOverLegacyData(source, dest, { isLegacyAppRunning: () => false });
+    expect(afterClosing.status).toBe("copied");
+  });
+
+  it("by default treats a held Local Storage LOCK file as Kenku FM running (Windows refuses to open it)", () => {
+    makeOldKenkuFolder();
+    const lockFile = path.join(source, "Local Storage", "leveldb", "LOCK");
+    const realOpen = fs.openSync;
+    vi.spyOn(fs, "openSync").mockImplementation((file, flags, mode) => {
+      if (String(file) === lockFile) {
+        throw Object.assign(new Error("EBUSY: resource busy or locked"), { code: "EBUSY" });
+      }
+      return realOpen(file, flags, mode);
+    });
+
+    expect(carryOverLegacyData(source, dest).status).toBe("legacy-app-running");
+  });
+
+  it("does not check for a running Kenku FM when there is nothing to copy", () => {
+    const isLegacyAppRunning = vi.fn(() => true);
+    expect(carryOverLegacyData(source, dest, { isLegacyAppRunning }).status).toBe("no-old-data");
+    expect(isLegacyAppRunning).not.toHaveBeenCalled();
+  });
+
+  it("keeps folder names only in the marker file, never full paths (they contain the Windows user name)", () => {
+    makeOldKenkuFolder();
+    carryOverLegacyData(source, dest);
+    const text = read(path.join(dest, MARKER_FILE_NAME));
+    expect(text).not.toContain(root);
+    expect(JSON.parse(text)).toMatchObject({
+      status: "copied",
+      sourceFolder: "Kenku FM",
+      destFolder: "cue-desk",
+      copiedItems: ["Local Storage", "Session Storage", "config.json"],
+    });
+  });
+
   it("never throws, even when the destination cannot be created", () => {
     makeOldKenkuFolder();
     write(dest, "a file where the folder should be");
@@ -183,5 +265,36 @@ describe("carryOverLegacyData (FND-1 data carry-over)", () => {
       /^Your Kenku FM library was copied into this app .*Kenku FM itself was not changed\.$/,
     );
     expect(describeCarryOver(carryOverLegacyData(source, dest))).toContain("already happened");
+  });
+});
+
+describe("isLockFileHeld (FND-1: is Kenku FM running?)", () => {
+  const failWith = (code: string) => () => {
+    throw Object.assign(new Error(code), { code });
+  };
+  function io(overrides: Partial<LockFileIo> = {}): LockFileIo {
+    return { openSync: vi.fn(() => 7), readSync: vi.fn(() => 0), closeSync: vi.fn(), ...overrides };
+  }
+
+  it.each(["EBUSY", "EPERM", "EACCES"])("is true when opening the lock file fails with %s", (code) => {
+    const fake = io({ openSync: vi.fn(failWith(code)) });
+    expect(isLockFileHeld("/x/LOCK", fake)).toBe(true);
+    expect(fake.openSync).toHaveBeenCalledWith("/x/LOCK", "r+");
+  });
+
+  it("is true when the file opens but its contents are locked (Windows byte-range lock)", () => {
+    const fake = io({ readSync: vi.fn(failWith("EBUSY")) });
+    expect(isLockFileHeld("/x/LOCK", fake)).toBe(true);
+    expect(fake.closeSync).toHaveBeenCalledWith(7);
+  });
+
+  it("is false when there is no lock file", () => {
+    expect(isLockFileHeld("/x/LOCK", io({ openSync: vi.fn(failWith("ENOENT")) }))).toBe(false);
+  });
+
+  it("is false when the lock file opens and reads, and closes it again without writing", () => {
+    const fake = io();
+    expect(isLockFileHeld("/x/LOCK", fake)).toBe(false);
+    expect(fake.closeSync).toHaveBeenCalledWith(7);
   });
 });

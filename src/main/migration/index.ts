@@ -3,10 +3,13 @@
  *
  * Importing this module moves the app's data folder to
  * `<appData>/cue-desk` (see appIdentity.json). That has to happen before any
- * other module asks Electron for the data folder (electron-store in bounds.ts
- * does so as soon as it is imported), so `src/index.ts` imports this module
- * first. Keeping the folder name apart from the display name means a later
- * rename does not move anyone's library.
+ * other module asks Electron for the data folder, so `src/index.ts` imports
+ * this module first. Keeping the folder name apart from the display name means
+ * a later rename does not move anyone's library.
+ *
+ * The copy itself does not run on import: `src/main/startup.ts` calls
+ * `runDataCarryOver` after the Windows installer check and the
+ * single-instance lock, before any window or settings file is created.
  */
 import path from "path";
 import { app } from "electron";
@@ -52,21 +55,23 @@ let lastResult: CarryOverResult | null = null;
 
 /**
  * Copy the Kenku FM library into this app's data folder the first time the app
- * starts. Must run before any window or session is created. Logs and returns
- * the result so the main window can tell the user later.
+ * starts. Must run in the primary instance only, before any window, session or
+ * settings file is created. Logs and returns the result.
  */
 export function runDataCarryOver(): CarryOverResult {
   lastResult = carryOverLegacyData(folders.legacyUserData, folders.userData);
   const message = `[data carry-over] ${describeCarryOver(lastResult)}`;
   if (lastResult.status === "failed") {
     console.error(message, lastResult.errors);
+  } else if (lastResult.status === "legacy-app-running") {
+    console.warn(message);
   } else {
     console.info(message);
   }
   return lastResult;
 }
 
-/** The result of this start's carry-over, or null if it has not run. For a future notice in the UI. */
+/** The result of this start's carry-over, or null if it has not run (for the start-up prompt and a future notice in the UI). */
 export function getDataCarryOverResult(): CarryOverResult | null {
   return lastResult;
 }
