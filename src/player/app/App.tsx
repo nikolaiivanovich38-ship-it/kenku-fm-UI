@@ -1,8 +1,6 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback } from "react";
 
 import styled from "@mui/material/styles/styled";
-import Snackbar from "@mui/material/Snackbar";
-import Alert from "@mui/material/Alert";
 
 import { Routes, Route } from "react-router-dom";
 
@@ -21,6 +19,7 @@ import { Soundboard } from "../features/soundboards/Soundboard";
 import { useSoundboardPlayback } from "../features/soundboards/useSoundboardPlayback";
 import { SoundboardRemote } from "../features/soundboards/SoundboardRemote";
 import { SoundboardPlaybackSync } from "../features/soundboards/SoundboardPlaybackSync";
+import { NotificationProvider, useNotify } from "../common/notifications";
 
 const WallPaper = styled("div")({
   position: "fixed",
@@ -34,11 +33,22 @@ const WallPaper = styled("div")({
 });
 
 export function App() {
-  const [errorMessage, setErrorMessage] = useState<string>();
+  return (
+    <NotificationProvider>
+      <PlayerApp />
+    </NotificationProvider>
+  );
+}
 
-  const handleError = useCallback((message: string) => {
-    setErrorMessage(message);
-  }, []);
+function PlayerApp() {
+  const notify = useNotify();
+
+  const handleError = useCallback(
+    (message: string) => {
+      notify({ severity: "error", message });
+    },
+    [notify]
+  );
 
   const playlist = usePlaylistPlayback(handleError);
   const soundboard = useSoundboardPlayback(handleError);
@@ -97,14 +107,6 @@ export function App() {
       />
       <SoundboardRemote onPlay={soundboard.play} onStop={soundboard.stop} />
       <SoundboardPlaybackSync onSync={soundboard.sync} />
-      <Snackbar
-        open={Boolean(errorMessage)}
-        autoHideDuration={4000}
-        onClose={() => setErrorMessage(undefined)}
-        anchorOrigin={{ vertical: "top", horizontal: "center" }}
-      >
-        <Alert severity="error">{errorMessage}</Alert>
-      </Snackbar>
     </>
   );
 }
