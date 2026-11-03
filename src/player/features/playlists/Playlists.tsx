@@ -31,8 +31,13 @@ import { RootState } from "../../app/store";
 import { movePlaylist, Track, addPlaylist, addTracks } from "./playlistsSlice";
 import { PlaylistAdd } from "./PlaylistAdd";
 import { SortableItem } from "../../common/SortableItem";
-import { startQueue } from "./playlistPlaybackSlice";
 import { useFolderDrop } from "../../common/useFolderDrop";
+import { useNotify } from "../../common/notifications";
+import {
+  foldersWithAudio,
+  IMPORT_FAILED_MESSAGE,
+  summariseImport,
+} from "../../common/importSummary";
 import { getRandomBackground } from "../../backgrounds";
 import { useHideScrollbar } from "../../../renderer/common/useHideScrollbar";
 import { useNavigate } from "react-router-dom";
@@ -85,24 +90,24 @@ export function Playlists({ onPlay }: PlaylistsProps) {
 
   const [addOpen, setAddOpen] = useState(false);
 
+  const notify = useNotify();
   const { dragging, containerListeners, overlayListeners } = useFolderDrop(
-    (directories) => {
-      for (let directory of Object.values(directories)) {
-        const files = directory.audioFiles;
-        if (files.length > 0 && directory.path !== "/") {
-          const id = uuid();
-          dispatch(
-            addPlaylist({
-              id,
-              background: getRandomBackground(),
-              title: directory.name,
-              tracks: [],
-            })
-          );
-          dispatch(addTracks({ tracks: files, playlistId: id }));
-        }
+    (directories, result) => {
+      for (const directory of foldersWithAudio(directories)) {
+        const id = uuid();
+        dispatch(
+          addPlaylist({
+            id,
+            background: getRandomBackground(),
+            title: directory.name,
+            tracks: [],
+          })
+        );
+        dispatch(addTracks({ tracks: directory.audioFiles, playlistId: id }));
       }
-    }
+      notify(summariseImport(result, "playlists"));
+    },
+    () => notify({ severity: "error", message: IMPORT_FAILED_MESSAGE })
   );
 
   const scrollRef = useRef<HTMLDivElement>(null);

@@ -18,6 +18,8 @@ import Typography from "@mui/material/Typography";
 import { RootState } from "../../app/store";
 import { backgrounds, isBackground } from "../../backgrounds";
 import { useFolderDrop } from "../../common/useFolderDrop";
+import { useNotify } from "../../common/notifications";
+import { IMPORT_FAILED_MESSAGE, summariseImport } from "../../common/importSummary";
 import { addTracksToQueueIfNeeded, startQueue } from "./playlistPlaybackSlice";
 import { PlaylistSettings } from "./PlaylistSettings";
 import { addTracks, removePlaylist, Track } from "./playlistsSlice";
@@ -72,26 +74,31 @@ export function Playlist({ onPlay }: PlaylistProps) {
   function handleTrackPlay(trackId: string) {
     const track = playlists.tracks[trackId];
     if (track) {
-      let tracks = [...playlist.tracks];
+      const tracks = [...playlist.tracks];
       dispatch(startQueue({ tracks, trackId, playlistId: playlist.id }));
       onPlay(track);
     }
   }
 
+  const notify = useNotify();
   const { dragging, containerListeners, overlayListeners } = useFolderDrop(
-    (directories) => {
+    (directories, result) => {
       const tracks: Track[] = [];
-      for (let directory of Object.values(directories)) {
+      for (const directory of Object.values(directories)) {
         tracks.push(...directory.audioFiles);
       }
-      dispatch(addTracks({ tracks, playlistId: playlist.id }));
-      dispatch(
-        addTracksToQueueIfNeeded({
-          playlistId: playlist.id,
-          trackIds: tracks.map((track) => track.id),
-        }),
-      );
+      if (tracks.length > 0) {
+        dispatch(addTracks({ tracks, playlistId: playlist.id }));
+        dispatch(
+          addTracksToQueueIfNeeded({
+            playlistId: playlist.id,
+            trackIds: tracks.map((track) => track.id),
+          }),
+        );
+      }
+      notify(summariseImport(result, "playlist"));
     },
+    () => notify({ severity: "error", message: IMPORT_FAILED_MESSAGE }),
   );
 
   return (

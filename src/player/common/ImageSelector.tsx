@@ -17,6 +17,8 @@ import Typography from "@mui/material/Typography";
 import { encodeFilePath, getDropURL } from "../../renderer/common/drop";
 import { backgrounds } from "../backgrounds";
 import useFileDrop, { FileInfo } from "./useFileDrop";
+import { imageFileType } from "./fileTypes";
+import { useNotify } from "./notifications";
 
 const ImageListButton = styled("img")({
   userSelect: "none",
@@ -37,16 +39,25 @@ export function ImageSelector({ value, onChange }: ImageSelectorProps) {
     hasCustomImage ? "custom" : "default"
   );
 
-  const onDrop = useCallback((acceptedFiles: FileInfo[]) => {
-    const file = acceptedFiles[0];
-    if (file) {
-      onChange(encodeFilePath(file.path));
-    }
-  }, []);
+  const notify = useNotify();
+  const onDrop = useCallback(
+    (acceptedFiles: FileInfo[], rejectedNames: string[]) => {
+      const file = acceptedFiles[0];
+      if (file) {
+        onChange(encodeFilePath(file.path));
+      } else if (rejectedNames.length > 0) {
+        notify({
+          severity: "info",
+          message: `"${rejectedNames[0]}" isn't an image. Choose a PNG, JPG, GIF or WEBP file.`,
+        });
+      }
+    },
+    [onChange, notify]
+  );
 
   const { rootProps, inputProps, isDragging } = useFileDrop({
     onDrop,
-    accept: "image/*",
+    fileType: imageFileType,
     multiple: false,
   });
 
