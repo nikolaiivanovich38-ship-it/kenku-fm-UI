@@ -1,5 +1,17 @@
-import { BrowserWindow, ipcMain, shell, WebContentsView } from "electron";
+import { BrowserWindow, ipcMain, WebContentsView } from "electron";
 import { getUserAgent } from "../userAgent";
+import { checkTabUrl, isRefused } from "../../common/security/urlPolicy";
+import { guardTabNavigation, lockAppPage } from "../security/navigationGuards";
+import { TAB_PARTITION } from "../security/partitions";
+import { createRateLimiter, POPUP_LIMIT } from "../security/popupRateLimiter";
+import { trustedContents } from "../security/trustedContents";
+import { classifyViewRequest } from "../security/viewKind";
+
+declare const PLAYER_WINDOW_WEBPACK_ENTRY: string;
+declare const PLAYER_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
+
+/** Returned to the renderer instead of a view id when a view request is refused. */
+export const REFUSED_VIEW_ID = -1;
 
 /**
  * Manager to help create and manager browser views
@@ -10,6 +22,8 @@ export class BrowserViewManagerMain {
   window: BrowserWindow;
   views: Record<number, WebContentsView>;
   topView: WebContentsView;
+  /** SEC-6: limits how fast a page can turn popups into new tabs. */
+  private popupLimiter = createRateLimiter<number>(POPUP_LIMIT);
 
   constructor(window: BrowserWindow) {
     this.window = window;
@@ -94,6 +108,10 @@ export class BrowserViewManagerMain {
     preload?: string
   ) => {
     const id = this.createBrowserView(url, x, y, width, height, preload);
+    if (id === REFUSED_VIEW_ID) {
+      event.returnValue = id;
+      return;
+    }
     this.views[id].webContents.on(
       "did-start-navigation",
       (_, url, __, isMainFrame) => {
@@ -114,10 +132,23 @@ export class BrowserViewManagerMain {
     this.views[id].webContents.on("media-paused", () => {
       event.reply("BROWSER_VIEW_MEDIA_PAUSED", id);
     });
-    this.views[id].webContents.setWindowOpenHandler(({ url }) => {
-      event.reply("BROWSER_VIEW_NEW_TAB", url);
-      return { action: "deny" };
-    });
+    if (trustedContents.roleOf(this.views[id].webContents) === "player-view") {
+      // SEC-7: the player view is pinned to its page; links it opens with
+      // target="_blank" (help pages) still become ordinary tabs.
+      lockAppPage(this.views[id].webContents, "player-view", {
+        onWindowOpen: (url) => {
+          const check = checkTabUrl(url);
+          if (!isRefused(check)) {
+            event.reply("BROWSER_VIEW_NEW_TAB", check.url);
+          }
+        },
+      });
+    } else {
+      this.views[id].webContents.setWindowOpenHandler(({ url }) => {
+        this._openPopupAsTab(event, id, url);
+        return { action: "deny" };
+      });
+    }
 
     let loaded = false;
     this.views[id].webContents.on("did-finish-load", () => {
@@ -128,6 +159,28 @@ export class BrowserViewManagerMain {
     });
     event.returnValue = id;
   };
+
+  /**
+   * SEC-6: a page called window.open. Open the address as a new tab only if
+   * it passes the tab URL policy and the page is not flooding us with popups.
+   */
+  _openPopupAsTab(event: Electron.IpcMainEvent, viewId: number, url: string) {
+    const check = checkTabUrl(url);
+    if (isRefused(check)) {
+      console.warn(`Blocked popup from tab ${viewId}: ${check.reason}`);
+      return;
+    }
+    if (!this.popupLimiter.tryAcquire(viewId)) {
+      console.warn(`Blocked popup from tab ${viewId}: too many popups`);
+      return;
+    }
+    event.reply("BROWSER_VIEW_NEW_TAB", check.url);
+  }
+
+  /** Tell the user, in the main window, why a page was not opened. */
+  _reportRefusedUrl(reason: string) {
+    this.window.webContents.send("ERROR", `That page was not opened. ${reason}`);
+  }
 
   _handleRemoveBrowserView = (_: Electron.IpcMainEvent, id: number) =>
     this.removeBrowserView(id);
@@ -160,10 +213,13 @@ export class BrowserViewManagerMain {
   _handleReload = (_: Electron.IpcMainEvent, id: number) => this.reload(id);
 
   /**
-   * Create a new browser view and attach it to the current window
+   * Create a new browser view and attach it to the current window.
+   * SEC-3/SEC-6: website tabs (no preload) get their own storage partition,
+   * no preload, navigation guards and the tab URL policy. A preload is only
+   * accepted for the Kenku player page itself, which is registered as trusted.
    * @param url Initial URL
    * @param xOffset Offset from the left side of the screen
-   * @returns id of the created window
+   * @returns id of the created view, or `REFUSED_VIEW_ID`
    */
   createBrowserView(
     url: string,
@@ -173,11 +229,24 @@ export class BrowserViewManagerMain {
     height: number,
     preload?: string
   ): number {
-    const view = new WebContentsView({
-      webPreferences: {
-        preload,
-      },
+    const kind = classifyViewRequest(url, preload, {
+      url: PLAYER_WINDOW_WEBPACK_ENTRY,
+      preload: PLAYER_WINDOW_PRELOAD_WEBPACK_ENTRY,
     });
+    if (kind === "refused") {
+      console.error("Refused to create a view with an unknown preload script");
+      return REFUSED_VIEW_ID;
+    }
+
+    const view = new WebContentsView({
+      webPreferences:
+        kind === "player" ? { preload } : { partition: TAB_PARTITION },
+    });
+    if (kind === "player") {
+      trustedContents.trust(view.webContents, "player-view");
+    } else {
+      guardTabNavigation(view.webContents);
+    }
     this.window.contentView.addChildView(view);
 
     view.setBounds({
@@ -187,10 +256,10 @@ export class BrowserViewManagerMain {
       height,
     });
 
-    try {
-      view.webContents.loadURL(url);
-    } catch (err) {
-      console.error(err);
+    if (kind === "player") {
+      this._load(view, url);
+    } else {
+      this._loadTabUrl(view, url);
     }
 
     // Spoof user agent to fix compatibility issues with 3rd party apps
@@ -203,6 +272,7 @@ export class BrowserViewManagerMain {
   }
 
   removeBrowserView(id: number) {
+    this.popupLimiter.forget(id);
     if (this.views[id]) {
       if (this.topView === this.views[id]) {
         this.topView = undefined;
@@ -220,6 +290,7 @@ export class BrowserViewManagerMain {
       this.window.contentView.removeChildView(this.views[id]);
       (this.views[id].webContents as any).destroy();
       this.topView = undefined;
+      this.popupLimiter.forget(Number(id));
       delete this.views[id];
     }
   }
@@ -254,9 +325,40 @@ export class BrowserViewManagerMain {
     }
   }
 
+  /**
+   * Load an address typed or chosen by the user in an existing tab.
+   * SEC-6/SEC-7: only website tabs can be redirected, and only to addresses
+   * the tab URL policy allows; the player view stays on its own page.
+   */
   loadURL(id: number, url: string) {
+    const view = this.views[id];
+    if (!view) {
+      return;
+    }
+    if (trustedContents.roleOf(view.webContents) !== null) {
+      console.warn("Refused to load a different page in the Kenku player");
+      return;
+    }
+    this._loadTabUrl(view, url);
+  }
+
+  /** Load `url` in a website tab if the tab URL policy allows it; an empty URL leaves a blank tab. */
+  _loadTabUrl(view: WebContentsView, url: string) {
+    if (typeof url !== "string" || url.trim() === "") {
+      return;
+    }
+    const check = checkTabUrl(url);
+    if (isRefused(check)) {
+      console.warn(`Blocked tab address: ${check.reason}`);
+      this._reportRefusedUrl(check.reason);
+      return;
+    }
+    this._load(view, check.url);
+  }
+
+  _load(view: WebContentsView, url: string) {
     try {
-      this.views[id].webContents.loadURL(url);
+      view.webContents.loadURL(url).catch((err) => console.error(err));
     } catch (err) {
       console.error(err);
     }
