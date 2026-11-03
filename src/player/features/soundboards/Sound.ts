@@ -11,131 +11,215 @@ type SoundOptions = {
   src: string;
   volume: number;
   loop: boolean;
+  /** Fade-in length in ms when the sound starts (and on each cross-faded loop). 0 = none. */
   fadeIn: number;
+  /** Fade-out length in ms before the end, on stop, and the cross-fade length for loops. 0 = none. */
   fadeOut: number;
 };
 
 /**
- * Cross fade wrapper around a Howler sound playback.
- * Setting fadeIn and fadeOut to 0 will disable cross fading.
- * If cross fading is disabled then HTML5 audio won't be used
- * this increases the memory usage but allows for perfect loops.
+ * One soundboard sound, wrapping Howler with fades and loops.
+ *
+ * - `fadeIn > 0`: every start fades from silence to the sound's volume (BUG-3).
+ * - `fadeOut > 0`: the sound fades out `fadeOut` ms before its end. When looping,
+ *   a new Howl is started at that point and the two cross-fade. This needs HTML5
+ *   audio, so separate Howl instances can overlap.
+ * - `fadeOut = 0`: Web Audio is used and Howler loops natively, so loops are gapless;
+ *   `fadeIn` then applies only to the first start.
+ *
+ * At most two Howl instances exist per sound: the current one and, during a
+ * loop cross-fade, the outgoing one, which is unloaded when its fade ends (BUG-4).
  */
 export class Sound extends TypedEmitter<SoundEvents> {
   options: SoundOptions;
-  /** Timeout that controls the cross-fade */
-  _timeout: NodeJS.Timeout;
-  /** Current howl audio playabck for this loop */
-  _howl: Howl;
+  /** Timer for the next fade-out / loop cross-fade point. */
+  _timeout?: ReturnType<typeof setTimeout>;
+  /** Howl playing the current loop iteration. Undefined only if Howler failed to start. */
+  _howl?: Howl;
+  /** Howl fading out during a loop cross-fade; unloaded when its fade ends. */
+  _outgoing?: Howl;
+  /** Set once stop() has been called, so late Howler events do not restart anything. */
+  private stopped = false;
 
   constructor(options: SoundOptions) {
     super();
     this.options = options;
     try {
-      const createHowlerInstance = () => {
-        const crossFade =
-          this.options.fadeIn !== 0 && this.options.fadeOut !== 0;
-        const howl = new Howl({
-          ...this.options,
-          loop: crossFade ? false : this.options.loop,
-          volume: crossFade ? 0 : this.options.volume,
-          autoplay: true,
-          // Disable html audio when not cross fading to allow for perfect looping
-          html5: crossFade,
-        });
-
-        const handleCrossFade = () => {
-          // Fade in
-          howl.fade(0, this.options.volume, options.fadeIn);
-          // Fade out
-          this._timeout = setTimeout(() => {
-            if (this.options.loop) {
-              // Cross fade on loop
-              howl.once("fade", () => {
-                howl.stop();
-              });
-              howl.fade(howl.volume(), 0, this.options.fadeOut);
-              createHowlerInstance();
-            } else {
-              // Basic fade out when not looping
-              howl.fade(howl.volume(), 0, this.options.fadeOut);
-            }
-          }, Math.floor(howl.duration() * 1000) - this.options.fadeOut);
-        };
-
-        const handleLoad = () => {
-          this.emit("load", howl.duration());
-        };
-
-        const handleEnd = () => {
-          if (!this.options.loop) {
-            this.emit("end");
-          }
-        };
-
-        const handleError = () => {
-          this.emit("error");
-        };
-
-        if (crossFade) {
-          howl.on("play", handleCrossFade);
-        }
-        howl.on("load", handleLoad);
-        howl.on("end", handleEnd);
-        howl.on("loaderror", handleError);
-        howl.on("playerror", handleError);
-
-        const howlSound = (howl as any)._sounds[0];
-        if (!howlSound) {
-          handleError();
-        }
-
-        this._howl = howl;
-      };
-      createHowlerInstance();
+      this._howl = this.createHowl();
     } catch {
-      this.emit("error");
+      this.reportErrorLater();
     }
   }
 
   async stop(fadeOut: boolean): Promise<void> {
+    this.stopped = true;
+    this.clearFadeOutTimer();
+    const howl = this._howl;
+    // Howler never emits "fade" for a fade from 0 to 0, so a silent sound is unloaded at once.
+    if (
+      !fadeOut ||
+      this.options.fadeOut <= 0 ||
+      !howl?.playing() ||
+      howl.volume() <= 0
+    ) {
+      this.unloadAll();
+      return;
+    }
     return new Promise((resolve) => {
-      clearTimeout(this._timeout);
-      if (fadeOut) {
-        this._howl.once("fade", () => {
-          this._howl.unload();
-          resolve();
-        });
-        this._howl.fade(this._howl.volume(), 0, this.options.fadeOut);
-      } else {
-        this._howl.unload();
+      howl.fade(howl.volume(), 0, this.options.fadeOut);
+      // Listen after calling fade(): Howler emits "fade" for a fade-in that the
+      // call above interrupts, and that must not end the stop early.
+      howl.once("fade", () => {
+        this.unloadAll();
         resolve();
-      }
+      });
     });
   }
 
   playing() {
-    return this._howl.playing();
+    return this._howl?.playing() ?? false;
   }
 
   progress() {
-    return this._howl.seek();
+    return this._howl?.seek() ?? 0;
   }
 
+  /** Jump to `to` seconds and move the pending fade-out to match (BUG-5). */
   seek(to: number) {
-    this._howl.seek(to);
+    const howl = this._howl;
+    if (!howl) {
+      return;
+    }
+    howl.seek(to);
+    if (this._timeout !== undefined) {
+      this.scheduleFadeOut(howl, to);
+    }
   }
 
   volume(volume: number) {
     this.options.volume = volume;
-    this._howl.volume(volume);
+    this._howl?.volume(volume);
   }
 
   loop(loop: boolean) {
     this.options.loop = loop;
-    // Toggle howl loop if cross fade is disabled
-    if (this.options.fadeIn === 0 && this.options.fadeOut === 0) {
-      this._howl.loop(loop);
+    // Howler only loops by itself when Kenku does not cross-fade the loop.
+    if (this.options.fadeOut <= 0) {
+      this._howl?.loop(loop);
+    }
+  }
+
+  /** Create and autoplay a Howl for one play-through (or a whole native loop). */
+  private createHowl(): Howl {
+    const { fadeIn, fadeOut, loop, volume, src } = this.options;
+    const crossFadeLoops = fadeOut > 0;
+    const howl = new Howl({
+      src,
+      volume: fadeIn > 0 ? 0 : volume,
+      loop: crossFadeLoops ? false : loop,
+      autoplay: true,
+      // HTML5 audio lets two instances overlap for the cross-fade. Without a
+      // fade-out, Web Audio is used, which loops without a gap.
+      html5: crossFadeLoops,
+    });
+
+    // "once": a Web Audio loop emits "play" again on every loop.
+    howl.once("play", () => {
+      if (this.stopped || howl !== this._howl) {
+        return;
+      }
+      if (this.options.fadeIn > 0) {
+        howl.fade(0, this.options.volume, this.options.fadeIn);
+      }
+      this.scheduleFadeOut(howl, howl.seek());
+    });
+    howl.on("load", () => {
+      this.emit("load", howl.duration());
+    });
+    howl.on("end", () => {
+      // The outgoing half of a cross-fade also ends; only the current Howl counts.
+      if (howl === this._howl && !this.options.loop) {
+        this.emit("end");
+      }
+    });
+    howl.on("loaderror", () => this.emitError());
+    howl.on("playerror", () => this.emitError());
+
+    const internals = howl as unknown as { _sounds: unknown[] };
+    if (!internals._sounds[0]) {
+      this.reportErrorLater();
+    }
+    return howl;
+  }
+
+  /** Arm the fade-out timer so it fires `fadeOut` ms before the end, given the position in seconds. */
+  private scheduleFadeOut(howl: Howl, positionSeconds: number) {
+    this.clearFadeOutTimer();
+    if (this.options.fadeOut <= 0) {
+      return;
+    }
+    const remainingMs =
+      Math.floor((howl.duration() - positionSeconds) * 1000) -
+      this.options.fadeOut;
+    this._timeout = setTimeout(
+      () => this.handleFadeOutPoint(howl),
+      Math.max(0, remainingMs),
+    );
+  }
+
+  /** Fade out the current Howl; when looping, start the next iteration so the two cross-fade. */
+  private handleFadeOutPoint(howl: Howl) {
+    this._timeout = undefined;
+    howl.fade(howl.volume(), 0, this.options.fadeOut);
+    if (!this.options.loop) {
+      return;
+    }
+    // Never keep more than one outgoing Howl, even if its fade event was lost.
+    this.releaseOutgoing(this._outgoing);
+    this._outgoing = howl;
+    // Listen after calling fade(), as in stop().
+    howl.once("fade", () => this.releaseOutgoing(howl));
+    try {
+      this._howl = this.createHowl();
+    } catch {
+      this.reportErrorLater();
+    }
+  }
+
+  /** Unload the outgoing Howl if `howl` is still it. */
+  private releaseOutgoing(howl: Howl | undefined) {
+    if (!howl || howl !== this._outgoing) {
+      return;
+    }
+    this._outgoing = undefined;
+    howl.unload();
+  }
+
+  private unloadAll() {
+    this.clearFadeOutTimer();
+    this.releaseOutgoing(this._outgoing);
+    const current = this._howl;
+    this._howl = undefined;
+    current?.unload();
+  }
+
+  private clearFadeOutTimer() {
+    clearTimeout(this._timeout);
+    this._timeout = undefined;
+  }
+
+  /**
+   * Report an error after the caller has had a chance to attach listeners.
+   * Emitting inside the constructor was lost, and an "error" event without a
+   * listener makes EventEmitter throw.
+   */
+  private reportErrorLater() {
+    queueMicrotask(() => this.emitError());
+  }
+
+  private emitError() {
+    if (this.listenerCount("error") > 0) {
+      this.emit("error");
     }
   }
 }
