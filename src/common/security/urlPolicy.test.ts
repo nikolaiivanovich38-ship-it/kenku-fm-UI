@@ -3,6 +3,7 @@ import {
   checkExternalUrl,
   checkTabUrl,
   checkTypedTabUrl,
+  isRefused,
   prependHttp,
 } from "./urlPolicy";
 
@@ -61,7 +62,7 @@ describe("checkTabUrl (SEC-6)", () => {
   ])("rejects non-web scheme %j", (raw) => {
     const result = checkTabUrl(raw);
     expect(result.ok).toBe(false);
-    if (!result.ok) {
+    if (isRefused(result)) {
       expect(result.code).toBe("scheme");
       expect(result.reason).toMatch(/https:\/\/ or http:\/\//);
     }
@@ -110,7 +111,7 @@ describe("checkTabUrl (SEC-6)", () => {
   it("gives plain-language reasons", () => {
     const result = checkTabUrl("garbage here");
     expect(result.ok).toBe(false);
-    if (!result.ok) {
+    if (isRefused(result)) {
       expect(result.reason).toMatch(/web address/i);
     }
   });

@@ -1,4 +1,5 @@
 import { ipcRenderer } from "electron";
+import { toLoopbackWebSocketUrl } from "../../common/security/loopback";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import PCMStream from "./PCMStream.worklet";
@@ -158,7 +159,7 @@ export class AudioCaptureManagerPreload {
     const websocketAddress = await ipcRenderer.invoke(
       "AUDIO_CAPTURE_GET_WEBSOCKET_ADDRESS"
     );
-    this._ws = new WebSocket(`ws://localhost:${websocketAddress.port}`);
+    this._ws = new WebSocket(toLoopbackWebSocketUrl(websocketAddress.port));
     this._ws.addEventListener("close", (event) => {
       ipcRenderer.emit(
         "ERROR",

@@ -39,6 +39,18 @@ const REASONS: Record<UrlRefusalCode, string> = {
   "too-long": "That web address is too long to open.",
 };
 
+/**
+ * True when a check refused the address. Use this rather than `!check.ok`:
+ * the project's TypeScript settings do not narrow on boolean literals.
+ */
+export function isRefused(
+  check: TabUrlCheck | ExternalUrlCheck | ParsedUrl,
+): check is UrlRefusal {
+  return check.ok === false;
+}
+
+type ParsedUrl = { ok: true; url: URL } | UrlRefusal;
+
 function refuse(code: UrlRefusalCode): UrlRefusal {
   return { ok: false, code, reason: REASONS[code] };
 }
@@ -52,7 +64,7 @@ function refuse(code: UrlRefusalCode): UrlRefusal {
 function parseAllowed(
   raw: unknown,
   allowedProtocols: ReadonlySet<string>,
-): { ok: true; url: URL } | UrlRefusal {
+): ParsedUrl {
   if (typeof raw !== "string") {
     return refuse("invalid");
   }
@@ -91,7 +103,7 @@ function parseAllowed(
  */
 export function checkTabUrl(raw: string): TabUrlCheck {
   const result = parseAllowed(raw, TAB_PROTOCOLS);
-  if (!result.ok) {
+  if (isRefused(result)) {
     return result;
   }
   return {
@@ -108,7 +120,7 @@ export function checkTabUrl(raw: string): TabUrlCheck {
  */
 export function checkExternalUrl(raw: string): ExternalUrlCheck {
   const result = parseAllowed(raw, EXTERNAL_PROTOCOLS);
-  if (!result.ok) {
+  if (isRefused(result)) {
     return result;
   }
   return { ok: true, url: result.url.href };

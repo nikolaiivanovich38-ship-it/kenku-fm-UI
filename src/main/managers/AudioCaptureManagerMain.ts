@@ -3,6 +3,8 @@ import { TypedEmitter } from "tiny-typed-emitter";
 import { Readable } from "stream";
 import { WebSocketServer, WebSocket } from "ws";
 import prism from "prism-media";
+import { LOOPBACK_HOST } from "../../common/security/loopback";
+import { lockAppPage } from "../security/navigationGuards";
 
 declare const AUDIO_CAPTURE_WINDOW_WEBPACK_ENTRY: string;
 declare const AUDIO_CAPTURE_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
@@ -10,6 +12,16 @@ declare const AUDIO_CAPTURE_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 interface AudioCaptureManagerEvents {
   streamStart: (stream: Readable) => void;
   streamEnd: () => void;
+}
+
+/**
+ * SEC-2: the socket that carries captured PCM audio from the hidden capture
+ * window to the Discord encoder. Bound to the loopback interface so other
+ * machines on the network cannot connect and inject audio. Port 0 lets the
+ * operating system pick a free port.
+ */
+export function createAudioSocketServer(): WebSocketServer {
+  return new WebSocketServer({ host: LOOPBACK_HOST, port: 0 });
 }
 
 /**
@@ -38,8 +50,9 @@ export class AudioCaptureManagerMain extends TypedEmitter<AudioCaptureManagerEve
       frame: false,
       show: false
     });
+    lockAppPage(this._browserWindow.webContents, "audio-capture");
     this._browserWindow.webContents.loadURL(AUDIO_CAPTURE_WINDOW_WEBPACK_ENTRY);
-    this._wss = new WebSocketServer({ port: 0 });
+    this._wss = createAudioSocketServer();
 
     ipcMain.on("AUDIO_CAPTURE_START", this._handleStart);
     ipcMain.on("AUDIO_CAPTURE_SET_LOOPBACK", this._handleSetLoopback);
