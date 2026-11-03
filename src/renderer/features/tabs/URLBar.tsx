@@ -8,8 +8,8 @@ import ArrowBackRounded from "@mui/icons-material/ArrowBackRounded";
 import ArrowForwardRounded from "@mui/icons-material/ArrowForwardRounded";
 import RefreshRounded from "@mui/icons-material/RefreshRounded";
 
-import { getDropURL } from "../../common/drop";
 import {
+  checkTabUrl,
   checkTypedTabUrl,
   isRefused,
 } from "../../../common/security/urlPolicy";
@@ -26,11 +26,15 @@ type URLBarProps = {
  * Address bar for website tabs.
  * SEC-6: the typed address is checked with the shared tab URL policy (after
  * adding https:// when no scheme was typed); refused addresses are not sent
- * to the main process and a plain-language message is shown instead.
+ * to the main process and a plain-language message is shown instead. Plain
+ * http pages get a "Not secure" hint. Links dropped on the field are inserted
+ * as text by the browser.
  */
 export function URLBar({ viewId, url, onURLChange, disabled }: URLBarProps) {
   const [error, setError] = useState<string>();
   const errorId = useId();
+  const insecureId = useId();
+  const insecure = isInsecurePage(url);
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -46,14 +50,6 @@ export function URLBar({ viewId, url, onURLChange, disabled }: URLBarProps) {
   function handleURLChange(e: React.ChangeEvent<HTMLInputElement>) {
     setError(undefined);
     onURLChange(e.target.value);
-  }
-
-  function handleURLDrop(event: React.DragEvent<HTMLInputElement>) {
-    event.preventDefault();
-    const url = getDropURL(event.dataTransfer);
-    if (url) {
-      onURLChange(url);
-    }
   }
 
   function handleBack() {
@@ -142,16 +138,30 @@ export function URLBar({ viewId, url, onURLChange, disabled }: URLBarProps) {
             }}
             placeholder={disabled ? "" : "Enter a URL"}
             error={hasError}
+            startAdornment={
+              insecure ? (
+                <Typography
+                  id={insecureId}
+                  variant="caption"
+                  color="warning.light"
+                  sx={{ mr: 1, whiteSpace: "nowrap", fontWeight: 500 }}
+                >
+                  Not secure
+                </Typography>
+              ) : undefined
+            }
             inputProps={{
               "aria-label": "Web address",
               "aria-invalid": hasError,
-              "aria-describedby": hasError ? errorId : undefined,
+              "aria-describedby":
+                [hasError && errorId, insecure && insecureId]
+                  .filter(Boolean)
+                  .join(" ") || undefined,
             }}
             value={url}
             fullWidth
             onChange={handleURLChange}
             disabled={disabled}
-            onDrop={handleURLDrop}
           />
         </form>
         <IconButton
@@ -176,4 +186,13 @@ export function URLBar({ viewId, url, onURLChange, disabled }: URLBarProps) {
       )}
     </Stack>
   );
+}
+
+/**
+ * True for a plain http page, which the URL policy allows but flags as
+ * `insecure`: anything sent to it, including passwords, can be read on the way.
+ */
+function isInsecurePage(url: string): boolean {
+  const check = checkTabUrl(url);
+  return !isRefused(check) && check.insecure;
 }

@@ -4,7 +4,9 @@
  * Chromium's default for a file or link dropped on a page is to open it in
  * that page, which would replace a privileged Kenku FM page. Drop zones
  * handle their events before they bubble up to the document, so they keep
- * working; plain text dropped into a text field is also left alone.
+ * working; text and links dropped into a text field are also left alone, so
+ * the browser inserts them as text. A cancelled drag shows the "no drop"
+ * cursor.
  * @returns a function that removes the guard
  */
 export function installDocumentDropGuard(doc: Document): () => void {
@@ -16,6 +18,10 @@ export function installDocumentDropGuard(doc: Document): () => void {
       return;
     }
     event.preventDefault();
+    // Show the "no drop" cursor instead of promising a drop that does nothing.
+    if (dataTransfer) {
+      dataTransfer.dropEffect = "none";
+    }
   };
   doc.addEventListener("dragover", guard);
   doc.addEventListener("drop", guard);
