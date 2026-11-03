@@ -17,6 +17,9 @@ type SoundOptions = {
   fadeOut: number;
 };
 
+/** Extra time after a stop fade-out before the sound is unloaded regardless. */
+const STOP_FADE_GRACE_MS = 1000;
+
 /**
  * One soundboard sound, wrapping Howler with fades and loops.
  *
@@ -66,13 +69,27 @@ export class Sound extends TypedEmitter<SoundEvents> {
       return;
     }
     return new Promise((resolve) => {
+      let finished = false;
+      const finish = () => {
+        if (finished) {
+          return;
+        }
+        finished = true;
+        clearTimeout(safetyTimer);
+        this.unloadAll();
+        resolve();
+      };
+      // An HTML5 Howl reports playing() while play() is still pending. If that
+      // play then fails, Howler never runs the queued fade and never emits
+      // "fade", so stop anyway shortly after the fade should have ended.
+      const safetyTimer = setTimeout(
+        finish,
+        this.options.fadeOut + STOP_FADE_GRACE_MS,
+      );
       howl.fade(howl.volume(), 0, this.options.fadeOut);
       // Listen after calling fade(): Howler emits "fade" for a fade-in that the
       // call above interrupts, and that must not end the stop early.
-      howl.once("fade", () => {
-        this.unloadAll();
-        resolve();
-      });
+      howl.once("fade", finish);
     });
   }
 

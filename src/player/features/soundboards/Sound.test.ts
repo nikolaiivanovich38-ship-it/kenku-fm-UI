@@ -275,6 +275,42 @@ describe("Sound stop", () => {
     expect(howl.unloaded).toBe(true);
   });
 
+  it("stop(true) still unloads and resolves when Howler never reports the fade (play failed)", async () => {
+    // HTML5 audio: playing() is true while play() is pending; if play then
+    // fails, Howler never runs the queued fade and never emits "fade".
+    const sound = createSound({ fadeOut: 500 });
+    const howl = startLatest();
+
+    let resolved = false;
+    const stopped = sound.stop(true).then(() => {
+      resolved = true;
+    });
+    vi.advanceTimersByTime(500 + 999);
+    await Promise.resolve();
+    expect(resolved).toBe(false);
+    expect(howl.unloaded).toBe(false);
+
+    vi.advanceTimersByTime(1);
+    await stopped;
+
+    expect(resolved).toBe(true);
+    expect(howl.unloaded).toBe(true);
+    expect(FakeHowl.alive).toEqual([]);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("stop(true) leaves no timers behind once the fade completes", async () => {
+    const sound = createSound({ fadeOut: 500, loop: true });
+    const howl = startLatest();
+
+    const stopped = sound.stop(true);
+    howl.finishFade();
+    await stopped;
+
+    expect(howl.unloaded).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it("stop(true) at volume 0 unloads at once (Howler never emits fade for a 0 to 0 fade)", async () => {
     const sound = createSound({ fadeOut: 500, volume: 0 });
     const howl = startLatest();
