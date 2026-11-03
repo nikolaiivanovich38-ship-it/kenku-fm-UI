@@ -1,0 +1,96 @@
+# FND-5: build the Windows installer and attach it to a DRAFT GitHub release.
+#
+# Start it by pushing a version tag (for example v0.1.0, matching
+# package.json) or from the Actions tab ("Run workflow"). The quality gate in
+# ci.yml runs first; the build only starts if it passes.
+#
+# Builds are UNSIGNED: no castlabs EVS (Widevine) signature and no Windows
+# code-signing certificate. Windows SmartScreen will warn on first install.
+# Upstream's signed flow is kept in publish/ for later; see docs/DEVELOPING.md.
+#
+# The draft stays invisible to users and to automatic updates until the
+# product owner publishes it after docs/RELEASE_CHECKLIST.md is complete.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: Quality gate
+    uses: ./.github/workflows/ci.yml
+
+  windows:
+    name: Windows x64 installer
+    needs: gate
+    runs-on: windows-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js 22
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22.x"
+          cache: "yarn"
+      - name: Read the version from package.json
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Check the tag matches package.json
+        if: github.ref_type == 'tag'
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+          EXPECTED: ${{ steps.version.outputs.tag }}
+        run: |
+          if [ "$TAG" != "$EXPECTED" ]; then
+            echo "::error::The tag $TAG does not match the version in package.json ($EXPECTED). Change one of them so they match, then tag again."
+            exit 1
+          fi
+      - name: Install dependencies (exactly as locked)
+        run: yarn install --frozen-lockfile --non-interactive
+      - name: Build installer and zip
+        run: yarn make --arch=x64
+      - name: Collect release files and checksums
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          Copy-Item out/make/squirrel.windows/x64/* release/
+          Copy-Item out/make/zip/win32/x64/*.zip release/
+          Get-ChildItem release -File |
+            ForEach-Object { "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name } |
+            Set-Content -Encoding ascii release/SHA256SUMS.txt
+          Get-ChildItem release
+      # Assets needed by update.electronjs.org: RELEASES, the .nupkg it names
+      # and a file whose name contains "-win32-x64" (the setup .exe).
+      - name: Attach to a draft release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: ${{ steps.version.outputs.tag }}
+          draft: true
+          prerelease: false
+          fail_on_unmatched_files: true
+          files: release/*
+          body: |
+            Windows installer: download the file ending in `-win32-x64-setup.exe` and run it.
+            The build is not code-signed yet, so Windows may show "Windows protected your PC";
+            choose "More info", then "Run anyway".
+            What changed: see CHANGELOG.md. File checksums: SHA256SUMS.txt.
