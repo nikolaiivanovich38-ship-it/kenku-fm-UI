@@ -3,6 +3,13 @@ import WebSocket from "ws";
 import type { AddressInfo } from "net";
 import { AudioCaptureManagerMain } from "./AudioCaptureManagerMain";
 import { trustedContents } from "../security/trustedContents";
+import {
+  fakeIpcMain,
+  fakePage,
+  fromMainFrame,
+  fromSubframe,
+  type FakePage,
+} from "../security/testing/fakeIpc";
 
 vi.hoisted(() => {
   Object.assign(globalThis, {
@@ -11,14 +18,16 @@ vi.hoisted(() => {
   });
 });
 
-const handlers = vi.hoisted(
-  () => new Map<string, (...args: unknown[]) => unknown>(),
-);
+const windowOptions = vi.hoisted(() => [] as Record<string, unknown>[]);
+const pages = vi.hoisted(() => new Map<number, unknown>());
 
 vi.mock("electron", async () => {
   const { EventEmitter } = await import("events");
+  const { fakeIpcMain } = await import("../security/testing/fakeIpc");
   class FakeWebContents extends EventEmitter {
     id = 42;
+    mainFrame = { frameTreeNodeId: 420 };
+    isDestroyed = () => false;
     loadURL = vi.fn().mockResolvedValue(undefined);
     getURL = () => "file:///app/audio_capture_window/index.html";
     send = vi.fn();
@@ -28,17 +37,14 @@ vi.mock("electron", async () => {
   }
   class BrowserWindow {
     webContents = new FakeWebContents();
+    constructor(options: Record<string, unknown>) {
+      windowOptions.push(options);
+    }
   }
   return {
     BrowserWindow,
-    webContents: { fromId: vi.fn() },
-    ipcMain: {
-      on: vi.fn(),
-      off: vi.fn(),
-      handle: (channel: string, handler: (...args: unknown[]) => unknown) =>
-        handlers.set(channel, handler),
-      removeHandler: vi.fn(),
-    },
+    webContents: { fromId: (id: number) => pages.get(id) },
+    ipcMain: fakeIpcMain,
   };
 });
 
@@ -46,7 +52,20 @@ let manager: InstanceType<typeof AudioCaptureManagerMain> | undefined;
 afterEach(() => {
   manager?.destroy();
   manager = undefined;
+  fakeIpcMain.reset();
+  pages.clear();
+  windowOptions.length = 0;
 });
+
+/** The hidden capture window's page, as seen by IPC. */
+function capturePage(m: AudioCaptureManagerMain) {
+  return m._browserWindow.webContents as unknown as FakePage;
+}
+
+/** Messages the main process forwarded to the hidden capture window. */
+function sentToCapture(m: AudioCaptureManagerMain) {
+  return (capturePage(m).send as unknown as ReturnType<typeof vi.fn>).mock.calls;
+}
 
 async function listening(m: InstanceType<typeof AudioCaptureManagerMain>) {
   if (!m._wss.address()) {
@@ -66,7 +85,10 @@ describe("AudioCaptureManagerMain audio socket (SEC-2)", () => {
   it("hands the capture window a loopback address it can connect to", async () => {
     manager = new AudioCaptureManagerMain();
     await listening(manager);
-    const address = (await handlers.get("AUDIO_CAPTURE_GET_WEBSOCKET_ADDRESS")?.()) as AddressInfo;
+    const address = (await fakeIpcMain.invoke(
+      "AUDIO_CAPTURE_GET_WEBSOCKET_ADDRESS",
+      fromMainFrame(capturePage(manager)),
+    )) as AddressInfo;
     expect(address.address).toBe("127.0.0.1");
 
     const client = new WebSocket(`ws://127.0.0.1:${address.port}`);
@@ -80,5 +102,118 @@ describe("AudioCaptureManagerMain audio socket (SEC-2)", () => {
   it("registers the capture window as a trusted page", async () => {
     manager = new AudioCaptureManagerMain();
     expect(trustedContents.roleOf(manager._browserWindow.webContents)).toBe("audio-capture");
+  });
+});
+
+describe("AudioCaptureManagerMain: who may send (SEC-8)", () => {
+  it("forwards capture commands from the main window", () => {
+    manager = new AudioCaptureManagerMain();
+    const main = fakePage("main-window");
+    fakeIpcMain.deliver("AUDIO_CAPTURE_SET_MUTED", fromMainFrame(main), 7, true);
+    fakeIpcMain.deliver("AUDIO_CAPTURE_START", fromMainFrame(main), "performance");
+    expect(sentToCapture(manager)).toEqual([
+      ["AUDIO_CAPTURE_BROWSER_VIEW_MUTED", 7, true],
+      ["AUDIO_CAPTURE_START", "performance"],
+    ]);
+  });
+
+  it("ignores capture commands from a website tab, an embedded frame or the player", () => {
+    manager = new AudioCaptureManagerMain();
+    for (const event of [
+      fromMainFrame(fakePage(null)),
+      fromSubframe(fakePage("main-window")),
+      fromMainFrame(fakePage("player-view")),
+    ]) {
+      fakeIpcMain.deliver("AUDIO_CAPTURE_SET_LOOPBACK", event, true);
+      fakeIpcMain.deliver("AUDIO_CAPTURE_START_EXTERNAL_AUDIO_CAPTURE", event, "mic");
+    }
+    expect(sentToCapture(manager)).toEqual([]);
+  });
+
+  it("ignores capture commands with the wrong argument types", () => {
+    manager = new AudioCaptureManagerMain();
+    const main = fromMainFrame(fakePage("main-window"));
+    fakeIpcMain.deliver("AUDIO_CAPTURE_SET_LOOPBACK", main, "true");
+    fakeIpcMain.deliver("AUDIO_CAPTURE_SET_MUTED", main, "7", true);
+    fakeIpcMain.deliver("AUDIO_CAPTURE_START", main, "fast");
+    expect(sentToCapture(manager)).toEqual([]);
+  });
+
+  it("hands the socket address to the capture window only", async () => {
+    manager = new AudioCaptureManagerMain();
+    await expect(
+      fakeIpcMain.invoke("AUDIO_CAPTURE_GET_WEBSOCKET_ADDRESS", fromMainFrame(fakePage("main-window"))),
+    ).rejects.toThrow();
+    await expect(
+      fakeIpcMain.invoke("AUDIO_CAPTURE_GET_WEBSOCKET_ADDRESS", fromMainFrame(fakePage(null))),
+    ).rejects.toThrow();
+  });
+
+  it("starts the Discord stream only when the capture window asks", () => {
+    manager = new AudioCaptureManagerMain();
+    const started = vi.fn();
+    manager.on("streamStart", started);
+    fakeIpcMain.deliver("AUDIO_CAPTURE_STREAM_START", fromMainFrame(fakePage("main-window")), 2, 960, 48000);
+    fakeIpcMain.deliver("AUDIO_CAPTURE_STREAM_START", fromMainFrame(capturePage(manager)), "2", 960, 48000);
+    expect(started).not.toHaveBeenCalled();
+    fakeIpcMain.deliver("AUDIO_CAPTURE_STREAM_START", fromMainFrame(capturePage(manager)), 2, 960, 48000);
+    expect(started).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops listening when destroyed", () => {
+    manager = new AudioCaptureManagerMain();
+    manager.destroy();
+    manager = undefined;
+    expect(fakeIpcMain.eventNames()).toEqual([]);
+    expect(fakeIpcMain.handlers.size).toBe(0);
+  });
+});
+
+describe("AudioCaptureManagerMain: tab audio streams", () => {
+  it("starts capturing a tab that exists", () => {
+    manager = new AudioCaptureManagerMain();
+    const tab = fakePage(null);
+    pages.set(tab.id, tab);
+    fakeIpcMain.deliver("AUDIO_CAPTURE_START_BROWSER_VIEW_STREAM", fromMainFrame(fakePage("main-window")), tab.id);
+    expect(tab.getMediaSourceId).toHaveBeenCalledWith(capturePage(manager));
+    expect(sentToCapture(manager)).toEqual([
+      ["AUDIO_CAPTURE_START_BROWSER_VIEW_STREAM", tab.id, `media-source-${tab.id}`],
+    ]);
+  });
+
+  it("does not throw for an unknown or closed tab", () => {
+    manager = new AudioCaptureManagerMain();
+    const closed = fakePage(null);
+    closed.destroyed = true;
+    pages.set(closed.id, closed);
+    const main = fromMainFrame(fakePage("main-window"));
+    expect(() =>
+      fakeIpcMain.deliver("AUDIO_CAPTURE_START_BROWSER_VIEW_STREAM", main, 123456),
+    ).not.toThrow();
+    expect(() =>
+      fakeIpcMain.deliver("AUDIO_CAPTURE_START_BROWSER_VIEW_STREAM", main, closed.id),
+    ).not.toThrow();
+    expect(sentToCapture(manager)).toEqual([]);
+  });
+
+  it("stops every tab stream when the main window removes all views", () => {
+    manager = new AudioCaptureManagerMain();
+    fakeIpcMain.deliver(
+      "AUDIO_CAPTURE_STOP_ALL_BROWSER_VIEW_STREAMS",
+      fromMainFrame(fakePage("main-window")),
+    );
+    expect(sentToCapture(manager)).toEqual([["AUDIO_CAPTURE_STOP_ALL_BROWSER_VIEW_STREAMS"]]);
+  });
+});
+
+describe("AudioCaptureManagerMain: capture window isolation (SEC-12)", () => {
+  it("runs the capture window sandboxed with context isolation and no Node", () => {
+    manager = new AudioCaptureManagerMain();
+    const prefs = windowOptions[0].webPreferences as Record<string, unknown>;
+    expect(prefs.sandbox).toBe(true);
+    expect(prefs.contextIsolation).toBe(true);
+    expect(prefs.nodeIntegration).toBe(false);
+    expect(prefs.preload).toBe("/app/audio_capture_window/preload.js");
+    expect(windowOptions[0].show).toBe(false);
   });
 });

@@ -4,6 +4,7 @@ import { Readable } from "stream";
 import { WebSocketServer, WebSocket } from "ws";
 import prism from "prism-media";
 import { LOOPBACK_HOST } from "../../common/security/loopback";
+import { guardIpc } from "../security/ipcGuard";
 import { lockAppPage } from "../security/navigationGuards";
 
 declare const AUDIO_CAPTURE_WINDOW_WEBPACK_ENTRY: string;
@@ -34,17 +35,21 @@ export class AudioCaptureManagerMain extends TypedEmitter<AudioCaptureManagerEve
   _encoder?: prism.opus.Encoder;
   _wss: WebSocketServer;
 
+  /** SEC-8: message listeners that only accept the app's own pages. */
+  private _ipc = guardIpc(ipcMain);
+
   constructor() {
     super();
     this._browserWindow = new BrowserWindow({
       webPreferences: {
         preload: AUDIO_CAPTURE_WINDOW_PRELOAD_WEBPACK_ENTRY,
-        // Disable sandbox for the audio capture window
-        // This allows us to use a web worker in the preload script
-        // https://github.com/electron/forge/issues/2931
-        // This has little security concerns as we don't load any third party
-        // content in the capture window
-        sandbox: false,
+        // SEC-12: the capture preload needs only `ipcRenderer` and browser
+        // audio APIs (the PCM worklet is bundled and loaded from a blob: URL),
+        // so it runs sandboxed like the other app pages. Forge already builds
+        // every preload in this app for the sandbox (no nodeIntegration).
+        sandbox: true,
+        contextIsolation: true,
+        nodeIntegration: false,
       },
       minimizable: false,
       frame: false,
@@ -54,58 +59,25 @@ export class AudioCaptureManagerMain extends TypedEmitter<AudioCaptureManagerEve
     this._browserWindow.webContents.loadURL(AUDIO_CAPTURE_WINDOW_WEBPACK_ENTRY);
     this._wss = createAudioSocketServer();
 
-    ipcMain.on("AUDIO_CAPTURE_START", this._handleStart);
-    ipcMain.on("AUDIO_CAPTURE_SET_LOOPBACK", this._handleSetLoopback);
-    ipcMain.on("AUDIO_CAPTURE_SET_MUTED", this._handleSetMuted);
-    ipcMain.on(
-      "AUDIO_CAPTURE_START_EXTERNAL_AUDIO_CAPTURE",
-      this._handleStartExternalAudioCapture
-    );
-    ipcMain.on(
-      "AUDIO_CAPTURE_STOP_EXTERNAL_AUDIO_CAPTURE",
-      this._handleStopExternalAudioCapture
-    );
-    ipcMain.on("AUDIO_CAPTURE_STREAM_START", this._handleStreamStart);
-    ipcMain.on("AUDIO_CAPTURE_STREAM_END", this._handleStreamEnd);
-    ipcMain.handle(
-      "AUDIO_CAPTURE_GET_WEBSOCKET_ADDRESS",
-      this._handleGetWebsocketAddress
-    );
-    ipcMain.on(
-      "AUDIO_CAPTURE_START_BROWSER_VIEW_STREAM",
-      this._handleStartBrowserViewStream
-    );
-    ipcMain.on(
-      "AUDIO_CAPTURE_STOP_BROWSER_VIEW_STREAM",
-      this._handleStopBrowserViewStream
-    );
+    // SEC-8: commands from the main window.
+    this._ipc.on("AUDIO_CAPTURE_START", this._handleStart);
+    this._ipc.on("AUDIO_CAPTURE_SET_LOOPBACK", this._handleSetLoopback);
+    this._ipc.on("AUDIO_CAPTURE_SET_MUTED", this._handleSetMuted);
+    this._ipc.on("AUDIO_CAPTURE_START_EXTERNAL_AUDIO_CAPTURE", this._handleStartExternalAudioCapture);
+    this._ipc.on("AUDIO_CAPTURE_STOP_EXTERNAL_AUDIO_CAPTURE", this._handleStopExternalAudioCapture);
+    this._ipc.on("AUDIO_CAPTURE_START_BROWSER_VIEW_STREAM", this._handleStartBrowserViewStream);
+    this._ipc.on("AUDIO_CAPTURE_STOP_BROWSER_VIEW_STREAM", this._handleStopBrowserViewStream);
+    this._ipc.on("AUDIO_CAPTURE_STOP_ALL_BROWSER_VIEW_STREAMS", this._handleStopAllBrowserViewStreams);
+    // SEC-8: messages from the hidden capture window.
+    this._ipc.on("AUDIO_CAPTURE_STREAM_START", this._handleStreamStart);
+    this._ipc.on("AUDIO_CAPTURE_STREAM_END", this._handleStreamEnd);
+    this._ipc.handle("AUDIO_CAPTURE_GET_WEBSOCKET_ADDRESS", this._handleGetWebsocketAddress);
 
     this._wss.on("connection", this._handleWebsocketConnection);
   }
 
   destroy() {
-    ipcMain.off("AUDIO_CAPTURE_START", this._handleStart);
-    ipcMain.off("AUDIO_CAPTURE_SET_LOOPBACK", this._handleSetLoopback);
-    ipcMain.off("AUDIO_CAPTURE_SET_MUTED", this._handleSetMuted);
-    ipcMain.off(
-      "AUDIO_CAPTURE_START_EXTERNAL_AUDIO_CAPTURE",
-      this._handleStartExternalAudioCapture
-    );
-    ipcMain.off(
-      "AUDIO_CAPTURE_STOP_EXTERNAL_AUDIO_CAPTURE",
-      this._handleStopExternalAudioCapture
-    );
-    ipcMain.off("AUDIO_CAPTURE_STREAM_START", this._handleStreamStart);
-    ipcMain.off("AUDIO_CAPTURE_STREAM_END", this._handleStreamEnd);
-    ipcMain.removeHandler("AUDIO_CAPTURE_GET_WEBSOCKET_ADDRESS");
-    ipcMain.off(
-      "AUDIO_CAPTURE_START_BROWSER_VIEW_STREAM",
-      this._handleStartBrowserViewStream
-    );
-    ipcMain.off(
-      "AUDIO_CAPTURE_STOP_BROWSER_VIEW_STREAM",
-      this._handleStopBrowserViewStream
-    );
+    this._ipc.dispose();
     this._browserWindow.webContents.close();
     (this._browserWindow.webContents as any).destroy();
     this._handleStreamEnd();
@@ -193,14 +165,25 @@ export class AudioCaptureManagerMain extends TypedEmitter<AudioCaptureManagerEve
     return this._wss.address();
   };
 
+  /**
+   * Start capturing a view's audio. SEC-8: a view that no longer exists
+   * (closed before it finished loading, or an unknown id) is ignored.
+   */
   _handleStartBrowserViewStream = (
     _: Electron.IpcMainEvent,
     viewId: number
   ) => {
     const contents = webContents.fromId(viewId);
-    const mediaSourceId = contents.getMediaSourceId(
-      this._browserWindow.webContents
-    );
+    if (!contents || contents.isDestroyed()) {
+      return;
+    }
+    let mediaSourceId: string;
+    try {
+      mediaSourceId = contents.getMediaSourceId(this._browserWindow.webContents);
+    } catch (err) {
+      console.error(`Unable to capture audio from view ${viewId}`, err);
+      return;
+    }
     this._browserWindow.webContents.send(
       "AUDIO_CAPTURE_START_BROWSER_VIEW_STREAM",
       viewId,
@@ -212,6 +195,17 @@ export class AudioCaptureManagerMain extends TypedEmitter<AudioCaptureManagerEve
     this._browserWindow.webContents.send(
       "AUDIO_CAPTURE_STOP_BROWSER_VIEW_STREAM",
       viewId
+    );
+  };
+
+  /**
+   * The main window removed every view (for example after an error): stop
+   * capturing all of their audio. Previously this message had no handler, so
+   * the streams kept running.
+   */
+  _handleStopAllBrowserViewStreams = () => {
+    this._browserWindow.webContents.send(
+      "AUDIO_CAPTURE_STOP_ALL_BROWSER_VIEW_STREAMS"
     );
   };
 }

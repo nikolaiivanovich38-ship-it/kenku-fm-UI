@@ -1,6 +1,8 @@
 import { BrowserWindow, ipcMain, WebContentsView } from "electron";
 import { getUserAgent } from "../userAgent";
 import { checkTabUrl, isRefused } from "../../common/security/urlPolicy";
+import { guardIpc } from "../security/ipcGuard";
+import { PLAYER_VIEW_KIND, REFUSED_VIEW_ID } from "../security/ipcChannels";
 import { guardTabNavigation, lockAppPage } from "../security/navigationGuards";
 import { TAB_PARTITION } from "../security/partitions";
 import { createRateLimiter, POPUP_LIMIT } from "../security/popupRateLimiter";
@@ -10,8 +12,7 @@ import { classifyViewRequest } from "../security/viewKind";
 declare const PLAYER_WINDOW_WEBPACK_ENTRY: string;
 declare const PLAYER_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 
-/** Returned to the renderer instead of a view id when a view request is refused. */
-export const REFUSED_VIEW_ID = -1;
+export { REFUSED_VIEW_ID };
 
 /**
  * Manager to help create and manager browser views
@@ -24,61 +25,30 @@ export class BrowserViewManagerMain {
   topView: WebContentsView;
   /** SEC-6: limits how fast a page can turn popups into new tabs. */
   private popupLimiter = createRateLimiter<number>(POPUP_LIMIT);
+  /** SEC-8: message listeners that only accept the main window. */
+  private ipc = guardIpc(ipcMain);
 
   constructor(window: BrowserWindow) {
     this.window = window;
     this.views = {};
 
-    ipcMain.on(
-      "BROWSER_VIEW_CREATE_BROWSER_VIEW",
-      this._handleCreateBrowserView
-    );
-    ipcMain.on(
-      "BROWSER_VIEW_REMOVE_BROWSER_VIEW",
-      this._handleRemoveBrowserView
-    );
-    ipcMain.on(
-      "BROWSER_VIEW_REMOVE_ALL_BROWSER_VIEWS",
-      this._handleRemoveAllBrowserViews
-    );
-    ipcMain.on("BROWSER_VIEW_HIDE_BROWSER_VIEW", this._handleHideBrowserView);
-    ipcMain.on("BROWSER_VIEW_SHOW_BROWSER_VIEW", this._handleShowBrowserView);
-    ipcMain.on(
-      "BROWSER_VIEW_SET_BROWSER_VIEW_BOUNDS",
-      this._handleSetBrowserViewBounds
-    );
-    ipcMain.on("BROWSER_VIEW_LOAD_URL", this._handleLoadURL);
-    ipcMain.on("BROWSER_VIEW_GO_FORWARD", this._handleGoForward);
-    ipcMain.on("BROWSER_VIEW_GO_BACK", this._handleGoBack);
-    ipcMain.on("BROWSER_VIEW_RELOAD", this._handleReload);
+    // SEC-8: only the main window's own page may manage views.
+    this.ipc.on("BROWSER_VIEW_CREATE_BROWSER_VIEW", this._handleCreateBrowserView);
+    this.ipc.on("BROWSER_VIEW_REMOVE_BROWSER_VIEW", this._handleRemoveBrowserView);
+    this.ipc.on("BROWSER_VIEW_REMOVE_ALL_BROWSER_VIEWS", this._handleRemoveAllBrowserViews);
+    this.ipc.on("BROWSER_VIEW_HIDE_BROWSER_VIEW", this._handleHideBrowserView);
+    this.ipc.on("BROWSER_VIEW_SHOW_BROWSER_VIEW", this._handleShowBrowserView);
+    this.ipc.on("BROWSER_VIEW_SET_BROWSER_VIEW_BOUNDS", this._handleSetBrowserViewBounds);
+    this.ipc.on("BROWSER_VIEW_LOAD_URL", this._handleLoadURL);
+    this.ipc.on("BROWSER_VIEW_GO_FORWARD", this._handleGoForward);
+    this.ipc.on("BROWSER_VIEW_GO_BACK", this._handleGoBack);
+    this.ipc.on("BROWSER_VIEW_RELOAD", this._handleReload);
 
     this.window.on("resize", this._resizeListener);
   }
 
   destroy() {
-    ipcMain.off(
-      "BROWSER_VIEW_CREATE_BROWSER_VIEW",
-      this._handleCreateBrowserView
-    );
-    ipcMain.off(
-      "BROWSER_VIEW_REMOVE_BROWSER_VIEW",
-      this._handleRemoveBrowserView
-    );
-    ipcMain.off(
-      "BROWSER_VIEW_REMOVE_ALL_BROWSER_VIEWS",
-      this._handleRemoveAllBrowserViews
-    );
-    ipcMain.off("BROWSER_VIEW_HIDE_BROWSER_VIEW", this._handleHideBrowserView);
-    ipcMain.off("BROWSER_VIEW_SHOW_BROWSER_VIEW", this._handleShowBrowserView);
-    ipcMain.off(
-      "BROWSER_VIEW_SET_BROWSER_VIEW_BOUNDS",
-      this._handleSetBrowserViewBounds
-    );
-    ipcMain.off("BROWSER_VIEW_LOAD_URL", this._handleLoadURL);
-    ipcMain.off("BROWSER_VIEW_GO_FORWARD", this._handleGoForward);
-    ipcMain.off("BROWSER_VIEW_GO_BACK", this._handleGoBack);
-    ipcMain.off("BROWSER_VIEW_RELOAD", this._handleReload);
-
+    this.ipc.dispose();
     this.window.off("resize", this._resizeListener);
     this.removeAllBrowserViews();
   }
@@ -105,9 +75,9 @@ export class BrowserViewManagerMain {
     y: number,
     width: number,
     height: number,
-    preload?: string
+    kind?: typeof PLAYER_VIEW_KIND
   ) => {
-    const id = this.createBrowserView(url, x, y, width, height, preload);
+    const id = this.createBrowserView(url, x, y, width, height, kind);
     if (id === REFUSED_VIEW_ID) {
       event.returnValue = id;
       return;
@@ -214,11 +184,13 @@ export class BrowserViewManagerMain {
 
   /**
    * Create a new browser view and attach it to the current window.
-   * SEC-3/SEC-6: website tabs (no preload) get their own storage partition,
-   * no preload, navigation guards and the tab URL policy. A preload is only
-   * accepted for the Kenku player page itself, which is registered as trusted.
+   * SEC-3/SEC-6: website tabs get their own storage partition, no preload,
+   * navigation guards and the tab URL policy.
+   * SEC-8: the renderer asks for the Kenku player with the kind "player"; the
+   * main process chooses the player's preload itself, and only for the
+   * player's own page, which is registered as trusted.
    * @param url Initial URL
-   * @param xOffset Offset from the left side of the screen
+   * @param requestedKind `PLAYER_VIEW_KIND` for the Kenku player, undefined for a website tab
    * @returns id of the created view, or `REFUSED_VIEW_ID`
    */
   createBrowserView(
@@ -227,20 +199,19 @@ export class BrowserViewManagerMain {
     y: number,
     width: number,
     height: number,
-    preload?: string
+    requestedKind?: typeof PLAYER_VIEW_KIND
   ): number {
-    const kind = classifyViewRequest(url, preload, {
-      url: PLAYER_WINDOW_WEBPACK_ENTRY,
-      preload: PLAYER_WINDOW_PRELOAD_WEBPACK_ENTRY,
-    });
+    const kind = classifyViewRequest(url, requestedKind, PLAYER_WINDOW_WEBPACK_ENTRY);
     if (kind === "refused") {
-      console.error("Refused to create a view with an unknown preload script");
+      console.error("Refused to create a view of an unknown kind");
       return REFUSED_VIEW_ID;
     }
 
     const view = new WebContentsView({
       webPreferences:
-        kind === "player" ? { preload } : { partition: TAB_PARTITION },
+        kind === "player"
+          ? { preload: PLAYER_WINDOW_PRELOAD_WEBPACK_ENTRY }
+          : { partition: TAB_PARTITION },
     });
     if (kind === "player") {
       trustedContents.trust(view.webContents, "player-view");

@@ -1,18 +1,20 @@
 import { BrowserWindow, ipcMain } from "electron";
+import { guardIpc } from "../security/ipcGuard";
 
 export class WindowManager {
   window: BrowserWindow;
+  /** SEC-8: message listeners that only accept the main window. */
+  private ipc = guardIpc(ipcMain);
+
   constructor(window: BrowserWindow) {
     this.window = window;
-    ipcMain.on("WINDOW_TOGGLE_MAXIMIZE", this._handleToggleMaximize);
-    ipcMain.on("WINDOW_MINIMIZE", this._handleMinimize);
-    ipcMain.on("WINDOW_CLOSE", this._handleClose);
+    this.ipc.on("WINDOW_TOGGLE_MAXIMIZE", this._handleToggleMaximize);
+    this.ipc.on("WINDOW_MINIMIZE", this._handleMinimize);
+    this.ipc.on("WINDOW_CLOSE", this._handleClose);
   }
 
   destroy() {
-    ipcMain.off("WINDOW_TOGGLE_MAXIMIZE", this._handleToggleMaximize);
-    ipcMain.off("WINDOW_MINIMIZE", this._handleMinimize);
-    ipcMain.off("WINDOW_CLOSE", this._handleClose);
+    this.ipc.dispose();
   }
 
   _handleToggleMaximize = (_: Electron.IpcMainEvent) => this.toggleMaximize();

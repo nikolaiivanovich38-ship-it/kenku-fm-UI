@@ -1,31 +1,24 @@
 /**
- * SEC-3: decide what kind of view the main window is asking to create.
+ * SEC-3 / SEC-8: decide what kind of view the main window is asking to create.
  *
- * The renderer passes a URL and, for the Kenku player only, a preload script
- * path. A preload script has privileged access, so it is accepted only when
- * both the page and the script are exactly the player's own webpack entries.
+ * The main window passes a URL and, for the Kenku player only, the kind token
+ * "player". It never passes a script path: the main process picks the
+ * player's preload itself, so a page can never choose which privileged script
+ * runs. The player kind is accepted only together with the player's own page.
  */
-export type ViewKind = "player" | "tab" | "refused";
+import { PLAYER_VIEW_KIND } from "./ipcChannels";
 
-export interface PlayerEntry {
-  url: string | undefined;
-  preload: string | undefined;
-}
+export type ViewKind = "player" | "tab" | "refused";
 
 export function classifyViewRequest(
   url: string,
-  preload: string | undefined,
-  player: PlayerEntry,
+  requestedKind: unknown,
+  playerUrl: string | undefined,
 ): ViewKind {
-  if (!preload) {
+  if (requestedKind === undefined) {
     return "tab";
   }
-  if (
-    player.url !== undefined &&
-    player.preload !== undefined &&
-    url === player.url &&
-    preload === player.preload
-  ) {
+  if (requestedKind === PLAYER_VIEW_KIND && playerUrl !== undefined && url === playerUrl) {
     return "player";
   }
   return "refused";

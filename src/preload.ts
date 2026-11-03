@@ -1,6 +1,9 @@
 import { contextBridge, ipcRenderer } from "electron";
 
-import { BrowserViewManagerPreload } from "./preload/managers/BrowserViewManagerPreload";
+import {
+  BrowserViewKind,
+  BrowserViewManagerPreload,
+} from "./preload/managers/BrowserViewManagerPreload";
 
 const viewManager = new BrowserViewManagerPreload();
 
@@ -69,7 +72,7 @@ const api = {
     y: number,
     width: number,
     height: number,
-    preload?: string,
+    kind?: BrowserViewKind,
   ): Promise<number> => {
     const viewId = await viewManager.createBrowserView(
       url,
@@ -77,7 +80,7 @@ const api = {
       y,
       width,
       height,
-      preload,
+      kind,
     );
     return viewId;
   },

@@ -22,7 +22,7 @@ export function PlayerTab() {
         bounds.y,
         bounds.width,
         bounds.height,
-        player.tab.preload
+        "player"
       );
       window.kenku.playerRegisterView(id);
       dispatch(setPlayerId(id));

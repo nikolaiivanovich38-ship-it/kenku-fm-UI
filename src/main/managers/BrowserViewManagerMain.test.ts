@@ -3,6 +3,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BrowserViewManagerMain } from "./BrowserViewManagerMain";
 import { trustedContents } from "../security/trustedContents";
 import { TAB_PARTITION } from "../security/partitions";
+import {
+  fakeIpcMain,
+  fakePage,
+  fromMainFrame,
+  fromSubframe,
+} from "../security/testing/fakeIpc";
 
 const { PLAYER_URL, PLAYER_PRELOAD } = vi.hoisted(() => {
   const entries = {
@@ -46,7 +52,8 @@ class FakeWebContents extends EventEmitter {
   navigationHistory = { goBack: vi.fn(), goForward: vi.fn() };
 }
 
-vi.mock("electron", () => {
+vi.mock("electron", async () => {
+  const { fakeIpcMain } = await import("../security/testing/fakeIpc");
   class WebContentsView {
     webContents = new FakeWebContents();
     constructor(public options: { webPreferences?: Record<string, unknown> }) {
@@ -56,7 +63,7 @@ vi.mock("electron", () => {
     getBounds = () => ({ x: 0, y: 0, width: 100, height: 100 });
   }
   return {
-    ipcMain: { on: vi.fn(), off: vi.fn() },
+    ipcMain: fakeIpcMain,
     shell: { openExternal: vi.fn().mockResolvedValue(undefined) },
     WebContentsView,
   };
@@ -72,20 +79,29 @@ function fakeWindow() {
   };
 }
 
-function fakeCreateEvent() {
-  return { reply: vi.fn(), returnValue: undefined as unknown };
-}
-
 function setup() {
   const window = fakeWindow();
   const manager = new BrowserViewManagerMain(window as never);
-  const create = (url: string, preload?: string) => {
-    const event = fakeCreateEvent();
-    manager._handleCreateBrowserView(event as never, url, 0, 0, 100, 100, preload);
-    const view = created[created.length - 1];
+  const mainWindow = fakePage("main-window");
+  const create = (url: string, kind?: string) => {
+    const before = created.length;
+    const event = fakeIpcMain.deliver(
+      "BROWSER_VIEW_CREATE_BROWSER_VIEW",
+      fromMainFrame(mainWindow),
+      url,
+      0,
+      0,
+      100,
+      100,
+      ...(kind === undefined ? [] : [kind]),
+    );
+    const view = created.length > before ? created[created.length - 1] : undefined;
     return { event, view, id: event.returnValue as number };
   };
-  return { window, manager, create };
+  /** Send a message on `channel` as the main window would. */
+  const send = (channel: string, ...args: unknown[]) =>
+    fakeIpcMain.deliver(channel, fromMainFrame(mainWindow), ...args);
+  return { window, manager, mainWindow, create, send };
 }
 
 function sentErrors(window: ReturnType<typeof fakeWindow>) {
@@ -94,6 +110,7 @@ function sentErrors(window: ReturnType<typeof fakeWindow>) {
 
 beforeEach(() => {
   created.length = 0;
+  fakeIpcMain.reset();
 });
 
 describe("BrowserViewManagerMain: tab URL policy (SEC-6)", () => {
@@ -114,10 +131,10 @@ describe("BrowserViewManagerMain: tab URL policy (SEC-6)", () => {
   );
 
   it("refuses to load a disallowed address in an existing tab", () => {
-    const { create, manager, window } = setup();
+    const { create, send, window } = setup();
     const { view, id } = create("https://example.com/");
     view.webContents.loadURL.mockClear();
-    manager._handleLoadURL({} as never, id, "file:///C:/Windows/win.ini");
+    send("BROWSER_VIEW_LOAD_URL", id, "file:///C:/Windows/win.ini");
     expect(view.webContents.loadURL).not.toHaveBeenCalled();
     expect(sentErrors(window)).toHaveLength(1);
   });
@@ -147,7 +164,7 @@ describe("BrowserViewManagerMain: tab URL policy (SEC-6)", () => {
 });
 
 describe("BrowserViewManagerMain: popups (SEC-6)", () => {
-  function newTabRequests(window: ReturnType<typeof fakeWindow>, event: ReturnType<typeof fakeCreateEvent>) {
+  function newTabRequests(window: ReturnType<typeof fakeWindow>, event: { reply: ReturnType<typeof vi.fn> }) {
     return [
       ...window.webContents.send.mock.calls,
       ...event.reply.mock.calls,
@@ -194,16 +211,16 @@ describe("BrowserViewManagerMain: isolation (SEC-3)", () => {
 
   it("registers the Kenku player view as trusted and keeps it in the app session", () => {
     const { create } = setup();
-    const { view } = create(PLAYER_URL, PLAYER_PRELOAD);
+    const { view } = create(PLAYER_URL, "player");
     expect(view.options.webPreferences?.preload).toBe(PLAYER_PRELOAD);
     expect(view.options.webPreferences?.partition).toBeUndefined();
     expect(trustedContents.roleOf(view.webContents)).toBe("player-view");
   });
 
-  it("refuses an unknown preload script", () => {
+  it("refuses a preload script path from the renderer, even the player's own (SEC-8)", () => {
     const { create } = setup();
-    const { id } = create("https://evil.example/", "/tmp/evil.js");
-    expect(id).toBe(-1);
+    expect(create("https://evil.example/", "/tmp/evil.js").id).toBe(-1);
+    expect(create(PLAYER_URL, PLAYER_PRELOAD).id).toBe(-1);
     expect(created).toHaveLength(0);
   });
 });
@@ -211,7 +228,7 @@ describe("BrowserViewManagerMain: isolation (SEC-3)", () => {
 describe("BrowserViewManagerMain: player view lock (SEC-7)", () => {
   it("keeps the player view on its own page", () => {
     const { create } = setup();
-    const { view } = create(PLAYER_URL, PLAYER_PRELOAD);
+    const { view } = create(PLAYER_URL, "player");
     const event = { url: "https://evil.example/", isMainFrame: true, preventDefault: vi.fn() };
     view.webContents.emit("will-navigate", event);
     expect(event.preventDefault).toHaveBeenCalled();
@@ -219,7 +236,7 @@ describe("BrowserViewManagerMain: player view lock (SEC-7)", () => {
 
   it("never opens a window from the player view", () => {
     const { create, window } = setup();
-    const { view, event } = create(PLAYER_URL, PLAYER_PRELOAD);
+    const { view, event } = create(PLAYER_URL, "player");
     expect(view.webContents.windowOpenHandler?.({ url: "file:///etc/passwd" })).toEqual({
       action: "deny",
     });
@@ -227,5 +244,67 @@ describe("BrowserViewManagerMain: player view lock (SEC-7)", () => {
       ([channel]) => channel === "BROWSER_VIEW_NEW_TAB",
     );
     expect(requests).toHaveLength(0);
+  });
+});
+
+describe("BrowserViewManagerMain: who may control views (SEC-8)", () => {
+  it("creates nothing for a website tab or an embedded frame", () => {
+    setup();
+    for (const event of [fromMainFrame(fakePage(null)), fromSubframe(fakePage("main-window"))]) {
+      const reply = fakeIpcMain.deliver(
+        "BROWSER_VIEW_CREATE_BROWSER_VIEW",
+        event,
+        "https://example.com/",
+        0,
+        0,
+        100,
+        100,
+      );
+      expect(reply.returnValue).toBe(-1);
+    }
+    expect(created).toHaveLength(0);
+  });
+
+  it("ignores navigation requests from the player view", () => {
+    const { create } = setup();
+    const { view, id } = create("https://example.com/");
+    fakeIpcMain.deliver("BROWSER_VIEW_RELOAD", fromMainFrame(fakePage("player-view")), id);
+    expect(view.webContents.reload).not.toHaveBeenCalled();
+  });
+
+  it("ignores a view request with bad bounds", () => {
+    const { send } = setup();
+    const event = send("BROWSER_VIEW_CREATE_BROWSER_VIEW", "https://example.com/", "0", 0, 100, 100);
+    expect(event.returnValue).toBe(-1);
+    expect(created).toHaveLength(0);
+  });
+
+  it.each([
+    ["BROWSER_VIEW_REMOVE_BROWSER_VIEW", [999]],
+    ["BROWSER_VIEW_HIDE_BROWSER_VIEW", [999]],
+    ["BROWSER_VIEW_SHOW_BROWSER_VIEW", [999]],
+    ["BROWSER_VIEW_SET_BROWSER_VIEW_BOUNDS", [999, 0, 0, 1, 1]],
+    ["BROWSER_VIEW_LOAD_URL", [999, "https://example.com/"]],
+    ["BROWSER_VIEW_GO_FORWARD", [999]],
+    ["BROWSER_VIEW_GO_BACK", [999]],
+    ["BROWSER_VIEW_RELOAD", [999]],
+  ])("does not throw for %s with an unknown view id", (channel, args) => {
+    const { send } = setup();
+    expect(() => send(channel, ...args)).not.toThrow();
+  });
+
+  it("still drives a tab from the main window", () => {
+    const { create, send } = setup();
+    const { view, id } = create("https://example.com/");
+    send("BROWSER_VIEW_RELOAD", id);
+    send("BROWSER_VIEW_GO_BACK", id);
+    expect(view.webContents.reload).toHaveBeenCalled();
+    expect(view.webContents.navigationHistory.goBack).toHaveBeenCalled();
+  });
+
+  it("stops listening when destroyed", () => {
+    const { manager } = setup();
+    manager.destroy();
+    expect(fakeIpcMain.eventNames()).toEqual([]);
   });
 });

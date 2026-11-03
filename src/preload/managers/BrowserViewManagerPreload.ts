@@ -1,18 +1,25 @@
 import { ipcRenderer } from "electron";
 
+/** SEC-8: the only kind of view the main window may ask for besides a website tab. */
+export type BrowserViewKind = "player";
+
 /**
  * Manager to help create and manager browser views
  * This class is to be run on the renderer thread
  * For the main thread counterpart see `BrowserViewManagerMain.ts`
  */
 export class BrowserViewManagerPreload {
+  /**
+   * Create a view and return its id (-1 when the main process refuses it).
+   * @param kind "player" for the Kenku player; leave out for a website tab.
+   */
   async createBrowserView(
     url: string,
     x: number,
     y: number,
     width: number,
     height: number,
-    preload?: string
+    kind?: BrowserViewKind
   ): Promise<number> {
     const viewId = ipcRenderer.sendSync(
       "BROWSER_VIEW_CREATE_BROWSER_VIEW",
@@ -21,7 +28,7 @@ export class BrowserViewManagerPreload {
       y,
       width,
       height,
-      preload
+      ...(kind === undefined ? [] : [kind])
     );
     return viewId;
   }

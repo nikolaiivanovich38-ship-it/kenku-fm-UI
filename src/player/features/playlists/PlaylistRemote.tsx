@@ -70,7 +70,8 @@ export function PlaylistRemote({
   }, [onPlay, playlists, playbackShuffle]);
 
   useEffect(() => {
-    window.player.on("PLAYER_REMOTE_PLAYLIST_PLAYBACK_REQUEST", () => {
+    // PERF-9: args[0] is the request id; it goes back with the reply.
+    window.player.on("PLAYER_REMOTE_PLAYLIST_PLAYBACK_REQUEST", (args) => {
       let track = undefined;
       if (playback.track && playback.playback && playback.queue) {
         track = {
@@ -93,7 +94,7 @@ export function PlaylistRemote({
         repeat: playback.repeat,
         track,
         playlist,
-      });
+      }, args[0]);
     });
 
     return () => {
@@ -104,13 +105,13 @@ export function PlaylistRemote({
   }, [playback]);
 
   useEffect(() => {
-    window.player.on("PLAYER_REMOTE_PLAYLIST_GET_ALL_REQUEST", () => {
+    window.player.on("PLAYER_REMOTE_PLAYLIST_GET_ALL_REQUEST", (args) => {
       window.player.playlistGetAllReply({
         playlists: playlists.playlists.allIds.map(
           (id) => playlists.playlists.byId[id]
         ),
         tracks: Object.values(playlists.tracks),
-      });
+      }, args[0]);
     });
 
     return () => {
