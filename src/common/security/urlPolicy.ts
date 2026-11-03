@@ -143,7 +143,9 @@ const LEADING_SCHEME = /^[a-z][\w+.-]*:(?!\d+(?:[/?#]|$))/i;
  * direction marks) are invisible, often come along when an address is copied
  * from a chat or document, and could hide a scheme from the user.
  */
-const FORMAT_CHARACTERS = /\p{Cf}/gu;
+// Built with the constructor: the project's TypeScript target rejects the
+// "u" flag in a regex literal, but Chromium and Node support it.
+const FORMAT_CHARACTERS = new RegExp("\\p{Cf}", "gu");
 
 /**
  * Add `https://` to an address typed without a scheme ("youtube.com").
