@@ -26,6 +26,12 @@ export default tseslint.config(
     },
   },
   {
+    // Build helpers loaded by forge.config.js, which is CommonJS.
+    files: ["scripts/**/*.cjs"],
+    languageOptions: { sourceType: "commonjs", globals: { ...globals.node } },
+    rules: { "@typescript-eslint/no-require-imports": "off" },
+  },
+  {
     files: ["src/preload/managers/*.worklet.js"],
     languageOptions: { globals: { ...globals.audioWorklet } },
   },

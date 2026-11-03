@@ -1,0 +1,81 @@
+// Tests for the packaging options in forge-options.cjs (SEC-13, FND-3). Run with `yarn test:scripts`.
+import assert from "node:assert/strict";
+import { createRequire } from "node:module";
+import { describe, it } from "node:test";
+
+const require = createRequire(import.meta.url);
+const { FuseV1Options, FuseVersion } = require("@electron/fuses");
+const {
+  SKIP_NATIVE_REBUILD_ENV,
+  E2E_BUILD_ENV,
+  ASAR_UNPACK_GLOB,
+  rebuildConfig,
+  fusesConfig,
+} = require("./forge-options.cjs");
+
+describe("rebuildConfig (FND-3)", () => {
+  it("rebuilds native modules for Electron by default (CI and release builds)", () => {
+    assert.deepEqual(rebuildConfig({}), {});
+    assert.deepEqual(rebuildConfig({ [SKIP_NATIVE_REBUILD_ENV]: "0" }), {});
+  });
+
+  it("skips the rebuild only when the local switch is exactly 1", () => {
+    assert.deepEqual(rebuildConfig({ [SKIP_NATIVE_REBUILD_ENV]: "1" }), { onlyModules: [] });
+    assert.deepEqual(rebuildConfig({ [SKIP_NATIVE_REBUILD_ENV]: "yes" }), {});
+  });
+});
+
+describe("fusesConfig (SEC-13)", () => {
+  const fuses = fusesConfig({});
+
+  it("uses fuse wire version 1", () => {
+    assert.equal(fuses.version, FuseVersion.V1);
+  });
+
+  it("turns off ways to run the app as plain Node or attach a debugger", () => {
+    assert.equal(fuses[FuseV1Options.RunAsNode], false);
+    assert.equal(fuses[FuseV1Options.EnableNodeOptionsEnvironmentVariable], false);
+    assert.equal(fuses[FuseV1Options.EnableNodeCliInspectArguments], false);
+  });
+
+  it("only loads the app from a checked app.asar and encrypts cookies", () => {
+    assert.equal(fuses[FuseV1Options.EnableEmbeddedAsarIntegrityValidation], true);
+    assert.equal(fuses[FuseV1Options.OnlyLoadAppFromAsar], true);
+    assert.equal(fuses[FuseV1Options.EnableCookieEncryption], true);
+  });
+});
+
+describe("fusesConfig for end-to-end test builds (FND-4)", () => {
+  it("lets Playwright attach its debugger only in a build made with the test switch", () => {
+    const fuses = fusesConfig({ [E2E_BUILD_ENV]: "1" });
+    assert.equal(fuses[FuseV1Options.EnableNodeCliInspectArguments], true);
+  });
+
+  it("changes nothing else in a test build", () => {
+    const release = fusesConfig({});
+    const test = fusesConfig({ [E2E_BUILD_ENV]: "1" });
+    for (const key of Object.keys(release)) {
+      if (Number(key) === FuseV1Options.EnableNodeCliInspectArguments) continue;
+      assert.equal(test[key], release[key], `fuse ${key}`);
+    }
+  });
+});
+
+describe("ASAR_UNPACK_GLOB (SEC-13)", () => {
+  // @electron/asar matches each file's full path with minimatch and matchBase.
+  const minimatch = require("minimatch");
+  const unpacked = (file) => minimatch(file, ASAR_UNPACK_GLOB, { matchBase: true });
+
+  it("keeps native addons and WebAssembly outside app.asar", () => {
+    assert.ok(unpacked("/app/node_modules/zlib-sync/build/Release/zlib_sync.node"));
+    assert.ok(unpacked("/app/node_modules/@snazzah/davey-win32-x64-msvc/davey.win32-x64-msvc.node"));
+    assert.ok(unpacked("/app/node_modules/opusscript/build/opusscript_native_wasm.wasm"));
+    assert.ok(unpacked("/app/.webpack/main/native_modules/thing.node"));
+  });
+
+  it("packs everything else", () => {
+    assert.ok(!unpacked("/app/.webpack/main/index.js"));
+    assert.ok(!unpacked("/app/node_modules/opusscript/index.js"));
+    assert.ok(!unpacked("/app/package.json"));
+  });
+});

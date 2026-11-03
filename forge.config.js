@@ -3,6 +3,11 @@ const packageJson = require("./package.json");
 // FND-1: fork identity (data folder, app ID, GitHub repository) lives in one
 // file shared with the app itself. The display name is package.json productName.
 const identity = require("./src/main/appIdentity.json");
+const {
+  ASAR_UNPACK_GLOB,
+  fusesConfig,
+  rebuildConfig,
+} = require("./scripts/forge-options.cjs");
 
 const productName = packageJson.productName;
 const homepage = packageJson.homepage;
@@ -10,10 +15,9 @@ const homepage = packageJson.homepage;
 const installerName = packageJson.name.replace(/-/g, "_");
 
 /**
- * Release builds here are unsigned: no castlabs EVS (Widevine) signature, no
- * Windows code signing and no Apple notarisation. Upstream's signed flow is
- * kept in the publish/ folder for when the product owner has those accounts;
- * see docs/DEVELOPING.md > Releases.
+ * Release builds here are unsigned: no Windows code signing and no Apple
+ * notarisation. Upstream's signed flow is kept in the publish/ folder for when
+ * the product owner has those accounts; see docs/DEVELOPING.md > Releases.
  */
 const config = {
   packagerConfig: {
@@ -23,7 +27,13 @@ const config = {
     icon: "./src/assets/icon",
     appBundleId: identity.appId,
     appCopyright: "GPL-3.0. Based on Kenku FM by Owlbear Rodeo.",
+    // SEC-13: app code ships in app.asar (checked at start-up by the fuses
+    // below); native addons and WebAssembly stay unpacked beside it.
+    asar: { unpack: ASAR_UNPACK_GLOB },
   },
+  // FND-3: CUE_DESK_SKIP_NATIVE_REBUILD=1 skips the native-module rebuild on
+  // machines that cannot download Electron headers (see docs/DEVELOPING.md).
+  rebuildConfig: rebuildConfig(process.env),
   makers: [
     {
       name: "@electron-forge/maker-squirrel",
@@ -113,6 +123,11 @@ const config = {
         },
         devContentSecurityPolicy: "",
       },
+    },
+    {
+      // SEC-13: lock down the packaged executable (see scripts/forge-options.cjs).
+      name: "@electron-forge/plugin-fuses",
+      config: fusesConfig(process.env),
     },
     {
       name: "@timfish/forge-externals-plugin",
