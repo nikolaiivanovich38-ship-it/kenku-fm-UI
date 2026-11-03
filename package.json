@@ -122,6 +122,10 @@
   "resolutions": {
     "**/discord.js/undici": "6.29.1",
     "**/@discordjs/rest/undici": "6.29.1",
-    "ws": "8.22.0"
+    "ws": "8.22.0",
+    "**/proxy-addr": "2.0.8",
+    "**/lodash": "4.18.1",
+    "**/@fastify/ajv-compiler/fast-uri": "2.4.8",
+    "**/fast-json-stringify/fast-uri": "2.4.8"
   }
 }
