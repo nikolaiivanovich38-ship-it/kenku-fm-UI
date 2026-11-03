@@ -66,6 +66,19 @@ function renderAt(store: TestStore, path: string) {
   );
 }
 
+/**
+ * The notification with `role` and `text`. The page also has dnd-kit's empty
+ * role="status" live region, so match on the text too.
+ */
+function findNotification(role: "status" | "alert", text: string | RegExp) {
+  return screen.findByRole(role, {
+    name: (_, element) =>
+      typeof text === "string"
+        ? element.textContent?.includes(text) ?? false
+        : text.test(element.textContent ?? ""),
+  });
+}
+
 function tracks(prefix: string, count: number) {
   return Array.from({ length: count }, (_, i) => entryFor(`${prefix} ${i}.mp3`, "audio/mpeg"));
 }
@@ -116,7 +129,7 @@ describe("Playlists page folder drop", () => {
     const store = makeStore();
     renderAt(store, "/playlists");
     dropOnPage("Playlists", tracks("loose", 2));
-    expect(await screen.findByRole("alert")).toHaveTextContent(/drop a folder of audio files/);
+    expect(await findNotification("status", /drop a folder of audio files/)).toBeInTheDocument();
     expect(store.getState().playlists.playlists.allIds).toHaveLength(0);
   });
 
@@ -142,7 +155,7 @@ describe("Playlist page folder drop", () => {
     dropOnPage("Session", [
       fakeDirectoryEntry("Big", [...tracks("t", 150), fakeDirectoryEntry("More", tracks("m", 100))]),
     ]);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Added 250 tracks to the playlist.");
+    expect(await findNotification("status", "Added 250 tracks to the playlist.")).toBeInTheDocument();
     expect(store.getState().playlists.playlists.byId.p1.tracks).toHaveLength(250);
   });
 });
@@ -152,7 +165,7 @@ describe("Soundboards page folder drop", () => {
     const store = makeStore();
     renderAt(store, "/soundboards");
     dropOnPage("Soundboards", [fakeDirectoryEntry("Doors", tracks("door", 3))]);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Added 3 sounds to 1 soundboard.");
+    expect(await findNotification("status", "Added 3 sounds to 1 soundboard.")).toBeInTheDocument();
     const { soundboards } = store.getState().soundboards;
     expect(soundboards.allIds.map((id) => soundboards.byId[id].title)).toEqual(["Doors"]);
   });
@@ -177,6 +190,6 @@ describe("Soundboard page folder drop", () => {
       loop: false,
       volume: 1,
     });
-    expect(await screen.findByRole("alert")).toHaveTextContent("Added 1 sound to the soundboard.");
+    expect(await findNotification("status", "Added 1 sound to the soundboard.")).toBeInTheDocument();
   });
 });
