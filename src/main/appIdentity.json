@@ -1,0 +1,10 @@
+{
+  "$comment": "FND-1: the one place for the fork's identity. The display name lives in package.json (productName). Changing productName does NOT move user data: dataFolderName fixes the folder. See docs/DEVELOPING.md > Renaming the app.",
+  "dataFolderName": "cue-desk",
+  "legacyDataFolderName": "Kenku FM",
+  "appId": "io.github.nikolaiivanovich38-ship-it.cue-desk",
+  "github": {
+    "owner": "nikolaiivanovich38-ship-it",
+    "repo": "kenku-fm-UI"
+  }
+}

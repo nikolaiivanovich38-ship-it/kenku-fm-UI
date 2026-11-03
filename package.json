@@ -1,8 +1,16 @@
 {
-  "name": "kenku-fm",
-  "productName": "Kenku FM",
-  "version": "1.5.5",
-  "description": "Online tabletop audio sharing for Discord",
+  "name": "cue-desk",
+  "productName": "Cue Desk",
+  "version": "0.1.0",
+  "description": "Film-score audio for tabletop role-playing games on Discord. An independent fork of Kenku FM by Owlbear Rodeo.",
+  "homepage": "https://github.com/nikolaiivanovich38-ship-it/kenku-fm-UI#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nikolaiivanovich38-ship-it/kenku-fm-UI.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nikolaiivanovich38-ship-it/kenku-fm-UI/issues"
+  },
   "main": "./.webpack/main",
   "scripts": {
     "start": "electron-forge start",
@@ -14,13 +22,21 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "check": "yarn typecheck && yarn lint && yarn test"
+    "check": "yarn typecheck && yarn lint && yarn test && yarn test:scripts",
+    "audit:check": "node scripts/audit-check.mjs",
+    "test:scripts": "node --test \"scripts/*.test.mjs\""
   },
   "keywords": [],
   "author": {
-    "name": "Owlbear Rodeo",
-    "email": "support@owlbear.rodeo"
+    "name": "Nik (Cue Desk fork)",
+    "url": "https://github.com/nikolaiivanovich38-ship-it"
   },
+  "contributors": [
+    {
+      "name": "Owlbear Rodeo (original Kenku FM)",
+      "email": "support@owlbear.rodeo"
+    }
+  ],
   "license": "GPL-3.0",
   "config": {
     "forge": "./forge.config.js"
