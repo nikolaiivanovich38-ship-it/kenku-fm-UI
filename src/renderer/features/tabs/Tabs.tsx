@@ -206,7 +206,7 @@ export function Tabs() {
           viewId={selectedTab?.id || -1}
           url={selectedTab?.url || ""}
           onURLChange={handleURLChange}
-          disabled={!Boolean(selectedTab)}
+          disabled={!selectedTab}
         />
       )}
     </Stack>

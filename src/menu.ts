@@ -110,6 +110,7 @@ const template: any = [
       {
         label: "Learn More",
         click: async () => {
+          // eslint-disable-next-line @typescript-eslint/no-require-imports
           const { shell } = require("electron");
           await shell.openExternal("https://kenku.fm");
         },
