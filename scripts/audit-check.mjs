@@ -2,18 +2,26 @@
 /**
  * FND-5 / SEC-9: dependency audit gate.
  *
- * Runs `yarn audit --json --groups dependencies` (the libraries shipped inside
- * the app) and fails when a high or critical advisory is found that is not in
+ * Audits what ships inside the installer:
+ *   - `yarn audit --json --groups dependencies`: the libraries in the app;
+ *   - `yarn audit --json --groups devDependencies`, keeping only Electron.
+ *     package.json lists Electron as a devDependency (Electron Forge expects
+ *     that), but it is the runtime every user runs, so it is gated too. Build
+ *     tools in devDependencies are not shipped and are not gated.
+ * Fails when a high or critical advisory is found that is not in
  * scripts/audit-allowlist.json. Yarn v1 has no allowlist of its own.
  *
  * Every allowlist entry names the advisory, the package, why it is accepted
- * for now and the backlog item that will remove it. Entries that no longer
- * match anything are reported so the list gets cleaned up.
+ * for now and the backlog item that will remove it. An entry may carry a
+ * `reviewBy` date (YYYY-MM-DD); after that date the gate fails until someone
+ * reviews the entry again. Entries that no longer match anything are
+ * reported so the list gets cleaned up.
  *
  * Usage:
- *   node scripts/audit-check.mjs                  run yarn audit and check it
- *   node scripts/audit-check.mjs --input FILE     check saved `yarn audit --json` output
- *   node scripts/audit-check.mjs --allowlist FILE use another allowlist
+ *   node scripts/audit-check.mjs                   run both yarn audits and check them
+ *   node scripts/audit-check.mjs --input FILE      check saved `yarn audit --json --groups dependencies` output
+ *   node scripts/audit-check.mjs --dev-input FILE  with --input: also check saved devDependencies output (Electron only)
+ *   node scripts/audit-check.mjs --allowlist FILE  use another allowlist
  */
 import { spawnSync } from "node:child_process";
 import console from "node:console";
@@ -23,8 +31,12 @@ import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 export const BLOCKING_SEVERITIES = ["high", "critical"];
+/** devDependencies that are shipped to users and so are audited like dependencies. */
+export const SHIPPED_DEV_PACKAGES = ["electron"];
+const SEVERITIES = ["info", "low", "moderate", "high", "critical"];
 const ALLOWLIST_FIELDS = ["id", "package", "reason", "backlog"];
 const GHSA_PATTERN = /^GHSA(-[23456789cfghjmpqrvwx]{4}){3}$/;
+const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * Parse yarn v1 `audit --json` output (one JSON object per line).
@@ -79,6 +91,43 @@ export function parseAuditOutput(text) {
   };
 }
 
+function countBySeverity(advisories) {
+  const counts = Object.fromEntries(SEVERITIES.map((severity) => [severity, 0]));
+  for (const advisory of advisories) counts[advisory.severity] = (counts[advisory.severity] ?? 0) + 1;
+  return counts;
+}
+
+/**
+ * Keep only the advisories for `packages` from a parsed audit, with the
+ * summary counted again from what is kept (one per advisory).
+ */
+export function selectPackages(audit, packages) {
+  const advisories = audit.advisories.filter((advisory) => packages.includes(advisory.package));
+  return { summary: { vulnerabilities: countBySeverity(advisories) }, advisories };
+}
+
+/** Merge two parsed audits; the summaries are added together. */
+export function combineAudits(first, second) {
+  const vulnerabilities = {};
+  for (const severity of SEVERITIES) {
+    vulnerabilities[severity] =
+      (first.summary.vulnerabilities?.[severity] ?? 0) + (second.summary.vulnerabilities?.[severity] ?? 0);
+  }
+  const seen = new Set();
+  const advisories = [...first.advisories, ...second.advisories].filter((advisory) => {
+    const key = `${advisory.id}|${advisory.package}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return { summary: { vulnerabilities }, advisories };
+}
+
+/** Allowlist entries whose `reviewBy` date (YYYY-MM-DD) is before `today` (YYYY-MM-DD). */
+export function expiredEntries(allowlist, today) {
+  return allowlist.entries.filter((entry) => typeof entry.reviewBy === "string" && entry.reviewBy < today);
+}
+
 /** Check the allowlist's shape. Returns a list of problems (empty when valid). */
 export function validateAllowlist(allowlist) {
   const problems = [];
@@ -93,6 +142,14 @@ export function validateAllowlist(allowlist) {
     }
     if (typeof entry?.id === "string" && !GHSA_PATTERN.test(entry.id) && !/^\d+$/.test(entry.id)) {
       problems.push(`Entry ${index + 1} has an id that is not a GHSA id or npm advisory number: ${entry.id}`);
+    }
+    if (
+      entry?.reviewBy !== undefined &&
+      (typeof entry.reviewBy !== "string" ||
+        !DATE_PATTERN.test(entry.reviewBy) ||
+        Number.isNaN(Date.parse(entry.reviewBy)))
+    ) {
+      problems.push(`Entry ${index + 1} has a reviewBy that is not a YYYY-MM-DD date: ${entry.reviewBy}`);
     }
   });
   return problems;
@@ -115,17 +172,27 @@ export function evaluateAudit(advisories, allowlist) {
 }
 
 /** Human-readable report. */
-export function formatReport({ summary, blocking, allowed, unused }) {
+export function formatReport({ summary, blocking, allowed, unused, expired = [] }) {
   const lines = [];
   const counts = summary.vulnerabilities ?? {};
   lines.push(
-    `Dependency audit (shipped libraries): ${counts.critical ?? 0} critical, ${counts.high ?? 0} high, ${counts.moderate ?? 0} moderate, ${counts.low ?? 0} low.`,
+    `Dependency audit (shipped libraries and Electron): ${counts.critical ?? 0} critical, ${counts.high ?? 0} high, ${counts.moderate ?? 0} moderate, ${counts.low ?? 0} low.`,
   );
   lines.push(`Accepted for now (see scripts/audit-allowlist.json): ${allowed.length} high/critical.`);
   if (unused.length > 0) {
     lines.push("");
     lines.push("Allowlist entries that no longer match anything (remove them):");
     for (const entry of unused) lines.push(`  - ${entry.id} ${entry.package} (${entry.backlog})`);
+  }
+  if (expired.length > 0) {
+    lines.push("");
+    lines.push(`FAILED: ${expired.length} allowlist entry(ies) are past their review date:`);
+    for (const entry of expired) {
+      lines.push(`  - ${entry.id} ${entry.package} (${entry.backlog}): review date ${entry.reviewBy} has passed.`);
+    }
+    lines.push(
+      "Fix: do the backlog item (usually an upgrade) and remove the entry, or, if it is still needed, re-check it and move reviewBy to a new date.",
+    );
   }
   if (blocking.length > 0) {
     lines.push("");
@@ -139,7 +206,7 @@ export function formatReport({ summary, blocking, allowed, unused }) {
     lines.push(
       "Fix: update the library, or, if it cannot be fixed yet, add an entry with the reason and backlog item to scripts/audit-allowlist.json.",
     );
-  } else {
+  } else if (expired.length === 0) {
     lines.push("PASSED: no new high or critical advisories.");
   }
   return lines.join("\n");
@@ -150,8 +217,8 @@ function readArgument(args, name) {
   return index === -1 ? undefined : args[index + 1];
 }
 
-function runYarnAudit() {
-  const result = spawnSync("yarn", ["audit", "--json", "--groups", "dependencies"], {
+function runYarnAudit(group) {
+  const result = spawnSync("yarn", ["audit", "--json", "--groups", group], {
     encoding: "utf8",
     maxBuffer: 256 * 1024 * 1024,
     shell: process.platform === "win32",
@@ -162,11 +229,12 @@ function runYarnAudit() {
   return result.stdout;
 }
 
-/** Command-line entry point. Returns the process exit code. */
-export function main(args = process.argv.slice(2)) {
+/** Command-line entry point. Returns the process exit code. `today` is YYYY-MM-DD (UTC). */
+export function main(args = process.argv.slice(2), today = new Date().toISOString().slice(0, 10)) {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const allowlistPath = readArgument(args, "--allowlist") ?? path.join(here, "audit-allowlist.json");
   const inputPath = readArgument(args, "--input");
+  const devInputPath = readArgument(args, "--dev-input");
   try {
     const allowlist = JSON.parse(fs.readFileSync(allowlistPath, "utf8"));
     const problems = validateAllowlist(allowlist);
@@ -174,11 +242,17 @@ export function main(args = process.argv.slice(2)) {
       console.error(`The audit allowlist ${allowlistPath} is not valid:\n  ${problems.join("\n  ")}`);
       return 2;
     }
-    const output = inputPath ? fs.readFileSync(inputPath, "utf8") : runYarnAudit();
-    const { summary, advisories } = parseAuditOutput(output);
-    const evaluation = evaluateAudit(advisories, allowlist);
+    const shipped = parseAuditOutput(inputPath ? fs.readFileSync(inputPath, "utf8") : runYarnAudit("dependencies"));
+    // With saved input, Electron is checked only when its audit is given too.
+    const devOutput = inputPath
+      ? devInputPath && fs.readFileSync(devInputPath, "utf8")
+      : runYarnAudit("devDependencies");
+    const { summary, advisories } = devOutput
+      ? combineAudits(shipped, selectPackages(parseAuditOutput(devOutput), SHIPPED_DEV_PACKAGES))
+      : shipped;
+    const evaluation = { ...evaluateAudit(advisories, allowlist), expired: expiredEntries(allowlist, today) };
     const report = formatReport({ summary, ...evaluation });
-    if (evaluation.blocking.length > 0) {
+    if (evaluation.blocking.length > 0 || evaluation.expired.length > 0) {
       console.error(report);
       return 1;
     }
