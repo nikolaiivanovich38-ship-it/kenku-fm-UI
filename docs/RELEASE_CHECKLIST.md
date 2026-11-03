@@ -14,15 +14,18 @@ Release: `vX.Y.Z` · Date: ____ · Checked by: ____
 
 - [ ] Changed areas reviewed against [docs/security.md](security.md) (permissions, navigation, IPC, links, network listeners, stored secrets).
 - [ ] `scripts/audit-allowlist.json` reviewed: each entry still needed, its backlog item still planned, `reviewed` date updated. Stale entries removed.
+- [ ] Audit allowlist expiry dates reviewed: no `reviewBy` date falls before the next planned release (the gate fails once one passes). For each entry near its date, either the backlog item (for example the Electron upgrade, SEC-1) is done and the entry removed, or the entry is re-checked and given a new date.
 - [ ] No secrets, tokens or personal data in the code, logs or release files.
 
 ## Usability (on the packaged app)
 
 Install the draft release's installer on Windows, then:
 
-- [ ] Fresh install on a computer with Kenku FM: library appears, Kenku FM still works.
+- [ ] Old Kenku FM library appears after first start (fresh install on a computer with Kenku FM, Kenku FM closed): playlists, soundboards, bookmarks and the Discord token are there, and Kenku FM still works afterwards. **Required.**
+- [ ] With Kenku FM still open, the first start of Cue Desk says to close Kenku FM; after quitting, closing Kenku FM and starting again, the library appears.
 - [ ] Walk through this release's main tasks as a game master would (list them here): ____
 - [ ] Core session flow still works: connect the bot, join a channel, play a playlist, trigger a soundboard sound, play a website tab.
+- [ ] YouTube (or other website) tab audio reaches Discord: open YouTube in a tab, play a video, and listeners in the voice channel hear it. **Required.** Website tabs now use their own `persist:tabs` session, and capturing their audio from it has not been verified in a packaged build.
 - [ ] Every message the app shows says what happened and what to do next.
 
 ## Accessibility

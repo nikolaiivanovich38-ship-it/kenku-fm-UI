@@ -15,13 +15,14 @@ Cue Desk is an Electron app (castlabs Electron 37, for Widevine) built with Elec
 
 ## Main process
 
-- `src/index.ts`: start-up. First import is `src/main/migration`, which fixes the data folder and copies a Kenku FM library on first run. Then single-instance lock, the main window, user-agent spoofing, auto-update and a few IPC handlers (`GET_VERSION`, `GET_PLATFORM`, `CLEAR_CACHE`).
+- `src/index.ts`: start-up. Its first import, `src/main/migration`, points the data folder at `<appData>/cue-desk` (and sets the Windows app ID). `src/main/startup.ts` then runs the Windows installer check (`electron-squirrel-startup`), the single-instance lock and, in the one primary instance only, the Kenku FM library carry-over (`src/main/migration/carryOver.ts`), before any window or settings file is created. If Kenku FM was still running or the library failed to copy, a prompt offers to quit so the copy is retried on the next start. After that: session hardening, the main window (with the `window.navigator` user agent), auto-update and a few IPC handlers (`GET_VERSION`, `GET_PLATFORM`, `CLEAR_CACHE`).
+- `src/main/security`: `sessions.ts` applies deny-by-default permission handlers and the request-header user-agent spoofing (a Chrome user agent, without the Chrome token for google.com sign-in) to the app's session and to the website-tab session (`persist:tabs`, `partitions.ts`), and clears both on "Clear cache". `navigationGuards.ts` keeps app pages on their own page, `externalLinks.ts` sends only https links to the system browser, `trustedContents.ts` records which web contents are the app's own pages.
 - `src/main/managers/SessionManager.ts`: one per main-window load; creates and destroys the managers below.
-- `BrowserViewManagerMain.ts`: the tabs. Each tab is a `WebContentsView` laid over the main window.
+- `BrowserViewManagerMain.ts`: the tabs. Each tab is a `WebContentsView` laid over the main window. Website tabs use the separate `persist:tabs` session; the player view uses the app's own session and preload.
 - `PlaybackManager.ts`, `AudioCaptureManagerMain.ts`: receive mixed PCM from the capture window over a local WebSocket, encode it to Opus (`prism-media`) and hand it to `src/main/broadcast/DiscordBroadcast.ts`, which uses discord.js and `@discordjs/voice` with the user's bot token.
 - `WindowManager.ts`: minimise, maximise and close for the frameless window.
-- `src/menu.ts`: application menu. `src/bounds.ts`: window position, stored with electron-store in `config.json`.
-- `src/autoUpdate.ts` with `src/main/updateFeed.ts`: Windows updates from the fork's GitHub releases through update.electronjs.org.
+- `src/menu.ts`: application menu. `src/bounds.ts`: window position, stored with electron-store in `config.json` (opened on first use, so it never touches the file before the carry-over).
+- `src/autoUpdate.ts` with `src/main/updateFeed.ts`: Windows updates from the fork's GitHub releases through update.electronjs.org, only for copies set up by the installer (the zip build has no `Update.exe` and gets no updates).
 - `src/main/appIdentity.json` and `appIdentity.ts`: data-folder name, app ID and GitHub repository, shared with `forge.config.js`.
 
 ## Main window (renderer)
@@ -49,6 +50,7 @@ Everything lives in one folder, `<appData>/cue-desk` (`%APPDATA%\cue-desk` on Wi
 | Bookmarks, settings, Discord token (`persist:root`) | `Local Storage/leveldb` | `src/renderer/app/store.ts` (redux-persist) |
 | Playlists and soundboards (`persist:player`), playback state (`persist:playback`) | `Local Storage/leveldb` | `src/player/app/store.ts` |
 | Window position | `config.json` | `src/bounds.ts` |
-| Kenku FM carry-over record | `data-carry-over.json` | `src/main/migration` |
+| Website tab cookies and storage | `Partitions/tabs` | Chromium (`persist:tabs` session) |
+| Kenku FM carry-over record (folder and item names only; written once the copy succeeded or was not needed) | `data-carry-over.json` | `src/main/migration` |
 
-All pages load from `file://` (packaged) so they share one localStorage origin. Audio files are not copied; tracks store their file paths. The bot token is stored in plain text for now (backlog SEC-5).
+The app's own pages load from `file://` (packaged) so they share one localStorage origin; websites in tabs keep their data apart in `persist:tabs`. Audio files are not copied; tracks store their file paths. The bot token is stored in plain text for now (backlog SEC-5).
