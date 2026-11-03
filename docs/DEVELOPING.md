@@ -21,6 +21,7 @@
 | `yarn audit:check` | Dependency audit gate (see below) |
 | `yarn package` | Build the app (no installer) into `out/<name>-<platform>-<arch>` |
 | `yarn make` | Build installers into `out/make` |
+| `yarn e2e` | End-to-end tests of the packaged app (see below) |
 
 ## Tests
 
@@ -39,7 +40,7 @@ Put a test next to the code (`foo.ts` → `foo.test.ts`). Write the failing test
 | --- | --- | --- |
 | RunAsNode | off | `ELECTRON_RUN_AS_NODE` cannot turn the app into a plain Node.js runtime |
 | EnableNodeOptionsEnvironmentVariable | off | `NODE_OPTIONS` cannot inject code at start-up |
-| EnableNodeCliInspectArguments | off | `--inspect` cannot attach a debugger |
+| EnableNodeCliInspectArguments | off (on in test builds) | `--inspect` cannot attach a debugger |
 | EnableEmbeddedAsarIntegrityValidation | on | `app.asar` is checked against a hash stored in the executable |
 | OnlyLoadAppFromAsar | on | the app is only loaded from `app.asar` |
 | EnableCookieEncryption | on | website-tab cookies are encrypted on disk |
@@ -56,6 +57,22 @@ CUE_DESK_SKIP_NATIVE_REBUILD=1 yarn package
 
 The package then contains zlib-sync built for Node.js, which Electron cannot load. That is harmless: discord.js treats zlib-sync as optional and falls back to its built-in compression. Use this only for local testing; CI and release builds never set it.
 
+## End-to-end tests (FND-4)
+
+`e2e/` holds Playwright tests that start the packaged app. Playwright drives Electron through `--inspect`, which release builds switch off, so build a test package first:
+
+```
+CUE_DESK_E2E_BUILD=1 yarn package        # add CUE_DESK_SKIP_NATIVE_REBUILD=1 if headers cannot be downloaded
+yarn e2e                                 # on Linux without a desktop: xvfb-run -a yarn e2e
+```
+
+- `e2e/fixtures/app.ts` starts the app with a new empty data folder (`CUE_DESK_USER_DATA_DIR`, which also skips the Kenku FM carry-over), finds pages by title (`Cue Desk`, `Cue Desk Player`, `Audio Capture`), and collects uncaught page errors and main-process crashes. New specs import `test` and `expect` from it.
+- `CUE_DESK_EXECUTABLE` runs the tests against another build.
+- On Linux as root (containers, CI) the Chromium sandbox is switched off for the test run only.
+- Failures leave a trace, screenshots and the main-process log in `test-results/`.
+
+CI runs the e2e job on Windows (`.github/workflows/ci.yml`).
+
 ## Dependency audit
 
 `scripts/audit-check.mjs` runs `yarn audit` on shipped libraries and fails on any high or critical advisory not in `scripts/audit-allowlist.json`. To accept one temporarily, add an entry with `id` (GHSA), `package`, `reason` and the `backlog` item that removes it, and update `reviewed`. Devtools such as Electron are not audited by this gate; Electron upgrades are tracked as SEC-1. Electron supports its three newest major versions; check https://releases.electronjs.org before each release and upgrade when the current major nears end of life. When upgrading, update `FALLBACK_CHROME_VERSION` in `src/main/userAgent.ts`.
@@ -64,7 +81,7 @@ The package then contains zlib-sync built for Node.js, which Electron cannot loa
 
 `.github/workflows/`:
 
-- `ci.yml`: every push and pull request. Type check, lint, tests with coverage (artifact `coverage-report`), script tests, audit gate, gitleaks secret scan.
+- `ci.yml`: every push and pull request. Type check, lint, tests with coverage (artifact `coverage-report`), script tests, audit gate, gitleaks secret scan, and end-to-end tests of the packaged app on Windows (artifact `e2e-report` on failure).
 - `codeql.yml`: CodeQL security analysis, also weekly.
 - `release.yml`: on `v*` tags or by hand. Runs `ci.yml`, then builds the unsigned Windows x64 installer and zip and attaches them to a draft release.
 

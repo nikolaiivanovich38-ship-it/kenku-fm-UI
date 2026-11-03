@@ -18,10 +18,11 @@
     "make": "electron-forge make",
     "publish": "electron-forge publish",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit -p .",
+    "typecheck": "tsc --noEmit -p . && tsc --noEmit -p e2e",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "e2e": "playwright test --config e2e/playwright.config.ts",
     "check": "yarn typecheck && yarn lint && yarn test && yarn test:scripts",
     "audit:check": "node scripts/audit-check.mjs",
     "test:scripts": "node --test \"scripts/*.test.mjs\""
