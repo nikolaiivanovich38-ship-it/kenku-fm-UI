@@ -16,7 +16,7 @@ export type ReplyError = {
 export const VIEW_ERROR: ReplyError = {
   statusCode: 503,
   error: "Service Unavailable",
-  message: "Unable to connect to Kenku FM",
+  message: "Unable to connect to Cue Desk",
 };
 
 export function registerRemote(manager: PlayerManager) {

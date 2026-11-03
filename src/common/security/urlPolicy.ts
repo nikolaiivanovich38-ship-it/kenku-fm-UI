@@ -33,7 +33,7 @@ const REASONS: Record<UrlRefusalCode, string> = {
   invalid:
     "That doesn't look like a web address. Check the spelling, for example youtube.com.",
   scheme:
-    "Kenku FM only opens web pages whose address starts with https:// or http://.",
+    "Cue Desk only opens web pages whose address starts with https:// or http://.",
   credentials:
     "Addresses containing a user name or password are not allowed. Remove the part before the @ sign and log in on the page instead.",
   "too-long": "That web address is too long to open.",
