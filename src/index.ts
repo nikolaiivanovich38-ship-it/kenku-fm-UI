@@ -1,3 +1,5 @@
+// FND-1: must stay the first import; it moves the data folder before anything uses it.
+import { runDataCarryOver } from "./main/migration";
 import os from "os";
 import {
   app,
@@ -19,6 +21,8 @@ import { clearBrowsingData, secureSessions } from "./main/security/sessions";
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
+
+runDataCarryOver();
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 let window: BrowserWindow | null = null;

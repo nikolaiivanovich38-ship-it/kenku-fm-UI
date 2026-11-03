@@ -1,4 +1,5 @@
-import { app, BrowserWindow, Menu } from "electron";
+import { app, BrowserWindow, Menu, shell } from "electron";
+import { readmeUrl } from "./main/appIdentity";
 
 const isMac = process.platform === "darwin";
 
@@ -107,14 +108,17 @@ const template: any = [
   {
     role: "help",
     submenu: [
-      {
-        label: "Learn More",
-        click: async () => {
-          // eslint-disable-next-line @typescript-eslint/no-require-imports
-          const { shell } = require("electron");
-          await shell.openExternal("https://kenku.fm");
-        },
-      },
+      // FND-1: help points at the fork's README (hidden if no repository is configured).
+      ...(readmeUrl()
+        ? [
+            {
+              label: "Learn More",
+              click: async () => {
+                await shell.openExternal(readmeUrl());
+              },
+            },
+          ]
+        : []),
       ...(!isMac ? [{ role: "about" }] : []),
     ],
   },

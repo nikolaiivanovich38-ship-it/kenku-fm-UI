@@ -1,89 +1,96 @@
+[![CI](https://github.com/nikolaiivanovich38-ship-it/kenku-fm-UI/actions/workflows/ci.yml/badge.svg)](https://github.com/nikolaiivanovich38-ship-it/kenku-fm-UI/actions/workflows/ci.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
-# Kenku FM
+# Cue Desk
 
-Kenku FM is a desktop application for Windows, MacOS and Linux designed to be the easiest way to share music in a Discord voice call.
+Cue Desk plays your music and sound effects into a Discord voice channel while you run a tabletop role-playing game. It is built for game masters who score their sessions with film soundtracks: playlists for scenes, soundboards for effects, and websites such as YouTube in tabs.
 
-- Use the Kenku Player interface to share your **local music** and sound effects to your discord calls.
-- Use the built in web browser to share audio from your favourite websites like **YouTube** and **Spotify**.
-- Trigger and control sounds with the Kenku FM plugin for the **Elgato Stream Deck**.
-- If you already have a **virtual audio cable** setup use Kenku FM as an easy way to connect to Discord with your existing software.
+Cue Desk is an **independent fork of [Kenku FM](https://github.com/owlbear-rodeo/kenku-fm)** by Owlbear Rodeo. It is not made or supported by Owlbear Rodeo. "Cue Desk" is a working name and may change; your library will not move if it does.
 
 <p align="center">
-  <img src="./docs/example.png" alt="Kenku FM Interface" width="738">
+  <img src="./docs/example.png" alt="The app window: a list of playlists on the left and the player on the right" width="738">
 </p>
 
-## Installing
+## Install (Windows)
 
-Prebuilt binaries can be found at [kenku.fm](https://www.kenku.fm) or from the [GitHub releases](https://github.com/owlbear-rodeo/kenku-fm/releases).
+1. Open the [Releases page](https://github.com/nikolaiivanovich38-ship-it/kenku-fm-UI/releases).
+2. Under the newest release, download the file ending in **`-win32-x64-setup.exe`**.
+3. Run it. The app installs and opens by itself.
 
-## Docs
+The installer is not code-signed yet, so Windows may say **"Windows protected your PC"**. Choose **More info**, then **Run anyway**. Each release lists SHA-256 checksums in `SHA256SUMS.txt` if you want to check the download.
 
-Docs on using Kenku FM can be found [here](https://www.kenku.fm/docs).
+Cue Desk and Kenku FM can be installed side by side. They use separate data folders.
 
-## How it Works
+macOS and Linux: there are no ready-made downloads yet. See [For developers](#for-developers) to build one.
 
-1. Kenku FM is an [Electron](https://www.electronjs.org/) application primarily written in [Typescript](https://www.typescriptlang.org/) and [React](https://reactjs.org/).
-2. Electron browser views are used to display external web content or the built in audio player app.
-3. The user creates and provides their own Discord bot token to connect to Discord.
-4. The Electron media capture API is used to capture audio from each browser view. The audio is then mixed using a Web Audio Context and sent to a Discord voice call using [Eris](https://github.com/abalabahaha/eris).
-5. An optional HTTP server allows users to trigger and control the playback of the built in player app. An example of this in action can be seen with our [Stream Deck plugin](https://www.kenku.fm/docs/using-kenku-remote).
-6. Enable external inputs to allow mixing in OS audio inputs.
-7. Enable multiple outputs to send your audio to multiple Discord servers at once.
-8. If you plan to use Kenku FM for streaming you can also output to your local machine for capture by a streaming app and a discord call for your players at the same time.
+## First start: bringing your Kenku FM library across
 
-## Building
+If Kenku FM has been used on this computer, Cue Desk copies its library the first time it starts: playlists, soundboards, bookmarks, settings (including your Discord bot token) and the window position. This happens once.
 
-Kenku FM uses [Yarn](https://yarnpkg.com/) as a package manager and [Electron Forge](https://www.electronforge.io/) as an Electron builder.
+- **Close Kenku FM before you start Cue Desk for the first time**, so its library is not being written while it is copied.
+- Kenku FM's own files are only read, never changed or deleted. Kenku FM keeps working as before.
+- Your audio files are not copied. Playlists point to the files where they already are, so leave them in place.
+- Nothing is copied if Cue Desk already has a library of its own.
 
-To install all the dependencies run:
+Where the libraries are kept on Windows:
 
-`yarn`
+| App | Folder |
+| --- | --- |
+| Kenku FM | `%APPDATA%\Kenku FM` |
+| Cue Desk | `%APPDATA%\cue-desk` |
 
-To run Kenku FM in a development mode run:
+(On macOS: `~/Library/Application Support/`; on Linux: `~/.config/`.)
 
-`yarn start`
+**If your library did not appear**, and you have not added anything in Cue Desk yet: close Cue Desk, paste `%APPDATA%` into the File Explorer address bar, delete the `cue-desk` folder, close Kenku FM, then start Cue Desk again. The result of the copy is written to `data-carry-over.json` in the `cue-desk` folder; attach that file if you report a problem.
 
-To make a production build run:
+## Connect your Discord bot
 
-`yarn make`
+Cue Desk joins your voice channel as a Discord bot that you create once, for free.
 
-If you wish to add protected media playback support follow the build steps from the [Electron for Content Security](https://github.com/castlabs/electron-releases) repo.
+1. Create the bot and invite it to your server by following Owlbear Rodeo's guide, [Getting a Discord token](https://kenku.fm/docs/getting-a-discord-token) (from the Kenku FM documentation, which applies to Cue Desk unchanged).
+2. In Cue Desk, open **Settings** (the gear icon), paste the token under **Discord**, and choose **Connect**.
+3. Choose your voice channel under **Output**.
 
-## Stream Deck
+Treat the token like a password. Anyone who has it can control your bot.
 
-The stream deck plugin can be found [here](https://github.com/owlbear-rodeo/kenku-fm-stream-deck).
+## Updates
 
-## Protected Media
+On Windows, Cue Desk checks this project's [Releases](https://github.com/nikolaiivanovich38-ship-it/kenku-fm-UI/releases) every 15 minutes. When an update has downloaded, a message says **"Update Available. Restart to apply."** Cue Desk never installs updates from Kenku FM. Your version number is shown at the bottom of Settings.
 
-As we act as a web browser in order to play protected media we need to support Google's Widevine [Content Decryption Module (CDM)](https://www.widevine.com/). To do this Kenku FM uses the [Electron for Content Security](https://github.com/castlabs/electron-releases) version of Electron provided by Castlabs.
+## Known limitations
 
-This allows us to support loading of DRM protected media on Windows and MacOS.
+- Sites that use copy protection (DRM), such as Spotify, may not play in tabs. Upstream Kenku FM pays for a signing service that these sites require; this fork does not have it yet.
+- The player's background pictures are blank. Upstream's pictures are kept in a private repository.
 
-Unfortunately the story isn't as simple on Linux. While we are able to provide support for protected media on x64 Linux builds, Linux doesn't support the Widevine Verified Media Path (VMP) this means that sites that require the use of VMP will not work. Unfortunately at this time Spotify requires VMP. You can read more about VMP and Linux [here](https://arstechnica.com/gadgets/2020/08/hbo-max-cranks-up-the-widevine-drm-leaves-linux-users-in-the-cold/).
+## Help
 
-Next Google doesn't provide a publicly available ARM Linux version of their Widevine Content Delivery Module so we are unable to provide any protected media support on ARM Linux.
+- Something wrong? [Open an issue](https://github.com/nikolaiivanovich38-ship-it/kenku-fm-UI/issues). Please do not contact Owlbear Rodeo about this fork.
+- Most features work as described in the [Kenku FM documentation](https://www.kenku.fm/docs), including [remote control from a Stream Deck](https://www.kenku.fm/docs/using-kenku-remote).
+- What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 
-If any of these change we'll be happy to update Kenku FM with full support for protected media on Linux.
+## For the project owner
 
-## Project Structure
+- **GitHub Actions must be enabled on the fork**: open the repository's **Actions** tab and confirm. After that, every push is checked (tests, security scans) and the results show on the Actions tab and on pull requests.
+- **Making a release**: change `version` in `package.json` (for example `0.1.1`), add the changes to `CHANGELOG.md`, then push a tag with the same number (`v0.1.1`). The Release workflow builds the Windows installer and puts it in a **draft** under **Releases**. Work through [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md), then press **Publish release**. Only published releases reach users and automatic updates.
 
-All source files can be found in the `src` folder, our build scripts for CI/CD are in the `publish` folder.
+## For developers
 
-Within the `src` folder the `index.ts` file and `main` folder contains the code for the main process of Electron. This includes things like managing the Discord connection, creating the HTTP server for the remote control and managing the browser views.
+Cue Desk is an [Electron](https://www.electronjs.org/) app written in TypeScript and React, built with [Electron Forge](https://www.electronforge.io/) and [Yarn 1](https://classic.yarnpkg.com/).
 
-The `renderer.ts` file and `renderer` folder contains code for the renderer process of Electron. The renderer is written in React and uses Redux Toolkit for state management.
+```sh
+yarn             # install
+yarn start       # run in development
+yarn check       # type check, lint and all tests
+yarn make        # build installers into out/make
+```
 
-The `preload.ts` file and `preload` folder contains code for the preload script for the renderer. The preload script mainly acts as a bridge to expose functionality from the main process to the renderer.
+- [docs/DEVELOPING.md](docs/DEVELOPING.md): set-up, scripts, tests, releases, renaming the app.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): how the app is put together.
+- [docs/RELEASE_CHECKLIST.md](docs/RELEASE_CHECKLIST.md): what every release must pass.
+- [.github/CONTRIBUTING.md](.github/CONTRIBUTING.md): how to propose a change.
 
-The `player` folder contains the code for the built in audio player. This runs as a separate web view and is loaded as a separate entry point in the `forge.config.js`. The player app is written in React and also uses Redux Toolkit for state management.
+## Licence and credits
 
-## Licence
+Cue Desk is licensed under the GNU General Public License v3.0, the same as Kenku FM. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
-Kenku FM is licensed under the GNU General Public Licence v3.0.
-
-## Contributing
-
-For our own wellbeing Kenku FM follows a similar contribution policy projects like [Litestream](https://github.com/benbjohnson/litestream#open-source-not-open-contribution).
-
-This means we are open to pull requests for bug fixes only. Pull requests for new features will not be accepted due to the burden of maintaining these features into the future.
+Kenku FM was created by [Owlbear Rodeo](https://www.owlbear.rodeo). Thank you for building it and releasing it as open source.

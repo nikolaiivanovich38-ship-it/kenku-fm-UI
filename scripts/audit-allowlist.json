@@ -1,0 +1,134 @@
+{
+  "$comment": "Accepted high/critical advisories for scripts/audit-check.mjs (FND-5). Each entry needs id (GHSA), package, reason and the backlog item that removes it. Review at every release (docs/RELEASE_CHECKLIST.md). electron is not listed: it is a devDependency and the gate audits shipped libraries only; its upgrade is SEC-1 (WP1).",
+  "reviewed": "2026-11-03",
+  "entries": [
+    {
+      "id": "GHSA-4c8g-83qw-93j6",
+      "package": "fast-uri",
+      "severity": "high",
+      "title": "fast-uri vulnerable to host confusion via failed IDN canonicalization",
+      "reason": "Pulled in by fastify 4 (fast-json-stringify, ajv-formats); goes away with the fastify 5 upgrade.",
+      "backlog": "SEC-9 (WP6)"
+    },
+    {
+      "id": "GHSA-7p8r-x3mc-p8w7",
+      "package": "fast-uri",
+      "severity": "high",
+      "title": "fast-uri vulnerable to host confusion via backslash authority introducer",
+      "reason": "Pulled in by fastify 4 (fast-json-stringify, ajv-formats); goes away with the fastify 5 upgrade.",
+      "backlog": "SEC-9 (WP6)"
+    },
+    {
+      "id": "GHSA-f65p-4m7j-42xc",
+      "package": "fast-uri",
+      "severity": "high",
+      "title": "fast-uri vulnerable to server-side request forgery via malformed IPv6 normalization",
+      "reason": "Pulled in by fastify 4 (fast-json-stringify, ajv-formats); goes away with the fastify 5 upgrade.",
+      "backlog": "SEC-9 (WP6)"
+    },
+    {
+      "id": "GHSA-jqff-g426-hqxp",
+      "package": "fast-uri",
+      "severity": "high",
+      "title": "fast-uri vulnerable to host confusion via percent-encoded scheme normalization",
+      "reason": "Pulled in by fastify 4 (fast-json-stringify, ajv-formats); goes away with the fastify 5 upgrade.",
+      "backlog": "SEC-9 (WP6)"
+    },
+    {
+      "id": "GHSA-q3j6-qgpj-74h6",
+      "package": "fast-uri",
+      "severity": "high",
+      "title": "fast-uri vulnerable to path traversal via percent-encoded dot segments",
+      "reason": "Pulled in by fastify 4 (fast-json-stringify, ajv-formats); goes away with the fastify 5 upgrade.",
+      "backlog": "SEC-9 (WP6)"
+    },
+    {
+      "id": "GHSA-qw65-cvwx-89v3",
+      "package": "fast-uri",
+      "severity": "high",
+      "title": "fast-uri vulnerable to authority injection via an unvalidated port in serialize",
+      "reason": "Pulled in by fastify 4 (fast-json-stringify, ajv-formats); goes away with the fastify 5 upgrade.",
+      "backlog": "SEC-9 (WP6)"
+    },
+    {
+      "id": "GHSA-v2hh-gcrm-f6hx",
+      "package": "fast-uri",
+      "severity": "high",
+      "title": "fast-uri vulnerable to host confusion via literal backslash authority delimiter",
+      "reason": "Pulled in by fastify 4 (fast-json-stringify, ajv-formats); goes away with the fastify 5 upgrade.",
+      "backlog": "SEC-9 (WP6)"
+    },
+    {
+      "id": "GHSA-v39h-62p7-jpjc",
+      "package": "fast-uri",
+      "severity": "high",
+      "title": "fast-uri vulnerable to host confusion via percent-encoded authority delimiters",
+      "reason": "Pulled in by fastify 4 (fast-json-stringify, ajv-formats); goes away with the fastify 5 upgrade.",
+      "backlog": "SEC-9 (WP6)"
+    },
+    {
+      "id": "GHSA-667r-xxjv-c9mm",
+      "package": "fastify",
+      "severity": "high",
+      "title": "fastify vulnerable to request body replacement via an async validation result collision",
+      "reason": "Remote-control server only; fixes exist only in fastify 5. Upgrade planned.",
+      "backlog": "SEC-9 (WP6)"
+    },
+    {
+      "id": "GHSA-9q9j-q6p8-xq58",
+      "package": "fastify",
+      "severity": "high",
+      "title": "fastify vulnerable to header validation bypass via incomplete schema case normalization",
+      "reason": "Remote-control server only; fixes exist only in fastify 5. Upgrade planned.",
+      "backlog": "SEC-9 (WP6)"
+    },
+    {
+      "id": "GHSA-hwr6-493r-vm6h",
+      "package": "fastify",
+      "severity": "high",
+      "title": "fastify vulnerable to request validation bypass via skipped boolean false schemas",
+      "reason": "Remote-control server only; fixes exist only in fastify 5. Upgrade planned.",
+      "backlog": "SEC-9 (WP6)"
+    },
+    {
+      "id": "GHSA-jx2c-rxcm-jvmq",
+      "package": "fastify",
+      "severity": "high",
+      "title": "Fastify's Content-Type header tab character allows body validation bypass",
+      "reason": "Remote-control server only; fixes exist only in fastify 5. Upgrade planned.",
+      "backlog": "SEC-9 (WP6)"
+    },
+    {
+      "id": "GHSA-p68q-wchp-6fh7",
+      "package": "fastify",
+      "severity": "high",
+      "title": "fastify vulnerable to authentication bypass via malformed URLs reaching encapsulated not-found handlers",
+      "reason": "Remote-control server only; fixes exist only in fastify 5. Upgrade planned.",
+      "backlog": "SEC-9 (WP6)"
+    },
+    {
+      "id": "GHSA-c96f-x56v-gq3h",
+      "package": "find-my-way",
+      "severity": "high",
+      "title": "find-my-way: DDoS with HTTP2",
+      "reason": "fastify 4 router; the advisory needs HTTP/2, which the remote-control server does not enable. Goes away with fastify 5.",
+      "backlog": "SEC-9 (WP6)"
+    },
+    {
+      "id": "GHSA-r5fr-rjxr-66jc",
+      "package": "lodash",
+      "severity": "high",
+      "title": "lodash vulnerable to Code Injection via `_.template` imports key names",
+      "reason": "Only _.template is affected; discord.js reaches lodash through @sapphire/shapeshift, which uses lodash/get and lodash/uniqWith only. Fix: lodash 4.17.24+ via a resolution or a discord.js update.",
+      "backlog": "SEC-9"
+    },
+    {
+      "id": "GHSA-jqcg-44mw-7w3h",
+      "package": "proxy-addr",
+      "severity": "critical",
+      "title": "proxy-addr vulnerable to IP spoofing via IPv4-mapped IPv6 trust subnet",
+      "reason": "Used by fastify only when trustProxy is set; the remote-control server leaves it unset. Goes away with fastify 5.",
+      "backlog": "SEC-9 (WP6)"
+    }
+  ]
+}

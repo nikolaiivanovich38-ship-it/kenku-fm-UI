@@ -23,9 +23,9 @@ A clear and concise description of what you expected to happen.
 **Screenshots**
 If applicable, add screenshots to help explain your problem.
 
-**Desktop (please complete the following information):**
- - OS: [e.g. iOS]
- - Version [e.g. 22]
+**Your computer and app**
+ - Operating system: [e.g. Windows 11]
+ - App version (bottom of Settings): [e.g. 0.1.0]
 
 **Additional context**
 Add any other context about the problem here.
