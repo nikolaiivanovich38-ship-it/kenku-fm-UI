@@ -18,7 +18,7 @@ export default defineConfig({
         test: {
           name: "main",
           environment: "node",
-          include: ["src/main/**/*.test.ts", "src/*.test.ts", "src/common/**/*.test.ts"],
+          include: ["src/main/**/*.test.ts", "src/*.test.ts", "src/common/**/*.test.ts", "src/preload/**/*.test.ts"],
         },
       },
       {
