@@ -79,7 +79,9 @@ export const IPC_CHANNELS = {
   // BrowserViewManagerMain
   BROWSER_VIEW_CREATE_BROWSER_VIEW: {
     from: MAIN,
-    args: argsMatch(isUrl, ...bounds, optional(isOneOf(PLAYER_VIEW_KIND))),
+    // The address may be missing for a bookmark saved without one; that has
+    // always opened a blank tab, so it still does.
+    args: argsMatch(optional(isUrl), ...bounds, optional(isOneOf(PLAYER_VIEW_KIND))),
     refusedReturnValue: REFUSED_VIEW_ID,
   },
   BROWSER_VIEW_REMOVE_BROWSER_VIEW: { from: MAIN, args: viewIdOnly },

@@ -308,3 +308,13 @@ describe("BrowserViewManagerMain: who may control views (SEC-8)", () => {
     expect(fakeIpcMain.eventNames()).toEqual([]);
   });
 });
+
+describe("BrowserViewManagerMain: legacy requests keep working (SEC-8)", () => {
+  it("still opens a blank tab for a bookmark saved without an address", () => {
+    const { send } = setup();
+    const event = send("BROWSER_VIEW_CREATE_BROWSER_VIEW", undefined, 0, 0, 100, 100);
+    expect(event.returnValue).toBeGreaterThan(0);
+    expect(created).toHaveLength(1);
+    expect(created[0].webContents.loadURL).not.toHaveBeenCalled();
+  });
+});
