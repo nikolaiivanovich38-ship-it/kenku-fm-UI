@@ -1,6 +1,6 @@
 import React from "react";
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import { act, createEvent, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { configureStore } from "@reduxjs/toolkit";
 import { Provider, useSelector } from "react-redux";
@@ -86,11 +86,64 @@ describe("BookmarkSettings (SEC-6)", () => {
     expect(savedUrl()).toBe(original.url);
   });
 
-  it("still updates the name as the user types", async () => {
-    const user = userEvent.setup();
-    const name = screen.getByRole("textbox", { name: /name/i });
-    await user.clear(name);
-    await user.type(name, "Ambience");
-    expect(store.getState().bookmarks.bookmarks.byId.b1.title).toBe("Ambience");
+  it("lets the browser insert a dropped link as text", () => {
+    const drop = createEvent.drop(urlField(), {
+      dataTransfer: { types: ["text/uri-list", "text/plain"], files: [] },
+    });
+    fireEvent(urlField(), drop);
+    expect(drop.defaultPrevented).toBe(false);
+  });
+});
+
+describe("BookmarkSettings saves name and address together", () => {
+  const savedTitle = () => store.getState().bookmarks.bookmarks.byId.b1.title;
+  const nameField = () => screen.getByRole("textbox", { name: /name/i });
+
+  async function editBoth() {
+    const user = await replaceUrl("example.com");
+    await user.clear(nameField());
+    await user.type(nameField(), "Ambience");
+    return user;
+  }
+
+  it("does not save the name while the user is typing", async () => {
+    await editBoth();
+    expect(savedTitle()).toBe(original.title);
+    expect(savedUrl()).toBe(original.url);
+  });
+
+  it("saves both on Done", async () => {
+    const user = await editBoth();
+    await user.click(screen.getByRole("button", { name: /done/i }));
+    expect(savedTitle()).toBe("Ambience");
+    expect(savedUrl()).toBe("https://example.com/");
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("saves neither when the address is refused", async () => {
+    const user = await replaceUrl("file:///etc/passwd");
+    await user.clear(nameField());
+    await user.type(nameField(), "Ambience");
+    await user.click(screen.getByRole("button", { name: /done/i }));
+    expect(savedTitle()).toBe(original.title);
+    expect(savedUrl()).toBe(original.url);
+  });
+
+  it("discards both on Cancel", async () => {
+    const user = await editBoth();
+    await user.click(screen.getByRole("button", { name: /cancel/i }));
+    expect(onClose).toHaveBeenCalled();
+    expect(savedTitle()).toBe(original.title);
+    expect(savedUrl()).toBe(original.url);
+  });
+
+  it("discards both on Escape", async () => {
+    const user = await editBoth();
+    await act(async () => {
+      await user.keyboard("{Escape}");
+    });
+    expect(onClose).toHaveBeenCalled();
+    expect(savedTitle()).toBe(original.title);
+    expect(savedUrl()).toBe(original.url);
   });
 });

@@ -5,20 +5,16 @@ import AddIcon from "@mui/icons-material/AddRounded";
 
 import { useDispatch } from "react-redux";
 import { addTab, selectTab } from "../tabs/tabsSlice";
-import { getBounds } from "../tabs/getBounds";
+import { openBrowserView } from "./openBrowserView";
 
 export function AddTabButton() {
   const dispatch = useDispatch();
 
   async function handleAddClick() {
-    const bounds = getBounds();
-    const id = await window.kenku.createBrowserView(
-      "",
-      bounds.x,
-      bounds.y,
-      bounds.width,
-      bounds.height
-    );
+    const id = await openBrowserView("");
+    if (id === undefined) {
+      return;
+    }
     dispatch(
       addTab({
         id,
