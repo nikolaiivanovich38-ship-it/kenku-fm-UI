@@ -251,6 +251,11 @@ export class FakeHowl {
     this.emit("fade", 1);
   }
 
+  /** Move the play position (seconds) as playback would, without recording a seek() call. */
+  setPosition(seconds: number) {
+    this.position = seconds;
+  }
+
   /** Simulate a running fade reaching `value` without ending it (no call is recorded). */
   setFadeProgress(value: number) {
     this.currentVolume = value;

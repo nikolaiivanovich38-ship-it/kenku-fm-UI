@@ -192,6 +192,21 @@ describe("Sound cross-faded loops release their audio (BUG-4)", () => {
     expect(first.unloaded).toBe(true);
   });
 
+  it("reports an error if the next loop's Howl cannot be created, and still releases the old one", async () => {
+    const sound = createSound({ fadeIn: 100, fadeOut: 100, loop: true });
+    const onError = vi.fn();
+    sound.on("error", onError);
+    const first = startLatest();
+    FakeHowl.nextThrows = true;
+
+    vi.advanceTimersByTime(DURATION_S * 1000 - 100);
+    await Promise.resolve();
+
+    expect(onError).toHaveBeenCalledTimes(1);
+    first.finishFade();
+    expect(first.unloaded).toBe(true);
+  });
+
   it("stop(false) unloads the current and the still-fading Howl and cancels the timer", async () => {
     const sound = createSound({ fadeIn: 100, fadeOut: 100, loop: true });
     const first = startLatest();
@@ -326,6 +341,16 @@ describe("Sound seek reschedules the fade-out (BUG-5)", () => {
     expect(FakeHowl.instances).toHaveLength(1);
     vi.advanceTimersByTime(4000);
     expect(FakeHowl.instances).toHaveLength(2);
+  });
+
+  it("seek after stop does nothing", async () => {
+    const sound = createSound({ fadeOut: 1000 });
+    const howl = startLatest();
+    await sound.stop(false);
+
+    sound.seek(2);
+
+    expect(howl.callsOf("seek")).toEqual([]);
   });
 
   it("does not schedule a fade-out on seek when fadeOut is 0", () => {
