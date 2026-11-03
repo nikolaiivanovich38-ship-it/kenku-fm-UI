@@ -11,14 +11,18 @@ import {
   cleanFileName,
 } from "../../renderer/common/drop";
 import useFileDrop, { FileInfo } from "./useFileDrop";
+import {
+  AUDIO_FORMATS_LABEL,
+  audioFileType,
+  hasAudioExtension,
+} from "./fileTypes";
+import { useNotify } from "./notifications";
 
 type AudioSelectorProps = {
   value: string;
   onChange: (value: string) => void;
   onFileName: (name: string) => void;
 };
-
-const formats = ["mp3", "flac", "wav", "ogg", "mp4", "3gp", "webm", "mpeg"];
 
 export function AudioSelector({
   value,
@@ -37,22 +41,30 @@ export function AudioSelector({
     }
   }
 
-  const onDrop = useCallback((acceptedFiles: FileInfo[]) => {
-    const file = acceptedFiles[0];
-    if (file) {
-      onChange(encodeFilePath(file.path));
-      onFileName(cleanFileName(file.name));
-    }
-  }, []);
+  const notify = useNotify();
+  const onDrop = useCallback(
+    (acceptedFiles: FileInfo[], rejectedNames: string[]) => {
+      const file = acceptedFiles[0];
+      if (file) {
+        onChange(encodeFilePath(file.path));
+        onFileName(cleanFileName(file.name));
+      } else if (rejectedNames.length > 0) {
+        notify({
+          severity: "info",
+          message: `"${rejectedNames[0]}" isn't an audio file Kenku FM can play. Choose an ${AUDIO_FORMATS_LABEL} file.`,
+        });
+      }
+    },
+    [onChange, onFileName, notify]
+  );
 
   const { rootProps, inputProps, isDragging } = useFileDrop({
     onDrop,
-    accept: "audio/*",
+    fileType: audioFileType,
     multiple: false,
   });
 
-  const warning =
-    value && !formats.some((format) => value.toLowerCase().endsWith(format));
+  const warning = value && !hasAudioExtension(value);
 
   return (
     <>

@@ -23,6 +23,8 @@ import { addSounds, removeSoundboard, Sound } from "./soundboardsSlice";
 
 import { backgrounds, isBackground } from "../../backgrounds";
 import { useFolderDrop } from "../../common/useFolderDrop";
+import { useNotify } from "../../common/notifications";
+import { IMPORT_FAILED_MESSAGE, summariseImport } from "../../common/importSummary";
 
 type SoundboardProps = {
   onPlay: (sound: Sound) => void;
@@ -69,10 +71,11 @@ export function Soundboard({ onPlay, onStop }: SoundboardProps) {
     handleMenuClose();
   }
 
+  const notify = useNotify();
   const { dragging, containerListeners, overlayListeners } = useFolderDrop(
-    (directories) => {
+    (directories, result) => {
       const sounds: Sound[] = [];
-      for (let directory of Object.values(directories)) {
+      for (const directory of Object.values(directories)) {
         sounds.push(
           ...directory.audioFiles.map((file) => ({
             ...file,
@@ -83,8 +86,12 @@ export function Soundboard({ onPlay, onStop }: SoundboardProps) {
           }))
         );
       }
-      dispatch(addSounds({ sounds, soundboardId: soundboard.id }));
-    }
+      if (sounds.length > 0) {
+        dispatch(addSounds({ sounds, soundboardId: soundboard.id }));
+      }
+      notify(summariseImport(result, "soundboard"));
+    },
+    () => notify({ severity: "error", message: IMPORT_FAILED_MESSAGE })
   );
 
   return (

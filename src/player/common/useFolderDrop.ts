@@ -1,134 +1,72 @@
-import { useState } from "react";
-import { v4 as uuid } from "uuid";
+import React, { useCallback, useRef } from "react";
 
-import { cleanFileName, encodeFilePath } from "../../renderer/common/drop";
+import {
+  Directories,
+  FolderImportResult,
+  getDroppedEntries,
+  importDroppedEntries,
+} from "./folderImport";
+import { useFileDragState } from "./useFileDragState";
 
-export interface AudioFile {
-  id: string;
-  url: string;
-  title: string;
-}
+export type { AudioFile, Directory, Directories } from "./folderImport";
 
-const supportedFileTypes = [
-  "audio/wav",
-  "audio/mpeg",
-  "audio/mp4",
-  "audio/aac",
-  "audio/ogg",
-  "audio/webm",
-  "audio/ogg",
-  "audio/webm",
-  "audio/flac",
-];
+/**
+ * Drag-and-drop of files and folders onto a playlist or soundboard page.
+ *
+ * Spread `containerListeners` on the page and `overlayListeners` on the
+ * "Drop the tracks here" overlay, which should render while `dragging`.
+ * The overlay only opens for file drags and always closes again (BUG-1);
+ * folders of any size are read in full (BUG-2); audio is recognised by MIME
+ * type or extension (BUG-10).
+ *
+ * @param onDrop receives the audio found, grouped by folder, plus what was
+ *   skipped or unreadable so the caller can tell the user.
+ * @param onError called with the error if the import fails unexpectedly.
+ */
+export function useFolderDrop(
+  onDrop: (directories: Directories, result: FolderImportResult) => void,
+  onError?: (error: unknown) => void
+) {
+  const { dragging, onDragEnter, onDragLeave, onDragOver, endDrag } =
+    useFileDragState();
 
-function isFileSystemFileEntry(
-  entry: FileSystemEntry
-): entry is FileSystemFileEntry {
-  return entry.isFile;
-}
+  // Keep the latest callbacks without re-creating the handlers.
+  const onDropRef = useRef(onDrop);
+  onDropRef.current = onDrop;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
 
-function isFileSystemDirectoryEntry(
-  entry: FileSystemEntry
-): entry is FileSystemDirectoryEntry {
-  return entry.isDirectory;
-}
-
-export type Directory = {
-  path: string;
-  name: string;
-  audioFiles: AudioFile[];
-};
-
-export type Directories = Record<string, Directory>;
-
-async function getFile(entry: FileSystemFileEntry): Promise<File> {
-  return new Promise((resolve, reject) => {
-    entry.file(resolve, reject);
-  });
-}
-
-async function getEntries(
-  entry: FileSystemDirectoryEntry
-): Promise<FileSystemEntry[]> {
-  const dirReader = entry.createReader();
-  return new Promise((resolve, reject) => {
-    dirReader.readEntries(resolve, reject);
-  });
-}
-
-async function getDirectories(
-  entries: FileSystemEntry[],
-  path: string = "/",
-  directories: Directories = {
-    "/": { path: "/", name: "root", audioFiles: [] },
-  }
-): Promise<Directories> {
-  for (let entry of entries) {
-    if (isFileSystemFileEntry(entry)) {
-      const file = await getFile(entry);
-      if (path in directories && supportedFileTypes.includes(file.type)) {
-        const filePath = window.player.getPathForFile(file);
-        directories[path].audioFiles.push({
-          url: encodeFilePath(filePath),
-          title: cleanFileName(file.name),
-          id: uuid(),
+  const handleDrop = useCallback(
+    async (event: React.DragEvent<HTMLElement>) => {
+      event.preventDefault();
+      event.stopPropagation();
+      try {
+        // Entries must be taken before the first await; the browser clears
+        // the DataTransfer when the event handler returns.
+        const entries = getDroppedEntries(event.dataTransfer);
+        endDrag();
+        if (entries.length === 0) {
+          return;
+        }
+        const result = await importDroppedEntries(entries, {
+          getPathForFile: (file) => window.player.getPathForFile(file),
         });
+        onDropRef.current(result.directories, result);
+      } catch (error) {
+        if (onErrorRef.current) {
+          onErrorRef.current(error);
+        } else {
+          console.error(error);
+        }
+      } finally {
+        endDrag();
       }
-    } else if (isFileSystemDirectoryEntry(entry)) {
-      const folderPath = path + entry.name;
-      directories[folderPath] = {
-        path: folderPath,
-        name: entry.name,
-        audioFiles: [],
-      };
-      const folderEntries = await getEntries(entry);
-      await getDirectories(folderEntries, folderPath, directories);
-    }
-  }
-  return directories;
-}
+    },
+    [endDrag]
+  );
 
-export function useFolderDrop(onDrop: (directories: Directories) => void) {
-  const [dragging, setDragging] = useState(false);
-  function handleDragEnter(event: React.DragEvent<HTMLDivElement>) {
-    event.preventDefault();
-    event.stopPropagation();
-    setDragging(true);
-  }
-
-  function handleDragLeave(event: React.DragEvent<HTMLDivElement>) {
-    event.preventDefault();
-    event.stopPropagation();
-    setDragging(false);
-  }
-
-  function handleDragOver(event: React.DragEvent<HTMLDivElement>) {
-    event.preventDefault();
-    event.stopPropagation();
-    if (event.dataTransfer) {
-      event.dataTransfer.dropEffect = "copy";
-    }
-  }
-
-  async function handleDrop(event: React.DragEvent<HTMLDivElement>) {
-    event.preventDefault();
-    event.stopPropagation();
-    const entries = Array.from(event.dataTransfer.items).map((item) =>
-      item.webkitGetAsEntry()
-    );
-    const directories = await getDirectories(entries);
-    onDrop(directories);
-    setDragging(false);
-  }
-
-  const containerListeners = {
-    onDragEnter: handleDragEnter,
-  };
-  const overlayListeners = {
-    onDragLeave: handleDragLeave,
-    onDragOver: handleDragOver,
-    onDrop: handleDrop,
-  };
+  const containerListeners = { onDragEnter, onDragOver };
+  const overlayListeners = { onDragLeave, onDragOver, onDrop: handleDrop };
 
   return { dragging, containerListeners, overlayListeners };
 }

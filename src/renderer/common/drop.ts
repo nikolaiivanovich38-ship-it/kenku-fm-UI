@@ -6,15 +6,22 @@ export function encodeFilePath(path: string) {
     .replace(/%3A/g, ":")}`;
 }
 
-export function getDropURL(dataTransfer: DataTransfer): string | undefined {
-  const files: FileList = dataTransfer.files;
-  if (files.length > 0) {
-    const file = files[0];
-    const path = window.player.getPathForFile(file);
-    if (path) {
-      return encodeFilePath(path);
-    }
+/**
+ * File URL of the first file dropped on a URL field, or undefined.
+ * Returns undefined instead of throwing when there is no DataTransfer or
+ * when the window has no `player` bridge (the main browser window), so a
+ * drop can never break the field.
+ */
+export function getDropURL(
+  dataTransfer: Pick<DataTransfer, "files"> | null | undefined
+): string | undefined {
+  const file = dataTransfer?.files?.[0];
+  const getPathForFile = window.player?.getPathForFile;
+  if (!file || !getPathForFile) {
+    return undefined;
   }
+  const path = getPathForFile(file);
+  return path ? encodeFilePath(path) : undefined;
 }
 
 export function cleanFileName(name: string): string {

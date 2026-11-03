@@ -1,95 +1,76 @@
-import React, { useCallback, useRef, useState } from "react";
+import React, { useRef } from "react";
+
+import { FileTypeRule, isAcceptedFile } from "./fileTypes";
+import { useFileDragState } from "./useFileDragState";
 
 export type FileInfo = { path: string; name: string };
 
+/**
+ * A click-or-drop zone for picking a single file (or several) from disk,
+ * used by the audio and image selectors in the add/edit dialogs.
+ *
+ * Spread `rootProps` on the zone and `inputProps` on a hidden file input.
+ * Drag state follows the shared overlay rules (BUG-1): only file drags
+ * activate it, and it resets when the drag leaves, ends, is cancelled with
+ * Escape or the window loses focus. Files are accepted by MIME type or
+ * extension using `fileType` (BUG-10).
+ */
 function useFileDrop({
   onDrop,
   multiple,
-  accept,
+  fileType,
 }: {
-  onDrop: (files: FileInfo[]) => void;
-  multiple: React.HTMLProps<HTMLInputElement>["multiple"];
-  accept: React.HTMLProps<HTMLInputElement>["accept"];
+  /**
+   * Receives the accepted files (empty when none matched `fileType`) and the
+   * names of files that were left out, so the caller can explain why.
+   */
+  onDrop: (files: FileInfo[], rejectedNames: string[]) => void;
+  multiple: boolean;
+  fileType: FileTypeRule;
 }) {
-  const [isDragging, setIsDragging] = useState(false);
-  const rootRef = useRef<HTMLElement | null>(null);
+  const { dragging, onDragEnter, onDragLeave, onDragOver, endDrag } =
+    useFileDragState();
   const inputRef = useRef<HTMLInputElement>(null);
 
-  function onDragEnter(event: React.DragEvent<HTMLElement>) {
-    event.preventDefault();
-    event.stopPropagation();
-    setIsDragging(true);
-  }
-
-  function onDragLeave(event: React.DragEvent<HTMLElement>) {
-    event.preventDefault();
-    event.stopPropagation();
-    if (event.relatedTarget !== rootRef.current.parentElement) {
+  function onFiles(fileList: FileList | File[] | null | undefined) {
+    const all = fileList ? Array.from(fileList) : [];
+    if (all.length === 0) {
       return;
     }
-    setIsDragging(false);
-  }
-
-  function onDragOver(event: React.DragEvent<HTMLElement>) {
-    event.preventDefault();
-    event.stopPropagation();
-    if (event.dataTransfer) {
-      event.dataTransfer.dropEffect = "copy";
+    const files: FileInfo[] = [];
+    const rejectedNames: string[] = [];
+    for (const file of all.slice(0, multiple ? all.length : 1)) {
+      const path = isAcceptedFile(file, fileType)
+        ? window.player.getPathForFile(file)
+        : "";
+      if (path) {
+        files.push({ path, name: file.name });
+      } else {
+        rejectedNames.push(file.name);
+      }
     }
+    onDrop(files, rejectedNames);
   }
 
   function onFileDrop(event: React.DragEvent<HTMLElement>) {
     event.preventDefault();
     event.stopPropagation();
-    setIsDragging(false);
-    const eventFiles = event.dataTransfer.files;
-    if (eventFiles) {
-      onFiles(eventFiles);
+    try {
+      onFiles(event.dataTransfer?.files);
+    } finally {
+      endDrag();
     }
   }
 
   function onClick() {
-    setIsDragging(false);
-    const input = inputRef.current;
-    if (input) {
-      input.click();
-    }
+    endDrag();
+    inputRef.current?.click();
   }
 
   function onChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const files = event.target.files;
-    onFiles(files);
+    onFiles(event.target.files);
     event.target.value = "";
   }
-
-  function onFiles(fileList: FileList) {
-    const files: FileInfo[] = [];
-    const maxFiles = multiple ? fileList.length : Math.min(fileList.length, 1);
-    for (let i = 0; i < maxFiles; i++) {
-      const file = fileList[i];
-      if (!checkAccept(file.type)) {
-        continue;
-      }
-      const path = window.player.getPathForFile(file);
-      const name = file.name;
-      files.push({ path, name });
-    }
-    onDrop(files);
-  }
-
-  // TODO: Make this check better i.e. check for explicit accepted files but this works for now
-  function checkAccept(type: string) {
-    if (accept.endsWith("*")) {
-      return type.startsWith(accept.slice(0, -1));
-    } else {
-      return type === accept;
-    }
-  }
-
-  // Use ref callback to make TS happy
-  const rootRefCallback = useCallback((node: HTMLElement | null) => {
-    rootRef.current = node;
-  }, []);
 
   const rootProps = {
     onDragEnter,
@@ -97,13 +78,12 @@ function useFileDrop({
     onDragOver,
     onDrop: onFileDrop,
     onClick,
-    ref: rootRefCallback,
   };
 
   const inputProps = {
     ref: inputRef,
     multiple,
-    accept,
+    accept: fileType.accept,
     style: {
       display: "none",
     },
@@ -111,7 +91,7 @@ function useFileDrop({
     onChange,
   };
 
-  return { isDragging, rootProps, inputProps };
+  return { isDragging: dragging, rootProps, inputProps };
 }
 
 export default useFileDrop;

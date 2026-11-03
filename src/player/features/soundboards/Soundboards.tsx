@@ -32,6 +32,12 @@ import { RootState } from "../../app/store";
 import { getRandomBackground } from "../../backgrounds";
 import { SortableItem } from "../../common/SortableItem";
 import { useFolderDrop } from "../../common/useFolderDrop";
+import { useNotify } from "../../common/notifications";
+import {
+  foldersWithAudio,
+  IMPORT_FAILED_MESSAGE,
+  summariseImport,
+} from "../../common/importSummary";
 import { SoundboardAdd } from "./SoundboardAdd";
 import { SoundboardItem } from "./SoundboardItem";
 import {
@@ -89,35 +95,35 @@ export function Soundboards({ onPlay }: SoundboardProps) {
 
   const [addOpen, setAddOpen] = useState(false);
 
+  const notify = useNotify();
   const { dragging, containerListeners, overlayListeners } = useFolderDrop(
-    (directories) => {
-      for (let directory of Object.values(directories)) {
-        const files = directory.audioFiles;
-        if (files.length > 0 && directory.path !== "/") {
-          const id = uuid();
-          dispatch(
-            addSoundboard({
-              id,
-              background: getRandomBackground(),
-              title: directory.name,
-              sounds: [],
-            })
-          );
-          dispatch(
-            addSounds({
-              sounds: files.map((file) => ({
-                ...file,
-                loop: false,
-                volume: 1,
-                fadeIn: 100,
-                fadeOut: 100,
-              })),
-              soundboardId: id,
-            })
-          );
-        }
+    (directories, result) => {
+      for (const directory of foldersWithAudio(directories)) {
+        const id = uuid();
+        dispatch(
+          addSoundboard({
+            id,
+            background: getRandomBackground(),
+            title: directory.name,
+            sounds: [],
+          })
+        );
+        dispatch(
+          addSounds({
+            sounds: directory.audioFiles.map((file) => ({
+              ...file,
+              loop: false,
+              volume: 1,
+              fadeIn: 100,
+              fadeOut: 100,
+            })),
+            soundboardId: id,
+          })
+        );
       }
-    }
+      notify(summariseImport(result, "soundboards"));
+    },
+    () => notify({ severity: "error", message: IMPORT_FAILED_MESSAGE })
   );
 
   const scrollRef = useRef<HTMLDivElement>(null);
