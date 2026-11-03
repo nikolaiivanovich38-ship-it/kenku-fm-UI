@@ -17,12 +17,21 @@ All notable changes to Cue Desk. Versions follow [Semantic Versioning](https://s
 - Dropping a big folder imports every file, not just the first 100. [BUG-2]
 - A sound's fade-in now works on its own, without also needing a fade-out. [BUG-3]
 - Looping sounds with fades no longer use more and more memory during a long session. [BUG-4]
+- Jumping to another point in a sound now moves its fade-out too, so it fades out just before the end instead of too early or too late. [BUG-5]
+- Stopping a sound with a fade-out always finishes, even when the sound failed to start. [BUG-4]
+- The "drop here" overlay no longer flickers while you move a file across the window. [BUG-1]
+- Editing a bookmark saves the name and the address together when you press Done; Cancel or Escape leaves the bookmark as it was.
+- Error and warning messages stay on screen until you close them; success messages still go away by themselves. Screen readers announce errors straight away and other messages politely.
+- Dragging a link onto the address bar or a bookmark's address field puts the link in the field.
 - Audio files are recognised by their extension too, so files such as .m4a, .flac and .opus are no longer turned away. [BUG-10]
 
 **Security**
 - The internal audio link can no longer be reached by other computers on your network. [SEC-2]
-- Websites in tabs can no longer use your microphone, camera, location or devices without asking. [SEC-3]
+- Websites in tabs can no longer use your microphone, camera, location or devices; such requests are refused without asking you. [SEC-3]
+- Websites in tabs now keep their logins separately from the app. Logins are not carried over from Kenku FM, so log in to websites in tabs again once. [SEC-3]
 - Tabs only open normal web addresses, and pages can no longer flood the app with pop-up tabs. [SEC-6]
+- Bookmarks saved without https:// (for example "youtube.com") open again; a bookmark that can't be opened shows a message saying why instead of an empty tab. [SEC-6]
+- The address bar shows "Not secure" for http:// pages. [SEC-6]
 - The app's own windows can no longer be turned into a web page. [SEC-7]
 - Only web links (https) are handed to your browser; other kinds of links are refused. [SEC-10]
 - Libraries with known security problems were updated (ws, undici, react-router). The remote-control server library (fastify 4) is still to be upgraded; until then its known issues are listed and tracked. [SEC-9]

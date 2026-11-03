@@ -2,7 +2,7 @@
  * SEC-7: stop files and links dropped on an app page from navigating it.
  *
  * Chromium's default for a file or link dropped on a page is to open it in
- * that page, which would replace a privileged Kenku FM page. Drop zones
+ * that page, which would replace one of the app's privileged pages. Drop zones
  * handle their events before they bubble up to the document, so they keep
  * working; text and links dropped into a text field are also left alone, so
  * the browser inserts them as text. A cancelled drag shows the "no drop"

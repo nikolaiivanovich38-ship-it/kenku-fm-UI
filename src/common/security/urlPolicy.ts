@@ -1,5 +1,5 @@
 /**
- * SEC-6 / SEC-10: which web addresses Kenku FM is willing to open.
+ * SEC-6 / SEC-10: which web addresses Cue Desk is willing to open.
  *
  * Pure module (no Electron import) so the same rules run in the main process,
  * which enforces them, and in the renderer, which uses them to explain a
