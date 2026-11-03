@@ -5,6 +5,7 @@ import {
   dragReducer,
   initialDragState,
   leftTarget,
+  pointerOutsideWindow,
 } from "./dragState";
 
 /**
@@ -36,7 +37,7 @@ export function useFileDragState() {
     event.stopPropagation();
     send({
       type: "leave",
-      outside: leftTarget(event.currentTarget, event.relatedTarget),
+      outside: leftTarget(event.currentTarget, event.relatedTarget, event),
     });
   }, []);
 
@@ -61,8 +62,10 @@ export function useFileDragState() {
     if (!dragging) {
       return;
     }
+    // relatedTarget is unreliable here (Chromium may leave it null inside
+    // the page), so "left the window" is judged from the pointer position.
     function handleWindowDragLeave(event: DragEvent) {
-      if (!event.relatedTarget) {
+      if (pointerOutsideWindow(event, window)) {
         cancel();
       }
     }

@@ -50,20 +50,52 @@ export function dragHasFiles(
   return Array.from(dataTransfer.types).includes("Files");
 }
 
+/** Pointer position of a drag event, in viewport (client) coordinates. */
+export type DragPoint = { clientX: number; clientY: number };
+
 /**
- * True when a dragleave on `target` means the pointer really left it:
- * either it left the window (`relatedTarget` is null) or it moved to an
- * element outside `target`.
+ * True when a dragleave on `target` means the pointer really left it: it
+ * moved to an element outside `target`, or, when Chromium gives no
+ * `relatedTarget` (it may omit it even for moves inside the page), the
+ * pointer is no longer within the target's box.
  */
 export function leftTarget(
   target: EventTarget | null,
-  relatedTarget: EventTarget | null
+  relatedTarget: EventTarget | null,
+  point?: DragPoint
 ): boolean {
   if (!relatedTarget) {
-    return true;
+    if (!point || !(target instanceof Element)) {
+      return true;
+    }
+    const box = target.getBoundingClientRect();
+    return !(
+      point.clientX >= box.left &&
+      point.clientX < box.right &&
+      point.clientY >= box.top &&
+      point.clientY < box.bottom
+    );
   }
   if (target instanceof Node && relatedTarget instanceof Node) {
     return !target.contains(relatedTarget);
   }
   return true;
+}
+
+/**
+ * True when a drag event's position is on or beyond the window's edge, which
+ * is how a window-level dragleave is recognised as "the drag left the window"
+ * (BUG-1). `relatedTarget` cannot be used for this because Chromium may leave
+ * it null for ordinary element-to-element moves.
+ */
+export function pointerOutsideWindow(
+  point: DragPoint,
+  viewport: Pick<Window, "innerWidth" | "innerHeight">
+): boolean {
+  return (
+    point.clientX <= 0 ||
+    point.clientY <= 0 ||
+    point.clientX >= viewport.innerWidth ||
+    point.clientY >= viewport.innerHeight
+  );
 }
