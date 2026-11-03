@@ -53,7 +53,7 @@ jobs:
           retention-days: 14
 
   dependency-audit:
-    name: Dependency audit (shipped libraries)
+    name: Dependency audit (shipped libraries and Electron)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:

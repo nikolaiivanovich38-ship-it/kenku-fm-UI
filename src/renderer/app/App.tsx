@@ -3,7 +3,7 @@ import React, { useEffect, useState } from "react";
 import Snackbar from "@mui/material/Snackbar";
 import Stack from "@mui/material/Stack";
 import styled from "@mui/material/styles/styled";
-import Alert from "@mui/material/Alert";
+import { ErrorToast } from "../common/ErrorToast";
 
 import { ActionDrawer } from "../common/ActionDrawer";
 
@@ -95,14 +95,7 @@ export function App() {
         message={message}
         sx={{ maxWidth: "192px" }}
       />
-      <Snackbar
-        open={Boolean(error)}
-        autoHideDuration={8000}
-        onClose={() => setError(undefined)}
-        sx={{ maxWidth: "192px" }}
-      >
-        <Alert severity="error">{error}</Alert>
-      </Snackbar>
+      <ErrorToast error={error} onClose={() => setError(undefined)} />
     </Stack>
   );
 }
