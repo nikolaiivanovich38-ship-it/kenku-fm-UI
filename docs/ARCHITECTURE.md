@@ -221,3 +221,41 @@ EDT-6 (backend), DAT-5, DAT-6, DAT-8, DAT-9, ORG-1 and DAT-4 in `src/main/data/i
 - **The old library**: `importLegacyLibrary(library, localStorageValueOf("persist:player"))` on the new interface's first start: backup first, resumable, once.
 - **Relinking**: `findMissingTracks`, `planRelink`, `applyRelink` (one undo step).
 - **Wiring for wave 3**: read `persist:player` from the player window's localStorage and pass it to `importLegacyLibrary` before showing the Library; pass `createMusicMetadataTagReader(parseFile)` to `importAudio`, `importLegacyLibrary` and `refreshEmbeddedTags`; forward `ImportProgress` to the progress bar; show `summary` / `lines`.
+
+## Wave 3: w3-host
+
+The new interface's page hosts the playback engine behind one interface, `LyreAudio` (`src/lyre/audio`), so no screen touches Web Audio. PLY-8, PLY-10, OUT-5, PRV-1, PRV-2, PLY-11.
+
+| File | What it does |
+| --- | --- |
+| `lyreAudio.ts` | `LyreAudio` (the screens' calls: play a track, playlist or scene on air to a room or every room, Next/Previous, pause, stop a lane with a fade, fade all, stop all, pads, Play next queue, Undo, preview a track/playlist/pad, preview device; `getNowPlaying`/`subscribe`; `announce` and `error` events) and `EngineLyreAudio`, its implementation over the Director, `RoomMixer`, `RoomStreams` and `PreviewPlayer`. Every failed call returns its plain message and sends it once as `error`. The library comes in as `LyreAudioLibrary`: domain lookups, the `ProfileOverrides` provider, each track's file (`media`) and each pad; it must answer synchronously, so the data layer answers from what it has loaded. |
+| `stableRooms.ts` | The rooms as the Director sees them. When the first bot joins, the mixer hands the table's mix to that room; the Director would see "table" vanish and stop it. Here that room keeps the table's id for the Director, so music started before joining goes on into Discord. A fresh table after the last bot leaves gets a new id, so the old one's voices stop. |
+| `browserLyreAudio.ts` | `startLyreAudio`: engine context at 48 kHz, read-ahead with `MEDIA_PREPARE`, worklet taps, the bridged preview in a sink-less context; `assembleLyreAudio` joins the parts (unit-tested with fakes). The preview device is attached again on every new channel. |
+| `preloadAudio.ts` | `createLyreAudioBridge(ipcRenderer, window)`: the new page's preload half (`window.lyre.audio`): holds and posts the channel's end, rooms, `MEDIA_PREPARE`. |
+| `LyreAudioProvider.tsx` | `LyreAudioProvider`, `useLyreAudio`, `useNowPlaying` (useSyncExternalStore), `useLyreAudioEvent`. |
+| `testing/` | `FakeLyreAudio` for screen tests; `lyreAudioOnFakes` (the real parts on the fake audio graph). |
+
+Where sound goes: each room's mix reaches its bot only through `RoomStreams`; the page (role `lyre-view`) is never tab-captured. This page's speakers play the first room only while no broadcast runs; during one, the capture window's "This Computer" plays it, so it is never heard twice. The preview never reaches a room or this page's speakers.
+
+Main process: `PlayerAudioBridge.setLyre(contents)` (through `PlaybackManager.setLyreView`) gives the new page the private channel and the rooms while it is open; the old player then gets neither (it reaches Discord by tab capture and never used the channel outside its test hook; two pages feeding the same rooms would be heard twice). When the new page closes, the old player gets the channel back.
+
+### Wiring for the lead
+
+```ts
+// src/lyre/preload.ts, in the exposed API:
+import { createLyreAudioBridge } from "./audio/preloadAudio";
+audio: createLyreAudioBridge(ipcRenderer, window),
+
+// The page root:
+import { EMPTY_LIBRARY, LyreAudioProvider, startLyreAudio } from "./audio";
+const audio = await startLyreAudio({ window, bridge: window.lyre.audio, library: EMPTY_LIBRARY });
+window.addEventListener("pagehide", () => void audio.dispose());
+root.render(<LyreAudioProvider audio={audio}><App /></LyreAudioProvider>);
+// When the LyreApi data has loaded (and after each reload): audio.setLibrary(library);
+
+// Main process, where the Lyre view is made and registered:
+trustedContents.trust(view.webContents, "lyre-view");
+playbackManager.setLyreView(view.webContents);
+```
+
+The new page's Content-Security-Policy needs `script-src 'self'` (the PCM worklet file), `media-src 'self' blob: file:` and `connect-src 'self' blob: file:` (read-ahead reads `file:` addresses and plays `blob:` copies). `MEDIA_PREPARE` must accept the `lyre-view` sender and `registerMediaIpc` must be wired ("Wave 2: Files and preview").

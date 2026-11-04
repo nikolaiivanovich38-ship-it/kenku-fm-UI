@@ -488,3 +488,25 @@ The player page may now see the names of sound output devices and play on a chos
 | `mediaCache.test.ts` | Convert once, lossless to FLAC and lossy to Opus, one at a time, across restarts, again when changed; sweep; damaged index cannot reach outside; failures leave no part file; background disk copies; disk cap |
 | `ffmpegConverter.test.ts` | Arguments (files only, no shell), probe, failure, missing program, cancel, timeout |
 | `mediaIpc.test.ts` | Player only; argument checks; plain failure answer |
+
+## w3-host
+
+### In plain language
+
+The new Lyre interface sends each room's sound to its own Discord bot over Lyre's private channel, never by recording the page, so nothing else on the page can reach Discord. The preview is heard only in the game master's headphones. The new page may see the names of sound devices to choose where the preview plays, and nothing more: no microphone, camera or screen.
+
+### Technical details
+
+- New page role `lyre-view` (`AppPageRole`, `permissions.ts`). It gets `speaker-selection` as a check only (device names and `setSinkId` for the preview device, PRV-2), from its own top frame; nothing as a request. Any `media` permission is refused to it, so it can never be tab-captured even if marked as a capture target (`AudioCaptureManagerMain` already refuses to capture any app page but the old player). Tested in `permissions.test.ts`.
+- `PlayerAudioBridge.setLyre` hands the private channel (`PLAYER_AUDIO_PORT`) and the rooms (`PLAYER_ROOMS`) only to a page registered as `lyre-view`; anything else, the old player included, is refused. While it is open the old player gets neither; when it closes, the old player gets a new channel. Main to page only, not in `IPC_CHANNELS`. Tested in `playerAudioBridge.test.ts`.
+- The new page's preload (`src/lyre/audio/preloadAudio.ts`) checks rooms as the player preload does (only `botId` and `name` strings cross) and posts the channel's end to its own window only.
+- No new IPC channel from this stream. For the lead: `MEDIA_PREPARE` needs `lyre-view` added to its senders; arguments unchanged.
+
+### Manual checks (Windows, real Discord, two bots in two voice channels)
+
+1. Open the Lyre tab, play music before any bot joins: you hear it on this computer. Join Bot 1 to "Table": the music goes on, now in Discord, and you hear it once (not doubled).
+2. Play music to "Side" only: a friend in "Side" hears it, one in "Table" does not; you do not hear it on this computer.
+3. Preview a track while music plays: you hear it in your headphones; neither friend hears it.
+4. Choose your headphones as the preview device; unplug them: a message says the preview plays on the default device.
+5. With the Lyre tab open, play something in the old Player tab: friends still hear it (tab capture), and the Lyre tab's music is not doubled.
+6. Close the Lyre tab while music plays: its music stops in Discord within a second.
