@@ -26,7 +26,7 @@ import {
   fakeDirectoryEntry,
 } from "../common/testing/fakeDataTransfer";
 
-// The backgrounds module uses webpack's require.context, which Vitest lacks.
+// A fixed background list; the real one is asked from the main process (window.player).
 vi.mock("../backgrounds", () => ({
   backgrounds: { blank: "blank.png" },
   getRandomBackground: () => "blank",

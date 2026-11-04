@@ -201,3 +201,44 @@ Run the packaged app (or `yarn start` for the development policy) with DevTools 
 6. Turn an external input on and off several times; close and reopen a tab that plays sound several times. Audio keeps working.
 7. With the remote enabled, call `GET /v1/playlist/playback` from two clients at the same time (or press two Stream Deck buttons together): both get an answer; with the player tab closed, requests return 503 as before.
 8. Trigger the error screen (or call `window.kenku.removeAllBrowserViews()` from the main window's DevTools): tab audio stops being sent to Discord.
+
+## Kenku FM backgrounds
+
+### In plain language
+
+When Cue Desk starts, it looks for Kenku FM installed on your computer and copies Kenku FM's background pictures into Cue Desk's own data folder, so playlists and soundboards made in Kenku FM show their pictures again. It only reads Kenku FM's program folder and only writes to the `backgrounds` folder inside Cue Desk's data folder. It never changes or deletes anything, never replaces a picture that is already there, and downloads nothing. The pictures stay on your computer and are not part of Cue Desk's installer.
+
+### What is read and written
+
+| What | Where | Rules |
+|---|---|---|
+| Folder names | `%LOCALAPPDATA%` (top level), `kenku-fm*` folders in it, their `app-x.y.z\resources` folders | Listing only. Only Windows is searched. |
+| Kenku FM's player bundle | `…\resources\app\.webpack\renderer\player_window\index.js`, or the same path inside `app.asar` (Electron's main process reads inside asar archives) | At most 64 MB, read as text and searched with regular expressions; nothing in it is run. |
+| Pictures | files named in that bundle, directly in `.webpack\renderer` | Names in the bundle must be plain file names (no slashes, no `..`), files must be `<letters, digits, _ or ->.<jpg, jpeg, png, webp or svg>`, at most 20 MB, not empty. |
+| Copies | `<userData>\backgrounds\<name>.<ext>` | Written as a hidden `.part` file, then renamed. Skipped when any picture with that name is already there. |
+
+Test builds read `CUE_DESK_LOCAL_APP_DATA_DIR` instead of `%LOCALAPPDATA%` (end-to-end tests); release builds compile that out (`__CUE_DESK_TEST_BUILD__`).
+
+### Channel
+
+Add to the SEC-8 channel table (kept here so branches merge cleanly):
+
+| Channel | Sent by | Arguments | Handled in |
+|---|---|---|---|
+| `PLAYER_GET_BACKGROUNDS` (sync) | Player | none | `src/main/legacyBackgrounds/index.ts` |
+
+The answer is `{ name: file:// address }` for the pictures in `<userData>/backgrounds` only (built with `url.pathToFileURL`, so spaces and quotes are percent-encoded and the address is safe inside CSS `url("…")`). A refused message gets `{}`, and the player shows its blank background. The answer waits for the start-up copy, at most 5 seconds; that blocks the player page, not the main window.
+
+Content-Security-Policy: no change. The player's `img-src` already allows `file:`, which custom backgrounds from disk use; the built-in pictures used to be bundled files (`'self'`) and are now `file:` addresses in the data folder. In development (`yarn start`) the player loads from `http://localhost`, and Chromium does not show `file:` pictures on such a page, so built-in backgrounds show only in packaged builds, like custom backgrounds from disk.
+
+### Tests
+
+`kenkuInstall.test.ts` (name map parsing with refused names and files, install search, the test-folder gate), `backgroundFiles.test.ts` (copying with temporary folders: never overwrite, never delete, size and type limits; listing), `index.test.ts` in the same folder (the channel answers the player only, waits for the copy, refuses arguments and other pages), `src/player/backgrounds/index.test.ts`, and `e2e/backgrounds.spec.ts`.
+
+### Manual checks (Windows, with Kenku FM installed)
+
+1. Start Cue Desk. Open a playlist or soundboard brought over from Kenku FM: its picture shows.
+2. Add a playlist: the picture choices are Kenku FM's (autumn, beach, … winter).
+3. Open `%APPDATA%\cue-desk\backgrounds`: 23 `.jpg` files. Replace one with a picture of your own under the same name and restart: yours stays.
+4. On a computer without Kenku FM: Cue Desk starts normally and backgrounds are blank.
+

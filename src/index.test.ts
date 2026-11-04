@@ -95,6 +95,13 @@ vi.mock("./main/security/appInfoIpc", () => ({
     return (): void => undefined;
   },
 }));
+vi.mock("./main/legacyBackgrounds", () => ({
+  startKenkuBackgroundImport: vi.fn(() => {
+    state.startupCalls.push("background-import");
+    return Promise.resolve();
+  }),
+  registerBackgroundsIpc: vi.fn(() => (): void => undefined),
+}));
 vi.mock("./assets/icon.png", () => ({ default: "icon.png" }));
 vi.mock("./bounds", () => ({
   getSavedBounds: () => ({ bounds: {}, maximized: false }),
@@ -133,8 +140,12 @@ const mainWindow = () => state.windows[0] as FakeWindow;
 
 describe("start-up order (FND-1)", () => {
   it("copies the Kenku FM library only after taking the single-instance lock, before any window", () => {
-    expect(state.startupCalls).toEqual(["single-instance-lock", "carry-over"]);
+    expect(state.startupCalls.slice(0, 2)).toEqual(["single-instance-lock", "carry-over"]);
     expect(state.windows).toHaveLength(1);
+  });
+
+  it("starts copying Kenku FM's background pictures after the carry-over, once", () => {
+    expect(state.startupCalls).toEqual(["single-instance-lock", "carry-over", "background-import"]);
   });
 
   it("does not interrupt start-up when the library was copied", () => {

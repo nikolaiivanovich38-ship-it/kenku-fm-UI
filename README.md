@@ -61,7 +61,7 @@ On Windows, Cue Desk checks this project's [Releases](https://github.com/nikolai
 ## Known limitations
 
 - Sites that use copy protection (DRM), such as Spotify, do not play in tabs. Upstream Kenku FM is built on a special version of Electron that supports it; Cue Desk uses the standard version, which receives security updates for longer.
-- The player's background pictures are blank. Upstream's pictures are kept in a private repository.
+- Cue Desk has no background pictures of its own: Kenku FM's belong to Owlbear Rodeo and are kept in a private repository. If Kenku FM is installed on the same computer, Cue Desk copies its pictures when it starts, and playlists and soundboards brought over from Kenku FM show them as before. Without Kenku FM, backgrounds stay blank until new artwork is added (FND-13). Pictures you add yourself from a file or web address work either way.
 
 ## Help
 
