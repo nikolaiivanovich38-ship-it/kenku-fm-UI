@@ -57,3 +57,5 @@ Everything lives in one folder, `<appData>/cue-desk` (`%APPDATA%\cue-desk` on Wi
 | Kenku FM carry-over record (folder and item names only; written once the copy succeeded or was not needed) | `data-carry-over.json` | `src/main/migration` |
 
 The app's own pages load from `file://` (packaged) so they share one localStorage origin; websites in tabs keep their data apart in `persist:tabs`. Audio files are not copied; tracks store their file paths. The bot token is stored in plain text for now (backlog SEC-5).
+
+A new library database (`<appData>/cue-desk/library/library.sqlite`, with daily backups in `library/backups/`) is built in `src/main/data` (WP3) for the new interface. Nothing uses it yet: the player keeps the storage above until DAT-9 moves the library across. See `docs/data-model.md`.
