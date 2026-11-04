@@ -207,3 +207,13 @@ DAT-11 (with DAT-1, DAT-2, DAT-10, ORG-4, ORG-7, EDT-2) brings the library datab
 - **Domain shapes** (`repo/domain.ts`): `getDomainLookup`, `getDomainCampaign`/`listDomainCampaigns`, `listUses` (same answers as `usesOf*`), `listPlaylistTrackIds` (same as `playlistTracks`, in SQL) and `getProfileOverrides` feed `src/common/domain` directly; `repo/domain.test.ts` checks them against the prototype's own sample data.
 - **Checks**: `schema/v002.test.ts` (upgrade from version 1 with data, every constraint), `queryPlan.test.ts` (EXPLAIN QUERY PLAN of every hot read path: index searches only), `undo.test.ts` (every write undone and redone exactly), `performance.test.ts` (20,000 tracks, 500 playlists, 3 campaigns × 50 sessions × 8 scenes: campaign tree about 5 ms, dynamic playlist up to 7 ms, uses under 1 ms, search up to 14 ms).
 - `library.close()` runs `PRAGMA optimize` to keep the query planner's statistics current.
+
+## Wave 2: Import
+
+EDT-6 (backend), DAT-5, DAT-6, DAT-8, DAT-9, ORG-1 and DAT-4 in `src/main/data/import/` (exported from `src/main/data`), with schema step 3 (`tracks.is_new`, `library_jobs`). No screens, no IPC, nothing wired into the old player; `docs/data-model.md` ("Import", "Bringing in the current player's data") has the details.
+
+- **Adding audio**: `importAudio` walks files and folders, reuses files already in the library, guesses kind from folder names, reads file facts (quick checksum) and tags, and saves 500 tracks per transaction with the event loop free between batches (no synchronous step over 200 ms; DB review item 1). It clears the undo history afterwards.
+- **Tags**: behind `TagReader`; `createMusicMetadataTagReader(parseFile)` is ready for music-metadata once added (library request in the wave 2 report).
+- **The old library**: `importLegacyLibrary(library, localStorageValueOf("persist:player"))` on the new interface's first start: backup first, resumable, once.
+- **Relinking**: `findMissingTracks`, `planRelink`, `applyRelink` (one undo step).
+- **Wiring for wave 3**: read `persist:player` from the player window's localStorage and pass it to `importLegacyLibrary` before showing the Library; pass `createMusicMetadataTagReader(parseFile)` to `importAudio`, `importLegacyLibrary` and `refreshEmbeddedTags`; forward `ImportProgress` to the progress bar; show `summary` / `lines`.
