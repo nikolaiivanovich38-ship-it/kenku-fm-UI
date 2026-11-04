@@ -50,9 +50,16 @@ test("Discord token: help link, and a bad token shows an error without breaking 
   // screen readers can reach while Settings is open.
   // (A refusal is worded plainly, UX finding 5.)
   const failed = /^(Error connecting to bot: |Discord didn't accept this token\.)/;
-  await expect(mainWindow.getByRole("alert")).toHaveText(failed, { timeout: 45_000 });
-  await expect(connect).toBeEnabled();
+  const alert = mainWindow.getByRole("alert");
+  await expect(alert).toHaveText(failed, { timeout: 45_000 });
   await expect(token).toBeEditable();
+  if ((await alert.textContent())?.startsWith("Discord didn't accept")) {
+    // A refused token is forgotten (UX finding 5), so Connect waits for a new one.
+    await expect(token).not.toHaveAttribute("placeholder", "Saved");
+    await expect(connect).toBeDisabled();
+    await token.fill("another-token");
+  }
+  await expect(connect).toBeEnabled();
   expect(errors.pageErrors).toEqual([]);
 
   // The message stays until it is closed (WCAG 2.2.1).

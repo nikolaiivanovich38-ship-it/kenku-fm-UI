@@ -117,7 +117,7 @@ test("a file that is not there is explained in the sidebar, opens no tab, and th
 }) => {
   await expect(playerView.getByText("Playlists", { exact: true })).toBeVisible();
   await sizeWindow(app, mainWindow, 800, 600);
-  const missing = pathToFileURL(path.join(fs.realpathSync(os.tmpdir()), "no-such-folder", "map.html")).href;
+  const missing = pathToFileURL(path.join(fs.realpathSync.native(os.tmpdir()), "no-such-folder", "map.html")).href;
   await mainWindow.getByRole("button", { name: "New tab", exact: true }).click();
   const tabs = mainWindow.getByRole("list", { name: "Tabs" }).getByRole("listitem");
   const tabCount = await tabs.count();

@@ -37,7 +37,7 @@ function questionsAsked(app: ElectronApplication): Promise<string[]> {
 
 /** A folder with small HTML files, standing in for a GM's maps folder. */
 function makeFiles(): { folder: string; url(name: string): string; cleanup(): void } {
-  const folder = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "cue-desk-files-")));
+  const folder = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "cue-desk-files-")));
   for (const name of ["map", "notes", "music"]) {
     fs.writeFileSync(path.join(folder, `${name}.html`), `<!doctype html><title>Local ${name}</title><p>${name}`);
   }
@@ -244,7 +244,7 @@ test("a web page can never open, redirect to, pop up or link to a file (WP1 revi
  * folder, standing in for a downloaded handout that misbehaves.
  */
 function makeProbeFolder(): { base: string; folder: string; cleanup(): void } {
-  const base = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "cue-desk-probe-")));
+  const base = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), "cue-desk-probe-")));
   const folder = path.join(base, "handout");
   fs.mkdirSync(path.join(folder, "sub"), { recursive: true });
   fs.writeFileSync(path.join(base, "secret.txt"), "TOP SECRET");
