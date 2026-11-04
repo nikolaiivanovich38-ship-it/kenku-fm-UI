@@ -11,6 +11,14 @@
  *
  * The player page also learns the rooms here ("PLAYER_ROOMS", main process →
  * player page), so the engine knows which bots it can play to.
+ *
+ * Wave 3: the new interface's page (`lyre-view`, src/lyre) hosts the engine.
+ * While it is open it alone holds the channel and hears the rooms; the old
+ * player gets neither. The old player plays with Howler and reaches Discord
+ * through tab capture, so it never needed the channel outside tests, and a
+ * second page sending frames into the same rooms would be heard twice. When
+ * the new page closes, the old player gets a channel again (its test hook,
+ * e2e/rooms.spec.ts, uses it).
  */
 import { MessageChannelMain, type WebContents } from "electron";
 
@@ -41,6 +49,8 @@ interface Watched {
 export class PlayerAudioBridge {
   private capture?: Watched;
   private player?: Watched;
+  /** Wave 3: the new interface's page; holds the channel instead of the player while open. */
+  private lyre?: Watched;
   private channel?: Channel;
   private rooms: Room[] = [];
 
@@ -67,8 +77,33 @@ export class PlayerAudioBridge {
     }
     this.player?.stop();
     this.player = this.watch(contents, () => {
+      const wasHolder = this.holder() === this.player;
       this.player = undefined;
+      if (wasHolder) {
+        this.close();
+      }
+    });
+    // While the new interface's page holds the channel, the old player waits.
+    if (this.holder() === this.player) {
+      this.reconnect();
+    }
+  }
+
+  /** Wave 3: the new interface's page. Anything that is not that page is refused, the old player included. */
+  setLyre(contents: Page): void {
+    if (contents.isDestroyed() || trustedContents.roleOf(contents as WebContents) !== "lyre-view") {
+      console.error("Refused to give the player audio channel to a page that is not Lyre's own interface");
+      return;
+    }
+    if (this.lyre?.contents === contents) {
+      return;
+    }
+    this.lyre?.stop();
+    this.lyre = this.watch(contents, () => {
+      this.lyre = undefined;
+      // The old player, if open, takes the channel back.
       this.close();
+      this.reconnect();
     });
     this.reconnect();
   }
@@ -82,15 +117,26 @@ export class PlayerAudioBridge {
   destroy(): void {
     this.capture?.stop();
     this.player?.stop();
+    this.lyre?.stop();
     this.capture = undefined;
     this.player = undefined;
+    this.lyre = undefined;
     this.close();
+  }
+
+  /** The page that holds the channel: the new interface's page while it is open, else the old player. */
+  private holder(): Watched | undefined {
+    return this.lyre && !this.lyre.contents.isDestroyed() ? this.lyre : this.player;
   }
 
   private watch(contents: Page, onGone: () => void): Watched {
     const onLoad = () => {
       watched.loaded = true;
-      this.reconnect();
+      // A page that does not hold the channel (the old player while the new
+      // page is open) loading again changes nothing.
+      if (watched === this.capture || watched === this.holder()) {
+        this.reconnect();
+      }
     };
     const stop = () => {
       contents.off("did-finish-load", onLoad);
@@ -107,11 +153,12 @@ export class PlayerAudioBridge {
   }
 
   private reconnect() {
-    if (!isReady(this.capture) || !isReady(this.player)) {
+    const holder = this.holder();
+    if (!isReady(this.capture) || !isReady(holder)) {
       return;
     }
     const capture = this.capture.contents;
-    const player = this.player.contents;
+    const player = holder.contents;
     this.close();
     const channel = this.createChannel();
     this.channel = channel;
@@ -121,7 +168,7 @@ export class PlayerAudioBridge {
   }
 
   private sendRooms() {
-    const player = this.player?.contents;
+    const player = this.holder()?.contents;
     if (player && !player.isDestroyed()) {
       player.send(PLAYER_ROOMS, this.rooms);
     }

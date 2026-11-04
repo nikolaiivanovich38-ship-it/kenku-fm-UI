@@ -50,6 +50,14 @@ export class PlaybackManager {
     this.playerAudio.setPlayer(view);
   }
 
+  /**
+   * Wave 3: the new interface's page (role "lyre-view") opened. It takes the
+   * private channel from the old player while it is open (PlayerAudioBridge).
+   */
+  setLyreView(view: WebContents) {
+    this.playerAudio.setLyre(view);
+  }
+
   destroy() {
     this.playerAudio.destroy();
     this.outputs.destroy();
