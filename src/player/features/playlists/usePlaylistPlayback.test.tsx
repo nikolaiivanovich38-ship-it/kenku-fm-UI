@@ -5,10 +5,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FakeHowl } from "../../test/fakeHowler";
 import { createPlayerStore, PlayerStore } from "../../test/createPlayerStore";
-import { addPlaylist, addTracks, Track } from "./playlistsSlice";
+import { addPlaylist, addTracks, removePlaylist, removeTrack, Track } from "./playlistsSlice";
 import {
   adjustVolume,
   mute,
+  removeTrackFromQueue,
   Repeat,
   repeat as setRepeat,
   shuffle as setShuffle,
@@ -469,5 +470,98 @@ describe("usePlaylistPlayback transport controls", () => {
         h.hook.result.current.stop();
       }),
     ).not.toThrow();
+  });
+});
+
+describe("deleting the playing track (BUG-8)", () => {
+  /** Delete a track the way the track's Delete menu item does. */
+  function deleteTrack(h: Harness, id: string) {
+    act(() => {
+      h.store.dispatch(removeTrack({ playlistId: "p", trackId: id }));
+      h.store.dispatch(removeTrackFromQueue({ playlistId: "p", trackId: id }));
+    });
+  }
+
+  it("stops and unloads the track and clears it from the player bar", () => {
+    const h = setup();
+    startAt(h, "b");
+    const howl = FakeHowl.latest;
+
+    deleteTrack(h, "b");
+
+    expect(howl.unloaded).toBe(true);
+    expect(playback(h).track).toBeUndefined();
+    expect(playback(h).playback).toBeUndefined();
+    expect(playback(h).playing).toBe(false);
+  });
+
+  it("nothing can bring the deleted track back afterwards (play key, next, previous)", () => {
+    const h = setup();
+    startAt(h, "b");
+    const howl = FakeHowl.latest;
+    deleteTrack(h, "b");
+
+    act(() => {
+      h.hook.result.current.pauseResume(true);
+      h.hook.result.current.next();
+      h.hook.result.current.previous();
+    });
+
+    expect(howl.callsOf("play")).toEqual([]);
+    expect(FakeHowl.instances).toHaveLength(1);
+  });
+
+  it("deleting the playlist that is playing stops its track too", () => {
+    const h = setup();
+    startAt(h, "c");
+    const howl = FakeHowl.latest;
+
+    act(() => {
+      h.store.dispatch(removePlaylist("p"));
+    });
+
+    expect(howl.unloaded).toBe(true);
+    expect(playback(h).track).toBeUndefined();
+  });
+
+  it("deleting the playing track while the next one loads stops the deleted one and lets the next play", () => {
+    const h = setup();
+    startAt(h, "a");
+    const deleted = FakeHowl.latest;
+    act(() => h.hook.result.current.next());
+    const following = FakeHowl.latest;
+
+    deleteTrack(h, "a");
+    expect(deleted.unloaded).toBe(true);
+    expect(following.unloaded).toBe(false);
+
+    loadLatest();
+    expect(playback(h).track?.id).toBe("b");
+    expect(following.lastFade).toEqual({ from: 0, to: 1, duration: 1000 });
+  });
+
+  it("a track deleted before it finished loading never reaches the player bar", () => {
+    const h = setup();
+    act(() => h.hook.result.current.play(track("d")));
+    const howl = FakeHowl.latest;
+    act(() => {
+      h.store.dispatch(removeTrack({ playlistId: "p", trackId: "d" }));
+    });
+
+    loadLatest();
+
+    expect(howl.unloaded).toBe(true);
+    expect(playback(h).track).toBeUndefined();
+  });
+
+  it("deleting another track leaves the playing track alone", () => {
+    const h = setup();
+    startAt(h, "b");
+    const howl = FakeHowl.latest;
+
+    deleteTrack(h, "d");
+
+    expect(howl.unloaded).toBe(false);
+    expect(playback(h).track?.id).toBe("b");
   });
 });

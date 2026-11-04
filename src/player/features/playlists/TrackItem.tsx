@@ -15,13 +15,7 @@ import { Track, removeTrack, Playlist } from "./playlistsSlice";
 import { useDispatch, useSelector } from "react-redux";
 import { TrackSettings } from "./TrackSettings";
 import { RootState } from "../../app/store";
-import {
-  playPause,
-  removeTrackFromQueue,
-  startQueue,
-  stopTrack,
-  updatePlayback,
-} from "./playlistPlaybackSlice";
+import { playPause, removeTrackFromQueue } from "./playlistPlaybackSlice";
 
 type TrackItemProps = {
   track: Track;
@@ -60,11 +54,8 @@ export function TrackItem({ track, playlist, onPlay }: TrackItemProps) {
   }
 
   function handleDelete() {
-    // TODO: Fix bug where playback does not update to zero when isCurrentTrack is removed
-    if (isCurrentTrack) {
-      dispatch(playPause(false));
-      dispatch(stopTrack());
-    }
+    // If this track is playing, usePlaylistPlayback stops and unloads it once
+    // it has left the library (BUG-8).
     dispatch(removeTrack({ trackId: track.id, playlistId: playlist.id }));
     dispatch(
       removeTrackFromQueue({ trackId: track.id, playlistId: playlist.id }),

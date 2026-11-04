@@ -1,8 +1,8 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 
 import { Track } from "./playlistsSlice";
 
-import { useDispatch, useSelector } from "react-redux";
+import { useDispatch, useStore } from "react-redux";
 import { RootState } from "../../app/store";
 import {
   playPause,
@@ -20,26 +20,42 @@ type PlaylistRemoteProps = {
   onPrevious: () => void;
 };
 
-export function PlaylistRemote({
-  onPlay,
-  onSeek,
-  onNext,
-  onPrevious,
-}: PlaylistRemoteProps) {
-  const playlists = useSelector((state: RootState) => state.playlists);
-  const playback = useSelector((state: RootState) => state.playlistPlayback);
-  const playbackShuffle = useSelector(
-    (state: RootState) => state.playlistPlayback.shuffle
-  );
+const CHANNELS = [
+  "PLAYER_REMOTE_PLAYLIST_PLAY",
+  "PLAYER_REMOTE_PLAYLIST_PLAYBACK_REQUEST",
+  "PLAYER_REMOTE_PLAYLIST_GET_ALL_REQUEST",
+  "PLAYER_REMOTE_PLAYLIST_PLAYBACK_PLAY",
+  "PLAYER_REMOTE_PLAYLIST_PLAYBACK_PAUSE",
+  "PLAYER_REMOTE_PLAYLIST_PLAYBACK_SEEK",
+  "PLAYER_REMOTE_PLAYLIST_PLAYBACK_MUTE",
+  "PLAYER_REMOTE_PLAYLIST_PLAYBACK_VOLUME",
+  "PLAYER_REMOTE_PLAYLIST_PLAYBACK_SHUFFLE",
+  "PLAYER_REMOTE_PLAYLIST_PLAYBACK_REPEAT",
+  "PLAYER_REMOTE_PLAYLIST_PLAYBACK_NEXT",
+  "PLAYER_REMOTE_PLAYLIST_PLAYBACK_PREVIOUS",
+] as const;
+
+/**
+ * Answers the remote API (Stream Deck) for playlists.
+ *
+ * PERF-1: the listeners are registered once. Each handler reads the store and
+ * the latest callbacks when a message arrives, so nothing needs re-registering
+ * when playback moves on (Kenku FM re-registered most listeners every second).
+ */
+export function PlaylistRemote(props: PlaylistRemoteProps) {
+  const store = useStore<RootState>();
   const dispatch = useDispatch();
+  const callbacks = useRef(props);
+  callbacks.current = props;
 
   useEffect(() => {
     window.player.on("PLAYER_REMOTE_PLAYLIST_PLAY", (args) => {
       const id = args[0];
+      const { playlists, playlistPlayback } = store.getState();
       if (id in playlists.tracks) {
         const track = playlists.tracks[id];
         // Find playlist assosiated with this track and start a queue
-        for (let playlist of Object.values(playlists.playlists.byId)) {
+        for (const playlist of Object.values(playlists.playlists.byId)) {
           const tracks = [...playlist.tracks];
           if (tracks.includes(track.id)) {
             dispatch(
@@ -48,30 +64,25 @@ export function PlaylistRemote({
             break;
           }
         }
-        onPlay(track);
+        callbacks.current.onPlay(track);
       } else if (id in playlists.playlists.byId) {
         const playlist = playlists.playlists.byId[id];
         const tracks = [...playlist.tracks];
-        const trackIndex = playbackShuffle
+        const trackIndex = playlistPlayback.shuffle
           ? Math.floor(Math.random() * tracks.length)
           : 0;
         const trackId = tracks[trackIndex];
         const track = playlists.tracks[trackId];
         if (track) {
-          onPlay(track);
+          callbacks.current.onPlay(track);
           dispatch(startQueue({ tracks, trackId, playlistId: playlist.id }));
         }
       }
     });
 
-    return () => {
-      window.player.removeAllListeners("PLAYER_REMOTE_PLAYLIST_PLAY");
-    };
-  }, [onPlay, playlists, playbackShuffle]);
-
-  useEffect(() => {
     // PERF-9: args[0] is the request id; it goes back with the reply.
     window.player.on("PLAYER_REMOTE_PLAYLIST_PLAYBACK_REQUEST", (args) => {
+      const { playlists, playlistPlayback: playback } = store.getState();
       let track = undefined;
       if (playback.track && playback.playback && playback.queue) {
         track = {
@@ -97,15 +108,8 @@ export function PlaylistRemote({
       }, args[0]);
     });
 
-    return () => {
-      window.player.removeAllListeners(
-        "PLAYER_REMOTE_PLAYLIST_PLAYBACK_REQUEST"
-      );
-    };
-  }, [playback]);
-
-  useEffect(() => {
     window.player.on("PLAYER_REMOTE_PLAYLIST_GET_ALL_REQUEST", (args) => {
+      const { playlists } = store.getState();
       window.player.playlistGetAllReply({
         playlists: playlists.playlists.allIds.map(
           (id) => playlists.playlists.byId[id]
@@ -114,47 +118,27 @@ export function PlaylistRemote({
       }, args[0]);
     });
 
-    return () => {
-      window.player.removeAllListeners(
-        "PLAYER_REMOTE_PLAYLIST_GET_ALL_REQUEST"
-      );
-    };
-  }, [playlists]);
-
-  useEffect(() => {
     window.player.on("PLAYER_REMOTE_PLAYLIST_PLAYBACK_PLAY", () => {
-      if (playback.playback) {
+      if (store.getState().playlistPlayback.playback) {
         dispatch(playPause(true));
       }
     });
 
     window.player.on("PLAYER_REMOTE_PLAYLIST_PLAYBACK_PAUSE", () => {
-      if (playback.playback) {
+      if (store.getState().playlistPlayback.playback) {
         dispatch(playPause(false));
       }
     });
 
-    return () => {
-      window.player.removeAllListeners("PLAYER_REMOTE_PLAYLIST_PLAYBACK_PLAY");
-      window.player.removeAllListeners("PLAYER_REMOTE_PLAYLIST_PLAYBACK_PAUSE");
-    };
-  }, [playback]);
-
-  useEffect(() => {
     window.player.on("PLAYER_REMOTE_PLAYLIST_PLAYBACK_SEEK", (args) => {
       const to = args[0];
-      if (playback.playback) {
+      const playback = store.getState().playlistPlayback.playback;
+      if (playback) {
         // Clamp playback and seek
-        onSeek(Math.min(Math.max(to, 0), playback.playback.duration));
+        callbacks.current.onSeek(Math.min(Math.max(to, 0), playback.duration));
       }
     });
 
-    return () => {
-      window.player.removeAllListeners("PLAYER_REMOTE_PLAYLIST_PLAYBACK_SEEK");
-    };
-  }, [playback, onSeek]);
-
-  useEffect(() => {
     window.player.on("PLAYER_REMOTE_PLAYLIST_PLAYBACK_MUTE", (args) => {
       const muted = args[0];
       dispatch(mute(muted));
@@ -175,41 +159,20 @@ export function PlaylistRemote({
       dispatch(repeat(repeated));
     });
 
-    return () => {
-      window.player.removeAllListeners("PLAYER_REMOTE_PLAYLIST_PLAYBACK_MUTE");
-      window.player.removeAllListeners(
-        "PLAYER_REMOTE_PLAYLIST_PLAYBACK_VOLUME"
-      );
-      window.player.removeAllListeners(
-        "PLAYER_REMOTE_PLAYLIST_PLAYBACK_SHUFFLE"
-      );
-      window.player.removeAllListeners(
-        "PLAYER_REMOTE_PLAYLIST_PLAYBACK_REPEAT"
-      );
-    };
-  }, []);
-
-  useEffect(() => {
     window.player.on("PLAYER_REMOTE_PLAYLIST_PLAYBACK_NEXT", () => {
-      onNext();
+      callbacks.current.onNext();
     });
 
-    return () => {
-      window.player.removeAllListeners("PLAYER_REMOTE_PLAYLIST_PLAYBACK_NEXT");
-    };
-  }, [onNext]);
-
-  useEffect(() => {
     window.player.on("PLAYER_REMOTE_PLAYLIST_PLAYBACK_PREVIOUS", () => {
-      onPrevious();
+      callbacks.current.onPrevious();
     });
 
     return () => {
-      window.player.removeAllListeners(
-        "PLAYER_REMOTE_PLAYLIST_PLAYBACK_PREVIOUS"
-      );
+      for (const channel of CHANNELS) {
+        window.player.removeAllListeners(channel);
+      }
     };
-  }, [onPrevious]);
+  }, [store, dispatch]);
 
   return <></>;
 }

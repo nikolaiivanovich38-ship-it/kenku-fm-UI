@@ -1,6 +1,6 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 
-import { useSelector } from "react-redux";
+import { useStore } from "react-redux";
 import { RootState } from "../../app/store";
 
 import { Sound } from "./soundboardsSlice";
@@ -10,62 +10,59 @@ type SoundboardRemoteProps = {
   onStop: (id: string) => void;
 };
 
-export function SoundboardRemote({ onPlay, onStop }: SoundboardRemoteProps) {
-  const soundboards = useSelector((state: RootState) => state.soundboards);
-  const playback = useSelector((state: RootState) => state.soundboardPlayback);
+const CHANNELS = [
+  "PLAYER_REMOTE_SOUNDBOARD_PLAY",
+  "PLAYER_REMOTE_SOUNDBOARD_STOP",
+  "PLAYER_REMOTE_SOUNDBOARD_PLAYBACK_REQUEST",
+  "PLAYER_REMOTE_SOUNDBOARD_GET_ALL_REQUEST",
+] as const;
+
+/**
+ * Answers the remote API (Stream Deck) for soundboards.
+ *
+ * PERF-1: the listeners are registered once and read the store and the latest
+ * callbacks when a message arrives (Kenku FM re-registered them every second
+ * while a sound played, and on every library change).
+ */
+export function SoundboardRemote(props: SoundboardRemoteProps) {
+  const store = useStore<RootState>();
+  const callbacks = useRef(props);
+  callbacks.current = props;
 
   useEffect(() => {
     window.player.on("PLAYER_REMOTE_SOUNDBOARD_PLAY", (args) => {
       const id = args[0];
+      const { soundboards } = store.getState();
 
       if (id in soundboards.sounds) {
         const sound = soundboards.sounds[id];
-        onPlay(sound);
+        callbacks.current.onPlay(sound);
       } else if (id in soundboards.soundboards.byId) {
         const soundboard = soundboards.soundboards.byId[id];
         const sounds = [...soundboard.sounds];
         const soundId = sounds[Math.floor(Math.random() * sounds.length)];
         const sound = soundboards.sounds[soundId];
         if (sound) {
-          onPlay(sound);
+          callbacks.current.onPlay(sound);
         }
       }
     });
 
-    return () => {
-      window.player.removeAllListeners("PLAYER_REMOTE_SOUNDBOARD_PLAY");
-    };
-  }, [onPlay, soundboards]);
-
-  useEffect(() => {
     window.player.on("PLAYER_REMOTE_SOUNDBOARD_STOP", (args) => {
       const id = args[0];
-      onStop(id);
+      callbacks.current.onStop(id);
     });
 
-    return () => {
-      window.player.removeAllListeners("PLAYER_REMOTE_SOUNDBOARD_STOP");
-    };
-  }, [onPlay, soundboards]);
-
-  useEffect(() => {
     // PERF-9: args[0] is the request id; it goes back with the reply.
     window.player.on("PLAYER_REMOTE_SOUNDBOARD_PLAYBACK_REQUEST", (args) => {
-      const sounds = Object.values(playback.playback);
+      const sounds = Object.values(store.getState().soundboardPlayback.playback);
       window.player.soundboardPlaybackReply({
         sounds,
       }, args[0]);
     });
 
-    return () => {
-      window.player.removeAllListeners(
-        "PLAYER_REMOTE_SOUNDBOARD_PLAYBACK_REQUEST"
-      );
-    };
-  }, [playback]);
-
-  useEffect(() => {
     window.player.on("PLAYER_REMOTE_SOUNDBOARD_GET_ALL_REQUEST", (args) => {
+      const { soundboards } = store.getState();
       window.player.soundboardGetAllReply({
         soundboards: soundboards.soundboards.allIds.map(
           (id) => soundboards.soundboards.byId[id]
@@ -74,14 +71,12 @@ export function SoundboardRemote({ onPlay, onStop }: SoundboardRemoteProps) {
       }, args[0]);
     });
 
-    // PERF-9: without this, every edit added another listener and the oldest
-    // one (with out-of-date soundboards) answered first.
     return () => {
-      window.player.removeAllListeners(
-        "PLAYER_REMOTE_SOUNDBOARD_GET_ALL_REQUEST"
-      );
+      for (const channel of CHANNELS) {
+        window.player.removeAllListeners(channel);
+      }
     };
-  }, [soundboards]);
+  }, [store]);
 
   return <></>;
 }

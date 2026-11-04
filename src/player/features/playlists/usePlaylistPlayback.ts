@@ -12,9 +12,16 @@ import {
 } from "./playlistPlaybackSlice";
 import { Track } from "./playlistsSlice";
 
+/** How often the player bar's time is updated while a track plays (PERF-1). */
+export const PROGRESS_INTERVAL_MS = 1000;
+
 export function usePlaylistPlayback(onError: (message: string) => void) {
   const trackRef = useRef<Howl | null>(null);
-  const animationRef = useRef<number | null>(null);
+  /** Id of the track `trackRef` holds, which may still be loading. */
+  const trackIdRef = useRef<string | null>(null);
+  /** Tracks still fading out after a track change. */
+  const outgoingRef = useRef(new Set<Howl>());
+  const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const playlists = useSelector((state: RootState) => state.playlists);
   const store = useStore<RootState>();
@@ -31,17 +38,54 @@ export function usePlaylistPlayback(onError: (message: string) => void) {
   );
   const dispatch = useDispatch();
 
+  // PERF-1: Kenku FM read the play position on every animation frame (about
+  // 60 times a second) from the first track until the app closed, even while
+  // paused. Now a once-a-second timer runs only while the track plays: it
+  // starts when the track loads or Howler reports "play", and ends on "pause",
+  // "stop", a track change, or the first tick that finds the track not playing.
+  const stopProgressUpdates = useCallback(() => {
+    if (progressTimerRef.current !== null) {
+      clearInterval(progressTimerRef.current);
+      progressTimerRef.current = null;
+    }
+  }, []);
+
+  const startProgressUpdates = useCallback(
+    (howl: Howl) => {
+      if (howl !== trackRef.current) {
+        return;
+      }
+      stopProgressUpdates();
+      progressTimerRef.current = setInterval(() => {
+        if (howl !== trackRef.current || !howl.playing()) {
+          stopProgressUpdates();
+          return;
+        }
+        dispatch(updatePlayback(Math.floor(howl.seek())));
+      }, PROGRESS_INTERVAL_MS);
+    },
+    [dispatch, stopProgressUpdates]
+  );
+
+  useEffect(() => stopProgressUpdates, [stopProgressUpdates]);
+
   const play = useCallback(
     (track: Track) => {
       let prevTrack = trackRef.current;
+      if (prevTrack) {
+        outgoingRef.current.add(prevTrack);
+      }
       function removePrevTrack() {
         if (prevTrack) {
           prevTrack.unload();
+          outgoingRef.current.delete(prevTrack);
           prevTrack = undefined;
         }
       }
       function error() {
         trackRef.current = undefined;
+        trackIdRef.current = null;
+        stopProgressUpdates();
         dispatch(stopTrack());
         removePrevTrack();
         onError(`Unable to play track: ${track.title}`);
@@ -56,6 +100,7 @@ export function usePlaylistPlayback(onError: (message: string) => void) {
         });
 
         trackRef.current = howl;
+        trackIdRef.current = track.id;
         howl.once("load", () => {
           dispatch(
             playTrack({
@@ -63,29 +108,17 @@ export function usePlaylistPlayback(onError: (message: string) => void) {
               duration: Math.floor(howl.duration()),
             })
           );
-          // Fade out previous track and fade in new track
-          if (prevTrack) {
+          // Fade out previous track (unless it was deleted meanwhile) and fade in new track
+          if (prevTrack && outgoingRef.current.has(prevTrack)) {
             prevTrack.fade(prevTrack.volume(), 0, 1000);
             prevTrack.once("fade", removePrevTrack);
           }
           howl.fade(0, store.getState().playlistPlayback.volume, 1000);
-          // Update playback
-          // Create playback animation
-          if (animationRef.current !== null) {
-            cancelAnimationFrame(animationRef.current);
-          }
-          let prevTime = performance.now();
-          function animatePlayback(time: number) {
-            animationRef.current = requestAnimationFrame(animatePlayback);
-            // Limit update to 1 time per second
-            const delta = time - prevTime;
-            if (howl.playing() && delta > 1000) {
-              dispatch(updatePlayback(Math.floor(howl.seek())));
-              prevTime = time;
-            }
-          }
-          animationRef.current = requestAnimationFrame(animatePlayback);
+          startProgressUpdates(howl);
         });
+        howl.on("play", () => startProgressUpdates(howl));
+        howl.on("pause", () => howl === trackRef.current && stopProgressUpdates());
+        howl.on("stop", () => howl === trackRef.current && stopProgressUpdates());
 
         howl.on("loaderror", error);
 
@@ -99,8 +132,33 @@ export function usePlaylistPlayback(onError: (message: string) => void) {
         error();
       }
     },
-    [onError, muted, store]
+    [dispatch, onError, muted, store, startProgressUpdates, stopProgressUpdates]
   );
+
+  // BUG-8: when the playing track leaves the library (its Delete menu item, or
+  // its playlist was deleted), stop it for good. Kenku FM only paused it, so
+  // the play key or the remote could resume a track the player bar no longer
+  // showed. A different track that is still loading carries on.
+  const deletedTrackId = useSelector((state: RootState) => {
+    const current = state.playlistPlayback.track;
+    return current && !(current.id in state.playlists.tracks) ? current.id : null;
+  });
+  useEffect(() => {
+    if (deletedTrackId === null) {
+      return;
+    }
+    for (const outgoing of outgoingRef.current) {
+      outgoing.unload();
+    }
+    outgoingRef.current.clear();
+    if (trackIdRef.current === deletedTrackId) {
+      stopProgressUpdates();
+      trackRef.current?.unload();
+      trackRef.current = null;
+      trackIdRef.current = null;
+    }
+    dispatch(stopTrack());
+  }, [deletedTrackId, dispatch, stopProgressUpdates]);
 
   const seek = useCallback((to: number) => {
     dispatch(updatePlayback(to));
