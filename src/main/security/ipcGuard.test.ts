@@ -189,4 +189,8 @@ describe("IPC channel table (SEC-8)", () => {
       expect(rule.from as readonly unknown[], channel).not.toContain(null);
     }
   });
+
+  it("has no channel for Kenku FM's background pictures: the player bundles its own", () => {
+    expect(Object.keys(IPC_CHANNELS)).not.toContain("PLAYER_GET_BACKGROUNDS");
+  });
 });

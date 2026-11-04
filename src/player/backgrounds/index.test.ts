@@ -1,60 +1,67 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import fs from "fs";
+import path from "path";
+import { describe, expect, it } from "vitest";
+import { backgroundsFrom, randomBackgroundFrom } from "./backgroundList";
 
-vi.mock("../../assets/blank.png", () => ({ default: "blank.png" }));
+/**
+ * The 23 names Kenku FM stored on playlists and soundboards. Cue Desk ships a
+ * picture of its own under each, so libraries brought over from Kenku FM keep
+ * a picture without any change to their data. "butterflys" is spelled as
+ * Kenku FM spelled it.
+ */
+const KENKU_NAMES = [
+  "autumn", "beach", "butterflys", "castle", "cathedral", "dragon", "haunted", "lines",
+  "mountain", "sand", "skulls", "sky", "smoke", "sparks", "stars", "tavern", "texture",
+  "town", "tree", "veins", "volcano", "war", "winter",
+];
 
-type PlayerApi = Window["player"];
-
-/** Load the module afresh with `getBackgrounds` answering as given. */
-async function loadWith(getBackgrounds: (() => unknown) | undefined) {
-  vi.resetModules();
-  (window as { player?: Partial<PlayerApi> }).player =
-    getBackgrounds === undefined ? undefined : { getBackgrounds: getBackgrounds as PlayerApi["getBackgrounds"] };
-  return import("./index");
+/** A stand-in for webpack's require.context over this folder. */
+function fakeContext(files: Record<string, unknown>) {
+  const context = (key: string) => files[key];
+  context.keys = () => Object.keys(files);
+  return context;
 }
 
-afterEach(() => {
-  delete (window as { player?: unknown }).player;
-});
+describe("built-in background pictures", () => {
+  it("are named after their files, with 'blank' always offered", () => {
+    const list = backgroundsFrom(
+      fakeContext({ "./tavern.jpg": "abc123.jpg", "./butterflys.jpg": { default: "def456.jpg" } }),
+      "blank.png",
+    );
+    expect(list).toEqual({ tavern: "abc123.jpg", butterflys: "def456.jpg", blank: "blank.png" });
+  });
 
-describe("player backgrounds", () => {
-  it("come from the main process's answer, asked once when the player loads", async () => {
-    const getBackgrounds = vi.fn(() => ({
-      autumn: "file:///C:/Users/nik/AppData/Roaming/cue-desk/backgrounds/autumn.jpg",
-      tavern: "file:///C:/Users/nik/AppData/Roaming/cue-desk/backgrounds/tavern.jpg",
-    }));
-    const { backgrounds, isBackground, getRandomBackground } = await loadWith(getBackgrounds);
-    expect(backgrounds).toEqual({ ...getBackgrounds.mock.results[0].value, blank: "blank.png" });
-    expect(getBackgrounds).toHaveBeenCalledTimes(1);
-    expect(isBackground("tavern")).toBe(true);
-    // 0.1.0 saved "blank" on new playlists; it must keep working (0.1.1 review).
-    expect(isBackground("blank")).toBe(true);
-    expect(isBackground("https://example.com/x.jpg")).toBe(false);
+  it("keep only 'blank' when the folder has no pictures", () => {
+    expect(backgroundsFrom(fakeContext({}), "blank.png")).toEqual({ blank: "blank.png" });
+  });
+
+  it("skip entries that are not a picture address", () => {
+    const list = backgroundsFrom(fakeContext({ "./odd.jpg": 42, "./empty.jpg": "" }), "blank.png");
+    expect(list).toEqual({ blank: "blank.png" });
+  });
+
+  it("choose a real picture for new playlists, and blank only when there is none", () => {
+    const list = { tavern: "a.jpg", stars: "b.jpg", blank: "blank.png" };
     for (let i = 0; i < 50; i++) {
-      expect(["autumn", "tavern"]).toContain(getRandomBackground());
+      expect(["tavern", "stars"]).toContain(randomBackgroundFrom(list));
+    }
+    expect(randomBackgroundFrom({ blank: "blank.png" })).toBe("blank");
+  });
+
+  it("ship one JPEG for each of Kenku FM's 23 names, small enough for the installer", () => {
+    const files = fs.readdirSync(__dirname).filter((file) => /\.(png|jpe?g|svg|webp)$/i.test(file));
+    expect(files.sort()).toEqual(KENKU_NAMES.map((name) => `${name}.jpg`));
+    for (const file of files) {
+      const bytes = fs.readFileSync(path.join(__dirname, file));
+      expect(bytes.subarray(0, 3).toString("hex"), file).toBe("ffd8ff");
+      expect(bytes.length, file).toBeLessThanOrEqual(250 * 1024);
     }
   });
 
-  it("fall back to the blank picture when there are none", async () => {
-    const { backgrounds, isBackground, getRandomBackground } = await loadWith(() => ({}));
-    expect(backgrounds).toEqual({ blank: "blank.png" });
-    expect(isBackground("tavern")).toBe(false);
-    expect(getRandomBackground()).toBe("blank");
-  });
-
-  it("ignore odd answers and fall back to blank", async () => {
-    for (const answer of [undefined, null, "", 42, ["x"], { tavern: 1 }, { tavern: "" }]) {
-      const { backgrounds } = await loadWith(() => answer);
-      expect(backgrounds, JSON.stringify(answer)).toEqual({ blank: "blank.png" });
-    }
-    const { backgrounds } = await loadWith(() => ({ ok: "file:///ok.jpg", bad: 3 }));
-    expect(backgrounds).toEqual({ ok: "file:///ok.jpg", blank: "blank.png" });
-  });
-
-  it("still load when the bridge is missing or fails", async () => {
-    expect((await loadWith(undefined)).backgrounds).toEqual({ blank: "blank.png" });
-    const failing = await loadWith(() => {
-      throw new Error("no main process");
-    });
-    expect(failing.backgrounds).toEqual({ blank: "blank.png" });
+  it("say where the pictures come from and under which licence", () => {
+    const note = fs.readFileSync(path.join(__dirname, "LICENSE.md"), "utf8");
+    expect(note).toMatch(/original/i);
+    expect(note).toMatch(/GPL-3\.0/);
+    expect(note).toContain("scripts/backgrounds");
   });
 });

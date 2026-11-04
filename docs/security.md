@@ -194,49 +194,6 @@ Run the packaged app (or `yarn start` for the development policy) with DevTools 
 7. With the remote enabled, call `GET /v1/playlist/playback` from two clients at the same time (or press two Stream Deck buttons together): both get an answer; with the player tab closed, requests return 503 as before.
 8. Trigger the error screen (or call `window.kenku.removeAllBrowserViews()` from the main window's DevTools): tab audio stops being sent to Discord.
 
-## Kenku FM backgrounds
-
-### In plain language
-
-When Cue Desk starts, it looks for Kenku FM installed on your computer and copies Kenku FM's background pictures into Cue Desk's own data folder, so playlists and soundboards made in Kenku FM show their pictures again. It only reads Kenku FM's program folder and only writes to the `backgrounds` folder inside Cue Desk's data folder. It never changes or deletes anything, never replaces a picture that is already there, and downloads nothing. The pictures stay on your computer and are not part of Cue Desk's installer.
-
-### What is read and written
-
-| What | Where | Rules |
-|---|---|---|
-| Folder names | `%LOCALAPPDATA%` (top level), `kenku-fm*` folders in it, their `app-x.y.z\resources` folders | Listing only. Only Windows is searched. |
-| Kenku FM's player bundle | `…\resources\app\.webpack\renderer\player_window\index.js`, or the same path inside `app.asar` (Electron's main process reads inside asar archives) | At most 64 MB, read as text and searched with regular expressions; nothing in it is run. |
-| Pictures | files named in that bundle, directly in `.webpack\renderer` | Names in the bundle must be plain file names (no slashes, no `..`), files must be `<letters, digits, _ or ->.<jpg, jpeg, png, webp or svg>`, at most 20 MB, not empty. |
-| Copies | `<userData>\backgrounds\<name>.<ext>` | Written as a hidden `.part` file, then renamed. Skipped when any picture with that name is already there. |
-
-An install packed in `app.asar` is read with plain file reads (`original-fs`, `src/main/legacyBackgrounds/asarArchive.ts`), each file opened and closed at once: Electron's own asar support keeps an archive open for the whole session, which on Windows would block Kenku FM's updates and uninstall. Limits, because the bundle and pictures come from another app's folder: the bundle is read only up to 16 MB and parsed in single passes with bounded patterns (time grows with its size, whatever it contains); at most 100 pictures, each up to 20 MB and 200 MB together per start; links are not followed; files are written with exclusive-create flags, so an existing picture is never replaced.
-
-Test builds read `CUE_DESK_LOCAL_APP_DATA_DIR` instead of `%LOCALAPPDATA%` (end-to-end tests); release builds ignore it (`__CUE_DESK_TEST_BUILD__` is false there).
-
-### Channel
-
-Add to the SEC-8 channel table (kept here so branches merge cleanly):
-
-| Channel | Sent by | Arguments | Handled in |
-|---|---|---|---|
-| `PLAYER_GET_BACKGROUNDS` (sync) | Player | none | `src/main/legacyBackgrounds/index.ts` |
-
-The answer is `{ name: file:// address }` for the pictures in `<userData>/backgrounds` only (built with `url.pathToFileURL`, so spaces and quotes are percent-encoded and the address is safe inside CSS `url("…")`). A refused message gets `{}`, and the player shows its blank background. The answer waits for the start-up copy, at most 5 seconds; that blocks the player page, not the main window.
-
-Content-Security-Policy: no change. The player's `img-src` already allows `file:`, which custom backgrounds from disk use; the built-in pictures used to be bundled files (`'self'`) and are now `file:` addresses in the data folder. In development (`yarn start`) the player loads from `http://localhost`, and Chromium does not show `file:` pictures on such a page, so built-in backgrounds show only in packaged builds, like custom backgrounds from disk.
-
-### Tests
-
-`kenkuInstall.test.ts` (name map parsing with refused names and files, install search, the test-folder gate), `backgroundFiles.test.ts` (copying with temporary folders: never overwrite, never delete, size and type limits; listing), `index.test.ts` in the same folder (the channel answers the player only, waits for the copy, refuses arguments and other pages), `src/player/backgrounds/index.test.ts`, and `e2e/backgrounds.spec.ts`.
-
-### Manual checks (Windows, with Kenku FM installed)
-
-1. Start Cue Desk. Open a playlist or soundboard brought over from Kenku FM: its picture shows.
-2. Add a playlist: the picture choices are Kenku FM's (autumn, beach, … winter).
-3. Open `%APPDATA%\cue-desk\backgrounds`: 23 `.jpg` files. Replace one with a picture of your own under the same name and restart: yours stays.
-4. On a computer without Kenku FM: Cue Desk starts normally and backgrounds are blank.
-
-
 ## WP4 Engine core
 
 The new playback engine (`src/player/engine`, design in `docs/playback-engine.md`) adds no IPC channel, no permission and no Content-Security-Policy change. It runs in the player page and reads audio files the way the player already does: `<audio>` elements for streaming (`media-src file: https: http:`) and `XMLHttpRequest` for small files to decode (`connect-src file: https: http:`; Chromium's `fetch()` refuses `file://`).
@@ -339,3 +296,22 @@ The capture window used to send audio to the main process over a WebSocket on `1
 6. Unplug the network cable (or turn Wi-Fi off) for 10 seconds while in a channel: the chip shows "Reconnecting…", then "Connected" again without touching anything. Off for two minutes: "Error" with a reason and a Reconnect button that works once the network is back.
 7. Remove the bot's Connect permission on a channel and click it: a plain message explains why; the bot does not hang on "Joining…".
 8. Join a Stage channel, then click it again: the bot leaves the stage in Discord.
+
+## Standalone backgrounds
+
+### In plain language
+
+Cue Desk no longer looks into an installed Kenku FM for background pictures. Its own 23 pictures are part of the app, so nothing outside Cue Desk's program and data folders is read for them, and nothing is copied. Pictures an earlier version (0.1.1) copied into the `backgrounds` folder in Cue Desk's data folder are no longer used and are left alone; you can delete that folder.
+
+### Technical details
+
+- Removed: `src/main/legacyBackgrounds` (the `%LOCALAPPDATA%` search, the reading of Kenku FM's player bundle and `app.asar`, the copy into `<userData>/backgrounds`), the `PLAYER_GET_BACKGROUNDS` channel with its preload function `window.player.getBackgrounds`, and the test-only `CUE_DESK_LOCAL_APP_DATA_DIR` switch. The channel table has one channel fewer; `ipcGuard.test.ts` checks it stays gone.
+- The pictures are bundled by webpack (`asset/resource`) from `src/player/backgrounds`, so they load from the app's own files: `'self'` in the player's `img-src`. The Content-Security-Policy is unchanged.
+- The pictures are generated by a script in the repository (`scripts/backgrounds`), contain no third-party material and are covered by the project's GPL-3.0 licence (`src/player/backgrounds/LICENSE.md`).
+- Not changed: the one-time copy of the user's own Kenku FM library on first start (FND-1, `src/main/migration`).
+
+### Manual checks (Windows)
+
+1. Start Cue Desk on a computer without Kenku FM. Click **Add Playlist**: 23 pictures and a blank one are offered.
+2. Open a playlist or soundboard brought over from Kenku FM: it shows a picture.
+3. If `%APPDATA%\cue-desk\backgrounds` exists from Cue Desk 0.1.1, rename it: nothing changes in Cue Desk.

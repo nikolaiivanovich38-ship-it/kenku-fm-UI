@@ -20,7 +20,6 @@ import { lockAppPage } from "./main/security/navigationGuards";
 import { clearBrowsingData, secureSessions } from "./main/security/sessions";
 import { registerAppInfoIpc } from "./main/security/appInfoIpc";
 import { confirmStartAfterCarryOver, startApp } from "./main/startup";
-import { registerBackgroundsIpc, startKenkuBackgroundImport } from "./main/legacyBackgrounds";
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
@@ -117,10 +116,6 @@ if (startupOutcome === "run") {
       return;
     }
 
-    // Copy Kenku FM's background pictures into the data folder, now that the
-    // carry-over is done. Not awaited: the player waits for it, the window does not.
-    void startKenkuBackgroundImport();
-
     // SEC-3: permission handlers and user-agent rewrite for the app session
     // and the website-tab session, before any page loads.
     secureSessions();
@@ -161,6 +156,4 @@ if (startupOutcome === "run") {
     getPlatform: () => os.platform(),
     clearCache: clearBrowsingData,
   });
-  // Only the player view may ask for the background pictures.
-  registerBackgroundsIpc();
 }

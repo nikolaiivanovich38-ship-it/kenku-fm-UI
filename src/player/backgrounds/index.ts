@@ -2,43 +2,26 @@
  * The player's built-in background pictures, by name.
  *
  * Playlists and soundboards store a background either as one of these names
- * ("tavern") or as an address of their own (a file or web address). The
- * pictures are Kenku FM's, which Cue Desk may not ship: the main process
- * copies them from the user's installed Kenku FM into the data folder
- * (src/main/legacyBackgrounds) and hands the list over once, when the player
- * loads. Without them, the only background is a blank one.
+ * ("tavern") or as an address of their own (a file or web address). The names
+ * are Kenku FM's 23; the pictures are Cue Desk's own, painted by
+ * scripts/backgrounds and bundled into the app from this folder, so they show
+ * without Kenku FM installed and libraries brought over from Kenku FM keep a
+ * picture without any change to their data.
  */
 import blank from "../../assets/blank.png";
+import { backgroundsFrom, randomBackgroundFrom, type ImageContext } from "./backgroundList";
 
-function loadBackgrounds(): Record<string, string> {
-  let answer: unknown;
-  try {
-    answer = window.player?.getBackgrounds?.();
-  } catch {
-    answer = undefined;
-  }
-  const found: Record<string, string> = {};
-  if (answer && typeof answer === "object" && !Array.isArray(answer)) {
-    for (const [name, url] of Object.entries(answer)) {
-      if (typeof url === "string" && url !== "") {
-        found[name] = url;
-      }
-    }
-  }
-  // "blank" always stays: Cue Desk 0.1.0 saved it on every new playlist and
-  // soundboard, and they must keep showing it (0.1.1 review).
-  return { ...found, blank };
-}
+// Every picture in this folder, bundled at build time.
+// @ts-expect-error require.context is provided by webpack at build time
+const images: ImageContext = require.context("./", false, /\.(png|jpe?g|svg|webp)$/);
 
-export const backgrounds: Record<string, string> = loadBackgrounds();
+export const backgrounds: Record<string, string> = backgroundsFrom(images, blank);
 
 export type Background = keyof typeof backgrounds;
 
 /** A random picture for a new playlist or soundboard; blank only when there is nothing else. */
 export function getRandomBackground(): Background {
-  const pictures = Object.keys(backgrounds).filter((key) => key !== "blank");
-  const keys = pictures.length > 0 ? pictures : ["blank"];
-  return keys[Math.floor(Math.random() * keys.length)] as Background;
+  return randomBackgroundFrom(backgrounds);
 }
 
 export function isBackground(background: string): background is Background {

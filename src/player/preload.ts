@@ -74,12 +74,6 @@ const api = {
   getPathForFile: (file: File) => {
     return webUtils.getPathForFile(file);
   },
-  /**
-   * Background pictures copied from Kenku FM, as { name: file:// address }.
-   * Asked once while the player loads; the answer may take a moment on the
-   * first start, while the pictures are being copied.
-   */
-  getBackgrounds: (): Record<string, string> => ipcRenderer.sendSync("PLAYER_GET_BACKGROUNDS"),
 };
 
 declare global {

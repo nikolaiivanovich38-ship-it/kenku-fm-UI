@@ -1,150 +1,88 @@
 /**
- * Kenku FM backgrounds: on start, Cue Desk copies the background pictures
- * from an installed Kenku FM into its data folder, and the player shows them
- * for playlists that use a background by name.
- *
- * A fake Kenku FM install, laid out like Kenku FM 1.5.5's on Windows, is made
- * in a temporary folder that the test build reads instead of %LOCALAPPDATA%
- * (CUE_DESK_LOCAL_APP_DATA_DIR). Its "picture" is a generated 2x2 PNG.
+ * Built-in background pictures: Cue Desk ships its own 23 pictures under the
+ * names Kenku FM used, bundled into the app. Nothing is read from an
+ * installed Kenku FM and nothing is copied into the data folder.
  */
 import fs from "fs";
-import os from "os";
 import path from "path";
-import { pathToFileURL } from "url";
-// Already installed with Electron Forge; packs the fake app.asar below.
-import { createPackage } from "@electron/asar";
+import type { Locator } from "@playwright/test";
 import { test, expect } from "./fixtures/app";
 import { card, openCard } from "./fixtures/player";
 
-/** A 2x2 PNG. */
-const PNG_2X2 = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR42mP4z8DAwMDAxMDAwMDAAAANHQEDK+mmyAAAAABJRU5ErkJggg==",
-  "base64",
-);
-
-/** Write Kenku FM's app folder (`resources/app`) with one background picture, "tavern". */
-function writeKenkuApp(appDir: string): void {
-  const renderer = path.join(appDir, ".webpack", "renderer");
-  fs.mkdirSync(path.join(renderer, "player_window"), { recursive: true });
-  fs.writeFileSync(path.join(renderer, "8141457778d3d8eb6c2b.png"), PNG_2X2);
-  fs.writeFileSync(
-    path.join(renderer, "player_window", "index.js"),
-    'var a={"./tavern.png":78209};function o(e){return r(e)}' +
-      ',78209:(e,t,r)=>{"use strict";e.exports=r.p+"8141457778d3d8eb6c2b.png"}',
-  );
-}
+const BUILT_IN = [
+  "autumn", "beach", "butterflys", "castle", "cathedral", "dragon", "haunted", "lines",
+  "mountain", "sand", "skulls", "sky", "smoke", "sparks", "stars", "tavern", "texture",
+  "town", "tree", "veins", "volcano", "war", "winter",
+];
 
 /**
- * Make a Kenku FM install under `localAppData`, as Kenku FM 1.5.5 is on the
- * owner's PC (app folder unpacked), or with the app packed into app.asar.
+ * The bundled pictures are 1600×1000 JPEGs inside the app, not files in the
+ * data folder. Answers the picture's full address.
  */
-async function makeFakeKenkuInstall(localAppData: string, { asar = false } = {}): Promise<void> {
-  const resources = path.join(localAppData, "kenku-fm-win32-x64", "app-1.5.5", "resources");
-  if (asar) {
-    const unpacked = path.join(localAppData, "unpacked-app");
-    writeKenkuApp(unpacked);
-    fs.mkdirSync(resources, { recursive: true });
-    await createPackage(unpacked, path.join(resources, "app.asar"));
-    fs.rmSync(unpacked, { recursive: true });
-  } else {
-    writeKenkuApp(path.join(resources, "app"));
-  }
-  // An uninstalled copy, as Squirrel leaves it, is ignored.
-  fs.mkdirSync(path.join(localAppData, "kenku-fm", "app-1.5.5"), { recursive: true });
-  fs.writeFileSync(path.join(localAppData, "kenku-fm", ".dead"), "");
+async function expectBundledPicture(image: Locator, userDataDir: string): Promise<string> {
+  await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(1600);
+  const address = await image.evaluate((img: HTMLImageElement) => img.currentSrc);
+  expect(address).toMatch(/\.jpg$/);
+  expect(decodeURIComponent(address)).not.toContain(userDataDir);
+  return address;
 }
 
-test("a playlist using Kenku FM's tavern background shows the picture copied from Kenku FM", async ({
+test("a new playlist offers the 23 built-in pictures and blank", async ({ playerView: page, userDataDir }) => {
+  await page.getByRole("button", { name: "Add Playlist" }).first().click();
+  const dialog = page.getByRole("dialog", { name: "Add Playlist" });
+  for (const name of [...BUILT_IN, "blank"]) {
+    await expect(dialog.getByRole("button", { name, exact: true })).toHaveCount(1);
+  }
+  await expect(dialog.getByRole("img")).toHaveCount(BUILT_IN.length + 1);
+  await expectBundledPicture(dialog.getByRole("img", { name: "tavern", exact: true }), userDataDir);
+  await expectBundledPicture(dialog.getByRole("img", { name: "butterflys", exact: true }), userDataDir);
+  // Nothing is copied from Kenku FM any more.
+  expect(fs.existsSync(path.join(userDataDir, "backgrounds"))).toBe(false);
+});
+
+test("a playlist and a soundboard stored with Kenku FM's background names show the bundled pictures", async ({
   launchApp,
   userDataDir,
 }) => {
-  const localAppData = fs.mkdtempSync(path.join(os.tmpdir(), "cue-desk-localappdata-"));
-  try {
-    await makeFakeKenkuInstall(localAppData);
-    const launched = await launchApp({ env: { CUE_DESK_LOCAL_APP_DATA_DIR: localAppData } });
-    const page = await launched.playerView();
+  // A library as Kenku FM (or an earlier Cue Desk) saved it: backgrounds by name.
+  const first = await launchApp();
+  const before = await first.playerView();
+  await before.waitForTimeout(1_000);
+  await before.evaluate(() => {
+    const playlists = {
+      playlists: { byId: { inn: { id: "inn", title: "Inn", tracks: [] as string[], background: "tavern" } }, allIds: ["inn"] },
+      tracks: {},
+    };
+    const soundboards = {
+      soundboards: { byId: { glade: { id: "glade", title: "Glade", sounds: [] as string[], background: "butterflys" } }, allIds: ["glade"] },
+      sounds: {},
+    };
+    localStorage.setItem(
+      "persist:player",
+      JSON.stringify({
+        playlists: JSON.stringify(playlists),
+        soundboards: JSON.stringify(soundboards),
+        _persist: JSON.stringify({ version: 1, rehydrated: true }),
+      }),
+    );
+  });
+  await first.close();
 
-    const copied = path.join(userDataDir, "backgrounds", "tavern.png");
-    expect(fs.readFileSync(copied)).toEqual(PNG_2X2);
-    const tavernUrl = pathToFileURL(copied).href;
+  const page = await (await launchApp()).playerView();
+  const tavern = await expectBundledPicture(card(page, "Inn").getByRole("img", { name: "Background" }), userDataDir);
+  await expectBundledPicture(card(page, "Glade").getByRole("img", { name: "Background" }), userDataDir);
 
-    // The picture is offered in the Add Playlist dialog under its name.
-    await page.getByRole("button", { name: "Add Playlist" }).first().click();
-    const dialog = page.getByRole("dialog", { name: "Add Playlist" });
-    await dialog.getByLabel("Name").fill("Inn");
-    await expect(dialog.getByRole("img", { name: "tavern" })).toHaveAttribute("src", tavernUrl);
-    await dialog.getByRole("button", { name: "tavern" }).click();
-    await dialog.getByRole("button", { name: "Add", exact: true }).click();
-    await expect(dialog).toBeHidden();
-
-    // Home page card.
-    const cardPicture = card(page, "Inn").getByRole("img", { name: "Background" });
-    await expect(cardPicture).toHaveAttribute("src", tavernUrl);
-    await expect.poll(() => cardPicture.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(2);
-
-    // The open playlist's page background.
-    await openCard(page, "Inn");
-    await expect
-      .poll(() =>
-        page.evaluate(
-          (url) =>
-            Array.from(document.querySelectorAll("div")).some((element) =>
-              getComputedStyle(element).backgroundImage.includes(url),
-            ),
-          tavernUrl,
-        ),
-      )
-      .toBe(true);
-  } finally {
-    fs.rmSync(localAppData, { recursive: true, force: true });
-  }
-});
-
-test("without Kenku FM the player still starts, with the blank background", async ({ launchApp, userDataDir }) => {
-  const localAppData = fs.mkdtempSync(path.join(os.tmpdir(), "cue-desk-localappdata-"));
-  try {
-    const launched = await launchApp({ env: { CUE_DESK_LOCAL_APP_DATA_DIR: localAppData } });
-    const page = await launched.playerView();
-    await page.getByRole("button", { name: "Add Playlist" }).first().click();
-    const dialog = page.getByRole("dialog", { name: "Add Playlist" });
-    await expect(dialog.getByRole("button", { name: "blank" })).toBeVisible();
-    await expect(dialog.getByRole("button", { name: "tavern" })).toHaveCount(0);
-    expect(fs.existsSync(path.join(userDataDir, "backgrounds", "tavern.png"))).toBe(false);
-  } finally {
-    fs.rmSync(localAppData, { recursive: true, force: true });
-  }
-});
-
-test("pictures are also copied from a Kenku FM whose app is packed in app.asar", async ({ launchApp, userDataDir }) => {
-  const localAppData = fs.mkdtempSync(path.join(os.tmpdir(), "cue-desk-localappdata-"));
-  try {
-    await makeFakeKenkuInstall(localAppData, { asar: true });
-    const launched = await launchApp({ env: { CUE_DESK_LOCAL_APP_DATA_DIR: localAppData } });
-    const page = await launched.playerView();
-    const copied = path.join(userDataDir, "backgrounds", "tavern.png");
-    expect(fs.readFileSync(copied)).toEqual(PNG_2X2);
-    await page.getByRole("button", { name: "Add Playlist" }).first().click();
-    const picture = page.getByRole("dialog", { name: "Add Playlist" }).getByRole("img", { name: "tavern" });
-    await expect(picture).toHaveAttribute("src", pathToFileURL(copied).href);
-
-    // Cue Desk must not keep Kenku FM's archive open: on Windows that blocks
-    // Kenku FM's updates and uninstall (and deleting this test folder).
-    const archive = path.join(localAppData, "kenku-fm-win32-x64", "app-1.5.5", "resources", "app.asar");
-    if (process.platform === "linux") {
-      const fdDir = `/proc/${launched.app.process().pid}/fd`;
-      const open = fs.readdirSync(fdDir).map((fd) => {
-        try {
-          return fs.readlinkSync(path.join(fdDir, fd));
-        } catch {
-          return "";
-        }
-      });
-      expect(open).not.toContain(archive);
-    } else {
-      // Windows refuses to rename a file another process has open.
-      fs.renameSync(archive, `${archive}.moved`);
-    }
-  } finally {
-    fs.rmSync(localAppData, { recursive: true, force: true });
-  }
+  // The open playlist shows the same picture behind its page.
+  await openCard(page, "Inn");
+  await expect
+    .poll(() =>
+      page.evaluate(
+        (url) =>
+          Array.from(document.querySelectorAll("div")).some((element) =>
+            getComputedStyle(element).backgroundImage.includes(url),
+          ),
+        tavern,
+      ),
+    )
+    .toBe(true);
 });
