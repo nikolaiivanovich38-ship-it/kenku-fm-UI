@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const kenku = vi.hoisted(() => {
-  const api = { platform: "win32", createBrowserView: vi.fn() };
+  const api = { platform: "win32", createBrowserView: vi.fn(), openLocalFile: vi.fn() };
   Object.assign(window, { kenku: api });
   return api;
 });
@@ -10,7 +10,7 @@ vi.mock("./getBounds", () => ({
   getBounds: () => ({ x: 240, y: 80, width: 800, height: 600 }),
 }));
 
-import { isCreatedViewId, openBrowserView } from "./openBrowserView";
+import { isCreatedViewId, openBrowserView, openLocalFileView } from "./openBrowserView";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -62,5 +62,19 @@ describe("openBrowserView", () => {
     // -1 is also the player's "not created yet" id, so it must never be stored.
     kenku.createBrowserView.mockResolvedValue(-1);
     await expect(openBrowserView("https://example.com/")).resolves.toBeUndefined();
+  });
+});
+
+describe("openLocalFileView (SEC-15)", () => {
+  it("asks the main process for a file tab at the content bounds", async () => {
+    kenku.openLocalFile.mockResolvedValue(12);
+    await expect(openLocalFileView("file:///C:/Maps/index.html")).resolves.toBe(12);
+    expect(kenku.openLocalFile).toHaveBeenCalledWith("file:///C:/Maps/index.html", 240, 80, 800, 600);
+  });
+
+  it("returns undefined, without logging an error, when the user said no", async () => {
+    kenku.openLocalFile.mockResolvedValue(-1);
+    await expect(openLocalFileView("file:///C:/Maps/index.html")).resolves.toBeUndefined();
+    expect(console.error).not.toHaveBeenCalled();
   });
 });

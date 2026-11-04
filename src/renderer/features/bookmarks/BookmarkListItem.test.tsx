@@ -9,6 +9,7 @@ const kenku = vi.hoisted(() => {
   const api = {
     platform: "win32",
     createBrowserView: vi.fn(),
+    openLocalFile: vi.fn(),
     hideBrowserView: vi.fn(),
     showBrowserView: vi.fn(),
   };
@@ -81,7 +82,7 @@ describe("BookmarkListItem opening a bookmark", () => {
     );
   });
 
-  it.each(["file:///etc/passwd", "javascript:alert(1)", ""])(
+  it.each(["file://fileserver/share/x.html", "javascript:alert(1)", ""])(
     "explains instead of opening a blank tab for %j",
     async (url) => {
       const errors: string[] = [];
@@ -103,6 +104,44 @@ describe("BookmarkListItem opening a bookmark", () => {
     await open();
     expect(store.getState().tabs.tabs.allIds).toEqual([]);
     expect(kenku.showBrowserView).not.toHaveBeenCalled();
+  });
+});
+
+describe("BookmarkListItem: a bookmark to a file (SEC-15)", () => {
+  it("asks the main process, which asks the user, and opens a file tab", async () => {
+    kenku.openLocalFile.mockResolvedValue(12);
+    const store = setup(bookmark("file:///C:/Maps/index.html"));
+    await open();
+    expect(kenku.createBrowserView).not.toHaveBeenCalled();
+    expect(kenku.openLocalFile).toHaveBeenCalledWith("file:///C:/Maps/index.html", 240, 80, 800, 600);
+    expect(store.getState().tabs.tabs.byId[12]).toMatchObject({
+      url: "file:///C:/Maps/index.html",
+      title: "Ambience",
+      kind: "local-file",
+    });
+    expect(store.getState().tabs.selectedTab).toBe(12);
+  });
+
+  it("opens nothing, and shows no error, when the user says no", async () => {
+    kenku.openLocalFile.mockResolvedValue(-1);
+    const errors: string[] = [];
+    const stop = onAppError((message) => errors.push(message));
+    const store = setup(bookmark("file:///C:/Maps/index.html"));
+    await open();
+    stop();
+    expect(store.getState().tabs.tabs.allIds).toEqual([]);
+    expect(errors).toEqual([]);
+  });
+});
+
+describe("BookmarkListItem site icon (UX-10)", () => {
+  it("cannot be dragged on its own, so holding a bookmark by its icon drags the bookmark", () => {
+    const { container } = render(
+      <Provider store={configureStore({ reducer: { bookmarks: bookmarksReducer, tabs: tabsReducer } })}>
+        <BookmarkListItem bookmark={{ ...bookmark("https://tabletopaudio.com/"), icon: "data:image/png;base64,AA==" }} />
+      </Provider>,
+    );
+    expect(container.querySelector("img")).toHaveAttribute("draggable", "false");
   });
 });
 

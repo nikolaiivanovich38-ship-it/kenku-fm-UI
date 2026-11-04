@@ -161,7 +161,8 @@ export function TabItem({ tab, selected, allowClose, shadow }: TabType) {
               display: "flex",
             }}
           >
-            <img src={tab.icon} />
+            {/* Not draggable: the browser's own image drag would stop the tab drag. */}
+            <img src={tab.icon} alt="" draggable={false} />
           </Box>
         )}
         <ListItemText

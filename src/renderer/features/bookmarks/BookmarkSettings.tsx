@@ -28,6 +28,8 @@ type BookmarkSettingsProps = {
  * the dialog stays open with a plain-language message. "Cancel", Escape or
  * closing the dialog another way keeps the saved bookmark unchanged. Links
  * dropped on the address field are inserted as text by the browser.
+ * SEC-15: a file on this computer may be saved too; the main process asks
+ * the user each time it is opened (unless its folder is remembered).
  */
 export function BookmarkSettings({
   bookmark,

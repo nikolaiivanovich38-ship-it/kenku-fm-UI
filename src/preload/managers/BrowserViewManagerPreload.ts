@@ -81,4 +81,27 @@ export class BrowserViewManagerPreload {
   reload(id: number) {
     ipcRenderer.send("BROWSER_VIEW_RELOAD", id);
   }
+
+  /**
+   * SEC-15: open a file from the user's computer in a tab of its own. The main
+   * process asks the user first (unless the file's folder is remembered).
+   * Arrow function so it can be handed to contextBridge on its own.
+   * @returns the new view's id, or -1 when refused or the user said no
+   */
+  openLocalFile = (
+    url: string,
+    x: number,
+    y: number,
+    width: number,
+    height: number
+  ): Promise<number> =>
+    ipcRenderer.invoke("BROWSER_VIEW_OPEN_LOCAL_FILE", url, x, y, width, height);
+
+  /** SEC-15: Settings > Local files, the folders whose files open without asking. */
+  localFileFolders = {
+    list: (): Promise<string[]> => ipcRenderer.invoke("LOCAL_FILES_LIST_FOLDERS"),
+    /** @returns the folders still remembered */
+    forget: (folder: string): Promise<string[]> =>
+      ipcRenderer.invoke("LOCAL_FILES_FORGET_FOLDER", folder),
+  };
 }

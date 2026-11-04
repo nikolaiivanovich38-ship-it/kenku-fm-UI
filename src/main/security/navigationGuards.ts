@@ -86,3 +86,41 @@ export function guardTabNavigation(contents: GuardableContents): void {
   contents.on("will-navigate", guard);
   contents.on("will-redirect", guard);
 }
+
+/**
+ * SEC-15: a tab showing a file from the user's computer. Only the user opens
+ * files (from the address bar or a bookmark, after the main process asked), so
+ * the page itself may not move to another file or anywhere else: links and
+ * popups to web pages open in a new website tab through `onOpenWebPage`
+ * (the file's tab and its partition never load a website), everything else is
+ * cancelled. A jump to a #section of the same file is fine.
+ */
+export function guardLocalFileTab(
+  contents: GuardableContents,
+  { onOpenWebPage }: { onOpenWebPage: (url: string) => void },
+): void {
+  const openIfWebPage = (url: string) => {
+    const check = checkTabUrl(url);
+    if (isRefused(check)) {
+      console.warn("Blocked a file's tab from opening another file or app");
+      return;
+    }
+    onOpenWebPage(check.url);
+  };
+  contents.on("will-navigate", (event) => {
+    if (!event.isMainFrame || isSameDocumentNavigation(contents.getURL(), event.url)) {
+      return;
+    }
+    event.preventDefault();
+    openIfWebPage(event.url);
+  });
+  contents.on("will-redirect", (event) => {
+    if (event.isMainFrame) {
+      event.preventDefault();
+    }
+  });
+  contents.setWindowOpenHandler(({ url }) => {
+    openIfWebPage(url);
+    return { action: "deny" };
+  });
+}

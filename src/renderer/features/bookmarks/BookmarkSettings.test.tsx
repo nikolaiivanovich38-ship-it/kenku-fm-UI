@@ -65,20 +65,30 @@ describe("BookmarkSettings (SEC-6)", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
-  it.each(["file:///etc/passwd", "javascript:alert(1)", "smb://host/share"])(
+  it.each([
+    ["javascript:alert(1)", /https:\/\/ or http:\/\//],
+    ["smb://host/share", /https:\/\/ or http:\/\//],
+    ["file://fileserver/share/x.html", /network folder/],
+  ])(
     "refuses %j, keeps the dialog open and explains why",
-    async (text) => {
+    async (text, message) => {
       const user = await replaceUrl(text);
       await user.click(screen.getByRole("button", { name: /done/i }));
       expect(onClose).not.toHaveBeenCalled();
       expect(savedUrl()).toBe(original.url);
-      expect(screen.getByText(/https:\/\/ or http:\/\//)).toBeInTheDocument();
+      expect(screen.getByText(message)).toBeInTheDocument();
       expect(urlField()).toHaveAttribute("aria-invalid", "true");
     },
   );
 
+  it("saves a bookmark to a file on this computer (SEC-15: asked about when opened)", async () => {
+    const user = await replaceUrl("C:\\Maps\\index.html");
+    await user.click(screen.getByRole("button", { name: /done/i }));
+    expect(savedUrl()).toBe("file:///C:/Maps/index.html");
+  });
+
   it("keeps the old address when the dialog is dismissed with a refused one", async () => {
-    await replaceUrl("file:///etc/passwd");
+    await replaceUrl("javascript:alert(1)");
     await act(async () => {
       await userEvent.setup().keyboard("{Escape}");
     });
@@ -121,7 +131,7 @@ describe("BookmarkSettings saves name and address together", () => {
   });
 
   it("saves neither when the address is refused", async () => {
-    const user = await replaceUrl("file:///etc/passwd");
+    const user = await replaceUrl("javascript:alert(1)");
     await user.clear(nameField());
     await user.type(nameField(), "Ambience");
     await user.click(screen.getByRole("button", { name: /done/i }));

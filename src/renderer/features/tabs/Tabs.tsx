@@ -9,13 +9,14 @@ import {
   editTab,
   increaseTabPlayingMedia,
   removeTab,
+  replaceTab,
   selectTab,
 } from "./tabsSlice";
 
-import { URLBar } from "./URLBar";
+import { OpenableAddress, URLBar } from "./URLBar";
 import { TabBar } from "./TabBar";
 import { getBounds } from "./getBounds";
-import { openBrowserView } from "./openBrowserView";
+import { openAddressInNewView, openBrowserView } from "./openBrowserView";
 import {
   decreasePlayingMedia,
   increasePlayingMedia,
@@ -71,7 +72,7 @@ export function Tabs() {
         return;
       }
 
-      let validFavicons: string[] = [];
+      const validFavicons: string[] = [];
       if (Array.isArray(favicons)) {
         favicons.forEach((favicon) => {
           const url = safeURL(favicon);
@@ -189,10 +190,28 @@ export function Tabs() {
         bounds.height,
       );
     }
-  }, [settings.urlBarEnabled, isPlayer, tabs.selectedTab]);
+    // UX-10: the sidebar's width changes when it is collapsed or expanded.
+  }, [settings.urlBarEnabled, isPlayer, tabs.selectedTab, bookmarks.sidebarCollapsed]);
 
   function handleURLChange(url: string) {
     dispatch(editTab({ id: tabs.selectedTab, url }));
+  }
+
+  /**
+   * SEC-15: files and websites never share a tab, so a file typed in the
+   * address bar (or a web address typed in a file's tab) opens in a new view
+   * that takes the current tab's place.
+   */
+  async function handleOpenInNewTab(address: OpenableAddress) {
+    const oldId = tabs.selectedTab;
+    const tab = await openAddressInNewView(address);
+    if (!tab) {
+      return;
+    }
+    dispatch(replaceTab({ oldId, tab }));
+    if (oldId !== undefined) {
+      window.kenku.removeBrowserView(oldId);
+    }
   }
 
   return (
@@ -204,6 +223,8 @@ export function Tabs() {
           url={selectedTab?.url || ""}
           onURLChange={handleURLChange}
           disabled={!selectedTab}
+          localFile={selectedTab?.kind === "local-file"}
+          onOpenInNewTab={handleOpenInNewTab}
         />
       )}
     </Stack>

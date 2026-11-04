@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clearBrowsingData, secureSessions } from "./sessions";
 import { trustedContents } from "./trustedContents";
 import { captureTargets } from "./captureTargets";
-import { TAB_PARTITION } from "./partitions";
+import { LOCAL_FILE_PARTITION, TAB_PARTITION } from "./partitions";
 
 type RequestHandler = (
   contents: { id: number },
@@ -49,6 +49,7 @@ type FakeSession = ReturnType<typeof fakeSession>;
 const sessions = vi.hoisted(() => ({
   default: undefined as unknown as FakeSession,
   tabs: undefined as unknown as FakeSession,
+  localFiles: undefined as unknown as FakeSession,
 }));
 
 vi.mock("electron", () => ({
@@ -57,10 +58,13 @@ vi.mock("electron", () => ({
       return sessions.default;
     },
     fromPartition: (partition: string) => {
-      if (partition !== "persist:tabs") {
-        throw new Error(`unexpected partition ${partition}`);
+      if (partition === "persist:tabs") {
+        return sessions.tabs;
       }
-      return sessions.tabs;
+      if (partition === "persist:local-files") {
+        return sessions.localFiles;
+      }
+      throw new Error(`unexpected partition ${partition}`);
     },
   },
 }));
@@ -68,6 +72,7 @@ vi.mock("electron", () => ({
 beforeEach(() => {
   sessions.default = fakeSession("default");
   sessions.tabs = fakeSession("tabs");
+  sessions.localFiles = fakeSession("localFiles");
 });
 
 function request(
@@ -86,6 +91,22 @@ function request(
 describe("session hardening (SEC-3)", () => {
   it("keeps the tab partition name in one place", () => {
     expect(TAB_PARTITION).toBe("persist:tabs");
+  });
+
+  it("keeps local-file tabs in a partition of their own (SEC-15)", () => {
+    expect(LOCAL_FILE_PARTITION).toBe("persist:local-files");
+    expect(LOCAL_FILE_PARTITION).not.toBe(TAB_PARTITION);
+  });
+
+  it("gives local-file tabs the same deny-by-default handlers as websites (SEC-15)", () => {
+    secureSessions();
+    const s = sessions.localFiles;
+    expect(s.requestHandler).toBeTypeOf("function");
+    expect(s.headersListener).toBeTypeOf("function");
+    const file = { id: 779 };
+    expect(request(s, file, "media", { isMainFrame: true, mediaTypes: ["audio"] })).toBe(false);
+    expect(request(s, file, "notifications")).toBe(false);
+    expect(request(s, file, "fullscreen")).toBe(true);
   });
 
   it("installs permission handlers on the app session and the tab session", () => {
@@ -110,6 +131,28 @@ describe("session hardening (SEC-3)", () => {
         mediaType: "audio",
       }),
     ).toBe(true);
+  });
+
+  it("refuses the app's own windows screen recording (SEC-16)", () => {
+    secureSessions();
+    const capture = { id: 502, once: vi.fn() };
+    const main = { id: 503, once: vi.fn() };
+    trustedContents.trust(capture, "audio-capture");
+    trustedContents.trust(main, "main-window");
+    for (const page of [capture, main]) {
+      // chromeMediaSource "desktop" from the page itself: no media types.
+      expect(
+        request(sessions.default, page, "media", {
+          isMainFrame: true,
+          mediaTypes: [],
+          securityOrigin: "file:///",
+        }),
+      ).toBe(false);
+      // An input device chosen by id still works.
+      expect(
+        request(sessions.default, page, "media", { isMainFrame: true, mediaTypes: ["audio"] }),
+      ).toBe(true);
+    }
   });
 
   it("refuses a website the microphone, notifications and external apps", () => {
@@ -195,9 +238,9 @@ describe("session hardening (SEC-3)", () => {
 });
 
 describe("clearBrowsingData", () => {
-  it("clears the app session and the tab session", async () => {
+  it("clears the app session, the tab session and the local-file session", async () => {
     await clearBrowsingData();
-    for (const s of [sessions.default, sessions.tabs]) {
+    for (const s of [sessions.default, sessions.tabs, sessions.localFiles]) {
       expect(s.clearCache).toHaveBeenCalled();
       expect(s.clearStorageData).toHaveBeenCalledWith({
         storages: ["cookies", "shadercache", "cachestorage"],

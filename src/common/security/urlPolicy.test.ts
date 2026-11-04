@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   checkExternalUrl,
   checkTabUrl,
+  checkLocalFileUrl,
   checkTypedTabUrl,
+  isLocalFile,
   isRefused,
   prependHttp,
 } from "./urlPolicy";
@@ -154,7 +156,6 @@ describe("checkTypedTabUrl", () => {
   });
 
   it("still rejects dangerous schemes typed by hand", () => {
-    expect(checkTypedTabUrl("file:///etc/passwd")).toMatchObject({ ok: false });
     expect(checkTypedTabUrl(" javascript:alert(1)")).toMatchObject({ ok: false });
     expect(checkTypedTabUrl("user:pass@example.com")).toMatchObject({ ok: false });
   });
@@ -219,5 +220,56 @@ describe("checkExternalUrl (SEC-10)", () => {
     "kenku.fm",
   ])("rejects %j", (raw) => {
     expect(checkExternalUrl(raw).ok).toBe(false);
+  });
+});
+
+describe("local files (SEC-15)", () => {
+  const ask = (url: string) => ({ ok: "ask", kind: "local-file", url });
+
+  it.each([
+    ["file:///C:/Music/ambience.html", "file:///C:/Music/ambience.html"],
+    ["FILE:///etc/hosts", "file:///etc/hosts"],
+    ["file://localhost/etc/hosts", "file:///etc/hosts"],
+    ["file:///C:/My%20Sounds/", "file:///C:/My%20Sounds/"],
+    // Paths typed or pasted the way Windows Explorer and macOS show them.
+    ["C:\\Music\\My Sounds\\rain.html", "file:///C:/Music/My%20Sounds/rain.html"],
+    ["d:/maps/index.html", "file:///d:/maps/index.html"],
+    ["/home/gm/maps/index.html", "file:///home/gm/maps/index.html"],
+  ])("asks before opening %j from the address bar or a bookmark", (raw, url) => {
+    const check = checkTypedTabUrl(raw);
+    expect(check).toEqual(ask(url));
+    expect(isLocalFile(check)).toBe(true);
+    expect(isRefused(check)).toBe(false);
+  });
+
+  it.each([
+    "file://fileserver/share/rain.html",
+    "file:////fileserver/share/rain.html",
+    "\\\\fileserver\\share\\rain.html",
+    "//fileserver/share/rain.html",
+  ])("refuses the network share %j", (raw) => {
+    expect(checkTypedTabUrl(raw)).toMatchObject({ ok: false, code: "network-file" });
+  });
+
+  it.each(["file:///C:/Music%5C..%5Csecret.txt", "file:///home/gm%2F..%2Fsecret"])(
+    "refuses hidden path separators in %j",
+    (raw) => {
+      expect(checkTypedTabUrl(raw)).toMatchObject({ ok: false, code: "invalid" });
+    },
+  );
+
+  it("never lets a web page open, redirect to or pop up a file (checkTabUrl)", () => {
+    expect(checkTabUrl("file:///C:/Music/ambience.html")).toMatchObject({ ok: false, code: "scheme" });
+  });
+
+  it("checkLocalFileUrl accepts files only", () => {
+    expect(checkLocalFileUrl("file:///etc/hosts")).toEqual(ask("file:///etc/hosts"));
+    expect(checkLocalFileUrl("https://example.com/")).toMatchObject({ ok: false, code: "scheme" });
+    expect(checkLocalFileUrl("C:\\Music\\x.html")).toMatchObject({ ok: false });
+  });
+
+  it("explains a refused network share in plain language", () => {
+    const check = checkTypedTabUrl("file://fileserver/share/x.html");
+    expect(isRefused(check) && check.reason).toMatch(/network/i);
   });
 });

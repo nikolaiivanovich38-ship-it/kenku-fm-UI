@@ -8,6 +8,12 @@ export interface Tab {
   /** The number of media tracks playing on this tab */
   playingMedia: number;
   muted: boolean;
+  /**
+   * SEC-15: "local-file" for a tab showing a file from the user's computer
+   * (its own partition, opened only after the user agreed). Left out for
+   * website tabs.
+   */
+  kind?: "local-file";
 }
 
 export interface TabsState {
@@ -40,6 +46,25 @@ export const tabsSlice = createSlice({
       );
       if (action.payload === state.selectedTab) {
         state.selectedTab = undefined;
+      }
+    },
+    /**
+     * SEC-15: a file or a web page that cannot open in the current tab (files
+     * and websites never share a tab) opens in a new view, which takes the old
+     * tab's place in the tab bar. The caller closes the old view.
+     */
+    replaceTab: (state, action: PayloadAction<{ oldId: number; tab: Tab }>) => {
+      const { oldId, tab } = action.payload;
+      const index = state.tabs.allIds.indexOf(oldId);
+      delete state.tabs.byId[oldId];
+      state.tabs.byId[tab.id] = tab;
+      if (index === -1) {
+        state.tabs.allIds.push(tab.id);
+      } else {
+        state.tabs.allIds[index] = tab.id;
+      }
+      if (state.selectedTab === oldId) {
+        state.selectedTab = tab.id;
       }
     },
     selectTab: (state, action: PayloadAction<number>) => {
@@ -88,6 +113,7 @@ export const tabsSlice = createSlice({
 export const {
   addTab,
   removeTab,
+  replaceTab,
   selectTab,
   editTab,
   moveTab,

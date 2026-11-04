@@ -108,7 +108,7 @@ test("bookmark a page, open, edit and delete the bookmark", async ({ app, mainWi
   await bookmark(mainWindow, "Page Two").getByRole("button", { name: "Options for Page Two" }).click();
   await mainWindow.getByRole("menuitem", { name: "Edit" }).click();
   const edit = mainWindow.getByRole("dialog", { name: "Edit Bookmark" });
-  await edit.getByLabel("URL").fill("file:///etc/passwd");
+  await edit.getByLabel("URL").fill("javascript:alert(1)");
   await edit.getByRole("button", { name: "Done" }).click();
   await expect(edit.getByRole("alert")).toContainText("https:// or http://");
   await edit.getByLabel("URL").fill(site.url("/one"));
@@ -128,20 +128,20 @@ test("bookmark a page, open, edit and delete the bookmark", async ({ app, mainWi
   await expect(bookmark(mainWindow, "First page")).toHaveCount(0);
 });
 
-test("a file address is refused with a message and nothing opens", async ({ app, mainWindow, playerView }) => {
+test("a file on a network share is refused with a message and nothing opens", async ({ app, mainWindow, playerView }) => {
+  // SEC-15: files on this computer open after a question (e2e/localFiles.spec.ts);
+  // network shares never do, because Windows would send the user's login there.
   await expect(playerView.getByText("Playlists", { exact: true })).toBeVisible();
   await mainWindow.getByRole("button", { name: "add tab" }).click();
   const address = mainWindow.getByLabel("Web address");
-  await address.fill("file:///etc/passwd");
+  await address.fill("file://fileserver/share/passwords.html");
   await address.press("Enter");
 
-  await expect(mainWindow.getByRole("alert")).toContainText(
-    "Cue Desk only opens web pages whose address starts with https:// or http://.",
-  );
+  await expect(mainWindow.getByRole("alert")).toContainText("not files in a shared network folder");
   await expect(address).toHaveAttribute("aria-invalid", "true");
   await mainWindow.waitForTimeout(1_000);
   const addresses = await openAddresses(app);
-  expect(addresses.filter((url) => url.includes("/etc/passwd"))).toEqual([]);
+  expect(addresses.filter((url) => url.includes("fileserver"))).toEqual([]);
 
   // Typing again clears the message; a good address then loads.
   await address.fill(site.url("/one"));

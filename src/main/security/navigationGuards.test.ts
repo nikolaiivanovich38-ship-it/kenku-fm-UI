@@ -1,6 +1,7 @@
 import { EventEmitter } from "events";
 import { describe, expect, it, vi } from "vitest";
 import {
+  guardLocalFileTab,
   guardTabNavigation,
   isSameDocumentNavigation,
   lockAppPage,
@@ -127,6 +128,64 @@ describe("guardTabNavigation (SEC-6)", () => {
     guardTabNavigation(contents);
     const event = navEvent("data:text/html,x", false);
     contents.emit("will-redirect", event);
+    expect(event.preventDefault).not.toHaveBeenCalled();
+  });
+});
+
+describe("guardLocalFileTab (SEC-15)", () => {
+  const file = "file:///C:/Maps/index.html";
+
+  function setup() {
+    const contents = fakeContents(41, file);
+    const onOpenWebPage = vi.fn();
+    guardLocalFileTab(contents, { onOpenWebPage });
+    return { contents, onOpenWebPage };
+  }
+
+  it.each(["file:///C:/Maps/other.html", "file:///C:/Windows/win.ini", "javascript:alert(1)"])(
+    "cancels a link to %j: only the user opens files",
+    (url) => {
+      const { contents, onOpenWebPage } = setup();
+      const event = navEvent(url);
+      contents.emit("will-navigate", event);
+      expect(event.preventDefault).toHaveBeenCalled();
+      expect(onOpenWebPage).not.toHaveBeenCalled();
+    },
+  );
+
+  it("opens a link to a web page in a website tab instead, never in the file's tab", () => {
+    const { contents, onOpenWebPage } = setup();
+    const event = navEvent("https://example.com/");
+    contents.emit("will-navigate", event);
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(onOpenWebPage).toHaveBeenCalledWith("https://example.com/");
+  });
+
+  it("allows a jump to a #section of the same file", () => {
+    const { contents } = setup();
+    const event = navEvent(`${file}#legend`);
+    contents.emit("will-navigate", event);
+    expect(event.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it("cancels every redirect of the file's tab", () => {
+    const { contents } = setup();
+    const event = navEvent("https://example.com/");
+    contents.emit("will-redirect", event);
+    expect(event.preventDefault).toHaveBeenCalled();
+  });
+
+  it("turns web popups into website tabs and refuses file popups", () => {
+    const { contents, onOpenWebPage } = setup();
+    expect(contents.openWindow("https://example.org/")).toEqual({ action: "deny" });
+    expect(contents.openWindow("file:///C:/Windows/win.ini")).toEqual({ action: "deny" });
+    expect(onOpenWebPage.mock.calls).toEqual([["https://example.org/"]]);
+  });
+
+  it("leaves embedded frames to Chromium's own rules", () => {
+    const { contents } = setup();
+    const event = navEvent("https://example.com/", false);
+    contents.emit("will-navigate", event);
     expect(event.preventDefault).not.toHaveBeenCalled();
   });
 });
