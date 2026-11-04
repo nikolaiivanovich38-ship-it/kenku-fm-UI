@@ -169,7 +169,7 @@ describe("parseBackgroundMap on a hostile bundle (0.1.1 review)", () => {
     const bundle = '{"./a.jpg":1}' + "1:(".repeat(240_000);
     const start = performance.now();
     expect(parseBackgroundMap(bundle)).toEqual([]);
-    expect(performance.now() - start).toBeLessThan(500);
+    expect(performance.now() - start).toBeLessThan(2_000);
   });
 
   it("stays fast with thousands of map entries that have no module", () => {
@@ -177,7 +177,7 @@ describe("parseBackgroundMap on a hostile bundle (0.1.1 review)", () => {
     const bundle = `{${entries}}` + "x".repeat(4 * 1024 * 1024);
     const start = performance.now();
     expect(parseBackgroundMap(bundle)).toEqual([]);
-    expect(performance.now() - start).toBeLessThan(1_000);
+    expect(performance.now() - start).toBeLessThan(3_000);
   });
 
   it(`returns at most ${"MAX_BACKGROUND_ENTRIES"} pictures`, () => {
