@@ -131,9 +131,9 @@ describe("guardIpc: argument types (SEC-8)", () => {
 
   it("drops over-long strings", () => {
     const listener = vi.fn();
-    guard().on("DISCORD_JOIN_CHANNEL", listener);
+    guard().on("AUDIO_CAPTURE_START_EXTERNAL_AUDIO_CAPTURE", listener);
     ipc.deliver(
-      "DISCORD_JOIN_CHANNEL",
+      "AUDIO_CAPTURE_START_EXTERNAL_AUDIO_CAPTURE",
       fromMainFrame(fakePage("main-window", registry)),
       "1".repeat(10_000),
     );

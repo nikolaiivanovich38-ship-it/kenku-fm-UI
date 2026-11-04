@@ -25,10 +25,8 @@ import { RootState } from "../../app/store";
 import { useSelector, useDispatch } from "react-redux";
 import { setStatus } from "../connection/connectionSlice";
 import {
-  setDiscordToken,
   setExternalInputsEnabled,
   setMultipleInputsEnabled,
-  setMultipleOutputsEnabled,
   setRemoteEnabled,
   setRemoteAddress,
   setRemotePort,
@@ -37,6 +35,11 @@ import {
   StreamingMode,
 } from "./settingsSlice";
 import { showWindowControls } from "../../common/showWindowControls";
+import Alert from "@mui/material/Alert";
+import type { OutputsState } from "../../../common/outputs";
+import { overallStatus, setOutputsState } from "../output/outputSlice";
+import { AddBotDialog } from "./AddBotDialog";
+import { BotSettings } from "./BotSettings";
 
 type SettingsProps = {
   open: boolean;
@@ -44,93 +47,62 @@ type SettingsProps = {
 };
 
 export function Settings({ open, onClose }: SettingsProps) {
-  const connection = useSelector((state: RootState) => state.connection);
   const settings = useSelector((state: RootState) => state.settings);
   const dispatch = useDispatch();
 
-  function handleDiscordTokenChange(e: React.ChangeEvent<HTMLInputElement>) {
-    dispatch(setDiscordToken(e.target.value));
-  }
+  const outputs = useSelector((state: RootState) => state.output);
+  const [addingBot, setAddingBot] = useState(false);
 
-  function handleDiscordConnect() {
-    if (connection.status === "disconnected") {
-      dispatch(setStatus("connecting"));
-      window.kenku.connect(settings.discordToken);
-    } else {
-      window.kenku.disconnect();
-    }
-  }
-
+  // OUT-1: mirror the main process's output state, and log in the bots that
+  // have a saved token, as Kenku FM did when the window opened.
   useEffect(() => {
-    if (settings.discordToken) {
-      dispatch(setStatus("connecting"));
-      window.kenku.connect(settings.discordToken);
-    }
-
-    return () => {
-      window.kenku.disconnect();
+    const apply = (state: OutputsState) => {
+      dispatch(setOutputsState(state));
+      dispatch(setStatus(overallStatus(state.bots)));
     };
-  }, []);
-
-  useEffect(() => {
-    window.kenku.on("DISCORD_READY", () => {
-      dispatch(setStatus("ready"));
-    });
-    window.kenku.on("DISCORD_DISCONNECTED", () => {
-      dispatch(setStatus("disconnected"));
-    });
-
+    window.kenku.on("OUTPUTS_STATE", (args) => apply(args[0]));
+    void window.kenku.outputs.getState().then(apply);
+    window.kenku.outputs.connectSaved();
     return () => {
-      window.kenku.removeAllListeners("DISCORD_READY");
-      window.kenku.removeAllListeners("DISCORD_DISCONNECTED");
+      window.kenku.removeAllListeners("OUTPUTS_STATE");
     };
   }, [dispatch]);
 
+  async function handleAddBot() {
+    setAddingBot(false);
+    await window.kenku.outputs.addBot();
+  }
+
   const discordSettings = (
-    <Stack spacing={1}>
-      <TextField
-        autoFocus
-        margin="dense"
-        size="small"
-        id="token"
-        label="Token"
-        type="password"
-        fullWidth
-        variant="standard"
-        autoComplete="off"
-        InputLabelProps={{
-          shrink: true,
-        }}
-        value={settings.discordToken}
-        onChange={handleDiscordTokenChange}
-        disabled={connection.status !== "disconnected"}
-        helperText="Enter your bot's token"
-      />
-      <Button
-        disabled={connection.status === "connecting" || !settings.discordToken}
-        onClick={handleDiscordConnect}
-        fullWidth
-        variant="outlined"
-        size="small"
-      >
-        {connection.status === "connecting" ? (
-          <CircularProgress size={24} />
-        ) : connection.status === "ready" ? (
-          "Disconnect"
-        ) : (
-          "Connect"
-        )}
-      </Button>
+    <Stack spacing={2}>
+      {!outputs.encryption && (
+        // A standing note, not an alert: error messages own role="alert".
+        <Alert severity="warning" variant="outlined" role="note">
+          This computer has no secure place to save passwords, so bot tokens are kept only until Cue Desk
+          closes. You will need to enter them again next time.
+        </Alert>
+      )}
+      {outputs.bots.map((bot, index) => (
+        <BotSettings key={bot.id} bot={bot} removable={outputs.bots.length > 1} autoFocus={index === 0} />
+      ))}
       <Link
         href="https://kenku.fm/docs/getting-a-discord-token"
         variant="caption"
         textAlign="center"
         target="_blank"
         rel="noopener noreferrer"
-        py={2}
       >
         Where do I get my token?
       </Link>
+      <Button onClick={() => setAddingBot(true)} fullWidth variant="text" size="small">
+        {outputs.bots.length < 2 ? "Add a second bot" : "Add another bot"}
+      </Button>
+      <AddBotDialog
+        open={addingBot}
+        botCount={outputs.bots.length}
+        onCancel={() => setAddingBot(false)}
+        onAdd={handleAddBot}
+      />
     </Stack>
   );
 
@@ -271,10 +243,6 @@ export function Settings({ open, onClose }: SettingsProps) {
     dispatch(setMultipleInputsEnabled(!settings.multipleInputsEnabled));
   }
 
-  function handleMultipleOutputsToggle() {
-    dispatch(setMultipleOutputsEnabled(!settings.multipleOutputsEnabled));
-  }
-
   const [clearingCache, setClearingCache] = useState(false);
   async function handleCacheClear() {
     setClearingCache(true);
@@ -294,18 +262,6 @@ export function Settings({ open, onClose }: SettingsProps) {
           }
           sx={{ marginLeft: "-8px" }}
           label={<Typography variant="caption">Show Tab URL Bar</Typography>}
-        />
-      </FormGroup>
-      <FormGroup>
-        <FormControlLabel
-          control={
-            <Switch
-              checked={settings.multipleOutputsEnabled}
-              onChange={handleMultipleOutputsToggle}
-            />
-          }
-          sx={{ marginLeft: "-8px" }}
-          label={<Typography variant="caption">Multiple Outputs</Typography>}
         />
       </FormGroup>
       <FormGroup>
@@ -362,7 +318,7 @@ export function Settings({ open, onClose }: SettingsProps) {
         Settings
       </DialogTitle>
       <DialogContent>
-        <DialogContentText>Discord</DialogContentText>
+        <DialogContentText>Discord bots</DialogContentText>
         {discordSettings}
         <Divider sx={{ mb: 2 }} />
         <DialogContentText>Remote</DialogContentText>

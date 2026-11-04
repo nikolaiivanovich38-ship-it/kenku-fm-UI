@@ -9,6 +9,7 @@
  * same table in plain language; keep the two in step.
  */
 import {
+  type ArgCheck,
   type ArgsCheck,
   MAX_URL_LENGTH,
   argsMatch,
@@ -58,6 +59,17 @@ const PLAYER: readonly AppPageRole[] = ["player-view"];
 const bounds = [isFiniteNumber, isFiniteNumber, isFiniteNumber, isFiniteNumber] as const;
 const viewIdOnly = argsMatch(isWebContentsId);
 
+// --- WP2 Pipeline / Outputs and bots ---
+/** Bot ids are made by the main process (botTokenStore.ts BOT_ID_PATTERN). */
+const BOT_ID = /^bot-[0-9a-f-]{36}$/;
+const isBotId: ArgCheck = (value) => typeof value === "string" && BOT_ID.test(value);
+/** "local" (this computer's speakers) or a bot id. */
+const isOutputId: ArgCheck = (value) => value === "local" || isBotId(value);
+/** A Discord snowflake id (server, channel). */
+const isDiscordId: ArgCheck = (value) => typeof value === "string" && /^\d{1,25}$/.test(value);
+/** A bot token: non-empty text, at most MAX_SHORT_TEXT (real ones are ~70 characters). */
+const isBotToken: ArgCheck = (value) => isShortText(value) && (value as string).trim() !== "";
+
 export const IPC_CHANNELS = {
   // src/index.ts
   GET_VERSION: { from: MAIN, args: noArgs, refusedReturnValue: "" },
@@ -68,12 +80,6 @@ export const IPC_CHANNELS = {
   WINDOW_TOGGLE_MAXIMIZE: { from: MAIN, args: noArgs },
   WINDOW_MINIMIZE: { from: MAIN, args: noArgs },
   WINDOW_CLOSE: { from: MAIN, args: noArgs },
-
-  // DiscordBroadcast
-  DISCORD_CONNECT: { from: MAIN, args: argsMatch(isShortText) },
-  DISCORD_DISCONNECT: { from: MAIN, args: noArgs },
-  DISCORD_JOIN_CHANNEL: { from: MAIN, args: argsMatch(isShortText) },
-  DISCORD_LEAVE_CHANNEL: { from: MAIN, args: argsMatch(isShortText) },
 
   // BrowserViewManagerMain
   BROWSER_VIEW_CREATE_BROWSER_VIEW: {
@@ -103,7 +109,6 @@ export const IPC_CHANNELS = {
   PLAYER_STOP_REMOTE: { from: MAIN, args: noArgs },
 
   // AudioCaptureManagerMain, sent by the main window
-  AUDIO_CAPTURE_SET_LOOPBACK: { from: MAIN, args: argsMatch(isBoolean) },
   AUDIO_CAPTURE_SET_MUTED: { from: MAIN, args: argsMatch(isWebContentsId, isBoolean) },
   AUDIO_CAPTURE_START_EXTERNAL_AUDIO_CAPTURE: { from: MAIN, args: argsMatch(isShortText) },
   AUDIO_CAPTURE_STOP_EXTERNAL_AUDIO_CAPTURE: { from: MAIN, args: argsMatch(isShortText) },
@@ -124,6 +129,20 @@ export const IPC_CHANNELS = {
   // PERF-4: the streaming mode is applied when a broadcast starts (capture
   // no longer starts at launch, so AUDIO_CAPTURE_START is gone).
   AUDIO_CAPTURE_SET_STREAMING_MODE: { from: MAIN, args: argsMatch(isOneOf("lowLatency", "performance")) },
+  // SEC-5 / OUT-1: outputs and Discord bots (OutputManager). Replace the old
+  // DISCORD_* channels and AUDIO_CAPTURE_SET_LOOPBACK. No channel returns a token.
+  OUTPUTS_GET_STATE: { from: MAIN, args: noArgs },
+  OUTPUTS_CONNECT_SAVED: { from: MAIN, args: noArgs },
+  BOT_ADD: { from: MAIN, args: noArgs },
+  BOT_REMOVE: { from: MAIN, args: argsMatch(isBotId) },
+  BOT_SET_TOKEN: { from: MAIN, args: argsMatch(isBotId, isBotToken) },
+  BOT_REMOVE_TOKEN: { from: MAIN, args: argsMatch(isBotId) },
+  BOT_IMPORT_LEGACY_TOKEN: { from: MAIN, args: argsMatch(isBotToken) },
+  BOT_CONNECT: { from: MAIN, args: argsMatch(isBotId) },
+  BOT_DISCONNECT: { from: MAIN, args: argsMatch(isBotId) },
+  BOT_JOIN_CHANNEL: { from: MAIN, args: argsMatch(isBotId, isDiscordId) },
+  BOT_LEAVE_CHANNEL: { from: MAIN, args: argsMatch(isBotId, isDiscordId) },
+  OUTPUT_SET_MUTED: { from: MAIN, args: argsMatch(isOutputId, isBoolean) },
 } satisfies Record<string, IpcChannelRule>;
 
 export type IpcChannel = keyof typeof IPC_CHANNELS;

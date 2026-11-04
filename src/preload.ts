@@ -4,6 +4,7 @@ import {
   BrowserViewKind,
   BrowserViewManagerPreload,
 } from "./preload/managers/BrowserViewManagerPreload";
+import type { OutputsState } from "./common/outputs";
 
 const viewManager = new BrowserViewManagerPreload();
 
@@ -12,11 +13,6 @@ type Channel =
   | "FATAL_ERROR"
   | "MESSAGE"
   | "INFO"
-  | "DISCORD_READY"
-  | "DISCORD_DISCONNECTED"
-  | "DISCORD_GUILDS"
-  | "DISCORD_CHANNEL_JOINED"
-  | "DISCORD_CHANNEL_LEFT"
   | "SHOW_CONTROLS"
   | "BROWSER_VIEW_DID_NAVIGATE"
   | "BROWSER_VIEW_TITLE_UPDATED"
@@ -25,18 +21,14 @@ type Channel =
   | "BROWSER_VIEW_MEDIA_PAUSED"
   | "BROWSER_VIEW_NEW_TAB"
   | "BROWSER_VIEW_CLOSE_TAB"
-  | "PLAYER_REMOTE_ENABLED";
+  | "PLAYER_REMOTE_ENABLED"
+  | "OUTPUTS_STATE";
 
 const validChannels: Channel[] = [
   "ERROR",
   "FATAL_ERROR",
   "MESSAGE",
   "INFO",
-  "DISCORD_READY",
-  "DISCORD_DISCONNECTED",
-  "DISCORD_GUILDS",
-  "DISCORD_CHANNEL_JOINED",
-  "DISCORD_CHANNEL_LEFT",
   "SHOW_CONTROLS",
   "BROWSER_VIEW_DID_NAVIGATE",
   "BROWSER_VIEW_TITLE_UPDATED",
@@ -46,6 +38,7 @@ const validChannels: Channel[] = [
   "BROWSER_VIEW_NEW_TAB",
   "BROWSER_VIEW_CLOSE_TAB",
   "PLAYER_REMOTE_ENABLED",
+  "OUTPUTS_STATE",
 ];
 
 // Offer each loaded view's audio for Discord. PERF-4: the main process
@@ -54,19 +47,32 @@ ipcRenderer.on("BROWSER_VIEW_LOADED", (_, viewId: number) => {
   ipcRenderer.send("AUDIO_CAPTURE_START_BROWSER_VIEW_STREAM", viewId);
 });
 
+/**
+ * OUT-1 / SEC-5: outputs (this computer and Discord bots). The main process
+ * holds the bot tokens; this page can set, replace or remove one and see
+ * whether a bot has one, but never read it.
+ */
+const outputs = {
+  getState: (): Promise<OutputsState> => ipcRenderer.invoke("OUTPUTS_GET_STATE"),
+  /** Log in every bot that has a saved token (at start, as Kenku FM did). */
+  connectSaved: () => ipcRenderer.send("OUTPUTS_CONNECT_SAVED"),
+  addBot: (): Promise<string> => ipcRenderer.invoke("BOT_ADD"),
+  removeBot: (botId: string) => ipcRenderer.send("BOT_REMOVE", botId),
+  /** Resolves true when the token is remembered after a restart. */
+  setToken: (botId: string, token: string): Promise<boolean> => ipcRenderer.invoke("BOT_SET_TOKEN", botId, token),
+  removeToken: (botId: string) => ipcRenderer.send("BOT_REMOVE_TOKEN", botId),
+  /** SEC-5 migration: hand the token saved by an older version to the main process. */
+  importLegacyToken: (token: string) => ipcRenderer.send("BOT_IMPORT_LEGACY_TOKEN", token),
+  connect: (botId: string) => ipcRenderer.send("BOT_CONNECT", botId),
+  disconnect: (botId: string) => ipcRenderer.send("BOT_DISCONNECT", botId),
+  joinChannel: (botId: string, channelId: string) => ipcRenderer.send("BOT_JOIN_CHANNEL", botId, channelId),
+  leaveChannel: (botId: string, channelId: string) => ipcRenderer.send("BOT_LEAVE_CHANNEL", botId, channelId),
+  /** `outputId`: "local" for this computer, or a bot id. */
+  setMuted: (outputId: string, muted: boolean) => ipcRenderer.send("OUTPUT_SET_MUTED", outputId, muted),
+};
+
 const api = {
-  connect: (token: string) => {
-    ipcRenderer.send("DISCORD_CONNECT", token);
-  },
-  disconnect: () => {
-    ipcRenderer.send("DISCORD_DISCONNECT");
-  },
-  joinChannel: (channelId: string) => {
-    ipcRenderer.send("DISCORD_JOIN_CHANNEL", channelId);
-  },
-  leaveChannel: (channelId: string) => {
-    ipcRenderer.send("DISCORD_LEAVE_CHANNEL", channelId);
-  },
+  outputs,
   createBrowserView: async (
     url: string,
     x: number,
@@ -143,9 +149,6 @@ const api = {
   },
   playerStopRemote: () => {
     ipcRenderer.send("PLAYER_STOP_REMOTE");
-  },
-  setLoopback: (loopback: boolean) => {
-    ipcRenderer.send("AUDIO_CAPTURE_SET_LOOPBACK", loopback);
   },
   setMuted: (id: number, muted: boolean) => {
     ipcRenderer.send("AUDIO_CAPTURE_SET_MUTED", id, muted);

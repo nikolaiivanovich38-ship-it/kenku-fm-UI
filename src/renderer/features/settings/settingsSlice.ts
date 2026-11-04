@@ -1,29 +1,29 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
+/**
+ * SEC-5: the Discord token is no longer a setting (the main process keeps it
+ * encrypted); OUT-1: "Multiple Outputs" is replaced by the output list.
+ */
 export type ConnectionStatus = "disconnected" | "connecting" | "ready";
 export type StreamingMode = "lowLatency" | "performance";
 
 export interface SettingsState {
-  discordToken: string;
   urlBarEnabled: boolean;
   remoteEnabled: boolean;
   remoteAddress: string;
   remotePort: string;
   externalInputsEnabled: boolean;
   multipleInputsEnabled: boolean;
-  multipleOutputsEnabled: boolean;
   streamingMode: StreamingMode;
 }
 
 const initialState: SettingsState = {
-  discordToken: "",
   urlBarEnabled: true,
   remoteEnabled: false,
   remoteAddress: "127.0.0.1",
   remotePort: "3333",
   externalInputsEnabled: false,
   multipleInputsEnabled: false,
-  multipleOutputsEnabled: false,
   streamingMode: "performance",
 };
 
@@ -31,9 +31,6 @@ export const connectionSlice = createSlice({
   name: "settings",
   initialState,
   reducers: {
-    setDiscordToken: (state, action: PayloadAction<string>) => {
-      state.discordToken = action.payload;
-    },
     setURLBarEnabled: (state, action: PayloadAction<boolean>) => {
       state.urlBarEnabled = action.payload;
     },
@@ -52,9 +49,6 @@ export const connectionSlice = createSlice({
     setMultipleInputsEnabled: (state, action: PayloadAction<boolean>) => {
       state.multipleInputsEnabled = action.payload;
     },
-    setMultipleOutputsEnabled: (state, action: PayloadAction<boolean>) => {
-      state.multipleOutputsEnabled = action.payload;
-    },
     setStreamingMode: (state, action: PayloadAction<StreamingMode>) => {
       state.streamingMode = action.payload;
     },
@@ -62,14 +56,12 @@ export const connectionSlice = createSlice({
 });
 
 export const {
-  setDiscordToken,
   setURLBarEnabled,
   setRemoteEnabled,
   setRemoteAddress,
   setRemotePort,
   setExternalInputsEnabled,
   setMultipleInputsEnabled,
-  setMultipleOutputsEnabled,
   setStreamingMode,
 } = connectionSlice.actions;
 

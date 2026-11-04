@@ -31,19 +31,37 @@ export async function openSettings(mainWindow: Page) {
   return settings;
 }
 
+/** One bot's group in Settings ("Bot 1", "Bot 2", …; also matches once its Discord name shows). */
+export function botSettings(mainWindow: Page, bot = "Bot 1") {
+  return mainWindow
+    .getByRole("dialog", { name: "Settings" })
+    .getByRole("group", { name: new RegExp(`^Discord bot .*\\b${bot}\\b`) });
+}
+
 /** Type a bot token in Settings, connect, and close Settings once connected. */
-export async function connectFakeBot(mainWindow: Page, token = "fake-token-1") {
+export async function connectFakeBot(mainWindow: Page, token = "fake-token-1", bot = "Bot 1") {
   const settings = await openSettings(mainWindow);
-  await settings.getByLabel("Token").fill(token);
-  await settings.getByRole("button", { name: "Connect" }).click();
-  await expect(settings.getByRole("button", { name: "Disconnect" })).toBeVisible();
+  const group = botSettings(mainWindow, bot);
+  await group.getByLabel("Token").fill(token);
+  await group.getByRole("button", { name: "Connect" }).click();
+  await expect(group.getByRole("button", { name: "Disconnect" })).toBeVisible();
   await settings.getByRole("button", { name: "Done" }).click();
   await expect(settings).toBeHidden();
 }
 
-/** A voice channel in the side bar's output list. */
-export function channelButton(mainWindow: Page, name: FakeChannelName) {
-  return mainWindow.getByRole("button", { name, exact: true });
+/**
+ * A voice channel in the side bar's output list, under one bot (its group
+ * is named after the bot, e.g. "Fake Bot 1 (Bot 1)").
+ */
+export function channelButton(mainWindow: Page, name: FakeChannelName, bot = "Bot 1") {
+  return mainWindow
+    .getByRole("group", { name: new RegExp(`\\(${bot}\\)$`) })
+    .getByRole("button", { name, exact: true });
+}
+
+/** "This Computer" in the output list. */
+export function localOutput(mainWindow: Page) {
+  return mainWindow.getByRole("button", { name: "This Computer", exact: true });
 }
 
 /** Packets the fake voice connections in a channel have received (silence frames excluded). */

@@ -228,7 +228,7 @@ describe("AudioCaptureManagerMain: who may send (SEC-8)", () => {
       fromSubframe(fakePage("main-window")),
       fromMainFrame(fakePage("player-view")),
     ]) {
-      fakeIpcMain.deliver("AUDIO_CAPTURE_SET_LOOPBACK", event, true);
+      fakeIpcMain.deliver("AUDIO_CAPTURE_SET_MUTED", event, 7, true);
       fakeIpcMain.deliver("AUDIO_CAPTURE_START_EXTERNAL_AUDIO_CAPTURE", event, "mic");
       fakeIpcMain.deliver("AUDIO_CAPTURE_SET_STREAMING_MODE", event, "lowLatency");
     }
@@ -240,7 +240,7 @@ describe("AudioCaptureManagerMain: who may send (SEC-8)", () => {
   it("ignores capture commands with the wrong argument types", () => {
     manager = new AudioCaptureManagerMain();
     const main = mainWindow();
-    fakeIpcMain.deliver("AUDIO_CAPTURE_SET_LOOPBACK", main, "true");
+    fakeIpcMain.deliver("AUDIO_CAPTURE_START_EXTERNAL_AUDIO_CAPTURE", main, 42);
     fakeIpcMain.deliver("AUDIO_CAPTURE_SET_MUTED", main, "7", true);
     fakeIpcMain.deliver("AUDIO_CAPTURE_SET_STREAMING_MODE", main, "fast");
     expect(sentToCapture(manager)).toEqual([]);
@@ -412,10 +412,10 @@ describe("AudioCaptureManagerMain: local playback while not captured (PERF-4)", 
     manager = new AudioCaptureManagerMain();
     const tab = soundPage();
     offer(tab);
-    fakeIpcMain.deliver("AUDIO_CAPTURE_SET_LOOPBACK", mainWindow(), false);
+    manager.setLocalMuted(true);
     expect(tab.setAudioMuted).toHaveBeenLastCalledWith(true);
     expect(sentToCapture(manager)).toContainEqual(["AUDIO_CAPTURE_SET_LOOPBACK", false]);
-    fakeIpcMain.deliver("AUDIO_CAPTURE_SET_LOOPBACK", mainWindow(), true);
+    manager.setLocalMuted(false);
     expect(tab.setAudioMuted).toHaveBeenLastCalledWith(false);
   });
 });

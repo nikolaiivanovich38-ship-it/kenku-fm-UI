@@ -129,7 +129,6 @@ export class AudioCaptureManagerMain extends TypedEmitter<AudioCaptureManagerEve
 
     // SEC-8: commands from the main window.
     this._ipc.on("AUDIO_CAPTURE_SET_STREAMING_MODE", this._handleSetStreamingMode);
-    this._ipc.on("AUDIO_CAPTURE_SET_LOOPBACK", this._handleSetLoopback);
     this._ipc.on("AUDIO_CAPTURE_SET_MUTED", this._handleSetMuted);
     this._ipc.on("AUDIO_CAPTURE_START_EXTERNAL_AUDIO_CAPTURE", this._handleStartExternalAudioCapture);
     this._ipc.on("AUDIO_CAPTURE_STOP_EXTERNAL_AUDIO_CAPTURE", this._handleStopExternalAudioCapture);
@@ -213,11 +212,7 @@ export class AudioCaptureManagerMain extends TypedEmitter<AudioCaptureManagerEve
     this._streamingMode = streamingMode;
   };
 
-  _handleSetLoopback = (_: Electron.IpcMainEvent, loopback: boolean) => {
-    this.setLocalMuted(!loopback);
-  };
-
-  /** "This Computer" on or off. */
+  /** "This Computer" on or off (OUT-1: chosen in the output list, via OutputManager). */
   setLocalMuted(muted: boolean) {
     this._localMuted = muted;
     this._sendToCapture("AUDIO_CAPTURE_SET_LOOPBACK", !muted);

@@ -118,9 +118,6 @@ Handlers also cope with ids that no longer exist: starting tab audio capture for
 | `GET_VERSION`, `GET_PLATFORM` (sync) | Main window | none | `src/index.ts` (`appInfoIpc.ts`) |
 | `CLEAR_CACHE` (invoke) | Main window | none | `src/index.ts` (`appInfoIpc.ts`) |
 | `WINDOW_TOGGLE_MAXIMIZE`, `WINDOW_MINIMIZE`, `WINDOW_CLOSE` | Main window | none | `WindowManager` |
-| `DISCORD_CONNECT` | Main window | token: text ≤ 4096 | `DiscordBroadcast` |
-| `DISCORD_DISCONNECT` | Main window | none | `DiscordBroadcast` |
-| `DISCORD_JOIN_CHANNEL`, `DISCORD_LEAVE_CHANNEL` | Main window | channel id: text ≤ 4096 | `DiscordBroadcast` |
 | `BROWSER_VIEW_CREATE_BROWSER_VIEW` (sync) | Main window | url: text ≤ 2 MB or missing; x, y, width, height: finite numbers; kind: `"player"` or missing | `BrowserViewManagerMain` |
 | `BROWSER_VIEW_REMOVE_BROWSER_VIEW`, `_HIDE_`, `_SHOW_`, `_GO_FORWARD`, `_GO_BACK`, `_RELOAD` | Main window | view id: integer | `BrowserViewManagerMain` |
 | `BROWSER_VIEW_REMOVE_ALL_BROWSER_VIEWS` | Main window | none | `BrowserViewManagerMain` |
@@ -130,7 +127,6 @@ Handlers also cope with ids that no longer exist: starting tab audio capture for
 | `PLAYER_REGISTER_VIEW` | Main window | view id: integer (must be the trusted player view) | `PlayerManager` |
 | `PLAYER_START_REMOTE` | Main window | address, port: text ≤ 4096 | `PlayerManager` |
 | `PLAYER_STOP_REMOTE` | Main window | none | `PlayerManager` |
-| `AUDIO_CAPTURE_SET_LOOPBACK` | Main window | boolean | `AudioCaptureManagerMain` |
 | `AUDIO_CAPTURE_SET_MUTED` | Main window | view id: integer; muted: boolean | `AudioCaptureManagerMain` |
 | `AUDIO_CAPTURE_START_EXTERNAL_AUDIO_CAPTURE`, `_STOP_EXTERNAL_AUDIO_CAPTURE` | Main window | device id: text ≤ 4096 | `AudioCaptureManagerMain` |
 | `AUDIO_CAPTURE_START_BROWSER_VIEW_STREAM`, `_STOP_BROWSER_VIEW_STREAM` | Main window | view id: integer (offers a loaded view for capture / withdraws it; see WP2 below) | `AudioCaptureManagerMain` |
@@ -217,4 +213,25 @@ A view that is not being recorded plays on this computer by itself, so its tab m
 ### Private audio channel (SEC-2)
 
 The capture window used to send audio to the main process over a WebSocket on `127.0.0.1` (a random port any local program could connect to). Now the main process creates a `MessageChannelMain` each time the capture window finishes loading, keeps one end and hands the other to that window only (`webContents.postMessage("AUDIO_CAPTURE_PORT", null, [port])`). There is no server, no port and no `connect-src` allowance; `AUDIO_CAPTURE_GET_WEBSOCKET_ADDRESS` and `src/common/security/loopback.ts` are gone. Each message must be one Opus packet (an `ArrayBuffer` or `Uint8Array` of 1 to 4000 bytes) or it is dropped; a reload of the capture window replaces the channel, so an old end goes dead. Packets are copied (about 300 bytes each), not transferred: Electron delivers a transferred `ArrayBuffer` to the main process as `null`. Latency is equal or better: from a tab's sound to the fake Discord in "Low Latency" mode, two interleaved runs (median of three each) took 136 and 127 ms over the WebSocket and 132 and 118 ms over the channel (`e2e/broadcast.spec.ts`).
+
+### Discord bot tokens (SEC-5)
+
+**In plain language.** Your bot token is like a password for your bot. Cue Desk used to save it as plain text with its other settings. Now it is saved encrypted with your computer's own password protection (Windows: your Windows account; macOS: the Keychain; Linux: the desktop keyring), in `discord-bots.json` in Cue Desk's data folder. Cue Desk's windows can check whether a bot has a token, give it a new one or remove it, but can never read it back. If your computer has no such protection (some Linux set-ups), Cue Desk keeps the token only until it closes and says so in Settings; it never writes it as plain text. A token saved by an older version is moved once, the first time this version starts, and removed from the old place.
+
+**How.** `src/main/broadcast/botTokenStore.ts` encrypts each bot's token with `safeStorage.encryptString` and saves the list atomically (`discord-bots.json`, mode 0600). Linux's `basic_text` fallback encrypts with a fixed, public key, so it counts as no encryption: the token stays in memory (`canEncrypt`). `OutputManager` hands the store's tokens only to `DiscordBot.connect`; `OUTPUTS_STATE` carries `hasToken` and `tokenRemembered`, never the token. The redux-persist migration to version 5 (`src/renderer/features/settings/tokenMigration.ts`) sends the old `settings.discordToken` once over `BOT_IMPORT_LEGACY_TOKEN` (ignored if the first bot already has a token) and drops it, with the old `multipleOutputsEnabled`, from `persist:root`. Chromium's LevelDB may keep an overwritten value in its log file until it compacts it; a token typed into this version never goes to browser storage at all (`e2e/outputs.spec.ts` scans the whole data folder).
+
+### Outputs and bots (OUT-1, BUG-6, BUG-7)
+
+`src/main/broadcast/OutputManager.ts` holds "This Computer" and any number of `DiscordBot`s (`DiscordBot.ts`), each with its own discord.js client, audio player and voice connections (joined with `group: <bot id>`, so two bots in one server do not share a connection). Every bot hears the same mix; each output can be muted. Joining reports every failure in plain language (channel gone, not joinable, no Ready within 15 s); leaving destroys the connection of any channel type, Stage channels included. The channels below replace `DISCORD_CONNECT`, `DISCORD_DISCONNECT`, `DISCORD_JOIN_CHANNEL`, `DISCORD_LEAVE_CHANNEL` and `AUDIO_CAPTURE_SET_LOOPBACK`. Bot ids are made by the main process (`bot-<uuid>`); the checks refuse anything else.
+
+| Channel | Sent by | Arguments | Handled in |
+|---|---|---|---|
+| `OUTPUTS_GET_STATE` (invoke) | Main window | none; answers the state without tokens | `OutputManager` |
+| `OUTPUTS_CONNECT_SAVED` | Main window | none | `OutputManager` |
+| `BOT_ADD` (invoke) | Main window | none; answers the new bot id | `OutputManager` |
+| `BOT_REMOVE`, `BOT_REMOVE_TOKEN`, `BOT_CONNECT`, `BOT_DISCONNECT` | Main window | bot id (`bot-<uuid>`) | `OutputManager` |
+| `BOT_SET_TOKEN` (invoke) | Main window | bot id; token: non-blank text ≤ 4096; answers whether it is remembered | `OutputManager` |
+| `BOT_IMPORT_LEGACY_TOKEN` | Main window | token: non-blank text ≤ 4096 | `OutputManager` |
+| `BOT_JOIN_CHANNEL`, `BOT_LEAVE_CHANNEL` | Main window | bot id; channel id: 1–25 digits | `DiscordBot` |
+| `OUTPUT_SET_MUTED` | Main window | `"local"` or a bot id; boolean | `OutputManager` |
 

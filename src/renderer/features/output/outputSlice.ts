@@ -1,52 +1,38 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
+import {
+  EMPTY_OUTPUTS_STATE,
+  type BotState,
+  type GuildInfo,
+  type OutputsState,
+  type VoiceChannelInfo,
+} from "../../../common/outputs";
 
-export type VoiceChannel = {
-  id: string;
-  name: string;
-};
+/** OUT-1: a copy of the main process's output state (OutputManager), never persisted. */
+export type OutputState = OutputsState;
 
-export type Guild = {
-  id: string;
-  name: string;
-  icon: string;
-  voiceChannels: VoiceChannel[];
-};
-
-export interface OutputState {
-  guilds: Guild[];
-  outputs: string[];
-}
-
-const initialState: OutputState = {
-  guilds: [],
-  outputs: ["local"],
-};
+/** @deprecated name kept for older imports; use VoiceChannelInfo. */
+export type VoiceChannel = VoiceChannelInfo;
+export type Guild = GuildInfo;
 
 export const outputSlice = createSlice({
   name: "output",
-  initialState,
+  initialState: EMPTY_OUTPUTS_STATE as OutputState,
   reducers: {
-    setGuilds: (state, action: PayloadAction<Guild[]>) => {
-      state.guilds = action.payload;
-    },
-    setOutput: (state, action: PayloadAction<string>) => {
-      state.outputs = [action.payload];
-    },
-    addOutput: (state, action: PayloadAction<string>) => {
-      if (state.outputs.includes(action.payload)) {
-        return;
-      }
-      state.outputs.push(action.payload);
-    },
-    removeOutput: (state, action: PayloadAction<string>) => {
-      state.outputs = state.outputs.filter(
-        (channel) => channel !== action.payload
-      );
-    },
+    setOutputsState: (_state, action: PayloadAction<OutputsState>) => action.payload,
   },
 });
 
-export const { setGuilds, setOutput, addOutput, removeOutput } =
-  outputSlice.actions;
+export const { setOutputsState } = outputSlice.actions;
+
+/** Overall Discord status for places that show one (the "Connect Discord" hint). */
+export function overallStatus(bots: BotState[]): "disconnected" | "connecting" | "ready" {
+  if (bots.some((bot) => bot.status === "ready")) {
+    return "ready";
+  }
+  if (bots.some((bot) => bot.status === "connecting")) {
+    return "connecting";
+  }
+  return "disconnected";
+}
 
 export default outputSlice.reducer;

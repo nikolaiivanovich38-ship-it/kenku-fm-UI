@@ -11,6 +11,7 @@ import {
   TONE_PAGE,
   channelButton,
   chooseStreamingMode,
+  localOutput,
   tonePage,
   connectFakeBot,
   openTab,
@@ -74,9 +75,13 @@ test("nothing is recorded before an output joins a voice channel; joining starts
     `Capturing audio of view ${viewId}`,
   ]);
 
-  // Back to "This Computer" only: the bot leaves and recording stops.
-  await mainWindow.getByRole("button", { name: "This Computer" }).click();
+  // Joining switched "This Computer" off, as Kenku FM's single output did.
+  await expect(localOutput(mainWindow)).toHaveAttribute("aria-pressed", "false");
+
+  // Clicking the channel again leaves it; recording stops and This Computer is back on.
+  await channelButton(mainWindow, "Tavern").click();
   await expect.poll(() => log, { timeout: 10_000 }).toContain("Broadcast audio stopped");
+  await expect(localOutput(mainWindow)).toHaveAttribute("aria-pressed", "true");
 });
 
 /** Wait until Discord has been sent everything still on its way (no new packet for half a second). */
