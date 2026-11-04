@@ -31,12 +31,24 @@ export const FAKE_CHANNELS = {
   silent: { id: "905", name: "Silent Room", type: ChannelType.GuildVoice, neverReady: true },
 } as const;
 
+/**
+ * OUT-6: a second server, for unit tests that move a bot between servers
+ * (`new FakeDiscord({ otherServer: true })`). It is not listed among the
+ * bot's servers, so end-to-end tests see the one server as before.
+ */
+export const FAKE_OTHER_GUILD_ID = "910";
+export const FAKE_OTHER_SERVER = {
+  hall: { id: "911", name: "Hall", type: ChannelType.GuildVoice, guildId: FAKE_OTHER_GUILD_ID },
+} as const;
+
 type ChannelSpec = {
   id: string;
   name: string;
   type: ChannelType;
   joinable?: boolean;
   neverReady?: boolean;
+  /** The server the channel is in; the main fake server when missing. */
+  guildId?: string;
 };
 
 /**
@@ -250,6 +262,8 @@ export class FakeDiscord {
   /** While true, the bot's gateway connection cannot send a voice join (rejoin fails at once). */
   gatewayDown = false;
 
+  constructor(private readonly options: { otherServer?: boolean } = {}) {}
+
   readonly driver: DiscordDriver = {
     createClient: () => new FakeClient(this) as unknown as Client,
     joinVoiceChannel: (options) => {
@@ -276,7 +290,11 @@ export class FakeDiscord {
   };
 
   channel(id: string): ChannelSpec | undefined {
-    return Object.values(FAKE_CHANNELS).find((channel) => channel.id === id);
+    const specs: ChannelSpec[] = [
+      ...Object.values(FAKE_CHANNELS),
+      ...(this.options.otherServer ? Object.values(FAKE_OTHER_SERVER) : []),
+    ];
+    return specs.find((channel) => channel.id === id);
   }
 
   /** Live connections in a channel. */
@@ -317,7 +335,7 @@ export class FakeDiscord {
       type: spec.type,
       joinable: spec.joinable ?? true,
       isVoiceBased: () => true,
-      guild: { id: FAKE_GUILD_ID, voiceAdapterCreator: () => ({ sendPayload: () => true, destroy: (): void => undefined }) },
+      guild: { id: spec.guildId ?? FAKE_GUILD_ID, voiceAdapterCreator: () => ({ sendPayload: () => true, destroy: (): void => undefined }) },
     };
   }
 

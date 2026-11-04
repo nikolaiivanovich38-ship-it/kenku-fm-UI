@@ -1,3 +1,5 @@
+import type { Room } from "./domain/types";
+
 /**
  * OUT-1: what the main process tells the main window about the outputs
  * (pushed on "OUTPUTS_STATE", fetched with OUTPUTS_GET_STATE). Never holds a
@@ -57,6 +59,11 @@ export interface BotState {
   guilds: GuildInfo[];
   voice: VoiceSessionState[];
   muted: boolean;
+  /**
+   * OUT-5: the volume of this bot's room, 0 to 1 (everything sent to it:
+   * Lyre's player and the tabs routed there); missing means 1. Muting is `muted`.
+   */
+  volume?: number;
 }
 
 export interface OutputsState {
@@ -69,6 +76,8 @@ export interface OutputsState {
   legacyTokenSessionOnly?: boolean;
   local: { muted: boolean };
   bots: BotState[];
+  /** OUT-5: every bot in a voice channel, first room (the table) first (`roomsOf(bots)`). */
+  rooms?: Room[];
 }
 
 export const EMPTY_OUTPUTS_STATE: OutputsState = {
@@ -80,4 +89,57 @@ export const EMPTY_OUTPUTS_STATE: OutputsState = {
 /** Shown name of a bot: its Discord name when known. */
 export function botLabel(bot: Pick<BotState, "name" | "discordName">): string {
   return bot.discordName ? `${bot.discordName} (${bot.name})` : bot.name;
+}
+
+/** Voice statuses in which a bot is (about to be) heard in its channel, so it is a room. */
+const IN_ROOM: ReadonlySet<VoiceStatus> = new Set(["joining", "connected", "reconnecting"]);
+
+/**
+ * OUT-5: every bot in a voice channel is a room, named after its channel, in
+ * the bots' order (the first is the table). A bot in two servers is one room
+ * (it has one mix), named after its first channel.
+ */
+export function roomsOf(bots: readonly Pick<BotState, "id" | "voice">[]): Room[] {
+  const rooms: Room[] = [];
+  for (const bot of bots) {
+    const session = bot.voice.find((candidate) => IN_ROOM.has(candidate.status));
+    if (session) {
+      rooms.push({ botId: bot.id, name: session.channelName });
+    }
+  }
+  return rooms;
+}
+
+/**
+ * OUT-5: where a captured source (a website tab, an input device) is sent:
+ * every room, the first room (the table), or one room (a room that has gone
+ * means the first room, as `roomsFor` does).
+ */
+export type CaptureRoute = "all" | "table" | { room: string };
+
+/**
+ * Where tabs and input devices go until routed otherwise. "all" keeps what
+ * Lyre 0.2 does (every bot hears the tabs; the WP2 tests rely on it) while the
+ * old interface, which cannot route, is in use. The design (wave 3) sends tabs
+ * to the table: `AudioCaptureManagerMain.setDefaultRoute("table")`.
+ */
+export const DEFAULT_CAPTURE_ROUTE: CaptureRoute = "all";
+
+/** Longest room id the capture window may name (bot ids are 40 characters). */
+export const MAX_ROOM_ID_LENGTH = 64;
+
+/** A well-formed route, as the capture window and main process accept it. */
+export function isCaptureRoute(value: unknown): value is CaptureRoute {
+  if (value === "all" || value === "table") {
+    return true;
+  }
+  const room = (value as { room?: unknown } | null)?.room;
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    Object.keys(value).length === 1 &&
+    typeof room === "string" &&
+    room.length > 0 &&
+    room.length <= MAX_ROOM_ID_LENGTH
+  );
 }

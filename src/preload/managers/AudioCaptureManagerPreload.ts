@@ -1,6 +1,12 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import PCMStream from "./PCMStream.worklet";
+import {
+  DEFAULT_CAPTURE_ROUTE,
+  MAX_ROOM_ID_LENGTH,
+  isCaptureRoute,
+  type CaptureRoute,
+} from "../../common/outputs";
 
 /** Sample rate of the audio context and of the Opus stream Discord expects. */
 export const SAMPLE_RATE = 48000;
@@ -15,8 +21,28 @@ export const OPUS_BITRATE = 128_000;
 
 export type StreamingMode = "lowLatency" | "performance";
 
-/** Receives each encoded Opus packet (one 20 ms frame). */
-export type PacketSink = (packet: Uint8Array) => void;
+/**
+ * Receives each encoded Opus packet (one 20 ms frame) and the room (bot id)
+ * whose mix it is; no room while the main process has named none.
+ */
+export type PacketSink = (packet: Uint8Array, room?: string) => void;
+
+/**
+ * OUT-5: one room's mix: every source sent to the room connects to `input`;
+ * `volume` is the room's volume; the worklet cuts it into frames for the
+ * room's own Opus encoder, so each bot gets its own stream.
+ */
+export interface RoomMix {
+  /** The room's bot id, or "" for the single mix used while no rooms are named. */
+  id: string;
+  input: GainNode;
+  volume: GainNode;
+  pcmNode: AudioWorkletNode;
+  encoder: AudioEncoder;
+}
+
+/** Key of the one mix used before the main process names any room. */
+const UNNAMED_ROOM = "";
 
 /** One frame from the PCM worklet (see PCMStream.worklet.js). */
 type WorkletFrame = { index: number; samples: Float32Array<ArrayBuffer>; last?: boolean };
@@ -51,18 +77,33 @@ export function opusEncoderConfig(mode: StreamingMode): AudioEncoderConfig {
  * the broadcast stops; while no source is connected it is suspended, so the
  * audio thread is idle. The main process asks for a view's audio only while
  * that view plays sound.
+ *
+ * OUT-5: one mix, worklet and encoder per room (every bot in a voice channel),
+ * so each bot hears its own room. Each source (a tab, an input device) goes
+ * to the rooms its route names: every room, the first room (the table) or
+ * one room. "This Computer" plays the first room.
  */
 export class AudioCaptureManagerPreload {
   /** Audio context to mix media streams into one audio output */
   _audioContext?: AudioContext;
-  /** Audio output node that streams will connect to */
-  _audioOutputNode?: AudioNode;
-  /** Cuts the mix into 20 ms frames for the encoder. */
-  _pcmNode?: AudioWorkletNode;
-  /** Opus encoder (WebCodecs). */
-  _encoder?: AudioEncoder;
+  /** OUT-5: one mix per room, first room first (built once the worklet has loaded). */
+  _mixes = new Map<string, RoomMix>();
+  /** Feeds "This Computer": the first room's mix. */
+  _loopbackNode?: GainNode;
+  _streamingMode: StreamingMode = "performance";
   /** Set while broadcasting; resolves true once sources can be connected. */
   _ready?: Promise<boolean>;
+  /** The frame worklet has loaded in the current audio context. */
+  _graphReady = false;
+
+  /** OUT-5: the rooms (bot ids) the main process named, first room first. */
+  _rooms: string[] = [];
+  /** OUT-5: room volumes that are not 1, kept across broadcasts. */
+  _roomVolumes = new Map<string, number>();
+  /** OUT-5: where each view's audio goes, when not `_defaultRoute`. */
+  _routes = new Map<number, CaptureRoute>();
+  /** OUT-5: where views without a route, and input devices, go. */
+  _defaultRoute: CaptureRoute = DEFAULT_CAPTURE_ROUTE;
 
   /** Audio DOM element for the current output / local playback */
   _audioOutputElement?: HTMLAudioElement;
@@ -113,22 +154,16 @@ export class AudioCaptureManagerPreload {
       sampleRate: SAMPLE_RATE,
     });
     this._audioContext = context;
-    this._audioOutputNode = context.createGain();
+    this._streamingMode = streamingMode;
     this._setupLoopback();
-    this._encoder = this._createEncoder(streamingMode);
 
     await context.audioWorklet.addModule(PCMStream);
     if (this._audioContext !== context) {
       // Stopped while the worklet was loading.
       return false;
     }
-    this._pcmNode = new AudioWorkletNode(context, "pcm-stream");
-    this._pcmNode.port.onmessage = (event: MessageEvent<WorkletFrame[]>) => {
-      for (const frame of event.data) {
-        this._encode(frame);
-      }
-    };
-    this._audioOutputNode.connect(this._pcmNode);
+    this._graphReady = true;
+    this._syncRooms();
     console.info("Broadcast audio started");
 
     for (const deviceId of this._externalDevices) {
@@ -151,12 +186,13 @@ export class AudioCaptureManagerPreload {
     for (const deviceId of Object.keys(this._externalAudioStreams)) {
       this._releaseExternalDevice(deviceId);
     }
-    this._pcmNode?.disconnect();
-    this._pcmNode = undefined;
-    if (this._encoder && this._encoder.state !== "closed") {
-      this._encoder.close();
+    for (const mix of this._mixes.values()) {
+      this._releaseMix(mix);
     }
-    this._encoder = undefined;
+    this._mixes.clear();
+    this._graphReady = false;
+    this._loopbackNode?.disconnect();
+    this._loopbackNode = undefined;
     if (this._audioOutputElement) {
       this._audioOutputElement.pause();
       this._audioOutputElement.srcObject = null;
@@ -164,29 +200,166 @@ export class AudioCaptureManagerPreload {
     }
     const context = this._audioContext;
     this._audioContext = undefined;
-    this._audioOutputNode = undefined;
     await context?.close().catch((): void => undefined);
     console.info("Broadcast audio stopped");
   }
 
-  _createEncoder(streamingMode: StreamingMode): AudioEncoder {
+  /**
+   * OUT-5: bring the mixes in line with the rooms: a mix for each new room,
+   * the mix of a room that has gone stopped and freed, then every source and
+   * "This Computer" connected again where their routes now point.
+   */
+  _syncRooms(): void {
+    const context = this._audioContext;
+    if (!context || !this._graphReady) {
+      return;
+    }
+    const wanted = this._rooms.length > 0 ? this._rooms : [UNNAMED_ROOM];
+    const mixes = new Map<string, RoomMix>();
+    for (const id of wanted) {
+      mixes.set(id, this._mixes.get(id) ?? this._createMix(context, id));
+    }
+    for (const [id, mix] of this._mixes) {
+      if (!mixes.has(id)) {
+        this._releaseMix(mix);
+      }
+    }
+    this._mixes = mixes;
+
+    for (const [id, output] of Object.entries(this._mediaStreamOutputs)) {
+      this._connectSource(output, this._routes.get(Number(id)) ?? this._defaultRoute);
+    }
+    for (const output of Object.values(this._externalAudioStreamOutputs)) {
+      this._connectSource(output, this._defaultRoute);
+    }
+    const loopback = this._loopbackNode;
+    if (loopback) {
+      let first = true;
+      for (const mix of this._mixes.values()) {
+        if (first) {
+          mix.volume.connect(loopback);
+        } else {
+          try {
+            mix.volume.disconnect(loopback);
+          } catch {
+            // Was not connected: nothing to undo.
+          }
+        }
+        first = false;
+      }
+    }
+  }
+
+  _createMix(context: AudioContext, id: string): RoomMix {
+    const input = context.createGain();
+    const volume = context.createGain();
+    volume.gain.value = this._roomVolumes.get(id) ?? 1;
+    const pcmNode = new AudioWorkletNode(context, "pcm-stream");
+    const mix: RoomMix = { id, input, volume, pcmNode, encoder: this._createEncoder(id) };
+    pcmNode.port.onmessage = (event: MessageEvent<WorkletFrame[]>) => {
+      // Frames still on their way from a room that has gone are dropped.
+      if (this._mixes.get(id) !== mix) {
+        return;
+      }
+      for (const frame of event.data) {
+        this._encode(mix.encoder, frame);
+      }
+    };
+    input.connect(volume);
+    volume.connect(pcmNode);
+    return mix;
+  }
+
+  _releaseMix(mix: RoomMix): void {
+    mix.input.disconnect();
+    mix.volume.disconnect();
+    mix.pcmNode.disconnect();
+    if (mix.encoder.state !== "closed") {
+      mix.encoder.close();
+    }
+  }
+
+  /** The rooms a route names now: every room, the first, or one (a gone room: the first). */
+  _mixesFor(route: CaptureRoute): RoomMix[] {
+    const mixes = [...this._mixes.values()];
+    if (route === "all") {
+      return mixes;
+    }
+    const chosen = route === "table" ? undefined : this._mixes.get(route.room);
+    return chosen ? [chosen] : mixes.slice(0, 1);
+  }
+
+  _connectSource(output: AudioNode, route: CaptureRoute): void {
+    output.disconnect();
+    for (const mix of this._mixesFor(route)) {
+      output.connect(mix.input);
+    }
+  }
+
+  /** OUT-5: the rooms changed (a bot joined, left or moved). Odd lists are ignored. */
+  setRooms(rooms: string[]): void {
+    if (
+      !Array.isArray(rooms) ||
+      new Set(rooms).size !== rooms.length ||
+      !rooms.every((id) => typeof id === "string" && id.length > 0 && id.length <= MAX_ROOM_ID_LENGTH)
+    ) {
+      console.error("Ignored an odd list of rooms");
+      return;
+    }
+    this._rooms = [...rooms];
+    this._syncRooms();
+  }
+
+  /** OUT-5: a room's volume, 0 to 1. */
+  setRoomVolume(room: string, volume: number): void {
+    if (typeof room !== "string" || !Number.isFinite(volume)) {
+      return;
+    }
+    const level = Math.max(0, Math.min(1, volume));
+    this._roomVolumes.set(room, level);
+    const mix = this._mixes.get(room);
+    if (mix) {
+      mix.volume.gain.value = level;
+    }
+  }
+
+  /** OUT-5: send a view's audio to every room, the table or one room. */
+  routeView(viewId: number, route: CaptureRoute): void {
+    if (!Number.isSafeInteger(viewId) || !isCaptureRoute(route)) {
+      return;
+    }
+    this._routes.set(viewId, route);
+    const output = this._mediaStreamOutputs[viewId];
+    if (output && this._graphReady) {
+      this._connectSource(output, route);
+    }
+  }
+
+  /** OUT-5: where views without a route of their own, and input devices, go. */
+  setDefaultRoute(route: CaptureRoute): void {
+    if (isCaptureRoute(route)) {
+      this._defaultRoute = route;
+      this._syncRooms();
+    }
+  }
+
+  _createEncoder(room: string): AudioEncoder {
     const encoder = new AudioEncoder({
       output: (chunk) => {
         const packet = new Uint8Array(chunk.byteLength);
         chunk.copyTo(packet);
-        this.sendPacket(packet);
+        this.sendPacket(packet, room === UNNAMED_ROOM ? undefined : room);
       },
       error: (error) => {
         console.error("Unable to encode broadcast audio", error);
       },
     });
-    encoder.configure(opusEncoderConfig(streamingMode));
+    encoder.configure(opusEncoderConfig(this._streamingMode));
     return encoder;
   }
 
-  _encode({ index, samples, last }: WorkletFrame): void {
-    const encoder = this._encoder;
-    if (!encoder || encoder.state !== "configured") {
+  _encode(encoder: AudioEncoder, { index, samples, last }: WorkletFrame): void {
+    if (encoder.state !== "configured") {
       return;
     }
     const data = new AudioData({
@@ -217,7 +390,7 @@ export class AudioCaptureManagerPreload {
    */
   _updateRunning(): void {
     const context = this._audioContext;
-    if (!context || !this._pcmNode) {
+    if (!context || !this._graphReady) {
       return;
     }
     const sources =
@@ -292,7 +465,7 @@ export class AudioCaptureManagerPreload {
       this._externalAudioStreamSources[deviceId] = audioSource;
       audioSource.connect(output);
 
-      output.connect(this._audioOutputNode);
+      this._connectSource(output, this._defaultRoute);
       this._updateRunning();
     } catch (error) {
       console.error(
@@ -330,7 +503,8 @@ export class AudioCaptureManagerPreload {
    */
   _setupLoopback(): void {
     const mediaDestination = this._audioContext.createMediaStreamDestination();
-    this._audioOutputNode.connect(mediaDestination);
+    this._loopbackNode = this._audioContext.createGain();
+    this._loopbackNode.connect(mediaDestination);
 
     const element = document.createElement("audio");
     this._audioOutputElement = element;
@@ -394,7 +568,7 @@ export class AudioCaptureManagerPreload {
       this._mediaStreamSources[viewId] = audioSource;
       audioSource.connect(output);
 
-      output.connect(this._audioOutputNode);
+      this._connectSource(output, this._routes.get(viewId) ?? this._defaultRoute);
       console.info(`Capturing audio of view ${viewId}`);
     } catch (error) {
       if (this._browserViewRequests[viewId] !== request) {

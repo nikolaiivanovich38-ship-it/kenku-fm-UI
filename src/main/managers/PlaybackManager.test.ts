@@ -1,0 +1,97 @@
+/**
+ * OUT-5: PlaybackManager joins the outputs to the capture window: the rooms
+ * and their volumes go to the capture window, and each room's packets come
+ * back to that room's bot.
+ */
+import { EventEmitter } from "events";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const made = vi.hoisted(() => ({ outputs: [] as unknown[], capture: [] as unknown[] }));
+
+vi.mock("electron", () => ({ app: { getPath: () => "/tmp/lyre-test" }, safeStorage: {} }));
+vi.mock("../broadcast/botTokenStore", () => ({
+  BotTokenStore: class {
+    static fileIn() {
+      return "/tmp/lyre-test/discord-bots.json";
+    }
+  },
+}));
+vi.mock("../broadcast/OutputManager", async () => {
+  const { EventEmitter } = await import("events");
+  return {
+    OutputManager: class extends EventEmitter {
+      sendPacket = vi.fn();
+      rooms = vi.fn(() => []);
+      roomVolume = vi.fn(() => 1);
+      destroy = vi.fn();
+      constructor() {
+        super();
+        made.outputs.push(this);
+      }
+    },
+  };
+});
+vi.mock("./AudioCaptureManagerMain", async () => {
+  const { EventEmitter } = await import("events");
+  return {
+    AudioCaptureManagerMain: class extends EventEmitter {
+      startBroadcast = vi.fn();
+      stopBroadcast = vi.fn();
+      setLocalMuted = vi.fn();
+      setRooms = vi.fn();
+      setRoomVolume = vi.fn();
+      destroy = vi.fn();
+      constructor() {
+        super();
+        made.capture.push(this);
+      }
+    },
+  };
+});
+
+import { PlaybackManager } from "./PlaybackManager";
+
+type Mocked = EventEmitter & Record<string, ReturnType<typeof vi.fn>>;
+
+let outputs: Mocked;
+let capture: Mocked;
+
+beforeEach(() => {
+  made.outputs.length = 0;
+  made.capture.length = 0;
+  new PlaybackManager({} as never);
+  outputs = made.outputs[0] as Mocked;
+  capture = made.capture[0] as Mocked;
+});
+
+describe("PlaybackManager rooms (OUT-5)", () => {
+  it("sends each room's packet to that room's bot", () => {
+    const packet = Buffer.from([1, 2, 3]);
+    capture.emit("packet", packet, "bot-b");
+    capture.emit("packet", packet, undefined);
+    expect(outputs.sendPacket.mock.calls).toEqual([
+      [packet, "bot-b"],
+      [packet, undefined],
+    ]);
+  });
+
+  it("tells the capture window the rooms whenever they change", () => {
+    outputs.emit("roomsChange", [
+      { botId: "bot-a", name: "Tavern" },
+      { botId: "bot-b", name: "Dungeon" },
+    ]);
+    expect(capture.setRooms).toHaveBeenCalledWith(["bot-a", "bot-b"]);
+  });
+
+  it("passes a room's volume on to the capture window", () => {
+    outputs.emit("roomVolumeChange", "bot-b", 0.3);
+    expect(capture.setRoomVolume).toHaveBeenCalledWith("bot-b", 0.3);
+  });
+
+  it("still starts and stops the broadcast with the first join and the last leave (PERF-4)", () => {
+    outputs.emit("activeChange", true);
+    outputs.emit("activeChange", false);
+    expect(capture.startBroadcast).toHaveBeenCalledTimes(1);
+    expect(capture.stopBroadcast).toHaveBeenCalledTimes(1);
+  });
+});
