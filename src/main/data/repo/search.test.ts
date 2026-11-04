@@ -145,6 +145,43 @@ describe("search (ORG-1)", () => {
     expect(search(t.store, "mood")).toEqual([]);
   });
 
+  it("serves the Library's search box: all three names, artist, album and tags, by word start (ORG-1)", () => {
+    const tense = listTags(t.store).find((x) => x.name === "Tense")!;
+    const a = createTrack(t.store, {
+      title: "Melancholy tense - harbour at night (loops well)",
+      metaTitle: "Dies Irae",
+      file: { path: "H:\\Scores\\03 Requiem_Mass.flac" },
+      sourceComposer: "Giuseppe Verdi",
+      sourceAlbum: "Messa da Requiem",
+    });
+    const b = createTrack(t.store, { metaTitle: "Wings of Kynareth", file: { path: "/m/07.flac" } });
+    tagTracks(t.store, [b.id], [tense.id]);
+    const ids = (text: string) => search(t.store, text, { kinds: ["track"] }).map((hit) => hit.id);
+    expect(ids("dies")).toEqual([a.id]); // the file-tag title
+    expect(ids("requiem_m")).toEqual([a.id]); // the file name
+    expect(ids("verd")).toEqual([a.id]);
+    expect(ids("messa")).toEqual([a.id]);
+    expect(ids("loops well")).toEqual([a.id]);
+    expect(ids("kyn")).toEqual([b.id]);
+    // A track with no title of its own is shown, and found, by its file-tag title.
+    expect(search(t.store, "kyn")[0].title).toBe("Wings of Kynareth");
+    expect(ids("tense").sort()).toEqual([a.id, b.id].sort());
+    // The word in the title ranks above the tag.
+    expect(ids("tense")[0]).toBe(a.id);
+  });
+
+  it("keeps to one lane of the Library: FX includes stings (ORG-1, the Library's kind filter)", () => {
+    const music = track("Storm theme");
+    const sting = track("Storm sting", { role: "sting" });
+    const amb = track("Storm rain", { kind: "amb" });
+    const fx = track("Storm thunder", { kind: "fx" });
+    const lane = (l: "music" | "amb" | "fx") => search(t.store, "storm", { lane: l }).map((hit) => hit.id).sort();
+    expect(lane("music")).toEqual([music.id, sting.id].sort());
+    expect(lane("amb")).toEqual([amb.id]);
+    expect(lane("fx")).toEqual([sting.id, fx.id].sort());
+    expect(() => search(t.store, "storm", { lane: "loud" as never })).toThrow(/lane/);
+  });
+
   it("finds a tag added to a group and a renamed track in one pass", () => {
     const docks = createTag(t.store, { groupId: listTagGroups(t.store)[2].id, name: "Docks" });
     const a = track("Gulls");

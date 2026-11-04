@@ -1,7 +1,7 @@
 /**
  * The library data layer (WP3, DAT-11): SQLite database, schema upgrades,
  * repository functions, search, undo/redo and backups, and the design's domain
- * shapes (repo/domain.ts, repo/profiles.ts). Not yet connected to the player or
+ * shapes (repo/domain.ts, repo/profiles.ts), and bringing audio in (import/). Not yet connected to the player or
  * to IPC; the new interface (wave 3) will use it from the main process.
  * See docs/data-model.md.
  */
@@ -22,3 +22,4 @@ export * from "./repo/campaigns";
 export * from "./repo/profiles";
 export * from "./repo/domain";
 export * from "./repo/search";
+export * from "./import";

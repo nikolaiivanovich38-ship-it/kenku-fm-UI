@@ -1,0 +1,129 @@
+/**
+ * DAT-5: reading a file's embedded tags (title, artist, album, track and disc
+ * number, length, and where present mood, genre and comment).
+ *
+ * Behind an interface so imports and their tests run without a tag library.
+ * The real reader is music-metadata (MIT, pure JavaScript; requested in the
+ * wave 2 report, not installed yet). Once added, the main process wires it as:
+ *
+ *   import { parseFile } from "music-metadata";
+ *   const tagReader = createMusicMetadataTagReader(parseFile);
+ *
+ * Until then `noTagReader` is used and new tracks are named after their files.
+ * Tags fill the file-tag title, artist, album and length; never the game
+ * master's own title.
+ */
+import path from "path";
+import { MAX_NAME_LENGTH, MAX_TEXT_LENGTH } from "../validate";
+
+export type EmbeddedTags = {
+  title?: string | null;
+  artist?: string | null;
+  album?: string | null;
+  trackNumber?: number | null;
+  discNumber?: number | null;
+  /** Length in milliseconds. */
+  durationMs?: number | null;
+  moods?: string[];
+  genres?: string[];
+  comment?: string | null;
+};
+
+/** EmbeddedTags checked and tidied: every field present, text safe to store. */
+export type CleanTags = Required<EmbeddedTags>;
+
+export interface TagReader {
+  /** The file's tags; rejects when the file cannot be read or parsed. */
+  read(filePath: string): Promise<EmbeddedTags>;
+}
+
+/** Used until a tag library is added: no tags, so new tracks are named after their files. */
+export const noTagReader: TagReader = { read: async () => ({}) };
+
+// eslint-disable-next-line no-control-regex
+const CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g;
+
+/** Tag text as the library can hold it: control characters dropped, trimmed, shortened to `max`; null when empty. */
+export function cleanText(value: unknown, max = MAX_NAME_LENGTH): string | null {
+  if (typeof value !== "string") return null;
+  const text = value.replace(CONTROL, "").replace(/[ \t]+/g, " ").trim();
+  if (text === "") return null;
+  return text.length > max ? text.slice(0, max).trimEnd() : text;
+}
+
+const positiveInteger = (value: unknown): number | null =>
+  typeof value === "number" && Number.isFinite(value) && value >= 1 ? Math.floor(value) : null;
+
+const cleanList = (values: unknown): string[] =>
+  Array.isArray(values) ? values.map((value) => cleanText(value)).filter((value): value is string => value !== null) : [];
+
+export function cleanTags(tags: EmbeddedTags): CleanTags {
+  const duration = tags.durationMs;
+  return {
+    title: cleanText(tags.title),
+    artist: cleanText(tags.artist),
+    album: cleanText(tags.album),
+    trackNumber: positiveInteger(tags.trackNumber),
+    discNumber: positiveInteger(tags.discNumber),
+    durationMs: typeof duration === "number" && Number.isFinite(duration) && duration >= 0 ? Math.round(duration) : null,
+    moods: cleanList(tags.moods),
+    genres: cleanList(tags.genres),
+    comment: cleanText(tags.comment, MAX_TEXT_LENGTH),
+  };
+}
+
+/**
+ * A title from a file name when the file has no title tag, as the prototype
+ * does: no extension, no leading track number ("03 ", "1-07 ", "02 - "),
+ * underscores as spaces. A name that is only a number keeps it.
+ */
+export function titleFromFileName(fileName: string): string {
+  const base = fileName.replace(/\.[a-z0-9]+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  const withoutNumber = base.replace(/^[\d-]+\s*[-.]?\s+/, "").trim();
+  return withoutNumber === "" ? base : withoutNumber;
+}
+
+/** The parts of music-metadata's result that Lyre reads (versions 7 to 12 share them). */
+export type MusicMetadataResult = {
+  common: {
+    title?: string;
+    artist?: string;
+    albumartist?: string;
+    album?: string;
+    track?: { no: number | null; of?: number | null };
+    disk?: { no: number | null; of?: number | null };
+    genre?: string[];
+    mood?: string;
+    /** Plain strings before version 10, objects with a text after. */
+    comment?: (string | { text?: string })[];
+  };
+  format: { duration?: number };
+};
+
+export type ParseFile = (filePath: string, options: { skipCovers: boolean }) => Promise<MusicMetadataResult>;
+
+/** The real reader, given music-metadata's `parseFile`. */
+export function createMusicMetadataTagReader(parseFile: ParseFile): TagReader {
+  return {
+    async read(filePath) {
+      const { common, format } = await parseFile(filePath, { skipCovers: true });
+      const comments = (common.comment ?? [])
+        .map((comment) => (typeof comment === "string" ? comment : comment.text ?? ""))
+        .filter((text) => text.trim() !== "");
+      return cleanTags({
+        title: common.title,
+        artist: common.artist ?? common.albumartist,
+        album: common.album,
+        trackNumber: common.track?.no,
+        discNumber: common.disk?.no,
+        durationMs: format.duration === undefined ? null : format.duration * 1000,
+        moods: common.mood ? [common.mood] : [],
+        genres: common.genre ?? [],
+        comment: comments.length > 0 ? comments.join("\n") : null,
+      });
+    },
+  };
+}
+
+/** The file-name part of a path, for either style of path. */
+export const baseName = (filePath: string) => (/^[a-zA-Z]:[\\/]|^\\\\/.test(filePath) ? path.win32 : path.posix).basename(filePath);
