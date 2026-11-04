@@ -134,6 +134,17 @@ describe("BookmarkListItem: a bookmark to a file (SEC-15)", () => {
   });
 });
 
+describe("BookmarkListItem site icon (UX-10)", () => {
+  it("cannot be dragged on its own, so holding a bookmark by its icon drags the bookmark", () => {
+    const { container } = render(
+      <Provider store={configureStore({ reducer: { bookmarks: bookmarksReducer, tabs: tabsReducer } })}>
+        <BookmarkListItem bookmark={{ ...bookmark("https://tabletopaudio.com/"), icon: "data:image/png;base64,AA==" }} />
+      </Provider>,
+    );
+    expect(container.querySelector("img")).toHaveAttribute("draggable", "false");
+  });
+});
+
 describe("BookmarkListItem options button", () => {
   it("is named after the bookmark, so screen readers can tell the options buttons apart", () => {
     setup(bookmark("https://tabletopaudio.com"));

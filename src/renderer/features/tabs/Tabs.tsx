@@ -190,7 +190,8 @@ export function Tabs() {
         bounds.height,
       );
     }
-  }, [settings.urlBarEnabled, isPlayer, tabs.selectedTab]);
+    // UX-10: the sidebar's width changes when it is collapsed or expanded.
+  }, [settings.urlBarEnabled, isPlayer, tabs.selectedTab, bookmarks.sidebarCollapsed]);
 
   function handleURLChange(url: string) {
     dispatch(editTab({ id: tabs.selectedTab, url }));

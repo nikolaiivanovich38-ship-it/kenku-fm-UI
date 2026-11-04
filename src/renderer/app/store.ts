@@ -3,6 +3,7 @@ import connectionReducer from "../features/connection/connectionSlice";
 import outputReducer from "../features/output/outputSlice";
 import settingsReducer from "../features/settings/settingsSlice";
 import bookmarksReducer from "../features/bookmarks/bookmarksSlice";
+import { bookmarkMigrations } from "../features/bookmarks/bookmarksMigration";
 import tabsReducer from "../features/tabs/tabsSlice";
 import playerReducer from "../features/player/playerSlice";
 import inputReducer from "../features/input/inputSlice";
@@ -56,11 +57,13 @@ const migrations: any = {
       },
     };
   },
+  // UX-10 (version 5): bookmark folders and the collapsible sidebar
+  ...bookmarkMigrations,
 };
 
 const persistConfig = {
   key: "root",
-  version: 4,
+  version: 5,
   storage,
   whitelist: ["bookmarks", "settings"],
   migrate: createMigrate(migrations, { debug: false }),
