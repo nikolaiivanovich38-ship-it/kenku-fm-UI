@@ -81,3 +81,97 @@ A new library database (`<appData>/lyre/library/library.sqlite`, with daily back
 - Bookmarks can be grouped in folders, and the sidebar collapses to a column of icons (UX-10). Both are saved with the bookmarks in `persist:root` (version 5; `src/renderer/features/bookmarks/bookmarksMigration.ts` adds the empty folder list to bookmarks saved before). The sidebar's width is `src/renderer/features/bookmarks/sidebar.ts`; website views are placed from the sidebar's current width (`getBounds`).
 
 The app's own pages load from `file://` (packaged) so they share one localStorage origin; websites in tabs keep their data apart in `persist:tabs`. Audio files are not copied; tracks store their file paths. Bot tokens are never stored in plain text (SEC-5); an older version's token is moved out of `persist:root` once (redux-persist migration 5).
+
+## Wave 2: Files and preview
+
+Built and tested, not wired yet (wave 3 and the lead connect it). PLY-11, BUG-10, PRV-1, PRV-2, PERF-7.
+
+**Player page (`src/player/engine/sources`, `src/player/engine/preview`)**
+
+| Module | What it does |
+| --- | --- |
+| `sources/readAhead.ts` | `ReadAhead`, a `MediaResolver`: the playing track and the next one are read into memory as they are on disk (FLAC, MP3, …) and played from a `blob:` address, so a slow disk or network share cannot make them stutter. The media element still decodes a little at a time (PERF-7). 256 MB in all, 96 MB per file; tracks wanted or playing are never dropped, others go least recently used first and their address is revoked. A bigger file plays from its own address, and the resolver underneath is asked for a disk copy (`keepLocal`). Only `file:` addresses are read. |
+| `sources/upcoming.ts` | `upcomingInSequence(seq, at)` and `upcomingInQueue(state)`: the track ids to pass to `ReadAhead.want`, by the same rules as Next. |
+| `sources/mainMediaResolver.ts` | `MainMediaResolver`: asks the main process (`MEDIA_PREPARE`) for the address to play each `file:` track: the file itself, a converted copy, or a disk copy. |
+| `sources/sourceLoader.ts`, `layers.ts` | A resolver may now hold something for the address it returns (`ResolvedMedia.release`); the loader gives it back when the voice releases the source, or as soon as a buffer is decoded. `MediaRequest.keepLocal` added. |
+| `preview/previewOutput.ts` | `PreviewOutput { context, input }`: the only thing the preview depends on. `createPreviewContextOutput()` makes one with an audio context of its own (and `setSinkId`). Fake: `preview/testing/fakePreviewOutput.ts`. |
+| `preview/previewPlayer.ts` | `PreviewPlayer`: one preview at a time, toggle, stop, ends by itself, plain announcements; `trackPreview`, `playlistPreview` (first track; "This playlist has no tracks yet"), `padPreview` (decoded). Matches the prototype's `L.preview*`. |
+| `preview/outputDevices.ts` | `OutputDeviceChooser`: output device for `"preview"` and `"monitor"`, remembered in localStorage (`lyre.outputDevices`), falls back to the default device with a plain message when the device is gone or refuses, and switches back when it returns. |
+
+Memory bound for audio in the player page: decoded buffers 200 MB (`BufferCache`) plus read-ahead 256 MB. They are two fixed shares rather than one shared budget, which is simpler and still bounded.
+
+**Main process (`src/main/media`)**
+
+| Module | What it does |
+| --- | --- |
+| `formats.ts` | Which extensions are converted (WMA, ASF, MKA, AIFF, APE, WavPack, TTA, AC-3, Musepack) and whether they are lossless. Everything Chromium plays is left alone. |
+| `converter.ts`, `ffmpegConverter.ts` | `AudioConverter` interface; the ffmpeg implementation (no shell, files only, timeout, cancel). Lossless sources become FLAC, lossy ones Opus 192 kbit/s in Ogg. Fake: `testing/fakeConverter.ts`. |
+| `mediaAccess.ts` | `MediaAccess`: the local-file rules for library files (see security.md, "Files and preview"). |
+| `mediaCache.ts` | `MediaCache`: `<data folder>/media-cache`. Converts once, in the background, one at a time; copies big tracks for `keepLocal`; keyed by real path, size and modified time; `sweep()` removes copies whose source went or changed; 8 GB cap, least recently used first; `index.json` saved atomically. |
+| `mediaIpc.ts` | `registerMediaIpc(guard, cache)`: the `MEDIA_PREPARE` handler. |
+
+### Wiring for the lead
+
+Player engine (`src/player/engine/index.ts`):
+
+```ts
+export { ReadAhead, DEFAULT_READ_AHEAD, browserObjectUrls } from "./sources/readAhead";
+export { MainMediaResolver } from "./sources/mainMediaResolver";
+export type { MediaBridge, PrepareAnswer } from "./sources/mainMediaResolver";
+export { upcomingInQueue, upcomingInSequence } from "./sources/upcoming";
+export { PreviewPlayer, trackPreview, playlistPreview, padPreview } from "./preview/previewPlayer";
+export type { PreviewItem, PreviewState } from "./preview/previewPlayer";
+export { createPreviewContextOutput } from "./preview/previewOutput";
+export type { PreviewOutput, PreviewContextOutput } from "./preview/previewOutput";
+export { OutputDeviceChooser, browserDeviceSource, storageChoiceStore } from "./preview/outputDevices";
+```
+
+Where the new interface builds the engine:
+
+```ts
+const readAhead = new ReadAhead({
+  inner: new MainMediaResolver(window.player.media),
+  fetchBytes: (url, limit) => readBytes(url, limit),
+  makeObjectUrl: browserObjectUrls.make,
+  revokeObjectUrl: browserObjectUrls.revoke,
+});
+const { engine } = createBrowserEngine({ resolver: readAhead });
+// Each time the scene step or the queue changes:
+readAhead.want(upcomingInSequence(sequence, at).map(mediaRequestOf));
+```
+
+Player preload (`src/player/preload.ts`), in the exposed API:
+
+```ts
+media: { prepare: (url: string, options: { keepLocal: boolean }) => ipcRenderer.invoke("MEDIA_PREPARE", url, options) },
+```
+
+Main process (with `PlayerManager`'s guard; `library.folders()` comes from the library database):
+
+```ts
+const mediaCache = new MediaCache({
+  folder: path.join(app.getPath("userData"), MEDIA_CACHE_FOLDER),
+  access: new MediaAccess({ libraryFolders: () => library.folders() }),
+  converter: new FfmpegConverter({ ffmpegPath }), // after the lead adds ffmpeg-static
+});
+registerMediaIpc(this.ipc, mediaCache);
+setTimeout(() => void mediaCache.sweep(), 30_000); // tidy up once the app has started
+app.on("before-quit", () => mediaCache.close());
+// "Clear cache" in Settings: also mediaCache.clear() here and readAhead.clear() in the player.
+```
+
+Preview (PRV-1), once the Rooms stream's isolated preview bus has a route out of the recorded page, or with an output of its own in a page that is not recorded:
+
+```ts
+const output: PreviewOutput = rooms.previewOutput; // or createPreviewContextOutput() in an uncaptured page
+const previewLoader = new SourceLoader({ context: output.context, createElement, fetchBytes: readBytes, resolver: readAhead });
+const preview = new PreviewPlayer({ output, load: (media) => previewLoader.load(media) });
+const devices = new OutputDeviceChooser({ devices: browserDeviceSource(), store: storageChoiceStore(localStorage) });
+await devices.attach("preview", output /* needs setSinkId */);
+await devices.attach("monitor", thisComputerOutput); // "This Computer" (capture window's loopback element)
+```
+
+Open points for the lead:
+
+- **Tab capture and a second audio context.** Discord records the player page with tab capture, which may include every audio stream the page plays, whatever its context or device. Until checked, never create the preview output in the player page; use the Rooms bus's route or an uncaptured page. A real-Discord check is listed in the report.
+- **Device names and `setSinkId`.** Chromium gives device names, and allows a non-default output device, only to a page with the `media` permission (and possibly `speaker-selection`). The player page has neither; the page that shows the device choice and plays the preview needs them (a `permissions.ts` change for the security owner).
