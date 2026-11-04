@@ -55,7 +55,12 @@ jobs:
   e2e:
     # FND-4: start the packaged app and check it opens without errors.
     name: End-to-end tests (packaged app, Windows)
-    runs-on: windows-latest
+    # Pinned to Windows Server 2022 (Visual Studio 2022): windows-latest now
+    # ships Visual Studio 2026, which the node-gyp versions used by yarn (11.x)
+    # and by Electron Forge's rebuild (@electron/node-gyp 10.2) cannot find,
+    # so building zlib-sync fails. Move back to windows-latest once both
+    # support VS 2026 (backlog FND-7).
+    runs-on: windows-2022
     timeout-minutes: 30
     steps:
       - name: Check out the code

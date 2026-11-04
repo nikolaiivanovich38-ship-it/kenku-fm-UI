@@ -38,7 +38,12 @@ jobs:
   build:
     name: Build Windows x64 installer
     needs: gate
-    runs-on: windows-latest
+    # Pinned to Windows Server 2022 (Visual Studio 2022): windows-latest now
+    # ships Visual Studio 2026, which the node-gyp versions used by yarn (11.x)
+    # and by Electron Forge's rebuild (@electron/node-gyp 10.2) cannot find,
+    # so building zlib-sync fails. Move back to windows-latest once both
+    # support VS 2026 (backlog FND-7).
+    runs-on: windows-2022
     timeout-minutes: 60
     permissions:
       contents: read
