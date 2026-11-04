@@ -21,6 +21,8 @@ type ChangeHooks = {
   commit(label: string): (() => void) | void;
   /** Called after a top-level change was rolled back. */
   rollback(): void;
+  /** Forget every undo and redo step (see Store.clearHistory). */
+  reset?(): void;
 };
 
 /**
@@ -119,6 +121,17 @@ export class Store {
     }
     committed?.();
     return result;
+  }
+
+  /**
+   * Forgets the undo history. Call it after writes made with
+   * `changeWithoutHistory` that the game master would see (an import, the move
+   * of the old player's library): an older step replayed over them could
+   * conflict and be lost (DB review item 10).
+   */
+  clearHistory(): void {
+    if (this.depth > 0) throw new Error("Cannot clear the undo history while a change is running.");
+    this.hooks?.reset?.();
   }
 
   /**

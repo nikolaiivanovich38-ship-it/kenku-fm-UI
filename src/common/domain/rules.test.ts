@@ -26,7 +26,7 @@ import {
   usesOfTrack,
   withoutEmptyConditions,
 } from "./rules";
-import type { DomainCampaign, DomainLookup, DomainPlaylist, DomainScene, DomainTrack } from "./types";
+import type { DomainCampaign, DomainLookup, DomainPlaylist, DomainScene, DomainTrack, PlaylistRule } from "./types";
 
 function track(id: string, over: Partial<DomainTrack> = {}): DomainTrack {
   return { id, kind: "music", title: id, metaTitle: "", fileName: id + ".flac", durationMs: 300_000, role: "underscore", loop: "no", energy: 3, tags: { mood: [], motif: [], scene: [] }, ...over };
@@ -74,7 +74,7 @@ describe("dynamic playlists match tracks by their tags", () => {
     expect(matchesRule(lookup.track("battle")!, { conds: [{ group: "mood", match: "any", values: [] }] })).toBe(false);
   });
   it("leaves out conditions still being written when the editor previews the rule", () => {
-    const draft = { conds: [{ group: "mood", match: "all" as const, values: [] }, { group: "mood", match: "any" as const, values: ["Tense"] }] };
+    const draft: PlaylistRule = { conds: [{ group: "mood", match: "all", values: [] }, { group: "mood", match: "any", values: ["Tense"] }] };
     expect(matchesRule(lookup.track("battle")!, withoutEmptyConditions(draft))).toBe(true);
   });
   it("applies the energy range and can leave out stings", () => {

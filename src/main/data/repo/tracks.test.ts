@@ -7,6 +7,7 @@ import {
   deleteTracks,
   getFollowWith,
   getTrack,
+  listNewTrackIds,
   listTracks,
   markTracksUsed,
   resolveTrackLocation,
@@ -313,5 +314,23 @@ describe("markers (DAT-3 data)", () => {
     expect(() => addMarker(t.store, track.id, { timeMs: -1 })).toThrow(ValidationError);
     expect(() => addMarker(t.store, track.id, { timeMs: 1, kind: "drop" as never })).toThrow(ValidationError);
     expect(() => addMarker(t.store, "missing", { timeMs: 1 })).toThrow(/No track/);
+  });
+});
+
+describe("new tracks (EDT-6: the Library's New mark)", () => {
+  it("marks a track New when asked, lists new tracks, and settles it once titled and tagged", () => {
+    const fresh = createTrack(t.store, { file: { path: "/m/new.flac" }, isNew: true });
+    const old = createTrack(t.store, { title: "Old", file: { path: "/m/old.flac" } });
+    expect(fresh.isNew).toBe(true);
+    expect(old.isNew).toBe(false);
+    expect(listNewTrackIds(t.store)).toEqual([fresh.id]);
+    const tense = listTagGroups(t.store)[0];
+    const tag = createTag(t.store, { groupId: tense.id, name: "Brooding" });
+    tagTracks(t.store, [fresh.id], [tag.id]);
+    expect(getTrack(t.store, fresh.id)?.isNew).toBe(true);
+    updateTrack(t.store, fresh.id, { title: "Brooding storm" });
+    expect(getTrack(t.store, fresh.id)?.isNew).toBe(false);
+    expect(listNewTrackIds(t.store)).toEqual([]);
+    expect(updateTrack(t.store, old.id, { isNew: true }).isNew).toBe(true);
   });
 });

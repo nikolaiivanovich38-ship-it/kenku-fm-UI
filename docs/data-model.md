@@ -36,8 +36,9 @@ Every fact is kept in one place: a track's name is stored once, so changing it c
 - **Daily:** the first time Lyre runs on a day, it makes a copy two minutes after it starts, and while it stays open it checks every hour whether a new day has started. The newest 14 daily copies are kept.
 - **Back up now:** a button in the new interface makes a copy at once. The newest 14 of these are kept, separately.
 - **Before an upgrade:** when a new version of Lyre changes the library format, it copies the library first.
+- **Before your old library moves in:** the first time the new interface starts, Lyre copies the library before it brings in the old player's playlists and soundboards (`library-before-import-…`).
 
-Every copy is checked before it counts. Names show the kind and the time, for example `library-daily-2026-11-04T12-00-00-000.sqlite`.
+Every copy is checked before it counts, and a damaged copy is never put back. Names show the kind and the time, for example `library-daily-2026-11-04T12-00-00-000.sqlite`.
 
 ### If the library file is damaged
 
@@ -46,6 +47,13 @@ Each time Lyre opens the library it runs SQLite's quick check alongside start-up
 ### Undo
 
 Every change to the library, tags, playlists, boards, folders and campaigns can be undone and redone, including deletes and changes that touch many rows (resizing a board, merging two tags). The last 100 steps are kept while Lyre is open.
+
+### Adding tracks, and your old library (import stream)
+
+- **Add files or a folder.** Every audio file in it (subfolders too) becomes a track marked **New**; hidden and Windows system folders are skipped, and a file already in your library is never added twice (letter case ignored). Its kind comes from its folder: Ambience, Atmospheres or Beds give ambience; Effects, SFX or Foley give a sound effect; anything else music. Its title in the file, artist, album and length come from the file's tags; your own title is never touched. The New mark goes once the track has a title of your own and a tag. A progress bar follows the work, Stop keeps what was saved, and the result says in plain words what was added and what was not.
+- **Your old library moves in once.** Playlists and soundboards from the old player keep their names, order, pictures and sound settings; a file used in several places becomes one track, everywhere it was. Files that cannot be found still move (so playlists stay whole) and are listed. A copy of the library is made first, the old player's own library is never changed, and if Lyre stops halfway it carries on next time.
+- **Find missing files.** Lyre lists tracks whose files have gone and looks for them in a folder you choose, by name, size and content; you confirm, and one Undo puts everything back.
+- **Suggestions from your titles.** "Melancholy tense - harbour at night (loops well)" suggests Melancholy and Tense, and "loops well". Nothing is applied until you accept.
 
 ### Upgrades
 
@@ -67,7 +75,8 @@ Measured with 20,000 tracks, 500 playlists and 3 campaigns of 50 sessions with 8
 | `ordering.ts` | Gap ordering (`positionFor`, `positionsFor`, `assignPositions`). |
 | `validate.ts`, `designValidate.ts`, `errors.ts`, `types.ts` | Input checks (`designValidate` for audio profiles and rules, mirroring the tables' CHECKs), error classes, data-layer types. |
 | `repo/*.ts` | Repository functions: `roots`, `tracks`, `markers`, `folders`, `playlists` and `boards` (both on `containers`), `tags`, `campaigns`, `profiles`, `search`; `domain` maps rows to the shared shapes of `src/common/domain`. `profileRows` and `ruleRows` store profiles and rules as rows (used inside other modules' changes). |
-| `undo.ts` | `UndoHistory`. |
+| `undo.ts` | `UndoHistory`; `Store.clearHistory()` empties it after writes made outside it. |
+| `import/*.ts` | Bringing audio in: `audioFiles` (which files, walking folders), `kindGuess`, `fileFacts` (quick checksum), `tagReader` (DAT-5, behind an interface), `pipeline` (EDT-6 `importAudio`, `refreshEmbeddedTags`), `legacy` (DAT-9), `relink` (DAT-8), `titleTags` (DAT-4). |
 | `integrity.ts`, `backups.ts`, `library.ts` | Integrity check, backups, `openLibrary()`, `restoreBackup()`, `startDailyBackups()`. `close()` runs `PRAGMA optimize` so the planner's statistics stay current. |
 | `index.ts` | Public exports. |
 
@@ -161,6 +170,7 @@ Conventions: text ids (UUIDs; ids from older data can be kept); times in millise
 | `scene_boards` | A scene's boards in order | (`scene_id`, `board_id`); (`scene_id`, `position`) | both CASCADE | BCNF |
 | `audio_profiles` | A track's own profile (no place) or its override in one playlist or one scene; a NULL setting means the default | `id`; partial unique: `track_id` (own), (`playlist_id`, `track_id`), (`scene_id`, `track_id`) | at most one place; `after_end` loop/next/stop; times ≥ 0; fade length and shape both or neither, shape 0–100; start < end; start ≤ loop start < end; all CASCADE | BCNF |
 | `audio_profile_markers` | A profile's named points, in order | (`profile_id`, `position`) | time ≥ 0; CASCADE | BCNF |
+| `library_jobs` | Long jobs that run once and survive a crash (schema v3): name, state running/done, JSON detail | `name` | `state` running/done; `detail` `json_valid` | BCNF |
 | `search_docs`, `search_fts` | Search index (derived) | `doc_id`; (`kind`, `ref_id`) | written only by triggers | derived copy (exception 1) |
 | `schema_migrations` | Applied versions | `version` | | |
 
@@ -203,6 +213,7 @@ Conventions: text ids (UUIDs; ids from older data can be kept); times in millise
 | Reading rules; tag merges and deletes | `rule_conditions_order`, `rule_condition_tags_order`, `rule_condition_tags_tag` |
 | Lists in hand-made order | `folders_order`, `playlists_order`, `boards_order` (on `coalesce(parent or folder, '')`, the expression the repository queries with, so the top level is ordered too), `tag_groups_order`, `tags_order`, `track_follow_with_order`, `campaigns_order` |
 | Natural keys | `library_roots_name`, `tag_groups_name`, `tags_name`, `sessions_number`, `sessions_next` |
+| New tracks (`NEW_TRACKS_SQL`, schema v3) | `tracks_new` (partial: `is_new = 1`) |
 | Other lookups | `tracks_root` (moving a library folder), `tracks_file_name` (relinking), `markers_track`, `tags_parent`, `sessions_folder`, `pads_tag` |
 
 Foreign keys without an index of their own, on purpose: `playlists.folder_id`, `boards.folder_id` and `folders.parent_id` (deleting a folder scans hundreds of rows at most, and the repository moves the contents first), and `rule_conditions.group_id` (deleting a tag group scans the rule conditions, tens of rows). Every other foreign key has an index whose first column is the key.
@@ -252,7 +263,22 @@ Rows in a hand-ordered list are `GAP` (1024) apart. Inserting or moving takes th
 
 Drops version 1's triggers and indexes; renames `sessions.played_on` to `session_date`, numbers sessions in order and marks dated ones played; turns loop advice `with_crossfade` into `crossfade`; rebuilds `tracks`, `markers`, `folders`, `playlists`, `playlist_items`, `boards`, `campaigns`, `sessions`, `scenes`, `campaign_playlists` and `campaign_boards` with their final definitions (every row copied); gives campaign memberships positions in library order; creates the new tables; turns `board_items` into pads (same ids; four columns; a divider starts a new row; a looping sound becomes a toggle pad; beyond 8 × 8 to spare) and drops it; splits `scene_items` into `scene_music` and `scene_boards` and drops it; declares every index and the integrity triggers; rebuilds the search index and its triggers. A new library (start version 0) then drops the empty Location and Faction groups version 1 offered.
 
-### Bringing in the current player's data (DAT-9, a later stream)
+### Version 3 (import stream)
+
+`schema/v003-import.ts`: `tracks.is_new` (0/1, CHECK) with the partial index `tracks_new`; two triggers clear it once a track has a title of its own and a tag (the prototype's `settle`; undo puts it back, since trigger writes are captured); the `library_jobs` table. Kept as its own step for now; the DB review's follow-up folds the steps into v002 before release.
+
+### Import (EDT-6, DAT-5, DAT-8, DAT-4)
+
+- `importAudio(store, { paths }, { tagReader, onProgress, signal, batchSize })`: walks the folders (no links followed), skips files already in the library (one read of every track's location, keyed by `fileKey`: case ignored, as the coming unique path indexes will), reads file facts and tags 8 files at a time, and saves 500 tracks per `changeWithoutHistory` transaction, letting the event loop run between batches. Clears the undo history afterwards (DB review item 10). Measured: 5,000 files into a 20,000-track library in about 1.2 s, saving 0.5 s, longest batch 70 ms (budget: 5 s, 2 s, 200 ms; `import/pipeline.perf.test.ts`). The tag reader's own time comes on top.
+- The quick checksum (`q1:` + SHA-256 of the size and the first and last 64 KiB) avoids reading whole files.
+- Tags: `TagReader` with `createMusicMetadataTagReader(parseFile)`; until music-metadata is added, `noTagReader` names tracks after their files (number and extension removed, as the prototype does). Mood and genre tags come back as `tagHints` for `suggestFromTitles`, and are never applied by themselves; track and disc numbers order an album in the result.
+- `findMissingTracks`, `planRelink(store, missing, folder)` (confidence sure/likely/name; ties reported; a file another track has is never used) and `applyRelink` (one undo step, refuses a file another track has).
+- `suggestFromTitles` / `applyTitleSuggestions` (one undo step).
+- Search (ORG-1): `search(…, { lane })` keeps to one lane of the Library (FX includes stings), by a key look-up per match: 2–17 ms on 20,000 tracks.
+
+### Bringing in the current player's data (DAT-9)
+
+`import/legacy.ts`, `importLegacyLibrary(library, raw, options)`, called by wave 3 on the new interface's first start with the stored value of `persist:player` (the old player's localStorage key; `persist:root` holds only settings and bookmarks). It backs up (`before-import`), records itself in `library_jobs`, saves tracks 500 at a time and each playlist and board in its own transaction, yields between them, and on a later call carries on (or returns the stored report as `already-done`). Ids are kept; the same file anywhere becomes one track (the first title wins, other titles and an over-long title go into its notes); a playlist's lane is the one most of its tracks belong to; a board has 4 columns and up to 8 rows, the rest spare. `blob:` and `data:` addresses and relative paths cannot move and are reported. Unreadable stored data is reported and not marked done, so a later start tries again.
 
 | Redux (`persist:player`) | Database |
 | --- | --- |
@@ -273,9 +299,11 @@ Drops version 1's triggers and indexes; renames `sessions.played_on` to `session
 | `repo/domain.test.ts` | The prototype's sample data through the write functions, compared with the shared rules in memory. |
 | `repo/*.test.ts` | Every repository function and its input checks. |
 | `undo.test.ts` | Every write function undone and redone against full snapshots of every table and the search index; a guard fails when a write function is missing from the list. |
-| `library.test.ts` | Open, upgrade backup, damage, restore, backups. |
+| `library.test.ts`, `backups.test.ts` | Open, upgrade backup, damage, restore (an upgrade backup too; never a damaged one), backups and their rotation per kind. |
+| `schema/v003.test.ts` | Version 3: the New mark, its settling triggers, `library_jobs`. |
+| `import/*.test.ts` | Import, tags, the old library's move (with a simulated crash), relinking, title suggestions; `pipeline.perf.test.ts` the 5,000-file budget. |
 | `performance.test.ts` | The figures above with 20,000 tracks, 500 playlists and 3 × 50 × 8 scenes: one campaign tree < 50 ms (all three < 150 ms), a dynamic playlist < 50 ms, uses < 50 ms, search < 50 ms, the whole library for the shared rules < 500 ms. `CUE_DESK_SKIP_PERF=1` skips it; `CUE_DESK_PERF_REPORT=<file>` writes the numbers. |
 
 ### Not yet
 
-Cue lists and pad actions (WPD, PLY-8), embedded file tags (DAT-5), export/import (DAT-7) and relinking (DAT-8) arrive in later steps. No IPC channels exist yet.
+Cue lists and pad actions (WPD, PLY-8) and export/import (DAT-7) arrive in later steps. No IPC channels exist yet. A real tag reader waits for music-metadata to be added.

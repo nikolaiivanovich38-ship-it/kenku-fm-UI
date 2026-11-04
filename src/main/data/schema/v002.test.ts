@@ -71,12 +71,13 @@ function version1File() {
 
 describe("schema version 2 (DAT-11)", () => {
   it("is the second upgrade step", () => {
-    expect(MIGRATIONS.map((m) => m.version)).toEqual([1, 2]);
+    expect(MIGRATIONS.map((m) => m.version).slice(0, 2)).toEqual([1, 2]);
   });
 
   it("upgrades a version-1 library with data in it without losing anything", () => {
     const db = openConnection(version1File());
-    expect(migrate(db, MIGRATIONS, () => 2000)).toEqual({ from: 1, to: 2, applied: [2] });
+    // Up to version 2 only: later steps have their own tests (v003.test.ts).
+    expect(migrate(db, MIGRATIONS.slice(0, 2), () => 2000)).toEqual({ from: 1, to: 2, applied: [2] });
 
     // Tracks keep everything; the new design fields take their defaults; "with crossfade" is now "crossfade".
     expect(all(db, "SELECT id, title, meta_title, kind, root_id, path, role, loopable, energy, notes FROM tracks ORDER BY id")).toEqual([
@@ -176,7 +177,7 @@ describe("schema version 2 (DAT-11)", () => {
 
   it("starts a new library at version 2 with the Mood, Leitmotif and Scene type tag groups", () => {
     const db = openConnection(":memory:");
-    expect(migrate(db, MIGRATIONS)).toEqual({ from: 0, to: 2, applied: [1, 2] });
+    expect(migrate(db, MIGRATIONS.slice(0, 2))).toEqual({ from: 0, to: 2, applied: [1, 2] });
     expect(schemaVersion(db)).toBe(2);
     expect((all(db, "SELECT name FROM tag_groups ORDER BY position") as { name: string }[]).map((g) => g.name)).toEqual([
       "Mood",

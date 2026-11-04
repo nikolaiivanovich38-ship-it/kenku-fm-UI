@@ -9,7 +9,8 @@
  * Kinds, each keeping its newest 14 copies:
  * - daily: at most one per calendar day (local time);
  * - manual: "Back up now";
- * - upgrade: taken just before the library is upgraded to a new schema version.
+ * - upgrade: taken just before the library is upgraded to a new schema version;
+ * - import: taken just before the old player's library is moved in (DAT-9).
  *
  * File names say the kind and the local time, for example
  * library-daily-2026-11-04T12-00-00-000.sqlite. Other files in the folder are
@@ -23,7 +24,7 @@ import { openConnection, type DatabaseSync } from "./sqlite";
 
 export const BACKUPS_TO_KEEP = 14;
 
-export type BackupKind = "daily" | "manual" | "upgrade";
+export type BackupKind = "daily" | "manual" | "upgrade" | "import";
 
 export type BackupInfo = {
   path: string;
@@ -32,7 +33,7 @@ export type BackupInfo = {
   createdAt: number;
 };
 
-const NAME = /^library-(daily|manual|upgrade-v\d+)-(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})\.sqlite$/;
+const NAME = /^library-(daily|manual|upgrade-v\d+|before-import)-(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})-(\d{3})\.sqlite$/;
 
 const pad = (n: number, width = 2) => String(n).padStart(width, "0");
 
@@ -45,6 +46,13 @@ function localDate(ms: number): string {
 function localStamp(ms: number): string {
   const d = new Date(ms);
   return `${localDate(ms)}T${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}-${pad(d.getMilliseconds(), 3)}`;
+}
+
+/** The kind a backup's label names: "upgrade-v2" is an upgrade backup, "before-import" an import one. */
+function kindOfLabel(label: string): BackupKind {
+  if (label.startsWith("upgrade")) return "upgrade";
+  if (label === "before-import") return "import";
+  return label as BackupKind;
 }
 
 /** Backups in `folder`, newest first. */
@@ -62,7 +70,7 @@ export function listBackups(folder: string): BackupInfo[] {
     const [, kind, year, month, day, hour, minute, second, ms] = match;
     backups.push({
       path: path.join(folder, name),
-      kind: kind.startsWith("upgrade") ? "upgrade" : (kind as BackupKind),
+      kind: kindOfLabel(kind),
       createdAt: new Date(+year, +month - 1, +day, +hour, +minute, +second, +ms).getTime(),
     });
   }
@@ -111,7 +119,7 @@ export function pruneBackups(folder: string, kind: BackupKind, keep = BACKUPS_TO
 
 /**
  * Writes a checked copy of the open library into `folder`.
- * @param label "daily", "manual" or "upgrade-v<from>"
+ * @param label "daily", "manual", "upgrade-v<from>" or "before-import"
  */
 export function writeBackup(db: DatabaseSync, folder: string, label: string, now: number): BackupInfo {
   const finalPath = path.join(folder, `library-${label}-${localStamp(now)}.sqlite`);
@@ -134,7 +142,7 @@ export function writeBackup(db: DatabaseSync, folder: string, label: string, now
       { cause: error },
     );
   }
-  const kind: BackupKind = label.startsWith("upgrade") ? "upgrade" : (label as BackupKind);
+  const kind = kindOfLabel(label);
   pruneBackups(folder, kind);
   return { path: finalPath, kind, createdAt: listBackups(folder).find((b) => b.path === finalPath)?.createdAt ?? now };
 }

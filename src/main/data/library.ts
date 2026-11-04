@@ -21,6 +21,7 @@ import fs from "fs";
 import path from "path";
 import { LibraryDatabaseError } from "./errors";
 import {
+  isHealthyDatabase,
   latestGoodBackup,
   listBackups,
   writeBackup,
@@ -241,6 +242,10 @@ export function restoreBackup(options: { folder: string; backupPath: string; now
     (backup) => path.resolve(backup.path) === path.resolve(options.backupPath),
   );
   if (!known) throw new Error("Only a backup from this library's backups folder can be restored.");
+  // DAT-6: putting back a damaged copy would replace one damaged library with another.
+  if (!isHealthyDatabase(options.backupPath)) {
+    throw new Error("That backup is damaged and cannot be put back. Choose an older backup.");
+  }
   const partPath = `${databasePath}.part`;
   try {
     copyToDisk(options.backupPath, partPath);

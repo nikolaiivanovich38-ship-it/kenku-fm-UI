@@ -93,6 +93,7 @@ export class UndoHistory {
         };
       },
       rollback: () => undefined,
+      reset: () => this.clear(),
     });
   }
 

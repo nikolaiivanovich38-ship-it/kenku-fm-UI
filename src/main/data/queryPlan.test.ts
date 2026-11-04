@@ -15,7 +15,7 @@ import { makeTempFolder } from "./test/helpers";
 import { campaignTreeQueries, USES_QUERIES } from "./repo/domain";
 import { SCENE_MUSIC_SQL } from "./repo/campaigns";
 import { PLAYLIST_ITEMS_SQL, createPlaylist } from "./repo/playlists";
-import { tracksWithTagsSql } from "./repo/tracks";
+import { NEW_TRACKS_SQL, tracksWithTagsSql } from "./repo/tracks";
 import { BOARD_PADS_SQL } from "./repo/boards";
 import { PROFILE_LOOKUP_SQL } from "./repo/profileRows";
 import { searchQuery } from "./repo/search";
@@ -72,6 +72,10 @@ describe("query plans of the hot read paths (DAT-11)", () => {
     expectIndexed(tracksWithTagsSql(2), ["a", "b", 50, 0], "track_tags_tag");
   });
 
+  it("new tracks (the library's New mark; import stream)", () => {
+    expectIndexed(NEW_TRACKS_SQL, [], "tracks_new");
+  });
+
   it.each([
     ["playlist", 0, "campaign_playlists_playlist"],
     ["playlist", 1, "session_playlists_playlist"],
@@ -95,6 +99,10 @@ describe("query plans of the hot read paths (DAT-11)", () => {
     expectIndexed(query.sql, query.params, "search_fts VIRTUAL TABLE");
     const inPlaylist = searchQuery("dark", { playlistId: "p" })!;
     expectIndexed(inPlaylist.sql, inPlaylist.params, "playlist_items_order");
+    for (const lane of ["music", "fx"] as const) {
+      const inLane = searchQuery("dark", { lane })!;
+      expectIndexed(inLane.sql, inLane.params, "SEARCH t EXISTS USING INDEX sqlite_autoindex_tracks_1 (id=?)");
+    }
   });
 
   it.each([

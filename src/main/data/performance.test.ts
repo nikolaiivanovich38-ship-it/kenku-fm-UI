@@ -119,6 +119,17 @@ describe.skipIf(process.env.CUE_DESK_SKIP_PERF === "1")("performance with 20,000
     expect(ms).toBeLessThan(50);
   });
 
+  it.each([
+    ["music", "d"],
+    ["amb", "da"],
+    ["fx", "d"],
+    ["fx", "dark for"],
+  ] as const)("searches the Library's %s lane (%s) in under 50 ms (ORG-1)", (lane, text) => {
+    const ms = measure(7, () => search(library.store, text, { lane }));
+    results[`search lane ${lane} ${text} ms`] = ms;
+    expect(ms).toBeLessThan(50);
+  });
+
   it("finds within one playlist in under 50 ms", () => {
     const playlist = listPlaylists(library.store)[250];
     const ms = measure(7, () => search(library.store, "d", { playlistId: playlist.id }));
