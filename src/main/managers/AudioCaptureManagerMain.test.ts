@@ -508,3 +508,80 @@ describe("AudioCaptureManagerMain: capture window isolation (SEC-12)", () => {
     expect(windowOptions[0].show).toBe(false);
   });
 });
+
+// --- Rooms and buses ---
+describe("AudioCaptureManagerMain: one stream per room (OUT-5)", () => {
+  const ROOM_A = "bot-00000000-0000-4000-8000-00000000000a";
+  const ROOM_B = "bot-00000000-0000-4000-8000-00000000000b";
+
+  function roomMessages(m: AudioCaptureManagerMain) {
+    return sentToCapture(m).filter(([channel]) => /ROOM|ROUTE/.test(channel as string));
+  }
+
+  it("passes on each room's packets with the room they belong to", () => {
+    manager = new AudioCaptureManagerMain();
+    const packets: [Buffer, string | undefined][] = [];
+    manager.on("packet", (packet, room) => packets.push([packet, room]));
+    manager.startBroadcast();
+    const port = loadCaptureWindow(manager);
+    port.postMessage({ room: ROOM_B, packet: new Uint8Array([1, 2]) });
+    port.postMessage(new Uint8Array([3]));
+    expect(packets).toEqual([
+      [Buffer.from([1, 2]), ROOM_B],
+      [Buffer.from([3]), undefined],
+    ]);
+  });
+
+  it("drops room packets with an odd room or an odd packet", () => {
+    manager = new AudioCaptureManagerMain();
+    const packets: unknown[] = [];
+    manager.on("packet", (packet) => packets.push(packet));
+    manager.startBroadcast();
+    const port = loadCaptureWindow(manager);
+    for (const message of [
+      { room: 7, packet: new Uint8Array([1]) },
+      { room: "x".repeat(200), packet: new Uint8Array([1]) },
+      { room: ROOM_A, packet: "audio" },
+      { room: ROOM_A, packet: new Uint8Array(MAX_OPUS_PACKET_BYTES + 1) },
+      { room: ROOM_A },
+    ]) {
+      port.postMessage(message);
+    }
+    expect(packets).toEqual([]);
+  });
+
+  it("tells the capture window the rooms, their volumes and where views go, again after it reloads", () => {
+    manager = new AudioCaptureManagerMain();
+    loadCaptureWindow(manager);
+    manager.setRooms([ROOM_A, ROOM_B]);
+    manager.setRoomVolume(ROOM_B, 0.5);
+    manager.routeView(7, { room: ROOM_B });
+    manager.setDefaultRoute("table");
+    expect(roomMessages(manager)).toEqual([
+      ["AUDIO_CAPTURE_SET_ROOMS", [ROOM_A, ROOM_B]],
+      ["AUDIO_CAPTURE_SET_ROOM_VOLUME", ROOM_B, 0.5],
+      ["AUDIO_CAPTURE_ROUTE_VIEW", 7, { room: ROOM_B }],
+      ["AUDIO_CAPTURE_SET_DEFAULT_ROUTE", "table"],
+    ]);
+
+    (capturePage(manager).send as unknown as ReturnType<typeof vi.fn>).mockClear();
+    loadCaptureWindow(manager);
+    expect(roomMessages(manager)).toEqual([
+      ["AUDIO_CAPTURE_SET_ROOMS", [ROOM_A, ROOM_B]],
+      ["AUDIO_CAPTURE_SET_DEFAULT_ROUTE", "table"],
+      ["AUDIO_CAPTURE_SET_ROOM_VOLUME", ROOM_B, 0.5],
+      ["AUDIO_CAPTURE_ROUTE_VIEW", 7, { room: ROOM_B }],
+    ]);
+  });
+
+  it("forgets a closed view's route", () => {
+    manager = new AudioCaptureManagerMain();
+    const tab = soundPage();
+    offer(tab);
+    manager.routeView(tab.id, "table");
+    tab.emit("destroyed");
+    (capturePage(manager).send as unknown as ReturnType<typeof vi.fn>).mockClear();
+    loadCaptureWindow(manager);
+    expect(roomMessages(manager).filter(([channel]) => channel === "AUDIO_CAPTURE_ROUTE_VIEW")).toEqual([]);
+  });
+});

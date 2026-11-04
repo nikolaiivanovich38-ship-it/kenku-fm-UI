@@ -5,6 +5,11 @@ import { guardIpc } from "../security/ipcGuard";
 import { lockAppPage } from "../security/navigationGuards";
 import { captureTargets } from "../security/captureTargets";
 import { trustedContents } from "../security/trustedContents";
+import {
+  DEFAULT_CAPTURE_ROUTE,
+  MAX_ROOM_ID_LENGTH,
+  type CaptureRoute,
+} from "../../common/outputs";
 
 declare const AUDIO_CAPTURE_WINDOW_WEBPACK_ENTRY: string;
 declare const AUDIO_CAPTURE_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
@@ -12,8 +17,11 @@ declare const AUDIO_CAPTURE_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 export type StreamingMode = "lowLatency" | "performance";
 
 interface AudioCaptureManagerEvents {
-  /** One encoded Opus packet (20 ms of the mix). */
-  packet: (packet: Buffer) => void;
+  /**
+   * One encoded Opus packet (20 ms of a room's mix, OUT-5). `room` is the
+   * room's bot id; missing while the capture window has been told no rooms.
+   */
+  packet: (packet: Buffer, room?: string) => void;
 }
 
 /**
@@ -36,6 +44,23 @@ export const MAX_OPUS_PACKET_BYTES = 4000;
  * else on this computer or the network can send audio into Discord.
  */
 export const AUDIO_PORT_CHANNEL = "AUDIO_CAPTURE_PORT";
+
+/**
+ * OUT-5: a message from the capture window: one packet of the table (bytes),
+ * or `{ room, packet }` for one room. Undefined if it is neither.
+ */
+export function roomPacketFrom(data: unknown): { packet: Buffer; room?: string } | undefined {
+  if (data instanceof ArrayBuffer || ArrayBuffer.isView(data)) {
+    const packet = packetFrom(data);
+    return packet && { packet };
+  }
+  const { room, packet: bytes } = (data ?? {}) as { room?: unknown; packet?: unknown };
+  if (typeof room !== "string" || room.length === 0 || room.length > MAX_ROOM_ID_LENGTH) {
+    return undefined;
+  }
+  const packet = packetFrom(bytes);
+  return packet && { packet, room };
+}
 
 /** The packet as bytes, or undefined if the message is not one packet. */
 export function packetFrom(data: unknown): Buffer | undefined {
@@ -96,6 +121,13 @@ export class AudioCaptureManagerMain extends TypedEmitter<AudioCaptureManagerEve
   _views = new Map<number, WatchedView>();
   /** Views the user muted in the tab bar (kept for views not yet watched). */
   _mutedViews = new Set<number>();
+  /** OUT-5: the rooms (bot ids), first room first, as last told to the capture window. */
+  _rooms: string[] = [];
+  /** OUT-5: room volumes that are not 1. */
+  _roomVolumes = new Map<string, number>();
+  /** OUT-5: where each view's audio goes, when not the default. */
+  _routes = new Map<number, CaptureRoute>();
+  _defaultRoute: CaptureRoute = DEFAULT_CAPTURE_ROUTE;
 
   /** SEC-8: message listeners that only accept the app's own pages. */
   private _ipc = guardIpc(ipcMain);
@@ -198,14 +230,64 @@ export class AudioCaptureManagerMain extends TypedEmitter<AudioCaptureManagerEve
     port1.start();
     this._port = port1;
     this._browserWindow.webContents.postMessage(AUDIO_PORT_CHANNEL, null, [port2]);
+    this._sendRoomsToCapture();
   };
 
   _handlePacket = (data: unknown) => {
-    const packet = packetFrom(data);
-    if (packet && this._broadcasting) {
-      this.emit("packet", packet);
+    const message = roomPacketFrom(data);
+    if (message && this._broadcasting) {
+      this.emit("packet", message.packet, message.room);
     }
   };
+
+  /** OUT-5: the rooms changed (a bot joined, left or moved): one mix per room. */
+  setRooms(rooms: readonly string[]) {
+    this._rooms = [...rooms];
+    for (const id of [...this._roomVolumes.keys()]) {
+      if (!rooms.includes(id)) {
+        this._roomVolumes.delete(id);
+      }
+    }
+    this._sendToCapture("AUDIO_CAPTURE_SET_ROOMS", this._rooms);
+  }
+
+  /** OUT-5: a room's volume (everything sent to it), 0 to 1. */
+  setRoomVolume(room: string, volume: number) {
+    if (volume === 1) {
+      this._roomVolumes.delete(room);
+    } else {
+      this._roomVolumes.set(room, volume);
+    }
+    this._sendToCapture("AUDIO_CAPTURE_SET_ROOM_VOLUME", room, volume);
+  }
+
+  /** OUT-5: send one view's audio to every room, the table or one room. */
+  routeView(viewId: number, route: CaptureRoute) {
+    this._routes.set(viewId, route);
+    this._sendToCapture("AUDIO_CAPTURE_ROUTE_VIEW", viewId, route);
+  }
+
+  /** OUT-5: where views without a route of their own, and input devices, go. */
+  setDefaultRoute(route: CaptureRoute) {
+    this._defaultRoute = route;
+    this._sendToCapture("AUDIO_CAPTURE_SET_DEFAULT_ROUTE", route);
+  }
+
+  /** A (re)loaded capture window starts empty: tell it the rooms and routes. */
+  _sendRoomsToCapture() {
+    if (this._rooms.length > 0) {
+      this._sendToCapture("AUDIO_CAPTURE_SET_ROOMS", this._rooms);
+    }
+    if (this._defaultRoute !== DEFAULT_CAPTURE_ROUTE) {
+      this._sendToCapture("AUDIO_CAPTURE_SET_DEFAULT_ROUTE", this._defaultRoute);
+    }
+    for (const [room, volume] of this._roomVolumes) {
+      this._sendToCapture("AUDIO_CAPTURE_SET_ROOM_VOLUME", room, volume);
+    }
+    for (const [viewId, route] of this._routes) {
+      this._sendToCapture("AUDIO_CAPTURE_ROUTE_VIEW", viewId, route);
+    }
+  }
 
   /** Applies from the next broadcast; the encoder is set up when one starts. */
   _handleSetStreamingMode = (_: Electron.IpcMainEvent, streamingMode: StreamingMode) => {
@@ -324,7 +406,11 @@ export class AudioCaptureManagerMain extends TypedEmitter<AudioCaptureManagerEve
     };
     contents.on("audio-state-changed", onAudioState);
     contents.on("media-started-playing", onMediaStarted);
-    contents.once("destroyed", () => this._unwatch(viewId));
+    contents.once("destroyed", () => {
+      // OUT-5: a closed tab's route is not kept for a later view with its id.
+      this._routes.delete(viewId);
+      this._unwatch(viewId);
+    });
     this._views.set(viewId, view);
     this._applyLocalMute(view);
     if (this._broadcasting && contents.isCurrentlyAudible()) {

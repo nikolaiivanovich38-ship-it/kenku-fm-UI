@@ -70,6 +70,10 @@ const isDiscordId: ArgCheck = (value) => typeof value === "string" && /^\d{1,25}
 /** A bot token: non-empty text, at most MAX_SHORT_TEXT (real ones are ~70 characters). */
 const isBotToken: ArgCheck = (value) => isShortText(value) && (value as string).trim() !== "";
 
+// --- Rooms and buses ---
+/** A volume: a finite number from 0 to 1. */
+const isUnitInterval: ArgCheck = (value) => isFiniteNumber(value) && (value as number) >= 0 && (value as number) <= 1;
+
 export const IPC_CHANNELS = {
   // src/index.ts
   GET_VERSION: { from: MAIN, args: noArgs, refusedReturnValue: "" },
@@ -160,6 +164,14 @@ export const IPC_CHANNELS = {
   // PERF-6 (review 7): the player's answer to PLAYER_SAVE_NOW (sent by
   // PlayerManager before the window closes): its waiting changes are saved.
   PLAYER_SAVED: { from: PLAYER, args: noArgs },
+
+  // --- Rooms and buses ---
+  // OUT-6 (OutputManager.moveBot): move a bot to another voice channel during
+  // play; its room keeps playing.
+  BOT_MOVE_TO_CHANNEL: { from: MAIN, args: argsMatch(isBotId, isDiscordId) },
+  // OUT-5: a room's volume (the room is its bot), 0 to 1. A room is muted
+  // with OUTPUT_SET_MUTED, as before.
+  ROOM_SET_VOLUME: { from: MAIN, args: argsMatch(isBotId, isUnitInterval) },
 } satisfies Record<string, IpcChannelRule>;
 
 export type IpcChannel = keyof typeof IPC_CHANNELS;

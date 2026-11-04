@@ -416,3 +416,34 @@ Add to the SEC-8 channel table (kept here so branches merge cleanly):
 - SEC-15 / UX finding 7: a file that does not exist is not asked about. `LocalFileGate` checks it first (`fileExists`, a `stat` in the main process) and the main window says "Can't find this file. Check the name and folder."; no tab opens.
 - Merge of wave1-uxfix with WP1 security fixes: the missing-file check runs on the real path (`realpath`, which fails for a missing file) and then `fileExists` (a folder is not a file), after the network-folder check, and reports through `onRefused("not-found")`. "Try now" while the bot waits to log in again makes that attempt at once with its channels held (WP1 review 9), keeping the remaining attempts. A moderator's notice (WP1 review 5) counts as the bot's problem for the error message, so the message closes once the bot joins a channel again; "Try now" is not offered for a bot that "Left".
 - UX finding 5: a token Discord refuses ("invalid token", 401, unauthorised) is removed from `botTokenStore` at once, so a token known not to work is never kept, encrypted or not.
+
+## Rooms and buses
+
+### In plain language
+
+Each Discord bot in a voice channel is now a room, and each room gets its own sound: Lyre encodes one stream per room and gives it to that room's bot only. Moving a bot to another voice channel during play keeps its room and what it plays. A room has its own volume. Nothing new reaches the network, and website tabs still cannot send Lyre any message.
+
+### Technical details
+
+- Packets on the private audio channel (SEC-2) may now be `{ room, packet }`: `room` is text of at most 64 characters (`MAX_ROOM_ID_LENGTH`), `packet` must pass the same check as before (1 to 4000 bytes); anything else is dropped (`roomPacketFrom`). `OutputManager.sendPacket` gives a room's packet only to a bot that is in a voice channel now; a packet for an unknown or departed room is dropped, never played in another room. A packet without a room goes to the first room.
+- The capture window is told the rooms, their volumes and where each tab goes over `AUDIO_CAPTURE_SET_ROOMS`, `AUDIO_CAPTURE_SET_ROOM_VOLUME`, `AUDIO_CAPTURE_ROUTE_VIEW` and `AUDIO_CAPTURE_SET_DEFAULT_ROUTE`. They go from the main process to the capture window (`webContents.send`), so they are not in `IPC_CHANNELS`; the capture window still checks their shape and ignores odd values.
+- The preview bus in the engine (`src/player/engine/rooms`) is made once, apart from every room, and no room lane can be the preview (unit-tested over rooms coming and going).
+- No new permission, no Content-Security-Policy change.
+
+Add to the SEC-8 channel table (kept here so branches merge cleanly):
+
+| Channel | Sent by | Arguments | Handled in |
+|---|---|---|---|
+| `BOT_MOVE_TO_CHANNEL` (OUT-6) | Main window | bot id (`bot-<uuid>`); channel id: 1–25 digits | `OutputManager.moveBot` (uses `DiscordBot.join` / `leave`) |
+| `ROOM_SET_VOLUME` (OUT-5) | Main window | bot id (`bot-<uuid>`); volume: finite number from 0 to 1 | `OutputManager.setRoomVolume` |
+
+A room is muted with `OUTPUT_SET_MUTED` and the room's bot id, as before.
+
+### Manual checks (Windows, real Discord, two bots, two voice channels)
+
+1. Bot 1 joins "Table", Bot 2 joins "Side". Play a YouTube tab: a friend in each channel hears it (tabs go to every room until the new interface routes them).
+2. Move Bot 2 from "Side" to another channel while music plays (once the new interface offers it): its sound continues in the new channel within a second or two, and the old channel goes quiet; Bot 1's room is not interrupted.
+3. Move Bot 2 into a channel it has no permission for: a plain message says why, and Bot 2 stays in "Side".
+4. Bot 2 leaves its channel: "Side" goes silent at once; "Table" keeps playing; Task Manager shows Lyre's processor use drop a little.
+5. Mute Bot 2: only "Side" goes silent. Unmute: it comes back.
+6. Both bots leave: "This Computer" plays again (as in WP2) and Lyre's processor use falls to almost nothing.

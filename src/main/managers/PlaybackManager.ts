@@ -5,7 +5,9 @@ import { AudioCaptureManagerMain } from "./AudioCaptureManagerMain";
 
 /**
  * Connects tab capture to the outputs. PERF-4: capture runs only while an
- * output is in a voice channel. OUT-1: every output hears the same mix.
+ * output is in a voice channel. OUT-5: every bot in a voice channel is a room;
+ * the capture window encodes one mix per room and each room's packets go to
+ * that room's bot only.
  */
 export class PlaybackManager {
   outputs: OutputManager;
@@ -26,8 +28,14 @@ export class PlaybackManager {
     this.outputs.on("localMutedChange", (muted) => {
       this.audioCaptureManager.setLocalMuted(muted);
     });
-    this.audioCaptureManager.on("packet", (packet) => {
-      this.outputs.sendPacket(packet);
+    this.outputs.on("roomsChange", (rooms) => {
+      this.audioCaptureManager.setRooms(rooms.map((room) => room.botId));
+    });
+    this.outputs.on("roomVolumeChange", (room, volume) => {
+      this.audioCaptureManager.setRoomVolume(room, volume);
+    });
+    this.audioCaptureManager.on("packet", (packet, room) => {
+      this.outputs.sendPacket(packet, room);
     });
   }
 

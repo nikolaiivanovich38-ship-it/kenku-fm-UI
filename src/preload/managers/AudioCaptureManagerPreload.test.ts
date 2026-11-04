@@ -12,7 +12,11 @@ class FakeNode {
     this.connections.add(target);
     return target;
   }
-  disconnect() {
+  disconnect(target?: FakeNode) {
+    if (target) {
+      this.connections.delete(target);
+      return;
+    }
     this.connections.clear();
     this.disconnected = true;
   }
@@ -400,5 +404,157 @@ describe("AudioCaptureManagerPreload: stopping streams frees audio nodes (PERF-5
     await manager.startBrowserViewStream(7, "source-7");
     manager.setMuted(7, true);
     expect(manager._mediaStreamOutputs[7].gain.value).toBe(0);
+  });
+});
+
+// --- Rooms and buses ---
+describe("AudioCaptureManagerPreload: one mix and one encoder per room (OUT-5)", () => {
+  const A = "bot-a";
+  const B = "bot-b";
+  let sent: [Uint8Array, string | undefined][];
+
+  function roomManager() {
+    sent = [];
+    return new AudioCaptureManagerPreload((packet, room) => sent.push([packet, room]));
+  }
+
+  async function broadcastingRooms(rooms = [A, B]) {
+    const manager = roomManager();
+    manager.setRooms(rooms);
+    await manager.startBroadcast("lowLatency");
+    return manager;
+  }
+
+  /** The node every source of a room connects to. */
+  const roomInput = (manager: AudioCaptureManagerPreload, room: string) =>
+    manager._mixes.get(room)!.input as unknown as FakeNode;
+  /** Rooms a tab's audio goes to now. */
+  const roomsOfView = (manager: AudioCaptureManagerPreload, viewId: number) =>
+    [...manager._mixes.entries()]
+      .filter(([, mix]) => (manager._mediaStreamOutputs[viewId] as unknown as FakeNode).connections.has(mix.input as never))
+      .map(([room]) => room);
+  const frame = (index = 0) => ({ data: [{ index, samples: new Float32Array(1920) }] });
+
+  it("encodes each room separately and tags its packets with the room", async () => {
+    await broadcastingRooms();
+    expect(workletNodes).toHaveLength(2);
+    expect(encoders).toHaveLength(2);
+    workletNodes[1].port.onmessage?.(frame());
+    workletNodes[0].port.onmessage?.(frame());
+    expect(sent.map(([, room]) => room)).toEqual([B, A]);
+    expect(encoders.map((encoder) => encoder.encoded.length)).toEqual([1, 1]);
+  });
+
+  it("builds the rooms told while the broadcast was starting", async () => {
+    const manager = roomManager();
+    const started = manager.startBroadcast("lowLatency");
+    manager.setRooms([A, B]);
+    await started;
+    expect([...manager._mixes.keys()]).toEqual([A, B]);
+  });
+
+  it("adds a room's mix when its bot joins, and stops it when the bot leaves", async () => {
+    const manager = await broadcastingRooms([A]);
+    manager.setRooms([A, B]);
+    await manager._ready;
+    expect([...manager._mixes.keys()]).toEqual([A, B]);
+    const leaving = manager._mixes.get(B)!;
+    const onmessage = workletNodes[1].port.onmessage;
+
+    manager.setRooms([A]);
+
+    expect([...manager._mixes.keys()]).toEqual([A]);
+    expect(encoders[1].state).toBe("closed");
+    expect((leaving.input as unknown as FakeNode).disconnected).toBe(true);
+    onmessage?.(frame());
+    expect(sent).toEqual([]);
+  });
+
+  it("sends tabs and input devices to every room until routed otherwise (as Lyre 0.2)", async () => {
+    const manager = await broadcastingRooms();
+    await manager.startBrowserViewStream(7, "source-7");
+    await manager.startExternalAudioCapture("mic");
+    expect(roomsOfView(manager, 7)).toEqual([A, B]);
+    const mic = manager._externalAudioStreamOutputs["mic"] as unknown as FakeNode;
+    expect(mic.connections.has(roomInput(manager, A))).toBe(true);
+    expect(mic.connections.has(roomInput(manager, B))).toBe(true);
+  });
+
+  it("sends a tab routed to the table to the first room only, and to one room when chosen", async () => {
+    const manager = await broadcastingRooms();
+    await manager.startBrowserViewStream(7, "source-7");
+    await manager.startBrowserViewStream(8, "source-8");
+    manager.routeView(7, "table");
+    manager.routeView(8, { room: B });
+    expect(roomsOfView(manager, 7)).toEqual([A]);
+    expect(roomsOfView(manager, 8)).toEqual([B]);
+  });
+
+  it("follows the default route for tabs without their own (the design: the table)", async () => {
+    const manager = await broadcastingRooms();
+    manager.setDefaultRoute("table");
+    await manager.startBrowserViewStream(7, "source-7");
+    expect(roomsOfView(manager, 7)).toEqual([A]);
+  });
+
+  it("moves a tab to the new first room when the table's bot leaves, and a gone room's tab to the first", async () => {
+    const manager = await broadcastingRooms([A, B, "bot-c"]);
+    await manager.startBrowserViewStream(7, "source-7");
+    await manager.startBrowserViewStream(8, "source-8");
+    manager.routeView(7, "table");
+    manager.routeView(8, { room: "bot-c" });
+    manager.setRooms([B, A]);
+    await manager._ready;
+    expect(roomsOfView(manager, 7)).toEqual([B]);
+    expect(roomsOfView(manager, 8)).toEqual([B]);
+  });
+
+  it("keeps a route given before the tab's capture starts", async () => {
+    const manager = await broadcastingRooms();
+    manager.routeView(7, { room: B });
+    await manager.startBrowserViewStream(7, "source-7");
+    expect(roomsOfView(manager, 7)).toEqual([B]);
+  });
+
+  it("applies each room's volume, also to rooms and broadcasts that start later", async () => {
+    const manager = roomManager();
+    manager.setRoomVolume(B, 0.25);
+    manager.setRooms([A, B]);
+    await manager.startBroadcast("lowLatency");
+    expect(manager._mixes.get(B)!.volume.gain.value).toBe(0.25);
+    expect(manager._mixes.get(A)!.volume.gain.value).toBe(1);
+    manager.setRoomVolume(A, 0.5);
+    expect(manager._mixes.get(A)!.volume.gain.value).toBe(0.5);
+  });
+
+  it("plays only the first room on this computer", async () => {
+    const manager = await broadcastingRooms();
+    const loopback = manager._loopbackNode as unknown as FakeNode;
+    const volume = (room: string) => manager._mixes.get(room)!.volume as unknown as FakeNode;
+    expect(volume(A).connections.has(loopback)).toBe(true);
+    expect(volume(B).connections.has(loopback)).toBe(false);
+    manager.setRooms([B]);
+    await manager._ready;
+    expect(volume(B).connections.has(loopback)).toBe(true);
+    expect(elements).toHaveLength(1);
+  });
+
+  it("sends untagged packets from one mix while it has been told no rooms (as before)", async () => {
+    const manager = roomManager();
+    await manager.startBroadcast("lowLatency");
+    workletNodes[0].port.onmessage?.(frame());
+    expect(sent.map(([, room]) => room)).toEqual([undefined]);
+    manager.setRooms([A]);
+    await manager._ready;
+    expect([...manager._mixes.keys()]).toEqual([A]);
+  });
+
+  it("ignores odd room lists and routes", async () => {
+    const manager = await broadcastingRooms();
+    manager.setRooms("bot-a" as never);
+    manager.setRooms([A, A]);
+    manager.routeView(7, { room: 5 } as never);
+    expect([...manager._mixes.keys()]).toEqual([A, B]);
+    expect(manager._routes.has(7)).toBe(false);
   });
 });
