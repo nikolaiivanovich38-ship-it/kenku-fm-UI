@@ -24,14 +24,24 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-function Harness({ initial = "" }: { initial?: string }) {
+const onOpenInNewTab = vi.fn();
+
+function Harness({ initial = "", localFile }: { initial?: string; localFile?: boolean }) {
   const [url, setUrl] = useState(initial);
-  return <URLBar viewId={7} url={url} onURLChange={setUrl} />;
+  return (
+    <URLBar
+      viewId={7}
+      url={url}
+      onURLChange={setUrl}
+      localFile={localFile}
+      onOpenInNewTab={onOpenInNewTab}
+    />
+  );
 }
 
-async function submit(text: string) {
+async function submit(text: string, { localFile }: { localFile?: boolean } = {}) {
   const user = userEvent.setup();
-  render(<Harness />);
+  render(<Harness localFile={localFile} />);
   const input = screen.getByRole("textbox", { name: /web address/i });
   await user.type(input, `${text}{Enter}`);
   return input;
@@ -45,7 +55,6 @@ describe("URLBar (SEC-6)", () => {
   });
 
   it.each([
-    "file:///etc/passwd",
     "javascript:alert(1)",
     "chrome://settings",
     "steam://run/1",
@@ -66,14 +75,14 @@ describe("URLBar (SEC-6)", () => {
 
   it("clears the message once the user edits the address", async () => {
     const user = userEvent.setup();
-    const input = await submit("file:///x");
+    const input = await submit("javascript:x");
     await user.type(input, "y");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(input).toHaveAttribute("aria-invalid", "false");
   });
 
   it("moves the website view so the message is not hidden behind it", async () => {
-    await submit("file:///x");
+    await submit("javascript:x");
     expect(kenku.setBrowserViewBounds).toHaveBeenCalledWith(
       7,
       expect.any(Number),
@@ -114,4 +123,40 @@ describe("URLBar (SEC-6)", () => {
       expect(screen.queryByText("Not secure")).not.toBeInTheDocument();
     },
   );
+});
+
+describe("URLBar: files from the computer (SEC-15)", () => {
+  it("hands a file address to a new file tab instead of loading it in the website tab", async () => {
+    await submit("file:///C:/Maps/index.html");
+    expect(loadURL).not.toHaveBeenCalled();
+    expect(onOpenInNewTab).toHaveBeenCalledWith({
+      ok: "ask",
+      kind: "local-file",
+      url: "file:///C:/Maps/index.html",
+    });
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("turns a pasted Windows path into a file address", async () => {
+    await submit("C:\\Maps\\index.html");
+    expect(onOpenInNewTab).toHaveBeenCalledWith(
+      expect.objectContaining({ url: "file:///C:/Maps/index.html" }),
+    );
+  });
+
+  it("opens a web address typed in a file's tab in a new website tab", async () => {
+    await submit("youtube.com", { localFile: true });
+    expect(loadURL).not.toHaveBeenCalled();
+    expect(onOpenInNewTab).toHaveBeenCalledWith({
+      ok: true,
+      url: "https://youtube.com/",
+      insecure: false,
+    });
+  });
+
+  it("refuses a file on a network share with a plain-language message", async () => {
+    await submit("file://fileserver/share/x.html");
+    expect(onOpenInNewTab).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent(/network folder/i);
+  });
 });

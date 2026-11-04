@@ -132,6 +132,16 @@ export const IPC_CHANNELS = {
   PLAYER_REMOTE_PLAYLIST_PLAYBACK_REPLY: { from: PLAYER, args: argsMatch(isPlainObject, isRequestId) },
   PLAYER_REMOTE_SOUNDBOARD_GET_ALL_REPLY: { from: PLAYER, args: argsMatch(isPlainObject, isRequestId) },
   PLAYER_REMOTE_SOUNDBOARD_PLAYBACK_REPLY: { from: PLAYER, args: argsMatch(isPlainObject, isRequestId) },
+
+  // --- WP2 Tabs ---
+  // SEC-15 (BrowserViewManagerMain): open a file from the user's computer in a
+  // tab of its own (invoke; answers the view id, or -1 when refused or the
+  // user said no). The main process asks the user itself before opening it.
+  BROWSER_VIEW_OPEN_LOCAL_FILE: { from: MAIN, args: argsMatch(isUrl, ...bounds) },
+  // Settings > Local files: the remembered folders (invoke; answers the list).
+  // A folder path is at most 32767 characters (Windows long paths).
+  LOCAL_FILES_LIST_FOLDERS: { from: MAIN, args: noArgs },
+  LOCAL_FILES_FORGET_FOLDER: { from: MAIN, args: argsMatch(isStringUpTo(32_767)) },
 } satisfies Record<string, IpcChannelRule>;
 
 export type IpcChannel = keyof typeof IPC_CHANNELS;

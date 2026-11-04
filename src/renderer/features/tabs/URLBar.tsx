@@ -11,8 +11,13 @@ import RefreshRounded from "@mui/icons-material/RefreshRounded";
 import {
   checkTabUrl,
   checkTypedTabUrl,
+  isLocalFile,
   isRefused,
+  type LocalFileCheck,
 } from "../../../common/security/urlPolicy";
+
+/** An address the user may open: a web page, or a file the main process will ask about. */
+export type OpenableAddress = { ok: true; url: string; insecure: boolean } | LocalFileCheck;
 import { getBounds } from "./getBounds";
 
 type URLBarProps = {
@@ -20,6 +25,13 @@ type URLBarProps = {
   url: string;
   onURLChange: (url: string) => void;
   disabled?: boolean;
+  /** SEC-15: the current tab shows a file from the computer, not a website. */
+  localFile?: boolean;
+  /**
+   * SEC-15: open the address in a new view in place of this tab: files and
+   * websites never share a tab.
+   */
+  onOpenInNewTab?: (address: OpenableAddress) => void;
 };
 
 /**
@@ -29,8 +41,17 @@ type URLBarProps = {
  * to the main process and a plain-language message is shown instead. Plain
  * http pages get a "Not secure" hint. Links dropped on the field are inserted
  * as text by the browser.
+ * SEC-15: a file address (or a pasted file path) is handed to
+ * `onOpenInNewTab`; the main process asks the user before it opens.
  */
-export function URLBar({ viewId, url, onURLChange, disabled }: URLBarProps) {
+export function URLBar({
+  viewId,
+  url,
+  onURLChange,
+  disabled,
+  localFile,
+  onOpenInNewTab,
+}: URLBarProps) {
   const [error, setError] = useState<string>();
   const errorId = useId();
   const insecureId = useId();
@@ -44,6 +65,10 @@ export function URLBar({ viewId, url, onURLChange, disabled }: URLBarProps) {
       return;
     }
     setError(undefined);
+    if (isLocalFile(check) || localFile) {
+      onOpenInNewTab?.(check);
+      return;
+    }
     window.kenku.loadURL(viewId, check.url);
   }
 

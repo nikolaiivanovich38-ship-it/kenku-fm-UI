@@ -12,7 +12,7 @@ import { useDispatch } from "react-redux";
 import { Bookmark, removeBookmark } from "./bookmarksSlice";
 import { BookmarkSettings } from "./BookmarkSettings";
 import { addTab, selectTab } from "../tabs/tabsSlice";
-import { openBrowserView } from "../tabs/openBrowserView";
+import { openAddressInNewView } from "../tabs/openBrowserView";
 import { showAppError } from "../../common/appErrors";
 import {
   checkTypedTabUrl,
@@ -33,7 +33,8 @@ export function BookmarkListItem({ bookmark, shadow }: BookmarkListItemProps) {
    * Open the bookmark in a new tab. Bookmarks saved by Kenku FM before
    * SEC-6 may lack https:// ("youtube.com"), so the address is normalised
    * like a typed one; a refused address is explained instead of opening a
-   * blank tab.
+   * blank tab. SEC-15: a bookmark to a file opens in a file's tab once the
+   * main process has asked the user.
    */
   async function select() {
     const check = checkTypedTabUrl(bookmark.url);
@@ -41,21 +42,12 @@ export function BookmarkListItem({ bookmark, shadow }: BookmarkListItemProps) {
       showAppError(`That page was not opened. ${check.reason}`);
       return;
     }
-    const id = await openBrowserView(check.url);
-    if (id === undefined) {
+    const tab = await openAddressInNewView(check, bookmark.title, bookmark.icon);
+    if (!tab) {
       return;
     }
-    dispatch(
-      addTab({
-        id,
-        url: check.url,
-        title: bookmark.title,
-        icon: bookmark.icon,
-        playingMedia: 0,
-        muted: false,
-      }),
-    );
-    dispatch(selectTab(id));
+    dispatch(addTab(tab));
+    dispatch(selectTab(tab.id));
   }
 
   function handleRemove() {

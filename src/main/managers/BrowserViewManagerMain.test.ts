@@ -2,7 +2,8 @@ import { EventEmitter } from "events";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BrowserViewManagerMain } from "./BrowserViewManagerMain";
 import { trustedContents } from "../security/trustedContents";
-import { TAB_PARTITION } from "../security/partitions";
+import { LOCAL_FILE_PARTITION, TAB_PARTITION } from "../security/partitions";
+import { LocalFileFolders, type LocalFilePrompt, type PromptAnswer } from "../security/localFiles";
 import {
   fakeIpcMain,
   fakePage,
@@ -50,7 +51,25 @@ class FakeWebContents extends EventEmitter {
   destroy = vi.fn();
   reload = vi.fn();
   navigationHistory = { goBack: vi.fn(), goForward: vi.fn() };
+  debugger = {
+    attached: false,
+    isAttached: vi.fn(() => this.debugger.attached),
+    attach: vi.fn(() => {
+      this.debugger.attached = true;
+    }),
+    detach: vi.fn(() => {
+      this.debugger.attached = false;
+    }),
+    sendCommand: vi.fn().mockResolvedValue({}),
+  };
 }
+
+// SEC-15: the real folder list is saved with electron-store; tests pass their own.
+vi.mock("../security/localFileStore", () => ({
+  localFileFolders: () => {
+    throw new Error("tests must pass a folder list");
+  },
+}));
 
 vi.mock("electron", async () => {
   const { fakeIpcMain } = await import("../security/testing/fakeIpc");
@@ -79,9 +98,24 @@ function fakeWindow() {
   };
 }
 
-function setup() {
+function setup({
+  answer = { response: 1, checkboxChecked: false },
+  remembered = [] as string[],
+}: { answer?: PromptAnswer; remembered?: string[] } = {}) {
   const window = fakeWindow();
-  const manager = new BrowserViewManagerMain(window as never);
+  let saved = [...remembered];
+  const localFiles = new LocalFileFolders({
+    get: () => saved,
+    set: (folders) => {
+      saved = folders;
+    },
+  });
+  const askAboutFile = vi.fn(async (_prompt: LocalFilePrompt) => answer);
+  const manager = new BrowserViewManagerMain(window as never, {
+    localFiles,
+    askAboutFile,
+    tabSleepMs: 1_000,
+  });
   const mainWindow = fakePage("main-window");
   const create = (url: string, kind?: string) => {
     const before = created.length;
@@ -101,7 +135,15 @@ function setup() {
   /** Send a message on `channel` as the main window would. */
   const send = (channel: string, ...args: unknown[]) =>
     fakeIpcMain.deliver(channel, fromMainFrame(mainWindow), ...args);
-  return { window, manager, mainWindow, create, send };
+  /** Open a file the way the address bar does (SEC-15). */
+  const openFile = async (url: string) => {
+    const before = created.length;
+    const event = fromMainFrame(mainWindow);
+    const id = (await fakeIpcMain.invoke("BROWSER_VIEW_OPEN_LOCAL_FILE", event, url, 0, 0, 100, 100)) as number;
+    const view = created.length > before ? created[created.length - 1] : undefined;
+    return { id, view, event };
+  };
+  return { window, manager, mainWindow, create, send, openFile, askAboutFile, localFiles };
 }
 
 function sentErrors(window: ReturnType<typeof fakeWindow>) {
@@ -328,5 +370,143 @@ describe("BrowserViewManagerMain: legacy requests keep working (SEC-8)", () => {
     expect(event.returnValue).toBeGreaterThan(0);
     expect(created).toHaveLength(1);
     expect(created[0].webContents.loadURL).not.toHaveBeenCalled();
+  });
+});
+
+describe("BrowserViewManagerMain: files from the user's computer (SEC-15)", () => {
+  const file = "file:///home/gm/maps/index.html";
+
+  it("asks first, then opens the file in its own partition with no preload", async () => {
+    const { openFile, askAboutFile } = setup({ answer: { response: 0, checkboxChecked: false } });
+    const { id, view } = await openFile(file);
+    expect(askAboutFile).toHaveBeenCalledTimes(1);
+    expect(askAboutFile.mock.calls[0][0].detail).toContain("/home/gm/maps/index.html");
+    expect(id).toBe(view?.webContents.id);
+    expect(view?.options.webPreferences).toEqual({ partition: LOCAL_FILE_PARTITION });
+    expect(view?.webContents.loadURL).toHaveBeenCalledWith(file);
+    expect(trustedContents.roleOf(view!.webContents)).toBeNull();
+  });
+
+  it("opens nothing when the user says no", async () => {
+    const { openFile } = setup({ answer: { response: 1, checkboxChecked: false } });
+    const { id, view } = await openFile(file);
+    expect(id).toBe(-1);
+    expect(view).toBeUndefined();
+  });
+
+  it("does not ask about a file in a remembered folder", async () => {
+    const { openFile, askAboutFile } = setup({ remembered: ["/home/gm/maps"] });
+    const { id } = await openFile(file);
+    expect(id).toBeGreaterThan(0);
+    expect(askAboutFile).not.toHaveBeenCalled();
+  });
+
+  it.each(["https://example.com/", "file://fileserver/share/x.html", "javascript:alert(1)"])(
+    "refuses %j on the file channel without asking",
+    async (url) => {
+      const { openFile, askAboutFile } = setup({ answer: { response: 0, checkboxChecked: false } });
+      expect((await openFile(url)).id).toBe(-1);
+      expect(askAboutFile).not.toHaveBeenCalled();
+      expect(created).toHaveLength(0);
+    },
+  );
+
+  it("refuses the file channel to anything but the main window", async () => {
+    const { askAboutFile } = setup({ answer: { response: 0, checkboxChecked: false } });
+    for (const event of [fromMainFrame(fakePage(null)), fromMainFrame(fakePage("player-view"))]) {
+      await expect(
+        fakeIpcMain.invoke("BROWSER_VIEW_OPEN_LOCAL_FILE", event, file, 0, 0, 100, 100),
+      ).rejects.toThrow();
+    }
+    expect(askAboutFile).not.toHaveBeenCalled();
+  });
+
+  it("never loads another address in a file's tab", async () => {
+    const { openFile, send } = setup({ answer: { response: 0, checkboxChecked: false } });
+    const { id, view } = await openFile(file);
+    view!.webContents.loadURL.mockClear();
+    send("BROWSER_VIEW_LOAD_URL", id, "https://example.com/");
+    send("BROWSER_VIEW_LOAD_URL", id, "file:///etc/passwd");
+    expect(view!.webContents.loadURL).not.toHaveBeenCalled();
+  });
+
+  it("sends a link to a web page from a file to a new website tab", async () => {
+    const { openFile, mainWindow } = setup({ answer: { response: 0, checkboxChecked: false } });
+    const { view } = await openFile(file);
+    const event = { url: "https://example.com/", isMainFrame: true, preventDefault: vi.fn() };
+    view!.webContents.emit("will-navigate", event);
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(mainWindow.send).toHaveBeenCalledWith("BROWSER_VIEW_NEW_TAB", "https://example.com/");
+  });
+
+  it("tells the main window about the file tab's title and address", async () => {
+    const { openFile, mainWindow } = setup({ answer: { response: 0, checkboxChecked: false } });
+    const { id, view } = await openFile(file);
+    view!.webContents.emit("did-start-navigation", {}, file, false, true);
+    view!.webContents.emit("page-title-updated", {}, "Maps");
+    expect(mainWindow.send).toHaveBeenCalledWith("BROWSER_VIEW_DID_NAVIGATE", id, file);
+    expect(mainWindow.send).toHaveBeenCalledWith("BROWSER_VIEW_TITLE_UPDATED", id, "Maps");
+  });
+
+  it("lists and forgets remembered folders for Settings", async () => {
+    const { mainWindow } = setup({ remembered: ["/home/gm/maps", "/home/gm/music"] });
+    const event = fromMainFrame(mainWindow);
+    await expect(fakeIpcMain.invoke("LOCAL_FILES_LIST_FOLDERS", event)).resolves.toEqual([
+      "/home/gm/maps",
+      "/home/gm/music",
+    ]);
+    await expect(fakeIpcMain.invoke("LOCAL_FILES_FORGET_FOLDER", event, "/home/gm/maps")).resolves.toEqual([
+      "/home/gm/music",
+    ]);
+  });
+});
+
+describe("BrowserViewManagerMain: hidden tabs sleep (PERF-5)", () => {
+  const lifecycle = (view: { webContents: FakeWebContents }) =>
+    view.webContents.debugger.sendCommand.mock.calls
+      .filter(([method]) => method === "Emulation.setCPUThrottlingRate")
+      .map(([, params]) => ((params as { rate: number }).rate === 1 ? "awake" : "asleep"));
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    return () => vi.useRealTimers();
+  });
+
+  it("slows down a hidden, silent website tab and wakes it when shown", async () => {
+    const { create, send } = setup();
+    const { view, id } = create("https://example.com/");
+    send("BROWSER_VIEW_HIDE_BROWSER_VIEW", id);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(lifecycle(view!)).toEqual(["asleep"]);
+    send("BROWSER_VIEW_SHOW_BROWSER_VIEW", id);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(lifecycle(view!)).toEqual(["asleep", "awake"]);
+    expect(view!.webContents.debugger.detach).toHaveBeenCalled();
+  });
+
+  it("never slows down a hidden tab that is playing sound", async () => {
+    const { create, send } = setup();
+    const { view, id } = create("https://example.com/");
+    view!.webContents.emit("audio-state-changed", { audible: true });
+    send("BROWSER_VIEW_HIDE_BROWSER_VIEW", id);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(lifecycle(view!)).toEqual([]);
+  });
+
+  it("never slows down the player", async () => {
+    const { create, send } = setup();
+    const { view, id } = create(PLAYER_URL, "player");
+    send("BROWSER_VIEW_HIDE_BROWSER_VIEW", id);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(lifecycle(view!)).toEqual([]);
+  });
+
+  it("stops counting for a closed tab", async () => {
+    const { create, send } = setup();
+    const { view, id } = create("https://example.com/");
+    send("BROWSER_VIEW_HIDE_BROWSER_VIEW", id);
+    send("BROWSER_VIEW_REMOVE_BROWSER_VIEW", id);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(lifecycle(view!)).toEqual([]);
   });
 });

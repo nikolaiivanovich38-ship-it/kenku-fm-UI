@@ -119,6 +119,8 @@ const api = {
   reload: (id: number) => {
     viewManager.reload(id);
   },
+  openLocalFile: viewManager.openLocalFile,
+  localFileFolders: viewManager.localFileFolders,
   on: (channel: Channel, callback: (...args: any[]) => any) => {
     if (validChannels.includes(channel)) {
       const newCallback = (_: any, ...args: any[]) => callback(args);

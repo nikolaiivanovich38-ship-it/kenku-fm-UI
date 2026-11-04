@@ -1,6 +1,6 @@
 import { session, type Session } from "electron";
 import { getMalformedUserAgent, getUserAgent } from "../userAgent";
-import { TAB_PARTITION } from "./partitions";
+import { LOCAL_FILE_PARTITION, TAB_PARTITION } from "./partitions";
 import { isPermissionAllowed } from "./permissions";
 import { trustedContents } from "./trustedContents";
 import { captureTargets } from "./captureTargets";
@@ -8,10 +8,16 @@ import { captureTargets } from "./captureTargets";
 /**
  * SEC-3: the app's own pages use the default session; website tabs use
  * the separate persistent `TAB_PARTITION` session so they never share
- * cookies or storage with Kenku FM itself.
+ * cookies or storage with Kenku FM itself. SEC-15: files from the user's
+ * computer use `LOCAL_FILE_PARTITION`, apart from both, with the same
+ * deny-by-default permission handler as websites.
  */
 function allSessions(): Session[] {
-  return [session.defaultSession, session.fromPartition(TAB_PARTITION)];
+  return [
+    session.defaultSession,
+    session.fromPartition(TAB_PARTITION),
+    session.fromPartition(LOCAL_FILE_PARTITION),
+  ];
 }
 
 /** Google blocks sign-in from embedded browsers, so it gets a user agent without the Chrome token. */
@@ -65,7 +71,7 @@ export function secureSessions(): void {
   }
 }
 
-/** "Clear cache" in Settings: wipe caches and cookies for the app and for website tabs. */
+/** "Clear cache" in Settings: wipe caches and cookies for the app, website tabs and local-file tabs. */
 export async function clearBrowsingData(): Promise<void> {
   for (const target of allSessions()) {
     await target.clearCache();

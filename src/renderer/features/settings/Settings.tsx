@@ -37,6 +37,7 @@ import {
   StreamingMode,
 } from "./settingsSlice";
 import { showWindowControls } from "../../common/showWindowControls";
+import { LocalFilesSettings } from "./LocalFilesSettings";
 
 type SettingsProps = {
   open: boolean;
@@ -369,6 +370,7 @@ export function Settings({ open, onClose }: SettingsProps) {
         <Divider sx={{ mb: 2 }} />
         <DialogContentText>Other</DialogContentText>
         {otherSettings}
+        <LocalFilesSettings />
         <Stack my={1}>
           <Typography
             variant="caption"
