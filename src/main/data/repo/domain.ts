@@ -141,9 +141,9 @@ export function getDomainLookup(store: Store): DomainLookup {
     },
     tracks() {
       if (!all) {
-        // Library order: the order tracks were added.
+        // Library order: the order tracks were added (added_seq, kept by undo).
         const profiles = ownProfiles(store, "all");
-        all = store.all<DomainTrackRow>(`${TRACK_SELECT} ORDER BY rowid`).map((row) => toTrack(row, profiles));
+        all = store.all<DomainTrackRow>(`${TRACK_SELECT} ORDER BY added_seq`).map((row) => toTrack(row, profiles));
         for (const track of all) tracks.set(track.id, track);
       }
       return all;

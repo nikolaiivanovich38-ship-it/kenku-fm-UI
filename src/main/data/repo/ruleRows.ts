@@ -107,7 +107,7 @@ export function readRules(store: Store, playlists: RuleSettings[]): Map<string, 
 }
 
 /**
- * The SQL that lists the tracks a dynamic playlist plays, in library order:
+ * The SQL that lists the tracks a dynamic playlist plays, in library order (added_seq):
  * the same answer as playlistTracks in src/common/domain (tested against it),
  * worked out in the database through track_tags' indexes. When the rule has a
  * condition that needs a tag, the tracks with that tag are the starting set
@@ -168,7 +168,7 @@ export function dynamicTracksQuery(store: Store, playlistId: string): { sql: str
     where.unshift(driver);
     params.unshift(...driverParams);
   }
-  return { sql: `SELECT t.id FROM tracks t WHERE ${where.join(" AND ")} ORDER BY t.rowid`, params };
+  return { sql: `SELECT t.id FROM tracks t WHERE ${where.join(" AND ")} ORDER BY t.added_seq`, params };
 }
 
 /**

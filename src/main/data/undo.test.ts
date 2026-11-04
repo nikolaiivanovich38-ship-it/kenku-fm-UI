@@ -14,6 +14,7 @@ import * as tags from "./repo/tags";
 import * as campaigns from "./repo/campaigns";
 import * as profiles from "./repo/profiles";
 import { search } from "./repo/search";
+import { getDomainLookup } from "./repo/domain";
 
 function setup(limit?: number) {
   const clock = makeClock();
@@ -249,6 +250,26 @@ describe("undo history", () => {
     t.store.clearHistory();
     expect(t.history.state()).toEqual({ canUndo: false, canRedo: false, undoLabel: null, redoLabel: null });
     expect(() => t.store.change("x", () => t.store.clearHistory())).toThrow(/while a change/);
+  });
+
+  it("keeps library order (the order tracks were added) through delete and undo, and through VACUUM (DB review 3)", () => {
+    const [a, b, c, d] = tracks.createTracks(
+      t.store,
+      ["a", "b", "c", "d"].map((title) => ({ title, file: { path: `/m/${title}.mp3` } })),
+    );
+    const everything = playlists.createPlaylist(t.store, { title: "All music", kind: "dynamic", rule: { conds: [] } });
+    const order = () => ({
+      lookup: [...getDomainLookup(t.store).tracks()].map((x) => x.title).join(""),
+      playlist: playlists.listPlaylistTrackIds(t.store, everything.id).map((id) => tracks.getTrack(t.store, id)!.title).join(""),
+    });
+    tracks.deleteTracks(t.store, [a.id, c.id]);
+    t.history.undo();
+    expect(order()).toEqual({ lookup: "abcd", playlist: "abcd" });
+    t.history.redo();
+    t.history.undo();
+    t.db.exec("VACUUM");
+    expect(order()).toEqual({ lookup: "abcd", playlist: "abcd" });
+    expect([b, d].map((x) => tracks.getTrack(t.store, x.id)!.title)).toEqual(["b", "d"]);
   });
 
   it("names each step so the interface can say what Undo will do", () => {

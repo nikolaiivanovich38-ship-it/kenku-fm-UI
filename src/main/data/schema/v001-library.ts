@@ -52,7 +52,11 @@ CREATE TABLE library_roots (
 -- relative to it, "/" separators), an absolute path (root_id NULL), or a web address (url).
 -- Size, modified time and checksum help relink moved files (DAT-8).
 CREATE TABLE tracks (
-  id TEXT PRIMARY KEY,
+  -- Library order, the order tracks were added (dynamic playlists, the Library): an explicit key, so
+  -- undo puts a deleted track back in its place and VACUUM cannot renumber it (DB review 3).
+  -- AUTOINCREMENT never hands out a number again, so a restored track cannot clash with a newer one.
+  added_seq INTEGER PRIMARY KEY AUTOINCREMENT,
+  id TEXT NOT NULL UNIQUE,
   kind TEXT NOT NULL DEFAULT 'music' CHECK (kind IN ('music', 'amb', 'fx')),
   -- The game master's title; empty until given one (screens then show meta_title, then file_name).
   title TEXT NOT NULL DEFAULT '',
