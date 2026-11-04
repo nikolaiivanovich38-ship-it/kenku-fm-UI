@@ -1,12 +1,11 @@
 /**
  * Every schema version, in order. Append new steps; never change released ones.
- * Cue lists and pad actions (WPD) will be step 4 or later.
+ * Version 1 is the whole library as first released (DB review item 8 folded the
+ * unreleased steps of waves 1 and 2 into it).
  */
 import type { Migration } from "./migrate";
-import { v001Initial } from "./v001-initial";
-import { v002Design } from "./v002-design";
-import { v003Import } from "./v003-import";
+import { v001Library } from "./v001-library";
 
-export const MIGRATIONS: readonly Migration[] = [v001Initial, v002Design, v003Import];
+export const MIGRATIONS: readonly Migration[] = [v001Library];
 
 export { migrate, rebuildTable, schemaVersion, type Migration, type MigrationResult } from "./migrate";

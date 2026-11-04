@@ -1,8 +1,12 @@
 /**
- * Schema version 2 (DAT-11): the agreed design, Lyre design round 4
- * (design/prototype; shapes in src/common/domain), normalised for this app's
- * read paths. docs/data-model.md explains every table, key, constraint and
- * index, the normal form each meets and the deliberate exceptions.
+ * Schema version 1: the whole library (DAT-11), the agreed design (Lyre design
+ * round 4, design/prototype; shapes in src/common/domain), normalised for this
+ * app's read paths. docs/data-model.md explains every table, key, constraint
+ * and index, the normal form each meets and the deliberate exceptions.
+ *
+ * Nothing was released before this step, so the three steps written during
+ * waves 1 and 2 (the first schema, the design round 4 rebuild and the import
+ * stream's additions) are folded into this one (DB review item 8).
  *
  * Principles
  * - Third normal form: one fact in one place, no lists inside a column.
@@ -10,221 +14,186 @@
  *   ../ordering.ts) that is UNIQUE within its list. A reference that may be a
  *   track or a playlist is two nullable foreign keys with a CHECK that exactly
  *   one is set, so ON DELETE rules work.
- * - JSON only for self-contained values the database never queries: a track's
- *   default transition in and out (version 1, read whole by the engine).
- *   Dynamic playlist rules, audio profiles and pad sounds are rows.
+ * - JSON only for self-contained values the database never queries (a long
+ *   job's report in library_jobs).
  * - Integrity in the schema: foreign keys with explicit ON DELETE, CHECK
  *   constraints for every list of choices and every range, UNIQUE natural keys
- *   and positions, a partial unique index for "one next session per campaign",
- *   and triggers only where a rule spans two tables. Version 1 checked choices
- *   in the repository so a choice could be added without rebuilding a table;
- *   this step rebuilds those tables with CHECKs, and a later choice is added
- *   the same way (rebuildTable).
+ *   and positions, partial unique indexes, and triggers only where a rule spans
+ *   two tables. A later choice is added with rebuildTable in a new step.
  * - Every index serves a named read path (the comment above it).
  *
- * The step: drops version 1's triggers and indexes, rebuilds the version-1
- * tables that gain constraints or columns (copying every row), creates the new
- * tables, carries soundboard entries and scene items over, declares every
- * index, then rebuilds the search index and its triggers.
  * Frozen once released: later changes go in a new step.
  */
+import { randomUUID } from "crypto";
 import type { DatabaseSync } from "../sqlite";
-import { rebuildTable, type Migration } from "./migrate";
+import type { Migration } from "./migrate";
 
 /** Gap between positions of rows created here (as ../ordering.ts GAP; kept here so this step never changes). */
 const GAP = 1024;
-/** Columns of the grid that version-1 soundboard sounds are laid out on. */
-const CONVERTED_COLUMNS = 4;
-const MAX_GRID = 8;
+
+/** Offered to a new library (DAT-10, design round 4); the game master can rename or delete any of it. */
+export const DEFAULT_TAG_GROUPS = ["Mood", "Leitmotif", "Scene type"] as const;
+export const DEFAULT_MOOD_TAGS = ["Melancholy", "Heroic", "Tense", "Wistful", "Warm", "Triumphant", "Eerie"] as const;
 
 /** A colour written #rrggbb in lower case (validate.ts nullableColor), or NULL. */
 const COLOR = (column: string) =>
   `CHECK (${column} IS NULL OR (length(${column}) = 7 AND ${column} GLOB '#[0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]'))`;
 
-/**
- * Version-1 tables rebuilt with their final definition: [table, columns and
- * constraints, version-1 columns copied]. Rows keep their order.
- */
-const REBUILT: [table: string, definition: string, copied: string[]][] = [
-  [
-    "tracks",
-    `id TEXT PRIMARY KEY,
-     kind TEXT NOT NULL DEFAULT 'music' CHECK (kind IN ('music', 'amb', 'fx')),
-     -- The game master's title; empty until given one (screens then show meta_title, then file_name).
-     title TEXT NOT NULL DEFAULT '',
-     -- The title in the file's tags.
-     meta_title TEXT NOT NULL DEFAULT '',
-     root_id TEXT REFERENCES library_roots (id) ON DELETE RESTRICT,
-     path TEXT,
-     url TEXT,
-     file_name TEXT NOT NULL DEFAULT '',
-     file_size INTEGER CHECK (file_size IS NULL OR file_size >= 0),
-     file_mtime_ms INTEGER,
-     checksum TEXT,
-     duration_ms INTEGER CHECK (duration_ms IS NULL OR duration_ms >= 0),
-     energy INTEGER CHECK (energy IS NULL OR energy BETWEEN 1 AND 5),
-     arc TEXT CHECK (arc IS NULL OR arc IN ('builds', 'steady', 'swells', 'resolves')),
-     role TEXT CHECK (role IS NULL OR role IN ('loop_bed', 'underscore', 'sting', 'transition', 'effect')),
-     loopable TEXT CHECK (loopable IS NULL OR loopable IN ('yes', 'crossfade', 'no')),
-     ending TEXT CHECK (ending IS NULL OR ending IN ('fades', 'hard_stop', 'resolves')),
-     -- JSON by design: a self-contained Transition value (../types.ts) the engine reads whole; never queried.
-     transition_in TEXT CHECK (transition_in IS NULL OR json_valid(transition_in)),
-     transition_out TEXT CHECK (transition_out IS NULL OR json_valid(transition_out)),
-     follow_required INTEGER NOT NULL DEFAULT 0 CHECK (follow_required IN (0, 1)),
-     notes TEXT NOT NULL DEFAULT '',
-     -- Artist (composer) and album, from the file's tags or typed in.
-     source_composer TEXT,
-     source_album TEXT,
-     source_cue_number TEXT,
-     rating INTEGER CHECK (rating IS NULL OR rating BETWEEN 1 AND 5),
-     last_used_at INTEGER,
-     created_at INTEGER NOT NULL,
-     updated_at INTEGER NOT NULL,
-     CHECK ((path IS NULL) <> (url IS NULL)),
-     CHECK (root_id IS NULL OR path IS NOT NULL)`,
-    [
-      "id", "title", "root_id", "path", "url", "file_name", "file_size", "file_mtime_ms", "checksum", "duration_ms",
-      "energy", "arc", "role", "loopable", "ending", "transition_in", "transition_out", "follow_required", "notes",
-      "source_composer", "source_album", "source_cue_number", "rating", "last_used_at", "created_at", "updated_at",
-    ],
-  ],
-  [
-    "markers",
-    `id TEXT PRIMARY KEY,
-     track_id TEXT NOT NULL REFERENCES tracks (id) ON DELETE CASCADE,
-     time_ms INTEGER NOT NULL CHECK (time_ms >= 0),
-     kind TEXT NOT NULL CHECK (kind IN ('marker', 'loop_in', 'loop_out', 'mix_out')),
-     label TEXT NOT NULL DEFAULT '',
-     created_at INTEGER NOT NULL`,
-    ["id", "track_id", "time_ms", "kind", "label", "created_at"],
-  ],
-  [
-    "folders",
-    `id TEXT PRIMARY KEY,
-     scope TEXT NOT NULL CHECK (scope IN ('playlists', 'boards', 'sessions')),
-     -- Deleting a folder moves its contents up first (repository); SET NULL is a safety net.
-     parent_id TEXT REFERENCES folders (id) ON DELETE SET NULL,
-     name TEXT NOT NULL,
-     color TEXT ${COLOR("color")},
-     collapsed INTEGER NOT NULL DEFAULT 0 CHECK (collapsed IN (0, 1)),
-     position REAL NOT NULL`,
-    ["id", "scope", "parent_id", "name", "color", "collapsed", "position"],
-  ],
-  [
-    "playlists",
-    `id TEXT PRIMARY KEY,
-     title TEXT NOT NULL,
-     background TEXT NOT NULL DEFAULT '',
-     folder_id TEXT REFERENCES folders (id) ON DELETE SET NULL,
-     position REAL NOT NULL,
-     -- manual: tracks picked by hand (playlist_items); dynamic: every track in its lane matching its rule.
-     kind TEXT NOT NULL DEFAULT 'manual' CHECK (kind IN ('manual', 'dynamic')),
-     lane TEXT NOT NULL DEFAULT 'music' CHECK (lane IN ('music', 'amb', 'fx')),
-     -- A dynamic playlist's rule settings (its conditions are rule_conditions rows).
-     rule_energy_min INTEGER CHECK (rule_energy_min BETWEEN 0 AND 5),
-     rule_energy_max INTEGER CHECK (rule_energy_max BETWEEN 0 AND 5),
-     rule_leave_out_stings INTEGER NOT NULL DEFAULT 0 CHECK (rule_leave_out_stings IN (0, 1)),
-     notes TEXT NOT NULL DEFAULT '',
-     created_at INTEGER NOT NULL,
-     updated_at INTEGER NOT NULL,
-     CHECK ((rule_energy_min IS NULL) = (rule_energy_max IS NULL)),
-     CHECK (rule_energy_min IS NULL OR rule_energy_min <= rule_energy_max),
-     CHECK (kind = 'dynamic' OR (rule_energy_min IS NULL AND rule_leave_out_stings = 0))`,
-    ["id", "title", "background", "folder_id", "position", "created_at", "updated_at"],
-  ],
-  [
-    "playlist_items",
-    `id TEXT PRIMARY KEY,
-     playlist_id TEXT NOT NULL REFERENCES playlists (id) ON DELETE CASCADE,
-     kind TEXT NOT NULL CHECK (kind IN ('track', 'divider')),
-     track_id TEXT REFERENCES tracks (id) ON DELETE CASCADE,
-     label TEXT NOT NULL DEFAULT '',
-     position REAL NOT NULL,
-     CHECK ((kind = 'track') = (track_id IS NOT NULL))`,
-    ["id", "playlist_id", "kind", "track_id", "label", "position"],
-  ],
-  [
-    "boards",
-    `id TEXT PRIMARY KEY,
-     title TEXT NOT NULL,
-     background TEXT NOT NULL DEFAULT '',
-     folder_id TEXT REFERENCES folders (id) ON DELETE SET NULL,
-     position REAL NOT NULL,
-     grid_cols INTEGER NOT NULL DEFAULT 4 CHECK (grid_cols BETWEEN 1 AND 8),
-     grid_rows INTEGER NOT NULL DEFAULT 3 CHECK (grid_rows BETWEEN 1 AND 8),
-     created_at INTEGER NOT NULL,
-     updated_at INTEGER NOT NULL`,
-    ["id", "title", "background", "folder_id", "position", "created_at", "updated_at"],
-  ],
-  [
-    "campaigns",
-    `id TEXT PRIMARY KEY,
-     name TEXT NOT NULL,
-     color TEXT ${COLOR("color")},
-     notes TEXT NOT NULL DEFAULT '',
-     theme TEXT NOT NULL DEFAULT 'candle' CHECK (theme IN ('fern', 'hearth', 'candle', 'parchment', 'elysium')),
-     system TEXT NOT NULL DEFAULT '',
-     description TEXT NOT NULL DEFAULT '',
-     -- Obsidian links (not used yet): the vault, the campaign's note, the folder of session notes.
-     obsidian_vault TEXT NOT NULL DEFAULT '',
-     obsidian_note TEXT NOT NULL DEFAULT '',
-     obsidian_sessions TEXT NOT NULL DEFAULT '',
-     position REAL NOT NULL,
-     created_at INTEGER NOT NULL,
-     updated_at INTEGER NOT NULL`,
-    ["id", "name", "color", "notes", "position", "created_at", "updated_at"],
-  ],
-  [
-    "sessions",
-    `id TEXT PRIMARY KEY,
-     campaign_id TEXT NOT NULL REFERENCES campaigns (id) ON DELETE CASCADE,
-     folder_id TEXT REFERENCES folders (id) ON DELETE SET NULL,
-     -- "Session 14": unique within the campaign (a natural key).
-     number INTEGER NOT NULL CHECK (number >= 0),
-     name TEXT NOT NULL DEFAULT '',
-     notes TEXT NOT NULL DEFAULT '',
-     -- Calendar date YYYY-MM-DD, planned or played (version 1: played_on).
-     session_date TEXT CHECK (session_date IS NULL OR session_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
-     status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('played', 'next', 'draft')),
-     note_link TEXT NOT NULL DEFAULT '',
-     position REAL NOT NULL,
-     created_at INTEGER NOT NULL,
-     updated_at INTEGER NOT NULL`,
-    ["id", "campaign_id", "folder_id", "number", "name", "notes", "session_date", "status", "position", "created_at", "updated_at"],
-  ],
-  [
-    "scenes",
-    `id TEXT PRIMARY KEY,
-     session_id TEXT NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,
-     name TEXT NOT NULL DEFAULT '',
-     -- One line: when the scene starts, for example "Roll initiative".
-     starts_when TEXT NOT NULL DEFAULT '',
-     notes TEXT NOT NULL DEFAULT '',
-     note_link TEXT NOT NULL DEFAULT '',
-     position REAL NOT NULL,
-     created_at INTEGER NOT NULL,
-     updated_at INTEGER NOT NULL`,
-    ["id", "session_id", "name", "notes", "position", "created_at", "updated_at"],
-  ],
-  [
-    "campaign_playlists",
-    `campaign_id TEXT NOT NULL REFERENCES campaigns (id) ON DELETE CASCADE,
-     playlist_id TEXT NOT NULL REFERENCES playlists (id) ON DELETE CASCADE,
-     position REAL NOT NULL DEFAULT 0,
-     PRIMARY KEY (campaign_id, playlist_id)`,
-    ["campaign_id", "playlist_id"],
-  ],
-  [
-    "campaign_boards",
-    `campaign_id TEXT NOT NULL REFERENCES campaigns (id) ON DELETE CASCADE,
-     board_id TEXT NOT NULL REFERENCES boards (id) ON DELETE CASCADE,
-     position REAL NOT NULL DEFAULT 0,
-     PRIMARY KEY (campaign_id, board_id)`,
-    ["campaign_id", "board_id"],
-  ],
-];
+const TABLES = `
+-- Named library folders (DAT-8): tracks under one store their path relative to it.
+CREATE TABLE library_roots (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  path TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
 
-const NEW_TABLES = `
+-- One row per audio file (DAT-1). Its file is a path under a library root (root_id + path
+-- relative to it, "/" separators), an absolute path (root_id NULL), or a web address (url).
+-- Size, modified time and checksum help relink moved files (DAT-8).
+CREATE TABLE tracks (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL DEFAULT 'music' CHECK (kind IN ('music', 'amb', 'fx')),
+  -- The game master's title; empty until given one (screens then show meta_title, then file_name).
+  title TEXT NOT NULL DEFAULT '',
+  -- The title in the file's tags.
+  meta_title TEXT NOT NULL DEFAULT '',
+  root_id TEXT REFERENCES library_roots (id) ON DELETE RESTRICT,
+  path TEXT,
+  url TEXT,
+  file_name TEXT NOT NULL DEFAULT '',
+  file_size INTEGER CHECK (file_size IS NULL OR file_size >= 0),
+  file_mtime_ms INTEGER,
+  checksum TEXT,
+  duration_ms INTEGER CHECK (duration_ms IS NULL OR duration_ms >= 0),
+  energy INTEGER CHECK (energy IS NULL OR energy BETWEEN 1 AND 5),
+  arc TEXT CHECK (arc IS NULL OR arc IN ('builds', 'steady', 'swells', 'resolves')),
+  role TEXT CHECK (role IS NULL OR role IN ('loop_bed', 'underscore', 'sting', 'transition', 'effect')),
+  loopable TEXT CHECK (loopable IS NULL OR loopable IN ('yes', 'crossfade', 'no')),
+  ending TEXT CHECK (ending IS NULL OR ending IN ('fades', 'hard_stop', 'resolves')),
+  -- JSON by design: a self-contained Transition value (../types.ts) the engine reads whole; never queried.
+  transition_in TEXT CHECK (transition_in IS NULL OR json_valid(transition_in)),
+  transition_out TEXT CHECK (transition_out IS NULL OR json_valid(transition_out)),
+  follow_required INTEGER NOT NULL DEFAULT 0 CHECK (follow_required IN (0, 1)),
+  notes TEXT NOT NULL DEFAULT '',
+  -- Artist (composer) and album, from the file's tags or typed in.
+  source_composer TEXT,
+  source_album TEXT,
+  source_cue_number TEXT,
+  rating INTEGER CHECK (rating IS NULL OR rating BETWEEN 1 AND 5),
+  last_used_at INTEGER,
+  -- New: added by an import and not yet given a title of its own and a tag (the Library's New badge).
+  is_new INTEGER NOT NULL DEFAULT 0 CHECK (is_new IN (0, 1)),
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  CHECK ((path IS NULL) <> (url IS NULL)),
+  CHECK (root_id IS NULL OR path IS NOT NULL)
+);
+
+-- "Follow with" suggestions (DAT-2, SHW-3): what to cue after this track, in order.
+CREATE TABLE track_follow_with (
+  track_id TEXT NOT NULL REFERENCES tracks (id) ON DELETE CASCADE,
+  follow_track_id TEXT NOT NULL REFERENCES tracks (id) ON DELETE CASCADE,
+  position REAL NOT NULL,
+  PRIMARY KEY (track_id, follow_track_id),
+  CHECK (track_id <> follow_track_id)
+) WITHOUT ROWID;
+
+-- Named points in a track (DAT-3), searchable.
+CREATE TABLE markers (
+  id TEXT PRIMARY KEY,
+  track_id TEXT NOT NULL REFERENCES tracks (id) ON DELETE CASCADE,
+  time_ms INTEGER NOT NULL CHECK (time_ms >= 0),
+  kind TEXT NOT NULL CHECK (kind IN ('marker', 'loop_in', 'loop_out', 'mix_out')),
+  label TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL
+);
+
+-- Nested folders (ORG-4). Deleting a folder moves its contents up first (repository); SET NULL is a safety net.
+CREATE TABLE folders (
+  id TEXT PRIMARY KEY,
+  scope TEXT NOT NULL CHECK (scope IN ('playlists', 'boards', 'sessions')),
+  parent_id TEXT REFERENCES folders (id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  color TEXT ${COLOR("color")},
+  collapsed INTEGER NOT NULL DEFAULT 0 CHECK (collapsed IN (0, 1)),
+  position REAL NOT NULL
+);
+
+CREATE TABLE playlists (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  -- A picture name ("tavern") or an address.
+  background TEXT NOT NULL DEFAULT '',
+  folder_id TEXT REFERENCES folders (id) ON DELETE SET NULL,
+  position REAL NOT NULL,
+  -- manual: tracks picked by hand (playlist_items); dynamic: every track in its lane matching its rule.
+  kind TEXT NOT NULL DEFAULT 'manual' CHECK (kind IN ('manual', 'dynamic')),
+  lane TEXT NOT NULL DEFAULT 'music' CHECK (lane IN ('music', 'amb', 'fx')),
+  -- A dynamic playlist's rule settings (its conditions are rule_conditions rows).
+  rule_energy_min INTEGER CHECK (rule_energy_min BETWEEN 0 AND 5),
+  rule_energy_max INTEGER CHECK (rule_energy_max BETWEEN 0 AND 5),
+  rule_leave_out_stings INTEGER NOT NULL DEFAULT 0 CHECK (rule_leave_out_stings IN (0, 1)),
+  notes TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  CHECK ((rule_energy_min IS NULL) = (rule_energy_max IS NULL)),
+  CHECK (rule_energy_min IS NULL OR rule_energy_min <= rule_energy_max),
+  CHECK (kind = 'dynamic' OR (rule_energy_min IS NULL AND rule_leave_out_stings = 0))
+);
+
+-- A manual playlist's entries in order: a track, or a divider with a label (ORG-4).
+CREATE TABLE playlist_items (
+  id TEXT PRIMARY KEY,
+  playlist_id TEXT NOT NULL REFERENCES playlists (id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK (kind IN ('track', 'divider')),
+  track_id TEXT REFERENCES tracks (id) ON DELETE CASCADE,
+  label TEXT NOT NULL DEFAULT '',
+  position REAL NOT NULL,
+  CHECK ((kind = 'track') = (track_id IS NOT NULL))
+);
+
+CREATE TABLE boards (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  background TEXT NOT NULL DEFAULT '',
+  folder_id TEXT REFERENCES folders (id) ON DELETE SET NULL,
+  position REAL NOT NULL,
+  grid_cols INTEGER NOT NULL DEFAULT 4 CHECK (grid_cols BETWEEN 1 AND 8),
+  grid_rows INTEGER NOT NULL DEFAULT 3 CHECK (grid_rows BETWEEN 1 AND 8),
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+-- Tag vocabulary (DAT-10): groups hold tags; a tag may have a parent and synonyms.
+CREATE TABLE tag_groups (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  color TEXT,
+  position REAL NOT NULL
+);
+
+CREATE TABLE tags (
+  id TEXT PRIMARY KEY,
+  group_id TEXT NOT NULL REFERENCES tag_groups (id) ON DELETE CASCADE,
+  parent_id TEXT REFERENCES tags (id) ON DELETE SET NULL,
+  name TEXT NOT NULL,
+  color TEXT,
+  position REAL NOT NULL
+);
+
+CREATE TABLE tag_synonyms (
+  tag_id TEXT NOT NULL REFERENCES tags (id) ON DELETE CASCADE,
+  synonym TEXT NOT NULL COLLATE NOCASE,
+  PRIMARY KEY (tag_id, synonym)
+) WITHOUT ROWID;
+
+CREATE TABLE track_tags (
+  track_id TEXT NOT NULL REFERENCES tracks (id) ON DELETE CASCADE,
+  tag_id TEXT NOT NULL REFERENCES tags (id) ON DELETE CASCADE,
+  PRIMARY KEY (track_id, tag_id)
+) WITHOUT ROWID;
+
 -- A pad sits in one grid cell (grid_row, grid_col, from 0) or waits among the
 -- spare pads (spare_position); never both, never neither. Shrinking a board
 -- moves pads outside the new size to spare (repository), so nothing is lost.
@@ -284,6 +253,69 @@ CREATE TABLE rule_condition_tags (
   PRIMARY KEY (condition_id, tag_id),
   FOREIGN KEY (condition_id, group_id) REFERENCES rule_conditions (id, group_id) ON DELETE CASCADE,
   FOREIGN KEY (group_id, tag_id) REFERENCES tags (group_id, id) ON DELETE CASCADE
+);
+
+-- Campaigns > sessions > scenes (ORG-7).
+CREATE TABLE campaigns (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  color TEXT ${COLOR("color")},
+  notes TEXT NOT NULL DEFAULT '',
+  theme TEXT NOT NULL DEFAULT 'candle' CHECK (theme IN ('fern', 'hearth', 'candle', 'parchment', 'elysium')),
+  system TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL DEFAULT '',
+  -- Obsidian links (not used yet): the vault, the campaign's note, the folder of session notes.
+  obsidian_vault TEXT NOT NULL DEFAULT '',
+  obsidian_note TEXT NOT NULL DEFAULT '',
+  obsidian_sessions TEXT NOT NULL DEFAULT '',
+  position REAL NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE sessions (
+  id TEXT PRIMARY KEY,
+  campaign_id TEXT NOT NULL REFERENCES campaigns (id) ON DELETE CASCADE,
+  folder_id TEXT REFERENCES folders (id) ON DELETE SET NULL,
+  -- "Session 14": unique within the campaign (a natural key).
+  number INTEGER NOT NULL CHECK (number >= 0),
+  name TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  -- Calendar date YYYY-MM-DD, planned or played.
+  session_date TEXT CHECK (session_date IS NULL OR session_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('played', 'next', 'draft')),
+  note_link TEXT NOT NULL DEFAULT '',
+  position REAL NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE scenes (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,
+  name TEXT NOT NULL DEFAULT '',
+  -- One line: when the scene starts, for example "Roll initiative".
+  starts_when TEXT NOT NULL DEFAULT '',
+  notes TEXT NOT NULL DEFAULT '',
+  note_link TEXT NOT NULL DEFAULT '',
+  position REAL NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+-- What a campaign and a session use all along, in order; the library itself is shared.
+CREATE TABLE campaign_playlists (
+  campaign_id TEXT NOT NULL REFERENCES campaigns (id) ON DELETE CASCADE,
+  playlist_id TEXT NOT NULL REFERENCES playlists (id) ON DELETE CASCADE,
+  position REAL NOT NULL DEFAULT 0,
+  PRIMARY KEY (campaign_id, playlist_id)
+);
+
+CREATE TABLE campaign_boards (
+  campaign_id TEXT NOT NULL REFERENCES campaigns (id) ON DELETE CASCADE,
+  board_id TEXT NOT NULL REFERENCES boards (id) ON DELETE CASCADE,
+  position REAL NOT NULL DEFAULT 0,
+  PRIMARY KEY (campaign_id, board_id)
 );
 
 CREATE TABLE session_playlists (
@@ -352,8 +384,7 @@ CREATE TABLE audio_profiles (
 );
 
 -- Named points of one profile, in order (PLY-12). Separate from a track's markers
--- (DAT-3), which are searchable and typed (loop in, mix out); a profile's markers
--- belong to that profile and may differ per place.
+-- (DAT-3), which are searchable; a profile's markers belong to that profile and may differ per place.
 CREATE TABLE audio_profile_markers (
   profile_id TEXT NOT NULL REFERENCES audio_profiles (id) ON DELETE CASCADE,
   position INTEGER NOT NULL CHECK (position >= 0),
@@ -361,14 +392,38 @@ CREATE TABLE audio_profile_markers (
   label TEXT NOT NULL DEFAULT '',
   PRIMARY KEY (profile_id, position)
 );
+
+-- Long jobs that must run once and survive a crash (moving the old player's library in,
+-- ../import/legacy.ts): their state and a JSON report. Bookkeeping, written outside undo.
+CREATE TABLE library_jobs (
+  -- For example 'legacy-player'.
+  name TEXT PRIMARY KEY,
+  state TEXT NOT NULL CHECK (state IN ('running', 'done')),
+  -- The job's own record (what it has done, its report), read whole.
+  detail TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(detail)),
+  started_at INTEGER NOT NULL,
+  finished_at INTEGER
+);
+
+-- Full-text search (ORG-1). One document per searchable row; doc_id is the FTS rowid
+-- (text ids cannot be FTS rowids). Derived: written only by the search triggers.
+CREATE TABLE search_docs (
+  doc_id INTEGER PRIMARY KEY,
+  kind TEXT NOT NULL,
+  ref_id TEXT NOT NULL,
+  UNIQUE (kind, ref_id)
+);
+CREATE VIRTUAL TABLE search_fts USING fts5 (
+  title, meta_title, file_name, artist, album, tags, markers, notes, cue,
+  tokenize = 'unicode61 remove_diacritics 2',
+  prefix = '1 2 3'
+);
 `;
 
 /**
- * Every index of the library, each with the read path it serves. Version 1's
- * indexes are dropped first and the ones still wanted are declared again here,
- * so the whole list is in one place. "Uses of" paths are the "Used in" lists
- * and the questions asked before deleting; ON DELETE CASCADE and SET NULL use
- * the same indexes to find child rows.
+ * Every index of the library, each with the read path it serves. "Uses of"
+ * paths are the "Used in" lists and the questions asked before deleting;
+ * ON DELETE CASCADE and SET NULL use the same indexes to find child rows.
  */
 const INDEXES = `
 -- Natural keys.
@@ -388,6 +443,8 @@ CREATE INDEX tracks_role ON tracks (role, energy) WHERE role IS NOT NULL;
 CREATE INDEX tracks_root ON tracks (root_id) WHERE root_id IS NOT NULL;
 -- Library: finding a file again by name (relinking, DAT-8).
 CREATE INDEX tracks_file_name ON tracks (file_name COLLATE NOCASE);
+-- The Library's "New, not tagged yet" filter and its count (NEW_TRACKS_SQL, repo/tracks.ts).
+CREATE INDEX tracks_new ON tracks (is_new) WHERE is_new = 1;
 -- Tracks by tag: dynamic playlists and the library's tag filter.
 CREATE INDEX track_tags_tag ON track_tags (tag_id);
 -- A track's markers in time order.
@@ -470,8 +527,10 @@ CREATE INDEX audio_profiles_track ON audio_profiles (track_id);
  * Rules a CHECK cannot express because they span two tables: a manual playlist
  * has no conditions and a dynamic one no entries, and a playlist keeps its kind.
  * A missing playlist (rows replayed by undo, child first) is left to the foreign key.
+ * A new track settles (is no longer New) once it has a title of its own and a tag,
+ * as the prototype's `settle` does; undo puts the mark back, since trigger writes are captured.
  */
-const KIND_TRIGGERS = `
+const INTEGRITY_TRIGGERS = `
 CREATE TRIGGER rule_conditions_dynamic_only BEFORE INSERT ON rule_conditions
   WHEN (SELECT kind FROM playlists WHERE id = NEW.playlist_id) = 'manual'
   BEGIN SELECT RAISE(ABORT, 'A manual playlist has no rule.'); END;
@@ -481,24 +540,21 @@ CREATE TRIGGER playlist_items_manual_only BEFORE INSERT ON playlist_items
 CREATE TRIGGER playlists_kind_fixed BEFORE UPDATE OF kind ON playlists
   WHEN OLD.kind <> NEW.kind
   BEGIN SELECT RAISE(ABORT, 'A playlist keeps its kind; copy it to change it.'); END;
+
+CREATE TRIGGER tracks_settle_on_title AFTER UPDATE OF title ON tracks
+  WHEN NEW.is_new = 1 AND NEW.title <> '' AND EXISTS (SELECT 1 FROM track_tags WHERE track_id = NEW.id)
+  BEGIN UPDATE tracks SET is_new = 0 WHERE id = NEW.id; END;
+CREATE TRIGGER tracks_settle_on_tag AFTER INSERT ON track_tags
+  WHEN EXISTS (SELECT 1 FROM tracks WHERE id = NEW.track_id AND is_new = 1 AND title <> '')
+  BEGIN UPDATE tracks SET is_new = 0 WHERE id = NEW.track_id; END;
 `;
 
 /*
- * Full-text search (ORG-1): one document per searchable row. search_fts is a
- * derived copy, the one denormalisation made for speed, kept in step by the
- * triggers below; search_docs maps its rowid to the row's kind and id.
+ * Search triggers. search_fts is a derived copy, the one denormalisation made
+ * for speed; search_docs maps its rowid to the row's kind and id.
  * Track columns: the name shown for it, the file-tag title, the file name, the
  * artist, the album, tag names with synonyms, marker labels, notes, the cue number.
  */
-const SEARCH_TABLE = `
-DROP TABLE search_fts;
-DELETE FROM search_docs;
-CREATE VIRTUAL TABLE search_fts USING fts5 (
-  title, meta_title, file_name, artist, album, tags, markers, notes, cue,
-  tokenize = 'unicode61 remove_diacritics 2',
-  prefix = '1 2 3'
-);
-`;
 
 /** SQL that rebuilds the search documents of the tracks whose ids `ids` gives (a list or a SELECT). */
 function refreshTrackDocs(ids: string): string {
@@ -570,158 +626,24 @@ CREATE TRIGGER markers_search_delete AFTER DELETE ON markers BEGIN ${refreshTrac
 ${simple}`;
 }
 
-/** Fills the new search index from every searchable row. */
-function reindex(db: DatabaseSync) {
-  db.exec(refreshTrackDocs("SELECT id FROM tracks"));
-  for (const [kind, table, title, notes] of SIMPLE_DOCS) {
-    db.exec(`
-      INSERT INTO search_docs (kind, ref_id) SELECT '${kind}', id FROM ${table};
-      INSERT INTO search_fts (rowid, title, notes)
-        SELECT d.doc_id, r.${title}, ${notes ? `r.${notes}` : "''"} FROM ${table} r
-        JOIN search_docs d ON d.kind = '${kind}' AND d.ref_id = r.id;`);
-  }
+function offerDefaultTags(db: DatabaseSync) {
+  const addGroup = db.prepare("INSERT INTO tag_groups (id, name, position) VALUES (?, ?, ?)");
+  const addTag = db.prepare("INSERT INTO tags (id, group_id, name, position) VALUES (?, ?, ?, ?)");
+  DEFAULT_TAG_GROUPS.forEach((name, index) => {
+    const groupId = randomUUID();
+    addGroup.run(groupId, name, (index + 1) * GAP);
+    if (name === "Mood") DEFAULT_MOOD_TAGS.forEach((tag, tagIndex) => addTag.run(randomUUID(), groupId, tag, (tagIndex + 1) * GAP));
+  });
 }
 
-/** Numbers version-1 sessions in order within their campaign; one with a date was played. */
-const NUMBER_SESSIONS = `
-ALTER TABLE sessions RENAME COLUMN played_on TO session_date;
-ALTER TABLE sessions ADD COLUMN number INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE sessions ADD COLUMN status TEXT NOT NULL DEFAULT 'draft';
-UPDATE sessions SET status = 'played' WHERE session_date IS NOT NULL;
-UPDATE sessions SET number = (
-  SELECT count(*) FROM sessions s2 WHERE s2.campaign_id = sessions.campaign_id
-    AND (s2.position < sessions.position OR (s2.position = sessions.position AND s2.rowid <= sessions.rowid)));
-`;
-
-/** Gives the rebuilt campaign membership tables positions in the library's order of what they hold. */
-function orderCampaignMembers(db: DatabaseSync) {
-  for (const [table, column, parent] of [
-    ["campaign_playlists", "playlist_id", "playlists"],
-    ["campaign_boards", "board_id", "boards"],
-  ] as const) {
-    const rows = db
-      .prepare(
-        `SELECT m.campaign_id, m.${column} AS member FROM ${table} m JOIN ${parent} p ON p.id = m.${column}
-         ORDER BY m.campaign_id, p.position, p.rowid`,
-      )
-      .all() as { campaign_id: string; member: string }[];
-    const set = db.prepare(`UPDATE ${table} SET position = ? WHERE campaign_id = ? AND ${column} = ?`);
-    let campaign = "";
-    let index = 0;
-    for (const row of rows) {
-      index = row.campaign_id === campaign ? index + 1 : 1;
-      campaign = row.campaign_id;
-      set.run(index * GAP, row.campaign_id, row.member);
-    }
-  }
-}
-
-type BoardItemRow = {
-  id: string;
-  kind: string;
-  track_id: string | null;
-  track_title: string | null;
-  loop: number;
-  volume: number;
-  fade_in_ms: number;
-  fade_out_ms: number;
-};
-
-/**
- * Version-1 soundboard sounds become pads with the same ids, laid out in order
- * on a grid of four columns; a divider starts a new row (its label has no place
- * on a grid). A looping sound becomes a toggle pad. What does not fit on an
- * 8 x 8 grid waits among the spare pads.
- */
-function convertBoardItems(db: DatabaseSync) {
-  const boards = db.prepare("SELECT id FROM boards ORDER BY rowid").all() as { id: string }[];
-  const items = db.prepare(
-    `SELECT i.id, i.kind, i.track_id, coalesce(nullif(t.title, ''), t.file_name) AS track_title,
-            i.loop, i.volume, i.fade_in_ms, i.fade_out_ms
-     FROM board_items i LEFT JOIN tracks t ON t.id = i.track_id WHERE i.board_id = ? ORDER BY i.position, i.rowid`,
-  );
-  const setSize = db.prepare("UPDATE boards SET grid_cols = ?, grid_rows = ? WHERE id = ?");
-  const addPad = db.prepare(
-    `INSERT INTO pads (id, board_id, grid_row, grid_col, spare_position, label, mode, volume, fade_in_ms, fade_ms)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  );
-  const addSound = db.prepare("INSERT INTO pad_sounds (pad_id, track_id, position) VALUES (?, ?, ?)");
-  for (const board of boards) {
-    const placed: { item: BoardItemRow; slot: number }[] = [];
-    let slot = 0;
-    for (const item of items.all(board.id) as BoardItemRow[]) {
-      if (item.kind !== "sound") {
-        if (slot % CONVERTED_COLUMNS !== 0) slot += CONVERTED_COLUMNS - (slot % CONVERTED_COLUMNS);
-        continue;
-      }
-      placed.push({ item, slot: slot++ });
-    }
-    if (placed.length === 0) continue;
-    const rows = Math.min(MAX_GRID, Math.ceil((placed[placed.length - 1].slot + 1) / CONVERTED_COLUMNS));
-    setSize.run(CONVERTED_COLUMNS, rows, board.id);
-    let spare = 0;
-    for (const { item, slot: at } of placed) {
-      const onGrid = at < CONVERTED_COLUMNS * rows;
-      addPad.run(
-        item.id,
-        board.id,
-        onGrid ? Math.floor(at / CONVERTED_COLUMNS) : null,
-        onGrid ? at % CONVERTED_COLUMNS : null,
-        onGrid ? null : ++spare * GAP,
-        item.track_title ?? "",
-        item.loop === 1 ? "toggle" : "oneshot",
-        item.volume,
-        item.fade_in_ms,
-        item.fade_out_ms,
-      );
-      addSound.run(item.id, item.track_id, GAP);
-    }
-  }
-  db.exec("DROP TABLE board_items");
-}
-
-/** Version-1 scene items split into the ordered music list and the ordered board list. */
-const SPLIT_SCENE_ITEMS = `
-INSERT INTO scene_music (id, scene_id, track_id, playlist_id, position)
-  SELECT id, scene_id, track_id, playlist_id, position FROM scene_items WHERE board_id IS NULL;
-INSERT INTO scene_boards (scene_id, board_id, position)
-  SELECT scene_id, board_id, min(position) FROM scene_items WHERE board_id IS NOT NULL GROUP BY scene_id, board_id;
-DROP TABLE scene_items;
-`;
-
-/** Version 1 offered Location and Faction too; the design starts a new library with three groups. */
-const GROUPS_NOT_OFFERED = ["Location", "Faction"];
-
-function dropAll(db: DatabaseSync, type: "trigger" | "index") {
-  const names = db.prepare(`SELECT name FROM sqlite_schema WHERE type = ? AND sql IS NOT NULL`).all(type) as { name: string }[];
-  for (const { name } of names) db.exec(`DROP ${type.toUpperCase()} "${name}"`);
-}
-
-export const v002Design: Migration = {
-  version: 2,
-  name: "design round 4: lanes, dynamic playlists, pad grids, scene music lists and audio profiles",
-  up(db, context) {
-    // Version 1's triggers (all for search) and indexes are replaced below.
-    dropAll(db, "trigger");
-    dropAll(db, "index");
-    // Values the rebuilt tables' CHECKs no longer accept, and the sessions' new facts.
-    db.exec("UPDATE tracks SET loopable = 'crossfade' WHERE loopable = 'with_crossfade'");
-    db.exec(NUMBER_SESSIONS);
-    for (const [table, definition, copied] of REBUILT) rebuildTable(db, table, definition, copied);
-    orderCampaignMembers(db);
-    db.exec(NEW_TABLES);
-    convertBoardItems(db);
-    db.exec(SPLIT_SCENE_ITEMS);
+export const v001Library: Migration = {
+  version: 1,
+  name: "library: tracks, tags, playlists, pad boards, campaigns, audio profiles and search",
+  up(db) {
+    db.exec(TABLES);
     db.exec(INDEXES);
-    db.exec(KIND_TRIGGERS);
-    db.exec(SEARCH_TABLE);
+    db.exec(INTEGRITY_TRIGGERS);
     db.exec(searchTriggers());
-    reindex(db);
-    if (context.startVersion === 0) {
-      const remove = db.prepare(
-        "DELETE FROM tag_groups WHERE name = ? AND NOT EXISTS (SELECT 1 FROM tags WHERE tags.group_id = tag_groups.id)",
-      );
-      for (const name of GROUPS_NOT_OFFERED) remove.run(name);
-    }
+    offerDefaultTags(db);
   },
 };
