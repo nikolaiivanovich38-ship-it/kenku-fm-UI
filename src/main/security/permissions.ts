@@ -69,8 +69,19 @@ function isTabCaptureOfChosenPage({
   );
 }
 
+/**
+ * Audio devices only. `undefined` is a permission check that names no media
+ * type (device enumeration). SEC-16: an empty list is refused, because
+ * Chromium reports screen and desktop capture (chromeMediaSource "desktop",
+ * getDisplayMedia) as a request with no media types, while an input device,
+ * with or without a deviceId constraint, arrives as ["audio"] (probed on
+ * Electron 44 during WP2).
+ */
 function isAudioOnly(mediaTypes: readonly string[] | undefined): boolean {
-  return !(mediaTypes ?? []).includes("video");
+  if (mediaTypes === undefined) {
+    return true;
+  }
+  return mediaTypes.length > 0 && !mediaTypes.includes("video");
 }
 
 /**

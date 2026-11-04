@@ -112,6 +112,28 @@ describe("session hardening (SEC-3)", () => {
     ).toBe(true);
   });
 
+  it("refuses the app's own windows screen recording (SEC-16)", () => {
+    secureSessions();
+    const capture = { id: 502, once: vi.fn() };
+    const main = { id: 503, once: vi.fn() };
+    trustedContents.trust(capture, "audio-capture");
+    trustedContents.trust(main, "main-window");
+    for (const page of [capture, main]) {
+      // chromeMediaSource "desktop" from the page itself: no media types.
+      expect(
+        request(sessions.default, page, "media", {
+          isMainFrame: true,
+          mediaTypes: [],
+          securityOrigin: "file:///",
+        }),
+      ).toBe(false);
+      // An input device chosen by id still works.
+      expect(
+        request(sessions.default, page, "media", { isMainFrame: true, mediaTypes: ["audio"] }),
+      ).toBe(true);
+    }
+  });
+
   it("refuses a website the microphone, notifications and external apps", () => {
     secureSessions();
     const site = { id: 777 };

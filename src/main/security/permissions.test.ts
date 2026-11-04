@@ -124,6 +124,15 @@ describe("isPermissionAllowed (SEC-3)", () => {
     }
   });
 
+  it("refuses app pages a media request that names no media types (SEC-16: screen recording)", () => {
+    // Probe on Electron 44 (WP2): getUserMedia for an input device, with or
+    // without a deviceId constraint, arrives as ["audio"]; screen or desktop
+    // capture (chromeMediaSource "desktop", getDisplayMedia) arrives as [].
+    for (const role of ["main-window", "audio-capture"] as const) {
+      expect(isPermissionAllowed({ role, permission: "media", mediaTypes: [] })).toBe(false);
+    }
+  });
+
   it("allows audio permission checks that do not name a media type", () => {
     // Device enumeration runs a check with mediaType "unknown" or none.
     expect(
