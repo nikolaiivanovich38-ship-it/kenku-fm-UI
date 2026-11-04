@@ -56,6 +56,7 @@ type TrackRow = {
   source_cue_number: string | null;
   rating: number | null;
   last_used_at: number | null;
+  is_new: number;
   created_at: number;
   updated_at: number;
 };
@@ -93,6 +94,7 @@ function toTrack(row: TrackRow, profile: AudioProfileInput | null): Track {
     sourceCueNumber: row.source_cue_number,
     rating: row.rating,
     lastUsedAt: row.last_used_at,
+    isNew: row.is_new === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -143,6 +145,7 @@ function metadataColumns(input: Record<string, unknown>): Record<string, SQLInpu
   if (has("sourceAlbum")) columns.source_album = v.nullableText("sourceAlbum", input.sourceAlbum);
   if (has("sourceCueNumber")) columns.source_cue_number = v.nullableText("sourceCueNumber", input.sourceCueNumber, 50);
   if (has("rating")) columns.rating = v.nullableInteger("rating", input.rating, 1, 5);
+  if (has("isNew")) columns.is_new = toFlag(v.boolean("isNew", input.isNew));
   if (has("durationMs"))
     columns.duration_ms = input.durationMs === null ? null : v.milliseconds("durationMs", input.durationMs);
   return columns;
@@ -301,7 +304,19 @@ const PATCHABLE = [
   "sourceAlbum",
   "sourceCueNumber",
   "rating",
+  "isNew",
 ] as const;
+
+/**
+ * Tracks marked New (added by an import, not yet given a title and a tag),
+ * newest first, through tracks_new. Exported for the query-plan tests.
+ */
+export const NEW_TRACKS_SQL = "SELECT id FROM tracks WHERE is_new = 1 ORDER BY created_at DESC, id";
+
+/** The ids of the tracks marked New, newest first (the Library's "New, not tagged yet" adds untagged tracks to these). */
+export function listNewTrackIds(store: Store): string[] {
+  return store.all<{ id: string }>(NEW_TRACKS_SQL).map((row) => row.id);
+}
 
 /** Changes only the fields given; null clears an optional field. */
 export function updateTrack(store: Store, id: string, changes: TrackPatch): Track {

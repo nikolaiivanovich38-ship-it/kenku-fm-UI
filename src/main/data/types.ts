@@ -100,6 +100,8 @@ export type TrackMetadata = {
   sourceAlbum: string | null;
   sourceCueNumber: string | null;
   rating: number | null;
+  /** Added by an import and not settled yet (no title of its own or no tag): the Library's New mark (schema v3). */
+  isNew: boolean;
 };
 
 export type Track = TrackMetadata & {

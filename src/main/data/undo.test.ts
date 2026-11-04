@@ -241,6 +241,16 @@ describe("undo and redo of every command (EDT-2)", () => {
 });
 
 describe("undo history", () => {
+  it("is cleared through the store after writes made outside it (imports; DB review item 10)", () => {
+    const [track] = tracks.createTracks(t.store, [{ title: "A", file: { path: "/a.mp3" } }]);
+    tracks.deleteTracks(t.store, [track.id]);
+    t.history.undo();
+    expect(t.history.state()).toMatchObject({ canUndo: true, canRedo: true });
+    t.store.clearHistory();
+    expect(t.history.state()).toEqual({ canUndo: false, canRedo: false, undoLabel: null, redoLabel: null });
+    expect(() => t.store.change("x", () => t.store.clearHistory())).toThrow(/while a change/);
+  });
+
   it("names each step so the interface can say what Undo will do", () => {
     const [track] = tracks.createTracks(t.store, [{ title: "A", file: { path: "/a.mp3" } }, { title: "B", file: { path: "/b.mp3" } }]);
     tracks.deleteTracks(t.store, [track.id]);
