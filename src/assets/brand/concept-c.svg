@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="512" height="512">
+  <title>Lyre concept C: plume-and-strings L monogram</title>
+  <rect width="64" height="64" rx="14" fill="#142B24"/>
+  <path d="M27 17L31 46M28 17L39 46M29 16L47 46" fill="none" stroke="#F1E4C8" stroke-width="2.2" stroke-linecap="round"/>
+  <g fill="#D9A441">
+    <path d="M18 48V22C18 13.5 23.5 8.2 31.5 8.6C33 8.7 33.2 11 31.8 11.3C26.6 12.3 25 16.5 25 22.5V48Z"/>
+    <rect x="18" y="45" width="32" height="7" rx="3.5"/>
+  </g>
+</svg>

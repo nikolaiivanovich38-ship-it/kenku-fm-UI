@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="512" height="512">
+  <title>Lyre concept A: lyrebird in display</title>
+  <rect width="64" height="64" rx="14" fill="#142B24"/>
+  <path d="M31 43L36 17M35.5 44L45 19M40 45L52 24" fill="none" stroke="#F1E4C8" stroke-width="2.2" stroke-linecap="round"/>
+  <g fill="#D9A441">
+    <path d="M27.5 45.5C25 34 26.5 21 32 13.5C34 10.8 33 8.5 29.5 8.3C28.4 8.2 28.6 6.2 29.8 6C35.5 5.3 38.4 10.5 35.6 15.5C31.5 23 30.5 34 32 44Z"/>
+    <path d="M33 48C45 45 53 36 54.5 25C55.3 19 57.6 15 61 13.6C62 13.2 61.6 11.4 60.4 11.6C54.5 12.6 50.8 18.5 50.2 24.5C49.2 33.5 42.5 41 32 43.5Z"/>
+    <path d="M7 31.5L11.5 30.2C12.6 27.6 14.6 26.4 17 26.6C19.8 26.9 21 29.2 20.6 32.2C20.3 34.5 21 36.3 23 37.6C28 40.6 32.5 43.5 33.5 47C34.4 51 29.5 53.4 24 53C17.5 52.6 14 48.6 14.3 43.2C14.5 39.6 14.6 36.2 13.4 33.2L11.6 32.6Z"/>
+  </g>
+  <path d="M21.5 52.5V59M26 52.5V59" fill="none" stroke="#D9A441" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="15.9" cy="29.6" r="1.2" fill="#142B24"/>
+</svg>
