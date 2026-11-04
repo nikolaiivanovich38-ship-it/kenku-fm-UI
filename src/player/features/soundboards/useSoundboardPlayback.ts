@@ -9,9 +9,60 @@ import {
 import { Sound as SoundType } from "./soundboardsSlice";
 import { Sound } from "./Sound";
 
+/** How often the progress of playing sounds is updated (PERF-1). */
+export const PROGRESS_INTERVAL_MS = 1000;
+
 export function useSoundboardPlayback(onError: (message: string) => void) {
   const soundsRef = useRef<Record<string, Sound>>({});
+  const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const dispatch = useDispatch();
+
+  // PERF-1: Kenku FM checked the sounds on every animation frame (about 60
+  // times a second) from start-up, even with nothing playing. Now a
+  // once-a-second timer runs only while there are sounds, started by play()
+  // and ended by the first tick that finds none left.
+  const stopProgressUpdates = useCallback(() => {
+    if (progressTimerRef.current !== null) {
+      clearInterval(progressTimerRef.current);
+      progressTimerRef.current = null;
+    }
+  }, []);
+
+  const startProgressUpdates = useCallback(() => {
+    if (progressTimerRef.current !== null) {
+      return;
+    }
+    progressTimerRef.current = setInterval(() => {
+      const ids = Object.keys(soundsRef.current);
+      if (ids.length === 0) {
+        stopProgressUpdates();
+        return;
+      }
+      const updates: { id: string; progress: number }[] = [];
+      for (const id of ids) {
+        const sound = soundsRef.current[id];
+        if (sound.playing()) {
+          updates.push({ id, progress: sound.progress() });
+        }
+      }
+      if (updates.length > 0) {
+        dispatch(updatePlayback(updates));
+      }
+    }, PROGRESS_INTERVAL_MS);
+  }, [dispatch, stopProgressUpdates]);
+
+  useEffect(() => stopProgressUpdates, [stopProgressUpdates]);
+
+  /** Drop a finished sound; the timer stops with the last one. */
+  const forgetSound = useCallback(
+    (id: string) => {
+      delete soundsRef.current[id];
+      if (Object.keys(soundsRef.current).length === 0) {
+        stopProgressUpdates();
+      }
+    },
+    [stopProgressUpdates]
+  );
 
   const play = useCallback(
     (sound: SoundType) => {
@@ -40,46 +91,20 @@ export function useSoundboardPlayback(onError: (message: string) => void) {
       playback.on("end", () => {
         dispatch(stopSound(sound.id));
         soundsRef.current[sound.id]?.stop(false);
-        delete soundsRef.current[sound.id];
+        forgetSound(sound.id);
       });
 
       playback.on("error", () => {
-        delete soundsRef.current[sound.id];
+        forgetSound(sound.id);
         dispatch(stopSound(sound.id));
         onError(`Unable to play sound: ${sound.title}`);
       });
 
       soundsRef.current[sound.id] = playback;
+      startProgressUpdates();
     },
-    [onError]
+    [dispatch, onError, startProgressUpdates, forgetSound]
   );
-
-  useEffect(() => {
-    // Update playback
-    let handler = requestAnimationFrame(animatePlayback);
-    let prevTime = performance.now();
-    function animatePlayback(time: number) {
-      handler = requestAnimationFrame(animatePlayback);
-      // Limit update to 1 time per second
-      const delta = time - prevTime;
-      if (delta > 1000) {
-        const updates: { id: string; progress: number }[] = [];
-        for (let id in soundsRef.current) {
-          const sound = soundsRef.current[id];
-          if (sound.playing()) {
-            updates.push({ id, progress: sound.progress() });
-          }
-        }
-        if (updates.length > 0) {
-          dispatch(updatePlayback(updates));
-        }
-        prevTime = time;
-      }
-    }
-    return () => {
-      cancelAnimationFrame(handler);
-    };
-  }, []);
 
   const seek = useCallback((id: string, to: number) => {
     dispatch(updatePlayback([{ id, progress: to }]));
@@ -91,9 +116,9 @@ export function useSoundboardPlayback(onError: (message: string) => void) {
     const loop = soundsRef.current[id];
     if (loop) {
       await loop.stop(true);
-      delete soundsRef.current[id];
+      forgetSound(id);
     }
-  }, []);
+  }, [forgetSound]);
 
   // Sync function for updating the currently playing sounds with the redux store
   // Used in `SoundboardPlaybackSync`
