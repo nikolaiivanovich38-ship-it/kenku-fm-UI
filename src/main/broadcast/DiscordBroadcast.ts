@@ -118,7 +118,14 @@ export class DiscordBroadcast {
     channelId: string,
   ) => {
     if (this.client) {
-      const channel = await this.client.channels.fetch(channelId);
+      // SEC-8: an unknown channel id is logged instead of becoming an
+      // unhandled error in the main process; nothing else changes.
+      const channel = await this.client.channels
+        .fetch(channelId)
+        .catch((err: unknown): null => {
+          console.error(`Unable to find voice channel ${channelId}`, err);
+          return null;
+        });
       if (channel && channel.isVoiceBased() && channel.joinable) {
         try {
           const connection = joinVoiceChannel({

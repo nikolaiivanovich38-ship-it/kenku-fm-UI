@@ -103,6 +103,15 @@ describe("DiscordBroadcast: who may send (SEC-8)", () => {
     ).resolves.toBeUndefined();
   });
 
+  it("does not fail when joining a channel Discord does not know", async () => {
+    broadcast = new DiscordBroadcast(window as never);
+    const main = fakePage("main-window");
+    fakeIpcMain.deliver("DISCORD_CONNECT", fromMainFrame(main), "token");
+    await expect(
+      broadcast._handleJoinChannel(fromMainFrame(main) as never, "123"),
+    ).resolves.toBeUndefined();
+  });
+
   it("stops listening when destroyed", () => {
     broadcast = new DiscordBroadcast(window as never);
     broadcast.destroy();
