@@ -7,6 +7,7 @@ import { BACKUPS_TO_KEEP, listBackups } from "./backups";
 import { MIGRATIONS, type Migration } from "./schema";
 import { createCampaign, listCampaigns } from "./repo/campaigns";
 import { makeClock, makeTempFolder } from "./test/helpers";
+import { generateLibrary } from "./test/generateLibrary";
 
 let temp: ReturnType<typeof makeTempFolder>;
 let folder: string;
@@ -73,7 +74,7 @@ describe("opening the library (DAT-6)", () => {
     expect(path.basename(backups[0].path)).toMatch(/^library-upgrade-v1-/);
   });
 
-  it("reports a damaged file clearly and offers the newest backup", () => {
+  it("reports a damaged file clearly and offers the newest backup (check before opening)", () => {
     const library = openTracked();
     createCampaign(library.store, { name: "Strahd" });
     const backup = library.backupNow();
@@ -85,7 +86,7 @@ describe("opening the library (DAT-6)", () => {
 
     let error: unknown;
     try {
-      openTracked();
+      openTracked({ integrityCheck: "blocking" });
     } catch (caught) {
       error = caught;
     }
@@ -101,6 +102,37 @@ describe("opening the library (DAT-6)", () => {
     expect(fs.existsSync(result.damagedCopy)).toBe(true);
     const restored = openTracked();
     expect(listCampaigns(restored.store).map((c) => c.name)).toEqual(["Strahd"]);
+  });
+
+  it("checks a large library in the background and reports damage found there", async () => {
+    let library = openTracked();
+    generateLibrary(library, { tracks: 2000, playlists: 20 });
+    expect(await library.checkIntegrity()).toEqual({ status: "ok" });
+    const backup = library.backupNow();
+    const page = library.store.get<{ pageno: number }>(
+      "SELECT pageno FROM dbstat WHERE name = 'tracks' AND pagetype = 'leaf' ORDER BY pageno LIMIT 1 OFFSET 20",
+    )!.pageno;
+    const pageSize = library.store.get<{ page_size: number }>("PRAGMA page_size")!.page_size;
+    library.close();
+    open = [];
+    damage(path.join(folder, "library.sqlite"), (page - 1) * pageSize + 8, pageSize - 8);
+
+    library = openTracked();
+    const report = await library.checkIntegrity();
+    expect(report.status).toBe("corrupt");
+    expect(report.status === "corrupt" && report.error.latestBackup).toBe(backup.path);
+    expect(report.status === "corrupt" && report.error.code).toBe("corrupt");
+  });
+
+  it("stops the background check when the library is closed", async () => {
+    const library = openTracked();
+    generateLibrary(library, { tracks: 2000, playlists: 20 });
+    library.close();
+    open = [];
+    const reopened = openLibrary({ folder, now: clock.now });
+    reopened.close();
+    expect(await reopened.checkIntegrity()).toEqual({ status: "not-checked" });
+    expect(await openTracked({ integrityCheck: "blocking" }).checkIntegrity()).toEqual({ status: "ok" });
   });
 
   it("reports a file that is not a library at all", () => {
@@ -165,6 +197,7 @@ describe("backups (DAT-6)", () => {
     library.close();
     open = [];
     damage(path.join(folder, "library.sqlite"), 0, 100);
+    // A damaged header is caught at once, without waiting for the full check.
     expect(() => openTracked()).toThrow(expect.objectContaining({ code: "corrupt", latestBackup: good.path }));
     expect(fs.existsSync(path.join(folder, "backups", "notes.txt"))).toBe(true);
   });

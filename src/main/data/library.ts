@@ -4,10 +4,13 @@
  * Nothing here imports Electron. The caller passes the folder, normally
  * `libraryFolder(app.getPath("userData"))`, so tests run in plain Node.
  *
- * Opening an existing library first runs SQLite's quick integrity check. A
- * damaged file is not touched: opening fails with a LibraryDatabaseError
- * ("corrupt") that names the newest healthy backup, and `restoreBackup()`
- * puts that backup in place (keeping the damaged file aside).
+ * Opening an existing library runs SQLite's quick integrity check. By default
+ * the check runs on a worker thread so start-up is not held up (it takes
+ * about 300 ms for 20,000 tracks); `checkIntegrity()` gives its result. A file
+ * that is not a database at all, or a library about to be upgraded, is
+ * checked before anything else happens. A damaged library is reported as a
+ * LibraryDatabaseError ("corrupt") naming the newest healthy backup, and
+ * `restoreBackup()` puts that backup in place (keeping the damaged file aside).
  * Before a schema upgrade a backup is taken, so an upgrade can always be
  * reversed by restoring it.
  */
@@ -21,6 +24,7 @@ import {
   writeDailyBackupIfDue,
   type BackupInfo,
 } from "./backups";
+import { quickCheck, quickCheckInBackground } from "./integrity";
 import { MIGRATIONS, migrate, schemaVersion, type Migration } from "./schema";
 import { openConnection, type DatabaseSync } from "./sqlite";
 import { Store } from "./store";
@@ -43,7 +47,21 @@ export type LibraryOptions = {
   undoLimit?: number;
   /** Schema versions; tests pass extra ones to try upgrades. */
   migrations?: readonly Migration[];
+  /**
+   * "background" (default): the integrity check runs on a worker thread; see
+   * `checkIntegrity()`. "blocking": opening waits for it and throws if the
+   * library is damaged (use after restoring a backup, or in tools).
+   */
+  integrityCheck?: "background" | "blocking";
 };
+
+/** Result of the integrity check started when the library was opened. */
+export type IntegrityReport =
+  | { status: "ok" }
+  /** Stop using the library and offer `error.latestBackup` (see restoreBackup). */
+  | { status: "corrupt"; error: LibraryDatabaseError }
+  /** The library was closed before the check finished. */
+  | { status: "not-checked" };
 
 export type Library = {
   readonly databasePath: string;
@@ -55,6 +73,8 @@ export type Library = {
   backupNow(): BackupInfo;
   /** Makes today's backup unless one exists; returns it or null. */
   runDailyBackup(): BackupInfo | null;
+  /** The integrity check started at open; never rejects. */
+  checkIntegrity(): Promise<IntegrityReport>;
   close(): void;
 };
 
@@ -81,12 +101,6 @@ function corrupt(backupFolder: string, cause: unknown): LibraryDatabaseError {
   );
 }
 
-function checkIntegrity(db: DatabaseSync) {
-  const rows = db.prepare("PRAGMA quick_check(1)").all() as { quick_check: string }[];
-  if (rows.length !== 1 || rows[0].quick_check !== "ok") {
-    throw new Error(`Integrity check failed: ${rows.map((row) => row.quick_check).join("; ")}`);
-  }
-}
 
 export function openLibrary(options: LibraryOptions): Library {
   const now = options.now ?? Date.now;
@@ -104,15 +118,18 @@ export function openLibrary(options: LibraryOptions): Library {
     throw error;
   }
 
+  let checkedAtOpen = !existed;
   try {
     if (existed) {
-      try {
-        checkIntegrity(db);
-      } catch (error) {
-        throw corrupt(backupFolder, error);
-      }
+      // Reading the version also proves the file is a database at all.
       const from = schemaVersion(db);
-      if (from > 0 && from < migrations.length) writeBackup(db, backupFolder, `upgrade-v${from}`, now());
+      const upgrading = from > 0 && from < migrations.length;
+      if (upgrading || options.integrityCheck === "blocking") {
+        const result = quickCheck(db);
+        if (!result.ok) throw corrupt(backupFolder, new Error(result.detail));
+        checkedAtOpen = true;
+      }
+      if (upgrading) writeBackup(db, backupFolder, `upgrade-v${from}`, now());
     }
     migrate(db, migrations, now);
   } catch (error) {
@@ -125,6 +142,14 @@ export function openLibrary(options: LibraryOptions): Library {
   const store = new Store(db, { now });
   const history = new UndoHistory(store, { limit: options.undoLimit });
   let closed = false;
+
+  const background = checkedAtOpen ? null : quickCheckInBackground(databasePath);
+  const integrity: Promise<IntegrityReport> = background
+    ? background.result.then((result): IntegrityReport => {
+        if (result === "cancelled") return { status: "not-checked" };
+        return result.ok ? { status: "ok" } : { status: "corrupt", error: corrupt(backupFolder, new Error(result.detail)) };
+      })
+    : Promise.resolve({ status: "ok" });
 
   const ensureIdle = () => {
     if (store.inChange) throw new Error("Cannot back up while a change is running.");
@@ -144,9 +169,11 @@ export function openLibrary(options: LibraryOptions): Library {
       ensureIdle();
       return writeDailyBackupIfDue(db, backupFolder, now());
     },
+    checkIntegrity: () => integrity,
     close() {
       if (closed) return;
       closed = true;
+      background?.cancel();
       db.close();
     },
   };

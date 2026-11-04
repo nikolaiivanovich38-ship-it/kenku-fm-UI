@@ -72,7 +72,7 @@ CREATE TABLE track_follow_with (
   position REAL NOT NULL,
   PRIMARY KEY (track_id, follow_track_id),
   CHECK (track_id <> follow_track_id)
-);
+) WITHOUT ROWID;
 CREATE INDEX track_follow_with_target ON track_follow_with (follow_track_id);
 
 -- Named points in a track (DAT-3): kind is marker, loop_in, loop_out or mix_out.
@@ -180,13 +180,13 @@ CREATE TABLE tag_synonyms (
   tag_id TEXT NOT NULL REFERENCES tags (id) ON DELETE CASCADE,
   synonym TEXT NOT NULL COLLATE NOCASE,
   PRIMARY KEY (tag_id, synonym)
-);
+) WITHOUT ROWID;
 
 CREATE TABLE track_tags (
   track_id TEXT NOT NULL REFERENCES tracks (id) ON DELETE CASCADE,
   tag_id TEXT NOT NULL REFERENCES tags (id) ON DELETE CASCADE,
   PRIMARY KEY (track_id, tag_id)
-);
+) WITHOUT ROWID;
 CREATE INDEX track_tags_tag ON track_tags (tag_id);
 
 -- Campaigns > sessions > scenes (ORG-7). Cue lists and scene blocks hang off sessions
@@ -230,14 +230,14 @@ CREATE TABLE campaign_playlists (
   campaign_id TEXT NOT NULL REFERENCES campaigns (id) ON DELETE CASCADE,
   playlist_id TEXT NOT NULL REFERENCES playlists (id) ON DELETE CASCADE,
   PRIMARY KEY (campaign_id, playlist_id)
-);
+) WITHOUT ROWID;
 CREATE INDEX campaign_playlists_playlist ON campaign_playlists (playlist_id);
 
 CREATE TABLE campaign_boards (
   campaign_id TEXT NOT NULL REFERENCES campaigns (id) ON DELETE CASCADE,
   board_id TEXT NOT NULL REFERENCES boards (id) ON DELETE CASCADE,
   PRIMARY KEY (campaign_id, board_id)
-);
+) WITHOUT ROWID;
 CREATE INDEX campaign_boards_board ON campaign_boards (board_id);
 
 -- Material prepared for a scene: a playlist, a board or a single track, in order.
