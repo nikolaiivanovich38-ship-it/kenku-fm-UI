@@ -46,4 +46,4 @@ Install the draft release's installer on Windows, then:
 ## Publish
 
 - [ ] Product owner has read the release notes and approves.
-- [ ] Draft release published. Auto-update checked from the previous version on one computer.
+- [ ] Draft release published. Auto-update checked from the previous Lyre version on one computer (from 0.2.x onwards; Cue Desk 0.1.x test installs are uninstalled before 0.2.0 is published, because they use a different installer identity).

@@ -100,7 +100,8 @@ test("Remote control is described in plain words and links only to the Stream De
   await mainWindow.getByRole("button", { name: "Settings" }).click();
   const settings = mainWindow.getByRole("dialog", { name: "Settings" });
   await expect(settings.getByText("What is Kenku Remote?")).toHaveCount(0);
-  await expect(settings.getByText(/control Lyre's playlists and soundboards from a Stream Deck/)).toBeVisible();
+  await expect(settings.getByText(/Lets a Stream Deck or another program control the player/)).toBeVisible();
+  await expect(settings.getByText(/Works with the existing Kenku FM Stream Deck plugin/)).toBeVisible();
   await expect(settings.getByRole("link", { name: "About the Kenku FM Stream Deck plugin" })).toHaveAttribute(
     "href",
     "https://www.kenku.fm/docs/using-kenku-remote",

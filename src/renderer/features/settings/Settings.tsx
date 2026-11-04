@@ -259,8 +259,8 @@ export function Settings({ open, onClose }: SettingsProps) {
         {settings.remoteEnabled ? "Stop Remote" : "Start Remote"}
       </Button>
       <Typography variant="caption" color="text.secondary" pt={1}>
-        Remote control lets you control Lyre's playlists and soundboards from a Stream Deck or another
-        device on your network. It works with the existing Kenku FM Stream Deck plugin.
+        Works with the existing Kenku FM Stream Deck plugin. To use another device on your network, change the
+        address to this computer's network address; anything on that network can then control Lyre.
       </Typography>
       <Link
         href={STREAM_DECK_PLUGIN_HELP_URL}

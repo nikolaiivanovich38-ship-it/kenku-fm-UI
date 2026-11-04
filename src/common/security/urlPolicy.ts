@@ -251,6 +251,11 @@ function isFileAddress(address: string): boolean {
   }
 }
 
+function stripWrappingQuotes(text: string): string {
+  const match = /^(["'])([\s\S]*)\1$/.exec(text);
+  return match ? match[2].trim() : text;
+}
+
 /**
  * SEC-6 / SEC-15: check an address the user typed into the URL bar or saved
  * in a bookmark. Removes invisible formatting characters and turns a pasted
@@ -258,11 +263,6 @@ function isFileAddress(address: string): boolean {
  * convenience. Web pages then go through the tab policy; files on this
  * computer come back as "ask" (`isLocalFile`).
  */
-function stripWrappingQuotes(text: string): string {
-  const match = /^(["'])([\s\S]*)\1$/.exec(text);
-  return match ? match[2].trim() : text;
-}
-
 export function checkTypedTabUrl(raw: string): UserTabUrlCheck {
   if (typeof raw !== "string") {
     return refuse("invalid");
