@@ -1,0 +1,247 @@
+/**
+ * PLY-8: runs cue actions (actions.ts) against the rooms. Every trigger, from
+ * a button, a hotkey or (later) the remote API, goes through `run`, which
+ * finds the rooms the action names (`roomsFor`; scenes always use `sceneRoom`)
+ * and hands the action to each room's player (roomPlayer.ts).
+ *
+ * It also keeps the one level of Undo for a scene start (PLY-1): the scene's
+ * room as it was just before, music and ambience with their places, the queue
+ * and the way back. The interface decides how long Undo is offered (the
+ * prototype: 8 seconds, or Ctrl+Z).
+ *
+ * Rooms come from the Rooms stream through `RoomsAudio` (rooms.contract.ts).
+ * A room that goes away is silenced and forgotten.
+ */
+import { TypedEmitter } from "tiny-typed-emitter";
+
+import { roomsFor, sceneRoom } from "../../../common/domain";
+import type { RoomTarget } from "../../../common/domain";
+import type { PlaybackEngine } from "../engine";
+import type { RoomsAudio } from "../rooms.contract";
+import { CueAction, CueOutcome, DEFAULT_FADES, TrackFrom } from "./actions";
+import type { ShowLibrary } from "./library";
+import { Playing, playlistItem, sceneItem, single } from "./nowPlaying";
+import type { Random } from "./queue";
+import { RoomPlayer, RoomReport, RoomSnapshot } from "./roomPlayer";
+
+interface DirectorEvents {
+  /** What a room plays changed; read `report()`. */
+  change: () => void;
+  /** A plain-language message for a toast. */
+  error: (message: string) => void;
+}
+
+const OK: CueOutcome = { ok: true };
+const NO_ROOM = "No room is open, so nobody would hear it. Join a voice channel first.";
+
+export class Director extends TypedEmitter<DirectorEvents> {
+  private readonly engine: PlaybackEngine;
+  private readonly rooms: RoomsAudio;
+  private readonly library: ShowLibrary;
+  private readonly random: Random;
+  private readonly players = new Map<string, RoomPlayer>();
+  private readonly turns = new Map<string, number>();
+  private undo: { roomId: string; snapshot: RoomSnapshot } | null = null;
+  private entries = 0;
+  private readonly unsubscribe: () => void;
+
+  constructor(options: { engine: PlaybackEngine; rooms: RoomsAudio; library: ShowLibrary; random?: Random }) {
+    super();
+    this.engine = options.engine;
+    this.rooms = options.rooms;
+    this.library = options.library;
+    this.random = options.random ?? Math.random;
+    this.unsubscribe = this.rooms.onRoomsChanged(() => this.dropGoneRooms());
+  }
+
+  run(action: CueAction): CueOutcome {
+    try {
+      return this.perform(action);
+    } finally {
+      this.emit("change");
+    }
+  }
+
+  /** What every room plays, in the rooms' order. */
+  report(): RoomReport[] {
+    return this.rooms.rooms().map((room) => this.player(room.botId).report(room.name));
+  }
+
+  /** Whether Undo of the last scene start is still possible. */
+  canUndo(): boolean {
+    return this.undo !== null;
+  }
+
+  dispose(): void {
+    this.unsubscribe();
+    for (const player of this.players.values()) {
+      player.dispose();
+    }
+    this.players.clear();
+    this.removeAllListeners();
+  }
+
+  private perform(action: CueAction): CueOutcome {
+    const seconds = (ms: number | undefined, fallback: number) => (ms === undefined ? fallback : ms / 1000);
+    switch (action.type) {
+      case "playTrack":
+        return this.playTrack(action.trackId, action.target, action.when ?? "now", action.from, seconds(action.fadeMs, DEFAULT_FADES.crossfade));
+      case "playPlaylist":
+        return this.playPlaylist(action.playlistId, action.target, action.when ?? "now", seconds(action.fadeMs, DEFAULT_FADES.crossfade));
+      case "startScene": {
+        const scene = this.library.scene(action.scene);
+        if (!scene) {
+          return fail("That scene is no longer there.");
+        }
+        const roomId = sceneRoom([...this.rooms.rooms()]);
+        if (roomId === null) {
+          return fail(NO_ROOM);
+        }
+        const player = this.player(roomId);
+        this.undo = { roomId, snapshot: player.snapshot() };
+        player.startScene(action.scene, scene);
+        return OK;
+      }
+      case "next":
+      case "previous": {
+        const direction = action.type === "next" ? 1 : -1;
+        const fade = seconds(action.fadeMs, DEFAULT_FADES.crossfade);
+        return this.eachRoom(action.target, (player) =>
+          (action.lane === "music" ? player.stepMusic(direction, fade) : player.stepAmbience(direction, fade))
+            ? OK
+            : fail(action.lane === "music" ? "There is nothing to move on to." : "This ambience has nothing to move on to."),
+        );
+      }
+      case "fadeLane": {
+        const fade = seconds(action.fadeMs, action.lane === "effects" ? DEFAULT_FADES.effects : DEFAULT_FADES.fadeLane);
+        return this.eachRoom(action.target, (player) => (player.fadeLane(action.lane, fade), OK));
+      }
+      case "fadeAll":
+        return this.eachRoom(action.target ?? "all", (player) => (player.stopAll(seconds(action.fadeMs, DEFAULT_FADES.fadeAll)), OK));
+      case "stopAll":
+        return this.eachRoom(action.target ?? "all", (player) => (player.stopAll(0), OK));
+      case "firePad": {
+        const pad = this.library.pad(action.boardId, action.padId);
+        if (!pad || pad.trackIds.length === 0) {
+          return fail("That pad has no sound.");
+        }
+        const key = `${action.boardId}/${action.padId}`;
+        const phase = action.phase ?? "down";
+        // One variant per press, the same in every room it plays in.
+        const trackId = phase === "down" ? this.pickVariant(key, pad.trackIds, pad.order) : pad.trackIds[0];
+        return this.eachRoom(action.target, (player) => (player.firePad(key, pad, phase, trackId), OK));
+      }
+      case "removeQueued":
+        return this.eachRoom(action.target, (player) => (player.removeQueued(action.entryId) ? OK : fail("That track is no longer in the queue.")));
+      case "undoSceneStart": {
+        const undo = this.undo;
+        this.undo = null;
+        if (!undo || !this.rooms.rooms().some((room) => room.botId === undo.roomId)) {
+          return fail("There is no scene change to undo.");
+        }
+        this.player(undo.roomId).restore(undo.snapshot, DEFAULT_FADES.undo);
+        return OK;
+      }
+      default:
+        return fail("Lyre does not know that action.");
+    }
+  }
+
+  private playTrack(trackId: string, target: RoomTarget, when: "now" | "next", from: TrackFrom | undefined, fade: number): CueOutcome {
+    const track = this.library.track(trackId);
+    if (!track) {
+      return fail("That track is no longer in the library.");
+    }
+    if (track.kind === "fx") {
+      // An effect plays over the music, like a pad.
+      return this.eachRoom(target, (player) => (player.playEffect(trackId) ? OK : fail(`Unable to play sound: ${track.title}`)));
+    }
+    const item = this.itemFor(trackId, from);
+    if (track.kind === "amb") {
+      return this.eachRoom(target, (player) => (player.playAmbience(item, fade), OK));
+    }
+    return this.eachRoom(target, (player) => (when === "next" ? player.queueMusic(item, fade) : player.playMusic(item, fade), OK));
+  }
+
+  private playPlaylist(playlistId: string, target: RoomTarget, when: "now" | "next", fade: number): CueOutcome {
+    const playlist = this.library.playlist(playlistId);
+    if (!playlist) {
+      return fail("That playlist is no longer there.");
+    }
+    const item = playlistItem(playlistId, null, this.library);
+    if (!item) {
+      return fail("This playlist has no tracks yet.");
+    }
+    if (playlist.lane === "fx") {
+      return this.eachRoom(target, (player) => (player.playEffect(item.trackId), OK));
+    }
+    if (playlist.lane === "amb") {
+      return this.eachRoom(target, (player) => (player.playAmbience(item, fade), OK));
+    }
+    return this.eachRoom(target, (player) => (when === "next" ? player.queueMusic(item, fade) : player.playMusic(item, fade), OK));
+  }
+
+  /** The item for a track picked from a scene or a playlist; off script when it is not (or no longer) there. */
+  private itemFor(trackId: string, from: TrackFrom | undefined): Playing {
+    let item: Playing | null = null;
+    if (from && "scene" in from) {
+      item = sceneItem(from.scene, from.at, this.library);
+    } else if (from && "playlistId" in from) {
+      item = playlistItem(from.playlistId, trackId, this.library);
+    }
+    return item && item.trackId === trackId ? item : single(trackId);
+  }
+
+  /** Run `act` in every room the target names. Works when it worked in at least one room. */
+  private eachRoom(target: RoomTarget, act: (player: RoomPlayer) => CueOutcome): CueOutcome {
+    const ids = roomsFor(target, [...this.rooms.rooms()]);
+    if (ids.length === 0) {
+      return fail(NO_ROOM);
+    }
+    const outcomes = ids.map((id) => act(this.player(id)));
+    return outcomes.find((outcome) => outcome.ok) ?? outcomes[0];
+  }
+
+  private pickVariant(key: string, trackIds: string[], order: "random" | "roundrobin"): string {
+    if (order === "roundrobin") {
+      const turn = this.turns.get(key) ?? 0;
+      this.turns.set(key, turn + 1);
+      return trackIds[turn % trackIds.length];
+    }
+    return trackIds[Math.min(trackIds.length - 1, Math.floor(this.random() * trackIds.length))];
+  }
+
+  private player(roomId: string): RoomPlayer {
+    let player = this.players.get(roomId);
+    if (!player) {
+      player = new RoomPlayer(roomId, {
+        engine: this.engine,
+        rooms: this.rooms,
+        library: this.library,
+        changed: () => this.emit("change"),
+        error: (message) => this.emit("error", message),
+        newEntryId: () => `q${++this.entries}`,
+      });
+      this.players.set(roomId, player);
+    }
+    return player;
+  }
+
+  private dropGoneRooms() {
+    const present = new Set(this.rooms.rooms().map((room) => room.botId));
+    for (const [roomId, player] of this.players) {
+      if (!present.has(roomId)) {
+        player.dispose();
+        this.players.delete(roomId);
+        if (this.undo?.roomId === roomId) {
+          this.undo = null;
+        }
+      }
+    }
+    this.emit("change");
+  }
+}
+
+function fail(message: string): CueOutcome {
+  return { ok: false, message };
+}

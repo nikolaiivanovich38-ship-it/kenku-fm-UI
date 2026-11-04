@@ -81,3 +81,15 @@ A new library database (`<appData>/lyre/library/library.sqlite`, with daily back
 - Bookmarks can be grouped in folders, and the sidebar collapses to a column of icons (UX-10). Both are saved with the bookmarks in `persist:root` (version 5; `src/renderer/features/bookmarks/bookmarksMigration.ts` adds the empty folder list to bookmarks saved before). The sidebar's width is `src/renderer/features/bookmarks/sidebar.ts`; website views are placed from the sidebar's current width (`getBounds`).
 
 The app's own pages load from `file://` (packaged) so they share one localStorage origin; websites in tabs keep their data apart in `persist:tabs`. Audio files are not copied; tracks store their file paths. Bot tokens are never stored in plain text (SEC-5); an older version's token is moved out of `persist:root` once (redux-persist migration 5).
+
+## Wave 2: Engine
+
+The show engine sits on top of the WP4 playback engine in `src/player/engine` and is reached by tests only until the new interface (wave 3) uses it. Details: `docs/playback-engine.md` > Wave 2.
+
+- `queue/actions.ts`: `CueAction`, the one action model (PLY-8) for buttons, hotkeys and later the remote API, with `isCueAction` to check one that came from outside.
+- `queue/director.ts`: `Director.run(action)` finds the rooms an action names (`roomsFor`; scenes use `sceneRoom`) and keeps one Undo of a scene start (PLY-1).
+- `queue/roomPlayer.ts`: one room's music lane (scene or playlist in order, Play next queue, the way back after an off-script track), ambience lane (loops) and effects (one-shots and pads).
+- `queue/nowPlaying.ts`: the music lane's rules as pure functions (PLY-10, PLY-1, BUG-11).
+- `queue/library.ts`: `ShowLibrary`, what the director reads (domain lookups plus a track's file and a pad's sound, which the domain contract lacks).
+- `profile/`: the profile a track plays with in a place, with role defaults (PLY-4, PLY-12); `voice/passPlan.ts` turns a profile into gain ramps on the audio timeline.
+- `rooms.contract.ts`: `RoomsAudio`, all the director needs from the Rooms stream (`rooms()`, `getRoomBus(roomId, lane)`, `onRoomsChanged`); `tableOnlyRooms(mixer)` is one room on the engine's own buses until the Rooms stream's implementation is wired.
