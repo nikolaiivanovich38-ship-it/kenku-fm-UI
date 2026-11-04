@@ -19,6 +19,8 @@ export class PlayerManager {
   requests = new PlayerRequests();
   /** SEC-8: message listeners; each channel accepts only the pages IPC_CHANNELS names. */
   private ipc = guardIpc(ipcMain);
+  /** OUT-5, PRV-1: told when a player page is registered (SessionManager joins it to the capture window). */
+  onRegisterView?: (view: Electron.WebContents) => void;
   /** Callers of saveBeforeClose waiting for the player's PLAYER_SAVED. */
   private savedWaiters = new Set<() => void>();
 
@@ -151,5 +153,6 @@ export class PlayerManager {
       return;
     }
     this.registeredViewId = viewId;
+    this.onRegisterView?.(view);
   };
 }

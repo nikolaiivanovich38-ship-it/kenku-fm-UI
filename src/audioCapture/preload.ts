@@ -91,3 +91,12 @@ ipcRenderer.on("AUDIO_CAPTURE_ROUTE_VIEW", (_, viewId: number, route: CaptureRou
 ipcRenderer.on("AUDIO_CAPTURE_SET_DEFAULT_ROUTE", (_, route: CaptureRoute) => {
   audioCaptureManager.setDefaultRoute(route);
 });
+
+// OUT-5, PRV-1: the private channel to the player page (engine rooms and the
+// preview), handed over by the main process whenever either page loads.
+ipcRenderer.on("AUDIO_CAPTURE_PLAYER_PORT", (event) => {
+  const port = event.ports[0];
+  if (port) {
+    audioCaptureManager.setPlayerPort(port);
+  }
+});

@@ -179,3 +179,18 @@ describe("PlayerManager: saving the player's changes before the app closes (PERF
   });
 });
 
+
+// --- Rooms and buses ---
+describe("PlayerManager: the player page's audio channel (OUT-5, PRV-1)", () => {
+  it("says when the player page is registered, and only for the player page", () => {
+    manager = new PlayerManager();
+    const registered: unknown[] = [];
+    manager.onRegisterView = (view) => registered.push(view);
+    const tab = fakePage(null);
+    pages.set(tab.id, tab);
+    fakeIpcMain.deliver("PLAYER_REGISTER_VIEW", fromMainFrame(main), tab.id);
+    const view = playerView();
+    fakeIpcMain.deliver("PLAYER_REGISTER_VIEW", fromMainFrame(main), view.id);
+    expect(registered).toEqual([view]);
+  });
+});

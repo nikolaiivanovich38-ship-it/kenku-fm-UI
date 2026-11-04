@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AudioCaptureManagerPreload, opusEncoderConfig } from "./AudioCaptureManagerPreload";
 
 vi.mock("./PCMStream.worklet", () => ({ default: "blob:pcm-stream" }));
+vi.mock("./PlayerFrameInlet.worklet", () => ({ default: "blob:player-frame-inlet" }));
 
 /** Audio node that records what it is connected to. */
 class FakeNode {
@@ -41,7 +42,15 @@ class FakeAudioContext {
   state = "running";
   options: unknown;
   closed = false;
-  audioWorklet = { addModule: vi.fn(async () => undefined) };
+  audioWorklet = { addModule: vi.fn(async (_url: string) => undefined) };
+  destination = new FakeNode();
+  sinkId = "";
+  setSinkId = vi.fn(async (deviceId: string) => {
+    if (deviceId === "gone") {
+      throw new Error("NotFoundError: Requested device not found");
+    }
+    this.sinkId = deviceId;
+  });
   constructor(options?: unknown) {
     this.options = options;
     contexts.push(this);
@@ -76,7 +85,10 @@ class FakeAudioContext {
 }
 
 class FakeWorkletNode extends FakeNode {
-  port = { onmessage: undefined as undefined | ((event: { data: unknown }) => void) };
+  port = {
+    onmessage: undefined as undefined | ((event: { data: unknown }) => void),
+    postMessage: vi.fn((_message: unknown, _transfer?: unknown[]) => undefined),
+  };
   constructor(
     readonly context: FakeAudioContext,
     readonly name: string,
@@ -556,5 +568,154 @@ describe("AudioCaptureManagerPreload: one mix and one encoder per room (OUT-5)",
     manager.routeView(7, { room: 5 } as never);
     expect([...manager._mixes.keys()]).toEqual([A, B]);
     expect(manager._routes.has(7)).toBe(false);
+  });
+});
+
+describe("AudioCaptureManagerPreload: engine rooms and preview from the player page (OUT-5, PRV-1)", () => {
+  const A = "bot-a";
+  const B = "bot-b";
+
+  /** The capture window's end of the player channel. */
+  class FakePort {
+    posted: Record<string, unknown>[] = [];
+    onmessage: ((event: { data: unknown }) => void) | null = null;
+    closed = false;
+    postMessage(message: Record<string, unknown>) {
+      this.posted.push(message);
+    }
+    start() {}
+    close() {
+      this.closed = true;
+    }
+    deliver(data: unknown) {
+      this.onmessage?.({ data });
+    }
+  }
+
+  const roomFrame = (room: string, index = 0) => ({ kind: "room", room, index, samples: new Float32Array(1920) });
+  const previewFrame = (index = 0) => ({ kind: "preview", index, samples: new Float32Array(1920) });
+  const inlets = () => workletNodes.filter((node) => node.name === "player-frame-inlet");
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  async function withPlayer(rooms = [A, B]) {
+    const manager = newManager();
+    const port = new FakePort();
+    manager.setPlayerPort(port);
+    manager.setRooms(rooms);
+    await manager.startBroadcast("lowLatency");
+    return { manager, port };
+  }
+
+  it("tells the player page when a broadcast starts and stops, and on a new channel", async () => {
+    const manager = newManager();
+    const port = new FakePort();
+    manager.setPlayerPort(port);
+    await manager.startBroadcast("lowLatency");
+    await manager.stopBroadcast();
+    expect(port.posted).toEqual([
+      { kind: "broadcast", active: false },
+      { kind: "broadcast", active: true },
+      { kind: "broadcast", active: false },
+    ]);
+    const next = new FakePort();
+    manager.setPlayerPort(next);
+    expect(port.closed).toBe(true);
+    expect(next.posted).toEqual([{ kind: "broadcast", active: false }]);
+  });
+
+  it("plays a room's frames into that room's mix only", async () => {
+    const { manager, port } = await withPlayer();
+    port.deliver(roomFrame(B, 4));
+    expect(inlets()).toHaveLength(1);
+    const inlet = inlets()[0];
+    expect(inlet.connections).toEqual(new Set([manager._mixes.get(B)!.input]));
+    expect(inlet.port.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ index: 4, samples: expect.any(Float32Array) }),
+      [expect.any(ArrayBuffer)],
+    );
+    port.deliver(roomFrame(B, 5));
+    expect(inlets()).toHaveLength(1);
+    expect(contexts[0].state).toBe("running");
+  });
+
+  it("drops frames for a room it does not have, or outside a broadcast, or that are odd", async () => {
+    const { manager, port } = await withPlayer([A]);
+    port.deliver(roomFrame("bot-gone"));
+    port.deliver({ kind: "room", room: A, index: 0, samples: new Float32Array(3) });
+    port.deliver({ kind: "broadcast", active: true });
+    expect(inlets()).toHaveLength(0);
+    await manager.stopBroadcast();
+    port.deliver(roomFrame(A));
+    expect(inlets()).toHaveLength(0);
+  });
+
+  it("frees a room's inlet when its bot leaves, and after a few seconds without frames", async () => {
+    vi.useFakeTimers();
+    try {
+      const { manager, port } = await withPlayer();
+      port.deliver(roomFrame(A));
+      port.deliver(roomFrame(B));
+      manager.setRooms([A]);
+      expect(inlets()[1].disconnected).toBe(true);
+      vi.advanceTimersByTime(5_000);
+      expect(inlets()[0].disconnected).toBe(true);
+      expect(manager._playerInlets.size).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("plays the preview in an audio context of its own, never in a room's mix", async () => {
+    const { manager, port } = await withPlayer();
+    port.deliver(roomFrame(A));
+    port.deliver(previewFrame());
+    await settle();
+    const preview = contexts[1];
+    expect(preview).toBeDefined();
+    expect(preview).not.toBe(contexts[0]);
+    const previewInlet = workletNodes.find((node) => node.context === preview)!;
+    expect(previewInlet.connections).toEqual(new Set([preview.destination]));
+    for (const mix of manager._mixes.values()) {
+      expect(contexts[0].nodes.includes(previewInlet as never)).toBe(false);
+      expect((mix.input as unknown as FakeNode).connections.has(previewInlet)).toBe(false);
+    }
+    port.deliver(previewFrame(1));
+    await settle();
+    expect(previewInlet.port.postMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it("previews without a broadcast too, and closes the preview's context when it has been quiet a while", async () => {
+    vi.useFakeTimers();
+    try {
+      const manager = newManager();
+      const port = new FakePort();
+      manager.setPlayerPort(port);
+      port.deliver(previewFrame());
+      await vi.advanceTimersByTimeAsync(0);
+      expect(contexts).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(contexts[0].closed).toBe(true);
+      expect(manager._preview).toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("plays the preview on the chosen device and says when it cannot (PRV-2)", async () => {
+    const manager = newManager();
+    const port = new FakePort();
+    manager.setPlayerPort(port);
+    port.deliver({ kind: "preview-sink", id: 1, deviceId: "headphones" });
+    await settle();
+    await settle();
+    expect(contexts[0].sinkId).toBe("headphones");
+    port.deliver({ kind: "preview-sink", id: 2, deviceId: "gone" });
+    await settle();
+    await settle();
+    expect(port.posted.filter((message) => message.kind === "preview-sink-done")).toEqual([
+      { kind: "preview-sink-done", id: 1 },
+      { kind: "preview-sink-done", id: 2, error: "That sound device is not available. The preview stays on the device it was on." },
+    ]);
+    expect(contexts[0].sinkId).toBe("headphones");
   });
 });

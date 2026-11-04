@@ -1,6 +1,15 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import PCMStream from "./PCMStream.worklet";
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore
+import PlayerFrameInlet from "./PlayerFrameInlet.worklet";
+import {
+  isPlayerAudioMessage,
+  type AudioPortLike,
+  type CaptureAudioMessage,
+  type PlayerAudioMessage,
+} from "../../common/playerAudio";
 import {
   DEFAULT_CAPTURE_ROUTE,
   MAX_ROOM_ID_LENGTH,
@@ -20,6 +29,9 @@ export const FRAME_LENGTH = (SAMPLE_RATE * FRAME_DURATION_MS) / 1000;
 export const OPUS_BITRATE = 128_000;
 
 export type StreamingMode = "lowLatency" | "performance";
+
+/** AudioContext.setSinkId (Chromium 110+); not yet in TypeScript's DOM types. */
+type SinkableContext = AudioContext & { setSinkId?: (deviceId: string) => Promise<void> };
 
 /**
  * Receives each encoded Opus packet (one 20 ms frame) and the room (bot id)
@@ -43,6 +55,32 @@ export interface RoomMix {
 
 /** Key of the one mix used before the main process names any room. */
 const UNNAMED_ROOM = "";
+
+/** OUT-5: a room's inlet is freed after this long without frames from the player page. */
+export const PLAYER_INLET_IDLE_MS = 5_000;
+/** PRV-1: the preview's audio context is closed after this long without frames. */
+export const PREVIEW_IDLE_MS = 10_000;
+/** PRV-2: what the player page is told when a device cannot be used. */
+export const PREVIEW_DEVICE_REFUSED =
+  "That sound device is not available. The preview stays on the device it was on.";
+
+/** An engine room's frames from the player page, played into the room's mix. */
+interface PlayerInlet {
+  node: AudioWorkletNode;
+  timer?: ReturnType<typeof setTimeout>;
+}
+
+/**
+ * PRV-1: the preview, played on the game master's device by an audio context
+ * of its own. It is a different context from the broadcast's, so no preview
+ * node can ever be connected to a room's mix, and this window is never
+ * recorded.
+ */
+interface PreviewPlayback {
+  context: AudioContext;
+  ready: Promise<AudioWorkletNode | undefined>;
+  timer?: ReturnType<typeof setTimeout>;
+}
 
 /** One frame from the PCM worklet (see PCMStream.worklet.js). */
 type WorkletFrame = { index: number; samples: Float32Array<ArrayBuffer>; last?: boolean };
@@ -105,6 +143,14 @@ export class AudioCaptureManagerPreload {
   /** OUT-5: where views without a route, and input devices, go. */
   _defaultRoute: CaptureRoute = DEFAULT_CAPTURE_ROUTE;
 
+  /** OUT-5, PRV-1: the private channel to the player page (engine rooms and preview). */
+  _playerPort?: AudioPortLike;
+  /** Engine rooms' frames, one inlet per room that is sending. */
+  _playerInlets = new Map<string, PlayerInlet>();
+  _preview?: PreviewPlayback;
+  /** PRV-2: the preview's device ("" is the default), kept while its context comes and goes. */
+  _previewSinkId = "";
+
   /** Audio DOM element for the current output / local playback */
   _audioOutputElement?: HTMLAudioElement;
   /** Whether the mix plays on this computer ("This Computer" output). */
@@ -139,6 +185,7 @@ export class AudioCaptureManagerPreload {
    */
   startBroadcast(streamingMode: StreamingMode): Promise<boolean> {
     if (!this._ready) {
+      this._sendToPlayer({ kind: "broadcast", active: true });
       this._ready = this._startBroadcast(streamingMode).catch((error: unknown) => {
         console.error("Unable to start the broadcast audio", error);
         return false;
@@ -158,6 +205,7 @@ export class AudioCaptureManagerPreload {
     this._setupLoopback();
 
     await context.audioWorklet.addModule(PCMStream);
+    await context.audioWorklet.addModule(PlayerFrameInlet);
     if (this._audioContext !== context) {
       // Stopped while the worklet was loading.
       return false;
@@ -179,6 +227,10 @@ export class AudioCaptureManagerPreload {
       return;
     }
     this._ready = undefined;
+    this._sendToPlayer({ kind: "broadcast", active: false });
+    for (const room of [...this._playerInlets.keys()]) {
+      this._releasePlayerInlet(room);
+    }
     for (const id of Object.keys(this._mediaStreams)) {
       this._releaseBrowserViewStream(Number(id));
     }
@@ -271,6 +323,7 @@ export class AudioCaptureManagerPreload {
   }
 
   _releaseMix(mix: RoomMix): void {
+    this._releasePlayerInlet(mix.id);
     mix.input.disconnect();
     mix.volume.disconnect();
     mix.pcmNode.disconnect();
@@ -293,6 +346,154 @@ export class AudioCaptureManagerPreload {
     output.disconnect();
     for (const mix of this._mixesFor(route)) {
       output.connect(mix.input);
+    }
+  }
+
+  /**
+   * OUT-5, PRV-1: the main process hands over a new end of the player channel
+   * (either page loaded again). The player page learns at once whether a
+   * broadcast is running, since it sends room frames only then.
+   */
+  setPlayerPort(port: AudioPortLike): void {
+    this._playerPort?.close?.();
+    this._playerPort = port;
+    port.onmessage = (event) => {
+      if (this._playerPort === port && isPlayerAudioMessage(event.data)) {
+        this._handlePlayerMessage(event.data);
+      }
+    };
+    port.start?.();
+    this._sendToPlayer({ kind: "broadcast", active: Boolean(this._ready) });
+  }
+
+  _sendToPlayer(message: CaptureAudioMessage): void {
+    this._playerPort?.postMessage(message);
+  }
+
+  _handlePlayerMessage(message: PlayerAudioMessage): void {
+    switch (message.kind) {
+      case "room":
+        this._playRoomFrame(message.room, message.index, message.samples);
+        break;
+      case "preview":
+        void this._playPreviewFrame(message.index, message.samples);
+        break;
+      case "preview-sink":
+        void this._setPreviewSink(message.id, message.deviceId);
+        break;
+    }
+  }
+
+  /** OUT-5: 20 ms of an engine room, into that room's mix (only while broadcasting, only a room it has). */
+  _playRoomFrame(room: string, index: number, samples: Float32Array): void {
+    const context = this._audioContext;
+    const mix = this._mixes.get(room);
+    if (!context || !this._graphReady || !mix || room === UNNAMED_ROOM) {
+      return;
+    }
+    let inlet = this._playerInlets.get(room);
+    if (!inlet) {
+      const node = new AudioWorkletNode(context, "player-frame-inlet", {
+        numberOfInputs: 0,
+        numberOfOutputs: 1,
+        outputChannelCount: [2],
+      });
+      node.connect(mix.input);
+      inlet = { node };
+      this._playerInlets.set(room, inlet);
+      this._updateRunning();
+    }
+    if (inlet.timer) {
+      clearTimeout(inlet.timer);
+    }
+    // Silence is not sent, so a room that stays quiet frees its inlet.
+    inlet.timer = setTimeout(() => {
+      this._releasePlayerInlet(room);
+      this._updateRunning();
+    }, PLAYER_INLET_IDLE_MS);
+    inlet.node.port.postMessage({ index, samples }, [samples.buffer]);
+  }
+
+  _releasePlayerInlet(room: string): void {
+    const inlet = this._playerInlets.get(room);
+    if (!inlet) {
+      return;
+    }
+    this._playerInlets.delete(room);
+    if (inlet.timer) {
+      clearTimeout(inlet.timer);
+    }
+    inlet.node.port.onmessage = null;
+    inlet.node.disconnect();
+  }
+
+  /** PRV-1: the preview's own context, made when the preview first plays and closed when it has been quiet. */
+  _ensurePreview(): PreviewPlayback {
+    if (this._preview) {
+      return this._preview;
+    }
+    const context = new AudioContext({ latencyHint: "interactive", sampleRate: SAMPLE_RATE });
+    const preview: PreviewPlayback = {
+      context,
+      ready: (async () => {
+        try {
+          if (this._previewSinkId) {
+            await (context as SinkableContext).setSinkId?.(this._previewSinkId).catch(() => {
+              // The device chosen earlier is gone: play on the default device.
+            });
+          }
+          await context.audioWorklet.addModule(PlayerFrameInlet);
+          if (this._preview !== preview) {
+            return undefined;
+          }
+          const node = new AudioWorkletNode(context, "player-frame-inlet", {
+            numberOfInputs: 0,
+            numberOfOutputs: 1,
+            outputChannelCount: [2],
+          });
+          node.connect(context.destination);
+          return node;
+        } catch (error) {
+          console.error("Unable to play the preview", error);
+          return undefined;
+        }
+      })(),
+    };
+    this._preview = preview;
+    this._armPreviewTimer(preview);
+    return preview;
+  }
+
+  _armPreviewTimer(preview: PreviewPlayback): void {
+    if (preview.timer) {
+      clearTimeout(preview.timer);
+    }
+    preview.timer = setTimeout(() => {
+      if (this._preview === preview) {
+        this._preview = undefined;
+        void preview.ready.then((node) => node?.disconnect());
+        void preview.context.close().catch((): void => undefined);
+      }
+    }, PREVIEW_IDLE_MS);
+  }
+
+  async _playPreviewFrame(index: number, samples: Float32Array): Promise<void> {
+    const preview = this._ensurePreview();
+    this._armPreviewTimer(preview);
+    const node = await preview.ready;
+    node?.port.postMessage({ index, samples }, [samples.buffer]);
+  }
+
+  /** PRV-2: play the preview on another device; the player page is told whether it worked. */
+  async _setPreviewSink(id: number, deviceId: string): Promise<void> {
+    const preview = this._ensurePreview();
+    try {
+      await (preview.context as SinkableContext).setSinkId?.(deviceId);
+      this._previewSinkId = deviceId;
+      this._sendToPlayer({ kind: "preview-sink-done", id });
+    } catch (error) {
+      console.error("Unable to play the preview on that device", error);
+      this._sendToPlayer({ kind: "preview-sink-done", id, error: PREVIEW_DEVICE_REFUSED });
     }
   }
 
@@ -396,7 +597,8 @@ export class AudioCaptureManagerPreload {
     const sources =
       Object.keys(this._mediaStreamSources).length +
       Object.keys(this._externalAudioStreamSources).length +
-      Object.keys(this._browserViewRequests).length;
+      Object.keys(this._browserViewRequests).length +
+      this._playerInlets.size;
     if (sources > 0) {
       void context.resume();
     } else {

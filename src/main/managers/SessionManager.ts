@@ -15,6 +15,8 @@ export class SessionManager {
     this.viewManager = new BrowserViewManagerMain(window);
     this.windowManager = new WindowManager(window);
     this.playerManager = new PlayerManager();
+    // OUT-5, PRV-1: the player page's private audio channel to the capture window.
+    this.playerManager.onRegisterView = (view) => this.playbackManager.setPlayerView(view);
   }
 
   /** PERF-6: lets the player save changes it is holding back; see saveBeforeClose.ts. */

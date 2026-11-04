@@ -306,3 +306,17 @@ describe("local-file tabs are served under their own scheme (WP1 review 1 and 2)
     expect(respond).toHaveBeenCalledWith({ cancel: cancelled });
   });
 });
+
+// --- Rooms and buses ---
+describe("PRV-2 permission checks", () => {
+  it("lets the player page name and choose output devices, but not a website", () => {
+    secureSessions();
+    const player = { id: 504, once: vi.fn() };
+    trustedContents.trust(player, "player-view");
+    expect(sessions.default.checkHandler?.(player, "speaker-selection", "file://", { isMainFrame: true })).toBe(true);
+    expect(sessions.default.checkHandler?.({ id: 780 }, "speaker-selection", "https://x.example", { isMainFrame: true })).toBe(
+      false,
+    );
+    expect(request(sessions.default, player, "speaker-selection")).toBe(false);
+  });
+});

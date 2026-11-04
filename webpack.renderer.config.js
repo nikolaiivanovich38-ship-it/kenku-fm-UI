@@ -9,7 +9,18 @@ rules.push({
 
 rules.push({
   test: /\.worklet\.js$/,
+  // "?asset" imports (below) are left to the asset rule.
+  resourceQuery: { not: [/asset/] },
   use: { loader: "worklet-loader", options: { inline: true } },
+});
+
+// OUT-5: the player page loads the same PCM worklet as a file next to its
+// bundle (its Content-Security-Policy allows scripts from 'self' only, not
+// the blob: addresses worklet-loader makes): `import url from "./x.worklet.js?asset"`.
+rules.push({
+  test: /\.worklet\.js$/,
+  resourceQuery: /asset/,
+  type: "asset/resource",
 });
 
 rules.push({
