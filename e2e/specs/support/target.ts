@@ -78,18 +78,17 @@ export function notLyre(): string[] {
   return isApp() ? [] : ["#proto", "#notes"];
 }
 
-/** Accessibility rules the PROTOTYPE is known to break, so that its run can pass while the finding stays on record
- *  (each is listed as an annotation on every sweep that hits it). The app must not break them: this is empty there.
- *  - label-content-name-mismatch (WCAG 2.5.3 Label in Name): the pad tiles on a pad board show "Thunder crack 1" but
- *    are named "Thunder crack, key 1, One-shot, row 1, column 1"; the "To: Table" choice on Live shows "To: Table" but
- *    is named "Plays in Table. Choose a room". Fix in the app by starting the accessible name with the visible words. */
+/** Accessibility rules the prototype is known to break, recorded as annotations so its run can pass. None now: the
+ *  Label in Name findings (pad tiles, the Live "To: <room>" choice) were fixed in the prototype. Always empty for the app. */
 export function knownAxeIssues(): string[] {
-  return isApp() ? [] : ["label-content-name-mismatch"];
+  return [];
 }
 
-/** Layout findings the PROTOTYPE is known to have, kept on record as annotations so its run can pass. Empty for the app.
- *  - Session planner, scene open, 600 px wide: the visually hidden " (Track)" label inside a long, ellipsised item
- *    name sticks out 24 px to the right and the whole page scrolls sideways (fine from 640 px). */
+/** Layout findings the prototype is known to have, recorded as annotations so its run can pass. None now: the hidden
+ *  " (Track)" text that widened the session planner below 640 px was fixed in the prototype. Always none for the app. */
 export function knownLayoutIssue(screen: string, width: number, kind: "sideways" | "overlap" | "clipped"): boolean {
-  return !isApp() && screen === "Session planner with a scene open" && kind === "sideways" && width < 640;
+  void screen;
+  void width;
+  void kind;
+  return false;
 }
