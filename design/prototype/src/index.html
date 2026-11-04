@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lyre Design Round 2</title>
+<!--@fonts-->
+<!--@css-->
+</head>
+<body>
+<div id="frame">
+  <div class="proto" id="proto" role="region" aria-label="Prototype controls (not part of Lyre)"></div>
+  <div class="notes" id="notes" role="region" aria-label="Design notes (not part of Lyre)"></div>
+  <div id="stagewrap">
+    <div id="app">
+      <aside id="rail" class="rail"></aside>
+      <main id="view" class="view"></main>
+    </div>
+  </div>
+</div>
+<div id="lyre-live" class="sr-only" aria-live="polite"></div>
+<div id="lyre-toast" class="toast" role="status" hidden></div>
+<!--@js-->
+<script>L.boot();</script>
+</body>
+</html>

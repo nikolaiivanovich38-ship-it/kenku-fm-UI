@@ -1,0 +1,657 @@
+/* Lyre design round 2: shared core for the clickable prototype.
+   No real audio: a 250 ms clock advances simulated lanes so progress, fades and pads are visible.
+
+   API for views (views/<name>.js):
+     L.view(name, { nav, title(p), render(p) -> html, after(root, p)?, notes: [..] })  register a view
+     L.route(hash)                     go to '#/library', '#/session/crown/s14' ... (routes listed in ROUTES)
+     L.acts.<name> = function (el, ev) click handler for any element with data-act="<name>"
+     L.inputs.<name> = function (el, ev) input/change handler for data-input="<name>"
+     L.onKey(fn(ev) -> true if handled)  global keys; each handler checks L.typing(ev.target) itself
+     L.render()                        re-render the current view (focus and scroll are kept by data-k / data-scroll)
+     L.pane({ id, title, icon, summary, actions, body, flush, size, collapsed, kind, status })  collapsible, expandable pane;
+       kind 'onair'|'music'|'scenes'|'search'|'fx'|'plain' gives the box its identity edge; status { text, tone: 'live'|'on'|'idle'|'warn' } is the one status pill in its header
+     L.menu(anchor, html) / L.closeMenu()       anchored menu (items use data-act)
+     L.sheet({ title, body, footer, wide }) / L.closeSheet()   modal sheet with focus trap (prep views only)
+     L.say(text) screen-reader announcement; L.toast(text) short visible note
+     L.icon(name, cls), L.esc, L.fmt(seconds), L.energy(n), L.tagChips(track, max), L.title(track)
+     Lookups: L.track(id), L.playlist(id), L.board(id), L.campaign(id), L.session(cid, sid),
+              L.playlistTracks(pl), L.usesOfPlaylist(id), L.usesOfBoard(id), L.playlistsOfTrack(id), L.boardPads(board)
+     Playback (see 'Rooms' below: without a target, calls that start sound go to the rooms ticked in Send to): L.play(trackId, {lane, playlistId, fade, seq, target}), L.next(lane), L.prev(lane), L.pauseLane(lane), L.stopLane(lane, fade),
+               L.fadeAll(s), L.firePad(boardId, padId, phase), L.stopFx(uid), L.preview(trackId), L.stopPreview(),
+               L.startScene(cid, sid, index), L.pb (state: music, amb, fx[], preview, held)
+     L.state: { theme, frame, rail, panes, live: { cid, sid, scene, standby } }
+*/
+var L = (function () {
+  var D = LYRE_DATA;
+  var L = { data: D, views: {}, acts: {}, inputs: {}, keys: [] };
+
+  /* ---------- icons (24 px stroke paths) ---------- */
+  var I = {
+    swords: 'M4 4l12 12M20 4 8 16M6 14l4 4M18 14l-4 4M4 20l2-2M20 20l-2-2',
+    arrow: 'M4 20 18 6M18 6h-5M18 6v5M4 20l1.5-4.5M4 20l4.5-1.5',
+    shield: 'M12 3l7 3v5c0 5-3.5 8-7 10-3.5-2-7-5-7-10V6z',
+    flame: 'M12 3c1 4 5 5.5 5 10a5 5 0 0 1-10 0c0-2.5 1.5-4 2.5-5 .3 2 1.5 3 2.5 3-.5-3 0-5.5 0-8z',
+    bolt: 'M13 2 4 14h7l-1 8 9-12h-7z',
+    skull: 'M12 3a7 7 0 0 0-7 7c0 2.5 1.2 4.2 3 5.2V19h8v-3.8c1.8-1 3-2.7 3-5.2a7 7 0 0 0-7-7zM9.5 11h.01M14.5 11h.01M10.5 19v2M13.5 19v2',
+    heart: 'M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10z',
+    bell: 'M6 16v-5a6 6 0 0 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0',
+    drop: 'M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z',
+    wind: 'M3 8h11a3 3 0 1 0-3-3M3 12h15a3 3 0 1 1-3 3M3 16h8',
+    rain: 'M7 14a4 4 0 0 1 .5-8 5 5 0 0 1 9.5 1.5A3.3 3.3 0 0 1 17 14zM8 17l-1 3M12 17l-1 3M16 17l-1 3',
+    tree: 'M12 3 6 11h3l-4 6h14l-4-6h3zM12 17v4',
+    door: 'M6 21V4h12v17M3 21h18M14.5 12.5h.01',
+    note: 'M9 18V5l11-2v13M9 18a3 3 0 1 1-3-3 3 3 0 0 1 3 3zM20 16a3 3 0 1 1-3-3 3 3 0 0 1 3 3z',
+    horn: 'M3 10v4h3l8 5V5L6 10zM17.5 9a4 4 0 0 1 0 6',
+    ghost: 'M6 20V10a6 6 0 0 1 12 0v10l-2-2-2 2-2-2-2 2-2-2zM10 10h.01M14 10h.01',
+    chain: 'M10 14a3 3 0 0 1 0-4l3-3a3 3 0 0 1 4 4l-1 1M14 10a3 3 0 0 1 0 4l-3 3a3 3 0 0 1-4-4l1-1',
+    wave: 'M3 12c2-2 4-2 6 0s4 2 6 0 4-2 6 0M3 17c2-2 4-2 6 0s4 2 6 0 4-2 6 0M3 7c2-2 4-2 6 0s4 2 6 0 4-2 6 0',
+    mug: 'M5 7h11v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2zM16 10h2a2 2 0 0 1 0 4h-2',
+    eye: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+    star: 'M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z',
+    drum: 'M4 8c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zM4 8v8c0 1.7 3.6 3 8 3s8-1.3 8-3V8',
+    moon: 'M20 14A8 8 0 1 1 10 4a6.5 6.5 0 0 0 10 10z',
+    claw: 'M6 20 10 4M11 21l3-16M16 21l3-14',
+    organ: 'M4 21V9M8 21V5M12 21V3M16 21V5M20 21V9M2 21h20',
+    book: 'M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5M8 7h7',
+    loop: 'M17 2l3 3-3 3M4 11V9a4 4 0 0 1 4-4h12M7 22l-3-3 3-3M20 13v2a4 4 0 0 1-4 4H4',
+    hand: 'M8 13V5a1.5 1.5 0 0 1 3 0v6M11 11V4a1.5 1.5 0 0 1 3 0v7M14 11V5.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7 6 6 0 0 1-5-3l-2.5-4a1.5 1.5 0 0 1 2.5-1.6L8 15',
+    restart: 'M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5',
+    one: 'M5 5v14l10-7zM19 5v14',
+    headphones: 'M3 18v-6a9 9 0 0 1 18 0v6M21 19a2 2 0 0 1-2 2h-1v-6h3zM3 19a2 2 0 0 0 2 2h1v-6H3z',
+    play: 'M7 4v16l13-8z', stop: 'M6 6h12v12H6z', pause: 'M7 5h3v14H7zM14 5h3v14h-3z',
+    next: 'M5 5v14l10-7zM19 5v14', prev: 'M19 5v14L9 12zM5 5v14',
+    back: 'M15 18l-6-6 6-6', left: 'M19 12H5M11 18l-6-6 6-6', right: 'M5 12h14M13 6l6 6-6 6',
+    search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM20 20l-4-4',
+    grid: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z',
+    close: 'M6 6l12 12M18 6 6 18',
+    chevup: 'M6 15l6-6 6 6', chevdown: 'M6 9l6 6 6-6', chevleft: 'M15 6l-6 6 6 6', chevright: 'M9 6l6 6-6 6',
+    expand: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5', shrink: 'M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5',
+    fade: 'M3 6c6 0 9 12 18 12M3 6v12h18',
+    broadcast: 'M12 12h.01M8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7M5.6 18.4a9 9 0 0 1 0-12.8M18.4 5.6a9 9 0 0 1 0 12.8',
+    edit: 'M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4',
+    plus: 'M12 5v14M5 12h14', minus: 'M5 12h14',
+    queue: 'M4 6h12M4 12h12M4 18h8M18 15v6M15 18h6',
+    list: 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01',
+    folder: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
+    file: 'M14 3H6v18h12V7zM14 3v4h4',
+    tag: 'M3 12V4h8l10 10-8 8zM7.5 8.5h.01',
+    users: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21v-1a6 6 0 0 1 12 0v1M16 3.5a4 4 0 0 1 0 7.5M22 21v-1a6 6 0 0 0-4-5.6',
+    map: 'M9 4 3 6v14l6-2 6 2 6-2V4l-6 2zM9 4v14M15 6v14',
+    scroll: 'M8 3h11v14a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3v-2h11v2a3 3 0 0 0 3 3M8 3a3 3 0 0 0-3 3v9',
+    crown: 'M3 8l4 4 5-7 5 7 4-4-2 11H5zM5 19h14',
+    library: 'M4 4v16M8 4v16M12 4l4 16M17 4l3 16',
+    playlist: 'M3 6h12M3 12h12M3 18h7M17 18V8l4-1',
+    palette: 'M12 3a9 9 0 1 0 0 18c1.2 0 2-.8 2-2 0-.6-.2-1-.5-1.4-.3-.4-.5-.8-.5-1.3 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4c0-4.2-4-7.5-9-7.5zM7.5 11.5h.01M10.5 7.5h.01M15.5 8.5h.01',
+    gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-2.9-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 3 14H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.2-2.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 10 3V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1A1.7 1.7 0 0 0 21 10h.1a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z',
+    more: 'M5 12h.01M12 12h.01M19 12h.01',
+    drag: 'M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01',
+    check: 'M5 12l5 5L20 7', trash: 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13',
+    shuffle: 'M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5',
+    link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1',
+    rule: 'M4 6h16M7 12h10M10 18h4',
+    stopall: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM9 9h6v6H9z',
+    music: 'M9 18V5l11-2v13M9 18a3 3 0 1 1-3-3 3 3 0 0 1 3 3zM20 16a3 3 0 1 1-3-3 3 3 0 0 1 3 3z',
+    ambience: 'M3 8h11a3 3 0 1 0-3-3M3 12h15a3 3 0 1 1-3 3M3 16h8',
+    sfx: 'M13 2 4 14h7l-1 8 9-12h-7z'
+  };
+  L.icon = function (n, cls) { return '<svg class="i' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" aria-hidden="true"><path d="' + (I[n] || I.note) + '"/></svg>'; };
+  L.iconNames = Object.keys(I);
+  L.logo = '<svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#142B24"/><path d="M26 24V48M38 24V48" fill="none" stroke="#F1E4C8" stroke-width="4"/><g fill="#D9A441"><path id="lyreplume" d="M25 53C14 48.5 8 37 10.8 25.5C12.2 19.5 11 15.5 5.6 13.6C4.4 13.2 4.6 10 6.4 9.8C15 9 20.2 15.5 18.6 24.8C17.2 34 21 42.5 30 48Z"/><use href="#lyreplume" transform="matrix(-1 0 0 1 64 0)"/><rect x="12" y="20" width="40" height="4"/></g><rect x="20" y="48" width="24" height="8" rx="2" fill="#C0582F"/></svg>';
+
+  /* ---------- helpers ---------- */
+  var esc = L.esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); };
+  L.fmt = function (s) { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+  L.energy = function (e) { var h = '<span class="energy" role="img" aria-label="Energy ' + (e || 0) + ' of 5">'; for (var i = 1; i <= 5; i++) h += '<span class="' + (i <= e ? 'on' : '') + '"></span>'; return h + '</span>'; };
+  L.title = function (t) { return t ? (t.title || t.metaTitle || t.file) : ''; };
+  L.tagChips = function (t, max) {
+    var out = [], n = 0; max = max || 99;
+    D.tagGroups.forEach(function (g) { (t.tags[g.id] || []).forEach(function (v) { if (n++ < max) out.push('<span class="chip ' + g.cls + '" title="' + esc(g.name) + '"><span class="dot"></span>' + esc(v) + '</span>'); }); });
+    if (n > max) out.push('<span class="chip">+' + (n - max) + '</span>');
+    return out.join('');
+  };
+  L.colors = { steel: '#8fb3d9', ember: '#f08a52', gold: '#e8bd62', moss: '#7fcf8f', violet: '#b69cff', plum: '#d394e0', sea: '#5fd4c0', bone: '#d9cfb8' };
+  L.modeName = { oneshot: 'One-shot', toggle: 'Toggle loop', hold: 'Hold to play', retrigger: 'Restart on press' };
+  L.modeIcon = { oneshot: 'one', toggle: 'loop', hold: 'hand', retrigger: 'restart' };
+
+  /* ---------- lookups ---------- */
+  function by(list) { var m = {}; list.forEach(function (x) { m[x.id] = x; }); return m; }
+  L.track = function (id) { return by(D.tracks)[id]; };
+  L.playlist = function (id) { return by(D.playlists)[id]; };
+  L.board = function (id) { return by(D.boards)[id]; };
+  L.campaign = function (id) { return by(D.campaigns)[id]; };
+  L.session = function (cid, sid) { var c = L.campaign(cid); return c && by(c.sessions)[sid]; };
+  L.matchesRule = function (t, rule) {
+    if (!rule) return false;
+    if (rule.energy && (t.energy < rule.energy[0] || t.energy > rule.energy[1])) return false;
+    if (rule.notRole && t.role === rule.notRole) return false;
+    return (rule.conds || []).every(function (c) {
+      if (!c.values.length) return true; // a condition still being written does not empty the list
+      var have = t.tags[c.group] || [];
+      var hits = c.values.filter(function (v) { return have.indexOf(v) > -1; }).length;
+      return c.match === 'all' ? hits === c.values.length : c.match === 'none' ? hits === 0 : hits > 0;
+    });
+  };
+  L.playlistTracks = function (pl) {
+    if (!pl) return [];
+    if (pl.kind === 'dynamic') return D.tracks.filter(function (t) { return (pl.lane === 'fx' ? L.isFx(t) : t.kind === pl.lane) && L.matchesRule(t, pl.rule); });
+    return pl.items.map(L.track).filter(Boolean);
+  };
+  L.ruleText = function (rule) {
+    var parts = (rule.conds || []).filter(function (c) { return c.values.length; }).map(function (c) {
+      var g = D.tagGroups.filter(function (x) { return x.id === c.group; })[0];
+      return (g ? g.name : c.group) + ' ' + (c.match === 'all' ? 'all of' : c.match === 'none' ? 'none of' : 'any of') + ' ' + c.values.join(', ');
+    });
+    if (rule.energy) parts.push('energy ' + rule.energy[0] + ' to ' + rule.energy[1]);
+    if (rule.notRole) parts.push('not ' + rule.notRole.toLowerCase() + 's');
+    return parts.join('; ');
+  };
+  // Where a playlist is used: [{level:'campaign'|'session'|'scene', campaign, session, scene, label}]
+  L.usesOfPlaylist = function (pid) {
+    var out = [];
+    D.campaigns.forEach(function (c) {
+      if (c.playlists.indexOf(pid) > -1) out.push({ level: 'campaign', campaign: c, label: c.name + ' (whole campaign)' });
+      c.sessions.forEach(function (s) {
+        if (s.playlists.indexOf(pid) > -1) out.push({ level: 'session', campaign: c, session: s, label: c.name + ' › Session ' + s.n });
+        s.scenes.forEach(function (sc) {
+          if (sc.music.indexOf(pid) > -1 || sc.amb === pid) out.push({ level: 'scene', campaign: c, session: s, scene: sc, label: c.name + ' › Session ' + s.n + ' › ' + sc.name });
+        });
+      });
+    });
+    return out;
+  };
+  L.usesOfBoard = function (bid) {
+    var out = [];
+    D.campaigns.forEach(function (c) {
+      if (c.boards.indexOf(bid) > -1) out.push({ level: 'campaign', campaign: c, label: c.name + ' (whole campaign)' });
+      c.sessions.forEach(function (s) {
+        if (s.boards.indexOf(bid) > -1) out.push({ level: 'session', campaign: c, session: s, label: c.name + ' › Session ' + s.n });
+        s.scenes.forEach(function (sc) { if (L.sceneBoards(sc).indexOf(bid) > -1) out.push({ level: 'scene', campaign: c, session: s, scene: sc, label: c.name + ' › Session ' + s.n + ' › ' + sc.name }); });
+      });
+    });
+    return out;
+  };
+  L.playlistsOfTrack = function (tid) { var t = L.track(tid); return D.playlists.filter(function (p) { return p.kind === 'manual' ? p.items.indexOf(tid) > -1 : (t && t.kind === p.lane && L.matchesRule(t, p.rule)); }); };
+  L.boardPads = function (b) { return b.slots.slice(0, b.cols * b.rows); };
+  L.kindName = { music: 'Music', amb: 'Ambience', fx: 'FX' };
+  // FX filter: sound effects plus stings (short one-shot music cues).
+  L.isFx = function (t) { return t.kind === 'fx' || t.role === 'Sting'; };
+  L.sceneBoards = function (sc) { return sc.boards || (sc.board ? [sc.board] : []); };
+  // A scene's music list mixes tracks and playlists: [{ kind: 'track'|'playlist', id, obj }]
+  L.sceneItems = function (sc) { return (sc.music || []).map(function (id) { var p = L.playlist(id); return p ? { kind: 'playlist', id: id, obj: p } : { kind: 'track', id: id, obj: L.track(id) }; }).filter(function (x) { return x.obj; }); };
+  // The order the scene's music plays in: each track, then each playlist's tracks, then back to the start.
+  L.sceneSequence = function (sc) { var out = []; L.sceneItems(sc).forEach(function (it, i) { if (it.kind === 'track') out.push({ trackId: it.id, item: i, playlistId: '' }); else L.playlistTracks(it.obj).forEach(function (t) { out.push({ trackId: t.id, item: i, playlistId: it.id }); }); }); return out; };
+  // Ambience can be one track or an ambience playlist.
+  L.ambTracks = function (id) { var p = L.playlist(id); return p ? L.playlistTracks(p) : (L.track(id) ? [L.track(id)] : []); };
+  L.usesOfTrack = function (tid) {
+    var out = [];
+    D.campaigns.forEach(function (c) { c.sessions.forEach(function (s) { s.scenes.forEach(function (sc) { if (sc.music.indexOf(tid) > -1 || sc.amb === tid) out.push({ level: 'scene', campaign: c, session: s, scene: sc, label: c.name + ' › Session ' + s.n + ' › ' + sc.name }); }); }); });
+    return out;
+  };
+  /* ---------- Discord outputs (simulated) ----------
+     L.bots(), L.bot(id), L.server(id), L.channel(serverId, channelId)
+     L.botJoin(botId, serverId, channelId)  moves the bot (status 'connecting' for about a second, then 'connected')
+     L.botLeave(botId), L.botMute(botId, on), L.botVolume(botId, n)
+     L.botWhere(bot) -> 'The Gull and Lantern › Table' or ''; L.botListeners(bot) -> people in its channel (not bots)
+     L.botStatusText(bot) -> plain words for the status */
+  L.bots = function () { return D.discord.bots; };
+  L.bot = function (id) { return by(D.discord.bots)[id]; };
+  L.server = function (id) { return by(D.discord.servers)[id]; };
+  L.channel = function (sid, cid) { var g = L.server(sid); return g && by(g.channels)[cid]; };
+  L.botWhere = function (b) { var g = L.server(b.server), c = L.channel(b.server, b.channel); return g && c ? g.name + ' › ' + c.name : ''; };
+  L.botListeners = function (b) { var c = L.channel(b.server, b.channel); return c ? c.members.slice() : []; };
+  L.botStatusText = function (b) { return { connected: b.muted ? 'In ' + L.botWhere(b) + ', muted' : 'Broadcasting to ' + L.botWhere(b), connecting: 'Joining ' + L.botWhere(b) + '…', idle: 'Not in a voice channel', error: 'Could not join: ' + (b.error || 'try again') }[b.status] || b.status; };
+  L.botJoin = function (botId, serverId, channelId) {
+    var b = L.bot(botId), c = L.channel(serverId, channelId); if (!b || !c) return;
+    var other = D.discord.bots.filter(function (x) { return x !== b && x.server === serverId && x.channel === channelId && x.status !== 'idle'; })[0];
+    b.server = serverId; b.channel = channelId; b.status = 'connecting'; b.error = '';
+    L.say(b.name + ' is joining ' + L.botWhere(b)); L.changed();
+    setTimeout(function () { if (b.channel === channelId) { b.status = 'connected'; L.say(b.name + ' is broadcasting to ' + L.botWhere(b) + (other ? '. ' + other.name + ' is in the same room, so the players hear both.' : '')); L.changed(); } }, 1100);
+  };
+  L.botLeave = function (botId) { var b = L.bot(botId); if (!b) return; var w = L.botWhere(b); b.status = 'idle'; b.server = ''; b.channel = ''; if (pb.own[botId]) delete pb.own[botId];
+    if (botId === D.discord.bots[0].id) { ['music', 'amb'].forEach(function (ln) { if (pb[ln]) { pb[ln].fadeOut = 2; pb[ln + 'Out'].push(pb[ln]); pb[ln] = null; } }); pb.fx.forEach(function (f) { if (f.target === 'table') f.fadeOut = .8; }); }
+    pb.fx.forEach(function (f) { if (f.target === botId) f.fadeOut = .8; }); L.say(b.name + ' left ' + w); L.changed(); };
+  L.botMute = function (botId, on) { var b = L.bot(botId); if (b) { b.muted = on == null ? !b.muted : !!on; L.say(b.name + (b.muted ? ' muted' : ' unmuted')); L.changed(); } };
+  L.botVolume = function (botId, n) { var b = L.bot(botId); if (b) { b.volume = Math.max(0, Math.min(100, +n)); L.changed(); } };
+
+  /* ---------- importing files from the computer (simulated paths) ----------
+     L.filesFromDrop(event, done(files))  reads dropped files and folders (folders are walked), keeping audio files only;
+       files = [{ name, folder }] where folder is the dropped folder's name (browsers do not reveal full paths; Lyre will).
+     L.importFiles(files) -> new track ids, added to the Library (kind guessed from the folder: Ambience, Effects/SFX, else Music).
+     L.isAudioName(name) */
+  L.isAudioName = function (n) { return /\.(flac|mp3|wav|ogg|m4a|aac|wma|aif|aiff|opus)$/i.test(n); };
+  L.filesFromDrop = function (ev, done) {
+    var dt = ev.dataTransfer, out = [], pending = 0, finished = false;
+    function end() { if (!pending && !finished) { finished = true; done(out.filter(function (f) { return L.isAudioName(f.name); })); } }
+    function walk(entry, folder) {
+      if (entry.isFile) { out.push({ name: entry.name, folder: folder }); return; }
+      if (entry.isDirectory) {
+        pending++; var r = entry.createReader(), sub = folder ? folder + '\\' + entry.name : entry.name;
+        (function read() { r.readEntries(function (es) { if (!es.length) { pending--; end(); return; } es.forEach(function (e) { walk(e, sub); }); read(); }, function () { pending--; end(); }); })();
+      }
+    }
+    var items = dt && dt.items ? [].slice.call(dt.items) : [];
+    var entries = items.map(function (it) { return it.webkitGetAsEntry ? it.webkitGetAsEntry() : null; }).filter(Boolean);
+    if (entries.length) entries.forEach(function (e) { walk(e, ''); }); else [].slice.call((dt && dt.files) || []).forEach(function (f) { out.push({ name: f.name, folder: '' }); });
+    end();
+  };
+  L.importFiles = function (files) {
+    var ids = [];
+    files.forEach(function (f) {
+      var folder = f.folder ? 'H:\\Audio\\Incoming\\' + f.folder : 'H:\\Audio\\Incoming';
+      var same = D.tracks.filter(function (t) { return t.file === f.name && t.folder === folder; })[0];
+      if (same) { ids.push(same.id); return; }
+      var kind = /ambien|atmos|bed/i.test(f.folder) ? 'amb' : /effect|sfx|foley/i.test(f.folder) ? 'fx' : 'music';
+      var t = { id: L.uid('t'), kind: kind, title: '', metaTitle: f.name.replace(/\.[a-z0-9]+$/i, '').replace(/^[\d-]+\s*[-.]?\s*/, ''), artist: 'Unknown artist', album: f.folder ? f.folder.split('\\').pop() : '',
+        file: f.name, folder: folder, dur: kind === 'fx' ? 3 : 120 + Math.round(Math.random() * 240), tags: { mood: [], motif: [], scene: [] }, energy: 0, role: kind === 'fx' ? 'Effect' : '', loop: '', notes: '', added: 'Today', isNew: true };
+      D.tracks.push(t); ids.push(t.id);
+    });
+    return ids;
+  };
+  L.uid = function (p) { return (p || 'id') + Math.random().toString(36).slice(2, 8); };
+
+  /* ---------- state ---------- */
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem('lyre-r2') || '{}'); } catch (e) { saved = {}; }
+  L.state = { theme: saved.theme || 'campaign', frame: saved.frame || 'half', rail: saved.rail || 'auto', panes: saved.panes || {}, notes: saved.notes !== false,
+    live: { cid: 'crown', sid: 's14', scene: 1, standby: 2 }, ctx: { cid: 'crown' } };
+  L.save = function () { try { localStorage.setItem('lyre-r2', JSON.stringify({ theme: L.state.theme, frame: L.state.frame, rail: L.state.rail, panes: L.state.panes, notes: L.state.notes })); } catch (e) { /* storage unavailable: settings last for this visit */ } };
+
+  /* ---------- simulated playback ---------- */
+  var pb = L.pb = { music: null, amb: null, musicOut: [], ambOut: [], fx: [], preview: null, held: false, own: {} };
+  /* Rooms (round 4). Every output (bot) in a voice channel is a room, named after its Discord channel, and every room has
+     its own music, ambience and effects. The first bot's room plays from L.pb itself; any other room from L.pb.own[botId].
+     A target is a bot id; 'table' (or omitted, for the control calls below) means the first bot's room:
+       L.next(lane, target), L.prev(lane, target), L.upNext(lane, target), L.pauseLane(lane, target),
+       L.stopLane(lane, fade, target), L.laneContext(lane, target), L.mix(target), L.fxFor(target).
+     Where new sound goes: views pass an explicit target (the live view's boxes each have a "To:" room). Without a target,
+     L.play(trackId, o) and L.firePad(board, pad, phase) go to L.sendTargets(): the rooms in L.state.sendTo that exist, or
+     else the first room ('table' while no bot is in a voice channel). L.startScene always plays in the first room
+     (L.firstRoom()). A toggle pad is on or off per room when fired with a target. L.toggleSendTo / L.sendWarn are kept for
+     older callers. A room that leaves goes silent and its sound stops.
+     L.mixes() / L.rooms(): one entry per room [{ id: botId, name: channel name, mix, bots: [bot], main }].
+     L.setBotMix(botId, mix) is kept for older callers and does nothing now (bot.mix reads 'table' for the first bot and
+     'own' for the others, so views that check it still find the right sound).
+     data-progress / data-time take 'music', 'amb', 'preview', or 'music@<botId>' / 'amb@<botId>' for rooms other than the first. */
+  function newMix() { return { music: null, amb: null, musicOut: [], ambOut: [] }; }
+  function mainId() { return D.discord.bots[0] ? D.discord.bots[0].id : ''; }
+  D.discord.bots.forEach(function (b, i) { b.mix = i ? 'own' : 'table'; });
+  function mixOf(target) { if (!target || target === 'table' || target === 'all' || target === mainId()) return pb; if (!L.bot(target)) return pb; return pb.own[target] || (pb.own[target] = newMix()); }
+  L.mix = mixOf;
+  // An output is named after the room it is in (the bot's name when it is in none).
+  L.outputName = function (b) { var c = L.channel(b.server, b.channel); return c ? c.name : b.name; };
+  function roomBots() { return D.discord.bots.filter(function (b) { return b.status !== 'idle'; }); }
+  L.mixes = L.rooms = function () { return roomBots().map(function (b) { return { id: b.id, name: L.outputName(b), mix: mixOf(b.id), bots: [b], main: b.id === mainId() }; }); };
+  L.setBotMix = function () { D.discord.bots.forEach(function (b, i) { b.mix = i ? 'own' : 'table'; }); };
+  L.state.sendTo = L.state.sendTo || (mainId() ? [mainId()] : []);
+  // The first room: where scenes always go, and where untargeted sound goes when nothing else is chosen.
+  L.firstRoom = function () { var r = roomBots(); return r.length ? r[0].id : 'table'; };
+  L.sendTargets = function () {
+    var r = roomBots(); if (!r.length) return ['table'];
+    var t = r.filter(function (b) { return L.state.sendTo.indexOf(b.id) > -1; }).map(function (b) { return b.id; });
+    return t.length ? t : [r[0].id];
+  };
+  L.toggleSendTo = function (botId) { var i = L.state.sendTo.indexOf(botId); if (i > -1) L.state.sendTo.splice(i, 1); else L.state.sendTo.push(botId); L.state.sendWarnAt = 0; L.changed(); };
+  L.sendWarn = function () { L.state.sendWarnAt = Date.now(); L.toast('Nothing is ticked in Send to, so nobody would hear it'); L.changed(); };
+  /* Audio profile (per track, optional): { start, end, after: 'loop'|'next'|'stop', loopStart, loopXfade, fadeIn: { dur, shape }, fadeOut: { dur, shape }, markers: [{ at, label }] }
+     (shape 0-100: gentle to sharp; a plain number for a fade is read as { dur: n, shape: 50 }).
+     Playback starts at start, ends at end, then loops back to loopStart, moves to the next track, or stops.
+     L.profileOf(t) gives the profile with defaults filled in. */
+  /* A track can sound different in different places: an override for one playlist or one scene (cue) replaces the
+     track's own profile there. Overrides live in L.data.profiles under a context key:
+       'pl:<playlistId>'              the track inside that playlist
+       'sc:<cid>:<sid>:<sceneId>'     the track in that scene (directly or through one of its playlists)
+     L.profileOf(t, ctx) resolves scene, then playlist, then the track's own; ctx = a key or { playlistId, cid, sid, sceneId }.
+     L.profileWhere(t, ctx) says which one applies: 'scene' | 'playlist' | 'track'. L.profileKeys(t) lists the places that
+     have their own settings. L.profileStore(t, key) returns (creating on request) the object to edit for that place. */
+  D.profiles = D.profiles || {};
+  function ctxKeys(ctx) {
+    if (!ctx) return [];
+    if (typeof ctx === 'string') return [ctx];
+    var out = []; if (ctx.sceneId) out.push('sc:' + ctx.cid + ':' + ctx.sid + ':' + ctx.sceneId); if (ctx.playlistId) out.push('pl:' + ctx.playlistId); return out;
+  }
+  function override(t, ctx) { var ks = ctxKeys(ctx); for (var i = 0; i < ks.length; i++) { var o = D.profiles[ks[i]] && D.profiles[ks[i]][t.id]; if (o) return { p: o, key: ks[i] }; } return null; }
+  L.profileWhere = function (t, ctx) { var o = t && override(t, ctx); return o ? (o.key.indexOf('sc:') === 0 ? 'scene' : 'playlist') : 'track'; };
+  L.profileKeys = function (t) { return Object.keys(D.profiles).filter(function (k) { return D.profiles[k][t.id]; }); };
+  L.profileStore = function (t, key, create) {
+    if (!key) { if (!t.profile && create) t.profile = {}; return t.profile; }
+    if (!D.profiles[key]) D.profiles[key] = {};
+    if (!D.profiles[key][t.id] && create) D.profiles[key][t.id] = JSON.parse(JSON.stringify(t.profile || {}));
+    return D.profiles[key][t.id];
+  };
+  L.clearProfile = function (t, key) { if (D.profiles[key]) delete D.profiles[key][t.id]; };
+  L.profileOf = function (t, ctx) {
+    var ov = t && override(t, ctx), p = ov ? ov.p : (t && t.profile) || {}, dur = t ? t.dur : 60;
+    var after = p.after || (t && (t.loop === 'yes' || t.loop === 'crossfade') ? 'loop' : 'next');
+    function fade(f) { return f == null ? { dur: 0, shape: 50 } : typeof f === 'number' ? { dur: f, shape: 50 } : { dur: f.dur || 0, shape: f.shape != null ? f.shape : 50 }; }
+    return { start: p.start || 0, end: p.end || dur, after: after, loopStart: p.loopStart != null ? p.loopStart : (p.start || 0), loopXfade: p.loopXfade || 0,
+      fadeIn: fade(p.fadeIn), fadeOut: fade(p.fadeOut), markers: p.markers || [] };
+  };
+  function lane(trackId, playlistId, seq) { var t = L.track(trackId), pf = L.profileOf(t, laneCtx(playlistId, seq)); return { id: trackId, label: L.title(t), playlistId: playlistId || '', pos: pf.start, dur: pf.end, vol: 0, target: 1, fadeIn: 0 }; }
+  function laneCtx(playlistId, seq) { var s = seq && L.session(seq.cid, seq.sid), sc = s && s.scenes[seq.scene]; return { playlistId: playlistId, cid: seq && seq.cid, sid: seq && seq.sid, sceneId: sc && sc.id }; }
+  L.laneContext = function (ln, target) { var c = mixOf(target)[ln]; return c ? laneCtx(c.playlistId, c.seq) : null; };
+  L.play = function (trackId, o) {
+    o = o || {}; var t = L.track(trackId); if (!t) return;
+    if (o.target == null) { var ts = L.sendTargets(); if (!ts.length) { L.sendWarn(); return; } ts.forEach(function (tg) { var c = {}; for (var k in o) c[k] = o[k]; c.target = tg; L.play(trackId, c); }); return; }
+    // A sound effect plays over the music, like a pad; it does not replace what is on air.
+    if (t.kind === 'fx' && !o.lane) { pb.fx.push({ uid: L.uid('fx'), ref: 'track/' + t.id, label: L.title(t), target: fxTarget(o.target), pos: 0, dur: Math.max(1.5, t.dur), loop: false }); L.say('Effect: ' + L.title(t)); L.changed(); return; }
+    var ln = o.lane === 'fx' ? 'music' : o.lane || (t.kind === 'amb' ? 'amb' : 'music'), fade = o.fade == null ? 3 : o.fade, m = mixOf(o.target);
+    if (m[ln]) { m[ln].fadeOut = fade || .3; m[ln + 'Out'].push(m[ln]); }
+    m[ln] = lane(trackId, o.playlistId, o.seq); m[ln].fadeIn = fade; m[ln].vol = fade ? 0 : 1; if (o.seq) m[ln].seq = o.seq;
+    L.say((ln === 'music' ? 'Music' : 'Ambience') + (m === pb ? '' : ' in ' + L.outputName(L.bot(o.target))) + ': ' + L.title(t)); L.changed();
+  };
+  function neighbour(ln, step, target) {
+    var cur = mixOf(target)[ln]; if (!cur) return null;
+    if (cur.seq) { var s0 = L.session(cur.seq.cid, cur.seq.sid), sc0 = s0 && s0.scenes[cur.seq.scene], q = sc0 ? L.sceneSequence(sc0) : []; if (q.length) { var n = q[(cur.seq.at + step + q.length) % q.length]; return L.track(n.trackId); } }
+    if (!cur.playlistId) return null;
+    var list = L.playlistTracks(L.playlist(cur.playlistId)); var i = list.map(function (t) { return t.id; }).indexOf(cur.id);
+    return list.length ? list[(i + step + list.length) % list.length] : null;
+  }
+  L.upNext = function (ln, target) { return neighbour(ln || 'music', 1, target); };
+  function step(ln, d, target) {
+    var cur = mixOf(target)[ln], n = neighbour(ln, d, target); if (!n) return;
+    if (cur.seq) { var s0 = L.session(cur.seq.cid, cur.seq.sid), q = L.sceneSequence(s0.scenes[cur.seq.scene]), at = (cur.seq.at + d + q.length) % q.length, seq = { cid: cur.seq.cid, sid: cur.seq.sid, scene: cur.seq.scene, at: at };
+      L.play(q[at].trackId, { lane: ln, playlistId: q[at].playlistId, fade: 3, seq: seq, target: target || 'table' }); return; }
+    L.play(n.id, { lane: ln, playlistId: cur.playlistId, fade: 3, target: target || 'table' });
+  }
+  L.next = function (ln, target) { step(ln, 1, target); };
+  L.prev = function (ln, target) { step(ln, -1, target); };
+  L.pauseLane = function (ln, target) { var m = mixOf(target); if (m[ln]) { m[ln].paused = !m[ln].paused; L.changed(); } };
+  L.stopLane = function (ln, fade, target) { var m = mixOf(target); if (m[ln]) { m[ln].fadeOut = fade == null ? 2 : fade; m[ln + 'Out'].push(m[ln]); m[ln] = null; L.changed(); } };
+  L.fadeAll = function (s) { L.stopLane('music', s); L.stopLane('amb', s); Object.keys(pb.own).forEach(function (id) { L.stopLane('music', s, id); L.stopLane('amb', s, id); }); pb.fx.forEach(function (f) { f.fadeOut = s || 2; }); L.say('Fading everything out'); L.changed(); };
+  L.stopAll = function () { pb.music = pb.amb = null; pb.musicOut = []; pb.ambOut = []; pb.fx = []; Object.keys(pb.own).forEach(function (id) { pb.own[id] = newMix(); }); L.say('Everything stopped'); L.changed(); };
+  // target: a bot id with its own sound, 'table' (default) or 'all' (every output at once).
+  L.firePad = function (boardId, padId, phase, target) {
+    var b = L.board(boardId); if (!b) return; var p = b.slots.concat(b.spare).filter(function (x) { return x && x.id === padId; })[0]; if (!p) return;
+    // A toggle pad is on or off per room: pressing it with a target stops it only in that room (or starts it there).
+    var ref = boardId + '/' + padId, on = pb.fx.filter(function (f) { return f.ref === ref && !f.fadeOut && (target == null || f.target === fxTarget(target)); });
+    if (p.mode === 'toggle' && on.length) { on.forEach(function (f) { f.fadeOut = p.fade; }); L.changed(); return; }
+    if (p.mode === 'hold' && phase === 'up') { on.forEach(function (f) { f.fadeOut = .4; }); L.changed(); return; }
+    if (p.mode === 'hold' && phase !== 'down') return;
+    var ts = target == null ? L.sendTargets() : [target]; if (!ts.length) { L.sendWarn(); return; }
+    if (p.mode === 'retrigger') on.forEach(function (f) { f.fadeOut = .05; });
+    ts.forEach(function (tg) { pb.fx.push({ uid: L.uid('fx'), ref: ref, label: p.label, target: fxTarget(tg), pos: 0, dur: p.mode === 'toggle' || p.mode === 'hold' ? 1e9 : 2.5, loop: p.mode === 'toggle' || p.mode === 'hold' }); });
+    L.changed();
+  };
+  function fxTarget(t) { if (t === 'all') return 'all'; return mixOf(t) === pb ? 'table' : t; }
+  // Effects sounding for a target: L.fxFor('table'|botId) (effects sent to every output count for each).
+  L.fxFor = function (t) { var k = fxTarget(t); return pb.fx.filter(function (f) { return f.target === k || f.target === 'all' || (!f.target && k === 'table'); }); };
+  L.padActive = function (boardId, padId) { return pb.fx.some(function (f) { return f.ref === boardId + '/' + padId && !f.fadeOut; }); };
+  L.stopFx = function (uid) { pb.fx.forEach(function (f) { if (!uid || f.uid === uid) f.fadeOut = .8; }); L.changed(); };
+  /* Preview: only you hear it. L.preview(trackId) toggles a track; L.previewPlaylist(pid) its first track (or an ambience
+     playlist's first bed); L.previewPad(boardId, padId) a pad's sound. L.previewing(key) says whether that is the one
+     playing (key = track id, 'pl:<pid>' or 'pad:<board>/<pad>'); L.previewLabel() names it. */
+  function startPreview(key, p) { if (pb.preview && pb.preview.key === key) { pb.preview = null; L.say('Preview stopped'); } else { p.key = key; p.vol = 1; pb.preview = p; L.say('Previewing in your headphones: ' + p.label); } L.changed(); }
+  L.preview = function (id) { startPreview(id, lane(id)); };
+  L.previewPlaylist = function (pid) { var p = L.playlist(pid), t = L.playlistTracks(p)[0]; if (!t) { L.toast('This playlist has no tracks yet'); return; } var ln = lane(t.id, pid); ln.label = p.name + ': ' + L.title(t); startPreview('pl:' + pid, ln); };
+  L.previewPad = function (boardId, padId) {
+    var b = L.board(boardId), pad = b && b.slots.concat(b.spare).filter(function (x) { return x && x.id === padId; })[0]; if (!pad) return;
+    startPreview('pad:' + boardId + '/' + padId, { id: '', label: pad.label + ' (pad)', playlistId: '', pos: 0, dur: 2.5, fadeIn: 0 });
+  };
+  L.previewing = function (key) { return !!(pb.preview && pb.preview.key === key); };
+  L.previewLabel = function () { return pb.preview ? pb.preview.label : ''; };
+  L.stopPreview = function () { pb.preview = null; L.changed(); };
+  L.startScene = function (cid, sid, idx) {
+    var s = L.session(cid, sid); if (!s || !s.scenes[idx]) return; var sc = s.scenes[idx];
+    L.state.live.cid = cid; L.state.live.sid = sid; L.state.live.scene = idx; L.state.live.standby = Math.min(idx + 1, s.scenes.length);
+    // Scenes always go to the first room.
+    var ts = [L.firstRoom()];
+    var seq = L.sceneSequence(sc);
+    ts.forEach(function (tg) {
+      if (seq[0]) L.play(seq[0].trackId, { lane: 'music', playlistId: seq[0].playlistId, fade: 4, seq: { cid: cid, sid: sid, scene: idx, at: 0 }, target: tg });
+      if (sc.amb) { var a = L.ambTracks(sc.amb)[0]; if (a) L.play(a.id, { lane: 'amb', playlistId: L.playlist(sc.amb) ? sc.amb : '', fade: 3, target: tg }); } else L.stopLane('amb', 3, tg);
+    });
+    L.say('Scene: ' + sc.name); L.changed();
+  };
+  setInterval(function () {
+    if (pb.held) return; var dt = .25, moved = false;
+    [['table', pb]].concat(Object.keys(pb.own).map(function (id) { return [id, pb.own[id]]; })).forEach(function (mx) {
+      var target = mx[0], m = mx[1];
+      ['music', 'amb'].forEach(function (ln) {
+        var c = m[ln];
+        if (c && !c.paused) { c.pos += dt; if (c.fadeIn) c.vol = Math.min(1, c.vol + dt / c.fadeIn); else c.vol = 1; if (c.pos >= c.dur) { var t = L.track(c.id), pf = L.profileOf(t, laneCtx(c.playlistId, c.seq)); if (pf.after === 'loop' || ln === 'amb') c.pos = pf.loopStart; else if (pf.after === 'next' && (c.seq || c.playlistId)) L.next(ln, target); else m[ln] = null; } moved = true; }
+        m[ln + 'Out'] = m[ln + 'Out'].filter(function (o) { o.pos += dt; o.vol -= dt / (o.fadeOut || .3); return o.vol > 0; });
+      });
+    });
+    pb.fx = pb.fx.filter(function (f) { f.pos += dt; if (f.fadeOut) { f.fadeOut -= dt; return f.fadeOut > 0; } return f.loop || f.pos < f.dur; });
+    if (pb.preview) { pb.preview.pos += dt; if (pb.preview.pos >= pb.preview.dur) pb.preview = null; moved = true; }
+    if (moved || pb.fx.length) L.tick();
+  }, 250);
+  // Elements with data-progress="music|amb|preview" and data-time="music|amb|preview" update every tick without a re-render.
+  L.tick = function () {
+    function lanePb(key) { var a = key.split('@'); return a[1] ? (pb.own[a[1]] || {})[a[0]] : pb[a[0]]; }
+    document.querySelectorAll('[data-progress]').forEach(function (el) { var c = lanePb(el.dataset.progress); el.style.width = c ? Math.min(100, c.pos / c.dur * 100) + '%' : '0'; });
+    document.querySelectorAll('[data-time]').forEach(function (el) { var c = lanePb(el.dataset.time); el.textContent = c ? L.fmt(c.pos) + ' / ' + L.fmt(c.dur) : ''; });
+    var fxCount = pb.fx.length; if (fxCount !== L._fx) { L._fx = fxCount; L.render(); }
+  };
+  L.changed = function () { L.render(); L.tick(); };
+
+  /* ---------- announcements ---------- */
+  L.say = function (msg) { var r = document.getElementById('lyre-live'); if (r) { r.textContent = ''; setTimeout(function () { r.textContent = msg; }, 30); } };
+  var toastTimer;
+  L.toast = function (msg) { var t = document.getElementById('lyre-toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 2200); };
+
+  /* ---------- panes ---------- */
+  L.pane = function (o) {
+    var st = L.state.panes[o.id], collapsed = st == null ? !!o.collapsed : st === 'c';
+    return '<section class="pane' + (collapsed ? ' collapsed' : '') + (L.state.maxed === o.id ? ' maxed' : '') + (o.kind ? ' k-' + o.kind : '') + (o.cls ? ' ' + o.cls : '') + '" data-pane="' + o.id + '"' + (o.size ? ' data-size="' + o.size + '"' : '') + ' aria-label="' + esc(o.title) + '">' +
+      '<header><h2 class="pane-h"><button class="pane-toggle" data-act="pane" data-id="' + o.id + '" data-k="pane-' + o.id + '" aria-expanded="' + !collapsed + '" title="' + (collapsed ? 'Expand' : 'Collapse') + ' ' + esc(o.title) + '">' +
+      L.icon('chevdown', 's chev') + (o.icon ? L.icon(o.icon, 's') : '') + '<span class="pane-title">' + esc(o.title) + '</span></button></h2>' +
+      '<div class="pane-summary">' + (o.summary || '') + '</div>' + (o.status ? '<span class="pane-status s-' + (o.status.tone || 'idle') + '">' + esc(o.status.text) + '</span>' : '') + '<div class="pane-actions">' + (collapsed ? '' : (o.actions || '')) +
+      (o.noMax ? '' : '<button class="closer" data-act="panemax" data-id="' + o.id + '" data-k="max-' + o.id + '" title="' + (L.state.maxed === o.id ? 'Back to all panes' : 'Fill the column with ' + esc(o.title)) + '" aria-pressed="' + (L.state.maxed === o.id) + '">' + L.icon(L.state.maxed === o.id ? 'shrink' : 'expand') + '</button>') +
+      '</div></header><div class="pane-body' + (o.flush ? ' flush' : '') + '"' + (o.scroll ? ' data-scroll="' + o.scroll + '"' : '') + '>' + (o.body || '') + '</div></section>';
+  };
+  L.acts.pane = function (el) { var id = el.dataset.id, st = L.state.panes[id], pane = el.closest('.pane'); var collapsed = pane.classList.contains('collapsed'); L.state.panes[id] = collapsed ? 'o' : 'c'; if (L.state.maxed === id && !collapsed) L.state.maxed = null; L.save(); L.render(); };
+  L.acts.panemax = function (el) { var id = el.dataset.id; L.state.maxed = L.state.maxed === id ? null : id; if (L.state.maxed) L.state.panes[id] = 'o'; L.render(); };
+
+  /* ---------- menus ---------- */
+  var menuEl = null, menuAnchor = null;
+  L.menu = function (anchor, html, label) {
+    L.closeMenu(); menuAnchor = anchor;
+    menuEl = document.createElement('div'); menuEl.className = 'menu'; menuEl.setAttribute('role', 'menu'); menuEl.setAttribute('aria-label', label || 'Menu');
+    menuEl.innerHTML = html; document.body.appendChild(menuEl);
+    var r = anchor.getBoundingClientRect(), mw = menuEl.offsetWidth, mh = menuEl.offsetHeight;
+    var left = Math.min(Math.max(4, r.left), window.innerWidth - mw - 4), top = r.bottom + 4;
+    if (top + mh > window.innerHeight - 4) top = Math.max(4, r.top - mh - 4);
+    menuEl.style.left = left + 'px'; menuEl.style.top = top + 'px';
+    anchor.setAttribute('aria-expanded', 'true');
+    var first = menuEl.querySelector('button,input,[tabindex]'); if (first) first.focus();
+  };
+  L.closeMenu = function (refocus) { if (menuEl) { menuEl.remove(); menuEl = null; if (menuAnchor) { menuAnchor.setAttribute('aria-expanded', 'false'); if (refocus && document.contains(menuAnchor)) menuAnchor.focus(); } menuAnchor = null; } };
+  document.addEventListener('pointerdown', function (e) { if (menuEl && !menuEl.contains(e.target) && e.target !== menuAnchor && !(menuAnchor && menuAnchor.contains(e.target))) L.closeMenu(); });
+  document.addEventListener('keydown', function (e) {
+    if (!menuEl) return;
+    if (e.key === 'Escape') { e.preventDefault(); L.closeMenu(true); return; }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      var items = [].slice.call(menuEl.querySelectorAll('button:not([disabled])')); var i = items.indexOf(document.activeElement);
+      if (items.length) { e.preventDefault(); items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length].focus(); }
+    }
+  }, true);
+
+  /* ---------- sheets (prep only; the live view never covers its controls) ---------- */
+  var sheetReturn = null;
+  L.sheet = function (o) {
+    L.closeSheet(); sheetReturn = document.activeElement;
+    var s = document.createElement('div'); s.className = 'sheet'; s.id = 'lyre-sheet';
+    s.innerHTML = '<div class="panel" role="dialog" aria-modal="true" aria-labelledby="sheet-title"' + (o.wide ? ' style="width:min(900px,100%)"' : '') + '><header><h2 id="sheet-title">' + esc(o.title) + '</h2><button class="closer" data-act="closesheet" title="Close">' + L.icon('close') + '</button></header><div class="body">' + o.body + '</div>' + (o.footer ? '<footer>' + o.footer + '</footer>' : '') + '</div>';
+    document.body.appendChild(s);
+    var f = s.querySelector('.body input, .body select, .body textarea, .body button') || s.querySelector('button'); if (f) f.focus();
+    s.addEventListener('pointerdown', function (e) { if (e.target === s) L.closeSheet(); });
+  };
+  L.closeSheet = function () { var s = document.getElementById('lyre-sheet'); if (s) { s.remove(); if (sheetReturn && document.contains(sheetReturn)) sheetReturn.focus(); sheetReturn = null; } };
+  L.acts.closesheet = function () { L.closeSheet(); };
+  document.addEventListener('keydown', function (e) {
+    var s = document.getElementById('lyre-sheet'); if (!s || menuEl) return;
+    if (e.key === 'Escape') { e.preventDefault(); L.closeSheet(); return; }
+    if (e.key === 'Tab') { var f = [].slice.call(s.querySelectorAll('button,input,select,textarea,[tabindex]:not([tabindex="-1"])')).filter(function (x) { return !x.disabled && x.offsetParent; }); if (!f.length) return; var a = f[0], z = f[f.length - 1]; if (e.shiftKey && document.activeElement === a) { e.preventDefault(); z.focus(); } else if (!e.shiftKey && document.activeElement === z) { e.preventDefault(); a.focus(); } }
+  });
+
+  /* ---------- routing ---------- */
+  var ROUTES = [
+    [/^#\/campaigns$/, 'campaigns', []], [/^#\/campaign\/([\w-]+)$/, 'campaign', ['cid']], [/^#\/session\/([\w-]+)\/([\w-]+)$/, 'session', ['cid', 'sid']],
+    [/^#\/library(?:\/([\w-]+))?$/, 'library', ['tid']], [/^#\/playlists$/, 'playlists', []], [/^#\/playlist\/([\w-]+)$/, 'playlist', ['pid']],
+    [/^#\/profile\/([\w-]+)(?:\/([\w:-]+))?$/, 'profile', ['tid', 'ctx']], [/^#\/boards$/, 'boards', []], [/^#\/board\/([\w-]+)$/, 'board', ['bid']], [/^#\/live$/, 'live', []], [/^#\/outputs$/, 'outputs', []], [/^#\/look$/, 'look', []]
+  ];
+  L.view = function (name, def) { L.views[name] = def; };
+  /* Routes are kept in memory ('#/session/crown/s14'). The page address shows a plain form ('#session--crown--s14'),
+     because the artifact host passes only plain #names between its link and the page. */
+  var curRoute = null;
+  function encodeRoute(h) { return '#' + h.replace(/^#\//, '').split('/').join('--'); }
+  function decodeRoute(hash) { var m = (hash || '').replace(/^#\/?/, ''); return m ? '#/' + m.split('--').join('/') : null; }
+  function afterRoute() { L.state.maxed = null; L.closeMenu(); L.render(); var v = document.getElementById('view'); var h = v.querySelector('h1'); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); } window.dispatchEvent(new Event('lyre:route')); }
+  L.route = function (h) {
+    if (h === curRoute) { L.render(); return; }
+    curRoute = h;
+    try { history.replaceState(null, '', encodeRoute(h)); } catch (e) { /* address bar not available: the route still changes */ }
+    afterRoute();
+  };
+  function resolve() {
+    var h = curRoute || '#/campaigns';
+    for (var i = 0; i < ROUTES.length; i++) { var m = h.match(ROUTES[i][0]); if (m) { var p = {}; ROUTES[i][2].forEach(function (k, j) { p[k] = m[j + 1]; }); return { name: ROUTES[i][1], p: p }; } }
+    return { name: 'live', p: {} };
+  }
+  L.current = function () { return resolve(); };
+  L.themeFor = function (r) {
+    if (L.state.theme !== 'campaign') return L.state.theme;
+    var cid = r.p.cid || (r.name === 'live' ? L.state.live.cid : L.state.ctx.cid);
+    var c = L.campaign(cid), d = D.defaultTheme || 'candle'; return (r.name === 'campaigns' || r.name === 'look') ? d : (c ? c.theme || d : d);
+  };
+
+  /* ---------- rendering with focus and scroll kept ---------- */
+  function paint(el, html) {
+    var a = document.activeElement, k = a && el.contains(a) && a.dataset ? a.dataset.k : null, selStart = a && a.selectionStart, selEnd = a && a.selectionEnd;
+    var scrolls = {}; el.querySelectorAll('[data-scroll]').forEach(function (s) { scrolls[s.dataset.scroll] = s.scrollTop; });
+    el.innerHTML = html;
+    el.querySelectorAll('[data-scroll]').forEach(function (s) { if (scrolls[s.dataset.scroll] != null) s.scrollTop = scrolls[s.dataset.scroll]; });
+    if (k) { var n = el.querySelector('[data-k="' + k + '"]'); if (n) { n.focus({ preventScroll: true }); try { if (selStart != null && n.setSelectionRange) n.setSelectionRange(selStart, selEnd); } catch (e) { /* not a text field */ } } }
+  }
+  var rendering = false;
+  L.render = function () {
+    if (rendering) return; rendering = true;
+    try {
+      var r = resolve(), v = L.views[r.name] || { render: function () { return '<div class="viewhead"><h1>' + r.name + '</h1></div><div class="empty">Not built yet.</div>'; } };
+      if (r.p.cid) L.state.ctx.cid = r.p.cid;
+      var theme = L.themeFor(r); document.documentElement.dataset.theme = theme;
+      var app = document.getElementById('app'), w = app.getBoundingClientRect().width;
+      var railMin = L.state.rail === 'min' || (L.state.rail === 'auto' && w < 1100);
+      paint(document.getElementById('rail'), railHTML(v.nav || r.name, railMin));
+      document.getElementById('rail').className = 'rail' + (railMin ? ' min' : '');
+      paint(document.getElementById('view'), v.render(r.p) + (r.name === 'live' ? '' : onAirBar()));
+      document.getElementById('view').dataset.view = r.name;
+      document.querySelectorAll('#view .col').forEach(function (c) { c.classList.toggle('has-max', !!c.querySelector(':scope > .pane.maxed')); });
+      if (v.after) v.after(document.getElementById('view'), r.p);
+      paintProto(r, v, theme);
+    } finally { rendering = false; }
+  };
+  /* Outside Live, a slim bar at the bottom of the page shows what the players hear, with Stop and Go to Live,
+     so Play on air always gives visible feedback. */
+  function onAirBar() {
+    var m = pb.music, a = pb.amb, n = pb.fx.length;
+    if (!m && !a && !n) return '';
+    var parts = [];
+    if (m) parts.push('<span class="lane-dot music"></span><span class="ellipsis">' + esc(L.title(L.track(m.id))) + '</span>');
+    if (a) parts.push('<span class="lane-dot amb"></span><span class="ellipsis">' + esc(L.title(L.track(a.id))) + '</span>');
+    if (n) parts.push('<span class="lane-dot fx"></span><span>' + n + ' effect' + (n > 1 ? 's' : '') + '</span>');
+    return '<div class="onairbar" role="region" aria-label="On air"><span class="badge onair">On air</span><div class="oab-items">' + parts.map(function (p) { return '<span class="oab-item">' + p + '</span>'; }).join('') + '</div>' +
+      '<button class="btn s" data-act="oabstop" data-k="oab-stop">' + L.icon('stop', 's') + 'Stop</button><a class="btn s" href="#/live" data-k="oab-live">' + L.icon('broadcast', 's') + 'Go to Live</a></div>';
+  }
+  L.acts.oabstop = function () { L.fadeAll(1); };
+  function outputsBadge() { var n = D.discord.bots.filter(function (b) { return b.status === 'connected'; }).length; return ' (' + n + '/' + D.discord.bots.length + ')'; }
+  function railHTML(cur, min) {
+    function a(href, nav, icon, label) { return '<a href="' + href + '" data-k="rail-' + nav + '"' + (cur === nav ? ' aria-current="page"' : '') + (min ? ' title="' + label + '"' : '') + '>' + L.icon(icon) + '<span class="lbl">' + label + '</span></a>'; }
+    var s = L.session(L.state.live.cid, L.state.live.sid);
+    return '<div class="logo">' + L.logo + '<b>Lyre</b></div><nav aria-label="Lyre"><div class="stack" style="gap:2px">' +
+      a('#/campaigns', 'campaigns', 'crown', 'Campaigns') + a('#/library', 'library', 'library', 'Library') + a('#/playlists', 'playlists', 'playlist', 'Playlists') + a('#/boards', 'boards', 'grid', 'Pad boards') +
+      a('#/live', 'live', 'broadcast', 'Live' + (s ? ': S' + s.n : '')) + a('#/outputs', 'outputs', 'users', 'Outputs' + outputsBadge()) + '</div></nav>' +
+      '<div class="bottom stack" style="gap:2px">' + a('#/look', 'look', 'palette', 'Look and feel') +
+      '<button class="nav" data-act="rail" data-k="railtoggle" title="' + (min ? 'Show labels' : 'Icons only') + '" aria-label="' + (min ? 'Show menu labels' : 'Show icons only') + '">' + L.icon(min ? 'chevright' : 'chevleft') + '<span class="lbl">Icons only</span></button></div>';
+  }
+  /* Prep and Live for the campaign in hand: L.modeSwitch(cid) gives a two-button switch for a view header.
+     Prep opens the session loaded in Live (or the campaign's next session); Live loads that campaign's session. */
+  L.nextSession = function (c) { return c.sessions.filter(function (s) { return s.status === 'next'; })[0] || c.sessions[c.sessions.length - 1]; };
+  L.modeSwitch = function (cid) {
+    var r = resolve(), live = r.name === 'live';
+    return '<div class="seg mode-switch" role="group" aria-label="Prep or live"><button data-act="mode" data-mode="prep" data-cid="' + esc(cid) + '" data-k="mode-prep" aria-pressed="' + !live + '">' + L.icon('edit', 's') + 'Prep</button>' +
+      '<button data-act="mode" data-mode="live" data-cid="' + esc(cid) + '" data-k="mode-live" aria-pressed="' + live + '">' + L.icon('broadcast', 's') + 'Live</button></div>';
+  };
+  L.acts.mode = function (el) {
+    var c = L.campaign(el.dataset.cid); if (!c) return; var lv = L.state.live, r = resolve();
+    if (el.dataset.mode === 'live') {
+      if (r.name === 'live') return;
+      var sid = r.p.sid && r.p.cid === c.id ? r.p.sid : (lv.cid === c.id ? lv.sid : L.nextSession(c).id);
+      if (lv.cid !== c.id || lv.sid !== sid) { if (L.liveStandby) L.liveStandby(c.id, sid); else { lv.cid = c.id; lv.sid = sid; lv.scene = 0; lv.standby = 1; } }
+      L.route('#/live');
+    } else {
+      if (r.name !== 'live') return;
+      L.route('#/session/' + lv.cid + '/' + lv.sid);
+    }
+  };
+  L.acts.rail = function () { var min = document.getElementById('rail').classList.contains('min'); L.state.rail = min ? 'full' : 'min'; L.save(); L.render(); };
+
+  /* ---------- prototype strip and notes (not part of Lyre) ---------- */
+  var THEMES = [['campaign', "Each campaign's own"], ['candle', 'Candlelit Library (default)'], ['fern', 'Fern and Brass (logo)'], ['hearth', 'Hearth and Iron (D&D)'], ['parchment', 'Parchment (light)'], ['elysium', 'Elysium (Vampire)']];
+  var FRAMES = [['half', 'Half of a 1920 screen (960 px)'], ['half1280', 'Half of a 2560 screen (1280 px)'], ['third', 'Narrow (720 px)'], ['full', 'Whole window']];
+  L.THEMES = THEMES;
+  function paintProto(r, v, theme) {
+    var p = document.getElementById('proto');
+    if (!p.dataset.built) {
+      p.dataset.built = 1;
+      p.innerHTML = '<b>Lyre · design round 2</b><span>Clickable prototype, no real sound.</span>' +
+        '<label>Theme <select id="pTheme">' + THEMES.map(function (t) { return '<option value="' + t[0] + '">' + t[1] + '</option>'; }).join('') + '</select></label>' +
+        '<label>Screen <select id="pFrame">' + FRAMES.map(function (t) { return '<option value="' + t[0] + '">' + t[1] + '</option>'; }).join('') + '</select></label>' +
+        '<button id="pNotes" type="button">Design notes</button>';
+      p.querySelector('#pTheme').addEventListener('change', function (e) { L.state.theme = e.target.value; L.save(); L.render(); });
+      p.querySelector('#pFrame').addEventListener('change', function (e) { L.state.frame = e.target.value; L.save(); applyFrame(); L.render(); });
+      p.querySelector('#pNotes').addEventListener('click', function () { L.state.notes = !L.state.notes; L.save(); L.render(); });
+    }
+    p.querySelector('#pTheme').value = L.state.theme; p.querySelector('#pFrame').value = L.state.frame;
+    p.querySelector('#pNotes').setAttribute('aria-pressed', String(L.state.notes));
+    var n = document.getElementById('notes'), notes = v.notes || [];
+    n.hidden = !L.state.notes || !notes.length;
+    n.innerHTML = '<h2>' + esc(v.notesTitle || 'What changed here') + '</h2><ul>' + notes.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul>';
+  }
+  function applyFrame() {
+    var w = { half: 960, half1280: 1280, third: 720 }[L.state.frame];
+    var sw = document.getElementById('stagewrap'); sw.classList.toggle('half', !!w); sw.style.setProperty('--frame-w', (w || 0) + 'px');
+  }
+
+  /* ---------- events ---------- */
+  function typing(t) { return t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable); }
+  L.typing = typing;
+  L.onKey = function (fn) { L.keys.push(fn); };
+  // F6 / Shift+F6 jump between boxes (pane headers), so the keyboard can reach any box quickly.
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'F6' || menuEl || document.getElementById('lyre-sheet')) return;
+    var heads = [].slice.call(document.querySelectorAll('#view .pane-toggle')).filter(function (b) { return b.offsetParent; }); if (!heads.length) return;
+    e.preventDefault(); var cur = document.activeElement && document.activeElement.closest('.pane'), i = -1;
+    heads.forEach(function (h, j) { if (cur && cur.contains(h)) i = j; });
+    var n = heads[(i + (e.shiftKey ? -1 : 1) + heads.length) % heads.length]; n.focus(); n.scrollIntoView({ block: 'nearest' }); L.say(n.textContent.trim());
+  });
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest('[data-act]'); if (!el) return;
+    var f = L.acts[el.dataset.act]; if (!f) return; e.preventDefault();
+    if (menuEl && menuEl.contains(el) && !el.dataset.keepMenu) {
+      // After a menu choice, focus goes back to the button that opened the menu (found again by data-k after a re-render).
+      var k = menuAnchor && menuAnchor.dataset ? menuAnchor.dataset.k : null; L.closeMenu(); f(el, e);
+      if (k && (!document.activeElement || document.activeElement === document.body)) { var n = document.querySelector('[data-k="' + k + '"]'); if (n) n.focus(); }
+      return;
+    }
+    f(el, e);
+  });
+  ['input', 'change'].forEach(function (type) {
+    document.addEventListener(type, function (e) { var el = e.target.closest('[data-input]'); if (!el) return; var f = L.inputs[el.dataset.input]; if (f && (type === 'input' || el.tagName === 'SELECT' || el.type === 'checkbox' || el.type === 'radio' || el.type === 'range')) f(el, e); });
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.defaultPrevented || menuEl || document.getElementById('lyre-sheet')) return;
+    for (var i = 0; i < L.keys.length; i++) if (L.keys[i](e)) { e.preventDefault(); return; }
+  });
+  window.addEventListener('hashchange', function () { var r = decodeRoute(location.hash); if (r && r !== curRoute) { curRoute = r; afterRoute(); } });
+  // In-app links (href="#/...") change the route without touching the page address directly.
+  document.addEventListener('click', function (e) {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
+    var a = e.target.closest('a[href^="#/"]'); if (!a) return;
+    e.preventDefault(); L.route(a.getAttribute('href'));
+  });
+  window.addEventListener('resize', function () { clearTimeout(L._rz); L._rz = setTimeout(L.render, 120); });
+  L.boot = function () { applyFrame(); curRoute = decodeRoute(location.hash) || '#/campaigns'; L.render(); };
+  return L;
+})();

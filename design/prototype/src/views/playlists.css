@@ -1,0 +1,145 @@
+/* Playlists views (#/playlists, #/playlist/<id>). Prefix pl-. */
+
+/* ---------- All playlists ---------- */
+.pl-listbody { display: flex; flex-direction: column; gap: var(--gap); }
+.pl-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; flex: none; }
+.pl-search { flex: 1 1 200px; max-width: 340px; }
+.pl-listcol { flex: 1; min-height: 0; }
+/* A list laid out as a grid (not a table), so a row's expander can open full width. One line per row. */
+.pl-grid { display: grid; grid-template-columns: minmax(0, 1fr) 48px 56px 84px; align-items: center; column-gap: 10px; padding: 0 8px; }
+.pl-colhead { position: sticky; top: 0; z-index: 1; background: var(--surface); font-size: var(--fs-xs); color: var(--ink-2); font-weight: 700; height: 24px; border-bottom: 1px solid var(--line-strong); }
+.pl-c { text-align: right; }
+.pl-list { list-style: none; margin: 0; padding: 0; }
+.pl-item { border-bottom: 1px solid var(--line); }
+.pl-row { min-height: var(--row); padding-top: 2px; padding-bottom: 2px; cursor: pointer; }
+.pl-row:hover { background: var(--surface-2); }
+.pl-row > * { min-width: 0; }
+.pl-namecell { display: flex; align-items: center; gap: 6px; min-width: 0; margin-left: -4px; }
+.pl-kicon { display: inline-grid; color: var(--ink-3); flex: none; }
+.pl-kicon svg.i { width: 13px; height: 13px; }
+.pl-nm { font-weight: 700; color: var(--ink); text-decoration: none; border-radius: var(--r-s); flex: 0 1 auto; }
+.pl-nm:hover { text-decoration: underline; }
+.pl-namecell .badge { flex: none; }
+.pl-xp { padding-left: 36px; max-height: 260px; overflow: auto; border-bottom: 0; border-top: 1px solid var(--line); }
+.pl-xpmeta { display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-xs); color: var(--ink-2); margin: 2px 0 4px; }
+.pl-xpmeta > span { display: flex; align-items: center; gap: 6px; }
+.pl-xpmeta svg.i { width: 12px; height: 12px; color: var(--ink-3); flex: none; }
+.menu [data-act="plcreate"] { padding: 4px 8px; }
+.pl-racts { display: flex; gap: 2px; justify-content: flex-end; align-items: center; }
+.pl-more-btn { color: var(--ink-2); }
+.pl-mk { margin-left: auto; }
+/* Kind and lane as quiet text, used in the playlist head and Details. */
+.pl-kl { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-s); color: var(--ink-2); white-space: nowrap; }
+.pl-kl svg.i { width: 13px; height: 13px; color: var(--ink-3); }
+.pl-kl .sep { color: var(--ink-3); margin: 0 2px; }
+
+/* ---------- One playlist: layout ---------- */
+.pl-head { flex-wrap: nowrap; }
+.pl-head .crumbs { flex: none; }
+.pl-h1 { flex: 0 1 auto; max-width: 42%; min-width: 60px; padding-right: 2px; }
+.pl-headchips { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 0 1000 auto; flex-wrap: wrap; height: 20px; overflow: hidden; }
+.pl-pvbtn svg.i { color: var(--preview); }
+.pl-pvbtn[aria-pressed="true"] { border-color: var(--preview); background: color-mix(in srgb, var(--preview) 16%, var(--surface-2)); }
+/* Narrow (single column): panes take their natural height and the page scrolls. */
+.pl-body { display: flex; flex-direction: column; }
+.pl-page { display: flex; flex-direction: column; gap: var(--gap); min-width: 0; }
+.pl-page, .pl-page > .col { flex: none; }
+.pl-page > .col > .pane { flex: none; }
+/* Wide (from 900 px): track list and a side column of about a third; columns fill the height. */
+@container app (min-width: 900px) {
+  .pl-body { overflow: hidden; }
+  .pl-page { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 34%; align-items: stretch; }
+  .pl-page > .col { min-height: 0; }
+  .pl-page > .col > .pane { flex: 1 1 0; }
+  .pl-page > .col > .pane[data-size="auto"] { flex: 0 1 auto; }
+  .pl-page > .col.has-max > .pane.maxed { flex: 1 1 auto; }
+}
+
+/* ---------- Track rows ---------- */
+.pl-tracks { list-style: none; margin: 0; padding: 0; }
+.pl-tr { display: flex; align-items: center; gap: 8px; min-height: var(--row); padding: 3px 6px 3px 8px; border-bottom: 1px solid var(--line); min-width: 0; }
+.pl-tr:last-child { border-bottom: 0; }
+.pl-tr:hover { background: var(--surface-2); }
+.pl-tr.pl-is-pv { box-shadow: inset 3px 0 0 var(--preview); }
+.pl-grip { display: inline-grid; place-items: center; width: 14px; color: var(--ink-3); cursor: grab; flex: none; }
+.pl-grip svg.i { width: 14px; height: 14px; }
+.pl-pos { width: 18px; text-align: right; color: var(--ink-2); flex: none; }
+/* Nik picks tracks by their long descriptive titles: up to two lines; the title in the file, tags and energy are in the tooltip. */
+.pl-tline { flex: 1; display: flex; align-items: center; gap: 6px; min-width: 0; }
+.pl-tname { font-weight: 700; color: var(--ink); text-decoration: none; border-radius: var(--r-s); min-width: 0; flex: 0 1 auto; line-height: 1.3;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+.pl-tname:hover { text-decoration: underline; }
+.pl-dur { width: 36px; text-align: right; flex: none; }
+.pl-tacts { display: flex; align-items: center; gap: 2px; flex: none; }
+.pl-tline .chip { flex: none; height: 18px; }
+.pl-tacts .closer:disabled { opacity: .3; cursor: default; }
+.pl-tacts .closer:disabled:hover { background: transparent; color: var(--ink-3); }
+.pl-added { color: var(--ink-2); }
+.pl-added svg.i { color: var(--ok); }
+.pl-dragging { opacity: .45; }
+.pl-drop-before { box-shadow: inset 0 2px 0 var(--accent); }
+.pl-drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
+.pl-foot { padding: 6px 8px; border-top: 1px solid var(--line); }
+
+/* ---------- Add tracks ---------- */
+.pl-addbar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; padding: 6px 8px; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 1; background: var(--surface); }
+.pl-count { font-size: var(--fs-xs); flex: none; }
+
+/* ---------- Rule builder ---------- */
+.pl-conds { display: flex; flex-direction: column; gap: 6px; }
+.pl-cond { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 5px 6px; border: 1px solid var(--line); border-radius: var(--r-m); background: var(--surface-2); min-width: 0; }
+.pl-and { width: 40px; font-size: var(--fs-s); flex: none; }
+select.input.pl-sel { width: auto; height: var(--ctl-s); padding: 0 4px; font-size: var(--fs-s); border-radius: var(--r-s); flex: none; }
+select.input.pl-num { width: 44px; }
+.pl-vals { flex: 1 1 200px; align-items: center; }
+.pl-vals .chip { height: var(--ctl-s); }
+.pl-vals .btn.s { height: var(--ctl-s); }
+.pl-warn { color: var(--warn); }
+.pl-rulebar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; }
+.pl-energy { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-s); white-space: nowrap; }
+.pl-check { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-s); cursor: pointer; min-height: var(--ctl-s); }
+.pl-words { margin-top: 8px; font-size: var(--fs-s); }
+.pl-mq { padding: 2px 2px 4px; }
+.pl-mq .input { height: var(--ctl-s); }
+.menu [data-act="plvalpick"] .chip { pointer-events: none; }
+
+/* ---------- Used in and Details ---------- */
+.pl-use { gap: 8px; padding-top: 3px; padding-bottom: 3px; }
+.pl-upos { flex: none; font-size: var(--fs-xs); }
+.pl-ulink { color: var(--ink); font-weight: 700; text-decoration: none; display: block; border-radius: var(--r-s); }
+.pl-ulink:hover { text-decoration: underline; }
+.pl-lv { flex: none; width: 62px; font-size: var(--fs-xs); font-weight: 700; color: var(--ink-2); text-transform: uppercase; letter-spacing: .05em; }
+.pl-levels { padding: 6px 8px; border-top: 1px solid var(--line); }
+.pl-details { gap: 10px; }
+.pl-facts { min-width: 0; }
+.pl-danger { padding-top: 6px; border-top: 1px solid var(--line); }
+.pl-dellist { padding-left: 18px; margin-top: 6px; font-size: var(--fs-s); }
+@container app (min-width: 900px) { .pl-main > .pane:not(.collapsed) { min-height: 180px; } }
+.pl-more { padding: 6px 8px; border-top: 1px solid var(--line); }
+.pl-addbar .search { flex: 1 1 200px; }
+/* Marker: this track has its own audio profile in this playlist. */
+.pl-own { display: inline-grid; place-items: center; width: 14px; height: 17px; flex: none; }
+.pl-own-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-2); }
+/* Rule chips: the 16 px remove button gets a 24 px clickable area without making the chip taller. */
+.pl-vals .chip .x { width: 24px; height: 24px; margin: -1px -7px -1px -3px; }
+.pl-tline .badge, .pl-tline .chip { flex: none; white-space: nowrap; }
+
+/* ---------- Dropping files from the computer ---------- */
+#view[data-view="playlist"], #view[data-view="playlists"] { position: relative; }
+.pl-dropzone { display: none; position: absolute; inset: 4px; z-index: 6; pointer-events: none; border: 2px dashed var(--accent); border-radius: var(--r-l);
+  background: color-mix(in srgb, var(--accent) 7%, transparent); }
+#view.pl-filedrag .pl-dropzone { display: block; }
+.pl-dropmsg { position: absolute; left: 50%; top: 50px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; max-width: calc(100% - 32px);
+  padding: 6px 12px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: var(--fs-s); box-shadow: var(--shadow); text-align: center; }
+.pl-droptarget > .pl-row { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); }
+.pl-notice { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; flex: none; margin-bottom: var(--gap); padding: 5px 6px 5px 10px; border: 1px solid var(--line-strong);
+  border-radius: var(--r-m); background: var(--surface-2); font-size: var(--fs-s); }
+.pl-notice > svg.i { color: var(--ink-2); }
+.pl-notice > .grow { min-width: 200px; }
+.pl-notice a.btn { text-decoration: none; }
+.pl-asktext { flex: none; }
+select.input.pl-asksel { width: auto; max-width: 220px; height: var(--ctl-s); padding: 0 4px; font-size: var(--fs-s); }
+.pl-drophint { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-bottom: 1px solid var(--line); }
+@keyframes pl-flash { 0%, 40% { background: color-mix(in srgb, var(--accent) 22%, transparent); box-shadow: inset 3px 0 0 var(--accent); } 100% { background: transparent; box-shadow: inset 3px 0 0 transparent; } }
+.pl-tr.pl-flash, .pl-item.pl-flash > .pl-row { animation: pl-flash 3s ease-out; }
+@media (prefers-reduced-motion: reduce) { .pl-tr.pl-flash, .pl-item.pl-flash > .pl-row { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); } }

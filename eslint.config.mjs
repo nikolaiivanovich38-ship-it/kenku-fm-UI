@@ -6,7 +6,7 @@ import globals from "globals";
 
 export default tseslint.config(
   {
-    ignores: [".webpack/**", "out/**", "coverage/**", "node_modules/**", "publish/**", "*.config.js", "webpack.*.js", "forge.config.js"],
+    ignores: [".webpack/**", "out/**", "design/prototype/**", "coverage/**", "node_modules/**", "publish/**", "*.config.js", "webpack.*.js", "forge.config.js"],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

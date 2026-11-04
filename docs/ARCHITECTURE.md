@@ -24,6 +24,7 @@ Lyre is an Electron app (Electron 44) built with Electron Forge and webpack. Eve
 - `src/menu.ts`: application menu. `src/bounds.ts`: window position, stored with electron-store in `config.json` (opened on first use, so it never touches the file before the carry-over).
 - `src/autoUpdate.ts` with `src/main/updateFeed.ts`: Windows updates from the fork's GitHub releases through update.electronjs.org, only for copies set up by the installer (the zip build has no `Update.exe` and gets no updates).
 - `src/main/appIdentity.json` and `appIdentity.ts`: data-folder name, the earlier apps whose library the first start may copy, app ID and GitHub repository, shared with `forge.config.js`.
+- `src/common/domain`: the rules of the agreed design (DAT-12), pure and unit-tested: scene music order (tracks and playlists mixed, no track twice in a row), audio profiles resolved scene, then playlist, then track (PLY-12) with fade curves, dynamic playlist rules, FX (effects and stings), where playlists, boards and tracks are used, and which room an action plays in. The database, the engine and the new interface all use it. Its source of truth is the design prototype in `design/prototype` (see its README).
 - `src/common/helpLinks.ts`: the help pages the interface links to (Lyre's README; Kenku FM's site only for its Stream Deck plugin).
 - `src/assets/brand`: logo and wordmark sources; `scripts/brand` makes the icons and installer images from them (see `docs/brand.md`).
 
