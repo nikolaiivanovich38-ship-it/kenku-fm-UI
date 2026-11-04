@@ -44,6 +44,8 @@ export interface MediaElementLike {
   currentTime: number;
   readonly duration: number;
   readonly paused: boolean;
+  /** The element loops by itself (no cross-fade). */
+  loop: boolean;
   preload: string;
   play(): Promise<void>;
   pause(): void;

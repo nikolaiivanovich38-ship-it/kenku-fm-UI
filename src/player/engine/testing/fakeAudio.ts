@@ -143,7 +143,7 @@ export class FakeBuffer implements BufferLike {
 
 export class FakeBufferSource extends FakeNode implements BufferSourceLike {
   buffer: FakeBuffer | null = null;
-  loop = false;
+  private looping = false;
   onended: (() => void) | null = null;
   startedAt: number | null = null;
   offset = 0;
@@ -152,6 +152,20 @@ export class FakeBufferSource extends FakeNode implements BufferSourceLike {
 
   constructor(context: FakeAudioContext) {
     super(context, "bufferSource");
+  }
+
+  get loop() {
+    return this.looping;
+  }
+
+  /** Switching a loop off lets the current pass play to the end of the buffer, as in Web Audio. */
+  set loop(loop: boolean) {
+    if (this.looping && !loop && this.startedAt !== null && this.buffer) {
+      const now = this.context.currentTime;
+      this.offset = (this.offset + Math.max(0, now - this.startedAt)) % this.buffer.duration;
+      this.startedAt = Math.max(now, this.startedAt);
+    }
+    this.looping = loop;
   }
 
   start(when = 0, offset = 0) {
@@ -206,6 +220,7 @@ export class FakeMediaSource extends FakeNode {
 export class FakeMediaElement implements MediaElementLike {
   src = "";
   preload = "";
+  loop = false;
   private time = 0;
   private playing = false;
   private loaded = false;
@@ -304,7 +319,9 @@ export class FakeMediaElement implements MediaElementLike {
       return;
     }
     this.time += seconds;
-    if (this.time >= this.duration) {
+    if (this.loop && this.time >= this.duration) {
+      this.time %= this.duration;
+    } else if (this.time >= this.duration) {
       this.time = this.duration;
       this.playing = false;
       this.emit("ended");
