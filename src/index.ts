@@ -6,7 +6,6 @@ import {
   BrowserWindow,
   dialog,
   shell,
-  ipcMain,
   powerSaveBlocker,
 } from "electron";
 import "./menu";
@@ -18,6 +17,7 @@ import { getSavedBounds, saveWindowBounds } from "./bounds";
 import { openExternalIfAllowed } from "./main/security/externalLinks";
 import { lockAppPage } from "./main/security/navigationGuards";
 import { clearBrowsingData, secureSessions } from "./main/security/sessions";
+import { registerAppInfoIpc } from "./main/security/appInfoIpc";
 import { confirmStartAfterCarryOver, startApp } from "./main/startup";
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
@@ -149,13 +149,10 @@ if (startupOutcome === "run") {
     }
   });
 
-  ipcMain.on("GET_VERSION", (event) => {
-    event.returnValue = app.getVersion();
+  // SEC-8: only the main window may ask for these.
+  registerAppInfoIpc({
+    getVersion: () => app.getVersion(),
+    getPlatform: () => os.platform(),
+    clearCache: clearBrowsingData,
   });
-
-  ipcMain.on("GET_PLATFORM", (event) => {
-    event.returnValue = os.platform();
-  });
-
-  ipcMain.handle("CLEAR_CACHE", () => clearBrowsingData());
 }

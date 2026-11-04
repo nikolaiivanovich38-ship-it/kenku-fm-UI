@@ -1,14 +1,7 @@
 /**
  * SEC-8: the app-wide messages the main window sends while it starts up
  * (version, platform) and from Settings (clear cache), registered through the
- * IPC sender guard. Meant to replace the three plain `ipcMain` registrations
- * at the end of src/index.ts with one call:
- *
- *   registerAppInfoIpc({
- *     getVersion: () => app.getVersion(),
- *     getPlatform: () => os.platform(),
- *     clearCache: clearBrowsingData,
- *   });
+ * IPC sender guard. Called once from src/index.ts.
  */
 import { ipcMain } from "electron";
 import { guardIpc } from "./ipcGuard";

@@ -104,7 +104,7 @@ Handlers also cope with ids that no longer exist: starting tab audio capture for
 
 **Player view.** The main window used to pass the player's preload script path when it created the player view (WP0 then checked that path). It now passes the kind `"player"`, and the main process chooses the player preload itself (`classifyViewRequest` in `viewKind.ts`). A script path is always refused. `PLAYER_REGISTER_VIEW` only accepts a live view registered as the player, so a website tab can never receive remote control commands.
 
-**src/index.ts.** `GET_VERSION`, `GET_PLATFORM` and `CLEAR_CACHE` are still registered directly on `ipcMain` in `src/index.ts`, which WP1 stream W2 does not edit. `registerAppInfoIpc` (`src/main/security/appInfoIpc.ts`) registers the same three handlers through the guard; `src/index.ts` should replace its three `ipcMain` calls with one call to it (see the comment at the top of that file).
+**src/index.ts.** `GET_VERSION`, `GET_PLATFORM` and `CLEAR_CACHE` are registered through `registerAppInfoIpc` (`src/main/security/appInfoIpc.ts`), so they go through the guard like every other channel.
 
 ### Channel table
 

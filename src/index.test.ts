@@ -84,10 +84,17 @@ vi.mock("electron", async () => {
     powerSaveBlocker: { start: () => 1, stop: vi.fn() },
   };
 });
-// The data-folder move has its own tests (src/main/migration).
-vi.mock("./main/migration", () => ({ runDataCarryOver: vi.fn() }));
 vi.mock("electron-squirrel-startup", () => ({ default: false }));
 vi.mock("./menu", () => ({}));
+const appInfo = vi.hoisted(() => ({
+  registered: undefined as undefined | import("./main/security/appInfoIpc").AppInfo,
+}));
+vi.mock("./main/security/appInfoIpc", () => ({
+  registerAppInfoIpc: (info: import("./main/security/appInfoIpc").AppInfo) => {
+    appInfo.registered = info;
+    return () => undefined;
+  },
+}));
 vi.mock("./assets/icon.png", () => ({ default: "icon.png" }));
 vi.mock("./bounds", () => ({
   getSavedBounds: () => ({ bounds: {}, maximized: false }),
@@ -170,7 +177,12 @@ describe("main window (SEC-10, SEC-7, SEC-3)", () => {
   });
 
   it("clears website tab data as well when the user clears the cache", async () => {
-    await state.ipcHandlers.get("CLEAR_CACHE")?.();
+    await appInfo.registered?.clearCache();
     expect(state.clearBrowsingData).toHaveBeenCalled();
+  });
+
+  it("answers version and platform only through the IPC sender guard (SEC-8)", () => {
+    expect(appInfo.registered?.getVersion()).toBe("0.0.0");
+    expect(state.ipcHandlers.has("CLEAR_CACHE")).toBe(false);
   });
 });
