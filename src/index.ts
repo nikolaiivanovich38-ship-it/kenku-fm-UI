@@ -4,7 +4,6 @@ import os from "os";
 import {
   app,
   BrowserWindow,
-  components,
   dialog,
   shell,
   ipcMain,
@@ -102,14 +101,10 @@ const createWindow = (): BrowserWindow => {
 };
 
 if (startupOutcome === "run") {
-  // Workaround to allow for webpack support with widevine
-  // https://github.com/castlabs/electron-releases/issues/116
-  const widevine = components;
-
   // This method will be called when Electron has finished
   // initialization and is ready to create browser windows.
   // Some APIs can only be used after this event occurs.
-  app.whenReady().then(async () => {
+  app.whenReady().then(() => {
     // FND-1: if Kenku FM was running or its library could not be copied,
     // offer to quit before any page creates an empty library in its place.
     const keepStarting = confirmStartAfterCarryOver(getDataCarryOverResult(), (prompt) =>
@@ -120,31 +115,11 @@ if (startupOutcome === "run") {
       return;
     }
 
-    let hasWidevineError = false;
-
-    try {
-      // Wait for widevine to load
-      await widevine.whenReady();
-      console.log("components ready:", components.status());
-    } catch (e) {
-      hasWidevineError = true;
-      console.error("components failed to load:", JSON.stringify(e, null, 2));
-    }
-
     // SEC-3: permission handlers and user-agent rewrite for the app session
     // and the website-tab session, before any page loads.
     secureSessions();
 
     window = createWindow();
-
-    if (hasWidevineError) {
-      window.once("ready-to-show", () => {
-        window.webContents.send(
-          "ERROR",
-          "Widevine DRM Error: Licensed music playback is disabled",
-        );
-      });
-    }
   });
 
   app.on("second-instance", () => {

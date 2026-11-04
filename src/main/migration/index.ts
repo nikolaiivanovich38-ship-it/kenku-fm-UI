@@ -16,6 +16,7 @@ import { app } from "electron";
 import packageJson from "../../../package.json";
 import { DATA_FOLDER_NAME, LEGACY_DATA_FOLDER_NAME } from "../appIdentity";
 import { carryOverLegacyData, CarryOverResult, describeCarryOver } from "./carryOver";
+import { skippedCarryOver, userDataOverride } from "./userDataOverride";
 
 /**
  * Data folders by platform: Electron's `appData` is %APPDATA% on Windows,
@@ -39,6 +40,11 @@ export function windowsAppUserModelId(packageName: string): string {
 }
 
 const folders = dataFolders(app.getPath("appData"));
+// FND-4: automated tests may point the app at a throw-away folder.
+const testUserData = userDataOverride(process.env);
+if (testUserData) {
+  folders.userData = testUserData;
+}
 app.setPath("userData", folders.userData);
 // Browser storage (Local Storage, Session Storage) lives in sessionData, which
 // defaults to userData; pin it so the library always sits beside config.json.
@@ -59,7 +65,9 @@ let lastResult: CarryOverResult | null = null;
  * settings file is created. Logs and returns the result.
  */
 export function runDataCarryOver(): CarryOverResult {
-  lastResult = carryOverLegacyData(folders.legacyUserData, folders.userData);
+  lastResult = testUserData
+    ? skippedCarryOver(folders.userData)
+    : carryOverLegacyData(folders.legacyUserData, folders.userData);
   const message = `[data carry-over] ${describeCarryOver(lastResult)}`;
   if (lastResult.status === "failed") {
     console.error(message, lastResult.errors);

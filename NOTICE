@@ -21,5 +21,3 @@ to the fork's repository, not to Owlbear Rodeo.
 
 Third-party components keep their own licences, listed in each package
 under node_modules (and inside the installed app's resources folder).
-This includes Electron for Content Security by castlabs, which provides
-Widevine support for protected media.

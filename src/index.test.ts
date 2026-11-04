@@ -73,7 +73,6 @@ vi.mock("electron", async () => {
       getVersion: () => "0.0.0",
     },
     BrowserWindow,
-    components: { whenReady: () => Promise.resolve(), status: () => ({}) },
     dialog: { showMessageBoxSync: state.showMessageBoxSync },
     session,
     shell: { openExternal: state.openExternal },
@@ -85,6 +84,8 @@ vi.mock("electron", async () => {
     powerSaveBlocker: { start: () => 1, stop: vi.fn() },
   };
 });
+// The data-folder move has its own tests (src/main/migration).
+vi.mock("./main/migration", () => ({ runDataCarryOver: vi.fn() }));
 vi.mock("electron-squirrel-startup", () => ({ default: false }));
 vi.mock("./menu", () => ({}));
 vi.mock("./assets/icon.png", () => ({ default: "icon.png" }));

@@ -1,6 +1,6 @@
 # Architecture
 
-Cue Desk is an Electron app (castlabs Electron 37, for Widevine) built with Electron Forge and webpack. Every page is TypeScript; the interface uses React 18, Redux Toolkit and MUI.
+Cue Desk is an Electron app (Electron 44) built with Electron Forge and webpack. Every page is TypeScript; the interface uses React 18, Redux Toolkit and MUI.
 
 ```
  Main window (renderer)          Tabs (WebContentsView)              Hidden capture window
