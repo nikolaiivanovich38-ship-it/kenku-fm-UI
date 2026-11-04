@@ -148,7 +148,11 @@ export function Soundboards({ onPlay }: SoundboardProps) {
           justifyContent="space-between"
           alignItems="center"
         >
-          <IconButton onClick={() => navigate(-1)} sx={{ mr: "40px" }}>
+          <IconButton
+            aria-label="Back"
+            onClick={() => navigate(-1)}
+            sx={{ mr: "40px" }}
+          >
             <Back />
           </IconButton>
           <Typography variant="h3" noWrap>

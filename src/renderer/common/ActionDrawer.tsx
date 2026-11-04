@@ -61,6 +61,7 @@ export function ActionDrawer() {
             </Box>
           )}
           <IconButton
+            aria-label="Settings"
             onClick={() => setSettingsOpen(true)}
             sx={{ WebkitAppRegion: "no-drag" }}
           >

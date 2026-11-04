@@ -136,7 +136,11 @@ export function Soundboard({ onPlay, onStop }: SoundboardProps) {
           alignItems="center"
           sx={{ zIndex: 1 }}
         >
-          <IconButton onClick={() => navigate(-1)} sx={{ mr: "40px" }}>
+          <IconButton
+            aria-label="Back"
+            onClick={() => navigate(-1)}
+            sx={{ mr: "40px" }}
+          >
             <Back />
           </IconButton>
           <Typography sx={{ zIndex: 1 }} variant="h3" noWrap>
@@ -148,7 +152,7 @@ export function Soundboard({ onPlay, onStop }: SoundboardProps) {
                 <Add />
               </IconButton>
             </Tooltip>
-            <IconButton onClick={handleMenuClick}>
+            <IconButton aria-label="Soundboard options" onClick={handleMenuClick}>
               <MoreVert />
             </IconButton>
           </Stack>

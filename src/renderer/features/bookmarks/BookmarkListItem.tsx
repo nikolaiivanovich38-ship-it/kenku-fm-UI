@@ -89,7 +89,11 @@ export function BookmarkListItem({ bookmark, shadow }: BookmarkListItemProps) {
       <ListItem
         disablePadding
         secondaryAction={
-          <IconButton size="small" onClick={handleMoreClick}>
+          <IconButton
+            size="small"
+            aria-label={`Options for ${bookmark.title}`}
+            onClick={handleMoreClick}
+          >
             <MoreIcon />
           </IconButton>
         }

@@ -158,7 +158,10 @@ export function SoundItem({ id, soundboard, onPlay, onStop }: SoundItemProps) {
               <Typography variant="h6" noWrap sx={{ flexGrow: 1 }}>
                 {sound.title}
               </Typography>
-              <IconButton onClick={handleMenuClick}>
+              <IconButton
+                aria-label={`Options for ${sound.title}`}
+                onClick={handleMenuClick}
+              >
                 <MoreVert />
               </IconButton>
             </Stack>
