@@ -11,8 +11,18 @@ import type { CarryOverResult } from "./carryOver";
 /** Environment variable naming the data folder for a test run. */
 export const USER_DATA_DIR_ENV = "CUE_DESK_USER_DATA_DIR";
 
-/** The test data folder, or null when the app should use its normal folder. */
-export function userDataOverride(env: NodeJS.ProcessEnv): string | null {
+/**
+ * The test data folder, or null when the app should use its normal folder.
+ * Only test builds honour it (WP1 review): in a released app, anyone able to
+ * change the environment could otherwise point it at another library and run
+ * a second copy beside the first, since the single-instance lock follows the
+ * data folder.
+ * @param isTestBuild true only in packages built with CUE_DESK_E2E_BUILD=1
+ */
+export function userDataOverride(env: NodeJS.ProcessEnv, isTestBuild: boolean): string | null {
+  if (!isTestBuild) {
+    return null;
+  }
   const value = env[USER_DATA_DIR_ENV]?.trim();
   if (!value || !path.isAbsolute(value)) {
     return null;

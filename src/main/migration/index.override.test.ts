@@ -16,11 +16,14 @@ vi.mock("electron", () => electron);
 let migration: typeof import("./index");
 beforeAll(async () => {
   vi.stubEnv("CUE_DESK_USER_DATA_DIR", testDataDir);
+  // What webpack defines in a package built with CUE_DESK_E2E_BUILD=1.
+  vi.stubGlobal("__CUE_DESK_TEST_BUILD__", true);
   migration = await import("./index");
 });
 
 afterAll(() => {
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
   fs.rmSync(appDataDir, { recursive: true, force: true });
   fs.rmSync(testDataDir, { recursive: true, force: true });
 });

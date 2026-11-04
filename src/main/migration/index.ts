@@ -18,6 +18,9 @@ import { DATA_FOLDER_NAME, LEGACY_DATA_FOLDER_NAME } from "../appIdentity";
 import { carryOverLegacyData, CarryOverResult, describeCarryOver } from "./carryOver";
 import { skippedCarryOver, userDataOverride } from "./userDataOverride";
 
+/** True only in packages built with CUE_DESK_E2E_BUILD=1 (webpack.main.config.js). */
+declare const __CUE_DESK_TEST_BUILD__: boolean;
+
 /**
  * Data folders by platform: Electron's `appData` is %APPDATA% on Windows,
  * ~/Library/Application Support on macOS and $XDG_CONFIG_HOME (or ~/.config)
@@ -41,7 +44,10 @@ export function windowsAppUserModelId(packageName: string): string {
 
 const folders = dataFolders(app.getPath("appData"));
 // FND-4: automated tests may point the app at a throw-away folder.
-const testUserData = userDataOverride(process.env);
+const testUserData = userDataOverride(
+  process.env,
+  typeof __CUE_DESK_TEST_BUILD__ !== "undefined" && __CUE_DESK_TEST_BUILD__,
+);
 if (testUserData) {
   folders.userData = testUserData;
 }

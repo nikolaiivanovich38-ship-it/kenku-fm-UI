@@ -4,18 +4,23 @@ import { USER_DATA_DIR_ENV, skippedCarryOver, userDataOverride } from "./userDat
 
 describe("userDataOverride (FND-4)", () => {
   it("is off when the variable is not set or empty", () => {
-    expect(userDataOverride({})).toBeNull();
-    expect(userDataOverride({ [USER_DATA_DIR_ENV]: "" })).toBeNull();
-    expect(userDataOverride({ [USER_DATA_DIR_ENV]: "   " })).toBeNull();
+    expect(userDataOverride({}, true)).toBeNull();
+    expect(userDataOverride({ [USER_DATA_DIR_ENV]: "" }, true)).toBeNull();
+    expect(userDataOverride({ [USER_DATA_DIR_ENV]: "   " }, true)).toBeNull();
   });
 
   it("uses an absolute folder as given (normalised)", () => {
     const dir = path.resolve("/tmp/cue-desk-e2e/../cue-desk-e2e/run-1");
-    expect(userDataOverride({ [USER_DATA_DIR_ENV]: dir })).toBe(path.normalize(dir));
+    expect(userDataOverride({ [USER_DATA_DIR_ENV]: dir }, true)).toBe(path.normalize(dir));
   });
 
   it("ignores a relative folder, which would depend on where the app was started", () => {
-    expect(userDataOverride({ [USER_DATA_DIR_ENV]: "relative/dir" })).toBeNull();
+    expect(userDataOverride({ [USER_DATA_DIR_ENV]: "relative/dir" }, true)).toBeNull();
+  });
+
+  it("is ignored in release builds, so a shipped app always uses its own folder (WP1 review)", () => {
+    const dir = path.resolve("/tmp/cue-desk-test");
+    expect(userDataOverride({ [USER_DATA_DIR_ENV]: dir }, false)).toBeNull();
   });
 });
 
