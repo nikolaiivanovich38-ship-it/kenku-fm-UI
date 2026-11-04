@@ -22,6 +22,8 @@ All notable changes to Cue Desk. Versions follow [Semantic Versioning](https://s
 - The "drop here" overlay no longer flickers while you move a file across the window. [BUG-1]
 - Editing a bookmark saves the name and the address together when you press Done; Cancel or Escape leaves the bookmark as it was.
 - Error and warning messages stay on screen until you close them; success messages still go away by themselves. Screen readers announce errors straight away and other messages politely.
+- Error messages appear at the top of the window, so they no longer cover the Done button in Settings, and screen readers announce them even while Settings is open.
+- Buttons shown only as icons (Settings, Back, the "…" options menus) now have names that screen readers read out.
 - Dragging a link onto the address bar or a bookmark's address field puts the link in the field.
 - Audio files are recognised by their extension too, so files such as .m4a, .flac and .opus are no longer turned away. [BUG-10]
 - The remote API's "get" requests (used by Stream Deck buttons) answer correctly when several arrive at once, and the soundboard list is no longer out of date after you edit a soundboard. [PERF-9]

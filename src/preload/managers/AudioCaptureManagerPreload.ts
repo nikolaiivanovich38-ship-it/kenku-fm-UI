@@ -242,6 +242,10 @@ export class AudioCaptureManagerPreload {
       output.connect(this._audioOutputNode);
       console.info(`Capturing audio of view ${viewId}`);
     } catch (error) {
+      if (this._browserViewRequests[viewId] !== request) {
+        // The tab was closed while its capture was starting; nothing to report.
+        return;
+      }
       console.error(`Unable to start stream for web view ${viewId}`);
       console.error(error);
     }

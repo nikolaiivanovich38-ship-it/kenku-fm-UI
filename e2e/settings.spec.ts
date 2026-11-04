@@ -42,16 +42,14 @@ test("Discord token: help link, and a bad token shows an error without breaking 
   await connect.click();
 
   // Either Discord refuses the token or cannot be reached: both end in an
-  // error message and the form is usable again. The message is an alert, but
-  // the open Settings dialog hides the rest of the window from screen
-  // readers, so it is found by its text here (see docs/testing.md).
-  await expect(mainWindow.getByText(/^Error connecting to bot: /)).toBeVisible({ timeout: 45_000 });
+  // error message and the form is usable again. The message is an alert that
+  // screen readers can reach while Settings is open.
+  await expect(mainWindow.getByRole("alert")).toHaveText(/^Error connecting to bot: /, { timeout: 45_000 });
   await expect(connect).toBeEnabled();
   await expect(token).toBeEditable();
   expect(errors.pageErrors).toEqual([]);
 
-  // The message stays until it is closed (WCAG 2.2.1); it covers the
-  // dialog's Done button meanwhile (see the next test), so close it first.
+  // The message stays until it is closed (WCAG 2.2.1).
   await mainWindow.getByTitle("Close").click();
   await expect(mainWindow.getByText(/^Error connecting to bot: /)).toHaveCount(0);
   await settings.getByRole("button", { name: "Done" }).click();
@@ -59,11 +57,6 @@ test("Discord token: help link, and a bad token shows an error without breaking 
 });
 
 test("an error message does not cover the Settings Done button", async ({ mainWindow }) => {
-  test.fail(
-    true,
-    "Known UX issue: the error toast (bottom left, no auto-hide since 4b6d863) sits on top of the Settings " +
-      "dialog's Done button until the user closes it.",
-  );
   await mainWindow.getByRole("button", { name: "Settings" }).click();
   const settings = mainWindow.getByRole("dialog", { name: "Settings" });
   await settings.getByLabel("Token").fill("not-a-real-bot-token");

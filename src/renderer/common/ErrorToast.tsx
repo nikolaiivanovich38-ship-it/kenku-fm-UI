@@ -1,6 +1,7 @@
 import React from "react";
 import Snackbar, { SnackbarCloseReason } from "@mui/material/Snackbar";
 import Alert from "@mui/material/Alert";
+import Portal from "@mui/material/Portal";
 
 type ErrorToastProps = {
   /** Message to show; nothing is shown while undefined. */
@@ -22,15 +23,18 @@ export function ErrorToast({ error, onClose }: ErrorToastProps) {
   }
 
   return (
-    <Snackbar
-      open={Boolean(error)}
-      autoHideDuration={null}
-      onClose={handleClose}
-      sx={{ maxWidth: "360px" }}
-    >
-      <Alert severity="error" role="alert" onClose={onClose}>
-        {error}
-      </Alert>
-    </Snackbar>
+    <Portal>
+      <Snackbar
+        open={Boolean(error)}
+        autoHideDuration={null}
+        onClose={handleClose}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+        sx={{ maxWidth: "360px" }}
+      >
+        <Alert severity="error" role="alert" onClose={onClose}>
+          {error}
+        </Alert>
+      </Snackbar>
+    </Portal>
   );
 }

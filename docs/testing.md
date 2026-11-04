@@ -60,7 +60,6 @@ Every test also fails if any page logged a console error, threw an uncaught erro
 
 ### Known issues these tests document
 
-- `settings.spec.ts` "an error message does not cover the Settings Done button" (`test.fail`): error messages stay until closed (since commit 4b6d863) and sit at the bottom left, over the Settings panel's Done button. The user has to close the message first.
-- While the Settings panel is open, the rest of the window, including the error message, is hidden from screen readers, so a refused Discord token is not announced. The test finds the message by its text for that reason.
+- Fixed during WP1: error messages used to sit at the bottom left, over the Settings panel's Done button, and were hidden from screen readers while Settings was open. They now appear at the top centre, outside the app root (`ErrorToast`), and `settings.spec.ts` checks both.
 - The shuffle button does not say whether shuffle is on (no `aria-pressed`); the test reads the icon colour. The custom-background address field's label is on its wrapper, not on the input.
-- Closing a website tab within about a second of opening it logs "Unable to start stream for web view" in the capture window (as in Kenku FM). `tabs.spec.ts` waits briefly before closing tabs.
+- Closing a website tab while its capture is still starting no longer logs "Unable to start stream for web view" (fixed in WP1); `tabs.spec.ts` still waits briefly before closing tabs.

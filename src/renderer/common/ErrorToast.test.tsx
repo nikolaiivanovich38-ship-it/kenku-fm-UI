@@ -26,6 +26,21 @@ describe("ErrorToast", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  it("stays out of the way of dialog buttons at the bottom (top centre)", () => {
+    render(<ErrorToast error="Couldn't connect to Discord." onClose={() => undefined} />);
+    expect(screen.getByRole("alert").closest(".MuiSnackbar-root")).toHaveClass(
+      "MuiSnackbar-anchorOriginTopCenter",
+    );
+  });
+
+  it("is placed outside the app's root, so an open dialog does not hide it from screen readers", () => {
+    const { container } = render(
+      <ErrorToast error="Couldn't connect to Discord." onClose={() => undefined} />,
+    );
+    expect(container).not.toContainElement(screen.getByRole("alert"));
+    expect(document.body).toContainElement(screen.getByRole("alert"));
+  });
+
   it("shows nothing without an error", () => {
     render(<ErrorToast onClose={() => undefined} />);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
