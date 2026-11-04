@@ -204,6 +204,7 @@ export class UndoHistory {
       db.exec("PRAGMA defer_foreign_keys = ON");
       this.startCapture();
       this.applyInverse(step.entries);
+      this.store.beforeCommit();
       const entries = this.endCapture();
       db.exec("COMMIT");
       return { label: step.label, entries };

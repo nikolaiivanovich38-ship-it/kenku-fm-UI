@@ -189,3 +189,37 @@ describe("search (ORG-1)", () => {
     expect(titles("dock")).toEqual(["Gulls"]);
   });
 });
+
+describe("keeping the search index up to date (DB review 5)", () => {
+  const dirty = () => (t.store.get<{ n: number }>("SELECT count(*) AS n FROM temp.search_dirty") as { n: number }).n;
+
+  it("rebuilds each changed track's search entry once, just before the change is saved", () => {
+    const [mood] = listTagGroups(t.store);
+    const tags = ["Eerie", "Tense", "Warm"].map((name) => listTags(t.store, { groupId: mood.id }).find((x) => x.name === name)!.id);
+    const a = track("Abbey ruins");
+    const b = track("Bell tower");
+    t.store.change("Tag and rename", () => {
+      tagTracks(t.store, [a.id, b.id], tags);
+      updateTrack(t.store, a.id, { notes: "fog" });
+      addMarker(t.store, a.id, { timeMs: 10, label: "toll" });
+      // Every write marks the track; its entry is rebuilt once, at the end.
+      expect(dirty()).toBe(2);
+      expect(titles("eerie")).toEqual([]);
+    });
+    expect(dirty()).toBe(0);
+    expect(titles("eerie").sort()).toEqual(["Abbey ruins", "Bell tower"]);
+    expect(titles("fog toll")).toEqual(["Abbey ruins"]);
+  });
+
+  it("forgets the marks of a change that was not saved", () => {
+    const a = track("Abbey ruins");
+    expect(() =>
+      t.store.change("Fails", () => {
+        updateTrack(t.store, a.id, { title: "Harbour" });
+        throw new Error("stop");
+      }),
+    ).toThrow("stop");
+    expect(dirty()).toBe(0);
+    expect(titles("abbey")).toEqual(["Abbey ruins"]);
+  });
+});

@@ -2,6 +2,7 @@ import path from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openConnection } from "../sqlite";
 import { LibraryDatabaseError } from "../errors";
+import { Store } from "../store";
 import { makeTempFolder } from "../test/helpers";
 import { migrate, rebuildTable, schemaVersion, type Migration } from "./migrate";
 import { MIGRATIONS } from "./index";
@@ -168,8 +169,8 @@ describe("schema upgrades", () => {
     db.exec("INSERT INTO cue_lists (id, session_id, name) VALUES ('q1', 's1', 'Main')");
     db.exec("INSERT INTO pads (id, board_id, label, grid_row, grid_col) VALUES ('p1', 'b1', 'Door', 0, 0)");
     db.exec("INSERT INTO pad_actions (id, pad_id) VALUES ('a1', 'p1')");
-    // Search still follows the old rows after the upgrade.
-    db.exec("UPDATE tracks SET title = 'Quiet tavern' WHERE id = 't1'");
+    // Search still follows the old rows after the upgrade (edits go through a Store, which keeps the index).
+    new Store(db).change("Rename", () => db.exec("UPDATE tracks SET title = 'Quiet tavern' WHERE id = 't1'"));
     expect(db.prepare("SELECT title FROM search_fts WHERE search_fts MATCH 'quiet'").all()).toEqual([
       { title: "Quiet tavern" },
     ]);
@@ -254,11 +255,11 @@ describe("schema upgrades", () => {
     expect(db.prepare("SELECT id, label, colour FROM markers").all()).toEqual([
       { id: "m1", label: "swell", colour: null },
     ]);
-    // Index and search triggers came back with the rebuilt table.
+    // The index came back with the rebuilt table, and a Store opened afterwards keeps search following it.
     expect(db.prepare("SELECT name FROM sqlite_schema WHERE name = 'markers_track'").get()).toEqual({
       name: "markers_track",
     });
-    db.exec("UPDATE markers SET label = 'crescendo' WHERE id = 'm1'");
+    new Store(db).change("Rename marker", () => db.exec("UPDATE markers SET label = 'crescendo' WHERE id = 'm1'"));
     expect(db.prepare("SELECT markers FROM search_fts WHERE search_fts MATCH 'crescendo'").all()).toEqual([
       { markers: "crescendo" },
     ]);

@@ -3,6 +3,7 @@
  * cached prepared statements, a clock, and `change()`, which wraps each
  * edit in one transaction (and, in undo.ts, one undo step).
  */
+import { flushSearchIndex, installSearchIndex } from "./searchIndex";
 import type { DatabaseSync, SQLInputValue, StatementSync } from "./sqlite";
 
 export type StoreOptions = {
@@ -52,6 +53,15 @@ export class Store {
   constructor(db: DatabaseSync, options: StoreOptions = {}) {
     this.db = db;
     this.now = options.now ?? Date.now;
+    installSearchIndex(db);
+  }
+
+  /**
+   * Work every transaction does just before COMMIT: rebuilds the search entries
+   * of the tracks it changed, once each (searchIndex.ts). Undo calls it too.
+   */
+  beforeCommit(): void {
+    flushSearchIndex(this.db);
   }
 
   /** Prepared once per SQL text and reused: most edits run the same few statements. */
@@ -107,6 +117,7 @@ export class Store {
     try {
       this.hooks?.begin(label);
       result = fn();
+      this.beforeCommit();
       const afterCommit = this.hooks?.commit(label);
       committed = typeof afterCommit === "function" ? afterCommit : undefined;
       this.db.exec("COMMIT");
@@ -144,6 +155,7 @@ export class Store {
     this.depth = 1;
     try {
       const result = fn();
+      this.beforeCommit();
       this.db.exec("COMMIT");
       return result;
     } catch (error) {

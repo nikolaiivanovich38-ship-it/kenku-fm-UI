@@ -562,28 +562,11 @@ CREATE TRIGGER tracks_settle_on_tag AFTER INSERT ON track_tags
 
 /*
  * Search triggers. search_fts is a derived copy, the one denormalisation made
- * for speed; search_docs maps its rowid to the row's kind and id.
- * Track columns: the name shown for it, the file-tag title, the file name, the
- * artist, the album, tag names with synonyms, marker labels, notes, the cue number.
+ * for speed; search_docs maps its rowid to the row's kind and id. Playlists,
+ * boards, campaigns, sessions and scenes are indexed by their own rows here.
+ * Tracks' entries (names, artist, album, tags with synonyms, markers, notes,
+ * cue number) are rebuilt once per change by ../searchIndex.ts (DB review 5).
  */
-
-/** SQL that rebuilds the search documents of the tracks whose ids `ids` gives (a list or a SELECT). */
-function refreshTrackDocs(ids: string): string {
-  return `
-    DELETE FROM search_fts WHERE rowid IN
-      (SELECT doc_id FROM search_docs WHERE kind = 'track' AND ref_id IN (${ids}));
-    INSERT OR IGNORE INTO search_docs (kind, ref_id) SELECT 'track', id FROM tracks WHERE id IN (${ids});
-    INSERT INTO search_fts (rowid, title, meta_title, file_name, artist, album, tags, markers, notes, cue)
-      SELECT d.doc_id, coalesce(nullif(t.title, ''), nullif(t.meta_title, ''), t.file_name), t.meta_title, t.file_name,
-        t.source_composer, t.source_album,
-        (SELECT group_concat(tg.name || coalesce(' ' ||
-            (SELECT group_concat(s.synonym, ' ') FROM tag_synonyms s WHERE s.tag_id = tg.id), ''), ' ')
-           FROM track_tags tt JOIN tags tg ON tg.id = tt.tag_id WHERE tt.track_id = t.id),
-        (SELECT group_concat(m.label, ' ') FROM markers m WHERE m.track_id = t.id),
-        t.notes, t.source_cue_number
-      FROM tracks t JOIN search_docs d ON d.kind = 'track' AND d.ref_id = t.id
-      WHERE t.id IN (${ids});`;
-}
 
 function removeDoc(kind: string, id: string): string {
   return `
@@ -609,32 +592,13 @@ function simpleDoc(kind: string, title: string, notes: string | null): string {
 }
 
 function searchTriggers(): string {
-  const simple = SIMPLE_DOCS.map(
+  return SIMPLE_DOCS.map(
     ([kind, table, title, notes]) => `
 CREATE TRIGGER ${table}_search_insert AFTER INSERT ON ${table} BEGIN ${simpleDoc(kind, title, notes)} END;
 CREATE TRIGGER ${table}_search_update AFTER UPDATE OF ${notes ? `${title}, ${notes}` : title} ON ${table}
   BEGIN ${simpleDoc(kind, title, notes)} END;
 CREATE TRIGGER ${table}_search_delete AFTER DELETE ON ${table} BEGIN ${removeDoc(kind, "OLD.id")} END;`,
   ).join("\n");
-  return `
-CREATE TRIGGER tracks_search_insert AFTER INSERT ON tracks BEGIN ${refreshTrackDocs("NEW.id")} END;
-CREATE TRIGGER tracks_search_update
-  AFTER UPDATE OF title, meta_title, file_name, notes, source_composer, source_album, source_cue_number ON tracks
-  BEGIN ${refreshTrackDocs("NEW.id")} END;
-CREATE TRIGGER tracks_search_delete AFTER DELETE ON tracks BEGIN ${removeDoc("track", "OLD.id")} END;
-CREATE TRIGGER track_tags_search_insert AFTER INSERT ON track_tags BEGIN ${refreshTrackDocs("NEW.track_id")} END;
-CREATE TRIGGER track_tags_search_delete AFTER DELETE ON track_tags BEGIN ${refreshTrackDocs("OLD.track_id")} END;
-CREATE TRIGGER tags_search_rename AFTER UPDATE OF name ON tags
-  BEGIN ${refreshTrackDocs("SELECT track_id FROM track_tags WHERE tag_id = NEW.id")} END;
-CREATE TRIGGER tag_synonyms_search_insert AFTER INSERT ON tag_synonyms
-  BEGIN ${refreshTrackDocs("SELECT track_id FROM track_tags WHERE tag_id = NEW.tag_id")} END;
-CREATE TRIGGER tag_synonyms_search_delete AFTER DELETE ON tag_synonyms
-  BEGIN ${refreshTrackDocs("SELECT track_id FROM track_tags WHERE tag_id = OLD.tag_id")} END;
-CREATE TRIGGER markers_search_insert AFTER INSERT ON markers BEGIN ${refreshTrackDocs("NEW.track_id")} END;
-CREATE TRIGGER markers_search_update AFTER UPDATE OF label, track_id ON markers
-  BEGIN ${refreshTrackDocs("NEW.track_id, OLD.track_id")} END;
-CREATE TRIGGER markers_search_delete AFTER DELETE ON markers BEGIN ${refreshTrackDocs("OLD.track_id")} END;
-${simple}`;
 }
 
 function offerDefaultTags(db: DatabaseSync) {
