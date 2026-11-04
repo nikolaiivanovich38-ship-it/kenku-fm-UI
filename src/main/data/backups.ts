@@ -18,6 +18,7 @@
 import fs from "fs";
 import path from "path";
 import { LibraryDatabaseError } from "./errors";
+import { checkInBackground } from "./integrity";
 import { openConnection, type DatabaseSync } from "./sqlite";
 
 export const BACKUPS_TO_KEEP = 14;
@@ -82,9 +83,21 @@ export function isHealthyDatabase(file: string): boolean {
   }
 }
 
-/** The newest backup that passes a quick check, or null. */
+/**
+ * The newest backup that passes a quick check, or null. Checks run on the
+ * calling thread, one backup after another (each reads the whole file), so
+ * the main process uses `findLatestGoodBackup` instead.
+ */
 export function latestGoodBackup(folder: string): string | null {
   return listBackups(folder).find((backup) => isHealthyDatabase(backup.path))?.path ?? null;
+}
+
+/** Like `latestGoodBackup`, with the checks on a worker thread; never rejects. */
+export async function findLatestGoodBackup(folder: string): Promise<string | null> {
+  const backups = listBackups(folder).map((backup) => backup.path);
+  if (backups.length === 0) return null;
+  const found = await checkInBackground({ backups }).result;
+  return found === "cancelled" ? null : found.latestGoodBackup;
 }
 
 /** Deletes the oldest backups of `kind` beyond `keep`. */

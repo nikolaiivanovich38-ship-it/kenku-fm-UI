@@ -74,6 +74,21 @@ const api = {
   getPathForFile: (file: File) => {
     return webUtils.getPathForFile(file);
   },
+  /**
+   * PERF-6: before the window closes, the main process asks the player to
+   * save changes it is still holding back; `save` must write them at once.
+   * The answer (PLAYER_SAVED) is sent even if saving fails, so closing never
+   * waits longer than it has to.
+   */
+  onSaveRequest: (save: () => void) => {
+    ipcRenderer.on("PLAYER_SAVE_NOW", () => {
+      try {
+        save();
+      } finally {
+        ipcRenderer.send("PLAYER_SAVED");
+      }
+    });
+  },
 };
 
 declare global {

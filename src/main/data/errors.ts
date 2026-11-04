@@ -16,7 +16,11 @@ export type LibraryErrorCode =
 
 export class LibraryDatabaseError extends Error {
   readonly code: LibraryErrorCode;
-  /** The newest good backup, when one exists (offered after "corrupt"). */
+  /**
+   * The newest good backup, offered after "corrupt". Null when there is none,
+   * or when it was not looked for: damage found while opening in the default
+   * mode leaves the search to `findLatestGoodBackup` (on a worker thread).
+   */
   readonly latestBackup: string | null;
   /** The underlying SQLite or file-system error, for the log. */
   readonly cause: unknown;

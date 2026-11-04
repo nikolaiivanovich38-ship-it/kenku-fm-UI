@@ -113,3 +113,69 @@ describe("PlayerManager: main window requests (SEC-8)", () => {
     expect(fakeIpcMain.eventNames()).toEqual([]);
   });
 });
+
+describe("PlayerManager: saving the player's changes before the app closes (PERF-6, review 7)", () => {
+  function registeredPlayer() {
+    manager = new PlayerManager();
+    const view = playerView();
+    fakeIpcMain.deliver("PLAYER_REGISTER_VIEW", fromMainFrame(main), view.id);
+    return view;
+  }
+
+  /** Whether `promise` has settled after pending callbacks have run. */
+  async function settled(promise: Promise<unknown>) {
+    let done = false;
+    void promise.then(() => (done = true));
+    await Promise.resolve();
+    await Promise.resolve();
+    return done;
+  }
+
+  it("asks the player to save and waits for its answer", async () => {
+    const view = registeredPlayer();
+    const saved = manager!.saveBeforeClose();
+    expect(view.send).toHaveBeenCalledWith("PLAYER_SAVE_NOW");
+    expect(await settled(saved)).toBe(false);
+
+    fakeIpcMain.deliver("PLAYER_SAVED", fromMainFrame(view));
+
+    expect(await settled(saved)).toBe(true);
+  });
+
+  it("does not take an answer from another page or an embedded frame", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const view = registeredPlayer();
+    const saved = manager!.saveBeforeClose();
+    fakeIpcMain.deliver("PLAYER_SAVED", fromMainFrame(main));
+    fakeIpcMain.deliver("PLAYER_SAVED", fromMainFrame(fakePage(null)));
+    fakeIpcMain.deliver("PLAYER_SAVED", fromSubframe(view));
+    fakeIpcMain.deliver("PLAYER_SAVED", fromMainFrame(view), "extra");
+    expect(await settled(saved)).toBe(false);
+    fakeIpcMain.deliver("PLAYER_SAVED", fromMainFrame(view));
+    expect(await settled(saved)).toBe(true);
+    warn.mockRestore();
+  });
+
+  it("closes anyway when the player does not answer within the time limit", async () => {
+    vi.useFakeTimers();
+    try {
+      registeredPlayer();
+      const saved = manager!.saveBeforeClose(1000);
+      await vi.advanceTimersByTimeAsync(999);
+      expect(await settled(saved)).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await settled(saved)).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not wait when there is no player view, or it has gone", async () => {
+    manager = new PlayerManager();
+    expect(await settled(manager.saveBeforeClose())).toBe(true);
+    const view = registeredPlayer();
+    view.destroyed = true;
+    expect(await settled(manager!.saveBeforeClose())).toBe(true);
+  });
+});
+

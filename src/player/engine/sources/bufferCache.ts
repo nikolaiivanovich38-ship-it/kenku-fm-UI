@@ -65,7 +65,9 @@ export class BufferCache {
       this.entries.delete(key);
       this.usedBytes -= existing.bytes;
     }
-    const entry: Entry = { buffer, bytes, leases: existing?.leases ?? 0 };
+    // The new copy starts unleased: leases on the old copy are given back to
+    // the old entry (their release() holds it), never to this one.
+    const entry: Entry = { buffer, bytes, leases: 0 };
     if (bytes > this.capBytes) {
       return { buffer, release: () => undefined };
     }

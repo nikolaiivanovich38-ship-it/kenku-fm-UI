@@ -13,11 +13,32 @@ export type StoreOptions = {
 type ChangeHooks = {
   /** Called when a top-level change starts (inside its transaction). */
   begin(label: string): void;
-  /** Called just before a top-level change commits. */
-  commit(label: string): void;
+  /**
+   * Called just before a top-level change commits, while its rows can still
+   * be read. Returns what to do once COMMIT has succeeded (nothing happens if
+   * COMMIT fails), so a step is never recorded for a change that was lost.
+   */
+  commit(label: string): (() => void) | void;
   /** Called after a top-level change was rolled back. */
   rollback(): void;
 };
+
+/**
+ * Ends a failed transaction and passes the original error on. SQLite rolls a
+ * transaction back by itself on some errors (a full disk, an I/O error, out of
+ * memory); an explicit ROLLBACK would then fail with "no transaction is
+ * active" and hide the real reason, so it runs only while one is open.
+ */
+export function rollbackAfter(db: DatabaseSync, error: unknown): never {
+  if (db.isTransaction) {
+    try {
+      db.exec("ROLLBACK");
+    } catch {
+      // The original error says more; SQLite has ended the transaction anyway.
+    }
+  }
+  throw error;
+}
 
 export class Store {
   readonly db: DatabaseSync;
@@ -79,19 +100,25 @@ export class Store {
     }
     this.db.exec("BEGIN IMMEDIATE");
     this.depth = 1;
+    let committed: (() => void) | undefined;
+    let result: T;
     try {
       this.hooks?.begin(label);
-      const result = fn();
-      this.hooks?.commit(label);
+      result = fn();
+      const afterCommit = this.hooks?.commit(label);
+      committed = typeof afterCommit === "function" ? afterCommit : undefined;
       this.db.exec("COMMIT");
-      return result;
     } catch (error) {
-      this.db.exec("ROLLBACK");
-      this.hooks?.rollback();
-      throw error;
+      try {
+        rollbackAfter(this.db, error);
+      } finally {
+        this.hooks?.rollback();
+      }
     } finally {
       this.depth = 0;
     }
+    committed?.();
+    return result;
   }
 
   /**
@@ -107,8 +134,7 @@ export class Store {
       this.db.exec("COMMIT");
       return result;
     } catch (error) {
-      this.db.exec("ROLLBACK");
-      throw error;
+      return rollbackAfter(this.db, error);
     } finally {
       this.depth = 0;
     }

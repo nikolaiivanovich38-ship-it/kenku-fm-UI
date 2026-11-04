@@ -20,11 +20,14 @@ import { lockAppPage } from "./main/security/navigationGuards";
 import { clearBrowsingData, registerLocalFileScheme, secureSessions } from "./main/security/sessions";
 import { registerAppInfoIpc } from "./main/security/appInfoIpc";
 import { confirmStartAfterCarryOver, startApp } from "./main/startup";
+import { holdCloseUntilSaved, type SaveBeforeClose } from "./main/saveBeforeClose";
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 
 let window: BrowserWindow | null = null;
+/** PERF-6: holds quitting or closing until the player has saved (saveBeforeClose.ts). */
+let saveFirst: SaveBeforeClose | null = null;
 
 // WP1 review 1: files from the user's computer get a scheme of their own,
 // which Electron accepts only before the app is ready.
@@ -90,7 +93,21 @@ const createWindow = (): BrowserWindow => {
   // Prevent app suspension for Kenku FM to avoid playback issues
   const powerSaveBlockerId = powerSaveBlocker.start("prevent-app-suspension");
 
-  mainWindow.on("close", () => {
+  // PERF-6: the player saves changes it is still holding back before its
+  // view is destroyed with the session.
+  const windowSaveFirst = holdCloseUntilSaved({
+    save: () => session.saveBeforeClose(),
+    close: () => {
+      if (!mainWindow.isDestroyed()) mainWindow.close();
+    },
+    quit: () => app.quit(),
+  });
+  saveFirst = windowSaveFirst;
+
+  mainWindow.on("close", (event) => {
+    if (windowSaveFirst.holdClose(event)) {
+      return;
+    }
     session.destroy();
     window = null;
     powerSaveBlocker.stop(powerSaveBlockerId);
@@ -125,6 +142,10 @@ if (startupOutcome === "run") {
     secureSessions();
 
     window = createWindow();
+  });
+
+  app.on("before-quit", (event) => {
+    saveFirst?.holdQuit(event);
   });
 
   app.on("second-instance", () => {

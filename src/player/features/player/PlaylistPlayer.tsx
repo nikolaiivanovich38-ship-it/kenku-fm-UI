@@ -128,6 +128,13 @@ function Controls({
   const disabled = useSelector(
     (state: RootState) => !state.playlistPlayback.playback,
   );
+  // BUG-8: after the playing track is deleted nothing is loaded, but Next and
+  // Previous still move on from where it was in the queue.
+  const canMove = useSelector(
+    (state: RootState) =>
+      Boolean(state.playlistPlayback.playback) ||
+      Boolean(state.playlistPlayback.queue?.removedCurrent),
+  );
   const playing = useSelector(
     (state: RootState) => state.playlistPlayback.playing,
   );
@@ -172,7 +179,7 @@ function Controls({
         <Shuffle color={playbackShuffle ? "primary" : undefined} />
       </IconButton>
       <IconButton
-        disabled={disabled}
+        disabled={!canMove}
         aria-label="previous"
         onClick={() => onPlaylistPrevious()}
       >
@@ -190,7 +197,7 @@ function Controls({
         )}
       </IconButton>
       <IconButton
-        disabled={disabled}
+        disabled={!canMove}
         aria-label="next"
         onClick={() => onPlaylistNext()}
       >

@@ -393,3 +393,19 @@ No IPC channel was added or changed.
 5. With a bot in a voice channel, have a moderator drag the bot to another channel or disconnect it: the bot does not come back by itself; its status shows "Left" and the reason.
 6. Turn Wi-Fi off for 10 seconds while the bot is in a channel and music plays: the chip shows "Reconnecting…", "This Computer" stays off, and the music comes back in Discord.
 7. Update from 0.1 with a saved token: Settings shows the note about resetting the token; "Discord Developer Portal" opens in your browser; "Got it" removes the note for good.
+
+## Wave 1 core fixes
+
+### In plain language
+
+When you close Lyre while you are still dragging a volume slider in the player, the player is now asked to save that last change before it is closed. Closing waits for its answer for at most one second.
+
+### Channel
+
+Add to the SEC-8 channel table (kept here so branches merge cleanly):
+
+| Channel | Sent by | Arguments | Handled in |
+|---|---|---|---|
+| `PLAYER_SAVED` | Player | none; only the registered player view's answer is used | `PlayerManager` (`saveBeforeClose`) |
+
+`PLAYER_SAVE_NOW` goes the other way (main process to the player view, `webContents.send`), so it is not in `IPC_CHANNELS`; the player preload listens for it (`onSaveRequest`) and always answers `PLAYER_SAVED`, even if saving failed. The first quit (at `before-quit`) or the main window's first close is held (`src/main/saveBeforeClose.ts`) until that answer or one second has passed, then repeated. Nothing else changes: no new permission, no Content-Security-Policy change.

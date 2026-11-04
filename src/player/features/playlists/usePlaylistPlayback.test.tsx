@@ -495,20 +495,79 @@ describe("deleting the playing track (BUG-8)", () => {
     expect(playback(h).playing).toBe(false);
   });
 
-  it("nothing can bring the deleted track back afterwards (play key, next, previous)", () => {
+  it("the play key cannot bring the deleted track back", () => {
     const h = setup();
     startAt(h, "b");
     const howl = FakeHowl.latest;
     deleteTrack(h, "b");
 
-    act(() => {
-      h.hook.result.current.pauseResume(true);
-      h.hook.result.current.next();
-      h.hook.result.current.previous();
-    });
+    act(() => h.hook.result.current.pauseResume(true));
 
     expect(howl.callsOf("play")).toEqual([]);
     expect(FakeHowl.instances).toHaveLength(1);
+  });
+
+  /** Which track the newest Howl is for. */
+  const latestId = () => /([a-z])\.mp3$/.exec(String(FakeHowl.latest.options.src))![1];
+
+  // BUG-8 criterion "queue moves to the next item": Next, Previous, the media
+  // keys and the remote all call next()/previous(), which carry on from where
+  // the deleted track was. Before: they did nothing until a track was clicked.
+  it.each([
+    { name: "Next plays the track after it", shuffle: false, repeat: "playlist", start: "b", action: "next", plays: "c", index: 1 },
+    { name: "Previous plays the track before it", shuffle: false, repeat: "playlist", start: "b", action: "previous", plays: "a", index: 0 },
+    { name: "Next after the last track wraps round with repeat playlist", shuffle: false, repeat: "playlist", start: "d", action: "next", plays: "a", index: 0 },
+    { name: "Previous before the first track wraps round with repeat playlist", shuffle: false, repeat: "playlist", start: "a", action: "previous", plays: "d", index: 2 },
+    { name: "Next with repeat track moves on (the repeated track is gone)", shuffle: false, repeat: "track", start: "b", action: "next", plays: "c", index: 1 },
+    { name: "Next follows the shuffled order", shuffle: true, repeat: "playlist", start: "b", action: "next", plays: "d", index: 0 },
+    { name: "Previous follows the shuffled order", shuffle: true, repeat: "playlist", start: "b", action: "previous", plays: "b", index: 0, steps: 1 },
+  ] as const)("after deleting the playing track, $name", ({ shuffle, repeat, start, action, plays, index, ...rest }) => {
+    const h = setup({ shuffle, repeat });
+    startAt(h, start);
+    advance(h, "steps" in rest ? rest.steps : 0);
+    act(() => h.store.dispatch(setRepeat(repeat)));
+    const deleted = playback(h).track!.id;
+    deleteTrack(h, deleted);
+    expect(FakeHowl.alive).toHaveLength(0);
+
+    act(() => h.hook.result.current[action]());
+    loadLatest();
+
+    expect(latestId()).toBe(plays);
+    expect(playback(h).track?.id).toBe(plays);
+    expect(playback(h).queue!.current).toBe(index);
+    expect(playback(h).queue!.removedCurrent).toBeFalsy();
+  });
+
+  it("with repeat off, Next after deleting the last track and Previous after deleting the first do nothing", () => {
+    for (const [start, action] of [["d", "next"], ["a", "previous"]] as const) {
+      FakeHowl.reset();
+      const h = setup({ repeat: "off" });
+      startAt(h, start);
+      deleteTrack(h, start);
+      act(() => h.hook.result.current[action]());
+      expect(FakeHowl.instances).toHaveLength(1);
+      expect(playback(h).track).toBeUndefined();
+    }
+  });
+
+  it("after Next has moved on, the queue carries on as usual", () => {
+    const h = setup();
+    startAt(h, "a");
+    deleteTrack(h, "a");
+    act(() => h.hook.result.current.next());
+    loadLatest();
+    act(() => h.hook.result.current.next());
+    loadLatest();
+    expect(playback(h).track?.id).toBe("c");
+  });
+
+  it("the queue position waits while nothing plays, so the player bar can offer Next and Previous", () => {
+    const h = setup();
+    startAt(h, "b");
+    deleteTrack(h, "b");
+    expect(playback(h).queue).toMatchObject({ current: 1, removedCurrent: true });
+    expect(playback(h).playback).toBeUndefined();
   });
 
   it("deleting the playlist that is playing stops its track too", () => {
@@ -544,14 +603,59 @@ describe("deleting the playing track (BUG-8)", () => {
     const h = setup();
     act(() => h.hook.result.current.play(track("d")));
     const howl = FakeHowl.latest;
+    const shown: string[] = [];
+    h.store.subscribe(() => {
+      const id = playback(h).track?.id;
+      if (id) shown.push(id);
+    });
     act(() => {
       h.store.dispatch(removeTrack({ playlistId: "p", trackId: "d" }));
     });
+    expect(howl.unloaded).toBe(true);
 
+    // Even if the file's "load" still arrived, nothing would happen.
     loadLatest();
 
-    expect(howl.unloaded).toBe(true);
+    expect(shown).toEqual([]);
     expect(playback(h).track).toBeUndefined();
+  });
+
+  it("deleting a track that is still loading leaves the playing track playing (review 6)", () => {
+    const h = setup();
+    startAt(h, "a");
+    const playing = FakeHowl.latest;
+    act(() => playing.startPlaying());
+    // The GM clicks "d" by mistake, then deletes it before it has loaded.
+    act(() => h.hook.result.current.play(track("d")));
+    const loading = FakeHowl.latest;
+    deleteTrack(h, "d");
+    loadLatest();
+
+    expect(loading.unloaded).toBe(true);
+    expect(playing.unloaded).toBe(false);
+    expect(playing.lastFade).toEqual({ from: 0, to: 1, duration: 1000 });
+    expect(playback(h).track?.id).toBe("a");
+    // The controls act on "a" again.
+    act(() => h.hook.result.current.pauseResume(false));
+    expect(playing.callsOf("pause")).toEqual([[]]);
+  });
+
+  it("deleting a track still loading after another still loading lets the earlier one take over", () => {
+    const h = setup();
+    startAt(h, "a");
+    const first = FakeHowl.latest;
+    act(() => h.hook.result.current.next());
+    const second = FakeHowl.latest;
+    act(() => h.hook.result.current.play(track("d")));
+    const third = FakeHowl.latest;
+    deleteTrack(h, "d");
+
+    act(() => second.load(100));
+
+    expect(third.unloaded).toBe(true);
+    expect(playback(h).track?.id).toBe("b");
+    expect(first.lastFade).toMatchObject({ to: 0, duration: 1000 });
+    expect(second.lastFade).toEqual({ from: 0, to: 1, duration: 1000 });
   });
 
   it("deleting another track leaves the playing track alone", () => {

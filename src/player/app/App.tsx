@@ -20,6 +20,7 @@ import { useSoundboardPlayback } from "../features/soundboards/useSoundboardPlay
 import { SoundboardRemote } from "../features/soundboards/SoundboardRemote";
 import { SoundboardPlaybackSync } from "../features/soundboards/SoundboardPlaybackSync";
 import { NotificationProvider, useNotify } from "../common/notifications";
+import { useSaveErrorMessages } from "./saveErrors";
 
 const WallPaper = styled("div")({
   position: "fixed",
@@ -49,6 +50,9 @@ function PlayerApp() {
     },
     [notify]
   );
+
+  // PERF-6: a failed save of the library shows here too.
+  useSaveErrorMessages(handleError);
 
   const playlist = usePlaylistPlayback(handleError);
   const soundboard = useSoundboardPlayback(handleError);

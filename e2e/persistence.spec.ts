@@ -115,3 +115,27 @@ test("a change made just before quitting is saved (PERF-6)", async ({ launchApp 
   await openCard(player, "Renamed At The Last Minute");
   await expect(player.getByRole("slider", { name: "Volume" })).toHaveAttribute("aria-valuenow", "0");
 });
+
+test("a change made while a key is still held down is saved when the app quits (PERF-6)", async ({ launchApp }) => {
+  // While a key or mouse button is held, saving waits up to 500 ms between
+  // writes. Quitting destroys the player page without its page-hide handlers,
+  // so the main process asks the player to save first (review 7).
+  const first = await launchApp();
+  let player = await first.playerView();
+  await createPlaylist(player, "Held");
+  await openCard(player, "Held");
+  const volume = player.getByRole("slider", { name: "Volume" });
+  await volume.focus();
+  await player.keyboard.press("End");
+  await expect(volume).toHaveAttribute("aria-valuenow", "1");
+  // Pressed but not let go, straight after the last save: this one is held back.
+  await player.keyboard.down("Home");
+  await expect(volume).toHaveAttribute("aria-valuenow", "0");
+  await first.close();
+
+  const second = await launchApp();
+  player = await second.playerView();
+  await openCard(player, "Held");
+  await expect(player.getByRole("slider", { name: "Volume" })).toHaveAttribute("aria-valuenow", "0");
+});
+

@@ -27,7 +27,7 @@ Deleting a playlist or a board never deletes tracks. Deleting a track takes it o
 
 ### Backups
 
-- **Daily:** the first time Lyre runs on a day, it makes a copy, and while it stays open it checks every hour whether a new day has started. The newest 14 daily copies are kept.
+- **Daily:** the first time Lyre runs on a day, it makes a copy two minutes after it starts (so start-up is not slowed down), and while it stays open it checks every hour whether a new day has started. The newest 14 daily copies are kept.
 - **Back up now:** a button in the new interface makes a copy at once. The newest 14 of these are kept, separately from the daily ones.
 - **Before an upgrade:** when a new version of Lyre changes the library format, it copies the library first.
 
@@ -35,7 +35,7 @@ Every copy is checked before it counts, so a half-written copy is never kept as 
 
 ### If the library file is damaged
 
-Each time Lyre opens the library it checks the whole file. The check runs alongside start-up, so it does not slow the app down. If the file is damaged, Lyre says so in plain words and offers to put back the newest backup that passes the same check. The damaged file is kept, renamed `library-damaged-<time>.sqlite`, in case it is needed.
+Each time Lyre opens the library it runs SQLite's quick check, which reads every page of the file and finds most kinds of damage. It does not check that the indexes (used to find things fast) match the data, so a damaged index can go unnoticed until something fails. The check runs alongside start-up, so it does not slow the app down. If the file is damaged, Lyre says so in plain words and offers to put back the newest backup that passes the same check; the backups are checked alongside start-up too. The damaged file is kept, renamed `library-damaged-<time>.sqlite`, in case it is needed. The backup is copied in full before the damaged file is moved aside, so if the copy fails (a full disk, for example), your library stays where it was.
 
 ### Undo
 
@@ -76,9 +76,17 @@ Nothing in the module imports Electron. The main process will call `openLibrary(
 2. Existing file: reads the schema version. If an upgrade is pending, or `integrityCheck: "blocking"` was asked for, runs `PRAGMA quick_check` now and backs up before upgrading.
 3. Runs pending upgrades (`migrate`).
 4. Creates the `Store` and the `UndoHistory` (temporary triggers).
-5. Otherwise starts `quick_check` on a worker thread (an eval worker with its own read-only connection, so no extra webpack entry). `checkIntegrity()` resolves to `{ status: "ok" }`, `{ status: "corrupt", error }` or `{ status: "not-checked" }` (closed first); it never rejects.
+5. Otherwise starts `quick_check` on a worker thread (an eval worker with its own read-only connection, so no extra webpack entry). If the library is damaged, the same worker then checks the backups, newest first, until one passes. `checkIntegrity()` resolves to `{ status: "ok" }`, `{ status: "corrupt", error }` or `{ status: "not-checked" }` (closed first); it never rejects.
 
-`error.latestBackup` is the newest backup that passes `quick_check`. `restoreBackup({ folder, backupPath })` accepts only a file from the library's own backups folder, renames the damaged file (and its `-wal`/`-shm`) to `library-damaged-<time>.sqlite`, and copies the backup in place through a `.part` file. The library must be closed first.
+`quick_check` reads every page and checks the structure of each table and index, but unlike `integrity_check` it does not verify that index entries match their table rows; it is used because it is several times faster.
+
+`error.latestBackup` is the newest backup that passes `quick_check`, found on the worker thread for the background check, or on the calling thread with `integrityCheck: "blocking"`. Checking a backup reads the whole file, so in the default mode damage found while opening (steps 1 and 2) is thrown with `latestBackup: null`; the caller then asks `await findLatestGoodBackup(library backups folder)`, which checks on a worker thread.
+
+`restoreBackup({ folder, backupPath })` accepts only a file from the library's own backups folder. It copies the backup next to the library as `library.sqlite.part` and syncs it to disk, then renames the damaged file (and its `-wal`/`-shm`) to `library-damaged-<time>.sqlite`, then renames the `.part` file into place. If the copy fails, nothing has been moved and the `.part` file is removed. The library must be closed first.
+
+### Daily backups when wired up (WP5)
+
+`startDailyBackups(library, { onError })` makes the first daily backup `FIRST_DAILY_BACKUP_DELAY_MS` (two minutes) after it is called, then checks every hour. Each backup (`VACUUM INTO`) runs on the main process and holds it for about 0.5 s on a 43 MB library, once a day. Call it after the main window has been shown, never during start-up; log `onError` failures; call the function it returns before `library.close()` when the app quits. Moving the backup itself to a worker thread (its own read-only connection can run `VACUUM INTO`) is a later option if the half-second is noticed.
 
 ### Tables
 
@@ -144,7 +152,7 @@ Rows in a hand-ordered list are `GAP` (1024) apart. Inserting or moving takes th
 
 ### Undo
 
-`UndoHistory` creates TEMP triggers (never stored in the file) on every ordinary table except `schema_migrations` and `search_docs`. While `store.change()` runs, they note each inserted key, each deleted row and each update's old and new values (as JSON, which keeps REAL values exact) in `temp.undo_capture`; cascaded deletes and SET NULL updates are noted the same way. On commit the notes become one labelled step; updates keep only the columns that changed. `undo()` applies the opposites newest first in one transaction with `PRAGMA defer_foreign_keys = ON`, and what that replay changes is noted as the redo step. A failed undo rolls back and keeps the step. Default limit 100 steps; `clear()` empties the history (for example after a bulk import). Changes made with `changeWithoutHistory()` are not recorded.
+`UndoHistory` creates TEMP triggers (never stored in the file) on every ordinary table except `schema_migrations` and `search_docs`. While `store.change()` runs, they note each inserted key, each deleted row and each update's old and new values (as JSON, which keeps REAL values exact) in `temp.undo_capture`; cascaded deletes and SET NULL updates are noted the same way. On commit the notes become one labelled step; updates keep only the columns that changed. `undo()` applies the opposites newest first in one transaction with `PRAGMA defer_foreign_keys = ON`, and what that replay changes is noted as the redo step. A step is recorded only after `COMMIT` has succeeded (a commit that fails, for example on a full disk, leaves no step and keeps redo). A failed undo or redo rolls back and drops that step, so the steps below it can still be undone; keeping it would make every later undo fail on the same step. When SQLite has already ended the transaction itself (full disk, I/O error, out of memory), no second `ROLLBACK` is run, so the original error reaches the caller (`rollbackAfter` in `store.ts`; also in `schema/migrate.ts`). Default limit 100 steps; `clear()` empties the history (for example after a bulk import). Changes made with `changeWithoutHistory()` are not recorded.
 
 Triggers are built from the tables present at open, so tables from later versions are covered automatically, provided each has a primary key.
 
@@ -178,8 +186,8 @@ Triggers are built from the tables present at open, so tables from later version
 | `schema/migrate.test.ts` | New database, default vocabulary, upgrade keeping data, a later version adding cue lists and pads, failed step rollback, table rebuild, newer-version refusal. |
 | `ordering.test.ts`, `paths.test.ts` | Gap ordering and renumbering; root-relative paths. |
 | `repo/*.test.ts` | Every repository function, input checks, library-first deletes, the Redux mapping, search. |
-| `undo.test.ts` | Every write command undone and redone against full snapshots of all tables and the search index; a guard that fails when a new write function is missing from that list. |
-| `library.test.ts` | Open, upgrade backup, damaged files (blocking and background check), restore, daily/manual backups and pruning, the hourly timer. |
+| `undo.test.ts` | Every write command undone and redone against full snapshots of all tables and the search index; a guard that fails when a new write function is missing from that list; a failed COMMIT records no step, a step that fails to replay is dropped, and the original error is passed on when SQLite has already rolled back. |
+| `library.test.ts` | Open, upgrade backup, damaged files (blocking and background check; damaged backups are checked on the worker, never on the test's own thread), restore (order of copy, sync and renames; a failed copy leaves the library in place), daily/manual backups and pruning, the delayed first daily backup and the hourly timer. |
 | `performance.test.ts` | The 20,000-track targets. `CUE_DESK_SKIP_PERF=1` skips it; `CUE_DESK_PERF_REPORT=<file>` writes the measured numbers. |
 
 ### Not in version 1

@@ -183,4 +183,4 @@ Unit tests are listed in `docs/testing.md` > Playback engine tests; the real-bro
 - PLY-8: equal-power cross-fades and transitions such as "start after the current loop" (fades are linear today).
 - PLY-4: loop markers (DAT-3) and per-track "remember position".
 - PLY-11, BUG-10: resolvers for the local file cache and format conversion; one memory budget shared with `BufferCache`.
-- The engine does not yet measure idle CPU (PERF-1 asks for before/after figures); that belongs with WP5, when the old animation loops are removed from the screen in use.
+- PERF-1's idle CPU figures: the old animation loops were removed from the current player in wave 1 (WPL), but the before/after effect is recorded only as timer wake-up counts (`docs/testing.md`, Current player fixes), not as CPU. Measuring CPU idle before and after is still to do, by hand on Windows.

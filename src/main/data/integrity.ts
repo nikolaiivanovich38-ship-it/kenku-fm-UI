@@ -34,43 +34,70 @@ process.emitWarning = function (warning, ...rest) {
 };
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
 process.emitWarning = emitWarning;
-let db;
-try {
-  db = new DatabaseSync(workerData.path, { readOnly: true });
-  const rows = db.prepare("PRAGMA quick_check(1)").all();
-  const ok = rows.length === 1 && rows[0].quick_check === "ok";
-  parentPort.postMessage({ ok, detail: ok ? "" : rows.map((row) => row.quick_check).join("; ") });
-} catch (error) {
-  parentPort.postMessage({ ok: false, detail: String((error && error.message) || error) });
-} finally {
-  if (db) db.close();
+function check(path) {
+  let db;
+  try {
+    db = new DatabaseSync(path, { readOnly: true });
+    const rows = db.prepare("PRAGMA quick_check(1)").all();
+    const ok = rows.length === 1 && rows[0].quick_check === "ok";
+    return { ok, detail: ok ? "" : rows.map((row) => row.quick_check).join("; ") };
+  } catch (error) {
+    return { ok: false, detail: String((error && error.message) || error) };
+  } finally {
+    if (db) db.close();
+  }
 }
+const library = workerData.library ? check(workerData.library) : null;
+let latestGoodBackup = null;
+if (!library || !library.ok) {
+  latestGoodBackup = workerData.backups.find((path) => check(path).ok) ?? null;
+}
+parentPort.postMessage({ library, latestGoodBackup });
 `;
 
+/** What a check on the worker thread found. */
+export type BackgroundCheck = {
+  /** The library's result, or null when only backups were checked. */
+  library: IntegrityResult | null;
+  /**
+   * The first of `backups` that passes the same check, or null. Looked for
+   * only when the library is damaged (or not checked), so a healthy start
+   * costs one check.
+   */
+  latestGoodBackup: string | null;
+};
+
 /**
- * Starts the check on a worker thread. `result` always resolves (never
+ * Starts checks on a worker thread: the library (if given) and, when it is
+ * damaged, the backups in the order given (newest first), so damaged backups
+ * never hold up the main process either. `result` always resolves (never
  * rejects); after `cancel()` it resolves to "cancelled".
  */
-export function quickCheckInBackground(databasePath: string): {
-  result: Promise<IntegrityResult | "cancelled">;
+export function checkInBackground(job: { library?: string; backups: string[] }): {
+  result: Promise<BackgroundCheck | "cancelled">;
   cancel(): void;
 } {
-  const worker = new Worker(WORKER_SOURCE, { eval: true, workerData: { path: databasePath } });
+  const worker = new Worker(WORKER_SOURCE, {
+    eval: true,
+    workerData: { library: job.library ?? null, backups: job.backups },
+  });
   // Never keep the app running just for this check.
   worker.unref();
   let settled = false;
   let cancelled = false;
-  const result = new Promise<IntegrityResult | "cancelled">((resolve) => {
-    const finish = (value: IntegrityResult | "cancelled") => {
+  const failed = (detail: string): BackgroundCheck => ({
+    library: job.library ? { ok: false, detail } : null,
+    latestGoodBackup: null,
+  });
+  const result = new Promise<BackgroundCheck | "cancelled">((resolve) => {
+    const finish = (value: BackgroundCheck | "cancelled") => {
       if (settled) return;
       settled = true;
       resolve(value);
     };
-    worker.once("message", (message: IntegrityResult) => finish(message));
-    worker.once("error", (error: Error) => finish({ ok: false, detail: error.message }));
-    worker.once("exit", () =>
-      finish(cancelled ? "cancelled" : { ok: false, detail: "The check stopped before it finished." }),
-    );
+    worker.once("message", (message: BackgroundCheck) => finish(message));
+    worker.once("error", (error: Error) => finish(failed(error.message)));
+    worker.once("exit", () => finish(cancelled ? "cancelled" : failed("The check stopped before it finished.")));
   });
   return {
     result,

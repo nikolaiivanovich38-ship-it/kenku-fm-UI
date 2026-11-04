@@ -93,8 +93,11 @@ test("add tracks from disk, play, pause, skip and delete them", async ({ playerV
   await expect(page.getByRole("slider", { name: "time-indicator" })).toBeDisabled();
   expect(await page.evaluate(() => navigator.mediaSession.metadata)).toBeNull();
 
-  // The remaining track still plays normally afterwards.
-  await trackRow(page, "Second Tone").getByRole("button", { name: "play", exact: true }).click();
+  // The queue keeps the deleted track's place, so Next carries on from there
+  // (BUG-8): after the last track, repeat "playlist" wraps round to Second Tone.
+  await expect(controls.getByRole("button", { name: "next", exact: true })).toBeEnabled();
+  await controls.getByRole("button", { name: "next", exact: true }).click();
+  await expect(trackRow(page, "Second Tone").getByRole("button", { name: "pause", exact: true })).toBeVisible();
   await expect(controls.getByRole("button", { name: "pause", exact: true })).toBeEnabled();
   await expect.poll(() => playbackPosition(page), { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
   await controls.getByRole("button", { name: "pause", exact: true }).click();
