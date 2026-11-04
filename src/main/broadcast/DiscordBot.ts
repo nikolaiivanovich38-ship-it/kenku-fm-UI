@@ -2,6 +2,7 @@ import { Events, type Client } from "discord.js";
 import {
   createAudioPlayer,
   NoSubscriberBehavior,
+  VoiceConnectionDisconnectReason,
   VoiceConnectionStatus,
   type VoiceConnection,
   type VoiceConnectionState,
@@ -54,16 +55,42 @@ interface DiscordBotEvents {
   failure: (message: string) => void;
 }
 
+/**
+ * Discord's voice close code for "the bot was moved or disconnected by
+ * someone else" (a moderator, or Discord itself when the channel is gone).
+ */
+export const MOVED_OR_KICKED_CLOSE_CODE = 4014;
+
+/** WP1 review 5: a moderator moved or disconnected the bot; it is not pulled back. */
+function isMovedOrKicked(state: VoiceConnectionState): boolean {
+  return (
+    state.status === VoiceConnectionStatus.Disconnected &&
+    state.reason === VoiceConnectionDisconnectReason.WebSocketClose &&
+    state.closeCode === MOVED_OR_KICKED_CLOSE_CODE
+  );
+}
+
 /** One voice connection of this bot, in one server. */
 interface VoiceSession extends VoiceSessionState {
+  /**
+   * Missing while the bot waits to log in again (OUT-2, WP1 review 9): the
+   * session then only holds the channel's place, so the broadcast goes on.
+   */
   connection?: VoiceConnection;
   timer?: ReturnType<typeof setTimeout>;
+  /** WP1 review 3: a dropped join is tried again from this timer, never from inside the drop. */
+  rejoinTimer?: ReturnType<typeof setTimeout>;
   /** OUT-2: automatic reconnect attempts since the connection dropped. */
   attempts: number;
 }
 
 /** Statuses during which the bot is (about to be) in a voice channel. */
 const LIVE_VOICE: ReadonlySet<string> = new Set(["joining", "connected", "reconnecting"]);
+
+/** A session with a connection that is (about to be) in its channel, not a placeholder. */
+function isLive(session: VoiceSession | undefined): boolean {
+  return Boolean(session?.connection) && LIVE_VOICE.has(session!.status);
+}
 
 /**
  * OUT-1: one Discord bot output, with its own client, audio player and voice
@@ -73,6 +100,11 @@ const LIVE_VOICE: ReadonlySet<string> = new Set(["joining", "connected", "reconn
 export class DiscordBot extends TypedEmitter<DiscordBotEvents> {
   status: BotStatus = "offline";
   error?: string;
+  /**
+   * WP1 review 5: why the bot left a channel by itself (a moderator moved
+   * it), shown until it joins a channel again.
+   */
+  notice?: string;
   discordName?: string;
   guilds: GuildInfo[] = [];
   readonly player = createAudioPlayer({
@@ -139,6 +171,7 @@ export class DiscordBot extends TypedEmitter<DiscordBotEvents> {
   async connect(token: string): Promise<void> {
     this.loginAttempts = 0;
     this.wasReady = false;
+    this.notice = undefined;
     await this.login(token);
   }
 
@@ -162,8 +195,12 @@ export class DiscordBot extends TypedEmitter<DiscordBotEvents> {
     }
   }
 
-  private async login(token: string): Promise<void> {
-    this.closeClient();
+  /**
+   * @param holdChannels an automatic attempt after a lost login: keep the
+   *   channels' places so the broadcast goes on (WP1 review 9).
+   */
+  private async login(token: string, { holdChannels = false }: { holdChannels?: boolean } = {}): Promise<void> {
+    this.closeClient({ holdChannels });
     this.token = token;
     this.status = "connecting";
     this.error = undefined;
@@ -199,6 +236,10 @@ export class DiscordBot extends TypedEmitter<DiscordBotEvents> {
    * other than the token (no network, Discord unreachable) logs in again
    * with growing waits. A first login that fails is reported at once, so the
    * user can fix the token or press Reconnect.
+   * WP1 review 9: while it tries, its channels keep their places
+   * ("reconnecting"), so the broadcast does not stop and "This Computer" is
+   * not switched back on during a short outage; they are left only once the
+   * attempts give up (`fail`).
    */
   private loginFailed(error: unknown) {
     const message = `Error connecting to bot: ${messageOf(error)}`;
@@ -211,13 +252,13 @@ export class DiscordBot extends TypedEmitter<DiscordBotEvents> {
     this.rejoinAfterLogin = [
       ...new Set([...this.rejoinAfterLogin, ...[...this.sessions.values()].map((session) => session.channelId)]),
     ];
-    this.closeClient();
+    this.closeClient({ holdChannels: true });
     this.status = "connecting";
     this.error = `Cannot reach Discord. Trying again in ${Math.round(delay / 1000)} s…`;
     this.emit("change");
     this.loginTimer = setTimeout(() => {
       this.loginTimer = undefined;
-      void this.login(token);
+      void this.login(token, { holdChannels: true });
     }, delay);
   }
 
@@ -253,15 +294,20 @@ export class DiscordBot extends TypedEmitter<DiscordBotEvents> {
     this.closeClient();
     this.status = "offline";
     this.error = undefined;
+    this.notice = undefined;
     this.emit("change");
   }
 
-  private closeClient() {
+  private closeClient({ holdChannels = false }: { holdChannels?: boolean } = {}) {
     if (this.loginTimer) {
       clearTimeout(this.loginTimer);
       this.loginTimer = undefined;
     }
-    this.leaveAll();
+    if (holdChannels) {
+      this.holdChannels();
+    } else {
+      this.leaveAll();
+    }
     const client = this.client;
     this.client = undefined;
     this.guilds = [];
@@ -301,17 +347,19 @@ export class DiscordBot extends TypedEmitter<DiscordBotEvents> {
       return;
     }
     if (!channel || !channel.isVoiceBased()) {
+      this.dropPlaceholder(channelId);
       this.emit("failure", "Discord could not find that voice channel. It may have been deleted; reconnect the bot to refresh the list.");
       return;
     }
+    this.notice = undefined;
     const guildId = channel.guild.id;
     const existing = this.sessions.get(guildId);
-    if (existing?.channelId === channelId && LIVE_VOICE.has(existing.status)) {
+    if (existing?.channelId === channelId && isLive(existing)) {
       return;
     }
     if (!channel.joinable) {
       const message = `${this.discordName ?? "The bot"} cannot join “${channel.name}”: the channel is full, or the bot lacks the Connect permission there. Check the channel's permissions in Discord.`;
-      if (existing && LIVE_VOICE.has(existing.status)) {
+      if (isLive(existing)) {
         // Stay where it is; moving would only lose that channel too.
         this.emit("failure", message);
         return;
@@ -382,9 +430,10 @@ export class DiscordBot extends TypedEmitter<DiscordBotEvents> {
         this.emit("change");
         break;
       case VoiceConnectionStatus.Disconnected:
-        if (session.status === "joining") {
-          // The join timer gives up if this never connects.
-          connection.rejoin();
+        if (isMovedOrKicked(state)) {
+          this.leftByModerator(session);
+        } else if (session.status === "joining") {
+          this.retryJoin(session, connection, state);
         } else {
           this.retryVoice(session, connection);
         }
@@ -395,6 +444,49 @@ export class DiscordBot extends TypedEmitter<DiscordBotEvents> {
         this.removeSession(session);
         break;
     }
+  }
+
+  /**
+   * A join dropped before it was ready. WP1 review 3: `rejoin()` can drop the
+   * connection again synchronously, inside this state change, so calling it
+   * here recursed until the main process crashed. It is tried again after a
+   * pause instead, and not at all while the bot's gateway connection cannot
+   * send (AdapterUnavailable): the join timer then gives up with a message.
+   */
+  private retryJoin(session: VoiceSession, connection: VoiceConnection, state: VoiceConnectionState) {
+    if (
+      session.rejoinTimer ||
+      (state.status === VoiceConnectionStatus.Disconnected &&
+        state.reason === VoiceConnectionDisconnectReason.AdapterUnavailable)
+    ) {
+      return;
+    }
+    session.rejoinTimer = setTimeout(() => {
+      session.rejoinTimer = undefined;
+      if (
+        this.isCurrent(session, connection) &&
+        session.status === "joining" &&
+        connection.state.status === VoiceConnectionStatus.Disconnected
+      ) {
+        connection.rejoin();
+      }
+    }, reconnectDelay(session.attempts++));
+  }
+
+  /**
+   * WP1 review 5: a moderator moved or disconnected the bot (close code
+   * 4014). Pulling it back would undo their choice, so the bot leaves and
+   * says why.
+   */
+  private leftByModerator(session: VoiceSession) {
+    const message = `A moderator moved or disconnected the bot from “${session.channelName}”, so it left. Choose a voice channel to join again.`;
+    this.notice = message;
+    this.removeSession(session);
+    this.emit("failure", message);
+  }
+
+  private isCurrent(session: VoiceSession, connection: VoiceConnection): boolean {
+    return session.connection === connection && this.sessions.get(session.guildId) === session;
   }
 
   /**
@@ -425,7 +517,13 @@ export class DiscordBot extends TypedEmitter<DiscordBotEvents> {
         return;
       }
       // Still trying from last time (or stuck): this counts as an attempt too.
-      if (status !== VoiceConnectionStatus.Disconnected || !connection.rejoin()) {
+      if (status !== VoiceConnectionStatus.Disconnected) {
+        this.retryVoice(session, connection);
+        return;
+      }
+      // A failed rejoin() usually reports Disconnected again at once, which
+      // already scheduled the next attempt; count it only once.
+      if (!connection.rejoin() && !session.timer && this.isCurrent(session, connection)) {
         this.retryVoice(session, connection);
       }
     }, delay);
@@ -474,6 +572,30 @@ export class DiscordBot extends TypedEmitter<DiscordBotEvents> {
     this.feed.stop();
   }
 
+  /**
+   * WP1 review 9: the login is lost and will be tried again. Each channel's
+   * connection is closed, but the channel keeps its place as "reconnecting",
+   * so the bot still counts as in a channel and the broadcast goes on.
+   */
+  private holdChannels() {
+    for (const session of this.sessions.values()) {
+      this.endSession(session);
+      session.status = "reconnecting";
+      session.attempts = 0;
+      session.error = `Waiting for Discord before rejoining “${session.channelName}”…`;
+    }
+  }
+
+  /** A held channel that cannot be joined again is let go. */
+  private dropPlaceholder(channelId: string) {
+    const held = [...this.sessions.values()].find(
+      (session) => session.channelId === channelId && !session.connection,
+    );
+    if (held) {
+      this.removeSession(held);
+    }
+  }
+
   destroy(): void {
     this.closeClient();
     this.feed.dispose();
@@ -485,6 +607,10 @@ function clearTimer(session: VoiceSession) {
   if (session.timer) {
     clearTimeout(session.timer);
     session.timer = undefined;
+  }
+  if (session.rejoinTimer) {
+    clearTimeout(session.rejoinTimer);
+    session.rejoinTimer = undefined;
   }
 }
 

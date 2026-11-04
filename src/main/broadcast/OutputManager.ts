@@ -31,6 +31,8 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
   private localMutedByJoin = false;
   private wasActive = false;
   private publishQueued = false;
+  /** An older version's token was taken over this session, for this session only. */
+  private legacyTokenSessionOnly = false;
   private ipc = guardIpc(ipcMain);
 
   constructor(
@@ -74,6 +76,7 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
     const summaries = new Map(this.tokens.list().map((summary) => [summary.id, summary]));
     return {
       encryption: this.tokens.encryption,
+      ...(this.legacyTokenSessionOnly ? { legacyTokenSessionOnly: true } : {}),
       local: { muted: this.localMuted },
       bots: [...this.bots.values()].map((bot) => {
         const summary = summaries.get(bot.id);
@@ -85,6 +88,7 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
           tokenRemembered: summary?.tokenRemembered ?? false,
           status: bot.status,
           ...(bot.error ? { error: bot.error } : {}),
+          ...(bot.notice ? { notice: bot.notice } : {}),
           guilds: bot.guilds,
           voice: bot.voice(),
           muted: bot.muted,
@@ -160,7 +164,9 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
   importLegacyToken(token: string): void {
     const first = [...this.bots.keys()][0] ?? this.addBot();
     if (!this.tokens.token(first)) {
-      this.tokens.setToken(first, token.trim());
+      const remembered = this.tokens.setToken(first, token.trim());
+      // WP1 review 11: the user never typed this token, so say it will be gone after a restart.
+      this.legacyTokenSessionOnly = !remembered;
       this.publish();
     }
   }

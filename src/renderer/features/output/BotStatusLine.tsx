@@ -23,6 +23,10 @@ export function botStatusText(bot: BotState): string {
   if (connected.length > 0) {
     return `In ${connected.map((session) => session.channelName).join(", ")}${bot.muted ? " (muted)" : ""}`;
   }
+  if (bot.notice) {
+    // WP1 review 5: the bot left a channel by itself (a moderator moved it).
+    return bot.notice;
+  }
   switch (bot.status) {
     case "connecting":
       return "Connecting…";
