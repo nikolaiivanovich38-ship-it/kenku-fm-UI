@@ -144,6 +144,10 @@ export interface DomainLookup {
   tracks(): Iterable<DomainTrack>;
 }
 
+/** How a pad plays when pressed (SFX-3): once, on/off, while held, or from the start on every press. */
+export const PAD_MODES = ["oneshot", "toggle", "hold", "retrigger"] as const;
+export type PadMode = (typeof PAD_MODES)[number];
+
 /** Rooms (OUT-5, OUT-6): every bot in a voice channel is a room, named after its channel. */
 export interface Room {
   botId: string;

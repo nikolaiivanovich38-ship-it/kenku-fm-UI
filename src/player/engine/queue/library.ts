@@ -25,8 +25,9 @@ export interface SceneRef {
 }
 
 /** How a pad plays (the prototype's Play mode). */
-export const PAD_MODES = ["oneshot", "toggle", "hold", "retrigger"] as const;
-export type PadMode = (typeof PAD_MODES)[number];
+export { PAD_MODES } from "../../../common/domain/types";
+import type { PadMode } from "../../../common/domain/types";
+export type { PadMode };
 
 /** What a pad plays: one sound, or variants picked at random or in turn. */
 export interface PadSound {

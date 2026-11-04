@@ -108,7 +108,7 @@ const ROLE: Record<string, DomainTrack["role"]> = {
   Transition: "transition",
   Effect: "effect",
 };
-const MODE: Record<string, string> = { oneshot: "oneshot", toggle: "toggle", hold: "hold", retrigger: "restart" };
+const MODE: Record<string, string> = { oneshot: "oneshot", toggle: "toggle", hold: "hold", retrigger: "retrigger" };
 const ms = (seconds: number) => Math.round(seconds * 1000);
 
 function toProfile(p: ProtoProfile): AudioProfileInput {

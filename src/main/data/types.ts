@@ -206,12 +206,10 @@ export const MAX_GRID_SIZE = 8;
 export const PAD_COLORS = ["steel", "ember", "gold", "moss", "violet", "plum", "sea", "bone"] as const;
 export type PadColor = (typeof PAD_COLORS)[number];
 
-/**
- * How a pad plays: once per press (presses overlap), toggle a loop on and off,
- * play while held, or restart on each press (never overlaps; the prototype calls it "retrigger").
- */
-export const PAD_MODES = ["oneshot", "toggle", "hold", "restart"] as const;
-export type PadMode = (typeof PAD_MODES)[number];
+/** How a pad plays: one shared list for the database, the engine and the screens (src/common/domain). */
+export { PAD_MODES } from "../../common/domain/types";
+import type { PadMode } from "../../common/domain/types";
+export type { PadMode };
 
 /** One file, several variants, or any effect with a tag. */
 export const PAD_SOUND_KINDS = ["single", "variants", "tag"] as const;

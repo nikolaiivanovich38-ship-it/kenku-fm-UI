@@ -239,7 +239,7 @@ CREATE TABLE pads (
   color TEXT NOT NULL DEFAULT 'gold' CHECK (color IN ('steel', 'ember', 'gold', 'moss', 'violet', 'plum', 'sea', 'bone')),
   -- One key, lower case. Not unique: two pads may share a key while the game master sorts it out (the screen warns).
   hotkey TEXT CHECK (hotkey IS NULL OR (length(hotkey) BETWEEN 1 AND 12 AND hotkey = lower(hotkey))),
-  mode TEXT NOT NULL DEFAULT 'oneshot' CHECK (mode IN ('oneshot', 'toggle', 'hold', 'restart')),
+  mode TEXT NOT NULL DEFAULT 'oneshot' CHECK (mode IN ('oneshot', 'toggle', 'hold', 'retrigger')),
   -- single: the first of pad_sounds; variants: all of them, at random or in turn; tag: any effect with sound_tag_id.
   sound_kind TEXT NOT NULL DEFAULT 'single' CHECK (sound_kind IN ('single', 'variants', 'tag')),
   sound_order TEXT NOT NULL DEFAULT 'random' CHECK (sound_order IN ('random', 'in_turn')),
