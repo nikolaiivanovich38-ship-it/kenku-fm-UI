@@ -49,6 +49,7 @@ jobs:
       contents: read
     outputs:
       tag: ${{ steps.version.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Check out the code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -84,12 +85,20 @@ jobs:
       - name: Check the app's security fuses (SEC-13)
         # Fails if this is a test build (--inspect on) or any fuse is loosened.
         run: node scripts/check-release-fuses.mjs "out/Lyre-win32-x64/lyre.exe"
+      # The demo kit: music, effects and a local page made by code, for
+      # trying the release without one's own library (docs/DEVELOPING.md >
+      # Demo kit). Node.js only, no downloads.
+      - name: Build the demo kit
+        run: node scripts/demo-kit/build.mjs
       - name: Collect release files and checksums
         shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           New-Item -ItemType Directory -Force -Path release | Out-Null
           Copy-Item out/make/squirrel.windows/x64/* release/
           Copy-Item out/make/zip/win32/x64/*.zip release/
+          Copy-Item "out/make/Lyre-$env:VERSION-demo-kit.zip" release/ -ErrorAction Stop
           Get-ChildItem release -File |
             ForEach-Object { "{0}  {1}" -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name } |
             Set-Content -Encoding ascii release/SHA256SUMS.txt
@@ -130,6 +139,8 @@ jobs:
           files: release/*
           body: |
             Windows installer: download the file ending in `-win32-x64-setup.exe` and run it.
+            Demo kit: `Lyre-${{ needs.build.outputs.version }}-demo-kit.zip` holds music, effects and a local page
+            for trying every feature without your own library; unzip it and read README.txt.
             The build is not code-signed yet, so Windows may show "Windows protected your PC";
             choose "More info", then "Run anyway".
             What changed: see CHANGELOG.md. File checksums: SHA256SUMS.txt.

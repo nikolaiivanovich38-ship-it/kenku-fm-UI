@@ -95,6 +95,40 @@ node scripts/backgrounds/render.mjs --check            # repaint in memory and c
 
 The script fails if a picture is over 250 KB or if white text on it would be hard to read: it applies the playlist page's own overlay and requires 4.5:1 contrast (WCAG AA) against the brightest 5% of the picture, separately for the title and the track list. With the same Chromium build the files come out byte for byte the same; another Chromium version may change a few pixels (`--check` says which). If Playwright's own Chromium is missing, the script uses the newest `chromium-*` build in the Playwright browser folder. `yarn test:scripts` checks the names and the seeded randomness; `src/player/backgrounds/index.test.ts` checks the files. The pictures are original to this project and GPL-3.0 (`src/player/backgrounds/LICENSE.md`). Any image file put in that folder is bundled, so keep only the 23 there.
 
+## Demo kit
+
+The demo kit lets the product owner try every feature of a release, and run its test script, without his own library. It is a zip next to the installer on each release, `Lyre-X.Y.Z-demo-kit.zip`, holding a folder `Lyre-demo-kit` with:
+
+| Folder | Contents |
+| --- | --- |
+| `Music/` | Four cues, 44.1 kHz stereo WAV, 30-33 s, about -16 LUFS: "Tavern Warmth - lute-like plucks, gentle (loops well)", "Tense Crossing - low pulse, builds", "Heroic Sting - short rise, don't loop", "Melancholy Drift - pad, fades" |
+| `Ambience/` | Two 30 s loops, mono 22.05 kHz, about -22 LUFS: rain and wind, hearth fire |
+| `Effects/` | Five one-shots, mono 44.1 kHz, about -18 LUFS: sword clash, door knock, magic chime, thunder, coin pouch |
+| `Local soundboard/` | `soundboard.html`, `notes.txt` and three of the effects in `sounds/`: a page to open from the address bar (SEC-15). Its buttons play the sounds next to it, read `notes.txt` (allowed), and try `../README.txt` and `https://example.com` (both should show "Blocked" in Lyre) |
+| `README.txt` | What the kit is and how to use it, in plain words |
+
+Everything is made by `scripts/demo-kit/build.mjs` with Node.js only (no libraries, no network): the music is composed and synthesised in code (plucked strings, additive pads and brass, a Freeverb-style reverb), the ambience and effects come from filtered noise and resonators, and each sound is brought to its loudness (ITU-R BS.1770, the "LUFS" measure) with peaks held under -1.5 dBFS by a limiter. Random numbers come from fixed seeds, so the same Node.js version always builds byte-identical files and zip.
+
+```
+node scripts/demo-kit/build.mjs              # out/demo-kit/Lyre-demo-kit/ and out/make/Lyre-<version>-demo-kit.zip
+node scripts/demo-kit/build.mjs --out <dir>  # the same under <dir>
+```
+
+The version in the zip's name and in `README.txt` comes from `package.json`. Building takes about 10 seconds; the zip is about 23 MB and must stay under 25 MB, which is why the ambience is mono at half the sample rate. `release.yml` builds the kit after the installer and lists it in `SHA256SUMS.txt`.
+
+| File | What it holds |
+| --- | --- |
+| `scripts/demo-kit/build.mjs` | The list of sounds and their targets, the kit layout, the zip |
+| `scripts/demo-kit/music.mjs`, `sounds.mjs` | The four cues; the ambience and effects |
+| `scripts/demo-kit/synth.mjs` | Voices (plucked string, additive, bell, drum), filters, reverb, echo, loop helpers |
+| `scripts/demo-kit/audio.mjs` | Loudness meter, limiter, WAV reading and writing |
+| `scripts/demo-kit/zip.mjs` | A small ZIP writer (deflate, fixed dates) and reader |
+| `scripts/demo-kit/files/` | `README.txt` (with `{{version}}`), `soundboard.html`, `notes.txt` |
+
+`yarn test:scripts` runs `scripts/demo-kit.test.mjs`: every file present and safe to name on Windows, valid WAV headers, lengths, peaks below -1 dBFS, loudness within 1.5 LU of its target, seamless loop points, the soundboard's sounds present, the zip readable, matching the folder and under 25 MB, and two builds byte-identical. `e2e/demoKit.spec.ts` builds the kit, adds its music to a playlist and plays it, and opens `soundboard.html` from the address bar to check its buttons.
+
+To listen-check a change without speakers, draw each sound with ffmpeg (a check on the build machine only; the script does not need it): `ffmpeg -i in.wav -filter_complex "showspectrumpic=s=1000x300:scale=log:fscale=log" out.png` shows silence, clipping or harsh noise at a glance, and `ffmpeg -i in.wav -af ebur128=peak=sample -f null -` prints loudness and peak (it agrees with the script's meter within 0.2 LU).
+
 ## Dependency audit
 
 `scripts/audit-check.mjs` runs `yarn audit` on shipped libraries and fails on any high or critical advisory not in `scripts/audit-allowlist.json`. To accept one temporarily, add an entry with `id` (GHSA), `package`, `reason` and the `backlog` item that removes it, and update `reviewed`. Electron is listed as a devDependency (Electron Forge expects that) but ships inside the app, so the gate audits it as well; the other devtools are not audited. Electron supports its three newest major versions; check https://releases.electronjs.org before each release and upgrade when the current major nears end of life. When upgrading, update `FALLBACK_CHROME_VERSION` in `src/main/userAgent.ts`.
@@ -105,7 +139,7 @@ The script fails if a picture is over 250 KB or if white text on it would be har
 
 - `ci.yml`: every push and pull request. Type check, lint, tests with coverage (artifact `coverage-report`), script tests, audit gate, gitleaks secret scan, and end-to-end tests of the packaged app on Windows (artifact `e2e-report` on failure).
 - `codeql.yml`: CodeQL security analysis, also weekly.
-- `release.yml`: on `v*` tags or by hand. Runs `ci.yml`, then builds the unsigned Windows x64 installer and zip and attaches them to a draft release.
+- `release.yml`: on `v*` tags or by hand. Runs `ci.yml`, then builds the unsigned Windows x64 installer and zip and the demo kit, and attaches them to a draft release.
 
 Third-party actions are pinned by full commit SHA with the version in a comment. To update one, look up the tag's commit (`git ls-remote https://github.com/OWNER/ACTION refs/tags/vX.Y.Z`; for annotated tags use the `^{}` line) and change both.
 
@@ -113,7 +147,7 @@ Third-party actions are pinned by full commit SHA with the version in a comment.
 
 1. Bump `version` in `package.json`, update `CHANGELOG.md`.
 2. Commit, then tag `vX.Y.Z` (must equal the version) and push the tag. Where tags cannot be pushed, push the commit to the `release` branch instead (`git push origin main:release`); publishing the draft then creates the tag on the built commit.
-3. The Release workflow creates a draft release with `lyre-X.Y.Z-win32-x64-setup.exe`, `RELEASES`, the `.nupkg`, the zip and `SHA256SUMS.txt`.
+3. The Release workflow creates a draft release with `lyre-X.Y.Z-win32-x64-setup.exe`, `RELEASES`, the `.nupkg`, the zip, `Lyre-X.Y.Z-demo-kit.zip` (see Demo kit) and `SHA256SUMS.txt`.
 4. Complete `docs/RELEASE_CHECKLIST.md`, then publish the draft. Installed apps pick it up through update.electronjs.org, which needs the repository to stay public and ignores drafts and pre-releases.
 
 Builds are unsigned. Upstream's signed flow (DigiCert KSP Windows signing, Apple signing and notarisation) is kept in `publish/` but not used; its scripts still name upstream's repository and app paths and need updating before use. Its workflow, `publish-stable.yaml`, was removed in 0.1.0 and is in git history. macOS auto-update is off until macOS builds are signed (`UPDATE_PLATFORMS` in `src/main/updateFeed.ts`).
