@@ -7,6 +7,8 @@ import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: ".",
   testMatch: "**/*.spec.ts",
+  // FND-15: the acceptance specs run from playwright.spec.config.ts (prototype now, app screen by screen).
+  testIgnore: "specs/**",
   // Each test starts its own copy of the app; run them one at a time so they
   // do not compete for audio devices or the remote-control port.
   workers: 1,

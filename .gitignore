@@ -99,3 +99,4 @@ severus/
 coverage/
 test-results/
 playwright-report/
+playwright-report-specs/

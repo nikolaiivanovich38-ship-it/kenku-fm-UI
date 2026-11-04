@@ -133,3 +133,43 @@ The tests for the wave 1 security review (findings 1 to 12) are listed in `docs/
 | --- | --- |
 | `scripts/demo-kit.test.mjs` | The kit built twice into temporary folders: every file present, names safe on Windows; WAV headers valid; music 44.1 kHz stereo and 30-45 s long, ambience 30 s, effects under 8 s; every peak below -1 dBFS and above -20 dBFS; loudness within 1.5 LU of its target (music -16, ambience -22, effects -18 LUFS); "(loops well)" files have no jump at the loop point; the soundboard's sounds exist and it loads nothing from elsewhere; README names the version, has Windows line endings and the three instructions; the zip opens (CRC checked), matches the folder byte for byte and is under 25,000,000 bytes; two builds byte-identical. Helpers: the loudness meter reads a -20 dBFS 997 Hz tone as -20 LUFS (stereo) and -23 LUFS (mono), the limiter, WAV round trip, ZIP round trip and unsafe names. |
 | `e2e/demoKit.spec.ts` | Builds the kit, adds its four music files through the Add Track dialog (names come from the file names) and plays Tavern Warmth until the time passes 2 s; types the path of `Local soundboard/soundboard.html` (with a space in it) into the address bar, accepts "Open this file from your computer?", plays the sword clash from the page's folder, and sees `notes.txt` allowed, `../README.txt` blocked and `https://example.com` blocked. |
+
+## Specs
+
+FND-15. `e2e/specs` holds the acceptance tests for the new interface. Each test states one behaviour Nik approved in the design prototype (`design/prototype`), in his words, and checks it on the screen. They run against the prototype now and against the real app as wave 3 builds each screen, so they find everything by role, accessible name and visible text (`getByRole`, `getByLabel`, `getByText`), never by CSS class or `data-k`. Where the prototype's wording is the specification, the test asserts the wording.
+
+| Spec file | Tests | What it covers |
+| --- | --- | --- |
+| `campaigns.spec.ts` | 21 | All campaigns with Run next session and New campaign; one campaign (Prep or Live switch, theme, new session, Obsidian placeholder); Run on every session with the next one looking different from the others; playlists and pad boards on hand in every session (closed expanders, Preview, Play on air, Add playlists…). |
+| `session-planner.spec.ts` | 30 | Scenes in order; music mixing tracks and playlists in play order (move, start with, remove, Preview, closed expanders); the music picker (All, Playlists, Tracks, FX, search, Preview, expanders, Cancel); files dropped on a scene; ambience; several pad boards per scene; add, move, drag, duplicate and delete scenes; Run this session and the Prep or Live switch. |
+| `library.spec.ts` | 20 | Music, Ambience and FX filter, tag filters, search and sort; keyboard use of the rows; details with your title, the title in the file, file name and folder; tags by typing; Add tracks; files dropped on the page; Tag… on many tracks at once. |
+| `playlists.spec.ts` | 24 | The list (Manual and Dynamic, Music, Ambience and FX, Used, search, inline expanders, Preview and Play on air, no Duplicate, New playlist, files dropped on a row); a manual playlist (rename, add, reorder, remove, files dropped, Use in…); a dynamic playlist (rule builder, plain-words summary, matching tracks, Make a manual copy). |
+| `pad-boards.spec.ts` | 23 | The list (search by board name or pad label, Used, campaign filter, New board, Delete board…); resizing to spare pads and back with the message, Undo and Put all back; moving, swapping and previewing pads; play mode, hotkey conflict, sound variants. |
+| `audio-profile.spec.ts` | 22 | Handles as sliders (drag and keys); what happens at the end (loop, next track, stop); typed times; fades with length and intensity; listening while you set it; markers; settings per place (track, playlist, scene) with Give this place its own settings and Back to the track's settings. |
+| `live.spec.ts` | 38 | Next scene with Space, Undo and Ctrl+Z, Shift+Esc fades all; single-key shortcuts and the Keys switch; Off script (search, tag X, Music or Ambience or FX); Scene music in order, growing with an expanded playlist and sitting above On air; rooms: one On air box per room, `To: <room>` choosing where Scene music, Off script and Pads play, scenes always starting in the first room, Leave. |
+| `outputs.spec.ts` | 16 | Rooms and the bot in each, Not in a room, moving a bot to another room (menu, keyboard, Bring…, Swap rooms), Leave, Mute, Volume, Test chime, and the same rooms appearing in Live. |
+| `sweeps.spec.ts` | 76 | For every screen, at 960×1000 and 720×900, in the default and Parchment themes: no sideways scroll, no overlapping controls (controls scrolled out of sight inside a scrolling box do not count), no cut-off button text, and no axe-core 4.14.0 failure with the WCAG 2.2 A and AA tags. Plus, once per screen, Tab reaches every control and does not get stuck. |
+
+### Running them
+
+```
+npx playwright test -c playwright.spec.config.ts --project=prototype
+npx playwright test -c playwright.spec.config.ts --project=prototype live.spec     # one screen
+npx playwright test -c playwright.spec.config.ts --project=app                    # the app (see below)
+```
+
+No build is needed for the `prototype` project; it opens `design/prototype/lyre-prototype.html` as a file. All specs must pass there: that proves the specs describe the approved design before the app exists. If your machine's Playwright browser differs from the one Playwright expects, point `LYRE_SPEC_CHROMIUM` at a Chromium executable. These specs are not part of `yarn e2e` (`e2e/playwright.config.ts` ignores `e2e/specs`).
+
+### What differs between the prototype and the app
+
+Only `e2e/specs/support/target.ts`. It has one function per thing a person cannot do from the page itself: `openRoute(page, route, { theme })`, `joinRoom(page, bot, channel)` (a Discord bot joining a voice channel), `leaveAllRooms(page)`, `notLyre()` (parts of the page that are the prototype's own controls, left out of the sweeps) and `knownAxeIssues()`. Each is implemented for the prototype and, for the app, throws "not built yet". `support/drop.ts` drops files the way a browser does and works on both.
+
+### Flipping a screen from expected-fail to required
+
+The `app` project runs the same files. A spec of a screen that `e2e/specs/support/built.ts` does not list is marked "expected to fail", so the project is green while wave 3 is under way, and a spec that starts passing before its screen is listed shows up as "expected to fail, but passed". When wave 3 builds a screen:
+
+1. Implement that screen's functions in `target.ts` for the app (open the route in the app's main window; the app's `page` is its main window, from `e2e/fixtures/app.ts`).
+2. Add the screen's file name (`"live"`, `"campaigns"`, `"session-planner"`, `"library"`, `"playlists"`, `"pad-boards"`, `"audio-profile"`, `"outputs"`, and `"look"` for the Look and feel page) to `BUILT_SCREENS` in `built.ts`.
+3. Run `--project=app` for that file. Every spec must pass; a spec that cannot is either a real gap in the screen or a reason to change the prototype first (the prototype is the specification) and then both.
+
+The sweeps belong to the screen they open, so each sweep becomes required with its screen. `knownAxeIssues()` is empty for the app: the two Label in Name findings recorded for the prototype (the pad tiles and the `To: <room>` choice name more than they show) have to be fixed in the app.
