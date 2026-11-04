@@ -24,6 +24,7 @@ import {
   usesOfBoard,
   usesOfPlaylist,
   usesOfTrack,
+  withoutEmptyConditions,
 } from "./rules";
 import type { DomainCampaign, DomainLookup, DomainPlaylist, DomainScene, DomainTrack } from "./types";
 
@@ -69,8 +70,12 @@ describe("dynamic playlists match tracks by their tags", () => {
     expect(matchesRule(eerie, { conds: [{ group: "mood", match: "none", values: ["Warm"] }] })).toBe(true);
     expect(matchesRule(eerie, { conds: [{ group: "mood", match: "none", values: ["Dread"] }] })).toBe(false);
   });
-  it("ignores a condition that has no values yet, so the list does not empty while it is being written", () => {
-    expect(matchesRule(lookup.track("battle")!, { conds: [{ group: "mood", match: "all", values: [] }] })).toBe(true);
+  it("matches nothing on a saved condition with no values, so deleting a tag never widens a playlist to its whole lane", () => {
+    expect(matchesRule(lookup.track("battle")!, { conds: [{ group: "mood", match: "any", values: [] }] })).toBe(false);
+  });
+  it("leaves out conditions still being written when the editor previews the rule", () => {
+    const draft = { conds: [{ group: "mood", match: "all" as const, values: [] }, { group: "mood", match: "any" as const, values: ["Tense"] }] };
+    expect(matchesRule(lookup.track("battle")!, withoutEmptyConditions(draft))).toBe(true);
   });
   it("applies the energy range and can leave out stings", () => {
     expect(matchesRule(lookup.track("battle")!, { conds: [], energy: [0, 3] })).toBe(false);

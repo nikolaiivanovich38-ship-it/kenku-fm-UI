@@ -25,7 +25,11 @@ export function isFx(t: DomainTrack): boolean {
   return t.kind === "fx" || t.role === "sting";
 }
 
-/** Whether a track belongs in a dynamic playlist. Every condition must match; one with no values is ignored. */
+/**
+ * Whether a track belongs in a dynamic playlist. Every condition must match. A saved condition with no values
+ * matches nothing (it can be left empty when its last tag is deleted, and must not widen the playlist to its whole
+ * lane); the rule editor previews with withoutEmptyConditions, so a condition still being written is left out.
+ */
 export function matchesRule(t: DomainTrack, rule: PlaylistRule): boolean {
   if (rule.energy) {
     const e = t.energy ?? 0;
@@ -33,13 +37,18 @@ export function matchesRule(t: DomainTrack, rule: PlaylistRule): boolean {
   }
   if (rule.leaveOutStings && t.role === "sting") return false;
   return rule.conds.every((c) => {
-    if (c.values.length === 0) return true;
+    if (c.values.length === 0) return false;
     const have = t.tags[c.group] ?? [];
     const hits = c.values.filter((v) => have.includes(v)).length;
     if (c.match === "all") return hits === c.values.length;
     if (c.match === "none") return hits === 0;
     return hits > 0;
   });
+}
+
+/** The rule without conditions that have no values yet: what the rule editor previews while one is being written. */
+export function withoutEmptyConditions(rule: PlaylistRule): PlaylistRule {
+  return { ...rule, conds: rule.conds.filter((c) => c.values.length > 0) };
 }
 
 /** The rule in plain words, for lists and tooltips. groupNames maps tag group ids to their names. */
