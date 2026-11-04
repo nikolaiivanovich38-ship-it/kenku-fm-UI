@@ -1,7 +1,7 @@
 # Background pictures
 
 The 23 pictures in this folder (`autumn.jpg` … `winter.jpg`) are original to
-Cue Desk. They were painted by code in this repository,
+Lyre. They were painted by code in this repository,
 `scripts/backgrounds/paint.mjs`, and contain no photographs, downloaded images,
 third-party artwork, fonts or text. They are distributed under the project's
 licence, the GNU General Public License version 3 (GPL-3.0); the full text is

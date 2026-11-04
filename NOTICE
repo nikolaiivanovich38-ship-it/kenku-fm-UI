@@ -1,7 +1,8 @@
-Cue Desk (working name)
+Lyre (test versions were called Cue Desk)
 https://github.com/nikolaiivanovich38-ship-it/kenku-fm-UI
 
-Cue Desk is an independent fork of Kenku FM.
+Lyre is an independent fork of Kenku FM. Lyre's name, logo and icons are
+its own and are not Kenku FM's or Owlbear Rodeo's.
 
 Kenku FM
 Copyright (C) 2022-2026 Owlbear Rodeo and Kenku FM contributors
@@ -18,6 +19,10 @@ This fork is not made, endorsed or supported by Owlbear Rodeo. "Kenku FM" and
 "Owlbear Rodeo" are names of their respective owners and are used here only
 to say where this software comes from. Please report problems with this fork
 to the fork's repository, not to Owlbear Rodeo.
+
+The wordmark's letters are drawn from the Lora typeface (Cyreal), licensed
+under the SIL Open Font License 1.1; they are included as outlines, not as
+a font file.
 
 Third-party components keep their own licences, listed in each package
 under node_modules (and inside the installed app's resources folder).

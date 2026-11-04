@@ -1,9 +1,9 @@
 /* global document */
 /**
- * Cue Desk's built-in background pictures, painted in code.
+ * Lyre's built-in background pictures, painted in code.
  *
  * Kenku FM stored a background on each playlist and soundboard as one of 23
- * names ("tavern"). Its pictures are not open source, so Cue Desk paints its
+ * names ("tavern"). Its pictures are not open source, so Lyre paints its
  * own under the same names: libraries brought over from Kenku FM show a
  * picture without any change to their data.
  *

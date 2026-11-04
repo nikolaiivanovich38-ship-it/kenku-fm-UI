@@ -21,29 +21,29 @@ Deleting a playlist or a board never deletes tracks. Deleting a track takes it o
 
 | What | Where on Windows |
 | --- | --- |
-| The library | `%APPDATA%\cue-desk\library\library.sqlite` |
-| Working files of the library, present while Cue Desk runs | `library.sqlite-wal`, `library.sqlite-shm` next to it. They are part of the library: do not delete them. |
-| Backups | `%APPDATA%\cue-desk\library\backups\` |
+| The library | `%APPDATA%\lyre\library\library.sqlite` |
+| Working files of the library, present while Lyre runs | `library.sqlite-wal`, `library.sqlite-shm` next to it. They are part of the library: do not delete them. |
+| Backups | `%APPDATA%\lyre\library\backups\` |
 
 ### Backups
 
-- **Daily:** the first time Cue Desk runs on a day, it makes a copy, and while it stays open it checks every hour whether a new day has started. The newest 14 daily copies are kept.
+- **Daily:** the first time Lyre runs on a day, it makes a copy, and while it stays open it checks every hour whether a new day has started. The newest 14 daily copies are kept.
 - **Back up now:** a button in the new interface makes a copy at once. The newest 14 of these are kept, separately from the daily ones.
-- **Before an upgrade:** when a new version of Cue Desk changes the library format, it copies the library first.
+- **Before an upgrade:** when a new version of Lyre changes the library format, it copies the library first.
 
 Every copy is checked before it counts, so a half-written copy is never kept as a backup. Names show the kind and the time, for example `library-daily-2026-11-04T12-00-00-000.sqlite`. Other files you put in the backups folder are left alone.
 
 ### If the library file is damaged
 
-Each time Cue Desk opens the library it checks the whole file. The check runs alongside start-up, so it does not slow the app down. If the file is damaged, Cue Desk says so in plain words and offers to put back the newest backup that passes the same check. The damaged file is kept, renamed `library-damaged-<time>.sqlite`, in case it is needed.
+Each time Lyre opens the library it checks the whole file. The check runs alongside start-up, so it does not slow the app down. If the file is damaged, Lyre says so in plain words and offers to put back the newest backup that passes the same check. The damaged file is kept, renamed `library-damaged-<time>.sqlite`, in case it is needed.
 
 ### Undo
 
-Every change to the library, tags, folders and campaigns can be undone and redone, including deletes and changes that touch many tracks at once (for example merging two tags). The last 100 steps are kept while Cue Desk is open; the history starts empty each time it starts. Marking a track as "last played" is not an undo step.
+Every change to the library, tags, folders and campaigns can be undone and redone, including deletes and changes that touch many tracks at once (for example merging two tags). The last 100 steps are kept while Lyre is open; the history starts empty each time it starts. Marking a track as "last played" is not an undo step.
 
 ### Upgrades
 
-A newer version of Cue Desk may add to the library format (cue lists and pads come this way, once their design is chosen). The upgrade happens by itself when the new version starts, after the backup above. If an upgrade fails, the library stays exactly as it was. A library saved by a newer Cue Desk is not opened by an older one, so it cannot be damaged by it.
+A newer version of Lyre may add to the library format (cue lists and pads come this way, once their design is chosen). The upgrade happens by itself when the new version starts, after the backup above. If an upgrade fails, the library stays exactly as it was. A library saved by a newer Lyre is not opened by an older one, so it cannot be damaged by it.
 
 ### How fast it is
 

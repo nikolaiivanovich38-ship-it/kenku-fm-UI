@@ -1,5 +1,5 @@
 /**
- * SEC-6 / SEC-10 / SEC-15: which addresses Cue Desk is willing to open.
+ * SEC-6 / SEC-10 / SEC-15: which addresses Lyre is willing to open.
  *
  * Pure module (no Electron import) so the same rules run in the main process,
  * which enforces them, and in the renderer, which uses them to explain a
@@ -55,12 +55,12 @@ const REASONS: Record<UrlRefusalCode, string> = {
   invalid:
     "That doesn't look like a web address. Check the spelling, for example youtube.com.",
   scheme:
-    "Cue Desk only opens web pages whose address starts with https:// or http://.",
+    "Lyre only opens web pages whose address starts with https:// or http://.",
   credentials:
     "Addresses containing a user name or password are not allowed. Remove the part before the @ sign and log in on the page instead.",
   "too-long": "That web address is too long to open.",
   "network-file":
-    "Cue Desk only opens files on this computer, not files in a shared network folder. Copy the file to this computer first.",
+    "Lyre only opens files on this computer, not files in a shared network folder. Copy the file to this computer first.",
 };
 
 /**

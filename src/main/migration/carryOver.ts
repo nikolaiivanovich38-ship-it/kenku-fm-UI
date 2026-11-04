@@ -1,20 +1,50 @@
 /**
- * Data carry-over from upstream Kenku FM (FND-1).
+ * Data carry-over from earlier apps (FND-1): Cue Desk (Lyre's working name in
+ * the 0.1 drafts) and upstream Kenku FM.
  *
- * The first time the fork starts, it copies the old app's library (the
- * browser storage holding playlists, soundboards, bookmarks and settings) and
- * its window position file into the fork's own data folder. The old folder is
- * only read, never changed. Nothing that already exists is overwritten, and a
- * marker file makes sure the copy runs once. The marker is not written when
- * the copy failed or Kenku FM was still running, so the next start tries again.
+ * The first time Lyre starts, it copies an earlier app's library (the browser
+ * storage holding playlists, soundboards, bookmarks and settings) and its
+ * window position file into Lyre's own data folder. The earlier apps are tried
+ * newest first; the first whose folder holds a library is the one copied. The
+ * old folder is only read, never changed. Nothing that already exists is
+ * overwritten, and a marker file makes sure the copy runs once. The marker is
+ * not written when the copy failed or that app was still running, so the next
+ * start tries again (and never falls back to an older app's library meanwhile).
  *
  * This module only uses `fs` and `path`, so it can be tested without Electron.
  */
 import fs from "fs";
 import path from "path";
+import packageJson from "../../../package.json";
 
-/** Items copied from the old data folder, in order. */
+/** This app's display name, for messages. */
+const APP_NAME: string = packageJson.productName;
+
+/** Items copied from Kenku FM's data folder, in order. */
 export const CARRY_OVER_ITEMS = ["Local Storage", "Session Storage", "config.json"] as const;
+
+/**
+ * Items copied from Cue Desk's data folder: Kenku FM's, plus the files Cue
+ * Desk added. `Local State` holds the key that decrypts the saved bot tokens
+ * in `discord-bots.json` on Windows, so the two travel together.
+ */
+export const CUE_DESK_ITEMS = [
+  ...CARRY_OVER_ITEMS,
+  "Local State",
+  "discord-bots.json",
+  "local-files.json",
+  "library",
+] as const;
+
+/** An earlier app whose library Lyre may copy. */
+export type EarlierApp = {
+  /** Display name, used in messages ("Kenku FM"). */
+  name: string;
+  /** Its data folder. */
+  dir: string;
+  /** Top-level items to copy, in order. Defaults to `CARRY_OVER_ITEMS`. */
+  items?: readonly string[];
+};
 
 /** Written into the destination folder once the carry-over has been decided. */
 export const MARKER_FILE_NAME = "data-carry-over.json";
@@ -22,12 +52,16 @@ export const MARKER_FILE_NAME = "data-carry-over.json";
 /** LevelDB lock files belong to the running app that owns them; never copy them. */
 const SKIPPED_FILE_NAMES = new Set(["LOCK"]);
 
-/** LevelDB holds this file open while Kenku FM runs. */
-const LEGACY_LOCK_FILE = path.join("Local Storage", "leveldb", "LOCK");
+/** The folder that holds an app's library; an earlier app without it has nothing to copy. */
+const LIBRARY_ITEM = "Local Storage";
 
-/** Shown when Kenku FM is still running, so its library cannot be copied safely. */
-export const LEGACY_APP_RUNNING_MESSAGE =
-  "Kenku FM is still running. Close it and restart Cue Desk to bring your library across.";
+/** LevelDB holds this file open while the app that owns it runs. */
+const LEGACY_LOCK_FILE = path.join(LIBRARY_ITEM, "leveldb", "LOCK");
+
+/** Shown when an earlier app is still running, so its library cannot be copied safely. */
+export function appRunningMessage(appName: string): string {
+  return `${appName} is still running. Close it and restart ${APP_NAME} to bring your library across.`;
+}
 
 /** Error codes Windows returns when another program holds a file. */
 const FILE_IN_USE_CODES = new Set(["EBUSY", "EPERM", "EACCES"]);
@@ -40,17 +74,20 @@ export type CarryOverStatus =
   | "copied"
   /** The marker file shows the carry-over was already done on an earlier start. */
   | "already-done"
-  /** No old Kenku FM data folder was found. */
+  /** No earlier app's library was found. */
   | "no-old-data"
   /** This app already has its own library, so nothing was copied. */
   | "destination-has-data"
-  /** Kenku FM is still running; nothing was copied. Tried again next start. */
+  /** The earlier app is still running; nothing was copied. Tried again next start. */
   | "legacy-app-running"
   /** Something went wrong; see `errors`. Items that failed were not installed. Tried again next start. */
   | "failed";
 
 export type CarryOverResult = {
   status: CarryOverStatus;
+  /** The earlier app whose library was chosen ("Cue Desk", "Kenku FM"), once one was. */
+  sourceApp?: string;
+  /** Its data folder, or "" when none was chosen. */
   sourceDir: string;
   destDir: string;
   /** Top-level items copied (for example "Local Storage"). */
@@ -68,7 +105,7 @@ export type CarryOverResult = {
 export type LockFileIo = Pick<typeof fs, "openSync" | "readSync" | "closeSync">;
 
 export type CarryOverOptions = {
-  /** True when the app that owns `sourceDir` is running. Defaults to `isLegacyAppRunning`. */
+  /** True when the app that owns the given data folder is running. Defaults to `isLegacyAppRunning`. */
   isLegacyAppRunning?: (sourceDir: string) => boolean;
 };
 
@@ -98,7 +135,7 @@ export function isLockFileHeld(lockFile: string, io: LockFileIo = fs): boolean {
   }
 }
 
-/** FND-1: true when Kenku FM is running, judged by its Local Storage lock file. */
+/** FND-1: true when the app owning `sourceDir` is running, judged by its Local Storage lock file. */
 export function isLegacyAppRunning(sourceDir: string): boolean {
   return isLockFileHeld(path.join(sourceDir, LEGACY_LOCK_FILE));
 }
@@ -170,21 +207,22 @@ function writeMarker(result: CarryOverResult): void {
 }
 
 /**
- * Copy the old app's data from `sourceDir` into `destDir` once.
+ * Copy the library of the first earlier app in `earlierApps` (newest first)
+ * whose folder holds one into `destDir`, once.
  *
  * Each item is copied into a staging folder first and moved into place only
  * when the whole item copied cleanly, so a read error never leaves a
  * half-copied database behind. Never throws: problems are reported in the
- * result's `errors`. Nothing is copied while Kenku FM is running.
+ * result's `errors`. Nothing is copied while the chosen app is running.
  */
-export function carryOverLegacyData(
-  sourceDir: string,
+export function carryOverEarlierData(
+  earlierApps: readonly EarlierApp[],
   destDir: string,
   { isLegacyAppRunning: isRunning = isLegacyAppRunning }: CarryOverOptions = {},
 ): CarryOverResult {
   const result: CarryOverResult = {
     status: "no-old-data",
-    sourceDir,
+    sourceDir: "",
     destDir,
     copiedItems: [],
     skippedItems: [],
@@ -197,26 +235,27 @@ export function carryOverLegacyData(
       result.status = "already-done";
       return result;
     }
-    if (path.resolve(sourceDir) === path.resolve(destDir)) {
-      result.status = "no-old-data";
-      return result;
-    }
 
     fs.mkdirSync(destDir, { recursive: true });
 
-    if (exists(path.join(destDir, "Local Storage"))) {
+    if (exists(path.join(destDir, LIBRARY_ITEM))) {
       result.status = "destination-has-data";
       writeMarker(result);
       return result;
     }
-    if (!isDirectory(sourceDir)) {
+    const source = earlierApps.find(
+      (earlier) => path.resolve(earlier.dir) !== path.resolve(destDir) && isDirectory(path.join(earlier.dir, LIBRARY_ITEM)),
+    );
+    if (!source) {
       result.status = "no-old-data";
       writeMarker(result);
       return result;
     }
-    if (isRunning(sourceDir)) {
+    result.sourceApp = source.name;
+    result.sourceDir = source.dir;
+    if (isRunning(source.dir)) {
       result.status = "legacy-app-running";
-      result.reason = LEGACY_APP_RUNNING_MESSAGE;
+      result.reason = appRunningMessage(source.name);
       return result;
     }
 
@@ -224,21 +263,21 @@ export function carryOverLegacyData(
     fs.rmSync(stagingDir, { recursive: true, force: true });
     fs.mkdirSync(stagingDir);
     try {
-      for (const item of CARRY_OVER_ITEMS) {
-        const source = path.join(sourceDir, item);
-        const dest = path.join(destDir, item);
-        if (!exists(source)) {
+      for (const item of source.items ?? CARRY_OVER_ITEMS) {
+        const from = path.join(source.dir, item);
+        const to = path.join(destDir, item);
+        if (!exists(from)) {
           result.skippedItems.push({ item, reason: "not in the old data folder" });
           continue;
         }
-        if (exists(dest)) {
+        if (exists(to)) {
           result.skippedItems.push({ item, reason: "already exists here; left unchanged" });
           continue;
         }
         const staged = path.join(stagingDir, item);
         try {
-          const count = copyTree(source, staged);
-          fs.renameSync(staged, dest);
+          const count = copyTree(from, staged);
+          fs.renameSync(staged, to);
           result.copiedItems.push(item);
           result.fileCount += count;
         } catch (error) {
@@ -266,20 +305,21 @@ export function carryOverLegacyData(
 
 /** One plain-language sentence describing the result, for logs and later for the UI. */
 export function describeCarryOver(result: CarryOverResult): string {
+  const source = result.sourceApp ?? "the earlier app";
   switch (result.status) {
     case "copied":
-      return `Your Kenku FM library was copied into this app (${result.copiedItems.join(", ")}; ${result.fileCount} files). Kenku FM itself was not changed.`;
+      return `Your ${source} library was copied into ${APP_NAME} (${result.copiedItems.join(", ")}; ${result.fileCount} files). ${source} itself was not changed.`;
     case "already-done":
-      return "Kenku FM library carry-over already happened on an earlier start.";
+      return "The library carry-over already happened on an earlier start.";
     case "no-old-data":
-      return "No Kenku FM library was found on this computer, so the app started empty.";
+      return `No Cue Desk or Kenku FM library was found on this computer, so ${APP_NAME} started empty.`;
     case "destination-has-data":
-      return "This app already has its own library, so nothing was copied from Kenku FM.";
+      return `${APP_NAME} already has its own library, so nothing was copied from Cue Desk or Kenku FM.`;
     case "legacy-app-running":
-      return LEGACY_APP_RUNNING_MESSAGE;
+      return appRunningMessage(source);
     case "failed":
-      return `Part of your Kenku FM library could not be copied (${result.errors
+      return `Part of your ${source} library could not be copied (${result.errors
         .map((error) => `${error.item}: ${error.message}`)
-        .join("; ")}). Kenku FM itself was not changed. Close Kenku FM and start this app again to retry.`;
+        .join("; ")}). ${source} itself was not changed. Close ${source} and start ${APP_NAME} again to retry.`;
   }
 }

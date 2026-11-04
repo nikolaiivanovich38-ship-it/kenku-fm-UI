@@ -7,7 +7,10 @@
  * run before any window, session or settings file writes to the data folder.
  * The steps are passed in so the order can be tested without Electron.
  */
-import { CarryOverResult, LEGACY_APP_RUNNING_MESSAGE } from "./migration/carryOver";
+import packageJson from "../../package.json";
+import { appRunningMessage, CarryOverResult } from "./migration/carryOver";
+
+const APP_NAME: string = packageJson.productName;
 
 export type StartupSteps = {
   /** True when the Windows installer started the app to install, update or uninstall it. */
@@ -62,7 +65,7 @@ function needsUserDecision(result: CarryOverResult): boolean {
 }
 
 /**
- * FND-1: when Kenku FM was still running, or its library could not be copied,
+ * FND-1: when the earlier app (Cue Desk or Kenku FM) was still running, or its library could not be copied,
  * ask whether to quit (the default) so the copy runs again on the next start.
  * Starting anyway creates an empty library, and an existing library is never
  * overwritten, so the old one would not come across later. Returns true when
@@ -77,15 +80,16 @@ export function confirmStartAfterCarryOver(
   const buttons = [QUIT_BUTTON, START_EMPTY_BUTTON];
   const quitIndex = buttons.indexOf(QUIT_BUTTON);
   const isRunning = result.status === "legacy-app-running";
+  const source = result.sourceApp ?? "Kenku FM";
   const prompt: CarryOverPrompt = {
     type: "warning",
-    title: "Cue Desk",
-    message: isRunning ? LEGACY_APP_RUNNING_MESSAGE : "Your Kenku FM library could not be copied.",
+    title: APP_NAME,
+    message: isRunning ? (result.reason ?? appRunningMessage(source)) : `Your ${source} library could not be copied.`,
     detail: [
       isRunning
-        ? "Choose Quit, close Kenku FM, then start Cue Desk again."
-        : "Choose Quit, close Kenku FM if it is open, then start Cue Desk again to retry.",
-      "If you start with an empty library instead, your Kenku FM library will not be copied later. Kenku FM itself is not changed either way.",
+        ? `Choose Quit, close ${source}, then start ${APP_NAME} again.`
+        : `Choose Quit, close ${source} if it is open, then start ${APP_NAME} again to retry.`,
+      `If you start with an empty library instead, your ${source} library will not be copied later. ${source} itself is not changed either way.`,
     ].join("\n\n"),
     buttons,
     defaultId: quitIndex,

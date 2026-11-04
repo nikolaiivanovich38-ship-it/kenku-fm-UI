@@ -83,7 +83,7 @@ jobs:
         run: yarn make --arch=x64
       - name: Check the app's security fuses (SEC-13)
         # Fails if this is a test build (--inspect on) or any fuse is loosened.
-        run: node scripts/check-release-fuses.mjs "out/Cue Desk-win32-x64/cue-desk.exe"
+        run: node scripts/check-release-fuses.mjs "out/Lyre-win32-x64/lyre.exe"
       - name: Collect release files and checksums
         shell: pwsh
         run: |

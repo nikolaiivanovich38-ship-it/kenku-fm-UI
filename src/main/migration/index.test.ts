@@ -22,19 +22,22 @@ beforeAll(async () => {
 afterAll(() => fs.rmSync(appDataDir, { recursive: true, force: true }));
 
 describe("migration wiring (FND-1)", () => {
-  it("moves the data folder to <appData>/cue-desk as soon as it is imported", () => {
-    expect(electron.app.setPath).toHaveBeenCalledWith("userData", path.join(appDataDir, "cue-desk"));
-    expect(electron.app.setPath).toHaveBeenCalledWith("sessionData", path.join(appDataDir, "cue-desk"));
+  it("moves the data folder to <appData>/lyre as soon as it is imported", () => {
+    expect(electron.app.setPath).toHaveBeenCalledWith("userData", path.join(appDataDir, "lyre"));
+    expect(electron.app.setPath).toHaveBeenCalledWith("sessionData", path.join(appDataDir, "lyre"));
   });
 
-  it("looks for upstream's data in <appData>/Kenku FM", () => {
-    expect(migration.dataFolders("/x")).toEqual({
-      userData: path.join("/x", "cue-desk"),
-      legacyUserData: path.join("/x", "Kenku FM"),
-    });
+  it("looks for earlier libraries in <appData>/cue-desk first, then <appData>/Kenku FM", () => {
+    const folders = migration.dataFolders("/x");
+    expect(folders.userData).toBe(path.join("/x", "lyre"));
+    expect(folders.earlierApps.map(({ name, dir }) => ({ name, dir }))).toEqual([
+      { name: "Cue Desk", dir: path.join("/x", "cue-desk") },
+      { name: "Kenku FM", dir: path.join("/x", "Kenku FM") },
+    ]);
   });
 
   it("gives Windows the same app ID the Squirrel installer writes into shortcuts", () => {
+    expect(migration.windowsAppUserModelId("lyre")).toBe("com.squirrel.lyre.lyre");
     expect(migration.windowsAppUserModelId("cue-desk")).toBe("com.squirrel.cue_desk.cue-desk");
   });
 
@@ -49,7 +52,7 @@ describe("migration wiring (FND-1)", () => {
 
     expect(result.status).toBe("copied");
     expect(migration.getDataCarryOverResult()).toBe(result);
-    expect(fs.readFileSync(path.join(appDataDir, "cue-desk", "Local Storage", "leveldb", "000003.log"), "utf8")).toBe(
+    expect(fs.readFileSync(path.join(appDataDir, "lyre", "Local Storage", "leveldb", "000003.log"), "utf8")).toBe(
       "persist:player",
     );
     expect(info).toHaveBeenCalledWith(expect.stringContaining("[data carry-over] Your Kenku FM library was copied"));

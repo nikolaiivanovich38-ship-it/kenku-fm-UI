@@ -86,10 +86,10 @@ describe("updates only for installed copies (SEC-14)", () => {
 
   it("looks for the installer's Update.exe one folder above the app's folder", () => {
     const existsSync = vi.fn(() => true);
-    const execPath = path.join("C:", "Users", "gm", "AppData", "Local", "cue-desk", "app-0.1.0", "Cue Desk.exe");
+    const execPath = path.join("C:", "Users", "gm", "AppData", "Local", "lyre", "app-0.1.0", "Lyre.exe");
     expect(isSquirrelInstall(execPath, existsSync)).toBe(true);
     expect(existsSync).toHaveBeenCalledWith(
-      path.join("C:", "Users", "gm", "AppData", "Local", "cue-desk", "Update.exe"),
+      path.join("C:", "Users", "gm", "AppData", "Local", "lyre", "Update.exe"),
     );
   });
 

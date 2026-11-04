@@ -40,7 +40,7 @@ export interface BotState {
   /** The bot's name in Discord, once connected. */
   discordName?: string;
   hasToken: boolean;
-  /** False: the token is kept only until Cue Desk closes (no secure storage). */
+  /** False: the token is kept only until Lyre closes (no secure storage). */
   tokenRemembered: boolean;
   status: BotStatus;
   /** Plain-language reason when `status` is "error". */

@@ -21,6 +21,7 @@ import Select, { SelectChangeEvent } from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
 import FormHelperText from "@mui/material/FormHelperText";
 
+import { DISCORD_BOT_HELP_URL, STREAM_DECK_PLUGIN_HELP_URL } from "../../../common/helpLinks";
 import { RootState } from "../../app/store";
 import { useSelector, useDispatch } from "react-redux";
 import { setStatus } from "../connection/connectionSlice";
@@ -80,7 +81,7 @@ export function Settings({ open, onClose }: SettingsProps) {
       {!outputs.encryption && (
         // A standing note, not an alert: error messages own role="alert".
         <Alert severity="warning" variant="outlined" role="note">
-          This computer has no secure place to save passwords, so bot tokens are kept only until Cue Desk
+          This computer has no secure place to save passwords, so bot tokens are kept only until Lyre
           closes. You will need to enter them again next time.
         </Alert>
       )}
@@ -88,7 +89,7 @@ export function Settings({ open, onClose }: SettingsProps) {
         <BotSettings key={bot.id} bot={bot} removable={outputs.bots.length > 1} autoFocus={index === 0} />
       ))}
       <Link
-        href="https://kenku.fm/docs/getting-a-discord-token"
+        href={DISCORD_BOT_HELP_URL}
         variant="caption"
         textAlign="center"
         target="_blank"
@@ -185,15 +186,19 @@ export function Settings({ open, onClose }: SettingsProps) {
       >
         {settings.remoteEnabled ? "Stop Remote" : "Start Remote"}
       </Button>
+      <Typography variant="caption" color="text.secondary" pt={1}>
+        Remote control lets you control Lyre's playlists and soundboards from a Stream Deck or another
+        device on your network. It works with the existing Kenku FM Stream Deck plugin.
+      </Typography>
       <Link
-        href="https://www.kenku.fm/docs/using-kenku-remote"
+        href={STREAM_DECK_PLUGIN_HELP_URL}
         variant="caption"
         textAlign="center"
         target="_blank"
         rel="noopener noreferrer"
-        py={2}
+        pb={2}
       >
-        What is Kenku Remote?
+        About the Kenku FM Stream Deck plugin
       </Link>
     </Stack>
   );
@@ -227,7 +232,7 @@ export function Settings({ open, onClose }: SettingsProps) {
       </Select>
       <FormHelperText>
         {streamingModeChanged
-          ? "Applies the next time Cue Desk joins a voice channel."
+          ? "Applies the next time Lyre joins a voice channel."
           : "Both send sound to Discord with the same short delay."}
       </FormHelperText>
     </FormControl>

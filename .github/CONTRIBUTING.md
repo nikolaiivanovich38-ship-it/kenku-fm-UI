@@ -1,6 +1,6 @@
-## Contributing to Cue Desk
+## Contributing to Lyre
 
-Cue Desk is an independent fork of [Kenku FM](https://github.com/owlbear-rodeo/kenku-fm) by Owlbear Rodeo. Please report problems with Cue Desk here, not to Owlbear Rodeo.
+Lyre is an independent fork of [Kenku FM](https://github.com/owlbear-rodeo/kenku-fm) by Owlbear Rodeo. Please report problems with Lyre here, not to Owlbear Rodeo.
 
 ### Found a bug?
 

@@ -31,7 +31,7 @@ test("the player's audio can be captured only while it plays during a broadcast"
   // capture and Chromium's permission request is refused (SEC-3).
   const sourceId = await app.evaluate(({ webContents }) => {
     const all = webContents.getAllWebContents();
-    const player = all.find((contents) => contents.getTitle() === "Cue Desk Player");
+    const player = all.find((contents) => contents.getTitle() === "Lyre Player");
     const captureWindow = all.find((contents) => contents.getTitle() === "Audio Capture");
     if (!player || !captureWindow) {
       throw new Error("player view or capture window not found");

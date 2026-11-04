@@ -1,6 +1,6 @@
 # Architecture
 
-Cue Desk is an Electron app (Electron 44) built with Electron Forge and webpack. Every page is TypeScript; the interface uses React 18, Redux Toolkit and MUI.
+Lyre is an Electron app (Electron 44) built with Electron Forge and webpack. Every page is TypeScript; the interface uses React 18, Redux Toolkit and MUI.
 
 ```
  Main window (renderer)          Tabs (WebContentsView)              Hidden capture window
@@ -15,7 +15,7 @@ Cue Desk is an Electron app (Electron 44) built with Electron Forge and webpack.
 
 ## Main process
 
-- `src/index.ts`: start-up. Its first import, `src/main/migration`, points the data folder at `<appData>/cue-desk` (and sets the Windows app ID). `src/main/startup.ts` then runs the Windows installer check (`electron-squirrel-startup`), the single-instance lock and, in the one primary instance only, the Kenku FM library carry-over (`src/main/migration/carryOver.ts`), before any window or settings file is created. If Kenku FM was still running or the library failed to copy, a prompt offers to quit so the copy is retried on the next start. After that: session hardening, the main window (with the `window.navigator` user agent), auto-update and a few IPC handlers (`GET_VERSION`, `GET_PLATFORM`, `CLEAR_CACHE`).
+- `src/index.ts`: start-up. Its first import, `src/main/migration`, points the data folder at `<appData>/lyre` (and sets the Windows app ID). `src/main/startup.ts` then runs the Windows installer check (`electron-squirrel-startup`), the single-instance lock and, in the one primary instance only, the library carry-over from the newest earlier app that has one (Cue Desk, then Kenku FM; `src/main/migration/carryOver.ts`), before any window or settings file is created. If that app was still running or the library failed to copy, a prompt offers to quit so the copy is retried on the next start. After that: session hardening, the main window (with the `window.navigator` user agent), auto-update and a few IPC handlers (`GET_VERSION`, `GET_PLATFORM`, `CLEAR_CACHE`).
 - `src/main/security`: `sessions.ts` applies deny-by-default permission handlers and the request-header user-agent spoofing (a Chrome user agent, without the Chrome token for google.com sign-in) to the app's session and to the website-tab session (`persist:tabs`, `partitions.ts`), and clears both on "Clear cache". `navigationGuards.ts` keeps app pages on their own page, `externalLinks.ts` sends only https links to the system browser, `trustedContents.ts` records which web contents are the app's own pages.
 - `src/main/managers/SessionManager.ts`: one per main-window load; creates and destroys the managers below.
 - `BrowserViewManagerMain.ts`: the tabs. Each tab is a `WebContentsView` laid over the main window. Website tabs use the separate `persist:tabs` session; the player view uses the app's own session and preload.
@@ -23,7 +23,9 @@ Cue Desk is an Electron app (Electron 44) built with Electron Forge and webpack.
 - `WindowManager.ts`: minimise, maximise and close for the frameless window.
 - `src/menu.ts`: application menu. `src/bounds.ts`: window position, stored with electron-store in `config.json` (opened on first use, so it never touches the file before the carry-over).
 - `src/autoUpdate.ts` with `src/main/updateFeed.ts`: Windows updates from the fork's GitHub releases through update.electronjs.org, only for copies set up by the installer (the zip build has no `Update.exe` and gets no updates).
-- `src/main/appIdentity.json` and `appIdentity.ts`: data-folder name, app ID and GitHub repository, shared with `forge.config.js`.
+- `src/main/appIdentity.json` and `appIdentity.ts`: data-folder name, the earlier apps whose library the first start may copy, app ID and GitHub repository, shared with `forge.config.js`.
+- `src/common/helpLinks.ts`: the help pages the interface links to (Lyre's README; Kenku FM's site only for its Stream Deck plugin).
+- `src/assets/brand`: logo and wordmark sources; `scripts/brand` makes the icons and installer images from them (see `docs/brand.md`).
 
 ## Main window (renderer)
 
@@ -47,7 +49,7 @@ Background pictures: a playlist or soundboard stores its background as a name (`
 
 ## Data storage
 
-Everything lives in one folder, `<appData>/cue-desk` (`%APPDATA%\cue-desk` on Windows), fixed in `appIdentity.json` so renaming the app does not move it.
+Everything lives in one folder, `<appData>/lyre` (`%APPDATA%\lyre` on Windows), fixed in `appIdentity.json` so renaming the app does not move it.
 
 | What | Where | Written by |
 | --- | --- | --- |
@@ -56,12 +58,12 @@ Everything lives in one folder, `<appData>/cue-desk` (`%APPDATA%\cue-desk` on Wi
 | Playlists and soundboards (`persist:player`), playback state (`persist:playback`) | `Local Storage/leveldb` | `src/player/app/store.ts` |
 | Window position | `config.json` | `src/bounds.ts` |
 | Website tab cookies and storage | `Partitions/tabs` | Chromium (`persist:tabs` session) |
-| No longer used: background pictures Cue Desk 0.1.1 copied from an installed Kenku FM. Cue Desk neither reads nor deletes this folder; the user may delete it. | `backgrounds/` | nothing (see README > First start) |
-| Kenku FM carry-over record (folder and item names only; written once the copy succeeded or was not needed) | `data-carry-over.json` | `src/main/migration` |
+| No longer used: background pictures Cue Desk 0.1.1 copied from an installed Kenku FM (only in the old `cue-desk` folder; Lyre neither reads nor copies it). | `backgrounds/` (in `cue-desk`) | nothing (see README > First start) |
+| Carry-over record from Cue Desk or Kenku FM (folder and item names only; written once the copy succeeded or was not needed) | `data-carry-over.json` | `src/main/migration` |
 
 The app's own pages load from `file://` (packaged) so they share one localStorage origin; websites in tabs keep their data apart in `persist:tabs`. Audio files are not copied; tracks store their file paths. The bot token is stored in plain text for now (backlog SEC-5).
 
-A new library database (`<appData>/cue-desk/library/library.sqlite`, with daily backups in `library/backups/`) is built in `src/main/data` (WP3) for the new interface. Nothing uses it yet: the player keeps the storage above until DAT-9 moves the library across. See `docs/data-model.md`.
+A new library database (`<appData>/lyre/library/library.sqlite`, with daily backups in `library/backups/`) is built in `src/main/data` (WP3) for the new interface. Nothing uses it yet: the player keeps the storage above until DAT-9 moves the library across. See `docs/data-model.md`.
 
 ## WP2 Tabs
 

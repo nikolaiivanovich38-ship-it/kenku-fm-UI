@@ -46,7 +46,7 @@ Put a test next to the code (`foo.ts` → `foo.test.ts`). Write the failing test
 | OnlyLoadAppFromAsar | on | the app is only loaded from `app.asar` |
 | EnableCookieEncryption | on | website-tab cookies are encrypted on disk |
 
-Native addons (`*.node`) and WebAssembly (`*.wasm`) stay unpacked in `app.asar.unpacked`. To check a build: `node scripts/check-release-fuses.mjs "out/Cue Desk-linux-x64/cue-desk"` (on Windows, `cue-desk.exe`); it fails on a test build or any loosened fuse, and `release.yml` runs it on every release build. `CUE_DESK_E2E_BUILD=1` is refused by `yarn make` and `yarn publish`, so a test build cannot become an installer.
+Native addons (`*.node`) and WebAssembly (`*.wasm`) stay unpacked in `app.asar.unpacked`. To check a build: `node scripts/check-release-fuses.mjs "out/Lyre-linux-x64/lyre"` (on Windows, `lyre.exe`); it fails on a test build or any loosened fuse, and `release.yml` runs it on every release build. `CUE_DESK_E2E_BUILD=1` is refused by `yarn make` and `yarn publish`, so a test build cannot become an installer.
 
 Do not package from a git worktree whose `node_modules` is a symlink to another checkout: Electron Forge deletes every `.bin` folder it finds in the copied app, follows the symlink, and empties the other checkout's `node_modules/**/.bin`; the packaged app is also broken. Give each worktree a real `node_modules` (`yarn install`, or `cp -al` of another checkout's).
 
@@ -72,7 +72,7 @@ yarn e2e playlists                       # one spec file (file names are listed 
 
 Rebuild the package after any change under `src/`; changes to `e2e/` need no rebuild.
 
-- `e2e/fixtures/app.ts` starts the app with a new empty data folder (`CUE_DESK_USER_DATA_DIR`, which also skips the Kenku FM carry-over; only test builds read it, release builds ignore it) and finds pages by title (`Cue Desk`, `Cue Desk Player`, `Audio Capture`). New specs import `test` and `expect` from it. `launchApp` starts further copies, for tests that restart the app (same data folder by default, or `{ userDataDir: null, env: { XDG_CONFIG_HOME } }` for the normal folder under a private appData).
+- `e2e/fixtures/app.ts` starts the app with a new empty data folder (`CUE_DESK_USER_DATA_DIR`, which also skips the Kenku FM carry-over; only test builds read it, release builds ignore it) and finds pages by title (`Lyre`, `Lyre Player`, `Audio Capture`). New specs import `test` and `expect` from it. `launchApp` starts further copies, for tests that restart the app (same data folder by default, or `{ userDataDir: null, env: { XDG_CONFIG_HOME } }` for the normal folder under a private appData).
 - After every test the fixture fails the test if anything went wrong while the app ran (`e2e/fixtures/problems.ts`): an uncaught page error, a console error in any page, a main-process crash, a Content-Security-Policy refusal or an "Ignored a … message" from the IPC guard. A test that causes a console error on purpose lists it in `errors.ignoredConsole`.
 - Helpers: `fixtures/audio.ts` writes sine-tone WAV files, `fixtures/localSite.ts` serves test pages on 127.0.0.1 (tests cannot reach the internet), `fixtures/player.ts` holds the playlist and soundboard steps. Audio files are added through the app's own file chooser (Playwright's `filechooser` event), so the real import code runs.
 - `CUE_DESK_EXECUTABLE` runs the tests against another build.
@@ -112,14 +112,17 @@ Third-party actions are pinned by full commit SHA with the version in a comment.
 
 1. Bump `version` in `package.json`, update `CHANGELOG.md`.
 2. Commit, then tag `vX.Y.Z` (must equal the version) and push the tag. Where tags cannot be pushed, push the commit to the `release` branch instead (`git push origin main:release`); publishing the draft then creates the tag on the built commit.
-3. The Release workflow creates a draft release with `cue-desk-X.Y.Z-win32-x64-setup.exe`, `RELEASES`, the `.nupkg`, the zip and `SHA256SUMS.txt`.
+3. The Release workflow creates a draft release with `lyre-X.Y.Z-win32-x64-setup.exe`, `RELEASES`, the `.nupkg`, the zip and `SHA256SUMS.txt`.
 4. Complete `docs/RELEASE_CHECKLIST.md`, then publish the draft. Installed apps pick it up through update.electronjs.org, which needs the repository to stay public and ignores drafts and pre-releases.
 
 Builds are unsigned. Upstream's signed flow (DigiCert KSP Windows signing, Apple signing and notarisation) is kept in `publish/` but not used; its scripts still name upstream's repository and app paths and need updating before use. Its workflow, `publish-stable.yaml`, was removed in 0.1.0 and is in git history. macOS auto-update is off until macOS builds are signed (`UPDATE_PLATFORMS` in `src/main/updateFeed.ts`).
 
 ## Renaming the app
 
-- Display name: `productName` in `package.json`. Also update the page titles in `src/index.html` and `src/player/index.html`, and the text in `README.md`, `NOTICE` and `CHANGELOG.md`.
+The app was renamed from Cue Desk (working name) to Lyre before its first public release; `docs/brand.md` has the logo and how to rebuild the icons.
+
+- Display name: `productName` in `package.json`. Also update the page titles in `src/index.html` and `src/player/index.html` (the e2e fixture finds pages by these titles), the player tab title in `src/renderer/features/player/playerSlice.ts`, and the text in `README.md`, `NOTICE` and `CHANGELOG.md`.
 - Package and executable name: `name` in `package.json`. This changes the installer name and the Windows app ID; a new name installs as a separate app, so plan it before the first public release.
-- Do **not** change `dataFolderName` in `src/main/appIdentity.json`: it keeps users' libraries where they are.
+- Do **not** change `dataFolderName` in `src/main/appIdentity.json` after a public release: it keeps users' libraries where they are. If it must change, add the old folder to the front of `earlierApps` so the first start copies the library across (with its own `kind` if it keeps files Kenku FM did not; see `CUE_DESK_ITEMS` in `src/main/migration/carryOver.ts`).
+- `.github/workflows/release.yml` checks the fuses of `out/<productName>-win32-x64/<name>.exe`; update that path with the names.
 - GitHub repository: `github` in `src/main/appIdentity.json`, plus the links in `package.json`, `README.md` and `.github/`.

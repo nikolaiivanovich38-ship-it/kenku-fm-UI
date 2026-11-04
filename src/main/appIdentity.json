@@ -1,8 +1,11 @@
 {
-  "$comment": "FND-1: the one place for the fork's identity. The display name lives in package.json (productName). Changing productName does NOT move user data: dataFolderName fixes the folder. See docs/DEVELOPING.md > Renaming the app.",
-  "dataFolderName": "cue-desk",
-  "legacyDataFolderName": "Kenku FM",
-  "appId": "io.github.nikolaiivanovich38-ship-it.cue-desk",
+  "$comment": "FND-1: the one place for the app's identity. The display name lives in package.json (productName). Changing productName does NOT move user data: dataFolderName fixes the folder. earlierApps lists the apps whose library the first start may copy, newest first. See docs/DEVELOPING.md > Renaming the app.",
+  "dataFolderName": "lyre",
+  "earlierApps": [
+    { "name": "Cue Desk", "dataFolderName": "cue-desk", "kind": "cue-desk" },
+    { "name": "Kenku FM", "dataFolderName": "Kenku FM", "kind": "kenku-fm" }
+  ],
+  "appId": "io.github.nikolaiivanovich38-ship-it.lyre",
   "github": {
     "owner": "nikolaiivanovich38-ship-it",
     "repo": "kenku-fm-UI"

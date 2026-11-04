@@ -62,7 +62,7 @@ test("a bot token typed in Settings never reaches browser storage or the disk in
   if (!encrypted) {
     // No keyring (Linux test machines): kept for this session only, and said so.
     await expect(mainWindow.getByText(/no secure place to save passwords/)).toBeVisible();
-    await expect(bot.getByText(/until Cue Desk closes/)).toBeVisible();
+    await expect(bot.getByText(/until Lyre closes/)).toBeVisible();
   }
   await first.close();
   expect(filesContaining(userDataDir, token)).toEqual([]);

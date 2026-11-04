@@ -34,9 +34,9 @@ export type LaunchOptions = {
 
 export type LaunchedApp = {
   app: ElectronApplication;
-  /** The main window (title "Cue Desk"). */
+  /** The main window (title "Lyre"). */
   mainWindow(): Promise<Page>;
-  /** The player view: playlists and soundboards (title "Cue Desk Player"). */
+  /** The player view: playlists and soundboards (title "Lyre Player"). */
   playerView(): Promise<Page>;
   /** Quit the app the way a user would, so it saves its data, and wait for it to exit. */
   close(): Promise<void>;
@@ -50,9 +50,9 @@ type AppFixtures = {
   /** Start a copy of the app. */
   launchApp: (options?: LaunchOptions) => Promise<LaunchedApp>;
   app: ElectronApplication;
-  /** The main window (title "Cue Desk"). */
+  /** The main window (title "Lyre"). */
   mainWindow: Page;
-  /** The player view: playlists and soundboards (title "Cue Desk Player"). */
+  /** The player view: playlists and soundboards (title "Lyre Player"). */
   playerView: Page;
   /** Fails the test when `errors` holds anything (runs after the app has closed). */
   problemCheck: void;
@@ -175,13 +175,13 @@ export const test = base.extend<AppFixtures>({
         app,
         mainWindow: async () => {
           // The hidden audio capture window ("Audio Capture") may open first.
-          const page = await pageWithTitle(app, "Cue Desk");
+          const page = await pageWithTitle(app, "Lyre");
           await page.waitForLoadState("domcontentloaded");
           return page;
         },
         playerView: async () => {
           // The player view is created by the main window once it has rendered.
-          const page = await pageWithTitle(app, "Cue Desk Player");
+          const page = await pageWithTitle(app, "Lyre Player");
           await page.waitForLoadState("domcontentloaded");
           return page;
         },
@@ -207,14 +207,14 @@ export const test = base.extend<AppFixtures>({
   },
 
   mainWindow: async ({ app }, use) => {
-    const page = await pageWithTitle(app, "Cue Desk");
+    const page = await pageWithTitle(app, "Lyre");
     await page.waitForLoadState("domcontentloaded");
     await use(page);
   },
 
   playerView: async ({ app, mainWindow }, use) => {
     void mainWindow;
-    const page = await pageWithTitle(app, "Cue Desk Player");
+    const page = await pageWithTitle(app, "Lyre Player");
     await page.waitForLoadState("domcontentloaded");
     await use(page);
   },

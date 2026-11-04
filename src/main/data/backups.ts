@@ -117,7 +117,7 @@ export function writeBackup(db: DatabaseSync, folder: string, label: string, now
     }
     throw new LibraryDatabaseError(
       "backup-failed",
-      `Cue Desk could not back up your library to ${folder}. ` + (error instanceof Error ? error.message : String(error)),
+      `Lyre could not back up your library to ${folder}. ` + (error instanceof Error ? error.message : String(error)),
       { cause: error },
     );
   }

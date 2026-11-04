@@ -3,7 +3,7 @@
  *
  * Playlists and soundboards store a background either as one of these names
  * ("tavern") or as an address of their own (a file or web address). The names
- * are Kenku FM's 23; the pictures are Cue Desk's own, painted by
+ * are Kenku FM's 23; the pictures are Lyre's own, painted by
  * scripts/backgrounds and bundled into the app from this folder, so they show
  * without Kenku FM installed and libraries brought over from Kenku FM keep a
  * picture without any change to their data.

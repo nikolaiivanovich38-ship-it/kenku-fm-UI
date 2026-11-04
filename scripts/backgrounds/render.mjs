@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Paints Cue Desk's built-in background pictures (paint.mjs) in Playwright's
+ * Paints Lyre's built-in background pictures (paint.mjs) in Playwright's
  * Chromium and saves them as JPEG files in src/player/backgrounds.
  *
  *   node scripts/backgrounds/render.mjs                  # all 23 pictures

@@ -1,6 +1,6 @@
 {
-  "name": "cue-desk",
-  "productName": "Cue Desk",
+  "name": "lyre",
+  "productName": "Lyre",
   "version": "0.1.1",
   "description": "Film-score audio for tabletop role-playing games on Discord. An independent fork of Kenku FM by Owlbear Rodeo.",
   "homepage": "https://github.com/nikolaiivanovich38-ship-it/kenku-fm-UI#readme",
@@ -29,7 +29,7 @@
   },
   "keywords": [],
   "author": {
-    "name": "Nik (Cue Desk fork)",
+    "name": "Nik (Lyre)",
     "url": "https://github.com/nikolaiivanovich38-ship-it"
   },
   "contributors": [

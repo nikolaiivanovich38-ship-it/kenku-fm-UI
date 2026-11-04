@@ -95,7 +95,7 @@ function corrupt(backupFolder: string, cause: unknown): LibraryDatabaseError {
     "corrupt",
     "Your library file is damaged and cannot be opened. " +
       (latestBackup
-        ? "Cue Desk can put back your latest backup; the damaged file is kept aside."
+        ? "Lyre can put back your latest backup; the damaged file is kept aside."
         : "No backup was found to put back."),
     { cause, latestBackup },
   );

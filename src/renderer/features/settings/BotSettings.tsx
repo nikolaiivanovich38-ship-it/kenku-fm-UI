@@ -50,7 +50,7 @@ export function BotSettings({ bot, removable, autoFocus }: BotSettingsProps) {
     ? "Enter your bot's token"
     : bot.tokenRemembered
       ? "A token is saved, encrypted on this computer. Type a new one to replace it."
-      : "A token is set until Cue Desk closes: this computer has no secure place to save it.";
+      : "A token is set until Lyre closes: this computer has no secure place to save it.";
 
   return (
     <Stack spacing={1} role="group" aria-label={`Discord bot ${label}`}>

@@ -1,24 +1,24 @@
-# Security in Cue Desk
+# Security in Lyre
 
 ## In plain language
 
-Cue Desk opens websites (YouTube, Tabletop Audio, Spotify and so on) in tabs inside the app. Those websites are run by other people, so Cue Desk keeps them apart from its own pages and gives them as little access as possible.
+Lyre opens websites (YouTube, Tabletop Audio, Spotify and so on) in tabs inside the app. Those websites are run by other people, so Lyre keeps them apart from its own pages and gives them as little access as possible.
 
-**What a tab can open.** Only ordinary web pages, meaning addresses that start with `https://` or `http://`. If you type `youtube.com`, Cue Desk adds `https://` for you. Cue Desk will not open files on your computer (`file:`), browser settings pages, scripts typed into the address bar (`javascript:`) or links that launch other programs (`steam:`, `spotify:`, `mailto:` and similar). An address with a user name or password in it (`https://name:password@site`) is also refused; log in on the page instead. When an address is refused, Cue Desk shows a short message under the address bar or the bookmark's address field explaining why, and nothing is opened.
+**What a tab can open.** Only ordinary web pages, meaning addresses that start with `https://` or `http://`. If you type `youtube.com`, Lyre adds `https://` for you. Lyre will not open files on your computer (`file:`), browser settings pages, scripts typed into the address bar (`javascript:`) or links that launch other programs (`steam:`, `spotify:`, `mailto:` and similar). An address with a user name or password in it (`https://name:password@site`) is also refused; log in on the page instead. When an address is refused, Lyre shows a short message under the address bar or the bookmark's address field explaining why, and nothing is opened.
 
 `http://` pages still open, but they are not encrypted; the address bar shows "Not secure" next to them. Prefer `https://` when a site offers it.
 
-**Pop-ups.** When a website opens a new window, Cue Desk opens it as a new tab instead, but only if the address is allowed, and at most 3 new tabs from the same tab every 10 seconds. Anything beyond that is ignored.
+**Pop-ups.** When a website opens a new window, Lyre opens it as a new tab instead, but only if the address is allowed, and at most 3 new tabs from the same tab every 10 seconds. Anything beyond that is ignored.
 
-**Microphone, camera and other permissions.** Websites in tabs are refused, without being asked, if they try to use your microphone or camera, show notifications, see your location, or open other programs. They can still go full screen. Cue Desk's own pages may use audio devices only, which they need to send sound to Discord and to list your input devices.
+**Microphone, camera and other permissions.** Websites in tabs are refused, without being asked, if they try to use your microphone or camera, show notifications, see your location, or open other programs. They can still go full screen. Lyre's own pages may use audio devices only, which they need to send sound to Discord and to list your input devices.
 
-**Logins.** Websites in tabs keep their own cookies and logins, separate from Cue Desk's settings. Website logins are not carried over from Kenku FM, so you will need to log in to websites in tabs again once. "Clear cache" in Settings now clears website data as well.
+**Logins.** Websites in tabs keep their own cookies and logins, separate from Lyre's settings. Website logins are not carried over from Kenku FM, so you will need to log in to websites in tabs again once. "Clear cache" in Settings now clears website data as well.
 
-**Links to help pages.** Links in Cue Desk (for example "Where do I get my token?") open in your normal web browser, but only if they are `https://` links. Other kinds of link are ignored.
+**Links to help pages.** Links in Lyre (for example "Where do I get my token?") open in your normal web browser, but only if they are `https://` links. Other kinds of link are ignored.
 
-**Your audio stays on your computer.** Sound travels from tabs to Discord over a private channel inside Cue Desk; there is no network connection for it at all, so nothing else on your computer or network can send audio into your Discord channel.
+**Your audio stays on your computer.** Sound travels from tabs to Discord over a private channel inside Lyre; there is no network connection for it at all, so nothing else on your computer or network can send audio into your Discord channel.
 
-**Dragging files.** Dropping a file onto Cue Desk outside a drop zone does nothing, and the pointer shows that it cannot be dropped there. Dragging a link from a web page onto the address bar or a bookmark's address field puts the link's text in the field. Drop zones (adding tracks, sounds or images) work as before.
+**Dragging files.** Dropping a file onto Lyre outside a drop zone does nothing, and the pointer shows that it cannot be dropped there. Dragging a link from a web page onto the address bar or a bookmark's address field puts the link's text in the field. Drop zones (adding tracks, sounds or images) work as before.
 
 ## Technical details
 
@@ -85,13 +85,13 @@ Website tabs use the `persist:tabs` partition (`TAB_PARTITION`) with no preload.
 4. Tabs that were logged in before the update need logging in again once.
 5. Settings > "Where do I get my token?" opens in the system browser.
 6. Drop an audio file outside a drop zone: nothing happens. Drop it on "Add track": it is added.
-7. While broadcasting, Cue Desk has no listening network port for audio (`netstat -ano` on Windows, `lsof -i -P` elsewhere, shows only the remote API port when Remote is on).
+7. While broadcasting, Lyre has no listening network port for audio (`netstat -ano` on Windows, `lsof -i -P` elsewhere, shows only the remote API port when Remote is on).
 
 ## Messages between the app's pages and the main process (SEC-8)
 
 ### In plain language
 
-Cue Desk's own pages (the main window, the player and a hidden audio window) ask the main part of the app to do things: open a tab, join a Discord channel, start the remote control. Before WP1 the main part did whatever any page asked. Now it checks who is asking. A website in a tab, or something embedded inside one of Cue Desk's pages, is ignored. Requests with odd values (text where a number belongs, very long text) are ignored too. Nothing changes for you: Cue Desk's own pages ask in exactly the same way as before.
+Lyre's own pages (the main window, the player and a hidden audio window) ask the main part of the app to do things: open a tab, join a Discord channel, start the remote control. Before WP1 the main part did whatever any page asked. Now it checks who is asking. A website in a tab, or something embedded inside one of Lyre's pages, is ignored. Requests with odd values (text where a number belongs, very long text) are ignored too. Nothing changes for you: Lyre's own pages ask in exactly the same way as before.
 
 ### How it works
 
@@ -145,7 +145,7 @@ The remote API's GET routes (`/v1/playlist`, `/v1/playlist/playback`, `/v1/sound
 
 ### In plain language
 
-Each of Cue Desk's own pages now tells the built-in browser exactly what it is allowed to load. If a bug ever let someone slip code into one of these pages, the browser would refuse to run it or to send data anywhere unexpected. You should not notice any difference.
+Each of Lyre's own pages now tells the built-in browser exactly what it is allowed to load. If a bug ever let someone slip code into one of these pages, the browser would refuse to run it or to send data anywhere unexpected. You should not notice any difference.
 
 ### The policy
 
@@ -206,11 +206,11 @@ The new playback engine (`src/player/engine`, design in `docs/playback-engine.md
 
 ### In plain language
 
-**Files from your computer (SEC-15).** You can open a file from your computer in a tab, for example a map or a page of notes saved as HTML: type its address (`file:///C:/Maps/dungeon.html`) or paste its path (`C:\Maps\dungeon.html`) into the address bar, or open a bookmark to it. Cue Desk then asks "Open this file from your computer?" and shows the full path. Choose Open or Cancel (Cancel is the default). If you tick "Don't ask again for files in …", files in that folder open straight away from then on; Settings > Local files lists those folders, and the cross next to one makes Cue Desk ask again. Files in a shared network folder (`\\server\share`) are never opened.
+**Files from your computer (SEC-15).** You can open a file from your computer in a tab, for example a map or a page of notes saved as HTML: type its address (`file:///C:/Maps/dungeon.html`) or paste its path (`C:\Maps\dungeon.html`) into the address bar, or open a bookmark to it. Lyre then asks "Open this file from your computer?" and shows the full path. Choose Open or Cancel (Cancel is the default). If you tick "Don't ask again for files in …", files in that folder open straight away from then on; Settings > Local files lists those folders, and the cross next to one makes Lyre ask again. Files in a shared network folder (`\\server\share`) are never opened.
 
 Only you can open a file. A website cannot open, link to, redirect to or pop up a file from your computer. A file opens in a tab of its own, kept apart from websites, with no more permissions than a website. If the file links to a web page, the web page opens in a new website tab; links to other files do nothing.
 
-**Your own windows cannot record the screen (SEC-16).** Cue Desk's own windows may use your audio devices, but nothing can use them to record your screen.
+**Your own windows cannot record the screen (SEC-16).** Lyre's own windows may use your audio devices, but nothing can use them to record your screen.
 
 ### Technical details
 
@@ -265,7 +265,7 @@ The capture window used to send audio to the main process over a WebSocket on `1
 
 ### Discord bot tokens (SEC-5)
 
-**In plain language.** Your bot token is like a password for your bot. Cue Desk used to save it as plain text with its other settings. Now it is saved encrypted with your computer's own password protection (Windows: your Windows account; macOS: the Keychain; Linux: the desktop keyring), in `discord-bots.json` in Cue Desk's data folder. Cue Desk's windows can check whether a bot has a token, give it a new one or remove it, but can never read it back. If your computer has no such protection (some Linux set-ups), Cue Desk keeps the token only until it closes and says so in Settings; it never writes it as plain text. A token saved by an older version is moved once, the first time this version starts, and removed from the old place.
+**In plain language.** Your bot token is like a password for your bot. Kenku FM and Cue Desk 0.1 saved it as plain text with its other settings. Now it is saved encrypted with your computer's own password protection (Windows: your Windows account; macOS: the Keychain; Linux: the desktop keyring), in `discord-bots.json` in Lyre's data folder. Lyre's windows can check whether a bot has a token, give it a new one or remove it, but can never read it back. If your computer has no such protection (some Linux set-ups), Lyre keeps the token only until it closes and says so in Settings; it never writes it as plain text. A token saved by an older version is moved once, the first time this version starts, and removed from the old place.
 
 **How.** `src/main/broadcast/botTokenStore.ts` encrypts each bot's token with `safeStorage.encryptString` and saves the list atomically (`discord-bots.json`, mode 0600). Linux's `basic_text` fallback encrypts with a fixed, public key, so it counts as no encryption: the token stays in memory (`canEncrypt`). `OutputManager` hands the store's tokens only to `DiscordBot.connect`; `OUTPUTS_STATE` carries `hasToken` and `tokenRemembered`, never the token. The redux-persist migration to version 5 (`src/renderer/features/settings/tokenMigration.ts`) sends the old `settings.discordToken` once over `BOT_IMPORT_LEGACY_TOKEN` (ignored if the first bot already has a token) and drops it, with the old `multipleOutputsEnabled`, from `persist:root`. Chromium's LevelDB may keep an overwritten value in its log file until it compacts it; a token typed into this version never goes to browser storage at all (`e2e/outputs.spec.ts` scans the whole data folder).
 
@@ -288,8 +288,8 @@ The capture window used to send audio to the main process over a WebSocket on `1
 
 ### Manual checks for WP2 (real Discord, Windows)
 
-1. Fresh start, nothing playing: Task Manager shows Cue Desk using almost no processor; no "Audio Capture" sound activity in the Windows volume mixer.
-2. Update from 0.1 with a saved token: the bot connects by itself; Settings shows "A token is saved, encrypted on this computer"; `%APPDATA%\cue-desk\discord-bots.json` does not contain the token text.
+1. Fresh start, nothing playing: Task Manager shows Lyre using almost no processor; no "Audio Capture" sound activity in the Windows volume mixer.
+2. First start of Lyre after Cue Desk 0.1 or Kenku FM with a saved token: the bot connects by itself; Settings shows "A token is saved, encrypted on this computer"; `%APPDATA%\lyre\discord-bots.json` does not contain the token text.
 3. Two bots (Settings > "Add a second bot"), both invited to one server: Bot 1 joins one voice channel, Bot 2 another; a friend in each channel hears the music; muting Bot 2 in the side bar silences only its channel.
 4. Join a voice channel, play a soundboard sound: the first word or hit of the sound is not cut off in Discord.
 5. "Lighter on the computer" and "Best sound quality": speech in a YouTube tab reaches Discord with no noticeable extra delay in either.
@@ -301,7 +301,7 @@ The capture window used to send audio to the main process over a WebSocket on `1
 
 ### In plain language
 
-Cue Desk no longer looks into an installed Kenku FM for background pictures. Its own 23 pictures are part of the app, so nothing outside Cue Desk's program and data folders is read for them, and nothing is copied. Pictures an earlier version (0.1.1) copied into the `backgrounds` folder in Cue Desk's data folder are no longer used and are left alone; you can delete that folder.
+Lyre does not look into an installed Kenku FM for background pictures. Its own 23 pictures are part of the app, so nothing outside Lyre's program and data folders is read for them, and nothing is copied. Pictures an earlier version (0.1.1) copied into the `backgrounds` folder in Lyre's data folder are no longer used and are left alone; you can delete that folder.
 
 ### Technical details
 
@@ -312,6 +312,22 @@ Cue Desk no longer looks into an installed Kenku FM for background pictures. Its
 
 ### Manual checks (Windows)
 
-1. Start Cue Desk on a computer without Kenku FM. Click **Add Playlist**: 23 pictures and a blank one are offered.
+1. Start Lyre on a computer without Kenku FM. Click **Add Playlist**: 23 pictures and a blank one are offered.
 2. Open a playlist or soundboard brought over from Kenku FM: it shows a picture.
-3. If `%APPDATA%\cue-desk\backgrounds` exists from Cue Desk 0.1.1, rename it: nothing changes in Cue Desk.
+3. If `%APPDATA%\cue-desk\backgrounds` exists from Cue Desk 0.1.1, rename it: nothing changes in Lyre.
+
+## Rebrand (Lyre)
+
+**In plain language.** Lyre is the new name of the app the drafts called Cue Desk. The first time Lyre starts, it copies the library of Cue Desk (if you tried a draft) or else of Kenku FM, under the same rules as before: only into a new, empty Lyre folder, never while that app is open, and the old folder is only read. Your saved bot tokens stay encrypted while they are copied.
+
+**Technical details.**
+- Earlier apps are listed newest first in `src/main/appIdentity.json` (`earlierApps`); `carryOverEarlierData` in `src/main/migration/carryOver.ts` takes the first whose folder has `Local Storage`. If that app is running (its LevelDB `LOCK` is held), nothing is copied and the next start retries; it never falls back to an older app's library meanwhile.
+- From Cue Desk it also copies `discord-bots.json` with `Local State`. `Local State` holds Chromium's `os_crypt` key, itself wrapped by Windows DPAPI for the same Windows user, which `safeStorage` needs to read the copied tokens. The tokens are never decrypted during the copy. On Linux and macOS the key sits in the system keyring under the app's name, so tokens saved by Cue Desk there cannot be read by Lyre and must be entered again (Windows is the only target).
+- Not copied: website-tab data (`Partitions/`), caches, Cue Desk's own `data-carry-over.json` and `backgrounds/`.
+- The Windows app ID becomes `com.squirrel.lyre.lyre`, so Lyre, Cue Desk and Kenku FM are three separate apps to Windows (taskbar, notifications, uninstall entries).
+- No new IPC channels, permissions or network listeners.
+
+**Manual checks (Windows).**
+1. On a computer with a Cue Desk 0.1 draft that has a playlist and a saved bot token, and Kenku FM: close both, install Lyre. Lyre opens with the Cue Desk playlist, and the bot connects without entering the token again.
+2. Repeat with Cue Desk open: Lyre says "Cue Desk is still running. Close it and restart Lyre to bring your library across." and offers Quit.
+3. On a computer with only Kenku FM: its library appears in Lyre.
