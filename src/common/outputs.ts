@@ -45,6 +45,11 @@ export interface BotState {
   status: BotStatus;
   /** Plain-language reason when `status` is "error". */
   error?: string;
+  /**
+   * WP1 review 5: why the bot left a voice channel by itself (a moderator
+   * moved or disconnected it), until it joins one again.
+   */
+  notice?: string;
   guilds: GuildInfo[];
   voice: VoiceSessionState[];
   muted: boolean;
@@ -53,6 +58,11 @@ export interface BotState {
 export interface OutputsState {
   /** Whether tokens can be saved encrypted on this computer. */
   encryption: boolean;
+  /**
+   * WP1 review 11: a token saved by an older version was moved over in this
+   * session but can only be kept until Lyre closes (no encryption).
+   */
+  legacyTokenSessionOnly?: boolean;
   local: { muted: boolean };
   bots: BotState[];
 }

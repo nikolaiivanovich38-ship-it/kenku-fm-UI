@@ -189,3 +189,44 @@ describe("guardLocalFileTab (SEC-15)", () => {
     expect(event.preventDefault).not.toHaveBeenCalled();
   });
 });
+
+describe("guardLocalFileTab: embedded frames (WP1 review 1)", () => {
+  const page = "cue-local-file://0123456789abcdef0123456789abcdef/map.html";
+
+  function setup() {
+    const contents = fakeContents(42, page);
+    guardLocalFileTab(contents, { onOpenWebPage: vi.fn() });
+    return contents;
+  }
+
+  it.each([
+    "cue-local-file://0123456789abcdef0123456789abcdef/legend.html",
+    "cue-local-file://0123456789abcdef0123456789abcdef/sub/room.html",
+    "about:srcdoc",
+  ])("lets a frame show %j from the file's own folder", (url) => {
+    const contents = setup();
+    const event = navEvent(url, false);
+    contents.emit("will-frame-navigate", event);
+    expect(event.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "cue-local-file://fedcba9876543210fedcba9876543210/other.html",
+    "file:///etc/hostname",
+    "https://example.com/",
+    "data:text/html,<script>alert(1)</script>",
+  ])("cancels a frame moving to %j", (url) => {
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const contents = setup();
+    const event = navEvent(url, false);
+    contents.emit("will-frame-navigate", event);
+    expect(event.preventDefault).toHaveBeenCalled();
+  });
+
+  it("leaves the main frame to the will-navigate rules", () => {
+    const contents = setup();
+    const event = navEvent("https://example.com/", true);
+    contents.emit("will-frame-navigate", event);
+    expect(event.preventDefault).not.toHaveBeenCalled();
+  });
+});

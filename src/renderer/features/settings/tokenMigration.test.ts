@@ -7,7 +7,8 @@ describe("moveTokenOutOfSettings (SEC-5)", () => {
     const state = { settings: { discordToken: " fake-token ", remotePort: "3333" }, bookmarks: {} };
     const migrated = moveTokenOutOfSettings(state, handOver);
     expect(handOver).toHaveBeenCalledWith("fake-token");
-    expect(migrated).toEqual({ settings: { remotePort: "3333" }, bookmarks: {} });
+    // WP1 review 4: Settings then recommends resetting the token, once.
+    expect(migrated).toEqual({ settings: { remotePort: "3333", legacyTokenNotice: true }, bookmarks: {} });
     expect(JSON.stringify(migrated)).not.toContain("fake-token");
   });
 

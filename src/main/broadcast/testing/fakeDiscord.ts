@@ -11,6 +11,7 @@
 import { EventEmitter } from "events";
 import { ChannelType, Events, type Client } from "discord.js";
 import {
+  VoiceConnectionDisconnectReason,
   VoiceConnectionStatus,
   type AudioPlayer,
   type VoiceConnection,
@@ -58,8 +59,16 @@ class FakeCollection<V> {
 /** Delay before simulated network events, so they happen asynchronously. */
 const TICK_MS = 10;
 
+/** Why a fake connection is Disconnected, as @discordjs/voice reports it. */
+export type DisconnectDetails = { reason?: VoiceConnectionDisconnectReason; closeCode?: number };
+
 export class FakeVoiceConnection extends EventEmitter {
-  state: { status: VoiceConnectionStatus; subscription?: { unsubscribe(): void } } = {
+  state: {
+    status: VoiceConnectionStatus;
+    subscription?: { unsubscribe(): void };
+    reason?: VoiceConnectionDisconnectReason;
+    closeCode?: number;
+  } = {
     status: VoiceConnectionStatus.Signalling,
   };
   joinConfig: { channelId: string; guildId: string; group: string };
@@ -87,7 +96,10 @@ export class FakeVoiceConnection extends EventEmitter {
       }
       if (this.discord.networkDown) {
         // As @discordjs/voice does when it cannot reach the voice server.
-        this.setStatus(VoiceConnectionStatus.Disconnected);
+        this.setStatus(VoiceConnectionStatus.Disconnected, {
+          reason: VoiceConnectionDisconnectReason.WebSocketClose,
+          closeCode: 1006,
+        });
         return;
       }
       this.setStatus(VoiceConnectionStatus.Connecting);
@@ -95,9 +107,13 @@ export class FakeVoiceConnection extends EventEmitter {
     }, TICK_MS);
   }
 
-  setStatus(status: VoiceConnectionStatus) {
+  setStatus(status: VoiceConnectionStatus, details: DisconnectDetails = {}) {
     const old = this.state;
-    this.state = { ...this.state, status };
+    // Only a Disconnected state says why.
+    const rest = { ...this.state };
+    delete rest.reason;
+    delete rest.closeCode;
+    this.state = { ...rest, status, ...(status === VoiceConnectionStatus.Disconnected ? details : {}) };
     this.emit("stateChange", old, this.state);
     this.emit(status, old, this.state);
   }
@@ -137,14 +153,28 @@ export class FakeVoiceConnection extends EventEmitter {
     if (config?.channelId) {
       this.joinConfig = { ...this.joinConfig, channelId: config.channelId };
     }
+    if (this.discord.gatewayDown) {
+      // As @discordjs/voice does when the bot's gateway connection cannot send
+      // the join request: Disconnected again, at once, inside rejoin().
+      this.setStatus(VoiceConnectionStatus.Disconnected, {
+        reason: VoiceConnectionDisconnectReason.AdapterUnavailable,
+      });
+      return false;
+    }
     this.setStatus(VoiceConnectionStatus.Signalling);
     this.connectSoon();
     return true;
   }
 
-  /** Simulate losing the voice connection (network unplugged). */
-  disconnect() {
-    this.setStatus(VoiceConnectionStatus.Disconnected);
+  /**
+   * Simulate losing the voice connection: by default the network was
+   * unplugged; close code 4014 means a moderator moved or kicked the bot.
+   */
+  disconnect(closeCode = 1006) {
+    this.setStatus(VoiceConnectionStatus.Disconnected, {
+      reason: VoiceConnectionDisconnectReason.WebSocketClose,
+      closeCode,
+    });
   }
 
   destroy() {
@@ -217,6 +247,8 @@ export class FakeDiscord {
   connections: FakeVoiceConnection[] = [];
   /** While true, logins fail and voice connections cannot (re)connect. */
   networkDown = false;
+  /** While true, the bot's gateway connection cannot send a voice join (rejoin fails at once). */
+  gatewayDown = false;
 
   readonly driver: DiscordDriver = {
     createClient: () => new FakeClient(this) as unknown as Client,

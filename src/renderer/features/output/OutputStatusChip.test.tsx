@@ -51,6 +51,15 @@ describe("output status chip (OUT-2)", () => {
     );
   });
 
+  it("says why the bot left when a moderator moved it, as a state, not an error (WP1 review 5)", () => {
+    const left = bot({ notice: "A moderator moved or disconnected the bot from “Tavern”, so it left." });
+    expect(botStatusText(left)).toBe("A moderator moved or disconnected the bot from “Tavern”, so it left.");
+    expect(botChip(left)).toEqual({ label: "Left", color: "warning" });
+    expect(canReconnect(left)).toBe(false);
+    // Once in a channel again, the channel is what counts.
+    expect(botStatusText({ ...left, voice: [session("connected")] })).toBe("In Tavern");
+  });
+
   it("offers Reconnect only for a failed bot that has a token", () => {
     expect(canReconnect(bot({ status: "error", error: "x" }))).toBe(true);
     expect(canReconnect(bot({ status: "error", error: "x", hasToken: false }))).toBe(false);

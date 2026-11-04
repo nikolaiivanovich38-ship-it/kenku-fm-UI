@@ -2,7 +2,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { VoiceConnectionStatus } from "@discordjs/voice";
+import { VoiceConnectionDisconnectReason, VoiceConnectionStatus } from "@discordjs/voice";
 import { OutputManager } from "./OutputManager";
 import { BotTokenStore, type SafeStorageLike } from "./botTokenStore";
 import { JOIN_TIMEOUT_MS, RECONNECT_DELAYS_MS } from "./DiscordBot";
@@ -97,6 +97,20 @@ describe("OutputManager: bot tokens (SEC-5)", () => {
     const id = await connectedBot(m);
     fakeIpcMain.deliver("BOT_REMOVE_TOKEN", main(), id);
     expect(m.state().bots[0]).toMatchObject({ hasToken: false, status: "offline" });
+  });
+
+  it("says when a token taken over from an older version can only be kept for this session (WP1 review 11)", () => {
+    const m = newManager({ ...safeStorage, isEncryptionAvailable: () => false });
+    expect(m.state().legacyTokenSessionOnly).toBeFalsy();
+    fakeIpcMain.deliver("BOT_IMPORT_LEGACY_TOKEN", main(), TOKEN);
+    expect(m.state().legacyTokenSessionOnly).toBe(true);
+    expect(JSON.stringify(m.state())).not.toContain(TOKEN);
+  });
+
+  it("does not warn about the session when the older version's token is saved encrypted", () => {
+    const m = newManager();
+    fakeIpcMain.deliver("BOT_IMPORT_LEGACY_TOKEN", main(), TOKEN);
+    expect(m.state().legacyTokenSessionOnly).toBeFalsy();
   });
 
   it("takes over the token an older version saved, once, for the first bot", () => {
@@ -401,5 +415,107 @@ describe("Reconnecting (OUT-2)", () => {
     await settle(1_200);
     expect(m.state().bots[0]).toMatchObject({ status: "ready" });
     expect(m.state().bots[0].voice).toEqual([expect.objectContaining({ channelName: "Dungeon", status: "connected" })]);
+  });
+});
+
+describe("Voice connection edge cases (WP1 review)", () => {
+  it("does not overflow the stack when a join drops while the gateway cannot send (review 3)", async () => {
+    const m = newManager();
+    const id = await connectedBot(m);
+    vi.useFakeTimers();
+    void m.bots.get(id)?.join(FAKE_CHANNELS.silent.id);
+    await vi.advanceTimersByTimeAsync(20);
+    const [connection] = discord.connectionsIn(FAKE_CHANNELS.silent.id);
+    expect(m.state().bots[0].voice[0].status).toBe("joining");
+    const rejoin = vi.spyOn(connection, "rejoin");
+    discord.gatewayDown = true;
+    // Before: rejoin() re-entered Disconnected synchronously and recursed until
+    // "Maximum call stack size exceeded" crashed the main process.
+    expect(() =>
+      connection.setStatus(VoiceConnectionStatus.Disconnected, {
+        reason: VoiceConnectionDisconnectReason.WebSocketClose,
+        closeCode: 4006,
+      }),
+    ).not.toThrow();
+    await vi.advanceTimersByTimeAsync(JOIN_TIMEOUT_MS);
+    expect(rejoin.mock.calls.length).toBeLessThanOrEqual(1);
+    expect(m.state().bots[0].voice[0]).toMatchObject({ status: "error", error: expect.stringMatching(/Could not join/) });
+  });
+
+  it("tries a dropped join again after a pause, not from inside the drop (review 3)", async () => {
+    const m = newManager();
+    const id = await connectedBot(m);
+    vi.useFakeTimers();
+    void m.bots.get(id)?.join(FAKE_CHANNELS.silent.id);
+    await vi.advanceTimersByTimeAsync(20);
+    const [connection] = discord.connectionsIn(FAKE_CHANNELS.silent.id);
+    const rejoin = vi.spyOn(connection, "rejoin");
+    connection.disconnect(4006);
+    expect(rejoin).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(RECONNECT_DELAYS_MS[0] + 10);
+    expect(rejoin).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not pull the bot back when a moderator moves or disconnects it (review 5)", async () => {
+    const m = newManager();
+    const id = await connectedBot(m);
+    await m.bots.get(id)?.join(FAKE_CHANNELS.tavern.id);
+    await settle();
+    vi.useFakeTimers();
+    const [connection] = discord.connectionsIn(FAKE_CHANNELS.tavern.id);
+    const rejoin = vi.spyOn(connection, "rejoin");
+    connection.disconnect(4014);
+    await vi.advanceTimersByTimeAsync(70_000);
+    expect(rejoin).not.toHaveBeenCalled();
+    expect(connection.destroyed).toBe(true);
+    expect(m.state().bots[0].voice).toEqual([]);
+    expect(m.state().bots[0].notice).toMatch(/A moderator moved or disconnected the bot/);
+    expect(errorsShown()).toContainEqual(expect.stringMatching(/A moderator moved or disconnected the bot/));
+    expect(m.active).toBe(false);
+
+    // Joining again clears the note.
+    await m.bots.get(id)?.join(FAKE_CHANNELS.tavern.id);
+    await vi.advanceTimersByTimeAsync(50);
+    expect(m.state().bots[0].voice[0].status).toBe("connected");
+    expect(m.state().bots[0].notice).toBeUndefined();
+  });
+
+  it("keeps the broadcast going while it logs in again after a short outage (review 9)", async () => {
+    const m = newManager();
+    const id = await connectedBot(m);
+    await m.bots.get(id)?.join(FAKE_CHANNELS.tavern.id);
+    await settle();
+    expect(m.active).toBe(true);
+    const activeChanges: boolean[] = [];
+    const localChanges: boolean[] = [];
+    m.on("activeChange", (active) => activeChanges.push(active));
+    m.on("localMutedChange", (muted) => localChanges.push(muted));
+    vi.useFakeTimers();
+    discord.setNetworkDown(true);
+    discord.clients[0].emit("error", new Error("getaddrinfo ENOTFOUND gateway.discord.gg"));
+    expect(m.active).toBe(true);
+    expect(m.state().bots[0].voice).toEqual([expect.objectContaining({ channelName: "Tavern", status: "reconnecting" })]);
+    await vi.advanceTimersByTimeAsync(1_000 + 50);
+    expect(m.active).toBe(true);
+    discord.setNetworkDown(false);
+    await vi.advanceTimersByTimeAsync(2_000 + 100);
+    expect(m.state().bots[0]).toMatchObject({ status: "ready" });
+    expect(m.state().bots[0].voice).toEqual([expect.objectContaining({ channelName: "Tavern", status: "connected" })]);
+    // The broadcast never stopped and "This Computer" was never switched back on.
+    expect(activeChanges).toEqual([]);
+    expect(localChanges).toEqual([]);
+  });
+
+  it("stops the broadcast once the automatic logins give up (review 9)", async () => {
+    const m = newManager();
+    const id = await connectedBot(m);
+    await m.bots.get(id)?.join(FAKE_CHANNELS.tavern.id);
+    await settle();
+    vi.useFakeTimers();
+    discord.setNetworkDown(true);
+    discord.clients[0].emit("error", new Error("getaddrinfo ENOTFOUND gateway.discord.gg"));
+    await vi.advanceTimersByTimeAsync(RECONNECT_DELAYS_MS.reduce((sum, delay) => sum + delay, 0) + 1_000);
+    expect(m.state().bots[0].status).toBe("error");
+    expect(m.active).toBe(false);
   });
 });

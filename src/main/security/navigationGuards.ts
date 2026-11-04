@@ -1,5 +1,6 @@
 import { checkTabUrl, isRefused } from "../../common/security/urlPolicy";
 import type { AppPageRole } from "./permissions";
+import { isSameLocalFolder } from "./localFileServer";
 import { TrustedContentsRegistry, trustedContents } from "./trustedContents";
 
 /** The navigation event fields used here (Electron's `will-navigate` / `will-redirect`). */
@@ -16,6 +17,7 @@ export interface GuardableContents {
   once(event: "destroyed", listener: () => void): unknown;
   on(event: "will-navigate", listener: (event: NavigationEvent) => void): unknown;
   on(event: "will-redirect", listener: (event: NavigationEvent) => void): unknown;
+  on(event: "will-frame-navigate", listener: (event: NavigationEvent) => void): unknown;
   setWindowOpenHandler(
     handler: (details: { url: string }) => { action: "deny" },
   ): void;
@@ -94,6 +96,8 @@ export function guardTabNavigation(contents: GuardableContents): void {
  * popups to web pages open in a new website tab through `onOpenWebPage`
  * (the file's tab and its partition never load a website), everything else is
  * cancelled. A jump to a #section of the same file is fine.
+ * WP1 review 1: an embedded frame may show only files from the page's own
+ * folder (localFileServer.ts); moving a frame anywhere else is cancelled.
  */
 export function guardLocalFileTab(
   contents: GuardableContents,
@@ -116,6 +120,12 @@ export function guardLocalFileTab(
   });
   contents.on("will-redirect", (event) => {
     if (event.isMainFrame) {
+      event.preventDefault();
+    }
+  });
+  contents.on("will-frame-navigate", (event) => {
+    if (!event.isMainFrame && !isSameLocalFolder(contents.getURL(), event.url)) {
+      console.warn("Blocked a frame in a file's tab from leaving the file's folder");
       event.preventDefault();
     }
   });

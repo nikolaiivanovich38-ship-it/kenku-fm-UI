@@ -101,7 +101,7 @@ export const test = base.extend<AppFixtures>({
 
   // eslint-disable-next-line no-empty-pattern
   errors: async ({}, use) => {
-    await use({ pageErrors: [], console: [], mainLog: [], ignoredConsole: [] });
+    await use({ pageErrors: [], console: [], mainLog: [], ignoredConsole: [], expectedRefusals: [] });
   },
 
   problemCheck: [

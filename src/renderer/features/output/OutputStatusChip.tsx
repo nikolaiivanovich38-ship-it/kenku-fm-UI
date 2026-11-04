@@ -22,6 +22,10 @@ export function botChip(bot: BotState): ChipLook {
   if (statuses.includes("connected")) {
     return { label: bot.muted ? "Muted" : "Connected", color: bot.muted ? "default" : "success" };
   }
+  if (bot.status === "ready" && bot.notice) {
+    // WP1 review 5: a moderator moved or disconnected the bot.
+    return { label: "Left", color: "warning" };
+  }
   if (bot.status === "ready") {
     return { label: "Ready", color: "default" };
   }

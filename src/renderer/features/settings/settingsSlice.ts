@@ -15,6 +15,11 @@ export interface SettingsState {
   externalInputsEnabled: boolean;
   multipleInputsEnabled: boolean;
   streamingMode: StreamingMode;
+  /**
+   * WP1 review 4: a token saved unprotected by an older version was moved
+   * out of these settings; Settings recommends resetting it until dismissed.
+   */
+  legacyTokenNotice?: boolean;
 }
 
 const initialState: SettingsState = {
@@ -52,6 +57,9 @@ export const connectionSlice = createSlice({
     setStreamingMode: (state, action: PayloadAction<StreamingMode>) => {
       state.streamingMode = action.payload;
     },
+    dismissLegacyTokenNotice: (state) => {
+      delete state.legacyTokenNotice;
+    },
   },
 });
 
@@ -63,6 +71,7 @@ export const {
   setExternalInputsEnabled,
   setMultipleInputsEnabled,
   setStreamingMode,
+  dismissLegacyTokenNotice,
 } = connectionSlice.actions;
 
 export default connectionSlice.reducer;

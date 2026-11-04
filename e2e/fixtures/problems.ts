@@ -19,6 +19,13 @@ export type CollectedErrors = {
    * always are.
    */
   ignoredConsole: RegExp[];
+  /**
+   * Security refusals a test provokes on purpose in a page that is not one
+   * of the app's own (for example a local file probing what it may read).
+   * A console entry is let through only when both its page address and its
+   * text match; refusals in the app's own pages are always reported.
+   */
+  expectedRefusals: { page: RegExp; text: RegExp }[];
 };
 
 /** Main-process lines that mean something went badly wrong. */
@@ -47,6 +54,12 @@ export function findProblems(errors: CollectedErrors): string[] {
     }
   }
   for (const entry of errors.console) {
+    const expected = errors.expectedRefusals.some(
+      (refusal) => refusal.page.test(entry.page) && refusal.text.test(entry.text),
+    );
+    if (expected) {
+      continue;
+    }
     if (SECURITY_REFUSAL.test(entry.text)) {
       problems.push(`console ${entry.type} in ${entry.page}: ${entry.text}`);
     } else if (entry.type === "error" && !errors.ignoredConsole.some((pattern) => pattern.test(entry.text))) {

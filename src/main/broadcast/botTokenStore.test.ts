@@ -138,4 +138,18 @@ describe("BotTokenStore (SEC-5)", () => {
     );
     expect(elsewhere.token(id)).toBeUndefined();
   });
+
+  it.skipIf(process.platform === "win32")(
+    "saves through a new private file even when an old temporary file was left behind (WP1 review 11)",
+    () => {
+      const store = new BotTokenStore(file, fakeSafeStorage());
+      const id = store.addBot();
+      // A temporary file from an interrupted save, readable by everyone.
+      fs.writeFileSync(`${file}.tmp`, "old", { mode: 0o644 });
+      fs.chmodSync(`${file}.tmp`, 0o644);
+      store.setToken(id, TOKEN);
+      expect(fs.statSync(file).mode & 0o777).toBe(0o600);
+      expect(fs.existsSync(`${file}.tmp`)).toBe(false);
+    },
+  );
 });

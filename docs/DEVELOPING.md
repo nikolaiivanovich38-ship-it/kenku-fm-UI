@@ -45,6 +45,7 @@ Put a test next to the code (`foo.ts` → `foo.test.ts`). Write the failing test
 | EnableEmbeddedAsarIntegrityValidation | on | `app.asar` is checked against a hash stored in the executable (Windows and macOS; Electron does not support the check on Linux) |
 | OnlyLoadAppFromAsar | on | the app is only loaded from `app.asar` |
 | EnableCookieEncryption | on | website-tab cookies are encrypted on disk |
+| GrantFileProtocolExtraPrivileges | on (Electron's default) | the app's own pages load from `file:` inside `app.asar`, which needs it (checked in the WP1 security fixes: with it off no page loads). Local-file tabs do not use `file:` (`docs/security.md` > WP1 security fixes) |
 
 Native addons (`*.node`) and WebAssembly (`*.wasm`) stay unpacked in `app.asar.unpacked`. To check a build: `node scripts/check-release-fuses.mjs "out/Lyre-linux-x64/lyre"` (on Windows, `lyre.exe`); it fails on a test build or any loosened fuse, and `release.yml` runs it on every release build. `CUE_DESK_E2E_BUILD=1` is refused by `yarn make` and `yarn publish`, so a test build cannot become an installer.
 

@@ -112,6 +112,10 @@ vi.mock("./main/security/sessions", () => {
   return {
     secureSessions: state.secureSessions,
     clearBrowsingData: state.clearBrowsingData,
+    // Records how many start-up steps had run when the scheme was declared.
+    registerLocalFileScheme: vi.fn(() => {
+      (state as { stepsBeforeScheme?: number }).stepsBeforeScheme = state.startupCalls.length;
+    }),
   };
 });
 
@@ -143,6 +147,12 @@ describe("start-up order (FND-1)", () => {
 
   it("does not interrupt start-up when the library was copied", () => {
     expect(state.showMessageBoxSync).not.toHaveBeenCalled();
+  });
+});
+
+describe("local-file scheme (WP1 security review 1)", () => {
+  it("is declared before anything else, as Electron requires it before the app is ready", () => {
+    expect((state as { stepsBeforeScheme?: number }).stepsBeforeScheme).toBe(0);
   });
 });
 

@@ -82,6 +82,7 @@ test("a bot token typed in Settings never reaches browser storage or the disk in
 
 test("a token saved by an older version is moved out of browser storage once, and the bot still connects", async ({
   launchApp,
+  userDataDir,
 }) => {
   const token = "fake-token-FROM-OLD-VERSION-42";
   const old = await launchApp({ env: FAKE_DISCORD_ENV });
@@ -99,13 +100,66 @@ test("a token saved by an older version is moved out of browser storage once, an
   await old.close();
 
   const next = await launchApp({ env: FAKE_DISCORD_ENV });
+  const { app } = next;
   const mainWindow = await next.mainWindow();
   // The bot connects with the moved token, with no action needed.
   await expect(channelButton(mainWindow, "Tavern")).toBeVisible({ timeout: 15_000 });
   await expect.poll(() => savedRoot(mainWindow)).not.toContain(token);
   expect(await savedRoot(mainWindow)).not.toContain("multipleOutputsEnabled");
-  await openSettings(mainWindow);
+  // WP1 review 11: where the token cannot be encrypted it lasts only this
+  // session, and a message box says so straight away.
+  // The same rule as botTokenStore's canEncrypt (the backend is named on Linux only).
+  const encrypted = await app.evaluate(({ safeStorage }) => {
+    if (!safeStorage.isEncryptionAvailable()) return false;
+    try {
+      return !["basic_text", "unknown"].includes(safeStorage.getSelectedStorageBackend());
+    } catch {
+      return true;
+    }
+  });
+  if (!encrypted) {
+    await expect(mainWindow.getByRole("alert").filter({ hasText: "kept only until Lyre closes" })).toBeVisible();
+  }
+  const settings = await openSettings(mainWindow);
   await expect(botSettings(mainWindow).getByLabel("Token")).toHaveValue("");
+
+  // WP1 review 4: the old version stored the token unprotected, and browser
+  // storage can keep an overwritten value on disk, so Settings recommends
+  // resetting it, once, with a link to Discord's site.
+  const notice = settings.getByRole("note").filter({ hasText: "older version" });
+  await expect(notice).toContainText("reset the token in the Discord Developer Portal");
+  const portal = notice.getByRole("link", { name: "Discord Developer Portal" });
+  await expect(portal).toHaveAttribute("href", "https://discord.com/developers/applications");
+  await app.evaluate(({ shell }) => {
+    const opened: string[] = [];
+    (globalThis as unknown as { openedLinks: string[] }).openedLinks = opened;
+    shell.openExternal = async (url: string) => {
+      opened.push(url);
+    };
+  });
+  await portal.click();
+  await expect
+    .poll(() => app.evaluate(() => (globalThis as unknown as { openedLinks: string[] }).openedLinks))
+    .toEqual(["https://discord.com/developers/applications"]);
+  await notice.getByRole("button", { name: "Got it" }).click();
+  await expect(notice).toHaveCount(0);
+  await next.close();
+
+  // The leftover the notice is about: Chromium's LevelDB log may still hold
+  // the old value, and only there. Recorded here so it is never hidden.
+  const leftovers = filesContaining(userDataDir, token);
+  const leveldb = path.join("Local Storage", "leveldb");
+  expect(leftovers.filter((file) => !file.startsWith(leveldb))).toEqual([]);
+  test.info().annotations.push({
+    type: "known leftover",
+    description: `old token still in: ${leftovers.join(", ") || "nowhere"}`,
+  });
+
+  // The notice does not come back once dismissed.
+  const third = await launchApp({ env: FAKE_DISCORD_ENV });
+  const again = await third.mainWindow();
+  const settingsAgain = await openSettings(again);
+  await expect(settingsAgain.getByRole("note").filter({ hasText: "older version" })).toHaveCount(0);
 });
 
 test("two bots join two voice channels of one server, and each can be muted on its own", async ({

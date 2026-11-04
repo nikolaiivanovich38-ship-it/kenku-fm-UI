@@ -98,3 +98,36 @@ describe("CaptureTargetRegistry.isCaptureRequest (SEC-3)", () => {
     expect(registry.isCaptureRequest(tab, "file:///")).toBe(false);
   });
 });
+
+describe("CaptureTargetRegistry.isCaptureRequest and files from the user's computer (WP1 review 2)", () => {
+  const packaged = "file:///C:/Program%20Files/Cue%20Desk/resources/app.asar/.webpack/renderer/audio_capture_window/index.html";
+
+  it("cannot tell a file: page from the packaged capture window, so file tabs never load from file:", () => {
+    const registry = new CaptureTargetRegistry();
+    registry.setCapturer(packaged);
+    const fileTab = fakeContents(5);
+    registry.allow(fileTab);
+    // Every file: page reports "file:///", like the capture window.
+    expect(registry.isCaptureRequest(fileTab, "file:///")).toBe(true);
+  });
+
+  it.each([
+    "cue-local-file://0123456789abcdef0123456789abcdef/",
+    "cue-local-file://0123456789abcdef0123456789abcdef",
+    "cue-local-file:///",
+  ])("refuses a captured file tab asking with its own origin %j", (origin) => {
+    const registry = new CaptureTargetRegistry();
+    registry.setCapturer(packaged);
+    const fileTab = fakeContents(5);
+    registry.allow(fileTab);
+    expect(registry.isCaptureRequest(fileTab, origin)).toBe(false);
+  });
+
+  it("never treats a capture window at a local-file address as the capturer", () => {
+    const registry = new CaptureTargetRegistry();
+    registry.setCapturer("cue-local-file://0123456789abcdef0123456789abcdef/capture.html");
+    const tab = fakeContents(5);
+    registry.allow(tab);
+    expect(registry.isCaptureRequest(tab, "cue-local-file://0123456789abcdef0123456789abcdef/")).toBe(false);
+  });
+});

@@ -1,9 +1,22 @@
 import { EventEmitter } from "events";
+import path from "path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BrowserViewManagerMain } from "./BrowserViewManagerMain";
 import { trustedContents } from "../security/trustedContents";
 import { LOCAL_FILE_PARTITION, TAB_PARTITION } from "../security/partitions";
 import { LocalFileFolders, type LocalFilePrompt, type PromptAnswer } from "../security/localFiles";
+import { LocalFileServer } from "../security/localFileServer";
+
+/**
+ * The files in these tests do not exist on the test machine: paths are taken
+ * as written, and any path containing "missing" does not exist.
+ */
+const fakeRealpath = (value: string) => {
+  if (value.includes("missing")) {
+    throw new Error("ENOENT");
+  }
+  return value;
+};
 import {
   fakeIpcMain,
   fakePage,
@@ -51,17 +64,6 @@ class FakeWebContents extends EventEmitter {
   destroy = vi.fn();
   reload = vi.fn();
   navigationHistory = { goBack: vi.fn(), goForward: vi.fn() };
-  debugger = {
-    attached: false,
-    isAttached: vi.fn(() => this.debugger.attached),
-    attach: vi.fn(() => {
-      this.debugger.attached = true;
-    }),
-    detach: vi.fn(() => {
-      this.debugger.attached = false;
-    }),
-    sendCommand: vi.fn().mockResolvedValue({}),
-  };
 }
 
 // SEC-15: the real folder list is saved with electron-store; tests pass their own.
@@ -104,17 +106,26 @@ function setup({
 }: { answer?: PromptAnswer; remembered?: string[] } = {}) {
   const window = fakeWindow();
   let saved = [...remembered];
-  const localFiles = new LocalFileFolders({
-    get: () => saved,
-    set: (folders) => {
-      saved = folders;
+  const localFiles = new LocalFileFolders(
+    {
+      get: () => saved,
+      set: (folders) => {
+        saved = folders;
+      },
     },
-  });
+    path.posix,
+    fakeRealpath,
+  );
   const askAboutFile = vi.fn(async (_prompt: LocalFilePrompt) => answer);
   const manager = new BrowserViewManagerMain(window as never, {
     localFiles,
     askAboutFile,
-    tabSleepMs: 1_000,
+    realpath: fakeRealpath,
+    fileServer: new LocalFileServer({
+      pathApi: path.posix,
+      fileSystem: { realpath: fakeRealpath, isFile: () => true },
+      windowsPaths: false,
+    }),
   });
   const mainWindow = fakePage("main-window");
   const create = (url: string, kind?: string) => {
@@ -383,8 +394,23 @@ describe("BrowserViewManagerMain: files from the user's computer (SEC-15)", () =
     expect(askAboutFile.mock.calls[0][0].detail).toContain("/home/gm/maps/index.html");
     expect(id).toBe(view?.webContents.id);
     expect(view?.options.webPreferences).toEqual({ partition: LOCAL_FILE_PARTITION });
-    expect(view?.webContents.loadURL).toHaveBeenCalledWith(file);
     expect(trustedContents.roleOf(view!.webContents)).toBeNull();
+  });
+
+  it("loads the file from its own scheme, never from file: (WP1 review 1 and 2)", async () => {
+    const { openFile } = setup({ answer: { response: 0, checkboxChecked: false } });
+    const { view } = await openFile(`${file}#room-3`);
+    expect(view?.webContents.loadURL).toHaveBeenCalledWith(
+      expect.stringMatching(/^cue-local-file:\/\/[0-9a-f]{32}\/index\.html#room-3$/),
+    );
+  });
+
+  it("says so when the file does not exist, without asking", async () => {
+    const { openFile, askAboutFile, window } = setup({ answer: { response: 0, checkboxChecked: false } });
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    expect((await openFile("file:///home/gm/maps/missing.html")).id).toBe(-1);
+    expect(askAboutFile).not.toHaveBeenCalled();
+    expect(sentErrors(window)).toEqual([["ERROR", expect.stringMatching(/could not be found/)]]);
   });
 
   it("opens nothing when the user says no", async () => {
@@ -442,10 +468,20 @@ describe("BrowserViewManagerMain: files from the user's computer (SEC-15)", () =
   it("tells the main window about the file tab's title and address", async () => {
     const { openFile, mainWindow } = setup({ answer: { response: 0, checkboxChecked: false } });
     const { id, view } = await openFile(file);
-    view!.webContents.emit("did-start-navigation", {}, file, false, true);
+    const loaded = view!.webContents.loadURL.mock.calls[0][0];
+    view!.webContents.emit("did-start-navigation", {}, `${loaded}#legend`, true, true);
     view!.webContents.emit("page-title-updated", {}, "Maps");
-    expect(mainWindow.send).toHaveBeenCalledWith("BROWSER_VIEW_DID_NAVIGATE", id, file);
+    // The address bar shows the file's own address, which bookmarks keep.
+    expect(mainWindow.send).toHaveBeenCalledWith("BROWSER_VIEW_DID_NAVIGATE", id, `${file}#legend`);
     expect(mainWindow.send).toHaveBeenCalledWith("BROWSER_VIEW_TITLE_UPDATED", id, "Maps");
+  });
+
+  it("does not pass a file's own icons to the main window", async () => {
+    const { openFile, mainWindow } = setup({ answer: { response: 0, checkboxChecked: false } });
+    const { view } = await openFile(file);
+    const loaded = view!.webContents.loadURL.mock.calls[0][0];
+    view!.webContents.emit("page-favicon-updated", {}, [new URL("icon.png", loaded).href, "file:///etc/x.png"]);
+    expect(mainWindow.send).not.toHaveBeenCalledWith("BROWSER_VIEW_FAVICON_UPDATED", expect.anything(), expect.anything());
   });
 
   it("lists and forgets remembered folders for Settings", async () => {
@@ -458,55 +494,5 @@ describe("BrowserViewManagerMain: files from the user's computer (SEC-15)", () =
     await expect(fakeIpcMain.invoke("LOCAL_FILES_FORGET_FOLDER", event, "/home/gm/maps")).resolves.toEqual([
       "/home/gm/music",
     ]);
-  });
-});
-
-describe("BrowserViewManagerMain: hidden tabs sleep (PERF-5)", () => {
-  const lifecycle = (view: { webContents: FakeWebContents }) =>
-    view.webContents.debugger.sendCommand.mock.calls
-      .filter(([method]) => method === "Emulation.setCPUThrottlingRate")
-      .map(([, params]) => ((params as { rate: number }).rate === 1 ? "awake" : "asleep"));
-
-  beforeEach(() => {
-    vi.useFakeTimers();
-    return () => vi.useRealTimers();
-  });
-
-  it("slows down a hidden, silent website tab and wakes it when shown", async () => {
-    const { create, send } = setup();
-    const { view, id } = create("https://example.com/");
-    send("BROWSER_VIEW_HIDE_BROWSER_VIEW", id);
-    await vi.advanceTimersByTimeAsync(1_000);
-    expect(lifecycle(view!)).toEqual(["asleep"]);
-    send("BROWSER_VIEW_SHOW_BROWSER_VIEW", id);
-    await vi.advanceTimersByTimeAsync(0);
-    expect(lifecycle(view!)).toEqual(["asleep", "awake"]);
-    expect(view!.webContents.debugger.detach).toHaveBeenCalled();
-  });
-
-  it("never slows down a hidden tab that is playing sound", async () => {
-    const { create, send } = setup();
-    const { view, id } = create("https://example.com/");
-    view!.webContents.emit("audio-state-changed", { audible: true });
-    send("BROWSER_VIEW_HIDE_BROWSER_VIEW", id);
-    await vi.advanceTimersByTimeAsync(60_000);
-    expect(lifecycle(view!)).toEqual([]);
-  });
-
-  it("never slows down the player", async () => {
-    const { create, send } = setup();
-    const { view, id } = create(PLAYER_URL, "player");
-    send("BROWSER_VIEW_HIDE_BROWSER_VIEW", id);
-    await vi.advanceTimersByTimeAsync(60_000);
-    expect(lifecycle(view!)).toEqual([]);
-  });
-
-  it("stops counting for a closed tab", async () => {
-    const { create, send } = setup();
-    const { view, id } = create("https://example.com/");
-    send("BROWSER_VIEW_HIDE_BROWSER_VIEW", id);
-    send("BROWSER_VIEW_REMOVE_BROWSER_VIEW", id);
-    await vi.advanceTimersByTimeAsync(60_000);
-    expect(lifecycle(view!)).toEqual([]);
   });
 });

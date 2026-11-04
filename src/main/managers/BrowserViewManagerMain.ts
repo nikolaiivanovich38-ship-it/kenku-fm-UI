@@ -17,14 +17,13 @@ import {
   LocalFileGate,
   type LocalFilePrompt,
   type PromptAnswer,
+  type Realpath,
 } from "../security/localFiles";
 import { localFileFolders } from "../security/localFileStore";
-import { sleepDelay, TabSleep } from "./tabSleep";
+import { sharedLocalFileServer, type LocalFileServer } from "../security/localFileServer";
 
 declare const PLAYER_WINDOW_WEBPACK_ENTRY: string;
 declare const PLAYER_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
-/** True only in packages built with CUE_DESK_E2E_BUILD=1 (webpack.main.config.js). */
-declare const __CUE_DESK_TEST_BUILD__: boolean;
 
 export { REFUSED_VIEW_ID };
 
@@ -32,9 +31,6 @@ export { REFUSED_VIEW_ID };
 function destroyContents(contents: Electron.WebContents) {
   (contents as unknown as { destroy(): void }).destroy();
 }
-
-/** PERF-5: a sleeping tab runs at a tenth of its normal speed. */
-const SLEEPING_TAB_SLOWDOWN = 10;
 
 /** Sends a message to the main window about a view (title, address, new tab…). */
 type Reply = (channel: string, ...args: unknown[]) => void;
@@ -44,8 +40,10 @@ export interface BrowserViewManagerOptions {
   localFiles?: LocalFileFolders;
   /** SEC-15: shows the "Open this file?" question; defaults to a dialog on the main window. */
   askAboutFile?: (prompt: LocalFilePrompt) => Promise<PromptAnswer>;
-  /** PERF-5: how long a hidden tab stays silent before it sleeps. */
-  tabSleepMs?: number;
+  /** Resolves links in file paths; tests pass their own. */
+  realpath?: Realpath;
+  /** Serves files to their tabs; defaults to the one the local-files session uses. */
+  fileServer?: LocalFileServer;
 }
 
 /**
@@ -65,8 +63,7 @@ export class BrowserViewManagerMain {
   private localFileViews = new Set<number>();
   private localFiles: LocalFileFolders;
   private fileGate: LocalFileGate;
-  /** PERF-5: hidden, silent tabs go to sleep. */
-  private tabSleep: TabSleep;
+  private fileServer: LocalFileServer;
   private destroyed = false;
 
   constructor(window: BrowserWindow, options: BrowserViewManagerOptions = {}) {
@@ -78,18 +75,10 @@ export class BrowserViewManagerMain {
       // SEC-15: the question is shown by the main process, on the main window,
       // so a page can never answer it.
       ask: options.askAboutFile ?? ((prompt) => dialog.showMessageBox(this.window, prompt)),
+      realpath: options.realpath,
+      onRefused: () => this._reportRefusedUrl("That file could not be found on this computer."),
     });
-    this.tabSleep = new TabSleep(
-      {
-        sleep: (id) => this._setAsleep(id, true),
-        wake: (id) => this._setAsleep(id, false),
-      },
-      options.tabSleepMs ??
-        sleepDelay(
-          process.env,
-          typeof __CUE_DESK_TEST_BUILD__ !== "undefined" && __CUE_DESK_TEST_BUILD__,
-        ),
-    );
+    this.fileServer = options.fileServer ?? sharedLocalFileServer();
 
     // SEC-8: only the main window's own page may manage views.
     this.ipc.on("BROWSER_VIEW_CREATE_BROWSER_VIEW", this._handleCreateBrowserView);
@@ -152,7 +141,9 @@ export class BrowserViewManagerMain {
    * SEC-15: the address bar or a bookmark asks for a file from the user's
    * computer. The main process checks the address, asks the user (unless the
    * file is in a remembered folder) and only then opens the file in a tab of
-   * its own, in the local-files partition.
+   * its own, in the local-files partition. WP1 review 1 and 2: the tab loads
+   * the file from the local-file scheme (localFileServer.ts), never from
+   * file:, and the main window is told the file's own address.
    * @returns the new view's id, or `REFUSED_VIEW_ID`
    */
   _handleOpenLocalFile = async (
@@ -182,37 +173,40 @@ export class BrowserViewManagerMain {
       onOpenWebPage: (webUrl) => this._openPopupAsTab(reply, id, webUrl),
     });
     this._addView(view, x, y, width, height);
-    this._watchView(id, reply);
-    this.tabSleep.track(id);
-    this._load(view, approved);
+    this._watchView(id, reply, {
+      shownAddress: (address) => this.fileServer.toFileAddress(address),
+    });
+    const { search, hash } = new URL(approved.url);
+    this._load(view, this.fileServer.addressOf(approved.filePath, `${search}${hash}`));
     return id;
   };
 
-  /** Pass the view's title, address, icon and media events on to the main window. */
-  _watchView(id: number, reply: Reply) {
+  /**
+   * Pass the view's title, address, icon and media events on to the main window.
+   * @param shownAddress for a file's tab: the address to show for the page's
+   *   own one (its file: address). A file's icons are not passed on: the main
+   *   window could not load them, and they would be the page's choice of file.
+   */
+  _watchView(id: number, reply: Reply, { shownAddress }: { shownAddress?: (address: string) => string | undefined } = {}) {
     const contents = this.views[id].webContents;
     contents.on("did-start-navigation", (_, url, __, isMainFrame) => {
       if (isMainFrame) {
-        reply("BROWSER_VIEW_DID_NAVIGATE", id, url);
+        reply("BROWSER_VIEW_DID_NAVIGATE", id, shownAddress ? (shownAddress(url) ?? "") : url);
       }
     });
     contents.on("page-title-updated", (_, title) => {
       reply("BROWSER_VIEW_TITLE_UPDATED", id, title);
     });
-    contents.on("page-favicon-updated", (_, favicons) => {
-      reply("BROWSER_VIEW_FAVICON_UPDATED", id, favicons);
-    });
+    if (!shownAddress) {
+      contents.on("page-favicon-updated", (_, favicons) => {
+        reply("BROWSER_VIEW_FAVICON_UPDATED", id, favicons);
+      });
+    }
     contents.on("media-started-playing", () => {
-      this.tabSleep.mediaStarted(id);
       reply("BROWSER_VIEW_MEDIA_STARTED_PLAYING", id);
     });
     contents.on("media-paused", () => {
-      this.tabSleep.mediaPaused(id);
       reply("BROWSER_VIEW_MEDIA_PAUSED", id);
-    });
-    // PERF-5: a tab making sound is never put to sleep.
-    contents.on("audio-state-changed", ({ audible }) => {
-      this.tabSleep.audible(id, audible);
     });
 
     let loaded = false;
@@ -244,34 +238,6 @@ export class BrowserViewManagerMain {
   /** Tell the user, in the main window, why a page was not opened. */
   _reportRefusedUrl(reason: string) {
     this.window.webContents.send("ERROR", `That page was not opened. ${reason}`);
-  }
-
-  /**
-   * PERF-5: slow a sleeping tab down, or wake it. A captured page cannot be
-   * frozen or hidden (Chromium keeps it visible for the capture), so its
-   * processor use is limited instead, with the same throttling Chromium's
-   * developer tools use. Timers still fire, slowly, so a page that starts a
-   * sound later still plays it, and wakes the moment it does.
-   */
-  async _setAsleep(id: number, asleep: boolean) {
-    const view = this.views[id];
-    if (!view || view.webContents.isDestroyed?.()) {
-      return;
-    }
-    const debug = view.webContents.debugger;
-    try {
-      if (!debug.isAttached()) {
-        debug.attach("1.3");
-      }
-      await debug.sendCommand("Emulation.setCPUThrottlingRate", {
-        rate: asleep ? SLEEPING_TAB_SLOWDOWN : 1,
-      });
-      if (!asleep && debug.isAttached()) {
-        debug.detach();
-      }
-    } catch (error) {
-      console.warn(`Could not ${asleep ? "put a tab to sleep" : "wake a tab"}: ${error}`);
-    }
   }
 
   _handleRemoveBrowserView = (_: Electron.IpcMainEvent, id: number) =>
@@ -356,7 +322,6 @@ export class BrowserViewManagerMain {
         this._openPopupAsTab(reply, id, popupUrl);
         return { action: "deny" };
       });
-      this.tabSleep.track(id);
     }
     this._addView(view, x, y, width, height);
     this._watchView(id, reply);
@@ -383,7 +348,6 @@ export class BrowserViewManagerMain {
   /** Stop tracking a view that is being closed. */
   _forgetView(id: number) {
     this.popupLimiter.forget(id);
-    this.tabSleep.forget(id);
     this.localFileViews.delete(id);
   }
 
@@ -417,7 +381,6 @@ export class BrowserViewManagerMain {
         this.topView = undefined;
       }
       this.window.contentView.removeChildView(this.views[id]);
-      this.tabSleep.hidden(id);
     }
   }
 
@@ -425,7 +388,6 @@ export class BrowserViewManagerMain {
     if (this.views[id]) {
       this.window.contentView.addChildView(this.views[id]);
       this.topView = this.views[id];
-      this.tabSleep.shown(id);
     }
   }
 
