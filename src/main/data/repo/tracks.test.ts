@@ -17,9 +17,9 @@ import {
 import { addRoot, listRoots, removeRoot, updateRoot } from "./roots";
 import { addMarker, deleteMarker, listMarkers, updateMarker } from "./markers";
 import { addTracksToPlaylist, createPlaylist, getPlaylist, listPlaylistItems } from "./playlists";
-import { addSoundsToBoard, createBoard } from "./boards";
+import { addPad, createBoard } from "./boards";
 import { createTag, listTagGroups, tagTracks, tagsOfTrack } from "./tags";
-import { addSceneItems, createCampaign, createScene, createSession } from "./campaigns";
+import { addSceneMusic, createCampaign, createScene, createSession, setSceneAmbience } from "./campaigns";
 
 let t: ReturnType<typeof makeTestStore>;
 beforeEach(() => {
@@ -88,7 +88,7 @@ describe("tracks live on their own (DAT-1)", () => {
     const b = createBoard(t.store, { title: "Ambience" });
     addTracksToPlaylist(t.store, p1.id, [track.id]);
     addTracksToPlaylist(t.store, p2.id, [track.id]);
-    addSoundsToBoard(t.store, b.id, [{ trackId: track.id, loop: true }]);
+    addPad(t.store, b.id, { label: "Tavern", mode: "toggle", sound: { kind: "single", trackIds: [track.id] } });
     updateTrack(t.store, track.id, { title: "Busy tavern" });
     expect(listPlaylistItems(t.store, p1.id)[0]).toMatchObject({ kind: "track", title: "Busy tavern" });
     expect(listPlaylistItems(t.store, p2.id)[0]).toMatchObject({ kind: "track", title: "Busy tavern" });
@@ -110,8 +110,13 @@ describe("tracks live on their own (DAT-1)", () => {
     const campaign = createCampaign(t.store, { name: "C" });
     const session = createSession(t.store, { campaignId: campaign.id, name: "S1" });
     const scene = createScene(t.store, { sessionId: session.id, name: "Docks" });
-    addSceneItems(t.store, scene.id, [{ trackId: a.id }]);
-    expect(trackUsage(t.store, a.id).scenes).toEqual([{ id: scene.id, name: "Docks" }]);
+    const quay = createScene(t.store, { sessionId: session.id, name: "Quay" });
+    addSceneMusic(t.store, scene.id, [{ kind: "track", id: a.id }]);
+    setSceneAmbience(t.store, quay.id, { kind: "track", id: a.id });
+    expect(trackUsage(t.store, a.id).scenes).toEqual([
+      { id: scene.id, name: "Docks" },
+      { id: quay.id, name: "Quay" },
+    ]);
 
     deleteTracks(t.store, [a.id]);
     expect(getTrack(t.store, a.id)).toBeNull();
@@ -200,10 +205,17 @@ describe("scoring metadata (DAT-2)", () => {
       ["arc", "explodes"],
       ["role", "Sting"],
       ["loopable", true],
+      ["loopable", "with_crossfade"],
+      ["kind", "voice"],
+      ["metaTitle", 3],
+      ["profile", { startMs: -5 }],
+      ["profile", { after: "rewind" }],
+      ["profile", { fadeIn: { ms: 100, shape: 101 } }],
+      ["profile", { markers: [{ atMs: 1 }] }],
+      ["profile", { speed: 2 }],
       ["rating", 0],
       ["transitionIn", { kind: "crossfade", seconds: -1, curve: "linear" }],
       ["transitionIn", { kind: "teleport" }],
-      ["title", "   "],
       ["notes", "a\u0000b"],
     ];
     for (const [field, value] of bad) {
@@ -236,7 +248,7 @@ describe("scoring metadata (DAT-2)", () => {
   it("lists tracks by title, filtered by tags (all of them must match)", () => {
     const groups = listTagGroups(t.store);
     const tense = createTag(t.store, { groupId: groups[0].id, name: "Tense!" });
-    const docks = createTag(t.store, { groupId: groups[3].id, name: "Docks" });
+    const docks = createTag(t.store, { groupId: groups[2].id, name: "Docks" });
     const [a, b] = createTracks(t.store, [
       { title: "beta", file: { path: "/m/b.mp3" } },
       { title: "Alpha", file: { path: "/m/a.mp3" } },
@@ -246,6 +258,40 @@ describe("scoring metadata (DAT-2)", () => {
     expect(listTracks(t.store).map((x) => x.title)).toEqual(["Alpha", "beta"]);
     expect(listTracks(t.store, { tagIds: [tense.id, docks.id] }).map((x) => x.title)).toEqual(["beta"]);
     expect(listTracks(t.store, { limit: 1, offset: 1 }).map((x) => x.title)).toEqual(["beta"]);
+  });
+});
+
+describe("design fields (DAT-11): kind, three names, role, loop advice, audio profile", () => {
+  it("keeps the game master's title (may be empty), the file-tag title and the file name", () => {
+    const fresh = createTrack(t.store, { kind: "amb", metaTitle: "Far Horizons", file: { path: "/m/1-05 Far Horizons.flac" } });
+    expect(fresh).toMatchObject({ kind: "amb", title: "", metaTitle: "Far Horizons", fileName: "1-05 Far Horizons.flac", profile: null });
+    expect(createTrack(t.store, { file: { path: "/m/x.wav" } })).toMatchObject({ kind: "music", title: "", metaTitle: "" });
+    expect(updateTrack(t.store, fresh.id, { title: "  Open road  " }).title).toBe("Open road");
+    expect(updateTrack(t.store, fresh.id, { title: "" }).title).toBe("");
+    // Untitled tracks sort by the name shown for them.
+    createTrack(t.store, { title: "Zither", file: { path: "/m/z.wav" } });
+    expect(listTracks(t.store).map((x) => x.title || x.metaTitle || x.fileName)).toEqual(["Far Horizons", "x.wav", "Zither"]);
+  });
+
+  it("takes every role of the design, loop advice yes/crossfade/no, and its own audio profile", () => {
+    const track = createTrack(t.store, { kind: "fx", title: "Sword", file: { path: "/fx/sword.wav" }, role: "effect", loopable: "crossfade" });
+    expect(track).toMatchObject({ role: "effect", loopable: "crossfade" });
+    for (const role of ["loop_bed", "underscore", "sting", "transition", "effect"] as const) {
+      expect(updateTrack(t.store, track.id, { role }).role).toBe(role);
+    }
+    const profile = {
+      startMs: 8000,
+      endMs: 412_000,
+      after: "next" as const,
+      loopStartMs: 8000,
+      fadeIn: { ms: 3000, shape: 30 },
+      fadeOut: { ms: 6000, shape: 65 },
+      markers: [{ atMs: 140_000, label: "Builds" }],
+    };
+    expect(updateTrack(t.store, track.id, { profile }).profile).toEqual(profile);
+    // Fields left out take the defaults when played (see resolveProfile).
+    expect(updateTrack(t.store, track.id, { profile: { endMs: 1000 } }).profile).toEqual({ endMs: 1000 });
+    expect(updateTrack(t.store, track.id, { profile: null }).profile).toBeNull();
   });
 });
 

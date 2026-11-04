@@ -28,6 +28,12 @@ export type Migration = {
 export type MigrationContext = {
   /** Current time in milliseconds, for rows a step creates. */
   now: number;
+  /**
+   * The version the database had before this upgrade began: 0 for a new,
+   * empty library. Lets a step tell a new library (where it may tidy up what
+   * earlier steps offered) from one the game master has been using.
+   */
+  startVersion: number;
 };
 
 export type MigrationResult = {
@@ -127,7 +133,7 @@ export function migrate(
     for (const migration of migrations.slice(from)) {
       db.exec("BEGIN IMMEDIATE");
       try {
-        migration.up(db, { now: clock() });
+        migration.up(db, { now: clock(), startVersion: from });
         const broken = db.prepare("PRAGMA foreign_key_check").all();
         if (broken.length > 0) {
           throw new Error(`${broken.length} row(s) would point at rows that do not exist.`);

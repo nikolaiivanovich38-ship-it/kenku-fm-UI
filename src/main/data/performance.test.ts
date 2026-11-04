@@ -4,7 +4,9 @@
  * - opening the database (version check, undo set-up; the integrity check starts on a
  *   worker thread) under 200 ms; the blocking check and the background check are timed too;
  * - a search under 50 ms;
- * - a single edit under 5 ms.
+ * - a single edit under 5 ms;
+ * - loading a campaign tree (50 sessions of 8 scenes) as domain objects under 50 ms, and reading the
+ *   whole library for a dynamic playlist under 500 ms (DAT-11; about 5 ms and 130 ms here).
  *
  * Each figure is the median of several runs, so one slow moment on a busy
  * machine does not fail the test. Skip on slow CI with CUE_DESK_SKIP_PERF=1.
@@ -19,6 +21,9 @@ import { getTrack, updateTrack } from "./repo/tracks";
 import { listPlaylists, listPlaylistItems, addTracksToPlaylist, movePlaylistItems } from "./repo/playlists";
 import { listTags, tagTracks } from "./repo/tags";
 import { generateLibrary } from "./test/generateLibrary";
+import { generateCampaign } from "./test/generateCampaign";
+import { getDomainCampaign, getDomainLookup } from "./repo/domain";
+import { playlistTracks, sceneSequence, usesOfPlaylist } from "../../common/domain";
 import { makeTempFolder } from "./test/helpers";
 
 const TRACKS = 20_000;
@@ -138,6 +143,33 @@ describe.skipIf(process.env.CUE_DESK_SKIP_PERF === "1")("performance with 20,000
     });
     results["edit and undo ms"] = ms;
     expect(ms).toBeLessThan(5);
+  });
+
+  it("loads a campaign of 50 sessions with 8 scenes each in under 50 ms", () => {
+    const store = library.store;
+    const { campaignId, playlistIds } = generateCampaign(library, { sessions: 50, scenesPerSession: 8, trackIds });
+    const tree = getDomainCampaign(store, campaignId)!;
+    expect(tree.sessions).toHaveLength(50);
+    expect(tree.sessions.every((s) => s.scenes.length === 8)).toBe(true);
+    const ms = measure(7, () => getDomainCampaign(store, campaignId));
+    results["campaign tree ms"] = ms;
+    expect(ms).toBeLessThan(50);
+    // The shared rules on the loaded tree stay quick too.
+    results["usesOfPlaylist on the tree ms"] = measure(7, () => usesOfPlaylist(playlistIds[0], [tree]));
+    const lookup = getDomainLookup(store);
+    results["scene sequence ms"] = measure(7, () => sceneSequence(tree.sessions[10].scenes[3], lookup));
+  });
+
+  it("evaluates a dynamic playlist over the whole library in under 500 ms", () => {
+    const store = library.store;
+    const mood = listTags(store)[0];
+    const rule = { conds: [{ group: mood.groupId, match: "any" as const, values: [mood.name] }], energy: [2, 4] as [number, number] };
+    const ms = measure(5, () => {
+      const lookup = getDomainLookup(store);
+      playlistTracks({ id: "x", name: "x", lane: "music", kind: "dynamic", rule }, lookup);
+    });
+    results["dynamic playlist over 20,000 tracks ms"] = ms;
+    expect(ms).toBeLessThan(500);
   });
 
   it("backs up the large library", () => {

@@ -31,15 +31,23 @@ export type OrderedList = {
   table: string;
   scope: string;
   params: SQLInputValue[];
+  /**
+   * The column naming a row within the list (default "id"). Membership lists
+   * such as a campaign's playlists name rows by what they hold ("playlist_id").
+   */
+  idColumn?: string;
 };
 
+const idOf = (list: OrderedList) => list.idColumn ?? "id";
+
 function rebalance(store: Store, list: OrderedList) {
+  const id = idOf(list);
   const rows = store.all<{ id: string }>(
-    `SELECT id FROM ${list.table} WHERE ${list.scope} ORDER BY position, rowid`,
+    `SELECT ${id} AS id FROM ${list.table} WHERE ${list.scope} ORDER BY position, rowid`,
     ...list.params,
   );
   rows.forEach((row, index) => {
-    store.run(`UPDATE ${list.table} SET position = ? WHERE id = ?`, (index + 1) * GAP, row.id);
+    store.run(`UPDATE ${list.table} SET position = ? WHERE ${id} = ? AND ${list.scope}`, (index + 1) * GAP, row.id, ...list.params);
   });
 }
 
@@ -49,7 +57,8 @@ function neighbours(
   placement: Placement,
   moving: readonly string[],
 ): [number | null, number | null] {
-  const exclude = moving.length === 0 ? "" : ` AND id NOT IN (${moving.map(() => "?").join(", ")})`;
+  const id = idOf(list);
+  const exclude = moving.length === 0 ? "" : ` AND ${id} NOT IN (${moving.map(() => "?").join(", ")})`;
   const edge = (direction: "ASC" | "DESC") =>
     store.get<{ position: number }>(
       `SELECT position FROM ${list.table} WHERE ${list.scope}${exclude} ORDER BY position ${direction} LIMIT 1`,
@@ -62,7 +71,7 @@ function neighbours(
   const anchorId = "before" in placement ? placement.before : placement.after;
   if (moving.includes(anchorId)) throw new ValidationError("placement", "An item cannot be placed next to itself.");
   const anchor = store.get<{ position: number }>(
-    `SELECT position FROM ${list.table} WHERE id = ? AND ${list.scope}`,
+    `SELECT position FROM ${list.table} WHERE ${id} = ? AND ${list.scope}`,
     anchorId,
     ...list.params,
   );

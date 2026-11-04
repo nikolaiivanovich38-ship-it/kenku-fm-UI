@@ -1,0 +1,83 @@
+/**
+ * Audio profile overrides (PLY-12 data, DAT-11): a track can sound different
+ * inside one playlist or in one scene. Stored per place, handed out keyed by
+ * placeKey (src/common/domain) so resolveProfile can use them directly.
+ */
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { placeKey, type ProfilePlace } from "../../../common/domain";
+import { ValidationError } from "../errors";
+import { makeTestStore } from "../test/testStore";
+import { createTracks, deleteTracks } from "./tracks";
+import { createPlaylist, deletePlaylist } from "./playlists";
+import { createCampaign, createScene, createSession, deleteScene, moveScene } from "./campaigns";
+import { clearProfileOverride, getProfileOverride, getProfileOverrides, setProfileOverride } from "./profiles";
+
+let t: ReturnType<typeof makeTestStore>;
+beforeEach(() => {
+  t = makeTestStore();
+});
+afterEach(() => t.close());
+
+function sample() {
+  const [bed, other] = createTracks(t.store, [
+    { title: "Eerie bed", file: { path: "/m/eerie.flac" }, durationMs: 441_000 },
+    { title: "Bells", file: { path: "/m/bells.flac" } },
+  ]);
+  const playlist = createPlaylist(t.store, { title: "Abbey" });
+  const campaign = createCampaign(t.store, { name: "Crown" });
+  const session = createSession(t.store, { campaignId: campaign.id, name: "Abbey" });
+  const scene = createScene(t.store, { sessionId: session.id, name: "Ruins" });
+  const inPlaylist: ProfilePlace = { kind: "playlist", playlistId: playlist.id };
+  const inScene: ProfilePlace = { kind: "scene", campaignId: campaign.id, sessionId: session.id, sceneId: scene.id };
+  return { bed, other, playlist, campaign, session, scene, inPlaylist, inScene };
+}
+
+describe("audio profile overrides", () => {
+  it("sets, replaces and clears an override per playlist and per scene", () => {
+    const s = sample();
+    const sceneProfile = { endMs: 190_000, after: "next" as const, fadeOut: { ms: 8000, shape: 30 } };
+    setProfileOverride(t.store, s.inScene, s.bed.id, sceneProfile);
+    setProfileOverride(t.store, s.inPlaylist, s.bed.id, { endMs: 300_000 });
+    setProfileOverride(t.store, s.inPlaylist, s.bed.id, { endMs: 250_000 }); // replaces
+    setProfileOverride(t.store, s.inPlaylist, s.other.id, {});
+    expect(getProfileOverride(t.store, s.inScene, s.bed.id)).toEqual(sceneProfile);
+    expect(getProfileOverrides(t.store)).toEqual({
+      [placeKey(s.inPlaylist)]: { [s.bed.id]: { endMs: 250_000 }, [s.other.id]: {} },
+      [placeKey(s.inScene)]: { [s.bed.id]: sceneProfile },
+    });
+    expect(getProfileOverrides(t.store, { trackId: s.other.id })).toEqual({ [placeKey(s.inPlaylist)]: { [s.other.id]: {} } });
+    clearProfileOverride(t.store, s.inPlaylist, s.bed.id);
+    expect(getProfileOverride(t.store, s.inPlaylist, s.bed.id)).toBeNull();
+    expect(() => clearProfileOverride(t.store, s.inPlaylist, s.bed.id)).toThrow(/No audio profile/);
+  });
+
+  it("checks the profile and the place", () => {
+    const s = sample();
+    expect(() => setProfileOverride(t.store, s.inScene, s.bed.id, { loopCrossfadeMs: 1.5 })).toThrow(ValidationError);
+    expect(() => setProfileOverride(t.store, s.inScene, s.bed.id, { markers: "none" } as never)).toThrow(ValidationError);
+    expect(() => setProfileOverride(t.store, { kind: "playlist", playlistId: "missing" }, s.bed.id, {})).toThrow(/No playlist/);
+    expect(() => setProfileOverride(t.store, s.inPlaylist, "missing", {})).toThrow(/No track/);
+    // The scene must be in that session of that campaign.
+    const otherSession = createSession(t.store, { campaignId: s.campaign.id, name: "Other" });
+    expect(() => setProfileOverride(t.store, { ...s.inScene, sessionId: otherSession.id } as ProfilePlace, s.bed.id, {})).toThrow(
+      /not in that session/,
+    );
+    expect(() => setProfileOverride(t.store, { kind: "room" } as never, s.bed.id, {})).toThrow(ValidationError);
+  });
+
+  it("goes with its scene when the scene moves, and goes away with the scene, playlist or track", () => {
+    const s = sample();
+    setProfileOverride(t.store, s.inScene, s.bed.id, { endMs: 1000 });
+    setProfileOverride(t.store, s.inPlaylist, s.bed.id, { endMs: 2000 });
+    setProfileOverride(t.store, s.inPlaylist, s.other.id, { endMs: 3000 });
+    const later = createSession(t.store, { campaignId: s.campaign.id, name: "Later" });
+    moveScene(t.store, s.scene.id, { sessionId: later.id, placement: "end" });
+    const moved = placeKey({ kind: "scene", campaignId: s.campaign.id, sessionId: later.id, sceneId: s.scene.id });
+    expect(Object.keys(getProfileOverrides(t.store))).toEqual([placeKey(s.inPlaylist), moved]);
+    deleteScene(t.store, s.scene.id);
+    deleteTracks(t.store, [s.other.id]);
+    expect(getProfileOverrides(t.store)).toEqual({ [placeKey(s.inPlaylist)]: { [s.bed.id]: { endMs: 2000 } } });
+    deletePlaylist(t.store, s.playlist.id);
+    expect(getProfileOverrides(t.store)).toEqual({});
+  });
+});

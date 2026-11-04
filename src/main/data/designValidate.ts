@@ -1,0 +1,90 @@
+/**
+ * Checks for the design's values that are stored as JSON (DAT-11): audio
+ * profiles (tracks.profile, profile_overrides.profile) and dynamic playlist
+ * rules (playlists.rule). Like validate.ts, nothing is trusted: unknown keys
+ * are refused, and the clean value keeps only what was given, because a
+ * missing profile field means "use the default" (resolveProfile in src/common/domain).
+ */
+import type { AudioProfileInput, Fade, PlaylistRule, TagCondition } from "../../common/domain";
+import { ValidationError } from "./errors";
+import * as v from "./validate";
+
+const PROFILE_KEYS = ["startMs", "endMs", "after", "loopStartMs", "loopCrossfadeMs", "fadeIn", "fadeOut", "markers"] as const;
+const AFTER_END = ["loop", "next", "stop"] as const;
+const MATCHES = ["any", "all", "none"] as const;
+/** Generous limits that keep one profile or rule small. */
+const MAX_MARKERS = 500;
+const MAX_CONDITIONS = 50;
+const MAX_VALUES = 200;
+
+function onlyKeys(field: string, input: Record<string, unknown>, allowed: readonly string[]) {
+  for (const key of Object.keys(input)) {
+    if (!allowed.includes(key)) throw new ValidationError(`${field}.${key}`, `${field} has no setting called "${key}".`);
+  }
+}
+
+function list(field: string, value: unknown, max: number): unknown[] {
+  if (!Array.isArray(value)) throw new ValidationError(field, `${field} must be a list.`);
+  if (value.length > max) throw new ValidationError(field, `${field} can hold at most ${max} entries.`);
+  return value;
+}
+
+function fade(field: string, value: unknown): Fade {
+  const input = v.record(field, value);
+  onlyKeys(field, input, ["ms", "shape"]);
+  return { ms: v.milliseconds(`${field}.ms`, input.ms), shape: v.numberInRange(`${field}.shape`, input.shape, 0, 100) };
+}
+
+/** A checked audio profile: only the given fields, each in range. */
+export function cleanProfile(field: string, value: unknown): AudioProfileInput {
+  const input = v.record(field, value);
+  onlyKeys(field, input, PROFILE_KEYS);
+  const clean: AudioProfileInput = {};
+  for (const key of ["startMs", "endMs", "loopStartMs", "loopCrossfadeMs"] as const) {
+    if (input[key] !== undefined) clean[key] = v.milliseconds(`${field}.${key}`, input[key]);
+  }
+  if (input.after !== undefined) clean.after = v.oneOf(`${field}.after`, input.after, AFTER_END);
+  if (input.fadeIn !== undefined) clean.fadeIn = fade(`${field}.fadeIn`, input.fadeIn);
+  if (input.fadeOut !== undefined) clean.fadeOut = fade(`${field}.fadeOut`, input.fadeOut);
+  if (input.markers !== undefined) {
+    clean.markers = list(`${field}.markers`, input.markers, MAX_MARKERS).map((marker, index) => {
+      const m = v.record(`${field}.markers[${index}]`, marker);
+      onlyKeys(`${field}.markers[${index}]`, m, ["atMs", "label"]);
+      if (typeof m.label !== "string") throw new ValidationError(`${field}.markers[${index}].label`, "A marker needs a label (it may be empty).");
+      return { atMs: v.milliseconds(`${field}.markers[${index}].atMs`, m.atMs), label: v.optionalText("label", m.label, v.MAX_NAME_LENGTH) };
+    });
+  }
+  return clean;
+}
+
+/** A checked dynamic playlist rule. Tag groups are checked by the caller (they live in the database). */
+export function cleanRule(field: string, value: unknown): PlaylistRule {
+  const input = v.record(field, value);
+  onlyKeys(field, input, ["conds", "energy", "leaveOutStings"]);
+  const conds: TagCondition[] = list(`${field}.conds`, input.conds, MAX_CONDITIONS).map((cond, index) => {
+    const name = `${field}.conds[${index}]`;
+    const c = v.record(name, cond);
+    onlyKeys(name, c, ["group", "match", "values"]);
+    return {
+      group: v.id(`${name}.group`, c.group),
+      match: v.oneOf(`${name}.match`, c.match, MATCHES),
+      values: list(`${name}.values`, c.values, MAX_VALUES).map((tag, i) => v.requiredName(`${name}.values[${i}]`, tag)),
+    };
+  });
+  const rule: PlaylistRule = { conds };
+  if (input.energy !== undefined) {
+    const range = list(`${field}.energy`, input.energy, 2);
+    if (range.length !== 2) throw new ValidationError(`${field}.energy`, "The energy range needs a lowest and a highest value.");
+    const low = v.integer(`${field}.energy`, range[0], 0, 5);
+    const high = v.integer(`${field}.energy`, range[1], 0, 5);
+    if (low > high) throw new ValidationError(`${field}.energy`, "The lowest energy cannot be above the highest.");
+    rule.energy = [low, high];
+  }
+  if (input.leaveOutStings !== undefined) rule.leaveOutStings = v.boolean(`${field}.leaveOutStings`, input.leaveOutStings);
+  return rule;
+}
+
+/** Reads stored JSON written by the functions above. */
+export function parseJson<T>(text: string | null): T | null {
+  return text === null ? null : (JSON.parse(text) as T);
+}

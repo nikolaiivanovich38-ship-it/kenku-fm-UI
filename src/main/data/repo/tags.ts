@@ -10,6 +10,7 @@ import type { Store } from "../store";
 import type { Placement, Tag, TagGroup } from "../types";
 import * as v from "../validate";
 import { newId, patchOf, placeholders, plural, requireRow, unique } from "./common";
+import { dropRuleGroup, renameRuleTag } from "./ruleTags";
 
 type GroupRow = { id: string; name: string; color: string | null; position: number };
 type TagRow = {
@@ -106,10 +107,13 @@ export function moveTagGroup(store: Store, id: string, placement: Placement): vo
   );
 }
 
-/** Deletes a group and its tags; every track loses those tags (one undoable step). */
+/** Deletes a group and its tags; every track loses those tags, and dynamic rules their conditions on it (one undoable step). */
 export function deleteTagGroup(store: Store, id: string): void {
   const group = getTagGroup(store, requireRow(store, "tag_groups", "tag group", id)) as TagGroup;
-  store.change(`Delete tag group "${group.name}"`, () => store.run("DELETE FROM tag_groups WHERE id = ?", group.id));
+  store.change(`Delete tag group "${group.name}"`, () => {
+    dropRuleGroup(store, group.id);
+    store.run("DELETE FROM tag_groups WHERE id = ?", group.id);
+  });
 }
 
 // --- Tags ---
@@ -228,6 +232,12 @@ export function updateTag(
     "parentId" in patch ? checkParent(store, patch.parentId, groupId, tag.id) : groupChanges ? null : tag.parentId;
   store.change(`Change tag "${tag.name}"`, () =>
     unique("name", `A tag called "${name ?? tag.name}" in this group`, () => {
+      // Dynamic rules name tags: a rename follows; a move to another group takes them out of the old group's conditions.
+      if (groupChanges) {
+        for (const sub of subtreeIds(store, tag.id)) renameRuleTag(store, tag.groupId, (getTag(store, sub) as Tag).name, null);
+      } else if (name !== undefined && name !== tag.name) {
+        renameRuleTag(store, tag.groupId, tag.name, name);
+      }
       if (name !== undefined) store.run("UPDATE tags SET name = ? WHERE id = ?", name, tag.id);
       if (color !== undefined) store.run("UPDATE tags SET color = ? WHERE id = ?", color, tag.id);
       if (groupChanges) {
@@ -248,10 +258,13 @@ export function moveTag(store: Store, id: string, placement: Placement): void {
   );
 }
 
-/** Deletes a tag; tracks lose it and tags below it move to the top of the group. */
+/** Deletes a tag; tracks and dynamic rules lose it, and tags below it move to the top of the group. */
 export function deleteTag(store: Store, id: string): void {
   const tag = getTag(store, requireRow(store, "tags", "tag", id)) as Tag;
-  store.change(`Delete tag "${tag.name}"`, () => store.run("DELETE FROM tags WHERE id = ?", tag.id));
+  store.change(`Delete tag "${tag.name}"`, () => {
+    renameRuleTag(store, tag.groupId, tag.name, null);
+    store.run("DELETE FROM tags WHERE id = ?", tag.id);
+  });
 }
 
 export function setTagSynonyms(store: Store, id: string, synonyms: string[]): Tag {
@@ -276,6 +289,7 @@ export function mergeTags(store: Store, sourceIds: string[], targetId: string): 
   }
   store.change(`Merge ${plural(sources.length, "tag")} into "${target.name}"`, () => {
     for (const source of sources) {
+      renameRuleTag(store, source.groupId, source.name, source.groupId === target.groupId ? target.name : null);
       store.run(
         "INSERT OR IGNORE INTO track_tags (track_id, tag_id) SELECT track_id, ? FROM track_tags WHERE tag_id = ?",
         target.id,

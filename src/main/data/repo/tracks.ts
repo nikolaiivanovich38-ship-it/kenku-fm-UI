@@ -1,17 +1,21 @@
 /**
- * Tracks (DAT-1, DAT-2): every audio file exists once in the library;
- * playlists, boards and scenes refer to it.
+ * Tracks (DAT-1, DAT-2, DAT-11): every audio file exists once in the library;
+ * playlists, pads and scenes refer to it. A track has a kind (music, ambience,
+ * effect), up to three names (the game master's title, which may be empty, the
+ * title in the file's tags, and the file name) and may have its own audio profile.
  */
 import { NotFoundError, ValidationError } from "../errors";
 import { GAP } from "../ordering";
 import { fileNameOf, findRoot, isAbsolutePath, joinRoot } from "../paths";
 import type { SQLInputValue } from "../sqlite";
 import type { Store } from "../store";
+import { cleanProfile, parseJson } from "../designValidate";
 import {
   ARCS,
   ENDINGS,
   LOOPABLE,
   ROLES,
+  TRACK_KINDS,
   type FileFacts,
   type Track,
   type TrackInput,
@@ -25,7 +29,10 @@ import { listRoots } from "./roots";
 
 type TrackRow = {
   id: string;
+  kind: string;
   title: string;
+  meta_title: string;
+  profile: string | null;
   root_id: string | null;
   path: string | null;
   url: string | null;
@@ -61,7 +68,10 @@ function toTrack(row: TrackRow): Track {
         : { kind: "absolute", path: row.path as string };
   return {
     id: row.id,
+    kind: row.kind as Track["kind"],
     title: row.title,
+    metaTitle: row.meta_title,
+    profile: parseJson(row.profile),
     location,
     fileName: row.file_name,
     fileSize: row.file_size,
@@ -115,7 +125,11 @@ function transitionJson(field: string, value: unknown): string | null {
 function metadataColumns(input: Record<string, unknown>): Record<string, SQLInputValue> {
   const columns: Record<string, SQLInputValue> = {};
   const has = (key: string) => key in input;
-  if (has("title")) columns.title = v.requiredName("title", input.title);
+  // The game master's title may be empty: a new track shows its file-tag title until given one.
+  if (has("title")) columns.title = v.nullableText("title", input.title) ?? "";
+  if (has("metaTitle")) columns.meta_title = v.nullableText("metaTitle", input.metaTitle) ?? "";
+  if (has("kind")) columns.kind = v.oneOf("kind", input.kind, TRACK_KINDS);
+  if (has("profile")) columns.profile = input.profile === null ? null : JSON.stringify(cleanProfile("profile", input.profile));
   if (has("energy")) columns.energy = v.nullableInteger("energy", input.energy, 1, 5);
   if (has("arc")) columns.arc = v.nullableOneOf("arc", input.arc, ARCS);
   if (has("role")) columns.role = v.nullableOneOf("role", input.role, ROLES);
@@ -176,9 +190,9 @@ function locationColumns(
 function insertTrack(store: Store, roots: { id: string; path: string }[], input: TrackInput): string {
   const record = v.record("track", input);
   const id = newId(record.id);
-  if (!("title" in record)) throw new ValidationError("title", "title cannot be empty.");
   const columns: Record<string, SQLInputValue> = {
     id,
+    title: "",
     ...metadataColumns(record),
     ...locationColumns(roots, record as { file?: FileFacts; url?: string }),
     created_at: store.now(),
@@ -218,7 +232,10 @@ export type TrackListOptions = {
   offset?: number;
 };
 
-/** Tracks in title order. */
+/** The name a track is shown by: its title, else its file-tag title, else its file name. */
+export const SHOWN_TITLE_SQL = "coalesce(nullif(title, ''), nullif(meta_title, ''), file_name)";
+
+/** Tracks in order of the name they are shown by. */
 export function listTracks(store: Store, options: TrackListOptions = {}): Track[] {
   const tagIds = options.tagIds === undefined ? [] : v.ids("tagIds", options.tagIds);
   const limit = options.limit === undefined ? -1 : v.integer("limit", options.limit, 0, 1_000_000);
@@ -230,7 +247,7 @@ export function listTracks(store: Store, options: TrackListOptions = {}): Track[
            GROUP BY track_id HAVING count(*) = ${tagIds.length})`;
   return store
     .all<TrackRow>(
-      `SELECT * FROM tracks ${filter} ORDER BY title COLLATE NOCASE, id LIMIT ? OFFSET ?`,
+      `SELECT * FROM tracks ${filter} ORDER BY ${SHOWN_TITLE_SQL} COLLATE NOCASE, id LIMIT ? OFFSET ?`,
       ...tagIds,
       limit,
       offset,
@@ -240,6 +257,9 @@ export function listTracks(store: Store, options: TrackListOptions = {}): Track[
 
 const PATCHABLE = [
   "title",
+  "metaTitle",
+  "kind",
+  "profile",
   "file",
   "url",
   "durationMs",
@@ -289,13 +309,14 @@ export function trackUsage(store: Store, id: string): TrackUsage {
       id,
     ),
     boards: store.all<{ id: string; title: string }>(
-      `SELECT DISTINCT b.id, b.title FROM boards b JOIN board_items i ON i.board_id = b.id
-       WHERE i.track_id = ? ORDER BY b.title COLLATE NOCASE`,
+      `SELECT DISTINCT b.id, b.title FROM boards b JOIN pads p ON p.board_id = b.id JOIN pad_sounds s ON s.pad_id = p.id
+       WHERE s.track_id = ? ORDER BY b.title COLLATE NOCASE`,
       id,
     ),
     scenes: store.all<{ id: string; name: string }>(
-      `SELECT DISTINCT s.id, s.name FROM scenes s JOIN scene_items i ON i.scene_id = s.id
-       WHERE i.track_id = ? ORDER BY s.name COLLATE NOCASE`,
+      `SELECT s.id, s.name FROM scenes s WHERE s.id IN
+         (SELECT scene_id FROM scene_music WHERE track_id = ?1 UNION SELECT scene_id FROM scene_ambience WHERE track_id = ?1)
+       ORDER BY s.name COLLATE NOCASE`,
       id,
     ),
   };

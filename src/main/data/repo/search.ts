@@ -75,7 +75,9 @@ export function search(store: Store, text: string, options: SearchOptions = {}):
     params.push(v.id("playlistId", options.playlistId));
   }
   if (options.boardId !== undefined) {
-    where.push("d.kind = 'track' AND d.ref_id IN (SELECT track_id FROM board_items WHERE board_id = ?)");
+    where.push(
+      "d.kind = 'track' AND d.ref_id IN (SELECT s.track_id FROM pad_sounds s JOIN pads p ON p.id = s.pad_id WHERE p.board_id = ?)",
+    );
     params.push(v.id("boardId", options.boardId));
   }
   return store

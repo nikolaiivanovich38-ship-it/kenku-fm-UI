@@ -85,12 +85,12 @@ describe("opening the library (DAT-6)", () => {
   it("backs the library up before upgrading it to a new version", () => {
     openTracked().close();
     open = [];
-    const later: Migration = { version: MIGRATIONS.length + 1, name: "later", up: (db) => db.exec("CREATE TABLE pads (id TEXT PRIMARY KEY)") };
+    const later: Migration = { version: MIGRATIONS.length + 1, name: "later", up: (db) => db.exec("CREATE TABLE pad_actions (id TEXT PRIMARY KEY)") };
     const library = openTracked({ migrations: [...MIGRATIONS, later] });
     expect(library.schemaVersion).toBe(MIGRATIONS.length + 1);
     const backups = listBackups(library.backupFolder);
     expect(backups.map((b) => b.kind)).toEqual(["upgrade"]);
-    expect(path.basename(backups[0].path)).toMatch(/^library-upgrade-v1-/);
+    expect(path.basename(backups[0].path)).toMatch(new RegExp(`^library-upgrade-v${MIGRATIONS.length}-`));
   });
 
   it("reports a damaged file clearly and offers the newest backup (check before opening)", () => {
