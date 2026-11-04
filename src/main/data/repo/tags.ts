@@ -5,11 +5,12 @@
  * track in one undoable step, and the search index follows by itself.
  */
 import { ValidationError } from "../errors";
-import { positionFor, type OrderedList } from "../ordering";
+import { positionFor, positionsFor, type OrderedList } from "../ordering";
 import type { Store } from "../store";
 import type { Placement, Tag, TagGroup } from "../types";
 import * as v from "../validate";
 import { newId, patchOf, placeholders, plural, requireRow, unique } from "./common";
+import { dropRuleTags, mergeRuleTag } from "./ruleRows";
 
 type GroupRow = { id: string; name: string; color: string | null; position: number };
 type TagRow = {
@@ -106,7 +107,10 @@ export function moveTagGroup(store: Store, id: string, placement: Placement): vo
   );
 }
 
-/** Deletes a group and its tags; every track loses those tags (one undoable step). */
+/**
+ * Deletes a group and its tags in one undoable step: every track loses those
+ * tags and dynamic rules their conditions on the group (ON DELETE CASCADE).
+ */
 export function deleteTagGroup(store: Store, id: string): void {
   const group = getTagGroup(store, requireRow(store, "tag_groups", "tag group", id)) as TagGroup;
   store.change(`Delete tag group "${group.name}"`, () => store.run("DELETE FROM tag_groups WHERE id = ?", group.id));
@@ -228,12 +232,16 @@ export function updateTag(
     "parentId" in patch ? checkParent(store, patch.parentId, groupId, tag.id) : groupChanges ? null : tag.parentId;
   store.change(`Change tag "${tag.name}"`, () =>
     unique("name", `A tag called "${name ?? tag.name}" in this group`, () => {
+      // Rules name tags by key, so a rename needs nothing; a tag moving to another group
+      // leaves its old group's conditions (rule_condition_tags' key ties a value to the group).
+      if (groupChanges) dropRuleTags(store, subtreeIds(store, tag.id));
       if (name !== undefined) store.run("UPDATE tags SET name = ? WHERE id = ?", name, tag.id);
       if (color !== undefined) store.run("UPDATE tags SET color = ? WHERE id = ?", color, tag.id);
       if (groupChanges) {
-        const position = positionFor(store, tagsIn(groupId), "end");
-        for (const subId of subtreeIds(store, tag.id)) store.run("UPDATE tags SET group_id = ? WHERE id = ?", groupId, subId);
-        store.run("UPDATE tags SET position = ? WHERE id = ?", position, tag.id);
+        // The tag and the tags below it go to the end of the new group, in their order (positions are unique per group).
+        const moving = subtreeIds(store, tag.id);
+        const positions = positionsFor(store, tagsIn(groupId), "end", moving.length);
+        moving.forEach((subId, index) => store.run("UPDATE tags SET group_id = ?, position = ? WHERE id = ?", groupId, positions[index], subId));
       }
       if (parentId !== tag.parentId) store.run("UPDATE tags SET parent_id = ? WHERE id = ?", parentId, tag.id);
     }),
@@ -248,7 +256,7 @@ export function moveTag(store: Store, id: string, placement: Placement): void {
   );
 }
 
-/** Deletes a tag; tracks lose it and tags below it move to the top of the group. */
+/** Deletes a tag; tracks and dynamic rules lose it (ON DELETE CASCADE), and tags below it move to the top of the group. */
 export function deleteTag(store: Store, id: string): void {
   const tag = getTag(store, requireRow(store, "tags", "tag", id)) as Tag;
   store.change(`Delete tag "${tag.name}"`, () => store.run("DELETE FROM tags WHERE id = ?", tag.id));
@@ -276,6 +284,8 @@ export function mergeTags(store: Store, sourceIds: string[], targetId: string): 
   }
   store.change(`Merge ${plural(sources.length, "tag")} into "${target.name}"`, () => {
     for (const source of sources) {
+      // Rules naming the source name the target (same group); in another group the source's values just go.
+      if (source.groupId === target.groupId) mergeRuleTag(store, source.id, target.id);
       store.run(
         "INSERT OR IGNORE INTO track_tags (track_id, tag_id) SELECT track_id, ? FROM track_tags WHERE tag_id = ?",
         target.id,

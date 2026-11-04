@@ -194,3 +194,16 @@ Open points for the lead:
 
 - **Tab capture and a second audio context.** Discord records the player page with tab capture, which may include every audio stream the page plays, whatever its context or device. Until checked, never create the preview output in the player page; use the Rooms bus's route or an uncaptured page. A real-Discord check is listed in the report.
 - **Device names and `setSinkId`.** Chromium gives device names, and allows a non-default output device, only to a page with the `media` permission (and possibly `speaker-selection`). The player page has neither; the page that shows the device choice and plays the preview needs them (a `permissions.ts` change for the security owner).
+
+## Wave 2: Data schema
+
+DAT-11 (with DAT-1, DAT-2, DAT-10, ORG-4, ORG-7, EDT-2) brings the library database (`src/main/data`) to the agreed design (round 4, `design/prototype`) in one upgrade step, `schema/v002-design.ts`, normalised to third normal form with integrity in the schema. `docs/data-model.md` is the full reference (ER diagram, every table's keys, constraints and normal form, the deliberate exceptions, and each index with the read path it serves). Still not used by the old player; the new interface (wave 3) reaches it from the main process.
+
+- **Tracks**: kind (music, amb, fx), the game master's title (may be empty), the file-tag title, file name and location; roles include `effect`; loop advice yes/crossfade/no.
+- **Playlists**: manual or dynamic, lane music/amb/fx, notes. A dynamic rule is rows (`rule_conditions`, `rule_condition_tags`) naming tags by key, so tag renames, merges and deletes reach every rule.
+- **Pad boards**: a 1–8 × 1–8 grid; `pads` sit in a cell or among the spare pads (never deleted when the board shrinks); `pad_sounds` are the tracks a pad plays.
+- **Campaigns, sessions, scenes**: theme (default candle), system, description, Obsidian fields; ordered playlists and boards per campaign and per session; session number (unique per campaign), date, status (one `next` per campaign, partial unique index); scenes with "starts when", an ordered music list of tracks and playlists, one ambience item and ordered boards.
+- **Audio profiles**: typed columns in `audio_profiles` keyed by (track, place) (own, playlist or scene) with markers in `audio_profile_markers`; handed out as `ProfileOverrides` keyed by `placeKey`.
+- **Domain shapes** (`repo/domain.ts`): `getDomainLookup`, `getDomainCampaign`/`listDomainCampaigns`, `listUses` (same answers as `usesOf*`), `listPlaylistTrackIds` (same as `playlistTracks`, in SQL) and `getProfileOverrides` feed `src/common/domain` directly; `repo/domain.test.ts` checks them against the prototype's own sample data.
+- **Checks**: `schema/v002.test.ts` (upgrade from version 1 with data, every constraint), `queryPlan.test.ts` (EXPLAIN QUERY PLAN of every hot read path: index searches only), `undo.test.ts` (every write undone and redone exactly), `performance.test.ts` (20,000 tracks, 500 playlists, 3 campaigns × 50 sessions × 8 scenes: campaign tree about 5 ms, dynamic playlist up to 7 ms, uses under 1 ms, search up to 14 ms).
+- `library.close()` runs `PRAGMA optimize` to keep the query planner's statistics current.

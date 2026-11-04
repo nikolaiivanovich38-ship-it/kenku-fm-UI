@@ -12,6 +12,7 @@ import * as boards from "./repo/boards";
 import * as folders from "./repo/folders";
 import * as tags from "./repo/tags";
 import * as campaigns from "./repo/campaigns";
+import * as profiles from "./repo/profiles";
 import { search } from "./repo/search";
 
 function setup(limit?: number) {
@@ -53,7 +54,7 @@ function snapshot(store: Store) {
     result[table.name] = store.all(`SELECT * FROM ${table.name} ORDER BY ${table.primaryKey.join(", ")}`);
   }
   result.search = store.all(
-    `SELECT d.kind, d.ref_id, f.title, f.file_name, f.tags, f.markers, f.notes, f.source
+    `SELECT d.kind, d.ref_id, f.title, f.meta_title, f.file_name, f.artist, f.album, f.tags, f.markers, f.notes, f.cue
      FROM search_docs d JOIN search_fts f ON f.rowid = d.doc_id ORDER BY d.kind, d.ref_id`,
   );
   return result;
@@ -73,27 +74,43 @@ function fixture(store: Store) {
   const playlist = playlists.createPlaylist(store, { title: "Tavern", folderId: sub.id });
   const items = playlists.addTracksToPlaylist(store, playlist.id, [a.id, b.id, c.id]);
   const divider = playlists.addPlaylistDivider(store, playlist.id, "Night");
-  const board = boards.createBoard(store, { title: "Fx" });
-  const sounds = boards.addSoundsToBoard(store, board.id, [{ trackId: a.id, loop: true }, { trackId: b.id }]);
-  const boardDivider = boards.addBoardDivider(store, board.id, "Doors");
-  boards.createBoard(store, { title: "Ambience" });
+  const board = boards.createBoard(store, { title: "Fx", cols: 3, rows: 2 });
+  const pads = ["Door", "Bell", "Wind", "Owl"].map((label, i) =>
+    boards.addPad(store, board.id, { label, sound: { kind: "variants", trackIds: i === 0 ? [a.id, b.id] : [c.id] } }),
+  );
+  const sparePad = boards.addPad(store, board.id, { label: "Thunder", at: "spare" });
+  boards.updatePad(store, pads[1].id, { hotkey: "1" });
+  const board2 = boards.createBoard(store, { title: "Ambience" });
   const mood = tags.listTagGroups(store)[0];
   const tense = tags.listTags(store, { groupId: mood.id })[2];
   const villain = tags.createTag(store, { groupId: mood.id, name: "Villain", synonyms: ["baddie"] });
   const strahd = tags.createTag(store, { groupId: mood.id, name: "Strahd", parentId: villain.id });
   tags.tagTracks(store, [a.id, b.id], [tense.id, villain.id]);
+  // Its rule names tags, so renaming, merging or deleting them changes it too (in the same step).
+  const dynamic = playlists.createPlaylist(store, {
+    title: "Eerie",
+    kind: "dynamic",
+    lane: "amb",
+    rule: { conds: [{ group: mood.id, match: "any", values: [tense.name, "Villain"] }], energy: [1, 3] },
+  });
   tracks.setFollowWith(store, a.id, [b.id]);
   const campaign = campaigns.createCampaign(store, { name: "Strahd" });
   const otherCampaign = campaigns.createCampaign(store, { name: "Witcher" });
-  campaigns.addToCampaign(store, campaign.id, { playlistIds: [playlist.id], boardIds: [board.id] });
+  campaigns.addToCampaign(store, campaign.id, { playlistIds: [playlist.id, dynamic.id], boardIds: [board.id] });
   const session = campaigns.createSession(store, { campaignId: campaign.id, name: "S1" });
-  campaigns.createSession(store, { campaignId: campaign.id, name: "S2" });
+  const session2 = campaigns.createSession(store, { campaignId: campaign.id, name: "S2" });
+  campaigns.addToSession(store, session.id, { playlistIds: [playlist.id, dynamic.id], boardIds: [board.id] });
   const scene = campaigns.createScene(store, { sessionId: session.id, name: "Gates" });
   campaigns.createScene(store, { sessionId: session.id, name: "Village" });
-  const sceneItems = campaigns.addSceneItems(store, scene.id, [{ playlistId: playlist.id }, { trackId: c.id }]);
+  const music = campaigns.addSceneMusic(store, scene.id, [{ kind: "playlist", id: playlist.id }, { kind: "track", id: c.id }]);
+  campaigns.setSceneAmbience(store, scene.id, { kind: "playlist", id: dynamic.id });
+  campaigns.addSceneBoards(store, scene.id, [board.id, board2.id]);
+  tracks.updateTrack(store, b.id, { profile: { endMs: 5000 } });
+  const inScene = { kind: "scene" as const, campaignId: campaign.id, sessionId: session.id, sceneId: scene.id };
+  profiles.setProfileOverride(store, inScene, a.id, { endMs: 1000, after: "stop" });
   return {
-    root, a, b, c, marker, folder, sub, playlist, items, divider, board, sounds, boardDivider,
-    mood, tense, villain, strahd, campaign, otherCampaign, session, scene, sceneItems,
+    root, a, b, c, marker, folder, sub, playlist, dynamic, items, divider, board, board2, pads, sparePad,
+    mood, tense, villain, strahd, campaign, otherCampaign, session, session2, scene, music, inScene,
   };
 }
 
@@ -126,16 +143,21 @@ const COMMANDS: [string, (s: Store, f: Fixture) => unknown][] = [
   ["renamePlaylistDivider", (s, f) => playlists.renamePlaylistDivider(s, f.divider.id, "Midnight")],
   ["movePlaylistItems", (s, f) => playlists.movePlaylistItems(s, [f.items[2].id, f.divider.id], "start")],
   ["removePlaylistItems", (s, f) => playlists.removePlaylistItems(s, [f.items[0].id, f.items[1].id])],
+  ["copyPlaylist", (s, f) => playlists.copyPlaylist(s, f.dynamic.id, { title: "Eerie now", kind: "manual" })],
+  ["updatePlaylist (rule)", (s, f) => playlists.updatePlaylist(s, f.dynamic.id, { rule: { conds: [], leaveOutStings: true }, notes: "n", lane: "music" })],
   ["createBoard", (s) => boards.createBoard(s, { title: "Weather" })],
   ["updateBoard", (s, f) => boards.updateBoard(s, f.board.id, { title: "Effects" })],
   ["moveBoard", (s, f) => boards.moveBoard(s, f.board.id, { placement: "end" })],
   ["deleteBoard", (s, f) => boards.deleteBoard(s, f.board.id)],
-  ["addSoundsToBoard", (s, f) => boards.addSoundsToBoard(s, f.board.id, [{ trackId: f.c.id, volume: 0.5 }])],
-  ["addBoardDivider", (s, f) => boards.addBoardDivider(s, f.board.id, "Doors")],
-  ["renameBoardDivider", (s, f) => boards.renameBoardDivider(s, f.boardDivider.id, "Windows")],
-  ["updateBoardSound", (s, f) => boards.updateBoardSound(s, f.sounds[0].id, { volume: 0.2, fadeOutMs: 900 })],
-  ["moveBoardItems", (s, f) => boards.moveBoardItems(s, [f.sounds[0].id], "end")],
-  ["removeBoardItems", (s, f) => boards.removeBoardItems(s, [f.sounds[1].id])],
+  ["resizeBoard", (s, f) => boards.resizeBoard(s, f.board.id, { cols: 1, rows: 1 })],
+  ["addPad", (s, f) => boards.addPad(s, f.board.id, { label: "Roar", hotkey: "r", sound: { kind: "single", trackIds: [f.c.id] } })],
+  ["updatePad", (s, f) => boards.updatePad(s, f.pads[0].id, { label: "Doors", sound: { kind: "variants", trackIds: [f.c.id, f.a.id], order: "in_turn" }, volume: 0.3 })],
+  ["takePadHotkey", (s, f) => boards.takePadHotkey(s, f.pads[0].id, "1")],
+  ["movePad", (s, f) => boards.movePad(s, f.pads[0].id, { row: 0, col: 1 })],
+  ["movePad (from spare onto a pad)", (s, f) => boards.movePad(s, f.sparePad.id, { row: 0, col: 0 })],
+  ["putPadBack", (s, f) => boards.putPadBack(s, f.sparePad.id)],
+  ["duplicatePad", (s, f) => boards.duplicatePad(s, f.pads[0].id)],
+  ["deletePads", (s, f) => boards.deletePads(s, [f.pads[0].id, f.sparePad.id])],
   ["createTagGroup", (s) => tags.createTagGroup(s, { name: "Weather" })],
   ["updateTagGroup", (s, f) => tags.updateTagGroup(s, f.mood.id, { name: "Feeling", color: "#abcdef" })],
   ["moveTagGroup", (s, f) => tags.moveTagGroup(s, f.mood.id, "end")],
@@ -153,19 +175,37 @@ const COMMANDS: [string, (s: Store, f: Fixture) => unknown][] = [
   ["updateCampaign", (s, f) => campaigns.updateCampaign(s, f.campaign.id, { name: "Barovia", notes: "x" })],
   ["moveCampaign", (s, f) => campaigns.moveCampaign(s, f.campaign.id, "end")],
   ["deleteCampaign", (s, f) => campaigns.deleteCampaign(s, f.campaign.id)],
+  ["updateCampaign (design fields)", (s, f) => campaigns.updateCampaign(s, f.campaign.id, { theme: "hearth", system: "5e", obsidian: { vault: "V" } })],
   ["addToCampaign", (s, f) => campaigns.addToCampaign(s, f.otherCampaign.id, { playlistIds: [f.playlist.id] })],
   ["removeFromCampaign", (s, f) => campaigns.removeFromCampaign(s, f.campaign.id, { playlistIds: [f.playlist.id], boardIds: [f.board.id] })],
-  ["createSession", (s, f) => campaigns.createSession(s, { campaignId: f.campaign.id, name: "S2", playedOn: "2026-11-07" })],
-  ["updateSession", (s, f) => campaigns.updateSession(s, f.session.id, { name: "Session 1", playedOn: "2026-11-01" })],
+  ["moveInCampaign", (s, f) => campaigns.moveInCampaign(s, f.campaign.id, { playlistId: f.dynamic.id }, "start")],
+  ["addToSession", (s, f) => campaigns.addToSession(s, f.session2.id, { playlistIds: [f.playlist.id], boardIds: [f.board.id] })],
+  ["removeFromSession", (s, f) => campaigns.removeFromSession(s, f.session.id, { playlistIds: [f.playlist.id], boardIds: [f.board.id] })],
+  ["moveInSession", (s, f) => campaigns.moveInSession(s, f.session.id, { playlistId: f.dynamic.id }, "start")],
+  ["createSession", (s, f) => campaigns.createSession(s, { campaignId: f.campaign.id, name: "S2", date: "2026-11-07" })],
+  ["updateSession", (s, f) => campaigns.updateSession(s, f.session.id, { name: "Session 1", date: "2026-11-01", number: 9 })],
+  ["updateSession (next)", (s, f) => campaigns.updateSession(s, f.session2.id, { status: "next" })],
   ["moveSession", (s, f) => campaigns.moveSession(s, f.session.id, { placement: "end" })],
   ["deleteSession", (s, f) => campaigns.deleteSession(s, f.session.id)],
   ["createScene", (s, f) => campaigns.createScene(s, { sessionId: f.session.id, name: "Castle" })],
   ["updateScene", (s, f) => campaigns.updateScene(s, f.scene.id, { notes: "fog" })],
   ["moveScene", (s, f) => campaigns.moveScene(s, f.scene.id, { placement: "end" })],
   ["deleteScene", (s, f) => campaigns.deleteScene(s, f.scene.id)],
-  ["addSceneItems", (s, f) => campaigns.addSceneItems(s, f.scene.id, [{ boardId: f.board.id }], "start")],
-  ["moveSceneItem", (s, f) => campaigns.moveSceneItem(s, f.sceneItems[1].id, "start")],
-  ["removeSceneItems", (s, f) => campaigns.removeSceneItems(s, [f.sceneItems[0].id])],
+  ["updateScene (design fields)", (s, f) => campaigns.updateScene(s, f.scene.id, { startsWhen: "Gates open", noteLink: "Gates.md" })],
+  ["addSceneMusic", (s, f) => campaigns.addSceneMusic(s, f.scene.id, [{ kind: "track", id: f.a.id }, { kind: "playlist", id: f.dynamic.id }], "start")],
+  ["moveSceneMusic", (s, f) => campaigns.moveSceneMusic(s, [f.music[1].id], "start")],
+  ["removeSceneMusic", (s, f) => campaigns.removeSceneMusic(s, [f.music[0].id])],
+  ["setSceneAmbience", (s, f) => campaigns.setSceneAmbience(s, f.scene.id, { kind: "track", id: f.b.id })],
+  ["setSceneAmbience (none)", (s, f) => campaigns.setSceneAmbience(s, f.scene.id, null)],
+  ["addSceneBoards", (s, f) => campaigns.addSceneBoards(s, campaigns.listScenes(s, f.session.id)[1].id, [f.board2.id, f.board.id], "start")],
+  ["moveSceneBoard", (s, f) => campaigns.moveSceneBoard(s, f.scene.id, f.board.id, "end")],
+  ["removeSceneBoards", (s, f) => campaigns.removeSceneBoards(s, f.scene.id, [f.board.id])],
+  ["setPlaylistUses", (s, f) => campaigns.setPlaylistUses(s, f.playlist.id, [{ sessionId: f.session2.id }, { sceneId: f.scene.id }])],
+  ["setBoardUses", (s, f) => campaigns.setBoardUses(s, f.board.id, [{ campaignId: f.otherCampaign.id }])],
+  ["setProfileOverride", (s, f) => profiles.setProfileOverride(s, { kind: "playlist", playlistId: f.playlist.id }, f.c.id, { startMs: 10 })],
+  ["setProfileOverride (replace)", (s, f) => profiles.setProfileOverride(s, f.inScene, f.a.id, { startMs: 10 })],
+  ["clearProfileOverride", (s, f) => profiles.clearProfileOverride(s, f.inScene, f.a.id)],
+  ["updateTrack (design fields)", (s, f) => tracks.updateTrack(s, f.c.id, { kind: "fx", title: "", metaTitle: "Gamma tag", role: "effect", loopable: "crossfade", profile: { endMs: 9 } })],
 ];
 
 describe("undo and redo of every command (EDT-2)", () => {
@@ -190,8 +230,8 @@ describe("undo and redo of every command (EDT-2)", () => {
   });
 
   it("covers every exported write function", () => {
-    const modules = { tracks, roots, markers, playlists, boards, folders, tags, campaigns };
-    const readers = /^(get|list|track|campaignsOf|resolve|suggest|tagsOf|requireFolderFor|getFollowWith|ITEM_TABLES)/;
+    const modules = { tracks, roots, markers, playlists, boards, folders, tags, campaigns, profiles };
+    const readers = /^(get|list|track|campaignsOf|resolve|suggest|tagsOf|requireFolderFor|getFollowWith|ITEM_TABLES|[A-Z_]+$)/;
     const writers = Object.values(modules)
       .flatMap((m) => Object.keys(m))
       .filter((name) => !readers.test(name) && name !== "markTracksUsed");

@@ -36,10 +36,10 @@ describe("tag groups (DAT-10)", () => {
     const weather = createTagGroup(t.store, { name: "Weather", color: "#336699" });
     moveTagGroup(t.store, weather.id, { before: group("Mood").id });
     updateTagGroup(t.store, group("Scene type").id, { name: "Scene" });
-    expect(listTagGroups(t.store).map((g) => g.name)).toEqual(["Weather", "Mood", "Leitmotif", "Scene", "Location", "Faction"]);
+    expect(listTagGroups(t.store).map((g) => g.name)).toEqual(["Weather", "Mood", "Leitmotif", "Scene"]);
     expect(() => createTagGroup(t.store, { name: "mood" })).toThrow(/already/);
     deleteTagGroup(t.store, weather.id);
-    expect(listTagGroups(t.store)).toHaveLength(5);
+    expect(listTagGroups(t.store)).toHaveLength(3);
   });
 
   it("deleting a group removes its tags from every track in one go", () => {
@@ -65,7 +65,7 @@ describe("tags (DAT-10)", () => {
 
   it("moving a tag to another group takes its sub-tags along", () => {
     const leitmotif = group("Leitmotif");
-    const faction = group("Faction");
+    const faction = createTagGroup(t.store, { name: "Faction" });
     const villain = createTag(t.store, { groupId: leitmotif.id, name: "Villain" });
     const strahd = createTag(t.store, { groupId: leitmotif.id, name: "Strahd", parentId: villain.id });
     updateTag(t.store, villain.id, { groupId: faction.id });
@@ -78,7 +78,7 @@ describe("tags (DAT-10)", () => {
       { title: "A", file: { path: "/m/a.mp3" } },
       { title: "B", file: { path: "/m/b.mp3" } },
     ]);
-    const docks = createTag(t.store, { groupId: group("Location").id, name: "Docks" });
+    const docks = createTag(t.store, { groupId: group("Scene type").id, name: "Docks" });
     tagTracks(t.store, [a.id, b.id], [docks.id, tag("Tense").id]);
     tagTracks(t.store, [a.id], [docks.id]); // already there: no error, no duplicate
     expect(tagsOfTrack(t.store, a.id).map((x) => x.name)).toEqual(["Tense", "Docks"]);
@@ -119,10 +119,10 @@ describe("tags (DAT-10)", () => {
 
   it("suggests tags while typing, by name or synonym, grouped", () => {
     setTagSynonyms(t.store, tag("Melancholy").id, ["sad"]);
-    createTag(t.store, { groupId: group("Location").id, name: "Sadovaya Street" });
+    createTag(t.store, { groupId: group("Scene type").id, name: "Sadovaya Street" });
     expect(suggestTags(t.store, "sa").map((s) => [s.groupName, s.tag.name, s.matched])).toEqual([
       ["Mood", "Melancholy", "sad"],
-      ["Location", "Sadovaya Street", "Sadovaya Street"],
+      ["Scene type", "Sadovaya Street", "Sadovaya Street"],
     ]);
     expect(suggestTags(t.store, "TRI").map((s) => s.tag.name)).toEqual(["Triumphant"]);
     expect(suggestTags(t.store, "  ")).toEqual([]);

@@ -6,6 +6,11 @@
  * two others takes the midpoint, so no other row changes. After about fifty
  * moves into the same gap the two neighbours are too close to split; only
  * then is that one list renumbered (in the same undo step as the move).
+ *
+ * Positions are unique within a list (a UNIQUE index per ordered table, see
+ * schema/v002-design.ts), so rows that change place together go through
+ * temporary positions first (assignPositions): no two rows ever share one,
+ * even for a moment, and undo replays the same steps backwards.
  */
 import type { SQLInputValue } from "./sqlite";
 import type { Placement } from "./types";
@@ -31,16 +36,41 @@ export type OrderedList = {
   table: string;
   scope: string;
   params: SQLInputValue[];
+  /**
+   * The column naming a row within the list (default "id"). Membership lists
+   * such as a campaign's playlists name rows by what they hold ("playlist_id").
+   */
+  idColumn?: string;
 };
+
+const idOf = (list: OrderedList) => list.idColumn ?? "id";
+
+/** Far below any position a list reaches by gap ordering; used only inside one change. */
+const TEMPORARY_BASE = -1e12;
+
+/**
+ * Gives `ids` (rows of `list`) the `positions`, in two passes through
+ * temporary positions, so the list's UNIQUE position index never sees two rows
+ * on one position. Call inside a store change.
+ */
+export function assignPositions(store: Store, list: OrderedList, ids: readonly string[], positions: readonly number[]) {
+  const id = idOf(list);
+  const set = `UPDATE ${list.table} SET position = ? WHERE ${id} = ? AND ${list.scope}`;
+  if (ids.length > 1) ids.forEach((row, index) => store.run(set, TEMPORARY_BASE - index, row, ...list.params));
+  ids.forEach((row, index) => store.run(set, positions[index], row, ...list.params));
+}
 
 function rebalance(store: Store, list: OrderedList) {
   const rows = store.all<{ id: string }>(
-    `SELECT id FROM ${list.table} WHERE ${list.scope} ORDER BY position, rowid`,
+    `SELECT ${idOf(list)} AS id FROM ${list.table} WHERE ${list.scope} ORDER BY position, rowid`,
     ...list.params,
   );
-  rows.forEach((row, index) => {
-    store.run(`UPDATE ${list.table} SET position = ? WHERE id = ?`, (index + 1) * GAP, row.id);
-  });
+  assignPositions(
+    store,
+    list,
+    rows.map((row) => row.id),
+    rows.map((_, index) => (index + 1) * GAP),
+  );
 }
 
 function neighbours(
@@ -49,7 +79,8 @@ function neighbours(
   placement: Placement,
   moving: readonly string[],
 ): [number | null, number | null] {
-  const exclude = moving.length === 0 ? "" : ` AND id NOT IN (${moving.map(() => "?").join(", ")})`;
+  const id = idOf(list);
+  const exclude = moving.length === 0 ? "" : ` AND ${id} NOT IN (${moving.map(() => "?").join(", ")})`;
   const edge = (direction: "ASC" | "DESC") =>
     store.get<{ position: number }>(
       `SELECT position FROM ${list.table} WHERE ${list.scope}${exclude} ORDER BY position ${direction} LIMIT 1`,
@@ -62,7 +93,7 @@ function neighbours(
   const anchorId = "before" in placement ? placement.before : placement.after;
   if (moving.includes(anchorId)) throw new ValidationError("placement", "An item cannot be placed next to itself.");
   const anchor = store.get<{ position: number }>(
-    `SELECT position FROM ${list.table} WHERE id = ? AND ${list.scope}`,
+    `SELECT position FROM ${list.table} WHERE ${id} = ? AND ${list.scope}`,
     anchorId,
     ...list.params,
   );

@@ -1,10 +1,15 @@
 /**
- * Performance targets for the data layer with a large library
- * (20,000 tracks, 500 playlists of about 80 entries):
+ * Performance targets for the data layer with a large library (20,000 tracks,
+ * 500 playlists of about 80 entries, and 3 campaigns of 50 sessions with 8
+ * scenes each, every scene with four music items, an ambience and two boards):
  * - opening the database (version check, undo set-up; the integrity check starts on a
  *   worker thread) under 200 ms; the blocking check and the background check are timed too;
  * - a search under 50 ms;
- * - a single edit under 5 ms.
+ * - a single edit under 5 ms;
+ * - DAT-11: loading one campaign tree under 50 ms (all three under 150 ms); working out a
+ *   dynamic playlist in the database under 50 ms; finding where a playlist, board or track
+ *   is used under 50 ms; reading the whole library for the shared rules (DomainLookup.tracks)
+ *   under 500 ms. docs/data-model.md lists the figures measured.
  *
  * Each figure is the median of several runs, so one slow moment on a busy
  * machine does not fail the test. Skip on slow CI with CUE_DESK_SKIP_PERF=1.
@@ -16,13 +21,26 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { openLibrary, type Library } from "./library";
 import { search } from "./repo/search";
 import { getTrack, updateTrack } from "./repo/tracks";
-import { listPlaylists, listPlaylistItems, addTracksToPlaylist, movePlaylistItems } from "./repo/playlists";
+import {
+  addTracksToPlaylist,
+  createPlaylist,
+  listPlaylistItems,
+  listPlaylistTrackIds,
+  listPlaylists,
+  movePlaylistItems,
+} from "./repo/playlists";
 import { listTags, tagTracks } from "./repo/tags";
 import { generateLibrary } from "./test/generateLibrary";
+import { generateCampaign } from "./test/generateCampaign";
+import { getDomainCampaign, getDomainLookup, listDomainCampaigns, listUses } from "./repo/domain";
+import { sceneSequence, usesOfPlaylist, type TagCondition } from "../../common/domain";
 import { makeTempFolder } from "./test/helpers";
 
 const TRACKS = 20_000;
 const PLAYLISTS = 500;
+const CAMPAIGNS = 3;
+/** generateCampaign adds 20 playlists and 6 boards of its own per campaign. */
+const CAMPAIGN_PLAYLISTS = 20;
 const results: Record<string, number> = {};
 
 function median(values: number[]) {
@@ -45,6 +63,7 @@ describe.skipIf(process.env.CUE_DESK_SKIP_PERF === "1")("performance with 20,000
   let folder: string;
   let library: Library;
   let trackIds: string[];
+  let campaigns: ReturnType<typeof generateCampaign>[];
 
   beforeAll(() => {
     temp = makeTempFolder("cue-desk-perf-");
@@ -52,6 +71,7 @@ describe.skipIf(process.env.CUE_DESK_SKIP_PERF === "1")("performance with 20,000
     const start = performance.now();
     const building = openLibrary({ folder });
     trackIds = generateLibrary(building, { tracks: TRACKS, playlists: PLAYLISTS }).trackIds;
+    campaigns = Array.from({ length: CAMPAIGNS }, () => generateCampaign(building, { sessions: 50, scenesPerSession: 8, trackIds }));
     building.close();
     results.generateMs = Math.round(performance.now() - start);
     results.databaseBytes = fs.statSync(path.join(folder, "library.sqlite")).size;
@@ -68,7 +88,8 @@ describe.skipIf(process.env.CUE_DESK_SKIP_PERF === "1")("performance with 20,000
 
   it("holds the generated library", () => {
     expect(library.store.get("SELECT count(*) AS n FROM tracks")).toEqual({ n: TRACKS });
-    expect(listPlaylists(library.store)).toHaveLength(PLAYLISTS);
+    expect(listPlaylists(library.store)).toHaveLength(PLAYLISTS + CAMPAIGNS * CAMPAIGN_PLAYLISTS);
+    expect(library.store.get("SELECT count(*) AS n FROM scenes")).toEqual({ n: CAMPAIGNS * 50 * 8 });
   });
 
   it("opens the database in under 200 ms", async () => {
@@ -138,6 +159,62 @@ describe.skipIf(process.env.CUE_DESK_SKIP_PERF === "1")("performance with 20,000
     });
     results["edit and undo ms"] = ms;
     expect(ms).toBeLessThan(5);
+  });
+
+  it("loads a campaign of 50 sessions with 8 scenes each in under 50 ms", () => {
+    const store = library.store;
+    const { campaignId } = campaigns[1];
+    const tree = getDomainCampaign(store, campaignId)!;
+    expect(tree.sessions).toHaveLength(50);
+    expect(tree.sessions.every((s) => s.scenes.length === 8 && s.scenes.every((sc) => sc.music.length === 4))).toBe(true);
+    const ms = measure(7, () => getDomainCampaign(store, campaignId));
+    results["campaign tree ms"] = ms;
+    expect(ms).toBeLessThan(50);
+    const all = measure(5, () => listDomainCampaigns(store));
+    results["all three campaign trees ms"] = all;
+    expect(all).toBeLessThan(150);
+    // The shared rules on the loaded tree stay quick too.
+    results["usesOfPlaylist on the tree ms"] = measure(7, () => usesOfPlaylist(campaigns[1].playlistIds[0], [tree]));
+    const lookup = getDomainLookup(store);
+    results["scene sequence ms"] = measure(7, () => sceneSequence(tree.sessions[10].scenes[3], lookup));
+  });
+
+  it("works out a dynamic playlist in the database in under 50 ms", () => {
+    const store = library.store;
+    const tags = listTags(store);
+    const rules = {
+      "tag and energy": { conds: [{ group: tags[0].groupId, match: "any" as const, values: [tags[0].name, tags[1].name] }], energy: [2, 4] as [number, number] },
+      "all of two tags": { conds: [{ group: tags[0].groupId, match: "all" as const, values: [tags[0].name, tags[2].name] }] },
+      "energy only": { conds: [] as TagCondition[], energy: [4, 5] as [number, number] },
+      "FX lane, leaving a tag out": { conds: [{ group: tags[0].groupId, match: "none" as const, values: [tags[0].name] }] },
+    };
+    for (const [name, rule] of Object.entries(rules)) {
+      const playlist = createPlaylist(store, { title: name, kind: "dynamic", lane: name.startsWith("FX") ? "fx" : "music", rule });
+      const ms = measure(7, () => listPlaylistTrackIds(store, playlist.id));
+      results[`dynamic playlist (${name}) ms`] = ms;
+      expect(ms, name).toBeLessThan(50);
+    }
+    expect(listPlaylistTrackIds(store, listPlaylists(store).find((p) => p.title === "energy only")!.id).length).toBeGreaterThan(1000);
+  });
+
+  it("finds where a playlist, board or track is used in under 50 ms", () => {
+    const store = library.store;
+    const { playlistIds, boardIds } = campaigns[0];
+    const track = store.get<{ track_id: string }>("SELECT track_id FROM scene_music WHERE track_id IS NOT NULL LIMIT 1")!.track_id;
+    const items = { playlist: { playlistId: playlistIds[3] }, board: { boardId: boardIds[2] }, track: { trackId: track } };
+    for (const [name, item] of Object.entries(items)) {
+      expect(listUses(store, item).length, name).toBeGreaterThan(0);
+      const ms = measure(7, () => listUses(store, item));
+      results[`uses of a ${name} ms`] = ms;
+      expect(ms, name).toBeLessThan(50);
+    }
+  });
+
+  it("reads the whole library for the shared rules in under 500 ms", () => {
+    const store = library.store;
+    const ms = measure(5, () => [...getDomainLookup(store).tracks()]);
+    results["whole library as DomainTrack ms"] = ms;
+    expect(ms).toBeLessThan(500);
   });
 
   it("backs up the large library", () => {

@@ -4,7 +4,7 @@ import { createTrack, deleteTracks, updateTrack } from "./tracks";
 import { addMarker } from "./markers";
 import { createTag, listTagGroups, listTags, setTagSynonyms, tagTracks, updateTag } from "./tags";
 import { addTracksToPlaylist, createPlaylist } from "./playlists";
-import { addSoundsToBoard, createBoard } from "./boards";
+import { addPad, createBoard } from "./boards";
 import { createCampaign, createScene, createSession } from "./campaigns";
 import { matchQuery, search } from "./search";
 
@@ -118,7 +118,7 @@ describe("search (ORG-1)", () => {
     const p = createPlaylist(t.store, { title: "Weather" });
     const board = createBoard(t.store, { title: "Rain board" });
     addTracksToPlaylist(t.store, p.id, [a.id]);
-    addSoundsToBoard(t.store, board.id, [{ trackId: b.id }]);
+    addPad(t.store, board.id, { label: "Rain", sound: { kind: "variants", trackIds: [b.id] } });
     expect(titles("rain", { playlistId: p.id })).toEqual(["Rain light"]);
     expect(titles("rain", { boardId: board.id })).toEqual(["Rain heavy"]);
   });
@@ -141,12 +141,12 @@ describe("search (ORG-1)", () => {
   });
 
   it("keeps the default tag groups out of the results", () => {
-    expect(listTagGroups(t.store)).toHaveLength(5);
+    expect(listTagGroups(t.store)).toHaveLength(3);
     expect(search(t.store, "mood")).toEqual([]);
   });
 
   it("finds a tag added to a group and a renamed track in one pass", () => {
-    const docks = createTag(t.store, { groupId: listTagGroups(t.store)[3].id, name: "Docks" });
+    const docks = createTag(t.store, { groupId: listTagGroups(t.store)[2].id, name: "Docks" });
     const a = track("Gulls");
     tagTracks(t.store, [a.id], [docks.id]);
     expect(titles("dock")).toEqual(["Gulls"]);

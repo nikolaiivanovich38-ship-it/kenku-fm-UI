@@ -197,6 +197,12 @@ export function openLibrary(options: LibraryOptions): Library {
       if (closed) return;
       closed = true;
       background?.cancel();
+      try {
+        // SQLite's advice: refresh the query planner's statistics when they would help (cheap; usually does nothing).
+        db.exec("PRAGMA optimize");
+      } catch {
+        // Closing matters more than the statistics.
+      }
       db.close();
     },
   };

@@ -85,12 +85,12 @@ describe("opening the library (DAT-6)", () => {
   it("backs the library up before upgrading it to a new version", () => {
     openTracked().close();
     open = [];
-    const later: Migration = { version: MIGRATIONS.length + 1, name: "later", up: (db) => db.exec("CREATE TABLE pads (id TEXT PRIMARY KEY)") };
+    const later: Migration = { version: MIGRATIONS.length + 1, name: "later", up: (db) => db.exec("CREATE TABLE pad_actions (id TEXT PRIMARY KEY)") };
     const library = openTracked({ migrations: [...MIGRATIONS, later] });
     expect(library.schemaVersion).toBe(MIGRATIONS.length + 1);
     const backups = listBackups(library.backupFolder);
     expect(backups.map((b) => b.kind)).toEqual(["upgrade"]);
-    expect(path.basename(backups[0].path)).toMatch(/^library-upgrade-v1-/);
+    expect(path.basename(backups[0].path)).toMatch(new RegExp(`^library-upgrade-v${MIGRATIONS.length}-`));
   });
 
   it("reports a damaged file clearly and offers the newest backup (check before opening)", () => {
@@ -205,7 +205,7 @@ describe("opening the library (DAT-6)", () => {
     // Review 9: the library and every backup were checked on the worker thread,
     // so damaged backups cannot hold up the main process.
     expect(checksHere()).toBe(0);
-  });
+  }, 30_000); // builds a 2,000-track library: more than the default 5 s when the whole suite runs at once
 
   it("stops the background check when the library is closed", async () => {
     const library = openTracked();
@@ -216,7 +216,7 @@ describe("opening the library (DAT-6)", () => {
     reopened.close();
     expect(await reopened.checkIntegrity()).toEqual({ status: "not-checked" });
     expect(await openTracked({ integrityCheck: "blocking" }).checkIntegrity()).toEqual({ status: "ok" });
-  });
+  }, 30_000);
 
   it("reports a file that is not a library at all", () => {
     fs.mkdirSync(folder, { recursive: true });
