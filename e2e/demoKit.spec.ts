@@ -101,7 +101,7 @@ test("the local soundboard opens from the address bar, plays its own sounds and 
 
   await expect(playerView.getByText("Playlists", { exact: true })).toBeVisible();
   await answerFileQuestions(app, { response: 0, checkboxChecked: false });
-  await mainWindow.getByRole("button", { name: "add tab" }).click();
+  await mainWindow.getByRole("button", { name: "New tab", exact: true }).click();
   // Pasted as a plain path, the way the README describes; the folder name has a space in it.
   const address = mainWindow.getByLabel("Web address");
   await address.fill(page);
