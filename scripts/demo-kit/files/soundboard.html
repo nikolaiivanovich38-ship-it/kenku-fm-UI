@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lyre demo soundboard</title>
+<!--
+  Part of the Lyre demo kit (scripts/demo-kit in the Lyre repository).
+  Open it in a Lyre tab to check SEC-15: a file from your computer may play
+  and read the files in its own folder, but nothing outside it and nothing
+  on the web. Everything is inline: a local page may not load anything else.
+-->
+<style>
+  :root {
+    --fern: #142b24;
+    --fern-raised: #1d3a31;
+    --fern-line: #2f5447;
+    --brass: #d9a441;
+    --ivory: #f1e4c8;
+    --muted: #c9bfa8;
+    --allowed: #8fd19e;
+    --blocked: #f0a37a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: radial-gradient(circle at 20% 0%, #1f4035 0%, var(--fern) 55%);
+    color: var(--ivory);
+    font: 16px/1.5 "Segoe UI", system-ui, sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1, h2 { font-family: Georgia, "Times New Roman", serif; font-weight: 600; letter-spacing: 0.01em; }
+  h1 { color: var(--brass); font-size: 2rem; margin: 0 0 4px; }
+  h2 { font-size: 1.25rem; margin: 36px 0 8px; }
+  p { color: var(--muted); margin: 0 0 12px; }
+  .pads { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin-top: 16px; }
+  button {
+    font: inherit;
+    color: var(--ivory);
+    background: var(--fern-raised);
+    border: 1px solid var(--fern-line);
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--brass); }
+  button:focus-visible { outline: 3px solid var(--brass); outline-offset: 2px; }
+  .pad { padding: 20px 16px; text-align: left; min-height: 96px; }
+  .pad strong { display: block; font-size: 1.1rem; }
+  .pad span { color: var(--muted); font-size: 0.9rem; }
+  .pad[data-playing="true"] { border-color: var(--brass); box-shadow: 0 0 0 1px var(--brass) inset; }
+  .stop { margin-top: 12px; padding: 8px 16px; }
+  .status { min-height: 1.5em; margin-top: 12px; color: var(--ivory); }
+  .checks { list-style: none; padding: 0; margin: 16px 0 0; display: grid; gap: 12px; }
+  .check { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 12px 16px; background: var(--fern-raised); border: 1px solid var(--fern-line); border-radius: 10px; }
+  .check button { padding: 8px 14px; }
+  .check .what { flex: 1 1 260px; }
+  .check .what small { display: block; color: var(--muted); }
+  .result { font-weight: 600; min-width: 7em; }
+  .result[data-result="allowed"] { color: var(--allowed); }
+  .result[data-result="blocked"] { color: var(--blocked); }
+  footer { margin-top: 40px; font-size: 0.85rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Lyre demo soundboard</h1>
+  <p>This page is a file on your computer. Lyre lets it play the sounds in its own folder and nothing else.</p>
+
+  <h2>Sounds in this folder</h2>
+  <div class="pads">
+    <button type="button" class="pad" data-sound="sounds/sword-clash.wav" data-name="Sword clash"><strong>Sword clash</strong><span>Steel on steel</span></button>
+    <button type="button" class="pad" data-sound="sounds/door-knock.wav" data-name="Door knock"><strong>Door knock</strong><span>Three knocks on wood</span></button>
+    <button type="button" class="pad" data-sound="sounds/magic-chime.wav" data-name="Magic chime"><strong>Magic chime</strong><span>A rising sparkle</span></button>
+  </div>
+  <button type="button" class="stop" id="stop">Stop all sounds</button>
+  <p class="status" id="status" role="status" aria-live="polite">Choose a sound.</p>
+
+  <h2>The folder rule</h2>
+  <p>Each button tries to reach something. Lyre should allow the first and block the other two.</p>
+  <ul class="checks">
+    <li class="check">
+      <button type="button" id="try-notes" aria-label="Try reading notes.txt">Try</button>
+      <span class="what">Read notes.txt in this folder<small>Lyre should say: allowed</small></span>
+      <output class="result" id="result-notes">Not tried</output>
+    </li>
+    <li class="check">
+      <button type="button" id="try-readme" aria-label="Try reading README.txt one folder up">Try</button>
+      <span class="what">Read ../README.txt, one folder up<small>Lyre should say: blocked</small></span>
+      <output class="result" id="result-readme">Not tried</output>
+    </li>
+    <li class="check">
+      <button type="button" id="try-web" aria-label="Try reaching a web page">Try</button>
+      <span class="what">Reach a web page (https://example.com)<small>Lyre should say: blocked</small></span>
+      <output class="result" id="result-web">Not tried</output>
+    </li>
+  </ul>
+
+  <footer>Part of the Lyre demo kit. Made for Lyre; free to share under the GPL-3.0.</footer>
+</main>
+<script>
+  "use strict";
+  const status = document.getElementById("status");
+  const playing = new Set();
+
+  for (const pad of document.querySelectorAll(".pad")) {
+    pad.addEventListener("click", () => {
+      const name = pad.dataset.name;
+      const audio = new Audio(pad.dataset.sound);
+      playing.add(audio);
+      audio.addEventListener("playing", () => {
+        pad.dataset.playing = "true";
+        status.textContent = "Playing: " + name;
+      });
+      audio.addEventListener("ended", () => {
+        playing.delete(audio);
+        pad.dataset.playing = "false";
+        status.textContent = "Finished: " + name;
+      });
+      audio.addEventListener("error", () => {
+        playing.delete(audio);
+        pad.dataset.playing = "false";
+        status.textContent = "Could not play: " + name;
+      });
+      audio.play().catch(() => undefined);
+    });
+  }
+
+  document.getElementById("stop").addEventListener("click", () => {
+    for (const audio of playing) audio.pause();
+    playing.clear();
+    for (const pad of document.querySelectorAll(".pad")) pad.dataset.playing = "false";
+    status.textContent = "Stopped.";
+  });
+
+  /** state: "trying", "allowed" or "blocked". */
+  function show(id, state, detail) {
+    const result = document.getElementById(id);
+    result.dataset.result = state;
+    const words = { trying: "Trying…", allowed: "Allowed", blocked: "Blocked" };
+    result.textContent = words[state] + (detail ? " (" + detail + ")" : "");
+  }
+
+  /** Give up after a few seconds, so a silent refusal still shows a result. */
+  function withTimeout(promise) {
+    return Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error("no answer")), 8000))]);
+  }
+
+  async function tryRead(id, address) {
+    show(id, "trying");
+    try {
+      const response = await withTimeout(fetch(address, { cache: "no-store" }));
+      const text = response.ok ? await response.text() : "";
+      if (text) show(id, "allowed", "read " + text.length + " characters");
+      else show(id, "blocked");
+    } catch {
+      show(id, "blocked");
+    }
+  }
+
+  document.getElementById("try-notes").addEventListener("click", () => tryRead("result-notes", "notes.txt"));
+  document.getElementById("try-readme").addEventListener("click", () => tryRead("result-readme", "../README.txt"));
+  document.getElementById("try-web").addEventListener("click", async () => {
+    show("result-web", "trying");
+    try {
+      // "no-cors": any answer at all from the web site counts as reaching it.
+      await withTimeout(fetch("https://example.com/", { mode: "no-cors", cache: "no-store" }));
+      show("result-web", "allowed");
+    } catch {
+      show("result-web", "blocked");
+    }
+  });
+</script>
+</body>
+</html>

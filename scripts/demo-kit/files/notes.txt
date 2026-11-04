@@ -1,0 +1,7 @@
+Session notes: The Drowned Lantern
+
+Scene 1, the Lantern tavern: Tavern Warmth, rain outside.
+Scene 2, crossing the flooded causeway: Tense Crossing, thunder when the bridge cracks.
+Scene 3, the sea-witch is driven off: Heroic Sting, then Melancholy Drift for the drowned.
+
+This file sits next to soundboard.html, so the page is allowed to read it.
