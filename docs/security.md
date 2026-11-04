@@ -217,7 +217,9 @@ When Cue Desk starts, it looks for Kenku FM installed on your computer and copie
 | Pictures | files named in that bundle, directly in `.webpack\renderer` | Names in the bundle must be plain file names (no slashes, no `..`), files must be `<letters, digits, _ or ->.<jpg, jpeg, png, webp or svg>`, at most 20 MB, not empty. |
 | Copies | `<userData>\backgrounds\<name>.<ext>` | Written as a hidden `.part` file, then renamed. Skipped when any picture with that name is already there. |
 
-Test builds read `CUE_DESK_LOCAL_APP_DATA_DIR` instead of `%LOCALAPPDATA%` (end-to-end tests); release builds compile that out (`__CUE_DESK_TEST_BUILD__`).
+Limits, because the bundle and pictures come from another app's folder: the bundle is read only up to 16 MB and parsed in single passes with bounded patterns (time grows with its size, whatever it contains); at most 100 pictures, each up to 20 MB and 200 MB together per start; links are not followed; files are written with exclusive-create flags, so an existing picture is never replaced.
+
+Test builds read `CUE_DESK_LOCAL_APP_DATA_DIR` instead of `%LOCALAPPDATA%` (end-to-end tests); release builds ignore it (`__CUE_DESK_TEST_BUILD__` is false there).
 
 ### Channel
 

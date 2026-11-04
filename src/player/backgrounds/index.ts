@@ -25,15 +25,19 @@ function loadBackgrounds(): Record<string, string> {
       }
     }
   }
-  return Object.keys(found).length > 0 ? found : { blank };
+  // "blank" always stays: Cue Desk 0.1.0 saved it on every new playlist and
+  // soundboard, and they must keep showing it (0.1.1 review).
+  return { ...found, blank };
 }
 
 export const backgrounds: Record<string, string> = loadBackgrounds();
 
 export type Background = keyof typeof backgrounds;
 
+/** A random picture for a new playlist or soundboard; blank only when there is nothing else. */
 export function getRandomBackground(): Background {
-  const keys = Object.keys(backgrounds);
+  const pictures = Object.keys(backgrounds).filter((key) => key !== "blank");
+  const keys = pictures.length > 0 ? pictures : ["blank"];
   return keys[Math.floor(Math.random() * keys.length)] as Background;
 }
 

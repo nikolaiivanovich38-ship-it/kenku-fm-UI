@@ -54,9 +54,11 @@ export type BackgroundEntry = {
   file: string;
 };
 
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
+/**
+ * Kenku FM 1.5.5 has 23 pictures; anything far beyond that is not a real
+ * Kenku FM bundle, so the list is cut off there (0.1.1 review).
+ */
+export const MAX_BACKGROUND_ENTRIES = 100;
 
 /**
  * Read the background pictures' names and files from the player bundle.
@@ -67,38 +69,48 @@ function escapeRegExp(text: string): string {
  * where `r.p` is the folder the bundle was loaded from. The minifier's
  * variable names and spacing differ between builds, so the patterns accept
  * any of them. Only pictures with safe names are returned.
+ *
+ * The bundle comes from another app's folder, so it is read in two single
+ * passes whose patterns have only bounded repeats: time grows in step with
+ * the bundle's size, whatever the text holds (0.1.1 review).
  */
 export function parseBackgroundMap(bundle: string): BackgroundEntry[] {
-  const mapEntry = /["']\.\/([^"'\\]+)["']\s*:\s*(\d+)/g;
+  const files = pictureModules(bundle);
+  const mapEntry = /["']\.\/([^"'\\]{1,200})["']\s{0,8}:\s{0,8}(\d{1,10})/g;
   const entries: BackgroundEntry[] = [];
   const seen = new Set<string>();
   for (const match of bundle.matchAll(mapEntry)) {
+    if (entries.length >= MAX_BACKGROUND_ENTRIES) break;
     const [, fileName, id] = match;
     if (!hasPictureExtension(fileName)) continue;
     const name = fileName.replace(PICTURE_EXTENSION, "");
     if (!isSafeBackgroundName(name) || seen.has(name.toLowerCase())) continue;
-    const file = findModuleFile(bundle, id);
-    if (file === null || !isSafePictureFile(file)) continue;
+    const file = files.get(id);
+    if (file === undefined || !isSafePictureFile(file)) continue;
     seen.add(name.toLowerCase());
     entries.push({ name, file });
   }
   return entries;
 }
 
-/** The file name a picture module exports, or null when the module is not found. */
-function findModuleFile(bundle: string, id: string): string | null {
-  const v = "[\\w$]+";
+/** Module id to exported file name, for every module shaped like a picture. */
+function pictureModules(bundle: string): Map<string, string> {
+  const v = "[\\w$]{1,32}";
   const pattern = new RegExp(
     // The id, not preceded by another digit or name character...
-    `(?:^|[^\\w$.])${escapeRegExp(id)}\\s*:\\s*` +
+    `(?:^|[^\\w$.])(\\d{1,10})\\s{0,8}:\\s{0,8}` +
       // ...then the module function: (e,t,r)=>, function(e,t,r) or e=>...
-      `(?:function\\s*\\([^)]*\\)|\\([^)]*\\)\\s*=>|${v}\\s*=>)\\s*\\{\\s*` +
-      `(?:["']use strict["']\\s*[;,]?\\s*)?` +
+      `(?:function\\s{0,8}\\([^)]{0,64}\\)|\\([^)]{0,64}\\)\\s{0,8}=>|${v}\\s{0,8}=>)\\s{0,8}\\{\\s{0,8}` +
+      `(?:["']use strict["']\\s{0,8}[;,]?\\s{0,8})?` +
       // ...whose body is e.exports = r.p + "file".
-      `${v}\\.exports\\s*=\\s*${v}\\.p\\s*\\+\\s*(["'])([^"'\\\\]*)\\1`,
+      `${v}\\.exports\\s{0,8}=\\s{0,8}${v}\\.p\\s{0,8}\\+\\s{0,8}(["'])([^"'\\\\]{1,200})\\2`,
+    "g",
   );
-  const match = pattern.exec(bundle);
-  return match ? match[2] : null;
+  const files = new Map<string, string>();
+  for (const match of bundle.matchAll(pattern)) {
+    if (!files.has(match[1])) files.set(match[1], match[3]);
+  }
+  return files;
 }
 
 /** Lists a folder's entry names; may throw or return [] when it cannot be read. */

@@ -23,12 +23,15 @@ describe("player backgrounds", () => {
       tavern: "file:///C:/Users/nik/AppData/Roaming/cue-desk/backgrounds/tavern.jpg",
     }));
     const { backgrounds, isBackground, getRandomBackground } = await loadWith(getBackgrounds);
-    expect(backgrounds).toEqual(getBackgrounds.mock.results[0].value);
+    expect(backgrounds).toEqual({ ...getBackgrounds.mock.results[0].value, blank: "blank.png" });
     expect(getBackgrounds).toHaveBeenCalledTimes(1);
     expect(isBackground("tavern")).toBe(true);
-    expect(isBackground("blank")).toBe(false);
+    // 0.1.0 saved "blank" on new playlists; it must keep working (0.1.1 review).
+    expect(isBackground("blank")).toBe(true);
     expect(isBackground("https://example.com/x.jpg")).toBe(false);
-    expect(["autumn", "tavern"]).toContain(getRandomBackground());
+    for (let i = 0; i < 50; i++) {
+      expect(["autumn", "tavern"]).toContain(getRandomBackground());
+    }
   });
 
   it("fall back to the blank picture when there are none", async () => {
@@ -44,7 +47,7 @@ describe("player backgrounds", () => {
       expect(backgrounds, JSON.stringify(answer)).toEqual({ blank: "blank.png" });
     }
     const { backgrounds } = await loadWith(() => ({ ok: "file:///ok.jpg", bad: 3 }));
-    expect(backgrounds).toEqual({ ok: "file:///ok.jpg" });
+    expect(backgrounds).toEqual({ ok: "file:///ok.jpg", blank: "blank.png" });
   });
 
   it("still load when the bridge is missing or fails", async () => {

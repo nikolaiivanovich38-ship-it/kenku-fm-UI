@@ -5,6 +5,7 @@ import { pathToFileURL } from "url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   MAX_BACKGROUND_BYTES,
+  MAX_TOTAL_BACKGROUND_BYTES,
   type BackgroundImportResult,
   backgroundUrls,
   copyMissingBackgrounds,
@@ -108,6 +109,26 @@ describe("copyMissingBackgrounds", () => {
   });
 });
 
+describe("copyMissingBackgrounds limits (0.1.1 review)", () => {
+  it("stops copying once the total would pass the limit", async () => {
+    const big = Buffer.alloc(MAX_BACKGROUND_BYTES, 1);
+    write(path.join(source, "big.jpg"), big);
+    const entries = Array.from({ length: 20 }, (_, i) => ({ name: `p${i}`, file: "big.jpg" }));
+    const result = await copyMissingBackgrounds(source, entries, dest);
+    expect(result.copied.length * MAX_BACKGROUND_BYTES).toBeLessThanOrEqual(MAX_TOTAL_BACKGROUND_BYTES);
+    expect(result.skipped.some((s) => /total/.test(s.reason))).toBe(true);
+  });
+
+  it.skipIf(process.platform === "win32")("does not follow a picture that is a link to another file", async () => {
+    write(path.join(root, "secret.txt"), "private");
+    fs.mkdirSync(source, { recursive: true });
+    fs.symlinkSync(path.join(root, "secret.txt"), path.join(source, "link.jpg"));
+    const result = await copyMissingBackgrounds(source, [{ name: "linked", file: "link.jpg" }], dest);
+    expect(result.copied).toEqual([]);
+    expect(fs.existsSync(path.join(dest, "linked.jpg"))).toBe(false);
+  });
+});
+
 describe("listBackgroundFiles", () => {
   it("lists pictures by name, sorted, ignoring other files, hidden files and folders", async () => {
     write(path.join(dest, "tavern.jpg"));
@@ -129,6 +150,15 @@ describe("listBackgroundFiles", () => {
 
   it("returns nothing when the folder does not exist", async () => {
     expect(await listBackgroundFiles(path.join(root, "missing"))).toEqual({});
+  });
+});
+
+describe("listBackgroundFiles names (0.1.1 review)", () => {
+  it("keeps pictures whose names are also object property names", async () => {
+    write(path.join(dest, "constructor.jpg"));
+    write(path.join(dest, "toString.png"));
+    const pictures = await listBackgroundFiles(dest);
+    expect(Object.keys(pictures).sort()).toEqual(["constructor", "toString"]);
   });
 });
 

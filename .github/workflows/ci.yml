@@ -70,7 +70,7 @@ jobs:
       - name: Install dependencies (exactly as locked)
         run: yarn install --frozen-lockfile --non-interactive
       # CUE_DESK_E2E_BUILD keeps the --inspect fuse on so Playwright can drive
-      # the app. Native modules are rebuilt for Electron as in a release.
+      # the app.
       - name: Package the app for testing
         run: yarn package --arch=x64
         env:

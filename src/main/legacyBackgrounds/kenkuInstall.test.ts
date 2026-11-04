@@ -4,6 +4,7 @@ import {
   LOCAL_APP_DATA_DIR_ENV,
   findRendererFolders,
   localAppDataFolder,
+  MAX_BACKGROUND_ENTRIES,
   parseBackgroundMap,
 } from "./kenkuInstall";
 
@@ -160,5 +161,32 @@ describe("localAppDataFolder", () => {
 
   it("never reads the real computer's Kenku FM during a test run with a throw-away data folder", () => {
     expect(localAppDataFolder(winEnv, "win32", { isTestBuild: true, testUserData: true })).toBeNull();
+  });
+});
+
+describe("parseBackgroundMap on a hostile bundle (0.1.1 review)", () => {
+  it("stays fast when a module-like pattern repeats without closing", () => {
+    const bundle = '{"./a.jpg":1}' + "1:(".repeat(240_000);
+    const start = performance.now();
+    expect(parseBackgroundMap(bundle)).toEqual([]);
+    expect(performance.now() - start).toBeLessThan(500);
+  });
+
+  it("stays fast with thousands of map entries that have no module", () => {
+    const entries = Array.from({ length: 2_000 }, (_, i) => `"./x${i}.jpg":${i + 1}`).join(",");
+    const bundle = `{${entries}}` + "x".repeat(4 * 1024 * 1024);
+    const start = performance.now();
+    expect(parseBackgroundMap(bundle)).toEqual([]);
+    expect(performance.now() - start).toBeLessThan(1_000);
+  });
+
+  it(`returns at most ${"MAX_BACKGROUND_ENTRIES"} pictures`, () => {
+    const count = MAX_BACKGROUND_ENTRIES + 50;
+    const map = Array.from({ length: count }, (_, i) => `"./p${i}.jpg":${i + 1}`).join(",");
+    const modules = Array.from(
+      { length: count },
+      (_, i) => `,${i + 1}:(e,t,r)=>{"use strict";e.exports=r.p+"f${i}.jpg"}`,
+    ).join("");
+    expect(parseBackgroundMap(`{${map}}${modules}`)).toHaveLength(MAX_BACKGROUND_ENTRIES);
   });
 });

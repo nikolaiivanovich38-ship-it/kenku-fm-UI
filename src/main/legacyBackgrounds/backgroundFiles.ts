@@ -5,7 +5,7 @@
  * folders; in the app, Electron's versions of the same functions also read
  * inside `app.asar` archives.
  */
-import { promises as fs } from "fs";
+import { constants as fsConstants, promises as fs } from "fs";
 import path from "path";
 import { pathToFileURL } from "url";
 import {
@@ -21,8 +21,14 @@ import {
 /** Largest picture copied. Kenku FM's are under 1 MB each. */
 export const MAX_BACKGROUND_BYTES = 20 * 1024 * 1024;
 
+/**
+ * Most copied in one start, all pictures together. Kenku FM's 23 come to a
+ * few MB; the limit stops a fake install from filling the disk (0.1.1 review).
+ */
+export const MAX_TOTAL_BACKGROUND_BYTES = 200 * 1024 * 1024;
+
 /** Largest player bundle read. Kenku FM 1.5.5's is a few MB. */
-const MAX_BUNDLE_BYTES = 64 * 1024 * 1024;
+const MAX_BUNDLE_BYTES = 16 * 1024 * 1024;
 
 export type SkippedBackground = { name: string; reason: string };
 
@@ -72,6 +78,7 @@ export async function copyMissingBackgrounds(
   await fs.mkdir(destDir, { recursive: true });
   const present = await namesInFolder(destDir);
   const result: CopyResult = { copied: [], alreadyPresent: [], skipped: [] };
+  let totalBytes = 0;
 
   for (const { name, file } of entries) {
     if (!isSafeBackgroundName(name) || !isSafePictureFile(file)) {
@@ -86,7 +93,8 @@ export async function copyMissingBackgrounds(
     const target = path.join(destDir, `${name}${path.extname(file).toLowerCase()}`);
     const temporary = path.join(destDir, `.${name}${path.extname(file)}.part`);
     try {
-      const stats = await fs.stat(source).catch((): null => null);
+      // lstat: a picture that is a link to some other file is not copied.
+      const stats = await fs.lstat(source).catch((): null => null);
       if (stats === null) {
         result.skipped.push({ name, reason: "not found" });
       } else if (!stats.isFile()) {
@@ -95,9 +103,17 @@ export async function copyMissingBackgrounds(
         result.skipped.push({ name, reason: "empty file" });
       } else if (stats.size > MAX_BACKGROUND_BYTES) {
         result.skipped.push({ name, reason: "larger than 20 MB" });
+      } else if (totalBytes + stats.size > MAX_TOTAL_BACKGROUND_BYTES) {
+        result.skipped.push({ name, reason: "over the total size limit for one start" });
       } else {
-        await fs.writeFile(temporary, await fs.readFile(source));
-        await fs.rename(temporary, target);
+        const content = await readAtMost(source, MAX_BACKGROUND_BYTES);
+        totalBytes += content.length;
+        // "wx" refuses an existing file or link at the temporary name, and
+        // COPYFILE_EXCL refuses a picture that appeared since the folder was
+        // listed: nothing is ever overwritten.
+        await fs.writeFile(temporary, content, { flag: "wx" });
+        await fs.copyFile(temporary, target, fsConstants.COPYFILE_EXCL);
+        await fs.rm(temporary, { force: true });
         present.add(name.toLowerCase());
         result.copied.push(name);
       }
@@ -172,6 +188,19 @@ export function describeBackgroundImport(result: BackgroundImportResult): string
   }
 }
 
+/** Read a file, but never more than `limit` bytes, even if it grows meanwhile. */
+async function readAtMost(file: string, limit: number): Promise<Buffer> {
+  const handle = await fs.open(file, "r");
+  try {
+    const { size } = await handle.stat();
+    const buffer = Buffer.alloc(Math.min(size, limit));
+    const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
+    return buffer.subarray(0, bytesRead);
+  } finally {
+    await handle.close();
+  }
+}
+
 /**
  * The pictures in Cue Desk's backgrounds folder: name (file name without
  * extension) to full path, sorted by name. Hidden files (unfinished copies),
@@ -192,7 +221,7 @@ export async function listBackgroundFiles(dir: string): Promise<Record<string, s
   const pictures: Record<string, string> = {};
   for (const file of files) {
     const name = baseName(file);
-    if (isSafeBackgroundName(name) && !(name in pictures)) {
+    if (isSafeBackgroundName(name) && !Object.prototype.hasOwnProperty.call(pictures, name)) {
       pictures[name] = path.join(dir, file);
     }
   }
