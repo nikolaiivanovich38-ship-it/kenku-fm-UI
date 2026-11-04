@@ -40,7 +40,7 @@ const titles = (items: ReturnType<typeof listPlaylistItems>) =>
   items.map((item) => (item.kind === "track" ? item.title : `-- ${item.label}`));
 
 describe("playlists", () => {
-  it("creates, renames and orders playlists, keeping the background name", () => {
+  it("creates, renames and orders playlists, keeping the background name", async () => {
     const a = createPlaylist(t.store, { title: "Town", background: "tavern" });
     const b = createPlaylist(t.store, { title: "Battle" });
     const c = createPlaylist(t.store, { title: "Intro", placement: "start" });
@@ -52,7 +52,7 @@ describe("playlists", () => {
     expect(() => createPlaylist(t.store, { title: "" })).toThrow(ValidationError);
   });
 
-  it("adds tracks at the end, the start or before an entry, and dividers between them", () => {
+  it("adds tracks at the end, the start or before an entry, and dividers between them", async () => {
     const [t1, t2, t3, t4] = tracks(4);
     const p = createPlaylist(t.store, { title: "Town" });
     const [first] = addTracksToPlaylist(t.store, p.id, [t1.id, t2.id]);
@@ -62,7 +62,7 @@ describe("playlists", () => {
     expect(titles(listPlaylistItems(t.store, p.id))).toEqual(["T3", "T4", "T1", "-- Night", "T2"]);
   });
 
-  it("moves entries without renumbering the others", () => {
+  it("moves entries without renumbering the others", async () => {
     const p = createPlaylist(t.store, { title: "Town" });
     const items = addTracksToPlaylist(t.store, p.id, tracks(5).map((x) => x.id));
     const before = new Map(listPlaylistItems(t.store, p.id).map((item) => [item.id, item.position]));
@@ -73,7 +73,7 @@ describe("playlists", () => {
     expect(changed).toEqual([items[4].id]);
   });
 
-  it("moves several selected entries together, keeping their order", () => {
+  it("moves several selected entries together, keeping their order", async () => {
     const p = createPlaylist(t.store, { title: "Town" });
     const items = addTracksToPlaylist(t.store, p.id, tracks(5).map((x) => x.id));
     movePlaylistItems(t.store, [items[3].id, items[1].id], "start");
@@ -81,7 +81,7 @@ describe("playlists", () => {
     expect(() => movePlaylistItems(t.store, [items[0].id], { before: items[0].id })).toThrow(/itself/);
   });
 
-  it("allows a track in many playlists, and removing an entry never deletes the track", () => {
+  it("allows a track in many playlists, and removing an entry never deletes the track", async () => {
     const [t1] = tracks(1);
     const p1 = createPlaylist(t.store, { title: "A" });
     const p2 = createPlaylist(t.store, { title: "B" });
@@ -93,7 +93,7 @@ describe("playlists", () => {
     expect(getTrack(t.store, t1.id)).not.toBeNull();
   });
 
-  it("deleting a playlist keeps its tracks in the library (unlike the current player)", () => {
+  it("deleting a playlist keeps its tracks in the library (unlike the current player)", async () => {
     const p = createPlaylist(t.store, { title: "Town" });
     addTracksToPlaylist(t.store, p.id, tracks(3).map((x) => x.id));
     deletePlaylist(t.store, p.id);
@@ -101,7 +101,7 @@ describe("playlists", () => {
     expect(listTracks(t.store)).toHaveLength(3);
   });
 
-  it("renames dividers and refuses entries that are not in the playlist", () => {
+  it("renames dividers and refuses entries that are not in the playlist", async () => {
     const p = createPlaylist(t.store, { title: "Town" });
     const other = createPlaylist(t.store, { title: "Other" });
     const divider = addPlaylistDivider(t.store, p.id, "Act 1");
@@ -116,7 +116,7 @@ describe("playlists", () => {
     );
   });
 
-  it("adds 500 tracks at once in one ordered block", () => {
+  it("adds 500 tracks at once in one ordered block", async () => {
     const p = createPlaylist(t.store, { title: "Big" });
     const ids = tracks(500).map((x) => x.id);
     addTracksToPlaylist(t.store, p.id, ids);
@@ -126,7 +126,7 @@ describe("playlists", () => {
 });
 
 describe("design playlists: lanes, dynamic rules and notes (DAT-11)", () => {
-  it("makes manual music playlists by default, with notes", () => {
+  it("makes manual music playlists by default, with notes", async () => {
     const p = createPlaylist(t.store, { title: "Town" });
     expect(p).toMatchObject({ kind: "manual", lane: "music", rule: null, notes: "" });
     const amb = createPlaylist(t.store, { title: "Inn and hearth", lane: "amb", notes: "Low under speech" });
@@ -136,7 +136,7 @@ describe("design playlists: lanes, dynamic rules and notes (DAT-11)", () => {
     expect(() => createPlaylist(t.store, { title: "x", kind: "smart" as never })).toThrow(ValidationError);
   });
 
-  it("keeps a dynamic playlist's rule, checked, and refuses tracks added by hand", () => {
+  it("keeps a dynamic playlist's rule, checked, and refuses tracks added by hand", async () => {
     const mood = listTagGroups(t.store)[0];
     const rule = { conds: [{ group: mood.id, match: "any" as const, values: ["Eerie", "Tense"] }], energy: [0, 3] as [number, number], leaveOutStings: true };
     const p = createPlaylist(t.store, { title: "Abbey: eerie", kind: "dynamic", rule });
@@ -169,7 +169,7 @@ describe("design playlists: lanes, dynamic rules and notes (DAT-11)", () => {
     expect(() => updatePlaylist(t.store, manual.id, { rule: changed })).toThrow(/manual/);
   });
 
-  it("follows tag renames, merges and deletes in dynamic rules", () => {
+  it("follows tag renames, merges and deletes in dynamic rules", async () => {
     const mood = listTagGroups(t.store)[0];
     const eerie = listTags(t.store, { groupId: mood.id }).find((x) => x.name === "Eerie")!;
     const tense = listTags(t.store, { groupId: mood.id }).find((x) => x.name === "Tense")!;
@@ -180,13 +180,13 @@ describe("design playlists: lanes, dynamic rules and notes (DAT-11)", () => {
       rule: { conds: [{ group: mood.id, match: "any", values: ["Eerie", "Tense", "Warm"] }] },
     });
     updateTag(t.store, eerie.id, { name: "Spooky" });
-    mergeTags(t.store, [tense.id], warm.id);
+    await mergeTags(t.store, [tense.id], warm.id);
     expect(getPlaylist(t.store, p.id)!.rule!.conds[0].values).toEqual(["Spooky", "Warm"]);
-    deleteTag(t.store, warm.id);
+    await deleteTag(t.store, warm.id);
     expect(getPlaylist(t.store, p.id)!.rule!.conds[0].values).toEqual(["Spooky"]);
   });
 
-  it("copies a playlist; a dynamic one can become a manual list of what it matches now", () => {
+  it("copies a playlist; a dynamic one can become a manual list of what it matches now", async () => {
     const [a, b] = createTracks(t.store, [
       { title: "Bed", file: { path: "/m/bed.flac" }, energy: 2 },
       { title: "Battle", file: { path: "/m/battle.flac" }, energy: 5 },

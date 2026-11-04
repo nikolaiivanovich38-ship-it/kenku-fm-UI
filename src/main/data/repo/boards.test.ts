@@ -49,7 +49,7 @@ function sampleBoard() {
 }
 
 describe("pad boards", () => {
-  it("creates a board with a grid of 4 x 3 by default, and checks sizes from 1 to 8", () => {
+  it("creates a board with a grid of 4 x 3 by default, and checks sizes from 1 to 8", async () => {
     const board = createBoard(t.store, { title: "Weather" });
     expect(board).toMatchObject({ title: "Weather", cols: 4, rows: 3, background: "" });
     expect(getBoardLayout(t.store, board.id)).toMatchObject({ slots: Array(12).fill(null), spare: [] });
@@ -60,7 +60,7 @@ describe("pad boards", () => {
     expect(listBoards(t.store).map((b) => b.title)).toEqual(["Weather and places"]);
   });
 
-  it("adds pads to the first empty cell, then to Spare pads when the grid is full", () => {
+  it("adds pads to the first empty cell, then to Spare pads when the grid is full", async () => {
     const board = createBoard(t.store, { title: "Tiny", cols: 2, rows: 1 });
     const a = addPad(t.store, board.id, { label: "A" });
     addPad(t.store, board.id, { label: "B" });
@@ -74,7 +74,7 @@ describe("pad boards", () => {
     expect(() => addPad(t.store, board.id, { label: "E", at: { row: 1, col: 0 } })).toThrow(/outside/);
   });
 
-  it("gives a new pad the prototype's defaults and keeps every setting", () => {
+  it("gives a new pad the prototype's defaults and keeps every setting", async () => {
     const board = createBoard(t.store, { title: "Fx" });
     const pad = addPad(t.store, board.id, {});
     expect(pad).toMatchObject({
@@ -127,20 +127,20 @@ describe("pad boards", () => {
     }
   });
 
-  it("plays any effect with a tag; a deleted tag or track leaves the pad in place", () => {
+  it("plays any effect with a tag; a deleted tag or track leaves the pad in place", async () => {
     const board = createBoard(t.store, { title: "Fx" });
     const group = listTagGroups(t.store)[0];
     const door = createTag(t.store, { groupId: group.id, name: "Door" });
     const [slam] = createTracks(t.store, [{ kind: "fx", title: "Slam", file: { path: "/fx/slam.wav" } }]);
     const tagPad = addPad(t.store, board.id, { label: "Doors", sound: { kind: "tag", tagId: door.id } });
     const filePad = addPad(t.store, board.id, { label: "Slam", sound: { kind: "single", trackIds: [slam.id] } });
-    deleteTag(t.store, door.id);
-    deleteTracks(t.store, [slam.id]);
+    await deleteTag(t.store, door.id);
+    await deleteTracks(t.store, [slam.id]);
     expect(getPad(t.store, tagPad.id)!.sound).toMatchObject({ kind: "tag", tagId: null });
     expect(getPad(t.store, filePad.id)!.sound.trackIds).toEqual([]);
   });
 
-  it("moves pads that fall outside a smaller grid to Spare pads, keeping row and column for the rest", () => {
+  it("moves pads that fall outside a smaller grid to Spare pads, keeping row and column for the rest", async () => {
     const board = sampleBoard();
     expect(labels(board.id)).toEqual({ slots: ["A", "B", "C", "D", "E", null], spare: [] });
     const result = resizeBoard(t.store, board.id, { cols: 2, rows: 2 });
@@ -155,17 +155,17 @@ describe("pad boards", () => {
     expect(listPads(t.store, board.id)).toHaveLength(5);
   });
 
-  it("undoes a resize as one step, bringing the pads back to their cells", () => {
+  it("undoes a resize as one step, bringing the pads back to their cells", async () => {
     const board = sampleBoard();
     resizeBoard(t.store, board.id, { cols: 1, rows: 2 });
     expect(labels(board.id)).toEqual({ slots: ["A", "D"], spare: ["B", "C", "E"] });
-    expect(history.undo()).toBe('Resize "Combat" to 1 × 2');
+    expect(await history.undo()).toBe('Resize "Combat" to 1 × 2');
     expect(labels(board.id)).toEqual({ slots: ["A", "B", "C", "D", "E", null], spare: [] });
-    history.redo();
+    await history.redo();
     expect(labels(board.id)).toEqual({ slots: ["A", "D"], spare: ["B", "C", "E"] });
   });
 
-  it("moves pads between cells and Spare pads, swapping with a pad already there", () => {
+  it("moves pads between cells and Spare pads, swapping with a pad already there", async () => {
     const board = sampleBoard();
     const pads = Object.fromEntries(listPads(t.store, board.id).map((p) => [p.label, p.id]));
     movePad(t.store, pads.A, { row: 1, col: 2 });
@@ -185,7 +185,7 @@ describe("pad boards", () => {
     expect(() => putPadBack(t.store, pads.E)).toThrow(/No empty slot/);
   });
 
-  it("duplicates a pad without its hotkey, and takes a hotkey from another pad", () => {
+  it("duplicates a pad without its hotkey, and takes a hotkey from another pad", async () => {
     const board = sampleBoard();
     const [a, b] = listPads(t.store, board.id);
     updatePad(t.store, a.id, { hotkey: "1", color: "ember" });
@@ -198,7 +198,7 @@ describe("pad boards", () => {
     expect(getPad(t.store, b.id)!.hotkey).toBe("1");
   });
 
-  it("deletes pads, and a board with all its pads; the sound files stay in the library", () => {
+  it("deletes pads, and a board with all its pads; the sound files stay in the library", async () => {
     const board = sampleBoard();
     const [track] = createTracks(t.store, [{ kind: "fx", title: "Bell", file: { path: "/fx/bell.wav" } }]);
     const [a, b] = listPads(t.store, board.id);

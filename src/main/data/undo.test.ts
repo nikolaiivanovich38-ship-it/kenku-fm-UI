@@ -62,8 +62,8 @@ function snapshot(store: Store) {
 }
 
 /** A small library with something of everything. */
-function fixture(store: Store) {
-  const root = roots.addRoot(store, { name: "Music", path: "/music" });
+async function fixture(store: Store) {
+  const root = await roots.addRoot(store, { name: "Music", path: "/music" });
   const [a, b, c] = tracks.createTracks(store, [
     { title: "Alpha", file: { path: "/music/a.mp3" }, notes: "first" },
     { title: "Beta", file: { path: "/music/b.mp3" } },
@@ -86,7 +86,7 @@ function fixture(store: Store) {
   const tense = tags.listTags(store, { groupId: mood.id })[2];
   const villain = tags.createTag(store, { groupId: mood.id, name: "Villain", synonyms: ["baddie"] });
   const strahd = tags.createTag(store, { groupId: mood.id, name: "Strahd", parentId: villain.id });
-  tags.tagTracks(store, [a.id, b.id], [tense.id, villain.id]);
+  await tags.tagTracks(store, [a.id, b.id], [tense.id, villain.id]);
   // Its rule names tags, so renaming, merging or deleting them changes it too (in the same step).
   const dynamic = playlists.createPlaylist(store, {
     title: "Eerie",
@@ -115,7 +115,7 @@ function fixture(store: Store) {
   };
 }
 
-type Fixture = ReturnType<typeof fixture>;
+type Fixture = Awaited<ReturnType<typeof fixture>>;
 
 /** Every write command of the repository, run against the fixture. */
 const COMMANDS: [string, (s: Store, f: Fixture) => unknown][] = [
@@ -127,6 +127,7 @@ const COMMANDS: [string, (s: Store, f: Fixture) => unknown][] = [
   ["updateTrack", (s, f) => tracks.updateTrack(s, f.a.id, { title: "Alpha 2", energy: 3, transitionIn: { kind: "cut" } })],
   ["updateTrack (relocate)", (s, f) => tracks.updateTrack(s, f.c.id, { file: { path: "/music/sub/c.mp3", size: 5 } })],
   ["deleteTracks", (s, f) => tracks.deleteTracks(s, [f.a.id, f.c.id])],
+  ["relocateTracks", (s, f) => tracks.relocateTracks(s, "Relink 2 files", [{ trackId: f.a.id, file: { path: "/elsewhere/a.mp3", size: 3 } }, { trackId: f.c.id, file: { path: "/music/c.mp3" } }])],
   ["setFollowWith", (s, f) => tracks.setFollowWith(s, f.a.id, [f.c.id, f.b.id])],
   ["addMarker", (s, f) => markers.addMarker(s, f.b.id, { timeMs: 5, kind: "loop_in" })],
   ["updateMarker", (s, f) => markers.updateMarker(s, f.marker.id, { label: "big swell", timeMs: 2 })],
@@ -210,27 +211,27 @@ const COMMANDS: [string, (s: Store, f: Fixture) => unknown][] = [
 ];
 
 describe("undo and redo of every command (EDT-2)", () => {
-  it.each(COMMANDS)("%s is one step that undoes and redoes exactly", (_name, command) => {
-    const f = fixture(t.store);
+  it.each(COMMANDS)("%s is one step that undoes and redoes exactly", async (_name, command) => {
+    const f = await fixture(t.store);
     t.history.clear();
     const before = snapshot(t.store);
     t.clock.advance(60_000);
-    command(t.store, f);
+    await command(t.store, f);
     const after = snapshot(t.store);
     expect(after).not.toEqual(before);
     expect(t.history.state()).toMatchObject({ canUndo: true, canRedo: false });
 
-    expect(t.history.undo()).toEqual(expect.any(String));
+    expect(await t.history.undo()).toEqual(expect.any(String));
     expect(snapshot(t.store)).toEqual(before);
     expect(t.history.state()).toMatchObject({ canUndo: false, canRedo: true });
 
-    t.history.redo();
+    await t.history.redo();
     expect(snapshot(t.store)).toEqual(after);
-    t.history.undo();
+    await t.history.undo();
     expect(snapshot(t.store)).toEqual(before);
   });
 
-  it("covers every exported write function", () => {
+  it("covers every exported write function", async () => {
     const modules = { tracks, roots, markers, playlists, boards, folders, tags, campaigns, profiles };
     const readers = /^(get|list|find|track|tagUsage|campaignsOf|resolve|suggest|tagsOf|requireFolderFor|getFollowWith|ITEM_TABLES|[A-Z_]+$)/;
     const writers = Object.values(modules)
@@ -242,17 +243,17 @@ describe("undo and redo of every command (EDT-2)", () => {
 });
 
 describe("undo history", () => {
-  it("is cleared through the store after writes made outside it (imports; DB review item 10)", () => {
+  it("is cleared through the store after writes made outside it (imports; DB review item 10)", async () => {
     const [track] = tracks.createTracks(t.store, [{ title: "A", file: { path: "/a.mp3" } }]);
-    tracks.deleteTracks(t.store, [track.id]);
-    t.history.undo();
+    await tracks.deleteTracks(t.store, [track.id]);
+    await t.history.undo();
     expect(t.history.state()).toMatchObject({ canUndo: true, canRedo: true });
     t.store.clearHistory();
     expect(t.history.state()).toEqual({ canUndo: false, canRedo: false, undoLabel: null, redoLabel: null });
     expect(() => t.store.change("x", () => t.store.clearHistory())).toThrow(/while a change/);
   });
 
-  it("keeps library order (the order tracks were added) through delete and undo, and through VACUUM (DB review 3)", () => {
+  it("keeps library order (the order tracks were added) through delete and undo, and through VACUUM (DB review 3)", async () => {
     const [a, b, c, d] = tracks.createTracks(
       t.store,
       ["a", "b", "c", "d"].map((title) => ({ title, file: { path: `/m/${title}.mp3` } })),
@@ -262,61 +263,61 @@ describe("undo history", () => {
       lookup: [...getDomainLookup(t.store).tracks()].map((x) => x.title).join(""),
       playlist: playlists.listPlaylistTrackIds(t.store, everything.id).map((id) => tracks.getTrack(t.store, id)!.title).join(""),
     });
-    tracks.deleteTracks(t.store, [a.id, c.id]);
-    t.history.undo();
+    await tracks.deleteTracks(t.store, [a.id, c.id]);
+    await t.history.undo();
     expect(order()).toEqual({ lookup: "abcd", playlist: "abcd" });
-    t.history.redo();
-    t.history.undo();
+    await t.history.redo();
+    await t.history.undo();
     t.db.exec("VACUUM");
     expect(order()).toEqual({ lookup: "abcd", playlist: "abcd" });
     expect([b, d].map((x) => tracks.getTrack(t.store, x.id)!.title)).toEqual(["b", "d"]);
   });
 
-  it("names each step so the interface can say what Undo will do", () => {
+  it("names each step so the interface can say what Undo will do", async () => {
     const [track] = tracks.createTracks(t.store, [{ title: "A", file: { path: "/a.mp3" } }, { title: "B", file: { path: "/b.mp3" } }]);
-    tracks.deleteTracks(t.store, [track.id]);
+    await tracks.deleteTracks(t.store, [track.id]);
     expect(t.history.state()).toEqual({ canUndo: true, canRedo: false, undoLabel: "Delete 1 track", redoLabel: null });
-    expect(t.history.undo()).toBe("Delete 1 track");
+    expect(await t.history.undo()).toBe("Delete 1 track");
     expect(t.history.state()).toEqual({ canUndo: true, canRedo: true, undoLabel: "Add 2 tracks", redoLabel: "Delete 1 track" });
   });
 
-  it("restores a deleted track with its playlists, boards, tags, markers, links and scenes", () => {
-    const f = fixture(t.store);
+  it("restores a deleted track with its playlists, boards, tags, markers, links and scenes", async () => {
+    const f = await fixture(t.store);
     const before = snapshot(t.store);
-    tracks.deleteTracks(t.store, [f.a.id]);
+    await tracks.deleteTracks(t.store, [f.a.id]);
     expect(tracks.getTrack(t.store, f.a.id)).toBeNull();
-    t.history.undo();
+    await t.history.undo();
     expect(snapshot(t.store)).toEqual(before);
     expect(search(t.store, "swell").map((hit) => hit.title)).toEqual(["Alpha"]);
     expect(search(t.store, "baddie").map((hit) => hit.title).sort()).toEqual(["Alpha", "Beta"]);
   });
 
-  it("keeps at least 50 steps (default 100) and drops the oldest beyond the limit", () => {
+  it("keeps at least 50 steps (default 100) and drops the oldest beyond the limit", async () => {
     const small = setup(3);
     const ids = Array.from({ length: 5 }, (_, i) => campaigns.createCampaign(small.store, { name: `C${i}` }).id);
-    expect(small.history.undo()).toBe('Add campaign "C4"');
-    small.history.undo();
-    small.history.undo();
-    expect(small.history.undo()).toBeNull();
+    expect(await small.history.undo()).toBe('Add campaign "C4"');
+    await small.history.undo();
+    await small.history.undo();
+    expect(await small.history.undo()).toBeNull();
     expect(campaigns.listCampaigns(small.store).map((c) => c.id)).toEqual(ids.slice(0, 2));
     small.db.close();
 
     for (let i = 0; i < 100; i++) campaigns.createCampaign(t.store, { name: `C${i}` });
     let undone = 0;
-    while (t.history.undo() !== null) undone++;
+    while ((await t.history.undo()) !== null) undone++;
     expect(undone).toBe(100);
     expect(campaigns.listCampaigns(t.store)).toEqual([]);
   });
 
-  it("clears redo when a new change is made", () => {
+  it("clears redo when a new change is made", async () => {
     campaigns.createCampaign(t.store, { name: "A" });
-    t.history.undo();
+    await t.history.undo();
     campaigns.createCampaign(t.store, { name: "B" });
     expect(t.history.state().canRedo).toBe(false);
-    expect(t.history.redo()).toBeNull();
+    expect(await t.history.redo()).toBeNull();
   });
 
-  it("records nothing for a change that fails, and nothing for a change that changes nothing", () => {
+  it("records nothing for a change that fails, and nothing for a change that changes nothing", async () => {
     campaigns.createCampaign(t.store, { name: "A" });
     expect(() =>
       t.store.change("Broken", () => {
@@ -330,34 +331,34 @@ describe("undo history", () => {
     expect(t.history.state().undoLabel).toBe('Add campaign "A"');
   });
 
-  it("keeps a change made of several commands as one step", () => {
+  it("keeps a change made of several commands as one step", async () => {
     t.store.change("Prepare session", () => {
       const c = campaigns.createCampaign(t.store, { name: "A" });
       const s = campaigns.createSession(t.store, { campaignId: c.id, name: "S" });
       campaigns.createScene(t.store, { sessionId: s.id, name: "Sc" });
     });
-    expect(t.history.undo()).toBe("Prepare session");
+    expect(await t.history.undo()).toBe("Prepare session");
     expect(campaigns.listCampaigns(t.store)).toEqual([]);
     expect(t.history.state().canUndo).toBe(false);
   });
 
-  it("does not record 'last used', and undoing an edit leaves 'last used' alone", () => {
+  it("does not record 'last used', and undoing an edit leaves 'last used' alone", async () => {
     const track = tracks.createTrack(t.store, { title: "A", file: { path: "/a.mp3" } });
     tracks.updateTrack(t.store, track.id, { title: "B" });
     tracks.markTracksUsed(t.store, [track.id], 777);
     expect(t.history.state().undoLabel).toBe("Edit track");
-    t.history.undo();
+    await t.history.undo();
     expect(tracks.getTrack(t.store, track.id)).toMatchObject({ title: "A", lastUsedAt: 777 });
   });
 
-  it("refuses to undo in the middle of a change and keeps the step for later", () => {
+  it("refuses to undo in the middle of a change and keeps the step for later", async () => {
     campaigns.createCampaign(t.store, { name: "A" });
     expect(() => t.store.change("x", () => t.history.undo())).toThrow(/while a change/);
     expect(t.history.state().undoLabel).toBe('Add campaign "A"');
-    expect(t.history.undo()).toBe('Add campaign "A"');
+    expect(await t.history.undo()).toBe('Add campaign "A"');
   });
 
-  it("drops a step that cannot be undone, so the steps before it still can", () => {
+  it("drops a step that cannot be undone, so the steps before it still can", async () => {
     campaigns.createCampaign(t.store, { name: "First" });
     const c = campaigns.createCampaign(t.store, { name: "A" });
     // Something outside the history took the id of the row undo would bring back.
@@ -365,18 +366,18 @@ describe("undo history", () => {
     t.store.changeWithoutHistory(() =>
       t.store.run("INSERT INTO campaigns (id, name, position, created_at, updated_at) VALUES (?, 'X', 1, 1, 1)", c.id),
     );
-    expect(() => t.history.undo()).toThrow();
+    await expect(t.history.undo()).rejects.toThrow();
     expect(campaigns.getCampaign(t.store, c.id)!.name).toBe("X");
     // Before: the failed step went back on top and every later undo failed the same way.
     expect(t.history.state()).toMatchObject({ undoLabel: 'Add campaign "A"', canRedo: false });
-    expect(t.history.undo()).toBe('Add campaign "A"');
+    expect(await t.history.undo()).toBe('Add campaign "A"');
     expect(campaigns.getCampaign(t.store, c.id)).toBeNull();
   });
 
-  it("records no step when the commit itself fails, and keeps redo (review 4)", () => {
+  it("records no step when the commit itself fails, and keeps redo (review 4)", async () => {
     campaigns.createCampaign(t.store, { name: "A" });
     campaigns.createCampaign(t.store, { name: "C" });
-    t.history.undo();
+    await t.history.undo();
     failNextExec(t.db, "COMMIT", "database or disk is full");
 
     expect(() => campaigns.createCampaign(t.store, { name: "B" })).toThrow("database or disk is full");
@@ -388,22 +389,22 @@ describe("undo history", () => {
       undoLabel: 'Add campaign "A"',
       redoLabel: 'Add campaign "C"',
     });
-    expect(t.history.undo()).toBe('Add campaign "A"');
+    expect(await t.history.undo()).toBe('Add campaign "A"');
     expect(campaigns.listCampaigns(t.store)).toEqual([]);
   });
 
-  it("drops an undo step whose commit fails instead of putting it back", () => {
+  it("drops an undo step whose commit fails instead of putting it back", async () => {
     campaigns.createCampaign(t.store, { name: "A" });
     campaigns.createCampaign(t.store, { name: "B" });
     failNextExec(t.db, "COMMIT", "disk I/O error");
 
-    expect(() => t.history.undo()).toThrow("disk I/O error");
+    await expect(t.history.undo()).rejects.toThrow("disk I/O error");
 
     expect(campaigns.listCampaigns(t.store).map((c) => c.name)).toEqual(["A", "B"]);
     expect(t.history.state()).toMatchObject({ undoLabel: 'Add campaign "A"', canRedo: false });
   });
 
-  it("passes on the real error when SQLite has already rolled the change back (review 5)", () => {
+  it("passes on the real error when SQLite has already rolled the change back (review 5)", async () => {
     campaigns.createCampaign(t.store, { name: "A" });
     // SQLite ends the transaction by itself on some errors (full disk, I/O
     // error, out of memory); an explicit ROLLBACK then fails with "no
@@ -425,11 +426,11 @@ describe("undo history", () => {
     // The store and the history still work afterwards.
     expect(t.store.inChange).toBe(false);
     campaigns.createCampaign(t.store, { name: "C" });
-    expect(t.history.undo()).toBe('Add campaign "C"');
+    expect(await t.history.undo()).toBe('Add campaign "C"');
     expect(campaigns.listCampaigns(t.store).map((c) => c.name)).toEqual(["A"]);
   });
 
-  it("passes on the real error when SQLite has already rolled an undo back", () => {
+  it("passes on the real error when SQLite has already rolled an undo back", async () => {
     campaigns.createCampaign(t.store, { name: "A" });
     const run = t.store.run.bind(t.store);
     let failed = false;
@@ -441,12 +442,12 @@ describe("undo history", () => {
       }
       return run(sql, ...params);
     };
-    expect(() => t.history.undo()).toThrow("disk I/O error");
+    await expect(t.history.undo()).rejects.toThrow("disk I/O error");
     expect(t.db.isTransaction).toBe(false);
     expect(campaigns.listCampaigns(t.store).map((c) => c.name)).toEqual(["A"]);
   });
 
-  it("follows tables added by a later schema version", () => {
+  it("follows tables added by a later schema version", async () => {
     const later: Migration = {
       version: MIGRATIONS.length + 1,
       name: "cue lists (test stand-in)",
@@ -459,14 +460,14 @@ describe("undo history", () => {
     const store = new Store(db);
     const history = new UndoHistory(store);
     store.change("Add cue list", () => store.run("INSERT INTO cue_lists VALUES ('q1', 'Main')"));
-    history.undo();
+    await history.undo();
     expect(store.all("SELECT * FROM cue_lists")).toEqual([]);
-    history.redo();
+    await history.redo();
     expect(store.all("SELECT * FROM cue_lists")).toEqual([{ id: "q1", name: "Main" }]);
     db.close();
   });
 
-  it("leaves derived and bookkeeping tables out of the history", () => {
+  it("leaves derived and bookkeeping tables out of the history", async () => {
     const names = undoableTables(t.db).map((table) => table.name);
     expect(names).toContain("tracks");
     expect(names).not.toContain("search_docs");

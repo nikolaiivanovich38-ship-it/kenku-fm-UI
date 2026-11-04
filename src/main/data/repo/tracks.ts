@@ -233,11 +233,18 @@ export const TRACK_BY_PATH_SQL = {
   underRoot: "SELECT id, path FROM tracks WHERE root_id = ?",
 } as const;
 
-/** The track that has this file (a full path) or web address, if any. */
-export function findTrackByLocation(store: Store, location: { file: string } | { url: string }): string | null {
+/**
+ * The track that has this file (a full path) or web address, if any.
+ * @param roots the library folders, when the caller looks up many files
+ */
+export function findTrackByLocation(
+  store: Store,
+  location: { file: string } | { url: string },
+  roots: readonly { id: string; path: string }[] = listRoots(store),
+): string | null {
   if ("url" in location) return store.get<{ id: string }>(TRACK_BY_PATH_SQL.url, v.webAddress("url", location.url))?.id ?? null;
   const full = normalizePath(v.requiredName("file", location.file, v.MAX_TEXT_LENGTH));
-  const underRoot = findRoot(listRoots(store), full);
+  const underRoot = findRoot(roots, full);
   const row = underRoot
     ? store.get<{ id: string }>(TRACK_BY_PATH_SQL.root, underRoot.root.id, underRoot.relative)
     : store.get<{ id: string }>(TRACK_BY_PATH_SQL.absolute, full);
@@ -384,6 +391,30 @@ export function updateTrack(store: Store, id: string, changes: TrackPatch): Trac
   return getTrack(store, trackId) as Track;
 }
 
+/**
+ * Points tracks at new files (relinking, DAT-8), as one undo step, in batches
+ * when there are many (DB review 1). Leaner than updateTrack per track: the
+ * library folders are read once and no track is read back. Await the result.
+ */
+export function relocateTracks(store: Store, label: string, moves: { trackId: string; file: FileFacts }[]): Promise<void> {
+  const roots = listRoots(store);
+  const rows = moves.map((move) => ({ id: v.id("trackId", move.trackId), columns: locationColumns(roots, { file: move.file }) }));
+  return store.changeInBatches(label, rows, (batch) => {
+    for (const { id, columns } of batch) {
+      const names = Object.keys(columns);
+      const changed = oneTrackPerFile(columns.file_name, () =>
+        store.run(
+          `UPDATE tracks SET ${[...names.map((name) => `${name} = ?`), "updated_at = ?"].join(", ")} WHERE id = ?`,
+          ...names.map((name) => columns[name]),
+          store.now(),
+          id,
+        ),
+      );
+      if (changed === 0) throw new NotFoundError("track", id);
+    }
+  });
+}
+
 /** Where a track is used, so the interface can ask before deleting it (DAT-1). */
 export function trackUsage(store: Store, id: string): TrackUsage {
   return {
@@ -406,12 +437,24 @@ export function trackUsage(store: Store, id: string): TrackUsage {
   };
 }
 
-/** Deletes tracks from the library and from every list they are in, as one undoable step. */
-export function deleteTracks(store: Store, ids: string[]): void {
+/** Tracks per transaction when deleting many. */
+const DELETE_BATCH = 100;
+
+/**
+ * Deletes tracks from the library and from every list they are in, as one
+ * undoable step, in batches when there are many (DB review 1); await the result.
+ */
+export function deleteTracks(store: Store, ids: string[]): Promise<void> {
   const trackIds = v.ids("trackIds", ids).map((id) => requireRow(store, "tracks", "track", id));
-  store.change(`Delete ${plural(trackIds.length, "track")}`, () => {
-    for (const id of trackIds) store.run("DELETE FROM tracks WHERE id = ?", id);
-  });
+  // A deleted track takes its tags, playlist entries, markers and profiles with it: about ten rows each.
+  return store.changeInBatches(
+    `Delete ${plural(trackIds.length, "track")}`,
+    trackIds,
+    (batch) => {
+      for (const id of batch) store.run("DELETE FROM tracks WHERE id = ?", id);
+    },
+    { batchSize: DELETE_BATCH },
+  );
 }
 
 /** Replaces a track's "follow with" suggestions, in order (DAT-2, SHW-3). */

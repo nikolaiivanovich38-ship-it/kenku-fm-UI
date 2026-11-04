@@ -2,7 +2,15 @@
  * The open library database plus the helpers every repository uses:
  * cached prepared statements, a clock, and `change()`, which wraps each
  * edit in one transaction (and, in undo.ts, one undo step).
+ *
+ * The database runs on the main process, which also feeds Discord's audio
+ * from a queue holding 200 ms of sound (DB review item 1). An edit takes well
+ * under a millisecond; bulk work (tagging thousands of tracks, deleting a tag
+ * group, relinking a moved library) goes through `changeInBatches`, which saves
+ * about 500 rows per transaction and lets the event loop run between them,
+ * while the undo history still sees one step.
  */
+import { LibraryBusyError } from "./errors";
 import { flushSearchIndex, installSearchIndex } from "./searchIndex";
 import type { DatabaseSync, SQLInputValue, StatementSync } from "./sqlite";
 
@@ -11,8 +19,14 @@ export type StoreOptions = {
   now?: () => number;
 };
 
+/** Rows per transaction in bulk work: each batch takes tens of milliseconds at most. */
+export const BATCH_SIZE = 500;
+
+/** Lets the event loop run (timers, Discord's audio packets, IPC) before the next batch. */
+export const nextTurn = () => new Promise<void>((resolve) => setImmediate(resolve));
+
 type ChangeHooks = {
-  /** Called when a top-level change starts (inside its transaction). */
+  /** Called when a top-level change, or one batch of a bulk change, starts (inside its transaction). */
   begin(label: string): void;
   /**
    * Called just before a top-level change commits, while its rows can still
@@ -20,10 +34,16 @@ type ChangeHooks = {
    * COMMIT fails), so a step is never recorded for a change that was lost.
    */
   commit(label: string): (() => void) | void;
-  /** Called after a top-level change was rolled back. */
+  /** Called after a top-level change (or one batch) was rolled back. */
   rollback(): void;
   /** Forget every undo and redo step (see Store.clearHistory). */
   reset?(): void;
+  /** Called just before one batch of a bulk change commits: what it changed, kept until the last batch. */
+  takeBatch?(): unknown;
+  /** Called once every batch of a bulk change is saved: they become one step. */
+  recordBatches?(label: string, batches: unknown[]): void;
+  /** Called when a batch fails: puts back what the batches saved before it changed. */
+  revertBatches?(batches: unknown[]): Promise<void>;
 };
 
 /**
@@ -49,6 +69,8 @@ export class Store {
   private readonly statements = new Map<string, StatementSync>();
   private depth = 0;
   private hooks: ChangeHooks | null = null;
+  private job: string | null = null;
+  private afterBulkWork: (() => void) | null = null;
 
   constructor(db: DatabaseSync, options: StoreOptions = {}) {
     this.db = db;
@@ -91,9 +113,49 @@ export class Store {
     return this.depth > 0;
   }
 
+  /** The label of the bulk change (or bulk undo) being saved in batches, or null. */
+  get busyWith(): string | null {
+    return this.job;
+  }
+
   /** Lets the undo history follow every top-level change. */
   setChangeHooks(hooks: ChangeHooks | null) {
     this.hooks = hooks;
+  }
+
+  /** Called after each piece of bulk work, for tidying such as a WAL checkpoint (library.ts). */
+  setAfterBulkWork(fn: (() => void) | null) {
+    this.afterBulkWork = fn;
+  }
+
+  /** Throws LibraryBusyError while a bulk change is being saved. */
+  refuseWhileBusy(): void {
+    if (this.job !== null) throw new LibraryBusyError(this.job);
+  }
+
+  /**
+   * Runs async bulk work that no other edit may interleave with: edits,
+   * undo and backups are refused (LibraryBusyError) until it ends. Refused
+   * itself, synchronously, while a change or other bulk work is running.
+   */
+  exclusive<T>(label: string, work: () => Promise<T>): Promise<T> {
+    if (this.depth > 0) throw new Error("Bulk work cannot start inside a change.");
+    this.refuseWhileBusy();
+    this.job = label;
+    const done = () => {
+      this.job = null;
+      this.afterBulkWork?.();
+    };
+    return work().then(
+      (value) => {
+        done();
+        return value;
+      },
+      (error: unknown) => {
+        done();
+        throw error;
+      },
+    );
   }
 
   /**
@@ -110,6 +172,7 @@ export class Store {
         this.depth--;
       }
     }
+    this.refuseWhileBusy();
     this.db.exec("BEGIN IMMEDIATE");
     this.depth = 1;
     let committed: (() => void) | undefined;
@@ -135,6 +198,69 @@ export class Store {
   }
 
   /**
+   * Bulk work over `items` as one change and one undo step (DB review 1):
+   * `fn` gets about `batchSize` (default 500) items at a time, each batch in
+   * its own transaction, with the event loop free in between, so Discord's
+   * audio keeps flowing. `last` is true for the final batch (do closing work
+   * there, such as deleting the tag group whose tags the batches took off).
+   * An empty list still runs `fn([], true)` once.
+   *
+   * - A short list (one batch) is saved at once, before this returns.
+   * - Inside another change, all of it becomes part of that change, at once.
+   * - Otherwise edits wait (LibraryBusyError) until it ends; if a batch fails,
+   *   the batches already saved are put back and the promise rejects.
+   * Errors found before any work starts are thrown, not returned as a rejection.
+   */
+  changeInBatches<T>(
+    label: string,
+    items: readonly T[],
+    fn: (batch: T[], last: boolean) => void,
+    options: { batchSize?: number } = {},
+  ): Promise<void> {
+    const size = Math.max(1, options.batchSize ?? BATCH_SIZE);
+    if (this.depth > 0 || items.length <= size) {
+      this.change(label, () => fn([...items], true));
+      return Promise.resolve();
+    }
+    return this.exclusive(label, async () => {
+      const saved: unknown[] = [];
+      for (let start = 0; start < items.length; start += size) {
+        const last = start + size >= items.length;
+        try {
+          saved.push(this.saveBatch(label, () => fn(items.slice(start, start + size), last)));
+        } catch (error) {
+          await this.hooks?.revertBatches?.(saved);
+          throw error;
+        }
+        if (!last) await nextTurn();
+      }
+      this.hooks?.recordBatches?.(label, saved);
+    });
+  }
+
+  /** One transaction of a bulk change; returns what the undo history noted. */
+  private saveBatch(label: string, fn: () => void): unknown {
+    this.db.exec("BEGIN IMMEDIATE");
+    this.depth = 1;
+    try {
+      this.hooks?.begin(label);
+      fn();
+      this.beforeCommit();
+      const noted = this.hooks?.takeBatch?.();
+      this.db.exec("COMMIT");
+      return noted;
+    } catch (error) {
+      try {
+        rollbackAfter(this.db, error);
+      } finally {
+        this.hooks?.rollback();
+      }
+    } finally {
+      this.depth = 0;
+    }
+  }
+
+  /**
    * Forgets the undo history. Call it after writes made with
    * `changeWithoutHistory` that the game master would see (an import, the move
    * of the old player's library): an older step replayed over them could
@@ -151,6 +277,7 @@ export class Store {
    */
   changeWithoutHistory<T>(fn: () => T): T {
     if (this.depth > 0) throw new Error("changeWithoutHistory cannot run inside another change.");
+    this.refuseWhileBusy();
     this.db.exec("BEGIN IMMEDIATE");
     this.depth = 1;
     try {

@@ -25,7 +25,7 @@ const track = (title: string, extra: Record<string, unknown> = {}) =>
 const names = (s: { tags: { name: string }[] }) => s.tags.map((x) => x.name);
 
 describe("suggestFromTitles (DAT-4)", () => {
-  it("suggests tags, loop advice and role from a descriptive title", () => {
+  it("suggests tags, loop advice and role from a descriptive title", async () => {
     const a = track("Melancholy tense - the harbour at night (loops well)");
     const b = track("Heroic sting - short rise, don't loop");
     const c = track("Eerie drone, crossfade the loop");
@@ -39,7 +39,7 @@ describe("suggestFromTitles (DAT-4)", () => {
     expect(names(sc)).toEqual(["Eerie"]);
   });
 
-  it("matches whole words and synonyms, follows word endings of longer names, and skips a word after 'not'", () => {
+  it("matches whole words and synonyms, follows word endings of longer names, and skips a word after 'not'", async () => {
     setTagSynonyms(t.store, tag("Melancholy").id, ["sad"]);
     const scene = listTagGroups(t.store).find((g) => g.name === "Scene type")!;
     createTag(t.store, { groupId: scene.id, name: "Boss fight" });
@@ -52,9 +52,9 @@ describe("suggestFromTitles (DAT-4)", () => {
     expect(suggestFromTitles(t.store, [sad.id])[0].tags[0]).toMatchObject({ name: "Melancholy", matched: "sad" });
   });
 
-  it("leaves out what the track already has, and adds the file's mood and genre tags as hints", () => {
+  it("leaves out what the track already has, and adds the file's mood and genre tags as hints", async () => {
     const a = track("Tense standoff (loops well)", { loopable: "crossfade", role: "underscore" });
-    tagTracks(t.store, [a.id], [tag("Tense").id]);
+    await tagTracks(t.store, [a.id], [tag("Tense").id]);
     const [s] = suggestFromTitles(t.store, [a.id], { hints: { [a.id]: ["Eerie", "Soundtrack"] } });
     expect(names(s)).toEqual(["Eerie"]);
     expect(s).toMatchObject({ loopable: null, role: null });
@@ -63,11 +63,11 @@ describe("suggestFromTitles (DAT-4)", () => {
 });
 
 describe("applyTitleSuggestions", () => {
-  it("applies only what was accepted, as one undo step", () => {
+  it("applies only what was accepted, as one undo step", async () => {
     const a = track("Melancholy tense (loops well)");
     const b = track("Heroic sting");
     const [sa, sb] = suggestFromTitles(t.store, [a.id, b.id]);
-    applyTitleSuggestions(t.store, [
+    await applyTitleSuggestions(t.store, [
       { trackId: a.id, tagIds: [sa.tags[0].tagId], loopable: sa.loopable },
       { trackId: b.id, tagIds: sb.tags.map((x) => x.tagId), role: sb.role },
     ]);
@@ -75,7 +75,7 @@ describe("applyTitleSuggestions", () => {
     expect(getTrack(t.store, a.id)).toMatchObject({ loopable: "yes", role: null });
     expect(getTrack(t.store, b.id)).toMatchObject({ role: "sting" });
     expect(history.state().undoLabel).toBe("Apply suggestions to 2 tracks");
-    history.undo();
+    await history.undo();
     expect(tagsOfTrack(t.store, a.id)).toEqual([]);
     expect(getTrack(t.store, a.id)!.loopable).toBeNull();
     expect(getTrack(t.store, b.id)!.role).toBeNull();

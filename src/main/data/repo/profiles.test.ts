@@ -33,7 +33,7 @@ function sample() {
 }
 
 describe("audio profile overrides", () => {
-  it("sets, replaces and clears an override per playlist and per scene", () => {
+  it("sets, replaces and clears an override per playlist and per scene", async () => {
     const s = sample();
     const sceneProfile = { endMs: 190_000, after: "next" as const, fadeOut: { ms: 8000, shape: 30 } };
     setProfileOverride(t.store, s.inScene, s.bed.id, sceneProfile);
@@ -51,7 +51,7 @@ describe("audio profile overrides", () => {
     expect(() => clearProfileOverride(t.store, s.inPlaylist, s.bed.id)).toThrow(/No audio profile/);
   });
 
-  it("checks the profile and the place", () => {
+  it("checks the profile and the place", async () => {
     const s = sample();
     expect(() => setProfileOverride(t.store, s.inScene, s.bed.id, { loopCrossfadeMs: 1.5 })).toThrow(ValidationError);
     expect(() => setProfileOverride(t.store, s.inScene, s.bed.id, { startMs: 5000, endMs: 5000 })).toThrow(/end must come after the start/);
@@ -68,7 +68,7 @@ describe("audio profile overrides", () => {
     expect(() => setProfileOverride(t.store, { kind: "room" } as never, s.bed.id, {})).toThrow(ValidationError);
   });
 
-  it("goes with its scene when the scene moves, and goes away with the scene, playlist or track", () => {
+  it("goes with its scene when the scene moves, and goes away with the scene, playlist or track", async () => {
     const s = sample();
     setProfileOverride(t.store, s.inScene, s.bed.id, { endMs: 1000 });
     setProfileOverride(t.store, s.inPlaylist, s.bed.id, { endMs: 2000 });
@@ -78,7 +78,7 @@ describe("audio profile overrides", () => {
     const moved = placeKey({ kind: "scene", campaignId: s.campaign.id, sessionId: later.id, sceneId: s.scene.id });
     expect(Object.keys(getProfileOverrides(t.store))).toEqual([placeKey(s.inPlaylist), moved]);
     deleteScene(t.store, s.scene.id);
-    deleteTracks(t.store, [s.other.id]);
+    await deleteTracks(t.store, [s.other.id]);
     expect(getProfileOverrides(t.store)).toEqual({ [placeKey(s.inPlaylist)]: { [s.bed.id]: { endMs: 2000 } } });
     deletePlaylist(t.store, s.playlist.id);
     expect(getProfileOverrides(t.store)).toEqual({});

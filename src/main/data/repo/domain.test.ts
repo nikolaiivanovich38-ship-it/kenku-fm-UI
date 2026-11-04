@@ -152,7 +152,7 @@ function loadIntoDatabase(store: Store, data: ProtoData) {
   );
   for (const t of data.tracks) {
     const ids = Object.entries(t.tags).flatMap(([g, names]) => names.map((name) => tagId(g, name)));
-    if (ids.length) tagTracks(store, [t.id], ids);
+    if (ids.length) void tagTracks(store, [t.id], ids);
   }
 
   const rule = (r: ProtoRule) => toRule(r, groupId);

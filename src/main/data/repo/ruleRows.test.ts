@@ -94,7 +94,7 @@ describe("dynamic playlists in the database agree with the shared rule (DB revie
     const { mood } = await library();
     const p = createPlaylist(t.store, { title: "Eerie", kind: "dynamic", rule: { conds: [{ group: mood, match: "any", values: ["Eerie"] }] } });
     expect(listPlaylistTrackIds(t.store, p.id)).toHaveLength(3);
-    deleteTag(t.store, listTags(t.store, { groupId: mood }).find((x) => x.name === "Eerie")!.id);
+    await deleteTag(t.store, listTags(t.store, { groupId: mood }).find((x) => x.name === "Eerie")!.id);
     expect(listPlaylistTrackIds(t.store, p.id)).toEqual([]);
   });
 });

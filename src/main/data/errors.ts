@@ -58,3 +58,19 @@ export class NotFoundError extends Error {
     this.id = id;
   }
 }
+
+/**
+ * A bulk change (or the undo of one) is still being saved in batches; edits
+ * wait until it has finished (DB review 1). The interface shows its progress
+ * and keeps editing switched off meanwhile; reading is fine.
+ */
+export class LibraryBusyError extends Error {
+  /** The label of the change being saved, for example "Tag 10,000 tracks". */
+  readonly job: string;
+
+  constructor(job: string) {
+    super(`Lyre is still saving "${job}". Try again when it has finished.`);
+    this.name = "LibraryBusyError";
+    this.job = job;
+  }
+}

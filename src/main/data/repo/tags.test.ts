@@ -35,26 +35,26 @@ const group = (name: string) => listTagGroups(t.store).find((g) => g.name === na
 const tag = (name: string) => listTags(t.store).find((x) => x.name === name)!;
 
 describe("tag groups (DAT-10)", () => {
-  it("adds, renames, colours, reorders and deletes groups", () => {
+  it("adds, renames, colours, reorders and deletes groups", async () => {
     const weather = createTagGroup(t.store, { name: "Weather", color: "#336699" });
     moveTagGroup(t.store, weather.id, { before: group("Mood").id });
     updateTagGroup(t.store, group("Scene type").id, { name: "Scene" });
     expect(listTagGroups(t.store).map((g) => g.name)).toEqual(["Weather", "Mood", "Leitmotif", "Scene"]);
     expect(() => createTagGroup(t.store, { name: "mood" })).toThrow(/already/);
-    deleteTagGroup(t.store, weather.id);
+    await deleteTagGroup(t.store, weather.id);
     expect(listTagGroups(t.store)).toHaveLength(3);
   });
 
-  it("deleting a group removes its tags from every track in one go", () => {
+  it("deleting a group removes its tags from every track in one go", async () => {
     const [a] = createTracks(t.store, [{ title: "A", file: { path: "/m/a.mp3" } }]);
-    tagTracks(t.store, [a.id], [tag("Heroic").id, tag("Eerie").id]);
-    deleteTagGroup(t.store, group("Mood").id);
+    await tagTracks(t.store, [a.id], [tag("Heroic").id, tag("Eerie").id]);
+    await deleteTagGroup(t.store, group("Mood").id);
     expect(tagsOfTrack(t.store, a.id)).toEqual([]);
   });
 });
 
 describe("tags (DAT-10)", () => {
-  it("nests tags under a parent in the same group, with synonyms", () => {
+  it("nests tags under a parent in the same group, with synonyms", async () => {
     const leitmotif = group("Leitmotif");
     const villain = createTag(t.store, { groupId: leitmotif.id, name: "Villain" });
     const strahd = createTag(t.store, { groupId: leitmotif.id, name: "Strahd", parentId: villain.id, color: "#880000" });
@@ -66,7 +66,7 @@ describe("tags (DAT-10)", () => {
     expect(() => updateTag(t.store, villain.id, { parentId: strahd.id })).toThrow(/inside itself/);
   });
 
-  it("moving a tag to another group takes its sub-tags along", () => {
+  it("moving a tag to another group takes its sub-tags along", async () => {
     const leitmotif = group("Leitmotif");
     const faction = createTagGroup(t.store, { name: "Faction" });
     const villain = createTag(t.store, { groupId: leitmotif.id, name: "Villain" });
@@ -76,31 +76,31 @@ describe("tags (DAT-10)", () => {
     expect(getTag(t.store, strahd.id)).toMatchObject({ groupId: faction.id, parentId: villain.id });
   });
 
-  it("tags and untags several tracks in one step and lists a track's tags by group order", () => {
+  it("tags and untags several tracks in one step and lists a track's tags by group order", async () => {
     const [a, b] = createTracks(t.store, [
       { title: "A", file: { path: "/m/a.mp3" } },
       { title: "B", file: { path: "/m/b.mp3" } },
     ]);
     const docks = createTag(t.store, { groupId: group("Scene type").id, name: "Docks" });
-    tagTracks(t.store, [a.id, b.id], [docks.id, tag("Tense").id]);
-    tagTracks(t.store, [a.id], [docks.id]); // already there: no error, no duplicate
+    await tagTracks(t.store, [a.id, b.id], [docks.id, tag("Tense").id]);
+    await tagTracks(t.store, [a.id], [docks.id]); // already there: no error, no duplicate
     expect(tagsOfTrack(t.store, a.id).map((x) => x.name)).toEqual(["Tense", "Docks"]);
-    untagTracks(t.store, [a.id], [tag("Tense").id]);
+    await untagTracks(t.store, [a.id], [tag("Tense").id]);
     expect(tagsOfTrack(t.store, a.id).map((x) => x.name)).toEqual(["Docks"]);
     expect(tagsOfTrack(t.store, b.id).map((x) => x.name)).toEqual(["Tense", "Docks"]);
     expect(() => tagTracks(t.store, [a.id], ["missing"])).toThrow(/No tag/);
   });
 
-  it("renames, reorders and deletes tags", () => {
+  it("renames, reorders and deletes tags", async () => {
     const warm = tag("Warm");
     updateTag(t.store, warm.id, { name: "Cosy" });
     moveTag(t.store, warm.id, "start");
     expect(listTags(t.store, { groupId: group("Mood").id }).map((x) => x.name)[0]).toBe("Cosy");
-    deleteTag(t.store, warm.id);
+    await deleteTag(t.store, warm.id);
     expect(listTags(t.store, { groupId: group("Mood").id }).map((x) => x.name)).not.toContain("Cosy");
   });
 
-  it("merges tags: tracks move to the kept tag and the old names become synonyms", () => {
+  it("merges tags: tracks move to the kept tag and the old names become synonyms", async () => {
     const [a, b] = createTracks(t.store, [
       { title: "A", file: { path: "/m/a.mp3" } },
       { title: "B", file: { path: "/m/b.mp3" } },
@@ -108,9 +108,9 @@ describe("tags (DAT-10)", () => {
     const sad = createTag(t.store, { groupId: group("Mood").id, name: "Sad" });
     const gloomy = createTag(t.store, { groupId: group("Mood").id, name: "Gloomy", synonyms: ["dour"] });
     const child = createTag(t.store, { groupId: group("Mood").id, name: "Grief", parentId: sad.id });
-    tagTracks(t.store, [a.id], [sad.id]);
-    tagTracks(t.store, [a.id, b.id], [gloomy.id, tag("Melancholy").id]);
-    mergeTags(t.store, [sad.id, gloomy.id], tag("Melancholy").id);
+    await tagTracks(t.store, [a.id], [sad.id]);
+    await tagTracks(t.store, [a.id, b.id], [gloomy.id, tag("Melancholy").id]);
+    await mergeTags(t.store, [sad.id, gloomy.id], tag("Melancholy").id);
     expect(getTag(t.store, sad.id)).toBeNull();
     expect(getTag(t.store, gloomy.id)).toBeNull();
     expect(tagsOfTrack(t.store, a.id).map((x) => x.name)).toEqual(["Melancholy"]);
@@ -120,7 +120,7 @@ describe("tags (DAT-10)", () => {
     expect(() => mergeTags(t.store, [tag("Melancholy").id], tag("Melancholy").id)).toThrow(ValidationError);
   });
 
-  it("suggests tags while typing, by name or synonym, grouped", () => {
+  it("suggests tags while typing, by name or synonym, grouped", async () => {
     setTagSynonyms(t.store, tag("Melancholy").id, ["sad"]);
     createTag(t.store, { groupId: group("Scene type").id, name: "Sadovaya Street" });
     expect(suggestTags(t.store, "sa").map((s) => [s.groupName, s.tag.name, s.matched])).toEqual([

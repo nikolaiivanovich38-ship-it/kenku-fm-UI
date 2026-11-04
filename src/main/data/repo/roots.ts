@@ -4,7 +4,7 @@
  * means changing one row.
  */
 import { ValidationError } from "../errors";
-import { findRoot, isAbsolutePath, joinRoot } from "../paths";
+import { isAbsolutePath, joinRoot, normalizePath, relativeToRoot } from "../paths";
 import type { Store } from "../store";
 import type { LibraryRoot } from "../types";
 import * as v from "../validate";
@@ -17,22 +17,32 @@ const toRoot = (row: RootRow): LibraryRoot => ({ id: row.id, name: row.name, pat
 function absoluteFolder(value: unknown): string {
   const folder = v.requiredName("path", value, v.MAX_TEXT_LENGTH);
   if (!isAbsolutePath(folder)) throw new ValidationError("path", "The folder must be a full path, such as H:\\Audio.");
-  return folder;
+  // Stored one way, as track paths are: no "." parts, no separator at the end (except a drive's own).
+  const normal = normalizePath(folder);
+  return normal.length > 3 ? normal.replace(/[\\/]+$/, "") : normal;
 }
 
-export function addRoot(store: Store, input: { id?: string; name: string; path: string }): LibraryRoot {
+/**
+ * Adds a library folder. Tracks already inside it are taken in (their paths
+ * become relative to it), in batches when there are many (DB review 1 and 4);
+ * await the result.
+ */
+export function addRoot(store: Store, input: { id?: string; name: string; path: string }): Promise<LibraryRoot> {
   const id = newId(input.id);
   const name = v.requiredName("name", input.name);
   const folder = absoluteFolder(input.path);
-  store.change(`Add library folder "${name}"`, () => {
-    unique("name", `A library folder called "${name}"`, () =>
-      store.run("INSERT INTO library_roots (id, name, path, created_at) VALUES (?, ?, ?, ?)", id, name, folder, store.now()),
-    );
-    for (const move of tracksTakenIn(store, { id, path: folder })) {
-      store.run("UPDATE tracks SET root_id = ?, path = ? WHERE id = ?", id, move.relative, move.id);
-    }
-  });
-  return getRoot(store, id) as LibraryRoot;
+  let added = false;
+  return store
+    .changeInBatches(`Add library folder "${name}"`, tracksTakenIn(store, { id, path: folder }), (batch) => {
+      if (!added) {
+        unique("name", `A library folder called "${name}"`, () =>
+          store.run("INSERT INTO library_roots (id, name, path, created_at) VALUES (?, ?, ?, ?)", id, name, folder, store.now()),
+        );
+        added = true;
+      }
+      for (const move of batch) store.run("UPDATE tracks SET root_id = ?, path = ? WHERE id = ?", id, move.relative, move.id);
+    })
+    .then(() => getRoot(store, id) as LibraryRoot);
 }
 
 /**
@@ -42,16 +52,27 @@ export function addRoot(store: Store, input: { id?: string; name: string; path: 
  * new file). Without this, the same file could be added again under the folder.
  */
 function tracksTakenIn(store: Store, root: { id: string; path: string }): { id: string; relative: string }[] {
-  const roots = store.all<{ id: string; path: string }>("SELECT id, path FROM library_roots");
+  const roots = [...store.all<{ id: string; path: string }>("SELECT id, path FROM library_roots"), root];
   const rootPath = new Map(roots.map((r) => [r.id, r.path]));
+  // Compared loosely (letter case ignored, either slash), as Windows does. Only a path that starts
+  // like the new folder can be inside it, only an existing folder that holds the new one can give it
+  // tracks, and a folder inside the new one keeps its own.
+  const loose = (p: string) => p.toLowerCase().replace(/\\/g, "/").replace(/\/+$/, "");
+  const prefix = loose(root.path);
+  const holds = new Set(roots.filter((r) => r.id !== root.id && prefix.startsWith(`${loose(r.path)}/`)).map((r) => r.id));
+  const deeper = roots.filter((r) => r.id !== root.id && loose(r.path).startsWith(`${prefix}/`)).map((r) => `${loose(r.path)}/`);
   const moves: { id: string; relative: string }[] = [];
   for (const track of store.all<{ id: string; root_id: string | null; path: string }>(
     "SELECT id, root_id, path FROM tracks WHERE path IS NOT NULL",
   )) {
-    if (track.root_id === root.id) continue;
+    if (track.root_id !== null && !holds.has(track.root_id)) continue;
     const full = track.root_id === null ? track.path : joinRoot(rootPath.get(track.root_id) as string, track.path);
-    const best = findRoot(roots, full);
-    if (best && best.root.id === root.id) moves.push({ id: track.id, relative: best.relative });
+    const lowered = loose(full);
+    if (!lowered.startsWith(`${prefix}/`) || deeper.some((d) => lowered.startsWith(d))) continue;
+    // Stored paths are normalised (no "." parts), so the part after the folder is the relative path;
+    // a name whose length changes in lower case is left to the full path rules.
+    const relative = lowered.length === full.length ? full.slice(prefix.length + 1).replace(/\\/g, "/") : relativeToRoot(root.path, full);
+    if (relative) moves.push({ id: track.id, relative });
   }
   return moves;
 }
@@ -80,14 +101,17 @@ export function updateRoot(store: Store, id: string, changes: { name?: string; p
   return getRoot(store, rootId) as LibraryRoot;
 }
 
-/** Removes a root; its tracks keep working with their full paths. */
-export function removeRoot(store: Store, id: string): void {
+/** Removes a root; its tracks keep working with their full paths (in batches when there are many; await the result). */
+export function removeRoot(store: Store, id: string): Promise<void> {
   const root = getRoot(store, requireRow(store, "library_roots", "library folder", id)) as LibraryRoot;
-  store.change(`Remove library folder "${root.name}"`, () => {
-    const tracks = store.all<{ id: string; path: string }>("SELECT id, path FROM tracks WHERE root_id = ?", root.id);
-    for (const track of tracks) {
+  const tracks = store.all<{ id: string; path: string }>(TRACKS_UNDER_ROOT_SQL, root.id);
+  return store.changeInBatches(`Remove library folder "${root.name}"`, tracks, (batch, last) => {
+    for (const track of batch) {
       store.run("UPDATE tracks SET root_id = NULL, path = ? WHERE id = ?", joinRoot(root.path, track.path), track.id);
     }
-    store.run("DELETE FROM library_roots WHERE id = ?", root.id);
+    if (last) store.run("DELETE FROM library_roots WHERE id = ?", root.id);
   });
 }
+
+/** Every track under a library folder, through tracks_root_path (as TRACK_BY_PATH_SQL.underRoot in tracks.ts). */
+const TRACKS_UNDER_ROOT_SQL = "SELECT id, path FROM tracks WHERE root_id = ?";

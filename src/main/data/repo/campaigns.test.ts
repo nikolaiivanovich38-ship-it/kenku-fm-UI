@@ -61,7 +61,7 @@ function sample() {
 }
 
 describe("campaigns, sessions and scenes (ORG-7)", () => {
-  it("holds sessions in a campaign and scenes in a session, each in order", () => {
+  it("holds sessions in a campaign and scenes in a session, each in order", async () => {
     const strahd = createCampaign(t.store, { name: "Curse of Strahd", color: "#550000", notes: "Gothic horror" });
     const s1 = createSession(t.store, { campaignId: strahd.id, name: "Session 1", date: "2026-11-07" });
     const s2 = createSession(t.store, { campaignId: strahd.id, name: "Session 2" });
@@ -80,7 +80,7 @@ describe("campaigns, sessions and scenes (ORG-7)", () => {
     expect(() => createScene(t.store, { sessionId: "missing", name: "x" })).toThrow(/No session/);
   });
 
-  it("keeps a campaign's theme, system, description and Obsidian fields (default theme: candle)", () => {
+  it("keeps a campaign's theme, system, description and Obsidian fields (default theme: candle)", async () => {
     const plain = createCampaign(t.store, { name: "Plain" });
     expect(plain).toMatchObject({ theme: "candle", system: "", description: "", obsidian: { vault: "", note: "", sessionsFolder: "" } });
     const crown = createCampaign(t.store, {
@@ -98,7 +98,7 @@ describe("campaigns, sessions and scenes (ORG-7)", () => {
     expect(() => updateCampaign(t.store, crown.id, { theme: "neon" as never })).toThrow(ValidationError);
   });
 
-  it("numbers sessions, lets a session have no name, and keeps at most one next session", () => {
+  it("numbers sessions, lets a session have no name, and keeps at most one next session", async () => {
     const c = createCampaign(t.store, { name: "C" });
     const first = createSession(t.store, { campaignId: c.id });
     const second = createSession(t.store, { campaignId: c.id, name: "Black sails" });
@@ -122,7 +122,7 @@ describe("campaigns, sessions and scenes (ORG-7)", () => {
     expect(moveSession(t.store, second.id, { campaignId: other.id, placement: "end" }).status).toBe("draft");
   });
 
-  it("updates, reorders and moves sessions and scenes between parents", () => {
+  it("updates, reorders and moves sessions and scenes between parents", async () => {
     const a = createCampaign(t.store, { name: "A" });
     const b = createCampaign(t.store, { name: "B" });
     moveCampaign(t.store, b.id, "start");
@@ -147,7 +147,7 @@ describe("campaigns, sessions and scenes (ORG-7)", () => {
     });
   });
 
-  it("orders a campaign's and a session's playlists and boards", () => {
+  it("orders a campaign's and a session's playlists and boards", async () => {
     const { campaign, session } = sample();
     const [tavern, battle, travel] = ["Tavern", "Battle", "Travel"].map((title) => createPlaylist(t.store, { title }));
     const [weather, combat] = ["Weather", "Combat"].map((title) => createBoard(t.store, { title }));
@@ -169,7 +169,7 @@ describe("campaigns, sessions and scenes (ORG-7)", () => {
     expect(() => addToSession(t.store, session.id, { playlistIds: ["missing"] })).toThrow(/No playlist/);
   });
 
-  it("gives a scene an ordered music list mixing tracks and playlists, one ambience item and ordered boards", () => {
+  it("gives a scene an ordered music list mixing tracks and playlists, one ambience item and ordered boards", async () => {
     const { campaign, session, scene } = sample();
     const [eerie, bells, rain] = createTracks(t.store, [
       { title: "Eerie bed", file: { path: "/m/eerie.flac" } },
@@ -218,7 +218,7 @@ describe("campaigns, sessions and scenes (ORG-7)", () => {
     expect(session.id).toBe(getDomainCampaign(t.store, campaign.id)!.sessions[0].id);
 
     // Deleting a track, playlist or board takes it out of scenes; the scene stays.
-    deleteTracks(t.store, [rain.id, bells.id]);
+    await deleteTracks(t.store, [rain.id, bells.id]);
     deleteBoard(t.store, abbey.id);
     expect(getScene(t.store, scene.id)!.ambience).toBeNull();
     expect(listSceneMusic(t.store, scene.id).map((m) => m.ref.id)).toEqual([eerie.id, eerie.id]);
@@ -231,7 +231,7 @@ describe("campaigns, sessions and scenes (ORG-7)", () => {
     expect(() => addSceneMusic(t.store, scene.id, [{ kind: "playlist", id: "missing" }])).toThrow(/No playlist/);
   });
 
-  it("sets where a playlist or board is used in one step, as the Use in… sheet does", () => {
+  it("sets where a playlist or board is used in one step, as the Use in… sheet does", async () => {
     const { campaign, session, scene } = sample();
     const scene2 = createScene(t.store, { sessionId: session.id, name: "Crypt" });
     const music = createPlaylist(t.store, { title: "The Abbess" });
@@ -263,7 +263,7 @@ describe("campaigns, sessions and scenes (ORG-7)", () => {
     expect(() => setBoardUses(t.store, board.id, [{ sceneId: "missing" }])).toThrow(/No scene/);
   });
 
-  it("deleting a campaign removes its sessions and scenes but not the shared playlists", () => {
+  it("deleting a campaign removes its sessions and scenes but not the shared playlists", async () => {
     const c = createCampaign(t.store, { name: "C" });
     const p = createPlaylist(t.store, { title: "Tavern" });
     addToCampaign(t.store, c.id, { playlistIds: [p.id] });

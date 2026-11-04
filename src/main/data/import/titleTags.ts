@@ -111,14 +111,18 @@ export function suggestFromTitles(store: Store, trackIds: string[], options: { h
 
 export type AcceptedSuggestion = { trackId: string; tagIds?: string[]; loopable?: LoopAdvice | null; role?: TrackRole | null };
 
-/** Applies what the game master accepted, as one undo step. Null or missing parts are left alone. */
-export function applyTitleSuggestions(store: Store, accepted: AcceptedSuggestion[]): void {
+/**
+ * Applies what the game master accepted, as one undo step, in batches when
+ * there are many (DB review 1); await the result. Null or missing parts are left alone.
+ */
+export function applyTitleSuggestions(store: Store, accepted: AcceptedSuggestion[]): Promise<void> {
   if (!Array.isArray(accepted)) throw new ValidationError("accepted", "accepted must be a list.");
-  store.change(`Apply suggestions to ${plural(accepted.length, "track")}`, () => {
-    for (const item of accepted) {
+  return store.changeInBatches(`Apply suggestions to ${plural(accepted.length, "track")}`, accepted, (batch) => {
+    for (const item of batch) {
       const record = v.record("suggestion", item);
       const trackId = v.id("trackId", record.trackId);
-      if (item.tagIds && item.tagIds.length > 0) tagTracks(store, [trackId], item.tagIds);
+      // Inside this batch's transaction, so it is done at once.
+      if (item.tagIds && item.tagIds.length > 0) void tagTracks(store, [trackId], item.tagIds);
       const patch: TrackPatch = {};
       if (item.loopable) patch.loopable = item.loopable;
       if (item.role) patch.role = item.role;

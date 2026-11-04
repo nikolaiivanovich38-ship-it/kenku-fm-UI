@@ -16,7 +16,14 @@
  * The history lives in memory: it starts empty each time the library opens.
  */
 import type { DatabaseSync } from "./sqlite";
-import { rollbackAfter, type Store } from "./store";
+import { nextTurn, rollbackAfter, type Store } from "./store";
+
+/**
+ * Rows per transaction when a large step is undone or redone (DB review 1).
+ * Each row costs a few hundredths of a millisecond, so a batch stays far below
+ * the 200 ms the Discord audio queue holds.
+ */
+export const UNDO_BATCH_ENTRIES = 500;
 
 /** Tables that are derived from others or are bookkeeping, never undone directly. */
 const NOT_UNDOABLE = new Set(["schema_migrations", "search_docs"]);
@@ -66,17 +73,20 @@ export function undoableTables(db: DatabaseSync): UndoableTable[] {
 export class UndoHistory {
   private readonly store: Store;
   private readonly limit: number;
+  private readonly batchEntries: number;
   private undoStack: Step[] = [];
   private redoStack: Step[] = [];
   private tables = new Map<string, UndoableTable>();
 
   /**
-   * Starts following every change made through `store.change()`.
+   * Starts following every change made through `store.change()` and `store.changeInBatches()`.
    * @param options.limit steps kept (default 100; EDT-2 asks for at least 50)
+   * @param options.batchEntries rows per transaction when a large step is undone (default UNDO_BATCH_ENTRIES)
    */
-  constructor(store: Store, options: { limit?: number } = {}) {
+  constructor(store: Store, options: { limit?: number; batchEntries?: number } = {}) {
     this.store = store;
     this.limit = options.limit ?? 100;
+    this.batchEntries = Math.max(1, options.batchEntries ?? UNDO_BATCH_ENTRIES);
     this.installTriggers();
     store.setChangeHooks({
       begin: () => this.startCapture(),
@@ -86,15 +96,24 @@ export class UndoHistory {
       commit: (label) => {
         const entries = this.endCapture();
         if (entries.length === 0) return;
-        return () => {
-          this.undoStack.push({ label, entries });
-          if (this.undoStack.length > this.limit) this.undoStack.shift();
-          this.redoStack = [];
-        };
+        return () => this.record({ label, entries });
       },
       rollback: () => undefined,
       reset: () => this.clear(),
+      // A bulk change: each batch's rows are kept, and become one step at the end.
+      takeBatch: () => this.endCapture(),
+      recordBatches: (label, batches) => {
+        const entries = (batches as Entry[][]).flat();
+        if (entries.length > 0) this.record({ label, entries });
+      },
+      revertBatches: (batches) => this.putBack((batches as Entry[][]).flat()),
     });
+  }
+
+  private record(step: Step) {
+    this.undoStack.push(step);
+    if (this.undoStack.length > this.limit) this.undoStack.shift();
+    this.redoStack = [];
   }
 
   /** (Re)creates the temporary capture triggers for the current tables. */
@@ -166,11 +185,11 @@ export class UndoHistory {
     });
   }
 
-  /** Applies the opposite of each entry, newest first. */
+  /** Applies the opposite of each entry, in the order given (callers pass them newest first). */
   private applyInverse(entries: Entry[]) {
     const extract = (param: string, column: string) =>
       `json_extract(${param}, '$."${column.replace(/"/g, '\\"').replace(/'/g, "''")}"')`;
-    for (const entry of [...entries].reverse()) {
+    for (const entry of entries) {
       const table = this.tables.get(entry.table);
       if (!table) throw new Error(`The library no longer has the table "${entry.table}".`);
       const name = quoteName(table.name);
@@ -203,7 +222,7 @@ export class UndoHistory {
       // Rows come back in reverse order, so a child may briefly arrive before its parent.
       db.exec("PRAGMA defer_foreign_keys = ON");
       this.startCapture();
-      this.applyInverse(step.entries);
+      this.applyInverse([...step.entries].reverse());
       this.store.beforeCommit();
       const entries = this.endCapture();
       db.exec("COMMIT");
@@ -213,30 +232,113 @@ export class UndoHistory {
     }
   }
 
-  private refuseDuringChange() {
-    if (this.store.inChange) throw new Error("Cannot undo or redo while a change is running.");
+  /** Applies the opposite of `entries` (in the order given) in one transaction; returns what that changed. */
+  private applyBatch(entries: Entry[]): Entry[] {
+    const db = this.store.db;
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      this.startCapture();
+      this.applyInverse(entries);
+      this.store.beforeCommit();
+      const done = this.endCapture();
+      db.exec("COMMIT");
+      return done;
+    } catch (error) {
+      return rollbackAfter(db, error);
+    }
   }
 
   /**
-   * Undoes the newest step; returns its label, or null when there is nothing
-   * to undo. A step that fails to replay is rolled back and dropped (the error
-   * is passed on): putting it back would make every later undo fail on it.
+   * Replays a large step backwards in batches of `batchEntries` rows, letting
+   * the event loop run between them (DB review 1). A batch cannot wait for a
+   * parent row that a later batch brings back, so foreign keys are switched
+   * off meanwhile: the step holds every row it changed, cascades included, so
+   * replaying it exactly needs none of their actions. If a batch fails, the
+   * batches before it are put back and the error is passed on.
    */
-  undo(): string | null {
+  private async replayInBatches(step: Step): Promise<Step> {
+    const inverse = [...step.entries].reverse();
+    const done: Entry[][] = [];
+    await this.withoutForeignKeys(async () => {
+      for (let start = 0; start < inverse.length; start += this.batchEntries) {
+        try {
+          done.push(this.applyBatch(inverse.slice(start, start + this.batchEntries)));
+        } catch (error) {
+          await this.putBack(done.flat());
+          throw error;
+        }
+        await nextTurn();
+      }
+    });
+    return { label: step.label, entries: done.flat() };
+  }
+
+  /** Undoes rows saved by a bulk change or a bulk replay that then failed (none of it becomes a step). */
+  private async putBack(entries: Entry[]): Promise<void> {
+    const inverse = [...entries].reverse();
+    await this.withoutForeignKeys(async () => {
+      for (let start = 0; start < inverse.length; start += this.batchEntries) {
+        this.applyBatch(inverse.slice(start, start + this.batchEntries));
+        await nextTurn();
+      }
+    });
+  }
+
+  private async withoutForeignKeys(work: () => Promise<void>): Promise<void> {
+    const db = this.store.db;
+    const wasOn = (db.prepare("PRAGMA foreign_keys").get() as { foreign_keys: number }).foreign_keys === 1;
+    db.exec("PRAGMA foreign_keys = OFF");
+    try {
+      await work();
+    } finally {
+      if (wasOn) db.exec("PRAGMA foreign_keys = ON");
+    }
+  }
+
+  private refuseDuringChange() {
+    if (this.store.inChange) throw new Error("Cannot undo or redo while a change is running.");
+    this.store.refuseWhileBusy();
+  }
+
+  /**
+   * Replays `step` and puts the step that reverses it on `onto`. A small step
+   * is replayed (and its reverse stacked) before this returns; a large one in
+   * batches. Resolves to the step's label.
+   */
+  private run(step: Step, verb: "Undo" | "Redo", onto: () => Step[]): Promise<string> {
+    if (step.entries.length <= this.batchEntries) {
+      try {
+        onto().push(this.replay(step));
+        return Promise.resolve(step.label);
+      } catch (error) {
+        return Promise.reject(error);
+      }
+    }
+    return this.store.exclusive(`${verb} ${step.label}`, async () => {
+      onto().push(await this.replayInBatches(step));
+      return step.label;
+    });
+  }
+
+  /**
+   * Undoes the newest step; resolves to its label, or null when there is
+   * nothing to undo. A small step is undone before this returns; a large one
+   * (thousands of rows) in batches, with edits waiting meanwhile. A step that
+   * fails to replay is rolled back and dropped (the promise rejects): putting
+   * it back would make every later undo fail on it. Throws at once during a
+   * change or while bulk work is being saved.
+   */
+  undo(): Promise<string | null> {
     this.refuseDuringChange();
     const step = this.undoStack.pop();
-    if (!step) return null;
-    this.redoStack.push(this.replay(step));
-    return step.label;
+    return step ? this.run(step, "Undo", () => this.redoStack) : Promise.resolve(null);
   }
 
   /** Redoes the newest undone step, like `undo()`; a step that fails is dropped. */
-  redo(): string | null {
+  redo(): Promise<string | null> {
     this.refuseDuringChange();
     const step = this.redoStack.pop();
-    if (!step) return null;
-    this.undoStack.push(this.replay(step));
-    return step.label;
+    return step ? this.run(step, "Redo", () => this.undoStack) : Promise.resolve(null);
   }
 
   state(): UndoState {

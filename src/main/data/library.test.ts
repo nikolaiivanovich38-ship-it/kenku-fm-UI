@@ -58,7 +58,7 @@ function damage(file: string, offset: number, length: number) {
 }
 
 describe("opening the library (DAT-6)", () => {
-  it("creates the folder and an up-to-date database on first use", () => {
+  it("creates the folder and an up-to-date database on first use", async () => {
     const library = openTracked();
     expect(fs.existsSync(path.join(folder, "library.sqlite"))).toBe(true);
     expect(library.schemaVersion).toBe(MIGRATIONS.length);
@@ -69,20 +69,20 @@ describe("opening the library (DAT-6)", () => {
     expect(listCampaigns(again.store).map((c) => c.name)).toEqual(["Strahd"]);
   });
 
-  it("keeps the library in a 'library' folder inside the app data folder", () => {
+  it("keeps the library in a 'library' folder inside the app data folder", async () => {
     expect(libraryFolder(path.join("C:", "Users", "gm", "AppData", "Roaming", "lyre"))).toBe(
       path.join("C:", "Users", "gm", "AppData", "Roaming", "lyre", "library"),
     );
   });
 
-  it("comes with undo/redo wired to every change", () => {
+  it("comes with undo/redo wired to every change", async () => {
     const library = openTracked();
     createCampaign(library.store, { name: "Strahd" });
-    expect(library.history.undo()).toBe('Add campaign "Strahd"');
+    expect(await library.history.undo()).toBe('Add campaign "Strahd"');
     expect(listCampaigns(library.store)).toEqual([]);
   });
 
-  it("backs the library up before upgrading it to a new version", () => {
+  it("backs the library up before upgrading it to a new version", async () => {
     openTracked().close();
     open = [];
     const later: Migration = { version: MIGRATIONS.length + 1, name: "later", up: (db) => db.exec("CREATE TABLE pad_actions (id TEXT PRIMARY KEY)") };
@@ -93,7 +93,7 @@ describe("opening the library (DAT-6)", () => {
     expect(path.basename(backups[0].path)).toMatch(new RegExp(`^library-upgrade-v${MIGRATIONS.length}-`));
   });
 
-  it("reports a damaged file clearly and offers the newest backup (check before opening)", () => {
+  it("reports a damaged file clearly and offers the newest backup (check before opening)", async () => {
     const library = openTracked();
     createCampaign(library.store, { name: "Strahd" });
     const backup = library.backupNow();
@@ -123,7 +123,7 @@ describe("opening the library (DAT-6)", () => {
     expect(listCampaigns(restored.store).map((c) => c.name)).toEqual(["Strahd"]);
   });
 
-  it("leaves the damaged library where it was when the backup cannot be copied (review 3)", () => {
+  it("leaves the damaged library where it was when the backup cannot be copied (review 3)", async () => {
     const library = openTracked();
     createCampaign(library.store, { name: "Strahd" });
     const backup = library.backupNow();
@@ -148,7 +148,7 @@ describe("opening the library (DAT-6)", () => {
     );
   });
 
-  it("writes the backup copy to disk before it moves the damaged file aside", () => {
+  it("writes the backup copy to disk before it moves the damaged file aside", async () => {
     const library = openTracked();
     const backup = library.backupNow();
     library.close();
@@ -218,7 +218,7 @@ describe("opening the library (DAT-6)", () => {
     expect(await openTracked({ integrityCheck: "blocking" }).checkIntegrity()).toEqual({ status: "ok" });
   }, 30_000);
 
-  it("reports a file that is not a library at all", () => {
+  it("reports a file that is not a library at all", async () => {
     fs.mkdirSync(folder, { recursive: true });
     fs.writeFileSync(path.join(folder, "library.sqlite"), "this is not a database".repeat(100));
     expect(() => openTracked()).toThrow(expect.objectContaining({ code: "corrupt", latestBackup: null }));
@@ -226,7 +226,7 @@ describe("opening the library (DAT-6)", () => {
 });
 
 describe("backups (DAT-6)", () => {
-  it("makes a manual backup that opens as a complete library", () => {
+  it("makes a manual backup that opens as a complete library", async () => {
     const library = openTracked();
     createCampaign(library.store, { name: "Strahd" });
     const backup = library.backupNow();
@@ -242,7 +242,7 @@ describe("backups (DAT-6)", () => {
     expect(fs.readdirSync(path.join(folder, "backups")).filter((name) => name.endsWith(".part"))).toEqual([]);
   });
 
-  it("makes one daily backup per day and keeps the newest 14", () => {
+  it("makes one daily backup per day and keeps the newest 14", async () => {
     const library = openTracked();
     for (let day = 0; day < 20; day++) {
       expect(library.runDailyBackup()).not.toBeNull();
@@ -257,7 +257,7 @@ describe("backups (DAT-6)", () => {
     expect(path.basename(daily[13].path)).toBe("library-daily-2026-11-10T12-00-00-000.sqlite");
   });
 
-  it("keeps manual backups apart from the daily ones, also the newest 14", () => {
+  it("keeps manual backups apart from the daily ones, also the newest 14", async () => {
     const library = openTracked();
     library.runDailyBackup();
     for (let i = 0; i < 16; i++) {
@@ -303,7 +303,7 @@ describe("backups (DAT-6)", () => {
     expect(await findLatestGoodBackup(path.join(temp.folder, "nowhere"))).toBeNull();
   });
 
-  it("checks every day on a timer and reports failures without stopping", () => {
+  it("checks every day on a timer and reports failures without stopping", async () => {
     vi.useFakeTimers();
     try {
       const library = openTracked();
@@ -329,7 +329,7 @@ describe("backups (DAT-6)", () => {
     }
   });
 
-  it("stopping before the first daily backup cancels it", () => {
+  it("stopping before the first daily backup cancels it", async () => {
     vi.useFakeTimers();
     try {
       const library = openTracked();
@@ -342,7 +342,7 @@ describe("backups (DAT-6)", () => {
     }
   });
 
-  it("refuses to back up in the middle of a change", () => {
+  it("refuses to back up in the middle of a change", async () => {
     const library = openTracked();
     expect(() => library.store.change("x", () => library.backupNow())).toThrow(/while a change/);
   });

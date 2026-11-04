@@ -23,7 +23,7 @@ import { ValidationError } from "../errors";
 import { joinRoot } from "../paths";
 import type { Store } from "../store";
 import { listRoots } from "../repo/roots";
-import { SHOWN_TITLE_SQL, updateTrack } from "../repo/tracks";
+import { SHOWN_TITLE_SQL, findTrackByLocation, relocateTracks } from "../repo/tracks";
 import { plural } from "../repo/common";
 import * as v from "../validate";
 import { collectAudioFiles, fileKey } from "./audioFiles";
@@ -152,24 +152,33 @@ export async function planRelink(store: Store, missing: MissingTrack[], folder: 
   return plan;
 }
 
-/** Points each track at its new file, as one undo step. The game master confirms the matches first. */
-export function applyRelink(store: Store, matches: Pick<RelinkMatch, "trackId" | "to" | "size" | "mtimeMs" | "checksum">[]): void {
+/**
+ * Points each track at its new file, as one undo step, in batches when there
+ * are many (DB review 1: one transaction took about 65 ms per 1,000 tracks);
+ * await the result. The game master confirms the matches first.
+ */
+export function applyRelink(store: Store, matches: Pick<RelinkMatch, "trackId" | "to" | "size" | "mtimeMs" | "checksum">[]): Promise<void> {
   if (!Array.isArray(matches)) throw new ValidationError("matches", "matches must be a list.");
-  const known = locationsInLibrary(store);
+  // Each new file is looked up through the unique path indexes (DB review 4), not by reading every track.
+  const roots = listRoots(store);
   const taken = new Map<string, string>();
   for (const match of matches) {
     const trackId = v.id("trackId", match.trackId);
-    const key = fileKey(v.requiredName("to", match.to, v.MAX_TEXT_LENGTH));
-    const owner = known.get(key) ?? taken.get(key);
+    const to = v.requiredName("to", match.to, v.MAX_TEXT_LENGTH);
+    const key = fileKey(to);
+    const owner = taken.get(key) ?? findTrackByLocation(store, { file: to }, roots) ?? undefined;
     if (owner !== undefined && owner !== trackId) {
       throw new ValidationError("to", `Another track in your library already has ${baseName(match.to)}.`);
     }
     taken.set(key, trackId);
   }
-  store.change(`Relink ${plural(matches.length, "file")}`, () => {
-    for (const match of matches) {
-      updateTrack(store, match.trackId, { file: { path: match.to, size: match.size ?? null, mtimeMs: match.mtimeMs ?? null, checksum: match.checksum ?? null } });
-    }
-  });
+  return relocateTracks(
+    store,
+    `Relink ${plural(matches.length, "file")}`,
+    matches.map((match) => ({
+      trackId: match.trackId,
+      file: { path: match.to, size: match.size ?? null, mtimeMs: match.mtimeMs ?? null, checksum: match.checksum ?? null },
+    })),
+  );
 }
 
