@@ -161,6 +161,11 @@ export const IPC_CHANNELS = {
   OUTPUT_SET_MUTED: { from: MAIN, args: argsMatch(isOutputId, isBoolean) },
   // OUT-2: try a failed bot or voice connection again.
   BOT_RECONNECT: { from: MAIN, args: argsMatch(isBotId) },
+
+  // --- Wave 1 core fixes (wave1-corefix) ---
+  // PERF-6 (review 7): the player's answer to PLAYER_SAVE_NOW (sent by
+  // PlayerManager before the window closes): its waiting changes are saved.
+  PLAYER_SAVED: { from: PLAYER, args: noArgs },
 } satisfies Record<string, IpcChannelRule>;
 
 export type IpcChannel = keyof typeof IPC_CHANNELS;

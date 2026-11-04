@@ -102,20 +102,91 @@ describe("createThrottledStorage (PERF-6)", () => {
     expect(disk.data.has("library")).toBe(false);
   });
 
-  it("a failed write is reported and the app carries on", async () => {
+  it("a failed write is reported once per run of failures, and the app carries on", async () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    let full = true;
+    const disk = memoryStorage();
+    const onError = vi.fn();
     const storage = createThrottledStorage(
       {
-        getItem: () => null,
-        setItem: () => {
-          throw new Error("QuotaExceededError");
+        ...disk.storage,
+        setItem: (key, value) => {
+          if (full) {
+            throw new DOMException("Setting the value exceeded the quota.", "QuotaExceededError");
+          }
+          disk.storage.setItem(key, value);
         },
-        removeItem: () => undefined,
       },
       1000,
+      () => false,
+      onError,
     );
     await expect(storage.setItem("library", "x")).resolves.toBeUndefined();
-    expect(error).toHaveBeenCalledWith("Unable to save the player library (library)", expect.any(Error));
+    await storage.setItem("library", "y");
+    await storage.setItem("settings", "z");
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(onError.mock.calls[0][0]).toMatchObject({ name: "QuotaExceededError" });
+    expect(error).toHaveBeenCalledTimes(1);
+
+    // A save that works ends the run; the next failure is reported again.
+    full = false;
+    await storage.setItem("library", "ok");
+    full = true;
+    await storage.setItem("library", "fails again");
+    expect(onError).toHaveBeenCalledTimes(2);
     error.mockRestore();
+  });
+
+  it("a value that failed to save is tried again with the next change", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const disk = memoryStorage();
+    let failures = 1;
+    const storage = createThrottledStorage(
+      {
+        ...disk.storage,
+        setItem: (key, value) => {
+          if (failures > 0) {
+            failures--;
+            throw new Error("disk full");
+          }
+          disk.storage.setItem(key, value);
+        },
+      },
+      1000,
+      () => false,
+      () => undefined,
+    );
+    await storage.setItem("library", "lost before");
+    expect(disk.data.has("library")).toBe(false);
+    // Reads still see it, so later changes build on it.
+    expect(await storage.getItem("library")).toBe("lost before");
+
+    await storage.setItem("settings", "s1");
+
+    expect(disk.data.get("library")).toBe("lost before");
+    expect(disk.data.get("settings")).toBe("s1");
+    vi.restoreAllMocks();
+  });
+
+  it("flush tries a failed value again too", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const disk = memoryStorage();
+    let failures = 1;
+    const storage = createThrottledStorage(
+      {
+        ...disk.storage,
+        setItem: (key, value) => {
+          if (failures-- > 0) throw new Error("disk full");
+          disk.storage.setItem(key, value);
+        },
+      },
+      1000,
+      () => false,
+      () => undefined,
+    );
+    await storage.setItem("library", "v1");
+    storage.flush();
+    expect(disk.data.get("library")).toBe("v1");
+    vi.restoreAllMocks();
   });
 });

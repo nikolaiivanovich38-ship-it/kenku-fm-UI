@@ -1,6 +1,6 @@
 /**
  * PERF-6: while the user drags a slider (holds the mouse button or a key), the
- * library is saved at most about once a second, and the final value is saved
+ * library is saved at most about twice a second, and the final value is saved
  * as soon as they let go. Other changes are saved at once, as before, because
  * Electron destroys the player page without warning when the app quits.
  * Kenku FM saved the whole library (every playlist and soundboard) on every
@@ -9,6 +9,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Sound } from "../features/soundboards/soundboardsSlice";
+
+/** The real localStorage write, kept before any test replaces it. */
+const realSetItem = Storage.prototype.setItem;
 
 const sound: Sound = { id: "s1", url: "file:///s1.ogg", title: "Rain", loop: true, volume: 1, fadeIn: 0, fadeOut: 0 };
 
@@ -23,7 +26,8 @@ async function loadStore() {
   app.store.dispatch(soundboards.addSoundboard({ id: "b1", title: "Weather", background: "", sounds: [] }));
   app.store.dispatch(soundboards.addSound({ soundboardId: "b1", sound }));
   await vi.advanceTimersByTimeAsync(5_000);
-  return { ...app, editSound: soundboards.editSound, adjustVolume: playback.adjustVolume };
+  const saveErrors = await import("./saveErrors");
+  return { ...app, ...saveErrors, editSound: soundboards.editSound, adjustVolume: playback.adjustVolume };
 }
 
 /** The sound's volume as saved on disk. */
@@ -57,7 +61,54 @@ afterEach(() => {
 const press = (event: string) => window.dispatchEvent(new Event(event));
 
 describe("saving the player library (PERF-6)", () => {
-  it("dragging a sound's volume for 3 seconds saves about once a second and the final value on release", async () => {
+  it("a change held back during a drag is saved within half a second", async () => {
+    const { store, editSound } = await loadStore();
+    press("pointerdown");
+    store.dispatch(editSound({ id: "s1", volume: 0.1 }));
+    await vi.advanceTimersByTimeAsync(100);
+    store.dispatch(editSound({ id: "s1", volume: 0.2 }));
+    await vi.advanceTimersByTimeAsync(100);
+    expect(savedSoundVolume()).toBe(0.1);
+
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(savedSoundVolume()).toBe(0.2);
+    press("pointerup");
+  });
+
+  it("a save that fails is shown once, in plain words, and tried again with the next change", async () => {
+    const { store, editSound, adjustVolume, setSaveErrorHandler } = await loadStore();
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const shown: string[] = [];
+    setSaveErrorHandler((message) => shown.push(message));
+    let full = true;
+    writes.mockImplementation(function (this: Storage, key: string, value: string) {
+      if (full) {
+        throw new DOMException("Setting the value of 'persist:player' exceeded the quota.", "QuotaExceededError");
+      }
+      realSetItem.call(this, key, value);
+    });
+
+    store.dispatch(editSound({ id: "s1", volume: 0.3 }));
+    store.dispatch(adjustVolume(0.2));
+    store.dispatch(editSound({ id: "s1", volume: 0.35 }));
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    expect(shown).toEqual([
+      "Your changes could not be saved: there is not enough storage space. They will be retried.",
+    ]);
+
+    full = false;
+    store.dispatch(editSound({ id: "s1", volume: 0.4 }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(savedSoundVolume()).toBe(0.4);
+    // The player volume failed earlier and was saved with this change.
+    expect(savedPlayerVolume()).toBe(0.2);
+    expect(shown).toHaveLength(1);
+    setSaveErrorHandler(null);
+  });
+
+  it("dragging a sound's volume for 3 seconds saves about twice a second and the final value on release", async () => {
     const { store, editSound } = await loadStore();
     writes.mockClear();
 
@@ -70,10 +121,11 @@ describe("saving the player library (PERF-6)", () => {
     const duringDrag = writesOf("persist:player");
     press("pointerup");
 
-    expect(duringDrag).toBeLessThanOrEqual(4);
+    // Kenku FM: 100 writes. At most one every 500 ms: 7 in 3 seconds.
+    expect(duringDrag).toBeLessThanOrEqual(7);
     expect(savedSoundVolume()).toBe(0.5);
     await vi.advanceTimersByTimeAsync(2_000);
-    expect(writesOf("persist:player")).toBeLessThanOrEqual(5);
+    expect(writesOf("persist:player")).toBeLessThanOrEqual(8);
   });
 
   it("holding an arrow key on the player volume is throttled the same way", async () => {
@@ -87,7 +139,7 @@ describe("saving the player library (PERF-6)", () => {
     }
     press("keyup");
 
-    expect(writesOf("persist:playback")).toBeLessThanOrEqual(5);
+    expect(writesOf("persist:playback")).toBeLessThanOrEqual(8);
     expect(writesOf("persist:player")).toBe(0);
     expect(savedPlayerVolume()).toBe(1);
   });
@@ -125,6 +177,20 @@ describe("saving the player library (PERF-6)", () => {
       expect(savedPlayerVolume()).toBe(0.4);
     },
   );
+
+  it("a change still waiting is saved when the main process asks before closing the window", async () => {
+    const { store, editSound, saveNow } = await loadStore();
+    press("pointerdown");
+    store.dispatch(editSound({ id: "s1", volume: 0.1 }));
+    await vi.advanceTimersByTimeAsync(100);
+    store.dispatch(editSound({ id: "s1", volume: 0.6 }));
+    await vi.advanceTimersByTimeAsync(100);
+    expect(savedSoundVolume()).toBe(0.1);
+
+    saveNow();
+
+    expect(savedSoundVolume()).toBe(0.6);
+  });
 
   it("a change still waiting is saved when the page is hidden", async () => {
     const { store, editSound } = await loadStore();

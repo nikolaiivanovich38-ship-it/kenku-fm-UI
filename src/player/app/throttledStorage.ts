@@ -23,6 +23,10 @@ export type ThrottledStorage = WebStorage & {
  *   `intervalMs`, always with the latest value. The caller calls `flush()`
  *   when the user lets go, so the final value is written straight away.
  * - Reads see waiting values.
+ * - A failed write (full disk, storage quota) keeps its value waiting and is
+ *   tried again with the next change, or on `flush()`. `onError` hears about
+ *   the first failure of a run; a write that works ends the run, so the next
+ *   failure is reported again. The user is told once, not on every change.
  *
  * redux-persist's own `throttle` option is not used: it saves one part of the
  * state per tick and only writes when every changed part is done, so steady
@@ -32,10 +36,13 @@ export function createThrottledStorage(
   target: SyncStorage,
   intervalMs: number,
   isBusy: () => boolean = () => true,
+  onError: (error: unknown) => void = () => undefined,
 ): ThrottledStorage {
   const waiting = new Map<string, string>();
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
   const lastWriteAt = new Map<string, number>();
+  /** Keys whose last write failed; their values are still in `waiting`. */
+  const failed = new Set<string>();
 
   function write(key: string) {
     const timer = timers.get(key);
@@ -47,13 +54,31 @@ export function createThrottledStorage(
       return;
     }
     const value = waiting.get(key)!;
-    waiting.delete(key);
     lastWriteAt.set(key, Date.now());
     try {
       target.setItem(key, value);
     } catch (error) {
-      // For example a full disk or storage quota. Keep the app running.
-      console.error(`Unable to save the player library (${key})`, error);
+      // For example a full disk or storage quota. Keep the app running and
+      // the value waiting, so the next change tries again.
+      const newRun = failed.size === 0;
+      failed.add(key);
+      if (newRun) {
+        console.error(`Unable to save the player library (${key})`, error);
+        onError(error);
+      }
+      return;
+    }
+    waiting.delete(key);
+    failed.delete(key);
+  }
+
+  /** Write `key` now, or once `intervalMs` has passed since its last write while busy. */
+  function schedule(key: string) {
+    const wait = (lastWriteAt.get(key) ?? -Infinity) + intervalMs - Date.now();
+    if (wait <= 0 || !isBusy()) {
+      write(key);
+    } else if (!timers.has(key)) {
+      timers.set(key, setTimeout(() => write(key), wait));
     }
   }
 
@@ -63,16 +88,17 @@ export function createThrottledStorage(
     },
     setItem(key, value: string) {
       waiting.set(key, value);
-      const wait = (lastWriteAt.get(key) ?? -Infinity) + intervalMs - Date.now();
-      if (wait <= 0 || !isBusy()) {
-        write(key);
-      } else if (!timers.has(key)) {
-        timers.set(key, setTimeout(() => write(key), wait));
+      schedule(key);
+      for (const other of [...failed]) {
+        if (other !== key) {
+          schedule(other);
+        }
       }
       return Promise.resolve();
     },
     removeItem(key) {
       waiting.delete(key);
+      failed.delete(key);
       target.removeItem(key);
       return Promise.resolve();
     },

@@ -17,6 +17,11 @@ export class SessionManager {
     this.playerManager = new PlayerManager();
   }
 
+  /** PERF-6: lets the player save changes it is holding back; see saveBeforeClose.ts. */
+  saveBeforeClose(): Promise<void> {
+    return this.playerManager.saveBeforeClose();
+  }
+
   destroy() {
     this.playbackManager.destroy();
     this.viewManager.destroy();

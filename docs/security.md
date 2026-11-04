@@ -339,3 +339,19 @@ The capture window used to send audio to the main process over a WebSocket on `1
 6. Unplug the network cable (or turn Wi-Fi off) for 10 seconds while in a channel: the chip shows "Reconnecting…", then "Connected" again without touching anything. Off for two minutes: "Error" with a reason and a Reconnect button that works once the network is back.
 7. Remove the bot's Connect permission on a channel and click it: a plain message explains why; the bot does not hang on "Joining…".
 8. Join a Stage channel, then click it again: the bot leaves the stage in Discord.
+
+## Wave 1 core fixes
+
+### In plain language
+
+When you close Cue Desk while you are still dragging a volume slider in the player, the player is now asked to save that last change before it is closed. Closing waits for its answer for at most one second.
+
+### Channel
+
+Add to the SEC-8 channel table (kept here so branches merge cleanly):
+
+| Channel | Sent by | Arguments | Handled in |
+|---|---|---|---|
+| `PLAYER_SAVED` | Player | none; only the registered player view's answer is used | `PlayerManager` (`saveBeforeClose`) |
+
+`PLAYER_SAVE_NOW` goes the other way (main process to the player view, `webContents.send`), so it is not in `IPC_CHANNELS`; the player preload listens for it (`onSaveRequest`) and always answers `PLAYER_SAVED`, even if saving failed. The first quit (at `before-quit`) or the main window's first close is held (`src/main/saveBeforeClose.ts`) until that answer or one second has passed, then repeated. Nothing else changes: no new permission, no Content-Security-Policy change.

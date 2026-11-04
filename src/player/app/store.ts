@@ -15,20 +15,24 @@ import {
   REGISTER,
 } from "redux-persist";
 import { createThrottledStorage } from "./throttledStorage";
+import { reportSaveError } from "./saveErrors";
 
 /**
  * PERF-6: while the user holds a mouse button or key down (dragging a slider,
  * holding an arrow key), the library and the player settings are each written
- * at most once a second; letting go writes the final value at once. All other
- * changes are written straight away, as in Kenku FM (see throttledStorage.ts).
+ * at most once every 500 ms; letting go writes the final value at once. All
+ * other changes are written straight away, as in Kenku FM (see
+ * throttledStorage.ts). A save that fails is shown to the user (saveErrors.ts)
+ * and tried again with the next change.
  */
-export const SAVE_THROTTLE_MS = 1000;
+export const SAVE_THROTTLE_MS = 500;
 
 let holding = false;
 export const storage = createThrottledStorage(
   window.localStorage,
   SAVE_THROTTLE_MS,
   () => holding,
+  reportSaveError,
 );
 
 const playbackPersistConfig = {
@@ -76,12 +80,17 @@ export const persistor = persistStore(store);
  * redux-persist's queued changes to `storage`, and storage.flush() writes them.
  * Capture phase, so a control that stops the event still lets it through here.
  */
+/**
+ * Writes every change waiting to be saved, now. Also called when the main
+ * process asks before the window closes (PERF-6; preload `onSaveRequest`).
+ */
+export function saveNow() {
+  holding = false;
+  persistor.flush();
+  storage.flush();
+}
+
 function saveWhenUserLetsGo() {
-  const saveNow = () => {
-    holding = false;
-    persistor.flush();
-    storage.flush();
-  };
   const hold = () => {
     holding = true;
   };
