@@ -13,4 +13,6 @@ export type { VoiceOptions, VoiceState } from "./voice/voice";
 export { directResolver, DEFAULT_SOURCE_POLICY } from "./sources/sourceLoader";
 export type { MediaRequest, MediaResolver, ResolvedMedia, SourcePolicy } from "./sources/sourceLoader";
 export * as queue from "./queue/queue";
+export { QueuePlayer } from "./queue/queuePlayer";
+export type { QueueTrack } from "./queue/queuePlayer";
 export type { QueueEntry, QueueState, RepeatMode, NavigationOutcome } from "./queue/queue";
