@@ -4,6 +4,14 @@ All notable changes to Cue Desk. Versions follow [Semantic Versioning](https://s
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-11-04
+
+**Fixes**
+- Playlists and soundboards from Kenku FM show their background pictures again when Kenku FM is installed on the same computer: Cue Desk copies the pictures into its own folder when it starts. Without Kenku FM, backgrounds stay blank for now.
+
+**Behind the scenes**
+- The app no longer contains any part that has to be compiled from C++ (zlib-sync removed; Discord works without it), so installers build on GitHub's current Windows computers again. [FND-10]
+
 ## [0.1.0] - 2026-11-04: first release of the fork
 
 **New name and home**
