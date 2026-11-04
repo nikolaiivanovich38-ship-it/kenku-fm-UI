@@ -81,12 +81,23 @@ test("add tracks from disk, play, pause, skip and delete them", async ({ playerV
   await expect(trackRow(page, "First Tone").getByRole("button", { name: "pause", exact: true })).toBeVisible();
   await expect(trackRow(page, "Second Tone").getByRole("button", { name: "play", exact: true })).toBeVisible();
 
-  // Delete the playing track: playback stops and the row goes.
+  // Delete the playing track: playback stops, the row goes and the player
+  // bar no longer shows the track or its time (BUG-8).
   await trackRow(page, "First Tone").getByRole("button", { name: "Options for First Tone" }).click();
   await page.getByRole("menuitem", { name: "Delete" }).click();
   await expect(trackRow(page, "First Tone")).toHaveCount(0);
   await expect(controls.getByRole("button", { name: "play", exact: true })).toBeVisible();
   await expect(page.getByRole("listitem")).toHaveText([/Second Tone/]);
+  await expect(page.getByText("First Tone", { exact: true })).toHaveCount(0);
+  await expect(controls.getByRole("button", { name: "play", exact: true })).toBeDisabled();
+  await expect(page.getByRole("slider", { name: "time-indicator" })).toBeDisabled();
+  expect(await page.evaluate(() => navigator.mediaSession.metadata)).toBeNull();
+
+  // The remaining track still plays normally afterwards.
+  await trackRow(page, "Second Tone").getByRole("button", { name: "play", exact: true }).click();
+  await expect(controls.getByRole("button", { name: "pause", exact: true })).toBeEnabled();
+  await expect.poll(() => playbackPosition(page), { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
+  await controls.getByRole("button", { name: "pause", exact: true }).click();
 
   // Edit the remaining track's name.
   await trackRow(page, "Second Tone").getByRole("button", { name: "Options for Second Tone" }).click();

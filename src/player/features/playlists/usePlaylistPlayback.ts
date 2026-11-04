@@ -17,6 +17,10 @@ export const PROGRESS_INTERVAL_MS = 1000;
 
 export function usePlaylistPlayback(onError: (message: string) => void) {
   const trackRef = useRef<Howl | null>(null);
+  /** Id of the track `trackRef` holds, which may still be loading. */
+  const trackIdRef = useRef<string | null>(null);
+  /** Tracks still fading out after a track change. */
+  const outgoingRef = useRef(new Set<Howl>());
   const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const playlists = useSelector((state: RootState) => state.playlists);
@@ -68,14 +72,19 @@ export function usePlaylistPlayback(onError: (message: string) => void) {
   const play = useCallback(
     (track: Track) => {
       let prevTrack = trackRef.current;
+      if (prevTrack) {
+        outgoingRef.current.add(prevTrack);
+      }
       function removePrevTrack() {
         if (prevTrack) {
           prevTrack.unload();
+          outgoingRef.current.delete(prevTrack);
           prevTrack = undefined;
         }
       }
       function error() {
         trackRef.current = undefined;
+        trackIdRef.current = null;
         stopProgressUpdates();
         dispatch(stopTrack());
         removePrevTrack();
@@ -91,6 +100,7 @@ export function usePlaylistPlayback(onError: (message: string) => void) {
         });
 
         trackRef.current = howl;
+        trackIdRef.current = track.id;
         howl.once("load", () => {
           dispatch(
             playTrack({
@@ -98,8 +108,8 @@ export function usePlaylistPlayback(onError: (message: string) => void) {
               duration: Math.floor(howl.duration()),
             })
           );
-          // Fade out previous track and fade in new track
-          if (prevTrack) {
+          // Fade out previous track (unless it was deleted meanwhile) and fade in new track
+          if (prevTrack && outgoingRef.current.has(prevTrack)) {
             prevTrack.fade(prevTrack.volume(), 0, 1000);
             prevTrack.once("fade", removePrevTrack);
           }
@@ -124,6 +134,31 @@ export function usePlaylistPlayback(onError: (message: string) => void) {
     },
     [dispatch, onError, muted, store, startProgressUpdates, stopProgressUpdates]
   );
+
+  // BUG-8: when the playing track leaves the library (its Delete menu item, or
+  // its playlist was deleted), stop it for good. Kenku FM only paused it, so
+  // the play key or the remote could resume a track the player bar no longer
+  // showed. A different track that is still loading carries on.
+  const deletedTrackId = useSelector((state: RootState) => {
+    const current = state.playlistPlayback.track;
+    return current && !(current.id in state.playlists.tracks) ? current.id : null;
+  });
+  useEffect(() => {
+    if (deletedTrackId === null) {
+      return;
+    }
+    for (const outgoing of outgoingRef.current) {
+      outgoing.unload();
+    }
+    outgoingRef.current.clear();
+    if (trackIdRef.current === deletedTrackId) {
+      stopProgressUpdates();
+      trackRef.current?.unload();
+      trackRef.current = null;
+      trackIdRef.current = null;
+    }
+    dispatch(stopTrack());
+  }, [deletedTrackId, dispatch, stopProgressUpdates]);
 
   const seek = useCallback((to: number) => {
     dispatch(updatePlayback(to));
