@@ -63,6 +63,7 @@ function installPermissionHandlers(target: Session): void {
       permission,
       mediaTypes: details.mediaType ? [details.mediaType] : undefined,
       isMainFrame: details.isMainFrame,
+      isCheck: true,
     }),
   );
 }

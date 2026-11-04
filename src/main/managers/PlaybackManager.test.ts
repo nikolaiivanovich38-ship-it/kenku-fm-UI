@@ -6,7 +6,7 @@
 import { EventEmitter } from "events";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const made = vi.hoisted(() => ({ outputs: [] as unknown[], capture: [] as unknown[] }));
+const made = vi.hoisted(() => ({ outputs: [] as unknown[], capture: [] as unknown[], bridges: [] as unknown[] }));
 
 vi.mock("electron", () => ({ app: { getPath: () => "/tmp/lyre-test" }, safeStorage: {} }));
 vi.mock("../broadcast/botTokenStore", () => ({
@@ -31,6 +31,17 @@ vi.mock("../broadcast/OutputManager", async () => {
     },
   };
 });
+vi.mock("../broadcast/playerAudioBridge", () => ({
+  PlayerAudioBridge: class {
+    setCapture = vi.fn();
+    setPlayer = vi.fn();
+    setRooms = vi.fn();
+    destroy = vi.fn();
+    constructor() {
+      made.bridges.push(this);
+    }
+  },
+}));
 vi.mock("./AudioCaptureManagerMain", async () => {
   const { EventEmitter } = await import("events");
   return {
@@ -41,6 +52,7 @@ vi.mock("./AudioCaptureManagerMain", async () => {
       setRooms = vi.fn();
       setRoomVolume = vi.fn();
       destroy = vi.fn();
+      _browserWindow = { webContents: { id: 42 } };
       constructor() {
         super();
         made.capture.push(this);
@@ -55,13 +67,17 @@ type Mocked = EventEmitter & Record<string, ReturnType<typeof vi.fn>>;
 
 let outputs: Mocked;
 let capture: Mocked;
+let bridge: Record<string, ReturnType<typeof vi.fn>>;
+let playback: PlaybackManager;
 
 beforeEach(() => {
   made.outputs.length = 0;
   made.capture.length = 0;
-  new PlaybackManager({} as never);
+  made.bridges.length = 0;
+  playback = new PlaybackManager({} as never);
   outputs = made.outputs[0] as Mocked;
   capture = made.capture[0] as Mocked;
+  bridge = made.bridges[0] as typeof bridge;
 });
 
 describe("PlaybackManager rooms (OUT-5)", () => {
@@ -93,5 +109,28 @@ describe("PlaybackManager rooms (OUT-5)", () => {
     outputs.emit("activeChange", false);
     expect(capture.startBroadcast).toHaveBeenCalledTimes(1);
     expect(capture.stopBroadcast).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("PlaybackManager player channel (OUT-5, PRV-1)", () => {
+  it("joins the capture window to the player channel", () => {
+    expect(bridge.setCapture).toHaveBeenCalledWith({ id: 42 });
+  });
+
+  it("gives the registered player page the other end", () => {
+    const view = { id: 7 };
+    playback.setPlayerView(view as never);
+    expect(bridge.setPlayer).toHaveBeenCalledWith(view);
+  });
+
+  it("tells the player page the rooms", () => {
+    const rooms = [{ botId: "bot-a", name: "Tavern" }];
+    outputs.emit("roomsChange", rooms);
+    expect(bridge.setRooms).toHaveBeenCalledWith(rooms);
+  });
+
+  it("closes the channel when destroyed", () => {
+    playback.destroy();
+    expect(bridge.destroy).toHaveBeenCalled();
   });
 });

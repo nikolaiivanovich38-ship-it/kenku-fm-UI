@@ -175,3 +175,31 @@ describe("isPermissionAllowed (SEC-3)", () => {
     ).toBe(false);
   });
 });
+
+// --- Rooms and buses ---
+describe("PRV-2: the player page may name and choose sound output devices, nothing more", () => {
+  it("answers yes to the player page's speaker-selection check (output device names, setSinkId)", () => {
+    expect(isPermissionAllowed({ role: "player-view", permission: "speaker-selection", isCheck: true })).toBe(true);
+  });
+
+  it("does not grant speaker-selection as a request, or to an embedded frame", () => {
+    expect(isPermissionAllowed({ role: "player-view", permission: "speaker-selection" })).toBe(false);
+    expect(
+      isPermissionAllowed({ role: "player-view", permission: "speaker-selection", isCheck: true, isMainFrame: false }),
+    ).toBe(false);
+  });
+
+  it("still keeps the microphone and camera from the player page, checked or requested", () => {
+    for (const mediaType of ["audio", "video", undefined]) {
+      const mediaTypes = mediaType ? [mediaType] : undefined;
+      expect(isPermissionAllowed({ role: "player-view", permission: "media", mediaTypes, isCheck: true })).toBe(false);
+      expect(isPermissionAllowed({ role: "player-view", permission: "media", mediaTypes: mediaTypes ?? ["audio"] })).toBe(
+        false,
+      );
+    }
+  });
+
+  it.each([null, "main-window", "audio-capture"] as const)("gives %s no speaker-selection", (role) => {
+    expect(isPermissionAllowed({ role, permission: "speaker-selection", isCheck: true })).toBe(false);
+  });
+});

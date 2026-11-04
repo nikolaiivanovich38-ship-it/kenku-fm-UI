@@ -7,11 +7,15 @@
  * graph. Whoever provides it guarantees `input` leads only to the game
  * master's own sound device:
  *
- * - the "Rooms" stream's isolated preview bus, once its route out of the
- *   recorded page exists (OUT-5 / PRV-1 wiring, see docs/ARCHITECTURE.md
- *   "Wave 2: Files and preview"), or
- * - `createPreviewContextOutput` below, an audio context of its own, run in a
- *   page that is not recorded.
+ * - in the player page: `createBrowserBridgedPreview` (rooms/browserBridge.ts).
+ *   Its audio context has no sound device, so the page never sounds the
+ *   preview and tab capture cannot record it; its frames go over the private
+ *   player channel to the capture window, which plays them in an audio
+ *   context of its own on the chosen device (PRV-2). That window is never
+ *   recorded, and its preview context is not the broadcast's, so no room mix
+ *   can reach it (e2e/rooms.spec.ts).
+ * - `createPreviewContextOutput` below plays directly on the device. Never use
+ *   it in the player page: the player page is recorded for Discord as a whole.
  *
  * Tests use testing/fakePreviewOutput.ts: a separate fake context, which
  * cannot be connected to the player page's nodes at all.

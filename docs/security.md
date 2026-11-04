@@ -439,6 +439,17 @@ Add to the SEC-8 channel table (kept here so branches merge cleanly):
 
 A room is muted with `OUTPUT_SET_MUTED` and the room's bot id, as before.
 
+### Player audio channel and preview (OUT-5, PRV-1)
+
+- The main process makes a second private `MessageChannelMain` (`src/main/broadcast/playerAudioBridge.ts`) and hands one end to the capture window (`AUDIO_CAPTURE_PLAYER_PORT`) and the other to the player page only (`PLAYER_AUDIO_PORT`): the page must be registered as the player (`trustedContents` role `player-view`), never a website tab. A new channel replaces the old one whenever either page loads, and the old ends are closed. The player preload holds its end until the page asks for it (`window.player.connectAudio()`), then posts it to its own window; the page takes only a message from its own window.
+- Messages are checked on arrival (`src/common/playerAudio.ts`): room and preview frames must be exactly 1920 float samples with a whole-number index, a room id at most 64 characters, a device id at most 256; anything else is dropped. A room frame is played only into a room the capture window has, only while broadcasting. Rooms go to the player page as `PLAYER_ROOMS` (main process to page, not in `IPC_CHANNELS`).
+- **Preview never reaches Discord.** Preview voices are made in the player page in an audio context with no sound device (`sinkId: { type: "none" }`), whose only connection is a tap; the page never sounds it, so tab capture has nothing to record. The frames are played by the capture window in a separate audio context on the game master's device; that context is not the broadcast's, so it cannot be connected to any room's mix, and the capture window is never captured. `e2e/rooms.spec.ts` plays a preview tone while a room plays and finds none of it in any room; the same test fails if the preview is played in the player page directly (checked once by hand).
+- The player page loads the PCM worklet as a file next to its bundle (webpack `?asset`), so its Content-Security-Policy is unchanged (`script-src 'self'`).
+
+### Device permission for the player page (PRV-2)
+
+The player page may now see the names of sound output devices and play on a chosen one (`setSinkId`), for the preview and monitor device choice. Probed on Electron 44: listing output devices and `setSinkId` ask only the `speaker-selection` permission check (without it, `setSinkId` on a chosen device fails with "No permission to use requested device"). So the player page gets `speaker-selection` as a **check only** (`APP_PAGE_CHECKS` in `permissions.ts`, `isCheck` set by the check handler in `sessions.ts`), from its own top frame only. It is still refused `media` (no microphone, camera or screen), and a `speaker-selection` request (the `selectAudioOutput` picker) is refused. Website tabs and the other app pages get nothing new. Tested in `permissions.test.ts`, `sessions.test.ts` and `e2e/rooms.spec.ts` (choosing a missing device says "not found", not "not allowed").
+
 ### Manual checks (Windows, real Discord, two bots, two voice channels)
 
 1. Bot 1 joins "Table", Bot 2 joins "Side". Play a YouTube tab: a friend in each channel hears it (tabs go to every room until the new interface routes them).
@@ -447,6 +458,9 @@ A room is muted with `OUTPUT_SET_MUTED` and the room's bot id, as before.
 4. Bot 2 leaves its channel: "Side" goes silent at once; "Table" keeps playing; Task Manager shows Lyre's processor use drop a little.
 5. Mute Bot 2: only "Side" goes silent. Unmute: it comes back.
 6. Both bots leave: "This Computer" plays again (as in WP2) and Lyre's processor use falls to almost nothing.
+7. (Once the new interface plays engine rooms) Music started in "Side" is heard only in "Side", music in "Table" only in "Table".
+8. (Once the new interface has Preview) Preview a track while a room plays: you hear it in your headphones; a friend in either channel does not.
+9. (Once the new interface has the device choice) Settings lists your sound devices by name; choosing headphones moves the preview there; unplugging them says so and the preview plays on the default device.
 
 ## Files and preview
 

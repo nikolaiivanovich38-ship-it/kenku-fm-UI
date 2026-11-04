@@ -8,4 +8,7 @@ declare const __CUE_DESK_TEST_BUILD__: boolean;
 if (typeof __CUE_DESK_TEST_BUILD__ !== "undefined" && __CUE_DESK_TEST_BUILD__) {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   require("./engine/testHook").installEngineTestHook(window);
+  // OUT-5, PRV-1: engine rooms and the bridged preview (e2e/rooms.spec.ts).
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  require("./engine/rooms/testHook").installRoomsTestHook(window);
 }

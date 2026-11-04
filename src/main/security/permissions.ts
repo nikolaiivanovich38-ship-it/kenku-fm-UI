@@ -25,6 +25,11 @@ export interface PermissionQuery {
   isMainFrame?: boolean;
   /** Whether the app has chosen to capture this page's audio (see captureTargets.ts). */
   isCaptureTarget?: boolean;
+  /**
+   * A permission check (Chromium asking whether the page already has it, from
+   * Electron's check handler) rather than a request (the page asking for it).
+   */
+  isCheck?: boolean;
 }
 
 /**
@@ -38,6 +43,22 @@ const APP_PAGE_PERMISSIONS: Record<AppPageRole, ReadonlySet<string>> = {
   "main-window": new Set(["media"]),
   "audio-capture": new Set(["media"]),
   "player-view": new Set(["clipboard-sanitized-write"]),
+};
+
+/**
+ * --- Rooms and buses --- PRV-2: permissions an app page gets only as a check,
+ * never as a request.
+ * - player-view: "speaker-selection" lets it see the sound output devices'
+ *   names (enumerateDevices) and play on one with setSinkId. Probed on
+ *   Electron 44 (WP2 wave 2): both ask only this check; without it setSinkId
+ *   on a chosen device fails with "No permission to use requested device".
+ *   The page still gets no microphone or camera ("media" stays refused), and
+ *   no `selectAudioOutput` picker (that is a request).
+ */
+const APP_PAGE_CHECKS: Record<AppPageRole, ReadonlySet<string>> = {
+  "main-window": new Set(),
+  "audio-capture": new Set(),
+  "player-view": new Set(["speaker-selection"]),
 };
 
 /**
@@ -99,6 +120,9 @@ export function isPermissionAllowed(query: PermissionQuery): boolean {
   }
   if (!isMainFrame) {
     return false;
+  }
+  if (query.isCheck && APP_PAGE_CHECKS[role].has(permission)) {
+    return true;
   }
   if (!APP_PAGE_PERMISSIONS[role].has(permission)) {
     return false;
