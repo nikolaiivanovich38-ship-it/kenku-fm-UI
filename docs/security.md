@@ -447,3 +447,30 @@ A room is muted with `OUTPUT_SET_MUTED` and the room's bot id, as before.
 4. Bot 2 leaves its channel: "Side" goes silent at once; "Table" keeps playing; Task Manager shows Lyre's processor use drop a little.
 5. Mute Bot 2: only "Side" goes silent. Unmute: it comes back.
 6. Both bots leave: "This Computer" plays again (as in WP2) and Lyre's processor use falls to almost nothing.
+
+## Files and preview
+
+### In plain language
+
+**Old formats (BUG-10).** Lyre can play WMA files and a few other formats the built-in player cannot. The first time such a file plays, Lyre converts a copy in the background and keeps it in its own cache folder (`%APPDATA%\lyre\media-cache`); your file is only read, never changed. Only files inside your library folders are converted. When the original file is deleted or changed, its copy is removed the next time Lyre tidies up.
+
+**Preview (PRV-1).** Preview plays only in your headphones. It is built so it cannot be connected to the sound that goes to Discord.
+
+### Technical details
+
+- **One new channel**, `MEDIA_PREPARE` (below). The player page could already read any `file:` address itself (its page is `file:`), so the channel adds two powers only: copying a file into the cache folder and running the converter on it. Both are confined to library folders by `MediaAccess` (`src/main/media/mediaAccess.ts`): the address must pass `checkLocalFileUrl` (no host, no `\\server`, no encoded separators), be a full path, and its real path (`fs.realpath`, links and junctions resolved) must be inside the real path of a library folder; folders are refused. A mapped network drive inside a library folder is allowed (the game master chose the folder; PLY-11 exists for network shares); a typed `\\server` address is still refused, as for tabs.
+- **Writes only in Lyre's cache folder.** `MediaCache` writes and deletes only names of the form `<40 hex digits>.<extension>` (or that plus `.part`) directly in `<data folder>/media-cache`; names read back from `index.json` are checked against that pattern before use, so a damaged index cannot point it elsewhere (tested). Copies are written as `.part` files and renamed when complete.
+- **The converter** (`ffmpegConverter.ts`) runs ffmpeg without a shell, arguments passed as a list, `-protocol_whitelist file`, both paths prefixed `file:` (no name is read as a network protocol), first audio stream only, stopped on cancel or after 10 minutes. Messages to the page are plain and carry no paths; details go to the log.
+- **Preview** voices are made in the `PreviewOutput`'s context and connect only to its input, never to the engine's mixer; the test fake uses a separate context, which cannot be connected to the player page's nodes. See ARCHITECTURE.md "Wave 2: Files and preview" for the open tab-capture check before the preview is offered.
+- **Read-ahead** plays from `blob:` addresses made in the player page (`media-src` and `connect-src` already allow `blob:`). No Content-Security-Policy or permission change.
+
+| Channel | Sent by | Arguments | Handled in |
+|---|---|---|---|
+| `MEDIA_PREPARE` (invoke) | Player | address: text ≤ 2 MB; options: exactly `{ keepLocal: boolean }`. Answers `{ url }` (a `file:` address) or `{ error }` (plain words) | `src/main/media/mediaIpc.ts` (`MediaCache`) |
+
+| Test | Covers |
+|---|---|
+| `mediaAccess.test.ts` | Library folders and subfolders allowed; outside, link out, encoded and plain `..`, folder, missing file, network and web addresses refused |
+| `mediaCache.test.ts` | Convert once, lossless to FLAC and lossy to Opus, one at a time, across restarts, again when changed; sweep; damaged index cannot reach outside; failures leave no part file; background disk copies; disk cap |
+| `ffmpegConverter.test.ts` | Arguments (files only, no shell), probe, failure, missing program, cancel, timeout |
+| `mediaIpc.test.ts` | Player only; argument checks; plain failure answer |

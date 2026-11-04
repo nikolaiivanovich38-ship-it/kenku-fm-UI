@@ -73,6 +73,12 @@ const isBotToken: ArgCheck = (value) => isShortText(value) && (value as string).
 // --- Rooms and buses ---
 /** A volume: a finite number from 0 to 1. */
 const isUnitInterval: ArgCheck = (value) => isFiniteNumber(value) && (value as number) >= 0 && (value as number) <= 1;
+// --- Files and preview ---
+/** MEDIA_PREPARE's options: exactly `{ keepLocal: boolean }`. */
+const isPrepareOptions: ArgCheck = (value) =>
+  isPlainObject(value) &&
+  Object.keys(value as object).length === 1 &&
+  isBoolean((value as { keepLocal?: unknown }).keepLocal);
 
 export const IPC_CHANNELS = {
   // src/index.ts
@@ -172,6 +178,12 @@ export const IPC_CHANNELS = {
   // OUT-5: a room's volume (the room is its bot), 0 to 1. A room is muted
   // with OUTPUT_SET_MUTED, as before.
   ROOM_SET_VOLUME: { from: MAIN, args: argsMatch(isBotId, isUnitInterval) },
+  // --- Files and preview ---
+  // BUG-10 / PLY-11 (src/main/media/mediaIpc.ts): prepare a library file
+  // before it plays (invoke; answers { url } or { error }). Arguments: the
+  // file address, and { keepLocal: boolean } and nothing else. The address is
+  // checked against the library folders by MediaAccess before anything is read.
+  MEDIA_PREPARE: { from: PLAYER, args: argsMatch(isUrl, isPrepareOptions) },
 } satisfies Record<string, IpcChannelRule>;
 
 export type IpcChannel = keyof typeof IPC_CHANNELS;
