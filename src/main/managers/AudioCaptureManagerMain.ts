@@ -1,7 +1,6 @@
-import { BrowserWindow, ipcMain, webContents } from "electron";
+import { BrowserWindow, ipcMain, MessageChannelMain, webContents } from "electron";
+import type { MessageEvent as MainMessageEvent, MessagePortMain } from "electron";
 import { TypedEmitter } from "tiny-typed-emitter";
-import { WebSocketServer, WebSocket } from "ws";
-import { LOOPBACK_HOST } from "../../common/security/loopback";
 import { guardIpc } from "../security/ipcGuard";
 import { lockAppPage } from "../security/navigationGuards";
 import { captureTargets } from "../security/captureTargets";
@@ -31,13 +30,25 @@ export const SILENCE_HOLD_MS = 30_000;
 export const MAX_OPUS_PACKET_BYTES = 4000;
 
 /**
- * SEC-2: the socket that carries encoded audio from the hidden capture
- * window to the Discord outputs. Bound to the loopback interface so other
- * machines on the network cannot connect and inject audio. Port 0 lets the
- * operating system pick a free port.
+ * SEC-2: encoded audio reaches the main process over a private message
+ * channel. The main process creates it and hands one end to the capture
+ * window each time that window loads; no network socket exists, so nothing
+ * else on this computer or the network can send audio into Discord.
  */
-export function createAudioSocketServer(): WebSocketServer {
-  return new WebSocketServer({ host: LOOPBACK_HOST, port: 0 });
+export const AUDIO_PORT_CHANNEL = "AUDIO_CAPTURE_PORT";
+
+/** The packet as bytes, or undefined if the message is not one packet. */
+export function packetFrom(data: unknown): Buffer | undefined {
+  let packet: Buffer | undefined;
+  if (data instanceof ArrayBuffer) {
+    packet = Buffer.from(data);
+  } else if (ArrayBuffer.isView(data) && data instanceof Uint8Array) {
+    packet = Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+  }
+  if (!packet || packet.length === 0 || packet.length > MAX_OPUS_PACKET_BYTES) {
+    return undefined;
+  }
+  return packet;
 }
 
 /** The parts of a WebContents this manager uses. */
@@ -75,7 +86,8 @@ interface WatchedView {
  */
 export class AudioCaptureManagerMain extends TypedEmitter<AudioCaptureManagerEvents> {
   _browserWindow: BrowserWindow;
-  _wss: WebSocketServer;
+  /** Main-process end of the audio channel to the capture window. */
+  _port?: MessagePortMain;
   _streamingMode: StreamingMode = "performance";
   _broadcasting = false;
   /** "This Computer" switched off: views play nothing locally. */
@@ -112,8 +124,8 @@ export class AudioCaptureManagerMain extends TypedEmitter<AudioCaptureManagerEve
     lockAppPage(this._browserWindow.webContents, "audio-capture");
     // SEC-3: tab capture is granted only to requests from this page's origin.
     captureTargets.setCapturer(AUDIO_CAPTURE_WINDOW_WEBPACK_ENTRY);
+    this._browserWindow.webContents.on("did-finish-load", this._openAudioChannel);
     this._browserWindow.webContents.loadURL(AUDIO_CAPTURE_WINDOW_WEBPACK_ENTRY);
-    this._wss = createAudioSocketServer();
 
     // SEC-8: commands from the main window.
     this._ipc.on("AUDIO_CAPTURE_SET_STREAMING_MODE", this._handleSetStreamingMode);
@@ -124,10 +136,6 @@ export class AudioCaptureManagerMain extends TypedEmitter<AudioCaptureManagerEve
     this._ipc.on("AUDIO_CAPTURE_START_BROWSER_VIEW_STREAM", this._handleStartBrowserViewStream);
     this._ipc.on("AUDIO_CAPTURE_STOP_BROWSER_VIEW_STREAM", this._handleStopBrowserViewStream);
     this._ipc.on("AUDIO_CAPTURE_STOP_ALL_BROWSER_VIEW_STREAMS", this._handleStopAllBrowserViewStreams);
-    // SEC-8: messages from the hidden capture window.
-    this._ipc.handle("AUDIO_CAPTURE_GET_WEBSOCKET_ADDRESS", this._handleGetWebsocketAddress);
-
-    this._wss.on("connection", this._handleWebsocketConnection);
   }
 
   destroy() {
@@ -136,9 +144,10 @@ export class AudioCaptureManagerMain extends TypedEmitter<AudioCaptureManagerEve
     for (const viewId of [...this._views.keys()]) {
       this._unwatch(viewId);
     }
+    this._port?.close();
+    this._port = undefined;
     this._browserWindow.webContents.close();
     (this._browserWindow.webContents as any).destroy();
-    this._wss.close();
   }
 
   get broadcasting(): boolean {
@@ -182,16 +191,20 @@ export class AudioCaptureManagerMain extends TypedEmitter<AudioCaptureManagerEve
     }
   }
 
-  _handleWebsocketConnection = (ws: WebSocket) => {
-    ws.on("message", this._handlePacket);
+  /** Give the (re)loaded capture window a fresh end of the audio channel. */
+  _openAudioChannel = () => {
+    this._port?.close();
+    const { port1, port2 } = new MessageChannelMain();
+    port1.on("message", (event: MainMessageEvent) => this._handlePacket(event.data));
+    port1.start();
+    this._port = port1;
+    this._browserWindow.webContents.postMessage(AUDIO_PORT_CHANNEL, null, [port2]);
   };
 
-  _handlePacket = (data: Buffer, isBinary = true) => {
-    if (!isBinary || !Buffer.isBuffer(data) || data.length === 0 || data.length > MAX_OPUS_PACKET_BYTES) {
-      return;
-    }
-    if (this._broadcasting) {
-      this.emit("packet", data);
+  _handlePacket = (data: unknown) => {
+    const packet = packetFrom(data);
+    if (packet && this._broadcasting) {
+      this.emit("packet", packet);
     }
   };
 
@@ -254,10 +267,6 @@ export class AudioCaptureManagerMain extends TypedEmitter<AudioCaptureManagerEve
     deviceId: string
   ) => {
     this._sendToCapture("AUDIO_CAPTURE_STOP_EXTERNAL_AUDIO_CAPTURE", deviceId);
-  };
-
-  _handleGetWebsocketAddress = async () => {
-    return this._wss.address();
   };
 
   /**

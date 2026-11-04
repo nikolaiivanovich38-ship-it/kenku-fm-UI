@@ -16,7 +16,7 @@ Cue Desk opens websites (YouTube, Tabletop Audio, Spotify and so on) in tabs ins
 
 **Links to help pages.** Links in Cue Desk (for example "Where do I get my token?") open in your normal web browser, but only if they are `https://` links. Other kinds of link are ignored.
 
-**Your audio stays on your computer.** The connection that carries sound from tabs to Discord accepts connections from your own computer only, so other devices on your network cannot send audio into your Discord channel.
+**Your audio stays on your computer.** Sound travels from tabs to Discord over a private channel inside Cue Desk; there is no network connection for it at all, so nothing else on your computer or network can send audio into your Discord channel.
 
 **Dragging files.** Dropping a file onto Cue Desk outside a drop zone does nothing, and the pointer shows that it cannot be dropped there. Dragging a link from a web page onto the address bar or a bookmark's address field puts the link's text in the field. Drop zones (adding tracks, sounds or images) work as before.
 
@@ -35,7 +35,7 @@ Cue Desk opens websites (YouTube, Tabletop Audio, Spotify and so on) in tabs ins
 | Player view recognition (SEC-3) | `src/main/security/viewKind.ts` | `viewKind.test.ts` |
 | Popup rate limit (SEC-6) | `src/main/security/popupRateLimiter.ts` | `popupRateLimiter.test.ts` |
 | External links from the main window (SEC-10) | `src/main/security/externalLinks.ts` | `externalLinks.test.ts`, `src/index.test.ts` |
-| Loopback audio socket (SEC-2) | `src/common/security/loopback.ts`, `AudioCaptureManagerMain.ts` | `loopback.test.ts`, `AudioCaptureManagerMain.test.ts` |
+| Private audio channel from the capture window (SEC-2, WP2) | `AudioCaptureManagerMain.ts` (`MessageChannelMain`), `src/audioCapture/preload.ts` | `AudioCaptureManagerMain.test.ts` |
 | Document drop guard (SEC-7) | `src/common/security/dragGuard.ts` | `dragGuard.test.ts` |
 
 The policy modules import nothing from Electron, so they are unit-tested directly. The Electron wiring is thin and tested with `vi.mock("electron")`.
@@ -85,7 +85,7 @@ Website tabs use the `persist:tabs` partition (`TAB_PARTITION`) with no preload.
 4. Tabs that were logged in before the update need logging in again once.
 5. Settings > "Where do I get my token?" opens in the system browser.
 6. Drop an audio file outside a drop zone: nothing happens. Drop it on "Add track": it is added.
-7. From another computer on the same network, the audio socket port (shown with `netstat` or `lsof` on the Cue Desk process) refuses connections.
+7. While broadcasting, Cue Desk has no listening network port for audio (`netstat -ano` on Windows, `lsof -i -P` elsewhere, shows only the remote API port when Remote is on).
 
 ## Messages between the app's pages and the main process (SEC-8)
 
@@ -135,7 +135,6 @@ Handlers also cope with ids that no longer exist: starting tab audio capture for
 | `AUDIO_CAPTURE_START_EXTERNAL_AUDIO_CAPTURE`, `_STOP_EXTERNAL_AUDIO_CAPTURE` | Main window | device id: text ≤ 4096 | `AudioCaptureManagerMain` |
 | `AUDIO_CAPTURE_START_BROWSER_VIEW_STREAM`, `_STOP_BROWSER_VIEW_STREAM` | Main window | view id: integer (offers a loaded view for capture / withdraws it; see WP2 below) | `AudioCaptureManagerMain` |
 | `AUDIO_CAPTURE_STOP_ALL_BROWSER_VIEW_STREAMS` | Main window | none | `AudioCaptureManagerMain` (new in WP1: before, nothing handled it and tab audio kept being captured) |
-| `AUDIO_CAPTURE_GET_WEBSOCKET_ADDRESS` (invoke) | Capture window | none | `AudioCaptureManagerMain` |
 | `PLAYER_REMOTE_PLAYLIST_GET_ALL_REPLY`, `_PLAYLIST_PLAYBACK_REPLY`, `_SOUNDBOARD_GET_ALL_REPLY`, `_SOUNDBOARD_PLAYBACK_REPLY` | Player | reply: object; request id: integer ≥ 1 | `src/main/remote/playerRequests.ts` |
 
 ### How to add a channel
@@ -164,7 +163,7 @@ Set with `<meta http-equiv="Content-Security-Policy">` as the first tag after `c
 | `img-src` | `'self' data: blob: file: https: http:` | `'self' data: blob: file: https: http:` | `'none'` |
 | `font-src` | `'self' data:` | `'self' data:` | `'none'` |
 | `media-src` | `'none'` | `'self' data: blob: file: https: http:` | `'self' blob:` |
-| `connect-src` | `'self'` | `'self' data: blob: file: https: http:` | `'self' ws://127.0.0.1:*` |
+| `connect-src` | `'self'` | `'self' data: blob: file: https: http:` | `'self'` |
 | `worker-src` | `'none'` | `'none'` | `'none'` |
 | `object-src`, `base-uri`, `form-action`, `frame-src` | `'none'` | `'none'` | `'none'` |
 
@@ -174,7 +173,7 @@ Why each allowance is there:
 - **`style-src 'unsafe-inline'`** (main window, player): MUI's styling engine (emotion) and webpack's style-loader insert `<style>` tags at run time. Removing it would need a per-load nonce threaded through emotion's cache; not worth the risk while styles cannot run code.
 - **Images** (main window): tab favicons and bookmark icons come from whatever site is open (`https:`, `http:` or `data:`), Discord server icons come from `https://cdn.discordapp.com`, and the app's own icons are bundled files. **Images** (player): backgrounds are bundled files, files on your computer (`file:`) or web addresses you type (`https:`/`http:`).
 - **Media and connect** (player): tracks and sounds can be files on your computer or web addresses. Playlists play through HTML audio (`media-src`); soundboard sounds without a fade-out are downloaded by Howler with XMLHttpRequest and played with Web Audio (`connect-src`). Howler also uses a tiny built-in `data:audio/wav` clip to unlock audio. `http:` stays allowed because tracks, sounds and backgrounds added with `http://` addresses worked before.
-- **Capture window**: `script-src blob:` is for the PCM audio worklet, which webpack's `worklet-loader` (`inline: true`) turns into a `blob:` URL; `connect-src ws://127.0.0.1:*` is the loopback audio socket (SEC-2, random port). `media-src blob:` covers the local loopback audio element.
+- **Capture window**: `script-src blob:` is for the PCM audio worklet, which webpack's `worklet-loader` (`inline: true`) turns into a `blob:` URL. Audio leaves the window over a private message channel (SEC-2, WP2), so `connect-src` allows no network address. `media-src blob:` covers the local loopback audio element.
 
 **Development builds.** The templates are evaluated by html-webpack-plugin with `webpackConfig.mode`. In `development` (`yarn start`) they add `'unsafe-eval'` to `script-src` (forge uses `eval-source-map` for renderers in development) and `ws://localhost:*` to `connect-src` (webpack-dev-server live reload). Packaged builds are `production` and get neither. Forge's own dev-server CSP header is switched off in `forge.config.js` (`devContentSecurityPolicy: ""`), so the meta tag is the only policy in both modes.
 
@@ -182,7 +181,7 @@ Why each allowance is there:
 
 ## Audio capture window sandbox (SEC-12)
 
-The hidden capture window used to run with `sandbox: false` so that its preload could start a web worker. That worker was removed upstream when capture moved to an AudioWorklet. The capture preload now needs only `ipcRenderer` (available to sandboxed preloads) and browser APIs (`AudioContext`, `getUserMedia`, `WebSocket`); everything else it imports is bundled by webpack, and forge already builds every preload in this app for the sandbox. The window therefore runs with `sandbox: true`, `contextIsolation: true` and `nodeIntegration: false`, like the other app pages.
+The hidden capture window used to run with `sandbox: false` so that its preload could start a web worker. That worker was removed upstream when capture moved to an AudioWorklet. The capture preload now needs only `ipcRenderer` (available to sandboxed preloads) and browser APIs (`AudioContext`, `getUserMedia`, `AudioEncoder`, `MessagePort`); everything else it imports is bundled by webpack, and forge already builds every preload in this app for the sandbox. The window therefore runs with `sandbox: true`, `contextIsolation: true` and `nodeIntegration: false`, like the other app pages.
 
 Stopping a tab's or an input device's capture now also disconnects its audio nodes (PERF-5), so they no longer accumulate in the capture window's audio graph.
 
@@ -194,7 +193,7 @@ Run the packaged app (or `yarn start` for the development policy) with DevTools 
 2. Open the player and play a local track from a playlist, then a soundboard sound with and without a fade-out.
 3. Add a background image from a file and from an `https://` address.
 4. Open Settings, connect the Discord bot: the server icons show next to the server names.
-5. Join a voice channel and play a YouTube tab: the sound reaches Discord (capture window: worklet loads, socket connects, sandboxed preload runs).
+5. Join a voice channel and play a YouTube tab: the sound reaches Discord (capture window: worklet loads, the audio channel works, sandboxed preload runs).
 6. Turn an external input on and off several times; close and reopen a tab that plays sound several times. Audio keeps working.
 7. With the remote enabled, call `GET /v1/playlist/playback` from two clients at the same time (or press two Stream Deck buttons together): both get an answer; with the player tab closed, requests return 503 as before.
 8. Trigger the error screen (or call `window.kenku.removeAllBrowserViews()` from the main window's DevTools): tab audio stops being sent to Discord.
@@ -214,4 +213,8 @@ A view that is not being recorded plays on this computer by itself, so its tab m
 ### Fake Discord in test builds
 
 `src/main/broadcast/discordDriver.ts` uses `src/main/broadcast/testing/fakeDiscord.ts` only when the package was built with `CUE_DESK_E2E_BUILD=1` (`__CUE_DESK_TEST_BUILD__`) and the app is started with `CUE_DESK_FAKE_DISCORD=1`. Release builds compile the branch and the module out.
+
+### Private audio channel (SEC-2)
+
+The capture window used to send audio to the main process over a WebSocket on `127.0.0.1` (a random port any local program could connect to). Now the main process creates a `MessageChannelMain` each time the capture window finishes loading, keeps one end and hands the other to that window only (`webContents.postMessage("AUDIO_CAPTURE_PORT", null, [port])`). There is no server, no port and no `connect-src` allowance; `AUDIO_CAPTURE_GET_WEBSOCKET_ADDRESS` and `src/common/security/loopback.ts` are gone. Each message must be one Opus packet (an `ArrayBuffer` or `Uint8Array` of 1 to 4000 bytes) or it is dropped; a reload of the capture window replaces the channel, so an old end goes dead. Packets are copied (about 300 bytes each), not transferred: Electron delivers a transferred `ArrayBuffer` to the main process as `null`. Latency is equal or better: from a tab's sound to the fake Discord in "Low Latency" mode, two interleaved runs (median of three each) took 136 and 127 ms over the WebSocket and 132 and 118 ms over the channel (`e2e/broadcast.spec.ts`).
 

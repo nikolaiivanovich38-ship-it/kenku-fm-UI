@@ -289,6 +289,10 @@ export class FakeDiscord {
    * (e2e checks of what Discord would hear). Uses opusscript, which ships
    * with the app for @discordjs/voice.
    */
+  peaks(channelId: string, from = 0): { at: number; peak: number }[] {
+    return packetPeaks(this, channelId, from);
+  }
+
   decode(channelId: string): { at: number; pcm: Int16Array }[] {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const OpusScript = require("opusscript");
@@ -306,6 +310,23 @@ export class FakeDiscord {
       decoder.delete();
     }
   }
+}
+
+/** Loudest sample of a decoded packet, 0 to 1. */
+function peakOf(pcm: Int16Array): number {
+  let peak = 0;
+  for (const sample of pcm) {
+    peak = Math.max(peak, Math.abs(sample));
+  }
+  return peak / 32768;
+}
+
+/** Per packet after `from`: arrival time and loudest sample (cheap to send to a test). */
+export function packetPeaks(discord: FakeDiscord, channelId: string, from = 0): { at: number; peak: number }[] {
+  return discord
+    .decode(channelId)
+    .slice(from)
+    .map(({ at, pcm }) => ({ at, peak: peakOf(pcm) }));
 }
 
 let shared: FakeDiscord | undefined;

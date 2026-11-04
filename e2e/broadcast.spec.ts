@@ -10,11 +10,13 @@ import {
   FAKE_DISCORD_ENV,
   TONE_PAGE,
   channelButton,
+  chooseStreamingMode,
   tonePage,
   connectFakeBot,
   openTab,
   packetCount,
   receivedAudio,
+  receivedPeaks,
 } from "./fixtures/discord";
 
 let site: LocalSite;
@@ -138,7 +140,7 @@ test("the start of a sound reaches Discord: about 100 ms at most is lost while r
       [how, rampSeconds] as const,
     );
     await expect.poll(() => packetCount(app, "Tavern"), { timeout: 10_000 }).toBeGreaterThan(before + 25);
-    const packets = (await receivedAudio(app, "Tavern")).slice(before);
+    const packets = await receivedAudio(app, "Tavern", before, 50);
     results[path] = Math.round(missedMs(packets.flatMap((packet) => packet.pcm), rampSeconds));
     // Silence the tab so the next one's start is measured on its own.
     await page.evaluate(() => document.querySelectorAll("audio").forEach((audio) => audio.pause()));
@@ -155,3 +157,37 @@ test("the start of a sound reaches Discord: about 100 ms at most is lost while r
   expect(sorted[1]).toBeLessThan(110);
   expect(sorted[2]).toBeLessThan(250);
 });
+
+for (const mode of ["Low Latency", "Performance"] as const) {
+  test(`delay from a tab's sound to Discord in ${mode} mode`, async ({ launchApp }) => {
+    test.setTimeout(90_000);
+    const launched = await launchApp({ env: FAKE_DISCORD_ENV });
+    const { app } = launched;
+    const mainWindow = await launched.mainWindow();
+    await launched.playerView();
+    await chooseStreamingMode(mainWindow, mode);
+    await connectFakeBot(mainWindow);
+    await channelButton(mainWindow, "Tavern").click();
+    await openTab(mainWindow, site.url("/tone"));
+    const tone = await pageWithTitle(app, "Tone");
+    // A quiet tone first, so the tab is already being recorded.
+    await tone.evaluate(() => (window as unknown as { playQuiet(): void }).playQuiet());
+    await expect.poll(() => packetCount(app, "Tavern"), { timeout: 10_000 }).toBeGreaterThan(50);
+
+    const delays: number[] = [];
+    for (let jump = 0; jump < 3; jump++) {
+      // Let the previous loud half-second pass.
+      await mainWindow.waitForTimeout(1_500);
+      const before = await packetCount(app, "Tavern");
+      const loudAt = await tone.evaluate(() => (window as unknown as { jumpAfter(s: number): number }).jumpAfter(0.3));
+      const firstLoud = async () =>
+        (await receivedPeaks(app, "Tavern", before)).find((packet) => packet.peak > 0.3);
+      await expect.poll(async () => (await firstLoud()) !== undefined, { timeout: 10_000 }).toBe(true);
+      delays.push(Math.round(((await firstLoud())?.at ?? 0) - loudAt));
+    }
+    delays.sort((a, b) => a - b);
+    console.log(`${mode}: delay from the tab to Discord (ms): ${JSON.stringify(delays)}`);
+    test.info().annotations.push({ type: `${mode} delay (ms)`, description: JSON.stringify(delays) });
+    expect(delays[1]).toBeLessThan(mode === "Low Latency" ? 250 : 900);
+  });
+}

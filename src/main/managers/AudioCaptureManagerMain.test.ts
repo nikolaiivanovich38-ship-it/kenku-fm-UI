@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import WebSocket from "ws";
-import type { AddressInfo } from "net";
-import { AudioCaptureManagerMain, MAX_OPUS_PACKET_BYTES, SILENCE_HOLD_MS } from "./AudioCaptureManagerMain";
+import {
+  AUDIO_PORT_CHANNEL,
+  AudioCaptureManagerMain,
+  MAX_OPUS_PACKET_BYTES,
+  SILENCE_HOLD_MS,
+} from "./AudioCaptureManagerMain";
 import { trustedContents } from "../security/trustedContents";
 import { captureTargets } from "../security/captureTargets";
 import {
@@ -32,9 +35,35 @@ vi.mock("electron", async () => {
     loadURL = vi.fn().mockResolvedValue(undefined);
     getURL = () => "file:///app/audio_capture_window/index.html";
     send = vi.fn();
+    postMessage = vi.fn();
     close = vi.fn();
     destroy = vi.fn();
     setWindowOpenHandler = vi.fn();
+  }
+  /** One end of a MessageChannelMain; the other end's postMessage arrives here as "message". */
+  class FakePort extends EventEmitter {
+    other?: FakePort;
+    closed = false;
+    started = false;
+    start() {
+      this.started = true;
+    }
+    close() {
+      this.closed = true;
+    }
+    postMessage(data: unknown) {
+      if (!this.closed && this.other && !this.other.closed) {
+        this.other.emit("message", { data, ports: [] });
+      }
+    }
+  }
+  class MessageChannelMain {
+    port1 = new FakePort();
+    port2 = new FakePort();
+    constructor() {
+      this.port1.other = this.port2;
+      this.port2.other = this.port1;
+    }
   }
   class BrowserWindow {
     webContents = new FakeWebContents();
@@ -44,6 +73,7 @@ vi.mock("electron", async () => {
   }
   return {
     BrowserWindow,
+    MessageChannelMain,
     webContents: { fromId: (id: number) => pages.get(id) },
     ipcMain: fakeIpcMain,
   };
@@ -80,11 +110,17 @@ function captureCommands(m: AudioCaptureManagerMain) {
   );
 }
 
-async function listening(m: InstanceType<typeof AudioCaptureManagerMain>) {
-  if (!m._wss.address()) {
-    await new Promise((resolve) => m._wss.once("listening", resolve));
-  }
-  return m._wss.address() as AddressInfo;
+type CapturePort = { postMessage(data: unknown): void; closed: boolean; started: boolean };
+
+/** The capture window finished loading; returns the port end it was handed. */
+function loadCaptureWindow(m: AudioCaptureManagerMain): CapturePort {
+  capturePage(m).emit("did-finish-load");
+  const calls = (capturePage(m) as unknown as { postMessage: ReturnType<typeof vi.fn> }).postMessage.mock.calls;
+  const [channel, message, ports] = calls[calls.length - 1] as [string, unknown, CapturePort[]];
+  expect(channel).toBe(AUDIO_PORT_CHANNEL);
+  expect(message).toBeNull();
+  expect(ports).toHaveLength(1);
+  return ports[0];
 }
 
 /** A website tab (or the player, with a role) that can play sound. */
@@ -123,33 +159,49 @@ function offer(page: FakePage) {
   fakeIpcMain.deliver("AUDIO_CAPTURE_START_BROWSER_VIEW_STREAM", mainWindow(), page.id);
 }
 
-describe("AudioCaptureManagerMain audio socket (SEC-2)", () => {
-  beforeEach(() => {
-    vi.useRealTimers();
+describe("AudioCaptureManagerMain audio channel (SEC-2)", () => {
+  it("hands the capture window its end of a private channel when it loads", () => {
+    manager = new AudioCaptureManagerMain();
+    const packets: Buffer[] = [];
+    manager.on("packet", (packet) => packets.push(packet));
+    manager.startBroadcast();
+    const port = loadCaptureWindow(manager);
+    port.postMessage(new Uint8Array([1, 2, 3]));
+    port.postMessage(new Uint8Array([4]).buffer);
+    expect(packets).toEqual([Buffer.from([1, 2, 3]), Buffer.from([4])]);
   });
 
-  it("listens on the loopback interface only", async () => {
+  it("replaces the channel when the capture window loads again, so the old end goes dead", () => {
     manager = new AudioCaptureManagerMain();
-    const address = await listening(manager);
-    expect(address.address).toBe("127.0.0.1");
-    expect(address.port).toBeGreaterThan(0);
+    const packets: Buffer[] = [];
+    manager.on("packet", (packet) => packets.push(packet));
+    manager.startBroadcast();
+    const first = loadCaptureWindow(manager);
+    const second = loadCaptureWindow(manager);
+    first.postMessage(new Uint8Array([1]));
+    second.postMessage(new Uint8Array([2]));
+    expect(packets).toEqual([Buffer.from([2])]);
   });
 
-  it("hands the capture window a loopback address it can connect to", async () => {
+  it("drops anything that is not one Opus packet", () => {
     manager = new AudioCaptureManagerMain();
-    await listening(manager);
-    const address = (await fakeIpcMain.invoke(
-      "AUDIO_CAPTURE_GET_WEBSOCKET_ADDRESS",
-      fromMainFrame(capturePage(manager)),
-    )) as AddressInfo;
-    expect(address.address).toBe("127.0.0.1");
+    const packets: Buffer[] = [];
+    manager.on("packet", (packet) => packets.push(packet));
+    manager.startBroadcast();
+    const port = loadCaptureWindow(manager);
+    for (const message of ["text", { bytes: [1] }, new Uint8Array(0), new Uint8Array(MAX_OPUS_PACKET_BYTES + 1), new Float32Array(4), null]) {
+      port.postMessage(message);
+    }
+    expect(packets).toEqual([]);
+  });
 
-    const client = new WebSocket(`ws://127.0.0.1:${address.port}`);
-    await new Promise((resolve, reject) => {
-      client.once("open", resolve);
-      client.once("error", reject);
-    });
-    client.close();
+  it("closes its end of the channel when destroyed", () => {
+    manager = new AudioCaptureManagerMain();
+    loadCaptureWindow(manager);
+    const own = manager._port as unknown as { closed: boolean };
+    manager.destroy();
+    manager = undefined;
+    expect(own.closed).toBe(true);
   });
 
   it("registers the capture window as a trusted page", async () => {
@@ -192,17 +244,6 @@ describe("AudioCaptureManagerMain: who may send (SEC-8)", () => {
     fakeIpcMain.deliver("AUDIO_CAPTURE_SET_MUTED", main, "7", true);
     fakeIpcMain.deliver("AUDIO_CAPTURE_SET_STREAMING_MODE", main, "fast");
     expect(sentToCapture(manager)).toEqual([]);
-  });
-
-  it("hands the socket address to the capture window only", async () => {
-    vi.useRealTimers();
-    manager = new AudioCaptureManagerMain();
-    await expect(
-      fakeIpcMain.invoke("AUDIO_CAPTURE_GET_WEBSOCKET_ADDRESS", fromMainFrame(fakePage("main-window"))),
-    ).rejects.toThrow();
-    await expect(
-      fakeIpcMain.invoke("AUDIO_CAPTURE_GET_WEBSOCKET_ADDRESS", fromMainFrame(fakePage(null))),
-    ).rejects.toThrow();
   });
 
   it("stops listening when destroyed", () => {
@@ -344,6 +385,7 @@ describe("AudioCaptureManagerMain: capture only while broadcasting (PERF-4)", ()
     manager._handlePacket(Buffer.from([2]));
     manager._handlePacket(Buffer.alloc(MAX_OPUS_PACKET_BYTES + 1));
     manager._handlePacket(Buffer.alloc(0));
+    manager._handlePacket("not audio");
     expect(packets).toEqual([Buffer.from([2])]);
   });
 });

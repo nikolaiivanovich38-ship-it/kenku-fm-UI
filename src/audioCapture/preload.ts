@@ -4,23 +4,22 @@ import {
   AudioCaptureManagerPreload,
   StreamingMode,
 } from "../preload/managers/AudioCaptureManagerPreload";
-import { toLoopbackWebSocketUrl } from "../common/security/loopback";
 
 /**
- * Opus packets go to the main process over the loopback audio socket (SEC-2).
- * The socket opens when the window loads; packets sent before it is open are
- * dropped, which only happens if a broadcast starts in the first instant.
+ * SEC-2: Opus packets go to the main process over a private message channel
+ * whose other end only the main process holds. It arrives when the window
+ * has loaded, long before any broadcast can start.
  */
-let socket: WebSocket | undefined;
-void ipcRenderer.invoke("AUDIO_CAPTURE_GET_WEBSOCKET_ADDRESS").then((address: { port: number }) => {
-  socket = new WebSocket(toLoopbackWebSocketUrl(address.port));
-  socket.binaryType = "arraybuffer";
+let audioPort: MessagePort | undefined;
+ipcRenderer.on("AUDIO_CAPTURE_PORT", (event) => {
+  audioPort?.close();
+  audioPort = event.ports[0];
 });
 
 const audioCaptureManager = new AudioCaptureManagerPreload((packet) => {
-  if (socket?.readyState === WebSocket.OPEN) {
-    socket.send(packet);
-  }
+  // Copied, not transferred: a buffer in the transfer list arrives in the
+  // main process as null (Electron passes only ports that way).
+  audioPort?.postMessage(packet);
 });
 
 ipcRenderer.on("AUDIO_CAPTURE_BROADCAST_START", (_, streamingMode: StreamingMode) => {

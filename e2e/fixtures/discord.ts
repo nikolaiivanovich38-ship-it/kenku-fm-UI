@@ -55,19 +55,49 @@ export function packetCount(app: ElectronApplication, channel: FakeChannelName):
   }, FAKE_CHANNEL_IDS[channel]);
 }
 
-/** Decoded audio a channel received: per packet, its arrival time and 16-bit stereo samples. */
+/**
+ * Decoded audio a channel received from packet number `from` on (`count`
+ * packets at most): per packet, its arrival time and 16-bit stereo samples.
+ */
 export function receivedAudio(
   app: ElectronApplication,
   channel: FakeChannelName,
+  from = 0,
+  count = 50,
 ): Promise<{ at: number; pcm: number[] }[]> {
-  return app.evaluate((_electron, channelId) => {
-    const fake = (
-      globalThis as unknown as {
-        __cueDeskFakeDiscord: { decode(id: string): { at: number; pcm: Int16Array }[] };
-      }
-    ).__cueDeskFakeDiscord;
-    return fake.decode(channelId).map(({ at, pcm }) => ({ at, pcm: Array.from(pcm) }));
-  }, FAKE_CHANNEL_IDS[channel]);
+  return app.evaluate(
+    (_electron, [channelId, start, length]) => {
+      const fake = (
+        globalThis as unknown as {
+          __cueDeskFakeDiscord: { decode(id: string): { at: number; pcm: Int16Array }[] };
+        }
+      ).__cueDeskFakeDiscord;
+      return fake
+        .decode(channelId)
+        .slice(start, start + length)
+        .map(({ at, pcm }) => ({ at, pcm: Array.from(pcm) }));
+    },
+    [FAKE_CHANNEL_IDS[channel], from, count] as const,
+  );
+}
+
+/** Per packet from number `from` on: arrival time and loudest sample (0 to 1). */
+export function receivedPeaks(
+  app: ElectronApplication,
+  channel: FakeChannelName,
+  from = 0,
+): Promise<{ at: number; peak: number }[]> {
+  return app.evaluate(
+    (_electron, [channelId, start]) => {
+      const fake = (
+        globalThis as unknown as {
+          __cueDeskFakeDiscord: { peaks(id: string, from: number): { at: number; peak: number }[] };
+        }
+      ).__cueDeskFakeDiscord;
+      return fake.peaks(channelId, start);
+    },
+    [FAKE_CHANNEL_IDS[channel], from] as const,
+  );
 }
 
 /**
@@ -90,6 +120,25 @@ export function tonePage(title = "Tone") {
       window.toneContext = context;
     };
     window.playTone = () => window.playRamp(0.001);
+    // A quiet tone that can jump to full volume at a planned moment; returns
+    // that moment as a wall-clock time (ms since 1970, like Date.now()).
+    window.playQuiet = () => {
+      const context = new AudioContext();
+      const tone = context.createOscillator();
+      const volume = context.createGain();
+      volume.gain.value = 0.01;
+      tone.connect(volume).connect(context.destination);
+      tone.start();
+      window.toneContext = context;
+      window.toneVolume = volume;
+    };
+    window.jumpAfter = (delaySeconds) => {
+      const context = window.toneContext;
+      const at = context.currentTime + delaySeconds;
+      window.toneVolume.gain.setValueAtTime(0.8, at);
+      window.toneVolume.gain.setValueAtTime(0.01, at + 0.5);
+      return performance.timeOrigin + performance.now() + delaySeconds * 1000;
+    };
     window.stopTone = () => window.toneContext && window.toneContext.close();
     window.playRampElement = async (rampSeconds) => {
       const rate = 48000;
@@ -116,6 +165,15 @@ export function tonePage(title = "Tone") {
 }
 
 export const TONE_PAGE = tonePage();
+
+/** Choose the streaming mode in Settings (applies when the next broadcast starts). */
+export async function chooseStreamingMode(mainWindow: Page, mode: "Low Latency" | "Performance") {
+  const settings = await openSettings(mainWindow);
+  await settings.getByLabel("Mode").click();
+  await mainWindow.getByRole("option", { name: mode }).click();
+  await settings.getByRole("button", { name: "Done" }).click();
+  await expect(settings).toBeHidden();
+}
 
 /** Open a website tab the way the "+" button does; returns its view id. */
 export function openTab(mainWindow: Page, url: string): Promise<number> {

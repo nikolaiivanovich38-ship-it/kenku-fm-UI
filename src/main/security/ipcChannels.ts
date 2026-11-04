@@ -55,7 +55,6 @@ const isShortText = isStringUpTo(MAX_SHORT_TEXT);
 const isUrl = isStringUpTo(MAX_URL_LENGTH);
 const MAIN: readonly AppPageRole[] = ["main-window"];
 const PLAYER: readonly AppPageRole[] = ["player-view"];
-const CAPTURE: readonly AppPageRole[] = ["audio-capture"];
 const bounds = [isFiniteNumber, isFiniteNumber, isFiniteNumber, isFiniteNumber] as const;
 const viewIdOnly = argsMatch(isWebContentsId);
 
@@ -112,8 +111,8 @@ export const IPC_CHANNELS = {
   AUDIO_CAPTURE_STOP_BROWSER_VIEW_STREAM: { from: MAIN, args: viewIdOnly },
   AUDIO_CAPTURE_STOP_ALL_BROWSER_VIEW_STREAMS: { from: MAIN, args: noArgs },
 
-  // AudioCaptureManagerMain, sent by the hidden capture window
-  AUDIO_CAPTURE_GET_WEBSOCKET_ADDRESS: { from: CAPTURE, args: noArgs },
+  // The hidden capture window sends nothing over IPC: its audio goes over a
+  // private MessageChannelMain port (SEC-2, WP2).
 
   // Remote API replies from the player view (src/main/remote)
   PLAYER_REMOTE_PLAYLIST_GET_ALL_REPLY: { from: PLAYER, args: argsMatch(isPlainObject, isRequestId) },
