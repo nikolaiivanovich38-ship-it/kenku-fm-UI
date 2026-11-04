@@ -1,0 +1,95 @@
+/**
+ * The in-memory LyreApi: the contract every implementation passes, plus what only the fake has (choosers it is
+ * told what to answer, files arriving in a watched folder) and a check that the typed seed is the prototype's data.
+ */
+import fs from "fs";
+import path from "path";
+import vm from "vm";
+import { describe, expect, it } from "vitest";
+
+import { lyreApiContract, valueOf } from "./contract";
+import { createFakeLyreApi, type FakeLyreOptions } from "./fake";
+import { prototypeSeed } from "./seed";
+import type { LyreEvent } from "./api";
+
+const fixtureOptions: FakeLyreOptions = {
+  missingTrackIds: ["t43"],
+  folderFiles: { "D:\\Moved": ["07 Memories of Mother.flac", "cover.jpg"] },
+};
+
+lyreApiContract("in-memory fake", () => ({
+  api: createFakeLyreApi(fixtureOptions),
+  newAudioFiles: ["D:\\Incoming\\Ambience\\harbour_night.wav", "D:\\Incoming\\Dune\\02 Leaving Caladan.flac"],
+  notAudioFile: "D:\\Incoming\\notes.txt",
+  missingTrackId: "t43",
+  relinkFolder: "D:\\Moved",
+  folderToWatch: "H:\\Audio\\Incoming",
+}));
+
+describe("the seed is the prototype's sample data", () => {
+  // data.js defines a global LYRE_DATA; run it in a sandbox, as src/main/data/repo/domain.test.ts does.
+  const source = fs.readFileSync(path.join(__dirname, "../../../design/prototype/src/data.js"), "utf8");
+  const sandbox: { LYRE_DATA?: Record<string, unknown> } = {};
+  vm.runInNewContext(`${source}; this.LYRE_DATA = LYRE_DATA;`, sandbox);
+  const proto = sandbox.LYRE_DATA as {
+    tracks: { id: string; kind: string; title: string; file: string; dur: number; tags: Record<string, string[]>; energy: number; folder: string }[];
+    playlists: { id: string; name: string; items?: string[] }[];
+    boards: { id: string; cols: number; rows: number; slots: ({ id: string; label: string; key: string } | null)[]; spare: { id: string }[] }[];
+    campaigns: { id: string; sessions: { id: string; n: number; scenes: { id: string; name: string; music: string[]; amb: string }[] }[] }[];
+    tagValues: Record<string, string[]>;
+  };
+  const seed = prototypeSeed();
+
+  it("has every track with the same title, file, length, energy, folder and tags", () => {
+    expect(seed.tracks.map((t) => t.id)).toEqual(proto.tracks.map((t) => t.id));
+    for (const [i, t] of proto.tracks.entries()) {
+      const s = seed.tracks[i];
+      expect([s.kind, s.title, s.fileName, s.durationMs, s.energy ?? 0, s.folder, s.tags]).toEqual([t.kind, t.title, t.file, Math.round(t.dur * 1000), t.energy, t.folder, t.tags]);
+    }
+  });
+
+  it("has every tag value, playlist, board and campaign tree", () => {
+    expect(Object.fromEntries(seed.tagGroups.map((g) => [g.id, g.values]))).toEqual(proto.tagValues);
+    expect(seed.playlists.map((p) => [p.id, p.name, p.kind === "manual" ? p.trackIds : null])).toEqual(proto.playlists.map((p) => [p.id, p.name, p.items ?? null]));
+    expect(seed.boards.map((b) => [b.id, b.cols, b.rows, b.slots.map((p) => p && [p.id, p.label, p.key]), b.spare.map((p) => p.id)])).toEqual(
+      proto.boards.map((b) => [b.id, b.cols, b.rows, b.slots.map((p) => p && [p.id, p.label, p.key]), b.spare.map((p) => p.id)]),
+    );
+    const scenes = (c: { sessions: { id: string; scenes: { id: string; name: string }[] }[] }) => c.sessions.map((s) => [s.id, s.scenes.map((x) => [x.id, x.name])]);
+    expect(seed.campaigns.map(scenes)).toEqual(proto.campaigns.map(scenes));
+    expect(seed.campaigns[0].sessions[2].scenes[2].music.map((r) => r.id)).toEqual(proto.campaigns[0].sessions[2].scenes[2].music);
+  });
+});
+
+describe("in-memory fake only", () => {
+  it("asks its chooser for files or a folder; closing the chooser imports nothing", async () => {
+    let answer: string[] | null = null;
+    const api = createFakeLyreApi({ choose: { files: () => answer, folder: () => "D:\\Albums" }, folderFiles: { "D:\\Albums": ["01 One.flac", "02 Two.mp3"] } });
+    expect(valueOf(await api.import.start({ from: "choose-files" }))).toMatchObject({ cancelled: true, trackIds: [] });
+    answer = ["D:\\x\\Song.ogg"];
+    expect(valueOf(await api.import.start({ from: "choose-files" })).added).toHaveLength(1);
+    const folder = valueOf(await api.import.start({ from: "choose-folder" }));
+    expect(folder.added).toHaveLength(2);
+    const tracks = await api.library.listTracks();
+    expect(tracks.find((t) => t.id === folder.added[0])).toMatchObject({ metaTitle: "One", fileName: "01 One.flac", folder: "D:\\Albums", kind: "music" });
+    expect(valueOf(await api.import.watchFolder({ from: "choose-folder" })).path).toBe("D:\\Albums");
+  });
+
+  it("files arriving in a watched folder become New tracks and are announced", async () => {
+    const api = createFakeLyreApi();
+    const events: LyreEvent[] = [];
+    api.subscribe((e) => events.push(e));
+    valueOf(await api.import.watchFolder({ from: "path", path: "H:\\Audio\\Incoming" }));
+    const ids = await api.arrive("H:\\Audio\\Incoming", ["02 Peaceful Waters.flac"]);
+    expect(ids).toHaveLength(1);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(events).toContainEqual({ type: "watched-files", folder: "H:\\Audio\\Incoming", trackIds: ids });
+    expect((await api.library.listTracks()).find((t) => t.id === ids[0])).toMatchObject({ isNew: true, metaTitle: "Peaceful Waters" });
+  });
+
+  it("returns copies, so a screen changing what it was given changes nothing", async () => {
+    const api = createFakeLyreApi();
+    const [first] = await api.library.listTracks();
+    first.tags.mood.push("Changed");
+    expect((await api.library.listTracks())[0].tags.mood).not.toContain("Changed");
+  });
+});
