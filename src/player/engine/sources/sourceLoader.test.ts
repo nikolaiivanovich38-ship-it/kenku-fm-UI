@@ -146,3 +146,35 @@ describe("SourceLoader: resolver (for the file cache PLY-11 and conversion BUG-1
     layer[0].release();
   });
 });
+
+describe("SourceLoader: gives the resolver's hold back (PLY-11)", () => {
+  function holdingResolver() {
+    const release = vi.fn();
+    const resolver: MediaResolver = { resolve: async (request) => ({ url: request.url, release }) };
+    return { resolver, release };
+  }
+
+  it("when the voice releases a streamed source", async () => {
+    const { resolver, release } = holdingResolver();
+    const source = await loader(resolver).load({ url: "file:///long-ambience.ogg" });
+    expect(release).not.toHaveBeenCalled();
+    source.release();
+    source.release();
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("as soon as a buffer is decoded, since the decoded copy no longer needs the file", async () => {
+    const { resolver, release } = holdingResolver();
+    const source = await loader(resolver).load({ url: "file:///sting.wav", preferBuffer: true });
+    expect(source.kind).toBe("buffer");
+    expect(release).toHaveBeenCalledTimes(1);
+    source.release();
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("when loading fails", async () => {
+    const { resolver, release } = holdingResolver();
+    await expect(loader(resolver).load({ url: "file:///gone.wav", preferBuffer: true })).rejects.toThrow();
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+});

@@ -10,10 +10,13 @@
  *   remembered, so it is not decoded again). Decoded buffers live in the
  *   BufferCache.
  *
- * Every address goes through a MediaResolver first. Today it returns the
- * address unchanged; the local file cache (PLY-11) and the converter for
- * formats the player cannot decode (BUG-10, WMA) will plug in here and hand
- * back the address of a cached or converted copy, with no engine change.
+ * Every address goes through a MediaResolver first. The default returns the
+ * address unchanged. MainMediaResolver (BUG-10: converted copies of WMA and
+ * other formats the player cannot decode) and ReadAhead (PLY-11: the playing
+ * and next tracks held in memory) plug in here and hand back the address of
+ * a converted or buffered copy, with no engine change. A resolver may hold
+ * something for the address it returns (a buffered copy); it says so with
+ * `release`, which the loader calls once that address is no longer needed.
  */
 import type { BufferLike, EngineContext, MediaElementLike } from "../audio/types";
 import { BufferCache, BufferLease } from "./bufferCache";
@@ -28,12 +31,20 @@ export interface MediaRequest {
   preferBuffer?: boolean;
   /** File size if the caller knows it; saves reading a file that is too big to decode. */
   sizeBytes?: number;
+  /**
+   * PLY-11: keep a copy of this file on this computer's own disk (for a long
+   * track too big to hold in memory, from a slow disk or network share).
+   * A hint: the copy is made in the background and used once it is ready.
+   */
+  keepLocal?: boolean;
 }
 
 export interface ResolvedMedia {
   /** The address to actually play. */
   url: string;
   sizeBytes?: number;
+  /** Give back what the resolver holds for this address. Called once, when it is no longer needed. */
+  release?: () => void;
 }
 
 export interface MediaResolver {
@@ -64,6 +75,17 @@ export const DEFAULT_SOURCE_POLICY: SourcePolicy = {
   maxDecodeSeconds: 30,
   cacheBytes: 200_000_000,
 };
+
+/** Call `release` at most once (and accept none). */
+function once(release: (() => void) | undefined): () => void {
+  let done = false;
+  return () => {
+    if (!done) {
+      done = true;
+      release?.();
+    }
+  };
+}
 
 /** The file is too big or too long to decode, or the decoder refused it: stream it instead. */
 class NotDecodable extends Error {}
@@ -96,13 +118,22 @@ export class SourceLoader {
 
   async load(request: MediaRequest): Promise<PlayableSource> {
     const resolved = await this.resolver.resolve(request);
+    const release = once(resolved.release);
     if (request.preferBuffer) {
-      const buffer = await this.tryBuffer(resolved);
+      let buffer: PlayableSource | null;
+      try {
+        buffer = await this.tryBuffer(resolved);
+      } catch (error) {
+        release();
+        throw error;
+      }
       if (buffer) {
+        // The decoded copy is all the voice needs from here on.
+        release();
         return buffer;
       }
     }
-    return streamSource(this.context, resolved.url, this.createElement);
+    return streamSource(this.context, resolved.url, this.createElement, release);
   }
 
   /** Decode into the cache ahead of time (soundboard pads, PLY-11), without holding on to it. */
