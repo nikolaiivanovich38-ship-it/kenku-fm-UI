@@ -70,6 +70,13 @@ const isDiscordId: ArgCheck = (value) => typeof value === "string" && /^\d{1,25}
 /** A bot token: non-empty text, at most MAX_SHORT_TEXT (real ones are ~70 characters). */
 const isBotToken: ArgCheck = (value) => isShortText(value) && (value as string).trim() !== "";
 
+// --- Files and preview ---
+/** MEDIA_PREPARE's options: exactly `{ keepLocal: boolean }`. */
+const isPrepareOptions: ArgCheck = (value) =>
+  isPlainObject(value) &&
+  Object.keys(value as object).length === 1 &&
+  isBoolean((value as { keepLocal?: unknown }).keepLocal);
+
 export const IPC_CHANNELS = {
   // src/index.ts
   GET_VERSION: { from: MAIN, args: noArgs, refusedReturnValue: "" },
@@ -160,6 +167,13 @@ export const IPC_CHANNELS = {
   // PERF-6 (review 7): the player's answer to PLAYER_SAVE_NOW (sent by
   // PlayerManager before the window closes): its waiting changes are saved.
   PLAYER_SAVED: { from: PLAYER, args: noArgs },
+
+  // --- Files and preview ---
+  // BUG-10 / PLY-11 (src/main/media/mediaIpc.ts): prepare a library file
+  // before it plays (invoke; answers { url } or { error }). Arguments: the
+  // file address, and { keepLocal: boolean } and nothing else. The address is
+  // checked against the library folders by MediaAccess before anything is read.
+  MEDIA_PREPARE: { from: PLAYER, args: argsMatch(isUrl, isPrepareOptions) },
 } satisfies Record<string, IpcChannelRule>;
 
 export type IpcChannel = keyof typeof IPC_CHANNELS;
