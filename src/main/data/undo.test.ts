@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { openConnection } from "./sqlite";
+import { openConnection, type DatabaseSync } from "./sqlite";
 import { MIGRATIONS, migrate, type Migration } from "./schema";
 import { Store } from "./store";
 import { UndoHistory, undoableTables } from "./undo";
@@ -21,6 +21,23 @@ function setup(limit?: number) {
   const store = new Store(db, { now: clock.now });
   const history = new UndoHistory(store, { limit });
   return { db, store, history, clock };
+}
+
+/**
+ * Makes the next `db.exec(sql)` fail with `message` without running it, the
+ * way SQLite reports a full disk or an I/O error on COMMIT. Only that one
+ * statement fails; the transaction stays open, as in SQLite.
+ */
+function failNextExec(db: DatabaseSync, sql: string, message: string) {
+  const exec = db.exec.bind(db);
+  let armed = true;
+  db.exec = (text: string) => {
+    if (armed && text === sql) {
+      armed = false;
+      throw Object.assign(new Error(message), { code: "ERR_SQLITE_ERROR", errcode: 13 });
+    }
+    return exec(text);
+  };
 }
 
 let t: ReturnType<typeof setup>;
@@ -262,17 +279,100 @@ describe("undo history", () => {
     expect(tracks.getTrack(t.store, track.id)).toMatchObject({ title: "A", lastUsedAt: 777 });
   });
 
-  it("refuses to undo in the middle of a change, and keeps the step when an undo fails", () => {
-    const c = campaigns.createCampaign(t.store, { name: "A" });
+  it("refuses to undo in the middle of a change and keeps the step for later", () => {
+    campaigns.createCampaign(t.store, { name: "A" });
     expect(() => t.store.change("x", () => t.history.undo())).toThrow(/while a change/);
-    // Something outside the history took the name of the row undo would bring back.
+    expect(t.history.state().undoLabel).toBe('Add campaign "A"');
+    expect(t.history.undo()).toBe('Add campaign "A"');
+  });
+
+  it("drops a step that cannot be undone, so the steps before it still can", () => {
+    campaigns.createCampaign(t.store, { name: "First" });
+    const c = campaigns.createCampaign(t.store, { name: "A" });
+    // Something outside the history took the id of the row undo would bring back.
     campaigns.deleteCampaign(t.store, c.id);
     t.store.changeWithoutHistory(() =>
       t.store.run("INSERT INTO campaigns (id, name, position, created_at, updated_at) VALUES (?, 'X', 1, 1, 1)", c.id),
     );
     expect(() => t.history.undo()).toThrow();
-    expect(t.history.state().undoLabel).toBe('Delete campaign "A"');
     expect(campaigns.getCampaign(t.store, c.id)!.name).toBe("X");
+    // Before: the failed step went back on top and every later undo failed the same way.
+    expect(t.history.state()).toMatchObject({ undoLabel: 'Add campaign "A"', canRedo: false });
+    expect(t.history.undo()).toBe('Add campaign "A"');
+    expect(campaigns.getCampaign(t.store, c.id)).toBeNull();
+  });
+
+  it("records no step when the commit itself fails, and keeps redo (review 4)", () => {
+    campaigns.createCampaign(t.store, { name: "A" });
+    campaigns.createCampaign(t.store, { name: "C" });
+    t.history.undo();
+    failNextExec(t.db, "COMMIT", "database or disk is full");
+
+    expect(() => campaigns.createCampaign(t.store, { name: "B" })).toThrow("database or disk is full");
+
+    expect(campaigns.listCampaigns(t.store).map((c) => c.name)).toEqual(["A"]);
+    expect(t.history.state()).toEqual({
+      canUndo: true,
+      canRedo: true,
+      undoLabel: 'Add campaign "A"',
+      redoLabel: 'Add campaign "C"',
+    });
+    expect(t.history.undo()).toBe('Add campaign "A"');
+    expect(campaigns.listCampaigns(t.store)).toEqual([]);
+  });
+
+  it("drops an undo step whose commit fails instead of putting it back", () => {
+    campaigns.createCampaign(t.store, { name: "A" });
+    campaigns.createCampaign(t.store, { name: "B" });
+    failNextExec(t.db, "COMMIT", "disk I/O error");
+
+    expect(() => t.history.undo()).toThrow("disk I/O error");
+
+    expect(campaigns.listCampaigns(t.store).map((c) => c.name)).toEqual(["A", "B"]);
+    expect(t.history.state()).toMatchObject({ undoLabel: 'Add campaign "A"', canRedo: false });
+  });
+
+  it("passes on the real error when SQLite has already rolled the change back (review 5)", () => {
+    campaigns.createCampaign(t.store, { name: "A" });
+    // SQLite ends the transaction by itself on some errors (full disk, I/O
+    // error, out of memory); an explicit ROLLBACK then fails with "no
+    // transaction is active", which used to hide the real error.
+    expect(() =>
+      t.store.change("Broken", () => {
+        campaigns.createCampaign(t.store, { name: "B" });
+        t.db.exec("ROLLBACK");
+        throw new Error("database or disk is full");
+      }),
+    ).toThrow("database or disk is full");
+    expect(() =>
+      t.store.changeWithoutHistory(() => {
+        t.db.exec("ROLLBACK");
+        throw new Error("disk I/O error");
+      }),
+    ).toThrow("disk I/O error");
+
+    // The store and the history still work afterwards.
+    expect(t.store.inChange).toBe(false);
+    campaigns.createCampaign(t.store, { name: "C" });
+    expect(t.history.undo()).toBe('Add campaign "C"');
+    expect(campaigns.listCampaigns(t.store).map((c) => c.name)).toEqual(["A"]);
+  });
+
+  it("passes on the real error when SQLite has already rolled an undo back", () => {
+    campaigns.createCampaign(t.store, { name: "A" });
+    const run = t.store.run.bind(t.store);
+    let failed = false;
+    t.store.run = (sql, ...params) => {
+      if (!failed) {
+        failed = true;
+        t.db.exec("ROLLBACK");
+        throw new Error("disk I/O error");
+      }
+      return run(sql, ...params);
+    };
+    expect(() => t.history.undo()).toThrow("disk I/O error");
+    expect(t.db.isTransaction).toBe(false);
+    expect(campaigns.listCampaigns(t.store).map((c) => c.name)).toEqual(["A"]);
   });
 
   it("follows tables added by a later schema version", () => {

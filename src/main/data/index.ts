@@ -5,7 +5,7 @@
  * See docs/data-model.md.
  */
 export { openLibrary, restoreBackup, startDailyBackups, libraryFolder, type Library, type LibraryOptions } from "./library";
-export { listBackups, latestGoodBackup, BACKUPS_TO_KEEP, type BackupInfo, type BackupKind } from "./backups";
+export { listBackups, latestGoodBackup, findLatestGoodBackup, BACKUPS_TO_KEEP, type BackupInfo, type BackupKind } from "./backups";
 export { LibraryDatabaseError, ValidationError, NotFoundError, type LibraryErrorCode } from "./errors";
 export { UndoHistory, type UndoState } from "./undo";
 export { Store } from "./store";

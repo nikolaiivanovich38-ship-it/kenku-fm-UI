@@ -191,6 +191,28 @@ describe("schema upgrades", () => {
     db.close();
   });
 
+  it("names the real error when SQLite has already rolled a failed step back (review 5)", () => {
+    const db = openConnection(":memory:");
+    migrate(db, MIGRATIONS);
+    const broken: Migration = {
+      version: 2,
+      name: "ran out of space",
+      up(conn) {
+        conn.exec("CREATE TABLE half_done (id TEXT PRIMARY KEY)");
+        // What SQLite does by itself on a full disk or an I/O error.
+        conn.exec("ROLLBACK");
+        throw new Error("database or disk is full");
+      },
+    };
+    expect(() => migrate(db, [...MIGRATIONS, broken])).toThrow(
+      expect.objectContaining({ code: "upgrade-failed", message: expect.stringContaining("database or disk is full") }),
+    );
+    expect(schemaVersion(db)).toBe(1);
+    expect(tableNames(db)).not.toContain("half_done");
+    expect((db.prepare("PRAGMA foreign_keys").get() as { foreign_keys: number }).foreign_keys).toBe(1);
+    db.close();
+  });
+
   it("can rebuild a table (foreign keys paused) and refuses an upgrade that breaks a link", () => {
     const db = openConnection(":memory:");
     migrate(db, MIGRATIONS);

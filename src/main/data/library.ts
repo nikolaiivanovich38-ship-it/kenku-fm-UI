@@ -9,8 +9,11 @@
  * about 300 ms for 20,000 tracks); `checkIntegrity()` gives its result. A file
  * that is not a database at all, or a library about to be upgraded, is
  * checked before anything else happens. A damaged library is reported as a
- * LibraryDatabaseError ("corrupt") naming the newest healthy backup, and
- * `restoreBackup()` puts that backup in place (keeping the damaged file aside).
+ * LibraryDatabaseError ("corrupt"), and `restoreBackup()` puts a backup in
+ * place (keeping the damaged file aside). The newest healthy backup is looked
+ * for on the worker thread too, because each backup check reads a whole file:
+ * `checkIntegrity()` names it, and for damage found while opening in the
+ * default mode the caller asks `findLatestGoodBackup(backupFolder)`.
  * Before a schema upgrade a backup is taken, so an upgrade can always be
  * reversed by restoring it.
  */
@@ -24,7 +27,7 @@ import {
   writeDailyBackupIfDue,
   type BackupInfo,
 } from "./backups";
-import { quickCheck, quickCheckInBackground } from "./integrity";
+import { checkInBackground, quickCheck } from "./integrity";
 import { MIGRATIONS, migrate, schemaVersion, type Migration } from "./schema";
 import { openConnection, type DatabaseSync } from "./sqlite";
 import { Store } from "./store";
@@ -49,8 +52,12 @@ export type LibraryOptions = {
   migrations?: readonly Migration[];
   /**
    * "background" (default): the integrity check runs on a worker thread; see
-   * `checkIntegrity()`. "blocking": opening waits for it and throws if the
-   * library is damaged (use after restoring a backup, or in tools).
+   * `checkIntegrity()`. Damage found while opening (a file that is not a
+   * database, or a library about to be upgraded) is thrown with
+   * `latestBackup: null`; look for one with `findLatestGoodBackup()`.
+   * "blocking": opening waits for the check and throws if the library is
+   * damaged, naming the newest healthy backup (found on this thread; use
+   * after restoring a backup, or in tools).
    */
   integrityCheck?: "background" | "blocking";
 };
@@ -89,18 +96,23 @@ function isCorruptionError(error: unknown): boolean {
   );
 }
 
-function corrupt(backupFolder: string, cause: unknown): LibraryDatabaseError {
-  const latestBackup = latestGoodBackup(backupFolder);
-  return new LibraryDatabaseError(
-    "corrupt",
-    "Your library file is damaged and cannot be opened. " +
-      (latestBackup
-        ? "Cue Desk can put back your latest backup; the damaged file is kept aside."
-        : "No backup was found to put back."),
-    { cause, latestBackup },
-  );
+/**
+ * @param latestBackup the newest healthy backup, null when there is none, or
+ * undefined when none was looked for (the caller then asks
+ * `findLatestGoodBackup`, which works on a worker thread).
+ */
+function corrupt(cause: unknown, latestBackup: string | null | undefined): LibraryDatabaseError {
+  const offer =
+    latestBackup === undefined
+      ? ""
+      : latestBackup
+        ? " Cue Desk can put back your latest backup; the damaged file is kept aside."
+        : " No backup was found to put back.";
+  return new LibraryDatabaseError("corrupt", `Your library file is damaged and cannot be opened.${offer}`, {
+    cause,
+    latestBackup,
+  });
 }
-
 
 export function openLibrary(options: LibraryOptions): Library {
   const now = options.now ?? Date.now;
@@ -109,12 +121,16 @@ export function openLibrary(options: LibraryOptions): Library {
   const backupFolder = path.join(options.folder, BACKUP_FOLDER_NAME);
   fs.mkdirSync(options.folder, { recursive: true });
   const existed = fs.existsSync(databasePath);
+  const blocking = options.integrityCheck === "blocking";
+  // Review 9: checking backups reads each one in full, so it happens on this
+  // thread only when the caller asked to block.
+  const corruptAtOpen = (cause: unknown) => corrupt(cause, blocking ? latestGoodBackup(backupFolder) : undefined);
 
   let db: DatabaseSync;
   try {
     db = openConnection(databasePath);
   } catch (error) {
-    if (isCorruptionError(error)) throw corrupt(backupFolder, error);
+    if (isCorruptionError(error)) throw corruptAtOpen(error);
     throw error;
   }
 
@@ -124,9 +140,9 @@ export function openLibrary(options: LibraryOptions): Library {
       // Reading the version also proves the file is a database at all.
       const from = schemaVersion(db);
       const upgrading = from > 0 && from < migrations.length;
-      if (upgrading || options.integrityCheck === "blocking") {
+      if (upgrading || blocking) {
         const result = quickCheck(db);
-        if (!result.ok) throw corrupt(backupFolder, new Error(result.detail));
+        if (!result.ok) throw corruptAtOpen(new Error(result.detail));
         checkedAtOpen = true;
       }
       if (upgrading) writeBackup(db, backupFolder, `upgrade-v${from}`, now());
@@ -135,7 +151,7 @@ export function openLibrary(options: LibraryOptions): Library {
   } catch (error) {
     db.close();
     if (error instanceof LibraryDatabaseError) throw error;
-    if (isCorruptionError(error)) throw corrupt(backupFolder, error);
+    if (isCorruptionError(error)) throw corruptAtOpen(error);
     throw error;
   }
 
@@ -143,11 +159,18 @@ export function openLibrary(options: LibraryOptions): Library {
   const history = new UndoHistory(store, { limit: options.undoLimit });
   let closed = false;
 
-  const background = checkedAtOpen ? null : quickCheckInBackground(databasePath);
+  // The backups are listed now (a folder listing) but checked on the worker,
+  // and only if the library turns out to be damaged.
+  const background = checkedAtOpen
+    ? null
+    : checkInBackground({ library: databasePath, backups: listBackups(backupFolder).map((backup) => backup.path) });
   const integrity: Promise<IntegrityReport> = background
     ? background.result.then((result): IntegrityReport => {
         if (result === "cancelled") return { status: "not-checked" };
-        return result.ok ? { status: "ok" } : { status: "corrupt", error: corrupt(backupFolder, new Error(result.detail)) };
+        const library = result.library!;
+        return library.ok
+          ? { status: "ok" }
+          : { status: "corrupt", error: corrupt(new Error(library.detail), result.latestGoodBackup) };
       })
     : Promise.resolve({ status: "ok" });
 
@@ -179,9 +202,27 @@ export function openLibrary(options: LibraryOptions): Library {
   };
 }
 
+/** Copies `from` to `to` and makes sure the copy has reached the disk. */
+function copyToDisk(from: string, to: string) {
+  fs.copyFileSync(from, to);
+  const fd = fs.openSync(to, "r+");
+  try {
+    fs.fsyncSync(fd);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
 /**
  * Puts a backup in place of a damaged library. The library must be closed.
  * The damaged file (and its -wal/-shm companions) is renamed, not deleted.
+ *
+ * Order matters: the backup is first copied next to the library as a ".part"
+ * file and written to disk. Only then is the damaged file moved aside and the
+ * copy renamed into place. If the copy fails (full disk, a virus scanner
+ * holding the backup), the damaged library stays where it was: without it,
+ * the next start would make a new, empty library, and after 14 days of daily
+ * backups of that empty library the last good backup would be pruned.
  */
 export function restoreBackup(options: { folder: string; backupPath: string; now?: () => number }): {
   damagedCopy: string;
@@ -194,24 +235,38 @@ export function restoreBackup(options: { folder: string; backupPath: string; now
     (backup) => path.resolve(backup.path) === path.resolve(options.backupPath),
   );
   if (!known) throw new Error("Only a backup from this library's backups folder can be restored.");
+  const partPath = `${databasePath}.part`;
+  try {
+    copyToDisk(options.backupPath, partPath);
+  } catch (error) {
+    fs.rmSync(partPath, { force: true });
+    throw error;
+  }
   if (fs.existsSync(databasePath)) fs.renameSync(databasePath, damagedCopy);
   for (const suffix of ["-wal", "-shm"]) {
     if (fs.existsSync(databasePath + suffix)) fs.renameSync(databasePath + suffix, damagedCopy + suffix);
   }
-  const partPath = `${databasePath}.part`;
-  fs.copyFileSync(options.backupPath, partPath);
   fs.renameSync(partPath, databasePath);
   return { damagedCopy };
 }
 
+/** How long after `startDailyBackups` the first daily backup is made. */
+export const FIRST_DAILY_BACKUP_DELAY_MS = 2 * 60 * 1000;
+
 /**
- * Makes today's backup now and then checks every `intervalMs` (default one
- * hour) whether a new day has started. Failures go to `onError` (the app logs
- * them); the timer keeps running. Returns a function that stops it.
+ * Makes today's backup `firstRunDelayMs` after the call (default two minutes)
+ * and then checks every `intervalMs` (default one hour) whether a new day has
+ * started. Failures go to `onError` (the app logs them); the timer keeps
+ * running. Returns a function that stops it (call it before `library.close()`).
+ *
+ * The backup itself (VACUUM INTO) runs on the main process and holds it for
+ * about half a second on a 43 MB library, once a day. Waiting keeps that out
+ * of start-up, when the window and the player are loading. When this is wired
+ * up (WP5), call it once the main window has been shown, never before.
  */
 export function startDailyBackups(
   library: Library,
-  options: { intervalMs?: number; onError?: (error: unknown) => void } = {},
+  options: { intervalMs?: number; firstRunDelayMs?: number; onError?: (error: unknown) => void } = {},
 ): () => void {
   const run = () => {
     try {
@@ -220,9 +275,17 @@ export function startDailyBackups(
       options.onError?.(error);
     }
   };
-  run();
-  const timer = setInterval(run, options.intervalMs ?? 60 * 60 * 1000);
   // Never keep the app alive just for backups.
-  (timer as { unref?: () => void }).unref?.();
-  return () => clearInterval(timer);
+  const unref = (timer: unknown) => (timer as { unref?: () => void }).unref?.();
+  let interval: ReturnType<typeof setInterval> | undefined;
+  const first = setTimeout(() => {
+    run();
+    interval = setInterval(run, options.intervalMs ?? 60 * 60 * 1000);
+    unref(interval);
+  }, options.firstRunDelayMs ?? FIRST_DAILY_BACKUP_DELAY_MS);
+  unref(first);
+  return () => {
+    clearTimeout(first);
+    if (interval !== undefined) clearInterval(interval);
+  };
 }

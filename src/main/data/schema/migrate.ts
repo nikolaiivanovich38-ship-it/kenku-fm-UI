@@ -141,7 +141,9 @@ export function migrate(
         db.exec("COMMIT");
         applied.push(migration.version);
       } catch (error) {
-        db.exec("ROLLBACK");
+        // SQLite may have rolled back by itself (full disk, I/O error); a
+        // second ROLLBACK would then replace the real reason.
+        if (db.isTransaction) db.exec("ROLLBACK");
         throw new LibraryDatabaseError(
           "upgrade-failed",
           `Cue Desk could not upgrade your library to version ${migration.version} ("${migration.name}"). ` +

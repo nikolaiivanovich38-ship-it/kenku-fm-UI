@@ -16,7 +16,7 @@
  * The history lives in memory: it starts empty each time the library opens.
  */
 import type { DatabaseSync } from "./sqlite";
-import type { Store } from "./store";
+import { rollbackAfter, type Store } from "./store";
 
 /** Tables that are derived from others or are bookkeeping, never undone directly. */
 const NOT_UNDOABLE = new Set(["schema_migrations", "search_docs"]);
@@ -80,12 +80,17 @@ export class UndoHistory {
     this.installTriggers();
     store.setChangeHooks({
       begin: () => this.startCapture(),
+      // The rows are read before COMMIT (they live in the transaction), but
+      // the step is recorded only once COMMIT has succeeded: a commit that
+      // fails (full disk) leaves no step for a change that never happened.
       commit: (label) => {
         const entries = this.endCapture();
         if (entries.length === 0) return;
-        this.undoStack.push({ label, entries });
-        if (this.undoStack.length > this.limit) this.undoStack.shift();
-        this.redoStack = [];
+        return () => {
+          this.undoStack.push({ label, entries });
+          if (this.undoStack.length > this.limit) this.undoStack.shift();
+          this.redoStack = [];
+        };
       },
       rollback: () => undefined,
     });
@@ -191,7 +196,6 @@ export class UndoHistory {
 
   /** Replays a step backwards in one transaction and returns the step that reverses it. */
   private replay(step: Step): Step {
-    if (this.store.inChange) throw new Error("Cannot undo or redo while a change is running.");
     const db = this.store.db;
     db.exec("BEGIN IMMEDIATE");
     try {
@@ -203,34 +207,33 @@ export class UndoHistory {
       db.exec("COMMIT");
       return { label: step.label, entries };
     } catch (error) {
-      db.exec("ROLLBACK");
-      throw error;
+      return rollbackAfter(db, error);
     }
   }
 
-  /** Undoes the newest step; returns its label, or null when there is nothing to undo. */
+  private refuseDuringChange() {
+    if (this.store.inChange) throw new Error("Cannot undo or redo while a change is running.");
+  }
+
+  /**
+   * Undoes the newest step; returns its label, or null when there is nothing
+   * to undo. A step that fails to replay is rolled back and dropped (the error
+   * is passed on): putting it back would make every later undo fail on it.
+   */
   undo(): string | null {
+    this.refuseDuringChange();
     const step = this.undoStack.pop();
     if (!step) return null;
-    try {
-      this.redoStack.push(this.replay(step));
-    } catch (error) {
-      this.undoStack.push(step);
-      throw error;
-    }
+    this.redoStack.push(this.replay(step));
     return step.label;
   }
 
-  /** Redoes the newest undone step; returns its label, or null when there is nothing to redo. */
+  /** Redoes the newest undone step, like `undo()`; a step that fails is dropped. */
   redo(): string | null {
+    this.refuseDuringChange();
     const step = this.redoStack.pop();
     if (!step) return null;
-    try {
-      this.undoStack.push(this.replay(step));
-    } catch (error) {
-      this.redoStack.push(step);
-      throw error;
-    }
+    this.undoStack.push(this.replay(step));
     return step.label;
   }
 
