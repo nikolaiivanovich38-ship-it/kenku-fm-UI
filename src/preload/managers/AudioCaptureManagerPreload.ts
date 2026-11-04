@@ -45,6 +45,13 @@ export class AudioCaptureManagerPreload {
   _mediaStreams: Record<number, MediaStream> = {};
   _mediaStreamSources: Record<number, MediaStreamAudioSourceNode> = {};
   _mediaStreamOutputs: Record<number, GainNode> = {};
+  /**
+   * Latest start request for each captured view, removed when the view's
+   * capture stops. A capture that finishes starting after a stop or a newer
+   * start is dropped, so a tab stopped mid-start does not keep streaming.
+   */
+  _browserViewRequests: Record<number, number> = {};
+  _nextBrowserViewRequest = 1;
 
   /** Raw media stream for each external audio source e.g. microphone or virtual audio cables */
   _externalAudioStreams: Record<string, MediaStream> = {};
@@ -199,6 +206,8 @@ export class AudioCaptureManagerPreload {
     viewId: number,
     mediaSourceId: string
   ): Promise<void> {
+    const request = this._nextBrowserViewRequest++;
+    this._browserViewRequests[viewId] = request;
     try {
       const streamConfig = {
         audio: {
@@ -215,7 +224,12 @@ export class AudioCaptureManagerPreload {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         streamConfig as any
       );
-      this.stopBrowserViewStream(viewId);
+      if (this._browserViewRequests[viewId] !== request) {
+        // Stopped or restarted while getUserMedia was pending.
+        releaseCapture(stream);
+        return;
+      }
+      this._releaseBrowserViewStream(viewId);
       this._mediaStreams[viewId] = stream;
 
       const output = this._audioContext.createGain();
@@ -226,6 +240,7 @@ export class AudioCaptureManagerPreload {
       audioSource.connect(output);
 
       output.connect(this._audioOutputNode);
+      console.info(`Capturing audio of view ${viewId}`);
     } catch (error) {
       console.error(`Unable to start stream for web view ${viewId}`);
       console.error(error);
@@ -239,6 +254,13 @@ export class AudioCaptureManagerPreload {
    * @param viewId Browser view id
    */
   stopBrowserViewStream(viewId: number): void {
+    // A capture still starting sees its request gone and drops itself.
+    delete this._browserViewRequests[viewId];
+    this._releaseBrowserViewStream(viewId);
+  }
+
+  /** Disconnect and forget the current capture of a view, if any. */
+  _releaseBrowserViewStream(viewId: number): void {
     releaseCapture(
       this._mediaStreams[viewId],
       this._mediaStreamSources[viewId],
@@ -254,6 +276,7 @@ export class AudioCaptureManagerPreload {
     const ids = new Set([
       ...Object.keys(this._mediaStreams),
       ...Object.keys(this._mediaStreamOutputs),
+      ...Object.keys(this._browserViewRequests),
     ]);
     for (const id of ids) {
       this.stopBrowserViewStream(Number(id));

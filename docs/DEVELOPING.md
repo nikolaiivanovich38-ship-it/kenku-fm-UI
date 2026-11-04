@@ -41,11 +41,13 @@ Put a test next to the code (`foo.ts` → `foo.test.ts`). Write the failing test
 | RunAsNode | off | `ELECTRON_RUN_AS_NODE` cannot turn the app into a plain Node.js runtime |
 | EnableNodeOptionsEnvironmentVariable | off | `NODE_OPTIONS` cannot inject code at start-up |
 | EnableNodeCliInspectArguments | off (on in test builds) | `--inspect` cannot attach a debugger |
-| EnableEmbeddedAsarIntegrityValidation | on | `app.asar` is checked against a hash stored in the executable |
+| EnableEmbeddedAsarIntegrityValidation | on | `app.asar` is checked against a hash stored in the executable (Windows and macOS; Electron does not support the check on Linux) |
 | OnlyLoadAppFromAsar | on | the app is only loaded from `app.asar` |
 | EnableCookieEncryption | on | website-tab cookies are encrypted on disk |
 
-Native addons (`*.node`) and WebAssembly (`*.wasm`) stay unpacked in `app.asar.unpacked`. To check a build: `npx @electron/fuses read --app "out/Cue Desk-linux-x64/cue-desk"` (on Windows, point `--app` at `cue-desk.exe`).
+Native addons (`*.node`) and WebAssembly (`*.wasm`) stay unpacked in `app.asar.unpacked`. To check a build: `node scripts/check-release-fuses.mjs "out/Cue Desk-linux-x64/cue-desk"` (on Windows, `cue-desk.exe`); it fails on a test build or any loosened fuse, and `release.yml` runs it on every release build. `CUE_DESK_E2E_BUILD=1` is refused by `yarn make` and `yarn publish`, so a test build cannot become an installer.
+
+Do not package from a git worktree whose `node_modules` is a symlink to another checkout: Electron Forge deletes every `.bin` folder it finds in the copied app, follows the symlink, and empties the other checkout's `node_modules/**/.bin`; the packaged app is also broken. Give each worktree a real `node_modules` (`yarn install`, or `cp -al` of another checkout's).
 
 ## Building without Electron headers (FND-3)
 

@@ -10,6 +10,7 @@
  */
 import http from "http";
 import type { AddressInfo } from "net";
+import type { Page } from "@playwright/test";
 import { test, expect, pageWithTitle } from "./fixtures/app";
 
 test("the capture window can open the player view's audio", async ({ app, playerView }) => {
@@ -40,38 +41,75 @@ test("the capture window can open the player view's audio", async ({ app, player
   expect(result).toBe("live");
 });
 
-test("the app captures a website tab's audio as soon as the tab loads", async ({ app, mainWindow, playerView }) => {
-  // A local web page stands in for YouTube or Tabletop Audio.
+/** A local web page standing in for YouTube or Tabletop Audio. */
+async function withLocalSite(run: (url: string) => Promise<void>): Promise<void> {
   const site = http.createServer((_request, response) => {
     response.setHeader("content-type", "text/html");
     response.end("<title>Local test site</title><p>Test page</p>");
   });
   await new Promise<void>((resolve) => site.listen(0, "127.0.0.1", resolve));
-  const url = `http://127.0.0.1:${(site.address() as AddressInfo).port}/`;
-
   try {
-    await expect(playerView.getByText("Playlists", { exact: true })).toBeVisible();
-    const capture = await pageWithTitle(app, "Audio Capture");
-    const captureErrors: string[] = [];
-    capture.on("console", (message) => {
-      if (message.type() === "error") {
-        captureErrors.push(message.text());
-      }
-    });
-
-    // The same call the "+" tab button makes; once the page has loaded, the
-    // main window asks for its audio.
-    await mainWindow.evaluate(
-      (address) =>
-        (window as unknown as { kenku: { createBrowserView(...args: unknown[]): Promise<number> } })
-          .kenku.createBrowserView(address, 0, 0, 400, 300),
-      url,
-    );
-    await pageWithTitle(app, "Local test site");
-    await capture.waitForTimeout(2_000);
-
-    expect(captureErrors).toEqual([]);
+    await run(`http://127.0.0.1:${(site.address() as AddressInfo).port}/`);
   } finally {
     site.close();
   }
+}
+
+/** Open a website tab the way the "+" button does; returns its view id. */
+function openTab(mainWindow: Page, url: string): Promise<number> {
+  return mainWindow.evaluate(
+    (address) =>
+      (window as unknown as { kenku: { createBrowserView(...args: unknown[]): Promise<number> } })
+        .kenku.createBrowserView(address, 0, 0, 400, 300),
+    url,
+  );
+}
+
+test("the app captures a website tab's audio as soon as the tab loads", async ({ app, mainWindow, playerView }) => {
+  await withLocalSite(async (url) => {
+    await expect(playerView.getByText("Playlists", { exact: true })).toBeVisible();
+    const capture = await pageWithTitle(app, "Audio Capture");
+    const captureLog: { type: string; text: string }[] = [];
+    capture.on("console", (message) => captureLog.push({ type: message.type(), text: message.text() }));
+
+    // Once the page has loaded, the main window asks for its audio.
+    const viewId = await openTab(mainWindow, url);
+    await pageWithTitle(app, "Local test site");
+    await expect
+      .poll(() => captureLog.map((entry) => entry.text), { timeout: 10_000 })
+      .toContain(`Capturing audio of view ${viewId}`);
+
+    expect(captureLog.filter((entry) => entry.type === "error")).toEqual([]);
+  });
+});
+
+test("a website in a tab cannot record the screen or desktop audio (WP1 review)", async ({ app, mainWindow, playerView }) => {
+  await withLocalSite(async (url) => {
+    await expect(playerView.getByText("Playlists", { exact: true })).toBeVisible();
+    await openTab(mainWindow, url);
+    const site = await pageWithTitle(app, "Local test site");
+
+    // The tab is being captured for Discord, which must not give the site
+    // any capture rights of its own.
+    const attempts = await site.evaluate(async () => {
+      const tryCapture = async (constraints: unknown) => {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia(constraints as MediaStreamConstraints);
+          stream.getTracks().forEach((track) => track.stop());
+          return "granted";
+        } catch (error) {
+          return (error as Error).name;
+        }
+      };
+      return {
+        screen: await tryCapture({ audio: false, video: { mandatory: { chromeMediaSource: "desktop" } } }),
+        desktopAudio: await tryCapture({
+          audio: { mandatory: { chromeMediaSource: "desktop" } },
+          video: { mandatory: { chromeMediaSource: "desktop" } },
+        }),
+      };
+    });
+
+    expect(attempts).toEqual({ screen: "NotAllowedError", desktopAudio: "NotAllowedError" });
+  });
 });

@@ -144,6 +144,45 @@ describe("AudioCaptureManagerPreload: stopping streams frees audio nodes (PERF-5
     expect(context.connected()).toHaveLength(2);
   });
 
+  it("drops a tab capture that was stopped while it was still starting", async () => {
+    const manager = startedManager();
+    const starting = manager.startBrowserViewStream(7, "source-7");
+    manager.stopBrowserViewStream(7);
+    await starting;
+
+    expect(streams[0].tracks[0].stopped).toBe(true);
+    expect(manager._mediaStreams[7]).toBeUndefined();
+    expect(context.connected()).toHaveLength(0);
+  });
+
+  it("drops every pending tab capture when all streams stop", async () => {
+    const manager = startedManager();
+    const starting = manager.startBrowserViewStream(7, "source-7");
+    manager.stopAllBrowserViewStreams();
+    await starting;
+
+    expect(streams[0].tracks[0].stopped).toBe(true);
+    expect(context.connected()).toHaveLength(0);
+  });
+
+  it("keeps the latest capture when a tab is started twice in a row", async () => {
+    const manager = startedManager();
+    const first = manager.startBrowserViewStream(7, "source-7");
+    const second = manager.startBrowserViewStream(7, "source-7b");
+    await Promise.all([first, second]);
+
+    expect(streams.filter((stream) => !stream.tracks[0].stopped)).toHaveLength(1);
+    expect(context.connected()).toHaveLength(2);
+  });
+
+  it("says in the log which view it is capturing, for diagnosis", async () => {
+    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+    const manager = startedManager();
+    await manager.startBrowserViewStream(7, "source-7");
+    expect(info).toHaveBeenCalledWith("Capturing audio of view 7");
+    info.mockRestore();
+  });
+
   it("ignores stop requests for streams that were never started", () => {
     const manager = startedManager();
     expect(() => manager.stopBrowserViewStream(99)).not.toThrow();

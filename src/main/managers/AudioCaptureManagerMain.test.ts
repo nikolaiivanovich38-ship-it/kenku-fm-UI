@@ -196,6 +196,25 @@ describe("AudioCaptureManagerMain: tab audio streams", () => {
     expect(captureTargets.has(tab)).toBe(false);
   });
 
+  it("captures only tabs and the player, never the main window or itself (WP1 review)", () => {
+    manager = new AudioCaptureManagerMain();
+    const mainPage = fakePage("main-window");
+    pages.set(mainPage.id, mainPage);
+    pages.set(capturePage(manager).id, capturePage(manager));
+    const player = fakePage("player-view");
+    pages.set(player.id, player);
+    const main = fromMainFrame(mainPage);
+
+    fakeIpcMain.deliver("AUDIO_CAPTURE_START_BROWSER_VIEW_STREAM", main, mainPage.id);
+    fakeIpcMain.deliver("AUDIO_CAPTURE_START_BROWSER_VIEW_STREAM", main, capturePage(manager).id);
+    expect(captureTargets.has(mainPage)).toBe(false);
+    expect(captureTargets.has(capturePage(manager))).toBe(false);
+    expect(sentToCapture(manager)).toEqual([]);
+
+    fakeIpcMain.deliver("AUDIO_CAPTURE_START_BROWSER_VIEW_STREAM", main, player.id);
+    expect(captureTargets.has(player)).toBe(true);
+  });
+
   it("forgets every captured tab when all streams stop (SEC-3)", () => {
     manager = new AudioCaptureManagerMain();
     const tab = fakePage(null);

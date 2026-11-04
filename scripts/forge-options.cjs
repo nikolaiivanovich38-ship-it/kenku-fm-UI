@@ -28,6 +28,15 @@ const E2E_BUILD_ENV = "CUE_DESK_E2E_BUILD";
  */
 const ASAR_UNPACK_GLOB = "*.{node,wasm}";
 
+/**
+ * Whether a command-line argument names forge's make or publish command,
+ * either as the subcommand word or as the per-command script the forge CLI
+ * runs (electron-forge-make.js).
+ */
+function isReleaseCommand(arg) {
+  return /^(make|publish)$|(^|[\\/])electron-forge-(make|publish)(\.js)?$/.test(arg);
+}
+
 /** FND-3: @electron/rebuild options; `onlyModules: []` rebuilds nothing. */
 function rebuildConfig(env) {
   return env[SKIP_NATIVE_REBUILD_ENV] === "1" ? { onlyModules: [] } : {};
@@ -40,14 +49,26 @@ function rebuildConfig(env) {
  * - Asar integrity and asar-only loading on: the app code is read only from
  *   app.asar and checked against the hash stored in the executable.
  * - Cookie encryption on: website-tab cookies are encrypted at rest.
+ *
+ * A test build (CUE_DESK_E2E_BUILD=1) keeps --inspect on, so it may only be
+ * packaged, never made into an installer or published.
+ * @param env process.env
+ * @param argv process.argv, to see which forge command is running
  */
-function fusesConfig(env) {
+function fusesConfig(env, argv = []) {
+  const testBuild = env[E2E_BUILD_ENV] === "1";
+  if (testBuild && argv.some(isReleaseCommand)) {
+    throw new Error(
+      `${E2E_BUILD_ENV}=1 builds accept --inspect and must not be released. ` +
+        `Unset ${E2E_BUILD_ENV} before running make or publish.`,
+    );
+  }
   return {
     version: FuseVersion.V1,
     [FuseV1Options.RunAsNode]: false,
     [FuseV1Options.EnableCookieEncryption]: true,
     [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,
-    [FuseV1Options.EnableNodeCliInspectArguments]: env[E2E_BUILD_ENV] === "1",
+    [FuseV1Options.EnableNodeCliInspectArguments]: testBuild,
     [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: true,
     [FuseV1Options.OnlyLoadAppFromAsar]: true,
   };

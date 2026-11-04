@@ -35,7 +35,12 @@ function installPermissionHandlers(target: Session): void {
         permission,
         mediaTypes,
         isMainFrame: details.isMainFrame,
-        isCaptureTarget: captureTargets.has(contents),
+        // Tab capture only when the capture window is the one asking
+        // (WP1 review: a website asking for its screen looks the same otherwise).
+        isCaptureTarget: captureTargets.isCaptureRequest(
+          contents,
+          "securityOrigin" in details ? details.securityOrigin : undefined,
+        ),
       }),
     );
   });

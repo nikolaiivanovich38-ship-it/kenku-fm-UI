@@ -7,6 +7,7 @@ import { LOOPBACK_HOST } from "../../common/security/loopback";
 import { guardIpc } from "../security/ipcGuard";
 import { lockAppPage } from "../security/navigationGuards";
 import { captureTargets } from "../security/captureTargets";
+import { trustedContents } from "../security/trustedContents";
 
 declare const AUDIO_CAPTURE_WINDOW_WEBPACK_ENTRY: string;
 declare const AUDIO_CAPTURE_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
@@ -57,6 +58,8 @@ export class AudioCaptureManagerMain extends TypedEmitter<AudioCaptureManagerEve
       show: false
     });
     lockAppPage(this._browserWindow.webContents, "audio-capture");
+    // SEC-3: tab capture is granted only to requests from this page's origin.
+    captureTargets.setCapturer(AUDIO_CAPTURE_WINDOW_WEBPACK_ENTRY);
     this._browserWindow.webContents.loadURL(AUDIO_CAPTURE_WINDOW_WEBPACK_ENTRY);
     this._wss = createAudioSocketServer();
 
@@ -176,6 +179,13 @@ export class AudioCaptureManagerMain extends TypedEmitter<AudioCaptureManagerEve
   ) => {
     const contents = webContents.fromId(viewId);
     if (!contents || contents.isDestroyed()) {
+      return;
+    }
+    // Only website tabs and the player are sent to Discord; the main window
+    // and the capture window itself are never captured.
+    const role = trustedContents.roleOf(contents);
+    if (role !== null && role !== "player-view") {
+      console.error(`Refused to capture audio from app page ${viewId}`);
       return;
     }
     // SEC-3: Chromium asks the captured page for permission; allow it for

@@ -8,7 +8,7 @@ type RequestHandler = (
   contents: { id: number },
   permission: string,
   callback: (granted: boolean) => void,
-  details: { isMainFrame: boolean; mediaTypes?: string[] },
+  details: { isMainFrame: boolean; mediaTypes?: string[]; securityOrigin?: string },
 ) => void;
 type CheckHandler = (
   contents: { id: number } | null,
@@ -74,7 +74,9 @@ function request(
   s: ReturnType<typeof fakeSession>,
   contents: { id: number },
   permission: string,
-  details: { isMainFrame: boolean; mediaTypes?: string[] } = { isMainFrame: true },
+  details: { isMainFrame: boolean; mediaTypes?: string[]; securityOrigin?: string } = {
+    isMainFrame: true,
+  },
 ) {
   let granted: boolean | undefined;
   s.requestHandler?.(contents, permission, (g) => (granted = g), details);
@@ -138,7 +140,9 @@ describe("session hardening (SEC-3)", () => {
     const tab = { id: 880, once: vi.fn() };
     const player = { id: 881, once: vi.fn() };
     trustedContents.trust(player, "player-view");
-    const tabCapture = { isMainFrame: true, mediaTypes: [] as string[] };
+    // The capture window calls getUserMedia, so the request names its origin.
+    captureTargets.setCapturer("file:///app/audio_capture_window/index.html");
+    const tabCapture = { isMainFrame: true, mediaTypes: [] as string[], securityOrigin: "file:///" };
     expect(request(sessions.tabs, tab, "media", tabCapture)).toBe(false);
     expect(request(sessions.default, player, "media", tabCapture)).toBe(false);
     captureTargets.allow(tab);
@@ -147,6 +151,23 @@ describe("session hardening (SEC-3)", () => {
     expect(request(sessions.default, player, "media", tabCapture)).toBe(true);
     captureTargets.revokeAll();
     expect(request(sessions.tabs, tab, "media", tabCapture)).toBe(false);
+  });
+
+  it("refuses a captured website its own screen or desktop audio (WP1 review)", () => {
+    secureSessions();
+    const tab = { id: 882, once: vi.fn() };
+    captureTargets.setCapturer("file:///app/audio_capture_window/index.html");
+    captureTargets.allow(tab);
+    // getUserMedia({ chromeMediaSource: "desktop" }) or getDisplayMedia from
+    // the site itself: same permission and media types, the site's origin.
+    expect(
+      request(sessions.tabs, tab, "media", {
+        isMainFrame: true,
+        mediaTypes: [],
+        securityOrigin: "https://evil.example/",
+      }),
+    ).toBe(false);
+    captureTargets.revokeAll();
   });
 
   it("rewrites the user agent on both sessions, with the Google sign-in workaround", () => {

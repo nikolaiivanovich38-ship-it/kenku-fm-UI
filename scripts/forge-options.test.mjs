@@ -79,3 +79,25 @@ describe("ASAR_UNPACK_GLOB (SEC-13)", () => {
     assert.ok(!unpacked("/app/package.json"));
   });
 });
+
+describe("fusesConfig refuses a test build for release (WP1 review)", () => {
+  it("throws when a test build is made into an installer or published", () => {
+    for (const argv of [
+      ["node", "electron-forge", "make"],
+      ["node", "electron-forge", "publish"],
+      // How the forge CLI actually runs them: a separate script per command.
+      ["node", "/app/node_modules/@electron-forge/cli/dist/electron-forge-make.js", "--arch=x64"],
+      ["node", "C:\\app\\node_modules\\@electron-forge\\cli\\dist\\electron-forge-publish.js"],
+    ]) {
+      assert.throws(() => fusesConfig({ [E2E_BUILD_ENV]: "1" }, argv), /CUE_DESK_E2E_BUILD/, argv.join(" "));
+    }
+  });
+
+  it("allows a test build for `package`, and release builds for every command", () => {
+    assert.doesNotThrow(() => fusesConfig({ [E2E_BUILD_ENV]: "1" }, ["node", "electron-forge", "package"]));
+    assert.doesNotThrow(() =>
+      fusesConfig({ [E2E_BUILD_ENV]: "1" }, ["node", "/app/node_modules/@electron-forge/cli/dist/electron-forge-package.js"]),
+    );
+    assert.doesNotThrow(() => fusesConfig({}, ["node", "electron-forge", "make", "--arch=x64"]));
+  });
+});

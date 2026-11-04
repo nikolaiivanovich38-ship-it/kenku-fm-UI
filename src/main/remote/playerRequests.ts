@@ -81,7 +81,15 @@ export class PlayerRequests {
         reject(new PlayerReplyTimeout());
       }, this.timeoutMs);
       this.pending.set(id, { query, resolve: resolve as (value: unknown) => void, reject, timer });
-      view.send(PLAYER_QUERIES[query].request, id);
+      try {
+        view.send(PLAYER_QUERIES[query].request, id);
+      } catch {
+        // The player view was destroyed between lookup and send: answer now
+        // (the routes report it like a timeout) instead of waiting.
+        clearTimeout(timer);
+        this.pending.delete(id);
+        reject(new PlayerReplyTimeout());
+      }
     });
   }
 

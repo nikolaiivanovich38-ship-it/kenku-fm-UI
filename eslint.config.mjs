@@ -32,6 +32,11 @@ export default tseslint.config(
     rules: { "@typescript-eslint/no-require-imports": "off" },
   },
   {
+    // Node scripts (audit gate, release checks) and their tests.
+    files: ["scripts/**/*.mjs"],
+    languageOptions: { globals: { ...globals.node } },
+  },
+  {
     files: ["src/preload/managers/*.worklet.js"],
     languageOptions: { globals: { ...globals.audioWorklet } },
   },

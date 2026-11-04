@@ -127,7 +127,7 @@ const config = {
     {
       // SEC-13: lock down the packaged executable (see scripts/forge-options.cjs).
       name: "@electron-forge/plugin-fuses",
-      config: fusesConfig(process.env),
+      config: fusesConfig(process.env, process.argv),
     },
     {
       name: "@timfish/forge-externals-plugin",
