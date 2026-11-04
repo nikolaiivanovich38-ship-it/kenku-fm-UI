@@ -137,7 +137,8 @@ export function resolveProfile(t: DomainTrack, places: ProfilePlace[], overrides
       endMs,
       after,
       loopStartMs,
-      loopCrossfadeMs: clamp(input.loopCrossfadeMs ?? 0, 0, endMs - loopStartMs),
+      // At most half the looped part, so no more than two copies of the track ever sound at once.
+      loopCrossfadeMs: clamp(input.loopCrossfadeMs ?? 0, 0, (endMs - loopStartMs) / 2),
       fadeIn: fade(input.fadeIn),
       fadeOut: fade(input.fadeOut),
       markers: (input.markers ?? []).filter((m) => m.atMs >= 0 && m.atMs <= dur),

@@ -29,3 +29,20 @@ export type { PlayingReport, RoomReport } from "./queue/roomPlayer";
 export { ROOM_LANES, TABLE_ROOM_ID, tableOnlyRooms } from "./rooms.contract";
 export type { RoomLane, RoomsAudio } from "./rooms.contract";
 export { trackProfile, laneProfile } from "./profile/trackProfile";
+
+// Wave 2: rooms and buses (PLY-5, OUT-5). The show engine reaches the rooms through roomsAudioFrom(mixer).
+export { RoomMixer, PREVIEW_ID, TABLE_ROOM, roomsAudioFrom } from "./rooms";
+export { ROOM_LANES as MIXER_ROOM_LANES } from "./rooms";
+export type { RoomsContract, RoomLevels, RoomFaderId, RoomFaderState } from "./rooms";
+
+// Wave 2: files and preview (PLY-11, BUG-10, PRV-1, PRV-2, PERF-7). The host wiring arrives with the new
+// interface in wave 3 (docs/ARCHITECTURE.md, "Wave 2: Files and preview").
+export { ReadAhead, DEFAULT_READ_AHEAD, browserObjectUrls } from "./sources/readAhead";
+export { MainMediaResolver } from "./sources/mainMediaResolver";
+export type { MediaBridge, PrepareAnswer } from "./sources/mainMediaResolver";
+export { upcomingInQueue, upcomingInSequence } from "./sources/upcoming";
+export { PreviewPlayer, trackPreview, playlistPreview, padPreview } from "./preview/previewPlayer";
+export type { PreviewItem, PreviewState } from "./preview/previewPlayer";
+export { createPreviewContextOutput } from "./preview/previewOutput";
+export type { PreviewOutput, PreviewContextOutput } from "./preview/previewOutput";
+export { OutputDeviceChooser, browserDeviceSource, storageChoiceStore } from "./preview/outputDevices";

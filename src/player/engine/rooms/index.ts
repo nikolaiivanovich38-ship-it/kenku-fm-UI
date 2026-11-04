@@ -6,3 +6,4 @@
  */
 export { PREVIEW_ID, ROOM_LANES, RoomMixer, TABLE_ROOM } from "./roomMixer";
 export type { RoomFaderId, RoomFaderState, RoomLevels, RoomsContract } from "./roomMixer";
+export { roomsAudioFrom } from "./roomsAudio";

@@ -142,6 +142,10 @@ describe("audio profiles (PLY-12)", () => {
     expect(p.endMs).toBe(441_000);
     expect(p.loopStartMs).toBeLessThan(p.endMs);
   });
+  it("keeps the loop crossfade to at most half the looped part", () => {
+    const p = resolveProfile(track("x", { profile: { startMs: 0, endMs: 100_000, loopStartMs: 60_000, loopCrossfadeMs: 90_000 } }), [], {}).profile;
+    expect(p.loopCrossfadeMs).toBe(20_000);
+  });
   it("says how long it will play", () => {
     expect(playedLengthMs(resolveProfile(eerie, [ruins], overrides).profile)).toBe(190_000);
   });
