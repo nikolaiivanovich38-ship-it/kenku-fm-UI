@@ -236,3 +236,14 @@ The capture window used to send audio to the main process over a WebSocket on `1
 | `OUTPUT_SET_MUTED` | Main window | `"local"` or a bot id; boolean | `OutputManager` |
 | `BOT_RECONNECT` (OUT-2) | Main window | bot id | `OutputManager` / `DiscordBot` |
 
+
+### Manual checks for WP2 (real Discord, Windows)
+
+1. Fresh start, nothing playing: Task Manager shows Cue Desk using almost no processor; no "Audio Capture" sound activity in the Windows volume mixer.
+2. Update from 0.1 with a saved token: the bot connects by itself; Settings shows "A token is saved, encrypted on this computer"; `%APPDATA%\cue-desk\discord-bots.json` does not contain the token text.
+3. Two bots (Settings > "Add a second bot"), both invited to one server: Bot 1 joins one voice channel, Bot 2 another; a friend in each channel hears the music; muting Bot 2 in the side bar silences only its channel.
+4. Join a voice channel, play a soundboard sound: the first word or hit of the sound is not cut off in Discord.
+5. "Lighter on the computer" and "Best sound quality": speech in a YouTube tab reaches Discord with no noticeable extra delay in either.
+6. Unplug the network cable (or turn Wi-Fi off) for 10 seconds while in a channel: the chip shows "Reconnecting…", then "Connected" again without touching anything. Off for two minutes: "Error" with a reason and a Reconnect button that works once the network is back.
+7. Remove the bot's Connect permission on a channel and click it: a plain message explains why; the bot does not hang on "Joining…".
+8. Join a Stage channel, then click it again: the bot leaves the stage in Discord.
