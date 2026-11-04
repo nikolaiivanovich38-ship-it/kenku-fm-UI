@@ -11,7 +11,7 @@ import type { Page } from "@playwright/test";
 import fs from "fs";
 import path from "path";
 import { expect, expectFailureUntilBuilt, test } from "./support/test";
-import { knownAxeIssues, notLyre, openRoute, type Theme } from "./support/target";
+import { knownAxeIssues, knownLayoutIssue, notLyre, openRoute, type Theme } from "./support/target";
 
 const AXE_SOURCE = require.resolve("axe-core/axe.min.js");
 const AXE_VERSION = "4.14.0";
@@ -57,9 +57,15 @@ const SCREENS: Screen[] = [
   { name: "Look and feel", owner: "look", route: "look" },
 ];
 
-const SIZES = [
-  { width: 960, height: 1000 },
-  { width: 720, height: 900 },
+const BOTH: Theme[] = ["default", "parchment"];
+const SIZES: { width: number; height: number; themes: Theme[] }[] = [
+  // The half and third of a 1920 screen Nik works in: both themes.
+  { width: 960, height: 1000, themes: BOTH },
+  { width: 720, height: 900, themes: BOTH },
+  // Full screen: default theme.
+  { width: 1280, height: 800, themes: ["default"] },
+  { width: 1920, height: 1080, themes: ["default"] },
+  { width: 2560, height: 1440, themes: ["default"] },
 ];
 const THEMES: { label: string; theme: Theme }[] = [
   { label: "default theme", theme: "default" },
@@ -70,18 +76,10 @@ test("the axe-core in use is version 4.14.0", () => {
   expect(JSON.parse(fs.readFileSync(path.join(path.dirname(AXE_SOURCE), "package.json"), "utf8")).version).toBe(AXE_VERSION);
 });
 
-for (const screen of SCREENS) {
-  for (const size of SIZES) {
-    for (const { label, theme } of THEMES) {
-      test(`${screen.name} at ${size.width}×${size.height} in the ${label}: no sideways scroll, no overlapping or cut-off controls, no accessibility failures`, async ({ page }) => {
-        expectFailureUntilBuilt(screen.owner);
-        await page.setViewportSize(size);
-        await openRoute(page, screen.route, { theme });
-        await screen.prepare?.(page, { playing: true });
-        await page.waitForTimeout(300);
-        const ignore = notLyre();
-
-        const layout = await page.evaluate((ignore) => {
+/** The layout checks: sideways scroll, overlapping controls, cut-off button text. */
+async function layoutProblems(page: Page) {
+  const ignore = notLyre();
+  return page.evaluate((ignore) => {
           const skip = (e: Element) => ignore.some((sel) => e.closest(sel));
           // The visible part of an element: its box cut down by every scrolling or clipping ancestor.
           const visible = (e: Element) => {
@@ -118,14 +116,14 @@ for (const screen of SCREENS) {
             .filter((e) => !skip(e) && e.getBoundingClientRect().width > 0 && e.scrollWidth > e.clientWidth + 2)
             .map((e) => (e.textContent ?? "").trim().slice(0, 30));
           return { sideways: document.documentElement.scrollWidth > window.innerWidth + 1, overlaps, clipped };
-        }, ignore);
+  }, ignore);
+}
 
-        expect.soft(layout.sideways, "the page scrolls sideways").toBe(false);
-        expect.soft(layout.overlaps, "controls overlap").toEqual([]);
-        expect.soft(layout.clipped, "button text is cut off").toEqual([]);
-
+/** axe-core 4.14.0 with the WCAG 2.2 A and AA tags; returns one line per failing rule. */
+async function axeProblems(page: Page): Promise<string[]> {
+  const ignore = notLyre();
         await page.addScriptTag({ path: AXE_SOURCE });
-        const results: string[] = await page.evaluate(
+        return page.evaluate(
           async ({ tags, ignore }) => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const axe = (window as any).axe;
@@ -135,6 +133,22 @@ for (const screen of SCREENS) {
           },
           { tags: TAGS, ignore },
         );
+}
+
+for (const screen of SCREENS) {
+  for (const size of SIZES) {
+    for (const { label, theme } of THEMES.filter((t) => size.themes.includes(t.theme))) {
+      test(`${screen.name} at ${size.width}×${size.height} in the ${label}: no sideways scroll, no overlapping or cut-off controls, no accessibility failures`, async ({ page }) => {
+        expectFailureUntilBuilt(screen.owner);
+        await page.setViewportSize(size);
+        await openRoute(page, screen.route, { theme });
+        await screen.prepare?.(page, { playing: true });
+        await page.waitForTimeout(300);
+        const layout = await layoutProblems(page);
+        expect.soft(layout.sideways, "the page scrolls sideways").toBe(false);
+        expect.soft(layout.overlaps, "controls overlap").toEqual([]);
+        expect.soft(layout.clipped, "button text is cut off").toEqual([]);
+        const results = await axeProblems(page);
         const known = knownAxeIssues();
         for (const finding of results.filter((r) => known.some((k) => r.startsWith(`${k}:`)))) {
           test.info().annotations.push({ type: "known prototype issue", description: finding });
@@ -183,5 +197,111 @@ for (const screen of SCREENS) {
         .map((e) => `${e.tagName.toLowerCase()} ${e.getAttribute("aria-label") ?? e.id ?? ""} ${(e.textContent ?? "").trim().slice(0, 40)} ${e.getAttribute("type") ?? ""}`);
     }, ignore);
     expect(missed, "controls Tab never reached").toEqual([]);
+  });
+}
+
+// Responsive sweeps. The prototype changes layout at these widths of the app (see the container queries in
+// design/prototype/src/views/*.css, layoutFor() in live.js and the rail in core.js): 760 (campaign session rows),
+// 820 (Live: one column below, two from here), 900 (campaigns two columns, pad board stacked, narrow Live strip),
+// 1100 (the menu rail folds to icons), 1180 (Outputs two columns), 1200 (Live three columns, campaigns three).
+const BREAKPOINTS = [760, 820, 900, 1100, 1180, 1200];
+const WIDTHS = Array.from(
+  new Set([
+    ...Array.from({ length: 25 }, (_, i) => 600 + i * 80), // 600 … 2520
+    2560,
+    ...BREAKPOINTS.flatMap((b) => [b - 1, b, b + 1]),
+  ]),
+).sort((a, b) => a - b);
+
+/** How many columns of boxes the screen shows, counted from where its top-level boxes start. */
+async function columnCount(page: Page, what: "regions" | "articles" | "outputs"): Promise<number> {
+  if (what === "outputs") {
+    // Outputs: rooms on the left and the list of voice channels on the right (2), or the channels below the rooms (1).
+    return page.evaluate(() => {
+      const left = (e: Element | null) => e?.getBoundingClientRect().left ?? 0;
+      const rooms = left(document.querySelector("main [role=region]:not([aria-label='All voice channels']), main section[aria-label]:not([aria-label='All voice channels'])"));
+      const chans = left(document.querySelector("main [aria-label='All voice channels']"));
+      return Math.abs(rooms - chans) > 24 ? 2 : 1;
+    });
+  }
+  return page.evaluate((what) => {
+    const all = Array.from(document.querySelectorAll<HTMLElement>(what === "articles" ? "main article" : "main [role=region], main section[aria-label]"));
+    const top = all.filter((e) => e.offsetParent !== null && e.getBoundingClientRect().width > 40 && !e.parentElement?.closest(what === "articles" ? "article" : "[role=region], section[aria-label]"));
+    const xs: number[] = [];
+    for (const e of top) {
+      const x = e.getBoundingClientRect().left;
+      if (!xs.some((v) => Math.abs(v - x) < 24)) xs.push(x);
+    }
+    return xs.length;
+  }, what);
+}
+
+/** What the design says about the number of columns at a width (undefined: the design does not say). */
+const COLUMNS: Record<string, { what: "regions" | "articles" | "outputs"; expected: (w: number) => number; edges: number[] }> = {
+  "Live, standby": { what: "regions", expected: (w) => (w >= 1200 ? 3 : w >= 820 ? 2 : 1), edges: [820, 1200] },
+  Campaigns: { what: "articles", expected: (w) => (w >= 1200 ? 3 : w >= 900 ? 2 : 1), edges: [900, 1200] },
+  Outputs: { what: "outputs", expected: (w) => (w >= 1180 ? 2 : 1), edges: [1180] },
+  "A pad board": { what: "regions", expected: (w) => (w > 900 ? 2 : 1), edges: [900, 901] },
+};
+
+for (const screen of SCREENS) {
+  test(`${screen.name}: resized from 600 to 2560 px wide, nothing scrolls sideways, overlaps or is cut off${COLUMNS[screen.name] ? ", and the columns change where the design says" : ""}`, async ({ page }) => {
+    test.setTimeout(120_000);
+    expectFailureUntilBuilt(screen.owner);
+    await page.setViewportSize({ width: WIDTHS[0], height: 1000 });
+    await openRoute(page, screen.route);
+    await screen.prepare?.(page, { playing: false });
+    const found: string[] = [];
+    for (const width of WIDTHS) {
+      await page.setViewportSize({ width, height: 1000 });
+      await page.waitForTimeout(60);
+      const l = await layoutProblems(page);
+      if (l.sideways) {
+        if (knownLayoutIssue(screen.name, width, "sideways")) test.info().annotations.push({ type: "known prototype issue", description: `${width}: scrolls sideways` });
+        else found.push(`${width}: scrolls sideways`);
+      }
+      if (l.overlaps.length) found.push(`${width}: overlap ${l.overlaps.slice(0, 3).join("; ")}`);
+      if (l.clipped.length) found.push(`${width}: cut-off text ${l.clipped.slice(0, 3).join("; ")}`);
+      const rule = COLUMNS[screen.name];
+      if (rule) {
+        const w = await page.evaluate(() => document.documentElement.clientWidth);
+        // Exactly on a breakpoint the app's own width (a pixel less than the window) decides; only check either side.
+        // The screen re-lays itself out a moment after the window changes: give it up to a second.
+        let n = rule.edges.includes(w) ? rule.expected(w) : await columnCount(page, rule.what);
+        for (let i = 0; i < 20 && n !== rule.expected(w); i++) {
+          await page.waitForTimeout(50);
+          n = await columnCount(page, rule.what);
+        }
+        if (n !== rule.expected(w)) found.push(`${width}: ${n} columns, the design says ${rule.expected(w)}`);
+      }
+    }
+    expect(found).toEqual([]);
+  });
+}
+
+// A short window (1280×600): the page scrolls, so every control can be brought into view and is not covered.
+for (const screen of SCREENS) {
+  test(`${screen.name}: in a short window (1280×600) the page scrolls to every control`, async ({ page }) => {
+    expectFailureUntilBuilt(screen.owner);
+    await page.setViewportSize({ width: 1280, height: 600 });
+    await openRoute(page, screen.route);
+    await screen.prepare?.(page, { playing: false });
+    const ignore = notLyre();
+    const unreachable = await page.evaluate((ignore) => {
+      const bad: string[] = [];
+      const controls = Array.from(document.querySelectorAll<HTMLElement>("main button, main a[href], main input, main select, main textarea"));
+      for (const e of controls) {
+        if (e.offsetParent === null || ignore.some((s) => e.closest(s)) || (e as HTMLButtonElement).disabled) continue;
+        const r0 = e.getBoundingClientRect();
+        if (r0.width === 0 || r0.height === 0 || getComputedStyle(e).visibility === "hidden") continue;
+        e.scrollIntoView({ block: "center", inline: "nearest" });
+        const r = e.getBoundingClientRect();
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        const inView = r.top >= -1 && r.bottom <= window.innerHeight + 1 && r.left >= -1 && r.right <= window.innerWidth + 1;
+        if (!inView || !hit || !(e === hit || e.contains(hit) || hit.contains(e))) bad.push((e.getAttribute("aria-label") ?? e.textContent ?? e.tagName).trim().slice(0, 40));
+      }
+      return bad.slice(0, 8);
+    }, ignore);
+    expect(unreachable, "controls that cannot be scrolled into view").toEqual([]);
   });
 }

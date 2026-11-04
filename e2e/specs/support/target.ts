@@ -86,3 +86,10 @@ export function notLyre(): string[] {
 export function knownAxeIssues(): string[] {
   return isApp() ? [] : ["label-content-name-mismatch"];
 }
+
+/** Layout findings the PROTOTYPE is known to have, kept on record as annotations so its run can pass. Empty for the app.
+ *  - Session planner, scene open, 600 px wide: the visually hidden " (Track)" label inside a long, ellipsised item
+ *    name sticks out 24 px to the right and the whole page scrolls sideways (fine from 640 px). */
+export function knownLayoutIssue(screen: string, width: number, kind: "sideways" | "overlap" | "clipped"): boolean {
+  return !isApp() && screen === "Session planner with a scene open" && kind === "sideways" && width < 640;
+}
