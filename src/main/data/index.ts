@@ -5,7 +5,7 @@
  * to IPC; the new interface (wave 3) will use it from the main process.
  * See docs/data-model.md.
  */
-export { openLibrary, restoreBackup, startDailyBackups, libraryFolder, type Library, type LibraryOptions } from "./library";
+export { openLibrary, restoreBackup, startDailyBackups, libraryFolder, isNetworkPath, type Library, type LibraryOptions } from "./library";
 export { listBackups, latestGoodBackup, findLatestGoodBackup, BACKUPS_TO_KEEP, type BackupInfo, type BackupKind } from "./backups";
 export { LibraryDatabaseError, LibraryBusyError, ValidationError, NotFoundError, type LibraryErrorCode } from "./errors";
 export { UndoHistory, type UndoState } from "./undo";

@@ -55,6 +55,43 @@ if (!library || !library.ok) {
 parentPort.postMessage({ library, latestGoodBackup });
 `;
 
+/** The opening of every worker's code: holds back Node's "SQLite is experimental" warning, as sqlite.ts does. */
+export const WORKER_PRELUDE = `
+const { parentPort, workerData } = require("worker_threads");
+const emitWarning = process.emitWarning;
+process.emitWarning = function (warning, ...rest) {
+  if (/sqlite/i.test(String((warning && warning.message) || warning))) return;
+  return emitWarning.call(process, warning, ...rest);
+};
+const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
+process.emitWarning = emitWarning;
+`;
+
+/**
+ * Runs `source` (after WORKER_PRELUDE; it posts one message) on a worker
+ * thread with `data` as workerData, and resolves to that message. Rejects if
+ * the worker fails or stops without answering. The worker never keeps the app
+ * running. Used for backups and WAL checkpoints (DB review 1, 6).
+ */
+export function runInWorker<T>(source: string, data: unknown): Promise<T> {
+  const worker = new Worker(WORKER_PRELUDE + source, { eval: true, workerData: data });
+  worker.unref();
+  return new Promise<T>((resolve, reject) => {
+    let settled = false;
+    worker.once("message", (message: T) => {
+      settled = true;
+      resolve(message);
+    });
+    worker.once("error", (error: Error) => {
+      settled = true;
+      reject(error);
+    });
+    worker.once("exit", () => {
+      if (!settled) reject(new Error("The background task stopped before it finished."));
+    });
+  });
+}
+
 /** What a check on the worker thread found. */
 export type BackgroundCheck = {
   /** The library's result, or null when only backups were checked. */

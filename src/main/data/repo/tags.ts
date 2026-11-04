@@ -130,12 +130,10 @@ function untagInBatches(store: Store, label: string, tagIds: string[], finish: (
   const tracks = store
     .all<{ track_id: string }>("SELECT DISTINCT track_id FROM track_tags WHERE tag_id IN (SELECT value FROM json_each(?))", list)
     .map((row) => row.track_id);
+  // One key look-up per row (track_tags' primary key), never a scan of every tagging.
+  const untag = `DELETE FROM track_tags WHERE track_id = ? AND tag_id IN (${placeholders(tagIds.length)})`;
   return store.changeInBatches(label, tracks, (batch, last) => {
-    store.run(
-      "DELETE FROM track_tags WHERE track_id IN (SELECT value FROM json_each(?)) AND tag_id IN (SELECT value FROM json_each(?))",
-      JSON.stringify(batch),
-      list,
-    );
+    for (const trackId of batch) store.run(untag, trackId, ...tagIds);
     if (last) finish();
   });
 }
@@ -339,19 +337,12 @@ export function mergeTags(store: Store, sourceIds: string[], targetId: string): 
     .map((row) => row.track_id);
   return store
     .changeInBatches(`Merge ${plural(sources.length, "tag")} into "${target.name}"`, tracks, (batch, last) => {
-      const these = JSON.stringify(batch);
-      store.run(
-        `INSERT OR IGNORE INTO track_tags (track_id, tag_id)
-         SELECT DISTINCT track_id, ? FROM track_tags WHERE track_id IN (SELECT value FROM json_each(?)) AND tag_id IN (SELECT value FROM json_each(?))`,
-        target.id,
-        these,
-        list,
-      );
-      store.run(
-        "DELETE FROM track_tags WHERE track_id IN (SELECT value FROM json_each(?)) AND tag_id IN (SELECT value FROM json_each(?))",
-        these,
-        list,
-      );
+      // Every track listed carries a source tag: it gets the target and loses the sources.
+      const untag = `DELETE FROM track_tags WHERE track_id = ? AND tag_id IN (${placeholders(sources.length)})`;
+      for (const trackId of batch) {
+        store.run("INSERT OR IGNORE INTO track_tags (track_id, tag_id) VALUES (?, ?)", trackId, target.id);
+        store.run(untag, trackId, ...sources.map((source) => source.id));
+      }
       if (!last) return;
       for (const source of sources) {
         // Rules naming the source name the target (same group); in another group the source's values just go.

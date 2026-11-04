@@ -29,7 +29,6 @@
 import { randomUUID } from "crypto";
 import path from "path";
 import type { Library } from "../library";
-import { writeBackup } from "../backups";
 import type { Store } from "../store";
 import type { PlaylistsState } from "../../../player/features/playlists/playlistsSlice";
 import type { SoundboardsState } from "../../../player/features/soundboards/soundboardsSlice";
@@ -353,7 +352,7 @@ export async function importLegacyLibrary(library: Library, raw: unknown, option
   // 1. A backup first, then the job's record (a resumed move keeps the first backup).
   let backupPath: string | null = job ? (JSON.parse(job.detail).backupPath ?? null) : null;
   if (!job) {
-    backupPath = writeBackup(store.db, library.backupFolder, "before-import", store.now()).path;
+    backupPath = (await library.backupBeforeImport()).path;
     store.changeWithoutHistory(() =>
       store.run(
         "INSERT INTO library_jobs (name, state, detail, started_at) VALUES (?, 'running', ?, ?)",

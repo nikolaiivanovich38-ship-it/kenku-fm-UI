@@ -6,6 +6,12 @@
  * written under a temporary ".part" name, checked (PRAGMA quick_check), then
  * renamed, so a half-written copy never looks like a backup.
  *
+ * Daily, "Back up now" and before-import copies are made on a worker thread
+ * (`backUpInBackground`), from its own read-only connection: a copy of a large
+ * library takes about 0.3 s, longer than the 200 ms of sound Discord's queue
+ * holds on the main process (DB review 1). The copy before a schema upgrade is
+ * made while opening (`writeBackup`), before anything plays.
+ *
  * Kinds, each keeping its newest 14 copies:
  * - daily: at most one per calendar day (local time);
  * - manual: "Back up now";
@@ -19,7 +25,7 @@
 import fs from "fs";
 import path from "path";
 import { LibraryDatabaseError } from "./errors";
-import { checkInBackground } from "./integrity";
+import { checkInBackground, runInWorker } from "./integrity";
 import { openConnection, type DatabaseSync } from "./sqlite";
 
 export const BACKUPS_TO_KEEP = 14;
@@ -147,9 +153,67 @@ export function writeBackup(db: DatabaseSync, folder: string, label: string, now
   return { path: finalPath, kind, createdAt: listBackups(folder).find((b) => b.path === finalPath)?.createdAt ?? now };
 }
 
-/** Makes today's daily backup unless there already is one; returns it, or null. */
-export function writeDailyBackupIfDue(db: DatabaseSync, folder: string, now: number): BackupInfo | null {
+/** Copies the library and checks the copy, on the worker thread: { ok, detail }. */
+const BACKUP_WORKER = `
+let ok = false;
+let detail = "";
+let db;
+try {
+  db = new DatabaseSync(workerData.library, { readOnly: true });
+  db.exec("PRAGMA busy_timeout = 5000");
+  db.prepare("VACUUM INTO ?").run(workerData.part);
+  db.close();
+  db = new DatabaseSync(workerData.part, { readOnly: true });
+  const rows = db.prepare("PRAGMA quick_check(1)").all();
+  ok = rows.length === 1 && rows[0].quick_check === "ok";
+  if (!ok) detail = "The new backup did not pass its check.";
+} catch (error) {
+  detail = String((error && error.message) || error);
+} finally {
+  if (db && db.isOpen) db.close();
+}
+parentPort.postMessage({ ok, detail });
+`;
+
+/**
+ * Writes a checked copy of the library file at `databasePath` into `folder`
+ * on a worker thread (DB review 1); the main process only names, renames and
+ * prunes files. The library may be in use meanwhile: the copy is of the
+ * moment the worker starts reading.
+ * @param label "daily", "manual" or "before-import"
+ */
+export async function backUpInBackground(databasePath: string, folder: string, label: string, now: number): Promise<BackupInfo> {
+  const finalPath = path.join(folder, `library-${label}-${localStamp(now)}.sqlite`);
+  const partPath = `${finalPath}.part`;
+  const failed = (error: unknown) => {
+    try {
+      fs.rmSync(partPath, { force: true });
+    } catch {
+      // The folder itself may be unusable; the error below says so.
+    }
+    return new LibraryDatabaseError(
+      "backup-failed",
+      `Lyre could not back up your library to ${folder}. ` + (error instanceof Error ? error.message : String(error)),
+      { cause: error },
+    );
+  };
+  try {
+    if (!fs.existsSync(databasePath)) throw new Error("The library file was not found.");
+    await fs.promises.mkdir(folder, { recursive: true });
+    await fs.promises.rm(partPath, { force: true });
+    const result = await runInWorker<{ ok: boolean; detail: string }>(BACKUP_WORKER, { library: databasePath, part: partPath });
+    if (!result.ok) throw new Error(result.detail);
+    await fs.promises.rename(partPath, finalPath);
+  } catch (error) {
+    throw failed(error);
+  }
+  const kind = kindOfLabel(label);
+  pruneBackups(folder, kind);
+  return { path: finalPath, kind, createdAt: listBackups(folder).find((b) => b.path === finalPath)?.createdAt ?? now };
+}
+
+/** True when there is already a daily backup for the local day of `now`. */
+export function dailyBackupDone(folder: string, now: number): boolean {
   const today = localDate(now);
-  const done = listBackups(folder).some((backup) => backup.kind === "daily" && localDate(backup.createdAt) === today);
-  return done ? null : writeBackup(db, folder, "daily", now);
+  return listBackups(folder).some((backup) => backup.kind === "daily" && localDate(backup.createdAt) === today);
 }
