@@ -201,3 +201,44 @@ Run the packaged app (or `yarn start` for the development policy) with DevTools 
 6. Turn an external input on and off several times; close and reopen a tab that plays sound several times. Audio keeps working.
 7. With the remote enabled, call `GET /v1/playlist/playback` from two clients at the same time (or press two Stream Deck buttons together): both get an answer; with the player tab closed, requests return 503 as before.
 8. Trigger the error screen (or call `window.kenku.removeAllBrowserViews()` from the main window's DevTools): tab audio stops being sent to Discord.
+
+## WP2 Tabs
+
+### In plain language
+
+**Files from your computer (SEC-15).** You can open a file from your computer in a tab, for example a map or a page of notes saved as HTML: type its address (`file:///C:/Maps/dungeon.html`) or paste its path (`C:\Maps\dungeon.html`) into the address bar, or open a bookmark to it. Cue Desk then asks "Open this file from your computer?" and shows the full path. Choose Open or Cancel (Cancel is the default). If you tick "Don't ask again for files in …", files in that folder open straight away from then on; Settings > Local files lists those folders, and the cross next to one makes Cue Desk ask again. Files in a shared network folder (`\\server\share`) are never opened.
+
+Only you can open a file. A website cannot open, link to, redirect to or pop up a file from your computer. A file opens in a tab of its own, kept apart from websites, with no more permissions than a website. If the file links to a web page, the web page opens in a new website tab; links to other files do nothing.
+
+**Your own windows cannot record the screen (SEC-16).** Cue Desk's own windows may use your audio devices, but nothing can use them to record your screen.
+
+### Technical details
+
+**Local files (SEC-15).** `urlPolicy.ts` stays the one place that decides. `checkTabUrl` (popups, `will-navigate`, `will-redirect`, `BROWSER_VIEW_LOAD_URL`, view creation) still allows web pages only. `checkTypedTabUrl` (address bar, bookmark editor, opening a bookmark) returns a third kind of result, `{ ok: "ask", kind: "local-file", url }` (`isLocalFile`), for a file address or a pasted Windows (`C:\…`) or absolute (`/…`) path. `checkLocalFileUrl` refuses a host (`file://server/…`, code `network-file`), a UNC path (`file:////server/…`) and encoded separators (`%2F`, `%5C`). The renderer sends such an address on `BROWSER_VIEW_OPEN_LOCAL_FILE`; the main process re-checks it (`LocalFileGate` in `src/main/security/localFiles.ts`), converts it with `fileURLToPath`, and unless the file is inside a remembered folder shows `dialog.showMessageBox` on the main window (Open / Cancel, Cancel default, checkbox "Don't ask again for files in <folder>"). The answer never comes from a page. Remembered folders (never a drive root) are saved by the main process in `local-files.json` in the data folder (`localFileStore.ts`, opened on first use). A file opens in a new `WebContentsView` in `LOCAL_FILE_PARTITION` (`persist:local-files`), with no preload and the same permission handlers as website tabs (role `null`: `fullscreen` only), cleared by "Clear cache". `guardLocalFileTab` cancels every cross-document navigation and main-frame redirect in a file's tab; http(s) links and popups go through the popup rate limiter to a new website tab, anything else is dropped. `BROWSER_VIEW_LOAD_URL` is refused for a file's tab, so files and websites never share a tab: the renderer opens the other kind in a new view that takes the old tab's place (`replaceTab`).
+
+**App pages and screen capture (SEC-16).** Probe on Electron 44 under xvfb (WP2): `getUserMedia({ audio: { deviceId } })` from an app page, with a plain or `exact` deviceId, reaches the permission request handler as `mediaTypes: ["audio"]`; `chromeMediaSource: "desktop"` (screen capture) arrives as `[]`. `isPermissionAllowed` therefore refuses an empty list for `main-window` and `audio-capture` (a permission check without a media type, `undefined`, is still allowed for device enumeration). Tab capture is unaffected: it is raised on the captured page and decided by `captureTargets.isCaptureRequest` first. `e2e/screenCapture.spec.ts` checks both windows get `NotAllowedError`.
+
+**Hidden tabs (PERF-5).** Because every website tab is captured for Discord, Chromium keeps a hidden tab "visible" and Page Lifecycle freezing has no effect on it (probed). `TabSleep` (`src/main/managers/tabSleep.ts`) marks a website or file tab that has been hidden, silent (`audio-state-changed`) and without playing media (`media-started-playing` / `media-paused`) for 60 seconds; `BrowserViewManagerMain` then attaches `webContents.debugger` and sends `Emulation.setCPUThrottlingRate { rate: 10 }`, and on showing the tab or when it makes sound sends rate 1 and detaches. The player view is never slowed. Test builds read `CUE_DESK_TAB_SLEEP_MS`.
+
+| Rule | File | Tests |
+|---|---|---|
+| Local-file confirmation and remembered folders (SEC-15) | `src/main/security/localFiles.ts`, `localFileStore.ts` | `localFiles.test.ts`, `BrowserViewManagerMain.test.ts`, `e2e/localFiles.spec.ts` |
+| Local-file tab partition (SEC-15) | `src/main/security/partitions.ts`, `sessions.ts` | `sessions.test.ts` |
+| Local-file tab navigation guard (SEC-15) | `src/main/security/navigationGuards.ts` (`guardLocalFileTab`) | `navigationGuards.test.ts` |
+| App pages: no screen capture (SEC-16) | `src/main/security/permissions.ts` | `permissions.test.ts`, `sessions.test.ts`, `e2e/screenCapture.spec.ts` |
+
+### Channels
+
+| Channel | Sent by | Arguments | Handled in |
+|---|---|---|---|
+| `BROWSER_VIEW_OPEN_LOCAL_FILE` (invoke) | Main window | url: text ≤ 2 MB; x, y, width, height: finite numbers. Answers the view id, or -1 when the address is not a local file or the user said no | `BrowserViewManagerMain` |
+| `LOCAL_FILES_LIST_FOLDERS` (invoke) | Main window | none. Answers the remembered folders | `BrowserViewManagerMain` |
+| `LOCAL_FILES_FORGET_FOLDER` (invoke) | Main window | folder: text ≤ 32767. Answers the folders still remembered | `BrowserViewManagerMain` |
+
+### Manual checks (Windows)
+
+1. Save a small `.html` file in a folder, paste its path (for example `C:\Users\you\Documents\map.html`) into the address bar of a tab and press Enter: "Open this file from your computer?" appears with the full path. Cancel: nothing opens. Again, Open: the file opens in the tab.
+2. Open it once more and tick "Don't ask again…": later files in that folder open without the question. Settings > Local files lists the folder; click the cross: the question comes back.
+3. Type `\\anyserver\share\x.html`: a message says network folders are not opened.
+4. Open YouTube in a tab, start a video, switch to another tab and wait two minutes: the sound keeps reaching Discord. Leave a silent website tab in the background for a few minutes, then switch to it: it works normally.
+5. With an external input switched on (Settings > External Inputs), the input still reaches Discord.
