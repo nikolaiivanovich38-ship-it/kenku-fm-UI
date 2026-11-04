@@ -63,3 +63,18 @@ Every test also fails if any page logged a console error, threw an uncaught erro
 - Fixed during WP1: error messages used to sit at the bottom left, over the Settings panel's Done button, and were hidden from screen readers while Settings was open. They now appear at the top centre, outside the app root (`ErrorToast`), and `settings.spec.ts` checks both.
 - The shuffle button does not say whether shuffle is on (no `aria-pressed`); the test reads the icon colour. The custom-background address field's label is on its wrapper, not on the input.
 - Closing a website tab while its capture is still starting no longer logs "Unable to start stream for web view" (fixed in WP1); `tabs.spec.ts` still waits briefly before closing tabs.
+
+## Current player fixes (WPL)
+
+Fixes to the current player (`src/player`), which the new interface replaces later.
+
+| Test file | What it covers |
+| --- | --- |
+| `features/idleWakeUps.test.tsx` | PERF-1: counts every timer and animation-frame callback (`test/countWakeUps.ts`) over a minute of fake time with both playback hooks mounted. Before: 3,750 a minute with nothing played, 7,500 with a track paused or playing. Now: none when idle (at most one last tick after a pause or stop), one a second while a track plays. |
+| `features/remoteListeners.test.tsx` | PERF-1: the remote API listeners are registered once (before: 311 re-registrations in one minute of playback) and still answer with the current state and call the current callbacks. |
+| `app/throttledStorage.test.ts`, `app/store.test.ts` | PERF-6: while the mouse button or a key is held (a slider drag), the library and player settings are saved at most once a second, and the final value as soon as the user lets go (or the page loses focus, is hidden or reloads). Other changes are saved at once, as before. Before: 100 saves for a 3-second, 100-step drag; now 4. |
+| `playlists/usePlaylistPlayback.test.tsx` ("deleting the playing track"), `playlists/TrackItem.test.tsx` | BUG-8: deleting the playing track, or its playlist, stops and unloads it and clears the player bar; nothing (play key, remote, next) can resume it; a track still loading after a skip carries on. |
+
+End-to-end: `playlists.spec.ts` also checks that the player bar shows no title, time or media-key metadata after the playing track is deleted and that another track then plays; `persistence.spec.ts` checks that a volume change and a rename made just before quitting are kept.
+
+Saving is not delayed outside a held button or key because Electron destroys the player view without running its `pagehide` or `beforeunload` handlers when the app quits (`BrowserViewManagerMain.removeAllBrowserViews` closes and destroys at once), so a held-back save would be lost.
