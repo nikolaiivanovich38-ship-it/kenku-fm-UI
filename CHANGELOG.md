@@ -24,8 +24,16 @@ All notable changes to Cue Desk. Versions follow [Semantic Versioning](https://s
 - Error and warning messages stay on screen until you close them; success messages still go away by themselves. Screen readers announce errors straight away and other messages politely.
 - Dragging a link onto the address bar or a bookmark's address field puts the link in the field.
 - Audio files are recognised by their extension too, so files such as .m4a, .flac and .opus are no longer turned away. [BUG-10]
+- The remote API's "get" requests (used by Stream Deck buttons) answer correctly when several arrive at once, and the soundboard list is no longer out of date after you edit a soundboard. [PERF-9]
+- Closing a tab or switching off an input device frees its audio processing, so long sessions stay lighter. [PERF-5]
+- The player and the main window load once at start-up instead of twice.
+- The Cue Desk icon shows in the window and taskbar on Linux.
 
 **Security**
+- Built on Electron 44 (Chromium 152), which receives security fixes. Kenku FM 1.5.5 uses Electron 37, which no longer does. Sites with copy protection (DRM), such as Spotify, no longer play in tabs; see Known limitations in the README. [SEC-1]
+- The app files are packed and checked at start-up, and debugging switches that could let another program take control of the app are turned off. [SEC-13]
+- The app's internal messages are accepted only from the app's own pages, and each page loads only the app's own code (Content Security Policy). [SEC-8, SEC-11]
+- The hidden window that sends sound to Discord runs in the browser's sandbox. [SEC-12]
 - The internal audio link can no longer be reached by other computers on your network. [SEC-2]
 - Websites in tabs can no longer use your microphone, camera, location or devices; such requests are refused without asking you. [SEC-3]
 - Websites in tabs now keep their logins separately from the app. Logins are not carried over from Kenku FM, so log in to websites in tabs again once. [SEC-3]
@@ -37,7 +45,7 @@ All notable changes to Cue Desk. Versions follow [Semantic Versioning](https://s
 - Libraries with known security problems were updated (ws, undici, react-router). The remote-control server library (fastify 4) is still to be upgraded; until then its known issues are listed and tracked. [SEC-9]
 
 **Behind the scenes**
-- Automated tests for the fixes above, written before each fix. [FND-4]
+- Automated tests for the fixes above, written before each fix, and end-to-end tests that start the packaged app, including sending a page's sound towards Discord. [FND-4]
 - Every change is now checked automatically on GitHub: type check, lint, tests with coverage, a dependency security audit, a scan for leaked passwords and CodeQL security analysis. [FND-5]
 - Windows installers are built on GitHub and attached to a draft release for review before publishing. [FND-5]
 - Release checklist, architecture notes and a developer guide added. [FND-6]

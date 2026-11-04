@@ -11,8 +11,7 @@
 # Two jobs: "build" has read-only access to the repository; "publish" holds
 # the only write permission and does nothing but attach the built files.
 #
-# Builds are UNSIGNED: no castlabs EVS (Widevine) signature and no Windows
-# code-signing certificate. Windows SmartScreen will warn on first install.
+# Builds are UNSIGNED: no Windows code-signing certificate. Windows SmartScreen will warn on first install.
 # Upstream's signed flow is kept in publish/ for later; see docs/DEVELOPING.md.
 #
 # The draft stays invisible to users and to automatic updates until the

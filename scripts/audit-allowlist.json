@@ -1,6 +1,6 @@
 {
   "$comment": "Accepted high/critical advisories for scripts/audit-check.mjs (FND-5). Each entry needs id (GHSA), package, reason and the backlog item that removes it; reviewBy (YYYY-MM-DD) is optional and the gate fails once that date has passed. The gate audits the shipped libraries (dependencies) and Electron, which package.json lists as a devDependency but which is the runtime every user runs. Review at every release (docs/RELEASE_CHECKLIST.md).",
-  "reviewed": "2026-11-03",
+  "reviewed": "2026-11-04",
   "entries": [
     {
       "id": "GHSA-667r-xxjv-c9mm",
@@ -49,114 +49,6 @@
       "title": "find-my-way: DDoS with HTTP2",
       "reason": "fastify 4 router; the advisory needs HTTP/2, which the remote-control server does not enable. Goes away with fastify 5.",
       "backlog": "SEC-9 (WP6)"
-    },
-    {
-      "id": "GHSA-532v-xpq5-8h95",
-      "package": "electron",
-      "severity": "high",
-      "title": "Electron: Use-after-free in offscreen child window paint callback",
-      "reason": "Electron 37 is end-of-life; fixed by upgrading Electron (SEC-1, WP1)",
-      "backlog": "SEC-1",
-      "reviewBy": "2026-12-15"
-    },
-    {
-      "id": "GHSA-8337-3p73-46f4",
-      "package": "electron",
-      "severity": "high",
-      "title": "Electron: Use-after-free in WebContents fullscreen, pointer-lock, and keyboard-lock permission callbacks",
-      "reason": "Electron 37 is end-of-life; fixed by upgrading Electron (SEC-1, WP1)",
-      "backlog": "SEC-1",
-      "reviewBy": "2026-12-15"
-    },
-    {
-      "id": "GHSA-9f4c-93c8-jc8g",
-      "package": "electron",
-      "severity": "high",
-      "title": "Electron: Sandboxed iframe can bypass the allow-popups restriction via the OpenURL navigation path",
-      "reason": "Electron 37 is end-of-life; fixed by upgrading Electron (SEC-1, WP1)",
-      "backlog": "SEC-1",
-      "reviewBy": "2026-12-15"
-    },
-    {
-      "id": "GHSA-9qh4-3jw8-366w",
-      "package": "electron",
-      "severity": "high",
-      "title": "Electron: <webview> can enable Node.js integration in Web Workers despite embedder restrictions",
-      "reason": "Electron 37 is end-of-life; fixed by upgrading Electron (SEC-1, WP1)",
-      "backlog": "SEC-1",
-      "reviewBy": "2026-12-15"
-    },
-    {
-      "id": "GHSA-9wfr-w7mm-pc7f",
-      "package": "electron",
-      "severity": "high",
-      "title": "Electron: Renderer command-line switch injection via undocumented commandLineSwitches webPreference",
-      "reason": "Electron 37 is end-of-life; fixed by upgrading Electron (SEC-1, WP1)",
-      "backlog": "SEC-1",
-      "reviewBy": "2026-12-15"
-    },
-    {
-      "id": "GHSA-gr2m-v5gq-v685",
-      "package": "electron",
-      "severity": "high",
-      "title": "Electron: Windows opened from a sandboxed top-level document do not inherit its sandbox restrictions",
-      "reason": "Electron 37 is end-of-life; fixed by upgrading Electron (SEC-1, WP1)",
-      "backlog": "SEC-1",
-      "reviewBy": "2026-12-15"
-    },
-    {
-      "id": "GHSA-h7rp-cf8h-j98x",
-      "package": "electron",
-      "severity": "high",
-      "title": "Electron: Context isolation bypass via Function.prototype.bind hijack",
-      "reason": "Electron 37 is end-of-life; fixed by upgrading Electron (SEC-1, WP1)",
-      "backlog": "SEC-1",
-      "reviewBy": "2026-12-15"
-    },
-    {
-      "id": "GHSA-hq2x-r82h-9wj4",
-      "package": "electron",
-      "severity": "high",
-      "title": "Electron drops inherited HTML sandbox restrictions for popups opened through OpenURLFromTab",
-      "reason": "Electron 37 is end-of-life; fixed by upgrading Electron (SEC-1, WP1)",
-      "backlog": "SEC-1",
-      "reviewBy": "2026-12-15"
-    },
-    {
-      "id": "GHSA-j84w-jfhq-vhvj",
-      "package": "electron",
-      "severity": "high",
-      "title": "Electron: File and HTTP protocol handlers allow cross-origin reads without corsEnabled",
-      "reason": "Electron 37 is end-of-life; fixed by upgrading Electron (SEC-1, WP1)",
-      "backlog": "SEC-1",
-      "reviewBy": "2026-12-15"
-    },
-    {
-      "id": "GHSA-jjp3-mq3x-295m",
-      "package": "electron",
-      "severity": "high",
-      "title": "Electron: Use-after-free in PowerMonitor on Windows and macOS",
-      "reason": "Electron 37 is end-of-life; fixed by upgrading Electron (SEC-1, WP1)",
-      "backlog": "SEC-1",
-      "reviewBy": "2026-12-15"
-    },
-    {
-      "id": "GHSA-jr5w-w6x2-84p9",
-      "package": "electron",
-      "severity": "high",
-      "title": "Electron: Mitigation for compromised eMudhra intermediate certificates",
-      "reason": "Electron 37 is end-of-life; fixed by upgrading Electron (SEC-1, WP1)",
-      "backlog": "SEC-1",
-      "reviewBy": "2026-12-15"
-    },
-    {
-      "id": "GHSA-v3j7-r9gq-3gjw",
-      "package": "electron",
-      "severity": "high",
-      "title": "Electron: Custom protocol with supportFetchAPI but not corsEnabled allows cross-origin reads",
-      "reason": "Electron 37 is end-of-life; fixed by upgrading Electron (SEC-1, WP1)",
-      "backlog": "SEC-1",
-      "reviewBy": "2026-12-15"
     }
   ]
 }

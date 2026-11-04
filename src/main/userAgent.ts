@@ -7,7 +7,7 @@ const platformMap: Record<string, string> = {
 };
 
 /**
- * SEC-1: Chromium version of the bundled Electron (44.9.0). Used only when
+ * SEC-1: Chromium version of the bundled Electron (44.9.2). Used only when
  * not running inside Electron (unit tests); update it with Electron.
  */
 export const FALLBACK_CHROME_VERSION = "152.0.7977.167";

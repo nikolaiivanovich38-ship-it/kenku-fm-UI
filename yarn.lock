@@ -3936,10 +3936,10 @@ electron-winstaller@^5.3.0:
   optionalDependencies:
     "@electron/windows-sign" "^1.1.2"
 
-electron@44.9.0:
-  version "44.9.0"
-  resolved "https://registry.yarnpkg.com/electron/-/electron-44.9.0.tgz#540c3050b23b3b6e5191201c804e9f4887842140"
-  integrity sha512-boP8zA5OIoMGYe3uWP4IqB1VJNoEzdHYgcBaVYnd1DBv5TogwXkbM4yJGSfNmYCzalVQ5J3TAIbaKOY+ILTnyg==
+electron@44.9.2:
+  version "44.9.2"
+  resolved "https://registry.yarnpkg.com/electron/-/electron-44.9.2.tgz#d83aeebfb00db2ba5a3c44645e8c38357aba13e5"
+  integrity sha512-mZ79mSsjLlgU91Uck3UhDcI0AU/draTkS+qsSnasZstNYitsdHr5XeIK3b6I6RkLqVe07QHeYVRZnQVTHL/9Lg==
   dependencies:
     "@electron-internal/extract-zip" "^1.0.1"
     "@electron/get" "^5.0.0"

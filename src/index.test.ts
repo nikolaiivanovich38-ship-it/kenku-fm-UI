@@ -125,7 +125,9 @@ type FakeWindow = {
     id: number;
     windowOpenHandler?: (d: { url: string }) => { action: string };
     emit: (event: string, ...args: unknown[]) => boolean;
+    setUserAgent: ReturnType<typeof vi.fn>;
   };
+  loadURL: ReturnType<typeof vi.fn>;
 };
 const mainWindow = () => state.windows[0] as FakeWindow;
 
@@ -141,6 +143,13 @@ describe("start-up order (FND-1)", () => {
 });
 
 describe("main window (SEC-10, SEC-7, SEC-3)", () => {
+  it("sets its user agent before loading, so the page loads once", () => {
+    const window = mainWindow();
+    const setAgent = window.webContents.setUserAgent.mock.invocationCallOrder[0];
+    const load = window.loadURL.mock.invocationCallOrder[0];
+    expect(setAgent).toBeLessThan(load);
+  });
+
   it("opens https links from the main window in the system browser", () => {
     state.openExternal.mockClear();
     expect(

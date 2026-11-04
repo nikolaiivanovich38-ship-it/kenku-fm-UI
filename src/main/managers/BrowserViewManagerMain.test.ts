@@ -120,6 +120,18 @@ describe("BrowserViewManagerMain: tab URL policy (SEC-6)", () => {
     expect(view.webContents.loadURL).toHaveBeenCalledWith("https://www.youtube.com/");
   });
 
+  it.each([
+    ["a website tab", "https://www.youtube.com/", undefined],
+    ["the player", PLAYER_URL, "player"],
+  ] as const)("sets the user agent of %s before loading, so it loads once", (_, url, kind) => {
+    const { create } = setup();
+    const { view } = create(url, kind);
+    const setAgent = view.webContents.setUserAgent.mock.invocationCallOrder[0];
+    const load = view.webContents.loadURL.mock.invocationCallOrder[0];
+    expect(load).toBeDefined();
+    expect(setAgent).toBeLessThan(load);
+  });
+
   it.each(["file:///etc/passwd", "chrome://gpu", "javascript:alert(1)", "steam://run/1"])(
     "refuses to open a tab at %j and tells the user",
     (url) => {

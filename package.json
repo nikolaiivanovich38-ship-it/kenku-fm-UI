@@ -72,7 +72,7 @@
     "@types/uuid": "^10.0.0",
     "@vitest/coverage-v8": "4.1.12",
     "css-loader": "^6.6.0",
-    "electron": "44.9.0",
+    "electron": "44.9.2",
     "electron-installer-dmg": "^5.0.1",
     "eslint": "10.13.0",
     "eslint-plugin-react-hooks": "7.1.1",

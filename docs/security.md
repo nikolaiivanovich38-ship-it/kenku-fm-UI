@@ -10,7 +10,7 @@ Cue Desk opens websites (YouTube, Tabletop Audio, Spotify and so on) in tabs ins
 
 **Pop-ups.** When a website opens a new window, Cue Desk opens it as a new tab instead, but only if the address is allowed, and at most 3 new tabs from the same tab every 10 seconds. Anything beyond that is ignored.
 
-**Microphone, camera and other permissions.** Websites in tabs are refused, without being asked, if they try to use your microphone or camera, show notifications, see your location, or open other programs. They can still go full screen and play protected music. Cue Desk's own pages may use audio devices only, which they need to send sound to Discord and to list your input devices.
+**Microphone, camera and other permissions.** Websites in tabs are refused, without being asked, if they try to use your microphone or camera, show notifications, see your location, or open other programs. They can still go full screen. Cue Desk's own pages may use audio devices only, which they need to send sound to Discord and to list your input devices.
 
 **Logins.** Websites in tabs keep their own cookies and logins, separate from Cue Desk's settings. Website logins are not carried over from Kenku FM, so you will need to log in to websites in tabs again once. "Clear cache" in Settings now clears website data as well.
 

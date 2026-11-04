@@ -60,7 +60,7 @@ On Windows, Cue Desk checks this project's [Releases](https://github.com/nikolai
 
 ## Known limitations
 
-- Sites that use copy protection (DRM), such as Spotify, may not play in tabs. Upstream Kenku FM pays for a signing service that these sites require; this fork does not have it yet.
+- Sites that use copy protection (DRM), such as Spotify, do not play in tabs. Upstream Kenku FM is built on a special version of Electron that supports it; Cue Desk uses the standard version, which receives security updates for longer.
 - The player's background pictures are blank. Upstream's pictures are kept in a private repository.
 
 ## Help

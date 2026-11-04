@@ -11,6 +11,7 @@ import {
 import "./menu";
 import icon from "./assets/icon.png";
 import { getUserAgent } from "./main/userAgent";
+import { bundledAssetPath } from "./main/bundledAsset";
 import { SessionManager } from "./main/managers/SessionManager";
 import { runAutoUpdate } from "./autoUpdate";
 import { getSavedBounds, saveWindowBounds } from "./bounds";
@@ -52,7 +53,7 @@ const createWindow = (): BrowserWindow => {
     },
     titleBarStyle: "hidden",
     trafficLightPosition: { x: 16, y: 18 },
-    icon: icon,
+    icon: bundledAssetPath(icon, __dirname),
     minWidth,
     minHeight,
     ...bounds,
@@ -68,6 +69,9 @@ const createWindow = (): BrowserWindow => {
     onWindowOpen: (url) => openExternalIfAllowed(url, shell.openExternal),
   });
 
+  // Spoof user agent for window.navigator. Set before loading: changing it
+  // during a load restarts the load.
+  mainWindow.webContents.setUserAgent(getUserAgent());
   // and load the index.html of the app.
   mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
 
@@ -78,9 +82,6 @@ const createWindow = (): BrowserWindow => {
     session.destroy();
     session = new SessionManager(mainWindow);
   });
-
-  // Spoof user agent for window.navigator
-  mainWindow.webContents.setUserAgent(getUserAgent());
 
   // Prevent app suspension for Kenku FM to avoid playback issues
   const powerSaveBlockerId = powerSaveBlocker.start("prevent-app-suspension");

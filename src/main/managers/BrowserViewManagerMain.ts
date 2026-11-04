@@ -227,14 +227,15 @@ export class BrowserViewManagerMain {
       height,
     });
 
+    // Spoof user agent to fix compatibility issues with 3rd party apps.
+    // Set before loading: changing it during a load restarts the load.
+    view.webContents.setUserAgent(getUserAgent());
+
     if (kind === "player") {
       this._load(view, url);
     } else {
       this._loadTabUrl(view, url);
     }
-
-    // Spoof user agent to fix compatibility issues with 3rd party apps
-    view.webContents.setUserAgent(getUserAgent());
 
     this.views[view.webContents.id] = view;
     this.topView = view;
