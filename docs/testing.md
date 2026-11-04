@@ -55,6 +55,7 @@ These Playwright tests start the packaged app and use it the way a person would,
 | `e2e/remote.spec.ts` | Remote switched on in Settings on a free port; `GET /v1/playlist`, `PUT /v1/playlist/play` (track and playlist), `GET /v1/playlist/playback`, `PUT /v1/playlist/playback/pause` and `/play`, `GET /v1/soundboard`, `PUT /v1/soundboard/play`, `GET /v1/soundboard/playback`, `PUT /v1/soundboard/stop`, each checked against the player; switching it off closes the port. |
 | `e2e/carryOver.spec.ts` | FND-1: a library made in `<appData>/Kenku FM` appears in Cue Desk on its first normal start, the carry-over record says "copied", and later changes in Cue Desk leave the Kenku FM library alone (Linux only, where `XDG_CONFIG_HOME` moves appData). |
 | `e2e/capture.spec.ts` | Tab audio capture for Discord (SEC-3). |
+| `e2e/backgrounds.spec.ts` | Kenku FM background pictures: a fake Kenku FM install (a generated PNG and a minimal `player_window/index.js`) in a temporary folder named by `CUE_DESK_LOCAL_APP_DATA_DIR` is copied into `<userData>/backgrounds`; a new playlist with the "tavern" background shows the copied picture on its card and as the open playlist's page background; the same from an install packed in `app.asar`; without Kenku FM only "blank" is offered. |
 
 Every test also fails if any page logged a console error, threw an uncaught error, broke a Content-Security-Policy rule or was refused by the IPC guard, or if the main process crashed (`e2e/fixtures/problems.ts`).
 

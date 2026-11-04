@@ -132,6 +132,12 @@ export const IPC_CHANNELS = {
   PLAYER_REMOTE_PLAYLIST_PLAYBACK_REPLY: { from: PLAYER, args: argsMatch(isPlainObject, isRequestId) },
   PLAYER_REMOTE_SOUNDBOARD_GET_ALL_REPLY: { from: PLAYER, args: argsMatch(isPlainObject, isRequestId) },
   PLAYER_REMOTE_SOUNDBOARD_PLAYBACK_REPLY: { from: PLAYER, args: argsMatch(isPlainObject, isRequestId) },
+
+  // --- Kenku FM backgrounds (fix/kenku-backgrounds) ---
+  // src/main/legacyBackgrounds: the player asks (sync, while it loads) for the
+  // background pictures in <userData>/backgrounds. A refusal gets no pictures,
+  // so the player shows its blank background.
+  PLAYER_GET_BACKGROUNDS: { from: PLAYER, args: noArgs, refusedReturnValue: {} },
 } satisfies Record<string, IpcChannelRule>;
 
 export type IpcChannel = keyof typeof IPC_CHANNELS;
