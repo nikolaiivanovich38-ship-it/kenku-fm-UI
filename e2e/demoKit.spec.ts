@@ -58,8 +58,10 @@ async function addKitTrack(page: Page, filePath: string, cueTitle: string): Prom
   await page.getByRole("button", { name: "Add Track" }).click();
   const dialog = page.getByRole("dialog", { name: "Add Track" });
   await chooseAudioFile(page, dialog, filePath);
-  // Lyre capitalises each word of a file name ("Tavern Warmth - Lute-Like Plucks, …").
-  await expect(dialog.getByLabel("Name")).toHaveValue(new RegExp(`^${cueTitle} - `));
+  // Lyre keeps the file name exactly as written, cue notes included.
+  const expected = path.basename(filePath).replace(/\.[^.]+$/, "");
+  await expect(dialog.getByLabel("Name")).toHaveValue(expected);
+  expect(expected.startsWith(`${cueTitle} - `)).toBe(true);
   await dialog.getByRole("button", { name: "Add", exact: true }).click();
   await expect(dialog).toBeHidden();
 }

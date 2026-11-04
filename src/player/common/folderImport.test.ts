@@ -65,7 +65,7 @@ describe("importDroppedEntries", () => {
       { ...options, createId: () => "fixed" }
     );
     expect(result.directories["/"].audioFiles).toEqual([
-      { id: "fixed", url: "file://C:/Music/my_song%20name.mp3", title: "My_Song Name" },
+      { id: "fixed", url: "file://C:/Music/my_song%20name.mp3", title: "my song name" },
     ]);
   });
 

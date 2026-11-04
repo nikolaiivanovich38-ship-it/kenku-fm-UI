@@ -146,6 +146,19 @@ describe("prependHttp", () => {
   });
 });
 
+describe("checkTypedTabUrl with Windows' Copy as path quotes", () => {
+  it("accepts a path pasted with the quote marks Windows adds", () => {
+    const quoted = checkTypedTabUrl('"C:\\Lyre demo kit\\Local soundboard\\soundboard.html"');
+    const plain = checkTypedTabUrl("C:\\Lyre demo kit\\Local soundboard\\soundboard.html");
+    expect(quoted).toEqual(plain);
+    expect(isRefused(quoted)).toBe(false);
+  });
+
+  it("accepts a quoted web address too", () => {
+    expect(checkTypedTabUrl("'https://example.com/'")).toEqual(checkTypedTabUrl("https://example.com/"));
+  });
+});
+
 describe("checkTypedTabUrl", () => {
   it("adds https:// to a bare host before validating", () => {
     expect(checkTypedTabUrl("youtube.com")).toEqual({

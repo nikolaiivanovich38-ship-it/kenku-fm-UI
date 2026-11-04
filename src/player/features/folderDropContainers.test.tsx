@@ -186,7 +186,7 @@ describe("Soundboard page folder drop", () => {
     const id = store.getState().soundboards.soundboards.byId.s1.sounds[0];
     expect(store.getState().soundboards.sounds[id]).toMatchObject({
       url: "file:///music/rain.flac",
-      title: "Rain",
+      title: "rain",
       loop: false,
       volume: 1,
     });

@@ -1,8 +1,43 @@
 # Changelog
 
-All notable changes to Cue Desk. Versions follow [Semantic Versioning](https://semver.org/). Each entry says what changed for you, in plain language; backlog IDs are in brackets for the team.
+All notable changes to Lyre (called Cue Desk in versions 0.1.x). Versions follow [Semantic Versioning](https://semver.org/). Each entry says what changed for you, in plain language; backlog IDs are in brackets for the team.
 
 ## [Unreleased]
+
+## [0.2.0] - 2026-11-04: Lyre
+
+**New name and look**
+- The app is now called Lyre, after the lyrebird (a superb mimic) and the lyre its tail is shaped like, with its own logo, icons and installer. On first start Lyre brings across your library from Cue Desk test versions, or else from Kenku FM; saved bots come across from Cue Desk without entering the token again. Cue Desk test versions do not update to Lyre: install Lyre once. [FND-12, FND-13]
+- Lyre comes with 23 background pictures of its own, under the names Kenku FM used, so playlists and soundboards from Kenku FM show a picture whether or not Kenku FM is installed. Lyre no longer reads anything from Kenku FM's program folder. [FND-14]
+- Track and sound names keep the file name exactly as written, capitals and punctuation included, so cue notes in your file names survive. Kenku FM changed them to Title Case.
+- A demo kit comes with each release: music, background sounds, effects and a test page made for Lyre, so you can try every feature without your own library.
+
+**Discord and outputs**
+- Use several Discord bots at once, in different channels of the same server, each with its own mute. A guided step explains how to add a second bot. [OUT-1]
+- Each output shows its status, reconnects by itself after a network drop (with a countdown and a "Try now" button), and keeps broadcasting through a short outage. [OUT-2]
+- Joining a voice channel no longer gets stuck on "connecting"; leaving a Stage channel works; a bot moved or disconnected by a moderator stays out and says why. [BUG-6, BUG-7]
+- Lyre records and sends audio only while a bot is in a voice channel, and only from tabs that are playing, so it uses much less of your computer. "Performance" mode (now "Lighter on the computer") no longer delays Discord by half a second. [PERF-4, PERF-8]
+- Audio stays inside Lyre; there is no network connection for it. [SEC-2]
+- Bot tokens are saved encrypted, or kept only until you close Lyre where that is not possible. After moving an old saved token, Settings recommends resetting it. A token Discord refuses is explained plainly and not kept. [SEC-5]
+
+**Tabs and bookmarks**
+- Open files from your computer in a tab (for example a home-made soundboard page): Lyre asks first and can remember folders (Settings > Local files). Such pages can only read their own folder, cannot reach the internet and cannot record the screen. [SEC-15]
+- Lyre's own windows can no longer record the screen. [SEC-16]
+- Bookmark folders, and a sidebar that collapses to icons while still showing each output's status. [UX-10]
+
+**Player**
+- The player no longer uses processor time when nothing is playing. [PERF-1]
+- Deleting the playing track stops it; Next and Previous carry on from where it was. Deleting a track that is still loading no longer stops the music that was playing. [BUG-8]
+- Dragging a volume slider no longer rewrites your whole library dozens of times a second, and the last change is saved when you close Lyre. If changes cannot be saved, the player says so and tries again. [PERF-6]
+
+**Easier to use**
+- Dialogs, menus and error messages are no longer hidden behind the player or websites; error messages close by themselves once the problem is fixed.
+- A clear gold outline shows where the keyboard is; tabs and bookmarks can be moved with the keyboard from their icon; buttons work with Enter and Space and have clear names.
+- Settings is wider on large windows and uses plainer words; a missing file says "Can't find this file. Check the name and folder."
+- Paths copied with Windows' "Copy as path" can be pasted into the address bar as they are.
+
+**Behind the scenes**
+- A new library database (with daily backups, undo and instant search) and a new playback engine are built and tested, ready for the new interface; your library is not moved into them yet. [DAT-6, PLY-10]
 
 ## [0.1.1] - 2026-11-04
 

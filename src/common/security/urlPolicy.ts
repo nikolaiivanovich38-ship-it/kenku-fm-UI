@@ -258,11 +258,18 @@ function isFileAddress(address: string): boolean {
  * convenience. Web pages then go through the tab policy; files on this
  * computer come back as "ask" (`isLocalFile`).
  */
+function stripWrappingQuotes(text: string): string {
+  const match = /^(["'])([\s\S]*)\1$/.exec(text);
+  return match ? match[2].trim() : text;
+}
+
 export function checkTypedTabUrl(raw: string): UserTabUrlCheck {
   if (typeof raw !== "string") {
     return refuse("invalid");
   }
-  const cleaned = raw.replace(FORMAT_CHARACTERS, "").trim();
+  // Windows' "Copy as path" wraps a path in quote marks; one matching pair
+  // around the whole entry is removed.
+  const cleaned = stripWrappingQuotes(raw.replace(FORMAT_CHARACTERS, "").trim());
   if (cleaned === "") {
     return refuse("empty");
   }

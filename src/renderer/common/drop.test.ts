@@ -23,9 +23,13 @@ describe("encodeFilePath", () => {
 
 describe("cleanFileName", () => {
   it.each([
-    ["battle theme.mp3", "Battle Theme"],
-    ["  spaced   out .flac", "Spaced Out"],
-    ["no-extension", "No Extension"],
+    // Lyre keeps the name as written: GMs put cue notes in their file names.
+    ["battle theme.mp3", "battle theme"],
+    ["  spaced   out .flac", "spaced out"],
+    ["no-extension", "no-extension"],
+    ["Heroic Sting - short rise, don't loop.wav", "Heroic Sting - short rise, don't loop"],
+    ["Tense Moderate Energy, Wistful (short - loops well). Swells.flac", "Tense Moderate Energy, Wistful (short - loops well). Swells"],
+    ["my_song_name.mp3", "my song name"],
   ])("%s -> %s", (name, expected) => {
     expect(cleanFileName(name)).toBe(expected);
   });

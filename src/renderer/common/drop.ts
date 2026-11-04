@@ -1,4 +1,3 @@
-import Case from "case";
 
 export function encodeFilePath(path: string) {
   return `file://${encodeURIComponent(path)
@@ -24,14 +23,14 @@ export function getDropURL(
   return path ? encodeFilePath(path) : undefined;
 }
 
+/**
+ * A track or sound title from its file name: the name without its extension,
+ * underscores read as spaces, spaces tidied. Capitals and punctuation are
+ * kept exactly, because game masters write cue notes into their file names
+ * ("Heroic Sting - short rise, don't loop"). Kenku FM title-cased names and
+ * dropped punctuation; Lyre does not.
+ */
 export function cleanFileName(name: string): string {
-  // Remove file extension
-  let clean = name.substring(0, name.lastIndexOf(".")) || name;
-  // Clean string
-  clean = clean.replace(/ +/g, " ");
-  clean = clean.trim();
-  // Capitalize and remove underscores
-  clean = Case.capital(clean);
-
-  return clean;
+  const withoutExtension = name.substring(0, name.lastIndexOf(".")) || name;
+  return withoutExtension.replace(/_/g, " ").replace(/\s+/g, " ").trim();
 }
