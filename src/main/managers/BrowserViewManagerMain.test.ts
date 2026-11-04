@@ -126,6 +126,7 @@ function setup({
       fileSystem: { realpath: fakeRealpath, isFile: () => true },
       windowsPaths: false,
     }),
+    fileExists: (filePath: string) => !filePath.includes("folder-only"),
   });
   const mainWindow = fakePage("main-window");
   const create = (url: string, kind?: string) => {
@@ -405,13 +406,20 @@ describe("BrowserViewManagerMain: files from the user's computer (SEC-15)", () =
     );
   });
 
-  it("says so when the file does not exist, without asking", async () => {
-    const { openFile, askAboutFile, window } = setup({ answer: { response: 0, checkboxChecked: false } });
-    vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    expect((await openFile("file:///home/gm/maps/missing.html")).id).toBe(-1);
-    expect(askAboutFile).not.toHaveBeenCalled();
-    expect(sentErrors(window)).toEqual([["ERROR", expect.stringMatching(/could not be found/)]]);
-  });
+  it.each(["file:///home/gm/maps/missing.html", "file:///home/gm/maps/folder-only"])(
+    "says %s cannot be found and opens nothing, without asking (UX finding 7)",
+    async (address) => {
+      const { openFile, askAboutFile, window } = setup({ answer: { response: 0, checkboxChecked: false } });
+      vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      const { id, view } = await openFile(address);
+      expect(id).toBe(-1);
+      expect(view).toBeUndefined();
+      expect(askAboutFile).not.toHaveBeenCalled();
+      expect(sentErrors(window)).toEqual([
+        ["ERROR", "Can't find this file. Check the name and folder.", { kind: "address" }],
+      ]);
+    },
+  );
 
   it("opens nothing when the user says no", async () => {
     const { openFile } = setup({ answer: { response: 1, checkboxChecked: false } });

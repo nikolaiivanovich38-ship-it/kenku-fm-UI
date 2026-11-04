@@ -28,10 +28,12 @@ export const JOIN_TIMEOUT_MS = 15_000;
 
 /**
  * OUT-2: waits between automatic attempts after a connection dropped
- * (1 s, 2 s, 4 s, … at most 30 s), and how many attempts are made before
- * the output shows an error and waits for the Reconnect button.
+ * (1 s, 2 s, 4 s, … at most 10 s, so a connection that comes back is used
+ * soon; UX finding 6), and how many attempts are made before the output shows
+ * an error and waits for the Reconnect button. Each wait is longer than the
+ * one before: OutputManager starts the window's countdown when the wait changes.
  */
-export const RECONNECT_DELAYS_MS = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000];
+export const RECONNECT_DELAYS_MS = [1_000, 2_000, 4_000, 6_000, 8_000, 10_000];
 export const MAX_RECONNECT_ATTEMPTS = RECONNECT_DELAYS_MS.length;
 
 /** A refused token is not retried: it will not start working by itself. */
@@ -176,10 +178,21 @@ export class DiscordBot extends TypedEmitter<DiscordBotEvents> {
   }
 
   /**
-   * OUT-2: the Reconnect button. Logs in again if the bot is not connected
-   * (and rejoins its channels), otherwise rejoins every channel that failed.
+   * OUT-2: the Reconnect button (and "Try now", UX finding 6). Logs in again
+   * if the bot is not connected (and rejoins its channels), otherwise rejoins
+   * every channel that failed.
    */
   async reconnect(token: string): Promise<void> {
+    if (this.loginTimer) {
+      // Waiting to log in again by itself: make that attempt now. The channels
+      // keep their places and the remaining attempts are kept, so pressing it
+      // before the network is back neither stops the broadcast nor gives up
+      // (WP1 review 9).
+      clearTimeout(this.loginTimer);
+      this.loginTimer = undefined;
+      await this.login(token, { holdChannels: true });
+      return;
+    }
     if (this.status !== "ready") {
       this.rejoinAfterLogin = [
         ...new Set([...this.rejoinAfterLogin, ...[...this.sessions.values()].map((session) => session.channelId)]),

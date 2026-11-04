@@ -1,13 +1,29 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import Button from "@mui/material/Button";
 import DialogContentText from "@mui/material/DialogContentText";
 import Divider from "@mui/material/Divider";
-import IconButton from "@mui/material/IconButton";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import ListItemText from "@mui/material/ListItemText";
-import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import CloseIcon from "@mui/icons-material/CloseRounded";
+
+/**
+ * A folder path that wraps after its separators (UX finding 8), so folder
+ * names stay whole where they fit; a name too long for a line still wraps.
+ */
+function PathText({ path }: { path: string }) {
+  const parts = path.split(/(?<=[\\/])/);
+  return (
+    <>
+      {parts.map((part, index) => (
+        <React.Fragment key={index}>
+          {part}
+          {index < parts.length - 1 && <wbr />}
+        </React.Fragment>
+      ))}
+    </>
+  );
+}
 
 /**
  * SEC-15: Settings > Local files. Lyre asks before opening a file from the
@@ -17,6 +33,10 @@ import CloseIcon from "@mui/icons-material/CloseRounded";
  */
 export function LocalFilesSettings() {
   const [folders, setFolders] = useState<string[]>();
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  /** UX finding 12: after "Ask again", focus goes to the folder that took its place, or the heading. */
+  const focusIndex = useRef<number>();
 
   useEffect(() => {
     let current = true;
@@ -29,14 +49,29 @@ export function LocalFilesSettings() {
     };
   }, []);
 
-  async function forget(folder: string) {
-    setFolders(await window.kenku.localFileFolders.forget(folder));
+  useEffect(() => {
+    const index = focusIndex.current;
+    if (index === undefined) {
+      return;
+    }
+    focusIndex.current = undefined;
+    const buttons: HTMLButtonElement[] = Array.from(listRef.current?.querySelectorAll("button") ?? []);
+    const next = buttons[Math.min(index, buttons.length - 1)];
+    (next ?? headingRef.current)?.focus();
+  }, [folders]);
+
+  async function forget(folder: string, index: number) {
+    const remaining = await window.kenku.localFileFolders.forget(folder);
+    focusIndex.current = index;
+    setFolders(remaining);
   }
 
   return (
     <>
       <Divider sx={{ my: 2 }} />
-      <DialogContentText>Local files</DialogContentText>
+      <DialogContentText component="h3" id="local-files-heading" tabIndex={-1} ref={headingRef}>
+        Local files
+      </DialogContentText>
       {folders !== undefined && folders.length === 0 && (
         <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 1 }}>
           Lyre asks before opening a file from your computer. Folders you
@@ -48,28 +83,23 @@ export function LocalFilesSettings() {
           <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 1 }}>
             Files in these folders open without asking:
           </Typography>
-          <List dense disablePadding aria-label="Folders opened without asking">
-            {folders.map((folder) => (
-              <ListItem
-                key={folder}
-                disableGutters
-                secondaryAction={
-                  <Tooltip title="Ask again">
-                    <IconButton
-                      edge="end"
-                      size="small"
-                      aria-label={`Ask again before opening files in ${folder}`}
-                      onClick={() => forget(folder)}
-                    >
-                      <CloseIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                }
-              >
+          <List dense disablePadding aria-label="Folders opened without asking" ref={listRef}>
+            {folders.map((folder, index) => (
+              <ListItem key={folder} disableGutters sx={{ alignItems: "center", gap: 1 }}>
                 <ListItemText
-                  primary={folder}
-                  primaryTypographyProps={{ variant: "caption", sx: { wordBreak: "break-all" } }}
+                  primary={<PathText path={folder} />}
+                  primaryTypographyProps={{ variant: "caption", sx: { overflowWrap: "anywhere" } }}
                 />
+                {/* UX finding 11: words, not an ×, which reads as "delete this folder". */}
+                <Button
+                  size="small"
+                  variant="text"
+                  sx={{ flexShrink: 0, whiteSpace: "nowrap" }}
+                  aria-label={`Ask again before opening files in ${folder}`}
+                  onClick={() => forget(folder, index)}
+                >
+                  Ask again
+                </Button>
               </ListItem>
             ))}
           </List>

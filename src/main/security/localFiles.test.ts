@@ -156,6 +156,35 @@ describe("LocalFileGate (SEC-15)", () => {
     expect(ask).not.toHaveBeenCalled();
   });
 
+  it("says a file that is not there cannot be found, without asking or opening a blank tab (UX finding 7)", async () => {
+    const onRefused = vi.fn();
+    const ask = vi.fn(async () => ({ response: 0, checkboxChecked: false }));
+    const gate = new LocalFileGate({
+      folders: new LocalFileFolders(memoryStore(["C:\\Music"]), path.win32, asWritten),
+      ask,
+      windowsPaths: true,
+      realpath: (filePath) => {
+        if (filePath === "C:\\Music\\missing.html") {
+          throw new Error("ENOENT");
+        }
+        return filePath;
+      },
+      // A folder is not a file either.
+      fileExists: (filePath) => filePath !== "C:\\Music\\Rain",
+      onRefused,
+    });
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    await expect(gate.approve("file:///C:/Music/missing.html")).resolves.toBeUndefined();
+    await expect(gate.approve("file:///C:/Music/Rain")).resolves.toBeUndefined();
+    expect(ask).not.toHaveBeenCalled();
+    expect(onRefused.mock.calls).toEqual([["not-found"], ["not-found"]]);
+    await expect(gate.approve("file:///C:/Music/rain.html")).resolves.toEqual({
+      url: "file:///C:/Music/rain.html",
+      filePath: "C:\\Music\\rain.html",
+    });
+    expect(onRefused).toHaveBeenCalledTimes(2);
+  });
+
   it("treats a failed prompt as Cancel", async () => {
     const store = memoryStore();
     const gate = new LocalFileGate({

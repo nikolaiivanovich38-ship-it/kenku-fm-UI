@@ -14,7 +14,7 @@ export function WindowControls() {
         size="small"
         sx={{ WebkitAppRegion: "no-drag" }}
         onClick={() => window.kenku.minimize()}
-        aria-label="minimize"
+        aria-label="Minimize window"
       >
         <MinimizeIcon />
       </IconButton>
@@ -22,7 +22,7 @@ export function WindowControls() {
         size="small"
         sx={{ WebkitAppRegion: "no-drag" }}
         onClick={() => window.kenku.toggleMaximize()}
-        aria-label="maximize"
+        aria-label="Maximize window"
       >
         <MaximizeIcon />
       </IconButton>
@@ -30,7 +30,7 @@ export function WindowControls() {
         size="small"
         sx={{ WebkitAppRegion: "no-drag" }}
         onClick={() => window.kenku.close()}
-        aria-label="close"
+        aria-label="Close window"
       >
         <CloseIcon />
       </IconButton>

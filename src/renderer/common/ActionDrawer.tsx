@@ -10,8 +10,16 @@ import { BookmarkListItems } from "../features/bookmarks/BookmarkListItems";
 import { BookmarkRail } from "../features/bookmarks/BookmarkRail";
 import { SidebarToggle } from "../features/bookmarks/SidebarToggle";
 import { setSidebarCollapsed } from "../features/bookmarks/bookmarksSlice";
-import { SIDEBAR_WIDTH, sidebarWidth } from "../features/bookmarks/sidebar";
+import {
+  COLLAPSED_SIDEBAR_WIDTH,
+  ERROR_COLUMN_WIDTH,
+  SIDEBAR_WIDTH,
+  sidebarSpace,
+  sidebarWidth,
+} from "../features/bookmarks/sidebar";
 import { Settings } from "../features/settings/Settings";
+import { ErrorMessages } from "../features/errors/ErrorMessages";
+import { OutputRail } from "../features/output/OutputRail";
 
 import { RootState } from "../app/store";
 import { useDispatch, useSelector } from "react-redux";
@@ -28,6 +36,9 @@ export function ActionDrawer() {
   // UX-10: the sidebar can be collapsed to a column of bookmark icons.
   const collapsed = useSelector((state: RootState) => state.bookmarks.sidebarCollapsed);
   const width = sidebarWidth(collapsed);
+  const showingErrors = useSelector((state: RootState) => state.errors.list.length > 0);
+  // The space the sidebar takes, read by getBounds to place website views.
+  const space = sidebarSpace(collapsed, showingErrors);
   const dispatch = useDispatch();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -46,8 +57,8 @@ export function ActionDrawer() {
       component="nav"
       id="sidebar"
       aria-label="Sidebar"
-      data-width={width}
-      sx={{ width, flexShrink: 0 }}
+      data-width={space}
+      sx={{ width: space, flexShrink: 0 }}
     >
       <Drawer
         variant="permanent"
@@ -88,11 +99,11 @@ export function ActionDrawer() {
           >
             <SettingsIcon />
           </IconButton>
-          <Settings
-            open={settingsOpen}
-            onClose={() => setSettingsOpen(false)}
-          />
+          <Settings open={settingsOpen} onClose={() => setSettingsOpen(false)} />
         </Toolbar>
+        {/* UX finding 1/4: errors sit in the sidebar, which website views never cover
+            (in Settings while it is open, as it covers the sidebar). */}
+        {!collapsed && !settingsOpen && <ErrorMessages sx={{ p: 1 }} />}
         <Box sx={{ overflowY: "auto", flexGrow: 1, minHeight: 0 }} ref={scrollRef} {...hideScrollbar}>
           {collapsed && <BookmarkRail />}
           {/* Kept mounted while collapsed: the input and output lists keep
@@ -116,10 +127,31 @@ export function ActionDrawer() {
             )}
           </Stack>
         </Box>
+        {/* UX finding 9: outputs and their status stay in sight when collapsed. */}
+        {collapsed && <OutputRail />}
         <Box sx={{ display: "flex", justifyContent: collapsed ? "center" : "flex-end", p: 0.5 }}>
           <SidebarToggle />
         </Box>
       </Drawer>
+      {collapsed && !settingsOpen && showingErrors && (
+        <Box
+          sx={{
+            position: "fixed",
+            top: 0,
+            bottom: 0,
+            left: COLLAPSED_SIDEBAR_WIDTH,
+            width: ERROR_COLUMN_WIDTH,
+            bgcolor: "background.default",
+            borderLeft: 1,
+            borderColor: "divider",
+            overflowY: "auto",
+            p: 1,
+            zIndex: (theme) => theme.zIndex.drawer,
+          }}
+        >
+          <ErrorMessages />
+        </Box>
+      )}
     </Box>
   );
 }

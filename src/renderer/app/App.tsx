@@ -3,12 +3,15 @@ import React, { useEffect, useState } from "react";
 import Snackbar from "@mui/material/Snackbar";
 import Stack from "@mui/material/Stack";
 import styled from "@mui/material/styles/styled";
-import { ErrorToast } from "../common/ErrorToast";
 
 import { ActionDrawer } from "../common/ActionDrawer";
 
 import { Tabs } from "../features/tabs/Tabs";
 import { onAppError } from "../common/appErrors";
+import { isErrorCause, type ErrorCause } from "../../common/errorCause";
+import { errorShown, outputHasProblem } from "../features/errors/errorsSlice";
+import { useStore } from "react-redux";
+import type { RootState } from "./store";
 
 import icon from "../../assets/icon.svg";
 
@@ -28,24 +31,31 @@ const WallPaper = styled("div")({
 
 export function App() {
   const [message, setMessage] = useState<string>();
-  const [error, setError] = useState<string>();
   const [fatalError, setFatalError] = useState<string>();
+  const store = useStore<RootState>();
 
   useEffect(() => {
     window.kenku.on("MESSAGE", (args) => {
       const message = args[0];
       setMessage(message);
     });
+    // UX finding 4: shown in the sidebar (or Settings) by ErrorMessages.
+    const showError = (message: string, cause?: ErrorCause) => {
+      const bot = cause?.kind === "output" ? store.getState().output.bots.find((b) => b.id === cause.id) : undefined;
+      store.dispatch(errorShown({ message, cause, causeSeen: Boolean(bot && outputHasProblem(bot)) }));
+    };
     window.kenku.on("ERROR", (args) => {
-      const error = args[0];
-      setError(error);
+      const [error, cause] = args;
+      if (typeof error === "string") {
+        showError(error, isErrorCause(cause) ? cause : undefined);
+      }
     });
     window.kenku.on("FATAL_ERROR", (args) => {
       const error = args[0];
       setFatalError(error);
     });
 
-    const stopAppErrors = onAppError(setError);
+    const stopAppErrors = onAppError(showError);
 
     return () => {
       stopAppErrors();
@@ -53,7 +63,7 @@ export function App() {
       window.kenku.removeAllListeners("ERROR");
       window.kenku.removeAllListeners("FATAL_ERROR");
     };
-  }, []);
+  }, [store]);
 
   if (fatalError) {
     return (
@@ -95,7 +105,6 @@ export function App() {
         message={message}
         sx={{ maxWidth: "192px" }}
       />
-      <ErrorToast error={error} onClose={() => setError(undefined)} />
     </Stack>
   );
 }

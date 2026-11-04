@@ -1,4 +1,5 @@
 import { BrowserWindow, dialog, ipcMain, WebContentsView } from "electron";
+import fs from "fs";
 import { getUserAgent } from "../userAgent";
 import { checkTabUrl, isRefused } from "../../common/security/urlPolicy";
 import { guardIpc } from "../security/ipcGuard";
@@ -22,6 +23,18 @@ import {
 import { localFileFolders } from "../security/localFileStore";
 import { sharedLocalFileServer, type LocalFileServer } from "../security/localFileServer";
 
+/** UX finding 7: a file typed in the address bar (or a bookmark) that is not there. */
+export const MISSING_FILE_MESSAGE = "Can't find this file. Check the name and folder.";
+
+/** True for an existing file (not a folder) on this computer. */
+function isFile(filePath: string): boolean {
+  try {
+    return fs.statSync(filePath).isFile();
+  } catch {
+    return false;
+  }
+}
+
 declare const PLAYER_WINDOW_WEBPACK_ENTRY: string;
 declare const PLAYER_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 
@@ -44,6 +57,8 @@ export interface BrowserViewManagerOptions {
   realpath?: Realpath;
   /** Serves files to their tabs; defaults to the one the local-files session uses. */
   fileServer?: LocalFileServer;
+  /** UX finding 7: whether a (real) path is a file; defaults to a check on the disk. */
+  fileExists?: (filePath: string) => boolean;
 }
 
 /**
@@ -76,7 +91,9 @@ export class BrowserViewManagerMain {
       // so a page can never answer it.
       ask: options.askAboutFile ?? ((prompt) => dialog.showMessageBox(this.window, prompt)),
       realpath: options.realpath,
-      onRefused: () => this._reportRefusedUrl("That file could not be found on this computer."),
+      fileExists: options.fileExists ?? isFile,
+      // UX finding 4/7: shown in the main window, and closed once an address opens.
+      onRefused: () => this.window.webContents.send("ERROR", MISSING_FILE_MESSAGE, { kind: "address" }),
     });
     this.fileServer = options.fileServer ?? sharedLocalFileServer();
 
@@ -237,7 +254,8 @@ export class BrowserViewManagerMain {
 
   /** Tell the user, in the main window, why a page was not opened. */
   _reportRefusedUrl(reason: string) {
-    this.window.webContents.send("ERROR", `That page was not opened. ${reason}`);
+    // UX finding 4: closed in the main window once an address opens.
+    this.window.webContents.send("ERROR", `That page was not opened. ${reason}`, { kind: "address" });
   }
 
   _handleRemoveBrowserView = (_: Electron.IpcMainEvent, id: number) =>

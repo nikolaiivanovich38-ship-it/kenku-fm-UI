@@ -175,6 +175,7 @@ export class LocalFileGate {
   private readonly ask: (prompt: LocalFilePrompt) => Promise<PromptAnswer>;
   private readonly windowsPaths: boolean;
   private readonly realpath: Realpath;
+  private readonly fileExists: (realFilePath: string) => boolean;
   private readonly onRefused: (reason: FileRefusal) => void;
 
   constructor(options: {
@@ -184,6 +185,12 @@ export class LocalFileGate {
     /** Read file addresses as Windows paths. Defaults to the platform the app runs on. */
     windowsPaths?: boolean;
     realpath?: Realpath;
+    /**
+     * UX finding 7: whether the real path is a file (not a folder); in the
+     * app, a check on the disk. A file that is missing altogether already
+     * fails `realpath`.
+     */
+    fileExists?: (realFilePath: string) => boolean;
     /** Told when a file is refused for a reason the user should hear about. */
     onRefused?: (reason: FileRefusal) => void;
   }) {
@@ -191,6 +198,7 @@ export class LocalFileGate {
     this.ask = options.ask;
     this.windowsPaths = options.windowsPaths ?? process.platform === "win32";
     this.realpath = options.realpath ?? nodeRealpath;
+    this.fileExists = options.fileExists ?? (() => true);
     this.onRefused = options.onRefused ?? (() => undefined);
   }
 
@@ -218,11 +226,14 @@ export class LocalFileGate {
       console.warn("Refused to open a file whose address is not a full path");
       return undefined;
     }
+    // UX finding 7: a missing file used to open as a blank white tab, after
+    // asking about it. Say it cannot be found instead, and open nothing.
     let filePath: string;
     try {
       filePath = this.realpath(typedPath);
     } catch {
-      console.warn("Refused to open a file that does not exist");
+      // Not a security refusal: the user is told, and nothing else happens.
+      console.warn("Could not find the file to open");
       this.onRefused("not-found");
       return undefined;
     }
@@ -230,6 +241,13 @@ export class LocalFileGate {
     // folder, which is never opened (SEC-15: Windows would send the login).
     if (this.windowsPaths && /^[\\/]{2}/.test(filePath)) {
       console.warn("Refused to open a file that is really in a network folder");
+      return undefined;
+    }
+    // Checked after the network test, so a network folder is not touched again.
+    if (!this.fileExists(filePath)) {
+      // Not a security refusal: the user is told, and nothing else happens.
+      console.warn("Could not find the file to open");
+      this.onRefused("not-found");
       return undefined;
     }
     if (this.folders.allows(filePath)) {

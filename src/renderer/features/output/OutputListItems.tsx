@@ -25,7 +25,16 @@ import Stack from "@mui/material/Stack";
 
 import { OutputListItem } from "./OutputListItem";
 import { BotStatusLine } from "./BotStatusLine";
-import { BotStatusChip, LocalStatusChip, canReconnect } from "./OutputStatusChip";
+import { BotStatusChip, LocalStatusChip, canReconnect, canTryNow } from "./OutputStatusChip";
+
+/** Shown under "This Computer" when a bot's join switched it off (OutputManager.updateActive). */
+export const LOCAL_OFF_NOTE =
+  "So you don't hear everything twice, This Computer turns off while a bot is in a channel. Turn it back on if you want to listen here too.";
+
+/** A bot is in, or joining, a voice channel. */
+export function botInChannel(bot: BotState): boolean {
+  return bot.voice.some((session) => session.status !== "error");
+}
 
 /**
  * OUT-1: the outputs in the side bar: this computer, then each Discord bot
@@ -36,6 +45,7 @@ export function OutputListItems() {
   const [open, setOpen] = useState(true);
   const output = useSelector((state: RootState) => state.output);
   const shownBots = output.bots.filter((bot) => bot.status !== "offline" || bot.voice.length > 0);
+  const localOffForBot = output.local.muted && output.bots.some(botInChannel);
 
   function toggleLocal() {
     window.kenku.outputs.setMuted(LOCAL_OUTPUT_ID, !output.local.muted);
@@ -55,6 +65,11 @@ export function OutputListItems() {
             trailing={<LocalStatusChip muted={output.local.muted} />}
             onClick={toggleLocal}
           />
+          {localOffForBot && (
+            <Typography variant="caption" component="p" color="text.secondary" sx={{ px: 2, pb: 1 }}>
+              {LOCAL_OFF_NOTE}
+            </Typography>
+          )}
           {shownBots.map((bot) => (
             <BotOutput key={bot.id} bot={bot} />
           ))}
@@ -86,7 +101,8 @@ function BotOutput({ bot }: { bot: BotState }) {
           <IconButton
             edge="end"
             size="small"
-            aria-label={bot.muted ? `Unmute ${label}` : `Mute ${label}`}
+            // A fixed name with aria-pressed: "Mute …, pressed" means muted.
+            aria-label={`Mute ${label}`}
             aria-pressed={bot.muted}
             onClick={() => window.kenku.outputs.setMuted(bot.id, !bot.muted)}
           >
@@ -103,6 +119,12 @@ function BotOutput({ bot }: { bot: BotState }) {
               {canReconnect(bot) && (
                 <Button size="small" variant="outlined" onClick={() => window.kenku.outputs.reconnect(bot.id)}>
                   Reconnect
+                </Button>
+              )}
+              {/* UX finding 6: no need to wait for the countdown once the network is back. */}
+              {canTryNow(bot) && (
+                <Button size="small" variant="outlined" onClick={() => window.kenku.outputs.reconnect(bot.id)}>
+                  Try now
                 </Button>
               )}
             </Stack>

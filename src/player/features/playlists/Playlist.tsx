@@ -189,7 +189,7 @@ export function Playlist({ onPlay }: PlaylistProps) {
         }}
       >
         <MenuItem onClick={handleEdit}>Edit</MenuItem>
-        <MenuItem onClick={handleCopyID}>Copy ID</MenuItem>
+        <MenuItem onClick={handleCopyID}>Copy ID for Stream Deck</MenuItem>
         <MenuItem onClick={handleDelete}>Delete</MenuItem>
       </Menu>
       <TrackAdd

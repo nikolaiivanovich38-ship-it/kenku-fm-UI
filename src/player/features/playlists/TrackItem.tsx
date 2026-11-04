@@ -122,7 +122,7 @@ export function TrackItem({ track, playlist, onPlay }: TrackItemProps) {
         slotProps={{ list: { "aria-labelledby": "more-button" } }}
       >
         <MenuItem onClick={handleEdit}>Edit</MenuItem>
-        <MenuItem onClick={handleCopyID}>Copy ID</MenuItem>
+        <MenuItem onClick={handleCopyID}>Copy ID for Stream Deck</MenuItem>
         <MenuItem onClick={handleDelete}>Delete</MenuItem>
       </Menu>
       <TrackSettings

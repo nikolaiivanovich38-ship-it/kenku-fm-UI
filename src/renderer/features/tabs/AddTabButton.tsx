@@ -33,7 +33,7 @@ export function AddTabButton() {
       sx={{ mx: 1, WebkitAppRegion: "no-drag" }}
       size="small"
       onClick={handleAddClick}
-      aria-label="add tab"
+      aria-label="New tab"
     >
       <AddIcon />
     </IconButton>

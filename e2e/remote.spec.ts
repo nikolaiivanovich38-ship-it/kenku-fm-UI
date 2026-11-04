@@ -49,8 +49,8 @@ test("Stream Deck / Kenku Remote API controls playlists and soundboards", async 
   const base = `http://127.0.0.1:${port}/v1`;
   await mainWindow.getByRole("button", { name: "Settings" }).click();
   const settings = mainWindow.getByRole("dialog", { name: "Settings" });
-  await expect(settings.getByLabel("Address")).toHaveValue("127.0.0.1");
-  await settings.getByLabel("Port").fill(String(port));
+  await expect(settings.getByLabel("Address", { exact: true })).toHaveValue("127.0.0.1");
+  await settings.getByLabel("Port", { exact: true }).fill(String(port));
   await settings.getByRole("button", { name: "Start Remote" }).click();
   await expect(settings.getByRole("button", { name: "Stop Remote" })).toBeVisible();
 

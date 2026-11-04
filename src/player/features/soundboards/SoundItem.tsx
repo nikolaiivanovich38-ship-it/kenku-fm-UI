@@ -118,7 +118,8 @@ export function SoundItem({ id, soundboard, onPlay, onStop }: SoundItemProps) {
         onPointerDown={(e) => e.stopPropagation()}
         onChange={handleVolumeChange}
         value={sound.volume}
-        step={0.01}
+        // 5% per arrow key press.
+        step={0.05}
         min={0}
         max={1}
       />
@@ -188,7 +189,7 @@ export function SoundItem({ id, soundboard, onPlay, onStop }: SoundItemProps) {
         }}
       >
         <MenuItem onClick={handleEdit}>Edit</MenuItem>
-        <MenuItem onClick={handleCopyID}>Copy ID</MenuItem>
+        <MenuItem onClick={handleCopyID}>Copy ID for Stream Deck</MenuItem>
         <MenuItem onClick={handleDelete}>Delete</MenuItem>
       </Menu>
       <SoundSettings

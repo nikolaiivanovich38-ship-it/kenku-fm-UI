@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { BotState } from "../../../common/outputs";
-import { botChip, canReconnect } from "./OutputStatusChip";
-import { botStatusText } from "./BotStatusLine";
+import { botChip, canReconnect, canTryNow } from "./OutputStatusChip";
+import { botStatusText, nextRetryAt } from "./BotStatusLine";
 
 function bot(overrides: Partial<BotState> = {}): BotState {
   return {
@@ -58,6 +58,27 @@ describe("output status chip (OUT-2)", () => {
     expect(canReconnect(left)).toBe(false);
     // Once in a channel again, the channel is what counts.
     expect(botStatusText({ ...left, voice: [session("connected")] })).toBe("In Tavern");
+  });
+
+  it("does not offer Try now for a bot a moderator moved: it is not waiting to try again", () => {
+    const left = bot({ notice: "A moderator moved or disconnected the bot from “Tavern”, so it left." });
+    expect(canTryNow(left)).toBe(false);
+    expect(canTryNow(bot({ status: "connecting", error: "Cannot reach Discord. Trying again in 1 s…" }))).toBe(true);
+  });
+
+  it("counts down to the next attempt while reconnecting (UX finding 6)", () => {
+    const reconnecting = bot({
+      voice: [{ ...session("reconnecting", "Connection to “Tavern” lost. Trying again in 8 s…"), retryAt: 10_000 }],
+    });
+    expect(botStatusText(reconnecting, 4_100)).toBe("Connection to “Tavern” lost. Trying again in 6 s…");
+    expect(botStatusText(reconnecting, 9_950)).toBe("Connection to “Tavern” lost. Trying again in 1 s…");
+    expect(botStatusText(reconnecting, 10_000)).toBe("Connection to “Tavern” lost. Trying again now…");
+    expect(nextRetryAt(reconnecting)).toBe(10_000);
+
+    const login = bot({ status: "connecting", error: "Cannot reach Discord. Trying again in 4 s…", retryAt: 5_000 });
+    expect(botStatusText(login, 2_000)).toBe("Cannot reach Discord. Trying again in 3 s…");
+    expect(nextRetryAt(login)).toBe(5_000);
+    expect(nextRetryAt(bot())).toBeUndefined();
   });
 
   it("offers Reconnect only for a failed bot that has a token", () => {

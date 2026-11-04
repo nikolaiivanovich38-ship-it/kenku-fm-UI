@@ -100,7 +100,7 @@ test("a file typed in the address bar opens after the user agrees, in a tab of i
 }) => {
   await expect(playerView.getByText("Playlists", { exact: true })).toBeVisible();
   await answerFileQuestions(app, { response: 0, checkboxChecked: false });
-  await mainWindow.getByRole("button", { name: "add tab" }).click();
+  await mainWindow.getByRole("button", { name: "New tab", exact: true }).click();
   await typeAddress(mainWindow, files.url("map"));
 
   await pageWithTitle(app, "Local map");
@@ -118,7 +118,7 @@ test("a file typed in the address bar opens after the user agrees, in a tab of i
 test("nothing opens when the user says no", async ({ app, mainWindow, playerView }) => {
   await expect(playerView.getByText("Playlists", { exact: true })).toBeVisible();
   await answerFileQuestions(app, { response: 1, checkboxChecked: false });
-  await mainWindow.getByRole("button", { name: "add tab" }).click();
+  await mainWindow.getByRole("button", { name: "New tab", exact: true }).click();
   await typeAddress(mainWindow, files.url("map"));
 
   await expect.poll(() => questionsAsked(app)).toHaveLength(1);
@@ -135,7 +135,7 @@ test("a remembered folder opens without asking, is listed in Settings and can be
 }) => {
   await expect(playerView.getByText("Playlists", { exact: true })).toBeVisible();
   await answerFileQuestions(app, { response: 0, checkboxChecked: true });
-  await mainWindow.getByRole("button", { name: "add tab" }).click();
+  await mainWindow.getByRole("button", { name: "New tab", exact: true }).click();
   await typeAddress(mainWindow, files.url("map"));
   await expect(tab(mainWindow, "Local map")).toBeVisible();
 
@@ -157,7 +157,7 @@ test("a remembered folder opens without asking, is listed in Settings and can be
 
   await answerFileQuestions(app, { response: 1, checkboxChecked: false });
   const fileTabsBefore = await openFileTabs(app);
-  await mainWindow.getByRole("button", { name: "add tab" }).click();
+  await mainWindow.getByRole("button", { name: "New tab", exact: true }).click();
   await typeAddress(mainWindow, files.url("notes"));
   await expect.poll(() => questionsAsked(app)).toHaveLength(2);
   await mainWindow.waitForTimeout(500);
@@ -180,7 +180,7 @@ test("a web page can never open, redirect to, pop up or link to a file (WP1 revi
 
   // A file the user opened: its tab's own address is what a page would need
   // to reach it, so the page is given that address too.
-  await mainWindow.getByRole("button", { name: "add tab" }).click();
+  await mainWindow.getByRole("button", { name: "New tab", exact: true }).click();
   await typeAddress(mainWindow, files.url("notes"));
   await pageWithTitle(app, "Local notes");
   const fileAddress = await loadedAddress(app, "Local notes");
@@ -203,7 +203,7 @@ test("a web page can never open, redirect to, pop up or link to a file (WP1 revi
     "/redirect-opened": { redirect: fileAddress! },
   });
   try {
-    await mainWindow.getByRole("button", { name: "add tab" }).click();
+    await mainWindow.getByRole("button", { name: "New tab", exact: true }).click();
     await typeAddress(mainWindow, site.url("/links"));
     const page = await pageWithTitle(app, "Sneaky page");
     await mainWindow.waitForTimeout(1_000);
@@ -277,7 +277,7 @@ test("a file reads files in its own folder only, and cannot reach the web (WP1 r
   try {
     await expect(playerView.getByText("Playlists", { exact: true })).toBeVisible();
     await answerFileQuestions(app, { response: 0, checkboxChecked: false });
-    await mainWindow.getByRole("button", { name: "add tab" }).click();
+    await mainWindow.getByRole("button", { name: "New tab", exact: true }).click();
     await typeAddress(mainWindow, pathToFileURL(path.join(probe.folder, "probe.html")).href);
     const page = await pageWithTitle(app, "Probe");
 
@@ -369,7 +369,7 @@ test("a captured file tab cannot record the screen (WP1 review 2)", async ({ lau
   capture.on("console", (message) => captureLog.push(message.text()));
 
   await answerFileQuestions(app, { response: 0, checkboxChecked: false });
-  await mainWindow.getByRole("button", { name: "add tab" }).click();
+  await mainWindow.getByRole("button", { name: "New tab", exact: true }).click();
   await typeAddress(mainWindow, pathToFileURL(path.join(files.folder, "tone.html")).href);
   const tone = await pageWithTitle(app, "Tone");
   const viewId = await app.evaluate(

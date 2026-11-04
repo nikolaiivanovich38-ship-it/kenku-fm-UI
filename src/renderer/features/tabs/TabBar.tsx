@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 
 import {
@@ -15,7 +15,6 @@ import {
 import {
   horizontalListSortingStrategy,
   SortableContext,
-  sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
 import Box from "@mui/material/Box";
 import List from "@mui/material/List";
@@ -25,6 +24,8 @@ import { RootState } from "../../app/store";
 import { moveTab, Tab } from "./tabsSlice";
 
 import { SortableItem } from "../../common/SortableItem";
+import { DRAG_INSTRUCTIONS, dragAnnouncements } from "../../common/dragAnnouncements";
+import { listKeyboardCoordinates } from "../../common/listKeyboardCoordinates";
 import { WindowControls } from "../../common/WindowControls";
 import { showWindowControls } from "../../common/showWindowControls";
 import { PlayerTab } from "../player/PlayerTab";
@@ -40,7 +41,7 @@ export function TabBar() {
     activationConstraint: { distance: 10 },
   });
   const keyboardSensor = useSensor(KeyboardSensor, {
-    coordinateGetter: sortableKeyboardCoordinates,
+    coordinateGetter: listKeyboardCoordinates("x"),
   });
 
   const sensors = useSensors(pointerSensor, keyboardSensor);
@@ -100,6 +101,36 @@ export function TabBar() {
 
   const items = tabs.tabs.allIds.map((id) => tabs.tabs.byId[id]);
 
+  // UX finding 2: screen readers hear the tab's title, not its internal id.
+  // Made once (they remember the last place announced) and read the latest tabs.
+  const latestTabs = useRef(tabs);
+  latestTabs.current = tabs;
+  const announcements = useMemo(
+    () =>
+      dragAnnouncements({
+        nameOf: (id) => latestTabs.current.tabs.byId[Number.parseInt(id)]?.title ?? "the tab",
+        order: () => latestTabs.current.tabs.allIds.map((id) => `${id}`),
+      }),
+    [],
+  );
+
+  /**
+   * Minor finding: at 800 px a scrollbar sat over the tab titles. The strip
+   * scrolls without one: the mouse wheel scrolls it sideways, and a tab that
+   * gets keyboard focus or is selected scrolls into view.
+   */
+  function handleWheel(event: React.WheelEvent<HTMLElement>) {
+    if (event.deltaY !== 0 && event.deltaX === 0) {
+      event.currentTarget.scrollLeft += event.deltaY;
+    }
+  }
+  const listRef = useRef<HTMLUListElement>(null);
+  useEffect(() => {
+    listRef.current
+      ?.querySelector('[aria-current="page"]')
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [tabs.selectedTab]);
+
   function getTabComponent(tab: Tab, shadow = false) {
     return (
       <TabItem
@@ -131,12 +162,17 @@ export function TabBar() {
     >
       <List
         disablePadding
+        aria-label="Tabs"
+        ref={listRef}
+        onWheel={handleWheel}
         sx={{
           flexDirection: "row",
           display: "flex",
           alignItems: "center",
           WebkitAppRegion: "no-drag",
           overflowX: "auto",
+          scrollbarWidth: "none",
+          "&::-webkit-scrollbar": { display: "none" },
           flexGrow: 1,
           maxWidth: "100%",
         }}
@@ -149,6 +185,8 @@ export function TabBar() {
           collisionDetection={closestCenter}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
+          announcements={announcements}
+          screenReaderInstructions={DRAG_INSTRUCTIONS}
         >
           <SortableContext
             items={tabs.tabs.allIds.map((id) => `${id}`)}

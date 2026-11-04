@@ -31,6 +31,8 @@ export interface VoiceSessionState {
   status: VoiceStatus;
   /** Plain-language reason when `status` is "error" or "reconnecting". */
   error?: string;
+  /** UX finding 6: while reconnecting, when the next attempt is due (ms since 1970). */
+  retryAt?: number;
 }
 
 export interface BotState {
@@ -43,13 +45,15 @@ export interface BotState {
   /** False: the token is kept only until Lyre closes (no secure storage). */
   tokenRemembered: boolean;
   status: BotStatus;
-  /** Plain-language reason when `status` is "error". */
+  /** Plain-language reason when `status` is "error" (or why it is logging in again). */
   error?: string;
   /**
    * WP1 review 5: why the bot left a voice channel by itself (a moderator
    * moved or disconnected it), until it joins one again.
    */
   notice?: string;
+  /** UX finding 6: while logging in again by itself, when the next attempt is due (ms since 1970). */
+  retryAt?: number;
   guilds: GuildInfo[];
   voice: VoiceSessionState[];
   muted: boolean;

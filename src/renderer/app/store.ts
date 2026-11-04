@@ -7,6 +7,7 @@ import { bookmarkMigrations } from "../features/bookmarks/bookmarksMigration";
 import tabsReducer from "../features/tabs/tabsSlice";
 import playerReducer from "../features/player/playerSlice";
 import inputReducer from "../features/input/inputSlice";
+import errorsReducer from "../features/errors/errorsSlice";
 
 import {
   persistStore,
@@ -30,6 +31,8 @@ const rootReducer = combineReducers({
   tabs: tabsReducer,
   player: playerReducer,
   input: inputReducer,
+  // Error messages on screen (UX finding 4); not saved.
+  errors: errorsReducer,
 });
 
 const migrations: any = {

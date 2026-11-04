@@ -3,6 +3,7 @@ import { Bookmark } from "./bookmarksSlice";
 import { addTab, selectTab } from "../tabs/tabsSlice";
 import { openAddressInNewView } from "../tabs/openBrowserView";
 import { showAppError } from "../../common/appErrors";
+import { addressErrorsResolved } from "../errors/errorsSlice";
 import { checkTypedTabUrl, isRefused } from "../../../common/security/urlPolicy";
 
 /**
@@ -17,7 +18,7 @@ export function useOpenBookmark(): (bookmark: Bookmark) => Promise<void> {
   return async (bookmark) => {
     const check = checkTypedTabUrl(bookmark.url);
     if (isRefused(check)) {
-      showAppError(`That page was not opened. ${check.reason}`);
+      showAppError(`That page was not opened. ${check.reason}`, { kind: "address" });
       return;
     }
     const tab = await openAddressInNewView(check, bookmark.title, bookmark.icon);
@@ -26,5 +27,7 @@ export function useOpenBookmark(): (bookmark: Bookmark) => Promise<void> {
     }
     dispatch(addTab(tab));
     dispatch(selectTab(tab.id));
+    // UX finding 4: an earlier "could not open" message is out of date now.
+    dispatch(addressErrorsResolved());
   };
 }
