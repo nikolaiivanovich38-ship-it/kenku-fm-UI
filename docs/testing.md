@@ -39,3 +39,28 @@ The navigation logic in `usePlaylistPlayback.ts` exists three times (in `next`, 
 
 - `src/player/test/fakeHowler.ts`: use it with `vi.mock("howler", () => import("../../test/fakeHowler"))`. `FakeHowl.instances` lists every Howl created; `FakeHowl.reset()` belongs in `beforeEach`.
 - `src/player/test/createPlayerStore.ts`: a Redux store with the real reducers and no saving to disk, for hook and component tests.
+
+## End-to-end checks of Kenku FM's features
+
+These Playwright tests start the packaged app and use it the way a person would, to show it still does everything Kenku FM did. How to build and run them: `docs/DEVELOPING.md` > End-to-end tests.
+
+| Spec file | What it covers |
+| --- | --- |
+| `e2e/smoke.spec.ts` | The app starts with its main window and player; nothing fails at start-up; the problem check itself notices a Content-Security-Policy refusal. |
+| `e2e/playlists.spec.ts` | Create, rename and delete a playlist; add two tracks from disk; play one and see the time move; pause and resume; next and previous with wrap-around (repeat starts as "playlist"); repeat track keeps a short track going and repeat off lets it end; shuffle on/off; volume slider, mute and unmute; edit and delete a track (deleting the playing track stops playback); play a playlist from its card on the home page; a picture from disk as a custom background. |
+| `e2e/soundboards.spec.ts` | Create a soundboard; add a sound without fades (Web Audio) and one with fades (audio element); play once and see it end by itself; stop early; loop with cross-fades and with Howler's own loop; stop from the player bar; sound volume; edit name and fade; delete a sound and the soundboard. |
+| `e2e/persistence.spec.ts` | Playlists, tracks, soundboards, sound loop setting, bookmarks, player volume and repeat, and the remote port survive quitting and restarting with the same data folder; the restored track still plays. |
+| `e2e/tabs.spec.ts` | Open a local web page from the address bar, follow a link, Back, Forward, Reload, close the tab; bookmark a page, open the bookmark, edit it (a refused address keeps the dialog open), delete it; `file:///etc/passwd` in the address bar shows a message and opens nothing. |
+| `e2e/settings.spec.ts` | Token field and "Where do I get my token?" link (opens in the system browser); a bad token ends in "Error connecting to bot: …" and the form is usable again; Clear Cache removes website cookies; the version number is shown. One test is marked as an expected failure (see below). |
+| `e2e/remote.spec.ts` | Remote switched on in Settings on a free port; `GET /v1/playlist`, `PUT /v1/playlist/play` (track and playlist), `GET /v1/playlist/playback`, `PUT /v1/playlist/playback/pause` and `/play`, `GET /v1/soundboard`, `PUT /v1/soundboard/play`, `GET /v1/soundboard/playback`, `PUT /v1/soundboard/stop`, each checked against the player; switching it off closes the port. |
+| `e2e/carryOver.spec.ts` | FND-1: a library made in `<appData>/Kenku FM` appears in Cue Desk on its first normal start, the carry-over record says "copied", and later changes in Cue Desk leave the Kenku FM library alone (Linux only, where `XDG_CONFIG_HOME` moves appData). |
+| `e2e/capture.spec.ts` | Tab audio capture for Discord (SEC-3). |
+
+Every test also fails if any page logged a console error, threw an uncaught error, broke a Content-Security-Policy rule or was refused by the IPC guard, or if the main process crashed (`e2e/fixtures/problems.ts`).
+
+### Known issues these tests document
+
+- `settings.spec.ts` "an error message does not cover the Settings Done button" (`test.fail`): error messages stay until closed (since commit 4b6d863) and sit at the bottom left, over the Settings panel's Done button. The user has to close the message first.
+- While the Settings panel is open, the rest of the window, including the error message, is hidden from screen readers, so a refused Discord token is not announced. The test finds the message by its text for that reason.
+- The shuffle button does not say whether shuffle is on (no `aria-pressed`); the test reads the icon colour. The custom-background address field's label is on its wrapper, not on the input.
+- Closing a website tab within about a second of opening it logs "Unable to start stream for web view" in the capture window (as in Kenku FM). `tabs.spec.ts` waits briefly before closing tabs.

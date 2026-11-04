@@ -1,0 +1,90 @@
+/**
+ * The library and settings survive a restart: quit the app, start it again
+ * with the same data folder, and everything is still there.
+ */
+import { test, expect } from "./fixtures/app";
+import { writeSineWav } from "./fixtures/audio";
+import { startLocalSite } from "./fixtures/localSite";
+import {
+  addSound,
+  addTrack,
+  card,
+  createPlaylist,
+  createSoundboard,
+  openCard,
+  playbackPosition,
+  trackRow,
+  transport,
+} from "./fixtures/player";
+
+test("playlists, soundboards, bookmarks, volume and settings survive a restart", async ({ launchApp, userDataDir }) => {
+  const site = await startLocalSite({ "/inn": { title: "The Inn", body: "<h1>Inn</h1>" } });
+  try {
+    const tone = writeSineWav(`${userDataDir}/audio`, "lute.wav", { seconds: 8 });
+    const bell = writeSineWav(`${userDataDir}/audio`, "bell.wav", { seconds: 2, frequency: 880 });
+
+    // First start: build a small library.
+    const first = await launchApp();
+    let main = await first.mainWindow();
+    let player = await first.playerView();
+
+    await createPlaylist(player, "Saved Playlist");
+    await openCard(player, "Saved Playlist");
+    await addTrack(player, tone, "Lute");
+    const volume = player.getByRole("slider", { name: "Volume" });
+    await volume.focus();
+    await player.keyboard.press("Home");
+    await expect(volume).toHaveAttribute("aria-valuenow", "0");
+    await player.getByRole("button", { name: "repeat playlist" }).click();
+    await expect(player.getByRole("button", { name: "repeat track" })).toBeVisible();
+    await player.getByRole("button", { name: "Back" }).click();
+
+    await createSoundboard(player, "Saved Board");
+    await openCard(player, "Saved Board");
+    await addSound(player, bell, "Bell", { fadeIn: 0, fadeOut: 0 });
+    await card(player, "Bell").getByRole("button", { name: "loop", exact: true }).click();
+    await player.getByRole("button", { name: "Back" }).click();
+
+    await main.getByRole("button", { name: "add tab" }).click();
+    await main.getByLabel("Web address").fill(site.url("/inn"));
+    await main.getByLabel("Web address").press("Enter");
+    const innTab = main.locator("#controls").getByRole("listitem").filter({ hasText: "The Inn" });
+    await innTab.getByRole("button", { name: "bookmark" }).click();
+    await expect(main.getByRole("navigation").getByText("The Inn")).toBeVisible();
+
+    await main.getByRole("button", { name: "Settings" }).click();
+    let settings = main.getByRole("dialog", { name: "Settings" });
+    await settings.getByLabel("Port").fill("4321");
+    await settings.getByRole("button", { name: "Done" }).click();
+
+    await first.close();
+
+    // Second start with the same data folder.
+    const second = await launchApp();
+    main = await second.mainWindow();
+    player = await second.playerView();
+
+    await expect(card(player, "Saved Playlist")).toBeVisible();
+    await expect(card(player, "Saved Board")).toBeVisible();
+    await expect(main.getByRole("navigation").getByText("The Inn")).toBeVisible();
+
+    await openCard(player, "Saved Playlist");
+    await expect(trackRow(player, "Lute")).toBeVisible();
+    await expect(player.getByRole("slider", { name: "Volume" })).toHaveAttribute("aria-valuenow", "0");
+    await expect(player.getByRole("button", { name: "repeat track" })).toBeVisible();
+    // The track still points at its file and plays.
+    await trackRow(player, "Lute").getByRole("button", { name: "play", exact: true }).click();
+    await expect(transport(player).getByRole("button", { name: "pause", exact: true })).toBeVisible();
+    await expect.poll(() => playbackPosition(player), { timeout: 10_000 }).toBeGreaterThanOrEqual(1);
+    await player.getByRole("button", { name: "Back" }).click();
+
+    await openCard(player, "Saved Board");
+    await expect(card(player, "Bell").getByRole("button", { name: "no loop" })).toBeVisible();
+
+    await main.getByRole("button", { name: "Settings" }).click();
+    settings = main.getByRole("dialog", { name: "Settings" });
+    await expect(settings.getByLabel("Port")).toHaveValue("4321");
+  } finally {
+    await site.close();
+  }
+});

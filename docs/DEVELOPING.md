@@ -4,6 +4,7 @@
 
 - Node.js 22 and Yarn 1 (`npm install -g yarn`).
 - `yarn` installs everything. Electron (standard build, version pinned in `package.json`) downloads itself the first time it runs.
+- `node_modules` must be a real folder. Do not replace it with a symbolic link to another checkout's (for example in a `git worktree`): `yarn package` copies the link into the app unchanged, so the packaged app cannot find its modules and opens no window, and Electron Forge's clean-up step ("remove `**/.bin/**/*`") follows the link and empties every `.bin` folder in the other checkout. A hard-linked copy (`cp -al ../main/node_modules node_modules`) is fine.
 - `yarn start` runs the app with live reload. Electron needs a desktop session; on a Linux machine without one, prefix commands with `xvfb-run -a`.
 
 ## Scripts
@@ -64,9 +65,14 @@ The package then contains zlib-sync built for Node.js, which Electron cannot loa
 ```
 CUE_DESK_E2E_BUILD=1 yarn package        # add CUE_DESK_SKIP_NATIVE_REBUILD=1 if headers cannot be downloaded
 yarn e2e                                 # on Linux without a desktop: xvfb-run -a yarn e2e
+yarn e2e playlists                       # one spec file (file names are listed in docs/testing.md)
 ```
 
-- `e2e/fixtures/app.ts` starts the app with a new empty data folder (`CUE_DESK_USER_DATA_DIR`, which also skips the Kenku FM carry-over), finds pages by title (`Cue Desk`, `Cue Desk Player`, `Audio Capture`), and collects uncaught page errors and main-process crashes. New specs import `test` and `expect` from it.
+Rebuild the package after any change under `src/`; changes to `e2e/` need no rebuild.
+
+- `e2e/fixtures/app.ts` starts the app with a new empty data folder (`CUE_DESK_USER_DATA_DIR`, which also skips the Kenku FM carry-over) and finds pages by title (`Cue Desk`, `Cue Desk Player`, `Audio Capture`). New specs import `test` and `expect` from it. `launchApp` starts further copies, for tests that restart the app (same data folder by default, or `{ userDataDir: null, env: { XDG_CONFIG_HOME } }` for the normal folder under a private appData).
+- After every test the fixture fails the test if anything went wrong while the app ran (`e2e/fixtures/problems.ts`): an uncaught page error, a console error in any page, a main-process crash, a Content-Security-Policy refusal or an "Ignored a … message" from the IPC guard. A test that causes a console error on purpose lists it in `errors.ignoredConsole`.
+- Helpers: `fixtures/audio.ts` writes sine-tone WAV files, `fixtures/localSite.ts` serves test pages on 127.0.0.1 (tests cannot reach the internet), `fixtures/player.ts` holds the playlist and soundboard steps. Audio files are added through the app's own file chooser (Playwright's `filechooser` event), so the real import code runs.
 - `CUE_DESK_EXECUTABLE` runs the tests against another build.
 - On Linux as root (containers, CI) the Chromium sandbox is switched off for the test run only.
 - Failures leave a trace, screenshots and the main-process log in `test-results/`.
