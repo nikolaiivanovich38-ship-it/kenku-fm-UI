@@ -92,7 +92,7 @@ const appInfo = vi.hoisted(() => ({
 vi.mock("./main/security/appInfoIpc", () => ({
   registerAppInfoIpc: (info: import("./main/security/appInfoIpc").AppInfo) => {
     appInfo.registered = info;
-    return () => undefined;
+    return (): void => undefined;
   },
 }));
 vi.mock("./assets/icon.png", () => ({ default: "icon.png" }));
