@@ -115,7 +115,10 @@ export function TrackItem({ track, playlist, onPlay }: TrackItemProps) {
           >
             {playing ? <Pause /> : <PlayArrow />}
           </IconButton>
-          <IconButton onClick={handleMenuClick}>
+          <IconButton
+            aria-label={`Options for ${track.title}`}
+            onClick={handleMenuClick}
+          >
             <MoreVert />
           </IconButton>
         </ListItemButton>

@@ -46,7 +46,7 @@ const bookmark = (url: string): Bookmark => ({
 });
 
 async function open() {
-  await userEvent.setup().click(screen.getByRole("button", { name: /ambience/i }));
+  await userEvent.setup().click(screen.getByRole("button", { name: "Ambience" }));
 }
 
 beforeEach(() => {
@@ -103,5 +103,12 @@ describe("BookmarkListItem opening a bookmark", () => {
     await open();
     expect(store.getState().tabs.tabs.allIds).toEqual([]);
     expect(kenku.showBrowserView).not.toHaveBeenCalled();
+  });
+});
+
+describe("BookmarkListItem options button", () => {
+  it("is named after the bookmark, so screen readers can tell the options buttons apart", () => {
+    setup(bookmark("https://tabletopaudio.com"));
+    expect(screen.getByRole("button", { name: "Options for Ambience" })).toBeInTheDocument();
   });
 });

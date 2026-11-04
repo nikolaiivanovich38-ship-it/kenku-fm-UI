@@ -143,7 +143,11 @@ export function Playlist({ onPlay }: PlaylistProps) {
           alignItems="center"
           sx={{ zIndex: 1 }}
         >
-          <IconButton onClick={() => navigate(-1)} sx={{ mr: "40px" }}>
+          <IconButton
+            aria-label="Back"
+            onClick={() => navigate(-1)}
+            sx={{ mr: "40px" }}
+          >
             <Back />
           </IconButton>
           <Typography sx={{ zIndex: 1 }} variant="h3" noWrap>
@@ -155,7 +159,7 @@ export function Playlist({ onPlay }: PlaylistProps) {
                 <Add />
               </IconButton>
             </Tooltip>
-            <IconButton onClick={handleMenuClick}>
+            <IconButton aria-label="Playlist options" onClick={handleMenuClick}>
               <MoreVert />
             </IconButton>
           </Stack>
