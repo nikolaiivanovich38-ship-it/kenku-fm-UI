@@ -20,8 +20,12 @@ import { RootState } from "../../app/store";
 import { useSelector } from "react-redux";
 import { LOCAL_OUTPUT_ID, botLabel, type BotState } from "../../../common/outputs";
 
+import Button from "@mui/material/Button";
+import Stack from "@mui/material/Stack";
+
 import { OutputListItem } from "./OutputListItem";
 import { BotStatusLine } from "./BotStatusLine";
+import { BotStatusChip, LocalStatusChip, canReconnect } from "./OutputStatusChip";
 
 /**
  * OUT-1: the outputs in the side bar: this computer, then each Discord bot
@@ -48,6 +52,7 @@ export function OutputListItems() {
           <OutputListItem
             voiceChannel={{ id: LOCAL_OUTPUT_ID, name: "This Computer" }}
             selected={!output.local.muted}
+            trailing={<LocalStatusChip muted={output.local.muted} />}
             onClick={toggleLocal}
           />
           {shownBots.map((bot) => (
@@ -91,7 +96,17 @@ function BotOutput({ bot }: { bot: BotState }) {
       >
         <ListItemText
           primary={label}
-          secondary={<BotStatusLine bot={bot} />}
+          secondary={
+            <Stack spacing={0.5} alignItems="flex-start" component="span">
+              <BotStatusChip bot={bot} />
+              <BotStatusLine bot={bot} />
+              {canReconnect(bot) && (
+                <Button size="small" variant="outlined" onClick={() => window.kenku.outputs.reconnect(bot.id)}>
+                  Reconnect
+                </Button>
+              )}
+            </Stack>
+          }
           primaryTypographyProps={{ sx: { fontSize: "0.875rem", fontWeight: 500 } }}
           secondaryTypographyProps={{ component: "div" }}
         />

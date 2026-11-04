@@ -170,3 +170,59 @@ test("two bots join two voice channels of one server, and each can be muted on i
     await site.close();
   }
 });
+
+test("each output shows its status, reconnects by itself and explains failures (OUT-2, BUG-6)", async ({ launchApp }) => {
+  test.setTimeout(90_000);
+  const launched = await launchApp({ env: FAKE_DISCORD_ENV });
+  const { app } = launched;
+  const mainWindow = await launched.mainWindow();
+  await launched.playerView();
+  await connectFakeBot(mainWindow);
+  const bot = mainWindow.getByRole("group", { name: /\(Bot 1\)$/ });
+  const chip = bot.getByRole("status");
+  await expect(chip).toHaveText("Ready");
+  await expect(mainWindow.getByRole("button", { name: "This Computer", exact: true })).toBeVisible();
+
+  await channelButton(mainWindow, "Tavern").click();
+  await expect(chip).toHaveText("Connected");
+  await expect(bot).toContainText("In Tavern");
+
+  // The network drops: the bot says so and tries again by itself.
+  const setNetworkDown = (down: boolean) =>
+    app.evaluate((_electron, value) => {
+      (globalThis as unknown as { __cueDeskFakeDiscord: { setNetworkDown(down: boolean): void } }).__cueDeskFakeDiscord.setNetworkDown(value);
+    }, down);
+  await setNetworkDown(true);
+  await expect(chip).toHaveText("Reconnecting…");
+  await expect(bot).toContainText("Trying again in");
+  await setNetworkDown(false);
+  await expect(chip).toHaveText("Connected", { timeout: 15_000 });
+
+  // A channel the bot may not join: a plain reason, kept until dismissed.
+  await channelButton(mainWindow, "Tavern").click();
+  await expect(chip).toHaveText("Ready");
+  await channelButton(mainWindow, "Locked Room").click();
+  await expect(chip).toHaveText("Error");
+  await expect(bot).toContainText("lacks the Connect permission");
+  await expect(mainWindow.getByRole("alert")).toContainText("cannot join “Locked Room”");
+  await expect(bot.getByRole("button", { name: "Reconnect" })).toBeVisible();
+  await mainWindow.getByTitle("Close").click();
+  await expect(mainWindow.getByRole("alert")).toHaveCount(0);
+  await expect(bot).toContainText("lacks the Connect permission");
+
+  // Leaving a Stage channel really leaves it (BUG-7).
+  await channelButton(mainWindow, "Stage").click();
+  await expect(channelButton(mainWindow, "Stage")).toHaveAttribute("aria-pressed", "true");
+  await expect(chip).toHaveText("Connected");
+  await channelButton(mainWindow, "Stage").click();
+  await expect
+    .poll(() =>
+      app.evaluate(
+        () =>
+          (globalThis as unknown as { __cueDeskFakeDiscord: { connectionsIn(id: string): unknown[] } }).__cueDeskFakeDiscord.connectionsIn("903")
+            .length,
+      ),
+    )
+    .toBe(0);
+  await expect(chip).toHaveText("Ready");
+});

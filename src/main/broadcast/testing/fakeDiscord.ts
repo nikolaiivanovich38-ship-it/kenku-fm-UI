@@ -82,7 +82,12 @@ export class FakeVoiceConnection extends EventEmitter {
 
   private connectSoon() {
     setTimeout(() => {
-      if (this.destroyed || this.discord.networkDown || this.channel?.neverReady) {
+      if (this.destroyed || this.channel?.neverReady) {
+        return;
+      }
+      if (this.discord.networkDown) {
+        // As @discordjs/voice does when it cannot reach the voice server.
+        this.setStatus(VoiceConnectionStatus.Disconnected);
         return;
       }
       this.setStatus(VoiceConnectionStatus.Connecting);

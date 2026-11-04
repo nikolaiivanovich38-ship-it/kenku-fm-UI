@@ -1,22 +1,23 @@
 import React from "react";
 import type { BotState } from "../../../common/outputs";
 
-/** A bot's state in a few words, e.g. "In Tavern" or "Connecting…". */
+/**
+ * A bot's state in plain words, e.g. "In Tavern", or the reason something
+ * failed. Errors stay until the bot reconnects or leaves the channel; the
+ * error message box shows them too, until it is closed.
+ */
 export function botStatusText(bot: BotState): string {
-  const problem = bot.voice.find((session) => session.status === "error");
-  if (bot.status === "error") {
-    return "Not connected: there was a problem";
+  if (bot.error) {
+    // The message box says "Error connecting to bot: …"; here it reads as a state.
+    return bot.error.replace(/^Error connecting to bot: /, "Could not connect: ");
   }
-  if (problem) {
-    return `Could not join ${problem.channelName}`;
+  const problem = bot.voice.find((session) => session.status === "error" || session.status === "reconnecting");
+  if (problem?.error) {
+    return problem.error;
   }
   const joining = bot.voice.find((session) => session.status === "joining");
   if (joining) {
     return `Joining ${joining.channelName}…`;
-  }
-  const reconnecting = bot.voice.find((session) => session.status === "reconnecting");
-  if (reconnecting) {
-    return `Reconnecting to ${reconnecting.channelName}…`;
   }
   const connected = bot.voice.filter((session) => session.status === "connected");
   if (connected.length > 0) {

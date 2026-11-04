@@ -143,6 +143,8 @@ export const IPC_CHANNELS = {
   BOT_JOIN_CHANNEL: { from: MAIN, args: argsMatch(isBotId, isDiscordId) },
   BOT_LEAVE_CHANNEL: { from: MAIN, args: argsMatch(isBotId, isDiscordId) },
   OUTPUT_SET_MUTED: { from: MAIN, args: argsMatch(isOutputId, isBoolean) },
+  // OUT-2: try a failed bot or voice connection again.
+  BOT_RECONNECT: { from: MAIN, args: argsMatch(isBotId) },
 } satisfies Record<string, IpcChannelRule>;
 
 export type IpcChannel = keyof typeof IPC_CHANNELS;

@@ -21,23 +21,27 @@ type OutputListItemProps = {
   status?: VoiceStatus;
   /** Plain-language problem, read out with the channel name. */
   problem?: string;
+  /** Shown at the end instead of the tick (OUT-2: "This Computer"'s status chip). */
+  trailing?: React.ReactNode;
   onClick: (channelId: string) => void;
 };
 
-export function OutputListItem({ voiceChannel, selected, status, problem, onClick }: OutputListItemProps) {
+export function OutputListItem({ voiceChannel, selected, status, problem, trailing, onClick }: OutputListItemProps) {
   const busy = status === "joining" || status === "reconnecting";
   const icon = busy ? (
     <CircularProgress size="1rem" aria-label={status === "joining" ? "Joining" : "Reconnecting"} />
   ) : status === "error" ? (
     <ErrorIcon sx={{ fontSize: "1rem" }} color="error" aria-label="Problem" />
+  ) : trailing ? (
+    trailing
   ) : selected ? (
     <TickIcon sx={{ fontSize: "1rem" }} aria-hidden />
   ) : null;
   return (
     <ListItem
       disablePadding
-      secondaryAction={icon && <Box sx={{ height: "1rem", display: "flex" }}>{icon}</Box>}
-      sx={{ "& .MuiListItemButton-root": { pr: icon ? "32px" : undefined } }}
+      secondaryAction={icon && <Box sx={{ display: "flex", alignItems: "center" }}>{icon}</Box>}
+      sx={{ "& .MuiListItemButton-root": { pr: icon ? (trailing ? "56px" : "32px") : undefined } }}
     >
       <ListItemButton
         selected={selected}

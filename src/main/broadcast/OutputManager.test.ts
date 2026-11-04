@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { VoiceConnectionStatus } from "@discordjs/voice";
 import { OutputManager } from "./OutputManager";
 import { BotTokenStore, type SafeStorageLike } from "./botTokenStore";
-import { JOIN_TIMEOUT_MS } from "./DiscordBot";
+import { JOIN_TIMEOUT_MS, RECONNECT_DELAYS_MS } from "./DiscordBot";
 import { FAKE_CHANNELS, FakeDiscord } from "./testing/fakeDiscord";
 import { fakeIpcMain, fakePage, fromMainFrame } from "../security/testing/fakeIpc";
 import type { OutputsState } from "../../common/outputs";
@@ -270,6 +270,16 @@ describe("DiscordBot: joining that fails is reported (BUG-6)", () => {
     expect(errorsShown()[0]).toMatch(/Connect this bot in Settings/);
   });
 
+  it("stays in its channel when moving to one it may not join", async () => {
+    const m = newManager();
+    const id = await connectedBot(m);
+    await m.bots.get(id)?.join(FAKE_CHANNELS.tavern.id);
+    await settle();
+    await m.bots.get(id)?.join(FAKE_CHANNELS.locked.id);
+    expect(m.state().bots[0].voice).toEqual([expect.objectContaining({ channelName: "Tavern", status: "connected" })]);
+    expect(errorsShown()[0]).toMatch(/cannot join “Locked Room”/);
+  });
+
   it("can try a failed channel again", async () => {
     const m = newManager();
     const id = await connectedBot(m);
@@ -295,5 +305,101 @@ describe("DiscordBot: leaving a Stage channel (BUG-7)", () => {
     expect(connection.state.status).toBe(VoiceConnectionStatus.Destroyed);
     expect(m.state().bots[0].voice).toEqual([]);
     expect(m.active).toBe(false);
+  });
+});
+
+describe("Reconnecting (OUT-2)", () => {
+  it("gets a dropped voice connection back by itself when the network returns", async () => {
+    const m = newManager();
+    const id = await connectedBot(m);
+    await m.bots.get(id)?.join(FAKE_CHANNELS.tavern.id);
+    await settle();
+    vi.useFakeTimers();
+    discord.setNetworkDown(true);
+    expect(m.state().bots[0].voice[0]).toMatchObject({ status: "reconnecting", error: expect.stringMatching(/Trying again in 1 s/) });
+    // The broadcast keeps running while it tries.
+    expect(m.active).toBe(true);
+    await vi.advanceTimersByTimeAsync(1_000 + 20);
+    expect(m.state().bots[0].voice[0].status).toBe("reconnecting");
+    discord.setNetworkDown(false);
+    await vi.advanceTimersByTimeAsync(2_000 + 20);
+    expect(m.state().bots[0].voice[0]).toEqual(
+      expect.objectContaining({ status: "connected", channelName: "Tavern" }),
+    );
+    expect(m.state().bots[0].voice[0].error).toBeUndefined();
+  });
+
+  it("waits longer between attempts, then shows an error until Reconnect is pressed", async () => {
+    const m = newManager();
+    const id = await connectedBot(m);
+    await m.bots.get(id)?.join(FAKE_CHANNELS.tavern.id);
+    await settle();
+    vi.useFakeTimers();
+    discord.setNetworkDown(true);
+    const waits: string[] = [];
+    for (const delay of RECONNECT_DELAYS_MS) {
+      waits.push(m.state().bots[0].voice[0].error ?? "");
+      await vi.advanceTimersByTimeAsync(delay + 20);
+    }
+    expect(waits).toEqual(RECONNECT_DELAYS_MS.map((delay) => expect.stringMatching(` in ${delay / 1000} s`)));
+    expect(m.state().bots[0].voice[0]).toMatchObject({ status: "error", error: expect.stringMatching(/press Reconnect/) });
+    expect(errorsShown()).toContainEqual(expect.stringMatching(/could not get it back/));
+    expect(m.active).toBe(false);
+
+    discord.setNetworkDown(false);
+    fakeIpcMain.deliver("BOT_RECONNECT", main(), id);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(m.state().bots[0].voice).toEqual([expect.objectContaining({ channelName: "Tavern", status: "connected" })]);
+    expect(m.active).toBe(true);
+  });
+
+  it("reports a first login that cannot reach Discord at once (no silent retrying)", async () => {
+    const m = newManager();
+    const id = m.state().bots[0].id;
+    m.setToken(id, TOKEN);
+    discord.setNetworkDown(true);
+    await m.connect(id);
+    expect(m.state().bots[0]).toMatchObject({ status: "error", error: expect.stringMatching(/^Error connecting to bot: /) });
+    expect(errorsShown()).toEqual([expect.stringMatching(/ENOTFOUND/)]);
+    discord.setNetworkDown(false);
+    fakeIpcMain.deliver("BOT_RECONNECT", main(), id);
+    await settle();
+    expect(m.state().bots[0].status).toBe("ready");
+  });
+
+  it("logs in again by itself after losing a working connection, but not with a refused token", async () => {
+    const m = newManager();
+    await connectedBot(m);
+    vi.useFakeTimers();
+    discord.setNetworkDown(true);
+    discord.clients[0].emit("error", new Error("getaddrinfo ENOTFOUND gateway.discord.gg"));
+    await vi.advanceTimersByTimeAsync(1_000 + 50);
+    expect(m.state().bots[0]).toMatchObject({ status: "connecting", error: expect.stringMatching(/Cannot reach Discord/) });
+    discord.setNetworkDown(false);
+    await vi.advanceTimersByTimeAsync(2_000 + 50);
+    expect(m.state().bots[0]).toMatchObject({ status: "ready" });
+    expect(m.state().bots[0].error).toBeUndefined();
+
+    const refused = Object.assign(new Error("An invalid token was provided."), { code: "TokenInvalid" });
+    const current = discord.clients[discord.clients.length - 1];
+    current.emit("error", refused);
+    expect(m.state().bots[0].status).toBe("error");
+    const logins = discord.clients.length;
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(discord.clients).toHaveLength(logins);
+  });
+
+  it("logs in again and rejoins the bot's channels when Reconnect is pressed after a failure", async () => {
+    const m = newManager();
+    const id = await connectedBot(m);
+    await m.bots.get(id)?.join(FAKE_CHANNELS.dungeon.id);
+    await settle();
+    const client = discord.clients[0];
+    client.emit("error", new Error("Shard closed"));
+    expect(m.state().bots[0]).toMatchObject({ status: "connecting" });
+    // The automatic attempt logs in again and rejoins the channel.
+    await settle(1_200);
+    expect(m.state().bots[0]).toMatchObject({ status: "ready" });
+    expect(m.state().bots[0].voice).toEqual([expect.objectContaining({ channelName: "Dungeon", status: "connected" })]);
   });
 });

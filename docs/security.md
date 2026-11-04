@@ -234,4 +234,5 @@ The capture window used to send audio to the main process over a WebSocket on `1
 | `BOT_IMPORT_LEGACY_TOKEN` | Main window | token: non-blank text ≤ 4096 | `OutputManager` |
 | `BOT_JOIN_CHANNEL`, `BOT_LEAVE_CHANNEL` | Main window | bot id; channel id: 1–25 digits | `DiscordBot` |
 | `OUTPUT_SET_MUTED` | Main window | `"local"` or a bot id; boolean | `OutputManager` |
+| `BOT_RECONNECT` (OUT-2) | Main window | bot id | `OutputManager` / `DiscordBot` |
 

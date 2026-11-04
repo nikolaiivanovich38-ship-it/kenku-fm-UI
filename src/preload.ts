@@ -67,6 +67,8 @@ const outputs = {
   disconnect: (botId: string) => ipcRenderer.send("BOT_DISCONNECT", botId),
   joinChannel: (botId: string, channelId: string) => ipcRenderer.send("BOT_JOIN_CHANNEL", botId, channelId),
   leaveChannel: (botId: string, channelId: string) => ipcRenderer.send("BOT_LEAVE_CHANNEL", botId, channelId),
+  /** OUT-2: log in again or rejoin failed channels. */
+  reconnect: (botId: string) => ipcRenderer.send("BOT_RECONNECT", botId),
   /** `outputId`: "local" for this computer, or a bot id. */
   setMuted: (outputId: string, muted: boolean) => ipcRenderer.send("OUTPUT_SET_MUTED", outputId, muted),
 };

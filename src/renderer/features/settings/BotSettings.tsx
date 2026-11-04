@@ -8,6 +8,8 @@ import Typography from "@mui/material/Typography";
 
 import { botLabel, type BotState } from "../../../common/outputs";
 import { botStatusText } from "../output/BotStatusLine";
+// Connect below logs in afresh, so Settings needs no separate Reconnect button.
+import { BotStatusChip } from "../output/OutputStatusChip";
 
 type BotSettingsProps = {
   bot: BotState;
@@ -52,12 +54,16 @@ export function BotSettings({ bot, removable, autoFocus }: BotSettingsProps) {
 
   return (
     <Stack spacing={1} role="group" aria-label={`Discord bot ${label}`}>
-      <Typography variant="body2" component="h3" sx={{ fontWeight: 500 }}>
-        {label}
-      </Typography>
-      <Typography variant="caption" color="text.secondary" role="status">
+      <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+        <Typography variant="body2" component="h3" sx={{ fontWeight: 500 }}>
+          {label}
+        </Typography>
+        <BotStatusChip bot={bot} />
+      </Stack>
+      <Typography variant="caption" color="text.secondary">
         {botStatusText(bot)}
       </Typography>
+
       <TextField
         autoFocus={autoFocus}
         margin="dense"

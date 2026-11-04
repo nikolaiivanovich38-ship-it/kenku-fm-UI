@@ -55,6 +55,7 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
     this.ipc.on("BOT_IMPORT_LEGACY_TOKEN", (_event, token: string) => this.importLegacyToken(token));
     this.ipc.on("BOT_CONNECT", (_event, id: string) => void this.connect(id));
     this.ipc.on("BOT_DISCONNECT", (_event, id: string) => this.bots.get(id)?.disconnect());
+    this.ipc.on("BOT_RECONNECT", (_event, id: string) => void this.reconnect(id));
     this.ipc.on("BOT_JOIN_CHANNEL", (_event, id: string, channelId: string) => void this.bots.get(id)?.join(channelId));
     this.ipc.on("BOT_LEAVE_CHANNEL", (_event, id: string, channelId: string) => this.bots.get(id)?.leave(channelId));
     this.ipc.on("OUTPUT_SET_MUTED", (_event, outputId: string, muted: boolean) => this.setMuted(outputId, muted));
@@ -175,6 +176,20 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
       return;
     }
     await bot.connect(token);
+  }
+
+  /** OUT-2: the Reconnect button. */
+  async reconnect(id: string): Promise<void> {
+    const bot = this.bots.get(id);
+    const token = this.tokens.token(id);
+    if (!bot) {
+      return;
+    }
+    if (!token) {
+      this.showError("This bot has no token. Enter one in Settings.");
+      return;
+    }
+    await bot.reconnect(token);
   }
 
   setMuted(outputId: string, muted: boolean): void {
