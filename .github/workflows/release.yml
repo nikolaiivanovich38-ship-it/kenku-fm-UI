@@ -1,12 +1,14 @@
 # FND-5: build the Windows installer and attach it to a DRAFT GitHub release.
 #
 # Start it by pushing a version tag (for example v0.1.0, matching
-# package.json). The quality gate in ci.yml runs first; the build only starts
-# if it passes. "Run workflow" from the Actions tab on a branch builds the
-# files as a downloadable workflow artifact but publishes nothing: only a tag
-# run creates the draft release, and the release is tied to the exact commit
-# that was built (target_commitish), so a build of one commit can never be
-# attached to a tag on another.
+# package.json), or by pushing the commit to release to the `release` branch
+# (for tools that may push branches but not tags). The quality gate in ci.yml
+# runs first; the build only starts if it passes. "Run workflow" from the
+# Actions tab on another branch builds the files as a downloadable workflow
+# artifact but publishes nothing. A tag or `release` run creates the draft
+# release for the version in package.json, tied to the exact commit that was
+# built (target_commitish): from a `release` push, GitHub creates the tag on
+# that commit when the draft is published.
 #
 # Two jobs: "build" has read-only access to the repository; "publish" holds
 # the only write permission and does nothing but attach the built files.
@@ -21,6 +23,7 @@ name: Release
 on:
   push:
     tags: ["v*"]
+    branches: ["release"]
   workflow_dispatch:
 
 permissions:
@@ -42,7 +45,7 @@ jobs:
     # ships Visual Studio 2026, which the node-gyp versions used by yarn (11.x)
     # and by Electron Forge's rebuild (@electron/node-gyp 10.2) cannot find,
     # so building zlib-sync fails. Move back to windows-latest once both
-    # support VS 2026 (backlog FND-7).
+    # support VS 2026 (backlog FND-10).
     runs-on: windows-2022
     timeout-minutes: 60
     permissions:
@@ -105,7 +108,7 @@ jobs:
   publish:
     name: Attach to a draft release
     needs: build
-    if: github.ref_type == 'tag'
+    if: github.ref_type == 'tag' || github.ref == 'refs/heads/release'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

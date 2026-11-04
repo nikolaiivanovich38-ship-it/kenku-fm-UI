@@ -98,7 +98,7 @@ Third-party actions are pinned by full commit SHA with the version in a comment.
 ## Releases
 
 1. Bump `version` in `package.json`, update `CHANGELOG.md`.
-2. Commit, then tag `vX.Y.Z` (must equal the version) and push the tag.
+2. Commit, then tag `vX.Y.Z` (must equal the version) and push the tag. Where tags cannot be pushed, push the commit to the `release` branch instead (`git push origin main:release`); publishing the draft then creates the tag on the built commit.
 3. The Release workflow creates a draft release with `cue-desk-X.Y.Z-win32-x64-setup.exe`, `RELEASES`, the `.nupkg`, the zip and `SHA256SUMS.txt`.
 4. Complete `docs/RELEASE_CHECKLIST.md`, then publish the draft. Installed apps pick it up through update.electronjs.org, which needs the repository to stay public and ignores drafts and pre-releases.
 
