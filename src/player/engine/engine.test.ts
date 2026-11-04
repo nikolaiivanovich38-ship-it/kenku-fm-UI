@@ -177,3 +177,36 @@ describe("PlaybackEngine dispose", () => {
     expect(context.clock.pendingTimers()).toBe(0);
   });
 });
+
+describe("PlaybackEngine with a source loader", () => {
+  async function engineWithLoader() {
+    const { SourceLoader } = await import("./sources/sourceLoader");
+    const { encodeFakeAudio } = await import("./testing/fakeAudio");
+    context.mediaDurations.set("file:///track.ogg", 200);
+    const loader = new SourceLoader({
+      context,
+      createElement: () => context.createMediaElement(),
+      fetchBytes: async () => encodeFakeAudio(4, 1000),
+    });
+    return new PlaybackEngine({ context, scheduler: context.clock, loader });
+  }
+
+  it("plays an address: tracks stream, gapless loops and pads decode", async () => {
+    const withLoader = await engineWithLoader();
+    withLoader.play({ bus: "music", media: { url: "file:///track.ogg" } });
+    withLoader.play({ bus: "ambience", media: { url: "file:///rain.ogg" }, loop: true });
+    withLoader.play({ bus: "effects", media: { url: "file:///sting.wav", preferBuffer: true } });
+    await context.flush();
+    expect(context.elements.map((e) => e.src)).toEqual(["file:///track.ogg"]);
+    expect(context.decodeCalls).toBe(2);
+    expect(withLoader.voices().map((v) => v.state)).toEqual(["playing", "playing", "playing"]);
+  });
+
+  it("an address without a loader is refused with a clear message", async () => {
+    const voice = engine.play({ bus: "music", media: { url: "file:///x.ogg" } });
+    const error = vi.fn();
+    voice.on("error", error);
+    await context.flush();
+    expect(error).toHaveBeenCalledWith(expect.stringMatching(/no source loader/i));
+  });
+});
