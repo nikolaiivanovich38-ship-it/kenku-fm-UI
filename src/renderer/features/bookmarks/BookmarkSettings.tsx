@@ -10,6 +10,7 @@ import { useDispatch } from "react-redux";
 import { Bookmark, editBookmark } from "./bookmarksSlice";
 
 import { showWindowControls } from "../../common/showWindowControls";
+import { sidePanelProps } from "../../common/viewOverlay";
 import {
   checkTypedTabUrl,
   isRefused,
@@ -81,6 +82,8 @@ export function BookmarkSettings({
       sx={{ width: 240 }}
       open={open}
       onClose={handleClose}
+      // A side panel over the sidebar: the website or player view stays beside it.
+      {...sidePanelProps}
       // Stop key events from propagating to prevent the track drag and drop from stealing the space bar
       onKeyDown={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}

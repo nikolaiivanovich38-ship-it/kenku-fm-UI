@@ -29,6 +29,15 @@ export function BotSettings({ bot, removable, autoFocus }: BotSettingsProps) {
   const busy = bot.status === "connecting";
   const connected = bot.status === "ready";
 
+  /** UX finding 5: Connect is the form's submit button, so Enter in the Token field presses it. */
+  async function handleSubmit(event: React.FormEvent) {
+    event.preventDefault();
+    if (busy || (!connected && draft.trim() === "" && !bot.hasToken)) {
+      return;
+    }
+    await handleConnect();
+  }
+
   async function handleConnect() {
     if (connected) {
       window.kenku.outputs.disconnect(bot.id);
@@ -46,14 +55,22 @@ export function BotSettings({ bot, removable, autoFocus }: BotSettingsProps) {
     window.kenku.outputs.removeToken(bot.id);
   }
 
+  // UX finding 5: what a token is, in one line, where the user types it.
   const tokenHelp = !bot.hasToken
-    ? "Enter your bot's token"
+    ? "Your bot's password, from the Bot page in the Discord Developer Portal."
     : bot.tokenRemembered
       ? "A token is saved, encrypted on this computer. Type a new one to replace it."
-      : "A token is set until Cue Desk closes: this computer has no secure place to save it.";
+      : "A token is set for this session only. Type a new one to replace it.";
 
   return (
-    <Stack spacing={1} role="group" aria-label={`Discord bot ${label}`}>
+    <Stack
+      spacing={1}
+      role="group"
+      aria-label={`Discord bot ${label}`}
+      component="form"
+      onSubmit={handleSubmit}
+      noValidate
+    >
       <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
         <Typography variant="body2" component="h3" sx={{ fontWeight: 500 }}>
           {label}
@@ -82,8 +99,8 @@ export function BotSettings({ bot, removable, autoFocus }: BotSettingsProps) {
         helperText={tokenHelp}
       />
       <Button
+        type="submit"
         disabled={busy || (!connected && draft.trim() === "" && !bot.hasToken)}
-        onClick={handleConnect}
         fullWidth
         variant="outlined"
         size="small"
@@ -91,12 +108,12 @@ export function BotSettings({ bot, removable, autoFocus }: BotSettingsProps) {
         {busy ? <CircularProgress size={24} aria-label="Connecting" /> : connected ? "Disconnect" : "Connect"}
       </Button>
       {bot.hasToken && !busy && (
-        <Button onClick={handleRemoveToken} fullWidth size="small" color="inherit">
+        <Button type="button" onClick={handleRemoveToken} fullWidth size="small" color="inherit">
           Remove token
         </Button>
       )}
       {removable && (
-        <Button onClick={() => window.kenku.outputs.removeBot(bot.id)} fullWidth size="small" color="inherit">
+        <Button type="button" onClick={() => window.kenku.outputs.removeBot(bot.id)} fullWidth size="small" color="inherit">
           Remove {bot.name}
         </Button>
       )}

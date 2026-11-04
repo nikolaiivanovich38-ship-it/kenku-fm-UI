@@ -16,7 +16,7 @@ import { Bookmark, BookmarkFolder } from "./bookmarksSlice";
 import { useOpenBookmark } from "./useOpenBookmark";
 
 /** A bookmark's site icon, or its first letter when the site has none. */
-function BookmarkIcon({ bookmark, size = 24 }: { bookmark: Bookmark; size?: number }) {
+export function BookmarkIcon({ bookmark, size = 24 }: { bookmark: Bookmark; size?: number }) {
   if (bookmark.icon) {
     return (
       <Box sx={{ width: size, height: size, display: "flex" }}>

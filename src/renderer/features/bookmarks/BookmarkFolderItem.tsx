@@ -13,7 +13,9 @@ import FolderIcon from "@mui/icons-material/FolderRounded";
 import FolderOpenIcon from "@mui/icons-material/FolderOpenRounded";
 import MoreIcon from "@mui/icons-material/MoreHorizRounded";
 import { useDroppable } from "@dnd-kit/core";
+import Box from "@mui/material/Box";
 import { useDispatch } from "react-redux";
+import { focusNextRowLater } from "../../common/focusNextRow";
 
 import { BookmarkFolder, removeFolder, renameFolder, toggleFolder } from "./bookmarksSlice";
 import { BookmarkFolderDialog } from "./BookmarkFolderDialog";
@@ -46,7 +48,7 @@ export function BookmarkFolderItem({ folder, children }: BookmarkFolderItemProps
   const [renaming, setRenaming] = useState(false);
 
   return (
-    <>
+    <Box data-focus-item>
       <ListItem
         ref={setNodeRef}
         disablePadding
@@ -64,6 +66,7 @@ export function BookmarkFolderItem({ folder, children }: BookmarkFolderItemProps
           dense
           aria-expanded={folder.open}
           aria-label={`${folder.title} folder`}
+          data-focus-row={`folder:${folder.id}`}
           onClick={() => dispatch(toggleFolder(folder.id))}
           sx={{
             px: 2,
@@ -102,6 +105,8 @@ export function BookmarkFolderItem({ folder, children }: BookmarkFolderItemProps
         </MenuItem>
         <MenuItem
           onClick={() => {
+            // UX finding 12: focus goes to what came after the folder.
+            focusNextRowLater(menuAnchor);
             setMenuAnchor(null);
             dispatch(removeFolder(folder.id));
           }}
@@ -116,6 +121,6 @@ export function BookmarkFolderItem({ folder, children }: BookmarkFolderItemProps
         onSave={(title) => dispatch(renameFolder({ id: folder.id, title }))}
         onClose={() => setRenaming(false)}
       />
-    </>
+    </Box>
   );
 }

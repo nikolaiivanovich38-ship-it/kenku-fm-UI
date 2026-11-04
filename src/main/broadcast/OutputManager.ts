@@ -1,10 +1,24 @@
 import { ipcMain, type BrowserWindow } from "electron";
 import { TypedEmitter } from "tiny-typed-emitter";
+import type { ErrorCause } from "../../common/errorCause";
 import { LOCAL_OUTPUT_ID, type OutputsState } from "../../common/outputs";
 import { guardIpc } from "../security/ipcGuard";
 import type { BotTokenStore } from "./botTokenStore";
 import { defaultDiscordDriver, type DiscordDriver } from "./discordDriver";
-import { DiscordBot } from "./DiscordBot";
+import { DiscordBot, isTokenProblem } from "./DiscordBot";
+import { RetryClock } from "./retryClock";
+
+/** UX finding 5: what Discord refusing a token means, and what to do, in plain words. */
+export const TOKEN_REFUSED =
+  "Discord didn't accept this token. Copy it again from the Bot page in the Discord Developer Portal.";
+
+/** A bot's error in plain words: Discord's own wording for a refused token is replaced. */
+export function plainBotError(error: string | undefined): string | undefined {
+  if (error?.startsWith("Error connecting to bot: ") && isTokenProblem(new Error(error))) {
+    return TOKEN_REFUSED;
+  }
+  return error;
+}
 
 interface OutputManagerEvents {
   /** True when the first output joins a voice channel, false when the last leaves (PERF-4). */
@@ -32,6 +46,8 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
   private wasActive = false;
   private publishQueued = false;
   private ipc = guardIpc(ipcMain);
+  /** UX finding 6: when each waiting bot or voice connection tries again. */
+  private retries = new RetryClock();
 
   constructor(
     private readonly window: WindowLike,
@@ -84,9 +100,13 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
           hasToken: summary?.hasToken ?? false,
           tokenRemembered: summary?.tokenRemembered ?? false,
           status: bot.status,
-          ...(bot.error ? { error: bot.error } : {}),
+          ...(bot.error ? { error: plainBotError(bot.error) } : {}),
+          ...(this.retries.get(bot.id) ? { retryAt: this.retries.get(bot.id) } : {}),
           guilds: bot.guilds,
-          voice: bot.voice(),
+          voice: bot.voice().map((session) => {
+            const retryAt = this.retries.get(`${bot.id}:${session.guildId}`);
+            return retryAt ? { ...session, retryAt } : session;
+          }),
           muted: bot.muted,
         };
       }),
@@ -127,6 +147,7 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
     }
     bot.destroy();
     this.bots.delete(id);
+    this.retries.forget(id);
     this.tokens.removeBot(id);
     this.updateActive();
     this.publish();
@@ -172,7 +193,7 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
     }
     const token = this.tokens.token(id);
     if (!token) {
-      this.showError("Error connecting to bot: Invalid token");
+      this.showError("This bot has no token yet. Paste one in Settings first.", { kind: "output", id });
       return;
     }
     await bot.connect(token);
@@ -186,7 +207,7 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
       return;
     }
     if (!token) {
-      this.showError("This bot has no token. Enter one in Settings.");
+      this.showError("This bot has no token. Enter one in Settings.", { kind: "output", id });
       return;
     }
     await bot.reconnect(token);
@@ -215,10 +236,11 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
   private createBot(id: string): DiscordBot {
     const bot = new DiscordBot(id, this.driver);
     bot.on("change", () => {
+      this.noteRetries(id, bot);
       this.updateActive();
       this.publish();
     });
-    bot.on("failure", (message) => this.showError(message));
+    bot.on("failure", (message) => this.handleFailure(id, bot, message));
     this.bots.set(id, bot);
     return bot;
   }
@@ -245,9 +267,34 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
     this.emit("activeChange", active);
   }
 
-  private showError(message: string) {
+  /** UX finding 6: note when each wait of this bot started, as soon as it starts. */
+  private noteRetries(id: string, bot: DiscordBot) {
+    this.retries.update(id, bot.status === "connecting" ? bot.error : undefined);
+    const sessions = bot.voice();
+    // A voice connection that has gone leaves no stale countdown for the next one.
+    this.retries.forget(id, sessions.map((session) => `${id}:${session.guildId}`));
+    for (const session of sessions) {
+      this.retries.update(`${id}:${session.guildId}`, session.status === "reconnecting" ? session.error : undefined);
+    }
+  }
+
+  /**
+   * A bot reports a failure. UX finding 5: a token Discord refused is
+   * forgotten (it will not start working by itself, and keeping it showed
+   * "Saved" for a token that does not work) and explained in plain words.
+   */
+  private handleFailure(id: string, bot: DiscordBot, message: string) {
+    if (bot.status === "error" && message === bot.error && plainBotError(message) === TOKEN_REFUSED) {
+      this.tokens.removeToken(id);
+      this.publish();
+    }
+    // UX finding 4: the window closes the message once this bot's problem is fixed.
+    this.showError(plainBotError(message) ?? message, { kind: "output", id });
+  }
+
+  private showError(message: string, cause?: ErrorCause) {
     if (!this.window.webContents.isDestroyed()) {
-      this.window.webContents.send("ERROR", message);
+      this.window.webContents.send("ERROR", message, ...(cause ? [cause] : []));
     }
   }
 

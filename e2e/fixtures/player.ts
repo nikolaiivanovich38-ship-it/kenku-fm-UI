@@ -104,6 +104,6 @@ export async function addSound(
 
 /** Current position of the playlist time slider, in seconds. */
 export async function playbackPosition(page: Page): Promise<number> {
-  const value = await page.getByRole("slider", { name: "time-indicator" }).getAttribute("aria-valuenow");
+  const value = await page.getByRole("slider", { name: "Position in track" }).getAttribute("aria-valuenow");
   return Number(value ?? "0");
 }

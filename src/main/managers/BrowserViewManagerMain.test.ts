@@ -114,6 +114,7 @@ function setup({
   const manager = new BrowserViewManagerMain(window as never, {
     localFiles,
     askAboutFile,
+    fileExists: (filePath: string) => !filePath.includes("missing"),
     tabSleepMs: 1_000,
   });
   const mainWindow = fakePage("main-window");
@@ -385,6 +386,19 @@ describe("BrowserViewManagerMain: files from the user's computer (SEC-15)", () =
     expect(view?.options.webPreferences).toEqual({ partition: LOCAL_FILE_PARTITION });
     expect(view?.webContents.loadURL).toHaveBeenCalledWith(file);
     expect(trustedContents.roleOf(view!.webContents)).toBeNull();
+  });
+
+  it("says a missing file cannot be found and opens nothing, without asking (UX finding 7)", async () => {
+    const { openFile, askAboutFile, window } = setup({ answer: { response: 0, checkboxChecked: false } });
+    const { id, view } = await openFile("file:///home/gm/maps/missing.html");
+    expect(id).toBe(-1);
+    expect(view).toBeUndefined();
+    expect(askAboutFile).not.toHaveBeenCalled();
+    expect(window.webContents.send).toHaveBeenCalledWith(
+      "ERROR",
+      "Can't find this file. Check the name and folder.",
+      { kind: "address" },
+    );
   });
 
   it("opens nothing when the user says no", async () => {

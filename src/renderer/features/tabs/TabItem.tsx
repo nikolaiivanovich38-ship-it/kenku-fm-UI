@@ -1,9 +1,9 @@
 import BookmarkIcon from "@mui/icons-material/Bookmark";
 import BookmarkBorderIcon from "@mui/icons-material/BookmarkBorder";
 import CloseIcon from "@mui/icons-material/CloseRounded";
+import PublicIcon from "@mui/icons-material/PublicRounded";
 import VolumeOffIcon from "@mui/icons-material/VolumeOffRounded";
 import VolumeIcon from "@mui/icons-material/VolumeUpRounded";
-import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
 import ListItem from "@mui/material/ListItem";
 import ListItemButton from "@mui/material/ListItemButton";
@@ -14,6 +14,7 @@ import { v4 as uuid } from "uuid";
 
 import { useDispatch, useSelector } from "react-redux";
 import { type RootState } from "../../app/store";
+import { DragHandle } from "../../common/SortableItem";
 import { addBookmark, removeBookmark } from "../bookmarks/bookmarksSlice";
 import { setMuted } from "../player/playerSlice";
 import { safeURL } from "./Tabs";
@@ -26,6 +27,15 @@ type TabType = {
   shadow?: boolean;
 };
 
+/** Space at the tab's left for its site icon, which is also its drag handle. */
+const ICON_SPACE = 28;
+
+/**
+ * One tab in the tab bar. The tab's own button selects it; the drag handle
+ * (its site icon), mute, bookmark and close buttons sit beside that button,
+ * never inside it (minor finding: nested controls), and are named after the
+ * tab so a screen reader can tell them apart.
+ */
 export function TabItem({ tab, selected, allowClose, shadow }: TabType) {
   const playerTabId = useSelector((state: RootState) => state.player.tab.id);
   const tabIds = useSelector((state: RootState) => state.tabs.tabs.allIds);
@@ -38,11 +48,19 @@ export function TabItem({ tab, selected, allowClose, shadow }: TabType) {
     return bookmark.url === tab.url;
   });
 
+  const isPlayer = tab.id === playerTabId;
   const showMedia = tab.playingMedia > 0;
   const showBookmark = Boolean(safeURL(tab.url) && selected && allowClose);
   const showClose = Boolean(allowClose);
   const shownIcons =
     Number(showBookmark) + Number(showClose) + Number(showMedia);
+
+  const icon = tab.icon ? (
+    // Not draggable: the browser's own image drag would stop the tab drag.
+    <img src={tab.icon} alt="" draggable={false} width={16} height={16} style={{ objectFit: "cover" }} />
+  ) : isPlayer ? null : (
+    <PublicIcon sx={{ fontSize: 16, color: "text.secondary" }} />
+  );
 
   return (
     <ListItem
@@ -51,7 +69,9 @@ export function TabItem({ tab, selected, allowClose, shadow }: TabType) {
           {showMedia && (
             <IconButton
               edge="end"
-              aria-label={tab.muted ? "unmute" : "mute"}
+              // A fixed name with aria-pressed: "Mute …, pressed" means muted.
+              aria-label={`Mute ${tab.title}`}
+              aria-pressed={tab.muted}
               size="small"
               onClick={() => {
                 const muted = !tab.muted;
@@ -74,7 +94,8 @@ export function TabItem({ tab, selected, allowClose, shadow }: TabType) {
             <IconButton
               edge="end"
               size="small"
-              aria-label="bookmark"
+              aria-label={`Bookmark ${tab.title}`}
+              aria-pressed={isBookmarked.length > 0}
               onClick={() => {
                 if (isBookmarked.length === 0) {
                   const id = uuid();
@@ -101,7 +122,7 @@ export function TabItem({ tab, selected, allowClose, shadow }: TabType) {
           {showClose && (
             <IconButton
               edge="end"
-              aria-label="close"
+              aria-label={`Close tab ${tab.title}`}
               size="small"
               onClick={() => {
                 // Find previous tab so we can select when closing the tab
@@ -125,16 +146,38 @@ export function TabItem({ tab, selected, allowClose, shadow }: TabType) {
       }
       sx={{
         minWidth: "120px",
+        position: "relative",
         "& .MuiListItemSecondaryAction-root": {
           right: "12px",
         },
         "& .MuiListItemButton-root": {
           pr: `${shownIcons * 23 + 8}px`,
+          pl: icon ? `${ICON_SPACE + 4}px` : undefined,
         },
         WebkitAppRegion: "no-drag",
       }}
       disablePadding
     >
+      {icon && (
+        // UX finding 2: the keyboard moves a tab from its icon (Space, arrows, Space).
+        <DragHandle
+          label={`Move ${tab.title}`}
+          sx={{
+            position: "absolute",
+            left: 12,
+            top: "50%",
+            transform: "translateY(-50%)",
+            zIndex: 1,
+            width: 20,
+            height: 20,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {icon}
+        </DragHandle>
+      )}
       <ListItemButton
         sx={{
           backgroundImage:
@@ -144,27 +187,11 @@ export function TabItem({ tab, selected, allowClose, shadow }: TabType) {
           my: 0,
           boxShadow: shadow ? 4 : "none",
         }}
-        role={undefined}
         dense
         selected={selected}
+        aria-current={selected ? "page" : undefined}
         onClick={() => dispatch(selectTab(tab.id))}
       >
-        {tab.icon && (
-          <Box
-            sx={{
-              minWidth: "16px",
-              minHeight: "16px",
-              maxWidth: "16px",
-              maxHeight: "16px",
-              objectFit: "cover",
-              marginRight: 1,
-              display: "flex",
-            }}
-          >
-            {/* Not draggable: the browser's own image drag would stop the tab drag. */}
-            <img src={tab.icon} alt="" draggable={false} />
-          </Box>
-        )}
         <ListItemText
           primary={tab.title}
           sx={{

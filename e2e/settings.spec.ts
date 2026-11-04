@@ -1,7 +1,7 @@
 /**
  * The Settings panel in the main window: Discord token field and help link,
  * a refused token (Discord itself cannot be reached from the test machine),
- * Clear Cache and the version number.
+ * Clear website data and the version number.
  */
 import packageJson from "../package.json";
 import { test, expect } from "./fixtures/app";
@@ -44,14 +44,16 @@ test("Discord token: help link, and a bad token shows an error without breaking 
   // Either Discord refuses the token or cannot be reached: both end in an
   // error message and the form is usable again. The message is an alert that
   // screen readers can reach while Settings is open.
-  await expect(mainWindow.getByRole("alert")).toHaveText(/^Error connecting to bot: /, { timeout: 45_000 });
+  // (A refusal is worded plainly, UX finding 5.)
+  const failed = /^(Error connecting to bot: |Discord didn't accept this token\.)/;
+  await expect(mainWindow.getByRole("alert")).toHaveText(failed, { timeout: 45_000 });
   await expect(connect).toBeEnabled();
   await expect(token).toBeEditable();
   expect(errors.pageErrors).toEqual([]);
 
   // The message stays until it is closed (WCAG 2.2.1).
   await mainWindow.getByTitle("Close").click();
-  await expect(mainWindow.getByText(/^Error connecting to bot: /)).toHaveCount(0);
+  await expect(mainWindow.getByRole("alert")).toHaveCount(0);
   await settings.getByRole("button", { name: "Done" }).click();
   await expect(settings).toBeHidden();
 });
@@ -61,12 +63,12 @@ test("an error message does not cover the Settings Done button", async ({ mainWi
   const settings = mainWindow.getByRole("dialog", { name: "Settings" });
   await settings.getByLabel("Token").fill("not-a-real-bot-token");
   await settings.getByRole("button", { name: "Connect" }).click();
-  await expect(mainWindow.getByText(/^Error connecting to bot: /)).toBeVisible({ timeout: 45_000 });
+  await expect(mainWindow.getByRole("alert")).toBeVisible({ timeout: 45_000 });
   await settings.getByRole("button", { name: "Done" }).click({ timeout: 5_000 });
   await expect(settings).toBeHidden();
 });
 
-test("Clear Cache empties the website tabs' storage, and the version is shown", async ({ app, mainWindow }) => {
+test("Clear website data empties the website tabs' storage, and the version is shown", async ({ app, mainWindow }) => {
   // A cookie that a website tab would have stored.
   await app.evaluate(async ({ session }) => {
     await session
@@ -81,7 +83,9 @@ test("Clear Cache empties the website tabs' storage, and the version is shown", 
   const settings = mainWindow.getByRole("dialog", { name: "Settings" });
   await expect(settings.getByText(`v${packageJson.version}`, { exact: true })).toBeVisible();
 
-  await settings.getByRole("button", { name: "Clear Cache" }).click();
-  await expect(settings.getByRole("button", { name: "Clear Cache" })).toBeVisible();
+  const clear = settings.getByRole("button", { name: "Clear website data" });
+  await expect(clear).toHaveAccessibleDescription(/^Logs you out of websites in tabs/);
+  await clear.click();
+  await expect(clear).toBeVisible();
   await expect.poll(cookieCount).toBe(0);
 });

@@ -53,7 +53,7 @@ function tab(mainWindow: Page, title: string) {
 }
 
 async function openInNewTab(mainWindow: Page, address: string) {
-  await mainWindow.getByRole("button", { name: "add tab" }).click();
+  await mainWindow.getByRole("button", { name: "New tab", exact: true }).click();
   const field = mainWindow.getByLabel("Web address");
   await field.fill(address);
   await field.press("Enter");

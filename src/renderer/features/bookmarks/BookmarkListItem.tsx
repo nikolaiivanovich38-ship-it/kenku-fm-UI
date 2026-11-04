@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import ListItemButton from "@mui/material/ListItemButton";
 import ListItemText from "@mui/material/ListItemText";
 import IconButton from "@mui/material/IconButton";
-import Box from "@mui/material/Box";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import MoreIcon from "@mui/icons-material/MoreHorizRounded";
@@ -13,6 +12,9 @@ import type { RootState } from "../../app/store";
 import { Bookmark, moveBookmarkToFolder, removeBookmark } from "./bookmarksSlice";
 import { BookmarkSettings } from "./BookmarkSettings";
 import { useOpenBookmark } from "./useOpenBookmark";
+import { BookmarkIcon } from "./BookmarkRail";
+import { DragHandle } from "../../common/SortableItem";
+import { focusNextRowLater } from "../../common/focusNextRow";
 
 type BookmarkListItemProps = {
   bookmark: Bookmark;
@@ -33,6 +35,8 @@ export function BookmarkListItem({ bookmark, shadow }: BookmarkListItemProps) {
   }
 
   function handleRemove() {
+    focusNextRowLater(more);
+    setMore(null);
     dispatch(removeBookmark(bookmark.id));
   }
 
@@ -76,6 +80,8 @@ export function BookmarkListItem({ bookmark, shadow }: BookmarkListItemProps) {
   }
 
   function moveTo(folderId: string | null) {
+    // UX finding 12: the row moves away, so focus goes to the one after it.
+    focusNextRowLater(moveAnchor);
     setMoveAnchor(null);
     dispatch(moveBookmarkToFolder({ bookmarkId: bookmark.id, folderId }));
   }
@@ -84,6 +90,8 @@ export function BookmarkListItem({ bookmark, shadow }: BookmarkListItemProps) {
     <>
       <ListItem
         disablePadding
+        data-focus-item
+        sx={{ position: "relative" }}
         secondaryAction={
           <IconButton
             size="small"
@@ -94,26 +102,28 @@ export function BookmarkListItem({ bookmark, shadow }: BookmarkListItemProps) {
           </IconButton>
         }
       >
+        {/* UX finding 2: the keyboard moves a bookmark from its icon (Space, arrows, Space);
+            the row's own button and its options button work with Enter and Space. */}
+        <DragHandle
+          label={`Move ${bookmark.title}`}
+          sx={{
+            position: "absolute",
+            left: 20,
+            top: "50%",
+            transform: "translateY(-50%)",
+            zIndex: 1,
+            display: "flex",
+          }}
+        >
+          <BookmarkIcon bookmark={bookmark} size={24} />
+        </DragHandle>
         <ListItemButton
           dense
-          sx={{ px: 2, boxShadow: shadow ? 10 : "none" }}
+          sx={{ pl: "52px", pr: 2, boxShadow: shadow ? 10 : "none" }}
           onClick={select}
           onDoubleClick={openSettings}
+          data-focus-row={bookmark.id}
         >
-          {bookmark.icon && (
-            <Box
-              sx={{
-                width: "24px",
-                height: "24px",
-                objectFit: "cover",
-                marginRight: 1,
-                flexShrink: 0,
-              }}
-            >
-              {/* Not draggable: the browser's own image drag would stop the bookmark drag. */}
-              <img src={bookmark.icon} alt="" draggable={false} />
-            </Box>
-          )}
           <ListItemText
             primary={bookmark.title}
             primaryTypographyProps={{ noWrap: true }}

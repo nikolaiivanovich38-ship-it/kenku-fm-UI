@@ -339,3 +339,9 @@ The capture window used to send audio to the main process over a WebSocket on `1
 6. Unplug the network cable (or turn Wi-Fi off) for 10 seconds while in a channel: the chip shows "Reconnecting…", then "Connected" again without touching anything. Off for two minutes: "Error" with a reason and a Reconnect button that works once the network is back.
 7. Remove the bot's Connect permission on a channel and click it: a plain message explains why; the bot does not hang on "Joining…".
 8. Join a Stage channel, then click it again: the bot leaves the stage in Discord.
+
+## wave1-uxfix
+
+- Error messages on the main window's `ERROR` channel may carry a second argument, what they are about: `{ kind: "output", id }` (a Discord bot, from `OutputManager`) or `{ kind: "address" }` (a refused address, or a missing file, from `BrowserViewManagerMain`). The main window checks its shape (`isErrorCause`, `src/common/errorCause.ts`) and ignores anything else; it only decides when the message closes. Channel direction is main process → main window, so the IPC guard's table is unchanged.
+- SEC-15 / UX finding 7: a file that does not exist is not asked about. `LocalFileGate` checks it first (`fileExists`, a `stat` in the main process) and the main window says "Can't find this file. Check the name and folder."; no tab opens.
+- UX finding 5: a token Discord refuses ("invalid token", 401, unauthorised) is removed from `botTokenStore` at once, so a token known not to work is never kept, encrypted or not.

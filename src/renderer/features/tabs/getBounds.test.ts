@@ -16,6 +16,16 @@ describe("getBounds (UX-10)", () => {
     expect(getBounds()).toMatchObject({ x: 56, width: window.innerWidth - 56 });
   });
 
+  it("starts right of an open side panel that is wider than the sidebar (UX finding 8)", () => {
+    document.body.innerHTML = '<nav id="sidebar" data-width="56"></nav><div id="controls"></div>';
+    const panel = document.createElement("div");
+    panel.className = "MuiModal-root";
+    panel.setAttribute("data-side-panel", "");
+    panel.getBoundingClientRect = () => ({ right: 400 }) as DOMRect;
+    document.body.appendChild(panel);
+    expect(getBounds()).toMatchObject({ x: 400, width: window.innerWidth - 400 });
+  });
+
   it("assumes the expanded width before the sidebar is drawn", () => {
     expect(getBounds()).toMatchObject({ x: 240 });
   });

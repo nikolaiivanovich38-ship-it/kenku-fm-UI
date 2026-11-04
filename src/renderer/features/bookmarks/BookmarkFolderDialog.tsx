@@ -7,6 +7,7 @@ import DialogTitle from "@mui/material/DialogTitle";
 import TextField from "@mui/material/TextField";
 
 import { showWindowControls } from "../../common/showWindowControls";
+import { sidePanelProps } from "../../common/viewOverlay";
 
 type BookmarkFolderDialogProps = {
   open: boolean;
@@ -52,6 +53,8 @@ export function BookmarkFolderDialog({
       sx={{ width: 240 }}
       open={open}
       onClose={onClose}
+      // A side panel over the sidebar: the website or player view stays beside it.
+      {...sidePanelProps}
       // Keep the space bar and pointer away from the bookmark drag and drop.
       onKeyDown={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}

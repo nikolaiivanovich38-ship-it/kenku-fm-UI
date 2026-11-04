@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { BotState } from "../../../common/outputs";
 import { botChip, canReconnect } from "./OutputStatusChip";
-import { botStatusText } from "./BotStatusLine";
+import { botStatusText, nextRetryAt } from "./BotStatusLine";
 
 function bot(overrides: Partial<BotState> = {}): BotState {
   return {
@@ -49,6 +49,21 @@ describe("output status chip (OUT-2)", () => {
     expect(botStatusText(bot({ status: "error", error: "Error connecting to bot: refused" }))).toBe(
       "Could not connect: refused",
     );
+  });
+
+  it("counts down to the next attempt while reconnecting (UX finding 6)", () => {
+    const reconnecting = bot({
+      voice: [{ ...session("reconnecting", "Connection to “Tavern” lost. Trying again in 8 s…"), retryAt: 10_000 }],
+    });
+    expect(botStatusText(reconnecting, 4_100)).toBe("Connection to “Tavern” lost. Trying again in 6 s…");
+    expect(botStatusText(reconnecting, 9_950)).toBe("Connection to “Tavern” lost. Trying again in 1 s…");
+    expect(botStatusText(reconnecting, 10_000)).toBe("Connection to “Tavern” lost. Trying again now…");
+    expect(nextRetryAt(reconnecting)).toBe(10_000);
+
+    const login = bot({ status: "connecting", error: "Cannot reach Discord. Trying again in 4 s…", retryAt: 5_000 });
+    expect(botStatusText(login, 2_000)).toBe("Cannot reach Discord. Trying again in 3 s…");
+    expect(nextRetryAt(login)).toBe(5_000);
+    expect(nextRetryAt(bot())).toBeUndefined();
   });
 
   it("offers Reconnect only for a failed bot that has a token", () => {

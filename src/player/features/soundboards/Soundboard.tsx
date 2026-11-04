@@ -182,7 +182,7 @@ export function Soundboard({ onPlay, onStop }: SoundboardProps) {
         }}
       >
         <MenuItem onClick={handleEdit}>Edit</MenuItem>
-        <MenuItem onClick={handleCopyID}>Copy ID</MenuItem>
+        <MenuItem onClick={handleCopyID}>Copy ID for Stream Deck</MenuItem>
         <MenuItem onClick={handleDelete}>Delete</MenuItem>
       </Menu>
       <SoundAdd

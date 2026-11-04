@@ -130,6 +130,23 @@ describe("LocalFileGate (SEC-15)", () => {
     expect(ask).not.toHaveBeenCalled();
   });
 
+  it("says a file that is not there cannot be found, without asking or opening a blank tab (UX finding 7)", async () => {
+    const onMissing = vi.fn();
+    const ask = vi.fn(async () => ({ response: 0, checkboxChecked: false }));
+    const gate = new LocalFileGate({
+      folders: new LocalFileFolders(memoryStore(["C:\\Music"]), path.win32),
+      ask,
+      windowsPaths: true,
+      fileExists: (filePath) => filePath !== "C:\\Music\\missing.html",
+      onMissing,
+    });
+    await expect(gate.approve("file:///C:/Music/missing.html")).resolves.toBeUndefined();
+    expect(ask).not.toHaveBeenCalled();
+    expect(onMissing).toHaveBeenCalledWith("C:\\Music\\missing.html");
+    await expect(gate.approve("file:///C:/Music/rain.html")).resolves.toBe("file:///C:/Music/rain.html");
+    expect(onMissing).toHaveBeenCalledTimes(1);
+  });
+
   it("treats a failed prompt as Cancel", async () => {
     const store = memoryStore();
     const gate = new LocalFileGate({

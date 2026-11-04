@@ -59,6 +59,11 @@ function errorsShown(): string[] {
   return window.webContents.send.mock.calls.filter(([channel]) => channel === "ERROR").map(([, message]) => message);
 }
 
+/** What each error message was about (UX finding 4). */
+function errorCauses(): unknown[] {
+  return window.webContents.send.mock.calls.filter(([channel]) => channel === "ERROR").map(([, , cause]) => cause);
+}
+
 async function connectedBot(m: OutputManager, token = TOKEN) {
   const id = m.state().bots.find((bot) => !bot.hasToken)?.id ?? m.addBot();
   m.setToken(id, token);
@@ -134,11 +139,22 @@ describe("OutputManager: bot tokens (SEC-5)", () => {
     ]);
   });
 
-  it("reports a refused token", async () => {
+  it("reports a refused token in plain words, says which bot it is about, and does not keep it (UX finding 5)", async () => {
     const m = newManager();
-    await connectedBot(m, "not-a-real-token");
-    expect(m.state().bots[0]).toMatchObject({ status: "error" });
-    expect(errorsShown()).toEqual(["Error connecting to bot: An invalid token was provided."]);
+    const id = await connectedBot(m, "not-a-real-token");
+    const plain = "Discord didn't accept this token. Copy it again from the Bot page in the Discord Developer Portal.";
+    expect(m.state().bots[0]).toMatchObject({ status: "error", error: plain, hasToken: false });
+    expect(errorsShown()).toEqual([plain]);
+    expect(errorCauses()).toEqual([{ kind: "output", id }]);
+    // Nothing to retry with: the refused token is gone from the store too.
+    const reopened = new BotTokenStore(BotTokenStore.fileIn(folder), safeStorage);
+    expect(reopened.token(id)).toBeUndefined();
+  });
+
+  it("says a bot has no token yet instead of calling it refused", async () => {
+    const m = newManager();
+    await m.connect(m.state().bots[0].id);
+    expect(errorsShown()).toEqual(["This bot has no token yet. Paste one in Settings first."]);
   });
 });
 
@@ -309,6 +325,48 @@ describe("DiscordBot: leaving a Stage channel (BUG-7)", () => {
 });
 
 describe("Reconnecting (OUT-2)", () => {
+  it("waits at most 10 s between attempts, each wait longer than the last (UX finding 6)", () => {
+    expect(Math.max(...RECONNECT_DELAYS_MS)).toBeLessThanOrEqual(10_000);
+    // The window's countdown starts afresh whenever the wait changes.
+    RECONNECT_DELAYS_MS.slice(1).forEach((delay, index) => expect(delay).toBeGreaterThan(RECONNECT_DELAYS_MS[index]));
+  });
+
+  it("says when the next attempt is due, for the window's countdown (UX finding 6)", async () => {
+    const m = newManager();
+    const id = await connectedBot(m);
+    await m.bots.get(id)?.join(FAKE_CHANNELS.tavern.id);
+    await settle();
+    vi.useFakeTimers({ now: 1_000_000 });
+    discord.setNetworkDown(true);
+    expect(m.state().bots[0].voice[0]).toMatchObject({ status: "reconnecting", retryAt: 1_000_000 + RECONNECT_DELAYS_MS[0] });
+    await vi.advanceTimersByTimeAsync(RECONNECT_DELAYS_MS[0] + 20);
+    // The second wait starts when the first attempt fails, a moment after it is made.
+    const second = m.state().bots[0].voice[0].retryAt ?? 0;
+    expect(second).toBeGreaterThanOrEqual(1_000_000 + RECONNECT_DELAYS_MS[0] + RECONNECT_DELAYS_MS[1]);
+    expect(second).toBeLessThanOrEqual(1_000_000 + RECONNECT_DELAYS_MS[0] + 20 + RECONNECT_DELAYS_MS[1]);
+    discord.setNetworkDown(false);
+    await vi.advanceTimersByTimeAsync(RECONNECT_DELAYS_MS[1] + 20);
+    expect(m.state().bots[0].voice[0].status).toBe("connected");
+    expect(m.state().bots[0].voice[0].retryAt).toBeUndefined();
+  });
+
+  it("says when the next login attempt is due after a lost login", async () => {
+    const m = newManager();
+    await connectedBot(m);
+    vi.useFakeTimers({ now: 2_000_000 });
+    discord.setNetworkDown(true);
+    discord.clients[0].emit("error", new Error("getaddrinfo ENOTFOUND gateway.discord.gg"));
+    expect(m.state().bots[0]).toMatchObject({ status: "connecting", retryAt: 2_000_000 + RECONNECT_DELAYS_MS[0] });
+  });
+
+  it("tells the window which bot a voice failure is about (UX finding 4)", async () => {
+    const m = newManager();
+    const id = await connectedBot(m);
+    await m.bots.get(id)?.join(FAKE_CHANNELS.locked.id);
+    await settle();
+    expect(errorCauses()).toContainEqual({ kind: "output", id });
+  });
+
   it("gets a dropped voice connection back by itself when the network returns", async () => {
     const m = newManager();
     const id = await connectedBot(m);

@@ -29,14 +29,14 @@ function tab(mainWindow: Page, title: string) {
 
 /** Open `path` in a new tab, bookmark it and close the tab again. */
 async function bookmarkPage(app: ElectronApplication, mainWindow: Page, path: string, title: string) {
-  await mainWindow.getByRole("button", { name: "add tab", exact: true }).click();
+  await mainWindow.getByRole("button", { name: "New tab", exact: true }).click();
   const address = mainWindow.getByLabel("Web address");
   await address.fill(site.url(path));
   await address.press("Enter");
   await pageWithTitle(app, title);
-  await tab(mainWindow, title).getByRole("button", { name: "bookmark", exact: true }).click();
+  await tab(mainWindow, title).getByRole("button", { name: /^Bookmark / }).click();
   await mainWindow.waitForTimeout(1_500);
-  await tab(mainWindow, title).getByRole("button", { name: "close", exact: true }).click();
+  await tab(mainWindow, title).getByRole("button", { name: /^Close tab / }).click();
 }
 
 /** Left edge of the website view showing `title`. */

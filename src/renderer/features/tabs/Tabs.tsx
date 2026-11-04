@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import Stack from "@mui/material/Stack";
 
 import { RootState } from "../../app/store";
@@ -22,6 +22,8 @@ import {
   increasePlayingMedia,
 } from "../player/playerSlice";
 import { editBookmark } from "../bookmarks/bookmarksSlice";
+import { addressErrorsResolved } from "../errors/errorsSlice";
+import { useViewOverlay } from "../../common/viewOverlay";
 
 /**
  * Safely parse a URL string. Returns a URL object if valid, otherwise null.
@@ -55,6 +57,11 @@ export function Tabs() {
       const viewId = args[0];
       const url = args[1];
       dispatch(editTab({ id: viewId, url }));
+      // UX finding 4: a page opened in the tab in front, so an earlier
+      // "could not open" message is out of date.
+      if (viewId === tabs.selectedTab) {
+        dispatch(addressErrorsResolved());
+      }
     });
     window.kenku.on("BROWSER_VIEW_TITLE_UPDATED", (args) => {
       const viewId = args[0];
@@ -179,6 +186,29 @@ export function Tabs() {
     };
   }, [player.tab.id, tabs]);
 
+  const overlay = useViewOverlay();
+  // Errors beside the collapsed sidebar take space from the view (ActionDrawer).
+  const errorsBesideRail = useSelector(
+    (state: RootState) => state.bookmarks.sidebarCollapsed && state.errors.list.length > 0,
+  );
+
+  // UX finding 1: the view is drawn above this page, so it steps aside while
+  // a dialog, menu or popover is open, and comes back when it closes.
+  const hiddenForOverlay = useRef(false);
+  useEffect(() => {
+    const id = tabs.selectedTab;
+    if (!id) {
+      return;
+    }
+    if (overlay.hidden) {
+      window.kenku.hideBrowserView(id);
+      hiddenForOverlay.current = true;
+    } else if (hiddenForOverlay.current) {
+      window.kenku.showBrowserView(id);
+      hiddenForOverlay.current = false;
+    }
+  }, [overlay.hidden, tabs.selectedTab]);
+
   useEffect(() => {
     if (tabs.selectedTab) {
       const bounds = getBounds();
@@ -190,8 +220,9 @@ export function Tabs() {
         bounds.height,
       );
     }
-    // UX-10: the sidebar's width changes when it is collapsed or expanded.
-  }, [settings.urlBarEnabled, isPlayer, tabs.selectedTab, bookmarks.sidebarCollapsed]);
+    // UX-10: the sidebar's width changes when it is collapsed or expanded,
+    // and a side panel such as Settings can push the view to the right.
+  }, [settings.urlBarEnabled, isPlayer, tabs.selectedTab, bookmarks.sidebarCollapsed, overlay.inset, errorsBesideRail]);
 
   function handleURLChange(url: string) {
     dispatch(editTab({ id: tabs.selectedTab, url }));
@@ -209,6 +240,8 @@ export function Tabs() {
       return;
     }
     dispatch(replaceTab({ oldId, tab }));
+    // UX finding 4: an earlier "could not open" message is out of date now.
+    dispatch(addressErrorsResolved());
     if (oldId !== undefined) {
       window.kenku.removeBrowserView(oldId);
     }

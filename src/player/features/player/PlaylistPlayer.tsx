@@ -239,13 +239,15 @@ function Volume() {
       sx={{ mb: 1, px: 1, width: large ? "30%" : "100%" }}
       alignItems="center"
     >
-      <IconButton aria-label={muted ? "unmute" : "mute"} onClick={handleMute}>
+      {/* A fixed name with aria-pressed: "Mute, pressed" means muted. */}
+      <IconButton aria-label="Mute" aria-pressed={muted} onClick={handleMute}>
         {muted ? <VolumeOff /> : <VolumeDown />}
       </IconButton>
       <VolumeSlider
         aria-label="Volume"
         value={muted ? 0 : volume}
-        step={0.01}
+        // 5% per arrow key press (it used to take 100 presses to go from silent to full).
+        step={0.05}
         min={0}
         max={1}
         onChange={handleVolumeChange}
@@ -284,7 +286,7 @@ function Time({ onPlaylistSeek }: Pick<PlaylistPlayerProps, "onPlaylistSeek">) {
   return (
     <Box>
       <TimeSlider
-        aria-label="time-indicator"
+        aria-label="Position in track"
         size="small"
         value={time}
         min={0}

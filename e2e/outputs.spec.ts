@@ -10,6 +10,7 @@ import path from "path";
 import type { Page } from "@playwright/test";
 import { test, expect, pageWithTitle } from "./fixtures/app";
 import { startLocalSite } from "./fixtures/localSite";
+import { expectOnScreen } from "./fixtures/screen";
 import {
   FAKE_DISCORD_ENV,
   TONE_PAGE,
@@ -61,8 +62,8 @@ test("a bot token typed in Settings never reaches browser storage or the disk in
   const encrypted = await bot.getByText("A token is saved, encrypted on this computer.", { exact: false }).isVisible();
   if (!encrypted) {
     // No keyring (Linux test machines): kept for this session only, and said so.
-    await expect(mainWindow.getByText(/no secure place to save passwords/)).toBeVisible();
-    await expect(bot.getByText(/until Cue Desk closes/)).toBeVisible();
+    await expect(mainWindow.getByText(/Tokens are forgotten when you close the app/)).toBeVisible();
+    await expect(bot.getByText(/for this session only/)).toBeVisible();
   }
   await first.close();
   expect(filesContaining(userDataDir, token)).toEqual([]);
@@ -74,7 +75,7 @@ test("a bot token typed in Settings never reaches browser storage or the disk in
   if (encrypted) {
     await expect(botSettings(again).getByRole("button", { name: "Disconnect" })).toBeVisible();
   } else {
-    await expect(botSettings(again).getByText("Enter your bot's token")).toBeVisible();
+    await expect(botSettings(again).getByText(/^Your bot's password/)).toBeVisible();
   }
   await second.close();
   expect(filesContaining(userDataDir, token)).toEqual([]);
@@ -142,6 +143,8 @@ test("two bots join two voice channels of one server, and each can be muted on i
     await guide.getByRole("button", { name: "Add bot" }).click();
     await expect(botSettings(mainWindow, "Bot 2")).toBeVisible();
     await settings.getByRole("button", { name: "Done" }).click();
+    // Let Settings finish closing, or connectFakeBot sees it still fading out.
+    await expect(settings).toBeHidden();
 
     await connectFakeBot(mainWindow, "fake-token-1", "Bot 1");
     await connectFakeBot(mainWindow, "fake-token-2", "Bot 2");
@@ -157,14 +160,17 @@ test("two bots join two voice channels of one server, and each can be muted on i
     await expect.poll(() => packetCount(app, "Dungeon"), { timeout: 10_000 }).toBeGreaterThan(20);
 
     // Mute the second bot: the Dungeon gets nothing more, the Tavern still does.
-    await mainWindow.getByRole("button", { name: /^Mute .*Bot 2/ }).click();
+    const muteBot2 = mainWindow.getByRole("button", { name: /^Mute .*Bot 2/ });
+    await muteBot2.click();
+    await expect(muteBot2).toHaveAttribute("aria-pressed", "true");
     await mainWindow.waitForTimeout(500);
     const dungeon = await packetCount(app, "Dungeon");
     const tavern = await packetCount(app, "Tavern");
     await mainWindow.waitForTimeout(1_500);
     expect(await packetCount(app, "Dungeon")).toBe(dungeon);
     expect(await packetCount(app, "Tavern")).toBeGreaterThan(tavern + 30);
-    await mainWindow.getByRole("button", { name: /^Unmute .*Bot 2/ }).click();
+    await muteBot2.click();
+    await expect(muteBot2).toHaveAttribute("aria-pressed", "false");
     await expect.poll(() => packetCount(app, "Dungeon"), { timeout: 10_000 }).toBeGreaterThan(dungeon + 20);
   } finally {
     await site.close();
@@ -225,4 +231,109 @@ test("each output shows its status, reconnects by itself and explains failures (
     )
     .toBe(0);
   await expect(chip).toHaveText("Ready");
+});
+
+const setNetworkDown = (app: import("@playwright/test").ElectronApplication, down: boolean) =>
+  app.evaluate((_electron, value) => {
+    (globalThis as unknown as { __cueDeskFakeDiscord: { setNetworkDown(down: boolean): void } }).__cueDeskFakeDiscord.setNetworkDown(
+      value,
+    );
+  }, down);
+
+test("a refused token is explained in plain words and not kept; the message goes once a good token connects (findings 4, 5)", async ({
+  launchApp,
+}) => {
+  const launched = await launchApp({ env: FAKE_DISCORD_ENV });
+  const { app } = launched;
+  const mainWindow = await launched.mainWindow();
+  await launched.playerView();
+  const settings = await openSettings(mainWindow);
+  const bot = botSettings(mainWindow);
+  const token = bot.getByLabel("Token");
+  // The field says what a token is and where to find it.
+  await expect(token).toHaveAccessibleDescription("Your bot's password, from the Bot page in the Discord Developer Portal.");
+
+  // Enter in the field presses Connect.
+  await token.fill("not-a-real-token");
+  await token.press("Enter");
+  const alert = settings.getByRole("alert");
+  await expect(alert).toHaveText(
+    "Discord didn't accept this token. Copy it again from the Bot page in the Discord Developer Portal.",
+  );
+  await expectOnScreen(app, mainWindow, alert);
+  // Nothing was kept: no "Saved" token, and the explanation is back.
+  await expect(token).not.toHaveAttribute("placeholder", "Saved");
+  await expect(token).toHaveAccessibleDescription(/^Your bot's password/);
+  await expect(bot.getByRole("button", { name: "Remove token" })).toHaveCount(0);
+
+  await token.fill("fake-token-1");
+  await token.press("Enter");
+  await expect(bot.getByRole("button", { name: "Disconnect" })).toBeVisible();
+  // Fixed, so the message closed by itself.
+  await expect(mainWindow.getByRole("alert")).toHaveCount(0);
+});
+
+test("while a bot reconnects, the wait counts down and Try now reconnects at once (finding 6)", async ({ launchApp }) => {
+  test.setTimeout(90_000);
+  const launched = await launchApp({ env: FAKE_DISCORD_ENV });
+  const { app } = launched;
+  const mainWindow = await launched.mainWindow();
+  await launched.playerView();
+  await connectFakeBot(mainWindow);
+  const bot = mainWindow.getByRole("group", { name: /\(Bot 1\)$/ });
+  const chip = bot.getByRole("status");
+  await channelButton(mainWindow, "Tavern").click();
+  await expect(chip).toHaveText("Connected");
+
+  await setNetworkDown(app, true);
+  await expect(chip).toHaveText("Reconnecting…");
+  const seconds = async () => Number(/Trying again in (\d+) s/.exec(await bot.innerText())?.[1] ?? -1);
+  // Wait for a wait of a few seconds, then see it count down.
+  await expect.poll(seconds, { timeout: 30_000 }).toBeGreaterThanOrEqual(4);
+  const first = await seconds();
+  await mainWindow.waitForTimeout(1_600);
+  const later = await seconds();
+  expect(later).toBeGreaterThan(0);
+  expect(later).toBeLessThan(first);
+
+  // The network is back: Try now does not wait for the countdown.
+  await setNetworkDown(app, false);
+  await bot.getByRole("button", { name: "Try now" }).click();
+  await expect(chip).toHaveText("Connected", { timeout: 3_000 });
+  await expect(bot.getByRole("button", { name: "Try now" })).toHaveCount(0);
+});
+
+test("the collapsed sidebar shows each output with its status, and mutes it (finding 9)", async ({ launchApp }) => {
+  const launched = await launchApp({ env: FAKE_DISCORD_ENV });
+  const { app } = launched;
+  const mainWindow = await launched.mainWindow();
+  await launched.playerView();
+  await connectFakeBot(mainWindow);
+  await channelButton(mainWindow, "Tavern").click();
+  await expect(channelButton(mainWindow, "Tavern")).toHaveAttribute("aria-pressed", "true");
+  // Why This Computer switched itself off.
+  await expect(mainWindow.getByText(/^So you don't hear everything twice, This Computer turns off/)).toBeVisible();
+
+  const sidebar = mainWindow.getByRole("navigation", { name: "Sidebar" });
+  await sidebar.getByRole("button", { name: "Collapse sidebar" }).click();
+  const outputs = sidebar.getByRole("group", { name: "Outputs" });
+  const local = outputs.getByRole("button", { name: "This Computer" });
+  const fakeBot = outputs.getByRole("button", { name: "Mute Fake Bot 1 (Bot 1)" });
+  await expectOnScreen(app, mainWindow, local);
+  await expectOnScreen(app, mainWindow, fakeBot);
+  await expect(local).toHaveAttribute("aria-pressed", "false");
+  await expect(fakeBot).toHaveAttribute("data-status", "success");
+  await expect(fakeBot).toHaveAccessibleDescription("Connected");
+
+  // A bot that drops out is noticed.
+  await setNetworkDown(app, true);
+  await expect(fakeBot).toHaveAttribute("data-status", "warning");
+  await expect(fakeBot).toHaveAccessibleDescription("Reconnecting…");
+  await setNetworkDown(app, false);
+  await expect(fakeBot).toHaveAttribute("data-status", "success", { timeout: 15_000 });
+
+  await fakeBot.click();
+  await expect(fakeBot).toHaveAttribute("aria-pressed", "true");
+  await local.click();
+  await expect(local).toHaveAttribute("aria-pressed", "true");
 });

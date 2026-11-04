@@ -90,7 +90,7 @@ test("add tracks from disk, play, pause, skip and delete them", async ({ playerV
   await expect(page.getByRole("listitem")).toHaveText([/Second Tone/]);
   await expect(page.getByText("First Tone", { exact: true })).toHaveCount(0);
   await expect(controls.getByRole("button", { name: "play", exact: true })).toBeDisabled();
-  await expect(page.getByRole("slider", { name: "time-indicator" })).toBeDisabled();
+  await expect(page.getByRole("slider", { name: "Position in track" })).toBeDisabled();
   expect(await page.evaluate(() => navigator.mediaSession.metadata)).toBeNull();
 
   // The remaining track still plays normally afterwards.
@@ -147,16 +147,21 @@ test("repeat, shuffle, mute and volume controls", async ({ playerView: page, use
   await expect(volume).toHaveAttribute("aria-valuenow", "0");
   await page.keyboard.press("End");
   await expect(volume).toHaveAttribute("aria-valuenow", "1");
-  for (let i = 0; i < 10; i++) {
-    await page.keyboard.press("ArrowLeft");
-  }
+  // 5% per arrow key press.
   const volumeValue = async () => Number(await volume.getAttribute("aria-valuenow"));
+  await page.keyboard.press("ArrowLeft");
+  await expect.poll(volumeValue).toBeCloseTo(0.95, 5);
+  await page.keyboard.press("ArrowLeft");
   await expect.poll(volumeValue).toBeCloseTo(0.9, 5);
 
-  await page.getByRole("button", { name: "mute", exact: true }).click();
-  await expect(page.getByRole("button", { name: "unmute" })).toBeVisible();
+  // One name, and a pressed state that says whether it is muted.
+  const mute = page.getByRole("button", { name: "Mute", exact: true });
+  await expect(mute).toHaveAttribute("aria-pressed", "false");
+  await mute.click();
+  await expect(mute).toHaveAttribute("aria-pressed", "true");
   await expect(volume).toHaveAttribute("aria-valuenow", "0");
-  await page.getByRole("button", { name: "unmute" }).click();
+  await mute.click();
+  await expect(mute).toHaveAttribute("aria-pressed", "false");
   await expect.poll(volumeValue).toBeCloseTo(0.9, 5);
 });
 

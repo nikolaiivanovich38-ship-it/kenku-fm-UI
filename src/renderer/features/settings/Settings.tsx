@@ -42,6 +42,67 @@ import type { OutputsState } from "../../../common/outputs";
 import { overallStatus, setOutputsState } from "../output/outputSlice";
 import { AddBotDialog } from "./AddBotDialog";
 import { BotSettings } from "./BotSettings";
+import ListItemText from "@mui/material/ListItemText";
+import { ErrorMessages } from "../errors/ErrorMessages";
+import { sidePanelProps } from "../../common/viewOverlay";
+
+/**
+ * UX finding 8: Settings grows with the window (so nothing is cut off at
+ * 800 × 600 and long folder paths fit on large screens). It is a side panel:
+ * the player or website moves to its right edge while it is open.
+ */
+export const SETTINGS_PANEL_WIDTH = "clamp(320px, 28vw, 440px)";
+
+/** UX finding 8: each mode says how it differs, not only what both share. */
+const STREAMING_MODES: { value: StreamingMode; name: string; description: string }[] = [
+  // PERF-8: both modes have the same short delay; the stored values keep
+  // their old names so saved settings still work.
+  { value: "lowLatency", name: "Best sound quality", description: "Clearer sound; works the computer a little harder." },
+  {
+    value: "performance",
+    name: "Lighter on the computer",
+    description: "Leaves more power for other programs; slightly less clear.",
+  },
+];
+
+/** A section heading in the panel. */
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return <DialogContentText component="h3">{children}</DialogContentText>;
+}
+
+/**
+ * UX finding 8: with no keyring, one line says what happens; "More" gives the reason.
+ * A standing note, not an alert: error messages own role="alert".
+ */
+function KeyringNote() {
+  const [more, setMore] = useState(false);
+  return (
+    <Alert
+      severity="warning"
+      variant="outlined"
+      role="note"
+      sx={{ py: 0, "& .MuiAlert-message": { py: 0.75 } }}
+    >
+      Tokens are forgotten when you close the app.
+      {more && (
+        <>
+          {" "}
+          This computer has no secure place to save passwords, so you will need to paste your bot tokens again
+          each time you start.
+        </>
+      )}
+      <Link
+        component="button"
+        variant="body2"
+        aria-expanded={more}
+        onClick={() => setMore(!more)}
+        sx={{ ml: 0.5, verticalAlign: "baseline" }}
+      >
+        {more ? "Less" : "More"}
+      </Link>
+    </Alert>
+  );
+}
 
 type SettingsProps = {
   open: boolean;
@@ -77,13 +138,7 @@ export function Settings({ open, onClose }: SettingsProps) {
 
   const discordSettings = (
     <Stack spacing={2}>
-      {!outputs.encryption && (
-        // A standing note, not an alert: error messages own role="alert".
-        <Alert severity="warning" variant="outlined" role="note">
-          This computer has no secure place to save passwords, so bot tokens are kept only until Cue Desk
-          closes. You will need to enter them again next time.
-        </Alert>
-      )}
+      {!outputs.encryption && <KeyringNote />}
       {outputs.bots.map((bot, index) => (
         <BotSettings key={bot.id} bot={bot} removable={outputs.bots.length > 1} autoFocus={index === 0} />
       ))}
@@ -142,6 +197,11 @@ export function Settings({ open, onClose }: SettingsProps) {
 
   const remoteSettings = (
     <Stack spacing={1}>
+      {/* Minor finding: what the two fields mean, in plain words. */}
+      <Typography variant="caption" color="text.secondary" component="p">
+        Lets a Stream Deck or another program control the player. The address 127.0.0.1 means only programs on
+        this computer can connect; the port is the number they use to reach it.
+      </Typography>
       <Stack direction="row">
         <TextField
           margin="dense"
@@ -219,15 +279,22 @@ export function Settings({ open, onClose }: SettingsProps) {
         label="Mode"
         value={settings.streamingMode}
         onChange={handleStreamingModeChange}
+        renderValue={(value) => STREAMING_MODES.find((mode) => mode.value === value)?.name ?? value}
       >
-        {/* PERF-8: both modes now have the same short delay; the stored
-            values keep their old names so saved settings still work. */}
-        <MenuItem value="lowLatency">Best sound quality</MenuItem>
-        <MenuItem value="performance">Lighter on the computer</MenuItem>
+        {STREAMING_MODES.map((mode) => (
+          <MenuItem key={mode.value} value={mode.value} sx={{ whiteSpace: "normal", maxWidth: 400 }}>
+            <ListItemText
+              primary={mode.name}
+              secondary={mode.description}
+              sx={{ my: 0 }}
+              secondaryTypographyProps={{ variant: "caption" }}
+            />
+          </MenuItem>
+        ))}
       </Select>
       <FormHelperText>
         {streamingModeChanged
-          ? "Applies the next time Cue Desk joins a voice channel."
+          ? "Applies the next time a bot joins a voice channel."
           : "Both send sound to Discord with the same short delay."}
       </FormHelperText>
     </FormControl>
@@ -263,7 +330,7 @@ export function Settings({ open, onClose }: SettingsProps) {
             />
           }
           sx={{ marginLeft: "-8px" }}
-          label={<Typography variant="caption">Show Tab URL Bar</Typography>}
+          label={<Typography variant="caption">Show the address bar on tabs</Typography>}
         />
       </FormGroup>
       <FormGroup>
@@ -275,7 +342,7 @@ export function Settings({ open, onClose }: SettingsProps) {
             />
           }
           sx={{ marginLeft: "-8px" }}
-          label={<Typography variant="caption">External Inputs</Typography>}
+          label={<Typography variant="caption">Microphones and other inputs</Typography>}
         />
       </FormGroup>
       <FormGroup>
@@ -284,6 +351,9 @@ export function Settings({ open, onClose }: SettingsProps) {
             <Switch
               checked={settings.multipleInputsEnabled}
               onChange={handleMultipleInputsToggle}
+              inputProps={{
+                "aria-describedby": settings.externalInputsEnabled ? undefined : "several-inputs-reason",
+              }}
             />
           }
           disabled={!settings.externalInputsEnabled}
@@ -293,25 +363,44 @@ export function Settings({ open, onClose }: SettingsProps) {
               variant="caption"
               sx={{ opacity: settings.externalInputsEnabled ? undefined : 0.5 }}
             >
-              Multiple Inputs
+              Use several inputs at once
             </Typography>
           }
         />
+        {/* Minor finding: a greyed switch says why. */}
+        {!settings.externalInputsEnabled && (
+          <FormHelperText id="several-inputs-reason" sx={{ mt: 0 }}>
+            Turn on Microphones and other inputs first.
+          </FormHelperText>
+        )}
       </FormGroup>
       <Button
         onClick={handleCacheClear}
         fullWidth
         variant="outlined"
         size="small"
+        aria-describedby="clear-website-data-help"
       >
-        {clearingCache ? <CircularProgress size={24} /> : "Clear Cache"}
+        {clearingCache ? <CircularProgress size={24} aria-label="Clearing website data" /> : "Clear website data"}
       </Button>
+      <Typography id="clear-website-data-help" variant="caption" color="text.secondary" component="p">
+        Logs you out of websites in tabs and deletes their saved files. Your playlists, bookmarks and settings are
+        kept.
+      </Typography>
     </Stack>
   );
 
   return (
-    <Dialog fullScreen sx={{ width: 240 }} open={open} onClose={onClose}>
+    <Dialog
+      fullScreen
+      sx={{ width: SETTINGS_PANEL_WIDTH }}
+      open={open}
+      onClose={onClose}
+      aria-labelledby="settings-title"
+      {...sidePanelProps}
+    >
       <DialogTitle
+        id="settings-title"
         sx={{
           textAlign: showWindowControls ? "left" : "right",
           py: showWindowControls ? 2 : 1.5,
@@ -319,17 +408,19 @@ export function Settings({ open, onClose }: SettingsProps) {
       >
         Settings
       </DialogTitle>
+      {/* UX finding 1: the panel covers the sidebar, so error messages show here while it is open. */}
+      <ErrorMessages sx={{ px: 2, pb: 1 }} />
       <DialogContent>
-        <DialogContentText>Discord bots</DialogContentText>
+        <SectionHeading>Discord bots</SectionHeading>
         {discordSettings}
-        <Divider sx={{ mb: 2 }} />
-        <DialogContentText>Remote</DialogContentText>
+        <Divider sx={{ my: 2 }} />
+        <SectionHeading>Remote</SectionHeading>
         {remoteSettings}
         <Divider sx={{ mb: 2 }} />
-        <DialogContentText>Streaming</DialogContentText>
+        <SectionHeading>Streaming</SectionHeading>
         {streamingSettings}
-        <Divider sx={{ mb: 2 }} />
-        <DialogContentText>Other</DialogContentText>
+        <Divider sx={{ my: 2 }} />
+        <SectionHeading>Other</SectionHeading>
         {otherSettings}
         <LocalFilesSettings />
         <Stack my={1}>

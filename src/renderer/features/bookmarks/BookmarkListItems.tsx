@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import Collapse from "@mui/material/Collapse";
 import IconButton from "@mui/material/IconButton";
 import List from "@mui/material/List";
@@ -24,7 +24,6 @@ import {
 } from "@dnd-kit/core";
 import {
   SortableContext,
-  sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { v4 as uuid } from "uuid";
@@ -37,6 +36,8 @@ import { BookmarkListItem } from "./BookmarkListItem";
 import { BookmarkFolderItem, folderIdFromDropId } from "./BookmarkFolderItem";
 import { BookmarkFolderDialog } from "./BookmarkFolderDialog";
 import { SortableItem } from "../../common/SortableItem";
+import { DRAG_INSTRUCTIONS, dragAnnouncements } from "../../common/dragAnnouncements";
+import { listKeyboardCoordinates } from "../../common/listKeyboardCoordinates";
 
 /**
  * The Bookmarks section of the sidebar. UX-10: folders come first, each with
@@ -53,7 +54,7 @@ export function BookmarkListItems() {
     activationConstraint: { distance: 10 },
   });
   const keyboardSensor = useSensor(KeyboardSensor, {
-    coordinateGetter: sortableKeyboardCoordinates,
+    coordinateGetter: listKeyboardCoordinates("y"),
   });
 
   const sensors = useSensors(pointerSensor, keyboardSensor);
@@ -95,6 +96,26 @@ export function BookmarkListItems() {
     }
   }
 
+  // UX finding 2: screen readers hear names, not internal ids. Made once
+  // (they remember the last place announced) and read the latest list.
+  const latest = useRef({ bookmarks, shown });
+  latest.current = { bookmarks, shown };
+  const announcements = useMemo(
+    () =>
+      dragAnnouncements({
+        nameOf: (id) => {
+          const folderId = folderIdFromDropId(id);
+          const state = latest.current.bookmarks;
+          if (folderId !== undefined) {
+            return `the ${state.folders.byId[folderId]?.title ?? ""} folder`;
+          }
+          return state.bookmarks.byId[id]?.title ?? "the bookmark";
+        },
+        order: () => latest.current.shown.map((bookmark) => bookmark.id),
+      }),
+    [],
+  );
+
   const renderBookmark = (bookmark: Bookmark) => (
     <SortableItem key={bookmark.id} id={bookmark.id}>
       <BookmarkListItem bookmark={bookmark} />
@@ -102,7 +123,7 @@ export function BookmarkListItems() {
   );
 
   return (
-    <>
+    <div data-focus-section="bookmarks">
       <ListItem
         disablePadding
         secondaryAction={
@@ -117,7 +138,7 @@ export function BookmarkListItems() {
           </Tooltip>
         }
       >
-        <ListItemButton onClick={() => setOpen(!open)} aria-expanded={open}>
+        <ListItemButton onClick={() => setOpen(!open)} aria-expanded={open} data-focus-heading>
           <ListItemText primary="Bookmarks" />
           {open ? <ExpandLess /> : <ExpandMore />}
         </ListItemButton>
@@ -129,6 +150,8 @@ export function BookmarkListItems() {
             collisionDetection={closestCenter}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
+            announcements={announcements}
+            screenReaderInstructions={DRAG_INSTRUCTIONS}
           >
             <SortableContext items={shown} strategy={verticalListSortingStrategy}>
               {folders.map((folder) => (
@@ -153,6 +176,6 @@ export function BookmarkListItems() {
         onSave={(title) => dispatch(addFolder({ id: uuid(), title }))}
         onClose={() => setNewFolderOpen(false)}
       />
-    </>
+    </div>
   );
 }

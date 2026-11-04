@@ -33,6 +33,11 @@ export function canReconnect(bot: BotState): boolean {
   return bot.hasToken && botChip(bot).color === "error";
 }
 
+/** UX finding 6: the bot is waiting to try again by itself, so "Try now" makes sense. */
+export function canTryNow(bot: BotState): boolean {
+  return bot.hasToken && botChip(bot).color === "warning";
+}
+
 /** Status chip for a bot output; `role="status"` so changes are announced. */
 export function BotStatusChip({ bot }: { bot: BotState }) {
   const look = botChip(bot);

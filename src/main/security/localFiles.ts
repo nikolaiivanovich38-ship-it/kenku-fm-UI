@@ -138,6 +138,8 @@ export class LocalFileGate {
   private readonly folders: LocalFileFolders;
   private readonly ask: (prompt: LocalFilePrompt) => Promise<PromptAnswer>;
   private readonly windowsPaths: boolean;
+  private readonly fileExists: (filePath: string) => boolean;
+  private readonly onMissing: (filePath: string) => void;
 
   constructor(options: {
     folders: LocalFileFolders;
@@ -145,10 +147,16 @@ export class LocalFileGate {
     ask: (prompt: LocalFilePrompt) => Promise<PromptAnswer>;
     /** Read file addresses as Windows paths. Defaults to the platform the app runs on. */
     windowsPaths?: boolean;
+    /** UX finding 7: whether the file is there; in the app, a check on the disk. */
+    fileExists?: (filePath: string) => boolean;
+    /** UX finding 7: tell the user a file could not be found (nothing is opened). */
+    onMissing?: (filePath: string) => void;
   }) {
     this.folders = options.folders;
     this.ask = options.ask;
     this.windowsPaths = options.windowsPaths ?? process.platform === "win32";
+    this.fileExists = options.fileExists ?? (() => true);
+    this.onMissing = options.onMissing ?? (() => undefined);
   }
 
   /**
@@ -166,6 +174,12 @@ export class LocalFileGate {
       filePath = fileURLToPath(check.url, { windows: this.windowsPaths });
     } catch {
       console.warn("Refused to open a file whose address is not a path on this computer");
+      return undefined;
+    }
+    // UX finding 7: a missing file used to open as a blank white tab, after
+    // asking about it. Say it cannot be found instead, and open nothing.
+    if (!this.fileExists(filePath)) {
+      this.onMissing(filePath);
       return undefined;
     }
     if (this.folders.allows(filePath)) {

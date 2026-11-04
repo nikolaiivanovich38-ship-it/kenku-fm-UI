@@ -45,7 +45,7 @@ test("playlists, soundboards, bookmarks, volume and settings survive a restart",
     await card(player, "Bell").getByRole("button", { name: "loop", exact: true }).click();
     await player.getByRole("button", { name: "Back" }).click();
 
-    await main.getByRole("button", { name: "add tab" }).click();
+    await main.getByRole("button", { name: "New tab", exact: true }).click();
     await main.getByLabel("Web address").fill(site.url("/inn"));
     await main.getByLabel("Web address").press("Enter");
     const innTab = main.locator("#controls").getByRole("listitem").filter({ hasText: "The Inn" });

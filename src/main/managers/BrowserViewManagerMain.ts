@@ -1,4 +1,5 @@
 import { BrowserWindow, dialog, ipcMain, WebContentsView } from "electron";
+import fs from "fs";
 import { getUserAgent } from "../userAgent";
 import { checkTabUrl, isRefused } from "../../common/security/urlPolicy";
 import { guardIpc } from "../security/ipcGuard";
@@ -19,6 +20,18 @@ import {
   type PromptAnswer,
 } from "../security/localFiles";
 import { localFileFolders } from "../security/localFileStore";
+
+/** UX finding 7: a file typed in the address bar (or a bookmark) that is not there. */
+export const MISSING_FILE_MESSAGE = "Can't find this file. Check the name and folder.";
+
+/** True for an existing file (not a folder) on this computer. */
+function isFile(filePath: string): boolean {
+  try {
+    return fs.statSync(filePath).isFile();
+  } catch {
+    return false;
+  }
+}
 import { sleepDelay, TabSleep } from "./tabSleep";
 
 declare const PLAYER_WINDOW_WEBPACK_ENTRY: string;
@@ -46,6 +59,8 @@ export interface BrowserViewManagerOptions {
   askAboutFile?: (prompt: LocalFilePrompt) => Promise<PromptAnswer>;
   /** PERF-5: how long a hidden tab stays silent before it sleeps. */
   tabSleepMs?: number;
+  /** UX finding 7: whether a file exists; defaults to a check on the disk. */
+  fileExists?: (filePath: string) => boolean;
 }
 
 /**
@@ -78,6 +93,9 @@ export class BrowserViewManagerMain {
       // SEC-15: the question is shown by the main process, on the main window,
       // so a page can never answer it.
       ask: options.askAboutFile ?? ((prompt) => dialog.showMessageBox(this.window, prompt)),
+      fileExists: options.fileExists ?? isFile,
+      // UX finding 4/7: shown in the main window, and closed once an address opens.
+      onMissing: () => this.window.webContents.send("ERROR", MISSING_FILE_MESSAGE, { kind: "address" }),
     });
     this.tabSleep = new TabSleep(
       {
@@ -243,7 +261,8 @@ export class BrowserViewManagerMain {
 
   /** Tell the user, in the main window, why a page was not opened. */
   _reportRefusedUrl(reason: string) {
-    this.window.webContents.send("ERROR", `That page was not opened. ${reason}`);
+    // UX finding 4: closed in the main window once an address opens.
+    this.window.webContents.send("ERROR", `That page was not opened. ${reason}`, { kind: "address" });
   }
 
   /**

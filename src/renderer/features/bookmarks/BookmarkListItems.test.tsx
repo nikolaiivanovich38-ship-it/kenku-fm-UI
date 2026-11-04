@@ -15,6 +15,8 @@ import bookmarksReducer, { addBookmark, addFolder, moveBookmarkToFolder } from "
 import tabsReducer from "../tabs/tabsSlice";
 import { BookmarkListItems } from "./BookmarkListItems";
 
+let store_addFolder: () => void;
+
 function setup() {
   const store = configureStore({ reducer: { bookmarks: bookmarksReducer, tabs: tabsReducer } });
   for (const [id, title] of [
@@ -25,6 +27,7 @@ function setup() {
       store.dispatch(addBookmark({ id, title, url: `https://${id}.example/`, icon: "" }));
     });
   }
+  store_addFolder = () => store.dispatch(addFolder({ id: "f1", title: "Combat" }));
   render(
     <Provider store={store}>
       <BookmarkListItems />
@@ -38,6 +41,15 @@ const folderGroup = (name: string) => screen.queryByRole("group", { name });
 
 beforeEach(() => {
   vi.clearAllMocks();
+});
+
+describe("drag handles (UX finding 2)", () => {
+  it("gives each bookmark a handle named after it, apart from its own button", () => {
+    setup();
+    const handle = screen.getByRole("button", { name: "Move Tabletop Audio" });
+    expect(handle).toHaveAttribute("aria-roledescription", "drag handle");
+    expect(screen.getByRole("button", { name: "Tabletop Audio" })).not.toContainElement(handle);
+  });
 });
 
 describe("bookmark folders (UX-10)", () => {
@@ -116,6 +128,38 @@ describe("bookmark folders (UX-10)", () => {
     await user.type(name, "Battle");
     await user.click(within(dialog).getByRole("button", { name: "Done" }));
     expect(store.getState().bookmarks.folders.byId.f1.title).toBe("Battle");
+  });
+
+  it("moves focus to the next bookmark after Move to folder… (UX finding 12)", async () => {
+    const { user } = setup();
+    act(() => {
+      store_addFolder();
+    });
+    await user.click(screen.getByRole("button", { name: "Options for Tabletop Audio" }));
+    await user.click(screen.getByRole("menuitem", { name: "Move to folder…" }));
+    await user.click(screen.getByRole("menuitem", { name: "Combat" }));
+    await vi.waitFor(() => expect(screen.getByRole("button", { name: "YouTube" })).toHaveFocus());
+  });
+
+  it("moves focus to the Bookmarks heading when nothing comes after (UX finding 12)", async () => {
+    const { user } = setup();
+    act(() => {
+      store_addFolder();
+    });
+    await user.click(screen.getByRole("button", { name: "Options for YouTube" }));
+    await user.click(screen.getByRole("menuitem", { name: "Move to folder…" }));
+    await user.click(screen.getByRole("menuitem", { name: "Combat" }));
+    await vi.waitFor(() => expect(screen.getByRole("button", { name: "Bookmarks" })).toHaveFocus());
+  });
+
+  it("moves focus to the item after a deleted folder (UX finding 12)", async () => {
+    const { user } = setup();
+    act(() => {
+      store_addFolder();
+    });
+    await user.click(await screen.findByRole("button", { name: "Options for folder Combat" }));
+    await user.click(screen.getByRole("menuitem", { name: "Delete folder (keeps its bookmarks)" }));
+    await vi.waitFor(() => expect(screen.getByRole("button", { name: "Tabletop Audio" })).toHaveFocus());
   });
 
   it("deletes a folder but keeps its bookmarks", async () => {

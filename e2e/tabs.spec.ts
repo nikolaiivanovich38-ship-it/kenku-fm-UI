@@ -47,7 +47,7 @@ function openAddresses(app: ElectronApplication): Promise<string[]> {
 
 test("open a page in a new tab, follow a link, go back, forward and reload", async ({ app, mainWindow, playerView }) => {
   await expect(playerView.getByText("Playlists", { exact: true })).toBeVisible();
-  await mainWindow.getByRole("button", { name: "add tab" }).click();
+  await mainWindow.getByRole("button", { name: "New tab", exact: true }).click();
   await expect(tab(mainWindow, "New Tab")).toBeVisible();
 
   const address = mainWindow.getByLabel("Web address");
@@ -85,7 +85,7 @@ test("open a page in a new tab, follow a link, go back, forward and reload", asy
 
 test("bookmark a page, open, edit and delete the bookmark", async ({ app, mainWindow, playerView }) => {
   await expect(playerView.getByText("Playlists", { exact: true })).toBeVisible();
-  await mainWindow.getByRole("button", { name: "add tab" }).click();
+  await mainWindow.getByRole("button", { name: "New tab", exact: true }).click();
   const address = mainWindow.getByLabel("Web address");
   await address.fill(site.url("/two"));
   await address.press("Enter");
@@ -132,7 +132,7 @@ test("a file on a network share is refused with a message and nothing opens", as
   // SEC-15: files on this computer open after a question (e2e/localFiles.spec.ts);
   // network shares never do, because Windows would send the user's login there.
   await expect(playerView.getByText("Playlists", { exact: true })).toBeVisible();
-  await mainWindow.getByRole("button", { name: "add tab" }).click();
+  await mainWindow.getByRole("button", { name: "New tab", exact: true }).click();
   const address = mainWindow.getByLabel("Web address");
   await address.fill("file://fileserver/share/passwords.html");
   await address.press("Enter");
