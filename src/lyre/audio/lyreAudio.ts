@@ -189,6 +189,8 @@ export interface LyreAudio {
   choosePreviewDevice(deviceId: string): Promise<DeviceStatus>;
 
   // ----- state -----
+  /** Read the library from here on (the screens' data layer loaded or reloaded). */
+  setLibrary(library: LyreAudioLibrary): void;
   /** The same object until something changes (fit for React's useSyncExternalStore). */
   getNowPlaying(): NowPlaying;
   /** Called after each change, and about once a second while anything plays. Returns an unsubscribe. */
