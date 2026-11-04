@@ -187,7 +187,11 @@ export class BotTokenStore {
     try {
       fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
       const temporary = `${this.filePath}.tmp`;
-      fs.writeFileSync(temporary, JSON.stringify(data, null, 2), { mode: 0o600 });
+      // WP1 review 11: a file's mode is set only when it is created, so a
+      // temporary file left by an interrupted save is removed and the new one
+      // created afresh ("wx": fails rather than reuse a file that appears meanwhile).
+      fs.rmSync(temporary, { force: true });
+      fs.writeFileSync(temporary, JSON.stringify(data, null, 2), { mode: 0o600, flag: "wx" });
       fs.renameSync(temporary, this.filePath);
     } catch (error) {
       console.error("Unable to save the Discord bot list", error);

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
@@ -33,7 +33,10 @@ import {
   setURLBarEnabled,
   setStreamingMode,
   StreamingMode,
+  dismissLegacyTokenNotice,
 } from "./settingsSlice";
+import { LegacyTokenNotice, LEGACY_TOKEN_SESSION_ONLY } from "./LegacyTokenNotice";
+import { showAppError } from "../../common/appErrors";
 import { showWindowControls } from "../../common/showWindowControls";
 import { LocalFilesSettings } from "./LocalFilesSettings";
 
@@ -54,6 +57,7 @@ export function Settings({ open, onClose }: SettingsProps) {
 
   const outputs = useSelector((state: RootState) => state.output);
   const [addingBot, setAddingBot] = useState(false);
+  const sessionOnlyShown = useRef(false);
 
   // OUT-1: mirror the main process's output state, and log in the bots that
   // have a saved token, as Kenku FM did when the window opened.
@@ -61,6 +65,11 @@ export function Settings({ open, onClose }: SettingsProps) {
     const apply = (state: OutputsState) => {
       dispatch(setOutputsState(state));
       dispatch(setStatus(overallStatus(state.bots)));
+      // WP1 review 11: the user never typed this token; tell them now, not after a restart.
+      if (state.legacyTokenSessionOnly && !sessionOnlyShown.current) {
+        sessionOnlyShown.current = true;
+        showAppError(LEGACY_TOKEN_SESSION_ONLY);
+      }
     };
     window.kenku.on("OUTPUTS_STATE", (args) => apply(args[0]));
     void window.kenku.outputs.getState().then(apply);
@@ -77,6 +86,9 @@ export function Settings({ open, onClose }: SettingsProps) {
 
   const discordSettings = (
     <Stack spacing={2}>
+      {settings.legacyTokenNotice && (
+        <LegacyTokenNotice onDismiss={() => dispatch(dismissLegacyTokenNotice())} />
+      )}
       {!outputs.encryption && (
         // A standing note, not an alert: error messages own role="alert".
         <Alert severity="warning" variant="outlined" role="note">
