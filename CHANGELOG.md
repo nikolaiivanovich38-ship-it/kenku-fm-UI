@@ -4,7 +4,7 @@ All notable changes to Cue Desk. Versions follow [Semantic Versioning](https://s
 
 ## [Unreleased]
 
-### 0.1.0: first release of the fork
+## [0.1.0] - 2026-11-04: first release of the fork
 
 **New name and home**
 - The app is now called Cue Desk (working name), version 0.1.0. It is an independent fork of Kenku FM 1.5.5 by Owlbear Rodeo and can be installed next to Kenku FM. [FND-1]
