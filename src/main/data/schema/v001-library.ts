@@ -75,9 +75,8 @@ CREATE TABLE tracks (
   role TEXT CHECK (role IS NULL OR role IN ('loop_bed', 'underscore', 'sting', 'transition', 'effect')),
   loopable TEXT CHECK (loopable IS NULL OR loopable IN ('yes', 'crossfade', 'no')),
   ending TEXT CHECK (ending IS NULL OR ending IN ('fades', 'hard_stop', 'resolves')),
-  -- JSON by design: a self-contained Transition value (../types.ts) the engine reads whole; never queried.
-  transition_in TEXT CHECK (transition_in IS NULL OR json_valid(transition_in)),
-  transition_out TEXT CHECK (transition_out IS NULL OR json_valid(transition_out)),
+  -- How a track comes in and goes out is its audio profile (fades, loop, end; audio_profiles) and the
+  -- action that plays it (fadeMs, PLY-8): no second copy here (DB review 7).
   follow_required INTEGER NOT NULL DEFAULT 0 CHECK (follow_required IN (0, 1)),
   notes TEXT NOT NULL DEFAULT '',
   -- Artist (composer) and album, from the file's tags or typed in.
@@ -108,7 +107,8 @@ CREATE TABLE markers (
   id TEXT PRIMARY KEY,
   track_id TEXT NOT NULL REFERENCES tracks (id) ON DELETE CASCADE,
   time_ms INTEGER NOT NULL CHECK (time_ms >= 0),
-  kind TEXT NOT NULL CHECK (kind IN ('marker', 'loop_in', 'loop_out', 'mix_out')),
+  -- Where a loop starts and ends is the audio profile's (loop_start_ms, end_ms), not a marker (DB review 7).
+  kind TEXT NOT NULL CHECK (kind IN ('marker', 'mix_out')),
   label TEXT NOT NULL DEFAULT '',
   created_at INTEGER NOT NULL
 );

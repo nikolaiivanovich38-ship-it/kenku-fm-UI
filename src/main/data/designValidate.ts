@@ -95,8 +95,3 @@ export function cleanRule(field: string, value: unknown): PlaylistRule {
   if (input.leaveOutStings !== undefined) rule.leaveOutStings = v.boolean(`${field}.leaveOutStings`, input.leaveOutStings);
   return rule;
 }
-
-/** Reads stored JSON (a track's transitions). */
-export function parseJson<T>(text: string | null): T | null {
-  return text === null ? null : (JSON.parse(text) as T);
-}

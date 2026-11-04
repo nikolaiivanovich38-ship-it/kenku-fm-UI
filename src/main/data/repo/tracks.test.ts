@@ -203,8 +203,6 @@ describe("scoring metadata (DAT-2)", () => {
       role: null,
       loopable: null,
       ending: null,
-      transitionIn: null,
-      transitionOut: null,
       followRequired: false,
       notes: "",
       sourceComposer: null,
@@ -217,8 +215,6 @@ describe("scoring metadata (DAT-2)", () => {
     const updated = updateTrack(t.store, track.id, {
       energy: 4,
       ending: "hard_stop",
-      transitionIn: { kind: "crossfade", seconds: 2.5, curve: "equal_power" },
-      transitionOut: { kind: "at_mix_out" },
       sourceComposer: "Marcin Przybyłowicz",
       sourceAlbum: "The Witcher 3",
       sourceCueNumber: "1M04",
@@ -229,17 +225,17 @@ describe("scoring metadata (DAT-2)", () => {
       title: "Cue",
       energy: 4,
       ending: "hard_stop",
-      transitionIn: { kind: "crossfade", seconds: 2.5, curve: "equal_power" },
-      transitionOut: { kind: "at_mix_out" },
       sourceComposer: "Marcin Przybyłowicz",
       sourceCueNumber: "1M04",
       rating: 5,
       durationMs: 61_000,
       updatedAt: track.updatedAt + 1000,
     });
-    const cleared = updateTrack(t.store, track.id, { energy: null, transitionIn: null });
+    const cleared = updateTrack(t.store, track.id, { energy: null });
     expect(cleared.energy).toBeNull();
-    expect(cleared.transitionIn).toBeNull();
+    // DB review 7: how a track comes in and goes out is its audio profile (fades, loop, end), not a second copy.
+    expect(cleared).not.toHaveProperty("transitionIn");
+    expect(() => updateTrack(t.store, track.id, { transitionIn: { kind: "cut" } } as never)).toThrow(/cannot be changed here/);
     expect(cleared.rating).toBe(5);
   });
 
@@ -260,8 +256,6 @@ describe("scoring metadata (DAT-2)", () => {
       ["profile", { markers: [{ atMs: 1 }] }],
       ["profile", { speed: 2 }],
       ["rating", 0],
-      ["transitionIn", { kind: "crossfade", seconds: -1, curve: "linear" }],
-      ["transitionIn", { kind: "teleport" }],
       ["notes", "a\u0000b"],
     ];
     for (const [field, value] of bad) {
@@ -345,19 +339,21 @@ describe("markers (DAT-3 data)", () => {
   it("adds, renames, moves and deletes named markers, kept in time order", async () => {
     const track = createTrack(t.store, { title: "A", file: { path: "/m/a.mp3" } });
     const swell = addMarker(t.store, track.id, { timeMs: 92_000, label: "swell 1" });
-    const loopIn = addMarker(t.store, track.id, { timeMs: 4_000, kind: "loop_in" });
+    const intro = addMarker(t.store, track.id, { timeMs: 4_000, label: "intro ends" });
     addMarker(t.store, track.id, { timeMs: 120_000, kind: "mix_out", label: "mix out" });
     expect(listMarkers(t.store, track.id).map((m) => [m.kind, m.timeMs])).toEqual([
-      ["loop_in", 4_000],
+      ["marker", 4_000],
       ["marker", 92_000],
       ["mix_out", 120_000],
     ]);
     updateMarker(t.store, swell.id, { label: "big swell", timeMs: 1_000 });
     expect(listMarkers(t.store, track.id)[0]).toMatchObject({ label: "big swell", timeMs: 1_000 });
-    deleteMarker(t.store, loopIn.id);
+    deleteMarker(t.store, intro.id);
     expect(listMarkers(t.store, track.id)).toHaveLength(2);
     expect(() => addMarker(t.store, track.id, { timeMs: -1 })).toThrow(ValidationError);
     expect(() => addMarker(t.store, track.id, { timeMs: 1, kind: "drop" as never })).toThrow(ValidationError);
+    // DB review 7: where a loop starts and ends is the audio profile's (loopStartMs, endMs), stored once.
+    expect(() => addMarker(t.store, track.id, { timeMs: 1, kind: "loop_in" as never })).toThrow(ValidationError);
     expect(() => addMarker(t.store, "missing", { timeMs: 1 })).toThrow(/No track/);
   });
 });

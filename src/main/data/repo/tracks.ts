@@ -22,7 +22,6 @@ import {
   type TrackInput,
   type TrackPatch,
   type TrackUsage,
-  type Transition,
 } from "../types";
 import * as v from "../validate";
 import { newId, patchOf, placeholders, plural, requireRow, toFlag } from "./common";
@@ -47,8 +46,6 @@ type TrackRow = {
   role: string | null;
   loopable: string | null;
   ending: string | null;
-  transition_in: string | null;
-  transition_out: string | null;
   follow_required: number;
   notes: string;
   source_composer: string | null;
@@ -85,8 +82,6 @@ function toTrack(row: TrackRow, profile: AudioProfileInput | null): Track {
     role: row.role as Track["role"],
     loopable: row.loopable as Track["loopable"],
     ending: row.ending as Track["ending"],
-    transitionIn: row.transition_in === null ? null : (JSON.parse(row.transition_in) as Transition),
-    transitionOut: row.transition_out === null ? null : (JSON.parse(row.transition_out) as Transition),
     followRequired: row.follow_required === 1,
     notes: row.notes,
     sourceComposer: row.source_composer,
@@ -98,30 +93,6 @@ function toTrack(row: TrackRow, profile: AudioProfileInput | null): Track {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
-}
-
-/** Checks a transition and returns it as stored JSON (or null). */
-function transitionJson(field: string, value: unknown): string | null {
-  if (value === undefined || value === null) return null;
-  const input = v.record(field, value);
-  const kind = v.oneOf(`${field}.kind`, input.kind, [
-    "crossfade",
-    "cut",
-    "after_current_ends",
-    "at_mix_out",
-    "after_loop",
-  ] as const);
-  let clean: Transition;
-  if (kind === "crossfade") {
-    clean = {
-      kind,
-      seconds: v.numberInRange(`${field}.seconds`, input.seconds, 0, 600),
-      curve: v.oneOf(`${field}.curve`, input.curve ?? "equal_power", ["linear", "equal_power"] as const),
-    };
-  } else {
-    clean = { kind };
-  }
-  return JSON.stringify(clean);
 }
 
 /** Column values for the metadata fields present in `input`. */
@@ -137,8 +108,6 @@ function metadataColumns(input: Record<string, unknown>): Record<string, SQLInpu
   if (has("role")) columns.role = v.nullableOneOf("role", input.role, ROLES);
   if (has("loopable")) columns.loopable = v.nullableOneOf("loopable", input.loopable, LOOPABLE);
   if (has("ending")) columns.ending = v.nullableOneOf("ending", input.ending, ENDINGS);
-  if (has("transitionIn")) columns.transition_in = transitionJson("transitionIn", input.transitionIn);
-  if (has("transitionOut")) columns.transition_out = transitionJson("transitionOut", input.transitionOut);
   if (has("followRequired")) columns.follow_required = toFlag(v.boolean("followRequired", input.followRequired));
   if (has("notes")) columns.notes = v.optionalText("notes", input.notes);
   if (has("sourceComposer")) columns.source_composer = v.nullableText("sourceComposer", input.sourceComposer);
@@ -343,8 +312,6 @@ const PATCHABLE = [
   "role",
   "loopable",
   "ending",
-  "transitionIn",
-  "transitionOut",
   "followRequired",
   "notes",
   "sourceComposer",
