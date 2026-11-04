@@ -83,3 +83,118 @@ Website tabs use the `persist:tabs` partition (`TAB_PARTITION`) with no preload.
 5. Settings > "Where do I get my token?" opens in the system browser.
 6. Drop an audio file outside a drop zone: nothing happens. Drop it on "Add track": it is added.
 7. From another computer on the same network, the audio socket port (shown with `netstat` or `lsof` on the Cue Desk process) refuses connections.
+
+## Messages between the app's pages and the main process (SEC-8)
+
+### In plain language
+
+Cue Desk's own pages (the main window, the player and a hidden audio window) ask the main part of the app to do things: open a tab, join a Discord channel, start the remote control. Before WP1 the main part did whatever any page asked. Now it checks who is asking. A website in a tab, or something embedded inside one of Cue Desk's pages, is ignored. Requests with odd values (text where a number belongs, very long text) are ignored too. Nothing changes for you: Cue Desk's own pages ask in exactly the same way as before.
+
+### How it works
+
+`guardIpc(ipcMain)` (`src/main/security/ipcGuard.ts`) wraps `ipcMain.on` and `ipcMain.handle`. A message reaches its handler only when all of these hold:
+
+1. The sending web contents is alive and registered in `trustedContents` with a role allowed for the channel in `IPC_CHANNELS` (`src/main/security/ipcChannels.ts`).
+2. `event.senderFrame` is that web contents' main frame (not an iframe, and not a frame that has gone away).
+3. The arguments pass the channel's checks (`src/main/security/ipcArgs.ts`): ids are safe integers, numbers are finite, booleans are booleans, text has a length limit, and there are no extra arguments.
+
+A refused message is dropped and logged once per channel and reason. A refused `sendSync` gets a harmless answer (`""`, or `-1` for a view) so the sender is not left waiting; a refused `invoke` rejects. Each manager disposes of its guard in `destroy()`, which removes exactly the listeners it added.
+
+Handlers also cope with ids that no longer exist: starting tab audio capture for a closed tab, registering an unknown view as the player, and leaving or disconnecting Discord without a bot all do nothing instead of throwing.
+
+**Player view.** The main window used to pass the player's preload script path when it created the player view (WP0 then checked that path). It now passes the kind `"player"`, and the main process chooses the player preload itself (`classifyViewRequest` in `viewKind.ts`). A script path is always refused. `PLAYER_REGISTER_VIEW` only accepts a live view registered as the player, so a website tab can never receive remote control commands.
+
+**src/index.ts.** `GET_VERSION`, `GET_PLATFORM` and `CLEAR_CACHE` are still registered directly on `ipcMain` in `src/index.ts`, which WP1 stream W2 does not edit. `registerAppInfoIpc` (`src/main/security/appInfoIpc.ts`) registers the same three handlers through the guard; `src/index.ts` should replace its three `ipcMain` calls with one call to it (see the comment at the top of that file).
+
+### Channel table
+
+"Main window" is `src/preload.ts` with `src/preload/managers/BrowserViewManagerPreload.ts`; "player" is `src/player/preload.ts`; "capture window" is `src/audioCapture/preload.ts` with `src/preload/managers/AudioCaptureManagerPreload.ts`. Website tabs have no preload and may send nothing. Keep this table and `IPC_CHANNELS` in step.
+
+| Channel | Sent by | Arguments | Handled in |
+|---|---|---|---|
+| `GET_VERSION`, `GET_PLATFORM` (sync) | Main window | none | `src/index.ts` (`appInfoIpc.ts`) |
+| `CLEAR_CACHE` (invoke) | Main window | none | `src/index.ts` (`appInfoIpc.ts`) |
+| `WINDOW_TOGGLE_MAXIMIZE`, `WINDOW_MINIMIZE`, `WINDOW_CLOSE` | Main window | none | `WindowManager` |
+| `DISCORD_CONNECT` | Main window | token: text ≤ 4096 | `DiscordBroadcast` |
+| `DISCORD_DISCONNECT` | Main window | none | `DiscordBroadcast` |
+| `DISCORD_JOIN_CHANNEL`, `DISCORD_LEAVE_CHANNEL` | Main window | channel id: text ≤ 4096 | `DiscordBroadcast` |
+| `BROWSER_VIEW_CREATE_BROWSER_VIEW` (sync) | Main window | url: text ≤ 2 MB or missing; x, y, width, height: finite numbers; kind: `"player"` or missing | `BrowserViewManagerMain` |
+| `BROWSER_VIEW_REMOVE_BROWSER_VIEW`, `_HIDE_`, `_SHOW_`, `_GO_FORWARD`, `_GO_BACK`, `_RELOAD` | Main window | view id: integer | `BrowserViewManagerMain` |
+| `BROWSER_VIEW_REMOVE_ALL_BROWSER_VIEWS` | Main window | none | `BrowserViewManagerMain` |
+| `BROWSER_VIEW_SET_BROWSER_VIEW_BOUNDS` | Main window | view id: integer; x, y, width, height: finite numbers | `BrowserViewManagerMain` |
+| `BROWSER_VIEW_LOAD_URL` | Main window | view id: integer; url: text ≤ 2 MB | `BrowserViewManagerMain` |
+| `PLAYER_GET_URL` (sync) | Main window | none | `PlayerManager` |
+| `PLAYER_REGISTER_VIEW` | Main window | view id: integer (must be the trusted player view) | `PlayerManager` |
+| `PLAYER_START_REMOTE` | Main window | address, port: text ≤ 4096 | `PlayerManager` |
+| `PLAYER_STOP_REMOTE` | Main window | none | `PlayerManager` |
+| `AUDIO_CAPTURE_START` | Main window | streaming mode: `"lowLatency"`, `"performance"` or missing | `AudioCaptureManagerMain` |
+| `AUDIO_CAPTURE_SET_LOOPBACK` | Main window | boolean | `AudioCaptureManagerMain` |
+| `AUDIO_CAPTURE_SET_MUTED` | Main window | view id: integer; muted: boolean | `AudioCaptureManagerMain` |
+| `AUDIO_CAPTURE_START_EXTERNAL_AUDIO_CAPTURE`, `_STOP_EXTERNAL_AUDIO_CAPTURE` | Main window | device id: text ≤ 4096 | `AudioCaptureManagerMain` |
+| `AUDIO_CAPTURE_START_BROWSER_VIEW_STREAM`, `_STOP_BROWSER_VIEW_STREAM` | Main window | view id: integer | `AudioCaptureManagerMain` |
+| `AUDIO_CAPTURE_STOP_ALL_BROWSER_VIEW_STREAMS` | Main window | none | `AudioCaptureManagerMain` (new in WP1: before, nothing handled it and tab audio kept being captured) |
+| `AUDIO_CAPTURE_STREAM_START` | Capture window | channels 1–32, frame size 1–1048576, sample rate 1–384000: integers | `AudioCaptureManagerMain` |
+| `AUDIO_CAPTURE_STREAM_END` | Capture window | none (not sent today) | `AudioCaptureManagerMain` |
+| `AUDIO_CAPTURE_GET_WEBSOCKET_ADDRESS` (invoke) | Capture window | none | `AudioCaptureManagerMain` |
+| `PLAYER_REMOTE_PLAYLIST_GET_ALL_REPLY`, `_PLAYLIST_PLAYBACK_REPLY`, `_SOUNDBOARD_GET_ALL_REPLY`, `_SOUNDBOARD_PLAYBACK_REPLY` | Player | reply: object; request id: integer ≥ 1 | `src/main/remote/playerRequests.ts` |
+
+### How to add a channel
+
+Add it to `IPC_CHANNELS` with the page(s) that send it and an argument check, register it with the manager's guard (`this.ipc.on(...)`), and add a row above. The type of `guardIpc().on` only accepts channels listed in `IPC_CHANNELS`, so forgetting the first step is a compile error.
+
+## Remote API replies (PERF-9)
+
+The remote API's GET routes (`/v1/playlist`, `/v1/playlist/playback`, `/v1/soundboard`, `/v1/soundboard/playback`) ask the player for its state through `PlayerRequests` (`src/main/remote/playerRequests.ts`). Each request gets a number that the player sends back with its answer, so several requests at once (for example Stream Deck buttons refreshing together) each get their own answer. One listener per reply channel serves every request, and a request that is not answered within 5 seconds is forgotten, so listeners no longer pile up. The HTTP responses (status codes, bodies, headers) are unchanged; `src/main/remote/remote.test.ts` checks them byte for byte with `fastify.inject()`.
+
+## Content-Security-Policy (SEC-11)
+
+### In plain language
+
+Each of Cue Desk's own pages now tells the built-in browser exactly what it is allowed to load. If a bug ever let someone slip code into one of these pages, the browser would refuse to run it or to send data anywhere unexpected. You should not notice any difference.
+
+### The policy
+
+Set with `<meta http-equiv="Content-Security-Policy">` as the first tag after `charset` in each page template. `frame-ancestors` cannot be set from a meta tag and is not needed (these pages are never framed).
+
+| Directive | Main window (`src/index.html`) | Player (`src/player/index.html`) | Capture window (`src/audioCapture/index.html`) |
+|---|---|---|---|
+| `default-src` | `'none'` | `'none'` | `'none'` |
+| `script-src` | `'self'` | `'self'` | `'self' blob:` |
+| `style-src` | `'self' 'unsafe-inline'` | `'self' 'unsafe-inline'` | `'self'` |
+| `img-src` | `'self' data: blob: file: https: http:` | `'self' data: blob: file: https: http:` | `'none'` |
+| `font-src` | `'self' data:` | `'self' data:` | `'none'` |
+| `media-src` | `'none'` | `'self' data: blob: file: https: http:` | `'self' blob:` |
+| `connect-src` | `'self'` | `'self' data: blob: file: https: http:` | `'self' ws://127.0.0.1:*` |
+| `worker-src` | `'none'` | `'none'` | `'none'` |
+| `object-src`, `base-uri`, `form-action`, `frame-src` | `'none'` | `'none'` | `'none'` |
+
+Why each allowance is there:
+
+- **`script-src 'self'`**: only the webpack bundles next to the page. Production builds use `source-map`, so no `eval` is needed. No page has inline scripts or inline event handlers.
+- **`style-src 'unsafe-inline'`** (main window, player): MUI's styling engine (emotion) and webpack's style-loader insert `<style>` tags at run time. Removing it would need a per-load nonce threaded through emotion's cache; not worth the risk while styles cannot run code.
+- **Images** (main window): tab favicons and bookmark icons come from whatever site is open (`https:`, `http:` or `data:`), Discord server icons come from `https://cdn.discordapp.com`, and the app's own icons are bundled files. **Images** (player): backgrounds are bundled files, files on your computer (`file:`) or web addresses you type (`https:`/`http:`).
+- **Media and connect** (player): tracks and sounds can be files on your computer or web addresses. Playlists play through HTML audio (`media-src`); soundboard sounds without a fade-out are downloaded by Howler with XMLHttpRequest and played with Web Audio (`connect-src`). Howler also uses a tiny built-in `data:audio/wav` clip to unlock audio. `http:` stays allowed because tracks, sounds and backgrounds added with `http://` addresses worked before.
+- **Capture window**: `script-src blob:` is for the PCM audio worklet, which webpack's `worklet-loader` (`inline: true`) turns into a `blob:` URL; `connect-src ws://127.0.0.1:*` is the loopback audio socket (SEC-2, random port). `media-src blob:` covers the local loopback audio element.
+
+**Development builds.** The templates are evaluated by html-webpack-plugin with `webpackConfig.mode`. In `development` (`yarn start`) they add `'unsafe-eval'` to `script-src` (forge uses `eval-source-map` for renderers in development) and `ws://localhost:*` to `connect-src` (webpack-dev-server live reload). Packaged builds are `production` and get neither. Forge's own dev-server CSP header is switched off in `forge.config.js` (`devContentSecurityPolicy: ""`), so the meta tag is the only policy in both modes.
+
+`src/main/security/appPageCsp.test.ts` evaluates the three templates in both modes and compares every directive with the table above, so changing a page's policy means changing that test and this table too.
+
+## Audio capture window sandbox (SEC-12)
+
+The hidden capture window used to run with `sandbox: false` so that its preload could start a web worker. That worker was removed upstream when capture moved to an AudioWorklet. The capture preload now needs only `ipcRenderer` (available to sandboxed preloads) and browser APIs (`AudioContext`, `getUserMedia`, `WebSocket`); everything else it imports is bundled by webpack, and forge already builds every preload in this app for the sandbox. The window therefore runs with `sandbox: true`, `contextIsolation: true` and `nodeIntegration: false`, like the other app pages.
+
+Stopping a tab's or an input device's capture now also disconnects its audio nodes (PERF-5), so they no longer accumulate in the capture window's audio graph.
+
+## Manual checks for WP1 (need a display)
+
+Run the packaged app (or `yarn start` for the development policy) with DevTools open on each page (main window: View > Toggle Developer Tools; player and capture window: from the main process with `webContents.openDevTools()`), and confirm there are **no "Refused to …" Content-Security-Policy messages and no "Ignored a … message" warnings in the terminal** while doing each of these:
+
+1. Start the app: the main window and the player tab appear and work.
+2. Open the player and play a local track from a playlist, then a soundboard sound with and without a fade-out.
+3. Add a background image from a file and from an `https://` address.
+4. Open Settings, connect the Discord bot: the server icons show next to the server names.
+5. Join a voice channel and play a YouTube tab: the sound reaches Discord (capture window: worklet loads, socket connects, sandboxed preload runs).
+6. Turn an external input on and off several times; close and reopen a tab that plays sound several times. Audio keeps working.
+7. With the remote enabled, call `GET /v1/playlist/playback` from two clients at the same time (or press two Stream Deck buttons together): both get an answer; with the player tab closed, requests return 503 as before.
+8. Trigger the error screen (or call `window.kenku.removeAllBrowserViews()` from the main window's DevTools): tab audio stops being sent to Discord.

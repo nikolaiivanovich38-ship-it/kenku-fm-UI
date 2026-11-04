@@ -1,6 +1,9 @@
 import { contextBridge, ipcRenderer } from "electron";
 
-import { BrowserViewManagerPreload } from "./preload/managers/BrowserViewManagerPreload";
+import {
+  BrowserViewKind,
+  BrowserViewManagerPreload,
+} from "./preload/managers/BrowserViewManagerPreload";
 
 const viewManager = new BrowserViewManagerPreload();
 
@@ -69,7 +72,7 @@ const api = {
     y: number,
     width: number,
     height: number,
-    preload?: string,
+    kind?: BrowserViewKind,
   ): Promise<number> => {
     const viewId = await viewManager.createBrowserView(
       url,
@@ -77,7 +80,7 @@ const api = {
       y,
       width,
       height,
-      preload,
+      kind,
     );
     return viewId;
   },
@@ -129,9 +132,6 @@ const api = {
   },
   playerGetURL: (): string => {
     return ipcRenderer.sendSync("PLAYER_GET_URL");
-  },
-  playerGetPreloadURL: (): string => {
-    return ipcRenderer.sendSync("PLAYER_GET_PRELOAD_URL");
   },
   /** Registers a player view with the remote manager so it can send it commands  */
   playerRegisterView: (viewId: number) => {

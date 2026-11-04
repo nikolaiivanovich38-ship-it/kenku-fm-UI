@@ -45,16 +45,16 @@ describe("openBrowserView", () => {
     );
   });
 
-  it("passes the preload for the player view", async () => {
+  it("asks for the player view by kind", async () => {
     kenku.createBrowserView.mockResolvedValue(3);
-    await openBrowserView("player.html", "preload.js");
+    await openBrowserView("player.html", "player");
     expect(kenku.createBrowserView).toHaveBeenLastCalledWith(
       "player.html",
       240,
       80,
       800,
       600,
-      "preload.js",
+      "player",
     );
   });
 

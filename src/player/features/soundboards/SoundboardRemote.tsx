@@ -49,11 +49,12 @@ export function SoundboardRemote({ onPlay, onStop }: SoundboardRemoteProps) {
   }, [onPlay, soundboards]);
 
   useEffect(() => {
-    window.player.on("PLAYER_REMOTE_SOUNDBOARD_PLAYBACK_REQUEST", () => {
+    // PERF-9: args[0] is the request id; it goes back with the reply.
+    window.player.on("PLAYER_REMOTE_SOUNDBOARD_PLAYBACK_REQUEST", (args) => {
       const sounds = Object.values(playback.playback);
       window.player.soundboardPlaybackReply({
         sounds,
-      });
+      }, args[0]);
     });
 
     return () => {
@@ -64,14 +65,22 @@ export function SoundboardRemote({ onPlay, onStop }: SoundboardRemoteProps) {
   }, [playback]);
 
   useEffect(() => {
-    window.player.on("PLAYER_REMOTE_SOUNDBOARD_GET_ALL_REQUEST", () => {
+    window.player.on("PLAYER_REMOTE_SOUNDBOARD_GET_ALL_REQUEST", (args) => {
       window.player.soundboardGetAllReply({
         soundboards: soundboards.soundboards.allIds.map(
           (id) => soundboards.soundboards.byId[id]
         ),
         sounds: Object.values(soundboards.sounds),
-      });
+      }, args[0]);
     });
+
+    // PERF-9: without this, every edit added another listener and the oldest
+    // one (with out-of-date soundboards) answered first.
+    return () => {
+      window.player.removeAllListeners(
+        "PLAYER_REMOTE_SOUNDBOARD_GET_ALL_REQUEST"
+      );
+    };
   }, [soundboards]);
 
   return <></>;

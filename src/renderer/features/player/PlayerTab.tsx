@@ -15,7 +15,8 @@ export function PlayerTab() {
 
   useEffect(() => {
     const createTab = async () => {
-      const id = await openBrowserView(player.tab.url, player.tab.preload);
+      // SEC-8: the main process picks the player's preload from the kind.
+      const id = await openBrowserView(player.tab.url, "player");
       if (id === undefined) {
         return;
       }

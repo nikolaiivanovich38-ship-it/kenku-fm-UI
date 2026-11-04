@@ -43,10 +43,12 @@ export class AudioCaptureManagerPreload {
   _audioOutputElement?: HTMLAudioElement;
   /** Raw media streams for each browser view containing webp/opus audio */
   _mediaStreams: Record<number, MediaStream> = {};
+  _mediaStreamSources: Record<number, MediaStreamAudioSourceNode> = {};
   _mediaStreamOutputs: Record<number, GainNode> = {};
 
   /** Raw media stream for each external audio source e.g. microphone or virtual audio cables */
   _externalAudioStreams: Record<string, MediaStream> = {};
+  _externalAudioStreamSources: Record<string, MediaStreamAudioSourceNode> = {};
   _externalAudioStreamOutputs: Record<string, GainNode> = {};
 
   _ws?: WebSocket;
@@ -127,12 +129,14 @@ export class AudioCaptureManagerPreload {
       };
       const stream = await navigator.mediaDevices.getUserMedia(streamConfig);
 
+      this.stopExternalAudioCapture(deviceId);
       this._externalAudioStreams[deviceId] = stream;
 
       const output = this._audioContext.createGain();
       this._externalAudioStreamOutputs[deviceId] = output;
 
       const audioSource = this._audioContext.createMediaStreamSource(stream);
+      this._externalAudioStreamSources[deviceId] = audioSource;
       audioSource.connect(output);
 
       output.connect(this._audioOutputNode);
@@ -144,15 +148,20 @@ export class AudioCaptureManagerPreload {
     }
   }
 
+  /**
+   * Stop capturing an input device.
+   * PERF-5: its audio nodes are disconnected so they do not pile up in the
+   * audio context each time a device is switched on and off.
+   */
   stopExternalAudioCapture(deviceId: string): void {
-    const stream = this._externalAudioStreams[deviceId];
-    if (stream) {
-      for (const track of stream.getTracks()) {
-        track.stop();
-      }
-      delete this._externalAudioStreams[deviceId];
-      delete this._externalAudioStreamOutputs[deviceId];
-    }
+    releaseCapture(
+      this._externalAudioStreams[deviceId],
+      this._externalAudioStreamSources[deviceId],
+      this._externalAudioStreamOutputs[deviceId]
+    );
+    delete this._externalAudioStreams[deviceId];
+    delete this._externalAudioStreamSources[deviceId];
+    delete this._externalAudioStreamOutputs[deviceId];
   }
 
   async _setupWebsocket(): Promise<void> {
@@ -206,12 +215,14 @@ export class AudioCaptureManagerPreload {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         streamConfig as any
       );
+      this.stopBrowserViewStream(viewId);
       this._mediaStreams[viewId] = stream;
 
       const output = this._audioContext.createGain();
       this._mediaStreamOutputs[viewId] = output;
 
       const audioSource = this._audioContext.createMediaStreamSource(stream);
+      this._mediaStreamSources[viewId] = audioSource;
       audioSource.connect(output);
 
       output.connect(this._audioOutputNode);
@@ -222,15 +233,46 @@ export class AudioCaptureManagerPreload {
   }
 
   /**
-   * Stop an audio capture for the given browser view
+   * Stop an audio capture for the given browser view.
+   * PERF-5: its audio nodes are disconnected so closed tabs do not leave
+   * nodes behind in the audio context.
    * @param viewId Browser view id
    */
   stopBrowserViewStream(viewId: number): void {
-    if (this._mediaStreams[viewId]) {
-      for (const track of this._mediaStreams[viewId].getTracks()) {
-        track.stop();
-      }
-      delete this._mediaStreams[viewId];
+    releaseCapture(
+      this._mediaStreams[viewId],
+      this._mediaStreamSources[viewId],
+      this._mediaStreamOutputs[viewId]
+    );
+    delete this._mediaStreams[viewId];
+    delete this._mediaStreamSources[viewId];
+    delete this._mediaStreamOutputs[viewId];
+  }
+
+  /** Stop the audio capture of every browser view (all views were removed). */
+  stopAllBrowserViewStreams(): void {
+    const ids = new Set([
+      ...Object.keys(this._mediaStreams),
+      ...Object.keys(this._mediaStreamOutputs),
+    ]);
+    for (const id of ids) {
+      this.stopBrowserViewStream(Number(id));
     }
+  }
+}
+
+/**
+ * PERF-5: end a capture completely: stop the stream's tracks and unplug its
+ * nodes from the audio graph so they can be garbage-collected.
+ */
+function releaseCapture(
+  stream: MediaStream | undefined,
+  ...nodes: (AudioNode | undefined)[]
+): void {
+  for (const track of stream?.getTracks() ?? []) {
+    track.stop();
+  }
+  for (const node of nodes) {
+    node?.disconnect();
   }
 }

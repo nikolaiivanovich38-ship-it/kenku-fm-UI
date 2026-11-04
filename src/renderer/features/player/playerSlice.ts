@@ -5,7 +5,7 @@ import { Tab } from "../tabs/tabsSlice";
 import icon from "../../../assets/player-icon.png";
 
 export interface PlayerState {
-  tab: Tab & { preload: string };
+  tab: Tab;
   remoteEnabled: boolean;
 }
 
@@ -14,7 +14,6 @@ const initialState: PlayerState = {
     id: -1,
     icon: icon,
     url: window.kenku.playerGetURL(),
-    preload: window.kenku.playerGetPreloadURL(),
     title: "Cue Desk Player",
     playingMedia: 0,
     muted: false,

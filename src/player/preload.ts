@@ -43,6 +43,10 @@ const validChannels: Channel[] = [
   "PLAYER_REMOTE_SOUNDBOARD_PLAYBACK_REQUEST",
 ];
 
+/**
+ * Remote API questions arrive with a request id as their first argument
+ * (PERF-9); pass it back unchanged as `requestId` in the matching reply.
+ */
 const api = {
   on: (channel: Channel, callback: (...args: any[]) => any) => {
     if (validChannels.includes(channel)) {
@@ -55,17 +59,17 @@ const api = {
       ipcRenderer.removeAllListeners(channel);
     }
   },
-  playlistPlaybackReply: (playback: PlaylistPlaybackReply) => {
-    ipcRenderer.send("PLAYER_REMOTE_PLAYLIST_PLAYBACK_REPLY", playback);
+  playlistPlaybackReply: (playback: PlaylistPlaybackReply, requestId: number) => {
+    ipcRenderer.send("PLAYER_REMOTE_PLAYLIST_PLAYBACK_REPLY", playback, requestId);
   },
-  soundboardPlaybackReply: (playback: SoundboardPlaybackReply) => {
-    ipcRenderer.send("PLAYER_REMOTE_SOUNDBOARD_PLAYBACK_REPLY", playback);
+  soundboardPlaybackReply: (playback: SoundboardPlaybackReply, requestId: number) => {
+    ipcRenderer.send("PLAYER_REMOTE_SOUNDBOARD_PLAYBACK_REPLY", playback, requestId);
   },
-  playlistGetAllReply: (playlists: PlaylistsReply) => {
-    ipcRenderer.send("PLAYER_REMOTE_PLAYLIST_GET_ALL_REPLY", playlists);
+  playlistGetAllReply: (playlists: PlaylistsReply, requestId: number) => {
+    ipcRenderer.send("PLAYER_REMOTE_PLAYLIST_GET_ALL_REPLY", playlists, requestId);
   },
-  soundboardGetAllReply: (soundboards: SoundboardsReply) => {
-    ipcRenderer.send("PLAYER_REMOTE_SOUNDBOARD_GET_ALL_REPLY", soundboards);
+  soundboardGetAllReply: (soundboards: SoundboardsReply, requestId: number) => {
+    ipcRenderer.send("PLAYER_REMOTE_SOUNDBOARD_GET_ALL_REPLY", soundboards, requestId);
   },
   getPathForFile: (file: File) => {
     return webUtils.getPathForFile(file);

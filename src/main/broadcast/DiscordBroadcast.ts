@@ -6,6 +6,7 @@ import {
   joinVoiceChannel,
   NoSubscriberBehavior,
 } from "@discordjs/voice";
+import { guardIpc } from "../security/ipcGuard";
 
 type VoiceChannel = {
   id: string;
@@ -30,20 +31,20 @@ export class DiscordBroadcast {
       maxMissedFrames: 3000,
     },
   });
+  /** SEC-8: message listeners that only accept the main window. */
+  private ipc = guardIpc(ipcMain);
+
   constructor(window: BrowserWindow) {
     this.window = window;
-    ipcMain.on("DISCORD_CONNECT", this._handleConnect);
-    ipcMain.on("DISCORD_DISCONNECT", this._handleDisconnect);
-    ipcMain.on("DISCORD_JOIN_CHANNEL", this._handleJoinChannel);
-    ipcMain.on("DISCORD_LEAVE_CHANNEL", this._handleLeaveChannel);
+    this.ipc.on("DISCORD_CONNECT", this._handleConnect);
+    this.ipc.on("DISCORD_DISCONNECT", this._handleDisconnect);
+    this.ipc.on("DISCORD_JOIN_CHANNEL", this._handleJoinChannel);
+    this.ipc.on("DISCORD_LEAVE_CHANNEL", this._handleLeaveChannel);
     this.audioPlayer.on("error", this._handleBroadcastError);
   }
 
   destroy() {
-    ipcMain.off("DISCORD_CONNECT", this._handleConnect);
-    ipcMain.off("DISCORD_DISCONNECT", this._handleDisconnect);
-    ipcMain.off("DISCORD_JOIN_CHANNEL", this._handleJoinChannel);
-    ipcMain.off("DISCORD_LEAVE_CHANNEL", this._handleLeaveChannel);
+    this.ipc.dispose();
     this.client?.destroy();
     this.client = undefined;
   }
@@ -108,7 +109,7 @@ export class DiscordBroadcast {
     event.reply("DISCORD_DISCONNECTED");
     event.reply("DISCORD_GUILDS", []);
     event.reply("DISCORD_CHANNEL_JOINED", "local");
-    this.client.destroy();
+    this.client?.destroy();
     this.client = undefined;
   };
 
@@ -117,7 +118,14 @@ export class DiscordBroadcast {
     channelId: string,
   ) => {
     if (this.client) {
-      const channel = await this.client.channels.fetch(channelId);
+      // SEC-8: an unknown channel id is logged instead of becoming an
+      // unhandled error in the main process; nothing else changes.
+      const channel = await this.client.channels
+        .fetch(channelId)
+        .catch((err: unknown): null => {
+          console.error(`Unable to find voice channel ${channelId}`, err);
+          return null;
+        });
       if (channel && channel.isVoiceBased() && channel.joinable) {
         try {
           const connection = joinVoiceChannel({
@@ -154,16 +162,27 @@ export class DiscordBroadcast {
     }
   };
 
+  /**
+   * Leave a voice channel. SEC-8: an unknown channel or a missing bot is
+   * logged instead of becoming an unhandled error in the main process.
+   */
   _handleLeaveChannel = async (
     event: Electron.IpcMainEvent,
     channelId: string,
   ) => {
-    const channel = await this.client.channels.fetch(channelId);
-    if (channel.type === ChannelType.GuildVoice) {
-      const connection = getVoiceConnection(channel.guild.id);
-      connection.destroy();
+    try {
+      const channel = await this.client?.channels.fetch(channelId);
+      if (!channel) {
+        return;
+      }
+      if (channel.type === ChannelType.GuildVoice) {
+        const connection = getVoiceConnection(channel.guild.id);
+        connection?.destroy();
+      }
+      event.reply("DISCORD_CHANNEL_LEFT", channelId);
+    } catch (err) {
+      console.error(`Unable to leave voice channel ${channelId}`, err);
     }
-    event.reply("DISCORD_CHANNEL_LEFT", channelId);
   };
 
   _handleBroadcastError = (error: Error) => {

@@ -1,34 +1,31 @@
 import { describe, expect, it } from "vitest";
 import { classifyViewRequest } from "./viewKind";
 
-const player = {
-  url: "file:///app/.webpack/renderer/player_window/index.html",
-  preload: "/app/.webpack/renderer/player_window/preload.js",
-};
+const playerUrl = "file:///app/.webpack/renderer/player_window/index.html";
 
-describe("classifyViewRequest (SEC-3)", () => {
-  it("recognises the Kenku player view by its exact page and preload", () => {
-    expect(classifyViewRequest(player.url, player.preload, player)).toBe("player");
+describe("classifyViewRequest (SEC-3, SEC-8)", () => {
+  it("recognises the Kenku player view by the player kind and its exact page", () => {
+    expect(classifyViewRequest(playerUrl, "player", playerUrl)).toBe("player");
   });
 
-  it("treats a request without a preload as a website tab", () => {
-    expect(classifyViewRequest("https://youtube.com", undefined, player)).toBe("tab");
-    expect(classifyViewRequest("", undefined, player)).toBe("tab");
+  it("treats a request without a kind as a website tab", () => {
+    expect(classifyViewRequest("https://youtube.com", undefined, playerUrl)).toBe("tab");
+    expect(classifyViewRequest("", undefined, playerUrl)).toBe("tab");
   });
 
-  it("refuses a preload script that is not the player's", () => {
-    expect(classifyViewRequest(player.url, "/tmp/evil.js", player)).toBe("refused");
-  });
-
-  it("refuses the player preload on any other page", () => {
-    expect(classifyViewRequest("https://evil.example", player.preload, player)).toBe(
-      "refused",
-    );
-  });
-
-  it("refuses everything privileged when the player entry is unknown", () => {
+  it("refuses any other kind, including a preload script path", () => {
+    expect(classifyViewRequest(playerUrl, "/tmp/evil.js", playerUrl)).toBe("refused");
     expect(
-      classifyViewRequest(player.url, player.preload, { url: undefined, preload: undefined }),
+      classifyViewRequest(playerUrl, "/app/.webpack/renderer/player_window/preload.js", playerUrl),
     ).toBe("refused");
+    expect(classifyViewRequest(playerUrl, 1, playerUrl)).toBe("refused");
+  });
+
+  it("refuses the player kind on any other page", () => {
+    expect(classifyViewRequest("https://evil.example", "player", playerUrl)).toBe("refused");
+  });
+
+  it("refuses the player kind when the player page is unknown", () => {
+    expect(classifyViewRequest(playerUrl, "player", undefined)).toBe("refused");
   });
 });

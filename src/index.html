@@ -2,6 +2,8 @@
 <html>
   <head>
     <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'<%= webpackConfig.mode === 'development' ? " 'unsafe-eval'" : '' %>; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: file: https: http:; font-src 'self' data:; media-src 'none'; connect-src 'self'<%= webpackConfig.mode === 'development' ? ' ws://localhost:*' : '' %>; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; worker-src 'none'" />
+    <!-- SEC-11: see docs/security.md > Content-Security-Policy. Development builds add 'unsafe-eval' (eval source maps) and the live-reload socket. -->
     <title>Cue Desk</title>
   </head>
   <body>
