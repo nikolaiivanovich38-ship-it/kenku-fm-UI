@@ -221,3 +221,13 @@ EDT-6 (backend), DAT-5, DAT-6, DAT-8, DAT-9, ORG-1 and DAT-4 in `src/main/data/i
 - **The old library**: `importLegacyLibrary(library, localStorageValueOf("persist:player"))` on the new interface's first start: backup first, resumable, once.
 - **Relinking**: `findMissingTracks`, `planRelink`, `applyRelink` (one undo step).
 - **Wiring for wave 3**: read `persist:player` from the player window's localStorage and pass it to `importLegacyLibrary` before showing the Library; pass `createMusicMetadataTagReader(parseFile)` to `importAudio`, `importLegacyLibrary` and `refreshEmbeddedTags`; forward `ImportProgress` to the progress bar; show `summary` / `lines`.
+
+## Wave 3: w3-api
+
+The new interface's screens read and change the library only through `LyreApi` (`src/common/lyre/api.ts`, WP5): async, in the domain shapes of `src/common/domain` plus what the screens show, grouped by area (library, tags, playlists, boards, campaigns, sessions and scenes, profiles, import, history). Each method's comment names the prototype action it serves.
+
+- **Writes** resolve to `{ ok: true, value, changed, undoLabel }` or `{ ok: false, refusal: { code, message, field? } }`; `message` is plain words for the game master, `code` one of `REFUSAL_CODES`. A write that changes nothing makes no undo step and sends no event. Imports and watching a folder make no undo step; an import clears the history (as `importAudio` does).
+- **Events**: `subscribe(listener)` sends `changed` (the areas to reload: tracks, tags, folders, playlists, boards, campaigns, profiles, history), `import-progress` and `watched-files`, always after the call that caused them.
+- **Fake** (`fake.ts`): in memory over `seed.ts` (the prototype's `data.js`, typed). Used by tests and the e2e demo. It has no files: paths with an audio extension are files, `folderFiles` lists folders, `choose` answers the choosers, `arrive()` stands in for the folder watcher.
+- **Contract** (`contract.ts`): `lyreApiContract(name, makeFixture)`, a Vitest suite every implementation passes; the main-process implementation (step 2, `src/main/lyreApi/`) runs it with a fixture seeded from `prototypeSeed()`.
+- **Screens** (`src/lyre/api/`): `<LyreApiProvider api={…}>`, `useLyreApi()`, and query hooks (`useTracks`, `usePlaylists`, `usePlaylistTracks(id)`, `useBoards`, `useCampaign(id)`, `useUsesOf(ref)`, `useProfileOverrides`, `useHistory`, …) built on `useLyreQuery(key, load, areas)`; `useLyreEvent` for progress. `lookupFrom(tracks, playlists)` gives a `DomainLookup` for the shared rules.
