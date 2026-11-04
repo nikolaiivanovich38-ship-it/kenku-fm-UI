@@ -5,10 +5,10 @@ Cue Desk is an Electron app (Electron 44) built with Electron Forge and webpack.
 ```
  Main window (renderer)          Tabs (WebContentsView)              Hidden capture window
  src/renderer, preload.ts  --->  websites, or the player page   ---> src/audioCapture, preload/managers
-          |  IPC                 src/player                          getUserMedia(tab audio) -> PCM
-          v                             ^                                   |  WebSocket (local)
- Main process  src/index.ts, src/main   |  IPC (remote commands)           v
-   SessionManager -> PlaybackManager -> AudioCaptureManagerMain -> Opus -> DiscordBroadcast -> Discord
+          |  IPC                 src/player                          getUserMedia(tab audio) -> mix
+          v                             ^                            -> 20 ms frames -> Opus (WebCodecs)
+ Main process  src/index.ts, src/main   |  IPC (remote commands)           |  MessagePort (private)
+   SessionManager -> PlaybackManager -> AudioCaptureManagerMain ------------+-> OutputManager -> DiscordBot (one per bot) -> Discord
                   -> BrowserViewManagerMain, WindowManager
                   -> PlayerManager -> fastify remote API (127.0.0.1:3333 by default)
 ```
@@ -19,7 +19,7 @@ Cue Desk is an Electron app (Electron 44) built with Electron Forge and webpack.
 - `src/main/security`: `sessions.ts` applies deny-by-default permission handlers and the request-header user-agent spoofing (a Chrome user agent, without the Chrome token for google.com sign-in) to the app's session and to the website-tab session (`persist:tabs`, `partitions.ts`), and clears both on "Clear cache". `navigationGuards.ts` keeps app pages on their own page, `externalLinks.ts` sends only https links to the system browser, `trustedContents.ts` records which web contents are the app's own pages.
 - `src/main/managers/SessionManager.ts`: one per main-window load; creates and destroys the managers below.
 - `BrowserViewManagerMain.ts`: the tabs. Each tab is a `WebContentsView` laid over the main window. Website tabs use the separate `persist:tabs` session; the player view uses the app's own session and preload.
-- `PlaybackManager.ts`, `AudioCaptureManagerMain.ts`: receive mixed PCM from the capture window over a local WebSocket, encode it to Opus (`prism-media`) and hand it to `src/main/broadcast/DiscordBroadcast.ts`, which uses discord.js and `@discordjs/voice` with the user's bot token.
+- `PlaybackManager.ts`, `AudioCaptureManagerMain.ts`: start the capture window's broadcast when an output joins a voice channel and stop it when the last one leaves (PERF-4); while broadcasting, ask the capture window for a view's audio when Chromium reports the view audible (or an audio/video element starts) and release it after 30 seconds of silence. Encoded Opus packets come back over a private `MessageChannelMain` port (SEC-2: no network socket) and go to `src/main/broadcast/OutputManager.ts` (OUT-1): this computer's speakers plus any number of `DiscordBot`s, each with its own discord.js client, `@discordjs/voice` audio player and voice connections, playing the packets as an `Opus` stream (`opusFeed.ts`, no encoding on the main process). Bot tokens are kept by `botTokenStore.ts`, encrypted with `safeStorage` (SEC-5). OUT-2: a dropped voice connection, or a lost login that had worked, is retried after 1, 2, 4, 8, 16 and 30 s; then the output shows an error until Reconnect is pressed. The interface shows a status chip per output (`src/renderer/features/output/OutputStatusChip.tsx`). `discordDriver.ts` lets tests swap in a fake Discord (`testing/fakeDiscord.ts`, also used by test builds started with `CUE_DESK_FAKE_DISCORD=1`).
 - `WindowManager.ts`: minimise, maximise and close for the frameless window.
 - `src/menu.ts`: application menu. `src/bounds.ts`: window position, stored with electron-store in `config.json` (opened on first use, so it never touches the file before the carry-over).
 - `src/autoUpdate.ts` with `src/main/updateFeed.ts`: Windows updates from the fork's GitHub releases through update.electronjs.org, only for copies set up by the installer (the zip build has no `Update.exe` and gets no updates).
@@ -39,7 +39,7 @@ Background pictures: a playlist or soundboard stores its background as a name (`
 
 ## Capture window
 
-`src/audioCapture` with `src/preload/managers/AudioCaptureManagerPreload.ts` and `PCMStream.worklet.js`. A hidden window that captures each tab's audio (and optional OS inputs) with `getUserMedia`, mixes it in a Web Audio context and streams PCM to the main process. It runs without the Chromium sandbox so the preload can use a worker (backlog SEC-12).
+`src/audioCapture` with `src/preload/managers/AudioCaptureManagerPreload.ts` and `PCMStream.worklet.js`. A hidden window that, during a broadcast only, captures the audio of tabs that play sound (and the input devices switched on) with `getUserMedia`, mixes it in a Web Audio context, cuts it into 20 ms frames on the audio thread (silent frames are skipped) and encodes them to Opus with WebCodecs `AudioEncoder`. The audio context exists only during a broadcast and is suspended while nothing is connected. Sandboxed (SEC-12), with background throttling off so the hidden window keeps real-time pace.
 
 ## Remote API
 
@@ -51,7 +51,8 @@ Everything lives in one folder, `<appData>/cue-desk` (`%APPDATA%\cue-desk` on Wi
 
 | What | Where | Written by |
 | --- | --- | --- |
-| Bookmarks, settings, Discord token (`persist:root`) | `Local Storage/leveldb` | `src/renderer/app/store.ts` (redux-persist) |
+| Bookmarks, settings (`persist:root`) | `Local Storage/leveldb` | `src/renderer/app/store.ts` (redux-persist) |
+| Discord bots and their tokens, encrypted with the OS keyring (SEC-5; tokens kept in memory only where there is none) | `discord-bots.json` | `src/main/broadcast/botTokenStore.ts` |
 | Playlists and soundboards (`persist:player`), playback state (`persist:playback`) | `Local Storage/leveldb` | `src/player/app/store.ts` |
 | Window position | `config.json` | `src/bounds.ts` |
 | Website tab cookies and storage | `Partitions/tabs` | Chromium (`persist:tabs` session) |
@@ -67,3 +68,5 @@ A new library database (`<appData>/cue-desk/library/library.sqlite`, with daily 
 - Files from the user's computer (SEC-15) open only after the main process has asked (`src/main/security/localFiles.ts`), in tabs of their own in the `persist:local-files` partition (`Partitions/local-files` in the data folder). Folders the user chose not to be asked about again are saved by the main process in `local-files.json` in the data folder and listed in Settings > Local files (`src/renderer/features/settings/LocalFilesSettings.tsx`).
 - Hidden, silent website tabs are slowed down after a minute (PERF-5, `src/main/managers/tabSleep.ts`).
 - Bookmarks can be grouped in folders, and the sidebar collapses to a column of icons (UX-10). Both are saved with the bookmarks in `persist:root` (version 5; `src/renderer/features/bookmarks/bookmarksMigration.ts` adds the empty folder list to bookmarks saved before). The sidebar's width is `src/renderer/features/bookmarks/sidebar.ts`; website views are placed from the sidebar's current width (`getBounds`).
+
+The app's own pages load from `file://` (packaged) so they share one localStorage origin; websites in tabs keep their data apart in `persist:tabs`. Audio files are not copied; tracks store their file paths. Bot tokens are never stored in plain text (SEC-5); an older version's token is moved out of `persist:root` once (redux-persist migration 5).

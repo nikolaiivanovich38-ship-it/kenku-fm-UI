@@ -1,9 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { AudioCaptureManagerPreload } from "./AudioCaptureManagerPreload";
+import { AudioCaptureManagerPreload, opusEncoderConfig } from "./AudioCaptureManagerPreload";
 
-vi.mock("electron", () => ({
-  ipcRenderer: { send: vi.fn(), invoke: vi.fn(), emit: vi.fn() },
-}));
 vi.mock("./PCMStream.worklet", () => ({ default: "blob:pcm-stream" }));
 
 /** Audio node that records what it is connected to. */
@@ -37,37 +34,129 @@ class FakeStream {
 
 class FakeAudioContext {
   nodes: FakeNode[] = [];
+  state = "running";
+  options: unknown;
+  closed = false;
+  audioWorklet = { addModule: vi.fn(async () => undefined) };
+  constructor(options?: unknown) {
+    this.options = options;
+    contexts.push(this);
+  }
   createGain() {
     return this.track(new FakeNode());
   }
   createMediaStreamSource(stream: FakeStream) {
     return this.track(Object.assign(new FakeNode(), { stream }));
   }
-  /** Nodes still wired into the graph. */
-  connected() {
-    return this.nodes.filter((node) => node.connections.size > 0);
+  createMediaStreamDestination() {
+    return this.track(Object.assign(new FakeNode(), { stream: new FakeStream() }));
   }
-  private track(node: FakeNode) {
+  async resume() {
+    this.state = "running";
+  }
+  async suspend() {
+    this.state = "suspended";
+  }
+  async close() {
+    this.closed = true;
+    this.state = "closed";
+  }
+  /** Source nodes still wired into the graph (tab and device captures). */
+  connectedSources() {
+    return this.nodes.filter((node) => "stream" in node && node.connections.size > 0 && !(node instanceof FakeWorkletNode));
+  }
+  private track<T extends FakeNode>(node: T) {
     this.nodes.push(node);
     return node;
   }
 }
 
-let context: FakeAudioContext;
-let output: FakeNode;
-const streams: FakeStream[] = [];
+class FakeWorkletNode extends FakeNode {
+  port = { onmessage: undefined as undefined | ((event: { data: unknown }) => void) };
+  constructor(
+    readonly context: FakeAudioContext,
+    readonly name: string,
+    readonly options: unknown,
+  ) {
+    super();
+    workletNodes.push(this);
+  }
+}
 
-function startedManager() {
-  const manager = new AudioCaptureManagerPreload();
-  manager._audioContext = context as unknown as AudioContext;
-  manager._audioOutputNode = output as unknown as AudioNode;
+class FakeEncoder {
+  state = "unconfigured";
+  config: unknown;
+  encoded: { timestamp: number; numberOfFrames: number }[] = [];
+  constructor(readonly init: { output(chunk: unknown): void; error(error: unknown): void }) {
+    encoders.push(this);
+  }
+  configure(config: unknown) {
+    this.config = config;
+    this.state = "configured";
+  }
+  encode(data: FakeAudioData) {
+    this.encoded.push({ timestamp: data.timestamp, numberOfFrames: data.numberOfFrames });
+    // Pretend every frame becomes a 3-byte packet.
+    const bytes = new Uint8Array([1, 2, 3]);
+    this.init.output({ byteLength: 3, copyTo: (target: Uint8Array) => target.set(bytes) });
+  }
+  flushes = 0;
+  async flush() {
+    this.flushes++;
+  }
+  close() {
+    this.state = "closed";
+  }
+}
+
+class FakeAudioData {
+  timestamp: number;
+  numberOfFrames: number;
+  closed = false;
+  constructor(init: { timestamp: number; numberOfFrames: number }) {
+    this.timestamp = init.timestamp;
+    this.numberOfFrames = init.numberOfFrames;
+  }
+  close() {
+    this.closed = true;
+  }
+}
+
+const contexts: FakeAudioContext[] = [];
+const workletNodes: FakeWorkletNode[] = [];
+const encoders: FakeEncoder[] = [];
+const streams: FakeStream[] = [];
+const elements: { muted: boolean; srcObject: unknown; pause(): void }[] = [];
+let packets: Uint8Array[];
+
+function newManager() {
+  packets = [];
+  return new AudioCaptureManagerPreload((packet) => packets.push(packet));
+}
+
+async function broadcastingManager() {
+  const manager = newManager();
+  await manager.startBroadcast("lowLatency");
   return manager;
 }
 
 beforeEach(() => {
-  context = new FakeAudioContext();
-  output = new FakeNode();
+  contexts.length = 0;
+  workletNodes.length = 0;
+  encoders.length = 0;
   streams.length = 0;
+  elements.length = 0;
+  vi.stubGlobal("AudioContext", FakeAudioContext);
+  vi.stubGlobal("AudioWorkletNode", FakeWorkletNode);
+  vi.stubGlobal("AudioEncoder", FakeEncoder);
+  vi.stubGlobal("AudioData", FakeAudioData);
+  vi.stubGlobal("document", {
+    createElement: () => {
+      const element = { muted: false, srcObject: null as unknown, onloadedmetadata: null as unknown, play: vi.fn(), pause: vi.fn() };
+      elements.push(element);
+      return element;
+    },
+  });
   vi.stubGlobal("navigator", {
     mediaDevices: {
       getUserMedia: vi.fn(async () => {
@@ -77,60 +166,178 @@ beforeEach(() => {
       }),
     },
   });
+  vi.spyOn(console, "info").mockImplementation(() => undefined);
 });
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+});
+
+describe("AudioCaptureManagerPreload: nothing runs until a broadcast starts (PERF-4)", () => {
+  it("creates no audio context, worklet or encoder before the broadcast", async () => {
+    const manager = newManager();
+    manager.setLoopback(true);
+    manager.setMuted(7, true);
+    await manager.startExternalAudioCapture("mic");
+    expect(contexts).toEqual([]);
+    expect(encoders).toEqual([]);
+    expect(streams).toEqual([]);
+  });
+
+  it("builds the graph when the broadcast starts and suspends it while nothing plays", async () => {
+    await broadcastingManager();
+    expect(contexts).toHaveLength(1);
+    expect(workletNodes).toHaveLength(1);
+    expect(encoders[0].state).toBe("configured");
+    expect(contexts[0].state).toBe("suspended");
+  });
+
+  it("resumes the audio thread when a tab is captured and suspends it again when the tab stops", async () => {
+    const manager = await broadcastingManager();
+    await manager.startBrowserViewStream(7, "source-7");
+    expect(contexts[0].state).toBe("running");
+    manager.stopBrowserViewStream(7);
+    expect(contexts[0].state).toBe("suspended");
+  });
+
+  it("closes everything when the broadcast stops, and keeps the user's choices for the next one", async () => {
+    const manager = await broadcastingManager();
+    manager.setMuted(7, true);
+    manager.setLoopback(false);
+    await manager.startExternalAudioCapture("mic");
+    await manager.startBrowserViewStream(7, "source-7");
+
+    await manager.stopBroadcast();
+    expect(contexts[0].closed).toBe(true);
+    expect(encoders[0].state).toBe("closed");
+    expect(streams.every((stream) => stream.tracks[0].stopped)).toBe(true);
+    expect(manager._mediaStreams).toEqual({});
+
+    await manager.startBroadcast("lowLatency");
+    // The input device is opened again, the loopback stays off.
+    expect(streams).toHaveLength(3);
+    expect(elements[1].muted).toBe(true);
+    await manager.startBrowserViewStream(7, "source-7");
+    expect(manager._mediaStreamOutputs[7].gain.value).toBe(0);
+  });
+
+  it("ignores a tab capture that finishes after the broadcast stopped", async () => {
+    const manager = await broadcastingManager();
+    const starting = manager.startBrowserViewStream(7, "source-7");
+    await manager.stopBroadcast();
+    await starting;
+    expect(streams[0].tracks[0].stopped).toBe(true);
+    expect(manager._mediaStreams).toEqual({});
+  });
+
+  it("waits for the graph when a tab is captured while the broadcast is still starting", async () => {
+    const manager = newManager();
+    const started = manager.startBroadcast("lowLatency");
+    const capture = manager.startBrowserViewStream(7, "source-7");
+    await Promise.all([started, capture]);
+    expect(manager._mediaStreams[7]).toBeDefined();
+  });
+});
+
+describe("AudioCaptureManagerPreload: Opus encoding in the capture window (PERF-4)", () => {
+  it("encodes each 20 ms frame from the worklet and hands the packet on", async () => {
+    await broadcastingManager();
+    const frame = { index: 3, samples: new Float32Array(1920) };
+    workletNodes[0].port.onmessage?.({ data: [frame] });
+    expect(encoders[0].encoded).toEqual([{ timestamp: 60_000, numberOfFrames: 960 }]);
+    expect(packets).toEqual([new Uint8Array([1, 2, 3])]);
+  });
+
+  it("flushes the encoder when a sound ends, so its tail is not heard at the next one's start", async () => {
+    await broadcastingManager();
+    workletNodes[0].port.onmessage?.({ data: [{ index: 0, samples: new Float32Array(1920) }] });
+    expect(encoders[0].flushes).toBe(0);
+    workletNodes[0].port.onmessage?.({ data: [{ index: 1, samples: new Float32Array(1920), last: true }] });
+    expect(encoders[0].flushes).toBe(1);
+  });
+
+  it("configures 48 kHz stereo Opus in 20 ms frames", () => {
+    expect(opusEncoderConfig("lowLatency")).toMatchObject({
+      codec: "opus",
+      sampleRate: 48000,
+      numberOfChannels: 2,
+      opus: { frameDuration: 20_000 },
+    });
+  });
+
+  it("drops frames after the encoder has closed", async () => {
+    const manager = await broadcastingManager();
+    const onmessage = workletNodes[0].port.onmessage;
+    await manager.stopBroadcast();
+    onmessage?.({ data: [{ index: 0, samples: new Float32Array(1920) }] });
+    expect(packets).toEqual([]);
+  });
+
+  it.each(["lowLatency", "performance"] as const)(
+    "%s mode sends each 20 ms frame as soon as it is complete (PERF-8)",
+    async (mode) => {
+      const manager = newManager();
+      await manager.startBroadcast(mode);
+      const options = workletNodes[0].options as { processorOptions?: { framesPerMessage?: number } } | undefined;
+      expect(options?.processorOptions?.framesPerMessage ?? 1).toBe(1);
+    },
+  );
+
+  it("uses less processor time for Opus in performance mode", () => {
+    expect(opusEncoderConfig("performance").opus?.complexity).toBeLessThan(
+      opusEncoderConfig("lowLatency").opus?.complexity ?? 10,
+    );
+  });
 });
 
 describe("AudioCaptureManagerPreload: stopping streams frees audio nodes (PERF-5)", () => {
   it("disconnects a tab's nodes and stops its tracks when the tab is closed", async () => {
-    const manager = startedManager();
+    const manager = await broadcastingManager();
     await manager.startBrowserViewStream(7, "source-7");
-    expect(context.connected()).toHaveLength(2);
+    expect(contexts[0].connectedSources()).toHaveLength(1);
 
     manager.stopBrowserViewStream(7);
 
-    expect(context.connected()).toHaveLength(0);
-    expect(context.nodes.every((node) => node.disconnected)).toBe(true);
+    expect(contexts[0].connectedSources()).toHaveLength(0);
     expect(streams[0].tracks[0].stopped).toBe(true);
     expect(manager._mediaStreams[7]).toBeUndefined();
     expect(manager._mediaStreamOutputs[7]).toBeUndefined();
   });
 
   it("disconnects an input device's nodes and stops its tracks when it is turned off", async () => {
-    const manager = startedManager();
+    const manager = await broadcastingManager();
     await manager.startExternalAudioCapture("mic");
-    expect(context.connected()).toHaveLength(2);
+    expect(contexts[0].connectedSources()).toHaveLength(1);
 
     manager.stopExternalAudioCapture("mic");
 
-    expect(context.connected()).toHaveLength(0);
+    expect(contexts[0].connectedSources()).toHaveLength(0);
     expect(streams[0].tracks[0].stopped).toBe(true);
     expect(manager._externalAudioStreams["mic"]).toBeUndefined();
     expect(manager._externalAudioStreamOutputs["mic"]).toBeUndefined();
   });
 
   it("keeps the graph the same size when a tab is captured again and again", async () => {
-    const manager = startedManager();
+    const manager = await broadcastingManager();
     for (let i = 0; i < 20; i++) {
       await manager.startBrowserViewStream(7, "source-7");
       manager.stopBrowserViewStream(7);
     }
-    expect(context.connected()).toHaveLength(0);
+    expect(contexts[0].connectedSources()).toHaveLength(0);
     expect(streams.every((stream) => stream.tracks[0].stopped)).toBe(true);
   });
 
   it("replaces an earlier capture of the same tab instead of leaving it running", async () => {
-    const manager = startedManager();
+    const manager = await broadcastingManager();
     await manager.startBrowserViewStream(7, "source-7");
     await manager.startBrowserViewStream(7, "source-7");
     expect(streams[0].tracks[0].stopped).toBe(true);
-    expect(context.connected()).toHaveLength(2);
+    expect(contexts[0].connectedSources()).toHaveLength(1);
   });
 
   it("stops every tab stream at once and leaves input devices running", async () => {
-    const manager = startedManager();
+    const manager = await broadcastingManager();
     await manager.startBrowserViewStream(1, "source-1");
     await manager.startBrowserViewStream(2, "source-2");
     await manager.startExternalAudioCapture("mic");
@@ -141,57 +348,55 @@ describe("AudioCaptureManagerPreload: stopping streams frees audio nodes (PERF-5
     expect(streams[0].tracks[0].stopped).toBe(true);
     expect(streams[1].tracks[0].stopped).toBe(true);
     expect(streams[2].tracks[0].stopped).toBe(false);
-    expect(context.connected()).toHaveLength(2);
+    expect(contexts[0].connectedSources()).toHaveLength(1);
   });
 
   it("drops a tab capture that was stopped while it was still starting", async () => {
-    const manager = startedManager();
+    const manager = await broadcastingManager();
     const starting = manager.startBrowserViewStream(7, "source-7");
     manager.stopBrowserViewStream(7);
     await starting;
 
     expect(streams[0].tracks[0].stopped).toBe(true);
     expect(manager._mediaStreams[7]).toBeUndefined();
-    expect(context.connected()).toHaveLength(0);
+    expect(contexts[0].connectedSources()).toHaveLength(0);
   });
 
   it("drops every pending tab capture when all streams stop", async () => {
-    const manager = startedManager();
+    const manager = await broadcastingManager();
     const starting = manager.startBrowserViewStream(7, "source-7");
     manager.stopAllBrowserViewStreams();
     await starting;
 
     expect(streams[0].tracks[0].stopped).toBe(true);
-    expect(context.connected()).toHaveLength(0);
+    expect(contexts[0].connectedSources()).toHaveLength(0);
   });
 
   it("keeps the latest capture when a tab is started twice in a row", async () => {
-    const manager = startedManager();
+    const manager = await broadcastingManager();
     const first = manager.startBrowserViewStream(7, "source-7");
     const second = manager.startBrowserViewStream(7, "source-7b");
     await Promise.all([first, second]);
 
     expect(streams.filter((stream) => !stream.tracks[0].stopped)).toHaveLength(1);
-    expect(context.connected()).toHaveLength(2);
+    expect(contexts[0].connectedSources()).toHaveLength(1);
   });
 
   it("says in the log which view it is capturing, for diagnosis", async () => {
-    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
-    const manager = startedManager();
+    const manager = await broadcastingManager();
     await manager.startBrowserViewStream(7, "source-7");
-    expect(info).toHaveBeenCalledWith("Capturing audio of view 7");
-    info.mockRestore();
+    expect(console.info).toHaveBeenCalledWith("Capturing audio of view 7");
   });
 
   it("ignores stop requests for streams that were never started", () => {
-    const manager = startedManager();
+    const manager = newManager();
     expect(() => manager.stopBrowserViewStream(99)).not.toThrow();
     expect(() => manager.stopExternalAudioCapture("none")).not.toThrow();
     expect(() => manager.stopAllBrowserViewStreams()).not.toThrow();
   });
 
   it("still mutes a captured tab", async () => {
-    const manager = startedManager();
+    const manager = await broadcastingManager();
     await manager.startBrowserViewStream(7, "source-7");
     manager.setMuted(7, true);
     expect(manager._mediaStreamOutputs[7].gain.value).toBe(0);

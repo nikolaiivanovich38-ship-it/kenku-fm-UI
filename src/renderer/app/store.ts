@@ -20,6 +20,7 @@ import {
   REGISTER,
 } from "redux-persist";
 import storage from "redux-persist/lib/storage";
+import { moveTokenOutOfSettings } from "../features/settings/tokenMigration";
 
 const rootReducer = combineReducers({
   connection: connectionReducer,
@@ -43,7 +44,6 @@ const migrations: any = {
         remotePort: "3333",
         externalInputsEnabled: false,
         multipleInputsEnabled: false,
-        multipleOutputsEnabled: false,
       },
     };
   },
@@ -59,11 +59,16 @@ const migrations: any = {
   },
   // UX-10 (version 5): bookmark folders and the collapsible sidebar
   ...bookmarkMigrations,
+
+  // WP2 SEC-5 (version 6): the bot token moves to the main process
+  // (encrypted) and is removed from this storage; OUT-1: "Multiple Outputs" is gone.
+  6: (state: RootState): RootState =>
+    moveTokenOutOfSettings(state, (token) => window.kenku.outputs.importLegacyToken(token)),
 };
 
 const persistConfig = {
   key: "root",
-  version: 5,
+  version: 6,
   storage,
   whitelist: ["bookmarks", "settings"],
   migrate: createMigrate(migrations, { debug: false }),

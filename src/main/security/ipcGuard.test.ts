@@ -131,9 +131,9 @@ describe("guardIpc: argument types (SEC-8)", () => {
 
   it("drops over-long strings", () => {
     const listener = vi.fn();
-    guard().on("DISCORD_JOIN_CHANNEL", listener);
+    guard().on("AUDIO_CAPTURE_START_EXTERNAL_AUDIO_CAPTURE", listener);
     ipc.deliver(
-      "DISCORD_JOIN_CHANNEL",
+      "AUDIO_CAPTURE_START_EXTERNAL_AUDIO_CAPTURE",
       fromMainFrame(fakePage("main-window", registry)),
       "1".repeat(10_000),
     );
@@ -142,25 +142,19 @@ describe("guardIpc: argument types (SEC-8)", () => {
 });
 
 describe("guardIpc: invoke handlers (SEC-8)", () => {
+  // WP2: uses CLEAR_CACHE since the capture window's socket-address channel is gone (SEC-2).
   it("answers an allowed caller", async () => {
-    guard().handle("AUDIO_CAPTURE_GET_WEBSOCKET_ADDRESS", () => ({ port: 1234 }));
-    const capture = fakePage("audio-capture", registry);
-    await expect(
-      ipc.invoke("AUDIO_CAPTURE_GET_WEBSOCKET_ADDRESS", fromMainFrame(capture)),
-    ).resolves.toEqual({ port: 1234 });
+    guard().handle("CLEAR_CACHE", () => "cleared");
+    const main = fakePage("main-window", registry);
+    await expect(ipc.invoke("CLEAR_CACHE", fromMainFrame(main))).resolves.toBe("cleared");
   });
 
   it("rejects any other caller without running the handler", async () => {
     const handler = vi.fn();
-    guard().handle("AUDIO_CAPTURE_GET_WEBSOCKET_ADDRESS", handler);
+    guard().handle("CLEAR_CACHE", handler);
+    await expect(ipc.invoke("CLEAR_CACHE", fromMainFrame(fakePage(null, registry)))).rejects.toThrow();
     await expect(
-      ipc.invoke("AUDIO_CAPTURE_GET_WEBSOCKET_ADDRESS", fromMainFrame(fakePage(null, registry))),
-    ).rejects.toThrow();
-    await expect(
-      ipc.invoke(
-        "AUDIO_CAPTURE_GET_WEBSOCKET_ADDRESS",
-        fromMainFrame(fakePage("main-window", registry)),
-      ),
+      ipc.invoke("CLEAR_CACHE", fromMainFrame(fakePage("audio-capture", registry))),
     ).rejects.toThrow();
     expect(handler).not.toHaveBeenCalled();
   });
@@ -178,7 +172,7 @@ describe("guardIpc: clean-up", () => {
     const g = guard();
     g.on("WINDOW_MINIMIZE", vi.fn());
     g.on("WINDOW_CLOSE", vi.fn());
-    g.handle("AUDIO_CAPTURE_GET_WEBSOCKET_ADDRESS", vi.fn());
+    g.handle("CLEAR_CACHE", vi.fn());
     const other = vi.fn();
     ipc.on("WINDOW_CLOSE", other);
     g.dispose();

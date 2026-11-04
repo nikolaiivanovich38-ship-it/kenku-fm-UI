@@ -83,7 +83,8 @@ const PRODUCTION: Record<string, Policy> = {
     "img-src": ["'none'"],
     "font-src": ["'none'"],
     "media-src": ["'self'", "blob:"],
-    "connect-src": ["'self'", "ws://127.0.0.1:*"],
+    // SEC-2 (WP2): no loopback audio socket any more.
+    "connect-src": ["'self'"],
     "worker-src": ["'none'"],
   },
 };
