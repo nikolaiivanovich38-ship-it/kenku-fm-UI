@@ -81,6 +81,19 @@ describe("BufferCache (PERF-7)", () => {
     expect(lease.buffer).toBeDefined();
   });
 
+  it("storing again over a buffer that is playing leaves the new copy free to go once released (review 8)", () => {
+    const cache = new BufferCache({ capBytes: 10 * MB });
+    const oldLease = cache.store("a", ofMegabytes(1));
+    const newLease = cache.store("a", ofMegabytes(1));
+    oldLease.release();
+    newLease.release();
+    // Before: the new copy inherited the old copy's lease, which the old
+    // release() never gave back, so it stayed "playing" for ever.
+    cache.clear();
+    expect(cache.keys()).toEqual([]);
+    expect(cache.usedBytes).toBe(0);
+  });
+
   it("clear() drops everything not playing", () => {
     const cache = new BufferCache({ capBytes: 10 * MB });
     const playing = cache.store("a", ofMegabytes(1));
