@@ -15,7 +15,7 @@ import { makeTempFolder } from "./test/helpers";
 import { campaignTreeQueries, USES_QUERIES } from "./repo/domain";
 import { SCENE_MUSIC_SQL } from "./repo/campaigns";
 import { PLAYLIST_ITEMS_SQL, createPlaylist } from "./repo/playlists";
-import { NEW_TRACKS_SQL, tracksWithTagsSql } from "./repo/tracks";
+import { NEW_TRACKS_SQL, TRACK_BY_PATH_SQL, tracksWithTagsSql } from "./repo/tracks";
 import { BOARD_PADS_SQL } from "./repo/boards";
 import { PROFILE_LOOKUP_SQL } from "./repo/profileRows";
 import { searchQuery } from "./repo/search";
@@ -70,6 +70,15 @@ describe("query plans of the hot read paths (DAT-11)", () => {
 
   it("tracks by tag (the library's tag filter)", () => {
     expectIndexed(tracksWithTagsSql(2), ["a", "b", 50, 0], "track_tags_tag");
+  });
+
+  it.each([
+    ["under a library folder", TRACK_BY_PATH_SQL.root, ["r", "a/b.flac"], "tracks_root_path"],
+    ["outside every library folder", TRACK_BY_PATH_SQL.absolute, ["/a/b.flac"], "tracks_absolute_path"],
+    ["by web address", TRACK_BY_PATH_SQL.url, ["https://x.org/a.mp3"], "tracks_url"],
+    ["every track under a library folder", TRACK_BY_PATH_SQL.underRoot, ["r"], "tracks_root_path"],
+  ] as const)("finding a track by its file: %s", (_name, sql, params, index) => {
+    expectIndexed(sql, [...params], index);
   });
 
   it("new tracks (the library's New mark; import stream)", () => {

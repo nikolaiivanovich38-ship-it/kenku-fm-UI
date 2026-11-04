@@ -4,7 +4,7 @@
  * means changing one row.
  */
 import { ValidationError } from "../errors";
-import { isAbsolutePath, joinRoot } from "../paths";
+import { findRoot, isAbsolutePath, joinRoot } from "../paths";
 import type { Store } from "../store";
 import type { LibraryRoot } from "../types";
 import * as v from "../validate";
@@ -24,12 +24,36 @@ export function addRoot(store: Store, input: { id?: string; name: string; path: 
   const id = newId(input.id);
   const name = v.requiredName("name", input.name);
   const folder = absoluteFolder(input.path);
-  store.change(`Add library folder "${name}"`, () =>
+  store.change(`Add library folder "${name}"`, () => {
     unique("name", `A library folder called "${name}"`, () =>
       store.run("INSERT INTO library_roots (id, name, path, created_at) VALUES (?, ?, ?, ?)", id, name, folder, store.now()),
-    ),
-  );
+    );
+    for (const move of tracksTakenIn(store, { id, path: folder })) {
+      store.run("UPDATE tracks SET root_id = ?, path = ? WHERE id = ?", id, move.relative, move.id);
+    }
+  });
   return getRoot(store, id) as LibraryRoot;
+}
+
+/**
+ * Tracks already in the library whose files lie inside a new library folder,
+ * with their paths relative to it (DB review 4): a file outside every folder,
+ * or under a folder that holds the new one (the deepest folder wins, as for a
+ * new file). Without this, the same file could be added again under the folder.
+ */
+function tracksTakenIn(store: Store, root: { id: string; path: string }): { id: string; relative: string }[] {
+  const roots = store.all<{ id: string; path: string }>("SELECT id, path FROM library_roots");
+  const rootPath = new Map(roots.map((r) => [r.id, r.path]));
+  const moves: { id: string; relative: string }[] = [];
+  for (const track of store.all<{ id: string; root_id: string | null; path: string }>(
+    "SELECT id, root_id, path FROM tracks WHERE path IS NOT NULL",
+  )) {
+    if (track.root_id === root.id) continue;
+    const full = track.root_id === null ? track.path : joinRoot(rootPath.get(track.root_id) as string, track.path);
+    const best = findRoot(roots, full);
+    if (best && best.root.id === root.id) moves.push({ id: track.id, relative: best.relative });
+  }
+  return moves;
 }
 
 export function getRoot(store: Store, id: string): LibraryRoot | null {

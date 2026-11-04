@@ -443,8 +443,14 @@ CREATE INDEX tracks_kind ON tracks (kind, energy);
 -- FX lane: stings are music tracks with role sting, so "kind = 'fx' OR role = 'sting'" reads both
 -- this index and tracks_kind (an OR of two index searches) instead of every track.
 CREATE INDEX tracks_role ON tracks (role, energy) WHERE role IS NOT NULL;
--- Library: tracks under a library folder (moving the folder, relinking files).
-CREATE INDEX tracks_root ON tracks (root_id) WHERE root_id IS NOT NULL;
+-- One track per file (DB review 4), letter case ignored as Windows does (and as the import's
+-- fileKey does): under a library folder by (folder, relative path), elsewhere by the full path,
+-- and one per web address. They also serve finding a track by its file (watched-folder rescans,
+-- relinking: TRACK_BY_PATH_SQL) and every track under a library folder (adding, moving or
+-- removing the folder), which is why there is no separate index on root_id.
+CREATE UNIQUE INDEX tracks_root_path ON tracks (root_id, path COLLATE NOCASE) WHERE root_id IS NOT NULL;
+CREATE UNIQUE INDEX tracks_absolute_path ON tracks (path COLLATE NOCASE) WHERE root_id IS NULL AND path IS NOT NULL;
+CREATE UNIQUE INDEX tracks_url ON tracks (url) WHERE url IS NOT NULL;
 -- Library: finding a file again by name (relinking, DAT-8).
 CREATE INDEX tracks_file_name ON tracks (file_name COLLATE NOCASE);
 -- The Library's "New, not tagged yet" filter and its count (NEW_TRACKS_SQL, repo/tracks.ts).

@@ -115,6 +115,16 @@ describe("the library schema (DAT-11)", () => {
       }
     });
 
+    it("keeps each file and each web address to one track (DB review 4)", () => {
+      db.exec("INSERT INTO library_roots (id, name, path, created_at) VALUES ('r', 'R', '/music', 1), ('r2', 'R2', '/other', 1)");
+      db.exec(`INSERT INTO tracks (id, root_id, path, created_at, updated_at) VALUES ('u1', 'r', 'Witcher/a.flac', 1, 1)`);
+      fails(`INSERT INTO tracks (id, root_id, path, created_at, updated_at) VALUES ('u2', 'r', 'witcher/A.FLAC', 1, 1)`, /UNIQUE/);
+      db.exec(`INSERT INTO tracks (id, root_id, path, created_at, updated_at) VALUES ('u3', 'r2', 'Witcher/a.flac', 1, 1)`);
+      fails(`INSERT INTO tracks (id, path, created_at, updated_at) VALUES ('u4', '/T.FLAC', 1, 1)`, /UNIQUE/);
+      db.exec(`INSERT INTO tracks (id, url, created_at, updated_at) VALUES ('u5', 'https://x.org/a.mp3', 1, 1)`);
+      fails(`INSERT INTO tracks (id, url, created_at, updated_at) VALUES ('u6', 'https://x.org/a.mp3', 1, 1)`, /UNIQUE/);
+    });
+
     it("keeps one profile per track per place, and one per track of its own", () => {
       db.exec("INSERT INTO audio_profiles (id, track_id, end_ms) VALUES ('own', 't', 1000)");
       fails("INSERT INTO audio_profiles (id, track_id) VALUES ('own2', 't')", /UNIQUE/);

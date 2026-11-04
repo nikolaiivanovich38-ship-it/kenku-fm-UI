@@ -22,6 +22,15 @@ export function fileNameOf(p: string): string {
   return flavourOf(p).basename(p);
 }
 
+/**
+ * The one way a full path is stored: a Windows path with backslashes and no
+ * "." or ".." parts ("D:/Sfx/./rain.wav" is "D:\\Sfx\\rain.wav"), a POSIX path
+ * tidied the same way. Letter case is kept; the unique path indexes ignore it.
+ */
+export function normalizePath(p: string): string {
+  return flavourOf(p).normalize(p);
+}
+
 /** Whether `p` is an absolute path in either style. */
 export function isAbsolutePath(p: string): boolean {
   return isWindowsPath(p) || path.posix.isAbsolute(p);

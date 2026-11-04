@@ -25,10 +25,14 @@ beforeEach(() => {
 });
 afterEach(() => t.close());
 
+/** Each call makes new files: the library keeps one track per file. */
+let made = 0;
 function tracks(n: number) {
+  const first = made;
+  made += n;
   return createTracks(
     t.store,
-    Array.from({ length: n }, (_, i) => ({ title: `T${i + 1}`, file: { path: `/m/t${i + 1}.mp3` } })),
+    Array.from({ length: n }, (_, i) => ({ title: `T${i + 1}`, file: { path: `/m/${first + i}/t${i + 1}.mp3` } })),
   );
 }
 

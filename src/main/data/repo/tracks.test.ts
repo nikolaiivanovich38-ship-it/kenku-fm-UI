@@ -5,6 +5,7 @@ import {
   createTrack,
   createTracks,
   deleteTracks,
+  findTrackByLocation,
   getFollowWith,
   getTrack,
   listNewTrackIds,
@@ -62,6 +63,50 @@ describe("library roots and file locations (DAT-1, DAT-8)", () => {
     removeRoot(t.store, root.id);
     expect(listRoots(t.store)).toEqual([]);
     expect(getTrack(t.store, track.id)!.location).toEqual({ kind: "absolute", path: "H:\\Audio\\Soundtracks\\a.mp3" });
+  });
+
+  it("never keeps the same file twice: under a root or not, in any letter case, either slash, or the same address (DB review 4)", () => {
+    const root = addRoot(t.store, { name: "Soundtracks", path: "H:\\Audio\\Soundtracks" });
+    const [under, outside, web] = createTracks(t.store, [
+      { title: "A", file: { path: "H:\\Audio\\Soundtracks\\Witcher\\a.flac" } },
+      { title: "B", file: { path: "D:\\Sfx\\Rain.wav" } },
+      { title: "C", url: "https://example.com/c.mp3" },
+    ]);
+    for (const again of [
+      { file: { path: "H:\\AUDIO\\Soundtracks\\witcher\\A.FLAC" } },
+      { file: { path: "d:/sfx/rain.wav" } },
+      { file: { path: "D:\\Sfx\\.\\Rain.wav" } },
+      { url: "https://example.com/c.mp3" },
+    ]) {
+      expect(() => createTrack(t.store, { title: "Again", ...again }), JSON.stringify(again)).toThrow(/already in your library/);
+    }
+    expect(() => updateTrack(t.store, web.id, { file: { path: "d:\\SFX\\rain.wav" } })).toThrow(/already in your library/);
+    // A forward-slash Windows path is stored the Windows way, so it can be found by either spelling.
+    expect(createTrack(t.store, { title: "D", file: { path: "D:/Sfx/thunder.wav" } }).location).toEqual({ kind: "absolute", path: "D:\\Sfx\\thunder.wav" });
+    expect([under, outside].map((x) => getTrack(t.store, x.id)!.location.kind)).toEqual(["root", "absolute"]);
+    expect(root.id).toBeTruthy();
+    // Found again by its file in any spelling (watched-folder rescans, relinking).
+    expect(findTrackByLocation(t.store, { file: "h:/audio/soundtracks/Witcher/A.flac" })).toBe(under.id);
+    expect(findTrackByLocation(t.store, { file: "D:\\SFX\\rain.wav" })).toBe(outside.id);
+    expect(findTrackByLocation(t.store, { url: "https://example.com/c.mp3" })).toBe(web.id);
+    expect(findTrackByLocation(t.store, { file: "D:\\Sfx\\none.wav" })).toBeNull();
+  });
+
+  it("takes tracks already inside a new library folder into it, as paths relative to it (DB review 4)", () => {
+    const [inside, deeper, outside, web] = createTracks(t.store, [
+      { title: "A", file: { path: "H:\\Audio\\Soundtracks\\Witcher\\a.flac" } },
+      { title: "B", file: { path: "H:\\Audio\\Soundtracks\\Fx\\b.wav" } },
+      { title: "C", file: { path: "H:\\Audio\\Other\\c.wav" } },
+      { title: "D", url: "https://example.com/d.mp3" },
+    ]);
+    const root = addRoot(t.store, { name: "Soundtracks", path: "h:\\audio\\soundtracks" });
+    expect(getTrack(t.store, inside.id)!.location).toEqual({ kind: "root", rootId: root.id, path: "Witcher/a.flac" });
+    expect(getTrack(t.store, outside.id)!.location).toEqual({ kind: "absolute", path: "H:\\Audio\\Other\\c.wav" });
+    expect(getTrack(t.store, web.id)!.location.kind).toBe("url");
+    // A folder inside another library folder takes its tracks: the deepest folder wins, as for new files.
+    const fx = addRoot(t.store, { name: "Effects", path: "H:\\Audio\\Soundtracks\\Fx" });
+    expect(getTrack(t.store, deeper.id)!.location).toEqual({ kind: "root", rootId: fx.id, path: "b.wav" });
+    expect(resolveTrackLocation(t.store, getTrack(t.store, deeper.id)!)).toBe("H:\\Audio\\Soundtracks\\Fx\\b.wav");
   });
 
   it("refuses roots and files that are not absolute paths, and duplicate root names", () => {

@@ -6,7 +6,7 @@
  */
 import { NotFoundError, ValidationError } from "../errors";
 import { GAP } from "../ordering";
-import { fileNameOf, findRoot, isAbsolutePath, joinRoot } from "../paths";
+import { fileNameOf, findRoot, isAbsolutePath, joinRoot, normalizePath } from "../paths";
 import type { SQLInputValue } from "../sqlite";
 import type { Store } from "../store";
 import type { AudioProfileInput } from "../../../common/domain";
@@ -176,8 +176,10 @@ function locationColumns(
     return { root_id: null, path: null, url, file_name: fileName, file_size: null, file_mtime_ms: null, checksum: null };
   }
   const file = v.record("file", input.file);
-  const absolute = v.requiredName("file.path", file.path, v.MAX_TEXT_LENGTH);
-  if (!isAbsolutePath(absolute)) throw new ValidationError("file.path", "The file must be given with its full path.");
+  const given = v.requiredName("file.path", file.path, v.MAX_TEXT_LENGTH);
+  if (!isAbsolutePath(given)) throw new ValidationError("file.path", "The file must be given with its full path.");
+  // Stored one way, so the unique path indexes see "D:/a.wav" and "D:\\a.wav" as the same file.
+  const absolute = normalizePath(given);
   const underRoot = findRoot(roots, absolute);
   return {
     root_id: underRoot ? underRoot.root.id : null,
@@ -203,6 +205,45 @@ function writeOwnProfile(store: Store, trackId: string, profile: AudioProfileInp
   if (existing) removeProfile(store, existing.id);
 }
 
+/**
+ * Runs a write that sets a track's file or address, turning a clash with
+ * another track's (the unique path indexes, DB review 4) into plain words.
+ */
+function oneTrackPerFile<T>(fileName: unknown, fn: () => T): T {
+  try {
+    return fn();
+  } catch (error) {
+    if (error instanceof Error && /UNIQUE constraint failed: (tracks\.(root_id|path|url)|index 'tracks_)/.test(error.message)) {
+      const name = typeof fileName === "string" && fileName !== "" ? fileName : "That file";
+      throw new ValidationError("file", `${name} is already in your library.`);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Finding a track by its file, through the unique path indexes (watched-folder
+ * rescans, relinking), and every track under a library folder. Exported for the
+ * query-plan tests.
+ */
+export const TRACK_BY_PATH_SQL = {
+  root: "SELECT id FROM tracks WHERE root_id = ? AND path = ? COLLATE NOCASE",
+  absolute: "SELECT id FROM tracks WHERE root_id IS NULL AND path = ? COLLATE NOCASE",
+  url: "SELECT id FROM tracks WHERE url = ?",
+  underRoot: "SELECT id, path FROM tracks WHERE root_id = ?",
+} as const;
+
+/** The track that has this file (a full path) or web address, if any. */
+export function findTrackByLocation(store: Store, location: { file: string } | { url: string }): string | null {
+  if ("url" in location) return store.get<{ id: string }>(TRACK_BY_PATH_SQL.url, v.webAddress("url", location.url))?.id ?? null;
+  const full = normalizePath(v.requiredName("file", location.file, v.MAX_TEXT_LENGTH));
+  const underRoot = findRoot(listRoots(store), full);
+  const row = underRoot
+    ? store.get<{ id: string }>(TRACK_BY_PATH_SQL.root, underRoot.root.id, underRoot.relative)
+    : store.get<{ id: string }>(TRACK_BY_PATH_SQL.absolute, full);
+  return row?.id ?? null;
+}
+
 function insertTrack(store: Store, roots: { id: string; path: string }[], input: TrackInput): string {
   const record = v.record("track", input);
   const id = newId(record.id);
@@ -216,9 +257,8 @@ function insertTrack(store: Store, roots: { id: string; path: string }[], input:
     updated_at: store.now(),
   };
   const names = Object.keys(columns);
-  store.run(
-    `INSERT INTO tracks (${names.join(", ")}) VALUES (${placeholders(names.length)})`,
-    ...names.map((name) => columns[name]),
+  oneTrackPerFile(columns.file_name, () =>
+    store.run(`INSERT INTO tracks (${names.join(", ")}) VALUES (${placeholders(names.length)})`, ...names.map((name) => columns[name])),
   );
   if (profile) writeOwnProfile(store, id, profile);
   return id;
@@ -330,11 +370,13 @@ export function updateTrack(store: Store, id: string, changes: TrackPatch): Trac
   const names = Object.keys(columns);
   if (names.length > 0 || profile !== undefined) {
     store.change("Edit track", () => {
-      store.run(
-        `UPDATE tracks SET ${[...names.map((name) => `${name} = ?`), "updated_at = ?"].join(", ")} WHERE id = ?`,
-        ...names.map((name) => columns[name]),
-        store.now(),
-        trackId,
+      oneTrackPerFile(columns.file_name, () =>
+        store.run(
+          `UPDATE tracks SET ${[...names.map((name) => `${name} = ?`), "updated_at = ?"].join(", ")} WHERE id = ?`,
+          ...names.map((name) => columns[name]),
+          store.now(),
+          trackId,
+        ),
       );
       if (profile !== undefined) writeOwnProfile(store, trackId, profile);
     });
