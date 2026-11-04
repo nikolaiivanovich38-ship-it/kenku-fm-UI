@@ -88,3 +88,30 @@ test("playlists, soundboards, bookmarks, volume and settings survive a restart",
     await site.close();
   }
 });
+
+test("a change made just before quitting is saved (PERF-6)", async ({ launchApp }) => {
+  // Saving is held back only while a mouse button or key is held down
+  // (PERF-6) and catches up when it is let go, so quitting straight after a
+  // change keeps it.
+  const first = await launchApp();
+  let player = await first.playerView();
+  await createPlaylist(player, "Last Minute");
+  await openCard(player, "Last Minute");
+  const volume = player.getByRole("slider", { name: "Volume" });
+  await volume.focus();
+  await player.keyboard.press("Home");
+  await expect(volume).toHaveAttribute("aria-valuenow", "0");
+  await player.getByRole("button", { name: "Playlist options" }).click();
+  await player.getByRole("menuitem", { name: "Edit" }).click();
+  const edit = player.getByRole("dialog", { name: "Edit Playlist" });
+  await edit.getByLabel("Name").fill("Renamed At The Last Minute");
+  await edit.getByRole("button", { name: "Done" }).click();
+  await expect(edit).toBeHidden();
+  await first.close();
+
+  const second = await launchApp();
+  player = await second.playerView();
+  await expect(card(player, "Renamed At The Last Minute")).toBeVisible();
+  await openCard(player, "Renamed At The Last Minute");
+  await expect(player.getByRole("slider", { name: "Volume" })).toHaveAttribute("aria-valuenow", "0");
+});
