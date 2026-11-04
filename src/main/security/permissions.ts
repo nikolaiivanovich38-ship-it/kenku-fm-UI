@@ -2,13 +2,13 @@
  * SEC-3: which browser permissions each kind of page may use.
  *
  * Electron grants every permission request unless the app installs a
- * handler. Cue Desk's own pages need very little (audio capture, copying ids
+ * handler. Lyre's own pages need very little (audio capture, copying ids
  * to the clipboard) and website tabs need even less, so everything is denied
  * unless it appears in the allow-list below. Kept free of Electron imports so
  * the rules can be unit-tested.
  */
 
-/** Cue Desk's own pages. A `null` role means "not one of ours" (a website tab). */
+/** Lyre's own pages. A `null` role means "not one of ours" (a website tab). */
 export type AppPageRole = "main-window" | "audio-capture" | "player-view";
 
 /** Media types as reported by Electron's request ("audio"/"video") and check ("unknown") handlers. */

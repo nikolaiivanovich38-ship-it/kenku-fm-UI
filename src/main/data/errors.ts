@@ -7,7 +7,7 @@
 export type LibraryErrorCode =
   /** The file is damaged or is not a library at all. */
   | "corrupt"
-  /** The library was saved by a newer Cue Desk than this one. */
+  /** The library was saved by a newer version of Lyre than this one. */
   | "newer-version"
   /** An automatic upgrade of the library failed and was rolled back. */
   | "upgrade-failed"

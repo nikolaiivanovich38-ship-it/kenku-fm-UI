@@ -14,7 +14,7 @@ const initialState: PlayerState = {
     id: -1,
     icon: icon,
     url: window.kenku.playerGetURL(),
-    title: "Cue Desk Player",
+    title: "Lyre Player",
     playingMedia: 0,
     muted: false,
   },

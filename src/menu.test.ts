@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 type MenuItem = { label?: string; role?: string; submenu?: MenuItem[]; click?: () => unknown };
 
 const electron = vi.hoisted(() => ({
-  app: { name: "Cue Desk", isPackaged: true },
+  app: { name: "Lyre", isPackaged: true, getVersion: () => "0.1.1", setAboutPanelOptions: vi.fn() },
   BrowserWindow: { getAllWindows: () => [] as unknown[] },
   Menu: { buildFromTemplate: vi.fn((template: unknown) => template), setApplicationMenu: vi.fn() },
   shell: { openExternal: vi.fn(async () => undefined) },
@@ -25,5 +25,20 @@ describe("application menu (FND-1)", () => {
     expect(electron.shell.openExternal).toHaveBeenCalledWith(
       "https://github.com/nikolaiivanovich38-ship-it/kenku-fm-UI#readme",
     );
+  });
+});
+
+describe("Help > About (rebrand)", () => {
+  it("names Lyre, its version and the Kenku FM credit the licence asks for", () => {
+    expect(electron.app.setAboutPanelOptions).toHaveBeenCalledWith(
+      expect.objectContaining({
+        applicationName: "Lyre",
+        applicationVersion: "0.1.1",
+        website: "https://github.com/nikolaiivanovich38-ship-it/kenku-fm-UI#readme",
+      }),
+    );
+    const [options] = electron.app.setAboutPanelOptions.mock.calls[0] as unknown as [{ copyright: string }];
+    expect(options.copyright).toMatch(/Kenku FM by Owlbear Rodeo/);
+    expect(options.copyright).toMatch(/GPL-3\.0/);
   });
 });

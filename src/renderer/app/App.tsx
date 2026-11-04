@@ -70,7 +70,7 @@ export function App() {
           gap={1}
         >
           <Stack sx={{ width: "68px", height: "68px", m: 1 }}>
-            <img src={icon} />
+            <img src={icon} alt="Lyre" />
           </Stack>
           <Typography variant="h4" color="white">
             Oops, something went wrong..

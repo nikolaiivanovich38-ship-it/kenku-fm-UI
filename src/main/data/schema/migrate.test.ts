@@ -243,7 +243,7 @@ describe("schema upgrades", () => {
     db.close();
   });
 
-  it("refuses to open a library saved by a newer version of Cue Desk", () => {
+  it("refuses to open a library saved by a newer version of Lyre", () => {
     const db = openConnection(":memory:");
     migrate(db, [...MIGRATIONS, cueListsLater]);
     expect(() => migrate(db, MIGRATIONS)).toThrow(LibraryDatabaseError);
@@ -251,7 +251,7 @@ describe("schema upgrades", () => {
       migrate(db, MIGRATIONS);
     } catch (error) {
       expect((error as LibraryDatabaseError).code).toBe("newer-version");
-      expect((error as Error).message).toMatch(/newer version of Cue Desk/);
+      expect((error as Error).message).toMatch(/newer version of Lyre/);
     }
     db.close();
   });

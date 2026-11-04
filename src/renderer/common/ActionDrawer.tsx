@@ -78,7 +78,7 @@ export function ActionDrawer() {
         >
           {showWindowControls && !collapsed && (
             <Box sx={{ width: "36px", height: "36px", m: 1 }}>
-              <img src={icon} />
+              <img src={icon} alt="Lyre" />
             </Box>
           )}
           <IconButton

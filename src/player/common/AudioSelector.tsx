@@ -3,7 +3,6 @@ import React, { useCallback } from "react";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { Link } from "@mui/material";
 
 import {
   getDropURL,
@@ -51,7 +50,7 @@ export function AudioSelector({
       } else if (rejectedNames.length > 0) {
         notify({
           severity: "info",
-          message: `"${rejectedNames[0]}" isn't an audio file Cue Desk can play. Choose an ${AUDIO_FORMATS_LABEL} file.`,
+          message: `"${rejectedNames[0]}" isn't an audio file Lyre can play. Choose an ${AUDIO_FORMATS_LABEL} file.`,
         });
       }
     },
@@ -85,19 +84,9 @@ export function AudioSelector({
         onDrop={handleURLDrop}
         color={warning ? "warning" : undefined}
         helperText={
-          warning ? (
-            <>
-              Unable to verify audio format, this file may not be supported. See{" "}
-              <Link
-                href="https://www.kenku.fm/docs/using-kenku-player"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                here
-              </Link>{" "}
-              for more information.
-            </>
-          ) : undefined
+          warning
+            ? `Lyre could not check that this is an audio file it can play. Lyre plays ${AUDIO_FORMATS_LABEL} files.`
+            : undefined
         }
       />
       <Button

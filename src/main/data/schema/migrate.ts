@@ -114,8 +114,8 @@ export function migrate(
   if (from > latest) {
     throw new LibraryDatabaseError(
       "newer-version",
-      `This library was saved by a newer version of Cue Desk (library version ${from}, this app knows up to ${latest}). ` +
-        "Update Cue Desk to open it. Nothing has been changed.",
+      `This library was saved by a newer version of Lyre (library version ${from}, this app knows up to ${latest}). ` +
+        "Update Lyre to open it. Nothing has been changed.",
     );
   }
 
@@ -144,7 +144,7 @@ export function migrate(
         db.exec("ROLLBACK");
         throw new LibraryDatabaseError(
           "upgrade-failed",
-          `Cue Desk could not upgrade your library to version ${migration.version} ("${migration.name}"). ` +
+          `Lyre could not upgrade your library to version ${migration.version} ("${migration.name}"). ` +
             "Your library has been left as it was. " +
             (error instanceof Error ? error.message : String(error)),
           { cause: error },

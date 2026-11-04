@@ -10,7 +10,7 @@ import Typography from "@mui/material/Typography";
 import CloseIcon from "@mui/icons-material/CloseRounded";
 
 /**
- * SEC-15: Settings > Local files. Cue Desk asks before opening a file from the
+ * SEC-15: Settings > Local files. Lyre asks before opening a file from the
  * computer in a tab; when the user ticks "Don't ask again for files in this
  * folder", the folder is remembered by the main process and listed here, where
  * it can be removed. The list lives in the main process, not in this page.
@@ -39,7 +39,7 @@ export function LocalFilesSettings() {
       <DialogContentText>Local files</DialogContentText>
       {folders !== undefined && folders.length === 0 && (
         <Typography variant="caption" color="text.secondary" component="p" sx={{ mt: 1 }}>
-          Cue Desk asks before opening a file from your computer. Folders you
+          Lyre asks before opening a file from your computer. Folders you
           choose not to be asked about again appear here.
         </Typography>
       )}

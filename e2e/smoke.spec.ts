@@ -6,7 +6,7 @@ import { test, expect } from "./fixtures/app";
 import { findProblems } from "./fixtures/problems";
 
 test("main window opens with the app name", async ({ mainWindow }) => {
-  await expect(mainWindow).toHaveTitle("Cue Desk");
+  await expect(mainWindow).toHaveTitle("Lyre");
 });
 
 test("player tab shows the Playlists and Soundboards sections", async ({ mainWindow, playerView }) => {

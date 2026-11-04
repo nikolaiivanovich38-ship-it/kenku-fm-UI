@@ -3,6 +3,15 @@ import { readmeUrl } from "./main/appIdentity";
 
 const isMac = process.platform === "darwin";
 
+// Help > About: the app's name and version, and the credit to Kenku FM that
+// its licence (GPL-3.0) asks forks to keep. app.name is productName ("Lyre").
+app.setAboutPanelOptions({
+  applicationName: app.name,
+  applicationVersion: app.getVersion(),
+  copyright: "GPL-3.0. Based on Kenku FM by Owlbear Rodeo.",
+  ...(readmeUrl() ? { website: readmeUrl() } : {}),
+});
+
 const template: any = [
   // { role: 'appMenu' }
   ...(isMac

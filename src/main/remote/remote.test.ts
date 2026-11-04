@@ -144,7 +144,7 @@ describe("remote API GET routes (PERF-9)", () => {
       JSON.stringify({
         statusCode: 503,
         error: "Service Unavailable",
-        message: "Unable to connect to Cue Desk",
+        message: "Unable to connect to Lyre",
       }),
     );
   });
