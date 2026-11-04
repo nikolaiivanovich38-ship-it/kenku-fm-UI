@@ -11,11 +11,28 @@
  * and the saved folder list are passed in (see localFileStore.ts and
  * BrowserViewManagerMain).
  */
+import fs from "fs";
 import nodePath from "path";
 import { fileURLToPath } from "url";
 import { checkLocalFileUrl, isLocalFile } from "../../common/security/urlPolicy";
 
 type PathApi = typeof nodePath.posix;
+
+/**
+ * The real path of `path`, with every link (symlink, Windows junction)
+ * resolved. Throws when the path does not exist.
+ */
+export type Realpath = (path: string) => string;
+
+const nodeRealpath: Realpath = (path) => fs.realpathSync.native(path);
+
+/** A file the user agreed to open. */
+export interface ApprovedFile {
+  /** The address the user opened (normalised), with any ?query and #section. */
+  url: string;
+  /** Where the file really is, every link resolved. */
+  filePath: string;
+}
 
 /** Where the remembered folders are saved (main process only). */
 export interface FolderStore {
@@ -59,7 +76,7 @@ export function localFilePrompt(filePath: string, folder: string): LocalFileProm
     defaultId: CANCEL,
     cancelId: CANCEL,
     noLink: true,
-    checkboxLabel: `Don't ask again for files in ${folder}`,
+    checkboxLabel: `Don't ask again for files in ${folder} and its subfolders`,
     checkboxChecked: false,
   };
 }
@@ -78,11 +95,17 @@ export function isInsideFolder(filePath: string, folder: string, pathApi: PathAp
   return relative === "" || (!relative.startsWith("..") && !pathApi.isAbsolute(relative));
 }
 
-/** The folders whose files open without asking, as the user chose them. */
+/**
+ * The folders whose files open without asking, as the user chose them, with
+ * their subfolders. WP1 review 8: folders and files are compared by their
+ * real paths, so a link inside a remembered folder that leads elsewhere
+ * does not carry the "don't ask" choice with it.
+ */
 export class LocalFileFolders {
   constructor(
     private readonly store: FolderStore,
     private readonly pathApi: PathApi = nodePath,
+    private readonly realpath: Realpath = nodeRealpath,
   ) {}
 
   /** Remembered folders, in the order they were added. Anything odd in the saved file is skipped. */
@@ -110,8 +133,18 @@ export class LocalFileFolders {
     this.store.set(this.list().filter((known) => !this.same(known, folder)));
   }
 
-  allows(filePath: string): boolean {
-    return this.list().some((folder) => isInsideFolder(filePath, folder, this.pathApi));
+  /** @param realFilePath the file's real path (see `Realpath`) */
+  allows(realFilePath: string): boolean {
+    return this.list().some((folder) => {
+      let realFolder: string;
+      try {
+        realFolder = this.realpath(folder);
+      } catch {
+        // A remembered folder that is gone allows nothing.
+        return false;
+      }
+      return isInsideFolder(realFilePath, realFolder, this.pathApi);
+    });
   }
 
   private clean(folder: string): string {
@@ -129,6 +162,9 @@ export class LocalFileFolders {
   }
 }
 
+/** Why a file was not opened, when it was not the user's choice. */
+export type FileRefusal = "not-found";
+
 /**
  * Decides whether a file the user asked for may open: refuses anything the URL
  * policy does not accept as a local file, opens files in remembered folders,
@@ -138,6 +174,8 @@ export class LocalFileGate {
   private readonly folders: LocalFileFolders;
   private readonly ask: (prompt: LocalFilePrompt) => Promise<PromptAnswer>;
   private readonly windowsPaths: boolean;
+  private readonly realpath: Realpath;
+  private readonly onRefused: (reason: FileRefusal) => void;
 
   constructor(options: {
     folders: LocalFileFolders;
@@ -145,33 +183,58 @@ export class LocalFileGate {
     ask: (prompt: LocalFilePrompt) => Promise<PromptAnswer>;
     /** Read file addresses as Windows paths. Defaults to the platform the app runs on. */
     windowsPaths?: boolean;
+    realpath?: Realpath;
+    /** Told when a file is refused for a reason the user should hear about. */
+    onRefused?: (reason: FileRefusal) => void;
   }) {
     this.folders = options.folders;
     this.ask = options.ask;
     this.windowsPaths = options.windowsPaths ?? process.platform === "win32";
+    this.realpath = options.realpath ?? nodeRealpath;
+    this.onRefused = options.onRefused ?? (() => undefined);
   }
 
   /**
-   * @returns the address to load, or undefined when the address is not a
-   *   local file or the user said no.
+   * @returns the file to open, or undefined when the address is not a local
+   *   file, the file does not exist, or the user said no.
    */
-  async approve(rawUrl: string): Promise<string | undefined> {
+  async approve(rawUrl: string): Promise<ApprovedFile | undefined> {
     const check = checkLocalFileUrl(rawUrl);
     if (!isLocalFile(check)) {
       console.warn(`Refused to open a file: ${check.reason}`);
       return undefined;
     }
-    let filePath: string;
+    const pathApi = this.windowsPaths ? nodePath.win32 : nodePath.posix;
+    let typedPath: string;
     try {
-      filePath = fileURLToPath(check.url, { windows: this.windowsPaths });
+      typedPath = fileURLToPath(check.url, { windows: this.windowsPaths });
     } catch {
       console.warn("Refused to open a file whose address is not a path on this computer");
       return undefined;
     }
-    if (this.folders.allows(filePath)) {
-      return check.url;
+    // WP1 review 7: "C:x.html" means "x.html in drive C's current folder",
+    // which depends on where the app happens to run.
+    if (!pathApi.isAbsolute(typedPath)) {
+      console.warn("Refused to open a file whose address is not a full path");
+      return undefined;
     }
-    const pathApi = this.windowsPaths ? nodePath.win32 : nodePath.posix;
+    let filePath: string;
+    try {
+      filePath = this.realpath(typedPath);
+    } catch {
+      console.warn("Refused to open a file that does not exist");
+      this.onRefused("not-found");
+      return undefined;
+    }
+    // A link (symlink, junction) on this computer may lead to a network
+    // folder, which is never opened (SEC-15: Windows would send the login).
+    if (this.windowsPaths && /^[\\/]{2}/.test(filePath)) {
+      console.warn("Refused to open a file that is really in a network folder");
+      return undefined;
+    }
+    if (this.folders.allows(filePath)) {
+      return { url: check.url, filePath };
+    }
     const folder = pathApi.dirname(filePath);
     let answer: PromptAnswer;
     try {
@@ -186,6 +249,6 @@ export class LocalFileGate {
     if (answer.checkboxChecked) {
       this.folders.remember(folder);
     }
-    return check.url;
+    return { url: check.url, filePath };
   }
 }

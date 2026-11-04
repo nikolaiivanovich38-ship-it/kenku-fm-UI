@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { clearBrowsingData, secureSessions } from "./sessions";
+import { clearBrowsingData, registerLocalFileScheme, secureSessions } from "./sessions";
 import { trustedContents } from "./trustedContents";
 import { captureTargets } from "./captureTargets";
 import { LOCAL_FILE_PARTITION, TAB_PARTITION } from "./partitions";
@@ -16,6 +16,11 @@ type CheckHandler = (
   origin: string,
   details: { isMainFrame: boolean; mediaType?: string },
 ) => boolean;
+type RequestListener = (
+  details: { url: string },
+  callback: (response: { cancel: boolean }) => void,
+) => void;
+type ProtocolHandler = (request: Request) => Response | Promise<Response>;
 type HeadersListener = (
   details: { url: string; requestHeaders: Record<string, string> },
   callback: (response: { cancel: boolean; requestHeaders: Record<string, string> }) => void,
@@ -27,6 +32,13 @@ const fakeSession = (name: string) => {
     requestHandler: undefined as RequestHandler | undefined,
     checkHandler: undefined as CheckHandler | undefined,
     headersListener: undefined as HeadersListener | undefined,
+    requestListener: undefined as RequestListener | undefined,
+    protocols: new Map<string, ProtocolHandler>(),
+    protocol: {
+      handle: (scheme: string, handler: ProtocolHandler) => {
+        s.protocols.set(scheme, handler);
+      },
+    },
     setPermissionRequestHandler: (h: RequestHandler) => {
       s.requestHandler = h;
     },
@@ -36,6 +48,9 @@ const fakeSession = (name: string) => {
     webRequest: {
       onBeforeSendHeaders: (h: HeadersListener) => {
         s.headersListener = h;
+      },
+      onBeforeRequest: (h: RequestListener) => {
+        s.requestListener = h;
       },
     },
     clearCache: vi.fn().mockResolvedValue(undefined),
@@ -52,7 +67,10 @@ const sessions = vi.hoisted(() => ({
   localFiles: undefined as unknown as FakeSession,
 }));
 
+const registerSchemesAsPrivileged = vi.hoisted(() => vi.fn());
+
 vi.mock("electron", () => ({
+  protocol: { registerSchemesAsPrivileged },
   session: {
     get defaultSession() {
       return sessions.default;
@@ -246,5 +264,45 @@ describe("clearBrowsingData", () => {
         storages: ["cookies", "shadercache", "cachestorage"],
       });
     }
+  });
+});
+
+describe("local-file tabs are served under their own scheme (WP1 review 1 and 2)", () => {
+  it("registers the scheme as a standard, secure scheme that can stream media", () => {
+    registerLocalFileScheme();
+    expect(registerSchemesAsPrivileged).toHaveBeenCalledWith([
+      {
+        scheme: "cue-local-file",
+        privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
+      },
+    ]);
+  });
+
+  it("serves it on the local-files session only, and refuses file: there", async () => {
+    secureSessions();
+    expect([...sessions.localFiles.protocols.keys()].sort()).toEqual(["cue-local-file", "file"]);
+    expect(sessions.default.protocols.size).toBe(0);
+    expect(sessions.tabs.protocols.size).toBe(0);
+    const fileAnswer = await sessions.localFiles.protocols.get("file")!(new Request("file:///etc/hostname"));
+    expect(fileAnswer.status).toBe(403);
+    const unknown = await sessions.localFiles.protocols.get("cue-local-file")!(
+      new Request("cue-local-file://0123456789abcdef0123456789abcdef/x.html"),
+    );
+    expect(unknown.status).toBe(403);
+  });
+
+  it.each([
+    ["cue-local-file://0123456789abcdef0123456789abcdef/a.mp3", false],
+    ["data:image/png;base64,AAAA", false],
+    ["blob:cue-local-file://0123456789abcdef0123456789abcdef/1234", false],
+    ["https://example.com/collect?secret=1", true],
+    ["http://127.0.0.1:3333/v1/playlist", true],
+    ["wss://example.com/", true],
+    ["file:///etc/hostname", true],
+  ])("in a file's tab, a request to %j is cancelled: %s", (url, cancelled) => {
+    secureSessions();
+    const respond = vi.fn();
+    sessions.localFiles.requestListener?.({ url }, respond);
+    expect(respond).toHaveBeenCalledWith({ cancel: cancelled });
   });
 });

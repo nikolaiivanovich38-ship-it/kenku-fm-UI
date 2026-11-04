@@ -13,8 +13,8 @@ export type LocalSite = {
   close(): Promise<void>;
 };
 
-/** Pages by path: title and body HTML. */
-export type SitePages = Record<string, { title: string; body: string }>;
+/** Pages by path: title and body HTML, or a server-side redirect (302) to another address. */
+export type SitePages = Record<string, { title: string; body: string } | { redirect: string }>;
 
 /** A 1x1 PNG, served as the site's icon so the tab bar can show one. */
 const FAVICON = Buffer.from(
@@ -35,6 +35,12 @@ export async function startLocalSite(pages: SitePages): Promise<LocalSite> {
     const page = pages[pathname];
     if (!page) {
       response.statusCode = 404;
+      response.end();
+      return;
+    }
+    if ("redirect" in page) {
+      response.statusCode = 302;
+      response.setHeader("location", page.redirect);
       response.end();
       return;
     }

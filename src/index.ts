@@ -17,7 +17,7 @@ import { runAutoUpdate } from "./autoUpdate";
 import { getSavedBounds, saveWindowBounds } from "./bounds";
 import { openExternalIfAllowed } from "./main/security/externalLinks";
 import { lockAppPage } from "./main/security/navigationGuards";
-import { clearBrowsingData, secureSessions } from "./main/security/sessions";
+import { clearBrowsingData, registerLocalFileScheme, secureSessions } from "./main/security/sessions";
 import { registerAppInfoIpc } from "./main/security/appInfoIpc";
 import { confirmStartAfterCarryOver, startApp } from "./main/startup";
 import { registerBackgroundsIpc, startKenkuBackgroundImport } from "./main/legacyBackgrounds";
@@ -26,6 +26,10 @@ declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 
 let window: BrowserWindow | null = null;
+
+// WP1 review 1: files from the user's computer get a scheme of their own,
+// which Electron accepts only before the app is ready.
+registerLocalFileScheme();
 
 // FND-1: the Windows installer check and the single-instance lock come first,
 // so the Kenku FM library is copied only by the one real copy of the app,
