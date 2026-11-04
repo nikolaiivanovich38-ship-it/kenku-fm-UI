@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clearBrowsingData, secureSessions } from "./sessions";
 import { trustedContents } from "./trustedContents";
+import { captureTargets } from "./captureTargets";
 import { TAB_PARTITION } from "./partitions";
 
 type RequestHandler = (
@@ -126,10 +127,26 @@ describe("session hardening (SEC-3)", () => {
     }
   });
 
-  it("still lets websites go full screen and play protected music", () => {
+  it("still lets websites go full screen", () => {
     secureSessions();
     expect(request(sessions.tabs, { id: 778 }, "fullscreen")).toBe(true);
-    expect(request(sessions.tabs, { id: 778 }, "mediaKeySystem")).toBe(true);
+    expect(request(sessions.tabs, { id: 778 }, "mediaKeySystem")).toBe(false);
+  });
+
+  it("lets the app capture the audio of a tab or the player it chose (Discord)", () => {
+    secureSessions();
+    const tab = { id: 880, once: vi.fn() };
+    const player = { id: 881, once: vi.fn() };
+    trustedContents.trust(player, "player-view");
+    const tabCapture = { isMainFrame: true, mediaTypes: [] as string[] };
+    expect(request(sessions.tabs, tab, "media", tabCapture)).toBe(false);
+    expect(request(sessions.default, player, "media", tabCapture)).toBe(false);
+    captureTargets.allow(tab);
+    captureTargets.allow(player);
+    expect(request(sessions.tabs, tab, "media", tabCapture)).toBe(true);
+    expect(request(sessions.default, player, "media", tabCapture)).toBe(true);
+    captureTargets.revokeAll();
+    expect(request(sessions.tabs, tab, "media", tabCapture)).toBe(false);
   });
 
   it("rewrites the user agent on both sessions, with the Google sign-in workaround", () => {

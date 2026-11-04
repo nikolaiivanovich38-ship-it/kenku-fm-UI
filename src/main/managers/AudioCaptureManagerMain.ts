@@ -6,6 +6,7 @@ import prism from "prism-media";
 import { LOOPBACK_HOST } from "../../common/security/loopback";
 import { guardIpc } from "../security/ipcGuard";
 import { lockAppPage } from "../security/navigationGuards";
+import { captureTargets } from "../security/captureTargets";
 
 declare const AUDIO_CAPTURE_WINDOW_WEBPACK_ENTRY: string;
 declare const AUDIO_CAPTURE_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
@@ -177,11 +178,15 @@ export class AudioCaptureManagerMain extends TypedEmitter<AudioCaptureManagerEve
     if (!contents || contents.isDestroyed()) {
       return;
     }
+    // SEC-3: Chromium asks the captured page for permission; allow it for
+    // this page only, before the capture window asks.
+    captureTargets.allow(contents);
     let mediaSourceId: string;
     try {
       mediaSourceId = contents.getMediaSourceId(this._browserWindow.webContents);
     } catch (err) {
       console.error(`Unable to capture audio from view ${viewId}`, err);
+      captureTargets.revoke(contents);
       return;
     }
     this._browserWindow.webContents.send(
@@ -192,6 +197,7 @@ export class AudioCaptureManagerMain extends TypedEmitter<AudioCaptureManagerEve
   };
 
   _handleStopBrowserViewStream = (_: Electron.IpcMainEvent, viewId: number) => {
+    captureTargets.revoke({ id: viewId });
     this._browserWindow.webContents.send(
       "AUDIO_CAPTURE_STOP_BROWSER_VIEW_STREAM",
       viewId
@@ -204,6 +210,7 @@ export class AudioCaptureManagerMain extends TypedEmitter<AudioCaptureManagerEve
    * the streams kept running.
    */
   _handleStopAllBrowserViewStreams = () => {
+    captureTargets.revokeAll();
     this._browserWindow.webContents.send(
       "AUDIO_CAPTURE_STOP_ALL_BROWSER_VIEW_STREAMS"
     );

@@ -2,13 +2,13 @@
  * SEC-3: which browser permissions each kind of page may use.
  *
  * Electron grants every permission request unless the app installs a
- * handler. Kenku FM's own pages need very little (audio capture, copying ids
+ * handler. Cue Desk's own pages need very little (audio capture, copying ids
  * to the clipboard) and website tabs need even less, so everything is denied
  * unless it appears in the allow-list below. Kept free of Electron imports so
  * the rules can be unit-tested.
  */
 
-/** Kenku FM's own pages. A `null` role means "not one of ours" (a website tab). */
+/** Cue Desk's own pages. A `null` role means "not one of ours" (a website tab). */
 export type AppPageRole = "main-window" | "audio-capture" | "player-view";
 
 /** Media types as reported by Electron's request ("audio"/"video") and check ("unknown") handlers. */
@@ -23,6 +23,8 @@ export interface PermissionQuery {
   mediaTypes?: readonly string[];
   /** Whether the request comes from the page itself rather than an embedded frame. Defaults to true. */
   isMainFrame?: boolean;
+  /** Whether the app has chosen to capture this page's audio (see captureTargets.ts). */
+  isCaptureTarget?: boolean;
 }
 
 /**
@@ -41,13 +43,31 @@ const APP_PAGE_PERMISSIONS: Record<AppPageRole, ReadonlySet<string>> = {
 /**
  * Permissions granted to website tabs:
  * - fullscreen: full-screen video players (YouTube etc.).
- * - mediaKeySystem: DRM-protected music services (Widevine).
- * Microphone, camera, notifications, location, external apps, etc. are refused.
+ * Microphone, camera, notifications, location, external apps, DRM
+ * (mediaKeySystem: standard Electron has no Widevine), etc. are refused.
  */
-const TAB_PERMISSIONS: ReadonlySet<string> = new Set([
-  "fullscreen",
-  "mediaKeySystem",
-]);
+const TAB_PERMISSIONS: ReadonlySet<string> = new Set(["fullscreen"]);
+
+/**
+ * Tab capture for Discord: Chromium asks the captured page for "media" with
+ * no media types. Granted only to the page itself (not an embedded frame) and
+ * only while the app is capturing it. A permission check (no media types
+ * reported) or a request for the microphone or camera never matches.
+ */
+function isTabCaptureOfChosenPage({
+  permission,
+  mediaTypes,
+  isMainFrame = true,
+  isCaptureTarget = false,
+}: PermissionQuery): boolean {
+  return (
+    permission === "media" &&
+    isCaptureTarget &&
+    isMainFrame &&
+    mediaTypes !== undefined &&
+    mediaTypes.length === 0
+  );
+}
 
 function isAudioOnly(mediaTypes: readonly string[] | undefined): boolean {
   return !(mediaTypes ?? []).includes("video");
@@ -58,12 +78,11 @@ function isAudioOnly(mediaTypes: readonly string[] | undefined): boolean {
  * App pages only get their permissions from their own top-level frame, never
  * from an embedded frame.
  */
-export function isPermissionAllowed({
-  role,
-  permission,
-  mediaTypes,
-  isMainFrame = true,
-}: PermissionQuery): boolean {
+export function isPermissionAllowed(query: PermissionQuery): boolean {
+  const { role, permission, mediaTypes, isMainFrame = true } = query;
+  if (isTabCaptureOfChosenPage(query)) {
+    return true;
+  }
   if (role === null) {
     return TAB_PERMISSIONS.has(permission);
   }

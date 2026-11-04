@@ -34,7 +34,7 @@ const EXPECTED: Record<AppPageRole | "tab", string[]> = {
   "main-window": ["media"],
   "audio-capture": ["media"],
   "player-view": ["clipboard-sanitized-write"],
-  tab: ["fullscreen", "mediaKeySystem"],
+  tab: ["fullscreen"],
 };
 
 describe("isPermissionAllowed (SEC-3)", () => {
@@ -49,6 +49,54 @@ describe("isPermissionAllowed (SEC-3)", () => {
       });
     });
   }
+
+  describe("pages the app is capturing (tab capture for Discord)", () => {
+    // Chromium raises tab capture as a "media" request on the captured page,
+    // with no media types (W1 finding, confirmed in e2e/capture.spec.ts).
+    it.each([null, "player-view"] as const)("lets the capture open a %s page", (role) => {
+      expect(
+        isPermissionAllowed({ role, permission: "media", mediaTypes: [], isCaptureTarget: true }),
+      ).toBe(true);
+    });
+
+    it("refuses the same request for a page the app is not capturing", () => {
+      for (const role of [null, "player-view"] as const) {
+        expect(isPermissionAllowed({ role, permission: "media", mediaTypes: [] })).toBe(false);
+      }
+    });
+
+    it("still refuses a captured page its microphone or camera", () => {
+      for (const mediaTypes of [["audio"], ["video"], ["audio", "video"]]) {
+        expect(
+          isPermissionAllowed({ role: null, permission: "media", mediaTypes, isCaptureTarget: true }),
+        ).toBe(false);
+      }
+    });
+
+    it("refuses an embedded frame of a captured page", () => {
+      expect(
+        isPermissionAllowed({
+          role: null,
+          permission: "media",
+          mediaTypes: [],
+          isCaptureTarget: true,
+          isMainFrame: false,
+        }),
+      ).toBe(false);
+    });
+
+    it("refuses a permission check that names no media types", () => {
+      expect(
+        isPermissionAllowed({ role: null, permission: "media", isCaptureTarget: true }),
+      ).toBe(false);
+    });
+
+    it("grants nothing else to a captured page", () => {
+      expect(
+        isPermissionAllowed({ role: null, permission: "notifications", isCaptureTarget: true }),
+      ).toBe(false);
+    });
+  });
 
   it("never lets a tab use the microphone or camera", () => {
     for (const mediaTypes of [["audio"], ["video"], ["audio", "video"], []]) {

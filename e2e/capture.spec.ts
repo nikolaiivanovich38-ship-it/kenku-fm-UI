@@ -3,15 +3,16 @@
  * sound. The main process asks for a media source id for the player view and
  * the hidden capture window opens it with getUserMedia (legacy
  * `chromeMediaSource: "tab"` constraint, as AudioCaptureManagerPreload does).
+ *
+ * SEC-3: Chromium asks the captured page for permission. The app allows it
+ * only for pages it chose to capture (src/main/security/captureTargets.ts);
+ * the player view is one as soon as it has loaded.
  */
+import http from "http";
+import type { AddressInfo } from "net";
 import { test, expect, pageWithTitle } from "./fixtures/app";
 
 test("the capture window can open the player view's audio", async ({ app, playerView }) => {
-  // Known bug (found in WP1): the SEC-3 permission handler refuses this
-  // request, because Electron raises it on the captured page (here the player
-  // view) with no media types. Remove this line once the handler allows it.
-  test.fail(true, "SEC-3 permission handler blocks tab capture (see WP1 W1 report)");
-
   await expect(playerView.getByText("Playlists", { exact: true })).toBeVisible();
   const capture = await pageWithTitle(app, "Audio Capture");
   const sourceId = await app.evaluate(({ webContents }) => {
@@ -37,4 +38,40 @@ test("the capture window can open the player view's audio", async ({ app, player
   }, sourceId);
 
   expect(result).toBe("live");
+});
+
+test("the app captures a website tab's audio as soon as the tab loads", async ({ app, mainWindow, playerView }) => {
+  // A local web page stands in for YouTube or Tabletop Audio.
+  const site = http.createServer((_request, response) => {
+    response.setHeader("content-type", "text/html");
+    response.end("<title>Local test site</title><p>Test page</p>");
+  });
+  await new Promise<void>((resolve) => site.listen(0, "127.0.0.1", resolve));
+  const url = `http://127.0.0.1:${(site.address() as AddressInfo).port}/`;
+
+  try {
+    await expect(playerView.getByText("Playlists", { exact: true })).toBeVisible();
+    const capture = await pageWithTitle(app, "Audio Capture");
+    const captureErrors: string[] = [];
+    capture.on("console", (message) => {
+      if (message.type() === "error") {
+        captureErrors.push(message.text());
+      }
+    });
+
+    // The same call the "+" tab button makes; once the page has loaded, the
+    // main window asks for its audio.
+    await mainWindow.evaluate(
+      (address) =>
+        (window as unknown as { kenku: { createBrowserView(...args: unknown[]): Promise<number> } })
+          .kenku.createBrowserView(address, 0, 0, 400, 300),
+      url,
+    );
+    await pageWithTitle(app, "Local test site");
+    await capture.waitForTimeout(2_000);
+
+    expect(captureErrors).toEqual([]);
+  } finally {
+    site.close();
+  }
 });

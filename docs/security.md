@@ -55,10 +55,13 @@ Enforced in the main process (`BrowserViewManagerMain`) on every path into a tab
 | Main window (`main-window`) | `media`, audio only (input device names for external inputs) |
 | Audio capture window (`audio-capture`) | `media`, audio only (tab capture and external inputs) |
 | Player view (`player-view`) | `clipboard-sanitized-write` (copy ids for Kenku Remote) |
-| Any website tab | `fullscreen`, `mediaKeySystem` |
+| Any website tab | `fullscreen` |
+| A page the app is capturing for Discord (the player view, website tabs) | `media` with no media types, from its top-level frame only (tab capture; see below) |
 | Any embedded frame inside an app page (not its top-level frame) | nothing |
 
-App pages are identified by web-contents id in `trustedContents`, registered by `lockAppPage` (main window in `src/index.ts`, capture window in `AudioCaptureManagerMain`) and by `BrowserViewManagerMain` for the player view. The player view is recognised only when both the URL and the preload match `PLAYER_WINDOW_WEBPACK_ENTRY` and `PLAYER_WINDOW_PRELOAD_WEBPACK_ENTRY`; any other preload is refused (`REFUSED_VIEW_ID`, -1).
+App pages are identified by web-contents id in `trustedContents`, registered by `lockAppPage` (main window in `src/index.ts`, capture window in `AudioCaptureManagerMain`) and by `BrowserViewManagerMain` for the player view. The main window asks for the player view by kind (`"player"`), and the main process chooses the player preload itself; any other preload is refused (`REFUSED_VIEW_ID`, -1).
+
+**Tab capture (found in WP1).** Discord hears the player and website tabs through tab capture: the capture window calls `getUserMedia` with `chromeMediaSource: "tab"`, and Chromium raises that as a `media` request on the *captured* page, with an empty media-types list. `AudioCaptureManagerMain` adds the page to `captureTargets` (`src/main/security/captureTargets.ts`) just before it hands the capture window the page's media source id, and removes it when the stream stops, when all streams stop, or when the page is destroyed. The handler grants that one request only for listed pages. A website cannot get it on its own, and a captured page still cannot use the microphone or camera. Permission checks (which report a media type) never match. `e2e/capture.spec.ts` covers the player and a local website tab; mediaKeySystem (DRM) is refused, since standard Electron has no Widevine.
 
 Website tabs use the `persist:tabs` partition (`TAB_PARTITION`) with no preload. App pages use the default session. The Google sign-in user-agent workaround is applied to both sessions.
 

@@ -3,6 +3,7 @@ import WebSocket from "ws";
 import type { AddressInfo } from "net";
 import { AudioCaptureManagerMain } from "./AudioCaptureManagerMain";
 import { trustedContents } from "../security/trustedContents";
+import { captureTargets } from "../security/captureTargets";
 import {
   fakeIpcMain,
   fakePage,
@@ -52,6 +53,7 @@ let manager: InstanceType<typeof AudioCaptureManagerMain> | undefined;
 afterEach(() => {
   manager?.destroy();
   manager = undefined;
+  captureTargets.revokeAll();
   fakeIpcMain.reset();
   pages.clear();
   windowOptions.length = 0;
@@ -179,6 +181,29 @@ describe("AudioCaptureManagerMain: tab audio streams", () => {
     expect(sentToCapture(manager)).toEqual([
       ["AUDIO_CAPTURE_START_BROWSER_VIEW_STREAM", tab.id, `media-source-${tab.id}`],
     ]);
+  });
+
+  it("lets the chosen tab's audio be captured, and only until it stops (SEC-3)", () => {
+    manager = new AudioCaptureManagerMain();
+    const tab = fakePage(null);
+    const other = fakePage(null);
+    pages.set(tab.id, tab);
+    const main = fromMainFrame(fakePage("main-window"));
+    fakeIpcMain.deliver("AUDIO_CAPTURE_START_BROWSER_VIEW_STREAM", main, tab.id);
+    expect(captureTargets.has(tab)).toBe(true);
+    expect(captureTargets.has(other)).toBe(false);
+    fakeIpcMain.deliver("AUDIO_CAPTURE_STOP_BROWSER_VIEW_STREAM", main, tab.id);
+    expect(captureTargets.has(tab)).toBe(false);
+  });
+
+  it("forgets every captured tab when all streams stop (SEC-3)", () => {
+    manager = new AudioCaptureManagerMain();
+    const tab = fakePage(null);
+    pages.set(tab.id, tab);
+    const main = fromMainFrame(fakePage("main-window"));
+    fakeIpcMain.deliver("AUDIO_CAPTURE_START_BROWSER_VIEW_STREAM", main, tab.id);
+    fakeIpcMain.deliver("AUDIO_CAPTURE_STOP_ALL_BROWSER_VIEW_STREAMS", main);
+    expect(captureTargets.has(tab)).toBe(false);
   });
 
   it("does not throw for an unknown or closed tab", () => {

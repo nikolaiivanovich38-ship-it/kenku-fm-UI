@@ -3,6 +3,7 @@ import { getMalformedUserAgent, getUserAgent } from "../userAgent";
 import { TAB_PARTITION } from "./partitions";
 import { isPermissionAllowed } from "./permissions";
 import { trustedContents } from "./trustedContents";
+import { captureTargets } from "./captureTargets";
 
 /**
  * SEC-3: the app's own pages use the default session; website tabs use
@@ -34,6 +35,7 @@ function installPermissionHandlers(target: Session): void {
         permission,
         mediaTypes,
         isMainFrame: details.isMainFrame,
+        isCaptureTarget: captureTargets.has(contents),
       }),
     );
   });
