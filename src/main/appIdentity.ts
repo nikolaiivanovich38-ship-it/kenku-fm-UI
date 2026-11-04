@@ -1,5 +1,5 @@
 /**
- * FND-1: the fork's identity, read from `appIdentity.json`.
+ * FND-1: the app's identity, read from `appIdentity.json`.
  *
  * `forge.config.js` reads the same JSON file, so the data folder, app ID and
  * GitHub repository are each written down once. The display name is
@@ -13,8 +13,17 @@ export type GithubRepo = { owner: string; repo: string };
 /** Folder name under the OS app-data directory that holds our user data. */
 export const DATA_FOLDER_NAME: string = identity.dataFolderName;
 
-/** Folder name upstream Kenku FM uses (Electron derives it from its productName). */
-export const LEGACY_DATA_FOLDER_NAME: string = identity.legacyDataFolderName;
+/**
+ * An earlier app whose library the first start may copy. `kind` says which
+ * files it keeps: "kenku-fm" (upstream) or "cue-desk" (Lyre's 0.1 drafts).
+ */
+export type EarlierAppIdentity = { name: string; dataFolderName: string; kind: "cue-desk" | "kenku-fm" };
+
+/**
+ * Earlier apps, newest first: Cue Desk (`<appData>/cue-desk`), then upstream
+ * Kenku FM (`<appData>/Kenku FM`; Electron names that folder after its productName).
+ */
+export const EARLIER_APPS = identity.earlierApps as EarlierAppIdentity[];
 
 /** The fork's GitHub repository, used for releases, updates and help links. */
 export const GITHUB_REPO: GithubRepo = identity.github;

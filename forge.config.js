@@ -40,7 +40,7 @@ const config = {
       // The installer name includes "-win32-<arch>" so update.electronjs.org
       // can match it to the right Windows build. Windows identifies the app
       // (AppUserModelId) as com.squirrel.<installerName>.<executableName>,
-      // so it never collides with an installed Kenku FM.
+      // so it never collides with an installed Kenku FM or Cue Desk draft.
       config: (arch) => ({
         name: installerName,
         title: productName,

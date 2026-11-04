@@ -1,8 +1,9 @@
 /**
- * FND-1: the fork's data folder and the one-time carry-over from Kenku FM.
+ * FND-1: the app's data folder and the one-time carry-over from an earlier
+ * app (Cue Desk, then Kenku FM).
  *
  * Importing this module moves the app's data folder to
- * `<appData>/cue-desk` (see appIdentity.json). That has to happen before any
+ * `<appData>/lyre` (see appIdentity.json). That has to happen before any
  * other module asks Electron for the data folder, so `src/index.ts` imports
  * this module first. Keeping the folder name apart from the display name means
  * a later rename does not move anyone's library.
@@ -14,8 +15,8 @@
 import path from "path";
 import { app } from "electron";
 import packageJson from "../../../package.json";
-import { DATA_FOLDER_NAME, LEGACY_DATA_FOLDER_NAME } from "../appIdentity";
-import { carryOverLegacyData, CarryOverResult, describeCarryOver } from "./carryOver";
+import { DATA_FOLDER_NAME, EARLIER_APPS } from "../appIdentity";
+import { carryOverEarlierData, CarryOverResult, CUE_DESK_ITEMS, describeCarryOver, EarlierApp } from "./carryOver";
 import { skippedCarryOver, userDataOverride } from "./userDataOverride";
 
 /** True only in packages built with CUE_DESK_E2E_BUILD=1 (webpack.main.config.js). */
@@ -25,12 +26,17 @@ declare const __CUE_DESK_TEST_BUILD__: boolean;
  * Data folders by platform: Electron's `appData` is %APPDATA% on Windows,
  * ~/Library/Application Support on macOS and $XDG_CONFIG_HOME (or ~/.config)
  * on Linux. Electron names the default data folder after `productName`, so
- * upstream Kenku FM's folder is `<appData>/Kenku FM` on all three.
+ * upstream Kenku FM's folder is `<appData>/Kenku FM` on all three; Cue Desk
+ * fixed its own as `<appData>/cue-desk`.
  */
-export function dataFolders(appDataDir: string): { userData: string; legacyUserData: string } {
+export function dataFolders(appDataDir: string): { userData: string; earlierApps: EarlierApp[] } {
   return {
     userData: path.join(appDataDir, DATA_FOLDER_NAME),
-    legacyUserData: path.join(appDataDir, LEGACY_DATA_FOLDER_NAME),
+    earlierApps: EARLIER_APPS.map((earlier) => ({
+      name: earlier.name,
+      dir: path.join(appDataDir, earlier.dataFolderName),
+      ...(earlier.kind === "cue-desk" ? { items: CUE_DESK_ITEMS } : {}),
+    })),
   };
 }
 
@@ -58,7 +64,7 @@ app.setPath("sessionData", folders.userData);
 
 // Windows groups taskbar icons and notifications by this ID. It matches the ID
 // the Squirrel installer gives the shortcuts (com.squirrel.<package>.<exe>),
-// so the fork never shares an identity with an installed Kenku FM.
+// so Lyre never shares an identity with an installed Kenku FM or Cue Desk.
 if (process.platform === "win32") {
   app.setAppUserModelId(windowsAppUserModelId(packageJson.name));
 }
@@ -66,14 +72,14 @@ if (process.platform === "win32") {
 let lastResult: CarryOverResult | null = null;
 
 /**
- * Copy the Kenku FM library into this app's data folder the first time the app
+ * Copy the Cue Desk or Kenku FM library into this app's data folder the first time the app
  * starts. Must run in the primary instance only, before any window, session or
  * settings file is created. Logs and returns the result.
  */
 export function runDataCarryOver(): CarryOverResult {
   lastResult = testUserData
     ? skippedCarryOver(folders.userData)
-    : carryOverLegacyData(folders.legacyUserData, folders.userData);
+    : carryOverEarlierData(folders.earlierApps, folders.userData);
   const message = `[data carry-over] ${describeCarryOver(lastResult)}`;
   if (lastResult.status === "failed") {
     console.error(message, lastResult.errors);

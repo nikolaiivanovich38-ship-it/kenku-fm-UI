@@ -3,17 +3,37 @@ import os from "os";
 import path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  carryOverLegacyData,
+  appRunningMessage,
+  carryOverEarlierData,
+  CUE_DESK_ITEMS,
   describeCarryOver,
   isLockFileHeld,
-  LEGACY_APP_RUNNING_MESSAGE,
   MARKER_FILE_NAME,
+  type CarryOverOptions,
   type LockFileIo,
 } from "./carryOver";
 
 let root: string;
 let source: string;
+let cueDesk: string;
 let dest: string;
+
+/** Carry over from Kenku FM only, as the tests before Lyre did. */
+function carryOverLegacyData(sourceDir: string, destDir: string, options?: CarryOverOptions) {
+  return carryOverEarlierData([{ name: "Kenku FM", dir: sourceDir }], destDir, options);
+}
+
+/** Both earlier apps, newest first, as Lyre itself looks for them. */
+function carryOverBoth(options?: CarryOverOptions) {
+  return carryOverEarlierData(
+    [
+      { name: "Cue Desk", dir: cueDesk, items: CUE_DESK_ITEMS },
+      { name: "Kenku FM", dir: source },
+    ],
+    dest,
+    options,
+  );
+}
 
 function write(file: string, content = "x") {
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -38,7 +58,8 @@ function makeOldKenkuFolder() {
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), "carry-over-"));
   source = path.join(root, "Kenku FM");
-  dest = path.join(root, "cue-desk");
+  cueDesk = path.join(root, "cue-desk");
+  dest = path.join(root, "lyre");
 });
 
 afterEach(() => {
@@ -195,9 +216,9 @@ describe("carryOverLegacyData (FND-1 data carry-over)", () => {
     expect(isLegacyAppRunning).toHaveBeenCalledWith(source);
     expect(result.status).toBe("legacy-app-running");
     expect(result.reason).toBe(
-      "Kenku FM is still running. Close it and restart Cue Desk to bring your library across.",
+      "Kenku FM is still running. Close it and restart Lyre to bring your library across.",
     );
-    expect(describeCarryOver(result)).toBe(LEGACY_APP_RUNNING_MESSAGE);
+    expect(describeCarryOver(result)).toBe(appRunningMessage("Kenku FM"));
     expect(result.copiedItems).toEqual([]);
     expect(fs.existsSync(path.join(dest, MARKER_FILE_NAME))).toBe(false);
     expect(fs.existsSync(path.join(dest, "config.json"))).toBe(false);
@@ -234,7 +255,7 @@ describe("carryOverLegacyData (FND-1 data carry-over)", () => {
     expect(JSON.parse(text)).toMatchObject({
       status: "copied",
       sourceFolder: "Kenku FM",
-      destFolder: "cue-desk",
+      destFolder: "lyre",
       copiedItems: ["Local Storage", "Session Storage", "config.json"],
     });
   });
@@ -262,9 +283,140 @@ describe("carryOverLegacyData (FND-1 data carry-over)", () => {
   it("describes each outcome in plain language", () => {
     makeOldKenkuFolder();
     expect(describeCarryOver(carryOverLegacyData(source, dest))).toMatch(
-      /^Your Kenku FM library was copied into this app .*Kenku FM itself was not changed\.$/,
+      /^Your Kenku FM library was copied into Lyre .*Kenku FM itself was not changed\.$/,
     );
     expect(describeCarryOver(carryOverLegacyData(source, dest))).toContain("already happened");
+  });
+});
+
+describe("carryOverEarlierData with Cue Desk and Kenku FM (rebrand to Lyre)", () => {
+  /** A Cue Desk 0.1 data folder: Kenku FM's items plus its own files. */
+  function makeCueDeskFolder() {
+    write(path.join(cueDesk, "Local Storage", "leveldb", "000003.log"), "cue desk library");
+    write(path.join(cueDesk, "Local Storage", "leveldb", "LOCK"), "");
+    write(path.join(cueDesk, "config.json"), '{"bounds":"cue desk"}');
+    write(path.join(cueDesk, "Local State"), '{"os_crypt":{"encrypted_key":"k"}}');
+    write(path.join(cueDesk, "discord-bots.json"), '{"bots":[]}');
+    write(path.join(cueDesk, "local-files.json"), "[]");
+    write(path.join(cueDesk, "library", "library.sqlite"), "sqlite");
+    write(path.join(cueDesk, "Partitions", "tabs", "Cookies"), "not copied");
+    write(path.join(cueDesk, "data-carry-over.json"), '{"status":"copied"}');
+  }
+
+  it("copies the Cue Desk library when both earlier apps have one (Cue Desk is newer)", () => {
+    makeOldKenkuFolder();
+    makeCueDeskFolder();
+
+    const result = carryOverBoth();
+
+    expect(result.status).toBe("copied");
+    expect(result.sourceApp).toBe("Cue Desk");
+    expect(read(path.join(dest, "Local Storage", "leveldb", "000003.log"))).toBe("cue desk library");
+    expect(read(path.join(dest, "config.json"))).toBe('{"bounds":"cue desk"}');
+    expect(JSON.parse(read(path.join(dest, MARKER_FILE_NAME)))).toMatchObject({
+      status: "copied",
+      sourceFolder: "cue-desk",
+      destFolder: "lyre",
+    });
+  });
+
+  it("brings Cue Desk's own files across too: bot list with its encryption key, local-file choices, new library", () => {
+    makeCueDeskFolder();
+
+    const result = carryOverBoth();
+
+    expect(result.copiedItems).toEqual([
+      "Local Storage",
+      "config.json",
+      "Local State",
+      "discord-bots.json",
+      "local-files.json",
+      "library",
+    ]);
+    expect(read(path.join(dest, "Local State"))).toContain("encrypted_key");
+    expect(read(path.join(dest, "library", "library.sqlite"))).toBe("sqlite");
+    expect(fs.existsSync(path.join(dest, "Partitions"))).toBe(false);
+    // Cue Desk's own record of its carry-over is not the new app's record.
+    expect(JSON.parse(read(path.join(dest, MARKER_FILE_NAME))).sourceFolder).toBe("cue-desk");
+  });
+
+  it("copies the Kenku FM library when there is no Cue Desk folder", () => {
+    makeOldKenkuFolder();
+
+    const result = carryOverBoth();
+
+    expect(result.status).toBe("copied");
+    expect(result.sourceApp).toBe("Kenku FM");
+    expect(result.copiedItems).toEqual(["Local Storage", "Session Storage", "config.json"]);
+    expect(describeCarryOver(result)).toMatch(/^Your Kenku FM library was copied into Lyre/);
+  });
+
+  it("skips a Cue Desk folder that holds no library and copies Kenku FM's", () => {
+    makeOldKenkuFolder();
+    write(path.join(cueDesk, "config.json"), '{"bounds":"cue desk"}');
+
+    const result = carryOverBoth();
+
+    expect(result.sourceApp).toBe("Kenku FM");
+    expect(read(path.join(dest, "config.json"))).toBe('{"bounds":{"x":1}}');
+  });
+
+  it("waits while Cue Desk is running and does not fall back to the older Kenku FM library", () => {
+    makeOldKenkuFolder();
+    makeCueDeskFolder();
+    const isLegacyAppRunning = vi.fn((dir: string) => dir === cueDesk);
+
+    const result = carryOverBoth({ isLegacyAppRunning });
+
+    expect(result.status).toBe("legacy-app-running");
+    expect(result.sourceApp).toBe("Cue Desk");
+    expect(result.reason).toBe("Cue Desk is still running. Close it and restart Lyre to bring your library across.");
+    expect(fs.existsSync(path.join(dest, "Local Storage"))).toBe(false);
+    expect(fs.existsSync(path.join(dest, MARKER_FILE_NAME))).toBe(false);
+  });
+
+  it("checks Cue Desk's own lock file, not Kenku FM's", () => {
+    makeOldKenkuFolder();
+    makeCueDeskFolder();
+    const lockFile = path.join(cueDesk, "Local Storage", "leveldb", "LOCK");
+    const realOpen = fs.openSync;
+    vi.spyOn(fs, "openSync").mockImplementation((file, flags, mode) => {
+      if (String(file) === lockFile) {
+        throw Object.assign(new Error("EBUSY: resource busy or locked"), { code: "EBUSY" });
+      }
+      return realOpen(file, flags, mode);
+    });
+
+    expect(carryOverBoth().status).toBe("legacy-app-running");
+  });
+
+  it("copies nothing from either app when Lyre already has a library", () => {
+    makeOldKenkuFolder();
+    makeCueDeskFolder();
+    write(path.join(dest, "Local Storage", "leveldb", "000003.log"), "lyre library");
+
+    const result = carryOverBoth();
+
+    expect(result.status).toBe("destination-has-data");
+    expect(read(path.join(dest, "Local Storage", "leveldb", "000003.log"))).toBe("lyre library");
+    expect(fs.existsSync(path.join(dest, "discord-bots.json"))).toBe(false);
+  });
+
+  it("runs once: after copying from Kenku FM, a Cue Desk library found later is not copied", () => {
+    makeOldKenkuFolder();
+    carryOverBoth();
+    makeCueDeskFolder();
+
+    expect(carryOverBoth().status).toBe("already-done");
+    expect(fs.existsSync(path.join(dest, "discord-bots.json"))).toBe(false);
+  });
+
+  it("says plainly when neither earlier app left a library", () => {
+    const result = carryOverBoth();
+    expect(result.status).toBe("no-old-data");
+    expect(describeCarryOver(result)).toBe(
+      "No Cue Desk or Kenku FM library was found on this computer, so Lyre started empty.",
+    );
   });
 });
 

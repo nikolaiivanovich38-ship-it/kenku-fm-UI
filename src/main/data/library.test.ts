@@ -51,8 +51,8 @@ describe("opening the library (DAT-6)", () => {
   });
 
   it("keeps the library in a 'library' folder inside the app data folder", () => {
-    expect(libraryFolder(path.join("C:", "Users", "gm", "AppData", "Roaming", "cue-desk"))).toBe(
-      path.join("C:", "Users", "gm", "AppData", "Roaming", "cue-desk", "library"),
+    expect(libraryFolder(path.join("C:", "Users", "gm", "AppData", "Roaming", "lyre"))).toBe(
+      path.join("C:", "Users", "gm", "AppData", "Roaming", "lyre", "library"),
     );
   });
 

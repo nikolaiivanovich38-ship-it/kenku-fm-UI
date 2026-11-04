@@ -11,7 +11,8 @@ function carryOver(status: CarryOverResult["status"], errorItems: string[] = [])
   return {
     status,
     sourceDir: "/appData/Kenku FM",
-    destDir: "/appData/cue-desk",
+    sourceApp: "Kenku FM",
+    destDir: "/appData/lyre",
     copiedItems: [],
     skippedItems: [],
     fileCount: 0,
@@ -86,7 +87,7 @@ describe("confirmStartAfterCarryOver (FND-1 retry on the next start)", () => {
     expect(confirmStartAfterCarryOver(carryOver("legacy-app-running"), ask)).toBe(false);
     const [options] = ask.mock.calls[0];
     expect(options.message).toBe(
-      "Kenku FM is still running. Close it and restart Cue Desk to bring your library across.",
+      "Kenku FM is still running. Close it and restart Lyre to bring your library across.",
     );
     expect(options.buttons[options.defaultId]).toBe("Quit");
     expect(options.cancelId).toBe(options.defaultId);
@@ -97,7 +98,22 @@ describe("confirmStartAfterCarryOver (FND-1 retry on the next start)", () => {
     const ask = vi.fn(quitChoice);
     expect(confirmStartAfterCarryOver(carryOver("failed", ["Local Storage"]), ask)).toBe(false);
     expect(ask.mock.calls[0][0].message).toBe("Your Kenku FM library could not be copied.");
-    expect(ask.mock.calls[0][0].detail).toContain("start Cue Desk again");
+    expect(ask.mock.calls[0][0].detail).toContain("start Lyre again");
+  });
+
+  it("names Cue Desk when its library is the one being copied", () => {
+    const ask = vi.fn(quitChoice);
+    const cueDeskRunning = {
+      ...carryOver("legacy-app-running"),
+      sourceApp: "Cue Desk",
+      reason: "Cue Desk is still running. Close it and restart Lyre to bring your library across.",
+    };
+    confirmStartAfterCarryOver(cueDeskRunning, ask);
+    const [options] = ask.mock.calls[0];
+    expect(options.title).toBe("Lyre");
+    expect(options.message).toBe(cueDeskRunning.reason);
+    expect(options.detail).toContain("Choose Quit, close Cue Desk, then start Lyre again.");
+    expect(options.detail).toContain("your Cue Desk library will not be copied later");
   });
 
   it("also asks when the data folder could not be prepared", () => {
