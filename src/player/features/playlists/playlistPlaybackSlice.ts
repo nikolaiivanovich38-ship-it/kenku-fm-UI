@@ -9,6 +9,12 @@ export interface Queue {
   /** Shuffled indices into the tracks array */
   shuffled: number[];
   playlistId: string;
+  /**
+   * BUG-8: the playing track was deleted. Nothing plays, and `current` is the
+   * entry that took its place (it may be one past the end): Next plays that
+   * entry and Previous the one before it. Cleared once a track plays again.
+   */
+  removedCurrent?: boolean;
 }
 
 export interface Playback {
@@ -68,6 +74,14 @@ export const playlistPlaybackSlice = createSlice({
     updateQueue: (state, action: PayloadAction<number>) => {
       if (state.queue) {
         state.queue.current = action.payload;
+        delete state.queue.removedCurrent;
+      }
+    },
+    /** BUG-8: the playing track was deleted; `payload` is the entry now in its place. */
+    markCurrentRemoved: (state, action: PayloadAction<number>) => {
+      if (state.queue) {
+        state.queue.current = action.payload;
+        state.queue.removedCurrent = true;
       }
     },
     moveQueueIfNeeded: (
@@ -176,6 +190,9 @@ export const playlistPlaybackSlice = createSlice({
       action: PayloadAction<{ track: Track; duration: number }>,
     ) => {
       state.track = action.payload.track;
+      if (state.queue) {
+        delete state.queue.removedCurrent;
+      }
       state.playing = true;
       state.playback = { progress: 0, duration: action.payload.duration };
     },
@@ -200,8 +217,12 @@ export const playlistPlaybackSlice = createSlice({
     },
     shuffle: (state, action: PayloadAction<boolean>) => {
       const shuffle = action.payload;
-      // Update the queue to reflect the new shuffle state
-      if (state.queue) {
+      // Update the queue to reflect the new shuffle state. After the playing
+      // track was deleted from the end of the list (BUG-8), "current" is one
+      // past the end in either order and stays as it is.
+      const pastTheEnd =
+        state.queue?.removedCurrent && state.queue.current >= state.queue.tracks.length;
+      if (state.queue && !pastTheEnd) {
         const currentIndex = state.shuffle
           ? state.queue.shuffled[state.queue.current]
           : state.queue.current;
@@ -228,6 +249,7 @@ export const playlistPlaybackSlice = createSlice({
 export const {
   startQueue,
   updateQueue,
+  markCurrentRemoved,
   moveQueueIfNeeded,
   removeTrackFromQueue,
   addTrackToQueueIfNeeded,

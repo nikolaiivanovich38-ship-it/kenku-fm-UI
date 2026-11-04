@@ -106,4 +106,30 @@ describe("deleting the playing track from its menu (BUG-8)", () => {
     const transport = screen.getByRole("button", { name: "previous" }).parentElement!;
     expect(within(transport).getByRole("button", { name: "play" })).toBeDisabled();
   });
+
+  it("leaves Next and Previous on in the player bar, and Next plays the track that is left", async () => {
+    const user = userEvent.setup();
+    const { store, rerender } = renderPlayer();
+    const row = screen.getByText("Tavern Brawl").closest("li")!;
+    await user.click(within(row).getByRole("button", { name: "play" }));
+    act(() => {
+      FakeHowl.latest.load(90);
+      FakeHowl.latest.startPlaying();
+    });
+    await user.click(within(row).getByRole("button", { name: "Options for Tavern Brawl" }));
+    await user.click(screen.getByRole("menuitem", { name: "Delete" }));
+    rerender();
+
+    const transport = screen.getByRole("button", { name: "previous" }).parentElement!;
+    expect(within(transport).getByRole("button", { name: "play" })).toBeDisabled();
+    expect(within(transport).getByRole("button", { name: "previous" })).toBeEnabled();
+    expect(within(transport).getByRole("button", { name: "next" })).toBeEnabled();
+
+    await user.click(within(transport).getByRole("button", { name: "next" }));
+    act(() => FakeHowl.latest.load(60));
+
+    expect(FakeHowl.latest.options.src).toBe("file:///b.mp3");
+    expect(store.getState().playlistPlayback.track?.title).toBe("Quiet Inn");
+    expect(within(transport).getByRole("button", { name: "pause" })).toBeEnabled();
+  });
 });
