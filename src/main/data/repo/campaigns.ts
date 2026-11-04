@@ -17,7 +17,7 @@
  */
 import type { SoundRef } from "../../../common/domain";
 import { ValidationError } from "../errors";
-import { positionFor, positionsFor, type OrderedList } from "../ordering";
+import { assignPositions, positionFor, positionsFor, type OrderedList } from "../ordering";
 import type { SQLInputValue } from "../sqlite";
 import type { Store } from "../store";
 import {
@@ -35,7 +35,7 @@ import {
   type UseTarget,
 } from "../types";
 import * as v from "../validate";
-import { newId, patchOf, placeholders, plural, requireRow } from "./common";
+import { newId, patchOf, placeholders, plural, requireRow, unique } from "./common";
 import { requireFolderFor } from "./folders";
 
 type CampaignRow = {
@@ -423,7 +423,7 @@ export function createSession(store: Store, input: SessionInput): Session {
     const now = store.now();
     const highest = (store.get<{ n: number }>("SELECT coalesce(max(number), 0) AS n FROM sessions WHERE campaign_id = ?", campaignId) as { n: number }).n;
     const wanted = status ?? (hasNext(store, campaignId) ? "draft" : "next");
-    insertRow(store, "sessions", {
+    unique("number", `Session ${columns.number ?? highest + 1} already exists in this campaign; pick another number`, () => insertRow(store, "sessions", {
       id,
       campaign_id: campaignId,
       folder_id: folderId,
@@ -435,7 +435,7 @@ export function createSession(store: Store, input: SessionInput): Session {
       position: positionFor(store, sessionsOf(campaignId), (record.placement as Placement | undefined) ?? "end"),
       created_at: now,
       updated_at: now,
-    });
+    }));
     if (wanted === "next") makeNext(store, id);
   });
   return getSession(store, id) as Session;
@@ -460,14 +460,19 @@ export function updateSession(
   const sessionId = requireRow(store, "sessions", "session", id);
   const columns = sessionColumns(patch);
   const status = patch.status === undefined ? undefined : v.oneOf("status", patch.status, SESSION_STATUSES);
+  unique("number", `Session ${columns.number} already exists in this campaign; pick another number`, () =>
   applyColumns(store, "sessions", sessionId, "Change session", columns, () => {
     if (status === "next") makeNext(store, sessionId);
     else if (status !== undefined) store.run("UPDATE sessions SET status = ? WHERE id = ?", status, sessionId);
-  });
+  }));
   return getSession(store, sessionId) as Session;
 }
 
-/** Reorders a session, or moves it to another campaign or folder. A next session moved where there is one becomes a draft. */
+/**
+ * Reorders a session, or moves it to another campaign or folder. In another
+ * campaign a next session becomes a draft when that campaign has one, and a
+ * session whose number is taken there gets the next free number.
+ */
 export function moveSession(
   store: Store,
   id: string,
@@ -478,13 +483,19 @@ export function moveSession(
   const folderId = target.folderId === undefined ? session.folderId : requireFolderFor(store, target.folderId, "sessions");
   store.change("Move session", () => {
     const position = positionFor(store, sessionsOf(campaignId), target.placement, session.id);
-    const status = session.status === "next" && campaignId !== session.campaignId && hasNext(store, campaignId) ? "draft" : session.status;
+    const elsewhere = campaignId !== session.campaignId;
+    const status = session.status === "next" && elsewhere && hasNext(store, campaignId) ? "draft" : session.status;
+    const taken = elsewhere && store.get("SELECT 1 AS found FROM sessions WHERE campaign_id = ? AND number = ?", campaignId, session.number);
+    const number = taken
+      ? (store.get<{ n: number }>("SELECT coalesce(max(number), 0) + 1 AS n FROM sessions WHERE campaign_id = ?", campaignId) as { n: number }).n
+      : session.number;
     store.run(
-      "UPDATE sessions SET campaign_id = ?, folder_id = ?, position = ?, status = ? WHERE id = ?",
+      "UPDATE sessions SET campaign_id = ?, folder_id = ?, position = ?, status = ?, number = ? WHERE id = ?",
       campaignId,
       folderId,
       position,
       status,
+      number,
       session.id,
     );
   });
@@ -588,6 +599,8 @@ const refColumns = (ref: SoundRef) => (ref.kind === "track" ? [ref.id, null] : [
 type MusicRow = { id: string; scene_id: string; track_id: string | null; playlist_id: string | null; position: number; title: string };
 const MUSIC_SELECT = `SELECT m.*, coalesce(nullif(t.title, ''), nullif(t.meta_title, ''), t.file_name, p.title) AS title
   FROM scene_music m LEFT JOIN tracks t ON t.id = m.track_id LEFT JOIN playlists p ON p.id = m.playlist_id`;
+/** A scene's music in order, with titles (scene_music_order). Exported for the query-plan tests. */
+export const SCENE_MUSIC_SQL = `${MUSIC_SELECT} WHERE m.scene_id = ? ORDER BY m.position`;
 const toMusicItem = (row: MusicRow): SceneMusicItem => ({
   id: row.id,
   sceneId: row.scene_id,
@@ -598,7 +611,7 @@ const toMusicItem = (row: MusicRow): SceneMusicItem => ({
 
 /** The scene's music in playing order: the first item starts the scene. */
 export function listSceneMusic(store: Store, sceneId: string): SceneMusicItem[] {
-  return store.all<MusicRow>(`${MUSIC_SELECT} WHERE m.scene_id = ? ORDER BY m.position, m.rowid`, sceneId).map(toMusicItem);
+  return store.all<MusicRow>(SCENE_MUSIC_SQL, sceneId).map(toMusicItem);
 }
 
 /** Adds tracks or playlists to the scene's music, together, at `placement`. The same one may come twice. */
@@ -634,8 +647,8 @@ export function moveSceneMusic(store: Store, itemIds: string[], placement: Place
   if (items.some((item) => item.scene_id !== sceneId)) throw new ValidationError("itemIds", "Items from different scenes cannot be moved together.");
   items.sort((a, b) => a.position - b.position);
   store.change(`Move ${plural(items.length, "item")} in the scene's music`, () => {
-    const positions = positionsFor(store, musicOf(sceneId), placement, items.length, items.map((i) => i.id));
-    items.forEach((item, index) => store.run("UPDATE scene_music SET position = ? WHERE id = ?", positions[index], item.id));
+    const moving = items.map((i) => i.id);
+    assignPositions(store, musicOf(sceneId), moving, positionsFor(store, musicOf(sceneId), placement, items.length, moving));
   });
 }
 

@@ -29,7 +29,7 @@ import { makeTestStore } from "../test/testStore";
 import type { Store } from "../store";
 import { createTracks } from "./tracks";
 import { createTag, listTagGroups, listTags, tagTracks } from "./tags";
-import { addTracksToPlaylist, createPlaylist } from "./playlists";
+import { addTracksToPlaylist, createPlaylist, listPlaylistTrackIds } from "./playlists";
 import { addPad, createBoard } from "./boards";
 import {
   addSceneBoards,
@@ -42,7 +42,7 @@ import {
   setSceneAmbience,
 } from "./campaigns";
 import { getProfileOverrides, setProfileOverride } from "./profiles";
-import { getDomainCampaign, getDomainLookup, listDomainCampaigns } from "./domain";
+import { getDomainCampaign, getDomainLookup, listDomainCampaigns, listUses } from "./domain";
 
 /* The prototype's sample data, as the prototype defines it (seconds, display names). */
 type ProtoProfile = {
@@ -351,6 +351,12 @@ describe("domain shapes from the database (DAT-11, DAT-12)", () => {
     expect(playlistTracks(lookup.playlist("p-combat-big")!, lookup).map((x) => x.id)).not.toContain("t39");
   });
 
+  it("works out every playlist's tracks in the database exactly as the shared rule does", () => {
+    for (const p of data.playlists) {
+      expect(listPlaylistTrackIds(t.store, p.id), p.id).toEqual(playlistTracks(protoLookup.playlist(p.id)!, protoLookup).map((x) => x.id));
+    }
+  });
+
   it("gives the campaign trees in order", () => {
     expect(campaigns).toEqual(protoCampaigns);
     expect(getDomainCampaign(t.store, "crown")).toEqual(protoCampaigns[0]);
@@ -362,6 +368,10 @@ describe("domain shapes from the database (DAT-11, DAT-12)", () => {
     for (const b of data.boards) expect(usesOfBoard(b.id, campaigns), b.id).toEqual(usesOfBoard(b.id, protoCampaigns));
     for (const x of data.tracks) expect(usesOfTrack(x.id, campaigns), x.id).toEqual(usesOfTrack(x.id, protoCampaigns));
     expect(usesOfBoard("abbey", campaigns)).toHaveLength(4);
+    // The database's own answer (listUses, through its indexes) is the same, in the same order.
+    for (const p of data.playlists) expect(listUses(t.store, { playlistId: p.id }), p.id).toEqual(usesOfPlaylist(p.id, protoCampaigns));
+    for (const b of data.boards) expect(listUses(t.store, { boardId: b.id }), b.id).toEqual(usesOfBoard(b.id, protoCampaigns));
+    for (const x of data.tracks) expect(listUses(t.store, { trackId: x.id }), x.id).toEqual(usesOfTrack(x.id, protoCampaigns));
   });
 
   it("plays every scene's music in the same order", () => {

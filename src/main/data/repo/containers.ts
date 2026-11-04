@@ -25,7 +25,8 @@ export type ContainerConfig<T> = {
 
 export function containerRepo<T extends { id: string; title: string; folderId: string | null }>(config: ContainerConfig<T>) {
   const { entity, label, table, folderScope, campaignTable, memberColumn, toRecord } = config;
-  const inFolder = (folderId: string | null): OrderedList => ({ table, scope: "folder_id IS ?", params: [folderId] });
+  // Written as the UNIQUE ${table}_order index's expression, so that index serves the list (NULL = top level).
+  const inFolder = (folderId: string | null): OrderedList => ({ table, scope: "coalesce(folder_id, '') = ?", params: [folderId ?? ""] });
 
   function get(store: Store, id: string): T | null {
     const row = store.get<Record<string, SQLInputValue>>(`SELECT * FROM ${table} WHERE id = ?`, id);
@@ -93,8 +94,8 @@ export function containerRepo<T extends { id: string; title: string; folderId: s
       order = "m.position, c.rowid";
     }
     if (options.folderId !== undefined) {
-      where.push("c.folder_id IS ?");
-      params.push(options.folderId === null ? null : v.id("folderId", options.folderId));
+      where.push("coalesce(c.folder_id, '') = ?");
+      params.push(options.folderId === null ? "" : v.id("folderId", options.folderId));
     }
     const filter = where.length ? `WHERE ${where.join(" AND ")}` : "";
     return store.all<Record<string, SQLInputValue>>(`SELECT c.* FROM ${from} ${filter} ORDER BY ${order}`, ...params).map(toRecord);

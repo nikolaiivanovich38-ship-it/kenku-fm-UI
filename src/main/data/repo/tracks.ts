@@ -9,7 +9,8 @@ import { GAP } from "../ordering";
 import { fileNameOf, findRoot, isAbsolutePath, joinRoot } from "../paths";
 import type { SQLInputValue } from "../sqlite";
 import type { Store } from "../store";
-import { cleanProfile, parseJson } from "../designValidate";
+import type { AudioProfileInput } from "../../../common/domain";
+import { cleanProfile } from "../designValidate";
 import {
   ARCS,
   ENDINGS,
@@ -26,13 +27,13 @@ import {
 import * as v from "../validate";
 import { newId, patchOf, placeholders, plural, requireRow, toFlag } from "./common";
 import { listRoots } from "./roots";
+import { findProfile, ownProfiles, removeProfile, saveProfile } from "./profileRows";
 
 type TrackRow = {
   id: string;
   kind: string;
   title: string;
   meta_title: string;
-  profile: string | null;
   root_id: string | null;
   path: string | null;
   url: string | null;
@@ -59,7 +60,7 @@ type TrackRow = {
   updated_at: number;
 };
 
-function toTrack(row: TrackRow): Track {
+function toTrack(row: TrackRow, profile: AudioProfileInput | null): Track {
   const location: Track["location"] =
     row.url !== null
       ? { kind: "url", url: row.url }
@@ -71,7 +72,7 @@ function toTrack(row: TrackRow): Track {
     kind: row.kind as Track["kind"],
     title: row.title,
     metaTitle: row.meta_title,
-    profile: parseJson(row.profile),
+    profile,
     location,
     fileName: row.file_name,
     fileSize: row.file_size,
@@ -129,7 +130,6 @@ function metadataColumns(input: Record<string, unknown>): Record<string, SQLInpu
   if (has("title")) columns.title = v.nullableText("title", input.title) ?? "";
   if (has("metaTitle")) columns.meta_title = v.nullableText("metaTitle", input.metaTitle) ?? "";
   if (has("kind")) columns.kind = v.oneOf("kind", input.kind, TRACK_KINDS);
-  if (has("profile")) columns.profile = input.profile === null ? null : JSON.stringify(cleanProfile("profile", input.profile));
   if (has("energy")) columns.energy = v.nullableInteger("energy", input.energy, 1, 5);
   if (has("arc")) columns.arc = v.nullableOneOf("arc", input.arc, ARCS);
   if (has("role")) columns.role = v.nullableOneOf("role", input.role, ROLES);
@@ -187,9 +187,23 @@ function locationColumns(
   };
 }
 
+/** The checked own profile in `input`: undefined when not given, null to clear it. */
+function profileOf(input: Record<string, unknown>): AudioProfileInput | null | undefined {
+  if (!("profile" in input) || input.profile === undefined) return undefined;
+  return input.profile === null ? null : cleanProfile("profile", input.profile);
+}
+
+/** Gives the track its own profile, or clears it (null). Inside a change. */
+function writeOwnProfile(store: Store, trackId: string, profile: AudioProfileInput | null) {
+  if (profile !== null) return saveProfile(store, trackId, null, profile);
+  const existing = findProfile(store, trackId, null);
+  if (existing) removeProfile(store, existing.id);
+}
+
 function insertTrack(store: Store, roots: { id: string; path: string }[], input: TrackInput): string {
   const record = v.record("track", input);
   const id = newId(record.id);
+  const profile = profileOf(record);
   const columns: Record<string, SQLInputValue> = {
     id,
     title: "",
@@ -203,6 +217,7 @@ function insertTrack(store: Store, roots: { id: string; path: string }[], input:
     `INSERT INTO tracks (${names.join(", ")}) VALUES (${placeholders(names.length)})`,
     ...names.map((name) => columns[name]),
   );
+  if (profile) writeOwnProfile(store, id, profile);
   return id;
 }
 
@@ -222,7 +237,7 @@ export function createTracks(store: Store, inputs: TrackInput[]): Track[] {
 
 export function getTrack(store: Store, id: string): Track | null {
   const row = store.get<TrackRow>("SELECT * FROM tracks WHERE id = ?", id);
-  return row ? toTrack(row) : null;
+  return row ? toTrack(row, ownProfiles(store, [row.id]).get(row.id) ?? null) : null;
 }
 
 export type TrackListOptions = {
@@ -235,24 +250,34 @@ export type TrackListOptions = {
 /** The name a track is shown by: its title, else its file-tag title, else its file name. */
 export const SHOWN_TITLE_SQL = "coalesce(nullif(title, ''), nullif(meta_title, ''), file_name)";
 
-/** Tracks in order of the name they are shown by. */
+/**
+ * Tracks carrying every one of `count` tags, in the order of the name they are
+ * shown by: starts from track_tags_tag (tracks by tag), then looks each track
+ * up by its key. Exported for the query-plan tests.
+ */
+export function tracksWithTagsSql(count: number): string {
+  return `SELECT * FROM tracks WHERE id IN (SELECT track_id FROM track_tags WHERE tag_id IN (${placeholders(count)})
+    GROUP BY track_id HAVING count(*) = ${count}) ORDER BY ${SHOWN_TITLE_SQL} COLLATE NOCASE, id LIMIT ? OFFSET ?`;
+}
+
+/** Tracks in order of the name they are shown by; with `tagIds`, only those carrying all of them. */
 export function listTracks(store: Store, options: TrackListOptions = {}): Track[] {
   const tagIds = options.tagIds === undefined ? [] : v.ids("tagIds", options.tagIds);
   const limit = options.limit === undefined ? -1 : v.integer("limit", options.limit, 0, 1_000_000);
   const offset = options.offset === undefined ? 0 : v.integer("offset", options.offset, 0, Number.MAX_SAFE_INTEGER);
-  const filter =
+  const rows = store.all<TrackRow>(
     tagIds.length === 0
-      ? ""
-      : `WHERE id IN (SELECT track_id FROM track_tags WHERE tag_id IN (${placeholders(tagIds.length)})
-           GROUP BY track_id HAVING count(*) = ${tagIds.length})`;
-  return store
-    .all<TrackRow>(
-      `SELECT * FROM tracks ${filter} ORDER BY ${SHOWN_TITLE_SQL} COLLATE NOCASE, id LIMIT ? OFFSET ?`,
-      ...tagIds,
-      limit,
-      offset,
-    )
-    .map(toTrack);
+      ? `SELECT * FROM tracks ORDER BY ${SHOWN_TITLE_SQL} COLLATE NOCASE, id LIMIT ? OFFSET ?`
+      : tracksWithTagsSql(tagIds.length),
+    ...tagIds,
+    limit,
+    offset,
+  );
+  const profiles = ownProfiles(
+    store,
+    rows.map((row) => row.id),
+  );
+  return rows.map((row) => toTrack(row, profiles.get(row.id) ?? null));
 }
 
 const PATCHABLE = [
@@ -283,18 +308,20 @@ export function updateTrack(store: Store, id: string, changes: TrackPatch): Trac
   const patch = patchOf(changes, PATCHABLE);
   const trackId = requireRow(store, "tracks", "track", id);
   const columns = metadataColumns(patch);
+  const profile = profileOf(patch);
   if (patch.file !== undefined || patch.url !== undefined) {
     Object.assign(columns, locationColumns(listRoots(store), patch as { file?: FileFacts; url?: string }));
   }
   const names = Object.keys(columns);
-  if (names.length > 0) {
+  if (names.length > 0 || profile !== undefined) {
     store.change("Edit track", () => {
       store.run(
-        `UPDATE tracks SET ${names.map((name) => `${name} = ?`).join(", ")}, updated_at = ? WHERE id = ?`,
+        `UPDATE tracks SET ${[...names.map((name) => `${name} = ?`), "updated_at = ?"].join(", ")} WHERE id = ?`,
         ...names.map((name) => columns[name]),
         store.now(),
         trackId,
       );
+      if (profile !== undefined) writeOwnProfile(store, trackId, profile);
     });
   }
   return getTrack(store, trackId) as Track;

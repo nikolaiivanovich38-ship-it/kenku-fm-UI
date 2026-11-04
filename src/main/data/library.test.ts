@@ -205,7 +205,7 @@ describe("opening the library (DAT-6)", () => {
     // Review 9: the library and every backup were checked on the worker thread,
     // so damaged backups cannot hold up the main process.
     expect(checksHere()).toBe(0);
-  });
+  }, 30_000); // builds a 2,000-track library: more than the default 5 s when the whole suite runs at once
 
   it("stops the background check when the library is closed", async () => {
     const library = openTracked();
@@ -216,7 +216,7 @@ describe("opening the library (DAT-6)", () => {
     reopened.close();
     expect(await reopened.checkIntegrity()).toEqual({ status: "not-checked" });
     expect(await openTracked({ integrityCheck: "blocking" }).checkIntegrity()).toEqual({ status: "ok" });
-  });
+  }, 30_000);
 
   it("reports a file that is not a library at all", () => {
     fs.mkdirSync(folder, { recursive: true });

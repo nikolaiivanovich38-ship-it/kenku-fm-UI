@@ -54,7 +54,7 @@ function snapshot(store: Store) {
     result[table.name] = store.all(`SELECT * FROM ${table.name} ORDER BY ${table.primaryKey.join(", ")}`);
   }
   result.search = store.all(
-    `SELECT d.kind, d.ref_id, f.title, f.file_name, f.tags, f.markers, f.notes, f.source
+    `SELECT d.kind, d.ref_id, f.title, f.meta_title, f.file_name, f.artist, f.album, f.tags, f.markers, f.notes, f.cue
      FROM search_docs d JOIN search_fts f ON f.rowid = d.doc_id ORDER BY d.kind, d.ref_id`,
   );
   return result;

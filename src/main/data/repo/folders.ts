@@ -40,8 +40,9 @@ export const ITEM_TABLES: Record<FolderScope, string> = {
 
 const siblings = (scope: FolderScope, parentId: string | null): OrderedList => ({
   table: "folders",
-  scope: "scope = ? AND parent_id IS ?",
-  params: [scope, parentId],
+  // The UNIQUE folders_order index's expression (NULL parent = top level).
+  scope: "scope = ? AND coalesce(parent_id, '') = ?",
+  params: [scope, parentId ?? ""],
 });
 
 /**
@@ -166,7 +167,7 @@ export function deleteFolder(store: Store, id: string): void {
       );
       const itemPositions = positionsFor(
         store,
-        { table, scope: "folder_id IS ?", params: [folder.parentId] },
+        { table, scope: "coalesce(folder_id, '') = ?", params: [folder.parentId ?? ""] },
         "end",
         items.length,
       );

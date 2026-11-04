@@ -134,7 +134,7 @@ describe("design playlists: lanes, dynamic rules and notes (DAT-11)", () => {
 
   it("keeps a dynamic playlist's rule, checked, and refuses tracks added by hand", () => {
     const mood = listTagGroups(t.store)[0];
-    const rule = { conds: [{ group: mood.id, match: "any" as const, values: ["Eerie", "Dread"] }], energy: [0, 3] as [number, number], leaveOutStings: true };
+    const rule = { conds: [{ group: mood.id, match: "any" as const, values: ["Eerie", "Tense"] }], energy: [0, 3] as [number, number], leaveOutStings: true };
     const p = createPlaylist(t.store, { title: "Abbey: eerie", kind: "dynamic", rule });
     expect(getPlaylist(t.store, p.id)).toMatchObject({ kind: "dynamic", rule });
     const changed = { conds: [{ group: mood.id, match: "all" as const, values: ["Wistful", "Warm"] }] };
@@ -154,6 +154,13 @@ describe("design playlists: lanes, dynamic rules and notes (DAT-11)", () => {
       expect(() => updatePlaylist(t.store, p.id, { rule: bad as never }), JSON.stringify(bad)).toThrow(ValidationError);
     }
     expect(() => createPlaylist(t.store, { title: "No rule", kind: "dynamic" })).toThrow(ValidationError);
+    // A rule names tags of its condition's group, in any case; another name is refused.
+    expect(updatePlaylist(t.store, p.id, { rule: { conds: [{ group: mood.id, match: "any", values: ["eerie"] }] } }).rule).toEqual({
+      conds: [{ group: mood.id, match: "any", values: ["Eerie"] }],
+    });
+    expect(() => updatePlaylist(t.store, p.id, { rule: { conds: [{ group: mood.id, match: "any", values: ["Seasick"] }] } })).toThrow(
+      /no tag called "Seasick"/,
+    );
     const manual = createPlaylist(t.store, { title: "Hand-picked" });
     expect(() => updatePlaylist(t.store, manual.id, { rule: changed })).toThrow(/manual/);
   });

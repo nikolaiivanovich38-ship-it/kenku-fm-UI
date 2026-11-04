@@ -2,11 +2,13 @@
  * Instant search (ORG-1) over the FTS5 index kept by the schema's triggers.
  *
  * Every word typed must match the start of a word somewhere in a result
- * ("dark fo" finds "Dark forest"). Tracks are found by title, file name, tag
- * names and synonyms, marker labels, notes and source (composer, album, cue
- * number); playlists and boards by title; campaigns, sessions and scenes by
+ * ("dark fo" finds "Dark forest"). Tracks are found by their three names (the
+ * game master's title, the file-tag title, the file name), artist, album, tag
+ * names and synonyms, marker labels, notes and cue number; playlists and
+ * boards by title (playlists also by notes); campaigns, sessions and scenes by
  * name and notes. Results are ranked with BM25, with a title match counting
- * most.
+ * most. A track's result shows the name it is shown by (its title, else its
+ * file-tag title, else its file name).
  */
 import type { SQLInputValue } from "../sqlite";
 import type { Store } from "../store";
@@ -35,10 +37,10 @@ export type SearchOptions = {
 };
 
 /**
- * Column weights for BM25, in the index's column order:
- * title, file name, tags, markers, notes, source.
+ * Column weights for BM25, in the index's column order (schema/v002-design.ts):
+ * title, file-tag title, file name, artist, album, tags, markers, notes, cue number.
  */
-const WEIGHTS = [10, 4, 6, 3, 1, 2];
+const WEIGHTS = [10, 6, 4, 3, 3, 6, 3, 1, 2];
 
 /**
  * Turns what the user typed into an FTS5 query: each word becomes a quoted
@@ -58,15 +60,20 @@ export function matchQuery(text: string): string | null {
   return terms.length === 0 ? null : terms.join(" ");
 }
 
-export function search(store: Store, text: string, options: SearchOptions = {}): SearchHit[] {
+/**
+ * The search as SQL: the FTS5 index finds the words, search_docs (its primary
+ * key) says what each document is. Null when there is nothing to search for.
+ * Exported for the query-plan tests.
+ */
+export function searchQuery(text: string, options: SearchOptions = {}): { sql: string; params: SQLInputValue[] } | null {
   const query = matchQuery(v.optionalText("text", text, v.MAX_NAME_LENGTH));
-  if (query === null) return [];
+  if (query === null) return null;
   const limit = options.limit === undefined ? 50 : v.integer("limit", options.limit, 1, 1000);
   const where: string[] = ["search_fts MATCH ?"];
   const params: SQLInputValue[] = [query];
   if (options.kinds !== undefined) {
     const kinds = options.kinds.map((kind, index) => v.oneOf(`kinds[${index}]`, kind, SEARCH_KINDS));
-    if (kinds.length === 0) return [];
+    if (kinds.length === 0) return null;
     where.push(`d.kind IN (${kinds.map(() => "?").join(", ")})`);
     params.push(...kinds);
   }
@@ -80,15 +87,20 @@ export function search(store: Store, text: string, options: SearchOptions = {}):
     );
     params.push(v.id("boardId", options.boardId));
   }
-  return store
-    .all<{ kind: SearchKind; id: string; title: string; score: number }>(
-      `SELECT d.kind AS kind, d.ref_id AS id, search_fts.title AS title, bm25(search_fts, ${WEIGHTS.join(", ")}) AS score
+  return {
+    sql: `SELECT d.kind AS kind, d.ref_id AS id, search_fts.title AS title, bm25(search_fts, ${WEIGHTS.join(", ")}) AS score
        FROM search_fts JOIN search_docs d ON d.doc_id = search_fts.rowid
        WHERE ${where.join(" AND ")}
        ORDER BY score, title COLLATE NOCASE
        LIMIT ?`,
-      ...params,
-      limit,
-    )
+    params: [...params, limit],
+  };
+}
+
+export function search(store: Store, text: string, options: SearchOptions = {}): SearchHit[] {
+  const query = searchQuery(text, options);
+  if (query === null) return [];
+  return store
+    .all<{ kind: SearchKind; id: string; title: string; score: number }>(query.sql, ...query.params)
     .map((row) => ({ kind: row.kind, id: row.id, title: row.title, score: row.score }));
 }

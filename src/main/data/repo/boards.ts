@@ -119,19 +119,21 @@ function toPad(row: PadRow, trackIds: string[]): Pad {
   };
 }
 
+/**
+ * Drawing a board: its pads (grid row by row, then spare) and their sounds in
+ * order, through pads_board and pad_sounds' key. Exported for the query-plan tests.
+ */
+export const BOARD_PADS_SQL = {
+  pads: "SELECT * FROM pads WHERE board_id = ? ORDER BY grid_row IS NULL, grid_row, grid_col, spare_position",
+  sounds: `SELECT ps.pad_id, ps.track_id FROM pads p JOIN pad_sounds ps ON ps.pad_id = p.id WHERE p.board_id = ?
+    ORDER BY ps.pad_id, ps.position`,
+} as const;
+
 /** A board's pads: the grid row by row, then the spare pads in their order. */
 function loadPads(store: Store, boardId: string): Pad[] {
-  const rows = store.all<PadRow>(
-    `SELECT * FROM pads WHERE board_id = ?
-     ORDER BY grid_row IS NULL, grid_row, grid_col, spare_position, rowid`,
-    boardId,
-  );
+  const rows = store.all<PadRow>(BOARD_PADS_SQL.pads, boardId);
   const sounds = new Map<string, string[]>();
-  for (const s of store.all<{ pad_id: string; track_id: string }>(
-    `SELECT ps.pad_id, ps.track_id FROM pad_sounds ps JOIN pads p ON p.id = ps.pad_id WHERE p.board_id = ?
-     ORDER BY ps.position, ps.rowid`,
-    boardId,
-  )) {
+  for (const s of store.all<{ pad_id: string; track_id: string }>(BOARD_PADS_SQL.sounds, boardId)) {
     const list = sounds.get(s.pad_id);
     if (list) list.push(s.track_id);
     else sounds.set(s.pad_id, [s.track_id]);
@@ -327,10 +329,12 @@ export function movePad(store: Store, padId: string, to: PadCell | "spare"): Pad
   store.change(`Move pad "${pad.label}"`, () => {
     const spareAt = (store.get<{ p: number | null }>("SELECT spare_position AS p FROM pads WHERE id = ?", pad.id) as { p: number | null }).p;
     if (pad.cell) {
-      // Out of its cell first, so the two never share one.
+      // Out of its cell first (to a temporary spare place), so the two never share a cell.
       store.run("UPDATE pads SET grid_row = NULL, grid_col = NULL, spare_position = -1 WHERE id = ?", pad.id);
       if (other) store.run("UPDATE pads SET grid_row = ?, grid_col = ? WHERE id = ?", pad.cell.row, pad.cell.col, other.id);
     } else if (other) {
+      // The spare pad gives up its place among the spare pads (positions are unique) to the pad it replaces.
+      store.run("UPDATE pads SET spare_position = -1 WHERE id = ?", pad.id);
       store.run("UPDATE pads SET grid_row = NULL, grid_col = NULL, spare_position = ? WHERE id = ?", spareAt, other.id);
     }
     store.run("UPDATE pads SET grid_row = ?, grid_col = ?, spare_position = NULL WHERE id = ?", cell.row, cell.col, pad.id);

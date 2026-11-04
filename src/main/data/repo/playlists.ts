@@ -3,22 +3,30 @@
  * plays into). A manual playlist holds ordered entries pointing at library
  * tracks, with dividers; a track can be in any number of playlists, and
  * deleting a playlist or an entry never deletes a track (DAT-1). A dynamic
- * playlist holds a rule instead and plays every track in its lane that matches
- * (playlistTracks in src/common/domain).
+ * playlist holds a rule instead (rows: ruleRows.ts) and plays every track in
+ * its lane that matches: playlistTracks in src/common/domain, or
+ * listPlaylistTrackIds here, which gives the same answer from the database.
  */
-import { playlistTracks } from "../../../common/domain";
-import { cleanRule, parseJson } from "../designValidate";
+import type { Lane, PlaylistRule } from "../../../common/domain";
+import { cleanRule } from "../designValidate";
 import { ValidationError } from "../errors";
-import { GAP, positionFor, positionsFor, type OrderedList } from "../ordering";
+import { GAP, assignPositions, positionFor, positionsFor, type OrderedList } from "../ordering";
 import type { SQLInputValue } from "../sqlite";
 import type { Store } from "../store";
 import { LANES, PLAYLIST_KINDS, type Placement, type Playlist, type PlaylistItem, type PlaylistKind } from "../types";
 import * as v from "../validate";
 import { newId, patchOf, plural, requireRow } from "./common";
 import { containerRepo } from "./containers";
-import { getDomainLookup, toDomainPlaylist } from "./domain";
-import type { Lane, PlaylistRule } from "../../../common/domain";
+import { dynamicTracksQuery, readRules, resolveRule, ruleColumns, writeConditions, type ResolvedRule } from "./ruleRows";
 
+type PlaylistRow = Record<string, SQLInputValue> & {
+  id: string;
+  rule_energy_min: number | null;
+  rule_energy_max: number | null;
+  rule_leave_out_stings: number;
+};
+
+/** A row as a Playlist; a dynamic playlist's conditions are added by withRules. */
 const toPlaylist = (row: Record<string, SQLInputValue>): Playlist => ({
   id: row.id as string,
   title: row.title as string,
@@ -27,7 +35,7 @@ const toPlaylist = (row: Record<string, SQLInputValue>): Playlist => ({
   position: row.position as number,
   kind: row.kind as PlaylistKind,
   lane: row.lane as Lane,
-  rule: parseJson<PlaylistRule>(row.rule as string | null),
+  rule: row.kind === "dynamic" ? { conds: [] } : null,
   notes: row.notes as string,
   createdAt: row.created_at as number,
   updatedAt: row.updated_at as number,
@@ -43,25 +51,43 @@ const repo = containerRepo({
   toRecord: toPlaylist,
 });
 
-/** A checked rule whose tag groups exist, as stored JSON. */
-function ruleJson(store: Store, value: unknown): string {
-  const rule = cleanRule("rule", value);
-  for (const cond of rule.conds) requireRow(store, "tag_groups", "tag group", cond.group);
-  return JSON.stringify(rule);
+/** Fills in the rules of the dynamic playlists among `playlists` (two queries for all of them). */
+function withRules<T extends Playlist | null>(store: Store, playlists: T[]): T[] {
+  const dynamic = playlists.filter((p): p is NonNullable<T> => p !== null && p.kind === "dynamic");
+  if (dynamic.length === 0) return playlists;
+  const settings = store.all<PlaylistRow>(
+    "SELECT id, rule_energy_min, rule_energy_max, rule_leave_out_stings FROM playlists WHERE id IN (SELECT value FROM json_each(?))",
+    JSON.stringify(dynamic.map((p) => p.id)),
+  );
+  const rules = readRules(store, settings);
+  for (const p of dynamic) p.rule = rules.get(p.id) ?? { conds: [] };
+  return playlists;
 }
+
+/** A checked rule with its tag names resolved to tags. */
+const checkedRule = (store: Store, value: unknown): ResolvedRule => resolveRule(store, cleanRule("rule", value));
 
 export type PlaylistInput = {
   id?: string;
   title: string;
   kind?: PlaylistKind;
   lane?: Lane;
-  /** Required for a dynamic playlist; not allowed for a manual one. */
+  /** Required for a dynamic playlist; not allowed for a manual one. Tags by name, as in src/common/domain. */
   rule?: PlaylistRule;
   notes?: string;
   background?: string;
   folderId?: string | null;
   placement?: Placement;
 };
+
+export function getPlaylist(store: Store, id: string): Playlist | null {
+  return withRules(store, [repo.get(store, id)])[0];
+}
+
+/** Lists in order: every playlist, one folder's, or one campaign's (see containerRepo.list). */
+export function listPlaylists(store: Store, options: { folderId?: string | null; campaignId?: string } = {}): Playlist[] {
+  return withRules(store, repo.list(store, options));
+}
 
 export function createPlaylist(store: Store, input: PlaylistInput): Playlist {
   const record = v.record("playlist", input);
@@ -72,16 +98,20 @@ export function createPlaylist(store: Store, input: PlaylistInput): Playlist {
   if (kind === "manual" && record.rule !== undefined) {
     throw new ValidationError("rule", "A manual playlist has no rule: its tracks are picked by hand.");
   }
-  return repo.create(store, input, {
-    kind,
-    lane: v.oneOf("lane", record.lane ?? "music", LANES),
-    rule: kind === "dynamic" ? ruleJson(store, record.rule) : null,
-    notes: v.optionalText("notes", record.notes),
-  });
+  const rule = kind === "dynamic" ? checkedRule(store, record.rule) : null;
+  const created = repo.create(
+    store,
+    input,
+    {
+      kind,
+      lane: v.oneOf("lane", record.lane ?? "music", LANES),
+      notes: v.optionalText("notes", record.notes),
+      ...ruleColumns(rule),
+    },
+    { after: (id) => rule && writeConditions(store, id, rule) },
+  );
+  return getPlaylist(store, created.id) as Playlist;
 }
-
-export const getPlaylist = repo.get;
-export const listPlaylists = repo.list;
 
 /** Changes the title, background, lane, notes, or (dynamic playlists) the rule. */
 export function updatePlaylist(
@@ -94,16 +124,34 @@ export function updatePlaylist(
   const columns = repo.titleColumns(patch);
   if (patch.lane !== undefined) columns.lane = v.oneOf("lane", patch.lane, LANES);
   if (patch.notes !== undefined) columns.notes = v.optionalText("notes", patch.notes);
+  let rule: ResolvedRule | null = null;
   if (patch.rule !== undefined) {
     if (playlist.kind !== "dynamic") throw new ValidationError("rule", "A manual playlist has no rule: its tracks are picked by hand.");
-    columns.rule = ruleJson(store, patch.rule);
+    rule = checkedRule(store, patch.rule);
+    Object.assign(columns, ruleColumns(rule));
   }
-  return repo.applyUpdate(store, playlist.id, columns);
+  repo.applyUpdate(store, playlist.id, columns, "Edit playlist", () => rule && writeConditions(store, playlist.id, rule));
+  return getPlaylist(store, playlist.id) as Playlist;
 }
 
 export const movePlaylist = repo.move;
-/** Deletes the playlist and its entries; its tracks stay in the library. */
+/** Deletes the playlist with its entries or rule; its tracks stay in the library. */
 export const deletePlaylist = repo.remove;
+
+/**
+ * The tracks a playlist plays, in order: a manual playlist's entries (missing
+ * tracks cannot occur: entries go with their track), or what a dynamic
+ * playlist's rule matches now, in library order. Same answer as playlistTracks
+ * in src/common/domain, worked out in the database.
+ */
+export function listPlaylistTrackIds(store: Store, playlistId: string): string[] {
+  const id = repo.requireContainer(store, playlistId);
+  const query = dynamicTracksQuery(store, id);
+  if (query) return store.all<{ id: string }>(query.sql, ...query.params).map((row) => row.id);
+  return store
+    .all<{ track_id: string }>("SELECT track_id FROM playlist_items WHERE playlist_id = ? AND kind = 'track' ORDER BY position", id)
+    .map((row) => row.track_id);
+}
 
 /**
  * Copies a playlist next to the original (prototype: "Make a copy", "Save as a
@@ -111,12 +159,13 @@ export const deletePlaylist = repo.remove;
  * matches now, in their order; a manual one cannot become dynamic (it has no rule).
  */
 export function copyPlaylist(store: Store, id: string, options: { title?: string; kind?: PlaylistKind } = {}): Playlist {
-  const source = repo.get(store, repo.requireContainer(store, id)) as Playlist;
+  const source = getPlaylist(store, repo.requireContainer(store, id)) as Playlist;
   const kind = v.oneOf("kind", options.kind ?? source.kind, PLAYLIST_KINDS);
   const title = options.title === undefined ? `${source.title} (copy)` : options.title;
   if (kind === "dynamic" && source.kind === "manual") {
     throw new ValidationError("kind", "A manual playlist has no rule to copy; make a new dynamic playlist instead.");
   }
+  const rule = kind === "dynamic" ? resolveRule(store, source.rule as PlaylistRule) : null;
   const entries: { trackId: string | null; label: string }[] =
     kind === "dynamic"
       ? []
@@ -124,22 +173,15 @@ export function copyPlaylist(store: Store, id: string, options: { title?: string
         ? listPlaylistItems(store, source.id).map((item) =>
             item.kind === "track" ? { trackId: item.trackId, label: "" } : { trackId: null, label: item.label },
           )
-        : (() => {
-            const lookup = getDomainLookup(store);
-            return playlistTracks(toDomainPlaylist(source, []), lookup).map((t) => ({ trackId: t.id, label: "" }));
-          })();
-  return repo.create(
+        : listPlaylistTrackIds(store, source.id).map((trackId) => ({ trackId, label: "" }));
+  const copy = repo.create(
     store,
     { title, background: source.background },
-    {
-      kind,
-      lane: source.lane,
-      rule: kind === "dynamic" ? JSON.stringify(source.rule) : null,
-      notes: source.notes,
-    },
+    { kind, lane: source.lane, notes: source.notes, ...ruleColumns(rule) },
     {
       placeAfter: source.id,
-      after: (copyId) =>
+      after: (copyId) => {
+        if (rule) writeConditions(store, copyId, rule);
         entries.forEach((entry, index) =>
           store.run(
             "INSERT INTO playlist_items (id, playlist_id, kind, track_id, label, position) VALUES (?, ?, ?, ?, ?, ?)",
@@ -150,9 +192,11 @@ export function copyPlaylist(store: Store, id: string, options: { title?: string
             entry.label,
             (index + 1) * GAP,
           ),
-        ),
+        );
+      },
     },
   );
+  return getPlaylist(store, copy.id) as Playlist;
 }
 
 // --- Entries of manual playlists ---
@@ -170,6 +214,9 @@ type ItemRow = {
 
 const ITEM_SELECT = `SELECT i.*, coalesce(nullif(t.title, ''), nullif(t.meta_title, ''), t.file_name) AS title
   FROM playlist_items i LEFT JOIN tracks t ON t.id = i.track_id`;
+
+/** A manual playlist's entries in order, with track titles (playlist_items_order). Exported for the query-plan tests. */
+export const PLAYLIST_ITEMS_SQL = `${ITEM_SELECT} WHERE i.playlist_id = ? ORDER BY i.position`;
 
 function toItem(row: ItemRow): PlaylistItem {
   const base = { id: row.id, playlistId: row.playlist_id, position: row.position };
@@ -196,7 +243,7 @@ function requireItem(store: Store, itemId: unknown): ItemRow {
 
 export function listPlaylistItems(store: Store, playlistId: string): PlaylistItem[] {
   repo.requireContainer(store, playlistId);
-  return store.all<ItemRow>(`${ITEM_SELECT} WHERE i.playlist_id = ? ORDER BY i.position, i.rowid`, playlistId).map(toItem);
+  return store.all<ItemRow>(PLAYLIST_ITEMS_SQL, playlistId).map(toItem);
 }
 
 /** Adds library tracks to a manual playlist as one step, in the order given. */
@@ -260,7 +307,7 @@ export function movePlaylistItems(store: Store, itemIds: string[], placement: Pl
   const moving = items.map((item) => item.id);
   store.change(`Move ${plural(items.length, "entry", "entries")}`, () => {
     const positions = positionsFor(store, itemsOf(parentId), placement, items.length, moving);
-    items.forEach((item, index) => store.run("UPDATE playlist_items SET position = ? WHERE id = ?", positions[index], item.id));
+    assignPositions(store, itemsOf(parentId), moving, positions);
     repo.touch(store, parentId);
   });
 }

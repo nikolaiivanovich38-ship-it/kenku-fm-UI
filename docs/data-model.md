@@ -1,21 +1,27 @@
 # Data model
 
-The library database added in WP3 (backlog DAT-6, DAT-1, DAT-2, DAT-10, ORG-4, ORG-7, ORG-1, EDT-2). It lives in the main process, in `src/main/data/`. It is not connected to the player yet: the current player keeps its own storage until your existing library is moved across (DAT-9) and the new interface (WP5) uses the database.
+The library database (backlog DAT-6, DAT-1, DAT-2, DAT-10, DAT-11, ORG-4, ORG-7, ORG-1, EDT-2). It lives in the main process, in `src/main/data/`. Schema version 1 was built in WP3; version 2 (`schema/v002-design.ts`, DAT-11) brings it to the agreed design (Lyre design round 4, `design/prototype`) and normalises it for this app's read paths. Nothing uses it yet: the current player keeps its own storage until your existing library is moved across (DAT-9) and the new interface (wave 3) uses the database.
 
 ## In plain language
 
 ### What is stored
 
-- **Your library of tracks.** Every audio file appears once, as a track, whether or not it is in a playlist. A track keeps the label you give it and, if you fill them in, its scoring details: energy (1 to 5), how it develops (builds, steady, swells, resolves), what it is for (sting, loop bed, underscore, transition), whether it can loop, how it ends, its usual way in and out, what should follow it, notes, composer, album and cue number, your rating and when it was last played.
-- **Markers** inside a track: a time, a kind (plain marker, loop in, loop out, mix out) and a label such as "swell".
-- **Tags in groups.** Mood, Leitmotif, Scene type, Location and Faction are there from the start, with Melancholy, Heroic, Tense, Wistful, Warm, Triumphant and Eerie under Mood. You can rename, reorder, merge or delete any of them. A tag can sit under another (Leitmotif › Villain › Strahd) and can have other names ("sad" finds Melancholy).
-- **Playlists and soundboards.** They point at tracks in the library. One track can be in many playlists and on many boards; edit its label once and it changes everywhere. Each sound on a board keeps its own loop, volume and fade settings. Both can hold dividers with a heading.
-- **Folders** for playlists, soundboards and sessions, inside each other as deep as you like, with a colour and an open/closed state.
-- **Campaigns, sessions and scenes.** A campaign holds sessions, a session holds scenes. Playlists and boards can belong to several campaigns at once; the library and the tags are shared by all campaigns. A scene can list the playlists, boards and tracks prepared for it.
+- **Your library of tracks.** Every audio file appears once, as a track, whether or not it is in a playlist. A track is music, ambience or a sound effect, and has up to three names: the title you give it (it may be empty at first), the title in the file's tags, and the file name; Lyre shows the first one it has. It keeps your scoring details if you fill them in: energy (1 to 5), what it is for (loop bed, underscore, sting, transition, effect), whether it loops (yes, with a crossfade, no), how it develops and ends, notes, artist, album, rating and when it was last played.
+- **How a track sounds (its audio profile).** Where it starts and ends, what happens at the end (loop, next, stop), where a loop starts and how long its crossfade is, fades in and out with their shape, and named points. A track can also sound different inside one playlist or in one scene; that version is used there only.
+- **Markers** inside a track: a time, a kind (plain marker, loop in, loop out, mix out) and a label such as "swell". You can search for them.
+- **Tags in groups.** A new library starts with Mood (with Melancholy, Heroic, Tense, Wistful, Warm, Triumphant and Eerie), Leitmotif and Scene type. You can add, rename, reorder, merge or delete any of them. A tag can sit under another (Leitmotif › Villain › Strahd) and can have other names ("sad" finds Melancholy).
+- **Playlists.** Each plays into one lane: Music, Ambience or FX. A manual playlist lists tracks you picked, in your order, with optional headings. A dynamic playlist has a rule instead (for example "Mood any of Eerie, Dread; energy 0 to 3; no stings") and always plays every track in its lane that matches. Renaming a tag changes it in every rule; deleting a tag takes it out of every rule.
+- **Pad boards.** A grid of 1 to 8 columns and rows. Each pad has a label, an icon, a colour, a key, a way of playing (once, toggle, hold, restart) and a sound: one file, several variants (at random or in turn), or any effect with a tag. Making the grid smaller moves the pads that no longer fit to "Spare pads"; nothing is deleted, and undo puts them back.
+- **Campaigns, sessions and scenes.** A campaign has a look (theme), a game system, a description and (for later) its Obsidian notes, and the playlists and boards you use all campaign long. A session has a number, a name, a date, a status (played, next, draft; only one "next" per campaign) and its own playlists and boards. A scene has a name, a "starts when" line, notes, a music list (tracks and playlists in any mix, in playing order), one ambience track or playlist, and its pad boards.
+- **Folders** for playlists, boards and sessions, inside each other as deep as you like.
 
-The audio files themselves are not copied: they stay where they are, and each track remembers where its file is. You can name a library folder (for example "Soundtracks" = `H:\Audio\Soundtracks`). Tracks inside it are then remembered relative to that folder, so if you move it to another drive, one change to the folder fixes every track in it. Each track also remembers the file's size, date and (when known) a fingerprint, so missing files can be found again later (DAT-8).
+The audio files themselves are not copied: they stay where they are, and each track remembers where its file is. You can name a library folder (for example "Soundtracks" = `H:\Audio\Soundtracks`); tracks inside it are remembered relative to it, so moving it to another drive needs one change.
 
-Deleting a playlist or a board never deletes tracks. Deleting a track takes it out of every playlist, board and scene; the interface will show where it is used and ask first.
+Deleting a playlist or a board never deletes tracks. Deleting a track, playlist or board takes it out of every playlist, pad, scene, session and campaign that uses it; the interface shows where it is used and asks first, and undo puts everything back.
+
+### How the library is built, in short
+
+Every fact is kept in one place: a track's name is stored once, so changing it changes it everywhere. Lists you put in order (a scene's music, a playlist, a campaign's boards) are stored as rows with their place in the list. The database itself refuses values that make no sense (an energy of 7, an unknown lane, two "next" sessions in a campaign, a fade shape over 100, an end before the start), so a mistake anywhere in Lyre cannot damage your library. It keeps indexes, like the index of a book, for each thing Lyre looks up often, and tests check that every frequent question uses one.
 
 ### Where it is
 
@@ -27,27 +33,27 @@ Deleting a playlist or a board never deletes tracks. Deleting a track takes it o
 
 ### Backups
 
-- **Daily:** the first time Lyre runs on a day, it makes a copy two minutes after it starts (so start-up is not slowed down), and while it stays open it checks every hour whether a new day has started. The newest 14 daily copies are kept.
-- **Back up now:** a button in the new interface makes a copy at once. The newest 14 of these are kept, separately from the daily ones.
+- **Daily:** the first time Lyre runs on a day, it makes a copy two minutes after it starts, and while it stays open it checks every hour whether a new day has started. The newest 14 daily copies are kept.
+- **Back up now:** a button in the new interface makes a copy at once. The newest 14 of these are kept, separately.
 - **Before an upgrade:** when a new version of Lyre changes the library format, it copies the library first.
 
-Every copy is checked before it counts, so a half-written copy is never kept as a backup. Names show the kind and the time, for example `library-daily-2026-11-04T12-00-00-000.sqlite`. Other files you put in the backups folder are left alone.
+Every copy is checked before it counts. Names show the kind and the time, for example `library-daily-2026-11-04T12-00-00-000.sqlite`.
 
 ### If the library file is damaged
 
-Each time Lyre opens the library it runs SQLite's quick check, which reads every page of the file and finds most kinds of damage. It does not check that the indexes (used to find things fast) match the data, so a damaged index can go unnoticed until something fails. The check runs alongside start-up, so it does not slow the app down. If the file is damaged, Lyre says so in plain words and offers to put back the newest backup that passes the same check; the backups are checked alongside start-up too. The damaged file is kept, renamed `library-damaged-<time>.sqlite`, in case it is needed. The backup is copied in full before the damaged file is moved aside, so if the copy fails (a full disk, for example), your library stays where it was.
+Each time Lyre opens the library it runs SQLite's quick check alongside start-up. If the file is damaged, Lyre says so in plain words and offers to put back the newest backup that passes the same check. The damaged file is kept, renamed `library-damaged-<time>.sqlite`.
 
 ### Undo
 
-Every change to the library, tags, folders and campaigns can be undone and redone, including deletes and changes that touch many tracks at once (for example merging two tags). The last 100 steps are kept while Lyre is open; the history starts empty each time it starts. Marking a track as "last played" is not an undo step.
+Every change to the library, tags, playlists, boards, folders and campaigns can be undone and redone, including deletes and changes that touch many rows (resizing a board, merging two tags). The last 100 steps are kept while Lyre is open.
 
 ### Upgrades
 
-A newer version of Lyre may add to the library format (cue lists and pads come this way, once their design is chosen). The upgrade happens by itself when the new version starts, after the backup above. If an upgrade fails, the library stays exactly as it was. A library saved by a newer Lyre is not opened by an older one, so it cannot be damaged by it.
+A newer version of Lyre may change the library format. The upgrade happens by itself when it starts, after the backup above. If it fails, the library stays exactly as it was. A library from version 1 (wave 1) comes through version 2 without losing anything: its soundboard sounds become pads (a sound that looped becomes a toggle pad), and its scene material is split into the music list and the boards. The only thing with no place in the new design is the label of a divider on a soundboard; a divider starts a new row of pads instead.
 
 ### How fast it is
 
-Measured with 20,000 tracks and 500 playlists of about 80 tracks each (a 43 MB library) on the 2-core build machine: opening takes about 12 ms, a search 0.03 to 15 ms, a single edit under 0.3 ms, an edit plus its undo about 1 ms, the full integrity check about 310 ms (alongside start-up) and a backup about 0.5 s.
+Measured with 20,000 tracks, 500 playlists and 3 campaigns of 50 sessions with 8 scenes each (a 47 MB library) on the 2-core build machine: opening about 8 ms; a search 0.03 to 14 ms; loading a whole campaign about 5 ms (all three about 11 ms); working out a dynamic playlist up to 7 ms; finding where something is used under 1 ms; a single edit under 0.4 ms; an edit plus its undo about 1.3 ms; a backup about 0.4 s.
 
 ## Technical reference
 
@@ -56,140 +62,220 @@ Measured with 20,000 tracks and 500 playlists of about 80 tracks each (a 43 MB l
 | File | Purpose |
 | --- | --- |
 | `sqlite.ts` | Loads `node:sqlite` (decision D3) without its experimental warning; `openConnection()` turns on foreign keys, recursive triggers and, for files, WAL with `synchronous = NORMAL`. |
-| `schema/migrate.ts`, `schema/index.ts`, `schema/v001-initial.ts` | Numbered schema versions, the upgrade runner and `rebuildTable()`. |
+| `schema/migrate.ts`, `schema/index.ts`, `schema/v001-initial.ts`, `schema/v002-design.ts` | Numbered schema versions, the upgrade runner (`MigrationContext.startVersion` tells a step whether the library is new) and `rebuildTable()`. |
 | `store.ts` | `Store`: cached prepared statements, injected clock, `change(label, fn)` (one transaction, one undo step) and `changeWithoutHistory(fn)`. |
-| `ordering.ts` | Gap ordering (`positionFor`, `positionsFor`). |
-| `paths.ts` | Paths relative to library roots, for Windows and POSIX paths. |
-| `validate.ts`, `errors.ts`, `types.ts` | Input checks, error classes, shared types. |
-| `repo/*.ts` | Repository functions: `roots`, `tracks`, `markers`, `folders`, `playlists`, `boards` (both built on `containers`), `tags`, `campaigns`, `search`. |
+| `ordering.ts` | Gap ordering (`positionFor`, `positionsFor`, `assignPositions`). |
+| `validate.ts`, `designValidate.ts`, `errors.ts`, `types.ts` | Input checks (`designValidate` for audio profiles and rules, mirroring the tables' CHECKs), error classes, data-layer types. |
+| `repo/*.ts` | Repository functions: `roots`, `tracks`, `markers`, `folders`, `playlists` and `boards` (both on `containers`), `tags`, `campaigns`, `profiles`, `search`; `domain` maps rows to the shared shapes of `src/common/domain`. `profileRows` and `ruleRows` store profiles and rules as rows (used inside other modules' changes). |
 | `undo.ts` | `UndoHistory`. |
-| `integrity.ts`, `backups.ts`, `library.ts` | Integrity check, backups, `openLibrary()`, `restoreBackup()`, `startDailyBackups()`. |
-| `index.ts` | Public exports for WP5. |
+| `integrity.ts`, `backups.ts`, `library.ts` | Integrity check, backups, `openLibrary()`, `restoreBackup()`, `startDailyBackups()`. `close()` runs `PRAGMA optimize` so the planner's statistics stay current. |
+| `index.ts` | Public exports. |
 
-Nothing in the module imports Electron. The main process will call `openLibrary({ folder: libraryFolder(app.getPath("userData")) })`.
+### Design rules
 
-### Opening
+1. **Third normal form by default.** One fact in one place; no lists inside a column. Ordered relations are join tables with a `position` that is UNIQUE within its list. A reference that may be one of two things (a scene's music item is a track or a playlist) is two nullable foreign keys with a CHECK that exactly one is set, so foreign keys and ON DELETE rules apply.
+2. **JSON only for self-contained values the database never queries.** The one use left: a track's default transition in and out (`tracks.transition_in/out`, a small `Transition` object read whole by the engine, checked with `json_valid`). Rules, profiles and pad sounds are rows.
+3. **Integrity in the schema.** Foreign keys with explicit ON DELETE; CHECK constraints for every list of choices and every range; UNIQUE natural keys and positions; a partial unique index for "one next session per campaign"; triggers only for rules that span two tables. The repository checks the same rules first, to report them in plain words.
+4. **An index per read path**, named in the schema next to the path it serves and checked by `queryPlan.test.ts`.
+5. **Denormalise only with a measured reason**, kept correct by triggers and covered by tests (see "Deliberate exceptions").
 
-`openLibrary()`:
+Version 1 checked choices only in the repository, so that a choice could be added without rebuilding a table. Version 2 rebuilds those tables with CHECKs; a later choice is added the same way (`rebuildTable`, which keeps every row). That costs a short migration step per new choice, which the integrity is worth.
 
-1. Creates the folder; opens `library.sqlite`. A file that is not a database fails here with `LibraryDatabaseError` code `corrupt`.
-2. Existing file: reads the schema version. If an upgrade is pending, or `integrityCheck: "blocking"` was asked for, runs `PRAGMA quick_check` now and backs up before upgrading.
-3. Runs pending upgrades (`migrate`).
-4. Creates the `Store` and the `UndoHistory` (temporary triggers).
-5. Otherwise starts `quick_check` on a worker thread (an eval worker with its own read-only connection, so no extra webpack entry). If the library is damaged, the same worker then checks the backups, newest first, until one passes. `checkIntegrity()` resolves to `{ status: "ok" }`, `{ status: "corrupt", error }` or `{ status: "not-checked" }` (closed first); it never rejects.
-
-`quick_check` reads every page and checks the structure of each table and index, but unlike `integrity_check` it does not verify that index entries match their table rows; it is used because it is several times faster.
-
-`error.latestBackup` is the newest backup that passes `quick_check`, found on the worker thread for the background check, or on the calling thread with `integrityCheck: "blocking"`. Checking a backup reads the whole file, so in the default mode damage found while opening (steps 1 and 2) is thrown with `latestBackup: null`; the caller then asks `await findLatestGoodBackup(library backups folder)`, which checks on a worker thread.
-
-`restoreBackup({ folder, backupPath })` accepts only a file from the library's own backups folder. It copies the backup next to the library as `library.sqlite.part` and syncs it to disk, then renames the damaged file (and its `-wal`/`-shm`) to `library-damaged-<time>.sqlite`, then renames the `.part` file into place. If the copy fails, nothing has been moved and the `.part` file is removed. The library must be closed first.
-
-### Daily backups when wired up (WP5)
-
-`startDailyBackups(library, { onError })` makes the first daily backup `FIRST_DAILY_BACKUP_DELAY_MS` (two minutes) after it is called, then checks every hour. Each backup (`VACUUM INTO`) runs on the main process and holds it for about 0.5 s on a 43 MB library, once a day. Call it after the main window has been shown, never during start-up; log `onError` failures; call the function it returns before `library.close()` when the app quits. Moving the backup itself to a worker thread (its own read-only connection can run `VACUUM INTO`) is a later option if the half-second is noticed.
-
-### Tables
-
-Conventions: text ids (UUIDs; ids from the current Redux data can be kept); times in milliseconds since 1970 UTC; durations and marker times in milliseconds; `position` is a REAL order key. Lists of choices (arc, role, folder scope, item kind …) are checked in the repository, not by CHECK constraints, so a later version can add a choice without rebuilding a table. Fixed ranges (energy and rating 1–5, volume 0–1, times ≥ 0) are also CHECK constraints.
-
-| Table | Holds | Notes |
-| --- | --- | --- |
-| `schema_migrations` | Applied versions | Also mirrored in `PRAGMA user_version`. |
-| `library_roots` | Named library folders | Name unique, case-insensitive. |
-| `tracks` | One row per audio file | `root_id` + `path` relative to the root (with `/`), or absolute `path`, or `url`. `file_name`, `file_size`, `file_mtime_ms`, `checksum` for relinking. DAT-2 fields; `transition_in`/`transition_out` are JSON (`Transition` in `types.ts`). |
-| `track_follow_with` | Ordered "follow with" links | WITHOUT ROWID. |
-| `markers` | Time, kind, label per track | |
-| `folders` | Nested folders | `scope`: playlists, boards or sessions. |
-| `playlists`, `playlist_items` | Manual playlists and their entries | Entry `kind` track or divider. |
-| `boards`, `board_items` | Soundboards and their entries | Entry `kind` sound or divider; `loop`, `volume`, `fade_in_ms`, `fade_out_ms` per entry. |
-| `tag_groups`, `tags`, `tag_synonyms`, `track_tags` | Tag vocabulary and tagging | Tag names unique per group; synonyms case-insensitive. |
-| `campaigns`, `sessions`, `scenes` | ORG-7 hierarchy | Sessions may sit in a folder. |
-| `campaign_playlists`, `campaign_boards` | Membership in several campaigns | WITHOUT ROWID. |
-| `scene_items` | Playlists, boards or tracks prepared for a scene | Exactly one of the three ids. |
-| `search_docs`, `search_fts` | Search index | Written only by triggers. |
+### Entity-relationship diagram
 
 ```mermaid
 erDiagram
-  library_roots ||--o{ tracks : "holds files of"
+  library_roots ||--o{ tracks : "files under"
   tracks ||--o{ markers : has
   tracks ||--o{ track_follow_with : "followed by"
   tracks ||--o{ track_tags : tagged
   tag_groups ||--o{ tags : contains
   tags ||--o{ tags : "parent of"
   tags ||--o{ tag_synonyms : "also called"
-  tags ||--o{ track_tags : "used in"
+  tags ||--o{ track_tags : on
+  tracks ||--o{ audio_profiles : "sounds like"
+  audio_profiles ||--o{ audio_profile_markers : "named points"
+  playlists |o--o{ audio_profiles : "override in"
+  scenes |o--o{ audio_profiles : "override in"
   folders ||--o{ folders : contains
-  folders ||--o{ playlists : contains
-  folders ||--o{ boards : contains
-  folders ||--o{ sessions : groups
-  playlists ||--o{ playlist_items : "ordered entries"
-  tracks ||--o{ playlist_items : "appears in"
-  boards ||--o{ board_items : "ordered entries"
-  tracks ||--o{ board_items : "appears on"
+  folders |o--o{ playlists : contains
+  folders |o--o{ boards : contains
+  folders |o--o{ sessions : groups
+  playlists ||--o{ playlist_items : "manual entries"
+  tracks |o--o{ playlist_items : in
+  playlists ||--o{ rule_conditions : "dynamic rule"
+  tag_groups ||--o{ rule_conditions : "looked at by"
+  rule_conditions ||--o{ rule_condition_tags : names
+  tags ||--o{ rule_condition_tags : "named in"
+  boards ||--o{ pads : "grid and spare"
+  pads ||--o{ pad_sounds : plays
+  tracks ||--o{ pad_sounds : "played by"
+  tags |o--o{ pads : "played by tag"
   campaigns ||--o{ sessions : contains
   sessions ||--o{ scenes : contains
-  campaigns ||--o{ campaign_playlists : includes
-  playlists ||--o{ campaign_playlists : "belongs to"
-  campaigns ||--o{ campaign_boards : includes
-  boards ||--o{ campaign_boards : "belongs to"
-  scenes ||--o{ scene_items : prepares
-  playlists ||--o{ scene_items : "used in"
-  boards ||--o{ scene_items : "used in"
-  tracks ||--o{ scene_items : "used in"
+  campaigns ||--o{ campaign_playlists : uses
+  playlists ||--o{ campaign_playlists : "used by"
+  campaigns ||--o{ campaign_boards : uses
+  boards ||--o{ campaign_boards : "used by"
+  sessions ||--o{ session_playlists : uses
+  playlists ||--o{ session_playlists : "used by"
+  sessions ||--o{ session_boards : uses
+  boards ||--o{ session_boards : "used by"
+  scenes ||--o{ scene_music : "plays in order"
+  tracks |o--o{ scene_music : item
+  playlists |o--o{ scene_music : item
+  scenes ||--o| scene_ambience : ambience
+  tracks |o--o{ scene_ambience : item
+  playlists |o--o{ scene_ambience : item
+  scenes ||--o{ scene_boards : "boards in order"
+  boards ||--o{ scene_boards : "used by"
 ```
 
-Deletes: removing a playlist, board, scene or campaign removes its entries and memberships, never tracks (ON DELETE CASCADE on the entry tables only). Removing a track removes its entries, tags, markers, links and scene items. A library root in use cannot be deleted by SQL (RESTRICT); `removeRoot()` first turns its tracks' paths into absolute paths. `deleteFolder()` moves subfolders and items up one level; ON DELETE SET NULL is only a safety net.
+`schema_migrations`, `search_docs` and `search_fts` are bookkeeping and derived data, not shown.
+
+### Tables
+
+Conventions: text ids (UUIDs; ids from older data can be kept); times in milliseconds since 1970 UTC; durations and points in a track in milliseconds; `position` is a REAL gap order key, UNIQUE within its list. Every table has a primary key (undo depends on it). "NF" is the highest normal form the table meets.
+
+| Table | Purpose | Key; other unique keys | Constraints | NF |
+| --- | --- | --- | --- | --- |
+| `library_roots` | Named library folders | `id`; `name` (any case) | | BCNF |
+| `tracks` | One row per audio file | `id` | `kind` music/amb/fx; `role` loop_bed/underscore/sting/transition/effect; `loopable` yes/crossfade/no; `arc`, `ending` lists; energy and rating 1–5; sizes and durations ≥ 0; exactly one of `path`/`url`; `root_id` only with `path`; transitions `json_valid`; `root_id` RESTRICT | 3NF (exception 3) |
+| `markers` | Named, typed points in a track (DAT-3), searchable | `id` | `kind` marker/loop_in/loop_out/mix_out; time ≥ 0; track CASCADE | BCNF |
+| `track_follow_with` | "Follow with" suggestions, in order | (`track_id`, `follow_track_id`); (`track_id`, `position`) | not itself; both CASCADE | BCNF |
+| `folders` | Nested folders | `id`; (`scope`, parent, `position`) | `scope` playlists/boards/sessions; colour `#rrggbb`; parent SET NULL (the repository moves contents up first) | BCNF |
+| `playlists` | Playlists; a dynamic one's rule settings | `id`; (folder, `position`) | `kind` manual/dynamic; `lane` music/amb/fx; energy range 0–5, both or neither, min ≤ max; rule settings only on a dynamic playlist; `kind` never changes (trigger) | 3NF |
+| `playlist_items` | A manual playlist's entries | `id`; (`playlist_id`, `position`) | `kind` track/divider; a track entry has a track and a divider none; CASCADE; manual playlists only (trigger) | BCNF |
+| `rule_conditions` | A dynamic playlist's conditions, in order | `id`; (`playlist_id`, `position`); (`id`, `group_id`) as a key target | `match` any/all/none; playlist and group CASCADE; dynamic playlists only (trigger) | BCNF |
+| `rule_condition_tags` | The tags a condition names, in order | (`condition_id`, `tag_id`); (`condition_id`, `position`) | (`condition_id`, `group_id`) → `rule_conditions` and (`group_id`, `tag_id`) → `tags`, both CASCADE: a value is always a tag of the condition's group | 1NF by design (exception 2) |
+| `boards` | Pad boards | `id`; (folder, `position`) | `grid_cols`, `grid_rows` 1–8 | BCNF |
+| `pads` | Pads: in one cell or spare | `id`; (`board_id`, `grid_row`, `grid_col`) on the grid; (`board_id`, `spare_position`) when spare | cell 0–7; on the grid or spare, never both or neither; `color`, `mode`, `sound_kind`, `sound_order` lists; `icon` a short name; `hotkey` one lower-case key; volume 0–1; fades ≥ 0; board CASCADE; tag SET NULL (the pad stays) | 3NF |
+| `pad_sounds` | The tracks a pad plays, in order | (`pad_id`, `track_id`); (`pad_id`, `position`) | both CASCADE | BCNF |
+| `tag_groups`, `tags`, `tag_synonyms`, `track_tags` | Tag vocabulary and tagging (DAT-10) | group `name`; tag (`group_id`, `name`); positions; (`group_id`, `id`) as a key target | parent SET NULL; CASCADE from group and tag | BCNF |
+| `campaigns` | Campaigns | `id`; `position` | `theme` fern/hearth/candle/parchment/elysium (default candle); colour `#rrggbb` | BCNF |
+| `sessions` | Sessions | `id`; (`campaign_id`, `position`); (`campaign_id`, `number`); one `status = 'next'` per campaign (partial unique index) | `status` played/next/draft; `number` ≥ 0; date `YYYY-MM-DD`; campaign CASCADE | BCNF |
+| `scenes` | Scenes | `id`; (`session_id`, `position`) | session CASCADE | BCNF |
+| `campaign_playlists`, `campaign_boards`, `session_playlists`, `session_boards` | What a campaign or session uses, in order | (owner, item); (owner, `position`) | both CASCADE | BCNF |
+| `scene_music` | A scene's music in playing order; an item may come twice | `id`; (`scene_id`, `position`) | exactly one of `track_id`/`playlist_id`; all CASCADE | BCNF |
+| `scene_ambience` | A scene's one ambience item (no row: none) | `scene_id` | exactly one of `track_id`/`playlist_id`; all CASCADE | BCNF |
+| `scene_boards` | A scene's boards in order | (`scene_id`, `board_id`); (`scene_id`, `position`) | both CASCADE | BCNF |
+| `audio_profiles` | A track's own profile (no place) or its override in one playlist or one scene; a NULL setting means the default | `id`; partial unique: `track_id` (own), (`playlist_id`, `track_id`), (`scene_id`, `track_id`) | at most one place; `after_end` loop/next/stop; times ≥ 0; fade length and shape both or neither, shape 0–100; start < end; start ≤ loop start < end; all CASCADE | BCNF |
+| `audio_profile_markers` | A profile's named points, in order | (`profile_id`, `position`) | time ≥ 0; CASCADE | BCNF |
+| `search_docs`, `search_fts` | Search index (derived) | `doc_id`; (`kind`, `ref_id`) | written only by triggers | derived copy (exception 1) |
+| `schema_migrations` | Applied versions | `version` | | |
+
+#### Notes on choices
+
+- **Polymorphic references.** `scene_music`, `scene_ambience` and `audio_profiles` (its place) use two nullable foreign keys and a CHECK instead of a "kind + id" pair, so deleting a track or playlist removes those rows by ON DELETE CASCADE and no reference can dangle.
+- **Pads in cells or spare.** One table with mutually exclusive columns (enforced by CHECK) keeps a pad's settings in one row wherever it is; moving a pad changes only where it is. Cells are (row, column) rather than one slot number, so resizing a board keeps every pad at its row and column without renumbering.
+- **Profiles: NULL means "default".** `resolveProfile` (src/common/domain) fills missing settings from the track; storing NULL keeps "not set" apart from "set to 0". A profile with every setting NULL is a valid override (the track's settings here, with markers of its own, or simply marked "own settings").
+- **Profile markers and track markers** are different facts: a track's markers (DAT-3) are typed and searchable; a profile's markers belong to that profile and may differ per place.
+- **ON DELETE policy.** CASCADE for rows owned by their parent (a playlist's entries, a scene's items) and for link rows (memberships, uses): the interface shows `listUses`/`trackUsage` and asks before deleting, then the database removes the links in the same undo step, so undo restores them. RESTRICT where deleting would lose what the game master did not see (`library_roots`: `removeRoot()` first turns its tracks' paths into absolute paths). SET NULL where the child stays meaningful (a pad whose tag is deleted; folder parents as a safety net).
+- **Unique positions and moves.** Two rows of a list never share a position, even for a moment: renumbering and multi-row moves go through temporary positions (`assignPositions`), and the pad swap through a temporary spare place. Undo replays the same steps backwards, so it never meets a clash either.
+- **Session numbers** are a natural key per campaign; moving a session to a campaign where its number is taken gives it the next free number.
+
+### Deliberate exceptions
+
+1. **`search_fts` / `search_docs` (denormalised copy).** FTS5 needs its own copy of the searchable text. Kept correct by triggers on every source table (tracks, tags, synonyms, tagging, markers, playlists, boards, campaigns, sessions, scenes), rebuilt in full by the v002 step, and covered by `repo/search.test.ts`, `undo.test.ts` (the index is part of every snapshot) and `schema/v002.test.ts`. Measured reason: a search over 20,000 tracks takes 0.03–14 ms, where matching word starts across the tables would read every track. The `title` column holds the name a track is shown by (title, else file-tag title, else file name), so results need no lookup.
+2. **`rule_condition_tags.group_id`** repeats its condition's group (it depends on `condition_id`, part of the key, so the table is not in 2NF). Kept so that two composite foreign keys make "a rule's value is a tag of the condition's group" a guarantee of the schema rather than of the code. It cannot drift: the first key ties it to the condition's group, and a tag moving to another group has its rule rows removed first (`updateTag`).
+3. **`tracks.file_name`** is derivable from `path` or `url` (version 1). Kept because relinking moved files and searching need the file name on its own, and a file's base name cannot be computed in SQLite portably. It is written together with the path in one place (`locationColumns` in `repo/tracks.ts`; covered by `repo/tracks.test.ts`), not by a trigger.
+4. **Dynamic rule settings on `playlists`.** The energy range and "leave out stings" are facts about the playlist (one each per playlist), so they are its columns; a CHECK keeps them empty on manual playlists. A separate one-to-one rules table would add a join to every read.
+5. **No cached counts.** Nothing else is stored twice. Counts per playlist or per session were considered and not added: the measured reads (a whole campaign tree in about 5 ms; a list in order is one index search) do not need them.
+
+### Indexes and the read paths they serve
+
+`queryPlan.test.ts` runs EXPLAIN QUERY PLAN on the exact SQL of each path below (exported by its module) and fails on a full table scan or a missing index.
+
+| Read path (query) | Index |
+| --- | --- |
+| Campaign tree (`campaignTreeQueries`, 10 queries, no sorting step) | `campaigns` primary key, `sessions_order`, `scenes_order`, `campaign_playlists_order`, `campaign_boards_order`, `session_playlists_order`, `session_boards_order`, `scene_music_order`, `scene_ambience` primary key, `scene_boards_order` |
+| A scene's music in order, with titles (`SCENE_MUSIC_SQL`) | `scene_music_order`, then tracks and playlists by primary key |
+| A manual playlist's tracks in order (`PLAYLIST_ITEMS_SQL`) | `playlist_items_order` |
+| Drawing a board: pads and their sounds (`BOARD_PADS_SQL`) | `pads_board`, `pad_sounds` primary key; `pads_cell` and `pads_spare` keep one pad per cell and per spare place |
+| Tracks by tag: the library's filter (`tracksWithTagsSql`) | `track_tags_tag`, then tracks by primary key |
+| Dynamic playlist with a tag condition (`dynamicTracksQuery`) | `track_tags_tag` for the starting set, `track_tags` primary key per condition |
+| Dynamic playlist of energy alone, or only leaving tags out | `tracks_kind` (kind, energy); the FX lane also `tracks_role` (role, energy), as an OR of two index searches |
+| Uses of a playlist (`USES_QUERIES.playlist`) | `campaign_playlists_playlist`, `session_playlists_playlist`, `scene_music_playlist`, `scene_ambience_playlist`; its place in a music list via `scene_music_order` |
+| Uses of a board | `campaign_boards_board`, `session_boards_board`, `scene_boards_board` |
+| Uses of a track | `scene_music_track`, `scene_ambience_track`; also `playlist_items_track`, `pad_sounds_track`, `track_follow_with_target` (`trackUsage`, ON DELETE CASCADE) |
+| Profile lookup by (track, place) (`PROFILE_LOOKUP_SQL`) | `audio_profiles_own`, `audio_profiles_playlist`, `audio_profiles_scene`; a track's profiles everywhere: `audio_profiles_track` |
+| Full-text search (`searchQuery`) | `search_fts` (FTS5, prefix indexes of 1–3 characters), `search_docs` primary key; within a playlist also `playlist_items_order` |
+| Reading rules; tag merges and deletes | `rule_conditions_order`, `rule_condition_tags_order`, `rule_condition_tags_tag` |
+| Lists in hand-made order | `folders_order`, `playlists_order`, `boards_order` (on `coalesce(parent or folder, '')`, the expression the repository queries with, so the top level is ordered too), `tag_groups_order`, `tags_order`, `track_follow_with_order`, `campaigns_order` |
+| Natural keys | `library_roots_name`, `tag_groups_name`, `tags_name`, `sessions_number`, `sessions_next` |
+| Other lookups | `tracks_root` (moving a library folder), `tracks_file_name` (relinking), `markers_track`, `tags_parent`, `sessions_folder`, `pads_tag` |
+
+Foreign keys without an index of their own, on purpose: `playlists.folder_id`, `boards.folder_id` and `folders.parent_id` (deleting a folder scans hundreds of rows at most, and the repository moves the contents first), and `rule_conditions.group_id` (deleting a tag group scans the rule conditions, tens of rows). Every other foreign key has an index whose first column is the key.
+
+### Integrity triggers
+
+Rules a CHECK cannot express because they span two tables (`schema/v002-design.ts`): a manual playlist has no rule conditions, a dynamic one no entries, and a playlist keeps its kind (to change it, copy it: `copyPlaylist`). A missing playlist is left to the foreign key, so undo can replay rows child first.
+
+### Domain shapes (src/common/domain)
+
+`repo/domain.ts` hands out the design's shapes so the engine and the screens apply the shared rules to stored data:
+
+- `getDomainLookup(store)`: a `DomainLookup` (track, playlist, every track), cached per lookup. Tags come keyed by tag group id with values by name, every group present.
+- `getDomainCampaign(store, id)`, `listDomainCampaigns(store)`: `DomainCampaign` trees.
+- `listUses(store, { playlistId | boardId | trackId })`: the same `Use[]`, in the same order, as `usesOfPlaylist`, `usesOfBoard` and `usesOfTrack` over every campaign, from the indexes.
+- `listPlaylistTrackIds(store, id)` (`repo/playlists.ts`): the same tracks, in the same order, as `playlistTracks`.
+- `getProfileOverrides(store)` (`repo/profiles.ts`): `ProfileOverrides` keyed by `placeKey`.
+
+`repo/domain.test.ts` loads the prototype's own sample data (`design/prototype/src/data.js`) through the write functions and checks every track, playlist, campaign tree, scene sequence, dynamic playlist and use against the same data built in memory.
 
 ### Ordering
 
-Rows in a hand-ordered list are `GAP` (1024) apart. Inserting or moving takes the midpoint between the neighbours, so only the moved rows change. When a gap can no longer be split (after about 50 moves into the same place), that one list is renumbered inside the same change and undo step. `positionsFor()` spreads a block of new or moved rows evenly across the gap, keeping their order. Placements: `"start"`, `"end"`, `{ before: id }`, `{ after: id }`.
+Rows in a hand-ordered list are `GAP` (1024) apart. Inserting or moving takes the midpoint between the neighbours, so only the moved rows change. When a gap can no longer be split, that one list is renumbered inside the same change and undo step. Positions are UNIQUE per list, so `assignPositions` moves several rows through temporary positions. Placements: `"start"`, `"end"`, `{ before: id }`, `{ after: id }`. An `OrderedList` may name its rows by another column (`idColumn`, for membership tables).
 
 ### Search
 
-`search_fts` is an FTS5 table (`unicode61`, diacritics removed, prefix indexes of 1–3 characters) with columns title, file name, tags (names and synonyms), markers (labels), notes and source (composer, album, cue number). Each searchable row has a `search_docs` row whose `doc_id` is the FTS rowid. Triggers in schema version 1 keep both current for tracks, tag renames and synonyms, tagging, markers, playlists, boards, campaigns, sessions and scenes.
+`search_fts` (FTS5, `unicode61`, diacritics removed, prefix indexes of 1–3 characters) has the columns title (the shown name), file-tag title, file name, artist, album, tags (names and synonyms), markers, notes and cue number. Playlists, boards, campaigns, sessions and scenes fill title and notes. `search(store, text, { kinds, playlistId, boardId, limit })` makes each typed word a quoted prefix term, requires all of them, and ranks by BM25 with weights title 10, file-tag title 6, tags 6, file name 4, artist 3, album 3, markers 3, cue 2, notes 1.
 
-`search(store, text, { kinds, playlistId, boardId, limit })` turns each typed word into a quoted prefix term (FTS5 syntax typed by the user is plain text), requires all of them, and ranks by BM25 with weights title 10, tags 6, file name 4, markers 3, source 2, notes 1.
+### Opening
+
+`openLibrary()` creates the folder and opens `library.sqlite`; for an existing file it reads the schema version and, when an upgrade is pending or `integrityCheck: "blocking"` was asked for, runs `PRAGMA quick_check` and backs up before upgrading; runs pending upgrades; creates the `Store` and the `UndoHistory`; otherwise starts `quick_check` on a worker thread (`checkIntegrity()` gives the result and never rejects). `restoreBackup()` copies a backup from the library's own backups folder into place, keeping the damaged file. `startDailyBackups()` makes the first daily backup two minutes after it is called and then checks every hour; call it after the main window has been shown.
 
 ### Undo
 
-`UndoHistory` creates TEMP triggers (never stored in the file) on every ordinary table except `schema_migrations` and `search_docs`. While `store.change()` runs, they note each inserted key, each deleted row and each update's old and new values (as JSON, which keeps REAL values exact) in `temp.undo_capture`; cascaded deletes and SET NULL updates are noted the same way. On commit the notes become one labelled step; updates keep only the columns that changed. `undo()` applies the opposites newest first in one transaction with `PRAGMA defer_foreign_keys = ON`, and what that replay changes is noted as the redo step. A step is recorded only after `COMMIT` has succeeded (a commit that fails, for example on a full disk, leaves no step and keeps redo). A failed undo or redo rolls back and drops that step, so the steps below it can still be undone; keeping it would make every later undo fail on the same step. When SQLite has already ended the transaction itself (full disk, I/O error, out of memory), no second `ROLLBACK` is run, so the original error reaches the caller (`rollbackAfter` in `store.ts`; also in `schema/migrate.ts`). Default limit 100 steps; `clear()` empties the history (for example after a bulk import). Changes made with `changeWithoutHistory()` are not recorded.
-
-Triggers are built from the tables present at open, so tables from later versions are covered automatically, provided each has a primary key.
+`UndoHistory` creates TEMP triggers on every ordinary table except `schema_migrations` and `search_docs`. While `store.change()` runs they note each inserted key, each deleted row and each update's changed columns (including cascaded deletes and SET NULL updates); on commit the notes become one labelled step. `undo()` applies the opposites newest first in one transaction with `PRAGMA defer_foreign_keys = ON`; what that changes becomes the redo step. Tables added by later versions are covered automatically, provided each has a primary key.
 
 ### Upgrade procedure (adding version N)
 
-1. Add `schema/vNNN-<name>.ts` exporting a `Migration` with `version: N` and a short `name`, and append it to `MIGRATIONS` in `schema/index.ts`. Never edit a released step.
-2. In `up(db)`: plain `CREATE TABLE`, `CREATE INDEX` and `ALTER TABLE … ADD COLUMN` statements. For anything ALTER TABLE cannot do (new constraint, changed or dropped column), use `rebuildTable(db, table, columnDefinitions, copiedColumns)`, which drops and recreates all triggers around the swap.
-3. Each step runs in its own transaction with foreign keys paused; `PRAGMA foreign_key_check` must be empty before it commits. A failing step rolls back and the error names it.
-4. New searchable tables need search triggers (see `simpleDocTriggers` in `v001-initial.ts`; copy the SQL into the new step rather than importing it, so the old step stays frozen).
-5. Every new table needs a primary key (undo depends on it).
-6. Write a test like `schema/migrate.test.ts` "upgrades an old database to a later version and keeps every row": build a version N−1 database with data, upgrade, check the old rows and the new tables.
+1. Add `schema/vNNN-<name>.ts` exporting a `Migration` with `version: N`, and append it to `MIGRATIONS`. Never edit a released step.
+2. Use `CREATE TABLE`, `CREATE INDEX` and `ALTER TABLE … ADD COLUMN`; for a new CHECK value or constraint, or a changed or dropped column, use `rebuildTable(db, table, definition, copiedColumns)`. Declare each new index with the read path it serves, and add that path to `queryPlan.test.ts`.
+3. Each step runs in its own transaction with foreign keys paused; `PRAGMA foreign_key_check` must be empty before it commits.
+4. New searchable tables need search triggers (copy the SQL into the new step; never import it from an older one).
+5. Every new table needs a primary key (undo).
+6. Test the upgrade from version N−1 with data in it, as `schema/v002.test.ts` does.
 
-`openLibrary()` backs the library up (`library-upgrade-v<N−1>-…`) and runs a blocking integrity check before upgrading.
+### Version 2 upgrade (DAT-11), step by step
 
-### Bringing in the current player's data (DAT-9, next stream)
+Drops version 1's triggers and indexes; renames `sessions.played_on` to `session_date`, numbers sessions in order and marks dated ones played; turns loop advice `with_crossfade` into `crossfade`; rebuilds `tracks`, `markers`, `folders`, `playlists`, `playlist_items`, `boards`, `campaigns`, `sessions`, `scenes`, `campaign_playlists` and `campaign_boards` with their final definitions (every row copied); gives campaign memberships positions in library order; creates the new tables; turns `board_items` into pads (same ids; four columns; a divider starts a new row; a looping sound becomes a toggle pad; beyond 8 × 8 to spare) and drops it; splits `scene_items` into `scene_music` and `scene_boards` and drops it; declares every index and the integrity triggers; rebuilds the search index and its triggers. A new library (start version 0) then drops the empty Location and Faction groups version 1 offered.
+
+### Bringing in the current player's data (DAT-9, a later stream)
 
 | Redux (`persist:player`) | Database |
 | --- | --- |
-| `playlists.tracks[id] = { id, url, title }` | `tracks` with the same id; a file path becomes `file.path` (under a library root when one matches), an `http(s)` address becomes `url` |
-| `playlists.playlists.byId[id] = { id, title, background, tracks[] }` | `playlists` with the same id and background text; `tracks[]` order becomes `playlist_items` |
-| `playlists.playlists.allIds` order | `playlists.position` |
-| `soundboards.sounds[id] = { id, url, title, loop, volume, fadeIn, fadeOut }` | a track (same id) plus a `board_items` sound entry with `loop`, `volume`, `fade_in_ms = fadeIn`, `fade_out_ms = fadeOut` |
-| `soundboards.soundboards.byId[id]` | `boards` with the same id, background and order |
+| `playlists.tracks[id] = { id, url, title }` | `tracks` with the same id (`title`); a file path becomes `file.path` (under a library root when one matches), an `http(s)` address `url` |
+| `playlists.playlists.byId[id] = { id, title, background, tracks[] }` | a manual music `playlists` row with the same id and background; `tracks[]` order becomes `playlist_items` |
+| `soundboards.sounds[id] = { id, url, title, loop, volume, fadeIn, fadeOut }` | a track (same id) and a pad (`label` = title; `mode` toggle when it loops, else oneshot; `volume`; `fade_in_ms = fadeIn`; `fade_ms = fadeOut`; sound = that track) |
+| `soundboards.soundboards.byId[id]` | `boards` with the same id, background and order; its pads in order on the grid |
 
-`repo/kenkuShape.test.ts` shows this mapping with today's Redux types. The import should run inside one `changeWithoutHistory()` and then `history.clear()`.
+`repo/kenkuShape.test.ts` shows this mapping with today's Redux types.
 
 ### Tests
 
 | File | Covers |
 | --- | --- |
-| `schema/migrate.test.ts` | New database, default vocabulary, upgrade keeping data, a later version adding cue lists and pads, failed step rollback, table rebuild, newer-version refusal. |
-| `ordering.test.ts`, `paths.test.ts` | Gap ordering and renumbering; root-relative paths. |
-| `repo/*.test.ts` | Every repository function, input checks, library-first deletes, the Redux mapping, search. |
-| `undo.test.ts` | Every write command undone and redone against full snapshots of all tables and the search index; a guard that fails when a new write function is missing from that list; a failed COMMIT records no step, a step that fails to replay is dropped, and the original error is passed on when SQLite has already rolled back. |
-| `library.test.ts` | Open, upgrade backup, damaged files (blocking and background check; damaged backups are checked on the worker, never on the test's own thread), restore (order of copy, sync and renames; a failed copy leaves the library in place), daily/manual backups and pruning, the delayed first daily backup and the hourly timer. |
-| `performance.test.ts` | The 20,000-track targets. `CUE_DESK_SKIP_PERF=1` skips it; `CUE_DESK_PERF_REPORT=<file>` writes the measured numbers. |
+| `schema/v002.test.ts` | Version 1 with data upgraded without loss; a new library; search after the upgrade; every CHECK, unique key, composite key and integrity trigger. |
+| `schema/migrate.test.ts` | The upgrade runner: a later version, a failed step, a table rebuild, a newer-version refusal. |
+| `queryPlan.test.ts` | EXPLAIN QUERY PLAN of every hot read path: index searches only. |
+| `repo/domain.test.ts` | The prototype's sample data through the write functions, compared with the shared rules in memory. |
+| `repo/*.test.ts` | Every repository function and its input checks. |
+| `undo.test.ts` | Every write function undone and redone against full snapshots of every table and the search index; a guard fails when a write function is missing from the list. |
+| `library.test.ts` | Open, upgrade backup, damage, restore, backups. |
+| `performance.test.ts` | The figures above with 20,000 tracks, 500 playlists and 3 × 50 × 8 scenes: one campaign tree < 50 ms (all three < 150 ms), a dynamic playlist < 50 ms, uses < 50 ms, search < 50 ms, the whole library for the shared rules < 500 ms. `CUE_DESK_SKIP_PERF=1` skips it; `CUE_DESK_PERF_REPORT=<file>` writes the numbers. |
 
-### Not in version 1
+### Not yet
 
-Cue lists, pads and cue actions (WPD, PLY-8), dynamic playlists (ORG-6), embedded file tags (DAT-5), export/import (DAT-7) and relinking (DAT-8) arrive in later steps. No IPC channels exist yet; they will be added with the interface and listed in `docs/security.md`.
+Cue lists and pad actions (WPD, PLY-8), embedded file tags (DAT-5), export/import (DAT-7) and relinking (DAT-8) arrive in later steps. No IPC channels exist yet.

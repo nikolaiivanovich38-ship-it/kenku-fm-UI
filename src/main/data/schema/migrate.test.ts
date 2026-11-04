@@ -82,7 +82,10 @@ describe("schema upgrades", () => {
         "scene_music",
         "scene_ambience",
         "scene_boards",
-        "profile_overrides",
+        "rule_conditions",
+        "rule_condition_tags",
+        "audio_profiles",
+        "audio_profile_markers",
         "search_docs",
         "search_fts",
       ]),
@@ -148,8 +151,8 @@ describe("schema upgrades", () => {
       INSERT INTO boards (id, title, background, position, created_at, updated_at)
         VALUES ('b1', 'Effects', 'tavern', 1, 1, 1);
       INSERT INTO campaigns (id, name, position, created_at, updated_at) VALUES ('c1', 'Curse of Strahd', 1, 1, 1);
-      INSERT INTO sessions (id, campaign_id, name, position, created_at, updated_at)
-        VALUES ('s1', 'c1', 'Session 1', 1, 1, 1);
+      INSERT INTO sessions (id, campaign_id, number, name, position, created_at, updated_at)
+        VALUES ('s1', 'c1', 1, 'Session 1', 1, 1, 1);
     `);
     db.close();
 

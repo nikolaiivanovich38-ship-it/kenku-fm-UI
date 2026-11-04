@@ -1,9 +1,11 @@
 /**
- * Checks for the design's values that are stored as JSON (DAT-11): audio
- * profiles (tracks.profile, profile_overrides.profile) and dynamic playlist
- * rules (playlists.rule). Like validate.ts, nothing is trusted: unknown keys
- * are refused, and the clean value keeps only what was given, because a
- * missing profile field means "use the default" (resolveProfile in src/common/domain).
+ * Checks for the design's structured values (DAT-11): audio profiles and
+ * dynamic playlist rules, given in the shared domain shapes and stored as rows
+ * (audio_profiles, rule_conditions …). Like validate.ts, nothing is trusted:
+ * unknown keys are refused, and the clean value keeps only what was given,
+ * because a missing profile field means "use the default" (resolveProfile in
+ * src/common/domain). The checks match the tables' CHECK constraints, so a bad
+ * value is reported in plain words before the database would refuse it.
  */
 import type { AudioProfileInput, Fade, PlaylistRule, TagCondition } from "../../common/domain";
 import { ValidationError } from "./errors";
@@ -54,6 +56,16 @@ export function cleanProfile(field: string, value: unknown): AudioProfileInput {
       return { atMs: v.milliseconds(`${field}.markers[${index}].atMs`, m.atMs), label: v.optionalText("label", m.label, v.MAX_NAME_LENGTH) };
     });
   }
+  const { startMs, endMs, loopStartMs } = clean;
+  if (startMs !== undefined && endMs !== undefined && startMs >= endMs) {
+    throw new ValidationError(`${field}.endMs`, "The end must come after the start.");
+  }
+  if (loopStartMs !== undefined && endMs !== undefined && loopStartMs >= endMs) {
+    throw new ValidationError(`${field}.loopStartMs`, "The loop must start before the end.");
+  }
+  if (loopStartMs !== undefined && startMs !== undefined && loopStartMs < startMs) {
+    throw new ValidationError(`${field}.loopStartMs`, "The loop cannot start before the start.");
+  }
   return clean;
 }
 
@@ -84,7 +96,7 @@ export function cleanRule(field: string, value: unknown): PlaylistRule {
   return rule;
 }
 
-/** Reads stored JSON written by the functions above. */
+/** Reads stored JSON (a track's transitions). */
 export function parseJson<T>(text: string | null): T | null {
   return text === null ? null : (JSON.parse(text) as T);
 }

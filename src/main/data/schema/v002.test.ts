@@ -79,18 +79,19 @@ describe("schema version 2 (DAT-11)", () => {
     expect(migrate(db, MIGRATIONS, () => 2000)).toEqual({ from: 1, to: 2, applied: [2] });
 
     // Tracks keep everything; the new design fields take their defaults; "with crossfade" is now "crossfade".
-    expect(all(db, "SELECT id, title, meta_title, kind, role, loopable, energy, notes, profile FROM tracks ORDER BY id")).toEqual([
-      { id: "t1", title: "Secunda", meta_title: "", kind: "music", role: "loop_bed", loopable: "yes", energy: 3, notes: "loops well", profile: null },
-      { id: "t2", title: "Bridge of Death", meta_title: "", kind: "music", role: "underscore", loopable: "crossfade", energy: 2, notes: "", profile: null },
-      { id: "t3", title: "Door slam", meta_title: "", kind: "music", role: "sting", loopable: "no", energy: null, notes: "", profile: null },
-      { id: "t4", title: "Thunder", meta_title: "", kind: "music", role: null, loopable: null, energy: null, notes: "", profile: null },
+    expect(all(db, "SELECT id, title, meta_title, kind, root_id, path, role, loopable, energy, notes FROM tracks ORDER BY id")).toEqual([
+      { id: "t1", title: "Secunda", meta_title: "", kind: "music", root_id: "r1", path: "Skyrim/2-03 Secunda.flac", role: "loop_bed", loopable: "yes", energy: 3, notes: "loops well" },
+      { id: "t2", title: "Bridge of Death", meta_title: "", kind: "music", root_id: "r1", path: "Chernobyl/06.flac", role: "underscore", loopable: "crossfade", energy: 2, notes: "" },
+      { id: "t3", title: "Door slam", meta_title: "", kind: "music", root_id: null, path: "D:\\Fx\\door.wav", role: "sting", loopable: "no", energy: null, notes: "" },
+      { id: "t4", title: "Thunder", meta_title: "", kind: "music", root_id: null, path: "D:\\Fx\\thunder.wav", role: null, loopable: null, energy: null, notes: "" },
     ]);
+    expect(all(db, "SELECT count(*) AS n FROM audio_profiles")).toEqual([{ n: 0 }]);
     expect(all(db, "SELECT id, label FROM markers")).toEqual([{ id: "m1", label: "choir enters" }]);
 
     // Playlists are manual music playlists with their entries (dividers too).
-    expect(all(db, "SELECT id, title, background, kind, lane, rule, notes FROM playlists ORDER BY position")).toEqual([
-      { id: "p1", title: "Coast road", background: "forest", kind: "manual", lane: "music", rule: null, notes: "" },
-      { id: "p2", title: "Abbey", background: "", kind: "manual", lane: "music", rule: null, notes: "" },
+    expect(all(db, "SELECT id, title, background, kind, lane, rule_energy_min, rule_leave_out_stings, notes FROM playlists ORDER BY position")).toEqual([
+      { id: "p1", title: "Coast road", background: "forest", kind: "manual", lane: "music", rule_energy_min: null, rule_leave_out_stings: 0, notes: "" },
+      { id: "p2", title: "Abbey", background: "", kind: "manual", lane: "music", rule_energy_min: null, rule_leave_out_stings: 0, notes: "" },
     ]);
     expect(all(db, "SELECT id, kind, track_id, label FROM playlist_items ORDER BY position")).toEqual([
       { id: "pi1", kind: "track", track_id: "t1", label: "" },
@@ -191,7 +192,10 @@ describe("schema version 2 (DAT-11)", () => {
         "scene_music",
         "scene_ambience",
         "scene_boards",
-        "profile_overrides",
+        "rule_conditions",
+        "rule_condition_tags",
+        "audio_profiles",
+        "audio_profile_markers",
       ]),
     );
     expect(tableNames(db)).not.toContain("board_items");
@@ -205,8 +209,8 @@ describe("schema version 2 (DAT-11)", () => {
     migrate(db, MIGRATIONS);
     db.exec(`
       INSERT INTO campaigns (id, name, position, created_at, updated_at) VALUES ('c1', 'A', 1, 1, 1), ('c2', 'B', 2, 1, 1);
-      INSERT INTO sessions (id, campaign_id, name, status, position, created_at, updated_at)
-        VALUES ('s1', 'c1', '', 'next', 1, 1, 1), ('s2', 'c2', '', 'next', 1, 1, 1), ('s3', 'c1', '', 'draft', 2, 1, 1);
+      INSERT INTO sessions (id, campaign_id, number, status, position, created_at, updated_at)
+        VALUES ('s1', 'c1', 1, 'next', 1, 1, 1), ('s2', 'c2', 1, 'next', 1, 1, 1), ('s3', 'c1', 2, 'draft', 2, 1, 1);
     `);
     expect(() => db.exec("UPDATE sessions SET status = 'next' WHERE id = 's3'")).toThrow(/UNIQUE/);
     db.close();
@@ -224,5 +228,93 @@ describe("schema version 2 (DAT-11)", () => {
     db.exec("INSERT INTO pads (id, board_id, spare_position) VALUES ('p3', 'b', 1), ('p4', 'b', 2)");
     expect(() => db.exec("INSERT INTO pads (id, board_id) VALUES ('p5', 'b')")).toThrow(/CHECK/);
     db.close();
+  });
+
+  describe("integrity in the schema", () => {
+    let db: DatabaseSync;
+    beforeEach(() => {
+      db = openConnection(":memory:");
+      migrate(db, MIGRATIONS);
+      db.exec(`
+        INSERT INTO tracks (id, title, path, file_name, created_at, updated_at) VALUES ('t', 'T', '/t.flac', 't.flac', 1, 1);
+        INSERT INTO playlists (id, title, position, created_at, updated_at, kind) VALUES ('m', 'Manual', 1, 1, 1, 'manual');
+        INSERT INTO playlists (id, title, position, created_at, updated_at, kind) VALUES ('d', 'Dynamic', 2, 1, 1, 'dynamic');
+        INSERT INTO campaigns (id, name, position, created_at, updated_at) VALUES ('c', 'C', 1, 1, 1);
+        INSERT INTO sessions (id, campaign_id, number, position, created_at, updated_at) VALUES ('s', 'c', 1, 1, 1, 1);
+        INSERT INTO scenes (id, session_id, position, created_at, updated_at) VALUES ('sc', 's', 1, 1, 1);
+      `);
+    });
+    afterEach(() => db.close());
+    const fails = (sql: string, error: RegExp) => expect(() => db.exec(sql), sql).toThrow(error);
+
+    it("checks every list of choices and every range", () => {
+      for (const [sql, error] of [
+        ["UPDATE tracks SET kind = 'voice'", /CHECK/],
+        ["UPDATE tracks SET role = 'Sting'", /CHECK/],
+        ["UPDATE tracks SET loopable = 'with_crossfade'", /CHECK/],
+        ["UPDATE tracks SET energy = 6", /CHECK/],
+        ["UPDATE tracks SET transition_in = 'not json'", /CHECK/],
+        ["UPDATE playlists SET lane = 'voice' WHERE id = 'm'", /CHECK/],
+        ["UPDATE playlists SET rule_energy_min = 4, rule_energy_max = 2 WHERE id = 'd'", /CHECK/],
+        ["UPDATE playlists SET rule_energy_min = 1, rule_energy_max = 2 WHERE id = 'm'", /CHECK/],
+        ["UPDATE campaigns SET theme = 'neon'", /CHECK/],
+        ["UPDATE campaigns SET color = 'red'", /CHECK/],
+        ["UPDATE sessions SET status = 'done'", /CHECK/],
+        ["UPDATE sessions SET session_date = '7/11/2026'", /CHECK/],
+        ["INSERT INTO markers (id, track_id, time_ms, kind, created_at) VALUES ('x', 't', 1, 'drop', 1)", /CHECK/],
+        ["INSERT INTO folders (id, scope, name, position) VALUES ('x', 'tracks', 'F', 1)", /CHECK/],
+        ["INSERT INTO rule_conditions (id, playlist_id, group_id, match, position) VALUES ('x', 'd', (SELECT id FROM tag_groups LIMIT 1), 'some', 1)", /CHECK/],
+        ["INSERT INTO audio_profiles (id, track_id, after_end) VALUES ('x', 't', 'rewind')", /CHECK/],
+        ["INSERT INTO audio_profiles (id, track_id, start_ms, end_ms) VALUES ('x', 't', 5000, 5000)", /CHECK/],
+        ["INSERT INTO audio_profiles (id, track_id, fade_in_ms, fade_in_shape) VALUES ('x', 't', 100, 101)", /CHECK/],
+        ["INSERT INTO audio_profiles (id, track_id, fade_in_ms) VALUES ('x', 't', 100)", /CHECK/],
+        ["INSERT INTO audio_profiles (id, track_id, playlist_id, scene_id) VALUES ('x', 't', 'm', 'sc')", /CHECK/],
+        ["INSERT INTO scene_music (id, scene_id, track_id, playlist_id, position) VALUES ('x', 'sc', 't', 'm', 1)", /CHECK/],
+        ["INSERT INTO scene_music (id, scene_id, position) VALUES ('x', 'sc', 1)", /CHECK/],
+      ] as const) {
+        fails(sql, error);
+      }
+    });
+
+    it("keeps one profile per track per place, and one per track of its own", () => {
+      db.exec("INSERT INTO audio_profiles (id, track_id, end_ms) VALUES ('own', 't', 1000)");
+      fails("INSERT INTO audio_profiles (id, track_id) VALUES ('own2', 't')", /UNIQUE/);
+      db.exec("INSERT INTO audio_profiles (id, track_id, playlist_id) VALUES ('p1', 't', 'm')");
+      fails("INSERT INTO audio_profiles (id, track_id, playlist_id) VALUES ('p2', 't', 'm')", /UNIQUE/);
+      db.exec("INSERT INTO audio_profiles (id, track_id, scene_id) VALUES ('s1', 't', 'sc')");
+      fails("INSERT INTO audio_profiles (id, track_id, scene_id) VALUES ('s2', 't', 'sc')", /UNIQUE/);
+    });
+
+    it("keeps positions unique within each ordered list", () => {
+      db.exec("INSERT INTO scene_music (id, scene_id, track_id, position) VALUES ('a', 'sc', 't', 1024)");
+      fails("INSERT INTO scene_music (id, scene_id, track_id, position) VALUES ('b', 'sc', 't', 1024)", /UNIQUE/);
+      fails("INSERT INTO playlists (id, title, position, created_at, updated_at) VALUES ('x', 'X', 1, 1, 1)", /UNIQUE/);
+      fails("INSERT INTO sessions (id, campaign_id, number, position, created_at, updated_at) VALUES ('s2', 'c', 1, 2, 1, 1)", /UNIQUE/);
+    });
+
+    it("lets a rule name only tags of its condition's group, and follows tag renames and deletes by key", () => {
+      const [mood, motif] = all(db, "SELECT id FROM tag_groups ORDER BY position") as { id: string }[];
+      db.exec(`
+        INSERT INTO tags (id, group_id, name, position) VALUES ('villain', '${motif.id}', 'Villain', 1);
+        INSERT INTO rule_conditions (id, playlist_id, group_id, match, position) VALUES ('c1', 'd', '${mood.id}', 'any', 1);
+      `);
+      const eerie = (all(db, `SELECT id FROM tags WHERE name = 'Eerie'`) as { id: string }[])[0].id;
+      db.exec(`INSERT INTO rule_condition_tags (condition_id, group_id, tag_id, position) VALUES ('c1', '${mood.id}', '${eerie}', 1)`);
+      fails(`INSERT INTO rule_condition_tags (condition_id, group_id, tag_id, position) VALUES ('c1', '${motif.id}', 'villain', 2)`, /FOREIGN KEY/);
+      fails(`INSERT INTO rule_condition_tags (condition_id, group_id, tag_id, position) VALUES ('c1', '${mood.id}', 'villain', 2)`, /FOREIGN KEY/);
+      db.exec(`UPDATE tags SET name = 'Spooky' WHERE id = '${eerie}'`);
+      expect(all(db, "SELECT t.name FROM rule_condition_tags v JOIN tags t ON t.id = v.tag_id")).toEqual([{ name: "Spooky" }]);
+      db.exec(`DELETE FROM tags WHERE id = '${eerie}'`);
+      expect(all(db, "SELECT count(*) AS n FROM rule_condition_tags")).toEqual([{ n: 0 }]);
+      db.exec(`DELETE FROM tag_groups WHERE id = '${mood.id}'`);
+      expect(all(db, "SELECT count(*) AS n FROM rule_conditions")).toEqual([{ n: 0 }]);
+    });
+
+    it("gives a manual playlist no rule and a dynamic one no entries, and a playlist keeps its kind", () => {
+      const group = (all(db, "SELECT id FROM tag_groups LIMIT 1") as { id: string }[])[0].id;
+      fails(`INSERT INTO rule_conditions (id, playlist_id, group_id, match, position) VALUES ('x', 'm', '${group}', 'any', 1)`, /manual playlist has no rule/);
+      fails("INSERT INTO playlist_items (id, playlist_id, kind, track_id, position) VALUES ('x', 'd', 'track', 't', 1)", /dynamic playlist/);
+      fails("UPDATE playlists SET kind = 'dynamic' WHERE id = 'm'", /keeps its kind/);
+    });
   });
 });
