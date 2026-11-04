@@ -226,14 +226,16 @@ export function Settings({ open, onClose }: SettingsProps) {
 
   const [streamingModeChanged, setStreamingModeChanged] = useState(false);
 
-  function handleStreamingModeChnage(event: SelectChangeEvent) {
+  function handleStreamingModeChange(event: SelectChangeEvent) {
     dispatch(setStreamingMode(event.target.value as StreamingMode));
     setStreamingModeChanged(true);
   }
 
+  // PERF-4: audio capture no longer starts here; it starts when an output
+  // joins a voice channel, with the mode chosen at that moment.
   useEffect(() => {
-    window.kenku.startAudioCapture(settings.streamingMode);
-  }, []);
+    window.kenku.setStreamingMode(settings.streamingMode);
+  }, [settings.streamingMode]);
 
   const streamingSettings = (
     <FormControl fullWidth variant="standard" margin="dense">
@@ -242,14 +244,14 @@ export function Settings({ open, onClose }: SettingsProps) {
         labelId="streaming-mode-select-label"
         label="Mode"
         value={settings.streamingMode}
-        onChange={handleStreamingModeChnage}
+        onChange={handleStreamingModeChange}
       >
         <MenuItem value="lowLatency">Low Latency</MenuItem>
         <MenuItem value="performance">Performance</MenuItem>
       </Select>
       {streamingModeChanged && (
         <FormHelperText sx={{ color: "primary.main" }}>
-          * Restart to apply change
+          * Applies the next time Cue Desk joins a voice channel
         </FormHelperText>
       )}
     </FormControl>

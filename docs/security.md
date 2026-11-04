@@ -130,14 +130,11 @@ Handlers also cope with ids that no longer exist: starting tab audio capture for
 | `PLAYER_REGISTER_VIEW` | Main window | view id: integer (must be the trusted player view) | `PlayerManager` |
 | `PLAYER_START_REMOTE` | Main window | address, port: text ≤ 4096 | `PlayerManager` |
 | `PLAYER_STOP_REMOTE` | Main window | none | `PlayerManager` |
-| `AUDIO_CAPTURE_START` | Main window | streaming mode: `"lowLatency"`, `"performance"` or missing | `AudioCaptureManagerMain` |
 | `AUDIO_CAPTURE_SET_LOOPBACK` | Main window | boolean | `AudioCaptureManagerMain` |
 | `AUDIO_CAPTURE_SET_MUTED` | Main window | view id: integer; muted: boolean | `AudioCaptureManagerMain` |
 | `AUDIO_CAPTURE_START_EXTERNAL_AUDIO_CAPTURE`, `_STOP_EXTERNAL_AUDIO_CAPTURE` | Main window | device id: text ≤ 4096 | `AudioCaptureManagerMain` |
-| `AUDIO_CAPTURE_START_BROWSER_VIEW_STREAM`, `_STOP_BROWSER_VIEW_STREAM` | Main window | view id: integer | `AudioCaptureManagerMain` |
+| `AUDIO_CAPTURE_START_BROWSER_VIEW_STREAM`, `_STOP_BROWSER_VIEW_STREAM` | Main window | view id: integer (offers a loaded view for capture / withdraws it; see WP2 below) | `AudioCaptureManagerMain` |
 | `AUDIO_CAPTURE_STOP_ALL_BROWSER_VIEW_STREAMS` | Main window | none | `AudioCaptureManagerMain` (new in WP1: before, nothing handled it and tab audio kept being captured) |
-| `AUDIO_CAPTURE_STREAM_START` | Capture window | channels 1–32, frame size 1–1048576, sample rate 1–384000: integers | `AudioCaptureManagerMain` |
-| `AUDIO_CAPTURE_STREAM_END` | Capture window | none (not sent today) | `AudioCaptureManagerMain` |
 | `AUDIO_CAPTURE_GET_WEBSOCKET_ADDRESS` (invoke) | Capture window | none | `AudioCaptureManagerMain` |
 | `PLAYER_REMOTE_PLAYLIST_GET_ALL_REPLY`, `_PLAYLIST_PLAYBACK_REPLY`, `_SOUNDBOARD_GET_ALL_REPLY`, `_SOUNDBOARD_PLAYBACK_REPLY` | Player | reply: object; request id: integer ≥ 1 | `src/main/remote/playerRequests.ts` |
 
@@ -201,3 +198,20 @@ Run the packaged app (or `yarn start` for the development policy) with DevTools 
 6. Turn an external input on and off several times; close and reopen a tab that plays sound several times. Audio keeps working.
 7. With the remote enabled, call `GET /v1/playlist/playback` from two clients at the same time (or press two Stream Deck buttons together): both get an answer; with the player tab closed, requests return 503 as before.
 8. Trigger the error screen (or call `window.kenku.removeAllBrowserViews()` from the main window's DevTools): tab audio stops being sent to Discord.
+
+## WP2 Pipeline / Outputs and bots
+
+### Capture only while broadcasting (PERF-4)
+
+Tab audio is no longer recorded from the moment the app starts. The hidden capture window creates its audio context, worklet and Opus encoder only when the first output joins a Discord voice channel, and closes them when the last one leaves. While broadcasting, the main process asks for a view's audio only when Chromium reports the view audible (`audio-state-changed`) or an audio/video element starts (`media-started-playing`), and releases it after 30 seconds of silence (`SILENCE_HOLD_MS`). `captureTargets` follows the same rule, so a page is a capture target only while it is actually recorded; outside a broadcast no page can be tab-captured at all. Opus is encoded in the capture window with WebCodecs, so the main process only forwards packets; it accepts only binary packets of at most 4000 bytes and only while broadcasting.
+
+A view that is not being recorded plays on this computer by itself, so its tab mute (`AUDIO_CAPTURE_SET_MUTED`) and "This Computer" being off are applied with `webContents.setAudioMuted`; muting a page does not mute its captured audio (checked in WP2).
+
+| Channel | Sent by | Arguments | Handled in |
+|---|---|---|---|
+| `AUDIO_CAPTURE_SET_STREAMING_MODE` | Main window | `"lowLatency"` or `"performance"` (replaces `AUDIO_CAPTURE_START`; applied when a broadcast starts) | `AudioCaptureManagerMain` |
+
+### Fake Discord in test builds
+
+`src/main/broadcast/discordDriver.ts` uses `src/main/broadcast/testing/fakeDiscord.ts` only when the package was built with `CUE_DESK_E2E_BUILD=1` (`__CUE_DESK_TEST_BUILD__`) and the app is started with `CUE_DESK_FAKE_DISCORD=1`. Release builds compile the branch and the module out.
+

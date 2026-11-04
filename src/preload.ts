@@ -48,7 +48,8 @@ const validChannels: Channel[] = [
   "PLAYER_REMOTE_ENABLED",
 ];
 
-// Capture audio when new views are loaded
+// Offer each loaded view's audio for Discord. PERF-4: the main process
+// captures it only while broadcasting and while the view plays sound.
 ipcRenderer.on("BROWSER_VIEW_LOADED", (_, viewId: number) => {
   ipcRenderer.send("AUDIO_CAPTURE_START_BROWSER_VIEW_STREAM", viewId);
 });
@@ -155,8 +156,9 @@ const api = {
   stopExternalAudioCapture: (deviceId: string) => {
     ipcRenderer.send("AUDIO_CAPTURE_STOP_EXTERNAL_AUDIO_CAPTURE", deviceId);
   },
-  startAudioCapture: (streamingMode: "lowLatency" | "performance") => {
-    ipcRenderer.send("AUDIO_CAPTURE_START", streamingMode);
+  /** PERF-4: applied the next time a broadcast starts (an output joins a voice channel). */
+  setStreamingMode: (streamingMode: "lowLatency" | "performance") => {
+    ipcRenderer.send("AUDIO_CAPTURE_SET_STREAMING_MODE", streamingMode);
   },
   toggleMaximize: () => {
     ipcRenderer.send("WINDOW_TOGGLE_MAXIMIZE");

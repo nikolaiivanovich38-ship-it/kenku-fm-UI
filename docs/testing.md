@@ -54,7 +54,8 @@ These Playwright tests start the packaged app and use it the way a person would,
 | `e2e/settings.spec.ts` | Token field and "Where do I get my token?" link (opens in the system browser); a bad token ends in "Error connecting to bot: …" and the form is usable again; Clear Cache removes website cookies; the version number is shown. One test is marked as an expected failure (see below). |
 | `e2e/remote.spec.ts` | Remote switched on in Settings on a free port; `GET /v1/playlist`, `PUT /v1/playlist/play` (track and playlist), `GET /v1/playlist/playback`, `PUT /v1/playlist/playback/pause` and `/play`, `GET /v1/soundboard`, `PUT /v1/soundboard/play`, `GET /v1/soundboard/playback`, `PUT /v1/soundboard/stop`, each checked against the player; switching it off closes the port. |
 | `e2e/carryOver.spec.ts` | FND-1: a library made in `<appData>/Kenku FM` appears in Cue Desk on its first normal start, the carry-over record says "copied", and later changes in Cue Desk leave the Kenku FM library alone (Linux only, where `XDG_CONFIG_HOME` moves appData). |
-| `e2e/capture.spec.ts` | Tab audio capture for Discord (SEC-3). |
+| `e2e/capture.spec.ts` | Tab audio capture for Discord (SEC-3): the player cannot be captured outside a broadcast and is captured when it plays during one; a website tab is captured when it plays during a broadcast, and the captured site still cannot record the screen or desktop audio. |
+| `e2e/broadcast.spec.ts` | WP2 (fake Discord, `e2e/fixtures/discord.ts`): nothing is recorded before an output joins a voice channel, joining starts recording and leaving stops it; the start of a sound (Web Audio and an audio element, a tone whose volume rises evenly) is missed by about 100 ms at most. |
 
 Every test also fails if any page logged a console error, threw an uncaught error, broke a Content-Security-Policy rule or was refused by the IPC guard, or if the main process crashed (`e2e/fixtures/problems.ts`).
 

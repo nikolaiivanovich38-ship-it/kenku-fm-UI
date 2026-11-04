@@ -1,12 +1,27 @@
 import { BrowserWindow, ipcMain } from "electron";
-import { ChannelType, Client, Events, GatewayIntentBits } from "discord.js";
+import { ChannelType, Client, Events } from "discord.js";
 import {
   createAudioPlayer,
-  getVoiceConnection,
-  joinVoiceChannel,
   NoSubscriberBehavior,
+  type VoiceConnection,
 } from "@discordjs/voice";
+import { TypedEmitter } from "tiny-typed-emitter";
 import { guardIpc } from "../security/ipcGuard";
+import { defaultDiscordDriver, type DiscordDriver } from "./discordDriver";
+import { OpusPacketFeed } from "./opusFeed";
+
+/**
+ * Silent 20 ms steps the player sends before it goes idle (1 s). The capture
+ * window sends no packets during silence (PERF-4), so after this the bot
+ * stops "speaking" in Discord; the next sound starts it again. Long enough to
+ * bridge the half-second batches of "performance" streaming mode.
+ */
+export const MAX_MISSED_FRAMES = 50;
+
+interface DiscordBroadcastEvents {
+  /** True when the first voice connection starts, false when the last ends. */
+  activeChange: (active: boolean) => void;
+}
 
 type VoiceChannel = {
   id: string;
@@ -21,20 +36,27 @@ type Guild = {
   voiceChannels: VoiceChannel[];
 };
 
-export class DiscordBroadcast {
+export class DiscordBroadcast extends TypedEmitter<DiscordBroadcastEvents> {
   window: BrowserWindow;
   client?: Client;
   audioPlayer = createAudioPlayer({
     behaviors: {
       noSubscriber: NoSubscriberBehavior.Play,
-      // Set max missed frames to 60 seconds (20ms per frame)
-      maxMissedFrames: 3000,
+      maxMissedFrames: MAX_MISSED_FRAMES,
     },
   });
+  /** Feeds the broadcast's Opus packets to the audio player. */
+  feed = new OpusPacketFeed(this.audioPlayer);
+  /** Voice connections by server (Discord allows one per bot and server). */
+  connections = new Map<string, VoiceConnection>();
   /** SEC-8: message listeners that only accept the main window. */
   private ipc = guardIpc(ipcMain);
 
-  constructor(window: BrowserWindow) {
+  constructor(
+    window: BrowserWindow,
+    private readonly driver: DiscordDriver = defaultDiscordDriver(),
+  ) {
+    super();
     this.window = window;
     this.ipc.on("DISCORD_CONNECT", this._handleConnect);
     this.ipc.on("DISCORD_DISCONNECT", this._handleDisconnect);
@@ -45,8 +67,45 @@ export class DiscordBroadcast {
 
   destroy() {
     this.ipc.dispose();
+    this._leaveAll();
+    this.feed.dispose();
     this.client?.destroy();
     this.client = undefined;
+  }
+
+  get active(): boolean {
+    return this.connections.size > 0;
+  }
+
+  /** One encoded 20 ms packet of the broadcast mix. */
+  sendPacket(packet: Buffer) {
+    this.feed.push(packet);
+  }
+
+  _setConnection(guildId: string, connection: VoiceConnection | undefined) {
+    const wasActive = this.active;
+    if (connection) {
+      this.connections.set(guildId, connection);
+    } else {
+      this.connections.delete(guildId);
+    }
+    if (wasActive !== this.active) {
+      if (!this.active) {
+        this.feed.stop();
+      }
+      this.emit("activeChange", this.active);
+    }
+  }
+
+  _leaveAll() {
+    for (const [guildId, connection] of [...this.connections]) {
+      try {
+        connection.destroy();
+      } catch (error) {
+        console.error("Unable to leave a voice channel", error);
+      }
+      this._setConnection(guildId, undefined);
+    }
   }
 
   _handleConnect = async (event: Electron.IpcMainEvent, token: string) => {
@@ -56,14 +115,13 @@ export class DiscordBroadcast {
       return;
     }
     if (this.client) {
+      this._leaveAll();
       this.client.destroy();
       this.client = undefined;
     }
 
     try {
-      this.client = new Client({
-        intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildVoiceStates],
-      });
+      this.client = this.driver.createClient();
       this.client.once(Events.ClientReady, async () => {
         event.reply("DISCORD_READY");
         event.reply("MESSAGE", "Connected");
@@ -109,6 +167,7 @@ export class DiscordBroadcast {
     event.reply("DISCORD_DISCONNECTED");
     event.reply("DISCORD_GUILDS", []);
     event.reply("DISCORD_CHANNEL_JOINED", "local");
+    this._leaveAll();
     this.client?.destroy();
     this.client = undefined;
   };
@@ -128,16 +187,18 @@ export class DiscordBroadcast {
         });
       if (channel && channel.isVoiceBased() && channel.joinable) {
         try {
-          const connection = joinVoiceChannel({
+          const connection = this.driver.joinVoiceChannel({
             channelId: channel.id,
             guildId: channel.guild.id,
             adapterCreator: channel.guild.voiceAdapterCreator,
           });
           connection.subscribe(this.audioPlayer);
+          this._setConnection(channel.guild.id, connection);
           event.reply("DISCORD_CHANNEL_JOINED", channelId);
           connection.on("error", (e) => {
             console.error(e);
             connection.destroy();
+            this._setConnection(channel.guild.id, undefined);
             event.reply("DISCORD_CHANNEL_LEFT", channelId);
             event.reply(
               "ERROR",
@@ -176,8 +237,9 @@ export class DiscordBroadcast {
         return;
       }
       if (channel.type === ChannelType.GuildVoice) {
-        const connection = getVoiceConnection(channel.guild.id);
+        const connection = this.connections.get(channel.guild.id);
         connection?.destroy();
+        this._setConnection(channel.guild.id, undefined);
       }
       event.reply("DISCORD_CHANNEL_LEFT", channelId);
     } catch (err) {

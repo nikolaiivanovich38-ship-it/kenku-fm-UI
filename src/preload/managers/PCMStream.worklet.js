@@ -1,85 +1,107 @@
 /**
- * 16Bit PCM data stream that will post a message when a ring buffer with a size
- * of the input parameter `bufferSize` completes a full cycle
+ * Runs on the capture window's audio thread. Cuts the mixed audio into the
+ * 20 ms frames Opus encodes (960 samples per channel at 48 kHz, planar: all
+ * left samples, then all right samples) and posts them to the capture window,
+ * which encodes them with WebCodecs (PERF-4).
+ *
+ * PERF-4: a frame of pure digital silence is not posted, except the first one
+ * after a sound, which lets the encoder finish the end of that sound. Discord
+ * plays nothing during the gap, and the encoder has nothing to do.
+ *
+ * Message: an array of `{ index, samples, last }`, where `index` counts 20 ms
+ * frames since the broadcast started (skipped silence leaves a gap),
+ * `samples` is a Float32Array of 1920 values whose buffer is transferred, and
+ * `last` marks the silent frame that ends a sound (the encoder flushes then,
+ * so the end of one sound is not heard at the start of the next).
  */
-class PCMStream extends AudioWorkletProcessor {
-  /** Ring buffer of audio data */
-  buffer;
-  /** Current index of the ring buffer */
-  pointer;
 
-  constructor(config) {
-    super(config);
-    // Buffer size in bytes
-    const bufferSize = config.parameterData.bufferSize;
-    this.buffer = new Int16Array(bufferSize);
-    this.pointer = 0;
+/** Samples per channel in one 20 ms frame at 48 kHz. */
+const FRAME_LENGTH = 960;
+const CHANNELS = 2;
+/** Samples per channel in one render quantum (Web Audio's fixed block). */
+const QUANTUM = 128;
+
+class PCMStream extends AudioWorkletProcessor {
+  constructor(options) {
+    super(options);
+    const processorOptions = (options && options.processorOptions) || {};
+    /** Frames collected before posting; more than one adds delay. */
+    this.framesPerMessage = Math.max(1, processorOptions.framesPerMessage || 1);
+    this.frame = new Float32Array(FRAME_LENGTH * CHANNELS);
+    this.offset = 0;
+    this.frameIndex = 0;
+    this.frameHasSound = false;
+    this.previousFrameHadSound = false;
+    this.batch = [];
   }
 
   process(inputs) {
     const input = inputs[0];
-    // Ensure input is a stereo signal
-    if (input && input.length === 2) {
-      const samples = this.interleave(input);
-      const pcm = this.floatTo16BitPCM(samples);
-      this.bufferPCM(pcm);
+    const left = input && input.length > 0 ? input[0] : undefined;
+    // A mono source (a microphone on its own) goes to both channels.
+    const right = input && input.length > 1 ? input[1] : left;
+    // With nothing connected the input is empty; count it as one quantum of
+    // silence so frame numbers keep following the clock.
+    const length = left ? left.length : QUANTUM;
+    let read = 0;
+    while (read < length) {
+      const count = Math.min(length - read, FRAME_LENGTH - this.offset);
+      if (left) {
+        this.copy(left, right, read, count);
+      } else {
+        this.frame.fill(0, this.offset, this.offset + count);
+        this.frame.fill(0, FRAME_LENGTH + this.offset, FRAME_LENGTH + this.offset + count);
+      }
+      this.offset += count;
+      read += count;
+      if (this.offset === FRAME_LENGTH) {
+        this.finishFrame();
+      }
     }
     return true;
   }
 
-  /**
-   * Add PCM data to the ring buffer and post the data back
-   * to the main thread once the buffer is full
-   * @param {Int16Array} pcm
-   */
-  bufferPCM(pcm) {
-    for (let i = 0; i < pcm.length; i++) {
-      this.buffer[this.pointer] = pcm[i];
-      this.pointer = (this.pointer + 1) % this.buffer.length;
-      if (this.pointer === 0) {
-        // Copy data and post it back
-        this.port.postMessage(this.buffer);
+  /** Copy `count` samples of each channel into the frame, noting any sound. */
+  copy(left, right, from, count) {
+    const frame = this.frame;
+    const leftStart = this.offset;
+    const rightStart = FRAME_LENGTH + this.offset;
+    let sound = this.frameHasSound;
+    for (let i = 0; i < count; i++) {
+      const l = left[from + i];
+      const r = right[from + i];
+      frame[leftStart + i] = l;
+      frame[rightStart + i] = r;
+      if (l !== 0 || r !== 0) {
+        sound = true;
       }
     }
+    this.frameHasSound = sound;
   }
 
-  /**
-   * Convert from 32 bit float samples to 16 bit int
-   * @param {Float32Array} samples
-   * @returns {Int16Array}
-   */
-  floatTo16BitPCM(samples) {
-    const pcm = new Int16Array(samples.length);
-    for (let i = 0; i < samples.length; i++) {
-      // Clamp sample
-      var s = Math.max(-1, Math.min(1, samples[i]));
-      // Map to int16 range (-32,768 to +32,767)
-      pcm[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+  finishFrame() {
+    const send = this.frameHasSound || this.previousFrameHadSound;
+    if (send) {
+      this.batch.push({ index: this.frameIndex, samples: this.frame, last: !this.frameHasSound });
+      this.frame = new Float32Array(FRAME_LENGTH * CHANNELS);
     }
-    return pcm;
+    // A batch waiting for more frames goes out as soon as the sound stops.
+    if (this.batch.length >= this.framesPerMessage || (!send && this.batch.length > 0)) {
+      this.flush();
+    }
+    this.previousFrameHadSound = this.frameHasSound;
+    this.frameHasSound = false;
+    this.offset = 0;
+    this.frameIndex++;
   }
 
-  /**
-   * Interleave stereo samples to match PCM format
-   * @param {[Float32Array, Float32Array]} input
-   * @returns {Float32Array}
-   */
-  interleave(input) {
-    const left = input[0];
-    const right = input[1];
-    const length = left.length + right.length;
-    const result = new Float32Array(length);
-
-    let index = 0;
-    let inputIndex = 0;
-
-    while (index < length) {
-      result[index++] = left[inputIndex];
-      result[index++] = right[inputIndex];
-      inputIndex++;
-    }
-
-    return result;
+  flush() {
+    const batch = this.batch;
+    this.batch = [];
+    this.port.postMessage(
+      batch,
+      batch.map((frame) => frame.samples.buffer),
+    );
   }
 }
 

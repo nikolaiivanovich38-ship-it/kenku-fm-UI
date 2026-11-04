@@ -104,12 +104,6 @@ export const IPC_CHANNELS = {
   PLAYER_STOP_REMOTE: { from: MAIN, args: noArgs },
 
   // AudioCaptureManagerMain, sent by the main window
-  AUDIO_CAPTURE_START: {
-    from: MAIN,
-    // Optional: an old saved setting without a streaming mode still starts
-    // capture (in low-latency mode), exactly as before.
-    args: argsMatch(optional(isOneOf("lowLatency", "performance"))),
-  },
   AUDIO_CAPTURE_SET_LOOPBACK: { from: MAIN, args: argsMatch(isBoolean) },
   AUDIO_CAPTURE_SET_MUTED: { from: MAIN, args: argsMatch(isWebContentsId, isBoolean) },
   AUDIO_CAPTURE_START_EXTERNAL_AUDIO_CAPTURE: { from: MAIN, args: argsMatch(isShortText) },
@@ -119,12 +113,6 @@ export const IPC_CHANNELS = {
   AUDIO_CAPTURE_STOP_ALL_BROWSER_VIEW_STREAMS: { from: MAIN, args: noArgs },
 
   // AudioCaptureManagerMain, sent by the hidden capture window
-  AUDIO_CAPTURE_STREAM_START: {
-    from: CAPTURE,
-    args: argsMatch(isIntegerIn(1, 32), isIntegerIn(1, 1 << 20), isIntegerIn(1, 384_000)),
-  },
-  // Not sent by any page today; kept so the capture window can end the stream.
-  AUDIO_CAPTURE_STREAM_END: { from: CAPTURE, args: noArgs },
   AUDIO_CAPTURE_GET_WEBSOCKET_ADDRESS: { from: CAPTURE, args: noArgs },
 
   // Remote API replies from the player view (src/main/remote)
@@ -132,6 +120,11 @@ export const IPC_CHANNELS = {
   PLAYER_REMOTE_PLAYLIST_PLAYBACK_REPLY: { from: PLAYER, args: argsMatch(isPlainObject, isRequestId) },
   PLAYER_REMOTE_SOUNDBOARD_GET_ALL_REPLY: { from: PLAYER, args: argsMatch(isPlainObject, isRequestId) },
   PLAYER_REMOTE_SOUNDBOARD_PLAYBACK_REPLY: { from: PLAYER, args: argsMatch(isPlainObject, isRequestId) },
+
+  // --- WP2 Pipeline / Outputs and bots ---
+  // PERF-4: the streaming mode is applied when a broadcast starts (capture
+  // no longer starts at launch, so AUDIO_CAPTURE_START is gone).
+  AUDIO_CAPTURE_SET_STREAMING_MODE: { from: MAIN, args: argsMatch(isOneOf("lowLatency", "performance")) },
 } satisfies Record<string, IpcChannelRule>;
 
 export type IpcChannel = keyof typeof IPC_CHANNELS;

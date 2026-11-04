@@ -5,17 +5,30 @@
  * `chromeMediaSource: "tab"` constraint, as AudioCaptureManagerPreload does).
  *
  * SEC-3: Chromium asks the captured page for permission. The app allows it
- * only for pages it chose to capture (src/main/security/captureTargets.ts);
- * the player view is one as soon as it has loaded.
+ * only for pages it chose to capture (src/main/security/captureTargets.ts).
+ * PERF-4 (WP2): a page is chosen only while an output is in a voice channel
+ * and the page plays sound; the first test asks for the player's media
+ * source id itself, as the capture manager would.
  */
-import http from "http";
-import type { AddressInfo } from "net";
-import type { Page } from "@playwright/test";
+import type { ConsoleMessage } from "@playwright/test";
 import { test, expect, pageWithTitle } from "./fixtures/app";
+import { startLocalSite } from "./fixtures/localSite";
+import { writeSineWav } from "./fixtures/audio";
+import { addTrack, createPlaylist, openCard, trackRow } from "./fixtures/player";
+import { FAKE_DISCORD_ENV, TONE_PAGE, channelButton, connectFakeBot, openTab } from "./fixtures/discord";
 
-test("the capture window can open the player view's audio", async ({ app, playerView }) => {
+test("the player's audio can be captured only while it plays during a broadcast", async ({ launchApp, userDataDir }) => {
+  const launched = await launchApp({ env: FAKE_DISCORD_ENV });
+  const { app } = launched;
+  const mainWindow = await launched.mainWindow();
+  const playerView = await launched.playerView();
   await expect(playerView.getByText("Playlists", { exact: true })).toBeVisible();
   const capture = await pageWithTitle(app, "Audio Capture");
+  const captureLog: string[] = [];
+  capture.on("console", (message: ConsoleMessage) => captureLog.push(message.text()));
+
+  // Nothing is being broadcast, so the app has not chosen the player for
+  // capture and Chromium's permission request is refused (SEC-3).
   const sourceId = await app.evaluate(({ webContents }) => {
     const all = webContents.getAllWebContents();
     const player = all.find((contents) => contents.getTitle() === "Cue Desk Player");
@@ -25,72 +38,77 @@ test("the capture window can open the player view's audio", async ({ app, player
     }
     return player.getMediaSourceId(captureWindow);
   });
-
   const result = await capture.evaluate(async (id) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: { mandatory: { chromeMediaSource: "tab", chromeMediaSourceId: id } },
         video: false,
       } as MediaStreamConstraints);
-      return stream.getAudioTracks().map((track) => track.readyState).join(",");
+      stream.getTracks().forEach((track) => track.stop());
+      return "live";
     } catch (error) {
-      return `${(error as Error).name}: ${(error as Error).message}`;
+      return (error as Error).name;
     }
   }, sourceId);
+  expect(result).toBe("NotAllowedError");
 
-  expect(result).toBe("live");
+  // In a voice channel, playing a track gets the player captured.
+  await connectFakeBot(mainWindow);
+  await channelButton(mainWindow, "Tavern").click();
+  const tone = writeSineWav(`${userDataDir}/audio`, "tone.wav", { seconds: 8 });
+  await createPlaylist(playerView, "Battle");
+  await openCard(playerView, "Battle");
+  await addTrack(playerView, tone, "Tone");
+  await trackRow(playerView, "Tone").getByRole("button", { name: "play", exact: true }).click();
+  await expect
+    .poll(() => captureLog.some((line) => /^Capturing audio of view \d+$/.test(line)), { timeout: 10_000 })
+    .toBe(true);
+  // Captured, so the player no longer plays by itself: no NotAllowedError logged.
+  expect(captureLog.filter((line) => /Unable/.test(line))).toEqual([]);
 });
 
-/** A local web page standing in for YouTube or Tabletop Audio. */
-async function withLocalSite(run: (url: string) => Promise<void>): Promise<void> {
-  const site = http.createServer((_request, response) => {
-    response.setHeader("content-type", "text/html");
-    response.end("<title>Local test site</title><p>Test page</p>");
-  });
-  await new Promise<void>((resolve) => site.listen(0, "127.0.0.1", resolve));
+/**
+ * Start a broadcast with the fake Discord and play a tone in a website tab,
+ * so the app captures that tab. Returns the tab's page and view id.
+ */
+async function captureATab(launchApp: Parameters<Parameters<typeof test>[2]>[0]["launchApp"], url: string) {
+  const launched = await launchApp({ env: FAKE_DISCORD_ENV });
+  const { app } = launched;
+  const mainWindow = await launched.mainWindow();
+  await launched.playerView();
+  const capture = await pageWithTitle(app, "Audio Capture");
+  const captureLog: { type: string; text: string }[] = [];
+  capture.on("console", (message: ConsoleMessage) => captureLog.push({ type: message.type(), text: message.text() }));
+
+  const viewId = await openTab(mainWindow, url);
+  const site = await pageWithTitle(app, "Tone");
+  await connectFakeBot(mainWindow);
+  await channelButton(mainWindow, "Tavern").click();
+  await site.evaluate(() => (window as unknown as { playTone(): void }).playTone());
+  await expect
+    .poll(() => captureLog.map((entry) => entry.text), { timeout: 10_000 })
+    .toContain(`Capturing audio of view ${viewId}`);
+  expect(captureLog.filter((entry) => entry.type === "error")).toEqual([]);
+  return { app, site, viewId };
+}
+
+test("the app captures a website tab's audio when it plays during a broadcast", async ({ launchApp }) => {
+  const local = await startLocalSite({ "/tone": TONE_PAGE });
   try {
-    await run(`http://127.0.0.1:${(site.address() as AddressInfo).port}/`);
+    const { app, viewId } = await captureATab(launchApp, local.url("/tone"));
+    // Chromium still reports the captured tab as playing.
+    expect(await app.evaluate(({ webContents }, id) => webContents.fromId(id)?.isCurrentlyAudible(), viewId)).toBe(true);
   } finally {
-    site.close();
+    await local.close();
   }
-}
-
-/** Open a website tab the way the "+" button does; returns its view id. */
-function openTab(mainWindow: Page, url: string): Promise<number> {
-  return mainWindow.evaluate(
-    (address) =>
-      (window as unknown as { kenku: { createBrowserView(...args: unknown[]): Promise<number> } })
-        .kenku.createBrowserView(address, 0, 0, 400, 300),
-    url,
-  );
-}
-
-test("the app captures a website tab's audio as soon as the tab loads", async ({ app, mainWindow, playerView }) => {
-  await withLocalSite(async (url) => {
-    await expect(playerView.getByText("Playlists", { exact: true })).toBeVisible();
-    const capture = await pageWithTitle(app, "Audio Capture");
-    const captureLog: { type: string; text: string }[] = [];
-    capture.on("console", (message) => captureLog.push({ type: message.type(), text: message.text() }));
-
-    // Once the page has loaded, the main window asks for its audio.
-    const viewId = await openTab(mainWindow, url);
-    await pageWithTitle(app, "Local test site");
-    await expect
-      .poll(() => captureLog.map((entry) => entry.text), { timeout: 10_000 })
-      .toContain(`Capturing audio of view ${viewId}`);
-
-    expect(captureLog.filter((entry) => entry.type === "error")).toEqual([]);
-  });
 });
 
-test("a website in a tab cannot record the screen or desktop audio (WP1 review)", async ({ app, mainWindow, playerView }) => {
-  await withLocalSite(async (url) => {
-    await expect(playerView.getByText("Playlists", { exact: true })).toBeVisible();
-    await openTab(mainWindow, url);
-    const site = await pageWithTitle(app, "Local test site");
-
+test("a website in a tab cannot record the screen or desktop audio (WP1 review)", async ({ launchApp }) => {
+  const local = await startLocalSite({ "/tone": TONE_PAGE });
+  try {
     // The tab is being captured for Discord, which must not give the site
     // any capture rights of its own.
+    const { site } = await captureATab(launchApp, local.url("/tone"));
     const attempts = await site.evaluate(async () => {
       const tryCapture = async (constraints: unknown) => {
         try {
@@ -111,5 +129,7 @@ test("a website in a tab cannot record the screen or desktop audio (WP1 review)"
     });
 
     expect(attempts).toEqual({ screen: "NotAllowedError", desktopAudio: "NotAllowedError" });
-  });
+  } finally {
+    await local.close();
+  }
 });
