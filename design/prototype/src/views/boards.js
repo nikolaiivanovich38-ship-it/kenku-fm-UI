@@ -252,7 +252,7 @@
     }
     var on = L.padActive(b.id, p.id), pv = previewing(b, p), isSel = sel && sel.pad.id === p.id;
     return '<div class="pb-slot pb-has' + (isSel ? ' sel' : '') + (on ? ' on' : '') + (pv ? ' pv' : '') + '" ' + swatch(p) + ' data-drop="slot:' + i + '"><button class="pb-pad' + (isSel ? ' sel' : '') + '" draggable="true" data-drag="' + p.id + '" data-act="pbpad" data-pid="' + p.id + '" data-k="slot-' + i + '" data-slot="' + i + '" tabindex="' + tab + '" aria-pressed="' + !!isSel + '"' +
-      ' aria-label="' + esc(p.label) + (p.key ? ', key ' + esc(String(p.key).toUpperCase()) : '') + ', ' + L.modeName[p.mode] + ', ' + rc + (on ? ', on air' : pv ? ', previewing' : '') + '">' +
+      ' aria-label="' + esc(p.label) + (p.key ? ' ' + esc(String(p.key).toUpperCase()) : '') + ': ' + L.modeName[p.mode] + ', ' + rc + (on ? ', on air' : pv ? ', previewing' : '') + '">' +
       '<span class="pb-pad-label">' + esc(p.label) + '</span>' +
       '<span class="pb-pad-meta">' + (p.key ? '<span class="kbd">' + esc(String(p.key).toUpperCase()) + '</span>' : '') + '<span class="pb-mode" title="' + L.modeName[p.mode] + '">' + L.icon(L.modeIcon[p.mode], 's') + '</span>' +
       (on ? '<span class="pb-playing">On air</span>' : '') + '</span></button><span class="pb-tile-pv">' + L.previewButton('pad', b.id + '/' + p.id).replace('<button ', '<button tabindex="-1" ') + '</span></div>';

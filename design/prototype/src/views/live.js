@@ -264,7 +264,7 @@
   function toChip(box) {
     if (rooms().length < 2) return '';
     var n = toName(box);
-    return '<button class="lv-to" data-act="lvto" data-box="' + box + '" data-k="lv-to-' + box + '" aria-haspopup="menu" aria-expanded="false" title="Where this box plays: ' + esc(n) + '" aria-label="Plays in ' + esc(n) + '. Choose a room">' +
+    return '<button class="lv-to" data-act="lvto" data-box="' + box + '" data-k="lv-to-' + box + '" aria-haspopup="menu" aria-expanded="false" title="Where this box plays: ' + esc(n) + '" aria-label="To: ' + esc(n) + ', choose a room">' +
       '<span class="faint">To:</span><b class="ellipsis">' + esc(n.charAt(0).toUpperCase() + n.slice(1)) + '</b>' + L.icon('chevdown', 's') + '</button>';
   }
   function eachTo(box, fn) { targetsOf(box).forEach(fn); }

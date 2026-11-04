@@ -239,7 +239,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 h1, h2, h3, h4 { margin: 0; font-weight: 600; }
 p { margin: 0; }
 ul, ol { margin: 0; padding: 0; }
-.sr-only { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; border: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 .display { font-family: var(--display); font-weight: var(--display-weight); text-transform: var(--display-case); letter-spacing: var(--display-track); }
 .num { font-family: var(--num); font-variant-numeric: tabular-nums; letter-spacing: .02em; }
 .muted { color: var(--ink-2); }
@@ -1090,6 +1090,9 @@ select.input.pl-asksel { width: auto; max-width: 220px; height: var(--ctl-s); pa
 .cp-box.cp-fdrop, .cp-scene.cp-fdrop { outline: 2px dashed var(--accent); outline-offset: 1px; }
 .cp-it.cp-ins-before { box-shadow: inset 0 3px 0 var(--accent); }
 .cp-box.cp-ins-end .cp-items { box-shadow: 0 3px 0 var(--accent); }
+
+/* Keeps the hidden ' (Track)' text inside its link, so it cannot widen the page at narrow widths. */
+.cp-it-name { position: relative; }
 
 /* Library view (lb-): Filters | Tracks | Details. */
 #view[data-view="library"] { position: relative; }
@@ -4136,9 +4139,10 @@ var L = (function () {
 
   /* ---------- building blocks ---------- */
   function pvKey(kind, id) { return kind === 'track' ? id : kind === 'playlist' ? 'pl:' + id : kind === 'pad' ? 'pad:' + id : 'pad:' + id + '/' + firstPad(id); }
+  function padLabel(ref) { var a = ref.split('/'), b = L.board(a[0]), p = b && b.slots.concat(b.spare).filter(function (x) { return x && x.id === a[1]; })[0]; return p ? p.label : ref; }
   function firstPad(bid) { var b = L.board(bid), p = b && L.boardPads(b).filter(Boolean)[0]; return p ? p.id : ''; }
   L.previewButton = function (kind, id, size) {
-    var on = L.previewing(pvKey(kind, id)), name = kind === 'track' ? L.title(L.track(id)) : kind === 'playlist' ? (L.playlist(id) || {}).name : kind === 'board' ? (L.board(id) || {}).name : id;
+    var on = L.previewing(pvKey(kind, id)), name = kind === 'track' ? L.title(L.track(id)) : kind === 'playlist' ? (L.playlist(id) || {}).name : kind === 'board' ? (L.board(id) || {}).name : padLabel(id);
     return '<button type="button" class="btn s icon pv" data-act="pv" data-kind="' + kind + '" data-id="' + esc(id) + '" data-keep-menu="1" data-k="pv-' + kind + '-' + esc(id) + '" aria-pressed="' + on + '" title="' + (on ? 'Stop preview' : kind === 'board' ? 'Preview the first pad in your headphones' : 'Preview in your headphones') + '" aria-label="' + (on ? 'Stop preview of ' : kind === 'board' ? 'Preview the first pad of ' : 'Preview ') + esc(name) + '">' + L.icon(on ? 'stop' : 'headphones', 's') + '</button>';
   };
   L.acts.pv = function (el) {
@@ -5925,7 +5929,7 @@ var L = (function () {
     }
     var on = L.padActive(b.id, p.id), pv = previewing(b, p), isSel = sel && sel.pad.id === p.id;
     return '<div class="pb-slot pb-has' + (isSel ? ' sel' : '') + (on ? ' on' : '') + (pv ? ' pv' : '') + '" ' + swatch(p) + ' data-drop="slot:' + i + '"><button class="pb-pad' + (isSel ? ' sel' : '') + '" draggable="true" data-drag="' + p.id + '" data-act="pbpad" data-pid="' + p.id + '" data-k="slot-' + i + '" data-slot="' + i + '" tabindex="' + tab + '" aria-pressed="' + !!isSel + '"' +
-      ' aria-label="' + esc(p.label) + (p.key ? ', key ' + esc(String(p.key).toUpperCase()) : '') + ', ' + L.modeName[p.mode] + ', ' + rc + (on ? ', on air' : pv ? ', previewing' : '') + '">' +
+      ' aria-label="' + esc(p.label) + (p.key ? ' ' + esc(String(p.key).toUpperCase()) : '') + ': ' + L.modeName[p.mode] + ', ' + rc + (on ? ', on air' : pv ? ', previewing' : '') + '">' +
       '<span class="pb-pad-label">' + esc(p.label) + '</span>' +
       '<span class="pb-pad-meta">' + (p.key ? '<span class="kbd">' + esc(String(p.key).toUpperCase()) + '</span>' : '') + '<span class="pb-mode" title="' + L.modeName[p.mode] + '">' + L.icon(L.modeIcon[p.mode], 's') + '</span>' +
       (on ? '<span class="pb-playing">On air</span>' : '') + '</span></button><span class="pb-tile-pv">' + L.previewButton('pad', b.id + '/' + p.id).replace('<button ', '<button tabindex="-1" ') + '</span></div>';
@@ -6539,7 +6543,7 @@ var L = (function () {
   function toChip(box) {
     if (rooms().length < 2) return '';
     var n = toName(box);
-    return '<button class="lv-to" data-act="lvto" data-box="' + box + '" data-k="lv-to-' + box + '" aria-haspopup="menu" aria-expanded="false" title="Where this box plays: ' + esc(n) + '" aria-label="Plays in ' + esc(n) + '. Choose a room">' +
+    return '<button class="lv-to" data-act="lvto" data-box="' + box + '" data-k="lv-to-' + box + '" aria-haspopup="menu" aria-expanded="false" title="Where this box plays: ' + esc(n) + '" aria-label="To: ' + esc(n) + ', choose a room">' +
       '<span class="faint">To:</span><b class="ellipsis">' + esc(n.charAt(0).toUpperCase() + n.slice(1)) + '</b>' + L.icon('chevdown', 's') + '</button>';
   }
   function eachTo(box, fn) { targetsOf(box).forEach(fn); }

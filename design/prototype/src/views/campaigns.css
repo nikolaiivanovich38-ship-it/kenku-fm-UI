@@ -186,3 +186,6 @@
 .cp-box.cp-fdrop, .cp-scene.cp-fdrop { outline: 2px dashed var(--accent); outline-offset: 1px; }
 .cp-it.cp-ins-before { box-shadow: inset 0 3px 0 var(--accent); }
 .cp-box.cp-ins-end .cp-items { box-shadow: 0 3px 0 var(--accent); }
+
+/* Keeps the hidden ' (Track)' text inside its link, so it cannot widen the page at narrow widths. */
+.cp-it-name { position: relative; }

@@ -25,9 +25,10 @@
 
   /* ---------- building blocks ---------- */
   function pvKey(kind, id) { return kind === 'track' ? id : kind === 'playlist' ? 'pl:' + id : kind === 'pad' ? 'pad:' + id : 'pad:' + id + '/' + firstPad(id); }
+  function padLabel(ref) { var a = ref.split('/'), b = L.board(a[0]), p = b && b.slots.concat(b.spare).filter(function (x) { return x && x.id === a[1]; })[0]; return p ? p.label : ref; }
   function firstPad(bid) { var b = L.board(bid), p = b && L.boardPads(b).filter(Boolean)[0]; return p ? p.id : ''; }
   L.previewButton = function (kind, id, size) {
-    var on = L.previewing(pvKey(kind, id)), name = kind === 'track' ? L.title(L.track(id)) : kind === 'playlist' ? (L.playlist(id) || {}).name : kind === 'board' ? (L.board(id) || {}).name : id;
+    var on = L.previewing(pvKey(kind, id)), name = kind === 'track' ? L.title(L.track(id)) : kind === 'playlist' ? (L.playlist(id) || {}).name : kind === 'board' ? (L.board(id) || {}).name : padLabel(id);
     return '<button type="button" class="btn s icon pv" data-act="pv" data-kind="' + kind + '" data-id="' + esc(id) + '" data-keep-menu="1" data-k="pv-' + kind + '-' + esc(id) + '" aria-pressed="' + on + '" title="' + (on ? 'Stop preview' : kind === 'board' ? 'Preview the first pad in your headphones' : 'Preview in your headphones') + '" aria-label="' + (on ? 'Stop preview of ' : kind === 'board' ? 'Preview the first pad of ' : 'Preview ') + esc(name) + '">' + L.icon(on ? 'stop' : 'headphones', 's') + '</button>';
   };
   L.acts.pv = function (el) {

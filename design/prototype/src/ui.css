@@ -6,7 +6,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 h1, h2, h3, h4 { margin: 0; font-weight: 600; }
 p { margin: 0; }
 ul, ol { margin: 0; padding: 0; }
-.sr-only { position: absolute !important; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; border: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
 .display { font-family: var(--display); font-weight: var(--display-weight); text-transform: var(--display-case); letter-spacing: var(--display-track); }
 .num { font-family: var(--num); font-variant-numeric: tabular-nums; letter-spacing: .02em; }
 .muted { color: var(--ink-2); }
