@@ -95,13 +95,6 @@ vi.mock("./main/security/appInfoIpc", () => ({
     return (): void => undefined;
   },
 }));
-vi.mock("./main/legacyBackgrounds", () => ({
-  startKenkuBackgroundImport: vi.fn(() => {
-    state.startupCalls.push("background-import");
-    return Promise.resolve();
-  }),
-  registerBackgroundsIpc: vi.fn(() => (): void => undefined),
-}));
 vi.mock("./assets/icon.png", () => ({ default: "icon.png" }));
 vi.mock("./bounds", () => ({
   getSavedBounds: () => ({ bounds: {}, maximized: false }),
@@ -144,8 +137,8 @@ describe("start-up order (FND-1)", () => {
     expect(state.windows).toHaveLength(1);
   });
 
-  it("starts copying Kenku FM's background pictures after the carry-over, once", () => {
-    expect(state.startupCalls).toEqual(["single-instance-lock", "carry-over", "background-import"]);
+  it("reads nothing else of Kenku FM's after the library carry-over (its background pictures are Cue Desk's own now)", () => {
+    expect(state.startupCalls).toEqual(["single-instance-lock", "carry-over"]);
   });
 
   it("does not interrupt start-up when the library was copied", () => {

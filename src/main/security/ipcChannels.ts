@@ -125,12 +125,6 @@ export const IPC_CHANNELS = {
   PLAYER_REMOTE_SOUNDBOARD_GET_ALL_REPLY: { from: PLAYER, args: argsMatch(isPlainObject, isRequestId) },
   PLAYER_REMOTE_SOUNDBOARD_PLAYBACK_REPLY: { from: PLAYER, args: argsMatch(isPlainObject, isRequestId) },
 
-  // --- Kenku FM backgrounds (fix/kenku-backgrounds) ---
-  // src/main/legacyBackgrounds: the player asks (sync, while it loads) for the
-  // background pictures in <userData>/backgrounds. A refusal gets no pictures,
-  // so the player shows its blank background.
-  PLAYER_GET_BACKGROUNDS: { from: PLAYER, args: noArgs, refusedReturnValue: {} },
-
   // --- WP2 Tabs ---
   // SEC-15 (BrowserViewManagerMain): open a file from the user's computer in a
   // tab of its own (invoke; answers the view id, or -1 when refused or the

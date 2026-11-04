@@ -32,6 +32,7 @@ If Kenku FM has been used on this computer, Cue Desk copies its library the firs
 - Kenku FM's own files are only read, never changed or deleted. Kenku FM keeps working as before.
 - Your audio files are not copied. Playlists point to the files where they already are, so leave them in place.
 - Nothing is copied if Cue Desk already has a library of its own.
+- Background pictures: Cue Desk comes with its own 23 pictures, under the same names Kenku FM used (tavern, castle, stars …), so playlists and soundboards from Kenku FM show a picture straight away. They look different from Kenku FM's. Pictures you chose yourself from a file or web address are kept as they are.
 
 Where the libraries are kept on Windows:
 
@@ -41,6 +42,8 @@ Where the libraries are kept on Windows:
 | Cue Desk | `%APPDATA%\cue-desk` |
 
 (On macOS: `~/Library/Application Support/`; on Linux: `~/.config/`.)
+
+If you used Cue Desk 0.1.1, it may have copied Kenku FM's pictures into a `backgrounds` folder inside the `cue-desk` folder. Cue Desk no longer uses that folder; you can delete it.
 
 **If your library did not appear**, and you have not added anything in Cue Desk yet: close Cue Desk, paste `%APPDATA%` into the File Explorer address bar, delete the `cue-desk` folder, close Kenku FM, then start Cue Desk again. Once the copy has succeeded (or there was nothing to copy), the result is written to `data-carry-over.json` in the `cue-desk` folder. It lists folder names only, no personal details; attach it if you report a problem.
 
@@ -61,7 +64,6 @@ On Windows, Cue Desk checks this project's [Releases](https://github.com/nikolai
 ## Known limitations
 
 - Sites that use copy protection (DRM), such as Spotify, do not play in tabs. Upstream Kenku FM is built on a special version of Electron that supports it; Cue Desk uses the standard version, which receives security updates for longer.
-- Cue Desk has no background pictures of its own: Kenku FM's belong to Owlbear Rodeo and are kept in a private repository. If Kenku FM is installed on the same computer, Cue Desk copies its pictures when it starts, and playlists and soundboards brought over from Kenku FM show them as before. Without Kenku FM, backgrounds stay blank until new artwork is added (FND-13). Pictures you add yourself from a file or web address work either way.
 
 ## Help
 

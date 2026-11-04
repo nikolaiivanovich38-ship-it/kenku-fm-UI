@@ -75,12 +75,24 @@ Rebuild the package after any change under `src/`; changes to `e2e/` need no reb
 - `e2e/fixtures/app.ts` starts the app with a new empty data folder (`CUE_DESK_USER_DATA_DIR`, which also skips the Kenku FM carry-over; only test builds read it, release builds ignore it) and finds pages by title (`Cue Desk`, `Cue Desk Player`, `Audio Capture`). New specs import `test` and `expect` from it. `launchApp` starts further copies, for tests that restart the app (same data folder by default, or `{ userDataDir: null, env: { XDG_CONFIG_HOME } }` for the normal folder under a private appData).
 - After every test the fixture fails the test if anything went wrong while the app ran (`e2e/fixtures/problems.ts`): an uncaught page error, a console error in any page, a main-process crash, a Content-Security-Policy refusal or an "Ignored a … message" from the IPC guard. A test that causes a console error on purpose lists it in `errors.ignoredConsole`.
 - Helpers: `fixtures/audio.ts` writes sine-tone WAV files, `fixtures/localSite.ts` serves test pages on 127.0.0.1 (tests cannot reach the internet), `fixtures/player.ts` holds the playlist and soundboard steps. Audio files are added through the app's own file chooser (Playwright's `filechooser` event), so the real import code runs.
-- `CUE_DESK_LOCAL_APP_DATA_DIR` (test builds only) names the folder searched for an installed Kenku FM instead of `%LOCALAPPDATA%`. While `CUE_DESK_USER_DATA_DIR` is in use and this variable is not, no Kenku FM is searched for at all, so tests never read the real computer's install.
 - `CUE_DESK_EXECUTABLE` runs the tests against another build.
 - On Linux as root (containers, CI) the Chromium sandbox is switched off for the test run only.
 - Failures leave a trace, screenshots and the main-process log in `test-results/`.
 
 CI runs the e2e job on Windows (`.github/workflows/ci.yml`).
+
+## Background pictures
+
+The player's 23 built-in background pictures (`src/player/backgrounds/*.jpg`) are painted by code: `scripts/backgrounds/paint.mjs` draws each scene on a canvas from a fixed random seed, and `scripts/backgrounds/render.mjs` runs it in Playwright's Chromium and saves 1600×1000 JPEGs (quality 0.82). The file names are the background names Kenku FM stored, so do not rename them ("butterflys" is Kenku FM's spelling).
+
+```
+node scripts/backgrounds/render.mjs                    # repaint all 23 into src/player/backgrounds
+node scripts/backgrounds/render.mjs tavern stars       # only these
+node scripts/backgrounds/render.mjs --sheet sheet.png  # also save a contact sheet, shown as the player's cards show them
+node scripts/backgrounds/render.mjs --check            # repaint in memory and compare with the saved files
+```
+
+The script fails if a picture is over 250 KB or if white text on it would be hard to read: it applies the playlist page's own overlay and requires 4.5:1 contrast (WCAG AA) against the brightest 5% of the picture, separately for the title and the track list. With the same Chromium build the files come out byte for byte the same; another Chromium version may change a few pixels (`--check` says which). If Playwright's own Chromium is missing, the script uses the newest `chromium-*` build in the Playwright browser folder. `yarn test:scripts` checks the names and the seeded randomness; `src/player/backgrounds/index.test.ts` checks the files. The pictures are original to this project and GPL-3.0 (`src/player/backgrounds/LICENSE.md`). Any image file put in that folder is bundled, so keep only the 23 there.
 
 ## Dependency audit
 
