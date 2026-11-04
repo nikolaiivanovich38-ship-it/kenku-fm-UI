@@ -132,7 +132,7 @@ const config = {
     {
       name: "@timfish/forge-externals-plugin",
       config: {
-        externals: ["opusscript", "prism-media", "@snazzah/davey", "zlib-sync"],
+        externals: ["opusscript", "prism-media", "@snazzah/davey"],
         includeDeps: true,
       },
     },

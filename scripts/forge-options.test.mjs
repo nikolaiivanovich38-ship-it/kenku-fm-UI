@@ -67,7 +67,7 @@ describe("ASAR_UNPACK_GLOB (SEC-13)", () => {
   const unpacked = (file) => minimatch(file, ASAR_UNPACK_GLOB, { matchBase: true });
 
   it("keeps native addons and WebAssembly outside app.asar", () => {
-    assert.ok(unpacked("/app/node_modules/zlib-sync/build/Release/zlib_sync.node"));
+    assert.ok(unpacked("/app/node_modules/some-addon/build/Release/addon.node"));
     assert.ok(unpacked("/app/node_modules/@snazzah/davey-win32-x64-msvc/davey.win32-x64-msvc.node"));
     assert.ok(unpacked("/app/node_modules/opusscript/build/opusscript_native_wasm.wasm"));
     assert.ok(unpacked("/app/.webpack/main/native_modules/thing.node"));

@@ -119,8 +119,7 @@
     "redux-persist": "^6.0.0",
     "tiny-typed-emitter": "^2.1.0",
     "uuid": "^10.0.0",
-    "ws": "8.22.0",
-    "zlib-sync": "^0.1.10"
+    "ws": "8.22.0"
   },
   "resolutions": {
     "**/discord.js/undici": "6.29.1",
@@ -131,7 +130,6 @@
     "**/@fastify/ajv-compiler/fast-uri": "2.4.8",
     "**/fast-json-stringify/fast-uri": "2.4.8",
     "**/@electron-internal/extract-zip": "1.0.5",
-    "**/node-abi": "3.99.0",
-    "**/zlib-sync/nan": "2.30.0"
+    "**/node-abi": "3.99.0"
   }
 }

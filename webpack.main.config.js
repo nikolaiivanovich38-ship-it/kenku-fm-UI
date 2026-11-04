@@ -24,6 +24,7 @@ module.exports = {
     opusscript: "commonjs2 opusscript",
     "prism-media": "commonjs2 prism-media",
     "@snazzah/davey": "commonjs2 @snazzah/davey",
+    // Optional in discord.js and not installed (FND-10); its require() is in a try block.
     "zlib-sync": "commonjs2 zlib-sync",
   },
 };

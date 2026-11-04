@@ -52,13 +52,13 @@ Do not package from a git worktree whose `node_modules` is a symlink to another 
 
 ## Building without Electron headers (FND-3)
 
-Packaging rebuilds native modules (zlib-sync) for Electron, which downloads Electron's C++ headers from electronjs.org. Where that site is blocked, set `CUE_DESK_SKIP_NATIVE_REBUILD=1`:
+The app has no modules compiled from C++ (zlib-sync was dropped in FND-10: discord.js works without it), so packaging needs no Visual Studio and no Electron headers. `CUE_DESK_SKIP_NATIVE_REBUILD=1` skips Electron Forge's native rebuild step and is kept for a future native module:
 
 ```
 CUE_DESK_SKIP_NATIVE_REBUILD=1 yarn package
 ```
 
-The package then contains zlib-sync built for Node.js, which Electron cannot load. That is harmless: discord.js treats zlib-sync as optional and falls back to its built-in compression. Use this only for local testing; CI and release builds never set it.
+Prefer libraries without C++ code (WebAssembly, prebuilt binaries for Electron, or Node built-ins such as `node:sqlite`): a module compiled from source needs a C++ toolchain on every build machine.
 
 ## End-to-end tests (FND-4)
 

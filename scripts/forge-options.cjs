@@ -8,8 +8,9 @@ const { FuseV1Options, FuseVersion } = require("@electron/fuses");
 
 /**
  * FND-3: set to 1 to package without rebuilding native modules for Electron.
- * Only for machines that cannot download Electron's headers; zlib-sync is then
- * left out and discord.js uses its built-in fallback. CI never sets it.
+ * Only for machines that cannot download Electron's headers. Since FND-10 the
+ * app has no modules compiled from C++, so today it changes nothing; it stays
+ * for a future native module. CI never sets it.
  */
 const SKIP_NATIVE_REBUILD_ENV = "CUE_DESK_SKIP_NATIVE_REBUILD";
 
