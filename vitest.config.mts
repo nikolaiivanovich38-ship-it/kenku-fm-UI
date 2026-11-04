@@ -3,7 +3,7 @@ import { defineConfig } from "vitest/config";
 /**
  * Test configuration.
  * - "main": main-process and pure logic tests, run in Node.
- * - "ui": React components and hooks for the player and main window, run in jsdom.
+ * - "ui": React components and hooks for the player, the main window and the new interface (src/lyre), run in jsdom.
  */
 export default defineConfig({
   test: {
@@ -28,6 +28,7 @@ export default defineConfig({
           include: [
             "src/player/**/*.test.{ts,tsx}",
             "src/renderer/**/*.test.{ts,tsx}",
+            "src/lyre/**/*.test.{ts,tsx}",
           ],
           setupFiles: ["src/test/setupUi.ts"],
         },
