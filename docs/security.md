@@ -242,3 +242,11 @@ Content-Security-Policy: no change. The player's `img-src` already allows `file:
 3. Open `%APPDATA%\cue-desk\backgrounds`: 23 `.jpg` files. Replace one with a picture of your own under the same name and restart: yours stays.
 4. On a computer without Kenku FM: Cue Desk starts normally and backgrounds are blank.
 
+
+## WP4 Engine core
+
+The new playback engine (`src/player/engine`, design in `docs/playback-engine.md`) adds no IPC channel, no permission and no Content-Security-Policy change. It runs in the player page and reads audio files the way the player already does: `<audio>` elements for streaming (`media-src file: https: http:`) and `XMLHttpRequest` for small files to decode (`connect-src file: https: http:`; Chromium's `fetch()` refuses `file://`).
+
+**Preview and whisper must not reach the broadcast.** Tab capture records everything the player page plays through its audio context's speakers (`AudioCaptureManagerPreload.ts`, `chromeMediaSource: "tab"`). The engine therefore never connects its outputs itself: only the table output may be connected to the context's speakers in the captured player page. PRV-1 must play the preview output from a context or page that is not captured, and OUT-5 must take the whisper output as its own stream, before either is offered to users.
+
+**Test-build hook.** `src/player/renderer.ts` installs `window.__cueDeskEngineTest` (`src/player/engine/testHook.ts`) only when `__CUE_DESK_TEST_BUILD__` is true. `webpack.renderer.config.js` now defines that constant (as `webpack.main.config.js` already did), so release builds compile the branch and the module out; checked by building a release package and searching `player_window/index.js` for `__cueDeskEngineTest` (no match). The hook plays files named by the test and listens to the outputs; it has no IPC and is only reachable from the page itself.

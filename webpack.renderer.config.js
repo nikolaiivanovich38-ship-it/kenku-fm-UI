@@ -1,3 +1,4 @@
+const webpack = require("webpack");
 const rules = require("./webpack.rules");
 const plugins = require("./webpack.plugins");
 
@@ -20,7 +21,14 @@ module.exports = {
   module: {
     rules,
   },
-  plugins: plugins,
+  plugins: [
+    ...plugins,
+    // WP4: test-only hooks (the engine for e2e/engine.spec.ts) exist only in
+    // packages built for the end-to-end tests; release builds compile them out.
+    new webpack.DefinePlugin({
+      __CUE_DESK_TEST_BUILD__: JSON.stringify(process.env.CUE_DESK_E2E_BUILD === "1"),
+    }),
+  ],
   resolve: {
     extensions: [".js", ".ts", ".jsx", ".tsx", ".css"],
   },

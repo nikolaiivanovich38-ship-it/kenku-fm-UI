@@ -54,6 +54,7 @@ describe.each(["buffer", "stream"] as const)("Voice (%s)", (kind) => {
     await context.advance(0.1);
     expect(loaded).toHaveBeenCalledWith(10);
     expect(voice.duration).toBe(10);
+    expect(voice.sourceKind).toBe(kind);
     expect(states).toEqual(["playing"]);
     expect(level()).toBeCloseTo(0.5);
   });
@@ -250,9 +251,13 @@ describe("Voice errors", () => {
     const voice = new Voice({ context, scheduler: context.clock, destination: bus }, Promise.reject(new Error("File not found")), {});
     const error = vi.fn();
     voice.on("error", error);
+    let reasonSeenWithState: string | null = null;
+    voice.on("state", () => (reasonSeenWithState = voice.errorMessage));
     await context.flush();
     expect(voice.state).toBe("failed");
+    expect(reasonSeenWithState).toBe("File not found");
     expect(error).toHaveBeenCalledWith("File not found");
+    expect(voice.errorMessage).toBe("File not found");
   });
 
   it("a stream that fails on a later loop pass fails the voice and releases both passes", async () => {

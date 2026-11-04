@@ -79,6 +79,10 @@ export class Voice extends TypedEmitter<VoiceEvents> {
   state: VoiceState = "loading";
   /** Length in seconds; NaN until loaded or when a stream does not say. */
   duration = NaN;
+  /** Why the voice failed, once its state is "failed". */
+  errorMessage: string | null = null;
+  /** How it plays once loaded: decoded into memory, or streamed from the file. */
+  sourceKind: "buffer" | "stream" | null = null;
 
   private readonly context: EngineContext;
   private readonly scheduler: Scheduler;
@@ -224,6 +228,7 @@ export class Voice extends TypedEmitter<VoiceEvents> {
       return;
     }
     this.source = source;
+    this.sourceKind = source.kind;
     const pass = this.newPass();
     this.current = pass;
     await this.open(pass);
@@ -421,6 +426,8 @@ export class Voice extends TypedEmitter<VoiceEvents> {
     if (this.isFinal()) {
       return;
     }
+    // Set before the state change, so a listener that sees "failed" can read why.
+    this.errorMessage = message;
     this.finish("failed");
     if (this.listenerCount("error") > 0) {
       this.emit("error", message);
