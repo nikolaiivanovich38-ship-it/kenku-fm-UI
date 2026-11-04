@@ -17,6 +17,7 @@ import {
   isSafePictureFile,
   parseBackgroundMap,
 } from "./kenkuInstall";
+import { AsarArchive, type RawFs } from "./asarArchive";
 
 /** Largest picture copied. Kenku FM's are under 1 MB each. */
 export const MAX_BACKGROUND_BYTES = 20 * 1024 * 1024;
@@ -71,10 +72,11 @@ async function namesInFolder(dir: string): Promise<Set<string>> {
  * starts would keep.
  */
 export async function copyMissingBackgrounds(
-  sourceDir: string,
+  sourceDir: string | PictureSource,
   entries: readonly BackgroundEntry[],
   destDir: string,
 ): Promise<CopyResult> {
+  const pictures = typeof sourceDir === "string" ? folderSource(sourceDir) : sourceDir;
   await fs.mkdir(destDir, { recursive: true });
   const present = await namesInFolder(destDir);
   const result: CopyResult = { copied: [], alreadyPresent: [], skipped: [] };
@@ -89,29 +91,20 @@ export async function copyMissingBackgrounds(
       result.alreadyPresent.push(name);
       continue;
     }
-    const source = path.join(sourceDir, file);
     const target = path.join(destDir, `${name}${path.extname(file).toLowerCase()}`);
     const temporary = path.join(destDir, `.${name}${path.extname(file)}.part`);
     try {
-      // lstat: a picture that is a link to some other file is not copied.
-      const stats = await fs.lstat(source).catch((): null => null);
-      if (stats === null) {
-        result.skipped.push({ name, reason: "not found" });
-      } else if (!stats.isFile()) {
-        result.skipped.push({ name, reason: "not a file" });
-      } else if (stats.size === 0) {
-        result.skipped.push({ name, reason: "empty file" });
-      } else if (stats.size > MAX_BACKGROUND_BYTES) {
-        result.skipped.push({ name, reason: "larger than 20 MB" });
-      } else if (totalBytes + stats.size > MAX_TOTAL_BACKGROUND_BYTES) {
+      const picture = await pictures.readPicture(file);
+      if ("skip" in picture) {
+        result.skipped.push({ name, reason: picture.skip });
+      } else if (totalBytes + picture.content.length > MAX_TOTAL_BACKGROUND_BYTES) {
         result.skipped.push({ name, reason: "over the total size limit for one start" });
       } else {
-        const content = await readAtMost(source, MAX_BACKGROUND_BYTES);
-        totalBytes += content.length;
+        totalBytes += picture.content.length;
         // "wx" refuses an existing file or link at the temporary name, and
         // COPYFILE_EXCL refuses a picture that appeared since the folder was
         // listed: nothing is ever overwritten.
-        await fs.writeFile(temporary, content, { flag: "wx" });
+        await fs.writeFile(temporary, picture.content, { flag: "wx" });
         await fs.copyFile(temporary, target, fsConstants.COPYFILE_EXCL);
         await fs.rm(temporary, { force: true });
         present.add(name.toLowerCase());
@@ -126,15 +119,86 @@ export async function copyMissingBackgrounds(
 }
 
 /** The player bundle's text, or null when it is missing or too large. */
-async function readBundle(rendererDir: string): Promise<string | null> {
-  const bundle = path.join(rendererDir, PLAYER_BUNDLE);
-  try {
-    const stats = await fs.stat(bundle);
-    if (!stats.isFile() || stats.size > MAX_BUNDLE_BYTES) return null;
-    return await fs.readFile(bundle, "utf8");
-  } catch {
-    return null;
+/** Where the pictures and the player bundle are read from. */
+export interface PictureSource {
+  readBundle(): Promise<string | null>;
+  readPicture(file: string): Promise<{ content: Buffer } | { skip: string }>;
+}
+
+function checkSize(size: number): string | null {
+  if (size === 0) return "empty file";
+  if (size > MAX_BACKGROUND_BYTES) return "larger than 20 MB";
+  return null;
+}
+
+/** An unpacked install: `resources/app/.webpack/renderer`. */
+export function folderSource(rendererDir: string): PictureSource {
+  return {
+    async readBundle() {
+      try {
+        const bundle = path.join(rendererDir, PLAYER_BUNDLE);
+        const stats = await fs.lstat(bundle);
+        if (!stats.isFile() || stats.size > MAX_BUNDLE_BYTES) return null;
+        return (await readAtMost(bundle, MAX_BUNDLE_BYTES)).toString("utf8");
+      } catch {
+        return null;
+      }
+    },
+    async readPicture(file) {
+      const source = path.join(rendererDir, file);
+      // lstat: a picture that is a link to some other file is not copied.
+      const stats = await fs.lstat(source).catch((): null => null);
+      if (stats === null) return { skip: "not found" };
+      if (!stats.isFile()) return { skip: "not a file" };
+      const tooBig = checkSize(stats.size);
+      if (tooBig) return { skip: tooBig };
+      return { content: await readAtMost(source, MAX_BACKGROUND_BYTES) };
+    },
+  };
+}
+
+/**
+ * An install packed in `resources/app.asar`, read with plain file reads so
+ * the archive is never kept open (see asarArchive.ts).
+ */
+export async function asarSource(rawFs: RawFs, archive: string, innerDir: string): Promise<PictureSource> {
+  const asar = await AsarArchive.open(rawFs, archive);
+  const inner = (file: string) => path.posix.join(innerDir.split(path.sep).join("/"), file.split(path.sep).join("/"));
+  const folder = folderSource(path.join(`${archive}.unpacked`, innerDir));
+  return {
+    async readBundle() {
+      const found = asar.locate(inner(PLAYER_BUNDLE));
+      if (found.kind === "unpacked") return folder.readBundle();
+      if (found.kind !== "packed" || found.size > MAX_BUNDLE_BYTES) return null;
+      return (await asar.read(found, MAX_BUNDLE_BYTES)).toString("utf8");
+    },
+    async readPicture(file) {
+      const found = asar.locate(inner(file));
+      if (found.kind === "unpacked") return folder.readPicture(file);
+      if (found.kind === "missing") return { skip: "not found" };
+      const tooBig = checkSize(found.size);
+      if (tooBig) return { skip: tooBig };
+      return { content: await asar.read(found, MAX_BACKGROUND_BYTES) };
+    },
+  };
+}
+
+/** The plain file functions for reading archives: Electron's original-fs in the app, Node's fs elsewhere. */
+function defaultRawFs(): RawFs {
+  if (process.versions.electron) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return require("original-fs") as RawFs;
   }
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require("fs") as RawFs;
+}
+
+/** The source for a renderer folder found by `findRendererFolders`. */
+async function sourceFor(rendererDir: string, rawFs: RawFs): Promise<PictureSource> {
+  const parts = rendererDir.split(path.sep);
+  const at = parts.lastIndexOf("app.asar");
+  if (at === -1) return folderSource(rendererDir);
+  return asarSource(rawFs, parts.slice(0, at + 1).join(path.sep), parts.slice(at + 1).join(path.sep));
 }
 
 /**
@@ -145,6 +209,7 @@ async function readBundle(rendererDir: string): Promise<string | null> {
 export async function importKenkuBackgrounds(
   localAppData: string | null,
   destDir: string,
+  { rawFs = defaultRawFs() }: { rawFs?: RawFs } = {},
 ): Promise<BackgroundImportResult> {
   if (localAppData === null) {
     return { status: "not-looked" };
@@ -152,10 +217,11 @@ export async function importKenkuBackgrounds(
   try {
     const candidates = await findRendererFolders(localAppData, (dir) => fs.readdir(dir));
     for (const rendererDir of candidates) {
-      const bundle = await readBundle(rendererDir);
+      const source = await sourceFor(rendererDir, rawFs).catch((): null => null);
+      const bundle = source === null ? null : await source.readBundle();
       const entries = bundle === null ? [] : parseBackgroundMap(bundle);
-      if (entries.length === 0) continue;
-      const copy = await copyMissingBackgrounds(rendererDir, entries, destDir);
+      if (source === null || entries.length === 0) continue;
+      const copy = await copyMissingBackgrounds(source, entries, destDir);
       return { status: "done", source: rendererDir, found: entries.length, ...copy };
     }
     return { status: "no-install" };

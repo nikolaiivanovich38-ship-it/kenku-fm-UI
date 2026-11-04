@@ -126,6 +126,24 @@ test("pictures are also copied from a Kenku FM whose app is packed in app.asar",
     await page.getByRole("button", { name: "Add Playlist" }).first().click();
     const picture = page.getByRole("dialog", { name: "Add Playlist" }).getByRole("img", { name: "tavern" });
     await expect(picture).toHaveAttribute("src", pathToFileURL(copied).href);
+
+    // Cue Desk must not keep Kenku FM's archive open: on Windows that blocks
+    // Kenku FM's updates and uninstall (and deleting this test folder).
+    const archive = path.join(localAppData, "kenku-fm-win32-x64", "app-1.5.5", "resources", "app.asar");
+    if (process.platform === "linux") {
+      const fdDir = `/proc/${launched.app.process().pid}/fd`;
+      const open = fs.readdirSync(fdDir).map((fd) => {
+        try {
+          return fs.readlinkSync(path.join(fdDir, fd));
+        } catch {
+          return "";
+        }
+      });
+      expect(open).not.toContain(archive);
+    } else {
+      // Windows refuses to rename a file another process has open.
+      fs.renameSync(archive, `${archive}.moved`);
+    }
   } finally {
     fs.rmSync(localAppData, { recursive: true, force: true });
   }

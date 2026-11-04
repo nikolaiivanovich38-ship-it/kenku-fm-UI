@@ -2,6 +2,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { pathToFileURL } from "url";
+import { createPackage } from "@electron/asar";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   MAX_BACKGROUND_BYTES,
@@ -210,6 +211,38 @@ describe("importKenkuBackgrounds", () => {
     // Next start: nothing to do, nothing changed.
     const again = await importKenkuBackgrounds(lad, dest);
     expect(again).toMatchObject({ status: "done", copied: [], alreadyPresent: ["autumn", "tavern"] });
+  });
+
+  it("reads an install packed in app.asar without keeping the archive open (Windows e2e, 0.1.1)", async () => {
+    const lad = path.join(root, "Local");
+    const rendererDir = makeKenkuInstall(lad, "1.5.5", { tavern: "tavern picture" });
+    const appDir = path.dirname(path.dirname(rendererDir));
+    const archive = path.join(path.dirname(appDir), "app.asar");
+    await createPackage(appDir, archive);
+    fs.rmSync(appDir, { recursive: true });
+
+    let opened = 0;
+    let closed = 0;
+    const countingFs = {
+      promises: {
+        open: async (file: string, flags: string) => {
+          const handle = await fs.promises.open(file, flags);
+          opened += 1;
+          return {
+            read: (b: Buffer, o: number, l: number, p: number) => handle.read(b, o, l, p),
+            close: async () => {
+              closed += 1;
+              await handle.close();
+            },
+          };
+        },
+      },
+    };
+    const result = await importKenkuBackgrounds(lad, dest, { rawFs: countingFs });
+    expect(result).toMatchObject({ status: "done", copied: ["tavern"] });
+    expect(fs.readFileSync(path.join(dest, "tavern.jpg"), "utf8")).toBe("tavern picture");
+    expect(opened).toBeGreaterThan(0);
+    expect(closed).toBe(opened);
   });
 
   it("reports when there is no Kenku FM install or no folder to look in", async () => {
