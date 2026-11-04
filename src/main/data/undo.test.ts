@@ -231,7 +231,7 @@ describe("undo and redo of every command (EDT-2)", () => {
 
   it("covers every exported write function", () => {
     const modules = { tracks, roots, markers, playlists, boards, folders, tags, campaigns, profiles };
-    const readers = /^(get|list|track|campaignsOf|resolve|suggest|tagsOf|requireFolderFor|getFollowWith|ITEM_TABLES|[A-Z_]+$)/;
+    const readers = /^(get|list|track|tagUsage|campaignsOf|resolve|suggest|tagsOf|requireFolderFor|getFollowWith|ITEM_TABLES|[A-Z_]+$)/;
     const writers = Object.values(modules)
       .flatMap((m) => Object.keys(m))
       .filter((name) => !readers.test(name) && name !== "markTracksUsed");

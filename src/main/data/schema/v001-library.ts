@@ -476,8 +476,9 @@ CREATE UNIQUE INDEX rule_conditions_order ON rule_conditions (playlist_id, posit
 -- Target of rule_condition_tags' (condition, group) key.
 CREATE UNIQUE INDEX rule_conditions_group ON rule_conditions (id, group_id);
 CREATE UNIQUE INDEX rule_condition_tags_order ON rule_condition_tags (condition_id, position);
--- Rules that name a tag (tag deleted or merged; a tag's "used in").
-CREATE INDEX rule_condition_tags_tag ON rule_condition_tags (group_id, tag_id);
+-- Rules that name a tag (a tag deleted, merged or moved to another group; tagUsage), and the target
+-- of the cascade from tags' (group, tag) key. tag_id first, so "tag_id = ?" alone can use it.
+CREATE INDEX rule_condition_tags_tag ON rule_condition_tags (tag_id, group_id);
 
 -- Drawing a board (all its pads, on the grid and spare) and deleting one (ON DELETE CASCADE):
 -- the two partial indexes below cannot serve "board_id = ?" on its own.

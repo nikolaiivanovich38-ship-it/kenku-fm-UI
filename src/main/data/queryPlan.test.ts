@@ -20,7 +20,7 @@ import { BOARD_PADS_SQL } from "./repo/boards";
 import { PROFILE_LOOKUP_SQL } from "./repo/profileRows";
 import { searchQuery } from "./repo/search";
 import { dynamicTracksQuery } from "./repo/ruleRows";
-import { listTags } from "./repo/tags";
+import { listTags, TAG_USAGE_SQL } from "./repo/tags";
 
 let temp: ReturnType<typeof makeTempFolder>;
 let library: Library;
@@ -88,6 +88,14 @@ describe("query plans of the hot read paths (DAT-11)", () => {
     ["track", 1, "scene_ambience_track"],
   ] as const)("uses of a %s (query %i) start from %s", (kind, index, name) => {
     expectIndexed(USES_QUERIES[kind][index], ["x"], name);
+  });
+
+  it.each([
+    ["tracks", "track_tags_tag"],
+    ["playlists", "rule_condition_tags_tag"],
+    ["pads", "pads_tag"],
+  ] as const)("where a tag is used: %s start from %s", (path, index) => {
+    expectIndexed(TAG_USAGE_SQL[path], ["x"], index);
   });
 
   it.each(Object.entries(PROFILE_LOOKUP_SQL))("profile lookup by (track, place): %s", (place, sql) => {

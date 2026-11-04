@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ValidationError } from "../errors";
 import { makeTestStore } from "../test/testStore";
 import { createTracks } from "./tracks";
+import { createPlaylist } from "./playlists";
+import { addPad, createBoard } from "./boards";
 import {
   createTag,
   createTagGroup,
@@ -16,6 +18,7 @@ import {
   setTagSynonyms,
   suggestTags,
   tagTracks,
+  tagUsage,
   tagsOfTrack,
   untagTracks,
   updateTag,
@@ -127,5 +130,34 @@ describe("tags (DAT-10)", () => {
     expect(suggestTags(t.store, "TRI").map((s) => s.tag.name)).toEqual(["Triumphant"]);
     expect(suggestTags(t.store, "  ")).toEqual([]);
     expect(suggestTags(t.store, "%")).toEqual([]);
+  });
+});
+
+describe("where a tag is used (DB review 2)", () => {
+  it("lists the rules and tag pads that use a tag, and how many tracks carry it, before it is deleted", async () => {
+    const mood = group("Mood");
+    const eerie = tag("Eerie");
+    const [a, b] = createTracks(t.store, [
+      { title: "A", file: { path: "/m/a.mp3" } },
+      { title: "B", file: { path: "/m/b.mp3" } },
+    ]);
+    await tagTracks(t.store, [a.id, b.id], [eerie.id]);
+    const crypt = createPlaylist(t.store, { title: "Crypt", kind: "dynamic", rule: { conds: [{ group: mood.id, match: "any", values: ["Eerie", "Tense"] }] } });
+    createPlaylist(t.store, { title: "Tavern", kind: "dynamic", rule: { conds: [{ group: mood.id, match: "none", values: ["Warm"] }] } });
+    const abbey = createPlaylist(t.store, { title: "Abbey", kind: "dynamic", rule: { conds: [{ group: mood.id, match: "none", values: ["Eerie"] }] } });
+    const board = createBoard(t.store, { title: "Spooks" });
+    const pad = addPad(t.store, board.id, { label: "Whispers", sound: { kind: "tag", tagId: eerie.id } });
+    addPad(t.store, board.id, { label: "Other", sound: { kind: "tag", tagId: tag("Tense").id } });
+
+    expect(tagUsage(t.store, eerie.id)).toEqual({
+      tracks: 2,
+      playlists: [
+        { id: abbey.id, title: "Abbey" },
+        { id: crypt.id, title: "Crypt" },
+      ],
+      pads: [{ id: pad.id, label: "Whispers", boardId: board.id, boardTitle: "Spooks" }],
+    });
+    expect(tagUsage(t.store, tag("Heroic").id)).toEqual({ tracks: 0, playlists: [], pads: [] });
+    expect(() => tagUsage(t.store, "missing")).toThrow(/tag/);
   });
 });

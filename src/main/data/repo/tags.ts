@@ -7,7 +7,7 @@
 import { ValidationError } from "../errors";
 import { positionFor, positionsFor, type OrderedList } from "../ordering";
 import type { Store } from "../store";
-import type { Placement, Tag, TagGroup } from "../types";
+import type { Placement, Tag, TagGroup, TagUsage } from "../types";
 import * as v from "../validate";
 import { newId, patchOf, placeholders, plural, requireRow, unique } from "./common";
 import { dropRuleTags, mergeRuleTag } from "./ruleRows";
@@ -254,6 +254,29 @@ export function moveTag(store: Store, id: string, placement: Placement): void {
   store.change("Move tag", () =>
     store.run("UPDATE tags SET position = ? WHERE id = ?", positionFor(store, tagsIn(tag.groupId), placement, tag.id), tag.id),
   );
+}
+
+/**
+ * SQL for where a tag is used, each starting from the tag's own index
+ * (track_tags_tag, rule_condition_tags_tag, pads_tag). Exported for the query-plan tests.
+ */
+export const TAG_USAGE_SQL = {
+  tracks: "SELECT count(*) AS n FROM track_tags WHERE tag_id = ?",
+  playlists: `SELECT DISTINCT p.id, p.title FROM rule_condition_tags v
+    JOIN rule_conditions c ON c.id = v.condition_id JOIN playlists p ON p.id = c.playlist_id
+    WHERE v.tag_id = ? ORDER BY p.title COLLATE NOCASE, p.id`,
+  pads: `SELECT p.id, p.label, b.id AS boardId, b.title AS boardTitle FROM pads p JOIN boards b ON b.id = p.board_id
+    WHERE p.sound_tag_id = ? ORDER BY b.title COLLATE NOCASE, b.id, p.label COLLATE NOCASE, p.id`,
+} as const;
+
+/** Where a tag is used: the "Used in" question asked before deleting it (DB review 2). */
+export function tagUsage(store: Store, id: string): TagUsage {
+  const tagId = requireRow(store, "tags", "tag", id);
+  return {
+    tracks: (store.get<{ n: number }>(TAG_USAGE_SQL.tracks, tagId) as { n: number }).n,
+    playlists: store.all<{ id: string; title: string }>(TAG_USAGE_SQL.playlists, tagId),
+    pads: store.all<TagUsage["pads"][number]>(TAG_USAGE_SQL.pads, tagId),
+  };
 }
 
 /** Deletes a tag; tracks and dynamic rules lose it (ON DELETE CASCADE), and tags below it move to the top of the group. */

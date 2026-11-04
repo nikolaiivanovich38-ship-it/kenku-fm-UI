@@ -359,6 +359,20 @@ export type Members = { playlistIds: string[]; boardIds: string[] };
 /** A place a playlist or board can be used: a whole campaign, one session, or one scene. */
 export type UseTarget = { campaignId: string } | { sessionId: string } | { sceneId: string };
 
+/**
+ * Where a tag is used; shown before it is deleted (DB review 2). Deleting it
+ * takes it off the tracks, out of the rules (a condition left with no tags then
+ * plays nothing) and leaves the pads silent until given another sound.
+ */
+export type TagUsage = {
+  /** How many tracks carry the tag. */
+  tracks: number;
+  /** Dynamic playlists whose rule names it, by title. */
+  playlists: { id: string; title: string }[];
+  /** Pads that play any effect with the tag, by board then label. */
+  pads: { id: string; label: string; boardId: string; boardTitle: string }[];
+};
+
 /** Where a track is used; shown before it is deleted (DAT-1). */
 export type TrackUsage = {
   playlists: { id: string; title: string }[];
