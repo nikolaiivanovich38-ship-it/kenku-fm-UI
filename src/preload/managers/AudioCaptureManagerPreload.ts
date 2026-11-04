@@ -22,17 +22,10 @@ export type PacketSink = (packet: Uint8Array) => void;
 type WorkletFrame = { index: number; samples: Float32Array<ArrayBuffer>; last?: boolean };
 
 /**
- * How many 20 ms frames the worklet collects before posting them.
- * "performance" posts half a second at a time, which delays the broadcast by
- * that much (PERF-8).
- */
-export function framesPerMessage(mode: StreamingMode): number {
-  return mode === "performance" ? 25 : 1;
-}
-
-/**
  * WebCodecs Opus settings (PERF-4: Opus is encoded here, in the capture
- * window, instead of on the main process).
+ * window, instead of on the main process). PERF-8: both streaming modes send
+ * each frame at once; "performance" only asks the encoder for less work.
+ * (It used to hold back half a second of audio, adding that much delay.)
  */
 export function opusEncoderConfig(mode: StreamingMode): AudioEncoderConfig {
   return {
@@ -129,9 +122,7 @@ export class AudioCaptureManagerPreload {
       // Stopped while the worklet was loading.
       return false;
     }
-    this._pcmNode = new AudioWorkletNode(context, "pcm-stream", {
-      processorOptions: { framesPerMessage: framesPerMessage(streamingMode) },
-    });
+    this._pcmNode = new AudioWorkletNode(context, "pcm-stream");
     this._pcmNode.port.onmessage = (event: MessageEvent<WorkletFrame[]>) => {
       for (const frame of event.data) {
         this._encode(frame);

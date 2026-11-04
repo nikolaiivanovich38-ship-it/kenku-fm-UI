@@ -167,7 +167,10 @@ export function tonePage(title = "Tone") {
 export const TONE_PAGE = tonePage();
 
 /** Choose the streaming mode in Settings (applies when the next broadcast starts). */
-export async function chooseStreamingMode(mainWindow: Page, mode: "Low Latency" | "Performance") {
+export async function chooseStreamingMode(
+  mainWindow: Page,
+  mode: "Best sound quality" | "Lighter on the computer",
+) {
   const settings = await openSettings(mainWindow);
   await settings.getByLabel("Mode").click();
   await mainWindow.getByRole("option", { name: mode }).click();

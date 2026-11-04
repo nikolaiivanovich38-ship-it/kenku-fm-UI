@@ -8,13 +8,21 @@ import {
 } from "@discordjs/voice";
 
 /**
- * Most packets waiting for Discord's 20 ms player clock. The capture window
- * and the player run on different clocks; when the capture runs ahead, the
- * oldest packets are dropped so the delay cannot keep growing. "Performance"
- * streaming mode delivers half a second (25 packets) at once, so this holds
- * two of those (PERF-8 removes that batching).
+ * Most packets waiting for Discord's 20 ms player clock (200 ms). Packets
+ * arrive one by one, but a busy computer can deliver a few at once after a
+ * short stall; they wait here instead of being lost. Beyond this the oldest
+ * are dropped.
  */
-export const MAX_QUEUED_PACKETS = 50;
+export const MAX_QUEUED_PACKETS = 10;
+
+/**
+ * PERF-8: a queue left longer than this after a stall would keep the extra
+ * delay for good, because packets arrive exactly as fast as they are played.
+ * While more than this many wait for `TRIM_AFTER_PACKETS` packets in a row,
+ * one is dropped, which brings the delay back down step by step.
+ */
+export const TARGET_QUEUED_PACKETS = 2;
+export const TRIM_AFTER_PACKETS = 50;
 
 /**
  * A pull-based stream of Opus packets: hands Discord's audio player one packet
@@ -23,6 +31,8 @@ export const MAX_QUEUED_PACKETS = 50;
 export class PacketStream extends Readable {
   private queue: Buffer[] = [];
   private wanted = false;
+  /** Packets pushed in a row while more than the target were waiting. */
+  private backlogged = 0;
 
   constructor() {
     super({ objectMode: true, highWaterMark: 1 });
@@ -35,8 +45,14 @@ export class PacketStream extends Readable {
 
   pushPacket(packet: Buffer): void {
     this.queue.push(packet);
-    if (this.queue.length > MAX_QUEUED_PACKETS) {
+    if (this.queue.length > TARGET_QUEUED_PACKETS) {
+      this.backlogged++;
+    } else {
+      this.backlogged = 0;
+    }
+    if (this.queue.length > MAX_QUEUED_PACKETS || this.backlogged >= TRIM_AFTER_PACKETS) {
       this.queue.shift();
+      this.backlogged = 0;
     }
     this.drain();
   }

@@ -1,9 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  AudioCaptureManagerPreload,
-  framesPerMessage,
-  opusEncoderConfig,
-} from "./AudioCaptureManagerPreload";
+import { AudioCaptureManagerPreload, opusEncoderConfig } from "./AudioCaptureManagerPreload";
 
 vi.mock("./PCMStream.worklet", () => ({ default: "blob:pcm-stream" }));
 
@@ -278,9 +274,20 @@ describe("AudioCaptureManagerPreload: Opus encoding in the capture window (PERF-
     expect(packets).toEqual([]);
   });
 
-  it("passes the streaming mode's batch size to the worklet", async () => {
-    await broadcastingManager();
-    expect(workletNodes[0].options).toEqual({ processorOptions: { framesPerMessage: framesPerMessage("lowLatency") } });
+  it.each(["lowLatency", "performance"] as const)(
+    "%s mode sends each 20 ms frame as soon as it is complete (PERF-8)",
+    async (mode) => {
+      const manager = newManager();
+      await manager.startBroadcast(mode);
+      const options = workletNodes[0].options as { processorOptions?: { framesPerMessage?: number } } | undefined;
+      expect(options?.processorOptions?.framesPerMessage ?? 1).toBe(1);
+    },
+  );
+
+  it("uses less processor time for Opus in performance mode", () => {
+    expect(opusEncoderConfig("performance").opus?.complexity).toBeLessThan(
+      opusEncoderConfig("lowLatency").opus?.complexity ?? 10,
+    );
   });
 });
 

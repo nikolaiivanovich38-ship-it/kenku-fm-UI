@@ -8,6 +8,10 @@
  * after a sound, which lets the encoder finish the end of that sound. Discord
  * plays nothing during the gap, and the encoder has nothing to do.
  *
+ * PERF-8: each frame is posted as soon as it is complete. (The old
+ * "performance" mode filled a half-second buffer first, which delayed the
+ * broadcast by that much.)
+ *
  * Message: an array of `{ index, samples, last }`, where `index` counts 20 ms
  * frames since the broadcast started (skipped silence leaves a gap),
  * `samples` is a Float32Array of 1920 values whose buffer is transferred, and
@@ -24,15 +28,11 @@ const QUANTUM = 128;
 class PCMStream extends AudioWorkletProcessor {
   constructor(options) {
     super(options);
-    const processorOptions = (options && options.processorOptions) || {};
-    /** Frames collected before posting; more than one adds delay. */
-    this.framesPerMessage = Math.max(1, processorOptions.framesPerMessage || 1);
     this.frame = new Float32Array(FRAME_LENGTH * CHANNELS);
     this.offset = 0;
     this.frameIndex = 0;
     this.frameHasSound = false;
     this.previousFrameHadSound = false;
-    this.batch = [];
   }
 
   process(inputs) {
@@ -80,28 +80,15 @@ class PCMStream extends AudioWorkletProcessor {
   }
 
   finishFrame() {
-    const send = this.frameHasSound || this.previousFrameHadSound;
-    if (send) {
-      this.batch.push({ index: this.frameIndex, samples: this.frame, last: !this.frameHasSound });
+    if (this.frameHasSound || this.previousFrameHadSound) {
+      const frame = { index: this.frameIndex, samples: this.frame, last: !this.frameHasSound };
+      this.port.postMessage([frame], [frame.samples.buffer]);
       this.frame = new Float32Array(FRAME_LENGTH * CHANNELS);
-    }
-    // A batch waiting for more frames goes out as soon as the sound stops.
-    if (this.batch.length >= this.framesPerMessage || (!send && this.batch.length > 0)) {
-      this.flush();
     }
     this.previousFrameHadSound = this.frameHasSound;
     this.frameHasSound = false;
     this.offset = 0;
     this.frameIndex++;
-  }
-
-  flush() {
-    const batch = this.batch;
-    this.batch = [];
-    this.port.postMessage(
-      batch,
-      batch.map((frame) => frame.samples.buffer),
-    );
   }
 }
 

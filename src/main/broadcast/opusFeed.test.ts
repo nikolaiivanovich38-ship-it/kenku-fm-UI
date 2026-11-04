@@ -3,7 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 import { AudioPlayerStatus } from "@discordjs/voice";
 import type { AudioResource } from "@discordjs/voice";
 import type { Readable } from "stream";
-import { MAX_QUEUED_PACKETS, OpusPacketFeed, PacketStream, type FeedPlayer } from "./opusFeed";
+import {
+  MAX_QUEUED_PACKETS,
+  OpusPacketFeed,
+  PacketStream,
+  TARGET_QUEUED_PACKETS,
+  TRIM_AFTER_PACKETS,
+  type FeedPlayer,
+} from "./opusFeed";
 
 const packet = (n: number) => Buffer.from([n]);
 
@@ -30,6 +37,36 @@ describe("PacketStream", () => {
     }
     expect(read.length).toBeLessThanOrEqual(MAX_QUEUED_PACKETS + 1);
     expect(read[read.length - 1]).toBe(pushed - 1);
+  });
+});
+
+describe("PacketStream delay after a stall (PERF-8)", () => {
+  it("drops one packet at a time while a backlog persists, down to the target", () => {
+    const stream = new PacketStream();
+    stream.read(); // the player is waiting for a packet
+    // A stall: six packets arrive at once.
+    for (let n = 0; n < 6; n++) {
+      stream.pushPacket(packet(n));
+    }
+    // From then on one arrives for each one played.
+    let next = 6;
+    for (let step = 0; step < TRIM_AFTER_PACKETS * 10; step++) {
+      stream.read();
+      stream.pushPacket(packet(next++ % 256));
+    }
+    expect(stream.queued).toBeLessThanOrEqual(TARGET_QUEUED_PACKETS);
+  });
+
+  it("keeps a short backlog that clears by itself", () => {
+    const stream = new PacketStream();
+    for (let n = 0; n < TARGET_QUEUED_PACKETS + 2; n++) {
+      stream.pushPacket(packet(n));
+    }
+    const read: number[] = [];
+    for (let chunk = stream.read(); chunk; chunk = stream.read()) {
+      read.push((chunk as Buffer)[0]);
+    }
+    expect(read).toEqual([0, 1, 2, 3]);
   });
 });
 

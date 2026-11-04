@@ -11,12 +11,11 @@ import { defaultDiscordDriver, type DiscordDriver } from "./discordDriver";
 import { OpusPacketFeed } from "./opusFeed";
 
 /**
- * Silent 20 ms steps the player sends before it goes idle (1 s). The capture
- * window sends no packets during silence (PERF-4), so after this the bot
- * stops "speaking" in Discord; the next sound starts it again. Long enough to
- * bridge the half-second batches of "performance" streaming mode.
+ * Silent 20 ms steps the player sends before it goes idle (half a second).
+ * The capture window sends no packets during silence (PERF-4), so after this
+ * the bot stops "speaking" in Discord; the next sound starts it again.
  */
-export const MAX_MISSED_FRAMES = 50;
+export const MAX_MISSED_FRAMES = 25;
 
 interface DiscordBroadcastEvents {
   /** True when the first voice connection starts, false when the last ends. */

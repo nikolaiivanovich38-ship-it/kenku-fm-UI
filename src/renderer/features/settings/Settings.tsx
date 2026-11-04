@@ -246,14 +246,16 @@ export function Settings({ open, onClose }: SettingsProps) {
         value={settings.streamingMode}
         onChange={handleStreamingModeChange}
       >
-        <MenuItem value="lowLatency">Low Latency</MenuItem>
-        <MenuItem value="performance">Performance</MenuItem>
+        {/* PERF-8: both modes now have the same short delay; the stored
+            values keep their old names so saved settings still work. */}
+        <MenuItem value="lowLatency">Best sound quality</MenuItem>
+        <MenuItem value="performance">Lighter on the computer</MenuItem>
       </Select>
-      {streamingModeChanged && (
-        <FormHelperText sx={{ color: "primary.main" }}>
-          * Applies the next time Cue Desk joins a voice channel
-        </FormHelperText>
-      )}
+      <FormHelperText>
+        {streamingModeChanged
+          ? "Applies the next time Cue Desk joins a voice channel."
+          : "Both send sound to Discord with the same short delay."}
+      </FormHelperText>
     </FormControl>
   );
 
