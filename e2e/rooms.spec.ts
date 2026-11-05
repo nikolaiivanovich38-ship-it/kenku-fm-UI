@@ -56,6 +56,25 @@ async function twoRooms(mainWindow: Page) {
   await expect(channelButton(mainWindow, "Dungeon", "Bot 2")).toHaveAttribute("aria-pressed", "true");
 }
 
+/**
+ * The Lyre page takes the private channel while it is open (w3-host; wired in wave 3). These tests drive the old
+ * player's engine, so they remove the Lyre page first (as the main window removes a view) and the old player takes
+ * the channel back, as it does whenever the Lyre page goes away.
+ */
+async function closeLyrePage(app: ElectronApplication, mainWindow: Page): Promise<void> {
+  let viewId = 0;
+  await expect
+    .poll(
+      async () =>
+        (viewId = await app.evaluate(
+          ({ webContents }) => webContents.getAllWebContents().find((c) => !c.isDestroyed() && c.getTitle() === "Lyre Interface")?.id ?? 0,
+        )),
+      { timeout: 15_000 },
+    )
+    .toBeGreaterThan(0);
+  await mainWindow.evaluate((id) => (window as unknown as { kenku: { removeBrowserView(id: number): void } }).kenku.removeBrowserView(id), viewId);
+}
+
 /** Start the engine's rooms in the player page and wait until both rooms stream. */
 async function startRooms(playerView: Page): Promise<Room[]> {
   await api.start(playerView);
@@ -93,6 +112,7 @@ test("each engine room reaches its own bot: two rooms receive different sound (O
   const mainWindow = await launched.mainWindow();
   const playerView = await launched.playerView();
   await twoRooms(mainWindow);
+  await closeLyrePage(app, mainWindow);
   const [tavern, dungeon] = await startRooms(playerView);
 
   await api.tone(playerView, tavern.botId, 440);
@@ -117,6 +137,7 @@ test("a preview produces nothing in any room while a room is playing (PRV-1)", a
   const mainWindow = await launched.mainWindow();
   const playerView = await launched.playerView();
   await twoRooms(mainWindow);
+  await closeLyrePage(app, mainWindow);
   const [tavern] = await startRooms(playerView);
 
   await api.tone(playerView, tavern.botId, 440);

@@ -1,4 +1,5 @@
 import { beforeAll, describe, expect, it, vi, type Mock } from "vitest";
+import { app as electronApp } from "electron";
 import "./index";
 import { trustedContents } from "./main/security/trustedContents";
 
@@ -101,9 +102,21 @@ vi.mock("./bounds", () => ({
   saveWindowBounds: vi.fn(),
 }));
 vi.mock("./autoUpdate", () => ({ runAutoUpdate: vi.fn() }));
+// WP5: Lyre's library process is started, given the window's go-ahead for backups, and closed before quitting.
+vi.mock("./main/lyreApi/startLibrary", () => {
+  const library = { startBackups: vi.fn(), stop: vi.fn().mockResolvedValue(undefined) };
+  (state as { lyreLibrary?: typeof library }).lyreLibrary = library;
+  return {
+    startLyreLibrary: vi.fn(() => {
+      state.startupCalls.push("lyre-library");
+      return library;
+    }),
+  };
+});
 vi.mock("./main/managers/SessionManager", () => ({
   SessionManager: class {
     destroy = vi.fn();
+    saveBeforeClose = vi.fn().mockResolvedValue(undefined);
   },
 }));
 vi.mock("./main/security/sessions", () => {
@@ -142,7 +155,7 @@ describe("start-up order (FND-1)", () => {
   });
 
   it("reads nothing else of Kenku FM's after the library carry-over (its background pictures are Cue Desk's own now)", () => {
-    expect(state.startupCalls).toEqual(["single-instance-lock", "carry-over"]);
+    expect(state.startupCalls).toEqual(["single-instance-lock", "carry-over", "lyre-library"]);
   });
 
   it("does not interrupt start-up when the library was copied", () => {
@@ -207,5 +220,42 @@ describe("main window (SEC-10, SEC-7, SEC-3)", () => {
   it("answers version and platform only through the IPC sender guard (SEC-8)", () => {
     expect(appInfo.registered?.getVersion()).toBe("0.0.0");
     expect(state.ipcHandlers.has("CLEAR_CACHE")).toBe(false);
+  });
+});
+
+describe("Lyre's library (WP5)", () => {
+  const library = () => (state as unknown as { lyreLibrary: { startBackups: Mock; stop: Mock } }).lyreLibrary;
+  const beforeQuit = () => {
+    const app = electronApp as unknown as { on: Mock; quit: Mock };
+    const call = app.on.mock.calls.find(([event]) => event === "before-quit");
+    return { app, handler: call?.[1] as (event: { preventDefault: Mock }) => void };
+  };
+
+  it("starts after the carry-over, before the main window", () => {
+    expect(state.startupCalls.indexOf("lyre-library")).toBeGreaterThan(state.startupCalls.indexOf("carry-over"));
+    expect(state.windows).toHaveLength(1);
+  });
+
+  it("starts the daily backups once the main window is ready to show", () => {
+    expect(library().startBackups).not.toHaveBeenCalled();
+    (mainWindow() as unknown as { emit(event: string): void }).emit("ready-to-show");
+    expect(library().startBackups).toHaveBeenCalledTimes(1);
+  });
+
+  it("is closed before the app quits (after the player has saved), then the quit goes ahead", async () => {
+    const { app, handler } = beforeQuit();
+    // PERF-6 first: the player saves, then the quit is repeated.
+    handler({ preventDefault: vi.fn() });
+    expect(library().stop).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(app.quit).toHaveBeenCalledTimes(1));
+    const event = { preventDefault: vi.fn() };
+    handler(event);
+    expect(event.preventDefault).toHaveBeenCalled();
+    expect(library().stop).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(app.quit).toHaveBeenCalledTimes(2));
+    const again = { preventDefault: vi.fn() };
+    handler(again);
+    expect(again.preventDefault).not.toHaveBeenCalled();
+    expect(library().stop).toHaveBeenCalledTimes(1);
   });
 });

@@ -15,6 +15,7 @@ import path from "path";
 import { pathToFileURL } from "url";
 import { openLyreRoute, openLyreTab } from "../../fixtures/lyre";
 import { assertE2EBuild, findPackagedExecutable, launchArgs } from "../../fixtures/packagedApp";
+import { BUILT_SCREENS } from "./built";
 
 export type Theme = "default" | "parchment";
 
@@ -63,6 +64,26 @@ export async function withAppPage(use: (page: Page) => Promise<void>): Promise<v
   }
 }
 
+/** The screen (spec file name, as in built.ts) a route opens: "campaign/crown" is "campaigns", "board/abbey" "pad-boards". */
+export function screenOfRoute(route: Route): string {
+  const first = route.split("/")[0];
+  const screens: Record<string, string> = {
+    campaigns: "campaigns",
+    campaign: "campaigns",
+    session: "session-planner",
+    library: "library",
+    playlists: "playlists",
+    playlist: "playlists",
+    boards: "pad-boards",
+    board: "pad-boards",
+    profile: "audio-profile",
+    live: "live",
+    outputs: "outputs",
+    look: "look",
+  };
+  return screens[first] ?? first;
+}
+
 /** Open a screen. `theme: "default"` keeps each campaign's own table theme; "parchment" forces that theme. */
 export async function openRoute(page: Page, route: Route, options: { theme?: Theme } = {}): Promise<void> {
   if (isApp()) {
@@ -70,6 +91,9 @@ export async function openRoute(page: Page, route: Route, options: { theme?: The
     // remembered as Look and feel would (e2e/fixtures/lyre.ts). `page` is any page of the app (its main window or
     // the Lyre page); the spec then works in the Lyre page, so the app project's `page` must be the Lyre page.
     await openLyreRoute(page, route, options.theme === "parchment" ? "parchment" : "default");
+    // The page opened; a screen the app does not have yet stops here, so no check can pass on its placeholder.
+    const screen = screenOfRoute(route);
+    if (!BUILT_SCREENS.includes(screen)) notBuilt(`openRoute(${route}): the ${screen} screen`);
     return;
   }
   const theme = options.theme === "parchment" ? "parchment" : "campaign";
