@@ -40,6 +40,7 @@ import {
   useWrite,
 } from "./parts";
 import { LibraryPicker, playlistKey, refOfKey, trackKey } from "./pickers";
+import { useOptimisticScenes, type ScenePlay } from "./optimistic";
 import { useDragReorder } from "./reorder";
 
 import "./campaigns.css";
@@ -74,11 +75,14 @@ interface SceneContext {
   focusLater: (key: string, atIndex?: number, select?: boolean) => void;
   pick: (picking: Picking) => void;
   dropFiles: (scene: SceneInfo, where: "music" | "ambience", paths: string[], at: number) => void;
+  /** Change a scene's music, ambience or pad boards: shown at once, then saved. Resolves false when refused. */
+  saveScene: (scene: SceneInfo, patch: ScenePlay) => Promise<boolean>;
 }
 
-function SessionPage({ campaign: c, session: s, index }: { campaign: CampaignInfo; session: SessionInfo; index: LibraryIndex }) {
+function SessionPage({ campaign: c, session: saved, index }: { campaign: CampaignInfo; session: SessionInfo; index: LibraryIndex }) {
   const api = useLyreApi();
   const write = useWrite();
+  const { session: s, saveScene: showAndSave } = useOptimisticScenes(saved);
   const { say, toast } = useAnnounce();
   const focus = useFocusLater();
   const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -99,6 +103,13 @@ function SessionPage({ campaign: c, session: s, index }: { campaign: CampaignInf
     focusLater: (key, atIndex, select) => focus(key, atIndex, select),
     pick: setPicking,
     dropFiles: (scene, where, paths, at) => void dropFiles(scene, where, paths, at),
+    saveScene: async (scene, patch) =>
+      !!(await showAndSave(scene.id, patch, () => {
+        const at = address(scene);
+        if (patch.music) return write(api.sessions.setSceneMusic(at, patch.music));
+        if (patch.boardIds) return write(api.sessions.setSceneBoards(at, patch.boardIds));
+        return write(api.sessions.setSceneAmbience(at, patch.ambience ?? null));
+      })),
   };
 
   /* ----- the session ----- */
@@ -153,7 +164,7 @@ function SessionPage({ campaign: c, session: s, index }: { campaign: CampaignInf
     if (where === "ambience") {
       // Dropped on Ambience: the new files are ambience beds.
       for (const id of added) await api.library.updateTrack(id, { kind: "amb" });
-      if ((await write(api.sessions.setSceneAmbience(address(scene), { kind: "track", id: trackIds[0] }))) === undefined) return;
+      if (!(await ctx.saveScene(scene, { ambience: { kind: "track", id: trackIds[0] } }))) return;
       const title = (await api.library.listTracks()).find((t) => t.id === trackIds[0]);
       focus(`pa-${scene.id}`);
       toast(`${lib}Ambience of "${name}": ${title ? shownTitle(title) : ""}${trackIds.length > 1 ? " (one ambience per scene; the others are in the Library)" : ""}`);
@@ -161,7 +172,7 @@ function SessionPage({ campaign: c, session: s, index }: { campaign: CampaignInf
     }
     const placed: SoundRef[] = trackIds.map((id) => ({ kind: "track", id }));
     const music = [...scene.music.slice(0, at), ...placed, ...scene.music.slice(at)];
-    if ((await write(api.sessions.setSceneMusic(address(scene), music))) === undefined) return;
+    if (!(await ctx.saveScene(scene, { music }))) return;
     focus(`im-${scene.id}-music-${trackIds[0]}`);
     toast(`${lib}${plural(trackIds.length, "track")} placed in the music of "${name}" at position ${at + 1}.`);
   };
@@ -176,20 +187,20 @@ function SessionPage({ campaign: c, session: s, index }: { campaign: CampaignInf
     if (p.kind === "music") {
       ctx.focusLater(`am-${scene.id}`);
       const music = ids.map(refOfKey);
-      if ((await write(api.sessions.setSceneMusic(address(scene), music))) === undefined) return;
+      if (!(await ctx.saveScene(scene, { music }))) return;
       const first = music[0] && soundInfo(music[0], index);
       say(`${plural(music.length, "music item")} in this scene${first ? `; ${first.name} starts it` : ""}`);
     } else if (p.kind === "ambience") {
       ctx.focusLater(`pa-${scene.id}`);
       if (!ids[0]) return;
       const ref = refOfKey(ids[0]);
-      if ((await write(api.sessions.setSceneAmbience(address(scene), ref))) === undefined) return;
+      if (!(await ctx.saveScene(scene, { ambience: ref }))) return;
       say(`Ambience for this scene: ${soundInfo(ref, index)?.name ?? ""}`);
     } else {
       ctx.focusLater(`ab-${scene.id}`);
       const keep = scene.boardIds.filter((id) => ids.includes(id));
       const boards = [...keep, ...ids.filter((id) => !scene.boardIds.includes(id))];
-      if ((await write(api.sessions.setSceneBoards(address(scene), boards))) === undefined) return;
+      if (!(await ctx.saveScene(scene, { boardIds: boards }))) return;
       say(`${plural(boards.length, "pad board")} in this scene${boards.length ? `; ${index.board(boards[0])?.name} shows first` : ""}`);
     }
   };
@@ -468,6 +479,7 @@ function SceneCard({ scene, position, ctx, open, onToggle, drag, menu }: SceneCa
           rowProps.onDragOver(event);
           if (drag.isDragging() || !carriesFiles(event)) return;
           event.preventDefault();
+          event.stopPropagation();
           event.dataTransfer.dropEffect = "copy";
           setFileOver(true);
         },
@@ -476,6 +488,7 @@ function SceneCard({ scene, position, ctx, open, onToggle, drag, menu }: SceneCa
           rowProps.onDrop(event);
           if (drag.isDragging() || !carriesFiles(event)) return;
           event.preventDefault();
+          event.stopPropagation();
           setFileOver(false);
           ctx.dropFiles(scene, "music", droppedPaths(event), scene.music.length);
         },
@@ -676,8 +689,6 @@ function ItemRow({
 
 /** Moves, "starts the scene" and removes in a scene's music or pad boards, with what the prototype says. */
 function useListChange(scene: SceneInfo, list: ListKind, ctx: SceneContext) {
-  const api = useLyreApi();
-  const write = useWrite();
   const { say } = useAnnounce();
   const nameOf = (id: string) => (list === "boards" ? ctx.index.board(id)?.name : soundInfo(scene.music.find((r) => r.id === id) ?? { kind: "track", id }, ctx.index)?.name) ?? "item";
   return async (at: number, op: "first" | "up" | "down" | "remove") => {
@@ -687,8 +698,7 @@ function useListChange(scene: SceneInfo, list: ListKind, ctx: SceneContext) {
     const id = idOf(items[at]);
     const name = nameOf(id);
     const lead = list === "boards" ? " now shows first" : " now starts the scene";
-    const save = () =>
-      write(list === "music" ? api.sessions.setSceneMusic(ctx.address(scene), items as SoundRef[]) : api.sessions.setSceneBoards(ctx.address(scene), items as string[]));
+    const save = async () => ((await ctx.saveScene(scene, list === "music" ? { music: items as SoundRef[] } : { boardIds: items as string[] })) ? true : undefined);
     if (op === "remove") {
       items.splice(at, 1);
       ctx.focusLater(items.length ? `im-${scene.id}-${list}-${idOf(items[Math.min(at, items.length - 1)])}` : `${list === "boards" ? "ab" : "am"}-${scene.id}`);
@@ -800,8 +810,6 @@ function BoardList({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
 
 /** A scene's ambience: one track or ambience playlist, or none; a drop zone for an audio file. */
 function AmbienceSlot({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
-  const api = useLyreApi();
-  const write = useWrite();
   const { say } = useAnnounce();
   const [open, setOpen] = useState(false);
   const [over, setOver] = useState(false);
@@ -814,7 +822,7 @@ function AmbienceSlot({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
   const clear = async () => {
     ctx.workedOn(scene.id);
     ctx.focusLater(`pa-${scene.id}`);
-    if ((await write(api.sessions.setSceneAmbience(ctx.address(scene), null))) !== undefined) say("No ambience in this scene");
+    if (await ctx.saveScene(scene, { ambience: null })) say("No ambience in this scene");
   };
   const dropProps = {
     onDragOver: (event: React.DragEvent<HTMLDivElement>) => {

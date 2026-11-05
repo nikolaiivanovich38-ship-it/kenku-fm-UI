@@ -76,12 +76,16 @@ export function useDragReorder(list: string, onMove: (from: number, to: number) 
       },
       onDragOver: (event) => {
         if (from.current === null) return;
+        // Handled here: the page's drop guard (SEC-7) would otherwise refuse the drop.
         event.preventDefault();
+        event.stopPropagation();
+        event.dataTransfer.dropEffect = "move";
         setMark(index === from.current ? null : { index, after: after(event) });
       },
       onDrop: (event) => {
         if (from.current === null) return;
         event.preventDefault();
+        event.stopPropagation();
         const start = from.current;
         let to = index + (after(event) ? 1 : 0);
         if (to > start) to--;

@@ -1,10 +1,10 @@
 /** The session planner (e2e/specs/session-planner.spec.ts; prototype views/campaigns.js part 3). */
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CampaignInfo, SessionInfo } from "../../../common/lyre/api";
-import type { FakeLyreApi } from "../../../common/lyre/fake";
+import { createFakeLyreApi, type FakeLyreApi } from "../../../common/lyre/fake";
 import { getLiveSession, loadInLive } from "../../kit/liveSession";
 import { expectNoAxeViolations } from "../../test/axe";
 import { go, main, openAt, region } from "./testing";
@@ -124,6 +124,20 @@ describe("a scene's music", () => {
     await userEvent.click(screen.getByRole("menuitem", { name: "Remove from this scene" }));
     await waitFor(() => expect(musicNames()).toHaveLength(3));
     expect((await s14(api)).scenes[2].music.map((m) => m.id)).toEqual(["p-abbess", "t13", "p-abbey-eerie"]);
+  });
+
+  it("a change shows at once while the library saves it, and goes back when the library refuses it", async () => {
+    const api = createFakeLyreApi();
+    let release: (answer: Awaited<ReturnType<typeof api.sessions.setSceneMusic>>) => void = () => undefined;
+    api.sessions.setSceneMusic = () => new Promise((resolve) => (release = resolve));
+    openAt("session/crown/s14", { api });
+    await userEvent.click(await screen.findByRole("button", { name: "Scene 3: The abbey ruins" }));
+    await userEvent.click(abbey().getByRole("button", { name: "More for The Abbess" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Start the scene with it" }));
+    expect(musicNames()[0]).toBe("The Abbess");
+    await act(async () => release({ ok: false, refusal: { code: "not-found", message: "That scene no longer exists." } }));
+    await waitFor(() => expect(musicNames()[0]).toBe("Eerie dread, low cello and choir - something wrong in the dark (loops with crossfade)"));
+    expect(screen.getByText("That scene no longer exists.")).toBeInTheDocument();
   });
 
   it("a playlist in the scene opens to show its tracks", async () => {
