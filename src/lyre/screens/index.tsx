@@ -1,5 +1,7 @@
 import React from "react";
 import type { Route, RouteName } from "../shell/routes";
+import { BoardScreen } from "./boards/BoardScreen";
+import { BoardsScreen } from "./boards/BoardsScreen";
 import { LookPlaceholder } from "./LookPlaceholder";
 import { PlaceholderScreen } from "./Placeholder";
 
@@ -29,8 +31,8 @@ export const SCREENS: Record<RouteName, ScreenComponent> = {
   playlists: placeholder("Playlists"),
   playlist: placeholder("Playlist"),
   profile: placeholder("Audio profile"),
-  boards: placeholder("Pad boards"),
-  board: placeholder("Pad board"),
+  boards: BoardsScreen,
+  board: BoardScreen,
   live: placeholder("Live"),
   outputs: placeholder("Outputs"),
   look: LookPlaceholder,

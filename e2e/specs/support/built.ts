@@ -11,4 +11,4 @@
  * Wave 3: when a screen is built, add its name below in the same commit that implements its functions in
  * target.ts.
  */
-export const BUILT_SCREENS: readonly string[] = [];
+export const BUILT_SCREENS: readonly string[] = ["pad-boards"];
