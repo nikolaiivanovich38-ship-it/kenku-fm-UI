@@ -105,6 +105,15 @@ async function strength(app: ElectronApplication, channel: FakeChannelName, freq
   return Math.sqrt(power) / left.length;
 }
 
+
+/**
+ * A room's own tone counts as heard above this strength. It measures about 0.06 on a quiet machine and fell to 0.041
+ * to 0.048 on the 2-core build machine under load (packets late or dropped), failing a different test each time. The
+ * checks that matter are the ratios below (the other room's tone at least 20 or 50 times weaker, no packets at all
+ * for an idle room); this floor only says the tone arrived, so it sits well above silence and below the loaded range.
+ */
+const HEARD = 0.02;
+
 test("each engine room reaches its own bot: two rooms receive different sound (OUT-5)", async ({ launchApp }) => {
   test.setTimeout(90_000);
   const launched = await launchApp({ env: FAKE_DISCORD_ENV });
@@ -124,9 +133,9 @@ test("each engine room reaches its own bot: two rooms receive different sound (O
     tavern: { a: await strength(app, "Tavern", 440), b: await strength(app, "Tavern", 1000) },
     dungeon: { a: await strength(app, "Dungeon", 440), b: await strength(app, "Dungeon", 1000) },
   };
-  expect(heard.tavern.a).toBeGreaterThan(0.05);
+  expect(heard.tavern.a).toBeGreaterThan(HEARD);
   expect(heard.tavern.b).toBeLessThan(heard.tavern.a / 20);
-  expect(heard.dungeon.b).toBeGreaterThan(0.05);
+  expect(heard.dungeon.b).toBeGreaterThan(HEARD);
   expect(heard.dungeon.a).toBeLessThan(heard.dungeon.b / 20);
 });
 
@@ -148,7 +157,7 @@ test("a preview produces nothing in any room while a room is playing (PRV-1)", a
   await mainWindow.waitForTimeout(1_000);
 
   const tavernTone = await strength(app, "Tavern", 440);
-  expect(tavernTone).toBeGreaterThan(0.05);
+  expect(tavernTone).toBeGreaterThan(HEARD);
   expect(await strength(app, "Tavern", 2500)).toBeLessThan(tavernTone / 50);
   // The Dungeon plays nothing: no sound at all reaches it.
   expect(await packetCount(app, "Dungeon")).toBe(0);
