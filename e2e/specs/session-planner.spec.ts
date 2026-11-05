@@ -186,6 +186,8 @@ test.describe("a scene's music: tracks and playlists mixed, in order", () => {
     await openAbbey(page);
     const music = abbey(page).getByRole("group", { name: "Music", exact: true });
     await dropFiles(music, ["01 New theme.flac", "notes.txt", "02 Second.mp3"]);
+    // The app imports the files before they join the scene; wait for them (the prototype adds them at once).
+    await expect(musicOf(abbey(page)).getByRole("listitem")).toHaveCount(6);
     const names = await linkNames(musicOf(abbey(page)));
     expect(names).toContain("New theme");
     expect(names).toContain("Second");
