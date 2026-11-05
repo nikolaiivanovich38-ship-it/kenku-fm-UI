@@ -34,6 +34,11 @@ export interface LibraryServiceOptions {
   host: Record<string, (...args: unknown[]) => unknown>;
   /** Every LyreApi event, and the library's status, for the Lyre page. */
   onEvent(event: LyreEvent): void;
+  /**
+   * Asks the game master whether to put the latest backup back in place of a damaged library (security review 8):
+   * `words` say what is wrong, in plain words. True restores. Without it, a damaged library is only reported.
+   */
+  offerRestore?(words: string): Promise<boolean>;
   /** Wait before starting again after a crash (default 1 s). */
   restartDelayMs?: number;
   /** Crashes within `crashWindowMs` (default 60 s) after which it stops trying (default 3). */
@@ -46,6 +51,7 @@ export const STARTING_AGAIN = "Lyre's library stopped unexpectedly and is starti
 export const BACK_AGAIN = "Lyre's library is working again.";
 export const GAVE_UP = "Lyre's library keeps stopping. Close Lyre and start it again; your library and its backups are safe on disk.";
 const CLOSED = "Lyre's library is closed.";
+export const RESTORE_FAILED = "Lyre could not put your latest backup back.";
 
 export class LyreLibraryService {
   private readonly options: LibraryServiceOptions;
@@ -66,6 +72,8 @@ export class LyreLibraryService {
    */
   private waiting = new Map<number, { resolve(message: unknown): void; reject(error: Error): void }>();
   private nextRequestId = 1;
+  /** A backup is being put back: the next "ready" means the library works again. */
+  private restoring = false;
 
   constructor(options: LibraryServiceOptions) {
     this.options = options;
@@ -135,6 +143,33 @@ export class LyreLibraryService {
     return target[method](...args);
   }
 
+  /** Asks whether to restore; if so, the library's process puts its latest good backup back and opens it again. */
+  private async offerRestore(child: LibraryChild, words: string): Promise<void> {
+    let yes = false;
+    try {
+      yes = (await this.options.offerRestore?.(words)) === true;
+    } catch (error) {
+      this.options.log?.("Could not ask whether to restore the library's backup", error);
+    }
+    if (!yes || child !== this.child || this.stopping) return;
+    this.ready = new Promise<void>((resolve, reject) => {
+      this.markReady = resolve;
+      this.markFailed = reject;
+    });
+    this.ready.catch((): void => undefined);
+    this.restoring = true;
+    try {
+      const answer = (await this.request(child, { t: "restore" })) as { ok?: boolean; message?: string };
+      if (answer.ok !== true) throw new Error(answer.message ?? "Lyre could not put the backup back.");
+    } catch (error) {
+      this.restoring = false;
+      const failed = `${RESTORE_FAILED} ${error instanceof Error ? error.message : ""}`.trim();
+      this.down = failed;
+      this.markFailed?.(new Error(failed));
+      this.options.onEvent({ type: "library-status", ok: false, message: failed });
+    }
+  }
+
   /** Sends a control request with its own id; resolves to the answer that carries the same id. */
   private request(child: LibraryChild, message: { t: string; [key: string]: unknown }): Promise<unknown> {
     const id = this.nextRequestId++;
@@ -166,15 +201,20 @@ export class LyreLibraryService {
         this.down = null;
         this.markReady?.();
         if (this.backupsWanted) child.postMessage({ t: "start-backups" });
-        if (afterCrash) {
+        if (afterCrash || this.restoring) {
+          this.restoring = false;
           this.options.onEvent({ type: "library-status", ok: true, message: BACK_AGAIN });
           this.options.onEvent({ type: "changed", areas: [...LYRE_AREAS] });
         }
-      } else if (kind === "open-failed") {
-        const words = (message as { message: string }).message;
+      } else if (kind === "open-failed" || kind === "damaged") {
+        // Security review 8: a library found damaged (at open, or by the background check after it) is not used;
+        // the game master is offered the latest backup when the library's process found one.
+        const { message: words, canRestore } = message as { message: string; canRestore?: boolean };
         this.down = words;
+        this.client?.failPending(words);
         this.markFailed?.(new Error(words));
         this.options.onEvent({ type: "library-status", ok: false, message: words });
+        if (canRestore === true) void this.offerRestore(child, words);
       } else if (kind && kind !== "result" && kind !== "fault" && kind !== "event" && kind !== "host") {
         const id = (message as { id?: unknown }).id;
         const request = typeof id === "number" ? this.waiting.get(id) : undefined;

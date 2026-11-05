@@ -102,6 +102,23 @@ export function startLyreLibrary(): StartedLibrary {
       },
     },
     onEvent: (event) => wired?.onEvent(event),
+    // Security review 8: a damaged library offers its latest backup; the answer comes from the game master here,
+    // never from a page. Cancel (and closing the box) leaves everything as it is.
+    offerRestore: async (words) => {
+      const window = parentWindow();
+      const options: Electron.MessageBoxOptions = {
+        type: "warning",
+        title: "Lyre's library is damaged",
+        message: "Lyre's library file is damaged.",
+        detail: words,
+        buttons: ["Restore the latest backup", "Not now"],
+        defaultId: 0,
+        cancelId: 1,
+        noLink: true,
+      };
+      const answer = window ? await dialog.showMessageBox(window, options) : await dialog.showMessageBox(options);
+      return answer.response === 0;
+    },
     log,
   });
 
