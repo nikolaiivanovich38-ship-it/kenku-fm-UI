@@ -62,21 +62,21 @@ describe("pad board words and rules (boards.js helpers)", () => {
     expect(uses.some((u) => u.level === "scene" && u.label === "The Sunken Crown › Session 12 › The harbour at night")).toBe(true);
   });
 
-  it("explains a resize: pads moved to spare, empty slots to fill, or the new size", () => {
+  it("SFX-11: explains a resize: the grid full and the pads moved to spare, empty slots to fill, or the new size", () => {
     const b = board("weather");
-    expect(resizeMessage(b, ["Storm", "Owl"], false)).toBe("2 pads moved to Spare pads: Storm, Owl. Nothing was deleted.");
+    expect(resizeMessage({ ...b, cols: 4, rows: 1 }, ["Storm", "Owl"])).toBe("Grid is now 4 × 1 and full. 2 pads moved to Spare pads: Storm, Owl. Nothing was deleted.");
     const notAside = b.spare.map((p) => ({ ...p, aside: false }));
-    expect(resizeMessage({ ...b, slots: [...b.slots.slice(0, 4), null, null, null, null], spare: notAside }, [], true)).toBe(
-      "Grid is now 4 × 2: 4 empty slots to fill. Spare pads can go back into them.",
-    );
-    expect(resizeMessage({ ...b, spare: [] }, [], false)).toBe("Grid is now 4 × 2.");
+    expect(resizeMessage({ ...b, slots: [...b.slots.slice(0, 4), null, null, null, null], spare: notAside }, [])).toBe("Grid is now 4 × 2: 4 empty slots to fill.");
+    expect(resizeMessage({ ...b, spare: [] }, [])).toBe("Grid is now 4 × 2. Pads fill it left to right, top to bottom.");
   });
 
   it("SFX-11: says which spare pads came back, and that a pad put aside by hand stays (round 5)", () => {
     const b = board("weather");
-    expect(resizeMessage(b, [], true, ["Storm", "Owl"])).toBe("Grid is now 4 × 2. 2 spare pads came back onto it: Storm, Owl.");
-    const roomy = { ...b, cols: 4, rows: 3, slots: [...b.slots, null, null, null, null] };
-    expect(resizeMessage(roomy, [], true)).toBe("Grid is now 4 × 3: 4 empty slots to fill. Mugs clink stays in Spare pads, where you put it.");
+    expect(resizeMessage(b, [], ["Storm", "Owl"])).toBe("Grid is now 4 × 2. 2 spare pads came back onto it: Storm, Owl.");
+    const roomy = { ...b, cols: 6, rows: 4, slots: [...b.slots, ...Array<null>(16).fill(null)] };
+    expect(resizeMessage(roomy, [])).toBe("Grid is now 6 × 4: 16 empty slots to fill. Mugs clink stays in Spare pads, where you put it.");
+    // A full grid has nowhere to put it, so there is nothing to say about it.
+    expect(resizeMessage(b, [])).toBe("Grid is now 4 × 2. Pads fill it left to right, top to bottom.");
   });
 
   it("says where a pad went and what it swapped with", () => {

@@ -146,7 +146,7 @@ function BoardEditor({ board }: { board: PadBoard }) {
     const after = result.value.board;
     const moved = result.value.movedToSpare.map((id) => findPad(before, id)?.pad.label ?? "");
     const back = result.value.cameBack.map((id) => findPad(before, id)?.pad.label ?? "");
-    const text = resizeMessage(after, moved, cols * rows > before.cols * before.rows, back);
+    const text = resizeMessage(after, moved, back);
     if (moved.length) setSpareOpen(true);
     if (focusIndex >= cols * rows) setFocusIndex(0);
     setMessage({ text, undoLabel: result.undoLabel, cols: before.cols, rows: before.rows });

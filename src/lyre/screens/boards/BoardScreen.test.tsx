@@ -53,7 +53,7 @@ describe("a pad board: the grid and its size (boards.js board editor)", () => {
     const user = userEvent.setup();
     const { api } = await open("board/weather");
     await user.click(screen.getByRole("button", { name: "Fewer rows" }));
-    const [message] = await screen.findAllByText("4 pads moved to Spare pads: Horse whinny, Storm, Wind gust, Fire flares. Nothing was deleted.");
+    const [message] = await screen.findAllByText("Grid is now 4 × 1 and full. 4 pads moved to Spare pads: Horse whinny, Storm, Wind gust, Fire flares. Nothing was deleted.");
     expect(message.closest("[role=status]")).not.toBeNull();
     await waitFor(() => expect(pads()).toHaveLength(4));
     expect(spare()).toHaveTextContent("5 pads");
