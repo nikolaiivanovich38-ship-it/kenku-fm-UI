@@ -316,6 +316,29 @@ describe("the preview's sound follows the profile shown", () => {
     expect((previews(audio)[1][2] as { startAtMs: number }).startAtMs).toBeGreaterThanOrEqual(5000);
   });
 
+  it("a profile change while it plays starts the sound again from the playhead, with the change (review 7)", async () => {
+    const { audio, user } = await open();
+    await user.click(screen.getByRole("button", { name: "Play the last 10 s before End" }));
+    position(audio, 310);
+    slider("End").focus();
+    await user.keyboard("{ArrowRight}{ArrowRight}");
+    await waitFor(() => expect(previews(audio)).toHaveLength(2));
+    const [, id, options] = previews(audio)[1] as [string, string, { startAtMs: number; profile: { endMs: number } }];
+    expect(id).toBe("t13");
+    expect(options.profile.endMs).toBe(320_000);
+    expect(options.startAtMs).toBeGreaterThanOrEqual(310_000);
+  });
+
+  it("a jump of the playhead (Home) while it plays starts the sound again from there (review 7)", async () => {
+    const { audio, user } = await open();
+    await user.click(screen.getByRole("button", { name: "Play the last 10 s before End" }));
+    position(audio, 309);
+    slider("Playhead").focus();
+    await user.keyboard("{Home}");
+    await waitFor(() => expect(previews(audio)).toHaveLength(2));
+    expect((previews(audio)[1][2] as { startAtMs: number }).startAtMs).toBe(0);
+  });
+
   it("moving on, it previews the next track from its Start with its settings there, then stops", async () => {
     const { audio, user } = await open("profile/t13/sc:crown:s14:sc3");
     await user.click(screen.getByRole("button", { name: "Play the last 10 s before End" }));
