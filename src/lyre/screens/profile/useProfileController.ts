@@ -80,22 +80,14 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
   const [ctxIndex, setCtxIndex] = useState(0);
   const ctx: NextContext | undefined = contexts[Math.min(ctxIndex, contexts.length - 1)];
 
-  /** A track's profile in a place ("" for its own), as the library resolves it. */
-  const domainProfileOf = useCallback(
-    (id: string, placeKey: string) => {
-      const t = view.track(id);
-      const place = placeKey ? parsePlaceKey(placeKey) : null;
-      return t ? resolveProfile(t, place ? [place] : [], view.overrides).profile : null;
-    },
-    [view],
-  );
-  /** The same in the screen's seconds. */
+  /** A track's profile in a place ("" for its own). */
   const profileOf = useCallback(
     (id: string, placeKey: string): Prof | null => {
-      const profile = domainProfileOf(id, placeKey);
-      return profile ? fromDomain(profile) : null;
+      const t = view.track(id);
+      const place = placeKey ? parsePlaceKey(placeKey) : null;
+      return t ? fromDomain(resolveProfile(t, place ? [place] : [], view.overrides).profile) : null;
     },
-    [domainProfileOf],
+    [view],
   );
 
   const world: ClockWorld = {
