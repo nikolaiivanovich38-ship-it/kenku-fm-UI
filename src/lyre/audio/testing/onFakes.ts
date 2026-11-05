@@ -40,6 +40,7 @@ export function staticAudioLibrary(data: AudioTestData): LyreAudioLibrary {
       return known ? { url: known.url, trackId: known.id, sizeBytes: known.sizeBytes } : null;
     },
     pad: (boardId, padId): LyrePad | undefined => data.pads?.find((p) => p.boardId === boardId && p.padId === padId),
+    playOrders: () => data.playOrders ?? {},
   };
 }
 
@@ -143,6 +144,8 @@ export function lyreAudioOnFakes(data: AudioTestData, options: { devices?: Outpu
 
   return {
     audio,
+    /** The library's data, read on every call: a test may change it while things play. */
+    data,
     engine,
     context,
     previewContext,

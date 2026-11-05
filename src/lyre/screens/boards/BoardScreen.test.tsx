@@ -66,17 +66,21 @@ describe("a pad board: the grid and its size (boards.js board editor)", () => {
     expect((await api.boards.list()).find((b) => b.id === "weather")!.spare).toHaveLength(1);
   });
 
-  it("making it bigger says how many slots are empty, and Put all back fills them from the spare pads", async () => {
+  it("making it bigger brings back the pads a resize moved; the pad put aside by hand stays (SFX-11, round 5)", async () => {
     const user = userEvent.setup();
     await open("board/weather");
     await user.click(screen.getByRole("button", { name: "Fewer rows" }));
     await waitFor(() => expect(pads()).toHaveLength(4));
     await user.click(screen.getByRole("button", { name: "More rows" }));
-    expect((await screen.findAllByText("Grid is now 4 × 2: 4 empty slots to fill. Spare pads can go back into them."))[0]).toBeInTheDocument();
-    await user.click(within(spare()).getByRole("button", { name: "Put all back" }));
+    expect((await screen.findAllByText("Grid is now 4 × 2. 4 spare pads came back onto it: Horse whinny, Storm, Wind gust, Fire flares."))[0]).toBeInTheDocument();
     await waitFor(() => expect(pads()).toHaveLength(8));
     expect(pad("Storm")).toBeInTheDocument();
-    expect(await spoken()).toBe("4 pads put back in the grid; 1 still spare");
+    expect(spare()).toHaveTextContent("1 pad");
+    await user.click(screen.getByRole("button", { name: "More rows" }));
+    expect((await screen.findAllByText("Grid is now 4 × 3: 4 empty slots to fill. Mugs clink stays in Spare pads, where you put it."))[0]).toBeInTheDocument();
+    await user.click(within(spare()).getByRole("button", { name: "Put all back" }));
+    await waitFor(() => expect(pads()).toHaveLength(9));
+    expect(await spoken()).toBe("1 pad put back in the grid");
   });
 
   it("the size steppers stop at 1 and 8 and say so", async () => {
@@ -101,7 +105,7 @@ describe("a pad board: the grid and its size (boards.js board editor)", () => {
     await user.click(within(quick).getByRole("button", { name: "6×4, 6 columns by 4 rows" }));
     await waitFor(() => expect(grid()).toHaveAccessibleName("Pads, 6 columns by 4 rows"));
     expect(screen.getByText((_, el) => el?.tagName === "SPAN" && el.textContent === "8 of 24 slots used")).toBeInTheDocument();
-    expect((await screen.findAllByText("Grid is now 6 × 4: 16 empty slots to fill. Spare pads can go back into them."))[0]).toBeInTheDocument();
+    expect((await screen.findAllByText("Grid is now 6 × 4: 16 empty slots to fill. Mugs clink stays in Spare pads, where you put it."))[0]).toBeInTheDocument();
   });
 
   it("an empty slot gets a new pad, selected, with its label ready to type", async () => {

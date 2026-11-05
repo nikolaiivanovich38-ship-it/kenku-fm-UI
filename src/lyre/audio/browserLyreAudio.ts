@@ -175,4 +175,5 @@ export const EMPTY_LIBRARY: LyreAudioLibrary = {
   profileOverrides: () => ({}),
   media: () => null,
   pad: () => undefined,
+  playOrders: () => ({}),
 };

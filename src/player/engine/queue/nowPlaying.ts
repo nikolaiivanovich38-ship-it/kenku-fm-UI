@@ -19,13 +19,29 @@
  * deleted), `locate` finds the item again, so deleting a track never changes
  * which track is current, and Next and Previous go to its neighbours (BUG-11).
  */
-import { playlistTracks, ProfilePlace, sceneSequence, SequenceStep, stepSequence } from "../../../common/domain";
+import {
+  DEFAULT_ORDER_ALONE,
+  playlistTracks,
+  profilePlacesFor,
+  resolvePlayOrder,
+  stepSequence,
+  tracksInOrder,
+  whenTrackEnds,
+  type PlayOrder,
+  type ProfilePlace,
+  type SequenceStep,
+  type UsePlace,
+} from "../../../common/domain";
 import type { SceneRef, ShowLibrary } from "./library";
 
-/** Where a playing track came from. `at` is its step in that scene's or playlist's sequence. */
+/**
+ * Where a playing track came from. `at` is its step in that scene's or playlist's sequence. PLY-13: `place` is the
+ * session or campaign list a playlist was played from (its play order there); `seed` deals a shuffled playlist (the
+ * same seed, the same order, so Up next and Live's lists agree with what plays).
+ */
 export type Origin =
-  | { kind: "scene"; scene: SceneRef; at: number }
-  | { kind: "playlist"; playlistId: string; at: number }
+  | { kind: "scene"; scene: SceneRef; at: number; seed?: number }
+  | { kind: "playlist"; playlistId: string; at: number; place?: UsePlace | null; seed?: number }
   /** Off script: played on its own, from search or the library. */
   | { kind: "single" };
 
@@ -56,42 +72,73 @@ export function single(trackId: string): Playing {
   return { trackId, origin: { kind: "single" }, playlistId: null };
 }
 
-/** The item at step `at` of a scene's music, or null when there is no such step. */
-export function sceneItem(scene: SceneRef, at: number, lib: ShowLibrary): Playing | null {
-  const seq = sequenceOf({ kind: "scene", scene, at }, lib);
+/** The item at step `at` of a scene's music, or null when there is no such step. `seed` deals its shuffled playlists. */
+export function sceneItem(scene: SceneRef, at: number, lib: ShowLibrary, seed?: number): Playing | null {
+  const origin: Origin = seed === undefined ? { kind: "scene", scene, at } : { kind: "scene", scene, at, seed };
+  const seq = sequenceOf(origin, lib);
   const step = seq[at];
-  return step ? { trackId: step.trackId, origin: { kind: "scene", scene, at }, playlistId: step.playlistId } : null;
+  return step ? { trackId: step.trackId, origin, playlistId: step.playlistId } : null;
 }
 
-/** A playlist's track `trackId` (its first copy), or its first track when `trackId` is null. */
-export function playlistItem(playlistId: string, trackId: string | null, lib: ShowLibrary): Playing | null {
-  const seq = sequenceOf({ kind: "playlist", playlistId, at: 0 }, lib);
+/**
+ * A playlist's track `trackId` (its first copy), or its first track when `trackId` is null (the first of the dealt
+ * order when it shuffles). `place`: the session or campaign list it is played from; `seed` deals a shuffled order.
+ */
+export function playlistItem(playlistId: string, trackId: string | null, lib: ShowLibrary, from: { place?: UsePlace | null; seed?: number } = {}): Playing | null {
+  const base: Origin = { kind: "playlist", playlistId, at: 0 };
+  if (from.place) base.place = from.place;
+  if (from.seed !== undefined) base.seed = from.seed;
+  const seq = sequenceOf(base, lib);
   const at = trackId === null ? 0 : seq.findIndex((step) => step.trackId === trackId);
   const step = seq[at];
-  return step ? { trackId: step.trackId, origin: { kind: "playlist", playlistId, at }, playlistId } : null;
+  return step ? { trackId: step.trackId, origin: { ...base, at }, playlistId } : null;
 }
 
-/** Where an item's audio profile may come from, most specific first (resolveProfile's order). */
+/** The place an item plays from, for its play order and audio settings: its scene, or the list it was played from. */
+function placeOf(origin: Origin): UsePlace | null {
+  if (origin.kind === "scene") return { kind: "scene", ...origin.scene };
+  if (origin.kind === "playlist") return origin.place ?? null;
+  return null;
+}
+
+/** Where an item's audio profile may come from, most specific first (resolveProfile's order; PLY-14 profilePlacesFor). */
 export function placesOf(item: Playing): ProfilePlace[] {
-  const places: ProfilePlace[] = [];
-  if (item.origin.kind === "scene") {
-    places.push({ kind: "scene", ...item.origin.scene });
-  }
-  if (item.playlistId) {
-    places.push({ kind: "playlist", playlistId: item.playlistId });
-  }
-  return places;
+  return profilePlacesFor(placeOf(item.origin), item.playlistId);
 }
 
-/** The steps of the scene or playlist an item came from, as they are now. */
+/** PLY-13: how a playlist plays where the item came from (resolvePlayOrder). */
+export function playOrderOf(playlistId: string, origin: Origin, lib: ShowLibrary): PlayOrder {
+  const { order, source } = resolvePlayOrder(playlistId, lib.playlist(playlistId)?.order ?? null, placeOf(origin), lib.playOrders?.() ?? {});
+  // A playlist played on its own in its lane (a scene's ambience playlist too) has no next item to move on to.
+  return source === "default" && origin.kind === "playlist" ? { ...DEFAULT_ORDER_ALONE } : order;
+}
+
+/**
+ * The steps of the scene or playlist an item came from, as they are now: sceneSequence and playlistTracks, with each
+ * playlist dealt in the play order that applies there (PLY-13). A scene's playlist item at index i is dealt with the
+ * scene's seed plus i, so two shuffled playlists in one scene differ.
+ */
 export function sequenceOf(origin: Origin, lib: ShowLibrary): SequenceStep[] {
+  const seed = origin.kind === "single" ? 0 : (origin.seed ?? 0);
+  const dealt = (playlistId: string, itemSeed: number) => {
+    const playlist = lib.playlist(playlistId);
+    return playlist ? tracksInOrder(playlistTracks(playlist, lib), playOrderOf(playlistId, origin, lib), itemSeed) : [];
+  };
   if (origin.kind === "scene") {
     const scene = lib.scene(origin.scene);
-    return scene ? sceneSequence(scene, lib) : [];
+    if (!scene) return [];
+    const out: SequenceStep[] = [];
+    scene.music.forEach((ref, itemIndex) => {
+      if (ref.kind === "track") {
+        if (lib.track(ref.id)) out.push({ trackId: ref.id, itemIndex, playlistId: null });
+        return;
+      }
+      for (const t of dealt(ref.id, seed + itemIndex)) out.push({ trackId: t.id, itemIndex, playlistId: ref.id });
+    });
+    return out;
   }
   if (origin.kind === "playlist") {
-    const playlist = lib.playlist(origin.playlistId);
-    return playlist ? playlistTracks(playlist, lib).map((t) => ({ trackId: t.id, itemIndex: 0, playlistId: playlist.id })) : [];
+    return dealt(origin.playlistId, seed).map((t) => ({ trackId: t.id, itemIndex: 0, playlistId: origin.playlistId }));
   }
   return [];
 }
@@ -130,9 +177,40 @@ export function stepFrom(item: Playing, direction: 1 | -1, lib: ShowLibrary): Pl
   const wrap = (i: number) => ((i % seq.length) + seq.length) % seq.length;
   // A deleted current track: the step after it has slid into its place.
   const at = found ? stepSequence(seq, index, direction)! : wrap(direction === 1 ? index : index - 1);
+  return itemAt(item, seq, at);
+}
+
+/** The item at step `at` of the same scene or playlist as `item` (same place and seed). */
+function itemAt(item: Playing, seq: readonly SequenceStep[], at: number): Playing {
   const step = seq[at];
-  const origin: Origin = item.origin.kind === "scene" ? { kind: "scene", scene: item.origin.scene, at } : { kind: "playlist", playlistId: item.origin.playlistId, at };
+  const origin = { ...(item.origin as Exclude<Origin, { kind: "single" }>), at };
   return { trackId: step.trackId, origin, playlistId: step.playlistId };
+}
+
+/**
+ * PLY-13: what plays when the item's track ended by itself, as its playlist's play order there says (whenTrackEnds):
+ * the same track again, the playlist's next track, its first track, the scene's next item, or nothing. A track that
+ * is not from a playlist steps on as before. `undefined`: not a playlist's track, step on as Next would.
+ */
+function afterEnd(item: Playing, lib: ShowLibrary): Playing | null | undefined {
+  if (item.origin.kind === "single" || !item.playlistId) return undefined;
+  const seq = sequenceOf(item.origin, lib);
+  const { index, found } = locate(seq, item);
+  if (!found) return undefined;
+  const inScene = item.origin.kind === "scene";
+  const itemIndex = seq[index].itemIndex;
+  const first = inScene ? seq.findIndex((s) => s.itemIndex === itemIndex) : 0;
+  const atLast = inScene ? seq[index + 1]?.itemIndex !== itemIndex : index === seq.length - 1;
+  switch (whenTrackEnds(playOrderOf(item.playlistId, item.origin, lib), { atLast, inScene })) {
+    case "again":
+      return itemAt(item, seq, index);
+    case "first":
+      return itemAt(item, seq, first);
+    case "stop":
+      return null;
+    default:
+      return undefined;
+  }
 }
 
 /**
@@ -170,17 +248,28 @@ function pending(lane: MusicLane, lib: ShowLibrary): { item: Playing; queued: nu
   return null;
 }
 
+/** PLY-13: what plays after `item`'s track ended by itself: its play order's choice, else its sequence's next step. */
+export function afterTrackEnded(item: Playing, lib: ShowLibrary): Playing | null {
+  const byOrder = afterEnd(item, lib);
+  return byOrder === undefined ? stepFrom(item, 1, lib) : byOrder;
+}
+
 /**
- * Next, or the current track reached its end. `sequence: false` when the
+ * Next, or the current track reached its end (`ended`). `sequence: false` when the
  * track's profile says "stop": the queue and a return point still play, the
- * sequence does not move on by itself.
+ * sequence does not move on by itself. A track that ended by itself goes on as
+ * its playlist's play order says (PLY-13); Next always moves on.
  */
-export function advance(lane: MusicLane, lib: ShowLibrary, { sequence }: { sequence: boolean }): { lane: MusicLane; play: Playing | null } {
+export function advance(lane: MusicLane, lib: ShowLibrary, { sequence, ended = false }: { sequence: boolean; ended?: boolean }): { lane: MusicLane; play: Playing | null } {
   const next = pending(lane, lib);
   if (next) {
     // Queued tracks that left the library before their turn are dropped with it.
     const queued = next.queued > -1 ? lane.queued.slice(next.queued + 1) : lane.queued;
     return { lane: playNow({ ...lane, queued }, next.item, lib), play: next.item };
+  }
+  const byOrder = sequence && ended && lane.current ? afterEnd(lane.current, lib) : undefined;
+  if (byOrder !== undefined) {
+    return byOrder ? { lane: playNow(lane, byOrder, lib), play: byOrder } : { lane: { ...lane, current: null }, play: null };
   }
   const step = sequence && lane.current ? stepFrom(lane.current, 1, lib) : null;
   if (step) {

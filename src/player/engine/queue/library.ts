@@ -13,6 +13,7 @@ import type {
   DomainPlaylist,
   DomainScene,
   DomainTrack,
+  PlayOrderOverrides,
   ProfileOverrides,
 } from "../../../common/domain";
 import type { MediaRequest } from "../sources/sourceLoader";
@@ -47,6 +48,8 @@ export interface ShowLibrary extends DomainLookup {
   /** Where a track's audio is; null when the file is not known. */
   media(track: DomainTrack): MediaRequest | null;
   pad(boardId: string, padId: string): PadSound | undefined;
+  /** PLY-13: play order chosen in places, by place key then playlist id; none: every playlist plays its own order. */
+  playOrders?(): PlayOrderOverrides;
 }
 
 /** A library as plain data, for tests and the test hook. */
@@ -56,6 +59,7 @@ export interface ShowData {
   campaigns: DomainCampaign[];
   profiles?: ProfileOverrides;
   pads?: (PadSound & { boardId: string; padId: string })[];
+  playOrders?: PlayOrderOverrides;
 }
 
 /** Reads `data` on every call, so a test can change it while things play (e.g. delete a track). */
@@ -75,6 +79,7 @@ export function staticLibrary(data: ShowData): ShowLibrary {
       return known ? { url: known.url, trackId: known.id, sizeBytes: known.sizeBytes } : null;
     },
     pad: (boardId, padId) => data.pads?.find((p) => p.boardId === boardId && p.padId === padId),
+    playOrders: () => data.playOrders ?? {},
   };
 }
 

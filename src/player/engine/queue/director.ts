@@ -15,7 +15,7 @@
 import { TypedEmitter } from "tiny-typed-emitter";
 
 import { roomsFor, sceneRoom } from "../../../common/domain";
-import type { RoomTarget } from "../../../common/domain";
+import type { RoomTarget, UsePlace } from "../../../common/domain";
 import type { PlaybackEngine } from "../engine";
 import type { RoomsAudio } from "../rooms.contract";
 import { CueAction, CueOutcome, DEFAULT_FADES, TrackFrom } from "./actions";
@@ -87,7 +87,7 @@ export class Director extends TypedEmitter<DirectorEvents> {
       case "playTrack":
         return this.playTrack(action.trackId, action.target, action.when ?? "now", action.from, seconds(action.fadeMs, DEFAULT_FADES.crossfade));
       case "playPlaylist":
-        return this.playPlaylist(action.playlistId, action.target, action.when ?? "now", seconds(action.fadeMs, DEFAULT_FADES.crossfade));
+        return this.playPlaylist(action.playlistId, action.target, action.when ?? "now", seconds(action.fadeMs, DEFAULT_FADES.crossfade), action.place);
       case "startScene": {
         const scene = this.library.scene(action.scene);
         if (!scene) {
@@ -163,12 +163,12 @@ export class Director extends TypedEmitter<DirectorEvents> {
     return this.eachRoom(target, (player) => (when === "next" ? player.queueMusic(item, fade) : player.playMusic(item, fade), OK));
   }
 
-  private playPlaylist(playlistId: string, target: RoomTarget, when: "now" | "next", fade: number): CueOutcome {
+  private playPlaylist(playlistId: string, target: RoomTarget, when: "now" | "next", fade: number, place?: UsePlace): CueOutcome {
     const playlist = this.library.playlist(playlistId);
     if (!playlist) {
       return fail("That playlist is no longer there.");
     }
-    const item = playlistItem(playlistId, null, this.library);
+    const item = playlistItem(playlistId, null, this.library, { place, seed: this.newSeed() });
     if (!item) {
       return fail("This playlist has no tracks yet.");
     }
@@ -185,9 +185,9 @@ export class Director extends TypedEmitter<DirectorEvents> {
   private itemFor(trackId: string, from: TrackFrom | undefined): Playing {
     let item: Playing | null = null;
     if (from && "scene" in from) {
-      item = sceneItem(from.scene, from.at, this.library);
+      item = sceneItem(from.scene, from.at, this.library, this.newSeed());
     } else if (from && "playlistId" in from) {
-      item = playlistItem(from.playlistId, trackId, this.library);
+      item = playlistItem(from.playlistId, trackId, this.library, { place: from.place, seed: this.newSeed() });
     }
     return item && item.trackId === trackId ? item : single(trackId);
   }
@@ -200,6 +200,11 @@ export class Director extends TypedEmitter<DirectorEvents> {
     }
     const outcomes = ids.map((id) => act(this.player(id)));
     return outcomes.find((outcome) => outcome.ok) ?? outcomes[0];
+  }
+
+  /** PLY-13: a seed to deal a shuffled playlist with, from the host's random numbers. */
+  private newSeed(): number {
+    return Math.floor(this.random() * 2 ** 31);
   }
 
   private pickVariant(key: string, trackIds: string[], order: "random" | "roundrobin"): string {
@@ -221,6 +226,7 @@ export class Director extends TypedEmitter<DirectorEvents> {
         changed: () => this.emit("change"),
         error: (message) => this.emit("error", message),
         newEntryId: () => `q${++this.entries}`,
+        newSeed: () => this.newSeed(),
       });
       this.players.set(roomId, player);
     }
