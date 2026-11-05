@@ -441,3 +441,26 @@ New refusal codes: `"not-lyre-file"` (a file that is not a Lyre file, or is dama
 - `LyreAudioLibrary.playOrders()` is new; `LibrarySnapshot` loads `playlists.playOrders()` and reloads it on "playlists". `FakeLyreAudio.setNowPlaying` fills in what a test leaves out (`FakeNowPlaying`).
 
 Open points for the build streams: the pad board screen now words a resize with `cameBack` and the pad put aside (boardModel `resizeMessage`); the Library still searches in memory, so a screen that wants names in scenes found must add them from `trackNamesOf` (the database's search has them); a "peaks" event may mean suggested shapes changed.
+
+## Wave 4: w4-transfer
+
+DAT-7 (Back up, move or share), the move report and DAT-8 (Find missing files): the .lyre file in the main process
+and three screens (design/prototype/ROUND5.md "Three screens that had none").
+
+| Where | What it does |
+| --- | --- |
+| `src/main/transfer/zip.ts` | A small zip writer (stored audio streamed with a data descriptor, deflated JSON, CRC-32) and a hostile-file reader (docs/security.md "w4-transfer"). Node's zlib only. |
+| `src/main/transfer/lyreFile.ts` | The .lyre format (docs/data-model.md "The .lyre file"): `writeLyreFile`, `readLyreFile` (manifest, version, entries, every value rebuilt), `refusalWords`. |
+| `src/main/transfer/bringIn.ts` | `describeFile` (new or yours already) and `bringIn` (Skip, Merge, Keep both; ids mapped; one undo step in batches). |
+| `src/main/lyreApi/transferApi.ts` | `saveLyreFile`, `openLyreFile`, `bringInLyreFile` for `transfer.save`, `open`, `bringIn` in `libraryApi.ts` (a backup first, audio unpacked into `Brought in\<file>`). |
+| `src/main/lyreApi/sampleComputer.ts` | Test builds of the sample library only: the prototype's computer (files 9 MB, three missing, E:\Music\Scores, Sam's "Curse of Strahd" file), so the specs check the design's own sample. `seedLibrary(…, { sample: true })` records the file sizes and the move from Kenku FM 1.5.5. |
+| `src/lyre/screens/transfer/` | `BackupScreen` (`#/backup`), `MovedScreen` (`#/moved`), `RelinkScreen` (`#/relink`), `LibraryMoreMenu` (the ⋯ beside Add tracks), `model.ts` (words), `transfer.css` (the prototype's, scoped to `.view`). |
+
+- **Host.** `LibraryHost` gains `chooseSaveFile(suggestedName)` and `chooseLyreFile()`; `startLibrary.ts` shows the
+  dialogs at Documents\Lyre (test builds of the sample library answer them, and the folder chooser, by themselves).
+  `LyreLibraryService` passes `transferFolder` in the library process's `init` message.
+- **Relinking.** `findMissingTracks` and `planRelink` take a `FileProbe` (the disk by default). A file with the same
+  name and another size is now offered as "name" (not ticked: "Same name, different size: check it").
+- **Move report.** `transfer.movedReport()` names the app's version and the bookmarks when the record holds them.
+- **Shared files touched:** `src/lyre/shell/routes.ts` (three routes, section Library), `src/lyre/screens/index.tsx`,
+  `src/lyre/kit/icons.ts` (download, upload, warn), one import and one line in `LibraryScreen.tsx`, `e2e/specs/support/built.ts`.

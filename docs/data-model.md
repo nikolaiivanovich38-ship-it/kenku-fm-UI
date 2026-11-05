@@ -363,6 +363,49 @@ The library was first designed in WP3 (version 1), rebuilt for design round 4 (v
 
 `repo/kenkuShape.test.ts` shows this mapping with today's Redux types.
 
+### The .lyre file (DAT-7, w4-transfer)
+
+Back up, move or share saves part or all of the library to one file and opens such a file on another computer
+(`src/main/transfer`, used by `src/main/lyreApi/transferApi.ts`).
+
+**Why a zip.** A .lyre file is a zip archive with its own extension. A single JSON file was the other choice: simpler
+to write, but the audio files would have to go in as base64 text (a third larger, and the whole file read into memory
+to open it). A zip keeps each audio file as it is (stored, not packed again: audio is already compressed), lets Lyre
+read the list of what is inside without reading the audio, lets a large file be written and unpacked a piece at a
+time, and opens in any zip tool if someone needs to look inside. Node's own zlib does the packing; no library.
+
+| Entry | What it holds |
+| --- | --- |
+| `lyre.json` | `format: "lyre-library-file"`, `version` (1), `madeWith` ("Lyre 0.4.0"), `savedAt` (ms), the `scope` and its `title`, `counts`, and `audio`: one `{ entry, trackId, bytes }` per audio file in the file. |
+| `library.json` | `tracks` (LyreApi's `LibraryTrack` without this computer's address, date added and New mark), `tagGroups`, `playlists`, `boards`, `campaigns` (sessions and scenes inside, cut down to the session or scene for those scopes), `overrides` (audio settings per place key, only places inside the scope) and `playOrders` (per place key, likewise). The scope's contents come from `transferContents` (`src/common/lyre/transfer.ts`), the rule both LyreApi implementations share. |
+| `audio/00001.flac` … | The audio files, when "Include the audio files" was ticked: named by Lyre (a number and the file's own audio extension), never by a path from the game master's computer. |
+
+- **Versions.** A file states its version; Lyre opens versions up to its own and refuses a newer one in plain words
+  ("saved by a newer version of Lyre. Update Lyre"). Bump the version when library.json changes in a way an older Lyre
+  would read wrongly; keep reading the older versions.
+- **Size.** No zip64: a file stays under 4 GB. Saving with the audio files refuses before writing when it would be
+  larger, and suggests saving without them or a smaller part. Without audio the sample library is about 10 KB and a
+  20,000-track library a few megabytes.
+- **Saving** asks where (Documents\Lyre, with the scope's name: "The Sunken Crown.lyre", "Lyre library
+  2026-11-05.lyre"), writes `<name>.part` and moves it into place at the end, so a failed save leaves nothing. A
+  track whose file Lyre cannot find is left out and the summary says how many. No undo step.
+- **Opening** checks the whole file before anything changes (docs/security.md, "w4-transfer") and lists what is in it
+  (`describeFile` in `transfer/bringIn.ts`): duplicates are tracks with the same file name and length (within a
+  second), and playlists, boards and campaigns with the same name. The opened file stays open until Bring in, the
+  next open or a restart of the library's process.
+- **Bringing in** makes a backup first (`before-import`, as importing does), then one undo step, "Bring in <file>",
+  saved 500 tracks per batch with the event loop free between batches. Every thing gets a new id; references inside
+  the file are mapped and a reference to something the file does not hold is dropped. Skip keeps yours and the file's
+  other things use yours; Merge adds what is new in theirs (a manual playlist's tracks, a board's pads by label among
+  your spare pads without keys, a campaign's sessions as drafts after yours, a track's tags and empty fields); Keep both
+  adds theirs as a copy named "(from Sam)" (who: the words after "from" in the file's name, else the file's name).
+  Audio settings and play orders come with the places the bring-in made; yours are never changed by a file. Tags are
+  matched by group id, then group name, then made.
+- **Files of brought-in tracks.** Audio in the file is unpacked into `Brought in\<file name>` beside the library
+  folder (in the app: Documents\Lyre\Brought in). A track without its audio points there too and shows as missing
+  until Find missing files relinks it, unless its old place is under one of this library's own folders. So a file never
+  makes Lyre read a folder it would not read otherwise.
+
 ### Tests
 
 | File | Covers |
@@ -382,8 +425,11 @@ The library was first designed in WP3 (version 1), rebuilt for design round 4 (v
 | `import/*.test.ts` | Import, tags, the old library's move (with a simulated crash), relinking, title suggestions; `pipeline.perf.test.ts` the 5,000-file budget. |
 | `peaks.test.ts` | Stored peaks: ready, unreadable, needed when the file changes, none for web addresses; deleted with the track and left out of undo; not saved for a file that changed or a track deleted meanwhile; size limits. `PeakJobs`: order (on demand first), one notice per interval, skips, unreadable and missing files, waiting out bulk work, closing. |
 | `../media/ffmpegPeaks.test.ts` | The levels (decibel scale, blocks across chunk boundaries, long files), ffmpeg's arguments, and the real bundled ffmpeg: a quiet start and loud end, an unreadable file, and the 200 ms beat for a 20-minute file and a 40-track import. |
+| `../transfer/zip.test.ts` | The zip layer: stored and deflated entries, CRC-checked; no half-written file; not a zip, cut off, changed bytes; a zip bomb and a lying size refused before inflating; names that leave a folder; too many entries. |
+| `../lyreApi/transferApi.test.ts` | A round trip of the sample library at each of the seven scopes into an empty library (names, orders, tags, settings, play orders, names in scenes compared); audio files unpacked and checked; missing files left out; the save dialog; every refusal with nothing changed; Skip, Merge and Keep both, one undo step, a backup first; 20,000 tracks saved, opened and brought in (about 10 s on the build machine; budgets 5 s, 3 s, 30 s, no turn held over 1.5 s). |
+| `../lyreApi/sampleComputer.test.ts` | The test builds' sample computer: the three missing files, 9 MB per file, E:\Music\Scores, the move report, Sam's shared file and its summary. |
 | `performance.test.ts` | The figures above with 20,000 tracks, 500 playlists and 3 × 50 × 8 scenes: one campaign tree < 50 ms (all three < 150 ms), a dynamic playlist < 50 ms, uses < 50 ms, search < 50 ms, the whole library for the shared rules < 500 ms, and no event-loop turn held 200 ms or more (this thread's processor time, so other programs on a shared machine cannot fail it; clock time is recorded too) by a backup or any bulk change, undo or redo. `CUE_DESK_SKIP_PERF=1` skips it; `CUE_DESK_PERF_REPORT=<file>` writes the numbers. |
 
 ### Not yet
 
-Cue lists (WPD; `cue_actions` will gain `cue_id`) and export/import (DAT-7) arrive in later steps. The new interface reaches the library through LyreApi in a utility process (`src/main/lyreApi`, see docs/ARCHITECTURE.md "Wave 3: w3-api"). From the DB review: the Store runs in its own utility process behind LyreApi (wave 3), with batched bulk work kept; internal row tables keep text ids (they are part of the API, and ids from the old player are kept); a folder's scope is still checked in code, not by a composite key; budgets are warm-cache figures from the build machine, with no cold-start run on a spinning disk.
+Cue lists (WPD; `cue_actions` will gain `cue_id`) arrive in a later step. The new interface reaches the library through LyreApi in a utility process (`src/main/lyreApi`, see docs/ARCHITECTURE.md "Wave 3: w3-api"). From the DB review: the Store runs in its own utility process behind LyreApi (wave 3), with batched bulk work kept; internal row tables keep text ids (they are part of the API, and ids from the old player are kept); a folder's scope is still checked in code, not by a composite key; budgets are warm-cache figures from the build machine, with no cold-start run on a spinning disk.
