@@ -252,6 +252,76 @@ var L = (function () {
     var tip = 'Shape: ' + L.shapeName[s] + (t.shape ? '' : ' (suggested from its loudness)');
     return '<span class="shape-tag" title="' + esc(tip) + '">' + L.shapeGlyph(s) + (iconOnly ? '<span class="sr-only">' + esc(tip) + '</span>' : '<span>' + esc(L.shapeName[s]) + '</span>') + '</span>';
   };
+  /* PLY-15, DAT-15 volume normalisation (Nik, 5 Nov 23:47: "we'll also need volume baseline normalisation across the
+     tracks, and an option we can turn on either at the whole library level or per track or playlist").
+     D.normalise = { on, target } is the library's setting, off until the GM turns it on. A playlist's and a track's
+     .norm is 'on', 'off' or absent (Library setting). Most specific wins: the track, then the playlist it plays from,
+     then the library. t.loud = { lufs, peak } is what Lyre measured (none: not measured yet, plays as it is).
+     Gain = target - loudness, at most +12 dB, and lowered so the true peak stays at or below -1 dBTP (rule
+     normaliseGain in src/common/domain). The engine applies it before the track's own volume, fades and the room's
+     volume; previews and Try pads hear the same gain. */
+  D.normalise = D.normalise || { on: false, target: 'standard' };
+  L.NORM_TARGETS = [['quiet', 'Quiet', -23, 'The broadcast level. The most room for loud moments.'], ['standard', 'Standard', -18, 'Lyre\'s default. Music sits well under voices.'], ['loud', 'Loud', -14, 'The level of music streaming services.']];
+  L.NORM_CHOICES = [['library', 'Library setting'], ['on', 'On'], ['off', 'Off']];
+  L.NORM_MAX_BOOST = 12; L.NORM_PEAK_CEILING = -1;
+  L.normTarget = function () { var t = L.NORM_TARGETS.filter(function (x) { return x[0] === D.normalise.target; })[0] || L.NORM_TARGETS[1]; return { id: t[0], name: t[1], lufs: t[2] }; };
+  // Which choice applies, and where it comes from: 'track' | 'playlist' | 'library'.
+  L.normDecision = function (t, playlistId) {
+    var p = playlistId && L.playlist(playlistId);
+    if (t && t.norm) return { on: t.norm === 'on', from: 'track' };
+    if (p && p.norm) return { on: p.norm === 'on', from: 'playlist', playlist: p };
+    return { on: !!D.normalise.on, from: 'library' };
+  };
+  // The gain for a measured track at a target: { db, why } with why 'peak' (held under -1 dBTP), 'cap' (+12 dB) or ''.
+  L.normaliseGain = function (loud, targetLufs) {
+    var want = targetLufs - loud.lufs, room = L.NORM_PEAK_CEILING - loud.peak, db = Math.min(want, L.NORM_MAX_BOOST, room);
+    return { db: Math.round(db * 10) / 10, why: db === want ? '' : db === room ? 'peak' : 'cap' };
+  };
+  L.normOf = function (t, playlistId) {
+    var d = L.normDecision(t, playlistId), loud = t && t.loud, g = loud && d.on ? L.normaliseGain(loud, L.normTarget().lufs) : null;
+    return { on: d.on, from: d.from, playlist: d.playlist, measured: !!loud, lufs: loud ? loud.lufs : null, peak: loud ? loud.peak : null, db: g ? g.db : 0, why: g ? g.why : '' };
+  };
+  L.dB = function (db) { return (db > 0 ? '+' : db < 0 ? '-' : '') + Math.abs(db).toFixed(1) + ' dB'; };
+  // The measured line: "-22.6 LUFS · +4.6 dB", "-22.6 LUFS · plays as it is", "Not measured yet: plays as it is".
+  L.normLine = function (t, playlistId) {
+    var n = L.normOf(t, playlistId);
+    if (!n.measured) return 'Not measured yet: plays as it is';
+    return n.lufs.toFixed(1) + ' LUFS · ' + (!n.on ? 'plays as it is' : L.dB(n.db) + (n.why === 'peak' ? ' (kept under -1 dBTP)' : n.why === 'cap' ? ' (the most Lyre adds)' : ''));
+  };
+  // What a hover says where it plays (the Now playing bar, Live): "Volume evened out: +4.6 dB".
+  L.normHover = function (t, playlistId) {
+    var n = L.normOf(t, playlistId);
+    return !n.on ? 'Volume not evened out' : !n.measured ? 'Volume not evened out: not measured yet' : 'Volume evened out: ' + L.dB(n.db) + ' (' + n.lufs.toFixed(1) + ' LUFS measured)';
+  };
+  L.libraryNormWords = function () { var tg = L.normTarget(); return D.normalise.on ? 'On, ' + tg.name + ' (' + tg.lufs + ' LUFS)' : 'Off'; };
+  /* The NormaliseChoice control: "Normalise volume" with Library setting / On / Off, the measured line under it, and a
+     hint saying where the choice comes from. o: { id, value, act, data (extra attributes), line, hint }. */
+  L.normChoice = function (o) {
+    var v = o.value || 'library';
+    return '<div class="norm"><span class="norm-l" id="' + o.id + '-l">Normalise volume</span><div class="norm-box"><div class="seg s" role="group" aria-labelledby="' + o.id + '-l" aria-describedby="' + o.id + '-line">' +
+      L.NORM_CHOICES.map(function (c) {
+        return '<button type="button" data-act="' + o.act + '" data-v="' + c[0] + '"' + (o.data || '') + ' data-k="' + o.id + '-' + c[0] + '" aria-pressed="' + (v === c[0]) + '"' +
+          (c[0] === 'library' ? ' title="The library\'s setting: ' + esc(L.libraryNormWords()) + '"' : '') + '>' + c[1] + '</button>';
+      }).join('') + '</div><p class="norm-line num" id="' + o.id + '-line">' + esc(o.line) + '</p>' + (o.hint ? '<p class="hint">' + o.hint + '</p>' : '') + '</div></div>';
+  };
+  // The library's setting: a small dialog from Library › ⋯ › Normalise volume….
+  L.acts.normopen = function () {
+    var n = D.tracks.filter(function (t) { return t.loud; }).length, todo = D.tracks.length - n;
+    L.sheet({ title: 'Normalise volume',
+      body: '<div class="stack norm-sheet"><p>Lyre measures how loud each track is and turns it up or down to one level, so a quiet track and a loud one sound alike. It adds at most 12 dB and keeps peaks under -1 dBTP.</p>' +
+        '<label class="norm-on"><input type="checkbox" id="norm-on" data-k="norm-on"' + (D.normalise.on ? ' checked' : '') + '>Normalise volume for the whole library</label>' +
+        '<fieldset class="norm-targets"><legend>Target level</legend>' + L.NORM_TARGETS.map(function (x) {
+          return '<label class="pb-qs-opt"><input type="radio" name="norm-target" value="' + x[0] + '" data-k="norm-t-' + x[0] + '"' + (D.normalise.target === x[0] ? ' checked' : '') + '><span>' + x[1] + ' (' + x[2] + ' LUFS)</span><span class="hint">' + esc(x[3]) + '</span></label>';
+        }).join('') + '</fieldset>' +
+        '<p class="hint">The target applies wherever normalising is on. A playlist or a track can have its own choice in its details: the track\'s comes first, then the playlist\'s, then this one.</p>' +
+        '<p class="hint" role="status">' + n + ' of ' + D.tracks.length + ' tracks measured.' + (todo ? ' The rest are measured in the background; until then they play as they are.' : '') + '</p></div>',
+      footer: '<button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="normsave" data-k="norm-save">Save</button>' });
+  };
+  L.acts.normsave = function () {
+    var on = document.getElementById('norm-on').checked, r = document.querySelector('#lyre-sheet input[name="norm-target"]:checked');
+    D.normalise.on = on; if (r) D.normalise.target = r.value;
+    L.closeSheet(); L.changed(); L.say('Normalise volume: ' + L.libraryNormWords());
+  };
   /* ORG-11 tags where music is chosen: a compact strip of the track's tags, each with its tag group's coloured dot, the
      first few only and "+n" for the rest (named in its tooltip), plus the shape glyph. */
   L.tagStrip = function (t, max) {
@@ -735,7 +805,7 @@ var L = (function () {
     var canNext = !!(c.seq || c.playlistId);
     return '<div class="oab-row air' + (paused ? ' paused' : '') + '" role="group" aria-label="' + (paused ? 'Paused' : 'On air') + (room ? ': ' + esc(room) : '') + '">' +
       '<span class="oab-dest">' + L.destTag('air', room, paused) + (paused ? '<span class="badge oab-paused">Paused</span>' : '') + '</span>' +
-      '<div class="oab-now"><div class="oab-title ellipsis" title="' + esc(nm !== own ? 'Its own name: ' + own : own) + '"><span class="lane-dot ' + ln + '" aria-hidden="true"></span><span class="ellipsis">' + esc(nm) + '</span>' +
+      '<div class="oab-now"><div class="oab-title ellipsis" title="' + esc((nm !== own ? 'Its own name: ' + own : own) + ' · ' + L.normHover(t, c.playlistId)) + '"><span class="lane-dot ' + ln + '" aria-hidden="true"></span><span class="ellipsis">' + esc(nm) + '</span>' +
         (nm !== own ? '<span class="sr-only"> (its own name: ' + esc(own) + ')</span>' : '') + '</div>' +
         '<div class="oab-from ellipsis" title="' + esc(originOf(c)) + '">' + esc(originOf(c)) + (m.music && m.amb ? ' · <span class="lane-dot amb" aria-hidden="true"></span>Ambience: ' + esc(L.title(L.track(m.amb.id))) : '') +
         (fx ? ' · ' + fx + ' effect' + (fx > 1 ? 's' : '') + ' sounding' : '') + (r.none ? ' · No bot is in a voice channel: only this computer plays it' : '') + '</div></div>' +
@@ -752,7 +822,7 @@ var L = (function () {
     var p = pb.preview, paused = !!p.paused, from = p.from ? 'Previewed from ' + p.from : 'Preview';
     return '<div class="oab-row you' + (paused ? ' paused' : '') + '" role="group" aria-label="Only you' + (paused ? ': paused' : '') + '">' +
       '<span class="oab-dest">' + L.destTag('you', '', paused) + (paused ? '<span class="badge oab-paused">Paused</span>' : '') + '</span>' +
-      '<div class="oab-now"><div class="oab-title ellipsis" title="' + esc(p.label) + '"><span class="lane-dot preview" aria-hidden="true"></span><span class="ellipsis">' + esc(p.label) + '</span></div>' +
+      '<div class="oab-now"><div class="oab-title ellipsis" title="' + esc(p.label + (L.track(p.id) ? ' · ' + L.normHover(L.track(p.id), p.playlistId) : '')) + '"><span class="lane-dot preview" aria-hidden="true"></span><span class="ellipsis">' + esc(p.label) + '</span></div>' +
         '<div class="oab-from ellipsis" title="' + esc(from) + '">' + esc(from) + '</div></div>' +
       '<div class="oab-time"><div class="progress preview"><span data-progress="preview"></span></div><span class="num" data-time="preview"></span></div>' +
       '<div class="oab-ctl" role="group" aria-label="Control your preview">' +

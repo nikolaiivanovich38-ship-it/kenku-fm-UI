@@ -212,3 +212,5 @@ td.lb-c-tags > .chip { max-width: calc(100% - 26px); }
 .lb-shapebox .hint { margin-top: 3px; }
 .lb-scnames { list-style: none; margin: 0; padding: 0; }
 .lb-onhand { display: flex; align-items: center; gap: 4px; margin-top: 4px; }
+.lb-tg.lb-normrow { display: block; }
+.lb-normrow .norm { grid-template-columns: 74px minmax(0, 1fr); gap: 6px; }

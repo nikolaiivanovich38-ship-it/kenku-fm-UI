@@ -322,8 +322,63 @@ test.describe("round 5: shape, names in scenes, Use in… and missing files", ()
   test("the ⋯ beside Add tracks leads to Back up, move or share, Find missing files and the move report", async ({ page }) => {
     await openRoute(page, "library");
     await page.getByRole("button", { name: "More for the library" }).click();
-    await expect(page.getByRole("menuitem")).toHaveText(["Back up, move or share…", "Find missing files (3)…", "What came across from Kenku FM"]);
+    await expect(page.getByRole("menuitem")).toHaveText(["Back up, move or share…", "Find missing files (3)…", "What came across from Kenku FM", "Normalise volume…"]);
     await page.getByRole("menuitem", { name: "Back up, move or share…" }).click();
     await expect(page.getByRole("heading", { name: "Back up, move or share", level: 1 })).toBeVisible();
+  });
+});
+
+/* Round 5, volume normalisation (design/prototype/ROUND5.md "Volume normalisation (PLY-15, DAT-15)"): built in wave 4. */
+test.describe("round 5: volume normalisation", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 5"));
+
+  test("PLY-15: ⋯ › Normalise volume… is off for the library at first, with Standard (-18 LUFS); turned on, tracks get their gain", async ({ page }) => {
+    await openRoute(page, "library");
+    await page.getByRole("button", { name: "More for the library" }).click();
+    await page.getByRole("menuitem", { name: "Normalise volume…" }).click();
+    let dialog = page.getByRole("dialog", { name: "Normalise volume" });
+    const on = dialog.getByRole("checkbox", { name: "Normalise volume for the whole library" });
+    await expect(on).not.toBeChecked();
+    await expect(dialog.getByRole("group", { name: "Target level" }).getByRole("radio")).toHaveCount(3);
+    await expect(dialog.getByRole("radio", { name: /^Standard \(-18 LUFS\)/ })).toBeChecked();
+    await expect(dialog).toContainText("It adds at most 12 dB and keeps peaks under -1 dBTP.");
+    await expect(dialog).toContainText("66 of 69 tracks measured.");
+    await on.check();
+    await dialog.getByRole("button", { name: "Save" }).click();
+    await expect(dialog).toHaveCount(0);
+    await openTrack(page, "Melancholy tense - melancholy heroism - fade");
+    await expect(details(page).getByText("-22.6 LUFS · +4.6 dB", { exact: true })).toBeVisible();
+    // Loud (-14 LUFS) would need +8.6 dB, but the true peak (-8.0 dBTP) may rise only to -1 dBTP.
+    await page.getByRole("button", { name: "More for the library" }).click();
+    await page.getByRole("menuitem", { name: "Normalise volume…" }).click();
+    dialog = page.getByRole("dialog", { name: "Normalise volume" });
+    await expect(dialog.getByRole("checkbox", { name: "Normalise volume for the whole library" })).toBeChecked();
+    await dialog.getByRole("radio", { name: /^Loud \(-14 LUFS\)/ }).check();
+    await dialog.getByRole("button", { name: "Save" }).click();
+    await expect(details(page).getByText("-22.6 LUFS · +7.0 dB (kept under -1 dBTP)", { exact: true })).toBeVisible();
+  });
+
+  test("DAT-15, PLY-15: a track's details show what Lyre measured and the gain it gets, with Library setting, On and Off", async ({ page }) => {
+    await openRoute(page, "library/t02");
+    const norm = details(page).getByRole("group", { name: "Normalise volume" });
+    await expect(norm.getByRole("button")).toHaveText(["Library setting", "On", "Off"]);
+    await expect(norm.getByRole("button", { name: "Library setting" })).toHaveAttribute("aria-pressed", "true");
+    await expect(norm).toHaveAccessibleDescription("-22.6 LUFS · plays as it is");
+    await expect(details(page)).toContainText("True peak -8.0 dBTP.");
+    await norm.getByRole("button", { name: "On" }).click();
+    await expect(norm.getByRole("button", { name: "On" })).toHaveAttribute("aria-pressed", "true");
+    await expect(norm).toHaveAccessibleDescription("-22.6 LUFS · +4.6 dB");
+    await norm.getByRole("button", { name: "Off" }).click();
+    await expect(norm).toHaveAccessibleDescription("-22.6 LUFS · plays as it is");
+    await expect(details(page)).toContainText("This track's own choice, wherever it plays.");
+  });
+
+  test("PLY-15: a boost stops at +12 dB, and a track not measured yet plays as it is", async ({ page }) => {
+    await openRoute(page, "library/t09");
+    const norm = details(page).getByRole("group", { name: "Normalise volume" });
+    await norm.getByRole("button", { name: "On" }).click();
+    await expect(norm).toHaveAccessibleDescription("-31.5 LUFS · +12.0 dB (the most Lyre adds)");
+    await openTrack(page, "Memories of Mother");
+    await expect(details(page).getByRole("group", { name: "Normalise volume" })).toHaveAccessibleDescription("Not measured yet: plays as it is");
   });
 });
