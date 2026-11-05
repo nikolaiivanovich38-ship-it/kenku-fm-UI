@@ -8,7 +8,7 @@ import path from "path";
 import type { Page } from "@playwright/test";
 import { test, expect } from "./fixtures/app";
 import { openLyreTab } from "./fixtures/lyre";
-import { writeSineWav } from "./fixtures/audio";
+import { writeAudioFile, writeSineWav } from "./fixtures/audio";
 import { addTrack, createPlaylist, openCard } from "./fixtures/player";
 
 /** A LyreApi call from the Lyre page, exactly as its screens make them. */
@@ -40,7 +40,8 @@ test("tagging 5,000 tracks leaves the main process free: a 20 ms timer keeps its
   test.setTimeout(180_000);
   const folder = path.join(userDataDir, "sounds");
   fs.mkdirSync(folder, { recursive: true });
-  for (let i = 0; i < 5000; i++) fs.writeFileSync(path.join(folder, `rain ${String(i).padStart(4, "0")}.mp3`), "x");
+  // Real (tiny) MP3s: the import refuses files that are not audio (UX review 3).
+  for (let i = 0; i < 5000; i++) writeAudioFile(path.join(folder, `rain ${String(i).padStart(4, "0")}.mp3`));
 
   const lyre = await openLyreTab(mainWindow);
   const imported = await lyreCall<{ ok: boolean; value: { trackIds: string[] } }>(lyre, "import", "start", { from: "paths", paths: [folder] });

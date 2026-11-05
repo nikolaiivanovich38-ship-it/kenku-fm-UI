@@ -4,6 +4,8 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 
+import { writeAudioFile } from "../../fixtures/audio";
+
 export async function dropFiles(target: Locator, names: string[], options: { type?: string } = {}): Promise<void> {
   if (test.info().project.name === "app") {
     await dropFilesFromDisk(target, names);
@@ -28,13 +30,15 @@ export async function dropFiles(target: Locator, names: string[], options: { typ
  * The app imports a dropped file from where it is on disk (the Lyre page's preload asks Electron's
  * webUtils.getPathForFile), and a File made in the page is nowhere on disk. So the app project writes small files with
  * those names to a new temporary folder, hands them to a file input as a file chooser would, and drops those File
- * objects. The importer names a track after its file, so the files need no real sound.
+ * objects. The importer refuses files that are not audio (UX review 3), so audio names get short real audio files
+ * (fixtures/audio.ts) and other names a line of text.
  */
 async function dropFilesFromDisk(target: Locator, names: string[]): Promise<void> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lyre-drop-"));
   const paths = names.map((name) => {
     const file = path.join(dir, name);
-    fs.writeFileSync(file, "x");
+    if (/\.(wav|mp3|flac|ogg|m4a|aiff?|wma|opus)$/i.test(name)) writeAudioFile(file);
+    else fs.writeFileSync(file, "x");
     return file;
   });
   const page = target.page();
