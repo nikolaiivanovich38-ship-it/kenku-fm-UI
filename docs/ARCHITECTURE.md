@@ -441,3 +441,22 @@ New refusal codes: `"not-lyre-file"` (a file that is not a Lyre file, or is dama
 - `LyreAudioLibrary.playOrders()` is new; `LibrarySnapshot` loads `playlists.playOrders()` and reloads it on "playlists". `FakeLyreAudio.setNowPlaying` fills in what a test leaves out (`FakeNowPlaying`).
 
 Open points for the build streams: the pad board screen now words a resize with `cameBack` and the pad put aside (boardModel `resizeMessage`); the Library still searches in memory, so a screen that wants names in scenes found must add them from `trackNamesOf` (the database's search has them); a "peaks" event may mean suggested shapes changed.
+
+## Wave 4: w4-kit-bar
+
+Phase A of wave 4: the round 5 kit the prep screens and Live build on, and the Now playing bar (design/prototype/ROUND5.md).
+
+| Where | What it does |
+| --- | --- |
+| `common/domain/placeWords.ts` | Places and origins in words, the same on every screen: `placeLabel` ("The abbey ruins (Session 14)"), `orderPlaceWords` ("in the scene The abbey ruins", "everywhere it has no order of its own"), `originWords` ("Playlist: The Company themes · The Sunken Crown", "Single track"). Names come in through `PlaceNames`. |
+| `kit/placeNames.ts` | `placeNamesOf(campaigns)`, `usePlaceNames()`: the `PlaceNames` from the campaign trees. |
+| `kit/PlayOrderButton.tsx`, `kit/playOrders.ts` | PLY-13. `<PlayOrderButton playlistId place />` (place null: the playlist's own order): two icons, the accent edge and dot for a place's own order, and the menu (Shuffle; No repeat, Repeat all, Repeat one with their hints; where it applies; Use the playlist's own order here). The menu stays open on the item after a choice and says the new order and where. `usePlayOrders()` loads `playlists.list` and `playlists.playOrders` once per LyreApi for every button on a screen, again on a `playlists` change; a write's answer shows at once. |
+| `kit/PopMenu.tsx` | Entries may be `menuitemcheckbox` / `menuitemradio` (`role`, `checked`) that keep the menu open (`keepOpen`), and a `note` read as the menu's description. |
+| `kit/TagStrip.tsx` | ORG-11. `<TagStrip track groups />`: shape glyph, three tags with their group's dot, "+n" naming the rest on hover; below 820 px of the app one tag and "+n" (two counts drawn, ui.css shows the one that fits). Screen readers hear "Tags: …" once. A screen passes `useTagGroups()` once for all rows. |
+| `kit/ShapeGlyph.tsx` | DAT-13. `ShapeGlyph`, `ShapeTag` (word or glyph only, "(suggested from its loudness)" on hover), `shapeHint` (the line under Shape in a track's details: "Suggested by Lyre…" / "Your choice. Lyre suggested …"). |
+| `kit/trackName.tsx` | DAT-14. `TrackName` (the scene's name for a track there, "Its own name: …" on hover and for screen readers), `useTrackNames()`, `trackNameAt`, `ownNameTitle`. |
+| `kit/SoundButtons.tsx` | A playlist target may name its `place` (a session or campaign list), so Play on air there uses that list's play order and the bar names it. The on-hand lists pass it. |
+| `shell/NowPlayingBar.tsx` | UX-16. Replaces `OnAirBar`. One row per room playing music or ambience (On air tag, naming the room with two or more rooms and "no room" while no bot is in a voice channel), one for the preview (Only you), on one grid; in a screen with `showsOnAir` (Live) the preview row only. `ShellData.NowPlayingBar` is the component; the shell passes `previewOnly`. Reads `getNowPlaying()`; names from `usePlaceNames`, `useTrackNames`, `usePlayOrders`. |
+| `shell/ScreenSound.tsx` | Gives each screen the audio host with `from` filled in on previews that name no place (`SCREEN_WORDS`, core.js SCREEN_NAMES), so "Previewed from the session planner" needs nothing from the screens. |
+
+Audio host changes: `RoomNowPlaying.volume` and `setRoomVolume(target, 0..1)` (the room's mix level, kept per room while the app runs; the room that takes over the table keeps its volume; rooms start at `ROOM_START_VOLUME`, 0.85, in the app, 1 in tests unless `startRoomVolume` says otherwise). A lane's `length` is the library's length of the track when it has one, so the bar agrees with the lists.
