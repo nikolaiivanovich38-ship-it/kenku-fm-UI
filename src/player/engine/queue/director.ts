@@ -20,7 +20,7 @@ import type { PlaybackEngine } from "../engine";
 import type { RoomsAudio } from "../rooms.contract";
 import { CueAction, CueOutcome, DEFAULT_FADES, TrackFrom } from "./actions";
 import type { ShowLibrary } from "./library";
-import { Playing, playlistItem, sceneItem, single } from "./nowPlaying";
+import { Playing, playlistItem, sceneItem, sequenceOf, single } from "./nowPlaying";
 import type { Random } from "./queue";
 import { RoomPlayer, RoomReport, RoomSnapshot } from "./roomPlayer";
 
@@ -185,7 +185,16 @@ export class Director extends TypedEmitter<DirectorEvents> {
   private itemFor(trackId: string, from: TrackFrom | undefined): Playing {
     let item: Playing | null = null;
     if (from && "scene" in from) {
-      item = sceneItem(from.scene, from.at, this.library, this.newSeed());
+      const seed = this.newSeed();
+      item = sceneItem(from.scene, from.at, this.library, seed);
+      // A shuffled playlist is dealt afresh, so the step the screen named may hold another track now: play the same
+      // track from its place in the new deal, within the same scene item, so Next goes on from the scene.
+      if (item && item.trackId !== trackId && item.origin.kind === "scene") {
+        const seq = sequenceOf(item.origin, this.library);
+        const itemIndex = seq[from.at]?.itemIndex;
+        const at = seq.findIndex((step) => step.itemIndex === itemIndex && step.trackId === trackId);
+        if (at > -1) item = sceneItem(from.scene, at, this.library, seed);
+      }
     } else if (from && "playlistId" in from) {
       item = playlistItem(from.playlistId, trackId, this.library, { place: from.place, seed: this.newSeed() });
     }
