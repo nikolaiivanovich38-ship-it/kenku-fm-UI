@@ -19,3 +19,5 @@
 /* A slider with its label and value on one line. */
 .slider-row { display: flex; align-items: center; gap: var(--gap); }
 .slider-row input[type="range"] { flex: 1; min-width: 0; }
+/* A menu item that deletes or stops for good. */
+.menu .danger { color: var(--danger); }

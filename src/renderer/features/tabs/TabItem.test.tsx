@@ -13,6 +13,7 @@ const kenku = vi.hoisted(() => {
     hideBrowserView: vi.fn(),
     showBrowserView: vi.fn(),
     playerGetURL: () => "file:///player/index.html",
+    lyreGetURL: () => "file:///lyre/index.html",
   };
   Object.assign(window, { kenku: api });
   return api;

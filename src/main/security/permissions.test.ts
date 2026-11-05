@@ -34,6 +34,7 @@ const EXPECTED: Record<AppPageRole | "tab", string[]> = {
   "main-window": ["media"],
   "audio-capture": ["media"],
   "player-view": ["clipboard-sanitized-write"],
+  "lyre-view": [],
   tab: ["fullscreen"],
 };
 
@@ -201,5 +202,32 @@ describe("PRV-2: the player page may name and choose sound output devices, nothi
 
   it.each([null, "main-window", "audio-capture"] as const)("gives %s no speaker-selection", (role) => {
     expect(isPermissionAllowed({ role, permission: "speaker-selection", isCheck: true })).toBe(false);
+  });
+});
+
+// --- w3-host ---
+describe("Wave 3: the new interface's page (lyre-view) chooses the preview device and is never recorded", () => {
+  it("answers yes to its speaker-selection check (output device names, setSinkId)", () => {
+    expect(isPermissionAllowed({ role: "lyre-view", permission: "speaker-selection", isCheck: true })).toBe(true);
+  });
+
+  it("does not grant speaker-selection as a request (the picker), or to an embedded frame", () => {
+    expect(isPermissionAllowed({ role: "lyre-view", permission: "speaker-selection" })).toBe(false);
+    expect(
+      isPermissionAllowed({ role: "lyre-view", permission: "speaker-selection", isCheck: true, isMainFrame: false }),
+    ).toBe(false);
+  });
+
+  it("keeps the microphone, camera and screen from it, checked or requested", () => {
+    for (const mediaTypes of [["audio"], ["video"], [], undefined]) {
+      expect(isPermissionAllowed({ role: "lyre-view", permission: "media", mediaTypes, isCheck: true })).toBe(false);
+      expect(isPermissionAllowed({ role: "lyre-view", permission: "media", mediaTypes: mediaTypes ?? ["audio"] })).toBe(false);
+    }
+  });
+
+  it("is never tab-captured, even if it were marked as a capture target: its sound reaches Discord only over the private channel", () => {
+    expect(
+      isPermissionAllowed({ role: "lyre-view", permission: "media", mediaTypes: [], isCaptureTarget: true }),
+    ).toBe(false);
   });
 });

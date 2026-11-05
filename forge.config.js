@@ -112,6 +112,15 @@ const config = {
               },
             },
             {
+              // WP5 (w3-shell): the new interface, opened as the "Lyre" tab.
+              html: "./src/lyre/index.html",
+              js: "./src/lyre/renderer.ts",
+              name: "lyre_window",
+              preload: {
+                js: "./src/lyre/preload.ts",
+              },
+            },
+            {
               html: "./src/audioCapture/index.html",
               js: "./src/audioCapture/renderer.ts",
               name: "audio_capture_window",

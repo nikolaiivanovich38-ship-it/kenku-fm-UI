@@ -13,8 +13,8 @@ export function isCreatedViewId(id: unknown): id is number {
 }
 
 /**
- * Ask the main process for a new website view (or, with kind `"player"`,
- * the player view) filling the content area.
+ * Ask the main process for a new website view (or, with kind `"player"` or
+ * `"lyre"`, the player view or the new interface) filling the content area.
  * @returns the new view's id, or undefined when the request was refused
  */
 export async function openBrowserView(

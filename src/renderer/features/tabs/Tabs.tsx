@@ -24,6 +24,7 @@ import {
 import { editBookmark } from "../bookmarks/bookmarksSlice";
 import { addressErrorsResolved } from "../errors/errorsSlice";
 import { useViewOverlay } from "../../common/viewOverlay";
+import { isBuiltInTab } from "../lyre/lyreSlice";
 
 /**
  * Safely parse a URL string. Returns a URL object if valid, otherwise null.
@@ -41,15 +42,17 @@ export const safeURL = (urlString: string): URL | null => {
 export function Tabs() {
   const dispatch = useDispatch();
   const player = useSelector((state: RootState) => state.player);
+  const lyre = useSelector((state: RootState) => state.lyre);
   const tabs = useSelector((state: RootState) => state.tabs);
   const bookmarks = useSelector((state: RootState) => state.bookmarks);
   const settings = useSelector((state: RootState) => state.settings);
 
   const selectedTab = useMemo(() => tabs.tabs.byId[tabs.selectedTab], [tabs]);
 
+  /** The old player or the new interface (WP5) is in front: no address bar. */
   const isPlayer = useMemo(
-    () => tabs.selectedTab === player.tab.id,
-    [tabs.selectedTab, player.tab],
+    () => isBuiltInTab(tabs.selectedTab, { playerId: player.tab.id, lyreId: lyre.tab.id }),
+    [tabs.selectedTab, player.tab.id, lyre.tab.id],
   );
 
   useEffect(() => {
@@ -161,8 +164,8 @@ export function Tabs() {
     });
     window.kenku.on("BROWSER_VIEW_CLOSE_TAB", async () => {
       const tabId = tabs.selectedTab;
-      // Don't close the kenku player tab
-      if (tabId && tabId !== player.tab.id) {
+      // Don't close the built-in tabs: the old player and Lyre (WP5)
+      if (tabId && !isBuiltInTab(tabId, { playerId: player.tab.id, lyreId: lyre.tab.id })) {
         const tabIds = tabs.tabs.allIds;
         // Find previous tab so we can select when closing the tab
         const prevTabIndex = tabIds.indexOf(tabId) - 1;
@@ -184,7 +187,7 @@ export function Tabs() {
       window.kenku.removeAllListeners("BROWSER_VIEW_NEW_TAB");
       window.kenku.removeAllListeners("BROWSER_VIEW_CLOSE_TAB");
     };
-  }, [player.tab.id, tabs]);
+  }, [player.tab.id, lyre.tab.id, tabs]);
 
   const overlay = useViewOverlay();
   // Errors beside the collapsed sidebar take space from the view (ActionDrawer).
