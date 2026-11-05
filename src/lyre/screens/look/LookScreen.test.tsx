@@ -2,14 +2,13 @@
 import React from "react";
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { Shell } from "../../shell/Shell";
 import { loadShellSettings } from "../../shell/settings";
 import { expectNoAxeViolations } from "../../test/axe";
 import { PlaceholderScreen } from "../Placeholder";
 import { SCREENS } from "..";
-import { contrastLine, contrastRatio } from "./contrast";
 import { LookScreen } from "./LookScreen";
 
 const LOOK_SCREENS = { ...SCREENS, look: LookScreen, campaigns: () => <PlaceholderScreen title="Campaigns" /> };
@@ -28,7 +27,7 @@ beforeEach(() => {
 });
 
 describe("Look and feel", () => {
-  it("shows the five table themes in the prototype's order, each drawn in its own colours", () => {
+  it("shows the five table themes in the prototype's order, each drawn in its own colours with one plain sentence (w3-ux 8)", () => {
     const main = open();
     expect(main.getByRole("heading", { level: 1 })).toHaveTextContent("Look and feel");
     expect(main.getByText("One Lyre, a theme per table")).toBeInTheDocument();
@@ -37,9 +36,11 @@ describe("Look and feel", () => {
     const sample = screen.getByRole("article", { name: "Elysium" }).querySelector(".lk-sample");
     expect(sample).toHaveAttribute("data-theme", "elysium");
     expect(card("Hearth and Iron").getByText("D&D, Pathfinder, sword and sorcery")).toBeInTheDocument();
-    expect(card("Hearth and Iron").getByText(/Cinzel headings/)).toBeInTheDocument();
+    expect(card("Hearth and Iron").getByText("Warm stone and ember light for dungeons, taverns and sword and sorcery.")).toBeInTheDocument();
     expect(main.getByRole("heading", { level: 2, name: "Same in every theme" })).toBeInTheDocument();
-    expect(main.getByRole("heading", { level: 2, name: "Density" })).toBeInTheDocument();
+    // The designer's notes are gone: no "Your choice", type faces, contrast ratios or control sizes.
+    for (const words of [/Your choice/, /Cinzel/, /Contrast on panels/, /28 px/, /palettes/]) expect(main.queryByText(words)).toBeNull();
+    expect(main.queryByRole("heading", { name: "Density" })).toBeNull();
   });
 
   it("Use this theme uses it everywhere at once, says so, and is remembered", async () => {
@@ -65,31 +66,11 @@ describe("Look and feel", () => {
     expect(screen.queryByRole("button", { name: /^In use/ })).toBeNull();
   });
 
-  it("works out each card's contrast from its colours", () => {
-    expect(contrastRatio("rgb(0, 0, 0)", "rgb(255, 255, 255)")).toBe("21.0");
-    expect(contrastRatio("rgb(119, 119, 119)", "rgb(255, 255, 255)")).toBe("4.5");
-    expect(contrastRatio("", "rgb(255, 255, 255)")).toBeNull();
-  });
-
-  it("each card's sample is a picture: screen readers find only Use this theme and the contrast line (review 6)", () => {
+  it("each card's sample is a picture: screen readers find only Use this theme (review 6)", () => {
     open();
     const parchment = card("Parchment");
     expect(parchment.getAllByRole("button").map((b) => b.textContent)).toEqual(["Use this theme"]);
     expect(parchment.queryByText("Start scene")?.closest('[aria-hidden="true"]')).not.toBeNull();
-    const line = screen.getByRole("article", { name: "Parchment" }).querySelector(".lk-contrast");
-    expect(line?.closest('[aria-hidden="true"]')).toBeNull();
-    expect(line?.closest(".lk-sample")).toHaveAttribute("data-theme", "parchment");
-  });
-
-  it("reads the theme's own text, quiet text and accent colours against its panels", () => {
-    const sample = document.createElement("div");
-    document.body.appendChild(sample);
-    const colours: Record<string, string> = { "--surface": "rgb(255, 255, 255)", "--ink": "rgb(0, 0, 0)", "--ink-3": "rgb(119, 119, 119)", "--accent-text": "rgb(255, 255, 255)" };
-    const spy = vi.spyOn(window, "getComputedStyle").mockImplementation((el) => ({ color: colours[(el as HTMLElement).style.color.slice(4, -1)] ?? "" }) as CSSStyleDeclaration);
-    expect(contrastLine(sample)).toBe("Contrast on panels: text 21.0:1, quiet text 4.5:1, accent text 1.0:1");
-    expect(sample.children).toHaveLength(0);
-    spy.mockRestore();
-    sample.remove();
   });
 
   it("has no accessibility failures", async () => {
