@@ -143,7 +143,7 @@ describe("Library: a track's details", () => {
     const d = within(details());
     const user = userEvent.setup();
     await user.click(await d.findByRole("button", { name: "Preview" }));
-    expect(audio.calls).toContainEqual(["previewTrack", "t44"]);
+    expect(audio.calls).toContainEqual(["previewTrack", "t44", { from: "the Library" }]);
     act(() => audio.setNowPlaying({ preview: { key: "t44", label: "Ashes" } }));
     expect(d.getByRole("button", { name: "Stop preview" })).toHaveAttribute("aria-pressed", "true");
     await user.click(d.getByRole("button", { name: "Play on air" }));

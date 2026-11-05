@@ -68,7 +68,7 @@ describe("Playlists: every playlist", () => {
     const user = userEvent.setup();
     const row = within(rowOf("The Company themes"));
     await user.click(row.getByRole("button", { name: "Preview The Company themes" }));
-    expect(audio.calls).toContainEqual(["previewPlaylist", "p-company"]);
+    expect(audio.calls).toContainEqual(["previewPlaylist", "p-company", { from: "Playlists" }]);
     act(() => audio.setNowPlaying({ preview: { key: "pl:p-company", label: "The Company themes" } }));
     expect(row.getByRole("button", { name: "Stop preview of The Company themes" })).toHaveAttribute("aria-pressed", "true");
     await user.click(row.getByRole("button", { name: "Play on air: The Company themes" }));
@@ -96,7 +96,7 @@ describe("Playlists: every playlist", () => {
         ],
       }),
     );
-    expect(screen.getByRole("region", { name: "On air" })).toHaveTextContent("Epic choir hero anthem");
+    expect(screen.getByRole("region", { name: "Now playing" })).toHaveTextContent("Epic choir hero anthem");
     expect(within(list()).getByRole("link", { name: /^The Company themes/ }).closest("li")).toHaveTextContent("On air");
   });
 
