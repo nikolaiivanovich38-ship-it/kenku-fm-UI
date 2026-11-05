@@ -8,7 +8,8 @@ import { DEFAULT_FILTER, type LibraryFilter, type SortKey } from "./model";
 
 /** The line under the search box after an action (the prototype's st.guide). */
 export type Guide =
-  | { kind: "added"; count: number; how: string; alreadyIn: number; problems: string[] }
+  /** count: tracks added; alreadyIn: titles of the files that were already in the Library (UX review 6). */
+  | { kind: "added"; count: number; how: string; alreadyIn: string[]; problems: string[] }
   | { kind: "tagged"; text: string; stillNew: number }
   | { kind: "playlist-made"; playlistId: string; name: string; count: number }
   | { kind: "added-to"; count: number; playlists: { id: string; name: string }[] }
