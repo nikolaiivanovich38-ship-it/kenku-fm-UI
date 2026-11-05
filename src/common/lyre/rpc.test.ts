@@ -44,6 +44,7 @@ lyreApiContract("in-memory fake across a message port", () => {
     missingTrackId: "t43",
     relinkFolder: "D:\\Moved",
     folderToWatch: "H:\\Audio\\Incoming",
+  transferFiles: { saveTo: "D:\\Shared\\The Sunken Crown.lyre", notLyreFile: "D:\\Shared\\photo.jpg" },
     close: () => {
       client.close();
       server.close();

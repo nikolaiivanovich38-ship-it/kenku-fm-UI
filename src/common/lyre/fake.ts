@@ -9,16 +9,25 @@
  */
 import {
   isFx,
+  keyOfPlace,
   placeKey,
   playlistTracks,
+  reflowBoard,
+  shapeFromPeaks,
+  shapeOf,
   usesOfBoard,
   usesOfPlaylist,
   usesOfTrack,
   PAD_MODES,
+  REPEATS,
   TRACK_KINDS,
   TRACK_ROLES,
+  TRACK_SHAPES,
+  SHAPE_WORDS,
   type AudioProfileInput,
   type DomainLookup,
+  type PlayOrder,
+  type PlayOrderOverrides,
   type PlaylistRule,
   type ProfileOverrides,
   type ProfilePlace,
@@ -29,8 +38,14 @@ import {
   CAMPAIGN_THEMES,
   PAD_COLORS,
   SESSION_STATUSES,
+  type BringInReport,
   type CampaignInfo,
+  type DuplicateChoice,
   type FolderRoot,
+  type IncomingItem,
+  type MoveReport,
+  type OpenedFile,
+  type PlayPlace,
   type HistoryState,
   type ImportProgress,
   type ImportSource,
@@ -58,18 +73,21 @@ import { lookupFrom } from "./lookup";
 import { fileAddress } from "./media";
 import { plural, quoted, shownTitle, tagValue, trimmed } from "./text";
 import { prototypeSeed, type SeedData } from "./seed";
+import { estimateTransfer, transferContents, type TransferContents } from "./transfer";
 
 export interface FakeLyreOptions {
   /** The starting library (default: the prototype's sample data). */
   seed?: SeedData;
   /** The clock, for when tracks are added. */
   now?: () => number;
-  /** Sample tracks whose files have gone. */
+  /** Sample tracks whose files have gone (default: the seed's, t19, t26 and t37). */
   missingTrackIds?: string[];
   /** File names in folders (a folder's subfolders are keys under it), for imports, relinking and watched folders. */
   folderFiles?: Record<string, string[]>;
   /** What the file and folder choosers answer; null is "closed without choosing" (the default). */
-  choose?: { files?: () => string[] | null; folder?: () => string | null };
+  choose?: { files?: () => string[] | null; folder?: () => string | null; saveFile?: (suggested: string) => string | null; lyreFile?: () => string | null };
+  /** DAT-7: what came across from Kenku FM (default: the prototype's sample report; null: nothing did). */
+  moved?: Omit<MoveReport, "missing"> | null;
 }
 
 export interface FakeLyreApi extends LyreApi {
@@ -87,6 +105,8 @@ interface State {
   boards: PadBoard[];
   campaigns: CampaignInfo[];
   overrides: ProfileOverrides;
+  /** PLY-13: play order chosen in a place (part of the "playlists" area; a playlist's own order is on the playlist). */
+  playOrders: PlayOrderOverrides;
   /** Ids of tracks whose files have gone (part of the "tracks" area). */
   missing: string[];
 }
@@ -96,7 +116,7 @@ const SLICES: Record<Exclude<LyreArea, "history">, (keyof State)[]> = {
   tracks: ["tracks", "missing"],
   tags: ["tagGroups"],
   folders: ["folders"],
-  playlists: ["playlists"],
+  playlists: ["playlists", "playOrders"],
   boards: ["boards"],
   campaigns: ["campaigns"],
   profiles: ["overrides"],
@@ -186,8 +206,12 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
     boards: seed.boards,
     campaigns: seed.campaigns,
     overrides: seed.overrides,
-    missing: [...(options.missingTrackIds ?? [])],
+    playOrders: seed.playOrders,
+    missing: [...(options.missingTrackIds ?? seed.missing)],
   };
+  /** DAT-7: .lyre files saved so far, by path (lower case), as a real file would hold them. */
+  const lyreFiles = new Map<string, { contents: TransferContents; includesAudio: boolean; savedAt: number }>();
+  let opened: { id: string; file: string; items: (IncomingItem & { take: () => void; merge: () => void; copy: () => void; ids: () => { id: string; name: string } })[] } | null = null;
   const folderFiles = options.folderFiles ?? {};
   let undoStack: Step[] = [];
   let redoStack: Step[] = [];
@@ -215,7 +239,11 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
     queueMicrotask(() => {
       for (const id of todo) {
         workingOut.delete(id);
-        if (state.tracks.some((t) => t.id === id)) peaks.set(id, madeUpPeaks(id));
+        const t = state.tracks.find((x) => x.id === id);
+        if (!t) continue;
+        peaks.set(id, madeUpPeaks(id));
+        // DAT-13: the suggestion is kept with the peaks, outside undo, as the library keeps it.
+        t.suggestedShape = shapeFromPeaks(peaks.get(id));
       }
       emit({ type: "changed", areas: ["peaks"] });
     });
@@ -323,6 +351,17 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
     if (!n) refuse("invalid", `Give the ${what} a name.`, "name");
     return n;
   }
+  /** PLY-13: a play order's place, checked: its key (keyOfPlace) and words for the undo label. */
+  function playPlace(place: PlayPlace): { key: string; words: string } {
+    if (!place || !["scene", "session", "campaign"].includes(place.kind)) refuse("invalid", "A play order applies in a scene, a session or a campaign.", "place");
+    if (place.kind === "scene") return { key: keyOfPlace(place), words: `the scene ${quoted(scene(place).scene.name)}` };
+    if (place.kind === "session") return { key: keyOfPlace(place), words: `session ${session(place.campaignId, place.sessionId).number}` };
+    return { key: keyOfPlace(place), words: quoted(campaign(place.campaignId).name) };
+  }
+  function checkOrder(order: PlayOrder): PlayOrder {
+    if (!order || typeof order.shuffle !== "boolean" || !(REPEATS as readonly string[]).includes(order.repeat)) refuse("invalid", "Choose shuffle or in order, and no repeat, repeat all or repeat one.", "order");
+    return { shuffle: order.shuffle, repeat: order.repeat };
+  }
   function placeExists(place: ProfilePlace) {
     if (place.kind === "playlist") playlist(place.playlistId);
     else if (place.kind === "session") session(place.campaignId, place.sessionId);
@@ -341,6 +380,11 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
       const g = group(c.group);
       if (!["any", "all", "none"].includes(c.match)) refuse("invalid", "A condition matches any, all or none of its tags.", "rule");
       for (const v of c.values) if (!g.values.includes(v)) refuse("invalid", `${v} is not a ${g.name.toLowerCase()} tag.`, "rule");
+    }
+    if (rule.shapes !== undefined) {
+      if (!Array.isArray(rule.shapes) || rule.shapes.some((x) => !(TRACK_SHAPES as readonly string[]).includes(x))) refuse("invalid", "Choose from Steady, Builds, Falls away, Peaks then falls and Rises and falls.", "rule");
+      rule.shapes = TRACK_SHAPES.filter((x) => rule.shapes.includes(x));
+      if (rule.shapes.length === 0) delete rule.shapes;
     }
     if (rule.energy !== undefined) {
       const [lo, hi] = rule.energy ?? [];
@@ -395,6 +439,10 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
   /* ---------- shared changes ---------- */
 
   function takeOutOfCampaigns(kind: "playlist" | "board", id: string) {
+    if (kind === "playlist") for (const key of Object.keys(state.playOrders)) {
+      delete state.playOrders[key][id];
+      if (Object.keys(state.playOrders[key]).length === 0) delete state.playOrders[key];
+    }
     for (const c of state.campaigns) {
       const key = kind === "playlist" ? "playlistIds" : "boardIds";
       c[key] = c[key].filter((x) => x !== id);
@@ -411,10 +459,10 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
     }
   }
   function blankScene(name: string): SceneInfo {
-    return { id: newId("scene"), name, startsWhen: "", notes: "", noteLink: "", music: [], ambience: null, boardIds: [] };
+    return { id: newId("scene"), name, startsWhen: "", notes: "", noteLink: "", music: [], ambience: null, boardIds: [], trackNames: {} };
   }
   function blankPad(): Pad {
-    return { id: newId("pad"), label: "New pad", icon: "star", color: "gold", key: "", mode: "oneshot", sound: { kind: "single", trackIds: [], order: "random", tag: null }, volume: 0.8, fadeOutMs: 1500 };
+    return { id: newId("pad"), label: "New pad", icon: "star", color: "gold", key: "", mode: "oneshot", sound: { kind: "single", trackIds: [], order: "random", tag: null }, volume: 0.8, fadeOutMs: 1500, aside: false };
   }
   function history(): HistoryState {
     return { canUndo: undoStack.length > 0, canRedo: redoStack.length > 0, undoLabel: last(undoStack)?.label ?? null, redoLabel: last(redoStack)?.label ?? null };
@@ -448,6 +496,8 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
       energy: null,
       tags: Object.fromEntries(state.tagGroups.map((g): [string, string[]] => [g.id, []])),
       profile: null,
+      shape: null,
+      suggestedShape: null,
       artist: "",
       album: "",
       folder,
@@ -508,12 +558,14 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
       async listTracks() {
         return copy(state.tracks);
       },
-      async search({ text, lane, limit = 50 }) {
+      async search({ text, lane, limit = 50, shapes }) {
         const want = words(text ?? "");
+        const shaped = shapes && shapes.length ? (t: LibraryTrack) => shapes.includes(shapeOf(t).shape) : () => true;
         const WEIGHT: [keyof LibraryTrack | "tagWords", number][] = [["title", 10], ["metaTitle", 6], ["tagWords", 6], ["fileName", 4], ["artist", 3], ["album", 3], ["notes", 1]];
         const scored: { t: LibraryTrack; score: number }[] = [];
         for (const t of state.tracks) {
           if (lane && (lane === "fx" ? !isFx(t) : t.kind !== lane)) continue;
+          if (!shaped(t)) continue;
           const fields = WEIGHT.map(([f, w]) => [f === "tagWords" ? words(Object.values(t.tags).flat().join(" ")) : words(String(t[f] ?? "")), w] as const);
           let score = 0;
           let all = true;
@@ -553,6 +605,16 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
         if (ready) return [...ready];
         workOutPeaks([trackId]);
         return null;
+      },
+      async setShape(trackId, shape) {
+        let name = "";
+        return write(() => (shape ? `Give ${quoted(name)} the shape ${SHAPE_WORDS[shape] ?? shape}` : `Let Lyre suggest the shape of ${quoted(name)}`), ["tracks"], () => {
+          const t = track(trackId);
+          if (shape !== null && !(TRACK_SHAPES as readonly string[]).includes(shape)) refuse("invalid", "Choose from Steady, Builds, Falls away, Peaks then falls and Rises and falls.", "shape");
+          name = shownTitle(t);
+          t.shape = shape;
+          return t;
+        });
       },
       async showInFolder(trackId) {
         try {
@@ -624,11 +686,11 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           if (input.kind === "manual") {
             const ids = [...new Set(input.trackIds ?? [])];
             ids.forEach(track);
-            pl = { id: newId("playlist"), name, lane: input.lane, kind: "manual", trackIds: ids, notes: input.notes ?? "" };
+            pl = { id: newId("playlist"), name, lane: input.lane, order: null, kind: "manual", trackIds: ids, notes: input.notes ?? "" };
           } else if (input.kind === "dynamic") {
             const rule = copy(input.rule ?? { conds: [] });
             checkRule(rule);
-            pl = { id: newId("playlist"), name, lane: input.lane, kind: "dynamic", rule, notes: input.notes ?? "" };
+            pl = { id: newId("playlist"), name, lane: input.lane, order: null, kind: "dynamic", rule, notes: input.notes ?? "" };
           } else refuse("invalid", "A playlist is manual or dynamic.", "kind");
           state.playlists.unshift(pl);
           return pl;
@@ -651,7 +713,7 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
       async copyAsManual(id) {
         return write((pl: PlaylistInfo) => `Make ${quoted(pl.name)}`, ["playlists"], () => {
           const pl = playlist(id);
-          const made: PlaylistInfo = { id: newId("playlist"), name: `${pl.name} (manual)`, lane: pl.lane, kind: "manual", trackIds: playlistTracks(pl, lookup()).map((t) => t.id), notes: pl.notes };
+          const made: PlaylistInfo = { id: newId("playlist"), name: `${pl.name} (manual)`, lane: pl.lane, order: null, kind: "manual", trackIds: playlistTracks(pl, lookup()).map((t) => t.id), notes: pl.notes };
           state.playlists.splice(state.playlists.indexOf(pl) + 1, 0, made);
           return made;
         });
@@ -699,6 +761,35 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           label = `Move ${quoted(shownTitle(track(trackId)))} in ${quoted(pl.name)}`;
         });
       },
+      async playOrders() {
+        return copy(state.playOrders);
+      },
+      async setPlayOrder(playlistId, place, order) {
+        let label = "";
+        return write(() => label, ["playlists"], () => {
+          const pl = playlist(playlistId);
+          const where = place ? playPlace(place) : null;
+          const clean = checkOrder(order);
+          if (where) (state.playOrders[where.key] ??= {})[pl.id] = clean;
+          else pl.order = clean;
+          label = `Change the play order of ${quoted(pl.name)}${where ? ` in ${where.words}` : ""}`;
+          return clean;
+        });
+      },
+      async clearPlayOrder(playlistId, place) {
+        let label = "";
+        return write(() => label, ["playlists"], () => {
+          const pl = playlist(playlistId);
+          const where = place ? playPlace(place) : null;
+          if (where) {
+            if (state.playOrders[where.key]) {
+              delete state.playOrders[where.key][pl.id];
+              if (Object.keys(state.playOrders[where.key]).length === 0) delete state.playOrders[where.key];
+            }
+          } else pl.order = null;
+          label = where ? `Use the playlist's own order in ${where.words}` : `Play ${quoted(pl.name)} in the default order`;
+        });
+      },
     },
 
     boards: {
@@ -726,15 +817,14 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
         return write(() => label, ["boards"], () => {
           const b = board(id);
           if (!isInt(cols, 1, 8) || !isInt(rows, 1, 8)) refuse("invalid", "A board has 1 to 8 columns and 1 to 8 rows.", "cols");
-          const old = b.slots;
-          const next: (Pad | null)[] = [];
-          for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) next.push(r < b.rows && c < b.cols ? old[r * b.cols + c] : null);
-          // Pads outside the new grid go to spare, row by row, so nothing is ever deleted by a resize.
-          const moved: Pad[] = [];
-          for (let r = 0; r < b.rows; r++) for (let c = 0; c < b.cols; c++) if ((r >= rows || c >= cols) && old[r * b.cols + c]) moved.push(old[r * b.cols + c]);
-          Object.assign(b, { cols, rows, slots: next, spare: [...b.spare, ...moved] });
           label = `Resize ${quoted(b.name)} to ${cols} × ${rows}`;
-          return { board: b, movedToSpare: moved.map((p) => p.id) };
+          if (cols === b.cols && rows === b.rows) return { board: b, movedToSpare: [], cameBack: [] };
+          // SFX-11: pads pack left to right, top to bottom; a pad put aside by hand stays aside.
+          const next = reflowBoard(b.slots, b.spare, cols, rows, (p) => p.aside);
+          const cameBack = b.spare.filter((p) => next.slots.includes(p));
+          for (const p of next.slots) if (p) p.aside = false;
+          Object.assign(b, { cols, rows, slots: next.slots, spare: next.spare });
+          return { board: b, movedToSpare: next.spilled.map((p) => p.id), cameBack: cameBack.map((p) => p.id) };
         });
       },
       async duplicate(id) {
@@ -783,7 +873,7 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
         return write((r: { pad: Pad; place: PadPlace }) => `Make ${quoted(r.pad.label)}`, ["boards"], () => {
           const b = board(boardId);
           const at = padAt(b, padId);
-          const made: Pad = { ...copy(at.pad), id: newId("pad"), label: `${at.pad.label} (copy)`, key: "" };
+          const made: Pad = { ...copy(at.pad), id: newId("pad"), label: `${at.pad.label} (copy)`, key: "", aside: false };
           const start = at.where === "slot" ? at.index + 1 : 0;
           let place: PadPlace = "spare";
           for (let k = 0; k < b.slots.length; k++) {
@@ -807,6 +897,7 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           if (to === "spare") {
             if (at.where === "slot") {
               b.slots[at.index] = null;
+              at.pad.aside = true;
               b.spare.push(at.pad);
             }
             return { swappedWith: null };
@@ -820,7 +911,9 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           } else {
             b.spare.splice(at.index, 1);
             b.slots[to.slot] = at.pad;
-            if (other) b.spare.splice(at.index, 0, other);
+            at.pad.aside = false;
+            // The pad it replaced goes to Spare pads by hand (SFX-11).
+            if (other) b.spare.splice(at.index, 0, Object.assign(other, { aside: true }));
           }
           return { swappedWith: other?.id ?? null };
         });
@@ -833,6 +926,7 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           const putBack: string[] = [];
           while (b.spare.length && b.slots.includes(null)) {
             const pad = b.spare.shift();
+            pad.aside = false;
             b.slots[b.slots.indexOf(null)] = pad;
             putBack.push(pad.id);
           }
@@ -874,7 +968,8 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
             obsidian: { vault: "", note: "", sessionsFolder: "", ...copy(input.obsidian ?? {}) },
             playlistIds: [],
             boardIds: [],
-            sessions: [{ id: newId("session"), campaignId: id, number: 1, name: "", date: null, status: "draft", noteLink: "", playlistIds: [], boardIds: [], scenes: [blankScene("Opening scene")] }],
+            trackIds: [],
+            sessions: [{ id: newId("session"), campaignId: id, number: 1, name: "", date: null, status: "draft", noteLink: "", playlistIds: [], boardIds: [], trackIds: [], scenes: [blankScene("Opening scene")] }],
           };
           state.campaigns.push(c);
           return c;
@@ -895,9 +990,10 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
         return write(() => label, ["campaigns"], () => {
           const c = campaign(owner.campaignId);
           const target = owner.sessionId ? session(owner.campaignId, owner.sessionId) : c;
-          ids.forEach(kind === "playlists" ? playlist : board);
-          target[kind === "playlists" ? "playlistIds" : "boardIds"] = [...new Set(ids)];
-          label = `Change the ${kind === "playlists" ? "playlists" : "pad boards"} on hand in ${owner.sessionId ? `session ${(target as SessionInfo).number}` : quoted(c.name)}`;
+          if (!["playlists", "boards", "tracks"].includes(kind)) refuse("invalid", "A campaign keeps playlists, pad boards and tracks on hand.", "kind");
+          ids.forEach(kind === "playlists" ? playlist : kind === "boards" ? board : track);
+          target[kind === "playlists" ? "playlistIds" : kind === "boards" ? "boardIds" : "trackIds"] = [...new Set(ids)];
+          label = `Change the ${kind === "playlists" ? "playlists" : kind === "boards" ? "pad boards" : "tracks"} on hand in ${owner.sessionId ? `session ${(target as SessionInfo).number}` : quoted(c.name)}`;
         });
       },
       async usesOf(ref) {
@@ -907,8 +1003,9 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
       async setUses(ref, places) {
         let label = "";
         return write(() => label, ["campaigns"], () => {
-          const name = ref.kind === "board" ? board(ref.id).name : playlist(ref.id).name;
-          const isAmb = ref.kind === "playlist" && playlist(ref.id).lane === "amb";
+          const name = ref.kind === "board" ? board(ref.id).name : ref.kind === "track" ? shownTitle(track(ref.id)) : playlist(ref.id).name;
+          const isAmb = ref.kind === "track" ? track(ref.id).kind === "amb" : ref.kind === "playlist" && playlist(ref.id).lane === "amb";
+          const kind = ref.kind;
           const keyOf = (p: { campaignId: string; sessionId?: string; sceneId?: string }) => [p.campaignId, p.sessionId ?? "", p.sceneId ?? ""].join("|");
           for (const p of places) {
             if (p.sceneId) scene({ campaignId: p.campaignId, sessionId: p.sessionId, sceneId: p.sceneId });
@@ -916,7 +1013,7 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
             else campaign(p.campaignId);
           }
           const ticked = new Set(places.map(keyOf));
-          const listKey = ref.kind === "board" ? "boardIds" : "playlistIds";
+          const listKey = ref.kind === "board" ? "boardIds" : ref.kind === "track" ? "trackIds" : "playlistIds";
           const setIn = (list: string[], on: boolean) => (on ? (list.includes(ref.id) ? list : [...list, ref.id]) : list.filter((x) => x !== ref.id));
           for (const c of state.campaigns) {
             c[listKey] = setIn(c[listKey], ticked.has(keyOf({ campaignId: c.id })));
@@ -924,13 +1021,18 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
               s[listKey] = setIn(s[listKey], ticked.has(keyOf({ campaignId: c.id, sessionId: s.id })));
               for (const sc of s.scenes) {
                 const on = ticked.has(keyOf({ campaignId: c.id, sessionId: s.id, sceneId: sc.id }));
-                if (ref.kind === "board") sc.boardIds = setIn(sc.boardIds, on);
+                const sound = kind === "track" ? "track" : "playlist";
+                const isIt = (r: SoundRef | null) => r?.kind === sound && r.id === ref.id;
+                if (kind === "board") sc.boardIds = setIn(sc.boardIds, on);
                 else if (isAmb) {
-                  if (on) sc.ambience = { kind: "playlist", id: ref.id };
-                  else if (sc.ambience?.kind === "playlist" && sc.ambience.id === ref.id) sc.ambience = null;
+                  if (on) sc.ambience = { kind: sound, id: ref.id };
+                  else if (isIt(sc.ambience)) sc.ambience = null;
                 } else if (on) {
-                  if (!sc.music.some((r) => r.kind === "playlist" && r.id === ref.id)) sc.music.push({ kind: "playlist", id: ref.id });
-                } else sc.music = sc.music.filter((r) => !(r.kind === "playlist" && r.id === ref.id));
+                  if (!sc.music.some(isIt)) sc.music.push({ kind: sound, id: ref.id });
+                } else {
+                  sc.music = sc.music.filter((r) => !isIt(r));
+                  if (isIt(sc.ambience)) sc.ambience = null;
+                }
               }
             }
           }
@@ -954,6 +1056,7 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
             noteLink: "",
             playlistIds: [],
             boardIds: [],
+            trackIds: [],
             scenes: [blankScene("Opening scene")],
           };
           c.sessions.push(s);
@@ -1038,10 +1141,11 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
       },
       async deleteScene(address) {
         let label = "";
-        return write(() => label, ["campaigns", "profiles"], () => {
+        return write(() => label, ["campaigns", "profiles", "playlists"], () => {
           const { session: s, scene: sc, index } = scene(address);
           s.scenes.splice(index, 1);
           delete state.overrides[placeKey({ kind: "scene", ...address })];
+          delete state.playOrders[keyOfPlace({ kind: "scene", ...address })];
           label = `Delete the scene ${quoted(sc.name)}`;
         });
       },
@@ -1070,6 +1174,19 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           boardIds.forEach(board);
           sc.boardIds = [...new Set(boardIds)];
           label = `Change the pad boards of ${quoted(sc.name)}`;
+        });
+      },
+      async setTrackName(address, trackId, name) {
+        let label = "";
+        return write(() => label, ["campaigns"], () => {
+          const { scene: sc } = scene(address);
+          const t = track(trackId);
+          const clean = typeof name === "string" ? name.trim() : refuse("invalid", "A name is text.", "name");
+          if (clean.length > 200) refuse("invalid", "A name in a scene is at most 200 characters.", "name");
+          if (clean) sc.trackNames[t.id] = clean;
+          else delete sc.trackNames[t.id];
+          const where = sc.name ? `the scene ${quoted(sc.name)}` : "this scene";
+          label = clean ? `Name the track ${quoted(clean)} in ${where}` : `Use the track's own name in ${where}`;
         });
       },
     },
@@ -1138,7 +1255,9 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
         });
       },
       async findMissing() {
-        const out: MissingTrack[] = state.tracks.filter((t) => state.missing.includes(t.id)).map((t) => ({ id: t.id, title: shownTitle(t), path: pathOf(t) }));
+        const out: MissingTrack[] = state.tracks
+          .filter((t) => state.missing.includes(t.id))
+          .map((t) => ({ id: t.id, title: shownTitle(t), path: pathOf(t), fileName: t.fileName, folder: t.folder, sizeBytes: t.sizeBytes }));
         return out.sort((a, b) => a.title.localeCompare(b.title));
       },
       async planRelink(source) {
@@ -1150,7 +1269,7 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
         for (const m of missing) {
           const name = splitPath(m.path).name.toLowerCase();
           const hits = files.filter((f) => splitPath(f).name.toLowerCase() === name);
-          if (hits.length === 1) plan.matches.push({ trackId: m.id, from: m.path, to: hits[0], confidence: "name" });
+          if (hits.length === 1) plan.matches.push({ trackId: m.id, from: m.path, to: hits[0], confidence: "name", toUrl: fileAddress(hits[0]) });
           else if (hits.length > 1) plan.ambiguous.push({ trackId: m.id, candidates: hits });
           else plan.notFound.push(m.id);
         }
@@ -1173,6 +1292,169 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           }
           return { relinked: matches.map((m) => m.trackId) };
         });
+      },
+    },
+
+    transfer: {
+      async estimate(scope) {
+        const out = estimateTransfer(scope, state, new Date(now()).toISOString().slice(0, 10));
+        if (!out) throw new Error("That is no longer in your library.");
+        return out;
+      },
+      async save({ scope, includeAudio, path }) {
+        const estimate = estimateTransfer(scope, state, new Date(now()).toISOString().slice(0, 10));
+        if (!estimate) return { ok: false, refusal: { code: "not-found", message: "That is no longer in your library." } };
+        const to = path ?? options.choose?.saveFile?.(estimate.fileName) ?? null;
+        if (!to) return { ok: true, value: null, changed: [], undoLabel: history().undoLabel };
+        const contents = copy(transferContents(scope, state));
+        const audio = includeAudio && !estimate.leaveAudioOutBecause;
+        lyreFiles.set(to.toLowerCase(), { contents, includesAudio: audio, savedAt: now() });
+        const bytes = JSON.stringify(contents).length + (audio ? (estimate.audioBytes ?? 0) : 0);
+        const size = bytes >= 1_000_000 ? `${Math.round(bytes / 1_000_000)} MB` : `${Math.max(1, Math.round(bytes / 1000))} KB`;
+        return { ok: true, value: { path: to, bytes, summary: `Saved ${splitPath(to).name} (${size}) in ${splitPath(to).folder}.` }, changed: [], undoLabel: history().undoLabel };
+      },
+      async open(source) {
+        const path = source.from === "path" ? source.path : (options.choose?.lyreFile?.() ?? null);
+        if (!path) return { ok: true, value: null, changed: [], undoLabel: history().undoLabel };
+        const file = lyreFiles.get(path.toLowerCase());
+        if (!file) return { ok: false, refusal: { code: "not-lyre-file", message: `${splitPath(path).name} is not a Lyre file, or it is damaged. Nothing was changed.` } };
+        const c = file.contents;
+        const items: NonNullable<typeof opened>["items"] = [];
+        const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+        // Tracks first: the playlists, boards and campaigns brought in refer to them by id.
+        const trackMap = new Map<string, string>();
+        const yoursTrack = (t: LibraryTrack) => state.tracks.find((x) => same(x.fileName, t.fileName) && x.durationMs === t.durationMs);
+        if (c.tracks.length) {
+          const dupes = c.tracks.filter((t) => yoursTrack(t));
+          const add = (asCopy: boolean) => {
+            for (const t of c.tracks) {
+              const mine = yoursTrack(t);
+              if (mine && !asCopy) trackMap.set(t.id, mine.id);
+              else {
+                const made = { ...copy(t), id: newId("track") };
+                state.tracks.push(made);
+                trackMap.set(t.id, made.id);
+              }
+            }
+          };
+          items.push({
+            key: "tracks", kind: "tracks", name: plural(c.tracks.length, "track"),
+            detail: dupes.length ? `${dupes.length} already in your library (same file name and length)` : "All new",
+            status: dupes.length ? "duplicate" : "new", yours: null,
+            take: () => add(false), merge: () => add(false), copy: () => add(true), ids: () => ({ id: "", name: plural(c.tracks.length, "track") }),
+          });
+        }
+        const tid = (id: string) => trackMap.get(id) ?? id;
+        const from = ` (from ${splitPath(path).name.replace(/\.lyre$/i, "")})`;
+        for (const p of c.playlists) {
+          const mine = state.playlists.find((x) => same(x.name, p.name));
+          let made: PlaylistInfo | null = null;
+          const take = (name: string) => {
+            made = { ...copy(p), id: newId("playlist"), name, order: p.order } as PlaylistInfo;
+            if (made.kind === "manual") made.trackIds = made.trackIds.map(tid);
+            state.playlists.push(made);
+          };
+          items.push({
+            key: `playlist:${p.id}`, kind: "playlist", name: p.name, detail: p.kind === "dynamic" ? `Dynamic${mine ? " · yours has the same name" : ""}` : `${plural(p.trackIds.length, "track")}${mine ? " · yours has the same name" : ""}`,
+            status: mine ? "duplicate" : "new", yours: mine ? { kind: "playlist", id: mine.id } : null,
+            take: () => take(p.name),
+            merge: () => { if (mine?.kind === "manual" && p.kind === "manual") for (const t of p.trackIds.map(tid)) if (!mine.trackIds.includes(t)) mine.trackIds.push(t); },
+            copy: () => take(p.name + from),
+            ids: (): { id: string; name: string } => (made ? { id: made.id, name: made.name } : { id: mine?.id ?? "", name: p.name }),
+          });
+        }
+        for (const b of c.boards) {
+          const mine = state.boards.find((x) => same(x.name, b.name));
+          let made: PadBoard | null = null;
+          const renew = (pad: Pad): Pad => ({ ...copy(pad), id: newId("pad"), sound: { ...copy(pad.sound), trackIds: pad.sound.trackIds.map(tid) } });
+          const take = (name: string) => {
+            made = { ...copy(b), id: newId("board"), name, slots: b.slots.map((x) => (x ? renew(x) : null)), spare: b.spare.map(renew) };
+            state.boards.push(made);
+          };
+          items.push({
+            key: `board:${b.id}`, kind: "board", name: b.name, detail: `${plural([...b.slots, ...b.spare].filter(Boolean).length, "pad")}${mine ? " · yours has the same name" : ""}`,
+            status: mine ? "duplicate" : "new", yours: mine ? { kind: "board", id: mine.id } : null,
+            take: () => take(b.name),
+            merge: () => { if (mine) for (const x of [...b.slots, ...b.spare]) if (x && ![...mine.slots, ...mine.spare].some((y) => y && same(y.label, x.label))) mine.spare.push({ ...renew(x), aside: false }); },
+            copy: () => take(b.name + from),
+            ids: (): { id: string; name: string } => (made ? { id: made.id, name: made.name } : { id: mine?.id ?? "", name: b.name }),
+          });
+        }
+        for (const camp of c.campaigns) {
+          const mine = state.campaigns.find((x) => same(x.name, camp.name));
+          let made: CampaignInfo | null = null;
+          const renewSessions = (cid: string) => camp.sessions.map((s) => ({
+            ...copy(s), id: newId("session"), campaignId: cid, status: "draft" as const, trackIds: s.trackIds.map(tid),
+            scenes: s.scenes.map((sc) => ({ ...copy(sc), id: newId("scene"), music: sc.music.map((r) => (r.kind === "track" ? { ...r, id: tid(r.id) } : r)), ambience: sc.ambience?.kind === "track" ? { ...sc.ambience, id: tid(sc.ambience.id) } : copy(sc.ambience), trackNames: Object.fromEntries(Object.entries(sc.trackNames).map(([k, v]) => [tid(k), v])) })),
+          }));
+          const take = (name: string) => {
+            const id = newId("campaign");
+            made = { ...copy(camp), id, name, trackIds: camp.trackIds.map(tid), sessions: renewSessions(id) };
+            state.campaigns.push(made);
+          };
+          items.push({
+            key: `campaign:${camp.id}`, kind: "campaign", name: camp.name, detail: `${plural(camp.sessions.length, "session")}, ${plural(camp.sessions.reduce((n, s) => n + s.scenes.length, 0), "scene")}`,
+            status: mine ? "duplicate" : "new", yours: mine ? { kind: "campaign", id: mine.id } : null,
+            take: () => take(camp.name),
+            merge: () => { if (mine) mine.sessions.push(...renewSessions(mine.id)); },
+            copy: () => take(camp.name + from),
+            ids: (): { id: string; name: string } => (made ? { id: made.id, name: made.name } : { id: mine?.id ?? "", name: camp.name }),
+          });
+        }
+        if (c.tagGroups.length) {
+          const fresh = c.tagGroups.flatMap((g) => g.values.filter((v) => !state.tagGroups.find((x) => x.id === g.id)?.values.some((y) => same(y, v))).map((v) => `${g.name}: ${v}`));
+          const add = () => {
+            for (const g of c.tagGroups) {
+              const mine = state.tagGroups.find((x) => x.id === g.id) ?? (state.tagGroups.push({ ...copy(g), values: [] }), state.tagGroups[state.tagGroups.length - 1]);
+              for (const v of g.values) if (!mine.values.some((y) => same(y, v))) mine.values.push(v);
+            }
+          };
+          items.push({ key: "tags", kind: "tags", name: plural(fresh.length, "new tag value"), detail: fresh.join(" · ") || "You have them all", status: "new", yours: null, take: add, merge: add, copy: add, ids: () => ({ id: "", name: "tags" }) });
+        }
+        opened = { id: newId("opened"), file: path, items };
+        const value: OpenedFile = {
+          id: opened.id,
+          fileName: splitPath(path).name,
+          madeWith: `Lyre, ${new Date(file.savedAt).toISOString().slice(0, 10)}`,
+          includesAudio: file.includesAudio,
+          items: items.map(({ key, kind, name, detail, status, yours }) => ({ key, kind, name, detail, status, yours })),
+        };
+        return { ok: true, value, changed: [], undoLabel: history().undoLabel };
+      },
+      async bringIn(openedId, choices) {
+        if (!opened || opened.id !== openedId) return { ok: false, refusal: { code: "not-found", message: "Open the file again: Lyre no longer has it open." } };
+        const file = opened;
+        return write(() => `Bring in ${splitPath(file.file).name}`, ["tracks", "tags", "playlists", "boards", "campaigns"], () => {
+          const report: BringInReport = { added: [], merged: [], keptBoth: [], skipped: [], missingFiles: 0, summary: "" };
+          for (const item of file.items) {
+            const choice: DuplicateChoice = choices?.each?.[item.key] ?? choices?.all ?? "skip";
+            if (item.status === "new") {
+              item.take();
+              report.added.push({ kind: item.kind, ...item.ids() });
+            } else if (choice === "skip") {
+              // Tracks the file shares with the library are always the library's own: skipping keeps yours and adds the rest.
+              if (item.kind === "tracks") item.merge();
+              report.skipped.push({ kind: item.kind, name: item.name });
+            } else if (choice === "merge") {
+              item.merge();
+              report.merged.push({ kind: item.kind, ...item.ids() });
+            } else {
+              item.copy();
+              report.keptBoth.push({ kind: item.kind, ...item.ids() });
+            }
+          }
+          const parts = [`Brought in ${plural(report.added.length + report.merged.length + report.keptBoth.length, "item")} from ${splitPath(file.file).name}.`];
+          if (report.skipped.length) parts.push(`${plural(report.skipped.length, "duplicate")} skipped.`);
+          if (report.keptBoth.length) parts.push(`${plural(report.keptBoth.length, "copy", "copies")} kept beside yours.`);
+          report.summary = parts.join(" ");
+          opened = null;
+          return report;
+        });
+      },
+      async movedReport() {
+        const moved = options.moved === undefined ? seed.moved : options.moved;
+        if (!moved) return null;
+        return { ...copy(moved), missing: await api.import.findMissing() };
       },
     },
 

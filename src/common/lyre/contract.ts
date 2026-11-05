@@ -10,9 +10,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  keyOfPlace,
   placeKey,
   playlistTracks,
+  profilePlacesFor,
+  reflowBoard,
+  resolvePlayOrder,
   resolveProfile,
+  shapeOf,
+  trackNameIn,
   sceneSequence,
   usesOfBoard,
   usesOfPlaylist,
@@ -20,7 +26,7 @@ import {
   type ProfilePlace,
 } from "../domain";
 import { isRefused, LYRE_API_METHODS, REFUSAL_CODES, type Done, type LyreApi, type LyreArea, type LyreEvent, type RefusalCode, type SceneAddress, type WriteResult } from "./api";
-import { lookupFrom } from "./lookup";
+import { lookupFrom, trackNamesOf } from "./lookup";
 import { fileAddress } from "./media";
 
 export interface ContractFixture {
@@ -36,6 +42,11 @@ export interface ContractFixture {
   relinkFolder: string;
   /** A folder Lyre does not watch yet. */
   folderToWatch: string;
+  /**
+   * DAT-7: where Save to a file may write a .lyre file, and a file that is not a Lyre file, when the implementation
+   * saves and opens files. Without it, save, open and bring in must refuse with "unavailable" (not built yet).
+   */
+  transferFiles?: { saveTo: string; notLyreFile: string };
   close?(): Promise<void> | void;
 }
 
@@ -371,13 +382,15 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         expectRefused(await api.boards.rename("nope", "x"), "not-found");
       });
 
-      it("resizes keeping each pad's row and column; pads that no longer fit go to spare, and undo puts them back", async () => {
+      it("resizes as reflowBoard packs the pads; only what does not fit goes to spare, it comes back when the grid grows, and undo puts it all back", async () => {
         const done = valueOf(await api.boards.resize("abbey", 3, 3));
-        expect(done.movedToSpare).toEqual(["organ", "stonedoor", "heartab"]);
-        expect(done.board.slots.map((p) => p?.id ?? null)).toEqual(["bell", "bells", "whisper", "choir", "drip", "chains", "slam", "splash", "scream"]);
-        expect(done.board.spare.map((p) => p.id)).toEqual(["organ", "stonedoor", "heartab"]);
+        expect(done.movedToSpare).toEqual(["splash", "scream", "heartab"]);
+        expect(done.cameBack).toEqual([]);
+        expect(done.board.slots.map((p) => p?.id ?? null)).toEqual(["bell", "bells", "whisper", "organ", "choir", "drip", "chains", "stonedoor", "slam"]);
+        expect(done.board.spare.map((p) => [p.id, p.aside])).toEqual([["splash", false], ["scream", false], ["heartab", false]]);
         const wider = valueOf(await api.boards.resize("abbey", 5, 3));
-        expect(wider.board.slots.map((p) => p?.id ?? null)).toEqual(["bell", "bells", "whisper", null, null, "choir", "drip", "chains", null, null, "slam", "splash", "scream", null, null]);
+        expect(wider.cameBack).toEqual(["splash", "scream", "heartab"]);
+        expect(wider.board.slots.map((p) => p?.id ?? null)).toEqual(["bell", "bells", "whisper", "organ", "choir", "drip", "chains", "stonedoor", "slam", "splash", "scream", "heartab", null, null, null]);
         valueOf(await api.history.undo());
         valueOf(await api.history.undo());
         const back = await board("abbey");
@@ -717,6 +730,196 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
       });
     });
 
+    describe("design round 5", () => {
+      const ruins = { kind: "scene" as const, campaignId: CROWN, sessionId: S14, sceneId: "sc3" };
+      const s14 = { kind: "session" as const, campaignId: CROWN, sessionId: S14 };
+
+      it("PLY-13: each playlist has its own play order, each place its own, and resolvePlayOrder agrees with the samples", async () => {
+        const playlists = await api.playlists.list();
+        const own = (id: string) => playlists.find((p) => p.id === id).order;
+        expect(own("p-combat-big")).toEqual({ shuffle: true, repeat: "all" });
+        expect(own("a-inn")).toEqual({ shuffle: false, repeat: "all" });
+        expect(own("p-abbey-eerie")).toBeNull();
+        const orders = await api.playlists.playOrders();
+        expect(orders).toEqual({ "sc:crown:s14:sc3": { "p-abbey-eerie": { shuffle: true, repeat: "off" } }, "ss:crown:s14": { "p-wistful": { shuffle: true, repeat: "all" } } });
+        expect(resolvePlayOrder("p-abbey-eerie", own("p-abbey-eerie"), ruins, orders)).toEqual({ order: { shuffle: true, repeat: "off" }, source: "place" });
+        expect(resolvePlayOrder("p-abbey-eerie", own("p-abbey-eerie"), { ...ruins, sceneId: "sc4" }, orders).source).toBe("default");
+      });
+
+      it("PLY-13: chooses and clears a play order in one place or for the playlist itself, refusing what it cannot keep", async () => {
+        expect(valueOf(await api.playlists.setPlayOrder("p-company", { kind: "campaign", campaignId: CROWN }, { shuffle: true, repeat: "one" }))).toEqual({ shuffle: true, repeat: "one" });
+        expect((await api.playlists.playOrders())["cp:crown"]).toEqual({ "p-company": { shuffle: true, repeat: "one" } });
+        valueOf(await api.playlists.setPlayOrder("p-company", null, { shuffle: false, repeat: "off" }));
+        expect((await api.playlists.list()).find((p) => p.id === "p-company").order).toEqual({ shuffle: false, repeat: "off" });
+        await changedEvent("playlists", "history");
+        valueOf(await api.playlists.clearPlayOrder("p-abbey-eerie", ruins));
+        expect((await api.playlists.playOrders())["sc:crown:s14:sc3"]).toBeUndefined();
+        valueOf(await api.history.undo());
+        expect((await api.playlists.playOrders())["sc:crown:s14:sc3"]).toEqual({ "p-abbey-eerie": { shuffle: true, repeat: "off" } });
+        expectRefused(await api.playlists.setPlayOrder("p-company", null, { shuffle: true, repeat: "twice" as never }), "invalid");
+        expectRefused(await api.playlists.setPlayOrder("nope", null, { shuffle: true, repeat: "all" }), "not-found");
+        expectRefused(await api.playlists.setPlayOrder("p-company", { ...ruins, sceneId: "nope" }, { shuffle: true, repeat: "all" }), "not-found");
+        const before = await api.history.state();
+        const same = await api.playlists.clearPlayOrder("p-company", ruins);
+        expect(same.ok && same.changed).toEqual([]);
+        expect(await api.history.state()).toEqual(before);
+      });
+
+      it("DAT-14: a scene names a track for itself; trackNameIn shows it there and the track's own name elsewhere", async () => {
+        const campaigns = await api.campaigns.list();
+        const names = trackNamesOf(campaigns);
+        expect(names).toEqual({ "sc:crown:s14:sc4": { t39: "The wight rises" }, "sc:crown:s14:sc6": { t07: "Dawn over the abbey" } });
+        const t07 = await track("t07");
+        const aftermath = { kind: "scene" as const, campaignId: CROWN, sessionId: S14, sceneId: "sc6" };
+        expect(trackNameIn(t07, aftermath, names).name).toBe("Dawn over the abbey");
+        expect(trackNameIn(t07, ruins, names).name).toBe(t07.title);
+        valueOf(await api.sessions.setTrackName(sc("sc3"), "t13", "  The abbey sleeps "));
+        expect((await scene(sc("sc3"))).trackNames).toEqual({ t13: "The abbey sleeps" });
+        await changedEvent("campaigns", "history");
+        valueOf(await api.sessions.setTrackName(sc("sc6"), "t07", ""));
+        expect((await scene(sc("sc6"))).trackNames).toEqual({});
+        expectRefused(await api.sessions.setTrackName(sc("sc3"), "t13", "n".repeat(201)), "invalid");
+        expectRefused(await api.sessions.setTrackName(sc("nope"), "t13", "X"), "not-found");
+        expectRefused(await api.sessions.setTrackName(sc("sc3"), "nope", "X"), "not-found");
+      });
+
+      it("DAT-13: chooses a track's shape or goes back to the suggestion; the Shape filter and rule shapes follow shapeOf", async () => {
+        const tracks = await api.library.listTracks();
+        expect(tracks.find((x) => x.id === "t06")).toMatchObject({ shape: "builds" });
+        expect(tracks.every((x) => x.suggestedShape === null || typeof x.suggestedShape === "string")).toBe(true);
+        expect(valueOf(await api.library.setShape("t01", "peaksThenFalls")).shape).toBe("peaksThenFalls");
+        await changedEvent("tracks", "history");
+        expectRefused(await api.library.setShape("t01", "wobbly" as never), "invalid");
+        expectRefused(await api.library.setShape("nope", "steady"), "not-found");
+        const all = await api.library.listTracks();
+        const builds = all.filter((x) => shapeOf(x).shape === "builds" || shapeOf(x).shape === "peaksThenFalls").map((x) => x.id);
+        const found = await api.library.search({ text: "", shapes: ["builds", "peaksThenFalls"], limit: 500 });
+        expect([...found.trackIds].sort()).toEqual([...builds].sort());
+        expect(found.trackIds).toEqual(expect.arrayContaining(["t01", "t06"]));
+        valueOf(await api.playlists.update("p-combat-big", { rule: { conds: [], shapes: ["builds"] } }));
+        const pl = (await api.playlists.list()).find((p) => p.id === "p-combat-big");
+        expect(pl.kind === "dynamic" && pl.rule.shapes).toEqual(["builds"]);
+        expect(await api.playlists.tracks("p-combat-big")).toEqual(playlistTracks(pl, lookupFrom(all, await api.playlists.list())).map((x) => x.id));
+        expect(await api.playlists.tracks("p-combat-big")).toContain("t06");
+        expectRefused(await api.playlists.update("p-combat-big", { rule: { conds: [], shapes: ["swells" as never] } }), "invalid");
+        valueOf(await api.library.setShape("t06", null));
+        expect((await track("t06")).shape).toBeNull();
+      });
+
+      it("ORG-12: keeps single tracks on hand and uses a track in places, as usesOfTrack says", async () => {
+        expect((await api.campaigns.get(CROWN)).trackIds).toEqual(["t26"]);
+        valueOf(await api.campaigns.setOnHand({ campaignId: CROWN, sessionId: S14 }, "tracks", ["t02", "t09"]));
+        expect((await api.campaigns.get(CROWN)).sessions.find((s) => s.id === S14).trackIds).toEqual(["t02", "t09"]);
+        expectRefused(await api.campaigns.setOnHand({ campaignId: CROWN }, "tracks", ["nope"]), "not-found");
+        valueOf(await api.campaigns.setUses({ kind: "track", id: "t09" }, [{ campaignId: CROWN }, { campaignId: CROWN, sessionId: S14, sceneId: "sc1" }]));
+        valueOf(await api.campaigns.setUses({ kind: "track", id: "b05" }, [{ campaignId: CROWN, sessionId: S14, sceneId: "sc2" }]));
+        const campaigns = await api.campaigns.list();
+        for (const id of ["t09", "t26", "b05", "t02"]) expect(await api.campaigns.usesOf({ kind: "track", id }), id).toEqual(usesOfTrack(id, campaigns));
+        expect((await api.campaigns.usesOf({ kind: "track", id: "t09" })).map((u) => u.level)).toEqual(["campaign", "scene"]);
+        expect((await scene(sc("sc2"))).ambience).toEqual({ kind: "track", id: "b05" });
+        expect((await scene(sc("sc1"))).music).toContainEqual({ kind: "track", id: "t09" });
+        expectRefused(await api.campaigns.setUses({ kind: "track", id: "nope" }, []), "not-found");
+      });
+
+      it("PLY-14: a session list keeps its own audio settings for a track, ahead of the playlist's", async () => {
+        valueOf(await api.profiles.set("t03", s14, { endMs: 60_000, after: "stop" }));
+        const overrides = await api.profiles.overrides();
+        expect(overrides["ss:crown:s14"]).toEqual({ t03: { endMs: 60_000, after: "stop" } });
+        const t03 = await track("t03");
+        expect(resolveProfile(t03, profilePlacesFor(s14, "p-wistful"), overrides)).toMatchObject({ source: "session", profile: { endMs: 60_000, after: "stop" } });
+        expectRefused(await api.profiles.set("t03", { ...s14, sessionId: "nope" }, {}), "not-found");
+        valueOf(await api.profiles.clear("t03", s14));
+        expect((await api.profiles.overrides())["ss:crown:s14"]).toBeUndefined();
+        expect(keyOfPlace(s14)).toBe(placeKey(s14));
+      });
+
+      it("SFX-11: a pad put in Spare pads by hand stays there when the grid grows; one sent there by a resize comes back", async () => {
+        expect((await board("weather")).spare.map((p) => [p.id, p.aside])).toEqual([["mugs", true]]);
+        valueOf(await api.boards.movePad("weather", "fire", "spare"));
+        expect((await board("weather")).spare.map((p) => [p.id, p.aside])).toEqual([["mugs", true], ["fire", true]]);
+        const before = await board("weather");
+        const grown = valueOf(await api.boards.resize("weather", 4, 3));
+        const isAside = (p: (typeof before.spare)[number]) => p.aside;
+        const want = reflowBoard(before.slots, before.spare, 4, 3, isAside);
+        expect(grown.board.slots.map((p) => p?.id ?? null)).toEqual(want.slots.map((p) => p?.id ?? null));
+        expect(grown.board.spare.map((p) => p.id)).toEqual(["mugs", "fire"]);
+        expect(grown.cameBack).toEqual([]);
+        valueOf(await api.boards.resize("weather", 2, 2));
+        const small = await board("weather");
+        expect(small.spare.map((p) => [p.id, p.aside])).toEqual([["horse", false], ["storm", false], ["wind", false], ["mugs", true], ["fire", true]]);
+        expect(valueOf(await api.boards.resize("weather", 4, 2)).cameBack).toEqual(["horse", "storm", "wind"]);
+        // A spare pad dragged onto a pad sends that pad to Spare pads by hand.
+        valueOf(await api.boards.movePad("weather", "mugs", { slot: 0 }));
+        expect((await board("weather")).spare.find((p) => p.id === "thunder")?.aside).toBe(true);
+        expect((await board("weather")).slots[0]).toMatchObject({ id: "mugs", aside: false });
+      });
+
+      it("DAT-8: missing files with their name and folder; a relink plan gives each found file an address to preview", async () => {
+        const missing = await api.import.findMissing();
+        const m = missing.find((x) => x.id === fx.missingTrackId);
+        expect(m.fileName).toBe("07 Memories of Mother.flac");
+        expect(m.path.endsWith(m.fileName)).toBe(true);
+        expect(m.folder.length).toBeGreaterThan(0);
+        expect(m.sizeBytes === null || typeof m.sizeBytes === "number").toBe(true);
+        const plan = valueOf(await api.import.planRelink({ from: "path", path: fx.relinkFolder }));
+        const match = plan.matches.find((x) => x.trackId === fx.missingTrackId);
+        expect(match.toUrl).toBe(fileAddress(match.to));
+      });
+
+      it("DAT-7: says what a file would hold for each scope, and why the audio can be left out", async () => {
+        const crown = await api.transfer.estimate({ kind: "campaign", campaignId: CROWN });
+        expect(crown).toMatchObject({ title: "The Sunken Crown", fileName: "The Sunken Crown.lyre", counts: { campaigns: 1, sessions: 4 } });
+        expect(crown.counts.tracks).toBeGreaterThan(10);
+        expect(crown.counts.playlists).toBeGreaterThanOrEqual(4);
+        expect(crown.leaveAudioOutBecause).toBeNull();
+        const tags = await api.transfer.estimate({ kind: "tags" });
+        expect(tags).toMatchObject({ counts: { tracks: 0, tagGroups: 3 }, leaveAudioOutBecause: "Tags have no audio files." });
+        const ruinsFile = await api.transfer.estimate({ kind: "scene", campaignId: CROWN, sessionId: S14, sceneId: "sc3" });
+        expect(ruinsFile).toMatchObject({ title: "The abbey ruins", counts: { campaigns: 1, sessions: 1, scenes: 1 } });
+        expect((await api.transfer.estimate({ kind: "board", boardId: "combat" })).counts.boards).toBe(1);
+        expect((await api.transfer.estimate({ kind: "library" })).counts.tracks).toBe((await api.library.listTracks()).length);
+        await expect(api.transfer.estimate({ kind: "playlist", playlistId: "nope" })).rejects.toThrow();
+      });
+
+      it("DAT-7: the move report has the sections the screen shows, or is null when nothing came across", async () => {
+        const report = await api.transfer.movedReport();
+        if (report === null) return;
+        expect(report.from).toMatch(/Kenku FM/);
+        expect(report.copied.length).toBeGreaterThan(0);
+        for (const row of report.copied) expect(typeof row.what === "string" && typeof row.count === "number" && typeof row.nowIn === "string").toBe(true);
+        expect(report.notBrought.length).toBeGreaterThan(0);
+        expect(report.missing.every((m) => typeof m.fileName === "string")).toBe(true);
+      });
+
+      it("DAT-7: saves a file, opens it with each duplicate marked, and brings it in as chosen in one undo step", async () => {
+        const files = fx.transferFiles;
+        if (!files) {
+          expectRefused(await api.transfer.save({ scope: { kind: "library" }, includeAudio: false }), "unavailable");
+          expectRefused(await api.transfer.open({ from: "choose-file" }), "unavailable");
+          expectRefused(await api.transfer.bringIn("any", { all: "skip" }), "unavailable");
+          return;
+        }
+        const saved = valueOf(await api.transfer.save({ scope: { kind: "campaign", campaignId: CROWN }, includeAudio: false, path: files.saveTo }));
+        expect(saved.path).toBe(files.saveTo);
+        expect(saved.bytes).toBeGreaterThan(0);
+        expect((await api.history.state()).canUndo).toBe(false);
+        expectRefused(await api.transfer.open({ from: "path", path: files.notLyreFile }), "not-lyre-file");
+        const opened = valueOf(await api.transfer.open({ from: "path", path: files.saveTo }));
+        expect(opened.includesAudio).toBe(false);
+        const campaignItem = opened.items.find((i) => i.kind === "campaign");
+        expect(campaignItem).toMatchObject({ name: "The Sunken Crown", status: "duplicate", yours: { kind: "campaign", id: CROWN } });
+        const before = (await api.campaigns.list()).length;
+        const report = valueOf(await api.transfer.bringIn(opened.id, { each: { [campaignItem.key]: "keepBoth" }, all: "skip" }));
+        expect(report.keptBoth.map((x) => x.kind)).toEqual(["campaign"]);
+        expect(report.summary.length).toBeGreaterThan(10);
+        expect((await api.campaigns.list()).length).toBe(before + 1);
+        await changedEvent("campaigns", "history");
+        valueOf(await api.history.undo());
+        expect((await api.campaigns.list()).length).toBe(before);
+        expectRefused(await api.transfer.bringIn("nope", { all: "skip" }), "not-found");
+      });
+    });
+
     describe("undo and redo", () => {
       it("starts with nothing to undo or redo", async () => {
         expect(await api.history.state()).toEqual({ canUndo: false, canRedo: false, undoLabel: null, redoLabel: null });
@@ -794,7 +997,9 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
     it("calls every method and meets every refusal code", () => {
       const all = Object.entries(LYRE_API_METHODS).flatMap(([area, methods]) => methods.map((m) => `${area}.${m}`));
       expect(all.filter((m) => !called.has(m)), "methods the contract never called").toEqual([]);
-      expect(REFUSAL_CODES.filter((c) => !refused.has(c)), "refusal codes the contract never saw").toEqual([]);
+      // DAT-7: an implementation that saves files meets "not-lyre-file"; one that does not yet meets "unavailable".
+      const cannotMeet = fx.transferFiles ? ["unavailable"] : ["not-lyre-file"];
+      expect(REFUSAL_CODES.filter((c) => !refused.has(c) && !cannotMeet.includes(c)), "refusal codes the contract never saw").toEqual([]);
     });
   });
 }
