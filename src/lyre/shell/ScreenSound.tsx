@@ -24,7 +24,7 @@ export const SCREEN_WORDS: Record<RouteName, string> = {
   look: "Look and feel",
 };
 
-/** The host with `from` filled in on the three preview calls; the same object for the same host and screen. */
+/** The host with `from` filled in on the preview calls (Try pads too); the same object for the same host and screen. */
 function withPreviewFrom(audio: LyreAudio, from: string): LyreAudio {
   const methods = new Map<PropertyKey, unknown>();
   return new Proxy(audio, {
@@ -37,6 +37,9 @@ function withPreviewFrom(audio: LyreAudio, from: string): LyreAudio {
         method = (id: string, options: { from?: string } = {}) => (value as (id: string, o: object) => unknown).call(target, id, { from, ...options });
       } else if (property === "previewPad") {
         method = (board: string, pad: string, options: { from?: string } = {}) => (value as (b: string, p: string, o: object) => unknown).call(target, board, pad, { from, ...options });
+      } else if (property === "tryPad") {
+        method = (board: string, pad: string, phase?: "down" | "up", options: { from?: string } = {}) =>
+          (value as (b: string, p: string, ph: string | undefined, o: object) => unknown).call(target, board, pad, phase, { from, ...options });
       } else {
         method = (value as (...args: unknown[]) => unknown).bind(target);
       }

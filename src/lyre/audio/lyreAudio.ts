@@ -241,6 +241,13 @@ export interface LyreAudio {
   previewTrack(trackId: string, options?: PreviewTrackOptions): CueOutcome;
   previewPlaylist(playlistId: string, options?: PreviewFrom): CueOutcome;
   previewPad(boardId: string, padId: string, options?: PreviewFrom): CueOutcome;
+  /**
+   * SFX-12 Try pads: a press ("down", default) or let-go ("up") played as the pad plays in Live, but in the
+   * headphones only, as the preview (key "pad:<board>/<pad>"): a toggle loop starts and stops, a hold pad loops while
+   * held, a one-shot plays once and a restart pad starts again. One preview at a time, so a second one-shot press
+   * starts it again rather than overlapping.
+   */
+  tryPad(boardId: string, padId: string, phase?: "down" | "up", options?: PreviewFrom): CueOutcome;
   stopPreview(): void;
   /** UX-16: pause the preview, or carry on if it is paused. */
   togglePreviewPause(): CueOutcome;
@@ -576,6 +583,45 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     }
     preview.play({ ...padPreview({ boardId, padId, label: pad.label, media }), from: options.from ?? null });
     return OK;
+  }
+
+  tryPad(boardId: string, padId: string, phase: "down" | "up" = "down", options: PreviewFrom = {}): CueOutcome {
+    const preview = this.parts.preview;
+    const key = `pad:${boardId}/${padId}`;
+    const pad = this.library.pad(boardId, padId);
+    if (!pad || pad.trackIds.length === 0) {
+      return this.fail("That pad has no sound.");
+    }
+    const on = preview.isPreviewing(key);
+    // The same rules as RoomPlayer.firePad, on the preview: a let-go only ends a hold pad; a toggle's second press
+    // stops it; a hold pad already sounding goes on.
+    if (phase === "up") {
+      if (pad.mode === "hold" && on) preview.stop();
+      return OK;
+    }
+    if ((pad.mode === "toggle" && on) || (pad.mode === "hold" && on)) {
+      if (pad.mode === "toggle") preview.stop();
+      return OK;
+    }
+    const track = this.library.track(this.tryVariant(key, pad.trackIds, pad.order));
+    const media = track ? this.library.media(track) : null;
+    if (!media) {
+      return this.fail("That pad has no sound.");
+    }
+    const loop = pad.mode === "toggle" || pad.mode === "hold";
+    preview.play({ ...padPreview({ boardId, padId, label: pad.label, media }), options: { loop, volume: pad.volume }, from: options.from ?? null });
+    return OK;
+  }
+
+  /** The sound a tried pad plays this press: in turn, or at random (as the Director picks a pad's variant). */
+  private readonly tryTurns = new Map<string, number>();
+  private tryVariant(key: string, trackIds: string[], order: "random" | "roundrobin"): string {
+    if (order === "roundrobin") {
+      const turn = this.tryTurns.get(key) ?? 0;
+      this.tryTurns.set(key, turn + 1);
+      return trackIds[turn % trackIds.length];
+    }
+    return trackIds[Math.min(trackIds.length - 1, Math.floor(Math.random() * trackIds.length))];
   }
 
   stopPreview(): void {

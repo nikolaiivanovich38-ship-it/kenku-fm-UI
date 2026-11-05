@@ -19,6 +19,7 @@ function Buttons() {
       <button type="button" onClick={() => audio.previewTrack("t13", { startAtMs: 500, quiet: true })}>Track from a point</button>
       <button type="button" onClick={() => audio.previewPlaylist("p-ashen")}>Playlist</button>
       <button type="button" onClick={() => audio.previewPad("combat", "sword", { from: "a pad" })}>Pad</button>
+      <button type="button" onClick={() => audio.tryPad("combat", "sword", "up")}>Try</button>
       <button type="button" onClick={() => audio.playTrack("t13")}>On air</button>
     </>
   );
@@ -40,12 +41,13 @@ describe("ScreenSound", () => {
         </ScreenSound>
       </LyreAudioProvider>,
     );
-    for (const name of ["Track", "Track from a point", "Playlist", "Pad", "On air"]) await userEvent.click(screen.getByRole("button", { name }));
+    for (const name of ["Track", "Track from a point", "Playlist", "Pad", "Try", "On air"]) await userEvent.click(screen.getByRole("button", { name }));
     expect(audio.calls).toEqual([
       ["previewTrack", "t13", { from: "the campaign page" }],
       ["previewTrack", "t13", { from: "the campaign page", startAtMs: 500, quiet: true }],
       ["previewPlaylist", "p-ashen", { from: "the campaign page" }],
       ["previewPad", "combat", "sword", { from: "a pad" }],
+      ["tryPad", "combat", "sword", "up", { from: "the campaign page" }],
       ["playTrack", "t13"],
     ]);
   });

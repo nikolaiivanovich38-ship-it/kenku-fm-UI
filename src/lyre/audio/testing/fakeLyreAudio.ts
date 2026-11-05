@@ -73,6 +73,7 @@ export class FakeLyreAudio extends TypedEmitter<LyreAudioEvents> implements Lyre
   previewTrack = this.record("previewTrack");
   previewPlaylist = this.record("previewPlaylist");
   previewPad = this.record("previewPad");
+  tryPad = this.record("tryPad");
   togglePreviewPause = this.record("togglePreviewPause");
 
   stopPreview(): void {
