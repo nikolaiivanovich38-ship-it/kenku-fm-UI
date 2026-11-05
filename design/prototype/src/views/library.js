@@ -150,7 +150,7 @@
       '<th class="lb-c-ck"><label class="lb-ckl"><input type="checkbox" data-act="lbselall" data-k="lb-selall" aria-label="Select all ' + list.length + ' shown"' + (allOn ? ' checked' : '') + '></label></th>' +
       '<th class="lb-c-title"' + (sortT ? ' aria-sort="' + sortT + '"' : '') + '>Title</th><th class="lb-c-tags">Tag</th><th class="lb-c-en">Energy</th>' +
       '<th class="lb-c-dur"' + (sortD ? ' aria-sort="' + sortD + '"' : '') + '>Length</th><th class="lb-c-pv"><span class="sr-only">Preview, play on air, more</span></th></tr></thead><tbody>';
-    if (!list.length) h += '<tr class="lb-emptyrow"><td colspan="6"><div class="empty">' + (st.q || filtersOn() ? 'No track matches. <button class="btn s" data-act="lbclearall" data-k="lb-clearall2">Clear search and filters</button>' : 'No tracks yet. Use Add tracks, or drop files here.') + '</div></td></tr>';
+    if (!list.length) h += '<tr class="lb-emptyrow"><td colspan="6"><div class="empty">' + (st.q || filtersOn() ? 'No track matches. <button class="btn s" data-act="lbclearall" data-k="lb-clearall2">Clear search and filters</button>' : '<b>Your library is empty.</b> Add music, ambience and sound effects with <b>Add tracks</b>, or drop audio files or a folder here.') + '</div></td></tr>';
     list.forEach(function (t) {
       var sel = st.sel.indexOf(t.id) > -1, open = t.id === openId;
       var own = t.title, meta = t.metaTitle, shown = own || meta || t.file;
@@ -299,7 +299,7 @@
         '<button class="btn primary" data-act="lbaddmenu" data-k="lb-add" aria-haspopup="menu" aria-expanded="false">' + L.icon('plus', 's') + 'Add tracks' + L.icon('chevdown', 's') + '</button></div>';
 
       function fPane(strip) {
-        return L.pane({ id: 'lb-filters', title: 'Filters', icon: 'rule', cls: 'lb-filters' + (strip ? ' lb-strip' : ''), collapsed: mode !== 'wide', kind: 'search', summary: filterSummary(), scroll: 'lb-filters', status: nFilters() ? { text: nFilters() + ' selected', tone: 'on' } : null,
+        return L.pane({ id: 'lb-filters', title: 'Filters', icon: 'rule', cls: 'lb-filters' + (strip ? ' lb-strip' : ''), collapsed: mode !== 'wide', kind: 'search', summary: filterSummary(), scroll: 'lb-filters', status: nFilters() ? { text: nFilters() + (nFilters() > 1 ? ' filters on' : ' filter on'), tone: 'on' } : null,
           actions: filtersOn() ? '<button class="btn s ghost" data-act="lbclearall" data-k="lb-clearall">Clear all</button>' : '', body: filtersBody() });
       }
       function tPane(strip) {
@@ -496,7 +496,9 @@
   function selTracks() { return st.sel.map(L.track).filter(Boolean); }
   function tsBody() {
     var tr = selTracks(), n = tr.length;
-    var h = '<p class="muted lb-tsintro">"All" or "2 of 3" on a tag: how many of the ' + plural(n, 'selected track') + ' have it already.</p>' +
+    // The line explains the counts on the tags, so it shows only when a tag has one.
+    var counted = D.tagGroups.some(function (g) { return D.tagValues[g.id].some(function (v) { return tr.some(function (t) { return (t.tags[g.id] || []).indexOf(v) > -1; }); }); });
+    var h = '<p class="muted lb-tsintro">' + (counted ? '"All" or "2 of 3" on a tag: how many of the ' + plural(n, 'selected track') + ' have it already.' : 'None of the ' + plural(n, 'selected track') + ' has a tag yet.') + '</p>' +
       '<div class="seg s lb-seg24" role="group" aria-label="Add or remove"><button data-act="lbtsmode" data-v="add" data-k="lb-ts-add" aria-pressed="' + (ts.mode === 'add') + '">' + L.icon('plus', 's') + 'Add tags</button>' +
       '<button data-act="lbtsmode" data-v="remove" data-k="lb-ts-rm" aria-pressed="' + (ts.mode === 'remove') + '">' + L.icon('minus', 's') + 'Remove tags</button></div>';
     D.tagGroups.forEach(function (g) {
@@ -539,7 +541,7 @@
   }
   L.acts.lbtsnew = function (el) { tsCreate(el.dataset.g); };
   L.acts.lbtsapply = function () {
-    var tr = selTracks(), add = ts.mode === 'add', names = [];
+    var tr = selTracks(), add = ts.mode === 'add', names = [], restore = L.snapshot(['tracks', 'tagValues']);
     D.tagGroups.forEach(function (g) {
       ts.pick[g.id].forEach(function (v) {
         names.push(v);
@@ -550,6 +552,7 @@
     var msg = (add ? 'Added ' : 'Removed ') + names.join(', ') + (add ? ' to ' : ' from ') + plural(tr.length, 'track') + '.';
     var stillNew = tr.filter(function (t) { return t.isNew; }).length;
     st.guide = { icon: 'tag', html: esc(msg) + (stillNew ? ' ' + plural(stillNew, 'track') + (stillNew === 1 ? ' still needs' : ' still need') + ' a title of your own: open ' + (stillNew === 1 ? 'it' : 'each one') + ' to type it.' : '') };
+    L.undoNote(msg, restore);
     L.closeSheet(); L.render(); L.say(msg);
   };
 

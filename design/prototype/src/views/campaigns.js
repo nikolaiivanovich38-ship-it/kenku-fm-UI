@@ -224,7 +224,9 @@
     render: function () {
       return '<div class="viewhead"><h1>Campaigns</h1><span class="muted cp-count">' + plural(D.campaigns.length, 'campaign') + '</span><span class="grow"></span>' +
         '<button class="btn primary" data-act="cpnew" data-k="cpnew">' + L.icon('plus', 's') + 'New campaign</button></div>' +
-        '<div class="viewbody" data-scroll="cp-grid"><div class="cp-grid">' + D.campaigns.map(card).join('') + '</div></div>';
+        '<div class="viewbody" data-scroll="cp-grid">' + (D.campaigns.length ? '<div class="cp-grid">' + D.campaigns.map(card).join('') + '</div>'
+          // A first-time user: what a campaign is and what to do first (w3-ux 9).
+          : '<div class="empty"><b>No campaigns yet.</b> A campaign holds your sessions, the scenes in each, and the music, ambience and pad boards you use in them. Start with <b>New campaign</b>.</div>') + '</div>';
     },
     after: afterRender
   });
@@ -410,7 +412,7 @@
     return '<div class="cp-box">' +
       (bds.length ? '<ol class="cp-items" aria-label="Pad boards in order">' + bds.map(function (b, i) { return itemRow(sc, 'boards', info(b, true), i, bds.length, 'Shown first'); }).join('') + '</ol>'
         : '<p class="faint cp-mnone">No pad boards yet.</p>') +
-      '<div class="cp-boxbtns"><button class="btn s" data-act="cpaddboards" data-sc="' + sc.id + '" data-k="ab-' + sc.id + '">' + L.icon('plus', 's') + 'Add pad boards…</button><span class="hint">The first is shown when the scene starts.</span></div></div>';
+      '<div class="cp-boxbtns"><button class="btn s" data-act="cpaddboards" data-sc="' + sc.id + '" data-k="ab-' + sc.id + '" aria-label="Add pad boards… to ' + esc(sc.name) + '">' + L.icon('plus', 's') + 'Add pad boards…</button><span class="hint">The first is shown when the scene starts.</span></div></div>';
   }
   function ambSlot(sc) {
     var it = sc.amb ? info(sc.amb) : null, xk = 'cp-' + sc.id + ':amb:' + (it ? it.id : '');
@@ -538,9 +540,10 @@
   };
   L.acts.cpdel = function (el) {
     var x = findScene(el.dataset.id); L.closeSheet(); if (!x) return;
+    L.undoNote('Deleted scene "' + (x.sc.name || 'Untitled scene') + '" and its notes.', L.snapshot(['campaigns']));
     x.s.scenes.splice(x.i, 1); delete open[x.sc.id];
     var nb = x.s.scenes[Math.max(0, x.i - 1)]; focusK = nb ? 'sct-' + nb.id : 'addscene'; current = nb ? nb.id : null;
-    L.render(); L.toast('Deleted scene "' + (x.sc.name || 'Untitled scene') + '"');
+    L.render();
   };
   L.inputs.cpsess = function (el) {
     var x = ctx(), s = x.s, f = el.dataset.f;

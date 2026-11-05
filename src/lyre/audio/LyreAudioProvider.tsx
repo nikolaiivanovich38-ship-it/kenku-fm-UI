@@ -5,7 +5,8 @@
  * - `useLyreAudio()`: the LyreAudio to call (play, pads, preview…);
  *   `useOptionalLyreAudio()` for the shell, which also works without sound.
  * - `useNowPlaying()`: what plays in each room, redrawn on every change and
- *   about once a second while anything plays (positions).
+ *   about once a second while anything plays (positions); `usePreviewKey()`
+ *   only what previews.
  * - `useLyreAudioEvent("announce" | "error", handler)`: sentences for the
  *   screen reader's live region, and plain messages for toasts.
  *
@@ -39,6 +40,17 @@ export function useNowPlaying(): NowPlaying {
   // Stable per LyreAudio, so React subscribes once, not on every render.
   const subscribe = useCallback((listener: () => void) => audio.subscribe(listener), [audio]);
   const snapshot = useCallback(() => audio.getNowPlaying(), [audio]);
+  return useSyncExternalStore(subscribe, snapshot);
+}
+
+/**
+ * The key of what previews now (a track's id, "pl:…", "pad:…"), or null. Redraws only when that changes, not on every
+ * now-playing tick, so a list of many Preview buttons stays cheap while music plays.
+ */
+export function usePreviewKey(): string | null {
+  const audio = useLyreAudio();
+  const subscribe = useCallback((listener: () => void) => audio.subscribe(listener), [audio]);
+  const snapshot = useCallback(() => audio.getNowPlaying().preview?.key ?? null, [audio]);
   return useSyncExternalStore(subscribe, snapshot);
 }
 

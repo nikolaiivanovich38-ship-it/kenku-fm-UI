@@ -13,6 +13,8 @@ export interface PickerItem {
   sub?: string;
   /** Items are listed under their group's heading, in the order the groups first appear. */
   group?: string;
+  /** The group's own key when two groups may share a name (a campaign's id); the group's name by default. */
+  groupId?: string;
   /** Extra words the search matches (track titles inside a playlist, tags). */
   search?: string;
   /** Drawn a step in (a scene under its session). */
@@ -51,7 +53,7 @@ export interface PickerDialogProps {
    * while searching every match shows.
    */
   fold?: boolean;
-  /** With fold: the groups open at the start (the campaign in hand). */
+  /** With fold: the groups open at the start (the campaign in hand), by their key (groupId, else name). */
   openGroups?: readonly string[];
   /** The ticked ids, in the order they were ticked (items already ticked first). */
   onDone: (ids: string[]) => void;
@@ -62,6 +64,8 @@ export interface PickerDialogProps {
  * Choose from a long list in a sheet (the prototype's L.pickerSheet): search, an optional Show filter, groups,
  * expanders to look inside before adding, and Cancel or Done. The screens build the items from the library.
  */
+const groupKey = (item: PickerItem): string => item.groupId ?? item.group ?? "";
+
 export function PickerDialog(props: PickerDialogProps) {
   // A fresh state each time it opens.
   return props.open ? <PickerBody {...props} /> : null;
@@ -88,7 +92,7 @@ function PickerBody({
   const [filter, setFilter] = useState(filters?.[0]?.id ?? "");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(
-    () => new Set([...openGroups, ...items.filter((item) => selected.includes(item.id)).map((item) => item.group ?? "")]),
+    () => new Set([...openGroups, ...items.filter((item) => selected.includes(item.id)).map(groupKey)]),
   );
   const toggleGroup = (name: string) =>
     setUnfolded((current) => {
@@ -96,7 +100,7 @@ function PickerBody({
       if (!next.delete(name)) next.add(name);
       return next;
     });
-  const tickedIn = (name: string) => items.filter((item) => (item.group ?? "") === name && chosen.includes(item.id)).length;
+  const tickedIn = (key: string) => items.filter((item) => groupKey(item) === key && chosen.includes(item.id)).length;
 
   const activeFilter = filters?.find((f) => f.id === filter);
   const needle = query.trim().toLowerCase();
@@ -105,12 +109,12 @@ function PickerBody({
       (!needle || `${item.label} ${item.sub ?? ""} ${item.search ?? ""}`.toLowerCase().includes(needle)) &&
       (!activeFilter || activeFilter.test(item)),
   );
-  const groups: { name: string; items: PickerItem[] }[] = [];
+  const groups: { key: string; name: string; items: PickerItem[] }[] = [];
   for (const item of visible) {
-    const name = item.group ?? "";
-    let group = groups.find((g) => g.name === name);
+    const key = groupKey(item);
+    let group = groups.find((g) => g.key === key);
     if (!group) {
-      group = { name, items: [] };
+      group = { key, name: item.group ?? "", items: [] };
       groups.push(group);
     }
     group.items.push(item);
@@ -154,15 +158,16 @@ function PickerBody({
       <div className="pk-list" role="group" aria-label={title}>
         {groups.length === 0 && <p className="empty">Nothing matches{needle ? ` "${query.trim()}"` : " this filter"}.</p>}
         {groups.map((group) => {
-          const shown = !fold || !!needle || !group.name || unfolded.has(group.name);
+          const shown = !fold || !!needle || !group.name || unfolded.has(group.key);
           return (
-            <React.Fragment key={group.name}>
+            <React.Fragment key={group.key}>
               {group.name && fold && (
-                <button type="button" className="pk-groupbtn" aria-expanded={shown} onClick={() => toggleGroup(group.name)}>
+                // While searching every match shows, so the heading cannot fold its group.
+                <button type="button" className="pk-groupbtn" aria-expanded={shown} disabled={!!needle} onClick={() => toggleGroup(group.key)}>
                   <Icon name="chevdown" size="s" />
                   {group.name}
                   <span className="hint" style={{ marginLeft: "auto" }}>
-                    {tickedIn(group.name)} ticked
+                    {tickedIn(group.key)} ticked
                   </span>
                 </button>
               )}
@@ -212,7 +217,7 @@ function PickerBody({
         hint
       ) : renderContents ? (
         <p className="hint" style={{ marginTop: 6 }}>
-          <Icon name="chevdown" size="s" /> shows what is inside.
+          The arrow <Icon name="chevdown" size="s" /> beside a name shows what is inside.
         </p>
       ) : null}
     </Dialog>

@@ -40,6 +40,8 @@ export interface ProfileEditor {
   /** "Back to the track's settings" was just used here, so Undo can bring them back. */
   canUndoClear: boolean;
   write(next: Prof, when?: WriteWhen): boolean;
+  /** Write at once; resolves with the library's undo label for it (null when refused or nothing changed). */
+  writeNow(next: Prof): Promise<string | null>;
   flush(): void;
   giveOwn(): Promise<boolean>;
   clearOwn(): Promise<boolean>;
@@ -81,24 +83,26 @@ export function useProfileEditor(trackId: string, key: string): ProfileEditorSta
     [toast],
   );
 
-  const flush = useCallback(() => {
+  const flush = useCallback((): Promise<string | null> => {
     clearTimeout(timer.current);
     const p = queued.current;
-    if (!p) return;
+    if (!p) return Promise.resolve(null);
     queued.current = null;
     pending.current++;
-    api.profiles.set(trackId, place, toInput(p)).then(
+    return api.profiles.set(trackId, place, toInput(p)).then(
       (result) => {
         pending.current--;
-        if (!showRefusal(result)) return;
+        if (!showRefusal(result)) return result.ok ? result.undoLabel : null;
         setDraft(null);
         setSaved(false);
+        return null;
       },
-      () => {
+      (): null => {
         pending.current--;
         toast("Lyre could not keep that change. Try again.");
         setDraft(null);
         setSaved(false);
+        return null;
       },
     );
     // place is derived from key; trackId and key fix it.
@@ -108,7 +112,7 @@ export function useProfileEditor(trackId: string, key: string): ProfileEditorSta
   // A change waiting to be written is written when the screen closes (another place, another screen).
   const flushRef = useRef(flush);
   flushRef.current = flush;
-  useEffect(() => () => flushRef.current(), []);
+  useEffect(() => () => void flushRef.current(), []);
 
   // New data from the library: show it, unless a change of ours is still on its way.
   useEffect(() => {
@@ -144,7 +148,14 @@ export function useProfileEditor(trackId: string, key: string): ProfileEditorSta
       else if (when === "soon") timer.current = setTimeout(flush, SOON_MS);
       return true;
     },
-    flush,
+    writeNow(next) {
+      if (!editable) return Promise.resolve(null);
+      setDraft(next);
+      setSaved(true);
+      queued.current = next;
+      return flush();
+    },
+    flush: () => void flush(),
     async giveOwn() {
       if (!place) return false;
       const result = await api.profiles.set(trackId, place, track.profile ?? {});

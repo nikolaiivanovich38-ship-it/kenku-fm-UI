@@ -10,7 +10,9 @@ import { currentViewOverlay } from "../../common/viewOverlay";
 export function getBounds() {
   const controls = document.getElementById("controls");
   const y = controls?.clientHeight || 0;
-  const sidebarWidth = Number(document.getElementById("sidebar")?.dataset.width) || SIDEBAR_WIDTH;
+  // 0 is a width too: the sidebar steps aside for the Lyre tab.
+  const drawn = document.getElementById("sidebar")?.dataset.width;
+  const sidebarWidth = drawn === undefined || drawn === "" || Number.isNaN(Number(drawn)) ? SIDEBAR_WIDTH : Number(drawn);
   // UX finding 1/8: an open side panel (Settings) may be wider than the sidebar.
   const x = Math.max(sidebarWidth, currentViewOverlay().inset);
   return {

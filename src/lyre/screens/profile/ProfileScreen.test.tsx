@@ -118,7 +118,7 @@ describe("the handles", () => {
     const { user } = await open();
     slider("Fade out length").focus();
     for (let i = 0; i < 4; i++) await user.keyboard("{ArrowRight}");
-    expect(fades().getByRole("textbox", { name: "fade out in seconds" })).toHaveValue("4");
+    expect(fades().getByRole("textbox", { name: "fade out length in seconds" })).toHaveValue("4");
   });
 });
 
@@ -160,6 +160,22 @@ describe("what happens at the end", () => {
     expect(end).toHaveValue("4:30");
   });
 
+  it("a time it cannot use keeps its message after Enter and leaves End as it was, not at a time typed on the way (w3-ux 1)", async () => {
+    const { api, user } = await open();
+    const end = atEnd().getByRole("textbox", { name: "End" });
+    await user.clear(end);
+    await user.type(end, "9:00{Enter}");
+    expect(end).toHaveAttribute("aria-invalid", "true");
+    expect(region("At the end")).toHaveTextContent("Between 0:01 and 7:21");
+    expect(value("End")).toBe(318);
+    await act(() => new Promise((r) => setTimeout(r, 800)));
+    expect((await savedProfile(api))?.endMs ?? 318_000).toBe(318_000);
+    await user.clear(end);
+    await user.type(end, "6:00{Enter}");
+    expect(end).not.toHaveAttribute("aria-invalid");
+    expect(value("End")).toBe(360);
+  });
+
   it("Start at playhead takes the time from the playhead", async () => {
     const { user } = await open();
     slider("Playhead").focus();
@@ -174,7 +190,7 @@ describe("what happens at the end", () => {
     await user.click(screen.getByRole("button", { name: "Reset to whole track" }));
     expect(atEnd().getByRole("textbox", { name: "End" })).toHaveValue("7:21");
     expect(atEnd().getByRole("textbox", { name: "Start" })).toHaveValue("0:00");
-    expect(document.getElementById("lyre-toast")).toHaveTextContent("Back to the whole track: 0:00 to 7:21, no fades");
+    // What happened is said with Undo in the shell's message (screens/undoNotes.test.tsx).
   });
 });
 
@@ -184,11 +200,13 @@ describe("fades", () => {
     expect(region("Fades")).toHaveTextContent("No fades");
     await user.click(fades().getByRole("button", { name: "Longer fade in" }));
     await user.click(fades().getByRole("button", { name: "Longer fade in" }));
-    expect(fades().getByRole("textbox", { name: "fade in in seconds" })).toHaveValue("2");
+    expect(fades().getByRole("textbox", { name: "fade in length in seconds" })).toHaveValue("2");
     await user.click(fades().getByRole("button", { name: "Shorter fade in" }));
-    expect(fades().getByRole("textbox", { name: "fade in in seconds" })).toHaveValue("1");
+    expect(fades().getByRole("textbox", { name: "fade in length in seconds" })).toHaveValue("1");
     expect(region("Fades")).toHaveTextContent("In 1 s · out 0 s");
-    const intensity = fades().getAllByRole("slider", { name: "Intensity" });
+    // Each slider is named for its fade (w3-ux 14).
+    expect(fades().getByRole("slider", { name: "Fade in intensity" })).toBeInTheDocument();
+    const intensity = [fades().getByRole("slider", { name: "Fade in intensity" }), fades().getByRole("slider", { name: "Fade out intensity" })];
     expect(intensity).toHaveLength(2);
     expect(intensity[0]).toHaveAttribute("aria-valuetext", "Even, 50 of 100");
   });
@@ -196,7 +214,7 @@ describe("fades", () => {
   it("a looping track has a loop crossfade", async () => {
     await open();
     expect(region("Fades")).toHaveTextContent(/Crossfade the loop\s*smooths the jump back to 1:04/);
-    expect(fades().getByRole("textbox", { name: "loop crossfade in seconds" })).toHaveValue("2");
+    expect(fades().getByRole("textbox", { name: "loop crossfade length in seconds" })).toHaveValue("2");
   });
 });
 
@@ -288,6 +306,57 @@ describe("the preview's sound follows the profile shown", () => {
     expect(wave).toHaveTextContent(/Position\s*1:04\.4/);
   });
 
+  it("while the file loads the clock may run ahead; the first position puts it back without counting a loop (review 2)", async () => {
+    const { audio, user } = await open();
+    await user.click(screen.getByRole("button", { name: "Play the last 10 s before End" }));
+    const wave = region("Waveform and listening");
+    await act(() => new Promise((r) => setTimeout(r, 600)));
+    position(audio, 308);
+    expect(wave).toHaveTextContent(/Position\s*5:08\.0/);
+    expect(wave).toHaveTextContent(/Looped\s*not yet/);
+    position(audio, 308.05);
+    expect(wave).toHaveTextContent(/Looped\s*not yet/);
+    expect(document.getElementById("lyre-live")).not.toHaveTextContent(/back to/);
+  });
+
+  it("arrow keys on the playhead while it plays start the sound again once, after the keys rest (review 4)", async () => {
+    const { audio, user } = await open();
+    await user.click(within(region("Waveform and listening")).getByRole("button", { name: "Play" }));
+    position(audio, 0.2);
+    expect(previews(audio)).toHaveLength(1);
+    slider("Playhead").focus();
+    await user.keyboard("{ArrowRight}{ArrowRight}{ArrowRight}{ArrowRight}{ArrowRight}");
+    expect(previews(audio)).toHaveLength(1);
+    // The old sound's positions do not pull the playhead back while the new one is on its way.
+    position(audio, 0.3);
+    expect(region("Waveform and listening")).toHaveTextContent(/Position\s*0:05/);
+    await waitFor(() => expect(previews(audio)).toHaveLength(2));
+    expect((previews(audio)[1][2] as { startAtMs: number }).startAtMs).toBeGreaterThanOrEqual(5000);
+  });
+
+  it("a profile change while it plays starts the sound again from the playhead, with the change (review 7)", async () => {
+    const { audio, user } = await open();
+    await user.click(screen.getByRole("button", { name: "Play the last 10 s before End" }));
+    position(audio, 310);
+    slider("End").focus();
+    await user.keyboard("{ArrowRight}{ArrowRight}");
+    await waitFor(() => expect(previews(audio)).toHaveLength(2));
+    const [, id, options] = previews(audio)[1] as [string, string, { startAtMs: number; profile: { endMs: number } }];
+    expect(id).toBe("t13");
+    expect(options.profile.endMs).toBe(320_000);
+    expect(options.startAtMs).toBeGreaterThanOrEqual(310_000);
+  });
+
+  it("a jump of the playhead (Home) while it plays starts the sound again from there (review 7)", async () => {
+    const { audio, user } = await open();
+    await user.click(screen.getByRole("button", { name: "Play the last 10 s before End" }));
+    position(audio, 309);
+    slider("Playhead").focus();
+    await user.keyboard("{Home}");
+    await waitFor(() => expect(previews(audio)).toHaveLength(2));
+    expect((previews(audio)[1][2] as { startAtMs: number }).startAtMs).toBe(0);
+  });
+
   it("moving on, it previews the next track from its Start with its settings there, then stops", async () => {
     const { audio, user } = await open("profile/t13/sc:crown:s14:sc3");
     await user.click(screen.getByRole("button", { name: "Play the last 10 s before End" }));
@@ -303,6 +372,35 @@ describe("the preview's sound follows the profile shown", () => {
     expect(next[1]).not.toBe("t13");
     expect(next[2].quiet).toBe(true);
     await waitFor(() => expect(document.getElementById("lyre-live")).toHaveTextContent(/Moved on to the next track/));
+  });
+});
+
+describe("a preview that cannot play (review w3-polish 1)", () => {
+  it("refused, the clock does not start and nothing says it plays", async () => {
+    const { audio, user } = await open();
+    audio.answer = { ok: false, message: "Unable to preview: Eerie dread" };
+    const wave = region("Waveform and listening");
+    await user.click(within(wave).getByRole("button", { name: "Play" }));
+    await act(() => new Promise((r) => setTimeout(r, 300)));
+    expect(within(wave).getByRole("button", { name: "Play" })).toHaveAttribute("aria-pressed", "false");
+    expect(value("Playhead")).toBe(0);
+    expect(document.getElementById("lyre-live")).not.toHaveTextContent("Preview from");
+  });
+
+  it("failing while it loads, the clock stops where it is, says why, and never claims End", async () => {
+    const { audio, user } = await open();
+    const wave = region("Waveform and listening");
+    await user.click(screen.getByRole("button", { name: "Play the last 10 s before End" }));
+    act(() => audio.setNowPlaying({ preview: { key: "t13", label: "Eerie dread" } }));
+    act(() => {
+      audio.emit("preview-failed", { key: "t13", message: "Could not play the preview of Eerie dread, low cello and choir." });
+      audio.setNowPlaying({ preview: null });
+    });
+    expect(within(wave).getByRole("button", { name: "Play" })).toHaveAttribute("aria-pressed", "false");
+    expect(document.getElementById("lyre-toast")).toHaveTextContent("Could not play the preview of Eerie dread");
+    await act(() => new Promise((r) => setTimeout(r, 100)));
+    expect(document.getElementById("lyre-live")).not.toHaveTextContent(/Stopped at End|Moved on/);
+    expect(wave).not.toHaveTextContent(/Stopped at End/);
   });
 });
 

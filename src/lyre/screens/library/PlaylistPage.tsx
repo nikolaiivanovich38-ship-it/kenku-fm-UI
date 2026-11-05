@@ -902,6 +902,7 @@ function RulesPane({ pl, edit, data, matches }: { pl: Extract<PlaylistInfo, { ki
           <select
             className="input pl-sel pl-num"
             aria-label="Lowest energy"
+            aria-describedby="pl-en-hint"
             value={en[0]}
             onChange={(e) => {
               const lo = Number(e.target.value);
@@ -917,6 +918,7 @@ function RulesPane({ pl, edit, data, matches }: { pl: Extract<PlaylistInfo, { ki
           <select
             className="input pl-sel pl-num"
             aria-label="Highest energy"
+            aria-describedby="pl-en-hint"
             value={en[1]}
             onChange={(e) => {
               const hi = Number(e.target.value);
@@ -941,6 +943,10 @@ function RulesPane({ pl, edit, data, matches }: { pl: Extract<PlaylistInfo, { ki
       <p className="pl-words">
         <span className="faint">In plain words:</span> {KIND_NAMES[pl.lane]} tracks{words ? ` with ${words}` : ", all of them"}.
         {waiting && <span className="pl-warn"> A condition still needs a value, so nothing matches yet.</span>}
+      </p>
+      {/* w3-ux 18: the energy lists start at 0, which is a track whose energy is not set. */}
+      <p className="hint pl-enhint" id="pl-en-hint">
+        Energy 0 means a track with no energy set.
       </p>
     </Pane>
   );

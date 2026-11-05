@@ -1,12 +1,12 @@
 /** Preview and Play on air for every kind of sound (the prototype's L.previewButton and L.playOnAirButton). */
-import React from "react";
+import React, { Profiler } from "react";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { PadBoard } from "../../common/lyre/api";
 import { LyreAudioProvider } from "../audio";
-import { FakeLyreAudio } from "../audio/testing/fakeLyreAudio";
+import { EMPTY_NOW_PLAYING, FakeLyreAudio } from "../audio/testing/fakeLyreAudio";
 import { AnnouncerProvider } from "../shell/Announcer";
 import { expectNoAxeViolations } from "../test/axe";
 import { PlayOnAirButton, PreviewButton, previewKeyOf, type SoundTarget } from "./SoundButtons";
@@ -113,3 +113,62 @@ describe("Play on air (the players hear it)", () => {
     expect(audio.calls[audio.calls.length - 1]).toEqual(["firePad", "combat", "sword"]);
   });
 });
+
+describe("a hold pad pressed from Play on air (review w3-polish 10)", () => {
+  const ups = (audio: FakeLyreAudio) => audio.calls.filter((c) => c[0] === "firePad" && c[3] === "up").length;
+
+  it("a second press within 1.5 s keeps it held 1.5 s from that press, and lets go once", () => {
+    vi.useFakeTimers();
+    const audio = show(<PlayOnAirButton target={{ kind: "pad", boardId: "combat", padId: "sword", hold: true }} name="Sword" />);
+    const button = screen.getByRole("button", { name: "Play on air: Sword" });
+    act(() => button.click());
+    act(() => vi.advanceTimersByTime(1000));
+    act(() => button.click());
+    act(() => vi.advanceTimersByTime(1000));
+    expect(ups(audio)).toBe(0);
+    act(() => vi.advanceTimersByTime(600));
+    expect(ups(audio)).toBe(1);
+    act(() => vi.advanceTimersByTime(3000));
+    expect(ups(audio)).toBe(1);
+  });
+
+  it("is let go at once when the button goes away while it is held", () => {
+    vi.useFakeTimers();
+    const audio = new FakeLyreAudio();
+    const { unmount } = render(
+      <LyreAudioProvider audio={audio}>
+        <AnnouncerProvider>
+          <PlayOnAirButton target={{ kind: "pad", boardId: "combat", padId: "sword", hold: true }} name="Sword" />
+        </AnnouncerProvider>
+      </LyreAudioProvider>,
+    );
+    act(() => screen.getByRole("button", { name: "Play on air: Sword" }).click());
+    unmount();
+    expect(ups(audio)).toBe(1);
+    act(() => vi.advanceTimersByTime(3000));
+    expect(ups(audio)).toBe(1);
+  });
+});
+
+describe("many Preview buttons (review w3-polish 5)", () => {
+  it("draw again only when what previews changes, not on every now-playing tick", () => {
+    const audio = new FakeLyreAudio();
+    let commits = 0;
+    show(
+      <Profiler id="list" onRender={() => commits++}>
+        {Array.from({ length: 50 }, (_, i) => (
+          <PreviewButton key={i} target={{ kind: "track", id: `t${i}` }} name={`T${i}`} />
+        ))}
+      </Profiler>,
+      audio,
+    );
+    commits = 0;
+    const music = { trackId: "m1", title: "Tavern", origin: "single" as never, playlistId: null as string | null, length: 20, paused: false, loading: false };
+    for (let k = 0; k < 10; k++) act(() => audio.setNowPlaying({ rooms: [{ ...EMPTY_NOW_PLAYING.rooms[0], music: { ...music, position: k } }] }));
+    expect(commits).toBe(0);
+    act(() => audio.setNowPlaying({ preview: { key: "t3", label: "T3" } }));
+    expect(commits).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Stop preview of T3" })).toHaveAttribute("aria-pressed", "true");
+  });
+});
+

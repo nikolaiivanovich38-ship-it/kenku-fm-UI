@@ -180,7 +180,7 @@
         filtSeg() + '<label class="pb-camp"><span>Campaign</span><select class="input" data-input="pbcamp" data-k="pbcamp">' +
         '<option value="all">All campaigns</option>' + D.campaigns.map(function (c) { return '<option value="' + c.id + '"' + (bf.cid === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>'; }).join('') + '</select></label></div>' +
         (list.length ? '<ul class="pb-cards" aria-label="Pad boards">' + list.map(card).join('') + '</ul>'
-          : all ? '<div class="empty">No pad boards match. <button class="btn s" data-act="pbclear" data-k="pbclear">Show all boards</button></div>' : '<p class="empty">No pad boards yet. Make one with New board.</p>') + '</div>';
+          : all ? '<div class="empty">No pad boards match. <button class="btn s" data-act="pbclear" data-k="pbclear">Show all boards</button></div>' : '<p class="empty"><b>No pad boards yet.</b> A pad board is a grid of buttons for sound effects you play during a game, each with its own key. Start with <b>New board</b>.</p>') + '</div>';
     },
     after: function (root) { if (ui.pendingFocus) { var n = root.querySelector('[data-k="' + ui.pendingFocus + '"]'); ui.pendingFocus = null; if (n) n.focus(); } }
   });
@@ -234,13 +234,14 @@
       footer: '<button class="btn" data-act="closesheet">Keep it</button><button class="btn danger" data-act="pbdelboardok" data-id="' + b.id + '">Delete board</button>' });
   };
   L.acts.pbdelboardok = function (el) {
-    var id = el.dataset.id, b = L.board(id);
+    var id = el.dataset.id, b = L.board(id), restore = L.snapshot(['boards', 'campaigns']);
+    L.undoNote('Deleted the pad board "' + b.name + '" and took it out of the places that used it.', restore);
     D.campaigns.forEach(function (c) {
       c.boards = c.boards.filter(function (x) { return x !== id; });
       c.sessions.forEach(function (s) { s.boards = s.boards.filter(function (x) { return x !== id; }); s.scenes.forEach(function (sc) { sc.boards = L.sceneBoards(sc).filter(function (x) { return x !== id; }); if (sc.board === id) sc.board = ''; }); });
     });
     D.boards.splice(D.boards.indexOf(b), 1); L.closeSheet();
-    L.toast('Deleted "' + b.name + '"');
+
     if (L.current().name === 'board') L.route('#/boards'); else L.render();
   };
 
@@ -446,6 +447,7 @@
   L.acts.pbaddfile = withPad(function (b, p) {
     var s = p.sound, base = s.files[0] ? s.files[0].replace(/(_\d+)?\.wav$/i, '') : slug(p.label), name;
     if (s.kind === 'single') { name = base + (s.files[0] ? '_alt' : '') + '.wav'; if (s.files.length) s.files[0] = name; else s.files.push(name); L.say('File chosen: ' + name); }
+    if (p.label === 'New pad' && name) p.label = name.replace(/\.wav$/i, '').replace(/_/g, ' ');
     else { var i = s.files.length + 1; do { name = base + '_' + String(i++).padStart(2, '0') + '.wav'; } while (s.files.indexOf(name) > -1); s.files.push(name); L.say('Added ' + name + '. ' + s.files.length + ' variants.'); }
     L.render();
   });
@@ -457,6 +459,8 @@
         if (!ids.length) return;
         var files = ids.map(function (id) { return L.track(id).file; }), own = s.files.filter(function (f) { return !fxTrackByFile(f); });
         s.files = files.concat(own);
+        // A new pad takes the name of its first sound, so two new pads never share the name "New pad".
+        if (p.label === 'New pad') p.label = L.title(L.track(ids[0]));
         if (s.files.length > 1 && s.kind !== 'variants') { s.kind = 'variants'; s.order = s.order || 'random'; L.toast(plural(s.files.length, 'sound') + ' chosen, so the pad plays them as variants'); }
         else if (s.kind === 'tag') s.kind = 'single';
         L.say(plural(files.length, 'sound') + ' from the library on ' + p.label);

@@ -98,6 +98,8 @@
 [data-theme="parchment"] .pb-spare .lrow::before { background: color-mix(in srgb, var(--pc) 55%, #2a1d0c); }
 .pb-sp-pick { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; height: var(--ctl-s); padding: 0 4px; border: 0; background: transparent; color: var(--ink); font-weight: 700; font-size: var(--fs-s); cursor: pointer; border-radius: var(--r-s); text-align: left; }
 .pb-sp-pick .pb-spare-empty { padding: 8px; font-size: var(--fs-s); color: var(--ink-2); }
+/* "Not used yet." in the Used in box sits off the box edge, as in Spare pads. */
+.view [data-pane="pb-used"] .pb-spare-empty { padding: 8px; font-size: var(--fs-s); color: var(--ink-2); }
 
 /* Pad editor */
 .pb-ed-body { display: flex; flex-direction: column; gap: 10px; }

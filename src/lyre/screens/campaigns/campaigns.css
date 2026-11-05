@@ -128,6 +128,9 @@
 .cp-scene.open .cp-scn { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .cp-scname { font-size: var(--fs); }
 .cp-scchip { display: flex; align-items: center; gap: 2px; min-width: 0; max-width: 46%; flex: 0 1 auto; }
+/* On a wide window a scene's music stays beside its name: the name takes at most 28em, the ⋯ menu stays at the end. */
+.cp-scene-toggle { max-width: 28em; }
+.cp-scchip { margin-right: auto; }
 .cp-chip { height: 24px; text-decoration: none; max-width: 100%; min-width: 0; gap: 5px; background: var(--surface); color: var(--ink-2); }
 .cp-chip:hover { text-decoration: underline; background: var(--surface-3); }
 

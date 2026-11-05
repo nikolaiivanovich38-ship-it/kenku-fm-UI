@@ -457,6 +457,10 @@ table.grid tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 v
 .onairbar .oab-items { display: flex; gap: 12px; flex: 1; min-width: 0; overflow: hidden; font-size: var(--fs-s); }
 .onairbar .oab-item { display: flex; align-items: center; gap: 5px; min-width: 0; max-width: 45%; }
 .onairbar a.btn { text-decoration: none; }
+/* w3-ux 10: what a large change did, with Undo (and Ctrl+Z), like the board's resize message; above the on-air bar. */
+.undo-note { display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 8px; margin: 4px 8px; border: 1px solid var(--line-strong); border-left: 3px solid var(--accent); border-radius: var(--r-m); background: var(--surface-2); font-size: var(--fs-s); flex: none; min-width: 0; }
+.undo-note > svg { color: var(--accent-text); flex: none; }
+.undo-note .grow { min-width: 0; }
 .pk-preview { display: flex; align-items: center; gap: 6px; font-size: var(--fs-s); color: var(--ink); min-width: 0; }
 
 /* Round 4 clean-up: every box shows what it is for (a coloured top edge by kind, an icon and a plain title)
@@ -662,6 +666,7 @@ select.input.pl-num { width: 44px; }
 .pl-rulebar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; }
 .pl-energy { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-s); white-space: nowrap; }
 .pl-check { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-s); cursor: pointer; min-height: var(--ctl-s); }
+.pl-enhint { margin-top: 4px; }
 .pl-words { margin-top: 8px; font-size: var(--fs-s); }
 .pl-mq { padding: 2px 2px 4px; }
 .pl-mq .input { height: var(--ctl-s); }
@@ -886,7 +891,6 @@ select.input.pl-asksel { width: auto; max-width: 220px; height: var(--ctl-s); pa
 .lk-card > header h2 { font-size: calc(17px * var(--display-scale)); }
 .lk-card > p { font-size: var(--fs-s); }
 .lk-card > .btn { align-self: flex-start; }
-.lk-words { color: var(--ink-2); }
 .lk-sample { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: var(--r-m); background: var(--bg); color: var(--ink); border: 1px solid var(--line); font: var(--fs)/1.38 var(--body); }
 .lk-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .lk-head .pane-title { font-size: calc(17px * var(--display-scale)); white-space: normal; overflow: visible; }
@@ -896,11 +900,9 @@ select.input.pl-asksel { width: auto; max-width: 220px; height: var(--ctl-s); pa
 .lk-btns { display: flex; gap: 6px; flex-wrap: wrap; }
 .lk-sw { display: flex; height: 14px; border-radius: 3px; overflow: hidden; border: 1px solid var(--line); }
 .lk-sw i { flex: 1; }
-.lk-contrast { font-size: var(--fs-xs); }
 .lk-h2 { font-size: calc(17px * var(--display-scale)); margin: 18px 0 8px; }
 .lk-fixed { display: flex; flex-wrap: wrap; gap: 8px 18px; }
 .lk-fixed > div { display: flex; align-items: center; gap: 6px; font-size: var(--fs-s); }
-.lk-p { max-width: 860px; font-size: var(--fs-s); }
 
 /* Campaigns, Campaign and Session views (prefix cp-). */
 
@@ -1030,6 +1032,9 @@ select.input.pl-asksel { width: auto; max-width: 220px; height: var(--ctl-s); pa
 .cp-scene.open .cp-scn { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
 .cp-scname { font-size: var(--fs); }
 .cp-scchip { display: flex; align-items: center; gap: 2px; min-width: 0; max-width: 46%; flex: 0 1 auto; }
+/* On a wide window a scene's music stays beside its name: the name takes at most 28em, the ⋯ menu stays at the end. */
+.cp-scene-toggle { max-width: 28em; }
+.cp-scchip { margin-right: auto; }
 .cp-chip { height: 24px; text-decoration: none; max-width: 100%; min-width: 0; gap: 5px; background: var(--surface); color: var(--ink-2); }
 .cp-chip:hover { text-decoration: underline; background: var(--surface-3); }
 
@@ -1396,6 +1401,8 @@ td.lb-c-tags > .chip { max-width: calc(100% - 26px); }
 [data-theme="parchment"] .pb-spare .lrow::before { background: color-mix(in srgb, var(--pc) 55%, #2a1d0c); }
 .pb-sp-pick { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; height: var(--ctl-s); padding: 0 4px; border: 0; background: transparent; color: var(--ink); font-weight: 700; font-size: var(--fs-s); cursor: pointer; border-radius: var(--r-s); text-align: left; }
 .pb-sp-pick .pb-spare-empty { padding: 8px; font-size: var(--fs-s); color: var(--ink-2); }
+/* "Not used yet." in the Used in box sits off the box edge, as in Spare pads. */
+[data-pane="pb-used"] .pb-spare-empty { padding: 8px; font-size: var(--fs-s); color: var(--ink-2); }
 
 /* Pad editor */
 .pb-ed-body { display: flex; flex-direction: column; gap: 10px; }
@@ -2613,7 +2620,7 @@ var L = (function () {
       var railMin = L.state.rail === 'min' || (L.state.rail === 'auto' && w < 1100);
       paint(document.getElementById('rail'), railHTML(v.nav || r.name, railMin));
       document.getElementById('rail').className = 'rail' + (railMin ? ' min' : '');
-      paint(document.getElementById('view'), v.render(r.p) + (r.name === 'live' ? '' : onAirBar()));
+      paint(document.getElementById('view'), v.render(r.p) + (r.name === 'live' ? '' : undoNoteHTML() + onAirBar()));
       document.getElementById('view').dataset.view = r.name;
       document.querySelectorAll('#view .col').forEach(function (c) { c.classList.toggle('has-max', !!c.querySelector(':scope > .pane.maxed')); });
       if (v.after) v.after(document.getElementById('view'), r.p);
@@ -2633,6 +2640,38 @@ var L = (function () {
       '<button class="btn s" data-act="oabstop" data-k="oab-stop">' + L.icon('stop', 's') + 'Stop</button><a class="btn s" href="#/live" data-k="oab-live">' + L.icon('broadcast', 's') + 'Go to Live</a></div>';
   }
   L.acts.oabstop = function () { L.fadeAll(1); };
+
+  /* Undo for changes that remove or reset much at once (w3-ux 10): Reset to whole track, Delete board, Delete scene,
+     Tag… on many tracks. Like the board's resize message: what happened, Undo, and a close button; Ctrl+Z also
+     undoes it (Live has its own Ctrl+Z). L.snapshot(['boards', 'campaigns']) copies those data lists before the
+     change; L.undoNote(text, restore) shows the message until another one replaces it or it is closed. */
+  var undoNote = null;
+  L.snapshot = function (keys) {
+    var copy = JSON.parse(JSON.stringify(keys.map(function (k) { return D[k]; })));
+    return function () {
+      keys.forEach(function (k, i) {
+        var cur = D[k], was = copy[i];
+        if (Array.isArray(cur)) cur.splice.apply(cur, [0, cur.length].concat(was));
+        else { Object.keys(cur).forEach(function (x) { delete cur[x]; }); Object.assign(cur, was); }
+      });
+    };
+  };
+  L.undoNote = function (text, restore) { undoNote = { text: text, restore: restore }; };
+  function undoNoteHTML() {
+    return undoNote ? '<div class="undo-note" role="group" aria-label="Undo">' + L.icon('check', 's') + '<span class="grow">' + esc(undoNote.text) + '</span>' +
+      '<button class="btn s" data-act="undonote" data-k="undo-note">Undo</button><button class="closer" data-act="undonotex" data-k="undo-notex" title="Dismiss" aria-label="Dismiss message">' + L.icon('close') + '</button></div>' : '';
+  }
+  L.acts.undonote = function () {
+    var n = undoNote; if (!n) return; undoNote = null; n.restore();
+    L.say('Undone: ' + n.text); L.toast('Undone'); L.render();
+    var h = document.querySelector('#view h1'); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
+  };
+  L.acts.undonotex = function () { undoNote = null; L.render(); var h = document.querySelector('#view h1'); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); } };
+  document.addEventListener('keydown', function (e) {
+    if (!undoNote || !(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'z') return;
+    if (typing(e.target) || resolve().name === 'live' || document.getElementById('lyre-sheet')) return;
+    e.preventDefault(); L.acts.undonote();
+  });
   function outputsBadge() { var n = D.discord.bots.filter(function (b) { return b.status === 'connected'; }).length; return ' (' + n + '/' + D.discord.bots.length + ')'; }
   function railHTML(cur, min) {
     function a(href, nav, icon, label) { return '<a href="' + href + '" data-k="rail-' + nav + '"' + (cur === nav ? ' aria-current="page"' : '') + (min ? ' title="' + label + '"' : '') + '>' + L.icon(icon) + '<span class="lbl">' + label + '</span></a>'; }
@@ -3054,6 +3093,7 @@ var L = (function () {
     var rows = filtered(), all = D.playlists.length, anyFilter = filt.lane !== 'all' || filt.kind !== 'all' || filt.used !== 'all' || filt.q;
     var table = rows.length ? '<div class="pl-grid pl-colhead" aria-hidden="true"><span>Name</span><span class="pl-c">Tracks</span><span class="pl-c">Length</span><span></span></div>' +
       '<ul class="pl-list" aria-label="Playlists">' + rows.map(listRow).join('') + '</ul>'
+      : !all ? '<div class="empty"><b>No playlists yet.</b> A playlist is music, ambience or effects that play together, in your order or picked by their tags. Start with <b>New playlist</b>, or tick tracks in the Library and choose <b>New playlist from these</b>.</div>'
       : '<div class="empty">No playlists match these filters. <button class="btn s" data-act="plclear" data-k="plclear">Show all playlists</button></div>';
     return '<div class="viewhead"><h1>Playlists</h1><span class="muted">' + plural(all, 'playlist') + '</span><span class="grow"></span>' +
       '<button class="btn primary" data-act="plnew" data-k="plnew" aria-haspopup="menu" aria-expanded="false">' + L.icon('plus', 's') + 'New playlist' + L.icon('chevdown', 's') + '</button></div>' +
@@ -3169,10 +3209,12 @@ var L = (function () {
     return L.pane({ id: 'pl-rules', title: 'Rules', icon: 'rule', kind: 'search', size: 'auto', status: none ? status('Empty', 'warn') : status('Ready'), summary: esc(words || 'Every ' + laneName(pl.lane).toLowerCase() + ' track'),
       body: '<div class="pl-conds">' + (r.conds.length ? r.conds.map(condRow).join('') : '<p class="muted">No conditions yet, so every ' + laneName(pl.lane).toLowerCase() + ' track in the library matches.</p>') + '</div>' +
         '<div class="pl-rulebar"><button class="btn s" data-act="plcadd" data-k="plcadd">' + L.icon('plus', 's') + 'Add condition</button>' +
-        '<span class="pl-energy"><span class="faint" id="pl-en-l">Energy from</span><select class="input pl-sel pl-num" data-input="plen" data-e="0" data-k="en0" aria-label="Lowest energy">' + opts(en[0]) + '</select>' +
-        '<span class="faint">to</span><select class="input pl-sel pl-num" data-input="plen" data-e="1" data-k="en1" aria-label="Highest energy">' + opts(en[1]) + '</select></span>' +
+        '<span class="pl-energy"><span class="faint" id="pl-en-l">Energy from</span><select class="input pl-sel pl-num" data-input="plen" data-e="0" data-k="en0" aria-label="Lowest energy" aria-describedby="pl-en-hint">' + opts(en[0]) + '</select>' +
+        '<span class="faint">to</span><select class="input pl-sel pl-num" data-input="plen" data-e="1" data-k="en1" aria-label="Highest energy" aria-describedby="pl-en-hint">' + opts(en[1]) + '</select></span>' +
         '<label class="pl-check"><input type="checkbox" data-input="plsting" data-k="plsting"' + (r.notRole === 'Sting' ? ' checked' : '') + '>Leave out stings</label></div>' +
-        '<p class="pl-words"><span class="faint">In plain words:</span> ' + esc(laneName(pl.lane)) + ' tracks' + (words ? ' with ' + esc(words) : ', all of them') + '.' + (waiting ? ' <span class="pl-warn">A condition still needs a value, so nothing matches yet.</span>' : '') + '</p>' });
+        '<p class="pl-words"><span class="faint">In plain words:</span> ' + esc(laneName(pl.lane)) + ' tracks' + (words ? ' with ' + esc(words) : ', all of them') + '.' + (waiting ? ' <span class="pl-warn">A condition still needs a value, so nothing matches yet.</span>' : '') + '</p>' +
+        // The energy lists start at 0, which is a track whose energy is not set.
+        '<p class="hint pl-enhint" id="pl-en-hint">Energy 0 means a track with no energy set.</p>' });
   }
   function matchPane(pl, tracks, air) {
     return L.pane({ id: 'pl-match', title: 'Matching tracks', icon: 'list', kind: 'music', flush: true, scroll: 'pl-match',
@@ -3796,7 +3838,7 @@ var L = (function () {
   function stepper(t, which, val, unitLabel) {
     return '<span class="ap-step">' +
       '<button class="btn s icon" data-act="apstep" data-f="' + which + '" data-d="-1" data-k="ap-st-' + which + '-m" title="Shorter ' + unitLabel + ' (1 s less)" aria-label="Shorter ' + unitLabel + '"' + dis(t) + '>' + L.icon('minus', 's') + '</button>' +
-      timeInput(t, which, String(val), true, unitLabel + ' in seconds') +
+      timeInput(t, which, String(val), true, unitLabel + ' length in seconds') +
       '<button class="btn s icon" data-act="apstep" data-f="' + which + '" data-d="1" data-k="ap-st-' + which + '-p" title="Longer ' + unitLabel + ' (1 s more)" aria-label="Longer ' + unitLabel + '"' + dis(t) + '>' + L.icon('plus', 's') + '</button><span class="faint">s</span></span>';
   }
   function sketchPath(kind, shp) {
@@ -3810,7 +3852,7 @@ var L = (function () {
       '<div class="ap-fb-row"><span class="ap-fb-l">Length</span>' + stepper(t, which, f.dur, label.toLowerCase()) +
       '<button class="btn s ghost" data-act="aphere" data-f="' + which + '" data-k="ap-here-' + which + '" title="' + (kind === 'in' ? 'Fade in from Start up to the playhead' : 'Fade out from the playhead to End') + ' (' + L.fmt(S.pos) + ')"' + dis(t) + '>' + L.icon('arrow', 's') + (kind === 'in' ? 'Up to playhead' : 'From playhead') + '</button>' + err(which) + '</div>' +
       '<div class="ap-fb-row"><label class="ap-fb-l" for="ap-sh-' + kind + '">Intensity</label><span class="ap-int"><span class="hint" aria-hidden="true">Gentle</span>' +
-      '<input type="range" id="ap-sh-' + kind + '" min="0" max="100" step="5" value="' + f.shape + '" data-input="apshape" data-f="' + kind + '" data-k="ap-sh-' + kind + '" aria-valuetext="' + shapeName(f.shape) + ', ' + f.shape + ' of 100"' + dis(t) + '>' +
+      '<input type="range" id="ap-sh-' + kind + '" min="0" max="100" step="5" value="' + f.shape + '" data-input="apshape" data-f="' + kind + '" data-k="ap-sh-' + kind + '" aria-label="' + label + ' intensity" aria-valuetext="' + shapeName(f.shape) + ', ' + f.shape + ' of 100"' + dis(t) + '>' +
       '<span class="hint" aria-hidden="true">Sharp</span></span>' +
       '<svg class="ap-sketch" viewBox="0 0 64 28" aria-hidden="true"><path class="ap-sk-base" d="M2 25H62"/><path class="ap-sk" data-sketch="' + kind + '" d="' + sketchPath(kind, f.shape) + '"/></svg>' +
       '<span class="ap-shname" data-shname="' + kind + '">' + shapeName(f.shape) + '</span></div></div>';
@@ -4046,8 +4088,9 @@ var L = (function () {
   }
   L.acts.apstep = function (el) { var t = track(), w = el.dataset.f; movePoint(t, w, value(prof(t), w) + (+el.dataset.d)); delete S.invalid[w]; S.editing = null; sayPoint(w); L.render(); };
   L.acts.apreset = function () {
-    var t = track(); if (!write(t, { start: 0, end: t.dur, loopStart: 0, loopXfade: 0, fadeIn: { dur: 0, shape: 50 }, fadeOut: { dur: 0, shape: 50 } })) return; S.invalid = {}; S.editing = null;
-    L.toast('Back to the whole track: 0:00 to ' + L.fmt(t.dur) + ', no fades'); L.say('Reset to the whole track'); L.render();
+    var t = track(), restore = L.snapshot(['tracks', 'profiles']);
+    if (!write(t, { start: 0, end: t.dur, loopStart: 0, loopXfade: 0, fadeIn: { dur: 0, shape: 50 }, fadeOut: { dur: 0, shape: 50 } })) return; S.invalid = {}; S.editing = null;
+    L.undoNote('Back to the whole track: 0:00 to ' + L.fmt(t.dur) + ', no loop and no fades.', restore); L.say('Reset to the whole track'); L.render();
   };
   L.acts.apmadd = function () { addMarker(true); };
   function addMarker(focus) {
@@ -4085,13 +4128,18 @@ var L = (function () {
     if (sk) sk.setAttribute('d', sketchPath(k, v)); if (nm) nm.textContent = shapeName(v); draw(root);
   };
   L.inputs.apfield = function (el) {
-    var which = el.dataset.f, t = track(), lenField = which.indexOf('fade') === 0 || which === 'xfade', v = parse(el.value, lenField), r = range(t, which); S.editing = which; S.editText = el.value;
+    var which = el.dataset.f, t = track(), lenField = which.indexOf('fade') === 0 || which === 'xfade', v = parse(el.value, lenField), r = range(t, which);
+    // A time it cannot use puts the profile back as it was before typing, not at a time typed on the way ("2" of "2:00").
+    if (S.editing !== which) S.editBase = copyOf(prof(t));
+    S.editing = which; S.editText = el.value;
     if (v == null) S.invalid[which] = lenField ? 'Type a number of seconds, like 6' : 'Type minutes and seconds, like 5:18';
     else if (v < r[0] || v > r[1]) S.invalid[which] = 'Between ' + (lenField ? r[0] + ' and ' + r[1] + ' seconds' : L.fmt(r[0]) + ' and ' + L.fmt(r[1]));
     else { delete S.invalid[which]; movePoint(t, which, v); }
+    if (S.invalid[which] && S.editBase) write(t, copyOf(S.editBase));
     L.render();
   };
-  function commitField() { if (!S.editing) return; S.editing = null; S.invalid = {}; setTimeout(L.render, 0); }
+  // Enter on a time it cannot use keeps the text and its message; the point stays as it was.
+  function commitField() { if (!S.editing || S.invalid[S.editing]) return; S.editing = null; S.invalid = {}; setTimeout(L.render, 0); }
 
   /* ---------- keyboard shortcuts (view focused, not typing) ---------- */
   L.onKey(function (e) {
@@ -4225,7 +4273,7 @@ var L = (function () {
         '<div class="row-flex" style="margin-bottom:8px;flex-wrap:wrap"><div class="search grow" style="min-width:180px">' + L.icon('search') + '<input class="input" type="search" placeholder="Search" aria-label="Search the list" data-input="pkq"></div>' +
         (pk.filters ? '<div class="seg" role="group" aria-label="Show">' + pk.filters.map(function (f) { return '<button type="button" data-act="pkfilter" data-keep-menu="1" data-f="' + f.id + '" aria-pressed="' + (pk.filter === f.id) + '">' + esc(f.label) + '</button>'; }).join('') + '</div>' : '') + '</div>' +
         '<div id="pk-list" class="pk-list" role="group" aria-label="' + esc(o.title) + '">' + list() + '</div>' +
-        '<p class="hint" style="margin-top:6px">' + L.icon('headphones', 's') + ' Preview plays in your headphones only. ' + L.icon('chevdown', 's') + ' shows what is inside.</p>',
+        '<p class="hint" style="margin-top:6px">' + L.icon('headphones', 's') + ' Preview plays in your headphones only. The arrow ' + L.icon('chevdown', 's') + ' beside a name shows what is inside.</p>',
       footer: '<span id="pk-count" class="muted grow">' + count() + '</span><button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="pkdone">' + esc(o.okLabel || 'Done') + '</button>' });
   };
   L.inputs.pkq = function (el) { pk.q = el.value; paintList(); };
@@ -4336,22 +4384,13 @@ var L = (function () {
 /* Look and feel: the design language proposal. Each card carries its own data-theme, so it shows the real tokens. */
 (function () {
   var esc = L.esc;
+  // One plain sentence per theme, for a game master choosing one (w3-ux 8).
   var themes = [
-    { id: 'candle', name: 'Candlelit Library', games: 'Lyre\'s default; wizarding schools, academies, mysteries', words: 'Ink-blue night, candle gold, parchment and an oxblood ribbon.',
-      why: 'Deep ink blue with candle gold, the colours of a library after curfew. Your choice for Lyre\'s default: the Campaigns page, Look and feel and every campaign without a theme of its own use it. An oxblood second colour gives a house-colour accent without clashing with the gold.',
-      type: 'Cormorant Garamond headings: an old book face, set a little larger because it is light.' },
-    { id: 'fern', name: 'Fern and Brass', games: "Lyre's own colours; any game", words: 'Fern gully at dusk, an old brass instrument by candlelight.',
-      why: "Taken straight from the logo, so the app and its icon match. Green-black is calm for four hours of play and suits fantasy, folk horror and historical games alike.",
-      type: 'Lora headings: a bookish serif, also the face of the Lyre wordmark.' },
-    { id: 'hearth', name: 'Hearth and Iron', games: 'D&D, Pathfinder, sword and sorcery', words: 'Dungeon stone, forge light, a map on a tavern table.',
-      why: 'Warm soot-brown surfaces with an ember accent and a verdigris second colour (old copper). Reads as torchlight without turning orange everywhere: ember marks only the selected row, the primary button and the pane being worked on.',
-      type: 'Cinzel headings: capitals cut like an inscription over a dungeon door. Used only for titles, never for anything you read at length.' },
-    { id: 'parchment', name: 'Parchment', games: 'The light version of Candlelit Library', words: 'Daylight prep at a desk by the window.',
-      why: 'For building playlists and tagging in daylight, when a dark screen is hard to read. Lane and status colours are darkened so they keep their contrast on paper. You can use it for prep and still run the session in a dark theme.',
-      type: 'Cormorant Garamond headings, oxblood accent, ink text.' },
-    { id: 'elysium', name: 'Elysium', games: 'Vampire: the Masquerade, gothic and noir', words: 'Soot black, bone, blood and tarnished gold.',
-      why: "Near-black with bone text and blood red in the frame; your actions and selections are in tarnished gold, so they never look like Lyre's red On air signal. Spaced capitals in the headings suggest a court invitation.",
-      type: 'Cormorant Garamond in spaced capitals.' }
+    { id: 'candle', name: 'Candlelit Library', games: 'Lyre\'s default; wizarding schools, academies, mysteries', line: 'Ink blue and candle gold, like a library after dark: Lyre\'s own theme, for any campaign without one.' },
+    { id: 'fern', name: 'Fern and Brass', games: "Lyre's own colours; any game", line: 'Green-black and brass, the colours of Lyre\'s logo, calm for long sessions in any world.' },
+    { id: 'hearth', name: 'Hearth and Iron', games: 'D&D, Pathfinder, sword and sorcery', line: 'Warm stone and ember light for dungeons, taverns and sword and sorcery.' },
+    { id: 'parchment', name: 'Parchment', games: 'The light version of Candlelit Library', line: 'A light theme for preparing in daylight; you can still run the session in a dark one.' },
+    { id: 'elysium', name: 'Elysium', games: 'Vampire: the Masquerade, gothic and noir', line: 'Soot black, bone and blood red for gothic and vampire chronicles.' }
   ];
   function sample(t) {
     return '<div class="lk-sample" data-theme="' + t.id + '">' +
@@ -4361,7 +4400,7 @@ var L = (function () {
       '<div class="chips"><span class="chip mood"><span class="dot"></span>Eerie</span><span class="chip motif"><span class="dot"></span>Drowned Abbess</span><span class="chip scene"><span class="dot"></span>Ritual</span></div>' +
       '<div class="lk-btns"><button class="btn primary" tabindex="-1">Start scene</button><button class="btn" tabindex="-1">Preview</button><button class="btn ghost" tabindex="-1">More</button></div>' +
       '<div class="lk-sw" aria-hidden="true"><i style="background:var(--bg)"></i><i style="background:var(--surface)"></i><i style="background:var(--surface-3)"></i><i style="background:var(--ink)"></i><i style="background:var(--accent)"></i><i style="background:var(--second)"></i></div>' +
-      '<p class="lk-contrast faint" data-contrast="' + t.id + '"></p></div>';
+      '</div>';
   }
   L.acts.usetheme = function (el) { L.state.theme = el.dataset.theme; L.save(); L.render(); L.toast('Prototype now uses ' + el.dataset.name); };
   L.view('look', {
@@ -4371,33 +4410,19 @@ var L = (function () {
       'All five table themes are in, with <b>Candlelit Library as the default</b> (your choice). Each campaign picks a theme, and Lyre switches to it when you open that campaign or run its session.',
       'Prototype strip, Theme: leave it on <b>Each campaign\'s own</b> to see the switching (The Sunken Crown uses Hearth and Iron, The Sixth Year uses Candlelit Library, Ash and Masks uses Elysium). Pick a theme there to force one everywhere.',
       'These stay the same in every theme: the colours for music, ambience, effects and preview, the red On air signal, the focus outline, Atkinson Hyperlegible for reading, and the layout. What you have learned to read does not move.',
-      'Every text colour passes WCAG AA (4.5:1) on its background. The numbers under each card are worked out live from the theme.'
+      'Every text colour passes WCAG AA (4.5:1) on its background; a check runs over every theme.'
     ],
     render: function () {
       return '<div class="viewhead"><h1>Look and feel</h1><span class="muted">One Lyre, a theme per table</span></div>' +
-        '<div class="viewbody"><div class="lk-intro"><p><b>Your choice:</b> all five themes, with Candlelit Library as the default. Each campaign can pick its own table theme. ' +
-        'You run games in very different worlds. A glance tells you which campaign is loaded before you fire anything, and the screen fits the mood of the table. ' +
-        'Only colour and heading type change: buttons, layout and keys stay in the same places, so nothing has to be relearned between campaigns. ' +
-        'The cost is testing five palettes instead of one. A check runs over every theme so a change cannot slip below the contrast floor.</p>' +
-        '<p class="muted">Fern and Brass stays as the logo\'s own palette (the icon and installer use it) and as a theme a campaign can choose.</p></div>' +
+        '<div class="viewbody"><div class="lk-intro"><p>Each campaign can have its own theme, and Lyre switches to it when you open that campaign. Choose one here to use it everywhere.</p></div>' +
         '<div class="lk-grid">' + themes.map(function (t) {
           return '<article class="lk-card"><header><h2 class="display">' + esc(t.name) + '</h2><span class="muted">' + esc(t.games) + '</span></header>' + sample(t) +
-            '<p class="lk-words"><i>' + esc(t.words) + '</i></p><p>' + esc(t.why) + '</p><p class="faint">' + esc(t.type) + '</p>' +
+            '<p>' + esc(t.line) + '</p>' +
             '<button class="btn' + (L.state.theme === t.id ? ' primary' : '') + '" data-act="usetheme" data-theme="' + t.id + '" data-name="' + esc(t.name) + '" data-k="use-' + t.id + '">' + (L.state.theme === t.id ? L.icon('check', 's') + 'In use in the prototype' : 'Try it in the prototype') + '</button></article>';
         }).join('') + '</div>' +
         '<h2 class="display lk-h2">Same in every theme</h2><div class="lk-fixed">' +
         '<div><span class="lane-dot music"></span><b>Music</b> blue</div><div><span class="lane-dot amb"></span><b>Ambience</b> teal</div><div><span class="lane-dot fx"></span><b>Effects</b> amber</div><div><span class="lane-dot preview"></span><b>Preview</b> violet: only you hear it</div><div><span class="badge onair">On air</span> what the players hear</div><div><span class="kbd">Tab</span> gold focus outline</div></div>' +
-        '<h2 class="display lk-h2">Density</h2><p class="lk-p">Controls are 28 px high and closers 24 px (the WCAG 2.2 minimum), down from 44 px. Body text is 13.5 px Atkinson Hyperlegible, a face made for low-vision readers, so text stays readable at the smaller size. Rows are 30 px, so about twice as many tracks fit in the same height.</p></div>';
-    },
-    after: function (root) {
-      function lum(c) { var m = c.match(/\d+(\.\d+)?/g).slice(0, 3).map(function (v) { v = v / 255; return v <= .03928 ? v / 12.92 : Math.pow((v + .055) / 1.055, 2.4); }); return .2126 * m[0] + .7152 * m[1] + .0722 * m[2]; }
-      function cr(a, b) { var x = lum(a), y = lum(b); return ((Math.max(x, y) + .05) / (Math.min(x, y) + .05)).toFixed(1); }
-      root.querySelectorAll('[data-contrast]').forEach(function (p) {
-        var s = p.closest('.lk-sample'), cs = getComputedStyle(s), probe = document.createElement('span'); s.appendChild(probe);
-        function col(v) { probe.style.color = 'var(' + v + ')'; return getComputedStyle(probe).color; }
-        var bg = col('--surface'), r = 'Contrast on panels: text ' + cr(col('--ink'), bg) + ':1, quiet text ' + cr(col('--ink-3'), bg) + ':1, accent text ' + cr(col('--accent-text'), bg) + ':1';
-        probe.remove(); p.textContent = r; void cs;
-      });
+        '</div>';
     }
   });
 })();
@@ -4629,7 +4654,9 @@ var L = (function () {
     render: function () {
       return '<div class="viewhead"><h1>Campaigns</h1><span class="muted cp-count">' + plural(D.campaigns.length, 'campaign') + '</span><span class="grow"></span>' +
         '<button class="btn primary" data-act="cpnew" data-k="cpnew">' + L.icon('plus', 's') + 'New campaign</button></div>' +
-        '<div class="viewbody" data-scroll="cp-grid"><div class="cp-grid">' + D.campaigns.map(card).join('') + '</div></div>';
+        '<div class="viewbody" data-scroll="cp-grid">' + (D.campaigns.length ? '<div class="cp-grid">' + D.campaigns.map(card).join('') + '</div>'
+          // A first-time user: what a campaign is and what to do first (w3-ux 9).
+          : '<div class="empty"><b>No campaigns yet.</b> A campaign holds your sessions, the scenes in each, and the music, ambience and pad boards you use in them. Start with <b>New campaign</b>.</div>') + '</div>';
     },
     after: afterRender
   });
@@ -4815,7 +4842,7 @@ var L = (function () {
     return '<div class="cp-box">' +
       (bds.length ? '<ol class="cp-items" aria-label="Pad boards in order">' + bds.map(function (b, i) { return itemRow(sc, 'boards', info(b, true), i, bds.length, 'Shown first'); }).join('') + '</ol>'
         : '<p class="faint cp-mnone">No pad boards yet.</p>') +
-      '<div class="cp-boxbtns"><button class="btn s" data-act="cpaddboards" data-sc="' + sc.id + '" data-k="ab-' + sc.id + '">' + L.icon('plus', 's') + 'Add pad boards…</button><span class="hint">The first is shown when the scene starts.</span></div></div>';
+      '<div class="cp-boxbtns"><button class="btn s" data-act="cpaddboards" data-sc="' + sc.id + '" data-k="ab-' + sc.id + '" aria-label="Add pad boards… to ' + esc(sc.name) + '">' + L.icon('plus', 's') + 'Add pad boards…</button><span class="hint">The first is shown when the scene starts.</span></div></div>';
   }
   function ambSlot(sc) {
     var it = sc.amb ? info(sc.amb) : null, xk = 'cp-' + sc.id + ':amb:' + (it ? it.id : '');
@@ -4943,9 +4970,10 @@ var L = (function () {
   };
   L.acts.cpdel = function (el) {
     var x = findScene(el.dataset.id); L.closeSheet(); if (!x) return;
+    L.undoNote('Deleted scene "' + (x.sc.name || 'Untitled scene') + '" and its notes.', L.snapshot(['campaigns']));
     x.s.scenes.splice(x.i, 1); delete open[x.sc.id];
     var nb = x.s.scenes[Math.max(0, x.i - 1)]; focusK = nb ? 'sct-' + nb.id : 'addscene'; current = nb ? nb.id : null;
-    L.render(); L.toast('Deleted scene "' + (x.sc.name || 'Untitled scene') + '"');
+    L.render();
   };
   L.inputs.cpsess = function (el) {
     var x = ctx(), s = x.s, f = el.dataset.f;
@@ -5165,7 +5193,7 @@ var L = (function () {
       '<th class="lb-c-ck"><label class="lb-ckl"><input type="checkbox" data-act="lbselall" data-k="lb-selall" aria-label="Select all ' + list.length + ' shown"' + (allOn ? ' checked' : '') + '></label></th>' +
       '<th class="lb-c-title"' + (sortT ? ' aria-sort="' + sortT + '"' : '') + '>Title</th><th class="lb-c-tags">Tag</th><th class="lb-c-en">Energy</th>' +
       '<th class="lb-c-dur"' + (sortD ? ' aria-sort="' + sortD + '"' : '') + '>Length</th><th class="lb-c-pv"><span class="sr-only">Preview, play on air, more</span></th></tr></thead><tbody>';
-    if (!list.length) h += '<tr class="lb-emptyrow"><td colspan="6"><div class="empty">' + (st.q || filtersOn() ? 'No track matches. <button class="btn s" data-act="lbclearall" data-k="lb-clearall2">Clear search and filters</button>' : 'No tracks yet. Use Add tracks, or drop files here.') + '</div></td></tr>';
+    if (!list.length) h += '<tr class="lb-emptyrow"><td colspan="6"><div class="empty">' + (st.q || filtersOn() ? 'No track matches. <button class="btn s" data-act="lbclearall" data-k="lb-clearall2">Clear search and filters</button>' : '<b>Your library is empty.</b> Add music, ambience and sound effects with <b>Add tracks</b>, or drop audio files or a folder here.') + '</div></td></tr>';
     list.forEach(function (t) {
       var sel = st.sel.indexOf(t.id) > -1, open = t.id === openId;
       var own = t.title, meta = t.metaTitle, shown = own || meta || t.file;
@@ -5314,7 +5342,7 @@ var L = (function () {
         '<button class="btn primary" data-act="lbaddmenu" data-k="lb-add" aria-haspopup="menu" aria-expanded="false">' + L.icon('plus', 's') + 'Add tracks' + L.icon('chevdown', 's') + '</button></div>';
 
       function fPane(strip) {
-        return L.pane({ id: 'lb-filters', title: 'Filters', icon: 'rule', cls: 'lb-filters' + (strip ? ' lb-strip' : ''), collapsed: mode !== 'wide', kind: 'search', summary: filterSummary(), scroll: 'lb-filters', status: nFilters() ? { text: nFilters() + ' selected', tone: 'on' } : null,
+        return L.pane({ id: 'lb-filters', title: 'Filters', icon: 'rule', cls: 'lb-filters' + (strip ? ' lb-strip' : ''), collapsed: mode !== 'wide', kind: 'search', summary: filterSummary(), scroll: 'lb-filters', status: nFilters() ? { text: nFilters() + (nFilters() > 1 ? ' filters on' : ' filter on'), tone: 'on' } : null,
           actions: filtersOn() ? '<button class="btn s ghost" data-act="lbclearall" data-k="lb-clearall">Clear all</button>' : '', body: filtersBody() });
       }
       function tPane(strip) {
@@ -5511,7 +5539,9 @@ var L = (function () {
   function selTracks() { return st.sel.map(L.track).filter(Boolean); }
   function tsBody() {
     var tr = selTracks(), n = tr.length;
-    var h = '<p class="muted lb-tsintro">"All" or "2 of 3" on a tag: how many of the ' + plural(n, 'selected track') + ' have it already.</p>' +
+    // The line explains the counts on the tags, so it shows only when a tag has one.
+    var counted = D.tagGroups.some(function (g) { return D.tagValues[g.id].some(function (v) { return tr.some(function (t) { return (t.tags[g.id] || []).indexOf(v) > -1; }); }); });
+    var h = '<p class="muted lb-tsintro">' + (counted ? '"All" or "2 of 3" on a tag: how many of the ' + plural(n, 'selected track') + ' have it already.' : 'None of the ' + plural(n, 'selected track') + ' has a tag yet.') + '</p>' +
       '<div class="seg s lb-seg24" role="group" aria-label="Add or remove"><button data-act="lbtsmode" data-v="add" data-k="lb-ts-add" aria-pressed="' + (ts.mode === 'add') + '">' + L.icon('plus', 's') + 'Add tags</button>' +
       '<button data-act="lbtsmode" data-v="remove" data-k="lb-ts-rm" aria-pressed="' + (ts.mode === 'remove') + '">' + L.icon('minus', 's') + 'Remove tags</button></div>';
     D.tagGroups.forEach(function (g) {
@@ -5554,7 +5584,7 @@ var L = (function () {
   }
   L.acts.lbtsnew = function (el) { tsCreate(el.dataset.g); };
   L.acts.lbtsapply = function () {
-    var tr = selTracks(), add = ts.mode === 'add', names = [];
+    var tr = selTracks(), add = ts.mode === 'add', names = [], restore = L.snapshot(['tracks', 'tagValues']);
     D.tagGroups.forEach(function (g) {
       ts.pick[g.id].forEach(function (v) {
         names.push(v);
@@ -5565,6 +5595,7 @@ var L = (function () {
     var msg = (add ? 'Added ' : 'Removed ') + names.join(', ') + (add ? ' to ' : ' from ') + plural(tr.length, 'track') + '.';
     var stillNew = tr.filter(function (t) { return t.isNew; }).length;
     st.guide = { icon: 'tag', html: esc(msg) + (stillNew ? ' ' + plural(stillNew, 'track') + (stillNew === 1 ? ' still needs' : ' still need') + ' a title of your own: open ' + (stillNew === 1 ? 'it' : 'each one') + ' to type it.' : '') };
+    L.undoNote(msg, restore);
     L.closeSheet(); L.render(); L.say(msg);
   };
 
@@ -5857,7 +5888,7 @@ var L = (function () {
         filtSeg() + '<label class="pb-camp"><span>Campaign</span><select class="input" data-input="pbcamp" data-k="pbcamp">' +
         '<option value="all">All campaigns</option>' + D.campaigns.map(function (c) { return '<option value="' + c.id + '"' + (bf.cid === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>'; }).join('') + '</select></label></div>' +
         (list.length ? '<ul class="pb-cards" aria-label="Pad boards">' + list.map(card).join('') + '</ul>'
-          : all ? '<div class="empty">No pad boards match. <button class="btn s" data-act="pbclear" data-k="pbclear">Show all boards</button></div>' : '<p class="empty">No pad boards yet. Make one with New board.</p>') + '</div>';
+          : all ? '<div class="empty">No pad boards match. <button class="btn s" data-act="pbclear" data-k="pbclear">Show all boards</button></div>' : '<p class="empty"><b>No pad boards yet.</b> A pad board is a grid of buttons for sound effects you play during a game, each with its own key. Start with <b>New board</b>.</p>') + '</div>';
     },
     after: function (root) { if (ui.pendingFocus) { var n = root.querySelector('[data-k="' + ui.pendingFocus + '"]'); ui.pendingFocus = null; if (n) n.focus(); } }
   });
@@ -5911,13 +5942,14 @@ var L = (function () {
       footer: '<button class="btn" data-act="closesheet">Keep it</button><button class="btn danger" data-act="pbdelboardok" data-id="' + b.id + '">Delete board</button>' });
   };
   L.acts.pbdelboardok = function (el) {
-    var id = el.dataset.id, b = L.board(id);
+    var id = el.dataset.id, b = L.board(id), restore = L.snapshot(['boards', 'campaigns']);
+    L.undoNote('Deleted the pad board "' + b.name + '" and took it out of the places that used it.', restore);
     D.campaigns.forEach(function (c) {
       c.boards = c.boards.filter(function (x) { return x !== id; });
       c.sessions.forEach(function (s) { s.boards = s.boards.filter(function (x) { return x !== id; }); s.scenes.forEach(function (sc) { sc.boards = L.sceneBoards(sc).filter(function (x) { return x !== id; }); if (sc.board === id) sc.board = ''; }); });
     });
     D.boards.splice(D.boards.indexOf(b), 1); L.closeSheet();
-    L.toast('Deleted "' + b.name + '"');
+
     if (L.current().name === 'board') L.route('#/boards'); else L.render();
   };
 
@@ -6123,6 +6155,7 @@ var L = (function () {
   L.acts.pbaddfile = withPad(function (b, p) {
     var s = p.sound, base = s.files[0] ? s.files[0].replace(/(_\d+)?\.wav$/i, '') : slug(p.label), name;
     if (s.kind === 'single') { name = base + (s.files[0] ? '_alt' : '') + '.wav'; if (s.files.length) s.files[0] = name; else s.files.push(name); L.say('File chosen: ' + name); }
+    if (p.label === 'New pad' && name) p.label = name.replace(/\.wav$/i, '').replace(/_/g, ' ');
     else { var i = s.files.length + 1; do { name = base + '_' + String(i++).padStart(2, '0') + '.wav'; } while (s.files.indexOf(name) > -1); s.files.push(name); L.say('Added ' + name + '. ' + s.files.length + ' variants.'); }
     L.render();
   });
@@ -6134,6 +6167,8 @@ var L = (function () {
         if (!ids.length) return;
         var files = ids.map(function (id) { return L.track(id).file; }), own = s.files.filter(function (f) { return !fxTrackByFile(f); });
         s.files = files.concat(own);
+        // A new pad takes the name of its first sound, so two new pads never share the name "New pad".
+        if (p.label === 'New pad') p.label = L.title(L.track(ids[0]));
         if (s.files.length > 1 && s.kind !== 'variants') { s.kind = 'variants'; s.order = s.order || 'random'; L.toast(plural(s.files.length, 'sound') + ' chosen, so the pad plays them as variants'); }
         else if (s.kind === 'tag') s.kind = 'single';
         L.say(plural(files.length, 'sound') + ' from the library on ' + p.label);

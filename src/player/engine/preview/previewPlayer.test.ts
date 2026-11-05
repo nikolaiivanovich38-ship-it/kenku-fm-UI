@@ -158,6 +158,17 @@ describe("PreviewPlayer (PRV-1): only the game master hears it", () => {
     expect(changes[0].state).toEqual({ key: "tavern", label: "Tavern" });
   });
 
+  it("a preview that cannot play says so, quiet or not, before it clears (review w3-polish 1)", async () => {
+    headphones.failingUrls.add("file:///music/storm.ogg");
+    const storm = track("storm", "Storm");
+    const order: string[] = [];
+    player.on("failed", (key, message) => order.push(`failed ${key}: ${message}`));
+    player.on("change", (state) => order.push(`change ${state?.key ?? "none"}`));
+    player.play({ ...trackPreview(storm, media(storm)), quiet: true });
+    await headphones.flush();
+    expect(order).toEqual(["change storm", "failed storm: Could not play the preview of Storm.", "change none"]);
+  });
+
   it("dispose() stops the preview and lets go of listeners", async () => {
     const tavern = track("tavern", "Tavern");
     player.toggle(trackPreview(tavern, media(tavern)));

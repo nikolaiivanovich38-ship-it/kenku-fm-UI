@@ -146,3 +146,28 @@ describe("the clock following the real preview (its position from the audio host
     expect(follow(paused, 40, world(LOOP)).state).toBe(paused);
   });
 });
+
+describe("the first position after the sound starts (review w3-polish 2)", () => {
+  const short = { ...LOOP, end: 10, loopStart: 3, loopXfade: 0 };
+  const w = { prof: short, dur: 20, next: (): null => null };
+  const ranAhead = (prof: Prof) => {
+    let s = playClock({ ...initialClock(prof), pos: 5 }, "play", { ...w, prof }).state;
+    for (let i = 0; i < 48; i++) s = advance(s, 1 / 60, { ...w, prof }).state; // 0.8 s of frames while the file loads
+    return s;
+  };
+
+  it("is where the playhead goes, without counting a loop, though the clock ran ahead while the file loaded", () => {
+    const s = ranAhead(short);
+    expect(s.pos).toBeCloseTo(5.8, 1);
+    const r = follow(s, 5.0, w, { first: true });
+    expect(r.state).toMatchObject({ pos: 5, loops: 0, event: null });
+    expect(r.say).toBeUndefined();
+  });
+
+  it("puts the playhead back for a profile that stops too, so it does not freeze until the sound catches up", () => {
+    const stop = { ...short, after: "stop" as const };
+    const s = ranAhead(stop);
+    expect(follow(s, 5.0, { ...w, prof: stop }, { first: true }).state.pos).toBe(5);
+  });
+});
+

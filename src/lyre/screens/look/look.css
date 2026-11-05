@@ -7,8 +7,8 @@
 .view .lk-card > header h2 { font-size: calc(17px * var(--display-scale)); }
 .view .lk-card > p { font-size: var(--fs-s); }
 .view .lk-card > .btn { align-self: flex-start; }
-.view .lk-words { color: var(--ink-2); }
 .view .lk-sample { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: var(--r-m); background: var(--bg); color: var(--ink); border: 1px solid var(--line); font: var(--fs)/1.38 var(--body); }
+.view .lk-pic { display: flex; flex-direction: column; gap: 8px; }
 .view .lk-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .view .lk-head .pane-title { font-size: calc(17px * var(--display-scale)); white-space: normal; overflow: visible; }
 .view .lk-head { flex-wrap: wrap; }
@@ -17,9 +17,7 @@
 .view .lk-btns { display: flex; gap: 6px; flex-wrap: wrap; }
 .view .lk-sw { display: flex; height: 14px; border-radius: 3px; overflow: hidden; border: 1px solid var(--line); }
 .view .lk-sw i { flex: 1; }
-.view .lk-contrast { font-size: var(--fs-xs); }
 .view .lk-h2 { font-size: calc(17px * var(--display-scale)); margin: 18px 0 8px; }
 .view .lk-fixed { display: flex; flex-wrap: wrap; gap: 8px 18px; }
 .view .lk-fixed > div { display: flex; align-items: center; gap: 6px; font-size: var(--fs-s); }
-.view .lk-p { max-width: 860px; font-size: var(--fs-s); }
 .view .lk-choice { max-width: 320px; }

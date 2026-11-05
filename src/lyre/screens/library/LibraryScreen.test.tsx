@@ -45,7 +45,7 @@ describe("Library: finding tracks", () => {
     expect(within(kinds).getByRole("button", { name: "FX" })).toHaveAttribute("aria-pressed", "true");
     expect(shownTitles()).toContain("Heavy door slams");
     expect(shownTitles()).not.toContain("Ashes");
-    expect(screen.getByRole("region", { name: "Filters" })).toHaveTextContent("1 selected");
+    expect(screen.getByRole("region", { name: "Filters" })).toHaveTextContent("1 filter on");
     await user.click(within(kinds).getByRole("button", { name: "Ambience" }));
     expect(shownTitles()).toContain("Busy tavern crowd, mugs, laughter");
   });
@@ -58,6 +58,9 @@ describe("Library: finding tracks", () => {
     await user.click(within(within(filters()).getByRole("group", { name: "Mood" })).getByRole("button", { name: /^Grief/ }));
     expect(shownTitles()).toHaveLength(5);
     expect(filters()).not.toHaveTextContent("None: showing every track");
+    // The box's count says filters, not a selection like the Tracks box's "3 selected" (w3-ux 13).
+    expect(filters()).toHaveTextContent("1 filter on");
+    expect(filters()).not.toHaveTextContent("1 selected");
     await user.click(within(filters()).getByRole("button", { name: "Clear all" }));
     expect(shownTitles().length).toBeGreaterThan(5);
   });
@@ -290,7 +293,9 @@ describe("Library: many tracks at once", () => {
     const user = await selectTwoNew();
     await user.click(screen.getByRole("button", { name: "Tag…" }));
     const sheet = within(screen.getByRole("dialog", { name: "Tag 2 tracks" }));
-    expect(sheet.getByText(/how many of the 2 selected tracks have it already/)).toBeInTheDocument();
+    // No tag has a count yet, so the line about counts is not shown (w3-ux 17).
+    expect(sheet.getByText("None of the 2 selected tracks has a tag yet.")).toBeInTheDocument();
+    expect(sheet.queryByText(/how many of the/)).toBeNull();
     expect(sheet.getByRole("button", { name: "Tick a tag first" })).toBeDisabled();
     await user.click(sheet.getByRole("button", { name: "Grief, none have it" }));
     await user.type(sheet.getByRole("textbox", { name: "New Scene type value" }), "funeral{Enter}");
@@ -298,6 +303,9 @@ describe("Library: many tracks at once", () => {
     await user.click(sheet.getByRole("button", { name: "Add 2 tags to 2 tracks" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(await tracksBox().findByText(/Added Grief, Funeral to 2 tracks\./)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Tag…" }));
+    expect(within(screen.getByRole("dialog", { name: "Tag 2 tracks" })).getByText(/how many of the 2 selected tracks have it already/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
     await user.click(within(within(filters()).getByRole("group", { name: "Mood" })).getByRole("button", { name: /^Grief/ }));
     expect(shownTitles()).toEqual(expect.arrayContaining(["Ashes", "Memories of Mother"]));
   });

@@ -19,6 +19,7 @@ import { runInLive } from "../../kit/liveSession";
 import type { MenuEntry } from "../../kit/Menu";
 import { Column, Pane } from "../../kit/Pane";
 import { useAnnounce } from "../../shell/Announcer";
+import { useUndoNote } from "../../shell/UndoNote";
 import type { ScreenProps } from "..";
 import { carriesFiles, dropIndex, droppedPaths } from "./drops";
 import { boardInfo, plural, sessionLabel, soundInfo, STATUS_WORDS, type ItemInfo, type LibraryIndex } from "./model";
@@ -79,6 +80,7 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
   const { session: s, saveScene: showAndSave } = useOptimisticScenes(saved);
   useHeadingFocusWhenReady();
   const { say, toast } = useAnnounce();
+  const { offer } = useUndoNote();
   const focus = useFocusLater();
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [current, setCurrent] = useState<string | null>(null);
@@ -139,11 +141,14 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
     setDeleting(null);
     const at = s.scenes.findIndex((x) => x.id === sceneId);
     const scene = s.scenes[at];
-    if (!scene || (await write(api.sessions.deleteScene(address(scene)))) === undefined) return;
+    if (!scene) return;
+    const done = await write(api.sessions.deleteScene(address(scene)));
+    if (done === undefined) return;
     const neighbour = s.scenes.filter((x) => x.id !== sceneId)[Math.max(0, at - 1)];
     setCurrent(neighbour?.id ?? null);
     focus(neighbour ? `sct-${neighbour.id}` : "addscene");
-    toast(`Deleted scene "${scene.name || "Untitled scene"}"`);
+    // w3-ux 10: what was deleted, with Undo (and Ctrl+Z).
+    offer(`Deleted scene "${scene.name || "Untitled scene"}" and its notes.`, done.undoLabel);
   };
 
   /* ----- files dropped on a scene ----- */
@@ -794,7 +799,13 @@ function BoardList({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
         <p className="faint cp-mnone">No pad boards yet.</p>
       )}
       <div className="cp-boxbtns">
-        <Button size="s" icon="plus" data-k={`ab-${scene.id}`} onClick={() => ctx.pick({ kind: "boards", sceneId: scene.id })}>
+        <Button
+          size="s"
+          icon="plus"
+          data-k={`ab-${scene.id}`}
+          aria-label={`Add pad boards… to ${scene.name}`}
+          onClick={() => ctx.pick({ kind: "boards", sceneId: scene.id })}
+        >
           Add pad boards…
         </Button>
         <span className="hint">The first is shown when the scene starts.</span>

@@ -111,7 +111,7 @@
         '<div class="row-flex" style="margin-bottom:8px;flex-wrap:wrap"><div class="search grow" style="min-width:180px">' + L.icon('search') + '<input class="input" type="search" placeholder="Search" aria-label="Search the list" data-input="pkq"></div>' +
         (pk.filters ? '<div class="seg" role="group" aria-label="Show">' + pk.filters.map(function (f) { return '<button type="button" data-act="pkfilter" data-keep-menu="1" data-f="' + f.id + '" aria-pressed="' + (pk.filter === f.id) + '">' + esc(f.label) + '</button>'; }).join('') + '</div>' : '') + '</div>' +
         '<div id="pk-list" class="pk-list" role="group" aria-label="' + esc(o.title) + '">' + list() + '</div>' +
-        '<p class="hint" style="margin-top:6px">' + L.icon('headphones', 's') + ' Preview plays in your headphones only. ' + L.icon('chevdown', 's') + ' shows what is inside.</p>',
+        '<p class="hint" style="margin-top:6px">' + L.icon('headphones', 's') + ' Preview plays in your headphones only. The arrow ' + L.icon('chevdown', 's') + ' beside a name shows what is inside.</p>',
       footer: '<span id="pk-count" class="muted grow">' + count() + '</span><button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="pkdone">' + esc(o.okLabel || 'Done') + '</button>' });
   };
   L.inputs.pkq = function (el) { pk.q = el.value; paintList(); };

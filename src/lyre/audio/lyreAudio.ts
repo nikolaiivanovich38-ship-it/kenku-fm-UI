@@ -133,6 +133,8 @@ export interface LyreAudioEvents {
   error: (message: string) => void;
   /** Where the preview is in its file, about twenty times a second while it plays (the Audio profile's playhead). */
   "preview-position": (at: PreviewPosition) => void;
+  /** A preview could not play: its key and why (a quiet preview announces nothing, so its screen hears it here). */
+  "preview-failed": (at: { key: string; message: string }) => void;
 }
 
 /** The preview's place in its file: its key (a track's id, "pl:…", "pad:…") and the position in milliseconds. */
@@ -312,6 +314,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       this.changed();
     };
     const onPreviewPosition = (key: string, seconds: number) => this.emit("preview-position", { key, positionMs: seconds * 1000 });
+    const onPreviewFailed = (key: string, message: string) => this.emit("preview-failed", { key, message });
     const onDevice = (role: string, status: DeviceStatus) => {
       if (role === "preview" && status.message) {
         this.emit("announce", status.message);
@@ -325,6 +328,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     parts.engine.on("voice", onVoice);
     parts.preview.on("change", onPreview);
     parts.preview.on("position", onPreviewPosition);
+    parts.preview.on("failed", onPreviewFailed);
     parts.previewDevices?.on("status", onDevice);
     this.cleanups.push(
       () => parts.mixer.off("rooms", onRooms),
@@ -332,6 +336,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       () => parts.engine.off("voice", onVoice),
       () => parts.preview.off("change", onPreview),
       () => parts.preview.off("position", onPreviewPosition),
+      () => parts.preview.off("failed", onPreviewFailed),
       () => parts.previewDevices?.off("status", onDevice),
     );
     this.routeSpeakers();

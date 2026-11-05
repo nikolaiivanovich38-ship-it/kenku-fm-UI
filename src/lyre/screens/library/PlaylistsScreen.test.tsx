@@ -285,6 +285,14 @@ describe("Playlists: a dynamic playlist", () => {
     expect(region("Matching tracks")).not.toHaveTextContent("4 tracks");
   });
 
+  it("says what energy 0 means beside the energy limits (w3-ux 18)", async () => {
+    openAt("playlist/p-abbey-eerie");
+    const rules = within(await screen.findByRole("region", { name: "Rules" }));
+    expect(rules.getByText("Energy 0 means a track with no energy set.")).toBeInTheDocument();
+    expect(rules.getByRole("combobox", { name: "Lowest energy" })).toHaveAccessibleDescription("Energy 0 means a track with no energy set.");
+    expect(rules.getByRole("combobox", { name: "Highest energy" })).toHaveAccessibleDescription("Energy 0 means a track with no energy set.");
+  });
+
   it("tags are added from a menu and removed with their X", async () => {
     openAt("playlist/p-abbey-eerie");
     const rules = within(await screen.findByRole("region", { name: "Rules" }));

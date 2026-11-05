@@ -230,7 +230,7 @@ test.describe("tagging many tracks at once", () => {
     await selectTwoNew(page);
     await page.getByRole("button", { name: "Tag…" }).click();
     const sheet = page.getByRole("dialog", { name: "Tag 2 tracks" });
-    await expect(sheet).toContainText("how many of the 2 selected tracks have it already");
+    await expect(sheet).toContainText("None of the 2 selected tracks has a tag yet.");
     await sheet.getByRole("button", { name: "Grief, none have it" }).click();
     await sheet.getByRole("textbox", { name: "New Scene type value" }).fill("funeral");
     await sheet.getByRole("textbox", { name: "New Scene type value" }).press("Enter");

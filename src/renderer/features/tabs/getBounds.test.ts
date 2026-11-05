@@ -26,6 +26,11 @@ describe("getBounds (UX-10)", () => {
     expect(getBounds()).toMatchObject({ x: 400, width: window.innerWidth - 400 });
   });
 
+  it("takes the whole width when the sidebar steps aside for the Lyre tab (w3-ux 4)", () => {
+    document.body.innerHTML = '<nav id="sidebar" data-width="0"></nav><div id="controls"></div>';
+    expect(getBounds()).toMatchObject({ x: 0, width: window.innerWidth });
+  });
+
   it("assumes the expanded width before the sidebar is drawn", () => {
     expect(getBounds()).toMatchObject({ x: 240 });
   });

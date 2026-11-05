@@ -65,8 +65,6 @@ describe("the shell: rail, routes and screens (UX-9)", () => {
     ["playlist/p-abbess", "Playlist", "Playlists"],
     ["boards", "Pad boards", "Pad boards"],
     ["board/weather", "Pad board", "Pad boards"],
-    ["live", "Live", "Live"],
-    ["outputs", "Outputs", "Outputs"],
   ])("%s shows its heading and a placeholder, with %s's section lit", (path, heading, section) => {
     window.history.replaceState(null, "", `#/${path}`);
     render(<Shell screens={SHELL_SCREENS} />);
@@ -74,6 +72,18 @@ describe("the shell: rail, routes and screens (UX-9)", () => {
     expect(within(main).getByRole("heading", { level: 1 })).toHaveTextContent(heading);
     expect(within(main).getByText("Not built yet.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: section })).toHaveAttribute("aria-current", "page");
+  });
+
+  it.each([
+    ["live", "Live"],
+    ["outputs", "Outputs"],
+  ])("%s says in plain words that it comes in 0.4 and where to run a session until then (w3-ux 2)", (path, heading) => {
+    window.history.replaceState(null, "", `#/${path}`);
+    render(<Shell screens={SHELL_SCREENS} />);
+    const main = within(screen.getByRole("main"));
+    expect(main.getByRole("heading", { level: 1 })).toHaveTextContent(heading);
+    expect(main.getByText("Live comes in Lyre 0.4. Until then, run your session from the Player tab.")).toBeInTheDocument();
+    expect(main.queryByText("Not built yet.")).toBeNull();
   });
 
   it("moves focus to the new screen's heading when the route changes, without an outline class", () => {
@@ -84,6 +94,48 @@ describe("the shell: rail, routes and screens (UX-9)", () => {
     expect(h1).toHaveFocus();
     expect(h1).toHaveAttribute("tabindex", "-1");
     expect(h1.closest(".viewhead")).not.toBeNull();
+  });
+
+  it("moves focus to the heading of a screen that shows it once its data has loaded (w3-ux 5)", async () => {
+    function Late() {
+      const [ready, setReady] = React.useState(false);
+      React.useEffect(() => void setTimeout(() => setReady(true), 50), []);
+      return ready ? <PlaceholderScreen title="Late" /> : <p>Opening…</p>;
+    }
+    render(<Shell screens={{ ...SHELL_SCREENS, library: Late }} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("link", { name: "Library" }));
+    expect(screen.getByRole("link", { name: "Library" })).toHaveFocus();
+    const h1 = await screen.findByRole("heading", { level: 1, name: "Late" });
+    await vi.waitFor(() => expect(h1).toHaveFocus());
+  });
+
+  it("keeps focus on the heading when a loading heading is replaced by the screen's own (w3-ux 5)", async () => {
+    function Swap() {
+      const [ready, setReady] = React.useState(false);
+      React.useEffect(() => void setTimeout(() => setReady(true), 50), []);
+      return ready ? <PlaceholderScreen key="ready" title="Board" /> : <PlaceholderScreen key="loading" title="Pad board" />;
+    }
+    render(<Shell screens={{ ...SHELL_SCREENS, board: Swap }} />);
+    go("board/new");
+    expect(screen.getByRole("heading", { level: 1, name: "Pad board" })).toHaveFocus();
+    const h1 = await screen.findByRole("heading", { level: 1, name: "Board" });
+    await vi.waitFor(() => expect(h1).toHaveFocus());
+  });
+
+  it("leaves focus where the user put it while the screen was loading", async () => {
+    function Late() {
+      const [ready, setReady] = React.useState(false);
+      React.useEffect(() => void setTimeout(() => setReady(true), 80), []);
+      return ready ? <PlaceholderScreen title="Late" /> : <p>Opening…</p>;
+    }
+    render(<Shell screens={{ ...SHELL_SCREENS, library: Late }} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("link", { name: "Library" }));
+    screen.getByRole("link", { name: "Playlists" }).focus();
+    await screen.findByRole("heading", { level: 1, name: "Late" });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(screen.getByRole("link", { name: "Playlists" })).toHaveFocus();
   });
 
   it("does not take focus when the page first opens", () => {

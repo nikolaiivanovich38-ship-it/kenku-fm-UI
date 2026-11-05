@@ -99,6 +99,7 @@
     var rows = filtered(), all = D.playlists.length, anyFilter = filt.lane !== 'all' || filt.kind !== 'all' || filt.used !== 'all' || filt.q;
     var table = rows.length ? '<div class="pl-grid pl-colhead" aria-hidden="true"><span>Name</span><span class="pl-c">Tracks</span><span class="pl-c">Length</span><span></span></div>' +
       '<ul class="pl-list" aria-label="Playlists">' + rows.map(listRow).join('') + '</ul>'
+      : !all ? '<div class="empty"><b>No playlists yet.</b> A playlist is music, ambience or effects that play together, in your order or picked by their tags. Start with <b>New playlist</b>, or tick tracks in the Library and choose <b>New playlist from these</b>.</div>'
       : '<div class="empty">No playlists match these filters. <button class="btn s" data-act="plclear" data-k="plclear">Show all playlists</button></div>';
     return '<div class="viewhead"><h1>Playlists</h1><span class="muted">' + plural(all, 'playlist') + '</span><span class="grow"></span>' +
       '<button class="btn primary" data-act="plnew" data-k="plnew" aria-haspopup="menu" aria-expanded="false">' + L.icon('plus', 's') + 'New playlist' + L.icon('chevdown', 's') + '</button></div>' +
@@ -214,10 +215,12 @@
     return L.pane({ id: 'pl-rules', title: 'Rules', icon: 'rule', kind: 'search', size: 'auto', status: none ? status('Empty', 'warn') : status('Ready'), summary: esc(words || 'Every ' + laneName(pl.lane).toLowerCase() + ' track'),
       body: '<div class="pl-conds">' + (r.conds.length ? r.conds.map(condRow).join('') : '<p class="muted">No conditions yet, so every ' + laneName(pl.lane).toLowerCase() + ' track in the library matches.</p>') + '</div>' +
         '<div class="pl-rulebar"><button class="btn s" data-act="plcadd" data-k="plcadd">' + L.icon('plus', 's') + 'Add condition</button>' +
-        '<span class="pl-energy"><span class="faint" id="pl-en-l">Energy from</span><select class="input pl-sel pl-num" data-input="plen" data-e="0" data-k="en0" aria-label="Lowest energy">' + opts(en[0]) + '</select>' +
-        '<span class="faint">to</span><select class="input pl-sel pl-num" data-input="plen" data-e="1" data-k="en1" aria-label="Highest energy">' + opts(en[1]) + '</select></span>' +
+        '<span class="pl-energy"><span class="faint" id="pl-en-l">Energy from</span><select class="input pl-sel pl-num" data-input="plen" data-e="0" data-k="en0" aria-label="Lowest energy" aria-describedby="pl-en-hint">' + opts(en[0]) + '</select>' +
+        '<span class="faint">to</span><select class="input pl-sel pl-num" data-input="plen" data-e="1" data-k="en1" aria-label="Highest energy" aria-describedby="pl-en-hint">' + opts(en[1]) + '</select></span>' +
         '<label class="pl-check"><input type="checkbox" data-input="plsting" data-k="plsting"' + (r.notRole === 'Sting' ? ' checked' : '') + '>Leave out stings</label></div>' +
-        '<p class="pl-words"><span class="faint">In plain words:</span> ' + esc(laneName(pl.lane)) + ' tracks' + (words ? ' with ' + esc(words) : ', all of them') + '.' + (waiting ? ' <span class="pl-warn">A condition still needs a value, so nothing matches yet.</span>' : '') + '</p>' });
+        '<p class="pl-words"><span class="faint">In plain words:</span> ' + esc(laneName(pl.lane)) + ' tracks' + (words ? ' with ' + esc(words) : ', all of them') + '.' + (waiting ? ' <span class="pl-warn">A condition still needs a value, so nothing matches yet.</span>' : '') + '</p>' +
+        // The energy lists start at 0, which is a track whose energy is not set.
+        '<p class="hint pl-enhint" id="pl-en-hint">Energy 0 means a track with no energy set.</p>' });
   }
   function matchPane(pl, tracks, air) {
     return L.pane({ id: 'pl-match', title: 'Matching tracks', icon: 'list', kind: 'music', flush: true, scroll: 'pl-match',

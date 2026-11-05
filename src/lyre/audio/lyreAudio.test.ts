@@ -398,6 +398,16 @@ describe("preview: the game master's headphones only, never on air (PRV-1)", () 
     expect(state().preview?.key).toBe("m2");
   });
 
+  it("a quiet preview that cannot play sends preview-failed with why (review w3-polish 1)", async () => {
+    const failed: { key: string; message: string }[] = [];
+    rig.audio.on("preview-failed", (at) => failed.push(at));
+    rig.previewContext.failingUrls.add("file:///m2.ogg");
+    rig.audio.previewTrack("m2", { startAtMs: 0, quiet: true });
+    await rig.advance(0.5);
+    expect(failed).toEqual([{ key: "m2", message: "Could not play the preview of M2." }]);
+    expect(announced.filter((t) => t.includes("review"))).toEqual([]);
+  });
+
   it("previews a playlist's first track and a pad's sound, and says when a playlist is empty", async () => {
     rig.audio.previewPlaylist("P");
     expect(state().preview).toEqual({ key: "pl:P", label: "Battle: M2" });

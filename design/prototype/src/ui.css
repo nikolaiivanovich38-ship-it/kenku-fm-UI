@@ -224,6 +224,10 @@ table.grid tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 v
 .onairbar .oab-items { display: flex; gap: 12px; flex: 1; min-width: 0; overflow: hidden; font-size: var(--fs-s); }
 .onairbar .oab-item { display: flex; align-items: center; gap: 5px; min-width: 0; max-width: 45%; }
 .onairbar a.btn { text-decoration: none; }
+/* w3-ux 10: what a large change did, with Undo (and Ctrl+Z), like the board's resize message; above the on-air bar. */
+.undo-note { display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 8px; margin: 4px 8px; border: 1px solid var(--line-strong); border-left: 3px solid var(--accent); border-radius: var(--r-m); background: var(--surface-2); font-size: var(--fs-s); flex: none; min-width: 0; }
+.undo-note > svg { color: var(--accent-text); flex: none; }
+.undo-note .grow { min-width: 0; }
 .pk-preview { display: flex; align-items: center; gap: 6px; font-size: var(--fs-s); color: var(--ink); min-width: 0; }
 
 /* Round 4 clean-up: every box shows what it is for (a coloured top edge by kind, an icon and a plain title)

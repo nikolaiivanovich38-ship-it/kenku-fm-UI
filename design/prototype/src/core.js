@@ -535,7 +535,7 @@ var L = (function () {
       var railMin = L.state.rail === 'min' || (L.state.rail === 'auto' && w < 1100);
       paint(document.getElementById('rail'), railHTML(v.nav || r.name, railMin));
       document.getElementById('rail').className = 'rail' + (railMin ? ' min' : '');
-      paint(document.getElementById('view'), v.render(r.p) + (r.name === 'live' ? '' : onAirBar()));
+      paint(document.getElementById('view'), v.render(r.p) + (r.name === 'live' ? '' : undoNoteHTML() + onAirBar()));
       document.getElementById('view').dataset.view = r.name;
       document.querySelectorAll('#view .col').forEach(function (c) { c.classList.toggle('has-max', !!c.querySelector(':scope > .pane.maxed')); });
       if (v.after) v.after(document.getElementById('view'), r.p);
@@ -555,6 +555,38 @@ var L = (function () {
       '<button class="btn s" data-act="oabstop" data-k="oab-stop">' + L.icon('stop', 's') + 'Stop</button><a class="btn s" href="#/live" data-k="oab-live">' + L.icon('broadcast', 's') + 'Go to Live</a></div>';
   }
   L.acts.oabstop = function () { L.fadeAll(1); };
+
+  /* Undo for changes that remove or reset much at once (w3-ux 10): Reset to whole track, Delete board, Delete scene,
+     Tag… on many tracks. Like the board's resize message: what happened, Undo, and a close button; Ctrl+Z also
+     undoes it (Live has its own Ctrl+Z). L.snapshot(['boards', 'campaigns']) copies those data lists before the
+     change; L.undoNote(text, restore) shows the message until another one replaces it or it is closed. */
+  var undoNote = null;
+  L.snapshot = function (keys) {
+    var copy = JSON.parse(JSON.stringify(keys.map(function (k) { return D[k]; })));
+    return function () {
+      keys.forEach(function (k, i) {
+        var cur = D[k], was = copy[i];
+        if (Array.isArray(cur)) cur.splice.apply(cur, [0, cur.length].concat(was));
+        else { Object.keys(cur).forEach(function (x) { delete cur[x]; }); Object.assign(cur, was); }
+      });
+    };
+  };
+  L.undoNote = function (text, restore) { undoNote = { text: text, restore: restore }; };
+  function undoNoteHTML() {
+    return undoNote ? '<div class="undo-note" role="group" aria-label="Undo">' + L.icon('check', 's') + '<span class="grow">' + esc(undoNote.text) + '</span>' +
+      '<button class="btn s" data-act="undonote" data-k="undo-note">Undo</button><button class="closer" data-act="undonotex" data-k="undo-notex" title="Dismiss" aria-label="Dismiss message">' + L.icon('close') + '</button></div>' : '';
+  }
+  L.acts.undonote = function () {
+    var n = undoNote; if (!n) return; undoNote = null; n.restore();
+    L.say('Undone: ' + n.text); L.toast('Undone'); L.render();
+    var h = document.querySelector('#view h1'); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
+  };
+  L.acts.undonotex = function () { undoNote = null; L.render(); var h = document.querySelector('#view h1'); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); } };
+  document.addEventListener('keydown', function (e) {
+    if (!undoNote || !(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'z') return;
+    if (typing(e.target) || resolve().name === 'live' || document.getElementById('lyre-sheet')) return;
+    e.preventDefault(); L.acts.undonote();
+  });
   function outputsBadge() { var n = D.discord.bots.filter(function (b) { return b.status === 'connected'; }).length; return ' (' + n + '/' + D.discord.bots.length + ')'; }
   function railHTML(cur, min) {
     function a(href, nav, icon, label) { return '<a href="' + href + '" data-k="rail-' + nav + '"' + (cur === nav ? ' aria-current="page"' : '') + (min ? ' title="' + label + '"' : '') + '>' + L.icon(icon) + '<span class="lbl">' + label + '</span></a>'; }

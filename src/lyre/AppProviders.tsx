@@ -119,6 +119,7 @@ const ON_AIR_BAR = <OnAirBar />;
 function ShellDataFromLibrary({ children }: { children: React.ReactNode }) {
   const campaigns = useCampaigns().data;
   const live = useLiveSession();
+  const api = useLyreApi();
   const value = useMemo<ShellData>(() => {
     const themes = new Map((campaigns ?? []).map((c) => [c.id, c.theme as ThemeId]));
     const session = live && campaigns?.find((c) => c.id === live.campaignId)?.sessions.find((s) => s.id === live.sessionId);
@@ -126,8 +127,10 @@ function ShellDataFromLibrary({ children }: { children: React.ReactNode }) {
       campaignTheme: (id: string) => themes.get(id),
       liveCampaign: live?.campaignId,
       liveLabel: session ? `Live: S${session.number}` : undefined,
+      liveName: session ? `Live: session ${session.number}` : undefined,
       onAirBar: ON_AIR_BAR,
+      history: api.history,
     };
-  }, [campaigns, live]);
+  }, [campaigns, live, api]);
   return <ShellDataProvider value={value}>{children}</ShellDataProvider>;
 }

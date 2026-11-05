@@ -98,6 +98,7 @@ select.input.pl-num { width: 44px; }
 .pl-rulebar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; }
 .pl-energy { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-s); white-space: nowrap; }
 .pl-check { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-s); cursor: pointer; min-height: var(--ctl-s); }
+.pl-enhint { margin-top: 4px; }
 .pl-words { margin-top: 8px; font-size: var(--fs-s); }
 .pl-mq { padding: 2px 2px 4px; }
 .pl-mq .input { height: var(--ctl-s); }

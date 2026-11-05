@@ -114,6 +114,31 @@ describe("a pad board: the grid and its size (boards.js board editor)", () => {
     expect(await spoken()).toBe("New pad added at row 3, column 4. Give it a label.");
   });
 
+  it("a new pad takes the name of the sound chosen for it (w3-ux 16)", async () => {
+    const user = userEvent.setup();
+    const { api } = await open("board/combat");
+    await user.click(screen.getByRole("button", { name: "Empty slot, row 3, column 4. Add a pad" }));
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Label" })).toHaveValue("New pad"));
+    await user.click(within(padBox()).getByRole("button", { name: "Choose from library…" }));
+    const sheet = screen.getByRole("dialog", { name: 'Sounds for "New pad"' });
+    await user.click(within(sheet).getByRole("checkbox", { name: /^Heavy door slams/ }));
+    await user.click(within(sheet).getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Label" })).toHaveValue("Heavy door slams"));
+    const pad = (await api.boards.list()).find((b) => b.id === "combat")!.slots.find((p) => p?.sound.trackIds.includes("f08"));
+    expect(pad?.label).toBe("Heavy door slams");
+  });
+
+  it("a pad that has a name keeps it when its sound changes", async () => {
+    const user = userEvent.setup();
+    await open("board/abbey");
+    await user.click(within(padBox()).getByRole("button", { name: "Choose from library…" }));
+    const sheet = screen.getByRole("dialog", { name: 'Sounds for "Abbey bell"' });
+    await user.click(within(sheet).getByRole("checkbox", { name: /^Heavy door slams/ }));
+    await user.click(within(sheet).getByRole("button", { name: "Done" }));
+    await act(() => new Promise((r) => setTimeout(r, 100)));
+    expect(screen.getByRole("textbox", { name: "Label" })).toHaveValue("Abbey bell");
+  });
+
   it("renames the board as you type", async () => {
     const user = userEvent.setup();
     const { api } = await open("board/weather");

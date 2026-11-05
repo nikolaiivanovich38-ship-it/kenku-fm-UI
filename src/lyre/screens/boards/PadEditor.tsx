@@ -34,6 +34,9 @@ export interface PadEditorProps {
   focusLater: (k: string, options?: { pid?: string }) => void;
 }
 
+/** The label every new pad starts with (the library's default for a new pad). */
+const NEW_PAD_LABEL = "New pad";
+
 const SOUND_KINDS: [Pad["sound"]["kind"], string][] = [
   ["single", "One file"],
   ["variants", "Several variants"],
@@ -174,6 +177,12 @@ function SoundEditor({ board, at, tracks, tagGroups, sound, update, focusLater }
   const byId = new Map(tracks.map((t) => [t.id, t]));
   const fx = tracks.filter((t) => t.kind === "fx");
 
+  /** A new pad takes the name of its first sound (in the same change), so two new pads never share "New pad". */
+  const nameFrom = (trackId: string | undefined): { label?: string } => {
+    const t = trackId ? byId.get(trackId) : undefined;
+    return pad.label === NEW_PAD_LABEL && t ? { label: trackTitle(t) } : {};
+  };
+
   const chooseKind = (kind: Pad["sound"]["kind"]) => {
     if (s.kind === kind) return;
     void update({ sound: { kind } });
@@ -186,11 +195,11 @@ function SoundEditor({ board, at, tracks, tagGroups, sound, update, focusLater }
     const got = summary.trackIds;
     if (!got.length) return;
     if (s.kind === "single") {
-      const done = await update({ sound: { trackIds: [got[0]] } });
+      const done = await update({ sound: { trackIds: [got[0]] }, ...nameFrom(got[0]) });
       if (done) say(`File chosen: ${trackTitle(byId.get(got[0]))}`);
     } else {
       const next = [...s.trackIds, ...got.filter((id) => !s.trackIds.includes(id))];
-      const done = await update({ sound: { trackIds: next } });
+      const done = await update({ sound: { trackIds: next }, ...nameFrom(got[0]) });
       if (done) say(`Added ${plural(next.length - s.trackIds.length, "file")}. ${plural(next.length, "variant")}.`);
     }
   };
@@ -301,7 +310,7 @@ function SoundEditor({ board, at, tracks, tagGroups, sound, update, focusLater }
           if (!chosen.length) return;
           const becomesVariants = chosen.length > 1 && s.kind !== "variants";
           const kind = becomesVariants ? "variants" : s.kind === "tag" ? "single" : s.kind;
-          void update({ sound: { trackIds: chosen, kind } }).then((done) => {
+          void update({ sound: { trackIds: chosen, kind }, ...nameFrom(chosen[0]) }).then((done) => {
             if (!done) return;
             if (becomesVariants) toast(`${plural(chosen.length, "sound")} chosen, so the pad plays them as variants`);
             say(`${plural(chosen.length, "sound")} from the library on ${pad.label}`);

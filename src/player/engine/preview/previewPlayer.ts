@@ -44,6 +44,8 @@ export interface PreviewState {
 interface PreviewEvents {
   /** What is previewing now (null: nothing), with a sentence for the live region. */
   change: (state: PreviewState | null, announcement: string) => void;
+  /** A preview could not play (sent before its "change", quiet or not), with the reason in plain words. */
+  failed: (key: string, message: string) => void;
   /** Where the preview is in its file, in seconds, sent every POSITION_MS while it plays. */
   position: (key: string, seconds: number) => void;
 }
@@ -115,11 +117,9 @@ export class PreviewPlayer extends TypedEmitter<PreviewEvents> {
       this.voice = null;
       this.state = null;
       this.stopPositions();
-      this.emit(
-        "change",
-        null,
-        item.quiet ? "" : voice.state === "failed" ? `Could not play the preview of ${item.label}.` : "Preview finished",
-      );
+      const failure = voice.state === "failed" ? `Could not play the preview of ${item.label}.` : null;
+      if (failure) this.emit("failed", item.key, failure);
+      this.emit("change", null, item.quiet ? "" : (failure ?? "Preview finished"));
     });
     this.emit("change", this.current(), item.quiet ? "" : `Previewing in your headphones: ${item.label}`);
     this.sendPositions(voice, item.key);

@@ -296,7 +296,7 @@
   function stepper(t, which, val, unitLabel) {
     return '<span class="ap-step">' +
       '<button class="btn s icon" data-act="apstep" data-f="' + which + '" data-d="-1" data-k="ap-st-' + which + '-m" title="Shorter ' + unitLabel + ' (1 s less)" aria-label="Shorter ' + unitLabel + '"' + dis(t) + '>' + L.icon('minus', 's') + '</button>' +
-      timeInput(t, which, String(val), true, unitLabel + ' in seconds') +
+      timeInput(t, which, String(val), true, unitLabel + ' length in seconds') +
       '<button class="btn s icon" data-act="apstep" data-f="' + which + '" data-d="1" data-k="ap-st-' + which + '-p" title="Longer ' + unitLabel + ' (1 s more)" aria-label="Longer ' + unitLabel + '"' + dis(t) + '>' + L.icon('plus', 's') + '</button><span class="faint">s</span></span>';
   }
   function sketchPath(kind, shp) {
@@ -310,7 +310,7 @@
       '<div class="ap-fb-row"><span class="ap-fb-l">Length</span>' + stepper(t, which, f.dur, label.toLowerCase()) +
       '<button class="btn s ghost" data-act="aphere" data-f="' + which + '" data-k="ap-here-' + which + '" title="' + (kind === 'in' ? 'Fade in from Start up to the playhead' : 'Fade out from the playhead to End') + ' (' + L.fmt(S.pos) + ')"' + dis(t) + '>' + L.icon('arrow', 's') + (kind === 'in' ? 'Up to playhead' : 'From playhead') + '</button>' + err(which) + '</div>' +
       '<div class="ap-fb-row"><label class="ap-fb-l" for="ap-sh-' + kind + '">Intensity</label><span class="ap-int"><span class="hint" aria-hidden="true">Gentle</span>' +
-      '<input type="range" id="ap-sh-' + kind + '" min="0" max="100" step="5" value="' + f.shape + '" data-input="apshape" data-f="' + kind + '" data-k="ap-sh-' + kind + '" aria-valuetext="' + shapeName(f.shape) + ', ' + f.shape + ' of 100"' + dis(t) + '>' +
+      '<input type="range" id="ap-sh-' + kind + '" min="0" max="100" step="5" value="' + f.shape + '" data-input="apshape" data-f="' + kind + '" data-k="ap-sh-' + kind + '" aria-label="' + label + ' intensity" aria-valuetext="' + shapeName(f.shape) + ', ' + f.shape + ' of 100"' + dis(t) + '>' +
       '<span class="hint" aria-hidden="true">Sharp</span></span>' +
       '<svg class="ap-sketch" viewBox="0 0 64 28" aria-hidden="true"><path class="ap-sk-base" d="M2 25H62"/><path class="ap-sk" data-sketch="' + kind + '" d="' + sketchPath(kind, f.shape) + '"/></svg>' +
       '<span class="ap-shname" data-shname="' + kind + '">' + shapeName(f.shape) + '</span></div></div>';
@@ -546,8 +546,9 @@
   }
   L.acts.apstep = function (el) { var t = track(), w = el.dataset.f; movePoint(t, w, value(prof(t), w) + (+el.dataset.d)); delete S.invalid[w]; S.editing = null; sayPoint(w); L.render(); };
   L.acts.apreset = function () {
-    var t = track(); if (!write(t, { start: 0, end: t.dur, loopStart: 0, loopXfade: 0, fadeIn: { dur: 0, shape: 50 }, fadeOut: { dur: 0, shape: 50 } })) return; S.invalid = {}; S.editing = null;
-    L.toast('Back to the whole track: 0:00 to ' + L.fmt(t.dur) + ', no fades'); L.say('Reset to the whole track'); L.render();
+    var t = track(), restore = L.snapshot(['tracks', 'profiles']);
+    if (!write(t, { start: 0, end: t.dur, loopStart: 0, loopXfade: 0, fadeIn: { dur: 0, shape: 50 }, fadeOut: { dur: 0, shape: 50 } })) return; S.invalid = {}; S.editing = null;
+    L.undoNote('Back to the whole track: 0:00 to ' + L.fmt(t.dur) + ', no loop and no fades.', restore); L.say('Reset to the whole track'); L.render();
   };
   L.acts.apmadd = function () { addMarker(true); };
   function addMarker(focus) {
@@ -585,13 +586,18 @@
     if (sk) sk.setAttribute('d', sketchPath(k, v)); if (nm) nm.textContent = shapeName(v); draw(root);
   };
   L.inputs.apfield = function (el) {
-    var which = el.dataset.f, t = track(), lenField = which.indexOf('fade') === 0 || which === 'xfade', v = parse(el.value, lenField), r = range(t, which); S.editing = which; S.editText = el.value;
+    var which = el.dataset.f, t = track(), lenField = which.indexOf('fade') === 0 || which === 'xfade', v = parse(el.value, lenField), r = range(t, which);
+    // A time it cannot use puts the profile back as it was before typing, not at a time typed on the way ("2" of "2:00").
+    if (S.editing !== which) S.editBase = copyOf(prof(t));
+    S.editing = which; S.editText = el.value;
     if (v == null) S.invalid[which] = lenField ? 'Type a number of seconds, like 6' : 'Type minutes and seconds, like 5:18';
     else if (v < r[0] || v > r[1]) S.invalid[which] = 'Between ' + (lenField ? r[0] + ' and ' + r[1] + ' seconds' : L.fmt(r[0]) + ' and ' + L.fmt(r[1]));
     else { delete S.invalid[which]; movePoint(t, which, v); }
+    if (S.invalid[which] && S.editBase) write(t, copyOf(S.editBase));
     L.render();
   };
-  function commitField() { if (!S.editing) return; S.editing = null; S.invalid = {}; setTimeout(L.render, 0); }
+  // Enter on a time it cannot use keeps the text and its message; the point stays as it was.
+  function commitField() { if (!S.editing || S.invalid[S.editing]) return; S.editing = null; S.invalid = {}; setTimeout(L.render, 0); }
 
   /* ---------- keyboard shortcuts (view focused, not typing) ---------- */
   L.onKey(function (e) {
