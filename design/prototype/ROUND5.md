@@ -3,8 +3,9 @@
 Each note is quoted as Nik wrote it, with the design under it: what the prototype shows, where to try it, and the rule
 behind it. Rules shared by the data, the engine and the screens are tested TypeScript in
 `src/common/domain/round5.ts` (tests in `round5.test.ts`); the prototype's `core.js` uses the same rules.
-Acceptance specs: `e2e/specs/round5.spec.ts` and `e2e/specs/library-files.spec.ts`, plus changed checks in
-`pad-boards.spec.ts`; in the app they wait for wave 4 (`expectFailureUntilBuilt("round 5")`).
+Acceptance specs: a `round 5` block in each of the session planner, campaigns, playlists, library, pad boards, audio
+profile and Live spec files, the new `e2e/specs/library-files.spec.ts`, and three screens in the sweeps; in the app
+they wait for wave 4 (`expectFailureUntilBuilt("round 5")`, docs/testing.md).
 
 ## Play order (PLY-13)
 
@@ -143,7 +144,7 @@ Acceptance specs: `e2e/specs/round5.spec.ts` and `e2e/specs/library-files.spec.t
 - After any resize the pads fill the grid left to right, top to bottom, in their order, followed by the spare pads;
   only pads that do not fit go to Spare pads. The message says what happened ("Grid is now 4 × 1 and full. 4 pads
   moved to Spare pads: …. Nothing was deleted." or "2 spare pads came back onto it: …"), with **Undo**. Rule
-  `reflowBoard`. Gaps close; a pad put aside by hand comes back when there is room (question 2).
+  `reflowBoard`. Gaps close; a pad put aside by hand comes back when there is room (see question 2 below).
 
 ## Trying a pad (SFX-12)
 
@@ -180,3 +181,33 @@ track; Shape, Steady, Builds, Falls away, Peaks then falls, Rises and falls, Sug
 Names in scenes; Waveform, end and fades in this scene, Back to <scene>, Session list; Try pads, Trying, Sounding;
 Back up, move or share, Save to a file, Include the audio files, Open a file, Bring in, Skip, Merge, Keep both;
 What came across from Kenku FM, Not brought across; Find missing files, Look in a folder, How sure, Relink; Missing.
+
+## Questions for Nik
+
+1. **Previews in the On air bar.** The bar shows only what the players hear. A preview (headphones) shows only in the
+   row it was started from. Recommended: the bar also shows a preview on a second, violet line ("Only you: …", with
+   Stop), so one bar answers "what is playing" wherever you are; BUG-12 came from a preview that seemed to vanish.
+2. **Resizing a board.** The prototype packs the pads left to right, top to bottom, closing any gaps, and brings back
+   every spare pad when there is room, also one you put aside by hand. Recommended: keep the packing, but leave pads
+   you put aside by hand in Spare pads; only pads a resize pushed out come back. A pad shelved on purpose should not
+   reappear on its own.
+3. **Repeat all in a scene.** With Repeat all, the scene stays on that playlist until you press Next past it.
+   Recommended: keep this; it is what Repeat all means, and No repeat (the default in a scene) moves the scene on.
+4. **Shape suggestions.** Lyre suggests a shape for every track from its loudness, marked "Suggested by Lyre", and
+   your choice replaces it. Recommended: keep suggestions on, since the Shape filter and rules find nothing in a
+   library nobody has marked by hand. The alternative is shapes only where you choose one.
+
+## What to look at (about 15 minutes)
+
+Open `design/prototype/lyre-prototype.html`. Campaigns › The Sunken Crown › Session 14:
+- Scene 3, The abbey ruins: the tags and shape lines under each track; the play order button on "Abbey: eerie, low
+  energy" (it has its own order here only); Add tracks or playlists…, open a playlist with its arrow and tick one track.
+- Scene 6, Aftermath: "Dawn over the abbey" is the scene's name for a track (hover for its own); ⋯ › Name in this
+  scene…; the wave button opens the Audio profile on this scene's settings, and Back to Aftermath returns.
+- Play on air on any playlist, then move between screens: the On air bar stays, with Pause, Stop, Next, play order and
+  Volume; Pause turns it grey, Stop removes it.
+- Library: a track's details (Shape, Names in scenes, Use in…); Filters › Shape and Missing; ⋯ beside Add tracks ›
+  Back up, move or share, What came across from Kenku FM, Find missing files.
+- Playlists › a dynamic playlist: Details at the top, with the rules.
+- Pad boards › Combat: ▶ on each pad; Try pads, then click pads and press their keys; make the grid smaller, then
+  larger again.
