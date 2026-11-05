@@ -11,8 +11,9 @@
  *   { t: "legacy", raw }          bring in the old player's library (once; the database remembers it did)
  *   { t: "media-folders" }        the folders the player may read library files from (MediaAccess, MEDIA_PREPARE)
  *   { t: "close" }                stop backups, close the library cleanly
- * Answers: { t: "ready" }, { t: "open-failed", message }, { t: "legacy-report", report }, { t: "media-folders", folders },
- * { t: "closed" }.
+ * Answers: { t: "ready" }, { t: "open-failed", message }, { t: "legacy-report", id, report },
+ * { t: "media-folders", id, folders }, { t: "closed", id }. A request carries an `id` and its answer the same `id`, so
+ * overlapping requests each get their own answer (security review 1).
  */
 import { serveLyreApi, type PortLike } from "../../common/lyre/rpc";
 import { prototypeSeed } from "../../common/lyre/seed";
@@ -67,7 +68,7 @@ export function runLibraryProcess(port: PortLike, options: LibraryProcessOptions
   };
 
   const stop = port.onMessage(async (data) => {
-    const message = data as { t?: string; folder?: string; seed?: boolean; raw?: unknown; ffmpegPath?: unknown };
+    const message = data as { t?: string; id?: number; folder?: string; seed?: boolean; raw?: unknown; ffmpegPath?: unknown };
     try {
       if (message?.t === "init" && !library) {
         try {
@@ -87,9 +88,9 @@ export function runLibraryProcess(port: PortLike, options: LibraryProcessOptions
         stopBackups = startDailyBackups(library, { onError: (error) => log("The daily backup failed", error) });
       } else if (message?.t === "legacy" && library) {
         const report = await importLegacyLibrary(library, message.raw, { tagReader });
-        port.postMessage({ t: "legacy-report", report });
+        port.postMessage({ t: "legacy-report", id: message.id, report });
       } else if (message?.t === "media-folders" && library) {
-        port.postMessage({ t: "media-folders", folders: mediaFolders(library) });
+        port.postMessage({ t: "media-folders", id: message.id, folders: mediaFolders(library) });
       } else if (message?.t === "close") {
         stopBackups?.();
         api?.stopBackgroundWork();
@@ -97,7 +98,7 @@ export function runLibraryProcess(port: PortLike, options: LibraryProcessOptions
         library?.close();
         library = null;
         stop();
-        port.postMessage({ t: "closed" });
+        port.postMessage({ t: "closed", id: message.id });
         finish();
       }
     } catch (error) {

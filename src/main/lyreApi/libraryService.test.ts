@@ -214,3 +214,79 @@ describe("LyreLibraryService", () => {
     await expect(call(s, "boards", "list")).rejects.toThrow();
   });
 });
+
+/**
+ * A library process played by a script (review 1): it answers each control request after `delayMs`, echoing the
+ * request's id, and can be told to stop instead of answering the folder list.
+ */
+class ScriptedChild extends EventEmitter implements LibraryChild {
+  static made = 0;
+  readonly id = ++ScriptedChild.made;
+  constructor(private readonly script: { dieOnFolders?: (child: ScriptedChild) => boolean; folders?: () => string[]; silent?: boolean } = {}) {
+    super();
+  }
+  postMessage(m: { t?: string; id?: number }) {
+    setTimeout(() => {
+      if (m.t === "init") this.emit("message", { t: "ready" });
+      if (m.t === "media-folders" && !this.script.silent) {
+        if (this.script.dieOnFolders?.(this)) this.emit("exit", 134);
+        else this.emit("message", { t: "media-folders", id: m.id, folders: this.script.folders?.() ?? ["C:/Music"] });
+      }
+      if (m.t === "close") this.emit("message", { t: "closed", id: m.id });
+    }, 5);
+  }
+  kill() {
+    return true;
+  }
+}
+
+/** Resolves to the promise's outcome, or "pending" when it has not settled within `ms`. */
+function settledWithin<T>(promise: Promise<T>, ms = 300): Promise<{ value: T } | { error: string } | "pending"> {
+  return Promise.race([
+    promise.then(
+      (value) => ({ value }),
+      (error: Error) => ({ error: error.message }),
+    ),
+    new Promise<"pending">((resolve) => setTimeout(() => resolve("pending"), ms)),
+  ]);
+}
+
+describe("LyreLibraryService control requests (security review 1)", () => {
+  it("answers every one of two overlapping folder requests", async () => {
+    const s = new LyreLibraryService({ fork: () => new ScriptedChild(), folder: "x", host: {}, onEvent: () => undefined });
+    s.start();
+    const first = s.mediaFolders();
+    const second = s.mediaFolders();
+    expect(await settledWithin(first)).toEqual({ value: ["C:/Music"] });
+    expect(await settledWithin(second)).toEqual({ value: ["C:/Music"] });
+  });
+
+  it("fails a request still waiting when the library's process stops, and every request once it has given up", async () => {
+    const events: LyreEvent[] = [];
+    const s = new LyreLibraryService({
+      fork: () => new ScriptedChild({ dieOnFolders: () => true }),
+      folder: "x",
+      host: {},
+      onEvent: (event) => events.push(event),
+      restartDelayMs: 10,
+    });
+    s.start();
+    const backAgain = () => events.filter((e) => e.type === "library-status" && e.ok).length;
+    expect(await settledWithin(s.mediaFolders())).toEqual({ error: STARTING_AGAIN });
+    await vi.waitFor(() => expect(backAgain()).toBe(1));
+    expect(await settledWithin(s.mediaFolders())).toEqual({ error: STARTING_AGAIN });
+    await vi.waitFor(() => expect(backAgain()).toBe(2));
+    expect(await settledWithin(s.mediaFolders())).toEqual({ error: GAVE_UP });
+    expect(events).toContainEqual({ type: "library-status", ok: false, message: GAVE_UP });
+    expect(await settledWithin(s.mediaFolders())).toEqual({ error: GAVE_UP });
+  });
+
+  it("fails requests still waiting when it is stopped", async () => {
+    const s = new LyreLibraryService({ fork: () => new ScriptedChild({ silent: true }), folder: "x", host: {}, onEvent: () => undefined });
+    s.start();
+    const waiting = s.mediaFolders();
+    await new Promise((r) => setTimeout(r, 20));
+    await s.stop(50);
+    expect(await settledWithin(waiting)).toEqual({ error: "Lyre's library is closed." });
+  });
+});

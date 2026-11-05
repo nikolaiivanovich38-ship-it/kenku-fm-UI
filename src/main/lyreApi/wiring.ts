@@ -5,7 +5,8 @@
  * - LYRE_API_CALL from the Lyre page goes to the library service (its own process); its events go to the page.
  * - MEDIA_PREPARE (the player page and the Lyre page) may read files from the library's folders only: the library
  *   folders, and the folders of files added from elsewhere. The list is asked of the library at start, again when
- *   tracks or folders change and when the library is back after a restart; a request waits for the newest list.
+ *   tracks or folders change and when the library is back after a restart; a request waits for the newest list,
+ *   at most `folderWaitMs`, then uses the last list the library gave (security review 1: it never waits for ever).
  * - The old player's library (`persist:player`) is brought in on the new interface's first call, once (the database
  *   remembers it did, and keeps the report for the Library screen). The call itself is not held up.
  */
@@ -36,8 +37,13 @@ export interface WiringOptions {
   bringInOldLibrary: boolean;
   /** The stored value of the old player's "persist:player", read through the page that called. */
   readOldLibrary(page: CallingPage): Promise<unknown>;
+  /** How long MEDIA_PREPARE waits for a folder list being refreshed before it uses the last one (default 5 s). */
+  folderWaitMs?: number;
   log?: (message: string, error?: unknown) => void;
 }
+
+/** MEDIA_PREPARE's answer when the library has never given its folders in time (security review 1). */
+export const LIBRARY_NOT_ANSWERING = "Lyre's library is not answering yet, so this file cannot be played. Try again in a moment.";
 
 export interface WiredLibrary {
   /** Give every event of the library service here (it refreshes the folders, then the page gets the event). */
@@ -58,8 +64,11 @@ const FOLDER_AREAS = new Set(["tracks", "folders"]);
 
 export function wireLyreLibrary(options: WiringOptions): WiredLibrary {
   const log = options.log ?? ((message, error) => console.error(message, error ?? ""));
-  let folders: readonly string[] = [];
+  // The last list the library gave (null: none yet). A failed refresh keeps it: a library that stopped must not
+  // stop the player playing files it played a moment ago (security review 1).
+  let folders: readonly string[] | null = null;
   let latest: Promise<void> = Promise.resolve();
+  const waitMs = options.folderWaitMs ?? 5000;
 
   const refresh = () => {
     latest = options.service
@@ -68,6 +77,13 @@ export function wireLyreLibrary(options: WiringOptions): WiredLibrary {
         folders = list;
       })
       .catch((error) => log("Could not read the library's folders", error));
+  };
+  /** Waits for the newest list, but never longer than `waitMs`; false when there is still no list at all. */
+  const newestFolders = async (): Promise<boolean> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([latest, new Promise<void>((resolve) => (timer = setTimeout(resolve, waitMs)))]);
+    clearTimeout(timer);
+    return folders !== null;
   };
 
   let oldLibrary: Promise<LegacyImportReport | null> | null = null;
@@ -82,10 +98,10 @@ export function wireLyreLibrary(options: WiringOptions): WiredLibrary {
       });
   };
 
-  const preparer = options.media(() => folders);
+  const preparer = options.media(() => folders ?? []);
   const stopMedia = registerMediaIpc(options.ipc, {
     prepare: async (address, prepareOptions) => {
-      await latest;
+      if (!(await newestFolders())) return { error: LIBRARY_NOT_ANSWERING };
       return preparer.prepare(address, prepareOptions);
     },
   });

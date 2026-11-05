@@ -60,7 +60,12 @@ export class LyreLibraryService {
   private crashes: number[] = [];
   private restartTimer: ReturnType<typeof setTimeout> | null = null;
   private backupsWanted = false;
-  private waiting = new Map<string, (message: unknown) => void>();
+  /**
+   * Control requests waiting for their answer, by request id (security review 1): each request gets its own
+   * answer, and every one still waiting is failed when the process stops, so nothing waits for ever.
+   */
+  private waiting = new Map<number, { resolve(message: unknown): void; reject(error: Error): void }>();
+  private nextRequestId = 1;
 
   constructor(options: LibraryServiceOptions) {
     this.options = options;
@@ -92,25 +97,22 @@ export class LyreLibraryService {
     await this.ready;
     const child = this.child;
     if (!child) return null;
-    const answer = this.next("legacy-report");
-    child.postMessage({ t: "legacy", raw });
-    const report = ((await answer) as { report: LegacyImportReport }).report;
+    const report = ((await this.request(child, { t: "legacy", raw })) as { report: LegacyImportReport }).report;
     if (report.status === "moved") this.options.onEvent({ type: "changed", areas: [...LYRE_AREAS] });
     return report;
   }
 
-  /** The folders the player may read library files from (MediaAccess); empty while the library is not there. */
+  /**
+   * The folders the player may read library files from (MediaAccess). Rejects while the library is down, so the
+   * caller keeps the last list it had (security review 1).
+   */
   async mediaFolders(): Promise<string[]> {
-    try {
-      await this.ready;
-    } catch {
-      return [];
-    }
+    if (this.down) throw new Error(this.down);
+    await this.ready;
     const child = this.child;
-    if (!child) return [];
-    const answer = this.next("media-folders");
-    child.postMessage({ t: "media-folders" });
-    return ((await answer) as { folders: string[] }).folders;
+    if (!child) throw new Error(this.down ?? CLOSED);
+    const folders = ((await this.request(child, { t: "media-folders" })) as { folders?: unknown }).folders;
+    return Array.isArray(folders) ? folders.filter((f): f is string => typeof f === "string") : [];
   }
 
   /** Closes the library cleanly (backups stop, the database is closed), then the process ends. */
@@ -119,9 +121,9 @@ export class LyreLibraryService {
     if (this.restartTimer) clearTimeout(this.restartTimer);
     const child = this.child;
     if (!child) return;
-    const closed = this.next("closed");
-    child.postMessage({ t: "close" });
+    const closed = this.request(child, { t: "close" }).catch((): undefined => undefined);
     await Promise.race([closed, new Promise((resolve) => setTimeout(resolve, timeoutMs))]);
+    this.failWaiting(CLOSED);
     this.client?.close();
     this.client = null;
     this.child = null;
@@ -133,9 +135,20 @@ export class LyreLibraryService {
     return target[method](...args);
   }
 
-  /** The next control message of this kind from the library process. */
-  private next(kind: string): Promise<unknown> {
-    return new Promise((resolve) => this.waiting.set(kind, resolve));
+  /** Sends a control request with its own id; resolves to the answer that carries the same id. */
+  private request(child: LibraryChild, message: { t: string; [key: string]: unknown }): Promise<unknown> {
+    const id = this.nextRequestId++;
+    return new Promise((resolve, reject) => {
+      this.waiting.set(id, { resolve, reject });
+      child.postMessage({ ...message, id });
+    });
+  }
+
+  /** Fails every control request still waiting (the process stopped, or is being closed). */
+  private failWaiting(words: string): void {
+    const waiting = [...this.waiting.values()];
+    this.waiting.clear();
+    for (const request of waiting) request.reject(new Error(words));
   }
 
   private spawn(afterCrash: boolean): void {
@@ -162,10 +175,13 @@ export class LyreLibraryService {
         this.down = words;
         this.markFailed?.(new Error(words));
         this.options.onEvent({ type: "library-status", ok: false, message: words });
-      } else if (kind && this.waiting.has(kind)) {
-        const resolve = this.waiting.get(kind);
-        this.waiting.delete(kind);
-        resolve(message);
+      } else if (kind && kind !== "result" && kind !== "fault" && kind !== "event" && kind !== "host") {
+        const id = (message as { id?: unknown }).id;
+        const request = typeof id === "number" ? this.waiting.get(id) : undefined;
+        if (request) {
+          this.waiting.delete(id as number);
+          request.resolve(message);
+        }
       }
       for (const listener of [...listeners]) listener(message);
     };
@@ -191,6 +207,7 @@ export class LyreLibraryService {
     this.child = null;
     this.client = null;
     if (this.stopping) {
+      this.failWaiting(CLOSED);
       client?.close();
       return;
     }
@@ -200,6 +217,7 @@ export class LyreLibraryService {
     const giveUp = this.crashes.length >= (this.options.maxCrashes ?? 3);
     this.down = giveUp ? GAVE_UP : STARTING_AGAIN;
     client?.failPending(this.down);
+    this.failWaiting(this.down);
     this.markFailed?.(new Error(this.down));
     this.options.onEvent({ type: "library-status", ok: false, message: this.down });
     if (giveUp) return;
