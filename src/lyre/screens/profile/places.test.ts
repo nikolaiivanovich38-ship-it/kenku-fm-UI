@@ -19,6 +19,12 @@ describe("places", () => {
     expect(new Set(scs.map((s) => s.key)).size).toBe(scs.length);
   });
 
+  it("PLY-14: lists the session lists that keep the track on hand, or a playlist with it", () => {
+    const { sss } = placesOf("t03", view);
+    expect(sss).toContainEqual({ key: "ss:crown:s14", label: "Session 14: The Drowned Abbey (The Sunken Crown)" });
+    expect(placeName("ss:crown:s14", view)).toBe("the session Session 14: The Drowned Abbey");
+  });
+
   it("names a place in plain words", () => {
     expect(placeName("", view)).toBe("the track's own settings");
     expect(placeName("pl:p-gothic", view)).toBe("the playlist Gothic dread");

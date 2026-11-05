@@ -1,6 +1,6 @@
 /**
- * Places: a track's own settings (key "") apply everywhere, unless a playlist ("pl:<id>") or a scene
- * ("sc:<campaign>:<session>:<scene>") has its own. Ported from the prototype (design/prototype/src/views/profile.js:
+ * Places: a track's own settings (key "") apply everywhere, unless a playlist ("pl:<id>"), a scene
+ * ("sc:<campaign>:<session>:<scene>") or a session list ("ss:<campaign>:<session>", PLY-14) has its own. Ported from the prototype (design/prototype/src/views/profile.js:
  * placeName, hasOwn, places, sceneOf, contexts), reading the lists the screen loaded from LyreApi.
  */
 import {
@@ -45,15 +45,31 @@ export function sceneOf(key: string, view: LibraryView): { campaign: CampaignInf
   return campaign && session && index > -1 ? { campaign, session, index, scene: session.scenes[index] } : null;
 }
 
+/** A session list's key, read back: its campaign and session. */
+export function sessionOf(key: string, view: LibraryView): { campaign: CampaignInfo; session: SessionInfo } | null {
+  const place = parsePlaceKey(key);
+  if (!place || place.kind !== "session") return null;
+  const campaign = view.campaigns.find((c) => c.id === place.campaignId);
+  const session = campaign?.sessions.find((s) => s.id === place.sessionId);
+  return campaign && session ? { campaign, session } : null;
+}
+
+/** "Session 14: The Drowned Abbey", or "Session 16" before it has a name. */
+const sessionWords = (s: Pick<SessionInfo, "number" | "name">) => `Session ${s.number}${s.name ? `: ${s.name}` : ""}`;
+
 function playlistOf(key: string, view: LibraryView): PlaylistInfo | undefined {
   const place = parsePlaceKey(key);
   return place?.kind === "playlist" ? view.playlists.find((p) => p.id === place.playlistId) : undefined;
 }
 
-/** "the playlist Gothic dread", "the scene The abbey ruins", or "the track's own settings". */
+/** "the playlist Gothic dread", "the scene The abbey ruins", "the session Session 14: …", or "the track's own settings". */
 export function placeName(key: string, view: LibraryView): string {
   if (!key) return "the track's own settings";
   if (key.startsWith("pl:")) return `the playlist ${playlistOf(key, view)?.name ?? key.slice(3)}`;
+  if (key.startsWith("ss:")) {
+    const found = sessionOf(key, view);
+    return `the session ${found ? sessionWords(found.session) : key.split(":")[2] ?? key}`;
+  }
   return `the scene ${sceneOf(key, view)?.scene.name ?? key.split(":")[3] ?? key}`;
 }
 
@@ -67,10 +83,14 @@ export function ownPlaceKeys(trackId: string, overrides: ProfileOverrides): stri
   return Object.keys(overrides).filter((k) => overrides[k]?.[trackId]);
 }
 
-/** Every place this track plays: playlists that contain it, and scenes that use it directly or through a playlist. */
-export function placesOf(trackId: string, view: LibraryView): { pls: PlaceOption[]; scs: PlaceOption[] } {
+/**
+ * Every place this track plays: playlists that contain it, and scenes and session lists that use it directly (a
+ * single track on hand) or through a playlist.
+ */
+export function placesOf(trackId: string, view: LibraryView): { pls: PlaceOption[]; scs: PlaceOption[]; sss: PlaceOption[] } {
   const pls: PlaceOption[] = [];
   const scs: PlaceOption[] = [];
+  const sss: PlaceOption[] = [];
   const seen = new Set<string>([""]);
   const add = (list: PlaceOption[], key: string, label: string) => {
     if (seen.has(key)) return;
@@ -82,13 +102,22 @@ export function placesOf(trackId: string, view: LibraryView): { pls: PlaceOption
     const found = sceneOf(key, view);
     if (found) add(scs, key, `${found.scene.name} (${found.campaign.name}, session ${found.session.number})`);
   };
+  const addSession = (campaignId: string, sessionId: string) => {
+    const key = `ss:${campaignId}:${sessionId}`;
+    const found = sessionOf(key, view);
+    if (found) add(sss, key, `${sessionWords(found.session)} (${found.campaign.name})`);
+  };
+  const addUse = (u: ReturnType<typeof usesOfTrack>[number]) => {
+    if (u.level === "scene") addScene(u.campaignId, u.sessionId, u.sceneId);
+    else if (u.level === "session") addSession(u.campaignId, u.sessionId);
+  };
   const inPlaylists = view.playlists.filter((p) => playlistTracks(p, view.lookup).some((t) => t.id === trackId));
   inPlaylists.forEach((p) => add(pls, `pl:${p.id}`, p.name));
-  usesOfTrack(trackId, view.campaigns).forEach((u) => u.level === "scene" && addScene(u.campaignId, u.sessionId, u.sceneId));
-  inPlaylists.forEach((p) => usesOfPlaylist(p.id, view.campaigns).forEach((u) => u.level === "scene" && addScene(u.campaignId, u.sessionId, u.sceneId)));
+  usesOfTrack(trackId, view.campaigns).forEach(addUse);
+  inPlaylists.forEach((p) => usesOfPlaylist(p.id, view.campaigns).forEach(addUse));
   // Places that kept their own settings after the track left them still show, so those settings can be seen and removed.
-  ownPlaceKeys(trackId, view.overrides).forEach((k) => add(k.startsWith("pl:") ? pls : scs, k, placeName(k, view).replace(/^the (playlist|scene) /, "")));
-  return { pls, scs };
+  ownPlaceKeys(trackId, view.overrides).forEach((k) => add(k.startsWith("pl:") ? pls : k.startsWith("ss:") ? sss : scs, k, placeName(k, view).replace(/^the (playlist|scene|session) /, "")));
+  return { pls, scs, sss };
 }
 
 /** Where "the next track" comes from in the preview: its label, the next track's id and the place it plays in. */

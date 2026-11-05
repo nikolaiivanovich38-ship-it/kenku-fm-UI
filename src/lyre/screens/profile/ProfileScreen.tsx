@@ -7,10 +7,17 @@
  */
 import React, { useRef } from "react";
 
+import { shapeFromPeaks } from "../../../common/domain";
+import { useLyreApi } from "../../api";
 import { Button } from "../../kit/Button";
 import { Icon } from "../../kit/Icon";
 import { Pane } from "../../kit/Pane";
+import { returnToSession } from "../../kit/sceneReturn";
+import { ShapeTag } from "../../kit/ShapeGlyph";
+import { useAnnounce } from "../../shell/Announcer";
 import type { ScreenProps } from "..";
+import { DraftField } from "../campaigns/parts";
+import { sceneOf, sessionOf } from "./places";
 import { AddMarkerButton, EndBox, endStatus, FadesBox, fadesStatus, ListenBox, listenStatus, MarkersBox, markersStatus, PlaceBar } from "./boxes";
 import { fmt } from "./profileModel";
 import { useProfileController } from "./useProfileController";
@@ -41,6 +48,59 @@ export function ProfileScreen({ route }: ScreenProps) {
         )}
       </div>
     </>
+  );
+}
+
+/**
+ * PLY-14: opened from a scene or a session list, Back returns there (the planner with the scene open and the track's
+ * button focused); otherwise to the track in the Library.
+ */
+function BackButton({ editor }: { editor: ProfileEditor }) {
+  const { key, view, track } = editor;
+  const scene = sceneOf(key, view);
+  const session = scene ?? sessionOf(key, view);
+  if (!session) {
+    return (
+      <a className="btn s" href={`#/library/${track.id}`}>
+        <Icon name="chevleft" size="s" />
+        Back to track
+      </a>
+    );
+  }
+  const back = () =>
+    returnToSession({ campaignId: session.campaign.id, sessionId: session.session.id, sceneId: scene?.scene.id ?? null, trackId: track.id });
+  return (
+    <Button size="s" icon="chevleft" data-k="ap-back" onClick={back}>
+      Back to {scene ? scene.scene.name || "the scene" : `Session ${session.session.number}`}
+    </Button>
+  );
+}
+
+/** DAT-14: opened from a scene, the track's name there; empty uses its own name. */
+function SceneName({ editor }: { editor: ProfileEditor }) {
+  const api = useLyreApi();
+  const { toast } = useAnnounce();
+  const found = sceneOf(editor.key, editor.view);
+  if (!found) return null;
+  const { campaign, session, scene } = found;
+  const own = editor.track.title || editor.track.metaTitle || editor.track.fileName;
+  const save = async (name: string) => {
+    const result = await api.sessions.setTrackName({ campaignId: campaign.id, sessionId: session.id, sceneId: scene.id }, editor.track.id, name.trim());
+    if (!result.ok) toast(result.refusal.message);
+  };
+  return (
+    <div className="field ap-scname">
+      <label htmlFor="ap-scname">Name in this scene</label>
+      <DraftField
+        className="input"
+        id="ap-scname"
+        data-k="ap-scname"
+        autoComplete="off"
+        value={scene.trackNames[editor.track.id] ?? ""}
+        placeholder={`${own} (its own name)`}
+        onSave={(name) => void save(name)}
+      />
+    </div>
   );
 }
 
@@ -77,13 +137,15 @@ function ProfileBody({ editor }: { editor: ProfileEditor }) {
             <span>
               <span className="faint">Length</span> <span className="num">{fmt(dur)}</span>
             </span>
+            <span>
+              {/* A suggestion worked out since the track list loaded comes from the same peaks the waveform draws. */}
+              <ShapeTag track={{ shape: track.shape, suggestedShape: track.suggestedShape ?? (c.levels ? shapeFromPeaks(c.levels) : null) }} />
+            </span>
           </p>
+          <SceneName editor={editor} />
         </div>
         <div className="ap-headacts">
-          <a className="btn s" href={`#/library/${track.id}`}>
-            <Icon name="chevleft" size="s" />
-            Back to track
-          </a>
+          <BackButton editor={editor} />
           <span className="ap-saved" role="status">
             {!editable ? (
               "Uses the track's settings (read-only until you give it its own)"

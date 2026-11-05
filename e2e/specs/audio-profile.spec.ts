@@ -4,7 +4,7 @@
  * (t13), which loops from 1:04 to 5:18 and has its own settings in the scene "The abbey ruins".
  */
 import type { Page } from "@playwright/test";
-import { expect, expectFailureUntilBuilt, test } from "./support/test";
+import { expect, test } from "./support/test";
 import { openRoute } from "./support/target";
 
 const wave = (page: Page) => page.getByRole("region", { name: "Waveform and listening", exact: true });
@@ -238,8 +238,6 @@ test.describe("different settings for different places", () => {
 
 /* Round 5 (design/prototype/ROUND5.md): built in wave 4, so each check waits for "round 5" in the app. */
 test.describe("round 5: settings for the scene or session it was opened from, the name there, and the shape", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 5"));
-
   test("PLY-14: opened from a scene, it stays on that scene's settings, offers the name in the scene, and Back returns there", async ({ page }) => {
     await openRoute(page, "profile/t07/sc:crown:s14:sc6");
     await expect(page.getByRole("combobox", { name: "Settings for" })).toHaveValue("sc:crown:s14:sc6");
