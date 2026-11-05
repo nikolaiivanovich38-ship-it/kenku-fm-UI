@@ -1,6 +1,6 @@
 /**
  * BUG-12, BUG-13 (w31-fix) in the packaged app: what plays belongs to the Lyre page, not to a screen. Preparing a
- * scene never stops what is on air or in preview, and music keeps playing, with the On air bar, wherever the game
+ * scene never stops what is on air or in preview, and music keeps playing, with the Now playing bar, wherever the game
  * master goes until Stop. Seeded with the prototype's library, whose files play a stand-in tone
  * (src/main/lyreApi/seedAudio.ts).
  */
@@ -17,7 +17,7 @@ function audible(app: ElectronApplication): Promise<boolean> {
   );
 }
 
-const onAirBar = (lyre: Page) => lyre.getByRole("region", { name: "On air" });
+const onAirBar = (lyre: Page) => lyre.getByRole("region", { name: "Now playing" });
 const abbey = (lyre: Page) => lyre.getByRole("listitem", { name: /^Scene \d+: The abbey ruins$/ });
 const musicOf = (lyre: Page) => abbey(lyre).getByRole("group", { name: "Music", exact: true }).getByRole("list", { name: "Music in order" });
 
@@ -34,7 +34,7 @@ test("adding, moving and removing in a scene leaves the music on air and the pre
   await lyre.getByRole("button", { name: "Scene 3: The abbey ruins" }).click();
   await musicOf(lyre).getByRole("button", { name: "Play on air: The Abbess" }).click();
   await expect(onAirBar(lyre)).toBeVisible();
-  const title = (await onAirBar(lyre).locator(".oab-item").first().textContent())?.trim() ?? "";
+  const title = (await onAirBar(lyre).locator(".oab-title").first().textContent())?.trim() ?? "";
   expect(title).not.toBe("");
   await musicOf(lyre).getByRole("button", { name: /^Preview Haunted sea shanty/ }).click();
   const stopPreview = musicOf(lyre).getByRole("button", { name: /^Stop preview of Haunted sea shanty/ });
@@ -57,12 +57,12 @@ test("adding, moving and removing in a scene leaves the music on air and the pre
   await expectSound(launched.app, lyre, "music on air after adding, moving and removing");
 });
 
-test("music started on one screen keeps playing, with the On air bar, on the others until Stop (BUG-13)", async ({ launchApp }) => {
+test("music started on one screen keeps playing, with the Now playing bar, on the others until Stop (BUG-13)", async ({ launchApp }) => {
   const launched = await launchApp({ env: SEEDED });
   const lyre = await openLyreRoute(await launched.mainWindow(), "playlists");
   await lyre.getByRole("button", { name: "Play on air: The Company themes" }).first().click();
   await expect(onAirBar(lyre)).toBeVisible();
-  const title = (await onAirBar(lyre).locator(".oab-item").first().textContent())?.trim() ?? "";
+  const title = (await onAirBar(lyre).locator(".oab-title").first().textContent())?.trim() ?? "";
   await expectSound(launched.app, lyre, "music on air on Playlists");
   // Through the rail, as a person goes: Library, Pad boards, Campaigns, then Live (which says it comes in 0.4).
   for (const [link, heading] of [
@@ -77,7 +77,7 @@ test("music started on one screen keeps playing, with the On air bar, on the oth
     await expect(onAirBar(lyre)).toContainText(title);
     await expectSound(launched.app, lyre, `music on air on ${heading}`);
   }
-  await onAirBar(lyre).getByRole("button", { name: "Stop everything on air" }).click();
+  await onAirBar(lyre).getByRole("button", { name: "Stop", exact: true }).click();
   await expect(onAirBar(lyre)).toHaveCount(0);
   await expect.poll(() => audible(launched.app), { timeout: 10_000 }).toBe(false);
 });

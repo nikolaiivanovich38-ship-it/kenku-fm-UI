@@ -16,8 +16,8 @@ export interface ScreenProps {
 
 export type ScreenComponent = React.ComponentType<ScreenProps> & {
   /**
-   * True for a screen that shows what is on air itself (the Live screen, wave 4): the shell leaves out its On air
-   * bar there. Every other screen, the "comes in 0.4" pages included, keeps the bar while anything plays (BUG-13).
+   * True for a screen that shows what is on air itself (the Live screen, wave 4): the shell's Now playing bar shows
+   * only the preview there (UX-16). Every other screen, the "comes in 0.4" pages included, shows every row (BUG-13).
    */
   showsOnAir?: boolean;
 };

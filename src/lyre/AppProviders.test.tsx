@@ -3,7 +3,7 @@
  * the campaigns' table themes for the shell, and a plain message while the library is down.
  */
 import React from "react";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { createFakeLyreApi } from "../common/lyre/fake";
@@ -99,9 +99,9 @@ describe("AppProviders", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Lyre's library is working again.");
   });
 
-  describe("the on-air bar: what the players hear, outside Live (core.js onAirBar)", () => {
+  describe("the Now playing bar at the foot of every screen (UX-16, core.js onAirBar)", () => {
     const quiet = { ...SCREENS, campaigns: () => <PlaceholderScreen title="Campaigns" />, library: () => <PlaceholderScreen title="Library" /> };
-    const lane = (trackId: string, title: string) => ({ trackId, title, origin: "single" as never, playlistId: null as string | null, position: 0, length: 200, paused: false, loading: false });
+    const lane = (trackId: string, title: string) => ({ trackId, title, origin: { kind: "single" as const }, playlistId: null as string | null, position: 0, length: 200, paused: false, loading: false });
     const playing = (audio: FakeLyreAudio) =>
       act(() =>
         audio.setNowPlaying({
@@ -109,10 +109,11 @@ describe("AppProviders", () => {
             { roomId: "table", name: "Table", music: lane("t13", "Bridge of Death"), ambience: lane("t40", "Rain on the roof"), upNext: null, queued: [], effects: [{ trackId: "t60", title: "Thunder", padKey: null }] },
             { roomId: "side", name: "Side room", music: null, ambience: null, upNext: null, queued: [], effects: [{ trackId: "t61", title: "Door", padKey: null }] },
           ],
+          preview: { key: "t02", label: "Wistful", from: "the Library" },
         }),
       );
 
-    it("is hidden while nothing plays, and shows music, ambience and effects with Stop and Go to Live", async () => {
+    it("is hidden while nothing plays, and shows each room that plays and the preview, with Stop and Go to Live", async () => {
       window.history.replaceState(null, "", "#/library");
       const audio = new FakeLyreAudio();
       render(
@@ -120,18 +121,21 @@ describe("AppProviders", () => {
           <Shell screens={quiet} />
         </AppProviders>,
       );
-      expect(screen.queryByRole("region", { name: "On air" })).toBeNull();
+      expect(screen.queryByRole("region", { name: "Now playing" })).toBeNull();
       playing(audio);
-      const bar = screen.getByRole("region", { name: "On air" });
+      const bar = screen.getByRole("region", { name: "Now playing" });
       expect(bar).toHaveTextContent("Bridge of Death");
-      expect(bar).toHaveTextContent("Rain on the roof");
-      expect(bar).toHaveTextContent("2 effects");
+      expect(bar).toHaveTextContent("Ambience: Rain on the roof");
+      expect(bar).toHaveTextContent("1 effect sounding");
+      // The Side room plays only an effect, so it has no row.
+      expect(within(bar).getAllByRole("group", { name: /^On air/ })).toHaveLength(1);
+      expect(within(bar).getByRole("group", { name: "Only you" })).toHaveTextContent("Previewed from the Library");
       expect(screen.getByRole("link", { name: "Go to Live" })).toHaveAttribute("href", "#/live");
-      await userEvent.click(screen.getByRole("button", { name: "Stop everything on air" }));
-      expect(audio.calls).toContainEqual(["fadeAll", 1000]);
+      await userEvent.click(within(bar).getByRole("button", { name: "Stop" }));
+      expect(audio.calls).toContainEqual(["stopLane", "music", { target: { room: "table" }, fadeMs: 1000 }]);
     });
 
-    it("is not shown on a Live screen that shows the rooms itself", () => {
+    it("on a Live screen that shows the rooms itself, has the preview row only", () => {
       window.history.replaceState(null, "", "#/live");
       const audio = new FakeLyreAudio();
       const Live = Object.assign(() => <PlaceholderScreen title="Live" />, { showsOnAir: true });
@@ -141,10 +145,12 @@ describe("AppProviders", () => {
         </AppProviders>,
       );
       playing(audio);
-      expect(screen.queryByRole("region", { name: "On air" })).toBeNull();
+      const bar = screen.getByRole("region", { name: "Now playing" });
+      expect(within(bar).queryByRole("group", { name: /^On air/ })).toBeNull();
+      expect(within(bar).getByRole("group", { name: "Only you" })).toBeInTheDocument();
     });
 
-    it("stays on the Live page that says Live comes in 0.4, which shows nothing on air (BUG-13)", () => {
+    it("shows every row on the Live page that says Live comes in 0.4, which shows nothing on air (BUG-13)", () => {
       window.history.replaceState(null, "", "#/live");
       const audio = new FakeLyreAudio();
       render(
@@ -153,7 +159,23 @@ describe("AppProviders", () => {
         </AppProviders>,
       );
       playing(audio);
-      expect(screen.getByRole("region", { name: "On air" })).toBeInTheDocument();
+      expect(within(screen.getByRole("region", { name: "Now playing" })).getAllByRole("group", { name: /^On air/ })).toHaveLength(1);
+    });
+
+    it("previews started on a screen say which screen (UX-16)", async () => {
+      window.history.replaceState(null, "", "#/library");
+      const audio = new FakeLyreAudio();
+      const Library = () => {
+        const sound = useLyreAudio();
+        return <button type="button" onClick={() => sound.previewTrack("t13")}>Preview it</button>;
+      };
+      render(
+        <AppProviders api={createFakeLyreApi()} audio={audio}>
+          <Shell screens={{ ...quiet, library: Library }} />
+        </AppProviders>,
+      );
+      await userEvent.click(screen.getByRole("button", { name: "Preview it" }));
+      expect(audio.calls).toContainEqual(["previewTrack", "t13", { from: "the Library" }]);
     });
   });
 

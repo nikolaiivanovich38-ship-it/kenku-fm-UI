@@ -57,7 +57,7 @@ export function PlayOrderButton({ playlistId, place }: PlayOrderButtonProps) {
     }
     say(`${orderWords(result.value)} ${where}`);
   };
-  const useOwn = async () => {
+  const backToOwn = async () => {
     store.put(playlistId, place, null);
     const result = await api.playlists.clearPlayOrder(playlistId, place);
     if (isRefused(result)) {
@@ -113,7 +113,7 @@ export function PlayOrderButton({ playlistId, place }: PlayOrderButtonProps) {
                 Use the playlist&apos;s own order here
               </>
             ),
-            onSelect: () => void useOwn(),
+            onSelect: () => void backToOwn(),
           } satisfies PopMenuEntry,
         ]
       : []),

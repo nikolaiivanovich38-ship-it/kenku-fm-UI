@@ -1,6 +1,6 @@
 /**
  * BUG-12 and BUG-13: what plays is the page's, not a screen's. Preparing (adding, moving or removing anything in a
- * scene) never stops or restarts what is on air or in preview, and music keeps playing, with the On air bar, on every
+ * scene) never stops or restarts what is on air or in preview, and music keeps playing, with the Now playing bar, on every
  * screen until it is stopped. The whole page (providers, shell, every screen) over the in-memory LyreApi and the real
  * audio host on the engine's fake audio graph.
  */
@@ -49,7 +49,7 @@ function go(path: string) {
 
 const abbey = () => within(screen.getByRole("listitem", { name: /^Scene \d+: The abbey ruins$/ }));
 const musicList = () => within(abbey().getByRole("list", { name: "Music in order" }));
-const onAirBar = () => screen.queryByRole("region", { name: "On air" });
+const onAirBar = () => screen.queryByRole("region", { name: "Now playing" });
 
 /** Let the fake graph play on for a while (fades, loading), then let React catch up. */
 async function playOn(sound: Awaited<ReturnType<typeof openPage>>["sound"], seconds = 4) {
@@ -117,7 +117,7 @@ describe("what plays belongs to the page, not to a screen", () => {
     }
   });
 
-  it("music started on one screen keeps playing, with the On air bar, on every other screen until Stop (BUG-13)", async () => {
+  it("music started on one screen keeps playing, with the Now playing bar, on every other screen until Stop (BUG-13)", async () => {
     const { sound } = await openPage("library/t13");
     await userEvent.click(await screen.findByRole("button", { name: "Play on air" }));
     await playOn(sound);
@@ -131,7 +131,7 @@ describe("what plays belongs to the page, not to a screen", () => {
       expect(sound.hearRoom("table"), `sound on ${path}`).toBeGreaterThan(0);
       expect(within(onAirBar()!).getByText(started!.title), `bar on ${path}`).toBeInTheDocument();
     }
-    await userEvent.click(within(onAirBar()!).getByRole("button", { name: "Stop everything on air" }));
+    await userEvent.click(within(onAirBar()!).getByRole("button", { name: "Stop" }));
     await playOn(sound, 3);
     expect(sound.audio.getNowPlaying().rooms[0].music).toBeNull();
     expect(onAirBar()).not.toBeInTheDocument();

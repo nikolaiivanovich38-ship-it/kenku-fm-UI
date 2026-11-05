@@ -111,7 +111,7 @@ export function UndoNoteProvider({ live, children }: { live: boolean; children: 
   return <UndoNoteContext.Provider value={value}>{children}</UndoNoteContext.Provider>;
 }
 
-/** The message itself, at the foot of the screen above the on-air bar. */
+/** The message itself, at the foot of the screen above the Now playing bar. */
 export function UndoNoteBar() {
   const { note, undo, close } = useContext(UndoNoteContext);
   if (!note) return null;
