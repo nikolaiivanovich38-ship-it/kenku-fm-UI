@@ -44,7 +44,6 @@ describe("the shell: rail, routes and screens (UX-9)", () => {
     ["session/crown/s14", "Session", "Campaigns"],
     ["library", "Library", "Library"],
     ["library/t44", "Library", "Library"],
-    ["profile/t13/sc:crown:s14:sc3", "Audio profile", "Library"],
     ["playlists", "Playlists", "Playlists"],
     ["playlist/p-abbess", "Playlist", "Playlists"],
     ["boards", "Pad boards", "Pad boards"],

@@ -83,7 +83,7 @@ test("the Lyre page has the player page's protections", async ({ mainWindow, app
 test("routes, focus and themes work in the packaged app with no console errors or policy refusals", async ({ mainWindow, errors }) => {
   const lyre = await openLyreRoute(mainWindow, "profile/t13/sc:crown:s14:sc3");
   await expect(lyre.getByRole("main").getByRole("heading", { level: 1, name: "Audio profile" })).toBeVisible();
-  await expect(lyre.getByRole("link", { name: "Library" })).toHaveAttribute("aria-current", "page");
+  await expect(lyre.getByRole("link", { name: "Library", exact: true })).toHaveAttribute("aria-current", "page");
 
   await lyre.getByRole("link", { name: "Pad boards" }).click();
   const heading = lyre.getByRole("main").getByRole("heading", { level: 1, name: "Pad boards" });
