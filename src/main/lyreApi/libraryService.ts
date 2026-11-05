@@ -97,6 +97,20 @@ export class LyreLibraryService {
     return report;
   }
 
+  /** The folders the player may read library files from (MediaAccess); empty while the library is not there. */
+  async mediaFolders(): Promise<string[]> {
+    try {
+      await this.ready;
+    } catch {
+      return [];
+    }
+    const child = this.child;
+    if (!child) return [];
+    const answer = this.next("media-folders");
+    child.postMessage({ t: "media-folders" });
+    return ((await answer) as { folders: string[] }).folders;
+  }
+
   /** Closes the library cleanly (backups stop, the database is closed), then the process ends. */
   async stop(timeoutMs = 3000): Promise<void> {
     this.stopping = true;

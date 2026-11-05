@@ -92,6 +92,18 @@ describe("LyreLibraryService", () => {
     await s.stop();
   });
 
+  it("names the folders library files may be played from: library folders, and the folders of files outside them", async () => {
+    const { s } = service();
+    s.start();
+    expect(await s.mediaFolders()).toEqual(["H:\\Audio\\Scores", "H:\\Audio\\Ambience", "H:\\Audio\\Effects"]);
+    const dir = tempFolder();
+    fs.mkdirSync(path.join(dir, "Lute"));
+    fs.writeFileSync(path.join(dir, "Lute", "01 Lute.flac"), "x");
+    await call(s, "import", "start", { from: "paths", paths: [path.join(dir, "Lute", "01 Lute.flac")] });
+    expect(await s.mediaFolders()).toContain(path.join(dir, "Lute"));
+    await s.stop();
+  });
+
   it("does the host work the library asks for in the main process", async () => {
     const chooseFiles = vi.fn(async () => null);
     const { s } = service({ host: { chooseFiles } });

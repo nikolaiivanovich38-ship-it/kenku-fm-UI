@@ -5,7 +5,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { playlistTracks, sceneSequence } from "../../common/domain";
-import type { LyreAudioLibrary } from "../../common/lyre/audioLibrary";
+import type { LyreAudioLibrary } from "../audio/lyreAudio";
 import type { LibraryTrack, LyreApi } from "../../common/lyre/api";
 import { createFakeLyreApi } from "../../common/lyre/fake";
 import { LibrarySnapshot } from "./librarySnapshot";

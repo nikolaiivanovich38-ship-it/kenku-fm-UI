@@ -1,12 +1,13 @@
 /**
- * The library as the audio host reads it while it plays (LyreAudioLibrary, src/lyre/audio/lyreAudio.ts, restated
- * in src/common/lyre/audioLibrary.ts). The engine asks synchronously, so this loads what it needs through LyreApi
+ * The library as the audio host reads it while it plays (LyreAudioLibrary, src/lyre/audio/lyreAudio.ts). The
+ * engine asks synchronously, so this loads what it needs through LyreApi
  * once, answers from memory, and reloads the parts a "changed" event names. Give it to the host with
  * `audio.setLibrary(snapshot)`, and again from `snapshot.subscribe` so now-playing titles follow renames.
  */
 import { isFx, type DomainPlaylist, type DomainScene, type DomainTrack, type ProfileOverrides } from "../../common/domain";
 import type { CampaignInfo, LibraryTrack, LyreApi, LyreArea, PadBoard, PlaylistInfo, Pad } from "../../common/lyre/api";
-import type { AudioMediaRequest, AudioPad, AudioSceneRef, LyreAudioLibrary } from "../../common/lyre/audioLibrary";
+import type { MediaRequest } from "../../player/engine/sources/sourceLoader";
+import type { LyreAudioLibrary, LyrePad, SceneRef } from "../audio/lyreAudio";
 
 type Part = "tracks" | "playlists" | "campaigns" | "boards" | "overrides";
 
@@ -79,7 +80,7 @@ export class LibrarySnapshot implements LyreAudioLibrary {
     return this.trackList;
   }
 
-  scene(ref: AudioSceneRef): DomainScene | undefined {
+  scene(ref: SceneRef): DomainScene | undefined {
     return this.campaigns
       .find((c) => c.id === ref.campaignId)
       ?.sessions.find((s) => s.id === ref.sessionId)
@@ -90,13 +91,13 @@ export class LibrarySnapshot implements LyreAudioLibrary {
     return this.overrides;
   }
 
-  media(track: DomainTrack): AudioMediaRequest | null {
+  media(track: DomainTrack): MediaRequest | null {
     const known = this.trackById.get(track.id);
     if (!known?.url) return null;
     return known.sizeBytes == null ? { url: known.url, trackId: known.id } : { url: known.url, trackId: known.id, sizeBytes: known.sizeBytes };
   }
 
-  pad(boardId: string, padId: string): AudioPad | undefined {
+  pad(boardId: string, padId: string): LyrePad | undefined {
     const board = this.boards.find((b) => b.id === boardId);
     const pad = board && [...board.slots, ...board.spare].find((p): p is Pad => !!p && p.id === padId);
     if (!pad) return undefined;

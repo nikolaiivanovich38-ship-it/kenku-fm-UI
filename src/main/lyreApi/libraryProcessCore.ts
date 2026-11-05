@@ -7,8 +7,10 @@
  *   { t: "init", folder, seed }   open the library (and, in test builds, seed an empty one with the prototype's data)
  *   { t: "start-backups" }        the window is showing: start the daily backups
  *   { t: "legacy", raw }          bring in the old player's library (once; the database remembers it did)
+ *   { t: "media-folders" }        the folders the player may read library files from (MediaAccess, MEDIA_PREPARE)
  *   { t: "close" }                stop backups, close the library cleanly
- * Answers: { t: "ready" }, { t: "open-failed", message }, { t: "legacy-report", report }, { t: "closed" }.
+ * Answers: { t: "ready" }, { t: "open-failed", message }, { t: "legacy-report", report }, { t: "media-folders", folders },
+ * { t: "closed" }.
  */
 import { serveLyreApi, type PortLike } from "../../common/lyre/rpc";
 import { prototypeSeed } from "../../common/lyre/seed";
@@ -20,6 +22,19 @@ export interface LibraryProcessOptions {
   /** Opens the library; tests pass openLibrary with a temporary folder. */
   open?: (folder: string) => Library;
   log?: (message: string, error?: unknown) => void;
+}
+
+/**
+ * Where library files are: the library folders, then the folder of each file outside them (a file chosen from
+ * anywhere is the game master's choice). The main process lets the player read files under these only.
+ */
+export function mediaFolders(library: Library): string[] {
+  const roots = library.store.all<{ path: string }>("SELECT path FROM library_roots ORDER BY created_at, rowid").map((r) => r.path);
+  const outside = library.store
+    .all<{ path: string }>("SELECT path FROM tracks WHERE root_id IS NULL AND path IS NOT NULL")
+    .map((r) => r.path.slice(0, Math.max(r.path.lastIndexOf("\\"), r.path.lastIndexOf("/"))))
+    .filter(Boolean);
+  return [...new Set([...roots, ...outside])];
 }
 
 export type InitMessage = { t: "init"; folder: string; seed: boolean };
@@ -60,6 +75,8 @@ export function runLibraryProcess(port: PortLike, options: LibraryProcessOptions
       } else if (message?.t === "legacy" && library) {
         const report = await importLegacyLibrary(library, message.raw);
         port.postMessage({ t: "legacy-report", report });
+      } else if (message?.t === "media-folders" && library) {
+        port.postMessage({ t: "media-folders", folders: mediaFolders(library) });
       } else if (message?.t === "close") {
         stopBackups?.();
         server?.close();
