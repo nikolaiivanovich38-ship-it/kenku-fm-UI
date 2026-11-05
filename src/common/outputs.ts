@@ -16,6 +16,8 @@ export type VoiceStatus = "joining" | "connected" | "reconnecting" | "error";
 export interface VoiceChannelInfo {
   id: string;
   name: string;
+  /** w4-outputs: the people (not bots) in the channel now, by their name in that server. */
+  members?: string[];
 }
 
 export interface GuildInfo {
