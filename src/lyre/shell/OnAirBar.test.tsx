@@ -51,3 +51,21 @@ describe("the on-air bar's Stop", () => {
     expect(screen.getByRole("button", { name: "Elsewhere" })).toHaveFocus();
   });
 });
+
+describe("who hears it (w3-ux 11)", () => {
+  it("with no Discord room connected, says plainly that only this computer hears it", () => {
+    show();
+    const bar = screen.getByRole("region", { name: "On air" });
+    expect(bar).toHaveTextContent("Only this computer hears it: no Discord room is connected.");
+    expect(bar.querySelector(".badge.onair")).toBeNull();
+  });
+
+  it("with a bot in a voice channel, shows the red On air mark", () => {
+    const audio = show();
+    act(() => audio.setNowPlaying({ broadcasting: true }));
+    const bar = screen.getByRole("region", { name: "On air" });
+    expect(bar.querySelector(".badge.onair")).toHaveTextContent("On air");
+    expect(bar).not.toHaveTextContent("Only this computer");
+  });
+});
+

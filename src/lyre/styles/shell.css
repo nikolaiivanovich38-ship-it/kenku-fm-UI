@@ -21,3 +21,5 @@
 .slider-row input[type="range"] { flex: 1; min-width: 0; }
 /* A menu item that deletes or stops for good. */
 .menu .danger { color: var(--danger); }
+/* w3-ux 11: on the on-air bar, the sentence that only this computer hears it may wrap; it is never cut off. */
+.onairbar .oab-local { max-width: none; flex: 1 1 14em; white-space: normal; line-height: 1.25; color: var(--ink-2); }

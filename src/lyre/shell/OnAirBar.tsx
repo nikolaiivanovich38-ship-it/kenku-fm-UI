@@ -46,7 +46,8 @@ function Bar({ audio }: { audio: LyreAudio }) {
       onFocus={() => (holdsFocus.current = true)}
       onBlur={(event) => (holdsFocus.current = !!event.relatedTarget && event.currentTarget.contains(event.relatedTarget as Node))}
     >
-      <Badge tone="onair">On air</Badge>
+      {/* w3-ux 11: red "On air" only when a bot is in a voice channel; otherwise the players hear nothing. */}
+      {now.broadcasting ? <Badge tone="onair">On air</Badge> : <Badge>This computer</Badge>}
       <div className="oab-items">
         {music && (
           <span className="oab-item">
@@ -68,6 +69,7 @@ function Bar({ audio }: { audio: LyreAudio }) {
             </span>
           </span>
         )}
+        {!now.broadcasting && <span className="oab-item oab-local">Only this computer hears it: no Discord room is connected.</span>}
       </div>
       <button type="button" className="btn s" aria-label="Stop everything on air" onClick={() => audio.fadeAll(STOP_FADE_MS)}>
         <Icon name="stop" size="s" />
