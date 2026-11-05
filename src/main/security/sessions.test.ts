@@ -275,13 +275,18 @@ describe("local-file tabs are served under their own scheme (WP1 review 1 and 2)
         scheme: "cue-local-file",
         privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
       },
+      // Security review 6: the Lyre page's library audio (one call: Electron keeps only the last list).
+      {
+        scheme: "lyre-media",
+        privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true },
+      },
     ]);
   });
 
   it("serves it on the local-files session only, and refuses file: there", async () => {
     secureSessions();
     expect([...sessions.localFiles.protocols.keys()].sort()).toEqual(["cue-local-file", "file"]);
-    expect(sessions.default.protocols.size).toBe(0);
+    expect([...sessions.default.protocols.keys()]).toEqual(["lyre-media"]);
     expect(sessions.tabs.protocols.size).toBe(0);
     const fileAnswer = await sessions.localFiles.protocols.get("file")!(new Request("file:///etc/hostname"));
     expect(fileAnswer.status).toBe(403);
@@ -304,6 +309,16 @@ describe("local-file tabs are served under their own scheme (WP1 review 1 and 2)
     const respond = vi.fn();
     sessions.localFiles.requestListener?.({ url }, respond);
     expect(respond).toHaveBeenCalledWith({ cancel: cancelled });
+  });
+});
+
+describe("lyre-media: on the app session only (security review 6)", () => {
+  it("answers only addresses MEDIA_PREPARE granted, and is not served to website or file tabs", async () => {
+    secureSessions();
+    expect(sessions.tabs.protocols.has("lyre-media")).toBe(false);
+    expect(sessions.localFiles.protocols.has("lyre-media")).toBe(false);
+    const answer = await sessions.default.protocols.get("lyre-media")!(new Request(`lyre-media://${"a".repeat(32)}/${"b".repeat(32)}/x.flac`));
+    expect(answer.status).toBe(403);
   });
 });
 

@@ -17,7 +17,16 @@ export interface BrowserEngine {
 }
 
 export function createBrowserEngine(
-  options: { audioContext?: AudioContext; resolver?: MediaResolver; policy?: Partial<SourcePolicy> } = {},
+  options: {
+    audioContext?: AudioContext;
+    resolver?: MediaResolver;
+    policy?: Partial<SourcePolicy>;
+    /**
+     * "anonymous" for a page whose files come from another origin (the Lyre page's lyre-media: addresses, security
+     * review 6): without it, Web Audio plays a cross-origin <audio> element as silence.
+     */
+    crossOrigin?: "anonymous";
+  } = {},
 ): BrowserEngine {
   const audioContext = options.audioContext ?? new AudioContext({ latencyHint: "playback" });
   const context = fromAudioContext(audioContext);
@@ -27,6 +36,7 @@ export function createBrowserEngine(
       const element = document.createElement("audio");
       // Never shown; the element only feeds the Web Audio graph.
       element.controls = false;
+      if (options.crossOrigin) element.crossOrigin = options.crossOrigin;
       return element as MediaElementLike;
     },
     fetchBytes: (url, limit) => readBytes(url, limit),

@@ -9,11 +9,14 @@
  * unexpected failure is logged and answered with a general message, so no
  * path or system error text reaches the page.
  */
-import type { GuardedIpc } from "../security/ipcGuard";
+import type { GuardedIpc, IpcSenderEvent } from "../security/ipcGuard";
 import type { PrepareAnswer } from "./mediaCache";
 
+/** The page that asked (the IPC event's sender). */
+export type PreparingPage = IpcSenderEvent["sender"] & { once?(event: "destroyed", listener: () => void): unknown };
+
 export interface MediaPreparer {
-  prepare(address: string, options: { keepLocal: boolean }): Promise<PrepareAnswer>;
+  prepare(address: string, options: { keepLocal: boolean }, page?: PreparingPage): Promise<PrepareAnswer>;
 }
 
 const GENERAL_FAILURE = "This file could not be prepared for playing.";
@@ -24,9 +27,9 @@ export function registerMediaIpc(
   media: MediaPreparer,
   log: (message: string, error: unknown) => void = (message, error) => console.error(message, error),
 ): () => void {
-  return ipc.handle("MEDIA_PREPARE", async (_event, address, options) => {
+  return ipc.handle("MEDIA_PREPARE", async (event, address, options) => {
     try {
-      return await media.prepare(address as string, { keepLocal: (options as { keepLocal?: boolean }).keepLocal === true });
+      return await media.prepare(address as string, { keepLocal: (options as { keepLocal?: boolean }).keepLocal === true }, event.sender as PreparingPage);
     } catch (error) {
       log("Could not prepare a file for the player", error);
       return { error: GENERAL_FAILURE } satisfies PrepareAnswer;

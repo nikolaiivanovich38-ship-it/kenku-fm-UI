@@ -3,6 +3,7 @@
  * events reach the Lyre page, the player may read files from the library's folders only (and waits for the
  * up-to-date list), and the old player's library is brought in once, on the new interface's first call.
  */
+import path from "path";
 import { describe, expect, it, vi } from "vitest";
 
 import type { LyreEvent } from "../../common/lyre/api";
@@ -215,5 +216,56 @@ describe("MEDIA_PREPARE never waits for ever (security review 1)", () => {
     const answer = Promise.resolve(handlers.get("MEDIA_PREPARE")!({ sender: player, senderFrame: player.mainFrame } as never, "file:///music/a.mp3", { keepLocal: false }));
     expect(await within(answer, 500)).toEqual({ error: LIBRARY_NOT_ANSWERING });
     expect(prepare).not.toHaveBeenCalled();
+  });
+});
+
+describe("MEDIA_PREPARE answers the Lyre page with lyre-media: addresses (security review 6)", () => {
+  async function wired() {
+    const { MediaGrants } = await import("../media/mediaProtocol");
+    const grants = new MediaGrants();
+    const handlers = new Map<string, Handler>();
+    const ipc: IpcMainLike = { on: vi.fn(), removeListener: vi.fn(), handle: (c, l) => void handlers.set(c, l), removeHandler: (c) => void handlers.delete(c) };
+    const registry = new TrustedContentsRegistry();
+    const destroyed = new Map<number, () => void>();
+    const page = (id: number) => ({
+      id,
+      isDestroyed: () => false,
+      mainFrame: { frameTreeNodeId: id * 10 },
+      once: (event: string, listener: () => void): void => void (event === "destroyed" && destroyed.set(id, listener)),
+    });
+    const lyre = page(1);
+    const player = page(2);
+    registry.trust(lyre, "lyre-view");
+    registry.trust(player, "player-view");
+    wireLyreLibrary({
+      service: { call: vi.fn(), mediaFolders: async () => ["/music"], bringInOldLibrary: vi.fn() },
+      ipc: guardIpc(ipc, { registry, warn: () => undefined }),
+      send: () => undefined,
+      media: () => ({ prepare: async (address) => (address.includes("bad") ? { error: "Lyre only plays files from your library folders." } : { url: address }) }),
+      bringInOldLibrary: false,
+      readOldLibrary: async () => null,
+      grants,
+      isLyrePage: (sender) => registry.roleOf(sender) === "lyre-view",
+      log: () => undefined,
+    });
+    const prepare = (sender: ReturnType<typeof page>, address: string) =>
+      Promise.resolve(handlers.get("MEDIA_PREPARE")!({ sender, senderFrame: sender.mainFrame } as never, address, { keepLocal: false })) as Promise<{ url?: string; error?: string }>;
+    return { grants, prepare, lyre, player, destroyed };
+  }
+
+  it("gives the Lyre page an address for the prepared file only, and the old player its file: address as before", async () => {
+    const { grants, prepare, lyre, player } = await wired();
+    const answer = await prepare(lyre, "file:///music/a%20b.flac");
+    expect(answer.url).toMatch(/^lyre-media:\/\//);
+    expect(grants.resolve(answer.url as string)).toBe(path.normalize("/music/a b.flac"));
+    expect(await prepare(player, "file:///music/a.flac")).toEqual({ url: "file:///music/a.flac" });
+    expect(await prepare(lyre, "file:///music/bad.flac")).toEqual({ error: "Lyre only plays files from your library folders." });
+  });
+
+  it("drops the page's addresses when the page goes", async () => {
+    const { grants, prepare, lyre, destroyed } = await wired();
+    const answer = await prepare(lyre, "file:///music/a.flac");
+    destroyed.get(1)?.();
+    expect(grants.resolve(answer.url as string)).toBeUndefined();
   });
 });

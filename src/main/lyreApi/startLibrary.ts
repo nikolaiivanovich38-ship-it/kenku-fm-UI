@@ -13,6 +13,7 @@ import { FfmpegConverter } from "../media/ffmpegConverter";
 import { MEDIA_CACHE_FOLDER, MediaCache } from "../media/mediaCache";
 import { MediaAccess } from "../media/mediaAccess";
 import { MediaUpkeep } from "../media/mediaUpkeep";
+import { sharedMediaGrants } from "../media/mediaProtocol";
 import { guardIpc } from "../security/ipcGuard";
 import { trustedContents } from "../security/trustedContents";
 import { LyreLibraryService, type LibraryChild } from "./libraryService";
@@ -141,6 +142,9 @@ export function startLyreLibrary(): StartedLibrary {
     },
     bringInOldLibrary: !seed,
     readOldLibrary,
+    // Security review 6: the Lyre page gets lyre-media: addresses; the old player keeps file: until it retires.
+    grants: sharedMediaGrants(),
+    isLyrePage: (page) => trustedContents.roleOf(page) === "lyre-view",
     log,
   });
 

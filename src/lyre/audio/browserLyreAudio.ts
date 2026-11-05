@@ -120,7 +120,8 @@ export async function startLyreAudio(options: { window: Window; bridge: LyreAudi
     makeObjectUrl: browserObjectUrls.make,
     revokeObjectUrl: browserObjectUrls.revoke,
   });
-  const { engine } = createBrowserEngine({ audioContext, resolver: readAhead });
+  // Library files arrive as lyre-media: addresses (security review 6), another origin than the page's own.
+  const { engine } = createBrowserEngine({ audioContext, resolver: readAhead, crossOrigin: "anonymous" });
   const link = new PlayerAudioLink();
   const createTap = await createBrowserFrameTaps(audioContext);
   const previewOutput = await createBrowserBridgedPreview(link);
@@ -129,6 +130,7 @@ export async function startLyreAudio(options: { window: Window; bridge: LyreAudi
     createElement: () => {
       const element = target.document.createElement("audio");
       element.controls = false;
+      element.crossOrigin = "anonymous";
       return element;
     },
     fetchBytes: (url, limit) => readBytes(url, limit),

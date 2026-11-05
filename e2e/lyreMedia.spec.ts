@@ -46,9 +46,13 @@ test("an AIFF file plays: the player gets a FLAC copy made by the bundled ffmpeg
     track.url as string,
   );
   expect(prepared.error, "no refusal").toBeUndefined();
-  expect(prepared.url).toMatch(/^file:.*\.flac$/);
-  const copy = decodeURIComponent(new URL(prepared.url as string).pathname);
-  expect(fs.readFileSync(copy).subarray(0, 4).toString("ascii")).toBe("fLaC");
+  // Security review 6: the Lyre page is given a lyre-media: address for the copy, never a file: one.
+  expect(prepared.url).toMatch(/^lyre-media:\/\/.*\.flac$/);
+  const start = await lyre.evaluate(async (url) => {
+    const bytes = new Uint8Array(await (await fetch(url)).arrayBuffer());
+    return String.fromCharCode(...bytes.subarray(0, 4));
+  }, prepared.url as string);
+  expect(start).toBe("fLaC");
 });
 
 test("new tracks get their file-tag title, artist, album and length, then their loudness peaks", async ({ mainWindow, userDataDir }) => {
