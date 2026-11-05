@@ -1,7 +1,7 @@
 {
   "name": "lyre",
   "productName": "Lyre",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Film-score audio for tabletop role-playing games on Discord. An independent fork of Kenku FM by Owlbear Rodeo.",
   "homepage": "https://github.com/nikolaiivanovich38-ship-it/kenku-fm-UI#readme",
   "repository": {

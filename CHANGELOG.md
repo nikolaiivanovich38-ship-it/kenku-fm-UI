@@ -4,6 +4,35 @@ All notable changes to Lyre (called Cue Desk in versions 0.1.x). Versions follow
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-05: the new interface, for preparing games
+
+**A new Lyre tab beside the Player**
+- The new interface opens in its own tab, Lyre, next to the old Player. Use it to build your library and prepare campaigns; run games from the Player tab until Live arrives in 0.4. The old sidebar folds away while the Lyre tab is open. [WP5]
+- The first time the Lyre tab opens, your playlists and soundboards from the Player are brought into the new library, with their names, order, pictures and sound settings. A file used in several places becomes one track. The Player's own library is not changed, and a copy of the new library is made first. [DAT-9]
+- The new library keeps daily backups. If its file is ever damaged, Lyre says so and offers "Restore the latest backup". [DAT-6]
+
+**Library**
+- Search, filter by tag and tag many tracks at once. Adding a file reads its title, artist, album and length from its tags. [DAT-5]
+- WMA and AIFF files play: Lyre makes a playable copy in its cache. Files that are not audio are refused with a plain message, and a file that is already in the library is selected instead of added twice. [BUG-10]
+- Preview (only you hear it) and Play on air (the players hear it) wherever tracks, playlists, pads and boards are listed or chosen.
+
+**Playlists, pads and campaigns**
+- Playlists of your own choosing, and playlists made from tags that keep themselves up to date.
+- Audio profile for each track: where it starts and ends, fades, and whether it loops or moves on. The preview follows your settings, and the waveform shows how loud the track is along its length.
+- Pad boards you can resize and rearrange, with keys F1 to F12 and four play modes. A new pad takes its sound's name.
+- Campaigns, sessions and scenes, with scenes that mix tracks and playlists in any order. Run and Live say they come in 0.4.
+- Undo after a reset, deleting a board or scene, and bulk tagging, also with Ctrl+Z.
+
+**Look and feel**
+- Five colour themes, Candlelit Library first, each with its contrast shown. Empty screens say what to do first.
+- The On air bar shows what the players hear on every screen, and says when only this computer hears it.
+
+**Safety and upkeep**
+- The library runs in its own background process: big changes do not interrupt the sound in Discord, and if it stops it restarts by itself and says so.
+- The new interface plays only audio from your library's folders; it cannot read other files on your computer.
+- Lyre ships ffmpeg (used for WMA and AIFF) with its licence and a check that the copy is the expected one.
+- The media cache tidies itself, empties with Clear cache, and is closed properly when Lyre quits.
+
 ## [0.2.0] - 2026-11-04: Lyre
 
 **New name and look**
