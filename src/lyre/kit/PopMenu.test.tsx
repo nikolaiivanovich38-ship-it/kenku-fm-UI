@@ -17,9 +17,12 @@ function Example({ onFiles = vi.fn(), top }: { onFiles?: () => void; top?: React
     { content: "Hidden", onSelect: vi.fn(), hidden: true },
   ];
   return (
-    <PopMenuButton label="Add tracks" className="btn" items={items} top={top}>
-      Add tracks
-    </PopMenuButton>
+    <>
+      <PopMenuButton label="Add tracks" className="btn" items={items} top={top}>
+        Add tracks
+      </PopMenuButton>
+      <button type="button">Next control</button>
+    </>
   );
 }
 
@@ -70,5 +73,21 @@ describe("PopMenu: a menu with two-line items", () => {
     render(<Example top={<input aria-label="Filter" />} />);
     await userEvent.click(screen.getByRole("button", { name: "Add tracks" }));
     expect(screen.getByRole("textbox", { name: "Filter" })).toHaveFocus();
+  });
+
+  it("is the menu its button controls (review w3-polish 8)", async () => {
+    render(<Example />);
+    const button = screen.getByRole("button", { name: "Add tracks" });
+    await userEvent.click(button);
+    expect(screen.getByRole("menu", { name: "Add tracks" })).toHaveAttribute("id", button.getAttribute("aria-controls"));
+  });
+
+  it("Tab closes it and goes on from its button, not from the end of the page (review w3-polish 8)", async () => {
+    render(<Example />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Add tracks" }));
+    await user.tab();
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(screen.getByRole("button", { name: "Next control" })).toHaveFocus();
   });
 });

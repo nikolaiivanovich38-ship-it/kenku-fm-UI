@@ -1,7 +1,7 @@
 /**
  * A menu whose items can hold two lines, a count or an icon at the end (Add tracks, New playlist, Add to playlist,
  * a rule's tag values), with the kit Menu's keys: arrows, Home, End, Escape (focus back to the button), Tab. Items are
- * React content; `TwoLines` draws the usual icon, first line and hint. Something above the items (`top`, such as a
+ * React content; `TwoLines` draws the usual icon, first line and hint. Tab closes it and goes on from its button. Something above the items (`top`, such as a
  * filter box) takes focus first. Drawn in the page body (ui.css .menu), placed under its button, or above it when
  * there is no room below.
  */
@@ -16,6 +16,8 @@ export type PopMenuEntry =
   | { group: React.ReactNode };
 
 export interface PopMenuProps {
+  /** The id its button's aria-controls names. */
+  id?: string;
   label: string;
   items: readonly PopMenuEntry[];
   anchor: React.RefObject<HTMLElement>;
@@ -29,7 +31,7 @@ export interface PopMenuProps {
  * A menu like the kit's (ui.css .menu, same keys: arrows, Home, End, Escape, Tab), whose items can hold two lines,
  * a count or an icon at the end: Add tracks, New playlist, Add to playlist, and a rule's tag values.
  */
-export function PopMenu({ label, items, anchor, onClose, top }: PopMenuProps) {
+export function PopMenu({ id, label, items, anchor, onClose, top }: PopMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState({ left: 0, top: 0 });
   const onCloseRef = useRef(onClose);
@@ -66,7 +68,8 @@ export function PopMenu({ label, items, anchor, onClose, top }: PopMenuProps) {
         onCloseRef.current(true);
         break;
       case "Tab":
-        onCloseRef.current(false);
+        // The menu sits at the end of the page; focus goes back to its button first, so Tab goes on from there.
+        onCloseRef.current(true);
         break;
       case "ArrowDown":
         event.preventDefault();
@@ -90,7 +93,7 @@ export function PopMenu({ label, items, anchor, onClose, top }: PopMenuProps) {
   };
 
   return createPortal(
-    <div ref={menuRef} className="menu" role="menu" aria-label={label} style={{ left: position.left, top: position.top, position: "fixed" }} onKeyDown={onKeyDown}>
+    <div ref={menuRef} id={id} className="menu" role="menu" aria-label={label} style={{ left: position.left, top: position.top, position: "fixed" }} onKeyDown={onKeyDown}>
       {top}
       {items.map((item, index) => {
         if ("separator" in item) return <div key={index} className="sep" role="separator" />;
@@ -174,6 +177,7 @@ export function PopMenuButton({
       </button>
       {open && (
         <PopMenu
+          id={id}
           label={label}
           items={items()}
           top={top}
