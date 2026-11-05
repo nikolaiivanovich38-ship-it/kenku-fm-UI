@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Prof } from "./profileModel";
-import { advance, initialClock, pauseClock, playClock, seekClock, stopClock, type ClockWorld } from "./previewClock";
+import { advance, finishClock, follow, initialClock, pauseClock, playClock, seekClock, stopClock, type ClockWorld } from "./previewClock";
 
 const LOOP: Prof = {
   start: 0,
@@ -87,5 +87,62 @@ describe("the preview clock", () => {
     expect(paused.playing).toBe(false);
     expect(paused.pos).toBeCloseTo(2, 0);
     expect(stopClock(paused, LOOP)).toMatchObject({ playing: false, pos: 0, loops: 0, event: null });
+  });
+});
+
+describe("the clock following the real preview (its position from the audio host)", () => {
+  const playing = (prof: Prof, pos: number) => playClock(seekClock(initialClock(prof), pos, 441), "play", world(prof)).state;
+
+  it("moves the playhead to where the sound is", () => {
+    const r = follow(playing(LOOP, 30), 31.2, world(LOOP));
+    expect(r.state).toMatchObject({ pos: 31.2, playing: true, loops: 0 });
+    expect(r.say).toBeUndefined();
+  });
+
+  it("counts a loop when the sound jumps back to Loop start, and says how it went back", () => {
+    let s = follow(playing(LOOP, 316), 317.95, world(LOOP)).state;
+    expect(s).toMatchObject({ pos: 317.95, loops: 0 });
+    const r = follow(s, 64.3, world(LOOP));
+    expect(r.state).toMatchObject({ pos: 64.3, loops: 1, event: { type: "loop" } });
+    expect(r.say).toBe("Crossfaded over 2 s back to 1:04");
+    s = follow(follow(r.state, 317.9, world(LOOP)).state, 64.1, world(LOOP)).state;
+    expect(s.loops).toBe(2);
+  });
+
+  it("does not loop by itself just past End: it waits for the sound to go back", () => {
+    const r = follow(playing(LOOP, 317), 318.04, world(LOOP));
+    expect(r.state).toMatchObject({ loops: 0, event: null });
+    expect(r.state.pos).toBeLessThan(318);
+  });
+
+  it("stops at End when the profile stops there", () => {
+    const stop = { ...LOOP, after: "stop" as const };
+    const r = follow(playing(stop, 317), 318.02, world(stop));
+    expect(r.state).toMatchObject({ playing: false, pos: 318, event: { type: "stop" } });
+  });
+
+  it("follows the next track during the hand-over, and stops a few seconds into it", () => {
+    const next = { ...LOOP, after: "next" as const };
+    const handed = follow(playing(next, 317.5), 318.01, world(next)).state;
+    expect(handed.handover).toMatchObject({ id: "t42", pos: 3 });
+    const r = follow(handed, 7, world(next));
+    expect(r.state.handover?.pos).toBe(7);
+    expect(r.state.playing).toBe(true);
+    const done = follow(r.state, 13.5, world(next));
+    expect(done.state.playing).toBe(false);
+    expect(done.say).toBe("Preview stopped 10 seconds into the next track");
+  });
+
+  it("when the sound ends by itself, the clock goes to End (or the end of the file) and does what the profile says", () => {
+    const next = { ...LOOP, after: "next" as const };
+    expect(finishClock(playing(next, 317.9), world(next)).state.handover?.id).toBe("t42");
+    const stop = { ...LOOP, after: "stop" as const };
+    expect(finishClock(playing(stop, 317.9), world(stop)).state).toMatchObject({ playing: false, event: { type: "stop" } });
+    expect(finishClock(playing(LOOP, 400), world(LOOP)).state).toMatchObject({ playing: false, pos: 441, event: { type: "eof" } });
+  });
+
+  it("does nothing while paused", () => {
+    const paused = pauseClock(playing(LOOP, 30));
+    expect(follow(paused, 40, world(LOOP)).state).toBe(paused);
   });
 });

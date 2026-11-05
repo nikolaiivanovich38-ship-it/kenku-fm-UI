@@ -209,7 +209,7 @@ describe("listening while you set it", () => {
     await user.keyboard(" ");
     expect(within(transport).getByRole("button", { name: "Pause" })).toHaveAttribute("aria-pressed", "true");
     expect(region("Waveform and listening")).toHaveTextContent(/Previewing/);
-    expect(audio.calls).toContainEqual(["previewTrack", "t13"]);
+    expect(audio.calls.find(([m]) => m === "previewTrack")?.slice(0, 2)).toEqual(["previewTrack", "t13"]);
     expect(audio.calls.some(([m]) => m === "playTrack")).toBe(false);
     await user.keyboard(" ");
     expect(within(transport).getByRole("button", { name: "Play" })).toHaveAttribute("aria-pressed", "false");
@@ -244,6 +244,66 @@ describe("listening while you set it", () => {
     audio.setNowPlaying({ preview: { key: "t13", label: "Eerie dread" } });
     go("library");
     expect(audio.calls[audio.calls.length - 1]).toEqual(["stopPreview"]);
+  });
+});
+
+describe("the preview's sound follows the profile shown", () => {
+  const position = (audio: FakeLyreAudio, seconds: number, key = "t13") => act(() => void audio.emit("preview-position", { key, positionMs: seconds * 1000 }));
+  const previews = (audio: FakeLyreAudio) => audio.calls.filter(([m]) => m === "previewTrack");
+
+  it("Play previews from the playhead with the profile shown, and says it itself", async () => {
+    const { audio, user } = await open();
+    slider("Playhead").focus();
+    await user.keyboard("{Shift>}{ArrowRight}{ArrowRight}{/Shift}");
+    await user.click(within(region("Waveform and listening")).getByRole("button", { name: "Play" }));
+    const [, id, options] = previews(audio)[0] as [string, string, { startAtMs: number; profile: { startMs: number; endMs: number; after: string; loopStartMs: number }; quiet: boolean }];
+    expect(id).toBe("t13");
+    expect(options.startAtMs).toBe(20_000);
+    expect(options.profile).toMatchObject({ startMs: 0, endMs: 318_000, after: "loop", loopStartMs: 64_000 });
+    expect(options.quiet).toBe(true);
+  });
+
+  it("Play the last 10 s before End plays from there", async () => {
+    const { audio, user } = await open();
+    await user.click(screen.getByRole("button", { name: "Play the last 10 s before End" }));
+    expect((previews(audio)[0][2] as { startAtMs: number }).startAtMs).toBe(308_000);
+  });
+
+  it("the playhead, the loop count and the meter follow where the preview really is", async () => {
+    const { audio, user } = await open();
+    await user.click(screen.getByRole("button", { name: "Play the last 10 s before End" }));
+    const wave = region("Waveform and listening");
+    position(audio, 312.5);
+    expect(wave).toHaveTextContent(/Position\s*5:12\.5/);
+    expect(value("Playhead")).toBe(312);
+    position(audio, 317.9);
+    expect(wave).toHaveTextContent(/Looped\s*not yet/);
+    // Back to Loop start: the preview looped.
+    position(audio, 64.4);
+    expect(wave).toHaveTextContent(/Position\s*1:04\.4/);
+    expect(wave).toHaveTextContent(/Looped\s*once/);
+    await waitFor(() => expect(document.getElementById("lyre-live")).toHaveTextContent("Crossfaded over 2 s back to 1:04"));
+    expect(Number(within(wave).getByRole("meter", { name: "Volume after fades" }).getAttribute("aria-valuenow"))).toBeGreaterThan(0);
+    // Another preview's position (a Preview button elsewhere) is not this one's.
+    position(audio, 10, "t44");
+    expect(wave).toHaveTextContent(/Position\s*1:04\.4/);
+  });
+
+  it("moving on, it previews the next track from its Start with its settings there, then stops", async () => {
+    const { audio, user } = await open("profile/t13/sc:crown:s14:sc3");
+    await user.click(screen.getByRole("button", { name: "Play the last 10 s before End" }));
+    const first = previews(audio)[0] as [string, string, { startAtMs: number; profile: { endMs: number; after: string } }];
+    expect(first[2].startAtMs).toBe(180_000);
+    expect(first[2].profile).toMatchObject({ endMs: 190_000, after: "next" });
+    act(() => audio.setNowPlaying({ preview: { key: "t13", label: "Eerie dread" } }));
+    position(audio, 189.9);
+    // The track ends at End; the screen hands over to the next track.
+    act(() => audio.setNowPlaying({ preview: null }));
+    await waitFor(() => expect(previews(audio)).toHaveLength(2));
+    const next = previews(audio)[1] as [string, string, { quiet: boolean }];
+    expect(next[1]).not.toBe("t13");
+    expect(next[2].quiet).toBe(true);
+    await waitFor(() => expect(document.getElementById("lyre-live")).toHaveTextContent(/Moved on to the next track/));
   });
 });
 
