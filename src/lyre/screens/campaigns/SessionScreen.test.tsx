@@ -310,3 +310,42 @@ describe("scenes", () => {
     expect(screen.getByRole("link", { name: "Back to Campaigns" })).toHaveAttribute("href", "#/campaigns");
   });
 });
+
+describe("renaming a scene in place (EDT-1, BUG-18)", () => {
+  const head = (name: string) => screen.getByRole("button", { name: `Scene 2: ${name}` });
+  const sceneName = async (api: FakeLyreApi) => (await s14(api)).scenes[1].name;
+
+  it("F2 on the scene's name starts editing; Enter saves; the scene stays folded and focus goes back", async () => {
+    const { api } = openAt("session/crown/s14");
+    const user = userEvent.setup();
+    (await screen.findByRole("button", { name: "Scene 2: Greyhollow inn" })).focus();
+    await user.keyboard("{F2}");
+    const box = screen.getByRole("textbox", { name: "Name of scene 2" });
+    expect(box).toHaveFocus();
+    expect(box).toHaveValue("Greyhollow inn");
+    await user.clear(box);
+    await user.keyboard("The Drowned Lantern{Enter}");
+    await waitFor(async () => expect(await sceneName(api)).toBe("The Drowned Lantern"));
+    const renamed = await screen.findByRole("button", { name: "Scene 2: The Drowned Lantern" });
+    await waitFor(() => expect(renamed).toHaveFocus());
+    expect(renamed).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("Esc cancels; double-click and Rename in the scene's menu start editing too", async () => {
+    const { api } = openAt("session/crown/s14");
+    const user = userEvent.setup();
+    await user.dblClick(await screen.findByRole("button", { name: "Scene 2: Greyhollow inn" }));
+    const box = screen.getByRole("textbox", { name: "Name of scene 2" });
+    await user.keyboard("Nowhere{Escape}");
+    expect(screen.queryByRole("textbox", { name: "Name of scene 2" })).toBeNull();
+    expect(head("Greyhollow inn")).toHaveFocus();
+    expect(head("Greyhollow inn")).toHaveAttribute("aria-expanded", "false");
+    expect(box).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "More for Greyhollow inn" }));
+    screen.getByRole("menuitem", { name: "Rename" }).focus();
+    await user.keyboard("{Enter}");
+    expect(await screen.findByRole("textbox", { name: "Name of scene 2" })).toHaveFocus();
+    await user.keyboard("{Control>}a{/Control}The Lantern{Enter}");
+    await waitFor(async () => expect(await sceneName(api)).toBe("The Lantern"));
+  });
+});

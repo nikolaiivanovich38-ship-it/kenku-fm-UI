@@ -5,7 +5,7 @@
  * on hand for the evening; and a reminder of the campaign's. Playlists and boards are only assigned here, never made.
  * (views/campaigns.js part 3.)
  */
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import type { SoundRef } from "../../../common/domain";
 import { isRefused, type CampaignInfo, type SceneAddress, type SceneInfo, type SessionInfo, type SessionStatus } from "../../../common/lyre/api";
@@ -15,6 +15,7 @@ import { Button, IconButton } from "../../kit/Button";
 import { Dialog } from "../../kit/Dialog";
 import { ExpanderButton } from "../../kit/Expander";
 import { Icon } from "../../kit/Icon";
+import { RenameField, renameKeys, useRenameInPlace } from "../../kit/RenameInPlace";
 import { runInLive } from "../../kit/liveSession";
 import type { MenuEntry } from "../../kit/Menu";
 import { Column, Pane } from "../../kit/Pane";
@@ -470,6 +471,9 @@ function SceneCard({ scene, position, ctx, open, onToggle, drag, menu }: SceneCa
   };
   const rowProps = drag.rowProps(position);
   const f = `sc${scene.id}`;
+  // EDT-1, BUG-18: double-click the name, F2 on it, or Rename in the ⋯ menu.
+  const rename = useRenameInPlace();
+  const toggle = useRef<HTMLButtonElement>(null);
 
   // A folded scene takes dropped files into its music, at the end.
   const foldedDrop = open
@@ -506,23 +510,49 @@ function SceneCard({ scene, position, ctx, open, onToggle, drag, menu }: SceneCa
         <span className="cp-handle" title="Drag to reorder" aria-hidden="true" {...drag.handleProps}>
           <Icon name="drag" size="s" />
         </span>
-        <button
-          type="button"
-          className="cp-scene-toggle"
-          data-k={`sct-${scene.id}`}
-          aria-expanded={open}
-          aria-controls={open ? `scb-${scene.id}` : undefined}
-          title={open ? undefined : sceneTip(scene, ctx.index)}
-          onClick={onToggle}
-        >
-          <Icon name="chevdown" size="s" className="chev" />
-          <span className="num cp-scn" aria-hidden="true">
-            {number}
+        {rename.editing ? (
+          <span className="cp-scene-toggle cp-scene-renaming">
+            <Icon name="chevdown" size="s" className="chev" />
+            <span className="num cp-scn" aria-hidden="true">
+              {number}
+            </span>
+            <RenameField
+              className="input cp-rename"
+              value={scene.name}
+              label={`Name of scene ${number}`}
+              placeholder="Untitled scene"
+              onSave={(newName) => {
+                setNameDraft(newName);
+                save({ name: newName });
+              }}
+              onDone={rename.done}
+            />
           </span>
-          <span className="ellipsis cp-scname">
-            <span className="sr-only">Scene {number}:</span> {name}
-          </span>
-        </button>
+        ) : (
+          <button
+            ref={toggle}
+            type="button"
+            className="cp-scene-toggle"
+            data-k={`sct-${scene.id}`}
+            aria-expanded={open}
+            aria-controls={open ? `scb-${scene.id}` : undefined}
+            title={open ? undefined : sceneTip(scene, ctx.index)}
+            onClick={onToggle}
+            onKeyDown={renameKeys(rename.start)}
+            onDoubleClick={(event) => {
+              // The two clicks before it folded and unfolded the scene, so it is as it was.
+              rename.start(event.currentTarget);
+            }}
+          >
+            <Icon name="chevdown" size="s" className="chev" />
+            <span className="num cp-scn" aria-hidden="true">
+              {number}
+            </span>
+            <span className="ellipsis cp-scname">
+              <span className="sr-only">Scene {number}:</span> {name}
+            </span>
+          </button>
+        )}
         {!open && (
           <span className="cp-scchip">
             {first.length ? (
@@ -542,7 +572,12 @@ function SceneCard({ scene, position, ctx, open, onToggle, drag, menu }: SceneCa
             )}
           </span>
         )}
-        <RowMenu label={`More for ${name}`} title="More for this scene" k={`scm-${scene.id}`} items={menu} />
+        <RowMenu
+          label={`More for ${name}`}
+          title="More for this scene"
+          k={`scm-${scene.id}`}
+          items={[{ label: "Rename", icon: "edit", onSelect: () => rename.start(toggle.current) }, ...menu]}
+        />
       </div>
       {open && (
         <div className="cp-scene-body" id={`scb-${scene.id}`}>

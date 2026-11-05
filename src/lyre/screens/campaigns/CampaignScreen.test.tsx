@@ -184,3 +184,66 @@ describe("playlists and pad boards on hand in every session", () => {
     expect(boards.getByRole("button", { name: "Preview Sword clash" })).toBeInTheDocument();
   });
 });
+
+describe("renaming a session in place (EDT-1, BUG-18)", () => {
+  const link = () => sessions().getByRole("link", { name: "Session 13: The coast road" });
+  const nameOf = async (api: Awaited<ReturnType<typeof openAt>>["api"], id: string) =>
+    (await api.campaigns.get("crown"))?.sessions.find((s) => s.id === id)?.name;
+
+  it("F2 on the name starts editing; Enter saves and focus goes back to the name", async () => {
+    const { api } = openAt("campaign/crown");
+    await screen.findByRole("list", { name: "Sessions in order" });
+    const user = userEvent.setup();
+    link().focus();
+    await user.keyboard("{F2}");
+    const box = sessions().getByRole("textbox", { name: "Name of Session 13" });
+    expect(box).toHaveFocus();
+    expect(box).toHaveValue("The coast road");
+    await user.clear(box);
+    await user.keyboard("The cliff road{Enter}");
+    await waitFor(async () => expect(await nameOf(api, "s13")).toBe("The cliff road"));
+    const renamed = await sessions().findByRole("link", { name: "Session 13: The cliff road" });
+    await waitFor(() => expect(renamed).toHaveFocus());
+    expect(window.location.hash).toBe("#/campaign/crown");
+  });
+
+  it("Esc cancels, and an empty name changes nothing", async () => {
+    const { api } = openAt("campaign/crown");
+    await screen.findByRole("list", { name: "Sessions in order" });
+    const user = userEvent.setup();
+    link().focus();
+    await user.keyboard("{F2}");
+    await user.keyboard("Something else{Escape}");
+    expect(sessions().queryByRole("textbox")).toBeNull();
+    expect(link()).toHaveFocus();
+    await user.keyboard("{F2}");
+    await user.clear(sessions().getByRole("textbox", { name: "Name of Session 13" }));
+    await user.keyboard("{Enter}");
+    expect(await nameOf(api, "s13")).toBe("The coast road");
+  });
+
+  it("double-click on the name starts editing without opening the session; one click still opens it", async () => {
+    const { api } = openAt("campaign/crown");
+    await screen.findByRole("list", { name: "Sessions in order" });
+    const user = userEvent.setup();
+    await user.dblClick(link());
+    const box = sessions().getByRole("textbox", { name: "Name of Session 13" });
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(window.location.hash).toBe("#/campaign/crown");
+    await user.clear(box);
+    await user.keyboard("Coastal{Enter}");
+    await waitFor(async () => expect(await nameOf(api, "s13")).toBe("Coastal"));
+    await user.click(sessions().getByRole("link", { name: "Session 13: Coastal" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/session/crown/s13"));
+  });
+
+  it("Rename in the row's menu starts editing too (Enter on it)", async () => {
+    openAt("campaign/crown");
+    await screen.findByRole("list", { name: "Sessions in order" });
+    const user = userEvent.setup();
+    await user.click(sessions().getByRole("button", { name: "More for Session 13: The coast road" }));
+    screen.getByRole("menuitem", { name: "Rename" }).focus();
+    await user.keyboard("{Enter}");
+    expect(await sessions().findByRole("textbox", { name: "Name of Session 13" })).toHaveFocus();
+  });
+});
