@@ -378,6 +378,26 @@ describe("preview: the game master's headphones only, never on air (PRV-1)", () 
     expect(announced).toContain("Preview stopped");
   });
 
+  it("previews a track from a point with its audio profile, quietly, and says where it is (the Audio profile screen)", async () => {
+    const positions: { key: string; positionMs: number }[] = [];
+    rig.audio.on("preview-position", (at) => positions.push(at));
+    const profile = { startMs: 2000, endMs: 6000, after: "loop" as const, loopStartMs: 3000, loopCrossfadeMs: 0, fadeIn: { ms: 0, shape: 0 }, fadeOut: { ms: 0, shape: 0 }, markers: [] as { atMs: number; label: string }[] };
+    expect(rig.audio.previewTrack("m2", { startAtMs: 4000, profile, quiet: true })).toEqual({ ok: true });
+    await rig.advance(1);
+    expect(state().preview).toEqual({ key: "m2", label: "M2" });
+    expect(positions[positions.length - 1].key).toBe("m2");
+    expect(positions[positions.length - 1].positionMs).toBeGreaterThan(4500);
+    expect(positions[positions.length - 1].positionMs).toBeLessThan(5500);
+    // It loops back to Loop start at End, as the profile says.
+    await rig.advance(2);
+    expect(positions[positions.length - 1].positionMs).toBeGreaterThanOrEqual(3000);
+    expect(positions[positions.length - 1].positionMs).toBeLessThan(5000);
+    expect(announced.filter((text) => text.includes("review"))).toEqual([]);
+    // From a point, it starts again rather than stopping (a Preview button would stop it).
+    rig.audio.previewTrack("m2", { startAtMs: 2000, profile, quiet: true });
+    expect(state().preview?.key).toBe("m2");
+  });
+
   it("previews a playlist's first track and a pad's sound, and says when a playlist is empty", async () => {
     rig.audio.previewPlaylist("P");
     expect(state().preview).toEqual({ key: "pl:P", label: "Battle: M2" });

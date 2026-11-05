@@ -17,6 +17,8 @@ export type {
   NowPlaying,
   OutputDeviceInfo,
   PlayOptions,
+  PreviewPosition,
+  PreviewTrackOptions,
   RoomLane,
   RoomNowPlaying,
   SceneRef,

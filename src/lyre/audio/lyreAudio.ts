@@ -26,6 +26,7 @@ import { TypedEmitter } from "tiny-typed-emitter";
 import {
   playlistTracks,
   roomsFor,
+  type AudioProfile,
   type DomainLookup,
   type DomainScene,
   type DomainTrack,
@@ -130,6 +131,24 @@ export interface LyreAudioEvents {
   announce: (text: string) => void;
   /** Something did not work, in plain words for a toast. Every failed call is reported here once. */
   error: (message: string) => void;
+  /** Where the preview is in its file, about twenty times a second while it plays (the Audio profile's playhead). */
+  "preview-position": (at: PreviewPosition) => void;
+}
+
+/** The preview's place in its file: its key (a track's id, "pl:…", "pad:…") and the position in milliseconds. */
+export interface PreviewPosition {
+  key: string;
+  positionMs: number;
+}
+
+/** How the Audio profile screen previews a track: from a point, with the profile it shows, saying nothing itself. */
+export interface PreviewTrackOptions {
+  /** Start this far into the file (default: the profile's Start, or 0). */
+  startAtMs?: number;
+  /** Play as this profile says (Start to End, fades, loop); none plays the whole file. */
+  profile?: AudioProfile;
+  /** Announce nothing: the screen says what happens. */
+  quiet?: boolean;
 }
 
 /** The first room: where sound goes when a screen names no room, and where scenes always play. */
@@ -177,8 +196,11 @@ export interface LyreAudio {
   run(action: CueAction): CueOutcome;
 
   // ----- preview: the game master's headphones only, never on air -----
-  /** Start previewing, or stop if this one is previewing (the Preview button). */
-  previewTrack(trackId: string): CueOutcome;
+  /**
+   * Start previewing, or stop if this one is previewing (the Preview button). With options (the Audio profile
+   * screen) it always starts, from that point and with that profile.
+   */
+  previewTrack(trackId: string, options?: PreviewTrackOptions): CueOutcome;
   previewPlaylist(playlistId: string): CueOutcome;
   previewPad(boardId: string, padId: string): CueOutcome;
   stopPreview(): void;
@@ -286,9 +308,10 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     };
     const onVoice = () => this.changed();
     const onPreview = (_state: PreviewState | null, announcement: string) => {
-      this.emit("announce", announcement);
+      if (announcement) this.emit("announce", announcement);
       this.changed();
     };
+    const onPreviewPosition = (key: string, seconds: number) => this.emit("preview-position", { key, positionMs: seconds * 1000 });
     const onDevice = (role: string, status: DeviceStatus) => {
       if (role === "preview" && status.message) {
         this.emit("announce", status.message);
@@ -301,12 +324,14 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     parts.streams.on("broadcast", onBroadcast);
     parts.engine.on("voice", onVoice);
     parts.preview.on("change", onPreview);
+    parts.preview.on("position", onPreviewPosition);
     parts.previewDevices?.on("status", onDevice);
     this.cleanups.push(
       () => parts.mixer.off("rooms", onRooms),
       () => parts.streams.off("broadcast", onBroadcast),
       () => parts.engine.off("voice", onVoice),
       () => parts.preview.off("change", onPreview),
+      () => parts.preview.off("position", onPreviewPosition),
       () => parts.previewDevices?.off("status", onDevice),
     );
     this.routeSpeakers();
@@ -418,9 +443,9 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
 
   // ---------- preview ----------
 
-  previewTrack(trackId: string): CueOutcome {
+  previewTrack(trackId: string, options?: PreviewTrackOptions): CueOutcome {
     const preview = this.parts.preview;
-    if (preview.isPreviewing(trackId)) {
+    if (!options && preview.isPreviewing(trackId)) {
       preview.stop();
       return OK;
     }
@@ -432,7 +457,8 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     if (!media) {
       return this.fail(`Unable to preview: ${trackTitle(track)}`);
     }
-    preview.play(trackPreview(track, media));
+    const voice = options && { startAt: options.startAtMs === undefined ? undefined : options.startAtMs / 1000, profile: options.profile };
+    preview.play({ ...trackPreview(track, media), options: voice, quiet: options?.quiet });
     return OK;
   }
 
