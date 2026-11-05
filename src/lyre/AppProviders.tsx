@@ -7,6 +7,7 @@ import { LibraryStatus } from "./api/LibraryStatus";
 import type { LyreApiBridge } from "./api/preloadApi";
 import { EMPTY_LIBRARY, LyreAudioProvider, startLyreAudio, type LyreAudio } from "./audio";
 import type { LyreAudioBridge } from "./audio/preloadAudio";
+import { useLiveSession } from "./kit/liveSession";
 import { OnAirBar } from "./shell/OnAirBar";
 import { ShellDataProvider, type ShellData } from "./shell/ShellData";
 import type { ThemeId } from "./shell/themes";
@@ -17,7 +18,7 @@ import type { ThemeId } from "./shell/themes";
  *
  *   <LyreApiProvider>       the library (src/lyre/api), over IPC to the library's own process
  *     <LyreAudioProvider>   play on air, preview, stop, now playing (src/lyre/audio), fed with the library
- *       <ShellDataProvider> each campaign's table theme, the on-air bar
+ *       <ShellDataProvider> each campaign's table theme, the session loaded in Live, the on-air bar
  *         {children}
  *
  * Tests pass `api` and `audio`; the page uses `window.lyre` (src/lyre/preload.ts).
@@ -111,12 +112,22 @@ function FeedLibrary({ audio }: { audio: LyreAudio }): null {
 /** The bar is one element for the page's life: it follows the audio host itself, so ShellData stays the same. */
 const ON_AIR_BAR = <OnAirBar />;
 
-/** What the shell shows from the library and the sound: each campaign's own table theme, the on-air bar. */
+/**
+ * What the shell shows from the library and the sound: each campaign's own table theme, the session loaded in Live
+ * (its campaign's theme on Live, "Live: S14" on the rail, as core.js railHTML), the on-air bar.
+ */
 function ShellDataFromLibrary({ children }: { children: React.ReactNode }) {
   const campaigns = useCampaigns().data;
+  const live = useLiveSession();
   const value = useMemo<ShellData>(() => {
     const themes = new Map((campaigns ?? []).map((c) => [c.id, c.theme as ThemeId]));
-    return { campaignTheme: (id: string) => themes.get(id), onAirBar: ON_AIR_BAR };
-  }, [campaigns]);
+    const session = live && campaigns?.find((c) => c.id === live.campaignId)?.sessions.find((s) => s.id === live.sessionId);
+    return {
+      campaignTheme: (id: string) => themes.get(id),
+      liveCampaign: live?.campaignId,
+      liveLabel: session ? `Live: S${session.number}` : undefined,
+      onAirBar: ON_AIR_BAR,
+    };
+  }, [campaigns, live]);
   return <ShellDataProvider value={value}>{children}</ShellDataProvider>;
 }

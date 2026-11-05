@@ -18,6 +18,7 @@ import { Shell } from "./shell/Shell";
 import { SCREENS } from "./screens";
 import { PlaceholderScreen } from "./screens/Placeholder";
 import userEvent from "@testing-library/user-event";
+import { loadInLive } from "./kit/liveSession";
 
 // The page root can start the real audio host, whose worklet file is a webpack asset; tests give a fake host.
 vi.mock("../preload/managers/PCMStream.worklet.js?asset", () => ({ default: "pcm.js" }));
@@ -140,6 +141,29 @@ describe("AppProviders", () => {
       );
       playing(audio);
       expect(screen.queryByRole("region", { name: "On air" })).toBeNull();
+    });
+  });
+
+  describe("the session loaded in Live, in the rail and the theme (core.js railHTML)", () => {
+    const quiet = { ...SCREENS, campaigns: () => <PlaceholderScreen title="Campaigns" />, library: () => <PlaceholderScreen title="Library" /> };
+
+    it("names the loaded session on the rail's Live link, follows a change, and gives Live that campaign's theme", async () => {
+      loadInLive(null);
+      window.history.replaceState(null, "", "#/live");
+      render(
+        <AppProviders api={createFakeLyreApi()} audio={new FakeLyreAudio()}>
+          <Shell screens={quiet} />
+        </AppProviders>,
+      );
+      const nav = await screen.findByRole("navigation", { name: "Lyre" });
+      expect(nav).toHaveTextContent(/Live$|LiveOutputs/);
+      act(() => loadInLive({ campaignId: "crown", sessionId: "s14" }));
+      expect(await screen.findByRole("link", { name: "Live: S14" })).toHaveAttribute("href", "#/live");
+      await waitFor(() => expect(document.documentElement.dataset.theme).toBe("hearth"));
+      act(() => loadInLive({ campaignId: "crown", sessionId: "s12" }));
+      expect(await screen.findByRole("link", { name: "Live: S12" })).toBeInTheDocument();
+      act(() => loadInLive(null));
+      expect(await screen.findByRole("link", { name: "Live" })).toBeInTheDocument();
     });
   });
 });
