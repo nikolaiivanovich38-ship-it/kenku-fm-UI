@@ -2,6 +2,7 @@ import React from "react";
 import type { Route, RouteName } from "../shell/routes";
 import { LookPlaceholder } from "./LookPlaceholder";
 import { PlaceholderScreen } from "./Placeholder";
+import { ProfileScreen } from "./profile/ProfileScreen";
 
 /** What every screen gets: the route it was opened at (its ids are in route.params). */
 export interface ScreenProps {
@@ -28,7 +29,7 @@ export const SCREENS: Record<RouteName, ScreenComponent> = {
   library: placeholder("Library"),
   playlists: placeholder("Playlists"),
   playlist: placeholder("Playlist"),
-  profile: placeholder("Audio profile"),
+  profile: ProfileScreen,
   boards: placeholder("Pad boards"),
   board: placeholder("Pad board"),
   live: placeholder("Live"),
