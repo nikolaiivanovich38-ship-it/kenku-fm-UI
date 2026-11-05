@@ -99,6 +99,8 @@ export function runLibraryProcess(port: PortLike, options: LibraryProcessOptions
     chooseFiles: () => server.askHost("chooseFiles", []) as Promise<string[] | null>,
     chooseFolder: () => server.askHost("chooseFolder", []) as Promise<string | null>,
     showItemInFolder: (path) => void server.askHost("showItemInFolder", [path]).catch((error) => log("Could not show the file in its folder", error)),
+    chooseSaveFile: (suggestedName) => server.askHost("chooseSaveFile", [suggestedName]) as Promise<string | null>,
+    chooseLyreFile: () => server.askHost("chooseLyreFile", []) as Promise<string | null>,
   };
 
   /** Says the library is damaged, offering the latest good backup when there is one. */
