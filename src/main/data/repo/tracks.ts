@@ -264,6 +264,12 @@ export type TrackListOptions = {
   tagIds?: string[];
   limit?: number;
   offset?: number;
+  /**
+   * The next page: the tracks after this one (its shown name and id) in list
+   * order. Read through tracks_shown_title from there, so a page deep in a
+   * large library costs what the first page does (offset reads every row before it).
+   */
+  after?: { title: string; id: string };
 };
 
 /** The name a track is shown by: its title, else its file-tag title, else its file name. */
@@ -279,19 +285,36 @@ export function tracksWithTagsSql(count: number): string {
     GROUP BY track_id HAVING count(*) = ${count}) ORDER BY ${SHOWN_TITLE_SQL} COLLATE NOCASE, id LIMIT ? OFFSET ?`;
 }
 
+/**
+ * The SQL for a page of the track list in the order of the shown name, read
+ * through tracks_shown_title without sorting. Exported for the query-plan tests.
+ */
+export function trackListQuery(options: { limit?: number; offset?: number; after?: { title: string; id: string } }): { sql: string; params: SQLInputValue[] } {
+  const limit = options.limit === undefined ? -1 : v.integer("limit", options.limit, 0, 1_000_000);
+  const offset = options.offset === undefined ? 0 : v.integer("offset", options.offset, 0, Number.MAX_SAFE_INTEGER);
+  const order = `${SHOWN_TITLE_SQL} COLLATE NOCASE`;
+  if (options.after === undefined) return { sql: `SELECT * FROM tracks ORDER BY ${order}, id LIMIT ? OFFSET ?`, params: [limit, offset] };
+  const after = v.record("after", options.after);
+  const title = v.optionalText("after.title", after.title);
+  const id = v.id("after.id", after.id);
+  return {
+    // A range on the index's first part (so SQLite starts there), then the exact "after" test.
+    sql: `SELECT * FROM tracks WHERE ${order} >= ?1 AND (${order} > ?1 OR id > ?2) ORDER BY ${order}, id LIMIT ?3 OFFSET ?4`,
+    params: [title, id, limit, offset],
+  };
+}
+
 /** Tracks in order of the name they are shown by; with `tagIds`, only those carrying all of them. */
 export function listTracks(store: Store, options: TrackListOptions = {}): Track[] {
   const tagIds = options.tagIds === undefined ? [] : v.ids("tagIds", options.tagIds);
-  const limit = options.limit === undefined ? -1 : v.integer("limit", options.limit, 0, 1_000_000);
-  const offset = options.offset === undefined ? 0 : v.integer("offset", options.offset, 0, Number.MAX_SAFE_INTEGER);
-  const rows = store.all<TrackRow>(
-    tagIds.length === 0
-      ? `SELECT * FROM tracks ORDER BY ${SHOWN_TITLE_SQL} COLLATE NOCASE, id LIMIT ? OFFSET ?`
-      : tracksWithTagsSql(tagIds.length),
-    ...tagIds,
-    limit,
-    offset,
-  );
+  let query: { sql: string; params: SQLInputValue[] };
+  if (tagIds.length === 0) query = trackListQuery(options);
+  else {
+    const limit = options.limit === undefined ? -1 : v.integer("limit", options.limit, 0, 1_000_000);
+    const offset = options.offset === undefined ? 0 : v.integer("offset", options.offset, 0, Number.MAX_SAFE_INTEGER);
+    query = { sql: tracksWithTagsSql(tagIds.length), params: [...tagIds, limit, offset] };
+  }
+  const rows = store.all<TrackRow>(query.sql, ...query.params);
   const profiles = ownProfiles(
     store,
     rows.map((row) => row.id),

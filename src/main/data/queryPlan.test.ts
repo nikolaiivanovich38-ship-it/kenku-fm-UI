@@ -15,7 +15,7 @@ import { makeTempFolder } from "./test/helpers";
 import { campaignTreeQueries, USES_QUERIES } from "./repo/domain";
 import { SCENE_MUSIC_SQL } from "./repo/campaigns";
 import { PLAYLIST_ITEMS_SQL, createPlaylist } from "./repo/playlists";
-import { NEW_TRACKS_SQL, TRACK_BY_PATH_SQL, tracksWithTagsSql } from "./repo/tracks";
+import { NEW_TRACKS_SQL, TRACK_BY_PATH_SQL, trackListQuery, tracksWithTagsSql } from "./repo/tracks";
 import { BOARD_PADS_SQL } from "./repo/boards";
 import { PROFILE_LOOKUP_SQL } from "./repo/profileRows";
 import { searchQuery } from "./repo/search";
@@ -66,7 +66,20 @@ describe("query plans of the hot read paths (DAT-11)", () => {
   });
 
   it.each(Object.entries(BOARD_PADS_SQL))("drawing a board: its %s", (_name, sql) => {
-    expectIndexed(sql, ["b"], "pads_board");
+    expectIndexed(sql, ["b"], "pads_cell");
+  });
+
+  it.each([
+    ["the first page", { limit: 50 }],
+    ["the page after a track", { limit: 50, after: { title: "M", id: "x" } }],
+  ] as const)("the track list in title order: %s, read in index order without sorting", (name, options) => {
+    const query = trackListQuery(options);
+    const details = plan(query.sql, query.params);
+    // The first page walks tracks_shown_title from its start and stops at the limit; a later page
+    // starts at the last track shown.
+    expect(details, details.join("\n")).toEqual([
+      name === "the first page" ? "SCAN tracks USING INDEX tracks_shown_title" : expect.stringMatching(/^SEARCH tracks USING INDEX tracks_shown_title \(/),
+    ]);
   });
 
   it("tracks by tag (the library's tag filter)", () => {

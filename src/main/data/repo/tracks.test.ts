@@ -309,6 +309,21 @@ describe("scoring metadata (DAT-2)", () => {
   });
 });
 
+describe("the track list a page at a time (review nice-to-have)", () => {
+  it("pages in the order of the shown name, continuing after the last track of a page", async () => {
+    createTracks(
+      t.store,
+      ["delta", "Alpha", "charlie", "Bravo", "echo"].map((title, i) => ({ title, file: { path: `/m/${i}.mp3` } })),
+    );
+    const first = listTracks(t.store, { limit: 2 });
+    expect(first.map((x) => x.title)).toEqual(["Alpha", "Bravo"]);
+    const last = first[first.length - 1];
+    const next = listTracks(t.store, { limit: 2, after: { title: last.title, id: last.id } });
+    expect(next.map((x) => x.title)).toEqual(["charlie", "delta"]);
+    expect(listTracks(t.store, { after: { title: "delta", id: next[1].id } }).map((x) => x.title)).toEqual(["echo"]);
+  });
+});
+
 describe("design fields (DAT-11): kind, three names, role, loop advice, audio profile", () => {
   it("keeps the game master's title (may be empty), the file-tag title and the file name", async () => {
     const fresh = createTrack(t.store, { kind: "amb", metaTitle: "Far Horizons", file: { path: "/m/1-05 Far Horizons.flac" } });

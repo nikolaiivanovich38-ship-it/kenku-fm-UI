@@ -62,7 +62,7 @@ export function assignPositions(store: Store, list: OrderedList, ids: readonly s
 
 function rebalance(store: Store, list: OrderedList) {
   const rows = store.all<{ id: string }>(
-    `SELECT ${idOf(list)} AS id FROM ${list.table} WHERE ${list.scope} ORDER BY position, rowid`,
+    `SELECT ${idOf(list)} AS id FROM ${list.table} WHERE ${list.scope} ORDER BY position`,
     ...list.params,
   );
   assignPositions(

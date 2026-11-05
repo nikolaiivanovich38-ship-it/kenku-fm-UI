@@ -181,6 +181,31 @@ describe("the library schema (DAT-11)", () => {
       expect(all(db, "PRAGMA foreign_key_check")).toEqual([]);
     });
 
+    it("stores link and list tables without a separate row id, and has no position default (review nice-to-haves)", () => {
+      const withoutRowid = (all(db, "SELECT name FROM pragma_table_list WHERE wr = 1 AND schema = 'main' ORDER BY name") as { name: string }[]).map((r) => r.name);
+      expect(withoutRowid).toEqual(
+        expect.arrayContaining([
+          "audio_profile_markers", "campaign_boards", "campaign_playlists", "pad_sounds", "rule_condition_tags", "scene_boards",
+          "session_boards", "session_playlists", "tag_synonyms", "track_follow_with", "track_tags",
+        ]),
+      );
+      const indexes = (all(db, "SELECT name FROM sqlite_schema WHERE type = 'index'") as { name: string }[]).map((r) => r.name);
+      expect(indexes).not.toContain("pads_board");
+      expect(indexes).toContain("pads_cell");
+      fails("INSERT INTO campaign_playlists (campaign_id, playlist_id) VALUES ('c', 'm')", /NOT NULL/);
+      db.exec("INSERT INTO campaign_playlists (campaign_id, playlist_id, position) VALUES ('c', 'm', 1)");
+    });
+
+    it("keeps an entry or a condition from moving to a playlist of the other kind", () => {
+      const group = (all(db, "SELECT id FROM tag_groups LIMIT 1") as { id: string }[])[0].id;
+      db.exec(`
+        INSERT INTO playlist_items (id, playlist_id, kind, track_id, position) VALUES ('i', 'm', 'track', 't', 1);
+        INSERT INTO rule_conditions (id, playlist_id, group_id, match, position) VALUES ('c1', 'd', '${group}', 'any', 1);
+      `);
+      fails("UPDATE playlist_items SET playlist_id = 'd' WHERE id = 'i'", /dynamic playlist/);
+      fails("UPDATE rule_conditions SET playlist_id = 'm' WHERE id = 'c1'", /manual playlist has no rule/);
+    });
+
     it("marks a library folder watched or not (DB review 9)", () => {
       db.exec("INSERT INTO library_roots (id, name, path, created_at) VALUES ('r', 'R', '/music', 1)");
       expect(all(db, "SELECT watched FROM library_roots")).toEqual([{ watched: 0 }]);

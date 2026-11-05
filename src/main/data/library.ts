@@ -216,6 +216,13 @@ export function openLibrary(options: LibraryOptions): Library {
     throw error;
   }
 
+  // The planner's statistics, refreshed at open as SQLite advises (cheap; usually does nothing):
+  // the one at close may never run when Windows shuts down with Lyre open.
+  try {
+    db.exec("PRAGMA optimize = 0x10002");
+  } catch {
+    // Opening matters more than the statistics.
+  }
   const store = new Store(db, { now });
   const history = new UndoHistory(store, { limit: options.undoLimit });
   let closed = false;

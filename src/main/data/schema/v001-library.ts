@@ -235,7 +235,7 @@ CREATE TABLE pad_sounds (
   track_id TEXT NOT NULL REFERENCES tracks (id) ON DELETE CASCADE,
   position REAL NOT NULL,
   PRIMARY KEY (pad_id, track_id)
-);
+) WITHOUT ROWID;
 
 -- A dynamic playlist's conditions, in order; every condition must match. Deleting
 -- the tag group a condition looks at deletes the condition.
@@ -259,7 +259,7 @@ CREATE TABLE rule_condition_tags (
   PRIMARY KEY (condition_id, tag_id),
   FOREIGN KEY (condition_id, group_id) REFERENCES rule_conditions (id, group_id) ON DELETE CASCADE,
   FOREIGN KEY (group_id, tag_id) REFERENCES tags (group_id, id) ON DELETE CASCADE
-);
+) WITHOUT ROWID;
 
 -- Campaigns > sessions > scenes (ORG-7).
 CREATE TABLE campaigns (
@@ -313,30 +313,30 @@ CREATE TABLE scenes (
 CREATE TABLE campaign_playlists (
   campaign_id TEXT NOT NULL REFERENCES campaigns (id) ON DELETE CASCADE,
   playlist_id TEXT NOT NULL REFERENCES playlists (id) ON DELETE CASCADE,
-  position REAL NOT NULL DEFAULT 0,
+  position REAL NOT NULL,
   PRIMARY KEY (campaign_id, playlist_id)
-);
+) WITHOUT ROWID;
 
 CREATE TABLE campaign_boards (
   campaign_id TEXT NOT NULL REFERENCES campaigns (id) ON DELETE CASCADE,
   board_id TEXT NOT NULL REFERENCES boards (id) ON DELETE CASCADE,
-  position REAL NOT NULL DEFAULT 0,
+  position REAL NOT NULL,
   PRIMARY KEY (campaign_id, board_id)
-);
+) WITHOUT ROWID;
 
 CREATE TABLE session_playlists (
   session_id TEXT NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,
   playlist_id TEXT NOT NULL REFERENCES playlists (id) ON DELETE CASCADE,
   position REAL NOT NULL,
   PRIMARY KEY (session_id, playlist_id)
-);
+) WITHOUT ROWID;
 
 CREATE TABLE session_boards (
   session_id TEXT NOT NULL REFERENCES sessions (id) ON DELETE CASCADE,
   board_id TEXT NOT NULL REFERENCES boards (id) ON DELETE CASCADE,
   position REAL NOT NULL,
   PRIMARY KEY (session_id, board_id)
-);
+) WITHOUT ROWID;
 
 -- A scene's music, in playing order: tracks and playlists in any mix; one may come twice.
 CREATE TABLE scene_music (
@@ -362,7 +362,7 @@ CREATE TABLE scene_boards (
   board_id TEXT NOT NULL REFERENCES boards (id) ON DELETE CASCADE,
   position REAL NOT NULL,
   PRIMARY KEY (scene_id, board_id)
-);
+) WITHOUT ROWID;
 
 -- Audio profiles (PLY-12): a track's own (no place), or its own in one playlist
 -- or one scene (an override). A NULL setting means "the default" (resolveProfile
@@ -397,7 +397,7 @@ CREATE TABLE audio_profile_markers (
   at_ms INTEGER NOT NULL CHECK (at_ms >= 0),
   label TEXT NOT NULL DEFAULT '',
   PRIMARY KEY (profile_id, position)
-);
+) WITHOUT ROWID;
 
 -- Cue actions (PLY-8, src/player/engine/queue/actions.ts) stored on a hotkey, in order (DB review 9):
 -- what a key press runs, made of the same CueAction shapes the buttons build. One row per action;
@@ -500,6 +500,9 @@ CREATE INDEX tracks_role ON tracks (role, energy) WHERE role IS NOT NULL;
 CREATE UNIQUE INDEX tracks_root_path ON tracks (root_id, path COLLATE NOCASE) WHERE root_id IS NOT NULL;
 CREATE UNIQUE INDEX tracks_absolute_path ON tracks (path COLLATE NOCASE) WHERE root_id IS NULL AND path IS NOT NULL;
 CREATE UNIQUE INDEX tracks_url ON tracks (url) WHERE url IS NOT NULL;
+-- The Library's track list in the order of the name a track is shown by (SHOWN_TITLE_SQL in
+-- repo/tracks.ts), a page at a time (trackListQuery): read in index order, never sorted.
+CREATE INDEX tracks_shown_title ON tracks (coalesce(nullif(title, ''), nullif(meta_title, ''), file_name) COLLATE NOCASE, id);
 -- Library: finding a file again by name (relinking, DAT-8).
 CREATE INDEX tracks_file_name ON tracks (file_name COLLATE NOCASE);
 -- The Library's "New, not tagged yet" filter and its count (NEW_TRACKS_SQL, repo/tracks.ts).
@@ -539,11 +542,10 @@ CREATE UNIQUE INDEX rule_condition_tags_order ON rule_condition_tags (condition_
 -- of the cascade from tags' (group, tag) key. tag_id first, so "tag_id = ?" alone can use it.
 CREATE INDEX rule_condition_tags_tag ON rule_condition_tags (tag_id, group_id);
 
--- Drawing a board (all its pads, on the grid and spare) and deleting one (ON DELETE CASCADE):
--- the two partial indexes below cannot serve "board_id = ?" on its own.
-CREATE INDEX pads_board ON pads (board_id);
--- A board's pads by cell (one per cell) and its spare pads in order.
-CREATE UNIQUE INDEX pads_cell ON pads (board_id, grid_row, grid_col) WHERE grid_row IS NOT NULL;
+-- A board's pads by cell, one per cell (spare pads have NULL cells, and NULLs never clash), and every
+-- pad of a board: drawing it, deleting it (ON DELETE CASCADE). One index for both.
+CREATE UNIQUE INDEX pads_cell ON pads (board_id, grid_row, grid_col);
+-- A board's spare pads in order.
 CREATE UNIQUE INDEX pads_spare ON pads (board_id, spare_position) WHERE spare_position IS NOT NULL;
 -- Pads that play a tag (a tag deleted).
 CREATE INDEX pads_tag ON pads (sound_tag_id) WHERE sound_tag_id IS NOT NULL;
@@ -604,6 +606,12 @@ CREATE TRIGGER rule_conditions_dynamic_only BEFORE INSERT ON rule_conditions
   WHEN (SELECT kind FROM playlists WHERE id = NEW.playlist_id) = 'manual'
   BEGIN SELECT RAISE(ABORT, 'A manual playlist has no rule.'); END;
 CREATE TRIGGER playlist_items_manual_only BEFORE INSERT ON playlist_items
+  WHEN (SELECT kind FROM playlists WHERE id = NEW.playlist_id) = 'dynamic'
+  BEGIN SELECT RAISE(ABORT, 'A dynamic playlist chooses its own tracks.'); END;
+CREATE TRIGGER rule_conditions_dynamic_only_move BEFORE UPDATE OF playlist_id ON rule_conditions
+  WHEN (SELECT kind FROM playlists WHERE id = NEW.playlist_id) = 'manual'
+  BEGIN SELECT RAISE(ABORT, 'A manual playlist has no rule.'); END;
+CREATE TRIGGER playlist_items_manual_only_move BEFORE UPDATE OF playlist_id ON playlist_items
   WHEN (SELECT kind FROM playlists WHERE id = NEW.playlist_id) = 'dynamic'
   BEGIN SELECT RAISE(ABORT, 'A dynamic playlist chooses its own tracks.'); END;
 CREATE TRIGGER playlists_kind_fixed BEFORE UPDATE OF kind ON playlists

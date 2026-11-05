@@ -8,7 +8,7 @@ import { placeKey, type ProfilePlace } from "../../../common/domain";
 import { ValidationError } from "../errors";
 import { makeTestStore } from "../test/testStore";
 import { createTracks, deleteTracks } from "./tracks";
-import { createPlaylist, deletePlaylist } from "./playlists";
+import { addTracksToPlaylist, createPlaylist, deletePlaylist, removePlaylistItems } from "./playlists";
 import { createCampaign, createScene, createSession, deleteScene, moveScene } from "./campaigns";
 import { clearProfileOverride, getProfileOverride, getProfileOverrides, setProfileOverride } from "./profiles";
 
@@ -49,6 +49,17 @@ describe("audio profile overrides", () => {
     clearProfileOverride(t.store, s.inPlaylist, s.bed.id);
     expect(getProfileOverride(t.store, s.inPlaylist, s.bed.id)).toBeNull();
     expect(() => clearProfileOverride(t.store, s.inPlaylist, s.bed.id)).toThrow(/No audio profile/);
+  });
+
+  it("forgets a track's own settings in a playlist once the track leaves it (review nice-to-have)", async () => {
+    const s = sample();
+    const [entry, again] = addTracksToPlaylist(t.store, s.playlist.id, [s.bed.id, s.bed.id]);
+    setProfileOverride(t.store, s.inPlaylist, s.bed.id, { endMs: 300_000 });
+    removePlaylistItems(t.store, [entry.id]);
+    // Still in the playlist once: its settings there stay.
+    expect(getProfileOverride(t.store, s.inPlaylist, s.bed.id)).toEqual({ endMs: 300_000 });
+    removePlaylistItems(t.store, [again.id]);
+    expect(getProfileOverride(t.store, s.inPlaylist, s.bed.id)).toBeNull();
   });
 
   it("checks the profile and the place", async () => {

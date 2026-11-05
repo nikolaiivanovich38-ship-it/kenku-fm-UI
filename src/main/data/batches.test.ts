@@ -7,7 +7,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openConnection } from "./sqlite";
 import { MIGRATIONS, migrate } from "./schema";
-import { Store } from "./store";
+import { STATEMENT_CACHE_SIZE, Store } from "./store";
 import { UndoHistory, undoableTables } from "./undo";
 import { LibraryBusyError } from "./errors";
 import { makeClock } from "./test/helpers";
@@ -136,5 +136,12 @@ describe("changes saved in batches (DB review 1)", () => {
     expect(snapshot()).toEqual(before);
     await t.history.redo();
     expect(snapshot()).toEqual(after);
+  });
+});
+
+describe("connection upkeep (review nice-to-haves)", () => {
+  it("keeps at most a few hundred prepared statements, dropping the least used", () => {
+    for (let n = 1; n <= STATEMENT_CACHE_SIZE + 50; n++) t.store.all(`SELECT id FROM tracks WHERE id IN (${Array.from({ length: n }, () => "?").join(", ")})`, ...Array.from({ length: n }, () => "x"));
+    expect(t.store.cachedStatements).toBe(STATEMENT_CACHE_SIZE);
   });
 });

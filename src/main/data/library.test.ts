@@ -77,6 +77,12 @@ describe("opening the library (DAT-6)", () => {
     expect(libraryFolder("/home/gm/.config/lyre", {}, "linux")).toBe(path.join("/home/gm/.config/lyre", "library"));
   });
 
+  it("refreshes the query planner's statistics when it opens, not only when it closes (review nice-to-have)", async () => {
+    const exec = vi.spyOn(loadSqlite().DatabaseSync.prototype, "exec");
+    openTracked();
+    expect(exec.mock.calls.map(([sql]) => String(sql))).toContain("PRAGMA optimize = 0x10002");
+  });
+
   it("comes with undo/redo wired to every change", async () => {
     const library = openTracked();
     createCampaign(library.store, { name: "Strahd" });

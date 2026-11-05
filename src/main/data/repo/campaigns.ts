@@ -289,7 +289,7 @@ function removeMembers(store: Store, owner: Owner, kind: "playlist" | "board", i
 function listMembers(store: Store, owner: Owner): Members {
   const ids = (kind: "playlist" | "board") =>
     store
-      .all<{ id: string }>(`SELECT ${kind}_id AS id FROM ${memberTable(owner, kind)} WHERE ${owner.table}_id = ? ORDER BY position, rowid`, owner.id)
+      .all<{ id: string }>(`SELECT ${kind}_id AS id FROM ${memberTable(owner, kind)} WHERE ${owner.table}_id = ? ORDER BY position`, owner.id)
       .map((r) => r.id);
   return { playlistIds: ids("playlist"), boardIds: ids("board") };
 }
@@ -677,7 +677,7 @@ const sceneHasBoard = (store: Store, sceneId: string, boardId: string) =>
 
 /** The scene's pad boards in order; the first shows when the scene starts. */
 export function listSceneBoards(store: Store, sceneId: string): string[] {
-  return store.all<{ board_id: string }>("SELECT board_id FROM scene_boards WHERE scene_id = ? ORDER BY position, rowid", sceneId).map((r) => r.board_id);
+  return store.all<{ board_id: string }>("SELECT board_id FROM scene_boards WHERE scene_id = ? ORDER BY position", sceneId).map((r) => r.board_id);
 }
 
 /** Adds boards to the scene at `placement`; boards already there stay put. */

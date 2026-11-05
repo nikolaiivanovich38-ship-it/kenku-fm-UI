@@ -21,6 +21,12 @@ export type StoreOptions = {
   searchFlushLimit?: number;
 };
 
+/**
+ * Prepared statements kept (review nice-to-have): an IN list of each new
+ * length is a new statement, so the cache drops the least recently used.
+ */
+export const STATEMENT_CACHE_SIZE = 200;
+
 /** Rows per transaction in bulk work: each batch takes tens of milliseconds at most. */
 export const BATCH_SIZE = 500;
 
@@ -134,11 +140,20 @@ export class Store {
   /** Prepared once per SQL text and reused: most edits run the same few statements. */
   statement(sql: string): StatementSync {
     let statement = this.statements.get(sql);
-    if (!statement) {
+    if (statement) {
+      // Most recently used last (a Map keeps insertion order).
+      this.statements.delete(sql);
+    } else {
       statement = this.db.prepare(sql);
-      this.statements.set(sql, statement);
+      if (this.statements.size >= STATEMENT_CACHE_SIZE) this.statements.delete(this.statements.keys().next().value as string);
     }
+    this.statements.set(sql, statement);
     return statement;
+  }
+
+  /** How many prepared statements are kept. */
+  get cachedStatements(): number {
+    return this.statements.size;
   }
 
   run(sql: string, ...params: SQLInputValue[]): number {
