@@ -38,9 +38,9 @@ import {
   type PadAt,
 } from "./boardModel";
 import { DeleteBoardDialog, DeletePadDialog, UseInDialog, useDuplicateBoard } from "./BoardDialogs";
-import { go, useBoardSound, usePendingFocus, useSavedText, useWrite, type BoardSound } from "./hooks";
+import { go, useBoardSound, usePendingFocus, useSavedText, useWrite } from "./hooks";
 import { PadEditor } from "./PadEditor";
-import { PreviewButton } from "./PreviewButton";
+import { PreviewButton } from "../../kit/SoundButtons";
 import "./boards.css";
 
 /** A second click on the selected pad within this time previews it (the prototype's double-click). */
@@ -492,7 +492,7 @@ function BoardEditor({ board }: { board: PadBoard }) {
           </span>
         </button>
         <span className="pb-tile-pv">
-          <PreviewButton name={pad.label} previewing={pv} tabIndex={-1} onClick={() => sound.previewPad(board.id, pad.id)} />
+          <PreviewButton target={{ kind: "pad", boardId: board.id, padId: pad.id }} name={pad.label} tabIndex={-1} />
         </span>
       </div>
     );
@@ -606,7 +606,6 @@ function BoardEditor({ board }: { board: PadBoard }) {
             <SparePads
               board={board}
               selected={selected}
-              sound={sound}
               open={spareShown}
               onOpenChange={setSpareOpen}
               menuOwner={menu?.owner ?? null}
@@ -709,7 +708,6 @@ function BoardEditor({ board }: { board: PadBoard }) {
 function SparePads({
   board,
   selected,
-  sound,
   open,
   onOpenChange,
   menuOwner,
@@ -722,7 +720,6 @@ function SparePads({
 }: {
   board: PadBoard;
   selected: PadAt | null;
-  sound: BoardSound;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   menuOwner: string | null;
@@ -771,7 +768,7 @@ function SparePads({
                       </span>
                     )}
                   </button>
-                  <PreviewButton name={pad.label} previewing={sound.previewing(board.id, pad.id)} onClick={() => sound.previewPad(board.id, pad.id)} />
+                  <PreviewButton target={{ kind: "pad", boardId: board.id, padId: pad.id }} name={pad.label} />
                   <button
                     type="button"
                     className="btn s icon"

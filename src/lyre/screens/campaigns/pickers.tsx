@@ -13,7 +13,8 @@ import { useLyreAudio } from "../../audio/LyreAudioProvider";
 import { Icon } from "../../kit/Icon";
 import { PickerDialog, type PickerFilter, type PickerItem } from "../../kit/Picker";
 import { boardPads, formatLength, laneWord, roleWord, type LibraryIndex } from "./model";
-import { Contents, PreviewButton } from "./parts";
+import { PreviewButton } from "../../kit/SoundButtons";
+import { Contents } from "./parts";
 
 export type PickerKind = "playlists" | "boards" | "music" | "ambience";
 

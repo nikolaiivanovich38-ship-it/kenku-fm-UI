@@ -138,7 +138,7 @@ describe("playlists and pad boards on hand in every session", () => {
     audio.setNowPlaying({ preview: { key: "pl:p-company" } as never });
     expect(await playlists.findByRole("button", { name: "Stop preview of The Company themes" })).toHaveAttribute("aria-pressed", "true");
     await userEvent.click(playlists.getByRole("button", { name: "Play on air: The Company themes" }));
-    expect(audio.calls).toContainEqual(["playPlaylist", "p-company"]);
+    expect(audio.calls).toContainEqual(["playPlaylist", "p-company", { fadeMs: 3000 }]);
     const boards = region("Campaign pad boards");
     await userEvent.click(boards.getByRole("button", { name: "Preview the first pad of Combat" }));
     expect(audio.calls.find((c) => c[0] === "previewPad")?.[1]).toBe("combat");

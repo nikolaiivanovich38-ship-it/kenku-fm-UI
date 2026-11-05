@@ -21,7 +21,8 @@ import { DropNotice, DropZone, dropFiles, useDropState, useFileDrops, type DropT
 import { KIND_WORDS, matchesQuery, newlyMade, soundName, useDropActions } from "./playlistParts";
 import { PlaylistPage } from "./PlaylistPage";
 import { UseInDialog } from "./UseInDialog";
-import { onAirPlaylistIds, PlayOnAirButton, PlaylistContents, PopMenuButton, PreviewButton, TwoLines, useWriteResult, type PopMenuEntry } from "./shared";
+import { onAirPlaylistIds, PlaylistContents, PopMenuButton, TwoLines, useWriteResult, type PopMenuEntry } from "./shared";
+import { PlayOnAirButton, PreviewButton } from "../../kit/SoundButtons";
 import "./library.css";
 import "./playlists.css";
 
@@ -287,8 +288,8 @@ function PlaylistRow({ p, data, open, onToggle, onAir, flash, onUseIn }: { p: Pl
           {len}
         </div>
         <div className="pl-racts">
-          <PreviewButton kind="playlist" id={p.id} name={name} />
-          <PlayOnAirButton kind="playlist" id={p.id} name={name} empty={tracks.length === 0} />
+          <PreviewButton target={{ kind: "playlist", id: p.id }} name={name} />
+          <PlayOnAirButton target={{ kind: "playlist", id: p.id, empty: tracks.length === 0 }} name={name} />
           <PopMenuButton
             label={`More for ${name}`}
             ariaLabel={`More for ${name}`}

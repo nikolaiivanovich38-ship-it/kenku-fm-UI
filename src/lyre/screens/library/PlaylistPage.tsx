@@ -21,7 +21,8 @@ import { fmt, fmtLong, KIND_NAMES, plural, ruleWords, shownTitle, tagsOf } from 
 import { nameUses, usePlaylistData, usedText, type PlaylistData } from "./playlistData";
 import { DropNotice, DropZone, dropFiles, useDropState, useFileDrops, type DropTarget } from "./playlistDrops";
 import { KindLane, matchesQuery, newlyMade, soundName, useDropActions } from "./playlistParts";
-import { focusSoon, onAirPlaylistIds, onAirTrackIds, PopMenuButton, previewKey, useWriteOk, useWriteResult, type PopMenuEntry } from "./shared";
+import { focusSoon, onAirPlaylistIds, onAirTrackIds, PopMenuButton, useWriteOk, useWriteResult, type PopMenuEntry } from "./shared";
+import { previewKeyOf } from "../../kit/SoundButtons";
 import { UseInDialog } from "./UseInDialog";
 import "./library.css";
 import "./playlists.css";
@@ -102,7 +103,7 @@ function OnePlaylist({ pl: saved, data }: { pl: PlaylistInfo; data: PlaylistData
   const airTracks = useMemo(() => onAirTrackIds(now), [now]);
   const air = airPlaylists.has(pl.id);
   const previewing = now.preview?.key ?? null;
-  const pv = previewing === previewKey("playlist", pl.id) || tracks.some((t) => previewing === t.id);
+  const pv = previewing === previewKeyOf({ kind: "playlist", id: pl.id }) || tracks.some((t) => previewing === t.id);
   const [useIn, setUseIn] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [detailsOpen, setDetailsOpen] = useRememberedOpen("pl-details", true);

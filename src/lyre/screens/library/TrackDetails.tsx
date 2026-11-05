@@ -13,7 +13,8 @@ import { Icon } from "../../kit/Icon";
 import { cx } from "../../kit/cx";
 import { useAnnounce } from "../../shell/Announcer";
 import { addedText, EFFECT_ROLE, ENERGY_WORDS, fmt, KIND_NAMES, LOOPS, plural, profileSummary, ROLES, shownTitle } from "./model";
-import { focusSoon, PopMenuButton, previewKey, useWriteOk, useWriteResult, type PopMenuEntry } from "./shared";
+import { focusSoon, PopMenuButton, useWriteOk, useWriteResult, type PopMenuEntry } from "./shared";
+import { previewKeyOf } from "../../kit/SoundButtons";
 import type { TrackStore } from "./trackStore";
 
 /** Typing in Your title or Notes is saved this long after the last key, as one change. */
@@ -80,7 +81,7 @@ export function TrackDetails({ t, store, groups, playlists, campaigns, overrides
   };
 
   const shown = shownTitle({ ...t, title });
-  const previewOn = previewing === previewKey("track", t.id);
+  const previewOn = previewing === previewKeyOf({ kind: "track", id: t.id });
   const roles = t.kind === "fx" ? [EFFECT_ROLE, ...ROLES] : ROLES;
 
   return (

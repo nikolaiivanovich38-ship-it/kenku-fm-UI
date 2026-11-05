@@ -10,8 +10,8 @@ import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState
 import { createPortal } from "react-dom";
 import { isRefused, type WriteResult } from "../../../common/lyre/api";
 import { Icon, type IconName } from "../../kit/Icon";
-import { cx } from "../../kit/cx";
-import { useLyreAudio, useNowPlaying, type NowPlaying } from "../../audio";
+import { PreviewButton } from "../../kit/SoundButtons";
+import type { NowPlaying } from "../../audio";
 import { useAnnounce } from "../../shell/Announcer";
 import { fmt } from "./model";
 
@@ -68,67 +68,6 @@ export function onAirPlaylistIds(now: NowPlaying): Set<string> {
   }
   return ids;
 }
-export const previewKey = (kind: "track" | "playlist", id: string): string => (kind === "track" ? id : `pl:${id}`);
-
-/* ---------- buttons ---------- */
-
-export interface SoundButtonProps {
-  kind: "track" | "playlist";
-  id: string;
-  /** The track's or playlist's name, for the button's accessible name. */
-  name: string;
-  /** -1 keeps a row button out of the Tab order (the Library's list is one Tab stop). */
-  tabIndex?: number;
-  className?: string;
-}
-
-/** Preview (headphones: only you hear it), or Stop preview while it plays (the prototype's L.previewButton). */
-export function PreviewButton({ kind, id, name, tabIndex, className }: SoundButtonProps) {
-  const audio = useLyreAudio();
-  const now = useNowPlaying();
-  const on = now.preview?.key === previewKey(kind, id);
-  return (
-    <button
-      type="button"
-      className={cx("btn s icon pv", className)}
-      tabIndex={tabIndex}
-      aria-pressed={on}
-      title={on ? "Stop preview" : "Preview in your headphones"}
-      aria-label={`${on ? "Stop preview of" : "Preview"} ${name}`}
-      onClick={(event) => {
-        event.stopPropagation();
-        if (kind === "track") audio.previewTrack(id);
-        else audio.previewPlaylist(id);
-      }}
-    >
-      <Icon name={on ? "stop" : "headphones"} size="s" />
-    </button>
-  );
-}
-
-/** Play on air (the players hear it), with the prototype's 3-second fade in. */
-export function PlayOnAirButton({ kind, id, name, tabIndex, className, empty }: SoundButtonProps & { empty?: boolean }) {
-  const audio = useLyreAudio();
-  const { toast } = useAnnounce();
-  return (
-    <button
-      type="button"
-      className={cx("btn s icon", className)}
-      tabIndex={tabIndex}
-      title="Play on air (the players hear it)"
-      aria-label={`Play on air: ${name}`}
-      onClick={(event) => {
-        event.stopPropagation();
-        if (kind === "track") audio.playTrack(id, { fadeMs: 3000 });
-        else if (empty) toast("This playlist has no tracks yet");
-        else audio.playPlaylist(id, { fadeMs: 3000 });
-      }}
-    >
-      <Icon name="broadcast" size="s" />
-    </button>
-  );
-}
-
 /* ---------- a playlist's contents ---------- */
 
 export interface ContentsTrack {
@@ -157,7 +96,7 @@ export function PlaylistContents({ playlistId, name, dynamic, tracks }: { playli
           >
             <Icon name="wave" size="s" />
           </a>
-          <PreviewButton kind="track" id={t.id} name={t.title} />
+          <PreviewButton target={{ kind: "track", id: t.id }} name={t.title} />
         </li>
       ))}
     </ol>

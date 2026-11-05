@@ -15,7 +15,7 @@ import { useLyreApi } from "../../api";
 import { useAnnounce } from "../../shell/Announcer";
 import { MODES, MODE_HELP, MODE_ICON, MODE_NAME, PAD_COLOUR, PAD_ICONS, iconName, keyLabel, keyOwner, padKeyFrom, plural, type PadAt } from "./boardModel";
 import { useSavedText, useWrite, type BoardSound } from "./hooks";
-import { PreviewButton } from "./PreviewButton";
+import { PreviewButton } from "../../kit/SoundButtons";
 
 export interface PadEditorProps {
   board: PadBoard;
@@ -207,7 +207,7 @@ function SoundEditor({ board, at, tracks, tagGroups, sound, update, focusLater }
           "A track that is no longer in the library"
         )}
       </span>
-      {t && <PreviewButton name={trackTitle(t)} previewing={sound.previewKey === t.id} onClick={() => sound.previewTrack(t.id)} />}
+      {t && <PreviewButton target={{ kind: "track", id: t.id }} name={trackTitle(t)} />}
       {s.kind === "variants" && list.length > 1 && (
         <IconButton
           icon="close"
@@ -229,7 +229,7 @@ function SoundEditor({ board, at, tracks, tagGroups, sound, update, focusLater }
 
   let body: React.ReactNode;
   if (s.kind === "tag") {
-    body = <TagSound key={pad.id} {...{ board, at, tracks, tagGroups, sound, update }} />;
+    body = <TagSound key={pad.id} {...{ board, at, tracks, tagGroups, update }} />;
   } else {
     const list = s.kind === "single" ? s.trackIds.slice(0, 1) : s.trackIds;
     body = (
@@ -284,7 +284,7 @@ function SoundEditor({ board, at, tracks, tagGroups, sound, update, focusLater }
         }))}
         selected={s.trackIds.filter((id) => byId.get(id)?.kind === "fx")}
         multi
-        renderActions={(item) => <PreviewButton name={item.label} previewing={sound.previewKey === item.id} onClick={() => sound.previewTrack(item.id)} />}
+        renderActions={(item) => <PreviewButton target={{ kind: "track", id: item.id }} name={item.label} />}
         hint={
           <p className="hint" style={{ marginTop: 6 }}>
             <Icon name="headphones" size="s" /> Preview plays in your headphones only.
@@ -313,7 +313,7 @@ function SoundEditor({ board, at, tracks, tagGroups, sound, update, focusLater }
 }
 
 /** "Any with a tag": type a tag; every FX track with it is listed, and each press picks one of them. */
-function TagSound({ at, tracks, tagGroups, sound, update }: Pick<PadEditorProps, "board" | "at" | "tracks" | "tagGroups" | "sound" | "update">) {
+function TagSound({ at, tracks, tagGroups, update }: Pick<PadEditorProps, "board" | "at" | "tracks" | "tagGroups" | "update">) {
   const s = at.pad.sound;
   const ids = useId();
   const [typed, setTyped] = useState<string | null>(null);
@@ -361,7 +361,7 @@ function TagSound({ at, tracks, tagGroups, sound, update }: Pick<PadEditorProps,
               <span className="ellipsis grow">
                 {trackTitle(t)} <span className="faint">{t.fileName}</span>
               </span>
-              <PreviewButton name={trackTitle(t)} previewing={sound.previewKey === t.id} onClick={() => sound.previewTrack(t.id)} />
+              <PreviewButton target={{ kind: "track", id: t.id }} name={trackTitle(t)} />
             </li>
           ))}
         </ul>

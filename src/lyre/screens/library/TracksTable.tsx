@@ -16,7 +16,8 @@ import { EnergyMeter } from "../../kit/Pills";
 import { Icon } from "../../kit/Icon";
 import { cx } from "../../kit/cx";
 import { fmt, kindMark, shownTitle } from "./model";
-import { PlayOnAirButton, PopMenuButton, PreviewButton, type PopMenuEntry } from "./shared";
+import { PopMenuButton, type PopMenuEntry } from "./shared";
+import { PlayOnAirButton, PreviewButton } from "../../kit/SoundButtons";
 
 /** Rows drawn beyond the visible ones, so fast scrolling shows no gaps. */
 const OVERSCAN = 10;
@@ -320,8 +321,8 @@ const TrackRow = memo(function TrackRow({ t, index, groupNames, selected, open, 
       <td className="lb-c-dur num">{fmt(t.durationMs)}</td>
       <td className="lb-c-pv">
         <div className="lb-rowbtns">
-          <PreviewButton kind="track" id={t.id} name={shown} tabIndex={-1} />
-          <PlayOnAirButton kind="track" id={t.id} name={shown} tabIndex={-1} />
+          <PreviewButton target={{ kind: "track", id: t.id }} name={shown} tabIndex={-1} />
+          <PlayOnAirButton target={{ kind: "track", id: t.id }} name={shown} tabIndex={-1} />
           <PopMenuButton label={`More for ${shown}`} ariaLabel={`More for ${shown}`} title="More" className="btn s icon ghost" tabIndex={-1} items={() => rowMenu(t)}>
             <Icon name="more" size="s" />
           </PopMenuButton>

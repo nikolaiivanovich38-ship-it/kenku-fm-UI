@@ -31,8 +31,6 @@ import {
   ObsidianButton,
   Opening,
   useHeadingFocusWhenReady,
-  PlayOnAirButton,
-  PreviewButton,
   RowMenu,
   StatusBadge,
  
@@ -41,6 +39,7 @@ import {
   useOwnSettings,
   useWrite,
 } from "./parts";
+import { PlayOnAirButton, PreviewButton } from "../../kit/SoundButtons";
 import { LibraryPicker, playlistKey, refOfKey, trackKey } from "./pickers";
 import { useOptimisticScenes, type ScenePlay } from "./optimistic";
 import { useDragReorder } from "./reorder";
@@ -667,7 +666,7 @@ function ItemRow({
         ) : (
           <PreviewButton target={info.kind === "playlist" ? { kind: "playlist", id: info.id } : { kind: "track", id: info.id }} name={info.name} />
         )}
-        {info.kind !== "board" && <PlayOnAirButton kind={info.kind} id={info.id} name={info.name} />}
+        {info.kind !== "board" && <PlayOnAirButton target={info.kind === "playlist" ? { kind: "playlist", id: info.id } : { kind: "track", id: info.id }} name={info.name} />}
         <RowMenu label={`More for ${info.name}`} k={`im-${scene.id}-${list}-${info.id}`} items={items} />
       </div>
       {open && (playlist || board) && (
@@ -863,7 +862,7 @@ function AmbienceSlot({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
           Change…
         </Button>
         <PreviewButton target={info.kind === "playlist" ? { kind: "playlist", id: info.id } : { kind: "track", id: info.id }} name={info.name} />
-        <PlayOnAirButton kind={info.kind === "playlist" ? "playlist" : "track"} id={info.id} name={info.name} />
+        <PlayOnAirButton target={info.kind === "playlist" ? { kind: "playlist", id: info.id } : { kind: "track", id: info.id }} name={info.name} />
         <RowMenu
           label={`More for ${info.name}`}
           k={`ma-${scene.id}`}

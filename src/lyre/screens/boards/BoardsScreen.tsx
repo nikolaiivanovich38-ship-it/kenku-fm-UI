@@ -13,8 +13,7 @@ import { useAnnounce } from "../../shell/Announcer";
 import type { ScreenProps } from "..";
 import { PAD_COLOUR, allPads, firstPad, plural, sizeText, usesOfBoard } from "./boardModel";
 import { DeleteBoardDialog, NewBoardDialog, UseInDialog, useDuplicateBoard } from "./BoardDialogs";
-import { useBoardSound, type BoardSound } from "./hooks";
-import { PreviewButton } from "./PreviewButton";
+import { PreviewButton } from "../../kit/SoundButtons";
 import "./boards.css";
 
 type Used = "all" | "used" | "unused";
@@ -27,7 +26,6 @@ const USED_OPTIONS: [Used, string][] = [
 export function BoardsScreen(_props: ScreenProps) {
   const boards = useBoards().data;
   const campaigns = useCampaigns().data ?? [];
-  const sound = useBoardSound();
   const { say } = useAnnounce();
   const duplicate = useDuplicateBoard();
   const searchRef = useRef<HTMLInputElement>(null);
@@ -113,7 +111,6 @@ export function BoardsScreen(_props: ScreenProps) {
                 board={b}
                 campaigns={campaigns}
                 hits={padHits(b).map((p) => p.label)}
-                sound={sound}
                 onUseIn={() => setUseIn(b)}
                 onDuplicate={() => void duplicate(b)}
                 onDelete={() => setDeleting(b)}
@@ -161,7 +158,6 @@ function BoardCard({
   board,
   campaigns,
   hits,
-  sound,
   onUseIn,
   onDuplicate,
   onDelete,
@@ -169,7 +165,6 @@ function BoardCard({
   board: PadBoard;
   campaigns: readonly CampaignInfo[];
   hits: string[];
-  sound: BoardSound;
   onUseIn: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
@@ -200,7 +195,7 @@ function BoardCard({
         </a>
         <span className="grow" />
         {first && (
-          <PreviewButton name={board.name} firstPadOf previewing={sound.previewing(board.id, first.id)} onClick={() => sound.previewPad(board.id, first.id)} />
+          <PreviewButton target={{ kind: "board", board }} name={board.name} />
         )}
         <MenuButton
           label={`More for ${board.name}`}
