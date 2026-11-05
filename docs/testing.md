@@ -134,6 +134,21 @@ The tests for the wave 1 security review (findings 1 to 12) are listed in `docs/
 | `scripts/demo-kit.test.mjs` | The kit built twice into temporary folders: every file present, names safe on Windows; WAV headers valid; music 44.1 kHz stereo and 30-45 s long, ambience 30 s, effects under 8 s; every peak below -1 dBFS and above -20 dBFS; loudness within 1.5 LU of its target (music -16, ambience -22, effects -18 LUFS); "(loops well)" files have no jump at the loop point; the soundboard's sounds exist and it loads nothing from elsewhere; README names the version, has Windows line endings and the three instructions; the zip opens (CRC checked), matches the folder byte for byte and is under 25,000,000 bytes; two builds byte-identical. Helpers: the loudness meter reads a -20 dBFS 997 Hz tone as -20 LUFS (stereo) and -23 LUFS (mono), the limiter, WAV round trip, ZIP round trip and unsafe names. |
 | `e2e/demoKit.spec.ts` | Builds the kit, adds its four music files through the Add Track dialog (names come from the file names) and plays Tavern Warmth until the time passes 2 s; types the path of `Local soundboard/soundboard.html` (with a space in it) into the address bar, accepts "Open this file from your computer?", plays the sword clash from the page's folder, and sees `notes.txt` allowed, `../README.txt` blocked and `https://example.com` blocked. |
 
+## Heavy runs and stalls
+
+Packaging and Playwright runs go through `scripts/heavy-run.mjs` (`yarn heavy [options] <command>`) on shared or small machines: one heavy run at a time per machine, and none left stalled.
+
+```
+yarn heavy --log e2e.log xvfb-run -a yarn e2e
+yarn heavy --idle 10 --limit 75 --log app.log xvfb-run -a npx playwright test -c playwright.spec.config.ts --project=app
+yarn heavy --status            # who holds the lock, since when, when it last printed
+```
+
+- **One at a time.** Runs queue on a lock file that names its owner (`lyre-heavy-run.lock` in the temp folder, or `HEAVY_RUN_LOCK`). The owner checks in every 30 s. A lock whose owner has died, or has not checked in for 2 minutes, is taken over by the next run, which first stops everything left in the old owner's process group.
+- **Nothing left behind.** Each run is a process group of its own (Electron, browsers, Xvfb), stopped together when the run ends, stalls or is interrupted. Before this, an Xvfb left over from `xvfb-run` under `flock` kept the old lock for hours.
+- **Stalls stopped and explained.** A run that prints nothing for `--idle` minutes (default 10), or runs longer than `--limit` (default 120), is stopped. Beside the log goes `<log>.stall-<n>.txt`: why, the Playwright tests that started and never finished, the run's processes with their CPU use, and the last 60 lines. An idle stall is run once more (`--retries`, default 1), since a stall under load is often a one-off; a second stall, or the overall limit, exits with 124 for a person to look at the report.
+- **In CI** each GitHub job has its own `timeout-minutes`; Playwright's per-test timeouts (60 s) catch a single hung test in both places.
+
 ## Specs
 
 FND-15. `e2e/specs` holds the acceptance tests for the new interface. Each test states one behaviour Nik approved in the design prototype (`design/prototype`), in his words, and checks it on the screen. They run against the prototype now and against the real app as wave 3 builds each screen, so they find everything by role, accessible name and visible text (`getByRole`, `getByLabel`, `getByText`), never by CSS class or `data-k`. Where the prototype's wording is the specification, the test asserts the wording.

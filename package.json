@@ -25,7 +25,8 @@
     "e2e": "playwright test --config e2e/playwright.config.ts",
     "check": "yarn typecheck && yarn lint && yarn test && yarn test:scripts",
     "audit:check": "node scripts/audit-check.mjs",
-    "test:scripts": "node --test \"scripts/*.test.mjs\""
+    "test:scripts": "node --test \"scripts/*.test.mjs\"",
+    "heavy": "node scripts/heavy-run.mjs"
   },
   "keywords": [],
   "author": {
