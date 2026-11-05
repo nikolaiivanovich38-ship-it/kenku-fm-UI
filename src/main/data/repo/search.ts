@@ -114,6 +114,15 @@ export function searchQuery(text: string, options: SearchOptions = {}): { sql: s
   };
 }
 
+/** How many results `search` would find with no limit ("Show 25 more of 80"). */
+export function searchCount(store: Store, text: string, options: Omit<SearchOptions, "limit"> = {}): number {
+  const query = searchQuery(text, { ...options, limit: 1 });
+  if (query === null) return 0;
+  // The same match and filters, counted: no ranking, no sort.
+  const where = query.sql.slice(query.sql.indexOf("FROM search_fts"), query.sql.indexOf("ORDER BY"));
+  return (store.get<{ n: number }>(`SELECT count(*) AS n ${where}`, ...query.params.slice(0, -1)) as { n: number }).n;
+}
+
 export function search(store: Store, text: string, options: SearchOptions = {}): SearchHit[] {
   const query = searchQuery(text, options);
   if (query === null) return [];

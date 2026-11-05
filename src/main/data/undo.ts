@@ -90,6 +90,7 @@ export class UndoHistory {
   private undoStack: Step[] = [];
   private redoStack: Step[] = [];
   private tables = new Map<string, UndoableTable>();
+  private recordedSteps = 0;
 
   /**
    * Starts following every change made through `store.change()` and `store.changeInBatches()`.
@@ -127,6 +128,7 @@ export class UndoHistory {
 
   /** A new step: redo is gone, and the oldest steps go beyond the step and memory limits. */
   private record(done: Step) {
+    this.recordedSteps++;
     this.undoStack.push(done);
     this.redoStack = [];
     this.trim();
@@ -363,6 +365,11 @@ export class UndoHistory {
     this.refuseDuringChange();
     const next = this.redoStack.pop();
     return next ? this.run(next, "Redo", () => this.undoStack) : Promise.resolve(null);
+  }
+
+  /** How many steps writes have made so far (undo and redo do not count): a write made a step when this grew. */
+  get recorded(): number {
+    return this.recordedSteps;
   }
 
   state(): UndoState {

@@ -94,7 +94,7 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
       stop = api.subscribe((e) => events.push(e));
     });
     afterEach(async () => {
-      stop();
+      stop?.();
       await fx.close?.();
     });
 

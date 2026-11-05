@@ -56,6 +56,7 @@ import {
 } from "./api";
 import { lookupFrom } from "./lookup";
 import { fileAddress } from "./media";
+import { plural, quoted, shownTitle, tagValue, trimmed } from "./text";
 import { prototypeSeed, type SeedData } from "./seed";
 
 export interface FakeLyreOptions {
@@ -132,15 +133,6 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 const KEY = /^(F([1-9]|1[0-2])|\S)$/;
 
 const last = <T>(list: readonly T[]): T | undefined => list[list.length - 1];
-const shownTitle = (t: LibraryTrack) => t.title || t.metaTitle || t.fileName;
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-const quoted = (s: string) => `"${s}"`;
-const trimmed = (s: unknown) => (typeof s === "string" ? s.trim().replace(/\s+/g, " ") : "");
-/** A new tag value as the prototype writes it: spaces tidied, first letter capital. */
-const tagValue = (s: string) => {
-  const t = trimmed(s);
-  return t.charAt(0).toUpperCase() + t.slice(1);
-};
 const isInt = (n: unknown, lo: number, hi: number) => typeof n === "number" && Number.isInteger(n) && n >= lo && n <= hi;
 const clampIndex = (i: number, length: number) => Math.max(0, Math.min(length, Math.floor(Number.isFinite(i) ? i : length)));
 const splitPath = (p: string) => {

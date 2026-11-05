@@ -6,7 +6,7 @@ import { createTag, listTagGroups, listTags, setTagSynonyms, tagTracks, updateTa
 import { addTracksToPlaylist, createPlaylist } from "./playlists";
 import { addPad, createBoard } from "./boards";
 import { createCampaign, createScene, createSession } from "./campaigns";
-import { matchQuery, search } from "./search";
+import { matchQuery, search, searchCount } from "./search";
 
 let t: ReturnType<typeof makeTestStore>;
 beforeEach(() => {
@@ -80,6 +80,15 @@ describe("search (ORG-1)", () => {
     track("Storm at sea");
     track("Calm harbour", { notes: "before the storm" });
     expect(titles("storm")).toEqual(["Storm at sea", "Calm harbour"]);
+  });
+
+  it("counts every match beyond the limit, with the same filters", async () => {
+    for (let i = 0; i < 12; i++) track(`Storm ${i}`, i % 3 === 0 ? { kind: "amb" } : {});
+    track("Calm");
+    expect(search(t.store, "storm", { limit: 5 })).toHaveLength(5);
+    expect(searchCount(t.store, "storm")).toBe(12);
+    expect(searchCount(t.store, "storm", { kinds: ["track"], lane: "amb" })).toBe(4);
+    expect(searchCount(t.store, "  ")).toBe(0);
   });
 
   it("ignores accents and letter case", async () => {

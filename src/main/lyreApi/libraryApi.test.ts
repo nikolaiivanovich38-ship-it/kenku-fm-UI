@@ -1,0 +1,86 @@
+/**
+ * The main-process LyreApi (WP5, wave 3 step 2) over the real library (src/main/data): it passes the same contract
+ * as the in-memory fake, on a fresh library seeded from the prototype's sample data, with real files for imports
+ * and relinking. In the app it runs in the library's utility process (libraryProcess.ts); here in-process, for speed.
+ */
+import fs from "fs";
+import os from "os";
+import path from "path";
+import { describe, expect, it } from "vitest";
+
+import { lyreApiContract, valueOf } from "../../common/lyre/contract";
+import { prototypeSeed } from "../../common/lyre/seed";
+import { LibraryBusyError, NotFoundError, ValidationError, openLibrary } from "../data";
+import { createLibraryApi, refusalFor, type LibraryHost } from "./libraryApi";
+import { seedLibrary } from "./seedLibrary";
+
+/** A host with no person to ask: choosers answer what the test says. */
+function testHost(over: Partial<LibraryHost> = {}): LibraryHost {
+  return { chooseFiles: async () => null, chooseFolder: async () => null, showItemInFolder: () => undefined, ...over };
+}
+
+async function seededLibrary() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lyre-api-"));
+  const library = openLibrary({ folder: path.join(dir, "library") });
+  await seedLibrary(library, prototypeSeed());
+  const write = (relative: string) => {
+    const file = path.join(dir, relative);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, `not really audio: ${relative}`);
+    return file;
+  };
+  return { dir, library, write };
+}
+
+lyreApiContract("main-process LyreApi over the library", async () => {
+  const { dir, library, write } = await seededLibrary();
+  fs.mkdirSync(path.join(dir, "watch"));
+  return {
+    api: createLibraryApi(library, testHost()),
+    newAudioFiles: [write("in/Ambience/harbour_night.wav"), write("in/Dune/02 Leaving Caladan.flac")],
+    notAudioFile: write("in/notes.txt"),
+    missingTrackId: "t43",
+    relinkFolder: path.dirname(write("moved/07 Memories of Mother.flac")),
+    folderToWatch: path.join(dir, "watch"),
+    close: () => {
+      library.close();
+      fs.rmSync(dir, { recursive: true, force: true });
+    },
+  };
+});
+
+describe("main-process LyreApi only", () => {
+  it("asks its host for files and folders, and to open a track's folder", async () => {
+    const { dir, library, write } = await seededLibrary();
+    const files = [write("pick/01 One.flac")];
+    const shown: string[] = [];
+    const api = createLibraryApi(library, testHost({ chooseFiles: async () => files, chooseFolder: async () => path.join(dir, "pick"), showItemInFolder: (p) => shown.push(p) }));
+    expect(valueOf(await api.import.start({ from: "choose-files" })).added).toHaveLength(1);
+    const again = valueOf(await api.import.start({ from: "choose-folder" }));
+    expect(again.alreadyInLibrary).toHaveLength(1);
+    const id = again.alreadyInLibrary[0];
+    valueOf(await api.library.showInFolder(id));
+    expect(shown).toEqual([files[0]]);
+    const closed = createLibraryApi(library, testHost());
+    expect(valueOf(await closed.import.start({ from: "choose-files" }))).toMatchObject({ cancelled: true, trackIds: [] });
+    expect(valueOf(await closed.import.watchFolder({ from: "choose-folder" }))).toBeNull();
+    library.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("turns the library's errors into refusals in plain words, and passes on faults", () => {
+    expect(refusalFor(new ValidationError("name", "name cannot be empty."))).toEqual({ code: "invalid", message: "name cannot be empty.", field: "name" });
+    expect(refusalFor(new NotFoundError("playlist", "p1")).code).toBe("not-found");
+    expect(refusalFor(new LibraryBusyError("Tag 5,000 tracks"))).toMatchObject({ code: "busy", message: expect.stringContaining("Tag 5,000 tracks") });
+    expect(refusalFor(new Error("disk I/O error"))).toBeNull();
+  });
+
+  it("keeps a session's number in step with its place, from the campaign's first session number", async () => {
+    const { dir, library } = await seededLibrary();
+    const api = createLibraryApi(library, testHost());
+    valueOf(await api.sessions.move("crown", "s12", 3));
+    expect((await api.campaigns.get("crown")).sessions.map((s) => [s.id, s.number])).toEqual([["s13", 12], ["s14", 13], ["s15", 14], ["s12", 15]]);
+    library.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+});

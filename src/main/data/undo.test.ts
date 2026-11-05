@@ -360,8 +360,15 @@ describe("undo history", () => {
     ).toThrow("stop");
     expect(campaigns.listCampaigns(t.store).map((c) => c.name)).toEqual(["A"]);
     expect(t.history.state().undoLabel).toBe('Add campaign "A"');
+    const recorded = t.history.recorded;
     t.store.change("Nothing", (): void => undefined);
     expect(t.history.state().undoLabel).toBe('Add campaign "A"');
+    // The count of recorded steps tells a caller whether its write made one (LyreApi's "changed nothing").
+    expect(t.history.recorded).toBe(recorded);
+    campaigns.createCampaign(t.store, { name: "C" });
+    expect(t.history.recorded).toBe(recorded + 1);
+    await t.history.undo();
+    expect(t.history.recorded).toBe(recorded + 1);
   });
 
   it("keeps a change made of several commands as one step", async () => {
