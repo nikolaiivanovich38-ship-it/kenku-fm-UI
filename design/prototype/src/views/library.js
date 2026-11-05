@@ -279,7 +279,7 @@
   // Where the track's normalising choice comes from, and its true peak once measured.
   function normHint(t) {
     var peak = t.loud ? 'True peak ' + t.loud.peak.toFixed(1) + ' dBTP. ' : '';
-    return peak + (t.norm ? 'This track\'s own choice, wherever it plays.' : 'Follows the library (' + esc(L.libraryNormWords()) + '), or the playlist it plays from when that has its own choice.');
+    return peak + (t.norm ? 'This track\'s own choice, wherever it plays.' : 'Follows the library (' + L.libraryNormWords() + '), or the playlist it plays from when that has its own choice.');
   }
   L.acts.lbnorm = function (el) {
     var t = L.track(L.current().p.tid); if (!t) return;

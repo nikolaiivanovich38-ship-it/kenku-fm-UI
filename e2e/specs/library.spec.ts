@@ -341,8 +341,8 @@ test.describe("round 5: volume normalisation", () => {
     await expect(on).not.toBeChecked();
     await expect(dialog.getByRole("group", { name: "Target level" }).getByRole("radio")).toHaveCount(3);
     await expect(dialog.getByRole("radio", { name: /^Standard \(-18 LUFS\)/ })).toBeChecked();
-    await expect(dialog).toContainText("It adds at most 12 dB and keeps peaks under -1 dBTP.");
-    await expect(dialog).toContainText("66 of 69 tracks measured.");
+    await expect(dialog.getByTitle(/It adds at most 12 dB and keeps peaks under -1 dBTP\./)).toContainText("Normalise volume for the whole library");
+    await expect(dialog.getByRole("status")).toHaveText("66 of 69 tracks measured");
     await on.check();
     await dialog.getByRole("button", { name: "Save" }).click();
     await expect(dialog).toHaveCount(0);
@@ -364,13 +364,13 @@ test.describe("round 5: volume normalisation", () => {
     await expect(norm.getByRole("button")).toHaveText(["Library setting", "On", "Off"]);
     await expect(norm.getByRole("button", { name: "Library setting" })).toHaveAttribute("aria-pressed", "true");
     await expect(norm).toHaveAccessibleDescription("-22.6 LUFS · plays as it is");
-    await expect(details(page)).toContainText("True peak -8.0 dBTP.");
+    await expect(details(page).getByTitle(/^True peak -8\.0 dBTP\. Follows the library \(Off\)/)).toHaveText("-22.6 LUFS · plays as it is");
     await norm.getByRole("button", { name: "On" }).click();
     await expect(norm.getByRole("button", { name: "On" })).toHaveAttribute("aria-pressed", "true");
     await expect(norm).toHaveAccessibleDescription("-22.6 LUFS · +4.6 dB");
     await norm.getByRole("button", { name: "Off" }).click();
     await expect(norm).toHaveAccessibleDescription("-22.6 LUFS · plays as it is");
-    await expect(details(page)).toContainText("This track's own choice, wherever it plays.");
+    await expect(details(page).getByTitle("True peak -8.0 dBTP. This track's own choice, wherever it plays.")).toBeVisible();
   });
 
   test("PLY-15: a boost stops at +12 dB, and a track not measured yet plays as it is", async ({ page }) => {

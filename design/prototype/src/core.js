@@ -302,19 +302,20 @@ var L = (function () {
       L.NORM_CHOICES.map(function (c) {
         return '<button type="button" data-act="' + o.act + '" data-v="' + c[0] + '"' + (o.data || '') + ' data-k="' + o.id + '-' + c[0] + '" aria-pressed="' + (v === c[0]) + '"' +
           (c[0] === 'library' ? ' title="The library\'s setting: ' + esc(L.libraryNormWords()) + '"' : '') + '>' + c[1] + '</button>';
-      }).join('') + '</div><p class="norm-line num" id="' + o.id + '-line">' + esc(o.line) + '</p>' + (o.hint ? '<p class="hint">' + o.hint + '</p>' : '') + '</div></div>';
+      }).join('') + '</div><p class="norm-line num" id="' + o.id + '-line"' + (o.hint ? ' title="' + esc(o.hint) + '"' : '') + '>' + esc(o.line) + '</p></div></div>';
   };
   // The library's setting: a small dialog from Library › ⋯ › Normalise volume….
+  /* Nik, 6 Nov 00:41: as few words as the design allows; details on hover, no explanatory lines. */
+  L.NORM_WHAT = 'Lyre measures how loud each track is and turns it up or down to one level. It adds at most 12 dB and keeps peaks under -1 dBTP. A track\'s own choice comes first, then its playlist\'s, then this one.';
   L.acts.normopen = function () {
     var n = D.tracks.filter(function (t) { return t.loud; }).length, todo = D.tracks.length - n;
     L.sheet({ title: 'Normalise volume',
-      body: '<div class="stack norm-sheet"><p>Lyre measures how loud each track is and turns it up or down to one level, so a quiet track and a loud one sound alike. It adds at most 12 dB and keeps peaks under -1 dBTP.</p>' +
-        '<label class="norm-on"><input type="checkbox" id="norm-on" data-k="norm-on"' + (D.normalise.on ? ' checked' : '') + '>Normalise volume for the whole library</label>' +
+      body: '<div class="stack norm-sheet">' +
+        '<label class="norm-on" title="' + esc(L.NORM_WHAT) + '"><input type="checkbox" id="norm-on" data-k="norm-on"' + (D.normalise.on ? ' checked' : '') + '>Normalise volume for the whole library</label>' +
         '<fieldset class="norm-targets"><legend>Target level</legend>' + L.NORM_TARGETS.map(function (x) {
-          return '<label class="pb-qs-opt"><input type="radio" name="norm-target" value="' + x[0] + '" data-k="norm-t-' + x[0] + '"' + (D.normalise.target === x[0] ? ' checked' : '') + '><span>' + x[1] + ' (' + x[2] + ' LUFS)</span><span class="hint">' + esc(x[3]) + '</span></label>';
+          return '<label class="pb-qs-opt" title="' + esc(x[3]) + '"><input type="radio" name="norm-target" value="' + x[0] + '" data-k="norm-t-' + x[0] + '"' + (D.normalise.target === x[0] ? ' checked' : '') + '><span>' + x[1] + ' (' + x[2] + ' LUFS)</span></label>';
         }).join('') + '</fieldset>' +
-        '<p class="hint">The target applies wherever normalising is on. A playlist or a track can have its own choice in its details: the track\'s comes first, then the playlist\'s, then this one.</p>' +
-        '<p class="hint" role="status">' + n + ' of ' + D.tracks.length + ' tracks measured.' + (todo ? ' The rest are measured in the background; until then they play as they are.' : '') + '</p></div>',
+        '<p class="hint" role="status"' + (todo ? ' title="The rest are measured in the background; until then they play as they are."' : '') + '>' + n + ' of ' + D.tracks.length + ' tracks measured</p></div>',
       footer: '<button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="normsave" data-k="norm-save">Save</button>' });
   };
   L.acts.normsave = function () {

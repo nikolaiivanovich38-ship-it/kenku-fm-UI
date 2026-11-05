@@ -260,7 +260,7 @@
       body: '<div class="stack pl-details"><div class="field"><label for="pl-name">Name</label><input id="pl-name" class="input" type="text" data-input="plname" data-k="plname" value="' + esc(pl.name) + '"></div>' +
         '<p class="pl-facts" title="' + (pl.kind === 'manual' ? 'Manual: you pick the tracks and their order.' : 'Dynamic: Lyre fills it with every track that matches the rules, including tracks you tag later.') + '">' + kindLane(pl) + '</p>' +
         // PLY-15: normalise this playlist's tracks when they play from it (Library setting / On / Off).
-        L.normChoice({ id: 'pl-norm', value: pl.norm, act: 'plnorm', line: plNormLine(pl, tracks), hint: pl.norm ? 'A track\'s own choice still comes first.' : 'Follows the library (' + esc(L.libraryNormWords()) + '). A track\'s own choice comes first.' }) +
+        L.normChoice({ id: 'pl-norm', value: pl.norm, act: 'plnorm', line: plNormLine(pl, tracks), hint: pl.norm ? 'A track\'s own choice still comes first.' : 'Follows the library (' + L.libraryNormWords() + '). A track\'s own choice comes first.' }) +
         '<div class="field"><label for="pl-notes">Notes</label><textarea id="pl-notes" class="input" rows="3" data-input="plnotes" data-k="plnotes" placeholder="When to use it, what to avoid…">' + esc(pl.notes || '') + '</textarea></div>' +
         '<div class="row-flex pl-danger"><span class="grow"></span>' +
         '<button class="btn s danger" data-act="pldel" data-k="pldel">' + L.icon('trash', 's') + 'Delete playlist…</button></div></div>' });

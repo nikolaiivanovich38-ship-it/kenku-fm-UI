@@ -333,9 +333,9 @@ test.describe("round 5: volume normalisation", () => {
     await expect(norm.getByRole("button", { name: "On" })).toHaveAttribute("aria-pressed", "true");
     // Ominous song (t26) is set to Off on its own, so it plays as it is here too.
     await expect(norm).toHaveAccessibleDescription("Its tracks get -2.2 dB to +2.7 dB here; 1 plays as it is");
-    await expect(details).toContainText("A track's own choice still comes first.");
+    await expect(details.getByTitle("A track's own choice still comes first.")).toBeVisible();
     await norm.getByRole("button", { name: "Library setting" }).click();
     await expect(norm).toHaveAccessibleDescription("Its tracks play as they are");
-    await expect(details).toContainText("Follows the library (Off).");
+    await expect(details.getByTitle("Follows the library (Off). A track's own choice comes first.")).toBeVisible();
   });
 });

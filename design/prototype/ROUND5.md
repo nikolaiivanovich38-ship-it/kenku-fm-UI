@@ -205,21 +205,27 @@ Reached from the ⋯ beside Add tracks in the Library, and from links on the scr
 > "we'll also need volume baseline normalisation across the tracks, and an option we can turn on either at the whole
 > library level or per track or playlist" (5 Nov 2026, 23:47)
 
+- **Lyre never changes your files: the level is evened out as Lyre plays them, and the measurement is kept in
+  Lyre's library.** (Nik, 6 Nov 2026, 00:36: normalisation "must never change the audio files on disk; it applies
+  only to Lyre's output of them".) Measuring only reads a file; nothing is written into it or beside it (no
+  ReplayGain or other tags).
+- **Few words on screen** (Nik, 6 Nov, 00:41: "no added text in the interface"): short labels, the details on hover
+  (title), no explanatory lines.
 - **Measuring (DAT-15).** Lyre measures each track's loudness in the background with the loudness peaks, using its
   own ffmpeg: integrated loudness (EBU R128, in LUFS) and true peak (dBTP). A sound shorter than 3 s is measured by its
   loudest moment (momentary loudness), since integrated loudness is unreliable that short. The result is kept with the
   file's size and modified time and measured again when the file changes. Until then a track is **not measured yet**
   and plays as it is.
 - **The library's setting.** Library › ⋯ beside Add tracks › **Normalise volume…** opens a small dialog: **Normalise
-  volume for the whole library** (off at first: "an option we can turn on"), the **Target level** (**Quiet (-23
-  LUFS)**, **Standard (-18 LUFS)**, the default, **Loud (-14 LUFS)**), a line on what it does, and how many tracks are
-  measured. The target applies wherever normalising is on.
+  volume for the whole library** (off at first: "an option we can turn on"; what it does on hover), the **Target
+  level** (**Quiet (-23 LUFS)**, **Standard (-18 LUFS)**, the default, **Loud (-14 LUFS)**; each described on hover),
+  and how many tracks are measured. The target applies wherever normalising is on.
 - **A playlist and a track** each have **Normalise volume** with **Library setting** (the default), **On** and **Off**:
   in a playlist's Details, in a track's details (Library › a track › How it plays) and in the Audio profile's header.
   Under it, what Lyre measured and the gain the track gets there: "-22.6 LUFS · +4.6 dB", "-22.6 LUFS · plays as it
   is", "Not measured yet: plays as it is"; a playlist says "Its tracks get -2.2 dB to +2.7 dB here; 1 plays as it is".
-  A hint says where the choice comes from ("Follows the library (Off)…", "This track's own choice, wherever it plays.").
-  The track's details also give its true peak.
+  Hovering that line says where the choice comes from ("Follows the library (Off)…", "This track's own choice,
+  wherever it plays."), and in a track's details its true peak.
 - **Most specific wins** (rule `normaliseDecision`): the track's own choice, then the playlist it plays from, then the
   library. A track played on its own, a scene's single track and a pad's sound have no playlist: the track, then the
   library. The Audio profile shows the gain for the place its settings are for (a playlist's choice counts on that

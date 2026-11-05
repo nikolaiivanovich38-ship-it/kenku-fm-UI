@@ -2572,19 +2572,20 @@ var L = (function () {
       L.NORM_CHOICES.map(function (c) {
         return '<button type="button" data-act="' + o.act + '" data-v="' + c[0] + '"' + (o.data || '') + ' data-k="' + o.id + '-' + c[0] + '" aria-pressed="' + (v === c[0]) + '"' +
           (c[0] === 'library' ? ' title="The library\'s setting: ' + esc(L.libraryNormWords()) + '"' : '') + '>' + c[1] + '</button>';
-      }).join('') + '</div><p class="norm-line num" id="' + o.id + '-line">' + esc(o.line) + '</p>' + (o.hint ? '<p class="hint">' + o.hint + '</p>' : '') + '</div></div>';
+      }).join('') + '</div><p class="norm-line num" id="' + o.id + '-line"' + (o.hint ? ' title="' + esc(o.hint) + '"' : '') + '>' + esc(o.line) + '</p></div></div>';
   };
   // The library's setting: a small dialog from Library › ⋯ › Normalise volume….
+  /* Nik, 6 Nov 00:41: as few words as the design allows; details on hover, no explanatory lines. */
+  L.NORM_WHAT = 'Lyre measures how loud each track is and turns it up or down to one level. It adds at most 12 dB and keeps peaks under -1 dBTP. A track\'s own choice comes first, then its playlist\'s, then this one.';
   L.acts.normopen = function () {
     var n = D.tracks.filter(function (t) { return t.loud; }).length, todo = D.tracks.length - n;
     L.sheet({ title: 'Normalise volume',
-      body: '<div class="stack norm-sheet"><p>Lyre measures how loud each track is and turns it up or down to one level, so a quiet track and a loud one sound alike. It adds at most 12 dB and keeps peaks under -1 dBTP.</p>' +
-        '<label class="norm-on"><input type="checkbox" id="norm-on" data-k="norm-on"' + (D.normalise.on ? ' checked' : '') + '>Normalise volume for the whole library</label>' +
+      body: '<div class="stack norm-sheet">' +
+        '<label class="norm-on" title="' + esc(L.NORM_WHAT) + '"><input type="checkbox" id="norm-on" data-k="norm-on"' + (D.normalise.on ? ' checked' : '') + '>Normalise volume for the whole library</label>' +
         '<fieldset class="norm-targets"><legend>Target level</legend>' + L.NORM_TARGETS.map(function (x) {
-          return '<label class="pb-qs-opt"><input type="radio" name="norm-target" value="' + x[0] + '" data-k="norm-t-' + x[0] + '"' + (D.normalise.target === x[0] ? ' checked' : '') + '><span>' + x[1] + ' (' + x[2] + ' LUFS)</span><span class="hint">' + esc(x[3]) + '</span></label>';
+          return '<label class="pb-qs-opt" title="' + esc(x[3]) + '"><input type="radio" name="norm-target" value="' + x[0] + '" data-k="norm-t-' + x[0] + '"' + (D.normalise.target === x[0] ? ' checked' : '') + '><span>' + x[1] + ' (' + x[2] + ' LUFS)</span></label>';
         }).join('') + '</fieldset>' +
-        '<p class="hint">The target applies wherever normalising is on. A playlist or a track can have its own choice in its details: the track\'s comes first, then the playlist\'s, then this one.</p>' +
-        '<p class="hint" role="status">' + n + ' of ' + D.tracks.length + ' tracks measured.' + (todo ? ' The rest are measured in the background; until then they play as they are.' : '') + '</p></div>',
+        '<p class="hint" role="status"' + (todo ? ' title="The rest are measured in the background; until then they play as they are."' : '') + '>' + n + ' of ' + D.tracks.length + ' tracks measured</p></div>',
       footer: '<button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="normsave" data-k="norm-save">Save</button>' });
   };
   L.acts.normsave = function () {
@@ -3732,7 +3733,7 @@ var L = (function () {
       body: '<div class="stack pl-details"><div class="field"><label for="pl-name">Name</label><input id="pl-name" class="input" type="text" data-input="plname" data-k="plname" value="' + esc(pl.name) + '"></div>' +
         '<p class="pl-facts" title="' + (pl.kind === 'manual' ? 'Manual: you pick the tracks and their order.' : 'Dynamic: Lyre fills it with every track that matches the rules, including tracks you tag later.') + '">' + kindLane(pl) + '</p>' +
         // PLY-15: normalise this playlist's tracks when they play from it (Library setting / On / Off).
-        L.normChoice({ id: 'pl-norm', value: pl.norm, act: 'plnorm', line: plNormLine(pl, tracks), hint: pl.norm ? 'A track\'s own choice still comes first.' : 'Follows the library (' + esc(L.libraryNormWords()) + '). A track\'s own choice comes first.' }) +
+        L.normChoice({ id: 'pl-norm', value: pl.norm, act: 'plnorm', line: plNormLine(pl, tracks), hint: pl.norm ? 'A track\'s own choice still comes first.' : 'Follows the library (' + L.libraryNormWords() + '). A track\'s own choice comes first.' }) +
         '<div class="field"><label for="pl-notes">Notes</label><textarea id="pl-notes" class="input" rows="3" data-input="plnotes" data-k="plnotes" placeholder="When to use it, what to avoid…">' + esc(pl.notes || '') + '</textarea></div>' +
         '<div class="row-flex pl-danger"><span class="grow"></span>' +
         '<button class="btn s danger" data-act="pldel" data-k="pldel">' + L.icon('trash', 's') + 'Delete playlist…</button></div></div>' });
@@ -4493,8 +4494,8 @@ var L = (function () {
      choice counts when the page shows that playlist's settings). */
   function normHTML(t) {
     var pid = S.key.indexOf('pl:') === 0 ? S.key.slice(3) : '', n = L.normOf(t, pid);
-    var from = n.from === 'track' ? 'this track\'s own choice' : n.from === 'playlist' ? 'the playlist\'s choice (' + (n.on ? 'On' : 'Off') + ')' : 'the library\'s setting (' + esc(L.libraryNormWords()) + ')';
-    return '<div class="ap-norm">' + L.normChoice({ id: 'ap-norm', value: t.norm, act: 'apnorm', line: L.normLine(t, pid), hint: (pid ? 'In the playlist ' + esc(L.playlist(pid).name) + ': ' : 'On its own: ') + from + '.' }) + '</div>';
+    var from = n.from === 'track' ? 'this track\'s own choice' : n.from === 'playlist' ? 'the playlist\'s choice (' + (n.on ? 'On' : 'Off') + ')' : 'the library\'s setting (' + L.libraryNormWords() + ')';
+    return '<div class="ap-norm">' + L.normChoice({ id: 'ap-norm', value: t.norm, act: 'apnorm', line: L.normLine(t, pid), hint: (pid ? 'In the playlist ' + L.playlist(pid).name + ': ' : 'On its own: ') + from + '.' }) + '</div>';
   }
   L.acts.apnorm = function (el) {
     var t = track(); if (!t) return;
@@ -6222,7 +6223,7 @@ var L = (function () {
   // Where the track's normalising choice comes from, and its true peak once measured.
   function normHint(t) {
     var peak = t.loud ? 'True peak ' + t.loud.peak.toFixed(1) + ' dBTP. ' : '';
-    return peak + (t.norm ? 'This track\'s own choice, wherever it plays.' : 'Follows the library (' + esc(L.libraryNormWords()) + '), or the playlist it plays from when that has its own choice.');
+    return peak + (t.norm ? 'This track\'s own choice, wherever it plays.' : 'Follows the library (' + L.libraryNormWords() + '), or the playlist it plays from when that has its own choice.');
   }
   L.acts.lbnorm = function (el) {
     var t = L.track(L.current().p.tid); if (!t) return;

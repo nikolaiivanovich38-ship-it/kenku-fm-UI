@@ -275,11 +275,11 @@ test.describe("round 5: volume normalisation", () => {
     let norm = page.getByRole("group", { name: "Normalise volume" });
     await expect(norm.getByRole("button", { name: "Library setting" })).toHaveAttribute("aria-pressed", "true");
     await expect(norm).toHaveAccessibleDescription("-15.8 LUFS · -2.2 dB");
-    await expect(page.getByText("In the playlist Ashen King: the playlist's choice (On).")).toBeVisible();
+    await expect(page.getByTitle("In the playlist Ashen King: the playlist's choice (On).")).toBeVisible();
     await openRoute(page, "profile/t26/pl:p-ashen");
     norm = page.getByRole("group", { name: "Normalise volume" });
     await expect(norm.getByRole("button", { name: "Off" })).toHaveAttribute("aria-pressed", "true");
     await expect(norm).toHaveAccessibleDescription("-22.7 LUFS · plays as it is");
-    await expect(page.getByText("In the playlist Ashen King: this track's own choice.")).toBeVisible();
+    await expect(page.getByTitle("In the playlist Ashen King: this track's own choice.")).toBeVisible();
   });
 });

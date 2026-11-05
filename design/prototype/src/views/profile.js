@@ -437,8 +437,8 @@
      choice counts when the page shows that playlist's settings). */
   function normHTML(t) {
     var pid = S.key.indexOf('pl:') === 0 ? S.key.slice(3) : '', n = L.normOf(t, pid);
-    var from = n.from === 'track' ? 'this track\'s own choice' : n.from === 'playlist' ? 'the playlist\'s choice (' + (n.on ? 'On' : 'Off') + ')' : 'the library\'s setting (' + esc(L.libraryNormWords()) + ')';
-    return '<div class="ap-norm">' + L.normChoice({ id: 'ap-norm', value: t.norm, act: 'apnorm', line: L.normLine(t, pid), hint: (pid ? 'In the playlist ' + esc(L.playlist(pid).name) + ': ' : 'On its own: ') + from + '.' }) + '</div>';
+    var from = n.from === 'track' ? 'this track\'s own choice' : n.from === 'playlist' ? 'the playlist\'s choice (' + (n.on ? 'On' : 'Off') + ')' : 'the library\'s setting (' + L.libraryNormWords() + ')';
+    return '<div class="ap-norm">' + L.normChoice({ id: 'ap-norm', value: t.norm, act: 'apnorm', line: L.normLine(t, pid), hint: (pid ? 'In the playlist ' + L.playlist(pid).name + ': ' : 'On its own: ') + from + '.' }) + '</div>';
   }
   L.acts.apnorm = function (el) {
     var t = track(); if (!t) return;
