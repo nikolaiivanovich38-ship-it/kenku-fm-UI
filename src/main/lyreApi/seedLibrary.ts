@@ -6,6 +6,7 @@
  */
 import { parseKeyOfPlace, parsePlaceKey } from "../../common/domain";
 import type { SeedData } from "../../common/lyre/seed";
+import { SAMPLE_FILE_BYTES } from "./sampleComputer";
 import {
   addPad,
   addRoot,
@@ -30,7 +31,15 @@ import {
   type Library,
 } from "../data";
 
-export async function seedLibrary(library: Library, seed: SeedData): Promise<void> {
+export interface SeedOptions {
+  /**
+   * Test builds of the sample library: the tracks get the sample computer's file sizes (sampleComputer.ts), and the
+   * library remembers the move from Kenku FM the prototype shows (data.js `moved`), with its three missing files.
+   */
+  sample?: boolean;
+}
+
+export async function seedLibrary(library: Library, seed: SeedData, options: SeedOptions = {}): Promise<void> {
   const { store } = library;
   if (store.get("SELECT 1 AS found FROM tracks LIMIT 1")) throw new Error("Only a new, empty library can be seeded.");
   // A new library starts with Lyre's own tag groups (Mood, Leitmotif, Scene type); the seed brings the prototype's.
@@ -52,7 +61,7 @@ export async function seedLibrary(library: Library, seed: SeedData): Promise<voi
         kind: t.kind,
         title: t.title,
         metaTitle: t.metaTitle,
-        file: { path: `${t.folder}\\${t.fileName}` },
+        file: { path: `${t.folder}\\${t.fileName}`, size: options.sample ? SAMPLE_FILE_BYTES : null },
         durationMs: t.durationMs,
         role: t.role,
         loopable: t.loop,
@@ -132,6 +141,13 @@ export async function seedLibrary(library: Library, seed: SeedData): Promise<voi
       const place = parseKeyOfPlace(key);
       if (!place) throw new Error(`The seed has a play order for an unknown place: ${key}`);
       for (const [playlistId, order] of Object.entries(byPlaylist)) setPlayOrder(store, playlistId, place, order);
+    }
+    if (options.sample) {
+      // What the first start's move from the old player records (import/legacy.ts, the "legacy-player" job), as
+      // the prototype's move report shows it: Kenku FM 1.5.5, its counts, bookmarks and the files it could not find.
+      const counts = Object.fromEntries(seed.moved.copied.map((row) => [row.what.toLowerCase(), row.count]));
+      const report = { status: "moved", from: seed.moved.from, counts: { playlists: counts.playlists, tracks: counts.tracks, boards: counts.soundboards, pads: counts.sounds }, bookmarks: counts.bookmarks, missingTrackIds: [...seed.missing] };
+      store.run("INSERT INTO library_jobs (name, state, detail, started_at, finished_at) VALUES ('legacy-player', 'done', ?, ?, ?)", JSON.stringify({ backupPath: null, report }), seed.moved.at, seed.moved.at);
     }
   });
   store.clearHistory();

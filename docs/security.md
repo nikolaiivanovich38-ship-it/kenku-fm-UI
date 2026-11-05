@@ -657,3 +657,43 @@ The Outputs screen in the new interface shows your Discord bots, the voice chann
 1. With two bots logged in (Settings in the main window), open Lyre > Outputs: each bot has a box; the one in a voice channel is titled with that channel and lists the people in it.
 2. Join or leave that voice channel yourself in Discord: within a second the box's "Hears it" line changes.
 3. Use Room to move a bot to another channel: Discord shows it there; Leave takes it out.
+
+## w4-transfer
+
+DAT-7 opens files that came from somewhere else (another computer, another game master, an e-mail), so every .lyre
+file is treated as hostile. No new IPC channel: Save to a file, Open a file and Bring in are LyreApi calls over
+`LYRE_API_CALL` (argument checks as in w4-contracts: a full path, a scope, duplicate choices). The work runs in the
+library's own process (`src/main/transfer`, `src/main/lyreApi/transferApi.ts`), never beside the Discord bots.
+
+- **Nothing is run.** A .lyre file is data only: two JSON entries and audio files. Lyre never loads code, HTML or
+  scripts from it, and only entries named as Lyre names them are accepted (`lyre.json`, `library.json`,
+  `audio/<number>.<audio extension>`); any other entry ("run.exe", "../../evil.dll") refuses the whole file.
+- **Checked before anything changes.** Opening reads the zip's own list of entries (central directory) within the
+  file's size and checks every entry against it: no encryption, no method but stored and deflate, sizes and offsets
+  inside the file, a local header that agrees. Each JSON entry is read only up to a cap (8 MB and 256 MB) and inflated
+  at most one byte past its stated size, so a zip bomb or a lying size is refused without filling memory; its CRC must
+  match. At most 200,002 entries, a 32 MB list of entries, one audio file 2 GB, the whole file under 4 GB.
+- **Zip-slip.** Entry names that are absolute, hold a backslash, a drive letter, a NUL, or an empty, "." or ".."
+  part are refused (`isSafeEntryName`). Audio is unpacked under names Lyre makes from the track's file name (its last
+  part only, characters Windows refuses replaced, Windows' reserved names prefixed, 150 characters at most), inside
+  `Brought in\<file name>`, and the target is checked once more to be inside that folder before writing. A track whose
+  file name holds a folder refuses the file. Unpacked files are written through "<name>.part" with their CRC checked
+  and removed again if bringing in fails.
+- **Every value rebuilt.** library.json is never used as parsed: each track, playlist, rule, pad, board, campaign,
+  session, scene, audio setting and play order is rebuilt field by field into a fresh object (texts with lengths,
+  numbers in range, choices from Lyre's own fixed lists, ids), records keyed by ids refuse "__proto__", "constructor"
+  and "prototype". The repository functions check again as for any write; one they refuse undoes the whole bring-in.
+- **No new readable folders.** A brought-in track keeps its old path only when that path is under one of this
+  library's own folders; otherwise it points into the brought-in folder (missing until relinked). A file therefore
+  cannot make the player's media access (MEDIA_PREPARE, which allows the folders of the library's tracks) reach a
+  folder it would not reach before.
+- **Refusals** are in plain words and say nothing changed (`refusalWords`): not a Lyre file, damaged (cut off), damaged
+  (changed), saved by a newer Lyre, names Lyre never writes, too large. The page shows them as they come.
+- **Paths from the page.** `transfer.open({ from: "path" })` takes the path of a dropped file (the preload's
+  `webUtils.getPathForFile`). Only a name ending in .lyre is read; for anything else Lyre answers "not a Lyre file"
+  without opening it, and nothing of a refused file's content goes back to the page.
+- **Saving** writes only where the game master chose in the save dialog (the main process asks; the library sends a
+  suggested name, of which only the last part is used), through "<name>.part" moved into place at the end.
+- **Test builds only** (`CUE_DESK_LYRE_SEED=prototype`, gated on `__CUE_DESK_TEST_BUILD__` through `wantsSeededLibrary`):
+  the two dialogs and the folder chooser answer by themselves, and the library looks at the prototype's computer
+  (`sampleComputer.ts`) instead of the disk. Release builds never seed, so none of this is reachable there.

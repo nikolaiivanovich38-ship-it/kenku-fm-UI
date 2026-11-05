@@ -7,8 +7,10 @@
  * - "sure": same name, size and quick checksum, or a renamed file with the
  *   same size and checksum;
  * - "likely": same name and size (the library knew no checksum);
- * - "name": same name only (the library knew neither, as for files moved in
- *   from the old player that were already missing then). The screen asks.
+ * - "name": same name only: the library knew neither size nor checksum (as for
+ *   files moved in from the old player that were already missing then), or the
+ *   file there has another size (round 5: "Same name, different size: check
+ *   it"). The screen asks, and does not tick it.
  * Among several candidates, the one whose folders match the old path most
  * closely wins ("Witcher/theme.flac" over "Other/theme.flac"); a tie is
  * reported for the game master to choose. A file another track already has is
@@ -47,6 +49,23 @@ export type RelinkConfidence = "sure" | "likely" | "name";
 
 export type RelinkMatch = { trackId: string; from: string; to: string; confidence: RelinkConfidence; size?: number; mtimeMs?: number; checksum?: string };
 
+/**
+ * How Lyre looks at files on the computer. The real one reads the disk; a test build of the sample library stands in
+ * for the prototype's computer (src/main/lyreApi/sampleComputer.ts), whose files are not on the test machine.
+ */
+export interface FileProbe {
+  exists(filePath: string): Promise<boolean>;
+  facts(filePath: string): Promise<ReadFacts>;
+  /** Every audio file under the folder and its folders, full paths. */
+  audioFilesUnder(folder: string, options?: { signal?: AbortSignal }): Promise<string[]>;
+}
+
+export const diskProbe: FileProbe = {
+  exists: fileExists,
+  facts: readFileFacts,
+  audioFilesUnder: async (folder, options = {}) => (await collectAudioFiles([folder], options)).files.map((f) => f.path),
+};
+
 export type RelinkPlan = {
   matches: RelinkMatch[];
   /** Missing tracks with several equally good files: the screen asks which. */
@@ -56,7 +75,8 @@ export type RelinkPlan = {
 };
 
 /** Tracks whose files are not where the library expects them, in the order of their shown names. Web addresses are not checked. */
-export async function findMissingTracks(store: Store, options: { concurrency?: number } = {}): Promise<MissingTrack[]> {
+export async function findMissingTracks(store: Store, options: { concurrency?: number; probe?: FileProbe } = {}): Promise<MissingTrack[]> {
+  const probe = options.probe ?? diskProbe;
   const roots = new Map(listRoots(store).map((root) => [root.id, root.path]));
   const rows = store.all<{ id: string; title: string; root_id: string | null; path: string; file_name: string; file_size: number | null; checksum: string | null }>(
     `SELECT id, ${SHOWN_TITLE_SQL} AS title, root_id, path, file_name, file_size, checksum FROM tracks
@@ -64,7 +84,7 @@ export async function findMissingTracks(store: Store, options: { concurrency?: n
   );
   const checked = await mapLimit(rows, options.concurrency ?? 16, async (row) => {
     const full = row.root_id === null ? row.path : joinRoot(roots.get(row.root_id) as string, row.path);
-    return (await fileExists(full))
+    return (await probe.exists(full))
       ? null
       : { id: row.id, title: row.title, path: full, fileName: row.file_name, size: row.file_size, checksum: row.checksum };
   });
@@ -83,9 +103,15 @@ function sharedTail(a: string, b: string): number {
 const RANK: Record<RelinkConfidence, number> = { sure: 3, likely: 2, name: 1 };
 
 /** Looks for the missing tracks' files under `folder`. Nothing is changed until applyRelink. */
-export async function planRelink(store: Store, missing: MissingTrack[], folder: string, options: { signal?: AbortSignal } = {}): Promise<RelinkPlan> {
+export async function planRelink(
+  store: Store,
+  missing: MissingTrack[],
+  folder: string,
+  options: { signal?: AbortSignal; probe?: FileProbe } = {},
+): Promise<RelinkPlan> {
+  const probe = options.probe ?? diskProbe;
   const known = locationsInLibrary(store);
-  const files = (await collectAudioFiles([folder], options)).files.map((f) => f.path).filter((p) => !known.has(fileKey(p)));
+  const files = (await probe.audioFilesUnder(folder, { signal: options.signal })).filter((p) => !known.has(fileKey(p)));
   const byName = new Map<string, string[]>();
   for (const file of files) {
     const name = baseName(file).toLowerCase();
@@ -93,7 +119,7 @@ export async function planRelink(store: Store, missing: MissingTrack[], folder: 
   }
   const facts = new Map<string, Promise<ReadFacts | null>>();
   const factsOf = (file: string) => {
-    if (!facts.has(file)) facts.set(file, readFileFacts(file).catch((): null => null));
+    if (!facts.has(file)) facts.set(file, probe.facts(file).catch((): null => null));
     return facts.get(file) as Promise<ReadFacts | null>;
   };
 
@@ -101,7 +127,9 @@ export async function planRelink(store: Store, missing: MissingTrack[], folder: 
   const judge = async (track: MissingTrack, file: string, sameName: boolean): Promise<RelinkConfidence | null> => {
     if (track.size === null && track.checksum === null) return sameName ? "name" : null;
     const found = await factsOf(file);
-    if (!found || (track.size !== null && found.size !== track.size)) return null;
+    if (!found) return null;
+    // The same name with another size may be a re-encoded copy: offered for the game master to check, never ticked.
+    if (track.size !== null && found.size !== track.size) return sameName ? "name" : null;
     if (track.checksum !== null) return found.checksum === track.checksum ? "sure" : null;
     return sameName ? "likely" : null;
   };

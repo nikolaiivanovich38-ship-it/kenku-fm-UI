@@ -22,6 +22,9 @@ export const SCREEN_WORDS: Record<RouteName, string> = {
   live: "Live",
   outputs: "Outputs",
   look: "Look and feel",
+  backup: "Back up, move or share",
+  moved: "What came across from Kenku FM",
+  relink: "Find missing files",
 };
 
 /** The host with `from` filled in on the three preview calls; the same object for the same host and screen. */

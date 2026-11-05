@@ -4,9 +4,10 @@
  * libraryProcess.ts is the thin entry Electron starts; this is the part tests run with a MessageChannel.
  *
  * Control messages from the main process (LyreApi calls use the rpc.ts protocol on the same port):
- *   { t: "init", folder, seed, ffmpegPath }
+ *   { t: "init", folder, seed, ffmpegPath, transferFolder }
  *                                 open the library (and, in test builds, seed an empty one with the prototype's data);
- *                                 ffmpegPath is the bundled ffmpeg for loudness peaks (null: none are worked out)
+ *                                 ffmpegPath is the bundled ffmpeg for loudness peaks (null: none are worked out);
+ *                                 transferFolder is "Documents\Lyre", where brought-in files go (DAT-7)
  *   { t: "start-backups" }        the window is showing: start the daily backups
  *   { t: "legacy", raw }          bring in the old player's library (once; the database remembers it did)
  *   { t: "media-folders" }        the folders the player may read library files from (MediaAccess, MEDIA_PREPARE)
@@ -39,6 +40,7 @@ import { musicMetadataTagReader } from "../data/import/musicMetadata";
 import { ffmpegLength } from "../media/ffmpegLength";
 import { FfmpegPeakReader } from "../media/ffmpegPeaks";
 import { createLibraryApi, type LibraryApi, type LibraryHost } from "./libraryApi";
+import { SAMPLE_TODAY, sampleComputer, writeSampleSharedFile } from "./sampleComputer";
 import { seedLibrary } from "./seedLibrary";
 
 export interface LibraryProcessOptions {
@@ -74,7 +76,7 @@ export function damagedWords(message: string, canRestore: boolean): string {
     : `${first} No backup was found to put back. The damaged file is left as it is; ask for help on Lyre's project page.`;
 }
 
-export type InitMessage = { t: "init"; folder: string; seed: boolean; ffmpegPath: string | null };
+export type InitMessage = { t: "init"; folder: string; seed: boolean; ffmpegPath: string | null; transferFolder?: string | null };
 
 export function runLibraryProcess(port: PortLike, options: LibraryProcessOptions = {}): { done: Promise<void> } {
   const open = options.open ?? ((folder: string) => openLibrary({ folder }));
@@ -89,6 +91,7 @@ export function runLibraryProcess(port: PortLike, options: LibraryProcessOptions
   let folder: string | null = null;
   let seed = false;
   let ffmpegPath: string | null = null;
+  let transferFolder: string | null = null;
   /** The backup offered for a damaged library (found here, in the library's own backups folder). */
   let restorable: string | null = null;
   let finish: () => void;
@@ -99,6 +102,8 @@ export function runLibraryProcess(port: PortLike, options: LibraryProcessOptions
     chooseFiles: () => server.askHost("chooseFiles", []) as Promise<string[] | null>,
     chooseFolder: () => server.askHost("chooseFolder", []) as Promise<string | null>,
     showItemInFolder: (path) => void server.askHost("showItemInFolder", [path]).catch((error) => log("Could not show the file in its folder", error)),
+    chooseSaveFile: (suggestedName) => server.askHost("chooseSaveFile", [suggestedName]) as Promise<string | null>,
+    chooseLyreFile: () => server.askHost("chooseLyreFile", []) as Promise<string | null>,
   };
 
   /** Says the library is damaged, offering the latest good backup when there is one. */
@@ -131,11 +136,17 @@ export function runLibraryProcess(port: PortLike, options: LibraryProcessOptions
       return;
     }
     library = opened;
-    if (seed && !opened.store.get("SELECT 1 AS found FROM tracks LIMIT 1")) await seedLibrary(opened, prototypeSeed());
+    if (seed && !opened.store.get("SELECT 1 AS found FROM tracks LIMIT 1")) await seedLibrary(opened, prototypeSeed(), { sample: true });
+    // Test builds of the sample library look at the prototype's computer, not the disk (sampleComputer.ts).
+    if (seed && transferFolder) await writeSampleSharedFile(transferFolder);
     const peakReader = peakReaderFor(ffmpegPath);
     // UX review 3: ffmpeg confirms a file the tag reader found no audio in, before it is added.
     const lengthProbe = ffmpegPath ? (file: string) => ffmpegLength(ffmpegPath as string, file) : undefined;
-    api = createLibraryApi(opened, host, { tagReader, peakReader: peakReader ?? undefined, lengthProbe, log });
+    const transfer = {
+      ...(transferFolder ? { broughtInFolder: path.join(transferFolder, "Brought in") } : {}),
+      ...(seed ? { today: () => SAMPLE_TODAY } : {}),
+    };
+    api = createLibraryApi(opened, host, { tagReader, peakReader: peakReader ?? undefined, lengthProbe, log, transfer, ...(seed ? { files: sampleComputer(prototypeSeed()) } : {}) });
     server = serveLyreApi(api, port);
     if (backupsWanted && !stopBackups) stopBackups = startDailyBackups(opened, { onError: (error) => log("The daily backup failed", error) });
     port.postMessage({ t: "ready" });
@@ -152,12 +163,13 @@ export function runLibraryProcess(port: PortLike, options: LibraryProcessOptions
   };
 
   const stop = port.onMessage(async (data) => {
-    const message = data as { t?: string; id?: number; folder?: string; seed?: boolean; raw?: unknown; ffmpegPath?: unknown };
+    const message = data as { t?: string; id?: number; folder?: string; seed?: boolean; raw?: unknown; ffmpegPath?: unknown; transferFolder?: unknown };
     try {
       if (message?.t === "init" && !library) {
         folder = message.folder as string;
         seed = message.seed === true;
         ffmpegPath = typeof message.ffmpegPath === "string" ? message.ffmpegPath : null;
+        transferFolder = typeof message.transferFolder === "string" && path.isAbsolute(message.transferFolder) ? message.transferFolder : null;
         await openAndServe();
       } else if (message?.t === "restore" && !library && folder) {
         // Only a backup this process found itself is put back; the main process only says yes.
