@@ -67,6 +67,12 @@ describe("the Audio profile screen", () => {
     expect(screen.getAllByText("Length")[0].parentElement).toHaveTextContent("Length 7:21");
   });
 
+  it("is part of the Library: the rail's Library section is lit, also for a place", async () => {
+    await open("profile/t13/sc:crown:s14:sc3");
+    const rail = screen.getByRole("navigation", { name: "Lyre" });
+    expect(within(rail).getByRole("link", { name: "Library" })).toHaveAttribute("aria-current", "page");
+  });
+
   it("says so when the track is not in the library", async () => {
     window.history.replaceState(null, "", "#/profile/nope");
     render(

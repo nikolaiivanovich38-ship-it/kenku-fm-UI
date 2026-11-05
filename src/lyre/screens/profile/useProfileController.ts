@@ -54,7 +54,7 @@ function dragWith(onMove: (e: PointerEvent) => void, onEnd: () => void): void {
   window.addEventListener("pointercancel", up);
 }
 
-const READ_ONLY_NOTE ="These are the track's settings. Give this place its own settings to change them here.";
+const READ_ONLY_NOTE = "These are the track's settings. Give this place its own settings to change them here.";
 
 export type ProfileController = ReturnType<typeof useProfileController>;
 
