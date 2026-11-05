@@ -35,7 +35,7 @@ import {
   PreviewButton,
   RowMenu,
   StatusBadge,
-  useAudioMessages,
+ 
   useFocusLater,
   useLibraryIndex,
   useOwnSettings,
@@ -50,7 +50,6 @@ import "./campaigns.css";
 export function SessionScreen({ route }: ScreenProps) {
   const query = useCampaign(route.params.cid ?? "");
   const index = useLibraryIndex();
-  useAudioMessages();
   const campaign = query.data;
   const session = campaign?.sessions.find((s) => s.id === route.params.sid);
   if (campaign === null || (campaign && !session)) return <NotFound what="Session" />;

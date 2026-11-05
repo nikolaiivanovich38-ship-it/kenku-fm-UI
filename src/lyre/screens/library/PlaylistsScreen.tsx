@@ -21,7 +21,7 @@ import { DropNotice, DropZone, dropFiles, useDropState, useFileDrops, type DropT
 import { KIND_WORDS, matchesQuery, newlyMade, soundName, useDropActions } from "./playlistParts";
 import { PlaylistPage } from "./PlaylistPage";
 import { UseInDialog } from "./UseInDialog";
-import { onAirPlaylistIds, PlayOnAirButton, PlaylistContents, PopMenuButton, PreviewButton, TwoLines, useSoundMessages, useWriteResult, type PopMenuEntry } from "./shared";
+import { onAirPlaylistIds, PlayOnAirButton, PlaylistContents, PopMenuButton, PreviewButton, TwoLines, useWriteResult, type PopMenuEntry } from "./shared";
 import "./library.css";
 import "./playlists.css";
 
@@ -39,7 +39,6 @@ export function resetPlaylistsView(): void {
 }
 
 export function PlaylistsScreen(_props: ScreenProps) {
-  useSoundMessages();
   const api = useLyreApi();
   const { say, toast } = useAnnounce();
   const accept = useWriteResult();

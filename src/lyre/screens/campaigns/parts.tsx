@@ -9,7 +9,7 @@ import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 
 import { placeKey, type PadMode, type ProfilePlace } from "../../../common/domain";
 import { isRefused, type CampaignInfo, type Done, type PadBoard, type PlaylistInfo, type WriteResult } from "../../../common/lyre/api";
 import { useBoards, usePlaylists, useProfileOverrides, useTracks } from "../../api";
-import { useLyreAudio, useLyreAudioEvent, useNowPlaying } from "../../audio/LyreAudioProvider";
+import { useLyreAudio, useNowPlaying } from "../../audio/LyreAudioProvider";
 import { IconButton } from "../../kit/Button";
 import { Icon, ICON_NAMES, type IconName } from "../../kit/Icon";
 import { useLiveSession, runInLive } from "../../kit/liveSession";
@@ -52,13 +52,6 @@ export function useWrite() {
     },
     [toast],
   );
-}
-
-/** The audio host's sentences go to the live region and its failures to a toast, while a Campaigns screen is open. */
-export function useAudioMessages(): void {
-  const { say, toast } = useAnnounce();
-  useLyreAudioEvent("announce", say);
-  useLyreAudioEvent("error", toast);
 }
 
 /**

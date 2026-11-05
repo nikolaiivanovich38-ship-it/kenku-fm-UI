@@ -5,6 +5,7 @@ import { AnnouncerProvider, useAnnounce } from "./Announcer";
 import { Rail } from "./Rail";
 import { routeFromHash, sectionOf, type RouteName } from "./routes";
 import { useShellData } from "./ShellData";
+import { SoundMessages } from "./SoundMessages";
 import { ShellSettingsProvider, useShellSettings } from "./ShellSettings";
 import { themeFor } from "./themes";
 
@@ -24,6 +25,7 @@ export function Shell({ screens = SCREENS }: ShellProps) {
   return (
     <ShellSettingsProvider>
       <AnnouncerProvider>
+        <SoundMessages />
         <ShellFrame screens={screens} />
       </AnnouncerProvider>
     </ShellSettingsProvider>

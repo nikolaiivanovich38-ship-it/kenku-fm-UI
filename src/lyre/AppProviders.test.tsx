@@ -166,4 +166,40 @@ describe("AppProviders", () => {
       expect(await screen.findByRole("link", { name: "Live" })).toBeInTheDocument();
     });
   });
+
+  describe("the sound's messages, heard once for the whole page", () => {
+    it("says the audio host's announcements in the live region and shows its errors as a toast, on any screen", async () => {
+      window.history.replaceState(null, "", "#/outputs");
+      const audio = new FakeLyreAudio();
+      render(
+        <AppProviders api={createFakeLyreApi()} audio={audio}>
+          <Shell screens={SCREENS} />
+        </AppProviders>,
+      );
+      await screen.findByRole("heading", { level: 1 });
+      expect(audio.listenerCount("announce")).toBe(1);
+      expect(audio.listenerCount("error")).toBe(1);
+      act(() => {
+        audio.emit("announce", "Music: Tavern");
+      });
+      await waitFor(() => expect(document.getElementById("lyre-live")).toHaveTextContent("Music: Tavern"));
+      act(() => {
+        audio.emit("error", "That track is no longer in the library.");
+      });
+      expect(document.getElementById("lyre-toast")).toHaveTextContent("That track is no longer in the library.");
+    });
+
+    it.each(["library", "playlists", "boards", "campaign/crown", "session/crown/s14"])("%s does not listen a second time", async (path) => {
+      window.history.replaceState(null, "", `#/${path}`);
+      const audio = new FakeLyreAudio();
+      render(
+        <AppProviders api={createFakeLyreApi()} audio={audio}>
+          <Shell screens={SCREENS} />
+        </AppProviders>,
+      );
+      await screen.findByRole("heading", { level: 1 });
+      expect(audio.listenerCount("announce")).toBe(1);
+      expect(audio.listenerCount("error")).toBe(1);
+    });
+  });
 });

@@ -16,7 +16,7 @@ import type { ScreenProps } from "..";
 import { SystemList } from "./CampaignsScreen";
 import { CAMPAIGN_THEME_IDS, formatDate, nextSession, plural, sessionLabel, themeName } from "./model";
 import { OnHandPane } from "./OnHand";
-import { DraftField, ModeSwitch, NotFound, Opening, useHeadingFocusWhenReady, ObsidianFields, RowMenu, StatusBadge, useAudioMessages, useFocusLater, useLibraryIndex, useWrite } from "./parts";
+import { DraftField, ModeSwitch, NotFound, Opening, useHeadingFocusWhenReady, ObsidianFields, RowMenu, StatusBadge, useFocusLater, useLibraryIndex, useWrite } from "./parts";
 import { useDragReorder } from "./reorder";
 
 import "./campaigns.css";
@@ -25,7 +25,6 @@ export function CampaignScreen({ route }: ScreenProps) {
   const id = route.params.cid ?? "";
   const query = useCampaign(id);
   const index = useLibraryIndex();
-  useAudioMessages();
   const campaign = query.data;
   if (campaign === null) return <NotFound what="Campaign" />;
   if (!campaign || !index) return <Opening />;

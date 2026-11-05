@@ -14,14 +14,13 @@ import { useAnnounce } from "../../shell/Announcer";
 import { useThemeChoice } from "../../shell/useThemeChoice";
 import type { ScreenProps } from "..";
 import { CAMPAIGN_THEME_IDS, DEFAULT_CAMPAIGN_THEME, formatDate, nextSession, plural, sessionLabel, shownTheme, SYSTEMS, themeName, themeNote } from "./model";
-import { ObsidianFields, Opening, useAudioMessages, useHeadingFocusWhenReady, type ObsidianValues } from "./parts";
+import { ObsidianFields, Opening, useHeadingFocusWhenReady, type ObsidianValues } from "./parts";
 
 import "./campaigns.css";
 
 export function CampaignsScreen(_props: ScreenProps) {
   const campaigns = useCampaigns().data;
   const [creating, setCreating] = useState(false);
-  useAudioMessages();
   if (!campaigns) return <Opening />;
   return <CampaignsList campaigns={campaigns} creating={creating} setCreating={setCreating} />;
 }

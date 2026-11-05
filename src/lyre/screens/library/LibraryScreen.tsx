@@ -23,7 +23,7 @@ import { FiltersBody } from "./FiltersBody";
 import { useLayoutMode } from "./layout";
 import { getLibraryState, setLibraryState, useLibraryState, type Guide } from "./libraryState";
 import { DEFAULT_FILTER, filterCount, filterSummary, filtersOn, KIND_NAMES, plural, shownTitle, visibleTracks } from "./model";
-import { focusSoon, onAirTrackIds, PopMenuButton, TwoLines, useSoundMessages, useWriteResult, type PopMenuEntry } from "./shared";
+import { focusSoon, onAirTrackIds, PopMenuButton, TwoLines, useWriteResult, type PopMenuEntry } from "./shared";
 import { TagSheet } from "./TagSheet";
 import { TrackDetails } from "./TrackDetails";
 import { TracksTable } from "./TracksTable";
@@ -39,7 +39,6 @@ const NONE: never[] = [];
 const NO_OVERRIDES = {};
 
 export function LibraryScreen({ route }: ScreenProps) {
-  useSoundMessages();
   const api = useLyreApi();
   const audio = useLyreAudio();
   const now = useNowPlaying();

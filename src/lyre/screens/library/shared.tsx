@@ -1,7 +1,7 @@
 /**
  * Pieces the Library and Playlists screens share (the prototype's _shared.js building blocks): Preview and Play on air
  * buttons, a playlist's contents behind an expander, a menu whose items hold more than a line of text, and the
- * plumbing for writes and sound messages.
+ * plumbing for writes. (The shell says the sound's own messages: shell/SoundMessages.tsx.)
  *
  * Kept in this folder rather than src/lyre/kit so the four wave 3 streams do not add files of the same name there;
  * Campaigns and Pad boards need the same buttons, so the lead may move them to the kit when merging.
@@ -11,7 +11,7 @@ import { createPortal } from "react-dom";
 import { isRefused, type WriteResult } from "../../../common/lyre/api";
 import { Icon, type IconName } from "../../kit/Icon";
 import { cx } from "../../kit/cx";
-import { useLyreAudio, useLyreAudioEvent, useNowPlaying, type NowPlaying } from "../../audio";
+import { useLyreAudio, useNowPlaying, type NowPlaying } from "../../audio";
 import { useAnnounce } from "../../shell/Announcer";
 import { fmt } from "./model";
 
@@ -45,13 +45,6 @@ export function useWriteOk() {
     },
     [toast],
   );
-}
-
-/** Sound problems as toasts and sound news for screen readers, while the screen is shown. */
-export function useSoundMessages(): void {
-  const { say, toast } = useAnnounce();
-  useLyreAudioEvent("error", toast);
-  useLyreAudioEvent("announce", say);
 }
 
 /* ---------- what plays ---------- */

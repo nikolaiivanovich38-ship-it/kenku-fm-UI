@@ -21,7 +21,7 @@ import { fmt, fmtLong, KIND_NAMES, plural, ruleWords, shownTitle, tagsOf } from 
 import { nameUses, usePlaylistData, usedText, type PlaylistData } from "./playlistData";
 import { DropNotice, DropZone, dropFiles, useDropState, useFileDrops, type DropTarget } from "./playlistDrops";
 import { KindLane, matchesQuery, newlyMade, soundName, useDropActions } from "./playlistParts";
-import { focusSoon, onAirPlaylistIds, onAirTrackIds, PopMenuButton, previewKey, useSoundMessages, useWriteOk, useWriteResult, type PopMenuEntry } from "./shared";
+import { focusSoon, onAirPlaylistIds, onAirTrackIds, PopMenuButton, previewKey, useWriteOk, useWriteResult, type PopMenuEntry } from "./shared";
 import { UseInDialog } from "./UseInDialog";
 import "./library.css";
 import "./playlists.css";
@@ -50,7 +50,6 @@ function trackTip(t: LibraryTrack): string {
 }
 
 export function PlaylistPage({ route }: ScreenProps) {
-  useSoundMessages();
   const data = usePlaylistData();
   const pl = data.playlists.find((p) => p.id === route.params.pid);
   if (!pl) {
