@@ -8,7 +8,7 @@
  * Each function has one branch per project. The `app` branches throw until wave 3 builds the screen; wave 3
  * fills them in (with the app's main window as `page`) and adds the screen to built.ts.
  */
-import { _electron as electron, type Page, test } from "@playwright/test";
+import { _electron as electron, type ElectronApplication, type Page, test } from "@playwright/test";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -30,6 +30,17 @@ function isApp(): boolean {
   return test.info().project.name === "app";
 }
 
+/** The app the running test works in (app project), for what happens in Discord rather than on the page. */
+let currentApp: ElectronApplication | null = null;
+
+/** The main process's hook for the prototype's Discord (src/main/broadcast/testing/prototypeWorld.ts). */
+type OutputsTestHook = { join(bot: string, channel: string): Promise<void>; leaveAll(): void };
+
+function runningApp(what: string): ElectronApplication {
+  if (!currentApp) throw new Error(`target.${what}: no app is running`);
+  return currentApp;
+}
+
 function notBuilt(what: string): never {
   throw new Error(`target.${what}: not built yet. The app has no such screen until wave 3; implement this in e2e/specs/support/target.ts.`);
 }
@@ -37,7 +48,8 @@ function notBuilt(what: string): never {
 /**
  * The app project's `page`: the Lyre page of a fresh copy of the packaged test build (CUE_DESK_E2E_BUILD=1 yarn
  * package), with its own data folder and a library seeded from the prototype's data (CUE_DESK_LYRE_SEED, honoured by
- * test builds only), Discord faked. Closed, and its data folder removed, after the test.
+ * test builds only), Discord faked with the prototype's servers and bots (CUE_DESK_FAKE_DISCORD=prototype: Lyre Table
+ * in Table, Lyre Side in no room). Closed, and its data folder removed, after the test.
  */
 export async function withAppPage(use: (page: Page) => Promise<void>): Promise<void> {
   const executablePath = findPackagedExecutable();
@@ -50,8 +62,9 @@ export async function withAppPage(use: (page: Page) => Promise<void>): Promise<v
     executablePath,
     args,
     chromiumSandbox,
-    env: { ...env, CUE_DESK_USER_DATA_DIR: dataDir, CUE_DESK_LYRE_SEED: "prototype", CUE_DESK_FAKE_DISCORD: "1" },
+    env: { ...env, CUE_DESK_USER_DATA_DIR: dataDir, CUE_DESK_LYRE_SEED: "prototype", CUE_DESK_FAKE_DISCORD: "prototype" },
   });
+  currentApp = app;
   try {
     // The app's pages are not made by Playwright's own browser, so the project's timeouts are set on them here.
     const { actionTimeout, navigationTimeout } = test.info().project.use;
@@ -64,6 +77,7 @@ export async function withAppPage(use: (page: Page) => Promise<void>): Promise<v
     if (viewport) await lyre.setViewportSize(viewport);
     await use(lyre);
   } finally {
+    currentApp = null;
     await app.close().catch((): void => undefined);
     fs.rmSync(dataDir, { recursive: true, force: true });
   }
@@ -120,7 +134,14 @@ export async function openRoute(page: Page, route: Route, options: { theme?: The
 
 /** Simulate a Discord bot (by its name) joining a voice channel (by its name). Resolves when it is connected. */
 export async function joinRoom(page: Page, bot: string, channel: string): Promise<void> {
-  if (isApp()) notBuilt(`joinRoom(${bot}, ${channel})`);
+  if (isApp()) {
+    // The fake Discord in the main process moves the bot, as a join from Discord would (w4-outputs).
+    await runningApp("joinRoom").evaluate(
+      (_electron, [b, c]) => (globalThis as unknown as { __lyreOutputsTest: OutputsTestHook }).__lyreOutputsTest.join(b, c),
+      [bot, channel] as const,
+    );
+    return;
+  }
   await page.evaluate(
     ([b, c]) => {
       /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -139,7 +160,10 @@ export async function joinRoom(page: Page, bot: string, channel: string): Promis
 
 /** Simulate every bot leaving its voice channel (nobody can hear anything). */
 export async function leaveAllRooms(page: Page): Promise<void> {
-  if (isApp()) notBuilt("leaveAllRooms");
+  if (isApp()) {
+    await runningApp("leaveAllRooms").evaluate(() => (globalThis as unknown as { __lyreOutputsTest: OutputsTestHook }).__lyreOutputsTest.leaveAll());
+    return;
+  }
   await page.evaluate(() => {
     const L = (window as any).L;
     for (const b of L.bots()) L.botLeave(b.id);
