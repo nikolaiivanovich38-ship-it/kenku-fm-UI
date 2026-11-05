@@ -19,6 +19,7 @@ import { SCREENS } from "./screens";
 import { PlaceholderScreen } from "./screens/Placeholder";
 import userEvent from "@testing-library/user-event";
 import { loadInLive } from "./kit/liveSession";
+import { FakeOutputs } from "./outputs/testing/fakeOutputs";
 
 // The page root can start the real audio host, whose worklet file is a webpack asset; tests give a fake host.
 vi.mock("../preload/managers/PCMStream.worklet.js?asset", () => ({ default: "pcm.js" }));
@@ -154,6 +155,22 @@ describe("AppProviders", () => {
       );
       playing(audio);
       expect(screen.getByRole("region", { name: "On air" })).toBeInTheDocument();
+    });
+  });
+
+  describe("the Discord bots (w4-outputs)", () => {
+    it("counts on the rail's Outputs link the bots connected in a voice channel, and follows a join", async () => {
+      window.history.replaceState(null, "", "#/campaigns");
+      const outputs = new FakeOutputs();
+      render(
+        <AppProviders api={createFakeLyreApi()} audio={new FakeLyreAudio()} outputs={outputs}>
+          <Shell screens={{ ...SCREENS, campaigns: () => <PlaceholderScreen title="Campaigns" /> }} />
+        </AppProviders>,
+      );
+      expect(await screen.findByRole("link", { name: "Outputs (1/2)" })).toHaveAttribute("href", "#/outputs");
+      act(() => outputs.move(outputs.state.bots[1].id, "1012"));
+      await act(() => outputs.settle());
+      expect(screen.getByRole("link", { name: "Outputs (2/2)" })).toBeInTheDocument();
     });
   });
 

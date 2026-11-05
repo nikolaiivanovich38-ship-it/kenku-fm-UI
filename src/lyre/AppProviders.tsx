@@ -8,6 +8,7 @@ import type { LyreApiBridge } from "./api/preloadApi";
 import { EMPTY_LIBRARY, LyreAudioProvider, startLyreAudio, type LyreAudio } from "./audio";
 import type { LyreAudioBridge } from "./audio/preloadAudio";
 import { useLiveSession } from "./kit/liveSession";
+import { OutputsProvider, outputsLabel, useOutputs, type OutputsClient } from "./outputs/OutputsProvider";
 import { OnAirBar } from "./shell/OnAirBar";
 import { ShellDataProvider, type ShellData } from "./shell/ShellData";
 import type { ThemeId } from "./shell/themes";
@@ -16,21 +17,25 @@ import type { ThemeId } from "./shell/themes";
  * The provider slot: everything the screens read data and sound from goes around the shell here, so every screen can
  * use it. The shell itself needs none of it.
  *
- *   <LyreApiProvider>       the library (src/lyre/api), over IPC to the library's own process
- *     <LyreAudioProvider>   play on air, preview, stop, now playing (src/lyre/audio), fed with the library
- *       <ShellDataProvider> each campaign's table theme, the session loaded in Live, the on-air bar
- *         {children}
+ *   <LyreApiProvider>         the library (src/lyre/api), over IPC to the library's own process
+ *     <OutputsProvider>       the Discord bots and their rooms (src/lyre/outputs, w4-outputs)
+ *       <LyreAudioProvider>   play on air, preview, stop, now playing (src/lyre/audio), fed with the library
+ *         <ShellDataProvider> each campaign's table theme, the session loaded in Live, Outputs (n/m), the on-air bar
+ *           {children}
  *
- * Tests pass `api` and `audio`; the page uses `window.lyre` (src/lyre/preload.ts).
+ * Tests pass `api`, `audio` and `outputs` (none: no bots); the page uses `window.lyre` (src/lyre/preload.ts).
  */
-export function AppProviders({ children, api, audio }: { children: React.ReactNode; api?: LyreApi; audio?: LyreAudio }) {
+export function AppProviders({ children, api, audio, outputs }: { children: React.ReactNode; api?: LyreApi; audio?: LyreAudio; outputs?: OutputsClient | null }) {
   const lyreApi = useMemo(() => api ?? ipcLyreApi((window as unknown as { lyre: { api: LyreApiBridge } }).lyre.api), [api]);
+  const outputsClient = useMemo(() => (outputs !== undefined ? outputs : ((window as unknown as { lyre?: { outputs?: OutputsClient } }).lyre?.outputs ?? null)), [outputs]);
   return (
     <LyreApiProvider api={lyreApi}>
       <LibraryStatus />
-      <WithAudio audio={audio}>
-        <ShellDataFromLibrary>{children}</ShellDataFromLibrary>
-      </WithAudio>
+      <OutputsProvider client={outputsClient}>
+        <WithAudio audio={audio}>
+          <ShellDataFromLibrary>{children}</ShellDataFromLibrary>
+        </WithAudio>
+      </OutputsProvider>
     </LyreApiProvider>
   );
 }
@@ -120,6 +125,8 @@ function ShellDataFromLibrary({ children }: { children: React.ReactNode }) {
   const campaigns = useCampaigns().data;
   const live = useLiveSession();
   const api = useLyreApi();
+  const { outputs } = useOutputs();
+  const outputsText = outputs ? outputsLabel(outputs) : undefined;
   const value = useMemo<ShellData>(() => {
     const themes = new Map((campaigns ?? []).map((c) => [c.id, c.theme as ThemeId]));
     const session = live && campaigns?.find((c) => c.id === live.campaignId)?.sessions.find((s) => s.id === live.sessionId);
@@ -128,9 +135,10 @@ function ShellDataFromLibrary({ children }: { children: React.ReactNode }) {
       liveCampaign: live?.campaignId,
       liveLabel: session ? `Live: S${session.number}` : undefined,
       liveName: session ? `Live: session ${session.number}` : undefined,
+      outputsLabel: outputsText,
       onAirBar: ON_AIR_BAR,
       history: api.history,
     };
-  }, [campaigns, live, api]);
+  }, [campaigns, live, api, outputsText]);
   return <ShellDataProvider value={value}>{children}</ShellDataProvider>;
 }
