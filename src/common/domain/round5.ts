@@ -197,15 +197,22 @@ export function profileKeysFor(place: UsePlace | null, playlistId: string | null
 /**
  * SFX-11: a board's pads after a resize. Pads fill the new grid left to right, top to bottom, in their reading order
  * on the old grid, followed by the spare pads in their order; only what does not fit goes to (or stays in) Spare pads.
- * `spilled` names the grid pads that had to move to Spare pads. The inputs are not changed, so the caller can keep
- * them for Undo.
+ * A spare pad the game master put there by hand (`isAside`) stays there however large the grid gets: only pads a
+ * resize moved come back (Nik, 5 Nov 2026). `spilled` names the grid pads that had to move to Spare pads; the new
+ * spare list is those first, then the old spare pads still left, in their order. The inputs are not changed, so the
+ * caller can keep them for Undo.
  */
-export function reflowBoard<P>(slots: (P | null)[], spare: P[], cols: number, rows: number): { slots: (P | null)[]; spare: P[]; spilled: P[] } {
+export function reflowBoard<P>(
+  slots: (P | null)[],
+  spare: P[],
+  cols: number,
+  rows: number,
+  isAside: (pad: P) => boolean = () => false,
+): { slots: (P | null)[]; spare: P[]; spilled: P[] } {
   const size = Math.max(1, Math.floor(cols)) * Math.max(1, Math.floor(rows));
   const onGrid = slots.filter((p): p is P => p !== null && p !== undefined);
-  const all = onGrid.concat(spare);
-  const next: (P | null)[] = all.slice(0, size);
+  const next: (P | null)[] = onGrid.concat(spare.filter((p) => !isAside(p))).slice(0, size);
   while (next.length < size) next.push(null);
-  const rest = all.slice(size);
-  return { slots: next, spare: rest, spilled: rest.filter((p) => onGrid.includes(p)) };
+  const spilled = onGrid.filter((p) => !next.includes(p));
+  return { slots: next, spare: spilled.concat(spare.filter((p) => !next.includes(p))), spilled };
 }

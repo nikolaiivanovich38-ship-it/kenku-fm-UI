@@ -23,10 +23,12 @@ const SCREENS = [
   ['backup-open', '#backup', click('[data-act=tfchoose]')],
   ['moved', '#moved', ''],
   ['relink', '#relink', click('[data-act=tflook]')],
+  ['bar-both', '#session--crown--s14', "var D = L.data, b1 = D.discord.bots[0], b2 = D.discord.bots[1]; b2.status = 'connected'; b2.server = b1.server; b2.channel = 'c2'; var m = D.tracks.filter(function (t) { return t.kind === 'music'; }); L.play(m[0].id, { lane: 'music', target: b1.id }); L.play(m[3].id, { lane: 'music', target: b2.id }); L.preview(m[5].id); L.pauseLane('music', b2.id);"],
+  ['bar-live-preview', '#live', "L.preview(L.data.tracks[5].id);"],
 ];
 const SIZES = [[960, 1000], [720, 900], [1920, 1080]];
 const THEMES = ['campaign', 'parchment'];
-const CONTRAST_SEL = '.tagstrip .chip, .shape-tag, .onairbar .oab-title, .onairbar .oab-from, .onairbar .num, .onairbar .badge, .tf-body .hint, .tf-body td, .tf-body b, .tf-how, .pb-trying, .pb-tryhint span, .cp-it-sub, .cp-scname-mark, .lb-scnames, .lb-missing span, .badge.warn, .menu .ord-note, .menu [role=menuitemradio] .hint';
+const CONTRAST_SEL = '.tagstrip .chip, .shape-tag, .dest, .onairbar .oab-title, .onairbar .oab-from, .onairbar .num, .onairbar .badge, .tf-body .hint, .tf-body td, .tf-body b, .tf-how, .pb-trying, .pb-tryhint span, .cp-it-sub, .cp-scname-mark, .lb-scnames, .lb-missing span, .badge.warn, .menu .ord-note, .menu [role=menuitemradio] .hint';
 
 (async () => {
   const b = await chromium.launch(process.env.LYRE_SPEC_CHROMIUM ? { executablePath: process.env.LYRE_SPEC_CHROMIUM } : {});

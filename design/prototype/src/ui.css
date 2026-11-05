@@ -219,22 +219,35 @@ table.grid tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 v
 .pk-row > .pk-item { flex: 1; border-bottom: 0; }
 .pk-row > .pk-item.indent { padding-left: 32px; }
 
-/* UX-16 the On air bar: the same bar at the bottom of every screen (Live included) while music plays or is paused. */
-.onairbar { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 10px; border-top: 2px solid var(--onair); background: var(--surface-2); flex: none; min-width: 0; container-type: inline-size; container-name: oab; }
-.onairbar.paused { border-top-color: var(--line-strong); }
-.onairbar.paused .badge.onair { background: transparent; color: var(--ink-2); border-color: var(--line-strong); }
-.onairbar a.btn { text-decoration: none; flex: none; }
-.oab-now { flex: 1 1 160px; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+/* UX-16 the Now playing bar: one row per room that plays and one for the preview, at the bottom of every screen while
+   anything plays or is paused (Live: the preview row only). Destination tags (.dest) are the same everywhere sound is
+   shown: On air (filled, broadcast icon) for the players, Only you (outlined, headphones) for a preview. */
+.dest { display: inline-flex; align-items: center; gap: 4px; flex: none; max-width: 18em; min-width: 0; padding: 1px 7px; border: 1px solid transparent; border-radius: 999px; font-size: var(--fs-xs); font-weight: 700; line-height: 1.5; white-space: nowrap; }
+.dest.air { background: var(--onair); color: var(--onair-ink); }
+.dest.you { background: transparent; color: var(--preview); border-color: var(--preview); }
+.dest.paused { background: transparent; color: var(--ink-2); border-color: var(--line-strong); }
+.onairbar { flex: none; min-width: 0; border-top: 1px solid var(--line-strong); background: var(--surface-2); container-type: inline-size; container-name: oab; }
+/* The rows share one grid (subgrid), so the tags, times, buttons and volumes line up from row to row. */
+.oab-rows { display: grid; grid-template-columns: [dest] max-content [now] minmax(0, 1fr) [time] minmax(70px, 150px) [ctl] max-content [vol] minmax(64px, 110px) [live] max-content; column-gap: 8px; }
+.oab-row { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; min-height: 44px; padding: 4px 10px 4px 12px; min-width: 0; box-shadow: inset 3px 0 0 var(--onair); }
+.oab-row + .oab-row { border-top: 1px solid var(--line); }
+.oab-row.you { box-shadow: inset 3px 0 0 var(--preview); }
+.oab-row.paused { box-shadow: inset 3px 0 0 var(--line-strong); }
+.oab-dest { grid-column: dest; display: flex; align-items: center; gap: 4px; min-width: 0; }
+.oab-dest .dest { min-width: 7.5em; }
+.oab-paused { flex: none; }
+.oab-now { grid-column: now; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .oab-title { font-weight: 700; font-size: var(--fs-s); display: flex; align-items: center; gap: 5px; min-width: 0; }
 .oab-title .lane-dot { flex: none; }
 .oab-from { font-size: var(--fs-xs); color: var(--ink-2); }
-.oab-time { flex: 0 1 150px; min-width: 70px; display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--ink-2); }
+.oab-time { grid-column: time; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--ink-2); }
 .oab-time .progress { flex: 1; min-width: 30px; }
-.oab-ctl { display: flex; align-items: center; gap: 4px; flex: none; }
-.oab-vol { display: flex; align-items: center; gap: 4px; flex: 0 1 110px; min-width: 64px; color: var(--ink-2); }
+.oab-ctl { grid-column: ctl; display: flex; align-items: center; gap: 4px; }
+.oab-vol { grid-column: vol; display: flex; align-items: center; gap: 4px; min-width: 0; color: var(--ink-2); }
 .oab-vol input { width: 100%; min-width: 0; }
-@container oab (max-width: 760px) { .oab-time { display: none; } }
-@container oab (max-width: 560px) { .oab-vol { display: none; } .onairbar > .badge { display: none; } }
+.onairbar a.btn { grid-column: live; text-decoration: none; }
+@container oab (max-width: 760px) { .oab-rows { grid-template-columns: [dest] max-content [now] minmax(0, 1fr) [time] 0 [ctl] max-content [vol] minmax(64px, 100px) [live] max-content; } .oab-time { display: none; } .oab-dest .dest { min-width: 0; } }
+@container oab (max-width: 560px) { .oab-rows { grid-template-columns: [dest] max-content [now] minmax(0, 1fr) [time] 0 [ctl] max-content [vol] 0 [live] max-content; } .oab-vol, .oab-paused { display: none; } }
 
 /* PLY-13 play order: one small button showing shuffle (or in order) and repeat (all, one, or struck through for none). */
 .btn.s.ord { padding: 0 4px; gap: 1px; flex: none; position: relative; }

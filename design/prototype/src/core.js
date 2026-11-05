@@ -521,7 +521,7 @@ var L = (function () {
   /* Preview: only you hear it. L.preview(trackId) toggles a track; L.previewPlaylist(pid) its first track (or an ambience
      playlist's first bed); L.previewPad(boardId, padId) a pad's sound. L.previewing(key) says whether that is the one
      playing (key = track id, 'pl:<pid>' or 'pad:<board>/<pad>'); L.previewLabel() names it. */
-  function startPreview(key, p) { if (pb.preview && pb.preview.key === key) { pb.preview = null; L.say('Preview stopped'); } else { p.key = key; p.vol = 1; pb.preview = p; L.say('Previewing in your headphones: ' + p.label); } L.changed(); }
+  function startPreview(key, p) { if (pb.preview && pb.preview.key === key) { pb.preview = null; L.say('Preview stopped'); } else { p.key = key; p.vol = 1; p.from = SCREEN_NAMES[String(curRoute || '').split('/')[1]] || ''; pb.preview = p; L.say('Previewing in your headphones: ' + p.label); } L.changed(); }
   L.preview = function (id) { startPreview(id, lane(id)); };
   L.previewPlaylist = function (pid) { var p = L.playlist(pid), t = L.playlistTracks(p)[0]; if (!t) { L.toast('This playlist has no tracks yet'); return; } var ln = lane(t.id, pid); ln.label = p.name + ': ' + L.title(t); startPreview('pl:' + pid, ln); };
   L.previewPad = function (boardId, padId) {
@@ -554,7 +554,7 @@ var L = (function () {
       });
     });
     pb.fx = pb.fx.filter(function (f) { f.pos += dt; if (f.fadeOut) { f.fadeOut -= dt; return f.fadeOut > 0; } return f.loop || f.pos < f.dur; });
-    if (pb.preview) { pb.preview.pos += dt; if (pb.preview.pos >= pb.preview.dur) pb.preview = null; moved = true; }
+    if (pb.preview && !pb.preview.paused) { pb.preview.pos += dt; if (pb.preview.pos >= pb.preview.dur) pb.preview = null; moved = true; }
     if (moved || pb.fx.length) L.tick();
   }, 250);
   /* PLY-13: what happens when a track from a playlist ends by itself, by its play order where it plays (the same rule
@@ -700,11 +700,25 @@ var L = (function () {
       paintProto(r, v, theme);
     } finally { rendering = false; }
   };
-  /* UX-16 the On air bar: one bar at the bottom of every screen, Live included, while music (or ambience) plays or is
-     paused; gone once it is stopped. It says what the players hear, where it comes from (the scene, the playlist, or
-     the session or campaign list it was started from) and how far it is, with Pause/Play, Stop, Next, the play order
-     of the playlist it comes from (PLY-13) and the volume of the table. In a scene it shows the scene's name for the
-     track (DAT-14), with the track's own name on hover. Live adds its own controls around it (the rooms' boxes). */
+  /* UX-16 the Now playing bar, and the destination tags used everywhere sound is shown (round 5, Nik's notes of
+     5 Nov 21:17 and 21:18). Every sound goes somewhere, and the tag says where in words, an icon and a colour:
+       On air  (filled, the on-air colour, broadcast icon)  the players hear it; with the room's name when there are
+                two or more rooms ("On air · Side room"), or "On air · no room" while no bot is in a voice channel.
+       Only you (outlined, the preview colour, headphones)  a preview: only the game master hears it.
+     L.destTag('air'|'you', roomName, paused) draws one; Live's room boxes and track badges use the same tags.
+     The bar sits at the bottom of every screen while anything plays or is paused, and goes when everything stops. It
+     has one row per room that is playing (music or ambience) and one row for the preview, so both can show at once.
+     A room row: the track (the scene's name for it, DAT-14, its own name on hover), where it comes from, the ambience
+     under it and how many effects sound there, the time, Pause/Play, Stop (that room), Next, the play order of the
+     playlist it comes from (PLY-13), that room's volume, and Go to Live (first row, outside Live). The preview row:
+     the track, where it was previewed from, the time, Pause/Play, Stop and the headphone volume.
+     In Live the room boxes show what each room hears, so the bar there has the preview row only. Effects alone do not
+     bring a row up (they are short): Play on air on an effect says "Effect on air: …". */
+  L.destTag = function (kind, room, paused) {
+    var you = kind === 'you', words = you ? 'Only you' : 'On air' + (room ? ' · ' + room : '');
+    return '<span class="dest ' + (you ? 'you' : 'air') + (paused ? ' paused' : '') + '" title="' + (you ? 'Only you hear this, in your headphones' : 'The players hear this' + (room ? ' in ' + esc(room) : '')) + '">' +
+      L.icon(you ? 'headphones' : 'broadcast', 's') + '<span class="ellipsis">' + esc(words) + '</span></span>';
+  };
   function originOf(c) {
     var key = L.lanePlace(c), kind = L.placeKind(key), p = c.playlistId && L.playlist(c.playlistId);
     if (kind === 'scene') return 'Scene: ' + L.placeLabel(key) + (p ? ' · ' + p.name : '');
@@ -712,30 +726,58 @@ var L = (function () {
     return 'Single track';
   }
   L.onAirOrigin = originOf;
-  function onAirBar(inLive) {
-    var m = pb.music, a = pb.amb, c = m || a; if (!c) return '';
-    var ln = m ? 'music' : 'amb', t = L.track(c.id), key = L.lanePlace(c), nm = L.nameIn(t, key), own = L.title(t), b0 = D.discord.bots[0];
-    var others = L.rooms().filter(function (r) { return !r.main && (r.mix.music || r.mix.amb); });
-    var canNext = !!(c.seq || c.playlistId), paused = !!c.paused, word = ln === 'music' ? 'music' : 'ambience';
-    return '<div class="onairbar' + (paused ? ' paused' : '') + '" role="region" aria-label="On air">' +
-      '<span class="badge onair">' + (paused ? 'Paused' : 'On air') + '</span>' +
-      '<div class="oab-now"><div class="oab-title ellipsis"' + (nm !== own ? ' title="Its own name: ' + esc(own) + '"' : ' title="' + esc(own) + '"') + '><span class="lane-dot ' + ln + '" aria-hidden="true"></span>' + esc(nm) +
+  var SCREEN_NAMES = { campaigns: 'Campaigns', campaign: 'the campaign page', session: 'the session planner', library: 'the Library', playlists: 'Playlists', playlist: 'the playlist', boards: 'Pad boards', board: 'the pad board', profile: 'the Audio profile', live: 'Live', outputs: 'Outputs', backup: 'Back up, move or share', moved: 'What came across', relink: 'Find missing files' };
+  L.previewVol = 80;
+  function roomRow(r, named, first, inLive) {
+    var m = r.mix, c = m.music || m.amb, ln = m.music ? 'music' : 'amb', target = r.main ? 'table' : r.id, pk = ln + (r.main ? '' : '@' + r.id);
+    var t = L.track(c.id), key = L.lanePlace(c), nm = L.nameIn(t, key), own = L.title(t), paused = !!c.paused, word = ln === 'music' ? 'music' : 'ambience';
+    var room = r.none ? 'no room' : named ? r.name : '', where = r.none ? '' : ' in ' + r.name, bot = r.bots && r.bots[0], fx = L.fxFor(target).length, k = 'oab-' + (r.main ? 't' : r.id);
+    var canNext = !!(c.seq || c.playlistId);
+    return '<div class="oab-row air' + (paused ? ' paused' : '') + '" role="group" aria-label="' + (paused ? 'Paused' : 'On air') + (room ? ': ' + esc(room) : '') + '">' +
+      '<span class="oab-dest">' + L.destTag('air', room, paused) + (paused ? '<span class="badge oab-paused">Paused</span>' : '') + '</span>' +
+      '<div class="oab-now"><div class="oab-title ellipsis" title="' + esc(nm !== own ? 'Its own name: ' + own : own) + '"><span class="lane-dot ' + ln + '" aria-hidden="true"></span><span class="ellipsis">' + esc(nm) + '</span>' +
         (nm !== own ? '<span class="sr-only"> (its own name: ' + esc(own) + ')</span>' : '') + '</div>' +
-        '<div class="oab-from ellipsis" title="' + esc(originOf(c)) + '">' + esc(originOf(c)) + (m && a ? ' · <span class="lane-dot amb" aria-hidden="true"></span>Ambience: ' + esc(L.title(L.track(a.id))) : '') +
-        (others.length ? ' · also playing in ' + esc(others.map(function (r) { return r.name; }).join(', ')) : '') + '</div></div>' +
-      '<div class="oab-time"><div class="progress ' + ln + '"><span data-progress="' + ln + '"></span></div><span class="num" data-time="' + ln + '"></span></div>' +
-      '<div class="oab-ctl" role="group" aria-label="Control what the players hear">' +
-        '<button class="btn s icon" data-act="oabpause" data-lane="' + ln + '" data-k="oab-pause" aria-label="' + (paused ? 'Play' : 'Pause') + '" title="' + (paused ? 'Play the ' + word + ' again' : 'Pause the ' + word) + '">' + L.icon(paused ? 'play' : 'pause', 's') + '</button>' +
-        '<button class="btn s" data-act="oabstop" data-k="oab-stop" title="Stop what the players hear (fades out in a second)">' + L.icon('stop', 's') + 'Stop</button>' +
-        '<button class="btn s icon" data-act="oabnext" data-lane="' + ln + '" data-k="oab-next" aria-label="Next" title="' + (canNext ? 'Next track (crossfade)' : 'A single track has no next one') + '"' + (canNext ? '' : ' disabled') + '>' + L.icon('next', 's') + '</button>' +
+        '<div class="oab-from ellipsis" title="' + esc(originOf(c)) + '">' + esc(originOf(c)) + (m.music && m.amb ? ' · <span class="lane-dot amb" aria-hidden="true"></span>Ambience: ' + esc(L.title(L.track(m.amb.id))) : '') +
+        (fx ? ' · ' + fx + ' effect' + (fx > 1 ? 's' : '') + ' sounding' : '') + (r.none ? ' · No bot is in a voice channel: only this computer plays it' : '') + '</div></div>' +
+      '<div class="oab-time"><div class="progress ' + ln + '"><span data-progress="' + pk + '"></span></div><span class="num" data-time="' + pk + '"></span></div>' +
+      '<div class="oab-ctl" role="group" aria-label="Control what the players hear' + esc(where) + '">' +
+        '<button class="btn s icon" data-act="oabpause" data-lane="' + ln + '" data-room="' + target + '" data-k="' + k + '-pause" aria-label="' + (paused ? 'Play' : 'Pause') + '" title="' + (paused ? 'Play the ' + word + ' again' : 'Pause the ' + word) + esc(where) + '">' + L.icon(paused ? 'play' : 'pause', 's') + '</button>' +
+        '<button class="btn s" data-act="oabstop" data-room="' + target + '" data-k="' + k + '-stop" title="Stop what the players hear' + esc(where) + ' (fades out in a second)">' + L.icon('stop', 's') + 'Stop</button>' +
+        '<button class="btn s icon" data-act="oabnext" data-lane="' + ln + '" data-room="' + target + '" data-k="' + k + '-next" aria-label="Next" title="' + (canNext ? 'Next track (crossfade)' : 'A single track has no next one') + '"' + (canNext ? '' : ' disabled') + '>' + L.icon('next', 's') + '</button>' +
         (c.playlistId && L.orderButton ? L.orderButton(c.playlistId, key) : '') + '</div>' +
-      '<label class="oab-vol" title="Volume of what the players hear in ' + esc(L.outputName(b0)) + '">' + L.icon('volume', 's') + '<span class="sr-only">Volume</span><input type="range" min="0" max="100" step="5" value="' + b0.volume + '" data-input="oabvol" data-k="oab-vol" aria-valuetext="' + b0.volume + ' percent"></label>' +
-      (inLive ? '' : '<a class="btn s" href="#/live" data-k="oab-live">' + L.icon('broadcast', 's') + 'Go to Live</a>') + '</div>';
+      (bot ? '<label class="oab-vol" title="Volume of what the players hear' + esc(where) + '">' + L.icon('volume', 's') + '<span class="sr-only">Volume' + esc(where) + '</span><input type="range" min="0" max="100" step="5" value="' + bot.volume + '" data-input="oabvol" data-bot="' + bot.id + '" data-k="' + k + '-vol" aria-valuetext="' + bot.volume + ' percent"></label>' : '') +
+      (first && !inLive ? '<a class="btn s" href="#/live" data-k="oab-live">' + L.icon('broadcast', 's') + 'Go to Live</a>' : '') + '</div>';
   }
-  L.acts.oabpause = function (el) { var ln = el.dataset.lane; L.pauseLane(ln); var c = pb[ln]; L.say(c && c.paused ? 'Paused' : 'Playing again'); };
-  L.acts.oabnext = function (el) { L.next(el.dataset.lane); };
-  L.inputs.oabvol = function (el, ev) { var b0 = D.discord.bots[0]; b0.volume = +el.value; el.setAttribute('aria-valuetext', b0.volume + ' percent'); if (ev.type === 'change') L.changed(); };
-  L.acts.oabstop = function () { L.fadeAll(1); };
+  function previewRow() {
+    var p = pb.preview, paused = !!p.paused, from = p.from ? 'Previewed from ' + p.from : 'Preview';
+    return '<div class="oab-row you' + (paused ? ' paused' : '') + '" role="group" aria-label="Only you' + (paused ? ': paused' : '') + '">' +
+      '<span class="oab-dest">' + L.destTag('you', '', paused) + (paused ? '<span class="badge oab-paused">Paused</span>' : '') + '</span>' +
+      '<div class="oab-now"><div class="oab-title ellipsis" title="' + esc(p.label) + '"><span class="lane-dot preview" aria-hidden="true"></span><span class="ellipsis">' + esc(p.label) + '</span></div>' +
+        '<div class="oab-from ellipsis" title="' + esc(from) + '">' + esc(from) + '</div></div>' +
+      '<div class="oab-time"><div class="progress preview"><span data-progress="preview"></span></div><span class="num" data-time="preview"></span></div>' +
+      '<div class="oab-ctl" role="group" aria-label="Control your preview">' +
+        '<button class="btn s icon" data-act="pvpause" data-k="oab-pv-pause" aria-label="' + (paused ? 'Play the preview' : 'Pause the preview') + '" title="' + (paused ? 'Play the preview again' : 'Pause the preview') + '">' + L.icon(paused ? 'play' : 'pause', 's') + '</button>' +
+        '<button class="btn s" data-act="pvstop" data-k="oab-pv-stop" aria-label="Stop the preview" title="Stop the preview">' + L.icon('stop', 's') + 'Stop</button></div>' +
+      '<label class="oab-vol" title="Volume in your headphones">' + L.icon('headphones', 's') + '<span class="sr-only">Headphone volume</span><input type="range" min="0" max="100" step="5" value="' + L.previewVol + '" data-input="pvvol" data-k="oab-pv-vol" aria-valuetext="' + L.previewVol + ' percent"></label></div>';
+  }
+  function onAirBar(inLive) {
+    var rows = [];
+    if (!inLive) {
+      var rs = L.rooms(), named = rs.length > 1;
+      if (!rs.length) rs = [{ id: 'table', name: '', mix: pb, main: true, none: true }];
+      rs.filter(function (r) { return r.mix.music || r.mix.amb; }).forEach(function (r, i) { rows.push(roomRow(r, named, i === 0, inLive)); });
+    }
+    if (pb.preview) rows.push(previewRow());
+    if (!rows.length) return '';
+    return '<div class="onairbar" role="region" aria-label="Now playing"><div class="oab-rows">' + rows.join('') + '</div></div>';
+  }
+  L.acts.oabpause = function (el) { var ln = el.dataset.lane, rm = el.dataset.room; L.pauseLane(ln, rm); var c = L.mix(rm)[ln]; L.say(c && c.paused ? 'Paused' : 'Playing again'); };
+  L.acts.oabnext = function (el) { L.next(el.dataset.lane, el.dataset.room); };
+  L.inputs.oabvol = function (el, ev) { var b = L.bot(el.dataset.bot) || D.discord.bots[0]; b.volume = +el.value; el.setAttribute('aria-valuetext', b.volume + ' percent'); if (ev.type === 'change') L.changed(); };
+  L.acts.oabstop = function (el) { var rm = el.dataset.room; L.stopLane('music', 1, rm); L.stopLane('amb', 1, rm); L.say('Stopped'); };
+  L.acts.pvpause = function () { if (pb.preview) { pb.preview.paused = !pb.preview.paused; L.say(pb.preview.paused ? 'Preview paused' : 'Preview playing again'); L.changed(); } };
+  L.acts.pvstop = function () { L.stopPreview(); L.say('Preview stopped'); };
+  L.inputs.pvvol = function (el, ev) { L.previewVol = +el.value; el.setAttribute('aria-valuetext', L.previewVol + ' percent'); if (ev.type === 'change') L.changed(); };
 
   /* Undo for changes that remove or reset much at once (w3-ux 10): Reset to whole track, Delete board, Delete scene,
      Tag… on many tracks. Like the board's resize message: what happened, Undo, and a close button; Ctrl+Z also

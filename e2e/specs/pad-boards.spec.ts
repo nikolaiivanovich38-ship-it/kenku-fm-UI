@@ -115,7 +115,7 @@ test.describe("resizing a board: spare pads", () => {
     await expect(pads(page)).toHaveCount(8);
   });
 
-  // Changed in round 5 (SFX-11): the larger grid also takes the board's spare pad (Mugs clink), so 9 slots are used, not 8.
+  // Round 5 (SFX-11): Mugs clink was put in Spare pads by hand, so it stays there however large the grid gets (8 of 24).
   test("the quick sizes set columns and rows at once, and the current size is pressed", async ({ page }) => {
     expectFailureUntilBuilt("round 5");
     await openRoute(page, "board/weather");
@@ -123,8 +123,9 @@ test.describe("resizing a board: spare pads", () => {
     await expect(quick.getByRole("button", { name: "4 columns by 2 rows" })).toHaveAttribute("aria-pressed", "true");
     await quick.getByRole("button", { name: "6 columns by 4 rows" }).click();
     await expect(padGrid(page)).toHaveAccessibleName("Pads, 6 columns by 4 rows");
-    await expect(page.getByText("9 of 24 slots used")).toBeVisible();
-    await expect(pad(page, "Mugs clink")).toHaveAccessibleName(/row 2, column 3$/);
+    await expect(page.getByText("8 of 24 slots used")).toBeVisible();
+    await expect(page.getByText(/Mugs clink stays in Spare pads, where you put it\./).first()).toBeVisible();
+    await expect(spare(page).getByRole("button", { name: /^Mugs clink/ })).toBeVisible();
   });
 
   test("the editor says why spare pads exist", async ({ page }) => {

@@ -88,7 +88,7 @@
       '<div class="pl-namecell">' + L.expanderButton(xk, p.name) +
         '<span class="pl-kicon" aria-hidden="true">' + L.icon(k.icon, 's') + '</span><span class="lane-dot ' + p.lane + '" aria-hidden="true"></span>' +
         '<a href="#/playlist/' + p.id + '" data-k="open-' + p.id + '" class="ellipsis pl-nm">' + esc(p.name || 'Untitled playlist') + '<span class="sr-only">, ' + k.name + ', ' + laneName(p.lane) + ', ' + (uses.length ? 'used in ' + usedText(uses) : 'not used yet') + '</span></a>' +
-        (playlistOnAir(p) ? '<span class="badge onair">On air</span>' : '') + '</div>' +
+        (playlistOnAir(p) ? L.destTag('air', '') : '') + '</div>' +
       '<div class="num pl-c" aria-label="' + plural(tracks.length, 'track') + '">' + tracks.length + '</div>' +
       '<div class="num pl-c muted" aria-label="Length ' + len + '">' + len + '</div>' +
       '<div class="pl-racts">' + L.previewButton('playlist', p.id) + L.playOnAirButton('playlist', p.id) + L.orderButton(p.id, '') + moreBtn('more-' + p.id, p.name, 'plrowmore', 'data-id="' + p.id + '"') + '</div></div>' +
@@ -150,7 +150,7 @@
       (o.manual ? '<span class="pl-grip" title="Drag to change the order" aria-hidden="true">' + L.icon('drag') + '</span><span class="pl-pos num">' + o.pos + '</span>' : '') +
       '<div class="pl-tline"><a class="pl-tname" href="#/library/' + t.id + '" data-k="' + p + 'tl-' + t.id + '" title="' + esc(trackTip(t)) + '">' + esc(L.title(t)) + '</a>' +
         (own ? '<span class="pl-own" title="Has its own audio profile in this playlist"><span class="pl-own-dot" aria-hidden="true"></span><span class="sr-only">Own audio profile in this playlist</span></span>' : '') +
-        (air ? '<span class="badge onair">On air</span>' : '') +
+        (air ? L.destTag('air', '') : '') + (pv ? L.destTag('you', '') : '') +
         (L.isFx(t) ? '<span class="chip"><span class="lane-dot fx"></span>' + (t.kind === 'fx' ? 'FX' : 'FX · Sting') + '</span>' : '') + '</div>' +
       '<span class="num muted pl-dur">' + L.fmt(t.dur) + '</span><span class="pl-tacts">' + acts + '</span></li>';
   }
@@ -276,7 +276,7 @@
       '<button class="closer" data-act="plrename" data-k="plrename" title="Rename" aria-label="Rename this playlist">' + L.icon('edit') + '</button>' +
       '<span class="pl-headchips">' + kindLane(pl) + '</span>' +
       '<span class="grow"></span>' +
-      (air ? '<span class="badge onair" title="Playing from this playlist">On air</span>' : '') +
+      (air ? L.destTag('air', '') : '') +
       '<button class="btn pl-pvbtn" data-act="plpreview" data-k="plpreview" aria-pressed="' + !!pv + '"' + (first ? '' : ' disabled') + ' title="' + (pv ? 'Stop the preview' : 'Play the first track in your headphones only') + '">' + L.icon(pv ? 'stop' : 'headphones', 's') + (pv ? 'Stop preview' : 'Preview') + '</button>' +
       '<button class="btn" data-act="plair" data-k="plair"' + (first ? '' : ' disabled') + ' title="Start the first track for the players">' + L.icon('broadcast', 's') + 'Play on air</button>' + L.orderButton(pl.id, '') +
       '<button class="btn" data-act="pluse" data-id="' + pl.id + '" data-k="pluse1">' + L.icon('link', 's') + 'Use in…</button></div>' +

@@ -87,17 +87,20 @@
     } else if (emptyCount(b)) {
       text = 'Grid is now ' + nc + ' × ' + nr + ': ' + plural(emptyCount(b), 'empty slot') + ' to fill.';
     }
+    var stayed = r.spare.filter(function (p) { return p.aside; });
+    if (stayed.length && !moved.length && r.slots.indexOf(null) > -1) text += ' ' + stayed.map(function (x) { return x.label; }).join(', ') + (stayed.length > 1 ? ' stay' : ' stays') + ' in Spare pads, where you put ' + (stayed.length > 1 ? 'them' : 'it') + '.';
     ui.msg = { bid: b.id, text: text, undo: snap };
     var f = ui.focus[b.id] || 0; if (f >= nc * nr) ui.focus[b.id] = 0;
     L.say(text); L.render();
   }
   // SFX-11, the same rule as reflowBoard in src/common/domain/round5.ts: the grid's pads in reading order, then the spare
   // pads, fill the new grid; what does not fit goes to Spare pads. The old lists are left as they are, for Undo.
+  // A pad the game master put in Spare pads by hand (p.aside) stays there; only pads a resize moved come back (Nik, 5 Nov).
   function reflow(slots, spare, cols, rows) {
-    var size = Math.max(1, cols) * Math.max(1, rows), onGrid = slots.filter(Boolean), all = onGrid.concat(spare), next = all.slice(0, size);
+    var size = Math.max(1, cols) * Math.max(1, rows), onGrid = slots.filter(Boolean), all = onGrid.concat(spare.filter(function (p) { return !p.aside; })), next = all.slice(0, size);
     while (next.length < size) next.push(null);
-    var rest = all.slice(size);
-    return { slots: next, spare: rest, spilled: rest.filter(function (p) { return onGrid.indexOf(p) > -1; }) };
+    var spilled = onGrid.filter(function (p) { return next.indexOf(p) < 0; });
+    return { slots: next, spare: spilled.concat(spare.filter(function (p) { return next.indexOf(p) < 0; })), spilled: spilled };
   }
   // to: 'spare' or 'slot:<i>'. Moving onto a pad swaps the two.
   function moveTo(b, pid, to) {
@@ -105,7 +108,7 @@
     var p = at.pad, msg;
     if (to === 'spare') {
       if (at.where === 'spare') return;
-      b.slots[at.i] = null; b.spare.push(p); msg = p.label + ' moved to Spare pads';
+      b.slots[at.i] = null; p.aside = true; b.spare.push(p); msg = p.label + ' moved to Spare pads';
       L.state.panes['pb-spare'] = 'o';
     } else {
       var j = +to.split(':')[1], other = b.slots[j];
@@ -114,8 +117,8 @@
         b.slots[j] = p; b.slots[at.i] = other;
         ui.focus[b.id] = j;
       } else {
-        b.spare.splice(at.i, 1); b.slots[j] = p;
-        if (other) b.spare.splice(at.i, 0, other);
+        b.spare.splice(at.i, 1); b.slots[j] = p; delete p.aside;
+        if (other) { other.aside = true; b.spare.splice(at.i, 0, other); }
         ui.focus[b.id] = j;
       }
       msg = p.label + ' moved to ' + place(b, j) + (other ? ', swapped with ' + other.label + (at.where === 'spare' ? ', which went to Spare pads' : '') : '');
@@ -371,7 +374,7 @@
     var body = '<div class="pb-ed-body" ' + swatch(p) + '>' +
       '<div class="pb-testrow"><button class="btn pb-prev" data-act="pbpreview" data-k="pb-prev" aria-pressed="' + previewing(b, p) + '" title="Only you hear it">' + L.icon(previewing(b, p) ? 'stop' : 'headphones', 's') + (previewing(b, p) ? 'Stop preview' : 'Preview') + '</button>' +
       '<button class="btn" data-act="pbtest" data-k="pb-test" aria-pressed="' + on + '" title="The players hear it">' + L.icon(on && p.mode === 'toggle' ? 'stop' : 'broadcast', 's') + (on && p.mode === 'toggle' ? 'Stop on air' : 'Play on air') + '</button>' +
-      (on ? '<span class="badge onair">On air</span>' : '') + '</div>' +
+      (on ? L.destTag('air', '') : '') + '</div>' +
       '<div class="field"><label for="pb-label">Label</label><input id="pb-label" class="input" data-input="pblabel" data-k="pb-label" value="' + esc(p.label) + '"></div>' +
       soundEditor(p) +
       fieldset('Play mode', '<div class="pb-modes" role="group" aria-label="Play mode">' + ['oneshot', 'toggle', 'hold', 'retrigger'].map(function (m) {

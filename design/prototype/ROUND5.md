@@ -32,7 +32,7 @@ they wait for wave 4 (`expectFailureUntilBuilt("round 5")`, docs/testing.md).
   repeats in Session 14's list; "Combat: big and loopable" is shuffled everywhere (its own order); ambience playlists
   repeat all.
 
-## The On air bar (UX-16)
+## The Now playing bar and destination tags (UX-16)
 
 > "No volume controls in the now playing tab on the prep menus"
 >
@@ -40,16 +40,40 @@ they wait for wave 4 (`expectFailureUntilBuilt("round 5")`, docs/testing.md).
 > origin and controls at the bottom of the screen, and it shouldn't be there when music isn't playing, unless the
 > music is paused rather than stopped"
 
-- One **On air** bar at the bottom of every screen, Live included, while music (or ambience) plays or is paused. It
-  goes once stopped. Paused, its badge reads **Paused** and its red edge goes grey.
-- It shows the track (with the scene's name for it, its own name on hover), **where it comes from** ("Scene: The
-  abbey ruins (Session 14) · Abbey: eerie, low energy", "Playlist: The Company themes · The Sunken Crown", "Single
-  track"), the ambience under it, other rooms that are playing, and the time.
-- Controls: **Pause / Play**, **Stop**, **Next**, the playlist's **play order** for where it plays from, a **Volume**
-  slider (the table room's volume, the same as Live's room slider), and **Go to Live** outside Live. In Live the
-  rooms' On air boxes stay as Live's own controls around it.
-- Effects alone do not bring the bar up (they are short); Play on air on an effect says "Effect on air: …".
-- At narrow widths the time and then the volume fold away first.
+After reviewing the first round 5 prototype (5 Nov, 21:17 and 21:18):
+
+> "In your design prototype the now playing bar only works in the live view, not in the prep view, and the now playing
+> bar should have clear indications what is playing and whether it is through the live output or to me - and I should
+> be able to have /both/ playing. It's a universal bar that appears when any music is playing. When I have two outputs
+> going it should show both, clearly indicating which output each is going to."
+>
+> "It's actually a lot less necessary in live than it is in prep, because in live I have the outputs view - the only
+> thing it's necessary for in live is stuff played only to me in my headphones, the preview sounds. But we should come
+> up with a universal design language for it."
+
+The first version showed only what the players heard, so a preview, most of what happens in prep, never brought it up.
+
+- **Destination tags, the same everywhere sound is shown** (rule `L.destTag` in the prototype): every sound says where
+  it goes, in words, with an icon and a colour, never by colour alone.
+  - **On air**: filled in the on-air colour, broadcast icon: the players hear it. With two or more rooms it names the
+    room ("On air · Side room"); with no bot in a voice channel, "On air · no room" and "only this computer plays it".
+  - **Only you**: outlined in the preview colour, headphones icon: a preview, only you hear it.
+  - Paused, a tag turns grey and a **Paused** badge stands beside it.
+  - The tags replace the old red "On air" badges in the Library, Playlists, pad boards, the Audio profile and Live's
+    lists, and a row being previewed shows **Only you** too. Look and feel lists both.
+- **The Now playing bar** sits at the bottom of every screen while anything plays or is paused and goes when
+  everything stops. It has one row per room that is playing (music or ambience) and one row for the preview, so a
+  preview and music on air show together, as do two rooms. The rows share one grid, so their parts line up.
+  - A room row: the On air tag, the track (the scene's name for it, its own name on hover), **where it comes from**
+    ("Scene: The abbey ruins (Session 14) · Abbey: eerie, low energy", "Playlist: The Company themes · The Sunken
+    Crown", "Single track"), the ambience under it and how many effects sound in that room, the time, **Pause/Play**,
+    **Stop** (that room only), **Next**, the playlist's **play order** for where it plays from, that room's
+    **Volume** (the same as Live's room slider), and **Go to Live** on the first row.
+  - The preview row: the Only you tag, the track, where it was previewed from ("Previewed from the session planner"),
+    the time, **Pause/Play**, **Stop** and the **headphone volume**.
+  - **In Live** the On air boxes show what each room hears, so the bar there has the preview row only.
+- Effects alone do not bring up a row (they are short); Play on air on an effect says "Effect on air: …".
+- At narrow widths the time folds away first, then the volumes and the Paused badge (the tag still turns grey).
 
 ## Single tracks from a playlist in the picker (ORG-10)
 
@@ -144,7 +168,8 @@ they wait for wave 4 (`expectFailureUntilBuilt("round 5")`, docs/testing.md).
 - After any resize the pads fill the grid left to right, top to bottom, in their order, followed by the spare pads;
   only pads that do not fit go to Spare pads. The message says what happened ("Grid is now 4 × 1 and full. 4 pads
   moved to Spare pads: …. Nothing was deleted." or "2 spare pads came back onto it: …"), with **Undo**. Rule
-  `reflowBoard`. Gaps close; a pad put aside by hand comes back when there is room (see question 2 below).
+  `reflowBoard`. Gaps close. A pad you put in Spare pads by hand stays there however large the grid gets, and the
+  message says so ("Mugs clink stays in Spare pads, where you put it."); only pads a resize moved come back (question 2).
 
 ## Trying a pad (SFX-12)
 
@@ -176,26 +201,21 @@ Reached from the ⋯ beside Add tracks in the Library, and from links on the scr
   **Missing** filter. Samples: three files moved (t19, t26, t37).
 
 ## Words added
-Play order, Shuffle, No repeat, Repeat all, Repeat one, Use the playlist's own order here; Paused; Volume; Single
+Play order, Shuffle, No repeat, Repeat all, Repeat one, Use the playlist's own order here; Now playing, On air · <room>,
+Only you, Previewed from …, Headphone volume; Paused; Volume; Single
 track; Shape, Steady, Builds, Falls away, Peaks then falls, Rises and falls, Suggested by Lyre; Name in this scene,
 Names in scenes; Waveform, end and fades in this scene, Back to <scene>, Session list; Try pads, Trying, Sounding;
 Back up, move or share, Save to a file, Include the audio files, Open a file, Bring in, Skip, Merge, Keep both;
 What came across from Kenku FM, Not brought across; Find missing files, Look in a folder, How sure, Relink; Missing.
 
-## Questions for Nik
+## Decisions (Nik approved round 5 on 5 Nov 2026, 21:33)
 
-1. **Previews in the On air bar.** The bar shows only what the players hear. A preview (headphones) shows only in the
-   row it was started from. Recommended: the bar also shows a preview on a second, violet line ("Only you: …", with
-   Stop), so one bar answers "what is playing" wherever you are; BUG-12 came from a preview that seemed to vanish.
-2. **Resizing a board.** The prototype packs the pads left to right, top to bottom, closing any gaps, and brings back
-   every spare pad when there is room, also one you put aside by hand. Recommended: keep the packing, but leave pads
-   you put aside by hand in Spare pads; only pads a resize pushed out come back. A pad shelved on purpose should not
-   reappear on its own.
-3. **Repeat all in a scene.** With Repeat all, the scene stays on that playlist until you press Next past it.
-   Recommended: keep this; it is what Repeat all means, and No repeat (the default in a scene) moves the scene on.
-4. **Shape suggestions.** Lyre suggests a shape for every track from its loudness, marked "Suggested by Lyre", and
-   your choice replaces it. Recommended: keep suggestions on, since the Shape filter and rules find nothing in a
-   library nobody has marked by hand. The alternative is shapes only where you choose one.
+1. **Previews in the bar**: the Now playing bar shows previews and music on air together, each tagged with where it
+   goes (UX-16, above).
+2. **Resizing a board**: pads pack left to right, top to bottom; a pad put in Spare pads by hand stays there; only pads
+   a resize moved come back (SFX-11, rule `reflowBoard` with `isAside`).
+3. **Repeat all in a scene** keeps the scene on that playlist until Next; No repeat, the default in a scene, moves on.
+4. **Shape suggestions** stay on, marked "Suggested by Lyre"; your choice replaces the suggestion.
 
 ## What to look at (about 15 minutes)
 
@@ -204,8 +224,10 @@ Open `design/prototype/lyre-prototype.html`. Campaigns › The Sunken Crown › 
   energy" (it has its own order here only); Add tracks or playlists…, open a playlist with its arrow and tick one track.
 - Scene 6, Aftermath: "Dawn over the abbey" is the scene's name for a track (hover for its own); ⋯ › Name in this
   scene…; the wave button opens the Audio profile on this scene's settings, and Back to Aftermath returns.
-- Play on air on any playlist, then move between screens: the On air bar stays, with Pause, Stop, Next, play order and
-  Volume; Pause turns it grey, Stop removes it.
+- Campaign page: Play on air on one playlist and Preview on another: the Now playing bar shows an On air row and an
+  Only you row, each with its own Stop and volume; move between screens and both stay; Pause turns a row grey. In
+  Live, add a room and play into it: back on a prep screen the bar has a row per room, each named. In Live itself the
+  bar shows only your preview.
 - Library: a track's details (Shape, Names in scenes, Use in…); Filters › Shape and Missing; ⋯ beside Add tracks ›
   Back up, move or share, What came across from Kenku FM, Find missing files.
 - Playlists › a dynamic playlist: Details at the top, with the rules.

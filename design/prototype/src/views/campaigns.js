@@ -331,7 +331,7 @@
     title: function (p) { var c = L.campaign(p.cid); return c ? c.name : 'Campaign'; },
     notesTitle: 'Campaign page: sessions and what stays on hand',
     notes: [
-      '<b>Round 5:</b> each campaign playlist has its <b>play order</b> button (shuffle, repeat all, repeat one); a choice made here applies only when it plays from this campaign. Single tracks kept on hand for the whole campaign (<b>Use in…</b> on a track) are listed under the playlists. Play on air shows the <b>On air</b> bar at the bottom, with Pause, Stop, Next, the play order and the volume.',
+      '<b>Round 5:</b> each campaign playlist has its <b>play order</b> button (shuffle, repeat all, repeat one); a choice made here applies only when it plays from this campaign. Single tracks kept on hand for the whole campaign (<b>Use in…</b> on a track) are listed under the playlists. Anything playing shows in the <b>Now playing</b> bar at the bottom, one row for each room the players hear (tagged <b>On air</b>, with Pause, Stop, Next, the play order and the room\'s volume) and one for your preview (tagged <b>Only you</b>, with its own volume). Try Preview and Play on air together.',
       '<b>Prep | Live</b> sits next to Run in the header: switch to Live and back without leaving the campaign. <b>Run next session</b> is still there.',
       'Every session now has a <b>Run</b> button, so you can run a played session again. The next session\'s is the coloured one; the others are plain grey.',
       '<b>Campaign playlists</b> and <b>Campaign pad boards</b>: each row has Preview (only you hear it), Play on air for playlists, and an arrow that shows the tracks or pads inside (closed until you open it). Pickers have the same.',
@@ -497,7 +497,7 @@
   L.acts.cpname = function (el) {
     var x = findScene(el.dataset.sc), t = L.track(el.dataset.id); if (!x || !t) return; var key = sceneKey(x.sc);
     L.sheet({ title: 'Name in this scene', body: '<div class="field"><label for="cp-nmin">Name in "' + esc(x.sc.name) + '"</label><input class="input" id="cp-nmin" data-k="cp-nmin" value="' + esc(L.sceneNameOf(t, key)) + '" placeholder="' + esc(L.title(t)) + '" autocomplete="off"></div>' +
-      '<p class="hint" style="margin-top:6px">Shown in this scene, in Live and in the On air bar. Everywhere else it keeps its own name: <b>' + esc(L.title(t)) + '</b>. Leave it empty to use its own name here too.</p>',
+      '<p class="hint" style="margin-top:6px">Shown in this scene, in Live and in the Now playing bar. Everywhere else it keeps its own name: <b>' + esc(L.title(t)) + '</b>. Leave it empty to use its own name here too.</p>',
       footer: '<button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="cpnamesave" data-sc="' + x.sc.id + '" data-id="' + t.id + '">Save</button>' });
   };
   L.acts.cpnamesave = function (el) {

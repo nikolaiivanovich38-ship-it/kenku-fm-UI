@@ -155,7 +155,7 @@ test.describe("listening while you set it", () => {
   test("Play on air sends the track to the players with these settings", async ({ page }) => {
     await openRoute(page, "profile/t13");
     await wave(page).getByRole("button", { name: "Play on air" }).click();
-    await expect(page.getByRole("region", { name: "On air", exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: /^(On air|Now playing)$/ })).toBeVisible();
   });
 });
 

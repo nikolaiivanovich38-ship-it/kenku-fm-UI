@@ -219,6 +219,12 @@ describe("SFX-11 resizing a board fills the grid first", () => {
   it("a size below one slot is treated as one", () => {
     expect(reflowBoard([A, B], [], 0, 0)).toEqual({ slots: [A], spare: [B], spilled: [B] });
   });
+
+  it("a pad put in Spare pads by hand stays there when the grid grows; pads a resize moved come back (Nik, 5 Nov)", () => {
+    const byHand = (p: string) => p === D;
+    expect(reflowBoard([A, B], [C, D, E], 3, 2, byHand)).toEqual({ slots: [A, B, C, E, null, null], spare: [D], spilled: [] });
+    expect(reflowBoard([A, B, C], [D], 2, 1, byHand)).toEqual({ slots: [A, B], spare: [C, D], spilled: [C] });
+  });
 });
 
 describe("ORG-12 a track can be used in campaigns and sessions, not only scenes", () => {

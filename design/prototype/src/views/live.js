@@ -225,7 +225,7 @@
     return '<div class="lv-top"><h1 class="sr-only">Live</h1>' + L.modeSwitch(c.id) +
       '<button class="lv-sess" data-act="lvsessmenu" data-k="lv-sess" aria-haspopup="menu" aria-expanded="false" title="Loaded: ' + esc(c.name + ' › Session ' + s.n + ': ' + s.name) + '. Choose another session">' +
         L.icon('crown', 's') + '<span class="lv-sess-c">' + esc(c.name) + '</span><span class="lv-sess-sep" aria-hidden="true">›</span><span class="lv-sess-s">Session ' + s.n + ': ' + esc(s.name) + '</span>' + L.icon('chevdown', 's') + '</button>' +
-      (rooms().length ? '' : noBotWarning()) + previewLine() +
+      (rooms().length ? '' : noBotWarning()) +
       '<span class="grow"></span>' +
       '<button class="btn s" data-act="lvfade" data-k="lv-fade" title="Fade everything out over 3 seconds (Shift+Esc)" aria-keyshortcuts="Shift+Escape" aria-label="Fade all">' + L.icon('fade', 's') + '<span class="lv-btxt">Fade all</span></button>' +
       '<button class="btn s danger" data-act="lvstop" data-k="lv-stop" title="Stop everything at once" aria-label="Stop all">' + L.icon('stop', 's') + '<span class="lv-btxt">Stop all</span></button>' +
@@ -274,14 +274,11 @@
       '<span class="faint">To:</span><b class="ellipsis">' + esc(n.charAt(0).toUpperCase() + n.slice(1)) + '</b>' + L.icon('chevdown', 's') + '</button>';
   }
   function eachTo(box, fn) { targetsOf(box).forEach(fn); }
-  function previewLine() {
-    var pv = pb.preview ? L.previewLabel() : '';
-    return pv ? '<span class="lv-send-pv" title="Only you hear this">' + L.icon('headphones', 's') + '<span class="ellipsis">' + esc(pv) + '</span><button class="closer" data-act="lvpvstop" data-k="lv-pvstop" title="Stop the preview" aria-label="Stop the preview">' + L.icon('stop') + '</button></span>' : '';
-  }
+  // A preview (only you hear it) shows in the Now playing bar at the bottom, the one place for it on every screen.
   function airBadge(t) {
     var where = rooms().filter(function (r) { var m = r.mix; return (m.music && m.music.id === t.id) || (m.amb && m.amb.id === t.id); }).map(function (r) { return r.name; });
     if (!where.length && pb.music && pb.music.id === t.id) where = ['Table'];
-    return '<span class="badge onair" title="On air in ' + esc(where.join(' and ')) + '">On air' + (rooms().length > 1 && where.length === 1 ? ': ' + esc(where[0]) : '') + '</span>';
+    return L.destTag('air', rooms().length > 1 ? where.join(' and ') : '');
   }
   function noBotWarning() {
     var b = L.bots().filter(function (x) { return x.status !== 'connecting'; })[0] || L.bots()[0], best = busiestChannel(), joining = L.bots().some(function (x) { return x.status === 'connecting'; });
@@ -417,7 +414,7 @@
       var at = on ? q[here.at] : null, k = 'lv-sc' + i + '-' + p.id;
       return '<li class="lv-pli' + (on ? ' on' : '') + '"><div class="lv-trk-r">' +
         '<span class="num lv-num" aria-hidden="true">' + (i + 1) + '</span>' + L.expanderButton(xk, p.name, open) +
-        (on || rooms().some(function (r) { return r.mix.music && r.mix.music.playlistId === p.id; }) ? '<span class="badge onair">On air</span>' : '') + L.icon('playlist', 's lv-pli-i') +
+        (on || rooms().some(function (r) { return r.mix.music && r.mix.music.playlistId === p.id; }) ? L.destTag('air', '') : '') + L.icon('playlist', 's lv-pli-i') +
         '<span class="lv-pli-n"><b class="ellipsis" title="' + esc(p.name) + '">' + esc(p.name) + '</b><span class="faint ellipsis">' + (p.kind === 'dynamic' ? 'Dynamic' : 'Manual') + ' · ' + ts.length + ' tracks' +
           (at ? ' · playing ' + (ts.map(function (t) { return t.id; }).indexOf(at.trackId) + 1) + ' of ' + ts.length : '') + '</span></span>' +
         '<span class="lv-trk-acts">' +
@@ -547,7 +544,7 @@
     nav: 'live',
     notesTitle: 'Live: what changed since round 1',
     notes: [
-      '<b>Round 5:</b> the <b>On air bar</b> at the bottom is the same as on every other screen (it shows while music plays or is paused); the boxes here add the rooms. Scenes show their <b>names for tracks</b> (start Aftermath), each playlist has its <b>play order</b> for this scene, session or campaign, and the session\'s and campaign\'s <b>single tracks</b> are in their menus.',
+      '<b>Round 5:</b> the On air boxes show what each room hears, so the <b>Now playing bar</b> at the bottom shows only your <b>preview</b> here (tagged <b>Only you</b>). On every other screen it also has a row for each room that is playing, tagged <b>On air</b> with the room\'s name. Scenes show their <b>names for tracks</b> (start Aftermath), each playlist has its <b>play order</b> for this scene, session or campaign, and the session\'s and campaign\'s <b>single tracks</b> are in their menus.',
       '<b>Rooms.</b> Every bot in a Discord voice channel is a room with its own On air box. When there is more than one room, Scene music, Off script and Pads each show <b>To: Table ▾</b> in their header: what you play from that box goes to that room (or all rooms); scenes always play in the first room.',
       '<b>Scene music is at the top</b>, above the On air boxes. Open a playlist with its arrow and the box grows; the whole page scrolls.',
       '<b>Less on screen.</b> Each box has one job, a coloured edge for its kind and at most one status in its header. Red “On air” marks what players hear, everywhere. Rows show one line and the length that will actually play; tags and energy appear on the playing or opened row.',

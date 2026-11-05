@@ -165,7 +165,7 @@
     list.forEach(function (t) {
       var sel = st.sel.indexOf(t.id) > -1, open = t.id === openId;
       var own = t.title, meta = t.metaTitle, shown = own || meta || t.file;
-      var air = onAirNow(t) ? '<span class="badge onair lb-air">On air</span>' : '';
+      var air = (onAirNow(t) ? L.destTag('air', '') : '') + (L.previewing(t.id) ? L.destTag('you', '') : '');
       var tip = (own ? '' : 'No title of your own yet. ') + (meta && meta !== own ? 'In the file: ' + meta + '. ' : '') + t.artist + (t.album ? ', ' + t.album : '');
       h += '<tr data-tid="' + t.id + '" data-act="lbopen" data-k="lbrow-' + t.id + '" tabindex="' + (t.id === st.cursor ? 0 : -1) + '" aria-selected="' + sel + '"' + (open ? ' class="lb-open" aria-current="true"' : '') + '>' +
         '<td class="lb-c-ck" data-act="lbsel" data-tid="' + t.id + '"><span class="lb-ckl"><input type="checkbox" tabindex="-1" aria-label="Select ' + esc(L.title(t)) + '"' + (sel ? ' checked' : '') + '></span></td>' +

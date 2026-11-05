@@ -64,7 +64,7 @@ test.describe("all playlists", () => {
     await row.getByRole("button", { name: "Preview The Company themes" }).click();
     await expect(row.getByRole("button", { name: "Stop preview of The Company themes" })).toHaveAttribute("aria-pressed", "true");
     await row.getByRole("button", { name: "Play on air: The Company themes" }).click();
-    await expect(page.getByRole("region", { name: "On air", exact: true })).toContainText("Epic choir hero anthem");
+    await expect(page.getByRole("region", { name: /^(On air|Now playing)$/ })).toContainText("Epic choir hero anthem");
   });
 
   test("a row's menu offers Open and Use in…, and no Duplicate", async ({ page }) => {

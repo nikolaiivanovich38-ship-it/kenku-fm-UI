@@ -158,7 +158,7 @@ var LYRE_DATA = (function () {
       P('heal', 'Healing word', 'heart', 'moss', 'e', 'oneshot', ['heal_chime_soft.wav']), P('roar', 'Monster roar', 'claw', 'plum', 'r', 'oneshot', v('roar', 6)),
       P('bones', 'Skeletons rattle', 'skull', 'bone', 'a', 'hold', v('bones_rattle', 4)), P('drums', 'War drums', 'drum', 'ember', 's', 'toggle', ['war_drums_loop.wav']),
       P('horn', 'Retreat horn', 'horn', 'gold', 'd', 'oneshot', ['horn_retreat.wav']), null] },
-    { id: 'weather', name: 'Weather and places', cols: 4, rows: 2, spare: [P('mugs', 'Mugs clink', 'mug', 'gold', '', 'oneshot', v('mugs_clink', 3))], slots: [
+    { id: 'weather', name: 'Weather and places', cols: 4, rows: 2, spare: [Object.assign(P('mugs', 'Mugs clink', 'mug', 'gold', '', 'oneshot', v('mugs_clink', 3)), { aside: true })], slots: [
       P('thunder', 'Thunder crack', 'bolt', 'gold', '1', 'oneshot', v('thunder', 5)), P('wolf', 'Wolf howl', 'moon', 'bone', '2', 'oneshot', v('wolf_howl', 3)),
       P('owl', 'Owl', 'eye', 'moss', '3', 'oneshot', ['owl_hoot.wav']), P('creak', 'Door creak', 'door', 'bone', '4', 'oneshot', v('door_creak', 4), 'roundrobin'),
       P('horse', 'Horse whinny', 'horn', 'bone', 'q', 'oneshot', ['horse_whinny.wav']), P('storm', 'Storm', 'rain', 'sea', 'w', 'toggle', ['storm_heavy_loop.wav']),
