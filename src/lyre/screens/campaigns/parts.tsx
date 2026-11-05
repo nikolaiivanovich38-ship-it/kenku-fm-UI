@@ -11,6 +11,7 @@ import { isRefused, type CampaignInfo, type Done, type PadBoard, type PlaylistIn
 import { useBoards, usePlaylists, useProfileOverrides, useTracks } from "../../api";
 import { Icon, ICON_NAMES, type IconName } from "../../kit/Icon";
 import { useLiveSession, runInLive } from "../../kit/liveSession";
+import { ProfileLink } from "../../kit/ProfileLink";
 import { PreviewButton } from "../../kit/SoundButtons";
 import { Menu, type MenuEntry } from "../../kit/Menu";
 import { useAnnounce } from "../../shell/Announcer";
@@ -100,7 +101,18 @@ const padIcon = (name: string): IconName => ((ICON_NAMES as string[]).includes(n
  * A playlist's tracks (with Preview and a link to each track's audio profile in `place`) or a board's pads (with
  * Preview), shown under an open expander. `place` null: no profile links (pickers).
  */
-export function Contents({ item, index, place }: { item: { kind: "playlist"; playlist: PlaylistInfo } | { kind: "board"; board: PadBoard }; index: LibraryIndex; place?: string | null }) {
+export function Contents({
+  item,
+  index,
+  place,
+  placeName,
+}: {
+  item: { kind: "playlist"; playlist: PlaylistInfo } | { kind: "board"; board: PadBoard };
+  index: LibraryIndex;
+  place?: string | null;
+  /** The place in words for the link's hover text ("the scene Greyhollow inn"); the playlist's by default. */
+  placeName?: string;
+}) {
   if (item.kind === "playlist") {
     const p = item.playlist;
     const tracks = index.tracksOf(p);
@@ -117,16 +129,7 @@ export function Contents({ item, index, place }: { item: { kind: "playlist"; pla
                 {title}
               </span>
               <span className="num faint">{formatLength(t.durationMs)}</span>
-              {key !== null && (
-                <a
-                  className="btn s icon"
-                  href={`#/profile/${t.id}/${key}`}
-                  aria-label={`Audio profile of ${title}`}
-                  title={`Audio profile: where ${title} starts, ends, fades, loops or moves on`}
-                >
-                  <Icon name="wave" size="s" />
-                </a>
-              )}
+              {key !== null && <ProfileLink trackId={t.id} title={title} place={key} placeName={placeName ?? `the playlist ${p.name}`} iconOnly />}
               <PreviewButton target={{ kind: "track", id: t.id }} name={title} />
             </li>
           );

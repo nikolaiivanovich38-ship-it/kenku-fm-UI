@@ -1,7 +1,7 @@
 import React from "react";
 
-import { Icon } from "../../kit/Icon";
-import { cx } from "../../kit/cx";
+import { Icon } from "./Icon";
+import { cx } from "./cx";
 
 export interface ProfileLinkProps {
   trackId: string;
@@ -17,8 +17,9 @@ export interface ProfileLinkProps {
 }
 
 /**
- * The compact "Audio profile" link-button (the prototype's L.profileLink in views/profile.js), for the Audio profile's
- * hand-over line and for other screens (Library, Playlists, Campaigns) when they add it. Candidate for src/lyre/kit.
+ * The compact "Audio profile" link-button (the prototype's L.profileLink in views/profile.js): opens the Audio profile
+ * of a track, in its own settings or in a place (a playlist, a scene). Icon only inside lists; with its words and a
+ * dot for "has settings" in a track's details and the Audio profile's hand-over line.
  */
 export function ProfileLink({ trackId, title, place, placeName, hasOwn, iconOnly }: ProfileLinkProps) {
   const tip = `Audio profile: where ${title} starts, ends, fades, loops or moves on${place && placeName ? ` (${placeName})` : ""}`;

@@ -15,6 +15,7 @@ import { useAnnounce } from "../../shell/Announcer";
 import { addedText, EFFECT_ROLE, ENERGY_WORDS, fmt, KIND_NAMES, LOOPS, plural, profileSummary, ROLES, shownTitle } from "./model";
 import { focusSoon, useWriteOk, useWriteResult } from "./shared";
 import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
+import { ProfileLink } from "../../kit/ProfileLink";
 import { previewKeyOf } from "../../kit/SoundButtons";
 import type { TrackStore } from "./trackStore";
 
@@ -180,16 +181,7 @@ export function TrackDetails({ t, store, groups, playlists, campaigns, overrides
           <Icon name="broadcast" size="s" />
           Play on air
         </button>
-        <a className="btn s ap-link" href={`#/profile/${t.id}`} title={`Audio profile: where ${shown} starts, ends, fades, loops or moves on`}>
-          <Icon name="wave" size="s" />
-          Audio profile
-          {t.profile && (
-            <>
-              <span className="ap-link-dot" aria-hidden="true" />
-              <span className="sr-only"> (has settings)</span>
-            </>
-          )}
-        </a>
+        <ProfileLink trackId={t.id} title={shown} hasOwn={!!t.profile} />
       </div>
       <p className="lb-prof">
         <Icon name="fade" size="s" />

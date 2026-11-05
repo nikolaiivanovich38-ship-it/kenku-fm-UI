@@ -13,7 +13,7 @@ import { Kbd } from "../../kit/Pills";
 import { cx } from "../../kit/cx";
 import { hasOwn, ownPlaceKeys, placeName, placesOf } from "./places";
 import { envAt, fmt, fmt1, POINT, sketchPath, times, type Which } from "./profileModel";
-import { ProfileLink } from "./ProfileLink";
+import { ProfileLink } from "../../kit/ProfileLink";
 import type { ProfileController } from "./useProfileController";
 import { levelAt } from "./waveDrawing";
 import { Waveform } from "./Waveform";

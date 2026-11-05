@@ -672,7 +672,7 @@ function ItemRow({
       {open && (playlist || board) && (
         <div className="xp-body cp-xp">
           {playlist ? (
-            <Contents item={{ kind: "playlist", playlist }} index={ctx.index} place={list === "music" ? placeKey : undefined} />
+            <Contents item={{ kind: "playlist", playlist }} index={ctx.index} place={list === "music" ? placeKey : undefined} placeName={list === "music" ? `the scene ${scene.name}` : undefined} />
           ) : (
             board && <Contents item={{ kind: "board", board }} index={ctx.index} />
           )}

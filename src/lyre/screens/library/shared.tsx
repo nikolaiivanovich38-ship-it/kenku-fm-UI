@@ -5,7 +5,7 @@
  */
 import React, { useCallback } from "react";
 import { isRefused, type WriteResult } from "../../../common/lyre/api";
-import { Icon } from "../../kit/Icon";
+import { ProfileLink } from "../../kit/ProfileLink";
 import { PreviewButton } from "../../kit/SoundButtons";
 import type { NowPlaying } from "../../audio";
 import { useAnnounce } from "../../shell/Announcer";
@@ -84,14 +84,7 @@ export function PlaylistContents({ playlistId, name, dynamic, tracks }: { playli
             {t.title}
           </span>
           <span className="num faint">{fmt(t.durationMs)}</span>
-          <a
-            className="btn s icon ap-link"
-            href={`#/profile/${t.id}/pl:${playlistId}`}
-            title={`Audio profile: where ${t.title} starts, ends, fades, loops or moves on (in ${name})`}
-            aria-label={`Audio profile of ${t.title}`}
-          >
-            <Icon name="wave" size="s" />
-          </a>
+          <ProfileLink trackId={t.id} title={t.title} place={`pl:${playlistId}`} placeName={`the playlist ${name}`} iconOnly />
           <PreviewButton target={{ kind: "track", id: t.id }} name={t.title} />
         </li>
       ))}
