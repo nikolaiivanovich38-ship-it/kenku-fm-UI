@@ -6,7 +6,9 @@ import React from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { createFakeLyreApi, madeUpPeaks } from "../../common/lyre/fake";
+import { createFakeLyreApi } from "../../common/lyre/fake";
+import { prototypeLevels } from "../../common/lyre/prototypeLevels";
+import { prototypeSeed } from "../../common/lyre/seed";
 import type { LyreApi, LyreEvent } from "../../common/lyre/api";
 import {
   LyreApiProvider,
@@ -157,21 +159,23 @@ describe("useLyreEvent", () => {
   });
 });
 
+const levelsOf = (id: string) => prototypeLevels(prototypeSeed().tracks.find((t) => t.id === id)!);
+
 describe("useTrackPeaks (w3-media)", () => {
   it("is null until the track's peaks are worked out, then gives its levels for the wave", async () => {
     const api = createFakeLyreApi();
     const { result } = renderHook(() => useTrackPeaks("t01"), { wrapper: wrapperFor(api) });
     expect(result.current).toBeNull();
-    await waitFor(() => expect(result.current).toEqual(madeUpPeaks("t01")));
+    await waitFor(() => expect(result.current).toEqual(levelsOf("t01")));
   });
 
   it("never shows one track's wave for another: null again at once when the track changes", async () => {
     const api = createFakeLyreApi();
     const { result, rerender } = renderHook(({ id }) => useTrackPeaks(id), { wrapper: wrapperFor(api), initialProps: { id: "t01" } });
-    await waitFor(() => expect(result.current).toEqual(madeUpPeaks("t01")));
+    await waitFor(() => expect(result.current).toEqual(levelsOf("t01")));
     rerender({ id: "t02" });
     expect(result.current).toBeNull();
-    await waitFor(() => expect(result.current).toEqual(madeUpPeaks("t02")));
+    await waitFor(() => expect(result.current).toEqual(levelsOf("t02")));
   });
 
   it("asks again only while it has none, or when tracks change (a relinked file)", async () => {

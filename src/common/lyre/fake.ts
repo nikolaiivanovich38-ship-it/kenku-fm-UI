@@ -70,6 +70,7 @@ import {
   type WriteResult,
 } from "./api";
 import { lookupFrom } from "./lookup";
+import { prototypeLevels } from "./prototypeLevels";
 import { fileAddress } from "./media";
 import { plural, quoted, shownTitle, tagValue, trimmed } from "./text";
 import { prototypeSeed, type SeedData } from "./seed";
@@ -181,20 +182,6 @@ function guessKind(folder: string): LibraryTrack["kind"] {
   return "music";
 }
 
-/** A made-up wave of 1,000 levels for a track, the same for the same id (the fake has no files to read). */
-export function madeUpPeaks(trackId: string): number[] {
-  let hash = 0;
-  for (const c of trackId) hash = (hash * 31 + c.charCodeAt(0)) >>> 0;
-  const phase = (hash % 628) / 100;
-  const swells = 2 + (hash % 5);
-  return Array.from({ length: 1000 }, (_, i) => {
-    const x = i / 999;
-    const envelope = Math.min(1, x * 12, (1 - x) * 8);
-    const level = envelope * (0.55 + 0.3 * Math.sin(phase + x * swells * 2 * Math.PI)) + 0.06 * Math.sin(i * 0.9 + phase);
-    return Math.round(Math.max(0, Math.min(1, level)) * 1000) / 1000;
-  });
-}
-
 export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
   const now = options.now ?? (() => Date.now());
   const seed = copy(options.seed ?? prototypeSeed(now()));
@@ -241,7 +228,8 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
         workingOut.delete(id);
         const t = state.tracks.find((x) => x.id === id);
         if (!t) continue;
-        peaks.set(id, madeUpPeaks(id));
+        // The prototype's made-up loudness (core.js L.levels), so the suggestions are the design's.
+        peaks.set(id, prototypeLevels(t));
         // DAT-13: the suggestion is kept with the peaks, outside undo, as the library keeps it.
         t.suggestedShape = shapeFromPeaks(peaks.get(id));
       }

@@ -39,7 +39,7 @@ import { musicMetadataTagReader } from "../data/import/musicMetadata";
 import { ffmpegLength } from "../media/ffmpegLength";
 import { FfmpegPeakReader } from "../media/ffmpegPeaks";
 import { createLibraryApi, type LibraryApi, type LibraryHost } from "./libraryApi";
-import { seedLibrary } from "./seedLibrary";
+import { seedLibrary, seedPrototypePeaks } from "./seedLibrary";
 
 export interface LibraryProcessOptions {
   /** Opens the library; tests pass openLibrary with a temporary folder. */
@@ -131,7 +131,11 @@ export function runLibraryProcess(port: PortLike, options: LibraryProcessOptions
       return;
     }
     library = opened;
-    if (seed && !opened.store.get("SELECT 1 AS found FROM tracks LIMIT 1")) await seedLibrary(opened, prototypeSeed());
+    if (seed && !opened.store.get("SELECT 1 AS found FROM tracks LIMIT 1")) {
+      const sample = prototypeSeed();
+      await seedLibrary(opened, sample);
+      seedPrototypePeaks(opened, sample);
+    }
     const peakReader = peakReaderFor(ffmpegPath);
     // UX review 3: ffmpeg confirms a file the tag reader found no audio in, before it is added.
     const lengthProbe = ffmpegPath ? (file: string) => ffmpegLength(ffmpegPath as string, file) : undefined;

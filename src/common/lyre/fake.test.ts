@@ -86,6 +86,14 @@ describe("the seed is the prototype's sample data", () => {
 });
 
 describe("in-memory fake only", () => {
+  it("DAT-13: answers the prototype's loudness as a track's peaks, so it suggests the design's shapes", async () => {
+    const api = createFakeLyreApi();
+    await api.library.peaksOf("t02");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect((await api.library.peaksOf("t02"))?.length).toBe(1000);
+    expect((await api.library.listTracks()).find((t) => t.id === "t02")).toMatchObject({ shape: null, suggestedShape: "peaksThenFalls" });
+  });
+
   it("asks its chooser for files or a folder; closing the chooser imports nothing", async () => {
     let answer: string[] | null = null;
     const api = createFakeLyreApi({ choose: { files: () => answer, folder: () => "D:\\Albums" }, folderFiles: { "D:\\Albums": ["01 One.flac", "02 Two.mp3"] } });
