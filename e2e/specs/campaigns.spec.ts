@@ -214,7 +214,7 @@ test.describe("playlists and pad boards on hand in every session", () => {
 test.describe("round 5: the Now playing bar and play order on the campaign page", () => {
   // The three UX-16 checks are built (w4-kit-bar, the shell's Now playing bar). They read the bar as the prototype draws
   // it with its sample bot in the voice channel Table ("On air", not "On air · no room"), so in the app they wait for the
-  // test start to have that bot, which the Outputs stream adds. The others wait for the campaign page (round 5).
+  // test start to have that bot, which the Outputs stream adds. The others are built (w4-prep-b).
   const needsTheBotInTable = () => expectFailureUntilBuilt("outputs");
 
   test("UX-16: the Now playing bar has a row tagged On air: what plays, where it comes from and how far, with Pause, Stop, Next and Volume", async ({ page }) => {
@@ -267,7 +267,6 @@ test.describe("round 5: the Now playing bar and play order on the campaign page"
   });
 
   test("PLY-13: a campaign playlist's play order applies when it plays from the campaign", async ({ page }) => {
-    expectFailureUntilBuilt("round 5");
     await openRoute(page, "campaign/crown");
     const order = region(page, "Campaign playlists").getByRole("button", { name: /^Play order of The Company themes: / });
     await expect(order).toHaveAccessibleName("Play order of The Company themes: In order, repeat all");
@@ -279,7 +278,6 @@ test.describe("round 5: the Now playing bar and play order on the campaign page"
   });
 
   test("ORG-12: single tracks kept on hand for the campaign are listed with its playlists", async ({ page }) => {
-    expectFailureUntilBuilt("round 5");
     await openRoute(page, "campaign/crown");
     await expect(region(page, "Campaign playlists").getByRole("link", { name: "Ominous song, the villain's calling card (short) (single track)" })).toBeVisible();
     await expect(region(page, "Campaign playlists").getByRole("button", { name: "Play on air: Ominous song, the villain's calling card (short)" })).toBeVisible();

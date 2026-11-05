@@ -4,7 +4,7 @@
  * search and filter.
  */
 import type { Page } from "@playwright/test";
-import { expect, expectFailureUntilBuilt, test } from "./support/test";
+import { expect, test } from "./support/test";
 import { openRoute } from "./support/target";
 
 const boards = (page: Page) => page.getByRole("list", { name: "Pad boards", exact: true });
@@ -97,7 +97,6 @@ test.describe("resizing a board: spare pads", () => {
   // Changed in round 5 (SFX-11): growing the grid fills its free slots from Spare pads, in their order, so there is
   // nothing left to put back. Before: "4 empty slots to fill. Spare pads can go back into them." and Put all back.
   test("making the grid bigger again brings the spare pads back into it, in their order", async ({ page }) => {
-    expectFailureUntilBuilt("round 5");
     await openRoute(page, "board/weather");
     await page.getByRole("button", { name: "Fewer rows" }).click();
     await page.getByRole("button", { name: "More rows" }).click();
@@ -117,7 +116,6 @@ test.describe("resizing a board: spare pads", () => {
 
   // Round 5 (SFX-11): Mugs clink was put in Spare pads by hand, so it stays there however large the grid gets (8 of 24).
   test("the quick sizes set columns and rows at once, and the current size is pressed", async ({ page }) => {
-    expectFailureUntilBuilt("round 5");
     await openRoute(page, "board/weather");
     const quick = page.getByRole("group", { name: "Quick sizes" });
     await expect(quick.getByRole("button", { name: "4 columns by 2 rows" })).toHaveAttribute("aria-pressed", "true");
@@ -242,7 +240,6 @@ test.describe("pads on a board", () => {
 
 /* Round 5 (design/prototype/ROUND5.md): built in wave 4, so each check waits for "round 5" in the app. */
 test.describe("round 5: resizing fills the grid; trying pads as they play", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 5"));
 
   test("SFX-11: after a resize the pads fill the grid left to right, top to bottom, in their order", async ({ page }) => {
     await openRoute(page, "board/combat");

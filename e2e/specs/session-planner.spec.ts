@@ -341,9 +341,12 @@ test.describe("scenes", () => {
 
 /* Round 5 (design/prototype/ROUND5.md): built in wave 4, so each check waits for "round 5" in the app. */
 test.describe("round 5: play order, single tracks, tags, names in scenes and audio settings from the scene", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 5"));
+  // Built (w4-prep-b). Two checks end on screens the Library stream builds (the Playlists page's play order button, a
+  // track's Names in scenes), so they wait for "round 5" until that stream is merged too.
+  const endsOnTheLibrarysScreens = () => expectFailureUntilBuilt("round 5");
 
   test("PLY-13: a playlist in a scene has a play order that applies only in that scene", async ({ page }) => {
+    endsOnTheLibrarysScreens();
     await openAbbey(page);
     const list = musicOf(abbey(page));
     const order = list.getByRole("button", { name: /^Play order of Abbey: eerie, low energy: / });
@@ -411,6 +414,7 @@ test.describe("round 5: play order, single tracks, tags, names in scenes and aud
   });
 
   test("DAT-14: Name in this scene… names a track for one scene only", async ({ page }) => {
+    endsOnTheLibrarysScreens();
     await openAbbey(page);
     const list = musicOf(abbey(page));
     await list.getByRole("button", { name: "More for Haunted sea shanty, grey and slow - the drowned bells" }).click();
