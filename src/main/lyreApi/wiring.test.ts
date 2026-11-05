@@ -187,6 +187,15 @@ describe("MEDIA_PREPARE never waits for ever (security review 1)", () => {
     expect(await within(answer)).toEqual({ url: "file:///music/a.mp3" });
   });
 
+  it("asks again for the list when the first ask came before the library started (startLibrary wires first)", async () => {
+    // No old library to bring in and no change since: nothing else would fetch the list again, and every file was
+    // refused as "not answering" (found by the seeded app specs).
+    const { service, prepare } = await realService(() => false);
+    service.start();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(await within(prepare())).toEqual({ url: "file:///music/a.mp3" });
+  });
+
   it("still answers after the library has given up, from the last list it gave", async () => {
     const { service, wired, prepare } = await realService((request) => request > 1);
     service.start();

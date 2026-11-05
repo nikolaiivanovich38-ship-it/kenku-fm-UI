@@ -88,8 +88,12 @@ export function wireLyreLibrary(options: WiringOptions): WiredLibrary {
       })
       .catch((error) => log("Could not read the library's folders", error));
   };
-  /** Waits for the newest list, but never longer than `waitMs`; false when there is still no list at all. */
+  /**
+   * Waits for the newest list, but never longer than `waitMs`; false when there is still no list at all. With no
+   * list yet (the first ask came before the library started, or failed), it asks again first.
+   */
   const newestFolders = async (): Promise<boolean> => {
+    if (folders === null) refresh();
     let timer: ReturnType<typeof setTimeout> | undefined;
     await Promise.race([latest, new Promise<void>((resolve) => (timer = setTimeout(resolve, waitMs)))]);
     clearTimeout(timer);
