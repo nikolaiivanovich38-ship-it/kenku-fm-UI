@@ -338,7 +338,7 @@ export function LibraryScreen({ route }: ScreenProps) {
       open={fOpen}
       onOpenChange={setFOpen}
       summary={filterSummary(st.filter, groups)}
-      status={nFilters ? { text: `${nFilters} selected`, tone: "on" } : undefined}
+      status={nFilters ? { text: `${nFilters} filter${nFilters > 1 ? "s" : ""} on`, tone: "on" } : undefined}
       actions={
         filtersOn(st.filter) ? (
           <button

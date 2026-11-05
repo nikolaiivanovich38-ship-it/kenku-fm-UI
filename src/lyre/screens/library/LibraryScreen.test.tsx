@@ -45,7 +45,7 @@ describe("Library: finding tracks", () => {
     expect(within(kinds).getByRole("button", { name: "FX" })).toHaveAttribute("aria-pressed", "true");
     expect(shownTitles()).toContain("Heavy door slams");
     expect(shownTitles()).not.toContain("Ashes");
-    expect(screen.getByRole("region", { name: "Filters" })).toHaveTextContent("1 selected");
+    expect(screen.getByRole("region", { name: "Filters" })).toHaveTextContent("1 filter on");
     await user.click(within(kinds).getByRole("button", { name: "Ambience" }));
     expect(shownTitles()).toContain("Busy tavern crowd, mugs, laughter");
   });
@@ -58,6 +58,9 @@ describe("Library: finding tracks", () => {
     await user.click(within(within(filters()).getByRole("group", { name: "Mood" })).getByRole("button", { name: /^Grief/ }));
     expect(shownTitles()).toHaveLength(5);
     expect(filters()).not.toHaveTextContent("None: showing every track");
+    // The box's count says filters, not a selection like the Tracks box's "3 selected" (w3-ux 13).
+    expect(filters()).toHaveTextContent("1 filter on");
+    expect(filters()).not.toHaveTextContent("1 selected");
     await user.click(within(filters()).getByRole("button", { name: "Clear all" }));
     expect(shownTitles().length).toBeGreaterThan(5);
   });
