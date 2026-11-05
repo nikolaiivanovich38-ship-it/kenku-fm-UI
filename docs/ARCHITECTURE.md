@@ -441,3 +441,13 @@ New refusal codes: `"not-lyre-file"` (a file that is not a Lyre file, or is dama
 - `LyreAudioLibrary.playOrders()` is new; `LibrarySnapshot` loads `playlists.playOrders()` and reloads it on "playlists". `FakeLyreAudio.setNowPlaying` fills in what a test leaves out (`FakeNowPlaying`).
 
 Open points for the build streams: the pad board screen now words a resize with `cameBack` and the pad put aside (boardModel `resizeMessage`); the Library still searches in memory, so a screen that wants names in scenes found must add them from `trackNamesOf` (the database's search has them); a "peaks" event may mean suggested shapes changed.
+
+## Wave 4: w4-normalise
+
+Volume normalisation (PLY-15, DAT-15; design/prototype/ROUND5.md "Volume normalisation"). Lyre never changes your files: the level is evened out as Lyre plays them, and the measurement is kept in Lyre's library.
+
+- **Rules** (`src/common/domain/normalise.ts`): `normaliseDecision` (track, then playlist, then library), `normaliseGain` (target - loudness, at most +12 dB, true peak at or below -1 dBTP), `normalisedGainDb`, and the words (`normaliseLine`, `playlistNormaliseLine`, `normaliseHover`, `libraryNormaliseWords`). `DomainTrack.normalise`, `loudness`; `DomainPlaylist.normalise`.
+- **Data**: schema version 4 (docs/data-model.md). The library's process measures loudness with the bundled ffmpeg in the peaks job (`media/ffmpegLoudness.ts`) and queues unmeasured tracks 20 s after start.
+- **LyreApi**: `library.normaliseSettings()`, `setNormaliseSettings({ on, target })`, `setNormalise(trackId, "on" | "off" | null)`; `playlists.setNormalise(id, choice)`; `LibraryTrack.normalise`, `loudness`; `PlaylistInfo.normalise`. The setting changes "tracks"; new loudness comes with "peaks".
+- **Audio host**: `LyreAudioLibrary.normaliseSettings()`; `LaneNowPlaying.gainDb`, `PreviewNowPlaying.gainDb`; `PreviewTrackOptions.playlistId`. docs/playback-engine.md "Wave 4: volume normalisation".
+- **Kit**: `kit/NormaliseChoice.tsx` (`NormaliseChoice`, `NormaliseDialog`, `trackNormaliseHint`, `playlistNormaliseHint`, `profileNormaliseHint`), not yet placed in screens.
