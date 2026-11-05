@@ -12,7 +12,7 @@ const groups = [
   { id: "scene", name: "Scene type" },
 ];
 
-const track = (tags: Record<string, string[]>, shape: "builds" | null = "builds") => ({ tags, shape, suggestedShape: null });
+const track = (tags: Record<string, string[]>, shape: "builds" | null = "builds") => ({ tags, shape, suggestedShape: null as null });
 
 const visibleChips = (container: HTMLElement) => Array.from(container.querySelectorAll(".chip:not(.ts-more)")).map((c) => c.textContent);
 

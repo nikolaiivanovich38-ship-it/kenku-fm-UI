@@ -114,7 +114,7 @@ export function PlayOrderButton({ playlistId, place }: PlayOrderButtonProps) {
               </>
             ),
             onSelect: () => void useOwn(),
-          },
+          } satisfies PopMenuEntry,
         ]
       : []),
   ];
