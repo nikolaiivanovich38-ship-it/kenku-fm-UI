@@ -110,8 +110,11 @@ import {
   updateScene,
   updateSession,
   updateTrack,
+  PeakJobs,
+  trackPeaks,
   type Library,
   type Pad,
+  type PeakReader,
   type Placement,
   type RelinkMatch,
   type TagReader,
@@ -132,9 +135,23 @@ export interface LibraryHost {
 }
 
 export interface LibraryApiOptions {
-  /** Reads titles, artist and album from files (music-metadata, once added); without it tracks are named after their files. */
+  /** Reads titles, artist and album from files (music-metadata); without it tracks are named after their files. */
   tagReader?: TagReader;
+  /** Works out loudness peaks from files (ffmpeg); without it `library.peaksOf` answers null. */
+  peakReader?: PeakReader;
+  /** How often a "changed" event for "peaks" may be sent while they are worked out (default 250 ms). */
+  peakNotifyEveryMs?: number;
+  log?: (message: string, error?: unknown) => void;
 }
+
+/** LyreApi plus what its owner calls before closing the library. */
+export type LibraryApi = LyreApi & {
+  /** Stops background work (the peaks being worked out); call before library.close(). */
+  stopBackgroundWork(): void;
+};
+
+/** A level byte (repo/peaks.ts) as the API's 0 to 1, to three places (enough for any screen, a third of the JSON). */
+const levelOut = (byte: number) => Math.round((byte / 255) * 1000) / 1000;
 
 /** Thrown inside a write to refuse it in plain words. */
 const refuse = (code: RefusalCode, message: string, field?: string): never => {
@@ -182,7 +199,7 @@ type TrackExtra = {
 };
 const TRACK_EXTRA_SQL = "SELECT id, root_id, path, url, file_size, notes, source_composer, source_album, created_at, is_new FROM tracks";
 
-export function createLibraryApi(library: Library, host: LibraryHost, options: LibraryApiOptions = {}): LyreApi {
+export function createLibraryApi(library: Library, host: LibraryHost, options: LibraryApiOptions = {}): LibraryApi {
   const { store, history } = library;
   const listeners = new Set<(event: LyreEvent) => void>();
   let importing = false;
@@ -193,6 +210,14 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
     for (const listener of [...listeners]) listener(event);
   };
   const stateLabel = () => history.state().undoLabel;
+  // Loudness peaks: worked out one track at a time by ffmpeg in its own process; screens hear when some are ready.
+  const peakJobs = options.peakReader
+    ? new PeakJobs(store, options.peakReader, {
+        onReady: () => emit({ type: "changed", areas: ["peaks"] }),
+        notifyEveryMs: options.peakNotifyEveryMs ?? 250,
+        log: options.log,
+      })
+    : null;
 
   /**
    * One write: refusals in plain words, faults passed on, and a "changed" event when it made an undo step.
@@ -423,7 +448,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
 
   /* ---------- the API ---------- */
 
-  const api: LyreApi = {
+  const api: LibraryApi = {
     library: {
       async listTracks() {
         return libraryTracks();
@@ -460,6 +485,12 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           if (!(await fileExists(file))) refuse("file-missing", "The file is not where your library expects it. Use Find missing files to look for it.");
           host.showItemInFolder(file);
         });
+      },
+      async peaksOf(trackId) {
+        const state = trackPeaks(store, trackId);
+        if (state.state === "ready") return Array.from(state.levels, levelOut);
+        if (state.state === "needed") peakJobs?.soon(trackId);
+        return null;
       },
     },
 
@@ -970,6 +1001,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           const done = await writeOutside([], async () => {
             const result = await importAudio(store, { paths }, { tagReader: options.tagReader, onProgress: (progress) => emit({ type: "import-progress", progress }) });
             added = result.added.length > 0;
+            peakJobs?.inBackground(result.added);
             // The import clears the undo history (DB review item 10), so the history changed too.
             if (added) emit({ type: "changed", areas: ["tracks", "history"] });
             const summary: ImportSummary = {
@@ -1069,6 +1101,10 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           throw error;
         }
       },
+    },
+
+    stopBackgroundWork() {
+      peakJobs?.close();
     },
 
     subscribe(listener) {

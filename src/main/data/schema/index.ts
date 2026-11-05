@@ -5,7 +5,8 @@
  */
 import type { Migration } from "./migrate";
 import { v001Library } from "./v001-library";
+import { v002Peaks } from "./v002-peaks";
 
-export const MIGRATIONS: readonly Migration[] = [v001Library];
+export const MIGRATIONS: readonly Migration[] = [v001Library, v002Peaks];
 
 export { migrate, rebuildTable, schemaVersion, type Migration, type MigrationResult } from "./migrate";

@@ -13,7 +13,7 @@ import { MessageChannel, type MessagePort } from "worker_threads";
 import { lyreApiContract, valueOf, type ContractFixture } from "../../common/lyre/contract";
 import { lyreApiOverPort, serveLyreApi, type PortLike } from "../../common/lyre/rpc";
 import { prototypeSeed } from "../../common/lyre/seed";
-import { LibraryBusyError, NotFoundError, ValidationError, openLibrary } from "../data";
+import { LibraryBusyError, NotFoundError, ValidationError, openLibrary, type PeakReader } from "../data";
 import { createLibraryApi, refusalFor, type LibraryHost } from "./libraryApi";
 import { seedLibrary } from "./seedLibrary";
 
@@ -35,17 +35,22 @@ async function seededLibrary() {
   return { dir, library, write };
 }
 
+/** Stands in for ffmpeg in the contract: the fixture's files are not really audio (ffmpegPeaks.test.ts runs the real one). */
+const madeUpPeakReader: PeakReader = { read: async (file) => Uint8Array.from({ length: 1000 }, (_, i) => (i * 7 + file.length) % 256) };
+
 async function contractFixture(): Promise<ContractFixture> {
   const { dir, library, write } = await seededLibrary();
   fs.mkdirSync(path.join(dir, "watch"));
+  const api = createLibraryApi(library, testHost(), { peakReader: madeUpPeakReader });
   return {
-    api: createLibraryApi(library, testHost()),
+    api,
     newAudioFiles: [write("in/Ambience/harbour_night.wav"), write("in/Dune/02 Leaving Caladan.flac")],
     notAudioFile: write("in/notes.txt"),
     missingTrackId: "t43",
     relinkFolder: path.dirname(write("moved/07 Memories of Mother.flac")),
     folderToWatch: path.join(dir, "watch"),
     close: () => {
+      api.stopBackgroundWork();
       library.close();
       fs.rmSync(dir, { recursive: true, force: true });
     },

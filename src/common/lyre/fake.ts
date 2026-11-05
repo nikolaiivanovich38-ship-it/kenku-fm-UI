@@ -100,6 +100,8 @@ const SLICES: Record<Exclude<LyreArea, "history">, (keyof State)[]> = {
   boards: ["boards"],
   campaigns: ["campaigns"],
   profiles: ["overrides"],
+  // Loudness peaks are worked out from files, outside undo: no part of the state.
+  peaks: [],
 };
 
 type Slices = Partial<State>;
@@ -159,6 +161,20 @@ function guessKind(folder: string): LibraryTrack["kind"] {
   return "music";
 }
 
+/** A made-up wave of 1,000 levels for a track, the same for the same id (the fake has no files to read). */
+export function madeUpPeaks(trackId: string): number[] {
+  let hash = 0;
+  for (const c of trackId) hash = (hash * 31 + c.charCodeAt(0)) >>> 0;
+  const phase = (hash % 628) / 100;
+  const swells = 2 + (hash % 5);
+  return Array.from({ length: 1000 }, (_, i) => {
+    const x = i / 999;
+    const envelope = Math.min(1, x * 12, (1 - x) * 8);
+    const level = envelope * (0.55 + 0.3 * Math.sin(phase + x * swells * 2 * Math.PI)) + 0.06 * Math.sin(i * 0.9 + phase);
+    return Math.round(Math.max(0, Math.min(1, level)) * 1000) / 1000;
+  });
+}
+
 export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
   const now = options.now ?? (() => Date.now());
   const seed = copy(options.seed ?? prototypeSeed(now()));
@@ -176,6 +192,9 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
   let undoStack: Step[] = [];
   let redoStack: Step[] = [];
   let importing = false;
+  /** Loudness peaks worked out so far, and those being worked out (not part of undo, as in the real library). */
+  const peaks = new Map<string, number[]>();
+  const workingOut = new Set<string>();
   let nextId = 1;
   const listeners = new Set<(event: LyreEvent) => void>();
 
@@ -184,6 +203,22 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
   function emit(event: LyreEvent) {
     // Events arrive after the call that caused them, as they will over IPC.
     queueMicrotask(() => [...listeners].forEach((l) => l(copy(event))));
+  }
+  /**
+   * Stands in for working out peaks from the files: a made-up shape per track (a fade in, swells, a fade out), ready
+   * a moment later with a "changed" event for "peaks", as the real library sends after ffmpeg has read the file.
+   */
+  function workOutPeaks(ids: string[]) {
+    const todo = ids.filter((id) => !peaks.has(id) && !workingOut.has(id) && state.tracks.some((t) => t.id === id) && !state.missing.includes(id));
+    if (todo.length === 0) return;
+    todo.forEach((id) => workingOut.add(id));
+    queueMicrotask(() => {
+      for (const id of todo) {
+        workingOut.delete(id);
+        if (state.tracks.some((t) => t.id === id)) peaks.set(id, madeUpPeaks(id));
+      }
+      emit({ type: "changed", areas: ["peaks"] });
+    });
   }
   function newId(prefix: string) {
     return `${prefix}-${nextId++}`;
@@ -458,6 +493,7 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
     if (problems.length) parts.push(`${plural(problems.length, "file")} could not be added.`);
     const summary = parts.join(" ");
     progress({ phase: "done", done: files.length, total: files.length, message: summary });
+    workOutPeaks(added.map((t) => t.id));
     return { added: added.map((t) => t.id), alreadyInLibrary: already, trackIds, problems, cancelled: false, summary };
   }
   function chooseFolder(): string | null {
@@ -510,6 +546,12 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
       },
       async listFolders() {
         return copy(state.folders);
+      },
+      async peaksOf(trackId) {
+        const ready = peaks.get(trackId);
+        if (ready) return [...ready];
+        workOutPeaks([trackId]);
+        return null;
       },
       async showInFolder(trackId) {
         try {

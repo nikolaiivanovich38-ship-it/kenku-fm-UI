@@ -22,6 +22,7 @@ import { searchQuery } from "./repo/search";
 import { dynamicTracksQuery } from "./repo/ruleRows";
 import { HOTKEY_ACTIONS_SQL } from "./repo/cueActions";
 import { listTags, TAG_USAGE_SQL } from "./repo/tags";
+import { PEAKS_STATE_SQL } from "./repo/peaks";
 
 let temp: ReturnType<typeof makeTempFolder>;
 let library: Library;
@@ -55,6 +56,11 @@ describe("query plans of the hot read paths (DAT-11)", () => {
   it.each(Object.entries(campaignTreeQueries(true)))("campaign tree: %s walks the in-order indexes without sorting", (_name, sql) => {
     const details = expectIndexed(sql, ["c"], "USING");
     expect(details.filter((d) => d.startsWith("USE TEMP B-TREE")), details.join("\n")).toEqual([]);
+  });
+
+  it("a track's loudness peaks (w3-media): by the track's key and the peaks' key", () => {
+    const details = expectIndexed(PEAKS_STATE_SQL, ["t"], "USING");
+    expect(details.join("\n")).toMatch(/SEARCH p USING PRIMARY KEY/);
   });
 
   it("a scene's music in order", () => {

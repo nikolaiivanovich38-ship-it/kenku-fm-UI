@@ -6,7 +6,7 @@ import React from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { createFakeLyreApi } from "../../common/lyre/fake";
+import { createFakeLyreApi, madeUpPeaks } from "../../common/lyre/fake";
 import type { LyreApi, LyreEvent } from "../../common/lyre/api";
 import {
   LyreApiProvider,
@@ -18,6 +18,7 @@ import {
   usePlaylistTracks,
   useSearch,
   useTracks,
+  useTrackPeaks,
   useUsesOf,
 } from "./index";
 
@@ -153,5 +154,47 @@ describe("useLyreEvent", () => {
       await api.import.start({ from: "paths", paths: ["D:\\New\\01 One.flac"] });
     });
     await waitFor(() => expect(seen.some((e) => e.type === "import-progress" && e.progress.phase === "done")).toBe(true));
+  });
+});
+
+describe("useTrackPeaks (w3-media)", () => {
+  it("is null until the track's peaks are worked out, then gives its levels for the wave", async () => {
+    const api = createFakeLyreApi();
+    const { result } = renderHook(() => useTrackPeaks("t01"), { wrapper: wrapperFor(api) });
+    expect(result.current).toBeNull();
+    await waitFor(() => expect(result.current).toEqual(madeUpPeaks("t01")));
+  });
+
+  it("never shows one track's wave for another: null again at once when the track changes", async () => {
+    const api = createFakeLyreApi();
+    const { result, rerender } = renderHook(({ id }) => useTrackPeaks(id), { wrapper: wrapperFor(api), initialProps: { id: "t01" } });
+    await waitFor(() => expect(result.current).toEqual(madeUpPeaks("t01")));
+    rerender({ id: "t02" });
+    expect(result.current).toBeNull();
+    await waitFor(() => expect(result.current).toEqual(madeUpPeaks("t02")));
+  });
+
+  it("asks again only while it has none, or when tracks change (a relinked file)", async () => {
+    const api = createFakeLyreApi();
+    const peaksOf = vi.spyOn(api.library, "peaksOf");
+    const listeners: ((e: LyreEvent) => void)[] = [];
+    const subscribe = api.subscribe.bind(api);
+    vi.spyOn(api, "subscribe").mockImplementation((l) => {
+      listeners.push(l);
+      return subscribe(l);
+    });
+    const { result } = renderHook(() => useTrackPeaks("t01"), { wrapper: wrapperFor(api) });
+    await waitFor(() => expect(result.current).not.toBeNull());
+    const asked = peaksOf.mock.calls.length;
+    act(() => listeners.forEach((l) => l({ type: "changed", areas: ["peaks"] })));
+    expect(peaksOf.mock.calls.length).toBe(asked);
+    act(() => listeners.forEach((l) => l({ type: "changed", areas: ["tracks"] })));
+    await waitFor(() => expect(peaksOf.mock.calls.length).toBe(asked + 1));
+  });
+
+  it("is null for no track", () => {
+    const api = createFakeLyreApi();
+    const { result } = renderHook(() => useTrackPeaks(null), { wrapper: wrapperFor(api) });
+    expect(result.current).toBeNull();
   });
 });

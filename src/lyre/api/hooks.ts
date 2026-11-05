@@ -2,7 +2,7 @@
  * The reads the wave 3 screens make, each with the areas that make it stale. A playlist's tracks, for example,
  * change when the playlist changes and when tracks are tagged (a dynamic playlist follows tags).
  */
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import type { LyreEvent, SearchRequest, UsableRef } from "../../common/lyre/api";
 import { useLyreApi } from "./LyreApiProvider";
@@ -34,4 +34,45 @@ export function useLyreEvent(listener: (event: LyreEvent) => void): void {
   const listenerRef = useRef(listener);
   listenerRef.current = listener;
   useEffect(() => api.subscribe((event) => listenerRef.current(event)), [api]);
+}
+
+/**
+ * A track's loudness peaks for its wave (library.peaksOf): about 1,000 levels from 0 to 1 across the file, or null
+ * until they are worked out (and for good when the file cannot be read). Null at once when the track changes, so a
+ * screen never draws one track's wave for another. Asks again on a "peaks" change while it has none, on a "tracks"
+ * change (a relinked file gets new peaks), and when the library is working again after a restart.
+ */
+export function useTrackPeaks(trackId: string | null): readonly number[] | null {
+  const api = useLyreApi();
+  const [answer, setAnswer] = useState<{ id: string | null; levels: number[] | null }>({ id: null, levels: null });
+  const [version, setVersion] = useState(0);
+  const levels = answer.id === trackId ? answer.levels : null;
+  const haveLevels = useRef(false);
+  haveLevels.current = levels !== null;
+
+  useEffect(() => {
+    if (trackId === null) return;
+    let current = true;
+    api.library.peaksOf(trackId).then(
+      (next) => current && setAnswer({ id: trackId, levels: next }),
+      // A fault (a lost connection): keep what is drawn; the next change event asks again.
+      (): void => undefined,
+    );
+    return () => {
+      current = false;
+    };
+  }, [api, trackId, version]);
+
+  useEffect(
+    () =>
+      api.subscribe((event) => {
+        const stale =
+          (event.type === "changed" && (event.areas.includes("tracks") || (event.areas.includes("peaks") && !haveLevels.current))) ||
+          (event.type === "library-status" && event.ok);
+        if (stale) setVersion((v) => v + 1);
+      }),
+    [api],
+  );
+
+  return levels;
 }

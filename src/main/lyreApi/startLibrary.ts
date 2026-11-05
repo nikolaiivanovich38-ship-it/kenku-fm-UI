@@ -8,6 +8,8 @@ import path from "path";
 import { app, dialog, ipcMain, shell, utilityProcess, webContents, BrowserWindow } from "electron";
 
 import { libraryFolder } from "../data";
+import { findBundledFfmpeg } from "../media/bundledFfmpeg";
+import { FfmpegConverter } from "../media/ffmpegConverter";
 import { MEDIA_CACHE_FOLDER, MediaCache } from "../media/mediaCache";
 import { MediaAccess } from "../media/mediaAccess";
 import { guardIpc } from "../security/ipcGuard";
@@ -46,6 +48,14 @@ export function startLyreLibrary(): StartedLibrary {
   const parentWindow = () => BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
   let wired: WiredLibrary | null = null;
   let current: Electron.UtilityProcess | null = null;
+  // BUG-10: the ffmpeg shipped with Lyre converts WMA and AIFF for the player (here) and works out loudness peaks
+  // (in the library's process). Missing means a damaged install: said plainly when a file needs it.
+  const ffmpegPath = findBundledFfmpeg(app.getAppPath());
+  if (!ffmpegPath) log("Lyre's bundled ffmpeg is missing", app.getAppPath());
+  if (testBuild) {
+    // Test builds only: the end-to-end tests check that the packaged app finds its ffmpeg.
+    (globalThis as unknown as { lyreFfmpegPath: string | null }).lyreFfmpegPath = ffmpegPath;
+  }
   if (testBuild) {
     // Test builds only: the end-to-end tests stop the library's process to check it starts again.
     (globalThis as unknown as { lyreLibraryPid: () => number | undefined }).lyreLibraryPid = () => current?.pid;
@@ -61,6 +71,7 @@ export function startLyreLibrary(): StartedLibrary {
     },
     folder: libraryFolder(app.getPath("userData")),
     seed,
+    ffmpegPath,
     host: {
       chooseFiles: async () => {
         const window = parentWindow();
@@ -99,7 +110,7 @@ export function startLyreLibrary(): StartedLibrary {
       const cache = new MediaCache({
         folder: path.join(app.getPath("userData"), MEDIA_CACHE_FOLDER),
         access: new MediaAccess({ libraryFolders }),
-        converter: noConverter,
+        converter: ffmpegPath ? new FfmpegConverter({ ffmpegPath }) : noConverter,
         log,
       });
       // Test builds only: the seeded library's files are not on the test machine, so they play a stand-in tone.

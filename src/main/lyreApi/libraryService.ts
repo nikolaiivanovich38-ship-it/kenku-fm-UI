@@ -28,6 +28,8 @@ export interface LibraryServiceOptions {
   folder: string;
   /** Test builds only: fill a new, empty library with the prototype's sample data. */
   seed?: boolean;
+  /** The bundled ffmpeg (media/bundledFfmpeg.ts), for loudness peaks; null when it is missing. */
+  ffmpegPath?: string | null;
   /** Work the library asks for: chooseFiles, chooseFolder, showItemInFolder. */
   host: Record<string, (...args: unknown[]) => unknown>;
   /** Every LyreApi event, and the library's status, for the Lyre page. */
@@ -180,7 +182,7 @@ export class LyreLibraryService {
     );
     this.client.api.subscribe((event) => this.options.onEvent(event));
     child.on("exit", (code) => this.exited(child, code));
-    child.postMessage({ t: "init", folder: this.options.folder, seed: this.options.seed === true });
+    child.postMessage({ t: "init", folder: this.options.folder, seed: this.options.seed === true, ffmpegPath: this.options.ffmpegPath ?? null });
   }
 
   private exited(child: LibraryChild, code: number): void {

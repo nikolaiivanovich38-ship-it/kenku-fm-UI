@@ -4,7 +4,9 @@
  * libraryProcess.ts is the thin entry Electron starts; this is the part tests run with a MessageChannel.
  *
  * Control messages from the main process (LyreApi calls use the rpc.ts protocol on the same port):
- *   { t: "init", folder, seed }   open the library (and, in test builds, seed an empty one with the prototype's data)
+ *   { t: "init", folder, seed, ffmpegPath }
+ *                                 open the library (and, in test builds, seed an empty one with the prototype's data);
+ *                                 ffmpegPath is the bundled ffmpeg for loudness peaks (null: none are worked out)
  *   { t: "start-backups" }        the window is showing: start the daily backups
  *   { t: "legacy", raw }          bring in the old player's library (once; the database remembers it did)
  *   { t: "media-folders" }        the folders the player may read library files from (MediaAccess, MEDIA_PREPARE)
@@ -14,14 +16,20 @@
  */
 import { serveLyreApi, type PortLike } from "../../common/lyre/rpc";
 import { prototypeSeed } from "../../common/lyre/seed";
-import { LibraryDatabaseError, importLegacyLibrary, openLibrary, startDailyBackups, type Library } from "../data";
-import { createLibraryApi, type LibraryHost } from "./libraryApi";
+import { LibraryDatabaseError, importLegacyLibrary, openLibrary, startDailyBackups, type Library, type PeakReader, type TagReader } from "../data";
+import { musicMetadataTagReader } from "../data/import/musicMetadata";
+import { FfmpegPeakReader } from "../media/ffmpegPeaks";
+import { createLibraryApi, type LibraryApi, type LibraryHost } from "./libraryApi";
 import { seedLibrary } from "./seedLibrary";
 
 export interface LibraryProcessOptions {
   /** Opens the library; tests pass openLibrary with a temporary folder. */
   open?: (folder: string) => Library;
   log?: (message: string, error?: unknown) => void;
+  /** Reads new files' tags (DAT-5); music-metadata unless a test passes another. */
+  tagReader?: TagReader;
+  /** Works out loudness peaks; ffmpeg at the init message's path unless a test passes another. */
+  peakReader?: (ffmpegPath: string | null) => PeakReader | null;
 }
 
 /**
@@ -37,13 +45,16 @@ export function mediaFolders(library: Library): string[] {
   return [...new Set([...roots, ...outside])];
 }
 
-export type InitMessage = { t: "init"; folder: string; seed: boolean };
+export type InitMessage = { t: "init"; folder: string; seed: boolean; ffmpegPath: string | null };
 
 export function runLibraryProcess(port: PortLike, options: LibraryProcessOptions = {}): { done: Promise<void> } {
   const open = options.open ?? ((folder: string) => openLibrary({ folder }));
   const log = options.log ?? ((message, error) => console.error(message, error ?? ""));
+  const tagReader = options.tagReader ?? musicMetadataTagReader;
+  const peakReaderFor = options.peakReader ?? ((ffmpegPath) => (ffmpegPath ? new FfmpegPeakReader({ ffmpegPath }) : null));
   let library: Library | null = null;
   let server: ReturnType<typeof serveLyreApi> | null = null;
+  let api: LibraryApi | null = null;
   let stopBackups: (() => void) | null = null;
   let finish: () => void;
   const done = new Promise<void>((resolve) => (finish = resolve));
@@ -56,7 +67,7 @@ export function runLibraryProcess(port: PortLike, options: LibraryProcessOptions
   };
 
   const stop = port.onMessage(async (data) => {
-    const message = data as { t?: string; folder?: string; seed?: boolean; raw?: unknown };
+    const message = data as { t?: string; folder?: string; seed?: boolean; raw?: unknown; ffmpegPath?: unknown };
     try {
       if (message?.t === "init" && !library) {
         try {
@@ -68,17 +79,20 @@ export function runLibraryProcess(port: PortLike, options: LibraryProcessOptions
           return;
         }
         if (message.seed && !library.store.get("SELECT 1 AS found FROM tracks LIMIT 1")) await seedLibrary(library, prototypeSeed());
-        server = serveLyreApi(createLibraryApi(library, host), port);
+        const peakReader = peakReaderFor(typeof message.ffmpegPath === "string" ? message.ffmpegPath : null);
+        api = createLibraryApi(library, host, { tagReader, peakReader: peakReader ?? undefined, log });
+        server = serveLyreApi(api, port);
         port.postMessage({ t: "ready" });
       } else if (message?.t === "start-backups" && library && !stopBackups) {
         stopBackups = startDailyBackups(library, { onError: (error) => log("The daily backup failed", error) });
       } else if (message?.t === "legacy" && library) {
-        const report = await importLegacyLibrary(library, message.raw);
+        const report = await importLegacyLibrary(library, message.raw, { tagReader });
         port.postMessage({ t: "legacy-report", report });
       } else if (message?.t === "media-folders" && library) {
         port.postMessage({ t: "media-folders", folders: mediaFolders(library) });
       } else if (message?.t === "close") {
         stopBackups?.();
+        api?.stopBackgroundWork();
         server?.close();
         library?.close();
         library = null;
