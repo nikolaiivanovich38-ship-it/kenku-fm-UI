@@ -12,7 +12,7 @@
 import React from "react";
 
 import type { PadBoard } from "../../common/lyre/api";
-import { useLyreAudio, useNowPlaying } from "../audio";
+import { useLyreAudio, usePreviewKey } from "../audio";
 import { useAnnounce } from "../shell/Announcer";
 import { Icon } from "./Icon";
 import { cx } from "./cx";
@@ -61,7 +61,7 @@ export interface SoundButtonProps {
 /** Preview in your headphones; Stop preview while it plays. */
 export function PreviewButton({ target, name, tabIndex, className }: SoundButtonProps) {
   const audio = useLyreAudio();
-  const on = useNowPlaying().preview?.key === previewKeyOf(target);
+  const on = usePreviewKey() === previewKeyOf(target);
   const board = target.kind === "board";
   const start = () => {
     switch (target.kind) {

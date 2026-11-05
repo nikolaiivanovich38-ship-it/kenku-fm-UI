@@ -1,12 +1,12 @@
 /** Preview and Play on air for every kind of sound (the prototype's L.previewButton and L.playOnAirButton). */
-import React from "react";
+import React, { Profiler } from "react";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { PadBoard } from "../../common/lyre/api";
 import { LyreAudioProvider } from "../audio";
-import { FakeLyreAudio } from "../audio/testing/fakeLyreAudio";
+import { EMPTY_NOW_PLAYING, FakeLyreAudio } from "../audio/testing/fakeLyreAudio";
 import { AnnouncerProvider } from "../shell/Announcer";
 import { expectNoAxeViolations } from "../test/axe";
 import { PlayOnAirButton, PreviewButton, previewKeyOf, type SoundTarget } from "./SoundButtons";
@@ -113,3 +113,26 @@ describe("Play on air (the players hear it)", () => {
     expect(audio.calls[audio.calls.length - 1]).toEqual(["firePad", "combat", "sword"]);
   });
 });
+
+describe("many Preview buttons (review w3-polish 5)", () => {
+  it("draw again only when what previews changes, not on every now-playing tick", () => {
+    const audio = new FakeLyreAudio();
+    let commits = 0;
+    show(
+      <Profiler id="list" onRender={() => commits++}>
+        {Array.from({ length: 50 }, (_, i) => (
+          <PreviewButton key={i} target={{ kind: "track", id: `t${i}` }} name={`T${i}`} />
+        ))}
+      </Profiler>,
+      audio,
+    );
+    commits = 0;
+    const music = { trackId: "m1", title: "Tavern", origin: "single" as never, playlistId: null as string | null, length: 20, paused: false, loading: false };
+    for (let k = 0; k < 10; k++) act(() => audio.setNowPlaying({ rooms: [{ ...EMPTY_NOW_PLAYING.rooms[0], music: { ...music, position: k } }] }));
+    expect(commits).toBe(0);
+    act(() => audio.setNowPlaying({ preview: { key: "t3", label: "T3" } }));
+    expect(commits).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Stop preview of T3" })).toHaveAttribute("aria-pressed", "true");
+  });
+});
+
