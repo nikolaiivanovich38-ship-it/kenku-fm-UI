@@ -488,3 +488,24 @@ The player page may now see the names of sound output devices and play on a chos
 | `mediaCache.test.ts` | Convert once, lossless to FLAC and lossy to Opus, one at a time, across restarts, again when changed; sweep; damaged index cannot reach outside; failures leave no part file; background disk copies; disk cap |
 | `ffmpegConverter.test.ts` | Arguments (files only, no shell), probe, failure, missing program, cancel, timeout |
 | `mediaIpc.test.ts` | Player only; argument checks; plain failure answer |
+
+## w3-shell
+
+### In plain language
+
+The new interface opens in a tab of its own, "Lyre", beside the old player. It is one of Lyre's own pages and gets exactly the player page's protections: it cannot leave its own page, cannot open windows, cannot run scripts from anywhere else, cannot be asked to show a website, and a file dropped on it does not replace it. It asks for no browser permissions yet, and Discord never hears it through tab capture (its sound will reach Discord only through the private player channel, wave 3).
+
+### Technical details
+
+- **View kind.** The main window asks for the page with the kind `"lyre"` (`LYRE_VIEW_KIND`, `BROWSER_VIEW_CREATE_BROWSER_VIEW` now accepts `"player"` or `"lyre"`). `classifyViewRequest` accepts it only together with the page's own address (`LYRE_WINDOW_WEBPACK_ENTRY`); the main process picks `LYRE_WINDOW_PRELOAD_WEBPACK_ENTRY` itself (`APP_PAGES` in `BrowserViewManagerMain.ts`). Any other pairing, or a script path, is refused (`REFUSED_VIEW_ID`).
+- **Trusted role** `lyre-view`, registered by `lockAppPage`: `will-navigate` cancelled unless only the `#route` changes, every `window.open` denied (allowed web links become ordinary tabs, as for the player), `BROWSER_VIEW_LOAD_URL` refused for it. Default session, sandboxed, context isolation on (Electron defaults, as for the player; `e2e/lyre.spec.ts` checks them in the packaged app).
+- **Permissions.** `lyre-view` can ask for nothing; its `speaker-selection` check and the never-captured rule are w3-host's (`permissions.ts`, identical in both branches). It is never offered for tab capture: `BrowserViewManagerMain` does not send `BROWSER_VIEW_LOADED` for it (the main window offers every loaded view), and `AudioCaptureManagerMain` refuses any app page other than the player.
+- **Audio host hook.** `BrowserViewManagerMain` calls `onLyreView` once the page is created and trusted; `SessionManager` passes it to `LyreManager.attachView`, whose `onAttachView` is where `playbackManager.setLyreView(view)` goes (marked `--- w3-host wiring ---`).
+- **Content-Security-Policy** (`src/lyre/index.html`, pinned in `appPageCsp.test.ts`): `script-src 'self'` (bundles and audio worklets), `media-src 'self' blob: file:` and `connect-src 'self' blob: file:` (the playback engine and preview host: prepared library files and read-ahead, nothing from the web), `img-src 'self' data:`, `font-src 'self' data:` for the bundled fonts, `style-src 'unsafe-inline'` for style-loader's `<style>` tags, `worker-src 'none'`; no inline or eval script in production. Narrower than the player page, which still allows web addresses.
+- **Drop guard**: `installDocumentDropGuard(document)` in `src/lyre/index.tsx`.
+- **Preload** `src/lyre/preload.ts` exposes only `window.lyre = { page: "lyre" }` and sends nothing.
+
+| Channel | Sent by | Arguments | Handled in |
+|---|---|---|---|
+| `LYRE_GET_URL` (sync) | Main window | none; answers the Lyre page's address (`""` when refused) | `src/main/managers/LyreManager.ts` |
+| `BROWSER_VIEW_CREATE_BROWSER_VIEW` (changed) | Main window | as before; kind: `"player"`, `"lyre"` or missing | `BrowserViewManagerMain` |
