@@ -1,0 +1,196 @@
+/* Campaigns, Campaign and Session screens (prefix cp-), ported from design/prototype/src/views/campaigns.css. */
+
+/* ---------- Campaigns: card grid, 1 column at 720, 2 at 960, 3 at 1280 ---------- */
+.cp-count { font-size: var(--fs-s); }
+.cp-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: stretch; }
+@container app (min-width: 900px) { .cp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container app (min-width: 1200px) { .cp-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/* Each card carries its campaign's data-theme, so it re-declares the base colours and type. */
+.cp-card { position: relative; display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 12px 12px 10px; overflow: hidden;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--line-strong); border-radius: var(--r-l); font: var(--fs)/1.38 var(--body); }
+.cp-card::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: linear-gradient(90deg, var(--accent), var(--second)); }
+.cp-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; font-size: var(--fs-xs); }
+.cp-sys { font-weight: 700; color: var(--ink-2); letter-spacing: .02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.cp-thname { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-3); white-space: nowrap; flex: none; }
+.cp-card-name { font-size: calc(19px * var(--display-scale)); line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cp-blurb { color: var(--ink-2); font-size: var(--fs-s); }
+.cp-next { display: flex; align-items: baseline; gap: 6px; min-width: 0; font-size: var(--fs-s); }
+.cp-next-lbl { font-size: var(--fs-xs); font-weight: 700; color: var(--ink-3); flex: none; }
+.cp-next-name { font-weight: 700; color: var(--ink); min-width: 0; }
+.cp-next-date { color: var(--ink-2); font-size: var(--fs-xs); flex: none; white-space: nowrap; }
+
+.cp-card-btns { display: flex; justify-content: flex-end; gap: 6px; margin-top: auto; padding-top: 2px; flex-wrap: wrap; }
+.cp-btnlink { text-decoration: none; }
+
+/* New campaign sheet */
+.cp-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
+.cp-wide { grid-column: 1 / -1; }
+.cp-err { color: var(--danger); font-size: var(--fs-xs); font-weight: 700; }
+.cp-err[hidden] { display: none; }
+.cp-form .input[aria-invalid="true"] { border-color: var(--danger); }
+.cp-themes { border: 0; padding: 0; margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.cp-themes legend { padding: 0; font-size: var(--fs-xs); color: var(--ink-2); font-weight: 700; letter-spacing: .02em; }
+.cp-th-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; margin-top: 2px; }
+.cp-th { display: flex; flex-direction: column; gap: 4px; padding: 6px; min-width: 0; cursor: pointer; background: var(--bg); color: var(--ink); border: 1px solid var(--line-strong); border-radius: var(--r-m); font: var(--fs-s)/1.3 var(--body); }
+.cp-th:hover { border-color: var(--ink-3); }
+.cp-th:has(input:checked) { box-shadow: 0 0 0 2px var(--accent); border-color: var(--accent); }
+.cp-th:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 3px; }
+.cp-th-prev { display: flex; flex-direction: column; gap: 4px; padding: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-s); }
+.cp-th-h { font-family: var(--display); font-weight: var(--display-weight); text-transform: var(--display-case); letter-spacing: var(--display-track); font-size: calc(18px * var(--display-scale)); line-height: 1; color: var(--ink); }
+.cp-th-row { display: flex; gap: 3px; }
+.cp-th-row i { height: 4px; border-radius: 2px; }
+.cp-th-row i.m { flex: 3; background: var(--music); } .cp-th-row i.a { flex: 2; background: var(--amb); }
+.cp-th-btn { width: 44px; height: 10px; border-radius: 3px; background: var(--accent); }
+.cp-th-name { display: flex; align-items: center; gap: 5px; font-weight: 700; min-width: 0; }
+.cp-th-name input { flex: none; }
+.cp-th-sub { font-size: var(--fs-xs); color: var(--ink-2); padding-left: 21px; }
+.sheet > .panel[data-theme] { color: var(--ink); font: var(--fs)/1.38 var(--body); }
+/* The app's sheets: in a short window the panel stays inside it and its body scrolls, so Done and Cancel stay in
+   reach (ui.css's percentage max-height does not hold inside the sheet's grid). */
+.sheet > .panel:has(.cp-sheet, .cp-form) { max-height: calc(100vh - 32px); }
+
+/* ---------- Campaign and Session pages: shared layout ---------- */
+.cp-body { gap: var(--gap); }
+.cp-details { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px 10px; flex: none; min-width: 0; }
+.cp-details .field { flex: 1 1 160px; }
+.cp-details .cp-f-name { flex: 2 1 200px; }
+.cp-details .cp-f-blurb { flex: 3 1 240px; }
+.cp-details .cp-f-theme { flex: 0 1 170px; }
+.cp-details .cp-f-date { flex: 0 1 150px; }
+.cp-details .cp-f-status { flex: 0 1 110px; }
+.cp-forced { flex: 1 1 100%; }
+.cp-order { flex: 1 1 100%; display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--ink-3); }
+.cp-order svg { flex: none; }
+.cp-split { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 34%); gap: var(--gap); }
+.cp-split.cp-ssplit { grid-template-columns: minmax(0, 1fr) minmax(260px, 34%); }
+.cp-split > .col { min-height: 0; }
+/* Side column: an open pane shows its whole title (its summary is for the folded state). */
+.cp-side > .pane:not(.collapsed) > header .pane-h, .cp-side > .pane:not(.collapsed) > header .pane-toggle { max-width: none; flex: 1; }
+.cp-side > .pane:not(.collapsed) > header .pane-summary { display: none; }
+.cp-btnsub { font-weight: 400; opacity: .85; }
+.cp-none { padding: 10px; color: var(--ink-2); font-size: var(--fs-s); }
+.cp-why { padding: 0 0 6px; }
+.cp-make { padding-top: 6px; }
+.cp-addrow { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; padding-top: 6px; }
+.cp-make a, .cp-why a, .cp-addrow a { color: var(--accent-text); }
+/* Single column at narrow widths (720 px): the page scrolls and panes take their natural height. */
+@container app (max-width: 899px) {
+  .viewbody.fill.cp-body { overflow: auto; }
+  .cp-split, .cp-split.cp-ssplit { display: flex; flex-direction: column; flex: none; }
+  .cp-split > .col > .pane { flex: none; }
+  .cp-split .pane-body { overflow: visible; }
+}
+
+/* Status badges: words always shown, colour only adds to them. */
+.cp-status { display: inline-flex; align-items: center; gap: 3px; height: 18px; padding: 0 6px; border-radius: 3px; font-size: var(--fs-xs); font-weight: 700; flex: none; white-space: nowrap; }
+.cp-status.next { background: var(--accent); color: var(--accent-ink); }
+.cp-status.played { color: var(--ink-2); background: var(--surface-3); }
+.cp-status.draft { color: var(--ink-2); border: 1px dashed var(--line-strong); }
+.viewhead .cp-status { margin-left: 2px; }
+
+/* Assigned playlists and pad boards: one line each; details in the tooltip and the expander */
+.cp-alist { border: 1px solid var(--line); border-radius: var(--r-m); overflow: hidden; }
+.cp-arow-wrap { border-bottom: 1px solid var(--line); }
+.cp-arow-wrap:last-child { border-bottom: 0; }
+.cp-arow { display: flex; align-items: center; gap: 4px; min-height: var(--row); padding: 2px 4px 2px 2px; min-width: 0; }
+.cp-arow:hover { background: var(--surface-2); }
+.cp-aname { color: var(--ink); text-decoration: none; font-weight: 700; font-size: var(--fs-s); border-radius: var(--r-s); margin-left: 2px; }
+.cp-aname:hover { text-decoration: underline; }
+
+/* Sessions list */
+.cp-slist .lrow { display: grid; grid-template-columns: 14px 22px minmax(0, 1fr) 96px 64px 52px 24px; gap: 6px; padding: 2px 4px 2px 4px; }
+.cp-sn { text-align: right; color: var(--ink-3); font-size: 15px; }
+.cp-sname { color: var(--ink); text-decoration: none; font-weight: 700; border-radius: var(--r-s); }
+.cp-sname:hover { text-decoration: underline; }
+.cp-sdate { font-size: var(--fs-xs); color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cp-slist .cp-status { justify-self: start; }
+
+.cp-slist .btn.s { width: 52px; }
+/* The other sessions' Run buttons are grey (the next one's is coloured), until the row has the keyboard focus.
+   (The prototype also lit them on hover; the app leaves that out, so a resting pointer cannot make one look "next".) */
+.cp-slist .lrow:not(:focus-within) .btn.s:not(.primary) { color: var(--ink-2); }
+@container app (max-width: 760px) { .cp-slist .lrow { grid-template-columns: 14px 22px minmax(0, 1fr) 92px 64px 52px 24px; } }
+
+/* Drag and drop */
+.cp-handle { display: grid; place-items: center; width: 14px; height: 24px; color: var(--ink-3); cursor: grab; flex: none; }
+.cp-handle:hover { color: var(--ink); }
+[data-drag].cp-dragging { opacity: .45; }
+[data-drag].cp-drop-before { box-shadow: 0 -2px 0 var(--accent); }
+[data-drag].cp-drop-after { box-shadow: 0 2px 0 var(--accent); }
+
+/* ---------- Session planner: scene cards ---------- */
+.cp-scenes { list-style: none; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cp-scene { min-width: 0; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--r-m); }
+.cp-scene.open { background: var(--surface); border-color: var(--line-strong); box-shadow: inset 3px 0 0 var(--accent); }
+.cp-scene-head { display: flex; align-items: center; gap: 4px; min-height: 32px; padding: 2px 4px 2px 2px; min-width: 0; }
+.cp-scene-toggle { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 6px 0 2px; border: 0; background: transparent; color: var(--ink); cursor: pointer; border-radius: var(--r-s); text-align: left; font-weight: 700; }
+.cp-scene-toggle:hover { background: var(--surface-3); }
+.cp-scene-toggle .chev { color: var(--ink-3); transform: rotate(-90deg); transition: transform .15s; }
+.cp-scene-toggle[aria-expanded="true"] .chev { transform: none; }
+.cp-scn { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 4px; border-radius: 3px; background: var(--bg); border: 1px solid var(--line); color: var(--ink-2); font-size: 14px; flex: none; }
+.cp-scene.open .cp-scn { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.cp-scname { font-size: var(--fs); }
+.cp-scchip { display: flex; align-items: center; gap: 2px; min-width: 0; max-width: 46%; flex: 0 1 auto; }
+.cp-chip { height: 24px; text-decoration: none; max-width: 100%; min-width: 0; gap: 5px; background: var(--surface); color: var(--ink-2); }
+.cp-chip:hover { text-decoration: underline; background: var(--surface-3); }
+
+.cp-more { display: inline-grid; place-items: center; height: 24px; padding: 0 4px; font-size: var(--fs-xs); font-weight: 700; color: var(--ink-2); flex: none; white-space: nowrap; }
+.cp-empty-chip { display: inline-flex; align-items: center; height: 24px; padding: 0 7px; border: 1px dashed var(--line-strong); border-radius: 999px; font-size: var(--fs-xs); color: var(--ink-3); white-space: nowrap; }
+
+/* Open scene: the form */
+.cp-scene-body { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; padding: 4px 10px 10px 40px; min-width: 0; }
+.cp-span { grid-column: 1 / -1; }
+.cp-scene-body textarea.input { min-height: 44px; }
+.menu .cp-danger { color: var(--danger); }
+@container app (max-width: 760px) {
+  .cp-scene-body { grid-template-columns: minmax(0, 1fr); padding-left: 10px; }
+}
+
+/* Expander gap keeps rows aligned when an item has nothing to expand (a single track). */
+.cp-xpgap { width: var(--ctl-s); flex: none; }
+.cp-xp { padding-left: 32px; }
+.cp-alist .xp-body { border-bottom: 0; border-top: 1px solid var(--line); }
+
+/* Open scene: ordered lists of music items and pad boards, and the ambience slot */
+.cp-box { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--line); border-radius: var(--r-m); background: var(--bg); }
+
+.cp-boxbtns { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; padding: 5px 6px; }
+.cp-mnone { font-size: var(--fs-xs); padding: 6px 8px; }
+.cp-items { list-style: none; display: flex; flex-direction: column; min-width: 0; }
+.cp-it { border-bottom: 1px solid var(--line); min-width: 0; }
+.cp-it.first { background: var(--surface); }
+.cp-it-row { display: flex; align-items: center; gap: 4px; min-height: var(--row); padding: 2px 4px 2px 2px; min-width: 0; }
+.cp-it-n { width: 16px; text-align: right; color: var(--ink-3); font-size: 14px; flex: none; }
+
+.cp-it-name { color: var(--ink); text-decoration: none; font-weight: 700; font-size: var(--fs-s); border-radius: var(--r-s); }
+.cp-it-name:hover { text-decoration: underline; }
+
+.cp-firsttag { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 3px; font-size: var(--fs-xs); font-weight: 700; border: 1px solid var(--line-strong); color: var(--ink-2); white-space: nowrap; flex: none; }
+
+.cp-amb .cp-it-row { padding-left: 2px; }
+.cp-amb .cp-it-row > .faint.grow { padding-left: 6px; font-size: var(--fs-s); }
+.cp-amb .xp-body { border-bottom: 0; border-top: 1px solid var(--line); }
+
+/* Obsidian placeholders: quiet, clearly not working yet */
+.cp-later { display: inline-block; padding: 0 5px; border: 1px dashed var(--line-strong); border-radius: 3px; font-size: var(--fs-xs); font-weight: 700; color: var(--ink-3); text-transform: none; letter-spacing: 0; font-family: var(--body); }
+.cp-obs { border: 1px dashed var(--line-strong); border-radius: var(--r-m); padding: 0 8px; }
+.cp-obs > summary { display: flex; align-items: center; gap: 6px; min-height: var(--ctl); cursor: pointer; font-size: var(--fs-s); font-weight: 700; color: var(--ink-2); list-style: none; }
+.cp-obs > summary::-webkit-details-marker { display: none; }
+.cp-obs > summary svg { transform: rotate(-90deg); transition: transform .15s; color: var(--ink-3); }
+.cp-obs[open] > summary svg { transform: none; }
+.cp-obs[open] { padding-bottom: 8px; }
+.cp-obs > .hint { margin-bottom: 6px; }
+.cp-obs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 6px 8px; }
+.cp-obs-btn { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin-top: 6px; }
+.cp-obsfield .cp-later { margin-left: 4px; }
+.cp-obsfield .hint { margin-top: 1px; }
+.cp-side .cp-obs-grid { grid-template-columns: minmax(0, 1fr); }
+.cp-own { display: inline-grid; place-items: center; width: 18px; height: 18px; border: 1px solid var(--line-strong); border-radius: 3px; color: var(--ink-2); flex: none; }
+.cp-own svg.i { width: 11px; height: 11px; }
+/* Dropping files from the PC: the target is outlined and an insertion line shows where tracks will land. */
+.cp-box.cp-fdrop, .cp-scene.cp-fdrop { outline: 2px dashed var(--accent); outline-offset: 1px; }
+.cp-it.cp-ins-before { box-shadow: inset 0 3px 0 var(--accent); }
+.cp-box.cp-ins-end .cp-items { box-shadow: 0 3px 0 var(--accent); }
+
+/* Keeps the hidden ' (Track)' text inside its link, so it cannot widen the page at narrow widths. */
+.cp-it-name { position: relative; }

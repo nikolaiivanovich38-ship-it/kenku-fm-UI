@@ -1,0 +1,881 @@
+/**
+ * The session planner (round 4): a session's scenes in order, each with its Starts when line, its music (tracks and
+ * playlists in any mix, played in order and then looped; the first starts the scene), its ambience (a track or an
+ * ambience playlist), its pad boards (the first shows when the scene starts) and notes; the playlists and pad boards
+ * on hand for the evening; and a reminder of the campaign's. Playlists and boards are only assigned here, never made.
+ * (views/campaigns.js part 3.)
+ */
+import React, { useEffect, useState } from "react";
+
+import type { SoundRef } from "../../../common/domain";
+import { isRefused, type CampaignInfo, type SceneAddress, type SceneInfo, type SessionInfo, type SessionStatus } from "../../../common/lyre/api";
+import { shownTitle } from "../../../common/lyre/text";
+import { useCampaign, useLyreApi } from "../../api";
+import { Button, IconButton } from "../../kit/Button";
+import { Dialog } from "../../kit/Dialog";
+import { ExpanderButton } from "../../kit/Expander";
+import { Icon } from "../../kit/Icon";
+import { runInLive } from "../../kit/liveSession";
+import type { MenuEntry } from "../../kit/Menu";
+import { Column, Pane } from "../../kit/Pane";
+import { useAnnounce } from "../../shell/Announcer";
+import type { ScreenProps } from "..";
+import { carriesFiles, dropIndex, droppedPaths } from "./drops";
+import { boardInfo, plural, sessionLabel, soundInfo, STATUS_WORDS, type ItemInfo, type LibraryIndex } from "./model";
+import { OnHandList, OnHandPane } from "./OnHand";
+import {
+  Contents,
+  DraftField,
+  ModeSwitch,
+  NotFound,
+  ObsidianButton,
+  PlayOnAirButton,
+  PreviewButton,
+  RowMenu,
+  StatusBadge,
+  useAudioMessages,
+  useFocusLater,
+  useLibraryIndex,
+  useOwnSettings,
+  useWrite,
+} from "./parts";
+import { LibraryPicker, playlistKey, refOfKey, trackKey } from "./pickers";
+import { useDragReorder } from "./reorder";
+
+import "./campaigns.css";
+
+export function SessionScreen({ route }: ScreenProps) {
+  const query = useCampaign(route.params.cid ?? "");
+  const index = useLibraryIndex();
+  useAudioMessages();
+  const campaign = query.data;
+  const session = campaign?.sessions.find((s) => s.id === route.params.sid);
+  if (campaign === null || (campaign && !session)) return <NotFound what="Session" />;
+  if (!campaign || !session || !index) {
+    return (
+      <div className="viewhead">
+        <h1>Session</h1>
+      </div>
+    );
+  }
+  return <SessionPage key={session.id} campaign={campaign} session={session} index={index} />;
+}
+
+type Picking = { kind: "music" | "ambience" | "boards"; sceneId: string } | null;
+
+/** Everything a scene card needs from the page. */
+interface SceneContext {
+  campaign: CampaignInfo;
+  session: SessionInfo;
+  index: LibraryIndex;
+  address: (scene: SceneInfo) => SceneAddress;
+  /** Remember the scene worked on last ("Add scene" goes after it). */
+  workedOn: (sceneId: string) => void;
+  focusLater: (key: string, atIndex?: number, select?: boolean) => void;
+  pick: (picking: Picking) => void;
+  dropFiles: (scene: SceneInfo, where: "music" | "ambience", paths: string[], at: number) => void;
+}
+
+function SessionPage({ campaign: c, session: s, index }: { campaign: CampaignInfo; session: SessionInfo; index: LibraryIndex }) {
+  const api = useLyreApi();
+  const write = useWrite();
+  const { say, toast } = useAnnounce();
+  const focus = useFocusLater();
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const [current, setCurrent] = useState<string | null>(null);
+  const [picking, setPicking] = useState<Picking>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
+  useEffect(() => setNameDraft((d) => (d !== null && d.trim() === s.name ? null : d)), [s.name]);
+
+  const address = (scene: SceneInfo): SceneAddress => ({ campaignId: c.id, sessionId: s.id, sceneId: scene.id });
+  const sceneAt = (id: string | null) => s.scenes.find((x) => x.id === id);
+  const ctx: SceneContext = {
+    campaign: c,
+    session: s,
+    index,
+    address,
+    workedOn: setCurrent,
+    focusLater: (key, atIndex, select) => focus(key, atIndex, select),
+    pick: setPicking,
+    dropFiles: (scene, where, paths, at) => void dropFiles(scene, where, paths, at),
+  };
+
+  /* ----- the session ----- */
+  const updateSession = (patch: Parameters<typeof api.sessions.update>[2]) => write(api.sessions.update(c.id, s.id, patch));
+
+  /* ----- scenes ----- */
+  const addScene = async (after?: string) => {
+    const at = after ? s.scenes.findIndex((x) => x.id === after) + 1 : s.scenes.length;
+    const made = (await write(api.sessions.createScene(c.id, s.id, after)))?.value;
+    if (!made) return;
+    setOpen((o) => ({ ...o, [made.id]: true }));
+    setCurrent(made.id);
+    focus(`scname-${made.id}`, undefined, true);
+    say(`New scene added as scene ${at + 1} of ${s.scenes.length + 1}`);
+  };
+  const moveScene = async (from: number, to: number) => {
+    const scene = s.scenes[from];
+    if (!scene || to < 0 || to >= s.scenes.length || from === to) return;
+    focus(`scm-${scene.id}`, to);
+    if ((await write(api.sessions.moveScene(address(scene), to))) === undefined) return;
+    say(`Scene ${scene.name} moved to position ${to + 1} of ${s.scenes.length}`);
+  };
+  const duplicate = async (scene: SceneInfo) => {
+    const at = s.scenes.indexOf(scene);
+    const made = (await write(api.sessions.duplicateScene(address(scene))))?.value;
+    if (!made) return;
+    setCurrent(made.id);
+    focus(`sct-${made.id}`);
+    say(`Duplicated as scene ${at + 2}: ${made.name}`);
+  };
+  const remove = async (sceneId: string) => {
+    setDeleting(null);
+    const at = s.scenes.findIndex((x) => x.id === sceneId);
+    const scene = s.scenes[at];
+    if (!scene || (await write(api.sessions.deleteScene(address(scene)))) === undefined) return;
+    const neighbour = s.scenes.filter((x) => x.id !== sceneId)[Math.max(0, at - 1)];
+    setCurrent(neighbour?.id ?? null);
+    focus(neighbour ? `sct-${neighbour.id}` : "addscene");
+    toast(`Deleted scene "${scene.name || "Untitled scene"}"`);
+  };
+
+  /* ----- files dropped on a scene ----- */
+  const dropFiles = async (scene: SceneInfo, where: "music" | "ambience", paths: string[], at: number) => {
+    setCurrent(scene.id);
+    if (paths.length === 0) return toast("No audio files in what you dropped");
+    const result = await api.import.start({ from: "paths", paths });
+    if (isRefused(result)) return toast(result.refusal.message);
+    const { trackIds, added } = result.value;
+    if (trackIds.length === 0) return toast(result.value.summary);
+    const lib = added.length ? `${plural(added.length, "new track")} added to the Library. ` : "";
+    const name = scene.name || "this scene";
+    if (where === "ambience") {
+      // Dropped on Ambience: the new files are ambience beds.
+      for (const id of added) await api.library.updateTrack(id, { kind: "amb" });
+      if ((await write(api.sessions.setSceneAmbience(address(scene), { kind: "track", id: trackIds[0] }))) === undefined) return;
+      const title = (await api.library.listTracks()).find((t) => t.id === trackIds[0]);
+      focus(`pa-${scene.id}`);
+      toast(`${lib}Ambience of "${name}": ${title ? shownTitle(title) : ""}${trackIds.length > 1 ? " (one ambience per scene; the others are in the Library)" : ""}`);
+      return;
+    }
+    const placed: SoundRef[] = trackIds.map((id) => ({ kind: "track", id }));
+    const music = [...scene.music.slice(0, at), ...placed, ...scene.music.slice(at)];
+    if ((await write(api.sessions.setSceneMusic(address(scene), music))) === undefined) return;
+    focus(`im-${scene.id}-music-${trackIds[0]}`);
+    toast(`${lib}${plural(trackIds.length, "track")} placed in the music of "${name}" at position ${at + 1}.`);
+  };
+
+  /* ----- pickers ----- */
+  const pickedScene = picking ? sceneAt(picking.sceneId) : undefined;
+  const choose = async (ids: string[]) => {
+    const p = picking;
+    setPicking(null);
+    const scene = p && sceneAt(p.sceneId);
+    if (!p || !scene) return;
+    if (p.kind === "music") {
+      ctx.focusLater(`am-${scene.id}`);
+      const music = ids.map(refOfKey);
+      if ((await write(api.sessions.setSceneMusic(address(scene), music))) === undefined) return;
+      const first = music[0] && soundInfo(music[0], index);
+      say(`${plural(music.length, "music item")} in this scene${first ? `; ${first.name} starts it` : ""}`);
+    } else if (p.kind === "ambience") {
+      ctx.focusLater(`pa-${scene.id}`);
+      if (!ids[0]) return;
+      const ref = refOfKey(ids[0]);
+      if ((await write(api.sessions.setSceneAmbience(address(scene), ref))) === undefined) return;
+      say(`Ambience for this scene: ${soundInfo(ref, index)?.name ?? ""}`);
+    } else {
+      ctx.focusLater(`ab-${scene.id}`);
+      const keep = scene.boardIds.filter((id) => ids.includes(id));
+      const boards = [...keep, ...ids.filter((id) => !scene.boardIds.includes(id))];
+      if ((await write(api.sessions.setSceneBoards(address(scene), boards))) === undefined) return;
+      say(`${plural(boards.length, "pad board")} in this scene${boards.length ? `; ${index.board(boards[0])?.name} shows first` : ""}`);
+    }
+  };
+
+  const drag = useDragReorder("scenes", (from, to) => void moveScene(from, to));
+  const allOpen = s.scenes.length > 0 && s.scenes.every((x) => open[x.id]);
+  const deletingScene = sceneAt(deleting);
+  const campaignBoards = c.boardIds.map((id) => index.board(id)?.name).filter(Boolean);
+
+  return (
+    <>
+      <div className="viewhead">
+        <nav className="crumbs" aria-label="Breadcrumb">
+          <a href="#/campaigns">Campaigns</a>
+          <span className="sep" aria-hidden="true">
+            ›
+          </span>
+          <a href={`#/campaign/${c.id}`}>{c.name}</a>
+          <span className="sep" aria-hidden="true">
+            ›
+          </span>
+        </nav>
+        <h1>{sessionLabel({ number: s.number, name: (nameDraft ?? s.name).trim() })}</h1>
+        <StatusBadge status={s.status} />
+        <span className="grow" />
+        <ModeSwitch campaign={c} sessionId={s.id} />
+        <Button variant={s.status === "next" ? "primary" : undefined} icon="broadcast" onClick={() => runInLive({ campaignId: c.id, sessionId: s.id })}>
+          Run this session
+        </Button>
+      </div>
+      <div className="viewbody fill cp-body">
+        <div className="cp-details cp-sdetails">
+          <div className="field cp-f-name">
+            <label htmlFor="cp-s-name">Session name</label>
+            <DraftField
+              className="input"
+              id="cp-s-name"
+              placeholder="Name this session"
+              autoComplete="off"
+              value={s.name}
+              onDraft={setNameDraft}
+              onSave={(name) => void updateSession({ name })}
+            />
+          </div>
+          <div className="field cp-f-date">
+            <label htmlFor="cp-s-date">Date</label>
+            <input className="input" type="date" id="cp-s-date" value={s.date ?? ""} onChange={(event) => void updateSession({ date: event.target.value || null })} />
+          </div>
+          <div className="field cp-f-status">
+            <label htmlFor="cp-s-status">Status</label>
+            <select
+              className="input"
+              id="cp-s-status"
+              value={s.status}
+              onChange={async (event) => {
+                const status = event.target.value as SessionStatus;
+                if ((await updateSession({ status })) !== undefined) say(`Session ${s.number} is now ${STATUS_WORDS[status]}`);
+              }}
+            >
+              {(["played", "next", "draft"] as const).map((k) => (
+                <option key={k} value={k}>
+                  {STATUS_WORDS[k]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="cp-order">
+            <Icon name="list" size="s" />
+            <span>In play: this scene&apos;s music first, then this session&apos;s, then the campaign&apos;s, then the whole library.</span>
+          </p>
+        </div>
+        <div className="cp-split cp-ssplit">
+          <Column>
+            <Pane
+              id="ss-scenes"
+              title="Scenes"
+              icon="map"
+              kind="scenes"
+              status={{ text: s.scenes.length ? plural(s.scenes.length, "scene") : "Empty" }}
+              actions={
+                <>
+                  {s.scenes.length > 0 && (
+                    <IconButton
+                      quiet
+                      icon={allOpen ? "chevup" : "chevdown"}
+                      label={allOpen ? "Fold all scenes" : "Open all scenes"}
+                      data-k="allscenes"
+                      onClick={() => {
+                        const any = !allOpen;
+                        setOpen(Object.fromEntries(s.scenes.map((x) => [x.id, any])));
+                        say(any ? "All scenes open" : "All scenes folded");
+                      }}
+                    />
+                  )}
+                  <Button size="s" icon="plus" data-k="addscene" onClick={() => void addScene(sceneAt(current)?.id)}>
+                    Add scene
+                  </Button>
+                </>
+              }
+            >
+              {s.scenes.length ? (
+                <ol className="cp-scenes" aria-label="Scenes in order">
+                  {s.scenes.map((scene, i) => (
+                    <SceneCard
+                      key={scene.id}
+                      scene={scene}
+                      position={i}
+                      ctx={ctx}
+                      open={!!open[scene.id]}
+                      onToggle={() => {
+                        setOpen((o) => ({ ...o, [scene.id]: !o[scene.id] }));
+                        setCurrent(scene.id);
+                      }}
+                      drag={drag}
+                      menu={[
+                        ...(i > 0 ? [{ label: "Move up", icon: "chevup" as const, onSelect: () => { void moveScene(i, i - 1); } }] : []),
+                        ...(i < s.scenes.length - 1 ? [{ label: "Move down", icon: "chevdown" as const, onSelect: () => { void moveScene(i, i + 1); } }] : []),
+                        { label: "Add a scene after this one", icon: "plus", onSelect: () => void addScene(scene.id) },
+                        { label: "Duplicate", icon: "queue", onSelect: () => void duplicate(scene) },
+                        { separator: true },
+                        { label: "Delete…", icon: "trash", danger: true, onSelect: () => setDeleting(scene.id) },
+                      ]}
+                    />
+                  ))}
+                </ol>
+              ) : (
+                <p className="cp-none">No scenes yet. Use Add scene.</p>
+              )}
+            </Pane>
+          </Column>
+          <Column className="cp-side">
+            <OnHandPane
+              paneId="ss-spl"
+              title="Session playlists"
+              kind="playlists"
+              owner={{ campaignId: c.id, sessionId: s.id }}
+              ids={s.playlistIds}
+              index={index}
+              why="In every scene tonight."
+              where={`every scene of Session ${s.number}`}
+              ownerWord="session"
+            />
+            <OnHandPane
+              paneId="ss-sbd"
+              title="Session pad boards"
+              kind="boards"
+              owner={{ campaignId: c.id, sessionId: s.id }}
+              ids={s.boardIds}
+              index={index}
+              why="In every scene tonight."
+              where={`every scene of Session ${s.number}`}
+              ownerWord="session"
+            />
+            <Pane id="ss-cpl" title="Campaign playlists" icon="crown" size="auto" kind="music" status={{ text: c.playlistIds.length ? String(c.playlistIds.length) : "Empty" }}>
+              <p className="hint cp-why">
+                From the campaign. <a href={`#/campaign/${c.id}`}>Change</a>.
+              </p>
+              <OnHandList ids={c.playlistIds} kind="playlists" index={index} scope="r" />
+              <p className="hint cp-make">Campaign pad boards: {campaignBoards.length ? campaignBoards.join(", ") : "none"}.</p>
+            </Pane>
+            <Pane id="ss-obs" title="Obsidian" icon="link" size="auto" collapsed kind="plain" status={{ text: "Coming later" }}>
+              <div className="field">
+                <label htmlFor="cp-s-obs">Session note</label>
+                <DraftField
+                  className="input"
+                  id="cp-s-obs"
+                  autoComplete="off"
+                  value={s.noteLink}
+                  placeholder={`${c.obsidian.sessionsFolder || "Sessions"}/Session ${s.number}.md`}
+                  onSave={(noteLink) => void updateSession({ noteLink })}
+                />
+              </div>
+              <ObsidianButton idPrefix="cp-s-o-" />
+            </Pane>
+          </Column>
+        </div>
+      </div>
+      {picking && pickedScene && (
+        <LibraryPicker
+          open
+          kind={picking.kind === "boards" ? "boards" : picking.kind}
+          index={index}
+          title={`${picking.kind === "music" ? "Music" : picking.kind === "ambience" ? "Ambience" : "Pad boards"} for "${pickedScene.name || "this scene"}"`}
+          intro={
+            picking.kind === "music"
+              ? "Tick playlists, single tracks or both. They play in the scene in the order you tick them; you can reorder them afterwards."
+              : picking.kind === "ambience"
+                ? "One ambience track, or an ambience playlist that moves from bed to bed."
+                : "Tick the boards to have in this scene. New ones are added at the end; the first one shows when the scene starts."
+          }
+          selected={
+            picking.kind === "music"
+              ? pickedScene.music.map((r) => (r.kind === "track" ? trackKey(r.id) : playlistKey(r.id)))
+              : picking.kind === "ambience"
+                ? pickedScene.ambience
+                  ? [pickedScene.ambience.kind === "track" ? trackKey(pickedScene.ambience.id) : playlistKey(pickedScene.ambience.id)]
+                  : []
+                : pickedScene.boardIds
+          }
+          onDone={(ids) => void choose(ids)}
+          onClose={() => {
+            ctx.focusLater(`${picking.kind === "music" ? "am" : picking.kind === "ambience" ? "pa" : "ab"}-${pickedScene.id}`);
+            setPicking(null);
+          }}
+        />
+      )}
+      <Dialog
+        open={!!deletingScene}
+        title="Delete this scene?"
+        onClose={() => setDeleting(null)}
+        footer={
+          <>
+            <Button onClick={() => setDeleting(null)}>Keep it</Button>
+            <Button variant="danger" icon="trash" onClick={() => deletingScene && void remove(deletingScene.id)}>
+              Delete scene
+            </Button>
+          </>
+        }
+      >
+        {deletingScene && (
+          <p>
+            Delete scene {s.scenes.indexOf(deletingScene) + 1}, <b>{deletingScene.name || "Untitled scene"}</b>, and its notes? Its tracks, playlists and pad boards stay
+            in your library.
+          </p>
+        )}
+      </Dialog>
+    </>
+  );
+}
+
+/* ---------- one scene ---------- */
+
+interface SceneCardProps {
+  scene: SceneInfo;
+  position: number;
+  ctx: SceneContext;
+  open: boolean;
+  onToggle: () => void;
+  drag: ReturnType<typeof useDragReorder>;
+  menu: MenuEntry[];
+}
+
+/** What a folded scene's tooltip says: its Starts when, music, ambience and pad boards. */
+function sceneTip(scene: SceneInfo, index: LibraryIndex): string {
+  const music = scene.music.map((r) => soundInfo(r, index)?.name).filter(Boolean);
+  const ambience = scene.ambience && soundInfo(scene.ambience, index);
+  const boards = scene.boardIds.map((id) => index.board(id)?.name).filter(Boolean);
+  return [
+    scene.startsWhen ? `Starts when: ${scene.startsWhen}` : "No Starts when line yet",
+    `Music: ${music.length ? music.join(", ") : "none"}`,
+    `Ambience: ${ambience ? ambience.name : "none"}`,
+    `Pad boards: ${boards.length ? boards.join(", ") : "none"}`,
+  ].join("\n");
+}
+
+function SceneCard({ scene, position, ctx, open, onToggle, drag, menu }: SceneCardProps) {
+  const api = useLyreApi();
+  const write = useWrite();
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
+  const [fileOver, setFileOver] = useState(false);
+  useEffect(() => setNameDraft((d) => (d !== null && d === scene.name ? null : d)), [scene.name]);
+  const name = (nameDraft ?? scene.name) || "Untitled scene";
+  const number = position + 1;
+  const save = (patch: Parameters<typeof api.sessions.updateScene>[1]) => {
+    ctx.workedOn(scene.id);
+    void write(api.sessions.updateScene(ctx.address(scene), patch));
+  };
+  const rowProps = drag.rowProps(position);
+  const f = `sc${scene.id}`;
+
+  // A folded scene takes dropped files into its music, at the end.
+  const foldedDrop = open
+    ? {}
+    : {
+        onDragOver: (event: React.DragEvent<HTMLElement>) => {
+          rowProps.onDragOver(event);
+          if (drag.isDragging() || !carriesFiles(event)) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "copy";
+          setFileOver(true);
+        },
+        onDragLeave: () => setFileOver(false),
+        onDrop: (event: React.DragEvent<HTMLElement>) => {
+          rowProps.onDrop(event);
+          if (drag.isDragging() || !carriesFiles(event)) return;
+          event.preventDefault();
+          setFileOver(false);
+          ctx.dropFiles(scene, "music", droppedPaths(event), scene.music.length);
+        },
+      };
+
+  const first = scene.music.map((r) => soundInfo(r, ctx.index)).filter((x): x is ItemInfo => !!x);
+  return (
+    <li
+      className={`cp-scene${open ? " open" : ""}${fileOver ? " cp-fdrop" : ""} ${drag.rowClass(position)}`}
+      aria-label={`Scene ${number}: ${name}`}
+      {...rowProps}
+      {...foldedDrop}
+    >
+      <div className="cp-scene-head">
+        <span className="cp-handle" title="Drag to reorder" aria-hidden="true" {...drag.handleProps}>
+          <Icon name="drag" size="s" />
+        </span>
+        <button
+          type="button"
+          className="cp-scene-toggle"
+          data-k={`sct-${scene.id}`}
+          aria-expanded={open}
+          aria-controls={open ? `scb-${scene.id}` : undefined}
+          title={open ? undefined : sceneTip(scene, ctx.index)}
+          onClick={onToggle}
+        >
+          <Icon name="chevdown" size="s" className="chev" />
+          <span className="num cp-scn" aria-hidden="true">
+            {number}
+          </span>
+          <span className="ellipsis cp-scname">
+            <span className="sr-only">Scene {number}:</span> {name}
+          </span>
+        </button>
+        {!open && (
+          <span className="cp-scchip">
+            {first.length ? (
+              <>
+                <a className="chip cp-chip" href={first[0].href} title={`${first[0].label}: ${first[0].name}`}>
+                  <span className={`lane-dot ${first[0].lane}`} aria-hidden="true" />
+                  <span className="ellipsis">{first[0].name}</span>
+                </a>
+                {first.length > 1 && (
+                  <span className="cp-more" title={plural(first.length - 1, "more music item")}>
+                    +{first.length - 1} more
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className="cp-empty-chip">No music</span>
+            )}
+          </span>
+        )}
+        <RowMenu label={`More for ${name}`} title="More for this scene" k={`scm-${scene.id}`} items={menu} />
+      </div>
+      {open && (
+        <div className="cp-scene-body" id={`scb-${scene.id}`}>
+          <div className="field">
+            <label htmlFor={`${f}n`}>Name</label>
+            <DraftField
+              className="input"
+              id={`${f}n`}
+              data-k={`scname-${scene.id}`}
+              autoComplete="off"
+              value={scene.name}
+              onDraft={setNameDraft}
+              onSave={(value) => save({ name: value })}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor={`${f}w`}>Starts when</label>
+            <DraftField className="input" id={`${f}w`} placeholder="The moment in the story" autoComplete="off" value={scene.startsWhen} onSave={(value) => save({ startsWhen: value })} />
+          </div>
+          <div className="field cp-span" role="group" aria-labelledby={`${f}m`}>
+            <span className="label" id={`${f}m`}>
+              Music
+            </span>
+            <MusicList scene={scene} ctx={ctx} />
+          </div>
+          <div className="field cp-span" role="group" aria-labelledby={`${f}a`}>
+            <span className="label" id={`${f}a`}>
+              Ambience
+            </span>
+            <AmbienceSlot scene={scene} ctx={ctx} />
+          </div>
+          <div className="field cp-span" role="group" aria-labelledby={`${f}b`}>
+            <span className="label" id={`${f}b`}>
+              Pad boards
+            </span>
+            <BoardList scene={scene} ctx={ctx} />
+          </div>
+          <div className="field">
+            <label htmlFor={`${f}x`}>Notes</label>
+            <DraftField multiline className="input" id={`${f}x`} rows={2} placeholder="Reminders for this scene" value={scene.notes} onSave={(value) => save({ notes: value })} />
+          </div>
+          <div className="field cp-obsfield">
+            <label htmlFor={`${f}o`}>
+              Note link <span className="cp-later">Coming later</span>
+            </label>
+            <DraftField
+              className="input"
+              id={`${f}o`}
+              placeholder="Optional: an Obsidian note"
+              title="Kept for later; Lyre does not open Obsidian notes yet"
+              autoComplete="off"
+              value={scene.noteLink}
+              onSave={(value) => save({ noteLink: value })}
+            />
+          </div>
+        </div>
+      )}
+    </li>
+  );
+}
+
+/* ---------- a scene's ordered lists: music items and pad boards ---------- */
+
+type ListKind = "music" | "boards";
+
+/** One row of a scene's music or pad boards: number, kind, name; Preview, Play on air, then ⋯ for the rest. */
+function ItemRow({
+  scene,
+  list,
+  info,
+  position,
+  count,
+  ctx,
+  dropBefore,
+  onChange,
+}: {
+  scene: SceneInfo;
+  list: ListKind;
+  info: ItemInfo;
+  position: number;
+  count: number;
+  ctx: SceneContext;
+  /** Files dropped now would land before this row (an insertion line). */
+  dropBefore?: boolean;
+  onChange: (op: "first" | "up" | "down" | "remove") => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ownSettings = useOwnSettings();
+  const place = { kind: "scene" as const, ...ctx.address(scene) };
+  const placeKey = `sc:${place.campaignId}:${place.sessionId}:${place.sceneId}`;
+  const own = list === "music" && info.kind === "track" && ownSettings(info.id, place);
+  const playlist = info.kind === "playlist" ? ctx.index.playlist(info.id) : undefined;
+  const board = info.kind === "board" ? ctx.index.board(info.id) : undefined;
+  const items: MenuEntry[] = [
+    ...(position > 0 ? [{ label: list === "boards" ? "Show it first" : "Start the scene with it", icon: "play" as const, onSelect: () => onChange("first") }] : []),
+    ...(position > 0 ? [{ label: "Move up", icon: "chevup" as const, onSelect: () => onChange("up") }] : []),
+    ...(position < count - 1 ? [{ label: "Move down", icon: "chevdown" as const, onSelect: () => onChange("down") }] : []),
+    ...(list === "music" && info.kind === "track"
+      ? [{ label: "Audio profile in this scene", icon: "wave" as const, onSelect: () => (window.location.hash = `#/profile/${info.id}/${placeKey}`) }]
+      : []),
+    { label: "Open", icon: "right", onSelect: () => (window.location.hash = info.href) },
+    { separator: true },
+    { label: "Remove from this scene", icon: "close", onSelect: () => onChange("remove") },
+  ];
+  return (
+    <li className={`cp-it${position === 0 ? " first" : ""}${dropBefore ? " cp-ins-before" : ""}`}>
+      <div className="cp-it-row">
+        {playlist || board ? <ExpanderButton label={info.name} expanded={open} onToggle={() => setOpen(!open)} /> : <span className="cp-xpgap" aria-hidden="true" />}
+        <span className="num cp-it-n" aria-hidden="true">
+          {position + 1}
+        </span>
+        <span className={`lane-dot ${info.lane}`} aria-hidden="true" />
+        <a className="ellipsis grow cp-it-name" href={info.href} title={`${info.name} · ${info.label} · ${info.sub}`}>
+          {info.name}
+          <span className="sr-only"> ({info.label})</span>
+        </a>
+        {position === 0 && <span className="cp-firsttag">{list === "boards" ? "Shown first" : "Starts the scene"}</span>}
+        {own && (
+          <span className="cp-own" title="Has its own audio settings in this scene">
+            <Icon name="wave" size="s" />
+            <span className="sr-only">Own audio settings in this scene</span>
+          </span>
+        )}
+        {board ? (
+          <PreviewButton target={{ kind: "board", board }} name={info.name} />
+        ) : (
+          <PreviewButton target={info.kind === "playlist" ? { kind: "playlist", id: info.id } : { kind: "track", id: info.id }} name={info.name} />
+        )}
+        {info.kind !== "board" && <PlayOnAirButton kind={info.kind} id={info.id} name={info.name} />}
+        <RowMenu label={`More for ${info.name}`} k={`im-${scene.id}-${list}-${info.id}`} items={items} />
+      </div>
+      {open && (playlist || board) && (
+        <div className="xp-body cp-xp">
+          {playlist ? (
+            <Contents item={{ kind: "playlist", playlist }} index={ctx.index} place={list === "music" ? placeKey : undefined} />
+          ) : (
+            board && <Contents item={{ kind: "board", board }} index={ctx.index} />
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
+/** Moves, "starts the scene" and removes in a scene's music or pad boards, with what the prototype says. */
+function useListChange(scene: SceneInfo, list: ListKind, ctx: SceneContext) {
+  const api = useLyreApi();
+  const write = useWrite();
+  const { say } = useAnnounce();
+  const nameOf = (id: string) => (list === "boards" ? ctx.index.board(id)?.name : soundInfo(scene.music.find((r) => r.id === id) ?? { kind: "track", id }, ctx.index)?.name) ?? "item";
+  return async (at: number, op: "first" | "up" | "down" | "remove") => {
+    ctx.workedOn(scene.id);
+    const items: (SoundRef | string)[] = list === "music" ? [...scene.music] : [...scene.boardIds];
+    const idOf = (x: SoundRef | string) => (typeof x === "string" ? x : x.id);
+    const id = idOf(items[at]);
+    const name = nameOf(id);
+    const lead = list === "boards" ? " now shows first" : " now starts the scene";
+    const save = () =>
+      write(list === "music" ? api.sessions.setSceneMusic(ctx.address(scene), items as SoundRef[]) : api.sessions.setSceneBoards(ctx.address(scene), items as string[]));
+    if (op === "remove") {
+      items.splice(at, 1);
+      ctx.focusLater(items.length ? `im-${scene.id}-${list}-${idOf(items[Math.min(at, items.length - 1)])}` : `${list === "boards" ? "ab" : "am"}-${scene.id}`);
+      if ((await save()) === undefined) return;
+      say(`Removed ${name} from this scene${at === 0 && items.length ? `. ${nameOf(idOf(items[0]))}${lead}` : ""}`);
+      return;
+    }
+    const to = op === "first" ? 0 : op === "up" ? at - 1 : at + 1;
+    if (to < 0 || to >= items.length) return;
+    const [moved] = items.splice(at, 1);
+    items.splice(to, 0, moved);
+    ctx.focusLater(`im-${scene.id}-${list}-${id}`);
+    if ((await save()) === undefined) return;
+    say(to === 0 ? `${name}${lead}` : `${name} moved to position ${to + 1} of ${items.length}${at === 0 ? `. ${nameOf(idOf(items[0]))}${lead}` : ""}`);
+  };
+}
+
+/** A scene's music: tracks and playlists in play order, a drop zone for audio files, and Add tracks or playlists…. */
+function MusicList({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
+  const change = useListChange(scene, "music", ctx);
+  const [over, setOver] = useState<{ index: number } | null>(null);
+  const rows = scene.music.map((ref, at) => ({ at, info: soundInfo(ref, ctx.index) })).filter((r): r is { at: number; info: ItemInfo } => !!r.info);
+  return (
+    <div
+      className={`cp-box${over ? " cp-fdrop" : ""}${over && over.index >= rows.length ? " cp-ins-end" : ""}`}
+      title="Drop audio files or folders here to add them"
+      onDragOver={(event) => {
+        if (!carriesFiles(event)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.dataTransfer.dropEffect = "copy";
+        setOver({ index: dropIndex(event.currentTarget, event.clientY).index });
+      }}
+      onDragLeave={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOver(null);
+      }}
+      onDrop={(event) => {
+        if (!carriesFiles(event)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        setOver(null);
+        const position = dropIndex(event.currentTarget, event.clientY).index;
+        const at = position < rows.length ? rows[position].at : scene.music.length;
+        ctx.dropFiles(scene, "music", droppedPaths(event), at);
+      }}
+    >
+      {rows.length ? (
+        <ol className="cp-items" aria-label="Music in order">
+          {rows.map((row, i) => (
+            <ItemRow
+              key={`${row.info.kind}:${row.info.id}:${row.at}`}
+              scene={scene}
+              list="music"
+              info={row.info}
+              position={i}
+              count={rows.length}
+              ctx={ctx}
+              dropBefore={over?.index === i}
+              onChange={(op) => void change(row.at, op)}
+            />
+          ))}
+        </ol>
+      ) : (
+        <p className="faint cp-mnone">No music yet. The first item you add starts the scene.</p>
+      )}
+      <div className="cp-boxbtns">
+        <Button size="s" icon="plus" data-k={`am-${scene.id}`} onClick={() => ctx.pick({ kind: "music", sceneId: scene.id })}>
+          Add tracks or playlists…
+        </Button>
+        <span className="hint">Plays in order, then loops. Drop files here to add them.</span>
+      </div>
+    </div>
+  );
+}
+
+/** A scene's pad boards in order; the first shows when the scene starts. */
+function BoardList({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
+  const change = useListChange(scene, "boards", ctx);
+  const rows = scene.boardIds.map((id, at) => ({ at, board: ctx.index.board(id) })).filter((r) => !!r.board);
+  return (
+    <div className="cp-box">
+      {rows.length ? (
+        <ol className="cp-items" aria-label="Pad boards in order">
+          {rows.map((row, i) => (
+            <ItemRow
+              key={row.board!.id}
+              scene={scene}
+              list="boards"
+              info={boardInfo(row.board!)}
+              position={i}
+              count={rows.length}
+              ctx={ctx}
+              onChange={(op) => void change(row.at, op)}
+            />
+          ))}
+        </ol>
+      ) : (
+        <p className="faint cp-mnone">No pad boards yet.</p>
+      )}
+      <div className="cp-boxbtns">
+        <Button size="s" icon="plus" data-k={`ab-${scene.id}`} onClick={() => ctx.pick({ kind: "boards", sceneId: scene.id })}>
+          Add pad boards…
+        </Button>
+        <span className="hint">The first is shown when the scene starts.</span>
+      </div>
+    </div>
+  );
+}
+
+/** A scene's ambience: one track or ambience playlist, or none; a drop zone for an audio file. */
+function AmbienceSlot({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
+  const api = useLyreApi();
+  const write = useWrite();
+  const { say } = useAnnounce();
+  const [open, setOpen] = useState(false);
+  const [over, setOver] = useState(false);
+  const info = scene.ambience ? soundInfo(scene.ambience, ctx.index) : undefined;
+  const playlist = info?.kind === "playlist" ? ctx.index.playlist(info.id) : undefined;
+  const choose = () => {
+    ctx.workedOn(scene.id);
+    ctx.pick({ kind: "ambience", sceneId: scene.id });
+  };
+  const clear = async () => {
+    ctx.workedOn(scene.id);
+    ctx.focusLater(`pa-${scene.id}`);
+    if ((await write(api.sessions.setSceneAmbience(ctx.address(scene), null))) !== undefined) say("No ambience in this scene");
+  };
+  const dropProps = {
+    onDragOver: (event: React.DragEvent<HTMLDivElement>) => {
+      if (!carriesFiles(event)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.dataTransfer.dropEffect = "copy";
+      setOver(true);
+    },
+    onDragLeave: (event: React.DragEvent<HTMLDivElement>) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOver(false);
+    },
+    onDrop: (event: React.DragEvent<HTMLDivElement>) => {
+      if (!carriesFiles(event)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setOver(false);
+      ctx.dropFiles(scene, "ambience", droppedPaths(event), 0);
+    },
+  };
+  if (!info) {
+    return (
+      <div className={`cp-box cp-amb${over ? " cp-fdrop" : ""}`} title="Choose, or drop an audio file here" {...dropProps}>
+        <div className="cp-it-row">
+          <span className="faint grow">No ambience</span>
+          <Button size="s" icon="plus" data-k={`pa-${scene.id}`} onClick={choose}>
+            Choose…
+          </Button>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div className={`cp-box cp-amb${over ? " cp-fdrop" : ""}`} title="Change, or drop an audio file here" {...dropProps}>
+      <div className="cp-it-row">
+        {playlist ? <ExpanderButton label={info.name} expanded={open} onToggle={() => setOpen(!open)} /> : <span className="cp-xpgap" aria-hidden="true" />}
+        <span className={`lane-dot ${info.lane}`} aria-hidden="true" />
+        <a className="ellipsis grow cp-it-name" href={info.href} title={`${info.name} · ${info.label} · ${info.sub}`}>
+          {info.name}
+        </a>
+        <Button size="s" data-k={`pa-${scene.id}`} onClick={choose}>
+          Change…
+        </Button>
+        <PreviewButton target={info.kind === "playlist" ? { kind: "playlist", id: info.id } : { kind: "track", id: info.id }} name={info.name} />
+        <PlayOnAirButton kind={info.kind === "playlist" ? "playlist" : "track"} id={info.id} name={info.name} />
+        <RowMenu
+          label={`More for ${info.name}`}
+          k={`ma-${scene.id}`}
+          items={[
+            { label: "Change…", icon: "edit", onSelect: choose },
+            { label: "Open", icon: "right", onSelect: () => (window.location.hash = info.href) },
+            { separator: true },
+            { label: "Remove from this scene", icon: "close", onSelect: () => void clear() },
+          ]}
+        />
+      </div>
+      {open && playlist && (
+        <div className="xp-body">
+          <Contents item={{ kind: "playlist", playlist }} index={ctx.index} />
+        </div>
+      )}
+    </div>
+  );
+}

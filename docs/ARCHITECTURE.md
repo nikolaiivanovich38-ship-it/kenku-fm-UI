@@ -295,3 +295,22 @@ The new interface's screens read and change the library only through `LyreApi` (
 - **Own process (step 2)**: `src/main/data` runs only in the library's utility process (`src/main/lyreApi/libraryProcess.ts`, webpack entry `lyreLibrary`, so `webpack.main.config.js` names its bundles `[name].js`). `createLibraryApi(library, host)` (`libraryApi.ts`) implements LyreApi over the database and passes the contract suite in-process and across a port; `refusalFor(error)` turns `ValidationError`, `NotFoundError` and `LibraryBusyError` into refusals. `LyreLibraryService` (`libraryService.ts`) starts the process, relays calls (`rpc.ts`), restarts it after a crash and sends `library-status` events. `wireLyreLibrary` (`wiring.ts`) registers `LYRE_API_CALL` and `MEDIA_PREPARE`, forwards events to the Lyre page and brings in the old player's library on the first call. `index.ts` starts it when the app is ready, starts backups when the window is ready to show, and closes it before quitting.
 - **The page (step 2)**: `src/lyre/preload.ts` exposes `window.lyre = { page, api, audio }`. `AppProviders.tsx` wires `LyreApiProvider` (`ipcLyreApi`), then `LibraryStatus` (plain words while the library restarts), then Lyre audio (`startLyreAudio`, fed by `LibrarySnapshot` and refed on changes), then `ShellDataProvider`.
 - **Session numbers** are derived: `campaigns.first_session_number` plus the session's position (docs/data-model.md). Pad keys accept F1 to F12.
+
+## Wave 3: w3-campaigns
+
+Campaigns (`#/campaigns`), one campaign (`#/campaign/<cid>`) and the session planner (`#/session/<cid>/<sid>`), ported from `design/prototype/src/views/campaigns.js` (WP5, UX-1). Files in `src/lyre/screens/campaigns/`:
+
+| File | What it does |
+| --- | --- |
+| `CampaignsScreen.tsx` | The cards (each in its campaign's theme, or the theme Look and feel forces), Run next session, Open; the New campaign sheet (name, game system, one-line description, theme previews with Candlelit Library first, folded Obsidian placeholders). |
+| `CampaignScreen.tsx` | Details (name, game system, theme, description), Prep or Live, Run next session; Sessions in order (drag a handle or ⋯ to move; numbers follow order), a Run button per session; Notes; Campaign playlists and pad boards; Obsidian (coming later). |
+| `SessionScreen.tsx` | Session details, Prep or Live, Run this session; scene cards (fold, open all, move, drag, add after the last one worked on, duplicate, delete after asking); each scene's music (tracks and playlists mixed, in play order), ambience and pad boards, with menus, expanders, Preview, Play on air, pickers and dropped files; session playlists and pad boards; the campaign's playlists as a reminder. |
+| `OnHand.tsx` | Playlists and pad boards on hand (campaign or session): rows, Add… picker, Remove. |
+| `pickers.tsx` | The music, ambience, playlist and pad board pickers on the kit's `PickerDialog` (Preview on every row, expanders closed). Leaving a picker stops its preview. |
+| `parts.tsx` | `useLibraryIndex` (tracks, playlists, boards in one look-up), `useWrite` (refusals become toasts), `useAudioMessages` (the audio host's sentences to the live region, its failures to a toast), `useFocusLater` (focus a control once the library has redrawn the screen), `PreviewButton`, `PlayOnAirButton`, `Contents`, `RowMenu`, `ModeSwitch`, `DraftField` (saves after a 300 ms pause, on leaving the field and on closing, so a reload never moves the cursor and typing makes one undo step per pause). |
+| `model.ts`, `reorder.ts`, `drops.ts` | Wording and look-ups; drag to reorder by a handle; dropped files to paths. |
+
+- **Run and Live.** Run, Run next session and the Live side of the switch call `runInLive` (`src/lyre/kit/liveSession.ts`): the session is loaded in Live, ready to start, and `#/live` opens. The Live screen reads `useLiveSession()`; the shell can show it through `ShellData.liveCampaign` and `liveLabel`.
+- **Themes.** A theme change is a `campaigns.update`; the shell follows through `ShellData.campaignTheme`, fed from `useCampaigns()` in `AppProviders`.
+- **Session numbers** come from order: moving a session renumbers them from the lowest number, as the library does.
+- **Dropped files** are imported with `import.start({ from: "paths" })`. The page learns a file's place on the computer from `window.lyre.files.pathFor(file)` when the preload offers it (Electron's `webUtils.getPathForFile`); without it, the file's name is sent.

@@ -1,0 +1,172 @@
+/**
+ * Playlists and pad boards kept on hand in every session of a campaign, or every scene of a session: compact rows
+ * with an expander (closed), Preview, Play on air for playlists and a ⋯ menu (Open, Remove). They are only assigned
+ * here; they are made on the Playlists and Pad boards pages. (views/campaigns.js assigned(), assignedPane, cpadd, cprm.)
+ */
+import React, { useState } from "react";
+
+import type { Owner, PadBoard, PlaylistInfo } from "../../../common/lyre/api";
+import { useLyreApi } from "../../api";
+import { IconButton } from "../../kit/Button";
+import { ExpanderButton } from "../../kit/Expander";
+import { Pane } from "../../kit/Pane";
+import { useAnnounce } from "../../shell/Announcer";
+import { boardInfo, playlistInfo, plural, type ItemInfo, type LibraryIndex } from "./model";
+import { Contents, PlayOnAirButton, PreviewButton, RowMenu, useFocusLater, useWrite } from "./parts";
+import { LibraryPicker } from "./pickers";
+
+type Kind = "playlists" | "boards";
+
+interface ListProps {
+  ids: readonly string[];
+  kind: Kind;
+  index: LibraryIndex;
+  /** A short word making each row's keys unique on the page ("c" campaign, "s" session, "r" the reminder). */
+  scope: string;
+  /** Read only (the reminder of the campaign's playlists on a session page): no ⋯ menu. */
+  onRemove?: (id: string) => void;
+  removeLabel?: string;
+}
+
+/** The rows; "No playlists yet." when there are none. */
+export function OnHandList({ ids, kind, index, scope, onRemove, removeLabel }: ListProps) {
+  const rows = ids.flatMap((id): Omit<RowProps, "index" | "scope">[] => {
+    if (kind === "playlists") {
+      const p = index.playlist(id);
+      return p ? [{ info: playlistInfo(p, index), playlist: p }] : [];
+    }
+    const b = index.board(id);
+    return b ? [{ info: boardInfo(b), board: b }] : [];
+  });
+  if (rows.length === 0) return <p className="cp-none">{kind === "playlists" ? "No playlists yet." : "No pad boards yet."}</p>;
+  return (
+    <ul className="list cp-alist">
+      {rows.map((row) => (
+        <OnHandRow key={row.info.id} {...row} index={index} scope={scope} onRemove={onRemove} removeLabel={removeLabel} />
+      ))}
+    </ul>
+  );
+}
+
+interface RowProps {
+  info: ItemInfo;
+  playlist?: PlaylistInfo;
+  board?: PadBoard;
+  index: LibraryIndex;
+  scope: string;
+  onRemove?: (id: string) => void;
+  removeLabel?: string;
+}
+
+function OnHandRow({ info, playlist, board, index, scope, onRemove, removeLabel }: RowProps) {
+  const [open, setOpen] = useState(false);
+  const kindKey = playlist ? "pl" : "bd";
+  return (
+    <li className="cp-arow-wrap">
+      <div className="cp-arow">
+        <ExpanderButton label={info.name} expanded={open} onToggle={() => setOpen(!open)} />
+        <span className={`lane-dot ${info.lane}`} aria-hidden="true" />
+        <a className="ellipsis grow cp-aname" href={info.href} title={`${info.name} · ${info.listSub}`}>
+          {info.name}
+        </a>
+        {playlist ? <PreviewButton target={{ kind: "playlist", id: playlist.id }} name={info.name} /> : board && <PreviewButton target={{ kind: "board", board }} name={info.name} />}
+        {playlist && <PlayOnAirButton kind="playlist" id={playlist.id} name={info.name} />}
+        {onRemove && (
+          <RowMenu
+            label={`More for ${info.name}`}
+            k={`more-${scope}${kindKey}${info.id}`}
+            items={[
+              { label: "Open", icon: "right", onSelect: () => (window.location.hash = info.href) },
+              { separator: true },
+              { label: removeLabel ?? "Remove", icon: "close", onSelect: () => onRemove(info.id) },
+            ]}
+          />
+        )}
+      </div>
+      {open && (
+        <div className="xp-body cp-xp">
+          {playlist ? <Contents item={{ kind: "playlist", playlist }} index={index} /> : board && <Contents item={{ kind: "board", board }} index={index} />}
+        </div>
+      )}
+    </li>
+  );
+}
+
+export interface OnHandPaneProps {
+  /** The box's id (remembered open or closed). */
+  paneId: string;
+  title: string;
+  kind: Kind;
+  owner: Owner;
+  ids: readonly string[];
+  index: LibraryIndex;
+  /** "In every session." */
+  why: string;
+  /** "every session of The Sunken Crown" */
+  where: string;
+  /** "campaign" or "session", for "Remove from this campaign". */
+  ownerWord: "campaign" | "session";
+}
+
+/** A box of playlists or pad boards on hand, with Add playlists… (a picker of the whole library). */
+export function OnHandPane({ paneId, title, kind, owner, ids, index, why, where, ownerWord }: OnHandPaneProps) {
+  const api = useLyreApi();
+  const write = useWrite();
+  const { say, toast } = useAnnounce();
+  const focusLater = useFocusLater();
+  const [picking, setPicking] = useState(false);
+  const scope = ownerWord === "campaign" ? "c" : "s";
+  const kindKey = kind === "playlists" ? "pl" : "bd";
+  const kindWords = kind === "playlists" ? "playlists" : "pad boards";
+  const addKey = `add-${scope}${kindKey}`;
+
+  const save = async (next: string[]) => write(api.campaigns.setOnHand(owner, kind, next));
+
+  const choose = async (chosen: string[]) => {
+    setPicking(false);
+    const keep = ids.filter((id) => chosen.includes(id));
+    const added = chosen.filter((id) => !ids.includes(id));
+    const next = [...keep, ...added];
+    focusLater(addKey);
+    if (next.length === ids.length && next.every((id, i) => id === ids[i])) return;
+    if ((await save(next)) !== undefined) say(`${plural(next.length, kind === "playlists" ? "playlist" : "pad board")} now on hand in ${where}`);
+  };
+
+  const remove = async (id: string) => {
+    const at = ids.indexOf(id);
+    const next = ids.filter((x) => x !== id);
+    const name = kind === "playlists" ? index.playlist(id)?.name : index.board(id)?.name;
+    if ((await save(next)) === undefined) return;
+    focusLater(next.length ? `more-${scope}${kindKey}${next[Math.min(at, next.length - 1)]}` : addKey);
+    toast(`Removed "${name}" from this ${ownerWord}. It is still on the ${kind === "playlists" ? "Playlists" : "Pad boards"} page.`);
+  };
+
+  return (
+    <Pane
+      id={paneId}
+      title={title}
+      icon={kind === "playlists" ? "playlist" : "grid"}
+      size="auto"
+      kind={kind === "playlists" ? "music" : "fx"}
+      status={{ text: ids.length ? String(ids.length) : "Empty" }}
+      actions={
+        <IconButton icon="plus" size="s" label={`Add ${kindWords}…`} hint={`Add ${kindWords} from your library`} data-k={addKey} onClick={() => setPicking(true)} />
+      }
+    >
+      <p className="hint cp-why">
+        {why} New ones: <a href={kind === "playlists" ? "#/playlists" : "#/boards"}>{kind === "playlists" ? "Playlists" : "Pad boards"}</a>.
+      </p>
+      <OnHandList ids={ids} kind={kind} index={index} scope={scope} onRemove={remove} removeLabel={`Remove from this ${ownerWord}`} />
+      <LibraryPicker
+        open={picking}
+        kind={kind}
+        index={index}
+        title={`${kind === "playlists" ? "Playlists" : "Pad boards"} on hand in ${where}`}
+        intro={`Tick the ${kindWords} to keep on hand in ${where}.`}
+        selected={ids}
+        onDone={choose}
+        onClose={() => setPicking(false)}
+      />
+    </Pane>
+  );
+}
