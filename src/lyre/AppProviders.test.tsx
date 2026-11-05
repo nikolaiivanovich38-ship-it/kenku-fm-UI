@@ -127,7 +127,7 @@ describe("AppProviders", () => {
       expect(bar).toHaveTextContent("Rain on the roof");
       expect(bar).toHaveTextContent("2 effects");
       expect(screen.getByRole("link", { name: "Go to Live" })).toHaveAttribute("href", "#/live");
-      await userEvent.click(screen.getByRole("button", { name: "Stop" }));
+      await userEvent.click(screen.getByRole("button", { name: "Stop everything on air" }));
       expect(audio.calls).toContainEqual(["fadeAll", 1000]);
     });
 

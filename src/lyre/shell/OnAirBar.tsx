@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useLayoutEffect, useRef } from "react";
 
 import { useNowPlaying, useOptionalLyreAudio, type LyreAudio } from "../audio";
 import { Icon } from "../kit/Icon";
@@ -12,6 +12,9 @@ const STOP_FADE_MS = 1000;
  * players hear in the first room (music, ambience) and how many effects still sound in any room, with Stop and
  * Go to Live, so Play on air always shows that something happened. Nothing is drawn while nothing plays, or when
  * the page has no sound. AppProviders hands it to the shell as ShellData.onAirBar.
+ *
+ * When the bar goes away while it holds the keyboard focus (Stop was pressed), focus goes to the screen's heading,
+ * so keyboard users are not sent back to the top of the page.
  */
 export function OnAirBar() {
   const audio = useOptionalLyreAudio();
@@ -24,9 +27,25 @@ function Bar({ audio }: { audio: LyreAudio }) {
   const music = first?.music;
   const ambience = first?.ambience;
   const effects = now.rooms.reduce((n, room) => n + room.effects.length, 0);
-  if (!music && !ambience && !effects) return null;
+  const empty = !music && !ambience && !effects;
+  const holdsFocus = useRef(false);
+  useLayoutEffect(() => {
+    if (!empty || !holdsFocus.current) return;
+    holdsFocus.current = false;
+    const heading = document.querySelector<HTMLElement>("#view h1");
+    if (!heading) return;
+    heading.setAttribute("tabindex", "-1");
+    heading.focus({ preventScroll: true });
+  }, [empty]);
+  if (empty) return null;
   return (
-    <div className="onairbar" role="region" aria-label="On air">
+    <div
+      className="onairbar"
+      role="region"
+      aria-label="On air"
+      onFocus={() => (holdsFocus.current = true)}
+      onBlur={(event) => (holdsFocus.current = !!event.relatedTarget && event.currentTarget.contains(event.relatedTarget as Node))}
+    >
       <Badge tone="onair">On air</Badge>
       <div className="oab-items">
         {music && (
@@ -50,7 +69,7 @@ function Bar({ audio }: { audio: LyreAudio }) {
           </span>
         )}
       </div>
-      <button type="button" className="btn s" onClick={() => audio.fadeAll(STOP_FADE_MS)}>
+      <button type="button" className="btn s" aria-label="Stop everything on air" onClick={() => audio.fadeAll(STOP_FADE_MS)}>
         <Icon name="stop" size="s" />
         Stop
       </button>
