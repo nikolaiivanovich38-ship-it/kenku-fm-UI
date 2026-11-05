@@ -1,5 +1,5 @@
 import React from "react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Shell } from "./Shell";
@@ -8,6 +8,18 @@ import { expectNoAxeViolations } from "../test/axe";
 import { loadShellSettings } from "./settings";
 import { Column, Pane } from "../kit/Pane";
 import { SCREENS } from "../screens";
+import { PlaceholderScreen } from "../screens/Placeholder";
+
+// Built screens can reach the audio host, whose worklet file is a webpack asset.
+vi.mock("../../preload/managers/PCMStream.worklet.js?asset", () => ({ default: "pcm.js" }));
+
+// The shell's own tests: built screens read the library and play sound, so they are placeholders here.
+const SHELL_SCREENS = {
+  ...SCREENS,
+  library: () => <PlaceholderScreen title="Library" />,
+  playlists: () => <PlaceholderScreen title="Playlists" />,
+  playlist: () => <PlaceholderScreen title="Playlist" />,
+};
 
 function go(path: string) {
   act(() => {
@@ -24,7 +36,7 @@ beforeEach(() => {
 
 describe("the shell: rail, routes and screens (UX-9)", () => {
   it("shows the rail's sections in the prototype's order, the current one marked", () => {
-    render(<Shell />);
+    render(<Shell screens={SHELL_SCREENS} />);
     const nav = screen.getByRole("navigation", { name: "Lyre" });
     expect(within(nav).getAllByRole("link").map((a) => a.textContent)).toEqual([
       "Campaigns",
@@ -44,7 +56,6 @@ describe("the shell: rail, routes and screens (UX-9)", () => {
     ["session/crown/s14", "Session", "Campaigns"],
     ["library", "Library", "Library"],
     ["library/t44", "Library", "Library"],
-    ["profile/t13/sc:crown:s14:sc3", "Audio profile", "Library"],
     ["playlists", "Playlists", "Playlists"],
     ["playlist/p-abbess", "Playlist", "Playlists"],
     ["boards", "Pad boards", "Pad boards"],
@@ -54,7 +65,7 @@ describe("the shell: rail, routes and screens (UX-9)", () => {
     ["look", "Look and feel", "Look and feel"],
   ])("%s shows its heading and a placeholder, with %s's section lit", (path, heading, section) => {
     window.history.replaceState(null, "", `#/${path}`);
-    render(<Shell />);
+    render(<Shell screens={SHELL_SCREENS} />);
     const main = screen.getByRole("main");
     expect(within(main).getByRole("heading", { level: 1 })).toHaveTextContent(heading);
     expect(within(main).getByText("Not built yet.")).toBeInTheDocument();
@@ -62,7 +73,7 @@ describe("the shell: rail, routes and screens (UX-9)", () => {
   });
 
   it("moves focus to the new screen's heading when the route changes, without an outline class", () => {
-    render(<Shell />);
+    render(<Shell screens={SHELL_SCREENS} />);
     go("library");
     const h1 = within(screen.getByRole("main")).getByRole("heading", { level: 1 });
     expect(h1).toHaveTextContent("Library");
@@ -72,19 +83,19 @@ describe("the shell: rail, routes and screens (UX-9)", () => {
   });
 
   it("does not take focus when the page first opens", () => {
-    render(<Shell />);
+    render(<Shell screens={SHELL_SCREENS} />);
     expect(document.body).toHaveFocus();
   });
 
   it("follows the rail's links", async () => {
-    render(<Shell />);
+    render(<Shell screens={SHELL_SCREENS} />);
     await userEvent.setup().click(screen.getByRole("link", { name: "Pad boards" }));
     expect(window.location.hash).toBe("#/boards");
     expect(within(screen.getByRole("main")).getByRole("heading", { level: 1 })).toHaveTextContent("Pad boards");
   });
 
   it("shows icons only on request, and remembers it", async () => {
-    render(<Shell />);
+    render(<Shell screens={SHELL_SCREENS} />);
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: "Show icons only" }));
     expect(screen.getByRole("complementary")).toHaveClass("rail", "min");
@@ -97,7 +108,7 @@ describe("the shell: rail, routes and screens (UX-9)", () => {
   it("shows what the library knows in the rail (the loaded session, the outputs)", () => {
     render(
       <ShellDataProvider value={{ liveLabel: "Live: S14", outputsLabel: "Outputs (1/2)" }}>
-        <Shell />
+        <Shell screens={SHELL_SCREENS} />
       </ShellDataProvider>,
     );
     expect(screen.getByRole("link", { name: "Live: S14" })).toHaveAttribute("href", "#/live");
@@ -105,7 +116,7 @@ describe("the shell: rail, routes and screens (UX-9)", () => {
   });
 
   it("passes axe on every placeholder screen", async () => {
-    render(<Shell />);
+    render(<Shell screens={SHELL_SCREENS} />);
     for (const path of ["campaigns", "library", "live", "look"]) {
       go(path);
       await expectNoAxeViolations();
@@ -117,14 +128,14 @@ describe("themes (UX-11): Candlelit Library by default, each campaign's own, or 
   const data = { campaignTheme: (cid: string) => ({ crown: "hearth", ash: "elysium" })[cid] as never };
 
   it("opens in Candlelit Library", () => {
-    render(<Shell />);
+    render(<Shell screens={SHELL_SCREENS} />);
     expect(document.documentElement.dataset.theme).toBe("candle");
   });
 
   it("switches to a campaign's theme while it is open, and keeps it on the Library", () => {
     render(
       <ShellDataProvider value={data}>
-        <Shell />
+        <Shell screens={SHELL_SCREENS} />
       </ShellDataProvider>,
     );
     go("campaign/crown");
@@ -138,7 +149,7 @@ describe("themes (UX-11): Candlelit Library by default, each campaign's own, or 
   it("uses the theme chosen in Look and feel everywhere, and remembers it", async () => {
     render(
       <ShellDataProvider value={data}>
-        <Shell />
+        <Shell screens={SHELL_SCREENS} />
       </ShellDataProvider>,
     );
     go("look");
@@ -171,7 +182,7 @@ describe("keyboard: F6 and Shift+F6 jump between boxes (UX-12)", () => {
       </>
     );
     window.history.replaceState(null, "", "#/outputs");
-    render(<Shell screens={{ ...SCREENS, outputs: Outputs }} />);
+    render(<Shell screens={{ ...SHELL_SCREENS, outputs: Outputs }} />);
     const press = (shiftKey = false) => act(() => void document.dispatchEvent(new KeyboardEvent("keydown", { key: "F6", shiftKey, bubbles: true })));
     press();
     expect(screen.getByRole("button", { name: "Rooms" })).toHaveFocus();

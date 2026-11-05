@@ -296,6 +296,46 @@ The new interface's screens read and change the library only through `LyreApi` (
 - **The page (step 2)**: `src/lyre/preload.ts` exposes `window.lyre = { page, api, audio }`. `AppProviders.tsx` wires `LyreApiProvider` (`ipcLyreApi`), then `LibraryStatus` (plain words while the library restarts), then Lyre audio (`startLyreAudio`, fed by `LibrarySnapshot` and refed on changes), then `ShellDataProvider`.
 - **Session numbers** are derived: `campaigns.first_session_number` plus the session's position (docs/data-model.md). Pad keys accept F1 to F12.
 
+## Wave 3: w3-profile
+
+The Audio profile screen (route `profile`: `#/profile/<track>` and `#/profile/<track>/<place>`, PLY-12) in `src/lyre/screens/profile/`, ported from the prototype's `views/profile.js` and `profile.css`. It reads and writes only through LyreApi (`useTracks`, `usePlaylists`, `useCampaigns`, `useProfileOverrides`, `profiles.set`/`clear`) and plays only through `useLyreAudio()` (`previewTrack`, `stopPreview`, `playTrack`).
+
+| File | What it does |
+| --- | --- |
+| `profileModel.ts` | The rules in seconds: times in words (`fmt`, `fmt1`, `parseTime`), conversion to and from the domain's milliseconds, each point's limits (`rangeOf`), `movePoint`/`normalise` (Start before End, loop start between them, fades inside, loop crossfade at most 10 s and half the looped part, as `resolveProfile` keeps it), Reset to whole track, markers, the volume line and the fade sketch. |
+| `places.ts` | Where the track plays (playlists, scenes directly or through a playlist, places that kept their own settings), place names, and where "the next track" comes from (`nextContexts`). |
+| `previewClock.ts` | The preview's clock: play from the playhead or the last 10 s before End, loop back (counted), move on to the next track and stop a few seconds into it, stop at End, the end of the file. Pure; each step returns the sentence for the live region. |
+| `useProfileEditor.ts` | The profile shown for one track in one place: a draft that shows at once, kept through `profiles.set` right away for a click, after 600 ms for a run of keys or typing, at the end of a drag, and when the screen closes; refusals are toasted and taken back. Give this place its own settings, Back to the track's settings (with Undo, kept while the track stays open). |
+| `useProfileController.ts` | The actions (handles, playhead, fields, steppers, fades, markers, places, Play on air), the animation-frame clock, the preview's sound, and the single-key shortcuts (Space, I, O, L, M, arrows; switchable, kept under `lyre-profile-keys1`). |
+| `ProfileScreen.tsx`, `boxes.tsx`, `Waveform.tsx`, `waveDrawing.ts` | The header with "Settings for", and the boxes Waveform and listening, At the end, Fades, Markers. |
+| `ProfileLink.tsx` | The prototype's "Audio profile" link-button (L.profileLink), for other screens too; a candidate for `src/lyre/kit`. |
+| `OnAirFallback.tsx` | The prototype's On air bar, shown by this screen only while `ShellData.onAirBar` is not fed; it steps aside when the shell has one. |
+
+Limits of this version (each needs the audio host or the library first):
+- **Preview sound.** `previewTrack(id)` plays the whole file from 0:00 without the profile, so the sound matches the playhead only from 0:00 and does not loop or fade as set. The playhead, the Looped count, the hand-over and the volume meter come from the screen's own clock (as in the prototype). Wanted from LyreAudio: `previewTrack(id, { startAtMs, profile })` (the Voice already takes `startAt` and `profile`) and the preview's position, so the clock can follow the sound.
+- **Waveform.** The library has no loudness peaks for a file, so the waveform is an even band (shaped by the fades and the parts not played); the prototype's made-up shape is not drawn. `waveDrawing.ts` takes `levels` when peaks exist.
+
+## Wave 3: w3-library
+
+The Library (`library`, `library/<track>`) and Playlists (`playlists`, `playlist/<id>`) screens of the new interface, in `src/lyre/screens/library/`, ported from `design/prototype/src/views/library.js` and `playlists.js` (WP5).
+
+| File | What it does |
+| --- | --- |
+| `model.ts` | The rules without a screen: which tracks a filter, search and sort show (`visibleTracks`, search text worked out once per track object), the filter summary and count, the Folders list, times (`fmt`, `fmtLong`), kind markers, a track's audio profile in one line, a dynamic rule in the prototype's words (`ruleWords`: "not stings", where the domain's `ruleText` says "no stings"). |
+| `trackStore.ts` | Every track, once per page visit (`useTrackList`). The shell draws a screen afresh on every address change, so `useTracks()` would reload and redraw 20,000 tracks each time a track opens; the store loads once, reloads once for several `changed` events naming tracks (60 ms apart), and takes a write's answer at once (`put`, `update`) so typed titles show in the list without waiting. |
+| `libraryState.ts` | What the Library shows (filters, search, sort, ticked rows, the keyboard's row, the message line), kept for the visit like the prototype's `st`. |
+| `LibraryScreen.tsx` | Head (count, Add tracks menu), the three boxes in the wide, mid and narrow layouts (`layout.ts`: 1200 and 820 px of the app), adding tracks (files, a folder, a watched folder, drops anywhere on the page; progress and arrivals in the message line), bulk Tag…, Add to playlist… and New playlist from these. |
+| `TracksTable.tsx` | The track grid (role grid, aria-rowcount, rows named "Select <title> …"), drawn a screenful at a time with spacer rows; one Tab stop with the prototype's keys. Not the kit's `VirtualList`, which draws a list or listbox, not a grid. |
+| `TrackDetails.tsx` | Details: your title (saved 400 ms after typing), names and file, Preview, Play on air, Audio profile link, tag comboboxes, energy, role, looping, notes, In playlists, Used in (directly or through a playlist). |
+| `TagSheet.tsx`, `FiltersBody.tsx` | The bulk Tag… sheet; the Filters box. |
+| `PlaylistsScreen.tsx`, `PlaylistPage.tsx` | All playlists (filters, rows with expanders, New playlist); one playlist (manual tracks with Add tracks, or rules and matches; Used in; Details; Delete). |
+| `playlistData.ts`, `playlistParts.tsx`, `UseInDialog.tsx`, `playlistDrops.tsx` | Tracks of each playlist and its uses from the lists already loaded (domain `playlistTracks`, `usesOfPlaylist`); Use in… (`campaigns.setUses`); files dropped on a row, a page or beside the list. |
+| `shared.tsx`, `drops.ts` | Preview and Play on air buttons, a playlist's contents, `PopMenu` (the kit menu's keys, with two-line items and a filter box), the on-air bar, refusals as toasts (`useWriteResult`, `useWriteOk`); paths from a drop. |
+
+- **Sound** only through `useLyreAudio()`: Preview (`previewTrack`, `previewPlaylist`, state from `useNowPlaying().preview`), Play on air (`playTrack`, `playPlaylist`, 3 s fade). Errors and announcements become toasts and live-region text while a screen is shown.
+- **On-air bar**: the shell shows `ShellData.onAirBar`; nothing supplies it yet, so these screens draw `OnAirBarFallback` (core.js `onAirBar`) when it is missing. When the page wires one, the fallback steps aside.
+- **Drops** use `window.lyre.files.pathOf(file)` (preload, `webUtils.getPathForFile`), falling back to the file's name (the fake takes it as a path). In the `app` spec project, `e2e/specs/support/drop.ts` drops real temporary files through a file input, as a page-made `File` has no place on disk.
+- **CSS**: `library.css` and `playlists.css` are the prototype's view CSS with every rule scoped to `.view` (`body` for menus and sheets), because the page loads screen CSS before `ui.css` (`src/lyre/index.tsx` imports `./screens` before the styles) and equal rules would otherwise lose.
 ## Wave 3: w3-campaigns
 
 Campaigns (`#/campaigns`), one campaign (`#/campaign/<cid>`) and the session planner (`#/session/<cid>/<sid>`), ported from `design/prototype/src/views/campaigns.js` (WP5, UX-1). Files in `src/lyre/screens/campaigns/`:

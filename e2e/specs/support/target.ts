@@ -57,7 +57,11 @@ export async function withAppPage(use: (page: Page) => Promise<void>): Promise<v
     if (actionTimeout) app.context().setDefaultTimeout(actionTimeout);
     if (navigationTimeout) app.context().setDefaultNavigationTimeout(navigationTimeout);
     const main = await app.firstWindow();
-    await use(await openLyreTab(main));
+    const lyre = await openLyreTab(main);
+    // The page the specs see is as big as in the prototype project (the config's viewport), not the window's default.
+    const { viewport } = test.info().project.use;
+    if (viewport) await lyre.setViewportSize(viewport);
+    await use(lyre);
   } finally {
     await app.close().catch((): void => undefined);
     fs.rmSync(dataDir, { recursive: true, force: true });

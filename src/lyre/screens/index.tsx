@@ -1,8 +1,11 @@
 import React from "react";
 import type { Route, RouteName } from "../shell/routes";
+import { LibraryScreen } from "./library/LibraryScreen";
+import { PlaylistScreen, PlaylistsScreen } from "./library/PlaylistsScreen";
 import { LookPlaceholder } from "./LookPlaceholder";
 import { PlaceholderScreen } from "./Placeholder";
 import { CampaignScreen, CampaignsScreen, SessionScreen } from "./campaigns";
+import { ProfileScreen } from "./profile/ProfileScreen";
 
 /** What every screen gets: the route it was opened at (its ids are in route.params). */
 export interface ScreenProps {
@@ -26,10 +29,10 @@ export const SCREENS: Record<RouteName, ScreenComponent> = {
   campaigns: CampaignsScreen,
   campaign: CampaignScreen,
   session: SessionScreen,
-  library: placeholder("Library"),
-  playlists: placeholder("Playlists"),
-  playlist: placeholder("Playlist"),
-  profile: placeholder("Audio profile"),
+  library: LibraryScreen,
+  playlists: PlaylistsScreen,
+  playlist: PlaylistScreen,
+  profile: ProfileScreen,
   boards: placeholder("Pad boards"),
   board: placeholder("Pad board"),
   live: placeholder("Live"),
