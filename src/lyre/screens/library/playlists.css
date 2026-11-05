@@ -99,6 +99,7 @@ body .menu [data-act="plcreate"] { padding: 4px 8px; }
 .view .pl-energy { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-s); white-space: nowrap; }
 .view .pl-check { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-s); cursor: pointer; min-height: var(--ctl-s); }
 .view .pl-words { margin-top: 8px; font-size: var(--fs-s); }
+.view .pl-enhint { margin-top: 4px; }
 body .pl-mq { padding: 2px 2px 4px; }
 body .pl-mq .input { height: var(--ctl-s); }
 body .menu [data-act="plvalpick"] .chip { pointer-events: none; }
