@@ -24,5 +24,10 @@ The wordmark's letters are drawn from the Lora typeface (Cyreal), licensed
 under the SIL Open Font License 1.1; they are included as outlines, not as
 a font file.
 
+The new interface bundles the typefaces Atkinson Hyperlegible, Barlow
+Condensed, Lora, Cinzel and Cormorant Garamond as font files, each under the
+SIL Open Font License 1.1; their notices and the licence are in
+src/lyre/fonts/OFL.txt.
+
 Third-party components keep their own licences, listed in each package
 under node_modules (and inside the installed app's resources folder).

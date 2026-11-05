@@ -1,0 +1,21 @@
+/* The page around the shell: the React root fills the window, and the shell (#app: rail and view) fills the root.
+   The rail, view and pane rules themselves come from ui.css, as in the prototype. */
+#root { height: 100%; display: flex; flex-direction: column; }
+#app { flex: 1; min-height: 0; }
+/* A screen that is not built yet. */
+.placeholder { max-width: 60ch; }
+.placeholder p + p { margin-top: var(--gap); }
+/* Look and feel's theme choice while its screen is not built. */
+.theme-choice { max-width: 320px; margin-top: var(--gap-l); }
+/* A box whose content failed: a plain message and a way to try again, inside the box. */
+.kit-error { display: flex; flex-direction: column; align-items: flex-start; gap: var(--gap); padding: var(--gap-l); color: var(--ink); }
+/* A long list drawn a screenful at a time (VirtualList). */
+.vlist { position: relative; overflow: auto; min-height: 0; flex: 1; }
+.vlist > .vlist-space { position: relative; width: 100%; }
+.vlist .vrow { position: absolute; left: 0; right: 0; }
+.vlist[role="listbox"] .vrow[aria-selected="true"] { background: var(--surface-3); box-shadow: inset 3px 0 0 var(--accent); }
+.vlist[role="listbox"] .vrow.active { outline: 2px solid var(--focus); outline-offset: -2px; }
+.vlist[role="listbox"]:focus-visible { outline-offset: -2px; }
+/* A slider with its label and value on one line. */
+.slider-row { display: flex; align-items: center; gap: var(--gap); }
+.slider-row input[type="range"] { flex: 1; min-width: 0; }
