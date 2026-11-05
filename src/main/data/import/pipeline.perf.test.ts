@@ -12,10 +12,13 @@
  * - saving alone (all batches): under 2 s;
  * - no single batch holds the main process for more than 200 ms (DB review item 1:
  *   longer drops Discord voice packets).
- * Skip on slow CI with CUE_DESK_SKIP_PERF=1.
+ * Skip on slow CI with CUE_DESK_SKIP_PERF=1; CI multiplies the budgets with CUE_DESK_PERF_SLACK
+ * (testing/perfBudget.ts).
  */
 import path from "path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { budget } from "../testing/perfBudget";
 import { openLibrary, type Library } from "../library";
 import { generateLibrary } from "../test/generateLibrary";
 import { makeTempFolder } from "../test/helpers";
@@ -69,7 +72,7 @@ describe.skipIf(process.env.CUE_DESK_SKIP_PERF === "1")("importing 5,000 files",
     expect(listTracks(library.store)).toHaveLength(20_000 + FILES);
     // saves[] holds reading plus saving per batch; the saving share is measured below.
     console.info(`[import perf] ${FILES} files in ${Math.round(totalMs)} ms; batches ${saves.map(Math.round).join(", ")} ms`);
-    expect(totalMs).toBeLessThan(5_000);
+    expect(totalMs).toBeLessThan(budget(5_000));
   }, 60_000);
 
   it("saves in batches that each hold the main process briefly", async () => {
@@ -95,7 +98,7 @@ describe.skipIf(process.env.CUE_DESK_SKIP_PERF === "1")("importing 5,000 files",
     const savingMs = batches.reduce((a, b) => a + b, 0);
     console.info(`[import perf] saving ${FILES} tracks: ${Math.round(savingMs)} ms in ${batches.length} batches (max ${Math.round(Math.max(...batches))} ms)`);
     expect(batches).toHaveLength(FILES / 500);
-    expect(savingMs).toBeLessThan(2_000);
-    expect(Math.max(...batches)).toBeLessThan(200);
+    expect(savingMs).toBeLessThan(budget(2_000));
+    expect(Math.max(...batches)).toBeLessThan(budget(200));
   }, 60_000);
 });

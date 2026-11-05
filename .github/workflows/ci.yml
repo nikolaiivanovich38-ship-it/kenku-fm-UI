@@ -38,6 +38,10 @@ jobs:
       - name: Lint
         run: yarn lint
       - name: Unit and component tests with coverage
+        # Performance budgets x3 here: coverage on shared runners measures about 2 to 3 times slower than the
+        # build machine, where the release checks hold them as stated (src/main/data/testing/perfBudget.ts).
+        env:
+          CUE_DESK_PERF_SLACK: "3"
         run: yarn test:coverage
       - name: Tests for build scripts
         run: yarn test:scripts

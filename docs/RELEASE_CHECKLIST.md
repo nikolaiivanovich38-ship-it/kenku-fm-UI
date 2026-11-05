@@ -9,6 +9,7 @@ Release: `vX.Y.Z` · Date: ____ · Checked by: ____
 - [ ] CI is green on the release commit: type check, lint, tests, script tests, dependency audit, secret scan, CodeQL.
 - [ ] Every fix or feature in this release has tests, written before the code (the test failed first).
 - [ ] No new lint warnings in changed files.
+- [ ] The full local run on the build machine passed with the performance budgets as stated (no `CUE_DESK_PERF_SLACK`): `yarn test`, then `yarn heavy` for packaging, `yarn e2e` and both spec projects.
 
 ## Security
 

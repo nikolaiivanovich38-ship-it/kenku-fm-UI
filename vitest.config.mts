@@ -43,6 +43,8 @@ export default defineConfig({
             "src/lyre/**/*.test.{ts,tsx}",
           ],
           setupFiles: ["src/test/setupUi.ts"],
+          // A whole screen's axe check can pass 5 s on a busy shared runner (GitHub, with coverage on).
+          testTimeout: 15_000,
         },
       },
     ],

@@ -12,12 +12,15 @@
  *   under 500 ms. docs/data-model.md lists the figures measured.
  *
  * Each figure is the median of several runs, so one slow moment on a busy
- * machine does not fail the test. Skip on slow CI with CUE_DESK_SKIP_PERF=1.
+ * machine does not fail the test. Skip on slow CI with CUE_DESK_SKIP_PERF=1; CI multiplies the budgets with CUE_DESK_PERF_SLACK
+ * (testing/perfBudget.ts).
  * Set CUE_DESK_PERF_REPORT=<file> to write the measured numbers to a JSON file.
  */
 import fs from "fs";
 import path from "path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { budget } from "./testing/perfBudget";
 import { openLibrary, type Library } from "./library";
 import { search } from "./repo/search";
 import { deleteTracks, getTrack, listTracks, updateTrack } from "./repo/tracks";
@@ -146,7 +149,7 @@ describe.skipIf(process.env.CUE_DESK_SKIP_PERF === "1")("performance with 20,000
     library = openLibrary({ folder });
     expect(await library.checkIntegrity()).toEqual({ status: "ok" });
     results.backgroundCheckMs = Math.round(performance.now() - start);
-    expect(ms).toBeLessThan(200);
+    expect(ms).toBeLessThan(budget(200));
   });
 
   it.each([
@@ -161,7 +164,7 @@ describe.skipIf(process.env.CUE_DESK_SKIP_PERF === "1")("performance with 20,000
   ])("searches (%s) in under 50 ms", (name, text) => {
     const ms = measure(7, () => search(library.store, text));
     results[`search ${name} ms`] = ms;
-    expect(ms).toBeLessThan(50);
+    expect(ms).toBeLessThan(budget(50));
   });
 
   it.each([
@@ -172,14 +175,14 @@ describe.skipIf(process.env.CUE_DESK_SKIP_PERF === "1")("performance with 20,000
   ] as const)("searches the Library's %s lane (%s) in under 50 ms (ORG-1)", (lane, text) => {
     const ms = measure(7, () => search(library.store, text, { lane }));
     results[`search lane ${lane} ${text} ms`] = ms;
-    expect(ms).toBeLessThan(50);
+    expect(ms).toBeLessThan(budget(50));
   });
 
   it("finds within one playlist in under 50 ms", async () => {
     const playlist = listPlaylists(library.store)[250];
     const ms = measure(7, () => search(library.store, "d", { playlistId: playlist.id }));
     results["search in playlist ms"] = ms;
-    expect(ms).toBeLessThan(50);
+    expect(ms).toBeLessThan(budget(50));
   });
 
   it("makes a single edit in under 5 ms", async () => {
@@ -202,7 +205,7 @@ describe.skipIf(process.env.CUE_DESK_SKIP_PERF === "1")("performance with 20,000
     for (const [name, edit] of edits) {
       const ms = measure(21, edit);
       results[`edit ${name} ms`] = ms;
-      expect(ms, name).toBeLessThan(5);
+      expect(ms, name).toBeLessThan(budget(5));
     }
     expect(getTrack(store, trackIds[0])!.title).toBe("Renamed 0");
   });
@@ -215,7 +218,7 @@ describe.skipIf(process.env.CUE_DESK_SKIP_PERF === "1")("performance with 20,000
       void library.history.undo();
     });
     results["edit and undo ms"] = ms;
-    expect(ms).toBeLessThan(5);
+    expect(ms).toBeLessThan(budget(5));
   });
 
   it("loads a campaign of 50 sessions with 8 scenes each in under 50 ms", async () => {
@@ -226,10 +229,10 @@ describe.skipIf(process.env.CUE_DESK_SKIP_PERF === "1")("performance with 20,000
     expect(tree.sessions.every((s) => s.scenes.length === 8 && s.scenes.every((sc) => sc.music.length === 4))).toBe(true);
     const ms = measure(7, () => getDomainCampaign(store, campaignId));
     results["campaign tree ms"] = ms;
-    expect(ms).toBeLessThan(50);
+    expect(ms).toBeLessThan(budget(50));
     const all = measure(5, () => listDomainCampaigns(store));
     results["all three campaign trees ms"] = all;
-    expect(all).toBeLessThan(150);
+    expect(all).toBeLessThan(budget(150));
     // The shared rules on the loaded tree stay quick too.
     results["usesOfPlaylist on the tree ms"] = measure(7, () => usesOfPlaylist(campaigns[1].playlistIds[0], [tree]));
     const lookup = getDomainLookup(store);
@@ -249,7 +252,7 @@ describe.skipIf(process.env.CUE_DESK_SKIP_PERF === "1")("performance with 20,000
       const playlist = createPlaylist(store, { title: name, kind: "dynamic", lane: name.startsWith("FX") ? "fx" : "music", rule });
       const ms = measure(7, () => listPlaylistTrackIds(store, playlist.id));
       results[`dynamic playlist (${name}) ms`] = ms;
-      expect(ms, name).toBeLessThan(50);
+      expect(ms, name).toBeLessThan(budget(50));
     }
     expect(listPlaylistTrackIds(store, listPlaylists(store).find((p) => p.title === "energy only")!.id).length).toBeGreaterThan(1000);
   });
@@ -263,7 +266,7 @@ describe.skipIf(process.env.CUE_DESK_SKIP_PERF === "1")("performance with 20,000
       expect(listUses(store, item).length, name).toBeGreaterThan(0);
       const ms = measure(7, () => listUses(store, item));
       results[`uses of a ${name} ms`] = ms;
-      expect(ms, name).toBeLessThan(50);
+      expect(ms, name).toBeLessThan(budget(50));
     }
   });
 
@@ -271,14 +274,14 @@ describe.skipIf(process.env.CUE_DESK_SKIP_PERF === "1")("performance with 20,000
     const store = library.store;
     const ms = measure(5, () => [...getDomainLookup(store).tracks()]);
     results["whole library as DomainTrack ms"] = ms;
-    expect(ms).toBeLessThan(500);
+    expect(ms).toBeLessThan(budget(500));
   });
 
   it("backs up the large library", async () => {
     const start = performance.now();
     await library.backupNow();
     results.backupMs = Math.round(performance.now() - start);
-    expect(results.backupMs).toBeLessThan(10_000);
+    expect(results.backupMs).toBeLessThan(budget(10_000));
   });
 
   it("never holds the main process for more than 200 ms, even for bulk work and its undo (DB review 1)", async () => {
@@ -318,7 +321,7 @@ describe.skipIf(process.env.CUE_DESK_SKIP_PERF === "1")("performance with 20,000
 
     expect(store.get("SELECT count(*) AS n FROM tracks")).toEqual({ n: TRACKS });
     for (const [name, ms] of Object.entries(holds)) results[`longest hold (processor): ${name} ms`] = ms;
-    const tooLong = Object.entries(holds).filter(([, ms]) => ms >= 200);
+    const tooLong = Object.entries(holds).filter(([, ms]) => ms >= budget(200));
     expect(tooLong, JSON.stringify(holds)).toEqual([]);
   }, 600_000);
 });
