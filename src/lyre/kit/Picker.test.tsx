@@ -88,3 +88,38 @@ describe("PickerDialog with folding groups", () => {
   });
 });
 
+
+describe("PickerDialog contents with boxes of their own (ORG-10)", () => {
+  it("a box inside an item's contents ticks in the same list, in the order ticked", async () => {
+    const onDone = vi.fn();
+    const list: PickerItem[] = [
+      { id: "playlist:p1", label: "Ashen King", group: "Playlists" },
+      { id: "track:t1", label: "Gothic menace", group: "Tracks" },
+    ];
+    render(
+      <PickerDialog
+        open
+        title="Music"
+        items={list}
+        multi
+        onDone={onDone}
+        onClose={vi.fn()}
+        renderContents={(item, ticks) =>
+          item.id === "playlist:p1" ? (
+            <label>
+              <input type="checkbox" checked={ticks.isTicked("track:t1")} onChange={(e) => ticks.tick("track:t1", e.target.checked)} />
+              Gothic menace inside
+            </label>
+          ) : null
+        }
+      />,
+    );
+    const sheet = within(screen.getByRole("dialog", { name: "Music" }));
+    await userEvent.click(sheet.getByRole("button", { name: "Show contents of Ashen King" }));
+    await userEvent.click(sheet.getByRole("checkbox", { name: "Gothic menace inside" }));
+    expect(sheet.getByRole("checkbox", { name: "Gothic menace" })).toBeChecked();
+    expect(sheet.getByRole("checkbox", { name: "Ashen King" })).not.toBeChecked();
+    await userEvent.click(sheet.getByRole("button", { name: "Done" }));
+    expect(onDone).toHaveBeenCalledWith(["track:t1"]);
+  });
+});

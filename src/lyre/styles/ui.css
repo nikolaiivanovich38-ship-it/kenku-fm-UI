@@ -207,6 +207,12 @@ table.grid tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 v
 .pk-row { display: flex; align-items: center; gap: 4px; border-bottom: 1px solid var(--line); padding-right: 6px; }
 .pk-row > .pk-item { flex: 1; border-bottom: 0; }
 .pk-row > .pk-item.indent { padding-left: 32px; }
+/* ORG-10: an open playlist in a picker that takes single tracks lists its tracks, each with a box. */
+.pk-inside { padding-left: 40px; }
+.pk-inside-h { margin: 2px 0 4px; }
+.pk-inrow { border-bottom: 1px dashed var(--line); }
+.pk-inrow:last-child { border-bottom: 0; }
+.pk-inrow .pk-item { min-height: 28px; }
 
 /* UX-16 the Now playing bar (shell/NowPlayingBar.tsx): one row per room that plays and one for the preview, at the
    bottom of every screen while anything plays or is paused (Live: the preview row only). The rows share one grid
