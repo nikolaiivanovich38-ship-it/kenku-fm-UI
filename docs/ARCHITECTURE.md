@@ -441,3 +441,20 @@ New refusal codes: `"not-lyre-file"` (a file that is not a Lyre file, or is dama
 - `LyreAudioLibrary.playOrders()` is new; `LibrarySnapshot` loads `playlists.playOrders()` and reloads it on "playlists". `FakeLyreAudio.setNowPlaying` fills in what a test leaves out (`FakeNowPlaying`).
 
 Open points for the build streams: the pad board screen now words a resize with `cameBack` and the pad put aside (boardModel `resizeMessage`); the Library still searches in memory, so a screen that wants names in scenes found must add them from `trackNamesOf` (the database's search has them); a "peaks" event may mean suggested shapes changed.
+
+## Wave 4: w4-outputs
+
+The Outputs screen (`#/outputs`, OUT-5, OUT-6), ported from the prototype's `views/outputs.js` and `outputs.css`, and what it needs from the main process.
+
+| Where | What it does |
+| --- | --- |
+| `src/common/lyreOutputs.ts` | `LyreOutputs`, what the Lyre page learns of the bots: each bot's Discord name, login, room (server, channel, status), mute, volume and servers, and every server's voice channels with the people in them (`lyreOutputsOf(OutputsState)`; never a token). `isLyreOutputs` checks the shape. |
+| `src/main/broadcast/DiscordBot.ts` | Lists the people in each voice channel (bots left out) and works them out again from discord.js's cache 200 ms after the last `VoiceStateUpdate` (`VoiceChannelInfo.members`). |
+| `src/main/broadcast/lyreOutputsBridge.ts` | `LyreOutputsBridge`: `LYRE_OUTPUTS_GET`, `LYRE_OUTPUTS_STATE` (pushed on `OutputManager`'s new `stateChange`), and `LYRE_OUTPUT_MOVE` (`moveBot`), `_LEAVE` (`leaveAll`, new), `_SET_MUTED`, `_SET_VOLUME`, `_RETRY`, from the Lyre page only. `PlaybackManager` makes it and gives it the page in `setLyreView`. |
+| `src/main/broadcast/testing/prototypeWorld.ts` | Test builds only: `CUE_DESK_FAKE_DISCORD=prototype` gives the fake Discord the prototype's world (`FakeWorld`: servers, channels, people, bot names by token), logs in Lyre Table and Lyre Side at 85 %, joins Lyre Table to Table, and exposes `globalThis.__lyreOutputsTest` for the specs' `joinRoom`/`leaveAllRooms`. |
+| `src/lyre/outputs/` | `preloadOutputs.ts` (`window.lyre.outputs`), `OutputsProvider` and `useOutputs()` (the latest state for every screen), `outputsLabel` (the rail's "Outputs (connected/all)", through `ShellData.outputsLabel`), `testing/fakeOutputs.ts` (the prototype's Discord for screen tests). |
+| `src/lyre/audio` | `LyreAudio.testChime(roomId)`: a short bell made with oscillators (`playChime`) into that room's effects lane only; refused for a room not in a voice channel. |
+| `src/lyre/kit/PopMenu.tsx` | Items can be radio items (`radio`, `checked`): the Room menu. |
+| `src/lyre/screens/outputs/` | `outputsModel.ts` (pills, Room and Bring… items with their warnings, Swap rooms, the messages), `OutputsScreen.tsx`, `outputs.css`. |
+
+Not built: the level meter beside each room's volume (the audio host has no level per room yet). The Prep | Live switch shows for the session loaded in Live, else the campaign last opened, else the first.
