@@ -27,3 +27,9 @@
 .undo-note { display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 8px; margin: 4px 8px; border: 1px solid var(--line-strong); border-left: 3px solid var(--accent); border-radius: var(--r-m); background: var(--surface-2); font-size: var(--fs-s); flex: none; min-width: 0; }
 .undo-note > svg { color: var(--accent-text); flex: none; }
 .undo-note .grow { min-width: 0; }
+/* BUG-14: a box header with more than fits (a narrow column: the Library's Filters with a filter on, a pad's box)
+   moves its buttons to a second line at the right, instead of pushing them out of the box, which clips them. The
+   summary gives way first; the folded side strips keep one line. */
+.pane > header { flex-wrap: wrap; row-gap: 2px; }
+.pane > header > .pane-actions { margin-left: auto; }
+.pane.lb-strip > header { flex-wrap: nowrap; }

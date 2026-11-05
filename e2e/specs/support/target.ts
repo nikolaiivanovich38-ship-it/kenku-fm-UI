@@ -153,11 +153,12 @@ export function knownAxeIssues(): string[] {
   return [];
 }
 
-/** Layout findings the prototype is known to have, recorded as annotations so its run can pass. None now: the hidden
- *  " (Track)" text that widened the session planner below 640 px was fixed in the prototype. Always none for the app. */
-export function knownLayoutIssue(screen: string, width: number, kind: "sideways" | "overlap" | "clipped"): boolean {
-  void screen;
-  void width;
-  void kind;
-  return false;
+/** Layout findings the prototype is known to have, recorded as annotations so its run can pass. Always none for the
+ *  app. The hidden " (Track)" text that widened the session planner below 640 px was fixed in the prototype.
+ *  BUG-14 (w31-fix): in the prototype too, a box header with more than fits pushes its buttons out of the box: the
+ *  Library's Filters header with a filter on (Clear all) on wide windows, and the pad's box header just above 900 px.
+ *  The app wraps such headers; the design stream is to fix the prototype, then this goes. */
+export function knownLayoutIssue(screen: string, width: number, kind: "sideways" | "overlap" | "clipped" | "cut"): boolean {
+  if (isApp() || kind !== "cut") return false;
+  return screen === "Library with a filter on" || (screen === "A pad board" && width > 900 && width < 1000);
 }

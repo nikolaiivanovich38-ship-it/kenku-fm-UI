@@ -4,7 +4,9 @@
  *   1. nothing scrolls sideways;
  *   2. no two controls overlap (a control scrolled out of sight inside a scrolling box does not count,
  *      as in design/prototype/tools/shot.js);
- *   3. no button's text is cut off;
+ *   3. no button's text is cut off, and no control is cut off at the side by the box it sits in, even once scrolled
+ *      into view (BUG-14: the Library's "Clear all" was pushed half out of the Filters box on wide windows; a check
+ *      of each button's own text could not see it, and no sweep had a filter on);
  *   4. axe-core 4.14.0 finds no WCAG 2.2 A or AA failure.
  */
 import type { Page } from "@playwright/test";
@@ -35,6 +37,19 @@ const SCREENS: Screen[] = [
   },
   { name: "Library", owner: "library", route: "library" },
   { name: "Library with a track open", owner: "library", route: "library/t44" },
+  {
+    // BUG-14: with a filter on, the Filters box has a summary, a count and "Clear all" in its header.
+    name: "Library with a filter on",
+    owner: "library",
+    route: "library",
+    prepare: async (page) => {
+      const filters = page.getByRole("region", { name: "Filters", exact: true });
+      const toggle = filters.getByRole("button", { name: "Filters", exact: true });
+      if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+      await filters.getByRole("group", { name: "Mood" }).getByRole("button", { name: /^Grief/ }).click();
+      await expect(filters.getByRole("button", { name: "Clear all" })).toBeVisible();
+    },
+  },
   { name: "Playlists", owner: "playlists", route: "playlists" },
   { name: "A manual playlist", owner: "playlists", route: "playlist/p-abbess" },
   { name: "A dynamic playlist", owner: "playlists", route: "playlist/p-abbey-eerie" },
@@ -78,7 +93,7 @@ test("the axe-core in use is version 4.14.0", () => {
   expect(JSON.parse(fs.readFileSync(path.join(path.dirname(AXE_PATH), "package.json"), "utf8")).version).toBe(AXE_VERSION);
 });
 
-/** The layout checks: sideways scroll, overlapping controls, cut-off button text. */
+/** The layout checks: sideways scroll, overlapping controls, cut-off button text, controls cut off at the side. */
 async function layoutProblems(page: Page) {
   const ignore = notLyre();
   return page.evaluate((ignore) => {
@@ -96,7 +111,7 @@ async function layoutProblems(page: Page) {
             }
             return a;
           };
-          const name = (e: Element) => ((e.getAttribute("aria-label") ?? e.textContent ?? e.getAttribute("title") ?? e.tagName).trim().slice(0, 30));
+          const name = (e: Element) => (e.getAttribute("aria-label") || e.textContent?.trim() || e.getAttribute("title") || e.tagName).trim().slice(0, 30);
           const controls = Array.from(document.querySelectorAll("button, a[href], input, select, textarea")).filter((e) => {
             if (skip(e)) return false;
             const v = visible(e);
@@ -117,7 +132,47 @@ async function layoutProblems(page: Page) {
           const clipped = Array.from(document.querySelectorAll("button"))
             .filter((e) => !skip(e) && e.getBoundingClientRect().width > 0 && e.scrollWidth > e.clientWidth + 2)
             .map((e) => (e.textContent ?? "").trim().slice(0, 30));
-          return { sideways: document.documentElement.scrollWidth > window.innerWidth + 1, overlaps, clipped };
+          // BUG-14: each control, scrolled into view, must show its whole width, and getting it into view must not
+          // need a box that a person cannot scroll (overflow hidden or clip: a script can scroll it, a person cannot).
+          // The Library's "Clear all" sat half outside the Filters box, which clips; scrolling it into view slid the
+          // whole box sideways instead. A box drawn as its children only (display: contents) clips nothing. Each
+          // control's boxes are put back after it, so the other checks see the screen as it was.
+          const clips = (cs: CSSStyleDeclaration, axis: "X" | "Y") => cs.display !== "contents" && /(hidden|clip)/.test(axis === "X" ? cs.overflowX : cs.overflowY);
+          const shownWidth = (e: Element) => {
+            const r = e.getBoundingClientRect();
+            let l = Math.max(r.left, 0);
+            let rt = Math.min(r.right, window.innerWidth);
+            for (let p = e.parentElement; p; p = p.parentElement) {
+              const cs = getComputedStyle(p);
+              if (cs.display === "contents" || !/(auto|scroll|hidden|clip)/.test(cs.overflowX)) continue;
+              const q = p.getBoundingClientRect();
+              l = Math.max(l, q.left);
+              rt = Math.min(rt, q.right);
+            }
+            return rt - l;
+          };
+          const cut: string[] = [];
+          for (const e of Array.from(document.querySelectorAll<HTMLElement>("button, a[href], input, select, textarea"))) {
+            if (skip(e) || e.offsetParent === null || getComputedStyle(e).visibility === "hidden") continue;
+            const before = e.getBoundingClientRect();
+            if (before.width < 4 || before.height < 4) continue;
+            const boxes: [Element, number, number][] = [[document.scrollingElement ?? document.documentElement, window.scrollX, window.scrollY]];
+            for (let p: Element | null = e.parentElement; p; p = p.parentElement) boxes.push([p, p.scrollLeft, p.scrollTop]);
+            e.scrollIntoView({ block: "nearest", inline: "nearest" });
+            const width = e.getBoundingClientRect().width;
+            const shown = shownWidth(e);
+            const forced = boxes.some(([p, left, top]) => {
+              if (p === document.scrollingElement) return false;
+              const cs = getComputedStyle(p);
+              return (clips(cs, "X") && Math.abs(p.scrollLeft - left) > 1) || (clips(cs, "Y") && Math.abs(p.scrollTop - top) > 1);
+            });
+            if (shown < width - 2 || forced) cut.push(`${name(e)} (${forced ? "only reached by sliding a box that does not scroll" : `${Math.max(0, Math.round(shown))} of ${Math.round(width)} px shown`})`);
+            for (const [p, left, top] of boxes) {
+              p.scrollLeft = left;
+              p.scrollTop = top;
+            }
+          }
+          return { sideways: document.documentElement.scrollWidth > window.innerWidth + 1, overlaps, clipped, cut };
   }, ignore);
 }
 
@@ -150,6 +205,11 @@ for (const screen of SCREENS) {
         expect.soft(layout.sideways, "the page scrolls sideways").toBe(false);
         expect.soft(layout.overlaps, "controls overlap").toEqual([]);
         expect.soft(layout.clipped, "button text is cut off").toEqual([]);
+        if (layout.cut.length && knownLayoutIssue(screen.name, size.width, "cut")) {
+          test.info().annotations.push({ type: "known prototype issue", description: `cut off: ${layout.cut.join("; ")}` });
+        } else {
+          expect.soft(layout.cut, "controls cut off at the side, even when scrolled into view").toEqual([]);
+        }
         const results = await axeProblems(page);
         const known = knownAxeIssues();
         for (const finding of results.filter((r) => known.some((k) => r.startsWith(`${k}:`)))) {
@@ -264,6 +324,10 @@ for (const screen of SCREENS) {
       }
       if (l.overlaps.length) found.push(`${width}: overlap ${l.overlaps.slice(0, 3).join("; ")}`);
       if (l.clipped.length) found.push(`${width}: cut-off text ${l.clipped.slice(0, 3).join("; ")}`);
+      if (l.cut.length) {
+        if (knownLayoutIssue(screen.name, width, "cut")) test.info().annotations.push({ type: "known prototype issue", description: `${width}: cut off ${l.cut.join("; ")}` });
+        else found.push(`${width}: cut off at the side ${l.cut.slice(0, 3).join("; ")}`);
+      }
       const rule = COLUMNS[screen.name];
       if (rule) {
         const w = await page.evaluate(() => document.documentElement.clientWidth);
