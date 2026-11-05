@@ -14,6 +14,10 @@ import { useLyreAudio } from "./audio";
 import { FakeLyreAudio } from "./audio/testing/fakeLyreAudio";
 import type { LyreAudioLibrary } from "./audio/lyreAudio";
 import { useShellData } from "./shell/ShellData";
+import { Shell } from "./shell/Shell";
+import { SCREENS } from "./screens";
+import { PlaceholderScreen } from "./screens/Placeholder";
+import userEvent from "@testing-library/user-event";
 
 // The page root can start the real audio host, whose worklet file is a webpack asset; tests give a fake host.
 vi.mock("../preload/managers/PCMStream.worklet.js?asset", () => ({ default: "pcm.js" }));
@@ -92,5 +96,50 @@ describe("AppProviders", () => {
     act(() => send({ type: "library-status", ok: true, message: "Lyre's library is working again." }));
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.getByRole("status")).toHaveTextContent("Lyre's library is working again.");
+  });
+
+  describe("the on-air bar: what the players hear, outside Live (core.js onAirBar)", () => {
+    const quiet = { ...SCREENS, campaigns: () => <PlaceholderScreen title="Campaigns" />, library: () => <PlaceholderScreen title="Library" /> };
+    const lane = (trackId: string, title: string) => ({ trackId, title, origin: "single" as never, playlistId: null as string | null, position: 0, length: 200, paused: false, loading: false });
+    const playing = (audio: FakeLyreAudio) =>
+      act(() =>
+        audio.setNowPlaying({
+          rooms: [
+            { roomId: "table", name: "Table", music: lane("t13", "Bridge of Death"), ambience: lane("t40", "Rain on the roof"), upNext: null, queued: [], effects: [{ trackId: "t60", title: "Thunder", padKey: null }] },
+            { roomId: "side", name: "Side room", music: null, ambience: null, upNext: null, queued: [], effects: [{ trackId: "t61", title: "Door", padKey: null }] },
+          ],
+        }),
+      );
+
+    it("is hidden while nothing plays, and shows music, ambience and effects with Stop and Go to Live", async () => {
+      window.history.replaceState(null, "", "#/library");
+      const audio = new FakeLyreAudio();
+      render(
+        <AppProviders api={createFakeLyreApi()} audio={audio}>
+          <Shell screens={quiet} />
+        </AppProviders>,
+      );
+      expect(screen.queryByRole("region", { name: "On air" })).toBeNull();
+      playing(audio);
+      const bar = screen.getByRole("region", { name: "On air" });
+      expect(bar).toHaveTextContent("Bridge of Death");
+      expect(bar).toHaveTextContent("Rain on the roof");
+      expect(bar).toHaveTextContent("2 effects");
+      expect(screen.getByRole("link", { name: "Go to Live" })).toHaveAttribute("href", "#/live");
+      await userEvent.click(screen.getByRole("button", { name: "Stop" }));
+      expect(audio.calls).toContainEqual(["fadeAll", 1000]);
+    });
+
+    it("is not shown on Live, which shows the rooms itself", () => {
+      window.history.replaceState(null, "", "#/live");
+      const audio = new FakeLyreAudio();
+      render(
+        <AppProviders api={createFakeLyreApi()} audio={audio}>
+          <Shell screens={quiet} />
+        </AppProviders>,
+      );
+      playing(audio);
+      expect(screen.queryByRole("region", { name: "On air" })).toBeNull();
+    });
   });
 });

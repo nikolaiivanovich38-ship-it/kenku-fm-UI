@@ -21,7 +21,7 @@ import { DropNotice, DropZone, dropFiles, useDropState, useFileDrops, type DropT
 import { KIND_WORDS, matchesQuery, newlyMade, soundName, useDropActions } from "./playlistParts";
 import { PlaylistPage } from "./PlaylistPage";
 import { UseInDialog } from "./UseInDialog";
-import { OnAirBarFallback, onAirPlaylistIds, PlayOnAirButton, PlaylistContents, PopMenuButton, PreviewButton, TwoLines, useSoundMessages, useWriteResult, type PopMenuEntry } from "./shared";
+import { onAirPlaylistIds, PlayOnAirButton, PlaylistContents, PopMenuButton, PreviewButton, TwoLines, useSoundMessages, useWriteResult, type PopMenuEntry } from "./shared";
 import "./library.css";
 import "./playlists.css";
 
@@ -234,7 +234,6 @@ export function PlaylistsScreen(_props: ScreenProps) {
         </Column>
       </div>
       <DropZone />
-      <OnAirBarFallback />
       {useIn && <UseInDialog playlist={playlists.find((p) => p.id === useIn)} campaigns={data.campaigns} nameOf={soundName(data)} onClose={() => setUseIn(null)} />}
     </>
   );

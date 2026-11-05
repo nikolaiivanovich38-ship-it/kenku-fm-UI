@@ -21,7 +21,7 @@ import { fmt, fmtLong, KIND_NAMES, plural, ruleWords, shownTitle, tagsOf } from 
 import { nameUses, usePlaylistData, usedText, type PlaylistData } from "./playlistData";
 import { DropNotice, DropZone, dropFiles, useDropState, useFileDrops, type DropTarget } from "./playlistDrops";
 import { KindLane, matchesQuery, newlyMade, soundName, useDropActions } from "./playlistParts";
-import { focusSoon, OnAirBarFallback, onAirPlaylistIds, onAirTrackIds, PopMenuButton, previewKey, useSoundMessages, useWriteOk, useWriteResult, type PopMenuEntry } from "./shared";
+import { focusSoon, onAirPlaylistIds, onAirTrackIds, PopMenuButton, previewKey, useSoundMessages, useWriteOk, useWriteResult, type PopMenuEntry } from "./shared";
 import { UseInDialog } from "./UseInDialog";
 import "./library.css";
 import "./playlists.css";
@@ -295,7 +295,6 @@ function OnePlaylist({ pl: saved, data }: { pl: PlaylistInfo; data: PlaylistData
         </div>
       </div>
       <DropZone />
-      <OnAirBarFallback />
       {useIn && <UseInDialog playlist={pl} campaigns={data.campaigns} nameOf={soundName(data)} onClose={() => setUseIn(false)} />}
       <Dialog
         open={deleting}

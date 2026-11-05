@@ -1,7 +1,7 @@
 /**
  * Pieces the Library and Playlists screens share (the prototype's _shared.js building blocks): Preview and Play on air
- * buttons, a playlist's contents behind an expander, a menu whose items hold more than a line of text, the on-air bar,
- * and the plumbing for writes and sound messages.
+ * buttons, a playlist's contents behind an expander, a menu whose items hold more than a line of text, and the
+ * plumbing for writes and sound messages.
  *
  * Kept in this folder rather than src/lyre/kit so the four wave 3 streams do not add files of the same name there;
  * Campaigns and Pad boards need the same buttons, so the lead may move them to the kit when merging.
@@ -13,7 +13,6 @@ import { Icon, type IconName } from "../../kit/Icon";
 import { cx } from "../../kit/cx";
 import { useLyreAudio, useLyreAudioEvent, useNowPlaying, type NowPlaying } from "../../audio";
 import { useAnnounce } from "../../shell/Announcer";
-import { useShellData } from "../../shell/ShellData";
 import { fmt } from "./model";
 
 /* ---------- writes and sound messages ---------- */
@@ -364,59 +363,6 @@ export function TwoLines({ icon, first, second, bold }: { icon: IconName; first:
         </span>
       </span>
     </>
-  );
-}
-
-/* ---------- the on-air bar ---------- */
-
-/**
- * Outside Live, a slim bar at the foot of the screen shows what the players hear, with Stop and Go to Live, so
- * Play on air always gives visible feedback (core.js onAirBar). The shell shows `onAirBar` from its data when the
- * page provides one; until then these screens draw it themselves.
- */
-export function OnAirBarFallback() {
-  const shell = useShellData();
-  const now = useNowPlaying();
-  const audio = useLyreAudio();
-  if (shell.onAirBar !== undefined) return null;
-  const room = now.rooms[0];
-  if (!room) return null;
-  const effects = now.rooms.reduce((n, r) => n + r.effects.length, 0);
-  if (!room.music && !room.ambience && !effects) return null;
-  return (
-    <div className="onairbar" role="region" aria-label="On air">
-      <span className="badge onair">On air</span>
-      <div className="oab-items">
-        {room.music && (
-          <span className="oab-item">
-            <span className="lane-dot music" />
-            <span className="ellipsis">{room.music.title}</span>
-          </span>
-        )}
-        {room.ambience && (
-          <span className="oab-item">
-            <span className="lane-dot amb" />
-            <span className="ellipsis">{room.ambience.title}</span>
-          </span>
-        )}
-        {effects > 0 && (
-          <span className="oab-item">
-            <span className="lane-dot fx" />
-            <span>
-              {effects} effect{effects > 1 ? "s" : ""}
-            </span>
-          </span>
-        )}
-      </div>
-      <button type="button" className="btn s" onClick={() => audio.fadeAll(1000)}>
-        <Icon name="stop" size="s" />
-        Stop
-      </button>
-      <a className="btn s" href="#/live">
-        <Icon name="broadcast" size="s" />
-        Go to Live
-      </a>
-    </div>
   );
 }
 

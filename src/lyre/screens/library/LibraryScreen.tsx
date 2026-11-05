@@ -23,7 +23,7 @@ import { FiltersBody } from "./FiltersBody";
 import { useLayoutMode } from "./layout";
 import { getLibraryState, setLibraryState, useLibraryState, type Guide } from "./libraryState";
 import { DEFAULT_FILTER, filterCount, filterSummary, filtersOn, KIND_NAMES, plural, shownTitle, visibleTracks } from "./model";
-import { focusSoon, OnAirBarFallback, onAirTrackIds, PopMenuButton, TwoLines, useSoundMessages, useWriteResult, type PopMenuEntry } from "./shared";
+import { focusSoon, onAirTrackIds, PopMenuButton, TwoLines, useSoundMessages, useWriteResult, type PopMenuEntry } from "./shared";
 import { TagSheet } from "./TagSheet";
 import { TrackDetails } from "./TrackDetails";
 import { TracksTable } from "./TracksTable";
@@ -557,7 +557,6 @@ export function LibraryScreen({ route }: ScreenProps) {
         </PopMenuButton>
       </div>
       <div className="viewbody fill lb-body">{body}</div>
-      <OnAirBarFallback />
       {tagging && (
         <TagSheet
           tracks={st.sel.map((id) => byId.get(id)).filter((t): t is LibraryTrack => !!t)}
