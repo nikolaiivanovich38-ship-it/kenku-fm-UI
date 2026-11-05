@@ -6,6 +6,7 @@ import { expectNoAxeViolations } from "../../test/axe";
 vi.mock("../../../preload/managers/PCMStream.worklet.js?asset", () => ({ default: "pcm.js" }));
 
 import { dropNames, go, openAt } from "./testHarness";
+import { addedText } from "./model";
 
 const grid = () => screen.getByRole("grid", { name: "Tracks" });
 /** A row by its title, read from its selection box ("Select <title>"). */
@@ -124,7 +125,8 @@ describe("Library: a track's details", () => {
     expect(d.getByText("H:\\Audio\\Scores\\Bear McCreary\\God of War")).toBeInTheDocument();
     expect(d.getByRole("button", { name: "Copy path" })).toBeInTheDocument();
     expect(d.getByRole("button", { name: "Show in folder" })).toBeInTheDocument();
-    expect(d.getByText("Today")).toBeInTheDocument();
+    // The sample library was added on 5 Nov 2026 (prototypeSeed): "Today" on that day, the date after it.
+    expect(d.getByText(addedText(Date.UTC(2026, 10, 5, 12), Date.now()))).toBeInTheDocument();
   });
 
   it("Use the title in the file fills Your title; typing changes the list at once", async () => {
@@ -143,7 +145,7 @@ describe("Library: a track's details", () => {
     const d = within(details());
     const user = userEvent.setup();
     await user.click(await d.findByRole("button", { name: "Preview" }));
-    expect(audio.calls).toContainEqual(["previewTrack", "t44"]);
+    expect(audio.calls).toContainEqual(["previewTrack", "t44", { from: "the Library" }]);
     act(() => audio.setNowPlaying({ preview: { key: "t44", label: "Ashes" } }));
     expect(d.getByRole("button", { name: "Stop preview" })).toHaveAttribute("aria-pressed", "true");
     await user.click(d.getByRole("button", { name: "Play on air" }));

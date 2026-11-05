@@ -1,7 +1,8 @@
 /**
  * A menu whose items can hold two lines, a count or an icon at the end (Add tracks, New playlist, Add to playlist,
  * a rule's tag values), with the kit Menu's keys: arrows, Home, End, Escape (focus back to the button), Tab. Items are
- * React content; `TwoLines` draws the usual icon, first line and hint. Tab closes it and goes on from its button. Something above the items (`top`, such as a
+ * React content; `TwoLines` draws the usual icon, first line and hint. Items can be tick boxes or one-of-a-set choices
+ * that keep the menu open (`role`, `checked`, `keepOpen`), and a `note` explains the menu (its description). Tab closes it and goes on from its button. Something above the items (`top`, such as a
  * filter box) takes focus first. Drawn in the page body (ui.css .menu), placed under its button, or above it when
  * there is no room below.
  */
@@ -18,12 +19,16 @@ export type PopMenuEntry =
       className?: string;
       key?: string;
       hidden?: boolean;
-      /** One of a set (w4-outputs: a room in the Room menu): a radio item, ticked when `checked`. */
-      radio?: boolean;
+      /** A tick box (menuitemcheckbox) or one of a set (menuitemradio), ticked when `checked`. */
+      role?: "menuitemcheckbox" | "menuitemradio";
       checked?: boolean;
+      /** The menu stays open after it is chosen, with focus on it (the play order menu's Shuffle and repeats). */
+      keepOpen?: boolean;
     }
   | { separator: true }
-  | { group: React.ReactNode };
+  | { group: React.ReactNode }
+  /** A line of explanation: not an item, read as the menu's description. */
+  | { note: React.ReactNode };
 
 export interface PopMenuProps {
   /** The id its button's aria-controls names. */
@@ -43,6 +48,7 @@ export interface PopMenuProps {
  */
 export function PopMenu({ id, label, items, anchor, onClose, top }: PopMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
+  const noteId = useId();
   const [position, setPosition] = useState({ left: 0, top: 0 });
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -102,11 +108,27 @@ export function PopMenu({ id, label, items, anchor, onClose, top }: PopMenuProps
     }
   };
 
+  const notes = items.flatMap((item, index) => ("note" in item ? [index] : []));
   return createPortal(
-    <div ref={menuRef} id={id} className="menu" role="menu" aria-label={label} style={{ left: position.left, top: position.top, position: "fixed" }} onKeyDown={onKeyDown}>
+    <div
+      ref={menuRef}
+      id={id}
+      className="menu"
+      role="menu"
+      aria-label={label}
+      aria-describedby={notes.length ? notes.map((i) => `${noteId}-${i}`).join(" ") : undefined}
+      style={{ left: position.left, top: position.top, position: "fixed" }}
+      onKeyDown={onKeyDown}
+    >
       {top}
       {items.map((item, index) => {
         if ("separator" in item) return <div key={index} className="sep" role="separator" />;
+        if ("note" in item)
+          return (
+            <div key={index} id={`${noteId}-${index}`} className="item hint menu-note" role="presentation">
+              {item.note}
+            </div>
+          );
         if ("group" in item)
           return (
             <div key={index} className="group" role="presentation">
@@ -118,13 +140,13 @@ export function PopMenu({ id, label, items, anchor, onClose, top }: PopMenuProps
           <button
             key={item.key ?? index}
             type="button"
-            role={item.radio ? "menuitemradio" : "menuitem"}
-            aria-checked={item.radio ? Boolean(item.checked) : undefined}
+            role={item.role ?? "menuitem"}
+            aria-checked={item.role ? !!item.checked : undefined}
             disabled={item.disabled}
             className={item.className}
             tabIndex={-1}
             onClick={() => {
-              onCloseRef.current(true);
+              if (!item.keepOpen) onCloseRef.current(true);
               item.onSelect();
             }}
           >
@@ -138,7 +160,7 @@ export function PopMenu({ id, label, items, anchor, onClose, top }: PopMenuProps
 }
 
 function enabledItems(menu: HTMLElement | null): HTMLButtonElement[] {
-  return menu ? Array.from(menu.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]:not([disabled]), button[role="menuitemradio"]:not([disabled])')) : [];
+  return menu ? Array.from(menu.querySelectorAll<HTMLButtonElement>('button:is([role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"]):not([disabled])')) : [];
 }
 
 /** A button that opens a PopMenu; `items` is worked out when the menu opens. */

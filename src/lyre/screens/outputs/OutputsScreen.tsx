@@ -230,7 +230,7 @@ function RoomRow({ view, of, actions }: { view: OutputsView; of: BotView; action
       ...rooms.map(
         (r): PopMenuEntry => ({
           key: r.channelId,
-          radio: true,
+          role: "menuitemradio",
           checked: r.here,
           className: cx("op-mi", r.here && "here"),
           onSelect: () => actions.move(of, r.channelId),

@@ -80,6 +80,13 @@ export const ICONS = {
   music: "M9 18V5l11-2v13M9 18a3 3 0 1 1-3-3 3 3 0 0 1 3 3zM20 16a3 3 0 1 1-3-3 3 3 0 0 1 3 3z",
   ambience: "M3 8h11a3 3 0 1 0-3-3M3 12h15a3 3 0 1 1-3 3M3 16h8",
   sfx: "M13 2 4 14h7l-1 8 9-12h-7z",
+  // Round 5: play order (PLY-13), the Now playing bar's volumes (UX-16), Back up, move or share (DAT-7).
+  repeat1: "M17 2l3 3-3 3M4 11V9a4 4 0 0 1 4-4h12M7 22l-3-3 3-3M20 13v2a4 4 0 0 1-4 4H4M11 10.5l1.5-1.2V15",
+  inorder: "M4 7h10M4 12h10M4 17h6M17 9v10M14 16l3 3 3-3",
+  volume: "M3 10v4h3l5 4V6l-5 4zM15 9a4 4 0 0 1 0 6M17.5 6.5a7.5 7.5 0 0 1 0 11",
+  upload: "M12 16V4M7 9l5-5 5 5M4 16v4h16v-4",
+  download: "M12 4v12M7 11l5 5 5-5M4 16v4h16v-4",
+  warn: "M12 3 2 20h20zM12 10v4M12 17h.01",
 } as const;
 
 export type IconName = keyof typeof ICONS;

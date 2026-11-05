@@ -100,6 +100,9 @@ describe("assembleLyreAudio: LyreAudio wired into the new page as docs/ARCHITECT
     const audio = assemble();
     roomsListener!([{ botId: "bot-a", name: "Tavern" }]);
     expect(audio.getNowPlaying().rooms.map((room) => room.name)).toEqual(["Tavern"]);
+    // UX-16: rooms start at the design's 85.
+    // A room starts at full level in the page; its volume is its bot's (Outputs, the Now playing bar).
+    expect(audio.getNowPlaying().rooms[0].volume).toBe(1);
     await audio.dispose();
   });
 

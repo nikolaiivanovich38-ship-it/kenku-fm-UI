@@ -94,6 +94,7 @@ export function assembleLyreAudio(pieces: LyreAudioPieces): EngineLyreAudio {
     library: pieces.library,
     readAhead: pieces.readAhead,
     chime: pieces.chime,
+    // Rooms start at full level: a room's volume is its bot's (Outputs), so the page does not lower it twice.
     onDispose: async () => {
       stopPort();
       stopRooms();

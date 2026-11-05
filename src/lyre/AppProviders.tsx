@@ -9,7 +9,7 @@ import { EMPTY_LIBRARY, LyreAudioProvider, startLyreAudio, type LyreAudio } from
 import type { LyreAudioBridge } from "./audio/preloadAudio";
 import { useLiveSession } from "./kit/liveSession";
 import { OutputsProvider, outputsLabel, useOutputs, type OutputsClient } from "./outputs/OutputsProvider";
-import { OnAirBar } from "./shell/OnAirBar";
+import { NowPlayingBar } from "./shell/NowPlayingBar";
 import { ShellDataProvider, type ShellData } from "./shell/ShellData";
 import type { ThemeId } from "./shell/themes";
 
@@ -20,7 +20,7 @@ import type { ThemeId } from "./shell/themes";
  *   <LyreApiProvider>         the library (src/lyre/api), over IPC to the library's own process
  *     <OutputsProvider>       the Discord bots and their rooms (src/lyre/outputs, w4-outputs)
  *       <LyreAudioProvider>   play on air, preview, stop, now playing (src/lyre/audio), fed with the library
- *         <ShellDataProvider> each campaign's table theme, the session loaded in Live, Outputs (n/m), the on-air bar
+ *         <ShellDataProvider> each campaign's table theme, the session loaded in Live, Outputs (n/m), the Now playing bar
  *           {children}
  *
  * Tests pass `api`, `audio` and `outputs` (none: no bots); the page uses `window.lyre` (src/lyre/preload.ts).
@@ -114,12 +114,9 @@ function FeedLibrary({ audio }: { audio: LyreAudio }): null {
   return null;
 }
 
-/** The bar is one element for the page's life: it follows the audio host itself, so ShellData stays the same. */
-const ON_AIR_BAR = <OnAirBar />;
-
 /**
  * What the shell shows from the library and the sound: each campaign's own table theme, the session loaded in Live
- * (its campaign's theme on Live, "Live: S14" on the rail, as core.js railHTML), the on-air bar.
+ * (its campaign's theme on Live, "Live: S14" on the rail, as core.js railHTML), the Now playing bar.
  */
 function ShellDataFromLibrary({ children }: { children: React.ReactNode }) {
   const campaigns = useCampaigns().data;
@@ -136,7 +133,8 @@ function ShellDataFromLibrary({ children }: { children: React.ReactNode }) {
       liveLabel: session ? `Live: S${session.number}` : undefined,
       liveName: session ? `Live: session ${session.number}` : undefined,
       outputsLabel: outputsText,
-      onAirBar: ON_AIR_BAR,
+      // The bar follows the audio host itself, so ShellData stays the same while things play.
+      NowPlayingBar,
       history: api.history,
     };
   }, [campaigns, live, api, outputsText]);

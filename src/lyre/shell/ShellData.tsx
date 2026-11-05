@@ -5,7 +5,7 @@ import type { ThemeId } from "./themes";
 /**
  * What the shell shows from the library and the audio host. The shell has no data of its own: wave 3 wiring (see
  * src/lyre/AppProviders.tsx) supplies these from LyreApi and LyreAudio. Every field is optional, and the shell
- * works without any of them (plain labels, the default theme, no on-air bar).
+ * works without any of them (plain labels, the default theme, no Now playing bar).
  */
 export interface ShellData {
   /** A campaign's own table theme, if it has one. */
@@ -20,8 +20,11 @@ export interface ShellData {
   outputsLabel?: string;
   /** The library's history, for the undo message and Ctrl+Z (shell/UndoNote.tsx). */
   history?: Pick<LyreApi["history"], "state" | "undo">;
-  /** The slim bar at the foot of every screen but a built Live showing what the players hear (from the audio host). */
-  onAirBar?: React.ReactNode;
+  /**
+   * UX-16 the Now playing bar at the foot of every screen (from the audio host). The shell tells it when the screen
+   * shows the rooms itself (Live: `showsOnAir`), so it shows only the preview there.
+   */
+  NowPlayingBar?: React.ComponentType<{ previewOnly: boolean }>;
 }
 
 const ShellDataContext = createContext<ShellData>({});

@@ -212,9 +212,13 @@ test.describe("playlists and pad boards on hand in every session", () => {
 
 /* Round 5 (design/prototype/ROUND5.md): built in wave 4, so each check waits for "round 5" in the app. */
 test.describe("round 5: the Now playing bar and play order on the campaign page", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 5"));
+  // The three UX-16 checks are built (w4-kit-bar, the shell's Now playing bar). They read the bar as the prototype draws
+  // it with its sample bot in the voice channel Table ("On air", not "On air · no room"), so in the app they wait for the
+  // test start to have that bot, which the Outputs stream adds. The others wait for the campaign page (round 5).
+  const needsTheBotInTable = () => expectFailureUntilBuilt("outputs");
 
   test("UX-16: the Now playing bar has a row tagged On air: what plays, where it comes from and how far, with Pause, Stop, Next and Volume", async ({ page }) => {
+    needsTheBotInTable();
     await openRoute(page, "campaign/crown");
     await expect(region(page, "Now playing")).toHaveCount(0);
     await region(page, "Campaign playlists").getByRole("button", { name: "Play on air: The Company themes" }).click();
@@ -231,6 +235,7 @@ test.describe("round 5: the Now playing bar and play order on the campaign page"
   });
 
   test("UX-16: paused, the row stays and says Paused; stopped, the bar goes", async ({ page }) => {
+    needsTheBotInTable();
     await openRoute(page, "campaign/crown");
     await region(page, "Campaign playlists").getByRole("button", { name: "Play on air: The Company themes" }).click();
     const bar = region(page, "Now playing");
@@ -244,6 +249,7 @@ test.describe("round 5: the Now playing bar and play order on the campaign page"
   });
 
   test("UX-16: a preview and music on air play at once, each in its own row: On air for the players, Only you for the headphones", async ({ page }) => {
+    needsTheBotInTable();
     await openRoute(page, "campaign/crown");
     const lists = region(page, "Campaign playlists");
     await lists.getByRole("button", { name: "Play on air: The Company themes" }).click();
@@ -261,6 +267,7 @@ test.describe("round 5: the Now playing bar and play order on the campaign page"
   });
 
   test("PLY-13: a campaign playlist's play order applies when it plays from the campaign", async ({ page }) => {
+    expectFailureUntilBuilt("round 5");
     await openRoute(page, "campaign/crown");
     const order = region(page, "Campaign playlists").getByRole("button", { name: /^Play order of The Company themes: / });
     await expect(order).toHaveAccessibleName("Play order of The Company themes: In order, repeat all");
@@ -272,6 +279,7 @@ test.describe("round 5: the Now playing bar and play order on the campaign page"
   });
 
   test("ORG-12: single tracks kept on hand for the campaign are listed with its playlists", async ({ page }) => {
+    expectFailureUntilBuilt("round 5");
     await openRoute(page, "campaign/crown");
     await expect(region(page, "Campaign playlists").getByRole("link", { name: "Ominous song, the villain's calling card (short) (single track)" })).toBeVisible();
     await expect(region(page, "Campaign playlists").getByRole("button", { name: "Play on air: Ominous song, the villain's calling card (short)" })).toBeVisible();

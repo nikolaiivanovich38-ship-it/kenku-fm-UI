@@ -5,6 +5,7 @@
  */
 import React, { useState } from "react";
 
+import type { UsePlace } from "../../../common/domain";
 import type { Owner, PadBoard, PlaylistInfo } from "../../../common/lyre/api";
 import { useLyreApi } from "../../api";
 import { IconButton } from "../../kit/Button";
@@ -27,10 +28,17 @@ interface ListProps {
   /** Read only (the reminder of the campaign's playlists on a session page): no ⋯ menu. */
   onRemove?: (id: string) => void;
   removeLabel?: string;
+  /** The session or campaign list this is, so Play on air uses its play order and the Now playing bar names it. */
+  place?: UsePlace;
+}
+
+/** The session or campaign whose list it is. */
+export function placeOfOwner(owner: Owner): UsePlace {
+  return owner.sessionId ? { kind: "session", campaignId: owner.campaignId, sessionId: owner.sessionId } : { kind: "campaign", campaignId: owner.campaignId };
 }
 
 /** The rows; "No playlists yet." when there are none. */
-export function OnHandList({ ids, kind, index, scope, onRemove, removeLabel }: ListProps) {
+export function OnHandList({ ids, kind, index, scope, onRemove, removeLabel, place }: ListProps) {
   const rows = ids.flatMap((id): Omit<RowProps, "index" | "scope">[] => {
     if (kind === "playlists") {
       const p = index.playlist(id);
@@ -43,7 +51,7 @@ export function OnHandList({ ids, kind, index, scope, onRemove, removeLabel }: L
   return (
     <ul className="list cp-alist">
       {rows.map((row) => (
-        <OnHandRow key={row.info.id} {...row} index={index} scope={scope} onRemove={onRemove} removeLabel={removeLabel} />
+        <OnHandRow key={row.info.id} {...row} index={index} scope={scope} onRemove={onRemove} removeLabel={removeLabel} place={place} />
       ))}
     </ul>
   );
@@ -57,9 +65,10 @@ interface RowProps {
   scope: string;
   onRemove?: (id: string) => void;
   removeLabel?: string;
+  place?: UsePlace;
 }
 
-function OnHandRow({ info, playlist, board, index, scope, onRemove, removeLabel }: RowProps) {
+function OnHandRow({ info, playlist, board, index, scope, onRemove, removeLabel, place }: RowProps) {
   const [open, setOpen] = useState(false);
   const kindKey = playlist ? "pl" : "bd";
   return (
@@ -71,7 +80,7 @@ function OnHandRow({ info, playlist, board, index, scope, onRemove, removeLabel 
           {info.name}
         </a>
         {playlist ? <PreviewButton target={{ kind: "playlist", id: playlist.id }} name={info.name} /> : board && <PreviewButton target={{ kind: "board", board }} name={info.name} />}
-        {playlist && <PlayOnAirButton target={{ kind: "playlist", id: playlist.id }} name={info.name} />}
+        {playlist && <PlayOnAirButton target={{ kind: "playlist", id: playlist.id, place }} name={info.name} />}
         {onRemove && (
           <RowMenu
             label={`More for ${info.name}`}
@@ -157,7 +166,7 @@ export function OnHandPane({ paneId, title, kind, owner, ids, index, why, where,
       <p className="hint cp-why">
         {why} New ones: <a href={kind === "playlists" ? "#/playlists" : "#/boards"}>{kind === "playlists" ? "Playlists" : "Pad boards"}</a>.
       </p>
-      <OnHandList ids={ids} kind={kind} index={index} scope={scope} onRemove={remove} removeLabel={`Remove from this ${ownerWord}`} />
+      <OnHandList ids={ids} kind={kind} index={index} scope={scope} onRemove={remove} removeLabel={`Remove from this ${ownerWord}`} place={placeOfOwner(owner)} />
       <LibraryPicker
         open={picking}
         kind={kind}

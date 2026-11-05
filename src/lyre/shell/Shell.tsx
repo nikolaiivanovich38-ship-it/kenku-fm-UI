@@ -6,6 +6,7 @@ import { CampaignInHandContext } from "./CampaignInHand";
 import { Rail } from "./Rail";
 import { routeFromHash, sectionOf, type RouteName } from "./routes";
 import { useShellData } from "./ShellData";
+import { ScreenSound } from "./ScreenSound";
 import { SoundMessages } from "./SoundMessages";
 import { UndoNoteBar, UndoNoteProvider } from "./UndoNote";
 import { ShellSettingsProvider, useShellSettings } from "./ShellSettings";
@@ -130,12 +131,14 @@ function ShellFrame({ screens }: { screens: Record<RouteName, ScreenComponent> }
         <UndoNoteProvider live={route.name === "live"}>
           <ErrorBoundary key={route.path} where="this screen">
             <CampaignInHandContext.Provider value={campaignInHand.current}>
-              <Screen route={route} />
+              <ScreenSound route={route.name}>
+                <Screen route={route} />
+              </ScreenSound>
             </CampaignInHandContext.Provider>
           </ErrorBoundary>
           {route.name !== "live" && <UndoNoteBar />}
         </UndoNoteProvider>
-        {!Screen.showsOnAir && data.onAirBar}
+        {data.NowPlayingBar && <data.NowPlayingBar previewOnly={!!Screen.showsOnAir} />}
       </main>
     </div>
   );
