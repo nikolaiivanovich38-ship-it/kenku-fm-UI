@@ -28,8 +28,12 @@ const E2E_BUILD_ENV = "CUE_DESK_E2E_BUILD";
  * matches them against every file (minimatch `matchBase`), dot-folders included.
  * BUG-10 (w3-media): the ffmpeg program ffmpeg-static ships is run as a
  * program, so it too stays outside; only that file, by its full place.
+ * Security review 2 and 13: ffmpeg's licence and README stay beside the program, and the licence list webpack
+ * writes beside each bundle (THIRD_PARTY_LICENSES.txt) is readable without opening app.asar.
  */
-const ASAR_UNPACK_GLOB = "{*.node,*.wasm,**/node_modules/ffmpeg-static/ffmpeg,**/node_modules/ffmpeg-static/ffmpeg.exe}";
+const ASAR_UNPACK_GLOB =
+  "{*.node,*.wasm,THIRD_PARTY_LICENSES.txt,**/node_modules/ffmpeg-static/ffmpeg,**/node_modules/ffmpeg-static/ffmpeg.exe," +
+  "**/node_modules/ffmpeg-static/ffmpeg.LICENSE,**/node_modules/ffmpeg-static/ffmpeg.README}";
 
 /**
  * Whether a command-line argument names forge's make or publish command,
