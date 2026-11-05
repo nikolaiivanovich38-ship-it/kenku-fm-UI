@@ -248,3 +248,28 @@ describe("renaming a session in place (EDT-1, BUG-18)", () => {
     expect(await sessions().findByRole("textbox", { name: "Name of Session 13" })).toHaveFocus();
   });
 });
+
+describe("round 5 on the campaign page", () => {
+  it("PLY-13: each campaign playlist has a play order for the campaign; a change there leaves the others alone", async () => {
+    const user = userEvent.setup();
+    const { api } = openAt("campaign/crown");
+    await screen.findByRole("region", { name: "Campaign playlists" });
+    const order = await region("Campaign playlists").findByRole("button", { name: /^Play order of The Company themes: / });
+    expect(order).toHaveAccessibleName("Play order of The Company themes: In order, repeat all");
+    await user.click(order);
+    await user.click(screen.getByRole("menuitemcheckbox", { name: "Shuffle" }));
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(order).toHaveAccessibleName("Play order of The Company themes: Shuffle, repeat all"));
+    expect(region("Campaign playlists").getByRole("button", { name: /^Play order of Ashen King: / })).toHaveAccessibleName("Play order of Ashen King: In order, repeat all");
+    expect((await api.playlists.list()).find((p) => p.name === "The Company themes")?.order).not.toMatchObject({ shuffle: true });
+  });
+
+  it("ORG-12: single tracks on hand for the campaign are listed after its playlists, with Play on air", async () => {
+    openAt("campaign/crown");
+    await screen.findByRole("region", { name: "Campaign playlists" });
+    const single = await region("Campaign playlists").findByRole("link", { name: "Ominous song, the villain's calling card (short) (single track)" });
+    expect(single.closest("li")).toHaveTextContent("Single track");
+    expect(region("Campaign playlists").getByRole("button", { name: "Play on air: Ominous song, the villain's calling card (short)" })).toBeInTheDocument();
+    await expectNoAxeViolations();
+  });
+});

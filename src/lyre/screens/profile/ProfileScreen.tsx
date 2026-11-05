@@ -8,6 +8,7 @@
 import React, { useRef } from "react";
 
 import { shapeFromPeaks } from "../../../common/domain";
+import { isRefused } from "../../../common/lyre/api";
 import { useLyreApi } from "../../api";
 import { Button } from "../../kit/Button";
 import { Icon } from "../../kit/Icon";
@@ -86,7 +87,7 @@ function SceneName({ editor }: { editor: ProfileEditor }) {
   const own = editor.track.title || editor.track.metaTitle || editor.track.fileName;
   const save = async (name: string) => {
     const result = await api.sessions.setTrackName({ campaignId: campaign.id, sessionId: session.id, sceneId: scene.id }, editor.track.id, name.trim());
-    if (!result.ok) toast(result.refusal.message);
+    if (isRefused(result)) toast(result.refusal.message);
   };
   return (
     <div className="field ap-scname">
@@ -139,7 +140,7 @@ function ProfileBody({ editor }: { editor: ProfileEditor }) {
             </span>
             <span>
               {/* A suggestion worked out since the track list loaded comes from the same peaks the waveform draws. */}
-              <ShapeTag track={{ shape: track.shape, suggestedShape: track.suggestedShape ?? (c.levels ? shapeFromPeaks(c.levels) : null) }} />
+              <ShapeTag track={{ shape: track.shape, suggestedShape: track.suggestedShape ?? (c.levels ? shapeFromPeaks([...c.levels]) : null) }} />
             </span>
           </p>
           <SceneName editor={editor} />

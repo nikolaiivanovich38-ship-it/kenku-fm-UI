@@ -163,6 +163,7 @@ function CampaignPage({ campaign: c, index }: { campaign: CampaignInfo; index: N
               kind="playlists"
               owner={{ campaignId: c.id }}
               ids={c.playlistIds}
+              trackIds={c.trackIds}
               index={index}
               why="In every session."
               where={`every session of ${c.name}`}
