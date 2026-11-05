@@ -6,7 +6,7 @@
  * Built for 20,000 tracks: each track's search text is worked out once per track object (a track changed by a write
  * is a new object), and sorting uses one shared collator.
  */
-import { isFx, resolveProfile, type DomainTrack, type PlaylistRule, type ProfileOverrides } from "../../../common/domain";
+import { isFx, resolveProfile, shapeOf, SHAPE_WORDS, type DomainTrack, type PlaylistRule, type ProfileOverrides, type TrackShape } from "../../../common/domain";
 import type { FolderRoot, LibraryTrack, TagGroup } from "../../../common/lyre/api";
 import { plural, shownTitle } from "../../../common/lyre/text";
 
@@ -50,9 +50,16 @@ export interface LibraryFilter {
   emax: number;
   /** A folder path ("" for every folder). */
   folder: string;
+  /** DAT-13: only tracks of one of these shapes (the game master's choice, else Lyre's suggestion). Empty: any. */
+  shapes: TrackShape[];
+  /** DAT-8: only tracks whose files Lyre cannot find. */
+  missing: boolean;
 }
 
-export const DEFAULT_FILTER: LibraryFilter = { kind: "all", newOnly: false, tags: {}, emin: 1, emax: 5, folder: "" };
+export const DEFAULT_FILTER: LibraryFilter = { kind: "all", newOnly: false, tags: {}, emin: 1, emax: 5, folder: "", shapes: [], missing: false };
+
+/** The shapes in the prototype's order, with their words (Filters › Shape, a track's details, Rules › Shape). */
+export const SHAPES = (Object.keys(SHAPE_WORDS) as TrackShape[]).map((s) => [s, SHAPE_WORDS[s]] as const);
 
 /* ---------- small helpers ---------- */
 
@@ -112,9 +119,18 @@ export function searchWords(q: string): string[] {
   return q.toLowerCase().split(/\s+/).filter(Boolean);
 }
 
-export function matches(t: LibraryTrack, f: LibraryFilter, words: string[], skipNew = false): boolean {
+/** No track is known to be missing (the list of missing files has not come yet). */
+const NONE_MISSING: ReadonlySet<string> = new Set();
+
+/** `missing`: ids of the tracks whose files Lyre cannot find (LyreApi import.findMissing). */
+export function matches(t: LibraryTrack, f: LibraryFilter, words: string[], skipNew = false, missing: ReadonlySet<string> = NONE_MISSING): boolean {
   if (!kindOk(t, f.kind)) return false;
   if (f.newOnly && !skipNew && !isNewish(t)) return false;
+  if (f.missing && !missing.has(t.id)) return false;
+  if (f.shapes.length) {
+    const { shape } = shapeOf(t);
+    if (!shape || !f.shapes.includes(shape)) return false;
+  }
   if (!inFolder(t, f.folder)) return false;
   if (!energyOff(f) && ((t.energy ?? 0) < f.emin || (t.energy ?? 0) > f.emax)) return false;
   for (const [group, want] of Object.entries(f.tags)) {
@@ -139,16 +155,22 @@ const SORTERS: Record<SortKey, (a: LibraryTrack, b: LibraryTrack) => number> = {
 };
 
 /** The tracks a filter, search and sort show, in order. */
-export function visibleTracks(tracks: readonly LibraryTrack[], f: LibraryFilter, q: string, sort: SortKey): LibraryTrack[] {
+export function visibleTracks(tracks: readonly LibraryTrack[], f: LibraryFilter, q: string, sort: SortKey, missing: ReadonlySet<string> = NONE_MISSING): LibraryTrack[] {
   const words = searchWords(q);
-  return tracks.filter((t) => matches(t, f, words)).sort(SORTERS[sort]);
+  return tracks.filter((t) => matches(t, f, words, false, missing)).sort(SORTERS[sort]);
 }
 
 /* ---------- describing the filters ---------- */
 
 export function filterCount(f: LibraryFilter): number {
   return (
-    Number(f.kind !== "all") + Number(f.newOnly) + Number(!!f.folder) + Number(!energyOff(f)) + Object.values(f.tags).reduce((n, v) => n + v.length, 0)
+    Number(f.kind !== "all") +
+    Number(f.newOnly) +
+    Number(f.missing) +
+    f.shapes.length +
+    Number(!!f.folder) +
+    Number(!energyOff(f)) +
+    Object.values(f.tags).reduce((n, v) => n + v.length, 0)
   );
 }
 export const filtersOn = (f: LibraryFilter): boolean => filterCount(f) > 0;
@@ -157,6 +179,8 @@ export function filterSummary(f: LibraryFilter, groups: readonly TagGroup[]): st
   const parts: string[] = [];
   if (f.kind !== "all") parts.push(KIND_NAMES[f.kind]);
   if (f.newOnly) parts.push("New, not tagged yet");
+  if (f.missing) parts.push("Missing files");
+  if (f.shapes.length) parts.push(f.shapes.map((x) => SHAPE_WORDS[x]).join(", "));
   for (const g of groups) if (f.tags[g.id]?.length) parts.push(f.tags[g.id].join(", "));
   if (!energyOff(f)) parts.push(`energy ${f.emin} to ${f.emax}`);
   if (f.folder) parts.push(shortPath(f.folder));
@@ -225,5 +249,6 @@ export function ruleWords(rule: PlaylistRule, groupNames: Record<string, string>
   const parts = rule.conds.filter((c) => c.values.length).map((c) => `${groupNames[c.group] ?? c.group} ${how[c.match]} ${c.values.join(", ")}`);
   if (rule.energy) parts.push(`energy ${rule.energy[0]} to ${rule.energy[1]}`);
   if (rule.leaveOutStings) parts.push("not stings");
+  if (rule.shapes?.length) parts.push(`shape ${rule.shapes.map((x) => SHAPE_WORDS[x].toLowerCase()).join(" or ")}`);
   return parts.join("; ");
 }
