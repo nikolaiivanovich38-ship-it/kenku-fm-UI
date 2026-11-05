@@ -262,6 +262,16 @@ describe("Library: adding tracks", () => {
     expect(shownTitles()).toContain("Leaving Caladan");
   });
 
+  it("names a file that could not be added by its name, not its full path (UX review 12)", async () => {
+    openAt("library", { choose: { files: () => ["H:\\Audio\\In\\01 Wolf Moon.flac", "H:\\Audio\\In\\notes.txt"] } });
+    await loaded();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /^Add tracks/ }));
+    await user.click(screen.getByRole("menuitem", { name: /^Add files…/ }));
+    expect(await tracksBox().findByText(/could not be added: notes\.txt:/)).toBeInTheDocument();
+    expect(tracksBox().queryByText(/H:\\Audio/)).toBeNull();
+  });
+
   it("dropped files join the Library, selected; other files are ignored", async () => {
     openAt("library");
     await loaded();

@@ -190,7 +190,7 @@ export function LibraryScreen({ route }: ScreenProps) {
       // UX review 6: files already in the Library are named, never counted as added, and selected with the new ones.
       const byId = store.get().byId;
       const alreadyIn = summary.alreadyInLibrary.map((id) => byId.get(id)).filter((t): t is LibraryTrack => Boolean(t)).map((t) => shownTitle(t));
-      const guide: Guide = { kind: "added", count: summary.added.length, how, alreadyIn, problems: summary.problems.map((p) => `${p.file}: ${p.reason}`) };
+      const guide: Guide = { kind: "added", count: summary.added.length, how, alreadyIn, problems: summary.problems.map((p) => `${fileName(p.file)}: ${p.reason}`) };
       // Only new tracks: show New ones; any already there may not be New, so show everything.
       const filter = alreadyIn.length ? DEFAULT_FILTER : { ...DEFAULT_FILTER, newOnly: true };
       setLibraryState({ filter, q: "", sort: "new", sel: ids, cursor: ids[0], anchor: null, guide });
@@ -592,6 +592,11 @@ function Item({ icon, text }: { icon: React.ComponentProps<typeof Icon>["name"];
       {text}
     </>
   );
+}
+
+/** A file's name from its full path, either style (UX review 12: messages name the file, not where it is). */
+function fileName(filePath: string): string {
+  return filePath.split(/[\\/]/).filter(Boolean).pop() ?? filePath;
 }
 
 /**
