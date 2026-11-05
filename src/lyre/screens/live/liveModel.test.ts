@@ -9,7 +9,7 @@ import type { AudioProfile } from "../../../common/domain";
 import { prototypeSeed } from "../../../common/lyre/seed";
 import type { LyreOutputs } from "../../../common/lyreOutputs";
 import { EMPTY_NOW_PLAYING } from "../../audio/testing/fakeLyreAudio";
-import type { NowPlaying, RoomNowPlaying } from "../../audio/lyreAudio";
+import type { LaneNowPlaying, NowPlaying, RoomNowPlaying } from "../../audio/lyreAudio";
 import { PROTOTYPE_OUTPUTS, SIDE_BOT, TABLE_BOT } from "../../outputs/testing/fakeOutputs";
 import { libraryIndex } from "../campaigns/model";
 import {
@@ -30,6 +30,7 @@ import {
   selectedList,
   sceneBoards,
   type KeyInput,
+  type OffScriptQuery,
 } from "./liveModel";
 
 const seed = prototypeSeed();
@@ -49,7 +50,7 @@ const room = (roomId: string, name: string, over: Partial<RoomNowPlaying> = {}):
   effects: [],
   ...over,
 });
-const playing = { trackId: "t13", title: "Eerie", origin: { kind: "single" as const }, playlistId: null, position: 1, length: 10, paused: false, loading: false, place: null, playOrder: null };
+const playing: LaneNowPlaying = { trackId: "t13", title: "Eerie", origin: { kind: "single" }, playlistId: null, position: 1, length: 10, paused: false, loading: false, place: null, playOrder: null };
 const withSide = (status: "joining" | "connected"): LyreOutputs => ({
   ...PROTOTYPE_OUTPUTS,
   bots: [PROTOTYPE_OUTPUTS.bots[0], { ...PROTOTYPE_OUTPUTS.bots[1], room: { serverId: "1001", channelId: "1012", status } }],
@@ -129,7 +130,7 @@ describe("To: where each box plays", () => {
 });
 
 describe("Off script search", () => {
-  const music = { q: "", tags: [], lane: "all" as const };
+  const music: OffScriptQuery = { q: "", tags: [], lane: "all" };
   it("finds every word in a track's titles, file, artist, album, role and tags", () => {
     const found = offScriptSearch(seed.tracks, { ...music, q: "bells" }).list.map((t) => t.id);
     expect(found).toEqual(expect.arrayContaining(["t42", "b06"]));

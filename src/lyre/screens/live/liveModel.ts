@@ -62,7 +62,7 @@ export function liveRooms(outputs: LyreOutputs | null, now: NowPlaying): LiveRoo
       .bots.filter((b) => b.inRoom)
       .map((b) => ({ roomId: b.bot.id, name: b.channel!.name, bot: b.bot, room: now.rooms.find((r) => r.roomId === b.bot.id) ?? null }));
   }
-  return now.rooms.filter((r) => r.roomId !== TABLE).map((r) => ({ roomId: r.roomId, name: r.name, bot: null, room: r }));
+  return now.rooms.filter((r) => r.roomId !== TABLE).map((r): LiveRoom => ({ roomId: r.roomId, name: r.name, bot: null, room: r }));
 }
 
 /** A room's one status pill. */

@@ -4,8 +4,8 @@ import { BoardScreen } from "./boards/BoardScreen";
 import { BoardsScreen } from "./boards/BoardsScreen";
 import { LibraryScreen } from "./library/LibraryScreen";
 import { PlaylistScreen, PlaylistsScreen } from "./library/PlaylistsScreen";
+import { LiveScreen } from "./live/LiveScreen";
 import { LookScreen } from "./look/LookScreen";
-import { ComingScreen } from "./Placeholder";
 import { CampaignScreen, CampaignsScreen, SessionScreen } from "./campaigns";
 import { OutputsScreen } from "./outputs/OutputsScreen";
 import { ProfileScreen } from "./profile/ProfileScreen";
@@ -17,18 +17,11 @@ export interface ScreenProps {
 
 export type ScreenComponent = React.ComponentType<ScreenProps> & {
   /**
-   * True for a screen that shows what is on air itself (the Live screen, wave 4): the shell's Now playing bar shows
-   * only the preview there (UX-16). Every other screen, the "comes in 0.4" pages included, shows every row (BUG-13).
+   * True for a screen that shows what is on air itself (the Live screen): the shell's Now playing bar shows only the
+   * preview there (UX-16). Every other screen shows every row (BUG-13).
    */
   showsOnAir?: boolean;
 };
-
-/** Live comes in Lyre 0.4; until then its page says so (ComingScreen). */
-function comingLater(title: string): ScreenComponent {
-  const Screen = () => <ComingScreen title={title} />;
-  Screen.displayName = `${title} (comes in 0.4)`;
-  return Screen;
-}
 
 /**
  * The screen for each route. Each screen renders its own `.viewhead` with one h1 (the shell moves focus there when the
@@ -45,7 +38,7 @@ export const SCREENS: Record<RouteName, ScreenComponent> = {
   profile: ProfileScreen,
   boards: BoardsScreen,
   board: BoardScreen,
-  live: comingLater("Live"),
+  live: LiveScreen,
   outputs: OutputsScreen,
   look: LookScreen,
 };
