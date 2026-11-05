@@ -27,7 +27,15 @@ function compiledAsInTheApp(file: string): Record<string, unknown> {
 
 type ErrorClass = new (...args: unknown[]) => Error;
 
-describe("error classes keep instanceof in the app's ES5 bundles", () => {
+describe("the app's bundles keep native classes", () => {
+  it("compiles to ES2015 or later, so every subclass of Error keeps instanceof", () => {
+    const config = ts.readConfigFile(path.join(root, "tsconfig.json"), ts.sys.readFile);
+    const { options } = ts.parseJsonConfigFileContent(config.config, ts.sys, root);
+    expect(options.target ?? ts.ScriptTarget.ES5).toBeGreaterThanOrEqual(ts.ScriptTarget.ES2015);
+  });
+});
+
+describe("error classes keep instanceof in the app's bundles", () => {
   it.each([
     ["src/main/data/errors.ts", "ValidationError", ["title", "Type a title."]],
     ["src/main/data/errors.ts", "NotFoundError", ["track", "t1"]],

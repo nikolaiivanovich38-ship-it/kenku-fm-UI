@@ -64,6 +64,8 @@ class FakeWebContents extends EventEmitter {
   setWindowOpenHandler = (handler: WindowOpenHandler) => {
     this.windowOpenHandler = handler;
   };
+  destroyed = false;
+  isDestroyed = () => this.destroyed;
   close = vi.fn();
   destroy = vi.fn();
   reload = vi.fn();
@@ -565,6 +567,21 @@ describe("BrowserViewManagerMain: the new interface page, Lyre (WP5)", () => {
       ([channel]) => channel === "BROWSER_VIEW_NEW_TAB",
     );
     expect(requests).toEqual([["BROWSER_VIEW_NEW_TAB", "https://example.com/help"]]);
+  });
+
+  it("removes a view whose page has already closed without touching the closed page (quitting no longer hangs)", () => {
+    const { create, send, window } = setup();
+    const { view, id } = create(LYRE_URL, "lyre");
+    view.webContents.destroyed = true;
+    expect(() => send("BROWSER_VIEW_REMOVE_BROWSER_VIEW", id)).not.toThrow();
+    expect(view.webContents.close).not.toHaveBeenCalled();
+    expect(view.webContents.destroy).not.toHaveBeenCalled();
+    expect(window.contentView.removeChildView).toHaveBeenCalled();
+    view.webContents.close.mockClear();
+    const other = create(PLAYER_URL, "player");
+    other.view.webContents.destroyed = true;
+    expect(() => send("BROWSER_VIEW_REMOVE_ALL_BROWSER_VIEWS")).not.toThrow();
+    expect(other.view.webContents.close).not.toHaveBeenCalled();
   });
 
   it("never loads another address in the Lyre page", () => {

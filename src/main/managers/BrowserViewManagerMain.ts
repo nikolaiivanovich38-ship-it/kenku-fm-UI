@@ -403,19 +403,23 @@ export class BrowserViewManagerMain {
       if (this.topView === this.views[id]) {
         this.topView = undefined;
       }
-      this.views[id].webContents.close({ waitForBeforeUnload: false });
-      this.window.contentView.removeChildView(this.views[id]);
-      destroyContents(this.views[id].webContents);
+      this._closeView(this.views[id]);
       delete this.views[id];
     }
+  }
+
+  /** Takes a view off the window and ends its page; a page that has already closed is left alone (closing it again hangs quitting). */
+  private _closeView(view: Electron.WebContentsView) {
+    const contents = view.webContents;
+    if (!contents.isDestroyed()) contents.close({ waitForBeforeUnload: false });
+    this.window.contentView.removeChildView(view);
+    if (!contents.isDestroyed()) destroyContents(contents);
   }
 
   removeAllBrowserViews() {
     for (const id in this.views) {
       this._forgetView(Number(id));
-      this.views[id].webContents.close({ waitForBeforeUnload: false });
-      this.window.contentView.removeChildView(this.views[id]);
-      destroyContents(this.views[id].webContents);
+      this._closeView(this.views[id]);
       this.topView = undefined;
       delete this.views[id];
     }
