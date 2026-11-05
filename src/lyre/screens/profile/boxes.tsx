@@ -275,7 +275,7 @@ function Stepper({ c, which, value, unit }: C & { which: Which; value: number; u
   return (
     <span className="ap-step">
       <IconButton icon="minus" size="s" label={`Shorter ${unit}`} hint={`Shorter ${unit} (1 s less)`} data-k={`ap-st-${which}-m`} disabled={!c.editable} onClick={() => c.actions.step(which, -1)} />
-      <TimeInput c={c} which={which} value={String(value)} secsOnly label={`${unit} in seconds`} />
+      <TimeInput c={c} which={which} value={String(value)} secsOnly label={`${unit} length in seconds`} />
       <IconButton icon="plus" size="s" label={`Longer ${unit}`} hint={`Longer ${unit} (1 s more)`} data-k={`ap-st-${which}-p`} disabled={!c.editable} onClick={() => c.actions.step(which, 1)} />
       <span className="faint">s</span>
     </span>
@@ -318,6 +318,7 @@ function FadeBlock({ c, kind }: C & { kind: "in" | "out" }) {
           <input
             type="range"
             id={`ap-sh-${kind}`}
+            aria-label={`${label} intensity`}
             data-k={`ap-sh-${kind}`}
             min={0}
             max={100}

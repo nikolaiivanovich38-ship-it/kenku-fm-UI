@@ -148,7 +148,7 @@ function Card({ card, inUse, onUse }: { card: ThemeCard; inUse: boolean; onUse: 
       </p>
       <p>{card.why}</p>
       <p className="faint">{card.type}</p>
-      <button type="button" className={cx("btn", inUse && "primary")} aria-describedby={headingId} onClick={onUse}>
+      <button type="button" className={cx("btn", inUse && "primary")} aria-label={inUse ? `In use: ${card.name}` : `Use this theme: ${card.name}`} onClick={onUse}>
         {inUse ? (
           <>
             <Icon name="check" size="s" />

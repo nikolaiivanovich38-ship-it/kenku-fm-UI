@@ -118,7 +118,7 @@ describe("the handles", () => {
     const { user } = await open();
     slider("Fade out length").focus();
     for (let i = 0; i < 4; i++) await user.keyboard("{ArrowRight}");
-    expect(fades().getByRole("textbox", { name: "fade out in seconds" })).toHaveValue("4");
+    expect(fades().getByRole("textbox", { name: "fade out length in seconds" })).toHaveValue("4");
   });
 });
 
@@ -200,11 +200,13 @@ describe("fades", () => {
     expect(region("Fades")).toHaveTextContent("No fades");
     await user.click(fades().getByRole("button", { name: "Longer fade in" }));
     await user.click(fades().getByRole("button", { name: "Longer fade in" }));
-    expect(fades().getByRole("textbox", { name: "fade in in seconds" })).toHaveValue("2");
+    expect(fades().getByRole("textbox", { name: "fade in length in seconds" })).toHaveValue("2");
     await user.click(fades().getByRole("button", { name: "Shorter fade in" }));
-    expect(fades().getByRole("textbox", { name: "fade in in seconds" })).toHaveValue("1");
+    expect(fades().getByRole("textbox", { name: "fade in length in seconds" })).toHaveValue("1");
     expect(region("Fades")).toHaveTextContent("In 1 s · out 0 s");
-    const intensity = fades().getAllByRole("slider", { name: "Intensity" });
+    // Each slider is named for its fade (w3-ux 14).
+    expect(fades().getByRole("slider", { name: "Fade in intensity" })).toBeInTheDocument();
+    const intensity = [fades().getByRole("slider", { name: "Fade in intensity" }), fades().getByRole("slider", { name: "Fade out intensity" })];
     expect(intensity).toHaveLength(2);
     expect(intensity[0]).toHaveAttribute("aria-valuetext", "Even, 50 of 100");
   });
@@ -212,7 +214,7 @@ describe("fades", () => {
   it("a looping track has a loop crossfade", async () => {
     await open();
     expect(region("Fades")).toHaveTextContent(/Crossfade the loop\s*smooths the jump back to 1:04/);
-    expect(fades().getByRole("textbox", { name: "loop crossfade in seconds" })).toHaveValue("2");
+    expect(fades().getByRole("textbox", { name: "loop crossfade length in seconds" })).toHaveValue("2");
   });
 });
 

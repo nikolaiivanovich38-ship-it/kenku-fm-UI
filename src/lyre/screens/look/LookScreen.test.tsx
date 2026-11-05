@@ -45,24 +45,24 @@ describe("Look and feel", () => {
   it("Use this theme uses it everywhere at once, says so, and is remembered", async () => {
     open();
     const user = userEvent.setup();
-    await user.click(card("Parchment").getByRole("button", { name: "Use this theme" }));
+    await user.click(card("Parchment").getByRole("button", { name: "Use this theme: Parchment" }));
     expect(document.documentElement.dataset.theme).toBe("parchment");
     expect(loadShellSettings().theme).toBe("parchment");
-    expect(card("Parchment").getByRole("button", { name: "In use" })).toBeInTheDocument();
-    expect(card("Elysium").getByRole("button", { name: "Use this theme" })).toBeInTheDocument();
+    expect(card("Parchment").getByRole("button", { name: "In use: Parchment" })).toBeInTheDocument();
+    expect(card("Elysium").getByRole("button", { name: "Use this theme: Elysium" })).toBeInTheDocument();
     expect(document.getElementById("lyre-toast")).toHaveTextContent("Lyre now uses Parchment");
   });
 
   it("Theme goes back to each campaign's own theme", async () => {
     const main = open();
     const user = userEvent.setup();
-    await user.click(card("Elysium").getByRole("button", { name: "Use this theme" }));
+    await user.click(card("Elysium").getByRole("button", { name: "Use this theme: Elysium" }));
     const choice = main.getByRole("combobox", { name: "Theme" });
     expect(choice).toHaveValue("elysium");
     await user.selectOptions(choice, "Each campaign's own");
     expect(loadShellSettings().theme).toBe("campaign");
     expect(document.documentElement.dataset.theme).toBe("candle");
-    expect(screen.queryByRole("button", { name: "In use" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^In use/ })).toBeNull();
   });
 
   it("works out each card's contrast from its colours", () => {

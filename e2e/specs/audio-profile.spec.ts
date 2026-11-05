@@ -54,7 +54,7 @@ test.describe("the handles", () => {
     const knob = handle(page, "Fade out length");
     await knob.focus();
     for (let i = 0; i < 4; i++) await page.keyboard.press("ArrowRight");
-    await expect(fades(page).getByRole("textbox", { name: "fade out in seconds" })).toHaveValue("4");
+    await expect(fades(page).getByRole("textbox", { name: "fade out length in seconds" })).toHaveValue("4");
   });
 });
 
@@ -112,9 +112,9 @@ test.describe("fades", () => {
     await expect(f).toContainText("No fades");
     await f.getByRole("button", { name: "Longer fade in" }).click();
     await f.getByRole("button", { name: "Longer fade in" }).click();
-    await expect(f.getByRole("textbox", { name: "fade in in seconds" })).toHaveValue("2");
+    await expect(f.getByRole("textbox", { name: "fade in length in seconds" })).toHaveValue("2");
     await f.getByRole("button", { name: "Shorter fade in" }).click();
-    await expect(f.getByRole("textbox", { name: "fade in in seconds" })).toHaveValue("1");
+    await expect(f.getByRole("textbox", { name: "fade in length in seconds" })).toHaveValue("1");
     await expect(f.getByRole("slider", { name: "Intensity" })).toHaveCount(2);
     await expect(f).not.toContainText("No fades");
   });
@@ -122,7 +122,7 @@ test.describe("fades", () => {
   test("a looping track also has a loop crossfade that smooths the jump back", async ({ page }) => {
     await openRoute(page, "profile/t13");
     await expect(fades(page)).toContainText(/Crossfade the loop\s*smooths the jump back to 1:04/);
-    await expect(fades(page).getByRole("textbox", { name: "loop crossfade in seconds" })).toHaveValue("2");
+    await expect(fades(page).getByRole("textbox", { name: "loop crossfade length in seconds" })).toHaveValue("2");
   });
 });
 

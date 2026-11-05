@@ -794,7 +794,13 @@ function BoardList({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
         <p className="faint cp-mnone">No pad boards yet.</p>
       )}
       <div className="cp-boxbtns">
-        <Button size="s" icon="plus" data-k={`ab-${scene.id}`} onClick={() => ctx.pick({ kind: "boards", sceneId: scene.id })}>
+        <Button
+          size="s"
+          icon="plus"
+          data-k={`ab-${scene.id}`}
+          aria-label={`Add pad boards… to ${scene.name}`}
+          onClick={() => ctx.pick({ kind: "boards", sceneId: scene.id })}
+        >
           Add pad boards…
         </Button>
         <span className="hint">The first is shown when the scene starts.</span>

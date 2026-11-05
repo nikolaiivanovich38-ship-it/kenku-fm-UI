@@ -223,7 +223,8 @@ describe("a scene's ambience and pad boards", () => {
     expect(boardNames()).toEqual(["Drowned Abbey", "Weather and places"]);
     const group = within(abbey().getByRole("group", { name: "Pad boards" }));
     expect(group.getByRole("button", { name: "Preview the first pad of Drowned Abbey" })).toBeInTheDocument();
-    await userEvent.click(group.getByRole("button", { name: "Add pad boards…" }));
+    // Named for its scene, so it differs from the session's own Add pad boards… (w3-ux 14).
+    await userEvent.click(group.getByRole("button", { name: /^Add pad boards… to / }));
     await userEvent.click(within(screen.getByRole("dialog")).getByRole("checkbox", { name: /^Combat/ }));
     await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Done" }));
     await waitFor(() => expect(boardNames()).toEqual(["Drowned Abbey", "Weather and places", "Combat"]));

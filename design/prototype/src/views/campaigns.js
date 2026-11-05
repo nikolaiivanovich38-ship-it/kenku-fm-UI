@@ -410,7 +410,7 @@
     return '<div class="cp-box">' +
       (bds.length ? '<ol class="cp-items" aria-label="Pad boards in order">' + bds.map(function (b, i) { return itemRow(sc, 'boards', info(b, true), i, bds.length, 'Shown first'); }).join('') + '</ol>'
         : '<p class="faint cp-mnone">No pad boards yet.</p>') +
-      '<div class="cp-boxbtns"><button class="btn s" data-act="cpaddboards" data-sc="' + sc.id + '" data-k="ab-' + sc.id + '">' + L.icon('plus', 's') + 'Add pad boards…</button><span class="hint">The first is shown when the scene starts.</span></div></div>';
+      '<div class="cp-boxbtns"><button class="btn s" data-act="cpaddboards" data-sc="' + sc.id + '" data-k="ab-' + sc.id + '" aria-label="Add pad boards… to ' + esc(sc.name) + '">' + L.icon('plus', 's') + 'Add pad boards…</button><span class="hint">The first is shown when the scene starts.</span></div></div>';
   }
   function ambSlot(sc) {
     var it = sc.amb ? info(sc.amb) : null, xk = 'cp-' + sc.id + ':amb:' + (it ? it.id : '');
