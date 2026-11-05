@@ -276,6 +276,8 @@ function TagRow({ t, group, store }: { t: LibraryTrack; group: TagGroup; store: 
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
   const [act, setAct] = useState(0);
+  // The game master moved through the suggestions with the arrows, so the highlighted one is a choice (Tab adds it).
+  const arrowed = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const id = useId();
   const listId = `${id}-lbx`;
@@ -293,12 +295,14 @@ function TagRow({ t, group, store }: { t: LibraryTrack; group: TagGroup; store: 
   const showList = open && options.length > 0;
   const active = Math.min(act, Math.max(0, options.length - 1));
 
-  const pick = async (raw: string) => {
+  /** Adds a tag (creating it in the group when new). `stay`: focus comes back to the box (Enter, a click), not Tab. */
+  const pick = async (raw: string, { stay = true }: { stay?: boolean } = {}) => {
     const value = tagValue(raw);
     if (!value) return;
     setQ("");
     setOpen(false);
     setAct(0);
+    arrowed.current = false;
     const done = accept(await api.tags.tagTracks({ trackIds: [t.id], add: [{ group: group.id, value }] }));
     if (!done) return;
     const made = done.created.length > 0;
@@ -308,7 +312,7 @@ function TagRow({ t, group, store }: { t: LibraryTrack; group: TagGroup; store: 
       return { ...now, tags: { ...now.tags, [group.id]: have.includes(known) ? have : [...have, known] } };
     });
     say(`${made ? "Created and added" : "Added"} ${known} to ${group.name}`);
-    inputRef.current?.focus();
+    if (stay) inputRef.current?.focus();
   };
   const remove = async (value: string) => {
     const done = accept(await api.tags.tagTracks({ trackIds: [t.id], remove: [{ group: group.id, value }] }));
@@ -325,10 +329,15 @@ function TagRow({ t, group, store }: { t: LibraryTrack; group: TagGroup; store: 
         setOpen(true);
         setAct(0);
       } else if (options.length) setAct((active + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length);
+      arrowed.current = true;
     } else if (event.key === "Enter") {
       event.preventDefault();
       if (showList && options[active]) void pick(options[active].value);
       else if (q.trim()) void pick(q);
+    } else if (event.key === "Tab" && !event.shiftKey && (q.trim() || (showList && arrowed.current))) {
+      // BUG-15: Tab adds what was typed, or the suggestion chosen, as Enter does, and lets focus move on. An empty
+      // box, or suggestions only opened by a click, add nothing.
+      void pick(showList && options[active] ? options[active].value : q, { stay: false });
     } else if (event.key === "Escape" && (open || q)) {
       event.preventDefault();
       event.stopPropagation();
@@ -373,6 +382,7 @@ function TagRow({ t, group, store }: { t: LibraryTrack; group: TagGroup; store: 
             onBlur={() => {
               setOpen(false);
               setQ("");
+              arrowed.current = false;
             }}
           />
           <ul className="lb-lbx" id={listId} role="listbox" aria-label={`${group.name} values`} hidden={!showList} onMouseDown={(e) => e.preventDefault()}>

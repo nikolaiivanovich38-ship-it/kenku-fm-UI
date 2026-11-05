@@ -174,6 +174,43 @@ describe("Library: a track's details", () => {
     await waitFor(() => expect(within(details()).queryByRole("button", { name: "Remove Melancholy from Mood" })).toBeNull());
   });
 
+  it("Tab adds what was typed (creating a new tag) or the suggestion chosen, and moves on; an empty box adds nothing (BUG-15)", async () => {
+    const { api } = openAt("library/t44");
+    const box = await within(details()).findByRole("combobox", { name: "Add a mood tag" });
+    const user = userEvent.setup();
+    const t44 = async () => (await api.library.listTracks()).find((t) => t.id === "t44");
+    const before = (await t44()).tags.mood ?? [];
+    // A tag that does not exist yet: Tab creates it, adds it, and focus moves on.
+    await user.click(box);
+    await user.keyboard("Frostbitten");
+    await user.tab();
+    expect(await within(details()).findByRole("button", { name: "Remove Frostbitten from Mood" })).toBeInTheDocument();
+    expect(within(details()).getByRole("combobox", { name: "Add a mood tag" })).not.toHaveFocus();
+    expect(document.activeElement).not.toBe(document.body);
+    await waitFor(async () => expect((await t44()).tags.mood).toEqual([...before, "Frostbitten"]));
+    expect((await api.tags.listGroups()).find((g) => g.id === "mood")?.values).toContain("Frostbitten");
+    // A suggestion chosen with the arrows: Tab adds it.
+    await user.click(within(details()).getByRole("combobox", { name: "Add a mood tag" }));
+    await user.keyboard("{ArrowDown}");
+    const second = within(screen.getByRole("listbox", { name: "Mood values" })).getAllByRole("option")[1];
+    const chosen = second.textContent ?? "";
+    expect(second).toHaveAttribute("aria-selected", "true");
+    await user.tab();
+    expect(await within(details()).findByRole("button", { name: `Remove ${chosen} from Mood` })).toBeInTheDocument();
+    // Typing part of a tag: Tab adds the first suggestion, as Enter does.
+    await user.click(within(details()).getByRole("combobox", { name: "Add a mood tag" }));
+    await user.keyboard("me");
+    await user.tab();
+    expect(await within(details()).findByRole("button", { name: "Remove Melancholy from Mood" })).toBeInTheDocument();
+    // An empty box: Tab only moves on.
+    const now = (await t44()).tags.mood;
+    await user.click(within(details()).getByRole("combobox", { name: "Add a mood tag" }));
+    await user.tab();
+    expect(within(details()).getByRole("combobox", { name: "Add a mood tag" })).not.toHaveFocus();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect((await t44()).tags.mood).toEqual(now);
+  });
+
   it("Esc closes the suggestions", async () => {
     openAt("library/t44");
     const box = await within(details()).findByRole("combobox", { name: "Add a mood tag" });
