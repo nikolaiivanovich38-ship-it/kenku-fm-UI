@@ -2,7 +2,8 @@
  * React access to LyreAudio for the new interface's screens.
  *
  * - `<LyreAudioProvider audio={audio}>` once, in the page root.
- * - `useLyreAudio()`: the LyreAudio to call (play, pads, preview…).
+ * - `useLyreAudio()`: the LyreAudio to call (play, pads, preview…);
+ *   `useOptionalLyreAudio()` for the shell, which also works without sound.
  * - `useNowPlaying()`: what plays in each room, redrawn on every change and
  *   about once a second while anything plays (positions).
  * - `useLyreAudioEvent("announce" | "error", handler)`: sentences for the
@@ -26,6 +27,11 @@ export function useLyreAudio(): LyreAudio {
     throw new Error("useLyreAudio needs a LyreAudioProvider around the page (see src/lyre/audio/LyreAudioProvider.tsx).");
   }
   return audio;
+}
+
+/** The LyreAudio, or null outside a LyreAudioProvider (the shell works without sound, e.g. when it could not start). */
+export function useOptionalLyreAudio(): LyreAudio | null {
+  return useContext(LyreAudioContext);
 }
 
 export function useNowPlaying(): NowPlaying {

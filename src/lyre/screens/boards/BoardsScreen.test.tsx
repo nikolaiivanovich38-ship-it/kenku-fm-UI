@@ -149,6 +149,10 @@ describe("all pad boards (boards.js list view)", () => {
     await user.click(screen.getByRole("menuitem", { name: "Use in…" }));
     const sheet = screen.getByRole("dialog", { name: 'Use "Spellwork" in…' });
     expect(within(sheet).getByRole("checkbox", { name: /The Sixth Year: whole campaign/ })).toBeChecked();
+    // Campaigns where the board is not used start folded ("Use in…" shows every campaign).
+    const crown = within(sheet).getByRole("button", { name: /^The Sunken Crown/ });
+    expect(crown).toHaveAttribute("aria-expanded", "false");
+    await user.click(crown);
     await user.click(within(sheet).getByRole("checkbox", { name: /^Session 14: The Drowned Abbey/ }));
     await user.click(within(sheet).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(toastText()).toBe('Saved where "Spellwork" is used'));

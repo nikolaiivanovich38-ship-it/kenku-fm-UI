@@ -31,16 +31,15 @@ import {
   ObsidianButton,
   Opening,
   useHeadingFocusWhenReady,
-  PlayOnAirButton,
-  PreviewButton,
   RowMenu,
   StatusBadge,
-  useAudioMessages,
+ 
   useFocusLater,
   useLibraryIndex,
   useOwnSettings,
   useWrite,
 } from "./parts";
+import { PlayOnAirButton, PreviewButton } from "../../kit/SoundButtons";
 import { LibraryPicker, playlistKey, refOfKey, trackKey } from "./pickers";
 import { useOptimisticScenes, type ScenePlay } from "./optimistic";
 import { useDragReorder } from "./reorder";
@@ -50,7 +49,6 @@ import "./campaigns.css";
 export function SessionScreen({ route }: ScreenProps) {
   const query = useCampaign(route.params.cid ?? "");
   const index = useLibraryIndex();
-  useAudioMessages();
   const campaign = query.data;
   const session = campaign?.sessions.find((s) => s.id === route.params.sid);
   if (campaign === null || (campaign && !session)) return <NotFound what="Session" />;
@@ -668,13 +666,13 @@ function ItemRow({
         ) : (
           <PreviewButton target={info.kind === "playlist" ? { kind: "playlist", id: info.id } : { kind: "track", id: info.id }} name={info.name} />
         )}
-        {info.kind !== "board" && <PlayOnAirButton kind={info.kind} id={info.id} name={info.name} />}
+        {info.kind !== "board" && <PlayOnAirButton target={info.kind === "playlist" ? { kind: "playlist", id: info.id } : { kind: "track", id: info.id }} name={info.name} />}
         <RowMenu label={`More for ${info.name}`} k={`im-${scene.id}-${list}-${info.id}`} items={items} />
       </div>
       {open && (playlist || board) && (
         <div className="xp-body cp-xp">
           {playlist ? (
-            <Contents item={{ kind: "playlist", playlist }} index={ctx.index} place={list === "music" ? placeKey : undefined} />
+            <Contents item={{ kind: "playlist", playlist }} index={ctx.index} place={list === "music" ? placeKey : undefined} placeName={list === "music" ? `the scene ${scene.name}` : undefined} />
           ) : (
             board && <Contents item={{ kind: "board", board }} index={ctx.index} />
           )}
@@ -864,7 +862,7 @@ function AmbienceSlot({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
           Change…
         </Button>
         <PreviewButton target={info.kind === "playlist" ? { kind: "playlist", id: info.id } : { kind: "track", id: info.id }} name={info.name} />
-        <PlayOnAirButton kind={info.kind === "playlist" ? "playlist" : "track"} id={info.id} name={info.name} />
+        <PlayOnAirButton target={info.kind === "playlist" ? { kind: "playlist", id: info.id } : { kind: "track", id: info.id }} name={info.name} />
         <RowMenu
           label={`More for ${info.name}`}
           k={`ma-${scene.id}`}

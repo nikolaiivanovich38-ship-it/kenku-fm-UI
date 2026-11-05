@@ -14,6 +14,11 @@ import { useLyreAudio } from "./audio";
 import { FakeLyreAudio } from "./audio/testing/fakeLyreAudio";
 import type { LyreAudioLibrary } from "./audio/lyreAudio";
 import { useShellData } from "./shell/ShellData";
+import { Shell } from "./shell/Shell";
+import { SCREENS } from "./screens";
+import { PlaceholderScreen } from "./screens/Placeholder";
+import userEvent from "@testing-library/user-event";
+import { loadInLive } from "./kit/liveSession";
 
 // The page root can start the real audio host, whose worklet file is a webpack asset; tests give a fake host.
 vi.mock("../preload/managers/PCMStream.worklet.js?asset", () => ({ default: "pcm.js" }));
@@ -92,5 +97,109 @@ describe("AppProviders", () => {
     act(() => send({ type: "library-status", ok: true, message: "Lyre's library is working again." }));
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.getByRole("status")).toHaveTextContent("Lyre's library is working again.");
+  });
+
+  describe("the on-air bar: what the players hear, outside Live (core.js onAirBar)", () => {
+    const quiet = { ...SCREENS, campaigns: () => <PlaceholderScreen title="Campaigns" />, library: () => <PlaceholderScreen title="Library" /> };
+    const lane = (trackId: string, title: string) => ({ trackId, title, origin: "single" as never, playlistId: null as string | null, position: 0, length: 200, paused: false, loading: false });
+    const playing = (audio: FakeLyreAudio) =>
+      act(() =>
+        audio.setNowPlaying({
+          rooms: [
+            { roomId: "table", name: "Table", music: lane("t13", "Bridge of Death"), ambience: lane("t40", "Rain on the roof"), upNext: null, queued: [], effects: [{ trackId: "t60", title: "Thunder", padKey: null }] },
+            { roomId: "side", name: "Side room", music: null, ambience: null, upNext: null, queued: [], effects: [{ trackId: "t61", title: "Door", padKey: null }] },
+          ],
+        }),
+      );
+
+    it("is hidden while nothing plays, and shows music, ambience and effects with Stop and Go to Live", async () => {
+      window.history.replaceState(null, "", "#/library");
+      const audio = new FakeLyreAudio();
+      render(
+        <AppProviders api={createFakeLyreApi()} audio={audio}>
+          <Shell screens={quiet} />
+        </AppProviders>,
+      );
+      expect(screen.queryByRole("region", { name: "On air" })).toBeNull();
+      playing(audio);
+      const bar = screen.getByRole("region", { name: "On air" });
+      expect(bar).toHaveTextContent("Bridge of Death");
+      expect(bar).toHaveTextContent("Rain on the roof");
+      expect(bar).toHaveTextContent("2 effects");
+      expect(screen.getByRole("link", { name: "Go to Live" })).toHaveAttribute("href", "#/live");
+      await userEvent.click(screen.getByRole("button", { name: "Stop" }));
+      expect(audio.calls).toContainEqual(["fadeAll", 1000]);
+    });
+
+    it("is not shown on Live, which shows the rooms itself", () => {
+      window.history.replaceState(null, "", "#/live");
+      const audio = new FakeLyreAudio();
+      render(
+        <AppProviders api={createFakeLyreApi()} audio={audio}>
+          <Shell screens={quiet} />
+        </AppProviders>,
+      );
+      playing(audio);
+      expect(screen.queryByRole("region", { name: "On air" })).toBeNull();
+    });
+  });
+
+  describe("the session loaded in Live, in the rail and the theme (core.js railHTML)", () => {
+    const quiet = { ...SCREENS, campaigns: () => <PlaceholderScreen title="Campaigns" />, library: () => <PlaceholderScreen title="Library" /> };
+
+    it("names the loaded session on the rail's Live link, follows a change, and gives Live that campaign's theme", async () => {
+      loadInLive(null);
+      window.history.replaceState(null, "", "#/live");
+      render(
+        <AppProviders api={createFakeLyreApi()} audio={new FakeLyreAudio()}>
+          <Shell screens={quiet} />
+        </AppProviders>,
+      );
+      const nav = await screen.findByRole("navigation", { name: "Lyre" });
+      expect(nav).toHaveTextContent(/Live$|LiveOutputs/);
+      act(() => loadInLive({ campaignId: "crown", sessionId: "s14" }));
+      expect(await screen.findByRole("link", { name: "Live: S14" })).toHaveAttribute("href", "#/live");
+      await waitFor(() => expect(document.documentElement.dataset.theme).toBe("hearth"));
+      act(() => loadInLive({ campaignId: "crown", sessionId: "s12" }));
+      expect(await screen.findByRole("link", { name: "Live: S12" })).toBeInTheDocument();
+      act(() => loadInLive(null));
+      expect(await screen.findByRole("link", { name: "Live" })).toBeInTheDocument();
+    });
+  });
+
+  describe("the sound's messages, heard once for the whole page", () => {
+    it("says the audio host's announcements in the live region and shows its errors as a toast, on any screen", async () => {
+      window.history.replaceState(null, "", "#/outputs");
+      const audio = new FakeLyreAudio();
+      render(
+        <AppProviders api={createFakeLyreApi()} audio={audio}>
+          <Shell screens={SCREENS} />
+        </AppProviders>,
+      );
+      await screen.findByRole("heading", { level: 1 });
+      expect(audio.listenerCount("announce")).toBe(1);
+      expect(audio.listenerCount("error")).toBe(1);
+      act(() => {
+        audio.emit("announce", "Music: Tavern");
+      });
+      await waitFor(() => expect(document.getElementById("lyre-live")).toHaveTextContent("Music: Tavern"));
+      act(() => {
+        audio.emit("error", "That track is no longer in the library.");
+      });
+      expect(document.getElementById("lyre-toast")).toHaveTextContent("That track is no longer in the library.");
+    });
+
+    it.each(["library", "playlists", "boards", "campaign/crown", "session/crown/s14"])("%s does not listen a second time", async (path) => {
+      window.history.replaceState(null, "", `#/${path}`);
+      const audio = new FakeLyreAudio();
+      render(
+        <AppProviders api={createFakeLyreApi()} audio={audio}>
+          <Shell screens={SCREENS} />
+        </AppProviders>,
+      );
+      await screen.findByRole("heading", { level: 1 });
+      expect(audio.listenerCount("announce")).toBe(1);
+      expect(audio.listenerCount("error")).toBe(1);
+    });
   });
 });

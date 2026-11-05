@@ -4,7 +4,7 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { isRefused, type WriteResult } from "../../../common/lyre/api";
-import { useLyreAudio, useLyreAudioEvent, useNowPlaying } from "../../audio/LyreAudioProvider";
+import { useLyreAudio, useNowPlaying } from "../../audio/LyreAudioProvider";
 import { padIsOn } from "../../audio/lyreAudio";
 import { useAnnounce } from "../../shell/Announcer";
 
@@ -38,15 +38,12 @@ export function useWrite() {
 }
 
 /**
- * Pads and previews through the audio host (useLyreAudio). Its announcements go to the live region and its
- * failures ("That pad has no sound.") to a toast, while a pad board screen is open.
+ * Pads and previews through the audio host (useLyreAudio). Its announcements and failures ("That pad has no
+ * sound.") are said by the shell (shell/SoundMessages.tsx).
  */
 export function useBoardSound() {
   const audio = useLyreAudio();
   const now = useNowPlaying();
-  const { say, toast } = useAnnounce();
-  useLyreAudioEvent("announce", say);
-  useLyreAudioEvent("error", toast);
   const previewKey = now.preview?.key ?? null;
   return {
     audio,

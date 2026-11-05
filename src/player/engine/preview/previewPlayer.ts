@@ -7,7 +7,10 @@
  * - pressing Preview again on the item that is previewing stops it;
  * - a track plays itself, a playlist its first track, a pad its sound;
  * - the change is announced in plain words for the screen reader's live
- *   region ("Previewing in your headphones: Tavern", "Preview stopped").
+ *   region ("Previewing in your headphones: Tavern", "Preview stopped"),
+ *   unless the item is quiet (the Audio profile says its own sentences);
+ * - while it plays, where it is in its file is sent about twenty times a
+ *   second ("position"), so the Audio profile's playhead follows the sound.
  *
  * Preview voices are made in the PreviewOutput's context and connect only to
  * its input, never to the engine's mixer, so nothing previewed can reach the
@@ -29,6 +32,8 @@ export interface PreviewItem {
   label: string;
   media: MediaRequest;
   options?: VoiceOptions;
+  /** Announce nothing for this item (the screen that started it says what happens). */
+  quiet?: boolean;
 }
 
 export interface PreviewState {
@@ -39,10 +44,14 @@ export interface PreviewState {
 interface PreviewEvents {
   /** What is previewing now (null: nothing), with a sentence for the live region. */
   change: (state: PreviewState | null, announcement: string) => void;
+  /** Where the preview is in its file, in seconds, sent every POSITION_MS while it plays. */
+  position: (key: string, seconds: number) => void;
 }
 
 /** A switch or a stop fades this fast, so it does not click. */
 const STOP_FADE_SECONDS = 0.1;
+/** How often the position is sent while a preview plays (about the screen's frame rate for a playhead). */
+const POSITION_MS = 50;
 
 export class PreviewPlayer extends TypedEmitter<PreviewEvents> {
   private readonly output: PreviewOutput;
@@ -50,6 +59,9 @@ export class PreviewPlayer extends TypedEmitter<PreviewEvents> {
   private readonly load: (request: MediaRequest) => Promise<PlayableSource>;
   private voice: Voice | null = null;
   private state: PreviewState | null = null;
+  private positionTimer: unknown = null;
+  /** The item previewing now is quiet: its stop is not announced either. */
+  private quiet = false;
 
   constructor(options: {
     output: PreviewOutput;
@@ -71,6 +83,11 @@ export class PreviewPlayer extends TypedEmitter<PreviewEvents> {
     return this.state?.key === key;
   }
 
+  /** Where the preview is in its file now; null while nothing previews. */
+  position(): { key: string; seconds: number } | null {
+    return this.voice && this.state ? { key: this.state.key, seconds: this.voice.position() } : null;
+  }
+
   /** What a Preview button does: start this item, or stop it if it is the one previewing. */
   toggle(item: PreviewItem): void {
     if (this.isPreviewing(item.key)) {
@@ -90,24 +107,28 @@ export class PreviewPlayer extends TypedEmitter<PreviewEvents> {
     );
     this.voice = voice;
     this.state = { key: item.key, label: item.label };
+    this.quiet = !!item.quiet;
     voice.on("state", () => {
       if (this.voice !== voice || !voice.isFinal()) {
         return;
       }
       this.voice = null;
       this.state = null;
+      this.stopPositions();
       this.emit(
         "change",
         null,
-        voice.state === "failed" ? `Could not play the preview of ${item.label}.` : "Preview finished",
+        item.quiet ? "" : voice.state === "failed" ? `Could not play the preview of ${item.label}.` : "Preview finished",
       );
     });
-    this.emit("change", this.current(), `Previewing in your headphones: ${item.label}`);
+    this.emit("change", this.current(), item.quiet ? "" : `Previewing in your headphones: ${item.label}`);
+    this.sendPositions(voice, item.key);
   }
 
   stop(): void {
+    const quiet = this.quiet;
     if (this.halt(STOP_FADE_SECONDS)) {
-      this.emit("change", null, "Preview stopped");
+      this.emit("change", null, quiet ? "" : "Preview stopped");
     }
   }
 
@@ -116,11 +137,27 @@ export class PreviewPlayer extends TypedEmitter<PreviewEvents> {
     this.removeAllListeners();
   }
 
+  /** Send this voice's position every POSITION_MS while it plays (not while it loads). */
+  private sendPositions(voice: Voice, key: string): void {
+    const tick = () => {
+      if (this.voice !== voice) return;
+      if (voice.state === "playing") this.emit("position", key, voice.position());
+      this.positionTimer = this.scheduler.setTimeout(tick, POSITION_MS);
+    };
+    this.positionTimer = this.scheduler.setTimeout(tick, POSITION_MS);
+  }
+
+  private stopPositions(): void {
+    if (this.positionTimer !== null) this.scheduler.clearTimeout(this.positionTimer);
+    this.positionTimer = null;
+  }
+
   /** Stop the voice without announcing it; true when something was previewing. */
   private halt(fadeSeconds: number): boolean {
     const voice = this.voice;
     this.voice = null;
     this.state = null;
+    this.stopPositions();
     if (!voice) {
       return false;
     }

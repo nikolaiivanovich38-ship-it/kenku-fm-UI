@@ -8,10 +8,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { parsePlaceKey, resolveProfile, sceneSequence, type AfterEnd } from "../../../common/domain";
 import { shownTitle } from "../../../common/lyre/text";
 import type { TrackFrom } from "../../audio";
-import { useLyreAudio } from "../../audio/LyreAudioProvider";
+import { useLyreAudio, useLyreAudioEvent, useNowPlaying } from "../../audio/LyreAudioProvider";
+import type { PreviewPosition } from "../../audio";
+import { useTrackPeaks } from "../../api";
 import { useAnnounce } from "../../shell/Announcer";
 import { nextContexts, placeName, sceneOf, type NextContext } from "./places";
-import { advance, initialClock, pauseClock, playClock, seekClock, stopClock, type ClockState, type ClockWorld } from "./previewClock";
+import { advance, finishClock, follow, initialClock, pauseClock, playClock, seekClock, stopClock, type ClockState, type ClockWorld } from "./previewClock";
 import {
   addMarker,
   fmt,
@@ -22,6 +24,7 @@ import {
   pointText,
   POINT,
   rangeOf,
+  toInput,
   valueOf,
   wholeTrack,
   type Prof,
@@ -64,6 +67,8 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
   const { say, toast } = useAnnounce();
   const [keys1, setKeys1Raw] = useKeys1();
   const title = shownTitle(track);
+  /** The file's loudness across its length (0 to 1, from -60 dBFS), null until the library has worked it out. */
+  const levels = useTrackPeaks(track.id);
 
   /* ---------- the preview clock ---------- */
 
@@ -99,10 +104,63 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
   const worldRef = useRef(world);
   worldRef.current = world;
 
-  // The clock runs on animation frames while the preview plays (a frame is at most a quarter second, so a page that
-  // was hidden does not jump ahead).
+  /* ---------- the preview's sound (the game master's headphones only, never the rooms) ---------- */
+
+  // The sound plays the file from the playhead with the profile shown, quietly (this screen says what happens). Once
+  // the audio host says where it is, the clock follows it; until then it runs on its own.
+  const sounding = useRef<string | null>(null);
+  const [following, setFollowing] = useState(false);
+  const startSound = useCallback(
+    (from: number, id = track.id, profile: Prof | null = p) => {
+      // Past End the players never hear it, so it plays the plain file there (to the end of the file).
+      const shaped = profile && from < profile.end ? toInput(profile) : undefined;
+      const outcome = audio.previewTrack(id, { startAtMs: Math.round(from * 1000), profile: shaped, quiet: true });
+      sounding.current = outcome.ok ? id : null;
+      setFollowing(false);
+    },
+    [audio, track.id, p],
+  );
+  const stopSound = useCallback(() => {
+    if (!sounding.current) return;
+    sounding.current = null;
+    setFollowing(false);
+    audio.stopPreview();
+  }, [audio]);
+  const scrubbing = useRef(false);
+  useLyreAudioEvent("preview-position", (at: PreviewPosition) => {
+    if (!sounding.current || at.key !== sounding.current || scrubbing.current) return;
+    if (!following) setFollowing(true);
+    const step = follow(clockRef.current, at.positionMs / 1000, worldRef.current);
+    if (step.state !== clockRef.current) setClock(step.state);
+    if (step.say) say(step.say);
+  });
+  // The sound ended by itself (End, the end of the file): the clock goes there. Another Preview button taking the
+  // headphones pauses the clock where it is.
+  const previewKey = useNowPlaying().preview?.key ?? null;
+  const heard = useRef(false);
   useEffect(() => {
-    if (!clock.playing) return;
+    if (!sounding.current) {
+      heard.current = false;
+      return;
+    }
+    if (previewKey === sounding.current) {
+      heard.current = true;
+      return;
+    }
+    if (!heard.current) return;
+    heard.current = false;
+    sounding.current = null;
+    setFollowing(false);
+    const s = clockRef.current;
+    const step = previewKey ? { state: pauseClock(s) } : finishClock(s, worldRef.current);
+    setClock(step.state);
+    if (step.say) say(step.say);
+  }, [previewKey, say, setClock]);
+
+  // The clock runs on animation frames while the preview plays and the sound has not said where it is (a frame is at
+  // most a quarter second, so a page that was hidden does not jump ahead).
+  useEffect(() => {
+    if (!clock.playing || following) return;
     let last = performance.now();
     let frameId = requestAnimationFrame(function frame(now) {
       const dt = Math.min(0.25, Math.max(0, now - last) / 1000);
@@ -113,21 +171,24 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
       if (step.state.playing) frameId = requestAnimationFrame(frame);
     });
     return () => cancelAnimationFrame(frameId);
-  }, [clock.playing, say, setClock]);
+  }, [clock.playing, following, say, setClock]);
 
-  /* ---------- the preview's sound (the game master's headphones only, never the rooms) ---------- */
-
-  const sounding = useRef(false);
-  const startSound = useCallback(() => {
-    // Preview buttons start or stop; this screen always starts, so a preview of this track already playing is stopped first.
-    if (audio.isPreviewing(track.id)) audio.stopPreview();
-    sounding.current = audio.previewTrack(track.id).ok;
-  }, [audio, track.id]);
-  const stopSound = useCallback(() => {
-    if (!sounding.current) return;
-    sounding.current = false;
-    audio.stopPreview();
-  }, [audio]);
+  // Moving on: the next track's sound, from its Start with its settings in that place, until the clock stops it.
+  const handoverId = clock.playing ? (clock.handover?.id ?? null) : null;
+  useEffect(() => {
+    const h = clockRef.current.handover;
+    if (!handoverId || !h || sounding.current === handoverId) return;
+    startSound(h.pos, h.id, profileOf(h.id, h.place));
+  }, [handoverId, startSound, profileOf]);
+  // The profile changed while it plays (a handle moved): the sound starts again from where it is, with the change.
+  const playingProfile = useRef(p);
+  useEffect(() => {
+    if (playingProfile.current === p) return;
+    playingProfile.current = p;
+    if (sounding.current !== track.id || !clockRef.current.playing || clockRef.current.handover) return;
+    const timer = setTimeout(() => startSound(clockRef.current.pos), 200);
+    return () => clearTimeout(timer);
+  }, [p, track.id, startSound]);
   // The clock stopped by itself (End, the end of the file, a few seconds into the next track): so does the sound.
   useEffect(() => {
     if (!clock.playing) stopSound();
@@ -180,13 +241,13 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
       const step = playClock(from, "play", world);
       setClock(step.state);
       if (step.say) say(step.say);
-      startSound();
+      startSound(step.state.pos);
     },
     playLast10() {
       const step = playClock(clockRef.current, "last10", world);
       setClock(step.state);
       if (step.say) say(step.say);
-      startSound();
+      startSound(step.state.pos);
     },
     stop() {
       setClock(stopClock(clockRef.current, p));
@@ -195,9 +256,12 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
     },
     /** Move the playhead; silent while dragging (the end of the drag says where it is). */
     seek(v: number, silent = false) {
+      const wasHandingOver = !!clockRef.current.handover;
       const s = seekClock(clockRef.current, v, dur);
       setClock(s);
       if (!silent) say(`Playhead ${fmt(s.pos)}`);
+      // While it plays, the sound goes on from the new place (a drag waits for its end).
+      if (!silent && s.playing && (sounding.current === track.id || wasHandingOver)) startSound(s.pos);
     },
     nudge(d: number) {
       actions.seek(clockRef.current.pos + d);
@@ -207,10 +271,15 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
       if (e.button !== 0) return;
       e.preventDefault();
       e.currentTarget.focus();
+      scrubbing.current = true;
       actions.seek(secAt(e), true);
       dragWith(
         (ev) => actionsRef.current.seek(secAt(ev), true),
-        () => say(`Playhead ${fmt(clockRef.current.pos)}`),
+        () => {
+          scrubbing.current = false;
+          say(`Playhead ${fmt(clockRef.current.pos)}`);
+          if (clockRef.current.playing && sounding.current) startSound(clockRef.current.pos);
+        },
       );
     },
     /** Dragging a handle: Start, End and Loop start follow the pointer; a fade knob sets the fade's length. */
@@ -465,5 +534,5 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [keys1]);
 
-  return { editor, p, dur, editable, key, view, title, clock, keys1, contexts, ctx, editing, invalid, actions, profileOf };
+  return { editor, p, dur, editable, key, view, title, levels, clock, keys1, contexts, ctx, editing, invalid, actions, profileOf };
 }

@@ -67,7 +67,6 @@ describe("the shell: rail, routes and screens (UX-9)", () => {
     ["board/weather", "Pad board", "Pad boards"],
     ["live", "Live", "Live"],
     ["outputs", "Outputs", "Outputs"],
-    ["look", "Look and feel", "Look and feel"],
   ])("%s shows its heading and a placeholder, with %s's section lit", (path, heading, section) => {
     window.history.replaceState(null, "", `#/${path}`);
     render(<Shell screens={SHELL_SCREENS} />);

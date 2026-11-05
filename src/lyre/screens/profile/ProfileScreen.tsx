@@ -12,7 +12,6 @@ import { Icon } from "../../kit/Icon";
 import { Pane } from "../../kit/Pane";
 import type { ScreenProps } from "..";
 import { AddMarkerButton, EndBox, endStatus, FadesBox, fadesStatus, ListenBox, listenStatus, MarkersBox, markersStatus, PlaceBar } from "./boxes";
-import { OnAirFallback } from "./OnAirFallback";
 import { fmt } from "./profileModel";
 import { useProfileController } from "./useProfileController";
 import { forgetUndoUnless, useProfileEditor, type ProfileEditor } from "./useProfileEditor";
@@ -126,7 +125,6 @@ function ProfileBody({ editor }: { editor: ProfileEditor }) {
           </Pane>
         </div>
       </div>
-      <OnAirFallback />
     </div>
   );
 }

@@ -12,7 +12,8 @@ import { ExpanderButton } from "../../kit/Expander";
 import { Pane } from "../../kit/Pane";
 import { useAnnounce } from "../../shell/Announcer";
 import { boardInfo, playlistInfo, plural, type ItemInfo, type LibraryIndex } from "./model";
-import { Contents, PlayOnAirButton, PreviewButton, RowMenu, useFocusLater, useWrite } from "./parts";
+import { PlayOnAirButton, PreviewButton } from "../../kit/SoundButtons";
+import { Contents, RowMenu, useFocusLater, useWrite } from "./parts";
 import { LibraryPicker } from "./pickers";
 
 type Kind = "playlists" | "boards";
@@ -70,7 +71,7 @@ function OnHandRow({ info, playlist, board, index, scope, onRemove, removeLabel 
           {info.name}
         </a>
         {playlist ? <PreviewButton target={{ kind: "playlist", id: playlist.id }} name={info.name} /> : board && <PreviewButton target={{ kind: "board", board }} name={info.name} />}
-        {playlist && <PlayOnAirButton kind="playlist" id={playlist.id} name={info.name} />}
+        {playlist && <PlayOnAirButton target={{ kind: "playlist", id: playlist.id }} name={info.name} />}
         {onRemove && (
           <RowMenu
             label={`More for ${info.name}`}

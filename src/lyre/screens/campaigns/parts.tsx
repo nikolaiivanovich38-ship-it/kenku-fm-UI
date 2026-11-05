@@ -9,10 +9,10 @@ import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 
 import { placeKey, type PadMode, type ProfilePlace } from "../../../common/domain";
 import { isRefused, type CampaignInfo, type Done, type PadBoard, type PlaylistInfo, type WriteResult } from "../../../common/lyre/api";
 import { useBoards, usePlaylists, useProfileOverrides, useTracks } from "../../api";
-import { useLyreAudio, useLyreAudioEvent, useNowPlaying } from "../../audio/LyreAudioProvider";
-import { IconButton } from "../../kit/Button";
 import { Icon, ICON_NAMES, type IconName } from "../../kit/Icon";
 import { useLiveSession, runInLive } from "../../kit/liveSession";
+import { ProfileLink } from "../../kit/ProfileLink";
+import { PreviewButton } from "../../kit/SoundButtons";
 import { Menu, type MenuEntry } from "../../kit/Menu";
 import { useAnnounce } from "../../shell/Announcer";
 import { boardPads, formatLength, libraryIndex, sessionForLive, STATUS_WORDS, type LibraryIndex } from "./model";
@@ -54,13 +54,6 @@ export function useWrite() {
   );
 }
 
-/** The audio host's sentences go to the live region and its failures to a toast, while a Campaigns screen is open. */
-export function useAudioMessages(): void {
-  const { say, toast } = useAnnounce();
-  useLyreAudioEvent("announce", say);
-  useLyreAudioEvent("error", toast);
-}
-
 /**
  * Focus a control once it is on the screen (after the library answers and the screen redraws), the way the
  * prototype's focusK works. Controls are found by their data-k. `atIndex`: wait until the control's row (data-idx)
@@ -89,73 +82,6 @@ export function useFocusLater(): (key: string, atIndex?: number, select?: boolea
   }, []);
 }
 
-/* ---------- sound ---------- */
-
-type PreviewTarget =
-  | { kind: "track"; id: string }
-  | { kind: "playlist"; id: string }
-  | { kind: "pad"; boardId: string; padId: string }
-  /** A pad board previews its first pad. */
-  | { kind: "board"; board: PadBoard };
-
-function previewKey(target: PreviewTarget): string {
-  switch (target.kind) {
-    case "track":
-      return target.id;
-    case "playlist":
-      return `pl:${target.id}`;
-    case "pad":
-      return `pad:${target.boardId}/${target.padId}`;
-    case "board":
-      return `pad:${target.board.id}/${boardPads(target.board)[0]?.id ?? ""}`;
-  }
-}
-
-/** Preview: plays in the game master's headphones only; pressed while it plays, and pressing again stops it. */
-export function PreviewButton({ target, name }: { target: PreviewTarget; name: string }) {
-  const audio = useLyreAudio();
-  useNowPlaying();
-  const on = audio.isPreviewing(previewKey(target));
-  const board = target.kind === "board";
-  const start = () => {
-    switch (target.kind) {
-      case "track":
-        return audio.previewTrack(target.id);
-      case "playlist":
-        return audio.previewPlaylist(target.id);
-      case "pad":
-        return audio.previewPad(target.boardId, target.padId);
-      case "board":
-        return audio.previewPad(target.board.id, boardPads(target.board)[0]?.id ?? "");
-    }
-  };
-  return (
-    <IconButton
-      icon={on ? "stop" : "headphones"}
-      size="s"
-      className="pv"
-      pressed={on}
-      label={on ? `Stop preview of ${name}` : board ? `Preview the first pad of ${name}` : `Preview ${name}`}
-      hint={on ? "Stop preview" : board ? "Preview the first pad in your headphones" : "Preview in your headphones"}
-      onClick={() => (on ? audio.stopPreview() : start())}
-    />
-  );
-}
-
-/** Play on air: the players hear it, in the first room. */
-export function PlayOnAirButton({ kind, id, name }: { kind: "track" | "playlist"; id: string; name: string }) {
-  const audio = useLyreAudio();
-  return (
-    <IconButton
-      icon="broadcast"
-      size="s"
-      label={`Play on air: ${name}`}
-      hint="Play on air (the players hear it)"
-      onClick={() => (kind === "track" ? audio.playTrack(id) : audio.playPlaylist(id))}
-    />
-  );
-}
-
 /* ---------- what is inside a playlist or board ---------- */
 
 const PAD_COLOURS: Record<string, string> = {
@@ -175,7 +101,18 @@ const padIcon = (name: string): IconName => ((ICON_NAMES as string[]).includes(n
  * A playlist's tracks (with Preview and a link to each track's audio profile in `place`) or a board's pads (with
  * Preview), shown under an open expander. `place` null: no profile links (pickers).
  */
-export function Contents({ item, index, place }: { item: { kind: "playlist"; playlist: PlaylistInfo } | { kind: "board"; board: PadBoard }; index: LibraryIndex; place?: string | null }) {
+export function Contents({
+  item,
+  index,
+  place,
+  placeName,
+}: {
+  item: { kind: "playlist"; playlist: PlaylistInfo } | { kind: "board"; board: PadBoard };
+  index: LibraryIndex;
+  place?: string | null;
+  /** The place in words for the link's hover text ("the scene Greyhollow inn"); the playlist's by default. */
+  placeName?: string;
+}) {
   if (item.kind === "playlist") {
     const p = item.playlist;
     const tracks = index.tracksOf(p);
@@ -192,16 +129,7 @@ export function Contents({ item, index, place }: { item: { kind: "playlist"; pla
                 {title}
               </span>
               <span className="num faint">{formatLength(t.durationMs)}</span>
-              {key !== null && (
-                <a
-                  className="btn s icon"
-                  href={`#/profile/${t.id}/${key}`}
-                  aria-label={`Audio profile of ${title}`}
-                  title={`Audio profile: where ${title} starts, ends, fades, loops or moves on`}
-                >
-                  <Icon name="wave" size="s" />
-                </a>
-              )}
+              {key !== null && <ProfileLink trackId={t.id} title={title} place={key} placeName={placeName ?? `the playlist ${p.name}`} iconOnly />}
               <PreviewButton target={{ kind: "track", id: t.id }} name={title} />
             </li>
           );

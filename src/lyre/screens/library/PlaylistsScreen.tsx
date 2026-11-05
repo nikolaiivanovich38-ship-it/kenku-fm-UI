@@ -21,7 +21,9 @@ import { DropNotice, DropZone, dropFiles, useDropState, useFileDrops, type DropT
 import { KIND_WORDS, matchesQuery, newlyMade, soundName, useDropActions } from "./playlistParts";
 import { PlaylistPage } from "./PlaylistPage";
 import { UseInDialog } from "./UseInDialog";
-import { OnAirBarFallback, onAirPlaylistIds, PlayOnAirButton, PlaylistContents, PopMenuButton, PreviewButton, TwoLines, useSoundMessages, useWriteResult, type PopMenuEntry } from "./shared";
+import { onAirPlaylistIds, PlaylistContents, useWriteResult } from "./shared";
+import { PopMenuButton, TwoLines, type PopMenuEntry } from "../../kit/PopMenu";
+import { PlayOnAirButton, PreviewButton } from "../../kit/SoundButtons";
 import "./library.css";
 import "./playlists.css";
 
@@ -39,7 +41,6 @@ export function resetPlaylistsView(): void {
 }
 
 export function PlaylistsScreen(_props: ScreenProps) {
-  useSoundMessages();
   const api = useLyreApi();
   const { say, toast } = useAnnounce();
   const accept = useWriteResult();
@@ -234,7 +235,6 @@ export function PlaylistsScreen(_props: ScreenProps) {
         </Column>
       </div>
       <DropZone />
-      <OnAirBarFallback />
       {useIn && <UseInDialog playlist={playlists.find((p) => p.id === useIn)} campaigns={data.campaigns} nameOf={soundName(data)} onClose={() => setUseIn(null)} />}
     </>
   );
@@ -289,8 +289,8 @@ function PlaylistRow({ p, data, open, onToggle, onAir, flash, onUseIn }: { p: Pl
           {len}
         </div>
         <div className="pl-racts">
-          <PreviewButton kind="playlist" id={p.id} name={name} />
-          <PlayOnAirButton kind="playlist" id={p.id} name={name} empty={tracks.length === 0} />
+          <PreviewButton target={{ kind: "playlist", id: p.id }} name={name} />
+          <PlayOnAirButton target={{ kind: "playlist", id: p.id, empty: tracks.length === 0 }} name={name} />
           <PopMenuButton
             label={`More for ${name}`}
             ariaLabel={`More for ${name}`}

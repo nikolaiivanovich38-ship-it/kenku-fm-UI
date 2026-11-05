@@ -2,9 +2,11 @@
  * The Audio profile's preview clock: where the playhead is while you listen, and what happens when it reaches End.
  * Ported from the prototype (design/prototype/src/views/profile.js: play, pause, stop, seek, advance).
  *
- * The clock is the screen's own: the audio host cannot yet say where its preview is, nor play from a point with a
- * profile (see the w3-profile section in docs/ARCHITECTURE.md). Each step returns the new state and, when something
- * happened, a sentence for the screen reader's live region.
+ * The preview plays the real file from the playhead with the profile shown (LyreAudio.previewTrack with startAtMs and
+ * profile), and the clock follows where the audio host says it is (`follow`, from its "preview-position" events;
+ * `finishClock` when the sound ends by itself). Until the first position arrives (or with no sound at all, as in
+ * tests) the clock runs on its own (`advance`, on animation frames). Each step returns the new state and, when
+ * something happened, a sentence for the screen reader's live region.
  */
 import { clamp, fmt, secs, times, type Prof } from "./profileModel";
 
@@ -50,6 +52,15 @@ export interface ClockStep {
 
 /** After a loop in "the last 10 s", the preview goes on this long, then stops. */
 const AFTER_LOOP_SECONDS = 5;
+/** The sound going back by more than this is a loop (positions arrive about every 50 ms). */
+const LOOP_JUMP_SECONDS = 0.5;
+/** Following a looping sound, the playhead stays this short of End until the sound goes back. */
+const BEFORE_END_SECONDS = 0.001;
+
+/** What the live region says when the preview loops back. */
+function loopText(p: Prof, loops: number): string {
+  return `${p.loopXfade ? `Crossfaded over ${secs(p.loopXfade)} back to ` : "Looped back to "}${fmt(p.loopStart)}${loops > 1 ? ` (${times(loops)})` : ""}`;
+}
 
 export function initialClock(prof: Prof): ClockState {
   return { pos: prof.start, playing: false, mode: "play", loops: 0, event: null, handover: null, since: 0 };
@@ -105,7 +116,7 @@ export function advance(s: ClockState, dt: number, w: ClockWorld): ClockStep {
   if (before < p.end && pos >= p.end) {
     if (p.after === "loop") {
       const loops = s.loops + 1;
-      const text = `${p.loopXfade ? `Crossfaded over ${secs(p.loopXfade)} back to ` : "Looped back to "}${fmt(p.loopStart)}${loops > 1 ? ` (${times(loops)})` : ""}`;
+      const text = loopText(p, loops);
       return { state: { ...s, pos: p.loopStart + (pos - p.end), loops, since: 0, event: { type: "loop", text } }, say: text };
     }
     const n = p.after === "next" ? w.next() : null;
@@ -124,4 +135,35 @@ export function advance(s: ClockState, dt: number, w: ClockWorld): ClockStep {
     return { state: { ...s, pos: w.dur, playing: false, event: { type: "eof", text } }, say: text };
   }
   return { state: { ...s, pos } };
+}
+
+/**
+ * Move the clock to where the preview's sound is (`real`, seconds in the file it plays: the next track's during the
+ * hand-over). A jump back while looping is a loop; a looping sound is never looped by the clock itself.
+ */
+export function follow(s: ClockState, real: number, w: ClockWorld): ClockStep {
+  if (!s.playing) return { state: s };
+  if (s.handover) return advance(s, Math.max(0, real - s.handover.pos), w);
+  const p = w.prof;
+  if (p.after === "loop" && s.pos < p.end) {
+    if (real < s.pos - LOOP_JUMP_SECONDS) {
+      const loops = s.loops + 1;
+      const text = loopText(p, loops);
+      return { state: { ...s, pos: real, loops, since: 0, event: { type: "loop", text } }, say: text };
+    }
+    real = Math.min(real, p.end - BEFORE_END_SECONDS);
+  }
+  return advance(s, Math.max(0, real - s.pos), w);
+}
+
+/**
+ * The preview's sound ended by itself (at End, or the end of the file): the clock goes there and does what the
+ * profile says (stop, or move on to the next track). During the hand-over, or a loop that ended, it just stops.
+ */
+export function finishClock(s: ClockState, w: ClockWorld): ClockStep {
+  if (!s.playing) return { state: s };
+  const p = w.prof;
+  if (s.handover || (p.after === "loop" && s.pos < p.end)) return { state: { ...s, playing: false } };
+  const to = s.pos < p.end ? p.end : w.dur;
+  return advance(s, to - s.pos + BEFORE_END_SECONDS, w);
 }

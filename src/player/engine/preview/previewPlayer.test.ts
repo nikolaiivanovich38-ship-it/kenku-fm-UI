@@ -131,6 +131,33 @@ describe("PreviewPlayer (PRV-1): only the game master hears it", () => {
     expect(headphones.runningSourceCount()).toBe(1);
   });
 
+  it("says where the preview is in its file, about twenty times a second, while it plays (the Audio profile's playhead)", async () => {
+    const tavern = track("tavern", "Tavern");
+    const positions: [string, number][] = [];
+    player.on("position", (key, seconds) => positions.push([key, seconds]));
+    player.play({ ...trackPreview(tavern, media(tavern)), options: { startAt: 30 } });
+    await headphones.flush();
+    await headphones.advance(1);
+    expect(positions.length).toBeGreaterThanOrEqual(15);
+    expect(last(positions)?.[0]).toBe("tavern");
+    expect(last(positions)?.[1]).toBeCloseTo(31, 0);
+    expect(player.position()).toEqual({ key: "tavern", seconds: expect.closeTo(31, 0) });
+    player.stop();
+    const count = positions.length;
+    await headphones.advance(1);
+    expect(positions).toHaveLength(count);
+    expect(player.position()).toBeNull();
+  });
+
+  it("a quiet preview (the Audio profile says its own words) is not announced", async () => {
+    const tavern = track("tavern", "Tavern");
+    player.play({ ...trackPreview(tavern, media(tavern)), quiet: true });
+    await headphones.flush();
+    player.stop();
+    expect(changes.map((c) => c.announcement)).toEqual(["", ""]);
+    expect(changes[0].state).toEqual({ key: "tavern", label: "Tavern" });
+  });
+
   it("dispose() stops the preview and lets go of listeners", async () => {
     const tavern = track("tavern", "Tavern");
     player.toggle(trackPreview(tavern, media(tavern)));

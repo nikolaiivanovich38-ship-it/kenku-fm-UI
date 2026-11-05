@@ -21,7 +21,9 @@ import { fmt, fmtLong, KIND_NAMES, plural, ruleWords, shownTitle, tagsOf } from 
 import { nameUses, usePlaylistData, usedText, type PlaylistData } from "./playlistData";
 import { DropNotice, DropZone, dropFiles, useDropState, useFileDrops, type DropTarget } from "./playlistDrops";
 import { KindLane, matchesQuery, newlyMade, soundName, useDropActions } from "./playlistParts";
-import { focusSoon, OnAirBarFallback, onAirPlaylistIds, onAirTrackIds, PopMenuButton, previewKey, useSoundMessages, useWriteOk, useWriteResult, type PopMenuEntry } from "./shared";
+import { focusSoon, onAirPlaylistIds, onAirTrackIds, useWriteOk, useWriteResult } from "./shared";
+import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
+import { previewKeyOf } from "../../kit/SoundButtons";
 import { UseInDialog } from "./UseInDialog";
 import "./library.css";
 import "./playlists.css";
@@ -50,7 +52,6 @@ function trackTip(t: LibraryTrack): string {
 }
 
 export function PlaylistPage({ route }: ScreenProps) {
-  useSoundMessages();
   const data = usePlaylistData();
   const pl = data.playlists.find((p) => p.id === route.params.pid);
   if (!pl) {
@@ -103,7 +104,7 @@ function OnePlaylist({ pl: saved, data }: { pl: PlaylistInfo; data: PlaylistData
   const airTracks = useMemo(() => onAirTrackIds(now), [now]);
   const air = airPlaylists.has(pl.id);
   const previewing = now.preview?.key ?? null;
-  const pv = previewing === previewKey("playlist", pl.id) || tracks.some((t) => previewing === t.id);
+  const pv = previewing === previewKeyOf({ kind: "playlist", id: pl.id }) || tracks.some((t) => previewing === t.id);
   const [useIn, setUseIn] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [detailsOpen, setDetailsOpen] = useRememberedOpen("pl-details", true);
@@ -295,7 +296,6 @@ function OnePlaylist({ pl: saved, data }: { pl: PlaylistInfo; data: PlaylistData
         </div>
       </div>
       <DropZone />
-      <OnAirBarFallback />
       {useIn && <UseInDialog playlist={pl} campaigns={data.campaigns} nameOf={soundName(data)} onClose={() => setUseIn(false)} />}
       <Dialog
         open={deleting}

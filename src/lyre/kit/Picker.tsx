@@ -45,6 +45,14 @@ export interface PickerDialogProps {
   /** A line under the list, e.g. the preview hint. */
   hint?: React.ReactNode;
   okLabel?: string;
+  /**
+   * Fold the groups ("Use in…" lists every campaign): each group's heading is a button that shows or hides it,
+   * with how many of its items are ticked. Groups start folded, except `openGroups` and those with an item ticked;
+   * while searching every match shows.
+   */
+  fold?: boolean;
+  /** With fold: the groups open at the start (the campaign in hand). */
+  openGroups?: readonly string[];
   /** The ticked ids, in the order they were ticked (items already ticked first). */
   onDone: (ids: string[]) => void;
   onClose: () => void;
@@ -70,6 +78,8 @@ function PickerBody({
   renderActions,
   hint,
   okLabel = "Done",
+  fold = false,
+  openGroups = [],
   onDone,
   onClose,
 }: PickerDialogProps) {
@@ -77,6 +87,16 @@ function PickerBody({
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState(filters?.[0]?.id ?? "");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(
+    () => new Set([...openGroups, ...items.filter((item) => selected.includes(item.id)).map((item) => item.group ?? "")]),
+  );
+  const toggleGroup = (name: string) =>
+    setUnfolded((current) => {
+      const next = new Set(current);
+      if (!next.delete(name)) next.add(name);
+      return next;
+    });
+  const tickedIn = (name: string) => items.filter((item) => (item.group ?? "") === name && chosen.includes(item.id)).length;
 
   const activeFilter = filters?.find((f) => f.id === filter);
   const needle = query.trim().toLowerCase();
@@ -133,47 +153,60 @@ function PickerBody({
       </div>
       <div className="pk-list" role="group" aria-label={title}>
         {groups.length === 0 && <p className="empty">Nothing matches{needle ? ` "${query.trim()}"` : " this filter"}.</p>}
-        {groups.map((group) => (
-          <React.Fragment key={group.name}>
-            {group.name && <div className="pk-group">{group.name}</div>}
-            {group.items.map((item) => {
-              const contents = renderContents?.(item);
-              const open = !!expanded[item.id];
-              return (
-                <React.Fragment key={item.id}>
-                  <div className="pk-row">
-                    {contents ? (
-                      <ExpanderButton label={item.label} expanded={open} onToggle={() => setExpanded({ ...expanded, [item.id]: !open })} />
-                    ) : (
-                      <span style={{ width: 24, flex: "none" }} />
-                    )}
-                    <label className={cx("pk-item", item.indent && "indent")}>
-                      <input
-                        type={multi ? "checkbox" : "radio"}
-                        name="picker"
-                        value={item.id}
-                        checked={chosen.includes(item.id)}
-                        onChange={(event) => pick(item.id, event.target.checked)}
-                      />
-                      <span className="grow">
-                        <span className="ellipsis" style={{ display: "block" }}>
-                          {item.label}
-                        </span>
-                        {item.sub && (
-                          <span className="hint ellipsis" style={{ display: "block" }}>
-                            {item.sub}
-                          </span>
+        {groups.map((group) => {
+          const shown = !fold || !!needle || !group.name || unfolded.has(group.name);
+          return (
+            <React.Fragment key={group.name}>
+              {group.name && fold && (
+                <button type="button" className="pk-groupbtn" aria-expanded={shown} onClick={() => toggleGroup(group.name)}>
+                  <Icon name="chevdown" size="s" />
+                  {group.name}
+                  <span className="hint" style={{ marginLeft: "auto" }}>
+                    {tickedIn(group.name)} ticked
+                  </span>
+                </button>
+              )}
+              {group.name && !fold && <div className="pk-group">{group.name}</div>}
+              {shown &&
+                group.items.map((item) => {
+                  const contents = renderContents?.(item);
+                  const open = !!expanded[item.id];
+                  return (
+                    <React.Fragment key={item.id}>
+                      <div className="pk-row">
+                        {contents ? (
+                          <ExpanderButton label={item.label} expanded={open} onToggle={() => setExpanded({ ...expanded, [item.id]: !open })} />
+                        ) : (
+                          <span style={{ width: 24, flex: "none" }} />
                         )}
-                      </span>
-                    </label>
-                    {renderActions?.(item)}
-                  </div>
-                  {contents && open && <div className="xp-body">{contents}</div>}
-                </React.Fragment>
-              );
-            })}
-          </React.Fragment>
-        ))}
+                        <label className={cx("pk-item", item.indent && "indent")}>
+                          <input
+                            type={multi ? "checkbox" : "radio"}
+                            name="picker"
+                            value={item.id}
+                            checked={chosen.includes(item.id)}
+                            onChange={(event) => pick(item.id, event.target.checked)}
+                          />
+                          <span className="grow">
+                            <span className="ellipsis" style={{ display: "block" }}>
+                              {item.label}
+                            </span>
+                            {item.sub && (
+                              <span className="hint ellipsis" style={{ display: "block" }}>
+                                {item.sub}
+                              </span>
+                            )}
+                          </span>
+                        </label>
+                        {renderActions?.(item)}
+                      </div>
+                      {contents && open && <div className="xp-body">{contents}</div>}
+                    </React.Fragment>
+                  );
+                })}
+            </React.Fragment>
+          );
+        })}
       </div>
       {hint !== undefined ? (
         hint

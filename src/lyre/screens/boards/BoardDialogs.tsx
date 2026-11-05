@@ -9,6 +9,7 @@ import { Dialog } from "../../kit/Dialog";
 import { PickerDialog, type PickerItem } from "../../kit/Picker";
 import { useLyreApi } from "../../api";
 import { useAnnounce } from "../../shell/Announcer";
+import { useCampaignInHand } from "../../shell/CampaignInHand";
 import { MAX_SIZE, QUICK_SIZES, allPads, plural, usesOfBoard } from "./boardModel";
 import { go, useWrite } from "./hooks";
 
@@ -218,6 +219,8 @@ export function UseInDialog({ board, campaigns, onClose }: { board: PadBoard | n
   const api = useLyreApi();
   const write = useWrite();
   const { toast } = useAnnounce();
+  const inHandId = useCampaignInHand();
+  const inHand = campaigns.find((c) => c.id === inHandId)?.name;
   if (!board) return null;
   const { items, selected, places } = targetsForUseIn(campaigns, board.id);
   return (
@@ -229,6 +232,8 @@ export function UseInDialog({ board, campaigns, onClose }: { board: PadBoard | n
       selected={selected}
       multi
       okLabel="Save"
+      fold
+      openGroups={inHand ? [inHand] : []}
       onClose={onClose}
       onDone={(ids) => {
         onClose();

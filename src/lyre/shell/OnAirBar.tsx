@@ -1,27 +1,29 @@
 import React from "react";
 
-import { useLyreAudio, useNowPlaying } from "../../audio/LyreAudioProvider";
-import { Button } from "../../kit/Button";
-import { Icon } from "../../kit/Icon";
-import { Badge } from "../../kit/Pills";
-import { useShellData } from "../../shell/ShellData";
+import { useNowPlaying, useOptionalLyreAudio, type LyreAudio } from "../audio";
+import { Icon } from "../kit/Icon";
+import { Badge } from "../kit/Pills";
+
+/** Stop on the bar fades everything out this fast (the prototype's L.fadeAll(1)). */
+const STOP_FADE_MS = 1000;
 
 /**
- * The slim "On air" bar at the foot of the screen (the prototype's onAirBar in core.js): what the players hear, with
- * Stop and Go to Live, so Play on air always shows something happened.
- *
- * The shell owns this bar (ShellData.onAirBar) but nothing feeds it yet, so this screen shows it itself until the
- * shell does; as soon as ShellData has an on-air bar, this one steps aside and only the shell's shows.
+ * Outside Live, the slim "On air" bar at the foot of every screen (the prototype's onAirBar in core.js): what the
+ * players hear in the first room (music, ambience) and how many effects still sound in any room, with Stop and
+ * Go to Live, so Play on air always shows that something happened. Nothing is drawn while nothing plays, or when
+ * the page has no sound. AppProviders hands it to the shell as ShellData.onAirBar.
  */
-export function OnAirFallback() {
-  const { onAirBar } = useShellData();
-  const audio = useLyreAudio();
+export function OnAirBar() {
+  const audio = useOptionalLyreAudio();
+  return audio ? <Bar audio={audio} /> : null;
+}
+
+function Bar({ audio }: { audio: LyreAudio }) {
   const now = useNowPlaying();
-  if (onAirBar !== undefined) return null;
   const first = now.rooms[0];
   const music = first?.music;
   const ambience = first?.ambience;
-  const effects = now.rooms.reduce((n, r) => n + r.effects.length, 0);
+  const effects = now.rooms.reduce((n, room) => n + room.effects.length, 0);
   if (!music && !ambience && !effects) return null;
   return (
     <div className="onairbar" role="region" aria-label="On air">
@@ -48,9 +50,10 @@ export function OnAirFallback() {
           </span>
         )}
       </div>
-      <Button size="s" icon="stop" onClick={() => audio.fadeAll(1000)}>
+      <button type="button" className="btn s" onClick={() => audio.fadeAll(STOP_FADE_MS)}>
+        <Icon name="stop" size="s" />
         Stop
-      </Button>
+      </button>
       <a className="btn s" href="#/live">
         <Icon name="broadcast" size="s" />
         Go to Live

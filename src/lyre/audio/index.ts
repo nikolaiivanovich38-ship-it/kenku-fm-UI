@@ -17,13 +17,15 @@ export type {
   NowPlaying,
   OutputDeviceInfo,
   PlayOptions,
+  PreviewPosition,
+  PreviewTrackOptions,
   RoomLane,
   RoomNowPlaying,
   SceneRef,
   TrackFrom,
 } from "./lyreAudio";
 export { EMPTY_LIBRARY, startLyreAudio } from "./browserLyreAudio";
-export { LyreAudioProvider, useLyreAudio, useLyreAudioEvent, useNowPlaying } from "./LyreAudioProvider";
+export { LyreAudioProvider, useLyreAudio, useLyreAudioEvent, useNowPlaying, useOptionalLyreAudio } from "./LyreAudioProvider";
 // The preload half (createLyreAudioBridge) is imported by src/lyre/preload.ts
 // directly from ./preloadAudio, so the preload bundle stays free of the engine.
 export type { LyreAudioBridge } from "./preloadAudio";
