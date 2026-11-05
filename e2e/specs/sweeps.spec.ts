@@ -13,7 +13,9 @@ import path from "path";
 import { expect, expectFailureUntilBuilt, test } from "./support/test";
 import { knownAxeIssues, knownLayoutIssue, notLyre, openRoute, type Theme } from "./support/target";
 
-const AXE_SOURCE = require.resolve("axe-core/axe.min.js");
+// Injected with page.evaluate: the app's Lyre page has a content policy that refuses added script tags.
+const AXE_PATH = require.resolve("axe-core/axe.min.js");
+const AXE_SOURCE = fs.readFileSync(AXE_PATH, "utf8");
 const AXE_VERSION = "4.14.0";
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
@@ -73,7 +75,7 @@ const THEMES: { label: string; theme: Theme }[] = [
 ];
 
 test("the axe-core in use is version 4.14.0", () => {
-  expect(JSON.parse(fs.readFileSync(path.join(path.dirname(AXE_SOURCE), "package.json"), "utf8")).version).toBe(AXE_VERSION);
+  expect(JSON.parse(fs.readFileSync(path.join(path.dirname(AXE_PATH), "package.json"), "utf8")).version).toBe(AXE_VERSION);
 });
 
 /** The layout checks: sideways scroll, overlapping controls, cut-off button text. */
@@ -122,7 +124,7 @@ async function layoutProblems(page: Page) {
 /** axe-core 4.14.0 with the WCAG 2.2 A and AA tags; returns one line per failing rule. */
 async function axeProblems(page: Page): Promise<string[]> {
   const ignore = notLyre();
-        await page.addScriptTag({ path: AXE_SOURCE });
+        await page.evaluate(AXE_SOURCE);
         return page.evaluate(
           async ({ tags, ignore }) => {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any

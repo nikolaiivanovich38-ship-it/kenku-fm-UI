@@ -8,6 +8,7 @@
 import { test as base, expect } from "@playwright/test";
 import path from "path";
 import { BUILT_SCREENS } from "./built";
+import { withAppPage } from "./target";
 
 export { expect };
 
@@ -22,8 +23,10 @@ export function expectFailureUntilBuilt(screen: string): void {
 export const test = base.extend<{ screenName: string }>({
   // eslint-disable-next-line no-empty-pattern -- Playwright reads the fixtures a function needs from its first argument
   screenName: [async ({}, use, testInfo) => use(path.basename(testInfo.file).replace(/\.spec\.ts$/, "")), { auto: true }],
-  page: async ({ page, screenName }, use) => {
+  page: async ({ page, screenName }, use, testInfo) => {
     if (screenName !== "sweeps") expectFailureUntilBuilt(screenName);
-    await use(page);
+    // The app project works in the Lyre page of the packaged app (support/target.ts); the prototype in a browser page.
+    if (testInfo.project.name === "app") await withAppPage(use);
+    else await use(page);
   },
 });

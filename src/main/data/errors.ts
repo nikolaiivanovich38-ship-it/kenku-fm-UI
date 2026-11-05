@@ -27,6 +27,8 @@ export class LibraryDatabaseError extends Error {
 
   constructor(code: LibraryErrorCode, message: string, options: { cause?: unknown; latestBackup?: string | null } = {}) {
     super(message);
+    // The app's bundles compile classes to ES5, where a subclass of Error loses its prototype (errorsBuilt.test.ts).
+    Object.setPrototypeOf(this, new.target.prototype);
     this.cause = options.cause;
     this.name = "LibraryDatabaseError";
     this.code = code;
@@ -41,6 +43,8 @@ export class ValidationError extends Error {
 
   constructor(field: string, message: string) {
     super(message);
+    // The app's bundles compile classes to ES5, where a subclass of Error loses its prototype (errorsBuilt.test.ts).
+    Object.setPrototypeOf(this, new.target.prototype);
     this.name = "ValidationError";
     this.field = field;
   }
@@ -53,6 +57,8 @@ export class NotFoundError extends Error {
 
   constructor(entity: string, id: string) {
     super(`No ${entity} with id "${id}".`);
+    // The app's bundles compile classes to ES5, where a subclass of Error loses its prototype (errorsBuilt.test.ts).
+    Object.setPrototypeOf(this, new.target.prototype);
     this.name = "NotFoundError";
     this.entity = entity;
     this.id = id;
@@ -70,6 +76,8 @@ export class LibraryBusyError extends Error {
 
   constructor(job: string) {
     super(`Lyre is still saving "${job}". Try again when it has finished.`);
+    // The app's bundles compile classes to ES5, where a subclass of Error loses its prototype (errorsBuilt.test.ts).
+    Object.setPrototypeOf(this, new.target.prototype);
     this.name = "LibraryBusyError";
     this.job = job;
   }

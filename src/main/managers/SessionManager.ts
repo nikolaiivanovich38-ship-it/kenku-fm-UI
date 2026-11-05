@@ -22,7 +22,7 @@ export class SessionManager {
     this.windowManager = new WindowManager(window);
     this.playerManager = new PlayerManager();
     // --- w3-host wiring --- the new interface page takes the private audio channel:
-    // this.lyreManager.onAttachView = (view) => this.playbackManager.setLyreView(view);
+    this.lyreManager.onAttachView = (view) => this.playbackManager.setLyreView(view);
     // OUT-5, PRV-1: the player page's private audio channel to the capture window.
     this.playerManager.onRegisterView = (view) => this.playbackManager.setPlayerView(view);
   }

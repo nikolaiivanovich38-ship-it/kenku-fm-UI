@@ -39,13 +39,18 @@ test("the Lyre tab sits beside the player tab and opens the new interface", asyn
 
 test("the Lyre page has the player page's protections", async ({ mainWindow, app, errors }) => {
   const lyre = await openLyreTab(mainWindow);
-  // Sandboxed with context isolation: only window.lyre reaches the page.
+  // Sandboxed with context isolation: only window.lyre reaches the page (its library calls and its audio channel).
   const exposed = await lyre.evaluate(() => {
     const page = window as unknown as Record<string, unknown>;
-    return { lyre: page.lyre, require: typeof page.require, process: typeof page.process };
+    const lyre = page.lyre as Record<string, Record<string, unknown>>;
+    return {
+      lyre: { page: lyre.page, api: Object.keys(lyre.api).sort(), audio: typeof lyre.audio },
+      require: typeof page.require,
+      process: typeof page.process,
+    };
   });
   expect(exposed).toEqual({
-    lyre: { page: "lyre" },
+    lyre: { page: "lyre", api: ["call", "onEvent"], audio: "object" },
     require: "undefined",
     process: "undefined",
   });

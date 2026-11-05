@@ -4,6 +4,8 @@
 export class CancelledError extends Error {
   constructor() {
     super("Cancelled.");
+    // The app's bundles compile classes to ES5, where a subclass of Error loses its prototype (errorsBuilt.test.ts).
+    Object.setPrototypeOf(this, new.target.prototype);
     this.name = "CancelledError";
   }
 }

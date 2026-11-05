@@ -21,6 +21,7 @@ import { clearBrowsingData, registerLocalFileScheme, secureSessions } from "./ma
 import { registerAppInfoIpc } from "./main/security/appInfoIpc";
 import { confirmStartAfterCarryOver, startApp } from "./main/startup";
 import { holdCloseUntilSaved, type SaveBeforeClose } from "./main/saveBeforeClose";
+import { startLyreLibrary, type StartedLibrary } from "./main/lyreApi/startLibrary";
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
@@ -28,6 +29,9 @@ declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 let window: BrowserWindow | null = null;
 /** PERF-6: holds quitting or closing until the player has saved (saveBeforeClose.ts). */
 let saveFirst: SaveBeforeClose | null = null;
+/** WP5: Lyre's library, in its own process; started when the app is ready, closed before quitting. */
+let lyreLibrary: StartedLibrary | null = null;
+let lyreLibraryClosed = false;
 
 // WP1 review 1: files from the user's computer get a scheme of their own,
 // which Electron accepts only before the app is ready.
@@ -115,6 +119,9 @@ const createWindow = (): BrowserWindow => {
 
   saveWindowBounds(mainWindow);
 
+  // WP5: the daily backups start once the window shows, so they never slow the start.
+  mainWindow.once("ready-to-show", () => lyreLibrary?.startBackups());
+
   if (app.isPackaged) {
     runAutoUpdate(mainWindow);
   }
@@ -141,11 +148,24 @@ if (startupOutcome === "run") {
     // and the website-tab session, before any page loads.
     secureSessions();
 
+    // WP5: Lyre's library opens in its own process before any page asks for it.
+    lyreLibrary = startLyreLibrary();
+
     window = createWindow();
   });
 
   app.on("before-quit", (event) => {
-    saveFirst?.holdQuit(event);
+    if (saveFirst?.holdQuit(event) || !lyreLibrary || lyreLibraryClosed) {
+      return;
+    }
+    // WP5: close the library cleanly (backups stop, the database is closed), then quit.
+    event.preventDefault();
+    const closing = lyreLibrary;
+    lyreLibraryClosed = true;
+    closing
+      .stop()
+      .catch((error) => console.error("Could not close Lyre's library", error))
+      .finally(() => app.quit());
   });
 
   app.on("second-instance", () => {

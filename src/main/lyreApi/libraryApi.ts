@@ -119,6 +119,7 @@ import {
 } from "../data";
 import { fileExists } from "../data/import/fileFacts";
 import { joinRoot } from "../data/paths";
+import { Refused } from "./refused";
 
 /** What the library's API asks of the app around it: a person to choose files, the desktop to show a folder. */
 export interface LibraryHost {
@@ -136,15 +137,6 @@ export interface LibraryApiOptions {
 }
 
 /** Thrown inside a write to refuse it in plain words. */
-class Refused extends Error {
-  constructor(
-    readonly code: RefusalCode,
-    message: string,
-    readonly field?: string,
-  ) {
-    super(message);
-  }
-}
 const refuse = (code: RefusalCode, message: string, field?: string): never => {
   throw new Refused(code, message, field);
 };

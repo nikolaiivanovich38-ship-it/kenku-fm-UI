@@ -155,7 +155,8 @@ FND-15. `e2e/specs` holds the acceptance tests for the new interface. Each test 
 ```
 npx playwright test -c playwright.spec.config.ts --project=prototype
 npx playwright test -c playwright.spec.config.ts --project=prototype live.spec     # one screen
-npx playwright test -c playwright.spec.config.ts --project=app                    # the app (see below)
+CUE_DESK_E2E_BUILD=1 yarn package                                                   # once, for the app project
+npx playwright test -c playwright.spec.config.ts --project=app                    # the app (see below; xvfb-run -a on Linux)
 ```
 
 No build is needed for the `prototype` project; it opens `design/prototype/lyre-prototype.html` as a file. All specs must pass there: that proves the specs describe the approved design before the app exists. If your machine's Playwright browser differs from the one Playwright expects, point `LYRE_SPEC_CHROMIUM` at a Chromium executable. These specs are not part of `yarn e2e` (`e2e/playwright.config.ts` ignores `e2e/specs`).
@@ -166,13 +167,13 @@ Only `e2e/specs/support/target.ts`. It has one function per thing a person canno
 
 ### The app branch of `openRoute`
 
-`openRoute` in the `app` project chooses the "Lyre" tab in the main window, saves the theme the way Look and feel does (`lyre-shell` in the Lyre page's storage: `"campaign"` for `default`, `"parchment"`), sets the page address to `#/<route>` and reloads the Lyre page, then waits for its h1 (`e2e/fixtures/lyre.ts`, also used by `e2e/lyre.spec.ts`). The spec then works in the Lyre page, so the `app` project's `page` fixture must be the Lyre page of a running packaged app (title "Lyre Interface"); `joinRoom` and `leaveAllRooms` still throw.
+`openRoute` in the `app` project chooses the "Lyre" tab in the main window, saves the theme the way Look and feel does (`lyre-shell` in the Lyre page's storage: `"campaign"` for `default`, `"parchment"`), sets the page address to `#/<route>` and reloads the Lyre page, then waits for its h1 (`e2e/fixtures/lyre.ts`, also used by `e2e/lyre.spec.ts`). The spec then works in the Lyre page: in the `app` project, `page` is the Lyre page of a fresh copy of the packaged test build (`withAppPage` in `target.ts`), with its own data folder, a library seeded from the prototype's data (`CUE_DESK_LYRE_SEED=prototype`, honoured by test builds only) and Discord faked. Tests run one at a time, with 5-second action and expect timeouts so a screen that is not built fails quickly (about 12 s a test, so the whole project takes over an hour on a 2-core machine). axe is injected with `page.evaluate(source)`, because the Lyre page's policy refuses added script tags. The project still opens a headless browser it does not use (the `page` fixture is Playwright's), so `LYRE_SPEC_CHROMIUM` applies to it too. `joinRoom` and `leaveAllRooms` still throw (wave 4).
 
 ### Flipping a screen from expected-fail to required
 
 The `app` project runs the same files. A spec of a screen that `e2e/specs/support/built.ts` does not list is marked "expected to fail", so the project is green while wave 3 is under way, and a spec that starts passing before its screen is listed shows up as "expected to fail, but passed". When wave 3 builds a screen:
 
-1. Implement that screen's functions in `target.ts` for the app (open the route in the app's main window; the app's `page` is its main window, from `e2e/fixtures/app.ts`).
+1. Implement that screen's remaining functions in `target.ts` for the app (`page` is the Lyre page; the app is started by `withAppPage`).
 2. Add the screen's file name (`"live"`, `"campaigns"`, `"session-planner"`, `"library"`, `"playlists"`, `"pad-boards"`, `"audio-profile"`, `"outputs"`, and `"look"` for the Look and feel page) to `BUILT_SCREENS` in `built.ts`.
 3. Run `--project=app` for that file. Every spec must pass; a spec that cannot is either a real gap in the screen or a reason to change the prototype first (the prototype is the specification) and then both.
 

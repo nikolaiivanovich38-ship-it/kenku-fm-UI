@@ -118,6 +118,8 @@ class Refusal extends Error {
     readonly field?: string,
   ) {
     super(message);
+    // The app's bundles compile classes to ES5, where a subclass of Error loses its prototype (errorsBuilt.test.ts).
+    Object.setPrototypeOf(this, new.target.prototype);
   }
 }
 function refuse(code: RefusalCode, message: string, field?: string): never {

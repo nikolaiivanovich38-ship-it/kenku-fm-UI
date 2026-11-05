@@ -8,10 +8,13 @@
  * Each function has one branch per project. The `app` branches throw until wave 3 builds the screen; wave 3
  * fills them in (with the app's main window as `page`) and adds the screen to built.ts.
  */
-import { type Page, test } from "@playwright/test";
+import { _electron as electron, type Page, test } from "@playwright/test";
+import fs from "fs";
+import os from "os";
 import path from "path";
 import { pathToFileURL } from "url";
-import { openLyreRoute } from "../../fixtures/lyre";
+import { openLyreRoute, openLyreTab } from "../../fixtures/lyre";
+import { assertE2EBuild, findPackagedExecutable, launchArgs } from "../../fixtures/packagedApp";
 
 export type Theme = "default" | "parchment";
 
@@ -27,6 +30,37 @@ function isApp(): boolean {
 
 function notBuilt(what: string): never {
   throw new Error(`target.${what}: not built yet. The app has no such screen until wave 3; implement this in e2e/specs/support/target.ts.`);
+}
+
+/**
+ * The app project's `page`: the Lyre page of a fresh copy of the packaged test build (CUE_DESK_E2E_BUILD=1 yarn
+ * package), with its own data folder and a library seeded from the prototype's data (CUE_DESK_LYRE_SEED, honoured by
+ * test builds only), Discord faked. Closed, and its data folder removed, after the test.
+ */
+export async function withAppPage(use: (page: Page) => Promise<void>): Promise<void> {
+  const executablePath = findPackagedExecutable();
+  await assertE2EBuild(executablePath);
+  const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "lyre-spec-"));
+  const { args, chromiumSandbox } = launchArgs();
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(process.env)) if (value !== undefined) env[key] = value;
+  const app = await electron.launch({
+    executablePath,
+    args,
+    chromiumSandbox,
+    env: { ...env, CUE_DESK_USER_DATA_DIR: dataDir, CUE_DESK_LYRE_SEED: "prototype", CUE_DESK_FAKE_DISCORD: "1" },
+  });
+  try {
+    // The app's pages are not made by Playwright's own browser, so the project's timeouts are set on them here.
+    const { actionTimeout, navigationTimeout } = test.info().project.use;
+    if (actionTimeout) app.context().setDefaultTimeout(actionTimeout);
+    if (navigationTimeout) app.context().setDefaultNavigationTimeout(navigationTimeout);
+    const main = await app.firstWindow();
+    await use(await openLyreTab(main));
+  } finally {
+    await app.close().catch((): void => undefined);
+    fs.rmSync(dataDir, { recursive: true, force: true });
+  }
 }
 
 /** Open a screen. `theme: "default"` keeps each campaign's own table theme; "parchment" forces that theme. */

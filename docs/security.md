@@ -531,3 +531,28 @@ The new interface opens in a tab of its own, "Lyre", beside the old player. It i
 |---|---|---|---|
 | `LYRE_GET_URL` (sync) | Main window | none; answers the Lyre page's address (`""` when refused) | `src/main/managers/LyreManager.ts` |
 | `BROWSER_VIEW_CREATE_BROWSER_VIEW` (changed) | Main window | as before; kind: `"player"`, `"lyre"` or missing | `BrowserViewManagerMain` |
+
+## w3-api
+
+### In plain language
+
+Lyre's library (tracks, tags, playlists, pad boards, campaigns) lives in a database that only a separate background process of Lyre opens. The new interface asks for what it needs through one checked channel, and only the new interface may ask. The player may read sound files only from the folders in your library. If the background process stops unexpectedly, Lyre starts it again and tells you in plain words; your library and its backups stay on disk.
+
+### Technical details
+
+- **Own process.** `src/main/lyreApi/libraryProcess.ts` (webpack entry `lyreLibrary`) runs in an Electron `utilityProcess` started by `LyreLibraryService` (`startLibrary.ts`). It opens `libraryFolder(userData)` and runs the backups' worker thread. The main process never opens the database; it relays over the utility process's port (`src/common/lyre/rpc.ts`). The library asks the main process for host work by name only (`chooseFiles`, `chooseFolder`, `showItemInFolder`); `showItemInFolder` acts only on an absolute path. The process restarts after a crash (three crashes within a minute: it stops trying and says so).
+- **Seeded test library.** `CUE_DESK_LYRE_SEED=prototype` fills a new, empty library with the prototype's sample data, in test builds only (`wantsSeededLibrary(env, __CUE_DESK_TEST_BUILD__)`). In test builds `globalThis.lyreLibraryPid` lets the e2e tests stop the process.
+- **The old player's library** (`persist:player`) is read once per start, on the Lyre page's first call, with `executeJavaScriptInIsolatedWorld` (page scripts cannot change `localStorage.getItem` there). `importLegacyLibrary` then runs once ever; the database keeps its report.
+- **MEDIA_PREPARE** now accepts `lyre-view` too, and is registered (`wireLyreLibrary`). `MediaAccess` allows only the library folders and the folders of tracks added from elsewhere (`{ t: "media-folders" }`). The list is refreshed when tracks or folders change, and a request waits for the newest list. Converting (WMA, AIFF) is refused in plain words until ffmpeg is bundled (`noConverter.ts`).
+
+| Channel | Sent by | Arguments | Handled in |
+|---|---|---|---|
+| `LYRE_API_CALL` (invoke) | Lyre page | `area`, `method` (a `LYRE_API_METHODS` entry), argument list (at most 4, at most 8 MB as JSON) | `src/main/lyreApi/lyreIpc.ts` |
+| `LYRE_API_EVENT` (main to page) | main process | one `LyreEvent`; sent only to pages registered as `lyre-view` | `src/lyre/api/preloadApi.ts` |
+| `MEDIA_PREPARE` (changed) | player page, Lyre page | as before | `src/main/media/mediaIpc.ts` |
+
+### Manual checks (Windows)
+
+1. Start Lyre for the first time after Kenku FM. Open the Lyre tab: your old playlists and soundboards are in the library.
+2. In Task Manager, end the "Lyre library" process. The Lyre tab says the library is starting again, then that it is working again; your last changes are still there.
+3. Add a file from a folder outside your library folders: it plays. A file you never added does not.

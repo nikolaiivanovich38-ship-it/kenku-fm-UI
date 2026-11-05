@@ -5,7 +5,13 @@ module.exports = {
    * This is the main entry point for your application, it's the first file
    * that runs in the main process.
    */
-  entry: "./src/index.ts",
+  entry: {
+    index: "./src/index.ts",
+    // WP5 (w3-api): Lyre's library runs in its own utility process (src/main/lyreApi/startLibrary.ts forks it).
+    lyreLibrary: "./src/main/lyreApi/libraryProcess.ts",
+  },
+  // Forge names the main bundle index.js; the library process gets its own file beside it.
+  output: { filename: "[name].js" },
   // Put your normal webpack config below here
   module: {
     rules: require("./webpack.rules"),
