@@ -325,6 +325,7 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
   }
   function placeExists(place: ProfilePlace) {
     if (place.kind === "playlist") playlist(place.playlistId);
+    else if (place.kind === "session") session(place.campaignId, place.sessionId);
     else scene(place);
   }
   /** Leaves a new track New until it has a title of its own and a tag (the prototype's settle()). */

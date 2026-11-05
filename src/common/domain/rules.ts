@@ -108,15 +108,18 @@ export function stepSequence(seq: SequenceStep[], at: number, step: 1 | -1): num
   return wrap(at + step);
 }
 
-/** A place written as a key: "pl:<playlistId>" or "sc:<campaignId>:<sessionId>:<sceneId>". */
+/** A place written as a key: "pl:<playlistId>", "sc:<campaignId>:<sessionId>:<sceneId>" or "ss:<campaignId>:<sessionId>". */
 export function placeKey(p: ProfilePlace): string {
-  return p.kind === "playlist" ? `pl:${p.playlistId}` : `sc:${p.campaignId}:${p.sessionId}:${p.sceneId}`;
+  if (p.kind === "playlist") return `pl:${p.playlistId}`;
+  if (p.kind === "session") return `ss:${p.campaignId}:${p.sessionId}`;
+  return `sc:${p.campaignId}:${p.sessionId}:${p.sceneId}`;
 }
 
 export function parsePlaceKey(key: string): ProfilePlace | null {
   const parts = key.split(":");
   if (parts[0] === "pl" && parts.length === 2 && parts[1]) return { kind: "playlist", playlistId: parts[1] };
   if (parts[0] === "sc" && parts.length === 4 && parts.every(Boolean)) return { kind: "scene", campaignId: parts[1], sessionId: parts[2], sceneId: parts[3] };
+  if (parts[0] === "ss" && parts.length === 3 && parts.every(Boolean)) return { kind: "session", campaignId: parts[1], sessionId: parts[2] };
   return null;
 }
 
@@ -125,8 +128,8 @@ function clamp(v: number, lo: number, hi: number): number {
 }
 
 /**
- * The audio profile that applies to a track in the given places, most specific first: pass the scene before the
- * playlist. The first place with its own settings wins; otherwise the track's own profile. Missing fields take
+ * The audio profile that applies to a track in the given places, most specific first: pass the scene (or session)
+ * before the playlist (profilePlacesFor gives them in that order). The first place with its own settings wins; otherwise the track's own profile. Missing fields take
  * defaults: the whole track, looping when the track loops well, no fades. Points are kept inside the track.
  */
 export function resolveProfile(t: DomainTrack, places: ProfilePlace[], overrides: ProfileOverrides): { profile: AudioProfile; source: ProfileSource } {
@@ -136,7 +139,7 @@ export function resolveProfile(t: DomainTrack, places: ProfilePlace[], overrides
     const own = overrides[placeKey(p)]?.[t.id];
     if (own) {
       input = own;
-      source = p.kind === "scene" ? "scene" : "playlist";
+      source = p.kind;
       break;
     }
   }

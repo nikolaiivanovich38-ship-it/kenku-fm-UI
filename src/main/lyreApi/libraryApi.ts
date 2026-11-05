@@ -443,6 +443,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
   }
   function placeExists(place: ProfilePlace) {
     if (place.kind === "playlist") requirePlaylist(place.playlistId);
+    else if (place.kind === "session") requireSession(place.campaignId, place.sessionId);
     else requireScene(place);
   }
   /** A rule may only name tag groups and values the library has (the database would call them "not found"). */
