@@ -221,3 +221,13 @@ EDT-6 (backend), DAT-5, DAT-6, DAT-8, DAT-9, ORG-1 and DAT-4 in `src/main/data/i
 - **The old library**: `importLegacyLibrary(library, localStorageValueOf("persist:player"))` on the new interface's first start: backup first, resumable, once.
 - **Relinking**: `findMissingTracks`, `planRelink`, `applyRelink` (one undo step).
 - **Wiring for wave 3**: read `persist:player` from the player window's localStorage and pass it to `importLegacyLibrary` before showing the Library; pass `createMusicMetadataTagReader(parseFile)` to `importAudio`, `importLegacyLibrary` and `refreshEmbeddedTags`; forward `ImportProgress` to the progress bar; show `summary` / `lines`.
+
+## Wave 2: database review fixes
+
+The independent database design review (third normal form confirmed) found four faults, fixed on `w2-dbfix`: long work on the main thread could interrupt Discord sound, a tag's deletion could widen a dynamic playlist, library order depended on physical row numbers, and one file could become two tracks. The schema is now one step (`schema/v001-library.ts`), since no library database was ever released.
+
+- **Bulk work rule.** The Store runs on the main thread, beside the bots' 200 ms packet queue, so no synchronous database call may hold the thread for long. Bulk changes (tagging, deleting tags or tag groups, merging tags, deleting tracks, adding or removing a library folder, relinking, applying title suggestions, and large undo or redo) go through `Store.changeInBatches`: about 500 rows per transaction with the event loop free between them, still one undo step. While one runs, other edits, undo and backups throw `LibraryBusyError`. Tests assert the thread's processor time per call stays under 200 ms on 20,000 tracks.
+- **Backups on a worker thread** (`VACUUM INTO` from a read-only connection): daily, manual and before an import. The upgrade backup runs at open, before anything plays.
+- **Search documents** are rebuilt once per commit from a TEMP dirty table (up to 1,000; the rest catch up on later turns).
+- **Location.** `%LOCALAPPDATA%\lyre\library`; a UNC path, or a folder where WAL is refused, falls back to a rollback journal. The WAL is kept under 8 MB and checkpointed after bulk work.
+- **Still open:** the Store behind a utilityProcess with an async API (planned with the main-process LyreApi in wave 3), and session numbers derived from session order.
