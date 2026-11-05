@@ -82,8 +82,9 @@ function checkNumbering(migrations: readonly Migration[]) {
  *
  * @param columnDefinitions everything between the brackets of CREATE TABLE
  * @param copiedColumns columns that exist in both the old and the new table
+ * @param options.withoutRowid make the new table WITHOUT ROWID (as a link table or track_peaks is)
  */
-export function rebuildTable(db: DatabaseSync, table: string, columnDefinitions: string, copiedColumns: string[]) {
+export function rebuildTable(db: DatabaseSync, table: string, columnDefinitions: string, copiedColumns: string[], options: { withoutRowid?: boolean } = {}) {
   const schemaSql = (type: string, tableFilter: string | null) =>
     (
       db
@@ -100,7 +101,7 @@ export function rebuildTable(db: DatabaseSync, table: string, columnDefinitions:
 
   for (const name of triggerNames) db.exec(`DROP TRIGGER "${name}"`);
   const columns = copiedColumns.map((column) => `"${column}"`).join(", ");
-  db.exec(`CREATE TABLE "${table}__rebuild" (${columnDefinitions})`);
+  db.exec(`CREATE TABLE "${table}__rebuild" (${columnDefinitions})${options.withoutRowid ? " WITHOUT ROWID" : ""}`);
   db.exec(`INSERT INTO "${table}__rebuild" (${columns}) SELECT ${columns} FROM "${table}"`);
   db.exec(`DROP TABLE "${table}"`);
   db.exec(`ALTER TABLE "${table}__rebuild" RENAME TO "${table}"`);

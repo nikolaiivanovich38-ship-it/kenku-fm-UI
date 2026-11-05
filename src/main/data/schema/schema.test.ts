@@ -15,9 +15,9 @@ const tableNames = (db: DatabaseSync) =>
 describe("the library schema (DAT-11)", () => {
   it("makes a new library in one upgrade, with the Mood, Leitmotif and Scene type tag groups", () => {
     const db = openConnection(":memory:");
-    // Step 1 is the whole library; step 2 (w3-media) adds loudness peaks per track.
-    expect(migrate(db, MIGRATIONS)).toEqual({ from: 0, to: 2, applied: [1, 2] });
-    expect(schemaVersion(db)).toBe(2);
+    // Step 1 is the whole library; step 2 (w3-media) adds loudness peaks per track; step 3 design round 5.
+    expect(migrate(db, MIGRATIONS)).toEqual({ from: 0, to: 3, applied: [1, 2, 3] });
+    expect(schemaVersion(db)).toBe(3);
     expect((all(db, "SELECT name FROM tag_groups ORDER BY position") as { name: string }[]).map((g) => g.name)).toEqual([
       "Mood",
       "Leitmotif",

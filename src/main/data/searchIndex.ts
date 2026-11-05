@@ -3,7 +3,7 @@
  * (ORG-1; DB review item 5).
  *
  * A track's entry gathers its names, notes, artist, album, tags with their
- * synonyms and marker labels. Rebuilding it on every row change made bulk work
+ * synonyms, marker labels and (schema version 3) its names in scenes. Rebuilding it on every row change made bulk work
  * slow: tagging 10,000 tracks with three tags rebuilt each entry three times
  * (85% of the time). Instead, temporary triggers only note which tracks
  * changed, in the temporary table search_dirty, and `flushSearchIndex` rebuilds
@@ -36,6 +36,10 @@ const WATCHED: [name: string, event: string, tracks: string][] = [
   ["markers_insert", "AFTER INSERT ON main.markers", "SELECT NEW.track_id"],
   ["markers_update", "AFTER UPDATE OF label, track_id ON main.markers", "SELECT NEW.track_id UNION SELECT OLD.track_id"],
   ["markers_delete", "AFTER DELETE ON main.markers", "SELECT OLD.track_id"],
+  // DAT-14 (schema version 3): a track's names in scenes are part of its entry.
+  ["scene_track_names_insert", "AFTER INSERT ON main.scene_track_names", "SELECT NEW.track_id"],
+  ["scene_track_names_update", "AFTER UPDATE ON main.scene_track_names", "SELECT NEW.track_id UNION SELECT OLD.track_id"],
+  ["scene_track_names_delete", "AFTER DELETE ON main.scene_track_names", "SELECT OLD.track_id"],
 ];
 
 /** Creates the temporary table and triggers on this connection (again, if they exist). */
@@ -61,14 +65,15 @@ DELETE FROM search_fts WHERE rowid IN
 DELETE FROM search_docs WHERE kind = 'track' AND ref_id IN
   (SELECT track_id FROM temp.search_flush WHERE track_id NOT IN (SELECT id FROM tracks));
 INSERT OR IGNORE INTO search_docs (kind, ref_id) SELECT 'track', id FROM tracks WHERE id IN (SELECT track_id FROM temp.search_flush);
-INSERT INTO search_fts (rowid, title, meta_title, file_name, artist, album, tags, markers, notes, cue)
+INSERT INTO search_fts (rowid, title, meta_title, file_name, artist, album, tags, markers, notes, cue, scene_names)
   SELECT d.doc_id, coalesce(nullif(t.title, ''), nullif(t.meta_title, ''), t.file_name), t.meta_title, t.file_name,
     t.source_composer, t.source_album,
     (SELECT group_concat(tg.name || coalesce(' ' ||
         (SELECT group_concat(s.synonym, ' ') FROM tag_synonyms s WHERE s.tag_id = tg.id), ''), ' ')
        FROM track_tags tt JOIN tags tg ON tg.id = tt.tag_id WHERE tt.track_id = t.id),
     (SELECT group_concat(m.label, ' ') FROM markers m WHERE m.track_id = t.id),
-    t.notes, t.source_cue_number
+    t.notes, t.source_cue_number,
+    (SELECT group_concat(n.name, ' ') FROM scene_track_names n WHERE n.track_id = t.id)
   FROM tracks t JOIN search_docs d ON d.kind = 'track' AND d.ref_id = t.id
   WHERE t.id IN (SELECT track_id FROM temp.search_flush);
 DELETE FROM temp.search_dirty WHERE track_id IN (SELECT track_id FROM temp.search_flush);

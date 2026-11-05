@@ -44,10 +44,11 @@ export type SearchOptions = {
 };
 
 /**
- * Column weights for BM25, in the index's column order (schema/v002-design.ts):
- * title, file-tag title, file name, artist, album, tags, markers, notes, cue number.
+ * Column weights for BM25, in the index's column order (schema/v001-library.ts, v003-round5.ts):
+ * title, file-tag title, file name, artist, album, tags, markers, notes, cue number, names in scenes.
+ * A name given in a scene counts as much as the file-tag title: it is a title the game master chose.
  */
-const WEIGHTS = [10, 6, 4, 3, 3, 6, 3, 1, 2];
+const WEIGHTS = [10, 6, 4, 3, 3, 6, 3, 1, 2, 6];
 
 /**
  * Turns what the user typed into an FTS5 query: each word becomes a quoted
