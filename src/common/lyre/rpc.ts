@@ -111,7 +111,9 @@ export function lyreApiOverPort(port: PortLike, host: Record<string, (...args: u
     } else if (message?.t === "event" && message.event) {
       for (const listener of [...listeners]) listener(message.event);
     } else if (message?.t === "host") {
-      const work = host[message.op as string];
+      // Security review 14: the host's own operations only, never inherited ones such as "constructor".
+      const op = message.op as string;
+      const work = typeof op === "string" && Object.prototype.hasOwnProperty.call(host, op) ? host[op] : undefined;
       try {
         if (!work) throw new Error(`Lyre cannot ${String(message.op)} here.`);
         port.postMessage({ t: "host-result", id: message.id, value: await work(...(message.args ?? [])) });
