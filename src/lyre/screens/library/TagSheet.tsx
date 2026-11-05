@@ -45,6 +45,7 @@ export function TagSheet({ tracks, groups, onClose, onApply }: TagSheetProps) {
   // Picks in the order of the groups, as the message lists them.
   const ordered = groups.flatMap((g) => picked.filter((p) => p.group === g.id));
   const k = ordered.length;
+  const anyCounted = groups.some((g) => g.values.some((v) => has(g.id, v) > 0));
   const label = k ? (mode === "add" ? `Add ${plural(k, "tag")} to ${plural(n, "track")}` : `Remove ${plural(k, "tag")} from ${plural(n, "track")}`) : "Tick a tag first";
 
   return (
@@ -68,7 +69,14 @@ export function TagSheet({ tracks, groups, onClose, onApply }: TagSheetProps) {
         </>
       }
     >
-      <p className="muted lb-tsintro">&quot;All&quot; or &quot;2 of 3&quot; on a tag: how many of the {plural(n, "selected track")} have it already.</p>
+      {/* w3-ux 17: the line explains the counts on the tags, so it shows only when a tag has one. */}
+      <p className="muted lb-tsintro">
+        {anyCounted ? (
+          <>&quot;All&quot; or &quot;2 of 3&quot; on a tag: how many of the {plural(n, "selected track")} have it already.</>
+        ) : (
+          `None of the ${plural(n, "selected track")} has a tag yet.`
+        )}
+      </p>
       <div className="seg s lb-seg24" role="group" aria-label="Add or remove">
         <button type="button" aria-pressed={mode === "add"} onClick={() => setMode("add")}>
           <Icon name="plus" size="s" />

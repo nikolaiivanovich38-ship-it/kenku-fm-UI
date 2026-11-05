@@ -496,7 +496,9 @@
   function selTracks() { return st.sel.map(L.track).filter(Boolean); }
   function tsBody() {
     var tr = selTracks(), n = tr.length;
-    var h = '<p class="muted lb-tsintro">"All" or "2 of 3" on a tag: how many of the ' + plural(n, 'selected track') + ' have it already.</p>' +
+    // The line explains the counts on the tags, so it shows only when a tag has one.
+    var counted = D.tagGroups.some(function (g) { return D.tagValues[g.id].some(function (v) { return tr.some(function (t) { return (t.tags[g.id] || []).indexOf(v) > -1; }); }); });
+    var h = '<p class="muted lb-tsintro">' + (counted ? '"All" or "2 of 3" on a tag: how many of the ' + plural(n, 'selected track') + ' have it already.' : 'None of the ' + plural(n, 'selected track') + ' has a tag yet.') + '</p>' +
       '<div class="seg s lb-seg24" role="group" aria-label="Add or remove"><button data-act="lbtsmode" data-v="add" data-k="lb-ts-add" aria-pressed="' + (ts.mode === 'add') + '">' + L.icon('plus', 's') + 'Add tags</button>' +
       '<button data-act="lbtsmode" data-v="remove" data-k="lb-ts-rm" aria-pressed="' + (ts.mode === 'remove') + '">' + L.icon('minus', 's') + 'Remove tags</button></div>';
     D.tagGroups.forEach(function (g) {
