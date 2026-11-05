@@ -101,19 +101,19 @@ describe("planRelink and applyRelink (DAT-8)", () => {
 
   it("relinks as one undo step, storing the new place under a library folder when it is in one", async () => {
     const newHome = path.join(temp.folder, "New");
-    const root = addRoot(t.store, { name: "New", path: newHome });
+    const root = await addRoot(t.store, { name: "New", path: newHome });
     const one = await trackMovedTo("a.flac", path.join(newHome, "x", "a.flac"), "a");
     const two = await trackMovedTo("b.flac", path.join(newHome, "y", "b.flac"), "b");
     const plan = await planRelink(t.store, await findMissingTracks(t.store), newHome);
     const before = [getTrack(t.store, one.id), getTrack(t.store, two.id)];
 
-    applyRelink(t.store, plan.matches);
+    await applyRelink(t.store, plan.matches);
     expect(getTrack(t.store, one.id)!.location).toEqual({ kind: "root", rootId: root.id, path: "x/a.flac" });
     expect(resolveTrackLocation(t.store, getTrack(t.store, two.id)!)).toBe(path.join(newHome, "y", "b.flac"));
     expect(await findMissingTracks(t.store)).toEqual([]);
     expect(history.state().undoLabel).toBe("Relink 2 files");
 
-    history.undo();
+    await history.undo();
     expect([getTrack(t.store, one.id), getTrack(t.store, two.id)]).toEqual(before);
   });
 

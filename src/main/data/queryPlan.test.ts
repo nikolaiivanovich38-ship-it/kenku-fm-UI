@@ -15,12 +15,13 @@ import { makeTempFolder } from "./test/helpers";
 import { campaignTreeQueries, USES_QUERIES } from "./repo/domain";
 import { SCENE_MUSIC_SQL } from "./repo/campaigns";
 import { PLAYLIST_ITEMS_SQL, createPlaylist } from "./repo/playlists";
-import { NEW_TRACKS_SQL, tracksWithTagsSql } from "./repo/tracks";
+import { NEW_TRACKS_SQL, TRACK_BY_PATH_SQL, trackListQuery, tracksWithTagsSql } from "./repo/tracks";
 import { BOARD_PADS_SQL } from "./repo/boards";
 import { PROFILE_LOOKUP_SQL } from "./repo/profileRows";
 import { searchQuery } from "./repo/search";
 import { dynamicTracksQuery } from "./repo/ruleRows";
-import { listTags } from "./repo/tags";
+import { HOTKEY_ACTIONS_SQL } from "./repo/cueActions";
+import { listTags, TAG_USAGE_SQL } from "./repo/tags";
 
 let temp: ReturnType<typeof makeTempFolder>;
 let library: Library;
@@ -65,11 +66,38 @@ describe("query plans of the hot read paths (DAT-11)", () => {
   });
 
   it.each(Object.entries(BOARD_PADS_SQL))("drawing a board: its %s", (_name, sql) => {
-    expectIndexed(sql, ["b"], "pads_board");
+    expectIndexed(sql, ["b"], "pads_cell");
+  });
+
+  it.each([
+    ["the first page", { limit: 50 }],
+    ["the page after a track", { limit: 50, after: { title: "M", id: "x" } }],
+  ] as const)("the track list in title order: %s, read in index order without sorting", (name, options) => {
+    const query = trackListQuery(options);
+    const details = plan(query.sql, query.params);
+    // The first page walks tracks_shown_title from its start and stops at the limit; a later page
+    // starts at the last track shown.
+    expect(details, details.join("\n")).toEqual([
+      name === "the first page" ? "SCAN tracks USING INDEX tracks_shown_title" : expect.stringMatching(/^SEARCH tracks USING INDEX tracks_shown_title \(/),
+    ]);
   });
 
   it("tracks by tag (the library's tag filter)", () => {
     expectIndexed(tracksWithTagsSql(2), ["a", "b", 50, 0], "track_tags_tag");
+  });
+
+  it.each([
+    ["under a library folder", TRACK_BY_PATH_SQL.root, ["r", "a/b.flac"], "tracks_root_path"],
+    ["outside every library folder", TRACK_BY_PATH_SQL.absolute, ["/a/b.flac"], "tracks_absolute_path"],
+    ["by web address", TRACK_BY_PATH_SQL.url, ["https://x.org/a.mp3"], "tracks_url"],
+    ["every track under a library folder", TRACK_BY_PATH_SQL.underRoot, ["r"], "tracks_root_path"],
+  ] as const)("finding a track by its file: %s", (_name, sql, params, index) => {
+    expectIndexed(sql, [...params], index);
+  });
+
+  it("a hotkey's cue actions in order (DB review 9)", () => {
+    const details = expectIndexed(HOTKEY_ACTIONS_SQL, ["f1"], "cue_actions_order");
+    expect(details.filter((d) => d.startsWith("USE TEMP B-TREE")), details.join("\n")).toEqual([]);
   });
 
   it("new tracks (the library's New mark; import stream)", () => {
@@ -88,6 +116,14 @@ describe("query plans of the hot read paths (DAT-11)", () => {
     ["track", 1, "scene_ambience_track"],
   ] as const)("uses of a %s (query %i) start from %s", (kind, index, name) => {
     expectIndexed(USES_QUERIES[kind][index], ["x"], name);
+  });
+
+  it.each([
+    ["tracks", "track_tags_tag"],
+    ["playlists", "rule_condition_tags_tag"],
+    ["pads", "pads_tag"],
+  ] as const)("where a tag is used: %s start from %s", (path, index) => {
+    expectIndexed(TAG_USAGE_SQL[path], ["x"], index);
   });
 
   it.each(Object.entries(PROFILE_LOOKUP_SQL))("profile lookup by (track, place): %s", (place, sql) => {

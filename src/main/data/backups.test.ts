@@ -8,7 +8,7 @@ import fs from "fs";
 import path from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { openLibrary, restoreBackup, type Library } from "./library";
-import { BACKUPS_TO_KEEP, listBackups, writeBackup } from "./backups";
+import { BACKUPS_TO_KEEP, backUpInBackground, listBackups, writeBackup } from "./backups";
 import { MIGRATIONS, type Migration } from "./schema";
 import { createCampaign, listCampaigns } from "./repo/campaigns";
 import { makeClock, makeTempFolder } from "./test/helpers";
@@ -40,11 +40,11 @@ afterEach(() => {
 });
 
 describe("backups (DAT-6, import stream)", () => {
-  it("keeps the backup made before the old library moves in as its own kind, newest 14", () => {
+  it("keeps the backup made before the old library moves in as its own kind, newest 14", async () => {
     const library = openTracked();
-    library.backupNow();
+    await library.backupNow();
     for (let i = 0; i < 16; i++) {
-      writeBackup(library.store.db, library.backupFolder, "before-import", clock.now());
+      await backUpInBackground(library.databasePath, library.backupFolder, "before-import", clock.now());
       clock.advance(1000);
     }
     const backups = listBackups(library.backupFolder);
@@ -86,10 +86,10 @@ describe("backups (DAT-6, import stream)", () => {
     expect(listBackups(restored.backupFolder).filter((b) => b.kind === "upgrade")).toHaveLength(2);
   });
 
-  it("refuses to put back a damaged backup and leaves the library as it was", () => {
+  it("refuses to put back a damaged backup and leaves the library as it was", async () => {
     const library = openTracked();
     createCampaign(library.store, { name: "Strahd" });
-    const backup = library.backupNow();
+    const backup = await library.backupNow();
     closeAll();
     const fd = fs.openSync(backup.path, "r+");
     fs.writeSync(fd, Buffer.alloc(100, 0x5a), 0, 100, 0);
@@ -98,5 +98,19 @@ describe("backups (DAT-6, import stream)", () => {
     expect(() => restoreBackup({ folder, backupPath: backup.path, now: clock.now })).toThrow(/backup is damaged/);
     expect(fs.readdirSync(folder).filter((name) => name.startsWith("library-damaged"))).toEqual([]);
     expect(listCampaigns(openTracked().store).map((c) => c.name)).toEqual(["Strahd"]);
+  });
+
+  it("reports a backup the worker thread could not make, and leaves no half-written copy", async () => {
+    const library = openTracked();
+    const folderInTheWay = path.join(temp.folder, "in-the-way");
+    fs.writeFileSync(folderInTheWay, "a file where the folder should be");
+    await expect(backUpInBackground(library.databasePath, folderInTheWay, "manual", clock.now())).rejects.toMatchObject({
+      code: "backup-failed",
+    });
+    await expect(backUpInBackground(path.join(temp.folder, "no-such.sqlite"), library.backupFolder, "manual", clock.now())).rejects.toMatchObject({
+      code: "backup-failed",
+    });
+    expect(listBackups(library.backupFolder)).toEqual([]);
+    expect(fs.existsSync(library.backupFolder) ? fs.readdirSync(library.backupFolder) : []).toEqual([]);
   });
 });

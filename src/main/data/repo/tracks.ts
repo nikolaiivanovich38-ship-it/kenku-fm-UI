@@ -6,7 +6,7 @@
  */
 import { NotFoundError, ValidationError } from "../errors";
 import { GAP } from "../ordering";
-import { fileNameOf, findRoot, isAbsolutePath, joinRoot } from "../paths";
+import { fileNameOf, findRoot, isAbsolutePath, joinRoot, normalizePath } from "../paths";
 import type { SQLInputValue } from "../sqlite";
 import type { Store } from "../store";
 import type { AudioProfileInput } from "../../../common/domain";
@@ -22,7 +22,6 @@ import {
   type TrackInput,
   type TrackPatch,
   type TrackUsage,
-  type Transition,
 } from "../types";
 import * as v from "../validate";
 import { newId, patchOf, placeholders, plural, requireRow, toFlag } from "./common";
@@ -47,8 +46,6 @@ type TrackRow = {
   role: string | null;
   loopable: string | null;
   ending: string | null;
-  transition_in: string | null;
-  transition_out: string | null;
   follow_required: number;
   notes: string;
   source_composer: string | null;
@@ -85,8 +82,6 @@ function toTrack(row: TrackRow, profile: AudioProfileInput | null): Track {
     role: row.role as Track["role"],
     loopable: row.loopable as Track["loopable"],
     ending: row.ending as Track["ending"],
-    transitionIn: row.transition_in === null ? null : (JSON.parse(row.transition_in) as Transition),
-    transitionOut: row.transition_out === null ? null : (JSON.parse(row.transition_out) as Transition),
     followRequired: row.follow_required === 1,
     notes: row.notes,
     sourceComposer: row.source_composer,
@@ -98,30 +93,6 @@ function toTrack(row: TrackRow, profile: AudioProfileInput | null): Track {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
-}
-
-/** Checks a transition and returns it as stored JSON (or null). */
-function transitionJson(field: string, value: unknown): string | null {
-  if (value === undefined || value === null) return null;
-  const input = v.record(field, value);
-  const kind = v.oneOf(`${field}.kind`, input.kind, [
-    "crossfade",
-    "cut",
-    "after_current_ends",
-    "at_mix_out",
-    "after_loop",
-  ] as const);
-  let clean: Transition;
-  if (kind === "crossfade") {
-    clean = {
-      kind,
-      seconds: v.numberInRange(`${field}.seconds`, input.seconds, 0, 600),
-      curve: v.oneOf(`${field}.curve`, input.curve ?? "equal_power", ["linear", "equal_power"] as const),
-    };
-  } else {
-    clean = { kind };
-  }
-  return JSON.stringify(clean);
 }
 
 /** Column values for the metadata fields present in `input`. */
@@ -137,8 +108,6 @@ function metadataColumns(input: Record<string, unknown>): Record<string, SQLInpu
   if (has("role")) columns.role = v.nullableOneOf("role", input.role, ROLES);
   if (has("loopable")) columns.loopable = v.nullableOneOf("loopable", input.loopable, LOOPABLE);
   if (has("ending")) columns.ending = v.nullableOneOf("ending", input.ending, ENDINGS);
-  if (has("transitionIn")) columns.transition_in = transitionJson("transitionIn", input.transitionIn);
-  if (has("transitionOut")) columns.transition_out = transitionJson("transitionOut", input.transitionOut);
   if (has("followRequired")) columns.follow_required = toFlag(v.boolean("followRequired", input.followRequired));
   if (has("notes")) columns.notes = v.optionalText("notes", input.notes);
   if (has("sourceComposer")) columns.source_composer = v.nullableText("sourceComposer", input.sourceComposer);
@@ -176,8 +145,10 @@ function locationColumns(
     return { root_id: null, path: null, url, file_name: fileName, file_size: null, file_mtime_ms: null, checksum: null };
   }
   const file = v.record("file", input.file);
-  const absolute = v.requiredName("file.path", file.path, v.MAX_TEXT_LENGTH);
-  if (!isAbsolutePath(absolute)) throw new ValidationError("file.path", "The file must be given with its full path.");
+  const given = v.requiredName("file.path", file.path, v.MAX_TEXT_LENGTH);
+  if (!isAbsolutePath(given)) throw new ValidationError("file.path", "The file must be given with its full path.");
+  // Stored one way, so the unique path indexes see "D:/a.wav" and "D:\\a.wav" as the same file.
+  const absolute = normalizePath(given);
   const underRoot = findRoot(roots, absolute);
   return {
     root_id: underRoot ? underRoot.root.id : null,
@@ -203,6 +174,52 @@ function writeOwnProfile(store: Store, trackId: string, profile: AudioProfileInp
   if (existing) removeProfile(store, existing.id);
 }
 
+/**
+ * Runs a write that sets a track's file or address, turning a clash with
+ * another track's (the unique path indexes, DB review 4) into plain words.
+ */
+function oneTrackPerFile<T>(fileName: unknown, fn: () => T): T {
+  try {
+    return fn();
+  } catch (error) {
+    if (error instanceof Error && /UNIQUE constraint failed: (tracks\.(root_id|path|url)|index 'tracks_)/.test(error.message)) {
+      const name = typeof fileName === "string" && fileName !== "" ? fileName : "That file";
+      throw new ValidationError("file", `${name} is already in your library.`);
+    }
+    throw error;
+  }
+}
+
+/**
+ * Finding a track by its file, through the unique path indexes (watched-folder
+ * rescans, relinking), and every track under a library folder. Exported for the
+ * query-plan tests.
+ */
+export const TRACK_BY_PATH_SQL = {
+  root: "SELECT id FROM tracks WHERE root_id = ? AND path = ? COLLATE NOCASE",
+  absolute: "SELECT id FROM tracks WHERE root_id IS NULL AND path = ? COLLATE NOCASE",
+  url: "SELECT id FROM tracks WHERE url = ?",
+  underRoot: "SELECT id, path FROM tracks WHERE root_id = ?",
+} as const;
+
+/**
+ * The track that has this file (a full path) or web address, if any.
+ * @param roots the library folders, when the caller looks up many files
+ */
+export function findTrackByLocation(
+  store: Store,
+  location: { file: string } | { url: string },
+  roots: readonly { id: string; path: string }[] = listRoots(store),
+): string | null {
+  if ("url" in location) return store.get<{ id: string }>(TRACK_BY_PATH_SQL.url, v.webAddress("url", location.url))?.id ?? null;
+  const full = normalizePath(v.requiredName("file", location.file, v.MAX_TEXT_LENGTH));
+  const underRoot = findRoot(roots, full);
+  const row = underRoot
+    ? store.get<{ id: string }>(TRACK_BY_PATH_SQL.root, underRoot.root.id, underRoot.relative)
+    : store.get<{ id: string }>(TRACK_BY_PATH_SQL.absolute, full);
+  return row?.id ?? null;
+}
+
 function insertTrack(store: Store, roots: { id: string; path: string }[], input: TrackInput): string {
   const record = v.record("track", input);
   const id = newId(record.id);
@@ -216,9 +233,8 @@ function insertTrack(store: Store, roots: { id: string; path: string }[], input:
     updated_at: store.now(),
   };
   const names = Object.keys(columns);
-  store.run(
-    `INSERT INTO tracks (${names.join(", ")}) VALUES (${placeholders(names.length)})`,
-    ...names.map((name) => columns[name]),
+  oneTrackPerFile(columns.file_name, () =>
+    store.run(`INSERT INTO tracks (${names.join(", ")}) VALUES (${placeholders(names.length)})`, ...names.map((name) => columns[name])),
   );
   if (profile) writeOwnProfile(store, id, profile);
   return id;
@@ -248,6 +264,12 @@ export type TrackListOptions = {
   tagIds?: string[];
   limit?: number;
   offset?: number;
+  /**
+   * The next page: the tracks after this one (its shown name and id) in list
+   * order. Read through tracks_shown_title from there, so a page deep in a
+   * large library costs what the first page does (offset reads every row before it).
+   */
+  after?: { title: string; id: string };
 };
 
 /** The name a track is shown by: its title, else its file-tag title, else its file name. */
@@ -263,19 +285,36 @@ export function tracksWithTagsSql(count: number): string {
     GROUP BY track_id HAVING count(*) = ${count}) ORDER BY ${SHOWN_TITLE_SQL} COLLATE NOCASE, id LIMIT ? OFFSET ?`;
 }
 
+/**
+ * The SQL for a page of the track list in the order of the shown name, read
+ * through tracks_shown_title without sorting. Exported for the query-plan tests.
+ */
+export function trackListQuery(options: { limit?: number; offset?: number; after?: { title: string; id: string } }): { sql: string; params: SQLInputValue[] } {
+  const limit = options.limit === undefined ? -1 : v.integer("limit", options.limit, 0, 1_000_000);
+  const offset = options.offset === undefined ? 0 : v.integer("offset", options.offset, 0, Number.MAX_SAFE_INTEGER);
+  const order = `${SHOWN_TITLE_SQL} COLLATE NOCASE`;
+  if (options.after === undefined) return { sql: `SELECT * FROM tracks ORDER BY ${order}, id LIMIT ? OFFSET ?`, params: [limit, offset] };
+  const after = v.record("after", options.after);
+  const title = v.optionalText("after.title", after.title);
+  const id = v.id("after.id", after.id);
+  return {
+    // A range on the index's first part (so SQLite starts there), then the exact "after" test.
+    sql: `SELECT * FROM tracks WHERE ${order} >= ?1 AND (${order} > ?1 OR id > ?2) ORDER BY ${order}, id LIMIT ?3 OFFSET ?4`,
+    params: [title, id, limit, offset],
+  };
+}
+
 /** Tracks in order of the name they are shown by; with `tagIds`, only those carrying all of them. */
 export function listTracks(store: Store, options: TrackListOptions = {}): Track[] {
   const tagIds = options.tagIds === undefined ? [] : v.ids("tagIds", options.tagIds);
-  const limit = options.limit === undefined ? -1 : v.integer("limit", options.limit, 0, 1_000_000);
-  const offset = options.offset === undefined ? 0 : v.integer("offset", options.offset, 0, Number.MAX_SAFE_INTEGER);
-  const rows = store.all<TrackRow>(
-    tagIds.length === 0
-      ? `SELECT * FROM tracks ORDER BY ${SHOWN_TITLE_SQL} COLLATE NOCASE, id LIMIT ? OFFSET ?`
-      : tracksWithTagsSql(tagIds.length),
-    ...tagIds,
-    limit,
-    offset,
-  );
+  let query: { sql: string; params: SQLInputValue[] };
+  if (tagIds.length === 0) query = trackListQuery(options);
+  else {
+    const limit = options.limit === undefined ? -1 : v.integer("limit", options.limit, 0, 1_000_000);
+    const offset = options.offset === undefined ? 0 : v.integer("offset", options.offset, 0, Number.MAX_SAFE_INTEGER);
+    query = { sql: tracksWithTagsSql(tagIds.length), params: [...tagIds, limit, offset] };
+  }
+  const rows = store.all<TrackRow>(query.sql, ...query.params);
   const profiles = ownProfiles(
     store,
     rows.map((row) => row.id),
@@ -296,8 +335,6 @@ const PATCHABLE = [
   "role",
   "loopable",
   "ending",
-  "transitionIn",
-  "transitionOut",
   "followRequired",
   "notes",
   "sourceComposer",
@@ -330,16 +367,42 @@ export function updateTrack(store: Store, id: string, changes: TrackPatch): Trac
   const names = Object.keys(columns);
   if (names.length > 0 || profile !== undefined) {
     store.change("Edit track", () => {
-      store.run(
-        `UPDATE tracks SET ${[...names.map((name) => `${name} = ?`), "updated_at = ?"].join(", ")} WHERE id = ?`,
-        ...names.map((name) => columns[name]),
-        store.now(),
-        trackId,
+      oneTrackPerFile(columns.file_name, () =>
+        store.run(
+          `UPDATE tracks SET ${[...names.map((name) => `${name} = ?`), "updated_at = ?"].join(", ")} WHERE id = ?`,
+          ...names.map((name) => columns[name]),
+          store.now(),
+          trackId,
+        ),
       );
       if (profile !== undefined) writeOwnProfile(store, trackId, profile);
     });
   }
   return getTrack(store, trackId) as Track;
+}
+
+/**
+ * Points tracks at new files (relinking, DAT-8), as one undo step, in batches
+ * when there are many (DB review 1). Leaner than updateTrack per track: the
+ * library folders are read once and no track is read back. Await the result.
+ */
+export function relocateTracks(store: Store, label: string, moves: { trackId: string; file: FileFacts }[]): Promise<void> {
+  const roots = listRoots(store);
+  const rows = moves.map((move) => ({ id: v.id("trackId", move.trackId), columns: locationColumns(roots, { file: move.file }) }));
+  return store.changeInBatches(label, rows, (batch) => {
+    for (const { id, columns } of batch) {
+      const names = Object.keys(columns);
+      const changed = oneTrackPerFile(columns.file_name, () =>
+        store.run(
+          `UPDATE tracks SET ${[...names.map((name) => `${name} = ?`), "updated_at = ?"].join(", ")} WHERE id = ?`,
+          ...names.map((name) => columns[name]),
+          store.now(),
+          id,
+        ),
+      );
+      if (changed === 0) throw new NotFoundError("track", id);
+    }
+  });
 }
 
 /** Where a track is used, so the interface can ask before deleting it (DAT-1). */
@@ -364,12 +427,24 @@ export function trackUsage(store: Store, id: string): TrackUsage {
   };
 }
 
-/** Deletes tracks from the library and from every list they are in, as one undoable step. */
-export function deleteTracks(store: Store, ids: string[]): void {
+/** Tracks per transaction when deleting many. */
+const DELETE_BATCH = 100;
+
+/**
+ * Deletes tracks from the library and from every list they are in, as one
+ * undoable step, in batches when there are many (DB review 1); await the result.
+ */
+export function deleteTracks(store: Store, ids: string[]): Promise<void> {
   const trackIds = v.ids("trackIds", ids).map((id) => requireRow(store, "tracks", "track", id));
-  store.change(`Delete ${plural(trackIds.length, "track")}`, () => {
-    for (const id of trackIds) store.run("DELETE FROM tracks WHERE id = ?", id);
-  });
+  // A deleted track takes its tags, playlist entries, markers and profiles with it: about ten rows each.
+  return store.changeInBatches(
+    `Delete ${plural(trackIds.length, "track")}`,
+    trackIds,
+    (batch) => {
+      for (const id of batch) store.run("DELETE FROM tracks WHERE id = ?", id);
+    },
+    { batchSize: DELETE_BATCH },
+  );
 }
 
 /** Replaces a track's "follow with" suggestions, in order (DAT-2, SHW-3). */
@@ -407,9 +482,12 @@ export function getFollowWith(store: Store, trackId: string): string[] {
 export function markTracksUsed(store: Store, ids: string[], at: number = store.now()): void {
   const trackIds = v.ids("trackIds", ids);
   const time = v.integer("at", at, 0, Number.MAX_SAFE_INTEGER);
-  store.changeWithoutHistory(() => {
-    for (const id of trackIds) store.run("UPDATE tracks SET last_used_at = ? WHERE id = ?", time, id);
-  });
+  store.changeWithoutHistory(
+    () => {
+      for (const id of trackIds) store.run("UPDATE tracks SET last_used_at = ? WHERE id = ?", time, id);
+    },
+    { bookkeeping: true },
+  );
 }
 
 /** The full path (or web address) to play a track from. */

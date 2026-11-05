@@ -107,7 +107,7 @@ export function readRules(store: Store, playlists: RuleSettings[]): Map<string, 
 }
 
 /**
- * The SQL that lists the tracks a dynamic playlist plays, in library order:
+ * The SQL that lists the tracks a dynamic playlist plays, in library order (added_seq):
  * the same answer as playlistTracks in src/common/domain (tested against it),
  * worked out in the database through track_tags' indexes. When the rule has a
  * condition that needs a tag, the tracks with that tag are the starting set
@@ -141,8 +141,10 @@ export function dynamicTracksQuery(store: Store, playlistId: string): { sql: str
     const tagIds = store
       .all<{ tag_id: string }>("SELECT tag_id FROM rule_condition_tags WHERE condition_id = ? ORDER BY position", cond.id)
       .map((r) => r.tag_id);
-    // A condition with no tags is still being written: it is ignored.
-    if (tagIds.length === 0) continue;
+    // A saved condition with no tags matches nothing (matchesRule): it is left empty when its last
+    // tag is deleted, and must not widen the playlist to its whole lane. The rule editor previews a
+    // condition still being written with withoutEmptyConditions, so that never reaches the database.
+    if (tagIds.length === 0) return { sql: "SELECT t.id FROM tracks t WHERE 0", params: [] };
     const has = (ids: string[]) => `EXISTS (SELECT 1 FROM track_tags tt WHERE tt.track_id = t.id AND tt.tag_id IN (${placeholders(ids.length)}))`;
     if (cond.match === "any") {
       where.push(has(tagIds));
@@ -166,7 +168,7 @@ export function dynamicTracksQuery(store: Store, playlistId: string): { sql: str
     where.unshift(driver);
     params.unshift(...driverParams);
   }
-  return { sql: `SELECT t.id FROM tracks t WHERE ${where.join(" AND ")} ORDER BY t.rowid`, params };
+  return { sql: `SELECT t.id FROM tracks t WHERE ${where.join(" AND ")} ORDER BY t.added_seq`, params };
 }
 
 /**

@@ -121,7 +121,7 @@ function toPad(row: PadRow, trackIds: string[]): Pad {
 
 /**
  * Drawing a board: its pads (grid row by row, then spare) and their sounds in
- * order, through pads_board and pad_sounds' key. Exported for the query-plan tests.
+ * order, through pads_cell and pad_sounds' key. Exported for the query-plan tests.
  */
 export const BOARD_PADS_SQL = {
   pads: "SELECT * FROM pads WHERE board_id = ? ORDER BY grid_row IS NULL, grid_row, grid_col, spare_position",
@@ -145,7 +145,7 @@ export function getPad(store: Store, id: string): Pad | null {
   const row = store.get<PadRow>("SELECT * FROM pads WHERE id = ?", id);
   if (!row) return null;
   const trackIds = store
-    .all<{ track_id: string }>("SELECT track_id FROM pad_sounds WHERE pad_id = ? ORDER BY position, rowid", id)
+    .all<{ track_id: string }>("SELECT track_id FROM pad_sounds WHERE pad_id = ? ORDER BY position", id)
     .map((r) => r.track_id);
   return toPad(row, trackIds);
 }

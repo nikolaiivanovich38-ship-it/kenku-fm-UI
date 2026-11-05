@@ -39,24 +39,17 @@ export type Loopable = LoopAdvice;
 export const ENDINGS = ["fades", "hard_stop", "resolves"] as const;
 export type Ending = (typeof ENDINGS)[number];
 
-/** Marker kinds (DAT-3). "marker" is a plain named point such as "swell". */
-export const MARKER_KINDS = ["marker", "loop_in", "loop_out", "mix_out"] as const;
+/**
+ * Marker kinds (DAT-3). "marker" is a plain named point such as "swell";
+ * "mix_out" is where the next track may start. Where a loop starts and ends is
+ * the audio profile's (loopStartMs, endMs), stored once (DB review 7).
+ */
+export const MARKER_KINDS = ["marker", "mix_out"] as const;
 export type MarkerKind = (typeof MARKER_KINDS)[number];
 
 /** What a folder holds (ORG-4). Dynamic playlists and scene blocks arrive later. */
 export const FOLDER_SCOPES = ["playlists", "boards", "sessions"] as const;
 export type FolderScope = (typeof FOLDER_SCOPES)[number];
-
-/**
- * A track's default way in or out (DAT-2, PLY-8). PLY-8 may add kinds;
- * stored as JSON so that needs no table change.
- */
-export type Transition =
-  | { kind: "crossfade"; seconds: number; curve: "linear" | "equal_power" }
-  | { kind: "cut" }
-  | { kind: "after_current_ends" }
-  | { kind: "at_mix_out" }
-  | { kind: "after_loop" };
 
 /** Where to put an item among its siblings. */
 export type Placement = "start" | "end" | { before: string } | { after: string };
@@ -67,6 +60,8 @@ export type LibraryRoot = {
   name: string;
   /** Absolute folder path on this computer. */
   path: string;
+  /** New files in it are added by themselves (DB review 9). */
+  watched: boolean;
   createdAt: number;
 };
 
@@ -91,8 +86,6 @@ export type TrackMetadata = {
   role: Role | null;
   loopable: Loopable | null;
   ending: Ending | null;
-  transitionIn: Transition | null;
-  transitionOut: Transition | null;
   /** "Cue something up after this" (DAT-2 example: a sting that must be followed). */
   followRequired: boolean;
   notes: string;
@@ -358,6 +351,20 @@ export type Members = { playlistIds: string[]; boardIds: string[] };
 
 /** A place a playlist or board can be used: a whole campaign, one session, or one scene. */
 export type UseTarget = { campaignId: string } | { sessionId: string } | { sceneId: string };
+
+/**
+ * Where a tag is used; shown before it is deleted (DB review 2). Deleting it
+ * takes it off the tracks, out of the rules (a condition left with no tags then
+ * plays nothing) and leaves the pads silent until given another sound.
+ */
+export type TagUsage = {
+  /** How many tracks carry the tag. */
+  tracks: number;
+  /** Dynamic playlists whose rule names it, by title. */
+  playlists: { id: string; title: string }[];
+  /** Pads that play any effect with the tag, by board then label. */
+  pads: { id: string; label: string; boardId: string; boardTitle: string }[];
+};
 
 /** Where a track is used; shown before it is deleted (DAT-1). */
 export type TrackUsage = {

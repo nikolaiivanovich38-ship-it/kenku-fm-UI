@@ -320,6 +320,16 @@ export function removePlaylistItems(store: Store, itemIds: string[]): void {
       store.run("DELETE FROM playlist_items WHERE id = ?", item.id);
       repo.touch(store, item.playlist_id);
     }
+    // A track's own settings in a playlist go once it is no longer in it (undo puts them back).
+    for (const item of items) {
+      if (item.track_id === null) continue;
+      store.run(
+        `DELETE FROM audio_profiles WHERE playlist_id = ?1 AND track_id = ?2
+           AND NOT EXISTS (SELECT 1 FROM playlist_items WHERE playlist_id = ?1 AND track_id = ?2)`,
+        item.playlist_id,
+        item.track_id,
+      );
+    }
   });
 }
 

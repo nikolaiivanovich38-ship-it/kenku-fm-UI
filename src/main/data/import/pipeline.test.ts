@@ -105,7 +105,7 @@ describe("importAudio (EDT-6)", () => {
 
   it("recognises a file already in the library under a library folder, and stores new ones relative to it", async () => {
     const scores = path.join(temp.folder, "Scores");
-    const root = addRoot(t.store, { name: "Scores", path: scores });
+    const root = await addRoot(t.store, { name: "Scores", path: scores });
     const a = writeAudio(scores, "Witcher/Silver for Monsters.flac");
     const first = await importAudio(t.store, { paths: [scores] });
     expect(getTrack(t.store, first.added[0])!.location).toEqual({ kind: "root", rootId: root.id, path: "Witcher/Silver for Monsters.flac" });

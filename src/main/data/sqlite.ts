@@ -40,9 +40,18 @@ export function loadSqlite(): SqliteModule {
   return sqliteModule;
 }
 
+/** How long a write waits for another connection (a worker's) to let go of the file. */
+export const BUSY_TIMEOUT_MS = 5000;
+
 export type ConnectionOptions = {
   /** Open without the right to change anything (used to check backups). */
   readOnly?: boolean;
+  /**
+   * How a file keeps its changes safe while they are written: "wal" (the
+   * default, write-ahead logging) or "delete" (a rollback journal), for a
+   * folder on a network share, where write-ahead logging cannot work (DB review 6).
+   */
+  journal?: "wal" | "delete";
 };
 
 /**
@@ -59,16 +68,31 @@ export function openConnection(location: string, options: ConnectionOptions = {}
   try {
     db.exec("PRAGMA foreign_keys = ON");
     db.exec("PRAGMA recursive_triggers = ON");
-    db.exec("PRAGMA busy_timeout = 5000");
+    db.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}`);
+    // Temporary tables (undo notes, search marks) and sorting stay in memory, never in a file.
+    db.exec("PRAGMA temp_store = MEMORY");
     if (location !== ":memory:" && !options.readOnly) {
-      db.exec("PRAGMA journal_mode = WAL");
-      // With WAL, NORMAL keeps the file consistent after a crash; at most the
-      // last moment of edits before a power cut can be lost.
-      db.exec("PRAGMA synchronous = NORMAL");
+      const wal = options.journal !== "delete" && journalModeOf(db, "WAL") === "wal";
+      if (wal) {
+        // With WAL, NORMAL keeps the file consistent after a crash; at most the
+        // last moment of edits before a power cut can be lost.
+        db.exec("PRAGMA synchronous = NORMAL");
+      } else {
+        // SQLite keeps the old mode when WAL cannot be used (a network share): use a rollback
+        // journal, and with it FULL, so a crash cannot damage the file.
+        journalModeOf(db, "DELETE");
+        db.exec("PRAGMA synchronous = FULL");
+      }
     }
   } catch (error) {
     db.close();
     throw error;
   }
   return db;
+}
+
+/** Sets the journal mode and returns the one SQLite actually uses ("wal", "delete" …). */
+function journalModeOf(db: DatabaseSync, mode: "WAL" | "DELETE"): string {
+  const row = db.prepare(`PRAGMA journal_mode = ${mode}`).get() as { journal_mode: string };
+  return row.journal_mode.toLowerCase();
 }
