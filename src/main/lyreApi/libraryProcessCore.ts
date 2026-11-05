@@ -58,8 +58,10 @@ export function mediaFolders(library: Library): string[] {
   const roots = library.store.all<{ path: string }>("SELECT path FROM library_roots ORDER BY created_at, rowid").map((r) => r.path);
   const outside = library.store
     .all<{ path: string }>("SELECT path FROM tracks WHERE root_id IS NULL AND path IS NOT NULL")
-    .map((r) => r.path.slice(0, Math.max(r.path.lastIndexOf("\\"), r.path.lastIndexOf("/"))))
-    .filter(Boolean);
+    // Security review 11: each path's own style, so E:\x.mp3 gives E:\ (the drive's root), never the
+    // drive-relative "E:", which would mean the current folder on drive E.
+    .map((r) => (/^[a-zA-Z]:[\\/]|^[\\/]{2}/.test(r.path) ? path.win32 : path.posix).dirname(r.path))
+    .filter((folder) => folder !== "." && folder !== "");
   return [...new Set([...roots, ...outside])];
 }
 
