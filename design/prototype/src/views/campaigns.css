@@ -192,3 +192,13 @@
 
 /* Keeps the hidden ' (Track)' text inside its link, so it cannot widen the page at narrow widths. */
 .cp-it-name { position: relative; }
+/* Round 5: a track named for this scene (DAT-14), its tags (ORG-11) and its waveform, end and fades here (PLY-14). */
+.cp-it-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; padding: 1px 0; }
+.cp-it-main > a { flex: none; position: relative; }
+.cp-it-sub { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: var(--fs-xs); }
+.cp-it-sub .tagstrip { flex: 1 1 auto; }
+.cp-scname-mark { display: inline-flex; align-items: center; gap: 3px; color: var(--ink-2); flex: 0 1 auto; min-width: 0; max-width: 50%; }
+.cp-scname-mark svg.i { width: 11px; height: 11px; flex: none; color: var(--accent-text); }
+a.btn.cp-prof { text-decoration: none; color: var(--ink-2); }
+a.btn.cp-prof:hover { color: var(--ink); }
+.cp-it-sub .faint { white-space: nowrap; flex: none; }

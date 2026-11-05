@@ -4,7 +4,7 @@
  * (t13), which loops from 1:04 to 5:18 and has its own settings in the scene "The abbey ruins".
  */
 import type { Page } from "@playwright/test";
-import { expect, test } from "./support/test";
+import { expect, expectFailureUntilBuilt, test } from "./support/test";
 import { openRoute } from "./support/target";
 
 const wave = (page: Page) => page.getByRole("region", { name: "Waveform and listening", exact: true });
@@ -155,7 +155,7 @@ test.describe("listening while you set it", () => {
   test("Play on air sends the track to the players with these settings", async ({ page }) => {
     await openRoute(page, "profile/t13");
     await wave(page).getByRole("button", { name: "Play on air" }).click();
-    await expect(page.getByRole("region", { name: "On air", exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: /^(On air|Now playing)$/ })).toBeVisible();
   });
 });
 
@@ -233,5 +233,35 @@ test.describe("different settings for different places", () => {
         "Scene: The abbey ruins (The Sunken Crown, session 14) · own settings",
       ]),
     );
+  });
+});
+
+/* Round 5 (design/prototype/ROUND5.md): built in wave 4, so each check waits for "round 5" in the app. */
+test.describe("round 5: settings for the scene or session it was opened from, the name there, and the shape", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 5"));
+
+  test("PLY-14: opened from a scene, it stays on that scene's settings, offers the name in the scene, and Back returns there", async ({ page }) => {
+    await openRoute(page, "profile/t07/sc:crown:s14:sc6");
+    await expect(page.getByRole("combobox", { name: "Settings for" })).toHaveValue("sc:crown:s14:sc6");
+    await expect(page.getByRole("group", { name: "Settings in the scene Aftermath" }).getByRole("button", { name: "Give this place its own settings" })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Name in this scene" })).toHaveValue("Dawn over the abbey");
+    await page.getByRole("button", { name: "Give this place its own settings" }).click();
+    await expect(page.getByText(/Editing own settings for the scene Aftermath/)).toBeVisible();
+    await page.getByRole("button", { name: "Back to Aftermath" }).click();
+    await expect(page.getByRole("button", { name: "Scene 6: Aftermath" })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  test("PLY-14: a session list is a place with its own settings too", async ({ page }) => {
+    await openRoute(page, "profile/t03/ss:crown:s14");
+    const place = page.getByRole("combobox", { name: "Settings for" });
+    await expect(place).toHaveValue("ss:crown:s14");
+    await expect(place.getByRole("option", { name: /^Session list: Session 14: The Drowned Abbey/ })).toHaveCount(1);
+    await expect(page.getByRole("button", { name: "Back to Session 14" })).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Name in this scene" })).toHaveCount(0);
+  });
+
+  test("DAT-13: the header shows the track's shape", async ({ page }) => {
+    await openRoute(page, "profile/t02");
+    await expect(page.getByTitle("Shape: Peaks then falls (suggested from its loudness)")).toBeVisible();
   });
 });

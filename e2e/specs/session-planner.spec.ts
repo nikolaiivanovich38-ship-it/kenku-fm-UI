@@ -338,3 +338,111 @@ test.describe("scenes", () => {
     await expect(page.getByRole("list", { name: "Scenes in order" }).getByRole("listitem")).toHaveCount(5);
   });
 });
+
+/* Round 5 (design/prototype/ROUND5.md): built in wave 4, so each check waits for "round 5" in the app. */
+test.describe("round 5: play order, single tracks, tags, names in scenes and audio settings from the scene", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 5"));
+
+  test("PLY-13: a playlist in a scene has a play order that applies only in that scene", async ({ page }) => {
+    await openAbbey(page);
+    const list = musicOf(abbey(page));
+    const order = list.getByRole("button", { name: /^Play order of Abbey: eerie, low energy: / });
+    await expect(order).toHaveAccessibleName("Play order of Abbey: eerie, low energy: Shuffle, no repeat");
+    await order.click();
+    const menu = page.getByRole("menu", { name: "Play order" });
+    await expect(menu).toContainText("Play order in the scene The abbey ruins");
+    await expect(menu.getByRole("menuitemcheckbox", { name: "Shuffle" })).toHaveAttribute("aria-checked", "true");
+    await menu.getByRole("menuitemradio", { name: /^Repeat one/ }).click();
+    await expect(order).toHaveAccessibleName("Play order of Abbey: eerie, low energy: Shuffle, repeat one");
+    await expect(menu.getByText(/Only in the scene The abbey ruins\. Elsewhere: In order, repeat all\./)).toBeVisible();
+    await page.keyboard.press("Escape");
+    // Elsewhere the playlist keeps its own order.
+    await page.getByRole("link", { name: "Playlists" }).first().click();
+    await expect(page.getByRole("button", { name: "Play order of Abbey: eerie, low energy: In order, repeat all" })).toBeVisible();
+  });
+
+  test("PLY-13: the scene's choice can be taken away, so the playlist's own order applies there too", async ({ page }) => {
+    await openAbbey(page);
+    const list = musicOf(abbey(page));
+    await list.getByRole("button", { name: /^Play order of Abbey: eerie, low energy: / }).click();
+    await page.getByRole("menuitem", { name: "Use the playlist's own order here" }).click();
+    await expect(list.getByRole("button", { name: /^Play order of Abbey: eerie, low energy: / })).toHaveAccessibleName("Play order of Abbey: eerie, low energy: In order, no repeat");
+  });
+
+  test("PLY-13: session playlists have a play order for the session", async ({ page }) => {
+    await openRoute(page, "session/crown/s14");
+    const session = page.getByRole("region", { name: "Session playlists", exact: true });
+    await expect(session.getByRole("button", { name: "Play order of Wistful with some warmth: Shuffle, repeat all" })).toBeVisible();
+  });
+
+  test("ORG-10: an open playlist in Add tracks or playlists… has a box per track, to add just that track", async ({ page }) => {
+    await openAbbey(page);
+    await abbey(page).getByRole("button", { name: "Add tracks or playlists…" }).click();
+    const sheet = dialog(page);
+    await sheet.getByRole("searchbox", { name: "Search the list" }).fill("Ashen King");
+    await sheet.getByRole("button", { name: "Show contents of Ashen King" }).click();
+    const inside = sheet.getByRole("list", { name: "Tracks in Ashen King" });
+    await inside.getByRole("checkbox", { name: "Gothic menace, pounding low brass - villain reveal" }).check();
+    await expect(sheet.getByRole("checkbox", { name: /^Ashen King/ })).not.toBeChecked();
+    await sheet.getByRole("button", { name: "Done" }).click();
+    const names = await linkNames(musicOf(abbey(page)));
+    expect(names).toContain("Gothic menace, pounding low brass - villain reveal");
+    expect(names).not.toContain("Ashen King");
+  });
+
+  test("ORG-11: tracks in a scene's music show their tags, and so does the music picker", async ({ page }) => {
+    await openAbbey(page);
+    const first = musicOf(abbey(page)).getByRole("listitem").first();
+    await expect(first).toContainText("Tags: Dread, Eerie, Drowned Abbess, Exploration");
+    await expect(first).toContainText("+1");
+    await abbey(page).getByRole("button", { name: "Add tracks or playlists…" }).click();
+    await dialog(page).getByRole("searchbox", { name: "Search the list" }).fill("Bridge of Death");
+    await expect(dialog(page)).toContainText("Tags: Dread, Eerie, Drowned Abbess, Exploration");
+  });
+
+  test("DAT-14: a track shows its name in this scene, with its own name kept beside it", async ({ page }) => {
+    await openRoute(page, "session/crown/s14");
+    await page.getByRole("button", { name: "Scene 6: Aftermath" }).click();
+    const list = musicOf(scene(page, "Aftermath"));
+    expect((await linkNames(list))[0]).toBe("Dawn over the abbey");
+    await expect(list.getByRole("listitem").first()).toContainText("Release after loss, ethereal voice, resolves - end of session or death of an NPC");
+    // Folded, the scene's chip uses the scene's name too.
+    await expect(scene(page, "Crypt ambush")).toContainText("The wight rises");
+  });
+
+  test("DAT-14: Name in this scene… names a track for one scene only", async ({ page }) => {
+    await openAbbey(page);
+    const list = musicOf(abbey(page));
+    await list.getByRole("button", { name: "More for Haunted sea shanty, grey and slow - the drowned bells" }).click();
+    await page.getByRole("menuitem", { name: "Name in this scene…" }).click();
+    await dialog(page).getByRole("textbox", { name: 'Name in "The abbey ruins"' }).fill("The drowned bells");
+    await dialog(page).getByRole("button", { name: "Save" }).click();
+    expect((await linkNames(list))[2]).toBe("The drowned bells");
+    await page.getByRole("link", { name: "Library" }).first().click();
+    await page.getByRole("searchbox", { name: "Search tracks" }).fill("Hoist the Colours");
+    await page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Haunted sea shanty/ }).getByRole("gridcell").nth(1).click();
+    await expect(page.getByRole("region", { name: "Details", exact: true })).toContainText(/Names in scenes\s*The drowned bells\s*in The abbey ruins \(Session 14\)/);
+  });
+
+  test("PLY-14: a track in a scene opens its waveform, end and fades for that scene, and Back returns to the scene", async ({ page }) => {
+    await openAbbey(page);
+    await musicOf(abbey(page)).getByRole("link", { name: /^Waveform, end and fades in this scene: Eerie dread/ }).click();
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Eerie dread, low cello and choir");
+    await expect(page.getByRole("combobox", { name: "Settings for" })).toHaveValue("sc:crown:s14:sc3");
+    await expect(page.getByText(/Editing own settings for the scene The abbey ruins/)).toBeVisible();
+    await page.getByRole("button", { name: "Back to The abbey ruins" }).click();
+    await expect(page.getByRole("button", { name: "Scene 3: The abbey ruins" })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  test("ORG-12: Use in… on a scene's track keeps it on hand for the whole session", async ({ page }) => {
+    await openAbbey(page);
+    await musicOf(abbey(page)).getByRole("button", { name: "More for Haunted sea shanty, grey and slow - the drowned bells" }).click();
+    await page.getByRole("menuitem", { name: "Use in…" }).click();
+    const sheet = dialog(page);
+    await expect(sheet.getByRole("heading", { name: 'Use "Haunted sea shanty, grey and slow - the drowned bells" in…' })).toBeVisible();
+    await expect(sheet.getByRole("checkbox", { name: /^Scene: The abbey ruins/ })).toBeChecked();
+    await sheet.getByRole("checkbox", { name: /^Session 14: The Drowned Abbey/ }).check();
+    await sheet.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByRole("region", { name: "Session playlists", exact: true }).getByRole("link", { name: /^Haunted sea shanty, grey and slow - the drowned bells \(single track\)/ })).toBeVisible();
+  });
+});

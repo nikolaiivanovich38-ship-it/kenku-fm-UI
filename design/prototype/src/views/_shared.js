@@ -12,7 +12,9 @@
    L.pickTracks({ title, kinds: ['music','amb','fx'], selected, multi, onDone })    individual tracks, filter Music/Ambience/FX
    L.pickSceneMusic({ title, selected, onDone })   tracks and playlists in one list (a scene's music mixes both)
    L.pickAmbience({ title, selected, onDone })     one ambience track or ambience playlist
-   L.assignSheet(kind 'playlist'|'board', id)       "Use in…": campaigns, sessions and scenes that use it
+   L.assignSheet(kind 'playlist'|'board'|'track', id)  "Use in…": campaigns, sessions and scenes that use it
+   L.orderButton(pid, placeKey)     PLY-13: the play order of a playlist where it is shown (its own when placeKey is ''),
+                                    a button showing shuffle and repeat that opens a menu to change them for that place only
 
    Building blocks for any view:
    L.previewButton(kind, id, size)  'track'|'playlist'|'pad' (id 'board/pad')|'board' (previews its first pad) -> button html
@@ -38,15 +40,53 @@
     if (pk) paintList();
     var c = document.getElementById('pk-count'); if (c && pk) c.textContent = count();
   };
-  L.playOnAirButton = function (kind, id) {
+  // place (optional): the session or campaign list it is played from ('ss:…' / 'cp:…'), for its play order and audio settings.
+  L.playOnAirButton = function (kind, id, place) {
     var name = kind === 'track' ? L.title(L.track(id)) : (L.playlist(id) || {}).name;
-    return '<button type="button" class="btn s icon" data-act="onair" data-kind="' + kind + '" data-id="' + esc(id) + '" data-k="air-' + kind + '-' + esc(id) + '" title="Play on air (the players hear it)" aria-label="Play on air: ' + esc(name) + '">' + L.icon('broadcast', 's') + '</button>';
+    return '<button type="button" class="btn s icon" data-act="onair" data-kind="' + kind + '" data-id="' + esc(id) + '"' + (place ? ' data-place="' + esc(place) + '"' : '') + ' data-k="air-' + kind + '-' + esc(id) + '" title="Play on air (the players hear it)" aria-label="Play on air: ' + esc(name) + '">' + L.icon('broadcast', 's') + '</button>';
   };
   L.acts.onair = function (el) {
-    var k = el.dataset.kind, id = el.dataset.id;
-    if (k === 'track') L.play(id, { fade: 3 });
-    else { var p = L.playlist(id), t0 = L.playlistTracks(p)[0]; if (t0) L.play(t0.id, { lane: p.lane, playlistId: id, fade: 3 }); else L.toast('This playlist has no tracks yet'); }
+    var k = el.dataset.kind, id = el.dataset.id, place = el.dataset.place || '';
+    if (k === 'track') { var t = L.track(id); L.play(id, { fade: 3, place: place }); if (t && t.kind === 'fx') L.toast('Effect on air: ' + L.title(t)); }
+    else { var p = L.playlist(id), t0 = L.orderedTracks(id, place)[0]; if (t0) L.play(t0.id, { lane: p.lane, playlistId: id, place: place, fade: 3 }); else L.toast('This playlist has no tracks yet'); }
   };
+
+  /* ---------- PLY-13 play order: one button, one menu, the same everywhere a playlist is shown ---------- */
+  function orderIcons(o) { return L.icon(o.shuffle ? 'shuffle' : 'inorder', 's') + L.icon(o.repeat === 'one' ? 'repeat1' : 'loop', 's ord-rep' + (o.repeat === 'off' ? ' off' : '')); }
+  function whereWords(key) { var k = L.placeKind(key); return !key ? 'everywhere it has no order of its own' : k === 'scene' ? 'in the scene ' + L.placeLabel(key).replace(/ \(Session \d+\)$/, '') : 'in ' + L.placeLabel(key); }
+  L.orderButton = function (pid, key) {
+    var p = L.playlist(pid); if (!p) return ''; key = key || '';
+    var o = L.orderOf(pid, key), own = key && o.source === 'place', words = L.orderWords(o);
+    return '<button type="button" class="btn s ord' + (own ? ' own' : '') + '" data-act="ordmenu" data-pid="' + esc(pid) + '" data-key="' + esc(key) + '" data-keep-menu="1" data-k="ord-' + esc(pid) + '-' + esc(key.replace(/:/g, '_') || 'own') + '"' +
+      ' aria-haspopup="menu" aria-expanded="false" title="Play order ' + esc(whereWords(key)) + ': ' + esc(words) + (key && !own ? ' (the playlist\'s own)' : '') + '" aria-label="Play order of ' + esc(p.name) + ': ' + esc(words) + '">' + orderIcons(o) +
+      (own ? '<span class="ord-dot" aria-hidden="true"></span><span class="sr-only">, chosen ' + esc(whereWords(key)) + '</span>' : '') + '</button>';
+  };
+  function orderMenu(pid, key) {
+    var o = L.orderOf(pid, key), kind = L.placeKind(key), d = 'data-pid="' + esc(pid) + '" data-key="' + esc(key) + '" data-keep-menu="1"';
+    function radio(v, label, hint, icon) { return '<button role="menuitemradio" aria-checked="' + (o.repeat === v) + '" data-act="ordset" data-repeat="' + v + '" ' + d + '>' + L.icon(o.repeat === v ? 'check' : icon, 's') + '<span class="grow"><span style="display:block">' + label + '</span><span class="hint" style="display:block">' + hint + '</span></span></button>'; }
+    var ownO = L.orderOf(pid, '');
+    return '<div class="group">' + (key ? 'Play order ' + esc(whereWords(key)) : 'Play order of this playlist') + '</div>' +
+      '<button role="menuitemcheckbox" aria-checked="' + o.shuffle + '" data-act="ordset" data-shuffle="1" ' + d + '>' + L.icon(o.shuffle ? 'check' : 'shuffle', 's') + 'Shuffle</button><div class="sep"></div>' +
+      radio('off', 'No repeat', kind === 'scene' ? 'After its last track the scene moves on' : 'Stops after its last track', 'right') +
+      radio('all', 'Repeat all', 'Starts again after its last track', 'loop') +
+      radio('one', 'Repeat one', 'The track playing repeats until you press Next', 'repeat1') +
+      '<div class="sep"></div>' + (key ? '<div class="item hint ord-note">' + (o.source === 'place' ? 'Only ' + esc(whereWords(key)) + '. Elsewhere: ' + esc(L.orderWords(ownO)) + '.' : 'Uses the playlist\'s own order. A change here applies only ' + esc(whereWords(key)) + '.') + '</div>' +
+        (o.source === 'place' ? '<button role="menuitem" data-act="ordclear" ' + d.replace(' data-keep-menu="1"', '') + '>' + L.icon('restart', 's') + 'Use the playlist\'s own order here</button>' : '')
+        : '<div class="item hint ord-note">Scenes, sessions and campaigns can have their own.</div>');
+  }
+  L.acts.ordmenu = function (el) { L.menu(el, orderMenu(el.dataset.pid, el.dataset.key || ''), 'Play order'); };
+  L.acts.ordset = function (el) {
+    var pid = el.dataset.pid, key = el.dataset.key || '', o = L.orderOf(pid, key), anchorK = 'ord-' + pid + '-' + (key.replace(/:/g, '_') || 'own'), which = el.dataset.shuffle ? 'shuffle' : el.dataset.repeat;
+    L.setOrder(pid, key, el.dataset.shuffle ? { shuffle: !o.shuffle } : { repeat: el.dataset.repeat });
+    L.state.shuffleRound++;
+    L.say(L.orderWords(L.orderOf(pid, key)) + ' ' + whereWords(key));
+    // Keep the menu open on the same item so shuffle and repeat can both be changed; the button behind it is redrawn.
+    L.closeMenu(); L.render(); if (pk) paintList();
+    var a = document.querySelector('[data-k="' + anchorK + '"]'); if (!a) return;
+    L.acts.ordmenu(a);
+    var item = document.querySelector('.menu [data-act="ordset"][' + (which === 'shuffle' ? 'data-shuffle' : 'data-repeat="' + which + '"') + ']'); if (item) item.focus();
+  };
+  L.acts.ordclear = function (el) { L.clearOrder(el.dataset.pid, el.dataset.key); L.say('Uses the playlist\'s own order here: ' + L.orderWords(L.orderOf(el.dataset.pid, el.dataset.key))); L.render(); if (pk) paintList(); };
   L.expanded = function (key) { return !!L.state.xp[key]; };
   L.expanderButton = function (key, label, open) {
     open = open == null ? L.expanded(key) : open;
@@ -58,8 +98,12 @@
     if (kind === 'playlist') {
       var p = L.playlist(id), ts = L.playlistTracks(p);
       if (!ts.length) return '<p class="hint">No tracks yet' + (p && p.kind === 'dynamic' ? ': no track matches its tags.' : '.') + '</p>';
+      // In a scene, each track shows the scene's name for it (DAT-14) and its tags (ORG-11); its waveform, end and fades
+      // open on the scene's or session's own settings (PLY-14).
+      var inScene = profileKey && String(profileKey).indexOf('sc:') === 0 ? profileKey : '';
       return '<ol class="list" aria-label="Tracks in ' + esc(p.name) + '">' + ts.map(function (t, i) {
-        return '<li class="xp-row"><span class="faint num">' + (i + 1) + '</span><span class="grow" title="' + esc(L.title(t)) + '">' + esc(L.title(t)) + '</span><span class="num faint">' + L.fmt(t.dur) + '</span>' + (L.profileLink && profileKey !== false ? L.profileLink(t.id, profileKey || 'pl:' + id, true) : '') + L.previewButton('track', t.id) + '</li>';
+        var nm = L.nameIn(t, inScene);
+        return '<li class="xp-row"><span class="faint num">' + (i + 1) + '</span><span class="grow ellipsis" title="' + esc(nm !== L.title(t) ? 'Its own name: ' + L.title(t) : L.title(t)) + '">' + esc(nm) + '</span>' + L.tagStrip(t, 2) + '<span class="num faint">' + L.fmt(t.dur) + '</span>' + (L.profileLink && profileKey !== false ? L.profileLink(t.id, profileKey || 'pl:' + id, true) : '') + L.previewButton('track', t.id) + '</li>';
       }).join('') + '</ol>';
     }
     var b = L.board(id); if (!b) return '';
@@ -81,8 +125,20 @@
     var row = '<div class="pk-row">' + (it.contents ? L.expanderButton(xk, it.label) : '<span style="width:24px;flex:none"></span>') +
       '<label class="pk-item' + (it.indent ? ' indent' : '') + '"><input type="' + (pk.multi ? 'checkbox' : 'radio') + '" name="pk" data-input="pkpick" value="' + esc(it.id) + '"' + (on ? ' checked' : '') + '>' +
       '<span class="grow"><span class="ellipsis" style="display:block">' + esc(it.label) + '</span>' + (it.sub ? '<span class="hint ellipsis" style="display:block">' + esc(it.sub) + '</span>' : '') + '</span></label>' +
-      (it.preview ? L.previewButton(it.preview.kind, it.preview.id) : '') + '</div>';
-    return row + (it.contents && L.expanded(xk) ? '<div class="xp-body">' + L.contentsHTML(it.contents.kind, it.contents.id, false) + '</div>' : '');
+      (it.track ? L.tagStrip(it.track, 3) : '') + (it.preview ? L.previewButton(it.preview.kind, it.preview.id) : '') + '</div>';
+    if (!(it.contents && L.expanded(xk))) return row;
+    // ORG-10: in a picker that takes single tracks, an open playlist lists its tracks with a box each, to add only those.
+    if (pk.inside && it.isPlaylist) return row + '<div class="xp-body pk-inside">' + insideHTML(it) + '</div>';
+    return row + '<div class="xp-body">' + L.contentsHTML(it.contents.kind, it.contents.id, false) + '</div>';
+  }
+  function insideHTML(it) {
+    var ts = L.playlistTracks(L.playlist(it.id));
+    if (!ts.length) return '<p class="hint">No tracks yet.</p>';
+    return '<p class="hint pk-inside-h">Tick single tracks to add only those, or tick the playlist above to add all of it.</p><ul class="list" aria-label="Tracks in ' + esc(it.label) + '">' + ts.map(function (t) {
+      var on = pk.sel.indexOf(t.id) > -1;
+      return '<li class="pk-row pk-inrow"><label class="pk-item"><input type="checkbox" data-input="pkpick" value="' + esc(t.id) + '" data-k="pki-' + esc(it.id) + '-' + esc(t.id) + '"' + (on ? ' checked' : '') + '>' +
+        '<span class="grow ellipsis">' + esc(L.title(t)) + '</span></label>' + L.tagStrip(t, 2) + '<span class="num faint">' + L.fmt(t.dur) + '</span>' + L.previewButton('track', t.id) + '</li>';
+    }).join('') + '</ul>';
   }
   function list() {
     var groups = {}, order = [], q = pk.q;
@@ -104,7 +160,7 @@
     var c = document.getElementById('pk-count'); if (c) c.textContent = count();
   }
   L.pickerSheet = function (o) {
-    pk = { items: o.items, sel: (o.selected || []).slice(), multi: !!o.multi, onDone: o.onDone, q: '', fold: !!o.fold, open: {}, filters: o.filters || null, filter: o.filters ? o.filters[0].id : '' };
+    pk = { items: o.items, sel: (o.selected || []).slice(), multi: !!o.multi, inside: !!o.inside, onDone: o.onDone, q: '', fold: !!o.fold, open: {}, filters: o.filters || null, filter: o.filters ? o.filters[0].id : '' };
     if (pk.fold) { (o.openGroups || []).forEach(function (g) { pk.open[g] = true; }); o.items.forEach(function (it) { if (pk.sel.indexOf(it.id) > -1) pk.open[it.group] = true; }); }
     L.sheet({ title: o.title, wide: !!o.wide,
       body: (o.intro ? '<p class="muted" style="margin-bottom:8px">' + o.intro + '</p>' : '') +
@@ -121,6 +177,8 @@
     if (!pk.multi) pk.sel = [el.value];
     else if (el.checked) { if (pk.sel.indexOf(el.value) < 0) pk.sel.push(el.value); } else pk.sel = pk.sel.filter(function (x) { return x !== el.value; });
     var c = document.getElementById('pk-count'); if (c) c.textContent = count();
+    // The same track can be ticked inside its playlist and in the Tracks list: redraw so both boxes agree.
+    if (pk.inside) paintList();
   };
   L.acts.pkdone = function () { var f = pk.onDone, s = pk.sel.slice(); L.closeSheet(); if (f) f(s); L.render(); };
   // Closing a picker stops its preview, so nothing keeps playing in your headphones after you leave it.
@@ -163,8 +221,8 @@
   L.pickSceneMusic = function (o) {
     var items = D.playlists.filter(function (p) { return p.lane !== 'amb'; }).map(function (p) { return playlistItem(p, 'Playlists'); })
       .concat(D.tracks.filter(function (t) { return t.kind !== 'amb'; }).map(function (t) { return trackItem(t, 'Tracks'); }));
-    L.pickerSheet({ title: o.title || 'Add music to the scene', items: items, selected: o.selected, multi: true, onDone: o.onDone, wide: true,
-      intro: o.intro || 'Tick playlists, single tracks or both. They play in the scene in the order you tick them; you can reorder them afterwards.',
+    L.pickerSheet({ title: o.title || 'Add music to the scene', items: items, selected: o.selected, multi: true, inside: true, onDone: o.onDone, wide: true,
+      intro: o.intro || 'Tick playlists, single tracks or both; open a playlist to tick only some of its tracks. They play in the scene in the order you tick them; you can reorder them afterwards.',
       filters: [{ id: 'all', label: 'All', test: function () { return true; } }, { id: 'pl', label: 'Playlists', test: function (it) { return it.isPlaylist; } },
         { id: 'music', label: 'Tracks', test: function (it) { return !it.isPlaylist && it.kind === 'music' && !L.isFx(it.track); } }, { id: 'fx', label: 'FX', test: function (it) { return it.isPlaylist ? it.lane === 'fx' : L.isFx(it.track); } }] });
   };
@@ -175,16 +233,19 @@
   };
 
   /* ---------- Use in… ---------- */
+  // kind 'playlist', 'board' or 'track' (ORG-12): a track is kept on hand in a campaign or session (c.tracks, s.tracks)
+  // and plays in a scene's music (or is its ambience, for an ambience track).
+  function listOf(kind, x) { return kind === 'board' ? x.boards : kind === 'track' ? (x.tracks || (x.tracks = [])) : x.playlists; }
   function targets(kind, id) {
     var items = [], sel = [];
     D.campaigns.forEach(function (c) {
-      var list = kind === 'board' ? c.boards : c.playlists;
+      var list = listOf(kind, c);
       items.push({ id: 'c:' + c.id, label: c.name + ': whole campaign', sub: 'Available in every session', group: c.name }); if (list.indexOf(id) > -1) sel.push('c:' + c.id);
       c.sessions.forEach(function (s) {
-        var sl = kind === 'board' ? s.boards : s.playlists;
+        var sl = listOf(kind, s);
         items.push({ id: 's:' + c.id + ':' + s.id, label: 'Session ' + s.n + ': ' + s.name, sub: 'Available in every scene of this session', group: c.name }); if (sl.indexOf(id) > -1) sel.push('s:' + c.id + ':' + s.id);
         s.scenes.forEach(function (sc) {
-          var isAmb = kind !== 'board' && L.playlist(id) && L.playlist(id).lane === 'amb', cur = isAmb ? sc.amb : '';
+          var obj = kind === 'track' ? L.track(id) : L.playlist(id), isAmb = kind !== 'board' && obj && (kind === 'track' ? obj.kind === 'amb' : obj.lane === 'amb'), cur = isAmb ? sc.amb : '';
           var curName = cur && cur !== id ? ((L.playlist(cur) || L.track(cur) || {}).name || L.title(L.track(cur))) : '';
           items.push({ id: 'x:' + c.id + ':' + s.id + ':' + sc.id, label: 'Scene: ' + sc.name, indent: true, group: c.name,
             sub: 'Session ' + s.n + ' · ' + (kind === 'board' ? 'one of the pad boards in this scene' : isAmb ? 'ambience for this scene' : 'music for this scene') + (curName ? ' (replaces ' + curName + ')' : '') });
@@ -195,25 +256,26 @@
     return { items: items, sel: sel };
   }
   L.assignSheet = function (kind, id) {
-    var t = targets(kind, id), obj = kind === 'board' ? L.board(id) : L.playlist(id);
-    L.pickerSheet({ title: 'Use "' + obj.name + '" in…', multi: true, items: t.items, selected: t.sel, okLabel: 'Save', fold: true,
+    var t = targets(kind, id), obj = kind === 'board' ? L.board(id) : kind === 'track' ? L.track(id) : L.playlist(id), name = kind === 'track' ? L.title(obj) : obj.name;
+    var isAmb = kind === 'track' ? obj.kind === 'amb' : obj.lane === 'amb';
+    L.pickerSheet({ title: 'Use "' + name + '" in…', multi: true, items: t.items, selected: t.sel, okLabel: 'Save', fold: true,
       openGroups: [(L.campaign(L.state.ctx.cid) || {}).name],
       intro: 'Tick a campaign to make it available all campaign long, a session for that evening, or a scene to ' + (kind === 'board' ? 'add this board to that scene.' : 'play it in that scene.'),
       onDone: function (ids) {
         D.campaigns.forEach(function (c) {
           function setIn(arr, on) { var i = arr.indexOf(id); if (on && i < 0) arr.push(id); if (!on && i > -1) arr.splice(i, 1); }
-          setIn(kind === 'board' ? c.boards : c.playlists, ids.indexOf('c:' + c.id) > -1);
+          setIn(listOf(kind, c), ids.indexOf('c:' + c.id) > -1);
           c.sessions.forEach(function (s) {
-            setIn(kind === 'board' ? s.boards : s.playlists, ids.indexOf('s:' + c.id + ':' + s.id) > -1);
+            setIn(listOf(kind, s), ids.indexOf('s:' + c.id + ':' + s.id) > -1);
             s.scenes.forEach(function (sc) {
               var on = ids.indexOf('x:' + c.id + ':' + s.id + ':' + sc.id) > -1;
               if (kind === 'board') { if (!sc.boards) sc.boards = L.sceneBoards(sc).slice(); setIn(sc.boards, on); }
-              else if (obj.lane === 'amb') { if (on) sc.amb = id; else if (sc.amb === id) sc.amb = ''; }
+              else if (isAmb) { if (on) sc.amb = id; else if (sc.amb === id) sc.amb = ''; }
               else setIn(sc.music, on);
             });
           });
         });
-        L.toast('Saved where "' + obj.name + '" is used');
+        L.toast('Saved where "' + name + '" is used');
       } });
   };
 })();

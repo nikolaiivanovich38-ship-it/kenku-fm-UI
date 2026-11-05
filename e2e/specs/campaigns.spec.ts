@@ -172,7 +172,8 @@ test.describe("playlists and pad boards on hand in every session", () => {
     expectFailureUntilBuilt("on-air bar"); // the shell's on-air bar is not built yet
     await openRoute(page, "campaign/crown");
     await region(page, "Campaign playlists").getByRole("button", { name: "Play on air: The Company themes" }).click();
-    const bar = region(page, "On air");
+    // 0.3's bar is "On air"; round 5 calls it "Now playing" (it also shows a preview).
+    const bar = page.getByRole("region", { name: /^(On air|Now playing)$/ });
     await expect(bar).toBeVisible();
     await expect(bar.getByRole("link", { name: "Go to Live" })).toBeVisible();
     await bar.getByRole("button", { name: "Stop" }).click();
@@ -206,5 +207,73 @@ test.describe("playlists and pad boards on hand in every session", () => {
     await expect(boards.getByRole("button", { name: "Preview the first pad of Combat" })).toBeVisible();
     await boards.getByRole("button", { name: "Show contents of Combat" }).click();
     await expect(boards.getByRole("button", { name: "Hide contents of Combat" })).toBeVisible();
+  });
+});
+
+/* Round 5 (design/prototype/ROUND5.md): built in wave 4, so each check waits for "round 5" in the app. */
+test.describe("round 5: the Now playing bar and play order on the campaign page", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 5"));
+
+  test("UX-16: the Now playing bar has a row tagged On air: what plays, where it comes from and how far, with Pause, Stop, Next and Volume", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    await expect(region(page, "Now playing")).toHaveCount(0);
+    await region(page, "Campaign playlists").getByRole("button", { name: "Play on air: The Company themes" }).click();
+    const row = region(page, "Now playing").getByRole("group", { name: "On air", exact: true });
+    await expect(row.getByTitle("The players hear this")).toHaveText("On air");
+    await expect(row).toContainText("Epic choir hero anthem - the Company's big moment");
+    await expect(row).toContainText("Playlist: The Company themes · The Sunken Crown");
+    await expect(row).toContainText(/\d:\d\d \/ 3:57/);
+    await expect(row.getByRole("slider", { name: "Volume in Table" })).toHaveValue("85");
+    await expect(row.getByRole("button", { name: /^Play order of The Company themes: / })).toBeVisible();
+    await expect(row.getByRole("link", { name: "Go to Live" })).toBeVisible();
+    await row.getByRole("button", { name: "Next" }).click();
+    await expect(row).toContainText("Heroic charge - horns, gallop, full orchestra");
+  });
+
+  test("UX-16: paused, the row stays and says Paused; stopped, the bar goes", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    await region(page, "Campaign playlists").getByRole("button", { name: "Play on air: The Company themes" }).click();
+    const bar = region(page, "Now playing");
+    await bar.getByRole("button", { name: "Pause", exact: true }).click();
+    await expect(bar.getByRole("group", { name: "Paused", exact: true })).toContainText("Paused");
+    await expect(bar.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+    await bar.getByRole("button", { name: "Play", exact: true }).click();
+    await expect(bar.getByRole("button", { name: "Pause", exact: true })).toBeVisible();
+    await bar.getByRole("button", { name: "Stop", exact: true }).click();
+    await expect(bar).toBeHidden({ timeout: 10_000 });
+  });
+
+  test("UX-16: a preview and music on air play at once, each in its own row: On air for the players, Only you for the headphones", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    const lists = region(page, "Campaign playlists");
+    await lists.getByRole("button", { name: "Play on air: The Company themes" }).click();
+    await lists.getByRole("button", { name: "Preview Ashen King" }).click();
+    const bar = region(page, "Now playing");
+    const air = bar.getByRole("group", { name: "On air", exact: true });
+    const you = bar.getByRole("group", { name: "Only you", exact: true });
+    await expect(air).toContainText("Epic choir hero anthem");
+    await expect(you.getByTitle("Only you hear this, in your headphones")).toHaveText("Only you");
+    await expect(you).toContainText("Previewed from the campaign page");
+    await expect(you.getByRole("slider", { name: "Headphone volume" })).toBeVisible();
+    await you.getByRole("button", { name: "Stop the preview" }).click();
+    await expect(you).toHaveCount(0);
+    await expect(air).toBeVisible();
+  });
+
+  test("PLY-13: a campaign playlist's play order applies when it plays from the campaign", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    const order = region(page, "Campaign playlists").getByRole("button", { name: /^Play order of The Company themes: / });
+    await expect(order).toHaveAccessibleName("Play order of The Company themes: In order, repeat all");
+    await order.click();
+    await page.getByRole("menuitemcheckbox", { name: "Shuffle" }).click();
+    await page.keyboard.press("Escape");
+    await expect(order).toHaveAccessibleName("Play order of The Company themes: Shuffle, repeat all");
+    await expect(page.getByRole("region", { name: "Campaign playlists", exact: true }).getByRole("button", { name: /^Play order of Ashen King: / })).toHaveAccessibleName("Play order of Ashen King: In order, repeat all");
+  });
+
+  test("ORG-12: single tracks kept on hand for the campaign are listed with its playlists", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    await expect(region(page, "Campaign playlists").getByRole("link", { name: "Ominous song, the villain's calling card (short) (single track)" })).toBeVisible();
+    await expect(region(page, "Campaign playlists").getByRole("button", { name: "Play on air: Ominous song, the villain's calling card (short)" })).toBeVisible();
   });
 });

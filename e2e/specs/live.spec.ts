@@ -3,7 +3,7 @@
  * Elements are found by role, accessible name and visible text only.
  */
 import type { Page } from "@playwright/test";
-import { expect, test } from "./support/test";
+import { expect, expectFailureUntilBuilt, test } from "./support/test";
 import { joinRoom, leaveAllRooms, openRoute } from "./support/target";
 
 const region = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
@@ -387,5 +387,63 @@ test.describe("rooms", () => {
     await page.getByRole("menuitem", { name: /^Leave/ }).click();
     await expect(region(page, "On air: Side room")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /choose a room/i })).toHaveCount(0);
+  });
+});
+
+/* Round 5 (design/prototype/ROUND5.md): built in wave 4, so each check waits for "round 5" in the app. */
+test.describe("round 5: the Now playing bar, names in scenes, play order and single tracks in Live", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 5"));
+
+  test("UX-16: in Live the room boxes show what each room hears, so the Now playing bar shows only a preview, tagged Only you", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    await expect(region(page, "On air: Table").getByText("Playing")).toBeVisible();
+    await expect(region(page, "Now playing")).toHaveCount(0);
+    await region(page, "Scene music").getByRole("button", { name: /^Preview: / }).first().click();
+    const bar = region(page, "Now playing");
+    await expect(bar.getByRole("group", { name: "Only you", exact: true })).toContainText("Previewed from Live");
+    await expect(bar.getByRole("group", { name: /^On air/ })).toHaveCount(0);
+    await bar.getByRole("button", { name: "Stop the preview" }).click();
+    await expect(bar).toBeHidden();
+  });
+
+  test("UX-16: with two rooms playing, the Now playing bar on a prep screen has a row for each, tagged with the room's name", async ({ page }) => {
+    await openRoute(page, "live");
+    await addSideRoom(page);
+    const music = region(page, "Scene music");
+    await music.getByRole("button", { name: /choose a room/i }).click();
+    await page.getByRole("menuitemradio", { name: "Side room" }).click();
+    await music.getByRole("button", { name: "Play on air in Side room: Coast road travel" }).click();
+    await startAbbey(page); // scenes always start in the first room, Table
+    await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Pad boards" }).click();
+    const bar = region(page, "Now playing");
+    await expect(bar.getByRole("group", { name: "On air: Table" }).getByTitle("The players hear this in Table")).toHaveText("On air · Table");
+    await expect(bar.getByRole("group", { name: "On air: Table" })).toContainText("Eerie dread, low cello and choir");
+    await expect(bar.getByRole("group", { name: "On air: Side room" })).toBeVisible();
+    await expect(bar.getByRole("slider", { name: "Volume in Side room" })).toBeVisible();
+  });
+
+  test("DAT-14: a scene's name for a track shows in its list, its On air box and the bar, with its own name on hover", async ({ page }) => {
+    await openRoute(page, "live");
+    await page.getByRole("button", { name: "Start scene 6: Aftermath" }).click();
+    await expect(region(page, "On air: Table")).toContainText("Dawn over the abbey");
+    await expect(region(page, "Scene music").getByRole("button", { name: "Dawn over the abbey", exact: true })).toBeVisible();
+    await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Library" }).click();
+    await expect(region(page, "Now playing")).toContainText("Dawn over the abbey");
+    await expect(region(page, "Now playing").getByTitle("Its own name: Release after loss, ethereal voice, resolves - end of session or death of an NPC")).toBeVisible();
+  });
+
+  test("PLY-13: a playlist in the scene's list has its play order for this scene", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    await expect(region(page, "Scene music").getByRole("button", { name: "Play order of Abbey: eerie, low energy: Shuffle, no repeat" })).toBeVisible();
+    await expect(region(page, "Scene music").getByRole("button", { name: "Play order of The Abbess: In order, no repeat" })).toBeVisible();
+  });
+
+  test("ORG-12: the campaign's single tracks are in its menu, ready to play on air", async ({ page }) => {
+    await openRoute(page, "live");
+    await page.getByRole("button", { name: /^Campaign:/ }).click();
+    await page.getByRole("menuitem", { name: /^Play on air: Ominous song, the villain's calling card/ }).click();
+    await expect(region(page, "On air: Table")).toContainText("Ominous song, the villain's calling card");
   });
 });

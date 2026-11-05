@@ -39,7 +39,7 @@
   function playlistOnAir(p) { var pb = L.pb; return !!((pb.music && pb.music.playlistId === p.id) || (pb.amb && pb.amb.playlistId === p.id)); }
   function onAirFrom(pl) { var c = L.pb[pl.lane === 'amb' ? 'amb' : 'music']; return c && c.playlistId === pl.id ? c : null; }
   // L.ruleText, leaving out conditions that have no values yet (they would read "Mood any of ;").
-  function ruleWords(rule) { var r = { conds: rule.conds.filter(function (c) { return c.values.length; }), energy: rule.energy, notRole: rule.notRole }; return L.ruleText(r); }
+  function ruleWords(rule) { var r = { conds: rule.conds.filter(function (c) { return c.values.length; }), energy: rule.energy, notRole: rule.notRole, shapes: rule.shapes }; return L.ruleText(r); }
   function blankRule() { return { conds: [], energy: [0, 5] }; }
   function cleanRule(rule) {   // keep the rule text plain: drop a full energy range and an unused stings flag
     if (rule.energy && rule.energy[0] <= 0 && rule.energy[1] >= 5) delete rule.energy;
@@ -88,10 +88,10 @@
       '<div class="pl-namecell">' + L.expanderButton(xk, p.name) +
         '<span class="pl-kicon" aria-hidden="true">' + L.icon(k.icon, 's') + '</span><span class="lane-dot ' + p.lane + '" aria-hidden="true"></span>' +
         '<a href="#/playlist/' + p.id + '" data-k="open-' + p.id + '" class="ellipsis pl-nm">' + esc(p.name || 'Untitled playlist') + '<span class="sr-only">, ' + k.name + ', ' + laneName(p.lane) + ', ' + (uses.length ? 'used in ' + usedText(uses) : 'not used yet') + '</span></a>' +
-        (playlistOnAir(p) ? '<span class="badge onair">On air</span>' : '') + '</div>' +
+        (playlistOnAir(p) ? L.destTag('air', '') : '') + '</div>' +
       '<div class="num pl-c" aria-label="' + plural(tracks.length, 'track') + '">' + tracks.length + '</div>' +
       '<div class="num pl-c muted" aria-label="Length ' + len + '">' + len + '</div>' +
-      '<div class="pl-racts">' + L.previewButton('playlist', p.id) + L.playOnAirButton('playlist', p.id) + moreBtn('more-' + p.id, p.name, 'plrowmore', 'data-id="' + p.id + '"') + '</div></div>' +
+      '<div class="pl-racts">' + L.previewButton('playlist', p.id) + L.playOnAirButton('playlist', p.id) + L.orderButton(p.id, '') + moreBtn('more-' + p.id, p.name, 'plrowmore', 'data-id="' + p.id + '"') + '</div></div>' +
       (open ? '<div class="xp-body pl-xp"><p class="pl-xpmeta">' + (rule ? '<span>' + L.icon('tag', 's') + esc(rule) + '</span>' : '') +
         '<span>' + L.icon('link', 's') + (uses.length ? esc(uses.map(function (u) { return u.label; }).join('; ')) : 'Not used yet') + '</span></p>' + L.contentsHTML('playlist', p.id) + '</div>' : '') + '</li>';
   }
@@ -150,7 +150,7 @@
       (o.manual ? '<span class="pl-grip" title="Drag to change the order" aria-hidden="true">' + L.icon('drag') + '</span><span class="pl-pos num">' + o.pos + '</span>' : '') +
       '<div class="pl-tline"><a class="pl-tname" href="#/library/' + t.id + '" data-k="' + p + 'tl-' + t.id + '" title="' + esc(trackTip(t)) + '">' + esc(L.title(t)) + '</a>' +
         (own ? '<span class="pl-own" title="Has its own audio profile in this playlist"><span class="pl-own-dot" aria-hidden="true"></span><span class="sr-only">Own audio profile in this playlist</span></span>' : '') +
-        (air ? '<span class="badge onair">On air</span>' : '') +
+        (air ? L.destTag('air', '') : '') + (pv ? L.destTag('you', '') : '') +
         (L.isFx(t) ? '<span class="chip"><span class="lane-dot fx"></span>' + (t.kind === 'fx' ? 'FX' : 'FX · Sting') + '</span>' : '') + '</div>' +
       '<span class="num muted pl-dur">' + L.fmt(t.dur) + '</span><span class="pl-tacts">' + acts + '</span></li>';
   }
@@ -162,11 +162,13 @@
       '<button role="menuitem" data-act="plmove" data-d="1" data-tid="' + t.id + '"' + (i === n - 1 ? ' disabled' : '') + '>' + L.icon('chevdown', 's') + 'Move down<span class="kbd pl-mk">Alt+↓</span></button>' +
       '<button role="menuitem" data-act="plrm" data-tid="' + t.id + '">' + L.icon('close', 's') + 'Remove from this playlist</button><div class="sep"></div>';
     h += '<button role="menuitem" data-act="plprofile" data-tid="' + t.id + '">' + L.icon('wave', 's') + 'Audio profile in this playlist</button>' +
+      '<button role="menuitem" data-act="pltusein" data-tid="' + t.id + '">' + L.icon('link', 's') + 'Use in…</button>' +
       '<button role="menuitem" data-act="pllib" data-tid="' + t.id + '">' + L.icon('library', 's') + 'Open in the Library</button>';
     L.menu(el, h, 'More for ' + L.title(t));
   };
   L.acts.plprofile = function (el) { L.route('#/profile/' + el.dataset.tid + '/pl:' + cur().id); };
   L.acts.pllib = function (el) { L.route('#/library/' + el.dataset.tid); };
+  L.acts.pltusein = function (el) { L.assignSheet('track', el.dataset.tid); };
 
   /* ---------- one playlist ---------- */
   function tracksPane(pl, tracks, air) {
@@ -218,6 +220,11 @@
         '<span class="pl-energy"><span class="faint" id="pl-en-l">Energy from</span><select class="input pl-sel pl-num" data-input="plen" data-e="0" data-k="en0" aria-label="Lowest energy" aria-describedby="pl-en-hint">' + opts(en[0]) + '</select>' +
         '<span class="faint">to</span><select class="input pl-sel pl-num" data-input="plen" data-e="1" data-k="en1" aria-label="Highest energy" aria-describedby="pl-en-hint">' + opts(en[1]) + '</select></span>' +
         '<label class="pl-check"><input type="checkbox" data-input="plsting" data-k="plsting"' + (r.notRole === 'Sting' ? ' checked' : '') + '>Leave out stings</label></div>' +
+        // DAT-13: only tracks of these shapes (the shape the GM chose, else the one Lyre suggests). None pressed: any shape.
+        '<div class="pl-shapes" role="group" aria-label="Shape: how the track moves"><span class="faint">Shape</span>' + L.SHAPES.map(function (x) {
+          var on = (r.shapes || []).indexOf(x[0]) > -1;
+          return '<button type="button" class="chip pl-shape" data-act="plshape" data-v="' + x[0] + '" data-k="plsh-' + x[0] + '" aria-pressed="' + on + '">' + L.shapeGlyph(x[0]) + x[1] + '</button>';
+        }).join('') + '<span class="hint">' + ((r.shapes || []).length ? '' : 'Any shape') + '</span></div>' +
         '<p class="pl-words"><span class="faint">In plain words:</span> ' + esc(laneName(pl.lane)) + ' tracks' + (words ? ' with ' + esc(words) : ', all of them') + '.' + (waiting ? ' <span class="pl-warn">A condition still needs a value, so nothing matches yet.</span>' : '') + '</p>' +
         // The energy lists start at 0, which is a track whose energy is not set.
         '<p class="hint pl-enhint" id="pl-en-hint">Energy 0 means a track with no energy set.</p>' });
@@ -247,7 +254,9 @@
   }
   function detailsPane(pl, tracks) {
     var k = KIND[pl.kind];
-    return L.pane({ id: 'pl-details', title: 'Details', icon: 'edit', kind: 'plain', size: 'auto', status: status('Saved'), summary: pl.notes ? 'Has notes' : '',
+    // EDT-8: a dynamic playlist's Details sit at the top with its rules, folded until opened (a new one opens them).
+    return L.pane({ id: 'pl-details', title: 'Details', icon: 'edit', kind: 'plain', size: 'auto', status: status('Saved'), summary: pl.notes ? 'Has notes' : esc(KIND[pl.kind].name + ' · ' + laneName(pl.lane)),
+      collapsed: pl.kind === 'dynamic',
       body: '<div class="stack pl-details"><div class="field"><label for="pl-name">Name</label><input id="pl-name" class="input" type="text" data-input="plname" data-k="plname" value="' + esc(pl.name) + '"></div>' +
         '<p class="pl-facts" title="' + (pl.kind === 'manual' ? 'Manual: you pick the tracks and their order.' : 'Dynamic: Lyre fills it with every track that matches the rules, including tracks you tag later.') + '">' + kindLane(pl) + '</p>' +
         '<div class="field"><label for="pl-notes">Notes</label><textarea id="pl-notes" class="input" rows="3" data-input="plnotes" data-k="plnotes" placeholder="When to use it, what to avoid…">' + esc(pl.notes || '') + '</textarea></div>' +
@@ -259,19 +268,19 @@
     if (!pl) return '<div class="viewhead"><nav class="crumbs" aria-label="Breadcrumb"><a href="#/playlists">Playlists</a></nav><h1>Playlist not found</h1></div><div class="empty">This playlist no longer exists. <a href="#/playlists">Back to all playlists</a></div>';
     var tracks = L.playlistTracks(pl), uses = L.usesOfPlaylist(pl.id), air = onAirFrom(pl), first = tracks[0];
     var pv = L.previewing('pl:' + pl.id) || tracks.some(function (t) { return L.previewing(t.id); });
-    var main = pl.kind === 'manual' ? [tracksPane(pl, tracks, air), addPane(pl)] : [rulesPane(pl), matchPane(pl, tracks, air)];
-    var side = [usesPane(pl, uses), detailsPane(pl, tracks)];
+    var main = pl.kind === 'manual' ? [tracksPane(pl, tracks, air), addPane(pl)] : [detailsPane(pl, tracks), rulesPane(pl), matchPane(pl, tracks, air)];
+    var side = pl.kind === 'manual' ? [usesPane(pl, uses), detailsPane(pl, tracks)] : [usesPane(pl, uses)];
     function col(cls, panes, ids) { return '<div class="col ' + cls + (ids.indexOf(L.state.maxed) > -1 ? ' has-max' : '') + '">' + panes.join('') + '</div>'; }
     return '<div class="viewhead pl-head"><nav class="crumbs" aria-label="Breadcrumb"><a href="#/playlists" data-k="crumb">Playlists</a><span class="sep">›</span></nav>' +
       '<h1 class="pl-h1" title="' + esc(pl.name) + '">' + esc(pl.name || 'Untitled playlist') + '</h1>' +
       '<button class="closer" data-act="plrename" data-k="plrename" title="Rename" aria-label="Rename this playlist">' + L.icon('edit') + '</button>' +
       '<span class="pl-headchips">' + kindLane(pl) + '</span>' +
       '<span class="grow"></span>' +
-      (air ? '<span class="badge onair" title="Playing from this playlist">On air</span>' : '') +
+      (air ? L.destTag('air', '') : '') +
       '<button class="btn pl-pvbtn" data-act="plpreview" data-k="plpreview" aria-pressed="' + !!pv + '"' + (first ? '' : ' disabled') + ' title="' + (pv ? 'Stop the preview' : 'Play the first track in your headphones only') + '">' + L.icon(pv ? 'stop' : 'headphones', 's') + (pv ? 'Stop preview' : 'Preview') + '</button>' +
-      '<button class="btn" data-act="plair" data-k="plair"' + (first ? '' : ' disabled') + ' title="Start the first track for the players">' + L.icon('broadcast', 's') + 'Play on air</button>' +
+      '<button class="btn" data-act="plair" data-k="plair"' + (first ? '' : ' disabled') + ' title="Start the first track for the players">' + L.icon('broadcast', 's') + 'Play on air</button>' + L.orderButton(pl.id, '') +
       '<button class="btn" data-act="pluse" data-id="' + pl.id + '" data-k="pluse1">' + L.icon('link', 's') + 'Use in…</button></div>' +
-      '<div class="viewbody pl-body">' + dropNotice('page:' + pl.id) + '<div class="pl-page">' + col('pl-main', main, ['pl-tracks', 'pl-add', 'pl-rules', 'pl-match']) + col('pl-side', side, ['pl-uses', 'pl-details']) + '</div></div>' + dropZone();
+      '<div class="viewbody pl-body">' + dropNotice('page:' + pl.id) + '<div class="pl-page">' + col('pl-main', main, ['pl-tracks', 'pl-add', 'pl-details', 'pl-rules', 'pl-match']) + col('pl-side', side, ['pl-uses', 'pl-details']) + '</div></div>' + dropZone();
   }
 
   /* ---------- playlist actions ---------- */
@@ -314,7 +323,7 @@
     if (L.previewing('pl:' + pl.id) || tracks.some(function (t) { return L.previewing(t.id); })) { L.stopPreview(); L.say('Preview stopped'); }
     else L.previewPlaylist(pl.id);
   };
-  L.acts.plair = function () { var pl = cur(), t = L.playlistTracks(pl)[0]; if (!t) return; if (t.kind === 'fx') L.play(t.id); else L.play(t.id, { lane: pl.lane === 'amb' ? 'amb' : 'music', playlistId: pl.id }); L.toast('On air: ' + L.title(t)); };
+  L.acts.plair = function () { var pl = cur(), t = L.orderedTracks(pl.id, '')[0]; if (!t) return; if (t.kind === 'fx') L.play(t.id); else L.play(t.id, { lane: pl.lane === 'amb' ? 'amb' : 'music', playlistId: pl.id }); L.toast('On air: ' + L.title(t)); };
   L.acts.plrename = function () { L.state.panes['pl-details'] = 'o'; L.state.maxed = null; L.render(); focusK('plname'); };
   L.inputs.plname = function (el) { var pl = cur(); pl.name = el.value; var h = document.querySelector('.pl-h1'); if (h) h.textContent = el.value || 'Untitled playlist'; };
   L.inputs.plnotes = function (el) { cur().notes = el.value; };
@@ -357,6 +366,11 @@
     var pl = cur(), en = (pl.rule.energy || [0, 5]).slice(); en[+el.dataset.e] = +el.value;
     if (en[0] > en[1]) en = [en[1], en[0]];
     pl.rule.energy = en; ruleChanged(pl, 'Energy ' + en[0] + ' to ' + en[1]);
+  };
+  L.acts.plshape = function (el) {
+    var pl = cur(), v = el.dataset.v, a = pl.rule.shapes || (pl.rule.shapes = []), i = a.indexOf(v);
+    if (i > -1) a.splice(i, 1); else a.push(v);
+    ruleChanged(pl, (i > -1 ? 'Any shape but ' : 'Shape ') + L.shapeName[v].toLowerCase() + (i > -1 ? ' no longer asked for' : ' asked for')); 
   };
   L.inputs.plsting = function (el) { var pl = cur(); pl.rule.notRole = el.checked ? 'Sting' : ''; ruleChanged(pl, el.checked ? 'Stings left out' : 'Stings included'); };
   L.acts.plcopyhand = function () {
@@ -502,6 +516,7 @@
     nav: 'playlists', title: function () { return 'Playlists'; },
     notesTitle: 'Playlists: what changed',
     notes: [
+      '<b>Round 5:</b> every playlist row has its <b>play order</b> button: shuffle, and repeat all, one or none. This is the playlist\'s own order; a scene, session or campaign can choose its own, which applies only there.',
       'Round 4 clean-up: one line per playlist (kind icon, a small lane dot, name, tracks, length). The rule and where it is used show on hover and in the row\'s expander.',
       'Every row has the same three buttons: <b>Preview</b>, <b>Play on air</b>, then <b>⋯</b> for Open and Use in…. Clicking a row opens it.',
       'The box header says what it is doing: <b>Playing</b> (red, the players hear it) or <b>Ready</b>.',
@@ -514,6 +529,7 @@
     nav: 'playlists', title: function (p) { var pl = L.playlist(p.pid); return pl ? pl.name : 'Playlist'; },
     notesTitle: 'A playlist: what changed',
     notes: [
+      '<b>Round 5:</b> the <b>play order</b> button sits by Play on air. A dynamic playlist now has <b>Details</b> at the top with its rules (folded until you open it), and its rules can ask for a <b>Shape</b>. A track\'s ⋯ menu has <b>Use in…</b>.',
       'Round 4 clean-up: one line per track. Hover a title for the title in the file, file name, tags and energy; click it to open the track in the Library.',
       'Each row: <b>Preview</b>, <b>Play on air</b>, then <b>⋯</b> for Move up / Move down, Remove, Audio profile in this playlist and Open in the Library. Drag rows or press Alt+Up / Alt+Down to reorder.',
       'Each box shows one status: Tracks <b>Playing</b> (red) / Ready / Empty, Used in Ready / Empty, Details Saved.',

@@ -199,3 +199,16 @@ td.lb-c-tags > .chip { max-width: calc(100% - 26px); }
 .lb-dempty p:first-child { color: var(--ink-2); }
 @container lbt (max-width: 699px) { .lb-tl .lb-t2 { display: none; } }
 @container lbt (max-width: 479px) { .lb-table th.lb-c-tags { width: 30%; } }
+/* Round 5: missing files (DAT-8), shapes (DAT-13), names in scenes (DAT-14). */
+.badge.warn { color: var(--ink); border: 1px solid var(--warn); background: transparent; display: inline-flex; align-items: center; gap: 3px; }
+.lb-miss svg.i { width: 11px; height: 11px; color: var(--warn); }
+.lb-missbtn[aria-pressed="false"] svg.i { color: var(--warn); }
+.lb-missing { display: flex; align-items: center; gap: 8px; padding: 6px 8px; margin-bottom: 8px; border: 1px solid var(--warn); border-radius: var(--r-m); font-size: var(--fs-s); }
+.lb-missing > svg.i { color: var(--warn); flex: none; }
+.lb-missing a.btn { text-decoration: none; }
+.lb-tagcell { display: inline-flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; }
+.lb-shapebox { min-width: 0; }
+.lb-shapebox .chip { gap: 5px; }
+.lb-shapebox .hint { margin-top: 3px; }
+.lb-scnames { list-style: none; margin: 0; padding: 0; }
+.lb-onhand { display: flex; align-items: center; gap: 4px; margin-top: 4px; }

@@ -1,7 +1,7 @@
 // Library: keyboard flow checks (combobox, rows, tab order). node tools/lb-flow.js
 const { chromium } = require('playwright'); const path = require('path');
 (async () => {
-  const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 960, height: 1000 } });
+  const b = await chromium.launch(process.env.LYRE_SPEC_CHROMIUM ? { executablePath: process.env.LYRE_SPEC_CHROMIUM } : {}); const p = await b.newPage({ viewport: { width: 960, height: 1000 } });
   const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
   await p.addInitScript(() => localStorage.setItem('lyre-r2', JSON.stringify({ theme: 'campaign', frame: 'full', notes: false })));
   const file = 'file://' + path.resolve(__dirname, '..', process.env.OUT || 'library.html');

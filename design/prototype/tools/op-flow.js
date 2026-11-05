@@ -1,7 +1,7 @@
 // Outputs flows by keyboard: open Lyre Side's Room menu, arrow to Side room, Enter; swap; Live menu move; mute; volume.
 const { chromium } = require('playwright'); const path = require('path');
 (async () => {
-  const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 960, height: 1000 } });
+  const b = await chromium.launch(process.env.LYRE_SPEC_CHROMIUM ? { executablePath: process.env.LYRE_SPEC_CHROMIUM } : {}); const p = await b.newPage({ viewport: { width: 960, height: 1000 } });
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   await p.addInitScript(() => { localStorage.setItem('lyre-r2', JSON.stringify({ theme: 'campaign', frame: 'full', notes: false })); });
   await p.goto('file://' + path.resolve(__dirname, '..', 'outputs.html') + '#/outputs'); await p.waitForTimeout(300);

@@ -54,6 +54,10 @@ var L = (function () {
     organ: 'M4 21V9M8 21V5M12 21V3M16 21V5M20 21V9M2 21h20',
     book: 'M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2zM4 21V5M8 7h7',
     loop: 'M17 2l3 3-3 3M4 11V9a4 4 0 0 1 4-4h12M7 22l-3-3 3-3M20 13v2a4 4 0 0 1-4 4H4',
+    repeat1: 'M17 2l3 3-3 3M4 11V9a4 4 0 0 1 4-4h12M7 22l-3-3 3-3M20 13v2a4 4 0 0 1-4 4H4M11 10.5l1.5-1.2V15',
+    inorder: 'M4 7h10M4 12h10M4 17h6M17 9v10M14 16l3 3 3-3',
+    volume: 'M3 10v4h3l5 4V6l-5 4zM15 9a4 4 0 0 1 0 6M17.5 6.5a7.5 7.5 0 0 1 0 11',
+    upload: 'M12 16V4M7 9l5-5 5 5M4 16v4h16v-4', download: 'M12 4v12M7 11l5 5 5-5M4 16v4h16v-4', warn: 'M12 3 2 20h20zM12 10v4M12 17h.01',
     hand: 'M8 13V5a1.5 1.5 0 0 1 3 0v6M11 11V4a1.5 1.5 0 0 1 3 0v7M14 11V5.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7 6 6 0 0 1-5-3l-2.5-4a1.5 1.5 0 0 1 2.5-1.6L8 15',
     restart: 'M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5',
     one: 'M5 5v14l10-7zM19 5v14',
@@ -124,6 +128,7 @@ var L = (function () {
     if (!rule) return false;
     if (rule.energy && (t.energy < rule.energy[0] || t.energy > rule.energy[1])) return false;
     if (rule.notRole && t.role === rule.notRole) return false;
+    if (rule.shapes && rule.shapes.length && rule.shapes.indexOf(L.shapeOf(t)) < 0) return false;
     return (rule.conds || []).every(function (c) {
       if (!c.values.length) return true; // a condition still being written does not empty the list
       var have = t.tags[c.group] || [];
@@ -143,6 +148,7 @@ var L = (function () {
     });
     if (rule.energy) parts.push('energy ' + rule.energy[0] + ' to ' + rule.energy[1]);
     if (rule.notRole) parts.push('not ' + rule.notRole.toLowerCase() + 's');
+    if (rule.shapes && rule.shapes.length) parts.push('shape ' + rule.shapes.map(function (x) { return (L.shapeName[x] || x).toLowerCase(); }).join(' or '));
     return parts.join('; ');
   };
   // Where a playlist is used: [{level:'campaign'|'session'|'scene', campaign, session, scene, label}]
@@ -179,13 +185,146 @@ var L = (function () {
   // A scene's music list mixes tracks and playlists: [{ kind: 'track'|'playlist', id, obj }]
   L.sceneItems = function (sc) { return (sc.music || []).map(function (id) { var p = L.playlist(id); return p ? { kind: 'playlist', id: id, obj: p } : { kind: 'track', id: id, obj: L.track(id) }; }).filter(function (x) { return x.obj; }); };
   // The order the scene's music plays in: each track, then each playlist's tracks, then back to the start.
-  L.sceneSequence = function (sc) { var out = []; L.sceneItems(sc).forEach(function (it, i) { if (it.kind === 'track') out.push({ trackId: it.id, item: i, playlistId: '' }); else L.playlistTracks(it.obj).forEach(function (t) { out.push({ trackId: t.id, item: i, playlistId: it.id }); }); }); return out; };
+  // A playlist item plays in its play order for this scene (PLY-13), so a shuffled playlist's tracks come in shuffled order.
+  L.sceneSequence = function (sc) { var out = [], key = L.sceneKeyOf ? L.sceneKeyOf(sc) : ''; L.sceneItems(sc).forEach(function (it, i) { if (it.kind === 'track') out.push({ trackId: it.id, item: i, playlistId: '' }); else (L.orderedTracks ? L.orderedTracks(it.id, key) : L.playlistTracks(it.obj)).forEach(function (t) { out.push({ trackId: t.id, item: i, playlistId: it.id }); }); }); return out; };
   // Ambience can be one track or an ambience playlist.
   L.ambTracks = function (id) { var p = L.playlist(id); return p ? L.playlistTracks(p) : (L.track(id) ? [L.track(id)] : []); };
   L.usesOfTrack = function (tid) {
     var out = [];
     D.campaigns.forEach(function (c) { c.sessions.forEach(function (s) { s.scenes.forEach(function (sc) { if (sc.music.indexOf(tid) > -1 || sc.amb === tid) out.push({ level: 'scene', campaign: c, session: s, scene: sc, label: c.name + ' › Session ' + s.n + ' › ' + sc.name }); }); }); });
     return out;
+  };
+  /* ---------- round 5: shape, tags, names in scenes, play order (rules: src/common/domain/round5.ts) ---------- */
+  /* DAT-13 track shape. L.levels(t) gives the track's loudness peaks (48 values, 0-1), simulated from its sections; the
+     Audio profile's waveform is drawn from the same curve. L.suggestedShape(t) reads them with L.shapeFromPeaks (the same
+     rule as the domain's shapeFromPeaks); L.shapeOf(t) is the GM's choice (t.shape) or else the suggestion. */
+  L.SHAPES = [['steady', 'Steady'], ['builds', 'Builds'], ['fallsAway', 'Falls away'], ['peaksThenFalls', 'Peaks then falls'], ['risesAndFalls', 'Rises and falls']];
+  L.shapeName = {}; L.SHAPES.forEach(function (x) { L.shapeName[x[0]] = x[1]; });
+  var SHAPE_D = { steady: 'M1 6.5C5 5.5 9 7.2 12 6s7-1 11 .5', builds: 'M1 10.5C9 10.5 15 8 23 1.5', fallsAway: 'M1 1.5C9 2 15 9 23 10.5',
+    peaksThenFalls: 'M1 10.5C7 10 9 1.5 13 1.5s7 8.5 10 9', risesAndFalls: 'M1 9.5C3 2.5 6 2.5 8 7.5s4 5 6 0 4-5.5 5-4 2 5 4 4.5' };
+  L.shapeGlyph = function (s) { return '<svg class="shape-g" viewBox="0 0 24 12" aria-hidden="true"><path d="' + (SHAPE_D[s] || SHAPE_D.steady) + '"/></svg>'; };
+  var levelCache = {};
+  function seeded(str) { var a = 2166136261; for (var i = 0; i < str.length; i++) { a ^= str.charCodeAt(i); a = Math.imul(a, 16777619); } return function () { a = Math.imul(a ^ a >>> 15, 2246822507); a = Math.imul(a ^ a >>> 13, 3266489909); a ^= a >>> 16; return (a >>> 0) / 4294967296; }; }
+  // A curve per track: from words in its title where they say how it moves ("builds", "fade", "loops well"), else from its id.
+  function curveKind(t) {
+    var w = (t.title + ' ' + t.notes).toLowerCase();
+    if (t.profile && t.profile.markers && t.profile.markers.some(function (m) { return /peak/i.test(m.label); })) return 'peaksThenFalls';
+    if (/build|rising|rises|ends huge|slow-burn|swells/.test(w)) return 'builds';
+    if (/\bfade\b|resolves|release after|dies away/.test(w)) return 'fallsAway';
+    if (/loops well|great loop|\(loops\)|steady|crowd|ostinato|never lets up/.test(w) || t.kind === 'amb') return 'steady';
+    return ['steady', 'builds', 'peaksThenFalls', 'risesAndFalls', 'fallsAway', 'steady'][Math.floor(seeded(t.id)() * 6)];
+  }
+  L.levels = function (t) {
+    if (!t) return [];
+    if (levelCache[t.id]) return levelCache[t.id];
+    var k = curveKind(t), r = seeded(t.id + ':lv'), out = [];
+    for (var i = 0; i < 48; i++) {
+      var x = i / 47, v = k === 'builds' ? .28 + .62 * Math.pow(x, 1.4) : k === 'fallsAway' ? .88 - .58 * Math.pow(x, .8) : k === 'peaksThenFalls' ? .3 + .6 * Math.sin(Math.PI * Math.pow(x, .85))
+        : k === 'risesAndFalls' ? .52 + .3 * Math.sin(Math.PI * 4 * x) : .6 + .04 * Math.sin(x * 9);
+      out.push(Math.max(.05, Math.min(1, v + (r() - .5) * .08)));
+    }
+    return (levelCache[t.id] = out);
+  };
+  L.levelAt = function (t, x) { var lv = L.levels(t), f = Math.max(0, Math.min(1, x)) * (lv.length - 1), i = Math.floor(f), j = Math.min(lv.length - 1, i + 1); return lv[i] + (lv[j] - lv[i]) * (f - i); };
+  // The same rule as src/common/domain/round5.ts shapeFromPeaks (tested there).
+  L.shapeFromPeaks = function (levels) {
+    if (levels.length < 4) return null;
+    var lv = levels.map(function (v) { return Math.min(1, Math.max(0, v || 0)); }), b = [];
+    if (lv.length <= 8) b = lv; else for (var k = 0; k < 8; k++) { var a = Math.floor(k * lv.length / 8), z = Math.floor((k + 1) * lv.length / 8), sum = 0; for (var i = a; i < z; i++) sum += lv[i]; b.push(sum / (z - a)); }
+    var max = Math.max.apply(null, b), min = Math.min.apply(null, b); if (max - min < .15) return 'steady';
+    var dir = 0, lo = b[0], hi = b[0], ext = b[0], n = 0;
+    b.slice(1).forEach(function (v) {
+      if (dir === 0) { lo = Math.min(lo, v); hi = Math.max(hi, v); if (v - lo >= .12) { dir = 1; ext = v; } else if (hi - v >= .12) { dir = -1; ext = v; } }
+      else if (dir === 1 ? v > ext : v < ext) ext = v; else if (Math.abs(v - ext) >= .12) { n++; dir = -dir; ext = v; }
+    });
+    if (n >= 2) return 'risesAndFalls';
+    var st = b[0], en = b[b.length - 1];
+    if (max - st >= .15 && max - en >= .15) return 'peaksThenFalls';
+    if (en - st >= .15) return 'builds';
+    if (st - en >= .15) return 'fallsAway';
+    return n >= 1 ? 'risesAndFalls' : 'steady';
+  };
+  L.suggestedShape = function (t) { return t ? L.shapeFromPeaks(L.levels(t)) : null; };
+  L.shapeOf = function (t) { return t ? t.shape || L.suggestedShape(t) : null; };
+  // A small glyph and the word; title says whether the GM chose it or Lyre suggested it.
+  L.shapeTag = function (t, iconOnly) {
+    var s = L.shapeOf(t); if (!s) return '';
+    var tip = 'Shape: ' + L.shapeName[s] + (t.shape ? '' : ' (suggested from its loudness)');
+    return '<span class="shape-tag" title="' + esc(tip) + '">' + L.shapeGlyph(s) + (iconOnly ? '<span class="sr-only">' + esc(tip) + '</span>' : '<span>' + esc(L.shapeName[s]) + '</span>') + '</span>';
+  };
+  /* ORG-11 tags where music is chosen: a compact strip of the track's tags, each with its tag group's coloured dot, the
+     first few only and "+n" for the rest (named in its tooltip), plus the shape glyph. */
+  L.tagStrip = function (t, max) {
+    if (!t) return '';
+    var all = []; max = max || 3;
+    D.tagGroups.forEach(function (g) { (t.tags[g.id] || []).forEach(function (v) { all.push({ g: g, v: v }); }); });
+    var shown = all.slice(0, max), rest = all.slice(max);
+    if (!all.length && !L.shapeOf(t)) return '';
+    return '<span class="tagstrip"><span class="sr-only">Tags: ' + esc(all.map(function (x) { return x.v; }).join(', ') || 'none') + '. </span>' + L.shapeTag(t, true) +
+      shown.map(function (x) { return '<span class="chip ' + x.g.cls + '" title="' + esc(x.g.name) + '" aria-hidden="true"><span class="dot"></span>' + esc(x.v) + '</span>'; }).join('') +
+      (rest.length ? '<span class="chip ts-more" title="' + esc(rest.map(function (x) { return x.g.name + ': ' + x.v; }).join(', ')) + '" aria-hidden="true">+' + rest.length + '</span>' : '') + '</span>';
+  };
+  /* DAT-14 a track's name in a scene: L.data.sceneNames[sceneKey][trackId]. L.nameIn(t, key) is the scene's name for it
+     there, else its own (L.title). L.sceneKeyOf(scene) finds a scene's key. */
+  D.sceneNames = D.sceneNames || {};
+  L.sceneKeyOf = function (sc) {
+    var key = '';
+    D.campaigns.forEach(function (c) { c.sessions.forEach(function (s) { if (s.scenes.indexOf(sc) > -1) key = 'sc:' + c.id + ':' + s.id + ':' + sc.id; }); });
+    return key;
+  };
+  L.sceneNameOf = function (t, key) { var n = t && key && D.sceneNames[key] && D.sceneNames[key][t.id]; return n && n.trim() ? n.trim() : ''; };
+  L.nameIn = function (t, key) { return L.sceneNameOf(t, key) || L.title(t); };
+  L.setNameIn = function (t, key, name) { if (!D.sceneNames[key]) D.sceneNames[key] = {}; if (name && name.trim()) D.sceneNames[key][t.id] = name; else delete D.sceneNames[key][t.id]; };
+  L.namesOfTrack = function (t) { return Object.keys(D.sceneNames).filter(function (k) { return L.sceneNameOf(t, k); }).map(function (k) { return { key: k, name: L.sceneNameOf(t, k), label: L.placeLabel(k) }; }); };
+  // A place key in words: 'The abbey ruins (Session 14)', 'Session 14: The Drowned Abbey', 'The Sunken Crown', 'Abbey ambience'.
+  L.placeLabel = function (key) {
+    var a = (key || '').split(':'), c = L.campaign(a[1]), s = c && L.session(a[1], a[2]);
+    if (a[0] === 'sc') { var sc = s && s.scenes.filter(function (x) { return x.id === a[3]; })[0]; return sc ? sc.name + ' (Session ' + s.n + ')' : 'a scene'; }
+    if (a[0] === 'ss') return s ? 'Session ' + s.n + (s.name ? ': ' + s.name : '') : 'a session';
+    if (a[0] === 'cp') return c ? c.name : 'a campaign';
+    if (a[0] === 'pl') { var p = L.playlist(a[1]); return p ? p.name : 'a playlist'; }
+    return '';
+  };
+  L.placeKind = function (key) { return { sc: 'scene', ss: 'session', cp: 'campaign', pl: 'playlist' }[(key || '').split(':')[0]] || ''; };
+  /* PLY-13 play order: shuffle and repeat (off, all, one), the playlist's own (pl.order) or one place's own
+     (L.data.orders[placeKey][playlistId]); the place's wins, only there. L.orderOf(pid, key) -> { shuffle, repeat, source }.
+     L.setOrder(pid, key, patch) ('' = the playlist's own), L.clearOrder(pid, key). L.orderedTracks(pid, key) is the
+     playlist's tracks in the order they will play there (a shuffle is fixed per place and playlist for this visit). */
+  D.orders = D.orders || {};
+  L.orderOf = function (pid, key) {
+    var here = key && D.orders[key] && D.orders[key][pid], p = L.playlist(pid);
+    if (here) return { shuffle: here.shuffle, repeat: here.repeat, source: 'place' };
+    if (p && p.order) return { shuffle: p.order.shuffle, repeat: p.order.repeat, source: 'playlist' };
+    return { shuffle: false, repeat: L.placeKind(key) === 'scene' ? 'off' : 'all', source: 'default' };
+  };
+  L.setOrder = function (pid, key, patch) {
+    var cur = L.orderOf(pid, key), next = { shuffle: patch.shuffle != null ? patch.shuffle : cur.shuffle, repeat: patch.repeat || cur.repeat };
+    if (!key) { L.playlist(pid).order = next; return; }
+    if (!D.orders[key]) D.orders[key] = {}; D.orders[key][pid] = next;
+  };
+  L.clearOrder = function (pid, key) { if (key && D.orders[key]) delete D.orders[key][pid]; else if (!key && L.playlist(pid)) delete L.playlist(pid).order; };
+  L.orderWords = function (o) { return (o.shuffle ? 'Shuffle' : 'In order') + ', ' + (o.repeat === 'all' ? 'repeat all' : o.repeat === 'one' ? 'repeat one' : 'no repeat'); };
+  L.orderedTracks = function (pid, key) {
+    var ts = L.playlistTracks(L.playlist(pid)); if (!L.orderOf(pid, key).shuffle || ts.length < 3) return ts;
+    var r = seeded(pid + '|' + (key || '') + '|' + L.state.shuffleRound), out = ts.slice();
+    for (var i = out.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)), x = out[i]; out[i] = out[j]; out[j] = x; }
+    if (out.every(function (t, k) { return t === ts[k]; })) out.push(out.shift());   // a shuffle always changes the order
+    return out;
+  };
+  // Where a lane plays from: its scene, or the session or campaign list it was started from ('' for none).
+  L.lanePlace = function (c) {
+    if (!c) return '';
+    if (c.seq) { var s0 = L.session(c.seq.cid, c.seq.sid), sc0 = s0 && s0.scenes[c.seq.scene]; if (sc0) return 'sc:' + c.seq.cid + ':' + c.seq.sid + ':' + sc0.id; }
+    return c.place || '';
+  };
+  // ORG-12: every place a track is used directly: kept on hand in a campaign or session, or in scenes.
+  L.usesOfTrackAll = function (tid) {
+    var out = [];
+    D.campaigns.forEach(function (c) {
+      if ((c.tracks || []).indexOf(tid) > -1) out.push({ level: 'campaign', campaign: c, label: c.name + ' (whole campaign)' });
+      c.sessions.forEach(function (s) { if ((s.tracks || []).indexOf(tid) > -1) out.push({ level: 'session', campaign: c, session: s, label: c.name + ' › Session ' + s.n }); });
+    });
+    return out.concat(L.usesOfTrack(tid));
   };
   /* ---------- Discord outputs (simulated) ----------
      L.bots(), L.bot(id), L.server(id), L.channel(serverId, channelId)
@@ -253,7 +392,7 @@ var L = (function () {
   var saved = {};
   try { saved = JSON.parse(localStorage.getItem('lyre-r2') || '{}'); } catch (e) { saved = {}; }
   L.state = { theme: saved.theme || 'campaign', frame: saved.frame || 'half', rail: saved.rail || 'auto', panes: saved.panes || {}, notes: saved.notes !== false,
-    live: { cid: 'crown', sid: 's14', scene: 1, standby: 2 }, ctx: { cid: 'crown' } };
+    live: { cid: 'crown', sid: 's14', scene: 1, standby: 2 }, ctx: { cid: 'crown' }, shuffleRound: 0 };
   L.save = function () { try { localStorage.setItem('lyre-r2', JSON.stringify({ theme: L.state.theme, frame: L.state.frame, rail: L.state.rail, panes: L.state.panes, notes: L.state.notes })); } catch (e) { /* storage unavailable: settings last for this visit */ } };
 
   /* ---------- simulated playback ---------- */
@@ -307,10 +446,11 @@ var L = (function () {
   function ctxKeys(ctx) {
     if (!ctx) return [];
     if (typeof ctx === 'string') return [ctx];
-    var out = []; if (ctx.sceneId) out.push('sc:' + ctx.cid + ':' + ctx.sid + ':' + ctx.sceneId); if (ctx.playlistId) out.push('pl:' + ctx.playlistId); return out;
+    // Scene first, else the session list it was played from (PLY-14), then the playlist; the track's own comes last.
+    var out = []; if (ctx.sceneId) out.push('sc:' + ctx.cid + ':' + ctx.sid + ':' + ctx.sceneId); else if (ctx.place && ctx.place.indexOf('ss:') === 0) out.push(ctx.place); if (ctx.playlistId) out.push('pl:' + ctx.playlistId); return out;
   }
   function override(t, ctx) { var ks = ctxKeys(ctx); for (var i = 0; i < ks.length; i++) { var o = D.profiles[ks[i]] && D.profiles[ks[i]][t.id]; if (o) return { p: o, key: ks[i] }; } return null; }
-  L.profileWhere = function (t, ctx) { var o = t && override(t, ctx); return o ? (o.key.indexOf('sc:') === 0 ? 'scene' : 'playlist') : 'track'; };
+  L.profileWhere = function (t, ctx) { var o = t && override(t, ctx); return o ? (o.key.indexOf('sc:') === 0 ? 'scene' : o.key.indexOf('ss:') === 0 ? 'session' : 'playlist') : 'track'; };
   L.profileKeys = function (t) { return Object.keys(D.profiles).filter(function (k) { return D.profiles[k][t.id]; }); };
   L.profileStore = function (t, key, create) {
     if (!key) { if (!t.profile && create) t.profile = {}; return t.profile; }
@@ -326,9 +466,9 @@ var L = (function () {
     return { start: p.start || 0, end: p.end || dur, after: after, loopStart: p.loopStart != null ? p.loopStart : (p.start || 0), loopXfade: p.loopXfade || 0,
       fadeIn: fade(p.fadeIn), fadeOut: fade(p.fadeOut), markers: p.markers || [] };
   };
-  function lane(trackId, playlistId, seq) { var t = L.track(trackId), pf = L.profileOf(t, laneCtx(playlistId, seq)); return { id: trackId, label: L.title(t), playlistId: playlistId || '', pos: pf.start, dur: pf.end, vol: 0, target: 1, fadeIn: 0 }; }
-  function laneCtx(playlistId, seq) { var s = seq && L.session(seq.cid, seq.sid), sc = s && s.scenes[seq.scene]; return { playlistId: playlistId, cid: seq && seq.cid, sid: seq && seq.sid, sceneId: sc && sc.id }; }
-  L.laneContext = function (ln, target) { var c = mixOf(target)[ln]; return c ? laneCtx(c.playlistId, c.seq) : null; };
+  function lane(trackId, playlistId, seq, place) { var t = L.track(trackId), pf = L.profileOf(t, laneCtx(playlistId, seq, place)); return { id: trackId, label: L.title(t), playlistId: playlistId || '', place: place || '', pos: pf.start, dur: pf.end, vol: 0, target: 1, fadeIn: 0 }; }
+  function laneCtx(playlistId, seq, place) { var s = seq && L.session(seq.cid, seq.sid), sc = s && s.scenes[seq.scene]; return { playlistId: playlistId, cid: seq && seq.cid, sid: seq && seq.sid, sceneId: sc && sc.id, place: place || '' }; }
+  L.laneContext = function (ln, target) { var c = mixOf(target)[ln]; return c ? laneCtx(c.playlistId, c.seq, c.place) : null; };
   L.play = function (trackId, o) {
     o = o || {}; var t = L.track(trackId); if (!t) return;
     if (o.target == null) { var ts = L.sendTargets(); if (!ts.length) { L.sendWarn(); return; } ts.forEach(function (tg) { var c = {}; for (var k in o) c[k] = o[k]; c.target = tg; L.play(trackId, c); }); return; }
@@ -336,14 +476,15 @@ var L = (function () {
     if (t.kind === 'fx' && !o.lane) { pb.fx.push({ uid: L.uid('fx'), ref: 'track/' + t.id, label: L.title(t), target: fxTarget(o.target), pos: 0, dur: Math.max(1.5, t.dur), loop: false }); L.say('Effect: ' + L.title(t)); L.changed(); return; }
     var ln = o.lane === 'fx' ? 'music' : o.lane || (t.kind === 'amb' ? 'amb' : 'music'), fade = o.fade == null ? 3 : o.fade, m = mixOf(o.target);
     if (m[ln]) { m[ln].fadeOut = fade || .3; m[ln + 'Out'].push(m[ln]); }
-    m[ln] = lane(trackId, o.playlistId, o.seq); m[ln].fadeIn = fade; m[ln].vol = fade ? 0 : 1; if (o.seq) m[ln].seq = o.seq;
+    // o.place: the session or campaign list it was played from ('ss:…' / 'cp:…'), for its play order and audio settings.
+    m[ln] = lane(trackId, o.playlistId, o.seq, o.place); m[ln].fadeIn = fade; m[ln].vol = fade ? 0 : 1; if (o.seq) m[ln].seq = o.seq;
     L.say((ln === 'music' ? 'Music' : 'Ambience') + (m === pb ? '' : ' in ' + L.outputName(L.bot(o.target))) + ': ' + L.title(t)); L.changed();
   };
   function neighbour(ln, step, target) {
     var cur = mixOf(target)[ln]; if (!cur) return null;
     if (cur.seq) { var s0 = L.session(cur.seq.cid, cur.seq.sid), sc0 = s0 && s0.scenes[cur.seq.scene], q = sc0 ? L.sceneSequence(sc0) : []; if (q.length) { var n = q[(cur.seq.at + step + q.length) % q.length]; return L.track(n.trackId); } }
     if (!cur.playlistId) return null;
-    var list = L.playlistTracks(L.playlist(cur.playlistId)); var i = list.map(function (t) { return t.id; }).indexOf(cur.id);
+    var list = L.orderedTracks(cur.playlistId, cur.place); var i = list.map(function (t) { return t.id; }).indexOf(cur.id);
     return list.length ? list[(i + step + list.length) % list.length] : null;
   }
   L.upNext = function (ln, target) { return neighbour(ln || 'music', 1, target); };
@@ -351,7 +492,7 @@ var L = (function () {
     var cur = mixOf(target)[ln], n = neighbour(ln, d, target); if (!n) return;
     if (cur.seq) { var s0 = L.session(cur.seq.cid, cur.seq.sid), q = L.sceneSequence(s0.scenes[cur.seq.scene]), at = (cur.seq.at + d + q.length) % q.length, seq = { cid: cur.seq.cid, sid: cur.seq.sid, scene: cur.seq.scene, at: at };
       L.play(q[at].trackId, { lane: ln, playlistId: q[at].playlistId, fade: 3, seq: seq, target: target || 'table' }); return; }
-    L.play(n.id, { lane: ln, playlistId: cur.playlistId, fade: 3, target: target || 'table' });
+    L.play(n.id, { lane: ln, playlistId: cur.playlistId, place: cur.place, fade: 3, target: target || 'table' });
   }
   L.next = function (ln, target) { step(ln, 1, target); };
   L.prev = function (ln, target) { step(ln, -1, target); };
@@ -380,7 +521,7 @@ var L = (function () {
   /* Preview: only you hear it. L.preview(trackId) toggles a track; L.previewPlaylist(pid) its first track (or an ambience
      playlist's first bed); L.previewPad(boardId, padId) a pad's sound. L.previewing(key) says whether that is the one
      playing (key = track id, 'pl:<pid>' or 'pad:<board>/<pad>'); L.previewLabel() names it. */
-  function startPreview(key, p) { if (pb.preview && pb.preview.key === key) { pb.preview = null; L.say('Preview stopped'); } else { p.key = key; p.vol = 1; pb.preview = p; L.say('Previewing in your headphones: ' + p.label); } L.changed(); }
+  function startPreview(key, p) { if (pb.preview && pb.preview.key === key) { pb.preview = null; L.say('Preview stopped'); } else { p.key = key; p.vol = 1; p.from = SCREEN_NAMES[String(curRoute || '').split('/')[1]] || ''; pb.preview = p; L.say('Previewing in your headphones: ' + p.label); } L.changed(); }
   L.preview = function (id) { startPreview(id, lane(id)); };
   L.previewPlaylist = function (pid) { var p = L.playlist(pid), t = L.playlistTracks(p)[0]; if (!t) { L.toast('This playlist has no tracks yet'); return; } var ln = lane(t.id, pid); ln.label = p.name + ': ' + L.title(t); startPreview('pl:' + pid, ln); };
   L.previewPad = function (boardId, padId) {
@@ -408,14 +549,30 @@ var L = (function () {
       var target = mx[0], m = mx[1];
       ['music', 'amb'].forEach(function (ln) {
         var c = m[ln];
-        if (c && !c.paused) { c.pos += dt; if (c.fadeIn) c.vol = Math.min(1, c.vol + dt / c.fadeIn); else c.vol = 1; if (c.pos >= c.dur) { var t = L.track(c.id), pf = L.profileOf(t, laneCtx(c.playlistId, c.seq)); if (pf.after === 'loop' || ln === 'amb') c.pos = pf.loopStart; else if (pf.after === 'next' && (c.seq || c.playlistId)) L.next(ln, target); else m[ln] = null; } moved = true; }
+        if (c && !c.paused) { c.pos += dt; if (c.fadeIn) c.vol = Math.min(1, c.vol + dt / c.fadeIn); else c.vol = 1; if (c.pos >= c.dur) { var t = L.track(c.id), pf = L.profileOf(t, laneCtx(c.playlistId, c.seq, c.place)); if (pf.after === 'loop' || ln === 'amb') c.pos = pf.loopStart; else if (pf.after === 'next' && (c.seq || c.playlistId)) trackEnded(m, ln, c, pf, target); else m[ln] = null; } moved = true; }
         m[ln + 'Out'] = m[ln + 'Out'].filter(function (o) { o.pos += dt; o.vol -= dt / (o.fadeOut || .3); return o.vol > 0; });
       });
     });
     pb.fx = pb.fx.filter(function (f) { f.pos += dt; if (f.fadeOut) { f.fadeOut -= dt; return f.fadeOut > 0; } return f.loop || f.pos < f.dur; });
-    if (pb.preview) { pb.preview.pos += dt; if (pb.preview.pos >= pb.preview.dur) pb.preview = null; moved = true; }
+    if (pb.preview && !pb.preview.paused) { pb.preview.pos += dt; if (pb.preview.pos >= pb.preview.dur) pb.preview = null; moved = true; }
     if (moved || pb.fx.length) L.tick();
   }, 250);
+  /* PLY-13: what happens when a track from a playlist ends by itself, by its play order where it plays (the same rule
+     as the domain's whenTrackEnds): repeat one plays it again, repeat all starts the playlist again after its last
+     track, no repeat moves the scene on (or stops a playlist playing on its own). Next and Previous always move on. */
+  function trackEnded(m, ln, c, pf, target) {
+    if (!c.playlistId) { L.next(ln, target); return; }
+    var key = L.lanePlace(c), o = L.orderOf(c.playlistId, key), list = L.orderedTracks(c.playlistId, key), last = list.length && list[list.length - 1].id === c.id;
+    if (o.repeat === 'one') { c.pos = pf.start; return; }
+    if (!last) { L.next(ln, target); return; }
+    if (o.repeat === 'all') {
+      var first = list[0]; if (!first) return;
+      if (c.seq) { var s0 = L.session(c.seq.cid, c.seq.sid), q = L.sceneSequence(s0.scenes[c.seq.scene]), at = -1; q.forEach(function (x, i) { if (at < 0 && x.playlistId === c.playlistId && x.trackId === first.id) at = i; });
+        L.play(first.id, { lane: ln, playlistId: c.playlistId, fade: 3, seq: { cid: c.seq.cid, sid: c.seq.sid, scene: c.seq.scene, at: Math.max(0, at) }, target: target }); return; }
+      L.play(first.id, { lane: ln, playlistId: c.playlistId, place: c.place, fade: 3, target: target }); return;
+    }
+    if (c.seq) L.next(ln, target); else { m[ln + 'Out'].push(c); c.fadeOut = .5; m[ln] = null; L.say('End of ' + (L.playlist(c.playlistId) || {}).name); }
+  }
   // Elements with data-progress="music|amb|preview" and data-time="music|amb|preview" update every tick without a re-render.
   L.tick = function () {
     function lanePb(key) { var a = key.split('@'); return a[1] ? (pb.own[a[1]] || {})[a[0]] : pb[a[0]]; }
@@ -489,7 +646,8 @@ var L = (function () {
   var ROUTES = [
     [/^#\/campaigns$/, 'campaigns', []], [/^#\/campaign\/([\w-]+)$/, 'campaign', ['cid']], [/^#\/session\/([\w-]+)\/([\w-]+)$/, 'session', ['cid', 'sid']],
     [/^#\/library(?:\/([\w-]+))?$/, 'library', ['tid']], [/^#\/playlists$/, 'playlists', []], [/^#\/playlist\/([\w-]+)$/, 'playlist', ['pid']],
-    [/^#\/profile\/([\w-]+)(?:\/([\w:-]+))?$/, 'profile', ['tid', 'ctx']], [/^#\/boards$/, 'boards', []], [/^#\/board\/([\w-]+)$/, 'board', ['bid']], [/^#\/live$/, 'live', []], [/^#\/outputs$/, 'outputs', []], [/^#\/look$/, 'look', []]
+    [/^#\/profile\/([\w-]+)(?:\/([\w:-]+))?$/, 'profile', ['tid', 'ctx']], [/^#\/boards$/, 'boards', []], [/^#\/board\/([\w-]+)$/, 'board', ['bid']], [/^#\/live$/, 'live', []], [/^#\/outputs$/, 'outputs', []], [/^#\/look$/, 'look', []],
+    [/^#\/backup$/, 'backup', []], [/^#\/moved$/, 'moved', []], [/^#\/relink$/, 'relink', []]
   ];
   L.view = function (name, def) { L.views[name] = def; };
   /* Routes are kept in memory ('#/session/crown/s14'). The page address shows a plain form ('#session--crown--s14'),
@@ -535,26 +693,91 @@ var L = (function () {
       var railMin = L.state.rail === 'min' || (L.state.rail === 'auto' && w < 1100);
       paint(document.getElementById('rail'), railHTML(v.nav || r.name, railMin));
       document.getElementById('rail').className = 'rail' + (railMin ? ' min' : '');
-      paint(document.getElementById('view'), v.render(r.p) + (r.name === 'live' ? '' : undoNoteHTML() + onAirBar()));
+      paint(document.getElementById('view'), v.render(r.p) + (r.name === 'live' ? onAirBar(true) : undoNoteHTML() + onAirBar(false)));
       document.getElementById('view').dataset.view = r.name;
       document.querySelectorAll('#view .col').forEach(function (c) { c.classList.toggle('has-max', !!c.querySelector(':scope > .pane.maxed')); });
       if (v.after) v.after(document.getElementById('view'), r.p);
       paintProto(r, v, theme);
     } finally { rendering = false; }
   };
-  /* Outside Live, a slim bar at the bottom of the page shows what the players hear, with Stop and Go to Live,
-     so Play on air always gives visible feedback. */
-  function onAirBar() {
-    var m = pb.music, a = pb.amb, n = pb.fx.length;
-    if (!m && !a && !n) return '';
-    var parts = [];
-    if (m) parts.push('<span class="lane-dot music"></span><span class="ellipsis">' + esc(L.title(L.track(m.id))) + '</span>');
-    if (a) parts.push('<span class="lane-dot amb"></span><span class="ellipsis">' + esc(L.title(L.track(a.id))) + '</span>');
-    if (n) parts.push('<span class="lane-dot fx"></span><span>' + n + ' effect' + (n > 1 ? 's' : '') + '</span>');
-    return '<div class="onairbar" role="region" aria-label="On air"><span class="badge onair">On air</span><div class="oab-items">' + parts.map(function (p) { return '<span class="oab-item">' + p + '</span>'; }).join('') + '</div>' +
-      '<button class="btn s" data-act="oabstop" data-k="oab-stop">' + L.icon('stop', 's') + 'Stop</button><a class="btn s" href="#/live" data-k="oab-live">' + L.icon('broadcast', 's') + 'Go to Live</a></div>';
+  /* UX-16 the Now playing bar, and the destination tags used everywhere sound is shown (round 5, Nik's notes of
+     5 Nov 21:17 and 21:18). Every sound goes somewhere, and the tag says where in words, an icon and a colour:
+       On air  (filled, the on-air colour, broadcast icon)  the players hear it; with the room's name when there are
+                two or more rooms ("On air · Side room"), or "On air · no room" while no bot is in a voice channel.
+       Only you (outlined, the preview colour, headphones)  a preview: only the game master hears it.
+     L.destTag('air'|'you', roomName, paused) draws one; Live's room boxes and track badges use the same tags.
+     The bar sits at the bottom of every screen while anything plays or is paused, and goes when everything stops. It
+     has one row per room that is playing (music or ambience) and one row for the preview, so both can show at once.
+     A room row: the track (the scene's name for it, DAT-14, its own name on hover), where it comes from, the ambience
+     under it and how many effects sound there, the time, Pause/Play, Stop (that room), Next, the play order of the
+     playlist it comes from (PLY-13), that room's volume, and Go to Live (first row, outside Live). The preview row:
+     the track, where it was previewed from, the time, Pause/Play, Stop and the headphone volume.
+     In Live the room boxes show what each room hears, so the bar there has the preview row only. Effects alone do not
+     bring a row up (they are short): Play on air on an effect says "Effect on air: …". */
+  L.destTag = function (kind, room, paused) {
+    var you = kind === 'you', words = you ? 'Only you' : 'On air' + (room ? ' · ' + room : '');
+    return '<span class="dest ' + (you ? 'you' : 'air') + (paused ? ' paused' : '') + '" title="' + (you ? 'Only you hear this, in your headphones' : 'The players hear this' + (room ? ' in ' + esc(room) : '')) + '">' +
+      L.icon(you ? 'headphones' : 'broadcast', 's') + '<span class="ellipsis">' + esc(words) + '</span></span>';
+  };
+  function originOf(c) {
+    var key = L.lanePlace(c), kind = L.placeKind(key), p = c.playlistId && L.playlist(c.playlistId);
+    if (kind === 'scene') return 'Scene: ' + L.placeLabel(key) + (p ? ' · ' + p.name : '');
+    if (p) return 'Playlist: ' + p.name + (kind ? ' · ' + L.placeLabel(key) : '');
+    return 'Single track';
   }
-  L.acts.oabstop = function () { L.fadeAll(1); };
+  L.onAirOrigin = originOf;
+  var SCREEN_NAMES = { campaigns: 'Campaigns', campaign: 'the campaign page', session: 'the session planner', library: 'the Library', playlists: 'Playlists', playlist: 'the playlist', boards: 'Pad boards', board: 'the pad board', profile: 'the Audio profile', live: 'Live', outputs: 'Outputs', backup: 'Back up, move or share', moved: 'What came across', relink: 'Find missing files' };
+  L.previewVol = 80;
+  function roomRow(r, named, first, inLive) {
+    var m = r.mix, c = m.music || m.amb, ln = m.music ? 'music' : 'amb', target = r.main ? 'table' : r.id, pk = ln + (r.main ? '' : '@' + r.id);
+    var t = L.track(c.id), key = L.lanePlace(c), nm = L.nameIn(t, key), own = L.title(t), paused = !!c.paused, word = ln === 'music' ? 'music' : 'ambience';
+    var room = r.none ? 'no room' : named ? r.name : '', where = r.none ? '' : ' in ' + r.name, bot = r.bots && r.bots[0], fx = L.fxFor(target).length, k = 'oab-' + (r.main ? 't' : r.id);
+    var canNext = !!(c.seq || c.playlistId);
+    return '<div class="oab-row air' + (paused ? ' paused' : '') + '" role="group" aria-label="' + (paused ? 'Paused' : 'On air') + (room ? ': ' + esc(room) : '') + '">' +
+      '<span class="oab-dest">' + L.destTag('air', room, paused) + (paused ? '<span class="badge oab-paused">Paused</span>' : '') + '</span>' +
+      '<div class="oab-now"><div class="oab-title ellipsis" title="' + esc(nm !== own ? 'Its own name: ' + own : own) + '"><span class="lane-dot ' + ln + '" aria-hidden="true"></span><span class="ellipsis">' + esc(nm) + '</span>' +
+        (nm !== own ? '<span class="sr-only"> (its own name: ' + esc(own) + ')</span>' : '') + '</div>' +
+        '<div class="oab-from ellipsis" title="' + esc(originOf(c)) + '">' + esc(originOf(c)) + (m.music && m.amb ? ' · <span class="lane-dot amb" aria-hidden="true"></span>Ambience: ' + esc(L.title(L.track(m.amb.id))) : '') +
+        (fx ? ' · ' + fx + ' effect' + (fx > 1 ? 's' : '') + ' sounding' : '') + (r.none ? ' · No bot is in a voice channel: only this computer plays it' : '') + '</div></div>' +
+      '<div class="oab-time"><div class="progress ' + ln + '"><span data-progress="' + pk + '"></span></div><span class="num" data-time="' + pk + '"></span></div>' +
+      '<div class="oab-ctl" role="group" aria-label="Control what the players hear' + esc(where) + '">' +
+        '<button class="btn s icon" data-act="oabpause" data-lane="' + ln + '" data-room="' + target + '" data-k="' + k + '-pause" aria-label="' + (paused ? 'Play' : 'Pause') + '" title="' + (paused ? 'Play the ' + word + ' again' : 'Pause the ' + word) + esc(where) + '">' + L.icon(paused ? 'play' : 'pause', 's') + '</button>' +
+        '<button class="btn s" data-act="oabstop" data-room="' + target + '" data-k="' + k + '-stop" title="Stop what the players hear' + esc(where) + ' (fades out in a second)">' + L.icon('stop', 's') + 'Stop</button>' +
+        '<button class="btn s icon" data-act="oabnext" data-lane="' + ln + '" data-room="' + target + '" data-k="' + k + '-next" aria-label="Next" title="' + (canNext ? 'Next track (crossfade)' : 'A single track has no next one') + '"' + (canNext ? '' : ' disabled') + '>' + L.icon('next', 's') + '</button>' +
+        (c.playlistId && L.orderButton ? L.orderButton(c.playlistId, key) : '') + '</div>' +
+      (bot ? '<label class="oab-vol" title="Volume of what the players hear' + esc(where) + '">' + L.icon('volume', 's') + '<span class="sr-only">Volume' + esc(where) + '</span><input type="range" min="0" max="100" step="5" value="' + bot.volume + '" data-input="oabvol" data-bot="' + bot.id + '" data-k="' + k + '-vol" aria-valuetext="' + bot.volume + ' percent"></label>' : '') +
+      (first && !inLive ? '<a class="btn s" href="#/live" data-k="oab-live">' + L.icon('broadcast', 's') + 'Go to Live</a>' : '') + '</div>';
+  }
+  function previewRow() {
+    var p = pb.preview, paused = !!p.paused, from = p.from ? 'Previewed from ' + p.from : 'Preview';
+    return '<div class="oab-row you' + (paused ? ' paused' : '') + '" role="group" aria-label="Only you' + (paused ? ': paused' : '') + '">' +
+      '<span class="oab-dest">' + L.destTag('you', '', paused) + (paused ? '<span class="badge oab-paused">Paused</span>' : '') + '</span>' +
+      '<div class="oab-now"><div class="oab-title ellipsis" title="' + esc(p.label) + '"><span class="lane-dot preview" aria-hidden="true"></span><span class="ellipsis">' + esc(p.label) + '</span></div>' +
+        '<div class="oab-from ellipsis" title="' + esc(from) + '">' + esc(from) + '</div></div>' +
+      '<div class="oab-time"><div class="progress preview"><span data-progress="preview"></span></div><span class="num" data-time="preview"></span></div>' +
+      '<div class="oab-ctl" role="group" aria-label="Control your preview">' +
+        '<button class="btn s icon" data-act="pvpause" data-k="oab-pv-pause" aria-label="' + (paused ? 'Play the preview' : 'Pause the preview') + '" title="' + (paused ? 'Play the preview again' : 'Pause the preview') + '">' + L.icon(paused ? 'play' : 'pause', 's') + '</button>' +
+        '<button class="btn s" data-act="pvstop" data-k="oab-pv-stop" aria-label="Stop the preview" title="Stop the preview">' + L.icon('stop', 's') + 'Stop</button></div>' +
+      '<label class="oab-vol" title="Volume in your headphones">' + L.icon('headphones', 's') + '<span class="sr-only">Headphone volume</span><input type="range" min="0" max="100" step="5" value="' + L.previewVol + '" data-input="pvvol" data-k="oab-pv-vol" aria-valuetext="' + L.previewVol + ' percent"></label></div>';
+  }
+  function onAirBar(inLive) {
+    var rows = [];
+    if (!inLive) {
+      var rs = L.rooms(), named = rs.length > 1;
+      if (!rs.length) rs = [{ id: 'table', name: '', mix: pb, main: true, none: true }];
+      rs.filter(function (r) { return r.mix.music || r.mix.amb; }).forEach(function (r, i) { rows.push(roomRow(r, named, i === 0, inLive)); });
+    }
+    if (pb.preview) rows.push(previewRow());
+    if (!rows.length) return '';
+    return '<div class="onairbar" role="region" aria-label="Now playing"><div class="oab-rows">' + rows.join('') + '</div></div>';
+  }
+  L.acts.oabpause = function (el) { var ln = el.dataset.lane, rm = el.dataset.room; L.pauseLane(ln, rm); var c = L.mix(rm)[ln]; L.say(c && c.paused ? 'Paused' : 'Playing again'); };
+  L.acts.oabnext = function (el) { L.next(el.dataset.lane, el.dataset.room); };
+  L.inputs.oabvol = function (el, ev) { var b = L.bot(el.dataset.bot) || D.discord.bots[0]; b.volume = +el.value; el.setAttribute('aria-valuetext', b.volume + ' percent'); if (ev.type === 'change') L.changed(); };
+  L.acts.oabstop = function (el) { var rm = el.dataset.room; L.stopLane('music', 1, rm); L.stopLane('amb', 1, rm); L.say('Stopped'); };
+  L.acts.pvpause = function () { if (pb.preview) { pb.preview.paused = !pb.preview.paused; L.say(pb.preview.paused ? 'Preview paused' : 'Preview playing again'); L.changed(); } };
+  L.acts.pvstop = function () { L.stopPreview(); L.say('Preview stopped'); };
+  L.inputs.pvvol = function (el, ev) { L.previewVol = +el.value; el.setAttribute('aria-valuetext', L.previewVol + ' percent'); if (ev.type === 'change') L.changed(); };
 
   /* Undo for changes that remove or reset much at once (w3-ux 10): Reset to whole track, Delete board, Delete scene,
      Tag… on many tracks. Like the board's resize message: what happened, Undo, and a close button; Ctrl+Z also
@@ -627,7 +850,7 @@ var L = (function () {
     var p = document.getElementById('proto');
     if (!p.dataset.built) {
       p.dataset.built = 1;
-      p.innerHTML = '<b>Lyre · design round 2</b><span>Clickable prototype, no real sound.</span>' +
+      p.innerHTML = '<b>Lyre · design round 5</b><span>Clickable prototype, no real sound.</span>' +
         '<label>Theme <select id="pTheme">' + THEMES.map(function (t) { return '<option value="' + t[0] + '">' + t[1] + '</option>'; }).join('') + '</select></label>' +
         '<label>Screen <select id="pFrame">' + FRAMES.map(function (t) { return '<option value="' + t[0] + '">' + t[1] + '</option>'; }).join('') + '</select></label>' +
         '<button id="pNotes" type="button">Design notes</button>';

@@ -72,6 +72,24 @@ const SCREENS: Screen[] = [
   },
   { name: "Outputs", owner: "outputs", route: "outputs" },
   { name: "Look and feel", owner: "look", route: "look" },
+  // Round 5 (design/prototype/ROUND5.md): the three new screens, with their tables and choices showing.
+  {
+    name: "Back up, move or share, with a file open",
+    owner: "library-files",
+    route: "backup",
+    prepare: async (page) => {
+      await page.getByRole("button", { name: "Choose a file…" }).click();
+    },
+  },
+  { name: "What came across from Kenku FM", owner: "library-files", route: "moved" },
+  {
+    name: "Find missing files, after looking in a folder",
+    owner: "library-files",
+    route: "relink",
+    prepare: async (page) => {
+      await page.getByRole("button", { name: "Look there" }).click();
+    },
+  },
 ];
 
 const BOTH: Theme[] = ["default", "parchment"];

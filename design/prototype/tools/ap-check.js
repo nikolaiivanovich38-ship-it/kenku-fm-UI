@@ -2,7 +2,7 @@
 const { chromium } = require('playwright'); const path = require('path');
 const shot = n => path.resolve(__dirname, '..', 'shots', 'profile-' + n + '.png');
 (async () => {
-  const b = await chromium.launch();
+  const b = await chromium.launch(process.env.LYRE_SPEC_CHROMIUM ? { executablePath: process.env.LYRE_SPEC_CHROMIUM } : {});
   async function page(route, w, h, theme) {
     const p = await b.newPage({ viewport: { width: w || 960, height: h || 1000 } });
     p.errs = []; p.on('pageerror', e => p.errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') p.errs.push(m.text()); });

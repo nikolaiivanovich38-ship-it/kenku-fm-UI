@@ -19,6 +19,7 @@ import type {
   SequenceStep,
   Use,
 } from "./types";
+import { SHAPE_WORDS } from "./types";
 
 /** FX covers sound effects and stings (short one-shot music cues). */
 export function isFx(t: DomainTrack): boolean {
@@ -36,6 +37,10 @@ export function matchesRule(t: DomainTrack, rule: PlaylistRule): boolean {
     if (e < rule.energy[0] || e > rule.energy[1]) return false;
   }
   if (rule.leaveOutStings && t.role === "sting") return false;
+  if (rule.shapes && rule.shapes.length) {
+    const shape = t.shape ?? t.suggestedShape ?? null;
+    if (!shape || !rule.shapes.includes(shape)) return false;
+  }
   return rule.conds.every((c) => {
     if (c.values.length === 0) return false;
     const have = t.tags[c.group] ?? [];
@@ -59,6 +64,7 @@ export function ruleText(rule: PlaylistRule, groupNames: Record<string, string>)
     .map((c) => `${groupNames[c.group] ?? c.group} ${words[c.match]} ${c.values.join(", ")}`);
   if (rule.energy) parts.push(`energy ${rule.energy[0]} to ${rule.energy[1]}`);
   if (rule.leaveOutStings) parts.push("no stings");
+  if (rule.shapes && rule.shapes.length) parts.push("shape " + rule.shapes.map((s) => SHAPE_WORDS[s].toLowerCase()).join(" or "));
   return parts.join("; ");
 }
 
@@ -224,17 +230,21 @@ export function usesOfBoard(id: string, campaigns: DomainCampaign[]): Use[] {
   return out;
 }
 
-/** Scenes that use a track directly (not through a playlist). */
+/** Where a track is used directly (not through a playlist): kept on hand in a campaign or session (ORG-12), or in scenes. */
 export function usesOfTrack(id: string, campaigns: DomainCampaign[]): Use[] {
   const out: Use[] = [];
-  for (const c of campaigns)
-    for (const s of c.sessions)
+  for (const c of campaigns) {
+    if (c.trackIds?.includes(id)) out.push({ level: "campaign", campaignId: c.id });
+    for (const s of c.sessions) {
+      if (s.trackIds?.includes(id)) out.push({ level: "session", campaignId: c.id, sessionId: s.id });
       for (const sc of s.scenes) {
         sc.music.forEach((r, position) => {
           if (r.kind === "track" && r.id === id) out.push({ level: "scene", campaignId: c.id, sessionId: s.id, sceneId: sc.id, role: "music", position });
         });
         if (sc.ambience?.kind === "track" && sc.ambience.id === id) out.push({ level: "scene", campaignId: c.id, sessionId: s.id, sceneId: sc.id, role: "ambience", position: 0 });
       }
+    }
+  }
   return out;
 }
 

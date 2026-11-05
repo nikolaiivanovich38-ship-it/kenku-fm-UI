@@ -3,7 +3,7 @@
  * (design/prototype/tools/lb-flow.js, lb-size.js and src/views/library.js).
  */
 import type { Page } from "@playwright/test";
-import { expect, test } from "./support/test";
+import { expect, expectFailureUntilBuilt, test } from "./support/test";
 import { openRoute } from "./support/target";
 import { dropFiles } from "./support/drop";
 
@@ -259,5 +259,71 @@ test.describe("tagging many tracks at once", () => {
     await page.getByRole("button", { name: "Add to playlist…" }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
     await expect(page.getByRole("dialog")).toContainText(/playlist/i);
+  });
+});
+
+/* Round 5 (design/prototype/ROUND5.md): built in wave 4, so each check waits for "round 5" in the app. */
+test.describe("round 5: shape, names in scenes, Use in… and missing files", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 5"));
+
+  test("DAT-13: a track's shape is suggested from its loudness, and the game master's choice wins", async ({ page }) => {
+    await openRoute(page, "library/t02");
+    const shape = page.getByRole("group", { name: "Shape" });
+    await expect(shape.getByRole("button")).toHaveText(["Steady", "Builds", "Falls away", "Peaks then falls", "Rises and falls"]);
+    await expect(shape.getByRole("button", { name: "Peaks then falls" })).toHaveAttribute("aria-pressed", "true");
+    await expect(details(page)).toContainText("Suggested by Lyre from the track's loudness");
+    await shape.getByRole("button", { name: "Steady" }).click();
+    await expect(shape.getByRole("button", { name: "Steady" })).toHaveAttribute("aria-pressed", "true");
+    await expect(details(page)).toContainText("Your choice. Lyre suggested peaks then falls.");
+    await details(page).getByRole("button", { name: "Use the suggestion" }).click();
+    await expect(shape.getByRole("button", { name: "Peaks then falls" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("DAT-13: the Library can be filtered by shape", async ({ page }) => {
+    await openRoute(page, "library");
+    await openFilters(page);
+    await filters(page).getByRole("group", { name: "Shape" }).getByRole("button", { name: /^Builds/ }).click();
+    const titles = await shownTitles(page);
+    expect(titles).toContain("Brutal battle, driving brass and strings; long build to full war");
+    expect(titles).not.toContain("Fragile melancholy strings, slow swell - loss, memory, flashback");
+    expect(titles.length).toBeLessThan(69);
+  });
+
+  test("DAT-14: a track's details show its names in scenes beside its own name, the file's title, the file name and the folder", async ({ page }) => {
+    await openRoute(page, "library/t07");
+    const d = details(page);
+    await expect(d.getByRole("textbox", { name: "Your title" })).toHaveValue("Release after loss, ethereal voice, resolves - end of session or death of an NPC");
+    await expect(d).toContainText("Title in the file");
+    await expect(d).toContainText("17 Now We Are Free.flac");
+    await expect(d).toContainText(/Names in scenes\s*Dawn over the abbey\s*in Aftermath \(Session 14\)/);
+  });
+
+  test("ORG-12: Use in… on a track keeps it on hand in a campaign, and Used in says so", async ({ page }) => {
+    await openRoute(page, "library/t05");
+    await details(page).getByRole("button", { name: "Use in…" }).first().click();
+    const sheet = page.getByRole("dialog");
+    await sheet.getByRole("checkbox", { name: /^The Sunken Crown: whole campaign/ }).check();
+    await sheet.getByRole("button", { name: "Save" }).click();
+    await expect(details(page)).toContainText("On hand in The Sunken Crown (whole campaign)");
+  });
+
+  test("DAT-8: files Lyre cannot find are marked Missing, have their own filter and point to Relink", async ({ page }) => {
+    await openRoute(page, "library");
+    await expect(row(page, /^Select Storm and dark romance/)).toContainText("Missing");
+    await openFilters(page);
+    await filters(page).getByRole("button", { name: /^Missing/ }).click();
+    expect(await shownTitles(page)).toHaveLength(3);
+    await openTrack(page, "Storm and dark romance, swells - villain's tragic backstory");
+    await expect(details(page)).toContainText("Lyre cannot find this file where it was");
+    await details(page).getByRole("link", { name: "Relink…" }).click();
+    await expect(page.getByRole("heading", { name: "Find missing files", level: 1 })).toBeVisible();
+  });
+
+  test("the ⋯ beside Add tracks leads to Back up, move or share, Find missing files and the move report", async ({ page }) => {
+    await openRoute(page, "library");
+    await page.getByRole("button", { name: "More for the library" }).click();
+    await expect(page.getByRole("menuitem")).toHaveText(["Back up, move or share…", "Find missing files (3)…", "What came across from Kenku FM"]);
+    await page.getByRole("menuitem", { name: "Back up, move or share…" }).click();
+    await expect(page.getByRole("heading", { name: "Back up, move or share", level: 1 })).toBeVisible();
   });
 });
