@@ -2,3 +2,4 @@
 export { LyreApiProvider, useLyreApi } from "./LyreApiProvider";
 export { useLyreQuery, type LyreQuery } from "./useLyreQuery";
 export * from "./hooks";
+export { LibrarySnapshot } from "./librarySnapshot";
