@@ -133,6 +133,8 @@ To listen-check a change without speakers, draw each sound with ffmpeg (a check 
 
 `scripts/audit-check.mjs` runs `yarn audit` on shipped libraries and fails on any high or critical advisory not in `scripts/audit-allowlist.json`. To accept one temporarily, add an entry with `id` (GHSA), `package`, `reason` and the `backlog` item that removes it, and update `reviewed`. Electron is listed as a devDependency (Electron Forge expects that) but ships inside the app, so the gate audits it as well; the other devtools are not audited. Electron supports its three newest major versions; check https://releases.electronjs.org before each release and upgrade when the current major nears end of life. When upgrading, update `FALLBACK_CHROME_VERSION` in `src/main/userAgent.ts`.
 
+New libraries are added only at versions published at least two weeks earlier, their dependencies included: after `yarn add <name>@<version> --exact`, check every new `yarn.lock` entry with `npm view <name> time` and pin any newer one under `resolutions` in `package.json` to the newest release old enough. Wave 3 pins `strtok3` 10.6.2, `token-types` 6.1.2 and `@borewit/text-codec` 0.2.2 for `music-metadata` 11.16.1 (MIT, reads track tags and lengths). `ffmpeg-static` 5.3.0 bundles an ffmpeg binary (GPL-3.0-or-later, compatible with the app's GPL-3.0); its postinstall downloads the binary for the building machine's platform, so the Windows installer is built on Windows.
+
 ## CI
 
 `.github/workflows/`:
