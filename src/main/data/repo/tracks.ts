@@ -459,9 +459,12 @@ export function getFollowWith(store: Store, trackId: string): string[] {
 export function markTracksUsed(store: Store, ids: string[], at: number = store.now()): void {
   const trackIds = v.ids("trackIds", ids);
   const time = v.integer("at", at, 0, Number.MAX_SAFE_INTEGER);
-  store.changeWithoutHistory(() => {
-    for (const id of trackIds) store.run("UPDATE tracks SET last_used_at = ? WHERE id = ?", time, id);
-  });
+  store.changeWithoutHistory(
+    () => {
+      for (const id of trackIds) store.run("UPDATE tracks SET last_used_at = ? WHERE id = ?", time, id);
+    },
+    { bookkeeping: true },
+  );
 }
 
 /** The full path (or web address) to play a track from. */

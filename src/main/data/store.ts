@@ -272,23 +272,31 @@ export class Store {
   }
 
   /**
-   * Runs `fn` in one transaction that is not recorded for undo: bulk imports and
-   * bookkeeping such as "last used", which Ctrl+Z should not step through.
+   * Runs `fn` in one transaction that is not recorded for undo: bulk imports,
+   * the old player's library moving in, and bookkeeping such as "last used",
+   * which Ctrl+Z should not step through.
+   *
+   * Afterwards the undo history is cleared (DB review 10): an older step
+   * replayed over rows written here could clash with them and be lost. Pass
+   * `bookkeeping: true` for writes undo never touches (a column no step
+   * records, such as last_used_at), which keep the history.
    */
-  changeWithoutHistory<T>(fn: () => T): T {
+  changeWithoutHistory<T>(fn: () => T, options: { bookkeeping?: boolean } = {}): T {
     if (this.depth > 0) throw new Error("changeWithoutHistory cannot run inside another change.");
     this.refuseWhileBusy();
     this.db.exec("BEGIN IMMEDIATE");
     this.depth = 1;
+    let result: T;
     try {
-      const result = fn();
+      result = fn();
       this.beforeCommit();
       this.db.exec("COMMIT");
-      return result;
     } catch (error) {
       return rollbackAfter(this.db, error);
     } finally {
       this.depth = 0;
     }
+    if (!options.bookkeeping) this.hooks?.reset?.();
+    return result;
   }
 }

@@ -17,12 +17,12 @@ import * as cueActions from "./repo/cueActions";
 import { search } from "./repo/search";
 import { getDomainLookup } from "./repo/domain";
 
-function setup(limit?: number) {
+function setup(limit?: number, memoryLimitBytes?: number) {
   const clock = makeClock();
   const db = openConnection(":memory:");
   migrate(db, MIGRATIONS, clock.now);
   const store = new Store(db, { now: clock.now });
-  const history = new UndoHistory(store, { limit });
+  const history = new UndoHistory(store, { limit, memoryLimitBytes });
   return { db, store, history, clock };
 }
 
@@ -283,6 +283,29 @@ describe("undo history", () => {
     expect([b, d].map((x) => tracks.getTrack(t.store, x.id)!.title)).toEqual(["b", "d"]);
   });
 
+  it("is cleared by a write made outside it, but not by bookkeeping such as 'last used' (DB review 10)", async () => {
+    const [track] = tracks.createTracks(t.store, [{ title: "A", file: { path: "/a.mp3" } }]);
+    tracks.markTracksUsed(t.store, [track.id]);
+    expect(t.history.state().canUndo).toBe(true);
+    t.store.changeWithoutHistory(() => t.store.run("UPDATE tracks SET title = 'Imported' WHERE id = ?", track.id));
+    expect(t.history.state()).toMatchObject({ canUndo: false, canRedo: false });
+  });
+
+  it("keeps steps up to a memory limit as well as a number of steps, always the newest (DB review 10)", async () => {
+    const small = setup(100, 40_000);
+    let made = 0;
+    const big = (n: number) =>
+      tracks.createTracks(small.store, Array.from({ length: n }, (_, i) => ({ title: `T${i}`, notes: "x".repeat(200), file: { path: `/m/${made++}.mp3` } })));
+    big(20);
+    big(20);
+    expect(small.history.state().canUndo).toBe(true);
+    // Too big for the limit on its own: kept (the newest step always is), and every older one goes.
+    big(400);
+    expect(await small.history.undo()).toBe("Add 400 tracks");
+    expect(await small.history.undo()).toBeNull();
+    small.db.close();
+  });
+
   it("names each step so the interface can say what Undo will do", async () => {
     const [track] = tracks.createTracks(t.store, [{ title: "A", file: { path: "/a.mp3" } }, { title: "B", file: { path: "/b.mp3" } }]);
     await tracks.deleteTracks(t.store, [track.id]);
@@ -371,11 +394,9 @@ describe("undo history", () => {
   it("drops a step that cannot be undone, so the steps before it still can", async () => {
     campaigns.createCampaign(t.store, { name: "First" });
     const c = campaigns.createCampaign(t.store, { name: "A" });
-    // Something outside the history took the id of the row undo would bring back.
+    // Something outside the history (and outside the Store, which would clear it) took the id of the row undo would bring back.
     campaigns.deleteCampaign(t.store, c.id);
-    t.store.changeWithoutHistory(() =>
-      t.store.run("INSERT INTO campaigns (id, name, position, created_at, updated_at) VALUES (?, 'X', 1, 1, 1)", c.id),
-    );
+    t.db.prepare("INSERT INTO campaigns (id, name, position, created_at, updated_at) VALUES (?, 'X', 1, 1, 1)").run(c.id);
     await expect(t.history.undo()).rejects.toThrow();
     expect(campaigns.getCampaign(t.store, c.id)!.name).toBe("X");
     // Before: the failed step went back on top and every later undo failed the same way.
