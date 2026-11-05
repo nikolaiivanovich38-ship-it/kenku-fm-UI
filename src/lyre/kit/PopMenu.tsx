@@ -11,7 +11,17 @@ import { createPortal } from "react-dom";
 import { Icon, type IconName } from "./Icon";
 
 export type PopMenuEntry =
-  | { content: React.ReactNode; onSelect: () => void; disabled?: boolean; className?: string; key?: string; hidden?: boolean }
+  | {
+      content: React.ReactNode;
+      onSelect: () => void;
+      disabled?: boolean;
+      className?: string;
+      key?: string;
+      hidden?: boolean;
+      /** One of a set (w4-outputs: a room in the Room menu): a radio item, ticked when `checked`. */
+      radio?: boolean;
+      checked?: boolean;
+    }
   | { separator: true }
   | { group: React.ReactNode };
 
@@ -108,7 +118,8 @@ export function PopMenu({ id, label, items, anchor, onClose, top }: PopMenuProps
           <button
             key={item.key ?? index}
             type="button"
-            role="menuitem"
+            role={item.radio ? "menuitemradio" : "menuitem"}
+            aria-checked={item.radio ? Boolean(item.checked) : undefined}
             disabled={item.disabled}
             className={item.className}
             tabIndex={-1}
@@ -127,7 +138,7 @@ export function PopMenu({ id, label, items, anchor, onClose, top }: PopMenuProps
 }
 
 function enabledItems(menu: HTMLElement | null): HTMLButtonElement[] {
-  return menu ? Array.from(menu.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]:not([disabled])')) : [];
+  return menu ? Array.from(menu.querySelectorAll<HTMLButtonElement>('button[role="menuitem"]:not([disabled]), button[role="menuitemradio"]:not([disabled])')) : [];
 }
 
 /** A button that opens a PopMenu; `items` is worked out when the menu opens. */

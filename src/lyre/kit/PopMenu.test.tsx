@@ -91,3 +91,31 @@ describe("PopMenu: a menu with two-line items", () => {
     expect(screen.getByRole("button", { name: "Next control" })).toHaveFocus();
   });
 });
+
+describe("PopMenu: one-of-a-set items (w4-outputs: the Outputs screen's Room menu)", () => {
+  it("draws radio items with their tick, and the arrow keys move between them as between plain items", async () => {
+    const chosen = vi.fn();
+    const items = (): PopMenuEntry[] => [
+      { group: "The Gull and Lantern" },
+      { content: "Table", onSelect: () => chosen("Table"), radio: true, checked: true },
+      { content: "Side room", onSelect: () => chosen("Side room"), radio: true, checked: false },
+      { separator: true },
+      { content: "Leave Table", onSelect: () => chosen("leave") },
+    ];
+    render(
+      <PopMenuButton label="Room for Lyre Table" className="btn" items={items}>
+        Room
+      </PopMenuButton>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Room" }));
+    const table = screen.getByRole("menuitemradio", { name: "Table" });
+    expect(table).toHaveAttribute("aria-checked", "true");
+    expect(table).toHaveFocus();
+    expect(screen.getByRole("menuitemradio", { name: "Side room" })).toHaveAttribute("aria-checked", "false");
+    await userEvent.keyboard("{ArrowDown}{ArrowDown}");
+    expect(screen.getByRole("menuitem", { name: "Leave Table" })).toHaveFocus();
+    await userEvent.keyboard("{ArrowUp}{Enter}");
+    expect(chosen).toHaveBeenCalledWith("Side room");
+    await expectNoAxeViolations();
+  });
+});
