@@ -30,6 +30,8 @@ interface OutputManagerEvents {
   roomsChange: (rooms: Room[]) => void;
   /** OUT-5: a room's volume, 0 to 1, changed in the window. */
   roomVolumeChange: (roomId: string, volume: number) => void;
+  /** w4-outputs: the state the main window was just sent (once per tick of changes), for the Lyre page too. */
+  stateChange: (state: OutputsState) => void;
 }
 
 /** The parts of the main window the manager uses. */
@@ -201,6 +203,14 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
       if (session.guildId !== moved.guildId) {
         bot.leave(session.channelId);
       }
+    }
+  }
+
+  /** w4-outputs: take a bot out of every voice channel it is in (the Outputs screen's Leave). */
+  leaveAll(id: string): void {
+    const bot = this.bots.get(id);
+    for (const session of bot?.voice() ?? []) {
+      bot?.leave(session.channelId);
     }
   }
 
@@ -408,9 +418,11 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
     this.publishQueued = true;
     setImmediate(() => {
       this.publishQueued = false;
+      const state = this.state();
       if (!this.window.webContents.isDestroyed()) {
-        this.window.webContents.send("OUTPUTS_STATE", this.state());
+        this.window.webContents.send("OUTPUTS_STATE", state);
       }
+      this.emit("stateChange", state);
     });
   }
 }

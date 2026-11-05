@@ -230,6 +230,18 @@ export const IPC_CHANNELS = {
   // answered, a refusal included). Arguments: the area and method of a LyreApi method (nothing else reaches the
   // library), and the method's arguments as a list of at most 4, at most MAX_CALL_BYTES as JSON.
   LYRE_API_CALL: { from: ["lyre-view"], args: isLyreCall },
+
+  // --- w4-outputs ---
+  // src/main/broadcast/lyreOutputsBridge.ts: the Lyre page's Outputs screen. GET answers the bots and the voice
+  // channels they can join (src/common/lyreOutputs.ts; never a token); the rest change one bot, named by its id.
+  // A channel id is a Discord id; a volume is 0 to 1. No channel connects a bot or touches a token: that stays in
+  // the main window's Settings.
+  LYRE_OUTPUTS_GET: { from: ["lyre-view"], args: noArgs },
+  LYRE_OUTPUT_MOVE: { from: ["lyre-view"], args: argsMatch(isBotId, isDiscordId) },
+  LYRE_OUTPUT_LEAVE: { from: ["lyre-view"], args: argsMatch(isBotId) },
+  LYRE_OUTPUT_SET_MUTED: { from: ["lyre-view"], args: argsMatch(isBotId, isBoolean) },
+  LYRE_OUTPUT_SET_VOLUME: { from: ["lyre-view"], args: argsMatch(isBotId, isUnitInterval) },
+  LYRE_OUTPUT_RETRY: { from: ["lyre-view"], args: argsMatch(isBotId) },
 } satisfies Record<string, IpcChannelRule>;
 
 export type IpcChannel = keyof typeof IPC_CHANNELS;

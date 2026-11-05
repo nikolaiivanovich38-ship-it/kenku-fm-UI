@@ -627,3 +627,33 @@ Fixes from the wave 3 security review. The new interface now reads your audio fi
 
 No new IPC channel: the round 5 calls go through `LYRE_API_CALL` like every LyreApi call, so the guard checks their names against `LYRE_API_METHODS` and the call's size. Their arguments are checked in the library before it acts (`src/main/lyreApi/argChecks.ts`, security review 5): `library.setShape` (an id, a short text or null), `playlists.setPlayOrder` and `clearPlayOrder` (an id, a place branched by `kind` with its ids, `{ shuffle: boolean, repeat: text }`), `sessions.setTrackName` (a scene address, an id, a text of at most 1,000 characters; the library keeps 200), `campaigns.setOnHand` (now also "tracks") and `setUses` (now also a track), a session place for `profiles.set`/`clear`, rule `shapes` and search `shapes` (lists of short texts), and `transfer.*` (a scope branched by `kind`, a full path when given, a duplicate choice from skip, merge, keepBoth). The main process does not open or write .lyre files yet (`save`, `open` and `bringIn` refuse with "unavailable"); the stream that adds them must check the file's path as `planRelink` does and treat a file's contents as untrusted.
 
+
+## w4-outputs
+
+### In plain language
+
+The Outputs screen in the new interface shows your Discord bots, the voice channels they can join and who is in each, and lets you move a bot to another channel, take it out, mute it, change its volume and play a test chime. It cannot see or change a bot's token and cannot log a bot in or out: that stays in Settings in the main window. Only the Lyre page may use these channels.
+
+### Technical details
+
+- `LyreOutputsBridge` (`src/main/broadcast/lyreOutputsBridge.ts`) registers the channels below through `guardIpc`, for the `lyre-view` role only, and sends the page `lyreOutputsOf(state)` (`src/common/lyreOutputs.ts`): bot ids, Discord names, login status and plain error text, the room (server, channel, status), mute, volume, server ids, and each server's voice channels with the display names of the people in them (bots left out). No token and no `hasToken`/`tokenRemembered`.
+- The preload (`src/lyre/outputs/preloadOutputs.ts`) accepts only that shape (`isLyreOutputs`) and copies it before it reaches the page.
+- People in channels: `DiscordBot` reads `channel.members` when it lists the servers and again from discord.js's cache 200 ms after the last `VoiceStateUpdate`; no extra request to Discord, no new gateway intent (Guilds and GuildVoiceStates, as before).
+- The test chime is made in the Lyre page's own audio host and played into that room's effects lane; nothing is sent over IPC for it.
+- Test builds only: `CUE_DESK_FAKE_DISCORD=prototype` starts the fake Discord with the prototype's two servers and two bots, joins the first to Table, and exposes `globalThis.__lyreOutputsTest` for the acceptance specs' `joinRoom` and `leaveAllRooms` (`src/main/broadcast/testing/prototypeWorld.ts`, required only behind `__CUE_DESK_TEST_BUILD__`).
+
+| Channel | Sent by | Arguments | Handled in |
+|---|---|---|---|
+| `LYRE_OUTPUTS_GET` (invoke) | Lyre page | none; answers `LyreOutputs` | `src/main/broadcast/lyreOutputsBridge.ts` |
+| `LYRE_OUTPUTS_STATE` (main to page) | main process | one `LyreOutputs`; sent only to the page registered as `lyre-view` | `src/lyre/outputs/preloadOutputs.ts` |
+| `LYRE_OUTPUT_MOVE` | Lyre page | bot id (`bot-<uuid>`), Discord channel id (digits) | `OutputManager.moveBot` |
+| `LYRE_OUTPUT_LEAVE` | Lyre page | bot id | `OutputManager.leaveAll` |
+| `LYRE_OUTPUT_SET_MUTED` | Lyre page | bot id, boolean | `OutputManager.setMuted` |
+| `LYRE_OUTPUT_SET_VOLUME` | Lyre page | bot id, number from 0 to 1 | `OutputManager.setRoomVolume` |
+| `LYRE_OUTPUT_RETRY` | Lyre page | bot id | `OutputManager.reconnect` |
+
+### Manual checks (Windows, real Discord)
+
+1. With two bots logged in (Settings in the main window), open Lyre > Outputs: each bot has a box; the one in a voice channel is titled with that channel and lists the people in it.
+2. Join or leave that voice channel yourself in Discord: within a second the box's "Hears it" line changes.
+3. Use Room to move a bot to another channel: Discord shows it there; Leave takes it out.

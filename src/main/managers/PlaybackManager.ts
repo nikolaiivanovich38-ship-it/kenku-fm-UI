@@ -1,6 +1,7 @@
 import { app, BrowserWindow, safeStorage, type WebContents } from "electron";
 import { BotTokenStore } from "../broadcast/botTokenStore";
 import { OutputManager } from "../broadcast/OutputManager";
+import { LyreOutputsBridge } from "../broadcast/lyreOutputsBridge";
 import { PlayerAudioBridge } from "../broadcast/playerAudioBridge";
 import { AudioCaptureManagerMain } from "./AudioCaptureManagerMain";
 
@@ -16,11 +17,14 @@ export class PlaybackManager {
   audioCaptureManager: AudioCaptureManagerMain;
   /** OUT-5, PRV-1: the private channel between the player page and the capture window. */
   playerAudio = new PlayerAudioBridge();
+  /** w4-outputs: the Lyre page's Outputs screen reads and moves the bots through this. */
+  lyreOutputs: LyreOutputsBridge;
 
   constructor(window: BrowserWindow) {
     // SEC-5: bot tokens live here, encrypted, not in the main window's storage.
     const tokens = new BotTokenStore(BotTokenStore.fileIn(app.getPath("userData")), safeStorage);
     this.outputs = new OutputManager(window, tokens);
+    this.lyreOutputs = new LyreOutputsBridge(this.outputs);
     this.audioCaptureManager = new AudioCaptureManagerMain();
     this.playerAudio.setCapture(this.audioCaptureManager._browserWindow.webContents);
     this.outputs.on("activeChange", (active) => {
@@ -56,9 +60,11 @@ export class PlaybackManager {
    */
   setLyreView(view: WebContents) {
     this.playerAudio.setLyre(view);
+    this.lyreOutputs.setView(view);
   }
 
   destroy() {
+    this.lyreOutputs.destroy();
     this.playerAudio.destroy();
     this.outputs.destroy();
     this.audioCaptureManager.destroy();

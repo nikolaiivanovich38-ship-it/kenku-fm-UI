@@ -6,7 +6,7 @@
 import { EventEmitter } from "events";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const made = vi.hoisted(() => ({ outputs: [] as unknown[], capture: [] as unknown[], bridges: [] as unknown[] }));
+const made = vi.hoisted(() => ({ outputs: [] as unknown[], capture: [] as unknown[], bridges: [] as unknown[], lyreOutputs: [] as unknown[] }));
 
 vi.mock("electron", () => ({ app: { getPath: () => "/tmp/lyre-test" }, safeStorage: {} }));
 vi.mock("../broadcast/botTokenStore", () => ({
@@ -35,10 +35,20 @@ vi.mock("../broadcast/playerAudioBridge", () => ({
   PlayerAudioBridge: class {
     setCapture = vi.fn();
     setPlayer = vi.fn();
+    setLyre = vi.fn();
     setRooms = vi.fn();
     destroy = vi.fn();
     constructor() {
       made.bridges.push(this);
+    }
+  },
+}));
+vi.mock("../broadcast/lyreOutputsBridge", () => ({
+  LyreOutputsBridge: class {
+    setView = vi.fn();
+    destroy = vi.fn();
+    constructor(readonly outputs: unknown) {
+      made.lyreOutputs.push(this);
     }
   },
 }));
@@ -74,6 +84,7 @@ beforeEach(() => {
   made.outputs.length = 0;
   made.capture.length = 0;
   made.bridges.length = 0;
+  made.lyreOutputs.length = 0;
   playback = new PlaybackManager({} as never);
   outputs = made.outputs[0] as Mocked;
   capture = made.capture[0] as Mocked;
@@ -132,5 +143,17 @@ describe("PlaybackManager player channel (OUT-5, PRV-1)", () => {
   it("closes the channel when destroyed", () => {
     playback.destroy();
     expect(bridge.destroy).toHaveBeenCalled();
+  });
+});
+
+describe("PlaybackManager and the Lyre page's Outputs screen (w4-outputs)", () => {
+  it("gives the Lyre page the outputs when it opens, and stops when destroyed", () => {
+    const lyre = made.lyreOutputs[0] as { outputs: unknown; setView: ReturnType<typeof vi.fn>; destroy: ReturnType<typeof vi.fn> };
+    expect(lyre.outputs).toBe(outputs);
+    const view = { id: 9 };
+    playback.setLyreView(view as never);
+    expect(lyre.setView).toHaveBeenCalledWith(view);
+    playback.destroy();
+    expect(lyre.destroy).toHaveBeenCalled();
   });
 });
