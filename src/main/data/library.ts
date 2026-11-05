@@ -40,18 +40,17 @@ export const DATABASE_FILE_NAME = "library.sqlite";
 export const BACKUP_FOLDER_NAME = "backups";
 
 /**
- * Where the library lives (DB review 6). On Windows: under Local app data
- * (%LOCALAPPDATA%\lyre\library), not Roaming, which managed Windows may
- * redirect to a network share, where SQLite's write-ahead log cannot work and
- * a large file would be copied at every sign-in. Elsewhere: inside the app's
- * data folder. `userDataPath` is Electron's app.getPath("userData"); the app's
- * folder name is taken from it.
+ * Where the library lives (DB review 6). On Windows: under Local app data, not Roaming, which managed Windows may
+ * redirect to a network share, where SQLite's write-ahead log cannot work and a large file would be copied at every
+ * sign-in. Its own folder, "%LOCALAPPDATA%\\<app> Library" ("Lyre Library"): the installer (Squirrel) installs the
+ * program into %LOCALAPPDATA%\\lyre and deletes that whole folder when Lyre is uninstalled, so a library inside it
+ * (the first design, never released) would be lost with its backups on an uninstall or reinstall. Elsewhere: inside
+ * the app's data folder. `userDataPath` is Electron's app.getPath("userData"); the app's folder name is taken from it.
  */
 export function libraryFolder(userDataPath: string, env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform): string {
   if (platform === "win32") {
     const local = env.LOCALAPPDATA;
-    const base = local ? path.win32.join(local, path.win32.basename(userDataPath)) : userDataPath;
-    return path.win32.join(base, "library");
+    return local ? path.win32.join(local, `${path.win32.basename(userDataPath)} Library`) : path.win32.join(userDataPath, "library");
   }
   return path.join(userDataPath, "library");
 }

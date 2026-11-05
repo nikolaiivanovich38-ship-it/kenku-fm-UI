@@ -29,9 +29,9 @@ Every fact is kept in one place: a track's name is stored once, so changing it c
 
 | What | Where on Windows |
 | --- | --- |
-| The library | `%LOCALAPPDATA%\lyre\library\library.sqlite` (Local, not Roaming: on managed Windows, Roaming can be moved to a network share) |
+| The library | `%LOCALAPPDATA%\Lyre Library\library.sqlite` (Local, not Roaming: on managed Windows, Roaming can be moved to a network share; and not `%LOCALAPPDATA%\lyre`, the program's own folder, which uninstalling deletes) |
 | Working files of the library, present while Lyre runs | `library.sqlite-wal`, `library.sqlite-shm` next to it. They are part of the library: do not delete them. The `-wal` file is kept to 8 MB at most after use. |
-| Backups | `%LOCALAPPDATA%\lyre\library\backups\` |
+| Backups | `%LOCALAPPDATA%\Lyre Library\backups\` |
 
 If the folder is on a network share anyway, Lyre still works there, with a slower but safe way of saving (a rollback journal instead of the write-ahead log).
 
@@ -274,7 +274,7 @@ Rows in a hand-ordered list are `GAP` (1024) apart. Inserting or moving takes th
 
 ### Opening
 
-`libraryFolder(userData)` gives `%LOCALAPPDATA%\<app>\library` on Windows. `openLibrary()` creates the folder and opens `library.sqlite` (a rollback journal in a network folder, `isNetworkPath`, or where SQLite refuses WAL: `library.journalMode`; `journal_size_limit` 8 MB); for an existing file it reads the schema version and, when an upgrade is pending or `integrityCheck: "blocking"` was asked for, runs `PRAGMA quick_check` and backs up before upgrading; runs pending upgrades; creates the `Store` and the `UndoHistory`; otherwise starts `quick_check` on a worker thread (`checkIntegrity()` gives the result and never rejects). `restoreBackup()` copies a backup from the library's own backups folder into place, keeping the damaged file. `startDailyBackups()` makes the first daily backup two minutes after it is called and then checks every hour; call it after the main window has been shown. Daily, manual and before-import backups (`backupNow()`, `runDailyBackup()`, `backupBeforeImport()`) are promises: the copy (`VACUUM INTO` from a read-only connection) and its check run on a worker thread. The upgrade backup is made at open, before anything plays. After bulk work, `checkpoint()` runs `wal_checkpoint(TRUNCATE)` with a zero busy timeout, so it never waits for a reader.
+`libraryFolder(userData)` gives `%LOCALAPPDATA%\<app> Library` on Windows (outside the installer's `%LOCALAPPDATA%\lyre`, which uninstalling deletes). `openLibrary()` creates the folder and opens `library.sqlite` (a rollback journal in a network folder, `isNetworkPath`, or where SQLite refuses WAL: `library.journalMode`; `journal_size_limit` 8 MB); for an existing file it reads the schema version and, when an upgrade is pending or `integrityCheck: "blocking"` was asked for, runs `PRAGMA quick_check` and backs up before upgrading; runs pending upgrades; creates the `Store` and the `UndoHistory`; otherwise starts `quick_check` on a worker thread (`checkIntegrity()` gives the result and never rejects). `restoreBackup()` copies a backup from the library's own backups folder into place, keeping the damaged file. `startDailyBackups()` makes the first daily backup two minutes after it is called and then checks every hour; call it after the main window has been shown. Daily, manual and before-import backups (`backupNow()`, `runDailyBackup()`, `backupBeforeImport()`) are promises: the copy (`VACUUM INTO` from a read-only connection) and its check run on a worker thread. The upgrade backup is made at open, before anything plays. After bulk work, `checkpoint()` runs `wal_checkpoint(TRUNCATE)` with a zero busy timeout, so it never waits for a reader.
 
 ### Bulk work (DB review 1)
 

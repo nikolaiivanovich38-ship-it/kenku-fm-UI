@@ -620,6 +620,6 @@ Fixes from the wave 3 security review. The new interface now reads your audio fi
 1. Open the Lyre tab, play a track and a WMA file; preview a track: all play. In Settings, choose Clear cache: `%APPDATA%\lyre\media-cache` is empty afterwards (except `index.json`).
 2. In the Library, try to watch `C:\`, `C:\Windows` or `C:\Users\<you>`: a message explains why not. `C:\Users\<you>\Music` works.
 3. Quit Lyre while a long WMA converts: Lyre closes within a few seconds; no `.part` file is left in `media-cache`.
-4. Close Lyre, rename `%LOCALAPPDATA%\lyre\library\library.sqlite` and put any other file there under that name; start Lyre: a box offers "Restore the latest backup". Choose it: your library is back as of the last backup, and the damaged file sits beside it as `library-damaged-….sqlite`.
+4. Close Lyre, rename `%LOCALAPPDATA%\Lyre Library\library.sqlite` and put any other file there under that name; start Lyre: a box offers "Restore the latest backup". Choose it: your library is back as of the last backup, and the damaged file sits beside it as `library-damaged-….sqlite`.
 5. In the installed folder, `resources\NOTICE` names ffmpeg 6.1.1 and its source; `resources\app.asar.unpacked\node_modules\ffmpeg-static\ffmpeg.LICENSE` is there.
 

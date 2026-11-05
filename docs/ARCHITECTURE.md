@@ -267,7 +267,7 @@ The independent database design review (third normal form confirmed) found four 
 - **Bulk work rule.** The Store runs on the main thread, beside the bots' 200 ms packet queue, so no synchronous database call may hold the thread for long. Bulk changes (tagging, deleting tags or tag groups, merging tags, deleting tracks, adding or removing a library folder, relinking, applying title suggestions, and large undo or redo) go through `Store.changeInBatches`: about 500 rows per transaction with the event loop free between them, still one undo step. While one runs, other edits, undo and backups throw `LibraryBusyError`. Tests assert the thread's processor time per call stays under 200 ms on 20,000 tracks.
 - **Backups on a worker thread** (`VACUUM INTO` from a read-only connection): daily, manual and before an import. The upgrade backup runs at open, before anything plays.
 - **Search documents** are rebuilt once per commit from a TEMP dirty table (up to 1,000; the rest catch up on later turns).
-- **Location.** `%LOCALAPPDATA%\lyre\library`; a UNC path, or a folder where WAL is refused, falls back to a rollback journal. The WAL is kept under 8 MB and checkpointed after bulk work.
+- **Location.** `%LOCALAPPDATA%\Lyre Library` (outside `%LOCALAPPDATA%\lyre`, which the installer deletes on uninstall); a UNC path, or a folder where WAL is refused, falls back to a rollback journal. The WAL is kept under 8 MB and checkpointed after bulk work.
 - **Still open:** the Store behind a utilityProcess with an async API (planned with the main-process LyreApi in wave 3), and session numbers derived from session order.
 
 ## Wave 3: w3-shell

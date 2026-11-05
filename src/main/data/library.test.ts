@@ -77,6 +77,16 @@ describe("opening the library (DAT-6)", () => {
     expect(libraryFolder("/home/gm/.config/lyre", {}, "linux")).toBe(path.join("/home/gm/.config/lyre", "library"));
   });
 
+  it("on Windows keeps the library under Local app data, outside the installer's own folder, which uninstalling deletes", () => {
+    const env = { LOCALAPPDATA: "C:\\Users\\gm\\AppData\\Local" };
+    const folder = libraryFolder("C:\\Users\\gm\\AppData\\Roaming\\Lyre", env, "win32");
+    expect(folder).toBe("C:\\Users\\gm\\AppData\\Local\\Lyre Library");
+    // The installer (Squirrel, package "lyre") installs into %LOCALAPPDATA%\lyre and removes that whole folder on
+    // uninstall; Windows paths ignore letter case, so "Lyre\library" there would go with it, backups included.
+    const installRoot = path.win32.join(env.LOCALAPPDATA, "lyre").toLowerCase() + "\\";
+    expect(folder.toLowerCase().startsWith(installRoot)).toBe(false);
+  });
+
   it("refreshes the query planner's statistics when it opens, not only when it closes (review nice-to-have)", async () => {
     const exec = vi.spyOn(loadSqlite().DatabaseSync.prototype, "exec");
     openTracked();
@@ -237,7 +247,7 @@ describe("where the library lives, and its working file (DB review 6)", () => {
   it("keeps the library under Local app data on Windows, which is never redirected to a network share", () => {
     const roaming = "C:\\Users\\gm\\AppData\\Roaming\\lyre";
     expect(libraryFolder(roaming, { LOCALAPPDATA: "C:\\Users\\gm\\AppData\\Local" }, "win32")).toBe(
-      "C:\\Users\\gm\\AppData\\Local\\lyre\\library",
+      "C:\\Users\\gm\\AppData\\Local\\lyre Library",
     );
     // Without LOCALAPPDATA (never on a normal Windows), it stays next to the other app data.
     expect(libraryFolder(roaming, {}, "win32")).toBe("C:\\Users\\gm\\AppData\\Roaming\\lyre\\library");
