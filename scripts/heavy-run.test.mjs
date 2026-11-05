@@ -143,6 +143,20 @@ describe("running under the watchdog", { skip: !posix }, () => {
     assert.equal(await first, 0);
   });
 
+  it("a run that waited for the lock checks in as it takes it, so the next run does not think it stale", async () => {
+    const dir = tmp();
+    const lock = path.join(dir, ".lock");
+    const first = runHeavy(parseArgs(["--lock", lock, "--log", path.join(dir, "a.log"), "--", "sh", "-c", "sleep 0.5"]), { out: quiet });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const log = path.join(dir, "b.log");
+    const second = runHeavy(parseArgs(["--lock", lock, "--log", log, "--", "cat", lock]), { out: quiet, pollMs: 50 });
+    await first;
+    const firstEnded = Date.now();
+    assert.equal(await second, 0);
+    const owner = JSON.parse(fs.readFileSync(log, "utf8"));
+    assert.ok(owner.heartbeatAt >= firstEnded - 100, `checked in ${firstEnded - owner.heartbeatAt} ms before taking the lock`);
+  });
+
   it("the command line prints the lock's owner with --status", () => {
     const dir = tmp();
     const result = spawnSync(process.execPath, [path.join(here, "heavy-run.mjs"), "--status", "--lock", path.join(dir, ".lock")], { encoding: "utf8" });

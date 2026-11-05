@@ -153,6 +153,9 @@ async function acquire(args, owner, { out, graceMs, pollMs }) {
   let announced = false;
   for (;;) {
     try {
+      // Checked in as the lock is taken: a run that waited long would otherwise look stale to the next one.
+      owner.heartbeatAt = Date.now();
+      owner.startedAt = new Date().toISOString();
       fs.writeFileSync(args.lock, JSON.stringify(owner), { flag: "wx" });
       return true;
     } catch (error) {
