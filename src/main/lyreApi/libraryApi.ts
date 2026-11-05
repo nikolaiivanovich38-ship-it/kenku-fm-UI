@@ -10,7 +10,7 @@
  *   refusals); anything else is a fault and rejects.
  * - What needs a person or the desktop (choosing files, opening File Explorer) is asked of the host.
  */
-import { isFx, type DomainCampaign, type Lane, type PlaylistRule, type ProfilePlace, type SoundRef, type Use } from "../../common/domain";
+import { isFx, type DomainCampaign, type Lane, type NormaliseChoice, type PlaylistRule, type ProfilePlace, type SoundRef, type Use } from "../../common/domain";
 import type {
   AddedTracks,
   CampaignInfo,
@@ -69,6 +69,7 @@ import {
   getBoardLayout,
   getDomainCampaign,
   getDomainLookup,
+  getLibraryNormalise,
   getPlayOrderOverrides,
   getTrackNames,
   getProfileOverride,
@@ -104,9 +105,12 @@ import {
   searchCount,
   setBoardUses,
   setPlaylistUses,
+  setLibraryNormalise,
+  setPlaylistNormalise,
   setPlayOrder,
   setProfileOverride,
   setSceneTrackName,
+  setTrackNormalise,
   setTrackUses,
   setSceneAmbience,
   tagTracks,
@@ -120,6 +124,8 @@ import {
   updateSession,
   updateTrack,
   PeakJobs,
+  tracksNeedingLoudness,
+  type LoudnessReader,
   trackPeaks,
   type Library,
   type Pad,
@@ -153,6 +159,13 @@ export interface LibraryApiOptions {
   lengthProbe?: (filePath: string) => Promise<number | null>;
   /** How often a "changed" event for "peaks" may be sent while they are worked out (default 250 ms). */
   peakNotifyEveryMs?: number;
+  /** DAT-15: measures each track's loudness (ffmpeg) with its peaks; without it tracks stay not measured. */
+  loudnessReader?: LoudnessReader;
+  /**
+   * DAT-15: how long after start every track not measured yet (a library from before version 4, or files changed
+   * while Lyre was closed) is queued in the background (default 20 s, so starting up is not slowed).
+   */
+  loudnessSweepAfterMs?: number;
   log?: (message: string, error?: unknown) => void;
 }
 
@@ -232,13 +245,26 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
   };
   const stateLabel = () => history.state().undoLabel;
   // Loudness peaks: worked out one track at a time by ffmpeg in its own process; screens hear when some are ready.
+  // DAT-15: the same job measures loudness; a "peaks" event then also means some tracks' loudness is known.
   const peakJobs = options.peakReader
     ? new PeakJobs(store, options.peakReader, {
         onReady: () => emit({ type: "changed", areas: ["peaks"] }),
         notifyEveryMs: options.peakNotifyEveryMs ?? 250,
         log: options.log,
+        loudness: options.loudnessReader,
       })
     : null;
+  const loudnessSweep =
+    peakJobs && options.loudnessReader
+      ? setTimeout(() => {
+          try {
+            peakJobs.inBackground(tracksNeedingLoudness(store));
+          } catch (error) {
+            options.log?.("Could not list the tracks to measure", error);
+          }
+        }, options.loudnessSweepAfterMs ?? 20_000)
+      : null;
+  loudnessSweep?.unref?.();
 
   /**
    * One write: refusals in plain words, faults passed on, and a "changed" event when it made an undo step.
@@ -304,6 +330,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
         ...t,
         shape: t.shape ?? null,
         suggestedShape: t.suggestedShape ?? null,
+        normalise: t.normalise ?? null,
+        loudness: t.loudness ?? null,
         artist: row.source_composer ?? "",
         album: row.source_album ?? "",
         folder: file === null ? "" : file.slice(0, Math.max(0, lastSeparator(file))),
@@ -341,11 +369,13 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       else items.set(row.playlist_id, [row.track_id]);
     }
     const orders = ownPlayOrders(store, "all");
+    const choices = new Map(store.all<{ id: string; normalise: NormaliseChoice | null }>("SELECT id, normalise FROM playlists").map((r) => [r.id, r.normalise]));
     return listPlaylists(store).map((p): PlaylistInfo => {
       const order = orders.get(p.id) ?? null;
+      const normalise = choices.get(p.id) ?? null;
       return p.kind === "dynamic"
-        ? { id: p.id, name: p.title, lane: p.lane, order, kind: "dynamic", rule: p.rule as PlaylistRule, notes: p.notes }
-        : { id: p.id, name: p.title, lane: p.lane, order, kind: "manual", trackIds: items.get(p.id) ?? [], notes: p.notes };
+        ? { id: p.id, name: p.title, lane: p.lane, order, normalise, kind: "dynamic", rule: p.rule as PlaylistRule, notes: p.notes }
+        : { id: p.id, name: p.title, lane: p.lane, order, normalise, kind: "manual", trackIds: items.get(p.id) ?? [], notes: p.notes };
     });
   }
   const requirePlaylist = (id: string) => playlistInfos().find((p) => p.id === id) ?? refuse("not-found", ENTITY_WORDS.playlist);
@@ -533,6 +563,22 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           return requireTrack(trackId);
         });
       },
+      async normaliseSettings() {
+        return getLibraryNormalise(store);
+      },
+      async setNormaliseSettings(setting) {
+        // Every track's gain follows it, so screens showing tracks reload.
+        return write(["tracks"], () => {
+          setLibraryNormalise(store, setting);
+          return getLibraryNormalise(store);
+        });
+      },
+      async setNormalise(trackId, choice) {
+        return write(["tracks"], () => {
+          setTrackNormalise(store, trackId, choice);
+          return requireTrack(trackId);
+        });
+      },
       async peaksOf(trackId) {
         const state = trackPeaks(store, trackId);
         if (state.state === "ready") return Array.from(state.levels, levelOut);
@@ -685,6 +731,12 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       },
       async clearPlayOrder(playlistId, place) {
         return write(["playlists"], () => clearPlayOrder(store, playlistId, place));
+      },
+      async setNormalise(playlistId, choice) {
+        return write(["playlists"], () => {
+          setPlaylistNormalise(store, playlistId, choice);
+          return requirePlaylist(playlistId);
+        });
       },
     },
 
@@ -1234,6 +1286,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
     },
 
     stopBackgroundWork() {
+      if (loudnessSweep) clearTimeout(loudnessSweep);
       peakJobs?.close();
     },
 

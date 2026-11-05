@@ -37,6 +37,7 @@ import {
 import { BACKUP_FOLDER_NAME } from "../data/library";
 import { musicMetadataTagReader } from "../data/import/musicMetadata";
 import { ffmpegLength } from "../media/ffmpegLength";
+import { FfmpegLoudnessReader } from "../media/ffmpegLoudness";
 import { FfmpegPeakReader } from "../media/ffmpegPeaks";
 import { createLibraryApi, type LibraryApi, type LibraryHost } from "./libraryApi";
 import { seedLibrary } from "./seedLibrary";
@@ -135,7 +136,9 @@ export function runLibraryProcess(port: PortLike, options: LibraryProcessOptions
     const peakReader = peakReaderFor(ffmpegPath);
     // UX review 3: ffmpeg confirms a file the tag reader found no audio in, before it is added.
     const lengthProbe = ffmpegPath ? (file: string) => ffmpegLength(ffmpegPath as string, file) : undefined;
-    api = createLibraryApi(opened, host, { tagReader, peakReader: peakReader ?? undefined, lengthProbe, log });
+    // DAT-15: loudness is measured by the same background job, with the same bundled ffmpeg.
+    const loudnessReader = peakReader && ffmpegPath ? new FfmpegLoudnessReader({ ffmpegPath }) : undefined;
+    api = createLibraryApi(opened, host, { tagReader, peakReader: peakReader ?? undefined, loudnessReader, lengthProbe, log });
     server = serveLyreApi(api, port);
     if (backupsWanted && !stopBackups) stopBackups = startDailyBackups(opened, { onError: (error) => log("The daily backup failed", error) });
     port.postMessage({ t: "ready" });

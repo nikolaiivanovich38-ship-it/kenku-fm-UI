@@ -19,6 +19,8 @@ import type {
   DomainSession,
   DomainTrack,
   Lane,
+  LibraryNormalise,
+  NormaliseChoice,
   PadMode,
   PlayOrder,
   PlayOrderOverrides,
@@ -28,6 +30,7 @@ import type {
   SoundRef,
   TrackKind,
   TrackRole,
+  TrackLoudness,
   TrackShape,
   LoopAdvice,
   Use,
@@ -70,7 +73,8 @@ export interface Refusal {
 
 /**
  * The parts of the library a screen may show. A "changed" event lists the areas to reload. "peaks": loudness peaks
- * of some tracks were worked out (library.peaksOf); sent in the background, at most a few times a second.
+ * of some tracks were worked out (library.peaksOf), or their loudness measured (LibraryTrack.loudness, DAT-15);
+ * sent in the background, at most a few times a second. The library's Normalise volume setting changes "tracks".
  */
 export const LYRE_AREAS = ["tracks", "tags", "folders", "playlists", "boards", "campaigns", "profiles", "history", "peaks"] as const;
 export type LyreArea = (typeof LYRE_AREAS)[number];
@@ -115,6 +119,13 @@ export interface LibraryTrack extends DomainTrack {
   shape: TrackShape | null;
   /** DAT-13: the shape Lyre suggests from the track's loudness; null until its peaks are worked out, or none fits. */
   suggestedShape: TrackShape | null;
+  /** PLY-15: the track's own normalising choice; null follows its playlist, then the library ("Library setting"). */
+  normalise: NormaliseChoice | null;
+  /**
+   * DAT-15: what Lyre measured from its file (normaliseLine words it); null until measured, for a web address, or a
+   * file that cannot be measured. A "peaks" event may mean some were measured.
+   */
+  loudness: TrackLoudness | null;
   artist: string;
   album: string;
   /** The folder the file is in, for example "H:\\Audio\\Scores\\Hans Zimmer\\Gladiator". */
@@ -192,6 +203,8 @@ export type PlaylistInfo = DomainPlaylist & {
   notes: string;
   /** PLY-13: the playlist's own play order (the Playlists page); null: the default where it plays (resolvePlayOrder). */
   order: PlayOrder | null;
+  /** PLY-15: its normalising choice for its tracks when they play from it; null follows the library. */
+  normalise: NormaliseChoice | null;
 };
 
 /**
@@ -543,6 +556,12 @@ export interface LyreApi {
      * suggestion itself also keeps it as a choice). library.js How it plays › Shape.
      */
     setShape(trackId: string, shape: TrackShape | null): Promise<WriteResult<LibraryTrack>>;
+    /** PLY-15: the library's setting (off at first, Standard). library.js ⋯ › Normalise volume… (core.js L.acts.normopen). */
+    normaliseSettings(): Promise<LibraryNormalise>;
+    /** PLY-15: Save in the Normalise volume dialog. core.js L.acts.normsave. */
+    setNormaliseSettings(setting: LibraryNormalise): Promise<WriteResult<LibraryNormalise>>;
+    /** PLY-15: the track's own choice; null is "Library setting". library.js L.acts.lbnorm; profile.js L.acts.apnorm. */
+    setNormalise(trackId: string, choice: NormaliseChoice | null): Promise<WriteResult<LibraryTrack>>;
   };
   tags: {
     /** Tag groups and their values. library.js filters, tag combobox and Tag… sheet; playlists.js rule builder (plvaladd). */
@@ -580,6 +599,8 @@ export interface LyreApi {
     setPlayOrder(playlistId: string, place: PlayPlace | null, order: PlayOrder): Promise<WriteResult<PlayOrder>>;
     /** PLY-13: "Use the playlist's own order here" (place null: back to the default). core.js the play order menu. */
     clearPlayOrder(playlistId: string, place: PlayPlace | null): Promise<WriteResult>;
+    /** PLY-15: the playlist's choice for its tracks; null is "Library setting". playlists.js L.acts.plnorm. */
+    setNormalise(playlistId: string, choice: NormaliseChoice | null): Promise<WriteResult<PlaylistInfo>>;
   };
   boards: {
     /** Every pad board with its pads. boards.js list view, board editor; _shared.js pickBoards, contentsHTML. */
@@ -699,9 +720,9 @@ export interface LyreApi {
 
 /** Method names by area, for the contract tests' "every method is covered" guard and for IPC channel lists. */
 export const LYRE_API_METHODS = {
-  library: ["listTracks", "search", "updateTrack", "listFolders", "showInFolder", "peaksOf", "setShape"],
+  library: ["listTracks", "search", "updateTrack", "listFolders", "showInFolder", "peaksOf", "setShape", "normaliseSettings", "setNormaliseSettings", "setNormalise"],
   tags: ["listGroups", "tagTracks"],
-  playlists: ["list", "tracks", "containing", "create", "update", "copyAsManual", "delete", "addTracks", "removeTrack", "moveTrack", "playOrders", "setPlayOrder", "clearPlayOrder"],
+  playlists: ["list", "tracks", "containing", "create", "update", "copyAsManual", "delete", "addTracks", "removeTrack", "moveTrack", "playOrders", "setPlayOrder", "clearPlayOrder", "setNormalise"],
   boards: ["list", "create", "rename", "resize", "duplicate", "delete", "addPad", "updatePad", "duplicatePad", "movePad", "putAllBack", "deletePad"],
   campaigns: ["list", "get", "create", "update", "setOnHand", "usesOf", "setUses"],
   sessions: ["create", "update", "move", "createScene", "updateScene", "moveScene", "duplicateScene", "deleteScene", "setSceneMusic", "setSceneAmbience", "setSceneBoards", "setTrackName"],
