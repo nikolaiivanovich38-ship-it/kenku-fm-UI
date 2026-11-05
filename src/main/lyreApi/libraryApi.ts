@@ -37,6 +37,7 @@ import type {
   WriteResult,
 } from "../../common/lyre/api";
 import { CAMPAIGN_THEMES } from "../../common/lyre/api";
+import { estimateTransfer, NOT_BROUGHT_ACROSS } from "../../common/lyre/transfer";
 import { fileAddress } from "../../common/lyre/media";
 import { plural, quoted, shownTitle, tagValue, trimmed } from "../../common/lyre/text";
 import {
@@ -51,6 +52,7 @@ import {
   addToSession,
   addTracksToPlaylist,
   applyRelink,
+  clearPlayOrder,
   clearProfileOverride,
   copyPlaylist,
   createBoard,
@@ -67,6 +69,8 @@ import {
   getBoardLayout,
   getDomainCampaign,
   getDomainLookup,
+  getPlayOrderOverrides,
+  getTrackNames,
   getProfileOverride,
   getProfileOverrides,
   importAudio,
@@ -82,7 +86,9 @@ import {
   listSessions,
   listTagGroups,
   listTags,
+  listTrackIdsByShape,
   listUses,
+  ownPlayOrders,
   movePad,
   movePlaylistItems,
   moveScene,
@@ -98,7 +104,10 @@ import {
   searchCount,
   setBoardUses,
   setPlaylistUses,
+  setPlayOrder,
   setProfileOverride,
+  setSceneTrackName,
+  setTrackUses,
   setSceneAmbience,
   tagTracks,
   untagTracks,
@@ -183,6 +192,9 @@ export function refusalFor(error: unknown): ApiRefusal | null {
   if (error instanceof LibraryBusyError) return { code: "busy", message: error.message };
   return null;
 }
+
+/** DAT-7 until the stream that saves and opens .lyre files is merged. */
+const TRANSFER_LATER = "Saving to a file and opening one come in a later version of Lyre.";
 
 /** "f5" as stored, "F5" as the screens show it; a letter or digit as it is. */
 const keyOut = (hotkey: string | null) => (hotkey === null ? "" : /^f([1-9]|1[0-2])$/.test(hotkey) ? hotkey.toUpperCase() : hotkey);
@@ -290,6 +302,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       const file = fullPath(row, roots);
       return {
         ...t,
+        shape: t.shape ?? null,
+        suggestedShape: t.suggestedShape ?? null,
         artist: row.source_composer ?? "",
         album: row.source_album ?? "",
         folder: file === null ? "" : file.slice(0, Math.max(0, lastSeparator(file))),
@@ -326,11 +340,13 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       if (list) list.push(row.track_id);
       else items.set(row.playlist_id, [row.track_id]);
     }
-    return listPlaylists(store).map((p): PlaylistInfo =>
-      p.kind === "dynamic"
-        ? { id: p.id, name: p.title, lane: p.lane, kind: "dynamic", rule: p.rule as PlaylistRule, notes: p.notes }
-        : { id: p.id, name: p.title, lane: p.lane, kind: "manual", trackIds: items.get(p.id) ?? [], notes: p.notes },
-    );
+    const orders = ownPlayOrders(store, "all");
+    return listPlaylists(store).map((p): PlaylistInfo => {
+      const order = orders.get(p.id) ?? null;
+      return p.kind === "dynamic"
+        ? { id: p.id, name: p.title, lane: p.lane, order, kind: "dynamic", rule: p.rule as PlaylistRule, notes: p.notes }
+        : { id: p.id, name: p.title, lane: p.lane, order, kind: "manual", trackIds: items.get(p.id) ?? [], notes: p.notes };
+    });
   }
   const requirePlaylist = (id: string) => playlistInfos().find((p) => p.id === id) ?? refuse("not-found", ENTITY_WORDS.playlist);
   function requireManual(id: string) {
@@ -356,6 +372,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       sound: { kind: pad.sound.kind, trackIds: [...pad.sound.trackIds], order: pad.sound.order, tag: pad.sound.tagId ? (tags.get(pad.sound.tagId) ?? null) : null },
       volume: pad.volume,
       fadeOutMs: pad.fadeMs,
+      aside: pad.putAside,
     };
   }
   function padBoard(id: string, tags = tagRefsById()): PadBoard {
@@ -383,6 +400,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
   function campaignInfo(tree: DomainCampaign): CampaignInfo {
     const campaign = listCampaigns(store).find((c) => c.id === tree.id);
     const sessions = new Map(listSessions(store, tree.id).map((s) => [s.id, s]));
+    const names = getTrackNames(store);
     return {
       id: tree.id,
       name: campaign.name,
@@ -393,6 +411,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       obsidian: { ...campaign.obsidian },
       playlistIds: tree.playlistIds,
       boardIds: tree.boardIds,
+      trackIds: tree.trackIds ?? [],
       sessions: tree.sessions.map((s): SessionInfo => {
         const row = sessions.get(s.id);
         const scenes = new Map(listScenes(store, s.id).map((sc) => [sc.id, sc]));
@@ -403,9 +422,11 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           date: row.date,
           status: row.status,
           noteLink: row.noteLink,
+          trackIds: s.trackIds ?? [],
           scenes: s.scenes.map((sc): SceneInfo => {
             const scene = scenes.get(sc.id);
-            return { ...sc, name: scene.name, startsWhen: scene.startsWhen, notes: scene.notes, noteLink: scene.noteLink };
+            const trackNames = { ...(names[`sc:${tree.id}:${s.id}:${sc.id}`] ?? {}) };
+            return { ...sc, name: scene.name, startsWhen: scene.startsWhen, notes: scene.notes, noteLink: scene.noteLink, trackNames };
           }),
         };
       }),
@@ -443,6 +464,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
   }
   function placeExists(place: ProfilePlace) {
     if (place.kind === "playlist") requirePlaylist(place.playlistId);
+    else if (place.kind === "session") requireSession(place.campaignId, place.sessionId);
     else requireScene(place);
   }
   /** A rule may only name tag groups and values the library has (the database would call them "not found"). */
@@ -462,9 +484,17 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       async listTracks() {
         return libraryTracks();
       },
-      async search({ text, lane, limit = 50 }) {
+      async search({ text, lane, limit = 50, shapes }) {
         const max = Math.max(0, limit);
         const inLane = (t: LibraryTrack) => !lane || (lane === "fx" ? isFx(t) : t.kind === lane);
+        if (shapes && shapes.length) {
+          // DAT-13, the Shape filter: the shape index gives the tracks; words and lane narrow them in memory.
+          const shaped = new Set(quietly(() => listTrackIdsByShape(store, shapes), []));
+          const wanted = trimmed(text) ? new Set(search(store, text, { kinds: ["track"], lane, limit: 100_000 }).map((h) => h.id)) : null;
+          const all = libraryTracks().filter((t) => shaped.has(t.id) && inLane(t) && (!wanted || wanted.has(t.id)));
+          if (wanted) all.sort((a, b) => [...wanted].indexOf(a.id) - [...wanted].indexOf(b.id));
+          return { trackIds: all.slice(0, max).map((t) => t.id), total: all.length };
+        }
         if (!trimmed(text)) {
           const all = libraryTracks().filter(inLane);
           return { trackIds: all.slice(0, max).map((t) => t.id), total: all.length };
@@ -493,6 +523,14 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           if (file === null) refuse("invalid", `"${shownTitle(track)}" plays from a web address, not a file.`);
           if (!(await fileExists(file))) refuse("file-missing", "The file is not where your library expects it. Use Find missing files to look for it.");
           host.showItemInFolder(file);
+        });
+      },
+      async setShape(trackId, shape) {
+        return write(["tracks"], () => {
+          const track = requireTrack(trackId);
+          const label = shape === null ? `Let Lyre suggest the shape of ${quoted(shownTitle(track))}` : `Give ${quoted(shownTitle(track))} a shape`;
+          store.change(label, () => updateTrack(store, trackId, { shape }));
+          return requireTrack(trackId);
         });
       },
       async peaksOf(trackId) {
@@ -636,6 +674,18 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           );
         });
       },
+      async playOrders() {
+        return getPlayOrderOverrides(store);
+      },
+      async setPlayOrder(playlistId, place, order) {
+        return write(["playlists"], () => {
+          setPlayOrder(store, playlistId, place, order);
+          return { shuffle: order.shuffle, repeat: order.repeat };
+        });
+      },
+      async clearPlayOrder(playlistId, place) {
+        return write(["playlists"], () => clearPlayOrder(store, playlistId, place));
+      },
     },
 
     boards: {
@@ -662,9 +712,9 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       async resize(id, cols, rows) {
         return write(["boards"], () => {
           const board = requireBoard(id);
-          let moved: string[] = [];
-          store.change(`Resize ${quoted(board.name)} to ${cols} × ${rows}`, () => (moved = resizeBoard(store, id, { cols, rows }).movedToSpare));
-          return { board: padBoard(id), movedToSpare: moved };
+          let moved = { movedToSpare: [] as string[], cameBack: [] as string[] };
+          store.change(`Resize ${quoted(board.name)} to ${cols} × ${rows}`, () => (moved = resizeBoard(store, id, { cols, rows })));
+          return { board: padBoard(id), movedToSpare: moved.movedToSpare, cameBack: moved.cameBack };
         });
       },
       async duplicate(id) {
@@ -820,11 +870,14 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           const target = owner.sessionId ? requireSession(owner.campaignId, owner.sessionId) : c;
           const wanted = [...new Set(ids)];
           if (kind === "playlists") wanted.forEach(requirePlaylist);
-          else wanted.forEach(requireBoard);
-          const key = kind === "playlists" ? "playlistIds" : "boardIds";
+          else if (kind === "boards") wanted.forEach(requireBoard);
+          else if (kind === "tracks") wanted.forEach(requireTrack);
+          else refuse("invalid", "A campaign keeps playlists, pad boards and tracks on hand.", "kind");
+          const key = kind === "playlists" ? "playlistIds" : kind === "boards" ? "boardIds" : "trackIds";
+          const words = kind === "playlists" ? "playlists" : kind === "boards" ? "pad boards" : "tracks";
           const where = owner.sessionId ? `session ${(target as SessionInfo).number}` : quoted(c.name);
-          store.change(`Change the ${kind === "playlists" ? "playlists" : "pad boards"} on hand in ${where}`, () => {
-            const current = { playlistIds: [] as string[], boardIds: [] as string[], [key]: target[key] };
+          store.change(`Change the ${words} on hand in ${where}`, () => {
+            const current = { playlistIds: [] as string[], boardIds: [] as string[], trackIds: [] as string[], [key]: target[key] };
             if (owner.sessionId) {
               removeFromSession(store, owner.sessionId, current);
               addToSession(store, owner.sessionId, { [key]: wanted });
@@ -841,14 +894,16 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       },
       async setUses(ref, places) {
         return write(["campaigns"], () => {
-          const name = ref.kind === "board" ? requireBoard(ref.id).name : requirePlaylist(ref.id).name;
+          const name = ref.kind === "board" ? requireBoard(ref.id).name : ref.kind === "track" ? shownTitle(requireTrack(ref.id)) : requirePlaylist(ref.id).name;
           const targets: UseTarget[] = places.map((p) => {
             if (p.sceneId) return { sceneId: requireScene({ campaignId: p.campaignId, sessionId: p.sessionId, sceneId: p.sceneId }).scene.id };
             if (p.sessionId) return { sessionId: requireSession(p.campaignId, p.sessionId).id };
             return { campaignId: requireCampaign(p.campaignId).id };
           });
           const label = places.length ? `Use ${quoted(name)} in ${plural(places.length, "place")}` : `Stop using ${quoted(name)}`;
-          store.change(label, () => (ref.kind === "board" ? setBoardUses(store, ref.id, targets) : setPlaylistUses(store, ref.id, targets)));
+          store.change(label, () =>
+            ref.kind === "board" ? setBoardUses(store, ref.id, targets) : ref.kind === "track" ? setTrackUses(store, ref.id, targets) : setPlaylistUses(store, ref.id, targets),
+          );
         });
       },
     },
@@ -920,12 +975,15 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
             if (scene.music.length) addSceneMusic(store, id, scene.music);
             if (scene.ambience) setSceneAmbience(store, id, scene.ambience);
             if (scene.boardIds.length) addSceneBoards(store, id, scene.boardIds);
+            // DAT-14: a copy of the scene keeps its names for its tracks.
+            for (const [trackId, name] of Object.entries(scene.trackNames)) setSceneTrackName(store, id, trackId, name);
           });
           return requireScene({ ...address, sceneId: id }).scene;
         });
       },
       async deleteScene(address) {
-        return write(["campaigns", "profiles"], () => {
+        // The scene's own play orders go with it (ON DELETE CASCADE), so playlists' places change too.
+        return write(["campaigns", "profiles", "playlists"], () => {
           const { scene } = requireScene(address);
           store.change(`Delete the scene ${quoted(scene.name)}`, () => deleteScene(store, scene.id));
         });
@@ -962,6 +1020,14 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
             if (scene.boardIds.length) removeSceneBoards(store, scene.id, scene.boardIds);
             if (wanted.length) addSceneBoards(store, scene.id, wanted);
           });
+        });
+      },
+      async setTrackName(address, trackId, name) {
+        return write(["campaigns"], () => {
+          const { scene } = requireScene(address);
+          requireTrack(trackId);
+          if (typeof name !== "string") refuse("invalid", "A name is text.", "name");
+          setSceneTrackName(store, scene.id, trackId, name);
         });
       },
     },
@@ -1047,7 +1113,14 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
         });
       },
       async findMissing() {
-        return (await findMissingTracks(store)).map((m): MissingTrack => ({ id: m.id, title: m.title, path: m.path }));
+        return (await findMissingTracks(store)).map((m): MissingTrack => ({
+          id: m.id,
+          title: m.title,
+          path: m.path,
+          fileName: m.fileName,
+          folder: m.path.slice(0, Math.max(0, lastSeparator(m.path))),
+          sizeBytes: m.size,
+        }));
       },
       async planRelink(source) {
         const folder = source.from === "path" ? source.path : await host.chooseFolder();
@@ -1064,7 +1137,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           plannedChoices = new Set(plan.ambiguous.flatMap((a) => a.candidates.map((to) => relinkKey(a.trackId, to))));
           return {
             folder,
-            matches: plan.matches.map((m) => ({ trackId: m.trackId, from: m.from, to: m.to, confidence: m.confidence })),
+            matches: plan.matches.map((m) => ({ trackId: m.trackId, from: m.from, to: m.to, confidence: m.confidence, toUrl: fileAddress(m.to) })),
             ambiguous: plan.ambiguous,
             notFound: plan.notFound,
             summary: plan.summary,
@@ -1085,6 +1158,45 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           plannedChoices = new Set();
           return { relinked: matches.map((m) => m.trackId) };
         });
+      },
+    },
+
+    transfer: {
+      async estimate(scope) {
+        const lib = { tracks: libraryTracks(), playlists: playlistInfos(), boards: listBoards(store).map((b) => padBoard(b.id)), campaigns: listDomainCampaigns(store).map(campaignInfo), tagGroups: tagGroups() };
+        const out = estimateTransfer(scope, lib, new Date(store.now()).toISOString().slice(0, 10));
+        if (!out) throw new Error("That is no longer in your library.");
+        return out;
+      },
+      // DAT-7: saving, opening and bringing in .lyre files are a later step's (docs/ARCHITECTURE.md, w4-contracts).
+      async save() {
+        return { ok: false, refusal: { code: "unavailable", message: TRANSFER_LATER } };
+      },
+      async open() {
+        return { ok: false, refusal: { code: "unavailable", message: TRANSFER_LATER } };
+      },
+      async bringIn() {
+        return { ok: false, refusal: { code: "unavailable", message: TRANSFER_LATER } };
+      },
+      async movedReport() {
+        // What the first start's move from the old player recorded (import/legacy.ts, library_jobs).
+        const job = store.get<{ detail: string; finished_at: number | null }>("SELECT detail, finished_at FROM library_jobs WHERE name = 'legacy-player' AND state = 'done'");
+        const report = job ? (JSON.parse(job.detail).report as { status?: string; counts?: { playlists: number; tracks: number; boards: number; pads: number }; missingTrackIds?: string[] } | undefined) : undefined;
+        if (!job || !report?.counts || report.status === "nothing-to-move") return null;
+        const gone = new Set(report.missingTrackIds ?? []);
+        const missing = gone.size ? (await api.import.findMissing()).filter((m) => gone.has(m.id)) : [];
+        return {
+          from: "Kenku FM",
+          at: job.finished_at ?? 0,
+          copied: [
+            { what: "Playlists", count: report.counts.playlists, nowIn: "Playlists (Manual)", route: "#/playlists" },
+            { what: "Tracks", count: report.counts.tracks, nowIn: "Library", route: "#/library" },
+            { what: "Soundboards", count: report.counts.boards, nowIn: "Pad boards", route: "#/boards" },
+            { what: "Sounds", count: report.counts.pads, nowIn: "Pads on those boards", route: "#/boards" },
+          ],
+          missing,
+          notBrought: NOT_BROUGHT_ACROSS.map((x) => ({ ...x })),
+        };
       },
     },
 

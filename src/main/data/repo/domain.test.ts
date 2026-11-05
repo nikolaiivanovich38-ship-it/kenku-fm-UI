@@ -11,7 +11,9 @@ import path from "path";
 import vm from "vm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
+  parseKeyOfPlace,
   playlistTracks,
+  resolvePlayOrder,
   resolveProfile,
   sceneSequence,
   usesOfBoard,
@@ -22,15 +24,17 @@ import {
   type DomainLookup,
   type DomainPlaylist,
   type DomainTrack,
+  type PlayOrder,
   type PlaylistRule,
   type SoundRef,
+  type TrackShape,
 } from "../../../common/domain";
 import { makeTestStore } from "../test/testStore";
 import type { Store } from "../store";
-import { createTracks } from "./tracks";
+import { createTracks, updateTrack } from "./tracks";
 import { createTag, listTagGroups, listTags, tagTracks } from "./tags";
 import { addTracksToPlaylist, createPlaylist, listPlaylistTrackIds } from "./playlists";
-import { addPad, createBoard } from "./boards";
+import { addPad, createBoard, getBoardLayout } from "./boards";
 import {
   addSceneBoards,
   addSceneMusic,
@@ -42,6 +46,8 @@ import {
   setSceneAmbience,
 } from "./campaigns";
 import { getProfileOverrides, setProfileOverride } from "./profiles";
+import { getPlayOrderOverrides, setPlayOrder } from "./playOrders";
+import { getTrackNames, setSceneTrackName } from "./sceneNames";
 import { getDomainCampaign, getDomainLookup, listDomainCampaigns, listUses } from "./domain";
 
 /* The prototype's sample data, as the prototype defines it (seconds, display names). */
@@ -68,13 +74,15 @@ type ProtoTrack = {
   role: string;
   loop: string;
   profile?: ProtoProfile;
+  /** Round 5 (DAT-13): the shape the game master chose. */
+  shape?: TrackShape;
 };
 type ProtoRule = { conds: { group: string; match: "any" | "all" | "none"; values: string[] }[]; energy?: [number, number]; notRole?: string };
-type ProtoPlaylist = { id: string; name: string; kind: "manual" | "dynamic"; lane: "music" | "amb" | "fx"; items?: string[]; rule?: ProtoRule };
-type ProtoPad = { id: string; label: string; icon: string; color: string; key: string; mode: string; sound: { kind: string; files: string[]; order?: string }; vol: number; fade: number };
+type ProtoPlaylist = { id: string; name: string; kind: "manual" | "dynamic"; lane: "music" | "amb" | "fx"; items?: string[]; rule?: ProtoRule; order?: PlayOrder };
+type ProtoPad = { id: string; label: string; icon: string; color: string; key: string; mode: string; sound: { kind: string; files: string[]; order?: string }; vol: number; fade: number; aside?: boolean };
 type ProtoBoard = { id: string; name: string; cols: number; rows: number; slots: (ProtoPad | null)[]; spare: ProtoPad[] };
 type ProtoScene = { id: string; name: string; when: string; music: string[]; amb: string; boards: string[]; notes: string };
-type ProtoSession = { id: string; n: number; name: string; date: string; status: "played" | "next" | "draft"; playlists: string[]; boards: string[]; scenes: ProtoScene[] };
+type ProtoSession = { id: string; n: number; name: string; date: string; status: "played" | "next" | "draft"; playlists: string[]; boards: string[]; tracks: string[]; scenes: ProtoScene[] };
 type ProtoCampaign = {
   id: string;
   name: string;
@@ -84,6 +92,7 @@ type ProtoCampaign = {
   obsidian: { vault: string; note: string; sessions: string };
   playlists: string[];
   boards: string[];
+  tracks: string[];
   sessions: ProtoSession[];
 };
 type ProtoData = {
@@ -93,6 +102,10 @@ type ProtoData = {
   boards: ProtoBoard[];
   campaigns: ProtoCampaign[];
   profiles: Record<string, Record<string, ProtoProfile>>;
+  /** Round 5 (PLY-13): play order chosen in one place, by place key then playlist id. */
+  orders: Record<string, Record<string, PlayOrder>>;
+  /** Round 5 (DAT-14): a track's name in one scene, by scene key then track id. */
+  sceneNames: Record<string, Record<string, string>>;
 };
 
 function loadPrototypeData(): ProtoData {
@@ -153,6 +166,7 @@ function loadIntoDatabase(store: Store, data: ProtoData) {
   for (const t of data.tracks) {
     const ids = Object.entries(t.tags).flatMap(([g, names]) => names.map((name) => tagId(g, name)));
     if (ids.length) void tagTracks(store, [t.id], ids);
+    if (t.shape) updateTrack(store, t.id, { shape: t.shape });
   }
 
   const rule = (r: ProtoRule) => toRule(r, groupId);
@@ -163,6 +177,7 @@ function loadIntoDatabase(store: Store, data: ProtoData) {
     } else {
       createPlaylist(store, { id: p.id, title: p.name, kind: "dynamic", lane: p.lane, rule: rule(p.rule!) });
     }
+    if (p.order) setPlayOrder(store, p.id, null, p.order);
   }
 
   // Pad sounds name files; a file that is not in the library yet is added as a sound effect.
@@ -195,6 +210,7 @@ function loadIntoDatabase(store: Store, data: ProtoData) {
     b.slots.forEach((p, i) => {
       if (p) addPad(store, b.id, { ...padInput(p), at: { row: Math.floor(i / b.cols), col: i % b.cols } } as never);
     });
+    // Every spare pad of the sample was put there by hand (round 5: "Mugs clink stays in Spare pads, where you put it").
     for (const p of b.spare) addPad(store, b.id, { ...padInput(p), at: "spare" } as never);
   }
 
@@ -210,10 +226,10 @@ function loadIntoDatabase(store: Store, data: ProtoData) {
       obsidian: { vault: c.obsidian.vault, note: c.obsidian.note, sessionsFolder: c.obsidian.sessions },
       firstSessionNumber: c.sessions[0]?.n ?? 1,
     });
-    addToCampaign(store, c.id, { playlistIds: c.playlists, boardIds: c.boards });
+    addToCampaign(store, c.id, { playlistIds: c.playlists, boardIds: c.boards, trackIds: c.tracks });
     for (const s of c.sessions) {
       createSession(store, { id: s.id, campaignId: c.id, name: s.name, date: s.date || null, status: s.status });
-      addToSession(store, s.id, { playlistIds: s.playlists, boardIds: s.boards });
+      addToSession(store, s.id, { playlistIds: s.playlists, boardIds: s.boards, trackIds: s.tracks });
       for (const sc of s.scenes) {
         createScene(store, { id: sc.id, sessionId: s.id, name: sc.name, startsWhen: sc.when, notes: sc.notes });
         addSceneMusic(store, sc.id, sc.music.map(ref));
@@ -228,6 +244,13 @@ function loadIntoDatabase(store: Store, data: ProtoData) {
       setProfileOverride(store, { kind: "scene", campaignId, sessionId, sceneId }, trackId, toProfile(p));
     }
   }
+  for (const [key, byPlaylist] of Object.entries(data.orders)) {
+    for (const [playlistId, order] of Object.entries(byPlaylist)) setPlayOrder(store, playlistId, parseKeyOfPlace(key), order);
+  }
+  for (const [key, byTrack] of Object.entries(data.sceneNames)) {
+    const sceneId = key.split(":")[3];
+    for (const [trackId, name] of Object.entries(byTrack)) setSceneTrackName(store, sceneId, trackId, name);
+  }
   return { groupId };
 }
 
@@ -241,9 +264,10 @@ function toRule(r: ProtoRule, groupId: Record<string, string>): PlaylistRule {
 
 /* The same data as domain objects, built directly. */
 function expectedPlaylist(p: ProtoPlaylist, groupId: Record<string, string>): DomainPlaylist {
+  const order = p.order ? { shuffle: p.order.shuffle, repeat: p.order.repeat } : null;
   return p.kind === "manual"
-    ? { id: p.id, name: p.name, lane: p.lane, kind: "manual", trackIds: p.items! }
-    : { id: p.id, name: p.name, lane: p.lane, kind: "dynamic", rule: toRule(p.rule!, groupId) };
+    ? { id: p.id, name: p.name, lane: p.lane, order, kind: "manual", trackIds: p.items! }
+    : { id: p.id, name: p.name, lane: p.lane, order, kind: "dynamic", rule: toRule(p.rule!, groupId) };
 }
 
 function expectedTrack(t: ProtoTrack, groupId: Record<string, string>): DomainTrack {
@@ -259,6 +283,9 @@ function expectedTrack(t: ProtoTrack, groupId: Record<string, string>): DomainTr
     energy: t.energy || null,
     tags: Object.fromEntries(Object.entries(t.tags).map(([g, v]) => [groupId[g], [...v].sort()])),
     profile: t.profile ? toProfile(t.profile) : null,
+    shape: t.shape ?? null,
+    // The prototype makes up a loudness curve for its suggestion (core.js L.levels); the database has no peaks here.
+    suggestedShape: null,
   };
 }
 
@@ -269,11 +296,13 @@ function expectedCampaigns(data: ProtoData): DomainCampaign[] {
     id: c.id,
     playlistIds: c.playlists,
     boardIds: c.boards,
+    trackIds: c.tracks,
     sessions: c.sessions.map((s) => ({
       id: s.id,
       campaignId: c.id,
       playlistIds: s.playlists,
       boardIds: s.boards,
+      trackIds: s.tracks,
       scenes: s.scenes.map((sc) => ({
         id: sc.id,
         name: sc.name,
@@ -327,12 +356,13 @@ describe("domain shapes from the database (DAT-11, DAT-12)", () => {
 
   it("gives manual and dynamic playlists with their lane and rule", () => {
     for (const p of data.playlists) expect(lookup.playlist(p.id), p.id).toEqual(expectedPlaylist(p, groupId));
-    expect(lookup.playlist("p-coast")).toEqual({ id: "p-coast", name: "Coast road travel", lane: "music", kind: "manual", trackIds: ["t23", "t03", "t10", "t29"] });
+    expect(lookup.playlist("p-coast")).toEqual({ id: "p-coast", name: "Coast road travel", lane: "music", order: null, kind: "manual", trackIds: ["t23", "t03", "t10", "t29"] });
     expect(lookup.playlist("a-inn")).toMatchObject({ lane: "amb", kind: "manual", trackIds: ["b03", "b08"] });
     expect(lookup.playlist("p-combat-big")).toEqual({
       id: "p-combat-big",
       name: "Combat: big and loopable",
       lane: "music",
+      order: { shuffle: true, repeat: "all" },
       kind: "dynamic",
       rule: { conds: [{ group: groupId.scene, match: "any", values: ["Combat"] }], energy: [4, 5], leaveOutStings: true },
     });
@@ -393,5 +423,40 @@ describe("domain shapes from the database (DAT-11, DAT-12)", () => {
     expect(inScene.profile).toMatchObject({ endMs: 190_000, after: "next" });
     const elsewhere = resolveProfile(t13, [{ kind: "scene", campaignId: "crown", sessionId: "s14", sceneId: "sc4" }], overrides);
     expect(elsewhere).toMatchObject({ source: "track", profile: { endMs: 318_000, after: "loop", loopStartMs: 64_000 } });
+  });
+});
+
+describe("design round 5 samples from the database (PLY-13, DAT-14, DAT-13, ORG-12, SFX-11)", () => {
+  it("gives the play order chosen in each place, and resolvePlayOrder answers as it does on the prototype's data", () => {
+    const overrides = getPlayOrderOverrides(t.store);
+    expect(overrides).toEqual(data.orders);
+    const places = [null, ...Object.keys(data.orders).map(parseKeyOfPlace), parseKeyOfPlace("sc:crown:s14:sc4"), parseKeyOfPlace("cp:crown")];
+    for (const p of data.playlists) {
+      for (const place of places) {
+        expect(resolvePlayOrder(p.id, lookup.playlist(p.id)!.order, place, overrides), `${p.id} ${JSON.stringify(place)}`).toEqual(
+          resolvePlayOrder(p.id, p.order ?? null, place, data.orders),
+        );
+      }
+    }
+  });
+
+  it("gives the names tracks have in scenes, keyed as trackNameIn takes them", () => {
+    expect(getTrackNames(t.store)).toEqual(data.sceneNames);
+  });
+
+  it("gives the shapes the game master chose", () => {
+    expect([...lookup.tracks()].filter((x) => x.shape).map((x) => [x.id, x.shape])).toEqual([
+      ["t06", "builds"],
+      ["t15", "fallsAway"],
+    ]);
+  });
+
+  it("keeps tracks on hand and a pad put aside by hand", () => {
+    expect(campaigns.find((c) => c.id === "crown")!.trackIds).toEqual(["t26"]);
+    expect(listUses(t.store, { trackId: "t26" })).toEqual(usesOfTrack("t26", protoCampaigns));
+    expect(listUses(t.store, { trackId: "t26" })[0]).toEqual({ level: "campaign", campaignId: "crown" });
+    for (const b of data.boards) {
+      expect(getBoardLayout(t.store, b.id).spare.map((p) => [p.id, p.putAside]), b.id).toEqual(b.spare.map((p) => [p.id, !!p.aside]));
+    }
   });
 });

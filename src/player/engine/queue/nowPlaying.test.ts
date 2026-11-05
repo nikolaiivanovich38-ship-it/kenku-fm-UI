@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import type { DomainTrack } from "../../../common/domain";
+import { keyOfPlace, shuffledOrder, tracksInOrder, type DomainTrack } from "../../../common/domain";
 import { SceneRef, ShowData, ShowLibrary, staticLibrary } from "./library";
 import {
   advance,
@@ -13,6 +13,7 @@ import {
   queueNext,
   removeQueued,
   sceneItem,
+  sequenceOf,
   single,
   stepFrom,
   upNext,
@@ -203,5 +204,80 @@ describe("BUG-11: deleting a track never changes which track is current", () => 
     if (pl.kind === "manual") pl.trackIds = ["b"]; // "a" left P: the sequence is now a, b, c
     lane = advance(lane, lib, { sequence: true }).lane;
     expect(trackOf(lane)).toBe("c");
+  });
+});
+
+describe("PLY-13 play order per place in the sequence", () => {
+  const scenePlace = { kind: "scene" as const, ...ref };
+  const ended = { sequence: true, ended: true };
+
+  it("a playlist on its own repeats all by default: after its last track it starts again", () => {
+    let lane = playNow(EMPTY_LANE, playlistItem("P", "b", lib)!, lib);
+    lane = advance(lane, lib, ended).lane;
+    expect(lane.current?.trackId).toBe("a");
+  });
+
+  it("No repeat: a playlist on its own stops after its last track; Next still goes round", () => {
+    data.playlists[0].order = { shuffle: false, repeat: "off" };
+    const lane = playNow(EMPTY_LANE, playlistItem("P", "b", lib)!, lib);
+    expect(advance(lane, lib, ended).play).toBeNull();
+    expect(advance(lane, lib, { sequence: true }).play?.trackId).toBe("a");
+  });
+
+  it("Repeat one plays the same track again when it ends, until Next", () => {
+    data.playlists[1].order = { shuffle: false, repeat: "one" };
+    const lane = playNow(EMPTY_LANE, playlistItem("L", "b", lib)!, lib);
+    expect(advance(lane, lib, ended).play).toMatchObject({ trackId: "b", origin: { kind: "playlist", playlistId: "L", at: 1 } });
+    expect(advance(lane, lib, { sequence: true }).play?.trackId).toBe("c");
+  });
+
+  it("a choice made for the scene applies there: Repeat all keeps the scene on that playlist until Next", () => {
+    data.playOrders = { [keyOfPlace(scenePlace)]: { P: { shuffle: false, repeat: "all" } } };
+    // Sequence: a (track), a b (playlist P), c (track). At P's last track (step 2) it goes back to P's first (step 1).
+    let lane = playNow(EMPTY_LANE, sceneItem(ref, 2, lib)!, lib);
+    lane = advance(lane, lib, ended).lane;
+    expect(lane.current).toMatchObject({ trackId: "a", origin: { kind: "scene", at: 1 }, playlistId: "P" });
+    // Next moves past it.
+    expect(advance(playNow(EMPTY_LANE, sceneItem(ref, 2, lib)!, lib), lib, { sequence: true }).play?.trackId).toBe("c");
+  });
+
+  it("in a scene without a choice the playlist plays in order and the scene moves on (round 3)", () => {
+    const lane = playNow(EMPTY_LANE, sceneItem(ref, 2, lib)!, lib);
+    expect(advance(lane, lib, ended).play).toMatchObject({ trackId: "c", origin: { kind: "scene", at: 3 } });
+  });
+
+  it("a session's choice reaches a playlist played from the session's list, not the session's scenes", () => {
+    const session = { kind: "session" as const, campaignId: "c1", sessionId: "s1" };
+    data.playOrders = { [keyOfPlace(session)]: { P: { shuffle: false, repeat: "off" } } };
+    const fromList = playNow(EMPTY_LANE, playlistItem("P", "b", lib, { place: session })!, lib);
+    expect(advance(fromList, lib, ended).play).toBeNull();
+    const alone = playNow(EMPTY_LANE, playlistItem("P", "b", lib)!, lib);
+    expect(advance(alone, lib, ended).play?.trackId).toBe("a");
+  });
+
+  it("Shuffle plays the playlist in the order its seed deals, which Up next and the sequence show", () => {
+    data.playlists[1].order = { shuffle: true, repeat: "all" };
+    const dealt = shuffledOrder(["a", "b", "c", "d"], 7);
+    const first = playlistItem("L", null, lib, { seed: 7 })!;
+    expect(first.trackId).toBe(dealt[0]);
+    expect(sequenceOf(first.origin, lib).map((s) => s.trackId)).toEqual(dealt);
+    const lane = playNow(EMPTY_LANE, first, lib);
+    expect(upNext(lane, lib)?.trackId).toBe(dealt[1]);
+    expect(advance(lane, lib, ended).play?.trackId).toBe(dealt[1]);
+  });
+
+  it("a shuffled playlist inside a scene is dealt by the scene's seed; tracks around it keep their place", () => {
+    data.playlists.push({ id: "Q", name: "Many", lane: "music", kind: "manual", trackIds: ["b", "c", "d", "x", "y"] });
+    data.campaigns[0].sessions[0].scenes[0].music = [{ kind: "track", id: "a" }, { kind: "playlist", id: "Q" }];
+    data.playOrders = { [keyOfPlace(scenePlace)]: { Q: { shuffle: true, repeat: "off" } } };
+    const start = sceneItem(ref, 0, lib, 11)!;
+    const seq = sequenceOf(start.origin, lib).map((s) => s.trackId);
+    expect(seq[0]).toBe("a");
+    expect(seq.slice(1)).toEqual(tracksInOrder(["b", "c", "d", "x", "y"], { shuffle: true, repeat: "off" }, 11 + 1));
+  });
+
+  it("a track played from a session list uses the session's own audio settings first (PLY-14)", () => {
+    const session = { kind: "session" as const, campaignId: "c1", sessionId: "s1" };
+    expect(placesOf(playlistItem("P", "a", lib, { place: session })!)).toEqual([session, { kind: "playlist", playlistId: "P" }]);
   });
 });

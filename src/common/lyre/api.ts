@@ -20,14 +20,18 @@ import type {
   DomainTrack,
   Lane,
   PadMode,
+  PlayOrder,
+  PlayOrderOverrides,
   PlaylistRule,
   ProfileOverrides,
   ProfilePlace,
   SoundRef,
   TrackKind,
   TrackRole,
+  TrackShape,
   LoopAdvice,
   Use,
+  UsePlace as DomainUsePlace,
 } from "../domain";
 
 /* ---------- results, refusals and events ---------- */
@@ -49,6 +53,10 @@ export const REFUSAL_CODES = [
   "file-missing",
   /** Another import is still running. */
   "busy",
+  /** DAT-7: the file opened is not a Lyre file, or it is damaged; nothing was changed. */
+  "not-lyre-file",
+  /** This version of Lyre cannot do that yet (the screen says when it comes). */
+  "unavailable",
 ] as const;
 export type RefusalCode = (typeof REFUSAL_CODES)[number];
 
@@ -103,6 +111,10 @@ export type LyreEvent =
 
 /** A track as the Library shows it: the domain track plus where it came from and when it was added. */
 export interface LibraryTrack extends DomainTrack {
+  /** DAT-13: the shape the game master chose; null follows the suggestion (shapeOf gives the one that applies). */
+  shape: TrackShape | null;
+  /** DAT-13: the shape Lyre suggests from the track's loudness; null until its peaks are worked out, or none fits. */
+  suggestedShape: TrackShape | null;
   artist: string;
   album: string;
   /** The folder the file is in, for example "H:\\Audio\\Scores\\Hans Zimmer\\Gladiator". */
@@ -141,6 +153,8 @@ export interface SearchRequest {
   lane?: Lane;
   /** At most this many ids (default 50). */
   limit?: number;
+  /** DAT-13, the Shape filter: only tracks whose shape (chosen, else suggested) is one of these. Empty or missing: any. */
+  shapes?: TrackShape[];
 }
 export interface SearchResult {
   /** Best matches first. */
@@ -174,7 +188,17 @@ export interface TagChange {
 
 /* ---------- playlists ---------- */
 
-export type PlaylistInfo = DomainPlaylist & { notes: string };
+export type PlaylistInfo = DomainPlaylist & {
+  notes: string;
+  /** PLY-13: the playlist's own play order (the Playlists page); null: the default where it plays (resolvePlayOrder). */
+  order: PlayOrder | null;
+};
+
+/**
+ * PLY-13: where a play order applies: one scene, one session's list or one campaign's list (src/common/domain
+ * UsePlace, keyed by keyOfPlace). A call with no place (null) is about the playlist's own order.
+ */
+export type PlayPlace = DomainUsePlace;
 
 export type NewPlaylist = { name: string; lane: Lane; notes?: string } & (
   | { kind: "manual"; trackIds?: string[] }
@@ -216,9 +240,14 @@ export interface Pad {
   sound: PadSound;
   volume: number;
   fadeOutMs: number;
+  /**
+   * SFX-11: a spare pad the game master put among the spare pads by hand (moved there, or sent there by a spare pad
+   * taking its place). It stays there when the grid grows; spare pads a resize moved come back. False on the grid.
+   */
+  aside: boolean;
 }
 
-export type PadPatch = Partial<Omit<Pad, "id" | "sound">> & { sound?: Partial<PadSound> };
+export type PadPatch = Partial<Omit<Pad, "id" | "sound" | "aside">> & { sound?: Partial<PadSound> };
 
 export interface PadBoard {
   id: string;
@@ -254,6 +283,8 @@ export interface SceneInfo extends DomainScene {
   notes: string;
   /** An Obsidian note (coming later). */
   noteLink: string;
+  /** DAT-14: names tracks have in this scene only, by track id (trackNameIn; trackNamesOf gathers every scene's). */
+  trackNames: Record<string, string>;
 }
 
 export interface SessionInfo extends DomainSession {
@@ -264,6 +295,8 @@ export interface SessionInfo extends DomainSession {
   status: SessionStatus;
   /** The session's Obsidian note (coming later). */
   noteLink: string;
+  /** ORG-12: single tracks kept on hand for the session, in order. */
+  trackIds: string[];
   scenes: SceneInfo[];
 }
 
@@ -276,6 +309,8 @@ export interface CampaignInfo extends DomainCampaign {
   description: string;
   notes: string;
   obsidian: ObsidianLinks;
+  /** ORG-12: single tracks kept on hand all campaign long, in order. */
+  trackIds: string[];
   sessions: SessionInfo[];
 }
 
@@ -330,14 +365,24 @@ export interface MissingTrack {
   title: string;
   /** Where the library expects the file. */
   path: string;
+  /** DAT-8: the file's name and the folder it was in ("Was in"), as the Find missing files table shows them. */
+  fileName: string;
+  folder: string;
+  /** The size the file had, when known (the relink matches on name and size). */
+  sizeBytes: number | null;
 }
 
 export interface RelinkMatch {
   trackId: string;
   from: string;
   to: string;
-  /** sure: same content; likely: same name and size; name: same name only. */
+  /**
+   * sure: same content; likely: same name and size; name: same name only. "How sure" on the screen: sure and likely
+   * are ticked to relink, name is not (the game master listens first).
+   */
   confidence: "sure" | "likely" | "name";
+  /** DAT-8: the address the found file plays from, for its Preview before relinking. */
+  toUrl: string;
 }
 
 export interface RelinkPlan {
@@ -348,6 +393,118 @@ export interface RelinkPlan {
   ambiguous: { trackId: string; candidates: string[] }[];
   notFound: string[];
   summary: string;
+}
+
+/* ---------- DAT-7 back up, move or share, and the move report ---------- */
+
+/** What a .lyre file holds: the whole library, the tags only, or one campaign, session, scene, playlist or pad board. */
+export type TransferScope =
+  | { kind: "library" }
+  | { kind: "tags" }
+  | { kind: "campaign"; campaignId: string }
+  | { kind: "session"; campaignId: string; sessionId: string }
+  | ({ kind: "scene" } & SceneAddress)
+  | { kind: "playlist"; playlistId: string }
+  | { kind: "board"; boardId: string };
+
+/** How many of each thing a file holds (or would hold). */
+export interface TransferCounts {
+  tracks: number;
+  playlists: number;
+  boards: number;
+  campaigns: number;
+  sessions: number;
+  scenes: number;
+  tagGroups: number;
+}
+
+/** What saving this scope would put in the file, before anything is written (Save to a file). */
+export interface TransferEstimate {
+  scope: TransferScope;
+  /** The scope in words: "The Sunken Crown", "The whole library". */
+  title: string;
+  /** The file name Lyre suggests, for example "The Sunken Crown.lyre". */
+  fileName: string;
+  counts: TransferCounts;
+  /** Audio files the scope plays, and their size in bytes when every size is known. */
+  audioFiles: number;
+  audioBytes: number | null;
+  /** Why "Include the audio files" cannot be ticked ("Tags have no audio files."), or null when it can. */
+  leaveAudioOutBecause: string | null;
+}
+
+export interface SaveRequest {
+  scope: TransferScope;
+  includeAudio: boolean;
+  /** Where to save; without it Lyre asks (a save dialog). */
+  path?: string;
+}
+
+export interface SavedFile {
+  path: string;
+  bytes: number;
+  /** "Saved The Sunken Crown.lyre (2 MB) in Documents\Lyre." */
+  summary: string;
+}
+
+/** One thing in an opened file, and whether the library has it already. */
+export interface IncomingItem {
+  /** Names the item in `BringInChoices.each`. */
+  key: string;
+  kind: "campaign" | "playlist" | "board" | "tracks" | "tags";
+  name: string;
+  /** One line under the name: "6 tracks", "Dynamic · yours has the same name". */
+  detail: string;
+  /** duplicate: the library has one like it already (`yours` names it), and the game master chooses what to do. */
+  status: "new" | "duplicate";
+  yours: { kind: IncomingItem["kind"]; id: string } | null;
+}
+
+/** An opened .lyre file, waiting for Bring in. Nothing in the library changes until then. */
+export interface OpenedFile {
+  /** Names this preview in bringIn; good until the next open or a restart of the library. */
+  id: string;
+  fileName: string;
+  /** "Lyre 0.4, 2 Nov 2026". */
+  madeWith: string;
+  includesAudio: boolean;
+  items: IncomingItem[];
+}
+
+/** For a duplicate: keep yours as it is, add what is new in theirs to yours, or add theirs as a copy "(from …)". */
+export const DUPLICATE_CHOICES = ["skip", "merge", "keepBoth"] as const;
+export type DuplicateChoice = (typeof DUPLICATE_CHOICES)[number];
+
+/** What to do with each duplicate (by item key), and the same for all the others; missing: skip. */
+export interface BringInChoices {
+  each?: Record<string, DuplicateChoice>;
+  all?: DuplicateChoice;
+}
+
+export interface BringInReport {
+  /** What is in the library now, by what was done with it. */
+  added: { kind: IncomingItem["kind"]; id: string; name: string }[];
+  merged: { kind: IncomingItem["kind"]; id: string; name: string }[];
+  keptBoth: { kind: IncomingItem["kind"]; id: string; name: string }[];
+  skipped: { kind: IncomingItem["kind"]; name: string }[];
+  /** Tracks whose audio files were not in the file and are not on this computer (Find missing files finds them). */
+  missingFiles: number;
+  /** "Brought in Curse of Strahd, 4 playlists, a pad board and 38 tracks. 1 duplicate skipped." */
+  summary: string;
+}
+
+/** What came across from Kenku FM on the first start (#/moved). */
+export interface MoveReport {
+  /** "Kenku FM 1.5.5". */
+  from: string;
+  /** When the library was copied (ms since 1970). */
+  at: number;
+  /** One row per kind of thing: what it was called there, how many, and where it is now in Lyre. */
+  copied: { what: string; count: number; nowIn: string; route: string | null }[];
+  /** Tracks whose files are not where Kenku FM kept them (Find them… opens Find missing files). */
+  missing: MissingTrack[];
+  /** What Lyre did not bring across, and why that is fine. */
+  notBrought: { what: string; why: string }[];
 }
 
 /* ---------- history ---------- */
@@ -381,6 +538,11 @@ export interface LyreApi {
      * Null for good for a web address, a file that cannot be read, or an unknown track. profile.js drawWave.
      */
     peaksOf(trackId: string): Promise<number[] | null>;
+    /**
+     * DAT-13: the game master's shape for the track; null goes back to following Lyre's suggestion (choosing the
+     * suggestion itself also keeps it as a choice). library.js How it plays › Shape.
+     */
+    setShape(trackId: string, shape: TrackShape | null): Promise<WriteResult<LibraryTrack>>;
   };
   tags: {
     /** Tag groups and their values. library.js filters, tag combobox and Tag… sheet; playlists.js rule builder (plvaladd). */
@@ -409,6 +571,15 @@ export interface LyreApi {
     removeTrack(id: string, trackId: string): Promise<WriteResult>;
     /** playlists.js L.acts.plmove, Alt+Up/Down, row drag. */
     moveTrack(id: string, trackId: string, toIndex: number): Promise<WriteResult>;
+    /** PLY-13: every place's own play order, by place key then playlist id (resolvePlayOrder). core.js L.orderOf. */
+    playOrders(): Promise<PlayOrderOverrides>;
+    /**
+     * PLY-13: how the playlist plays there (place null: its own order, the Playlists page). Answers the order that now
+     * applies and where it comes from. core.js the play order menu (Shuffle, No repeat, Repeat all, Repeat one).
+     */
+    setPlayOrder(playlistId: string, place: PlayPlace | null, order: PlayOrder): Promise<WriteResult<PlayOrder>>;
+    /** PLY-13: "Use the playlist's own order here" (place null: back to the default). core.js the play order menu. */
+    clearPlayOrder(playlistId: string, place: PlayPlace | null): Promise<WriteResult>;
   };
   boards: {
     /** Every pad board with its pads. boards.js list view, board editor; _shared.js pickBoards, contentsHTML. */
@@ -417,8 +588,12 @@ export interface LyreApi {
     create(board: { name: string; cols: number; rows: number }): Promise<WriteResult<PadBoard>>;
     /** boards.js L.inputs.pbname. */
     rename(id: string, name: string): Promise<WriteResult<PadBoard>>;
-    /** Pads that no longer fit go to spare, keeping row and column; undo puts them back. boards.js pbsize, pbquick. */
-    resize(id: string, cols: number, rows: number): Promise<WriteResult<{ board: PadBoard; movedToSpare: string[] }>>;
+    /**
+     * SFX-11 (reflowBoard): pads fill the new grid left to right, top to bottom, then spare pads not put aside come
+     * back; only what does not fit goes to spare (`movedToSpare`); `cameBack` names the spare pads that came back.
+     * Undo puts every pad back. boards.js pbsize, pbquick.
+     */
+    resize(id: string, cols: number, rows: number): Promise<WriteResult<{ board: PadBoard; movedToSpare: string[]; cameBack: string[] }>>;
     /** A copy used nowhere yet, placed after it. boards.js L.acts.pbdupboard. */
     duplicate(id: string): Promise<WriteResult<PadBoard>>;
     /** Deletes it and takes it out of every campaign, session and scene. boards.js L.acts.pbdelboardok. */
@@ -445,12 +620,12 @@ export interface LyreApi {
     create(campaign: NewCampaign): Promise<WriteResult<CampaignInfo>>;
     /** campaigns.js L.inputs.cpcamp, cpcampnotes, cpobs. */
     update(id: string, patch: CampaignPatch): Promise<WriteResult<CampaignInfo>>;
-    /** The playlists or boards a campaign or session keeps on hand, in order. campaigns.js L.acts.cpadd, cprm. */
-    setOnHand(owner: Owner, kind: "playlists" | "boards", ids: string[]): Promise<WriteResult>;
+    /** The playlists, boards or (ORG-12) single tracks a campaign or session keeps on hand, in order. campaigns.js L.acts.cpadd, cprm. */
+    setOnHand(owner: Owner, kind: "playlists" | "boards" | "tracks", ids: string[]): Promise<WriteResult>;
     /** Where something is used. playlists.js usesPane, pldel; boards.js usedPane, card, pbdelboard; library.js "Used in". */
     usesOf(ref: UsableRef): Promise<Use[]>;
     /** "Use in…": exactly these places use it. _shared.js L.assignSheet onDone (playlists.js pluse, boards.js pbuse). */
-    setUses(ref: { kind: "playlist" | "board"; id: string }, places: UsePlace[]): Promise<WriteResult>;
+    setUses(ref: UsableRef, places: UsePlace[]): Promise<WriteResult>;
   };
   sessions: {
     /** Next number; "next" when the campaign has none, else draft. campaigns.js L.acts.cpnewsession. */
@@ -475,6 +650,8 @@ export interface LyreApi {
     setSceneAmbience(scene: SceneAddress, ambience: SoundRef | null): Promise<WriteResult>;
     /** campaigns.js L.acts.cpaddboards, cpitem (boards). */
     setSceneBoards(scene: SceneAddress, boardIds: string[]): Promise<WriteResult>;
+    /** DAT-14: the track's name in this scene only; empty gives it back its own name there. campaigns.js Name in this scene…. */
+    setTrackName(scene: SceneAddress, trackId: string, name: string): Promise<WriteResult>;
   };
   profiles: {
     /** Every place's own settings, keyed by placeKey (src/common/domain). profile.js, library.js profileSummary, playlists.js and campaigns.js own-settings marks. */
@@ -496,6 +673,19 @@ export interface LyreApi {
     /** Points tracks at the files the game master confirmed, in one undo step (DAT-8). */
     applyRelink(matches: Pick<RelinkMatch, "trackId" | "to">[]): Promise<WriteResult<{ relinked: string[] }>>;
   };
+  /** DAT-7 (views/transfer.js). The main-process implementation of these comes in a later step; until then it refuses with "unavailable". */
+  transfer: {
+    /** What saving would put in the file. transfer.js exportPane (What to save, Include the audio files). */
+    estimate(scope: TransferScope): Promise<TransferEstimate>;
+    /** Saves a .lyre file; null when the save dialog was closed. No undo step. transfer.js L.acts.tfsave. */
+    save(request: SaveRequest): Promise<WriteResult<SavedFile | null>>;
+    /** Opens a .lyre file and says what is in it; nothing changes yet. Null when the chooser was closed. transfer.js tfchoose, drops. */
+    open(source: { from: "choose-file" } | { from: "path"; path: string }): Promise<WriteResult<OpenedFile | null>>;
+    /** Brings an opened file in, as the choices say, in one undo step. transfer.js L.acts.tfbring, tfchoice, tfall. */
+    bringIn(openedId: string, choices: BringInChoices): Promise<WriteResult<BringInReport>>;
+    /** What came across from Kenku FM, or null when nothing did (a new library). transfer.js the moved view. */
+    movedReport(): Promise<MoveReport | null>;
+  };
   history: {
     /** boards.js gridPane message with Undo; profile.js apundo (and the shell's Undo and Redo). */
     state(): Promise<HistoryState>;
@@ -509,13 +699,14 @@ export interface LyreApi {
 
 /** Method names by area, for the contract tests' "every method is covered" guard and for IPC channel lists. */
 export const LYRE_API_METHODS = {
-  library: ["listTracks", "search", "updateTrack", "listFolders", "showInFolder", "peaksOf"],
+  library: ["listTracks", "search", "updateTrack", "listFolders", "showInFolder", "peaksOf", "setShape"],
   tags: ["listGroups", "tagTracks"],
-  playlists: ["list", "tracks", "containing", "create", "update", "copyAsManual", "delete", "addTracks", "removeTrack", "moveTrack"],
+  playlists: ["list", "tracks", "containing", "create", "update", "copyAsManual", "delete", "addTracks", "removeTrack", "moveTrack", "playOrders", "setPlayOrder", "clearPlayOrder"],
   boards: ["list", "create", "rename", "resize", "duplicate", "delete", "addPad", "updatePad", "duplicatePad", "movePad", "putAllBack", "deletePad"],
   campaigns: ["list", "get", "create", "update", "setOnHand", "usesOf", "setUses"],
-  sessions: ["create", "update", "move", "createScene", "updateScene", "moveScene", "duplicateScene", "deleteScene", "setSceneMusic", "setSceneAmbience", "setSceneBoards"],
+  sessions: ["create", "update", "move", "createScene", "updateScene", "moveScene", "duplicateScene", "deleteScene", "setSceneMusic", "setSceneAmbience", "setSceneBoards", "setTrackName"],
   profiles: ["overrides", "set", "clear"],
   import: ["start", "watchFolder", "findMissing", "planRelink", "applyRelink"],
+  transfer: ["estimate", "save", "open", "bringIn", "movedReport"],
   history: ["state", "undo", "redo"],
 } as const satisfies { [A in Exclude<keyof LyreApi, "subscribe">]: readonly (keyof LyreApi[A])[] };

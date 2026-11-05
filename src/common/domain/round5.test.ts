@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { matchesRule, ruleText, usesOfTrack } from "./rules";
+import { matchesRule, parsePlaceKey, placeKey, resolveProfile, ruleText, usesOfTrack } from "./rules";
 import {
   DEFAULT_ORDER_ALONE,
   DEFAULT_ORDER_IN_SCENE,
@@ -12,6 +12,10 @@ import {
   orderWords,
   parseKeyOfPlace,
   profileKeysFor,
+  profilePlacesFor,
+  shapeOf,
+  shuffledOrder,
+  tracksInOrder,
   reflowBoard,
   resolvePlayOrder,
   shapeFromPeaks,
@@ -22,7 +26,7 @@ import {
   type PlayOrderOverrides,
   type TrackNames,
 } from "./round5";
-import type { DomainCampaign, DomainTrack, PlaylistRule } from "./types";
+import { REPEATS, type DomainCampaign, type DomainTrack, type PlaylistRule } from "./types";
 
 function track(id: string, over: Partial<DomainTrack> = {}): DomainTrack {
   return { id, kind: "music", title: id, metaTitle: "", fileName: id + ".flac", durationMs: 300_000, role: "underscore", loop: "no", energy: 3, tags: { mood: [], motif: [], scene: [] }, ...over };
@@ -243,5 +247,57 @@ describe("ORG-12 a track can be used in campaigns and sessions, not only scenes"
       { level: "session", campaignId: "c", sessionId: "s" },
       { level: "scene", campaignId: "c", sessionId: "s", sceneId: "x", role: "music", position: 0 },
     ]);
+  });
+});
+
+describe("Wave 4 contracts: the shared rules the data, the engine and the screens read", () => {
+  it("PLY-14: a session list is a place with its own audio settings, written ss:<campaign>:<session>", () => {
+    const place = { kind: "session" as const, campaignId: "crown", sessionId: "s14" };
+    expect(placeKey(place)).toBe("ss:crown:s14");
+    expect(parsePlaceKey("ss:crown:s14")).toEqual(place);
+    expect(parsePlaceKey("ss:crown")).toBeNull();
+  });
+
+  it("PLY-14: the profile places for a track played from a place are profileKeysFor's, in the same order", () => {
+    const scene = { kind: "scene" as const, campaignId: "c", sessionId: "s", sceneId: "x" };
+    const session = { kind: "session" as const, campaignId: "c", sessionId: "s" };
+    for (const [place, playlist] of [[scene, "p"], [session, "p"], [session, null], [null, "p"], [{ kind: "campaign" as const, campaignId: "c" }, "p"], [null, null]] as const) {
+      expect(profilePlacesFor(place, playlist).map(placeKey)).toEqual(profileKeysFor(place, playlist));
+    }
+  });
+
+  it("PLY-14: the session's own settings win over the playlist's, and the source says so", () => {
+    const t = track("t1", { durationMs: 100_000 });
+    const overrides = { "ss:c:s": { t1: { endMs: 50_000 } }, "pl:p": { t1: { endMs: 60_000 } } };
+    const out = resolveProfile(t, profilePlacesFor({ kind: "session", campaignId: "c", sessionId: "s" }, "p"), overrides);
+    expect(out.source).toBe("session");
+    expect(out.profile.endMs).toBe(50_000);
+  });
+
+  it("DAT-13: the shape that applies is the chosen one, else the stored suggestion, with its source", () => {
+    expect(shapeOf({ shape: "steady", suggestedShape: "builds" })).toEqual({ shape: "steady", source: "chosen" });
+    expect(shapeOf({ shape: null, suggestedShape: "builds" })).toEqual({ shape: "builds", source: "suggested" });
+    expect(shapeOf({})).toEqual({ shape: null, source: null });
+  });
+
+  it("PLY-13: the repeat choices are a fixed list", () => {
+    expect(REPEATS).toEqual(["off", "all", "one"]);
+  });
+
+  it("PLY-13: a shuffled order is the same for the same seed, holds every track once, and differs between seeds", () => {
+    const ids = Array.from({ length: 12 }, (_, i) => `t${i}`);
+    const a = shuffledOrder(ids, 7);
+    expect(shuffledOrder(ids, 7)).toEqual(a);
+    expect([...a].sort()).toEqual([...ids].sort());
+    expect(a).not.toEqual(ids);
+    expect(shuffledOrder(ids, 8)).not.toEqual(a);
+    expect(shuffledOrder([], 3)).toEqual([]);
+    expect(ids[0]).toBe("t0");
+  });
+
+  it("PLY-13: tracksInOrder keeps the playlist's order unless the order shuffles", () => {
+    const ids = ["a", "b", "c", "d", "e"];
+    expect(tracksInOrder(ids, { shuffle: false, repeat: "all" }, 5)).toEqual(ids);
+    expect(tracksInOrder(ids, { shuffle: true, repeat: "off" }, 5)).toEqual(shuffledOrder(ids, 5));
   });
 });

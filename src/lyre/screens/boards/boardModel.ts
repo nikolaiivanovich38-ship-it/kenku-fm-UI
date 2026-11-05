@@ -177,16 +177,26 @@ export function usesOfBoard(campaigns: readonly CampaignInfo[], boardId: string)
   return out;
 }
 
-/** What the message under the size controls says after a resize. */
-export function resizeMessage(after: PadBoard, movedLabels: readonly string[], grew: boolean): string {
+/**
+ * What the message under the size controls says after a resize (SFX-11, the prototype's boards.js): pads moved to
+ * spare, spare pads that came back (`backLabels`), or empty slots to fill; and that a pad put aside by hand stays.
+ */
+export function resizeMessage(after: PadBoard, movedLabels: readonly string[], grew: boolean, backLabels: readonly string[] = []): string {
   if (movedLabels.length) {
     return `${plural(movedLabels.length, "pad")} moved to Spare pads: ${movedLabels.join(", ")}. Nothing was deleted.`;
   }
   const done = `Grid is now ${after.cols} × ${after.rows}`;
-  if (grew) {
-    return `${done}: ${plural(emptyCount(after), "empty slot")} to fill.${after.spare.length ? " Spare pads can go back into them." : ""}`;
+  let text = `${done}.`;
+  if (backLabels.length) text = `${done}. ${plural(backLabels.length, "spare pad")} came back onto it: ${backLabels.join(", ")}.`;
+  else if (grew) {
+    const others = after.spare.filter((p) => !p.aside);
+    text = `${done}: ${plural(emptyCount(after), "empty slot")} to fill.${others.length ? " Spare pads can go back into them." : ""}`;
   }
-  return `${done}.`;
+  const stayed = after.spare.filter((p) => p.aside);
+  if (stayed.length && emptyCount(after) > 0) {
+    text += ` ${stayed.map((p) => p.label).join(", ")} ${stayed.length > 1 ? "stay" : "stays"} in Spare pads, where you put ${stayed.length > 1 ? "them" : "it"}.`;
+  }
+  return text;
 }
 
 /** What is said after a pad moves (the prototype's moveTo). */

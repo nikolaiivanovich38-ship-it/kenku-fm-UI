@@ -10,7 +10,9 @@
  *   region ("Previewing in your headphones: Tavern", "Preview stopped"),
  *   unless the item is quiet (the Audio profile says its own sentences);
  * - while it plays, where it is in its file is sent about twenty times a
- *   second ("position"), so the Audio profile's playhead follows the sound.
+ *   second ("position"), so the Audio profile's playhead follows the sound;
+ * - it can be paused and carried on, and its headphone volume is kept from
+ *   one preview to the next (UX-16, the Now playing bar's preview row).
  *
  * Preview voices are made in the PreviewOutput's context and connect only to
  * its input, never to the engine's mixer, so nothing previewed can reach the
@@ -19,7 +21,7 @@
 import { TypedEmitter } from "tiny-typed-emitter";
 
 import { DomainLookup, DomainPlaylist, DomainTrack, playlistTracks } from "../../../common/domain";
-import { browserScheduler, Scheduler } from "../audio/types";
+import { browserScheduler, GainLike, Scheduler } from "../audio/types";
 import type { PlayableSource } from "../sources/layers";
 import type { MediaRequest } from "../sources/sourceLoader";
 import { Voice, VoiceOptions } from "../voice/voice";
@@ -34,11 +36,27 @@ export interface PreviewItem {
   options?: VoiceOptions;
   /** Announce nothing for this item (the screen that started it says what happens). */
   quiet?: boolean;
+  /** What it is, and the track it plays (a playlist's first track, a pad's first sound). */
+  kind?: PreviewKind;
+  trackId?: string | null;
+  playlistId?: string | null;
+  /** "<board id>/<pad id>" for a pad. */
+  padKey?: string | null;
+  /** Where the game master started it, in words a screen gives ("the session planner"). */
+  from?: string | null;
 }
+
+export type PreviewKind = "track" | "playlist" | "pad";
 
 export interface PreviewState {
   key: string;
   label: string;
+  kind: PreviewKind;
+  trackId: string | null;
+  playlistId: string | null;
+  padKey: string | null;
+  from: string | null;
+  paused: boolean;
 }
 
 interface PreviewEvents {
@@ -52,6 +70,8 @@ interface PreviewEvents {
 
 /** A switch or a stop fades this fast, so it does not click. */
 const STOP_FADE_SECONDS = 0.1;
+/** How long a change of the headphone volume takes. */
+const VOLUME_RAMP_SECONDS = 0.05;
 /** How often the position is sent while a preview plays (about the screen's frame rate for a playhead). */
 const POSITION_MS = 50;
 
@@ -61,6 +81,9 @@ export class PreviewPlayer extends TypedEmitter<PreviewEvents> {
   private readonly load: (request: MediaRequest) => Promise<PlayableSource>;
   private voice: Voice | null = null;
   private state: PreviewState | null = null;
+  /** The headphone volume: every preview voice plays through it, so it holds from one preview to the next. */
+  private readonly gain: GainLike;
+  private volumeLevel = 1;
   private positionTimer: unknown = null;
   /** The item previewing now is quiet: its stop is not announced either. */
   private quiet = false;
@@ -75,6 +98,45 @@ export class PreviewPlayer extends TypedEmitter<PreviewEvents> {
     this.output = options.output;
     this.load = options.load;
     this.scheduler = options.scheduler ?? browserScheduler;
+    this.gain = this.output.context.createGain() as GainLike;
+    this.gain.connect(this.output.input);
+  }
+
+  /** The headphone volume, 0 to 1. */
+  volume(): number {
+    return this.volumeLevel;
+  }
+
+  /** Sets the headphone volume (kept between 0 and 1). */
+  setVolume(volume: number): void {
+    const v = Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : 1;
+    if (v === this.volumeLevel) return;
+    // A short ramp, so moving the slider never clicks.
+    const now = this.output.context.currentTime;
+    this.gain.gain.cancelScheduledValues(now);
+    this.gain.gain.setValueAtTime(this.volumeLevel, now);
+    this.gain.gain.linearRampToValueAtTime(v, now + VOLUME_RAMP_SECONDS);
+    this.volumeLevel = v;
+    this.emit("change", this.current(), "");
+  }
+
+  /** The previewing voice's length in seconds, once known. */
+  length(): number | null {
+    return this.voice && Number.isFinite(this.voice.duration) ? this.voice.duration : null;
+  }
+
+  /** Pauses the preview, or carries on if it is paused. False when nothing previews. */
+  togglePause(): boolean {
+    if (!this.voice || !this.state) return false;
+    if (this.state.paused) {
+      this.voice.resume();
+      this.state = { ...this.state, paused: false };
+    } else {
+      this.voice.pause();
+      this.state = { ...this.state, paused: true };
+    }
+    this.emit("change", this.current(), this.quiet ? "" : this.state.paused ? "Preview paused" : `Previewing in your headphones: ${this.state.label}`);
+    return true;
   }
 
   current(): PreviewState | null {
@@ -102,13 +164,22 @@ export class PreviewPlayer extends TypedEmitter<PreviewEvents> {
   play(item: PreviewItem): void {
     this.halt(STOP_FADE_SECONDS);
     const voice = new Voice(
-      { context: this.output.context, scheduler: this.scheduler, destination: this.output.input },
+      { context: this.output.context, scheduler: this.scheduler, destination: this.gain },
       this.load(item.media),
       item.options ?? {},
       { id: `preview:${item.key}` },
     );
     this.voice = voice;
-    this.state = { key: item.key, label: item.label };
+    this.state = {
+      key: item.key,
+      label: item.label,
+      kind: item.kind ?? (item.key.startsWith("pad:") ? "pad" : item.key.startsWith("pl:") ? "playlist" : "track"),
+      trackId: item.trackId ?? item.media.trackId ?? null,
+      playlistId: item.playlistId ?? null,
+      padKey: item.padKey ?? null,
+      from: item.from ?? null,
+      paused: false,
+    };
     this.quiet = !!item.quiet;
     voice.on("state", () => {
       if (this.voice !== voice || !voice.isFinal()) {
@@ -173,7 +244,7 @@ function titleOf(track: DomainTrack): string {
 
 /** Preview a track. */
 export function trackPreview(track: DomainTrack, media: MediaRequest): PreviewItem {
-  return { key: track.id, label: titleOf(track), media };
+  return { key: track.id, label: titleOf(track), media, kind: "track", trackId: track.id };
 }
 
 /** Preview a playlist: its first track; an empty playlist gives a message to show instead. */
@@ -186,7 +257,7 @@ export function playlistPreview(
   if (!first) {
     return { message: "This playlist has no tracks yet" };
   }
-  return { key: `pl:${playlist.id}`, label: `${playlist.name}: ${titleOf(first)}`, media: mediaOf(first) };
+  return { key: `pl:${playlist.id}`, label: `${playlist.name}: ${titleOf(first)}`, media: mediaOf(first), kind: "playlist", trackId: first.id, playlistId: playlist.id };
 }
 
 /** Preview a pad's sound, decoded so it starts at once as the pad would. */
@@ -194,6 +265,8 @@ export function padPreview(pad: { boardId: string; padId: string; label: string;
   return {
     key: `pad:${pad.boardId}/${pad.padId}`,
     label: `${pad.label} (pad)`,
+    kind: "pad",
+    padKey: `${pad.boardId}/${pad.padId}`,
     media: { ...pad.media, preferBuffer: pad.media.preferBuffer ?? true },
   };
 }

@@ -145,17 +145,17 @@ describe("pad boards", () => {
     expect(getPad(t.store, filePad.id)!.sound.trackIds).toEqual([]);
   });
 
-  it("moves pads that fall outside a smaller grid to Spare pads, keeping row and column for the rest", async () => {
+  it("packs pads left to right, top to bottom when the grid changes; only pads that do not fit go to Spare pads (SFX-11)", async () => {
     const board = sampleBoard();
     expect(labels(board.id)).toEqual({ slots: ["A", "B", "C", "D", "E", null], spare: [] });
     const result = resizeBoard(t.store, board.id, { cols: 2, rows: 2 });
-    expect(result.movedToSpare.map((id) => getPad(t.store, id)!.label)).toEqual(["C"]);
-    expect(labels(board.id)).toEqual({ slots: ["A", "B", "D", "E"], spare: ["C"] });
+    expect(result.movedToSpare.map((id) => getPad(t.store, id)!.label)).toEqual(["E"]);
+    expect(labels(board.id)).toEqual({ slots: ["A", "B", "C", "D"], spare: ["E"] });
     resizeBoard(t.store, board.id, { cols: 1, rows: 1 });
-    expect(labels(board.id)).toEqual({ slots: ["A"], spare: ["C", "B", "D", "E"] });
-    // Growing leaves new cells empty; spare pads wait until put back.
-    resizeBoard(t.store, board.id, { cols: 3, rows: 2 });
-    expect(labels(board.id)).toEqual({ slots: ["A", null, null, null, null, null], spare: ["C", "B", "D", "E"] });
+    expect(labels(board.id)).toEqual({ slots: ["A"], spare: ["B", "C", "D", "E"] });
+    // Growing brings the pads a resize moved back, in their order.
+    expect(resizeBoard(t.store, board.id, { cols: 3, rows: 2 }).cameBack.map((id) => getPad(t.store, id)!.label)).toEqual(["B", "C", "D", "E"]);
+    expect(labels(board.id)).toEqual({ slots: ["A", "B", "C", "D", "E", null], spare: [] });
     expect(() => resizeBoard(t.store, board.id, { cols: 9, rows: 1 })).toThrow(ValidationError);
     expect(listPads(t.store, board.id)).toHaveLength(5);
   });
@@ -163,11 +163,11 @@ describe("pad boards", () => {
   it("undoes a resize as one step, bringing the pads back to their cells", async () => {
     const board = sampleBoard();
     resizeBoard(t.store, board.id, { cols: 1, rows: 2 });
-    expect(labels(board.id)).toEqual({ slots: ["A", "D"], spare: ["B", "C", "E"] });
+    expect(labels(board.id)).toEqual({ slots: ["A", "B"], spare: ["C", "D", "E"] });
     expect(await history.undo()).toBe('Resize "Combat" to 1 × 2');
     expect(labels(board.id)).toEqual({ slots: ["A", "B", "C", "D", "E", null], spare: [] });
     await history.redo();
-    expect(labels(board.id)).toEqual({ slots: ["A", "D"], spare: ["B", "C", "E"] });
+    expect(labels(board.id)).toEqual({ slots: ["A", "B"], spare: ["C", "D", "E"] });
   });
 
   it("moves pads between cells and Spare pads, swapping with a pad already there", async () => {

@@ -15,7 +15,9 @@ import { makeTempFolder } from "./test/helpers";
 import { campaignTreeQueries, USES_QUERIES } from "./repo/domain";
 import { SCENE_MUSIC_SQL } from "./repo/campaigns";
 import { PLAYLIST_ITEMS_SQL, createPlaylist } from "./repo/playlists";
-import { NEW_TRACKS_SQL, TRACK_BY_PATH_SQL, trackListQuery, tracksWithTagsSql } from "./repo/tracks";
+import { NEW_TRACKS_SQL, TRACK_BY_PATH_SQL, trackListQuery, tracksByShapeSql, tracksWithTagsSql } from "./repo/tracks";
+import { PLAY_ORDER_LOOKUP_SQL } from "./repo/playOrders";
+import { SCENE_NAMES_SQL } from "./repo/sceneNames";
 import { BOARD_PADS_SQL } from "./repo/boards";
 import { PROFILE_LOOKUP_SQL } from "./repo/profileRows";
 import { searchQuery } from "./repo/search";
@@ -118,8 +120,10 @@ describe("query plans of the hot read paths (DAT-11)", () => {
     ["board", 0, "campaign_boards_board"],
     ["board", 1, "session_boards_board"],
     ["board", 2, "scene_boards_board"],
-    ["track", 0, "scene_music_track"],
-    ["track", 1, "scene_ambience_track"],
+    ["track", 0, "campaign_tracks_track"],
+    ["track", 1, "session_tracks_track"],
+    ["track", 2, "scene_music_track"],
+    ["track", 3, "scene_ambience_track"],
   ] as const)("uses of a %s (query %i) start from %s", (kind, index, name) => {
     expectIndexed(USES_QUERIES[kind][index], ["x"], name);
   });
@@ -134,6 +138,20 @@ describe("query plans of the hot read paths (DAT-11)", () => {
 
   it.each(Object.entries(PROFILE_LOOKUP_SQL))("profile lookup by (track, place): %s", (place, sql) => {
     expectIndexed(sql, place === "own" ? ["t"] : ["p", "t"], place === "own" ? "audio_profiles_own" : `audio_profiles_${place.replace("_id", "")}`);
+  });
+
+  it.each(Object.entries(PLAY_ORDER_LOOKUP_SQL))("PLY-13 play order by (playlist, place): %s", (place, sql) => {
+    expectIndexed(sql, place === "own" ? ["p"] : ["x", "p"], `play_orders_${place === "own" ? "own" : place.replace("_id", "")}`);
+  });
+
+  it("DAT-14 a scene's names for its tracks, and a track's names in every scene", () => {
+    expectIndexed(SCENE_NAMES_SQL.ofScene, ["x"], "PRIMARY KEY");
+    expectIndexed(SCENE_NAMES_SQL.ofTrack, ["t"], "scene_track_names_track");
+  });
+
+  it("DAT-13 the Shape filter: by the chosen shape, and by the suggested one for tracks with no choice", () => {
+    const details = expectIndexed(tracksByShapeSql(2), ["builds", "steady", "builds", "steady"], "tracks_shape");
+    expect(details.join("\n")).toContain("track_peaks_shape");
   });
 
   it("full-text search over the track names, artist, album and tags", () => {
@@ -153,6 +171,7 @@ describe("query plans of the hot read paths (DAT-11)", () => {
     ["an FX lane (effects and stings)", "fx", "any", null],
     ["leaving tags out only", "amb", "none", [1, 5]],
     ["an FX lane with energy only", "fx", null, [2, 4]],
+    ["shapes with a tag condition (DAT-13)", "music", "any", "shapes"],
   ] as const)("dynamic playlist: %s", (_name, lane, match, energy) => {
     const store = library.store;
     const tags = listTags(store);
@@ -162,7 +181,8 @@ describe("query plans of the hot read paths (DAT-11)", () => {
       lane,
       rule: {
         conds: match === null ? [] : [{ group: tags[0].groupId, match, values: [tags[0].name, tags[1].name] }],
-        ...(energy ? { energy: [energy[0], energy[1]] as [number, number] } : {}),
+        ...(Array.isArray(energy) ? { energy: [energy[0], energy[1]] as [number, number] } : {}),
+        ...(energy === "shapes" ? { shapes: ["builds" as const, "steady" as const] } : {}),
       },
     });
     const query = dynamicTracksQuery(store, playlist.id)!;

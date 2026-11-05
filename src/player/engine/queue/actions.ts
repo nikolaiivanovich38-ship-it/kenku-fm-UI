@@ -10,18 +10,22 @@
  * Scenes always start in the first room (`sceneRoom`), so startScene has no
  * target. Fades are in milliseconds; each has the prototype's default.
  */
-import type { RoomTarget } from "../../../common/domain";
+import type { RoomTarget, UsePlace } from "../../../common/domain";
 import { RoomLane, ROOM_LANES } from "../rooms.contract";
 import type { SceneRef } from "./library";
 
 /** Where a track was picked from, so it plays with that place's audio profile and Next goes on from there. */
-export type TrackFrom = { scene: SceneRef; at: number } | { playlistId: string };
+/**
+ * Where a track was picked from: a scene step, or a playlist (PLY-13: `place` is the session or campaign list the
+ * playlist was played from, so its play order and that list's audio settings apply).
+ */
+export type TrackFrom = { scene: SceneRef; at: number } | { playlistId: string; place?: UsePlace };
 
 export type CueAction =
   /** Music crossfades from what plays (when "now"), or waits in the queue (when "next"); ambience crossfades; an effect plays over everything. */
   | { type: "playTrack"; trackId: string; target: RoomTarget; when?: "now" | "next"; from?: TrackFrom; fadeMs?: number }
   /** From its first track, on the lane the playlist is for. */
-  | { type: "playPlaylist"; playlistId: string; target: RoomTarget; when?: "now" | "next"; fadeMs?: number }
+  | { type: "playPlaylist"; playlistId: string; target: RoomTarget; when?: "now" | "next"; fadeMs?: number; place?: UsePlace }
   | { type: "startScene"; scene: SceneRef }
   | { type: "next"; lane: "music" | "ambience"; target: RoomTarget; fadeMs?: number }
   | { type: "previous"; lane: "music" | "ambience"; target: RoomTarget; fadeMs?: number }
@@ -70,7 +74,7 @@ export function isCueAction(value: unknown): value is CueAction {
     case "playTrack":
       return isId(v.trackId) && isTarget(v.target) && when && fade && (v.from === undefined || isFrom(v.from));
     case "playPlaylist":
-      return isId(v.playlistId) && isTarget(v.target) && when && fade;
+      return isId(v.playlistId) && isTarget(v.target) && when && fade && (v.place === undefined || isPlace(v.place));
     case "startScene":
       return isSceneRef(v.scene);
     case "next":
@@ -109,12 +113,20 @@ function isSceneRef(value: unknown): value is SceneRef {
   return isRecord(value) && isId(value.campaignId) && isId(value.sessionId) && isId(value.sceneId);
 }
 
+/** A session or campaign list (or a scene) a playlist plays from. */
+function isPlace(value: unknown): value is UsePlace {
+  if (!isRecord(value)) return false;
+  if (value.kind === "campaign") return isId(value.campaignId);
+  if (value.kind === "session") return isId(value.campaignId) && isId(value.sessionId);
+  return value.kind === "scene" && isSceneRef(value);
+}
+
 function isFrom(value: unknown): value is TrackFrom {
   if (!isRecord(value)) {
     return false;
   }
   if ("playlistId" in value) {
-    return isId(value.playlistId);
+    return isId(value.playlistId) && (value.place === undefined || isPlace(value.place));
   }
   return isSceneRef(value.scene) && Number.isInteger(value.at) && (value.at as number) >= 0;
 }

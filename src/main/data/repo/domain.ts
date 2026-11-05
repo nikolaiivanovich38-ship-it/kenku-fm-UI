@@ -20,9 +20,11 @@ import type {
   PlaylistRule,
   SoundRef,
   TrackKind,
+  TrackShape,
   Use,
 } from "../../../common/domain";
 import type { Store } from "../store";
+import { ownPlayOrders } from "./playOrders";
 import { ownProfiles } from "./profileRows";
 import { readRules } from "./ruleRows";
 
@@ -36,6 +38,9 @@ type DomainTrackRow = {
   role: string | null;
   loopable: string | null;
   energy: number | null;
+  shape: string | null;
+  /** DAT-13: the shape suggested from the track's peaks (kept ahead of the levels, so the levels are not read). */
+  suggested_shape: string | null;
   /** The track's tag ids joined by TAG_SEPARATOR, or null when it has none. */
   tag_ids: string | null;
 };
@@ -43,7 +48,8 @@ type DomainTrackRow = {
 /** Ids never contain control characters (validate.ts), so this one can join them. */
 const TAG_SEPARATOR = "\u001f";
 /** One row per track with its tag ids, read through the track_tags primary key: no join or sort over every tag. */
-const TRACK_SELECT = `SELECT id, kind, title, meta_title, file_name, duration_ms, role, loopable, energy,
+const TRACK_SELECT = `SELECT id, kind, title, meta_title, file_name, duration_ms, role, loopable, energy, shape,
+  (SELECT suggested_shape FROM track_peaks WHERE track_id = tracks.id) AS suggested_shape,
   (SELECT group_concat(tag_id, char(31)) FROM track_tags WHERE track_id = tracks.id) AS tag_ids FROM tracks`;
 
 function toDomainTrack(row: DomainTrackRow, tags: Record<string, string[]>, profile: AudioProfileInput | null): DomainTrack {
@@ -59,6 +65,8 @@ function toDomainTrack(row: DomainTrackRow, tags: Record<string, string[]>, prof
     energy: row.energy,
     tags,
     profile,
+    shape: row.shape as TrackShape | null,
+    suggestedShape: row.suggested_shape as TrackShape | null,
   };
 }
 
@@ -121,7 +129,7 @@ export function getDomainLookup(store: Store): DomainLookup {
       }>("SELECT id, title, lane, kind, rule_energy_min, rule_energy_max, rule_leave_out_stings FROM playlists WHERE id = ?", id);
       let playlist: DomainPlaylist | undefined;
       if (row) {
-        const base = { id: row.id, name: row.title, lane: row.lane };
+        const base = { id: row.id, name: row.title, lane: row.lane, order: ownPlayOrders(store, [row.id]).get(row.id) ?? null };
         playlist =
           row.kind === "dynamic"
             ? { ...base, kind: "dynamic", rule: readRules(store, [row]).get(row.id) as PlaylistRule }
@@ -167,7 +175,7 @@ const ref = (row: { track_id: string | null; playlist_id: string | null }): Soun
   row.track_id !== null ? { kind: "track", id: row.track_id } : { kind: "playlist", id: row.playlist_id as string };
 
 /**
- * The ten queries that load campaign trees: for one campaign (each takes its id)
+ * The twelve queries that load campaign trees: for one campaign (each takes its id)
  * or for all. Each walks the "in order" indexes from the campaign down
  * (sessions_order, scenes_order, scene_music_order …) and sorts in that same
  * order, so SQLite needs no sorting step. Exported for the query-plan tests.
@@ -179,11 +187,14 @@ export function campaignTreeQueries(oneCampaign: boolean) {
     campaigns: `SELECT c.id FROM campaigns c ${only("c", "id")} ORDER BY c.position`,
     campaignPlaylists: `SELECT m.campaign_id AS owner, m.playlist_id AS member FROM campaign_playlists m ${only("m")} ORDER BY m.campaign_id, m.position`,
     campaignBoards: `SELECT m.campaign_id AS owner, m.board_id AS member FROM campaign_boards m ${only("m")} ORDER BY m.campaign_id, m.position`,
+    campaignTracks: `SELECT m.campaign_id AS owner, m.track_id AS member FROM campaign_tracks m ${only("m")} ORDER BY m.campaign_id, m.position`,
     sessions: `SELECT s.id, s.campaign_id FROM sessions s ${only("s")} ORDER BY s.campaign_id, s.position`,
     sessionPlaylists: `SELECT m.session_id AS owner, m.playlist_id AS member FROM sessions s
       JOIN session_playlists m ON m.session_id = s.id ${only("s")} ORDER BY s.campaign_id, s.position, m.position`,
     sessionBoards: `SELECT m.session_id AS owner, m.board_id AS member FROM sessions s
       JOIN session_boards m ON m.session_id = s.id ${only("s")} ORDER BY s.campaign_id, s.position, m.position`,
+    sessionTracks: `SELECT m.session_id AS owner, m.track_id AS member FROM sessions s
+      JOIN session_tracks m ON m.session_id = s.id ${only("s")} ORDER BY s.campaign_id, s.position, m.position`,
     scenes: `SELECT sc.id, sc.session_id, sc.name FROM sessions s JOIN scenes sc ON sc.session_id = s.id ${only("s")}
       ORDER BY s.campaign_id, s.position, sc.position`,
     music: `SELECT m.scene_id, m.track_id, m.playlist_id FROM scene_music m ${fromScenes} ORDER BY s.campaign_id, s.position, sc.position, m.position`,
@@ -192,7 +203,7 @@ export function campaignTreeQueries(oneCampaign: boolean) {
   };
 }
 
-/** Campaign trees: every campaign, or the one with `campaignId`. Ten queries in all. */
+/** Campaign trees: every campaign, or the one with `campaignId`. Twelve queries in all. */
 function loadCampaigns(store: Store, campaignId?: string): DomainCampaign[] {
   const sql = campaignTreeQueries(campaignId !== undefined);
   const params = campaignId === undefined ? [] : [campaignId];
@@ -204,9 +215,11 @@ function loadCampaigns(store: Store, campaignId?: string): DomainCampaign[] {
   const members = (text: string) => groupBy(store.all<Member>(text, ...params), (r) => r.owner);
   const campaignPlaylists = members(sql.campaignPlaylists);
   const campaignBoards = members(sql.campaignBoards);
+  const campaignTracks = members(sql.campaignTracks);
   const sessions = groupBy(store.all<{ id: string; campaign_id: string }>(sql.sessions, ...params), (r) => r.campaign_id);
   const sessionPlaylists = members(sql.sessionPlaylists);
   const sessionBoards = members(sql.sessionBoards);
+  const sessionTracks = members(sql.sessionTracks);
   const scenes = groupBy(store.all<{ id: string; session_id: string; name: string }>(sql.scenes, ...params), (r) => r.session_id);
   const music = groupBy(store.all<Ref>(sql.music, ...params), (r) => r.scene_id);
   const ambience = new Map(store.all<Ref>(sql.ambience, ...params).map((r) => [r.scene_id, ref(r)]));
@@ -218,12 +231,14 @@ function loadCampaigns(store: Store, campaignId?: string): DomainCampaign[] {
       id: c.id,
       playlistIds: ids(campaignPlaylists.get(c.id)),
       boardIds: ids(campaignBoards.get(c.id)),
+      trackIds: ids(campaignTracks.get(c.id)),
       sessions: (sessions.get(c.id) ?? []).map(
         (s): DomainSession => ({
           id: s.id,
           campaignId: c.id,
           playlistIds: ids(sessionPlaylists.get(s.id)),
           boardIds: ids(sessionBoards.get(s.id)),
+          trackIds: ids(sessionTracks.get(s.id)),
           scenes: (scenes.get(s.id) ?? []).map(
             (sc): DomainScene => ({
               id: sc.id,
@@ -296,6 +311,12 @@ export const USES_QUERIES = {
      FROM scene_boards m ${SCENE_PATH} WHERE m.board_id = ?`,
   ],
   track: [
+    `SELECT c.id AS campaign_id, c.position AS campaign_position, NULL AS session_id, NULL AS session_position, NULL AS scene_id,
+       NULL AS scene_position, 0 AS role_rank, 0 AS item_index
+     FROM campaign_tracks m JOIN campaigns c ON c.id = m.campaign_id WHERE m.track_id = ?`,
+    `SELECT c.id AS campaign_id, c.position AS campaign_position, s.id AS session_id, s.position AS session_position, NULL AS scene_id,
+       NULL AS scene_position, 0 AS role_rank, 0 AS item_index
+     FROM session_tracks m JOIN sessions s ON s.id = m.session_id JOIN campaigns c ON c.id = s.campaign_id WHERE m.track_id = ?`,
     `SELECT ${SCENE_COLUMNS}, 0 AS role_rank,
        (SELECT count(*) FROM scene_music m2 WHERE m2.scene_id = m.scene_id AND m2.position < m.position) AS item_index
      FROM scene_music m ${SCENE_PATH} WHERE m.track_id = ?`,

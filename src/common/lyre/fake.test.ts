@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import { lyreApiContract, valueOf } from "./contract";
 import { createFakeLyreApi, type FakeLyreOptions } from "./fake";
 import { prototypeSeed } from "./seed";
+import { trackNamesOf } from "./lookup";
 import type { LyreEvent } from "./api";
 
 const fixtureOptions: FakeLyreOptions = {
@@ -24,6 +25,7 @@ lyreApiContract("in-memory fake", () => ({
   missingTrackId: "t43",
   relinkFolder: "D:\\Moved",
   folderToWatch: "H:\\Audio\\Incoming",
+  transferFiles: { saveTo: "D:\\Shared\\The Sunken Crown.lyre", notLyreFile: "D:\\Shared\\photo.jpg" },
 }));
 
 describe("the seed is the prototype's sample data", () => {
@@ -37,6 +39,9 @@ describe("the seed is the prototype's sample data", () => {
     boards: { id: string; cols: number; rows: number; slots: ({ id: string; label: string; key: string } | null)[]; spare: { id: string }[] }[];
     campaigns: { id: string; sessions: { id: string; n: number; scenes: { id: string; name: string; music: string[]; amb: string }[] }[] }[];
     tagValues: Record<string, string[]>;
+    orders: Record<string, Record<string, { shuffle: boolean; repeat: string }>>;
+    sceneNames: Record<string, Record<string, string>>;
+    moved: { from: string; playlists: number; tracks: number; boards: number; pads: number; bookmarks: number; notMoved: [string, string][] };
   };
   const seed = prototypeSeed();
 
@@ -57,6 +62,26 @@ describe("the seed is the prototype's sample data", () => {
     const scenes = (c: { sessions: { id: string; scenes: { id: string; name: string }[] }[] }) => c.sessions.map((s) => [s.id, s.scenes.map((x) => [x.id, x.name])]);
     expect(seed.campaigns.map(scenes)).toEqual(proto.campaigns.map(scenes));
     expect(seed.campaigns[0].sessions[2].scenes[2].music.map((r) => r.id)).toEqual(proto.campaigns[0].sessions[2].scenes[2].music);
+  });
+
+  it("has the round 5 samples: play orders, names in scenes, shapes, missing files, tracks on hand, a pad put aside, the move report", () => {
+    const p = proto as unknown as {
+      tracks: { id: string; shape?: string; missing?: boolean }[];
+      playlists: { id: string; order?: { shuffle: boolean; repeat: string } }[];
+      boards: { spare: { id: string; aside?: boolean }[] }[];
+      campaigns: { id: string; tracks: string[]; sessions: { tracks: string[] }[] }[];
+    };
+    expect(seed.playOrders).toEqual(proto.orders);
+    expect(trackNamesOf(seed.campaigns)).toEqual(proto.sceneNames);
+    expect(seed.tracks.filter((t) => t.shape).map((t) => [t.id, t.shape])).toEqual(p.tracks.filter((t) => t.shape).map((t) => [t.id, t.shape]));
+    expect(seed.missing).toEqual(p.tracks.filter((t) => t.missing).map((t) => t.id));
+    expect(seed.playlists.map((x) => [x.id, x.order])).toEqual(p.playlists.map((x) => [x.id, x.order ?? null]));
+    expect(seed.boards.flatMap((b) => b.spare.map((x) => [x.id, x.aside]))).toEqual(p.boards.flatMap((b) => b.spare.map((x) => [x.id, !!x.aside])));
+    expect(seed.campaigns.map((c) => [c.trackIds, c.sessions.map((s) => s.trackIds)])).toEqual(p.campaigns.map((c) => [c.tracks, c.sessions.map((s) => s.tracks)]));
+    const m = proto.moved;
+    expect(seed.moved.from).toBe(m.from);
+    expect(seed.moved.copied.map((r) => r.count)).toEqual([m.playlists, m.tracks, m.boards, m.pads, m.bookmarks]);
+    expect(seed.moved.notBrought.map((r) => [r.what, r.why])).toEqual(m.notMoved);
   });
 });
 

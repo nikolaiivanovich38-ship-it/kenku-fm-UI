@@ -7,9 +7,10 @@
  * the prototype names files. A pad file whose name (without its _01 number) is an FX track's file plays that
  * track; the 60 pad files with no such track are left out, so the Library keeps its 69 tracks.
  */
-import type { AudioProfileInput, LoopAdvice, PadMode, PlaylistRule, ProfileOverrides, TrackRole } from "../domain";
+import type { AudioProfileInput, LoopAdvice, PadMode, PlayOrder, PlayOrderOverrides, PlaylistRule, ProfileOverrides, TrackRole, TrackShape } from "../domain";
 import { fileAddress } from "./media";
-import type { CampaignInfo, CampaignTheme, FolderRoot, LibraryTrack, Pad, PadBoard, PadColor, PlaylistInfo, SessionStatus, TagGroup } from "./api";
+import type { CampaignInfo, CampaignTheme, FolderRoot, LibraryTrack, MoveReport, Pad, PadBoard, PadColor, PlaylistInfo, SessionStatus, TagGroup } from "./api";
+import { NOT_BROUGHT_ACROSS } from "./transfer";
 
 export interface SeedData {
   tagGroups: TagGroup[];
@@ -19,6 +20,12 @@ export interface SeedData {
   campaigns: CampaignInfo[];
   folders: FolderRoot[];
   overrides: ProfileOverrides;
+  /** Round 5 (PLY-13): play order chosen in one place, by place key then playlist id. */
+  playOrders: PlayOrderOverrides;
+  /** Round 5 (DAT-8): tracks whose files are not where the library expects them (the move report, Find missing files). */
+  missing: string[];
+  /** Round 5 (DAT-7): what came across from Kenku FM on the first start; its missing files are worked out. */
+  moved: Omit<MoveReport, "missing">;
 }
 
 /* ---------- rows copied from data.js ---------- */
@@ -102,6 +109,21 @@ const OWN_PROFILES: Record<string, ProtoProfile> = {
 };
   // Sample override: in the scene "The abbey ruins" the eerie bed (t13) ends sooner and moves on instead of looping.
 const OVERRIDES: Record<string, Record<string, ProtoProfile>> = { 'sc:crown:s14:sc3': { t13: { start: 0, end: 190, after: 'next', loopStart: 0, fadeIn: { dur: 4, shape: 40 }, fadeOut: { dur: 8, shape: 30 }, markers: [{ at: 64, label: 'Choir enters' }] } } };
+
+/* Round 5 samples (data.js after the boards and campaigns). */
+/** DAT-13: shapes the game master chose (data.js tracks[5] is t06, tracks[14] is t15). */
+const SHAPES: Record<string, TrackShape> = { t06: 'builds', t15: 'fallsAway' };
+/** DAT-8: files no longer where Lyre expects them (data.js tracks[18], [25], [36]). */
+const MISSING = ['t19', 't26', 't37'];
+/** PLY-13: playlists' own orders (every ambience playlist repeats all; Combat: big and loopable is shuffled), and per place. */
+const OWN_ORDERS: Record<string, PlayOrder> = { 'p-combat-big': { shuffle: true, repeat: 'all' } };
+const ORDERS: PlayOrderOverrides = { 'sc:crown:s14:sc3': { 'p-abbey-eerie': { shuffle: true, repeat: 'off' } }, 'ss:crown:s14': { 'p-wistful': { shuffle: true, repeat: 'all' } } };
+/** DAT-14: a track's name in one scene. */
+const SCENE_NAMES: Record<string, Record<string, string>> = { 'sc:crown:s14:sc6': { t07: 'Dawn over the abbey' }, 'sc:crown:s14:sc4': { t39: 'The wight rises' } };
+/** ORG-12: single tracks kept on hand (data.js: campaigns[0].tracks). */
+const ON_HAND: Record<string, string[]> = { crown: ['t26'] };
+/** SFX-11: spare pads put there by hand (data.js: Mugs clink, aside). */
+const ASIDE = new Set(['mugs']);
 
 type AmbRow = [string, string, string, string[], string[]];
 const AMBIENCE: AmbRow[] = [
@@ -266,6 +288,9 @@ function tracks(now: number): LibraryTrack[] {
     energy: r[9] || null,
     tags: { mood: [...r[6]], motif: [...r[7]], scene: [...r[8]] },
     profile: OWN_PROFILES[r[0]] ? profile(OWN_PROFILES[r[0]]) : null,
+    shape: SHAPES[r[0]] ?? null,
+    // The prototype makes its suggestions up from a made-up loudness (core.js L.levels); here they come from peaks.
+    suggestedShape: null,
     artist: r[2],
     album: r[3],
     folder: `H:\\Audio\\Scores\\${r[2]}\\${r[3]}`,
@@ -276,12 +301,12 @@ function tracks(now: number): LibraryTrack[] {
   }));
   const ambience = AMBIENCE.map((r): Omit<LibraryTrack, "url" | "sizeBytes"> => ({
     id: r[0], kind: "amb", title: r[1], metaTitle: "", fileName: r[2], durationMs: secs(240), role: "loop_bed", loop: "yes", energy: 1,
-    tags: { mood: [...r[3]], motif: [], scene: [...r[4]] }, profile: null,
+    tags: { mood: [...r[3]], motif: [], scene: [...r[4]] }, profile: null, shape: null, suggestedShape: null,
     artist: "Field recording", album: "Ambience", folder: "H:\\Audio\\Ambience", notes: "", addedAt: SEP_12, isNew: false,
   }));
   const effects = EFFECTS.map((r): Omit<LibraryTrack, "url" | "sizeBytes"> => ({
     id: r[0], kind: "fx", title: r[1], metaTitle: "", fileName: r[2], durationMs: secs(r[3]), role: "effect", loop: /loop/.test(r[2]) ? "yes" : "no", energy: 2,
-    tags: { mood: [...r[4]], motif: [], scene: [...r[5]] }, profile: null,
+    tags: { mood: [...r[4]], motif: [], scene: [...r[5]] }, profile: null, shape: null, suggestedShape: null,
     artist: "Sound effect", album: "Effects", folder: "H:\\Audio\\Effects", notes: "", addedAt: SEP_12, isNew: false,
   }));
   // The prototype has no files; each sample track gets the address its file would have.
@@ -290,11 +315,13 @@ function tracks(now: number): LibraryTrack[] {
 
 function playlists(): PlaylistInfo[] {
   return PLAYLISTS.map((p): PlaylistInfo => {
-    if (p.kind === "manual") return { id: p.id, name: p.name, lane: p.lane, kind: "manual", trackIds: [...p.items], notes: "" };
+    // data.js: every ambience playlist repeats all; a few have an order of their own.
+    const order = OWN_ORDERS[p.id] ? { ...OWN_ORDERS[p.id] } : p.lane === "amb" ? { shuffle: false, repeat: "all" as const } : null;
+    if (p.kind === "manual") return { id: p.id, name: p.name, lane: p.lane, order, kind: "manual", trackIds: [...p.items], notes: "" };
     const rule: PlaylistRule = { conds: p.rule.conds.map((c) => ({ ...c, values: [...c.values] })) };
     if (p.rule.energy) rule.energy = [p.rule.energy[0], p.rule.energy[1]];
     if (p.rule.notRole === "Sting") rule.leaveOutStings = true;
-    return { id: p.id, name: p.name, lane: p.lane, kind: "dynamic", rule, notes: "" };
+    return { id: p.id, name: p.name, lane: p.lane, order, kind: "dynamic", rule, notes: "" };
   });
 }
 
@@ -317,6 +344,7 @@ function boards(): PadBoard[] {
     },
     volume: 0.8,
     fadeOutMs: 1500,
+    aside: ASIDE.has(p.id),
   });
   return BOARDS.map((b) => ({ id: b.id, name: b.name, cols: b.cols, rows: b.rows, slots: b.slots.map((p) => (p ? pad(p) : null)), spare: b.spare.map(pad) }));
 }
@@ -332,6 +360,7 @@ function campaigns(soundRef: (id: string) => { kind: "track" | "playlist"; id: s
     obsidian: { vault: c.obsidian.vault, note: c.obsidian.note, sessionsFolder: c.obsidian.sessions },
     playlistIds: [...c.playlists],
     boardIds: [...c.boards],
+    trackIds: [...(ON_HAND[c.id] ?? [])],
     sessions: c.sessions.map((s) => ({
       id: s.id,
       campaignId: c.id,
@@ -342,6 +371,7 @@ function campaigns(soundRef: (id: string) => { kind: "track" | "playlist"; id: s
       noteLink: "",
       playlistIds: [...s.playlists],
       boardIds: [...s.boards],
+      trackIds: [] as string[],
       scenes: s.scenes.map((sc) => ({
         id: sc.id,
         name: sc.name,
@@ -351,6 +381,7 @@ function campaigns(soundRef: (id: string) => { kind: "track" | "playlist"; id: s
         music: sc.music.map(soundRef),
         ambience: sc.amb ? soundRef(sc.amb) : null,
         boardIds: [...sc.boards],
+        trackNames: { ...(SCENE_NAMES[`sc:${c.id}:${s.id}:${sc.id}`] ?? {}) },
       })),
     })),
   }));
@@ -373,5 +404,20 @@ export function prototypeSeed(now: number = Date.UTC(2026, 10, 5, 12)): SeedData
     campaigns: campaigns((id) => (trackIds.has(id) ? { kind: "track", id } : { kind: "playlist", id })),
     folders: FOLDERS.map((path) => ({ path, watched: false })),
     overrides,
+    playOrders: JSON.parse(JSON.stringify(ORDERS)) as PlayOrderOverrides,
+    missing: [...MISSING],
+    // data.js `moved`: Kenku FM 1.5.5 on 5 Nov 2026 at 18:42.
+    moved: {
+      from: "Kenku FM 1.5.5",
+      at: Date.UTC(2026, 10, 5, 18, 42),
+      copied: [
+        { what: "Playlists", count: 9, nowIn: "Playlists (Manual)", route: "#/playlists" },
+        { what: "Tracks", count: 212, nowIn: "Library", route: "#/library" },
+        { what: "Soundboards", count: 4, nowIn: "Pad boards", route: "#/boards" },
+        { what: "Sounds", count: 37, nowIn: "Pads on those boards", route: "#/boards" },
+        { what: "Bookmarks", count: 6, nowIn: "Website tabs", route: null },
+      ],
+      notBrought: NOT_BROUGHT_ACROSS.map((x) => ({ ...x })),
+    },
   };
 }

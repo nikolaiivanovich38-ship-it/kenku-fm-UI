@@ -410,3 +410,34 @@ Fixes from Nik's test of 0.3.0 (BUG-12 to BUG-18).
 - **Pad colour and icon** (BUG-16): `useChosen` in `PadEditor.tsx` shows a choice at once and keeps it until the library has saved it. Showing the saved value made the radio jump back while the save was on its way, and React then lost which button was ticked, so a second click on the same icon did nothing.
 - **Tags by typing** (BUG-15): Tab adds what was typed (creating the tag) or the suggestion chosen with the arrows, as Enter does, and lets focus move on; an empty box adds nothing.
 - **Box headers** (BUG-14): `shell.css` lets a box header wrap, its buttons moving to a second line at the right, instead of pushing them out of the box (which clips). The sweeps check that every control, scrolled into view, shows its whole width without sliding a box a person cannot scroll.
+
+## Wave 4: w4-contracts
+
+Step 1 of wave 4 gives the round 5 streams (design/prototype/ROUND5.md) their data, calls and sound state, all tested, with no screens. Schema version 3 is in docs/data-model.md.
+
+**Shared rules** (`src/common/domain`): `ProfilePlace` gains a session list (`placeKey` "ss:<campaign>:<session>", `ProfileSource` "session"); `profilePlacesFor(place, playlistId)` gives `resolveProfile` the places `profileKeysFor` names; `PlayOrder`, `Repeat` and `REPEATS` live in `types.ts`, and `DomainPlaylist.order` is a playlist's own order; `shapeOf(track)` is the shape that applies to a stored track; `shuffledOrder(items, seed)` and `tracksInOrder(items, order, seed)` deal a shuffled playlist the same way wherever the seed is the same.
+
+**LyreApi** (`src/common/lyre/api.ts`; `LYRE_API_METHODS`, the fake, the main process, argument checks and the contract suite all follow):
+
+| Area | Added or changed |
+| --- | --- |
+| library | `LibraryTrack.shape`, `suggestedShape`; `setShape(trackId, shape \| null)`; `search({ shapes })` (the Shape filter). |
+| playlists | `PlaylistInfo.order` (own order); `playOrders()`; `setPlayOrder(id, place \| null, order)`; `clearPlayOrder(id, place \| null)`. A place is the domain's `UsePlace` (`PlayPlace`). Rule shapes are `PlaylistRule.shapes` in `create`/`update`. |
+| boards | `Pad.aside`; `resize` packs as `reflowBoard` and answers `{ board, movedToSpare, cameBack }`; moving a pad to Spare pads (or the pad a spare pad replaces) puts it aside. |
+| campaigns | `CampaignInfo.trackIds`, `SessionInfo.trackIds`; `setOnHand(owner, "tracks", ids)`; `setUses({ kind: "track" }, places)`; `usesOf` a track lists campaign and session uses. |
+| sessions | `SceneInfo.trackNames`; `setTrackName(scene, trackId, name)` (empty: the track's own name). `trackNamesOf(campaigns)` (`lookup.ts`) gives `trackNameIn` its `TrackNames`. |
+| profiles | `set`/`clear` take a session place. |
+| import | `MissingTrack.fileName`, `folder`, `sizeBytes` (the Missing filter is `findMissing()`'s ids); `RelinkMatch.toUrl` (Preview before relinking; sure and likely are ticked, name is not). |
+| transfer (new) | `estimate(scope)`, `save({ scope, includeAudio, path? })`, `open(source)`, `bringIn(openedId, choices)`, `movedReport()`, with `TransferScope`, `TransferEstimate`, `OpenedFile`, `IncomingItem`, `DuplicateChoice` (skip, merge, keepBoth), `BringInReport`, `MoveReport`. Shared rules in `src/common/lyre/transfer.ts`. The fake does all of it in memory; the main process answers `estimate` and `movedReport` (from the old player's move record) and refuses `save`, `open` and `bringIn` with the new code `"unavailable"` until a later step. |
+
+New refusal codes: `"not-lyre-file"` (a file that is not a Lyre file, or is damaged), `"unavailable"`. The seed (`seed.ts`) has the prototype's round 5 samples (play orders, names in scenes, shapes, missing files t19, t26, t37, Mugs clink aside, t26 on hand, the move report), checked against `data.js` in `fake.test.ts`.
+
+**Audio host** (`src/lyre/audio`): `getNowPlaying()` is the one shape the Now playing bar, Live and Outputs read.
+
+- Each room's `music` and `ambience` (`LaneNowPlaying`): the track, `origin`, `playlistId`, `position` and `length` (seconds), `paused`, `loading`, and new `place` (its scene, or the session or campaign list its playlist was played from; null on its own) and `playOrder` (its playlist's order there, null for a single track).
+- `preview` (`PreviewNowPlaying`): `key`, `label`, `kind` (track, playlist, pad), `trackId`, `playlistId`, `padKey`, `from` (the words a screen gave), `paused`, `position`, `length`, `volume` (headphones).
+- New calls: `togglePreviewPause()`, `setPreviewVolume(0..1)` (kept for the next preview); `previewTrack(id, { from })`, `previewPlaylist(id, { from })`, `previewPad(board, pad, { from })`; `playPlaylist(id, { place })` and `playTrack(id, { from: { playlistId, place } })` for a session or campaign list.
+- Sequencing (`src/player/engine/queue/nowPlaying.ts`): a playlist's tracks are dealt in the play order that applies where it plays (`playOrderOf`), shuffled by a seed the Director takes from its random numbers; when a track ends by itself `whenTrackEnds` decides (again, next, first, move on, stop); Next and Previous always move on; a track that cannot play is passed over. A playlist played on its own in its lane (a scene's ambience playlist too) defaults to repeat all. An ambience playlist's track that ends by itself goes on the same way.
+- `LyreAudioLibrary.playOrders()` is new; `LibrarySnapshot` loads `playlists.playOrders()` and reloads it on "playlists". `FakeLyreAudio.setNowPlaying` fills in what a test leaves out (`FakeNowPlaying`).
+
+Open points for the build streams: the pad board screen now words a resize with `cameBack` and the pad put aside (boardModel `resizeMessage`); the Library still searches in memory, so a screen that wants names in scenes found must add them from `trackNamesOf` (the database's search has them); a "peaks" event may mean suggested shapes changed.

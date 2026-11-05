@@ -7,7 +7,7 @@
  * src/common/domain). The checks match the tables' CHECK constraints, so a bad
  * value is reported in plain words before the database would refuse it.
  */
-import type { AudioProfileInput, Fade, PlaylistRule, TagCondition } from "../../common/domain";
+import { TRACK_SHAPES, type AudioProfileInput, type Fade, type PlaylistRule, type TagCondition } from "../../common/domain";
 import { ValidationError } from "./errors";
 import * as v from "./validate";
 
@@ -72,7 +72,7 @@ export function cleanProfile(field: string, value: unknown): AudioProfileInput {
 /** A checked dynamic playlist rule. Tag groups are checked by the caller (they live in the database). */
 export function cleanRule(field: string, value: unknown): PlaylistRule {
   const input = v.record(field, value);
-  onlyKeys(field, input, ["conds", "energy", "leaveOutStings"]);
+  onlyKeys(field, input, ["conds", "energy", "leaveOutStings", "shapes"]);
   const conds: TagCondition[] = list(`${field}.conds`, input.conds, MAX_CONDITIONS).map((cond, index) => {
     const name = `${field}.conds[${index}]`;
     const c = v.record(name, cond);
@@ -93,5 +93,10 @@ export function cleanRule(field: string, value: unknown): PlaylistRule {
     rule.energy = [low, high];
   }
   if (input.leaveOutStings !== undefined) rule.leaveOutStings = v.boolean(`${field}.leaveOutStings`, input.leaveOutStings);
+  // DAT-13: the shapes the rule asks for; none (or an empty list) means any shape.
+  if (input.shapes !== undefined) {
+    const shapes = [...new Set(list(`${field}.shapes`, input.shapes, TRACK_SHAPES.length).map((s, i) => v.oneOf(`${field}.shapes[${i}]`, s, TRACK_SHAPES)))];
+    if (shapes.length > 0) rule.shapes = shapes;
+  }
   return rule;
 }

@@ -20,6 +20,7 @@ import { DEFAULT_FADES } from "./actions";
 import type { PadSound, SceneRef, ShowLibrary } from "./library";
 import {
   advance,
+  afterTrackEnded,
   EMPTY_LANE,
   MusicLane,
   Origin,
@@ -45,6 +46,8 @@ export interface RoomPlayerDeps {
   /** A plain-language message for a toast. */
   error: (message: string) => void;
   newEntryId: () => string;
+  /** PLY-13: a seed to deal a shuffled playlist with (a new order each time it starts). */
+  newSeed?: () => number;
 }
 
 export interface PlayingReport {
@@ -143,14 +146,16 @@ export class RoomPlayer {
 
   startScene(ref: SceneRef, scene: DomainScene): void {
     const lib = this.deps.library;
-    const first = sceneItem(ref, 0, lib);
+    const seed = this.deps.newSeed?.();
+    const first = sceneItem(ref, 0, lib, seed);
     // A new scene starts with an empty queue (as the prototype's live view).
     this.music = { ...this.music, queued: [], returnTo: null };
     if (first) {
       this.playMusic(first, DEFAULT_FADES.sceneMusic);
     }
     const ambience = scene.ambience;
-    const item = ambience?.kind === "playlist" ? playlistItem(ambience.id, null, lib) : ambience ? single(ambience.id) : null;
+    // The scene's ambience playlist plays as its play order in this scene says (PLY-13).
+    const item = ambience?.kind === "playlist" ? playlistItem(ambience.id, null, lib, { place: { kind: "scene", ...ref }, seed }) : ambience ? single(ambience.id) : null;
     if (item) {
       this.playAmbience(item, DEFAULT_FADES.sceneAmbience);
     } else if (!ambience) {
@@ -186,8 +191,9 @@ export class RoomPlayer {
     });
   }
 
-  private musicEnded(after: AfterEnd) {
-    const { lane, play } = advance(this.music, this.deps.library, { sequence: after === "next" });
+  /** The music's track ended by itself (`ended`), or could not play: the queue, the way back, then the sequence. */
+  private musicEnded(after: AfterEnd, ended = true) {
+    const { lane, play } = advance(this.music, this.deps.library, { sequence: after === "next", ended });
     this.music = lane;
     if (play) {
       this.startMusic(play, 0);
@@ -205,7 +211,8 @@ export class RoomPlayer {
       this.deps.changed();
       return;
     }
-    this.musicEnded("next");
+    // A track that cannot play is passed over, whatever the play order says (Repeat one would try it again).
+    this.musicEnded("next", false);
   }
 
   // ---------- ambience ----------
@@ -218,6 +225,17 @@ export class RoomPlayer {
       this.deps.error(`Unable to play ambience: ${this.titleOf(item.trackId)}`);
     } else {
       const started = this.ambienceVoice;
+      // PLY-13: an ambience playlist's track that ends by itself goes on as the playlist's play order says.
+      started.voice.on("ended", () => {
+        if (this.ambienceVoice !== started || started.after !== "next") return;
+        const next = afterTrackEnded(item, this.deps.library);
+        if (next) this.playAmbience(next, 0);
+        else {
+          this.ambienceVoice = null;
+          this.ambienceItem = null;
+          this.deps.changed();
+        }
+      });
       started.voice.on("error", () => {
         if (this.ambienceVoice === started) {
           this.ambienceVoice = null;

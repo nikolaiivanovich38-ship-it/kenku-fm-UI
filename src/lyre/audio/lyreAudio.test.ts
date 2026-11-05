@@ -5,7 +5,7 @@
  */
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { placeKey, type Room } from "../../common/domain";
+import { keyOfPlace, placeKey, shuffledOrder, type Room } from "../../common/domain";
 import { padIsOn, type NowPlaying } from "./lyreAudio";
 import { lyreAudioOnFakes, testTrack, type AudioTestData } from "./testing/onFakes";
 
@@ -355,7 +355,7 @@ describe("preview: the game master's headphones only, never on air (PRV-1)", () 
     expect(rig.hearPreview()).toBeCloseTo(1);
     expect(rig.hearRoom("bot-a")).toBeCloseTo(1);
     expect(rig.hearRoom("bot-b")).toBe(0);
-    expect(state().preview).toEqual({ key: "m2", label: "M2" });
+    expect(state().preview).toMatchObject({ key: "m2", label: "M2" });
     expect(rig.audio.isPreviewing("m2")).toBe(true);
     // The preview's nodes live in another audio context: nothing joins them to the rooms.
     expect(rig.context.allNodes.some((node) => rig.previewContext.allNodes.includes(node as never))).toBe(false);
@@ -384,7 +384,7 @@ describe("preview: the game master's headphones only, never on air (PRV-1)", () 
     const profile = { startMs: 2000, endMs: 6000, after: "loop" as const, loopStartMs: 3000, loopCrossfadeMs: 0, fadeIn: { ms: 0, shape: 0 }, fadeOut: { ms: 0, shape: 0 }, markers: [] as { atMs: number; label: string }[] };
     expect(rig.audio.previewTrack("m2", { startAtMs: 4000, profile, quiet: true })).toEqual({ ok: true });
     await rig.advance(1);
-    expect(state().preview).toEqual({ key: "m2", label: "M2" });
+    expect(state().preview).toMatchObject({ key: "m2", label: "M2" });
     expect(positions[positions.length - 1].key).toBe("m2");
     expect(positions[positions.length - 1].positionMs).toBeGreaterThan(4500);
     expect(positions[positions.length - 1].positionMs).toBeLessThan(5500);
@@ -410,9 +410,9 @@ describe("preview: the game master's headphones only, never on air (PRV-1)", () 
 
   it("previews a playlist's first track and a pad's sound, and says when a playlist is empty", async () => {
     rig.audio.previewPlaylist("P");
-    expect(state().preview).toEqual({ key: "pl:P", label: "Battle: M2" });
+    expect(state().preview).toMatchObject({ key: "pl:P", label: "Battle: M2" });
     rig.audio.previewPad("b", "door");
-    expect(state().preview).toEqual({ key: "pad:b/door", label: "Door (pad)" });
+    expect(state().preview).toMatchObject({ key: "pad:b/door", label: "Door (pad)" });
     await rig.advance(0.5);
     expect(rig.hearPreview()).toBeCloseTo(1);
     rig.audio.stopPreview();
@@ -479,5 +479,95 @@ describe("now-playing state and its events", () => {
     expect(rig.hearPreview()).toBe(0);
     expect(rig.engine.voices()).toEqual([]);
     expect(rig.audio.playTrack("m1")).toEqual({ ok: false, message: "Lyre's sound has stopped. Reopen the Lyre tab." });
+  });
+});
+
+describe("wave 4: the now-playing shape every screen reads, play order and the preview's controls (UX-16, PLY-13)", () => {
+  const SESSION = { kind: "session" as const, campaignId: "c", sessionId: "s" };
+
+  it("each room's music and ambience say where they play from and their playlist's play order there", async () => {
+    rig.audio.startScene(S1);
+    await rig.advance(1);
+    expect(first().music).toMatchObject({ trackId: "m1", place: { kind: "scene", ...S1 }, playOrder: null, paused: false });
+    expect(first().ambience).toMatchObject({ trackId: "amb1", playlistId: "A", place: { kind: "scene", ...S1 }, playOrder: { shuffle: false, repeat: "all" } });
+    rig.audio.next("music");
+    await rig.advance(1);
+    expect(first().music).toMatchObject({ trackId: "m2", playlistId: "P", place: { kind: "scene", ...S1 }, playOrder: { shuffle: false, repeat: "off" } });
+    rig.audio.togglePause("music");
+    expect(first().music?.paused).toBe(true);
+    rig.audio.playTrack("m3");
+    await rig.advance(1);
+    expect(first().music).toMatchObject({ trackId: "m3", place: null, playOrder: null });
+  });
+
+  it("Repeat one plays the same track again when it ends, until Next", async () => {
+    rig.data.playlists[0].order = { shuffle: false, repeat: "one" };
+    rig.audio.playPlaylist("P");
+    await rig.advance(21);
+    expect(first().music).toMatchObject({ trackId: "m2", playOrder: { shuffle: false, repeat: "one" } });
+    expect(first().music!.position).toBeLessThan(5);
+    rig.audio.next("music");
+    await rig.advance(1);
+    expect(first().music?.trackId).toBe("m3");
+  });
+
+  it("Shuffle deals the playlist by a seed from the host's random numbers; Up next shows that order", async () => {
+    rig.data.playlists[0].order = { shuffle: true, repeat: "all" };
+    const dealt = shuffledOrder(["m2", "m3"], 0);
+    rig.audio.playPlaylist("P");
+    await rig.advance(1);
+    expect(first().music?.trackId).toBe(dealt[0]);
+    expect(first().upNext?.trackId).toBe(dealt[1]);
+  });
+
+  it("a playlist played from a session's list plays in the session's order there, and says so", async () => {
+    rig.data.playOrders = { [keyOfPlace(SESSION)]: { P: { shuffle: false, repeat: "off" } } };
+    rig.audio.playPlaylist("P", { place: SESSION });
+    await rig.advance(1);
+    expect(first().music).toMatchObject({ trackId: "m2", place: SESSION, playOrder: { shuffle: false, repeat: "off" } });
+    await rig.advance(20);
+    expect(first().music?.trackId).toBe("m3");
+    await rig.advance(21);
+    // No repeat: after its last track the playlist stops.
+    expect(first().music).toBeNull();
+  });
+
+  it("the preview says what it is, where it was started from, its time, whether it is paused and the headphone volume", async () => {
+    rig.audio.previewTrack("m2", { from: "the session planner" });
+    await rig.advance(2);
+    expect(state().preview).toMatchObject({ key: "m2", label: "M2", kind: "track", trackId: "m2", playlistId: null, padKey: null, from: "the session planner", paused: false, length: 20, volume: 1 });
+    expect(state().preview!.position).toBeGreaterThan(1.5);
+    rig.audio.previewPad("b", "door", { from: "the pad board Combat" });
+    expect(state().preview).toMatchObject({ kind: "pad", padKey: "b/door", trackId: "fx1", from: "the pad board Combat" });
+    rig.audio.previewPlaylist("P");
+    expect(state().preview).toMatchObject({ kind: "playlist", playlistId: "P", trackId: "m2", from: null });
+  });
+
+  it("pauses and carries on the preview, and keeps the headphone volume from one preview to the next", async () => {
+    rig.audio.previewTrack("m2");
+    await rig.advance(1);
+    expect(rig.audio.togglePreviewPause()).toEqual({ ok: true });
+    await rig.advance(0.5);
+    expect(state().preview?.paused).toBe(true);
+    expect(rig.hearPreview()).toBeCloseTo(0);
+    const at = state().preview!.position!;
+    await rig.advance(2);
+    expect(state().preview!.position).toBeCloseTo(at, 1);
+    rig.audio.togglePreviewPause();
+    await rig.advance(0.5);
+    expect(state().preview?.paused).toBe(false);
+    expect(rig.hearPreview()).toBeCloseTo(1);
+    rig.audio.setPreviewVolume(0.5);
+    expect(state().preview?.volume).toBe(0.5);
+    await rig.advance(0.25);
+    expect(rig.hearPreview()).toBeCloseTo(0.5);
+    rig.audio.previewTrack("m3");
+    await rig.advance(1);
+    expect(state().preview).toMatchObject({ key: "m3", volume: 0.5 });
+    expect(rig.hearPreview()).toBeCloseTo(0.5);
+    rig.audio.setPreviewVolume(7);
+    expect(state().preview?.volume).toBe(1);
+    rig.audio.stopPreview();
+    expect(rig.audio.togglePreviewPause()).toEqual({ ok: false, message: "Nothing is previewing." });
   });
 });

@@ -82,4 +82,24 @@ describe("LyreApi argument shapes (security review 5)", () => {
     expect(argumentProblem("boards", "movePad", ["b", "p", { slot: 2 }])).toBeNull();
     expect(argumentProblem("boards", "movePad", ["b", "p", { slot: "2" }])).toBe("args[2]");
   });
+
+  it("checks the shapes of the round 5 calls (w4-contracts)", () => {
+    const scene = { kind: "scene", campaignId: "c", sessionId: "s", sceneId: "x" };
+    expect(argumentProblem("playlists", "setPlayOrder", ["p", scene, { shuffle: true, repeat: "all" }])).toBeNull();
+    expect(argumentProblem("playlists", "setPlayOrder", ["p", null, { shuffle: true, repeat: "all" }])).toBeNull();
+    expect(argumentProblem("playlists", "setPlayOrder", ["p", { kind: "room" }, { shuffle: true, repeat: "all" }])).toBe("args[1].kind");
+    expect(argumentProblem("playlists", "setPlayOrder", ["p", null, { shuffle: "yes", repeat: "all" }])).toBe("args[2].shuffle");
+    expect(argumentProblem("playlists", "clearPlayOrder", ["p", { kind: "campaign" }])).toBe("args[1].campaignId");
+    expect(argumentProblem("library", "setShape", ["t", null])).toBeNull();
+    expect(argumentProblem("library", "setShape", ["t", 3])).toBe("args[1]");
+    expect(argumentProblem("library", "search", [{ text: "", shapes: "builds" }])).toBe("args[0].shapes");
+    expect(argumentProblem("sessions", "setTrackName", [{ campaignId: "c", sessionId: "s", sceneId: "x" }, "t", ["x"]])).toBe("args[2]");
+    expect(argumentProblem("campaigns", "setOnHand", [{ campaignId: "c" }, "tracks", ["t"]])).toBeNull();
+    expect(argumentProblem("campaigns", "setUses", [{ kind: "track", id: "t" }, []])).toBeNull();
+    expect(argumentProblem("profiles", "set", ["t", { kind: "session", campaignId: "c", sessionId: "s" }, {}])).toBeNull();
+    expect(argumentProblem("transfer", "estimate", [{ kind: "campaign" }])).toBe("args[0].campaignId");
+    expect(argumentProblem("transfer", "save", [{ scope: { kind: "library" }, includeAudio: false, path: "relative.lyre" }])).toBe("args[0].path");
+    expect(argumentProblem("transfer", "open", [{ from: "the-internet" }])).toBe("args[0].from");
+    expect(argumentProblem("transfer", "bringIn", ["f", { all: "everything" }])).toBe("args[1].all");
+  });
 });

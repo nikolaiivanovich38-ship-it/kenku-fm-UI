@@ -33,6 +33,7 @@ lyreApiContract("in-memory fake through the page's IPC bridge", () => ({
   missingTrackId: "t43",
   relinkFolder: "D:\\Moved",
   folderToWatch: "H:\\Audio\\Incoming",
+  transferFiles: { saveTo: "D:\\Shared\\The Sunken Crown.lyre", notLyreFile: "D:\\Shared\\photo.jpg" },
 }));
 
 describe("the page's IPC bridge", () => {

@@ -60,7 +60,7 @@ describe("PreviewPlayer (PRV-1): only the game master hears it", () => {
     expect(headphones.signalAt(output.input as FakeNode)).toBeGreaterThan(0);
     expect(page.signalAt(mixer.outputs.table as unknown as FakeNode)).toBe(0);
     expect(page.signalAt(page.destination)).toBe(0);
-    expect(player.current()).toEqual({ key: "tavern", label: "Tavern" });
+    expect(player.current()).toEqual({ key: "tavern", label: "Tavern", kind: "track", trackId: "tavern", playlistId: null, padKey: null, from: null, paused: false });
     expect(last(changes)?.announcement).toBe("Previewing in your headphones: Tavern");
   });
 
@@ -99,7 +99,7 @@ describe("PreviewPlayer (PRV-1): only the game master hears it", () => {
     player.stop();
     await headphones.advance(0.5);
     expect(player.isPreviewing("tavern")).toBe(false);
-    expect(headphones.connectedNodeCount()).toBe(1); // only the output's own input remains wired
+    expect(headphones.connectedNodeCount()).toBe(2); // only the output's own input and the headphone volume remain wired
     player.stop(); // nothing playing: no second announcement
     expect(changes.filter((c) => c.announcement === "Preview stopped")).toHaveLength(1);
   });
@@ -126,7 +126,7 @@ describe("PreviewPlayer (PRV-1): only the game master hears it", () => {
   it("a pad's sound is decoded so it starts at once, and is named as a pad", async () => {
     player.toggle(padPreview({ boardId: "b1", padId: "p1", label: "Door", media: { url: "file:///fx/door.wav" } }));
     await headphones.flush();
-    expect(player.current()).toEqual({ key: "pad:b1/p1", label: "Door (pad)" });
+    expect(player.current()).toMatchObject({ key: "pad:b1/p1", label: "Door (pad)", kind: "pad", padKey: "b1/p1" });
     expect(headphones.decodeCalls).toBe(1);
     expect(headphones.runningSourceCount()).toBe(1);
   });
@@ -155,7 +155,7 @@ describe("PreviewPlayer (PRV-1): only the game master hears it", () => {
     await headphones.flush();
     player.stop();
     expect(changes.map((c) => c.announcement)).toEqual(["", ""]);
-    expect(changes[0].state).toEqual({ key: "tavern", label: "Tavern" });
+    expect(changes[0].state).toMatchObject({ key: "tavern", label: "Tavern" });
   });
 
   it("a preview that cannot play says so, quiet or not, before it clears (review w3-polish 1)", async () => {

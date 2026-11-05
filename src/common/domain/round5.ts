@@ -3,7 +3,7 @@
  * Ported from the design prototype (design/prototype/src/core.js), where each rule is shown on screen.
  * Pure functions only: no storage, no audio.
  */
-import type { DomainTrack, TrackShape } from "./types";
+import type { DomainTrack, PlayOrder, ProfilePlace, TrackShape } from "./types";
 import { SHAPE_WORDS } from "./types";
 
 /* ---------- DAT-13 track shape ---------- */
@@ -78,6 +78,16 @@ export function effectiveShape(chosen: TrackShape | null | undefined, levels: nu
   return s ? { shape: s, source: "suggested" } : { shape: null, source: null };
 }
 
+/**
+ * DAT-13: the shape that applies to a stored track: the game master's choice, else the suggestion the library keeps
+ * with the track's loudness peaks (worked out by shapeFromPeaks when the peaks were saved), else none.
+ */
+export function shapeOf(t: Pick<DomainTrack, "shape" | "suggestedShape">): { shape: TrackShape | null; source: "chosen" | "suggested" | null } {
+  if (t.shape) return { shape: t.shape, source: "chosen" };
+  if (t.suggestedShape) return { shape: t.suggestedShape, source: "suggested" };
+  return { shape: null, source: null };
+}
+
 /** The shape's word, as shown beside its glyph. */
 export function trackShapeName(shape: TrackShape): string {
   return SHAPE_WORDS[shape];
@@ -109,12 +119,6 @@ export function parseKeyOfPlace(key: string): UsePlace | null {
 
 /* ---------- PLY-13 play order ---------- */
 
-export type Repeat = "off" | "all" | "one";
-/** How a playlist plays: shuffled or in order, and whether it repeats all its tracks, one track, or not at all. */
-export interface PlayOrder {
-  shuffle: boolean;
-  repeat: Repeat;
-}
 /** Play order chosen for a playlist in one place: by place key (keyOfPlace), then playlist id. */
 export type PlayOrderOverrides = Record<string, Record<string, PlayOrder>>;
 
@@ -157,6 +161,34 @@ export function orderWords(o: PlayOrder): string {
   return (o.shuffle ? "Shuffle" : "In order") + ", " + (o.repeat === "all" ? "repeat all" : o.repeat === "one" ? "repeat one" : "no repeat");
 }
 
+/**
+ * PLY-13: a playlist's tracks in a shuffled order that depends only on the seed, so the engine, Live's lists and
+ * Up next agree on it. Each time a shuffled playlist starts playing it gets a new seed (a new order). The input is
+ * not changed.
+ */
+export function shuffledOrder<T>(items: readonly T[], seed: number): T[] {
+  // mulberry32: small, fast and good enough to deal tracks; the same seed always gives the same order.
+  let state = (Math.floor(seed) | 0) >>> 0;
+  const next = () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let x = state;
+    x = Math.imul(x ^ (x >>> 15), x | 1);
+    x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+  const out = items.slice();
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(next() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+/** PLY-13: a playlist's tracks in the order they play: its own order, or shuffled by `seed` when the order shuffles. */
+export function tracksInOrder<T>(items: readonly T[], order: PlayOrder, seed: number): T[] {
+  return order.shuffle ? shuffledOrder(items, seed) : items.slice();
+}
+
 /* ---------- DAT-14 a track's name in a scene ---------- */
 
 /** Names given to tracks in scenes: by scene key ("sc:<campaign>:<session>:<scene>"), then track id. */
@@ -190,6 +222,18 @@ export function profileKeysFor(place: UsePlace | null, playlistId: string | null
   if (place && place.kind !== "campaign") keys.push(keyOfPlace(place));
   if (playlistId) keys.push(`pl:${playlistId}`);
   return keys;
+}
+
+/**
+ * PLY-14: the same places as profileKeysFor, as ProfilePlace values for resolveProfile (the engine and the Audio
+ * profile screen use these; profileKeysFor gives their keys).
+ */
+export function profilePlacesFor(place: UsePlace | null, playlistId: string | null): ProfilePlace[] {
+  const places: ProfilePlace[] = [];
+  if (place?.kind === "scene") places.push({ kind: "scene", campaignId: place.campaignId, sessionId: place.sessionId, sceneId: place.sceneId });
+  if (place?.kind === "session") places.push({ kind: "session", campaignId: place.campaignId, sessionId: place.sessionId });
+  if (playlistId) places.push({ kind: "playlist", playlistId });
+  return places;
 }
 
 /* ---------- SFX-11 resizing a pad board ---------- */

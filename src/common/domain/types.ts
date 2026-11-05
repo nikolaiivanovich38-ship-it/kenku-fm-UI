@@ -73,7 +73,22 @@ export interface PlaylistRule {
   shapes?: TrackShape[];
 }
 
-export type DomainPlaylist = { id: string; name: string; lane: Lane } & (
+/** PLY-13: whether a playlist repeats all its tracks, one track, or not at all. */
+export const REPEATS = ["off", "all", "one"] as const;
+export type Repeat = (typeof REPEATS)[number];
+/** How a playlist plays: shuffled or in order, and whether it repeats all its tracks, one track, or not at all. */
+export interface PlayOrder {
+  shuffle: boolean;
+  repeat: Repeat;
+}
+
+export type DomainPlaylist = {
+  id: string;
+  name: string;
+  lane: Lane;
+  /** PLY-13: the playlist's own play order; null or missing: the default for where it plays (resolvePlayOrder). */
+  order?: PlayOrder | null;
+} & (
   | { kind: "manual"; trackIds: string[] }
   | { kind: "dynamic"; rule: PlaylistRule }
 );
@@ -135,16 +150,20 @@ export interface AudioProfile {
 
 export type AudioProfileInput = Partial<AudioProfile>;
 
-/** A place where a track can have its own audio profile: inside one playlist, or in one scene (cue). */
+/**
+ * A place where a track can have its own audio profile: inside one playlist, in one scene (cue), or (PLY-14) in one
+ * session's list of tracks and playlists kept on hand.
+ */
 export type ProfilePlace =
   | { kind: "playlist"; playlistId: string }
-  | { kind: "scene"; campaignId: string; sessionId: string; sceneId: string };
+  | { kind: "scene"; campaignId: string; sessionId: string; sceneId: string }
+  | { kind: "session"; campaignId: string; sessionId: string };
 
 /** Overrides by place key (see placeKey), then by track id. */
 export type ProfileOverrides = Record<string, Record<string, AudioProfileInput>>;
 
 /** Where an audio profile came from. */
-export type ProfileSource = "scene" | "playlist" | "track";
+export type ProfileSource = "scene" | "session" | "playlist" | "track";
 
 /** One step in a scene's music order. */
 export interface SequenceStep {

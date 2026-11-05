@@ -96,9 +96,31 @@ const soundRef = object({ kind: literal("track", "playlist"), id });
 const sceneAddress = object({ campaignId: id, sessionId: id, sceneId: id });
 const owner = object({ campaignId: id, "sessionId?": id });
 const usePlace = object({ campaignId: id, "sessionId?": id, "sceneId?": id });
-const rule = object({ conds: list(object(), 1_000), "energy?": list(number, 2), "leaveOutStings?": bool });
+const rule = object({ conds: list(object(), 1_000), "energy?": list(number, 2), "leaveOutStings?": bool, "shapes?": list(text(MAX_ID), 20) });
 const folderSource = branch("from", { "choose-folder": object(), path: object({ path: fullPath }) });
-const profilePlace = branch("kind", { playlist: object({ playlistId: id }), scene: object({ campaignId: id, sessionId: id, sceneId: id }) });
+const profilePlace = branch("kind", {
+  playlist: object({ playlistId: id }),
+  scene: object({ campaignId: id, sessionId: id, sceneId: id }),
+  session: object({ campaignId: id, sessionId: id }),
+});
+/** PLY-13: a place a play order applies in (a scene, a session list or a campaign list). */
+const playPlace = branch("kind", {
+  scene: object({ campaignId: id, sessionId: id, sceneId: id }),
+  session: object({ campaignId: id, sessionId: id }),
+  campaign: object({ campaignId: id }),
+});
+const playOrder = object({ shuffle: bool, repeat: text(MAX_ID) });
+/** DAT-7: what a .lyre file holds. */
+const transferScope = branch("kind", {
+  library: object(),
+  tags: object(),
+  campaign: object({ campaignId: id }),
+  session: object({ campaignId: id, sessionId: id }),
+  scene: object({ campaignId: id, sessionId: id, sceneId: id }),
+  playlist: object({ playlistId: id }),
+  board: object({ boardId: id }),
+});
+const duplicateChoice = literal("skip", "merge", "keepBoth");
 const padPatch = object({
   "label?": text(500),
   "icon?": text(MAX_ID),
@@ -124,11 +146,12 @@ const withOptional = (shape: Shape, required: number): Shape => ({ ...shape, req
 export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
   library: {
     listTracks: read(),
-    search: read(object({ text: text(1_000), "lane?": text(MAX_ID), "limit?": whole })),
+    search: read(object({ text: text(1_000), "lane?": text(MAX_ID), "limit?": whole, "shapes?": list(text(MAX_ID), 20) })),
     updateTrack: write(id, object({ "title?": text(), "notes?": text(), "energy?": nullable(number), "role?": nullable(text(MAX_ID)), "loop?": nullable(text(MAX_ID)), "kind?": text(MAX_ID) })),
     listFolders: read(),
     showInFolder: write(id),
     peaksOf: read(id),
+    setShape: write(id, nullable(text(MAX_ID))),
   },
   tags: {
     listGroups: read(),
@@ -150,6 +173,9 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
     addTracks: withOptional(write(id, list(id), whole), 2),
     removeTrack: write(id, id),
     moveTrack: write(id, id, whole),
+    playOrders: read(),
+    setPlayOrder: write(id, nullable(playPlace), playOrder),
+    clearPlayOrder: write(id, nullable(playPlace)),
   },
   boards: {
     list: read(),
@@ -170,9 +196,9 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
     get: read(id),
     create: write(object({ name: text(500), "system?": text(500), "theme?": text(MAX_ID), "description?": text(), "obsidian?": object({ "vault?": text(MAX_PATH), "note?": text(MAX_PATH), "sessionsFolder?": text(MAX_PATH) }) })),
     update: write(id, object({ "name?": text(500), "system?": text(500), "theme?": text(MAX_ID), "description?": text(), "notes?": text(), "obsidian?": object({ "vault?": text(MAX_PATH), "note?": text(MAX_PATH), "sessionsFolder?": text(MAX_PATH) }) })),
-    setOnHand: write(owner, literal("playlists", "boards"), list(id, 10_000)),
+    setOnHand: write(owner, literal("playlists", "boards", "tracks"), list(id, 10_000)),
     usesOf: read(object({ kind: literal("playlist", "board", "track"), id })),
-    setUses: write(object({ kind: literal("playlist", "board"), id }), list(usePlace, 10_000)),
+    setUses: write(object({ kind: literal("playlist", "board", "track"), id }), list(usePlace, 10_000)),
   },
   sessions: {
     create: write(id),
@@ -186,6 +212,7 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
     setSceneMusic: write(sceneAddress, list(soundRef, 10_000)),
     setSceneAmbience: write(sceneAddress, nullable(soundRef)),
     setSceneBoards: write(sceneAddress, list(id, 1_000)),
+    setTrackName: write(sceneAddress, id, text(1_000)),
   },
   profiles: {
     overrides: read(),
@@ -198,6 +225,13 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
     findMissing: read(),
     planRelink: write(folderSource),
     applyRelink: write(list(object({ trackId: id, to: fullPath }))),
+  },
+  transfer: {
+    estimate: read(transferScope),
+    save: write(object({ scope: transferScope, includeAudio: bool, "path?": fullPath })),
+    open: write(branch("from", { "choose-file": object(), path: object({ path: fullPath }) })),
+    bringIn: write(id, object({ "each?": object(), "all?": duplicateChoice })),
+    movedReport: read(),
   },
   history: {
     state: read(),

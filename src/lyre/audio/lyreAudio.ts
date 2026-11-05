@@ -30,8 +30,11 @@ import {
   type DomainLookup,
   type DomainScene,
   type DomainTrack,
+  type PlayOrder,
+  type PlayOrderOverrides,
   type ProfileOverrides,
   type RoomTarget,
+  type UsePlace,
 } from "../../common/domain";
 import type { GainLike, NodeLike } from "../../player/engine/audio/types";
 import type { PlaybackEngine } from "../../player/engine/engine";
@@ -39,6 +42,7 @@ import {
   padPreview,
   playlistPreview,
   trackPreview,
+  type PreviewKind,
   type PreviewPlayer,
   type PreviewState,
 } from "../../player/engine/preview/previewPlayer";
@@ -46,7 +50,7 @@ import type { DeviceStatus, OutputDeviceChooser, OutputDeviceInfo } from "../../
 import { DEFAULT_FADES, type CueAction, type CueOutcome, type TrackFrom } from "../../player/engine/queue/actions";
 import { Director } from "../../player/engine/queue/director";
 import type { PadSound, SceneRef, ShowLibrary } from "../../player/engine/queue/library";
-import type { Origin } from "../../player/engine/queue/nowPlaying";
+import { playOrderOf, type Origin } from "../../player/engine/queue/nowPlaying";
 import type { Random } from "../../player/engine/queue/queue";
 import type { PlayingReport, RoomReport } from "../../player/engine/queue/roomPlayer";
 import type { RoomLane } from "../../player/engine/rooms.contract";
@@ -55,7 +59,7 @@ import type { MediaRequest } from "../../player/engine/sources/sourceLoader";
 import type { Voice } from "../../player/engine/voice/voice";
 import { StableRooms } from "./stableRooms";
 
-export type { CueAction, CueOutcome, TrackFrom, SceneRef, Origin, RoomLane, OutputDeviceInfo, DeviceStatus };
+export type { CueAction, CueOutcome, TrackFrom, SceneRef, Origin, RoomLane, OutputDeviceInfo, DeviceStatus, PreviewKind };
 
 // ---------- what the screens give LyreAudio ----------
 
@@ -78,6 +82,8 @@ export interface LyreAudioLibrary extends DomainLookup {
   /** Where a track's audio is; null when its file is not known. */
   media(track: DomainTrack): MediaRequest | null;
   pad(boardId: string, padId: string): LyrePad | undefined;
+  /** PLY-13: play order chosen in places (LyreApi playlists.playOrders), by place key then playlist id. */
+  playOrders(): PlayOrderOverrides;
 }
 
 // ---------- what the screens read ----------
@@ -96,6 +102,23 @@ export interface LaneNowPlaying {
   length: number | null;
   paused: boolean;
   loading: boolean;
+  /**
+   * UX-16, PLY-13: where it plays from: its scene, or the session or campaign list its playlist was played from;
+   * null for a playlist on its own or a single track. The Now playing bar words it ("Scene: The abbey ruins …").
+   */
+  place: UsePlace | null;
+  /** PLY-13: its playlist's play order where it plays (resolvePlayOrder); null when it is not from a playlist. */
+  playOrder: PlayOrder | null;
+}
+
+/** UX-16: what plays in the game master's headphones only (the Now playing bar's "Only you" row). */
+export interface PreviewNowPlaying extends PreviewState {
+  /** Seconds into the file; null while it loads. */
+  position: number | null;
+  /** Length of the file in seconds; null until known. */
+  length: number | null;
+  /** The headphone volume, 0 to 1 (kept from one preview to the next). */
+  volume: number;
 }
 
 export interface RoomNowPlaying {
@@ -119,7 +142,7 @@ export interface NowPlaying {
   /** A bot is in a voice channel: rooms play on Discord, not on this page's speakers. */
   broadcasting: boolean;
   /** What plays in the game master's headphones only. Key: track id, "pl:<id>" or "pad:<board>/<pad>". */
-  preview: PreviewState | null;
+  preview: PreviewNowPlaying | null;
   /** The preview's sound device and, when it is not the chosen one, why. */
   previewDevice: DeviceStatus | null;
   /** Undo of the last scene start is possible. */
@@ -151,6 +174,13 @@ export interface PreviewTrackOptions {
   profile?: AudioProfile;
   /** Announce nothing: the screen says what happens. */
   quiet?: boolean;
+  /** UX-16: where the game master started it, in words for the Now playing bar ("the session planner"). */
+  from?: string;
+}
+
+/** Where a preview was started from (the Now playing bar's "Previewed from …"). */
+export interface PreviewFrom {
+  from?: string;
 }
 
 /** The first room: where sound goes when a screen names no room, and where scenes always play. */
@@ -167,6 +197,8 @@ export interface PlayOptions {
   from?: TrackFrom;
   /** Crossfade in milliseconds (default 3000). */
   fadeMs?: number;
+  /** PLY-13: the session or campaign list a playlist is played from, so its play order (and audio settings) there apply. */
+  place?: UsePlace;
 }
 
 /**
@@ -203,9 +235,13 @@ export interface LyreAudio {
    * screen) it always starts, from that point and with that profile.
    */
   previewTrack(trackId: string, options?: PreviewTrackOptions): CueOutcome;
-  previewPlaylist(playlistId: string): CueOutcome;
-  previewPad(boardId: string, padId: string): CueOutcome;
+  previewPlaylist(playlistId: string, options?: PreviewFrom): CueOutcome;
+  previewPad(boardId: string, padId: string, options?: PreviewFrom): CueOutcome;
   stopPreview(): void;
+  /** UX-16: pause the preview, or carry on if it is paused. */
+  togglePreviewPause(): CueOutcome;
+  /** UX-16: the headphone volume, 0 to 1, kept for the next preview too. */
+  setPreviewVolume(volume: number): void;
   isPreviewing(key: string): boolean;
   /** Sound devices to choose from for the preview (the default first). */
   previewDevices(): Promise<OutputDeviceInfo[]>;
@@ -295,6 +331,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       profileOverrides: () => this.library.profileOverrides(),
       media: (track) => this.library.media(track),
       pad: (boardId, padId) => this.library.pad(boardId, padId),
+      playOrders: () => this.library.playOrders(),
     };
     this.director = new Director({ engine: parts.engine, rooms: this.rooms, library, random: parts.random });
 
@@ -363,7 +400,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
 
   playPlaylist(playlistId: string, options: Omit<PlayOptions, "from"> = {}): CueOutcome {
     const target = options.target ?? FIRST_ROOM;
-    const outcome = this.perform({ type: "playPlaylist", playlistId, target, when: options.when, fadeMs: options.fadeMs });
+    const outcome = this.perform({ type: "playPlaylist", playlistId, target, when: options.when, fadeMs: options.fadeMs, place: options.place });
     if (outcome.ok) {
       const playlist = this.library.playlist(playlistId);
       const what = playlist?.lane === "fx" ? "Effect" : playlist?.lane === "amb" ? "Ambience" : options.when === "next" ? "Plays next" : "Music";
@@ -463,11 +500,11 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       return this.fail(`Unable to preview: ${trackTitle(track)}`);
     }
     const voice = options && { startAt: options.startAtMs === undefined ? undefined : options.startAtMs / 1000, profile: options.profile };
-    preview.play({ ...trackPreview(track, media), options: voice, quiet: options?.quiet });
+    preview.play({ ...trackPreview(track, media), options: voice, quiet: options?.quiet, from: options?.from ?? null });
     return OK;
   }
 
-  previewPlaylist(playlistId: string): CueOutcome {
+  previewPlaylist(playlistId: string, options: PreviewFrom = {}): CueOutcome {
     const preview = this.parts.preview;
     if (preview.isPreviewing(`pl:${playlistId}`)) {
       preview.stop();
@@ -486,11 +523,11 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     if ("message" in item) {
       return this.fail(item.message);
     }
-    preview.play(item);
+    preview.play({ ...item, from: options.from ?? null });
     return OK;
   }
 
-  previewPad(boardId: string, padId: string): CueOutcome {
+  previewPad(boardId: string, padId: string, options: PreviewFrom = {}): CueOutcome {
     const preview = this.parts.preview;
     if (preview.isPreviewing(`pad:${boardId}/${padId}`)) {
       preview.stop();
@@ -502,12 +539,20 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     if (!pad || !media) {
       return this.fail("That pad has no sound.");
     }
-    preview.play(padPreview({ boardId, padId, label: pad.label, media }));
+    preview.play({ ...padPreview({ boardId, padId, label: pad.label, media }), from: options.from ?? null });
     return OK;
   }
 
   stopPreview(): void {
     this.parts.preview.stop();
+  }
+
+  togglePreviewPause(): CueOutcome {
+    return this.parts.preview.togglePause() ? OK : this.fail("Nothing is previewing.");
+  }
+
+  setPreviewVolume(volume: number): void {
+    this.parts.preview.setVolume(volume);
   }
 
   isPreviewing(key: string): boolean {
@@ -689,7 +734,14 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
   }
 
   private build(): NowPlaying {
-    const preview = this.parts.preview.current();
+    const current = this.parts.preview.current();
+    const at = this.parts.preview.position();
+    const preview: PreviewNowPlaying | null = current && {
+      ...current,
+      position: at && at.key === current.key ? at.seconds : null,
+      length: this.parts.preview.length(),
+      volume: this.parts.preview.volume(),
+    };
     return {
       rooms: this.disposed ? [] : this.director.report().map((room) => this.roomState(room)),
       broadcasting: this.parts.streams.broadcasting,
@@ -725,8 +777,17 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       length,
       paused: playing.state === "paused",
       loading: playing.state === "loading" || playing.state === null,
+      place: placeOfOrigin(playing.origin),
+      playOrder: playing.playlistId ? playOrderOf(playing.playlistId, playing.origin, this.library) : null,
     };
   }
+}
+
+/** Where a lane's track plays from, for the Now playing bar: its scene, or the list its playlist was played from. */
+function placeOfOrigin(origin: Origin): UsePlace | null {
+  if (origin.kind === "scene") return { kind: "scene", ...origin.scene };
+  if (origin.kind === "playlist") return origin.place ?? null;
+  return null;
 }
 
 /** The fades screens show next to their buttons, in milliseconds (from the prototype). */

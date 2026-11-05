@@ -4,19 +4,20 @@
  * once, answers from memory, and reloads the parts a "changed" event names. Give it to the host with
  * `audio.setLibrary(snapshot)`, and again from `snapshot.subscribe` so now-playing titles follow renames.
  */
-import { isFx, type DomainPlaylist, type DomainScene, type DomainTrack, type ProfileOverrides } from "../../common/domain";
+import { isFx, type DomainPlaylist, type DomainScene, type DomainTrack, type PlayOrderOverrides, type ProfileOverrides } from "../../common/domain";
 import type { CampaignInfo, LibraryTrack, LyreApi, LyreArea, PadBoard, PlaylistInfo, Pad } from "../../common/lyre/api";
 import type { MediaRequest } from "../../player/engine/sources/sourceLoader";
 import type { LyreAudioLibrary, LyrePad, SceneRef } from "../audio/lyreAudio";
 
-type Part = "tracks" | "playlists" | "campaigns" | "boards" | "overrides";
+type Part = "tracks" | "playlists" | "campaigns" | "boards" | "overrides" | "playOrders";
 
 /** Which parts each changed area makes stale. Tags change tracks (their tag values) and pads that play by tag. */
 const PARTS_OF: Record<LyreArea, Part[]> = {
   tracks: ["tracks"],
   tags: ["tracks"],
   folders: [],
-  playlists: ["playlists"],
+  // PLY-13: play orders chosen in places belong to the playlists area.
+  playlists: ["playlists", "playOrders"],
   boards: ["boards"],
   campaigns: ["campaigns"],
   profiles: ["overrides"],
@@ -32,8 +33,9 @@ export class LibrarySnapshot implements LyreAudioLibrary {
   private campaigns: CampaignInfo[] = [];
   private boards: PadBoard[] = [];
   private overrides: ProfileOverrides = {};
+  private orders: PlayOrderOverrides = {};
   /** The newest request per part: an older answer arriving later is dropped. */
-  private readonly asked: Record<Part, number> = { tracks: 0, playlists: 0, campaigns: 0, boards: 0, overrides: 0 };
+  private readonly asked: Record<Part, number> = { tracks: 0, playlists: 0, campaigns: 0, boards: 0, overrides: 0, playOrders: 0 };
   private readonly listeners = new Set<() => void>();
   private readonly stopEvents: () => void;
   private disposed = false;
@@ -49,7 +51,7 @@ export class LibrarySnapshot implements LyreAudioLibrary {
   /** Loads everything once; resolves when the snapshot can answer. */
   static async load(api: LyreApi): Promise<LibrarySnapshot> {
     const snapshot = new LibrarySnapshot(api);
-    await Promise.all((["tracks", "playlists", "campaigns", "boards", "overrides"] as Part[]).map((part) => snapshot.reload(part)));
+    await Promise.all((["tracks", "playlists", "campaigns", "boards", "overrides", "playOrders"] as Part[]).map((part) => snapshot.reload(part)));
     return snapshot;
   }
 
@@ -93,6 +95,10 @@ export class LibrarySnapshot implements LyreAudioLibrary {
     return this.overrides;
   }
 
+  playOrders(): PlayOrderOverrides {
+    return this.orders;
+  }
+
   media(track: DomainTrack): MediaRequest | null {
     const known = this.trackById.get(track.id);
     if (!known?.url) return null;
@@ -131,6 +137,8 @@ export class LibrarySnapshot implements LyreAudioLibrary {
         return this.api.boards.list();
       case "overrides":
         return this.api.profiles.overrides();
+      case "playOrders":
+        return this.api.playlists.playOrders();
     }
   }
 
@@ -151,6 +159,9 @@ export class LibrarySnapshot implements LyreAudioLibrary {
         break;
       case "overrides":
         this.overrides = answer as ProfileOverrides;
+        break;
+      case "playOrders":
+        this.orders = answer as PlayOrderOverrides;
         break;
     }
   }

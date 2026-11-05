@@ -7,7 +7,7 @@
  * rewrite and deleting one takes it out of every rule (ON DELETE CASCADE).
  * Writers here run inside the caller's change.
  */
-import type { PlaylistRule, TagCondition } from "../../../common/domain";
+import { TRACK_SHAPES, type PlaylistRule, type TagCondition, type TrackShape } from "../../../common/domain";
 import { ValidationError } from "../errors";
 import { GAP } from "../ordering";
 import type { SQLInputValue } from "../sqlite";
@@ -19,6 +19,8 @@ export type ResolvedRule = {
   conds: { groupId: string; match: TagCondition["match"]; tagIds: string[] }[];
   energy: [number, number] | null;
   leaveOutStings: boolean;
+  /** DAT-13: the shapes asked for, in the fixed shape order; empty means any shape. */
+  shapes: TrackShape[];
 };
 
 /** Resolves a checked rule's tag names (any case) to tags of each condition's group. */
@@ -36,6 +38,7 @@ export function resolveRule(store: Store, rule: PlaylistRule): ResolvedRule {
     }),
     energy: rule.energy ?? null,
     leaveOutStings: rule.leaveOutStings === true,
+    shapes: TRACK_SHAPES.filter((s) => rule.shapes?.includes(s)),
   };
 }
 
@@ -48,9 +51,11 @@ export function ruleColumns(rule: ResolvedRule | null): Record<string, SQLInputV
   };
 }
 
-/** Replaces a playlist's conditions (the rule's columns are written by the caller). */
+/** Replaces a playlist's conditions and shapes (the rule's columns are written by the caller). */
 export function writeConditions(store: Store, playlistId: string, rule: ResolvedRule): void {
   store.run("DELETE FROM rule_conditions WHERE playlist_id = ?", playlistId);
+  store.run("DELETE FROM rule_shapes WHERE playlist_id = ?", playlistId);
+  for (const shape of rule.shapes) store.run("INSERT INTO rule_shapes (playlist_id, shape) VALUES (?, ?)", playlistId, shape);
   rule.conds.forEach((cond, index) => {
     const conditionId = newId();
     store.run(
@@ -103,6 +108,19 @@ export function readRules(store: Store, playlists: RuleSettings[]): Map<string, 
     out.set(p.id, rule);
   }
   for (const c of conds) out.get(c.playlist_id)?.conds.push({ group: c.group_id, match: c.match, values: values.get(c.id) ?? [] });
+  const shapes = new Map<string, TrackShape[]>();
+  for (const row of store.all<{ playlist_id: string; shape: TrackShape }>(
+    "SELECT playlist_id, shape FROM rule_shapes WHERE playlist_id IN (SELECT value FROM json_each(?))",
+    ids,
+  )) {
+    const list = shapes.get(row.playlist_id);
+    if (list) list.push(row.shape);
+    else shapes.set(row.playlist_id, [row.shape]);
+  }
+  for (const [id, list] of shapes) {
+    const rule = out.get(id);
+    if (rule) rule.shapes = TRACK_SHAPES.filter((s) => list.includes(s));
+  }
   return out;
 }
 
@@ -137,6 +155,12 @@ export function dynamicTracksQuery(store: Store, playlistId: string): { sql: str
     params.push(playlist.rule_energy_min, playlist.rule_energy_max);
   }
   if (playlist.rule_leave_out_stings === 1) where.push("t.role IS NOT 'sting'");
+  // DAT-13: the chosen shape, else the suggestion kept with the peaks (read by track_peaks' key, before the levels).
+  const shapes = store.all<{ shape: string }>("SELECT shape FROM rule_shapes WHERE playlist_id = ?", playlist.id).map((r) => r.shape);
+  if (shapes.length > 0) {
+    where.push(`coalesce(t.shape, (SELECT p.suggested_shape FROM track_peaks p WHERE p.track_id = t.id)) IN (${placeholders(shapes.length)})`);
+    params.push(...shapes);
+  }
   for (const cond of conds) {
     const tagIds = store
       .all<{ tag_id: string }>("SELECT tag_id FROM rule_condition_tags WHERE condition_id = ? ORDER BY position", cond.id)
