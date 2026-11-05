@@ -65,8 +65,6 @@ describe("the shell: rail, routes and screens (UX-9)", () => {
     ["playlist/p-abbess", "Playlist", "Playlists"],
     ["boards", "Pad boards", "Pad boards"],
     ["board/weather", "Pad board", "Pad boards"],
-    ["live", "Live", "Live"],
-    ["outputs", "Outputs", "Outputs"],
   ])("%s shows its heading and a placeholder, with %s's section lit", (path, heading, section) => {
     window.history.replaceState(null, "", `#/${path}`);
     render(<Shell screens={SHELL_SCREENS} />);
@@ -74,6 +72,18 @@ describe("the shell: rail, routes and screens (UX-9)", () => {
     expect(within(main).getByRole("heading", { level: 1 })).toHaveTextContent(heading);
     expect(within(main).getByText("Not built yet.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: section })).toHaveAttribute("aria-current", "page");
+  });
+
+  it.each([
+    ["live", "Live"],
+    ["outputs", "Outputs"],
+  ])("%s says in plain words that it comes in 0.4 and where to run a session until then (w3-ux 2)", (path, heading) => {
+    window.history.replaceState(null, "", `#/${path}`);
+    render(<Shell screens={SHELL_SCREENS} />);
+    const main = within(screen.getByRole("main"));
+    expect(main.getByRole("heading", { level: 1 })).toHaveTextContent(heading);
+    expect(main.getByText("Live comes in Lyre 0.4. Until then, run your session from the Player tab.")).toBeInTheDocument();
+    expect(main.queryByText("Not built yet.")).toBeNull();
   });
 
   it("moves focus to the new screen's heading when the route changes, without an outline class", () => {

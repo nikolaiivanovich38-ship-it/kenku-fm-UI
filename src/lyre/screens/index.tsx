@@ -5,7 +5,7 @@ import { BoardsScreen } from "./boards/BoardsScreen";
 import { LibraryScreen } from "./library/LibraryScreen";
 import { PlaylistScreen, PlaylistsScreen } from "./library/PlaylistsScreen";
 import { LookScreen } from "./look/LookScreen";
-import { PlaceholderScreen } from "./Placeholder";
+import { ComingScreen } from "./Placeholder";
 import { CampaignScreen, CampaignsScreen, SessionScreen } from "./campaigns";
 import { ProfileScreen } from "./profile/ProfileScreen";
 
@@ -16,9 +16,10 @@ export interface ScreenProps {
 
 export type ScreenComponent = React.ComponentType<ScreenProps>;
 
-function placeholder(title: string): ScreenComponent {
-  const Screen = () => <PlaceholderScreen title={title} />;
-  Screen.displayName = `${title} (not built yet)`;
+/** Live and Outputs come in Lyre 0.4; until then their page says so (ComingScreen). */
+function comingLater(title: string): ScreenComponent {
+  const Screen = () => <ComingScreen title={title} />;
+  Screen.displayName = `${title} (comes in 0.4)`;
   return Screen;
 }
 
@@ -37,7 +38,7 @@ export const SCREENS: Record<RouteName, ScreenComponent> = {
   profile: ProfileScreen,
   boards: BoardsScreen,
   board: BoardScreen,
-  live: placeholder("Live"),
-  outputs: placeholder("Outputs"),
+  live: comingLater("Live"),
+  outputs: comingLater("Outputs"),
   look: LookScreen,
 };
