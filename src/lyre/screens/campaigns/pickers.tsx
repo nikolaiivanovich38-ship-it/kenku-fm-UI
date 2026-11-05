@@ -48,7 +48,7 @@ export interface LibraryPickerProps {
 
 const HINT = (
   <p className="hint" style={{ marginTop: 6 }}>
-    <Icon name="headphones" size="s" /> Preview plays in your headphones only. <Icon name="chevdown" size="s" /> shows what is inside.
+    <Icon name="headphones" size="s" /> Preview plays in your headphones only. The arrow <Icon name="chevdown" size="s" /> beside a name shows what is inside.
   </p>
 );
 

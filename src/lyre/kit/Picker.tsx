@@ -217,7 +217,7 @@ function PickerBody({
         hint
       ) : renderContents ? (
         <p className="hint" style={{ marginTop: 6 }}>
-          <Icon name="chevdown" size="s" /> shows what is inside.
+          The arrow <Icon name="chevdown" size="s" /> beside a name shows what is inside.
         </p>
       ) : null}
     </Dialog>

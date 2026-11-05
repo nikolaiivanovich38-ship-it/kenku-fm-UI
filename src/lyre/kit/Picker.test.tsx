@@ -80,5 +80,11 @@ describe("PickerDialog with folding groups", () => {
     await userEvent.type(sheet.getByRole("searchbox", { name: "Search the list" }), "session");
     expect(sheet.getByRole("button", { name: /^The Sunken Crown/ })).toBeDisabled();
   });
+
+  it("its hint reads as a whole sentence without the arrow picture (w3-ux 15)", () => {
+    render(<PickerDialog open title="Hint" items={items} renderContents={() => <p>inside</p>} onDone={vi.fn()} onClose={vi.fn()} />);
+    const hint = screen.getByText(/shows what is inside/);
+    expect(hint.textContent?.replace(/\s+/g, " ").trim()).toBe("The arrow beside a name shows what is inside.");
+  });
 });
 
