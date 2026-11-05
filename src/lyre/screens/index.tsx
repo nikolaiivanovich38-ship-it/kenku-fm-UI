@@ -4,7 +4,7 @@ import { BoardScreen } from "./boards/BoardScreen";
 import { BoardsScreen } from "./boards/BoardsScreen";
 import { LibraryScreen } from "./library/LibraryScreen";
 import { PlaylistScreen, PlaylistsScreen } from "./library/PlaylistsScreen";
-import { LookPlaceholder } from "./LookPlaceholder";
+import { LookScreen } from "./look/LookScreen";
 import { PlaceholderScreen } from "./Placeholder";
 import { CampaignScreen, CampaignsScreen, SessionScreen } from "./campaigns";
 import { ProfileScreen } from "./profile/ProfileScreen";
@@ -39,5 +39,5 @@ export const SCREENS: Record<RouteName, ScreenComponent> = {
   board: BoardScreen,
   live: placeholder("Live"),
   outputs: placeholder("Outputs"),
-  look: LookPlaceholder,
+  look: LookScreen,
 };

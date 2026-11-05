@@ -308,11 +308,9 @@ The Audio profile screen (route `profile`: `#/profile/<track>` and `#/profile/<t
 | `useProfileEditor.ts` | The profile shown for one track in one place: a draft that shows at once, kept through `profiles.set` right away for a click, after 600 ms for a run of keys or typing, at the end of a drag, and when the screen closes; refusals are toasted and taken back. Give this place its own settings, Back to the track's settings (with Undo, kept while the track stays open). |
 | `useProfileController.ts` | The actions (handles, playhead, fields, steppers, fades, markers, places, Play on air), the animation-frame clock, the preview's sound, and the single-key shortcuts (Space, I, O, L, M, arrows; switchable, kept under `lyre-profile-keys1`). |
 | `ProfileScreen.tsx`, `boxes.tsx`, `Waveform.tsx`, `waveDrawing.ts` | The header with "Settings for", and the boxes Waveform and listening, At the end, Fades, Markers. |
-| `ProfileLink.tsx` | The prototype's "Audio profile" link-button (L.profileLink), for other screens too; a candidate for `src/lyre/kit`. |
-| `OnAirFallback.tsx` | The prototype's On air bar, shown by this screen only while `ShellData.onAirBar` is not fed; it steps aside when the shell has one. |
 
-Limits of this version (each needs the audio host or the library first):
-- **Preview sound.** `previewTrack(id)` plays the whole file from 0:00 without the profile, so the sound matches the playhead only from 0:00 and does not loop or fade as set. The playhead, the Looped count, the hand-over and the volume meter come from the screen's own clock (as in the prototype). Wanted from LyreAudio: `previewTrack(id, { startAtMs, profile })` (the Voice already takes `startAt` and `profile`) and the preview's position, so the clock can follow the sound.
+Limits of this version:
+- **Preview sound** follows the profile since w3-polish (see that section).
 - **Waveform.** The library has no loudness peaks for a file, so the waveform is an even band (shaped by the fades and the parts not played); the prototype's made-up shape is not drawn. `waveDrawing.ts` takes `levels` when peaks exist.
 
 ## Wave 3: w3-library
@@ -330,10 +328,9 @@ The Library (`library`, `library/<track>`) and Playlists (`playlists`, `playlist
 | `TagSheet.tsx`, `FiltersBody.tsx` | The bulk Tag… sheet; the Filters box. |
 | `PlaylistsScreen.tsx`, `PlaylistPage.tsx` | All playlists (filters, rows with expanders, New playlist); one playlist (manual tracks with Add tracks, or rules and matches; Used in; Details; Delete). |
 | `playlistData.ts`, `playlistParts.tsx`, `UseInDialog.tsx`, `playlistDrops.tsx` | Tracks of each playlist and its uses from the lists already loaded (domain `playlistTracks`, `usesOfPlaylist`); Use in… (`campaigns.setUses`); files dropped on a row, a page or beside the list. |
-| `shared.tsx`, `drops.ts` | Preview and Play on air buttons, a playlist's contents, `PopMenu` (the kit menu's keys, with two-line items and a filter box), the on-air bar, refusals as toasts (`useWriteResult`, `useWriteOk`); paths from a drop. |
+| `shared.tsx`, `drops.ts` | A playlist's contents, what plays on air, refusals as toasts (`useWriteResult`, `useWriteOk`); paths from a drop. (Sound buttons, the two-line menu and the on-air bar moved to the kit and the shell in w3-polish.) |
 
-- **Sound** only through `useLyreAudio()`: Preview (`previewTrack`, `previewPlaylist`, state from `useNowPlaying().preview`), Play on air (`playTrack`, `playPlaylist`, 3 s fade). Errors and announcements become toasts and live-region text while a screen is shown.
-- **On-air bar**: the shell shows `ShellData.onAirBar`; nothing supplies it yet, so these screens draw `OnAirBarFallback` (core.js `onAirBar`) when it is missing. When the page wires one, the fallback steps aside.
+- **Sound** only through `useLyreAudio()`: Preview (`previewTrack`, `previewPlaylist`, state from `useNowPlaying().preview`), Play on air (`playTrack`, `playPlaylist`, 3 s fade).
 - **Drops** use `window.lyre.files.pathOf(file)` (preload, `webUtils.getPathForFile`), falling back to the file's name (the fake takes it as a path). In the `app` spec project, `e2e/specs/support/drop.ts` drops real temporary files through a file input, as a page-made `File` has no place on disk.
 - **CSS**: `library.css` and `playlists.css` are the prototype's view CSS with every rule scoped to `.view` (`body` for menus and sheets), because the page loads screen CSS before `ui.css` (`src/lyre/index.tsx` imports `./screens` before the styles) and equal rules would otherwise lose.
 
@@ -348,7 +345,7 @@ The Pad boards screens of the new interface (WP5), from the prototype's `views/b
 | `PadEditor.tsx` | The pad's box: Preview, Play on air (a hold pad is let go after 1.5 s), Label, Sound (one file, several variants in random order or in turn, or any FX track with a tag; Choose from library… lists FX tracks; Add a file… imports through `import.start`), Play mode, Hotkey (letters, digits, F1 to F12; Esc cancels, Backspace removes; a key another pad has is warned with Take it from that pad), Colour, Icon, Volume, Fade out. |
 | `BoardDialogs.tsx` | New pad board, Delete board…, Use in… (`campaigns.setUses`), Delete pad…, Duplicate board. |
 | `boardModel.ts` | The words and small rules (size line, places, key owners, arrow neighbours, uses from the campaign trees, resize and move messages, the pad tile's accessible name with its visible label and key first). |
-| `hooks.ts` | `useWrite` (refusals toasted in their own words), `useBoardSound` (preview and on-air state from `useNowPlaying`; the audio host's announcements and errors go to the live region and toasts while the screen is open), `usePendingFocus` (focus that waits until the reloaded data shows its target), `useSavedText` (fields saved as you type). |
+| `hooks.ts` | `useWrite` (refusals toasted in their own words), `useBoardSound` (preview and on-air state from `useNowPlaying`), `usePendingFocus` (focus that waits until the reloaded data shows its target), `useSavedText` (fields saved as you type). |
 
 The resize message's Undo calls `history.undo()` only while the last undo step is still that resize (its `undoLabel`); otherwise it says it cannot undo it any more.
 
@@ -363,10 +360,29 @@ Campaigns (`#/campaigns`), one campaign (`#/campaign/<cid>`) and the session pla
 | `SessionScreen.tsx` | Session details, Prep or Live, Run this session; scene cards (fold, open all, move, drag, add after the last one worked on, duplicate, delete after asking); each scene's music (tracks and playlists mixed, in play order), ambience and pad boards, with menus, expanders, Preview, Play on air, pickers and dropped files; session playlists and pad boards; the campaign's playlists as a reminder. |
 | `OnHand.tsx` | Playlists and pad boards on hand (campaign or session): rows, Add… picker, Remove. |
 | `pickers.tsx` | The music, ambience, playlist and pad board pickers on the kit's `PickerDialog` (Preview on every row, expanders closed). Leaving a picker stops its preview. |
-| `parts.tsx` | `useLibraryIndex` (tracks, playlists, boards in one look-up), `useWrite` (refusals become toasts), `useAudioMessages` (the audio host's sentences to the live region, its failures to a toast), `useFocusLater` (focus a control once the library has redrawn the screen), `PreviewButton`, `PlayOnAirButton`, `Contents`, `RowMenu`, `ModeSwitch`, `DraftField` (saves after a 300 ms pause, on leaving the field and on closing, so a reload never moves the cursor and typing makes one undo step per pause). |
+| `parts.tsx` | `useLibraryIndex` (tracks, playlists, boards in one look-up), `useWrite` (refusals become toasts), `useFocusLater` (focus a control once the library has redrawn the screen), `Contents`, `RowMenu`, `ModeSwitch`, `DraftField` (saves after a 300 ms pause, on leaving the field and on closing, so a reload never moves the cursor and typing makes one undo step per pause). |
 | `model.ts`, `reorder.ts`, `drops.ts` | Wording and look-ups; drag to reorder by a handle; dropped files to paths. |
 
 - **Run and Live.** Run, Run next session and the Live side of the switch call `runInLive` (`src/lyre/kit/liveSession.ts`): the session is loaded in Live, ready to start, and `#/live` opens. The Live screen reads `useLiveSession()`; the shell can show it through `ShellData.liveCampaign` and `liveLabel`.
 - **Themes.** A theme change is a `campaigns.update`; the shell follows through `ShellData.campaignTheme`, fed from `useCampaigns()` in `AppProviders`.
 - **Session numbers** come from order: moving a session renumbers them from the lowest number, as the library does.
 - **Dropped files** are imported with `import.start({ from: "paths" })`. The page learns a file's place on the computer from `window.lyre.files.pathOf(file)` (Electron's `webUtils.getPathForFile`); without it (tests), the file's name is sent.
+
+## Wave 3: w3-polish
+
+Step 4 moved what several screens did each on their own into the shell and the kit, and made the Audio profile's preview real (WP5, PLY-12, UX-11).
+
+| Where | What it does |
+| --- | --- |
+| `shell/OnAirBar.tsx` | The slim On air bar at the foot of every screen except Live (core.js `onAirBar`): music and ambience of the first room, effects in every room, Stop (fade all in 1 s), Go to Live. `AppProviders` hands it to the shell as `ShellData.onAirBar`. |
+| `AppProviders.tsx` | `ShellData` also carries `liveCampaign` and `liveLabel` ("Live: S14") from `useLiveSession`, so the rail and Live's theme follow Run. |
+| `shell/SoundMessages.tsx` | The audio host's `announce` and `error` events, heard once for the page: sentences to the live region, failures to a toast. Screens no longer subscribe. `useOptionalLyreAudio()` lets the shell work without sound. |
+| `shell/CampaignInHand.tsx` | The campaign last opened (the prototype's `L.state.ctx.cid`), provided by the shell around each screen; "Use in…" opens its group first. |
+| `kit/SoundButtons.tsx` | `PreviewButton` and `PlayOnAirButton` for a track, a playlist, a pad or a board (its first pad), with `previewKeyOf`. Play on air fades tracks and playlists in over 3 s, presses a pad (a hold pad is let go after 1.5 s). |
+| `kit/PopMenu.tsx` | The menu whose items hold two lines (`PopMenu`, `PopMenuButton`, `TwoLines`). |
+| `kit/ProfileLink.tsx` | The "Audio profile" link-button, its hover text naming the place ("the playlist …", "the scene …"). |
+| `kit/Picker.tsx` | `fold` and `openGroups`: group headings that show or hide their items and count the ticked ones; searching shows every match. |
+| `screens/look/` | Look and feel: the five theme cards (each sample in its own `data-theme`), contrast worked out live (`contrast.ts`), Use this theme, and Theme to go back to each campaign's own. |
+
+**Preview that follows the profile.** `LyreAudio.previewTrack(id, { startAtMs, profile, quiet })` always starts, from that point, as the profile says (Start to End, fades, loop); `quiet` leaves the announcing to the screen. `PreviewPlayer` sends its voice's position every 50 ms, relayed as the `preview-position` event (`{ key, positionMs }`). The Audio profile screen plays from the playhead (or the last 10 s before End) with the profile shown; its clock follows the positions (`follow` in `previewClock.ts`: a jump back is a loop; `finishClock` when the sound ends by itself goes to End and stops or moves on); moving on plays the next track from its Start with its settings there. The clock runs on its own only until the first position arrives (and in tests with the fake host). A seek or a profile change while it plays starts the sound again from the playhead. The waveform stays an even band until the library's loudness peaks are merged (`drawWave` takes `levels`).
+
