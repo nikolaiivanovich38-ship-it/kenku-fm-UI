@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { BotState, OutputsState } from "./outputs";
+import type { BotState, GuildInfo, OutputsState } from "./outputs";
 import { isLyreOutputs, lyreOutputsOf } from "./lyreOutputs";
 
-const GULL = {
+const GULL: GuildInfo = {
   id: "1001",
   name: "The Gull and Lantern",
   icon: null,
@@ -11,7 +11,7 @@ const GULL = {
     { id: "1012", name: "Side room", members: [] },
   ],
 };
-const COURT = { id: "1002", name: "Night court", icon: null, voiceChannels: [{ id: "1021", name: "Elysium" }] };
+const COURT: GuildInfo = { id: "1002", name: "Night court", icon: null, voiceChannels: [{ id: "1021", name: "Elysium" }] };
 
 function bot(over: Partial<BotState>): BotState {
   return {

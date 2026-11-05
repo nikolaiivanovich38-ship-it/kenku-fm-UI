@@ -1,4 +1,4 @@
-import { Events, type Client } from "discord.js";
+import { Events, type Client, type VoiceBasedChannel } from "discord.js";
 import {
   createAudioPlayer,
   NoSubscriberBehavior,
@@ -35,6 +35,13 @@ export const JOIN_TIMEOUT_MS = 15_000;
  */
 export const RECONNECT_DELAYS_MS = [1_000, 2_000, 4_000, 6_000, 8_000, 10_000];
 export const MAX_RECONNECT_ATTEMPTS = RECONNECT_DELAYS_MS.length;
+
+/**
+ * w4-outputs: people come and go in bursts (a whole table joins at once), so
+ * the channels' people are worked out again this long after the last voice
+ * state update, from what discord.js already holds (no request to Discord).
+ */
+export const MEMBERS_REFRESH_MS = 200;
 
 /** A refused token is not retried: it will not start working by itself. */
 export function isTokenProblem(error: unknown): boolean {
@@ -127,6 +134,7 @@ export class DiscordBot extends TypedEmitter<DiscordBotEvents> {
   private loginTimer?: ReturnType<typeof setTimeout>;
   /** Channels to join again once logged in (after a lost login). */
   private rejoinAfterLogin: string[] = [];
+  private membersTimer?: ReturnType<typeof setTimeout>;
 
   constructor(
     readonly id: string,
@@ -235,6 +243,12 @@ export class DiscordBot extends TypedEmitter<DiscordBotEvents> {
         this.loginFailed(error);
       }
     });
+    // w4-outputs: who is in each voice channel, for the Outputs screen.
+    client.on(Events.VoiceStateUpdate, () => {
+      if (this.client === client) {
+        this.refreshMembersSoon(client);
+      }
+    });
     try {
       await client.login(token);
     } catch (error) {
@@ -311,11 +325,32 @@ export class DiscordBot extends TypedEmitter<DiscordBotEvents> {
     this.emit("change");
   }
 
+  /** w4-outputs: work out each known channel's people again, once a burst of voice state updates is over. */
+  private refreshMembersSoon(client: Client) {
+    clearTimeout(this.membersTimer);
+    this.membersTimer = setTimeout(() => {
+      this.membersTimer = undefined;
+      if (this.client !== client) {
+        return;
+      }
+      this.guilds = this.guilds.map((guild) => ({
+        ...guild,
+        voiceChannels: guild.voiceChannels.map((info) => {
+          const channel = client.channels.cache.get(info.id);
+          return channel && channel.isVoiceBased() ? { ...info, members: peopleIn(channel) } : info;
+        }),
+      }));
+      this.emit("change");
+    }, MEMBERS_REFRESH_MS);
+  }
+
   private closeClient({ holdChannels = false }: { holdChannels?: boolean } = {}) {
     if (this.loginTimer) {
       clearTimeout(this.loginTimer);
       this.loginTimer = undefined;
     }
+    clearTimeout(this.membersTimer);
+    this.membersTimer = undefined;
     if (holdChannels) {
       this.holdChannels();
     } else {
@@ -643,17 +678,22 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** The bot's servers and their voice channels, in Discord's order. */
+/** w4-outputs: the people in a voice channel (bots left out), by their name in that server. */
+function peopleIn(channel: VoiceBasedChannel): string[] {
+  return channel.members.map((member) => (member.user.bot ? null : member.displayName)).filter((name): name is string => name !== null);
+}
+
+/** The bot's servers and their voice channels (with the people in each), in Discord's order. */
 async function fetchGuilds(client: Client): Promise<GuildInfo[]> {
   const rawGuilds = await client.guilds.fetch();
   return Promise.all(
     rawGuilds.map(async (baseGuild) => {
       const guild = await baseGuild.fetch();
-      const voiceChannels: { id: string; name: string; position: number }[] = [];
+      const voiceChannels: { id: string; name: string; members: string[]; position: number }[] = [];
       const channels = await guild.channels.fetch();
       channels.forEach((channel) => {
         if (channel && channel.isVoiceBased()) {
-          voiceChannels.push({ id: channel.id, name: channel.name, position: channel.rawPosition });
+          voiceChannels.push({ id: channel.id, name: channel.name, members: peopleIn(channel), position: channel.rawPosition });
         }
       });
       return {
@@ -662,7 +702,7 @@ async function fetchGuilds(client: Client): Promise<GuildInfo[]> {
         icon: guild.iconURL(),
         voiceChannels: voiceChannels
           .sort((a, b) => a.position - b.position)
-          .map(({ id, name }) => ({ id, name })),
+          .map(({ id, name, members }) => ({ id, name, members })),
       };
     }),
   );
