@@ -288,6 +288,19 @@ describe("the preview's sound follows the profile shown", () => {
     expect(wave).toHaveTextContent(/Position\s*1:04\.4/);
   });
 
+  it("while the file loads the clock may run ahead; the first position puts it back without counting a loop (review 2)", async () => {
+    const { audio, user } = await open();
+    await user.click(screen.getByRole("button", { name: "Play the last 10 s before End" }));
+    const wave = region("Waveform and listening");
+    await act(() => new Promise((r) => setTimeout(r, 600)));
+    position(audio, 308);
+    expect(wave).toHaveTextContent(/Position\s*5:08\.0/);
+    expect(wave).toHaveTextContent(/Looped\s*not yet/);
+    position(audio, 308.05);
+    expect(wave).toHaveTextContent(/Looped\s*not yet/);
+    expect(document.getElementById("lyre-live")).not.toHaveTextContent(/back to/);
+  });
+
   it("moving on, it previews the next track from its Start with its settings there, then stops", async () => {
     const { audio, user } = await open("profile/t13/sc:crown:s14:sc3");
     await user.click(screen.getByRole("button", { name: "Play the last 10 s before End" }));

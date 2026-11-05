@@ -140,9 +140,15 @@ export function advance(s: ClockState, dt: number, w: ClockWorld): ClockStep {
 /**
  * Move the clock to where the preview's sound is (`real`, seconds in the file it plays: the next track's during the
  * hand-over). A jump back while looping is a loop; a looping sound is never looped by the clock itself.
+ *
+ * `first`: the first position after the sound started. Until then the clock ran on its own while the file loaded, so
+ * it may be ahead; the playhead goes to where the sound really is, and nothing is counted.
  */
-export function follow(s: ClockState, real: number, w: ClockWorld): ClockStep {
+export function follow(s: ClockState, real: number, w: ClockWorld, { first = false }: { first?: boolean } = {}): ClockStep {
   if (!s.playing) return { state: s };
+  if (first) {
+    return s.handover ? { state: { ...s, handover: { ...s.handover, pos: real } } } : { state: { ...s, pos: Math.min(real, w.dur) } };
+  }
   if (s.handover) return advance(s, Math.max(0, real - s.handover.pos), w);
   const p = w.prof;
   if (p.after === "loop" && s.pos < p.end) {

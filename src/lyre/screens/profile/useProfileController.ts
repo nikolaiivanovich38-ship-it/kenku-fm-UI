@@ -109,7 +109,13 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
   // The sound plays the file from the playhead with the profile shown, quietly (this screen says what happens). Once
   // the audio host says where it is, the clock follows it; until then it runs on its own.
   const sounding = useRef<string | null>(null);
-  const [following, setFollowing] = useState(false);
+  const [following, setFollowingState] = useState(false);
+  // The same, read by the position handler at once (several positions can arrive before React redraws).
+  const followingRef = useRef(false);
+  const setFollowing = useCallback((on: boolean) => {
+    followingRef.current = on;
+    setFollowingState(on);
+  }, []);
   // False when the audio host refused (the track is gone, the library is down): it has said why (a toast), and a
   // clock that was playing stops where it is, so the screen never shows a preview nobody hears.
   const startSound = useCallback(
@@ -122,19 +128,22 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
       if (!outcome.ok && clockRef.current.playing) setClock(pauseClock(clockRef.current));
       return outcome.ok;
     },
-    [audio, track.id, p, setClock],
+    [audio, track.id, p, setClock, setFollowing],
   );
   const stopSound = useCallback(() => {
     if (!sounding.current) return;
     sounding.current = null;
     setFollowing(false);
     audio.stopPreview();
-  }, [audio]);
+  }, [audio, setFollowing]);
   const scrubbing = useRef(false);
   useLyreAudioEvent("preview-position", (at: PreviewPosition) => {
     if (!sounding.current || at.key !== sounding.current || scrubbing.current) return;
-    if (!following) setFollowing(true);
-    const step = follow(clockRef.current, at.positionMs / 1000, worldRef.current);
+    // The first position after a (re)start: the clock may have run ahead while the file loaded.
+    const first = !followingRef.current;
+    followingRef.current = true;
+    if (first) setFollowing(true);
+    const step = follow(clockRef.current, at.positionMs / 1000, worldRef.current, { first });
     if (step.state !== clockRef.current) setClock(step.state);
     if (step.say) say(step.say);
   });
@@ -168,7 +177,7 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
     const step = previewKey ? { state: pauseClock(s) } : finishClock(s, worldRef.current);
     setClock(step.state);
     if (step.say) say(step.say);
-  }, [previewKey, say, setClock]);
+  }, [previewKey, say, setClock, setFollowing]);
 
   // The clock runs on animation frames while the preview plays and the sound has not said where it is (a frame is at
   // most a quarter second, so a page that was hidden does not jump ahead).
