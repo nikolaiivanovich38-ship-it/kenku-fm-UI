@@ -37,3 +37,39 @@ const LOSSY_CODECS = new Set(["wmav1", "wmav2", "wmapro", "wmavoice", "mp1", "mp
 export function isLossyCodec(codec: string): boolean {
   return LOSSY_CODECS.has(codec);
 }
+
+/**
+ * Security review 7: ffmpeg's reader (demuxer) for each audio extension Lyre adds (src/main/data/import/audioFiles.ts),
+ * named with `-f` so ffmpeg never picks a reader from the file's content: a playlist or a list of other files named
+ * ".wma" is then read as WMA, and refused, instead of being followed to files outside the library.
+ */
+const DEMUXERS: Record<string, string> = {
+  ".flac": "flac",
+  ".mp3": "mp3",
+  ".wav": "wav",
+  ".ogg": "ogg",
+  ".oga": "ogg",
+  ".opus": "ogg",
+  ".m4a": "mov",
+  ".aac": "aac",
+  ".wma": "asf",
+  ".asf": "asf",
+  ".aif": "aiff",
+  ".aiff": "aiff",
+  ".aifc": "aiff",
+  ".mka": "matroska",
+  ".ape": "ape",
+  ".wv": "wv",
+  ".tta": "tta",
+  ".ac3": "ac3",
+};
+
+/**
+ * The input arguments that fix ffmpeg's reader for `filePath`, or null when Lyre knows none for its extension (the
+ * file is then not given to ffmpeg at all). Musepack has a reader per stream version: only those two are allowed.
+ */
+export function demuxerArgs(filePath: string): string[] | null {
+  const extension = nodePath.extname(filePath).toLowerCase();
+  if (extension === ".mpc") return ["-format_whitelist", "mpc,mpc8"];
+  return Object.prototype.hasOwnProperty.call(DEMUXERS, extension) ? ["-f", DEMUXERS[extension]] : null;
+}

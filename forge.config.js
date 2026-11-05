@@ -8,6 +8,7 @@ const {
   fusesConfig,
   rebuildConfig,
 } = require("./scripts/forge-options.cjs");
+const { checkBundledFfmpeg } = require("./scripts/ffmpeg-builds.cjs");
 
 const productName = packageJson.productName;
 const homepage = packageJson.homepage;
@@ -90,6 +91,12 @@ const config = {
       },
     },
   ],
+  hooks: {
+    // Security review 7: never package an ffmpeg program other than the pinned build for the target platform.
+    prePackage: async (_forgeConfig, platform, arch) => {
+      checkBundledFfmpeg(__dirname, platform, arch);
+    },
+  },
   plugins: [
     {
       name: "@electron-forge/plugin-webpack",

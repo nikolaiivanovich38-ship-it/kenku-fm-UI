@@ -4,7 +4,9 @@
  *
  * Safety: ffmpeg runs without a shell, with each argument passed as it is;
  * it may read and write plain files only (`-protocol_whitelist file`, and
- * both paths prefixed `file:` so no name is read as another protocol); it
+ * both paths prefixed `file:` so no name is read as another protocol); the
+ * reader is named from the file's extension (`-f`, security review 7), so
+ * ffmpeg never chooses one from the file's content; it
  * writes only the output path the cache gives it; it is stopped when the job
  * is cancelled or takes longer than `timeoutMs`.
  */
@@ -12,7 +14,7 @@ import { spawn as nodeSpawn } from "child_process";
 import nodePath from "path";
 
 import type { AudioConverter, ConvertJob, ConvertTarget } from "./converter";
-import { isLossyCodec } from "./formats";
+import { demuxerArgs, isLossyCodec } from "./formats";
 
 /** The parts of a child process used here. */
 export interface ProcessLike {
@@ -41,6 +43,13 @@ const ENCODE: Record<ConvertTarget, string[]> = {
   opus: ["-c:a", "libopus", "-b:a", "192k", "-vbr", "on", "-f", "ogg"],
 };
 
+/** The reader for `input`; throws in plain words when Lyre knows none for its extension. */
+function readerFor(input: string): string[] {
+  const reader = demuxerArgs(input);
+  if (!reader) throw new Error(failure(input, "not a kind of audio file Lyre converts"));
+  return reader;
+}
+
 /** Arguments to convert the first audio stream of `input` into `output`. */
 export function convertArgs(input: string, output: string, target: ConvertTarget): string[] {
   return [
@@ -48,6 +57,7 @@ export function convertArgs(input: string, output: string, target: ConvertTarget
     "-loglevel",
     "error",
     ...FILES_ONLY,
+    ...readerFor(input),
     "-i",
     `file:${input}`,
     "-map",
@@ -63,7 +73,7 @@ export function convertArgs(input: string, output: string, target: ConvertTarget
 
 /** Arguments that make ffmpeg describe `input` and stop (it exits with an error: no output given). */
 export function probeArgs(input: string): string[] {
-  return [...COMMON, ...FILES_ONLY, "-i", `file:${input}`];
+  return [...COMMON, ...FILES_ONLY, ...readerFor(input), "-i", `file:${input}`];
 }
 
 /** The codec of the first audio stream in ffmpeg's description of a file. */
@@ -83,14 +93,16 @@ export class FfmpegConverter implements AudioConverter {
   }
 
   async isLossless(input: string, signal: AbortSignal): Promise<boolean> {
-    const { stderr } = await this.run(probeArgs(input), signal, input);
+    const args = probeArgs(input);
+    const { stderr } = await this.run(args, signal, input);
     const codec = codecOf(stderr);
     // Unknown: keep every detail rather than risk losing some.
     return codec === null || !isLossyCodec(codec);
   }
 
   async convert(job: ConvertJob): Promise<void> {
-    const { code, stderr } = await this.run(convertArgs(job.input, job.output, job.target), job.signal, job.input);
+    const args = convertArgs(job.input, job.output, job.target);
+    const { code, stderr } = await this.run(args, job.signal, job.input);
     if (code !== 0) {
       throw new Error(failure(job.input, lastLine(stderr)));
     }

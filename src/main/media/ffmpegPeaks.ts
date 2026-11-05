@@ -15,6 +15,7 @@ import os from "os";
 
 import { baseName } from "../data/import/tagReader";
 import type { PeakReader } from "../data/peaks";
+import { demuxerArgs } from "./formats";
 import { PeakLevels } from "./peakLevels";
 
 /** Samples a second ffmpeg sends: enough to catch every peak a wave of 1,000 points shows. */
@@ -51,6 +52,8 @@ export function peakArgs(input: string): string[] {
     "1",
     "-protocol_whitelist",
     "file",
+    // Security review 7: the reader comes from the extension, never from the file's content.
+    ...(demuxerArgs(input) ?? []),
     "-i",
     `file:${input}`,
     "-map",
@@ -97,6 +100,10 @@ export class FfmpegPeakReader implements PeakReader {
     return new Promise((resolve, reject) => {
       if (signal.aborted) {
         reject(failure("cancelled"));
+        return;
+      }
+      if (!demuxerArgs(file)) {
+        reject(failure("not a kind of audio file Lyre reads"));
         return;
       }
       const child = this.spawn(this.ffmpegPath, peakArgs(file), { shell: false, windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
