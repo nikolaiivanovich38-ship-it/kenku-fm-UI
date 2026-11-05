@@ -10,14 +10,15 @@ import type { SQLInputValue } from "../sqlite";
 import type { Store } from "../store";
 import { newId, placeholders } from "./common";
 
-/** Where a profile applies: the track's own (null), or one playlist or scene. */
-export type ProfilePlaceRow = { column: "playlist_id" | "scene_id"; id: string } | null;
+/** Where a profile applies: the track's own (null), or one playlist, scene or (PLY-14) session list. */
+export type ProfilePlaceRow = { column: "playlist_id" | "scene_id" | "session_id"; id: string } | null;
 
 export type ProfileRow = {
   id: string;
   track_id: string;
   playlist_id: string | null;
   scene_id: string | null;
+  session_id: string | null;
   start_ms: number | null;
   end_ms: number | null;
   after_end: string | null;
@@ -64,9 +65,10 @@ export function toProfile(row: ProfileRow, markers: Marker[] | undefined): Audio
  * index (audio_profiles_own / _playlist / _scene). Exported for the query-plan tests.
  */
 export const PROFILE_LOOKUP_SQL = {
-  own: "SELECT * FROM audio_profiles WHERE track_id = ? AND playlist_id IS NULL AND scene_id IS NULL",
+  own: "SELECT * FROM audio_profiles WHERE track_id = ? AND playlist_id IS NULL AND scene_id IS NULL AND session_id IS NULL",
   playlist_id: "SELECT * FROM audio_profiles WHERE playlist_id = ? AND track_id = ?",
   scene_id: "SELECT * FROM audio_profiles WHERE scene_id = ? AND track_id = ?",
+  session_id: "SELECT * FROM audio_profiles WHERE session_id = ? AND track_id = ?",
 } as const;
 
 /** The profile of a track in a place. */
@@ -107,11 +109,11 @@ export function profilesOf(store: Store, rows: ProfileRow[]): Map<string, AudioP
 export function ownProfiles(store: Store, trackIds: string[] | "all"): Map<string, AudioProfileInput> {
   const rows =
     trackIds === "all"
-      ? store.all<ProfileRow>("SELECT * FROM audio_profiles WHERE playlist_id IS NULL AND scene_id IS NULL")
+      ? store.all<ProfileRow>("SELECT * FROM audio_profiles WHERE playlist_id IS NULL AND scene_id IS NULL AND session_id IS NULL")
       : trackIds.length === 0
         ? []
         : store.all<ProfileRow>(
-            `SELECT * FROM audio_profiles WHERE playlist_id IS NULL AND scene_id IS NULL
+            `SELECT * FROM audio_profiles WHERE playlist_id IS NULL AND scene_id IS NULL AND session_id IS NULL
                AND track_id IN (SELECT value FROM json_each(?))`,
             JSON.stringify(trackIds),
           );
@@ -136,6 +138,7 @@ export function saveProfile(store: Store, trackId: string, place: ProfilePlaceRo
       track_id: trackId,
       playlist_id: place?.column === "playlist_id" ? place.id : null,
       scene_id: place?.column === "scene_id" ? place.id : null,
+      session_id: place?.column === "session_id" ? place.id : null,
       ...settings,
     };
     const all = Object.keys(columns);

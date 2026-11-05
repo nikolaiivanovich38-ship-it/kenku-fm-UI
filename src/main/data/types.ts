@@ -8,6 +8,7 @@
 import {
   TRACK_KINDS,
   TRACK_ROLES,
+  type TrackShape,
   type AudioProfileInput,
   type Lane,
   type LoopAdvice,
@@ -83,6 +84,8 @@ export type TrackMetadata = {
   profile: AudioProfileInput | null;
   energy: number | null;
   arc: Arc | null;
+  /** DAT-13: the shape the game master chose; null follows the suggestion kept with the track's peaks (schema v3). */
+  shape: TrackShape | null;
   role: Role | null;
   loopable: Loopable | null;
   ending: Ending | null;
@@ -245,10 +248,15 @@ export type Pad = {
   fadeMs: number;
   /** Fade in, in milliseconds (kept from the old soundboards; the design's pads start at once). */
   fadeInMs: number;
+  /**
+   * SFX-11 (schema v3): a spare pad the game master put among the spare pads by hand. It stays there when the grid
+   * grows; pads a resize moved come back. Always false on the grid.
+   */
+  putAside: boolean;
 };
 
 /** What a pad can be given; missing fields take the prototype's defaults (New pad, star, gold, one-shot, 80%, 1.5 s). */
-export type PadInput = Partial<Omit<Pad, "id" | "boardId" | "cell" | "sound">> & {
+export type PadInput = Partial<Omit<Pad, "id" | "boardId" | "cell" | "sound" | "putAside">> & {
   id?: string;
   sound?: Partial<PadSound>;
 };
@@ -348,10 +356,10 @@ export type SceneMusicItem = {
   title: string;
 };
 
-/** Playlists and boards given to a campaign or a session, in order. */
-export type Members = { playlistIds: string[]; boardIds: string[] };
+/** Playlists, boards and (ORG-12) single tracks kept on hand by a campaign or a session, in order. */
+export type Members = { playlistIds: string[]; boardIds: string[]; trackIds: string[] };
 
-/** A place a playlist or board can be used: a whole campaign, one session, or one scene. */
+/** A place a playlist, board or track can be used: a whole campaign, one session, or one scene. */
 export type UseTarget = { campaignId: string } | { sessionId: string } | { sceneId: string };
 
 /**

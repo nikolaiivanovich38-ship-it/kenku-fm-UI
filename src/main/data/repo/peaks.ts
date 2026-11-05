@@ -2,6 +2,7 @@
  * Loudness peaks per track (w3-media; schema step 2, table track_peaks): about 1,000 levels across the file, one
  * byte each. Worked out from the file by PeakJobs (../peaks.ts); read whole, one track at a time, by its key.
  */
+import { shapeFromPeaks } from "../../../common/domain";
 import type { Store } from "../store";
 import { joinRoot } from "../paths";
 
@@ -54,7 +55,8 @@ export function trackPeaks(store: Store, trackId: string): PeaksState {
 }
 
 /**
- * Keeps the levels worked out from `source` (null: the file could not be read). Saved only while the track still
+ * Keeps the levels worked out from `source` (null: the file could not be read), with the shape Lyre suggests from
+ * them (DAT-13, shapeFromPeaks; schema v3), so filters read the shape without the levels. Saved only while the track still
  * has that file; answers false when it was deleted or its file changed meanwhile (the levels would be wrong).
  * Bookkeeping outside undo, so it keeps the undo history; throws LibraryBusyError during bulk work.
  */
@@ -65,11 +67,12 @@ export function savePeaks(store: Store, source: PeakSource, levels: Uint8Array |
   return store.changeWithoutHistory(
     () =>
       store.run(
-        `INSERT INTO track_peaks (track_id, file_size, file_mtime_ms, levels, worked_out_at)
-         SELECT id, file_size, file_mtime_ms, ?, ? FROM tracks WHERE id = ? AND file_size IS ? AND file_mtime_ms IS ?
+        `INSERT INTO track_peaks (track_id, file_size, file_mtime_ms, suggested_shape, levels, worked_out_at)
+         SELECT id, file_size, file_mtime_ms, ?, ?, ? FROM tracks WHERE id = ? AND file_size IS ? AND file_mtime_ms IS ?
          ON CONFLICT (track_id) DO UPDATE SET
-           file_size = excluded.file_size, file_mtime_ms = excluded.file_mtime_ms,
+           file_size = excluded.file_size, file_mtime_ms = excluded.file_mtime_ms, suggested_shape = excluded.suggested_shape,
            levels = excluded.levels, worked_out_at = excluded.worked_out_at`,
+        levels === null ? null : shapeFromPeaks(Array.from(levels, (b) => b / 255)),
         levels,
         store.now(),
         source.trackId,

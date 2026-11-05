@@ -166,7 +166,7 @@ describe("campaigns, sessions and scenes (ORG-7)", () => {
     const [weather, combat] = ["Weather", "Combat"].map((title) => createBoard(t.store, { title }));
     addToCampaign(t.store, campaign.id, { playlistIds: [tavern.id, battle.id], boardIds: [weather.id] });
     addToCampaign(t.store, campaign.id, { playlistIds: [travel.id, tavern.id], boardIds: [combat.id] }, "start"); // twice is fine
-    expect(listCampaignMembers(t.store, campaign.id)).toEqual({ playlistIds: [travel.id, tavern.id, battle.id], boardIds: [combat.id, weather.id] });
+    expect(listCampaignMembers(t.store, campaign.id)).toEqual({ playlistIds: [travel.id, tavern.id, battle.id], boardIds: [combat.id, weather.id], trackIds: [] });
     moveInCampaign(t.store, campaign.id, { playlistId: travel.id }, "end");
     expect(listCampaignMembers(t.store, campaign.id).playlistIds).toEqual([tavern.id, battle.id, travel.id]);
     expect(listPlaylists(t.store, { campaignId: campaign.id }).map((p) => p.title)).toEqual(["Tavern", "Battle", "Travel"]);
@@ -176,7 +176,7 @@ describe("campaigns, sessions and scenes (ORG-7)", () => {
 
     addToSession(t.store, session.id, { playlistIds: [battle.id, travel.id], boardIds: [combat.id] });
     moveInSession(t.store, session.id, { playlistId: travel.id }, { before: battle.id });
-    expect(listSessionMembers(t.store, session.id)).toEqual({ playlistIds: [travel.id, battle.id], boardIds: [combat.id] });
+    expect(listSessionMembers(t.store, session.id)).toEqual({ playlistIds: [travel.id, battle.id], boardIds: [combat.id], trackIds: [] });
     removeFromSession(t.store, session.id, { boardIds: [combat.id] });
     expect(listSessionMembers(t.store, session.id).boardIds).toEqual([]);
     expect(() => addToSession(t.store, session.id, { playlistIds: ["missing"] })).toThrow(/No playlist/);

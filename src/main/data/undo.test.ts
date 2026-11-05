@@ -14,6 +14,8 @@ import * as tags from "./repo/tags";
 import * as campaigns from "./repo/campaigns";
 import * as profiles from "./repo/profiles";
 import * as cueActions from "./repo/cueActions";
+import * as playOrders from "./repo/playOrders";
+import * as sceneNames from "./repo/sceneNames";
 import { search } from "./repo/search";
 import { getDomainLookup } from "./repo/domain";
 
@@ -56,7 +58,7 @@ function snapshot(store: Store) {
     result[table.name] = store.all(`SELECT * FROM ${table.name} ORDER BY ${table.primaryKey.join(", ")}`);
   }
   result.search = store.all(
-    `SELECT d.kind, d.ref_id, f.title, f.meta_title, f.file_name, f.artist, f.album, f.tags, f.markers, f.notes, f.cue
+    `SELECT d.kind, d.ref_id, f.title, f.meta_title, f.file_name, f.artist, f.album, f.tags, f.markers, f.notes, f.cue, f.scene_names
      FROM search_docs d JOIN search_fts f ON f.rowid = d.doc_id ORDER BY d.kind, d.ref_id`,
   );
   return result;
@@ -110,6 +112,10 @@ async function fixture(store: Store) {
   tracks.updateTrack(store, b.id, { profile: { endMs: 5000 } });
   const inScene = { kind: "scene" as const, campaignId: campaign.id, sessionId: session.id, sceneId: scene.id };
   profiles.setProfileOverride(store, inScene, a.id, { endMs: 1000, after: "stop" });
+  // Design round 5: a play order in the scene, a name in the scene, a track on hand.
+  playOrders.setPlayOrder(store, playlist.id, inScene, { shuffle: true, repeat: "off" });
+  sceneNames.setSceneTrackName(store, scene.id, c.id, "The wight rises");
+  campaigns.addToCampaign(store, campaign.id, { trackIds: [b.id, c.id] });
   return {
     root, a, b, c, marker, folder, sub, playlist, dynamic, items, divider, board, board2, pads, sparePad,
     mood, tense, villain, strahd, campaign, otherCampaign, session, session2, scene, music, inScene,
@@ -217,6 +223,18 @@ const COMMANDS: [string, (s: Store, f: Fixture) => unknown][] = [
   ["setProfileOverride", (s, f) => profiles.setProfileOverride(s, { kind: "playlist", playlistId: f.playlist.id }, f.c.id, { startMs: 10 })],
   ["setProfileOverride (replace)", (s, f) => profiles.setProfileOverride(s, f.inScene, f.a.id, { startMs: 10 })],
   ["clearProfileOverride", (s, f) => profiles.clearProfileOverride(s, f.inScene, f.a.id)],
+  ["setPlayOrder", (s, f) => playOrders.setPlayOrder(s, f.playlist.id, null, { shuffle: true, repeat: "one" })],
+  ["setPlayOrder (replace in a place)", (s, f) => playOrders.setPlayOrder(s, f.playlist.id, f.inScene, { shuffle: false, repeat: "all" })],
+  ["clearPlayOrder", (s, f) => playOrders.clearPlayOrder(s, f.playlist.id, f.inScene)],
+  ["setSceneTrackName", (s, f) => sceneNames.setSceneTrackName(s, f.scene.id, f.a.id, "Strahd's entrance")],
+  ["setSceneTrackName (clear)", (s, f) => sceneNames.setSceneTrackName(s, f.scene.id, f.c.id, "")],
+  ["setTrackUses", (s, f) => campaigns.setTrackUses(s, f.c.id, [{ campaignId: f.otherCampaign.id }, { sessionId: f.session2.id }])],
+  ["addToSession (a track)", (s, f) => campaigns.addToSession(s, f.session.id, { trackIds: [f.a.id, f.c.id] })],
+  ["moveInCampaign (a track)", (s, f) => campaigns.moveInCampaign(s, f.campaign.id, { trackId: f.c.id }, "start")],
+  ["setProfileOverride (session list)", (s, f) => profiles.setProfileOverride(s, { kind: "session", campaignId: f.campaign.id, sessionId: f.session.id }, f.a.id, { endMs: 7 })],
+  ["updateTrack (shape)", (s, f) => tracks.updateTrack(s, f.a.id, { shape: "risesAndFalls" })],
+  ["movePad (to spare, put aside)", (s, f) => boards.movePad(s, f.pads[1].id, "spare")],
+  ["resizeBoard (packs the pads)", (s, f) => boards.resizeBoard(s, f.board.id, { cols: 2, rows: 3 })],
   ["updateTrack (design fields)", (s, f) => tracks.updateTrack(s, f.c.id, { kind: "fx", title: "", metaTitle: "Gamma tag", role: "effect", loopable: "crossfade", profile: { endMs: 9 } })],
 ];
 
@@ -242,8 +260,8 @@ describe("undo and redo of every command (EDT-2)", () => {
   });
 
   it("covers every exported write function", async () => {
-    const modules = { tracks, roots, markers, playlists, boards, folders, tags, campaigns, profiles, cueActions };
-    const readers = /^(get|list|find|track|tagUsage|campaignsOf|resolve|suggest|tagsOf|requireFolderFor|getFollowWith|ITEM_TABLES|[A-Z_]+$)/;
+    const modules = { tracks, roots, markers, playlists, boards, folders, tags, campaigns, profiles, cueActions, playOrders, sceneNames };
+    const readers = /^(get|list|find|track|own|tagUsage|campaignsOf|resolve|suggest|tagsOf|requireFolderFor|getFollowWith|ITEM_TABLES|[A-Z_]+$)/;
     const writers = Object.values(modules)
       .flatMap((m) => Object.keys(m))
       .filter((name) => !readers.test(name) && name !== "markTracksUsed");

@@ -13,16 +13,22 @@ import { NotFoundError, ValidationError } from "../errors";
 import type { Store } from "../store";
 import * as v from "../validate";
 import { requireRow } from "./common";
+import { checkPlace } from "./places";
 import { findProfile, profilesOf, removeProfile, saveProfile, type ProfilePlaceRow, type ProfileRow } from "./profileRows";
 
 /** Checks the place; says which column and row it is, and how to name it in an undo label. */
 function placeOf(store: Store, place: ProfilePlace): { row: NonNullable<ProfilePlaceRow>; name: string } {
   const input = v.record("place", place);
-  const kind = v.oneOf("place.kind", input.kind, ["playlist", "scene"] as const);
+  const kind = v.oneOf("place.kind", input.kind, ["playlist", "scene", "session"] as const);
   if (kind === "playlist") {
     const id = requireRow(store, "playlists", "playlist", input.playlistId);
     const { title } = store.get<{ title: string }>("SELECT title FROM playlists WHERE id = ?", id) as { title: string };
     return { row: { column: "playlist_id", id }, name: `playlist "${title}"` };
+  }
+  if (kind === "session") {
+    // PLY-14: a session list's own settings for the track.
+    const checked = checkPlace(store, { kind: "session", campaignId: input.campaignId as string, sessionId: input.sessionId as string });
+    return { row: { column: "session_id", id: checked.id }, name: checked.words.replace(/^the /, "") };
   }
   const sceneId = requireRow(store, "scenes", "scene", input.sceneId);
   const scene = store.get<{ name: string; session_id: string; campaign_id: string }>(
@@ -60,12 +66,12 @@ export function getProfileOverride(store: Store, place: ProfilePlace, trackId: s
 
 /** Every override (or one track's) by place key, then track id: what resolveProfile takes. */
 export function getProfileOverrides(store: Store, options: { trackId?: string } = {}): ProfileOverrides {
-  const overridesOnly = "(p.playlist_id IS NOT NULL OR p.scene_id IS NOT NULL)";
+  const overridesOnly = "(p.playlist_id IS NOT NULL OR p.scene_id IS NOT NULL OR p.session_id IS NOT NULL)";
   const filter = options.trackId === undefined ? overridesOnly : `p.track_id = ? AND ${overridesOnly}`;
   const params = options.trackId === undefined ? [] : [v.id("trackId", options.trackId)];
-  const rows = store.all<ProfileRow & { session_id: string | null; campaign_id: string | null }>(
-    `SELECT p.*, sc.session_id, s.campaign_id
-     FROM audio_profiles p LEFT JOIN scenes sc ON sc.id = p.scene_id LEFT JOIN sessions s ON s.id = sc.session_id
+  const rows = store.all<ProfileRow & { scene_session_id: string | null; campaign_id: string | null }>(
+    `SELECT p.*, sc.session_id AS scene_session_id, s.campaign_id
+     FROM audio_profiles p LEFT JOIN scenes sc ON sc.id = p.scene_id LEFT JOIN sessions s ON s.id = coalesce(p.session_id, sc.session_id)
      WHERE ${filter}`,
     ...params,
   );
@@ -74,7 +80,9 @@ export function getProfileOverrides(store: Store, options: { trackId?: string } 
     key: placeKey(
       row.playlist_id !== null
         ? { kind: "playlist", playlistId: row.playlist_id }
-        : { kind: "scene", campaignId: row.campaign_id as string, sessionId: row.session_id as string, sceneId: row.scene_id as string },
+        : row.session_id !== null
+          ? { kind: "session", campaignId: row.campaign_id as string, sessionId: row.session_id }
+          : { kind: "scene", campaignId: row.campaign_id as string, sessionId: row.scene_session_id as string, sceneId: row.scene_id as string },
     ),
     row,
   }));

@@ -1,11 +1,13 @@
 /**
  * Pad boards (DAT-11; design/prototype/src/views/boards.js). A board is a grid
  * of 1 to 8 columns and rows. Each pad sits in one cell or waits among the
- * spare pads (off the grid, where its hotkey does nothing). Resizing keeps every
- * pad at its row and column; pads outside a smaller grid move to the spare pads
- * and are never deleted. A pad plays one library track, several as variants
- * (at random or in turn), or any effect with a tag.
+ * spare pads (off the grid, where its hotkey does nothing). Resizing packs the
+ * pads left to right, top to bottom (SFX-11, reflowBoard in src/common/domain):
+ * only pads that do not fit go to the spare pads, and nothing is deleted. A pad
+ * the game master put among the spare pads by hand stays there. A pad plays one
+ * library track, several as variants (at random or in turn), or any effect with a tag.
  */
+import { reflowBoard } from "../../../common/domain";
 import { ValidationError } from "../errors";
 import { GAP } from "../ordering";
 import type { SQLInputValue } from "../sqlite";
@@ -100,6 +102,7 @@ type PadRow = {
   volume: number;
   fade_in_ms: number;
   fade_ms: number;
+  put_aside: number;
 };
 
 function toPad(row: PadRow, trackIds: string[]): Pad {
@@ -116,6 +119,7 @@ function toPad(row: PadRow, trackIds: string[]): Pad {
     volume: row.volume,
     fadeMs: row.fade_ms,
     fadeInMs: row.fade_in_ms,
+    putAside: row.put_aside === 1,
   };
 }
 
@@ -243,14 +247,18 @@ function checkCell(store: Store, board: Board, value: unknown): PadCell {
 const padAt = (store: Store, boardId: string, cell: PadCell) =>
   store.get<{ id: string; label: string }>("SELECT id, label FROM pads WHERE board_id = ? AND grid_row = ? AND grid_col = ?", boardId, cell.row, cell.col);
 
-/** Writes a new pad (inside a change) in `cell`, or among the spare pads when null. */
-function insertPad(store: Store, boardId: string, id: string, cell: PadCell | null, columns: Record<string, SQLInputValue>, trackIds: string[]) {
+/**
+ * Writes a new pad (inside a change) in `cell`, or among the spare pads when null; `aside` when the game master put
+ * it there (not when the grid was full).
+ */
+function insertPad(store: Store, boardId: string, id: string, cell: PadCell | null, columns: Record<string, SQLInputValue>, trackIds: string[], aside = false) {
   const all: Record<string, SQLInputValue> = {
     id,
     board_id: boardId,
     grid_row: cell?.row ?? null,
     grid_col: cell?.col ?? null,
     spare_position: cell ? null : nextSparePosition(store, boardId),
+    put_aside: !cell && aside ? 1 : 0,
     ...columns,
   };
   const names = Object.keys(all);
@@ -275,7 +283,7 @@ export function addPad(store: Store, boardId: string, input: PadInput & { at?: P
   }
   store.change(`Add pad "${columns.label}"`, () => {
     const cell = record.at === "spare" ? null : (wanted ?? firstEmptyCell(store, board));
-    insertPad(store, board.id, id, cell, columns, trackIds ?? []);
+    insertPad(store, board.id, id, cell, columns, trackIds ?? [], record.at === "spare");
   });
   return getPad(store, id) as Pad;
 }
@@ -311,7 +319,8 @@ export function takePadHotkey(store: Store, padId: string, hotkey: string): Pad 
 /**
  * Moves a pad to a cell or to the spare pads. Onto another pad, the two swap:
  * a pad from the grid takes the other's cell; a spare pad's place among the
- * spare pads goes to the pad it replaced.
+ * spare pads goes to the pad it replaced. A pad moved to the spare pads (or sent
+ * there by a spare pad taking its cell) is put aside by hand (SFX-11).
  */
 export function movePad(store: Store, padId: string, to: PadCell | "spare"): Pad {
   const pad = requirePad(store, padId);
@@ -319,7 +328,7 @@ export function movePad(store: Store, padId: string, to: PadCell | "spare"): Pad
   if (to === "spare") {
     if (pad.cell) {
       store.change(`Move "${pad.label}" to Spare pads`, () =>
-        store.run("UPDATE pads SET grid_row = NULL, grid_col = NULL, spare_position = ? WHERE id = ?", nextSparePosition(store, board.id), pad.id),
+        store.run("UPDATE pads SET grid_row = NULL, grid_col = NULL, spare_position = ?, put_aside = 1 WHERE id = ?", nextSparePosition(store, board.id), pad.id),
       );
     }
     return getPad(store, pad.id) as Pad;
@@ -336,9 +345,9 @@ export function movePad(store: Store, padId: string, to: PadCell | "spare"): Pad
     } else if (other) {
       // The spare pad gives up its place among the spare pads (positions are unique) to the pad it replaces.
       store.run("UPDATE pads SET spare_position = -1 WHERE id = ?", pad.id);
-      store.run("UPDATE pads SET grid_row = NULL, grid_col = NULL, spare_position = ? WHERE id = ?", spareAt, other.id);
+      store.run("UPDATE pads SET grid_row = NULL, grid_col = NULL, spare_position = ?, put_aside = 1 WHERE id = ?", spareAt, other.id);
     }
-    store.run("UPDATE pads SET grid_row = ?, grid_col = ?, spare_position = NULL WHERE id = ?", cell.row, cell.col, pad.id);
+    store.run("UPDATE pads SET grid_row = ?, grid_col = ?, spare_position = NULL, put_aside = 0 WHERE id = ?", cell.row, cell.col, pad.id);
   });
   return getPad(store, pad.id) as Pad;
 }
@@ -394,32 +403,42 @@ export function deletePads(store: Store, padIds: string[]): void {
 }
 
 /**
- * Changes the grid size (1 to 8 each way). Pads keep their row and column;
- * those outside the new grid move to the spare pads, in row order. Undo puts
- * them back. Returns the ids of the pads that moved.
+ * Changes the grid size (1 to 8 each way), as reflowBoard (SFX-11) says: the grid's pads in reading order, then the
+ * spare pads not put aside by hand, fill the new grid left to right, top to bottom; what does not fit goes to the
+ * spare pads (those first, then the spare pads still there). Undo puts every pad back. Returns the pads that had to
+ * go to the spare pads and the spare pads that came back onto the grid.
  */
-export function resizeBoard(store: Store, boardId: string, size: { cols: number; rows: number }): { movedToSpare: string[] } {
-  const board = repo.get(store, repo.requireContainer(store, boardId)) as Board;
+export function resizeBoard(store: Store, boardId: string, size: { cols: number; rows: number }): { movedToSpare: string[]; cameBack: string[] } {
+  const layout = getBoardLayout(store, boardId);
+  const board = layout.board;
   const input = v.record("size", size);
   const cols = gridSize("cols", input.cols);
   const rows = gridSize("rows", input.rows);
-  if (cols === board.cols && rows === board.rows) return { movedToSpare: [] };
-  const moving = store
-    .all<{ id: string }>(
-      "SELECT id FROM pads WHERE board_id = ? AND (grid_row >= ? OR grid_col >= ?) ORDER BY grid_row, grid_col",
-      board.id,
-      rows,
-      cols,
-    )
-    .map((p) => p.id);
+  if (cols === board.cols && rows === board.rows) return { movedToSpare: [], cameBack: [] };
+  const next = reflowBoard(layout.slots, layout.spare, cols, rows, (pad) => pad.putAside);
+  const cameBack = layout.spare.filter((pad) => next.slots.includes(pad));
+  // Where every pad ends up; only those whose place changes are written.
+  const target = new Map<string, { cell: PadCell } | { spare: number }>();
+  next.slots.forEach((pad, i) => pad && target.set(pad.id, { cell: { row: Math.floor(i / cols), col: i % cols } }));
+  next.spare.forEach((pad, i) => target.set(pad.id, { spare: (i + 1) * GAP }));
+  const current = new Map(store.all<{ id: string; grid_row: number | null; grid_col: number | null; spare_position: number | null }>(
+    "SELECT id, grid_row, grid_col, spare_position FROM pads WHERE board_id = ?",
+    board.id,
+  ).map((r) => [r.id, r]));
+  const moving = [...target].filter(([id, to]) => {
+    const now = current.get(id);
+    return !now || ("cell" in to ? now.grid_row !== to.cell.row || now.grid_col !== to.cell.col : now.spare_position !== to.spare);
+  });
   store.change(`Resize "${board.title}" to ${cols} × ${rows}`, () => {
-    const start = nextSparePosition(store, board.id);
-    moving.forEach((id, index) =>
-      store.run("UPDATE pads SET grid_row = NULL, grid_col = NULL, spare_position = ? WHERE id = ?", start + index * GAP, id),
-    );
+    // Off their places first (to temporary spare places), so no two pads ever share a cell or a spare place.
+    moving.forEach(([id], index) => store.run("UPDATE pads SET grid_row = NULL, grid_col = NULL, spare_position = ? WHERE id = ?", -1 - index, id));
+    for (const [id, to] of moving) {
+      if ("cell" in to) store.run("UPDATE pads SET grid_row = ?, grid_col = ?, spare_position = NULL, put_aside = 0 WHERE id = ?", to.cell.row, to.cell.col, id);
+      else store.run("UPDATE pads SET spare_position = ? WHERE id = ?", to.spare, id);
+    }
     store.run("UPDATE boards SET grid_cols = ?, grid_rows = ?, updated_at = ? WHERE id = ?", cols, rows, store.now(), board.id);
   });
-  return { movedToSpare: moving };
+  return { movedToSpare: next.spilled.map((p) => p.id), cameBack: cameBack.map((p) => p.id) };
 }
 
 export type { Board, Pad };

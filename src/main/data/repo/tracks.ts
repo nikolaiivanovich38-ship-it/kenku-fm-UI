@@ -9,7 +9,7 @@ import { GAP } from "../ordering";
 import { fileNameOf, findRoot, isAbsolutePath, joinRoot, normalizePath } from "../paths";
 import type { SQLInputValue } from "../sqlite";
 import type { Store } from "../store";
-import type { AudioProfileInput } from "../../../common/domain";
+import { TRACK_SHAPES, type AudioProfileInput, type TrackShape } from "../../../common/domain";
 import { cleanProfile } from "../designValidate";
 import {
   ARCS,
@@ -43,6 +43,7 @@ type TrackRow = {
   duration_ms: number | null;
   energy: number | null;
   arc: string | null;
+  shape: string | null;
   role: string | null;
   loopable: string | null;
   ending: string | null;
@@ -79,6 +80,7 @@ function toTrack(row: TrackRow, profile: AudioProfileInput | null): Track {
     durationMs: row.duration_ms,
     energy: row.energy,
     arc: row.arc as Track["arc"],
+    shape: row.shape as Track["shape"],
     role: row.role as Track["role"],
     loopable: row.loopable as Track["loopable"],
     ending: row.ending as Track["ending"],
@@ -105,6 +107,7 @@ function metadataColumns(input: Record<string, unknown>): Record<string, SQLInpu
   if (has("kind")) columns.kind = v.oneOf("kind", input.kind, TRACK_KINDS);
   if (has("energy")) columns.energy = v.nullableInteger("energy", input.energy, 1, 5);
   if (has("arc")) columns.arc = v.nullableOneOf("arc", input.arc, ARCS);
+  if (has("shape")) columns.shape = v.nullableOneOf("shape", input.shape, TRACK_SHAPES);
   if (has("role")) columns.role = v.nullableOneOf("role", input.role, ROLES);
   if (has("loopable")) columns.loopable = v.nullableOneOf("loopable", input.loopable, LOOPABLE);
   if (has("ending")) columns.ending = v.nullableOneOf("ending", input.ending, ENDINGS);
@@ -332,6 +335,7 @@ const PATCHABLE = [
   "durationMs",
   "energy",
   "arc",
+  "shape",
   "role",
   "loopable",
   "ending",
@@ -353,6 +357,29 @@ export const NEW_TRACKS_SQL = "SELECT id FROM tracks WHERE is_new = 1 ORDER BY c
 /** The ids of the tracks marked New, newest first (the Library's "New, not tagged yet" adds untagged tracks to these). */
 export function listNewTrackIds(store: Store): string[] {
   return store.all<{ id: string }>(NEW_TRACKS_SQL).map((row) => row.id);
+}
+
+/**
+ * DAT-13: tracks whose shape is one of `shapes`, as the Library's Shape filter finds them: the game master's choice
+ * (tracks_shape), else the suggestion kept with the peaks (track_peaks_shape) for tracks with no choice. In library
+ * order. A suggestion from peaks of an earlier copy of the file counts until new peaks replace it. Exported for the
+ * query-plan tests.
+ */
+export function tracksByShapeSql(count: number): string {
+  const list = placeholders(count);
+  return `SELECT t.id FROM tracks t WHERE t.id IN (
+      SELECT id FROM tracks WHERE shape IN (${list})
+      UNION ALL
+      SELECT p.track_id FROM track_peaks p JOIN tracks c ON c.id = p.track_id WHERE p.suggested_shape IN (${list}) AND c.shape IS NULL)
+    ORDER BY t.added_seq`;
+}
+
+/** DAT-13: the ids of the tracks whose shape (chosen, else suggested) is one of `shapes`, in library order. */
+export function listTrackIdsByShape(store: Store, shapes: TrackShape[]): string[] {
+  if (!Array.isArray(shapes)) throw new ValidationError("shapes", "shapes must be a list.");
+  const wanted = [...new Set(shapes.map((shape, i) => v.oneOf(`shapes[${i}]`, shape, TRACK_SHAPES)))];
+  if (wanted.length === 0) return [];
+  return store.all<{ id: string }>(tracksByShapeSql(wanted.length), ...wanted, ...wanted).map((r) => r.id);
 }
 
 /** Changes only the fields given; null clears an optional field. */

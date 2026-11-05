@@ -259,11 +259,13 @@ export function deleteCampaign(store: Store, id: string): void {
   store.change(`Delete campaign "${campaign.name}"`, () => store.run("DELETE FROM campaigns WHERE id = ?", campaign.id));
 }
 
-// --- Playlists and boards of a campaign or a session (ordered) ---
+// --- Playlists, boards and (ORG-12) single tracks of a campaign or a session (ordered) ---
 
 type Owner = { table: "campaign" | "session"; id: string };
-const memberTable = (owner: Owner, kind: "playlist" | "board") => `${owner.table}_${kind}s`;
-const memberList = (owner: Owner, kind: "playlist" | "board"): OrderedList => ({
+type MemberKind = "playlist" | "board" | "track";
+const MEMBER_KINDS: readonly MemberKind[] = ["playlist", "board", "track"];
+const memberTable = (owner: Owner, kind: MemberKind) => `${owner.table}_${kind}s`;
+const memberList = (owner: Owner, kind: MemberKind): OrderedList => ({
   table: memberTable(owner, kind),
   scope: `${owner.table}_id = ?`,
   params: [owner.id],
@@ -276,14 +278,15 @@ function memberIds(store: Store, members: Partial<Members>) {
     requireRow(store, "playlists", "playlist", id),
   );
   const boards = (input.boardIds === undefined ? [] : v.ids("boardIds", input.boardIds)).map((id) => requireRow(store, "boards", "board", id));
-  return { playlist: [...new Set(playlists)], board: [...new Set(boards)] };
+  const tracks = (input.trackIds === undefined ? [] : v.ids("trackIds", input.trackIds)).map((id) => requireRow(store, "tracks", "track", id));
+  return { playlist: [...new Set(playlists)], board: [...new Set(boards)], track: [...new Set(tracks)] };
 }
 
-const hasMember = (store: Store, owner: Owner, kind: "playlist" | "board", id: string) =>
+const hasMember = (store: Store, owner: Owner, kind: MemberKind, id: string) =>
   store.get(`SELECT 1 AS found FROM ${memberTable(owner, kind)} WHERE ${owner.table}_id = ? AND ${kind}_id = ?`, owner.id, id) !== undefined;
 
 /** Adds members not there yet, together at `placement` (inside a change). */
-function addMembers(store: Store, owner: Owner, kind: "playlist" | "board", ids: string[], placement: Placement) {
+function addMembers(store: Store, owner: Owner, kind: MemberKind, ids: string[], placement: Placement) {
   const adding = ids.filter((id) => !hasMember(store, owner, kind, id));
   const positions = positionsFor(store, memberList(owner, kind), placement, adding.length);
   adding.forEach((id, index) =>
@@ -296,22 +299,25 @@ function addMembers(store: Store, owner: Owner, kind: "playlist" | "board", ids:
   );
 }
 
-function removeMembers(store: Store, owner: Owner, kind: "playlist" | "board", ids: string[]) {
+function removeMembers(store: Store, owner: Owner, kind: MemberKind, ids: string[]) {
   for (const id of ids) store.run(`DELETE FROM ${memberTable(owner, kind)} WHERE ${owner.table}_id = ? AND ${kind}_id = ?`, owner.id, id);
 }
 
 function listMembers(store: Store, owner: Owner): Members {
-  const ids = (kind: "playlist" | "board") =>
+  const ids = (kind: MemberKind) =>
     store
       .all<{ id: string }>(`SELECT ${kind}_id AS id FROM ${memberTable(owner, kind)} WHERE ${owner.table}_id = ? ORDER BY position`, owner.id)
       .map((r) => r.id);
-  return { playlistIds: ids("playlist"), boardIds: ids("board") };
+  return { playlistIds: ids("playlist"), boardIds: ids("board"), trackIds: ids("track") };
 }
 
-function moveMember(store: Store, owner: Owner, member: { playlistId: string } | { boardId: string }, placement: Placement) {
+/** A member named as { playlistId }, { boardId } or { trackId }. */
+type Member = { playlistId: string } | { boardId: string } | { trackId: string };
+
+function moveMember(store: Store, owner: Owner, member: Member, placement: Placement) {
   const input = v.record("member", member);
-  const kind = input.playlistId !== undefined ? "playlist" : "board";
-  const id = v.id(`${kind}Id`, kind === "playlist" ? input.playlistId : input.boardId);
+  const kind: MemberKind = input.playlistId !== undefined ? "playlist" : input.boardId !== undefined ? "board" : "track";
+  const id = v.id(`${kind}Id`, input[`${kind}Id`]);
   if (!hasMember(store, owner, kind, id)) throw new ValidationError(`${kind}Id`, `That ${kind} is not in this ${owner.table}.`);
   store.change(`Move ${kind} in ${owner.table}`, () =>
     store.run(
@@ -326,44 +332,42 @@ function moveMember(store: Store, owner: Owner, member: { playlistId: string } |
 function addTo(store: Store, owner: Owner, members: Partial<Members>, placement: Placement) {
   const ids = memberIds(store, members);
   store.change(`Add to ${owner.table}`, () => {
-    addMembers(store, owner, "playlist", ids.playlist, placement);
-    addMembers(store, owner, "board", ids.board, placement);
+    for (const kind of MEMBER_KINDS) addMembers(store, owner, kind, ids[kind], placement);
   });
 }
 
 function removeFrom(store: Store, owner: Owner, members: Partial<Members>) {
   const ids = memberIds(store, members);
   store.change(`Remove from ${owner.table}`, () => {
-    removeMembers(store, owner, "playlist", ids.playlist);
-    removeMembers(store, owner, "board", ids.board);
+    for (const kind of MEMBER_KINDS) removeMembers(store, owner, kind, ids[kind]);
   });
 }
 
 const campaignOwner = (store: Store, id: string): Owner => ({ table: "campaign", id: requireRow(store, "campaigns", "campaign", id) });
 const sessionOwner = (store: Store, id: string): Owner => ({ table: "session", id: requireRow(store, "sessions", "session", id) });
 
-/** Makes playlists and boards available all campaign long (they stay in other campaigns); ones already there stay put. */
+/** Makes playlists, boards and single tracks available all campaign long (they stay in other campaigns); ones already there stay put. */
 export function addToCampaign(store: Store, campaignId: string, members: Partial<Members>, placement: Placement = "end"): void {
   addTo(store, campaignOwner(store, campaignId), members, placement);
 }
 export function removeFromCampaign(store: Store, campaignId: string, members: Partial<Members>): void {
   removeFrom(store, campaignOwner(store, campaignId), members);
 }
-export function moveInCampaign(store: Store, campaignId: string, member: { playlistId: string } | { boardId: string }, placement: Placement): void {
+export function moveInCampaign(store: Store, campaignId: string, member: Member, placement: Placement): void {
   moveMember(store, campaignOwner(store, campaignId), member, placement);
 }
 export function listCampaignMembers(store: Store, campaignId: string): Members {
   return listMembers(store, campaignOwner(store, campaignId));
 }
 
-/** Makes playlists and boards available for one session (that evening). */
+/** Makes playlists, boards and single tracks available for one session (that evening). */
 export function addToSession(store: Store, sessionId: string, members: Partial<Members>, placement: Placement = "end"): void {
   addTo(store, sessionOwner(store, sessionId), members, placement);
 }
 export function removeFromSession(store: Store, sessionId: string, members: Partial<Members>): void {
   removeFrom(store, sessionOwner(store, sessionId), members);
 }
-export function moveInSession(store: Store, sessionId: string, member: { playlistId: string } | { boardId: string }, placement: Placement): void {
+export function moveInSession(store: Store, sessionId: string, member: Member, placement: Placement): void {
   moveMember(store, sessionOwner(store, sessionId), member, placement);
 }
 export function listSessionMembers(store: Store, sessionId: string): Members {
@@ -735,7 +739,7 @@ function cleanTargets(store: Store, targets: UseTarget[]): Targets {
 }
 
 /** Brings one membership table in line with `wanted` (inside a change): adds at the end, removes the rest. */
-function syncMembers(store: Store, owner: "campaign" | "session" | "scene", kind: "playlist" | "board", id: string, wanted: Set<string>) {
+function syncMembers(store: Store, owner: "campaign" | "session" | "scene", kind: MemberKind, id: string, wanted: Set<string>) {
   const table = `${owner}_${kind}s`;
   const current = new Set(
     store.all<{ owner: string }>(`SELECT ${owner}_id AS owner FROM ${table} WHERE ${kind}_id = ?`, id).map((r) => r.owner),
@@ -775,6 +779,40 @@ export function setPlaylistUses(store: Store, playlistId: string, targets: UseTa
           newId(),
           sceneId,
           playlist.id,
+          positionFor(store, musicOf(sceneId), "end"),
+        );
+      }
+    }
+  });
+}
+
+/**
+ * ORG-12 "Use in…" on a track: the campaigns and sessions that keep it on hand, and the scenes that play it. An
+ * ambience track becomes those scenes' ambience; any other is added to the end of their music. Unticked places lose
+ * it (every time it comes in a scene's music, and as a scene's ambience).
+ */
+export function setTrackUses(store: Store, trackId: string, targets: UseTarget[]): void {
+  const track = store.get<{ id: string; kind: string; title: string }>(
+    "SELECT id, kind, coalesce(nullif(title, ''), nullif(meta_title, ''), file_name) AS title FROM tracks WHERE id = ?",
+    requireRow(store, "tracks", "track", trackId),
+  ) as { id: string; kind: string; title: string };
+  const wanted = cleanTargets(store, targets);
+  store.change(`Change where "${track.title}" is used`, () => {
+    syncMembers(store, "campaign", "track", track.id, wanted.campaign);
+    syncMembers(store, "session", "track", track.id, wanted.session);
+    const inMusic = new Set(store.all<{ scene_id: string }>("SELECT DISTINCT scene_id FROM scene_music WHERE track_id = ?", track.id).map((r) => r.scene_id));
+    const asAmbience = new Set(store.all<{ scene_id: string }>("SELECT scene_id FROM scene_ambience WHERE track_id = ?", track.id).map((r) => r.scene_id));
+    for (const sceneId of inMusic) if (!wanted.scene.has(sceneId)) store.run("DELETE FROM scene_music WHERE scene_id = ? AND track_id = ?", sceneId, track.id);
+    for (const sceneId of asAmbience) if (!wanted.scene.has(sceneId)) store.run("DELETE FROM scene_ambience WHERE scene_id = ?", sceneId);
+    for (const sceneId of wanted.scene) {
+      if (inMusic.has(sceneId) || asAmbience.has(sceneId)) continue;
+      if (track.kind === "amb") writeAmbience(store, sceneId, { kind: "track", id: track.id });
+      else {
+        store.run(
+          "INSERT INTO scene_music (id, scene_id, track_id, playlist_id, position) VALUES (?, ?, ?, NULL, ?)",
+          newId(),
+          sceneId,
+          track.id,
           positionFor(store, musicOf(sceneId), "end"),
         );
       }
