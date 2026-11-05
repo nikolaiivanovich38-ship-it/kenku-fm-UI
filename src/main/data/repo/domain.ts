@@ -17,6 +17,7 @@ import type {
   DomainSession,
   DomainTrack,
   Lane,
+  NormaliseChoice,
   PlaylistRule,
   SoundRef,
   TrackKind,
@@ -24,6 +25,7 @@ import type {
   Use,
 } from "../../../common/domain";
 import type { Store } from "../store";
+import { LOUDNESS_COLUMNS } from "./loudness";
 import { ownPlayOrders } from "./playOrders";
 import { ownProfiles } from "./profileRows";
 import { readRules } from "./ruleRows";
@@ -43,12 +45,16 @@ type DomainTrackRow = {
   suggested_shape: string | null;
   /** The track's tag ids joined by TAG_SEPARATOR, or null when it has none. */
   tag_ids: string | null;
+  /** PLY-15: its own normalising choice; DAT-15: what was measured from its current file (repo/loudness.ts). */
+  normalise: string | null;
+  loudness_lufs: number | null;
+  loudness_peak: number | null;
 };
 
 /** Ids never contain control characters (validate.ts), so this one can join them. */
 const TAG_SEPARATOR = "\u001f";
 /** One row per track with its tag ids, read through the track_tags primary key: no join or sort over every tag. */
-const TRACK_SELECT = `SELECT id, kind, title, meta_title, file_name, duration_ms, role, loopable, energy, shape,
+const TRACK_SELECT = `SELECT id, kind, title, meta_title, file_name, duration_ms, role, loopable, energy, shape, normalise, ${LOUDNESS_COLUMNS},
   (SELECT suggested_shape FROM track_peaks WHERE track_id = tracks.id) AS suggested_shape,
   (SELECT group_concat(tag_id, char(31)) FROM track_tags WHERE track_id = tracks.id) AS tag_ids FROM tracks`;
 
@@ -67,6 +73,8 @@ function toDomainTrack(row: DomainTrackRow, tags: Record<string, string[]>, prof
     profile,
     shape: row.shape as TrackShape | null,
     suggestedShape: row.suggested_shape as TrackShape | null,
+    normalise: row.normalise as NormaliseChoice | null,
+    loudness: row.loudness_lufs !== null && row.loudness_peak !== null ? { lufs: row.loudness_lufs, truePeakDb: row.loudness_peak } : null,
   };
 }
 
@@ -126,10 +134,11 @@ export function getDomainLookup(store: Store): DomainLookup {
         rule_energy_min: number | null;
         rule_energy_max: number | null;
         rule_leave_out_stings: number;
-      }>("SELECT id, title, lane, kind, rule_energy_min, rule_energy_max, rule_leave_out_stings FROM playlists WHERE id = ?", id);
+        normalise: NormaliseChoice | null;
+      }>("SELECT id, title, lane, kind, rule_energy_min, rule_energy_max, rule_leave_out_stings, normalise FROM playlists WHERE id = ?", id);
       let playlist: DomainPlaylist | undefined;
       if (row) {
-        const base = { id: row.id, name: row.title, lane: row.lane, order: ownPlayOrders(store, [row.id]).get(row.id) ?? null };
+        const base = { id: row.id, name: row.title, lane: row.lane, order: ownPlayOrders(store, [row.id]).get(row.id) ?? null, normalise: row.normalise };
         playlist =
           row.kind === "dynamic"
             ? { ...base, kind: "dynamic", rule: readRules(store, [row]).get(row.id) as PlaylistRule }

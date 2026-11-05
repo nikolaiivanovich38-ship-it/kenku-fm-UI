@@ -14,6 +14,7 @@ import { openLibrary, type Library } from "./library";
 import { PeakJobs, fileThereWithin, type PeakReader } from "./peaks";
 import { PEAK_POINTS, savePeaks, trackPeaks, type PeakSource } from "./repo/peaks";
 import { deleteTracks } from "./repo/tracks";
+import { saveLoudness, trackLoudness, tracksNeedingLoudness } from "./repo/loudness";
 import { makeTempFolder } from "./test/helpers";
 
 const cleanups: (() => void)[] = [];
@@ -227,5 +228,67 @@ describe("PeakJobs never holds the library's process on a slow file check (secur
   it("checks files without blocking by default", async () => {
     expect(await fileThereWithin(path.join(os.tmpdir(), "no-such-file-lyre"), 1000)).toBe(false);
     expect(await fileThereWithin(__filename, 1000)).toBe(true);
+  });
+});
+
+describe("PeakJobs measuring loudness too (DAT-15)", () => {
+  const loudness = { lufs: -22.6, truePeakDb: -8 };
+
+  it("measures each track's loudness with its peaks, in the same background job, and says when it is ready", async () => {
+    const { library, ids, files } = await libraryWith(2);
+    const measure = vi.fn(async () => loudness);
+    const ready: string[][] = [];
+    const jobs = new PeakJobs(library.store, { read: async () => levels() }, { onReady: (trackIds) => ready.push(trackIds), notifyEveryMs: 0, loudness: { measure } });
+    cleanups.push(() => jobs.close());
+    jobs.inBackground(ids);
+    await vi.waitFor(() => expect(ready.flat()).toEqual(ids));
+    expect(ids.map((id) => trackLoudness(library.store, id))).toEqual([
+      { state: "ready", loudness },
+      { state: "ready", loudness },
+    ]);
+    expect(measure.mock.calls.map((call) => (call as unknown[])[0])).toEqual(files);
+  });
+
+  it("measures a track whose peaks are ready but whose loudness is not (a library from before version 4)", async () => {
+    const { library, ids } = await libraryWith(1);
+    savePeaks(library.store, sourceOf(library, ids[0]), levels());
+    const read = vi.fn(async () => levels());
+    const jobs = new PeakJobs(library.store, { read }, { onReady: () => undefined, notifyEveryMs: 0, loudness: { measure: async () => loudness } });
+    cleanups.push(() => jobs.close());
+    jobs.inBackground(tracksNeedingLoudness(library.store));
+    await vi.waitFor(() => expect(trackLoudness(library.store, ids[0]).state).toBe("ready"));
+    expect(read).not.toHaveBeenCalled();
+    expect(tracksNeedingLoudness(library.store)).toEqual([]);
+  });
+
+  it("keeps a file it cannot measure as not measurable, and does not try it again until it changes", async () => {
+    const { library, ids } = await libraryWith(1);
+    const measure = vi.fn(async () => {
+      throw new Error("Could not measure how loud tone 1.wav is");
+    });
+    const log = vi.fn();
+    const jobs = new PeakJobs(library.store, { read: async () => levels() }, { onReady: () => undefined, notifyEveryMs: 0, loudness: { measure }, log });
+    cleanups.push(() => jobs.close());
+    jobs.soon(ids[0]);
+    await vi.waitFor(() => expect(trackLoudness(library.store, ids[0]).state).toBe("unmeasurable"));
+    jobs.soon(ids[0]);
+    await jobs.idle();
+    expect(measure).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledWith(expect.stringMatching(/measure how loud/), expect.any(Error));
+  });
+
+  it("keeps silence as not measurable without counting it a failure", async () => {
+    const { library, ids } = await libraryWith(1);
+    const jobs = new PeakJobs(library.store, { read: async () => levels() }, { onReady: () => undefined, notifyEveryMs: 0, loudness: { measure: async () => null } });
+    cleanups.push(() => jobs.close());
+    jobs.soon(ids[0]);
+    await vi.waitFor(() => expect(trackLoudness(library.store, ids[0]).state).toBe("unmeasurable"));
+  });
+
+  it("lists the tracks that need measuring: files only, not measured from their current file", async () => {
+    const { library, ids } = await libraryWith(3);
+    const state = trackLoudness(library.store, ids[1]);
+    if (state.state === "needed") saveLoudness(library.store, state.source, loudness);
+    expect(tracksNeedingLoudness(library.store)).toEqual([ids[0], ids[2]]);
   });
 });
