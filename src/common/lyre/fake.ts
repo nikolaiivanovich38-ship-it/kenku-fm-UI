@@ -217,7 +217,8 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
   let redoStack: Step[] = [];
   let importing = false;
   /** Loudness peaks worked out so far, and those being worked out (not part of undo, as in the real library). */
-  const peaks = new Map<string, number[]>();
+  // The sample tracks' peaks are in the seed, as a library that has read their files has them (DAT-13).
+  const peaks = new Map<string, number[]>(Object.entries(seed.peaks ?? {}));
   const workingOut = new Set<string>();
   let nextId = 1;
   const listeners = new Set<(event: LyreEvent) => void>();

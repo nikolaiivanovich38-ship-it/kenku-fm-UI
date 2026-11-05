@@ -25,6 +25,7 @@ import {
   setPlayOrder,
   setProfileOverride,
   setSceneAmbience,
+  savePeaks,
   setSceneTrackName,
   updateTrack,
   type Library,
@@ -134,5 +135,12 @@ export async function seedLibrary(library: Library, seed: SeedData): Promise<voi
       for (const [playlistId, order] of Object.entries(byPlaylist)) setPlayOrder(store, playlistId, place, order);
     }
   });
+  // DAT-13: the sample tracks' peaks, as if their files had been read (the files are not on a test machine).
+  for (const t of seed.tracks) {
+    const levels = seed.peaks[t.id];
+    const facts = store.get<{ size: number | null; mtime: number | null }>("SELECT file_size AS size, file_mtime_ms AS mtime FROM tracks WHERE id = ?", t.id);
+    if (!levels || !facts) continue;
+    savePeaks(store, { trackId: t.id, file: t.fileName, fileSize: facts.size, fileMtimeMs: facts.mtime }, Uint8Array.from(levels, (level) => Math.round(level * 255)));
+  }
   store.clearHistory();
 }
