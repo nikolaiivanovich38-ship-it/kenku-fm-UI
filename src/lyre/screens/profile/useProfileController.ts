@@ -10,6 +10,7 @@ import { shownTitle } from "../../../common/lyre/text";
 import type { TrackFrom } from "../../audio";
 import { useLyreAudio, useLyreAudioEvent, useNowPlaying } from "../../audio/LyreAudioProvider";
 import type { PreviewPosition } from "../../audio";
+import { useTrackPeaks } from "../../api";
 import { useAnnounce } from "../../shell/Announcer";
 import { nextContexts, placeName, sceneOf, type NextContext } from "./places";
 import { advance, finishClock, follow, initialClock, pauseClock, playClock, seekClock, stopClock, type ClockState, type ClockWorld } from "./previewClock";
@@ -66,6 +67,8 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
   const { say, toast } = useAnnounce();
   const [keys1, setKeys1Raw] = useKeys1();
   const title = shownTitle(track);
+  /** The file's loudness across its length (0 to 1, from -60 dBFS), null until the library has worked it out. */
+  const levels = useTrackPeaks(track.id);
 
   /* ---------- the preview clock ---------- */
 
@@ -531,5 +534,5 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [keys1]);
 
-  return { editor, p, dur, editable, key, view, title, clock, keys1, contexts, ctx, editing, invalid, actions, profileOf };
+  return { editor, p, dur, editable, key, view, title, levels, clock, keys1, contexts, ctx, editing, invalid, actions, profileOf };
 }

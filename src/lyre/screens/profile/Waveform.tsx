@@ -33,13 +33,13 @@ function useWidth(ref: React.RefObject<HTMLElement>): number {
 }
 
 export function Waveform({ c }: { c: ProfileController }) {
-  const { p, dur, editable, clock, actions } = c;
+  const { p, dur, editable, clock, actions, levels } = c;
   const waveRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const W = useWidth(waveRef);
 
   useLayoutEffect(() => {
-    if (canvasRef.current) drawWave(canvasRef.current, { prof: p, dur, pos: clock.pos, playing: clock.playing, levels: null });
+    if (canvasRef.current) drawWave(canvasRef.current, { prof: p, dur, pos: clock.pos, playing: clock.playing, levels });
   });
 
   const pct = (s: number) => `${((clamp(s, 0, dur) / dur) * 100).toFixed(3)}%`;

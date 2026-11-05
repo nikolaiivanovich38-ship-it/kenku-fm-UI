@@ -76,7 +76,7 @@ export function ListenBox({ c }: C) {
   const nextProf = clock.handover && next ? c.profileOf(next.id, clock.handover.place) : null;
   const xfading = !clock.handover && p.after === "loop" && p.loopXfade > 0 && clock.pos > p.end - p.loopXfade && clock.pos < p.end;
   const gain = clock.handover ? (nextProf ? envAt(nextProf, clock.handover.pos, false) : 1) : xfading ? 1 : envAt(p, clock.pos, clock.loops > 0);
-  const level = clock.playing ? gain * (0.35 + 0.65 * levelAt(null, clock.pos, c.dur)) : 0;
+  const level = clock.playing ? gain * (0.35 + 0.65 * levelAt(c.levels, clock.pos, c.dur)) : 0;
   const meterWords = xfading ? "crossfading" : gain < 0.995 ? (clock.handover || clock.pos < p.start + p.fadeIn.dur ? "fading in" : "fading out") : "";
   const eventIcon: IconName = clock.event?.type === "loop" ? "loop" : clock.event?.type === "stop" ? "stop" : "note";
   return (

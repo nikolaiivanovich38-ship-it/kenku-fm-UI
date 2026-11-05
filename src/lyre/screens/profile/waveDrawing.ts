@@ -3,9 +3,9 @@
  * views/profile.js). Bars outside Start and End are drawn faint; under a fade they get smaller and fainter, so you can
  * see where it gets quieter; bars before the playhead take the preview colour while you listen.
  *
- * The library does not yet have the loudness of each file (no peaks are read on import), so every bar has the same
- * height; the prototype's made-up shape is not drawn, because it would show quiet and loud parts that are not in the
- * music. When peaks arrive they go in `levels` (0 to 1 across the file).
+ * Bar heights follow the file's loudness (`levels`: the library's peaks, 0 to 1 on a decibel scale, 0 meaning -60 dBFS
+ * or quieter). Until the library has worked them out every bar has the same height; the prototype's made-up shape is
+ * never drawn, because it would show quiet and loud parts that are not in the music.
  */
 import { envAt, type Prof } from "./profileModel";
 

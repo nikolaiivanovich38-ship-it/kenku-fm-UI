@@ -23,9 +23,8 @@ beforeEach(() => {
   localStorage.clear();
 });
 
-async function open(path = "profile/t13") {
+async function open(path = "profile/t13", api = createFakeLyreApi()) {
   window.history.replaceState(null, "", `#/${path}`);
-  const api = createFakeLyreApi();
   const audio = new FakeLyreAudio();
   const user = userEvent.setup();
   render(
@@ -304,6 +303,27 @@ describe("the preview's sound follows the profile shown", () => {
     expect(next[1]).not.toBe("t13");
     expect(next[2].quiet).toBe(true);
     await waitFor(() => expect(document.getElementById("lyre-live")).toHaveTextContent(/Moved on to the next track/));
+  });
+});
+
+describe("the file's loudness (peaks from the library)", () => {
+  const meterBar = () => region("Waveform and listening").querySelector<HTMLElement>(".ap-meter-bar")!;
+
+  it("while unknown, the meter shows the even band", async () => {
+    const api = createFakeLyreApi();
+    vi.spyOn(api.library, "peaksOf").mockResolvedValue(null);
+    const { user } = await open("profile/t13", api);
+    await user.click(within(region("Waveform and listening")).getByRole("button", { name: "Play" }));
+    expect(meterBar().style.width).toBe("75%");
+  });
+
+  it("once worked out, the meter follows the file's own loudness at the playhead", async () => {
+    const api = createFakeLyreApi();
+    const peaks = vi.spyOn(api.library, "peaksOf").mockResolvedValue(new Array(1000).fill(0));
+    const { user } = await open("profile/t13", api);
+    await waitFor(() => expect(peaks).toHaveBeenCalledWith("t13"));
+    await user.click(within(region("Waveform and listening")).getByRole("button", { name: "Play" }));
+    await waitFor(() => expect(meterBar().style.width).toBe("35%"));
   });
 });
 
