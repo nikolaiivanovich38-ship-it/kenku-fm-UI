@@ -1,4 +1,15 @@
-import { defineConfig } from "vitest/config";
+import { defineConfig, type Plugin } from "vitest/config";
+
+/**
+ * Webpack's `?asset` imports (a file the bundle copies and imports as its address, e.g. the audio worklet) become
+ * the file's name in tests, so any component that reaches the audio host can be rendered without a mock.
+ */
+const webpackAssets: Plugin = {
+  name: "webpack-asset-imports",
+  enforce: "pre",
+  resolveId: (id) => (id.endsWith("?asset") ? `\0asset:${id.slice(0, -"?asset".length)}` : null),
+  load: (id) => (id.startsWith("\0asset:") ? `export default ${JSON.stringify(id.split("/").pop())};` : null),
+};
 
 /**
  * Test configuration.
@@ -22,6 +33,7 @@ export default defineConfig({
         },
       },
       {
+        plugins: [webpackAssets],
         test: {
           name: "ui",
           environment: "jsdom",
