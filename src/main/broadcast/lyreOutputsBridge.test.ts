@@ -74,6 +74,7 @@ async function twoBots(): Promise<[string, string]> {
 }
 
 const pushed = (): LyreOutputs[] => lyre.send.mock.calls.filter(([channel]) => channel === LYRE_OUTPUTS_STATE).map(([, state]) => state as LyreOutputs);
+const last = (): LyreOutputs | undefined => pushed()[pushed().length - 1];
 
 describe("LyreOutputsBridge (w4-outputs)", () => {
   it("answers the Lyre page with the bots and servers, never a token", async () => {
@@ -129,10 +130,10 @@ describe("LyreOutputsBridge (w4-outputs)", () => {
   it("sends the outputs to the Lyre page on every change once the page is open, and stops when it closes", async () => {
     bridge.setView(lyre as never);
     const [a] = await twoBots();
-    expect(pushed().at(-1)?.bots.map((bot) => bot.login)).toEqual(["ready", "ready"]);
+    expect(last()?.bots.map((bot) => bot.login)).toEqual(["ready", "ready"]);
     fakeIpcMain.deliver("LYRE_OUTPUT_MOVE", fromLyre(), a, "1011");
     await settle();
-    expect(pushed().at(-1)?.bots[0].room).toEqual({ serverId: "1001", channelId: "1011", status: "connected" });
+    expect(last()?.bots[0].room).toEqual({ serverId: "1001", channelId: "1011", status: "connected" });
     lyre.destroy();
     const before = lyre.send.mock.calls.length;
     fakeIpcMain.deliver("LYRE_OUTPUT_SET_MUTED", fromMainFrame(fakePage("lyre-view")), a, true);

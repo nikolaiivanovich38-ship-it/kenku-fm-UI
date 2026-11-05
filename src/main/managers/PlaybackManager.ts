@@ -4,6 +4,10 @@ import { OutputManager } from "../broadcast/OutputManager";
 import { LyreOutputsBridge } from "../broadcast/lyreOutputsBridge";
 import { PlayerAudioBridge } from "../broadcast/playerAudioBridge";
 import { AudioCaptureManagerMain } from "./AudioCaptureManagerMain";
+import { wantsPrototypeDiscord } from "../broadcast/discordDriver";
+
+/** True only in packages built with CUE_DESK_E2E_BUILD=1 (webpack.main.config.js). */
+declare const __CUE_DESK_TEST_BUILD__: boolean;
 
 /**
  * Connects tab capture to the outputs. PERF-4: capture runs only while an
@@ -25,6 +29,12 @@ export class PlaybackManager {
     const tokens = new BotTokenStore(BotTokenStore.fileIn(app.getPath("userData")), safeStorage);
     this.outputs = new OutputManager(window, tokens);
     this.lyreOutputs = new LyreOutputsBridge(this.outputs);
+    if (typeof __CUE_DESK_TEST_BUILD__ !== "undefined" && __CUE_DESK_TEST_BUILD__ && wantsPrototypeDiscord(process.env, __CUE_DESK_TEST_BUILD__)) {
+      // Test builds only (w4-outputs): the acceptance specs' bots on the prototype's Discord.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { startPrototypeOutputs } = require("../broadcast/testing/prototypeWorld") as typeof import("../broadcast/testing/prototypeWorld");
+      startPrototypeOutputs(this.outputs);
+    }
     this.audioCaptureManager = new AudioCaptureManagerMain();
     this.playerAudio.setCapture(this.audioCaptureManager._browserWindow.webContents);
     this.outputs.on("activeChange", (active) => {

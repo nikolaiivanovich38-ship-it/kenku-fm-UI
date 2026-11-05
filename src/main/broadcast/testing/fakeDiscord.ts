@@ -17,6 +17,7 @@ import {
   type VoiceConnection,
 } from "@discordjs/voice";
 import type { DiscordDriver } from "../discordDriver";
+import { PROTOTYPE_WORLD } from "./prototypeWorld";
 
 export const FAKE_GUILD_ID = "900";
 
@@ -447,10 +448,10 @@ export function packetPeaks(discord: FakeDiscord, channelId: string, from = 0): 
 
 let shared: FakeDiscord | undefined;
 
-/** The one fake Discord of a test-build app start. */
+/** The one fake Discord of a test-build app start; with CUE_DESK_FAKE_DISCORD=prototype, the prototype's world. */
 export function sharedFakeDiscord(): FakeDiscord {
   if (!shared) {
-    shared = new FakeDiscord();
+    shared = new FakeDiscord(process.env.CUE_DESK_FAKE_DISCORD === "prototype" ? { world: PROTOTYPE_WORLD } : {});
     (globalThis as unknown as { __cueDeskFakeDiscord: FakeDiscord }).__cueDeskFakeDiscord = shared;
   }
   return shared;

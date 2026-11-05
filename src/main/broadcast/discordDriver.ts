@@ -22,9 +22,17 @@ export const realDiscordDriver: DiscordDriver = {
   joinVoiceChannel,
 };
 
-/** Whether this start may use the fake Discord (test builds only). */
+/**
+ * Whether this start may use the fake Discord (test builds only). "prototype" (w4-outputs) is the fake with the
+ * design prototype's servers and bots, for the acceptance specs (testing/prototypeWorld.ts).
+ */
 export function wantsFakeDiscord(env: NodeJS.ProcessEnv, testBuild: boolean): boolean {
-  return testBuild && env.CUE_DESK_FAKE_DISCORD === "1";
+  return testBuild && (env.CUE_DESK_FAKE_DISCORD === "1" || env.CUE_DESK_FAKE_DISCORD === "prototype");
+}
+
+/** w4-outputs: the acceptance specs' Discord (test builds only). */
+export function wantsPrototypeDiscord(env: NodeJS.ProcessEnv, testBuild: boolean): boolean {
+  return testBuild && env.CUE_DESK_FAKE_DISCORD === "prototype";
 }
 
 /** The driver for this app start. Release builds compile the fake out. */
