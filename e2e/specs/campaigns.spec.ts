@@ -3,7 +3,7 @@
  * Source: design/prototype/tools/cp-tab.js and src/views/campaigns.js.
  */
 import type { Page } from "@playwright/test";
-import { expect, test } from "./support/test";
+import { expect, test, expectFailureUntilBuilt } from "./support/test";
 import { openRoute } from "./support/target";
 
 const region = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
@@ -20,6 +20,7 @@ test.describe("all campaigns", () => {
   });
 
   test("Run next session opens Live with that session ready to start", async ({ page }) => {
+    expectFailureUntilBuilt("live"); // it ends on the Live screen
     await openRoute(page, "campaigns");
     await page.getByRole("button", { name: "Run next session of The Sixth Year: Session 4" }).click();
     await expect(page.getByRole("heading", { name: "Live", level: 1 })).toBeAttached();
@@ -52,6 +53,7 @@ test.describe("all campaigns", () => {
 
 test.describe("one campaign", () => {
   test("a Prep | Live switch sits at the top, with Prep pressed, and Live opens the live screen for this campaign", async ({ page }) => {
+    expectFailureUntilBuilt("live"); // it ends on the Live screen
     await openRoute(page, "campaign/crown");
     const modes = page.getByRole("group", { name: "Prep or live" });
     await expect(modes.getByRole("button", { name: "Prep" })).toHaveAttribute("aria-pressed", "true");
@@ -60,6 +62,7 @@ test.describe("one campaign", () => {
   });
 
   test("Run next session sits beside the switch and starts the next session in Live", async ({ page }) => {
+    expectFailureUntilBuilt("live"); // it ends on the Live screen
     await openRoute(page, "campaign/crown");
     await page.getByRole("button", { name: /^Run next session/ }).click();
     await expect(page.getByRole("button", { name: /The Sunken Crown Session 14/ })).toBeVisible();
@@ -121,6 +124,7 @@ test.describe("sessions of a campaign", () => {
   });
 
   test("running a played session again opens it in Live", async ({ page }) => {
+    expectFailureUntilBuilt("live"); // it ends on the Live screen
     await openRoute(page, "campaign/crown");
     await page.getByRole("button", { name: /^Run Session 12/ }).click();
     await expect(page.getByRole("button", { name: /The Sunken Crown Session 12/ })).toBeVisible();
@@ -165,6 +169,7 @@ test.describe("playlists and pad boards on hand in every session", () => {
   });
 
   test("Play on air from a campaign playlist shows the bar of what the players hear, with Stop and Go to Live", async ({ page }) => {
+    expectFailureUntilBuilt("on-air bar"); // the shell's on-air bar is not built yet
     await openRoute(page, "campaign/crown");
     await region(page, "Campaign playlists").getByRole("button", { name: "Play on air: The Company themes" }).click();
     const bar = region(page, "On air");

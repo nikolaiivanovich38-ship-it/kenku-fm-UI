@@ -6,6 +6,7 @@ import { LibraryScreen } from "./library/LibraryScreen";
 import { PlaylistScreen, PlaylistsScreen } from "./library/PlaylistsScreen";
 import { LookPlaceholder } from "./LookPlaceholder";
 import { PlaceholderScreen } from "./Placeholder";
+import { CampaignScreen, CampaignsScreen, SessionScreen } from "./campaigns";
 import { ProfileScreen } from "./profile/ProfileScreen";
 
 /** What every screen gets: the route it was opened at (its ids are in route.params). */
@@ -27,9 +28,9 @@ function placeholder(title: string): ScreenComponent {
  * swaps the placeholder below for it, e.g. `library: LibraryScreen,`.
  */
 export const SCREENS: Record<RouteName, ScreenComponent> = {
-  campaigns: placeholder("Campaigns"),
-  campaign: placeholder("Campaign"),
-  session: placeholder("Session"),
+  campaigns: CampaignsScreen,
+  campaign: CampaignScreen,
+  session: SessionScreen,
   library: LibraryScreen,
   playlists: PlaylistsScreen,
   playlist: PlaylistScreen,

@@ -21,6 +21,9 @@ const SHELL_SCREENS = {
   playlist: () => <PlaceholderScreen title="Playlist" />,
   boards: () => <PlaceholderScreen title="Pad boards" />,
   board: () => <PlaceholderScreen title="Pad board" />,
+  campaigns: () => <PlaceholderScreen title="Campaigns" />,
+  campaign: () => <PlaceholderScreen title="Campaign" />,
+  session: () => <PlaceholderScreen title="Session" />,
 };
 
 function go(path: string) {

@@ -8,7 +8,10 @@
  *
  * The sweeps (sweeps.spec.ts) belong to the screen they open: Library, Playlists, ... and "look" for the Look and feel page.
  *
+ * A test that needs a later screen or part (it ends on Live, or reads the shell's "on-air bar") names it with
+ * `expectFailureUntilBuilt("live")` / `("on-air bar")` and is expected to fail until that name is listed here too.
+ *
  * Wave 3: when a screen is built, add its name below in the same commit that implements its functions in
  * target.ts.
  */
-export const BUILT_SCREENS: readonly string[] = ["library", "playlists", "audio-profile", "pad-boards"];
+export const BUILT_SCREENS: readonly string[] = ["library", "playlists", "audio-profile", "pad-boards", "campaigns", "session-planner"];

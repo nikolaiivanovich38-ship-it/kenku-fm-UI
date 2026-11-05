@@ -140,7 +140,8 @@ table.grid tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 v
 .menu .sep { height: 1px; background: var(--line); margin: 4px 0; }
 .menu .group { font-size: var(--fs-xs); color: var(--ink-3); padding: 6px 8px 2px; font-weight: 700; }
 .sheet { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; background: rgb(0 0 0 / .5); padding: 16px; }
-.sheet > .panel { width: min(640px, 100%); max-height: calc(100% - 16px); display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r-l); box-shadow: var(--shadow); }
+/* min-width 0 and viewport caps: a grid item otherwise grows with its widest row, and Done ends up off screen. */
+.sheet > .panel { width: min(640px, 100%); min-width: 0; max-width: calc(100vw - 32px); max-height: min(calc(100% - 16px), calc(100vh - 32px)); display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r-l); box-shadow: var(--shadow); }
 .sheet > .panel > header { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 14px; border-bottom: 1px solid var(--line); }
 .sheet > .panel > header h2 { font-family: var(--display); text-transform: var(--display-case); letter-spacing: var(--display-track); font-size: calc(var(--fs-h) * var(--display-scale)); flex: 1; }
 .sheet > .panel > .body { padding: 12px 14px; overflow: auto; flex: 1; min-height: 0; }

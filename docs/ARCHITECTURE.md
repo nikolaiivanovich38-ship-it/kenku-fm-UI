@@ -351,3 +351,22 @@ The Pad boards screens of the new interface (WP5), from the prototype's `views/b
 | `hooks.ts` | `useWrite` (refusals toasted in their own words), `useBoardSound` (preview and on-air state from `useNowPlaying`; the audio host's announcements and errors go to the live region and toasts while the screen is open), `usePendingFocus` (focus that waits until the reloaded data shows its target), `useSavedText` (fields saved as you type). |
 
 The resize message's Undo calls `history.undo()` only while the last undo step is still that resize (its `undoLabel`); otherwise it says it cannot undo it any more.
+
+## Wave 3: w3-campaigns
+
+Campaigns (`#/campaigns`), one campaign (`#/campaign/<cid>`) and the session planner (`#/session/<cid>/<sid>`), ported from `design/prototype/src/views/campaigns.js` (WP5, UX-1). Files in `src/lyre/screens/campaigns/`:
+
+| File | What it does |
+| --- | --- |
+| `CampaignsScreen.tsx` | The cards (each in its campaign's theme, or the theme Look and feel forces), Run next session, Open; the New campaign sheet (name, game system, one-line description, theme previews with Candlelit Library first, folded Obsidian placeholders). |
+| `CampaignScreen.tsx` | Details (name, game system, theme, description), Prep or Live, Run next session; Sessions in order (drag a handle or ⋯ to move; numbers follow order), a Run button per session; Notes; Campaign playlists and pad boards; Obsidian (coming later). |
+| `SessionScreen.tsx` | Session details, Prep or Live, Run this session; scene cards (fold, open all, move, drag, add after the last one worked on, duplicate, delete after asking); each scene's music (tracks and playlists mixed, in play order), ambience and pad boards, with menus, expanders, Preview, Play on air, pickers and dropped files; session playlists and pad boards; the campaign's playlists as a reminder. |
+| `OnHand.tsx` | Playlists and pad boards on hand (campaign or session): rows, Add… picker, Remove. |
+| `pickers.tsx` | The music, ambience, playlist and pad board pickers on the kit's `PickerDialog` (Preview on every row, expanders closed). Leaving a picker stops its preview. |
+| `parts.tsx` | `useLibraryIndex` (tracks, playlists, boards in one look-up), `useWrite` (refusals become toasts), `useAudioMessages` (the audio host's sentences to the live region, its failures to a toast), `useFocusLater` (focus a control once the library has redrawn the screen), `PreviewButton`, `PlayOnAirButton`, `Contents`, `RowMenu`, `ModeSwitch`, `DraftField` (saves after a 300 ms pause, on leaving the field and on closing, so a reload never moves the cursor and typing makes one undo step per pause). |
+| `model.ts`, `reorder.ts`, `drops.ts` | Wording and look-ups; drag to reorder by a handle; dropped files to paths. |
+
+- **Run and Live.** Run, Run next session and the Live side of the switch call `runInLive` (`src/lyre/kit/liveSession.ts`): the session is loaded in Live, ready to start, and `#/live` opens. The Live screen reads `useLiveSession()`; the shell can show it through `ShellData.liveCampaign` and `liveLabel`.
+- **Themes.** A theme change is a `campaigns.update`; the shell follows through `ShellData.campaignTheme`, fed from `useCampaigns()` in `AppProviders`.
+- **Session numbers** come from order: moving a session renumbers them from the lowest number, as the library does.
+- **Dropped files** are imported with `import.start({ from: "paths" })`. The page learns a file's place on the computer from `window.lyre.files.pathOf(file)` (Electron's `webUtils.getPathForFile`); without it (tests), the file's name is sent.

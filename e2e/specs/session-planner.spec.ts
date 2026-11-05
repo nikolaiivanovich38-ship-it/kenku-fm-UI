@@ -4,7 +4,7 @@
  * has mixed music (track, playlist, track, playlist), an ambience playlist and two pad boards.
  */
 import type { Locator, Page } from "@playwright/test";
-import { expect, test } from "./support/test";
+import { expect, test, expectFailureUntilBuilt } from "./support/test";
 import { openRoute } from "./support/target";
 import { dropFiles } from "./support/drop";
 
@@ -33,6 +33,7 @@ test.describe("the session page", () => {
   });
 
   test("has a Prep | Live switch and a Run this session button", async ({ page }) => {
+    expectFailureUntilBuilt("live"); // it ends on the Live screen
     await openRoute(page, "session/crown/s14");
     await expect(page.getByRole("group", { name: "Prep or live" }).getByRole("button", { name: "Prep" })).toHaveAttribute("aria-pressed", "true");
     await page.getByRole("button", { name: "Run this session" }).click();
@@ -41,6 +42,7 @@ test.describe("the session page", () => {
   });
 
   test("the Live side of the switch also opens this session in Live", async ({ page }) => {
+    expectFailureUntilBuilt("live"); // it ends on the Live screen
     await openRoute(page, "session/crown/s14");
     await page.getByRole("group", { name: "Prep or live" }).getByRole("button", { name: "Live" }).click();
     await expect(page.getByRole("button", { name: /The Sunken Crown Session 14/ })).toBeVisible();
@@ -186,6 +188,8 @@ test.describe("a scene's music: tracks and playlists mixed, in order", () => {
     await openAbbey(page);
     const music = abbey(page).getByRole("group", { name: "Music", exact: true });
     await dropFiles(music, ["01 New theme.flac", "notes.txt", "02 Second.mp3"]);
+    // The app imports the files before they join the scene; wait for them (the prototype adds them at once).
+    await expect(musicOf(abbey(page)).getByRole("listitem")).toHaveCount(6);
     const names = await linkNames(musicOf(abbey(page)));
     expect(names).toContain("New theme");
     expect(names).toContain("Second");
@@ -197,14 +201,18 @@ test.describe("a scene's music: tracks and playlists mixed, in order", () => {
   test("something that is not a file dragged over the music is ignored", async ({ page }) => {
     await openAbbey(page);
     const music = abbey(page).getByRole("group", { name: "Music", exact: true });
-    const prevented = await music.evaluate((el) => {
+    const before = await musicOf(abbey(page)).getByRole("listitem").count();
+    // Dragged text adds nothing. (Whether the dragover is cancelled is not checked: in the app the page's drop guard
+    // cancels every dragover at the document, so that nothing dropped can replace the page; SEC-7.)
+    await music.evaluate((el) => {
       const data = new DataTransfer();
       data.setData("text/plain", "hi");
-      const over = new DragEvent("dragover", { bubbles: true, cancelable: true, dataTransfer: data });
-      el.dispatchEvent(over);
-      return over.defaultPrevented;
+      for (const type of ["dragenter", "dragover", "drop"]) {
+        el.dispatchEvent(new DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: data }));
+      }
     });
-    expect(prevented).toBe(false);
+    await expect(musicOf(abbey(page)).getByRole("listitem")).toHaveCount(before);
+    await expect(page.getByText(/added to the Library/)).toHaveCount(0);
   });
 });
 
