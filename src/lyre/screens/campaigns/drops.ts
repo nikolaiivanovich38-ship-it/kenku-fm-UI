@@ -18,13 +18,12 @@ export function carriesFiles(event: React.DragEvent): boolean {
 type PathOf = (file: File) => string;
 
 /**
- * The file's place on the computer. The Lyre page's preload can tell it (`window.lyre.files.pathFor`, Electron's
- * webUtils.getPathForFile); without it, the file's own name is used (the in-memory library in tests takes names).
+ * The file's place on the computer, from the Lyre page's preload (`window.lyre.files.pathOf`, Electron's
+ * webUtils.getPathForFile). Without it (tests on the in-memory library, which takes names), the file's own name.
  */
 export const pathOfDroppedFile: PathOf = (file) => {
-  const bridge = (window as unknown as { lyre?: { files?: { pathFor?: PathOf } } }).lyre?.files?.pathFor;
-  const path = bridge?.(file) || (file as File & { path?: string }).path;
-  return typeof path === "string" && path ? path : file.name;
+  const pathOf = (window as unknown as { lyre?: { files?: { pathOf?: PathOf } } }).lyre?.files?.pathOf;
+  return pathOf?.(file) || file.name;
 };
 
 /** The dropped files and folders worth importing: audio files, and folders (Lyre walks them). */

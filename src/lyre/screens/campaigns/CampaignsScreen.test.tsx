@@ -1,13 +1,11 @@
 /** Campaigns, the top level (e2e/specs/campaigns.spec.ts "all campaigns"; prototype views/campaigns.js part 1). */
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { getLiveSession } from "../../kit/liveSession";
 import { expectNoAxeViolations } from "../../test/axe";
 import { main, openAt } from "./testing";
-
-vi.mock("../../../preload/managers/PCMStream.worklet.js?asset", () => ({ default: "pcm.js" }));
 
 beforeEach(() => {
   localStorage.clear();

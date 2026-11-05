@@ -16,7 +16,7 @@ import type { ScreenProps } from "..";
 import { SystemList } from "./CampaignsScreen";
 import { CAMPAIGN_THEME_IDS, formatDate, nextSession, plural, sessionLabel, themeName } from "./model";
 import { OnHandPane } from "./OnHand";
-import { DraftField, ModeSwitch, NotFound, ObsidianFields, RowMenu, StatusBadge, useAudioMessages, useFocusLater, useLibraryIndex, useWrite } from "./parts";
+import { DraftField, ModeSwitch, NotFound, Opening, useHeadingFocusWhenReady, ObsidianFields, RowMenu, StatusBadge, useAudioMessages, useFocusLater, useLibraryIndex, useWrite } from "./parts";
 import { useDragReorder } from "./reorder";
 
 import "./campaigns.css";
@@ -28,13 +28,7 @@ export function CampaignScreen({ route }: ScreenProps) {
   useAudioMessages();
   const campaign = query.data;
   if (campaign === null) return <NotFound what="Campaign" />;
-  if (!campaign || !index) {
-    return (
-      <div className="viewhead">
-        <h1>Campaign</h1>
-      </div>
-    );
-  }
+  if (!campaign || !index) return <Opening />;
   return <CampaignPage key={campaign.id} campaign={campaign} index={index} />;
 }
 
@@ -43,6 +37,7 @@ function CampaignPage({ campaign: c, index }: { campaign: CampaignInfo; index: N
   const write = useWrite();
   const { say, toast } = useAnnounce();
   const [choice] = useThemeChoice();
+  useHeadingFocusWhenReady();
   // The heading follows the name field as it is typed.
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   const [notesDraft, setNotesDraft] = useState<string | null>(null);

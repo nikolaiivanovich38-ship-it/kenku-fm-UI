@@ -1,15 +1,13 @@
 /** The session planner (e2e/specs/session-planner.spec.ts; prototype views/campaigns.js part 3). */
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import type { CampaignInfo, SessionInfo } from "../../../common/lyre/api";
 import { createFakeLyreApi, type FakeLyreApi } from "../../../common/lyre/fake";
 import { getLiveSession, loadInLive } from "../../kit/liveSession";
 import { expectNoAxeViolations } from "../../test/axe";
 import { go, main, openAt, region } from "./testing";
-
-vi.mock("../../../preload/managers/PCMStream.worklet.js?asset", () => ({ default: "pcm.js" }));
 
 beforeEach(() => {
   localStorage.clear();
@@ -297,6 +295,12 @@ describe("scenes", () => {
     expect(screen.getAllByRole("list", { name: "Music in order" })).toHaveLength(6);
     await userEvent.click(screen.getByRole("button", { name: "Fold all scenes" }));
     expect(screen.queryByRole("list", { name: "Music in order" })).not.toBeInTheDocument();
+  });
+
+  it("opening a session from its campaign puts the focus on the session's heading once it is ready", async () => {
+    openAt("campaign/crown");
+    await userEvent.click(await screen.findByRole("link", { name: "Session 14: The Drowned Abbey" }));
+    expect(await screen.findByRole("heading", { level: 1, name: "Session 14: The Drowned Abbey" })).toHaveFocus();
   });
 
   it("an unknown session says so with a way back", async () => {

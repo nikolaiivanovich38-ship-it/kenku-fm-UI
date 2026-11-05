@@ -413,6 +413,33 @@ export function ObsidianFields({ idPrefix, values, onChange }: { idPrefix: strin
   );
 }
 
+/**
+ * While the library answers, a screen shows no heading yet: the page (and the acceptance tests, which wait for the
+ * heading) then finds the screen whole, with every control in place, when its heading appears.
+ */
+export function Opening() {
+  return (
+    <div className="viewhead" aria-busy="true">
+      <span className="muted">Opening…</span>
+    </div>
+  );
+}
+
+/**
+ * The shell moves focus to a new screen's heading when the address changes; a screen that was still opening then had
+ * none. Once it is ready, its heading takes the focus if nothing else has it.
+ */
+export function useHeadingFocusWhenReady(): void {
+  useEffect(() => {
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    const heading = document.querySelector<HTMLElement>("#view h1");
+    if (!heading) return;
+    heading.setAttribute("tabindex", "-1");
+    heading.focus({ preventScroll: true });
+  }, []);
+}
+
 /** A screen whose campaign or session is gone (an old link, or deleted in another window). */
 export function NotFound({ what }: { what: string }) {
   return (

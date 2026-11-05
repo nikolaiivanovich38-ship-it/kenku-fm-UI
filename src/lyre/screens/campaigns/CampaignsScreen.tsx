@@ -14,7 +14,7 @@ import { useAnnounce } from "../../shell/Announcer";
 import { useThemeChoice } from "../../shell/useThemeChoice";
 import type { ScreenProps } from "..";
 import { CAMPAIGN_THEME_IDS, DEFAULT_CAMPAIGN_THEME, formatDate, nextSession, plural, sessionLabel, shownTheme, SYSTEMS, themeName, themeNote } from "./model";
-import { ObsidianFields, useAudioMessages, type ObsidianValues } from "./parts";
+import { ObsidianFields, Opening, useAudioMessages, useHeadingFocusWhenReady, type ObsidianValues } from "./parts";
 
 import "./campaigns.css";
 
@@ -22,11 +22,17 @@ export function CampaignsScreen(_props: ScreenProps) {
   const campaigns = useCampaigns().data;
   const [creating, setCreating] = useState(false);
   useAudioMessages();
+  if (!campaigns) return <Opening />;
+  return <CampaignsList campaigns={campaigns} creating={creating} setCreating={setCreating} />;
+}
+
+function CampaignsList({ campaigns, creating, setCreating }: { campaigns: CampaignInfo[]; creating: boolean; setCreating: (on: boolean) => void }) {
+  useHeadingFocusWhenReady();
   return (
     <>
       <div className="viewhead">
         <h1>Campaigns</h1>
-        {campaigns && <span className="muted cp-count">{plural(campaigns.length, "campaign")}</span>}
+        <span className="muted cp-count">{plural(campaigns.length, "campaign")}</span>
         <span className="grow" />
         <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>
           New campaign
@@ -34,7 +40,7 @@ export function CampaignsScreen(_props: ScreenProps) {
       </div>
       <div className="viewbody">
         <div className="cp-grid">
-          {campaigns?.map((c) => (
+          {campaigns.map((c) => (
             <CampaignCard key={c.id} campaign={c} />
           ))}
         </div>

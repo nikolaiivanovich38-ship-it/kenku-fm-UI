@@ -29,6 +29,8 @@ import {
   ModeSwitch,
   NotFound,
   ObsidianButton,
+  Opening,
+  useHeadingFocusWhenReady,
   PlayOnAirButton,
   PreviewButton,
   RowMenu,
@@ -52,13 +54,7 @@ export function SessionScreen({ route }: ScreenProps) {
   const campaign = query.data;
   const session = campaign?.sessions.find((s) => s.id === route.params.sid);
   if (campaign === null || (campaign && !session)) return <NotFound what="Session" />;
-  if (!campaign || !session || !index) {
-    return (
-      <div className="viewhead">
-        <h1>Session</h1>
-      </div>
-    );
-  }
+  if (!campaign || !session || !index) return <Opening />;
   return <SessionPage key={session.id} campaign={campaign} session={session} index={index} />;
 }
 
@@ -83,6 +79,7 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
   const api = useLyreApi();
   const write = useWrite();
   const { session: s, saveScene: showAndSave } = useOptimisticScenes(saved);
+  useHeadingFocusWhenReady();
   const { say, toast } = useAnnounce();
   const focus = useFocusLater();
   const [open, setOpen] = useState<Record<string, boolean>>({});
