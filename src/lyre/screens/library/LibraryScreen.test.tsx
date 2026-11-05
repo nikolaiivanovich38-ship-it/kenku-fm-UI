@@ -415,3 +415,116 @@ describe("Library: accessibility", () => {
     await expectNoAxeViolations();
   });
 });
+
+describe("Library: round 5", () => {
+  it("DAT-13: a track's shape is suggested from its loudness; the game master's choice wins; Use the suggestion goes back", async () => {
+    const { api } = openAt("library/t02");
+    const d = within(details());
+    const shape = await d.findByRole("group", { name: "Shape" });
+    expect(within(shape).getAllByRole("button").map((b) => b.textContent)).toEqual(["Steady", "Builds", "Falls away", "Peaks then falls", "Rises and falls"]);
+    expect(within(shape).getByRole("button", { name: "Peaks then falls" })).toHaveAttribute("aria-pressed", "true");
+    expect(details()).toHaveTextContent("Suggested by Lyre from the track's loudness");
+    const user = userEvent.setup();
+    await user.click(within(shape).getByRole("button", { name: "Steady" }));
+    await waitFor(() => expect(within(shape).getByRole("button", { name: "Steady" })).toHaveAttribute("aria-pressed", "true"));
+    expect(details()).toHaveTextContent("Your choice. Lyre suggested peaks then falls.");
+    expect((await api.library.listTracks()).find((t) => t.id === "t02")?.shape).toBe("steady");
+    await user.click(d.getByRole("button", { name: "Use the suggestion" }));
+    await waitFor(() => expect(within(shape).getByRole("button", { name: "Peaks then falls" })).toHaveAttribute("aria-pressed", "true"));
+    expect((await api.library.listTracks()).find((t) => t.id === "t02")?.shape).toBeNull();
+    // Choosing the suggestion itself is the same as no choice: the track keeps following Lyre's suggestion.
+    await user.click(within(shape).getByRole("button", { name: "Builds" }));
+    await waitFor(() => expect(within(shape).getByRole("button", { name: "Builds" })).toHaveAttribute("aria-pressed", "true"));
+    await user.click(within(shape).getByRole("button", { name: "Peaks then falls" }));
+    await waitFor(async () => expect((await api.library.listTracks()).find((t) => t.id === "t02")?.shape).toBeNull());
+  });
+
+  it("DAT-13: rows show the shape beside the tag, and Filters › Shape narrows the list", async () => {
+    openAt("library");
+    await loaded();
+    expect(within(row("Melancholy tense - melancholy heroism - fade")).getByText("Shape: Peaks then falls (suggested from its loudness)")).toBeInTheDocument();
+    const user = userEvent.setup();
+    const shapes = within(filters()).getByRole("group", { name: "Shape" });
+    expect(within(shapes).getAllByRole("button").map((b) => b.textContent?.replace(/\d+$/, ""))).toEqual(["Steady", "Builds", "Falls away", "Peaks then falls", "Rises and falls"]);
+    await user.click(within(shapes).getByRole("button", { name: /^Builds/ }));
+    expect(shownTitles()).toContain("Brutal battle, driving brass and strings; long build to full war");
+    expect(shownTitles()).not.toContain("Fragile melancholy strings, slow swell - loss, memory, flashback");
+    expect(shownTitles().length).toBeLessThan(69);
+    expect(filters()).toHaveTextContent("1 filter on");
+  });
+
+  it("DAT-8: files Lyre cannot find are marked Missing, have their own filter, and the details point to Relink", async () => {
+    openAt("library");
+    await loaded();
+    const storm = "Storm and dark romance, swells - villain's tragic backstory";
+    await waitFor(() => expect(row(storm)).toHaveTextContent("Missing"));
+    const user = userEvent.setup();
+    await user.click(within(filters()).getByRole("button", { name: /^Missing/ }));
+    expect(shownTitles()).toHaveLength(3);
+    expect(filters()).toHaveTextContent("Missing files");
+    await user.click(row(storm).querySelectorAll("td")[1]);
+    expect(await within(details()).findByText(/Lyre cannot find this file where it was/)).toBeInTheDocument();
+    expect(within(details()).getByRole("link", { name: "Relink…" })).toHaveAttribute("href", "#/relink");
+  });
+
+  it("DAT-14: a track's details list its names in scenes beside its own name, the file's title, file name and folder", async () => {
+    openAt("library/t07");
+    const d = within(details());
+    expect(await d.findByRole("textbox", { name: "Your title" })).toHaveValue("Release after loss, ethereal voice, resolves - end of session or death of an NPC");
+    await waitFor(() => expect(details()).toHaveTextContent(/Names in scenes\s*Dawn over the abbey\s*in Aftermath \(Session 14\)/));
+    expect(details()).toHaveTextContent("17 Now We Are Free.flac");
+    go("library/t44");
+    await waitFor(() => expect(details()).toHaveTextContent("None: it shows its own name everywhere"));
+  });
+
+  it("ORG-12: Use in… keeps a track on hand in a campaign, ticks where it is used, and Used in says On hand in…", async () => {
+    const { api } = openAt("library/t05");
+    const d = within(details());
+    const user = userEvent.setup();
+    await user.click((await d.findAllByRole("button", { name: "Use in…" }))[0]);
+    const sheet = within(screen.getByRole("dialog"));
+    expect(sheet.getByRole("heading", { name: /^Use ".+" in…$/ })).toBeInTheDocument();
+    await user.click(sheet.getByRole("checkbox", { name: /^The Sunken Crown: whole campaign/ }));
+    await user.click(sheet.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(details()).toHaveTextContent("On hand in The Sunken Crown (whole campaign)"));
+    expect((await api.campaigns.get("crown")).trackIds).toContain("t05");
+    // t26 is on hand already: its sheet has the campaign ticked.
+    go("library/t26");
+    await waitFor(() => expect(details()).toHaveTextContent("On hand in The Sunken Crown (whole campaign)"));
+    await user.click((await within(details()).findAllByRole("button", { name: "Use in…" }))[0]);
+    expect(within(screen.getByRole("dialog")).getByRole("checkbox", { name: /^The Sunken Crown: whole campaign/ })).toBeChecked();
+  });
+
+  it("ORG-12: a row's More menu has Use in…", async () => {
+    openAt("library");
+    await loaded();
+    const user = userEvent.setup();
+    await user.click(within(row("Ashes")).getByRole("button", { name: "More for Ashes" }));
+    await user.click(screen.getByRole("menuitem", { name: "Use in…" }));
+    expect(within(screen.getByRole("dialog")).getByRole("heading", { name: 'Use "Ashes" in…' })).toBeInTheDocument();
+  });
+
+  it("UX-16: rows say where their sound goes: On air for the players, Only you for a preview", async () => {
+    const { audio } = openAt("library");
+    await loaded();
+    act(() =>
+      audio.setNowPlaying({
+        rooms: [
+          {
+            roomId: "table",
+            name: "Table",
+            music: { trackId: "t44", title: "Ashes", origin: { kind: "single" }, playlistId: null, position: 0, length: 100, paused: false, loading: false },
+            ambience: null,
+            upNext: null,
+            queued: [],
+            effects: [],
+          },
+        ],
+        preview: { key: "t01", label: "x" },
+      }),
+    );
+    expect(within(row("Ashes")).getByText("On air")).toBeInTheDocument();
+    const t01 = (await screen.findAllByRole("checkbox", { name: /^Select / })).map((b) => b.closest("tr") as HTMLElement).find((r) => r.dataset.tid === "t01") as HTMLElement;
+    expect(within(t01).getByText("Only you")).toBeInTheDocument();
+  });
+});

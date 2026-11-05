@@ -1,18 +1,23 @@
 /**
- * One track's Details (library.js detailsBody): your title beside the title in the file, the file name and folder;
- * Preview, Play on air and the Audio profile; tags by typing; energy, role, looping and notes; the playlists it is in
- * and the scenes that use it.
+ * One track's Details (library.js detailsBody): your title beside the title in the file, the file name and folder,
+ * and its names in scenes (DAT-14); Preview, Play on air, the Audio profile and Use in… (ORG-12); tags by typing;
+ * energy, shape (DAT-13), role, looping and notes; the playlists it is in, the scenes that use it and where it is kept
+ * on hand. A file Lyre cannot find says so and points to Find missing files (DAT-8).
  */
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
-import { isFx, matchesRule, usesOfPlaylist, usesOfTrack, type ProfileOverrides } from "../../../common/domain";
+import { isFx, matchesRule, parseKeyOfPlace, placeLabel, shapeOf, usesOfPlaylist, usesOfTrack, type ProfileOverrides, type TrackShape } from "../../../common/domain";
 import type { CampaignInfo, LibraryTrack, PlaylistInfo, TagGroup } from "../../../common/lyre/api";
+import { trackNamesOf } from "../../../common/lyre/lookup";
 import { tagValue } from "../../../common/lyre/text";
 import { useLyreApi } from "../../api";
 import { useLyreAudio } from "../../audio";
 import { Icon } from "../../kit/Icon";
 import { cx } from "../../kit/cx";
 import { useAnnounce } from "../../shell/Announcer";
-import { addedText, EFFECT_ROLE, ENERGY_WORDS, fmt, KIND_NAMES, LOOPS, plural, profileSummary, ROLES, shownTitle } from "./model";
+import { addedText, EFFECT_ROLE, ENERGY_WORDS, fmt, KIND_NAMES, LOOPS, plural, profileSummary, ROLES, SHAPES, shownTitle } from "./model";
+import { hashOf } from "../../shell/routes";
+import { placeNamesOf } from "../../kit/placeNames";
+import { ShapeGlyph, shapeHint } from "../../kit/ShapeGlyph";
 import { focusSoon, useWriteOk, useWriteResult } from "./shared";
 import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
 import { ProfileLink } from "../../kit/ProfileLink";
@@ -30,11 +35,15 @@ export interface TrackDetailsProps {
   campaigns: CampaignInfo[];
   overrides: ProfileOverrides;
   previewing: string | null;
+  /** DAT-8: Lyre cannot find the track's file where it was. */
+  missing: boolean;
   /** A new manual playlist with these tracks (library.js newPlaylist). */
   onNewPlaylist: (ids: string[]) => void;
+  /** ORG-12: Use in… for this track. */
+  onUseIn: () => void;
 }
 
-export function TrackDetails({ t, store, groups, playlists, campaigns, overrides, previewing, onNewPlaylist }: TrackDetailsProps) {
+export function TrackDetails({ t, store, groups, playlists, campaigns, overrides, previewing, missing, onNewPlaylist, onUseIn }: TrackDetailsProps) {
   const api = useLyreApi();
   const audio = useLyreAudio();
   const { say, toast } = useAnnounce();
@@ -85,9 +94,29 @@ export function TrackDetails({ t, store, groups, playlists, campaigns, overrides
   const shown = shownTitle({ ...t, title });
   const previewOn = previewing === previewKeyOf({ kind: "track", id: t.id });
   const roles = t.kind === "fx" ? [EFFECT_ROLE, ...ROLES] : ROLES;
+  const names = useMemo(() => namesInScenes(t.id, campaigns), [t.id, campaigns]);
+
+  /** DAT-13: choosing the shape Lyre suggests is no choice of your own, so the track keeps following the suggestion. */
+  const chooseShape = async (shape: TrackShape | null) => {
+    const chosen = shape === t.suggestedShape ? null : shape;
+    const done = accept(await api.library.setShape(t.id, chosen));
+    if (!done) return;
+    store.put(done);
+    const now = shapeOf(done).shape;
+    say(now ? `Shape: ${SHAPES.find(([k]) => k === now)?.[1]}${done.shape ? "" : ", as Lyre suggests"}` : "No shape");
+  };
 
   return (
     <div className="lb-d">
+      {missing && (
+        <p className="lb-missing" role="note">
+          <Icon name="warn" size="s" />
+          <span className="grow">Lyre cannot find this file where it was. Point Lyre at the folder it moved to.</span>
+          <a className="btn s" href={hashOf("relink")}>
+            Relink…
+          </a>
+        </p>
+      )}
       <div className="field">
         <label htmlFor="lb-title">Your title</label>
         <input
@@ -164,6 +193,20 @@ export function TrackDetails({ t, store, groups, playlists, campaigns, overrides
             </>
           )}
         </dd>
+        <dt>Names in scenes</dt>
+        <dd>
+          {names.length ? (
+            <ul className="lb-scnames">
+              {names.map((n) => (
+                <li key={n.key}>
+                  <b>{n.name}</b> <span className="hint">in {n.label}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <span className="lb-none">None: it shows its own name everywhere</span>
+          )}
+        </dd>
       </dl>
       <div className="lb-acts">
         <button type="button" className="btn s lb-pvbtn" aria-pressed={previewOn} onClick={() => audio.previewTrack(t.id)}>
@@ -182,6 +225,10 @@ export function TrackDetails({ t, store, groups, playlists, campaigns, overrides
           Play on air
         </button>
         <ProfileLink trackId={t.id} title={shown} hasOwn={!!t.profile} />
+        <button type="button" className="btn s" onClick={onUseIn}>
+          <Icon name="link" size="s" />
+          Use in…
+        </button>
       </div>
       <p className="lb-prof">
         <Icon name="fade" size="s" />
@@ -220,6 +267,7 @@ export function TrackDetails({ t, store, groups, playlists, campaigns, overrides
             ))}
           </div>
         </div>
+        <ShapeChoice t={t} onChoose={(v) => void chooseShape(v)} />
         <div className="lb-tg">
           <div className="lb-tgl">Role</div>
           <ChoiceChips label="Role" options={roles} value={t.role} onChoose={(v) => void write({ role: t.role === v ? null : v })} />
@@ -248,7 +296,57 @@ export function TrackDetails({ t, store, groups, playlists, campaigns, overrides
       </section>
 
       <InPlaylists t={t} playlists={playlists} onNewPlaylist={onNewPlaylist} />
-      <UsedIn t={t} playlists={playlists} campaigns={campaigns} />
+      <UsedIn t={t} playlists={playlists} campaigns={campaigns} onUseIn={onUseIn} />
+    </div>
+  );
+}
+
+/** DAT-14: the names scenes give this track, with each scene in words ("Aftermath (Session 14)"). */
+function namesInScenes(trackId: string, campaigns: CampaignInfo[]): { key: string; name: string; label: string }[] {
+  const places = placeNamesOf(campaigns);
+  return Object.entries(trackNamesOf(campaigns)).flatMap(([key, byTrack]) => {
+    const name = byTrack[trackId]?.trim();
+    const place = parseKeyOfPlace(key);
+    return name && place ? [{ key, name, label: placeLabel(place, places) }] : [];
+  });
+}
+
+/**
+ * DAT-13 Shape: how the track moves. The shape that applies is pressed (the game master's, else Lyre's suggestion);
+ * the line under it says which, with Use the suggestion when the two differ.
+ */
+function ShapeChoice({ t, onChoose }: { t: LibraryTrack; onChoose: (shape: TrackShape | null) => void }) {
+  const labelId = useId();
+  const current = shapeOf(t).shape;
+  const hint = shapeHint(t);
+  return (
+    <div className="lb-tg">
+      <div className="lb-tgl" id={labelId}>
+        Shape
+      </div>
+      <div className="lb-shapebox">
+        <div className="chips" role="group" aria-labelledby={labelId}>
+          {SHAPES.map(([shape, word]) => (
+            <button key={shape} type="button" className="chip lb-pick" aria-pressed={current === shape} onClick={() => onChoose(shape)}>
+              <ShapeGlyph shape={shape} />
+              {word}
+            </button>
+          ))}
+        </div>
+        {hint && (
+          <p className="hint">
+            {hint}
+            {t.shape && t.suggestedShape && t.suggestedShape !== t.shape && (
+              <>
+                {" "}
+                <button type="button" className="btn s ghost" onClick={() => onChoose(null)}>
+                  Use the suggestion
+                </button>
+              </>
+            )}
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -507,7 +605,7 @@ function InPlaylists({ t, playlists, onNewPlaylist }: { t: LibraryTrack; playlis
 
 /* ---------- Used in: scenes directly, or through a playlist ---------- */
 
-function UsedIn({ t, playlists, campaigns }: { t: LibraryTrack; playlists: PlaylistInfo[]; campaigns: CampaignInfo[] }) {
+function UsedIn({ t, playlists, campaigns, onUseIn }: { t: LibraryTrack; playlists: PlaylistInfo[]; campaigns: CampaignInfo[]; onUseIn: () => void }) {
   const inLane = (p: PlaylistInfo) => (p.lane === "fx" ? isFx(t) : t.kind === p.lane);
   const mine = playlists.filter((p) => (p.kind === "manual" ? p.trackIds.includes(t.id) : inLane(p) && matchesRule(t, p.rule)));
   const scenes = new Map<string, { campaignId: string; sessionId: string; sceneId: string; direct: boolean; via: string[] }>();
@@ -520,7 +618,16 @@ function UsedIn({ t, playlists, campaigns }: { t: LibraryTrack; playlists: Playl
     }
     return e;
   };
-  for (const u of usesOfTrack(t.id, campaigns)) if (u.level === "scene") at(u).direct = true;
+  const onHand: string[] = [];
+  for (const u of usesOfTrack(t.id, campaigns)) {
+    if (u.level === "scene") at(u).direct = true;
+    else {
+      // ORG-12: kept on hand all campaign long, or for one session's evening.
+      const c = campaigns.find((x) => x.id === u.campaignId);
+      const s = u.level === "session" ? c?.sessions.find((x) => x.id === u.sessionId) : undefined;
+      onHand.push(u.level === "campaign" ? `${c?.name ?? "a campaign"} (whole campaign)` : `${c?.name ?? "a campaign"} › Session ${s?.number ?? ""}`);
+    }
+  }
   let wider = 0;
   for (const p of mine) {
     for (const u of usesOfPlaylist(p.id, campaigns)) {
@@ -540,9 +647,15 @@ function UsedIn({ t, playlists, campaigns }: { t: LibraryTrack; playlists: Playl
   };
   return (
     <section className="lb-sec" aria-labelledby="lb-h-used">
-      <h3 className="lb-h" id="lb-h-used">
-        Used in
-      </h3>
+      <div className="lb-hrow">
+        <h3 className="lb-h" id="lb-h-used">
+          Used in
+        </h3>
+        <button type="button" className="btn s" onClick={onUseIn}>
+          <Icon name="link" size="s" />
+          Use in…
+        </button>
+      </div>
       {scenes.size ? (
         <ul className="lb-pls lb-used">
           {[...scenes.values()].map((e) => {
@@ -575,6 +688,12 @@ function UsedIn({ t, playlists, campaigns }: { t: LibraryTrack; playlists: Playl
         <p className="hint">Not in any scene yet. Add it to a scene directly, or to a playlist a scene plays.</p>
       )}
       {wider > 0 && <p className="hint">Also available in {plural(wider, "campaign or session", "campaigns or sessions")} through its playlists.</p>}
+      {onHand.length > 0 && (
+        <p className="hint lb-onhand">
+          <Icon name="link" size="s" />
+          On hand in {onHand.join("; ")}
+        </p>
+      )}
     </section>
   );
 }

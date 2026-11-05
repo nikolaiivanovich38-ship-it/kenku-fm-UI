@@ -90,7 +90,7 @@ describe("the seed is the prototype's sample data", () => {
     const nothing = (): undefined => undefined;
     const box: Record<string, unknown> = {
       Math, JSON, Date, console, setTimeout, clearTimeout, setInterval: nothing, clearInterval: nothing, requestAnimationFrame: nothing, addEventListener: nothing,
-      document: page, navigator: {}, location: { hash: "" }, localStorage: { getItem: () => null, setItem: nothing }, matchMedia: () => ({ matches: false, addEventListener: nothing }),
+      document: page, navigator: {}, location: { hash: "" }, localStorage: { getItem: (): null => null, setItem: nothing }, matchMedia: () => ({ matches: false, addEventListener: nothing }),
     };
     box.window = box;
     vm.createContext(box);

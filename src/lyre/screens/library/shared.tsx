@@ -55,6 +55,20 @@ export function onAirTrackIds(now: NowPlaying): Set<string> {
   }
   return ids;
 }
+/**
+ * Tracks on air whose every lane is paused (UX-16: their On air tag turns grey). Effects are never paused, so a track
+ * also sounding as an effect is not in it.
+ */
+export function pausedTrackIds(now: NowPlaying): Set<string> {
+  const paused = new Set<string>();
+  const playing = new Set<string>();
+  for (const room of now.rooms) {
+    for (const lane of [room.music, room.ambience]) if (lane) (lane.paused ? paused : playing).add(lane.trackId);
+    for (const fx of room.effects) playing.add(fx.trackId);
+  }
+  for (const id of playing) paused.delete(id);
+  return paused;
+}
 /** Playlists the music or ambience plays through now, in any room. */
 export function onAirPlaylistIds(now: NowPlaying): Set<string> {
   const ids = new Set<string>();

@@ -262,9 +262,10 @@ test.describe("tagging many tracks at once", () => {
   });
 });
 
-/* Round 5 (design/prototype/ROUND5.md): built in wave 4, so each check waits for "round 5" in the app. */
+/* Round 5 (design/prototype/ROUND5.md). The Library's own checks are built (w4-prep-a); the last two end on the
+   transfer stream's screens (Find missing files, Back up, move or share; its ⋯ menu) and wait for "library-files".
+   In the app, the seeded library's files are nowhere on disk, so its Missing count waits for that stream too. */
 test.describe("round 5: shape, names in scenes, Use in… and missing files", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 5"));
 
   test("DAT-13: a track's shape is suggested from its loudness, and the game master's choice wins", async ({ page }) => {
     await openRoute(page, "library/t02");
@@ -308,6 +309,7 @@ test.describe("round 5: shape, names in scenes, Use in… and missing files", ()
   });
 
   test("DAT-8: files Lyre cannot find are marked Missing, have their own filter and point to Relink", async ({ page }) => {
+    expectFailureUntilBuilt("library-files");
     await openRoute(page, "library");
     await expect(row(page, /^Select Storm and dark romance/)).toContainText("Missing");
     await openFilters(page);
@@ -320,6 +322,7 @@ test.describe("round 5: shape, names in scenes, Use in… and missing files", ()
   });
 
   test("the ⋯ beside Add tracks leads to Back up, move or share, Find missing files and the move report", async ({ page }) => {
+    expectFailureUntilBuilt("library-files");
     await openRoute(page, "library");
     await page.getByRole("button", { name: "More for the library" }).click();
     await expect(page.getByRole("menuitem")).toHaveText(["Back up, move or share…", "Find missing files (3)…", "What came across from Kenku FM"]);
