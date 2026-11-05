@@ -11,6 +11,7 @@
  */
 import React from "react";
 
+import type { UsePlace } from "../../common/domain";
 import type { PadBoard } from "../../common/lyre/api";
 import { useLyreAudio, usePreviewKey } from "../audio";
 import { useAnnounce } from "../shell/Announcer";
@@ -20,8 +21,11 @@ import { HOLD_MS, useHeldPads } from "./heldPads";
 
 export type SoundTarget =
   | { kind: "track"; id: string }
-  /** empty: the playlist has no tracks, so Play on air says so instead. */
-  | { kind: "playlist"; id: string; empty?: boolean }
+  /**
+   * empty: the playlist has no tracks, so Play on air says so instead. place: the session or campaign list it is shown
+   * in, so that list's play order applies and the Now playing bar says where it comes from (PLY-13, UX-16).
+   */
+  | { kind: "playlist"; id: string; empty?: boolean; place?: UsePlace }
   /** hold: a "hold to play" pad, let go after HOLD_MS when played from a button. */
   | { kind: "pad"; boardId: string; padId: string; hold?: boolean }
   | { kind: "board"; board: PadBoard };
@@ -106,7 +110,7 @@ export function PlayOnAirButton({ target, name, tabIndex, className }: SoundButt
         return audio.playTrack(target.id, { fadeMs: PLAY_ON_AIR_FADE_MS });
       case "playlist":
         if (target.empty) return toast("This playlist has no tracks yet");
-        return audio.playPlaylist(target.id, { fadeMs: PLAY_ON_AIR_FADE_MS });
+        return audio.playPlaylist(target.id, target.place ? { fadeMs: PLAY_ON_AIR_FADE_MS, place: target.place } : { fadeMs: PLAY_ON_AIR_FADE_MS });
       case "pad":
         return press(target.boardId, target.padId, !!target.hold);
       case "board": {

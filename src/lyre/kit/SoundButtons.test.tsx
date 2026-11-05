@@ -90,6 +90,13 @@ describe("Play on air (the players hear it)", () => {
     expect(screen.getByRole("button", { name: "Play on air: Bridge" })).toHaveAttribute("title", "Play on air (the players hear it)");
   });
 
+  it("plays a playlist from the session or campaign list it is shown in, so that list's play order applies (PLY-13, UX-16)", async () => {
+    const place = { kind: "campaign" as const, campaignId: "crown" };
+    const audio = show(<PlayOnAirButton target={{ kind: "playlist", id: "p-company", place }} name="The Company themes" />);
+    await userEvent.click(screen.getByRole("button", { name: "Play on air: The Company themes" }));
+    expect(audio.calls).toEqual([["playPlaylist", "p-company", { fadeMs: 3000, place }]]);
+  });
+
   it("says so, and plays nothing, for a playlist with no tracks", async () => {
     const audio = show(<PlayOnAirButton target={{ kind: "playlist", id: "p-new", empty: true }} name="New playlist" />);
     await userEvent.click(screen.getByRole("button", { name: "Play on air: New playlist" }));
