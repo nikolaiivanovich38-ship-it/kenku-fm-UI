@@ -23,10 +23,15 @@ export type EmbeddedTags = {
   moods?: string[];
   genres?: string[];
   comment?: string | null;
+  /**
+   * UX review 3: whether the reader found audio it can measure (a format and a length). False for a file that is
+   * not audio whatever its name; left out by a reader that cannot tell (the import then trusts the extension).
+   */
+  audio?: boolean;
 };
 
 /** EmbeddedTags checked and tidied: every field present, text safe to store. */
-export type CleanTags = Required<EmbeddedTags>;
+export type CleanTags = Required<Omit<EmbeddedTags, "audio">>;
 
 export interface TagReader {
   /** The file's tags; rejects when the file cannot be read or parsed. */
@@ -109,7 +114,7 @@ export function createMusicMetadataTagReader(parseFile: ParseFile): TagReader {
       const comments = (common.comment ?? [])
         .map((comment) => (typeof comment === "string" ? comment : comment.text ?? ""))
         .filter((text) => text.trim() !== "");
-      return cleanTags({
+      const tags = cleanTags({
         title: common.title,
         artist: common.artist ?? common.albumartist,
         album: common.album,
@@ -120,6 +125,8 @@ export function createMusicMetadataTagReader(parseFile: ParseFile): TagReader {
         genres: common.genre ?? [],
         comment: comments.length > 0 ? comments.join("\n") : null,
       });
+      // Random bytes named .mp3 still "parse" (as frames of nothing), but have no length (UX review 3).
+      return { ...tags, audio: typeof format.duration === "number" && Number.isFinite(format.duration) && format.duration > 0 };
     },
   };
 }

@@ -84,6 +84,7 @@ describe("createMusicMetadataTagReader", () => {
       moods: ["Peaceful"],
       genres: ["Soundtrack", "Ambient"],
       comment: "loops well",
+      audio: true,
     });
   });
 
@@ -122,10 +123,12 @@ describe("music-metadata itself (DAT-5)", () => {
     expect(await musicMetadataTagReader.read(file)).toMatchObject({ title: null, artist: null, album: null, durationMs: 1000 });
   });
 
-  it("finds no title or length in a file that is not audio (the import then names the track after its file)", async () => {
+  it("finds no title, no length and no audio in a file that is not audio (the import then refuses it, UX review 3)", async () => {
     const file = writeFile(dir, "notes.wav", Buffer.from("not really audio"));
-    const tags = await musicMetadataTagReader.read(file).catch(() => ({ title: null as string | null, durationMs: null as number | null }));
-    expect(tags).toMatchObject({ title: null, durationMs: null });
+    const tags = await musicMetadataTagReader.read(file).catch(() => ({ title: null as string | null, durationMs: null as number | null, audio: false }));
+    expect(tags).toMatchObject({ title: null, durationMs: null, audio: false });
+    const random = writeFile(dir, "Broken file.mp3", Buffer.from(Array.from({ length: 200_000 }, (_, i) => (i * 7919 + 13) % 251)));
+    expect(await musicMetadataTagReader.read(random).catch(() => ({ audio: false }))).toMatchObject({ audio: false });
   });
 });
 

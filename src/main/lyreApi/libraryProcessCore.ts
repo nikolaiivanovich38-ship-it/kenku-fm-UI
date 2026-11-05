@@ -36,6 +36,7 @@ import {
 } from "../data";
 import { BACKUP_FOLDER_NAME } from "../data/library";
 import { musicMetadataTagReader } from "../data/import/musicMetadata";
+import { ffmpegLength } from "../media/ffmpegLength";
 import { FfmpegPeakReader } from "../media/ffmpegPeaks";
 import { createLibraryApi, type LibraryApi, type LibraryHost } from "./libraryApi";
 import { seedLibrary } from "./seedLibrary";
@@ -132,7 +133,9 @@ export function runLibraryProcess(port: PortLike, options: LibraryProcessOptions
     library = opened;
     if (seed && !opened.store.get("SELECT 1 AS found FROM tracks LIMIT 1")) await seedLibrary(opened, prototypeSeed());
     const peakReader = peakReaderFor(ffmpegPath);
-    api = createLibraryApi(opened, host, { tagReader, peakReader: peakReader ?? undefined, log });
+    // UX review 3: ffmpeg confirms a file the tag reader found no audio in, before it is added.
+    const lengthProbe = ffmpegPath ? (file: string) => ffmpegLength(ffmpegPath as string, file) : undefined;
+    api = createLibraryApi(opened, host, { tagReader, peakReader: peakReader ?? undefined, lengthProbe, log });
     server = serveLyreApi(api, port);
     if (backupsWanted && !stopBackups) stopBackups = startDailyBackups(opened, { onError: (error) => log("The daily backup failed", error) });
     port.postMessage({ t: "ready" });

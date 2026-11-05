@@ -110,9 +110,8 @@ describe("LyreLibraryService", () => {
     s.start();
     expect(await s.mediaFolders()).toEqual(["H:\\Audio\\Scores", "H:\\Audio\\Ambience", "H:\\Audio\\Effects"]);
     const dir = tempFolder();
-    fs.mkdirSync(path.join(dir, "Lute"));
-    fs.writeFileSync(path.join(dir, "Lute", "01 Lute.flac"), "x");
-    await call(s, "import", "start", { from: "paths", paths: [path.join(dir, "Lute", "01 Lute.flac")] });
+    const lute = writeFile(path.join(dir, "Lute"), "01 Lute.wav", wavBytes({ seconds: 0.5 }));
+    await call(s, "import", "start", { from: "paths", paths: [lute] });
     expect(await s.mediaFolders()).toContain(path.join(dir, "Lute"));
     await s.stop();
   });

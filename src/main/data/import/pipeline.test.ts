@@ -60,7 +60,8 @@ describe("importAudio (EDT-6)", () => {
     });
     const a = writeAudio(temp.folder, "Scores/07.flac");
     const b = writeAudio(temp.folder, "Scores/broken.mp3");
-    const result = await importAudio(t.store, { paths: [a, b] }, { tagReader: reader });
+    // UX review 3: a file whose tags cannot be read is added only when ffmpeg finds audio in it.
+    const result = await importAudio(t.store, { paths: [a, b] }, { tagReader: reader, lengthProbe: async () => 3_000 });
     const [first, second] = result.trackIds.map((id) => getTrack(t.store, id)!);
     expect(first).toMatchObject({
       title: "",
@@ -69,8 +70,8 @@ describe("importAudio (EDT-6)", () => {
       sourceAlbum: "Oblivion",
       durationMs: 155_000,
     });
-    // A file whose tags cannot be read is still added, named after its file.
-    expect(second).toMatchObject({ title: "", metaTitle: "broken", durationMs: null });
+    // A file whose tags cannot be read but which is audio is still added, named after its file.
+    expect(second).toMatchObject({ title: "", metaTitle: "broken", durationMs: 3_000 });
     expect(result.problems).toEqual([{ path: b, reason: "its tags could not be read (added without them)" }]);
     // Mood and genre tags come back as hints for tag suggestions (DAT-4), not as tags.
     expect(result.tagHints).toEqual({ [first.id]: ["Peaceful"] });
@@ -192,5 +193,48 @@ describe("refreshEmbeddedTags (DAT-5 for tracks already in the library)", () => 
       durationMs: 200_000,
     });
     expect(result).toEqual({ updated: 1, unreadable: [], missing: [] });
+  });
+});
+
+describe("files that are not audio are refused at import (UX review 3)", () => {
+  const notAudio = "not an audio file Lyre can play";
+  const readerSaying = (audio: boolean | "throws") => ({
+    read: async () => {
+      if (audio === "throws") throw new Error("could not parse");
+      return { durationMs: audio ? 95_000 : null, audio };
+    },
+  });
+
+  it("refuses a file whose content is not audio, in the words a .txt file gets", async () => {
+    const broken = writeAudio(temp.folder, "Broken file.mp3");
+    const good = writeAudio(temp.folder, "Rain.ogg");
+    const reader = { read: async (file: string) => (file === broken ? { audio: false } : { durationMs: 95_000, audio: true }) };
+    const result = await importAudio(t.store, { paths: [broken, good] }, { tagReader: reader });
+    expect(result.added).toHaveLength(1);
+    expect(result.problems).toEqual([{ path: broken, reason: notAudio }]);
+    expect(result.summary).toBe(`Added 1 track. 1 could not be added: Broken file.mp3 (${notAudio}).`);
+    expect(listTracks(t.store)).toHaveLength(1);
+  });
+
+  it("refuses a file the tag library cannot read at all, unless ffmpeg finds audio in it", async () => {
+    const odd = writeAudio(temp.folder, "Odd.ac3");
+    const refused = await importAudio(t.store, { paths: [odd] }, { tagReader: readerSaying("throws") });
+    expect(refused.problems).toEqual([{ path: odd, reason: notAudio }]);
+    const probed = await importAudio(t.store, { paths: [odd] }, { tagReader: readerSaying("throws"), lengthProbe: async () => 4_000 });
+    expect(probed.added).toHaveLength(1);
+    expect(getTrack(t.store, probed.added[0])!.durationMs).toBe(4_000);
+  });
+
+  it("asks ffmpeg for the length when the tag library finds no length, and refuses when ffmpeg finds none either", async () => {
+    const a = writeAudio(temp.folder, "a.mpc");
+    const b = writeAudio(temp.folder, "b.mp3");
+    const result = await importAudio(t.store, { paths: [a, b] }, { tagReader: readerSaying(false), lengthProbe: async (file) => (file === a ? 12_000 : null) });
+    expect(result.added.map((id) => getTrack(t.store, id)!.durationMs)).toEqual([12_000]);
+    expect(result.problems).toEqual([{ path: b, reason: notAudio }]);
+  });
+
+  it("still adds files when no tag library is there to check them (tests, and a damaged install)", async () => {
+    const a = writeAudio(temp.folder, "a.flac");
+    expect((await importAudio(t.store, { paths: [a] })).added).toHaveLength(1);
   });
 });

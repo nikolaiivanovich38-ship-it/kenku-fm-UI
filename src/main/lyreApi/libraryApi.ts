@@ -140,6 +140,8 @@ export interface LibraryApiOptions {
   tagReader?: TagReader;
   /** Works out loudness peaks from files (ffmpeg); without it `library.peaksOf` answers null. */
   peakReader?: PeakReader;
+  /** ffmpeg's length of a file the tag reader found no audio in (UX review 3); without it such a file is refused. */
+  lengthProbe?: (filePath: string) => Promise<number | null>;
   /** How often a "changed" event for "peaks" may be sent while they are worked out (default 250 ms). */
   peakNotifyEveryMs?: number;
   log?: (message: string, error?: unknown) => void;
@@ -1006,7 +1008,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           }
           let added = false;
           const done = await writeOutside([], async () => {
-            const result = await importAudio(store, { paths }, { tagReader: options.tagReader, onProgress: (progress) => emit({ type: "import-progress", progress }) });
+            const result = await importAudio(store, { paths }, { tagReader: options.tagReader, lengthProbe: options.lengthProbe, onProgress: (progress) => emit({ type: "import-progress", progress }) });
             added = result.added.length > 0;
             peakJobs?.inBackground(result.added);
             // The import clears the undo history (DB review item 10), so the history changed too.
