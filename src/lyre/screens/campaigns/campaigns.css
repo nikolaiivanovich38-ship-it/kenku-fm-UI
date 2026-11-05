@@ -45,9 +45,9 @@
 .cp-th-name input { flex: none; }
 .cp-th-sub { font-size: var(--fs-xs); color: var(--ink-2); padding-left: 21px; }
 .sheet > .panel[data-theme] { color: var(--ink); font: var(--fs)/1.38 var(--body); }
-/* The app's sheets: in a short window the panel stays inside it and its body scrolls, so Done and Cancel stay in
-   reach (ui.css's percentage max-height does not hold inside the sheet's grid). */
-.sheet > .panel:has(.cp-sheet, .cp-form) { max-height: calc(100vh - 32px); }
+/* This screen's sheets stay inside a small window and their body scrolls, so Done and Cancel stay in reach.
+   (ui.css sizes the panel in percentages of the sheet's grid track, which grows with long rows instead.) */
+.sheet > .panel:has(.cp-sheet, .cp-form) { min-width: 0; max-width: calc(100vw - 32px); max-height: calc(100vh - 32px); }
 
 /* ---------- Campaign and Session pages: shared layout ---------- */
 .cp-body { gap: var(--gap); }
