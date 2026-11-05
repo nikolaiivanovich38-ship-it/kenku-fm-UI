@@ -121,7 +121,8 @@ import {
   type UseTarget,
 } from "../data";
 import { fileExists } from "../data/import/fileFacts";
-import { joinRoot } from "../data/paths";
+import { joinRoot, unsafeFolderReason } from "../data/paths";
+import { withCheckedArguments } from "./argChecks";
 import { Refused } from "./refused";
 
 /** What the library's API asks of the app around it: a person to choose files, the desktop to show a folder. */
@@ -1053,6 +1054,9 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           return { ok: true, value: none, changed: [], undoLabel: stateLabel() };
         }
         return writeOutside([], async () => {
+          // Security review 5: looking through a whole drive or a system folder would read every file in it.
+          const unsafe = unsafeFolderReason(folder);
+          if (unsafe) refuse("invalid", unsafe, "path");
           const plan = await planRelink(store, await findMissingTracks(store), folder);
           planned = new Map(plan.matches.map((m) => [relinkKey(m.trackId, m.to), m]));
           plannedChoices = new Set(plan.ambiguous.flatMap((a) => a.candidates.map((to) => relinkKey(a.trackId, to))));
@@ -1126,5 +1130,6 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       };
     },
   };
-  return api;
+  // Security review 5: every method's arguments are checked for their shape before the library acts on them.
+  return withCheckedArguments(api, options.log);
 }
