@@ -3,7 +3,7 @@
  * variants, or any effect with a tag), Play mode, Hotkey, Colour, Icon, Volume and Fade out. Every change is saved
  * at once through LyreApi; text is saved as you type.
  */
-import React, { useId, useState } from "react";
+import React, { useEffect, useId, useState } from "react";
 import type { LibraryTrack, Pad, PadBoard, PadColor, PadPatch, TagGroup, TagRef } from "../../../common/lyre/api";
 import { PAD_COLORS } from "../../../common/lyre/api";
 import { trackTitle } from "../../audio/lyreAudio";
@@ -58,6 +58,8 @@ export function PadEditor(props: PadEditorProps) {
   const previewing = sound.previewing(board.id, pad.id);
   const label = useSavedText(pad.label, (text) => text.trim() && void update({ label: text.trim() }, pad.id), pad.id);
   const shownLabel = label.value.trim() ? label.value : pad.label;
+  const color = useChosen(pad.id, pad.color, (c) => update({ color: c }, pad.id));
+  const icon = useChosen(pad.id, pad.icon, (i) => update({ icon: i }, pad.id));
 
   return (
     <Pane
@@ -132,12 +134,12 @@ export function PadEditor(props: PadEditorProps) {
         <Hotkey {...props} />
         <fieldset className="pb-fs">
           <legend>
-            Colour <span className="pb-cur">{PAD_COLOUR[pad.color]?.name}</span>
+            Colour <span className="pb-cur">{PAD_COLOUR[color.value]?.name}</span>
           </legend>
           <div className="pb-swatches">
             {PAD_COLORS.map((c: PadColor) => (
               <label key={c} className="pb-sw" title={PAD_COLOUR[c].name} style={{ "--pc": PAD_COLOUR[c].hex } as React.CSSProperties}>
-                <input type="radio" className="pb-vh" name={`${ids}-colour`} value={c} checked={pad.color === c} onChange={() => void update({ color: c })} />
+                <input type="radio" className="pb-vh" name={`${ids}-colour`} value={c} checked={color.value === c} onChange={() => color.choose(c)} />
                 <span className="pb-sw-dot" />
                 <span className="sr-only">{PAD_COLOUR[c].name}</span>
               </label>
@@ -146,13 +148,13 @@ export function PadEditor(props: PadEditorProps) {
         </fieldset>
         <fieldset className="pb-fs">
           <legend>
-            Icon <span className="pb-cur">{iconName(pad.icon)}</span>
+            Icon <span className="pb-cur">{iconName(icon.value)}</span>
           </legend>
           <div className="pb-icons">
-            {PAD_ICONS.map(([icon, name]) => (
-              <label key={icon} className="pb-ic" title={name}>
-                <input type="radio" className="pb-vh" name={`${ids}-icon`} value={icon} checked={pad.icon === icon} onChange={() => void update({ icon })} />
-                <Icon name={icon} />
+            {PAD_ICONS.map(([id, name]) => (
+              <label key={id} className="pb-ic" title={name}>
+                <input type="radio" className="pb-vh" name={`${ids}-icon`} value={id} checked={icon.value === id} onChange={() => icon.choose(id)} />
+                <Icon name={id} />
                 <span className="sr-only">{name}</span>
               </label>
             ))}
@@ -162,6 +164,30 @@ export function PadEditor(props: PadEditorProps) {
       </div>
     </Pane>
   );
+}
+
+/**
+ * BUG-16: a choice among radio buttons (colour, icon) shows at once and stays shown until the library has saved it.
+ * Showing the pad's saved value instead made the radio jump back while the save was on its way; React then lost track
+ * of which button the browser had ticked, so clicking the same icon again did nothing.
+ */
+function useChosen<T extends string>(padId: string, saved: T, save: (value: T) => Promise<unknown>) {
+  const [chosen, setChosen] = useState<{ padId: string; value: T } | null>(null);
+  const pending = chosen?.padId === padId ? chosen.value : null;
+  // Saved (or another pad shown): the library's value is the one to show again.
+  useEffect(() => {
+    if (pending !== null && pending === saved) setChosen(null);
+  }, [pending, saved]);
+  return {
+    value: pending ?? saved,
+    choose: (value: T) => {
+      setChosen({ padId, value });
+      void save(value).then((result) => {
+        // Refused (the toast says why): show what is saved again.
+        if (result === null || result === undefined) setChosen((now) => (now?.padId === padId && now.value === value ? null : now));
+      });
+    },
+  };
 }
 
 /* ---------- Sound ---------- */

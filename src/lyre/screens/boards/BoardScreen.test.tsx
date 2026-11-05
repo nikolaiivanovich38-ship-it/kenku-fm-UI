@@ -446,6 +446,68 @@ describe("the selected pad's own box", () => {
     await waitFor(async () => expect((await api.boards.list()).find((b) => b.id === "weather")!.slots[0]).toMatchObject({ color: "sea", icon: "rain" }));
   });
 
+  it("every icon can be picked in turn, by mouse and by keyboard, and each choice is kept (BUG-16)", async () => {
+    const user = userEvent.setup();
+    const { api } = await open("board/weather");
+    const icons = within(screen.getByRole("group", { name: /^Icon / }));
+    const stored = async () => (await api.boards.list()).find((b) => b.id === "weather")!.slots[0]!.icon;
+    const names = icons.getAllByRole("radio").map((r) => r.getAttribute("value")!);
+    expect(names.length).toBeGreaterThan(20);
+    // By mouse, one after another as a person would, without waiting for each to be saved.
+    for (const radio of icons.getAllByRole("radio").reverse()) {
+      await user.click(radio);
+      expect(radio).toBeChecked();
+    }
+    await waitFor(async () => expect(await stored()).toBe(names[0]));
+    for (const radio of icons.getAllByRole("radio")) {
+      await user.click(radio);
+      await waitFor(() => expect(radio).toBeChecked());
+    }
+    await waitFor(async () => expect(await stored()).toBe(names[names.length - 1]));
+    // By keyboard: the arrows move through the icons, each one chosen as it is reached.
+    icons.getAllByRole("radio")[names.length - 1].focus();
+    for (const name of [...names].slice(0, -1).reverse()) {
+      await user.keyboard("{ArrowLeft}");
+      const radio = icons.getByRole("radio", { checked: true });
+      expect(radio).toHaveAttribute("value", name);
+      expect(radio).toHaveFocus();
+    }
+    await waitFor(async () => expect(await stored()).toBe(names[0]));
+    expect(screen.getByRole("group", { name: /^Icon / })).toHaveAccessibleName(/^Icon Crossed swords/);
+  });
+
+  it("an icon or colour chosen shows as chosen at once, even while the library is slow to save it, and a second click is not lost (BUG-16)", async () => {
+    const user = userEvent.setup();
+    const { api } = await open("board/weather");
+    // The library answers late, as it can on a big library: each save waits until the test lets it go.
+    const waiting: (() => void)[] = [];
+    const updatePad = api.boards.updatePad.bind(api.boards);
+    api.boards.updatePad = (...args: Parameters<typeof updatePad>) =>
+      new Promise<void>((resolve) => waiting.push(resolve)).then(() => updatePad(...args));
+    const release = async () => {
+      await act(async () => {
+        waiting.splice(0).forEach((go) => go());
+        await new Promise((resolve) => setTimeout(resolve, 20));
+      });
+    };
+    const stored = async () => (await api.boards.list()).find((b) => b.id === "weather")!.slots[0]!;
+    const rain = screen.getByRole("radio", { name: "Rain" });
+    await user.click(rain);
+    expect(rain).toBeChecked();
+    // Clicked again while the first save is still on its way: still chosen, and it is kept.
+    await user.click(rain);
+    expect(rain).toBeChecked();
+    await user.click(screen.getByRole("radio", { name: "Sea" }));
+    expect(screen.getByRole("radio", { name: "Sea" })).toBeChecked();
+    expect(screen.getByRole("group", { name: /^Colour / })).toHaveAccessibleName(/^Colour Sea/);
+    expect(screen.getByRole("group", { name: /^Icon / })).toHaveAccessibleName(/^Icon Rain/);
+    await release();
+    await release();
+    await waitFor(async () => expect(await stored()).toMatchObject({ icon: "rain", color: "sea" }));
+    expect(rain).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Sea" })).toBeChecked();
+  });
+
   it("the pad's menu duplicates, and deletes after asking", async () => {
     const user = userEvent.setup();
     await open("board/combat");
