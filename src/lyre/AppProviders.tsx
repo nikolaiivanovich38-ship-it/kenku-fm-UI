@@ -126,6 +126,7 @@ function ShellDataFromLibrary({ children }: { children: React.ReactNode }) {
       campaignTheme: (id: string) => themes.get(id),
       liveCampaign: live?.campaignId,
       liveLabel: session ? `Live: S${session.number}` : undefined,
+      liveName: session ? `Live: session ${session.number}` : undefined,
       onAirBar: ON_AIR_BAR,
     };
   }, [campaigns, live]);

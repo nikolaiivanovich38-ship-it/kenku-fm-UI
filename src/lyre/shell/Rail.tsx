@@ -12,9 +12,9 @@ interface RailProps {
 
 /** The rail: Lyre's sections, in the prototype's order, with Look and feel and "Icons only" at the bottom. */
 export function Rail({ section, min, onToggleMin }: RailProps) {
-  const { liveLabel, outputsLabel } = useShellData();
-  const link = (to: Section, icon: IconName, label: string) => (
-    <a href={hashOf(to)} aria-current={section === to ? "page" : undefined} title={min ? label : undefined}>
+  const { liveLabel, liveName, outputsLabel } = useShellData();
+  const link = (to: Section, icon: IconName, label: string, name?: string) => (
+    <a href={hashOf(to)} aria-current={section === to ? "page" : undefined} title={min ? label : undefined} aria-label={name}>
       <Icon name={icon} />
       <span className="lbl">{label}</span>
     </a>
@@ -31,7 +31,7 @@ export function Rail({ section, min, onToggleMin }: RailProps) {
           {link("library", "library", "Library")}
           {link("playlists", "playlist", "Playlists")}
           {link("boards", "grid", "Pad boards")}
-          {link("live", "broadcast", liveLabel ?? "Live")}
+          {link("live", "broadcast", liveLabel ?? "Live", liveLabel ? liveName : undefined)}
           {link("outputs", "users", outputsLabel ?? "Outputs")}
         </div>
       </nav>

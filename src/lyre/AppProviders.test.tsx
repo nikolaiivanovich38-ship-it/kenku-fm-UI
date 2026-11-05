@@ -158,10 +158,13 @@ describe("AppProviders", () => {
       const nav = await screen.findByRole("navigation", { name: "Lyre" });
       expect(nav).toHaveTextContent(/Live$|LiveOutputs/);
       act(() => loadInLive({ campaignId: "crown", sessionId: "s14" }));
-      expect(await screen.findByRole("link", { name: "Live: S14" })).toHaveAttribute("href", "#/live");
+      // Seen as "Live: S14", read as "Live: session 14" (review w3-polish 11).
+      const live = await screen.findByRole("link", { name: "Live: session 14" });
+      expect(live).toHaveAttribute("href", "#/live");
+      expect(live).toHaveTextContent("Live: S14");
       await waitFor(() => expect(document.documentElement.dataset.theme).toBe("hearth"));
       act(() => loadInLive({ campaignId: "crown", sessionId: "s12" }));
-      expect(await screen.findByRole("link", { name: "Live: S12" })).toBeInTheDocument();
+      expect(await screen.findByRole("link", { name: "Live: session 12" })).toBeInTheDocument();
       act(() => loadInLive(null));
       expect(await screen.findByRole("link", { name: "Live" })).toBeInTheDocument();
     });

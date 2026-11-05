@@ -13,6 +13,8 @@ export interface ShellData {
   liveCampaign?: string;
   /** The rail's Live link, e.g. "Live: S14" while a session is loaded. */
   liveLabel?: string;
+  /** The same as a screen reader should say it, e.g. "Live: session 14" (S14 is read letter by letter). */
+  liveName?: string;
   /** The rail's Outputs link, e.g. "Outputs (1/2)": bots connected of all bots. */
   outputsLabel?: string;
   /** Outside Live, the slim bar at the foot of the screen showing what the players hear (from the audio host). */
