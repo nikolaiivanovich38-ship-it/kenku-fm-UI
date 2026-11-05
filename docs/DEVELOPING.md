@@ -105,7 +105,10 @@ The demo kit lets the product owner try every feature of a release, and run its 
 | `Ambience/` | Two 30 s loops, mono 22.05 kHz, about -22 LUFS: rain and wind, hearth fire |
 | `Effects/` | Five one-shots, mono 44.1 kHz, about -18 LUFS: sword clash, door knock, magic chime, thunder, coin pouch |
 | `Local soundboard/` | `soundboard.html`, `notes.txt` and three of the effects in `sounds/`: a page to open from the address bar (SEC-15). Its buttons play the sounds next to it, read `notes.txt` (allowed), and try `../README.txt` and `https://example.com` (both should show "Blocked" in Lyre) |
+| `Extra formats/` | From 0.3.0: an AIFF copy of the magic chime (the Lyre tab plays it through a converted copy) and a text file named `….mp3` (the Lyre tab refuses it as not audio) |
 | `README.txt` | What the kit is and how to use it, in plain words |
+
+Every WAV carries RIFF INFO tags (title: the part of its name before " - "; artist "Lyre demo kit"; album "Lyre demo kit: <folder>"), so the Lyre tab's Library shows file tags; the test reads them back with music-metadata, Lyre's own tag reader.
 
 Everything is made by `scripts/demo-kit/build.mjs` with Node.js only (no libraries, no network): the music is composed and synthesised in code (plucked strings, additive pads and brass, a Freeverb-style reverb), the ambience and effects come from filtered noise and resonators, and each sound is brought to its loudness (ITU-R BS.1770, the "LUFS" measure) with peaks held under -1.5 dBFS by a limiter. Random numbers come from fixed seeds, so the same Node.js version always builds byte-identical files and zip.
 

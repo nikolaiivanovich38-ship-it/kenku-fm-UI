@@ -10,7 +10,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { encodeWav, master } from "./audio.mjs";
+import { encodeAiff, encodeWav, master, withInfoTags } from "./audio.mjs";
 import { heroicSting, melancholyDrift, tavernWarmth, tenseCrossing } from "./music.mjs";
 import { coinPouch, doorKnock, hearthFire, magicChime, rainAndWind, swordClash, thunder } from "./sounds.mjs";
 import { createZip } from "./zip.mjs";
@@ -49,6 +49,17 @@ export const SOUNDBOARD_COPIES = {
   "Local soundboard/sounds/magic-chime.wav": "Effects/Magic Chime - rising sparkle.wav",
 };
 
+/**
+ * 0.3.0 checks: an AIFF copy of an effect (Lyre plays it through a converted copy) and a text file named like an
+ * MP3 (Lyre refuses it as not audio). Path in the kit to the sound it copies, or to null for the text file.
+ */
+export const EXTRA_FORMATS = {
+  "Extra formats/Magic Chime - AIFF copy.aiff": "Effects/Magic Chime - rising sparkle.wav",
+  "Extra formats/Not audio - a text file named like an MP3.mp3": null,
+};
+
+const NOT_AUDIO_TEXT = "This is not a sound. It is a text file whose name ends in .mp3, so you can check that Lyre refuses it.\n";
+
 /** Text files for Windows Notepad: Windows line endings. */
 function windowsText(text) {
   return Buffer.from(text.replace(/\r?\n/g, "\r\n"), "utf8");
@@ -69,8 +80,12 @@ export function makeKitFiles(version) {
   for (const { file, make, kind } of SOUNDS) {
     const { channels, rate } = make();
     master(channels, rate, TARGET_LUFS[kind]);
-    files.set(file, encodeWav(channels, rate));
+    const [folder, name] = file.split("/");
+    const tags = { title: name.replace(/\.wav$/, "").split(" - ")[0], artist: "Lyre demo kit", album: `Lyre demo kit: ${folder}` };
+    files.set(file, withInfoTags(encodeWav(channels, rate), tags));
+    for (const [copy, original] of Object.entries(EXTRA_FORMATS)) if (original === file) files.set(copy, encodeAiff(channels, rate));
   }
+  for (const [copy, original] of Object.entries(EXTRA_FORMATS)) if (original === null) files.set(copy, windowsText(NOT_AUDIO_TEXT));
   files.set("Local soundboard/soundboard.html", fs.readFileSync(path.join(here, "files/soundboard.html")));
   files.set("Local soundboard/notes.txt", windowsText(fs.readFileSync(path.join(here, "files/notes.txt"), "utf8")));
   for (const [copy, original] of Object.entries(SOUNDBOARD_COPIES)) files.set(copy, files.get(original));
