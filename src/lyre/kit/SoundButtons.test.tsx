@@ -114,6 +114,42 @@ describe("Play on air (the players hear it)", () => {
   });
 });
 
+describe("a hold pad pressed from Play on air (review w3-polish 10)", () => {
+  const ups = (audio: FakeLyreAudio) => audio.calls.filter((c) => c[0] === "firePad" && c[3] === "up").length;
+
+  it("a second press within 1.5 s keeps it held 1.5 s from that press, and lets go once", () => {
+    vi.useFakeTimers();
+    const audio = show(<PlayOnAirButton target={{ kind: "pad", boardId: "combat", padId: "sword", hold: true }} name="Sword" />);
+    const button = screen.getByRole("button", { name: "Play on air: Sword" });
+    act(() => button.click());
+    act(() => vi.advanceTimersByTime(1000));
+    act(() => button.click());
+    act(() => vi.advanceTimersByTime(1000));
+    expect(ups(audio)).toBe(0);
+    act(() => vi.advanceTimersByTime(600));
+    expect(ups(audio)).toBe(1);
+    act(() => vi.advanceTimersByTime(3000));
+    expect(ups(audio)).toBe(1);
+  });
+
+  it("is let go at once when the button goes away while it is held", () => {
+    vi.useFakeTimers();
+    const audio = new FakeLyreAudio();
+    const { unmount } = render(
+      <LyreAudioProvider audio={audio}>
+        <AnnouncerProvider>
+          <PlayOnAirButton target={{ kind: "pad", boardId: "combat", padId: "sword", hold: true }} name="Sword" />
+        </AnnouncerProvider>
+      </LyreAudioProvider>,
+    );
+    act(() => screen.getByRole("button", { name: "Play on air: Sword" }).click());
+    unmount();
+    expect(ups(audio)).toBe(1);
+    act(() => vi.advanceTimersByTime(3000));
+    expect(ups(audio)).toBe(1);
+  });
+});
+
 describe("many Preview buttons (review w3-polish 5)", () => {
   it("draw again only when what previews changes, not on every now-playing tick", () => {
     const audio = new FakeLyreAudio();
