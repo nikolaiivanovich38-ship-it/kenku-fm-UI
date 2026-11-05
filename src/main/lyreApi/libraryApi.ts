@@ -203,8 +203,14 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
   const { store, history } = library;
   const listeners = new Set<(event: LyreEvent) => void>();
   let importing = false;
-  /** The full facts of the last relink plan's matches, so applying it can check the files are still the same. */
+  /**
+   * The last relink plan (security review 4): its matches with their full facts, and the files offered for each
+   * ambiguous track. applyRelink accepts only these; the plan is used up when applied, and is not kept across a
+   * restart of the library's process (a match is then refused, and the game master looks again).
+   */
   let planned = new Map<string, RelinkMatch>();
+  let plannedChoices = new Set<string>();
+  const relinkKey = (trackId: string, to: string) => `${trackId}\u0000${to}`;
 
   const emit = (event: LyreEvent) => {
     for (const listener of [...listeners]) listener(event);
@@ -1048,7 +1054,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
         }
         return writeOutside([], async () => {
           const plan = await planRelink(store, await findMissingTracks(store), folder);
-          planned = new Map(plan.matches.map((m) => [`${m.trackId}\u0000${m.to}`, m]));
+          planned = new Map(plan.matches.map((m) => [relinkKey(m.trackId, m.to), m]));
+          plannedChoices = new Set(plan.ambiguous.flatMap((a) => a.candidates.map((to) => relinkKey(a.trackId, to))));
           return {
             folder,
             matches: plan.matches.map((m) => ({ trackId: m.trackId, from: m.from, to: m.to, confidence: m.confidence })),
@@ -1061,10 +1068,15 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       async applyRelink(matches) {
         return write(["tracks"], async () => {
           matches.forEach((m) => requireTrack(m.trackId));
-          await applyRelink(
-            store,
-            matches.map((m) => planned.get(`${m.trackId}\u0000${m.to}`) ?? { trackId: m.trackId, to: m.to }),
-          );
+          const chosen = matches.map((m) => {
+            const key = relinkKey(m.trackId, m.to);
+            const match = planned.get(key) ?? (plannedChoices.has(key) ? { trackId: m.trackId, to: m.to } : undefined);
+            if (!match) refuse("invalid", "Lyre did not find that file for this track. Look for the missing files again, then relink.", "to");
+            return match;
+          });
+          await applyRelink(store, chosen);
+          planned = new Map();
+          plannedChoices = new Set();
           return { relinked: matches.map((m) => m.trackId) };
         });
       },

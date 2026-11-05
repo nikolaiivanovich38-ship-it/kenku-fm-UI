@@ -119,4 +119,46 @@ describe("main-process LyreApi only", () => {
     library.close();
     fs.rmSync(dir, { recursive: true, force: true });
   });
+
+  describe("relinking only what the library planned (security review 4)", () => {
+    async function planned() {
+      const { dir, library, write } = await seededLibrary();
+      const folder = path.dirname(write("moved/07 Memories of Mother.flac"));
+      const api = createLibraryApi(library, testHost());
+      const plan = valueOf(await api.import.planRelink({ from: "path", path: folder }));
+      const match = plan.matches.find((m) => m.trackId === "t43");
+      const done = () => {
+        library.close();
+        fs.rmSync(dir, { recursive: true, force: true });
+      };
+      return { dir, library, api, match, done };
+    }
+    const pathOf = (library: ReturnType<typeof openLibrary>, id: string) => library.store.get<{ path: string | null }>("SELECT path FROM tracks WHERE id = ?", id)?.path;
+
+    it("refuses a match the plan did not offer, and changes nothing", async () => {
+      const { library, api, done } = await planned();
+      const before = pathOf(library, "t43");
+      const answer = await api.import.applyRelink([{ trackId: "t43", to: "/etc/passwd" }]);
+      expect(answer).toMatchObject({ ok: false, refusal: { code: "invalid" } });
+      expect((answer as { refusal: { message: string } }).refusal.message).toMatch(/Look for the missing files again/);
+      expect(pathOf(library, "t43")).toBe(before);
+      done();
+    });
+
+    it("applies a planned match once, keeping the file's facts; the plan is then used up", async () => {
+      const { library, api, match, done } = await planned();
+      valueOf(await api.import.applyRelink([{ trackId: match.trackId, to: match.to }]));
+      const row = library.store.get<{ file_size: number | null }>("SELECT file_size FROM tracks WHERE id = 't43'");
+      expect(row?.file_size).toBe(fs.statSync(match.to).size);
+      expect(await api.import.applyRelink([{ trackId: match.trackId, to: match.to }])).toMatchObject({ ok: false, refusal: { code: "invalid" } });
+      done();
+    });
+
+    it("refuses an old plan's match after the library has started again (the plan is not kept)", async () => {
+      const { library, match, done } = await planned();
+      const restarted = createLibraryApi(library, testHost());
+      expect(await restarted.import.applyRelink([{ trackId: match.trackId, to: match.to }])).toMatchObject({ ok: false, refusal: { code: "invalid" } });
+      done();
+    });
+  });
 });
