@@ -16,7 +16,7 @@ import { EnergyMeter } from "../../kit/Pills";
 import { Icon } from "../../kit/Icon";
 import { cx } from "../../kit/cx";
 import { fmt, kindMark, shownTitle } from "./model";
-import { PopMenuButton, type PopMenuEntry } from "./shared";
+import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
 import { PlayOnAirButton, PreviewButton } from "../../kit/SoundButtons";
 
 /** Rows drawn beyond the visible ones, so fast scrolling shows no gaps. */

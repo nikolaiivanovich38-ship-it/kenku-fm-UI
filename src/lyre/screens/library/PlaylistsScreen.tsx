@@ -21,7 +21,8 @@ import { DropNotice, DropZone, dropFiles, useDropState, useFileDrops, type DropT
 import { KIND_WORDS, matchesQuery, newlyMade, soundName, useDropActions } from "./playlistParts";
 import { PlaylistPage } from "./PlaylistPage";
 import { UseInDialog } from "./UseInDialog";
-import { onAirPlaylistIds, PlaylistContents, PopMenuButton, TwoLines, useWriteResult, type PopMenuEntry } from "./shared";
+import { onAirPlaylistIds, PlaylistContents, useWriteResult } from "./shared";
+import { PopMenuButton, TwoLines, type PopMenuEntry } from "../../kit/PopMenu";
 import { PlayOnAirButton, PreviewButton } from "../../kit/SoundButtons";
 import "./library.css";
 import "./playlists.css";

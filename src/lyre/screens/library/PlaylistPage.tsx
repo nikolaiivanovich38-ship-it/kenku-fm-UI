@@ -21,7 +21,8 @@ import { fmt, fmtLong, KIND_NAMES, plural, ruleWords, shownTitle, tagsOf } from 
 import { nameUses, usePlaylistData, usedText, type PlaylistData } from "./playlistData";
 import { DropNotice, DropZone, dropFiles, useDropState, useFileDrops, type DropTarget } from "./playlistDrops";
 import { KindLane, matchesQuery, newlyMade, soundName, useDropActions } from "./playlistParts";
-import { focusSoon, onAirPlaylistIds, onAirTrackIds, PopMenuButton, useWriteOk, useWriteResult, type PopMenuEntry } from "./shared";
+import { focusSoon, onAirPlaylistIds, onAirTrackIds, useWriteOk, useWriteResult } from "./shared";
+import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
 import { previewKeyOf } from "../../kit/SoundButtons";
 import { UseInDialog } from "./UseInDialog";
 import "./library.css";

@@ -13,7 +13,8 @@ import { Icon } from "../../kit/Icon";
 import { cx } from "../../kit/cx";
 import { useAnnounce } from "../../shell/Announcer";
 import { addedText, EFFECT_ROLE, ENERGY_WORDS, fmt, KIND_NAMES, LOOPS, plural, profileSummary, ROLES, shownTitle } from "./model";
-import { focusSoon, PopMenuButton, useWriteOk, useWriteResult, type PopMenuEntry } from "./shared";
+import { focusSoon, useWriteOk, useWriteResult } from "./shared";
+import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
 import { previewKeyOf } from "../../kit/SoundButtons";
 import type { TrackStore } from "./trackStore";
 
