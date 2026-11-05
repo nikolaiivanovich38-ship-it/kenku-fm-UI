@@ -541,3 +541,77 @@ describe("problems", () => {
     expect(change).toHaveBeenCalled();
   });
 });
+
+describe("volume normalisation (PLY-15)", () => {
+  const at = (id: string) => data.tracks.find((t) => t.id === id)!;
+  const report = (room = "table") => director.report().find((r) => r.roomId === room)!;
+  beforeEach(() => {
+    // At Standard (-18 LUFS): m1 is turned down 6 dB, m2 up 6 dB, m3 up 3 dB; fx1 down 6 dB.
+    at("m1").loudness = { lufs: -12, truePeakDb: -2 };
+    at("m2").loudness = { lufs: -24, truePeakDb: -10 };
+    at("m3").loudness = { lufs: -21, truePeakDb: -10 };
+    at("fx1").loudness = { lufs: -12, truePeakDb: -3 };
+  });
+
+  it("plays every track as it is while normalising is off, the library's default", async () => {
+    await run({ type: "playTrack", trackId: "m1", target: table, fadeMs: 0 });
+    await context.advance(0.5);
+    expect(report().music?.gainDb).toBe(0);
+    expect(rooms.hear("table", "music")).toBeCloseTo(1, 2);
+  });
+
+  it("the library's setting evens a track out at its target, and the report says by how much", async () => {
+    data.normalise = { on: true, target: "standard" };
+    await run({ type: "playTrack", trackId: "m1", target: table, fadeMs: 0 });
+    await context.advance(0.5);
+    expect(report().music?.gainDb).toBe(-6);
+    expect(rooms.hear("table", "music")).toBeCloseTo(0.501, 2);
+  });
+
+  it("a playlist's choice applies to the tracks played from it; a track's own choice wins over it", async () => {
+    (data.playlists.find((p) => p.id === "P") as { normalise?: string }).normalise = "on";
+    at("m3").normalise = "off";
+    await run({ type: "playPlaylist", playlistId: "P", target: table, fadeMs: 0 });
+    await context.advance(0.5);
+    expect(report().music).toMatchObject({ trackId: "m2", gainDb: 6 });
+    expect(rooms.hear("table", "music")).toBeCloseTo(1.995, 2);
+    await run({ type: "next", lane: "music", target: table, fadeMs: 0 });
+    await context.advance(0.5);
+    expect(report().music).toMatchObject({ trackId: "m3", gainDb: 0 });
+    expect(rooms.hear("table", "music")).toBeCloseTo(1, 2);
+  });
+
+  it("a crossfade moves from one track's gain to the next one's", async () => {
+    data.normalise = { on: true, target: "standard" };
+    await run({ type: "playTrack", trackId: "m1", target: table, fadeMs: 0 });
+    await context.advance(0.5);
+    await run({ type: "playTrack", trackId: "m2", target: table, fadeMs: 2000 });
+    await context.advance(1);
+    const between = rooms.hear("table", "music");
+    expect(between).toBeGreaterThan(0.4);
+    expect(between).toBeLessThan(1.995);
+    await context.advance(2);
+    expect(rooms.hear("table", "music")).toBeCloseTo(1.995, 2);
+  });
+
+  it("effects and pads follow the same settings", async () => {
+    data.normalise = { on: true, target: "standard" };
+    await run({ type: "firePad", boardId: "b", padId: "door", target: table });
+    await context.advance(0.1);
+    expect(rooms.hear("table", "effects")).toBeCloseTo(0.501, 2);
+  });
+
+  it("what plays follows a change of the settings at once, smoothly", async () => {
+    await run({ type: "playTrack", trackId: "m2", target: table, fadeMs: 0 });
+    await run({ type: "playTrack", trackId: "amb1", target: table, fadeMs: 0 });
+    await context.advance(0.5);
+    expect(rooms.hear("table", "music")).toBeCloseTo(1, 2);
+    data.normalise = { on: true, target: "loud" };
+    director.libraryChanged();
+    await context.advance(0.5);
+    // Loud (-14 LUFS) would need +10 dB; the true peak (-10 dBTP) allows +9 dB.
+    expect(report().music?.gainDb).toBe(9);
+    expect(rooms.hear("table", "music")).toBeCloseTo(2.818, 2);
+    expect(report().ambience?.gainDb).toBe(0);
+  });
+});

@@ -24,12 +24,15 @@
 import { TypedEmitter } from "tiny-typed-emitter";
 
 import {
+  DEFAULT_LIBRARY_NORMALISE,
+  normalisedGainDb,
   playlistTracks,
   roomsFor,
   type AudioProfile,
   type DomainLookup,
   type DomainScene,
   type DomainTrack,
+  type LibraryNormalise,
   type PlayOrder,
   type PlayOrderOverrides,
   type ProfileOverrides,
@@ -84,6 +87,8 @@ export interface LyreAudioLibrary extends DomainLookup {
   pad(boardId: string, padId: string): LyrePad | undefined;
   /** PLY-13: play order chosen in places (LyreApi playlists.playOrders), by place key then playlist id. */
   playOrders(): PlayOrderOverrides;
+  /** PLY-15: the library's Normalise volume setting (LyreApi library.normaliseSettings). */
+  normaliseSettings(): LibraryNormalise;
 }
 
 // ---------- what the screens read ----------
@@ -109,6 +114,11 @@ export interface LaneNowPlaying {
   place: UsePlace | null;
   /** PLY-13: its playlist's play order where it plays (resolvePlayOrder); null when it is not from a playlist. */
   playOrder: PlayOrder | null;
+  /**
+   * PLY-15: the normalising gain it plays at, in dB (0: as it is: normalising is off there, or it is not measured
+   * yet). normaliseHover words it for the Now playing bar and Live.
+   */
+  gainDb: number;
 }
 
 /** UX-16: what plays in the game master's headphones only (the Now playing bar's "Only you" row). */
@@ -176,6 +186,11 @@ export interface PreviewTrackOptions {
   quiet?: boolean;
   /** UX-16: where the game master started it, in words for the Now playing bar ("the session planner"). */
   from?: string;
+  /**
+   * PLY-15: the playlist it is previewed from (a track row on a playlist's page, a playlist's track in a scene), so
+   * its normalising choice applies, as it would on air from there.
+   */
+  playlistId?: string;
 }
 
 /** Where a preview was started from (the Now playing bar's "Previewed from …"). */
@@ -332,6 +347,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       media: (track) => this.library.media(track),
       pad: (boardId, padId) => this.library.pad(boardId, padId),
       playOrders: () => this.library.playOrders(),
+      normaliseSettings: () => this.library.normaliseSettings(),
     };
     this.director = new Director({ engine: parts.engine, rooms: this.rooms, library, random: parts.random });
 
@@ -382,6 +398,10 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
   /** Read from another library from now on (the data layer reloaded). */
   setLibrary(library: LyreAudioLibrary): void {
     this.library = library;
+    // PLY-15: a changed setting, choice or measurement moves what plays, and the preview, to its new gain.
+    this.director.libraryChanged();
+    const previewing = this.parts.preview.current();
+    if (previewing) this.parts.preview.setGainDb(this.previewGain(previewing.trackId, previewing.kind === "pad" ? null : previewing.playlistId));
     this.changed();
   }
 
@@ -499,8 +519,9 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     if (!media) {
       return this.fail(`Unable to preview: ${trackTitle(track)}`);
     }
-    const voice = options && { startAt: options.startAtMs === undefined ? undefined : options.startAtMs / 1000, profile: options.profile };
-    preview.play({ ...trackPreview(track, media), options: voice, quiet: options?.quiet, from: options?.from ?? null });
+    const gainDb = this.previewGain(track.id, options?.playlistId ?? null);
+    const voice = { startAt: options?.startAtMs === undefined ? undefined : options.startAtMs / 1000, profile: options?.profile, gainDb };
+    preview.play({ ...trackPreview(track, media), playlistId: options?.playlistId ?? null, options: voice, quiet: options?.quiet, from: options?.from ?? null });
     return OK;
   }
 
@@ -523,7 +544,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     if ("message" in item) {
       return this.fail(item.message);
     }
-    preview.play({ ...item, from: options.from ?? null });
+    preview.play({ ...item, options: { gainDb: this.previewGain(item.trackId ?? null, playlistId) }, from: options.from ?? null });
     return OK;
   }
 
@@ -539,7 +560,8 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     if (!pad || !media) {
       return this.fail("That pad has no sound.");
     }
-    preview.play({ ...padPreview({ boardId, padId, label: pad.label, media }), from: options.from ?? null });
+    // A pad's sound plays on its own on air: the track's choice, then the library's.
+    preview.play({ ...padPreview({ boardId, padId, label: pad.label, media }), trackId: track!.id, options: { gainDb: this.previewGain(track!.id, null) }, from: options.from ?? null });
     return OK;
   }
 
@@ -621,6 +643,12 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
   }
 
   // ---------- inside ----------
+
+  /** PLY-15: the gain a track gets on air from that playlist (or on its own), which its preview hears too. */
+  private previewGain(trackId: string | null, playlistId: string | null): number {
+    const track = trackId ? this.library.track(trackId) : undefined;
+    return normalisedGainDb(track, playlistId ? this.library.playlist(playlistId) : null, this.library.normaliseSettings?.() ?? DEFAULT_LIBRARY_NORMALISE);
+  }
 
   private perform(action: CueAction): CueOutcome {
     if (this.disposed) {
@@ -779,6 +807,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       loading: playing.state === "loading" || playing.state === null,
       place: placeOfOrigin(playing.origin),
       playOrder: playing.playlistId ? playOrderOf(playing.playlistId, playing.origin, this.library) : null,
+      gainDb: playing.gainDb,
     };
   }
 }

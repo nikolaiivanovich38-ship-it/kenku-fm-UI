@@ -60,7 +60,7 @@ describe("PreviewPlayer (PRV-1): only the game master hears it", () => {
     expect(headphones.signalAt(output.input as FakeNode)).toBeGreaterThan(0);
     expect(page.signalAt(mixer.outputs.table as unknown as FakeNode)).toBe(0);
     expect(page.signalAt(page.destination)).toBe(0);
-    expect(player.current()).toEqual({ key: "tavern", label: "Tavern", kind: "track", trackId: "tavern", playlistId: null, padKey: null, from: null, paused: false });
+    expect(player.current()).toEqual({ key: "tavern", label: "Tavern", kind: "track", trackId: "tavern", playlistId: null, padKey: null, from: null, paused: false, gainDb: 0 });
     expect(last(changes)?.announcement).toBe("Previewing in your headphones: Tavern");
   });
 

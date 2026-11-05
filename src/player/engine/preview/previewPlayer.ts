@@ -57,6 +57,8 @@ export interface PreviewState {
   padKey: string | null;
   from: string | null;
   paused: boolean;
+  /** PLY-15: the normalising gain it plays at, in dB, the same the players would hear (0: as it is). */
+  gainDb: number;
 }
 
 interface PreviewEvents {
@@ -139,6 +141,15 @@ export class PreviewPlayer extends TypedEmitter<PreviewEvents> {
     return true;
   }
 
+  /** PLY-15: the normalising gain changed where the preview plays from (the library's setting or a choice). */
+  setGainDb(db: number): void {
+    if (!this.voice || !this.state) return;
+    this.voice.setGainDb(db);
+    if (this.state.gainDb === this.voice.gainDb) return;
+    this.state = { ...this.state, gainDb: this.voice.gainDb };
+    this.emit("change", this.current(), "");
+  }
+
   current(): PreviewState | null {
     return this.state ? { ...this.state } : null;
   }
@@ -179,6 +190,7 @@ export class PreviewPlayer extends TypedEmitter<PreviewEvents> {
       padKey: item.padKey ?? null,
       from: item.from ?? null,
       paused: false,
+      gainDb: voice.gainDb,
     };
     this.quiet = !!item.quiet;
     voice.on("state", () => {
