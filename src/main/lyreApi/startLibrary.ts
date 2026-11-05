@@ -15,6 +15,7 @@ import { trustedContents } from "../security/trustedContents";
 import { LyreLibraryService, type LibraryChild } from "./libraryService";
 import { LYRE_API_EVENT } from "./lyreIpc";
 import { noConverter } from "./noConverter";
+import { standInForMissingFiles, writeStandInTone } from "./seedAudio";
 import { wantsSeededLibrary, wireLyreLibrary, type CallingPage, type WiredLibrary } from "./wiring";
 
 declare const __CUE_DESK_TEST_BUILD__: boolean;
@@ -94,13 +95,16 @@ export function startLyreLibrary(): StartedLibrary {
     send: (event) => {
       for (const page of lyrePages()) page.send(LYRE_API_EVENT, event);
     },
-    media: (libraryFolders) =>
-      new MediaCache({
+    media: (libraryFolders) => {
+      const cache = new MediaCache({
         folder: path.join(app.getPath("userData"), MEDIA_CACHE_FOLDER),
         access: new MediaAccess({ libraryFolders }),
         converter: noConverter,
         log,
-      }),
+      });
+      // Test builds only: the seeded library's files are not on the test machine, so they play a stand-in tone.
+      return seed ? standInForMissingFiles(cache, writeStandInTone(app.getPath("userData"))) : cache;
+    },
     bringInOldLibrary: !seed,
     readOldLibrary,
     log,

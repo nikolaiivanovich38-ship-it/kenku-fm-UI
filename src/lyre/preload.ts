@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 
 import { createLyreApiBridge, type IpcRendererLike as ApiIpc } from "./api/preloadApi";
 import { createLyreAudioBridge, type IpcRendererLike as AudioIpc } from "./audio/preloadAudio";
@@ -9,6 +9,8 @@ import { createLyreAudioBridge, type IpcRendererLike as AudioIpc } from "./audio
  *   - api (w3-api): LyreApi calls (LYRE_API_CALL) and its change events (LYRE_API_EVENT); src/lyre/api/preloadApi.ts.
  *   - audio (w3-host): the private audio channel to the capture window, the rooms list, MEDIA_PREPARE;
  *     src/lyre/audio/preloadAudio.ts.
+ *   - files (w3-library): where a file dropped on the page is on disk, so the Library and Playlists can import it
+ *     (webUtils.getPathForFile, as the old player's preload; no IPC). "" for a file that is not on disk.
  * The page runs sandboxed with context isolation; nothing from Node or Electron reaches it except this object.
  */
 const api = {
@@ -17,6 +19,7 @@ const api = {
   // ipcRenderer's listeners take Electron's own event type; the bridges only pass it by.
   api: createLyreApiBridge(ipcRenderer as unknown as ApiIpc),
   audio: createLyreAudioBridge(ipcRenderer as unknown as AudioIpc, window),
+  files: { pathOf: (file: File): string => webUtils.getPathForFile(file) },
 };
 
 contextBridge.exposeInMainWorld("lyre", api);
