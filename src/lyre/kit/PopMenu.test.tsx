@@ -91,3 +91,50 @@ describe("PopMenu: a menu with two-line items", () => {
     expect(screen.getByRole("button", { name: "Next control" })).toHaveFocus();
   });
 });
+
+describe("PopMenu: ticks and choices that keep the menu open (PLY-13's play order menu)", () => {
+  function Choices({ onShuffle = vi.fn(), onRepeat = vi.fn() }: { onShuffle?: () => void; onRepeat?: () => void }) {
+    const items = (): PopMenuEntry[] => [
+      { key: "shuffle", role: "menuitemcheckbox", checked: true, keepOpen: true, content: "Shuffle", onSelect: onShuffle },
+      { key: "one", role: "menuitemradio", checked: false, keepOpen: true, content: "Repeat one", onSelect: onRepeat },
+      { note: "Only in the scene The abbey ruins." },
+      { content: "Use the playlist's own order here", onSelect: vi.fn() },
+    ];
+    return (
+      <PopMenuButton label="Play order" className="btn" items={items}>
+        Play order
+      </PopMenuButton>
+    );
+  }
+
+  it("draws a tick box and a choice with their state, and the arrows reach them", async () => {
+    render(<Choices />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Play order" }));
+    expect(screen.getByRole("menuitemcheckbox", { name: "Shuffle" })).toHaveAttribute("aria-checked", "true");
+    expect(screen.getByRole("menuitemcheckbox", { name: "Shuffle" })).toHaveFocus();
+    await user.keyboard("{ArrowDown}");
+    expect(screen.getByRole("menuitemradio", { name: "Repeat one" })).toHaveAttribute("aria-checked", "false");
+    expect(screen.getByRole("menuitemradio", { name: "Repeat one" })).toHaveFocus();
+    await user.keyboard("{ArrowDown}");
+    expect(screen.getByRole("menuitem", { name: "Use the playlist's own order here" })).toHaveFocus();
+  });
+
+  it("stays open with focus on the item after one of them is chosen", async () => {
+    const onRepeat = vi.fn();
+    render(<Choices onRepeat={onRepeat} />);
+    await userEvent.click(screen.getByRole("button", { name: "Play order" }));
+    await userEvent.click(screen.getByRole("menuitemradio", { name: "Repeat one" }));
+    expect(onRepeat).toHaveBeenCalledOnce();
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    expect(screen.getByRole("menuitemradio", { name: "Repeat one" })).toHaveFocus();
+  });
+
+  it("a note is part of the menu's description, not an item", async () => {
+    render(<Choices />);
+    await userEvent.click(screen.getByRole("button", { name: "Play order" }));
+    expect(screen.getByRole("menu")).toHaveAccessibleDescription("Only in the scene The abbey ruins.");
+    expect(screen.getAllByRole("menuitem")).toHaveLength(1);
+    await expectNoAxeViolations();
+  });
+});
