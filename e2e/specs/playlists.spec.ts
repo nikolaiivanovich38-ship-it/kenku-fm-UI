@@ -294,6 +294,7 @@ test.describe("round 5: play order, Details with the rules, shapes and Use in…
   test("EDT-8: in a narrow window Details stays at the top", async ({ page }) => {
     await page.setViewportSize({ width: 720, height: 900 });
     await openRoute(page, "playlist/p-abbey-eerie");
+    await expect(page.getByRole("button", { name: "Details", exact: true })).toHaveAttribute("aria-expanded", "false");
     const details = (await page.getByRole("region", { name: "Details", exact: true }).boundingBox())!;
     const rules = (await page.getByRole("region", { name: "Rules", exact: true }).boundingBox())!;
     const used = (await page.getByRole("region", { name: "Used in", exact: true }).boundingBox())!;

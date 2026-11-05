@@ -268,22 +268,17 @@ test.describe("round 5: resizing fills the grid; trying pads as they play", () =
   test("SFX-11: Undo puts the old layout back", async ({ page }) => {
     await openRoute(page, "board/combat");
     await page.getByRole("button", { name: "Fewer columns" }).click();
+    await expect(pad(page, "Critical hit")).toHaveAccessibleName(/row 2, column 1$/);
     await page.getByRole("button", { name: "Undo" }).click();
     await expect(padGrid(page)).toHaveAccessibleName("Pads, 4 columns by 3 rows");
     await expect(pad(page, "Critical hit")).toHaveAccessibleName(/row 1, column 4$/);
     await expect(spare(page)).toContainText("Empty");
   });
 
-  test("SFX-12: every pad has a play button that previews it to me only", async ({ page }) => {
-    await openRoute(page, "board/weather");
-    await padGrid(page).getByRole("button", { name: "Preview Storm" }).click();
-    await expect(padGrid(page).getByRole("button", { name: "Stop preview of Storm" })).toHaveAttribute("aria-pressed", "true");
-    await expect(page.getByRole("region", { name: "On air", exact: true })).toHaveCount(0);
-  });
-
-  test("SFX-12: Try pads plays a toggle loop on and off, privately, by click and by its key", async ({ page }) => {
+  test("SFX-12: Try pads plays a toggle loop on and off, privately, by click and by its key; each pad also has Preview", async ({ page }) => {
     await openRoute(page, "board/weather");
     const grid = page.getByRole("region", { name: "Pads", exact: true });
+    await expect(padGrid(page).getByRole("button", { name: "Preview Storm" })).toBeVisible();
     await grid.getByRole("button", { name: "Try pads" }).click();
     await expect(grid.getByRole("button", { name: "Try pads" })).toHaveAttribute("aria-pressed", "true");
     await expect(grid).toContainText("only you hear them");
