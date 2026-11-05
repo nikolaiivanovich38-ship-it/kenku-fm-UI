@@ -164,6 +164,8 @@ test.describe("one manual playlist", () => {
   test("audio files dropped on the playlist are added to it, in order, and to the Library", async ({ page }) => {
     await openRoute(page, "playlist/p-abbess");
     await dropFiles(page.getByRole("region", { name: "Tracks", exact: true }), ["01 Candle smoke.flac", "02 Bell tower.mp3", "readme.txt"]);
+    // The app imports the files before they join the playlist; wait for them (the prototype adds them at once).
+    await expect(trackLinks(page)).toHaveCount(7);
     const names = await trackNames(page);
     expect(names.indexOf("Bell tower")).toBe(names.indexOf("Candle smoke") + 1);
     expect(names.indexOf("Candle smoke")).toBeGreaterThan(-1);
