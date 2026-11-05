@@ -1,3 +1,4 @@
+const path = require("path");
 const webpack = require("webpack");
 
 module.exports = {
@@ -25,6 +26,12 @@ module.exports = {
   ],
   resolve: {
     extensions: [".js", ".ts", ".jsx", ".tsx", ".css", ".json"],
+    alias: {
+      // DAT-5 (w3-media): music-metadata is ESM-only and its package exports have no "require" entry, so the
+      // CommonJS require that TypeScript emits cannot resolve it. Point the bare name at its Node entry; webpack
+      // then bundles it as ESM (its own imports resolve normally). Only the library's process imports it.
+      "music-metadata$": path.join(__dirname, "node_modules", "music-metadata", "lib", "index.js"),
+    },
   },
   externals: {
     opusscript: "commonjs2 opusscript",

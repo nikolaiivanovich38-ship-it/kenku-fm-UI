@@ -1,10 +1,14 @@
 /**
- * DAT-5: what Lyre takes from a file's embedded tags. The real reader
- * (music-metadata, requested in the wave 2 report) is reached through
- * createMusicMetadataTagReader; these tests feed it the shape that library
- * returns, so wiring it in is one line.
+ * DAT-5: what Lyre takes from a file's embedded tags. The real reader is music-metadata (ESM-only), reached through
+ * createMusicMetadataTagReader; most tests feed it the shape that library returns, and the last ones run the library
+ * itself on real files, loaded the way the library's process loads it.
  */
-import { describe, expect, it } from "vitest";
+import fs from "fs";
+import os from "os";
+import path from "path";
+import { afterAll, describe, expect, it } from "vitest";
+import { wavBytes, writeFile } from "../../media/testing/wavFiles";
+import { musicMetadataTagReader } from "./musicMetadata";
 import { cleanTags, createMusicMetadataTagReader, titleFromFileName, type MusicMetadataResult } from "./tagReader";
 
 describe("titleFromFileName (the prototype's file-name title)", () => {
@@ -94,5 +98,31 @@ describe("createMusicMetadataTagReader", () => {
     });
     await reader.read("/m/x.flac");
     expect(calls).toEqual([["/m/x.flac", { skipCovers: true }]]);
+  });
+});
+
+describe("music-metadata itself (DAT-5)", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lyre-tags-"));
+  afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  it("reads a WAV file's title, artist, album and length", async () => {
+    const file = writeFile(dir, "03 tavern.wav", wavBytes({ seconds: 2.5 }, { title: "Tavern Warmth", artist: "The Lute Guild", album: "Inns of the North" }));
+    expect(await musicMetadataTagReader.read(file)).toMatchObject({
+      title: "Tavern Warmth",
+      artist: "The Lute Guild",
+      album: "Inns of the North",
+      durationMs: 2500,
+    });
+  });
+
+  it("gives a file without tags its length and no title", async () => {
+    const file = writeFile(dir, "plain.wav", wavBytes({ seconds: 1 }));
+    expect(await musicMetadataTagReader.read(file)).toMatchObject({ title: null, artist: null, album: null, durationMs: 1000 });
+  });
+
+  it("finds no title or length in a file that is not audio (the import then names the track after its file)", async () => {
+    const file = writeFile(dir, "notes.wav", Buffer.from("not really audio"));
+    const tags = await musicMetadataTagReader.read(file).catch(() => ({ title: null as string | null, durationMs: null as number | null }));
+    expect(tags).toMatchObject({ title: null, durationMs: null });
   });
 });

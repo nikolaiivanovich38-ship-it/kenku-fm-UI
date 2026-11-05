@@ -24,10 +24,12 @@ const E2E_BUILD_ENV = "CUE_DESK_E2E_BUILD";
 /**
  * SEC-13: files that must stay outside app.asar: native addons (.node) are
  * loaded by the operating system, which cannot read inside an archive, and
- * opusscript reads its .wasm file from disk. A basename pattern: asar
- * matches it against every file (minimatch `matchBase`), dot-folders included.
+ * opusscript reads its .wasm file from disk. Basename patterns: asar
+ * matches them against every file (minimatch `matchBase`), dot-folders included.
+ * BUG-10 (w3-media): the ffmpeg program ffmpeg-static ships is run as a
+ * program, so it too stays outside; only that file, by its full place.
  */
-const ASAR_UNPACK_GLOB = "*.{node,wasm}";
+const ASAR_UNPACK_GLOB = "{*.node,*.wasm,**/node_modules/ffmpeg-static/ffmpeg,**/node_modules/ffmpeg-static/ffmpeg.exe}";
 
 /**
  * Whether a command-line argument names forge's make or publish command,

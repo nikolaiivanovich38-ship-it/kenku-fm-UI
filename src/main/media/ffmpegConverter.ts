@@ -1,14 +1,6 @@
 /**
- * BUG-10: the real converter, running an ffmpeg program in its own process.
- *
- * ffmpeg is not bundled yet: the library request in the wave 2 report asks
- * for ffmpeg-static, which ships a ready-made ffmpeg.exe (GPL-3.0, like
- * Lyre), so no build step runs on our side. To plug it in (main process):
- *
- *   import ffmpegPath from "ffmpeg-static";
- *   const converter = new FfmpegConverter({ ffmpegPath: ffmpegPath.replace("app.asar", "app.asar.unpacked") });
- *
- * with ffmpeg-static unpacked from the asar archive in forge.config.js.
+ * BUG-10: the real converter, running an ffmpeg program in its own process: the one ffmpeg-static bundles
+ * (GPL-3.0-or-later, like Lyre), found by bundledFfmpeg.ts in app.asar.unpacked (startLibrary.ts wires it).
  *
  * Safety: ffmpeg runs without a shell, with each argument passed as it is;
  * it may read and write plain files only (`-protocol_whitelist file`, and
