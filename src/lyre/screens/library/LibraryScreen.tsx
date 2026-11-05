@@ -15,6 +15,7 @@ import { Icon } from "../../kit/Icon";
 import { PickerDialog } from "../../kit/Picker";
 import { cx } from "../../kit/cx";
 import { useAnnounce } from "../../shell/Announcer";
+import { useUndoNote } from "../../shell/UndoNote";
 import { hashOf } from "../../shell/routes";
 import { useRememberedOpen } from "../../shell/ShellSettings";
 import type { ScreenProps } from "../index";
@@ -44,6 +45,7 @@ export function LibraryScreen({ route }: ScreenProps) {
   const audio = useLyreAudio();
   const now = useNowPlaying();
   const { say, toast } = useAnnounce();
+  const { offer } = useUndoNote();
   const accept = useWriteResult();
   const st = useLibraryState();
   const { tracks, byId, store } = useTrackList();
@@ -294,7 +296,8 @@ export function LibraryScreen({ route }: ScreenProps) {
   /* ----- bulk tagging ----- */
   const applyTags = async (how: "add" | "remove", tags: TagRef[]) => {
     const ids = getLibraryState().sel;
-    const done = accept(await api.tags.tagTracks(how === "add" ? { trackIds: ids, add: tags } : { trackIds: ids, remove: tags }));
+    const result = await api.tags.tagTracks(how === "add" ? { trackIds: ids, add: tags } : { trackIds: ids, remove: tags });
+    const done = accept(result);
     setTagging(false);
     if (!done) return;
     await store.reload();
@@ -303,6 +306,8 @@ export function LibraryScreen({ route }: ScreenProps) {
     const stillNew = ids.filter((id) => store.get().byId.get(id)?.isNew).length;
     setLibraryState({ guide: { kind: "tagged", text: msg, stillNew } });
     say(msg);
+    // w3-ux 10: tagging many tracks at once can be undone from a message (and Ctrl+Z).
+    if (result.ok) offer(msg, result.undoLabel);
   };
 
   const addToPlaylists = async (pids: string[], ids: string[], single: boolean) => {

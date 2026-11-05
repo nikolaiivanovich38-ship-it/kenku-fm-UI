@@ -1,4 +1,5 @@
 import React, { createContext, useContext } from "react";
+import type { LyreApi } from "../../common/lyre/api";
 import type { ThemeId } from "./themes";
 
 /**
@@ -17,6 +18,8 @@ export interface ShellData {
   liveName?: string;
   /** The rail's Outputs link, e.g. "Outputs (1/2)": bots connected of all bots. */
   outputsLabel?: string;
+  /** The library's history, for the undo message and Ctrl+Z (shell/UndoNote.tsx). */
+  history?: Pick<LyreApi["history"], "state" | "undo">;
   /** Outside Live, the slim bar at the foot of the screen showing what the players hear (from the audio host). */
   onAirBar?: React.ReactNode;
 }

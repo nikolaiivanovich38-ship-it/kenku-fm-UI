@@ -12,6 +12,7 @@ import { useLyreAudio, useLyreAudioEvent, useNowPlaying } from "../../audio/Lyre
 import type { PreviewPosition } from "../../audio";
 import { useTrackPeaks } from "../../api";
 import { useAnnounce } from "../../shell/Announcer";
+import { useUndoNote } from "../../shell/UndoNote";
 import { nextContexts, placeName, sceneOf, type NextContext } from "./places";
 import { advance, finishClock, follow, initialClock, pauseClock, playClock, seekClock, stopClock, type ClockState, type ClockWorld } from "./previewClock";
 import {
@@ -68,6 +69,7 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
   const { track, dur, prof: p, editable, key, view } = editor;
   const audio = useLyreAudio();
   const { say, toast } = useAnnounce();
+  const { offer } = useUndoNote();
   const [keys1, setKeys1Raw] = useKeys1();
   const title = shownTitle(track);
   /** The file's loudness across its length (0 to 1, from -60 dBFS), null until the library has worked it out. */
@@ -421,10 +423,14 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
       if (next) sayPoint(which, next);
     },
     reset() {
-      if (!editor.write(wholeTrack(p, dur))) return;
+      if (!editable) {
+        readOnlyNote();
+        return;
+      }
+      // w3-ux 10: Start, End, loop and fades all change at once, so the message offers Undo (and Ctrl+Z).
+      void editor.writeNow(wholeTrack(p, dur)).then((undoLabel) => offer(`Back to the whole track: 0:00 to ${fmt(dur)}, no loop and no fades.`, undoLabel));
       setInvalid({});
       setEditing(null);
-      toast(`Back to the whole track: 0:00 to ${fmt(dur)}, no fades`);
       say("Reset to the whole track");
     },
     setAfter(after: AfterEnd) {

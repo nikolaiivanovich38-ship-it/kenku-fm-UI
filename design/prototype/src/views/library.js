@@ -541,7 +541,7 @@
   }
   L.acts.lbtsnew = function (el) { tsCreate(el.dataset.g); };
   L.acts.lbtsapply = function () {
-    var tr = selTracks(), add = ts.mode === 'add', names = [];
+    var tr = selTracks(), add = ts.mode === 'add', names = [], restore = L.snapshot(['tracks', 'tagValues']);
     D.tagGroups.forEach(function (g) {
       ts.pick[g.id].forEach(function (v) {
         names.push(v);
@@ -552,6 +552,7 @@
     var msg = (add ? 'Added ' : 'Removed ') + names.join(', ') + (add ? ' to ' : ' from ') + plural(tr.length, 'track') + '.';
     var stillNew = tr.filter(function (t) { return t.isNew; }).length;
     st.guide = { icon: 'tag', html: esc(msg) + (stillNew ? ' ' + plural(stillNew, 'track') + (stillNew === 1 ? ' still needs' : ' still need') + ' a title of your own: open ' + (stillNew === 1 ? 'it' : 'each one') + ' to type it.' : '') };
+    L.undoNote(msg, restore);
     L.closeSheet(); L.render(); L.say(msg);
   };
 

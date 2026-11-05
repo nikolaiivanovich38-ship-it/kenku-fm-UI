@@ -234,13 +234,14 @@
       footer: '<button class="btn" data-act="closesheet">Keep it</button><button class="btn danger" data-act="pbdelboardok" data-id="' + b.id + '">Delete board</button>' });
   };
   L.acts.pbdelboardok = function (el) {
-    var id = el.dataset.id, b = L.board(id);
+    var id = el.dataset.id, b = L.board(id), restore = L.snapshot(['boards', 'campaigns']);
+    L.undoNote('Deleted the pad board "' + b.name + '" and took it out of the places that used it.', restore);
     D.campaigns.forEach(function (c) {
       c.boards = c.boards.filter(function (x) { return x !== id; });
       c.sessions.forEach(function (s) { s.boards = s.boards.filter(function (x) { return x !== id; }); s.scenes.forEach(function (sc) { sc.boards = L.sceneBoards(sc).filter(function (x) { return x !== id; }); if (sc.board === id) sc.board = ''; }); });
     });
     D.boards.splice(D.boards.indexOf(b), 1); L.closeSheet();
-    L.toast('Deleted "' + b.name + '"');
+
     if (L.current().name === 'board') L.route('#/boards'); else L.render();
   };
 

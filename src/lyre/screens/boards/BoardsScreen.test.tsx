@@ -130,7 +130,7 @@ describe("all pad boards (boards.js list view)", () => {
     await user.click(screen.getByRole("menuitem", { name: "Delete board…" }));
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete board" }));
     await waitFor(() => expect(cards()).toHaveLength(4));
-    expect(toastText()).toBe('Deleted "Weather and places"');
+    // What was deleted is said with Undo in the shell's message (screens/undoNotes.test.tsx).
   });
 
   it("Duplicate board makes a copy used nowhere yet", async () => {

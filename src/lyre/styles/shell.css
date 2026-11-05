@@ -23,3 +23,7 @@
 .menu .danger { color: var(--danger); }
 /* w3-ux 11: on the on-air bar, the sentence that only this computer hears it may wrap; it is never cut off. */
 .onairbar .oab-local { max-width: none; flex: 1 1 14em; white-space: normal; line-height: 1.25; color: var(--ink-2); }
+/* w3-ux 10: what a large change did, with Undo (and Ctrl+Z), like the board's resize message; above the on-air bar. */
+.undo-note { display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 8px; margin: 4px 8px; border: 1px solid var(--line-strong); border-left: 3px solid var(--accent); border-radius: var(--r-m); background: var(--surface-2); font-size: var(--fs-s); flex: none; min-width: 0; }
+.undo-note > svg { color: var(--accent-text); flex: none; }
+.undo-note .grow { min-width: 0; }

@@ -7,6 +7,7 @@ import { Rail } from "./Rail";
 import { routeFromHash, sectionOf, type RouteName } from "./routes";
 import { useShellData } from "./ShellData";
 import { SoundMessages } from "./SoundMessages";
+import { UndoNoteBar, UndoNoteProvider } from "./UndoNote";
 import { ShellSettingsProvider, useShellSettings } from "./ShellSettings";
 import { themeFor } from "./themes";
 
@@ -126,11 +127,14 @@ function ShellFrame({ screens }: { screens: Record<RouteName, ScreenComponent> }
     <div id="app" ref={appRef}>
       <Rail section={sectionOf(route)} min={railMin} onToggleMin={() => update({ rail: railMin ? "full" : "min" })} />
       <main id="view" className="view" data-view={route.name}>
-        <ErrorBoundary key={route.path} where="this screen">
-          <CampaignInHandContext.Provider value={campaignInHand.current}>
-            <Screen route={route} />
-          </CampaignInHandContext.Provider>
-        </ErrorBoundary>
+        <UndoNoteProvider live={route.name === "live"}>
+          <ErrorBoundary key={route.path} where="this screen">
+            <CampaignInHandContext.Provider value={campaignInHand.current}>
+              <Screen route={route} />
+            </CampaignInHandContext.Provider>
+          </ErrorBoundary>
+          {route.name !== "live" && <UndoNoteBar />}
+        </UndoNoteProvider>
         {route.name !== "live" && data.onAirBar}
       </main>
     </div>

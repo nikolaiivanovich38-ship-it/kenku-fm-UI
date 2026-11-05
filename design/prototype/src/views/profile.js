@@ -546,8 +546,9 @@
   }
   L.acts.apstep = function (el) { var t = track(), w = el.dataset.f; movePoint(t, w, value(prof(t), w) + (+el.dataset.d)); delete S.invalid[w]; S.editing = null; sayPoint(w); L.render(); };
   L.acts.apreset = function () {
-    var t = track(); if (!write(t, { start: 0, end: t.dur, loopStart: 0, loopXfade: 0, fadeIn: { dur: 0, shape: 50 }, fadeOut: { dur: 0, shape: 50 } })) return; S.invalid = {}; S.editing = null;
-    L.toast('Back to the whole track: 0:00 to ' + L.fmt(t.dur) + ', no fades'); L.say('Reset to the whole track'); L.render();
+    var t = track(), restore = L.snapshot(['tracks', 'profiles']);
+    if (!write(t, { start: 0, end: t.dur, loopStart: 0, loopXfade: 0, fadeIn: { dur: 0, shape: 50 }, fadeOut: { dur: 0, shape: 50 } })) return; S.invalid = {}; S.editing = null;
+    L.undoNote('Back to the whole track: 0:00 to ' + L.fmt(t.dur) + ', no loop and no fades.', restore); L.say('Reset to the whole track'); L.render();
   };
   L.acts.apmadd = function () { addMarker(true); };
   function addMarker(focus) {

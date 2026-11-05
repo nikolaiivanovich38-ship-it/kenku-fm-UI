@@ -540,9 +540,10 @@
   };
   L.acts.cpdel = function (el) {
     var x = findScene(el.dataset.id); L.closeSheet(); if (!x) return;
+    L.undoNote('Deleted scene "' + (x.sc.name || 'Untitled scene') + '" and its notes.', L.snapshot(['campaigns']));
     x.s.scenes.splice(x.i, 1); delete open[x.sc.id];
     var nb = x.s.scenes[Math.max(0, x.i - 1)]; focusK = nb ? 'sct-' + nb.id : 'addscene'; current = nb ? nb.id : null;
-    L.render(); L.toast('Deleted scene "' + (x.sc.name || 'Untitled scene') + '"');
+    L.render();
   };
   L.inputs.cpsess = function (el) {
     var x = ctx(), s = x.s, f = el.dataset.f;

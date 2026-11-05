@@ -10,6 +10,7 @@ import { PickerDialog, type PickerItem } from "../../kit/Picker";
 import { useLyreApi } from "../../api";
 import { useAnnounce } from "../../shell/Announcer";
 import { useCampaignInHand } from "../../shell/CampaignInHand";
+import { useUndoNote } from "../../shell/UndoNote";
 import { MAX_SIZE, QUICK_SIZES, allPads, plural, usesOfBoard } from "./boardModel";
 import { go, useWrite } from "./hooks";
 
@@ -143,14 +144,16 @@ export function DeleteBoardDialog({
 }) {
   const api = useLyreApi();
   const write = useWrite();
-  const { toast } = useAnnounce();
+  const { offer } = useUndoNote();
   if (!board) return null;
   const uses = usesOfBoard(campaigns, board.id);
   const remove = async () => {
-    const done = await write(api.boards.delete(board.id));
+    // The write's undo label is kept for the Undo message (w3-ux 10), so it is read here rather than through useWrite.
+    let undoLabel: string | null = null;
+    const done = await write(api.boards.delete(board.id).then((result) => ((undoLabel = result.ok ? result.undoLabel : null), result)));
     onClose();
     if (done === null) return;
-    toast(`Deleted "${board.name}"`);
+    offer(`Deleted the pad board "${board.name}" and took it out of the places that used it.`, undoLabel);
     onDeleted?.();
   };
   return (

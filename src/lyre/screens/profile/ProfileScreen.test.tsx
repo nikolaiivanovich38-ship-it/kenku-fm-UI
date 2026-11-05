@@ -190,7 +190,7 @@ describe("what happens at the end", () => {
     await user.click(screen.getByRole("button", { name: "Reset to whole track" }));
     expect(atEnd().getByRole("textbox", { name: "End" })).toHaveValue("7:21");
     expect(atEnd().getByRole("textbox", { name: "Start" })).toHaveValue("0:00");
-    expect(document.getElementById("lyre-toast")).toHaveTextContent("Back to the whole track: 0:00 to 7:21, no fades");
+    // What happened is said with Undo in the shell's message (screens/undoNotes.test.tsx).
   });
 });
 

@@ -457,6 +457,10 @@ table.grid tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 v
 .onairbar .oab-items { display: flex; gap: 12px; flex: 1; min-width: 0; overflow: hidden; font-size: var(--fs-s); }
 .onairbar .oab-item { display: flex; align-items: center; gap: 5px; min-width: 0; max-width: 45%; }
 .onairbar a.btn { text-decoration: none; }
+/* w3-ux 10: what a large change did, with Undo (and Ctrl+Z), like the board's resize message; above the on-air bar. */
+.undo-note { display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 8px; margin: 4px 8px; border: 1px solid var(--line-strong); border-left: 3px solid var(--accent); border-radius: var(--r-m); background: var(--surface-2); font-size: var(--fs-s); flex: none; min-width: 0; }
+.undo-note > svg { color: var(--accent-text); flex: none; }
+.undo-note .grow { min-width: 0; }
 .pk-preview { display: flex; align-items: center; gap: 6px; font-size: var(--fs-s); color: var(--ink); min-width: 0; }
 
 /* Round 4 clean-up: every box shows what it is for (a coloured top edge by kind, an icon and a plain title)
@@ -2616,7 +2620,7 @@ var L = (function () {
       var railMin = L.state.rail === 'min' || (L.state.rail === 'auto' && w < 1100);
       paint(document.getElementById('rail'), railHTML(v.nav || r.name, railMin));
       document.getElementById('rail').className = 'rail' + (railMin ? ' min' : '');
-      paint(document.getElementById('view'), v.render(r.p) + (r.name === 'live' ? '' : onAirBar()));
+      paint(document.getElementById('view'), v.render(r.p) + (r.name === 'live' ? '' : undoNoteHTML() + onAirBar()));
       document.getElementById('view').dataset.view = r.name;
       document.querySelectorAll('#view .col').forEach(function (c) { c.classList.toggle('has-max', !!c.querySelector(':scope > .pane.maxed')); });
       if (v.after) v.after(document.getElementById('view'), r.p);
@@ -2636,6 +2640,38 @@ var L = (function () {
       '<button class="btn s" data-act="oabstop" data-k="oab-stop">' + L.icon('stop', 's') + 'Stop</button><a class="btn s" href="#/live" data-k="oab-live">' + L.icon('broadcast', 's') + 'Go to Live</a></div>';
   }
   L.acts.oabstop = function () { L.fadeAll(1); };
+
+  /* Undo for changes that remove or reset much at once (w3-ux 10): Reset to whole track, Delete board, Delete scene,
+     Tag… on many tracks. Like the board's resize message: what happened, Undo, and a close button; Ctrl+Z also
+     undoes it (Live has its own Ctrl+Z). L.snapshot(['boards', 'campaigns']) copies those data lists before the
+     change; L.undoNote(text, restore) shows the message until another one replaces it or it is closed. */
+  var undoNote = null;
+  L.snapshot = function (keys) {
+    var copy = JSON.parse(JSON.stringify(keys.map(function (k) { return D[k]; })));
+    return function () {
+      keys.forEach(function (k, i) {
+        var cur = D[k], was = copy[i];
+        if (Array.isArray(cur)) cur.splice.apply(cur, [0, cur.length].concat(was));
+        else { Object.keys(cur).forEach(function (x) { delete cur[x]; }); Object.assign(cur, was); }
+      });
+    };
+  };
+  L.undoNote = function (text, restore) { undoNote = { text: text, restore: restore }; };
+  function undoNoteHTML() {
+    return undoNote ? '<div class="undo-note" role="group" aria-label="Undo">' + L.icon('check', 's') + '<span class="grow">' + esc(undoNote.text) + '</span>' +
+      '<button class="btn s" data-act="undonote" data-k="undo-note">Undo</button><button class="closer" data-act="undonotex" data-k="undo-notex" title="Dismiss" aria-label="Dismiss message">' + L.icon('close') + '</button></div>' : '';
+  }
+  L.acts.undonote = function () {
+    var n = undoNote; if (!n) return; undoNote = null; n.restore();
+    L.say('Undone: ' + n.text); L.toast('Undone'); L.render();
+    var h = document.querySelector('#view h1'); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); }
+  };
+  L.acts.undonotex = function () { undoNote = null; L.render(); var h = document.querySelector('#view h1'); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); } };
+  document.addEventListener('keydown', function (e) {
+    if (!undoNote || !(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'z') return;
+    if (typing(e.target) || resolve().name === 'live' || document.getElementById('lyre-sheet')) return;
+    e.preventDefault(); L.acts.undonote();
+  });
   function outputsBadge() { var n = D.discord.bots.filter(function (b) { return b.status === 'connected'; }).length; return ' (' + n + '/' + D.discord.bots.length + ')'; }
   function railHTML(cur, min) {
     function a(href, nav, icon, label) { return '<a href="' + href + '" data-k="rail-' + nav + '"' + (cur === nav ? ' aria-current="page"' : '') + (min ? ' title="' + label + '"' : '') + '>' + L.icon(icon) + '<span class="lbl">' + label + '</span></a>'; }
@@ -4052,8 +4088,9 @@ var L = (function () {
   }
   L.acts.apstep = function (el) { var t = track(), w = el.dataset.f; movePoint(t, w, value(prof(t), w) + (+el.dataset.d)); delete S.invalid[w]; S.editing = null; sayPoint(w); L.render(); };
   L.acts.apreset = function () {
-    var t = track(); if (!write(t, { start: 0, end: t.dur, loopStart: 0, loopXfade: 0, fadeIn: { dur: 0, shape: 50 }, fadeOut: { dur: 0, shape: 50 } })) return; S.invalid = {}; S.editing = null;
-    L.toast('Back to the whole track: 0:00 to ' + L.fmt(t.dur) + ', no fades'); L.say('Reset to the whole track'); L.render();
+    var t = track(), restore = L.snapshot(['tracks', 'profiles']);
+    if (!write(t, { start: 0, end: t.dur, loopStart: 0, loopXfade: 0, fadeIn: { dur: 0, shape: 50 }, fadeOut: { dur: 0, shape: 50 } })) return; S.invalid = {}; S.editing = null;
+    L.undoNote('Back to the whole track: 0:00 to ' + L.fmt(t.dur) + ', no loop and no fades.', restore); L.say('Reset to the whole track'); L.render();
   };
   L.acts.apmadd = function () { addMarker(true); };
   function addMarker(focus) {
@@ -4933,9 +4970,10 @@ var L = (function () {
   };
   L.acts.cpdel = function (el) {
     var x = findScene(el.dataset.id); L.closeSheet(); if (!x) return;
+    L.undoNote('Deleted scene "' + (x.sc.name || 'Untitled scene') + '" and its notes.', L.snapshot(['campaigns']));
     x.s.scenes.splice(x.i, 1); delete open[x.sc.id];
     var nb = x.s.scenes[Math.max(0, x.i - 1)]; focusK = nb ? 'sct-' + nb.id : 'addscene'; current = nb ? nb.id : null;
-    L.render(); L.toast('Deleted scene "' + (x.sc.name || 'Untitled scene') + '"');
+    L.render();
   };
   L.inputs.cpsess = function (el) {
     var x = ctx(), s = x.s, f = el.dataset.f;
@@ -5546,7 +5584,7 @@ var L = (function () {
   }
   L.acts.lbtsnew = function (el) { tsCreate(el.dataset.g); };
   L.acts.lbtsapply = function () {
-    var tr = selTracks(), add = ts.mode === 'add', names = [];
+    var tr = selTracks(), add = ts.mode === 'add', names = [], restore = L.snapshot(['tracks', 'tagValues']);
     D.tagGroups.forEach(function (g) {
       ts.pick[g.id].forEach(function (v) {
         names.push(v);
@@ -5557,6 +5595,7 @@ var L = (function () {
     var msg = (add ? 'Added ' : 'Removed ') + names.join(', ') + (add ? ' to ' : ' from ') + plural(tr.length, 'track') + '.';
     var stillNew = tr.filter(function (t) { return t.isNew; }).length;
     st.guide = { icon: 'tag', html: esc(msg) + (stillNew ? ' ' + plural(stillNew, 'track') + (stillNew === 1 ? ' still needs' : ' still need') + ' a title of your own: open ' + (stillNew === 1 ? 'it' : 'each one') + ' to type it.' : '') };
+    L.undoNote(msg, restore);
     L.closeSheet(); L.render(); L.say(msg);
   };
 
@@ -5903,13 +5942,14 @@ var L = (function () {
       footer: '<button class="btn" data-act="closesheet">Keep it</button><button class="btn danger" data-act="pbdelboardok" data-id="' + b.id + '">Delete board</button>' });
   };
   L.acts.pbdelboardok = function (el) {
-    var id = el.dataset.id, b = L.board(id);
+    var id = el.dataset.id, b = L.board(id), restore = L.snapshot(['boards', 'campaigns']);
+    L.undoNote('Deleted the pad board "' + b.name + '" and took it out of the places that used it.', restore);
     D.campaigns.forEach(function (c) {
       c.boards = c.boards.filter(function (x) { return x !== id; });
       c.sessions.forEach(function (s) { s.boards = s.boards.filter(function (x) { return x !== id; }); s.scenes.forEach(function (sc) { sc.boards = L.sceneBoards(sc).filter(function (x) { return x !== id; }); if (sc.board === id) sc.board = ''; }); });
     });
     D.boards.splice(D.boards.indexOf(b), 1); L.closeSheet();
-    L.toast('Deleted "' + b.name + '"');
+
     if (L.current().name === 'board') L.route('#/boards'); else L.render();
   };
 

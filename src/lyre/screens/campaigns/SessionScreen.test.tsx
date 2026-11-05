@@ -287,7 +287,7 @@ describe("scenes", () => {
     await userEvent.click(screen.getByRole("menuitem", { name: "Delete…" }));
     await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete scene" }));
     await waitFor(() => expect(sceneCards()).toHaveLength(5));
-    expect(await screen.findByText('Deleted scene "Aftermath"')).toBeInTheDocument();
+    expect(await screen.findByText('Deleted scene "Aftermath" and its notes.')).toBeInTheDocument();
   });
 
   it("Open all scenes opens every scene, and folds them again", async () => {
