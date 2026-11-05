@@ -6112,6 +6112,7 @@ var L = (function () {
   L.acts.pbaddfile = withPad(function (b, p) {
     var s = p.sound, base = s.files[0] ? s.files[0].replace(/(_\d+)?\.wav$/i, '') : slug(p.label), name;
     if (s.kind === 'single') { name = base + (s.files[0] ? '_alt' : '') + '.wav'; if (s.files.length) s.files[0] = name; else s.files.push(name); L.say('File chosen: ' + name); }
+    if (p.label === 'New pad' && name) p.label = name.replace(/\.wav$/i, '').replace(/_/g, ' ');
     else { var i = s.files.length + 1; do { name = base + '_' + String(i++).padStart(2, '0') + '.wav'; } while (s.files.indexOf(name) > -1); s.files.push(name); L.say('Added ' + name + '. ' + s.files.length + ' variants.'); }
     L.render();
   });
@@ -6123,6 +6124,8 @@ var L = (function () {
         if (!ids.length) return;
         var files = ids.map(function (id) { return L.track(id).file; }), own = s.files.filter(function (f) { return !fxTrackByFile(f); });
         s.files = files.concat(own);
+        // A new pad takes the name of its first sound, so two new pads never share the name "New pad".
+        if (p.label === 'New pad') p.label = L.title(L.track(ids[0]));
         if (s.files.length > 1 && s.kind !== 'variants') { s.kind = 'variants'; s.order = s.order || 'random'; L.toast(plural(s.files.length, 'sound') + ' chosen, so the pad plays them as variants'); }
         else if (s.kind === 'tag') s.kind = 'single';
         L.say(plural(files.length, 'sound') + ' from the library on ' + p.label);
