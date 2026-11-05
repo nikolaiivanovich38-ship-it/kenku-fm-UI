@@ -89,7 +89,12 @@ export type LyreEvent =
   /** An import is under way; the last event of an import has phase "done". */
   | { type: "import-progress"; progress: ImportProgress }
   /** New audio files appeared in a watched folder and are now New tracks (library.js, lbwatch's arrival guide). */
-  | { type: "watched-files"; folder: string; trackIds: string[] };
+  | { type: "watched-files"; folder: string; trackIds: string[] }
+  /**
+   * The library's own process stopped (ok: false; calls fail meanwhile) or is working again (ok: true). The page
+   * shows `message` while it is down; when it is back, screens reload as for a change everywhere.
+   */
+  | { type: "library-status"; ok: boolean; message: string };
 
 /* ---------- library ---------- */
 

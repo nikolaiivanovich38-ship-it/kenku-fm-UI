@@ -8,7 +8,10 @@ import os from "os";
 import path from "path";
 import { describe, expect, it } from "vitest";
 
-import { lyreApiContract, valueOf } from "../../common/lyre/contract";
+import { MessageChannel, type MessagePort } from "worker_threads";
+
+import { lyreApiContract, valueOf, type ContractFixture } from "../../common/lyre/contract";
+import { lyreApiOverPort, serveLyreApi, type PortLike } from "../../common/lyre/rpc";
 import { prototypeSeed } from "../../common/lyre/seed";
 import { LibraryBusyError, NotFoundError, ValidationError, openLibrary } from "../data";
 import { createLibraryApi, refusalFor, type LibraryHost } from "./libraryApi";
@@ -32,7 +35,7 @@ async function seededLibrary() {
   return { dir, library, write };
 }
 
-lyreApiContract("main-process LyreApi over the library", async () => {
+async function contractFixture(): Promise<ContractFixture> {
   const { dir, library, write } = await seededLibrary();
   fs.mkdirSync(path.join(dir, "watch"));
   return {
@@ -45,6 +48,34 @@ lyreApiContract("main-process LyreApi over the library", async () => {
     close: () => {
       library.close();
       fs.rmSync(dir, { recursive: true, force: true });
+    },
+  };
+}
+
+lyreApiContract("main-process LyreApi over the library", contractFixture);
+
+/** As in the app: the library serves the API over a port (libraryProcess.ts) and the main process calls through it. */
+lyreApiContract("main-process LyreApi over the library, across a message port", async () => {
+  const fixture = await contractFixture();
+  const { port1, port2 } = new MessageChannel();
+  const wrap = (port: MessagePort): PortLike => ({
+    postMessage: (message) => port.postMessage(message),
+    onMessage: (listener) => {
+      port.on("message", listener);
+      return () => port.off("message", listener);
+    },
+  });
+  const server = serveLyreApi(fixture.api, wrap(port1));
+  const client = lyreApiOverPort(wrap(port2));
+  return {
+    ...fixture,
+    api: client.api,
+    close: async () => {
+      client.close();
+      server.close();
+      port1.close();
+      port2.close();
+      await fixture.close?.();
     },
   };
 });

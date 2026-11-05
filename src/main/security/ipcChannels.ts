@@ -4,7 +4,7 @@
  * preload scripts:
  * - main-window: src/preload.ts and src/preload/managers/BrowserViewManagerPreload.ts
  * - player-view: src/player/preload.ts
- * - lyre-view: src/lyre/preload.ts (sends nothing yet)
+ * - lyre-view: src/lyre/preload.ts
  * - audio-capture: src/audioCapture/preload.ts and src/preload/managers/AudioCaptureManagerPreload.ts
  * Website tabs have no preload and never appear here. docs/security.md has the
  * same table in plain language; keep the two in step.
@@ -24,6 +24,7 @@ import {
   noArgs,
   optional,
 } from "./ipcArgs";
+import { isLyreMethod } from "../../common/lyre/rpc";
 import type { AppPageRole } from "./permissions";
 
 export interface IpcChannelRule {
@@ -83,6 +84,19 @@ const isPrepareOptions: ArgCheck = (value) =>
   isPlainObject(value) &&
   Object.keys(value as object).length === 1 &&
   isBoolean((value as { keepLocal?: unknown }).keepLocal);
+
+// --- w3-api ---
+/** Largest LyreApi call, as JSON: a change to 5,000 tracks is about 0.2 MB, so 8 MB leaves room and stops a flood. */
+export const MAX_CALL_BYTES = 8 * 1024 * 1024;
+/** LYRE_API_CALL's arguments: area, method (a LyreApi method), and a short list of plain arguments. */
+const isLyreCall: ArgsCheck = (args) => {
+  if (args.length !== 3 || !isLyreMethod(args[0], args[1]) || !Array.isArray(args[2]) || args[2].length > 4) return false;
+  try {
+    return JSON.stringify(args[2]).length <= MAX_CALL_BYTES;
+  } catch {
+    return false;
+  }
+};
 
 export const IPC_CHANNELS = {
   // src/index.ts
@@ -188,12 +202,19 @@ export const IPC_CHANNELS = {
   // before it plays (invoke; answers { url } or { error }). Arguments: the
   // file address, and { keepLocal: boolean } and nothing else. The address is
   // checked against the library folders by MediaAccess before anything is read.
-  MEDIA_PREPARE: { from: PLAYER, args: argsMatch(isUrl, isPrepareOptions) },
+  // w3-api: the new interface page hosts the engine too, so it prepares files the same way.
+  MEDIA_PREPARE: { from: [...PLAYER, "lyre-view"], args: argsMatch(isUrl, isPrepareOptions) },
 
   // --- w3-shell ---
   // LyreManager: the address of the new interface page, for the main window's
   // "Lyre" tab (sync; answers "" when refused, like PLAYER_GET_URL).
   LYRE_GET_URL: { from: MAIN, args: noArgs, refusedReturnValue: "" },
+
+  // --- w3-api ---
+  // src/main/lyreApi/lyreIpc.ts: a LyreApi call from the new interface page (invoke; answers what the library
+  // answered, a refusal included). Arguments: the area and method of a LyreApi method (nothing else reaches the
+  // library), and the method's arguments as a list of at most 4, at most MAX_CALL_BYTES as JSON.
+  LYRE_API_CALL: { from: ["lyre-view"], args: isLyreCall },
 } satisfies Record<string, IpcChannelRule>;
 
 export type IpcChannel = keyof typeof IPC_CHANNELS;

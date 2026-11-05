@@ -1,0 +1,77 @@
+/**
+ * The library's own process (DB review 1, WP5): the Store, every database call and the backups run here, in an
+ * Electron utility process, so nothing the library does can hold up the main process beside the Discord bots.
+ * libraryProcess.ts is the thin entry Electron starts; this is the part tests run with a MessageChannel.
+ *
+ * Control messages from the main process (LyreApi calls use the rpc.ts protocol on the same port):
+ *   { t: "init", folder, seed }   open the library (and, in test builds, seed an empty one with the prototype's data)
+ *   { t: "start-backups" }        the window is showing: start the daily backups
+ *   { t: "legacy", raw }          bring in the old player's library (once; the database remembers it did)
+ *   { t: "close" }                stop backups, close the library cleanly
+ * Answers: { t: "ready" }, { t: "open-failed", message }, { t: "legacy-report", report }, { t: "closed" }.
+ */
+import { serveLyreApi, type PortLike } from "../../common/lyre/rpc";
+import { prototypeSeed } from "../../common/lyre/seed";
+import { LibraryDatabaseError, importLegacyLibrary, openLibrary, startDailyBackups, type Library } from "../data";
+import { createLibraryApi, type LibraryHost } from "./libraryApi";
+import { seedLibrary } from "./seedLibrary";
+
+export interface LibraryProcessOptions {
+  /** Opens the library; tests pass openLibrary with a temporary folder. */
+  open?: (folder: string) => Library;
+  log?: (message: string, error?: unknown) => void;
+}
+
+export type InitMessage = { t: "init"; folder: string; seed: boolean };
+
+export function runLibraryProcess(port: PortLike, options: LibraryProcessOptions = {}): { done: Promise<void> } {
+  const open = options.open ?? ((folder: string) => openLibrary({ folder }));
+  const log = options.log ?? ((message, error) => console.error(message, error ?? ""));
+  let library: Library | null = null;
+  let server: ReturnType<typeof serveLyreApi> | null = null;
+  let stopBackups: (() => void) | null = null;
+  let finish: () => void;
+  const done = new Promise<void>((resolve) => (finish = resolve));
+
+  // The library's host work (choosers, File Explorer) is done by the main process, asked over the same port.
+  const host: LibraryHost = {
+    chooseFiles: () => server.askHost("chooseFiles", []) as Promise<string[] | null>,
+    chooseFolder: () => server.askHost("chooseFolder", []) as Promise<string | null>,
+    showItemInFolder: (path) => void server.askHost("showItemInFolder", [path]).catch((error) => log("Could not show the file in its folder", error)),
+  };
+
+  const stop = port.onMessage(async (data) => {
+    const message = data as { t?: string; folder?: string; seed?: boolean; raw?: unknown };
+    try {
+      if (message?.t === "init" && !library) {
+        try {
+          library = open(message.folder as string);
+        } catch (error) {
+          const words = error instanceof LibraryDatabaseError ? error.message : "Lyre could not open your library.";
+          log("Could not open the library", error);
+          port.postMessage({ t: "open-failed", message: words });
+          return;
+        }
+        if (message.seed && !library.store.get("SELECT 1 AS found FROM tracks LIMIT 1")) await seedLibrary(library, prototypeSeed());
+        server = serveLyreApi(createLibraryApi(library, host), port);
+        port.postMessage({ t: "ready" });
+      } else if (message?.t === "start-backups" && library && !stopBackups) {
+        stopBackups = startDailyBackups(library, { onError: (error) => log("The daily backup failed", error) });
+      } else if (message?.t === "legacy" && library) {
+        const report = await importLegacyLibrary(library, message.raw);
+        port.postMessage({ t: "legacy-report", report });
+      } else if (message?.t === "close") {
+        stopBackups?.();
+        server?.close();
+        library?.close();
+        library = null;
+        stop();
+        port.postMessage({ t: "closed" });
+        finish();
+      }
+    } catch (error) {
+      log(`The library could not do "${message?.t}"`, error);
+    }
+  });
+  return { done };
+}

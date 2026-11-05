@@ -19,14 +19,16 @@ function setup() {
   const page = (id: number) => ({ id, isDestroyed: () => false, mainFrame: { frameTreeNodeId: id * 10 }, once: (): void => undefined });
   const player = page(1);
   const mainWindow = page(2);
+  const lyre = page(3);
   registry.trust(player, "player-view");
   registry.trust(mainWindow, "main-window");
+  registry.trust(lyre, "lyre-view");
   const guard = guardIpc(ipc, { registry, warn: () => undefined });
   const media = { prepare: vi.fn(async () => ({ url: "file:///cache/x.flac" })) };
   const unregister = registerMediaIpc(guard, media, () => undefined);
   const send = (sender: ReturnType<typeof page>, ...args: unknown[]) =>
     Promise.resolve().then(() => handlers.get("MEDIA_PREPARE")!({ sender, senderFrame: sender.mainFrame }, ...args));
-  return { handlers, media, player, mainWindow, send, unregister };
+  return { handlers, media, player, mainWindow, lyre, send, unregister };
 }
 
 describe("MEDIA_PREPARE (BUG-10, PLY-11)", () => {
@@ -34,6 +36,12 @@ describe("MEDIA_PREPARE (BUG-10, PLY-11)", () => {
     const { media, player, send } = setup();
     expect(await send(player, "file:///music/old.wma", { keepLocal: false })).toEqual({ url: "file:///cache/x.flac" });
     expect(media.prepare).toHaveBeenCalledWith("file:///music/old.wma", { keepLocal: false });
+  });
+
+  it("answers the new interface page too, which hosts the engine in wave 3", async () => {
+    const { media, lyre, send } = setup();
+    expect(await send(lyre, "file:///music/old.wma", { keepLocal: true })).toEqual({ url: "file:///cache/x.flac" });
+    expect(media.prepare).toHaveBeenCalledWith("file:///music/old.wma", { keepLocal: true });
   });
 
   it("is refused from any other page", async () => {
@@ -64,8 +72,8 @@ describe("MEDIA_PREPARE (BUG-10, PLY-11)", () => {
     expect(await send(player, "file:///music/a.wma", { keepLocal: false })).toEqual({ error: "This file could not be prepared for playing." });
   });
 
-  it("is listed for the player only, and removed again on dispose", () => {
-    expect(IPC_CHANNELS.MEDIA_PREPARE.from).toEqual(["player-view"]);
+  it("is listed for the player and the new interface only, and removed again on dispose", () => {
+    expect(IPC_CHANNELS.MEDIA_PREPARE.from).toEqual(["player-view", "lyre-view"]);
     const { handlers, unregister } = setup();
     unregister();
     expect(handlers.has("MEDIA_PREPARE")).toBe(false);
