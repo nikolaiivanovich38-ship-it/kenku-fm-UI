@@ -816,8 +816,10 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
 
   private laneState(roomId: string, lane: MusicOrAmbience, playing: PlayingReport): LaneNowPlaying {
     const voice = this.laneVoice(roomId, lane);
-    const fileSeconds = (this.library.track(playing.trackId)?.durationMs ?? NaN) / 1000;
-    const length = voice && Number.isFinite(voice.duration) ? voice.duration : Number.isFinite(fileSeconds) ? fileSeconds : null;
+    // The library's length, as every list shows it, so the Now playing bar agrees with them; the playing file's
+    // length only for a track the library has no length for.
+    const known = (this.library.track(playing.trackId)?.durationMs ?? 0) / 1000;
+    const length = Number.isFinite(known) && known > 0 ? known : voice && Number.isFinite(voice.duration) ? voice.duration : null;
     return {
       trackId: playing.trackId,
       title: playing.title,
