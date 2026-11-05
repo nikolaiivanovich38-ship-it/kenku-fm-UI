@@ -301,6 +301,21 @@ describe("the preview's sound follows the profile shown", () => {
     expect(document.getElementById("lyre-live")).not.toHaveTextContent(/back to/);
   });
 
+  it("arrow keys on the playhead while it plays start the sound again once, after the keys rest (review 4)", async () => {
+    const { audio, user } = await open();
+    await user.click(within(region("Waveform and listening")).getByRole("button", { name: "Play" }));
+    position(audio, 0.2);
+    expect(previews(audio)).toHaveLength(1);
+    slider("Playhead").focus();
+    await user.keyboard("{ArrowRight}{ArrowRight}{ArrowRight}{ArrowRight}{ArrowRight}");
+    expect(previews(audio)).toHaveLength(1);
+    // The old sound's positions do not pull the playhead back while the new one is on its way.
+    position(audio, 0.3);
+    expect(region("Waveform and listening")).toHaveTextContent(/Position\s*0:05/);
+    await waitFor(() => expect(previews(audio)).toHaveLength(2));
+    expect((previews(audio)[1][2] as { startAtMs: number }).startAtMs).toBeGreaterThanOrEqual(5000);
+  });
+
   it("moving on, it previews the next track from its Start with its settings there, then stops", async () => {
     const { audio, user } = await open("profile/t13/sc:crown:s14:sc3");
     await user.click(screen.getByRole("button", { name: "Play the last 10 s before End" }));

@@ -57,6 +57,9 @@ function dragWith(onMove: (e: PointerEvent) => void, onEnd: () => void): void {
   window.addEventListener("pointercancel", up);
 }
 
+/** How long keys or a handle rest before the playing preview starts again from the playhead. */
+const RESTART_AFTER_MS = 200;
+
 const READ_ONLY_NOTE = "These are the track's settings. Give this place its own settings to change them here.";
 
 export type ProfileController = ReturnType<typeof useProfileController>;
@@ -130,7 +133,19 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
     },
     [audio, track.id, p, setClock, setFollowing],
   );
+  // A seek or a profile change while it plays starts the sound again from the playhead once the keys or the handle
+  // rest, not on every press (each start loads the file again). Until then the old sound's positions are ignored.
+  const restartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const restartSoon = useCallback(() => {
+    if (restartTimer.current) clearTimeout(restartTimer.current);
+    restartTimer.current = setTimeout(() => {
+      restartTimer.current = null;
+      if (clockRef.current.playing) startSound(clockRef.current.pos);
+    }, RESTART_AFTER_MS);
+  }, [startSound]);
   const stopSound = useCallback(() => {
+    if (restartTimer.current) clearTimeout(restartTimer.current);
+    restartTimer.current = null;
     if (!sounding.current) return;
     sounding.current = null;
     setFollowing(false);
@@ -138,7 +153,7 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
   }, [audio, setFollowing]);
   const scrubbing = useRef(false);
   useLyreAudioEvent("preview-position", (at: PreviewPosition) => {
-    if (!sounding.current || at.key !== sounding.current || scrubbing.current) return;
+    if (!sounding.current || at.key !== sounding.current || scrubbing.current || restartTimer.current) return;
     // The first position after a (re)start: the clock may have run ahead while the file loaded.
     const first = !followingRef.current;
     followingRef.current = true;
@@ -208,9 +223,8 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
     if (playingProfile.current === p) return;
     playingProfile.current = p;
     if (sounding.current !== track.id || !clockRef.current.playing || clockRef.current.handover) return;
-    const timer = setTimeout(() => startSound(clockRef.current.pos), 200);
-    return () => clearTimeout(timer);
-  }, [p, track.id, startSound]);
+    restartSoon();
+  }, [p, track.id, restartSoon]);
   // The clock stopped by itself (End, the end of the file, a few seconds into the next track): so does the sound.
   useEffect(() => {
     if (!clock.playing) stopSound();
@@ -283,7 +297,7 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
       setClock(s);
       if (!silent) say(`Playhead ${fmt(s.pos)}`);
       // While it plays, the sound goes on from the new place (a drag waits for its end).
-      if (!silent && s.playing && (sounding.current === track.id || wasHandingOver)) startSound(s.pos);
+      if (!silent && s.playing && (sounding.current === track.id || wasHandingOver)) restartSoon();
     },
     nudge(d: number) {
       actions.seek(clockRef.current.pos + d);
