@@ -21,6 +21,7 @@ import {
 } from "../domain";
 import { isRefused, LYRE_API_METHODS, REFUSAL_CODES, type Done, type LyreApi, type LyreArea, type LyreEvent, type RefusalCode, type SceneAddress, type WriteResult } from "./api";
 import { lookupFrom } from "./lookup";
+import { fileAddress } from "./media";
 
 export interface ContractFixture {
   /** A fresh API over the prototype's sample data, with nothing to undo. */
@@ -131,6 +132,12 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         const t43 = tracks.find((t) => t.id === "t43");
         expect(t43).toMatchObject({ title: "", isNew: true, energy: null, role: null, loop: null });
         expect(tracks.find((t) => t.id === "t13").profile).toMatchObject({ endMs: 318_000, after: "loop", loopStartMs: 64_000, loopCrossfadeMs: 2_000 });
+      });
+
+      it("gives each track the address the player loads its audio from", async () => {
+        const t01 = await track("t01");
+        expect(t01.url).toBe(fileAddress("H:\\Audio\\Scores\\Basil Poledouris\\Conan the Barbarian\\1-11 Riders of Doom.flac"));
+        expect(t01.url).toBe("file:///H:/Audio/Scores/Basil%20Poledouris/Conan%20the%20Barbarian/1-11%20Riders%20of%20Doom.flac");
       });
 
       it("searches by the start of any word, in one lane, best matches first, with the total", async () => {
@@ -637,6 +644,7 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         expect(tracks).toHaveLength(69 + fx.newAudioFiles.length);
         const first = tracks.find((t) => t.id === result.trackIds[0]);
         expect(first).toMatchObject({ kind: "amb", title: "", isNew: true });
+        expect(first.url).toBe(fileAddress(fx.newAudioFiles[0]));
         expect(first.metaTitle.length).toBeGreaterThan(0);
         await changedEvent("tracks");
         await vi.waitFor(() => expect(events.some((e) => e.type === "import-progress" && e.progress.phase === "done")).toBe(true));
@@ -667,6 +675,7 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         expect(plan.matches.length + plan.ambiguous.length + plan.notFound.length).toBe(missing.length);
         const done = valueOf(await api.import.applyRelink([{ trackId: match.trackId, to: match.to }]));
         expect(done.relinked).toEqual([fx.missingTrackId]);
+        expect((await track(fx.missingTrackId)).url).toBe(fileAddress(match.to));
         expect((await api.import.findMissing()).map((m) => m.id)).not.toContain(fx.missingTrackId);
         expect((await api.history.state()).canUndo).toBe(true);
         expectRefused(await api.import.applyRelink([{ trackId: "nope", to: match.to }]), "not-found");

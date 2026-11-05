@@ -8,6 +8,7 @@
  * track; the 60 pad files with no such track are left out, so the Library keeps its 69 tracks.
  */
 import type { AudioProfileInput, LoopAdvice, PadMode, PlaylistRule, ProfileOverrides, TrackRole } from "../domain";
+import { fileAddress } from "./media";
 import type { CampaignInfo, CampaignTheme, FolderRoot, LibraryTrack, Pad, PadBoard, PadColor, PlaylistInfo, SessionStatus, TagGroup } from "./api";
 
 export interface SeedData {
@@ -253,7 +254,7 @@ function profile(p: ProtoProfile): AudioProfileInput {
 }
 
 function tracks(now: number): LibraryTrack[] {
-  const music = MUSIC.map((r, i): LibraryTrack => ({
+  const music = MUSIC.map((r, i): Omit<LibraryTrack, "url" | "sizeBytes"> => ({
     id: r[0],
     kind: "music",
     title: r[1],
@@ -273,17 +274,18 @@ function tracks(now: number): LibraryTrack[] {
     addedAt: i >= 42 ? now - (MUSIC.length - i) : i < 20 ? SEP_12 : OCT_30,
     isNew: i >= 42,
   }));
-  const ambience = AMBIENCE.map((r): LibraryTrack => ({
+  const ambience = AMBIENCE.map((r): Omit<LibraryTrack, "url" | "sizeBytes"> => ({
     id: r[0], kind: "amb", title: r[1], metaTitle: "", fileName: r[2], durationMs: secs(240), role: "loop_bed", loop: "yes", energy: 1,
     tags: { mood: [...r[3]], motif: [], scene: [...r[4]] }, profile: null,
     artist: "Field recording", album: "Ambience", folder: "H:\\Audio\\Ambience", notes: "", addedAt: SEP_12, isNew: false,
   }));
-  const effects = EFFECTS.map((r): LibraryTrack => ({
+  const effects = EFFECTS.map((r): Omit<LibraryTrack, "url" | "sizeBytes"> => ({
     id: r[0], kind: "fx", title: r[1], metaTitle: "", fileName: r[2], durationMs: secs(r[3]), role: "effect", loop: /loop/.test(r[2]) ? "yes" : "no", energy: 2,
     tags: { mood: [...r[4]], motif: [], scene: [...r[5]] }, profile: null,
     artist: "Sound effect", album: "Effects", folder: "H:\\Audio\\Effects", notes: "", addedAt: SEP_12, isNew: false,
   }));
-  return [...music, ...ambience, ...effects];
+  // The prototype has no files; each sample track gets the address its file would have.
+  return [...music, ...ambience, ...effects].map((t): LibraryTrack => ({ ...t, url: fileAddress(`${t.folder}\\${t.fileName}`), sizeBytes: null }));
 }
 
 function playlists(): PlaylistInfo[] {

@@ -104,6 +104,10 @@ export interface LibraryTrack extends DomainTrack {
   addedAt: number;
   /** Marked New until it has a title of your own and at least one tag. */
   isNew: boolean;
+  /** The address the player loads the audio from (file:// for a file, see media.ts fileAddress); null when unknown. */
+  url: string | null;
+  /** The file's size in bytes, when known. */
+  sizeBytes: number | null;
 }
 
 /** The fields a screen can change on a track (Details pane, and a dropped file's kind in the session planner). */

@@ -55,6 +55,7 @@ import {
   type WriteResult,
 } from "./api";
 import { lookupFrom } from "./lookup";
+import { fileAddress } from "./media";
 import { prototypeSeed, type SeedData } from "./seed";
 
 export interface FakeLyreOptions {
@@ -423,6 +424,8 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
       notes: "",
       addedAt: now(),
       isNew: true,
+      url: fileAddress(path),
+      sizeBytes: null,
     };
   }
   async function importPaths(paths: string[]): Promise<ImportSummary> {
@@ -1128,6 +1131,7 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
             const { folder, name } = splitPath(m.to);
             t.folder = folder;
             t.fileName = name;
+            t.url = fileAddress(m.to);
             state.missing = state.missing.filter((id) => id !== t.id);
           }
           return { relinked: matches.map((m) => m.trackId) };
