@@ -168,7 +168,8 @@ export function getBoardLayout(store: Store, boardId: string): BoardLayout {
 }
 
 const ICON_NAME = /^[a-z0-9][a-z0-9_-]{0,39}$/;
-const HOTKEY = /^\S{1,12}$/;
+/** One key: a single character (not a space), or F1 to F12, as the prototype lets the game master choose. */
+const HOTKEY = /^(\S|[Ff]([1-9]|1[0-2]))$/;
 
 /** Checked columns for the pad fields present in `input`, plus the sound tracks when given. */
 function padColumns(store: Store, input: Record<string, unknown>): { columns: Record<string, SQLInputValue>; trackIds?: string[] } {
@@ -199,7 +200,7 @@ function padColumns(store: Store, input: Record<string, unknown>): { columns: Re
 
 function cleanHotkey(value: unknown): string | null {
   if (value === null || value === "") return null;
-  if (typeof value !== "string" || !HOTKEY.test(value)) throw new ValidationError("hotkey", "hotkey must be a single key, such as Q or 1.");
+  if (typeof value !== "string" || !HOTKEY.test(value)) throw new ValidationError("hotkey", "That key cannot be used. Try a letter, a number or F1 to F12.");
   return value.toLowerCase();
 }
 

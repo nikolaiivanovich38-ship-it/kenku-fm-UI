@@ -291,6 +291,8 @@ export type Campaign = {
   /** A line or two about the campaign. */
   description: string;
   obsidian: ObsidianLinks;
+  /** The number of the first session; the others count on in session order (the prototype renumbers this way). */
+  firstSessionNumber: number;
   position: number;
   createdAt: number;
   updatedAt: number;

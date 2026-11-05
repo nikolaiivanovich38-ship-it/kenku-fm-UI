@@ -112,6 +112,9 @@ describe("pad boards", () => {
       volume: 0.5,
       fadeMs: 0,
     });
+    // A function key works too (F1 to F12), as in the prototype; it is stored in lower case like any key.
+    expect(updatePad(t.store, pad.id, { hotkey: "F5" }).hotkey).toBe("f5");
+    expect(updatePad(t.store, pad.id, { hotkey: "Q" }).hotkey).toBe("q");
     // Switching to one file keeps the list, so switching back loses nothing.
     expect(updatePad(t.store, pad.id, { sound: { kind: "single" } }).sound).toMatchObject({ kind: "single", trackIds: [s2.id, s1.id] });
     for (const bad of [
@@ -119,6 +122,8 @@ describe("pad boards", () => {
       { mode: "loop" },
       { volume: 2 },
       { hotkey: "too long for a key" },
+      { hotkey: "ab" },
+      { hotkey: "F13" },
       { sound: { kind: "tag", tagId: "missing" } },
       { sound: { trackIds: ["missing"] } },
       { icon: "<script>" },

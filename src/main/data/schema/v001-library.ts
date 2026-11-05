@@ -274,6 +274,8 @@ CREATE TABLE campaigns (
   obsidian_vault TEXT NOT NULL DEFAULT '',
   obsidian_note TEXT NOT NULL DEFAULT '',
   obsidian_sessions TEXT NOT NULL DEFAULT '',
+  -- The number of the campaign's first session; the others count on in session order ("Session 14").
+  first_session_number INTEGER NOT NULL DEFAULT 1 CHECK (first_session_number BETWEEN 0 AND 100000),
   position REAL NOT NULL,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
@@ -283,8 +285,6 @@ CREATE TABLE sessions (
   id TEXT PRIMARY KEY,
   campaign_id TEXT NOT NULL REFERENCES campaigns (id) ON DELETE CASCADE,
   folder_id TEXT REFERENCES folders (id) ON DELETE SET NULL,
-  -- "Session 14": unique within the campaign (a natural key).
-  number INTEGER NOT NULL CHECK (number >= 0),
   name TEXT NOT NULL DEFAULT '',
   notes TEXT NOT NULL DEFAULT '',
   -- Calendar date YYYY-MM-DD, planned or played.
@@ -483,7 +483,6 @@ const INDEXES = `
 CREATE UNIQUE INDEX library_roots_name ON library_roots (name COLLATE NOCASE);
 CREATE UNIQUE INDEX tag_groups_name ON tag_groups (name COLLATE NOCASE);
 CREATE UNIQUE INDEX tags_name ON tags (group_id, name COLLATE NOCASE);
-CREATE UNIQUE INDEX sessions_number ON sessions (campaign_id, number);
 -- At most one next session per campaign.
 CREATE UNIQUE INDEX sessions_next ON sessions (campaign_id) WHERE status = 'next';
 

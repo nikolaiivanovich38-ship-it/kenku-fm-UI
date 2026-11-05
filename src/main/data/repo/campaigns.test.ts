@@ -102,12 +102,12 @@ describe("campaigns, sessions and scenes (ORG-7)", () => {
     const c = createCampaign(t.store, { name: "C" });
     const first = createSession(t.store, { campaignId: c.id });
     const second = createSession(t.store, { campaignId: c.id, name: "Black sails" });
-    const third = createSession(t.store, { campaignId: c.id, number: 14, noteLink: "Sessions/14.md" });
+    const third = createSession(t.store, { campaignId: c.id, noteLink: "Sessions/14.md" });
     // The first session is next; later ones are drafts (as in the prototype).
     expect([first, second, third].map((s) => [s.number, s.name, s.status])).toEqual([
       [1, "", "next"],
       [2, "Black sails", "draft"],
-      [14, "", "draft"],
+      [3, "", "draft"],
     ]);
     expect(third.noteLink).toBe("Sessions/14.md");
     // Making a later session next marks the old next one played; an earlier one would become a draft.
@@ -122,6 +122,19 @@ describe("campaigns, sessions and scenes (ORG-7)", () => {
     expect(moveSession(t.store, second.id, { campaignId: other.id, placement: "end" }).status).toBe("draft");
   });
 
+  it("numbers sessions by their order from the campaign's first session number, as the prototype renumbers them", async () => {
+    const c = createCampaign(t.store, { name: "Crown", firstSessionNumber: 12 });
+    const ids = ["a", "b", "c", "d"].map((name) => createSession(t.store, { campaignId: c.id, name }).id);
+    expect(listSessions(t.store, c.id).map((s) => [s.name, s.number])).toEqual([["a", 12], ["b", 13], ["c", 14], ["d", 15]]);
+    moveSession(t.store, ids[3], { placement: "start" });
+    expect(listSessions(t.store, c.id).map((s) => [s.name, s.number])).toEqual([["d", 12], ["a", 13], ["b", 14], ["c", 15]]);
+    expect(getSession(t.store, ids[2]).number).toBe(15);
+    updateCampaign(t.store, c.id, { firstSessionNumber: 1 });
+    expect(listSessions(t.store, c.id).map((s) => s.number)).toEqual([1, 2, 3, 4]);
+    expect(getCampaign(t.store, c.id).firstSessionNumber).toBe(1);
+    expect(() => updateCampaign(t.store, c.id, { firstSessionNumber: -1 })).toThrow(ValidationError);
+  });
+
   it("updates, reorders and moves sessions and scenes between parents", async () => {
     const a = createCampaign(t.store, { name: "A" });
     const b = createCampaign(t.store, { name: "B" });
@@ -130,10 +143,10 @@ describe("campaigns, sessions and scenes (ORG-7)", () => {
     updateCampaign(t.store, a.id, { name: "Alpha", notes: "n" });
     const s = createSession(t.store, { campaignId: a.id, name: "S" });
     const s2 = createSession(t.store, { campaignId: b.id, name: "S2" });
-    updateSession(t.store, s.id, { name: "Session one", notes: "x", date: null, number: 7 });
-    expect(getSession(t.store, s.id)).toMatchObject({ name: "Session one", number: 7, date: null });
+    updateSession(t.store, s.id, { name: "Session one", notes: "x", date: null });
+    expect(getSession(t.store, s.id)).toMatchObject({ name: "Session one", number: 1, date: null });
     moveSession(t.store, s.id, { campaignId: b.id, placement: "end" });
-    expect(listSessions(t.store, b.id).map((x) => x.name)).toEqual(["S2", "Session one"]);
+    expect(listSessions(t.store, b.id).map((x) => [x.name, x.number])).toEqual([["S2", 1], ["Session one", 2]]);
     const scene = createScene(t.store, { sessionId: s.id, name: "Docks" });
     updateScene(t.store, scene.id, { name: "Night docks", notes: "fog", startsWhen: "They reach the pier", noteLink: "Docks.md" });
     moveScene(t.store, scene.id, { sessionId: s2.id, placement: "end" });

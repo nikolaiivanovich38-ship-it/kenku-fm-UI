@@ -195,7 +195,7 @@ const COMMANDS: [string, (s: Store, f: Fixture) => unknown][] = [
   ["removeFromSession", (s, f) => campaigns.removeFromSession(s, f.session.id, { playlistIds: [f.playlist.id], boardIds: [f.board.id] })],
   ["moveInSession", (s, f) => campaigns.moveInSession(s, f.session.id, { playlistId: f.dynamic.id }, "start")],
   ["createSession", (s, f) => campaigns.createSession(s, { campaignId: f.campaign.id, name: "S2", date: "2026-11-07" })],
-  ["updateSession", (s, f) => campaigns.updateSession(s, f.session.id, { name: "Session 1", date: "2026-11-01", number: 9 })],
+  ["updateSession", (s, f) => campaigns.updateSession(s, f.session.id, { name: "Session 1", date: "2026-11-01" })],
   ["updateSession (next)", (s, f) => campaigns.updateSession(s, f.session2.id, { status: "next" })],
   ["moveSession", (s, f) => campaigns.moveSession(s, f.session.id, { placement: "end" })],
   ["deleteSession", (s, f) => campaigns.deleteSession(s, f.session.id)],

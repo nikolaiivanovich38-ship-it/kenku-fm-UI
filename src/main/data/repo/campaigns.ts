@@ -5,7 +5,8 @@
  *
  * - A campaign has a theme, a game system, a description and Obsidian links,
  *   and an ordered list of playlists and of boards.
- * - A session has a number, a name (may be empty), a date, a status (played,
+ * - A session has a number (the campaign's first session number plus its place
+ *   in the campaign's order, never stored), a name (may be empty), a date, a status (played,
  *   next, draft; at most one next per campaign), its own ordered playlists and
  *   boards, and a note link.
  * - A scene has a name, a "starts when" line, notes, a note link, an ordered
@@ -35,7 +36,7 @@ import {
   type UseTarget,
 } from "../types";
 import * as v from "../validate";
-import { newId, patchOf, placeholders, plural, requireRow, unique } from "./common";
+import { newId, patchOf, placeholders, plural, requireRow } from "./common";
 import { requireFolderFor } from "./folders";
 
 type CampaignRow = {
@@ -49,6 +50,7 @@ type CampaignRow = {
   obsidian_vault: string;
   obsidian_note: string;
   obsidian_sessions: string;
+  first_session_number: number;
   position: number;
   created_at: number;
   updated_at: number;
@@ -90,6 +92,7 @@ const toCampaign = (row: CampaignRow): Campaign => ({
   system: row.system,
   description: row.description,
   obsidian: { vault: row.obsidian_vault, note: row.obsidian_note, sessionsFolder: row.obsidian_sessions },
+  firstSessionNumber: row.first_session_number,
   position: row.position,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
@@ -130,6 +133,14 @@ const CAMPAIGNS: OrderedList = { table: "campaigns", scope: "1 = 1", params: [] 
 const sessionsOf = (campaignId: string): OrderedList => ({ table: "sessions", scope: "campaign_id = ?", params: [campaignId] });
 const scenesOf = (sessionId: string): OrderedList => ({ table: "scenes", scope: "session_id = ?", params: [sessionId] });
 const musicOf = (sceneId: string): OrderedList => ({ table: "scene_music", scope: "scene_id = ?", params: [sceneId] });
+
+/**
+ * Sessions with their number: the campaign's first session number plus how many of its sessions come before
+ * (sessions_order serves the count). Numbers are never stored, so a move or a delete renumbers by itself.
+ */
+const SESSION_SELECT = `SELECT s.*, (SELECT c.first_session_number FROM campaigns c WHERE c.id = s.campaign_id)
+    + (SELECT count(*) FROM sessions o WHERE o.campaign_id = s.campaign_id AND o.position < s.position) AS number
+  FROM sessions s`;
 
 const SCENE_SELECT = `SELECT sc.*, a.track_id AS ambience_track, a.playlist_id AS ambience_playlist
   FROM scenes sc LEFT JOIN scene_ambience a ON a.scene_id = sc.id`;
@@ -176,6 +187,7 @@ function campaignColumns(patch: Record<string, unknown>): Record<string, SQLInpu
   if (patch.system !== undefined) columns.system = v.optionalText("system", patch.system, v.MAX_NAME_LENGTH).trim();
   if (patch.description !== undefined) columns.description = v.optionalText("description", patch.description);
   if (patch.obsidian !== undefined) Object.assign(columns, obsidianColumns(patch.obsidian));
+  if (patch.firstSessionNumber !== undefined) columns.first_session_number = v.integer("firstSessionNumber", patch.firstSessionNumber, 0, 100_000);
   return columns;
 }
 
@@ -189,6 +201,8 @@ export type CampaignInput = {
   system?: string;
   description?: string;
   obsidian?: Partial<ObsidianLinks>;
+  /** Default 1. */
+  firstSessionNumber?: number;
   placement?: Placement;
 };
 
@@ -226,7 +240,7 @@ export function updateCampaign(
   id: string,
   changes: Partial<Omit<CampaignInput, "id" | "placement">>,
 ): Campaign {
-  const patch = patchOf(changes, ["name", "color", "notes", "theme", "system", "description", "obsidian"]);
+  const patch = patchOf(changes, ["name", "color", "notes", "theme", "system", "description", "obsidian", "firstSessionNumber"]);
   const campaignId = requireRow(store, "campaigns", "campaign", id);
   applyColumns(store, "campaigns", campaignId, "Change campaign", campaignColumns(patch));
   return getCampaign(store, campaignId) as Campaign;
@@ -391,8 +405,6 @@ export type SessionInput = {
   id?: string;
   campaignId: string;
   name?: string;
-  /** Default: one more than the campaign's highest. */
-  number?: number;
   date?: string | null;
   /** Default: next when the campaign has no next session, otherwise draft. */
   status?: SessionStatus;
@@ -405,7 +417,6 @@ export type SessionInput = {
 function sessionColumns(patch: Record<string, unknown>): Record<string, SQLInputValue> {
   const columns: Record<string, SQLInputValue> = {};
   if (patch.name !== undefined) columns.name = nameOf(patch.name, false);
-  if (patch.number !== undefined) columns.number = v.integer("number", patch.number, 0, 100_000);
   if ("date" in patch) columns.session_date = v.nullableDate("date", patch.date);
   if (patch.notes !== undefined) columns.notes = v.optionalText("notes", patch.notes);
   if (patch.noteLink !== undefined) columns.note_link = shortText("noteLink", patch.noteLink);
@@ -421,57 +432,54 @@ export function createSession(store: Store, input: SessionInput): Session {
   const folderId = requireFolderFor(store, record.folderId, "sessions");
   store.change(`Add session${columns.name ? ` "${columns.name}"` : ""}`, () => {
     const now = store.now();
-    const highest = (store.get<{ n: number }>("SELECT coalesce(max(number), 0) AS n FROM sessions WHERE campaign_id = ?", campaignId) as { n: number }).n;
     const wanted = status ?? (hasNext(store, campaignId) ? "draft" : "next");
-    unique("number", `Session ${columns.number ?? highest + 1} already exists in this campaign; pick another number`, () => insertRow(store, "sessions", {
+    insertRow(store, "sessions", {
       id,
       campaign_id: campaignId,
       folder_id: folderId,
       name: "",
       notes: "",
-      number: highest + 1,
       ...columns,
       status: wanted === "next" ? "draft" : wanted,
       position: positionFor(store, sessionsOf(campaignId), (record.placement as Placement | undefined) ?? "end"),
       created_at: now,
       updated_at: now,
-    }));
+    });
     if (wanted === "next") makeNext(store, id);
   });
   return getSession(store, id) as Session;
 }
 
 export function getSession(store: Store, id: string): Session | null {
-  const row = store.get<SessionRow>("SELECT * FROM sessions WHERE id = ?", id);
+  const row = store.get<SessionRow>(`${SESSION_SELECT} WHERE s.id = ?`, id);
   return row ? toSession(row) : null;
 }
 
 export function listSessions(store: Store, campaignId: string): Session[] {
-  return store.all<SessionRow>("SELECT * FROM sessions WHERE campaign_id = ? ORDER BY position, rowid", campaignId).map(toSession);
+  return store.all<SessionRow>(`${SESSION_SELECT} WHERE s.campaign_id = ? ORDER BY s.position`, campaignId).map(toSession);
 }
 
 /** Changes only what is given. Making a session next moves the campaign's other next session to played or draft. */
 export function updateSession(
   store: Store,
   id: string,
-  changes: Partial<Pick<SessionInput, "name" | "number" | "date" | "status" | "notes" | "noteLink">>,
+  changes: Partial<Pick<SessionInput, "name" | "date" | "status" | "notes" | "noteLink">>,
 ): Session {
-  const patch = patchOf(changes, ["name", "number", "date", "status", "notes", "noteLink"]);
+  const patch = patchOf(changes, ["name", "date", "status", "notes", "noteLink"]);
   const sessionId = requireRow(store, "sessions", "session", id);
   const columns = sessionColumns(patch);
   const status = patch.status === undefined ? undefined : v.oneOf("status", patch.status, SESSION_STATUSES);
-  unique("number", `Session ${columns.number} already exists in this campaign; pick another number`, () =>
   applyColumns(store, "sessions", sessionId, "Change session", columns, () => {
     if (status === "next") makeNext(store, sessionId);
     else if (status !== undefined) store.run("UPDATE sessions SET status = ? WHERE id = ?", status, sessionId);
-  }));
+  });
   return getSession(store, sessionId) as Session;
 }
 
 /**
- * Reorders a session, or moves it to another campaign or folder. In another
- * campaign a next session becomes a draft when that campaign has one, and a
- * session whose number is taken there gets the next free number.
+ * Reorders a session, or moves it to another campaign or folder; sessions are
+ * numbered by their new order. In another campaign a next session becomes a
+ * draft when that campaign has one.
  */
 export function moveSession(
   store: Store,
@@ -485,17 +493,12 @@ export function moveSession(
     const position = positionFor(store, sessionsOf(campaignId), target.placement, session.id);
     const elsewhere = campaignId !== session.campaignId;
     const status = session.status === "next" && elsewhere && hasNext(store, campaignId) ? "draft" : session.status;
-    const taken = elsewhere && store.get("SELECT 1 AS found FROM sessions WHERE campaign_id = ? AND number = ?", campaignId, session.number);
-    const number = taken
-      ? (store.get<{ n: number }>("SELECT coalesce(max(number), 0) + 1 AS n FROM sessions WHERE campaign_id = ?", campaignId) as { n: number }).n
-      : session.number;
     store.run(
-      "UPDATE sessions SET campaign_id = ?, folder_id = ?, position = ?, status = ?, number = ? WHERE id = ?",
+      "UPDATE sessions SET campaign_id = ?, folder_id = ?, position = ?, status = ? WHERE id = ?",
       campaignId,
       folderId,
       position,
       status,
-      number,
       session.id,
     );
   });

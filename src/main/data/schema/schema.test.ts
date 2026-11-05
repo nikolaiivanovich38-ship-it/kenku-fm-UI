@@ -48,8 +48,8 @@ describe("the library schema (DAT-11)", () => {
     migrate(db, MIGRATIONS);
     db.exec(`
       INSERT INTO campaigns (id, name, position, created_at, updated_at) VALUES ('c1', 'A', 1, 1, 1), ('c2', 'B', 2, 1, 1);
-      INSERT INTO sessions (id, campaign_id, number, status, position, created_at, updated_at)
-        VALUES ('s1', 'c1', 1, 'next', 1, 1, 1), ('s2', 'c2', 1, 'next', 1, 1, 1), ('s3', 'c1', 2, 'draft', 2, 1, 1);
+      INSERT INTO sessions (id, campaign_id, status, position, created_at, updated_at)
+        VALUES ('s1', 'c1', 'next', 1, 1, 1), ('s2', 'c2', 'next', 1, 1, 1), ('s3', 'c1', 'draft', 2, 1, 1);
     `);
     expect(() => db.exec("UPDATE sessions SET status = 'next' WHERE id = 's3'")).toThrow(/UNIQUE/);
     db.close();
@@ -79,7 +79,7 @@ describe("the library schema (DAT-11)", () => {
         INSERT INTO playlists (id, title, position, created_at, updated_at, kind) VALUES ('m', 'Manual', 1, 1, 1, 'manual');
         INSERT INTO playlists (id, title, position, created_at, updated_at, kind) VALUES ('d', 'Dynamic', 2, 1, 1, 'dynamic');
         INSERT INTO campaigns (id, name, position, created_at, updated_at) VALUES ('c', 'C', 1, 1, 1);
-        INSERT INTO sessions (id, campaign_id, number, position, created_at, updated_at) VALUES ('s', 'c', 1, 1, 1, 1);
+        INSERT INTO sessions (id, campaign_id, position, created_at, updated_at) VALUES ('s', 'c', 1, 1, 1);
         INSERT INTO scenes (id, session_id, position, created_at, updated_at) VALUES ('sc', 's', 1, 1, 1);
       `);
     });
@@ -225,7 +225,7 @@ describe("the library schema (DAT-11)", () => {
       db.exec("INSERT INTO scene_music (id, scene_id, track_id, position) VALUES ('a', 'sc', 't', 1024)");
       fails("INSERT INTO scene_music (id, scene_id, track_id, position) VALUES ('b', 'sc', 't', 1024)", /UNIQUE/);
       fails("INSERT INTO playlists (id, title, position, created_at, updated_at) VALUES ('x', 'X', 1, 1, 1)", /UNIQUE/);
-      fails("INSERT INTO sessions (id, campaign_id, number, position, created_at, updated_at) VALUES ('s2', 'c', 1, 2, 1, 1)", /UNIQUE/);
+      fails("INSERT INTO sessions (id, campaign_id, position, created_at, updated_at) VALUES ('s2', 'c', 1, 1, 1)", /UNIQUE/);
     });
 
     it("lets a rule name only tags of its condition's group, and follows tag renames and deletes by key", () => {

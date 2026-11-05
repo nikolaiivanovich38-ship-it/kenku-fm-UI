@@ -208,10 +208,11 @@ function loadIntoDatabase(store: Store, data: ProtoData) {
       system: c.system,
       description: c.blurb,
       obsidian: { vault: c.obsidian.vault, note: c.obsidian.note, sessionsFolder: c.obsidian.sessions },
+      firstSessionNumber: c.sessions[0]?.n ?? 1,
     });
     addToCampaign(store, c.id, { playlistIds: c.playlists, boardIds: c.boards });
     for (const s of c.sessions) {
-      createSession(store, { id: s.id, campaignId: c.id, number: s.n, name: s.name, date: s.date || null, status: s.status });
+      createSession(store, { id: s.id, campaignId: c.id, name: s.name, date: s.date || null, status: s.status });
       addToSession(store, s.id, { playlistIds: s.playlists, boardIds: s.boards });
       for (const sc of s.scenes) {
         createScene(store, { id: sc.id, sessionId: s.id, name: sc.name, startsWhen: sc.when, notes: sc.notes });
