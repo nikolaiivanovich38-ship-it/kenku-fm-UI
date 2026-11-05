@@ -2,6 +2,7 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ErrorBoundary } from "../kit/ErrorBoundary";
 import { SCREENS, type ScreenComponent } from "../screens";
 import { AnnouncerProvider, useAnnounce } from "./Announcer";
+import { CampaignInHandContext } from "./CampaignInHand";
 import { Rail } from "./Rail";
 import { routeFromHash, sectionOf, type RouteName } from "./routes";
 import { useShellData } from "./ShellData";
@@ -103,7 +104,9 @@ function ShellFrame({ screens }: { screens: Record<RouteName, ScreenComponent> }
       <Rail section={sectionOf(route)} min={railMin} onToggleMin={() => update({ rail: railMin ? "full" : "min" })} />
       <main id="view" className="view" data-view={route.name}>
         <ErrorBoundary key={route.path} where="this screen">
-          <Screen route={route} />
+          <CampaignInHandContext.Provider value={campaignInHand.current}>
+            <Screen route={route} />
+          </CampaignInHandContext.Provider>
         </ErrorBoundary>
         {route.name !== "live" && data.onAirBar}
       </main>

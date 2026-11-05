@@ -1,6 +1,7 @@
 /**
  * "Use in…" for a playlist (_shared.js L.assignSheet): tick a campaign to have it all campaign long, a session for
- * that evening, or a scene to play it there. Save makes exactly the ticked places use it.
+ * that evening, or a scene to play it there. Save makes exactly the ticked places use it. Every campaign is listed,
+ * folded, except the campaign in hand and those where it is used already.
  */
 import React from "react";
 import type { SoundRef } from "../../../common/domain";
@@ -8,6 +9,7 @@ import type { CampaignInfo, PlaylistInfo, UsePlace } from "../../../common/lyre/
 import { useLyreApi } from "../../api";
 import { PickerDialog, type PickerItem } from "../../kit/Picker";
 import { useAnnounce } from "../../shell/Announcer";
+import { useCampaignInHand } from "../../shell/CampaignInHand";
 import { useWriteOk } from "./shared";
 
 export interface UseInDialogProps {
@@ -22,6 +24,8 @@ export function UseInDialog({ playlist, campaigns, nameOf, onClose }: UseInDialo
   const api = useLyreApi();
   const { toast } = useAnnounce();
   const ok = useWriteOk();
+  const inHandId = useCampaignInHand();
+  const inHand = campaigns.find((c) => c.id === inHandId)?.name;
   if (!playlist) return null;
   const id = playlist.id;
   const isAmb = playlist.lane === "amb";
@@ -63,6 +67,8 @@ export function UseInDialog({ playlist, campaigns, nameOf, onClose }: UseInDialo
       items={items}
       selected={selected}
       okLabel="Save"
+      fold
+      openGroups={inHand ? [inHand] : []}
       onClose={onClose}
       onDone={async (ids) => {
         onClose();

@@ -5,7 +5,7 @@ import { expectNoAxeViolations } from "../../test/axe";
 // The page can start the real audio host, whose worklet file is a webpack asset; these tests use a fake host.
 vi.mock("../../../preload/managers/PCMStream.worklet.js?asset", () => ({ default: "pcm.js" }));
 
-import { dropNames, openAt } from "./testHarness";
+import { dropNames, go, openAt } from "./testHarness";
 
 const list = () => screen.getByRole("list", { name: "Playlists" });
 /** A playlist's row in the list, found by its expander. */
@@ -226,6 +226,23 @@ describe("Playlists: a manual playlist", () => {
     expect(sheet.getByText("3 chosen")).toBeInTheDocument();
     await user.click(sheet.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(region("Used in")).toHaveTextContent("Session 14"));
+  });
+
+  it("Use in… folds the campaigns, except those it is used in and the campaign in hand", async () => {
+    openAt("campaign/masks");
+    go("playlist/p-abbess");
+    await screen.findByRole("heading", { name: "The Abbess", level: 1 });
+    const user = userEvent.setup();
+    await user.click(screen.getAllByRole("button", { name: "Use in…" })[0]);
+    const sheet = within(screen.getByRole("dialog", { name: /Use "The Abbess" in…/ }));
+    expect(sheet.getByRole("button", { name: /^The Sunken Crown/ })).toHaveAttribute("aria-expanded", "true");
+    expect(sheet.getByRole("button", { name: /^Ash and Masks/ })).toHaveAttribute("aria-expanded", "true");
+    const sixth = sheet.getByRole("button", { name: /^The Sixth Year/ });
+    expect(sixth).toHaveAttribute("aria-expanded", "false");
+    expect(sixth).toHaveTextContent("0 ticked");
+    expect(sheet.queryByRole("checkbox", { name: /^The Sixth Year: whole campaign/ })).toBeNull();
+    await user.click(sixth);
+    expect(sheet.getByRole("checkbox", { name: /^The Sixth Year: whole campaign/ })).not.toBeChecked();
   });
 
   it("Delete playlist… asks first, and Keep it keeps it", async () => {
