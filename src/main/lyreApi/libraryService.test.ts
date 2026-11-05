@@ -13,6 +13,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { LyreEvent } from "../../common/lyre/api";
 import { LibraryDatabaseError, openLibrary } from "../data";
+import { findBundledFfmpeg } from "../media/bundledFfmpeg";
+import { wavBytes, writeFile } from "../media/testing/wavFiles";
 import { runLibraryProcess } from "./libraryProcessCore";
 import { BACK_AGAIN, GAVE_UP, LyreLibraryService, STARTING_AGAIN, type LibraryChild } from "./libraryService";
 
@@ -61,7 +63,9 @@ class FakeChild extends EventEmitter implements LibraryChild {
   }
 }
 
-function service(options: { open?: (folder: string) => ReturnType<typeof openLibrary>; seed?: boolean; host?: Record<string, (...a: unknown[]) => unknown> } = {}) {
+function service(
+  options: { open?: (folder: string) => ReturnType<typeof openLibrary>; seed?: boolean; host?: Record<string, (...a: unknown[]) => unknown>; ffmpegPath?: string | null } = {},
+) {
   const folder = tempFolder();
   const children: FakeChild[] = [];
   const events: LyreEvent[] = [];
@@ -73,6 +77,7 @@ function service(options: { open?: (folder: string) => ReturnType<typeof openLib
     },
     folder,
     seed: options.seed ?? true,
+    ffmpegPath: options.ffmpegPath ?? null,
     host: options.host ?? {},
     onEvent: (event) => events.push(event),
     restartDelayMs: 10,
@@ -101,6 +106,43 @@ describe("LyreLibraryService", () => {
     fs.writeFileSync(path.join(dir, "Lute", "01 Lute.flac"), "x");
     await call(s, "import", "start", { from: "paths", paths: [path.join(dir, "Lute", "01 Lute.flac")] });
     expect(await s.mediaFolders()).toContain(path.join(dir, "Lute"));
+    await s.stop();
+  });
+
+  it("gives new tracks their file-tag title, artist, album and length (DAT-5, music-metadata in the library's process)", async () => {
+    const { s } = service();
+    s.start();
+    const dir = tempFolder();
+    const file = writeFile(dir, "07 tavern.wav", wavBytes({ seconds: 1.5 }, { title: "Tavern Warmth", artist: "The Lute Guild", album: "Inns of the North" }));
+    const imported = (await call(s, "import", "start", { from: "paths", paths: [file] })) as { value: { trackIds: string[] } };
+    const tracks = (await call(s, "library", "listTracks")) as { id: string }[];
+    expect(tracks.find((t) => t.id === imported.value.trackIds[0])).toMatchObject({
+      metaTitle: "Tavern Warmth",
+      artist: "The Lute Guild",
+      album: "Inns of the North",
+      durationMs: 1500,
+    });
+    await s.stop();
+  });
+
+  it("works out new tracks' loudness peaks with the ffmpeg it is given, and says when they are ready", async () => {
+    const { s, events } = service({ ffmpegPath: findBundledFfmpeg(process.cwd()) });
+    s.start();
+    const file = writeFile(tempFolder(), "swell.wav", wavBytes({ seconds: 2, level: (t) => t / 2 }));
+    const imported = (await call(s, "import", "start", { from: "paths", paths: [file] })) as { value: { added: string[] } };
+    await vi.waitFor(() => expect(events).toContainEqual({ type: "changed", areas: ["peaks"] }), { timeout: 5000 });
+    const levels = (await call(s, "library", "peaksOf", imported.value.added[0])) as number[];
+    expect(levels).toHaveLength(1000);
+    expect(levels[0]).toBeLessThan(levels[999]);
+    await s.stop();
+  });
+
+  it("answers no peaks when it has no ffmpeg (a damaged install), and keeps working", async () => {
+    const { s } = service({ ffmpegPath: null });
+    s.start();
+    const file = writeFile(tempFolder(), "swell.wav", wavBytes({ seconds: 1 }));
+    const imported = (await call(s, "import", "start", { from: "paths", paths: [file] })) as { value: { added: string[] } };
+    expect(await call(s, "library", "peaksOf", imported.value.added[0])).toBeNull();
     await s.stop();
   });
 

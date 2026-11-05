@@ -3,15 +3,11 @@
  * number, length, and where present mood, genre and comment).
  *
  * Behind an interface so imports and their tests run without a tag library.
- * The real reader is music-metadata (MIT, pure JavaScript; requested in the
- * wave 2 report, not installed yet). Once added, the main process wires it as:
- *
- *   import { parseFile } from "music-metadata";
- *   const tagReader = createMusicMetadataTagReader(parseFile);
- *
- * Until then `noTagReader` is used and new tracks are named after their files.
- * Tags fill the file-tag title, artist, album and length; never the game
- * master's own title.
+ * The real reader is music-metadata (MIT, pure JavaScript), wired in the
+ * library's process as `musicMetadataTagReader` (musicMetadata.ts). A file
+ * whose tags cannot be read is named after its file (`noTagReader` does the
+ * same in tests). Tags fill the file-tag title, artist, album and length;
+ * never the game master's own title.
  */
 import path from "path";
 import { MAX_NAME_LENGTH, MAX_TEXT_LENGTH } from "../validate";

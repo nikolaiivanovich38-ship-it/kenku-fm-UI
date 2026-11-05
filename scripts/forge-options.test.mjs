@@ -73,7 +73,15 @@ describe("ASAR_UNPACK_GLOB (SEC-13)", () => {
     assert.ok(unpacked("/app/.webpack/main/native_modules/thing.node"));
   });
 
+  it("keeps the bundled ffmpeg program outside app.asar, so it can be run (BUG-10)", () => {
+    assert.ok(unpacked("/app/node_modules/ffmpeg-static/ffmpeg"));
+    assert.ok(unpacked("C:/build/app/node_modules/ffmpeg-static/ffmpeg.exe"));
+  });
+
   it("packs everything else", () => {
+    assert.ok(!unpacked("/app/node_modules/ffmpeg-static/index.js"));
+    assert.ok(!unpacked("/app/node_modules/ffmpeg-static/package.json"));
+    assert.ok(!unpacked("/app/.webpack/main/ffmpeg"));
     assert.ok(!unpacked("/app/.webpack/main/index.js"));
     assert.ok(!unpacked("/app/node_modules/opusscript/index.js"));
     assert.ok(!unpacked("/app/package.json"));

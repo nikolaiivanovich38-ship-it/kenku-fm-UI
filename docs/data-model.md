@@ -15,6 +15,7 @@ The library database (backlog DAT-6, DAT-1, DAT-2, DAT-10, DAT-11, ORG-4, ORG-7,
 - **Campaigns, sessions and scenes.** A campaign has a look (theme), a game system, a description and (for later) its Obsidian notes, and the playlists and boards you use all campaign long. A session has a number (counted from the campaign's first session number in session order, so moving a session renumbers them all, as the prototype does), a name, a date, a status (played, next, draft; only one "next" per campaign) and its own playlists and boards. A scene has a name, a "starts when" line, notes, a music list (tracks and playlists in any mix, in playing order), one ambience track or playlist, and its pad boards.
 - **Folders** for playlists, boards and sessions, inside each other as deep as you like.
 - **Keys** (hotkeys) and what each runs: play a track or playlist, start a scene, next, previous, fade a lane, fade or stop everything, press a pad, undo a scene start, in order. Deleting a track, playlist, scene or pad takes it off every key.
+- **How loud each track is across its length** (its wave): about 1,000 loudness levels per track, worked out by Lyre from the file in the background after you add it (or when a screen first shows the track), and worked out again if the file changes. It goes when the track goes; undo brings the track back and Lyre works its wave out again. If a file cannot be read, Lyre remembers that and does not keep trying until the file changes.
 
 The audio files themselves are not copied: they stay where they are, and each track remembers where its file is. A file is in the library once: the same file cannot become two tracks, whatever the letter case or slash direction. You can name a library folder (for example "Soundtracks" = `H:\Audio\Soundtracks`); tracks inside it, including tracks added before the folder was named, are remembered relative to it, so moving it to another drive needs one change. A folder can be watched, so new files in it are added by themselves.
 
@@ -59,7 +60,7 @@ Discord's sound is fed from the same part of Lyre as the library, from a queue t
 
 ### Adding tracks, and your old library (import stream)
 
-- **Add files or a folder.** Every audio file in it (subfolders too) becomes a track marked **New**; hidden and Windows system folders are skipped, and a file already in your library is never added twice (letter case ignored). Its kind comes from its folder: Ambience, Atmospheres or Beds give ambience; Effects, SFX or Foley give a sound effect; anything else music. Its title in the file, artist, album and length come from the file's tags; your own title is never touched. The New mark goes once the track has a title of your own and a tag. A progress bar follows the work, Stop keeps what was saved, and the result says in plain words what was added and what was not.
+- **Add files or a folder.** Every audio file in it (subfolders too) becomes a track marked **New**; hidden and Windows system folders are skipped, and a file already in your library is never added twice (letter case ignored). Its kind comes from its folder: Ambience, Atmospheres or Beds give ambience; Effects, SFX or Foley give a sound effect; anything else music. Its title in the file, artist, album and length come from the file's tags (read by music-metadata); your own title is never touched. Afterwards Lyre works out each new track's wave in the background, one track at a time, without slowing anything you play. The New mark goes once the track has a title of your own and a tag. A progress bar follows the work, Stop keeps what was saved, and the result says in plain words what was added and what was not.
 - **Your old library moves in once.** Playlists and soundboards from the old player keep their names, order, pictures and sound settings; a file used in several places becomes one track, everywhere it was. Files that cannot be found still move (so playlists stay whole) and are listed. A copy of the library is made first, the old player's own library is never changed, and if Lyre stops halfway it carries on next time.
 - **Find missing files.** Lyre lists tracks whose files have gone and looks for them in a folder you choose, by name, size and content; you confirm, and one Undo puts everything back.
 - **Suggestions from your titles.** "Melancholy tense - harbour at night (loops well)" suggests Melancholy and Tense, and "loops well". Nothing is applied until you accept.
@@ -79,14 +80,15 @@ Measured with 20,000 tracks, 500 playlists and 3 campaigns of 50 sessions with 8
 | File | Purpose |
 | --- | --- |
 | `sqlite.ts` | Loads `node:sqlite` (decision D3) without its experimental warning; `openConnection()` turns on foreign keys, recursive triggers, `temp_store = MEMORY` and, for files, WAL with `synchronous = NORMAL` (or a rollback journal with `FULL` where WAL cannot work). |
-| `schema/migrate.ts`, `schema/index.ts`, `schema/v001-library.ts` | Numbered schema versions (one so far), the upgrade runner (`MigrationContext.startVersion` tells a step whether the library is new) and `rebuildTable()`. |
+| `schema/migrate.ts`, `schema/index.ts`, `schema/v001-library.ts`, `schema/v002-peaks.ts` | Numbered schema versions (two so far: the library, then loudness peaks), the upgrade runner (`MigrationContext.startVersion` tells a step whether the library is new) and `rebuildTable()`. |
 | `store.ts` | `Store`: prepared statements (the 200 most recently used), injected clock, `change(label, fn)` (one transaction, one undo step), `changeInBatches(label, items, fn)` (bulk work, one undo step), `exclusive()`, `changeWithoutHistory(fn)` (clears the history), `busyWith`, `searchCaughtUp()`. |
 | `searchIndex.ts` | Temporary triggers that mark changed tracks, and `flushSearchIndex` (each marked track's search entry rebuilt once, before COMMIT). |
 | `ordering.ts` | Gap ordering (`positionFor`, `positionsFor`, `assignPositions`). |
 | `validate.ts`, `designValidate.ts`, `errors.ts`, `types.ts` | Input checks (`designValidate` for audio profiles and rules, mirroring the tables' CHECKs), error classes, data-layer types. |
-| `repo/*.ts` | Repository functions: `roots`, `tracks`, `markers`, `folders`, `playlists` and `boards` (both on `containers`), `tags`, `campaigns`, `profiles`, `cueActions`, `search`; `domain` maps rows to the shared shapes of `src/common/domain`. `profileRows` and `ruleRows` store profiles and rules as rows (used inside other modules' changes). |
+| `repo/*.ts` | Repository functions: `roots`, `tracks`, `markers`, `folders`, `playlists` and `boards` (both on `containers`), `tags`, `campaigns`, `profiles`, `cueActions`, `search`; `domain` maps rows to the shared shapes of `src/common/domain`. `profileRows` and `ruleRows` store profiles and rules as rows (used inside other modules' changes); `peaks` reads and saves a track's loudness peaks (`trackPeaks`, `savePeaks`). |
+| `peaks.ts` | `PeakJobs`: works out loudness peaks one track at a time through a `PeakReader` (the real one runs ffmpeg: `src/main/media/ffmpegPeaks.ts`); on demand first, then after imports. |
 | `undo.ts` | `UndoHistory` (100 steps and 64 MB at most; a large step is replayed 500 rows at a time); `Store.clearHistory()` empties it. |
-| `import/*.ts` | Bringing audio in: `audioFiles` (which files, walking folders), `kindGuess`, `fileFacts` (quick checksum), `tagReader` (DAT-5, behind an interface), `pipeline` (EDT-6 `importAudio`, `refreshEmbeddedTags`), `legacy` (DAT-9), `relink` (DAT-8), `titleTags` (DAT-4). |
+| `import/*.ts` | Bringing audio in: `audioFiles` (which files, walking folders), `kindGuess`, `fileFacts` (quick checksum), `tagReader` (DAT-5, behind an interface), `musicMetadata` (the real reader; only the library's process imports it), `pipeline` (EDT-6 `importAudio`, `refreshEmbeddedTags`), `legacy` (DAT-9), `relink` (DAT-8), `titleTags` (DAT-4). |
 | `integrity.ts`, `backups.ts`, `library.ts` | Integrity check and `runInWorker()` (eval worker threads), backups (`backUpInBackground` on a worker), `openLibrary()`, `libraryFolder()`, `isNetworkPath()`, `restoreBackup()`, `startDailyBackups()`. Opening and closing run `PRAGMA optimize` so the planner's statistics stay current. |
 | `index.ts` | Public exports. |
 
@@ -154,7 +156,7 @@ erDiagram
   pads |o--o{ cue_actions : presses
 ```
 
-`schema_migrations`, `library_jobs`, `search_docs` and `search_fts` are bookkeeping and derived data, not shown.
+`schema_migrations`, `library_jobs`, `search_docs`, `search_fts` and `track_peaks` (one row per track, CASCADE) are bookkeeping and derived data, not shown.
 
 ### Tables
 
@@ -187,6 +189,7 @@ Conventions: text ids (UUIDs; ids from older data can be kept); times in millise
 | `cue_actions` | What a hotkey runs, in order (PLY-8 `CueAction`) | `id`; (`hotkey`, `position`) | `type` one of ten (not `removeQueued`, a live queue entry); exactly the columns its type needs (CHECK per column); `hotkey` lower case; `lane`, `play_when`, `phase` lists; `fade_ms` 0–60,000; track, playlist, scene, pad CASCADE; "picked from" playlist and scene SET NULL | BCNF (exception 6) |
 | `library_jobs` | Long jobs that run once and survive a crash: name, state running/done, JSON detail | `name` | `state` running/done; `detail` `json_valid` | BCNF |
 | `search_docs`, `search_fts` | Search index (derived) | `doc_id`; (`kind`, `ref_id`) | written only by triggers | derived copy (exception 1) |
+| `track_peaks` | A track's loudness peaks (version 2): the file's size and modified time they were worked out from, `levels` (BLOB, one byte per point, 0 = -60 dBFS or quieter, 255 = full scale; NULL: the file could not be read), when | `track_id` (`WITHOUT ROWID`) | `levels` NULL or a BLOB of 1–4,096 bytes; size ≥ 0; track CASCADE; outside undo | BCNF |
 | `schema_migrations` | Applied versions | `version` | | |
 
 #### Notes on choices
@@ -240,6 +243,7 @@ Every table is in third normal form, and all but three in Boyce-Codd normal form
 | Lists in hand-made order | `folders_order`, `playlists_order`, `boards_order` (on `coalesce(parent or folder, '')`, the expression the repository queries with, so the top level is ordered too), `tag_groups_order`, `tags_order`, `track_follow_with_order`, `campaigns_order` |
 | Natural keys | `library_roots_name`, `tag_groups_name`, `tags_name`, `sessions_next` |
 | New tracks (`NEW_TRACKS_SQL`) | `tracks_new` (partial: `is_new = 1`) |
+| A track's loudness peaks and whether they fit its file (`PEAKS_STATE_SQL`, `trackPeaks`) | `tracks` by `id`, `library_roots` and `track_peaks` primary keys |
 | Other lookups | `tracks_file_name` (relinking), `markers_track`, `tags_parent`, `sessions_folder`, `pads_tag` |
 
 Foreign keys without an index of their own, on purpose: `playlists.folder_id`, `boards.folder_id` and `folders.parent_id` (deleting a folder scans hundreds of rows at most, and the repository moves the contents first), and `rule_conditions.group_id` (deleting a tag group scans the rule conditions, tens of rows). Every other foreign key has an index whose first column is the key.
@@ -278,7 +282,7 @@ The main process feeds Discord from a 200 ms queue, so no call may hold it that 
 
 ### Undo
 
-`UndoHistory` creates TEMP triggers on every ordinary table except `schema_migrations` and `search_docs`. While `store.change()` runs they note each inserted key, each deleted row and each update's changed columns (including cascaded deletes and SET NULL updates); on commit the notes become one labelled step. `undo()` applies the opposites newest first in one transaction with `PRAGMA defer_foreign_keys = ON` (in batches for a large step, above); what that changes becomes the redo step. Tables added by later versions are covered automatically, provided each has a primary key. Steps are kept to 100 and to about 64 MB of notes, oldest dropped first, the newest always kept. `changeWithoutHistory` clears the history after it commits (DB review 10), except for bookkeeping that no step records (`markTracksUsed`).
+`UndoHistory` creates TEMP triggers on every ordinary table except `schema_migrations`, `search_docs` and `track_peaks` (derived from the files; SQLite's JSON functions, which the notes are made with, cannot hold its BLOBs either). While `store.change()` runs they note each inserted key, each deleted row and each update's changed columns (including cascaded deletes and SET NULL updates); on commit the notes become one labelled step. `undo()` applies the opposites newest first in one transaction with `PRAGMA defer_foreign_keys = ON` (in batches for a large step, above); what that changes becomes the redo step. Tables added by later versions are covered automatically, provided each has a primary key. Steps are kept to 100 and to about 64 MB of notes, oldest dropped first, the newest always kept. `changeWithoutHistory` clears the history after it commits (DB review 10), except for bookkeeping that no step records (`markTracksUsed`).
 
 ### Upgrade procedure (adding version N)
 
@@ -291,13 +295,19 @@ The main process feeds Discord from a 200 ms queue, so no call may hold it that 
 
 ### Version 1, folded (DB review 8)
 
-The library was first designed in WP3 (version 1), rebuilt for design round 4 (version 2) and extended by the import stream (version 3). None of these was released, so they were folded into one step that creates the final schema; the code that turned version-1 soundboard items into pads and scene items into music lists went with them. The first real upgrade will be version 2.
+The library was first designed in WP3 (version 1), rebuilt for design round 4 (version 2) and extended by the import stream (version 3). None of these was released, so they were folded into one step that creates the final schema; the code that turned version-1 soundboard items into pads and scene items into music lists went with them. The first real upgrade is version 2.
+
+### Version 2: loudness peaks (w3-media)
+
+`schema/v002-peaks.ts` adds `track_peaks`, one row per track: a table of its own because the levels (about 1 KB) are worked out long after the track is added and read one track at a time, so they never widen a scan of `tracks`. The row keeps the file's size and modified time it was worked out from; `trackPeaks` compares them with the track's and answers `ready` (same file), `unreadable` (same file, NULL levels), `needed` (none, or the file changed: relinked, or a newer copy) or `none` (no such track, or a web address). `savePeaks` writes outside undo (`changeWithoutHistory`, bookkeeping, so the history is kept) and only while the track still has that file (an `INSERT … SELECT` matching size and time), so levels worked out from a file that changed meanwhile are dropped. During bulk work it throws `LibraryBusyError` and `PeakJobs` tries again 250 ms later.
+
+`PeakJobs` (`peaks.ts`) runs one read at a time (`soon(id)` first, then `inBackground(ids)`), skips ready and unreadable tracks, leaves a file that is not there now (an unplugged drive) for a later request, and reports ready tracks at most every 250 ms (LyreApi turns that into a `changed` event for `peaks`). The real reader (`src/main/media/ffmpegPeaks.ts`) has ffmpeg decode the first audio stream to mono 16-bit samples at 8 kHz on its output pipe, at below-normal priority on one thread; `PeakLevels` keeps the loudest sample per block as the chunks arrive (blocks start at 1 ms; at 65,536 blocks neighbours merge, so memory stays under 256 KB for any length) and gives 1,000 points (fewer for a file under about a second). Each chunk is one pass over its samples, so the library's process is never held: a 20 ms timer keeps its beat within 200 ms while a 20-minute file is read and while 40 imported tracks are worked out (`ffmpegPeaks.test.ts`).
 
 ### Import (EDT-6, DAT-5, DAT-8, DAT-4)
 
 - `importAudio(store, { paths }, { tagReader, onProgress, signal, batchSize })`: walks the folders (no links followed), skips files already in the library (one read of every track's location, keyed by `fileKey`: case ignored, as the coming unique path indexes will), reads file facts and tags 8 files at a time, and saves 500 tracks per `changeWithoutHistory` transaction, letting the event loop run between batches. Clears the undo history afterwards (DB review item 10; `changeWithoutHistory` now does it by itself). Measured: 5,000 files into a 20,000-track library in about 1.2 s, saving 0.5 s, longest batch 70 ms (budget: 5 s, 2 s, 200 ms; `import/pipeline.perf.test.ts`). The tag reader's own time comes on top.
 - The quick checksum (`q1:` + SHA-256 of the size and the first and last 64 KiB) avoids reading whole files.
-- Tags: `TagReader` with `createMusicMetadataTagReader(parseFile)`; until music-metadata is added, `noTagReader` names tracks after their files (number and extension removed, as the prototype does). Mood and genre tags come back as `tagHints` for `suggestFromTitles`, and are never applied by themselves; track and disc numbers order an album in the result.
+- Tags: `TagReader` with `createMusicMetadataTagReader(parseFile)`; the library's process uses music-metadata 11 (`import/musicMetadata.ts`; ESM-only, so `webpack.main.config.js` aliases it to its Node entry). A file whose tags cannot be read is named after its file (number and extension removed, as the prototype does); `noTagReader` does the same in tests. Mood and genre tags come back as `tagHints` for `suggestFromTitles`, and are never applied by themselves; track and disc numbers order an album in the result.
 - `findMissingTracks`, `planRelink(store, missing, folder)` (confidence sure/likely/name; ties reported; a file another track has is never used) and `applyRelink` (one undo step in batches; refuses a file another track has, looked up through the unique path indexes).
 - `suggestFromTitles` / `applyTitleSuggestions` (one undo step).
 - Search (ORG-1): `search(…, { lane })` keeps to one lane of the Library (FX includes stings), by a key look-up per match: 2–17 ms on 20,000 tracks.
@@ -319,7 +329,7 @@ The library was first designed in WP3 (version 1), rebuilt for design round 4 (v
 
 | File | Covers |
 | --- | --- |
-| `schema/schema.test.ts` | A new library in one step; every CHECK, unique key (one track per file), composite key and integrity trigger; cue actions; the New mark; library jobs. |
+| `schema/schema.test.ts` | A new library in one upgrade (versions 1 and 2); every CHECK, unique key (one track per file), composite key and integrity trigger; cue actions; the New mark; library jobs. |
 | `schema/migrate.test.ts` | The upgrade runner: a later version, a failed step, a table rebuild, a newer-version refusal. |
 | `queryPlan.test.ts` | EXPLAIN QUERY PLAN of every hot read path: index searches only. |
 | `repo/domain.test.ts` | The prototype's sample data through the write functions, compared with the shared rules in memory. |
@@ -330,8 +340,10 @@ The library was first designed in WP3 (version 1), rebuilt for design round 4 (v
 | `repo/ruleRows.test.ts` | 48 rule fixtures through the SQL and `matchesRule`; a deleted tag never widens a playlist. |
 | `repo/cueActions.test.ts` | Every storable `CueAction` on a hotkey, refusals, and deletes. |
 | `import/*.test.ts` | Import, tags, the old library's move (with a simulated crash), relinking, title suggestions; `pipeline.perf.test.ts` the 5,000-file budget. |
+| `peaks.test.ts` | Stored peaks: ready, unreadable, needed when the file changes, none for web addresses; deleted with the track and left out of undo; not saved for a file that changed or a track deleted meanwhile; size limits. `PeakJobs`: order (on demand first), one notice per interval, skips, unreadable and missing files, waiting out bulk work, closing. |
+| `../media/ffmpegPeaks.test.ts` | The levels (decibel scale, blocks across chunk boundaries, long files), ffmpeg's arguments, and the real bundled ffmpeg: a quiet start and loud end, an unreadable file, and the 200 ms beat for a 20-minute file and a 40-track import. |
 | `performance.test.ts` | The figures above with 20,000 tracks, 500 playlists and 3 × 50 × 8 scenes: one campaign tree < 50 ms (all three < 150 ms), a dynamic playlist < 50 ms, uses < 50 ms, search < 50 ms, the whole library for the shared rules < 500 ms, and no event-loop turn held 200 ms or more (this thread's processor time, so other programs on a shared machine cannot fail it; clock time is recorded too) by a backup or any bulk change, undo or redo. `CUE_DESK_SKIP_PERF=1` skips it; `CUE_DESK_PERF_REPORT=<file>` writes the numbers. |
 
 ### Not yet
 
-Cue lists (WPD; `cue_actions` will gain `cue_id`) and export/import (DAT-7) arrive in later steps. The new interface reaches the library through LyreApi in a utility process (`src/main/lyreApi`, see docs/ARCHITECTURE.md "Wave 3: w3-api"). A real tag reader waits for music-metadata to be added. From the DB review: the Store runs in its own utility process behind LyreApi (wave 3), with batched bulk work kept; internal row tables keep text ids (they are part of the API, and ids from the old player are kept); a folder's scope is still checked in code, not by a composite key; budgets are warm-cache figures from the build machine, with no cold-start run on a spinning disk.
+Cue lists (WPD; `cue_actions` will gain `cue_id`) and export/import (DAT-7) arrive in later steps. The new interface reaches the library through LyreApi in a utility process (`src/main/lyreApi`, see docs/ARCHITECTURE.md "Wave 3: w3-api"). From the DB review: the Store runs in its own utility process behind LyreApi (wave 3), with batched bulk work kept; internal row tables keep text ids (they are part of the API, and ids from the old player are kept); a folder's scope is still checked in code, not by a composite key; budgets are warm-cache figures from the build machine, with no cold-start run on a spinning disk.

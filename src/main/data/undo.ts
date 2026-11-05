@@ -26,7 +26,7 @@ import { nextTurn, rollbackAfter, type Store } from "./store";
 export const UNDO_BATCH_ENTRIES = 500;
 
 /** Tables that are derived from others or are bookkeeping, never undone directly. */
-const NOT_UNDOABLE = new Set(["schema_migrations", "search_docs"]);
+const NOT_UNDOABLE = new Set(["schema_migrations", "search_docs", "track_peaks"]);
 
 export type UndoableTable = { name: string; columns: string[]; primaryKey: string[] };
 

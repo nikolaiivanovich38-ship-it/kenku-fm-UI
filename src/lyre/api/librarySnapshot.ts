@@ -21,6 +21,8 @@ const PARTS_OF: Record<LyreArea, Part[]> = {
   campaigns: ["campaigns"],
   profiles: ["overrides"],
   history: [],
+  // The audio host plays files; it never reads the loudness peaks (the wave does, through useTrackPeaks).
+  peaks: [],
 };
 
 export class LibrarySnapshot implements LyreAudioLibrary {

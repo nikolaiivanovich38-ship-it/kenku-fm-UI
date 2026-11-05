@@ -60,8 +60,11 @@ export interface Refusal {
   field?: string;
 }
 
-/** The parts of the library a screen may show. A "changed" event lists the areas to reload. */
-export const LYRE_AREAS = ["tracks", "tags", "folders", "playlists", "boards", "campaigns", "profiles", "history"] as const;
+/**
+ * The parts of the library a screen may show. A "changed" event lists the areas to reload. "peaks": loudness peaks
+ * of some tracks were worked out (library.peaksOf); sent in the background, at most a few times a second.
+ */
+export const LYRE_AREAS = ["tracks", "tags", "folders", "playlists", "boards", "campaigns", "profiles", "history", "peaks"] as const;
 export type LyreArea = (typeof LYRE_AREAS)[number];
 
 export interface Done<T> {
@@ -371,6 +374,13 @@ export interface LyreApi {
     listFolders(): Promise<FolderRoot[]>;
     /** Opens the track's folder in File Explorer. library.js L.acts.lbshow. */
     showInFolder(trackId: string): Promise<WriteResult>;
+    /**
+     * The track's loudness across its file, for the wave: about 1,000 levels from 0 (-60 dBFS or quieter) to 1 (full
+     * scale) on a decibel scale, evenly spaced from start to end. Null until they are worked out (in the background
+     * after an import, or now because a screen asked); a "changed" event for "peaks" follows when they are ready.
+     * Null for good for a web address, a file that cannot be read, or an unknown track. profile.js drawWave.
+     */
+    peaksOf(trackId: string): Promise<number[] | null>;
   };
   tags: {
     /** Tag groups and their values. library.js filters, tag combobox and Tag… sheet; playlists.js rule builder (plvaladd). */
@@ -499,7 +509,7 @@ export interface LyreApi {
 
 /** Method names by area, for the contract tests' "every method is covered" guard and for IPC channel lists. */
 export const LYRE_API_METHODS = {
-  library: ["listTracks", "search", "updateTrack", "listFolders", "showInFolder"],
+  library: ["listTracks", "search", "updateTrack", "listFolders", "showInFolder", "peaksOf"],
   tags: ["listGroups", "tagTracks"],
   playlists: ["list", "tracks", "containing", "create", "update", "copyAsManual", "delete", "addTracks", "removeTrack", "moveTrack"],
   boards: ["list", "create", "rename", "resize", "duplicate", "delete", "addPad", "updatePad", "duplicatePad", "movePad", "putAllBack", "deletePad"],

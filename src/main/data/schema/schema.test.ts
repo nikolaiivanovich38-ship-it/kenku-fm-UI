@@ -13,10 +13,11 @@ const tableNames = (db: DatabaseSync) =>
   (all(db, "SELECT name FROM sqlite_schema WHERE type = 'table' ORDER BY name") as { name: string }[]).map((r) => r.name);
 
 describe("the library schema (DAT-11)", () => {
-  it("makes a new library in one step, with the Mood, Leitmotif and Scene type tag groups", () => {
+  it("makes a new library in one upgrade, with the Mood, Leitmotif and Scene type tag groups", () => {
     const db = openConnection(":memory:");
-    expect(migrate(db, MIGRATIONS)).toEqual({ from: 0, to: 1, applied: [1] });
-    expect(schemaVersion(db)).toBe(1);
+    // Step 1 is the whole library; step 2 (w3-media) adds loudness peaks per track.
+    expect(migrate(db, MIGRATIONS)).toEqual({ from: 0, to: 2, applied: [1, 2] });
+    expect(schemaVersion(db)).toBe(2);
     expect((all(db, "SELECT name FROM tag_groups ORDER BY position") as { name: string }[]).map((g) => g.name)).toEqual([
       "Mood",
       "Leitmotif",
@@ -35,6 +36,7 @@ describe("the library schema (DAT-11)", () => {
         "rule_condition_tags",
         "audio_profiles",
         "audio_profile_markers",
+        "track_peaks",
       ]),
     );
     expect(tableNames(db)).not.toContain("board_items");

@@ -145,6 +145,16 @@ const config = {
         includeDeps: true,
       },
     },
+    {
+      // BUG-10 (w3-media): ship node_modules/ffmpeg-static (the ffmpeg program and its licence; the program is kept
+      // out of app.asar by ASAR_UNPACK_GLOB). Its dependencies only download the program at install time, so they
+      // are left out. The app finds the program itself (src/main/media/bundledFfmpeg.ts); nothing requires the module.
+      name: "@timfish/forge-externals-plugin",
+      config: {
+        externals: ["ffmpeg-static"],
+        includeDeps: false,
+      },
+    },
   ],
 };
 

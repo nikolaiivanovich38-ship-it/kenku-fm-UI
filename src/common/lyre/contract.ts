@@ -185,6 +185,41 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         expectRefused(await api.library.showInFolder(fx.missingTrackId), "file-missing");
         expectRefused(await api.library.showInFolder("nope"), "not-found");
       });
+
+      /** The track's peaks, waiting for them to be worked out (a "changed" event for "peaks" says when). */
+      async function peaksWhenReady(trackId: string): Promise<number[]> {
+        let levels = await api.library.peaksOf(trackId);
+        if (levels === null) {
+          await changedEvent("peaks");
+          await vi.waitFor(async () => {
+            levels = await api.library.peaksOf(trackId);
+            expect(levels, "peaks after a changed event").not.toBeNull();
+          });
+        }
+        return levels as number[];
+      }
+
+      it("works out a track's loudness peaks: about 1,000 levels from 0 to 1, the same each time it is asked", async () => {
+        const { added } = valueOf(await api.import.start({ from: "paths", paths: [fx.newAudioFiles[1]] }));
+        const levels = await peaksWhenReady(added[0]);
+        expect(levels.length).toBeGreaterThanOrEqual(500);
+        expect(levels.length).toBeLessThanOrEqual(4096);
+        expect(levels.every((level) => typeof level === "number" && level >= 0 && level <= 1)).toBe(true);
+        expect(new Set(levels).size, "a shape, not one even band").toBeGreaterThan(1);
+        expect(await api.library.peaksOf(added[0])).toEqual(levels);
+      });
+
+      it("works out new tracks' peaks after an import without being asked", async () => {
+        const { added } = valueOf(await api.import.start({ from: "paths", paths: fx.newAudioFiles }));
+        await changedEvent("peaks");
+        await vi.waitFor(async () => {
+          for (const id of added) expect(await api.library.peaksOf(id), `peaks of ${id}`).not.toBeNull();
+        });
+      });
+
+      it("has no peaks for a track it does not have", async () => {
+        expect(await api.library.peaksOf("nope")).toBeNull();
+      });
     });
 
     describe("tags", () => {

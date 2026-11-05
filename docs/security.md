@@ -561,3 +561,24 @@ Lyre's library (tracks, tags, playlists, pad boards, campaigns) lives in a datab
 
 - **Dropped files' paths.** The Lyre page's preload adds `window.lyre.files.pathOf(file)`, which returns `webUtils.getPathForFile(file)`, as the old player's preload does: the page learns where a file the user dropped is, and nothing else. It sends no IPC; the paths go to the library only through `LYRE_API_CALL` (`import.start` with `{ from: "paths" }`), whose checks are unchanged. A page-made `File` gives "".
 - No new IPC channels. Copy path writes to the clipboard from the page (`navigator.clipboard.writeText`); if the page may not, the toast still shows the path.
+
+## w3-media
+
+### In plain language
+
+Lyre now ships two helpers. One reads the titles, artist, album and length written inside your audio files. The other, ffmpeg, does two jobs: it makes a playable copy of a WMA or AIFF file in Lyre's own cache folder (as described under "Files and preview"), and it measures how loud each track is along its length, so the Audio profile screen can draw the track's wave. ffmpeg only ever reads your audio files; it never changes them, never goes on the internet, and the loudness measurement writes nothing to disk. Both run inside Lyre's background processes, never in the pages you click on.
+
+### Technical details
+
+- **Which ffmpeg runs.** The program that ffmpeg-static 5.3.0 bundles (GPL-3.0-or-later), found by `findBundledFfmpeg(app.getAppPath())` (`src/main/media/bundledFfmpeg.ts`) in `resources/app.asar.unpacked/node_modules/ffmpeg-static/`. ffmpeg-static's own `index.js` is not used, because it lets the `FFMPEG_BIN` environment variable choose another program (the same reason `NODE_OPTIONS` is switched off, SEC-13). The program sits outside app.asar (`ASAR_UNPACK_GLOB`, matching only that file by its full place), so like the `.node` files it is not covered by the asar integrity check: anyone who can write to Lyre's install folder could replace it, which is no more than they could already do to `lyre.exe`. A missing program is logged and said plainly when a file needs converting; peaks are then simply not drawn.
+- **Converting (main process)** is unchanged from "Files and preview": reads one file inside a library folder (`MediaAccess`), writes one `.part` file in `<data folder>/media-cache`.
+- **Loudness peaks (library process)** (`src/main/media/ffmpegPeaks.ts`): ffmpeg is started without a shell, each argument passed as it is, at below-normal priority on one thread. It may read plain files only (`-protocol_whitelist file`, the path prefixed `file:` so no name is read as a network or other protocol), the first audio stream only, and it writes nothing: its output is raw samples on its standard output pipe (`pipe:1`), read by the library process. The file it reads is a track's own file as stored in the library (a library folder, or a file the game master added from elsewhere); web-address tracks are never read. It is stopped when the library closes or after 10 minutes. Messages carry the file's name only; details go to the log.
+- **Tags** are read by music-metadata (pure JavaScript, MIT) inside the library's utility process, from the files being imported; covers are skipped. Text is cleaned (`cleanTags`: control characters dropped, lengths capped) before it is stored.
+- **No new IPC channel.** `LYRE_API_CALL` gains the method `library.peaksOf` (argument: a track id; the existing per-call checks apply: at most 4 arguments, 8 MB as JSON). It answers at most 4,096 numbers. The `changed` event gains the area `peaks`. No Content-Security-Policy or permission change.
+
+| Test | Covers |
+|---|---|
+| `bundledFfmpeg.test.ts` | Where the program is (packaged on Windows and Linux, `yarn start`), missing program; the real program converts AIFF to FLAC and WMA to Opus |
+| `ffmpegPeaks.test.ts` | Arguments (plain files only, nothing written, no shell, low priority), cancel, unreadable file, and the real program |
+| `scripts/forge-options.test.mjs` | Only the ffmpeg program is unpacked, not the rest of ffmpeg-static |
+| `e2e/lyreMedia.spec.ts` | The packaged test build finds ffmpeg in app.asar.unpacked, converts an AIFF, reads tags, works out peaks |
