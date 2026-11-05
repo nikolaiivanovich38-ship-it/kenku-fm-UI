@@ -4,13 +4,14 @@
  * one track at a time after an import and on demand, without holding the library's process.
  */
 import fs from "fs";
+import os from "os";
 import path from "path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { wavBytes, writeFile } from "../media/testing/wavFiles";
 import { importAudio } from "./import";
 import { openLibrary, type Library } from "./library";
-import { PeakJobs, type PeakReader } from "./peaks";
+import { PeakJobs, fileThereWithin, type PeakReader } from "./peaks";
 import { PEAK_POINTS, savePeaks, trackPeaks, type PeakSource } from "./repo/peaks";
 import { deleteTracks } from "./repo/tracks";
 import { makeTempFolder } from "./test/helpers";
@@ -202,5 +203,29 @@ describe("PeakJobs", () => {
     await new Promise((r) => setTimeout(r, 10));
     expect(pending).toHaveLength(1);
     expect(library.store.all("SELECT * FROM track_peaks")).toEqual([]);
+  });
+});
+
+describe("PeakJobs never holds the library's process on a slow file check (security review 9)", () => {
+  it("uses no synchronous file-system call (a share that does not answer would block every library call)", () => {
+    const source = fs.readFileSync(path.join(__dirname, "peaks.ts"), "utf8");
+    expect(source).not.toMatch(/\b\w+Sync\(/);
+  });
+
+  it("gives up on a file check that does not answer in time and goes on with the next track, leaving that one for later", async () => {
+    const { library, ids, files } = await libraryWith(2);
+    const read = vi.fn(async () => levels());
+    const exists = vi.fn((file: string) => (file === files[0] ? new Promise<boolean>(() => undefined) : Promise.resolve(true)));
+    const jobs = new PeakJobs(library.store, { read }, { onReady: () => undefined, notifyEveryMs: 0, fileCheckMs: 50, exists });
+    cleanups.push(() => jobs.close());
+    jobs.inBackground(ids);
+    await vi.waitFor(() => expect(trackPeaks(library.store, ids[1]).state).toBe("ready"), { timeout: 1000 });
+    expect(trackPeaks(library.store, ids[0]).state).toBe("needed");
+    expect(read).toHaveBeenCalledTimes(1);
+  });
+
+  it("checks files without blocking by default", async () => {
+    expect(await fileThereWithin(path.join(os.tmpdir(), "no-such-file-lyre"), 1000)).toBe(false);
+    expect(await fileThereWithin(__filename, 1000)).toBe(true);
   });
 });
