@@ -50,6 +50,7 @@ export const DEFAULT_CACHE_BYTES = 8_000_000_000;
 export const MEDIA_CACHE_FOLDER = "media-cache";
 
 const INDEX = "index.json";
+const CLOSING = "Lyre is closing, so this file cannot be prepared now.";
 const OWN_FILE = /^[0-9a-f]{40}\.[a-z0-9]{1,5}$/;
 const OWN_PART = /^[0-9a-f]{40}\.[a-z0-9]{1,5}\.part$/;
 
@@ -92,6 +93,9 @@ export class MediaCache {
 
   /** The address the player should play for `address` (a file: address from the library). */
   async prepare(address: string, { keepLocal }: { keepLocal: boolean }): Promise<PrepareAnswer> {
+    if (this.controller.signal.aborted) {
+      return { error: CLOSING };
+    }
     const checked = await this.access.check(address);
     if (isRefused(checked)) {
       return { error: checked.message };
@@ -171,9 +175,14 @@ export class MediaCache {
     await this.save();
   }
 
-  /** Stop jobs under way (quitting). */
-  close(): void {
+  /**
+   * Stop jobs under way and start no more (quitting, security review 3): a running conversion is stopped and its
+   * part file removed. Resolves once every job has stopped and the index is saved.
+   */
+  async close(): Promise<void> {
     this.controller.abort();
+    await Promise.allSettled([...this.jobs.values(), ...this.background]);
+    await this.saving;
   }
 
   private async converted(allowed: Allowed, conversion: Conversion): Promise<Entry> {
@@ -201,6 +210,10 @@ export class MediaCache {
         throw new Error("Cancelled");
       }
       await fs.promises.copyFile(allowed.path, part);
+      // A copy that finished while Lyre was closing is not kept: the part file is removed below.
+      if (signal.aborted) {
+        throw new Error("Cancelled");
+      }
     });
     return this.add(key, { kind: "copy", source: allowed.path, size: allowed.size, mtimeMs: allowed.mtimeMs, file });
   }

@@ -187,3 +187,33 @@ describe("MediaCache (PLY-11): copies of big tracks on this computer's disk", ()
     expect(cacheFiles()).toEqual([]);
   });
 });
+
+describe("MediaCache close (security review 3)", () => {
+  it("stops a conversion under way, removes its part file, and resolves when it has stopped", async () => {
+    let started: () => void;
+    const begun = new Promise<void>((resolve) => (started = resolve));
+    const slow = {
+      isLossless: async () => false,
+      convert: (job: { output: string; signal: AbortSignal }) =>
+        new Promise<void>((resolve, reject) => {
+          fs.writeFileSync(job.output, "half of a long conversion");
+          started();
+          job.signal.addEventListener("abort", () => reject(new Error("cancelled")));
+        }),
+    };
+    const c = new MediaCache({ folder: cacheFolder, access: new MediaAccess({ libraryFolders: () => [library], windowsPaths: false }), converter: slow, windowsPaths: false, log: () => undefined });
+    const answer = c.prepare(url("old.wma"), { keepLocal: false });
+    await begun;
+    expect(cacheFiles().some((f) => f.endsWith(".part"))).toBe(true);
+    await c.close();
+    expect(await answer).toEqual({ error: "Could not convert old.wma." });
+    expect(cacheFiles().filter((f) => f.endsWith(".part"))).toEqual([]);
+  });
+
+  it("starts nothing new once closed", async () => {
+    const c = cache();
+    await c.close();
+    expect(await c.prepare(url("old.wma"), { keepLocal: false })).toMatchObject({ error: expect.any(String) });
+    expect(converter.conversions).toHaveLength(0);
+  });
+});

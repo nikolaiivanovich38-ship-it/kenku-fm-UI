@@ -1,7 +1,7 @@
 /**
  * Starts Lyre's library for the app (WP5, wave 3 step 2): the library's own utility process, the LYRE_API_CALL and
  * MEDIA_PREPARE handlers, events to the Lyre page, and the old player's library brought in on the new interface's
- * first start. index.ts calls startLyreLibrary() when the app is ready, startBackups() once the window shows and
+ * first start. index.ts calls startLyreLibrary() when the app is ready, windowShown() once the window shows and
  * stop() before quitting. Everything that can be tested without Electron is in libraryService.ts and wiring.ts.
  */
 import path from "path";
@@ -12,6 +12,7 @@ import { findBundledFfmpeg } from "../media/bundledFfmpeg";
 import { FfmpegConverter } from "../media/ffmpegConverter";
 import { MEDIA_CACHE_FOLDER, MediaCache } from "../media/mediaCache";
 import { MediaAccess } from "../media/mediaAccess";
+import { MediaUpkeep } from "../media/mediaUpkeep";
 import { guardIpc } from "../security/ipcGuard";
 import { trustedContents } from "../security/trustedContents";
 import { LyreLibraryService, type LibraryChild } from "./libraryService";
@@ -37,7 +38,10 @@ function lyrePages(): Electron.WebContents[] {
 export interface StartedLibrary {
   service: LyreLibraryService;
   wired: WiredLibrary;
-  startBackups(): void;
+  /** The main window is showing: the daily backups start, and the audio cache is tidied a while later. */
+  windowShown(): void;
+  /** Settings > Clear cache: empties Lyre's audio cache too (security review 3). */
+  clearAudioCache(): Promise<void>;
   stop(): Promise<void>;
 }
 
@@ -47,6 +51,7 @@ export function startLyreLibrary(): StartedLibrary {
   const log = (message: string, error?: unknown) => console.error(message, error ?? "");
   const parentWindow = () => BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
   let wired: WiredLibrary | null = null;
+  let upkeep: MediaUpkeep | null = null;
   let current: Electron.UtilityProcess | null = null;
   // BUG-10: the ffmpeg shipped with Lyre converts WMA and AIFF for the player (here) and works out loudness peaks
   // (in the library's process). Missing means a damaged install: said plainly when a file needs it.
@@ -113,6 +118,7 @@ export function startLyreLibrary(): StartedLibrary {
         converter: ffmpegPath ? new FfmpegConverter({ ffmpegPath }) : noConverter,
         log,
       });
+      upkeep = new MediaUpkeep(cache, { log });
       // Test builds only: the seeded library's files are not on the test machine, so they play a stand-in tone.
       return seed ? standInForMissingFiles(cache, writeStandInTone(app.getPath("userData"))) : cache;
     },
@@ -125,10 +131,17 @@ export function startLyreLibrary(): StartedLibrary {
   return {
     service,
     wired,
-    startBackups: () => service.startBackups(),
+    windowShown: () => {
+      service.startBackups();
+      upkeep?.windowShown();
+    },
+    clearAudioCache: async () => {
+      await upkeep?.clear();
+    },
     async stop() {
       wired.dispose();
-      await service.stop();
+      // A conversion under way stops and leaves no part file (security review 3).
+      await Promise.all([upkeep?.close().catch((error) => log("Could not close the audio cache", error)), service.stop()]);
     },
   };
 }
