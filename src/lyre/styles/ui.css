@@ -237,3 +237,10 @@ table.grid tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 v
 
 /* A room box that is silent loses its red edge: red means the players hear something. */
 .pane.k-onair.is-silent { border-top-color: var(--line-strong); }
+
+/* Destination tags (design round 5, UX-16; kit/DestTag.tsx): On air (filled) for the players, Only you (outlined) for a
+   preview; paused, grey. */
+.dest { display: inline-flex; align-items: center; gap: 4px; flex: none; max-width: 18em; min-width: 0; padding: 1px 7px; border: 1px solid transparent; border-radius: 999px; font-size: var(--fs-xs); font-weight: 700; line-height: 1.5; white-space: nowrap; }
+.dest.air { background: var(--onair); color: var(--onair-ink); }
+.dest.you { background: transparent; color: var(--preview); border-color: var(--preview); }
+.dest.paused { background: transparent; color: var(--ink-2); border-color: var(--line-strong); }
