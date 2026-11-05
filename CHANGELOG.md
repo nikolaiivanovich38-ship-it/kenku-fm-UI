@@ -4,6 +4,16 @@ All notable changes to Lyre (called Cue Desk in versions 0.1.x). Versions follow
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-11-05: fixes from your first test of 0.3.0
+
+- Music keeps playing while you prepare: adding, moving or removing a track in a scene no longer stops it, and closing the Add tracks window stops only a preview you started in it. [BUG-12]
+- The On air bar stays on every screen while music plays, the Live page included, until you press Stop. [BUG-13]
+- Box headers with many buttons (such as the Library with a filter on, at full screen) wrap onto a second line instead of pushing a button out of the box. The automatic layout checks now catch a control cut off at the side. [BUG-14]
+- Tab adds the tag you typed (creating it if it is new), or the suggestion you picked, and moves on. [BUG-15]
+- A pad's colour and icon show as soon as you click them, and a second click is kept. [BUG-16]
+- Play in the Audio profile goes round, Start to End or the loop, until you stop it, with the playhead and time on every pass. [BUG-17]
+- Rename a session or a scene where it is listed: double-click its name, press F2, or choose Rename in its ⋯ menu. Enter saves, Esc cancels. [BUG-18]
+
 ## [0.3.0] - 2026-11-05: the new interface, for preparing games
 
 **A new Lyre tab beside the Player**
