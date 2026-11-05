@@ -9,6 +9,7 @@
 .view .lk-card > .btn { align-self: flex-start; }
 .view .lk-words { color: var(--ink-2); }
 .view .lk-sample { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: var(--r-m); background: var(--bg); color: var(--ink); border: 1px solid var(--line); font: var(--fs)/1.38 var(--body); }
+.view .lk-pic { display: flex; flex-direction: column; gap: 8px; }
 .view .lk-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .view .lk-head .pane-title { font-size: calc(17px * var(--display-scale)); white-space: normal; overflow: visible; }
 .view .lk-head { flex-wrap: wrap; }

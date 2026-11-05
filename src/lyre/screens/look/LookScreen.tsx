@@ -162,7 +162,10 @@ function Card({ card, inUse, onUse }: { card: ThemeCard; inUse: boolean; onUse: 
   );
 }
 
-/** A small piece of Lyre in the theme's own colours; its controls are pictures, out of the Tab order. */
+/**
+ * A small piece of Lyre in the theme's own colours. It is a picture: hidden from screen readers, with no real
+ * controls; only the contrast line under it is read.
+ */
 function Sample({ card }: { card: ThemeCard }) {
   const ref = useRef<HTMLDivElement>(null);
   const contrast = useRef<HTMLParagraphElement>(null);
@@ -172,68 +175,64 @@ function Sample({ card }: { card: ThemeCard }) {
   });
   return (
     <div className="lk-sample" data-theme={card.id} ref={ref}>
-      <div className="lk-head">
-        <span className="pane-title">{card.name}</span>
-        <span className="chip accent">{card.games.split(",")[0]}</span>
-      </div>
-      <div className="lk-row">
-        <span className="lane-dot music" />
-        <div className="grow">
-          <div className="ellipsis">
-            <b>Ancient sorrow, choir</b>
-          </div>
-          <div className="progress music">
-            <span style={{ width: "42%" }} />
-          </div>
+      <div className="lk-pic" aria-hidden="true">
+        <div className="lk-head">
+          <span className="pane-title">{card.name}</span>
+          <span className="chip accent">{card.games.split(",")[0]}</span>
         </div>
-        <span className="num muted">1:54</span>
-        <button type="button" className="btn s" tabIndex={-1}>
-          <Icon name="fade" size="s" />
-          Fade
-        </button>
-      </div>
-      <div className="lk-row">
-        <span className="lane-dot amb" />
-        <div className="grow">
-          <div className="ellipsis">Crypt drips</div>
-          <div className="progress amb">
-            <span style={{ width: "70%" }} />
+        <div className="lk-row">
+          <span className="lane-dot music" />
+          <div className="grow">
+            <div className="ellipsis">
+              <b>Ancient sorrow, choir</b>
+            </div>
+            <div className="progress music">
+              <span style={{ width: "42%" }} />
+            </div>
           </div>
+          <span className="num muted">1:54</span>
+          <span className="btn s">
+            <Icon name="fade" size="s" />
+            Fade
+          </span>
         </div>
-        <span className="badge onair">On air</span>
-      </div>
-      <div className="chips">
-        <span className="chip mood">
-          <span className="dot" />
-          Eerie
-        </span>
-        <span className="chip motif">
-          <span className="dot" />
-          Drowned Abbess
-        </span>
-        <span className="chip scene">
-          <span className="dot" />
-          Ritual
-        </span>
-      </div>
-      <div className="lk-btns">
-        <button type="button" className="btn primary" tabIndex={-1}>
-          Start scene
-        </button>
-        <button type="button" className="btn" tabIndex={-1}>
-          Preview
-        </button>
-        <button type="button" className="btn ghost" tabIndex={-1}>
-          More
-        </button>
-      </div>
-      <div className="lk-sw" aria-hidden="true">
-        <i style={{ background: "var(--bg)" }} />
-        <i style={{ background: "var(--surface)" }} />
-        <i style={{ background: "var(--surface-3)" }} />
-        <i style={{ background: "var(--ink)" }} />
-        <i style={{ background: "var(--accent)" }} />
-        <i style={{ background: "var(--second)" }} />
+        <div className="lk-row">
+          <span className="lane-dot amb" />
+          <div className="grow">
+            <div className="ellipsis">Crypt drips</div>
+            <div className="progress amb">
+              <span style={{ width: "70%" }} />
+            </div>
+          </div>
+          <span className="badge onair">On air</span>
+        </div>
+        <div className="chips">
+          <span className="chip mood">
+            <span className="dot" />
+            Eerie
+          </span>
+          <span className="chip motif">
+            <span className="dot" />
+            Drowned Abbess
+          </span>
+          <span className="chip scene">
+            <span className="dot" />
+            Ritual
+          </span>
+        </div>
+        <div className="lk-btns">
+          <span className="btn primary">Start scene</span>
+          <span className="btn">Preview</span>
+          <span className="btn ghost">More</span>
+        </div>
+        <div className="lk-sw" aria-hidden="true">
+          <i style={{ background: "var(--bg)" }} />
+          <i style={{ background: "var(--surface)" }} />
+          <i style={{ background: "var(--surface-3)" }} />
+          <i style={{ background: "var(--ink)" }} />
+          <i style={{ background: "var(--accent)" }} />
+          <i style={{ background: "var(--second)" }} />
+        </div>
       </div>
       <p className="lk-contrast faint" ref={contrast} />
     </div>

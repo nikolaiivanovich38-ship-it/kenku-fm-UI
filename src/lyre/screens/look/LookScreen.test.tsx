@@ -2,14 +2,14 @@
 import React from "react";
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Shell } from "../../shell/Shell";
 import { loadShellSettings } from "../../shell/settings";
 import { expectNoAxeViolations } from "../../test/axe";
 import { PlaceholderScreen } from "../Placeholder";
 import { SCREENS } from "..";
-import { contrastRatio } from "./contrast";
+import { contrastLine, contrastRatio } from "./contrast";
 import { LookScreen } from "./LookScreen";
 
 const LOOK_SCREENS = { ...SCREENS, look: LookScreen, campaigns: () => <PlaceholderScreen title="Campaigns" /> };
@@ -69,6 +69,27 @@ describe("Look and feel", () => {
     expect(contrastRatio("rgb(0, 0, 0)", "rgb(255, 255, 255)")).toBe("21.0");
     expect(contrastRatio("rgb(119, 119, 119)", "rgb(255, 255, 255)")).toBe("4.5");
     expect(contrastRatio("", "rgb(255, 255, 255)")).toBeNull();
+  });
+
+  it("each card's sample is a picture: screen readers find only Use this theme and the contrast line (review 6)", () => {
+    open();
+    const parchment = card("Parchment");
+    expect(parchment.getAllByRole("button").map((b) => b.textContent)).toEqual(["Use this theme"]);
+    expect(parchment.queryByText("Start scene")?.closest('[aria-hidden="true"]')).not.toBeNull();
+    const line = screen.getByRole("article", { name: "Parchment" }).querySelector(".lk-contrast");
+    expect(line?.closest('[aria-hidden="true"]')).toBeNull();
+    expect(line?.closest(".lk-sample")).toHaveAttribute("data-theme", "parchment");
+  });
+
+  it("reads the theme's own text, quiet text and accent colours against its panels", () => {
+    const sample = document.createElement("div");
+    document.body.appendChild(sample);
+    const colours: Record<string, string> = { "--surface": "rgb(255, 255, 255)", "--ink": "rgb(0, 0, 0)", "--ink-3": "rgb(119, 119, 119)", "--accent-text": "rgb(255, 255, 255)" };
+    const spy = vi.spyOn(window, "getComputedStyle").mockImplementation((el) => ({ color: colours[(el as HTMLElement).style.color.slice(4, -1)] ?? "" }) as CSSStyleDeclaration);
+    expect(contrastLine(sample)).toBe("Contrast on panels: text 21.0:1, quiet text 4.5:1, accent text 1.0:1");
+    expect(sample.children).toHaveLength(0);
+    spy.mockRestore();
+    sample.remove();
   });
 
   it("has no accessibility failures", async () => {
