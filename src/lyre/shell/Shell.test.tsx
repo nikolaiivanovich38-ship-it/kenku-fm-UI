@@ -96,6 +96,48 @@ describe("the shell: rail, routes and screens (UX-9)", () => {
     expect(h1.closest(".viewhead")).not.toBeNull();
   });
 
+  it("moves focus to the heading of a screen that shows it once its data has loaded (w3-ux 5)", async () => {
+    function Late() {
+      const [ready, setReady] = React.useState(false);
+      React.useEffect(() => void setTimeout(() => setReady(true), 50), []);
+      return ready ? <PlaceholderScreen title="Late" /> : <p>Opening…</p>;
+    }
+    render(<Shell screens={{ ...SHELL_SCREENS, library: Late }} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("link", { name: "Library" }));
+    expect(screen.getByRole("link", { name: "Library" })).toHaveFocus();
+    const h1 = await screen.findByRole("heading", { level: 1, name: "Late" });
+    await vi.waitFor(() => expect(h1).toHaveFocus());
+  });
+
+  it("keeps focus on the heading when a loading heading is replaced by the screen's own (w3-ux 5)", async () => {
+    function Swap() {
+      const [ready, setReady] = React.useState(false);
+      React.useEffect(() => void setTimeout(() => setReady(true), 50), []);
+      return ready ? <PlaceholderScreen key="ready" title="Board" /> : <PlaceholderScreen key="loading" title="Pad board" />;
+    }
+    render(<Shell screens={{ ...SHELL_SCREENS, board: Swap }} />);
+    go("board/new");
+    expect(screen.getByRole("heading", { level: 1, name: "Pad board" })).toHaveFocus();
+    const h1 = await screen.findByRole("heading", { level: 1, name: "Board" });
+    await vi.waitFor(() => expect(h1).toHaveFocus());
+  });
+
+  it("leaves focus where the user put it while the screen was loading", async () => {
+    function Late() {
+      const [ready, setReady] = React.useState(false);
+      React.useEffect(() => void setTimeout(() => setReady(true), 80), []);
+      return ready ? <PlaceholderScreen title="Late" /> : <p>Opening…</p>;
+    }
+    render(<Shell screens={{ ...SHELL_SCREENS, library: Late }} />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("link", { name: "Library" }));
+    screen.getByRole("link", { name: "Playlists" }).focus();
+    await screen.findByRole("heading", { level: 1, name: "Late" });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(screen.getByRole("link", { name: "Playlists" })).toHaveFocus();
+  });
+
   it("does not take focus when the page first opens", () => {
     render(<Shell screens={SHELL_SCREENS} />);
     expect(document.body).toHaveFocus();

@@ -10,6 +10,9 @@ import { SoundMessages } from "./SoundMessages";
 import { ShellSettingsProvider, useShellSettings } from "./ShellSettings";
 import { themeFor } from "./themes";
 
+/** How long the shell waits for a new screen's heading (it appears once the screen's data has loaded). */
+const HEADING_WAIT_MS = 5000;
+
 /** Below this width the rail shows icons only, unless the user chose otherwise (prototype: 1100 px). */
 const NARROW_APP_PX = 1100;
 
@@ -64,11 +67,31 @@ function ShellFrame({ screens }: { screens: Record<RouteName, ScreenComponent> }
       return;
     }
     firstPath.current = "";
-    const heading = appRef.current?.querySelector<HTMLElement>("#view h1");
-    if (heading) {
+    // w3-ux 5: screens show a loading heading, or none, until their data has loaded, then their own. For a few
+    // seconds the shell follows: the screen's heading gets focus when it appears, as long as focus is still where the
+    // route change left it (the link pressed), on a heading it gave, or nowhere (the heading it gave was replaced).
+    const view = appRef.current?.querySelector<HTMLElement>("#view");
+    if (!view) return;
+    const leftAt = document.activeElement;
+    let given: HTMLElement | null = null;
+    const place = () => {
+      const heading = view.querySelector<HTMLElement>("h1");
+      if (!heading || heading === given) return;
+      const active = document.activeElement;
+      if (active !== leftAt && active !== given && active !== document.body && active !== null) return;
       heading.setAttribute("tabindex", "-1");
       heading.focus({ preventScroll: true });
-    }
+      given = heading;
+    };
+    place();
+    if (typeof MutationObserver === "undefined") return;
+    const observer = new MutationObserver(place);
+    observer.observe(view, { childList: true, subtree: true });
+    const timer = setTimeout(() => observer.disconnect(), HEADING_WAIT_MS);
+    return () => {
+      observer.disconnect();
+      clearTimeout(timer);
+    };
   }, [route.path]);
 
   // UX-12: F6 and Shift+F6 jump between the boxes' headers, so the keyboard reaches any box quickly.
