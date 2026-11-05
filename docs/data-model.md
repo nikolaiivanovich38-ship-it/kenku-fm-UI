@@ -7,11 +7,15 @@ The library database (backlog DAT-6, DAT-1, DAT-2, DAT-10, DAT-11, ORG-4, ORG-7,
 ### What is stored
 
 - **Your library of tracks.** Every audio file appears once, as a track, whether or not it is in a playlist. A track is music, ambience or a sound effect, and has up to three names: the title you give it (it may be empty at first), the title in the file's tags, and the file name; Lyre shows the first one it has. It keeps your scoring details if you fill them in: energy (1 to 5), what it is for (loop bed, underscore, sting, transition, effect), whether it loops (yes, with a crossfade, no), how it develops and ends, notes, artist, album, rating and when it was last played.
-- **How a track sounds (its audio profile).** Where it starts and ends, what happens at the end (loop, next, stop), where a loop starts and how long its crossfade is, fades in and out with their shape, and named points. A track can also sound different inside one playlist or in one scene; that version is used there only.
+- **How a track sounds (its audio profile).** Where it starts and ends, what happens at the end (loop, next, stop), where a loop starts and how long its crossfade is, fades in and out with their shape, and named points. A track can also sound different inside one playlist, in one scene or (version 3) in one session's list; that version is used there only.
 - **Markers** inside a track: a time, a kind (plain marker, or mix out: where the next track may start) and a label such as "swell". You can search for them. Where a loop starts and ends belongs to the track's audio profile, so it is kept in one place.
 - **Tags in groups.** A new library starts with Mood (with Melancholy, Heroic, Tense, Wistful, Warm, Triumphant and Eerie), Leitmotif and Scene type. You can add, rename, reorder, merge or delete any of them. A tag can sit under another (Leitmotif › Villain › Strahd) and can have other names ("sad" finds Melancholy).
 - **Playlists.** Each plays into one lane: Music, Ambience or FX. A manual playlist lists tracks you picked, in your order, with optional headings. A dynamic playlist has a rule instead (for example "Mood any of Eerie, Dread; energy 0 to 3; no stings") and always plays every track in its lane that matches. Renaming a tag changes it in every rule; deleting a tag takes it out of every rule, and a condition left with no tags plays nothing (it never widens to the whole lane). Before you delete a tag, Lyre can show where it is used: how many tracks carry it, which rules name it and which pads play it.
-- **Pad boards.** A grid of 1 to 8 columns and rows. Each pad has a label, an icon, a colour, a key, a way of playing (once, toggle, hold, restart) and a sound: one file, several variants (at random or in turn), or any effect with a tag. Making the grid smaller moves the pads that no longer fit to "Spare pads"; nothing is deleted, and undo puts them back.
+- **Pad boards.** A grid of 1 to 8 columns and rows. Each pad has a label, an icon, a colour, a key, a way of playing (once, toggle, hold, restart) and a sound: one file, several variants (at random or in turn), or any effect with a tag. Changing the grid's size packs the pads left to right, top to bottom; only pads that do not fit go to "Spare pads", and they come back when the grid grows. A pad you put in Spare pads yourself stays there. Nothing is deleted, and undo puts every pad back.
+- **Play order** (version 3). How a playlist plays: shuffled or in order, and no repeat, repeat all or repeat one. A playlist has its own order, and a scene, a session's list or a campaign's list can have its own for that playlist, used only there.
+- **A track's name in a scene** (version 3), such as "Strahd's entrance": shown in that scene only, and found by search.
+- **Track shape** (version 3): steady, builds, falls away, peaks then falls, or rises and falls. Lyre suggests one from the track's loudness; your choice wins.
+- **Tracks on hand** (version 3): single tracks a campaign or a session keeps beside its playlists.
 - **Campaigns, sessions and scenes.** A campaign has a look (theme), a game system, a description and (for later) its Obsidian notes, and the playlists and boards you use all campaign long. A session has a number (counted from the campaign's first session number in session order, so moving a session renumbers them all, as the prototype does), a name, a date, a status (played, next, draft; only one "next" per campaign) and its own playlists and boards. A scene has a name, a "starts when" line, notes, a music list (tracks and playlists in any mix, in playing order), one ambience track or playlist, and its pad boards.
 - **Folders** for playlists, boards and sessions, inside each other as deep as you like.
 - **Keys** (hotkeys) and what each runs: play a track or playlist, start a scene, next, previous, fade a lane, fade or stop everything, press a pad, undo a scene start, in order. Deleting a track, playlist, scene or pad takes it off every key.
@@ -80,12 +84,12 @@ Measured with 20,000 tracks, 500 playlists and 3 campaigns of 50 sessions with 8
 | File | Purpose |
 | --- | --- |
 | `sqlite.ts` | Loads `node:sqlite` (decision D3) without its experimental warning; `openConnection()` turns on foreign keys, recursive triggers, `temp_store = MEMORY` and, for files, WAL with `synchronous = NORMAL` (or a rollback journal with `FULL` where WAL cannot work). |
-| `schema/migrate.ts`, `schema/index.ts`, `schema/v001-library.ts`, `schema/v002-peaks.ts` | Numbered schema versions (two so far: the library, then loudness peaks), the upgrade runner (`MigrationContext.startVersion` tells a step whether the library is new) and `rebuildTable()`. |
+| `schema/migrate.ts`, `schema/index.ts`, `schema/v001-library.ts`, `schema/v002-peaks.ts`, `schema/v003-round5.ts` | Numbered schema versions (three so far: the library, loudness peaks, design round 5), the upgrade runner (`MigrationContext.startVersion` tells a step whether the library is new) and `rebuildTable()` (with `withoutRowid` for link tables). |
 | `store.ts` | `Store`: prepared statements (the 200 most recently used), injected clock, `change(label, fn)` (one transaction, one undo step), `changeInBatches(label, items, fn)` (bulk work, one undo step), `exclusive()`, `changeWithoutHistory(fn)` (clears the history), `busyWith`, `searchCaughtUp()`. |
 | `searchIndex.ts` | Temporary triggers that mark changed tracks, and `flushSearchIndex` (each marked track's search entry rebuilt once, before COMMIT). |
 | `ordering.ts` | Gap ordering (`positionFor`, `positionsFor`, `assignPositions`). |
 | `validate.ts`, `designValidate.ts`, `errors.ts`, `types.ts` | Input checks (`designValidate` for audio profiles and rules, mirroring the tables' CHECKs), error classes, data-layer types. |
-| `repo/*.ts` | Repository functions: `roots`, `tracks`, `markers`, `folders`, `playlists` and `boards` (both on `containers`), `tags`, `campaigns`, `profiles`, `cueActions`, `search`; `domain` maps rows to the shared shapes of `src/common/domain`. `profileRows` and `ruleRows` store profiles and rules as rows (used inside other modules' changes); `peaks` reads and saves a track's loudness peaks (`trackPeaks`, `savePeaks`). |
+| `repo/*.ts` | Repository functions: `roots`, `tracks`, `markers`, `folders`, `playlists` and `boards` (both on `containers`), `tags`, `campaigns`, `profiles`, `cueActions`, `search`; `domain` maps rows to the shared shapes of `src/common/domain`. `profileRows` and `ruleRows` store profiles and rules as rows (used inside other modules' changes); `peaks` reads and saves a track's loudness peaks (`trackPeaks`, `savePeaks`). Version 3: `playOrders` (PLY-13), `sceneNames` (DAT-14), `places` (checks a scene, session or campaign place and names it as a key). |
 | `peaks.ts` | `PeakJobs`: works out loudness peaks one track at a time through a `PeakReader` (the real one runs ffmpeg: `src/main/media/ffmpegPeaks.ts`); on demand first, then after imports. |
 | `undo.ts` | `UndoHistory` (100 steps and 64 MB at most; a large step is replayed 500 rows at a time); `Store.clearHistory()` empties it. |
 | `import/*.ts` | Bringing audio in: `audioFiles` (which files, walking folders), `kindGuess`, `fileFacts` (quick checksum), `tagReader` (DAT-5, behind an interface), `musicMetadata` (the real reader; only the library's process imports it), `pipeline` (EDT-6 `importAudio`, `refreshEmbeddedTags`), `legacy` (DAT-9), `relink` (DAT-8), `titleTags` (DAT-4). |
@@ -154,6 +158,18 @@ erDiagram
   playlists |o--o{ cue_actions : plays
   scenes |o--o{ cue_actions : starts
   pads |o--o{ cue_actions : presses
+  sessions |o--o{ audio_profiles : "override in"
+  playlists ||--o{ play_orders : "plays as"
+  scenes |o--o{ play_orders : "order in"
+  sessions |o--o{ play_orders : "order in"
+  campaigns |o--o{ play_orders : "order in"
+  scenes ||--o{ scene_track_names : "names"
+  tracks ||--o{ scene_track_names : "named in"
+  playlists ||--o{ rule_shapes : "asks for"
+  campaigns ||--o{ campaign_tracks : "keeps on hand"
+  tracks ||--o{ campaign_tracks : "on hand in"
+  sessions ||--o{ session_tracks : "keeps on hand"
+  tracks ||--o{ session_tracks : "on hand in"
 ```
 
 `schema_migrations`, `library_jobs`, `search_docs`, `search_fts` and `track_peaks` (one row per track, CASCADE) are bookkeeping and derived data, not shown.
@@ -165,7 +181,7 @@ Conventions: text ids (UUIDs; ids from older data can be kept); times in millise
 | Table | Purpose | Key; other unique keys | Constraints | NF |
 | --- | --- | --- | --- | --- |
 | `library_roots` | Named library folders; `watched` 0/1 | `id`; `name` (any case) | | BCNF |
-| `tracks` | One row per audio file | `added_seq` (INTEGER, AUTOINCREMENT: library order); `id`; the file: (`root_id`, `path`) any case, else `path` any case, else `url` (three partial unique indexes) | `kind` music/amb/fx; `role` loop_bed/underscore/sting/transition/effect; `loopable` yes/crossfade/no; `arc`, `ending` lists; energy and rating 1–5; sizes and durations ≥ 0; exactly one of `path`/`url`; `root_id` only with `path`; `is_new` 0/1; `root_id` RESTRICT | 3NF (exception 3) |
+| `tracks` | One row per audio file; `shape` (version 3) the game master's choice, NULL to follow the suggestion | `added_seq` (INTEGER, AUTOINCREMENT: library order); `id`; the file: (`root_id`, `path`) any case, else `path` any case, else `url` (three partial unique indexes) | `kind` music/amb/fx; `role` loop_bed/underscore/sting/transition/effect; `loopable` yes/crossfade/no; `arc`, `ending` lists; energy and rating 1–5; sizes and durations ≥ 0; exactly one of `path`/`url`; `root_id` only with `path`; `is_new` 0/1; `root_id` RESTRICT | 3NF (exception 3) |
 | `markers` | Named, typed points in a track (DAT-3), searchable | `id` | `kind` marker/mix_out (loop points are the profile's); time ≥ 0; track CASCADE | BCNF |
 | `track_follow_with` | "Follow with" suggestions, in order | (`track_id`, `follow_track_id`); (`track_id`, `position`) | not itself; both CASCADE | BCNF |
 | `folders` | Nested folders | `id`; (`scope`, parent, `position`) | `scope` playlists/boards/sessions; colour `#rrggbb`; parent SET NULL (the repository moves contents up first) | BCNF |
@@ -174,7 +190,7 @@ Conventions: text ids (UUIDs; ids from older data can be kept); times in millise
 | `rule_conditions` | A dynamic playlist's conditions, in order | `id`; (`playlist_id`, `position`); (`id`, `group_id`) as a key target | `match` any/all/none; playlist and group CASCADE; dynamic playlists only (trigger) | BCNF |
 | `rule_condition_tags` | The tags a condition names, in order | (`condition_id`, `tag_id`); (`condition_id`, `position`) | (`condition_id`, `group_id`) → `rule_conditions` and (`group_id`, `tag_id`) → `tags`, both CASCADE: a value is always a tag of the condition's group | 1NF by design (exception 2) |
 | `boards` | Pad boards | `id`; (folder, `position`) | `grid_cols`, `grid_rows` 1–8 | BCNF |
-| `pads` | Pads: in one cell or spare | `id`; (`board_id`, `grid_row`, `grid_col`) (NULL cells of spare pads never clash); (`board_id`, `spare_position`) when spare | cell 0–7; on the grid or spare, never both or neither; `color`, `mode`, `sound_kind`, `sound_order` lists; `icon` a short name; `hotkey` one lower-case key or `f1`–`f12`; volume 0–1; fades ≥ 0; board CASCADE; tag SET NULL (the pad stays) | 3NF |
+| `pads` | Pads: in one cell or spare; `put_aside` (version 3) a spare pad the game master put there by hand | `id`; (`board_id`, `grid_row`, `grid_col`) (NULL cells of spare pads never clash); (`board_id`, `spare_position`) when spare | cell 0–7; on the grid or spare, never both or neither; `color`, `mode`, `sound_kind`, `sound_order` lists; `icon` a short name; `hotkey` one lower-case key or `f1`–`f12`; volume 0–1; fades ≥ 0; board CASCADE; tag SET NULL (the pad stays) | 3NF |
 | `pad_sounds` | The tracks a pad plays, in order | (`pad_id`, `track_id`); (`pad_id`, `position`) | both CASCADE | BCNF |
 | `tag_groups`, `tags`, `tag_synonyms`, `track_tags` | Tag vocabulary and tagging (DAT-10) | group `name`; tag (`group_id`, `name`); positions; (`group_id`, `id`) as a key target | parent SET NULL; CASCADE from group and tag | BCNF |
 | `campaigns` | Campaigns | `id`; `position` | `theme` fern/hearth/candle/parchment/elysium (default candle); colour `#rrggbb`; `first_session_number` 0–100,000 (default 1) | BCNF |
@@ -184,12 +200,16 @@ Conventions: text ids (UUIDs; ids from older data can be kept); times in millise
 | `scene_music` | A scene's music in playing order; an item may come twice | `id`; (`scene_id`, `position`) | exactly one of `track_id`/`playlist_id`; all CASCADE | BCNF |
 | `scene_ambience` | A scene's one ambience item (no row: none) | `scene_id` | exactly one of `track_id`/`playlist_id`; all CASCADE | BCNF |
 | `scene_boards` | A scene's boards in order | (`scene_id`, `board_id`); (`scene_id`, `position`) | both CASCADE | BCNF |
-| `audio_profiles` | A track's own profile (no place) or its override in one playlist or one scene; a NULL setting means the default | `id`; partial unique: `track_id` (own), (`playlist_id`, `track_id`), (`scene_id`, `track_id`) | at most one place; `after_end` loop/next/stop; times ≥ 0; fade length and shape both or neither, shape 0–100; start < end; start ≤ loop start < end; all CASCADE | BCNF |
+| `audio_profiles` | A track's own profile (no place) or its override in one playlist, one scene or (version 3) one session list; a NULL setting means the default | `id`; partial unique: `track_id` (own), (`playlist_id`, `track_id`), (`scene_id`, `track_id`), (`session_id`, `track_id`) | at most one place; `after_end` loop/next/stop; times ≥ 0; fade length and shape both or neither, shape 0–100; start < end; start ≤ loop start < end; all CASCADE | BCNF |
 | `audio_profile_markers` | A profile's named points, in order | (`profile_id`, `position`) | time ≥ 0; CASCADE | BCNF |
 | `cue_actions` | What a hotkey runs, in order (PLY-8 `CueAction`) | `id`; (`hotkey`, `position`) | `type` one of ten (not `removeQueued`, a live queue entry); exactly the columns its type needs (CHECK per column); `hotkey` lower case; `lane`, `play_when`, `phase` lists; `fade_ms` 0–60,000; track, playlist, scene, pad CASCADE; "picked from" playlist and scene SET NULL | BCNF (exception 6) |
 | `library_jobs` | Long jobs that run once and survive a crash: name, state running/done, JSON detail | `name` | `state` running/done; `detail` `json_valid` | BCNF |
 | `search_docs`, `search_fts` | Search index (derived) | `doc_id`; (`kind`, `ref_id`) | written only by triggers | derived copy (exception 1) |
-| `track_peaks` | A track's loudness peaks (version 2): the file's size and modified time they were worked out from, `levels` (BLOB, one byte per point, 0 = -60 dBFS or quieter, 255 = full scale; NULL: the file could not be read), when | `track_id` (`WITHOUT ROWID`) | `levels` NULL or a BLOB of 1–4,096 bytes; size ≥ 0; track CASCADE; outside undo | BCNF |
+| `track_peaks` | A track's loudness peaks (version 2): the file's size and modified time they were worked out from, `suggested_shape` (version 3, kept ahead of the levels), `levels` (BLOB, one byte per point, 0 = -60 dBFS or quieter, 255 = full scale; NULL: the file could not be read), when | `track_id` (`WITHOUT ROWID`) | `levels` NULL or a BLOB of 1–4,096 bytes; a shape only with levels, one of the five; size ≥ 0; track CASCADE; outside undo | BCNF |
+| `play_orders` | Version 3 (PLY-13): how a playlist plays (`shuffle` 0/1, `repeat` off/all/one), its own (no place) or in one scene, session list or campaign list | `id`; partial unique: `playlist_id` (own), (`scene_id`, `playlist_id`), (`session_id`, `playlist_id`), (`campaign_id`, `playlist_id`) | at most one place; all CASCADE | BCNF |
+| `scene_track_names` | Version 3 (DAT-14): a track's name in one scene | (`scene_id`, `track_id`) (`WITHOUT ROWID`) | name trimmed, 1–200 characters; both CASCADE | BCNF |
+| `rule_shapes` | Version 3 (DAT-13): the shapes a dynamic playlist asks for (none: any) | (`playlist_id`, `shape`) (`WITHOUT ROWID`) | one of the five shapes; dynamic playlists only (trigger); CASCADE | BCNF |
+| `campaign_tracks`, `session_tracks` | Version 3 (ORG-12): single tracks on hand, in order | (owner, `track_id`); (owner, `position`) | both CASCADE | BCNF |
 | `schema_migrations` | Applied versions | `version` | | |
 
 #### Notes on choices
@@ -237,7 +257,12 @@ Every table is in third normal form, and all but three in Boyce-Codd normal form
 | Uses of a playlist (`USES_QUERIES.playlist`) | `campaign_playlists_playlist`, `session_playlists_playlist`, `scene_music_playlist`, `scene_ambience_playlist`; its place in a music list via `scene_music_order` |
 | Uses of a board | `campaign_boards_board`, `session_boards_board`, `scene_boards_board` |
 | Uses of a track | `scene_music_track`, `scene_ambience_track`; also `playlist_items_track`, `pad_sounds_track`, `track_follow_with_target` (`trackUsage`, ON DELETE CASCADE) |
-| Profile lookup by (track, place) (`PROFILE_LOOKUP_SQL`) | `audio_profiles_own`, `audio_profiles_playlist`, `audio_profiles_scene`; a track's profiles everywhere: `audio_profiles_track` |
+| Profile lookup by (track, place) (`PROFILE_LOOKUP_SQL`) | `audio_profiles_own`, `audio_profiles_playlist`, `audio_profiles_scene`, `audio_profiles_session`; a track's profiles everywhere: `audio_profiles_track` |
+| Version 3: a playlist's play order in a place (`PLAY_ORDER_LOOKUP_SQL`) | `play_orders_own`, `play_orders_scene`, `play_orders_session`, `play_orders_campaign`; a playlist's orders everywhere (delete): `play_orders_playlist` |
+| Version 3: a scene's names for its tracks, a track's names in every scene (`SCENE_NAMES_SQL`) | `scene_track_names` primary key; `scene_track_names_track` |
+| Version 3: the Shape filter (`tracksByShapeSql`) | `tracks_shape` (the choice), `track_peaks_shape` (the suggestion, for tracks with no choice) |
+| Version 3: a dynamic playlist with shapes (`dynamicTracksQuery`) | `rule_shapes` primary key; per track `track_peaks` by its key (the shape is read before the levels) |
+| Version 3: tracks on hand in the campaign tree (`campaignTreeQueries`: `campaignTracks`, `sessionTracks`); uses of a track on hand (`USES_QUERIES.track` 0 and 1) | `campaign_tracks_order`, `session_tracks_order`; `campaign_tracks_track`, `session_tracks_track` |
 | Full-text search (`searchQuery`) | `search_fts` (FTS5, prefix indexes of 1–3 characters), `search_docs` primary key; within a playlist also `playlist_items_order` |
 | Reading rules; tag merges and deletes | `rule_conditions_order`, `rule_condition_tags_order`, `rule_condition_tags_tag` (tag first) |
 | Lists in hand-made order | `folders_order`, `playlists_order`, `boards_order` (on `coalesce(parent or folder, '')`, the expression the repository queries with, so the top level is ordered too), `tag_groups_order`, `tags_order`, `track_follow_with_order`, `campaigns_order` |
@@ -256,13 +281,14 @@ Rules a CHECK cannot express because they span two tables (`schema/v001-library.
 
 `repo/domain.ts` hands out the design's shapes so the engine and the screens apply the shared rules to stored data:
 
-- `getDomainLookup(store)`: a `DomainLookup` (track, playlist, every track), cached per lookup. Tags come keyed by tag group id with values by name, every group present.
-- `getDomainCampaign(store, id)`, `listDomainCampaigns(store)`: `DomainCampaign` trees.
+- `getDomainLookup(store)`: a `DomainLookup` (track, playlist, every track), cached per lookup. Tags come keyed by tag group id with values by name, every group present. Version 3: a track has `shape` and `suggestedShape`, a playlist its own `order`.
+- `getDomainCampaign(store, id)`, `listDomainCampaigns(store)`: `DomainCampaign` trees, with each campaign's and session's `trackIds` (version 3).
+- `getPlayOrderOverrides(store)` and `ownPlayOrders(store, ids)` (`repo/playOrders.ts`): `PlayOrderOverrides` keyed by `keyOfPlace`, and the playlists' own orders, for `resolvePlayOrder`. `getTrackNames(store)` (`repo/sceneNames.ts`): `TrackNames` keyed by scene key, for `trackNameIn`.
 - `listUses(store, { playlistId | boardId | trackId })`: the same `Use[]`, in the same order, as `usesOfPlaylist`, `usesOfBoard` and `usesOfTrack` over every campaign, from the indexes.
 - `listPlaylistTrackIds(store, id)` (`repo/playlists.ts`): the same tracks, in the same order, as `playlistTracks`. A saved condition with no tags matches nothing in both (DB review 2); `repo/ruleRows.test.ts` runs 48 rule fixtures through both.
 - `getProfileOverrides(store)` (`repo/profiles.ts`): `ProfileOverrides` keyed by `placeKey`.
 
-`repo/domain.test.ts` loads the prototype's own sample data (`design/prototype/src/data.js`) through the write functions and checks every track, playlist, campaign tree, scene sequence, dynamic playlist and use against the same data built in memory.
+`repo/domain.test.ts` loads the prototype's own sample data (`design/prototype/src/data.js`) through the write functions and checks every track, playlist, campaign tree, scene sequence, dynamic playlist and use against the same data built in memory; since version 3 also its play orders, names in scenes, chosen shapes, tracks on hand and the pad put aside.
 
 ### Ordering
 
@@ -303,6 +329,18 @@ The library was first designed in WP3 (version 1), rebuilt for design round 4 (v
 
 `PeakJobs` (`peaks.ts`) runs one read at a time (`soon(id)` first, then `inBackground(ids)`), skips ready and unreadable tracks, leaves a file that is not there now (an unplugged drive) for a later request, and reports ready tracks at most every 250 ms (LyreApi turns that into a `changed` event for `peaks`). The real reader (`src/main/media/ffmpegPeaks.ts`) has ffmpeg decode the first audio stream to mono 16-bit samples at 8 kHz on its output pipe, at below-normal priority on one thread; `PeakLevels` keeps the loudest sample per block as the chunks arrive (blocks start at 1 ms; at 65,536 blocks neighbours merge, so memory stays under 256 KB for any length) and gives 1,000 points (fewer for a file under about a second). Each chunk is one pass over its samples, so the library's process is never held: a 20 ms timer keeps its beat within 200 ms while a 20-minute file is read and while 40 imported tracks are worked out (`ffmpegPeaks.test.ts`).
 
+### Version 3: design round 5 (wave 4, w4-contracts)
+
+`schema/v003-round5.ts` adds what design round 5 shows (design/prototype/ROUND5.md). Departures from the suggested model and why:
+
+- **Play order** is one table, `play_orders`, with nullable place keys like `audio_profiles`, and holds the playlist's own order too (no place). One table keeps "where does this choice apply" in one shape; a playlist's own order could have been two columns on `playlists`, but then every place read would join both. `repo/playOrders.ts`: `setPlayOrder`, `clearPlayOrder`, `getPlayOrder`, `getPlayOrderOverrides`, `ownPlayOrders`. A choice equal to the stored one, and clearing where there is none, make no undo step.
+- **Names in scenes are searchable**: each track's search entry gains a tenth column, `scene_names` (weight 6, as the file-tag title), kept by temporary triggers like the rest of the entry. FTS5 tables cannot gain a column, so the upgrade makes `search_fts` again and copies every entry; the search triggers step aside meanwhile. A name stays while the track leaves the scene's music for a while, and goes with the scene or the track. A duplicated scene keeps its names (play orders and audio settings of the scene are not copied, as before).
+- **The suggested shape** is a column of `track_peaks`, written by `savePeaks` with the levels, and placed before them (the table is rebuilt) so reading it never touches a level BLOB's overflow pages. Peaks already worked out get their suggestion during the upgrade (derived data: the step uses `shapeFromPeaks`). A suggestion from the peaks of an earlier copy of a file counts until new peaks replace it. A "peaks" event may mean suggestions changed: a screen that shows shapes reloads tracks on it.
+- **Tracks on hand** extend `Members` (`trackIds`), so `addToCampaign`, `removeFromSession`, `moveInCampaign({ trackId })` and the rest take tracks; `setTrackUses` is Use in… on a track (an ambience track becomes the scene's ambience). `listUses` answers as `usesOfTrack`, campaign and session uses first.
+- **Session-list profiles**: `audio_profiles` is rebuilt for "at most one of playlist, scene, session". `ProfilePlace` gains `{ kind: "session" }` (`placeKey` "ss:…"), and `profilePlacesFor` gives `resolveProfile` the places in `profileKeysFor`'s order.
+- **Pads put aside**: `pads.put_aside`, CHECKed to be 0 on the grid. Moving a pad to Spare pads, and the pad a spare pad replaces, are put aside; a pad that lands there because the grid is full, or a resize spilled, is not. `resizeBoard` follows `reflowBoard` and returns `{ movedToSpare, cameBack }`; it moves only the pads whose place changes, through temporary spare places.
+- `arc` (DAT-2's "how it develops") is left as it is; it is not the shape and nothing shows it yet.
+
 ### Import (EDT-6, DAT-5, DAT-8, DAT-4)
 
 - `importAudio(store, { paths }, { tagReader, onProgress, signal, batchSize })`: walks the folders (no links followed), skips files already in the library (one read of every track's location, keyed by `fileKey`: case ignored, as the coming unique path indexes will), reads file facts and tags 8 files at a time, and saves 500 tracks per `changeWithoutHistory` transaction, letting the event loop run between batches. Clears the undo history afterwards (DB review item 10; `changeWithoutHistory` now does it by itself). Measured: 5,000 files into a 20,000-track library in about 1.2 s, saving 0.5 s, longest batch 70 ms (budget: 5 s, 2 s, 200 ms; `import/pipeline.perf.test.ts`). The tag reader's own time comes on top.
@@ -329,7 +367,9 @@ The library was first designed in WP3 (version 1), rebuilt for design round 4 (v
 
 | File | Covers |
 | --- | --- |
-| `schema/schema.test.ts` | A new library in one upgrade (versions 1 and 2); every CHECK, unique key (one track per file), composite key and integrity trigger; cue actions; the New mark; library jobs. |
+| `schema/v003.test.ts` | Version 3: every new CHECK, key and trigger, names in the search entry, and the upgrade from version 2 with profiles, peaks, pads and search entries in it. |
+| `repo/round5.test.ts` | Version 3's repository functions: play order per place, names in scenes, shapes and the Shape filter, rule shapes, tracks on hand, session-list profiles, pads aside and resizing as `reflowBoard` does. |
+| `schema/schema.test.ts` | A new library in one upgrade (versions 1 to 3); every CHECK, unique key (one track per file), composite key and integrity trigger; cue actions; the New mark; library jobs. |
 | `schema/migrate.test.ts` | The upgrade runner: a later version, a failed step, a table rebuild, a newer-version refusal. |
 | `queryPlan.test.ts` | EXPLAIN QUERY PLAN of every hot read path: index searches only. |
 | `repo/domain.test.ts` | The prototype's sample data through the write functions, compared with the shared rules in memory. |
