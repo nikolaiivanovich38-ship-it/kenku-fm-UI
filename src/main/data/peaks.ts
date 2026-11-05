@@ -7,7 +7,9 @@
  * - `inBackground(ids)`: after an import, at the back of the queue.
  * - `soon(id)`: a screen asked (LyreApi library.peaksOf); next in line, ahead of the background ones.
  * - Tracks whose levels are ready, or whose file was found unreadable, are skipped; a file that is not there now
- *   (an unplugged drive) is left for a later request, not marked unreadable.
+ *   (an unplugged drive) is left for a later request, not marked unreadable. So is a file whose check does not
+ *   answer within `fileCheckMs` (a network share that is gone): the check is asynchronous and time-limited, so the
+ *   library's process never waits on it (security review 9).
  * - While the library saves bulk work (LibraryBusyError), the save waits and tries again.
  * - `onReady` hears which tracks have levels, gathered into one notice per `notifyEveryMs`.
  */
@@ -29,11 +31,35 @@ export interface PeakJobsOptions {
   notifyEveryMs?: number;
   /** Wait between tries while the library is busy (default 250 ms). */
   busyRetryMs?: number;
+  /** How long to wait for a file's check before leaving the track for later (default 5 s). */
+  fileCheckMs?: number;
+  /** Whether a file is there (default: an asynchronous stat); its answer is waited for at most `fileCheckMs`. */
+  exists?: (file: string) => Promise<boolean>;
   log?: (message: string, error?: unknown) => void;
 }
 
 const fileName = (file: string) => file.split(/[\\/]/).pop() ?? file;
 const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+const isFile = (file: string) =>
+  fs.promises.stat(file).then(
+    (stat) => stat.isFile(),
+    () => false,
+  );
+
+/**
+ * Whether `file` is a file, asked without blocking and answered within `withinMs` (false when the answer is late).
+ * Security review 9: a synchronous check on a share that has gone holds the whole process until Windows gives up.
+ */
+export async function fileThereWithin(file: string, withinMs: number, exists: (file: string) => Promise<boolean> = isFile): Promise<boolean> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<boolean>((resolve) => (timer = setTimeout(() => resolve(false), withinMs)));
+  try {
+    return await Promise.race([exists(file).catch(() => false), late]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 export class PeakJobs {
   private readonly store: Store;
@@ -114,7 +140,7 @@ export class PeakJobs {
     const state = trackPeaks(this.store, trackId);
     if (state.state !== "needed") return;
     const { source } = state;
-    if (!fs.existsSync(source.file)) return;
+    if (!(await fileThereWithin(source.file, this.options.fileCheckMs ?? 5000, this.options.exists)) || this.closed) return;
     const controller = new AbortController();
     this.current = controller;
     let levels: Uint8Array | null;

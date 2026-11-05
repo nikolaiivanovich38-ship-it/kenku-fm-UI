@@ -23,6 +23,9 @@ const AUDIO = new Set(AUDIO_EXTENSIONS);
 /** Folders never walked: Windows' own and any hidden folder (name starting with "."). */
 const SKIPPED_FOLDERS = new Set(["$recycle.bin", "system volume information"]);
 
+/** Why a file is not added: its name or (UX review 3) its content is not audio. */
+export const NOT_AUDIO = "not an audio file Lyre can play";
+
 export function isAudioFile(name: string): boolean {
   return AUDIO.has(path.extname(name).toLowerCase());
 }
@@ -95,7 +98,7 @@ export async function collectAudioFiles(
     } else if (stats.isFile() && isAudioFile(given)) {
       found.push({ path: given, chosenFolder: path.dirname(given) });
     } else {
-      problems.push({ path: given, reason: "not an audio file Lyre can play" });
+      problems.push({ path: given, reason: NOT_AUDIO });
     }
   }
   const seen = new Set<string>();

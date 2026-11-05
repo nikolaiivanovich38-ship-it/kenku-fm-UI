@@ -34,6 +34,7 @@ import { MIGRATIONS, migrate, schemaVersion, type Migration } from "./schema";
 import { BUSY_TIMEOUT_MS, openConnection, type DatabaseSync } from "./sqlite";
 import { Store } from "./store";
 import { UndoHistory } from "./undo";
+import { isNetworkPath } from "./paths";
 
 export const DATABASE_FILE_NAME = "library.sqlite";
 export const BACKUP_FOLDER_NAME = "backups";
@@ -59,12 +60,9 @@ export function libraryFolder(userDataPath: string, env: NodeJS.ProcessEnv = pro
  * True for a folder on a network share by its path (\\server\share, //server/share,
  * \\?\UNC\…). A mapped drive letter cannot be told from its path; there SQLite
  * itself refuses write-ahead logging and openConnection falls back to a journal.
+ * (Kept in paths.ts, where the library folders' checks use it too.)
  */
-export function isNetworkPath(folder: string): boolean {
-  if (/^[\\/][\\/]\?[\\/]unc[\\/]/i.test(folder)) return true;
-  if (/^[\\/][\\/][?.][\\/]/.test(folder)) return false;
-  return /^[\\/][\\/][^\\/]/.test(folder);
-}
+export { isNetworkPath };
 
 /**
  * Largest size the write-ahead log is cut back to once checkpointed (DB review

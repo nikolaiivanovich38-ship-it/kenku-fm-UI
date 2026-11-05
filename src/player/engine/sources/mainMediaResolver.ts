@@ -8,7 +8,10 @@
  * - with `keepLocal`, a copy on this computer's disk once one is ready.
  *
  * The main process checks the file is in a library folder first. Other
- * addresses (web addresses, blob:) are left as they are.
+ * addresses (web addresses, blob:) are left as they are. The Lyre page is
+ * answered with a lyre-media: address granted to it alone (security review
+ * 6: its Content-Security-Policy allows no file: address); the old player
+ * is answered with the file: address.
  */
 import type { MediaRequest, MediaResolver, ResolvedMedia } from "./sourceLoader";
 
@@ -21,6 +24,8 @@ export interface MediaBridge {
 }
 
 const isFileAddress = (url: string) => /^file:/i.test(url);
+/** What the main process may answer: a file on this computer, or the Lyre page's grant for one. */
+const isPreparedAddress = (url: string) => isFileAddress(url) || /^lyre-media:\/\//i.test(url);
 
 export class MainMediaResolver implements MediaResolver {
   constructor(private readonly bridge: MediaBridge) {}
@@ -34,7 +39,7 @@ export class MainMediaResolver implements MediaResolver {
       throw new Error(answer.error);
     }
     // The answer is always a file on this computer; anything else is a fault, never played.
-    if (typeof answer.url !== "string" || !isFileAddress(answer.url)) {
+    if (typeof answer.url !== "string" || !isPreparedAddress(answer.url)) {
       throw new Error("This file could not be prepared for playing.");
     }
     return { url: answer.url };

@@ -7,7 +7,7 @@ import { EventEmitter } from "events";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 
 import { importAudio, openLibrary, PeakJobs, trackPeaks } from "../data";
 import { findBundledFfmpeg } from "./bundledFfmpeg";
@@ -88,6 +88,8 @@ describe("ffmpeg arguments for peaks", () => {
       "1",
       "-protocol_whitelist",
       "file",
+      "-f",
+      "asf",
       "-i",
       "file:C:\\Music\\Old.wma",
       "-map",
@@ -182,4 +184,13 @@ describe("loudness peaks with the bundled ffmpeg", () => {
       library.close();
     }
   }, 120_000);
+});
+
+describe("peaks never let ffmpeg guess the reader (security review 7)", () => {
+  it("does not run ffmpeg for a file whose extension Lyre has no reader for", async () => {
+    const spawn = vi.fn();
+    const reader = new FfmpegPeakReader({ ffmpegPath: "f", spawn: spawn as unknown as PeakSpawn });
+    await expect(reader.read("/m/list.m3u8", new AbortController().signal)).rejects.toThrow(/list\.m3u8/);
+    expect(spawn).not.toHaveBeenCalled();
+  });
 });

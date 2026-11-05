@@ -2,8 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'<%= webpackConfig.mode === 'development' ? " 'unsafe-eval'" : '' %>; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; media-src 'self' blob: file:; connect-src 'self' blob: file:<%= webpackConfig.mode === 'development' ? ' ws://localhost:*' : '' %>; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; worker-src 'none'" />
-    <!-- SEC-11, WP5: see docs/security.md > w3-shell. The new interface hosts the playback engine and the preview: audio files and worklets from the app, prepared library files (file:) and read-ahead (blob:), nothing from the web. Fonts and pictures are bundled files. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'<%= webpackConfig.mode === 'development' ? " 'unsafe-eval'" : '' %>; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; media-src blob: lyre-media:; connect-src blob: lyre-media:<%= webpackConfig.mode === 'development' ? " 'self' ws://localhost:*" : '' %>; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; worker-src 'none'" />
+    <!-- SEC-11, WP5: see docs/security.md > w3-shell. The new interface hosts the playback engine and the preview: audio files and worklets from the app, prepared library files (only lyre-media: addresses MEDIA_PREPARE granted this page, security review 6) and read-ahead (blob:), nothing from the web. media-src and connect-src leave out 'self': on a file: page Chromium lets 'self' match every file: address, so it would let the page read any file. Development builds add 'self' for the dev server's live reload. Fonts and pictures are bundled files. -->
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Lyre Interface</title>
   </head>

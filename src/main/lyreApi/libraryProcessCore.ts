@@ -10,14 +10,33 @@
  *   { t: "start-backups" }        the window is showing: start the daily backups
  *   { t: "legacy", raw }          bring in the old player's library (once; the database remembers it did)
  *   { t: "media-folders" }        the folders the player may read library files from (MediaAccess, MEDIA_PREPARE)
+ *   { t: "restore", id }          put the latest good backup in place of a damaged library (one this process found
+ *                                 itself in the library's backups folder), then open it again
  *   { t: "close" }                stop backups, close the library cleanly
- * Answers: { t: "ready" }, { t: "open-failed", message }, { t: "legacy-report", report }, { t: "media-folders", folders },
- * { t: "closed" }.
+ * Answers: { t: "ready" }, { t: "open-failed", message, canRestore }, { t: "damaged", message, canRestore } (the
+ * background check found the open library damaged; it is closed and no longer used), { t: "restored", id, ok,
+ * message? }, { t: "legacy-report", id, report },
+ * { t: "media-folders", id, folders }, { t: "closed", id }. A request carries an `id` and its answer the same `id`, so
+ * overlapping requests each get their own answer (security review 1).
  */
+import path from "path";
+
 import { serveLyreApi, type PortLike } from "../../common/lyre/rpc";
 import { prototypeSeed } from "../../common/lyre/seed";
-import { LibraryDatabaseError, importLegacyLibrary, openLibrary, startDailyBackups, type Library, type PeakReader, type TagReader } from "../data";
+import {
+  LibraryDatabaseError,
+  findLatestGoodBackup,
+  importLegacyLibrary,
+  openLibrary,
+  restoreBackup,
+  startDailyBackups,
+  type Library,
+  type PeakReader,
+  type TagReader,
+} from "../data";
+import { BACKUP_FOLDER_NAME } from "../data/library";
 import { musicMetadataTagReader } from "../data/import/musicMetadata";
+import { ffmpegLength } from "../media/ffmpegLength";
 import { FfmpegPeakReader } from "../media/ffmpegPeaks";
 import { createLibraryApi, type LibraryApi, type LibraryHost } from "./libraryApi";
 import { seedLibrary } from "./seedLibrary";
@@ -40,9 +59,19 @@ export function mediaFolders(library: Library): string[] {
   const roots = library.store.all<{ path: string }>("SELECT path FROM library_roots ORDER BY created_at, rowid").map((r) => r.path);
   const outside = library.store
     .all<{ path: string }>("SELECT path FROM tracks WHERE root_id IS NULL AND path IS NOT NULL")
-    .map((r) => r.path.slice(0, Math.max(r.path.lastIndexOf("\\"), r.path.lastIndexOf("/"))))
-    .filter(Boolean);
+    // Security review 11: each path's own style, so E:\x.mp3 gives E:\ (the drive's root), never the
+    // drive-relative "E:", which would mean the current folder on drive E.
+    .map((r) => (/^[a-zA-Z]:[\\/]|^[\\/]{2}/.test(r.path) ? path.win32 : path.posix).dirname(r.path))
+    .filter((folder) => folder !== "." && folder !== "");
   return [...new Set([...roots, ...outside])];
+}
+
+/** Plain words for a damaged library, with or without a backup to put back (security review 8). */
+export function damagedWords(message: string, canRestore: boolean): string {
+  const first = message.replace(/ Lyre can put back.*$| No backup was found.*$/, "");
+  return canRestore
+    ? `${first} Lyre can put back your latest backup; changes made since that backup are lost, and the damaged file is kept beside it.`
+    : `${first} No backup was found to put back. The damaged file is left as it is; ask for help on Lyre's project page.`;
 }
 
 export type InitMessage = { t: "init"; folder: string; seed: boolean; ffmpegPath: string | null };
@@ -56,6 +85,12 @@ export function runLibraryProcess(port: PortLike, options: LibraryProcessOptions
   let server: ReturnType<typeof serveLyreApi> | null = null;
   let api: LibraryApi | null = null;
   let stopBackups: (() => void) | null = null;
+  let backupsWanted = false;
+  let folder: string | null = null;
+  let seed = false;
+  let ffmpegPath: string | null = null;
+  /** The backup offered for a damaged library (found here, in the library's own backups folder). */
+  let restorable: string | null = null;
   let finish: () => void;
   const done = new Promise<void>((resolve) => (finish = resolve));
 
@@ -66,38 +101,93 @@ export function runLibraryProcess(port: PortLike, options: LibraryProcessOptions
     showItemInFolder: (path) => void server.askHost("showItemInFolder", [path]).catch((error) => log("Could not show the file in its folder", error)),
   };
 
+  /** Says the library is damaged, offering the latest good backup when there is one. */
+  const reportDamage = async (kind: "open-failed" | "damaged", error: LibraryDatabaseError) => {
+    restorable = error.code === "corrupt" ? (error.latestBackup ?? (await findLatestGoodBackup(path.join(folder as string, BACKUP_FOLDER_NAME)))) : null;
+    const canRestore = restorable !== null;
+    port.postMessage({ t: kind, message: error.code === "corrupt" ? damagedWords(error.message, canRestore) : error.message, canRestore });
+  };
+
+  /** Stops using the open library (it was found damaged after opening). */
+  const closeLibrary = () => {
+    stopBackups?.();
+    stopBackups = null;
+    api?.stopBackgroundWork();
+    server?.close();
+    server = null;
+    api = null;
+    library?.close();
+    library = null;
+  };
+
+  const openAndServe = async () => {
+    let opened: Library;
+    try {
+      opened = open(folder as string);
+    } catch (error) {
+      log("Could not open the library", error);
+      if (error instanceof LibraryDatabaseError) await reportDamage("open-failed", error);
+      else port.postMessage({ t: "open-failed", message: "Lyre could not open your library.", canRestore: false });
+      return;
+    }
+    library = opened;
+    if (seed && !opened.store.get("SELECT 1 AS found FROM tracks LIMIT 1")) await seedLibrary(opened, prototypeSeed());
+    const peakReader = peakReaderFor(ffmpegPath);
+    // UX review 3: ffmpeg confirms a file the tag reader found no audio in, before it is added.
+    const lengthProbe = ffmpegPath ? (file: string) => ffmpegLength(ffmpegPath as string, file) : undefined;
+    api = createLibraryApi(opened, host, { tagReader, peakReader: peakReader ?? undefined, lengthProbe, log });
+    server = serveLyreApi(api, port);
+    if (backupsWanted && !stopBackups) stopBackups = startDailyBackups(opened, { onError: (error) => log("The daily backup failed", error) });
+    port.postMessage({ t: "ready" });
+    // Security review 8: the background check's result is acted on: a damaged library is no longer used.
+    void opened
+      .checkIntegrity()
+      .then(async (report) => {
+        if (report.status !== "corrupt" || library !== opened) return;
+        log("The library check found damage", report.error);
+        closeLibrary();
+        await reportDamage("damaged", report.error);
+      })
+      .catch((error) => log("Could not act on the library check", error));
+  };
+
   const stop = port.onMessage(async (data) => {
-    const message = data as { t?: string; folder?: string; seed?: boolean; raw?: unknown; ffmpegPath?: unknown };
+    const message = data as { t?: string; id?: number; folder?: string; seed?: boolean; raw?: unknown; ffmpegPath?: unknown };
     try {
       if (message?.t === "init" && !library) {
-        try {
-          library = open(message.folder as string);
-        } catch (error) {
-          const words = error instanceof LibraryDatabaseError ? error.message : "Lyre could not open your library.";
-          log("Could not open the library", error);
-          port.postMessage({ t: "open-failed", message: words });
+        folder = message.folder as string;
+        seed = message.seed === true;
+        ffmpegPath = typeof message.ffmpegPath === "string" ? message.ffmpegPath : null;
+        await openAndServe();
+      } else if (message?.t === "restore" && !library && folder) {
+        // Only a backup this process found itself is put back; the main process only says yes.
+        const backup = restorable;
+        if (!backup) {
+          port.postMessage({ t: "restored", id: message.id, ok: false, message: "There is no backup to put back." });
           return;
         }
-        if (message.seed && !library.store.get("SELECT 1 AS found FROM tracks LIMIT 1")) await seedLibrary(library, prototypeSeed());
-        const peakReader = peakReaderFor(typeof message.ffmpegPath === "string" ? message.ffmpegPath : null);
-        api = createLibraryApi(library, host, { tagReader, peakReader: peakReader ?? undefined, log });
-        server = serveLyreApi(api, port);
-        port.postMessage({ t: "ready" });
-      } else if (message?.t === "start-backups" && library && !stopBackups) {
-        stopBackups = startDailyBackups(library, { onError: (error) => log("The daily backup failed", error) });
+        try {
+          restoreBackup({ folder, backupPath: backup });
+        } catch (error) {
+          log("Could not put the backup back", error);
+          port.postMessage({ t: "restored", id: message.id, ok: false, message: error instanceof Error ? error.message : "Lyre could not put the backup back." });
+          return;
+        }
+        restorable = null;
+        port.postMessage({ t: "restored", id: message.id, ok: true });
+        await openAndServe();
+      } else if (message?.t === "start-backups") {
+        backupsWanted = true;
+        if (library && !stopBackups) stopBackups = startDailyBackups(library, { onError: (error) => log("The daily backup failed", error) });
       } else if (message?.t === "legacy" && library) {
         const report = await importLegacyLibrary(library, message.raw, { tagReader });
-        port.postMessage({ t: "legacy-report", report });
+        port.postMessage({ t: "legacy-report", id: message.id, report });
       } else if (message?.t === "media-folders" && library) {
-        port.postMessage({ t: "media-folders", folders: mediaFolders(library) });
+        port.postMessage({ t: "media-folders", id: message.id, folders: mediaFolders(library) });
       } else if (message?.t === "close") {
-        stopBackups?.();
-        api?.stopBackgroundWork();
-        server?.close();
-        library?.close();
-        library = null;
+        closeLibrary();
         stop();
-        port.postMessage({ t: "closed" });
+        port.postMessage({ t: "closed", id: message.id });
         finish();
       }
     } catch (error) {

@@ -3,13 +3,15 @@
  * createMusicMetadataTagReader; most tests feed it the shape that library returns, and the last ones run the library
  * itself on real files, loaded the way the library's process loads it.
  */
+import { execFileSync } from "child_process";
 import fs from "fs";
 import os from "os";
 import path from "path";
 import { afterAll, describe, expect, it } from "vitest";
+import { findBundledFfmpeg } from "../../media/bundledFfmpeg";
 import { wavBytes, writeFile } from "../../media/testing/wavFiles";
 import { musicMetadataTagReader } from "./musicMetadata";
-import { cleanTags, createMusicMetadataTagReader, titleFromFileName, type MusicMetadataResult } from "./tagReader";
+import { cleanTags, cleanText, createMusicMetadataTagReader, titleFromFileName, type MusicMetadataResult } from "./tagReader";
 
 describe("titleFromFileName (the prototype's file-name title)", () => {
   it.each([
@@ -82,6 +84,7 @@ describe("createMusicMetadataTagReader", () => {
       moods: ["Peaceful"],
       genres: ["Soundtrack", "Ambient"],
       comment: "loops well",
+      audio: true,
     });
   });
 
@@ -90,14 +93,14 @@ describe("createMusicMetadataTagReader", () => {
     expect(await reader.read("/m/x.mp3")).toMatchObject({ artist: "Various", title: null, comment: "first\nsecond", durationMs: null });
   });
 
-  it("asks the library to skip pictures (covers are large and not needed)", async () => {
+  it("asks the library to skip pictures (covers are large and not needed) and to work out the length when no header gives it (UX review 7)", async () => {
     const calls: unknown[] = [];
     const reader = createMusicMetadataTagReader(async (file, options) => {
       calls.push([file, options]);
       return result({});
     });
     await reader.read("/m/x.flac");
-    expect(calls).toEqual([["/m/x.flac", { skipCovers: true }]]);
+    expect(calls).toEqual([["/m/x.flac", { skipCovers: true, duration: true }]]);
   });
 });
 
@@ -120,9 +123,32 @@ describe("music-metadata itself (DAT-5)", () => {
     expect(await musicMetadataTagReader.read(file)).toMatchObject({ title: null, artist: null, album: null, durationMs: 1000 });
   });
 
-  it("finds no title or length in a file that is not audio (the import then names the track after its file)", async () => {
+  it("finds no title, no length and no audio in a file that is not audio (the import then refuses it, UX review 3)", async () => {
     const file = writeFile(dir, "notes.wav", Buffer.from("not really audio"));
-    const tags = await musicMetadataTagReader.read(file).catch(() => ({ title: null as string | null, durationMs: null as number | null }));
-    expect(tags).toMatchObject({ title: null, durationMs: null });
+    const tags = await musicMetadataTagReader.read(file).catch(() => ({ title: null as string | null, durationMs: null as number | null, audio: false }));
+    expect(tags).toMatchObject({ title: null, durationMs: null, audio: false });
+    const random = writeFile(dir, "Broken file.mp3", Buffer.from(Array.from({ length: 200_000 }, (_, i) => (i * 7919 + 13) % 251)));
+    expect(await musicMetadataTagReader.read(random).catch(() => ({ audio: false }))).toMatchObject({ audio: false });
+  });
+});
+
+describe("the length of an Ogg Vorbis file (UX review 7)", () => {
+  const ffmpeg = findBundledFfmpeg(process.cwd());
+  it.runIf(ffmpeg)("is read, though Ogg has no header naming it", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lyre-ogg-"));
+    try {
+      const file = path.join(dir, "rain.ogg");
+      execFileSync(ffmpeg as string, ["-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=95", "-c:a", "libvorbis", file]);
+      expect(await musicMetadataTagReader.read(file)).toMatchObject({ durationMs: 95000 });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("cleanText drops text-direction controls (security review 12)", () => {
+  it("removes bidi embeddings, overrides and isolates, which can make a name read backwards", () => {
+    expect(cleanText("evil\u202Egnp.mp3")).toBe("evilgnp.mp3");
+    expect(cleanText("\u2066Title\u2069 \u202A\u202B\u202C\u202D\u2067\u2068x")).toBe("Title x");
   });
 });

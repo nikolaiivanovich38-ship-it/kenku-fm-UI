@@ -64,9 +64,16 @@ class FakeChild extends EventEmitter implements LibraryChild {
 }
 
 function service(
-  options: { open?: (folder: string) => ReturnType<typeof openLibrary>; seed?: boolean; host?: Record<string, (...a: unknown[]) => unknown>; ffmpegPath?: string | null } = {},
+  options: {
+    open?: (folder: string) => ReturnType<typeof openLibrary>;
+    seed?: boolean;
+    host?: Record<string, (...a: unknown[]) => unknown>;
+    ffmpegPath?: string | null;
+    folder?: string;
+    offerRestore?: (words: string) => Promise<boolean>;
+  } = {},
 ) {
-  const folder = tempFolder();
+  const folder = options.folder ?? tempFolder();
   const children: FakeChild[] = [];
   const events: LyreEvent[] = [];
   const s = new LyreLibraryService({
@@ -82,6 +89,7 @@ function service(
     onEvent: (event) => events.push(event),
     restartDelayMs: 10,
     maxCrashes: 3,
+    offerRestore: options.offerRestore,
   });
   return { s, children, events, folder };
 }
@@ -102,9 +110,8 @@ describe("LyreLibraryService", () => {
     s.start();
     expect(await s.mediaFolders()).toEqual(["H:\\Audio\\Scores", "H:\\Audio\\Ambience", "H:\\Audio\\Effects"]);
     const dir = tempFolder();
-    fs.mkdirSync(path.join(dir, "Lute"));
-    fs.writeFileSync(path.join(dir, "Lute", "01 Lute.flac"), "x");
-    await call(s, "import", "start", { from: "paths", paths: [path.join(dir, "Lute", "01 Lute.flac")] });
+    const lute = writeFile(path.join(dir, "Lute"), "01 Lute.wav", wavBytes({ seconds: 0.5 }));
+    await call(s, "import", "start", { from: "paths", paths: [lute] });
     expect(await s.mediaFolders()).toContain(path.join(dir, "Lute"));
     await s.stop();
   });
@@ -191,7 +198,7 @@ describe("LyreLibraryService", () => {
     });
     s.start();
     await expect(call(s, "boards", "list")).rejects.toThrow("damaged");
-    expect(events).toContainEqual({ type: "library-status", ok: false, message: "Your library file is damaged and cannot be opened." });
+    expect(events).toContainEqual({ type: "library-status", ok: false, message: expect.stringMatching(/^Your library file is damaged and cannot be opened\. No backup was found to put back\./) });
     expect(children).toHaveLength(1);
   });
 
@@ -212,5 +219,142 @@ describe("LyreLibraryService", () => {
     await s.stop();
     expect(children[0].exited).toBe(true);
     await expect(call(s, "boards", "list")).rejects.toThrow();
+  });
+});
+
+/**
+ * A library process played by a script (review 1): it answers each control request after `delayMs`, echoing the
+ * request's id, and can be told to stop instead of answering the folder list.
+ */
+class ScriptedChild extends EventEmitter implements LibraryChild {
+  static made = 0;
+  readonly id = ++ScriptedChild.made;
+  constructor(private readonly script: { dieOnFolders?: (child: ScriptedChild) => boolean; folders?: () => string[]; silent?: boolean } = {}) {
+    super();
+  }
+  postMessage(m: { t?: string; id?: number }) {
+    setTimeout(() => {
+      if (m.t === "init") this.emit("message", { t: "ready" });
+      if (m.t === "media-folders" && !this.script.silent) {
+        if (this.script.dieOnFolders?.(this)) this.emit("exit", 134);
+        else this.emit("message", { t: "media-folders", id: m.id, folders: this.script.folders?.() ?? ["C:/Music"] });
+      }
+      if (m.t === "close") this.emit("message", { t: "closed", id: m.id });
+    }, 5);
+  }
+  kill() {
+    return true;
+  }
+}
+
+/** Resolves to the promise's outcome, or "pending" when it has not settled within `ms`. */
+function settledWithin<T>(promise: Promise<T>, ms = 300): Promise<{ value: T } | { error: string } | "pending"> {
+  return Promise.race([
+    promise.then(
+      (value) => ({ value }),
+      (error: Error) => ({ error: error.message }),
+    ),
+    new Promise<"pending">((resolve) => setTimeout(() => resolve("pending"), ms)),
+  ]);
+}
+
+describe("LyreLibraryService control requests (security review 1)", () => {
+  it("answers every one of two overlapping folder requests", async () => {
+    const s = new LyreLibraryService({ fork: () => new ScriptedChild(), folder: "x", host: {}, onEvent: () => undefined });
+    s.start();
+    const first = s.mediaFolders();
+    const second = s.mediaFolders();
+    expect(await settledWithin(first)).toEqual({ value: ["C:/Music"] });
+    expect(await settledWithin(second)).toEqual({ value: ["C:/Music"] });
+  });
+
+  it("fails a request still waiting when the library's process stops, and every request once it has given up", async () => {
+    const events: LyreEvent[] = [];
+    const s = new LyreLibraryService({
+      fork: () => new ScriptedChild({ dieOnFolders: () => true }),
+      folder: "x",
+      host: {},
+      onEvent: (event) => events.push(event),
+      restartDelayMs: 10,
+    });
+    s.start();
+    const backAgain = () => events.filter((e) => e.type === "library-status" && e.ok).length;
+    expect(await settledWithin(s.mediaFolders())).toEqual({ error: STARTING_AGAIN });
+    await vi.waitFor(() => expect(backAgain()).toBe(1));
+    expect(await settledWithin(s.mediaFolders())).toEqual({ error: STARTING_AGAIN });
+    await vi.waitFor(() => expect(backAgain()).toBe(2));
+    expect(await settledWithin(s.mediaFolders())).toEqual({ error: GAVE_UP });
+    expect(events).toContainEqual({ type: "library-status", ok: false, message: GAVE_UP });
+    expect(await settledWithin(s.mediaFolders())).toEqual({ error: GAVE_UP });
+  });
+
+  it("fails requests still waiting when it is stopped", async () => {
+    const s = new LyreLibraryService({ fork: () => new ScriptedChild({ silent: true }), folder: "x", host: {}, onEvent: () => undefined });
+    s.start();
+    const waiting = s.mediaFolders();
+    await new Promise((r) => setTimeout(r, 20));
+    await s.stop(50);
+    expect(await settledWithin(waiting)).toEqual({ error: "Lyre's library is closed." });
+  });
+});
+
+describe("a damaged library offers its latest backup (security review 8)", () => {
+  /** A library folder with one backup holding a board named "Kept", then a library file that is not a database. */
+  async function damagedWithBackup() {
+    const folder = tempFolder();
+    const library = openLibrary({ folder });
+    const { seedLibrary } = await import("./seedLibrary");
+    const { prototypeSeed } = await import("../../common/lyre/seed");
+    await seedLibrary(library, prototypeSeed());
+    library.store.changeWithoutHistory(() => library.store.run("UPDATE boards SET title = 'Kept' WHERE id = 'combat'"));
+    await library.backupNow();
+    library.close();
+    for (const suffix of ["", "-wal", "-shm"]) fs.rmSync(path.join(folder, `library.sqlite${suffix}`), { force: true });
+    fs.writeFileSync(path.join(folder, "library.sqlite"), "this is not a database ".repeat(200));
+    return folder;
+  }
+
+  it("asks in plain words, puts the backup back when told to, keeps the damaged file, and works again", async () => {
+    const folder = await damagedWithBackup();
+    const offers: string[] = [];
+    const { s, events } = service({ folder, seed: false, offerRestore: async (words) => (offers.push(words), true) });
+    s.start();
+    await vi.waitFor(() => expect(events).toContainEqual({ type: "library-status", ok: true, message: BACK_AGAIN }), { timeout: 5000 });
+    expect(offers[0]).toMatch(/damaged/);
+    const boards = (await call(s, "boards", "list")) as { id: string; name: string }[];
+    expect(boards.find((b) => b.id === "combat")?.name).toBe("Kept");
+    expect(fs.readdirSync(folder).some((name) => name.startsWith("library-damaged-"))).toBe(true);
+    await s.stop();
+  });
+
+  it("leaves everything as it is when the game master says not now", async () => {
+    const folder = await damagedWithBackup();
+    const { s, events } = service({ folder, seed: false, offerRestore: async () => false });
+    s.start();
+    await vi.waitFor(() => expect(events.some((e) => e.type === "library-status" && !e.ok)).toBe(true));
+    await new Promise((r) => setTimeout(r, 100));
+    await expect(call(s, "boards", "list")).rejects.toThrow(/damaged/);
+    expect(fs.readdirSync(folder).some((name) => name.startsWith("library-damaged-"))).toBe(false);
+  });
+
+  it("stops using a library the background check finds damaged, and offers the backup", async () => {
+    const folder = tempFolder();
+    const backups = path.join(folder, "backups");
+    const offers: string[] = [];
+    const open = (f: string) => {
+      const library = openLibrary({ folder: f });
+      return {
+        ...library,
+        checkIntegrity: async () => ({ status: "corrupt" as const, error: new LibraryDatabaseError("corrupt", "Your library file is damaged and cannot be opened.", { latestBackup: null }) }),
+      };
+    };
+    const { s, events } = service({ folder, open, offerRestore: async (words) => (offers.push(words), false) });
+    s.start();
+    await vi.waitFor(() => expect(events.some((e) => e.type === "library-status" && !e.ok)).toBe(true), { timeout: 5000 });
+    await expect(call(s, "boards", "list")).rejects.toThrow(/damaged/);
+    // No backup yet: nothing to offer, and the words say so.
+    expect(offers).toEqual([]);
+    expect(events.find((e) => e.type === "library-status" && !e.ok)).toMatchObject({ message: expect.stringMatching(/No backup/) });
+    void backups;
   });
 });

@@ -104,7 +104,7 @@ vi.mock("./bounds", () => ({
 vi.mock("./autoUpdate", () => ({ runAutoUpdate: vi.fn() }));
 // WP5: Lyre's library process is started, given the window's go-ahead for backups, and closed before quitting.
 vi.mock("./main/lyreApi/startLibrary", () => {
-  const library = { startBackups: vi.fn(), stop: vi.fn().mockResolvedValue(undefined) };
+  const library = { windowShown: vi.fn(), clearAudioCache: vi.fn().mockResolvedValue(undefined), stop: vi.fn().mockResolvedValue(undefined) };
   (state as { lyreLibrary?: typeof library }).lyreLibrary = library;
   return {
     startLyreLibrary: vi.fn(() => {
@@ -224,7 +224,7 @@ describe("main window (SEC-10, SEC-7, SEC-3)", () => {
 });
 
 describe("Lyre's library (WP5)", () => {
-  const library = () => (state as unknown as { lyreLibrary: { startBackups: Mock; stop: Mock } }).lyreLibrary;
+  const library = () => (state as unknown as { lyreLibrary: { windowShown: Mock; clearAudioCache: Mock; stop: Mock } }).lyreLibrary;
   const beforeQuit = () => {
     const app = electronApp as unknown as { on: Mock; quit: Mock };
     const call = app.on.mock.calls.find(([event]) => event === "before-quit");
@@ -236,10 +236,15 @@ describe("Lyre's library (WP5)", () => {
     expect(state.windows).toHaveLength(1);
   });
 
-  it("starts the daily backups once the main window is ready to show", () => {
-    expect(library().startBackups).not.toHaveBeenCalled();
+  it("starts the daily backups (and the audio cache's tidy-up) once the main window is ready to show", () => {
+    expect(library().windowShown).not.toHaveBeenCalled();
     (mainWindow() as unknown as { emit(event: string): void }).emit("ready-to-show");
-    expect(library().startBackups).toHaveBeenCalledTimes(1);
+    expect(library().windowShown).toHaveBeenCalledTimes(1);
+  });
+
+  it("empties Lyre's audio cache too when the user clears the cache (security review 3)", async () => {
+    await appInfo.registered?.clearCache();
+    expect(library().clearAudioCache).toHaveBeenCalled();
   });
 
   it("is closed before the app quits (after the player has saved), then the quit goes ahead", async () => {

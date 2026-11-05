@@ -1,5 +1,11 @@
 import { EventEmitter } from "events";
+import fs from "fs";
+import os from "os";
+import path from "path";
 import { describe, expect, it, vi } from "vitest";
+
+import { findBundledFfmpeg } from "./bundledFfmpeg";
+import { wavBytes } from "./testing/wavFiles";
 
 import { codecOf, convertArgs, FfmpegConverter, probeArgs, SpawnLike } from "./ffmpegConverter";
 
@@ -35,6 +41,8 @@ describe("ffmpeg arguments (BUG-10)", () => {
       "error",
       "-protocol_whitelist",
       "file",
+      "-f",
+      "asf",
       "-i",
       "file:C:\\Music\\Old.wma",
       "-map",
@@ -59,7 +67,7 @@ describe("ffmpeg arguments (BUG-10)", () => {
   });
 
   it("probes without writing anything", () => {
-    expect(probeArgs("/m/a.wma")).toEqual(["-hide_banner", "-nostdin", "-protocol_whitelist", "file", "-i", "file:/m/a.wma"]);
+    expect(probeArgs("/m/a.wma")).toEqual(["-hide_banner", "-nostdin", "-protocol_whitelist", "file", "-f", "asf", "-i", "file:/m/a.wma"]);
   });
 
   it("reads the audio codec from ffmpeg's description of the file", () => {
@@ -138,5 +146,36 @@ describe("FfmpegConverter (BUG-10)", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("the real ffmpeg refuses files that are not what their extension says (security review 7)", () => {
+  const ffmpegPath = findBundledFfmpeg(process.cwd());
+  it.runIf(ffmpegPath)("a playlist or a list of other files named .wma is not read, and nothing is written", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lyre-demux-"));
+    try {
+      fs.mkdirSync(path.join(dir, "secret"));
+      fs.writeFileSync(path.join(dir, "secret", "private.wav"), wavBytes({ seconds: 0.5 }));
+      fs.mkdirSync(path.join(dir, "lib"));
+      const hls = path.join(dir, "lib", "ambience.wma");
+      fs.writeFileSync(hls, `#EXTM3U\n#EXT-X-TARGETDURATION:1\n#EXTINF:1,\nfile:${path.join(dir, "secret", "private.wav")}\n#EXT-X-ENDLIST\n`);
+      const concat = path.join(dir, "lib", "c.wma");
+      fs.writeFileSync(concat, "ffconcat version 1.0\nfile ../secret/private.wav\n");
+      const converter = new FfmpegConverter({ ffmpegPath: ffmpegPath as string });
+      for (const input of [hls, concat]) {
+        const output = path.join(dir, `${path.basename(input)}.flac.part`);
+        await expect(converter.convert({ input, output, target: "flac", signal: new AbortController().signal })).rejects.toThrow(/Could not convert/);
+        expect(fs.existsSync(output) && fs.statSync(output).size > 0).toBe(false);
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses a file whose extension it has no reader for, without running ffmpeg", async () => {
+    const { spawn, calls } = fakeSpawn((proc) => proc.emit("close", 0));
+    const job = { input: "/m/list.m3u8", output: "/c/x.part", target: "flac" as const, signal: new AbortController().signal };
+    await expect(new FfmpegConverter({ ffmpegPath: "f", spawn }).convert(job)).rejects.toThrow(/Could not convert list\.m3u8/);
+    expect(calls).toHaveLength(0);
   });
 });

@@ -184,19 +184,20 @@ export function LibraryScreen({ route }: ScreenProps) {
     async (summary: ImportSummary, how: string) => {
       if (summary.cancelled && !summary.trackIds.length) return;
       if (!summary.trackIds.length) {
-        toast(summary.problems.length ? summary.summary : "Nothing new there: those files are already in your library");
-        return;
-      }
-      if (!summary.added.length && how !== "by dropping") {
-        toast("Nothing new there: those files are already in your library");
+        toast(summary.problems.length ? summary.summary : "There are no audio files there.");
         return;
       }
       await store.reload();
       const ids = summary.trackIds;
-      const guide: Guide = { kind: "added", count: ids.length, how, alreadyIn: summary.alreadyInLibrary.length, problems: summary.problems.map((p) => `${p.file}: ${p.reason}`) };
-      setLibraryState({ filter: { ...DEFAULT_FILTER, newOnly: true }, q: "", sort: "new", sel: ids, cursor: ids[0], anchor: null, guide });
+      // UX review 6: files already in the Library are named, never counted as added, and selected with the new ones.
+      const byId = store.get().byId;
+      const alreadyIn = summary.alreadyInLibrary.map((id) => byId.get(id)).filter((t): t is LibraryTrack => Boolean(t)).map((t) => shownTitle(t));
+      const guide: Guide = { kind: "added", count: summary.added.length, how, alreadyIn, problems: summary.problems.map((p) => `${fileName(p.file)}: ${p.reason}`) };
+      // Only new tracks: show New ones; any already there may not be New, so show everything.
+      const filter = alreadyIn.length ? DEFAULT_FILTER : { ...DEFAULT_FILTER, newOnly: true };
+      setLibraryState({ filter, q: "", sort: "new", sel: ids, cursor: ids[0], anchor: null, guide });
       if (mode === "narrow" && tid) window.location.hash = hashOf("library");
-      say(`${plural(ids.length, "track")} added and selected. Choose Tag to tag them, or open one to edit it.`);
+      say(`${addedWords(summary.added.length, alreadyIn)} Selected.`);
       focusSoon("lb-btag");
     },
     [mode, say, store, tid, toast],
@@ -601,6 +602,22 @@ function Item({ icon, text }: { icon: React.ComponentProps<typeof Icon>["name"];
   );
 }
 
+/** A file's name from its full path, either style (UX review 12: messages name the file, not where it is). */
+function fileName(filePath: string): string {
+  return filePath.split(/[\\/]/).filter(Boolean).pop() ?? filePath;
+}
+
+/**
+ * What an import did, in plain words (UX review 6): "2 tracks added by dropping.", "Dragon roar is already in your
+ * Library.", "3 tracks added. Dragon roar and Rain were already in your Library."
+ */
+function addedWords(count: number, alreadyIn: string[], how = ""): string {
+  const names = alreadyIn.length <= 3 ? alreadyIn.join(", ").replace(/, ([^,]*)$/, " and $1") : `${alreadyIn.length} of these files`;
+  const already = alreadyIn.length ? `${names} ${alreadyIn.length === 1 ? (count ? "was" : "is") : count ? "were" : "are"} already in your Library.` : "";
+  if (!count) return already || "Nothing was added.";
+  return `${plural(count, "track")} added${how ? ` ${how}` : ""}.${already ? ` ${already}` : ""}`;
+}
+
 /** The line under the search box after an action (role status, so it is read out), with a way to dismiss it. */
 function GuideLine({ guide, onShowNew }: { guide: Guide; onShowNew: () => void }) {
   const icon = guide.kind === "added" || guide.kind === "progress" ? "plus" : guide.kind === "tagged" ? "tag" : guide.kind === "watching" || guide.kind === "arrived" ? "eye" : "playlist";
@@ -609,13 +626,15 @@ function GuideLine({ guide, onShowNew }: { guide: Guide; onShowNew: () => void }
   switch (guide.kind) {
     case "added": {
       const one = guide.count === 1;
-      const how = guide.how ? ` ${guide.how}${guide.alreadyIn ? ` (${guide.alreadyIn} already in your Library)` : ""}` : "";
       text = (
         <>
-          <b>
-            {plural(guide.count, "track")} added{how}.
-          </b>{" "}
-          Give {one ? "it" : "them"} a title and tags: {one ? "choose" : "select them and choose"} <b>Tag…</b>, or open {one ? "it" : "one"} to edit it.
+          <b>{addedWords(guide.count, guide.alreadyIn, guide.how)}</b>
+          {guide.count > 0 && (
+            <>
+              {" "}
+              Give {one ? "it" : "them"} a title and tags: {one ? "choose" : "select them and choose"} <b>Tag…</b>, or open {one ? "it" : "one"} to edit it.
+            </>
+          )}
           {guide.problems.length > 0 && ` ${plural(guide.problems.length, "file")} could not be added: ${guide.problems.join("; ")}`}
         </>
       );

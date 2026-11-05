@@ -4,7 +4,7 @@
  * the caller's side to show a chooser.
  */
 import { MessageChannel, type MessagePort } from "worker_threads";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { lyreApiContract, valueOf } from "./contract";
 import { createFakeLyreApi } from "./fake";
@@ -80,5 +80,31 @@ describe("the message protocol", () => {
     lost.failPending("Lyre's library stopped. It is starting again.");
     await expect(waiting).rejects.toThrow("starting again");
     expect(valueOf(await client.api.boards.rename("combat", "Fight")).name).toBe("Fight");
+  });
+});
+
+describe("host work is looked up by its own name only (security review 14)", () => {
+  it("does not run inherited properties such as constructor or toString", async () => {
+    const { MessageChannel } = await import("worker_threads");
+    const { port1, port2 } = new MessageChannel();
+    const wrap = (port: import("worker_threads").MessagePort) => ({
+      postMessage: (message: unknown) => port.postMessage(message),
+      onMessage: (listener: (data: unknown) => void) => (port.on("message", listener), (): void => void port.off("message", listener)),
+    });
+    const client = lyreApiOverPort(wrap(port2), { chooseFiles: async () => ["/a.flac"] });
+    const answers: unknown[] = [];
+    port1.on("message", (m) => answers.push(m));
+    for (const [id, op] of [[1, "constructor"], [2, "toString"], [3, "chooseFiles"]] as const) port1.postMessage({ t: "host", id, op, args: [] });
+    await vi.waitFor(() => expect(answers).toHaveLength(3));
+    expect(answers).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ t: "host-fault", id: 1 }),
+        expect.objectContaining({ t: "host-fault", id: 2 }),
+        { t: "host-result", id: 3, value: ["/a.flac"] },
+      ]),
+    );
+    client.close();
+    port1.close();
+    port2.close();
   });
 });

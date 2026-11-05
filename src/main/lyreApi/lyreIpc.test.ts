@@ -60,6 +60,14 @@ describe("LYRE_API_CALL (WP5)", () => {
     expect(call).not.toHaveBeenCalled();
   });
 
+  it("refuses values that are not plain data, which JSON would count as {} (security review 10)", async () => {
+    const { lyre, send, call } = setup();
+    for (const value of [new ArrayBuffer(64), new Map([["a", 1]]), new Set([1]), new Uint8Array(4), new Date(0), { nested: new Map() }, [new ArrayBuffer(1)]]) {
+      await expect(send(lyre, "library", "updateTrack", ["t1", value]), Object.prototype.toString.call(value)).rejects.toThrow("refused");
+    }
+    expect(call).not.toHaveBeenCalled();
+  });
+
   it("lets a 5,000-track change through", async () => {
     const { lyre, send } = setup();
     const trackIds = Array.from({ length: 5000 }, (_, i) => `track-${i}-0123456789abcdef`);

@@ -1,5 +1,6 @@
 const path = require("path");
 const webpack = require("webpack");
+const { ThirdPartyLicencesPlugin } = require("./scripts/third-party-licences.cjs");
 
 module.exports = {
   /**
@@ -23,6 +24,8 @@ module.exports = {
     new webpack.DefinePlugin({
       __CUE_DESK_TEST_BUILD__: JSON.stringify(process.env.CUE_DESK_E2E_BUILD === "1"),
     }),
+    // Security review 13: the licences of the libraries bundled into the main and library processes.
+    new ThirdPartyLicencesPlugin(),
   ],
   resolve: {
     extensions: [".js", ".ts", ".jsx", ".tsx", ".css", ".json"],

@@ -4,7 +4,7 @@
  * means changing one row.
  */
 import { ValidationError } from "../errors";
-import { isAbsolutePath, joinRoot, normalizePath, relativeToRoot } from "../paths";
+import { isAbsolutePath, joinRoot, normalizePath, relativeToRoot, unsafeFolderReason } from "../paths";
 import type { Store } from "../store";
 import type { LibraryRoot } from "../types";
 import * as v from "../validate";
@@ -17,6 +17,9 @@ const toRoot = (row: RootRow): LibraryRoot => ({ id: row.id, name: row.name, pat
 function absoluteFolder(value: unknown): string {
   const folder = v.requiredName("path", value, v.MAX_TEXT_LENGTH);
   if (!isAbsolutePath(folder)) throw new ValidationError("path", "The folder must be a full path, such as H:\\Audio.");
+  // Security review 5: never a whole drive, a system or profile folder, or a \\server share.
+  const unsafe = unsafeFolderReason(folder);
+  if (unsafe) throw new ValidationError("path", unsafe);
   // Stored one way, as track paths are: no "." parts, no separator at the end (except a drive's own).
   const normal = normalizePath(folder);
   return normal.length > 3 ? normal.replace(/[\\/]+$/, "") : normal;

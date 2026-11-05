@@ -247,6 +247,34 @@ describe("Library: adding tracks", () => {
     expect(tracksBox().getByText(/1 track added/)).toBeInTheDocument();
   });
 
+  it("a file already in the Library is named as such, nothing counts as added, and it is selected (UX review 6)", async () => {
+    openAt("library", { choose: { files: () => ["H:\\Audio\\Scores\\Hans Zimmer\\Dune\\02 Leaving Caladan.flac"] } });
+    await loaded();
+    const user = userEvent.setup();
+    const addFiles = async () => {
+      await user.click(screen.getByRole("button", { name: /^Add tracks/ }));
+      await user.click(screen.getByRole("menuitem", { name: /^Add files…/ }));
+    };
+    await addFiles();
+    expect(await screen.findByText("70 tracks")).toBeInTheDocument();
+    await addFiles();
+    expect(await tracksBox().findByText(/Leaving Caladan is already in your Library/)).toBeInTheDocument();
+    expect(tracksBox().queryByText(/added/)).toBeNull();
+    expect(screen.getByText("70 tracks")).toBeInTheDocument();
+    expect(screen.getByRole("toolbar", { name: "Selected tracks" })).toHaveTextContent("1 selected");
+    expect(shownTitles()).toContain("Leaving Caladan");
+  });
+
+  it("names a file that could not be added by its name, not its full path (UX review 12)", async () => {
+    openAt("library", { choose: { files: () => ["H:\\Audio\\In\\01 Wolf Moon.flac", "H:\\Audio\\In\\notes.txt"] } });
+    await loaded();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: /^Add tracks/ }));
+    await user.click(screen.getByRole("menuitem", { name: /^Add files…/ }));
+    expect(await tracksBox().findByText(/could not be added: notes\.txt:/)).toBeInTheDocument();
+    expect(tracksBox().queryByText(/H:\\Audio/)).toBeNull();
+  });
+
   it("dropped files join the Library, selected; other files are ignored", async () => {
     openAt("library");
     await loaded();

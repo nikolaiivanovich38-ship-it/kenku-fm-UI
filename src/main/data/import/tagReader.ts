@@ -23,10 +23,15 @@ export type EmbeddedTags = {
   moods?: string[];
   genres?: string[];
   comment?: string | null;
+  /**
+   * UX review 3: whether the reader found audio it can measure (a format and a length). False for a file that is
+   * not audio whatever its name; left out by a reader that cannot tell (the import then trusts the extension).
+   */
+  audio?: boolean;
 };
 
 /** EmbeddedTags checked and tidied: every field present, text safe to store. */
-export type CleanTags = Required<EmbeddedTags>;
+export type CleanTags = Required<Omit<EmbeddedTags, "audio">>;
 
 export interface TagReader {
   /** The file's tags; rejects when the file cannot be read or parsed. */
@@ -36,8 +41,10 @@ export interface TagReader {
 /** Used until a tag library is added: no tags, so new tracks are named after their files. */
 export const noTagReader: TagReader = { read: async () => ({}) };
 
+// Control characters, and (security review 12) the text-direction controls (embeddings, overrides, isolates)
+// that can make a name read differently from what it is, e.g. "evil\u202Egnp.mp3" showing as "evilmp3.png".
 // eslint-disable-next-line no-control-regex
-const CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g;
+const CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f\u202a-\u202e\u2066-\u2069]/g;
 
 /** Tag text as the library can hold it: control characters dropped, trimmed, shortened to `max`; null when empty. */
 export function cleanText(value: unknown, max = MAX_NAME_LENGTH): string | null {
@@ -96,17 +103,18 @@ export type MusicMetadataResult = {
   format: { duration?: number };
 };
 
-export type ParseFile = (filePath: string, options: { skipCovers: boolean }) => Promise<MusicMetadataResult>;
+export type ParseFile = (filePath: string, options: { skipCovers: boolean; duration: boolean }) => Promise<MusicMetadataResult>;
 
 /** The real reader, given music-metadata's `parseFile`. */
 export function createMusicMetadataTagReader(parseFile: ParseFile): TagReader {
   return {
     async read(filePath) {
-      const { common, format } = await parseFile(filePath, { skipCovers: true });
+      // duration: work the length out when no header gives it (Ogg Vorbis, MP3 without a Xing header: UX review 7).
+      const { common, format } = await parseFile(filePath, { skipCovers: true, duration: true });
       const comments = (common.comment ?? [])
         .map((comment) => (typeof comment === "string" ? comment : comment.text ?? ""))
         .filter((text) => text.trim() !== "");
-      return cleanTags({
+      const tags = cleanTags({
         title: common.title,
         artist: common.artist ?? common.albumartist,
         album: common.album,
@@ -117,6 +125,8 @@ export function createMusicMetadataTagReader(parseFile: ParseFile): TagReader {
         genres: common.genre ?? [],
         comment: comments.length > 0 ? comments.join("\n") : null,
       });
+      // Random bytes named .mp3 still "parse" (as frames of nothing), but have no length (UX review 3).
+      return { ...tags, audio: typeof format.duration === "number" && Number.isFinite(format.duration) && format.duration > 0 };
     },
   };
 }

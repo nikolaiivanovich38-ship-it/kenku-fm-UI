@@ -86,11 +86,26 @@ const isPrepareOptions: ArgCheck = (value) =>
   isBoolean((value as { keepLocal?: unknown }).keepLocal);
 
 // --- w3-api ---
+/**
+ * Plain data only (security review 10): null, booleans, finite numbers, text, arrays and plain objects, at most
+ * 64 levels deep. Structured clone lets a page send a Map, a Set, a Date or an ArrayBuffer, which JSON measures as {}.
+ */
+function isPlainData(value: unknown, depth = 0): boolean {
+  if (value === null || value === undefined || typeof value === "boolean" || typeof value === "string") return true;
+  if (typeof value === "number") return Number.isFinite(value);
+  if (typeof value !== "object" || depth > 64) return false;
+  if (Array.isArray(value)) return value.every((item) => isPlainData(item, depth + 1));
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) return false;
+  return Object.values(value as Record<string, unknown>).every((item) => isPlainData(item, depth + 1));
+}
 /** Largest LyreApi call, as JSON: a change to 5,000 tracks is about 0.2 MB, so 8 MB leaves room and stops a flood. */
 export const MAX_CALL_BYTES = 8 * 1024 * 1024;
 /** LYRE_API_CALL's arguments: area, method (a LyreApi method), and a short list of plain arguments. */
 const isLyreCall: ArgsCheck = (args) => {
   if (args.length !== 3 || !isLyreMethod(args[0], args[1]) || !Array.isArray(args[2]) || args[2].length > 4) return false;
+  // Security review 10: JSON counts an ArrayBuffer, Map or Date as {}, so only plain data passes.
+  if (!isPlainData(args[2])) return false;
   try {
     return JSON.stringify(args[2]).length <= MAX_CALL_BYTES;
   } catch {

@@ -29,5 +29,32 @@ Condensed, Lora, Cinzel and Cormorant Garamond as font files, each under the
 SIL Open Font License 1.1; their notices and the licence are in
 src/lyre/fonts/OFL.txt.
 
-Third-party components keep their own licences, listed in each package
-under node_modules (and inside the installed app's resources folder).
+ffmpeg
+Lyre ships the ffmpeg program to convert WMA and AIFF files and to measure
+loudness. ffmpeg is copyright the FFmpeg developers (https://ffmpeg.org) and
+is licensed under the GNU General Public License, version 3 or later
+(GPL-3.0-or-later); these builds include GPL libraries such as x264. Lyre
+runs it as a separate program and does not change it. It comes from
+ffmpeg-static 5.3.0 (https://github.com/eugeneware/ffmpeg-static), release
+b6.1.1. The build, its builder and the exact source code, per platform:
+  win32-x64: ffmpeg 6.1.1, built by gyan.dev (release essentials build);
+    source: https://github.com/FFmpeg/FFmpeg/commit/e38092ef93
+  linux-x64: ffmpeg 7.0.2, built by John Van Sickle (johnvansickle.com/ffmpeg);
+    source: https://ffmpeg.org/releases/ffmpeg-7.0.2.tar.xz
+  linux-arm64: ffmpeg 7.0.2, built by John Van Sickle (johnvansickle.com/ffmpeg);
+    source: https://ffmpeg.org/releases/ffmpeg-7.0.2.tar.xz
+  darwin-x64: ffmpeg 6.1.1, built by evermeet.cx (Helmut K. C. Tessarek);
+    source: https://ffmpeg.org/releases/ffmpeg-6.1.1.tar.xz
+The builder's licence text and README (which lists every library in the
+build) are installed beside the program, in
+resources/app.asar.unpacked/node_modules/ffmpeg-static/ffmpeg.LICENSE and
+ffmpeg.README. On request, the project will also send the corresponding
+source code of the ffmpeg it ships; ask in the repository above.
+
+Other third-party components keep their own licences. Libraries kept as
+packages are listed, with their licence files, under node_modules inside the
+installed app's resources folder (app.asar). Libraries built into Lyre's own
+code (for example music-metadata, strtok3, React and MUI) are listed with
+their licence texts in THIRD_PARTY_LICENSES.txt beside each part of the app
+(resources/app.asar.unpacked/.webpack/…). This NOTICE and Lyre's LICENSE are
+in the installed app's resources folder.

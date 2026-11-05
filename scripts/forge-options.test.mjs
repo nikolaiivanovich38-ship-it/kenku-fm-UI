@@ -78,6 +78,13 @@ describe("ASAR_UNPACK_GLOB (SEC-13)", () => {
     assert.ok(unpacked("C:/build/app/node_modules/ffmpeg-static/ffmpeg.exe"));
   });
 
+  it("keeps ffmpeg's licence and README beside the program, and the bundles' licence lists readable (security review 2, 13)", () => {
+    assert.ok(unpacked("/app/node_modules/ffmpeg-static/ffmpeg.LICENSE"));
+    assert.ok(unpacked("C:/build/app/node_modules/ffmpeg-static/ffmpeg.README"));
+    assert.ok(unpacked("/app/.webpack/main/THIRD_PARTY_LICENSES.txt"));
+    assert.ok(unpacked("/app/.webpack/renderer/lyre_window/THIRD_PARTY_LICENSES.txt"));
+  });
+
   it("packs everything else", () => {
     assert.ok(!unpacked("/app/node_modules/ffmpeg-static/index.js"));
     assert.ok(!unpacked("/app/node_modules/ffmpeg-static/package.json"));

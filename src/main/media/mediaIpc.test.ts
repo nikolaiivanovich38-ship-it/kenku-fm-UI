@@ -35,13 +35,13 @@ describe("MEDIA_PREPARE (BUG-10, PLY-11)", () => {
   it("answers the player with the address to play", async () => {
     const { media, player, send } = setup();
     expect(await send(player, "file:///music/old.wma", { keepLocal: false })).toEqual({ url: "file:///cache/x.flac" });
-    expect(media.prepare).toHaveBeenCalledWith("file:///music/old.wma", { keepLocal: false });
+    expect(media.prepare).toHaveBeenCalledWith("file:///music/old.wma", { keepLocal: false }, expect.objectContaining({ id: expect.any(Number) }));
   });
 
   it("answers the new interface page too, which hosts the engine in wave 3", async () => {
     const { media, lyre, send } = setup();
     expect(await send(lyre, "file:///music/old.wma", { keepLocal: true })).toEqual({ url: "file:///cache/x.flac" });
-    expect(media.prepare).toHaveBeenCalledWith("file:///music/old.wma", { keepLocal: true });
+    expect(media.prepare).toHaveBeenCalledWith("file:///music/old.wma", { keepLocal: true }, expect.objectContaining({ id: expect.any(Number) }));
   });
 
   it("is refused from any other page", async () => {

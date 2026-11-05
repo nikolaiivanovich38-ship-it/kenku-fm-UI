@@ -40,4 +40,10 @@ describe("MainMediaResolver (BUG-10, PLY-11): files are prepared by the main pro
       /could not be prepared/,
     );
   });
+
+  it("plays the lyre-media: address the main process grants the Lyre page (security review 6)", async () => {
+    const granted = `lyre-media://${"a".repeat(32)}/${"b".repeat(32)}/old.flac`;
+    const main = bridge({ url: granted });
+    expect(await new MainMediaResolver(main).resolve({ url: "file:///music/old.wma" })).toEqual({ url: granted });
+  });
 });

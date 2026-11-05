@@ -119,8 +119,9 @@ const createWindow = (): BrowserWindow => {
 
   saveWindowBounds(mainWindow);
 
-  // WP5: the daily backups start once the window shows, so they never slow the start.
-  mainWindow.once("ready-to-show", () => lyreLibrary?.startBackups());
+  // WP5: the daily backups start once the window shows, so they never slow the start; the audio cache is tidied
+  // a while later (security review 3).
+  mainWindow.once("ready-to-show", () => lyreLibrary?.windowShown());
 
   if (app.isPackaged) {
     runAutoUpdate(mainWindow);
@@ -199,6 +200,10 @@ if (startupOutcome === "run") {
   registerAppInfoIpc({
     getVersion: () => app.getVersion(),
     getPlatform: () => os.platform(),
-    clearCache: clearBrowsingData,
+    // Security review 3: "Clear cache" empties Lyre's audio cache (converted and local copies) as well.
+    clearCache: async () => {
+      await clearBrowsingData();
+      await lyreLibrary?.clearAudioCache();
+    },
   });
 }

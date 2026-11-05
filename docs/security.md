@@ -525,7 +525,7 @@ The new interface opens in a tab of its own, "Lyre", beside the old player. It i
 - **Audio host hook.** `BrowserViewManagerMain` calls `onLyreView` once the page is created and trusted; `SessionManager` passes it to `LyreManager.attachView`, whose `onAttachView` is where `playbackManager.setLyreView(view)` goes (marked `--- w3-host wiring ---`).
 - **Content-Security-Policy** (`src/lyre/index.html`, pinned in `appPageCsp.test.ts`): `script-src 'self'` (bundles and audio worklets), `media-src 'self' blob: file:` and `connect-src 'self' blob: file:` (the playback engine and preview host: prepared library files and read-ahead, nothing from the web), `img-src 'self' data:`, `font-src 'self' data:` for the bundled fonts, `style-src 'unsafe-inline'` for style-loader's `<style>` tags, `worker-src 'none'`; no inline or eval script in production. Narrower than the player page, which still allows web addresses.
 - **Drop guard**: `installDocumentDropGuard(document)` in `src/lyre/index.tsx`.
-- **Preload** `src/lyre/preload.ts` exposes only `window.lyre = { page: "lyre" }` and sends nothing.
+- **Preload** `src/lyre/preload.ts` exposes `window.lyre`: `page: "lyre"`, the LyreApi bridge (`api`, sends `LYRE_API_CALL` only), the audio bridge (`audio`, w3-host: the private player channel, the rooms, `MEDIA_PREPARE`) and `files.pathOf` (w3-library). It sends nothing else. (Corrected by w3-secfix, security review 15: this line said the preload sent nothing.)
 
 | Channel | Sent by | Arguments | Handled in |
 |---|---|---|---|
@@ -536,7 +536,7 @@ The new interface opens in a tab of its own, "Lyre", beside the old player. It i
 
 ### In plain language
 
-Lyre's library (tracks, tags, playlists, pad boards, campaigns) lives in a database that only a separate background process of Lyre opens. The new interface asks for what it needs through one checked channel, and only the new interface may ask. The player may read sound files only from the folders in your library. If the background process stops unexpectedly, Lyre starts it again and tells you in plain words; your library and its backups stay on disk.
+Lyre's library (tracks, tags, playlists, pad boards, campaigns) lives in a database that only a separate background process of Lyre opens. The new interface asks for what it needs through one checked channel, and only the new interface may ask. The new interface may read sound files only from the folders in your library (since w3-secfix; the old player can still read any file it is given until it retires). If the background process stops unexpectedly, Lyre starts it again and tells you in plain words; your library and its backups stay on disk.
 
 ### Technical details
 
@@ -582,3 +582,44 @@ Lyre now ships two helpers. One reads the titles, artist, album and length writt
 | `ffmpegPeaks.test.ts` | Arguments (plain files only, nothing written, no shell, low priority), cancel, unreadable file, and the real program |
 | `scripts/forge-options.test.mjs` | Only the ffmpeg program is unpacked, not the rest of ffmpeg-static |
 | `e2e/lyreMedia.spec.ts` | The packaged test build finds ffmpeg in app.asar.unpacked, converts an AIFF, reads tags, works out peaks |
+
+## w3-secfix
+
+### In plain language
+
+Fixes from the wave 3 security review. The new interface now reads your audio files only through addresses Lyre gives it for files in your library, so even a fault in the page could not read other files on your computer. A damaged library offers to put back its latest backup. Lyre's audio cache is tidied a minute after Lyre starts, emptied by Settings > Clear cache, and closed properly when Lyre quits. Folders such as a whole drive, Windows or Program Files, your user folder itself and network shares typed as `\\server` cannot be added to the library. The ffmpeg program Lyre ships is checked against a known fingerprint when Lyre is built, its licence notice is in the NOTICE file, and it is never left to guess what kind of file it is reading.
+
+### Technical details
+
+- **lyre-media: (review 6).** `MEDIA_PREPARE` from the Lyre page (role `lyre-view`) answers `lyre-media://<page token>/<file token>/<name>` for the prepared file (`MediaGrants`, `src/main/media/mediaProtocol.ts`; 128-bit random tokens, one page token per page, grants dropped on `destroyed`, at most 20,000 per page). `secureSessions` handles the scheme on the default session only (website and local-file tabs have their own sessions and cannot reach it); unknown or altered addresses and methods other than GET/HEAD get 403. Answers carry `nosniff`, `no-store` and `Access-Control-Allow-Origin: *` (the page's origin is `file:`, and Web Audio silences a cross-origin `<audio>` without CORS; the address is the capability). The scheme is registered with `registerLocalFileScheme` in one `registerSchemesAsPrivileged` call (Electron keeps only the last list): standard, secure, fetch, stream, `corsEnabled`. The engine's and the preview's `<audio>` elements in the Lyre page are `crossOrigin="anonymous"`; `MainMediaResolver` accepts `file:` and `lyre-media:` answers only.
+- **Lyre page CSP:** `media-src blob: lyre-media:`, `connect-src blob: lyre-media:`, without `'self'`: on a `file:` page Chromium lets `'self'` match every `file:` address, so dropping `file:` alone changed nothing (found by `e2e/mediaProtocol.spec.ts`). Development builds add `'self'` to `connect-src` for the dev server.
+- **The old player is unchanged:** it still receives `file:` answers and its CSP keeps `file:` (and `'self'`, which matches `file:` anyway). Its playlists, soundboards (Howler) and backgrounds read `file:` addresses directly, including files the new library does not know, so routing it through `lyre-media:` would stop files the game master adds to it from playing. It retires in 0.5.
+- **Fuse `GrantFileProtocolExtraPrivileges`: still on, the narrowest setting that works.** Re-tested on 5 Nov 2026: a test package with the fuse off shows blank pages (`e2e/smoke.spec.ts`: "No page titled Lyre", 4 of 4 failed), because the app's own pages load from `file:` inside `app.asar`. Turning it off needs the app pages served from a custom scheme first, which changes their origin (the old player's `localStorage` library and the capture window's `securityOrigin` check would need moving): a backlog item.
+- **MEDIA_PREPARE never hangs (review 1).** Control requests to the library's process carry ids; every waiting request is failed when the process stops, is closed, or gives up. MEDIA_PREPARE waits at most 5 s for a refreshed folder list, then uses the last good one, or answers "Lyre's library is not answering yet…".
+- **Arguments (review 5, 10).** `ARGUMENT_SHAPES` (`src/main/lyreApi/argChecks.ts`) checks every LyreApi method's arguments in the library's process (kinds, lengths, full paths, branch choices); a malformed write is refused (`invalid`), a malformed read fails, both in plain words. `LYRE_API_CALL`'s guard refuses anything that is not plain data (`isPlainData`). `addRoot` (so `watchFolder`) and `planRelink` refuse a drive root, system folders, the profile folder, its AppData, the folder of all profiles and `\\server` paths (`unsafeFolderReason`, `src/main/data/paths.ts`).
+- **Relink (review 4):** only the last plan's matches and the files it offered for ambiguous tracks; the plan is used up when applied and not kept across a restart.
+- **Damaged library (review 8):** the library's process closes a library the background check finds damaged, finds the latest good backup in its own backups folder, and reports it; the main process shows "Restore the latest backup" / "Not now" (`dialog.showMessageBox`, never a page); on yes the process restores that backup (the damaged file kept beside it) and opens it again.
+- **ffmpeg (review 2, 7):** packaging stops unless the program matches the SHA-256 pinned for the platform (`scripts/ffmpeg-builds.cjs`, forge `prePackage` hook); macOS arm64 is refused (its build uses `--enable-nonfree`). The converter, the probe and the peaks name the demuxer with `-f` from the extension (Musepack: `-format_whitelist mpc,mpc8`); a file with no known reader is not given to ffmpeg. Tests run the Linux build (7.0.2); Windows ships 6.1.1, which could not be run here; with `-f asf` the HLS and concat demuxers are never chosen on either. NOTICE names each build, its source and licence; NOTICE and LICENSE go to `resources/`; ffmpeg's licence and README and each bundle's `THIRD_PARTY_LICENSES.txt` are unpacked from app.asar.
+- **No synchronous file calls** on track paths in the library's process (review 9): `fileThereWithin` (async stat, 5 s).
+- **Tags (review 12):** bidi controls U+202A–U+202E and U+2066–U+2069 are removed. **Host work (review 14):** looked up with `hasOwnProperty`.
+- No IPC channel added; `MEDIA_PREPARE` keeps its senders and argument checks; its answer to the Lyre page is now a `lyre-media:` address.
+
+| Test | Covers |
+|---|---|
+| `libraryService.test.ts`, `wiring.test.ts` | Overlapping requests, crash and give-up with a request pending, time limit; restore offered, accepted, declined; damage found after opening; grants per page, revoked when the page goes |
+| `argChecks.test.ts`, `folderSafety.test.ts`, `lyreIpc.test.ts` | The review's malformed calls; every method has a shape; unsafe folders; non-plain data |
+| `libraryApi.test.ts` | Unplanned relink refused; plan used up; refused after a restart |
+| `mediaProtocol.test.ts`, `sessions.test.ts`, `appPageCsp.test.ts` | Tokens, revocation, cap, 200/206/403/404/416, CORS header; scheme on the app session only; the Lyre CSP |
+| `mediaCache.test.ts`, `mediaUpkeep.test.ts`, `index.test.ts` | Close stops a conversion and removes its part file; tidy-up after the window shows; Clear cache |
+| `ffmpegConverter.test.ts`, `ffmpegPeaks.test.ts`, `formats.test.ts` | `-f` per extension; the real ffmpeg refuses the review's HLS and concat files named `.wma` |
+| `scripts/ffmpeg-builds.test.mjs`, `scripts/licences.test.mjs` | Pinned hashes, refused platforms, NOTICE agrees with the bundled README, licence files outside app.asar |
+| `e2e/mediaProtocol.spec.ts`, `e2e/lyreMedia.spec.ts` | The packaged Lyre page reads a prepared file through `lyre-media:` and cannot read a file outside the library (`file:` fetch and XHR refused, altered address 403, MEDIA_PREPARE refuses) |
+
+### Manual checks (Windows)
+
+1. Open the Lyre tab, play a track and a WMA file; preview a track: all play. In Settings, choose Clear cache: `%APPDATA%\lyre\media-cache` is empty afterwards (except `index.json`).
+2. In the Library, try to watch `C:\`, `C:\Windows` or `C:\Users\<you>`: a message explains why not. `C:\Users\<you>\Music` works.
+3. Quit Lyre while a long WMA converts: Lyre closes within a few seconds; no `.part` file is left in `media-cache`.
+4. Close Lyre, rename `%LOCALAPPDATA%\lyre\library\library.sqlite` and put any other file there under that name; start Lyre: a box offers "Restore the latest backup". Choose it: your library is back as of the last backup, and the damaged file sits beside it as `library-damaged-….sqlite`.
+5. In the installed folder, `resources\NOTICE` names ffmpeg 6.1.1 and its source; `resources\app.asar.unpacked\node_modules\ffmpeg-static\ffmpeg.LICENSE` is there.
+

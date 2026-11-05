@@ -26,7 +26,7 @@ import type { TrackInput } from "../types";
 import { createTracks } from "../repo/tracks";
 import { listRoots } from "../repo/roots";
 import { joinRoot } from "../paths";
-import { collectAudioFiles, fileKey, type FoundFile, type ImportProblem } from "./audioFiles";
+import { NOT_AUDIO, collectAudioFiles, fileKey, type FoundFile, type ImportProblem } from "./audioFiles";
 import { cancelled, mapLimit, throwIfCancelled } from "./cancel";
 import { fileExists, readFileFacts } from "./fileFacts";
 import { guessKind } from "./kindGuess";
@@ -52,6 +52,11 @@ export type ImportOptions = {
   batchSize?: number;
   /** Files read at the same time (default 8). */
   concurrency?: number;
+  /**
+   * UX review 3: a second opinion (ffmpeg) on a file the tag reader found no audio in: its length in milliseconds,
+   * or null when it is not audio either. Without it, such a file is refused.
+   */
+  lengthProbe?: (filePath: string) => Promise<number | null>;
 };
 
 export type ImportResult = {
@@ -179,7 +184,7 @@ export async function importAudio(store: Store, request: { paths: string[] }, op
         if (existing !== undefined) {
           entry = { file, existing, tags: NO_TAGS };
         } else {
-          entry = await describeFile(file, tagReader, result.problems);
+          entry = await describeFile(file, tagReader, result.problems, options.lengthProbe);
         }
         done++;
         report({ phase: "reading", done, total, message: `Reading ${baseName(file.path)}` });
@@ -227,6 +232,7 @@ async function describeFile(
   file: FoundFile,
   tagReader: TagReader,
   problems: ImportProblem[],
+  lengthProbe?: (filePath: string) => Promise<number | null>,
 ): Promise<{ file: FoundFile; input: TrackInput; tags: CleanTags } | null> {
   let facts;
   try {
@@ -236,11 +242,27 @@ async function describeFile(
     return null;
   }
   let tags = NO_TAGS;
+  // UX review 3: a file is added only when it is audio. The tag reader says so (a format and a length); when it
+  // cannot read the file or finds no length, ffmpeg is asked; when neither finds audio, it is refused.
+  let audio: boolean | undefined;
+  let tagsUnreadable = false;
   try {
-    tags = cleanTags(await tagReader.read(file.path));
+    const read = await tagReader.read(file.path);
+    tags = cleanTags(read);
+    audio = read.audio;
   } catch {
-    problems.push({ path: file.path, reason: TAGS_UNREADABLE });
+    tagsUnreadable = true;
+    audio = false;
   }
+  if (audio === false) {
+    const length = lengthProbe ? await lengthProbe(file.path).catch((): null => null) : null;
+    if (!length || length <= 0) {
+      problems.push({ path: file.path, reason: NOT_AUDIO });
+      return null;
+    }
+    tags = { ...tags, durationMs: Math.round(length) };
+  }
+  if (tagsUnreadable) problems.push({ path: file.path, reason: TAGS_UNREADABLE });
   const kind = guessKind(file.path, file.chosenFolder);
   const input: TrackInput = {
     kind,
