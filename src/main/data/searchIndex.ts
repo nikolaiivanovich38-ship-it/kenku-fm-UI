@@ -40,7 +40,9 @@ const WATCHED: [name: string, event: string, tracks: string][] = [
 
 /** Creates the temporary table and triggers on this connection (again, if they exist). */
 export function installSearchIndex(db: DatabaseSync): void {
-  db.exec("CREATE TEMP TABLE IF NOT EXISTS search_dirty (track_id TEXT PRIMARY KEY) WITHOUT ROWID");
+  db.exec(`
+    CREATE TEMP TABLE IF NOT EXISTS search_dirty (track_id TEXT PRIMARY KEY) WITHOUT ROWID;
+    CREATE TEMP TABLE IF NOT EXISTS search_flush (track_id TEXT PRIMARY KEY) WITHOUT ROWID;`);
   for (const [name, event, tracks] of WATCHED) {
     db.exec(`
       DROP TRIGGER IF EXISTS temp.search_dirty_${name};
@@ -49,13 +51,16 @@ export function installSearchIndex(db: DatabaseSync): void {
   }
 }
 
-/** The track columns of a search entry, for the tracks noted in search_dirty. */
+/**
+ * Rebuilds the entries of the tracks in search_flush (a share of search_dirty),
+ * then takes them off search_dirty.
+ */
 const REBUILD = `
 DELETE FROM search_fts WHERE rowid IN
-  (SELECT doc_id FROM search_docs WHERE kind = 'track' AND ref_id IN (SELECT track_id FROM temp.search_dirty));
+  (SELECT doc_id FROM search_docs WHERE kind = 'track' AND ref_id IN (SELECT track_id FROM temp.search_flush));
 DELETE FROM search_docs WHERE kind = 'track' AND ref_id IN
-  (SELECT track_id FROM temp.search_dirty WHERE track_id NOT IN (SELECT id FROM tracks));
-INSERT OR IGNORE INTO search_docs (kind, ref_id) SELECT 'track', id FROM tracks WHERE id IN (SELECT track_id FROM temp.search_dirty);
+  (SELECT track_id FROM temp.search_flush WHERE track_id NOT IN (SELECT id FROM tracks));
+INSERT OR IGNORE INTO search_docs (kind, ref_id) SELECT 'track', id FROM tracks WHERE id IN (SELECT track_id FROM temp.search_flush);
 INSERT INTO search_fts (rowid, title, meta_title, file_name, artist, album, tags, markers, notes, cue)
   SELECT d.doc_id, coalesce(nullif(t.title, ''), nullif(t.meta_title, ''), t.file_name), t.meta_title, t.file_name,
     t.source_composer, t.source_album,
@@ -65,18 +70,37 @@ INSERT INTO search_fts (rowid, title, meta_title, file_name, artist, album, tags
     (SELECT group_concat(m.label, ' ') FROM markers m WHERE m.track_id = t.id),
     t.notes, t.source_cue_number
   FROM tracks t JOIN search_docs d ON d.kind = 'track' AND d.ref_id = t.id
-  WHERE t.id IN (SELECT track_id FROM temp.search_dirty);
-DELETE FROM temp.search_dirty;
+  WHERE t.id IN (SELECT track_id FROM temp.search_flush);
+DELETE FROM temp.search_dirty WHERE track_id IN (SELECT track_id FROM temp.search_flush);
+DELETE FROM temp.search_flush;
 `;
 
-const pendingStatements = new WeakMap<DatabaseSync, StatementSync>();
+/**
+ * Entries rebuilt with a change, at most (DB review 1): about 25 ms of work.
+ * Renaming a tag on 6,000 tracks marks them all; the rest are rebuilt after
+ * the change in passes of this size, with the event loop free between them
+ * (Store.searchCaughtUp), so searches can miss the new name for a moment.
+ */
+export const SEARCH_FLUSH_LIMIT = 1000;
 
-/** Rebuilds the entries of the tracks changed in the open transaction; call just before COMMIT. */
-export function flushSearchIndex(db: DatabaseSync): void {
-  let pending = pendingStatements.get(db);
-  if (!pending) {
-    pending = db.prepare("SELECT EXISTS (SELECT 1 FROM temp.search_dirty) AS any");
-    pendingStatements.set(db, pending);
+const statements = new WeakMap<DatabaseSync, { pending: StatementSync; pick: StatementSync }>();
+
+/**
+ * Rebuilds the entries of up to `limit` tracks changed in the open transaction;
+ * call just before COMMIT. Returns true when more are waiting.
+ */
+export function flushSearchIndex(db: DatabaseSync, limit: number = SEARCH_FLUSH_LIMIT): boolean {
+  let prepared = statements.get(db);
+  if (!prepared) {
+    prepared = {
+      pending: db.prepare("SELECT count(*) AS n FROM (SELECT 1 FROM temp.search_dirty LIMIT ?)"),
+      pick: db.prepare("INSERT INTO temp.search_flush (track_id) SELECT track_id FROM temp.search_dirty LIMIT ?"),
+    };
+    statements.set(db, prepared);
   }
-  if ((pending.get() as { any: number }).any === 1) db.exec(REBUILD);
+  const waiting = (prepared.pending.get(limit + 1) as { n: number }).n;
+  if (waiting === 0) return false;
+  prepared.pick.run(limit);
+  db.exec(REBUILD);
+  return waiting > limit;
 }

@@ -11,12 +11,14 @@
  * while the undo history still sees one step.
  */
 import { LibraryBusyError } from "./errors";
-import { flushSearchIndex, installSearchIndex } from "./searchIndex";
+import { SEARCH_FLUSH_LIMIT, flushSearchIndex, installSearchIndex } from "./searchIndex";
 import type { DatabaseSync, SQLInputValue, StatementSync } from "./sqlite";
 
 export type StoreOptions = {
   /** Current time in milliseconds; injected so tests control it. */
   now?: () => number;
+  /** Search entries rebuilt with a change, at most (default SEARCH_FLUSH_LIMIT); tests use a small one. */
+  searchFlushLimit?: number;
 };
 
 /** Rows per transaction in bulk work: each batch takes tens of milliseconds at most. */
@@ -63,6 +65,14 @@ export function rollbackAfter(db: DatabaseSync, error: unknown): never {
   throw error;
 }
 
+function rollbackQuietly(db: DatabaseSync) {
+  try {
+    if (db.isTransaction) db.exec("ROLLBACK");
+  } catch {
+    // Nothing more to do: the next change rebuilds the entries still waiting.
+  }
+}
+
 export class Store {
   readonly db: DatabaseSync;
   readonly now: () => number;
@@ -71,19 +81,54 @@ export class Store {
   private hooks: ChangeHooks | null = null;
   private job: string | null = null;
   private afterBulkWork: (() => void) | null = null;
+  private readonly searchFlushLimit: number;
+  private searchCatchUp: Promise<void> | null = null;
 
   constructor(db: DatabaseSync, options: StoreOptions = {}) {
     this.db = db;
     this.now = options.now ?? Date.now;
+    this.searchFlushLimit = Math.max(1, options.searchFlushLimit ?? SEARCH_FLUSH_LIMIT);
     installSearchIndex(db);
   }
 
   /**
    * Work every transaction does just before COMMIT: rebuilds the search entries
    * of the tracks it changed, once each (searchIndex.ts). Undo calls it too.
+   * When one change touched more tracks than one pass rebuilds, the rest
+   * follow after it (searchCaughtUp).
    */
   beforeCommit(): void {
-    flushSearchIndex(this.db);
+    if (flushSearchIndex(this.db, this.searchFlushLimit)) this.catchUpSearch();
+  }
+
+  /** Resolves once every changed track's search entry is rebuilt. */
+  searchCaughtUp(): Promise<void> {
+    return this.searchCatchUp ?? Promise.resolve();
+  }
+
+  /** Rebuilds the waiting search entries a pass at a time, with the event loop free between passes. */
+  private catchUpSearch(): void {
+    if (this.searchCatchUp) return;
+    this.searchCatchUp = (async () => {
+      let more = true;
+      while (more) {
+        await nextTurn();
+        // A closed library has nothing to catch up; the marks went with its connection.
+        if (!this.db.isOpen) return;
+        // A change or bulk work in progress rebuilds entries itself before it commits.
+        if (this.depth > 0 || this.job !== null || this.db.isTransaction) continue;
+        this.db.exec("BEGIN IMMEDIATE");
+        try {
+          more = flushSearchIndex(this.db, this.searchFlushLimit);
+          this.db.exec("COMMIT");
+        } catch {
+          rollbackQuietly(this.db);
+          more = false;
+        }
+      }
+    })().finally(() => {
+      this.searchCatchUp = null;
+    });
   }
 
   /** Prepared once per SQL text and reused: most edits run the same few statements. */

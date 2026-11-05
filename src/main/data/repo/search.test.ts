@@ -211,6 +211,25 @@ describe("keeping the search index up to date (DB review 5)", () => {
     expect(titles("fog toll")).toEqual(["Abbey ruins"]);
   });
 
+  it("catches up in the background when one change touches more tracks than one pass rebuilds", async () => {
+    const small = makeTestStore({ searchFlushLimit: 2 });
+    try {
+      const [mood] = listTagGroups(small.store);
+      const eerie = listTags(small.store, { groupId: mood.id }).find((x) => x.name === "Eerie")!;
+      const made = ["a", "b", "c", "d", "e"].map((title) => createTrack(small.store, { title: `Hall ${title}`, file: { path: `/m/${title}.mp3` } }));
+      await tagTracks(small.store, made.map((x) => x.id), [eerie.id]);
+      await small.store.searchCaughtUp();
+      updateTag(small.store, eerie.id, { name: "Spooky" });
+      // Two entries are rebuilt with the change; the rest follow on later turns of the event loop.
+      expect(search(small.store, "spooky")).toHaveLength(2);
+      await small.store.searchCaughtUp();
+      expect(search(small.store, "spooky")).toHaveLength(5);
+      expect(search(small.store, "eerie")).toHaveLength(0);
+    } finally {
+      small.close();
+    }
+  });
+
   it("forgets the marks of a change that was not saved", async () => {
     const a = track("Abbey ruins");
     expect(() =>
