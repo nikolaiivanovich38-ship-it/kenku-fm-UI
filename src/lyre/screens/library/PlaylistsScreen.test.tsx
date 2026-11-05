@@ -15,6 +15,8 @@ const trackNames = (name = "Tracks in order") =>
     .getAllByRole("listitem")
     .map((li) => li.querySelector("a")?.textContent?.trim() ?? "");
 const region = (name: string) => screen.getByRole("region", { name });
+/** The screen itself (the live region repeats its messages outside it). */
+const main = () => within(screen.getByRole("main"));
 
 describe("Playlists: every playlist", () => {
   it("lists each playlist with its kind, lane, track count and length", async () => {
@@ -116,7 +118,7 @@ describe("Playlists: every playlist", () => {
     openAt("playlists");
     await screen.findByText("21 playlists");
     dropNames(rowOf("Coast road travel"), ["01 Harbour dawn.flac", "notes.txt"]);
-    expect(await screen.findByText(/added to Coast road travel and your Library/)).toBeInTheDocument();
+    expect(await main().findByText(/added to Coast road travel and your Library/)).toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "Show contents of Coast road travel" }));
     const inside = screen.getByRole("list", { name: "Tracks in Coast road travel" });
     expect(within(inside).getAllByRole("listitem")).toHaveLength(5);
@@ -130,7 +132,7 @@ describe("Playlists: every playlist", () => {
     const ask = await screen.findByRole("group", { name: "Dropped files" });
     expect(ask).toHaveTextContent("1 audio file dropped");
     await userEvent.setup().click(within(ask).getByRole("button", { name: "Library only" }));
-    expect(await screen.findByText(/added to your Library/)).toBeInTheDocument();
+    expect(await main().findByText(/added to your Library/)).toBeInTheDocument();
   });
 
   it("passes axe", async () => {

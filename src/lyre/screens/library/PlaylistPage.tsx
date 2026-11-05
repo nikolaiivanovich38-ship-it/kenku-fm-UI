@@ -78,7 +78,16 @@ export function PlaylistPage({ route }: ScreenProps) {
   return <OnePlaylist key={pl.id} pl={pl} data={data} />;
 }
 
-function OnePlaylist({ pl, data }: { pl: PlaylistInfo; data: PlaylistData }) {
+/**
+ * A change made here shows at once, before the library answers (the prototype changes its data at once): `edit`
+ * keeps the edited playlist until the library's next answer replaces the playlist, or a refusal drops it.
+ */
+export type EditPlaylist = (next: PlaylistInfo | null) => void;
+
+function OnePlaylist({ pl: saved, data }: { pl: PlaylistInfo; data: PlaylistData }) {
+  const [local, setLocal] = useState<{ base: PlaylistInfo; pl: PlaylistInfo } | null>(null);
+  const pl = local && local.base === saved ? local.pl : saved;
+  const edit: EditPlaylist = (next) => setLocal(next ? { base: saved, pl: next } : null);
   const api = useLyreApi();
   const audio = useLyreAudio();
   const now = useNowPlaying();
@@ -87,7 +96,7 @@ function OnePlaylist({ pl, data }: { pl: PlaylistInfo; data: PlaylistData }) {
   const ok = useWriteOk();
   const actions = useDropActions(data);
   const drops = useDropState();
-  const tracks = data.tracksOf(pl);
+  const tracks = pl === saved ? data.tracksOf(pl) : data.tracksNow(pl);
   const uses = data.usesOf(pl.id);
   const first = tracks[0];
   const airPlaylists = useMemo(() => onAirPlaylistIds(now), [now]);
@@ -147,15 +156,15 @@ function OnePlaylist({ pl, data }: { pl: PlaylistInfo; data: PlaylistData }) {
   const main =
     pl.kind === "manual" ? (
       <>
-        <TracksPane pl={pl} tracks={tracks} air={air} airTracks={airTracks} previewing={previewing} data={data} flash={drops.flash} onAdd={() => {
+        <TracksPane pl={pl} edit={edit} tracks={tracks} air={air} airTracks={airTracks} previewing={previewing} data={data} flash={drops.flash} onAdd={() => {
           setAddOpen(true);
           focusSoon("plq");
         }} />
-        <AddPane pl={pl} data={data} airTracks={airTracks} previewing={previewing} open={addOpen} onOpenChange={setAddOpen} />
+        <AddPane pl={pl} edit={edit} data={data} airTracks={airTracks} previewing={previewing} open={addOpen} onOpenChange={setAddOpen} />
       </>
     ) : (
       <>
-        <RulesPane pl={pl} data={data} matches={tracks.length} />
+        <RulesPane pl={pl} edit={edit} data={data} matches={tracks.length} />
         <Pane
           id="pl-match"
           title="Matching tracks"
@@ -495,6 +504,7 @@ function TrackRow({
 
 function TracksPane({
   pl,
+  edit,
   tracks,
   air,
   airTracks,
@@ -504,6 +514,7 @@ function TracksPane({
   onAdd,
 }: {
   pl: Extract<PlaylistInfo, { kind: "manual" }>;
+  edit: EditPlaylist;
   tracks: LibraryTrack[];
   air: boolean;
   airTracks: ReadonlySet<string>;
@@ -522,15 +533,25 @@ function TracksPane({
     const from = pl.trackIds.indexOf(tid);
     const target = Math.max(0, Math.min(pl.trackIds.length - 1, to));
     if (from < 0 || target === from) return;
-    if (!ok(await api.playlists.moveTrack(pl.id, tid, target))) return;
+    const order = pl.trackIds.filter((x) => x !== tid);
+    order.splice(target, 0, tid);
+    edit({ ...pl, trackIds: order });
+    if (!ok(await api.playlists.moveTrack(pl.id, tid, target))) {
+      edit(null);
+      return;
+    }
     const t = data.byId.get(tid);
     say(`Moved ${t ? shownTitle(t) : "the track"} to position ${target + 1} of ${pl.trackIds.length}`);
     focusSoon(`m-more-${tid}`);
   };
   const remove = async (tid: string) => {
     const i = pl.trackIds.indexOf(tid);
-    if (!ok(await api.playlists.removeTrack(pl.id, tid))) return;
     const rest = pl.trackIds.filter((x) => x !== tid);
+    edit({ ...pl, trackIds: rest });
+    if (!ok(await api.playlists.removeTrack(pl.id, tid))) {
+      edit(null);
+      return;
+    }
     const next = rest[i] ?? rest[i - 1];
     const t = data.byId.get(tid);
     say(`Removed ${t ? shownTitle(t) : "the track"}. ${plural(rest.length, "track")} left.`);
@@ -641,6 +662,7 @@ function TracksPane({
 
 function AddPane({
   pl,
+  edit,
   data,
   airTracks,
   previewing,
@@ -648,6 +670,7 @@ function AddPane({
   onOpenChange,
 }: {
   pl: Extract<PlaylistInfo, { kind: "manual" }>;
+  edit: EditPlaylist;
   data: PlaylistData;
   airTracks: ReadonlySet<string>;
   previewing: string | null;
@@ -670,7 +693,9 @@ function AddPane({
       toast("Already in this playlist");
       return;
     }
+    edit({ ...pl, trackIds: [...pl.trackIds, t.id] });
     if (accept(await api.playlists.addTracks(pl.id, [t.id]))) say(`Added ${shownTitle(t)} at position ${pl.trackIds.length + 1}`);
+    else edit(null);
   };
   return (
     <Pane id="pl-add" title="Add tracks" icon="search" kind="search" flush status={{ text: "Ready" }} summary="Search the library, or drop files here" open={open} onOpenChange={onOpenChange}>
@@ -745,7 +770,7 @@ function AddPane({
 
 /* ---------- a dynamic playlist's rules ---------- */
 
-function RulesPane({ pl, data, matches }: { pl: Extract<PlaylistInfo, { kind: "dynamic" }>; data: PlaylistData; matches: number }) {
+function RulesPane({ pl, edit, data, matches }: { pl: Extract<PlaylistInfo, { kind: "dynamic" }>; edit: EditPlaylist; data: PlaylistData; matches: number }) {
   const api = useLyreApi();
   const { say } = useAnnounce();
   const accept = useWriteResult();
@@ -760,9 +785,13 @@ function RulesPane({ pl, data, matches }: { pl: Extract<PlaylistInfo, { kind: "d
     const clean: PlaylistRule = { conds: next.conds };
     if (next.energy && !(next.energy[0] <= 0 && next.energy[1] >= 5)) clean.energy = next.energy;
     if (next.leaveOutStings) clean.leaveOutStings = true;
+    edit({ ...pl, rule: clean });
     const done = accept(await api.playlists.update(pl.id, { rule: clean }));
-    if (!done) return;
-    const count = data.tracks.length ? countMatches(done, data) : matches;
+    if (!done) {
+      edit(null);
+      return;
+    }
+    const count = data.tracksNow(done).length;
     say(`${message ? `${message}. ` : ""}${plural(count, "track")} match`);
     if (focus) focusSoon(focus);
   };
@@ -915,10 +944,6 @@ function RulesPane({ pl, data, matches }: { pl: Extract<PlaylistInfo, { kind: "d
       </p>
     </Pane>
   );
-}
-
-function countMatches(pl: PlaylistInfo, data: PlaylistData): number {
-  return data.tracksOf(pl).length;
 }
 
 /** "Add mood": a menu of the group's values with a box to filter them (Enter adds the first match). */

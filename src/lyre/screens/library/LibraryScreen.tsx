@@ -6,7 +6,7 @@
  * 820 px) Filters above Tracks with Details on the right; narrow, one column where Details replaces the list and has a
  * Back button. Adding tracks: files, a folder, a watched folder, or files dropped anywhere on the page.
  */
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ImportSummary, LibraryTrack, TagRef } from "../../../common/lyre/api";
 import { useCampaigns, useFolders, useLyreApi, useLyreEvent, usePlaylists, useProfileOverrides, useTagGroups } from "../../api";
 import { useLyreAudio, useNowPlaying } from "../../audio";
@@ -199,8 +199,17 @@ export function LibraryScreen({ route }: ScreenProps) {
     },
     [mode, say, store, tid, toast],
   );
+  // Progress shows only while this screen's import runs: over IPC its last events can come after the answer.
+  const importing = useRef(false);
   const importFrom = async (source: Parameters<typeof api.import.start>[0], how: string) => {
-    const summary = accept(await api.import.start(source));
+    importing.current = true;
+    let summary: ImportSummary | null;
+    try {
+      summary = accept(await api.import.start(source));
+    } finally {
+      importing.current = false;
+      if (getLibraryState().guide?.kind === "progress") setLibraryState({ guide: null });
+    }
     if (summary) await arrive(summary, how);
   };
   const watch = async () => {
@@ -210,7 +219,7 @@ export function LibraryScreen({ route }: ScreenProps) {
     say(`Watching ${root.path}`);
   };
   useLyreEvent((event) => {
-    if (event.type === "import-progress" && event.progress.phase !== "done") setLibraryState({ guide: { kind: "progress", text: event.progress.message } });
+    if (event.type === "import-progress" && importing.current && event.progress.phase !== "done") setLibraryState({ guide: { kind: "progress", text: event.progress.message } });
     if (event.type === "watched-files") {
       void store.reload().then(() => {
         const titles = event.trackIds.map((id) => store.get().byId.get(id)).filter(Boolean).map((t) => shownTitle(t));
@@ -224,7 +233,10 @@ export function LibraryScreen({ route }: ScreenProps) {
     if (mode === "narrow" && tid) window.location.hash = hashOf("library");
   };
 
-  // Files and folders dropped anywhere on the page join the Library.
+  // Files and folders dropped anywhere on the page join the Library. The listeners stay for the screen's life and
+  // call the latest import, so a drag under way keeps its count of entered elements.
+  const importRef = useRef(importFrom);
+  importRef.current = importFrom;
   useEffect(() => {
     const view = document.getElementById("view");
     if (!view) return;
@@ -256,7 +268,7 @@ export function LibraryScreen({ route }: ScreenProps) {
         toast(NOTHING_TO_ADD);
         return;
       }
-      void importFrom({ from: "paths", paths }, "by dropping");
+      void importRef.current({ from: "paths", paths }, "by dropping");
     };
     view.addEventListener("dragenter", enter);
     view.addEventListener("dragover", over);
@@ -269,7 +281,7 @@ export function LibraryScreen({ route }: ScreenProps) {
       view.removeEventListener("dragleave", leave);
       view.removeEventListener("drop", drop);
     };
-  });
+  }, [toast]);
 
   const addMenu = (): PopMenuEntry[] => [
     { className: "lb-mi", content: <TwoLines bold icon="file" first="Add files…" second="Choose one or more audio files" />, onSelect: () => void importFrom({ from: "choose-files" }, "") },

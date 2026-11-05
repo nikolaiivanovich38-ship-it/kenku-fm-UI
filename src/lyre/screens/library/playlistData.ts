@@ -57,8 +57,10 @@ export interface PlaylistData {
   groups: TagGroup[];
   groupNames: Record<string, string>;
   overrides: ReturnType<typeof useProfileOverrides>["data"] & object;
-  /** A playlist's tracks in playing order. */
+  /** A playlist's tracks in playing order (kept per playlist until the lists change). */
   tracksOf: (pl: PlaylistInfo) => LibraryTrack[];
+  /** The same for a playlist being edited, worked out afresh. */
+  tracksNow: (pl: PlaylistInfo) => LibraryTrack[];
   usesOf: (id: string) => Use[];
   store: ReturnType<typeof useTrackList>["store"];
 }
@@ -103,6 +105,7 @@ export function usePlaylistData(): PlaylistData {
       groupNames: Object.fromEntries((groups ?? []).map((g) => [g.id, g.name])),
       overrides: overrides ?? {},
       tracksOf,
+      tracksNow: (pl: PlaylistInfo) => playlistTracks(pl, lookup) as LibraryTrack[],
       usesOf,
       store,
     };

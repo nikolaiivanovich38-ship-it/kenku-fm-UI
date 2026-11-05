@@ -20,6 +20,8 @@ import { PlayOnAirButton, PopMenuButton, PreviewButton, type PopMenuEntry } from
 
 /** Rows drawn beyond the visible ones, so fast scrolling shows no gaps. */
 const OVERSCAN = 10;
+/** Up to this many rows are all drawn (cheap, and every row is there for find-in-page and screen-reader browsing). */
+const DRAW_ALL_UP_TO = 400;
 /** The height to assume before the list is measured (and in tests, where nothing is). */
 const UNMEASURED_HEIGHT = 900;
 const ROW_HEIGHT = 30;
@@ -64,8 +66,9 @@ export function TracksTable(props: TracksTableProps) {
   }, []);
 
   const n = list.length;
-  const first = Math.max(0, Math.floor(Math.max(0, scrollTop - headHeight) / rowHeight) - OVERSCAN);
-  const last = Math.min(n - 1, Math.ceil((scrollTop + viewHeight) / rowHeight) + OVERSCAN);
+  const all = n <= DRAW_ALL_UP_TO;
+  const first = all ? 0 : Math.max(0, Math.floor(Math.max(0, scrollTop - headHeight) / rowHeight) - OVERSCAN);
+  const last = all ? n - 1 : Math.min(n - 1, Math.ceil((scrollTop + viewHeight) / rowHeight) + OVERSCAN);
   const cursorIndex = cursor ? list.findIndex((t) => t.id === cursor) : -1;
   const tabRow = cursorIndex >= 0 ? cursor : list[0]?.id;
 
@@ -253,14 +256,26 @@ const TrackRow = memo(function TrackRow({ t, index, groupNames, selected, open, 
         className="lb-c-ck"
         onClick={(event) => {
           event.stopPropagation();
-          // The box's own click toggles it too; the row's state decides, so one toggle per click.
-          if ((event.target as HTMLElement).tagName === "INPUT") event.preventDefault();
+          // A click on the box itself is handled by the box (below); this is a click beside it in the cell.
+          if ((event.target as HTMLElement).tagName === "INPUT") return;
           onToggle(t.id, event.shiftKey);
           (event.currentTarget.parentElement as HTMLElement).focus({ preventScroll: true });
         }}
       >
         <span className="lb-ckl">
-          <input type="checkbox" tabIndex={-1} aria-label={`Select ${shown}`} checked={selected} readOnly />
+          <input
+            type="checkbox"
+            tabIndex={-1}
+            aria-label={`Select ${shown}`}
+            checked={selected}
+            // The box toggles itself and the selection follows, so the two always agree (cancelling the click
+            // would let the browser undo React's update afterwards).
+            onChange={() => undefined}
+            onClick={(event) => {
+              onToggle(t.id, event.shiftKey);
+              (event.currentTarget.closest("tr") as HTMLElement).focus({ preventScroll: true });
+            }}
+          />
         </span>
       </td>
       <td className="lb-c-title" title={`${shown} — ${tip}`}>

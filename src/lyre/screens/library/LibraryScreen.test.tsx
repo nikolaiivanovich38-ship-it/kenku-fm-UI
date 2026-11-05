@@ -18,6 +18,8 @@ const shownTitles = () =>
     .map((n) => n.slice(7));
 const filters = () => screen.getByRole("region", { name: "Filters" });
 const details = () => screen.getByRole("region", { name: "Details" });
+/** The Tracks box, where the message line after an action is (the live region says the same words elsewhere). */
+const tracksBox = () => within(screen.getByRole("region", { name: "Tracks" }));
 async function loaded() {
   await screen.findByRole("checkbox", { name: "Select Ashes" });
 }
@@ -239,7 +241,7 @@ describe("Library: adding tracks", () => {
     expect(await screen.findByText("70 tracks")).toBeInTheDocument();
     expect(shownTitles()).toContain("Leaving Caladan");
     expect(screen.getByRole("toolbar", { name: "Selected tracks" })).toHaveTextContent("1 selected");
-    expect(screen.getByText(/1 track added/)).toBeInTheDocument();
+    expect(tracksBox().getByText(/1 track added/)).toBeInTheDocument();
   });
 
   it("dropped files join the Library, selected; other files are ignored", async () => {
@@ -257,9 +259,9 @@ describe("Library: adding tracks", () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole("button", { name: /^Add tracks/ }));
     await user.click(screen.getByRole("menuitem", { name: /^Watch a folder…/ }));
-    expect(await screen.findByText(/Audio files you put there will appear here by themselves/)).toBeInTheDocument();
+    expect(await tracksBox().findByText(/Audio files you put there will appear here by themselves/)).toBeInTheDocument();
     await act(async () => void (await api.arrive("H:\\Audio\\Incoming", ["06 The Path.flac"])));
-    expect(await screen.findByText(/1 new file appeared/)).toBeInTheDocument();
+    expect(await tracksBox().findByText(/1 new file appeared/)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Show new tracks" }));
     expect(shownTitles()).toContain("The Path");
   });
@@ -295,7 +297,7 @@ describe("Library: many tracks at once", () => {
     expect(sheet.getByRole("button", { name: /^Funeral/ })).toHaveAttribute("aria-pressed", "true");
     await user.click(sheet.getByRole("button", { name: "Add 2 tags to 2 tracks" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(await screen.findByText(/Added Grief, Funeral to 2 tracks\./)).toBeInTheDocument();
+    expect(await tracksBox().findByText(/Added Grief, Funeral to 2 tracks\./)).toBeInTheDocument();
     await user.click(within(within(filters()).getByRole("group", { name: "Mood" })).getByRole("button", { name: /^Grief/ }));
     expect(shownTitles()).toEqual(expect.arrayContaining(["Ashes", "Memories of Mother"]));
   });
@@ -316,14 +318,14 @@ describe("Library: many tracks at once", () => {
     expect(sheet.getByText(/Only manual playlists are listed/)).toBeInTheDocument();
     await user.click(sheet.getByRole("checkbox", { name: /^The Abbess/ }));
     await user.click(sheet.getByRole("button", { name: "Add" }));
-    expect(await screen.findByText(/Added 2 tracks to/)).toBeInTheDocument();
+    expect(await tracksBox().findByText(/Added 2 tracks to/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "The Abbess" })).toHaveAttribute("href", "#/playlist/p-abbess");
   });
 
   it("New playlist from these makes a manual playlist and offers to open it", async () => {
     const user = await selectTwoNew();
     await user.click(screen.getByRole("button", { name: "New playlist from these" }));
-    expect(await screen.findByText(/made with 2 tracks/)).toBeInTheDocument();
+    expect(await tracksBox().findByText(/made with 2 tracks/)).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open it" }).getAttribute("href")).toMatch(/^#\/playlist\//);
   });
 });

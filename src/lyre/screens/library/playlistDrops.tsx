@@ -4,7 +4,7 @@
  * the list, Lyre asks what to do. The line that says what happened (or asks) stays across a change of screen, as the
  * prototype's `notice` and `pending` do.
  */
-import React, { useEffect, useSyncExternalStore } from "react";
+import React, { useEffect, useRef, useSyncExternalStore } from "react";
 import type { LyreApi, PlaylistInfo } from "../../../common/lyre/api";
 import { isRefused } from "../../../common/lyre/api";
 import { Icon } from "../../kit/Icon";
@@ -279,7 +279,13 @@ function AskWhich({ lead, manual, actions, onLibraryOnly, onCancel }: { lead: Re
  * and hands the drop to `onDrop` with the paths. `targetOf` says where a point is.
  */
 export function useFileDrops(targetOf: (el: Element | null, clientY: number) => DropTarget | null, message: (t: DropTarget) => string, onDrop: (t: DropTarget, paths: string[]) => void): void {
+  // The listeners stay for the screen's life and call the latest functions.
+  const latest = useRef({ targetOf, message, onDrop });
+  latest.current = { targetOf, message, onDrop };
   useEffect(() => {
+    const targetOf = (el: Element | null, y: number) => latest.current.targetOf(el, y);
+    const message = (t: DropTarget) => latest.current.message(t);
+    const onDrop = (t: DropTarget, paths: string[]) => latest.current.onDrop(t, paths);
     const view = document.getElementById("view");
     if (!view) return;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -337,7 +343,7 @@ export function useFileDrops(targetOf: (el: Element | null, clientY: number) => 
       view.removeEventListener("dragleave", leave);
       view.removeEventListener("drop", drop);
     };
-  });
+  }, []);
 }
 
 /** The dashed frame and message shown while files are dragged over the screen. */
