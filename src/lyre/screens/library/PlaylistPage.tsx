@@ -1,9 +1,11 @@
 /**
  * One playlist (route `playlist/<id>`, playlists.js renderOne): a manual playlist's tracks in order with Add tracks,
- * or a dynamic playlist's rules with the matching tracks; beside them, where it is used and its details.
+ * and beside them where it is used and its details; or a dynamic playlist's details (folded, EDT-8), rules and
+ * matching tracks, with where it is used beside them. The play order button sits by Play on air (PLY-13); track rows
+ * show their tags (ORG-11) and where their sound goes (UX-16), and their menu has Use in… (ORG-12).
  */
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import type { PlaylistRule, TagCondition } from "../../../common/domain";
+import type { PlaylistRule, TagCondition, TrackShape } from "../../../common/domain";
 import { isFx } from "../../../common/domain";
 import type { LibraryTrack, PlaylistInfo } from "../../../common/lyre/api";
 import { useLyreApi } from "../../api";
@@ -17,7 +19,7 @@ import { useAnnounce } from "../../shell/Announcer";
 import { hashOf } from "../../shell/routes";
 import { useRememberedOpen } from "../../shell/ShellSettings";
 import type { ScreenProps } from "../index";
-import { fmt, fmtLong, KIND_NAMES, plural, ruleWords, shownTitle, tagsOf } from "./model";
+import { fmt, fmtLong, KIND_NAMES, plural, ruleWords, SHAPES, shownTitle, tagsOf } from "./model";
 import { nameUses, usePlaylistData, usedText, type PlaylistData } from "./playlistData";
 import { DropNotice, DropZone, dropFiles, useDropState, useFileDrops, type DropTarget } from "./playlistDrops";
 import { KindLane, matchesQuery, newlyMade, soundName, useDropActions } from "./playlistParts";
@@ -25,6 +27,10 @@ import { focusSoon, onAirPlaylistIds, onAirTrackIds, useWriteOk, useWriteResult 
 import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
 import { previewKeyOf } from "../../kit/SoundButtons";
 import { UseInDialog } from "./UseInDialog";
+import { DestTag } from "../../kit/DestTag";
+import { PlayOrderButton } from "../../kit/PlayOrderButton";
+import { ShapeGlyph } from "../../kit/ShapeGlyph";
+import { TagStrip } from "../../kit/TagStrip";
 import "./library.css";
 import "./playlists.css";
 
@@ -106,8 +112,12 @@ function OnePlaylist({ pl: saved, data }: { pl: PlaylistInfo; data: PlaylistData
   const previewing = now.preview?.key ?? null;
   const pv = previewing === previewKeyOf({ kind: "playlist", id: pl.id }) || tracks.some((t) => previewing === t.id);
   const [useIn, setUseIn] = useState(false);
+  /** ORG-12: the track whose Use in… sheet is open. */
+  const [useInTrack, setUseInTrack] = useState<LibraryTrack | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [detailsOpen, setDetailsOpen] = useRememberedOpen("pl-details", true);
+  // EDT-8: a dynamic playlist's Details sit folded above its rules; a manual playlist's stay open on the side.
+  const dynamic = pl.kind === "dynamic";
+  const [detailsOpen, setDetailsOpen] = useRememberedOpen(dynamic ? "pl-details-dynamic" : "pl-details", !dynamic);
   const [addOpen, setAddOpen] = useRememberedOpen("pl-add", true);
 
   /* ----- the name: the heading follows the typing; saved shortly after ----- */
@@ -154,10 +164,26 @@ function OnePlaylist({ pl: saved, data }: { pl: PlaylistInfo; data: PlaylistData
     (t, paths) => void dropFiles(actions, t, paths),
   );
 
+  const detailsPane = (
+    <Pane id="pl-details" title="Details" icon="edit" kind="plain" size="auto" status={{ text: "Saved" }} summary={pl.notes ? "Has notes" : ""} open={detailsOpen} onOpenChange={setDetailsOpen}>
+      <DetailsBody
+        pl={pl}
+        name={name}
+        onName={(value) => {
+          setName(value);
+          if (nameTimer.current) clearTimeout(nameTimer.current);
+          nameTimer.current = setTimeout(() => saveName(value), NAME_SAVE_MS);
+        }}
+        onNameDone={() => saveName(name)}
+        onDelete={() => setDeleting(true)}
+      />
+    </Pane>
+  );
+
   const main =
     pl.kind === "manual" ? (
       <>
-        <TracksPane pl={pl} edit={edit} tracks={tracks} air={air} airTracks={airTracks} previewing={previewing} data={data} flash={drops.flash} onAdd={() => {
+        <TracksPane pl={pl} edit={edit} tracks={tracks} air={air} airTracks={airTracks} previewing={previewing} data={data} flash={drops.flash} onUseIn={setUseInTrack} onAdd={() => {
           setAddOpen(true);
           focusSoon("plq");
         }} />
@@ -165,6 +191,7 @@ function OnePlaylist({ pl: saved, data }: { pl: PlaylistInfo; data: PlaylistData
       </>
     ) : (
       <>
+        {detailsPane}
         <RulesPane pl={pl} edit={edit} data={data} matches={tracks.length} />
         <Pane
           id="pl-match"
@@ -196,7 +223,7 @@ function OnePlaylist({ pl: saved, data }: { pl: PlaylistInfo; data: PlaylistData
             <div className="pl-scroll">
               <ul className="pl-tracks" aria-label="Matching tracks">
                 {tracks.map((t) => (
-                  <TrackRow key={t.id} t={t} pl={pl} prefix="x-" data={data} onAir={airTracks.has(t.id)} previewing={previewing} />
+                  <TrackRow key={t.id} t={t} pl={pl} prefix="x-" data={data} onAir={airTracks.has(t.id)} previewing={previewing} onUseIn={setUseInTrack} />
                 ))}
               </ul>
             </div>
@@ -233,11 +260,7 @@ function OnePlaylist({ pl: saved, data }: { pl: PlaylistInfo; data: PlaylistData
           <KindLane pl={pl} />
         </span>
         <span className="grow" />
-        {air && (
-          <span className="badge onair" title="Playing from this playlist">
-            On air
-          </span>
-        )}
+        {air && <DestTag to="air" />}
         <button
           type="button"
           className="btn pl-pvbtn"
@@ -268,6 +291,7 @@ function OnePlaylist({ pl: saved, data }: { pl: PlaylistInfo; data: PlaylistData
           <Icon name="broadcast" size="s" />
           Play on air
         </button>
+        <PlayOrderButton playlistId={pl.id} place={null} />
         <button type="button" className="btn" onClick={() => setUseIn(true)}>
           <Icon name="link" size="s" />
           Use in…
@@ -279,24 +303,13 @@ function OnePlaylist({ pl: saved, data }: { pl: PlaylistInfo; data: PlaylistData
           <Column className="pl-main">{main}</Column>
           <Column className="pl-side">
             <UsesPane data={data} uses={uses} onUseIn={() => setUseIn(true)} />
-            <Pane id="pl-details" title="Details" icon="edit" kind="plain" size="auto" status={{ text: "Saved" }} summary={pl.notes ? "Has notes" : ""} open={detailsOpen} onOpenChange={setDetailsOpen}>
-              <DetailsBody
-                pl={pl}
-                name={name}
-                onName={(value) => {
-                  setName(value);
-                  if (nameTimer.current) clearTimeout(nameTimer.current);
-                  nameTimer.current = setTimeout(() => saveName(value), NAME_SAVE_MS);
-                }}
-                onNameDone={() => saveName(name)}
-                onDelete={() => setDeleting(true)}
-              />
-            </Pane>
+            {!dynamic && detailsPane}
           </Column>
         </div>
       </div>
       <DropZone />
       {useIn && <UseInDialog playlist={pl} campaigns={data.campaigns} nameOf={soundName(data)} onClose={() => setUseIn(false)} />}
+      {useInTrack && <UseInDialog track={useInTrack} campaigns={data.campaigns} nameOf={soundName(data)} onClose={() => setUseInTrack(null)} />}
       <Dialog
         open={deleting}
         title={`Delete "${pl.name || "Untitled playlist"}"?`}
@@ -352,6 +365,7 @@ function TrackRow({
   add,
   flash,
   dropMark,
+  onUseIn,
 }: {
   t: LibraryTrack;
   pl: PlaylistInfo;
@@ -366,6 +380,8 @@ function TrackRow({
   flash?: boolean;
   /** A row being dragged would land above or below this one. */
   dropMark?: "before" | "after" | null;
+  /** ORG-12: Use in… from the row's menu. */
+  onUseIn?: (t: LibraryTrack) => void;
 }) {
   const audio = useLyreAudio();
   const title = shownTitle(t);
@@ -419,6 +435,19 @@ function TrackRow({
         ),
         onSelect: () => (window.location.hash = hashOf(`profile/${t.id}/pl:${pl.id}`)),
       },
+      ...(onUseIn
+        ? [
+            {
+              content: (
+                <>
+                  <Icon name="link" size="s" />
+                  Use in…
+                </>
+              ),
+              onSelect: () => onUseIn(t),
+            },
+          ]
+        : []),
       {
         content: (
           <>
@@ -451,7 +480,9 @@ function TrackRow({
             <span className="sr-only">Own audio profile in this playlist</span>
           </span>
         )}
-        {onAir && <span className="badge onair">On air</span>}
+        {onAir && <DestTag to="air" />}
+        {pv && <DestTag to="you" />}
+        <TagStrip track={t} groups={data.groups} />
         {isFx(t) && (
           <span className="chip">
             <span className="lane-dot fx" />
@@ -512,6 +543,7 @@ function TracksPane({
   data,
   flash,
   onAdd,
+  onUseIn,
 }: {
   pl: Extract<PlaylistInfo, { kind: "manual" }>;
   edit: EditPlaylist;
@@ -522,6 +554,7 @@ function TracksPane({
   data: PlaylistData;
   flash: string[];
   onAdd: () => void;
+  onUseIn: (t: LibraryTrack) => void;
 }) {
   const api = useLyreApi();
   const { say } = useAnnounce();
@@ -642,6 +675,7 @@ function TracksPane({
                     onAir={airTracks.has(t.id)}
                     previewing={previewing}
                     flash={flash.includes(t.id)}
+                    onUseIn={onUseIn}
                     manual={{ pos: i + 1, count: tracks.length, onMove: (to) => void moveTo(t.id, to), onRemove: () => void remove(t.id) }}
                   />
               ))}
@@ -785,6 +819,7 @@ function RulesPane({ pl, edit, data, matches }: { pl: Extract<PlaylistInfo, { ki
     const clean: PlaylistRule = { conds: next.conds };
     if (next.energy && !(next.energy[0] <= 0 && next.energy[1] >= 5)) clean.energy = next.energy;
     if (next.leaveOutStings) clean.leaveOutStings = true;
+    if (next.shapes?.length) clean.shapes = next.shapes;
     edit({ ...pl, rule: clean });
     const done = accept(await api.playlists.update(pl.id, { rule: clean }));
     if (!done) {
@@ -939,6 +974,29 @@ function RulesPane({ pl, edit, data, matches }: { pl: Extract<PlaylistInfo, { ki
           />
           Leave out stings
         </label>
+      </div>
+      {/* DAT-13: only tracks of these shapes (the game master's choice, else Lyre's suggestion). None pressed: any. */}
+      <div className="pl-shapes" role="group" aria-label="Shape: how the track moves">
+        <span className="faint">Shape</span>
+        {SHAPES.map(([shape, word]) => {
+          const on = !!rule.shapes?.includes(shape);
+          return (
+            <button
+              key={shape}
+              type="button"
+              className="chip pl-shape"
+              aria-pressed={on}
+              onClick={() => {
+                const shapes: TrackShape[] = on ? (rule.shapes ?? []).filter((x) => x !== shape) : [...(rule.shapes ?? []), shape];
+                void change({ ...rule, shapes }, on ? `Any shape but ${word.toLowerCase()} no longer asked for` : `Shape ${word.toLowerCase()} asked for`);
+              }}
+            >
+              <ShapeGlyph shape={shape} />
+              {word}
+            </button>
+          );
+        })}
+        {!rule.shapes?.length && <span className="hint">Any shape</span>}
       </div>
       <p className="pl-words">
         <span className="faint">In plain words:</span> {KIND_NAMES[pl.lane]} tracks{words ? ` with ${words}` : ", all of them"}.

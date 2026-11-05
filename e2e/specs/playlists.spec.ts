@@ -4,7 +4,7 @@
  * Music, Ambience and FX; expanders in the list; Preview and Play on air; no Duplicate; drop files in.
  */
 import type { Page } from "@playwright/test";
-import { expect, expectFailureUntilBuilt, test } from "./support/test";
+import { expect, test } from "./support/test";
 import { openRoute } from "./support/target";
 import { dropFiles } from "./support/drop";
 
@@ -255,9 +255,8 @@ test.describe("one dynamic playlist", () => {
   });
 });
 
-/* Round 5 (design/prototype/ROUND5.md): built in wave 4, so each check waits for "round 5" in the app. */
+/* Round 5 (design/prototype/ROUND5.md), built in wave 4 (w4-prep-a). */
 test.describe("round 5: play order, Details with the rules, shapes and Use in… on tracks", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 5"));
 
   test("PLY-13: every playlist row shows its own play order, and its menu changes it", async ({ page }) => {
     await openRoute(page, "playlists");

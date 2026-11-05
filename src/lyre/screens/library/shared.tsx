@@ -4,7 +4,9 @@
  * link are in src/lyre/kit; the shell says the sound's own messages (shell/SoundMessages.tsx).
  */
 import React, { useCallback } from "react";
-import { isRefused, type WriteResult } from "../../../common/lyre/api";
+import type { DomainTrack } from "../../../common/domain";
+import { isRefused, type TagGroup, type WriteResult } from "../../../common/lyre/api";
+import { TagStrip } from "../../kit/TagStrip";
 import { ProfileLink } from "../../kit/ProfileLink";
 import { PreviewButton } from "../../kit/SoundButtons";
 import type { NowPlaying } from "../../audio";
@@ -80,23 +82,24 @@ export function onAirPlaylistIds(now: NowPlaying): Set<string> {
 }
 /* ---------- a playlist's contents ---------- */
 
-export interface ContentsTrack {
+export interface ContentsTrack extends Pick<DomainTrack, "tags" | "shape" | "suggestedShape"> {
   id: string;
   title: string;
   durationMs: number;
 }
 
-/** The inside of a playlist's expander: its tracks in order, each with its Audio profile here and Preview. */
-export function PlaylistContents({ playlistId, name, dynamic, tracks }: { playlistId: string; name: string; dynamic: boolean; tracks: ContentsTrack[] }) {
+/** The inside of a playlist's expander: its tracks in order, each with its tags (ORG-11), its Audio profile here and Preview. */
+export function PlaylistContents({ playlistId, name, dynamic, tracks, groups }: { playlistId: string; name: string; dynamic: boolean; tracks: ContentsTrack[]; groups: readonly TagGroup[] }) {
   if (!tracks.length) return <p className="hint">No tracks yet{dynamic ? ": no track matches its tags." : "."}</p>;
   return (
     <ol className="list" aria-label={`Tracks in ${name}`}>
       {tracks.map((t, i) => (
         <li key={t.id} className="xp-row">
           <span className="faint num">{i + 1}</span>
-          <span className="grow" title={t.title}>
+          <span className="grow ellipsis" title={t.title}>
             {t.title}
           </span>
+          <TagStrip track={t} groups={groups} />
           <span className="num faint">{fmt(t.durationMs)}</span>
           <ProfileLink trackId={t.id} title={t.title} place={`pl:${playlistId}`} placeName={`the playlist ${name}`} iconOnly />
           <PreviewButton target={{ kind: "track", id: t.id }} name={t.title} />
