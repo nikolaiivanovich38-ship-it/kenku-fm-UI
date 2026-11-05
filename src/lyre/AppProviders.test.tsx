@@ -131,7 +131,20 @@ describe("AppProviders", () => {
       expect(audio.calls).toContainEqual(["fadeAll", 1000]);
     });
 
-    it("is not shown on Live, which shows the rooms itself", () => {
+    it("is not shown on a Live screen that shows the rooms itself", () => {
+      window.history.replaceState(null, "", "#/live");
+      const audio = new FakeLyreAudio();
+      const Live = Object.assign(() => <PlaceholderScreen title="Live" />, { showsOnAir: true });
+      render(
+        <AppProviders api={createFakeLyreApi()} audio={audio}>
+          <Shell screens={{ ...quiet, live: Live }} />
+        </AppProviders>,
+      );
+      playing(audio);
+      expect(screen.queryByRole("region", { name: "On air" })).toBeNull();
+    });
+
+    it("stays on the Live page that says Live comes in 0.4, which shows nothing on air (BUG-13)", () => {
       window.history.replaceState(null, "", "#/live");
       const audio = new FakeLyreAudio();
       render(
@@ -140,7 +153,7 @@ describe("AppProviders", () => {
         </AppProviders>,
       );
       playing(audio);
-      expect(screen.queryByRole("region", { name: "On air" })).toBeNull();
+      expect(screen.getByRole("region", { name: "On air" })).toBeInTheDocument();
     });
   });
 

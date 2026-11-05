@@ -8,10 +8,11 @@ import { Badge } from "../kit/Pills";
 const STOP_FADE_MS = 1000;
 
 /**
- * Outside Live, the slim "On air" bar at the foot of every screen (the prototype's onAirBar in core.js): what the
- * players hear in the first room (music, ambience) and how many effects still sound in any room, with Stop and
- * Go to Live, so Play on air always shows that something happened. Nothing is drawn while nothing plays, or when
- * the page has no sound. AppProviders hands it to the shell as ShellData.onAirBar.
+ * The slim "On air" bar (the prototype's onAirBar in core.js) at the foot of every screen that does not show what is
+ * on air itself (all but a built Live screen: ScreenComponent.showsOnAir), so it stays while music plays wherever the
+ * game master goes (BUG-13): what the players hear in the first room (music, ambience) and how many effects still
+ * sound in any room, with Stop and Go to Live, so Play on air always shows that something happened. Nothing is drawn
+ * while nothing plays, or when the page has no sound. AppProviders hands it to the shell as ShellData.onAirBar.
  *
  * When the bar goes away while it holds the keyboard focus (Stop was pressed), focus goes to the screen's heading,
  * so keyboard users are not sent back to the top of the page.

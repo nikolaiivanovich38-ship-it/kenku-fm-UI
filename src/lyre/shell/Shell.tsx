@@ -135,7 +135,7 @@ function ShellFrame({ screens }: { screens: Record<RouteName, ScreenComponent> }
           </ErrorBoundary>
           {route.name !== "live" && <UndoNoteBar />}
         </UndoNoteProvider>
-        {route.name !== "live" && data.onAirBar}
+        {!Screen.showsOnAir && data.onAirBar}
       </main>
     </div>
   );

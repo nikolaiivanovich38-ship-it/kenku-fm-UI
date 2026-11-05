@@ -20,7 +20,7 @@ export interface ShellData {
   outputsLabel?: string;
   /** The library's history, for the undo message and Ctrl+Z (shell/UndoNote.tsx). */
   history?: Pick<LyreApi["history"], "state" | "undo">;
-  /** Outside Live, the slim bar at the foot of the screen showing what the players hear (from the audio host). */
+  /** The slim bar at the foot of every screen but a built Live showing what the players hear (from the audio host). */
   onAirBar?: React.ReactNode;
 }
 

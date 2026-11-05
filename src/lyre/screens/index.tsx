@@ -14,7 +14,13 @@ export interface ScreenProps {
   route: Route;
 }
 
-export type ScreenComponent = React.ComponentType<ScreenProps>;
+export type ScreenComponent = React.ComponentType<ScreenProps> & {
+  /**
+   * True for a screen that shows what is on air itself (the Live screen, wave 4): the shell leaves out its On air
+   * bar there. Every other screen, the "comes in 0.4" pages included, keeps the bar while anything plays (BUG-13).
+   */
+  showsOnAir?: boolean;
+};
 
 /** Live and Outputs come in Lyre 0.4; until then their page says so (ComingScreen). */
 function comingLater(title: string): ScreenComponent {

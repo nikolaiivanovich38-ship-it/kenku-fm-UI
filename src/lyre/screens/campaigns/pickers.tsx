@@ -3,7 +3,7 @@
  * pickAmbience), on the kit's PickerDialog: every row has Preview, and playlists and boards an expander (closed)
  * showing what is inside, so the game master can listen and look before adding.
  */
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 
 import { isFx, ruleText } from "../../../common/domain";
 import type { LibraryTrack, PlaylistInfo } from "../../../common/lyre/api";
@@ -54,9 +54,16 @@ const HINT = (
 
 export function LibraryPicker({ open, kind, index, title, intro, selected, onDone, onClose }: LibraryPickerProps) {
   const audio = useLyreAudio();
-  // Leaving a picker stops its preview, so nothing keeps playing in the headphones afterwards.
+  // Leaving a picker stops a preview started in it, so nothing it began keeps playing in the headphones afterwards.
+  // A preview that was already playing when the picker opened is the game master's own: preparing never stops it
+  // (BUG-12).
+  const previewAtOpen = useRef<string | null>(null);
+  useEffect(() => {
+    if (open) previewAtOpen.current = audio.getNowPlaying().preview?.key ?? null;
+  }, [open, audio]);
   const stopPreview = () => {
-    if (audio.getNowPlaying().preview) audio.stopPreview();
+    const playing = audio.getNowPlaying().preview?.key ?? null;
+    if (playing !== null && playing !== previewAtOpen.current) audio.stopPreview();
   };
   const groups = useTagGroups().data;
   const groupNames = useMemo(() => Object.fromEntries((groups ?? []).map((g) => [g.id, g.name])), [groups]);
