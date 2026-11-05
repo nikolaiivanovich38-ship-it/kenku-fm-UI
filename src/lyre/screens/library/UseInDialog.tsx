@@ -24,8 +24,7 @@ export function UseInDialog({ playlist, campaigns, nameOf, onClose }: UseInDialo
   const api = useLyreApi();
   const { toast } = useAnnounce();
   const ok = useWriteOk();
-  const inHandId = useCampaignInHand();
-  const inHand = campaigns.find((c) => c.id === inHandId)?.name;
+  const inHand = useCampaignInHand();
   if (!playlist) return null;
   const id = playlist.id;
   const isAmb = playlist.lane === "amb";
@@ -34,12 +33,12 @@ export function UseInDialog({ playlist, campaigns, nameOf, onClose }: UseInDialo
   const places = new Map<string, UsePlace>();
   for (const c of campaigns) {
     const cKey = `c:${c.id}`;
-    items.push({ id: cKey, label: `${c.name}: whole campaign`, sub: "Available in every session", group: c.name });
+    items.push({ id: cKey, label: `${c.name}: whole campaign`, sub: "Available in every session", group: c.name, groupId: c.id });
     places.set(cKey, { campaignId: c.id });
     if (c.playlistIds.includes(id)) selected.push(cKey);
     for (const s of c.sessions) {
       const sKey = `s:${c.id}:${s.id}`;
-      items.push({ id: sKey, label: `Session ${s.number}: ${s.name}`, sub: "Available in every scene of this session", group: c.name });
+      items.push({ id: sKey, label: `Session ${s.number}: ${s.name}`, sub: "Available in every scene of this session", group: c.name, groupId: c.id });
       places.set(sKey, { campaignId: c.id, sessionId: s.id });
       if (s.playlistIds.includes(id)) selected.push(sKey);
       for (const sc of s.scenes) {
@@ -50,7 +49,7 @@ export function UseInDialog({ playlist, campaigns, nameOf, onClose }: UseInDialo
           id: xKey,
           label: `Scene: ${sc.name}`,
           indent: true,
-          group: c.name,
+          group: c.name, groupId: c.id,
           sub: `Session ${s.number} · ${isAmb ? "ambience for this scene" : "music for this scene"}${replaces}`,
         });
         places.set(xKey, { campaignId: c.id, sessionId: s.id, sceneId: sc.id });

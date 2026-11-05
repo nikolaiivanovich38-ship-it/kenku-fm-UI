@@ -196,17 +196,17 @@ function targetsForUseIn(campaigns: readonly CampaignInfo[], boardId: string): {
   const places = new Map<string, UsePlace>();
   for (const c of campaigns) {
     const cid = `c:${c.id}`;
-    items.push({ id: cid, label: `${c.name}: whole campaign`, sub: "Available in every session", group: c.name });
+    items.push({ id: cid, label: `${c.name}: whole campaign`, sub: "Available in every session", group: c.name, groupId: c.id });
     places.set(cid, { campaignId: c.id });
     if (c.boardIds.includes(boardId)) selected.push(cid);
     for (const s of c.sessions) {
       const sid = `s:${c.id}:${s.id}`;
-      items.push({ id: sid, label: `Session ${s.number}: ${s.name}`, sub: "Available in every scene of this session", group: c.name });
+      items.push({ id: sid, label: `Session ${s.number}: ${s.name}`, sub: "Available in every scene of this session", group: c.name, groupId: c.id });
       places.set(sid, { campaignId: c.id, sessionId: s.id });
       if (s.boardIds.includes(boardId)) selected.push(sid);
       for (const sc of s.scenes) {
         const xid = `x:${c.id}:${s.id}:${sc.id}`;
-        items.push({ id: xid, label: `Scene: ${sc.name}`, indent: true, group: c.name, sub: `Session ${s.number} · one of the pad boards in this scene` });
+        items.push({ id: xid, label: `Scene: ${sc.name}`, indent: true, group: c.name, groupId: c.id, sub: `Session ${s.number} · one of the pad boards in this scene` });
         places.set(xid, { campaignId: c.id, sessionId: s.id, sceneId: sc.id });
         if (sc.boardIds.includes(boardId)) selected.push(xid);
       }
@@ -219,8 +219,7 @@ export function UseInDialog({ board, campaigns, onClose }: { board: PadBoard | n
   const api = useLyreApi();
   const write = useWrite();
   const { toast } = useAnnounce();
-  const inHandId = useCampaignInHand();
-  const inHand = campaigns.find((c) => c.id === inHandId)?.name;
+  const inHand = useCampaignInHand();
   if (!board) return null;
   const { items, selected, places } = targetsForUseIn(campaigns, board.id);
   return (

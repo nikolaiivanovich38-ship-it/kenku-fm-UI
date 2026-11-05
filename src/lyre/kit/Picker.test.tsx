@@ -59,4 +59,26 @@ describe("PickerDialog with folding groups", () => {
     expect(sheet.getByText("The Moor", { selector: ".pk-group" })).toBeInTheDocument();
     expect(sheet.getAllByRole("checkbox")).toHaveLength(5);
   });
+
+  it("keeps two groups of the same name apart: each folds and counts on its own (review w3-polish 9)", async () => {
+    const twins: PickerItem[] = [
+      { id: "c:a", label: "Moor A: whole campaign", group: "The Moor", groupId: "a" },
+      { id: "c:b", label: "Moor B: whole campaign", group: "The Moor", groupId: "b" },
+    ];
+    render(<PickerDialog open title="Twins" items={twins} multi fold openGroups={["a"]} selected={[]} onDone={vi.fn()} onClose={vi.fn()} />);
+    const sheet = within(screen.getByRole("dialog", { name: "Twins" }));
+    const [a, b] = sheet.getAllByRole("button", { name: /^The Moor/ });
+    expect(a).toHaveAttribute("aria-expanded", "true");
+    expect(b).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(sheet.getByRole("checkbox", { name: /Moor A/ }));
+    expect(a).toHaveTextContent("1 ticked");
+    expect(b).toHaveTextContent("0 ticked");
+  });
+
+  it("while searching, a heading cannot fold its group, as every match shows (review w3-polish 9)", async () => {
+    const sheet = open();
+    await userEvent.type(sheet.getByRole("searchbox", { name: "Search the list" }), "session");
+    expect(sheet.getByRole("button", { name: /^The Sunken Crown/ })).toBeDisabled();
+  });
 });
+
