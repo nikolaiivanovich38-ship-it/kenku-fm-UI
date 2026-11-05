@@ -1,5 +1,7 @@
 import React from "react";
 import type { Route, RouteName } from "../shell/routes";
+import { LibraryScreen } from "./library/LibraryScreen";
+import { PlaylistScreen, PlaylistsScreen } from "./library/PlaylistsScreen";
 import { LookPlaceholder } from "./LookPlaceholder";
 import { PlaceholderScreen } from "./Placeholder";
 import { ProfileScreen } from "./profile/ProfileScreen";
@@ -26,9 +28,9 @@ export const SCREENS: Record<RouteName, ScreenComponent> = {
   campaigns: placeholder("Campaigns"),
   campaign: placeholder("Campaign"),
   session: placeholder("Session"),
-  library: placeholder("Library"),
-  playlists: placeholder("Playlists"),
-  playlist: placeholder("Playlist"),
+  library: LibraryScreen,
+  playlists: PlaylistsScreen,
+  playlist: PlaylistScreen,
   profile: ProfileScreen,
   boards: placeholder("Pad boards"),
   board: placeholder("Pad board"),

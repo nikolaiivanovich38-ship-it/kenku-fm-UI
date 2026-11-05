@@ -314,3 +314,25 @@ The Audio profile screen (route `profile`: `#/profile/<track>` and `#/profile/<t
 Limits of this version (each needs the audio host or the library first):
 - **Preview sound.** `previewTrack(id)` plays the whole file from 0:00 without the profile, so the sound matches the playhead only from 0:00 and does not loop or fade as set. The playhead, the Looped count, the hand-over and the volume meter come from the screen's own clock (as in the prototype). Wanted from LyreAudio: `previewTrack(id, { startAtMs, profile })` (the Voice already takes `startAt` and `profile`) and the preview's position, so the clock can follow the sound.
 - **Waveform.** The library has no loudness peaks for a file, so the waveform is an even band (shaped by the fades and the parts not played); the prototype's made-up shape is not drawn. `waveDrawing.ts` takes `levels` when peaks exist.
+
+## Wave 3: w3-library
+
+The Library (`library`, `library/<track>`) and Playlists (`playlists`, `playlist/<id>`) screens of the new interface, in `src/lyre/screens/library/`, ported from `design/prototype/src/views/library.js` and `playlists.js` (WP5).
+
+| File | What it does |
+| --- | --- |
+| `model.ts` | The rules without a screen: which tracks a filter, search and sort show (`visibleTracks`, search text worked out once per track object), the filter summary and count, the Folders list, times (`fmt`, `fmtLong`), kind markers, a track's audio profile in one line, a dynamic rule in the prototype's words (`ruleWords`: "not stings", where the domain's `ruleText` says "no stings"). |
+| `trackStore.ts` | Every track, once per page visit (`useTrackList`). The shell draws a screen afresh on every address change, so `useTracks()` would reload and redraw 20,000 tracks each time a track opens; the store loads once, reloads once for several `changed` events naming tracks (60 ms apart), and takes a write's answer at once (`put`, `update`) so typed titles show in the list without waiting. |
+| `libraryState.ts` | What the Library shows (filters, search, sort, ticked rows, the keyboard's row, the message line), kept for the visit like the prototype's `st`. |
+| `LibraryScreen.tsx` | Head (count, Add tracks menu), the three boxes in the wide, mid and narrow layouts (`layout.ts`: 1200 and 820 px of the app), adding tracks (files, a folder, a watched folder, drops anywhere on the page; progress and arrivals in the message line), bulk Tag…, Add to playlist… and New playlist from these. |
+| `TracksTable.tsx` | The track grid (role grid, aria-rowcount, rows named "Select <title> …"), drawn a screenful at a time with spacer rows; one Tab stop with the prototype's keys. Not the kit's `VirtualList`, which draws a list or listbox, not a grid. |
+| `TrackDetails.tsx` | Details: your title (saved 400 ms after typing), names and file, Preview, Play on air, Audio profile link, tag comboboxes, energy, role, looping, notes, In playlists, Used in (directly or through a playlist). |
+| `TagSheet.tsx`, `FiltersBody.tsx` | The bulk Tag… sheet; the Filters box. |
+| `PlaylistsScreen.tsx`, `PlaylistPage.tsx` | All playlists (filters, rows with expanders, New playlist); one playlist (manual tracks with Add tracks, or rules and matches; Used in; Details; Delete). |
+| `playlistData.ts`, `playlistParts.tsx`, `UseInDialog.tsx`, `playlistDrops.tsx` | Tracks of each playlist and its uses from the lists already loaded (domain `playlistTracks`, `usesOfPlaylist`); Use in… (`campaigns.setUses`); files dropped on a row, a page or beside the list. |
+| `shared.tsx`, `drops.ts` | Preview and Play on air buttons, a playlist's contents, `PopMenu` (the kit menu's keys, with two-line items and a filter box), the on-air bar, refusals as toasts (`useWriteResult`, `useWriteOk`); paths from a drop. |
+
+- **Sound** only through `useLyreAudio()`: Preview (`previewTrack`, `previewPlaylist`, state from `useNowPlaying().preview`), Play on air (`playTrack`, `playPlaylist`, 3 s fade). Errors and announcements become toasts and live-region text while a screen is shown.
+- **On-air bar**: the shell shows `ShellData.onAirBar`; nothing supplies it yet, so these screens draw `OnAirBarFallback` (core.js `onAirBar`) when it is missing. When the page wires one, the fallback steps aside.
+- **Drops** use `window.lyre.files.pathOf(file)` (preload, `webUtils.getPathForFile`), falling back to the file's name (the fake takes it as a path). In the `app` spec project, `e2e/specs/support/drop.ts` drops real temporary files through a file input, as a page-made `File` has no place on disk.
+- **CSS**: `library.css` and `playlists.css` are the prototype's view CSS with every rule scoped to `.view` (`body` for menus and sheets), because the page loads screen CSS before `ui.css` (`src/lyre/index.tsx` imports `./screens` before the styles) and equal rules would otherwise lose.
