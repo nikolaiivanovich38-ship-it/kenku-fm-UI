@@ -81,6 +81,11 @@ export class FakeLyreAudio extends TypedEmitter<LyreAudioEvents> implements Lyre
     this.calls.push(["setPreviewVolume", volume]);
   }
 
+  testChime(roomId: string): CueOutcome {
+    this.calls.push(["testChime", roomId]);
+    return this.answer;
+  }
+
   isPreviewing(key: string): boolean {
     return this.state.preview?.key === key;
   }

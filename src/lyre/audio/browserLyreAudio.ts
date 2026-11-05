@@ -14,7 +14,7 @@
  * them and is what the unit tests check with fakes.
  */
 import type { DomainLookup } from "../../common/domain";
-import { fromAudioContext, type EngineContext, type NodeLike, type Scheduler } from "../../player/engine/audio/types";
+import { fromAudioContext, type EngineContext, type GainLike, type NodeLike, type Scheduler } from "../../player/engine/audio/types";
 import { createBrowserEngine } from "../../player/engine/browser";
 import type { PlaybackEngine } from "../../player/engine/engine";
 import {
@@ -65,6 +65,8 @@ export interface LyreAudioPieces {
   readAhead?: { want(requests: readonly MediaRequest[]): void };
   /** Closes the engine's audio context. */
   closeContext: () => Promise<void>;
+  /** w4-outputs: plays the Outputs screen's Test chime into a room's bus. */
+  chime?: (into: GainLike) => void;
 }
 
 /** Joins the parts. Everything it starts, `dispose()` stops. */
@@ -91,6 +93,7 @@ export function assembleLyreAudio(pieces: LyreAudioPieces): EngineLyreAudio {
     previewDevices,
     library: pieces.library,
     readAhead: pieces.readAhead,
+    chime: pieces.chime,
     onDispose: async () => {
       stopPort();
       stopRooms();
@@ -154,6 +157,35 @@ export async function startLyreAudio(options: { window: Window; bridge: LyreAudi
       readAhead.clear();
       await audioContext.close();
     },
+    chime: (into) => playChime(audioContext, into),
+  });
+}
+
+/**
+ * w4-outputs: the Test chime, a soft bell (A5 with two overtones) that rings out over about 1.5 seconds. Made on the
+ * spot, so no sound file ships for it; every node is let go when it ends.
+ */
+export function playChime(context: BaseAudioContext, into: GainLike): void {
+  const now = context.currentTime;
+  const ring = context.createGain();
+  ring.gain.setValueAtTime(0.0001, now);
+  ring.gain.exponentialRampToValueAtTime(0.4, now + 0.01);
+  ring.gain.exponentialRampToValueAtTime(0.0001, now + 1.5);
+  ring.connect(into as unknown as AudioNode);
+  const partials: [number, number][] = [
+    [880, 1],
+    [1760, 0.35],
+    [2640, 0.15],
+  ];
+  partials.forEach(([frequency, level], i) => {
+    const tone = context.createOscillator();
+    const gain = context.createGain();
+    tone.frequency.value = frequency;
+    gain.gain.value = level;
+    tone.connect(gain).connect(ring);
+    tone.start(now);
+    tone.stop(now + 1.6);
+    if (i === 0) tone.onended = () => ring.disconnect();
   });
 }
 

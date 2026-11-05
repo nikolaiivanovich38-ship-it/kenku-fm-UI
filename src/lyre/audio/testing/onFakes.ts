@@ -15,7 +15,7 @@ import { fakePreviewOutput } from "../../../player/engine/preview/testing/fakePr
 import type { PadSound, ShowData } from "../../../player/engine/queue/library";
 import { PlayerAudioLink, RoomMixer, RoomStreams, type FrameTap, type TapFrame } from "../../../player/engine/rooms";
 import { SourceLoader, type MediaRequest } from "../../../player/engine/sources/sourceLoader";
-import { FakeAudioContext, type FakeGain } from "../../../player/engine/testing/fakeAudio";
+import { FakeAudioContext, FakeBuffer, type FakeGain } from "../../../player/engine/testing/fakeAudio";
 import { EngineLyreAudio, type LyreAudioLibrary, type LyrePad } from "../lyreAudio";
 
 /** Library data for tests: the show engine's ShowData, pads with a name. */
@@ -140,6 +140,13 @@ export function lyreAudioOnFakes(data: AudioTestData, options: { devices?: Outpu
     library: staticAudioLibrary(data),
     readAhead: { want: (requests) => wanted.push([...requests]) },
     random: () => 0,
+    // The Test chime: 1.5 s of sound into the room's bus.
+    chime: (into) => {
+      const source = context.createBufferSource();
+      source.buffer = new FakeBuffer(1.5);
+      source.connect(into);
+      source.start(context.currentTime);
+    },
   });
 
   return {

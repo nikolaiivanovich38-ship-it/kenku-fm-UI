@@ -243,6 +243,11 @@ export interface LyreAudio {
   /** UX-16: the headphone volume, 0 to 1, kept for the next preview too. */
   setPreviewVolume(volume: number): void;
   isPreviewing(key: string): boolean;
+  /**
+   * w4-outputs: the Outputs screen's Test: a short chime in one room (a bot id) only, on its effects lane, so the
+   * game master can tell which room is which. Not the preview, not the other rooms.
+   */
+  testChime(roomId: string): CueOutcome;
   /** Sound devices to choose from for the preview (the default first). */
   previewDevices(): Promise<OutputDeviceInfo[]>;
   /** Choose and remember the preview's device ("" for the default). */
@@ -294,6 +299,8 @@ export interface LyreAudioParts {
   library: LyreAudioLibrary;
   /** Keeps the playing and next tracks in memory (ReadAhead). */
   readAhead?: { want(requests: readonly MediaRequest[]): void };
+  /** w4-outputs: plays the Test chime into a room's bus (about 1.5 s, then it ends by itself). */
+  chime?: (into: GainLike) => void;
   random?: Random;
   /** Called by dispose after everything is stopped: close audio contexts, the channel. */
   onDispose?: () => Promise<void> | void;
@@ -557,6 +564,21 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
 
   isPreviewing(key: string): boolean {
     return this.parts.preview.isPreviewing(key);
+  }
+
+  testChime(roomId: string): CueOutcome {
+    if (this.disposed) {
+      return this.fail("Lyre's sound has stopped. Reopen the Lyre tab.");
+    }
+    // getRoomBus falls back to the first room for an unknown id; a chime must never play somewhere else.
+    if (!this.parts.mixer.rooms().some((room) => room.botId === roomId)) {
+      return this.fail("That room is not in a voice channel now.");
+    }
+    if (!this.parts.chime) {
+      return this.fail("The test chime cannot play here.");
+    }
+    this.parts.chime(this.parts.mixer.getRoomBus(roomId, "fx"));
+    return OK;
   }
 
   async previewDevices(): Promise<OutputDeviceInfo[]> {

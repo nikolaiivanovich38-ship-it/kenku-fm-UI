@@ -571,3 +571,23 @@ describe("wave 4: the now-playing shape every screen reads, play order and the p
     expect(rig.audio.togglePreviewPause()).toEqual({ ok: false, message: "Nothing is previewing." });
   });
 });
+
+describe("w4-outputs: the Outputs screen's Test chime, in one room only", () => {
+  it("plays a short chime into that room's effects and nowhere else, and stops by itself", async () => {
+    onDiscord();
+    expect(rig.audio.testChime("bot-b")).toEqual({ ok: true });
+    await rig.advance(0.25);
+    expect(rig.hearRoom("bot-b")).toBeGreaterThan(0);
+    expect(rig.hearRoom("bot-a")).toBe(0);
+    expect(rig.hearPreview()).toBe(0);
+    await rig.advance(2);
+    expect(rig.hearRoom("bot-b")).toBe(0);
+  });
+
+  it("refuses a room that is not in a voice channel, in plain words", () => {
+    onDiscord();
+    expect(rig.audio.testChime("bot-gone")).toEqual({ ok: false, message: "That room is not in a voice channel now." });
+    expect(errors).toEqual(["That room is not in a voice channel now."]);
+    expect(rig.hearRoom("bot-a")).toBe(0);
+  });
+});

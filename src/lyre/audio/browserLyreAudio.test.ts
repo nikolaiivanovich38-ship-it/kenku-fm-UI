@@ -11,7 +11,7 @@ import { PlaybackEngine } from "../../player/engine/engine";
 import { createBridgedPreviewOutput, PlayerAudioLink, type FrameTap } from "../../player/engine/rooms";
 import { SourceLoader } from "../../player/engine/sources/sourceLoader";
 import { FakeAudioContext } from "../../player/engine/testing/fakeAudio";
-import { assembleLyreAudio } from "./browserLyreAudio";
+import { assembleLyreAudio, playChime } from "./browserLyreAudio";
 import type { LyreAudioBridge } from "./preloadAudio";
 import { FakeAudioPort, staticAudioLibrary, testTrack } from "./testing/onFakes";
 
@@ -140,5 +140,46 @@ describe("assembleLyreAudio: LyreAudio wired into the new page as docs/ARCHITECT
     const late = new FakeAudioPort();
     deliverPort(late);
     expect(late.onmessage).toBeNull();
+  });
+});
+
+describe("playChime (w4-outputs): the Test chime made on the spot", () => {
+  it("rings three tones into the room's bus, fading out, and lets everything go when it ends", () => {
+    const made: { kind: string; connected: unknown[]; started?: number; stopped?: number; onended?: () => void; disconnected?: boolean }[] = [];
+    const param = () => ({ value: 0, setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() });
+    const node = (kind: string) => {
+      const n = {
+        kind,
+        connected: [] as unknown[],
+        gain: param(),
+        frequency: param(),
+        connect(to: unknown) {
+          n.connected.push(to);
+          return to;
+        },
+        disconnect() {
+          (n as { disconnected?: boolean }).disconnected = true;
+        },
+        start(at: number) {
+          (n as { started?: number }).started = at;
+        },
+        stop(at: number) {
+          (n as { stopped?: number }).stopped = at;
+        },
+        onended: undefined as undefined | (() => void),
+      };
+      made.push(n);
+      return n;
+    };
+    const context = { currentTime: 10, createGain: () => node("gain"), createOscillator: () => node("osc") };
+    const bus = { kind: "bus" };
+    playChime(context as never, bus as never);
+    const ring = made[0];
+    expect(ring.connected).toEqual([bus]);
+    const tones = made.filter((n) => n.kind === "osc");
+    expect(tones).toHaveLength(3);
+    expect(tones.every((t) => t.started === 10 && t.stopped !== undefined && t.stopped <= 12)).toBe(true);
+    tones[0].onended?.();
+    expect(ring.disconnected).toBe(true);
   });
 });
