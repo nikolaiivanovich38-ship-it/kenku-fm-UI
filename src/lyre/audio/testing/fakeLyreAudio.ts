@@ -13,7 +13,7 @@ import { TypedEmitter } from "tiny-typed-emitter";
 import type { CueOutcome, DeviceStatus, LaneNowPlaying, LyreAudio, LyreAudioEvents, NowPlaying, OutputDeviceInfo, PreviewNowPlaying, RoomNowPlaying } from "../lyreAudio";
 
 export const EMPTY_NOW_PLAYING: NowPlaying = {
-  rooms: [{ roomId: "table", name: "Table", music: null, ambience: null, upNext: null, queued: [], effects: [] }],
+  rooms: [{ roomId: "table", name: "Table", volume: 0.85, music: null, ambience: null, upNext: null, queued: [], effects: [] }],
   broadcasting: false,
   preview: null,
   previewDevice: null,
@@ -28,7 +28,8 @@ export type FakeLane = Omit<LaneNowPlaying, "place" | "playOrder"> & Partial<Pic
 export type FakePreview = Pick<PreviewNowPlaying, "key" | "label"> & Partial<PreviewNowPlaying>;
 /** Now-playing state as a test gives it to setNowPlaying. */
 export type FakeNowPlaying = Partial<Omit<NowPlaying, "rooms" | "preview">> & {
-  rooms?: (Omit<RoomNowPlaying, "music" | "ambience"> & { music: FakeLane | null; ambience: FakeLane | null })[];
+  /** A room's volume may be left out: 0.85, as rooms start in the app. */
+  rooms?: (Omit<RoomNowPlaying, "music" | "ambience" | "volume"> & { music: FakeLane | null; ambience: FakeLane | null; volume?: number })[];
   preview?: FakePreview | null;
 };
 
@@ -49,7 +50,7 @@ export class FakeLyreAudio extends TypedEmitter<LyreAudioEvents> implements Lyre
     this.state = {
       ...this.state,
       ...rest,
-      ...(rooms ? { rooms: rooms.map((r) => ({ ...r, music: lane(r.music), ambience: lane(r.ambience) })) } : {}),
+      ...(rooms ? { rooms: rooms.map((r) => ({ volume: 0.85, ...r, music: lane(r.music), ambience: lane(r.ambience) })) } : {}),
       ...(shown !== undefined ? { preview: preview(shown) } : {}),
     };
     this.subscribers.forEach((listener) => listener());
@@ -64,6 +65,7 @@ export class FakeLyreAudio extends TypedEmitter<LyreAudioEvents> implements Lyre
   stopLane = this.record("stopLane");
   fadeAll = this.record("fadeAll");
   stopAll = this.record("stopAll");
+  setRoomVolume = this.record("setRoomVolume");
   firePad = this.record("firePad");
   removeQueued = this.record("removeQueued");
   undoSceneStart = this.record("undoSceneStart");

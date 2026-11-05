@@ -43,7 +43,7 @@ import { MainMediaResolver } from "../../player/engine/sources/mainMediaResolver
 import { browserObjectUrls, ReadAhead } from "../../player/engine/sources/readAhead";
 import { readBytes } from "../../player/engine/sources/readBytes";
 import { SourceLoader, type MediaRequest } from "../../player/engine/sources/sourceLoader";
-import { EngineLyreAudio, type LyreAudioLibrary } from "./lyreAudio";
+import { EngineLyreAudio, ROOM_START_VOLUME, type LyreAudioLibrary } from "./lyreAudio";
 import type { LyreAudioBridge } from "./preloadAudio";
 
 export interface LyreAudioPieces {
@@ -91,6 +91,7 @@ export function assembleLyreAudio(pieces: LyreAudioPieces): EngineLyreAudio {
     previewDevices,
     library: pieces.library,
     readAhead: pieces.readAhead,
+    startRoomVolume: ROOM_START_VOLUME,
     onDispose: async () => {
       stopPort();
       stopRooms();

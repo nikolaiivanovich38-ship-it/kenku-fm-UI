@@ -126,6 +126,8 @@ export interface RoomNowPlaying {
   roomId: string;
   /** The voice channel's name ("Table" while there is none). */
   name: string;
+  /** UX-16: the room's volume, 0 to 1: its mix level, the slider in the Now playing bar, Live and Outputs. */
+  volume: number;
   music: LaneNowPlaying | null;
   ambience: LaneNowPlaying | null;
   /** The track Next would play in the music lane. */
@@ -222,6 +224,8 @@ export interface LyreAudio {
   fadeAll(fadeMs?: number): CueOutcome;
   /** Silence every room at once. */
   stopAll(): CueOutcome;
+  /** UX-16: a room's volume (or every room's), 0 to 1, kept for that room while the app runs. */
+  setRoomVolume(target: RoomTarget, volume: number): CueOutcome;
   /** A pad press ("down", default) or let-go ("up", for hold pads). */
   firePad(boardId: string, padId: string, phase?: "down" | "up", target?: RoomTarget): CueOutcome;
   removeQueued(entryId: string, target?: RoomTarget): CueOutcome;
@@ -297,7 +301,15 @@ export interface LyreAudioParts {
   random?: Random;
   /** Called by dispose after everything is stopped: close audio contexts, the channel. */
   onDispose?: () => Promise<void> | void;
+  /** The volume a room starts at, 0 to 1 (default 1; the app starts rooms at ROOM_START_VOLUME). */
+  startRoomVolume?: number;
 }
+
+/**
+ * UX-16: the volume rooms start at in the app: 85, as the design shows a new room, so a quiet room can still be
+ * turned up.
+ */
+export const ROOM_START_VOLUME = 0.85;
 
 const OK: CueOutcome = { ok: true };
 const LANE_LABEL: Record<MusicOrAmbience, string> = { music: "Music", ambience: "Ambience" };
@@ -315,6 +327,10 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
   private speakerSource: GainLike | null = null;
   private wantedKey = "";
   private disposed = false;
+  /** Each room's volume by its real id (a bot id, or "table"), kept while the app runs. */
+  private readonly roomVolumes = new Map<string, number>();
+  /** The real ids of the rooms last seen, to hand the table's volume to the room that takes it over. */
+  private lastRooms: string[] = [];
   private readonly cleanups: (() => void)[] = [];
 
   constructor(parts: LyreAudioParts) {
@@ -338,6 +354,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     const onChange = () => this.changed();
     const onDirectorError = (message: string) => this.emit("error", message);
     const onRooms = () => {
+      this.applyRoomVolumes();
       this.routeSpeakers();
       this.changed();
     };
@@ -376,6 +393,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       () => parts.preview.off("failed", onPreviewFailed),
       () => parts.previewDevices?.off("status", onDevice),
     );
+    this.applyRoomVolumes();
     this.routeSpeakers();
   }
 
@@ -461,6 +479,16 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       this.emit("announce", "Everything stopped");
     }
     return outcome;
+  }
+
+  setRoomVolume(target: RoomTarget, volume: number): CueOutcome {
+    if (!Number.isFinite(volume)) return this.fail("That volume is not a number from 0 to 100.");
+    const level = Math.max(0, Math.min(1, volume));
+    const ids = target === "all" ? this.realRoomIds() : [this.rooms.toReal(roomsFor(this.rooms.target(target), [...this.rooms.rooms()])[0])];
+    for (const id of ids) this.roomVolumes.set(id, level);
+    this.applyRoomVolumes();
+    this.changed();
+    return OK;
   }
 
   firePad(boardId: string, padId: string, phase: "down" | "up" = "down", target: RoomTarget = FIRST_ROOM): CueOutcome {
@@ -677,6 +705,27 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     return voices[voices.length - 1];
   }
 
+  /** The rooms by the ids screens know: the bots in voice channels, or "table" while there is none. */
+  private realRoomIds(): string[] {
+    const rooms = this.parts.mixer.rooms();
+    return rooms.length ? rooms.map((room) => room.botId) : [TABLE_ROOM];
+  }
+
+  private roomVolume(realId: string): number {
+    return this.roomVolumes.get(realId) ?? this.parts.startRoomVolume ?? 1;
+  }
+
+  /** Each room's mix plays at its volume; the room that took over the table (the first bot to join) keeps its volume. */
+  private applyRoomVolumes(): void {
+    if (this.disposed) return;
+    const ids = this.realRoomIds();
+    if (this.lastRooms.length === 1 && this.lastRooms[0] === TABLE_ROOM && ids[0] !== TABLE_ROOM && !this.roomVolumes.has(ids[0])) {
+      this.roomVolumes.set(ids[0], this.roomVolume(TABLE_ROOM));
+    }
+    this.lastRooms = ids;
+    for (const id of ids) this.parts.mixer.setLevel(id, "master", this.roomVolume(id));
+  }
+
   /** Outside a broadcast the first room plays on this page's speakers; during one, only on Discord and "This Computer". */
   private routeSpeakers() {
     const wanted = this.disposed || this.parts.streams.broadcasting ? null : this.parts.mixer.output(TABLE_ROOM);
@@ -756,6 +805,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     return {
       roomId: this.rooms.toReal(room.roomId),
       name: room.name,
+      volume: this.roomVolume(this.rooms.toReal(room.roomId)),
       music: room.music ? this.laneState(room.roomId, "music", room.music) : null,
       ambience: room.ambience ? this.laneState(room.roomId, "ambience", room.ambience) : null,
       upNext: room.upNext ? { trackId: room.upNext, title: title(room.upNext) } : null,

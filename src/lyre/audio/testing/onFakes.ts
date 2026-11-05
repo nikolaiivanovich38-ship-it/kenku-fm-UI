@@ -79,7 +79,7 @@ export class FakeAudioPort implements AudioPortLike {
   }
 }
 
-export function lyreAudioOnFakes(data: AudioTestData, options: { devices?: OutputDeviceInfo[] } = {}) {
+export function lyreAudioOnFakes(data: AudioTestData, options: { devices?: OutputDeviceInfo[]; startRoomVolume?: number } = {}) {
   const context = new FakeAudioContext();
   const previewContext = new FakeAudioContext();
   for (const track of data.tracks) {
@@ -140,6 +140,7 @@ export function lyreAudioOnFakes(data: AudioTestData, options: { devices?: Outpu
     library: staticAudioLibrary(data),
     readAhead: { want: (requests) => wanted.push([...requests]) },
     random: () => 0,
+    startRoomVolume: options.startRoomVolume,
   });
 
   return {

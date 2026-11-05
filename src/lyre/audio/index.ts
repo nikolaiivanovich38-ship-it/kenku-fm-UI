@@ -3,7 +3,7 @@
  * `useNowPlaying()` and never touch Web Audio; the page root starts it once
  * with `startLyreAudio`. See docs/ARCHITECTURE.md, "Wave 3: w3-host".
  */
-export { DEFAULT_FADES_MS, EngineLyreAudio, FIRST_ROOM, padIsOn, trackTitle } from "./lyreAudio";
+export { DEFAULT_FADES_MS, EngineLyreAudio, FIRST_ROOM, ROOM_START_VOLUME, padIsOn, trackTitle } from "./lyreAudio";
 export type {
   CueAction,
   CueOutcome,

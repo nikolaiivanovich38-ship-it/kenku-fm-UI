@@ -12,6 +12,7 @@ import { createBridgedPreviewOutput, PlayerAudioLink, type FrameTap } from "../.
 import { SourceLoader } from "../../player/engine/sources/sourceLoader";
 import { FakeAudioContext } from "../../player/engine/testing/fakeAudio";
 import { assembleLyreAudio } from "./browserLyreAudio";
+import { ROOM_START_VOLUME } from "./lyreAudio";
 import type { LyreAudioBridge } from "./preloadAudio";
 import { FakeAudioPort, staticAudioLibrary, testTrack } from "./testing/onFakes";
 
@@ -100,6 +101,8 @@ describe("assembleLyreAudio: LyreAudio wired into the new page as docs/ARCHITECT
     const audio = assemble();
     roomsListener!([{ botId: "bot-a", name: "Tavern" }]);
     expect(audio.getNowPlaying().rooms.map((room) => room.name)).toEqual(["Tavern"]);
+    // UX-16: rooms start at the design's 85.
+    expect(audio.getNowPlaying().rooms[0].volume).toBe(ROOM_START_VOLUME);
     await audio.dispose();
   });
 
@@ -109,7 +112,7 @@ describe("assembleLyreAudio: LyreAudio wired into the new page as docs/ARCHITECT
     deliverPort(port);
     audio.playTrack("m1");
     await context.advance(4);
-    expect(context.signalAt(context.destination)).toBeCloseTo(1);
+    expect(context.signalAt(context.destination)).toBeCloseTo(ROOM_START_VOLUME);
     port.deliver({ kind: "broadcast", active: true });
     expect(context.signalAt(context.destination)).toBe(0);
     await audio.dispose();
