@@ -1,7 +1,7 @@
 import { ipcRenderer } from "electron";
 
-/** SEC-8: the only kind of view the main window may ask for besides a website tab. */
-export type BrowserViewKind = "player";
+/** SEC-8: the app's own pages the main window may ask for besides a website tab (w3-shell: "lyre"). */
+export type BrowserViewKind = "player" | "lyre";
 
 /**
  * Manager to help create and manager browser views
@@ -11,7 +11,7 @@ export type BrowserViewKind = "player";
 export class BrowserViewManagerPreload {
   /**
    * Create a view and return its id (-1 when the main process refuses it).
-   * @param kind "player" for the Kenku player; leave out for a website tab.
+   * @param kind "player" for the Kenku player, "lyre" for the new interface; leave out for a website tab.
    */
   async createBrowserView(
     url: string,

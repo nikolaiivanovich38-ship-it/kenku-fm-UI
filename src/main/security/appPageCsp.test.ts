@@ -76,6 +76,19 @@ const PRODUCTION: Record<string, Policy> = {
     "connect-src": ["'self'", "data:", "blob:", "file:", "https:", "http:"],
     "worker-src": ["'none'"],
   },
+  // --- w3-shell --- The new interface page hosts the playback engine and preview (wave 3, w3-host): audio files
+  // and worklets from the app, prepared library files (file:) and read-ahead (blob:), nothing from the web. Its
+  // fonts and pictures are bundled files.
+  "lyre/index.html": {
+    ...COMMON,
+    "script-src": ["'self'"],
+    "style-src": ["'self'", "'unsafe-inline'"],
+    "img-src": ["'self'", "data:"],
+    "font-src": ["'self'", "data:"],
+    "media-src": ["'self'", "blob:", "file:"],
+    "connect-src": ["'self'", "blob:", "file:"],
+    "worker-src": ["'none'"],
+  },
   "audioCapture/index.html": {
     ...COMMON,
     "script-src": ["'self'", "blob:"],

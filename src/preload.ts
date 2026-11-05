@@ -148,6 +148,10 @@ const api = {
   playerRegisterView: (viewId: number) => {
     ipcRenderer.send("PLAYER_REGISTER_VIEW", viewId);
   },
+  /** WP5: the address of the new interface page, shown in the built-in "Lyre" tab. */
+  lyreGetURL: (): string => {
+    return ipcRenderer.sendSync("LYRE_GET_URL");
+  },
   playerStartRemote: (address: string, port: string) => {
     ipcRenderer.send("PLAYER_START_REMOTE", address, port);
   },

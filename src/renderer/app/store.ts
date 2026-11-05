@@ -6,6 +6,7 @@ import bookmarksReducer from "../features/bookmarks/bookmarksSlice";
 import { bookmarkMigrations } from "../features/bookmarks/bookmarksMigration";
 import tabsReducer from "../features/tabs/tabsSlice";
 import playerReducer from "../features/player/playerSlice";
+import lyreReducer from "../features/lyre/lyreSlice";
 import inputReducer from "../features/input/inputSlice";
 import errorsReducer from "../features/errors/errorsSlice";
 
@@ -30,6 +31,8 @@ const rootReducer = combineReducers({
   bookmarks: bookmarksReducer,
   tabs: tabsReducer,
   player: playerReducer,
+  // WP5: the built-in "Lyre" tab (new interface); not saved, like the player tab.
+  lyre: lyreReducer,
   input: inputReducer,
   // Error messages on screen (UX finding 4); not saved.
   errors: errorsReducer,

@@ -4,6 +4,7 @@
  * preload scripts:
  * - main-window: src/preload.ts and src/preload/managers/BrowserViewManagerPreload.ts
  * - player-view: src/player/preload.ts
+ * - lyre-view: src/lyre/preload.ts (sends nothing yet)
  * - audio-capture: src/audioCapture/preload.ts and src/preload/managers/AudioCaptureManagerPreload.ts
  * Website tabs have no preload and never appear here. docs/security.md has the
  * same table in plain language; keep the two in step.
@@ -47,8 +48,11 @@ export const REFUSED_VIEW_ID = -1;
  */
 export const MAX_SHORT_TEXT = 4096;
 
-/** The only view kind the main window may request besides a plain website tab. */
+/** The view kind of the old player page; besides it and LYRE_VIEW_KIND, only plain website tabs. */
 export const PLAYER_VIEW_KIND = "player";
+
+/** w3-shell: the view kind of the new interface page (the "Lyre" tab). */
+export const LYRE_VIEW_KIND = "lyre";
 
 /** Correlates a remote API request with the player's reply (PERF-9). */
 const isRequestId = isIntegerIn(1, Number.MAX_SAFE_INTEGER);
@@ -96,7 +100,8 @@ export const IPC_CHANNELS = {
     from: MAIN,
     // The address may be missing for a bookmark saved without one; that has
     // always opened a blank tab, so it still does.
-    args: argsMatch(optional(isUrl), ...bounds, optional(isOneOf(PLAYER_VIEW_KIND))),
+    // w3-shell: the kind may also be "lyre" for the new interface page.
+    args: argsMatch(optional(isUrl), ...bounds, optional(isOneOf(PLAYER_VIEW_KIND, LYRE_VIEW_KIND))),
     refusedReturnValue: REFUSED_VIEW_ID,
   },
   BROWSER_VIEW_REMOVE_BROWSER_VIEW: { from: MAIN, args: viewIdOnly },
@@ -184,6 +189,11 @@ export const IPC_CHANNELS = {
   // file address, and { keepLocal: boolean } and nothing else. The address is
   // checked against the library folders by MediaAccess before anything is read.
   MEDIA_PREPARE: { from: PLAYER, args: argsMatch(isUrl, isPrepareOptions) },
+
+  // --- w3-shell ---
+  // LyreManager: the address of the new interface page, for the main window's
+  // "Lyre" tab (sync; answers "" when refused, like PLAYER_GET_URL).
+  LYRE_GET_URL: { from: MAIN, args: noArgs, refusedReturnValue: "" },
 } satisfies Record<string, IpcChannelRule>;
 
 export type IpcChannel = keyof typeof IPC_CHANNELS;

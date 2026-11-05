@@ -164,6 +164,10 @@ No build is needed for the `prototype` project; it opens `design/prototype/lyre-
 
 Only `e2e/specs/support/target.ts`. It has one function per thing a person cannot do from the page itself: `openRoute(page, route, { theme })`, `joinRoom(page, bot, channel)` (a Discord bot joining a voice channel), `leaveAllRooms(page)`, `notLyre()` (parts of the page that are the prototype's own controls, left out of the sweeps) and `knownAxeIssues()`. Each is implemented for the prototype and, for the app, throws "not built yet". `support/drop.ts` drops files the way a browser does and works on both.
 
+### The app branch of `openRoute`
+
+`openRoute` in the `app` project chooses the "Lyre" tab in the main window, saves the theme the way Look and feel does (`lyre-shell` in the Lyre page's storage: `"campaign"` for `default`, `"parchment"`), sets the page address to `#/<route>` and reloads the Lyre page, then waits for its h1 (`e2e/fixtures/lyre.ts`, also used by `e2e/lyre.spec.ts`). The spec then works in the Lyre page, so the `app` project's `page` fixture must be the Lyre page of a running packaged app (title "Lyre Interface"); `joinRoom` and `leaveAllRooms` still throw.
+
 ### Flipping a screen from expected-fail to required
 
 The `app` project runs the same files. A spec of a screen that `e2e/specs/support/built.ts` does not list is marked "expected to fail", so the project is green while wave 3 is under way, and a spec that starts passing before its screen is listed shows up as "expected to fail, but passed". When wave 3 builds a screen:

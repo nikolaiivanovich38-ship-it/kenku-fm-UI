@@ -11,6 +11,7 @@
 import { type Page, test } from "@playwright/test";
 import path from "path";
 import { pathToFileURL } from "url";
+import { openLyreRoute } from "../../fixtures/lyre";
 
 export type Theme = "default" | "parchment";
 
@@ -30,7 +31,13 @@ function notBuilt(what: string): never {
 
 /** Open a screen. `theme: "default"` keeps each campaign's own table theme; "parchment" forces that theme. */
 export async function openRoute(page: Page, route: Route, options: { theme?: Theme } = {}): Promise<void> {
-  if (isApp()) notBuilt(`openRoute(${route})`);
+  if (isApp()) {
+    // The app: choose the "Lyre" tab in the main window, then open the route in the Lyre page with the theme
+    // remembered as Look and feel would (e2e/fixtures/lyre.ts). `page` is any page of the app (its main window or
+    // the Lyre page); the spec then works in the Lyre page, so the app project's `page` must be the Lyre page.
+    await openLyreRoute(page, route, options.theme === "parchment" ? "parchment" : "default");
+    return;
+  }
   const theme = options.theme === "parchment" ? "parchment" : "campaign";
   await page.addInitScript((t) => {
     try {
