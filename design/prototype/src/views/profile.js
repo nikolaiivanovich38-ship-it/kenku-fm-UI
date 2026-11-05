@@ -585,13 +585,18 @@
     if (sk) sk.setAttribute('d', sketchPath(k, v)); if (nm) nm.textContent = shapeName(v); draw(root);
   };
   L.inputs.apfield = function (el) {
-    var which = el.dataset.f, t = track(), lenField = which.indexOf('fade') === 0 || which === 'xfade', v = parse(el.value, lenField), r = range(t, which); S.editing = which; S.editText = el.value;
+    var which = el.dataset.f, t = track(), lenField = which.indexOf('fade') === 0 || which === 'xfade', v = parse(el.value, lenField), r = range(t, which);
+    // A time it cannot use puts the profile back as it was before typing, not at a time typed on the way ("2" of "2:00").
+    if (S.editing !== which) S.editBase = copyOf(prof(t));
+    S.editing = which; S.editText = el.value;
     if (v == null) S.invalid[which] = lenField ? 'Type a number of seconds, like 6' : 'Type minutes and seconds, like 5:18';
     else if (v < r[0] || v > r[1]) S.invalid[which] = 'Between ' + (lenField ? r[0] + ' and ' + r[1] + ' seconds' : L.fmt(r[0]) + ' and ' + L.fmt(r[1]));
     else { delete S.invalid[which]; movePoint(t, which, v); }
+    if (S.invalid[which] && S.editBase) write(t, copyOf(S.editBase));
     L.render();
   };
-  function commitField() { if (!S.editing) return; S.editing = null; S.invalid = {}; setTimeout(L.render, 0); }
+  // Enter on a time it cannot use keeps the text and its message; the point stays as it was.
+  function commitField() { if (!S.editing || S.invalid[S.editing]) return; S.editing = null; S.invalid = {}; setTimeout(L.render, 0); }
 
   /* ---------- keyboard shortcuts (view focused, not typing) ---------- */
   L.onKey(function (e) {

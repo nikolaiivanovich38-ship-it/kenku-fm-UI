@@ -450,12 +450,18 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
       if (problem === null && v !== null && editable) {
         editor.write(movePoint(base, dur, which, v), "soon");
         changed = true;
+      } else if (changed) {
+        // A time it cannot use: back to the value before typing, not one typed on the way ("2" of "2:00").
+        editor.write(base, "soon");
+        changed = false;
       }
       setEditing({ which, text, base, changed });
       setInvalid(problem ? { [which]: problem } : {});
     },
     commitField() {
       if (!editing) return;
+      // Enter on a time it cannot use keeps the text and its message; the point stays as it was.
+      if (invalid[editing.which]) return;
       setEditing(null);
       setInvalid({});
       editor.flush();

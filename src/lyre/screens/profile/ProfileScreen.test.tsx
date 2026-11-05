@@ -160,6 +160,22 @@ describe("what happens at the end", () => {
     expect(end).toHaveValue("4:30");
   });
 
+  it("a time it cannot use keeps its message after Enter and leaves End as it was, not at a time typed on the way (w3-ux 1)", async () => {
+    const { api, user } = await open();
+    const end = atEnd().getByRole("textbox", { name: "End" });
+    await user.clear(end);
+    await user.type(end, "9:00{Enter}");
+    expect(end).toHaveAttribute("aria-invalid", "true");
+    expect(region("At the end")).toHaveTextContent("Between 0:01 and 7:21");
+    expect(value("End")).toBe(318);
+    await act(() => new Promise((r) => setTimeout(r, 800)));
+    expect((await savedProfile(api))?.endMs ?? 318_000).toBe(318_000);
+    await user.clear(end);
+    await user.type(end, "6:00{Enter}");
+    expect(end).not.toHaveAttribute("aria-invalid");
+    expect(value("End")).toBe(360);
+  });
+
   it("Start at playhead takes the time from the playhead", async () => {
     const { user } = await open();
     slider("Playhead").focus();
