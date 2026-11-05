@@ -306,6 +306,35 @@ describe("the preview's sound follows the profile shown", () => {
   });
 });
 
+describe("a preview that cannot play (review w3-polish 1)", () => {
+  it("refused, the clock does not start and nothing says it plays", async () => {
+    const { audio, user } = await open();
+    audio.answer = { ok: false, message: "Unable to preview: Eerie dread" };
+    const wave = region("Waveform and listening");
+    await user.click(within(wave).getByRole("button", { name: "Play" }));
+    await act(() => new Promise((r) => setTimeout(r, 300)));
+    expect(within(wave).getByRole("button", { name: "Play" })).toHaveAttribute("aria-pressed", "false");
+    expect(value("Playhead")).toBe(0);
+    expect(document.getElementById("lyre-live")).not.toHaveTextContent("Preview from");
+  });
+
+  it("failing while it loads, the clock stops where it is, says why, and never claims End", async () => {
+    const { audio, user } = await open();
+    const wave = region("Waveform and listening");
+    await user.click(screen.getByRole("button", { name: "Play the last 10 s before End" }));
+    act(() => audio.setNowPlaying({ preview: { key: "t13", label: "Eerie dread" } }));
+    act(() => {
+      audio.emit("preview-failed", { key: "t13", message: "Could not play the preview of Eerie dread, low cello and choir." });
+      audio.setNowPlaying({ preview: null });
+    });
+    expect(within(wave).getByRole("button", { name: "Play" })).toHaveAttribute("aria-pressed", "false");
+    expect(document.getElementById("lyre-toast")).toHaveTextContent("Could not play the preview of Eerie dread");
+    await act(() => new Promise((r) => setTimeout(r, 100)));
+    expect(document.getElementById("lyre-live")).not.toHaveTextContent(/Stopped at End|Moved on/);
+    expect(wave).not.toHaveTextContent(/Stopped at End/);
+  });
+});
+
 describe("the file's loudness (peaks from the library)", () => {
   const meterBar = () => region("Waveform and listening").querySelector<HTMLElement>(".ap-meter-bar")!;
 

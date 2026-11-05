@@ -110,15 +110,19 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
   // the audio host says where it is, the clock follows it; until then it runs on its own.
   const sounding = useRef<string | null>(null);
   const [following, setFollowing] = useState(false);
+  // False when the audio host refused (the track is gone, the library is down): it has said why (a toast), and a
+  // clock that was playing stops where it is, so the screen never shows a preview nobody hears.
   const startSound = useCallback(
-    (from: number, id = track.id, profile: Prof | null = p) => {
+    (from: number, id = track.id, profile: Prof | null = p): boolean => {
       // Past End the players never hear it, so it plays the plain file there (to the end of the file).
       const shaped = profile && from < profile.end ? toInput(profile) : undefined;
       const outcome = audio.previewTrack(id, { startAtMs: Math.round(from * 1000), profile: shaped, quiet: true });
       sounding.current = outcome.ok ? id : null;
       setFollowing(false);
+      if (!outcome.ok && clockRef.current.playing) setClock(pauseClock(clockRef.current));
+      return outcome.ok;
     },
-    [audio, track.id, p],
+    [audio, track.id, p, setClock],
   );
   const stopSound = useCallback(() => {
     if (!sounding.current) return;
@@ -133,6 +137,15 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
     const step = follow(clockRef.current, at.positionMs / 1000, worldRef.current);
     if (step.state !== clockRef.current) setClock(step.state);
     if (step.say) say(step.say);
+  });
+  // The file could not play (it is missing, or cannot be read): the clock stops where it is and the toast says why.
+  // Cleared before the preview's end shows, so it is never taken for reaching End.
+  useLyreAudioEvent("preview-failed", (at) => {
+    if (!sounding.current || at.key !== sounding.current) return;
+    sounding.current = null;
+    setFollowing(false);
+    setClock(pauseClock(clockRef.current));
+    toast(at.message);
   });
   // The sound ended by itself (End, the end of the file): the clock goes there. Another Preview button taking the
   // headphones pauses the clock where it is.
@@ -239,15 +252,15 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
       }
       const from = s.handover ? { ...s, handover: null, pos: p.end } : s;
       const step = playClock(from, "play", world);
+      if (!startSound(step.state.pos)) return;
       setClock(step.state);
       if (step.say) say(step.say);
-      startSound(step.state.pos);
     },
     playLast10() {
       const step = playClock(clockRef.current, "last10", world);
+      if (!startSound(step.state.pos)) return;
       setClock(step.state);
       if (step.say) say(step.say);
-      startSound(step.state.pos);
     },
     stop() {
       setClock(stopClock(clockRef.current, p));
