@@ -13,7 +13,9 @@ const spare = (page: Page) => page.getByRole("region", { name: "Spare pads", exa
 /** The pads on the grid (not the empty slots and not the Preview buttons beside them). */
 const PAD = /^(?!Empty slot).*, row \d+, column \d+/;
 const pads = (page: Page) => padGrid(page).getByRole("button", { name: PAD });
-const pad = (page: Page, label: string) => padGrid(page).getByRole("button", { name: new RegExp(`^${label}, key`) });
+/** A pad tile, named "<label> <KEY>: <play mode>, row …" (the visible label and key first; prototype boards.js). */
+const pad = (page: Page, label: string) =>
+  padGrid(page).getByRole("button", { name: new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}( \\S+)?: `) });
 const boardRows = (page: Page) => boards(page).getByRole("listitem");
 
 test.describe("all pad boards", () => {

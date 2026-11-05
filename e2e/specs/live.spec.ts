@@ -285,7 +285,7 @@ test.describe("rooms", () => {
 
   test("with one room there is no To: choice anywhere", async ({ page }) => {
     await openRoute(page, "live");
-    await expect(page.getByRole("button", { name: /Choose a room/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /choose a room/i })).toHaveCount(0);
   });
 
   test("a room's box has Mute, shown as the one status Muted, and a volume slider that works from the keyboard", async ({ page }) => {
@@ -313,7 +313,7 @@ test.describe("rooms", () => {
     await openRoute(page, "live");
     await addSideRoom(page);
     for (const box of ["Scene music", "Off script"]) {
-      await expect(region(page, box).getByRole("button", { name: /Choose a room/ })).toHaveText(/^To:\s*Table$/);
+      await expect(region(page, box).getByRole("button", { name: /choose a room/i })).toHaveText(/^To:\s*Table$/);
     }
   });
 
@@ -327,10 +327,10 @@ test.describe("rooms", () => {
     await openRoute(page, "live");
     await addSideRoom(page);
     const music = region(page, "Scene music");
-    await music.getByRole("button", { name: /Choose a room/ }).click();
+    await music.getByRole("button", { name: /choose a room/i }).click();
     await page.getByRole("menuitemradio", { name: "Side room" }).click();
-    await expect(music.getByRole("button", { name: /Choose a room/ })).toBeFocused();
-    await expect(music.getByRole("button", { name: /Choose a room/ })).toHaveText(/^To:\s*Side room$/);
+    await expect(music.getByRole("button", { name: /choose a room/i })).toBeFocused();
+    await expect(music.getByRole("button", { name: /choose a room/i })).toHaveText(/^To:\s*Side room$/);
     await music.getByRole("button", { name: "Play on air in Side room: Coast road travel" }).click();
     await expect(region(page, "On air: Side room").getByText("Playing")).toBeVisible();
     await expect(region(page, "On air: Table").getByText("Silent")).toBeVisible();
@@ -340,7 +340,7 @@ test.describe("rooms", () => {
     await openRoute(page, "live");
     await addSideRoom(page);
     const off = region(page, "Off script");
-    await off.getByRole("button", { name: /Choose a room/ }).click();
+    await off.getByRole("button", { name: /choose a room/i }).click();
     await page.getByRole("menuitemradio", { name: "Side room" }).click();
     await off.getByRole("searchbox").fill("bells");
     await off.getByRole("list", { name: "Off script results" }).getByRole("button", { name: /^Play on air in Side room/ }).first().click();
@@ -352,7 +352,7 @@ test.describe("rooms", () => {
     await openRoute(page, "live");
     await addSideRoom(page);
     await region(page, "Pads").getByRole("button", { name: "Pads", exact: true }).click();
-    await region(page, "Pads").getByRole("button", { name: /Choose a room/ }).click();
+    await region(page, "Pads").getByRole("button", { name: /choose a room/i }).click();
     await page.getByRole("menuitemradio", { name: "Side room" }).click();
     await clickAway(page);
     await page.keyboard.press("w");
@@ -363,7 +363,7 @@ test.describe("rooms", () => {
   test("Next scene always starts in the first room, whatever the Scene music box points to", async ({ page }) => {
     await openRoute(page, "live");
     await addSideRoom(page);
-    await region(page, "Scene music").getByRole("button", { name: /Choose a room/ }).click();
+    await region(page, "Scene music").getByRole("button", { name: /choose a room/i }).click();
     await page.getByRole("menuitemradio", { name: "Side room" }).click();
     await startFirstScene(page);
     await expect(region(page, "On air: Table").getByText("Playing")).toBeVisible();
@@ -373,7 +373,7 @@ test.describe("rooms", () => {
   test("a room's menu offers to copy what another room is playing", async ({ page }) => {
     await openRoute(page, "live");
     await addSideRoom(page);
-    await region(page, "Scene music").getByRole("button", { name: /Choose a room/ }).click();
+    await region(page, "Scene music").getByRole("button", { name: /choose a room/i }).click();
     await page.getByRole("menuitemradio", { name: "Side room" }).click();
     await region(page, "Scene music").getByRole("button", { name: "Play on air in Side room: Coast road travel" }).click();
     await page.getByRole("button", { name: "More for Table" }).click();
@@ -386,6 +386,6 @@ test.describe("rooms", () => {
     await page.getByRole("button", { name: "More for Side room" }).click();
     await page.getByRole("menuitem", { name: /^Leave/ }).click();
     await expect(region(page, "On air: Side room")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: /Choose a room/ })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /choose a room/i })).toHaveCount(0);
   });
 });

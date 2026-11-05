@@ -253,7 +253,7 @@
     var on = L.padActive(b.id, p.id), pv = previewing(b, p), isSel = sel && sel.pad.id === p.id;
     return '<div class="pb-slot pb-has' + (isSel ? ' sel' : '') + (on ? ' on' : '') + (pv ? ' pv' : '') + '" ' + swatch(p) + ' data-drop="slot:' + i + '"><button class="pb-pad' + (isSel ? ' sel' : '') + '" draggable="true" data-drag="' + p.id + '" data-act="pbpad" data-pid="' + p.id + '" data-k="slot-' + i + '" data-slot="' + i + '" tabindex="' + tab + '" aria-pressed="' + !!isSel + '"' +
       ' aria-label="' + esc(p.label) + (p.key ? ' ' + esc(String(p.key).toUpperCase()) : '') + ': ' + L.modeName[p.mode] + ', ' + rc + (on ? ', on air' : pv ? ', previewing' : '') + '">' +
-      '<span class="pb-pad-label">' + esc(p.label) + '</span>' +
+      '<span class="pb-pad-label">' + esc(p.label) + '</span> ' +
       '<span class="pb-pad-meta">' + (p.key ? '<span class="kbd">' + esc(String(p.key).toUpperCase()) + '</span>' : '') + '<span class="pb-mode" title="' + L.modeName[p.mode] + '">' + L.icon(L.modeIcon[p.mode], 's') + '</span>' +
       (on ? '<span class="pb-playing">On air</span>' : '') + '</span></button><span class="pb-tile-pv">' + L.previewButton('pad', b.id + '/' + p.id).replace('<button ', '<button tabindex="-1" ') + '</span></div>';
   }
@@ -273,7 +273,7 @@
       '<div class="pb-sizes">' + stepper('Columns', 'c', b.cols) + stepper('Rows', 'r', b.rows) +
       '<div class="seg s" role="group" aria-label="Quick sizes">' + QUICK.map(function (q) {
         var on = b.cols === q[0] && b.rows === q[1];
-        return '<button data-act="pbquick" data-c="' + q[0] + '" data-r="' + q[1] + '" data-k="pb-q' + q[0] + q[1] + '" aria-pressed="' + on + '" aria-label="' + q[0] + ' columns by ' + q[1] + ' rows">' + q[0] + '×' + q[1] + '</button>';
+        return '<button data-act="pbquick" data-c="' + q[0] + '" data-r="' + q[1] + '" data-k="pb-q' + q[0] + q[1] + '" aria-pressed="' + on + '" aria-label="' + q[0] + '×' + q[1] + ', ' + q[0] + ' columns by ' + q[1] + ' rows">' + q[0] + '×' + q[1] + '</button>';
       }).join('') + '</div>' +
       '<span class="pb-count"><b class="num">' + n + '</b> of <b class="num">' + slots + '</b> slots used</span></div></div>' + msg +
       '<div class="pb-grid" role="group" aria-label="Pads, ' + b.cols + ' columns by ' + b.rows + ' rows" aria-describedby="pb-gridhelp" style="grid-template-columns:repeat(' + b.cols + ',minmax(0,1fr))">' +
