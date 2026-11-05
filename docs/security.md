@@ -556,3 +556,8 @@ Lyre's library (tracks, tags, playlists, pad boards, campaigns) lives in a datab
 1. Start Lyre for the first time after Kenku FM. Open the Lyre tab: your old playlists and soundboards are in the library.
 2. In Task Manager, end the "Lyre library" process. The Lyre tab says the library is starting again, then that it is working again; your last changes are still there.
 3. Add a file from a folder outside your library folders: it plays. A file you never added does not.
+
+## w3-library
+
+- **Dropped files' paths.** The Lyre page's preload adds `window.lyre.files.pathOf(file)`, which returns `webUtils.getPathForFile(file)`, as the old player's preload does: the page learns where a file the user dropped is, and nothing else. It sends no IPC; the paths go to the library only through `LYRE_API_CALL` (`import.start` with `{ from: "paths" }`), whose checks are unchanged. A page-made `File` gives "".
+- No new IPC channels. Copy path writes to the clipboard from the page (`navigator.clipboard.writeText`); if the page may not, the toast still shows the path.
