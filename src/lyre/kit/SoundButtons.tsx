@@ -9,13 +9,14 @@
  *
  * Both stop the click there, so a button inside a clickable row does not also open the row.
  */
-import React, { useEffect, useRef } from "react";
+import React from "react";
 
 import type { PadBoard } from "../../common/lyre/api";
 import { useLyreAudio, usePreviewKey } from "../audio";
 import { useAnnounce } from "../shell/Announcer";
 import { Icon } from "./Icon";
 import { cx } from "./cx";
+import { HOLD_MS, useHeldPads } from "./heldPads";
 
 export type SoundTarget =
   | { kind: "track"; id: string }
@@ -27,11 +28,7 @@ export type SoundTarget =
 
 /** Tracks and playlists fade in this long when played on air from a button (the prototype's fade: 3). */
 export const PLAY_ON_AIR_FADE_MS = 3000;
-/** A hold pad played from a button is let go after this long. */
-export const HOLD_MS = 1500;
-
-/** Each held pad's pending let-go, by "board/pad": a new press restarts it, so the first press cannot let go early. */
-const holds = new Map<string, { timer: ReturnType<typeof setTimeout>; release: () => void }>();
+export { HOLD_MS };
 
 /** The board's first pad on the grid, row by row, else its first spare pad (what its Preview plays). */
 function firstPad(board: PadBoard) {
@@ -101,34 +98,8 @@ export function PreviewButton({ target, name, tabIndex, className }: SoundButton
 export function PlayOnAirButton({ target, name, tabIndex, className }: SoundButtonProps) {
   const audio = useLyreAudio();
   const { toast } = useAnnounce();
-  // The hold this button started last; let go at once if the button goes away while it is held.
-  const myHold = useRef<string | null>(null);
-  useEffect(
-    () => () => {
-      const held = myHold.current ? holds.get(myHold.current) : undefined;
-      if (!held) return;
-      clearTimeout(held.timer);
-      holds.delete(myHold.current!);
-      held.release();
-    },
-    [],
-  );
-  const press = (boardId: string, padId: string, hold: boolean) => {
-    if (!hold) return audio.firePad(boardId, padId);
-    const key = `${boardId}/${padId}`;
-    const before = holds.get(key);
-    if (before) clearTimeout(before.timer);
-    audio.firePad(boardId, padId, "down");
-    const release = () => audio.firePad(boardId, padId, "up");
-    holds.set(key, {
-      release,
-      timer: setTimeout(() => {
-        holds.delete(key);
-        release();
-      }, HOLD_MS),
-    });
-    myHold.current = key;
-  };
+  const pressHeld = useHeldPads(audio);
+  const press = (boardId: string, padId: string, hold: boolean) => (hold ? pressHeld(boardId, padId) : audio.firePad(boardId, padId));
   const play = () => {
     switch (target.kind) {
       case "track":

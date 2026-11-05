@@ -301,6 +301,44 @@ describe("the selected pad's own box", () => {
     }
   });
 
+  it("a hold pad pressed again within the moment stays held from the second press, and is let go once", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const { audio } = await open("board/abbey");
+      const ups = () => audio.calls.filter((c) => c[0] === "firePad" && c[3] === "up").length;
+      await user.click(pad("Organ swell"));
+      const onAir = within(padBox()).getByRole("button", { name: "Play on air" });
+      await user.click(onAir);
+      act(() => void vi.advanceTimersByTime(1000));
+      await user.click(onAir);
+      act(() => void vi.advanceTimersByTime(1000));
+      expect(ups()).toBe(0);
+      act(() => void vi.advanceTimersByTime(600));
+      expect(ups()).toBe(1);
+      act(() => void vi.advanceTimersByTime(3000));
+      expect(ups()).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("a held pad is let go at once when the board screen closes", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      const view = await open("board/abbey");
+      await user.click(pad("Organ swell"));
+      await user.click(within(padBox()).getByRole("button", { name: "Play on air" }));
+      view.unmount();
+      expect(view.audio.calls).toContainEqual(["firePad", "abbey", "organ", "up"]);
+      act(() => void vi.advanceTimersByTime(3000));
+      expect(view.audio.calls.filter((c) => c[0] === "firePad" && c[3] === "up")).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("a toggle pad that is on says Stop on air, and the grid says it is on air", async () => {
     const { audio } = await open("board/weather");
     const user = userEvent.setup();

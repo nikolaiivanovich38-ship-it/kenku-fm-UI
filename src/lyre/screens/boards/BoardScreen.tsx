@@ -41,12 +41,11 @@ import { DeleteBoardDialog, DeletePadDialog, UseInDialog, useDuplicateBoard } fr
 import { go, useBoardSound, usePendingFocus, useSavedText, useWrite } from "./hooks";
 import { PadEditor } from "./PadEditor";
 import { PreviewButton } from "../../kit/SoundButtons";
+import { useHeldPads } from "../../kit/heldPads";
 import "./boards.css";
 
 /** A second click on the selected pad within this time previews it (the prototype's double-click). */
 const DOUBLE_CLICK_MS = 450;
-/** A hold pad played from the screen is let go after this long. */
-const HOLD_MS = 1500;
 
 const colourOf = (color: string) => ({ "--pc": PAD_COLOUR[color as keyof typeof PAD_COLOUR]?.hex ?? PAD_COLOUR.bone.hex }) as React.CSSProperties;
 
@@ -93,6 +92,7 @@ function BoardEditor({ board }: { board: PadBoard }) {
   const tracks = useTracks().data ?? [];
   const tagGroups = useTagGroups().data ?? [];
   const sound = useBoardSound();
+  const pressHeld = useHeldPads(sound.audio);
   const duplicateBoard = useDuplicateBoard();
   const rootRef = useRef<HTMLDivElement>(null);
   const focusLater = usePendingFocus(rootRef);
@@ -251,8 +251,7 @@ function BoardEditor({ board }: { board: PadBoard }) {
     const wasOn = sound.onAir(board.id, pad.id);
     let outcome;
     if (pad.mode === "hold") {
-      outcome = sound.audio.firePad(board.id, pad.id, "down");
-      setTimeout(() => sound.audio.firePad(board.id, pad.id, "up"), HOLD_MS);
+      outcome = pressHeld(board.id, pad.id);
     } else {
       outcome = sound.audio.firePad(board.id, pad.id);
     }
