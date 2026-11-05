@@ -221,6 +221,12 @@ export function PlaylistsScreen(_props: ScreenProps) {
                   ))}
                 </ul>
               </>
+            ) : data.ready && playlists.length === 0 ? (
+              // w3-ux 9: a first-time user learns what a playlist is and how to make one.
+              <div className="empty">
+                <b>No playlists yet.</b> A playlist is music, ambience or effects that play together, in your order or picked by their tags. Start with{" "}
+                <b>New playlist</b>, or tick tracks in the Library and choose <b>New playlist from these</b>.
+              </div>
             ) : data.ready ? (
               <div className="empty">
                 No playlists match these filters.{" "}

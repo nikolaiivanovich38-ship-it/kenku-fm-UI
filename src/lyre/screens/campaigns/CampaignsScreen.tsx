@@ -38,11 +38,19 @@ function CampaignsList({ campaigns, creating, setCreating }: { campaigns: Campai
         </Button>
       </div>
       <div className="viewbody">
-        <div className="cp-grid">
-          {campaigns.map((c) => (
-            <CampaignCard key={c.id} campaign={c} />
-          ))}
-        </div>
+        {campaigns.length ? (
+          <div className="cp-grid">
+            {campaigns.map((c) => (
+              <CampaignCard key={c.id} campaign={c} />
+            ))}
+          </div>
+        ) : (
+          // w3-ux 9: a first-time user learns what a campaign is and what to do first.
+          <div className="empty">
+            <b>No campaigns yet.</b> A campaign holds your sessions, the scenes in each, and the music, ambience and pad boards you use in them. Start
+            with <b>New campaign</b>.
+          </div>
+        )}
       </div>
       {creating && <NewCampaignSheet onClose={() => setCreating(false)} />}
     </>

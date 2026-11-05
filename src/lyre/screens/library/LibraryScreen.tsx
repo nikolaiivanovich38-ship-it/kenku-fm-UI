@@ -369,7 +369,10 @@ export function LibraryScreen({ route }: ScreenProps) {
         </button>
       </>
     ) : (
-      "No tracks yet. Use Add tracks, or drop files here."
+      // w3-ux 9: a first-time user learns what to do first.
+      <>
+        <b>Your library is empty.</b> Add music, ambience and sound effects with <b>Add tracks</b>, or drop audio files or a folder here.
+      </>
     );
 
   const tracksPane = (strip = false) => (

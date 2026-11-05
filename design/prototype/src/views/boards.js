@@ -180,7 +180,7 @@
         filtSeg() + '<label class="pb-camp"><span>Campaign</span><select class="input" data-input="pbcamp" data-k="pbcamp">' +
         '<option value="all">All campaigns</option>' + D.campaigns.map(function (c) { return '<option value="' + c.id + '"' + (bf.cid === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>'; }).join('') + '</select></label></div>' +
         (list.length ? '<ul class="pb-cards" aria-label="Pad boards">' + list.map(card).join('') + '</ul>'
-          : all ? '<div class="empty">No pad boards match. <button class="btn s" data-act="pbclear" data-k="pbclear">Show all boards</button></div>' : '<p class="empty">No pad boards yet. Make one with New board.</p>') + '</div>';
+          : all ? '<div class="empty">No pad boards match. <button class="btn s" data-act="pbclear" data-k="pbclear">Show all boards</button></div>' : '<p class="empty"><b>No pad boards yet.</b> A pad board is a grid of buttons for sound effects you play during a game, each with its own key. Start with <b>New board</b>.</p>') + '</div>';
     },
     after: function (root) { if (ui.pendingFocus) { var n = root.querySelector('[data-k="' + ui.pendingFocus + '"]'); ui.pendingFocus = null; if (n) n.focus(); } }
   });

@@ -133,7 +133,10 @@ export function BoardsScreen(_props: ScreenProps) {
             </Button>
           </div>
         ) : (
-          <p className="empty">No pad boards yet. Make one with New board.</p>
+          <p className="empty">
+            <b>No pad boards yet.</b> A pad board is a grid of buttons for sound effects you play during a game, each with its own key. Start with{" "}
+            <b>New board</b>.
+          </p>
         )}
       </div>
       <NewBoardDialog open={newBoard} onClose={() => setNewBoard(false)} />
