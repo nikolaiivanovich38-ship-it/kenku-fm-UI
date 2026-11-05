@@ -80,6 +80,10 @@ export const ICONS = {
   music: "M9 18V5l11-2v13M9 18a3 3 0 1 1-3-3 3 3 0 0 1 3 3zM20 16a3 3 0 1 1-3-3 3 3 0 0 1 3 3z",
   ambience: "M3 8h11a3 3 0 1 0-3-3M3 12h15a3 3 0 1 1-3 3M3 16h8",
   sfx: "M13 2 4 14h7l-1 8 9-12h-7z",
+  // Round 5 (views/transfer.js): Save to a file, Open a file, and a refused file.
+  download: "M12 4v12M7 11l5 5 5-5M4 16v4h16v-4",
+  upload: "M12 16V4M7 9l5-5 5 5M4 16v4h16v-4",
+  warn: "M12 3 2 20h20zM12 10v4M12 17h.01",
 } as const;
 
 export type IconName = keyof typeof ICONS;

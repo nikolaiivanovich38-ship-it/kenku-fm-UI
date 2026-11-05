@@ -5,11 +5,11 @@ import { ICON_NAMES, Icon, LyreLogo } from "./Icon";
 
 describe("the icon set (from the prototype's core.js)", () => {
   it("has every icon the prototype draws", () => {
-    for (const name of ["play", "stop", "pause", "broadcast", "crown", "library", "playlist", "grid", "users", "palette", "chevdown", "expand", "shrink", "headphones", "close", "more", "search", "fade", "check"]) {
+    for (const name of ["play", "stop", "pause", "broadcast", "crown", "library", "playlist", "grid", "users", "palette", "chevdown", "expand", "shrink", "headphones", "close", "more", "search", "fade", "check", "download", "upload", "warn"]) {
       expect(ICON_NAMES).toContain(name);
     }
-    // All 77 of the prototype's icons (core.js), nothing more.
-    expect(ICON_NAMES).toHaveLength(77);
+    // The prototype's round 4 icons (core.js), and round 5's download, upload and warn (views/transfer.js).
+    expect(ICON_NAMES).toHaveLength(80);
   });
 
   it("is decoration only: hidden from screen readers, sized by class", () => {
