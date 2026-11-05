@@ -9,7 +9,7 @@ import { EMPTY_NOW_PLAYING, FakeLyreAudio } from "../audio/testing/fakeLyreAudio
 import { AnnouncerProvider } from "./Announcer";
 import { OnAirBar } from "./OnAirBar";
 
-const music = { trackId: "m1", title: "Tavern", origin: "single" as never, playlistId: null, position: 1, length: 20, paused: false, loading: false };
+const music = { trackId: "m1", title: "Tavern", origin: "single" as never, playlistId: null as string | null, position: 1, length: 20, paused: false, loading: false };
 
 function show() {
   const audio = new FakeLyreAudio();

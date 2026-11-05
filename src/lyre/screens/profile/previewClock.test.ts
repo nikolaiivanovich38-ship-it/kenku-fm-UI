@@ -149,7 +149,7 @@ describe("the clock following the real preview (its position from the audio host
 
 describe("the first position after the sound starts (review w3-polish 2)", () => {
   const short = { ...LOOP, end: 10, loopStart: 3, loopXfade: 0 };
-  const w = { prof: short, dur: 20, next: () => null };
+  const w = { prof: short, dur: 20, next: (): null => null };
   const ranAhead = (prof: Prof) => {
     let s = playClock({ ...initialClock(prof), pos: 5 }, "play", { ...w, prof }).state;
     for (let i = 0; i < 48; i++) s = advance(s, 1 / 60, { ...w, prof }).state; // 0.8 s of frames while the file loads
