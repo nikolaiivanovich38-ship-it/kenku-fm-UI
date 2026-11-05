@@ -212,13 +212,14 @@ function OpenPane() {
   const paneRef = useRef<HTMLDivElement>(null);
 
   const opened = async (source: { from: "choose-file" } | { from: "path"; path: string }) => {
+    const from = document.activeElement;
     setBusy(true);
     try {
       const result = await api.transfer.open(source);
       if (isRefused(result)) {
         setOpen({ state: "refused", reason: result.refusal.message });
         say(result.refusal.message);
-        focusSoon(paneRef, "tf-choose");
+        focusSoon(paneRef, "tf-choose", from);
         return;
       }
       const file = result.value;
@@ -228,7 +229,7 @@ function OpenPane() {
       setOpen({ state: "preview", file, choices });
       const dupes = file.items.filter((i) => i.status === "duplicate").length;
       say(`Opened ${file.fileName}: ${plural(file.items.length, "kind of thing", "kinds of thing")} in it.${dupes ? " Choose what to do with the ones you have already." : ""}`);
-      focusSoon(paneRef, "tf-bring");
+      focusSoon(paneRef, "tf-bring", from);
     } finally {
       setBusy(false);
     }
@@ -236,26 +237,28 @@ function OpenPane() {
 
   const bring = async () => {
     if (open.state !== "preview" || busy) return;
+    const from = document.activeElement;
     setBusy(true);
     try {
       const result = await api.transfer.bringIn(open.file.id, { each: open.choices });
       if (isRefused(result)) {
         setOpen({ state: "refused", reason: result.refusal.message });
         say(result.refusal.message);
-        focusSoon(paneRef, "tf-choose");
+        focusSoon(paneRef, "tf-choose", from);
         return;
       }
       setOpen({ state: "done", report: result.value });
       say(result.value.summary);
-      focusSoon(paneRef, "tf-torelink");
+      focusSoon(paneRef, "tf-torelink", from);
     } finally {
       setBusy(false);
     }
   };
 
   const again = () => {
+    const from = document.activeElement;
     setOpen({ state: "ready" });
-    focusSoon(paneRef, "tf-choose");
+    focusSoon(paneRef, "tf-choose", from);
   };
 
   let body: React.ReactNode;

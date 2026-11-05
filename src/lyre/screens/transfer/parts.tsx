@@ -15,9 +15,15 @@ export function Crumbs() {
   );
 }
 
-/** Focuses the control marked data-focus=`key` inside `within` once React has drawn it. */
-export function focusSoon(within: React.RefObject<HTMLElement>, key: string): void {
+/**
+ * Focuses the control marked data-focus=`key` inside `within` once React has drawn it: the next step after an action
+ * (Bring in after opening, Relink after looking). Only while focus is still where the action started (`from`, the
+ * button pressed) or nowhere: a person who moved on meanwhile keeps their place.
+ */
+export function focusSoon(within: React.RefObject<HTMLElement>, key: string, from: Element | null = null): void {
   const tryFocus = (left: number) => {
+    const now = document.activeElement;
+    if (now && now !== document.body && now !== from) return;
     const el = within.current?.querySelector<HTMLElement>(`[data-focus="${key}"]`);
     if (el) el.focus();
     else if (left > 0) requestAnimationFrame(() => tryFocus(left - 1));

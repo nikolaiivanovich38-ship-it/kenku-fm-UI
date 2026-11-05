@@ -156,4 +156,19 @@ describe("Find missing files", () => {
     await user.click(screen.getByRole("button", { name: "Look there" }));
     await waitFor(() => expect(asked).toEqual(["folder"]));
   });
+
+  it("after Look there focus goes to Relink, unless the game master moved on meanwhile (the sweeps tab through)", async () => {
+    openAt("relink", { folderFiles: { "E:\\Music\\Scores": ["07 The Storm.flac"] } });
+    const user = userEvent.setup();
+    const look = await screen.findByRole("region", { name: "Look in a folder" });
+    await user.type(within(look).getByRole("textbox", { name: "Look in this folder (and the folders inside it)" }), "E:\\Music\\Scores");
+    await user.click(within(look).getByRole("button", { name: "Look there" }));
+    // Lyre ticked nothing (a match by name only), so the first file to tick has focus.
+    await waitFor(() => expect(within(look).getByRole("checkbox", { name: /^Relink Storm/ })).toHaveFocus());
+    // Again, but the game master moves to the folder box before Lyre answers: focus stays there.
+    await user.click(within(look).getByRole("button", { name: "Look there" }));
+    within(look).getByRole("textbox", { name: "Look in this folder (and the folders inside it)" }).focus();
+    await new Promise((r) => setTimeout(r, 100));
+    expect(within(look).getByRole("textbox", { name: "Look in this folder (and the folders inside it)" })).toHaveFocus();
+  });
 });

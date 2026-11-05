@@ -59,6 +59,7 @@ export function RelinkScreen() {
 
   const look = async (source: { from: "choose-folder" } | { from: "path"; path: string }) => {
     if (busy) return;
+    const from = document.activeElement;
     setBusy(true);
     try {
       const result = await api.import.planRelink(source);
@@ -76,7 +77,8 @@ export function RelinkScreen() {
       setDone(null);
       const found = rows.filter((r) => r.at || r.candidates.length).length;
       say(`Found ${found} of ${rows.length} in ${p.folder}. Check the table, then Relink.`);
-      focusSoon(bodyRef, "tf-relink");
+      // The next step: Relink, or the first file to tick when Lyre ticked none.
+      focusSoon(bodyRef, "tf-relink", from);
     } finally {
       setBusy(false);
     }
@@ -222,7 +224,7 @@ export function RelinkScreen() {
                             <tr key={r.trackId}>
                               <td>
                                 {can && (
-                                  <input type="checkbox" aria-label={`Relink ${r.title}`} checked={!!ticked[r.trackId]} onChange={(e) => setTicked({ ...ticked, [r.trackId]: e.target.checked })} />
+                                  <input type="checkbox" aria-label={`Relink ${r.title}`} data-focus={!relinking.length && r === plan.rows.find((x) => x.at || x.candidates.length) ? "tf-relink" : undefined} checked={!!ticked[r.trackId]} onChange={(e) => setTicked({ ...ticked, [r.trackId]: e.target.checked })} />
                                 )}
                               </td>
                               <td className="tf-cell" title={r.title}>
@@ -260,7 +262,7 @@ export function RelinkScreen() {
                       </tbody>
                     </table>
                     <div className="tf-actrow">
-                      <Button variant="primary" icon="link" onClick={() => void relink()} disabled={!relinking.length || busy} data-focus="tf-relink">
+                      <Button variant="primary" icon="link" onClick={() => void relink()} disabled={!relinking.length || busy} data-focus={relinking.length ? "tf-relink" : undefined}>
                         Relink {plural(relinking.length, "file")}
                       </Button>
                       {notFound > 0 && <span className="hint">{plural(notFound, "file")} not found there: try another folder after.</span>}
