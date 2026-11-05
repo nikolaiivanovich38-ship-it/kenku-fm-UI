@@ -32,6 +32,7 @@ import { TracksTable } from "./TracksTable";
 import { useTrackList } from "./trackStore";
 import { SORTS, type SortKey } from "./model";
 import { SearchField } from "../../kit/Fields";
+import { LibraryMoreMenu } from "../transfer/LibraryMoreMenu";
 import "./library.css";
 
 type Picker = { kind: "bulk" } | { kind: "one"; id: string };
@@ -564,6 +565,7 @@ export function LibraryScreen({ route }: ScreenProps) {
           Add tracks
           <Icon name="chevdown" size="s" />
         </PopMenuButton>
+        <LibraryMoreMenu />
       </div>
       <div className="viewbody fill lb-body">{body}</div>
       {tagging && (

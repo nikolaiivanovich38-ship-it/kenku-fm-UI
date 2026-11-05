@@ -20,7 +20,7 @@ import { trustedContents } from "../security/trustedContents";
 import { LyreLibraryService, type LibraryChild } from "./libraryService";
 import { LYRE_API_EVENT } from "./lyreIpc";
 import { noConverter } from "./noConverter";
-import { SAMPLE_SHARED_FILE } from "./sampleComputer";
+import { SAMPLE_RELINK_FOLDER, SAMPLE_SHARED_FILE } from "./sampleComputer";
 import { standInForMissingFiles, writeStandInTone } from "./seedAudio";
 import { wantsSeededLibrary, wireLyreLibrary, type CallingPage, type WiredLibrary } from "./wiring";
 
@@ -101,6 +101,8 @@ export function startLyreLibrary(): StartedLibrary {
         return answer.canceled ? null : answer.filePaths;
       },
       chooseFolder: async () => {
+        // Test builds of the sample library: the folder the prototype's Find missing files looks in.
+        if (seed) return SAMPLE_RELINK_FOLDER;
         const window = parentWindow();
         const options: Electron.OpenDialogOptions = { title: "Choose a folder", properties: ["openDirectory"] };
         const answer = window ? await dialog.showOpenDialog(window, options) : await dialog.showOpenDialog(options);

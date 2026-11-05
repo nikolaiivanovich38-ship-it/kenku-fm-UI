@@ -8,6 +8,9 @@ import { LookScreen } from "./look/LookScreen";
 import { ComingScreen } from "./Placeholder";
 import { CampaignScreen, CampaignsScreen, SessionScreen } from "./campaigns";
 import { ProfileScreen } from "./profile/ProfileScreen";
+import { BackupScreen } from "./transfer/BackupScreen";
+import { MovedScreen } from "./transfer/MovedScreen";
+import { RelinkScreen } from "./transfer/RelinkScreen";
 
 /** What every screen gets: the route it was opened at (its ids are in route.params). */
 export interface ScreenProps {
@@ -47,4 +50,8 @@ export const SCREENS: Record<RouteName, ScreenComponent> = {
   live: comingLater("Live"),
   outputs: comingLater("Outputs"),
   look: LookScreen,
+  // Round 5: Back up, move or share; What came across from Kenku FM; Find missing files (w4-transfer).
+  backup: BackupScreen,
+  moved: MovedScreen,
+  relink: RelinkScreen,
 };
