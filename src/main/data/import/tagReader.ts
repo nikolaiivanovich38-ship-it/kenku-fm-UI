@@ -98,13 +98,14 @@ export type MusicMetadataResult = {
   format: { duration?: number };
 };
 
-export type ParseFile = (filePath: string, options: { skipCovers: boolean }) => Promise<MusicMetadataResult>;
+export type ParseFile = (filePath: string, options: { skipCovers: boolean; duration: boolean }) => Promise<MusicMetadataResult>;
 
 /** The real reader, given music-metadata's `parseFile`. */
 export function createMusicMetadataTagReader(parseFile: ParseFile): TagReader {
   return {
     async read(filePath) {
-      const { common, format } = await parseFile(filePath, { skipCovers: true });
+      // duration: work the length out when no header gives it (Ogg Vorbis, MP3 without a Xing header: UX review 7).
+      const { common, format } = await parseFile(filePath, { skipCovers: true, duration: true });
       const comments = (common.comment ?? [])
         .map((comment) => (typeof comment === "string" ? comment : comment.text ?? ""))
         .filter((text) => text.trim() !== "");

@@ -3,10 +3,12 @@
  * createMusicMetadataTagReader; most tests feed it the shape that library returns, and the last ones run the library
  * itself on real files, loaded the way the library's process loads it.
  */
+import { execFileSync } from "child_process";
 import fs from "fs";
 import os from "os";
 import path from "path";
 import { afterAll, describe, expect, it } from "vitest";
+import { findBundledFfmpeg } from "../../media/bundledFfmpeg";
 import { wavBytes, writeFile } from "../../media/testing/wavFiles";
 import { musicMetadataTagReader } from "./musicMetadata";
 import { cleanTags, cleanText, createMusicMetadataTagReader, titleFromFileName, type MusicMetadataResult } from "./tagReader";
@@ -90,14 +92,14 @@ describe("createMusicMetadataTagReader", () => {
     expect(await reader.read("/m/x.mp3")).toMatchObject({ artist: "Various", title: null, comment: "first\nsecond", durationMs: null });
   });
 
-  it("asks the library to skip pictures (covers are large and not needed)", async () => {
+  it("asks the library to skip pictures (covers are large and not needed) and to work out the length when no header gives it (UX review 7)", async () => {
     const calls: unknown[] = [];
     const reader = createMusicMetadataTagReader(async (file, options) => {
       calls.push([file, options]);
       return result({});
     });
     await reader.read("/m/x.flac");
-    expect(calls).toEqual([["/m/x.flac", { skipCovers: true }]]);
+    expect(calls).toEqual([["/m/x.flac", { skipCovers: true, duration: true }]]);
   });
 });
 
@@ -124,6 +126,20 @@ describe("music-metadata itself (DAT-5)", () => {
     const file = writeFile(dir, "notes.wav", Buffer.from("not really audio"));
     const tags = await musicMetadataTagReader.read(file).catch(() => ({ title: null as string | null, durationMs: null as number | null }));
     expect(tags).toMatchObject({ title: null, durationMs: null });
+  });
+});
+
+describe("the length of an Ogg Vorbis file (UX review 7)", () => {
+  const ffmpeg = findBundledFfmpeg(process.cwd());
+  it.runIf(ffmpeg)("is read, though Ogg has no header naming it", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lyre-ogg-"));
+    try {
+      const file = path.join(dir, "rain.ogg");
+      execFileSync(ffmpeg as string, ["-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=440:duration=95", "-c:a", "libvorbis", file]);
+      expect(await musicMetadataTagReader.read(file)).toMatchObject({ durationMs: 95000 });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
