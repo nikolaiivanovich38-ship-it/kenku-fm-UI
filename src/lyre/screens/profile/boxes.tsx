@@ -90,7 +90,7 @@ export function ListenBox({ c }: C) {
             data-k="ap-play"
             aria-pressed={clock.playing}
             aria-keyshortcuts={keys1 ? "Space" : undefined}
-            title={`${clock.playing ? "Pause the preview" : "Preview from the playhead: only you hear it"}${keys1 ? " (Space)" : ""}`}
+            title={`${clock.playing ? "Pause the preview" : "Preview from the playhead, going round until you stop it: only you hear it"}${keys1 ? " (Space)" : ""}`}
             onClick={actions.togglePlay}
           >
             <Icon name={clock.playing ? "pause" : "headphones"} size="s" />
@@ -111,7 +111,8 @@ export function ListenBox({ c }: C) {
             <span className="ap-ro-l">Time to End</span>
             <span className="ap-toend num">{clock.pos > p.end + 0.05 ? "past End" : fmt1(p.end - clock.pos)}</span>
           </div>
-          {p.after === "loop" && (
+          {/* BUG-17: Play goes round from Start to End for any track, so a track that does not loop counts its passes too. */}
+          {(p.after === "loop" || clock.loops > 0) && (
             <div className="ap-ro">
               <span className="ap-ro-l">Looped</span>
               <span className="ap-loops num">{clock.loops ? times(clock.loops) : "not yet"}</span>

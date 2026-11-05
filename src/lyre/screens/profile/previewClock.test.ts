@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Prof } from "./profileModel";
-import { advance, finishClock, follow, initialClock, pauseClock, playClock, seekClock, stopClock, type ClockWorld } from "./previewClock";
+import { advance, finishClock, follow, heardProfile, initialClock, pauseClock, playClock, seekClock, stopClock, type ClockWorld } from "./previewClock";
 
 const LOOP: Prof = {
   start: 0,
@@ -50,11 +50,25 @@ describe("the preview clock", () => {
     expect(said).toEqual(["Crossfaded over 2 s back to 1:04"]);
   });
 
-  it("after a loop in the last 10 s, stops by itself 5 seconds later", () => {
+  it("after a loop in the last 10 s, goes round again until stopped, counting every pass (BUG-17)", () => {
     const start = playClock(initialClock(LOOP), "last10", world(LOOP));
-    const { state, said } = run(start.state, world(LOOP), 16);
-    expect(state.playing).toBe(false);
-    expect(said).toContain("Preview stopped after the loop");
+    const { state, said } = run(start.state, world(LOOP), 10 + 254 * 2 + 1);
+    expect(state.playing).toBe(true);
+    expect(state.loops).toBe(3);
+    expect(said).toEqual(["Crossfaded over 2 s back to 1:04", "Crossfaded over 2 s back to 1:04 (twice)", "Crossfaded over 2 s back to 1:04 (3 times)"]);
+  });
+
+  it("Play goes round from Start to End for a track that stops or moves on; the last 10 s play what the players hear (BUG-17)", () => {
+    for (const after of ["stop", "next"] as const) {
+      const prof = { ...LOOP, start: 10, end: 40, after };
+      const heard = heardProfile(prof, "play");
+      expect(heard).toMatchObject({ after: "loop", loopStart: 10, loopXfade: 0, start: 10, end: 40 });
+      expect(heardProfile(prof, "last10")).toBe(prof);
+      const { state, said } = run(playClock(initialClock(prof), "play", world(heard)).state, world(heard), 61);
+      expect(state).toMatchObject({ playing: true, loops: 2 });
+      expect(said).toEqual(["Looped back to 0:10", "Looped back to 0:10 (twice)"]);
+    }
+    expect(heardProfile(LOOP, "play")).toBe(LOOP);
   });
 
   it("moves on to the next track and stops a few seconds into it", () => {

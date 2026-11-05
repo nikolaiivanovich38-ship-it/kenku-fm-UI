@@ -306,6 +306,53 @@ describe("the preview's sound follows the profile shown", () => {
     expect(wave).toHaveTextContent(/Position\s*1:04\.4/);
   });
 
+  it("Play loops from Start to End for a track that does not loop, until stopped; the clock follows every pass (BUG-17)", async () => {
+    // In the scene "The abbey ruins", t13 ends at 3:10 and moves on.
+    const { audio, user } = await open("profile/t13/sc:crown:s14:sc3");
+    const wave = region("Waveform and listening");
+    await user.click(within(wave).getByRole("button", { name: "Play" }));
+    const [, , options] = previews(audio)[0] as [string, string, { startAtMs: number; profile: { startMs: number; endMs: number; after: string; loopStartMs: number; loopCrossfadeMs: number } }];
+    expect(options.profile).toMatchObject({ startMs: 0, endMs: 190_000, after: "loop", loopStartMs: 0, loopCrossfadeMs: 0 });
+    act(() => audio.setNowPlaying({ preview: { key: "t13", label: "Eerie dread" } }));
+    for (const [pass, words] of [
+      [1, "once"],
+      [2, "twice"],
+      [3, "3 times"],
+    ] as const) {
+      position(audio, 0.2);
+      position(audio, 95);
+      expect(wave).toHaveTextContent(/Position\s*1:35\.0/);
+      position(audio, 189.9);
+      expect(wave).toHaveTextContent(/Position\s*3:09\.9/);
+      // Back to Start: one more pass.
+      position(audio, 0.1);
+      expect(wave, `pass ${pass}`).toHaveTextContent(new RegExp(`Looped\\s*${words}`));
+      expect(wave).toHaveTextContent(/Position\s*0:00\.1/);
+    }
+    expect(within(wave).getByRole("button", { name: "Pause" })).toBeInTheDocument();
+    expect(previews(audio)).toHaveLength(1);
+    expect(audio.calls.filter(([m]) => m === "stopPreview")).toHaveLength(0);
+  });
+
+  it("a looping track's last 10 s keep looping until stopped, the clock following every pass (BUG-17)", async () => {
+    const { audio, user } = await open();
+    const wave = region("Waveform and listening");
+    await user.click(screen.getByRole("button", { name: "Play the last 10 s before End" }));
+    act(() => audio.setNowPlaying({ preview: { key: "t13", label: "Eerie dread" } }));
+    position(audio, 312.5);
+    position(audio, 317.9);
+    position(audio, 64.4);
+    expect(wave).toHaveTextContent(/Looped\s*once/);
+    for (const at of [70, 120, 200, 317.9]) position(audio, at);
+    expect(wave).toHaveTextContent(/Position\s*5:17\.9/);
+    position(audio, 64.2);
+    expect(wave).toHaveTextContent(/Looped\s*twice/);
+    expect(wave).toHaveTextContent(/Position\s*1:04\.2/);
+    expect(audio.calls.filter(([m]) => m === "stopPreview")).toHaveLength(0);
+    await user.click(within(wave).getByRole("button", { name: "Stop the preview" }));
+    expect(audio.calls[audio.calls.length - 1]).toEqual(["stopPreview"]);
+  });
+
   it("while the file loads the clock may run ahead; the first position puts it back without counting a loop (review 2)", async () => {
     const { audio, user } = await open();
     await user.click(screen.getByRole("button", { name: "Play the last 10 s before End" }));

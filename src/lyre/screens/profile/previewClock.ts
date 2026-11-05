@@ -7,6 +7,10 @@
  * `finishClock` when the sound ends by itself). Until the first position arrives (or with no sound at all, as in
  * tests) the clock runs on its own (`advance`, on animation frames). Each step returns the new state and, when
  * something happened, a sentence for the screen reader's live region.
+ *
+ * BUG-17: Play loops until it is stopped: the loop when the track has one, else Start to End (`heardProfile`). "The
+ * last 10 s before End" plays what the players hear after End: a loop goes round until stopped; moving on and
+ * stopping are heard once.
  */
 import { clamp, fmt, secs, times, type Prof } from "./profileModel";
 
@@ -50,8 +54,6 @@ export interface ClockStep {
   say?: string;
 }
 
-/** After a loop in "the last 10 s", the preview goes on this long, then stops. */
-const AFTER_LOOP_SECONDS = 5;
 /** The sound going back by more than this is a loop (positions arrive about every 50 ms). */
 const LOOP_JUMP_SECONDS = 0.5;
 /** Following a looping sound, the playhead stays this short of End until the sound goes back. */
@@ -60,6 +62,15 @@ const BEFORE_END_SECONDS = 0.001;
 /** What the live region says when the preview loops back. */
 function loopText(p: Prof, loops: number): string {
   return `${p.loopXfade ? `Crossfaded over ${secs(p.loopXfade)} back to ` : "Looped back to "}${fmt(p.loopStart)}${loops > 1 ? ` (${times(loops)})` : ""}`;
+}
+
+/**
+ * The profile the preview plays in a mode. Play goes round until stopped: a track that loops keeps its loop; any other
+ * loops from Start to End, without a crossfade. The last 10 s play the profile as the players hear it.
+ */
+export function heardProfile(prof: Prof, mode: ClockMode): Prof {
+  if (mode === "last10" || prof.after === "loop") return prof;
+  return { ...prof, after: "loop", loopStart: prof.start, loopXfade: 0 };
 }
 
 export function initialClock(prof: Prof): ClockState {
@@ -105,11 +116,6 @@ export function advance(s: ClockState, dt: number, w: ClockWorld): ClockStep {
       return { state: { ...s, handover, since, playing: false }, say: `Preview stopped ${Math.round(handover.limit)} seconds into the next track` };
     }
     return { state: { ...s, handover, since } };
-  }
-  if (s.event?.type === "loop" && s.mode === "last10") {
-    const since = s.since + dt;
-    if (since >= AFTER_LOOP_SECONDS) return { state: { ...s, since, pos: s.pos + dt, playing: false }, say: "Preview stopped after the loop" };
-    s = { ...s, since };
   }
   const before = s.pos;
   const pos = s.pos + dt;

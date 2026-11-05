@@ -14,7 +14,7 @@ import { useTrackPeaks } from "../../api";
 import { useAnnounce } from "../../shell/Announcer";
 import { useUndoNote } from "../../shell/UndoNote";
 import { nextContexts, placeName, sceneOf, type NextContext } from "./places";
-import { advance, finishClock, follow, initialClock, pauseClock, playClock, seekClock, stopClock, type ClockState, type ClockWorld } from "./previewClock";
+import { advance, finishClock, follow, heardProfile, initialClock, pauseClock, playClock, seekClock, stopClock, type ClockMode, type ClockState, type ClockWorld } from "./previewClock";
 import {
   addMarker,
   fmt,
@@ -99,7 +99,8 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
   );
 
   const world: ClockWorld = {
-    prof: p,
+    // What the preview plays: Play goes round until stopped (BUG-17).
+    prof: heardProfile(p, clock.mode),
     dur,
     next: () => {
       const n = ctx && view.track(ctx.next);
@@ -124,9 +125,9 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
   // False when the audio host refused (the track is gone, the library is down): it has said why (a toast), and a
   // clock that was playing stops where it is, so the screen never shows a preview nobody hears.
   const startSound = useCallback(
-    (from: number, id = track.id, profile: Prof | null = p): boolean => {
+    (from: number, id = track.id, profile: Prof | null = p, mode: ClockMode = clockRef.current.mode): boolean => {
       // Past End the players never hear it, so it plays the plain file there (to the end of the file).
-      const shaped = profile && from < profile.end ? toInput(profile) : undefined;
+      const shaped = profile && from < profile.end ? toInput(heardProfile(profile, mode)) : undefined;
       const outcome = audio.previewTrack(id, { startAtMs: Math.round(from * 1000), profile: shaped, quiet: true });
       sounding.current = outcome.ok ? id : null;
       setFollowing(false);
@@ -277,13 +278,13 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
       }
       const from = s.handover ? { ...s, handover: null, pos: p.end } : s;
       const step = playClock(from, "play", world);
-      if (!startSound(step.state.pos)) return;
+      if (!startSound(step.state.pos, track.id, p, "play")) return;
       setClock(step.state);
       if (step.say) say(step.say);
     },
     playLast10() {
       const step = playClock(clockRef.current, "last10", world);
-      if (!startSound(step.state.pos)) return;
+      if (!startSound(step.state.pos, track.id, p, "last10")) return;
       setClock(step.state);
       if (step.say) say(step.say);
     },
