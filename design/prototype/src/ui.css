@@ -219,11 +219,49 @@ table.grid tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 v
 .pk-row > .pk-item { flex: 1; border-bottom: 0; }
 .pk-row > .pk-item.indent { padding-left: 32px; }
 
-/* On-air bar outside Live */
-.onairbar { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 4px 10px; border-top: 2px solid var(--onair); background: var(--surface-2); flex: none; min-width: 0; }
-.onairbar .oab-items { display: flex; gap: 12px; flex: 1; min-width: 0; overflow: hidden; font-size: var(--fs-s); }
-.onairbar .oab-item { display: flex; align-items: center; gap: 5px; min-width: 0; max-width: 45%; }
-.onairbar a.btn { text-decoration: none; }
+/* UX-16 the On air bar: the same bar at the bottom of every screen (Live included) while music plays or is paused. */
+.onairbar { display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 4px 10px; border-top: 2px solid var(--onair); background: var(--surface-2); flex: none; min-width: 0; container-type: inline-size; container-name: oab; }
+.onairbar.paused { border-top-color: var(--line-strong); }
+.onairbar.paused .badge.onair { background: transparent; color: var(--ink-2); border-color: var(--line-strong); }
+.onairbar a.btn { text-decoration: none; flex: none; }
+.oab-now { flex: 1 1 160px; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.oab-title { font-weight: 700; font-size: var(--fs-s); display: flex; align-items: center; gap: 5px; min-width: 0; }
+.oab-title .lane-dot { flex: none; }
+.oab-from { font-size: var(--fs-xs); color: var(--ink-2); }
+.oab-time { flex: 0 1 150px; min-width: 70px; display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--ink-2); }
+.oab-time .progress { flex: 1; min-width: 30px; }
+.oab-ctl { display: flex; align-items: center; gap: 4px; flex: none; }
+.oab-vol { display: flex; align-items: center; gap: 4px; flex: 0 1 110px; min-width: 64px; color: var(--ink-2); }
+.oab-vol input { width: 100%; min-width: 0; }
+@container oab (max-width: 760px) { .oab-time { display: none; } }
+@container oab (max-width: 560px) { .oab-vol { display: none; } .onairbar > .badge { display: none; } }
+
+/* PLY-13 play order: one small button showing shuffle (or in order) and repeat (all, one, or struck through for none). */
+.btn.s.ord { padding: 0 4px; gap: 1px; flex: none; position: relative; }
+.btn.s.ord svg.i { width: 14px; height: 14px; }
+.btn.s.ord .ord-rep.off { opacity: .35; }
+.btn.s.ord.own { border-color: var(--accent); }
+.ord-dot { position: absolute; top: 2px; right: 2px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+.menu .ord-note { max-width: 280px; white-space: normal; font-size: var(--fs-xs); }
+
+/* DAT-13 track shape: a small line drawing of how the track moves, beside its word. */
+.shape-g { width: 22px; height: 11px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.shape-tag { position: relative; display: inline-flex; align-items: center; gap: 4px; color: var(--ink-2); font-size: var(--fs-xs); flex: none; white-space: nowrap; }
+button .shape-g { color: inherit; }
+
+/* ORG-11 tags where music is chosen: compact, each with its tag group's dot; "+n" for the rest. */
+.tagstrip { position: relative; display: inline-flex; align-items: center; gap: 3px; flex: 0 1 auto; min-width: 0; overflow: hidden; }
+.tagstrip .chip { height: 18px; padding: 0 6px; font-size: var(--fs-xs); flex: none; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tagstrip .chip.ts-more { color: var(--ink-2); }
+.tagstrip .shape-tag { margin-right: 2px; }
+@container app (max-width: 820px) { .tagstrip .chip:nth-of-type(n+2):not(.ts-more) { display: none; } }
+
+/* ORG-10 single tracks inside an open playlist in a picker. */
+.pk-inside { padding-left: 40px; }
+.pk-inside-h { margin: 2px 0 4px; }
+.pk-inrow { border-bottom: 1px dashed var(--line); }
+.pk-inrow:last-child { border-bottom: 0; }
+.pk-inrow .pk-item { min-height: 28px; }
 /* w3-ux 10: what a large change did, with Undo (and Ctrl+Z), like the board's resize message; above the on-air bar. */
 .undo-note { display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 8px; margin: 4px 8px; border: 1px solid var(--line-strong); border-left: 3px solid var(--accent); border-radius: var(--r-m); background: var(--surface-2); font-size: var(--fs-s); flex: none; min-width: 0; }
 .undo-note > svg { color: var(--accent-text); flex: none; }

@@ -15,6 +15,21 @@ export type Lane = TrackKind;
 export const TRACK_ROLES = ["loop_bed", "underscore", "sting", "transition", "effect"] as const;
 export type TrackRole = (typeof TRACK_ROLES)[number];
 
+/**
+ * DAT-13: how a track moves over time, as a short fixed list. Lyre suggests one from the loudness (shapeFromPeaks);
+ * the game master's choice wins.
+ */
+export const TRACK_SHAPES = ["steady", "builds", "fallsAway", "peaksThenFalls", "risesAndFalls"] as const;
+export type TrackShape = (typeof TRACK_SHAPES)[number];
+/** The words shown for each shape (with a small glyph beside them on screen). */
+export const SHAPE_WORDS: Record<TrackShape, string> = {
+  steady: "Steady",
+  builds: "Builds",
+  fallsAway: "Falls away",
+  peaksThenFalls: "Peaks then falls",
+  risesAndFalls: "Rises and falls",
+};
+
 /** Whether a track loops by default when it has no audio profile of its own. */
 export type LoopAdvice = "yes" | "crossfade" | "no";
 
@@ -35,6 +50,10 @@ export interface DomainTrack {
   tags: Record<string, string[]>;
   /** The track's own audio profile; missing fields take the defaults (see resolveProfile). */
   profile?: AudioProfileInput | null;
+  /** DAT-13: the shape the game master chose, or null for none. */
+  shape?: TrackShape | null;
+  /** DAT-13: the shape Lyre suggests from the track's loudness (shapeFromPeaks), used while none is chosen. */
+  suggestedShape?: TrackShape | null;
 }
 
 /** One condition of a dynamic playlist. A condition with no values is ignored (it is still being written). */
@@ -50,6 +69,8 @@ export interface PlaylistRule {
   energy?: [number, number];
   /** Leave out tracks whose role is "sting". */
   leaveOutStings?: boolean;
+  /** DAT-13: only tracks of one of these shapes (the chosen shape, else the suggested one). Empty or missing: any. */
+  shapes?: TrackShape[];
 }
 
 export type DomainPlaylist = { id: string; name: string; lane: Lane } & (
@@ -77,6 +98,8 @@ export interface DomainSession {
   scenes: DomainScene[];
   playlistIds: string[];
   boardIds: string[];
+  /** ORG-12: single tracks kept on hand for the whole session (Use in… on a track). */
+  trackIds?: string[];
 }
 
 export interface DomainCampaign {
@@ -84,6 +107,8 @@ export interface DomainCampaign {
   playlistIds: string[];
   boardIds: string[];
   sessions: DomainSession[];
+  /** ORG-12: single tracks kept on hand for the whole campaign (Use in… on a track). */
+  trackIds?: string[];
 }
 
 /** A fade: its length and its intensity, 0 (gentle) to 100 (sharp); 36-64 is even (a straight line). */

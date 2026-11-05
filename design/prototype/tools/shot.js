@@ -2,7 +2,7 @@
 const { chromium } = require('playwright'); const path = require('path');
 (async () => {
   const [route, out, w, h, theme, act] = process.argv.slice(2);
-  const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: +(w || 960), height: +(h || 1000) } });
+  const b = await chromium.launch(process.env.LYRE_SPEC_CHROMIUM ? { executablePath: process.env.LYRE_SPEC_CHROMIUM } : {}); const p = await b.newPage({ viewport: { width: +(w || 960), height: +(h || 1000) } });
   const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
   await p.addInitScript(([t]) => { try { localStorage.setItem('lyre-r2', JSON.stringify({ theme: t || 'campaign', frame: 'full', notes: false })); } catch (e) {} }, [theme]);
   await p.goto('file://' + path.resolve(__dirname, '..', process.env.OUT || 'lyre-prototype.html') + route); await p.waitForTimeout(400);

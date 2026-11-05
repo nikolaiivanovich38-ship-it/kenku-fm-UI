@@ -77,23 +77,35 @@
   /* ---------- shared: assigned playlists and pad boards as compact rows ---------- */
   // scope 'c' (campaign) or 's' (session); kind 'pl' or 'bd'; readonly for the reminder on the session page.
   function moreBtn(k, label, data) { return '<button class="closer cp-more-btn" data-act="cprowmenu" ' + data + ' data-k="' + k + '" title="More for ' + label + '" aria-label="More for ' + label + '" aria-haspopup="menu" aria-expanded="false">' + L.icon('more') + '</button>'; }
-  function assigned(ids, kind, scope, readonly) {
-    if (!ids.length) return '<p class="cp-none">' + (kind === 'pl' ? 'No playlists yet.' : 'No pad boards yet.') + '</p>';
+  // The place key of a campaign ('cp:…') or session ('ss:…') list: its play order (PLY-13) and, for a session, its own
+  // audio settings (PLY-14) apply when a playlist or track is played from it.
+  function scopeKey(scope) { var x = ctx(); return scope === 'c' || scope === 'r' ? 'cp:' + x.c.id : 'ss:' + x.c.id + ':' + x.s.id; }
+  // tracks (ORG-12): single tracks kept on hand here, listed after the playlists.
+  function assigned(ids, kind, scope, readonly, tracks) {
+    tracks = (tracks || []).filter(function (id) { return L.track(id); });
+    if (!ids.length && !tracks.length) return '<p class="cp-none">' + (kind === 'pl' ? 'No playlists yet.' : 'No pad boards yet.') + '</p>';
+    var key = scopeKey(scope);
     return '<ul class="list cp-alist">' + ids.map(function (id) {
       var it = info(id, kind === 'bd'); if (!it) return ''; var o = it.obj, xk = 'cp-' + scope + ':' + id, nm = esc(o.name);
       var sub = kind === 'pl' ? plSub(o) : it.label + ' · ' + it.sub;
       return '<li class="cp-arow-wrap"><div class="cp-arow">' + xpBtn(it, xk) + '<span class="lane-dot ' + it.cls + '" aria-hidden="true"></span>' +
         '<a class="ellipsis grow cp-aname" href="' + it.href + '" data-k="open-' + scope + kind + id + '" title="' + esc(o.name + ' · ' + sub) + '">' + nm + '</a>' +
-        L.previewButton(it.kind, id) + (kind === 'pl' ? L.playOnAirButton('playlist', id) : '') +
-        (readonly ? '' : moreBtn('more-' + scope + kind + id, nm, 'data-menu="assigned" data-scope="' + scope + '" data-kind="' + kind + '" data-id="' + id + '"')) + '</div>' + xpBody(it, xk) + '</li>';
+        L.previewButton(it.kind, id) + (kind === 'pl' ? L.playOnAirButton('playlist', id, key) + L.orderButton(id, key) : '') +
+        (readonly ? '' : moreBtn('more-' + scope + kind + id, nm, 'data-menu="assigned" data-scope="' + scope + '" data-kind="' + kind + '" data-id="' + id + '"')) + '</div>' + xpBody(it, xk, scope === 's' ? key : '') + '</li>';
+    }).join('') + tracks.map(function (id) {
+      var it = info(id), t = it.obj, nm = esc(it.name);
+      return '<li class="cp-arow-wrap"><div class="cp-arow"><span class="cp-xpgap" aria-hidden="true"></span><span class="lane-dot ' + it.cls + '" aria-hidden="true"></span>' +
+        '<span class="cp-it-main"><a class="ellipsis grow cp-aname" href="' + it.href + '" data-k="open-' + scope + 'tr' + id + '" title="' + esc(it.name + ' · ' + it.label + ' · ' + it.sub) + '">' + nm + '<span class="sr-only"> (single track)</span></a><span class="cp-it-sub"><span class="faint">Single track</span>' + L.tagStrip(t, 2) + '</span></span>' +
+        L.previewButton('track', id) + L.playOnAirButton('track', id, key) +
+        (readonly ? '' : moreBtn('more-' + scope + 'tr' + id, nm, 'data-menu="assigned" data-scope="' + scope + '" data-kind="tr" data-id="' + id + '"')) + '</div></li>';
     }).join('') + '</ul>';
   }
   function assignedPane(o) {
-    var kindWord = o.kind === 'pl' ? 'playlists' : 'pad boards';
+    var kindWord = o.kind === 'pl' ? 'playlists' : 'pad boards', n = o.ids.length + (o.tracks || []).length;
     return L.pane({ id: o.id, title: o.title, icon: o.kind === 'pl' ? 'playlist' : 'grid', size: 'auto', kind: o.kind === 'pl' ? 'music' : 'fx',
-      status: o.ids.length ? { text: String(o.ids.length), tone: 'idle' } : { text: 'Empty', tone: 'idle' },
+      status: n ? { text: String(n), tone: 'idle' } : { text: 'Empty', tone: 'idle' },
       actions: '<button class="btn s icon" data-act="cpadd" data-scope="' + o.scope + '" data-kind="' + o.kind + '" data-k="add-' + o.scope + o.kind + '" aria-label="Add ' + kindWord + '…" title="Add ' + kindWord + ' from your library">' + L.icon('plus', 's') + '</button>',
-      body: '<p class="hint cp-why">' + o.why + ' New ones: <a href="' + (o.kind === 'pl' ? '#/playlists' : '#/boards') + '" data-k="mk-' + o.scope + o.kind + '">' + (o.kind === 'pl' ? 'Playlists' : 'Pad boards') + '</a>.</p>' + assigned(o.ids, o.kind, o.scope) });
+      body: '<p class="hint cp-why">' + o.why + ' New ones: <a href="' + (o.kind === 'pl' ? '#/playlists' : '#/boards') + '" data-k="mk-' + o.scope + o.kind + '">' + (o.kind === 'pl' ? 'Playlists' : 'Pad boards') + '</a>.</p>' + assigned(o.ids, o.kind, o.scope, false, o.tracks) });
   }
 
   L.acts.cpadd = function (el) {
@@ -109,8 +121,9 @@
     if (kind === 'pl') L.pickPlaylists(o); else L.pickBoards(o);
   };
   L.acts.cprm = function (el) {
-    var x = ctx(), target = el.dataset.scope === 'c' ? x.c : x.s, kind = el.dataset.kind, list = kind === 'pl' ? target.playlists : target.boards, id = el.dataset.id;
+    var x = ctx(), target = el.dataset.scope === 'c' ? x.c : x.s, kind = el.dataset.kind, list = kind === 'pl' ? target.playlists : kind === 'tr' ? target.tracks : target.boards, id = el.dataset.id;
     var i = list.indexOf(id); if (i < 0) return; list.splice(i, 1);
+    if (kind === 'tr') { focusK = 'add-' + el.dataset.scope + 'pl'; L.render(); L.toast('Removed "' + L.title(L.track(id)) + '" from this ' + (el.dataset.scope === 'c' ? 'campaign' : 'session') + '. It is still in the Library.'); return; }
     var o = kind === 'pl' ? L.playlist(id) : L.board(id);
     focusK = list.length ? 'more-' + el.dataset.scope + kind + list[Math.min(i, list.length - 1)] : 'add-' + el.dataset.scope + kind;
     L.render();
@@ -318,6 +331,7 @@
     title: function (p) { var c = L.campaign(p.cid); return c ? c.name : 'Campaign'; },
     notesTitle: 'Campaign page: sessions and what stays on hand',
     notes: [
+      '<b>Round 5:</b> each campaign playlist has its <b>play order</b> button (shuffle, repeat all, repeat one); a choice made here applies only when it plays from this campaign. Single tracks kept on hand for the whole campaign (<b>Use in…</b> on a track) are listed under the playlists. Play on air shows the <b>On air</b> bar at the bottom, with Pause, Stop, Next, the play order and the volume.',
       '<b>Prep | Live</b> sits next to Run in the header: switch to Live and back without leaving the campaign. <b>Run next session</b> is still there.',
       'Every session now has a <b>Run</b> button, so you can run a played session again. The next session\'s is the coloured one; the others are plain grey.',
       '<b>Campaign playlists</b> and <b>Campaign pad boards</b>: each row has Preview (only you hear it), Play on air for playlists, and an arrow that shows the tracks or pads inside (closed until you open it). Pickers have the same.',
@@ -348,7 +362,7 @@
       var notes = L.pane({ id: 'cp-notes', title: 'Notes', icon: 'edit', size: 'auto', kind: 'plain',
         status: { text: c.notes ? 'Saved' : 'Empty', tone: 'idle' },
         body: '<label class="sr-only" for="cp-c-notes">Campaign notes</label><textarea class="input cp-notes" id="cp-c-notes" data-input="cpcampnotes" data-k="c-notes" rows="4" placeholder="Anything to remember across sessions">' + esc(c.notes || '') + '</textarea>' });
-      var cpl = assignedPane({ id: 'cp-cpl', title: 'Campaign playlists', kind: 'pl', scope: 'c', ids: c.playlists, why: 'In every session.' });
+      var cpl = assignedPane({ id: 'cp-cpl', title: 'Campaign playlists', kind: 'pl', scope: 'c', ids: c.playlists, tracks: c.tracks, why: 'In every session.' });
       var cbd = assignedPane({ id: 'cp-cbd', title: 'Campaign pad boards', kind: 'bd', scope: 'c', ids: c.boards, why: 'In every session.' });
       var ob = c.obsidian || {};
       var obs = L.pane({ id: 'cp-obs', title: 'Obsidian', icon: 'link', size: 'auto', collapsed: true, kind: 'plain', status: { text: 'Coming later', tone: 'idle' },
@@ -379,18 +393,26 @@
   function sceneChip(sc) {
     var items = L.sceneItems(sc);
     if (!items.length) return '<span class="cp-empty-chip">No music</span>';
-    return chipLink(info(items[0].id), '-' + sc.id + '-s') + (items.length > 1 ? '<span class="cp-more" title="' + plural(items.length - 1, 'more music item') + '">+' + (items.length - 1) + ' more</span>' : '');
+    var first = info(items[0].id); if (first.kind === 'track') first.name = L.nameIn(first.obj, sceneKey(sc));
+    return chipLink(first, '-' + sc.id + '-s') + (items.length > 1 ? '<span class="cp-more" title="' + plural(items.length - 1, 'more music item') + '">+' + (items.length - 1) + ' more</span>' : '');
   }
   // One row in an ordered list of a scene: music items (list 'music') or pad boards (list 'boards').
   // One line: number, kind dot, name; Preview, Play on air, then ⋯ (move, audio profile, open, remove).
+  // A track shows the scene's name for it (DAT-14; its own name on hover), its tags (ORG-11) and a button to its waveform,
+  // end and fades in this scene (PLY-14); a playlist shows its play order in this scene (PLY-13).
   function itemRow(sc, list, it, i, n, firstTag) {
-    var xk = 'cp-' + sc.id + ':' + list + ':' + it.id, k = sc.id + '-' + list + '-' + it.id, nm = esc(it.name);
+    var xk = 'cp-' + sc.id + ':' + list + ':' + it.id, k = sc.id + '-' + list + '-' + it.id, key = sceneKey(sc);
+    var isTrack = list === 'music' && it.kind === 'track', own = isTrack ? L.title(it.obj) : it.name, shown = isTrack ? L.nameIn(it.obj, key) : it.name, nm = esc(shown);
     return '<li class="cp-it' + (i === 0 ? ' first' : '') + '"><div class="cp-it-row">' + xpBtn(it, xk) +
       '<span class="num cp-it-n" aria-hidden="true">' + (i + 1) + '</span>' +
       '<span class="lane-dot ' + it.cls + '" aria-hidden="true"></span>' +
-      '<a class="ellipsis grow cp-it-name" href="' + it.href + '" data-k="in-' + k + '" title="' + esc(it.name + ' · ' + it.label + ' · ' + it.sub) + '">' + nm + '<span class="sr-only"> (' + esc(it.label) + ')</span></a>' +
+      (isTrack ? '<span class="cp-it-main">' : '') +
+      '<a class="ellipsis grow cp-it-name" href="' + it.href + '" data-k="in-' + k + '" title="' + esc((shown !== own ? shown + ' (in this scene) · its own name: ' + own : shown) + ' · ' + it.label + ' · ' + it.sub) + '">' + nm + '<span class="sr-only"> (' + esc(it.label) + ')</span></a>' +
+      (isTrack ? '<span class="cp-it-sub">' + (shown !== own ? '<span class="cp-scname-mark" title="Named for this scene">' + L.icon('tag', 's') + '<span class="ellipsis">' + esc(own) + '</span><span class="sr-only">: its own name</span></span>' : '') + L.tagStrip(it.obj, 3) + '</span></span>' : '') +
       (i === 0 ? '<span class="cp-firsttag">' + firstTag + '</span>' : '') + ownMark(sc, list, it) +
       L.previewButton(it.kind, it.id) + (it.kind !== 'board' ? L.playOnAirButton(it.kind, it.id) : '') +
+      (it.kind === 'playlist' && list === 'music' ? L.orderButton(it.id, key) : '') +
+      (isTrack && L.profileLink ? '<a class="btn s icon cp-prof" href="#/profile/' + it.id + '/' + key + '" data-k="prof-' + k + '" title="Waveform, end and fades of ' + esc(shown) + ' in this scene" aria-label="Waveform, end and fades in this scene: ' + nm + '">' + L.icon('wave', 's') + '</a>' : '') +
       moreBtn('im-' + k, nm, 'data-menu="item" data-list="' + list + '" data-sc="' + sc.id + '" data-idx="' + i + '"') +
       '</div>' + xpBody(it, xk, list === 'music' ? sceneKey(sc) : '') + '</li>';
   }
@@ -449,7 +471,9 @@
     function item(act, label, icon, extra) { return '<button role="menuitem" data-act="' + act + '" ' + (extra || '') + '>' + L.icon(icon) + label + '</button>'; }
     if (d.menu === 'assigned') {
       var where = d.scope === 'c' ? 'campaign' : 'session';
-      h = item('cpgo', 'Open', 'right', 'data-href="' + (d.kind === 'pl' ? '#/playlist/' : '#/board/') + d.id + '"') + '<div class="sep"></div>' +
+      h = item('cpgo', 'Open', 'right', 'data-href="' + (d.kind === 'pl' ? '#/playlist/' : d.kind === 'tr' ? '#/library/' : '#/board/') + d.id + '"') +
+        (d.kind === 'tr' && d.scope === 's' ? item('cpgo', 'Waveform, end and fades in this session', 'wave', 'data-href="#/profile/' + d.id + '/' + scopeKey('s') + '"') : '') +
+        (d.kind === 'tr' ? item('cpusein', 'Use in…', 'link', 'data-id="' + d.id + '"') : '') + '<div class="sep"></div>' +
         item('cprm', 'Remove from this ' + where, 'close', 'data-scope="' + d.scope + '" data-kind="' + d.kind + '" data-id="' + d.id + '" data-k="rm-' + d.scope + d.kind + d.id + '"');
     } else if (d.menu === 'item') {
       var x = findScene(d.sc), arr = d.list === 'boards' ? L.sceneBoards(x.sc) : x.sc.music, i = +d.idx, it = info(arr[i], d.list === 'boards');
@@ -457,6 +481,7 @@
       h = (i > 0 ? item('cpitem', d.list === 'boards' ? 'Show it first' : 'Start the scene with it', 'play', 'data-op="first" ' + data) : '') +
         (i > 0 ? item('cpitem', 'Move up', 'chevup', 'data-op="up" ' + data) : '') + (i < arr.length - 1 ? item('cpitem', 'Move down', 'chevdown', 'data-op="down" ' + data) : '') +
         (d.list === 'music' && it.kind === 'track' && L.profileLink ? item('cpgo', 'Audio profile in this scene', 'wave', 'data-href="#/profile/' + it.id + '/' + sceneKey(x.sc) + '"') : '') +
+        (d.list === 'music' && it.kind === 'track' ? item('cpname', 'Name in this scene…', 'tag', 'data-sc="' + d.sc + '" data-id="' + it.id + '"') + item('cpusein', 'Use in…', 'link', 'data-id="' + it.id + '"') : '') +
         item('cpgo', 'Open', 'right', 'data-href="' + it.href + '"') + '<div class="sep"></div>' +
         item('cpitem', 'Remove from this scene', 'close', 'data-op="remove" ' + data);
     } else if (d.menu === 'amb') {
@@ -467,6 +492,20 @@
     L.menu(el, h, 'Actions');
   };
   L.acts.cpgo = function (el) { L.route(el.dataset.href); };
+  L.acts.cpusein = function (el) { L.assignSheet('track', el.dataset.id); };
+  // DAT-14: a name for a track in this scene only ("Strahd's entrance"); empty uses its own name.
+  L.acts.cpname = function (el) {
+    var x = findScene(el.dataset.sc), t = L.track(el.dataset.id); if (!x || !t) return; var key = sceneKey(x.sc);
+    L.sheet({ title: 'Name in this scene', body: '<div class="field"><label for="cp-nmin">Name in "' + esc(x.sc.name) + '"</label><input class="input" id="cp-nmin" data-k="cp-nmin" value="' + esc(L.sceneNameOf(t, key)) + '" placeholder="' + esc(L.title(t)) + '" autocomplete="off"></div>' +
+      '<p class="hint" style="margin-top:6px">Shown in this scene, in Live and in the On air bar. Everywhere else it keeps its own name: <b>' + esc(L.title(t)) + '</b>. Leave it empty to use its own name here too.</p>',
+      footer: '<button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="cpnamesave" data-sc="' + x.sc.id + '" data-id="' + t.id + '">Save</button>' });
+  };
+  L.acts.cpnamesave = function (el) {
+    var x = findScene(el.dataset.sc), t = L.track(el.dataset.id), v = (document.getElementById('cp-nmin') || {}).value || '';
+    L.setNameIn(t, sceneKey(x.sc), v); focusK = 'in-' + x.sc.id + '-music-' + t.id; L.closeSheet(); L.render();
+    L.say(v.trim() ? 'In this scene it is now called ' + v.trim() : 'It uses its own name in this scene');
+  };
+  document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target && e.target.id === 'cp-nmin') { e.preventDefault(); var b = document.querySelector('[data-act="cpnamesave"]'); if (b) b.click(); } });
   function findScene(id) { var s = ctx().s; for (var i = 0; i < s.scenes.length; i++) if (s.scenes[i].id === id) return { s: s, sc: s.scenes[i], i: i }; return null; }
 
   L.acts.cpscene = function (el) { var id = el.dataset.id; open[id] = !open[id]; current = id; L.render(); };
@@ -561,6 +600,7 @@
     title: function (p) { var s = L.session(p.cid, p.sid); return s ? 'Session ' + s.n : 'Session'; },
     notesTitle: 'Session planner: scenes and playlists',
     notes: [
+      '<b>Round 5</b>, open <b>The abbey ruins</b> and <b>Aftermath</b>: tracks show their <b>tags</b> and <b>shape</b> under the name; a track can have a <b>name in this scene</b> (⋯ › Name in this scene…; Aftermath calls t07 "Dawn over the abbey"); the wave button opens its <b>waveform, end and fades for this scene</b>, and Back returns here. Playlists have a <b>play order</b> button that applies only in this scene (Abbey: eerie is shuffled here). <b>Add tracks or playlists…</b>: open a playlist to tick single tracks.',
       'A scene\'s <b>Music</b> is now one ordered list of <b>tracks and playlists in any mix</b>: slot a track between playlists, or use only one kind. It plays from the top and loops; the first item starts the scene, and in play you can start any item. Open <b>The abbey ruins</b> to see one.',
       '<b>Add tracks or playlists…</b> opens a picker with Preview on every row and an arrow to see a playlist\'s tracks before you add it. Move, remove, open and the Audio profile are in each row\'s ⋯ menu.',
       '<b>Ambience</b> can be one track or an ambience playlist, with Preview. <b>Pad boards</b>: a scene can have several; the first shows when the scene starts, and each one can be previewed and opened to see its pads.',
@@ -570,6 +610,8 @@
     ],
     render: function (p) {
       var c = L.campaign(p.cid), s = c && L.session(p.cid, p.sid);
+      // Back from a track's audio settings in a scene opens that scene again, with focus on the track.
+      if (L.state.openScene && s) { var back = L.state.openScene; L.state.openScene = null; if (s.scenes.some(function (x) { return x.id === back.sc; })) { open[back.sc] = true; current = back.sc; focusK = back.k || 'sct-' + back.sc; } }
       if (!s) return '<div class="viewhead"><h1>Session not found</h1></div><div class="empty"><a href="#/campaigns">Back to Campaigns</a></div>';
       var head = '<div class="viewhead"><nav class="crumbs" aria-label="Breadcrumb"><a href="#/campaigns" data-k="crumb-c">Campaigns</a><span class="sep" aria-hidden="true">›</span>' +
         '<a href="#/campaign/' + c.id + '" data-k="crumb-cp">' + esc(c.name) + '</a><span class="sep" aria-hidden="true">›</span></nav>' +
@@ -588,7 +630,7 @@
           '<button class="btn s" data-act="cpaddscene" data-k="addscene">' + L.icon('plus', 's') + 'Add scene</button>',
         body: s.scenes.length ? '<ol class="cp-scenes" aria-label="Scenes in order">' + s.scenes.map(function (sc, i) { return sceneCard(s, sc, i); }).join('') + '</ol>' : '<p class="cp-none">No scenes yet. Use Add scene.</p>',
         scroll: 'ss-scenes' });
-      var spl = assignedPane({ id: 'ss-spl', title: 'Session playlists', kind: 'pl', scope: 's', ids: s.playlists, why: 'In every scene tonight.' });
+      var spl = assignedPane({ id: 'ss-spl', title: 'Session playlists', kind: 'pl', scope: 's', ids: s.playlists, tracks: s.tracks, why: 'In every scene tonight.' });
       var sbd = assignedPane({ id: 'ss-sbd', title: 'Session pad boards', kind: 'bd', scope: 's', ids: s.boards, why: 'In every scene tonight.' });
       var obs = L.pane({ id: 'ss-obs', title: 'Obsidian', icon: 'link', size: 'auto', collapsed: true, kind: 'plain', status: { text: 'Coming later', tone: 'idle' },
         body: '<div class="field"><label for="cp-s-obs">Session note</label><input class="input" id="cp-s-obs" data-input="cpsess" data-f="obsidianNote" data-k="s-obs" value="' + esc(s.obsidianNote || '') + '" placeholder="' + esc(((c.obsidian || {}).sessions || 'Sessions') + '/Session ' + s.n + '.md') + '" autocomplete="off"></div>' + obsButton('cp-s-o-') });
@@ -596,7 +638,7 @@
       var cpl = L.pane({ id: 'ss-cpl', title: 'Campaign playlists', icon: 'crown', size: 'auto', kind: 'music',
         status: { text: c.playlists.length ? String(c.playlists.length) : 'Empty', tone: 'idle' },
         body: '<p class="hint cp-why">From the campaign. <a href="#/campaign/' + c.id + '" data-k="tocamp">Change</a>.</p>' +
-          assigned(c.playlists, 'pl', 'r', true) +
+          assigned(c.playlists, 'pl', 'r', true, c.tracks) +
           '<p class="hint cp-make">Campaign pad boards: ' + (cbNames.length ? esc(cbNames.join(', ')) : 'none') + '.</p>' });
       return head + '<div class="viewbody fill cp-body">' + details +
         '<div class="cp-split cp-ssplit"><div class="' + colClass(['ss-scenes']) + '">' + scenes + '</div>' +

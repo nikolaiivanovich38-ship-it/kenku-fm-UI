@@ -3,7 +3,7 @@
  * Elements are found by role, accessible name and visible text only.
  */
 import type { Page } from "@playwright/test";
-import { expect, test } from "./support/test";
+import { expect, expectFailureUntilBuilt, test } from "./support/test";
 import { joinRoom, leaveAllRooms, openRoute } from "./support/target";
 
 const region = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
@@ -387,5 +387,48 @@ test.describe("rooms", () => {
     await page.getByRole("menuitem", { name: /^Leave/ }).click();
     await expect(region(page, "On air: Side room")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /choose a room/i })).toHaveCount(0);
+  });
+});
+
+/* Round 5 (design/prototype/ROUND5.md): built in wave 4, so each check waits for "round 5" in the app. */
+test.describe("round 5: the On air bar, names in scenes, play order and single tracks in Live", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 5"));
+
+  test("UX-16: Live has the same On air bar at the bottom while music plays or is paused, and not once it stops", async ({ page }) => {
+    await openRoute(page, "live");
+    await expect(region(page, "On air")).toHaveCount(0);
+    await startAbbey(page);
+    const bar = region(page, "On air");
+    await expect(bar).toContainText("Eerie dread, low cello and choir");
+    await expect(bar).toContainText("Scene: The abbey ruins (Session 14)");
+    await expect(bar.getByRole("link", { name: "Go to Live" })).toHaveCount(0);
+    await bar.getByRole("button", { name: "Pause" }).click();
+    await expect(bar).toContainText("Paused");
+    await expect(region(page, "On air: Table").getByRole("button", { name: "Resume music" })).toBeVisible();
+    await bar.getByRole("button", { name: "Stop" }).click();
+    await expect(bar).toBeHidden({ timeout: 10_000 });
+  });
+
+  test("DAT-14: a scene's name for a track shows in its list, its On air box and the bar, with its own name on hover", async ({ page }) => {
+    await openRoute(page, "live");
+    await page.getByRole("button", { name: "Start scene 6: Aftermath" }).click();
+    await expect(region(page, "On air: Table")).toContainText("Dawn over the abbey");
+    await expect(region(page, "On air")).toContainText("Dawn over the abbey");
+    await expect(region(page, "On air").getByTitle("Its own name: Release after loss, ethereal voice, resolves - end of session or death of an NPC")).toBeVisible();
+    await expect(region(page, "Scene music").getByRole("button", { name: "Dawn over the abbey", exact: true })).toBeVisible();
+  });
+
+  test("PLY-13: a playlist in the scene's list has its play order for this scene", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    await expect(region(page, "Scene music").getByRole("button", { name: "Play order of Abbey: eerie, low energy: Shuffle, no repeat" })).toBeVisible();
+    await expect(region(page, "Scene music").getByRole("button", { name: "Play order of The Abbess: In order, no repeat" })).toBeVisible();
+  });
+
+  test("ORG-12: the campaign's single tracks are in its menu, ready to play on air", async ({ page }) => {
+    await openRoute(page, "live");
+    await page.getByRole("button", { name: /^Campaign:/ }).click();
+    await page.getByRole("menuitem", { name: /^Play on air: Ominous song, the villain's calling card/ }).click();
+    await expect(region(page, "On air: Table")).toContainText("Ominous song, the villain's calling card");
   });
 });

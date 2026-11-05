@@ -6,8 +6,8 @@
    "...set the fade duration and intensity and start and end points visually." "And define that differently for
    different cues and playlists."
 
-   Places: the track's own settings (key '') apply everywhere, unless a playlist ('pl:<pid>') or a scene
-   ('sc:<cid>:<sid>:<sceneId>') has its own (L.data.profiles, resolved by L.profileOf(t, key)). A place without its own
+   Places: the track's own settings (key '') apply everywhere, unless a playlist ('pl:<pid>'), a scene
+   ('sc:<cid>:<sid>:<sceneId>') or (round 5, PLY-14) a session list ('ss:<cid>:<sid>') has its own (L.data.profiles, resolved by L.profileOf(t, key)). A place without its own
    settings is shown read-only until Nik chooses "Give this place its own settings" (L.profileStore(t, key, true)).
 
    Listening here is a Preview (only Nik hears it). The view runs its own smooth clock (requestAnimationFrame) and
@@ -63,6 +63,7 @@
     if (!key) return 'the track\'s own settings';
     var a = key.split(':');
     if (a[0] === 'pl') { var p = L.playlist(a[1]); return 'the playlist ' + (p ? p.name : a[1]); }
+    if (a[0] === 'ss') { var ss = L.session(a[1], a[2]); return 'the session ' + (ss ? 'Session ' + ss.n + (ss.name ? ': ' + ss.name : '') : a[2]); }
     var s = L.session(a[1], a[2]), sc = s && s.scenes.filter(function (x) { return x.id === a[3]; })[0];
     return 'the scene ' + (sc ? sc.name : a[3]);
   }
@@ -70,15 +71,16 @@
   function editable(t) { return hasOwn(t, S.key); }
   // Every place this track plays: playlists that contain it, and scenes that use it directly or through a playlist.
   function places(t) {
-    var pls = [], scs = [], seen = { '': 1 };
+    var pls = [], scs = [], sss = [], seen = { '': 1 };
     function add(list, key, label) { if (seen[key]) return; seen[key] = 1; list.push({ key: key, label: label }); }
     function addScene(u) { add(scs, 'sc:' + u.campaign.id + ':' + u.session.id + ':' + u.scene.id, u.scene.name + ' (' + u.campaign.name + ', session ' + u.session.n + ')'); }
+    function addSession(u) { add(sss, 'ss:' + u.campaign.id + ':' + u.session.id, 'Session ' + u.session.n + (u.session.name ? ': ' + u.session.name : '') + ' (' + u.campaign.name + ')'); }
     var inPls = L.playlistsOfTrack(t.id);
     inPls.forEach(function (p) { add(pls, 'pl:' + p.id, p.name); });
-    L.usesOfTrack(t.id).forEach(addScene);
-    inPls.forEach(function (p) { L.usesOfPlaylist(p.id).forEach(function (u) { if (u.level === 'scene') addScene(u); }); });
-    L.profileKeys(t).forEach(function (k) { add(k.indexOf('pl:') === 0 ? pls : scs, k, placeName(k).replace(/^the (playlist|scene) /, '')); });
-    return { pls: pls, scs: scs };
+    L.usesOfTrackAll(t.id).forEach(function (u) { if (u.level === 'scene') addScene(u); else if (u.level === 'session') addSession(u); });
+    inPls.forEach(function (p) { L.usesOfPlaylist(p.id).forEach(function (u) { if (u.level === 'scene') addScene(u); else if (u.level === 'session') addSession(u); }); });
+    L.profileKeys(t).forEach(function (k) { add(k.indexOf('pl:') === 0 ? pls : k.indexOf('ss:') === 0 ? sss : scs, k, placeName(k).replace(/^the (playlist|scene|session) /, '')); });
+    return { pls: pls, scs: scs, sss: sss };
   }
   function sceneOf(key) { var a = key.split(':'), s = L.session(a[1], a[2]); if (!s) return null; var i = s.scenes.map(function (x) { return x.id; }).indexOf(a[3]); return i < 0 ? null : { cid: a[1], sid: a[2], index: i, scene: s.scenes[i] }; }
 
@@ -153,7 +155,8 @@
     var k = 5 + Math.floor(r() * 5); for (i = 0; i < k; i++) cuts.push(r());
     L.profileOf(t).markers.forEach(function (m) { cuts.push(m.at / t.dur); });
     cuts.push(1); cuts.sort(function (a, b) { return a - b; });
-    for (i = 0; i < cuts.length; i++) lv.push(.3 + r() * .65);
+    // Section levels follow the track's loudness curve (core L.levels), so the waveform and the suggested shape agree.
+    for (i = 0; i < cuts.length; i++) lv.push(Math.max(.12, Math.min(1, L.levelAt(t, (cuts[i] + (i < cuts.length - 1 ? cuts[i + 1] : 1)) / 2) * (.9 + r() * .2))));
     var ph1 = r() * 6.3, ph2 = r() * 6.3;
     for (i = 0; i < N; i++) {
       var x = i / N, s = 0; while (s < cuts.length - 2 && x > cuts[s + 1]) s++;
@@ -397,11 +400,12 @@
     }).join('') + '</ol>';
   }
   function placeHTML(t) {
-    var pl = places(t), own = hasOwn(t, S.key), kind = S.key.indexOf('sc:') === 0 ? 'scene' : 'playlist';
+    var pl = places(t), own = hasOwn(t, S.key), kind = S.key.indexOf('sc:') === 0 ? 'scene' : S.key.indexOf('ss:') === 0 ? 'session' : 'playlist';
     function opt(key, label) { var mark = !key ? '' : hasOwn(t, key) ? ' · own settings' : ' · uses the track\'s'; return '<option value="' + esc(key) + '"' + (key === S.key ? ' selected' : '') + '>' + esc(label + mark) + '</option>'; }
     var sel = '<label class="ap-place-l" for="ap-place">Settings for</label><select id="ap-place" class="input ap-place-sel" data-input="applace" data-k="ap-place">' + opt('', 'This track everywhere (its own)') +
       (pl.pls.length ? '<optgroup label="Playlists">' + pl.pls.map(function (x) { return opt(x.key, 'Playlist: ' + x.label); }).join('') + '</optgroup>' : '') +
-      (pl.scs.length ? '<optgroup label="Scenes (cues)">' + pl.scs.map(function (x) { return opt(x.key, 'Scene: ' + x.label); }).join('') + '</optgroup>' : '') + '</select>';
+      (pl.scs.length ? '<optgroup label="Scenes (cues)">' + pl.scs.map(function (x) { return opt(x.key, 'Scene: ' + x.label); }).join('') + '</optgroup>' : '') +
+      (pl.sss.length ? '<optgroup label="Sessions">' + pl.sss.map(function (x) { return opt(x.key, 'Session list: ' + x.label); }).join('') + '</optgroup>' : '') + '</select>';
     var st;
     if (!S.key) {
       var others = L.profileKeys(t);
@@ -417,6 +421,20 @@
     }
     return '<div class="ap-place' + (S.key ? (own ? ' is-own' : ' is-ro') : '') + '">' + sel + '<div class="ap-place-st">' + st + '</div></div>';
   }
+  /* PLY-14: opened from a scene or a session, the page keeps that place (its own settings, or the track's until it gets
+     its own) and Back returns there, with the scene open. DAT-14: in a scene, the track's name there can be set here. */
+  function backHTML(t) {
+    var a = S.key.split(':'), s = (a[0] === 'sc' || a[0] === 'ss') && L.session(a[1], a[2]);
+    if (!s) return '<a class="btn s" href="#/library/' + esc(t.id) + '" data-k="ap-back">' + L.icon('chevleft', 's') + 'Back to track</a>';
+    var sc = a[0] === 'sc' && s.scenes.filter(function (x) { return x.id === a[3]; })[0];
+    return '<button class="btn s" data-act="apback" data-cid="' + esc(a[1]) + '" data-sid="' + esc(a[2]) + '" data-sc="' + esc(sc ? sc.id : '') + '" data-k="ap-back">' + L.icon('chevleft', 's') + 'Back to ' + esc(sc ? sc.name : 'Session ' + s.n) + '</button>';
+  }
+  function sceneNameHTML(t) {
+    if (S.key.indexOf('sc:') !== 0) return '';
+    return '<div class="field ap-scname"><label for="ap-scname">Name in this scene</label><input class="input" id="ap-scname" data-input="apscname" data-k="ap-scname" value="' + esc(L.sceneNameOf(t, S.key)) + '" placeholder="' + esc(L.title(t)) + ' (its own name)" autocomplete="off"></div>';
+  }
+  L.inputs.apscname = function (el) { var t = track(); if (!t) return; L.setNameIn(t, S.key, el.value); };
+  L.acts.apback = function (el) { L.state.openScene = el.dataset.sc ? { sc: el.dataset.sc, k: 'prof-' + el.dataset.sc + '-music-' + S.tid } : null; L.route('#/session/' + el.dataset.cid + '/' + el.dataset.sid); };
   function waveStatus() { return S.playing ? { text: 'Previewing ' + L.fmt(S.pos), tone: 'on' } : { text: S.event ? 'Paused' : 'Ready', tone: 'idle' }; }
   function endStatus(p) { return p.after === 'loop' ? 'Loops from ' + L.fmt(p.loopStart) : p.after === 'next' ? 'Moves on at ' + L.fmt(p.end) : 'Stops at ' + L.fmt(p.end); }
   function afterText(t, p) { return p.after === 'loop' ? 'Loops back to ' + L.fmt(p.loopStart) : p.after === 'next' ? 'Moves on to ' + L.title(L.track(ctxOf(t).next)) : 'Stops'; }
@@ -425,6 +443,7 @@
     nav: 'library',
     notesTitle: 'Audio profile: where a track ends, how it fades, and what comes next',
     notes: [
+      '<b>Round 5:</b> opened from a scene (the wave button on a track in the session planner) the page stays on <b>that scene\'s settings</b>, shows the track\'s <b>Name in this scene</b>, and <b>Back</b> returns to the scene. A session list has its own settings too. The waveform follows the track\'s loudness, and its <b>shape</b> is shown by its file names.',
       'New page for your request: <b>where a track ends, and whether it then loops or moves on</b>, with fades. Open it from a track (an <b>Audio profile</b> button for Library, Playlists and Campaigns is ready) or try <a href="#/profile/t13">t13 Bridge of Death</a> and <a href="#/profile/t02">t02 Journey to the Line</a>.',
       'The waveform shows the whole file. Drag the <b>Start</b>, <b>End</b> and <b>Loop</b> tabs; the gold <b>volume line</b> shows the fades, and its round handles change the fade lengths. Under a fade the waveform gets smaller. Click anywhere to move the playhead.',
       '<b>Play the last 10 s before End</b> lets you hear the join, with a level meter: on t13 End jumps back to 1:04 with a 2 s crossfade; on t02 you hear the 6 s fade and the hand-over to the next track, by name.',
@@ -445,8 +464,8 @@
       var head = '<div class="viewhead ap-head"><div class="ap-id">' +
         '<nav class="crumbs" aria-label="Breadcrumb"><a href="#/library" data-k="ap-cr-lib">Library</a><span class="sep" aria-hidden="true">›</span><a class="ap-cr-t" href="#/library/' + esc(t.id) + '" data-k="ap-cr-t" title="' + esc(L.title(t)) + '">' + esc(L.title(t)) + '</a><span class="sep" aria-hidden="true">›</span><span>Audio profile</span></nav>' +
         '<h1 title="' + esc(L.title(t)) + '">' + esc(L.title(t)) + '</h1>' +
-        '<p class="ap-meta"><span><span class="faint">Title in the file</span> ' + esc(t.metaTitle || 'none') + '</span><span><span class="faint">File name</span> ' + esc(t.file) + '</span><span><span class="faint">Length</span> <span class="num">' + L.fmt(t.dur) + '</span></span></p></div>' +
-        '<div class="ap-headacts"><a class="btn s" href="#/library/' + esc(t.id) + '" data-k="ap-back">' + L.icon('chevleft', 's') + 'Back to track</a>' +
+        '<p class="ap-meta"><span><span class="faint">Title in the file</span> ' + esc(t.metaTitle || 'none') + '</span><span><span class="faint">File name</span> ' + esc(t.file) + '</span><span><span class="faint">Length</span> <span class="num">' + L.fmt(t.dur) + '</span></span><span>' + L.shapeTag(t) + '</span></p>' + sceneNameHTML(t) + '</div>' +
+        '<div class="ap-headacts">' + backHTML(t) +
         '<span class="ap-saved" role="status">' + (!ed ? 'Uses the track\'s settings (read-only until you give it its own)' : S.saved ? L.icon('check', 's') + 'Saved' : '') + '</span>' +
         '<button class="btn s ghost" data-act="apreset" data-k="ap-reset" title="Start at 0:00 and End at ' + L.fmt(t.dur) + ', no fades"' + dis(t) + '>' + L.icon('restart', 's') + 'Reset to whole track</button></div>' +
         placeHTML(t) + '</div>';

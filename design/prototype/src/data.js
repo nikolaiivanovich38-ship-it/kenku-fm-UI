@@ -74,6 +74,12 @@ var LYRE_DATA = (function () {
   // Sample audio profiles: where a track ends and what happens next.
   tracks[12].profile = { start: 0, end: 318, after: 'loop', loopStart: 64, loopXfade: 2, fadeIn: { dur: 0, shape: 50 }, fadeOut: { dur: 0, shape: 50 }, markers: [{ at: 64, label: 'Choir enters' }, { at: 190, label: 'Low swell' }, { at: 318, label: 'Loop back' }] };
   tracks[1].profile = { start: 8, end: 412, after: 'next', loopStart: 8, fadeIn: { dur: 3, shape: 30 }, fadeOut: { dur: 6, shape: 65 }, markers: [{ at: 140, label: 'Builds' }, { at: 300, label: 'Peak' }] };
+  // Round 5 (DAT-13): shapes the GM chose; every other track has the shape Lyre suggests from its loudness (core L.levels).
+  tracks[5].shape = 'builds';   // t06 The Battle: "long build to full war"
+  tracks[14].shape = 'fallsAway'; // t15 On the Nature of Daylight
+  // Round 5 (DAT-8): files no longer where Lyre expects them (moved when the drive was reorganised); the move report and
+  // Relink list them. Their folder is where they used to be.
+  [18, 25, 36].forEach(function (i) { tracks[i].missing = true; });
   // Sample override: in the scene "The abbey ruins" the eerie bed (t13) ends sooner and moves on instead of looping.
   var profiles = { 'sc:crown:s14:sc3': { t13: { start: 0, end: 190, after: 'next', loopStart: 0, fadeIn: { dur: 4, shape: 40 }, fadeOut: { dur: 8, shape: 30 }, markers: [{ at: 64, label: 'Choir enters' }] } } };
   [['b01', 'Rain on stone and slate, steady (loops)', 'rain_stone_steady_loop.wav', ['Melancholy'], ['Exploration']],
@@ -223,6 +229,19 @@ var LYRE_DATA = (function () {
       { id: 'b2', name: 'Lyre Side', status: 'idle', server: '', channel: '', muted: false, volume: 85, mix: 'table' }
     ]
   };
-  return { discord: discord, tagGroups: tagGroups, tagValues: tagValues, tracks: tracks, playlists: playlists, boards: boards, campaigns: campaigns,
+  // Round 5 (PLY-13): play order. A playlist's own choice is pl.order; a choice for one place (a scene 'sc:…', a
+  // session 'ss:…' or a campaign 'cp:…') lives in orders[placeKey][playlistId] and applies only there.
+  playlists.forEach(function (p) { if (p.lane === 'amb') p.order = { shuffle: false, repeat: 'all' }; });
+  playlists.filter(function (p) { return p.id === 'p-combat-big'; })[0].order = { shuffle: true, repeat: 'all' };
+  var orders = { 'sc:crown:s14:sc3': { 'p-abbey-eerie': { shuffle: true, repeat: 'off' } }, 'ss:crown:s14': { 'p-wistful': { shuffle: true, repeat: 'all' } } };
+  // Round 5 (DAT-14): a track's name in one scene (shown there, in Live and in the On air bar; its own name on hover).
+  var sceneNames = { 'sc:crown:s14:sc6': { t07: 'Dawn over the abbey' }, 'sc:crown:s14:sc4': { t39: 'The wight rises' } };
+  // Round 5 (ORG-12): single tracks kept on hand for a whole campaign or session (Use in… on a track).
+  campaigns.forEach(function (c) { c.tracks = []; c.sessions.forEach(function (s) { s.tracks = []; }); });
+  campaigns[0].tracks.push('t26');
+  // Round 5 (DAT-7): what came across from the Player (Kenku FM) on first start, for the move report.
+  var moved = { from: 'Kenku FM 1.5.5', when: '5 Nov 2026, 18:42', playlists: 9, tracks: 212, boards: 4, pads: 37, bookmarks: 6,
+    notMoved: [['The play queue and what was playing', 'Lyre starts with nothing playing'], ['Kenku FM\'s window size and position', 'Lyre opens at its own size']] };
+  return { discord: discord, orders: orders, sceneNames: sceneNames, moved: moved, tagGroups: tagGroups, tagValues: tagValues, tracks: tracks, playlists: playlists, boards: boards, campaigns: campaigns,
     folders: ['H:\\Audio\\Scores', 'H:\\Audio\\Ambience', 'H:\\Audio\\Effects'], defaultTheme: 'candle', profiles: profiles };
 })();

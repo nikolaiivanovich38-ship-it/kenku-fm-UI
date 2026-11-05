@@ -1,10 +1,13 @@
 /* Pad boards: the list of boards (#/boards) and the board editor (#/board/<id>).
-   A board has cols × rows slots (null = empty) and a spare tray. Resizing keeps every pad where it sits
-   (row and column); pads that fall outside a smaller grid move to Spare pads and are never deleted silently. */
+   A board has cols × rows slots (null = empty) and a spare tray. Resizing (round 5, SFX-11) fills the new grid left to
+   right, top to bottom, with the pads in their order, then the spare pads; only pads that do not fit go to Spare pads
+   (never deleted), with Undo. The rule is reflowBoard in src/common/domain/round5.ts.
+   Try pads (round 5, SFX-12): while on, pressing a pad or its key plays it as it will play in Live (one-shot, toggle
+   loop, hold to play, restart on press), but only in Nik's headphones. */
 (function () {
   var esc = L.esc, D = L.data;
   var MAX = 8, QUICK = [[2, 2], [3, 2], [4, 2], [4, 3], [4, 4], [6, 4]];
-  var ui = { sel: null, focus: {}, msg: null, capture: false, last: { pid: null, t: 0 }, menuPad: null, menuAnchor: null, pendingFocus: null, nb: null };
+  var ui = { sel: null, focus: {}, msg: null, capture: false, last: { pid: null, t: 0 }, menuPad: null, menuAnchor: null, pendingFocus: null, nb: null, trying: false, tries: {}, held: null };
   var MODE_HELP = {
     oneshot: 'Plays once from the start on each press. Quick presses overlap.',
     toggle: 'First press starts a loop; the next press fades it out.',
@@ -73,20 +76,28 @@
     nc = Math.max(1, Math.min(MAX, nc)); nr = Math.max(1, Math.min(MAX, nr));
     if (nc === b.cols && nr === b.rows) return;
     var snap = { cols: b.cols, rows: b.rows, slots: b.slots.slice(), spare: b.spare.slice() };
-    var oc = b.cols, or = b.rows, old = b.slots, next = [], moved = [], grew = nc * nr - oc * or;
-    for (var r = 0; r < nr; r++) for (var c = 0; c < nc; c++) next.push(r < or && c < oc ? old[r * oc + c] || null : null);
-    for (var r2 = 0; r2 < or; r2++) for (var c2 = 0; c2 < oc; c2++) { var p = old[r2 * oc + c2]; if (p && (r2 >= nr || c2 >= nc)) moved.push(p); }
-    b.slots = next; b.cols = nc; b.rows = nr; b.spare = b.spare.concat(moved);
-    var text = 'Grid is now ' + nc + ' × ' + nr + '.';
+    var r = reflow(b.slots, b.spare, nc, nr), back = b.spare.filter(function (p) { return r.slots.indexOf(p) > -1; }), moved = r.spilled;
+    b.slots = r.slots; b.cols = nc; b.rows = nr; b.spare = r.spare;
+    var text = 'Grid is now ' + nc + ' × ' + nr + '. Pads fill it left to right, top to bottom.';
     if (moved.length) {
-      text = plural(moved.length, 'pad') + ' moved to Spare pads: ' + moved.map(function (x) { return x.label; }).join(', ') + '. Nothing was deleted.';
+      text = 'Grid is now ' + nc + ' × ' + nr + ' and full. ' + plural(moved.length, 'pad') + ' moved to Spare pads: ' + moved.map(function (x) { return x.label; }).join(', ') + '. Nothing was deleted.';
       L.state.panes['pb-spare'] = 'o';
-    } else if (grew > 0) {
-      text = 'Grid is now ' + nc + ' × ' + nr + ': ' + plural(emptyCount(b), 'empty slot') + ' to fill.' + (b.spare.length ? ' Spare pads can go back into them.' : '');
+    } else if (back.length) {
+      text = 'Grid is now ' + nc + ' × ' + nr + '. ' + plural(back.length, 'spare pad') + ' came back onto it: ' + back.map(function (x) { return x.label; }).join(', ') + '.';
+    } else if (emptyCount(b)) {
+      text = 'Grid is now ' + nc + ' × ' + nr + ': ' + plural(emptyCount(b), 'empty slot') + ' to fill.';
     }
     ui.msg = { bid: b.id, text: text, undo: snap };
     var f = ui.focus[b.id] || 0; if (f >= nc * nr) ui.focus[b.id] = 0;
     L.say(text); L.render();
+  }
+  // SFX-11, the same rule as reflowBoard in src/common/domain/round5.ts: the grid's pads in reading order, then the spare
+  // pads, fill the new grid; what does not fit goes to Spare pads. The old lists are left as they are, for Undo.
+  function reflow(slots, spare, cols, rows) {
+    var size = Math.max(1, cols) * Math.max(1, rows), onGrid = slots.filter(Boolean), all = onGrid.concat(spare), next = all.slice(0, size);
+    while (next.length < size) next.push(null);
+    var rest = all.slice(size);
+    return { slots: next, spare: rest, spilled: rest.filter(function (p) { return onGrid.indexOf(p) > -1; }) };
   }
   // to: 'spare' or 'slot:<i>'. Moving onto a pad swaps the two.
   function moveTo(b, pid, to) {
@@ -123,6 +134,21 @@
     clearTimeout(ui.pvTimer); var c = L.pb.preview;
     if (c && String(c.key).indexOf('pad:') === 0) ui.pvTimer = setTimeout(function () { if (!L.pb.preview || L.pb.preview.key !== c.key) L.render(); else watchPreview(); }, Math.max(200, (c.dur - c.pos) * 1000 + 300));
   }
+  /* SFX-12 Try pads: a private test of a pad as it will play in Live. One-shot plays once (presses overlap), restart on
+     press starts it again, toggle loop starts and stops, hold to play sounds while held. Only Nik hears it. */
+  var TRY_LEN = 2.5;
+  function tryKey(b, p) { return b.id + '/' + p.id; }
+  function trying(b, p) { var x = ui.tries[tryKey(b, p)]; return !!(x && (x.loop || x.until > Date.now())); }
+  function tryPad(b, p, phase) {
+    var k = tryKey(b, p), on = trying(b, p), say = '';
+    if (p.mode === 'toggle') { if (phase === 'up') return; if (on) { delete ui.tries[k]; say = p.label + ': loop stopped'; } else { ui.tries[k] = { loop: true }; say = p.label + ': loop playing in your headphones. Press again to stop it.'; } }
+    else if (p.mode === 'hold') { if (phase === 'up') { if (!on) return; delete ui.tries[k]; say = p.label + ': let go, fading'; } else { if (on) return; ui.tries[k] = { loop: true }; say = p.label + ': playing while held'; } }
+    else { if (phase === 'up') return; var again = on; ui.tries[k] = { until: Date.now() + TRY_LEN * 1000, n: (again ? (ui.tries[k].n || 1) + 1 : 1) }; say = p.label + (p.mode === 'retrigger' ? (again ? ': started again from the beginning' : ': playing') : again ? ': playing again over itself' : ': playing once'); }
+    L.say(say + (say.indexOf('headphones') > -1 ? '' : ' (only you hear it)')); L.render(); watchTries();
+  }
+  function watchTries() { clearTimeout(ui.tryTimer); var soon = Object.keys(ui.tries).map(function (k) { return ui.tries[k].until; }).filter(Boolean); if (!soon.length) return;
+    ui.tryTimer = setTimeout(function () { var now = Date.now(); Object.keys(ui.tries).forEach(function (k) { if (ui.tries[k].until && ui.tries[k].until <= now) delete ui.tries[k]; }); if (L.current().name === 'board') L.render(); watchTries(); }, Math.max(100, Math.min.apply(null, soon) - Date.now() + 30)); }
+  function stopTries() { ui.tries = {}; ui.held = null; clearTimeout(ui.tryTimer); }
   function firePad(b, p) {
     if (p.mode === 'hold') { L.firePad(b.id, p.id, 'down'); setTimeout(function () { L.firePad(b.id, p.id, 'up'); }, 1500); }
     else L.firePad(b.id, p.id);
@@ -251,12 +277,14 @@
     if (!p) {
       return '<div class="pb-slot" data-drop="slot:' + i + '"><button class="pb-empty" data-act="pbadd" data-i="' + i + '" data-k="slot-' + i + '" data-slot="' + i + '" tabindex="' + tab + '" aria-label="Empty slot, ' + rc + '. Add a pad">' + L.icon('plus', 's') + '<span class="pb-empty-t">Add pad</span></button></div>';
     }
-    var on = L.padActive(b.id, p.id), pv = previewing(b, p), isSel = sel && sel.pad.id === p.id;
-    return '<div class="pb-slot pb-has' + (isSel ? ' sel' : '') + (on ? ' on' : '') + (pv ? ' pv' : '') + '" ' + swatch(p) + ' data-drop="slot:' + i + '"><button class="pb-pad' + (isSel ? ' sel' : '') + '" draggable="true" data-drag="' + p.id + '" data-act="pbpad" data-pid="' + p.id + '" data-k="slot-' + i + '" data-slot="' + i + '" tabindex="' + tab + '" aria-pressed="' + !!isSel + '"' +
-      ' aria-label="' + esc(p.label) + (p.key ? ' ' + esc(String(p.key).toUpperCase()) : '') + ': ' + L.modeName[p.mode] + ', ' + rc + (on ? ', on air' : pv ? ', previewing' : '') + '">' +
+    var on = L.padActive(b.id, p.id), pv = previewing(b, p), isSel = sel && sel.pad.id === p.id, tr = trying(b, p);
+    // While trying, the tile is the pad as in Live: pressing it plays it (aria-pressed shows a toggle loop or a held pad sounding).
+    var pressed = ui.trying ? (p.mode === 'toggle' || p.mode === 'hold' ? tr : false) : !!isSel;
+    return '<div class="pb-slot pb-has' + (isSel ? ' sel' : '') + (on ? ' on' : '') + (pv ? ' pv' : '') + (tr ? ' trying' : '') + '" ' + swatch(p) + ' data-drop="slot:' + i + '"><button class="pb-pad' + (isSel ? ' sel' : '') + '" draggable="' + !ui.trying + '" data-drag="' + p.id + '" data-act="' + (ui.trying ? (p.mode === 'hold' ? 'pbnoop' : 'pbtry') : 'pbpad') + '" data-mode="' + p.mode + '" data-pid="' + p.id + '" data-k="slot-' + i + '" data-slot="' + i + '" tabindex="' + tab + '" aria-pressed="' + pressed + '"' +
+      ' aria-label="' + esc(p.label) + (p.key ? ' ' + esc(String(p.key).toUpperCase()) : '') + ': ' + L.modeName[p.mode] + ', ' + rc + (on ? ', on air' : tr ? ', trying' : pv ? ', previewing' : '') + '">' +
       '<span class="pb-pad-label">' + esc(p.label) + '</span> ' +
       '<span class="pb-pad-meta">' + (p.key ? '<span class="kbd">' + esc(String(p.key).toUpperCase()) + '</span>' : '') + '<span class="pb-mode" title="' + L.modeName[p.mode] + '">' + L.icon(L.modeIcon[p.mode], 's') + '</span>' +
-      (on ? '<span class="pb-playing">On air</span>' : '') + '</span></button><span class="pb-tile-pv">' + L.previewButton('pad', b.id + '/' + p.id).replace('<button ', '<button tabindex="-1" ') + '</span></div>';
+      (on ? '<span class="pb-playing">On air</span>' : tr ? '<span class="pb-trying">' + (p.mode === 'toggle' || p.mode === 'hold' ? 'Sounding' : 'Playing') + '</span>' : '') + '</span></button><span class="pb-tile-pv">' + L.previewButton('pad', b.id + '/' + p.id).replace('<button ', '<button tabindex="-1" ').replace(L.icon('headphones', 's'), L.icon('play', 's')) + '</span></div>';
   }
   function stepper(label, axis, val) {
     var lo = val <= 1, hi = val >= MAX;
@@ -281,8 +309,10 @@
       b.slots.map(function (p, i) { return slotHTML(b, p, i, sel, fi); }).join('') + '</div>' +
       '<p class="hint pb-help" id="pb-gridhelp">Drag to swap pads. Keys: arrows move, P previews, Alt+arrow moves the pad.</p>';
     var sounding = b.slots.filter(function (p) { return p && L.padActive(b.id, p.id); }).length;
+    if (ui.trying) body = body.replace('<div class="pb-grid"', '<p class="pb-tryhint" role="note">' + L.icon('headphones', 's') + '<span>Trying: pads play as they will in Live, keys too, but only you hear them. Click a pad, or press its key; hold a Hold to play pad.</span></p><div class="pb-grid"');
     return L.pane({ id: 'pb-grid', title: 'Pads', icon: 'grid', kind: 'fx', size: 'auto', scroll: 'pb-grid', summary: esc(b.cols + ' × ' + b.rows),
-      status: sounding ? { text: sounding + ' sounding', tone: 'live' } : n ? { text: plural(n, 'pad'), tone: 'idle' } : { text: 'Empty', tone: 'idle' }, body: body });
+      actions: '<button class="btn s pb-trybtn" data-act="pbtrymode" data-k="pb-trymode" aria-pressed="' + ui.trying + '" title="Press pads and their keys to hear how they play, in your headphones only">' + L.icon(ui.trying ? 'check' : 'headphones', 's') + 'Try pads</button>',
+      status: sounding ? { text: sounding + ' sounding', tone: 'live' } : ui.trying ? { text: 'Trying', tone: 'on' } : n ? { text: plural(n, 'pad'), tone: 'idle' } : { text: 'Empty', tone: 'idle' }, body: body });
   }
   function sparePane(b, sel) {
     var empty = b.slots.indexOf(null) > -1, n = b.spare.length;
@@ -436,6 +466,17 @@
     L.say(plural(n, 'pad') + ' put back in the grid' + (b.spare.length ? '; ' + b.spare.length + ' still spare' : '')); L.render();
   };
   L.acts.pbtest = withPad(function (b, p) { firePad(b, p); });
+  L.acts.pbtrymode = function () { ui.trying = !ui.trying; if (!ui.trying) stopTries(); ui.pendingFocus = 'pb-trymode'; L.render(); L.say(ui.trying ? 'Trying pads: press a pad or its key to hear it as it will play. Only you hear it.' : 'Stopped trying pads'); };
+  L.acts.pbtry = function (el) { var b = board(), p = b && find(b, el.dataset.pid); if (!p) return; ui.focus[b.id] = +el.dataset.slot; ui.pendingFocus = el.dataset.k; tryPad(b, p.pad, 'down'); };
+  L.acts.pbnoop = function () {};
+  // Hold to play while trying: sounds while the pointer, Space or Enter is held on the pad.
+  function holdStart(el) { var b = board(), f = b && find(b, el.dataset.pid); if (!f) return; ui.held = f.pad.id; ui.focus[b.id] = +el.dataset.slot; ui.pendingFocus = el.dataset.k; tryPad(b, f.pad, 'down'); }
+  function holdEnd() { var b = board(); if (!b || !ui.held) return; var f = find(b, ui.held); ui.held = null; if (f) tryPad(b, f.pad, 'up'); }
+  document.addEventListener('pointerdown', function (e) { var el = ui.trying && e.target.closest && e.target.closest('.pb-pad[data-act="pbnoop"]'); if (el) { e.preventDefault(); holdStart(el); } });
+  document.addEventListener('pointerup', holdEnd); document.addEventListener('pointercancel', holdEnd);
+  document.addEventListener('keydown', function (e) { var el = ui.trying && e.target.closest && e.target.closest('.pb-pad[data-act="pbnoop"]'); if (el && (e.key === ' ' || e.key === 'Enter') && !e.repeat) { e.preventDefault(); holdStart(el); } });
+  document.addEventListener('keyup', function (e) { if (ui.held && (e.key === ' ' || e.key === 'Enter' || (ui.heldKey && e.key.toLowerCase() === ui.heldKey))) { ui.heldKey = null; holdEnd(); } });
+  window.addEventListener('lyre:route', function () { if (L.current().name !== 'board') { ui.trying = false; stopTries(); } });
   L.acts.pbpreview = withPad(function (b, p) { previewPad(b, p); });
   L.inputs.pblabel = withPad(function (b, p, el) { p.label = el.value; L.render(); });
   L.acts.pbsoundkind = withPad(function (b, p, el) {
@@ -560,6 +601,11 @@
   function neighbour(b, i, k) { var r = Math.floor(i / b.cols) + ARROWS[k][0], c = i % b.cols + ARROWS[k][1]; return r < 0 || c < 0 || r >= b.rows || c >= b.cols ? -1 : r * b.cols + c; }
   L.onKey(function (e) {
     var b = board(); if (!b) return false;
+    // Trying: a pad's own key plays it privately, as in Live (P still previews the focused pad).
+    if (ui.trying && !L.typing(e.target) && !e.ctrlKey && !e.metaKey && !e.altKey && !e.repeat && !ui.capture) {
+      var kp = L.boardPads(b).filter(function (x) { return x && x.key && String(x.key).toLowerCase() === e.key.toLowerCase(); })[0];
+      if (kp) { if (kp.mode === 'hold') { ui.held = kp.id; ui.heldKey = e.key.toLowerCase(); } tryPad(b, kp, 'down'); return true; }
+    }
     var inGrid = e.target.closest && e.target.closest('.pb-grid');
     if (inGrid && (e.key === 'p' || e.key === 'P') && !e.ctrlKey && !e.metaKey && !e.altKey) {
       var pp = b.slots[+e.target.dataset.slot]; if (pp) { ui.pendingFocus = e.target.dataset.k; previewPad(b, pp); } return !!pp;
@@ -594,6 +640,8 @@
 
   function boardNotes() {
     return [
+      '<b>Round 5:</b> <b>resizing fills the grid</b> left to right, top to bottom, in pad order; pads go to Spare pads only when the grid is full, and spare pads come back when it grows (Undo puts the old layout back). Try Weather and places: Fewer rows, then More rows.',
+      '<b>Round 5:</b> each pad has a violet <b>▶ Preview</b> on its tile, and <b>Try pads</b> (in the Pads header) lets you press pads and their keys to hear them play as in Live (one-shot, toggle loop, hold to play, restart on press) in your headphones only.',
       '<b>Less on screen.</b> Each box has one job and one status pill in its header: <b>Pads</b> (12 pads, or n sounding), <b>Spare pads</b> (Empty or n pads), <b>Pad</b> (Saved, Preview or Playing) and <b>Used in</b>. Effects boxes share the FX edge colour used across Lyre.',
       '<b>Quieter pads:</b> a tile shows the label, the key and a small mode icon; the colour stripe is the pad\'s identity. Everything else is in the Pad box when you select it. The headphones button on a tile (or P, or a double-click) previews it to you only.',
       '<b>Same buttons everywhere:</b> Preview, then Play on air, then ⋯ for the rest (Duplicate, Move to…, Delete, Use in…). Right-click a pad for its menu.',

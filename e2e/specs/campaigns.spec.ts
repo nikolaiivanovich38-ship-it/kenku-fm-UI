@@ -208,3 +208,52 @@ test.describe("playlists and pad boards on hand in every session", () => {
     await expect(boards.getByRole("button", { name: "Hide contents of Combat" })).toBeVisible();
   });
 });
+
+/* Round 5 (design/prototype/ROUND5.md): built in wave 4, so each check waits for "round 5" in the app. */
+test.describe("round 5: the On air bar and play order on the campaign page", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 5"));
+
+  test("UX-16: the On air bar says what plays, where it comes from and how far, with Pause, Stop, Next and Volume", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    await expect(region(page, "On air")).toHaveCount(0);
+    await region(page, "Campaign playlists").getByRole("button", { name: "Play on air: The Company themes" }).click();
+    const bar = region(page, "On air");
+    await expect(bar).toContainText("Epic choir hero anthem - the Company's big moment");
+    await expect(bar).toContainText("Playlist: The Company themes · The Sunken Crown");
+    await expect(bar).toContainText(/\d:\d\d \/ 3:57/);
+    await expect(bar.getByRole("slider", { name: "Volume" })).toHaveValue("85");
+    await expect(bar.getByRole("button", { name: /^Play order of The Company themes: / })).toBeVisible();
+    await bar.getByRole("button", { name: "Next" }).click();
+    await expect(bar).toContainText("Heroic charge - horns, gallop, full orchestra");
+  });
+
+  test("UX-16: paused, the bar stays and says Paused; stopped, it goes", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    await region(page, "Campaign playlists").getByRole("button", { name: "Play on air: The Company themes" }).click();
+    const bar = region(page, "On air");
+    await bar.getByRole("button", { name: "Pause" }).click();
+    await expect(bar).toContainText("Paused");
+    await expect(bar.getByRole("button", { name: "Play", exact: true })).toBeVisible();
+    await bar.getByRole("button", { name: "Play", exact: true }).click();
+    await expect(bar.getByRole("button", { name: "Pause" })).toBeVisible();
+    await bar.getByRole("button", { name: "Stop" }).click();
+    await expect(bar).toBeHidden({ timeout: 10_000 });
+  });
+
+  test("PLY-13: a campaign playlist's play order applies when it plays from the campaign", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    const order = region(page, "Campaign playlists").getByRole("button", { name: /^Play order of The Company themes: / });
+    await expect(order).toHaveAccessibleName("Play order of The Company themes: In order, repeat all");
+    await order.click();
+    await page.getByRole("menuitemcheckbox", { name: "Shuffle" }).click();
+    await page.keyboard.press("Escape");
+    await expect(order).toHaveAccessibleName("Play order of The Company themes: Shuffle, repeat all");
+    await expect(page.getByRole("region", { name: "Campaign playlists", exact: true }).getByRole("button", { name: /^Play order of Ashen King: / })).toHaveAccessibleName("Play order of Ashen King: In order, repeat all");
+  });
+
+  test("ORG-12: single tracks kept on hand for the campaign are listed with its playlists", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    await expect(region(page, "Campaign playlists").getByRole("link", { name: "Ominous song, the villain's calling card (short) (single track)" })).toBeVisible();
+    await expect(region(page, "Campaign playlists").getByRole("button", { name: "Play on air: Ominous song, the villain's calling card (short)" })).toBeVisible();
+  });
+});

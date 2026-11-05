@@ -6,7 +6,7 @@
 .pl-search { flex: 1 1 200px; max-width: 340px; }
 .pl-listcol { flex: 1; min-height: 0; }
 /* A list laid out as a grid (not a table), so a row's expander can open full width. One line per row. */
-.pl-grid { display: grid; grid-template-columns: minmax(0, 1fr) 48px 56px 84px; align-items: center; column-gap: 10px; padding: 0 8px; }
+.pl-grid { display: grid; grid-template-columns: minmax(0, 1fr) 48px 56px 128px; align-items: center; column-gap: 10px; padding: 0 8px; }
 .pl-colhead { position: sticky; top: 0; z-index: 1; background: var(--surface); font-size: var(--fs-xs); color: var(--ink-2); font-weight: 700; height: 24px; border-bottom: 1px solid var(--line-strong); }
 .pl-c { text-align: right; }
 .pl-list { list-style: none; margin: 0; padding: 0; }
@@ -144,3 +144,7 @@ select.input.pl-asksel { width: auto; max-width: 220px; height: var(--ctl-s); pa
 @keyframes pl-flash { 0%, 40% { background: color-mix(in srgb, var(--accent) 22%, transparent); box-shadow: inset 3px 0 0 var(--accent); } 100% { background: transparent; box-shadow: inset 3px 0 0 transparent; } }
 .pl-tr.pl-flash, .pl-item.pl-flash > .pl-row { animation: pl-flash 3s ease-out; }
 @media (prefers-reduced-motion: reduce) { .pl-tr.pl-flash, .pl-item.pl-flash > .pl-row { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); } }
+/* DAT-13: shapes in a dynamic playlist's rules. */
+.pl-shapes { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; margin-top: 8px; font-size: var(--fs-s); }
+.pl-shapes > .faint { margin-right: 4px; }
+.chip.pl-shape { gap: 5px; }

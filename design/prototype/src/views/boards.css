@@ -170,3 +170,10 @@
 .pb-kbd-off { text-decoration: line-through; color: var(--ink-3); }
 .pb-files .pv { margin-left: 2px; }
 .pb-has .pb-pad:focus-visible, .pb-tile-pv .pv:focus-visible { outline-offset: -2px; }
+/* Round 5: the pad's own Preview is a clear button on every tile (SFX-12), and Try pads plays pads as in Live, privately. */
+.pb-tile-pv .pv { color: var(--preview); border-color: color-mix(in srgb, var(--preview) 45%, transparent); }
+.pb-slot.trying { box-shadow: 0 0 0 2px var(--preview); }
+.pb-trying { font-size: var(--fs-xs); font-weight: 700; color: var(--preview); }
+.pb-tryhint { display: flex; align-items: center; gap: 6px; padding: 5px 8px; margin: 0 0 6px; border: 1px solid var(--preview); border-radius: var(--r-m); font-size: var(--fs-s); }
+.pb-tryhint > svg.i { color: var(--preview); flex: none; }
+.btn.s.pb-trybtn[aria-pressed="true"] { border-color: var(--preview); background: color-mix(in srgb, var(--preview) 18%, transparent); }

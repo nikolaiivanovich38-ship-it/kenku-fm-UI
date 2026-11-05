@@ -20,7 +20,8 @@ import { BUILT_SCREENS } from "./built";
 export type Theme = "default" | "parchment";
 
 /** Routes, as the prototype writes them: "live", "campaigns", "campaign/crown", "session/crown/s14", "library",
- *  "playlists", "boards", "board/abbey", "profile/t13", "profile/t13/sc:crown:s14:sc3", "outputs". */
+ *  "playlists", "boards", "board/abbey", "profile/t13", "profile/t13/sc:crown:s14:sc3", "outputs", and (round 5)
+ *  "profile/t03/ss:crown:s14", "backup", "moved", "relink". */
 export type Route = string;
 
 const PROTOTYPE = pathToFileURL(path.resolve(__dirname, "../../../design/prototype/lyre-prototype.html")).href;
@@ -84,6 +85,10 @@ export function screenOfRoute(route: Route): string {
     live: "live",
     outputs: "outputs",
     look: "look",
+    // Round 5: the library as a file, the move report and Find missing files (library-files.spec.ts).
+    backup: "library-files",
+    moved: "library-files",
+    relink: "library-files",
   };
   return screens[first] ?? first;
 }

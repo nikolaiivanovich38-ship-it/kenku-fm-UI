@@ -4,7 +4,7 @@
  * Music, Ambience and FX; expanders in the list; Preview and Play on air; no Duplicate; drop files in.
  */
 import type { Page } from "@playwright/test";
-import { expect, test } from "./support/test";
+import { expect, expectFailureUntilBuilt, test } from "./support/test";
 import { openRoute } from "./support/target";
 import { dropFiles } from "./support/drop";
 
@@ -252,5 +252,70 @@ test.describe("one dynamic playlist", () => {
     await openRoute(page, "playlist/p-abbey-eerie");
     await expect(page.getByRole("region", { name: "Used in", exact: true })).toContainText("The abbey ruins");
     await expect(page.getByRole("region", { name: "Used in", exact: true })).toContainText("2 of 4");
+  });
+});
+
+/* Round 5 (design/prototype/ROUND5.md): built in wave 4, so each check waits for "round 5" in the app. */
+test.describe("round 5: play order, Details with the rules, shapes and Use in… on tracks", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 5"));
+
+  test("PLY-13: every playlist row shows its own play order, and its menu changes it", async ({ page }) => {
+    await openRoute(page, "playlists");
+    await expect(rowOf(page, "Combat: big and loopable").getByRole("button", { name: "Play order of Combat: big and loopable: Shuffle, repeat all" })).toBeVisible();
+    const order = rowOf(page, "The Company themes").getByRole("button", { name: /^Play order of The Company themes: / });
+    await expect(order).toHaveAccessibleName("Play order of The Company themes: In order, repeat all");
+    await order.click();
+    const menu = page.getByRole("menu", { name: "Play order" });
+    await expect(menu).toContainText("Play order of this playlist");
+    await expect(menu.getByRole("menuitemradio", { name: /^Repeat all/ })).toHaveAttribute("aria-checked", "true");
+    await menu.getByRole("menuitemradio", { name: /^No repeat/ }).click();
+    await expect(order).toHaveAccessibleName("Play order of The Company themes: In order, no repeat");
+  });
+
+  test("PLY-13: a playlist's page has its play order by Play on air", async ({ page }) => {
+    await openRoute(page, "playlist/p-abbess");
+    await page.getByRole("button", { name: /^Play order of The Abbess: / }).click();
+    await page.getByRole("menuitemradio", { name: /^Repeat one/ }).click();
+    await expect(page.getByRole("button", { name: "Play order of The Abbess: In order, repeat one" })).toBeVisible();
+  });
+
+  test("EDT-8: a dynamic playlist's Details sit at the top with its rules, folded", async ({ page }) => {
+    await openRoute(page, "playlist/p-abbey-eerie");
+    const detailsToggle = page.getByRole("button", { name: "Details", exact: true });
+    await expect(detailsToggle).toHaveAttribute("aria-expanded", "false");
+    const details = (await page.getByRole("region", { name: "Details", exact: true }).boundingBox())!;
+    const rules = (await page.getByRole("region", { name: "Rules", exact: true }).boundingBox())!;
+    expect(details.y).toBeLessThan(rules.y);
+    expect(Math.abs(details.x - rules.x)).toBeLessThan(2);
+    await detailsToggle.click();
+    await expect(page.getByRole("textbox", { name: "Name" })).toHaveValue("Abbey: eerie, low energy");
+  });
+
+  test("EDT-8: in a narrow window Details stays at the top", async ({ page }) => {
+    await page.setViewportSize({ width: 720, height: 900 });
+    await openRoute(page, "playlist/p-abbey-eerie");
+    const details = (await page.getByRole("region", { name: "Details", exact: true }).boundingBox())!;
+    const rules = (await page.getByRole("region", { name: "Rules", exact: true }).boundingBox())!;
+    const used = (await page.getByRole("region", { name: "Used in", exact: true }).boundingBox())!;
+    expect(details.y).toBeLessThan(rules.y);
+    expect(details.y).toBeLessThan(used.y);
+  });
+
+  test("DAT-13: a dynamic playlist's rules can ask for shapes", async ({ page }) => {
+    await openRoute(page, "playlist/p-gothic");
+    const shapes = page.getByRole("group", { name: "Shape: how the track moves" });
+    await expect(shapes.getByRole("button")).toHaveText(["Steady", "Builds", "Falls away", "Peaks then falls", "Rises and falls"]);
+    const before = await page.getByRole("list", { name: "Matching tracks" }).getByRole("listitem").count();
+    await shapes.getByRole("button", { name: "Builds" }).click();
+    await expect(shapes.getByRole("button", { name: "Builds" })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("region", { name: "Rules", exact: true })).toContainText("shape builds");
+    expect(await page.getByRole("list", { name: "Matching tracks" }).getByRole("listitem").count()).toBeLessThan(before);
+  });
+
+  test("ORG-12: a track's menu in a playlist has Use in…", async ({ page }) => {
+    await openRoute(page, "playlist/p-abbess");
+    await page.getByRole("list", { name: "Tracks in order" }).getByRole("button", { name: /^More for / }).first().click();
+    await page.getByRole("menuitem", { name: "Use in…" }).click();
+    await expect(page.getByRole("dialog").getByRole("heading", { name: /^Use ".+" in…$/ })).toBeVisible();
   });
 });
