@@ -30,7 +30,9 @@ export interface LibraryServiceOptions {
   seed?: boolean;
   /** The bundled ffmpeg (media/bundledFfmpeg.ts), for loudness peaks; null when it is missing. */
   ffmpegPath?: string | null;
-  /** Work the library asks for: chooseFiles, chooseFolder, showItemInFolder. */
+  /** DAT-7: Lyre's own folder for .lyre files ("Documents\Lyre"); files brought in go to "Brought in" inside it. */
+  transferFolder?: string | null;
+  /** Work the library asks for: chooseFiles, chooseFolder, showItemInFolder, chooseSaveFile, chooseLyreFile. */
   host: Record<string, (...args: unknown[]) => unknown>;
   /** Every LyreApi event, and the library's status, for the Lyre page. */
   onEvent(event: LyreEvent): void;
@@ -238,7 +240,7 @@ export class LyreLibraryService {
     );
     this.client.api.subscribe((event) => this.options.onEvent(event));
     child.on("exit", (code) => this.exited(child, code));
-    child.postMessage({ t: "init", folder: this.options.folder, seed: this.options.seed === true, ffmpegPath: this.options.ffmpegPath ?? null });
+    child.postMessage({ t: "init", folder: this.options.folder, seed: this.options.seed === true, ffmpegPath: this.options.ffmpegPath ?? null, transferFolder: this.options.transferFolder ?? null });
   }
 
   private exited(child: LibraryChild, code: number): void {

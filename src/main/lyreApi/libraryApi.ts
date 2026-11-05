@@ -1242,18 +1242,22 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       async movedReport() {
         // What the first start's move from the old player recorded (import/legacy.ts, library_jobs).
         const job = store.get<{ detail: string; finished_at: number | null }>("SELECT detail, finished_at FROM library_jobs WHERE name = 'legacy-player' AND state = 'done'");
-        const report = job ? (JSON.parse(job.detail).report as { status?: string; counts?: { playlists: number; tracks: number; boards: number; pads: number }; missingTrackIds?: string[] } | undefined) : undefined;
+        const report = job
+          ? (JSON.parse(job.detail).report as { status?: string; from?: string; bookmarks?: number; counts?: { playlists: number; tracks: number; boards: number; pads: number }; missingTrackIds?: string[] } | undefined)
+          : undefined;
         if (!job || !report?.counts || report.status === "nothing-to-move") return null;
         const gone = new Set(report.missingTrackIds ?? []);
         const missing = gone.size ? (await api.import.findMissing()).filter((m) => gone.has(m.id)) : [];
         return {
-          from: "Kenku FM",
+          // The record names the app and its version when it knows them ("Kenku FM 1.5.5").
+          from: typeof report.from === "string" && /^Kenku FM\b/.test(report.from) ? report.from : "Kenku FM",
           at: job.finished_at ?? 0,
           copied: [
             { what: "Playlists", count: report.counts.playlists, nowIn: "Playlists (Manual)", route: "#/playlists" },
             { what: "Tracks", count: report.counts.tracks, nowIn: "Library", route: "#/library" },
             { what: "Soundboards", count: report.counts.boards, nowIn: "Pad boards", route: "#/boards" },
             { what: "Sounds", count: report.counts.pads, nowIn: "Pads on those boards", route: "#/boards" },
+            ...(typeof report.bookmarks === "number" ? [{ what: "Bookmarks", count: report.bookmarks, nowIn: "Website tabs", route: null }] : []),
           ],
           missing,
           notBrought: NOT_BROUGHT_ACROSS.map((x) => ({ ...x })),

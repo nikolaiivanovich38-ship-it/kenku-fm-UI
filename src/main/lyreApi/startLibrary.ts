@@ -4,6 +4,7 @@
  * first start. index.ts calls startLyreLibrary() when the app is ready, windowShown() once the window shows and
  * stop() before quitting. Everything that can be tested without Electron is in libraryService.ts and wiring.ts.
  */
+import fs from "fs";
 import path from "path";
 import { app, dialog, ipcMain, shell, utilityProcess, webContents, BrowserWindow } from "electron";
 
@@ -19,6 +20,7 @@ import { trustedContents } from "../security/trustedContents";
 import { LyreLibraryService, type LibraryChild } from "./libraryService";
 import { LYRE_API_EVENT } from "./lyreIpc";
 import { noConverter } from "./noConverter";
+import { SAMPLE_SHARED_FILE } from "./sampleComputer";
 import { standInForMissingFiles, writeStandInTone } from "./seedAudio";
 import { wantsSeededLibrary, wireLyreLibrary, type CallingPage, type WiredLibrary } from "./wiring";
 
@@ -67,6 +69,11 @@ export function startLyreLibrary(): StartedLibrary {
     (globalThis as unknown as { lyreLibraryPid: () => number | undefined }).lyreLibraryPid = () => current?.pid;
   }
 
+  // DAT-7: .lyre files are saved to, and brought in from, Documents\Lyre. A test build of the sample library keeps
+  // them in its own data folder and answers the two dialogs itself (Playwright cannot click native dialogs).
+  const transferFolder = seed ? path.join(app.getPath("userData"), "Documents", "Lyre") : path.join(app.getPath("documents"), "Lyre");
+  const lyreFilter: Electron.FileFilter[] = [{ name: "Lyre files", extensions: ["lyre"] }];
+
   const service = new LyreLibraryService({
     fork: () => {
       current = utilityProcess.fork(path.join(__dirname, "lyreLibrary.js"), [], {
@@ -78,6 +85,7 @@ export function startLyreLibrary(): StartedLibrary {
     folder: libraryFolder(app.getPath("userData")),
     seed,
     ffmpegPath,
+    transferFolder,
     host: {
       chooseFiles: async () => {
         const window = parentWindow();
@@ -100,6 +108,23 @@ export function startLyreLibrary(): StartedLibrary {
       },
       showItemInFolder: (file: unknown) => {
         if (typeof file === "string" && path.isAbsolute(file)) shell.showItemInFolder(file);
+      },
+      chooseSaveFile: async (suggested: unknown) => {
+        // Only a name is taken from the library, never a folder.
+        const name = typeof suggested === "string" ? path.basename(suggested.replace(/\\/g, "/")) || "Lyre.lyre" : "Lyre.lyre";
+        await fs.promises.mkdir(transferFolder, { recursive: true }).catch((): void => undefined);
+        if (seed) return path.join(transferFolder, name);
+        const window = parentWindow();
+        const options: Electron.SaveDialogOptions = { title: "Save to a file", defaultPath: path.join(transferFolder, name), filters: lyreFilter };
+        const answer = window ? await dialog.showSaveDialog(window, options) : await dialog.showSaveDialog(options);
+        return answer.canceled || !answer.filePath ? null : answer.filePath;
+      },
+      chooseLyreFile: async () => {
+        if (seed) return path.join(transferFolder, SAMPLE_SHARED_FILE);
+        const window = parentWindow();
+        const options: Electron.OpenDialogOptions = { title: "Open a Lyre file", defaultPath: transferFolder, properties: ["openFile"], filters: [...lyreFilter, { name: "All files", extensions: ["*"] }] };
+        const answer = window ? await dialog.showOpenDialog(window, options) : await dialog.showOpenDialog(options);
+        return answer.canceled ? null : answer.filePaths[0] ?? null;
       },
     },
     onEvent: (event) => wired?.onEvent(event),

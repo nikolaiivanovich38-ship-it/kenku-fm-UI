@@ -249,8 +249,8 @@ describe("DAT-7 Open a file: anything Lyre does not open is refused in plain wor
   });
 
   it("a zip that is not a Lyre file, and one from a newer Lyre", async () => {
-    expect((await refusedWith((f) => writeZip(f, [{ name: "photo.jpg", bytes: Buffer.from("x") }]).then(() => undefined))).message).toContain("is not a Lyre file");
-    const newer = await refusedWith((f) => writeZip(f, [{ name: "lyre.json", bytes: Buffer.from(JSON.stringify({ format: "lyre-library-file", version: 2 })) }]).then(() => undefined));
+    expect((await refusedWith((f) => writeZip(f, [{ name: "photo.jpg", bytes: Buffer.from("x") }]).then((): void => undefined))).message).toContain("is not a Lyre file");
+    const newer = await refusedWith((f) => writeZip(f, [{ name: "lyre.json", bytes: Buffer.from(JSON.stringify({ format: "lyre-library-file", version: 2 })) }]).then((): void => undefined));
     expect(newer.message).toBe('"file.lyre" was saved by a newer version of Lyre. Update Lyre, then open it again. Nothing was brought in.');
   });
 
@@ -258,17 +258,17 @@ describe("DAT-7 Open a file: anything Lyre does not open is refused in plain wor
     const manifest = (audio: unknown[] = []) => Buffer.from(JSON.stringify({ format: "lyre-library-file", version: 1, madeWith: "Lyre 0.4.0", savedAt: 0, scope: { kind: "library" }, title: "x", counts: { tracks: 0, playlists: 0, boards: 0, campaigns: 0, sessions: 0, scenes: 0, tagGroups: 0 }, audio }));
     const lib = (tracks: unknown[] = []) => Buffer.from(JSON.stringify({ tracks, tagGroups: [], playlists: [], boards: [], campaigns: [], overrides: {}, playOrders: {} }));
     const unsafe = 'holds files or names Lyre never puts in a Lyre file';
-    expect((await refusedWith((f) => writeZip(f, [{ name: "lyre.json", bytes: manifest() }, { name: "library.json", bytes: lib() }, { name: "../../evil.dll", bytes: Buffer.from("MZ") }], { allowAnyName: true }).then(() => undefined))).message).toContain(unsafe);
-    expect((await refusedWith((f) => writeZip(f, [{ name: "lyre.json", bytes: manifest() }, { name: "library.json", bytes: lib() }, { name: "run.exe", bytes: Buffer.from("MZ") }]).then(() => undefined))).message).toContain(unsafe);
-    expect((await refusedWith((f) => writeZip(f, [{ name: "lyre.json", bytes: manifest([{ entry: "audio/../x.flac", trackId: "t", bytes: 1 }]) }, { name: "library.json", bytes: lib() }]).then(() => undefined))).message).toContain(unsafe);
-    const track = { id: "t", kind: "music", title: "", metaTitle: "", fileName: "..\\..\\Windows\\x.flac", durationMs: 1, role: null, loop: null, energy: null, tags: {}, profile: null, shape: null, artist: "", album: "", folder: "", notes: "", sizeBytes: null };
-    expect((await refusedWith((f) => writeZip(f, [{ name: "lyre.json", bytes: manifest() }, { name: "library.json", bytes: lib([track]) }]).then(() => undefined))).message).toContain(unsafe);
+    expect((await refusedWith((f) => writeZip(f, [{ name: "lyre.json", bytes: manifest() }, { name: "library.json", bytes: lib() }, { name: "../../evil.dll", bytes: Buffer.from("MZ") }], { allowAnyName: true }).then((): void => undefined))).message).toContain(unsafe);
+    expect((await refusedWith((f) => writeZip(f, [{ name: "lyre.json", bytes: manifest() }, { name: "library.json", bytes: lib() }, { name: "run.exe", bytes: Buffer.from("MZ") }]).then((): void => undefined))).message).toContain(unsafe);
+    expect((await refusedWith((f) => writeZip(f, [{ name: "lyre.json", bytes: manifest([{ entry: "audio/../x.flac", trackId: "t", bytes: 1 }]) }, { name: "library.json", bytes: lib() }]).then((): void => undefined))).message).toContain(unsafe);
+    const track: Record<string, unknown> = { id: "t", kind: "music", title: "", metaTitle: "", fileName: "..\\..\\Windows\\x.flac", durationMs: 1, role: null, loop: null, energy: null, tags: {}, profile: null, shape: null, artist: "", album: "", folder: "", notes: "", sizeBytes: null };
+    expect((await refusedWith((f) => writeZip(f, [{ name: "lyre.json", bytes: manifest() }, { name: "library.json", bytes: lib([track]) }]).then((): void => undefined))).message).toContain(unsafe);
   });
 
   it("library.json in a shape Lyre does not write, and a prototype trick in it", async () => {
     const manifest = Buffer.from(JSON.stringify({ format: "lyre-library-file", version: 1, madeWith: "x", savedAt: 0, scope: { kind: "library" }, title: "x", counts: { tracks: 0, playlists: 0, boards: 0, campaigns: 0, sessions: 0, scenes: 0, tagGroups: 0 }, audio: [] }));
-    expect((await refusedWith((f) => writeZip(f, [{ name: "lyre.json", bytes: manifest }, { name: "library.json", bytes: Buffer.from('{"tracks":"all of them"}') }]).then(() => undefined))).message).toContain("is damaged");
-    expect((await refusedWith((f) => writeZip(f, [{ name: "lyre.json", bytes: manifest }, { name: "library.json", bytes: Buffer.from('{"tracks":[],"tagGroups":[],"playlists":[],"boards":[],"campaigns":[],"overrides":{"__proto__":{"polluted":{}}},"playOrders":{}}') }]).then(() => undefined))).message).toContain("is damaged");
+    expect((await refusedWith((f) => writeZip(f, [{ name: "lyre.json", bytes: manifest }, { name: "library.json", bytes: Buffer.from('{"tracks":"all of them"}') }]).then((): void => undefined))).message).toContain("is damaged");
+    expect((await refusedWith((f) => writeZip(f, [{ name: "lyre.json", bytes: manifest }, { name: "library.json", bytes: Buffer.from('{"tracks":[],"tagGroups":[],"playlists":[],"boards":[],"campaigns":[],"overrides":{"__proto__":{"polluted":{}}},"playOrders":{}}') }]).then((): void => undefined))).message).toContain("is damaged");
     expect(({} as Record<string, unknown>).polluted).toBeUndefined();
   });
 });
