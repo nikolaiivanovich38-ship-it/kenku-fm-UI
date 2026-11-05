@@ -160,7 +160,8 @@ test.describe("pads on a board", () => {
     const grid = padGrid(page);
     const previews = grid.getByRole("button", { name: /^Preview / });
     await expect(previews).toHaveCount(12);
-    await previews.nth(5).click();
+    // Ghost whisper: a pad whose sound is a library track in the app's seeded library as well as the prototype's.
+    await previews.nth(2).click();
     await expect(grid.getByRole("button", { name: /^Stop preview/ })).toHaveCount(1);
     await expect(grid.getByRole("button", { name: /previewing$/ })).toHaveCount(1);
     await expect(pads(page).first()).toHaveAttribute("aria-pressed", "true");
@@ -168,7 +169,8 @@ test.describe("pads on a board", () => {
 
   test("the P key previews the focused pad", async ({ page }) => {
     await openRoute(page, "board/abbey");
-    await pads(page).nth(3).focus();
+    // Stone door grinds: a pad whose sound is a library track in both (the app's seed keeps only pads' FX tracks).
+    await pads(page).nth(7).focus();
     await page.keyboard.press("p");
     await expect(padGrid(page).getByRole("button", { name: /^Stop preview/ })).toHaveCount(1);
   });
