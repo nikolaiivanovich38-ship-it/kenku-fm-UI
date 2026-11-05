@@ -104,8 +104,9 @@
     var kindWord = o.kind === 'pl' ? 'playlists' : 'pad boards', n = o.ids.length + (o.tracks || []).length;
     return L.pane({ id: o.id, title: o.title, icon: o.kind === 'pl' ? 'playlist' : 'grid', size: 'auto', kind: o.kind === 'pl' ? 'music' : 'fx',
       status: n ? { text: String(n), tone: 'idle' } : { text: 'Empty', tone: 'idle' },
-      actions: '<button class="btn s icon" data-act="cpadd" data-scope="' + o.scope + '" data-kind="' + o.kind + '" data-k="add-' + o.scope + o.kind + '" aria-label="Add ' + kindWord + '…" title="Add ' + kindWord + ' from your library">' + L.icon('plus', 's') + '</button>',
-      body: '<p class="hint cp-why">' + o.why + ' New ones: <a href="' + (o.kind === 'pl' ? '#/playlists' : '#/boards') + '" data-k="mk-' + o.scope + o.kind + '">' + (o.kind === 'pl' ? 'Playlists' : 'Pad boards') + '</a>.</p>' + assigned(o.ids, o.kind, o.scope, false, o.tracks) });
+      actions: '<button class="btn s icon" data-act="cpadd" data-scope="' + o.scope + '" data-kind="' + o.kind + '" data-k="add-' + o.scope + o.kind + '" aria-label="Add ' + kindWord + '…" title="Add ' + kindWord + ' from your library (' + o.why.replace(/\.$/, '').toLowerCase() + ')">' + L.icon('plus', 's') + '</button>',
+      // Round 6: "In every session." is read out, not shown (the title says Campaign or Session); new ones are made from the rail.
+      body: '<p class="sr-only">' + o.why + '</p>' + assigned(o.ids, o.kind, o.scope, false, o.tracks) });
   }
 
   L.acts.cpadd = function (el) {
@@ -212,8 +213,9 @@
      ====================================================================== */
   function card(c) {
     var nx = nextSession(c), th = themeFor(c.theme);
-    return '<article class="cp-card" data-theme="' + th + '" aria-labelledby="cph-' + c.id + '" title="' + esc(plural(c.sessions.length, 'session') + ' · ' + plural(usedPlaylists(c), 'playlist') + ' · ' + plural(usedBoards(c), 'pad board')) + '">' +
-      '<div class="cp-card-top"><span class="cp-sys">' + esc(c.system || 'No game system') + '</span><span class="cp-thname">' + L.icon('palette', 's') + esc(themeName(c.theme || defTheme())) + '</span></div>' +
+    // Round 6: the card is drawn in its theme, so the theme's name is hover text.
+    return '<article class="cp-card" data-theme="' + th + '" aria-labelledby="cph-' + c.id + '" title="' + esc(plural(c.sessions.length, 'session') + ' · ' + plural(usedPlaylists(c), 'playlist') + ' · ' + plural(usedBoards(c), 'pad board') + ' · theme: ' + themeName(c.theme || defTheme())) + '">' +
+      '<div class="cp-card-top"><span class="cp-sys">' + esc(c.system || 'No game system') + '</span></div>' +
       '<h2 class="display cp-card-name" id="cph-' + c.id + '">' + esc(c.name) + '</h2>' +
       '<p class="cp-blurb ellipsis" title="' + esc(c.blurb) + '">' + (c.blurb ? esc(c.blurb) : '<span class="faint">No description</span>') + '</p>' +
       '<p class="cp-next">' + (nx ? '<span class="cp-next-lbl">Next</span><span class="cp-next-name ellipsis">' + esc(sLabel(nx)) + '</span><span class="cp-next-date">' + esc(fmtDate(nx.date)) + '</span>'
@@ -235,7 +237,7 @@
       'New: an <b>Obsidian</b> section (folded, marked "coming later") in New campaign for your vault, campaign note and session notes folder. These are placeholders; nothing connects yet.'
     ],
     render: function () {
-      return '<div class="viewhead"><h1>Campaigns</h1><span class="muted cp-count">' + plural(D.campaigns.length, 'campaign') + '</span><span class="grow"></span>' +
+      return '<div class="viewhead"><h1>Campaigns</h1><span class="grow"></span>' +
         '<button class="btn primary" data-act="cpnew" data-k="cpnew">' + L.icon('plus', 's') + 'New campaign</button></div>' +
         '<div class="viewbody" data-scroll="cp-grid">' + (D.campaigns.length ? '<div class="cp-grid">' + D.campaigns.map(card).join('') + '</div>'
           // A first-time user: what a campaign is and what to do first (w3-ux 9).
@@ -356,7 +358,7 @@
 
       var played = c.sessions.filter(function (s) { return s.status === 'played'; }).length;
       var sessions = L.pane({ id: 'cp-sessions', title: 'Sessions', icon: 'scroll', kind: 'scenes',
-        status: { text: c.sessions.length ? plural(c.sessions.length, 'session') : 'Empty', tone: 'idle' }, summary: played && nx ? 'Next: ' + esc(sLabel(nx)) : '',
+        status: { text: c.sessions.length ? plural(c.sessions.length, 'session') : 'Empty', tone: 'idle' },
         actions: '<button class="btn s" data-act="cpnewsession" data-k="newsession">' + L.icon('plus', 's') + 'New session</button>',
         body: c.sessions.length ? '<ol class="list cp-slist" aria-label="Sessions in order">' + c.sessions.map(function (s, i) { return sessionRow(c, s, i); }).join('') + '</ol>' : '<p class="cp-none">No sessions yet.</p>', flush: true, scroll: 'cp-sessions' });
       var notes = L.pane({ id: 'cp-notes', title: 'Notes', icon: 'edit', size: 'auto', kind: 'plain',
@@ -427,14 +429,14 @@
     return '<div class="cp-box" data-filedrop="music" data-sc="' + sc.id + '" title="Drop audio files or folders here to add them">' +
       (items.length ? '<ol class="cp-items" aria-label="Music in order">' + items.map(function (x, i) { return itemRow(sc, 'music', info(x.id), i, items.length, 'Starts the scene'); }).join('') + '</ol>'
         : '<p class="faint cp-mnone">No music yet. The first item you add starts the scene.</p>') +
-      '<div class="cp-boxbtns"><button class="btn s" data-act="cpaddmusic" data-sc="' + sc.id + '" data-k="am-' + sc.id + '">' + L.icon('plus', 's') + 'Add tracks or playlists…</button><span class="hint">Plays in order, then loops. Drop files here to add them.</span></div></div>';
+      '<div class="cp-boxbtns"><button class="btn s" data-act="cpaddmusic" data-sc="' + sc.id + '" data-k="am-' + sc.id + '" title="Plays in order; drop audio files on the box to add them">' + L.icon('plus', 's') + 'Add tracks or playlists…</button></div></div>';
   }
   function boardList(sc) {
     var bds = L.sceneBoards(sc).filter(function (b) { return L.board(b); });
     return '<div class="cp-box">' +
       (bds.length ? '<ol class="cp-items" aria-label="Pad boards in order">' + bds.map(function (b, i) { return itemRow(sc, 'boards', info(b, true), i, bds.length, 'Shown first'); }).join('') + '</ol>'
         : '<p class="faint cp-mnone">No pad boards yet.</p>') +
-      '<div class="cp-boxbtns"><button class="btn s" data-act="cpaddboards" data-sc="' + sc.id + '" data-k="ab-' + sc.id + '" aria-label="Add pad boards… to ' + esc(sc.name) + '">' + L.icon('plus', 's') + 'Add pad boards…</button><span class="hint">The first is shown when the scene starts.</span></div></div>';
+      '<div class="cp-boxbtns"><button class="btn s" data-act="cpaddboards" data-sc="' + sc.id + '" data-k="ab-' + sc.id + '" aria-label="Add pad boards… to ' + esc(sc.name) + '" title="The first board shows when the scene starts">' + L.icon('plus', 's') + 'Add pad boards…</button></div></div>';
   }
   function ambSlot(sc) {
     var it = sc.amb ? info(sc.amb) : null, xk = 'cp-' + sc.id + ':amb:' + (it ? it.id : '');
@@ -622,7 +624,8 @@
         '<div class="field cp-f-date"><label for="cp-s-date">Date</label><input class="input" type="date" id="cp-s-date" data-input="cpsess" data-f="date" data-k="s-date" value="' + esc(s.date) + '"></div>' +
         '<div class="field cp-f-status"><label for="cp-s-status">Status</label><select class="input" id="cp-s-status" data-input="cpsess" data-f="status" data-k="s-status">' +
         ['played', 'next', 'draft'].map(function (k) { return '<option value="' + k + '"' + (s.status === k ? ' selected' : '') + '>' + STATUS[k] + '</option>'; }).join('') + '</select></div>' +
-        '<p class="cp-order">' + L.icon('list', 's') + '<span>In play: this scene\'s music first, then this session\'s, then the campaign\'s, then the whole library.</span></p></div>';
+        // Round 6: how Live's lists are ordered is read out here and lives in the guide; it is not needed while planning.
+        '<p class="sr-only">In play: this scene\'s music first, then this session\'s, then the campaign\'s, then the whole library.</p></div>';
       var allOpen = s.scenes.length && s.scenes.every(function (sc) { return open[sc.id]; });
       var scenes = L.pane({ id: 'ss-scenes', title: 'Scenes', icon: 'map', kind: 'scenes',
         status: { text: s.scenes.length ? plural(s.scenes.length, 'scene') : 'Empty', tone: 'idle' },
@@ -635,9 +638,11 @@
       var obs = L.pane({ id: 'ss-obs', title: 'Obsidian', icon: 'link', size: 'auto', collapsed: true, kind: 'plain', status: { text: 'Coming later', tone: 'idle' },
         body: '<div class="field"><label for="cp-s-obs">Session note</label><input class="input" id="cp-s-obs" data-input="cpsess" data-f="obsidianNote" data-k="s-obs" value="' + esc(s.obsidianNote || '') + '" placeholder="' + esc(((c.obsidian || {}).sessions || 'Sessions') + '/Session ' + s.n + '.md') + '" autocomplete="off"></div>' + obsButton('cp-s-o-') });
       var cbNames = c.boards.map(function (b) { var x = L.board(b); return x ? x.name : ''; }).filter(Boolean);
+      // Round 6: Change sits where the other boxes have Add, as an icon link to the campaign.
       var cpl = L.pane({ id: 'ss-cpl', title: 'Campaign playlists', icon: 'crown', size: 'auto', kind: 'music',
         status: { text: c.playlists.length ? String(c.playlists.length) : 'Empty', tone: 'idle' },
-        body: '<p class="hint cp-why">From the campaign. <a href="#/campaign/' + c.id + '" data-k="tocamp">Change</a>.</p>' +
+        actions: '<a class="btn s icon" href="#/campaign/' + c.id + '" data-k="tocamp" aria-label="Change the campaign\'s playlists" title="From the campaign: change them there">' + L.icon('edit', 's') + '</a>',
+        body: '' +
           assigned(c.playlists, 'pl', 'r', true, c.tracks) +
           '<p class="hint cp-make">Campaign pad boards: ' + (cbNames.length ? esc(cbNames.join(', ')) : 'none') + '.</p>' });
       return head + '<div class="viewbody fill cp-body">' + details +

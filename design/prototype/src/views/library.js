@@ -93,7 +93,7 @@
     D.tagGroups.forEach(function (g) { if (st.tags[g.id].length) parts.push(st.tags[g.id].join(', ')); });
     if (st.emin > 1 || st.emax < 5) parts.push('energy ' + st.emin + ' to ' + st.emax);
     if (st.folder) parts.push(shortPath(st.folder));
-    return parts.length ? esc(parts.join(' · ')) : 'None: showing every track';
+    return parts.length ? esc(parts.join(' · ')) : '';
   }
   function filtersBody() {
     var base = D.tracks.filter(function (t) { return kindOk(t); });
@@ -157,7 +157,7 @@
       '<button class="btn s ghost" data-act="lbbclear" data-k="lb-bclear">Clear selection</button></div>';
     var allOn = list.length && shownSel === list.length;
     var sortT = st.sort === 'title' ? 'ascending' : null, sortD = st.sort === 'short' ? 'ascending' : st.sort === 'long' ? 'descending' : null;
-    h += '<div class="lb-scroll" data-scroll="lb-list"><table class="grid lb-table" role="grid" aria-multiselectable="true" aria-label="Tracks" aria-rowcount="' + (list.length + 1) + '"><thead><tr>' +
+    h += '<div class="lb-scroll" data-scroll="lb-list"><table class="grid lb-table" role="grid" aria-multiselectable="true" aria-label="Tracks" aria-describedby="lb-keys" aria-rowcount="' + (list.length + 1) + '"><thead><tr>' +
       '<th class="lb-c-ck"><label class="lb-ckl"><input type="checkbox" data-act="lbselall" data-k="lb-selall" aria-label="Select all ' + list.length + ' shown"' + (allOn ? ' checked' : '') + '></label></th>' +
       '<th class="lb-c-title"' + (sortT ? ' aria-sort="' + sortT + '"' : '') + '>Title</th><th class="lb-c-tags">Tag</th><th class="lb-c-en">Energy</th>' +
       '<th class="lb-c-dur"' + (sortD ? ' aria-sort="' + sortD + '"' : '') + '>Length</th><th class="lb-c-pv"><span class="sr-only">Preview, play on air, more</span></th></tr></thead><tbody>';
@@ -170,7 +170,7 @@
       h += '<tr data-tid="' + t.id + '" data-act="lbopen" data-k="lbrow-' + t.id + '" tabindex="' + (t.id === st.cursor ? 0 : -1) + '" aria-selected="' + sel + '"' + (open ? ' class="lb-open" aria-current="true"' : '') + '>' +
         '<td class="lb-c-ck" data-act="lbsel" data-tid="' + t.id + '"><span class="lb-ckl"><input type="checkbox" tabindex="-1" aria-label="Select ' + esc(L.title(t)) + '"' + (sel ? ' checked' : '') + '></span></td>' +
         '<td class="lb-c-title" title="' + esc(shown + ' — ' + tip) + '"><div class="lb-tl">' + kindMark(t) + '<span class="lb-t1' + (own ? '' : ' untitled') + '">' + esc(shown) + '</span>' +
-          (own && meta && meta !== own ? '<span class="lb-t2">' + esc(meta) + '</span>' : '') + air + (t.isNew ? '<span class="badge lb-newb">New</span>' : '') +
+          (own && meta && meta !== own && open ? '<span class="lb-t2">' + esc(meta) + '</span>' : '') + air + (t.isNew ? '<span class="badge lb-newb">New</span>' : '') +
           (t.missing ? '<span class="badge warn lb-miss" title="Lyre cannot find this file at ' + esc(t.folder) + '">' + L.icon('warn', 's') + 'Missing</span>' : '') + '</div></td>' +
         '<td class="lb-c-tags"><span class="lb-tagcell">' + L.shapeTag(t, true) + rowChips(t, 1) + '</span></td>' +
         '<td class="lb-c-en">' + (t.energy ? L.energy(t.energy) : '<span class="lb-none" aria-label="No energy yet">–</span>') + '</td>' +
@@ -178,7 +178,7 @@
         '<td class="lb-c-pv"><div class="lb-rowbtns">' + rowBtn(L.previewButton('track', t.id)) + rowBtn(L.playOnAirButton('track', t.id)) +
           '<button class="btn s icon ghost" tabindex="-1" data-act="lbrowmenu" data-tid="' + t.id + '" aria-haspopup="menu" aria-expanded="false" title="More" aria-label="More for ' + esc(L.title(t)) + '">' + L.icon('more', 's') + '</button></div></td></tr>';
     });
-    h += '</tbody></table></div><div class="lb-foot hint">Keys: <span class="kbd">↑</span> <span class="kbd">↓</span> move · <span class="kbd">Enter</span> open · <span class="kbd">Space</span> select · <span class="kbd">P</span> preview · <span class="kbd">A</span> play on air</div>';
+    h += '</tbody></table></div><div class="lb-foot hint keys-on-focus" id="lb-keys">Keys: <span class="kbd">↑</span> <span class="kbd">↓</span> move · <span class="kbd">Enter</span> open · <span class="kbd">Space</span> select · <span class="kbd">P</span> preview · <span class="kbd">A</span> play on air</div>';
     return h;
   }
 
@@ -215,7 +215,7 @@
     var pls = L.playlistsOfTrack(t.id), prev = L.previewing(t.id);
     var onAir = onAirNow(t);
     var h = '<div class="lb-d">';
-    if (t.missing) h += '<p class="lb-missing" role="note">' + L.icon('warn', 's') + '<span class="grow">Lyre cannot find this file where it was. Point Lyre at the folder it moved to.</span><a class="btn s" href="#/relink" data-k="lb-relink1">Relink…</a></p>';
+    if (t.missing) h += '<p class="lb-missing" role="note">' + L.icon('warn', 's') + '<span class="grow">Lyre cannot find this file where it was.</span><a class="btn s" href="#/relink" data-k="lb-relink1" title="Point Lyre at the folder it moved to">Relink…</a></p>';
     h += '<div class="field"><label for="lb-title">Your title</label><input id="lb-title" class="input" data-input="lbtitle" data-k="lb-title" value="' + esc(t.title) + '" placeholder="A title you will recognise at the table"></div>';
     if (!t.title && t.metaTitle) h += '<p class="lb-warn"><button class="btn s ghost" data-act="lbusemeta" data-k="lb-usemeta">' + L.icon('edit', 's') + 'Use the title in the file</button></p>';
     h += '<dl class="lb-names">' +
@@ -225,11 +225,11 @@
       '<dt>Artist</dt><dd>' + esc(t.artist) + '</dd><dt>Album</dt><dd>' + esc(t.album) + '</dd>' +
       '<dt>Length</dt><dd class="num">' + L.fmt(t.dur) + '</dd><dt>Added</dt><dd>' + esc(t.added) + (t.isNew ? ' <span class="badge lb-newb">New</span>' : '') + '</dd>' +
       // DAT-14: the names it has in scenes, beside its own, the file's title, the file name and the folder.
-      '<dt>Names in scenes</dt><dd>' + (L.namesOfTrack(t).length ? '<ul class="lb-scnames">' + L.namesOfTrack(t).map(function (x) { return '<li><b>' + esc(x.name) + '</b> <span class="hint">in ' + esc(x.label) + '</span></li>'; }).join('') + '</ul>' : '<span class="lb-none">None: it shows its own name everywhere</span>') + '</dd></dl>';
+      (L.namesOfTrack(t).length ? '<dt>Names in scenes</dt><dd><ul class="lb-scnames">' + L.namesOfTrack(t).map(function (x) { return '<li><b>' + esc(x.name) + '</b> <span class="hint">in ' + esc(x.label) + '</span></li>'; }).join('') + '</ul></dd>' : '') + '</dl>';
     h += '<div class="lb-acts"><button class="btn s lb-pvbtn" data-act="lbprev" data-tid="' + t.id + '" data-k="lb-dprev" aria-pressed="' + !!prev + '">' + L.icon(prev ? 'stop' : 'headphones', 's') + (prev ? 'Stop preview' : 'Preview') + '</button>' +
       '<button class="btn s" data-act="lbonair" data-k="lb-onair">' + L.icon('broadcast', 's') + 'Play on air</button>' + (L.profileLink ? L.profileLink(t.id) : '')  +
       '<button class="btn s" data-act="lbusein" data-k="lb-usein">' + L.icon('link', 's') + 'Use in…</button></div>' +
-      '<p class="lb-prof">' + L.icon('fade', 's') + '<span>' + profileSummary(t) + '</span></p>';
+      (profileSummary(t) ? '<p class="lb-prof">' + L.icon('fade', 's') + '<span>' + profileSummary(t) + '</span></p>' : '');
     h += '<section class="lb-sec" aria-labelledby="lb-h-tags"><h3 class="lb-h" id="lb-h-tags">Tags</h3>' + D.tagGroups.map(function (g) { return tagRow(t, g); }).join('') + '</section>';
     h += '<section class="lb-sec" aria-labelledby="lb-h-play"><h3 class="lb-h" id="lb-h-play">How it plays</h3>' +
       '<div class="lb-tg"><div class="lb-tgl">Energy</div><div class="seg s lb-seg24" role="group" aria-label="Energy, 1 calm to 5 intense">' + [1, 2, 3, 4, 5].map(function (n) {
@@ -239,17 +239,19 @@
       '<div class="lb-tg"><div class="lb-tgl" id="lb-shape-l">Shape</div><div class="lb-shapebox"><div class="chips" role="group" aria-labelledby="lb-shape-l">' + L.SHAPES.map(function (x) {
         var on = L.shapeOf(t) === x[0];
         return '<button class="chip lb-pick" data-act="lbshape" data-v="' + x[0] + '" data-k="lb-shape-' + x[0] + '" aria-pressed="' + on + '">' + L.shapeGlyph(x[0]) + esc(x[1]) + '</button>';
-      }).join('') + '</div><p class="hint">' + (t.shape ? 'Your choice.' + (L.suggestedShape(t) && L.suggestedShape(t) !== t.shape ? ' Lyre suggested ' + L.shapeName[L.suggestedShape(t)].toLowerCase() + '. <button class="btn s ghost" data-act="lbshapeauto" data-k="lb-shapeauto">Use the suggestion</button>' : '') : 'Suggested by Lyre from the track\'s loudness. Choose another to change it.') + '</p></div></div>' +
+      // Round 6: two words for Lyre's suggestion (the why on hover); the GM's own choice needs no words unless it differs.
+      }).join('') + '</div>' + (t.shape ? (L.suggestedShape(t) && L.suggestedShape(t) !== t.shape ? '<p class="hint">Lyre suggested ' + L.shapeName[L.suggestedShape(t)].toLowerCase() + '. <button class="btn s ghost" data-act="lbshapeauto" data-k="lb-shapeauto">Use the suggestion</button></p>' : '')
+        : '<p class="hint" title="From the track\'s loudness. Choose another to change it.">Suggested by Lyre</p>') + '</div></div>' +
       '<div class="lb-tg"><div class="lb-tgl">Role</div>' + choiceChips('lbrole', (t.kind === 'fx' ? ['Effect'].concat(ROLES) : ROLES).map(function (r) { return [r, r]; }), t.role, 'Role') + '</div>' +
       '<div class="lb-tg"><div class="lb-tgl">Looping</div>' + choiceChips('lbloop', LOOPS, t.loop, 'Loop advice') + '</div>' +
       '<div class="lb-tg"><label class="lb-tgl" for="lb-notes">Notes</label><textarea id="lb-notes" class="input" rows="2" data-input="lbnotes" data-k="lb-notes" placeholder="Cues, where it fades, what it reminds you of">' + esc(t.notes) + '</textarea></div></section>';
     var man = pls.filter(function (p) { return p.kind === 'manual'; }), dyn = pls.filter(function (p) { return p.kind === 'dynamic'; });
     h += '<section class="lb-sec" aria-labelledby="lb-h-pl"><div class="lb-hrow"><h3 class="lb-h" id="lb-h-pl">In playlists</h3><button class="btn s" data-act="lbpladdmenu" data-k="lb-pladd" aria-haspopup="menu" aria-expanded="false">' + L.icon('plus', 's') + 'Add to playlist</button></div>';
     h += pls.length ? '<ul class="lb-pls">' + man.map(function (p) {
-      return '<li><span class="lane-dot ' + p.lane + '"></span><a href="#/playlist/' + p.id + '" class="ellipsis" data-k="lb-pl-' + p.id + '">' + esc(p.name) + '</a><span class="hint lb-plk">Manual</span>' +
+      return '<li><span class="lane-dot ' + p.lane + '"></span><a href="#/playlist/' + p.id + '" class="ellipsis" data-k="lb-pl-' + p.id + '">' + esc(p.name) + '</a>' +
         '<button class="closer" data-act="lbplrm" data-pid="' + p.id + '" data-k="lb-plrm-' + p.id + '" title="Remove from this playlist" aria-label="Remove from ' + esc(p.name) + '">' + L.icon('close') + '</button></li>';
     }).join('') + dyn.map(function (p) {
-      return '<li><span class="lane-dot ' + p.lane + '"></span><a href="#/playlist/' + p.id + '" class="ellipsis" data-k="lb-pl-' + p.id + '">' + esc(p.name) + '</a><span class="hint lb-plk" title="' + esc(L.ruleText(p.rule)) + '">Dynamic: matches its tag rules</span></li>';
+      return '<li><span class="lane-dot ' + p.lane + '"></span><a href="#/playlist/' + p.id + '" class="ellipsis" data-k="lb-pl-' + p.id + '">' + esc(p.name) + '</a><span class="hint lb-plk" title="Matches its tag rules: ' + esc(L.ruleText(p.rule)) + '">Dynamic</span></li>';
     }).join('') + '</ul>' : '<p class="hint">Not in any playlist yet.</p>';
     h += '</section>';
     // Used in: scenes that list the track itself, and scenes that reach it through one of its playlists.
@@ -269,7 +271,7 @@
         if (x.direct) how.push('<span class="lb-how direct">' + L.icon('note', 's') + 'Directly in the scene</span>');
         if (x.via.length) how.push('<span class="lb-how">' + L.icon('playlist', 's') + 'Through ' + esc(x.via.join(', ')) + '</span>');
         return '<li><a href="#/session/' + u.campaign.id + '/' + u.session.id + '" data-k="lb-use-' + u.scene.id + '"><span class="ellipsis">' + esc(u.scene.name) + '</span></a><span class="hint ellipsis grow">' + esc(u.campaign.name) + ' › Session ' + u.session.n + '</span>' + how.join('') + '</li>';
-      }).join('') + '</ul>' : '<p class="hint">Not in any scene yet. Add it to a scene directly, or to a playlist a scene plays.</p>') +
+      }).join('') + '</ul>' : '<p class="hint" title="Add it to a scene directly, or to a playlist a scene plays">Not in any scene yet.</p>') +
       (wider ? '<p class="hint">Also available in ' + plural(wider, 'campaign or session', 'campaigns or sessions') + ' through its playlists.</p>' : '') +
       (onHand.length ? '<p class="hint lb-onhand">' + L.icon('link', 's') + 'On hand in ' + esc(onHand.map(function (u) { return u.label; }).join('; ')) + '</p>' : '') + '</section>';
     return h + '</div>';
@@ -285,6 +287,8 @@
     var fades = []; if (p.fadeIn.dur) fades.push('in ' + p.fadeIn.dur + ' s'); if (p.fadeOut.dur) fades.push('out ' + p.fadeOut.dur + ' s');
     if (fades.length) parts.push('fades ' + fades.join(', '));
     var n = L.profileKeys ? L.profileKeys(t).length : 0;
+    // Round 6: the usual (whole track, then the next one, no fades, no own settings) goes without saying.
+    if (!cut && p.after !== 'loop' && p.after !== 'stop' && !fades.length && !n) return '';
     return esc(parts.join(' · ')) + '.' + (n ? ' <span class="muted">Has its own settings in ' + plural(n, 'place') + '.</span>' : '');
   }
   function emptyDetails() {
@@ -332,7 +336,7 @@
       }
       function dPane(strip) {
         return L.pane({ id: 'lb-details', title: 'Details', icon: 'file', cls: 'lb-details' + (strip ? ' lb-strip' : ''), scroll: 'lb-details-' + (t ? t.id : 'none'),
-          kind: 'plain', summary: t ? esc(L.title(t)) : '',
+          kind: 'plain', summary: t && dC ? esc(L.title(t)) : '',
           status: t ? (onAirNow(t) ? { text: 'Playing', tone: 'live' } : { text: 'Saved' }) : { text: 'Empty' },
           actions: t && mode !== 'narrow' ? '<button class="closer" data-act="lbclose" data-k="lb-close" title="Close details" aria-label="Close details">' + L.icon('close') + '</button>' : '',
           body: t ? detailsBody(t) : emptyDetails() });

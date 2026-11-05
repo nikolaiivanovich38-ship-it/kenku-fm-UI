@@ -49,7 +49,8 @@
     var body = '<fieldset class="tf-what"><legend>What to save</legend>' + WHAT.map(function (w) {
       var on = ex.what === w[0], sel = '';
       if (on && w[0] !== 'all' && w[0] !== 'tags') sel = '<select class="input tf-pick" data-input="tfpick" data-k="tf-pick" aria-label="Which ' + w[1].replace('One ', '') + '">' + options(w[0]).map(function (o) { return '<option value="' + esc(o[0]) + '"' + (o[0] === ex.pick[w[0]] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select>';
-      return '<div class="tf-opt' + (on ? ' on' : '') + '"><label><input type="radio" name="tf-what" value="' + w[0] + '" data-input="tfwhat" data-k="tf-w-' + w[0] + '"' + (on ? ' checked' : '') + '><span><b>' + w[1] + '</b><span class="hint tf-sub">' + w[2] + '</span></span></label>' + sel + '</div>';
+      // Round 6: only the chosen option says what goes in; the others say it on hover.
+      return '<div class="tf-opt' + (on ? ' on' : '') + '"><label' + (on ? '' : ' title="' + esc(w[2]) + '"') + '><input type="radio" name="tf-what" value="' + w[0] + '" data-input="tfwhat" data-k="tf-w-' + w[0] + '"' + (on ? ' checked' : '') + '><span><b>' + w[1] + '</b>' + (on ? '<span class="hint tf-sub">' + w[2] + '</span>' : '') + '</span></label>' + sel + '</div>';
     }).join('') + '</fieldset>' +
       '<label class="tf-check"><input type="checkbox" data-input="tfaudio" data-k="tf-audio"' + (ex.audio ? ' checked' : '') + (ex.what === 'tags' ? ' disabled' : '') + '><span><b>Include the audio files</b><span class="hint tf-sub">' +
         (ex.what === 'tags' ? 'Tags have no audio files.' : ex.audio ? 'About ' + (n * 9) + ' MB: ' + plural(n, 'audio file') + ' go into the file, so it works on a PC that has none of them.' : 'Without them the file stays small. The other PC needs the same files; Lyre finds them there with Find missing files.') + '</span></span></label>' +
@@ -200,8 +201,9 @@
         miss.map(function (t) { return '<tr><td class="tf-cell" title="' + esc(L.title(t)) + '">' + esc(L.title(t)) + '</td><td class="tf-cell">' + esc(t.file) + '</td><td class="tf-cell" title="' + esc(t.folder) + '">' + esc(t.folder) + '</td></tr>'; }).join('') + '</tbody></table>'
         : '<p class="tf-done" role="status">' + L.icon('check', 's') + 'Every file is where Lyre expects it.</p>';
       var look = '<div class="tf-lookrow"><div class="field grow"><label for="tf-folder">Look in this folder (and the folders inside it)</label><input class="input" id="tf-folder" data-input="tffolder" data-k="tf-folder" value="' + esc(rl.folder) + '" autocomplete="off"></div>' +
-        '<button class="btn" data-act="tfpickfolder" data-k="tf-pickfolder">' + L.icon('folder', 's') + 'Choose…</button><button class="btn' + (p ? '' : ' primary') + '" data-act="tflook" data-k="tf-look"' + (miss.length ? '' : ' disabled') + '>' + L.icon('search', 's') + 'Look there</button></div>' +
-        '<p class="hint">Lyre matches on the file name and its size, so a file with the same name from another album is not mixed up.</p>';
+        '<button class="btn" data-act="tfpickfolder" data-k="tf-pickfolder">' + L.icon('folder', 's') + 'Choose…</button><button class="btn' + (p ? '' : ' primary') + '" data-act="tflook" data-k="tf-look" title="Lyre matches on the file name and its size, so a file with the same name from another album is not mixed up"' + (miss.length ? '' : ' disabled') + '>' + L.icon('search', 's') + 'Look there</button></div>' +
+        // Round 6: how Lyre matches is the hover text of Look there.
+        '';
       var found = '';
       if (p) {
         var n = p.filter(function (x) { return rl.ticked[x.t.id]; }).length;

@@ -310,17 +310,18 @@
       '<span class="pb-count"><b class="num">' + n + '</b> of <b class="num">' + slots + '</b> slots used</span></div></div>' + msg +
       '<div class="pb-grid" role="group" aria-label="Pads, ' + b.cols + ' columns by ' + b.rows + ' rows" aria-describedby="pb-gridhelp" style="grid-template-columns:repeat(' + b.cols + ',minmax(0,1fr))">' +
       b.slots.map(function (p, i) { return slotHTML(b, p, i, sel, fi); }).join('') + '</div>' +
-      '<p class="hint pb-help" id="pb-gridhelp">Drag to swap pads. Keys: arrows move, P previews, Alt+arrow moves the pad.</p>';
+      '<p class="hint pb-help keys-on-focus" id="pb-gridhelp">Drag to swap pads. Keys: arrows move, P previews, Alt+arrow moves the pad.</p>';
     var sounding = b.slots.filter(function (p) { return p && L.padActive(b.id, p.id); }).length;
-    if (ui.trying) body = body.replace('<div class="pb-grid"', '<p class="pb-tryhint" role="note">' + L.icon('headphones', 's') + '<span>Trying: pads play as they will in Live, keys too, but only you hear them. Click a pad, or press its key; hold a Hold to play pad.</span></p><div class="pb-grid"');
-    return L.pane({ id: 'pb-grid', title: 'Pads', icon: 'grid', kind: 'fx', size: 'auto', scroll: 'pb-grid', summary: esc(b.cols + ' × ' + b.rows),
+    if (ui.trying) body = body.replace('<div class="pb-grid"', '<p class="pb-tryhint" role="note">' + L.icon('headphones', 's') + '<span title="Pads play as they will in Live, keys too. Click a pad, or press its key; hold a Hold to play pad.">Trying: only you hear them.</span></p><div class="pb-grid"');
+    return L.pane({ id: 'pb-grid', title: 'Pads', icon: 'grid', kind: 'fx', size: 'auto', scroll: 'pb-grid', summary: esc(b.cols + ' × ' + b.rows), foldedSummary: true,
       actions: '<button class="btn s pb-trybtn" data-act="pbtrymode" data-k="pb-trymode" aria-pressed="' + ui.trying + '" title="Press pads and their keys to hear how they play, in your headphones only">' + L.icon(ui.trying ? 'check' : 'headphones', 's') + 'Try pads</button>',
       status: sounding ? { text: sounding + ' sounding', tone: 'live' } : ui.trying ? { text: 'Trying', tone: 'on' } : n ? { text: plural(n, 'pad'), tone: 'idle' } : { text: 'Empty', tone: 'idle' }, body: body });
   }
   function sparePane(b, sel) {
     var empty = b.slots.indexOf(null) > -1, n = b.spare.length;
-    var body = '<p class="pb-spare-intro">Pads that are not on the grid wait here; their keys do nothing until you put them back.</p>' +
-      '<div class="pb-spare" data-drop="spare">' + (n ? '<ul class="list">' + b.spare.map(function (p) {
+    // Round 6: why spare pads exist is read out and is the box's hover text; the greyed keys show it.
+    var body = '<p class="sr-only">Pads that are not on the grid wait here; their keys do nothing until you put them back.</p>' +
+      '<div class="pb-spare" data-drop="spare" title="Pads that are not on the grid wait here; their keys do nothing until you put them back">' + (n ? '<ul class="list">' + b.spare.map(function (p) {
       var isSel = sel && sel.pad.id === p.id;
       return '<li class="lrow pb-sp' + (isSel ? ' selected' : '') + '" ' + swatch(p) + '>' +
         '<button class="pb-sp-pick" draggable="true" data-drag="' + p.id + '" data-act="pbpick" data-pid="' + p.id + '" data-k="sp-' + p.id + '" aria-pressed="' + !!isSel + '"><span class="ellipsis">' + esc(p.label) + '</span>' + (p.key ? '<span class="kbd pb-kbd-off" title="Does nothing while the pad is spare">' + esc(String(p.key).toUpperCase()) + '<span class="sr-only"> (key does nothing while spare)</span></span>' : '') + '</button>' +
@@ -328,7 +329,7 @@
         '<button class="btn s icon" data-act="pbsparemenu" data-pid="' + p.id + '" data-k="spm-' + p.id + '" aria-haspopup="menu" aria-expanded="false" title="More" aria-label="More for ' + esc(p.label) + '">' + L.icon('more', 's') + '</button></li>';
     }).join('') + '</ul>' : '<p class="pb-spare-empty">None. Drag a pad here to put it aside.</p>') + '</div>';
     return L.pane({ id: 'pb-spare', title: 'Spare pads', icon: 'queue', kind: 'fx', size: 'auto', collapsed: !n,
-      summary: n ? esc(b.spare.map(function (p) { return p.label; }).join(', ')) : '',
+      summary: n ? esc(b.spare.map(function (p) { return p.label; }).join(', ')) : '', foldedSummary: true,
       status: n ? { text: plural(n, 'pad'), tone: 'idle' } : { text: 'Empty', tone: 'idle' },
       actions: n && empty ? '<button class="btn s" data-act="pbputall" data-k="pb-putall">Put all back</button>' : '', body: body });
   }
@@ -378,7 +379,7 @@
       '<div class="field"><label for="pb-label">Label</label><input id="pb-label" class="input" data-input="pblabel" data-k="pb-label" value="' + esc(p.label) + '"></div>' +
       soundEditor(p) +
       fieldset('Play mode', '<div class="pb-modes" role="group" aria-label="Play mode">' + ['oneshot', 'toggle', 'hold', 'retrigger'].map(function (m) {
-        return '<button class="btn s" data-act="pbmode" data-v="' + m + '" data-k="pbm-' + m + '" aria-pressed="' + (p.mode === m) + '" aria-describedby="pb-modehelp">' + L.icon(L.modeIcon[m], 's') + L.modeName[m] + '</button>';
+        return '<button class="btn s" data-act="pbmode" data-v="' + m + '" data-k="pbm-' + m + '" aria-pressed="' + (p.mode === m) + '" aria-describedby="pb-modehelp" title="' + MODE_HELP[m] + '">' + L.icon(L.modeIcon[m], 's') + L.modeName[m] + '</button>';
       }).join('') + '</div><p class="pb-modehelp" id="pb-modehelp">' + MODE_HELP[p.mode] + '</p>') +
       '<div class="field"><span class="label" id="pb-key-l">Hotkey</span><div class="row-flex"><button class="pb-keycap' + (ui.capture ? ' capturing' : '') + '" data-act="pbkeycap" data-k="pb-keycap" aria-labelledby="pb-key-l pb-keycap-t"' + (ui.capture || sel.where === 'spare' ? ' aria-describedby="pb-key-h"' : '') + '>' +
       '<span id="pb-keycap-t">' + (ui.capture ? 'Press a key…' : p.key ? '<span class="kbd">' + esc(String(p.key).toUpperCase()) + '</span> Change' : 'None. Click, then press a key') + '</span></button>' +

@@ -361,7 +361,8 @@
       ev = '<div class="ap-event">' + L.icon(S.event.type === 'loop' ? 'loop' : S.event.type === 'stop' ? 'stop' : 'note', 's') + '<span>' + esc(S.event.text) + '</span></div>';
     }
     var keys = '<div class="ap-keys"><label class="ap-switch"><input type="checkbox" role="switch" data-input="apkeys1" data-k="ap-keys1"' + (S.keys1 ? ' checked' : '') + '>Single-key shortcuts</label>' +
-      '<span class="hint" title="Space play or pause · I Start · O End · L loop start · M marker · arrows move the playhead 1 s (Shift: 10 s). Keys do nothing while you type.">' + (S.keys1 ? '<span class="kbd">Space</span> <span class="kbd">I</span> <span class="kbd">O</span> <span class="kbd">L</span> <span class="kbd">M</span> <span class="kbd">←</span><span class="kbd">→</span> play, Start, End, loop, marker, playhead' : 'Off') + '</span></div>';
+      // Round 6: the key legend shows while the keyboard is in this box; the switch says whether they are on.
+      (S.keys1 ? '<span class="hint keys-on-focus" title="Space play or pause · I Start · O End · L loop start · M marker · arrows move the playhead 1 s (Shift: 10 s). Keys do nothing while you type."><span class="kbd">Space</span> <span class="kbd">I</span> <span class="kbd">O</span> <span class="kbd">L</span> <span class="kbd">M</span> <span class="kbd">←</span><span class="kbd">→</span> play, Start, End, loop, marker, playhead</span>' : '') + '</div>';
     return waveHTML(t, p) + '<div class="ap-listen">' + tr + ro + air + '</div>' + ev + keys;
   }
   function endHTML(t, p) {
@@ -369,7 +370,7 @@
     var opts = '<fieldset class="ap-opts"' + dis(t) + '><legend class="sr-only">At the end</legend>' +
       radio(t, p.after, 'loop', 'loop', 'Loop back to loop start', 'Repeats ' + L.fmt(p.loopStart) + ' to ' + L.fmt(p.end)) +
       radio(t, p.after, 'next', 'next', 'Move to the next track', 'The scene or playlist moves on; played on its own, it stops') +
-      radio(t, p.after, 'stop', 'stop', 'Stop', 'Then silence') + '</fieldset>';
+      radio(t, p.after, 'stop', 'stop', 'Stop', '') + '</fieldset>';
     var nx = '';
     if (p.after === 'next') {
       nx = '<div class="ap-next"><span class="ap-ro-l">Next track</span>' +
@@ -384,7 +385,7 @@
   function fadesHTML(t, p) {
     var h = fadeBlock(t, p, 'in') + fadeBlock(t, p, 'out');
     if (p.after === 'loop') {
-      h += '<div class="ap-fadeblock"><div class="ap-fb-h"><b>Crossfade the loop</b><span class="hint">smooths the jump back to ' + L.fmt(p.loopStart) + '</span></div>' +
+      h += '<div class="ap-fadeblock"><div class="ap-fb-h"><b title="Smooths the jump back to ' + L.fmt(p.loopStart) + '">Crossfade the loop</b></div>' +
         '<div class="ap-fb-row"><span class="ap-fb-l">Length</span>' + stepper(t, 'xfade', p.loopXfade, 'loop crossfade') + err('xfade') + '</div>' +
         '</div>';
     }
@@ -409,7 +410,8 @@
     var st;
     if (!S.key) {
       var others = L.profileKeys(t);
-      st = '<span class="ap-badge own">' + L.icon('edit', 's') + 'Editing the track\'s own settings</span>' + (others.length ? '<span class="hint ap-place-h">Not used in ' + others.map(function (k) { return esc(placeName(k)); }).join(', ') + ' (own settings)</span>' : '');
+      // Round 6: "This track everywhere" in the list already says whose settings these are.
+      st = (others.length ? '<span class="hint ap-place-h">Not used in ' + others.map(function (k) { return esc(placeName(k)); }).join(', ') + ' (own settings)</span>' : '');
     } else if (own) {
       st = '<span class="ap-badge own">' + L.icon('edit', 's') + 'Editing own settings for ' + esc(placeName(S.key)) + '</span>' +
         '<button class="btn s" data-act="apclear" data-k="ap-clear" title="Remove the settings for this ' + kind + ' and use the track\'s own settings here">' + L.icon('restart', 's') + 'Back to the track\'s settings</button>';
@@ -464,7 +466,8 @@
       var head = '<div class="viewhead ap-head"><div class="ap-id">' +
         '<nav class="crumbs" aria-label="Breadcrumb"><a href="#/library" data-k="ap-cr-lib">Library</a><span class="sep" aria-hidden="true">›</span><a class="ap-cr-t" href="#/library/' + esc(t.id) + '" data-k="ap-cr-t" title="' + esc(L.title(t)) + '">' + esc(L.title(t)) + '</a><span class="sep" aria-hidden="true">›</span><span>Audio profile</span></nav>' +
         '<h1 title="' + esc(L.title(t)) + '">' + esc(L.title(t)) + '</h1>' +
-        '<p class="ap-meta"><span><span class="faint">Title in the file</span> ' + esc(t.metaTitle || 'none') + '</span><span><span class="faint">File name</span> ' + esc(t.file) + '</span><span><span class="faint">Length</span> <span class="num">' + L.fmt(t.dur) + '</span></span><span>' + L.shapeTag(t) + '</span></p>' + sceneNameHTML(t) + '</div>' +
+        // Round 6: the file's names are in the Library's details and on hover here; length and shape stay.
+        '<p class="ap-meta" title="' + esc('Title in the file: ' + (t.metaTitle || 'none') + ' · File name: ' + t.file) + '"><span><span class="faint">Length</span> <span class="num">' + L.fmt(t.dur) + '</span></span><span>' + L.shapeTag(t) + '</span></p>' + sceneNameHTML(t) + '</div>' +
         '<div class="ap-headacts">' + backHTML(t) +
         '<span class="ap-saved" role="status">' + (!ed ? 'Uses the track\'s settings (read-only until you give it its own)' : S.saved ? L.icon('check', 's') + 'Saved' : '') + '</span>' +
         '<button class="btn s ghost" data-act="apreset" data-k="ap-reset" title="Start at 0:00 and End at ' + L.fmt(t.dur) + ', no fades"' + dis(t) + '>' + L.icon('restart', 's') + 'Reset to whole track</button></div>' +

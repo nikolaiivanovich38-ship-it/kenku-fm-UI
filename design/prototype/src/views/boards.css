@@ -166,7 +166,6 @@
 .pb-camp { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); font-weight: 700; color: var(--ink-2); }
 .pb-camp select.input { width: auto; max-width: 200px; height: var(--ctl-s); font-size: var(--fs-s); font-weight: 400; }
 .pb-card-acts .pv { flex: none; }
-.pb-spare-intro { padding: 6px 8px; font-size: var(--fs-s); color: var(--ink-2); border-bottom: 1px solid var(--line); }
 .pb-kbd-off { text-decoration: line-through; color: var(--ink-3); }
 .pb-files .pv { margin-left: 2px; }
 .pb-has .pb-pad:focus-visible, .pb-tile-pv .pv:focus-visible { outline-offset: -2px; }

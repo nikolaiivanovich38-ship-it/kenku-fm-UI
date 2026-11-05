@@ -415,7 +415,8 @@
       return '<li class="lv-pli' + (on ? ' on' : '') + '"><div class="lv-trk-r">' +
         '<span class="num lv-num" aria-hidden="true">' + (i + 1) + '</span>' + L.expanderButton(xk, p.name, open) +
         (on || rooms().some(function (r) { return r.mix.music && r.mix.music.playlistId === p.id; }) ? L.destTag('air', '') : '') + L.icon('playlist', 's lv-pli-i') +
-        '<span class="lv-pli-n"><b class="ellipsis" title="' + esc(p.name) + '">' + esc(p.name) + '</b><span class="faint ellipsis">' + (p.kind === 'dynamic' ? 'Dynamic' : 'Manual') + ' · ' + ts.length + ' tracks' +
+        // Round 6: mid-game the track count matters, not how the playlist was made (that is hover text).
+        '<span class="lv-pli-n"><b class="ellipsis" title="' + esc(p.name + ' · ' + (p.kind === 'dynamic' ? 'Dynamic' : 'Manual')) + '">' + esc(p.name) + '</b><span class="faint ellipsis">' + ts.length + ' tracks' +
           (at ? ' · playing ' + (ts.map(function (t) { return t.id; }).indexOf(at.trackId) + 1) + ' of ' + ts.length : '') + '</span></span>' +
         '<span class="lv-trk-acts">' +
           '<button class="closer lv-pvb" data-act="lvpvpl" data-id="' + p.id + '" data-k="' + k + '-v" aria-pressed="' + pv + '" title="' + (pv ? 'Stop the preview' : 'Preview in your headphones') + '" aria-label="Preview: ' + esc(p.name) + '">' + L.icon('headphones') + '</button>' +

@@ -99,6 +99,11 @@ button.chip[aria-pressed="true"] { background: var(--accent-soft); border-color:
 .pane-title { font-family: var(--display); font-weight: var(--display-weight); text-transform: var(--display-case); letter-spacing: var(--display-track); font-size: calc(var(--fs-l) * var(--display-scale)); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pane-summary { flex: 1; min-width: 0; font-size: var(--fs-s); color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pane-actions { display: flex; align-items: center; gap: 4px; flex: none; }
+/* Round 6: "Fill the column" is rare, so it shows when the pointer is over the box or the keyboard is in its header
+   (it stays in the Tab order and keeps its name). */
+.pane > header .closer[data-act="panemax"] { opacity: 0; transition: opacity .12s; }
+.pane:hover > header .closer[data-act="panemax"], .pane > header:focus-within .closer[data-act="panemax"], .pane.maxed > header .closer[data-act="panemax"] { opacity: 1; }
+@media (hover: none) { .pane > header .closer[data-act="panemax"] { opacity: 1; } }
 .pane-body { flex: 1; min-height: 0; overflow: auto; padding: 8px; }
 .pane-body.flush { padding: 0; }
 .pane.collapsed > .pane-body { display: none; }
@@ -145,6 +150,8 @@ table.grid tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 v
 .sheet > .panel > footer { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 14px; border-top: 1px solid var(--line); }
 .empty { padding: 16px; text-align: center; color: var(--ink-2); font-size: var(--fs-s); }
 .hint { font-size: var(--fs-xs); color: var(--ink-3); }
+/* Round 6: key legends show while the keyboard is in their box (and are read out through aria-describedby). */
+.pane:not(:focus-within) .keys-on-focus { display: none !important; }
 .status-line { font-size: var(--fs-xs); color: var(--ink-2); }
 
 /* ---------- App shell ---------- */

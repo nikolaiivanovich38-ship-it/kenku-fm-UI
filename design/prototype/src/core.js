@@ -588,8 +588,15 @@ var L = (function () {
   L.toast = function (msg) { var t = document.getElementById('lyre-toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 2200); };
 
   /* ---------- panes ---------- */
+  /* Round 6 (ROUND6.md): a resting status (Ready, Saved, Empty, Copied, or a count the open box already lists) tells
+     nothing new while the box is open, so it shows only on a folded box, where it is the one line left. Statuses that
+     say something is happening (Playing, On air, a warning, n selected) always show. */
+  L.quietStatus = function (st) { return !!st && (st.tone || 'idle') === 'idle' && /^(Ready|Saved|Empty|Copied|\d+( [a-z]+)?)$/.test(st.text); };
   L.pane = function (o) {
     var st = L.state.panes[o.id], collapsed = st == null ? !!o.collapsed : st === 'c';
+    if (!collapsed && L.quietStatus(o.status)) o = Object.assign({}, o, { status: null });
+    // o.foldedSummary: the summary repeats what the open box shows, so it is for the folded box only.
+    if (!collapsed && o.foldedSummary) o = Object.assign({}, o, { summary: '' });
     return '<section class="pane' + (collapsed ? ' collapsed' : '') + (L.state.maxed === o.id ? ' maxed' : '') + (o.kind ? ' k-' + o.kind : '') + (o.cls ? ' ' + o.cls : '') + '" data-pane="' + o.id + '"' + (o.size ? ' data-size="' + o.size + '"' : '') + ' aria-label="' + esc(o.title) + '">' +
       '<header><h2 class="pane-h"><button class="pane-toggle" data-act="pane" data-id="' + o.id + '" data-k="pane-' + o.id + '" aria-expanded="' + !collapsed + '" title="' + (collapsed ? 'Expand' : 'Collapse') + ' ' + esc(o.title) + '">' +
       L.icon('chevdown', 's chev') + (o.icon ? L.icon(o.icon, 's') : '') + '<span class="pane-title">' + esc(o.title) + '</span></button></h2>' +
@@ -629,7 +636,8 @@ var L = (function () {
   L.sheet = function (o) {
     L.closeSheet(); sheetReturn = document.activeElement;
     var s = document.createElement('div'); s.className = 'sheet'; s.id = 'lyre-sheet';
-    s.innerHTML = '<div class="panel" role="dialog" aria-modal="true" aria-labelledby="sheet-title"' + (o.wide ? ' style="width:min(900px,100%)"' : '') + '><header><h2 id="sheet-title">' + esc(o.title) + '</h2><button class="closer" data-act="closesheet" title="Close">' + L.icon('close') + '</button></header><div class="body">' + o.body + '</div>' + (o.footer ? '<footer>' + o.footer + '</footer>' : '') + '</div>';
+    // o.describe (round 6): what the sheet is for, read out with its title, not shown.
+    s.innerHTML = '<div class="panel" role="dialog" aria-modal="true" aria-labelledby="sheet-title"' + (o.describe ? ' aria-describedby="sheet-desc"' : '') + (o.wide ? ' style="width:min(900px,100%)"' : '') + '><header><h2 id="sheet-title">' + esc(o.title) + '</h2><button class="closer" data-act="closesheet" title="Close">' + L.icon('close') + '</button></header>' + (o.describe ? '<p class="sr-only" id="sheet-desc">' + o.describe + '</p>' : '') + '<div class="body">' + o.body + '</div>' + (o.footer ? '<footer>' + o.footer + '</footer>' : '') + '</div>';
     document.body.appendChild(s);
     var f = s.querySelector('.body input, .body select, .body textarea, .body button') || s.querySelector('button'); if (f) f.focus();
     s.addEventListener('pointerdown', function (e) { if (e.target === s) L.closeSheet(); });

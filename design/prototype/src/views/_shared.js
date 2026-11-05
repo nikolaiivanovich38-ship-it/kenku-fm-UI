@@ -124,7 +124,7 @@
     var on = pk.sel.indexOf(it.id) > -1, xk = it.contents ? 'pk:' + it.contents.kind + ':' + it.contents.id : '';
     var row = '<div class="pk-row">' + (it.contents ? L.expanderButton(xk, it.label) : '<span style="width:24px;flex:none"></span>') +
       '<label class="pk-item' + (it.indent ? ' indent' : '') + '"><input type="' + (pk.multi ? 'checkbox' : 'radio') + '" name="pk" data-input="pkpick" value="' + esc(it.id) + '"' + (on ? ' checked' : '') + '>' +
-      '<span class="grow"><span class="ellipsis" style="display:block">' + esc(it.label) + '</span>' + (it.sub ? '<span class="hint ellipsis" style="display:block">' + esc(it.sub) + '</span>' : '') + '</span></label>' +
+      '<span class="grow"' + (it.tip ? ' title="' + esc(it.tip) + '"' : '') + '><span class="ellipsis" style="display:block">' + esc(it.label) + '</span>' + (it.sub ? '<span class="hint ellipsis" style="display:block">' + esc(it.sub) + '</span>' : '') + '</span></label>' +
       (it.track ? L.tagStrip(it.track, 3) : '') + (it.preview ? L.previewButton(it.preview.kind, it.preview.id) : '') + '</div>';
     if (!(it.contents && L.expanded(xk))) return row;
     // ORG-10: in a picker that takes single tracks, an open playlist lists its tracks with a box each, to add only those.
@@ -134,7 +134,7 @@
   function insideHTML(it) {
     var ts = L.playlistTracks(L.playlist(it.id));
     if (!ts.length) return '<p class="hint">No tracks yet.</p>';
-    return '<p class="hint pk-inside-h">Tick single tracks to add only those, or tick the playlist above to add all of it.</p><ul class="list" aria-label="Tracks in ' + esc(it.label) + '">' + ts.map(function (t) {
+    return '<ul class="list" aria-label="Tracks in ' + esc(it.label) + '" title="Tick single tracks to add only those, or tick the playlist to add all of it">' + ts.map(function (t) {
       var on = pk.sel.indexOf(t.id) > -1;
       return '<li class="pk-row pk-inrow"><label class="pk-item"><input type="checkbox" data-input="pkpick" value="' + esc(t.id) + '" data-k="pki-' + esc(it.id) + '-' + esc(t.id) + '"' + (on ? ' checked' : '') + '>' +
         '<span class="grow ellipsis">' + esc(L.title(t)) + '</span></label>' + L.tagStrip(t, 2) + '<span class="num faint">' + L.fmt(t.dur) + '</span>' + L.previewButton('track', t.id) + '</li>';
@@ -163,11 +163,13 @@
     pk = { items: o.items, sel: (o.selected || []).slice(), multi: !!o.multi, inside: !!o.inside, onDone: o.onDone, q: '', fold: !!o.fold, open: {}, filters: o.filters || null, filter: o.filters ? o.filters[0].id : '' };
     if (pk.fold) { (o.openGroups || []).forEach(function (g) { pk.open[g] = true; }); o.items.forEach(function (it) { if (pk.sel.indexOf(it.id) > -1) pk.open[it.group] = true; }); }
     L.sheet({ title: o.title, wide: !!o.wide,
-      body: (o.intro ? '<p class="muted" style="margin-bottom:8px">' + o.intro + '</p>' : '') +
+      // Round 6: the intro is read out with the dialog (its description) and is the list's hover text; on screen the
+      // title, the boxes and the count say enough.
+      describe: o.intro || '',
+      body: '' +
         '<div class="row-flex" style="margin-bottom:8px;flex-wrap:wrap"><div class="search grow" style="min-width:180px">' + L.icon('search') + '<input class="input" type="search" placeholder="Search" aria-label="Search the list" data-input="pkq"></div>' +
         (pk.filters ? '<div class="seg" role="group" aria-label="Show">' + pk.filters.map(function (f) { return '<button type="button" data-act="pkfilter" data-keep-menu="1" data-f="' + f.id + '" aria-pressed="' + (pk.filter === f.id) + '">' + esc(f.label) + '</button>'; }).join('') + '</div>' : '') + '</div>' +
-        '<div id="pk-list" class="pk-list" role="group" aria-label="' + esc(o.title) + '">' + list() + '</div>' +
-        '<p class="hint" style="margin-top:6px">' + L.icon('headphones', 's') + ' Preview plays in your headphones only. The arrow ' + L.icon('chevdown', 's') + ' beside a name shows what is inside.</p>',
+        '<div id="pk-list" class="pk-list" role="group" aria-label="' + esc(o.title) + '"' + (o.intro ? ' title="' + esc(o.intro) + '"' : '') + '>' + list() + '</div>',
       footer: '<span id="pk-count" class="muted grow">' + count() + '</span><button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="pkdone">' + esc(o.okLabel || 'Done') + '</button>' });
   };
   L.inputs.pkq = function (el) { pk.q = el.value; paintList(); };
@@ -187,13 +189,17 @@
   /* ---------- item builders ---------- */
   function kindLabel(p) { return p.kind === 'dynamic' ? 'Dynamic' : 'Manual'; }
   function playlistItem(p, group) {
-    return { id: p.id, label: p.name, group: group, search: L.playlistTracks(p).map(L.title).join(' '),
-      sub: kindLabel(p) + ' · ' + L.kindName[p.lane] + ' · ' + L.playlistTracks(p).length + ' tracks' + (p.kind === 'dynamic' ? ' · ' + L.ruleText(p.rule) : ''),
+    // Round 6: the second line says only what differs from the usual manual music playlist; the rule is hover text.
+    var n = L.playlistTracks(p).length;
+    return { id: p.id, label: p.name, group: group, search: L.playlistTracks(p).map(L.title).join(' ') + (p.kind === 'dynamic' ? ' ' + L.ruleText(p.rule) : ''),
+      sub: (p.kind === 'dynamic' ? 'Dynamic · ' : '') + (p.lane !== 'music' ? L.kindName[p.lane] + ' · ' : '') + n + (n === 1 ? ' track' : ' tracks'),
+      tip: kindLabel(p) + ' · ' + L.kindName[p.lane] + (p.kind === 'dynamic' ? ' · ' + L.ruleText(p.rule) : ''),
       preview: { kind: 'playlist', id: p.id }, contents: { kind: 'playlist', id: p.id }, lane: p.lane, isPlaylist: true };
   }
   function trackItem(t, group) {
     return { id: t.id, label: L.title(t), group: group, search: [t.metaTitle, t.file, t.artist, t.album].concat(t.tags.mood, t.tags.motif, t.tags.scene).join(' '),
-      sub: (L.isFx(t) ? 'FX' + (t.role === 'Sting' ? ' · Sting' : '') : L.kindName[t.kind] + (t.role && t.kind === 'music' ? ' · ' + t.role : '')) + ' · ' + L.fmt(t.dur) + (t.metaTitle && t.metaTitle !== t.title ? ' · in the file: ' + t.metaTitle : ''),
+      sub: (L.isFx(t) ? 'FX' + (t.role === 'Sting' ? ' · Sting' : '') : L.kindName[t.kind] + (t.role && t.kind === 'music' ? ' · ' + t.role : '')) + ' · ' + L.fmt(t.dur),
+      tip: t.metaTitle && t.metaTitle !== t.title ? 'In the file: ' + t.metaTitle : '',
       preview: { kind: 'track', id: t.id }, kind: t.kind, track: t };
   }
   var laneFilters = [{ id: 'all', label: 'All', test: function () { return true; } },
@@ -240,15 +246,17 @@
     var items = [], sel = [];
     D.campaigns.forEach(function (c) {
       var list = listOf(kind, c);
-      items.push({ id: 'c:' + c.id, label: c.name + ': whole campaign', sub: 'Available in every session', group: c.name }); if (list.indexOf(id) > -1) sel.push('c:' + c.id);
+      items.push({ id: 'c:' + c.id, label: c.name + ': whole campaign', tip: 'Available in every session', group: c.name }); if (list.indexOf(id) > -1) sel.push('c:' + c.id);
       c.sessions.forEach(function (s) {
         var sl = listOf(kind, s);
-        items.push({ id: 's:' + c.id + ':' + s.id, label: 'Session ' + s.n + ': ' + s.name, sub: 'Available in every scene of this session', group: c.name }); if (sl.indexOf(id) > -1) sel.push('s:' + c.id + ':' + s.id);
+        items.push({ id: 's:' + c.id + ':' + s.id, label: 'Session ' + s.n + ': ' + s.name, tip: 'Available in every scene of this session', group: c.name }); if (sl.indexOf(id) > -1) sel.push('s:' + c.id + ':' + s.id);
         s.scenes.forEach(function (sc) {
           var obj = kind === 'track' ? L.track(id) : L.playlist(id), isAmb = kind !== 'board' && obj && (kind === 'track' ? obj.kind === 'amb' : obj.lane === 'amb'), cur = isAmb ? sc.amb : '';
           var curName = cur && cur !== id ? ((L.playlist(cur) || L.track(cur) || {}).name || L.title(L.track(cur))) : '';
+          // Round 6: the scene row's second line only when ticking it replaces something.
           items.push({ id: 'x:' + c.id + ':' + s.id + ':' + sc.id, label: 'Scene: ' + sc.name, indent: true, group: c.name,
-            sub: 'Session ' + s.n + ' · ' + (kind === 'board' ? 'one of the pad boards in this scene' : isAmb ? 'ambience for this scene' : 'music for this scene') + (curName ? ' (replaces ' + curName + ')' : '') });
+            tip: 'Session ' + s.n + ' · ' + (kind === 'board' ? 'one of the pad boards in this scene' : isAmb ? 'ambience for this scene' : 'music for this scene'),
+            sub: curName ? 'Replaces ' + curName : '' });
           if (kind === 'board' ? L.sceneBoards(sc).indexOf(id) > -1 : sc.music.indexOf(id) > -1 || sc.amb === id) sel.push('x:' + c.id + ':' + s.id + ':' + sc.id);
         });
       });
