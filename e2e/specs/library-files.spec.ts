@@ -10,10 +10,11 @@ import { dropFiles } from "./support/drop";
 
 const region = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
 
-test.beforeEach(() => expectFailureUntilBuilt("round 5"));
-
 test.describe("DAT-7 back up, move or share", () => {
   test("saves the whole library to one file, without the audio files unless asked", async ({ page }) => {
+    // The design and this check disagree (w4-transfer report): the prototype's "2 MB" is a made-up size; the sample
+    // library without its audio files is a file of about 10 KB in the app. Left marked until the design decides.
+    expectFailureUntilBuilt("round 5");
     await openRoute(page, "backup");
     const save = region(page, "Save to a file");
     await expect(save.getByRole("radio", { name: /^The whole library/ })).toBeChecked();
