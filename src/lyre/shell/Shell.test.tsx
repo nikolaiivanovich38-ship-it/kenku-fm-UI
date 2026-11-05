@@ -74,10 +74,8 @@ describe("the shell: rail, routes and screens (UX-9)", () => {
     expect(screen.getByRole("link", { name: section })).toHaveAttribute("aria-current", "page");
   });
 
-  it.each([
-    ["live", "Live"],
-    ["outputs", "Outputs"],
-  ])("%s says in plain words that it comes in 0.4 and where to run a session until then (w3-ux 2)", (path, heading) => {
+  // Outputs is built (w4-outputs); Live still says it comes later.
+  it.each([["live", "Live"]])("%s says in plain words that it comes in 0.4 and where to run a session until then (w3-ux 2)", (path, heading) => {
     window.history.replaceState(null, "", `#/${path}`);
     render(<Shell screens={SHELL_SCREENS} />);
     const main = within(screen.getByRole("main"));

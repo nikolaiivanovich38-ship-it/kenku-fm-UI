@@ -1,0 +1,64 @@
+/* Outputs screen (op-), ported from design/prototype/src/views/outputs.css.
+   Each rule is scoped to .view (the menus, drawn outside the view, to body .menu) so it wins ties with ui.css, which
+   the page loads after the screens. Lyre's own additions are at the end. */
+.view .op-body { padding: 10px 12px; }
+/* Narrow and half screen: the On air boxes on top (two across when they fit), all voice channels below.
+   Wide: the On air boxes in a column on the left, the channels on the right. */
+.view .op-split { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.view .op-roomcol { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); align-items: start; gap: 10px; flex: none; max-height: 62%; overflow: auto; }
+.view .op-roomcol > .pane { flex: none; }
+.view .op-chcol { flex: 1; min-height: 0; }
+@container app (min-width: 1180px) {
+  .view .op-split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .view .op-roomcol { grid-template-columns: minmax(0, 1fr); max-height: none; min-height: 0; align-content: start; }
+}
+
+/* One On air box per bot: title = the room, bot name small beside it */
+.view .op-box-room > header .pane-summary { flex: 1; }
+.view .op-f { display: grid; grid-template-columns: 62px minmax(0, 1fr); align-items: center; gap: 5px 8px; min-width: 0; }
+.view .op-l { font-size: var(--fs-xs); font-weight: 700; color: var(--ink-2); }
+.view .op-roomrow { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.view .btn.op-room { flex: 1 1 auto; min-width: 0; justify-content: space-between; font-weight: 400; font-size: var(--fs-s); }
+.view .btn.op-room .op-rv { flex: 1; min-width: 0; text-align: left; }
+.view .btn.op-room.primary .muted { color: inherit; }
+.view .op-play { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: var(--fs-s); }
+.view .op-pl { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 20px; }
+.view .op-pp { flex: 0 0 22%; }
+.view .op-who { font-size: var(--fs-s); min-width: 0; }
+.view .op-volrow { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.view .op-volrow input[type="range"] { flex: 1; min-width: 0; height: 24px; margin: 0; }
+.view .op-volrow output { width: 36px; text-align: right; font-size: var(--fs-s); }
+.view .op-warn { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: var(--fs-xs); color: var(--warn); font-weight: 700; min-width: 0; }
+.view .op-warn svg { flex: none; }
+.view .op-warn.op-err { color: var(--danger); }
+
+/* Menus: channel name, people, and a warning line when needed */
+body .menu .op-mi { align-items: flex-start; padding-top: 4px; padding-bottom: 4px; }
+body .menu .op-mi > svg { margin-top: 2px; }
+body .menu .op-mi-t { display: flex; flex-direction: column; min-width: 0; }
+body .menu .op-mi-n { font-weight: 700; }
+body .menu .op-mi.here .op-mi-n { color: var(--accent-text); }
+body .menu .op-mi-s { font-size: var(--fs-xs); color: var(--ink-2); }
+body .menu .op-mi-w { display: flex; align-items: center; gap: 4px; font-size: var(--fs-xs); color: var(--warn); font-weight: 700; }
+
+/* All voice channels: one line per channel */
+.view .op-srv + .op-srv { margin-top: 10px; }
+.view .op-srv-h { display: flex; align-items: center; gap: 6px; font-size: var(--fs-s); font-weight: 700; padding: 0 2px 4px; min-width: 0; }
+.view .op-chs { border: 1px solid var(--line); border-radius: var(--r-m); }
+.view .op-ch { display: grid; grid-template-columns: 16px minmax(60px, max-content) minmax(0, 1fr) auto 76px; align-items: center; gap: 8px; min-height: var(--row); padding: 2px 8px; border-bottom: 1px solid var(--line); min-width: 0; font-size: var(--fs-s); }
+.view .op-ch:last-child { border-bottom: 0; }
+.view .op-ch.live { box-shadow: inset 3px 0 0 var(--onair); }
+.view .op-ch-n { min-width: 0; max-width: 160px; }
+.view .op-ch-who { color: var(--ink-2); }
+.view .op-botchip { color: var(--ink); }
+.view .op-twice { color: var(--warn); border-color: var(--warn); font-weight: 700; }
+.view .op-bring { justify-self: end; }
+.view .op-ch > .chip { justify-self: end; }
+.view .op-nobody { display: inline-flex; align-items: center; gap: 4px; color: var(--warn); font-weight: 700; }
+.view .op-foot { display: flex; align-items: flex-start; gap: 6px; margin-top: 8px; }
+.view .op-foot svg { margin-top: 1px; }
+.view .op-via { font-size: var(--fs-xs); color: var(--ink-2); margin: -2px 0 6px; }
+
+/* Lyre's own: a bot that is not logged in to Discord, and no bots at all. */
+.view .op-login { margin: 0; font-size: var(--fs-s); color: var(--ink-2); min-width: 0; }
+.view .op-none { display: flex; align-items: flex-start; gap: 6px; }

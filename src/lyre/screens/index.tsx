@@ -7,6 +7,7 @@ import { PlaylistScreen, PlaylistsScreen } from "./library/PlaylistsScreen";
 import { LookScreen } from "./look/LookScreen";
 import { ComingScreen } from "./Placeholder";
 import { CampaignScreen, CampaignsScreen, SessionScreen } from "./campaigns";
+import { OutputsScreen } from "./outputs/OutputsScreen";
 import { ProfileScreen } from "./profile/ProfileScreen";
 
 /** What every screen gets: the route it was opened at (its ids are in route.params). */
@@ -22,7 +23,7 @@ export type ScreenComponent = React.ComponentType<ScreenProps> & {
   showsOnAir?: boolean;
 };
 
-/** Live and Outputs come in Lyre 0.4; until then their page says so (ComingScreen). */
+/** Live comes in Lyre 0.4; until then its page says so (ComingScreen). */
 function comingLater(title: string): ScreenComponent {
   const Screen = () => <ComingScreen title={title} />;
   Screen.displayName = `${title} (comes in 0.4)`;
@@ -45,6 +46,6 @@ export const SCREENS: Record<RouteName, ScreenComponent> = {
   boards: BoardsScreen,
   board: BoardScreen,
   live: comingLater("Live"),
-  outputs: comingLater("Outputs"),
+  outputs: OutputsScreen,
   look: LookScreen,
 };
