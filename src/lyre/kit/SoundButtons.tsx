@@ -62,8 +62,13 @@ export interface SoundButtonProps {
   className?: string;
 }
 
+export interface PreviewButtonProps extends SoundButtonProps {
+  /** The icon while it is not playing: headphones, or ▶ where the button sits on the thing itself (a pad tile). */
+  icon?: "headphones" | "play";
+}
+
 /** Preview in your headphones; Stop preview while it plays. */
-export function PreviewButton({ target, name, tabIndex, className }: SoundButtonProps) {
+export function PreviewButton({ target, name, tabIndex, className, icon = "headphones" }: PreviewButtonProps) {
   const audio = useLyreAudio();
   const on = usePreviewKey() === previewKeyOf(target);
   const board = target.kind === "board";
@@ -93,7 +98,7 @@ export function PreviewButton({ target, name, tabIndex, className }: SoundButton
         else start();
       }}
     >
-      <Icon name={on ? "stop" : "headphones"} size="s" />
+      <Icon name={on ? "stop" : icon} size="s" />
     </button>
   );
 }

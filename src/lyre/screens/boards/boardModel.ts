@@ -198,6 +198,17 @@ export function resizeMessage(after: PadBoard, movedLabels: readonly string[], b
   return text;
 }
 
+/** SFX-12: what Try pads says for a press or let-go (the prototype's tryPad); `on`: it was sounding before. */
+export function tryWords(pad: Pick<Pad, "label" | "mode">, phase: "down" | "up", on: boolean): string {
+  const { label } = pad;
+  let text: string;
+  if (pad.mode === "toggle") text = on ? `${label}: loop stopped` : `${label}: loop playing in your headphones. Press again to stop it.`;
+  else if (pad.mode === "hold") text = phase === "up" ? `${label}: let go, fading` : `${label}: playing while held`;
+  else if (pad.mode === "retrigger") text = on ? `${label}: started again from the beginning` : `${label}: playing`;
+  else text = on ? `${label}: playing again from the start` : `${label}: playing once`;
+  return text.includes("headphones") ? text : `${text} (only you hear it)`;
+}
+
 /** What is said after a pad moves (the prototype's moveTo). */
 export function moveMessage(b: PadBoard, pad: Pad, to: number | "spare", other: Pad | null, fromSpare: boolean): string {
   if (to === "spare") return `${pad.label} moved to Spare pads`;
@@ -206,7 +217,7 @@ export function moveMessage(b: PadBoard, pad: Pad, to: number | "spare", other: 
 }
 
 /** The pad tile's accessible name: its visible label and key first (Label in Name), then mode, place and state. */
-export function padTileName(pad: Pad, cols: number, index: number, state: "on air" | "previewing" | null): string {
+export function padTileName(pad: Pad, cols: number, index: number, state: "on air" | "trying" | "previewing" | null): string {
   const key = pad.key ? ` ${keyLabel(pad.key)}` : "";
   return `${pad.label}${key}: ${MODE_NAME[pad.mode]}, ${place(cols, index)}${state ? `, ${state}` : ""}`;
 }

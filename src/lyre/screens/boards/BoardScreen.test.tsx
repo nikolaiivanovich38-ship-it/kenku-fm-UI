@@ -558,3 +558,90 @@ describe("the selected pad's own box", () => {
     await expectNoAxeViolations();
   });
 });
+
+describe("Try pads (SFX-12): pads played as in Live, in the headphones only", () => {
+  const pads = () => screen.getByRole("region", { name: "Pads" });
+  const tryButton = () => within(pads()).getByRole("button", { name: "Try pads" });
+  const previewing = (audio: { setNowPlaying: (s: object) => void }, key: string | null) =>
+    act(() => audio.setNowPlaying({ preview: key ? { key, label: "x" } : null }));
+
+  it("every tile has its own Preview; Try pads says only you hear them and the box reads Trying", async () => {
+    const user = userEvent.setup();
+    await open("board/weather");
+    expect(within(grid()).getByRole("button", { name: "Preview Storm" })).toBeInTheDocument();
+    expect(tryButton()).toHaveAttribute("aria-pressed", "false");
+    await user.click(tryButton());
+    expect(tryButton()).toHaveAttribute("aria-pressed", "true");
+    expect(pads()).toHaveTextContent("only you hear them");
+    expect(pads()).toHaveTextContent("Trying");
+    expect(await spoken()).toBe("Trying pads: press a pad or its key to hear it as it will play. Only you hear it.");
+    await expectNoAxeViolations();
+  });
+
+  it("a click tries a toggle loop and a second click stops it, without selecting the pad or going on air", async () => {
+    const user = userEvent.setup();
+    const { audio } = await open("board/weather");
+    await user.click(tryButton());
+    await user.click(pad("Storm"));
+    expect(audio.calls).toContainEqual(["tryPad", "weather", "storm", "down"]);
+    expect(audio.calls.some((c) => c[0] === "firePad")).toBe(false);
+    previewing(audio, "pad:weather/storm");
+    expect(pad("Storm")).toHaveAttribute("aria-pressed", "true");
+    expect(pad("Storm")).toHaveAccessibleName("Storm W: Toggle loop, row 2, column 2, trying");
+    expect(within(grid()).getByText("Sounding")).toBeInTheDocument();
+    expect(padBox()).toHaveAccessibleName("Pad: Thunder crack");
+    await user.click(pad("Storm"));
+    expect(audio.calls.filter((c) => c[0] === "tryPad")).toHaveLength(2);
+    previewing(audio, null);
+    expect(pad("Storm")).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("a pad's own key tries it, and keys do nothing while Try pads is off", async () => {
+    const user = userEvent.setup();
+    const { audio } = await open("board/weather");
+    await user.keyboard("w");
+    expect(audio.calls.some((c) => c[0] === "tryPad")).toBe(false);
+    await user.click(tryButton());
+    await user.keyboard("w");
+    expect(audio.calls).toContainEqual(["tryPad", "weather", "storm", "down"]);
+    // Typing in the board's name is typing, not a key press for a pad.
+    await user.type(screen.getByRole("textbox", { name: "Board name" }), "w");
+    expect(audio.calls.filter((c) => c[0] === "tryPad")).toHaveLength(1);
+  });
+
+  it("a one-shot says Playing for as long as its sound lasts; a hold pad sounds while Space is held", async () => {
+    const user = userEvent.setup();
+    const { audio } = await open("board/combat");
+    await user.click(tryButton());
+    await user.click(pad("Sword clash"));
+    previewing(audio, "pad:combat/sword");
+    expect(pad("Sword clash")).toHaveAccessibleName(/, trying$/);
+    expect(pad("Sword clash")).toHaveAttribute("aria-pressed", "false");
+    expect(within(grid()).getByText("Playing")).toBeInTheDocument();
+    // Its sound is 1.6 s long in the library.
+    await waitFor(() => expect(pad("Sword clash")).not.toHaveAccessibleName(/, trying$/), { timeout: 3000 });
+
+    act(() => pad("Skeletons rattle").focus());
+    fireEvent.keyDown(pad("Skeletons rattle"), { key: " " });
+    expect(audio.calls).toContainEqual(["tryPad", "combat", "bones", "down"]);
+    previewing(audio, "pad:combat/bones");
+    expect(pad("Skeletons rattle")).toHaveAttribute("aria-pressed", "true");
+    fireEvent.keyUp(pad("Skeletons rattle"), { key: " " });
+    expect(audio.calls).toContainEqual(["tryPad", "combat", "bones", "up"]);
+  });
+
+  it("leaving the board, or turning Try pads off, stops what is being tried", async () => {
+    const user = userEvent.setup();
+    const view = await open("board/weather");
+    await user.click(tryButton());
+    await user.click(pad("Storm"));
+    previewing(view.audio, "pad:weather/storm");
+    await user.click(tryButton());
+    expect(view.audio.calls).toContainEqual(["stopPreview"]);
+    await user.click(tryButton());
+    await user.click(pad("Storm"));
+    view.audio.calls = [];
+    view.unmount();
+    expect(view.audio.calls).toContainEqual(["stopPreview"]);
+  });
+});

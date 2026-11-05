@@ -9,6 +9,7 @@ import {
   padTileName,
   place,
   resizeMessage,
+  tryWords,
   sizeText,
   usesOfBoard,
 } from "./boardModel";
@@ -77,6 +78,15 @@ describe("pad board words and rules (boards.js helpers)", () => {
     expect(resizeMessage(roomy, [])).toBe("Grid is now 6 × 4: 16 empty slots to fill. Mugs clink stays in Spare pads, where you put it.");
     // A full grid has nowhere to put it, so there is nothing to say about it.
     expect(resizeMessage(b, [])).toBe("Grid is now 4 × 2. Pads fill it left to right, top to bottom.");
+  });
+
+  it("SFX-12: says what a tried pad does, and that only you hear it", () => {
+    expect(tryWords({ label: "Storm", mode: "toggle" }, "down", false)).toBe("Storm: loop playing in your headphones. Press again to stop it.");
+    expect(tryWords({ label: "Storm", mode: "toggle" }, "down", true)).toBe("Storm: loop stopped (only you hear it)");
+    expect(tryWords({ label: "Skeletons rattle", mode: "hold" }, "down", false)).toBe("Skeletons rattle: playing while held (only you hear it)");
+    expect(tryWords({ label: "Skeletons rattle", mode: "hold" }, "up", true)).toBe("Skeletons rattle: let go, fading (only you hear it)");
+    expect(tryWords({ label: "Sword clash", mode: "oneshot" }, "down", false)).toBe("Sword clash: playing once (only you hear it)");
+    expect(tryWords({ label: "Knock", mode: "retrigger" }, "down", true)).toBe("Knock: started again from the beginning (only you hear it)");
   });
 
   it("says where a pad went and what it swapped with", () => {

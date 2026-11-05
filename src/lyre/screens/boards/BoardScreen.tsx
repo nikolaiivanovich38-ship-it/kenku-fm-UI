@@ -8,8 +8,8 @@
  * (on an empty slot: adds a pad), a right-click opens the pad's menu, and a pad can be dragged onto another slot or
  * onto Spare pads.
  */
-import React, { useId, useRef, useState } from "react";
-import type { PadBoard, PadPatch } from "../../../common/lyre/api";
+import React, { useEffect, useId, useRef, useState } from "react";
+import type { LibraryTrack, Pad, PadBoard, PadPatch } from "../../../common/lyre/api";
 import { Button, IconButton } from "../../kit/Button";
 import { Icon } from "../../kit/Icon";
 import { Menu, MenuButton, type MenuEntry } from "../../kit/Menu";
@@ -34,6 +34,7 @@ import {
   place,
   plural,
   resizeMessage,
+  tryWords,
   usesOfBoard,
   type PadAt,
 } from "./boardModel";
@@ -113,6 +114,7 @@ function BoardEditor({ board }: { board: PadBoard }) {
   const lastClick = useRef<{ pid: string | null; t: number }>({ pid: null, t: 0 });
   const dragging = useRef<string | null>(null);
   const [dropOver, setDropOver] = useState<string | null>(null);
+  const tryPads = useTryPads(board, tracks, sound);
 
   const selected: PadAt | null = chosen === null ? null : findPad(board, chosen) ?? (() => {
     const first = firstPad(board);
@@ -366,6 +368,12 @@ function BoardEditor({ board }: { board: PadBoard }) {
 
   const onPadClick = (e: React.MouseEvent, index: number, pid: string, label: string) => {
     setFocusIndex(index);
+    if (tryPads.on) {
+      // Trying: the tile is the pad as in Live. A hold pad plays on pointer down instead (tryPads.tileProps).
+      const pad = board.slots[index];
+      if (pad && pad.mode !== "hold") tryPads.press(pad, "down");
+      return;
+    }
     const same = selected?.pad.id === pid;
     const now = Date.now();
     if (e.detail > 0 && same && lastClick.current.pid === pid && now - lastClick.current.t < DOUBLE_CLICK_MS) {
@@ -381,7 +389,8 @@ function BoardEditor({ board }: { board: PadBoard }) {
   };
 
   const dragProps = (pid: string) => ({
-    draggable: true,
+    // While trying, pressing a pad plays it, so it does not drag.
+    draggable: !tryPads.on,
     onDragStart: (e: React.DragEvent) => {
       dragging.current = pid;
       e.dataTransfer.effectAllowed = "move";
@@ -431,6 +440,13 @@ function BoardEditor({ board }: { board: PadBoard }) {
   const uses = usesOfBoard(campaigns, board.id);
   const count = padCount(board);
   const sounding = board.slots.filter((p) => p && sound.onAir(board.id, p.id)).length;
+  const padsStatus = sounding
+    ? { text: `${sounding} sounding`, tone: "live" as const }
+    : tryPads.on
+      ? { text: "Trying", tone: "on" as const }
+      : count
+        ? { text: plural(count, "pad"), tone: "idle" as const }
+        : { text: "Empty", tone: "idle" as const };
 
   const slot = (pad: PadBoard["slots"][number], index: number) => {
     const where = place(board.cols, index);
@@ -458,10 +474,14 @@ function BoardEditor({ board }: { board: PadBoard }) {
       );
     }
     const on = sound.onAir(board.id, pad.id);
-    const pv = sound.previewing(board.id, pad.id);
+    const tried = tryPads.sounding(pad);
+    const pv = !tried && sound.previewing(board.id, pad.id);
     const isSel = selected?.pad.id === pad.id;
     const at: PadAt = { where: "slot", index, pad };
-    const classes = ["pb-slot", "pb-has", isSel && "sel", on && "on", pv && "pv", dropOver === String(index) && "pb-over"].filter(Boolean).join(" ");
+    const lasting = pad.mode === "toggle" || pad.mode === "hold";
+    // While trying, aria-pressed says whether a toggle loop or a held pad sounds; otherwise which pad is selected.
+    const pressed = tryPads.on ? lasting && tried : isSel;
+    const classes = ["pb-slot", "pb-has", isSel && "sel", on && "on", pv && "pv", tried && "trying", dropOver === String(index) && "pb-over"].filter(Boolean).join(" ");
     return (
       <div key={index} className={classes} style={colourOf(pad.color)} {...dropProps(String(index))}>
         <button
@@ -471,9 +491,10 @@ function BoardEditor({ board }: { board: PadBoard }) {
           data-slot={index}
           data-pid={pad.id}
           tabIndex={tabIndex}
-          aria-pressed={isSel}
-          aria-label={padTileName(pad, board.cols, index, on ? "on air" : pv ? "previewing" : null)}
+          aria-pressed={pressed}
+          aria-label={padTileName(pad, board.cols, index, on ? "on air" : tried ? "trying" : pv ? "previewing" : null)}
           onClick={(e) => onPadClick(e, index, pad.id, pad.label)}
+          {...tryPads.tileProps(pad)}
           onContextMenu={(e) => {
             e.preventDefault();
             setFocusIndex(index);
@@ -488,11 +509,11 @@ function BoardEditor({ board }: { board: PadBoard }) {
             <span className="pb-mode" title={MODE_NAME[pad.mode]}>
               <Icon name={MODE_ICON[pad.mode]} size="s" />
             </span>
-            {on && <span className="pb-playing">On air</span>}
+            {on ? <span className="pb-playing">On air</span> : tried && <span className="pb-trying">{lasting ? "Sounding" : "Playing"}</span>}
           </span>
         </button>
         <span className="pb-tile-pv">
-          <PreviewButton target={{ kind: "pad", boardId: board.id, padId: pad.id }} name={pad.label} tabIndex={-1} />
+          <PreviewButton target={{ kind: "pad", boardId: board.id, padId: pad.id }} name={pad.label} tabIndex={-1} icon="play" />
         </span>
       </div>
     );
@@ -534,7 +555,20 @@ function BoardEditor({ board }: { board: PadBoard }) {
               kind="fx"
               size="auto"
               summary={`${board.cols} × ${board.rows}`}
-              status={sounding ? { text: `${sounding} sounding`, tone: "live" } : count ? { text: plural(count, "pad"), tone: "idle" } : { text: "Empty", tone: "idle" }}
+              status={padsStatus}
+              actions={
+                <Button
+                  size="s"
+                  className="pb-trybtn"
+                  icon={tryPads.on ? "check" : "headphones"}
+                  pressed={tryPads.on}
+                  data-k="pb-trymode"
+                  title="Press pads and their keys to hear how they play, in your headphones only"
+                  onClick={tryPads.toggle}
+                >
+                  Try pads
+                </Button>
+              }
             >
               <div className="pb-tools">
                 <div className="field pb-name">
@@ -588,6 +622,12 @@ function BoardEditor({ board }: { board: PadBoard }) {
                     }}
                   />
                 </div>
+              )}
+              {tryPads.on && (
+                <p className="pb-tryhint" role="note">
+                  <Icon name="headphones" size="s" />
+                  <span>Trying: pads play as they will in Live, keys too, but only you hear them. Click a pad, or press its key; hold a Hold to play pad.</span>
+                </p>
               )}
               <div
                 className="pb-grid"
@@ -701,6 +741,146 @@ function BoardEditor({ board }: { board: PadBoard }) {
       />
     </>
   );
+}
+
+/* ---------- Try pads ---------- */
+
+/** How long a one-shot whose length the library does not know says "Playing" (the prototype's TRY_LEN). */
+const TRY_FALLBACK_MS = 2500;
+
+/** The longest of a pad's sounds, as the library knows them (ms); null for "any effect with a tag". */
+function soundLength(pad: Pad, tracks: readonly LibraryTrack[]): number | null {
+  if (pad.sound.kind === "tag") return null;
+  const lengths = pad.sound.trackIds.map((id) => tracks.find((t) => t.id === id)?.durationMs ?? 0);
+  const longest = Math.max(0, ...lengths);
+  return longest > 0 ? longest : null;
+}
+
+/**
+ * SFX-12 Try pads (boards.js tryPad): while on, pressing a pad on the grid, or its key, plays it as it will play in
+ * Live (LyreAudio.tryPad), in the headphones only. A toggle loop and a held pad sound while the preview is theirs; a
+ * one-shot or restart pad says "Playing" for as long as its sound lasts. Turning it off, or leaving the board, stops
+ * what is being tried.
+ */
+function useTryPads(board: PadBoard, tracks: readonly LibraryTrack[], sound: ReturnType<typeof useBoardSound>) {
+  const { say } = useAnnounce();
+  const [on, setOn] = useState(false);
+  /** When each one-shot or restart pad stops saying "Playing" (Date.now() ms). */
+  const [until, setUntil] = useState<Record<string, number>>({});
+  const [, redraw] = useState(0);
+  const held = useRef<{ padId: string; key: string | null } | null>(null);
+
+  const isOurs = () => sound.audio.getNowPlaying().preview?.key.startsWith(`pad:${board.id}/`) ?? false;
+  const stop = () => {
+    held.current = null;
+    setUntil({});
+    if (isOurs()) sound.audio.stopPreview();
+  };
+
+  const sounding = (pad: Pad): boolean => {
+    if (!on || !sound.previewing(board.id, pad.id)) return false;
+    if (pad.mode === "toggle" || pad.mode === "hold") return true;
+    return (until[pad.id] ?? 0) > Date.now();
+  };
+
+  const press = (pad: Pad, phase: "down" | "up") => {
+    const was = sounding(pad) || (pad.mode !== "oneshot" && pad.mode !== "retrigger" && sound.previewing(board.id, pad.id));
+    if (phase === "up" && (pad.mode !== "hold" || !was)) return;
+    if (phase === "down" && pad.mode === "hold" && was) return;
+    const outcome = sound.audio.tryPad(board.id, pad.id, phase);
+    if (!outcome.ok) return;
+    if (phase === "down" && (pad.mode === "oneshot" || pad.mode === "retrigger")) {
+      setUntil((u) => ({ ...u, [pad.id]: Date.now() + (soundLength(pad, tracks) ?? TRY_FALLBACK_MS) }));
+    }
+    say(tryWords(pad, phase, was));
+  };
+
+  // A one-shot's "Playing" goes when its time is up.
+  useEffect(() => {
+    const next = Math.min(...Object.values(until).filter((t) => t > Date.now()));
+    if (!Number.isFinite(next)) return;
+    const timer = setTimeout(() => redraw((n) => n + 1), next - Date.now() + 30);
+    return () => clearTimeout(timer);
+  });
+
+  // A pad's own key tries it (grid pads only: a spare pad's key does nothing), as in Live.
+  const latest = useRef({ board, press });
+  latest.current = { board, press };
+  useEffect(() => {
+    if (!on) return;
+    const padOfKey = (key: string) => latest.current.board.slots.find((p): p is Pad => !!p && !!p.key && p.key.toLowerCase() === key.toLowerCase());
+    const down = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.repeat || e.ctrlKey || e.metaKey || e.altKey || isTyping(e.target) || e.key.length === 0) return;
+      const pad = padOfKey(e.key);
+      if (!pad) return;
+      e.preventDefault();
+      if (pad.mode === "hold") held.current = { padId: pad.id, key: e.key.toLowerCase() };
+      latest.current.press(pad, "down");
+    };
+    const up = (e: KeyboardEvent) => {
+      const h = held.current;
+      if (!h || h.key !== e.key.toLowerCase()) return;
+      held.current = null;
+      const pad = latest.current.board.slots.find((p): p is Pad => !!p && p.id === h.padId);
+      if (pad) latest.current.press(pad, "up");
+    };
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    return () => {
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+    };
+  }, [on]);
+
+  // Leaving the board stops what is being tried.
+  const stopRef = useRef(stop);
+  stopRef.current = stop;
+  const onRef = useRef(on);
+  onRef.current = on;
+  useEffect(() => () => void (onRef.current && stopRef.current()), []);
+
+  /** A hold pad on the grid sounds while the pointer, Space or Enter is held on it. */
+  const tileProps = (pad: Pad): React.ButtonHTMLAttributes<HTMLButtonElement> => {
+    if (!on || pad.mode !== "hold") return {};
+    const letGo = () => {
+      if (held.current?.padId !== pad.id) return;
+      held.current = null;
+      press(pad, "up");
+    };
+    return {
+      onPointerDown: (e) => {
+        if (e.button !== 0) return;
+        held.current = { padId: pad.id, key: null };
+        press(pad, "down");
+      },
+      onPointerUp: letGo,
+      onPointerLeave: letGo,
+      onPointerCancel: letGo,
+      onKeyDown: (e) => {
+        if (e.key !== " " && e.key !== "Enter") return;
+        e.preventDefault();
+        if (e.repeat) return;
+        held.current = { padId: pad.id, key: e.key.toLowerCase() };
+        press(pad, "down");
+      },
+      onKeyUp: (e) => {
+        if (e.key !== " " && e.key !== "Enter") return;
+        e.preventDefault();
+      },
+    };
+  };
+
+  return {
+    on,
+    sounding,
+    press,
+    tileProps,
+    toggle: () => {
+      if (on) stop();
+      setOn(!on);
+      say(on ? "Stopped trying pads" : "Trying pads: press a pad or its key to hear it as it will play. Only you hear it.");
+    },
+  };
 }
 
 /* ---------- Spare pads ---------- */

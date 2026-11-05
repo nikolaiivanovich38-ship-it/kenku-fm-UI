@@ -609,7 +609,8 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       return this.fail("That pad has no sound.");
     }
     const loop = pad.mode === "toggle" || pad.mode === "hold";
-    preview.play({ ...padPreview({ boardId, padId, label: pad.label, media }), options: { loop, volume: pad.volume }, from: options.from ?? null });
+    // Quiet: the board says what the press did ("Storm: loop stopped"), in the words of Try pads.
+    preview.play({ ...padPreview({ boardId, padId, label: pad.label, media }), options: { loop, volume: pad.volume }, quiet: true, from: options.from ?? null });
     return OK;
   }
 
