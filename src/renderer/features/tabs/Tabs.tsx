@@ -194,6 +194,8 @@ export function Tabs() {
   const errorsBesideRail = useSelector(
     (state: RootState) => state.bookmarks.sidebarCollapsed && state.errors.list.length > 0,
   );
+  // w3-ux 4: on the Lyre tab the sidebar steps aside, and comes back while errors are shown.
+  const showingErrors = useSelector((state: RootState) => state.errors.list.length > 0);
 
   // UX finding 1: the view is drawn above this page, so it steps aside while
   // a dialog, menu or popover is open, and comes back when it closes.
@@ -225,7 +227,7 @@ export function Tabs() {
     }
     // UX-10: the sidebar's width changes when it is collapsed or expanded,
     // and a side panel such as Settings can push the view to the right.
-  }, [settings.urlBarEnabled, isPlayer, tabs.selectedTab, bookmarks.sidebarCollapsed, overlay.inset, errorsBesideRail]);
+  }, [settings.urlBarEnabled, isPlayer, tabs.selectedTab, bookmarks.sidebarCollapsed, overlay.inset, errorsBesideRail, showingErrors]);
 
   function handleURLChange(url: string) {
     dispatch(editTab({ id: tabs.selectedTab, url }));

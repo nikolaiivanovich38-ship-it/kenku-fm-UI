@@ -15,7 +15,11 @@ export function sidebarWidth(collapsed: boolean): number {
  */
 export const ERROR_COLUMN_WIDTH = 248;
 
-/** The sidebar's width, including the error column next to the collapsed icons. */
-export function sidebarSpace(collapsed: boolean, showingErrors: boolean): number {
+/**
+ * The sidebar's width, including the error column next to the collapsed icons. While the Lyre tab is open the
+ * sidebar steps aside (0), so the new interface gets the window's width; it stays while there are error messages.
+ */
+export function sidebarSpace(collapsed: boolean, showingErrors: boolean, lyreOpen = false): number {
+  if (lyreOpen && !showingErrors) return 0;
   return collapsed && showingErrors ? COLLAPSED_SIDEBAR_WIDTH + ERROR_COLUMN_WIDTH : sidebarWidth(collapsed);
 }
