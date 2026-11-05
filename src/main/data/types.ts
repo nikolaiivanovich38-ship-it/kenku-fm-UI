@@ -60,6 +60,8 @@ export type LibraryRoot = {
   name: string;
   /** Absolute folder path on this computer. */
   path: string;
+  /** New files in it are added by themselves (DB review 9). */
+  watched: boolean;
   createdAt: number;
 };
 

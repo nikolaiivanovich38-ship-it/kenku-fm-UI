@@ -127,6 +127,66 @@ describe("the library schema (DAT-11)", () => {
       fails(`INSERT INTO tracks (id, url, created_at, updated_at) VALUES ('u6', 'https://x.org/a.mp3', 1, 1)`, /UNIQUE/);
     });
 
+    it("stores cue actions (PLY-8) with the facts their type needs and nothing else, and follows deletes (DB review 9)", () => {
+      db.exec(`
+        INSERT INTO boards (id, title, position, created_at, updated_at) VALUES ('b', 'B', 1, 1, 1);
+        INSERT INTO pads (id, board_id, grid_row, grid_col) VALUES ('pad', 'b', 0, 0);
+      `);
+      const add = (columns: string, values: string) =>
+        db.exec(`INSERT INTO cue_actions (id, hotkey, position, ${columns}) VALUES (lower(hex(randomblob(8))), 'f1', (SELECT coalesce(max(position), 0) + 1 FROM cue_actions), ${values})`);
+      for (const [columns, values] of [
+        ["type, track_id, room, play_when, fade_ms", "'playTrack', 't', 'all', 'next', 3000"],
+        ["type, track_id, room, from_playlist_id", "'playTrack', 't', '123456789', 'm'"],
+        ["type, track_id, room, from_scene_id, from_step", "'playTrack', 't', 'all', 'sc', 2"],
+        ["type, playlist_id, room", "'playPlaylist', 'm', 'all'"],
+        ["type, scene_id", "'startScene', 'sc'"],
+        ["type, lane, room, fade_ms", "'next', 'music', 'all', 3000"],
+        ["type, lane, room", "'previous', 'ambience', 'all'"],
+        ["type, lane, room", "'fadeLane', 'effects', 'all'"],
+        ["type, fade_ms", "'fadeAll', 3000"],
+        ["type, room", "'stopAll', 'all'"],
+        ["type, pad_id, room, phase", "'firePad', 'pad', 'all', 'up'"],
+        ["type", "'undoSceneStart'"],
+      ]) {
+        add(columns, values);
+      }
+      for (const [columns, values] of [
+        ["type", "'teleport'"],
+        ["type, room", "'removeQueued', 'all'"],
+        ["type, room", "'playTrack', 'all'"],
+        ["type, track_id", "'playTrack', 't'"],
+        ["type, track_id, playlist_id, room", "'playTrack', 't', 'm', 'all'"],
+        ["type, scene_id, room", "'startScene', 'sc', 'all'"],
+        ["type, lane, room", "'next', 'effects', 'all'"],
+        ["type, lane, room", "'fadeLane', 'voices', 'all'"],
+        ["type, room, fade_ms", "'stopAll', 'all', 100"],
+        ["type, pad_id, room, phase", "'firePad', 'pad', 'all', 'sideways'"],
+        ["type, playlist_id, room, phase", "'playPlaylist', 'm', 'all', 'up'"],
+        ["type, lane, room, fade_ms", "'next', 'music', 'all', 60001"],
+        ["type, playlist_id, room, from_playlist_id", "'playPlaylist', 'm', 'all', 'm'"],
+      ]) {
+        expect(() => add(columns, values), `${columns} = ${values}`).toThrow(/CHECK/);
+      }
+      fails("INSERT INTO cue_actions (id, hotkey, position, type) VALUES ('u', 'F1', 99, 'undoSceneStart')", /CHECK/);
+      fails("INSERT INTO cue_actions (id, hotkey, position, type) VALUES ('u', 'f1', 1, 'undoSceneStart')", /UNIQUE/);
+      // An action whose sound is deleted goes with it; a "picked from" place that goes is forgotten.
+      db.exec("DELETE FROM playlists WHERE id = 'm'");
+      expect(all(db, "SELECT count(*) AS n FROM cue_actions WHERE type = 'playPlaylist'")).toEqual([{ n: 0 }]);
+      expect(all(db, "SELECT count(*) AS n FROM cue_actions WHERE type = 'playTrack'")).toEqual([{ n: 3 }]);
+      db.exec("DELETE FROM pads WHERE id = 'pad'");
+      db.exec("DELETE FROM tracks WHERE id = 't'");
+      expect(all(db, "SELECT type FROM cue_actions ORDER BY position")).toEqual(
+        ["startScene", "next", "previous", "fadeLane", "fadeAll", "stopAll", "undoSceneStart"].map((type) => ({ type })),
+      );
+      expect(all(db, "PRAGMA foreign_key_check")).toEqual([]);
+    });
+
+    it("marks a library folder watched or not (DB review 9)", () => {
+      db.exec("INSERT INTO library_roots (id, name, path, created_at) VALUES ('r', 'R', '/music', 1)");
+      expect(all(db, "SELECT watched FROM library_roots")).toEqual([{ watched: 0 }]);
+      fails("UPDATE library_roots SET watched = 2", /CHECK/);
+    });
+
     it("keeps one profile per track per place, and one per track of its own", () => {
       db.exec("INSERT INTO audio_profiles (id, track_id, end_ms) VALUES ('own', 't', 1000)");
       fails("INSERT INTO audio_profiles (id, track_id) VALUES ('own2', 't')", /UNIQUE/);

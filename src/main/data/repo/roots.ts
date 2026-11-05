@@ -8,11 +8,11 @@ import { isAbsolutePath, joinRoot, normalizePath, relativeToRoot } from "../path
 import type { Store } from "../store";
 import type { LibraryRoot } from "../types";
 import * as v from "../validate";
-import { newId, patchOf, requireRow, unique } from "./common";
+import { newId, patchOf, requireRow, toFlag, unique } from "./common";
 
-type RootRow = { id: string; name: string; path: string; created_at: number };
+type RootRow = { id: string; name: string; path: string; watched: number; created_at: number };
 
-const toRoot = (row: RootRow): LibraryRoot => ({ id: row.id, name: row.name, path: row.path, createdAt: row.created_at });
+const toRoot = (row: RootRow): LibraryRoot => ({ id: row.id, name: row.name, path: row.path, watched: row.watched === 1, createdAt: row.created_at });
 
 function absoluteFolder(value: unknown): string {
   const folder = v.requiredName("path", value, v.MAX_TEXT_LENGTH);
@@ -27,16 +27,17 @@ function absoluteFolder(value: unknown): string {
  * become relative to it), in batches when there are many (DB review 1 and 4);
  * await the result.
  */
-export function addRoot(store: Store, input: { id?: string; name: string; path: string }): Promise<LibraryRoot> {
+export function addRoot(store: Store, input: { id?: string; name: string; path: string; watched?: boolean }): Promise<LibraryRoot> {
   const id = newId(input.id);
   const name = v.requiredName("name", input.name);
   const folder = absoluteFolder(input.path);
+  const watched = toFlag(input.watched === undefined ? false : v.boolean("watched", input.watched));
   let added = false;
   return store
     .changeInBatches(`Add library folder "${name}"`, tracksTakenIn(store, { id, path: folder }), (batch) => {
       if (!added) {
         unique("name", `A library folder called "${name}"`, () =>
-          store.run("INSERT INTO library_roots (id, name, path, created_at) VALUES (?, ?, ?, ?)", id, name, folder, store.now()),
+          store.run("INSERT INTO library_roots (id, name, path, watched, created_at) VALUES (?, ?, ?, ?, ?)", id, name, folder, watched, store.now()),
         );
         added = true;
       }
@@ -87,8 +88,9 @@ export function listRoots(store: Store): LibraryRoot[] {
 }
 
 /** Renames a root or points it at its new folder (every track under it follows). */
-export function updateRoot(store: Store, id: string, changes: { name?: string; path?: string }): LibraryRoot {
-  const patch = patchOf(changes, ["name", "path"]);
+export function updateRoot(store: Store, id: string, changes: { name?: string; path?: string; watched?: boolean }): LibraryRoot {
+  const patch = patchOf(changes, ["name", "path", "watched"]);
+  const watched = patch.watched === undefined ? undefined : toFlag(v.boolean("watched", patch.watched));
   const rootId = requireRow(store, "library_roots", "library folder", id);
   const name = patch.name === undefined ? undefined : v.requiredName("name", patch.name);
   const folder = patch.path === undefined ? undefined : absoluteFolder(patch.path);
@@ -96,6 +98,7 @@ export function updateRoot(store: Store, id: string, changes: { name?: string; p
     unique("name", `A library folder called "${name}"`, () => {
       if (name !== undefined) store.run("UPDATE library_roots SET name = ? WHERE id = ?", name, rootId);
       if (folder !== undefined) store.run("UPDATE library_roots SET path = ? WHERE id = ?", folder, rootId);
+      if (watched !== undefined) store.run("UPDATE library_roots SET watched = ? WHERE id = ?", watched, rootId);
     }),
   );
   return getRoot(store, rootId) as LibraryRoot;

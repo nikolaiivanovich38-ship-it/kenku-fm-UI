@@ -13,6 +13,7 @@ import * as folders from "./repo/folders";
 import * as tags from "./repo/tags";
 import * as campaigns from "./repo/campaigns";
 import * as profiles from "./repo/profiles";
+import * as cueActions from "./repo/cueActions";
 import { search } from "./repo/search";
 import { getDomainLookup } from "./repo/domain";
 
@@ -120,7 +121,16 @@ type Fixture = Awaited<ReturnType<typeof fixture>>;
 /** Every write command of the repository, run against the fixture. */
 const COMMANDS: [string, (s: Store, f: Fixture) => unknown][] = [
   ["addRoot", (s) => roots.addRoot(s, { name: "Fx", path: "/fx" })],
-  ["updateRoot", (s, f) => roots.updateRoot(s, f.root.id, { name: "Songs", path: "/songs" })],
+  ["updateRoot", (s, f) => roots.updateRoot(s, f.root.id, { name: "Songs", path: "/songs", watched: true })],
+  ["setHotkeyActions", (s, f) => cueActions.setHotkeyActions(s, "f1", [{ type: "playTrack", trackId: f.a.id, target: "all", from: { scene: f.inScene, at: 0 } }, { type: "firePad", boardId: f.board.id, padId: f.pads[0].id, target: "all" }])],
+  [
+    "setHotkeyActions (then the track is deleted)",
+    (s, f) =>
+      s.change("Key, then delete", () => {
+        cueActions.setHotkeyActions(s, "f2", [{ type: "playTrack", trackId: f.c.id, target: "all" }]);
+        void tracks.deleteTracks(s, [f.c.id]);
+      }),
+  ],
   ["removeRoot", (s, f) => roots.removeRoot(s, f.root.id)],
   ["createTrack", (s) => tracks.createTrack(s, { title: "Delta", url: "https://example.com/d.mp3" })],
   ["createTracks", (s) => tracks.createTracks(s, [{ title: "D", file: { path: "/d.mp3" } }, { title: "E", file: { path: "/e.mp3" } }])],
@@ -232,7 +242,7 @@ describe("undo and redo of every command (EDT-2)", () => {
   });
 
   it("covers every exported write function", async () => {
-    const modules = { tracks, roots, markers, playlists, boards, folders, tags, campaigns, profiles };
+    const modules = { tracks, roots, markers, playlists, boards, folders, tags, campaigns, profiles, cueActions };
     const readers = /^(get|list|find|track|tagUsage|campaignsOf|resolve|suggest|tagsOf|requireFolderFor|getFollowWith|ITEM_TABLES|[A-Z_]+$)/;
     const writers = Object.values(modules)
       .flatMap((m) => Object.keys(m))

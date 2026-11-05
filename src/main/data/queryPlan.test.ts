@@ -20,6 +20,7 @@ import { BOARD_PADS_SQL } from "./repo/boards";
 import { PROFILE_LOOKUP_SQL } from "./repo/profileRows";
 import { searchQuery } from "./repo/search";
 import { dynamicTracksQuery } from "./repo/ruleRows";
+import { HOTKEY_ACTIONS_SQL } from "./repo/cueActions";
 import { listTags, TAG_USAGE_SQL } from "./repo/tags";
 
 let temp: ReturnType<typeof makeTempFolder>;
@@ -79,6 +80,11 @@ describe("query plans of the hot read paths (DAT-11)", () => {
     ["every track under a library folder", TRACK_BY_PATH_SQL.underRoot, ["r"], "tracks_root_path"],
   ] as const)("finding a track by its file: %s", (_name, sql, params, index) => {
     expectIndexed(sql, [...params], index);
+  });
+
+  it("a hotkey's cue actions in order (DB review 9)", () => {
+    const details = expectIndexed(HOTKEY_ACTIONS_SQL, ["f1"], "cue_actions_order");
+    expect(details.filter((d) => d.startsWith("USE TEMP B-TREE")), details.join("\n")).toEqual([]);
   });
 
   it("new tracks (the library's New mark; import stream)", () => {

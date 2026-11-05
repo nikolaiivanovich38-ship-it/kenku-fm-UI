@@ -45,6 +45,8 @@ CREATE TABLE library_roots (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   path TEXT NOT NULL,
+  -- Watched: new files in it are added by themselves (prototype library.js, DB review 9).
+  watched INTEGER NOT NULL DEFAULT 0 CHECK (watched IN (0, 1)),
   created_at INTEGER NOT NULL
 );
 
@@ -397,6 +399,53 @@ CREATE TABLE audio_profile_markers (
   PRIMARY KEY (profile_id, position)
 );
 
+-- Cue actions (PLY-8, src/player/engine/queue/actions.ts) stored on a hotkey, in order (DB review 9):
+-- what a key press runs, made of the same CueAction shapes the buttons build. One row per action;
+-- what it acts on is a foreign key, so deleting a track, playlist, scene or pad deletes the actions
+-- that play it (they could do nothing), and a "picked from" place that goes is forgotten (SET NULL).
+-- Each type has exactly the facts it needs (the CHECKs below). removeQueued is not stored: it names
+-- an entry of the live queue. Cues (WPD) will add cue_id, with a CHECK that exactly one owner is set.
+CREATE TABLE cue_actions (
+  id TEXT PRIMARY KEY,
+  -- The key combination, lower case ("f1", "ctrl+1").
+  hotkey TEXT NOT NULL CHECK (length(hotkey) BETWEEN 1 AND 40 AND hotkey = lower(hotkey)),
+  position REAL NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('playTrack', 'playPlaylist', 'startScene', 'next', 'previous', 'fadeLane', 'fadeAll',
+    'stopAll', 'firePad', 'undoSceneStart')),
+  track_id TEXT REFERENCES tracks (id) ON DELETE CASCADE,
+  playlist_id TEXT REFERENCES playlists (id) ON DELETE CASCADE,
+  -- The scene's session and campaign follow from it.
+  scene_id TEXT REFERENCES scenes (id) ON DELETE CASCADE,
+  -- The pad's board follows from it.
+  pad_id TEXT REFERENCES pads (id) ON DELETE CASCADE,
+  -- playTrack only: where the track was picked from, so it plays with that place's audio profile.
+  from_playlist_id TEXT REFERENCES playlists (id) ON DELETE SET NULL,
+  from_scene_id TEXT REFERENCES scenes (id) ON DELETE SET NULL,
+  -- The step of from_scene_id's music; ignored once that scene is gone.
+  from_step INTEGER CHECK (from_step >= 0),
+  lane TEXT CHECK (lane IN ('music', 'ambience', 'effects')),
+  -- The room (a bot id), or 'all' for every room (RoomTarget). NULL where the type may leave it out.
+  room TEXT CHECK (length(room) BETWEEN 1 AND 200),
+  play_when TEXT CHECK (play_when IN ('now', 'next')),
+  phase TEXT CHECK (phase IN ('down', 'up')),
+  fade_ms INTEGER CHECK (fade_ms BETWEEN 0 AND 60000),
+  CHECK ((track_id IS NOT NULL) = (type = 'playTrack')),
+  CHECK ((playlist_id IS NOT NULL) = (type = 'playPlaylist')),
+  CHECK ((scene_id IS NOT NULL) = (type = 'startScene')),
+  CHECK ((pad_id IS NOT NULL) = (type = 'firePad')),
+  CHECK ((lane IS NOT NULL) = (type IN ('next', 'previous', 'fadeLane'))),
+  CHECK (type NOT IN ('next', 'previous') OR lane IN ('music', 'ambience')),
+  CHECK (CASE
+    WHEN type IN ('playTrack', 'playPlaylist', 'next', 'previous', 'fadeLane', 'firePad') THEN room IS NOT NULL
+    WHEN type IN ('fadeAll', 'stopAll') THEN 1
+    ELSE room IS NULL END),
+  CHECK (play_when IS NULL OR type IN ('playTrack', 'playPlaylist')),
+  CHECK (phase IS NULL OR type = 'firePad'),
+  CHECK (fade_ms IS NULL OR type IN ('playTrack', 'playPlaylist', 'next', 'previous', 'fadeLane', 'fadeAll')),
+  CHECK ((from_playlist_id IS NULL AND from_scene_id IS NULL AND from_step IS NULL) OR type = 'playTrack'),
+  CHECK (from_playlist_id IS NULL OR from_scene_id IS NULL)
+);
+
 -- Long jobs that must run once and survive a crash (moving the old player's library in,
 -- ../import/legacy.ts): their state and a JSON report. Bookkeeping, written outside undo.
 CREATE TABLE library_jobs (
@@ -525,6 +574,15 @@ CREATE INDEX scene_ambience_playlist ON scene_ambience (playlist_id) WHERE playl
 -- A scene's boards in order; uses of a board.
 CREATE UNIQUE INDEX scene_boards_order ON scene_boards (scene_id, position);
 CREATE INDEX scene_boards_board ON scene_boards (board_id);
+
+-- A hotkey's actions in order; the actions that play a track, playlist, scene or pad (deleting it).
+CREATE UNIQUE INDEX cue_actions_order ON cue_actions (hotkey, position);
+CREATE INDEX cue_actions_track ON cue_actions (track_id) WHERE track_id IS NOT NULL;
+CREATE INDEX cue_actions_playlist ON cue_actions (playlist_id) WHERE playlist_id IS NOT NULL;
+CREATE INDEX cue_actions_scene ON cue_actions (scene_id) WHERE scene_id IS NOT NULL;
+CREATE INDEX cue_actions_pad ON cue_actions (pad_id) WHERE pad_id IS NOT NULL;
+CREATE INDEX cue_actions_from_playlist ON cue_actions (from_playlist_id) WHERE from_playlist_id IS NOT NULL;
+CREATE INDEX cue_actions_from_scene ON cue_actions (from_scene_id) WHERE from_scene_id IS NOT NULL;
 
 -- Profile lookup by (track, place): one profile per track per place.
 CREATE UNIQUE INDEX audio_profiles_own ON audio_profiles (track_id) WHERE playlist_id IS NULL AND scene_id IS NULL;

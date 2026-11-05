@@ -20,6 +20,7 @@ export * from "./repo/boards";
 export * from "./repo/tags";
 export * from "./repo/campaigns";
 export * from "./repo/profiles";
+export * from "./repo/cueActions";
 export * from "./repo/domain";
 export * from "./repo/search";
 export * from "./import";

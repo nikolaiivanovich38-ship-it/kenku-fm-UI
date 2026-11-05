@@ -50,6 +50,14 @@ describe("library roots and file locations (DAT-1, DAT-8)", () => {
     expect(resolveTrackLocation(t.store, web)).toBe("https://example.com/a.mp3");
   });
 
+  it("marks a library folder watched, so new files in it are added by themselves (DB review 9)", async () => {
+    const root = await addRoot(t.store, { name: "Soundtracks", path: "H:\\Audio\\Soundtracks", watched: true });
+    expect(root.watched).toBe(true);
+    expect(updateRoot(t.store, root.id, { watched: false }).watched).toBe(false);
+    expect((await addRoot(t.store, { name: "Fx", path: "H:\\Fx" })).watched).toBe(false);
+    expect(() => updateRoot(t.store, root.id, { watched: "yes" as never })).toThrow(ValidationError);
+  });
+
   it("moves every track at once when a root's folder moves", async () => {
     const root = await addRoot(t.store, { name: "Soundtracks", path: "H:\\Audio\\Soundtracks" });
     const track = createTrack(t.store, { title: "A", file: { path: "H:\\Audio\\Soundtracks\\a.mp3" } });
