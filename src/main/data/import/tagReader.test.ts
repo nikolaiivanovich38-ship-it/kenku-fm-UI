@@ -9,7 +9,7 @@ import path from "path";
 import { afterAll, describe, expect, it } from "vitest";
 import { wavBytes, writeFile } from "../../media/testing/wavFiles";
 import { musicMetadataTagReader } from "./musicMetadata";
-import { cleanTags, createMusicMetadataTagReader, titleFromFileName, type MusicMetadataResult } from "./tagReader";
+import { cleanTags, cleanText, createMusicMetadataTagReader, titleFromFileName, type MusicMetadataResult } from "./tagReader";
 
 describe("titleFromFileName (the prototype's file-name title)", () => {
   it.each([
@@ -124,5 +124,12 @@ describe("music-metadata itself (DAT-5)", () => {
     const file = writeFile(dir, "notes.wav", Buffer.from("not really audio"));
     const tags = await musicMetadataTagReader.read(file).catch(() => ({ title: null as string | null, durationMs: null as number | null }));
     expect(tags).toMatchObject({ title: null, durationMs: null });
+  });
+});
+
+describe("cleanText drops text-direction controls (security review 12)", () => {
+  it("removes bidi embeddings, overrides and isolates, which can make a name read backwards", () => {
+    expect(cleanText("evil\u202Egnp.mp3")).toBe("evilgnp.mp3");
+    expect(cleanText("\u2066Title\u2069 \u202A\u202B\u202C\u202D\u2067\u2068x")).toBe("Title x");
   });
 });
