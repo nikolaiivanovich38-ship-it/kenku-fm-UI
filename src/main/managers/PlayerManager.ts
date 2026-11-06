@@ -96,7 +96,7 @@ export class PlayerManager {
 
     registerRemote(this);
 
-    this.fastify.listen(this.port, this.address, (err) => {
+    this.fastify.listen({ port: Number(this.port), host: this.address }, (err) => {
       const windows = BrowserWindow.getAllWindows();
       if (err) {
         for (const window of windows) {
