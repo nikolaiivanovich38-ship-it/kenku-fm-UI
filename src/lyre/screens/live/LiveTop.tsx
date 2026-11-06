@@ -1,14 +1,18 @@
 /**
- * Live's top strip (live.js top, keysPop): Prep | Live, the session loaded (a menu of every session), a warning
+ * Live's top strip (live.js top, keysPop): Prep | Live, the session loaded (a menu of every session; F2 or Rename
+ * session renames it in place, BUG-21), a warning
  * with one-click Join when no bot is in a voice channel, Fade all (Shift+Esc), Stop all, and Keys: the list of the
  * screen's keys with the switch for single-key shortcuts (WCAG 2.1.4).
  */
 import React, { useEffect, useRef } from "react";
 
+import { useLyreApi } from "../../api";
 import { Icon } from "../../kit/Icon";
 import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
+import { RenameField, renameKeys, useRenameInPlace } from "../../kit/RenameInPlace";
 import { useAnnounce } from "../../shell/Announcer";
 import { sessionLabel } from "../campaigns/model";
+import { useWrite } from "../campaigns/parts";
 import { useLive } from "./liveData";
 import { busiestChannel, currentBoard, padKeys } from "./liveModel";
 
@@ -24,10 +28,27 @@ const STATUS_WORDS = { next: "next", played: "played", draft: "draft" } as const
 export function LiveTop({ keysOpen, setKeysOpen, setKeys1, loadSession }: TopProps) {
   const live = useLive();
   const { campaign, session, campaigns, audio, rooms, outputs, client, keys1 } = live;
-  const { toast } = useAnnounce();
+  const { toast, say } = useAnnounce();
+  const api = useLyreApi();
+  const write = useWrite();
+  const rename = useRenameInPlace();
+  const renameSession = async (name: string) => {
+    if ((await write(api.sessions.update(campaign.id, session.id, { name }))) !== undefined) say(`Session ${session.number} is now called ${name}`);
+  };
 
-  const sessions = (): PopMenuEntry[] =>
-    campaigns.flatMap((c): PopMenuEntry[] => [
+  const sessions = (): PopMenuEntry[] => [
+    {
+      key: "rename",
+      content: (
+        <>
+          <Icon name="edit" size="s" />
+          <span className="grow">Rename session</span>
+        </>
+      ),
+      onSelect: () => rename.start(document.querySelector<HTMLElement>('[data-k="lv-sess"]')),
+    },
+    { separator: true },
+    ...campaigns.flatMap((c): PopMenuEntry[] => [
       { group: c.name },
       ...c.sessions.map((s): PopMenuEntry => {
         const here = c.id === campaign.id && s.id === session.id;
@@ -44,7 +65,8 @@ export function LiveTop({ keysOpen, setKeysOpen, setKeys1, loadSession }: TopPro
           onSelect: () => loadSession(c.id, s.id),
         };
       }),
-    ]);
+    ]),
+  ];
 
   const joining = outputs?.bots.some((b) => b.room?.status === "joining") ?? false;
   const fixBot = outputs?.bots.find((b) => b.login === "ready" && !b.room);
@@ -63,15 +85,34 @@ export function LiveTop({ keysOpen, setKeysOpen, setKeys1, loadSession }: TopPro
           Live
         </button>
       </div>
-      <PopMenuButton label="Load a session" className="lv-sess" title={`Loaded: ${campaign.name} › ${sessionLabel(session)}. Choose another session`} items={sessions}>
-        <Icon name="crown" size="s" />
-        <span className="lv-sess-c">{campaign.name}</span>{" "}
-        <span className="lv-sess-sep" aria-hidden="true">
-          ›
-        </span>{" "}
-        <span className="lv-sess-s">{sessionLabel(session)}</span>
-        <Icon name="chevdown" size="s" />
-      </PopMenuButton>
+      {rename.editing ? (
+        <span className="lv-sess lv-sess-edit">
+          <Icon name="crown" size="s" />
+          <span className="lv-sess-c">{campaign.name}</span>{" "}
+          <span className="lv-sess-sep" aria-hidden="true">
+            ›
+          </span>{" "}
+          <span className="lv-sess-s">Session {session.number}:</span>
+          <RenameField className="input lv-sess-rename" value={session.name} label={`Name of Session ${session.number}`} placeholder="No name yet" onSave={(name) => void renameSession(name)} onDone={rename.done} />
+        </span>
+      ) : (
+        <PopMenuButton
+          label="Load a session"
+          className="lv-sess"
+          dataK="lv-sess"
+          title={`Loaded: ${campaign.name} › ${sessionLabel(session)}. Choose another session, or press F2 to rename it`}
+          items={sessions}
+          onKeyDown={renameKeys(rename.start)}
+        >
+          <Icon name="crown" size="s" />
+          <span className="lv-sess-c">{campaign.name}</span>{" "}
+          <span className="lv-sess-sep" aria-hidden="true">
+            ›
+          </span>{" "}
+          <span className="lv-sess-s">{sessionLabel(session)}</span>
+          <Icon name="chevdown" size="s" />
+        </PopMenuButton>
+      )}
       {rooms.length === 0 && (
         <>
           <span className="lv-warn" role="status" title="Players hear nothing: no bot is in a voice channel">

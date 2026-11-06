@@ -365,3 +365,8 @@
 /* ---------- the app's own ---------- */
 /* Room for the tick in menus where an item is not ticked. */
 .lv-mi-gap { display: inline-block; width: 14px; flex: none; }
+/* BUG-21: the session renamed in place in the top strip. */
+.lv-sess-edit { padding-right: 3px; }
+.lv-sess-edit:hover { background: none; }
+.lv-sess-rename { width: 18ch; min-width: 0; height: calc(var(--ctl) - 6px); }
+

@@ -210,3 +210,9 @@
 a.btn.cp-prof { text-decoration: none; color: var(--ink-2); }
 a.btn.cp-prof:hover { color: var(--ink); }
 .cp-it-sub .faint { white-space: nowrap; flex: none; }
+/* BUG-21: the session title renames in place. */
+.viewhead h1 .cp-h1-name { font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; background: none; border: 0; padding: 0; margin: 0; max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; border-radius: var(--r-s); }
+.viewhead h1 .cp-h1-name:hover { text-decoration: underline dotted; text-underline-offset: 3px; }
+.viewhead h1 .cp-h1-rename { width: 22ch; max-width: 60vw; height: var(--ctl); font: inherit; font-size: var(--fs); text-transform: none; vertical-align: middle; }
+

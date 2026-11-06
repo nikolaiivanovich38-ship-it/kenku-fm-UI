@@ -101,6 +101,8 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
   const [picking, setPicking] = useState<Picking>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState<string | null>(null);
+  // BUG-21: the title renames the session in place (click or F2); only the name, never the number.
+  const renameTitle = useRenameInPlace();
   useEffect(() => setNameDraft((d) => (d !== null && d.trim() === s.name ? null : d)), [s.name]);
   const groups = useTagGroups().data ?? [];
   const names = useTrackNames();
@@ -261,7 +263,25 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
             ›
           </span>
         </nav>
-        <h1>{sessionLabel({ number: s.number, name: (nameDraft ?? s.name).trim() })}</h1>
+        <h1>
+          {renameTitle.editing ? (
+            <>
+              Session {s.number}:{" "}
+              <RenameField
+                className="input cp-h1-rename"
+                value={s.name}
+                label={`Name of Session ${s.number}`}
+                placeholder="No name yet"
+                onSave={(name) => void updateSession({ name }).then((done) => done !== undefined && say(`Session ${s.number} is now called ${name}`))}
+                onDone={renameTitle.done}
+              />
+            </>
+          ) : (
+            <button type="button" className="cp-h1-name" data-k="cp-h1-name" title="Rename (click or F2)" onClick={(event) => renameTitle.start(event.currentTarget)} onKeyDown={renameKeys(renameTitle.start)}>
+              {sessionLabel({ number: s.number, name: (nameDraft ?? s.name).trim() })}
+            </button>
+          )}
+        </h1>
         <StatusBadge status={s.status} />
         <span className="grow" />
         <ModeSwitch campaign={c} sessionId={s.id} />
