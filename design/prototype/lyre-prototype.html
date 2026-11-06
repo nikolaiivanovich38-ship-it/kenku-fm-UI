@@ -5877,7 +5877,7 @@ var L = (function () {
       '<label class="tf-check"><input type="checkbox" data-input="tfaudio" data-k="tf-audio"' + (ex.audio ? ' checked' : '') + (ex.what === 'tags' ? ' disabled' : '') + '><span><b>Include the audio files</b><span class="hint tf-sub">' +
         (ex.what === 'tags' ? 'Tags have no audio files.' : ex.audio ? 'About ' + (n * 9) + ' MB: ' + plural(n, 'audio file') + ' go into the file, so it works on a PC that has none of them.' : 'Without them the file stays small. The other PC needs the same files; Lyre finds them there with Find missing files.') + '</span></span></label>' +
       '<div class="tf-actrow"><button class="btn primary" data-act="tfsave" data-k="tf-save">' + L.icon('download', 's') + 'Save to a file…</button><span class="hint">Saves ' + esc(exportName()) + '</span></div>' +
-      (ex.saved ? '<p class="tf-done" role="status">' + L.icon('check', 's') + '<span class="grow">Saved <b>' + esc(ex.saved.name) + '</b> (' + esc(ex.saved.size) + ') in Documents\\Lyre.</span><button class="btn s" data-act="tfshow" data-k="tf-show">' + L.icon('folder', 's') + 'Show in folder</button></p>' : '');
+      (ex.saved ? '<p class="tf-done">' + L.icon('check', 's') + '<span class="grow">Saved <b>' + esc(ex.saved.name) + '</b> (' + esc(ex.saved.size) + ') in Documents\\Lyre.</span><button class="btn s" data-act="tfshow" data-k="tf-show">' + L.icon('folder', 's') + 'Show in folder</button></p>' : '');
     return L.pane({ id: 'tf-export', title: 'Save to a file', icon: 'download', kind: 'plain', noMax: true, size: 'auto',
       // Round 6, part 5: no Saved or Ready pill. The result line ("Saved … in Documents\\Lyre" with Show in folder) stays
       // in the box: it is a result with an action that outlives a pop-up, so it is this save's one message.
@@ -5926,7 +5926,7 @@ var L = (function () {
         '<p class="hint" title="Lyre lists them under Find missing files until you point it at a folder that has them.">No audio files: find them later with Find missing files.</p>' +
         '<div class="tf-actrow"><button class="btn primary" data-act="tfbring" data-k="tf-bring">' + L.icon('upload', 's') + 'Bring in</button><button class="btn" data-act="tfcancel" data-k="tf-cancel">Cancel</button></div>';
     } else {
-      body = '<p class="tf-done" role="status">' + L.icon('check', 's') + '<span class="grow">' + esc(im.summary) + '</span></p>' +
+      body = '<p class="tf-done">' + L.icon('check', 's') + '<span class="grow">' + esc(im.summary) + '</span></p>' +
         '<div class="tf-actrow"><a class="btn s" href="#/relink" data-k="tf-torelink">' + L.icon('folder', 's') + 'Find missing files…</a><button class="btn s ghost" data-act="tfcancel" data-k="tf-again">Open another file</button></div>';
     }
     return L.pane({ id: 'tf-import', title: 'Open a file', icon: 'upload', kind: 'plain', noMax: true, size: 'auto',
@@ -6024,7 +6024,7 @@ var L = (function () {
       var miss = missing(), p = rl.plan;
       var list = miss.length ? '<table class="grid tf-table"><caption class="sr-only">Missing files</caption><thead><tr><th scope="col">Track</th><th scope="col">File name</th><th scope="col">Was in</th></tr></thead><tbody>' +
         miss.map(function (t) { return '<tr><td class="tf-cell" title="' + esc(L.title(t)) + '">' + esc(L.title(t)) + '</td><td class="tf-cell">' + esc(t.file) + '</td><td class="tf-cell" title="' + esc(t.folder) + '">' + esc(t.folder) + '</td></tr>'; }).join('') + '</tbody></table>'
-        : '<p class="tf-done" role="status">' + L.icon('check', 's') + 'Every file is where Lyre expects it.</p>';
+        : '<p class="tf-done">' + L.icon('check', 's') + 'Every file is where Lyre expects it.</p>';
       var look = '<div class="tf-lookrow"><div class="field grow"><label for="tf-folder">Look in this folder (and the folders inside it)</label><input class="input" id="tf-folder" data-input="tffolder" data-k="tf-folder" value="' + esc(rl.folder) + '" autocomplete="off"></div>' +
         '<button class="btn" data-act="tfpickfolder" data-k="tf-pickfolder">' + L.icon('folder', 's') + 'Choose…</button><button class="btn' + (p ? '' : ' primary') + '" data-act="tflook" data-k="tf-look" title="Lyre matches on the file name and its size, so a file with the same name from another album is not mixed up"' + (miss.length ? '' : ' disabled') + '>' + L.icon('search', 's') + 'Look there</button></div>' +
         // Round 6: how Lyre matches is the hover text of Look there.
@@ -6043,7 +6043,7 @@ var L = (function () {
       }
       return '<div class="viewhead">' + crumbs() + '<h1>Find missing files</h1></div>' +
         '<div class="viewbody tf-body"><div class="tf-cols tf-one"><div class="col">' +
-        (rl.done ? '<p class="tf-done" role="status">' + L.icon('check', 's') + '<span class="grow">' + esc(rl.done) + '</span></p>' : '') +
+        (rl.done ? '<p class="tf-done">' + L.icon('check', 's') + '<span class="grow">' + esc(rl.done) + '</span></p>' : '') +
         L.pane({ id: 'tf-missing', title: 'Missing files', icon: 'warn', kind: 'plain', noMax: true, size: 'auto', status: miss.length ? { text: plural(miss.length, 'file'), tone: 'warn' } : { text: 'None', tone: 'idle' }, body: list }) +
         (miss.length || p ? L.pane({ id: 'tf-look', title: 'Look in a folder', icon: 'folder', kind: 'search', noMax: true, size: 'auto', status: p ? { text: p.filter(function (x) { return x.how !== 'none'; }).length + ' found', tone: 'on' } : null, body: look + found }) : '') +
         '</div></div></div>';
