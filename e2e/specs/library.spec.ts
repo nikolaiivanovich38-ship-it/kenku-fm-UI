@@ -322,7 +322,8 @@ test.describe("round 5: shape, names in scenes, Use in… and missing files", ()
   test("the ⋯ beside Add tracks leads to Back up, move or share, Find missing files and the move report", async ({ page }) => {
     await openRoute(page, "library");
     await page.getByRole("button", { name: "More for the library" }).click();
-    await expect(page.getByRole("menuitem")).toHaveText(["Back up, move or share…", "Find missing files (3)…", "What came across from Kenku FM", "Normalise volume…"]);
+    // Round 7 (DAT-10) adds Tags and groups… to this menu in the prototype.
+    await expect(page.getByRole("menuitem").filter({ hasNotText: "Tags and groups…" })).toHaveText(["Back up, move or share…", "Find missing files (3)…", "What came across from Kenku FM", "Normalise volume…"]);
     await page.getByRole("menuitem", { name: "Back up, move or share…" }).click();
     await expect(page.getByRole("heading", { name: "Back up, move or share", level: 1 })).toBeVisible();
   });

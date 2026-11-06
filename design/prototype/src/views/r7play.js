@@ -22,7 +22,8 @@
    PLY-4: a Sting never loops; a Loop bed always loops (between its Loop and End handles, the loop in and loop out);
    Ending "Fades out" fades before the end (the Audio profile's fade out, 4 s unless set there); "Pick up where it
    stopped" starts it again where it was last stopped. Data: track.ending, track.resume, D.resumeAt[trackId].
-   SHW-3: track.follow ('pl:<id>' or a track id) plays when the track ends, wherever it played.
+   SHW-3: track.follow (a playlist id or a track id) plays when the track ends, unless something is already waiting:
+   inside a scene the scene's next item comes first; in Live, Play next and the queue come first.
    DAT-3: a marker can be the mix-out point (marker.mix); Play on air from a marker; markers show on the Now playing
    bar's progress line.
    PLY-1: every room keeps what played tonight (D.played[room], newest first), with Play again and Play next; the
@@ -191,8 +192,11 @@
   var profileOf0 = L.profileOf;
   L.profileOf = function (t, ctx) {
     var p = profileOf0.apply(L, arguments); if (!t) return p;
+    // The role is the default; what the Audio profile says for the track or the place wins, except that a sting
+    // never loops.
+    var explicit = (ctx && L.profileWhere(t, ctx) !== 'track') || !!(t.profile && t.profile.after);
     if (t.role === 'Sting' && p.after === 'loop') p.after = 'stop';
-    if (t.role === 'Loop bed') p.after = 'loop';
+    if (t.role === 'Loop bed' && !explicit) p.after = 'loop';
     return p;
   };
   D.resumeAt = D.resumeAt || {};
@@ -218,7 +222,8 @@
       var m = L.mix(target); ['music', 'amb'].forEach(function (ln) {
         var c = m[ln]; if (!c) return; var t = L.track(c.id); if (!t) return;
         now[target + ln] = { id: c.id, pos: c.pos, dur: c.dur };
-        if (t.follow && !c.r7followed && !c.paused && c.pos >= c.dur - 0.6 && L.profileOf(t).after !== 'loop') {
+        // Something already waiting wins: a scene's next item, or Play next and the queue in Live (L.carriesOn).
+        if (t.follow && !c.seq && !(L.carriesOn && L.carriesOn(target)) && !c.r7followed && !c.paused && c.pos >= c.dur - 0.6 && L.profileOf(t).after !== 'loop') {
           c.r7followed = true; var p = L.playlist(t.follow), first = p && L.orderedTracks(p.id, '')[0];
           if (p && first) L.play(first.id, { lane: 'music', playlistId: p.id, fade: 2, target: target }); else if (L.track(t.follow)) L.play(t.follow, { fade: 2, target: target });
           L.say('Then: ' + itemName(t.follow));

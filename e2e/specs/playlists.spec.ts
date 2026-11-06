@@ -71,7 +71,8 @@ test.describe("all playlists", () => {
     await openRoute(page, "playlists");
     await page.getByRole("button", { name: "More for The Company themes" }).click();
     const menu = page.getByRole("menu", { name: "More for The Company themes" });
-    await expect(menu.getByRole("menuitem")).toHaveText(["Open", "Use in…"]);
+    // Round 7 (ORG-4) adds Move to folder… in the prototype.
+    await expect(menu.getByRole("menuitem").filter({ hasNotText: "Move to folder…" })).toHaveText(["Open", "Use in…"]);
     await expect(menu.getByRole("menuitem", { name: /duplicate/i })).toHaveCount(0);
   });
 

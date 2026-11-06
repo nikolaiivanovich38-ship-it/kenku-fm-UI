@@ -19,8 +19,10 @@ async function tagMenu(page: Page, groupName: string, name: string, item: string
   await group(page, groupName).getByRole("button", { name: `More for ${name}`, exact: true }).click();
   await page.getByRole("menuitem", { name: item }).click();
 }
-async function libraryTrack(page: Page, title: string) {
-  await openRoute(page, "library");
+// The prototype keeps its data in the page, so after a change the Library is reached from the menu, not reloaded.
+async function libraryTrack(page: Page, title: string, reload = true) {
+  if (reload) await openRoute(page, "library");
+  else await page.getByRole("link", { name: "Library", exact: true }).click();
   await page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: new RegExp(`^Select ${title}`) }).getByRole("gridcell").nth(1).click();
 }
 
@@ -60,8 +62,7 @@ test.describe("the Tags screen", () => {
     await tagMenu(page, "Mood", "Wistful", "Rename…");
     await dialog(page).getByRole("textbox", { name: "Name" }).fill("Longing");
     await dialog(page).getByRole("button", { name: "Rename" }).click();
-    await page.getByRole("button", { name: "Back to Library" }).click().catch(async () => openRoute(page, "library"));
-    await openRoute(page, "library");
+    await page.getByRole("link", { name: "Library", exact: true }).click();
     const toggle = page.getByRole("button", { name: "Filters", exact: true });
     if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
     const mood = page.getByRole("region", { name: "Filters", exact: true }).getByRole("group", { name: "Mood" });
@@ -98,7 +99,7 @@ test.describe("the Tags screen", () => {
     await dialog(page).getByRole("textbox", { name: "Name" }).fill("Harbour guild");
     await dialog(page).getByRole("button", { name: "Add tag" }).click();
     await expect(tag(page, "Faction", "Harbour guild")).toBeVisible();
-    await libraryTrack(page, "Ancient sorrow, choir");
+    await libraryTrack(page, "Ancient sorrow, choir", false);
     await expect(page.getByRole("combobox", { name: "Add a faction tag" })).toBeVisible();
   });
 

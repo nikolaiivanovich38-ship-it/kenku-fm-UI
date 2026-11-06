@@ -86,9 +86,12 @@
     q = q.trim().toLowerCase(); if (!q) return [];
     var words = q.split(/\s+/);
     return everything().filter(function (r) { var n = (r.name + ' ' + (r.sub || '')).toLowerCase(); return words.every(function (w) { return n.indexOf(w) > -1; }); })
-      .sort(function (a, b) { return (b.name.toLowerCase().indexOf(q) === 0) - (a.name.toLowerCase().indexOf(q) === 0) || (a.kind === 'playlist' ? -1 : 0) - (b.kind === 'playlist' ? -1 : 0); })
+      // Playlists and scenes first (what is played mid-game), then tracks, pads and effects; a name that starts with
+      // what was typed comes first within each.
+      .sort(function (a, b) { return (RANK[a.kind] - RANK[b.kind]) || ((b.name.toLowerCase().indexOf(q) === 0) - (a.name.toLowerCase().indexOf(q) === 0)); })
       .slice(0, 12);
   }
+  var RANK = { playlist: 0, scene: 1, track: 2, ambience: 2, pad: 3, effect: 4 };
   function optLabel(r) { return r.name + ', ' + r.kind + (r.sub ? ', ' + r.sub : ''); }
   function paintPalette() {
     var rs = results(pal.q); if (pal.act >= rs.length) pal.act = Math.max(0, rs.length - 1); pal.rs = rs;
