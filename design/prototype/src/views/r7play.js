@@ -154,7 +154,13 @@
     for (; i < steps.length; i++) {
       var st = steps[i];
       if (st.do === 'wait') { setTimeout(function (k) { run(steps, k, target); }.bind(null, i + 1), (st.secs || 1) * 1000); return; }
-      if (st.do === 'play' && st.what) { var p = L.playlist(st.what); if (p) L.acts.onair({ dataset: { kind: 'playlist', id: p.id } }); else L.play(st.what, { fade: st.how === 'cut' ? 0 : L.defaultCrossfade, r7from: st.from === '' || st.from == null ? null : +st.from }); }
+      if (st.do === 'play' && st.what) {
+        var p = L.playlist(st.what), from = st.from === '' || st.from == null ? '' : String(+st.from);
+        // Play next and Add to queue go to the room's list in Live (round 7 part 2); a track may start from a marker.
+        if (st.queue === 'next' || st.queue === 'end') L.acts[st.queue === 'next' ? 'lvplaynext' : 'lvqueue']({ dataset: p ? { whole: p.id, box: 'music' } : { id: st.what, box: 'music', from: from } });
+        else if (p) L.acts.onair({ dataset: { kind: 'playlist', id: p.id } });
+        else L.play(st.what, { fade: st.how === 'cut' ? 0 : L.defaultCrossfade, r7from: from === '' ? null : +from });
+      }
       if (st.do === 'stop') { if (st.what === 'all') L.fadeAll(1); else L.stopLane(st.what || 'music', 1, target); }
       if (st.do === 'fade') { L.toast('Music down to ' + st.level + '% over ' + st.secs + ' s'); L.say('Music down to ' + st.level + '%'); }
       if (st.do === 'pad' && st.what) { var a = st.what.split('/'); firePad0(a[0], a[1], undefined, target); }
