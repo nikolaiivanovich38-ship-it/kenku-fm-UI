@@ -68,6 +68,14 @@ const bar = () => screen.getByRole("region", { name: "Now playing" });
 const said = () => document.getElementById("lyre-live")?.textContent ?? "";
 
 describe("when it shows", () => {
+  it("says on hover how a track's volume is evened out (PLY-15), for screen readers too, and nothing when it is not", () => {
+    show({ rooms: [room("table", "Table", { ...lane(), gainDb: 4.6 }), room("side", "Side room", { ...lane(), gainDb: 0 })] });
+    const from = within(bar()).getByRole("group", { name: "On air: Table" }).querySelector(".oab-from");
+    expect(from).toHaveAttribute("title", expect.stringContaining("Volume evened out: +4.6 dB"));
+    expect(within(bar()).getByRole("group", { name: "On air: Table" })).toHaveTextContent("Volume evened out: +4.6 dB");
+    expect(within(bar()).getByRole("group", { name: "On air: Side room" })).not.toHaveTextContent("Volume evened out");
+  });
+
   it("is not there while nothing plays, nor for effects alone (they are short)", () => {
     const audio = show({ rooms: [room("table", "Table", null, { effects: [{ trackId: "t60", title: "Thunder", padKey: null }] })] });
     expect(screen.queryByRole("region", { name: "Now playing" })).toBeNull();

@@ -19,7 +19,7 @@
  */
 import React, { useLayoutEffect, useRef } from "react";
 
-import { originWords } from "../../common/domain";
+import { formatGainDb, originWords } from "../../common/domain";
 import { useNowPlaying, useOptionalLyreAudio, type LaneNowPlaying, type LyreAudio, type MusicOrAmbience, type PreviewNowPlaying, type RoomNowPlaying } from "../audio";
 import { DestTag } from "../kit/DestTag";
 import { Icon } from "../kit/Icon";
@@ -146,7 +146,7 @@ function RoomRow({ audio, room, named, broadcasting, first }: { audio: LyreAudio
           <span className={cx("lane-dot", laneName === "music" ? "music" : "amb")} aria-hidden="true" />
           <TrackName className="ellipsis" track={{ id: lane.trackId, title: lane.title, metaTitle: "", fileName: "" }} place={lane.place} names={names} />
         </div>
-        <div className="oab-from ellipsis" title={[from, ...extras].join(" · ")}>
+        <div className="oab-from ellipsis" title={[from, ...extras, gainWords(lane.gainDb)].filter(Boolean).join(" · ")}>
           {from}
           {extras.map((extra) => (
             <React.Fragment key={extra}>
@@ -155,6 +155,7 @@ function RoomRow({ audio, room, named, broadcasting, first }: { audio: LyreAudio
               {extra}
             </React.Fragment>
           ))}
+          <GainForScreenReaders db={lane.gainDb} />
         </div>
       </div>
       <Time lane={laneName === "music" ? "music" : "amb"} position={lane.position} length={lane.length} />
@@ -218,6 +219,17 @@ function RoomRow({ audio, room, named, broadcasting, first }: { audio: LyreAudio
   );
 }
 
+/** PLY-15: how the track's volume is evened out where it plays; nothing when it plays as it is (Nik: no words added on screen). */
+function gainWords(db: number | undefined): string {
+  return db ? `Volume evened out: ${formatGainDb(db)}` : "";
+}
+
+/** The hover words for keyboard and screen-reader users too (round 6: nothing on hover only). */
+function GainForScreenReaders({ db }: { db: number | undefined }) {
+  const words = gainWords(db);
+  return words ? <span className="sr-only">{` · ${words}`}</span> : null;
+}
+
 function PreviewRow({ audio, preview }: { audio: LyreAudio; preview: PreviewNowPlaying }) {
   const paused = preview.paused;
   const from = preview.from ? `Previewed from ${preview.from}` : "Preview";
@@ -233,8 +245,9 @@ function PreviewRow({ audio, preview }: { audio: LyreAudio; preview: PreviewNowP
           <span className="lane-dot preview" aria-hidden="true" />
           <span className="ellipsis">{preview.label}</span>
         </div>
-        <div className="oab-from ellipsis" title={from}>
+        <div className="oab-from ellipsis" title={[from, gainWords(preview.gainDb)].filter(Boolean).join(" · ")}>
           {from}
+          <GainForScreenReaders db={preview.gainDb} />
         </div>
       </div>
       <Time lane="preview" position={preview.position} length={preview.length} />
