@@ -5,6 +5,7 @@ import { createLyreAudioBridge, type IpcRendererLike as AudioIpc } from "./audio
 import { createLyreOutputsBridge, type IpcRendererLike as OutputsIpc } from "./outputs/preloadOutputs";
 import { createLyreDiagnosticsBridge, type IpcRendererLike as DiagnosticsIpc } from "./help/preloadDiagnostics";
 import { createLyreRemoteBridge, type IpcRendererLike as RemoteIpc } from "./remote/preloadRemote";
+import { createLyreUpdatesBridge, type IpcRendererLike as UpdatesIpc } from "./updates/preloadUpdates";
 
 /**
  * WP5: the new interface page's bridge to the rest of the app, exposed as `window.lyre`. Every IPC channel it uses
@@ -20,6 +21,8 @@ import { createLyreRemoteBridge, type IpcRendererLike as RemoteIpc } from "./rem
  *     src/lyre/help/preloadDiagnostics.ts.
  *   - remote (w6-found, SEC-4): the remote control's settings and secret code for Settings (REMOTE_GET, _SET,
  *     _NEW_CODE; REMOTE_STATE after each change); src/lyre/remote/preloadRemote.ts.
+ *   - updates (w6-found, SEC-14): what automatic updates are doing and the last problem in plain words
+ *     (UPDATE_GET; UPDATE_STATE after each change); src/lyre/updates/preloadUpdates.ts.
  * The page runs sandboxed with context isolation; nothing from Node or Electron reaches it except this object.
  */
 const api = {
@@ -32,6 +35,7 @@ const api = {
   outputs: createLyreOutputsBridge(ipcRenderer as unknown as OutputsIpc),
   diagnostics: createLyreDiagnosticsBridge(ipcRenderer as unknown as DiagnosticsIpc),
   remote: createLyreRemoteBridge(ipcRenderer as unknown as RemoteIpc),
+  updates: createLyreUpdatesBridge(ipcRenderer as unknown as UpdatesIpc),
 };
 
 contextBridge.exposeInMainWorld("lyre", api);

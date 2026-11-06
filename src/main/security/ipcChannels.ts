@@ -275,6 +275,9 @@ export const IPC_CHANNELS = {
   REMOTE_GET: { from: ["lyre-view"], args: noArgs },
   REMOTE_SET: { from: ["lyre-view"], args: argsMatch(isRemoteChange) },
   REMOTE_NEW_CODE: { from: ["lyre-view"], args: noArgs },
+  // SEC-14 (LyreManager, src/main/updateStatus.ts): what automatic updates are doing, for Settings (invoke, no
+  // arguments; answers an UpdateState from src/common/appUpdates.ts, with any problem in plain words).
+  UPDATE_GET: { from: ["lyre-view"], args: noArgs },
 } satisfies Record<string, IpcChannelRule>;
 
 export type IpcChannel = keyof typeof IPC_CHANNELS;

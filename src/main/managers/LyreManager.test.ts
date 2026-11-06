@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LyreManager } from "./LyreManager";
 import { fakeIpcMain, fakePage, fromMainFrame, fromSubframe } from "../security/testing/fakeIpc";
+import { UpdateStatus } from "../updateStatus";
 
 const { LYRE_URL } = vi.hoisted(() => {
   const entries = { LYRE_URL: "file:///app/.webpack/renderer/lyre_window/index.html" };
@@ -80,5 +81,35 @@ describe("LyreManager.attachView: the audio host's hook (wave 3)", () => {
     const lyre = fakePage("lyre-view");
     manager.attachView(lyre as never);
     expect(onAttachView).toHaveBeenCalledWith(lyre);
+  });
+});
+
+// --- w6-found ---
+describe("LyreManager: automatic updates for the Lyre page's Settings (SEC-14)", () => {
+  it("answers the update state to the Lyre page only", async () => {
+    const status = new UpdateStatus(() => 7);
+    status.failed(new Error("net::ERR_INTERNET_DISCONNECTED"));
+    manager = new LyreManager({ updates: status });
+    const lyre = fakePage("lyre-view");
+    expect(await fakeIpcMain.invoke("UPDATE_GET", fromMainFrame(lyre))).toEqual(status.state());
+    for (const event of [fromMainFrame(fakePage(null)), fromMainFrame(fakePage("player-view")), fromSubframe(lyre)]) {
+      await expect(fakeIpcMain.invoke("UPDATE_GET", event)).rejects.toThrow();
+    }
+    await expect(fakeIpcMain.invoke("UPDATE_GET", fromMainFrame(lyre), "extra")).rejects.toThrow();
+  });
+
+  it("tells the Lyre page each change, and stops when destroyed", () => {
+    const status = new UpdateStatus();
+    manager = new LyreManager({ updates: status });
+    const lyre = fakePage("lyre-view");
+    const tab = fakePage(null);
+    allContents.push(lyre, tab);
+    status.checking();
+    expect(lyre.send).toHaveBeenCalledWith("UPDATE_STATE", { kind: "checking" });
+    expect(tab.send).not.toHaveBeenCalled();
+    manager.destroy();
+    manager = undefined;
+    status.upToDate();
+    expect(lyre.send).toHaveBeenCalledTimes(1);
   });
 });

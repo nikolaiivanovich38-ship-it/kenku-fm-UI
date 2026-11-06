@@ -1,6 +1,7 @@
 import { ipcMain, webContents } from "electron";
 import { guardIpc } from "../security/ipcGuard";
 import { trustedContents } from "../security/trustedContents";
+import { updateStatus, type UpdateStatus } from "../updateStatus";
 
 declare const LYRE_WINDOW_WEBPACK_ENTRY: string;
 
@@ -24,12 +25,20 @@ export class LyreManager {
    */
   onAttachView?: (view: Electron.WebContents) => void;
 
-  constructor() {
+  /** SEC-14: stops telling the Lyre page about update changes. */
+  private stopUpdateNews: () => void;
+
+  constructor(options: { updates?: UpdateStatus } = {}) {
+    const updates = options.updates ?? updateStatus;
     this.ipc.on("LYRE_GET_URL", this._handleGetURL);
+    // SEC-14: Settings (round 7) shows what automatic updates are doing, and the last problem in plain words.
+    this.ipc.handle("UPDATE_GET", () => updates.state());
+    this.stopUpdateNews = updates.onChange((state) => this.getView()?.send("UPDATE_STATE", state));
   }
 
   destroy() {
     this.ipc.dispose();
+    this.stopUpdateNews();
   }
 
   /** The new interface page, or undefined when it is not open (or has been closed). */
