@@ -42,7 +42,8 @@ export const LYRE_FILE_LIMITS = {
 };
 
 /** A track in a file: what the Library knows of it, without this computer's own facts (address, when added, New). */
-export type FileTrack = Omit<LibraryTrack, "url" | "addedAt" | "isNew" | "suggestedShape">;
+/** A track as a .lyre file holds it: the measured loudness is left out (Lyre measures the files again where they land). */
+export type FileTrack = Omit<LibraryTrack, "url" | "addedAt" | "isNew" | "suggestedShape" | "loudness">;
 
 export interface LyreFileLibrary {
   tracks: FileTrack[];
@@ -331,6 +332,8 @@ function checkProfile(v: unknown, at: string): AudioProfileInput {
 }
 
 const shapeOrNull = (v: unknown, at: string) => orNull(v, (x) => oneOf(TRACK_SHAPES, x, at));
+/** PLY-15: on, off, or null (follow the playlist and the library); files made before it have none. */
+const normaliseOrNull = (v: unknown, at: string) => (v === undefined ? null : orNull(v, (x) => oneOf(["on", "off"] as const, x, at)));
 
 function checkTrack(v: unknown, at: string): FileTrack {
   const o = obj(v, at);
@@ -347,6 +350,7 @@ function checkTrack(v: unknown, at: string): FileTrack {
     tags: record(o.tags, `${at}.tags`, (values, vat) => list(values, vat, (t, tat) => str(t, tat, 500), 1000)),
     profile: orNull(o.profile, (x) => checkProfile(x, `${at}.profile`)),
     shape: shapeOrNull(o.shape, `${at}.shape`),
+    normalise: normaliseOrNull(o.normalise, `${at}.normalise`),
     artist: str(o.artist ?? "", `${at}.artist`, 500),
     album: str(o.album ?? "", `${at}.album`, 500),
     folder: str(o.folder ?? "", `${at}.folder`, 4096),
@@ -380,7 +384,7 @@ function checkRule(v: unknown, at: string): PlaylistRule {
 
 function checkPlaylist(v: unknown, at: string): PlaylistInfo {
   const o = obj(v, at);
-  const base = { id: id(o.id, `${at}.id`), name: str(o.name, `${at}.name`, 500), lane: oneOf(TRACK_KINDS, o.lane, `${at}.lane`), notes: str(o.notes ?? "", `${at}.notes`), order: orNull(o.order, (x) => checkOrder(x, `${at}.order`)) };
+  const base = { id: id(o.id, `${at}.id`), name: str(o.name, `${at}.name`, 500), lane: oneOf(TRACK_KINDS, o.lane, `${at}.lane`), notes: str(o.notes ?? "", `${at}.notes`), order: orNull(o.order, (x) => checkOrder(x, `${at}.order`)), normalise: normaliseOrNull(o.normalise, `${at}.normalise`) };
   const kind = oneOf(["manual", "dynamic"] as const, o.kind, `${at}.kind`);
   return kind === "manual" ? { ...base, kind, trackIds: list(o.trackIds, `${at}.trackIds`, id) } : { ...base, kind, rule: checkRule(o.rule, `${at}.rule`) };
 }

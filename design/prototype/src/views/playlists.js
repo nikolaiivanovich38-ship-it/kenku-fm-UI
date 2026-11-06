@@ -259,10 +259,30 @@
     return L.pane({ id: 'pl-details', title: 'Details', icon: 'edit', kind: 'plain', size: 'auto', status: status('Saved'), summary: pl.notes ? 'Has notes' : '',
       collapsed: pl.kind === 'dynamic',
       body: '<div class="stack pl-details"><div class="field"><label for="pl-name">Name</label><input id="pl-name" class="input" type="text" data-input="plname" data-k="plname" value="' + esc(pl.name) + '"></div>' +
+        // PLY-15: normalise this playlist's tracks when they play from it (Library setting / On / Off).
+        L.normChoice({ id: 'pl-norm', value: pl.norm, act: 'plnorm', line: plNormLine(pl, tracks), hint: pl.norm ? 'A track\'s own choice still comes first.' : 'Follows the library (' + L.libraryNormWords() + '). A track\'s own choice comes first.' }) +
         '<div class="field"><label for="pl-notes">Notes</label><textarea id="pl-notes" class="input" rows="3" data-input="plnotes" data-k="plnotes" placeholder="When to use it, what to avoid…">' + esc(pl.notes || '') + '</textarea></div>' +
         '<div class="row-flex pl-danger"><span class="grow"></span>' +
         '<button class="btn s danger" data-act="pldel" data-k="pldel">' + L.icon('trash', 's') + 'Delete playlist…</button></div></div>' });
   }
+  // What its tracks get when they play from it: "Tracks get -4.9 to +8.1 dB here", or "Its tracks play as they are".
+  function plNormLine(pl, tracks) {
+    var ns = tracks.map(function (t) { return L.normOf(t, pl.id); });
+    var gains = ns.filter(function (n) { return n.on && n.measured; }).map(function (n) { return n.db; });
+    var todo = ns.filter(function (n) { return n.on && !n.measured; }).length, asIs = ns.filter(function (n) { return !n.on; }).length;
+    if (!gains.length && !todo) return 'Its tracks play as they are';
+    var lo = Math.min.apply(null, gains), hi = Math.max.apply(null, gains), parts = [];
+    if (gains.length) parts.push('Its tracks get ' + (lo === hi ? L.dB(lo) : L.dB(lo) + ' to ' + L.dB(hi)) + ' here');
+    if (asIs) parts.push(asIs + (asIs === 1 ? ' plays as it is' : ' play as they are'));
+    if (todo) parts.push(todo + ' not measured yet');
+    return parts.join('; ');
+  }
+  L.acts.plnorm = function (el) {
+    var pl = cur(); if (!pl) return;
+    if (el.dataset.v === 'library') delete pl.norm; else pl.norm = el.dataset.v;
+    L.render(); var b = document.querySelector('[data-k="pl-norm-' + el.dataset.v + '"]'); if (b) b.focus();
+    L.say('Normalise volume: ' + (el.dataset.v === 'library' ? 'Library setting' : el.dataset.v === 'on' ? 'On' : 'Off'));
+  };
   function renderOne(p) {
     var pl = L.playlist(p.pid);
     if (!pl) return '<div class="viewhead"><nav class="crumbs" aria-label="Breadcrumb"><a href="#/playlists">Playlists</a></nav><h1>Playlist not found</h1></div><div class="empty">This playlist no longer exists. <a href="#/playlists">Back to all playlists</a></div>';

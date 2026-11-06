@@ -100,7 +100,7 @@ function settingsInside(contents: TransferContents, overrides: ProfileOverrides,
   return { overrides: outOverrides, playOrders: outOrders };
 }
 
-const fileTrack = ({ url: _url, addedAt: _added, isNew: _isNew, suggestedShape: _suggested, ...rest }: TransferContents["tracks"][number]): FileTrack => rest;
+const fileTrack = ({ url: _url, addedAt: _added, isNew: _isNew, suggestedShape: _suggested, loudness: _loudness, ...rest }: TransferContents["tracks"][number]): FileTrack => rest;
 
 export async function saveLyreFile(input: SaveInput): Promise<SavedFile> {
   const target = /\.lyre$/i.test(input.target) ? input.target : `${input.target}.lyre`;

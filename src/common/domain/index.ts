@@ -3,3 +3,4 @@ export * from "./types";
 export * from "./rules";
 export * from "./round5";
 export * from "./placeWords";
+export * from "./normalise";

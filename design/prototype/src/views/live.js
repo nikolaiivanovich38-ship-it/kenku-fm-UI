@@ -292,7 +292,7 @@
     var h = '<div class="lv-lane ' + (isM ? 'lv-m' : 'lv-a') + (c ? '' : ' empty') + '">' +
       '<div class="lv-lane-l"><span class="lv-lane-n"><span class="lane-dot ' + ln + '"></span>' + name + '</span>' + (c && c.paused ? '<span class="badge">Paused</span>' : '') + '</div>' +
       '<div class="lv-lane-m">' +
-        '<div class="lv-lane-t ellipsis"' + (t ? ' title="' + esc(shown !== L.title(t) ? 'Its own name: ' + L.title(t) : L.title(t)) + '"' : '') + '>' + (t ? esc(shown) + (shown !== L.title(t) ? '<span class="sr-only"> (its own name: ' + esc(L.title(t)) + ')</span>' : '') : '<span class="muted">Silent</span>') + '</div>' +
+        '<div class="lv-lane-t ellipsis"' + (t ? ' title="' + esc((shown !== L.title(t) ? 'Its own name: ' + L.title(t) : L.title(t)) + ' · ' + L.normHover(t, c.playlistId)) + '"' : '') + '>' + (t ? esc(shown) + (shown !== L.title(t) ? '<span class="sr-only"> (its own name: ' + esc(L.title(t)) + ')</span>' : '') : '<span class="muted">Silent</span>') + '</div>' +
         (c ? '<div class="lv-lane-pr"><div class="progress ' + ln + '"><span data-progress="' + ln + at + '"></span></div><span class="num lv-time" data-time="' + ln + at + '"></span></div>' : '');
     if (isM && c) {
       var p = pending(c, tg), nt = L.upNext('music', tg), from = c.playlistId ? plName(c.playlistId) : '', si = seqItem(c);

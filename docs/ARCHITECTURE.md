@@ -500,3 +500,13 @@ and three screens (design/prototype/ROUND5.md "Three screens that had none").
 - **Move report.** `transfer.movedReport()` names the app's version and the bookmarks when the record holds them.
 - **Shared files touched:** `src/lyre/shell/routes.ts` (three routes, section Library), `src/lyre/screens/index.tsx`,
   `src/lyre/kit/icons.ts` (download, upload, warn), one import and one line in `LibraryScreen.tsx`, `e2e/specs/support/built.ts`.
+
+## Wave 4: w4-normalise
+
+Volume normalisation (PLY-15, DAT-15; design/prototype/ROUND5.md "Volume normalisation"). Lyre never changes your files: the level is evened out as Lyre plays them, and the measurement is kept in Lyre's library.
+
+- **Rules** (`src/common/domain/normalise.ts`): `normaliseDecision` (track, then playlist, then library), `normaliseGain` (target - loudness, at most +12 dB, true peak at or below -1 dBTP), `normalisedGainDb`, and the words (`normaliseLine`, `playlistNormaliseLine`, `normaliseHover`, `libraryNormaliseWords`). `DomainTrack.normalise`, `loudness`; `DomainPlaylist.normalise`.
+- **Data**: schema version 4 (docs/data-model.md). The library's process measures loudness with the bundled ffmpeg in the peaks job (`media/ffmpegLoudness.ts`) and queues unmeasured tracks 20 s after start.
+- **LyreApi**: `library.normaliseSettings()`, `setNormaliseSettings({ on, target })`, `setNormalise(trackId, "on" | "off" | null)`; `playlists.setNormalise(id, choice)`; `LibraryTrack.normalise`, `loudness`; `PlaylistInfo.normalise`. The setting changes "tracks"; new loudness comes with "peaks".
+- **Audio host**: `LyreAudioLibrary.normaliseSettings()`; `LaneNowPlaying.gainDb`, `PreviewNowPlaying.gainDb`; `PreviewTrackOptions.playlistId`. docs/playback-engine.md "Wave 4: volume normalisation".
+- **Kit**: `kit/NormaliseChoice.tsx` (`NormaliseChoice`, `NormaliseDialog`, `trackNormaliseHint`, `playlistNormaliseHint`, `profileNormaliseHint`), not yet placed in screens.

@@ -310,3 +310,15 @@ button .shape-g { color: inherit; }
 
 /* A room box that is silent loses its red edge: red means the players hear something. */
 .pane.k-onair.is-silent { border-top-color: var(--line-strong); }
+
+/* PLY-15 the NormaliseChoice control (Library setting / On / Off with the measured line) and the library's dialog. */
+.norm { display: grid; grid-template-columns: minmax(74px, max-content) minmax(0, 1fr); gap: 4px 8px; align-items: start; }
+.norm-l { font-size: var(--fs-xs); font-weight: 700; color: var(--ink-2); padding-top: 5px; }
+.norm-box { display: grid; gap: 3px; justify-items: start; min-width: 0; }
+.norm-line { margin: 0; font-size: var(--fs-s); color: var(--ink); }
+.norm-box .hint { margin: 0; }
+.norm-sheet p { margin: 0; }
+.norm-on { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.norm-targets { border: 0; padding: 0; margin: 0; display: grid; gap: 6px; min-width: 0; }
+.norm-targets legend { font-size: var(--fs-s); font-weight: 700; margin-bottom: 4px; padding: 0; }
+@media (max-width: 520px) { .norm { grid-template-columns: minmax(0, 1fr); } .norm-l { padding-top: 0; } }

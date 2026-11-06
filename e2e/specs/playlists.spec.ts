@@ -333,3 +333,22 @@ test.describe("round 6: quiet statuses", () => {
     await expect(used.getByText("Ready", { exact: true })).toBeVisible();
   });
 });
+
+/* Round 5, volume normalisation (design/prototype/ROUND5.md "Volume normalisation (PLY-15, DAT-15)"): built in wave 4. */
+test.describe("round 5: volume normalisation", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 5"));
+
+  test("PLY-15: a playlist's Details choose Normalise volume for its tracks, and a track's own choice comes first", async ({ page }) => {
+    await openRoute(page, "playlist/p-ashen");
+    const details = page.getByRole("region", { name: "Details", exact: true });
+    const norm = details.getByRole("group", { name: "Normalise volume" });
+    await expect(norm.getByRole("button")).toHaveText(["Library setting", "On", "Off"]);
+    await expect(norm.getByRole("button", { name: "On" })).toHaveAttribute("aria-pressed", "true");
+    // Ominous song (t26) is set to Off on its own, so it plays as it is here too.
+    await expect(norm).toHaveAccessibleDescription("Its tracks get -2.2 dB to +2.7 dB here; 1 plays as it is");
+    await expect(details.getByTitle("A track's own choice still comes first.")).toBeVisible();
+    await norm.getByRole("button", { name: "Library setting" }).click();
+    await expect(norm).toHaveAccessibleDescription("Its tracks play as they are");
+    await expect(details.getByTitle("Follows the library (Off). A track's own choice comes first.")).toBeVisible();
+  });
+});

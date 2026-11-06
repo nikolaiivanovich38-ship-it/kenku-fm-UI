@@ -38,6 +38,7 @@ import {
 import { BACKUP_FOLDER_NAME } from "../data/library";
 import { musicMetadataTagReader } from "../data/import/musicMetadata";
 import { ffmpegLength } from "../media/ffmpegLength";
+import { FfmpegLoudnessReader } from "../media/ffmpegLoudness";
 import { FfmpegPeakReader } from "../media/ffmpegPeaks";
 import { createLibraryApi, type LibraryApi, type LibraryHost } from "./libraryApi";
 import { SAMPLE_TODAY, sampleComputer, writeSampleSharedFile } from "./sampleComputer";
@@ -146,7 +147,9 @@ export function runLibraryProcess(port: PortLike, options: LibraryProcessOptions
       ...(transferFolder ? { broughtInFolder: path.join(transferFolder, "Brought in") } : {}),
       ...(seed ? { today: () => SAMPLE_TODAY } : {}),
     };
-    api = createLibraryApi(opened, host, { tagReader, peakReader: peakReader ?? undefined, lengthProbe, log, transfer, ...(seed ? { files: sampleComputer(prototypeSeed()) } : {}) });
+    // DAT-15: loudness is measured by the same background job, with the same bundled ffmpeg.
+    const loudnessReader = peakReader && ffmpegPath ? new FfmpegLoudnessReader({ ffmpegPath }) : undefined;
+    api = createLibraryApi(opened, host, { tagReader, peakReader: peakReader ?? undefined, loudnessReader, lengthProbe, log, transfer, ...(seed ? { files: sampleComputer(prototypeSeed()) } : {}) });
     server = serveLyreApi(api, port);
     if (backupsWanted && !stopBackups) stopBackups = startDailyBackups(opened, { onError: (error) => log("The daily backup failed", error) });
     port.postMessage({ t: "ready" });

@@ -6,7 +6,7 @@
  * to each room, this page's speakers and the preview, and play the capture
  * window's side of the channel (`broadcast`).
  */
-import type { DomainTrack, Room } from "../../../common/domain";
+import { DEFAULT_LIBRARY_NORMALISE, type DomainTrack, type Room } from "../../../common/domain";
 import type { AudioPortLike } from "../../../common/playerAudio";
 import { PlaybackEngine } from "../../../player/engine/engine";
 import { OutputDeviceChooser, type OutputDeviceInfo } from "../../../player/engine/preview/outputDevices";
@@ -41,6 +41,7 @@ export function staticAudioLibrary(data: AudioTestData): LyreAudioLibrary {
     },
     pad: (boardId, padId): LyrePad | undefined => data.pads?.find((p) => p.boardId === boardId && p.padId === padId),
     playOrders: () => data.playOrders ?? {},
+    normaliseSettings: () => data.normalise ?? DEFAULT_LIBRARY_NORMALISE,
   };
 }
 

@@ -13,7 +13,7 @@
  * `startLyreAudio` makes the real browser parts; `assembleLyreAudio` joins
  * them and is what the unit tests check with fakes.
  */
-import type { DomainLookup } from "../../common/domain";
+import { DEFAULT_LIBRARY_NORMALISE, type DomainLookup } from "../../common/domain";
 import { fromAudioContext, type EngineContext, type GainLike, type NodeLike, type Scheduler } from "../../player/engine/audio/types";
 import { createBrowserEngine } from "../../player/engine/browser";
 import type { PlaybackEngine } from "../../player/engine/engine";
@@ -209,4 +209,5 @@ export const EMPTY_LIBRARY: LyreAudioLibrary = {
   media: () => null,
   pad: () => undefined,
   playOrders: () => ({}),
+  normaliseSettings: () => DEFAULT_LIBRARY_NORMALISE,
 };

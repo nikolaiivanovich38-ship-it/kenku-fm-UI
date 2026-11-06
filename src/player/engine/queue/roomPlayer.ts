@@ -9,7 +9,7 @@
  * the old one fades out); a track reaching End hands over with no extra fade,
  * since its own profile already shapes the join.
  */
-import type { AfterEnd, AudioProfile, DomainScene, DomainTrack } from "../../../common/domain";
+import { DEFAULT_LIBRARY_NORMALISE, normalisedGainDb, type AfterEnd, type AudioProfile, type DomainScene, type DomainTrack } from "../../../common/domain";
 import type { PlaybackEngine } from "../engine";
 import { laneProfile } from "../profile/trackProfile";
 import { positionAfter } from "../profile/position";
@@ -58,6 +58,8 @@ export interface PlayingReport {
   /** Seconds into the file; null until it plays. */
   positionSeconds: number | null;
   state: VoiceState | null;
+  /** PLY-15: the normalising gain it plays at, in dB (0: as it is). */
+  gainDb: number;
 }
 
 export interface RoomReport {
@@ -99,6 +101,11 @@ export class RoomPlayer {
   private ambienceItem: Playing | null = null;
   private ambienceVoice: LaneVoice | null = null;
   private readonly effects: { voice: Voice; trackId: string; padKey: string | null }[] = [];
+  /** PLY-15: what each lane's track gets where it plays from (normalisedGainDb). */
+  private gainOf(track: DomainTrack | undefined, playlistId: string | null): number {
+    const lib = this.deps.library;
+    return normalisedGainDb(track, playlistId ? lib.playlist(playlistId) : null, lib.normaliseSettings?.() ?? DEFAULT_LIBRARY_NORMALISE);
+  }
   private failures = 0;
   private plays = 0;
 
@@ -266,7 +273,8 @@ export class RoomPlayer {
       return false;
     }
     const profile = laneProfile(found.track, "effects", [], this.deps.library.profileOverrides());
-    const voice = this.play("effects", found, loop ? { ...profile, after: "loop" } : profile, { volume });
+    // A pad's sound or an effect plays on its own: the track's choice, then the library's (no playlist).
+    const voice = this.play("effects", found, loop ? { ...profile, after: "loop" } : profile, { volume, gainDb: this.gainOf(found.track, null) });
     const entry = { voice, trackId, padKey };
     this.effects.push(entry);
     voice.on("state", () => {
@@ -369,6 +377,15 @@ export class RoomPlayer {
     };
   }
 
+  /** PLY-15: the library or a choice changed: what plays moves to its new gain, smoothly. */
+  refreshGains(): void {
+    const lib = this.deps.library;
+    for (const lane of [this.musicVoice, this.ambienceVoice]) {
+      if (lane && !lane.voice.isFinal()) lane.voice.setGainDb(this.gainOf(lib.track(lane.item.trackId), lane.item.playlistId));
+    }
+    for (const effect of this.effects) effect.voice.setGainDb(this.gainOf(lib.track(effect.trackId), null));
+  }
+
   /** The room has gone: silence at once and forget everything. */
   dispose(): void {
     this.stopAll(0);
@@ -389,6 +406,7 @@ export class RoomPlayer {
     }
     const profile = laneProfile(found.track, lane, placesOf(item), this.deps.library.profileOverrides());
     const voice = this.play(lane, found, profile, {
+      gainDb: this.gainOf(found.track, item.playlistId),
       crossfadeInSeconds: fadeSeconds,
       startAt: resume ? positionAfter(profile, resume.at, resume.elapsed) : undefined,
     });
@@ -426,6 +444,7 @@ export class RoomPlayer {
       playlistId: item.playlistId,
       positionSeconds: voice && voice.state !== "loading" ? voice.position() : null,
       state: voice ? voice.state : null,
+      gainDb: voice ? voice.gainDb : this.gainOf(this.deps.library.track(item.trackId), item.playlistId),
     };
   }
 }

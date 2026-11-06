@@ -26,5 +26,7 @@ export * from "./repo/cueActions";
 export * from "./repo/domain";
 export * from "./repo/search";
 export * from "./repo/peaks";
-export { PeakJobs, type PeakReader, type PeakJobsOptions } from "./peaks";
+export * from "./repo/loudness";
+export * from "./repo/normalise";
+export { PeakJobs, type PeakReader, type PeakJobsOptions, type LoudnessReader } from "./peaks";
 export * from "./import";

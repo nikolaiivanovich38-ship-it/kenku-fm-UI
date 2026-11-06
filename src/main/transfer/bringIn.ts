@@ -47,6 +47,7 @@ import {
   type Store,
   type TrackInput,
 } from "../data";
+import { setPlaylistNormalise, setTrackNormalise } from "../data/repo/normalise";
 import { findRoot, isAbsolutePath, normalizePath } from "../data/paths";
 import type { FileTrack, LyreFileLibrary } from "./lyreFile";
 
@@ -305,6 +306,7 @@ export async function bringIn(store: Store, file: LyreFileLibrary, mine: Current
       if (!options.unpacked.has(t.id)) report.missingFiles++;
       const tags = tagIdsOf(t);
       if (tags.length) void tagTracks(store, [track.id], tags);
+      if (t.normalise) setTrackNormalise(store, track.id, t.normalise);
     });
   };
 
@@ -345,6 +347,7 @@ export async function bringIn(store: Store, file: LyreFileLibrary, mine: Current
         if (ids.length) addTracksToPlaylist(store, made.id, ids);
       }
       if (p.order) setPlayOrder(store, made.id, null, p.order);
+      if (p.normalise) setPlaylistNormalise(store, made.id, p.normalise);
       playlistMap.set(p.id, made.id);
       newPlaylists.add(made.id);
       (choice === "keepBoth" ? report.keptBoth : report.added).push({ kind: "playlist", id: made.id, name });

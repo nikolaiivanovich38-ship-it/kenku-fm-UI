@@ -242,6 +242,8 @@
       // Round 6: two words for Lyre's suggestion (the why on hover); the GM's own choice needs no words unless it differs.
       }).join('') + '</div>' + (t.shape ? (L.suggestedShape(t) && L.suggestedShape(t) !== t.shape ? '<p class="hint">Lyre suggested ' + L.shapeName[L.suggestedShape(t)].toLowerCase() + '. <button class="btn s ghost" data-act="lbshapeauto" data-k="lb-shapeauto">Use the suggestion</button></p>' : '')
         : '<p class="hint" title="From the track\'s loudness. Choose another to change it.">Suggested by Lyre<span class="sr-only"> from the track\'s loudness. Choose another to change it.</span></p>') + '</div></div>' +
+      // PLY-15, DAT-15: normalise this track (Library setting / On / Off), with what Lyre measured and the gain it gets.
+      '<div class="lb-tg lb-normrow">' + L.normChoice({ id: 'lb-norm', value: t.norm, act: 'lbnorm', line: L.normLine(t), hint: normHint(t) }) + '</div>' +
       '<div class="lb-tg"><div class="lb-tgl">Role</div>' + choiceChips('lbrole', (t.kind === 'fx' ? ['Effect'].concat(ROLES) : ROLES).map(function (r) { return [r, r]; }), t.role, 'Role') + '</div>' +
       '<div class="lb-tg"><div class="lb-tgl">Looping</div>' + choiceChips('lbloop', LOOPS, t.loop, 'Loop advice') + '</div>' +
       '<div class="lb-tg"><label class="lb-tgl" for="lb-notes">Notes</label><textarea id="lb-notes" class="input" rows="2" data-input="lbnotes" data-k="lb-notes" placeholder="Cues, where it fades, what it reminds you of">' + esc(t.notes) + '</textarea></div></section>';
@@ -276,6 +278,17 @@
       (onHand.length ? '<p class="hint lb-onhand">' + L.icon('link', 's') + 'On hand in ' + esc(onHand.map(function (u) { return u.label; }).join('; ')) + '</p>' : '') + '</section>';
     return h + '</div>';
   }
+  // Where the track's normalising choice comes from, and its true peak once measured.
+  function normHint(t) {
+    var peak = t.loud ? 'True peak ' + t.loud.peak.toFixed(1) + ' dBTP. ' : '';
+    return peak + (t.norm ? 'This track\'s own choice, wherever it plays.' : 'Follows the library (' + L.libraryNormWords() + '), or the playlist it plays from when that has its own choice.');
+  }
+  L.acts.lbnorm = function (el) {
+    var t = L.track(L.current().p.tid); if (!t) return;
+    if (el.dataset.v === 'library') delete t.norm; else t.norm = el.dataset.v;
+    L.render(); var b = document.querySelector('[data-k="lb-norm-' + el.dataset.v + '"]'); if (b) b.focus();
+    L.say('Normalise volume: ' + L.normLine(t));
+  };
   // One line describing the track's audio profile, e.g. "Ends at 5:18, then loops from 1:04".
   function profileSummary(t) {
     if (!L.profileOf) return '';
@@ -640,7 +653,9 @@
     var n = D.tracks.filter(function (t) { return t.missing; }).length;
     L.menu(el, '<button role="menuitem" data-act="lbgo" data-href="#/backup">' + L.icon('download', 's') + 'Back up, move or share…</button>' +
       '<button role="menuitem" data-act="lbgo" data-href="#/relink">' + L.icon('folder', 's') + 'Find missing files' + (n ? ' (' + n + ')' : '') + '…</button>' +
-      '<button role="menuitem" data-act="lbgo" data-href="#/moved">' + L.icon('file', 's') + 'What came across from Kenku FM</button>', 'More for the library');
+      '<button role="menuitem" data-act="lbgo" data-href="#/moved">' + L.icon('file', 's') + 'What came across from Kenku FM</button>' +
+      // PLY-15: the library's normalisation setting (off until turned on), in a small dialog.
+      '<div class="sep"></div><button role="menuitem" data-act="normopen">' + L.icon('volume', 's') + 'Normalise volume…</button>', 'More for the library');
   };
   L.acts.lbgo = function (el) { L.route(el.dataset.href); };
   L.acts.lbaddmenu = function (el) {

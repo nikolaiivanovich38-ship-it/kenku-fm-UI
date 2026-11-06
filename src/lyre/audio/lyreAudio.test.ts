@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { keyOfPlace, placeKey, shuffledOrder, type Room } from "../../common/domain";
 import { padIsOn, type NowPlaying } from "./lyreAudio";
-import { lyreAudioOnFakes, testTrack, type AudioTestData } from "./testing/onFakes";
+import { lyreAudioOnFakes, staticAudioLibrary, testTrack, type AudioTestData } from "./testing/onFakes";
 
 const TAVERN: Room = { botId: "bot-a", name: "Tavern" };
 const DUNGEON: Room = { botId: "bot-b", name: "Dungeon" };
@@ -589,5 +589,60 @@ describe("w4-outputs: the Outputs screen's Test chime, in one room only", () => 
     expect(rig.audio.testChime("bot-gone")).toEqual({ ok: false, message: "That room is not in a voice channel now." });
     expect(errors).toEqual(["That room is not in a voice channel now."]);
     expect(rig.hearRoom("bot-a")).toBe(0);
+  });
+});
+
+describe("volume normalisation: what the players hear and what the game master checks (PLY-15)", () => {
+  const at = (id: string) => rig.data.tracks.find((t) => t.id === id)!;
+  beforeEach(() => {
+    // At Standard (-18 LUFS): m1 down 6 dB, m2 up 6 dB, fx1 down 6 dB.
+    at("m1").loudness = { lufs: -12, truePeakDb: -2 };
+    at("m2").loudness = { lufs: -24, truePeakDb: -10 };
+    at("fx1").loudness = { lufs: -12, truePeakDb: -3 };
+    rig.data.normalise = { on: true, target: "standard" };
+  });
+
+  it("each room's music and ambience say the gain they play at (gainDb), and the room hears it", async () => {
+    rig.audio.playTrack("m1");
+    rig.audio.playTrack("amb1");
+    await rig.advance(4);
+    expect(first().music).toMatchObject({ trackId: "m1", gainDb: -6 });
+    expect(first().ambience).toMatchObject({ trackId: "amb1", gainDb: 0 });
+    expect(rig.hearRoom("table")).toBeCloseTo(0.501 + 1, 1);
+  });
+
+  it("a preview hears the same gain as the players would: a track alone, from a playlist, and a pad's sound", async () => {
+    (rig.data.playlists.find((p) => p.id === "P") as { normalise?: string }).normalise = "off";
+    rig.audio.previewTrack("m2");
+    await rig.advance(1);
+    expect(state().preview).toMatchObject({ key: "m2", gainDb: 6 });
+    expect(rig.hearPreview()).toBeCloseTo(1.995, 2);
+    // Previewed from the playlist (its row, or a track on its page): the playlist's Off applies, as on air.
+    rig.audio.previewTrack("m2", { playlistId: "P" });
+    await rig.advance(1);
+    expect(state().preview).toMatchObject({ gainDb: 0 });
+    rig.audio.previewPlaylist("P");
+    await rig.advance(1);
+    expect(state().preview).toMatchObject({ kind: "playlist", gainDb: 0 });
+    rig.audio.previewPad("b", "door");
+    await rig.advance(0.2);
+    expect(state().preview).toMatchObject({ kind: "pad", gainDb: -6 });
+    expect(rig.hearPreview()).toBeCloseTo(0.501, 2);
+  });
+
+  it("follows a change of the library at once: what plays and the preview move to their new gains", async () => {
+    rig.data.normalise = { on: false, target: "standard" };
+    rig.audio.playTrack("m1");
+    rig.audio.previewTrack("m2");
+    await rig.advance(4);
+    expect(first().music?.gainDb).toBe(0);
+    expect(state().preview?.gainDb).toBe(0);
+    rig.data.normalise = { on: true, target: "standard" };
+    rig.audio.setLibrary(staticAudioLibrary(rig.data));
+    await rig.advance(0.5);
+    expect(first().music?.gainDb).toBe(-6);
+    expect(rig.hearRoom("table")).toBeCloseTo(0.501, 2);
+    expect(state().preview?.gainDb).toBe(6);
+    expect(rig.hearPreview()).toBeCloseTo(1.995, 2);
   });
 });
