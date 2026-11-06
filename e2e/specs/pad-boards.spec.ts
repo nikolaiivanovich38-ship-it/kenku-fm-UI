@@ -84,7 +84,7 @@ test.describe("resizing a board: spare pads", () => {
     await page.getByRole("button", { name: "Fewer rows" }).click();
     await expect(page.getByText(/4 pads moved to Spare pads: Horse whinny, Storm, Wind gust, Fire flares\. Nothing was deleted\./).first()).toBeVisible();
     await expect(pads(page)).toHaveCount(4);
-    await expect(spare(page)).toContainText("5 pads");
+    await expect(spare(page).getByRole("listitem")).toHaveCount(5); // round 6: the open box does not repeat its count
     await expect(spare(page).getByRole("button", { name: /^Storm/ })).toBeVisible();
   });
 
@@ -104,7 +104,7 @@ test.describe("resizing a board: spare pads", () => {
     await expect(page.getByText(/Grid is now 4 × 2\. 4 spare pads came back onto it: Horse whinny, Storm, Wind gust, Fire flares\./).first()).toBeVisible();
     await expect(pads(page)).toHaveCount(8);
     await expect(pad(page, "Storm")).toHaveAccessibleName(/row 2, column 2$/);
-    await expect(spare(page)).toContainText("1 pad");
+    await expect(spare(page).getByRole("listitem")).toHaveCount(1); // round 6: the open box does not repeat its count
     await expect(spare(page).getByRole("button", { name: "Put all back" })).toHaveCount(0);
   });
 
@@ -129,8 +129,10 @@ test.describe("resizing a board: spare pads", () => {
   });
 
   test("the editor says why spare pads exist", async ({ page }) => {
+    // Round 6: read out with the box (and its hover text) instead of a line on screen.
+    expectFailureUntilBuilt("round 6");
     await openRoute(page, "board/weather");
-    await expect(spare(page).getByText(/Pads that are not on the grid wait here; their keys do nothing until you put them back\./)).toBeVisible();
+    await expect(spare(page)).toHaveAccessibleDescription("Pads that are not on the grid wait here; their keys do nothing until you put them back.");
   });
 
   test("an empty slot can be filled with a new pad", async ({ page }) => {
@@ -251,7 +253,7 @@ test.describe("round 5: resizing fills the grid; trying pads as they play", () =
     await expect(page.getByText(/Grid is now 3 × 3 and full\. 2 pads moved to Spare pads: War drums, Retreat horn\. Nothing was deleted\./).first()).toBeVisible();
     await expect(pad(page, "Critical hit")).toHaveAccessibleName(/row 2, column 1$/);
     await expect(pads(page)).toHaveCount(9);
-    await expect(spare(page)).toContainText("2 pads");
+    await expect(spare(page).getByRole("listitem")).toHaveCount(2); // round 6: the open box does not repeat its count
   });
 
   test("SFX-11: pads go to Spare pads only when the grid is full, and gaps close", async ({ page }) => {
@@ -262,7 +264,7 @@ test.describe("round 5: resizing fills the grid; trying pads as they play", () =
     await page.getByRole("button", { name: "Fewer rows" }).click();
     await expect(padGrid(page)).toHaveAccessibleName("Pads, 6 columns by 2 rows");
     await expect(pads(page)).toHaveCount(11);
-    await expect(spare(page)).toContainText("Empty");
+    await expect(spare(page).getByRole("listitem")).toHaveCount(0); // round 6: an open box does not say Empty
     await expect(pad(page, "Healing word")).toHaveAccessibleName(/row 2, column 1$/);
   });
 
@@ -273,7 +275,7 @@ test.describe("round 5: resizing fills the grid; trying pads as they play", () =
     await page.getByRole("button", { name: "Undo" }).click();
     await expect(padGrid(page)).toHaveAccessibleName("Pads, 4 columns by 3 rows");
     await expect(pad(page, "Critical hit")).toHaveAccessibleName(/row 1, column 4$/);
-    await expect(spare(page)).toContainText("Empty");
+    await expect(spare(page).getByRole("listitem")).toHaveCount(0); // round 6: an open box does not say Empty
   });
 
   test("SFX-12: Try pads plays a toggle loop on and off, privately, by click and by its key; each pad also has Preview", async ({ page }) => {

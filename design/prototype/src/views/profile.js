@@ -385,7 +385,8 @@
   function fadesHTML(t, p) {
     var h = fadeBlock(t, p, 'in') + fadeBlock(t, p, 'out');
     if (p.after === 'loop') {
-      h += '<div class="ap-fadeblock"><div class="ap-fb-h"><b title="Smooths the jump back to ' + L.fmt(p.loopStart) + '">Crossfade the loop</b></div>' +
+      // Round 6: what the crossfade does is read out with its group and shown on hover.
+      h += '<div class="ap-fadeblock" role="group" aria-labelledby="ap-xf-h" aria-describedby="ap-xf-d" title="Smooths the jump back to ' + L.fmt(p.loopStart) + '"><div class="ap-fb-h"><b id="ap-xf-h">Crossfade the loop</b><span class="sr-only" id="ap-xf-d">Smooths the jump back to ' + L.fmt(p.loopStart) + '</span></div>' +
         '<div class="ap-fb-row"><span class="ap-fb-l">Length</span>' + stepper(t, 'xfade', p.loopXfade, 'loop crossfade') + err('xfade') + '</div>' +
         '</div>';
     }

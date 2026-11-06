@@ -98,7 +98,8 @@
             }).join('') + '</span>' : '<span class="badge">New</span>') + '</li>';
         }).join('') + '</ul>' +
         '<div class="tf-actrow"><span class="hint">For every item you have already:</span>' + CHOICES.map(function (c) { return '<button class="btn s" data-act="tfall" data-v="' + c[0] + '" data-k="tf-all-' + c[0] + '" aria-label="' + c[1] + ' for every item you have already">' + c[1] + '</button>'; }).join('') + '</div>' +
-        '<p class="hint">The 38 tracks come without their audio files: Lyre lists them under Find missing files until you point it at a folder that has them.</p>' +
+        // Round 6: one short line; the rest is its hover text.
+        '<p class="hint" title="Lyre lists them under Find missing files until you point it at a folder that has them.">No audio files: find them later with Find missing files.</p>' +
         '<div class="tf-actrow"><button class="btn primary" data-act="tfbring" data-k="tf-bring">' + L.icon('upload', 's') + 'Bring in</button><button class="btn" data-act="tfcancel" data-k="tf-cancel">Cancel</button></div>';
     } else {
       body = '<p class="tf-done" role="status">' + L.icon('check', 's') + '<span class="grow">' + esc(im.summary) + '</span></p>' +

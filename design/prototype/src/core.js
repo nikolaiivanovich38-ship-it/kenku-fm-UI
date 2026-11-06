@@ -597,7 +597,8 @@ var L = (function () {
     if (!collapsed && L.quietStatus(o.status)) o = Object.assign({}, o, { status: null });
     // o.foldedSummary: the summary repeats what the open box shows, so it is for the folded box only.
     if (!collapsed && o.foldedSummary) o = Object.assign({}, o, { summary: '' });
-    return '<section class="pane' + (collapsed ? ' collapsed' : '') + (L.state.maxed === o.id ? ' maxed' : '') + (o.kind ? ' k-' + o.kind : '') + (o.cls ? ' ' + o.cls : '') + '" data-pane="' + o.id + '"' + (o.size ? ' data-size="' + o.size + '"' : '') + ' aria-label="' + esc(o.title) + '">' +
+    // o.describe (round 6): what the box is for, read out with its name and shown on hover, not on screen.
+    return '<section class="pane' + (collapsed ? ' collapsed' : '') + (L.state.maxed === o.id ? ' maxed' : '') + (o.kind ? ' k-' + o.kind : '') + (o.cls ? ' ' + o.cls : '') + '" data-pane="' + o.id + '"' + (o.size ? ' data-size="' + o.size + '"' : '') + ' aria-label="' + esc(o.title) + '"' + (o.describe ? ' aria-describedby="pd-' + o.id + '"' : '') + '>' + (o.describe ? '<p class="sr-only" id="pd-' + o.id + '">' + esc(o.describe) + '</p>' : '') +
       '<header><h2 class="pane-h"><button class="pane-toggle" data-act="pane" data-id="' + o.id + '" data-k="pane-' + o.id + '" aria-expanded="' + !collapsed + '" title="' + (collapsed ? 'Expand' : 'Collapse') + ' ' + esc(o.title) + '">' +
       L.icon('chevdown', 's chev') + (o.icon ? L.icon(o.icon, 's') : '') + '<span class="pane-title">' + esc(o.title) + '</span></button></h2>' +
       '<div class="pane-summary">' + (o.summary || '') + '</div>' + (o.status ? '<span class="pane-status s-' + (o.status.tone || 'idle') + '">' + esc(o.status.text) + '</span>' : '') + '<div class="pane-actions">' + (collapsed ? '' : (o.actions || '')) +

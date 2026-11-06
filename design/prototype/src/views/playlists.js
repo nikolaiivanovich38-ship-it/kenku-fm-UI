@@ -101,7 +101,7 @@
       '<ul class="pl-list" aria-label="Playlists">' + rows.map(listRow).join('') + '</ul>'
       : !all ? '<div class="empty"><b>No playlists yet.</b> A playlist is music, ambience or effects that play together, in your order or picked by their tags. Start with <b>New playlist</b>, or tick tracks in the Library and choose <b>New playlist from these</b>.</div>'
       : '<div class="empty">No playlists match these filters. <button class="btn s" data-act="plclear" data-k="plclear">Show all playlists</button></div>';
-    return '<div class="viewhead"><h1>Playlists</h1><span class="grow"></span>' +
+    return '<div class="viewhead"><h1>Playlists</h1><span class="muted">' + plural(all, 'playlist') + '</span><span class="grow"></span>' +
       '<button class="btn primary" data-act="plnew" data-k="plnew" aria-haspopup="menu" aria-expanded="false">' + L.icon('plus', 's') + 'New playlist' + L.icon('chevdown', 's') + '</button></div>' +
       '<div class="viewbody fill pl-listbody">' + dropNotice('list') +
       '<div class="pl-tools"><div class="search pl-search">' + L.icon('search') + '<input class="input" type="search" placeholder="Search playlists" aria-label="Search playlists by name or tag" data-input="plfq" data-k="plfq" value="' + esc(filt.q) + '"></div>' +
@@ -251,8 +251,7 @@
     return L.pane({ id: 'pl-uses', title: 'Used in', icon: 'link', kind: 'scenes', size: 'auto', flush: true, status: uses.length ? status('Ready') : status('Empty'),
       // Round 6: what each level means is the Use in… button's hover text and read out with the list.
       actions: '<button class="btn s" data-act="pluse" data-id="' + pl.id + '" data-k="pluse2" title="' + LEVELS + '">Use in…</button>',
-      body: (uses.length ? '<ul class="list" aria-describedby="pl-levels">' + rows + '</ul>' : '<div class="empty">Not used yet.</div>') +
-        '<p class="sr-only" id="pl-levels">' + LEVELS + '</p>' });
+      describe: LEVELS, body: uses.length ? '<ul class="list">' + rows + '</ul>' : '<div class="empty">Not used yet.</div>' });
   }
   function detailsPane(pl, tracks) {
     var k = KIND[pl.kind];

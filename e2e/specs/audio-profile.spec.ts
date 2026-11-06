@@ -59,12 +59,13 @@ test.describe("the handles", () => {
 });
 
 test.describe("what happens at the end", () => {
-  test("offers Loop back, Move to the next track and Stop, with a plain explanation of each", async ({ page }) => {
+  // Round 6 (design/prototype/ROUND6.md): Stop no longer says "Then silence"; the check takes either name.
+  test("offers Loop back, Move to the next track and Stop, with a plain explanation where one is needed", async ({ page }) => {
     await openRoute(page, "profile/t13");
     const choice = atEnd(page).getByRole("group", { name: "At the end" });
     await expect(choice.getByRole("radio", { name: /^Loop back to loop start/ })).toBeChecked();
     await expect(choice.getByRole("radio", { name: /^Move to the next track The scene or playlist moves on; played on its own, it stops/ })).toBeVisible();
-    await expect(choice.getByRole("radio", { name: /^Stop Then silence/ })).toBeVisible();
+    await expect(choice.getByRole("radio", { name: /^Stop\b/ })).toBeVisible();
     await expect(atEnd(page)).toContainText("Loops from 1:04");
   });
 
@@ -120,8 +121,10 @@ test.describe("fades", () => {
   });
 
   test("a looping track also has a loop crossfade that smooths the jump back", async ({ page }) => {
+    // Round 6: what it does is read out with the group (and is its hover text) instead of a line on screen.
+    expectFailureUntilBuilt("round 6");
     await openRoute(page, "profile/t13");
-    await expect(fades(page)).toContainText(/Crossfade the loop\s*smooths the jump back to 1:04/);
+    await expect(fades(page).getByRole("group", { name: "Crossfade the loop" })).toHaveAccessibleDescription("Smooths the jump back to 1:04");
     await expect(fades(page).getByRole("textbox", { name: "loop crossfade length in seconds" })).toHaveValue("2");
   });
 });
@@ -167,11 +170,11 @@ test.describe("markers and keys", () => {
     await page.keyboard.press("ArrowRight");
     await page.keyboard.press("m");
     const markers = page.getByRole("region", { name: "Markers", exact: true });
-    await expect(markers).toContainText("4 markers");
+    await expect(markers.getByRole("textbox", { name: /^Marker label at / })).toHaveCount(4); // round 6: the open box does not repeat its count
     await markers.getByRole("textbox", { name: "Marker label at 0:02" }).fill("First bell");
     await markers.getByRole("button", { name: "Go to First bell" }).click();
     await markers.getByRole("button", { name: "Remove marker First bell" }).click();
-    await expect(markers).toContainText("3 markers");
+    await expect(markers.getByRole("textbox", { name: /^Marker label at / })).toHaveCount(3); // round 6: the open box does not repeat its count
   });
 
   test("with single-key shortcuts off, O does nothing", async ({ page }) => {

@@ -446,3 +446,23 @@ test.describe("round 5: play order, single tracks, tags, names in scenes and aud
     await expect(page.getByRole("region", { name: "Session playlists", exact: true }).getByRole("link", { name: /^Haunted sea shanty, grey and slow - the drowned bells \(single track\)/ })).toBeVisible();
   });
 });
+
+/* Round 6 (design/prototype/ROUND6.md): less text on screen; what leaves the screen is read out instead. */
+test.describe("round 6: fewer sentences in the planner", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
+
+  test("the music picker's how-to is read out with the dialog, not shown above the list", async ({ page }) => {
+    await openAbbey(page);
+    await abbey(page).getByRole("button", { name: "Add tracks or playlists…" }).click();
+    await expect(dialog(page)).toHaveAccessibleDescription(/^Tick playlists, single tracks or both/);
+    await expect(dialog(page).getByText(/^Tick playlists, single tracks or both/)).toBeHidden();
+    await expect(dialog(page).getByText(/Preview plays in your headphones only/)).toHaveCount(0);
+  });
+
+  test("the session's playlists say they are for every scene to a screen reader, not on screen", async ({ page }) => {
+    await openRoute(page, "session/crown/s14");
+    const box = page.getByRole("region", { name: "Session playlists", exact: true });
+    await expect(box).toHaveAccessibleDescription("In every scene tonight.");
+    await expect(box.getByText("In every scene tonight.")).toBeHidden();
+  });
+});

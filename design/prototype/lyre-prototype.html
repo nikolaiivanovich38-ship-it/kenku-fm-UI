@@ -2834,7 +2834,8 @@ var L = (function () {
     if (!collapsed && L.quietStatus(o.status)) o = Object.assign({}, o, { status: null });
     // o.foldedSummary: the summary repeats what the open box shows, so it is for the folded box only.
     if (!collapsed && o.foldedSummary) o = Object.assign({}, o, { summary: '' });
-    return '<section class="pane' + (collapsed ? ' collapsed' : '') + (L.state.maxed === o.id ? ' maxed' : '') + (o.kind ? ' k-' + o.kind : '') + (o.cls ? ' ' + o.cls : '') + '" data-pane="' + o.id + '"' + (o.size ? ' data-size="' + o.size + '"' : '') + ' aria-label="' + esc(o.title) + '">' +
+    // o.describe (round 6): what the box is for, read out with its name and shown on hover, not on screen.
+    return '<section class="pane' + (collapsed ? ' collapsed' : '') + (L.state.maxed === o.id ? ' maxed' : '') + (o.kind ? ' k-' + o.kind : '') + (o.cls ? ' ' + o.cls : '') + '" data-pane="' + o.id + '"' + (o.size ? ' data-size="' + o.size + '"' : '') + ' aria-label="' + esc(o.title) + '"' + (o.describe ? ' aria-describedby="pd-' + o.id + '"' : '') + '>' + (o.describe ? '<p class="sr-only" id="pd-' + o.id + '">' + esc(o.describe) + '</p>' : '') +
       '<header><h2 class="pane-h"><button class="pane-toggle" data-act="pane" data-id="' + o.id + '" data-k="pane-' + o.id + '" aria-expanded="' + !collapsed + '" title="' + (collapsed ? 'Expand' : 'Collapse') + ' ' + esc(o.title) + '">' +
       L.icon('chevdown', 's chev') + (o.icon ? L.icon(o.icon, 's') : '') + '<span class="pane-title">' + esc(o.title) + '</span></button></h2>' +
       '<div class="pane-summary">' + (o.summary || '') + '</div>' + (o.status ? '<span class="pane-status s-' + (o.status.tone || 'idle') + '">' + esc(o.status.text) + '</span>' : '') + '<div class="pane-actions">' + (collapsed ? '' : (o.actions || '')) +
@@ -3368,7 +3369,7 @@ var L = (function () {
         status: { text: on.length + ' of ' + bots.length + ' bots in rooms', tone: 'idle' },
         summary: nCh + ' channels in ' + D.discord.servers.length + ' servers',
         actions: sw ? '<button class="btn s" data-act="opswap" data-k="op-swap" title="' + esc(sw[0].name + ' to ' + chName(sw[1]) + ', ' + sw[1].name + ' to ' + chName(sw[0])) + '">' + ic('swap', 's') + 'Swap rooms</button>' : '',
-        body: channelsHTML() + '<p class="hint op-foot">' + L.icon('gear', 's') + '<span>Tokens and new bots: Settings, as in Lyre 0.2.</span></p>' });
+        body: channelsHTML() + '<p class="hint op-foot">' + L.icon('gear', 's') + '<span>Tokens and new bots: Settings.</span></p>' });
       return head + '<div class="viewbody fill op-body"><div class="op-split"><div class="col op-roomcol" data-scroll="op-roomcol">' + bots.map(roomBox).join('') + '</div><div class="col op-chcol">' + chPane + '</div></div></div>';
     }
   });
@@ -3478,7 +3479,7 @@ var L = (function () {
       '<ul class="pl-list" aria-label="Playlists">' + rows.map(listRow).join('') + '</ul>'
       : !all ? '<div class="empty"><b>No playlists yet.</b> A playlist is music, ambience or effects that play together, in your order or picked by their tags. Start with <b>New playlist</b>, or tick tracks in the Library and choose <b>New playlist from these</b>.</div>'
       : '<div class="empty">No playlists match these filters. <button class="btn s" data-act="plclear" data-k="plclear">Show all playlists</button></div>';
-    return '<div class="viewhead"><h1>Playlists</h1><span class="grow"></span>' +
+    return '<div class="viewhead"><h1>Playlists</h1><span class="muted">' + plural(all, 'playlist') + '</span><span class="grow"></span>' +
       '<button class="btn primary" data-act="plnew" data-k="plnew" aria-haspopup="menu" aria-expanded="false">' + L.icon('plus', 's') + 'New playlist' + L.icon('chevdown', 's') + '</button></div>' +
       '<div class="viewbody fill pl-listbody">' + dropNotice('list') +
       '<div class="pl-tools"><div class="search pl-search">' + L.icon('search') + '<input class="input" type="search" placeholder="Search playlists" aria-label="Search playlists by name or tag" data-input="plfq" data-k="plfq" value="' + esc(filt.q) + '"></div>' +
@@ -3628,8 +3629,7 @@ var L = (function () {
     return L.pane({ id: 'pl-uses', title: 'Used in', icon: 'link', kind: 'scenes', size: 'auto', flush: true, status: uses.length ? status('Ready') : status('Empty'),
       // Round 6: what each level means is the Use in… button's hover text and read out with the list.
       actions: '<button class="btn s" data-act="pluse" data-id="' + pl.id + '" data-k="pluse2" title="' + LEVELS + '">Use in…</button>',
-      body: (uses.length ? '<ul class="list" aria-describedby="pl-levels">' + rows + '</ul>' : '<div class="empty">Not used yet.</div>') +
-        '<p class="sr-only" id="pl-levels">' + LEVELS + '</p>' });
+      describe: LEVELS, body: uses.length ? '<ul class="list">' + rows + '</ul>' : '<div class="empty">Not used yet.</div>' });
   }
   function detailsPane(pl, tracks) {
     var k = KIND[pl.kind];
@@ -4327,7 +4327,8 @@ var L = (function () {
   function fadesHTML(t, p) {
     var h = fadeBlock(t, p, 'in') + fadeBlock(t, p, 'out');
     if (p.after === 'loop') {
-      h += '<div class="ap-fadeblock"><div class="ap-fb-h"><b title="Smooths the jump back to ' + L.fmt(p.loopStart) + '">Crossfade the loop</b></div>' +
+      // Round 6: what the crossfade does is read out with its group and shown on hover.
+      h += '<div class="ap-fadeblock" role="group" aria-labelledby="ap-xf-h" aria-describedby="ap-xf-d" title="Smooths the jump back to ' + L.fmt(p.loopStart) + '"><div class="ap-fb-h"><b id="ap-xf-h">Crossfade the loop</b><span class="sr-only" id="ap-xf-d">Smooths the jump back to ' + L.fmt(p.loopStart) + '</span></div>' +
         '<div class="ap-fb-row"><span class="ap-fb-l">Length</span>' + stepper(t, 'xfade', p.loopXfade, 'loop crossfade') + err('xfade') + '</div>' +
         '</div>';
     }
@@ -4682,7 +4683,8 @@ var L = (function () {
             }).join('') + '</span>' : '<span class="badge">New</span>') + '</li>';
         }).join('') + '</ul>' +
         '<div class="tf-actrow"><span class="hint">For every item you have already:</span>' + CHOICES.map(function (c) { return '<button class="btn s" data-act="tfall" data-v="' + c[0] + '" data-k="tf-all-' + c[0] + '" aria-label="' + c[1] + ' for every item you have already">' + c[1] + '</button>'; }).join('') + '</div>' +
-        '<p class="hint">The 38 tracks come without their audio files: Lyre lists them under Find missing files until you point it at a folder that has them.</p>' +
+        // Round 6: one short line; the rest is its hover text.
+        '<p class="hint" title="Lyre lists them under Find missing files until you point it at a folder that has them.">No audio files: find them later with Find missing files.</p>' +
         '<div class="tf-actrow"><button class="btn primary" data-act="tfbring" data-k="tf-bring">' + L.icon('upload', 's') + 'Bring in</button><button class="btn" data-act="tfcancel" data-k="tf-cancel">Cancel</button></div>';
     } else {
       body = '<p class="tf-done" role="status">' + L.icon('check', 's') + '<span class="grow">' + esc(im.summary) + '</span></p>' +
@@ -5281,7 +5283,7 @@ var L = (function () {
       status: n ? { text: String(n), tone: 'idle' } : { text: 'Empty', tone: 'idle' },
       actions: '<button class="btn s icon" data-act="cpadd" data-scope="' + o.scope + '" data-kind="' + o.kind + '" data-k="add-' + o.scope + o.kind + '" aria-label="Add ' + kindWord + '…" title="Add ' + kindWord + ' from your library (' + o.why.replace(/\.$/, '').toLowerCase() + ')">' + L.icon('plus', 's') + '</button>',
       // Round 6: "In every session." is read out, not shown (the title says Campaign or Session); new ones are made from the rail.
-      body: '<p class="sr-only">' + o.why + '</p>' + assigned(o.ids, o.kind, o.scope, false, o.tracks) });
+      describe: o.why, body: assigned(o.ids, o.kind, o.scope, false, o.tracks) });
   }
 
   L.acts.cpadd = function (el) {
@@ -6860,18 +6862,18 @@ var L = (function () {
       actions: '<button class="btn s pb-trybtn" data-act="pbtrymode" data-k="pb-trymode" aria-pressed="' + ui.trying + '" title="Press pads and their keys to hear how they play, in your headphones only">' + L.icon(ui.trying ? 'check' : 'headphones', 's') + 'Try pads</button>',
       status: sounding ? { text: sounding + ' sounding', tone: 'live' } : ui.trying ? { text: 'Trying', tone: 'on' } : n ? { text: plural(n, 'pad'), tone: 'idle' } : { text: 'Empty', tone: 'idle' }, body: body });
   }
+  var SPARE_WHY = 'Pads that are not on the grid wait here; their keys do nothing until you put them back.';
   function sparePane(b, sel) {
     var empty = b.slots.indexOf(null) > -1, n = b.spare.length;
     // Round 6: why spare pads exist is read out and is the box's hover text; the greyed keys show it.
-    var body = '<p class="sr-only">Pads that are not on the grid wait here; their keys do nothing until you put them back.</p>' +
-      '<div class="pb-spare" data-drop="spare" title="Pads that are not on the grid wait here; their keys do nothing until you put them back">' + (n ? '<ul class="list">' + b.spare.map(function (p) {
+    var body = '<div class="pb-spare" data-drop="spare" title="' + SPARE_WHY + '">' + (n ? '<ul class="list">' + b.spare.map(function (p) {
       var isSel = sel && sel.pad.id === p.id;
       return '<li class="lrow pb-sp' + (isSel ? ' selected' : '') + '" ' + swatch(p) + '>' +
         '<button class="pb-sp-pick" draggable="true" data-drag="' + p.id + '" data-act="pbpick" data-pid="' + p.id + '" data-k="sp-' + p.id + '" aria-pressed="' + !!isSel + '"><span class="ellipsis">' + esc(p.label) + '</span>' + (p.key ? '<span class="kbd pb-kbd-off" title="Does nothing while the pad is spare">' + esc(String(p.key).toUpperCase()) + '<span class="sr-only"> (key does nothing while spare)</span></span>' : '') + '</button>' +
         L.previewButton('pad', b.id + '/' + p.id) +
         '<button class="btn s icon" data-act="pbsparemenu" data-pid="' + p.id + '" data-k="spm-' + p.id + '" aria-haspopup="menu" aria-expanded="false" title="More" aria-label="More for ' + esc(p.label) + '">' + L.icon('more', 's') + '</button></li>';
     }).join('') + '</ul>' : '<p class="pb-spare-empty">None. Drag a pad here to put it aside.</p>') + '</div>';
-    return L.pane({ id: 'pb-spare', title: 'Spare pads', icon: 'queue', kind: 'fx', size: 'auto', collapsed: !n,
+    return L.pane({ id: 'pb-spare', title: 'Spare pads', icon: 'queue', kind: 'fx', size: 'auto', collapsed: !n, describe: SPARE_WHY,
       summary: n ? esc(b.spare.map(function (p) { return p.label; }).join(', ')) : '', foldedSummary: true,
       status: n ? { text: plural(n, 'pad'), tone: 'idle' } : { text: 'Empty', tone: 'idle' },
       actions: n && empty ? '<button class="btn s" data-act="pbputall" data-k="pb-putall">Put all back</button>' : '', body: body });

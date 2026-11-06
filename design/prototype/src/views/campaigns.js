@@ -106,7 +106,7 @@
       status: n ? { text: String(n), tone: 'idle' } : { text: 'Empty', tone: 'idle' },
       actions: '<button class="btn s icon" data-act="cpadd" data-scope="' + o.scope + '" data-kind="' + o.kind + '" data-k="add-' + o.scope + o.kind + '" aria-label="Add ' + kindWord + '…" title="Add ' + kindWord + ' from your library (' + o.why.replace(/\.$/, '').toLowerCase() + ')">' + L.icon('plus', 's') + '</button>',
       // Round 6: "In every session." is read out, not shown (the title says Campaign or Session); new ones are made from the rail.
-      body: '<p class="sr-only">' + o.why + '</p>' + assigned(o.ids, o.kind, o.scope, false, o.tracks) });
+      describe: o.why, body: assigned(o.ids, o.kind, o.scope, false, o.tracks) });
   }
 
   L.acts.cpadd = function (el) {

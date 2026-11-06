@@ -320,3 +320,16 @@ test.describe("round 5: play order, Details with the rules, shapes and Use in…
     await expect(page.getByRole("dialog").getByRole("heading", { name: /^Use ".+" in…$/ })).toBeVisible();
   });
 });
+
+/* Round 6 (design/prototype/ROUND6.md): a resting status shows only on a folded box. */
+test.describe("round 6: quiet statuses", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
+
+  test("an open box does not say Ready; folded, it does", async ({ page }) => {
+    await openRoute(page, "playlist/p-abbess");
+    const used = page.getByRole("region", { name: "Used in", exact: true });
+    await expect(used.getByText("Ready", { exact: true })).toHaveCount(0);
+    await used.getByRole("button", { name: "Used in", exact: true }).click();
+    await expect(used.getByText("Ready", { exact: true })).toBeVisible();
+  });
+});

@@ -317,18 +317,18 @@
       actions: '<button class="btn s pb-trybtn" data-act="pbtrymode" data-k="pb-trymode" aria-pressed="' + ui.trying + '" title="Press pads and their keys to hear how they play, in your headphones only">' + L.icon(ui.trying ? 'check' : 'headphones', 's') + 'Try pads</button>',
       status: sounding ? { text: sounding + ' sounding', tone: 'live' } : ui.trying ? { text: 'Trying', tone: 'on' } : n ? { text: plural(n, 'pad'), tone: 'idle' } : { text: 'Empty', tone: 'idle' }, body: body });
   }
+  var SPARE_WHY = 'Pads that are not on the grid wait here; their keys do nothing until you put them back.';
   function sparePane(b, sel) {
     var empty = b.slots.indexOf(null) > -1, n = b.spare.length;
     // Round 6: why spare pads exist is read out and is the box's hover text; the greyed keys show it.
-    var body = '<p class="sr-only">Pads that are not on the grid wait here; their keys do nothing until you put them back.</p>' +
-      '<div class="pb-spare" data-drop="spare" title="Pads that are not on the grid wait here; their keys do nothing until you put them back">' + (n ? '<ul class="list">' + b.spare.map(function (p) {
+    var body = '<div class="pb-spare" data-drop="spare" title="' + SPARE_WHY + '">' + (n ? '<ul class="list">' + b.spare.map(function (p) {
       var isSel = sel && sel.pad.id === p.id;
       return '<li class="lrow pb-sp' + (isSel ? ' selected' : '') + '" ' + swatch(p) + '>' +
         '<button class="pb-sp-pick" draggable="true" data-drag="' + p.id + '" data-act="pbpick" data-pid="' + p.id + '" data-k="sp-' + p.id + '" aria-pressed="' + !!isSel + '"><span class="ellipsis">' + esc(p.label) + '</span>' + (p.key ? '<span class="kbd pb-kbd-off" title="Does nothing while the pad is spare">' + esc(String(p.key).toUpperCase()) + '<span class="sr-only"> (key does nothing while spare)</span></span>' : '') + '</button>' +
         L.previewButton('pad', b.id + '/' + p.id) +
         '<button class="btn s icon" data-act="pbsparemenu" data-pid="' + p.id + '" data-k="spm-' + p.id + '" aria-haspopup="menu" aria-expanded="false" title="More" aria-label="More for ' + esc(p.label) + '">' + L.icon('more', 's') + '</button></li>';
     }).join('') + '</ul>' : '<p class="pb-spare-empty">None. Drag a pad here to put it aside.</p>') + '</div>';
-    return L.pane({ id: 'pb-spare', title: 'Spare pads', icon: 'queue', kind: 'fx', size: 'auto', collapsed: !n,
+    return L.pane({ id: 'pb-spare', title: 'Spare pads', icon: 'queue', kind: 'fx', size: 'auto', collapsed: !n, describe: SPARE_WHY,
       summary: n ? esc(b.spare.map(function (p) { return p.label; }).join(', ')) : '', foldedSummary: true,
       status: n ? { text: plural(n, 'pad'), tone: 'idle' } : { text: 'Empty', tone: 'idle' },
       actions: n && empty ? '<button class="btn s" data-act="pbputall" data-k="pb-putall">Put all back</button>' : '', body: body });

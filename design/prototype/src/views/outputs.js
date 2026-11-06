@@ -209,7 +209,7 @@
         status: { text: on.length + ' of ' + bots.length + ' bots in rooms', tone: 'idle' },
         summary: nCh + ' channels in ' + D.discord.servers.length + ' servers',
         actions: sw ? '<button class="btn s" data-act="opswap" data-k="op-swap" title="' + esc(sw[0].name + ' to ' + chName(sw[1]) + ', ' + sw[1].name + ' to ' + chName(sw[0])) + '">' + ic('swap', 's') + 'Swap rooms</button>' : '',
-        body: channelsHTML() + '<p class="hint op-foot">' + L.icon('gear', 's') + '<span>Tokens and new bots: Settings, as in Lyre 0.2.</span></p>' });
+        body: channelsHTML() + '<p class="hint op-foot">' + L.icon('gear', 's') + '<span>Tokens and new bots: Settings.</span></p>' });
       return head + '<div class="viewbody fill op-body"><div class="op-split"><div class="col op-roomcol" data-scroll="op-roomcol">' + bots.map(roomBox).join('') + '</div><div class="col op-chcol">' + chPane + '</div></div></div>';
     }
   });

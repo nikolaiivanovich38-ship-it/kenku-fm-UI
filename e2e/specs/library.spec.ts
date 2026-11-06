@@ -274,7 +274,7 @@ test.describe("round 5: shape, names in scenes, Use in… and missing files", ()
     await expect(details(page)).toContainText("Suggested by Lyre from the track's loudness");
     await shape.getByRole("button", { name: "Steady" }).click();
     await expect(shape.getByRole("button", { name: "Steady" })).toHaveAttribute("aria-pressed", "true");
-    await expect(details(page)).toContainText("Your choice. Lyre suggested peaks then falls.");
+    await expect(details(page)).toContainText("Lyre suggested peaks then falls."); // round 6: without "Your choice."
     await details(page).getByRole("button", { name: "Use the suggestion" }).click();
     await expect(shape.getByRole("button", { name: "Peaks then falls" })).toHaveAttribute("aria-pressed", "true");
   });
@@ -325,5 +325,19 @@ test.describe("round 5: shape, names in scenes, Use in… and missing files", ()
     await expect(page.getByRole("menuitem")).toHaveText(["Back up, move or share…", "Find missing files (3)…", "What came across from Kenku FM"]);
     await page.getByRole("menuitem", { name: "Back up, move or share…" }).click();
     await expect(page.getByRole("heading", { name: "Back up, move or share", level: 1 })).toBeVisible();
+  });
+});
+
+/* Round 6 (design/prototype/ROUND6.md): less text on screen; what leaves the screen is read out instead. */
+test.describe("round 6: the key legend", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
+
+  test("the keys show under the list while the keyboard is in it, and are read out with the list", async ({ page }) => {
+    await openRoute(page, "library");
+    const legend = page.getByText(/^Keys:/);
+    await expect(legend).toBeHidden();
+    await expect(grid(page)).toHaveAccessibleDescription(/Enter open/);
+    await row(page, /^Select /).first().focus();
+    await expect(legend).toBeVisible();
   });
 });
