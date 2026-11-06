@@ -630,6 +630,20 @@ describe("Try pads (SFX-12): pads played as in Live, in the headphones only", ()
     expect(audio.calls).toContainEqual(["tryPad", "combat", "bones", "up"]);
   });
 
+  it("a hold pad held by its key is let go when the window loses focus, as in Live (security review w4)", async () => {
+    const user = userEvent.setup();
+    const { audio } = await open("board/combat");
+    await user.click(tryButton());
+    fireEvent.keyDown(window, { key: "a" });
+    expect(audio.calls).toContainEqual(["tryPad", "combat", "bones", "down"]);
+    previewing(audio, "pad:combat/bones");
+    // Alt+Tab to Discord with the key still down: no keyup ever comes.
+    fireEvent.blur(window);
+    expect(audio.calls).toContainEqual(["tryPad", "combat", "bones", "up"]);
+    fireEvent.keyUp(window, { key: "a" });
+    expect(audio.calls.filter((c) => c[0] === "tryPad" && c[3] === "up")).toHaveLength(1);
+  });
+
   it("leaving the board, or turning Try pads off, stops what is being tried", async () => {
     const user = userEvent.setup();
     const view = await open("board/weather");
