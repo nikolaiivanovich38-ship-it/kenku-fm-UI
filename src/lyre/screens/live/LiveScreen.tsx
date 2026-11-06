@@ -14,7 +14,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { useBoards, useCampaigns, useProfileOverrides, useTagGroups, usePlaylists, useTracks } from "../../api";
-import { useLyreAudio, useNowPlaying } from "../../audio";
+import { useLyreAudio, useNowPlaying, type LyreAudio } from "../../audio";
 import { loadInLive, useLiveSession } from "../../kit/liveSession";
 import { usePlayOrders } from "../../kit/playOrders";
 import { useTrackNames } from "../../kit/trackName";
@@ -41,6 +41,8 @@ const KEYS1_KEY = "lyre-live-keys1";
 /** Layout from the width of the app: one column below 820 px, two up to 1200 px, three above (live.js layoutFor). */
 const TWO_COLUMNS_PX = 820;
 const THREE_COLUMNS_PX = 1200;
+/** What plays from another session fades this long when a session is loaded. */
+const SESSION_FADE_MS = 3000;
 
 type PaneId = "onair" | "scenes" | "music" | "off" | "pads";
 const LAYOUT: Record<1 | 2 | 3, PaneId[][]> = {
@@ -84,6 +86,18 @@ function useColumns(): 1 | 2 | 3 {
   return columns;
 }
 
+/**
+ * Another session loaded (Run, the session menu): what plays in the first room from elsewhere fades out over 3 s, so
+ * the new session starts clean (live.js L.liveStandby); music already from that session plays on.
+ */
+function fadeOtherSession(audio: LyreAudio, session: { campaignId: string; sessionId: string }): void {
+  const first = audio.getNowPlaying().rooms[0];
+  const o = first?.music?.origin;
+  const fromThere = o?.kind === "scene" && o.scene.campaignId === session.campaignId && o.scene.sessionId === session.sessionId;
+  if (first?.music && !fromThere) audio.stopLane("music", { fadeMs: SESSION_FADE_MS });
+  if (first?.ambience) audio.stopLane("ambience", { fadeMs: SESSION_FADE_MS });
+}
+
 function isTyping(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName));
 }
@@ -118,6 +132,7 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
     if (!wanted) return;
     if (!loaded || loaded.campaignId !== wanted.campaignId || loaded.sessionId !== wanted.sessionId) loadInLive(wanted);
     const had = getLiveState().session;
+    if (had && (had.campaignId !== wanted.campaignId || had.sessionId !== wanted.sessionId)) fadeOtherSession(audio, wanted);
     if (!had || had.campaignId !== wanted.campaignId || had.sessionId !== wanted.sessionId) standbyFor(wanted);
   }, [wanted?.campaignId, wanted?.sessionId, loaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -207,11 +222,7 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
       const d = dataRef.current;
       const s = getLiveState().session;
       if (!d || (s?.campaignId === campaignId && s.sessionId === sessionId)) return;
-      const first = d.rooms[0] ? { room: d.rooms[0].roomId } : undefined;
-      const firstRoom = d.now.rooms[0];
-      const fromThere = firstRoom?.music?.origin.kind === "scene" && firstRoom.music.origin.scene.campaignId === campaignId && firstRoom.music.origin.scene.sessionId === sessionId;
-      if (firstRoom?.music && !fromThere) d.audio.stopLane("music", { target: first, fadeMs: 3000 });
-      if (firstRoom?.ambience) d.audio.stopLane("ambience", { target: first, fadeMs: 3000 });
+      fadeOtherSession(d.audio, { campaignId, sessionId });
       loadInLive({ campaignId, sessionId });
       standbyFor({ campaignId, sessionId });
       const c = d.campaigns.find((x) => x.id === campaignId);

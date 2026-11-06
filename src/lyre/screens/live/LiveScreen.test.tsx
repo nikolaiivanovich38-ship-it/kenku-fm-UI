@@ -100,6 +100,33 @@ describe("Live on standby", () => {
     expect(screen.getByRole("button", { name: "Start: Breakfast in the great hall" })).toBeInTheDocument();
   });
 
+  it("loading another session fades out what plays from the one before", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    expect(sound.audio.getNowPlaying().rooms[0].music).not.toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: /The Sunken Crown Session 14/ }));
+    await userEvent.click(screen.getByRole("menuitemradio", { name: /Session 12: Smugglers of Greyhollow/ }));
+    await playOn(sound, 4);
+    expect(sound.audio.getNowPlaying().rooms[0].music).toBeNull();
+    expect(sound.audio.getNowPlaying().rooms[0].ambience).toBeNull();
+    expect(screen.getByRole("button", { name: "Start: The harbour at night" })).toBeInTheDocument();
+  });
+
+  it("Run on another session fades out what plays from the one before, and Live waits on standby", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    act(() => {
+      window.location.hash = "#/campaign/crown";
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    });
+    await userEvent.click(await screen.findByRole("button", { name: /^Run Session 12/ }));
+    expect(await screen.findByRole("button", { name: "Start: The harbour at night" })).toBeInTheDocument();
+    await playOn(sound, 4);
+    expect(sound.audio.getNowPlaying().rooms[0].music).toBeNull();
+  });
+
   it("Prep opens the session planner of the loaded session", async () => {
     await openLive();
     await userEvent.click(within(screen.getByRole("group", { name: "Prep or live" })).getByRole("button", { name: "Prep" }));

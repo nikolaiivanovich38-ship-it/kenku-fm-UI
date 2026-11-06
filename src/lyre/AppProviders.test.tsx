@@ -151,16 +151,8 @@ describe("AppProviders", () => {
       expect(within(bar).getByRole("group", { name: "Only you" })).toBeInTheDocument();
     });
 
-    it("shows every row on the Live page that says Live comes in 0.4, which shows nothing on air (BUG-13)", () => {
-      window.history.replaceState(null, "", "#/live");
-      const audio = new FakeLyreAudio();
-      render(
-        <AppProviders api={createFakeLyreApi()} audio={audio}>
-          <Shell screens={quiet} />
-        </AppProviders>,
-      );
-      playing(audio);
-      expect(within(screen.getByRole("region", { name: "Now playing" })).getAllByRole("group", { name: /^On air/ })).toHaveLength(1);
+    it("the Live screen shows the rooms itself, so the bar there has no On air row (UX-16)", () => {
+      expect(SCREENS.live.showsOnAir).toBe(true);
     });
 
     it("previews started on a screen say which screen (UX-16)", async () => {
@@ -202,9 +194,11 @@ describe("AppProviders", () => {
     it("names the loaded session on the rail's Live link, follows a change, and gives Live that campaign's theme", async () => {
       loadInLive(null);
       window.history.replaceState(null, "", "#/live");
+      // A stand-in Live: the real one loads a session as soon as it opens, which is not what this checks.
+      const Live = () => <PlaceholderScreen title="Live" />;
       render(
         <AppProviders api={createFakeLyreApi()} audio={new FakeLyreAudio()}>
-          <Shell screens={quiet} />
+          <Shell screens={{ ...quiet, live: Live }} />
         </AppProviders>,
       );
       const nav = await screen.findByRole("navigation", { name: "Lyre" });
