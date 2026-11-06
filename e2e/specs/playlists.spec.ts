@@ -4,7 +4,7 @@
  * Music, Ambience and FX; expanders in the list; Preview and Play on air; no Duplicate; drop files in.
  */
 import type { Page } from "@playwright/test";
-import { expect, expectFailureUntilBuilt, test } from "./support/test";
+import { expect, test } from "./support/test";
 import { openRoute } from "./support/target";
 import { dropFiles } from "./support/drop";
 
@@ -322,7 +322,6 @@ test.describe("round 5: play order, Details with the rules, shapes and Use in…
 
 /* Round 5, volume normalisation (design/prototype/ROUND5.md "Volume normalisation (PLY-15, DAT-15)"): built in wave 4. */
 test.describe("round 5: volume normalisation", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 5"));
 
   test("PLY-15: a playlist's Details choose Normalise volume for its tracks, and a track's own choice comes first", async ({ page }) => {
     await openRoute(page, "playlist/p-ashen");

@@ -528,3 +528,37 @@ describe("Library: round 5", () => {
     expect(within(t01).getByText("Only you")).toBeInTheDocument();
   });
 });
+
+describe("Library: volume normalisation (PLY-15, DAT-15)", () => {
+  it("⋯ › Normalise volume… opens the library's setting; Save keeps it and tracks get their gain", async () => {
+    const { api } = openAt("library/t02");
+    const user = userEvent.setup();
+    const norm = await within(details()).findByRole("group", { name: "Normalise volume" });
+    await waitFor(() => expect(norm).toHaveAccessibleDescription("-22.6 LUFS · plays as it is"));
+    await user.click(screen.getByRole("button", { name: "More for the library" }));
+    await user.click(screen.getByRole("menuitem", { name: "Normalise volume…" }));
+    const dialog = within(screen.getByRole("dialog", { name: "Normalise volume" }));
+    expect(dialog.getByRole("status")).toHaveTextContent(/of 69 tracks measured/);
+    await user.click(dialog.getByRole("checkbox", { name: "Normalise volume for the whole library" }));
+    await user.click(dialog.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Normalise volume" })).toBeNull());
+    expect(await api.library.normaliseSettings()).toEqual({ on: true, target: "standard" });
+    await waitFor(() => expect(within(details()).getByRole("group", { name: "Normalise volume" })).toHaveAccessibleDescription("-22.6 LUFS · +4.6 dB"));
+  });
+
+  it("a track's details choose Library setting, On or Off, between Shape and Role; where the choice comes from is on hover", async () => {
+    const { api } = openAt("library/t02");
+    const user = userEvent.setup();
+    const norm = await within(details()).findByRole("group", { name: "Normalise volume" });
+    expect(within(norm).getAllByRole("button").map((b) => b.textContent)).toEqual(["Library setting", "On", "Off"]);
+    expect(within(norm).getByRole("button", { name: "Library setting" })).toHaveAttribute("aria-pressed", "true");
+    const order = [...details().querySelectorAll('[role="group"]')].map((g) => g.getAttribute("aria-label") ?? document.getElementById(g.getAttribute("aria-labelledby") ?? "")?.textContent);
+    expect(order.indexOf("Normalise volume")).toBe(order.indexOf("Shape") + 1);
+    expect(order.indexOf("Role")).toBe(order.indexOf("Normalise volume") + 1);
+    await waitFor(() => expect(within(details()).getByTitle(/^True peak -8\.0 dBTP\. Follows the library \(Off\)/)).toHaveTextContent("-22.6 LUFS · plays as it is"));
+    await user.click(within(norm).getByRole("button", { name: "On" }));
+    await waitFor(() => expect(norm).toHaveAccessibleDescription("-22.6 LUFS · +4.6 dB"));
+    expect((await api.library.listTracks()).find((t) => t.id === "t02")?.normalise).toBe("on");
+    expect(within(details()).getByTitle("True peak -8.0 dBTP. This track's own choice, wherever it plays.")).toBeInTheDocument();
+  });
+});

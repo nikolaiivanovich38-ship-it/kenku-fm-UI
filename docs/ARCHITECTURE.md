@@ -492,7 +492,7 @@ Phase B for the Library and Playlists (design/prototype/ROUND5.md), in `src/lyre
 
 Seed (DAT-13): `SeedData.peaks` holds each sample track's loudness, the prototype's curve (core.js `L.levels`) over 1,000 points at the library's one-byte precision; tracks' `suggestedShape` comes from it. The fake starts with those peaks and `seedLibrary` saves them (`savePeaks`), so both suggest the prototype's shapes (`fake.test.ts` runs core.js to check every track).
 
-Room left for PLY-15 (volume normalisation): a playlist's Details body (`DetailsBody` in `PlaylistPage.tsx`) and a track's How it plays section (`TrackDetails.tsx`, after Shape).
+PLY-15 (after merging w4-normalise): the Library's ⋯ (`LibraryMoreMenu`'s `onNormalise`) ends with a separator and "Normalise volume…" (`NormaliseDialog`; `normalise.ts` `useNormaliseSettings`, reloaded on "tracks"); a track's How it plays has `NormaliseChoice` between Shape and Role; a playlist's Details has it after the Manual/Dynamic line; a track previewed from a playlist's page passes `{ playlistId }`. The fake measures a sample track's loudness when its peaks are asked for, though the seed already has the peaks.
 
 ## Wave 4: w4-transfer
 

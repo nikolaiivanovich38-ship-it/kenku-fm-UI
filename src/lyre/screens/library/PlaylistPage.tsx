@@ -27,6 +27,9 @@ import { focusSoon, onAirPlaylistIds, onAirTrackIds, useWriteOk, useWriteResult 
 import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
 import { previewKeyOf } from "../../kit/SoundButtons";
 import { UseInDialog } from "./UseInDialog";
+import { playlistNormaliseLine } from "../../../common/domain";
+import { NormaliseChoice, playlistNormaliseHint } from "../../kit/NormaliseChoice";
+import { useNormaliseSettings } from "./normalise";
 import { DestTag } from "../../kit/DestTag";
 import { PlayOrderButton } from "../../kit/PlayOrderButton";
 import { ShapeGlyph } from "../../kit/ShapeGlyph";
@@ -168,6 +171,7 @@ function OnePlaylist({ pl: saved, data }: { pl: PlaylistInfo; data: PlaylistData
     <Pane id="pl-details" title="Details" icon="edit" kind="plain" size="auto" status={{ text: "Saved" }} summary={pl.notes ? "Has notes" : ""} open={detailsOpen} onOpenChange={setDetailsOpen}>
       <DetailsBody
         pl={pl}
+        tracks={tracks}
         name={name}
         onName={(value) => {
           setName(value);
@@ -498,7 +502,7 @@ function TrackRow({
           aria-pressed={pv}
           title={pv ? "Stop preview" : "Preview in your headphones"}
           aria-label={`${pv ? "Stop preview of" : "Preview"} ${title}`}
-          onClick={() => audio.previewTrack(t.id)}
+          onClick={() => audio.previewTrack(t.id, inThis ? { playlistId: pl.id } : undefined)}
         >
           <Icon name={pv ? "stop" : "headphones"} size="s" />
         </button>
@@ -1104,7 +1108,23 @@ function UsesPane({ data, uses, onUseIn }: { data: PlaylistData; uses: ReturnTyp
   );
 }
 
-function DetailsBody({ pl, name, onName, onNameDone, onDelete }: { pl: PlaylistInfo; name: string; onName: (v: string) => void; onNameDone: () => void; onDelete: () => void }) {
+function DetailsBody({
+  pl,
+  tracks,
+  name,
+  onName,
+  onNameDone,
+  onDelete,
+}: {
+  pl: PlaylistInfo;
+  /** Its tracks now, for the Normalise volume line (PLY-15). */
+  tracks: LibraryTrack[];
+  name: string;
+  onName: (v: string) => void;
+  onNameDone: () => void;
+  onDelete: () => void;
+}) {
+  const normalise = useNormaliseSettings();
   const api = useLyreApi();
   const accept = useWriteResult();
   const [notes, setNotes] = useState(pl.notes);
@@ -1123,6 +1143,13 @@ function DetailsBody({ pl, name, onName, onNameDone, onDelete }: { pl: PlaylistI
       <p className="pl-facts" title={pl.kind === "manual" ? "Manual: you pick the tracks and their order." : "Dynamic: Lyre fills it with every track that matches the rules, including tracks you tag later."}>
         <KindLane pl={pl} />
       </p>
+      <NormaliseChoice
+        value={pl.normalise}
+        library={normalise}
+        line={playlistNormaliseLine(tracks, pl, normalise)}
+        hint={playlistNormaliseHint(pl, normalise)}
+        onChange={(choice) => void api.playlists.setNormalise(pl.id, choice).then(accept)}
+      />
       <div className="field">
         <label htmlFor="pl-notes">Notes</label>
         <textarea

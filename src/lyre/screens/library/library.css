@@ -227,3 +227,6 @@ body .lb-tsnew .input { height: var(--ctl-s); font-size: var(--fs-s); }
 /* The rows the list does not draw (it draws a screenful at a time). */
 .view .lb-spacer td { padding: 0; border: 0; background: transparent; }
 .view .lb-tools .search { min-width: 0; }
+/* PLY-15: Normalise volume in a track's How it plays, lined up with the rows around it. */
+.view .lb-tg.lb-normrow { display: block; }
+.view .lb-normrow .norm { grid-template-columns: 74px minmax(0, 1fr); gap: 6px; }

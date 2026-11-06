@@ -26,6 +26,8 @@ import { getLibraryState, setLibraryState, useLibraryState, type Guide } from ".
 import { DEFAULT_FILTER, filterCount, filterSummary, filtersOn, KIND_NAMES, plural, shownTitle, visibleTracks } from "./model";
 import { focusSoon, onAirTrackIds, pausedTrackIds, useWriteResult } from "./shared";
 import { UseInDialog } from "./UseInDialog";
+import { useNormaliseSettings } from "./normalise";
+import { NormaliseDialog } from "../../kit/NormaliseChoice";
 import { PopMenuButton, TwoLines, type PopMenuEntry } from "../../kit/PopMenu";
 import { TagSheet } from "./TagSheet";
 import { TrackDetails } from "./TrackDetails";
@@ -59,6 +61,9 @@ export function LibraryScreen({ route }: ScreenProps) {
   const mode = useLayoutMode();
   const [tagging, setTagging] = useState(false);
   const [picker, setPicker] = useState<Picker | null>(null);
+  /** PLY-15: the library's Normalise volume dialog. */
+  const [normaliseOpen, setNormaliseOpen] = useState(false);
+  const normalise = useNormaliseSettings();
   /** ORG-12: the track whose Use in… sheet is open. */
   const [useIn, setUseIn] = useState<string | null>(null);
   const missingList = useMissingTracks().data;
@@ -502,6 +507,7 @@ export function LibraryScreen({ route }: ScreenProps) {
           overrides={overrides}
           previewing={now.preview?.key ?? null}
           missing={missing.has(open.id)}
+          normalise={normalise}
           onNewPlaylist={(ids) => void newPlaylist(ids)}
           onUseIn={() => setUseIn(open.id)}
         />
@@ -577,7 +583,7 @@ export function LibraryScreen({ route }: ScreenProps) {
           Add tracks
           <Icon name="chevdown" size="s" />
         </PopMenuButton>
-        <LibraryMoreMenu />
+        <LibraryMoreMenu onNormalise={() => setNormaliseOpen(true)} />
       </div>
       <div className="viewbody fill lb-body">{body}</div>
       {tagging && (
@@ -588,6 +594,16 @@ export function LibraryScreen({ route }: ScreenProps) {
           onApply={applyTags}
         />
       )}
+      <NormaliseDialog
+        open={normaliseOpen}
+        setting={normalise}
+        measured={all.filter((t) => t.loudness).length}
+        total={all.length}
+        onClose={() => setNormaliseOpen(false)}
+        onSave={async (setting) => {
+          if (accept(await api.library.setNormaliseSettings(setting))) setNormaliseOpen(false);
+        }}
+      />
       {useIn && (
         <UseInDialog
           track={byId.get(useIn)}

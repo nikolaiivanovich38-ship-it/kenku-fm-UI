@@ -437,3 +437,28 @@ describe("Playlists: round 5", () => {
     expect(within(first).getByText("Only you")).toBeInTheDocument();
   });
 });
+
+describe("Playlists: volume normalisation (PLY-15)", () => {
+  it("a playlist's Details choose Normalise volume after the kind line and before Notes; a track's own choice comes first", async () => {
+    const { api } = openAt("playlist/p-ashen");
+    const details = await screen.findByRole("region", { name: "Details" });
+    const norm = await within(details).findByRole("group", { name: "Normalise volume" });
+    expect(within(norm).getByRole("button", { name: "On" })).toHaveAttribute("aria-pressed", "true");
+    await waitFor(() => expect(norm).toHaveAccessibleDescription("Its tracks get -2.2 dB to +2.7 dB here; 1 plays as it is"));
+    expect(within(details).getByTitle("A track's own choice still comes first.")).toBeInTheDocument();
+    const facts = details.querySelector(".pl-facts") as Element;
+    const notes = within(details).getByRole("textbox", { name: "Notes" });
+    expect(facts.compareDocumentPosition(norm) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(norm.compareDocumentPosition(notes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await userEvent.setup().click(within(norm).getByRole("button", { name: "Library setting" }));
+    await waitFor(() => expect(norm).toHaveAccessibleDescription("Its tracks play as they are"));
+    expect((await api.playlists.list()).find((p) => p.id === "p-ashen")?.normalise).toBeNull();
+  });
+
+  it("a track previewed from a playlist's page plays with that playlist's choice", async () => {
+    const { audio } = openAt("playlist/p-abbess");
+    const first = (await within(await screen.findByRole("list", { name: "Tracks in order" })).findAllByRole("listitem"))[0];
+    await userEvent.setup().click(within(first).getByRole("button", { name: /^Preview / }));
+    expect(audio.calls.find(([m]) => m === "previewTrack")?.[2]).toMatchObject({ playlistId: "p-abbess" });
+  });
+});
