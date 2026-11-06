@@ -440,6 +440,7 @@ test.describe("round 7: dragging selected tracks to another list", () => {
     await openRoute(page, "library");
     await row(page, "Ashes").getByRole("checkbox").check();
     await row(page, "Memories of Mother").getByRole("checkbox").check();
+    await row(page, "Ashes").scrollIntoViewIfNeeded();
     const b = await row(page, "Ashes").getByRole("gridcell").nth(1).boundingBox();
     await page.mouse.move(b!.x + 20, b!.y + b!.height / 2);
     await page.mouse.down();

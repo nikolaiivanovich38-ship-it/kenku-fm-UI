@@ -436,6 +436,7 @@ test.describe("round 7: adding to other lists", () => {
   const trackRow = (page: Page, start: string) => page.getByRole("list", { name: "Tracks in order" }).getByRole("listitem").filter({ hasText: start });
   // The places to drop show only once a drag has started, so the drag is done step by step.
   async function dragOnto(page: Page, start: string, target: string, shift = false) {
+    await trackRow(page, start).scrollIntoViewIfNeeded();
     const box = await trackRow(page, start).boundingBox();
     await page.mouse.move(box!.x + 40, box!.y + box!.height / 2);
     await page.mouse.down();
