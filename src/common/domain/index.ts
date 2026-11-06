@@ -6,3 +6,4 @@ export * from "./placeWords";
 export * from "./normalise";
 export * from "./round6";
 export * from "./roomList";
+export * from "./round7";
