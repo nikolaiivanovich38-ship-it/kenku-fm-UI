@@ -32,7 +32,7 @@ The navigation logic in `usePlaylistPlayback.ts` exists three times (in `next`, 
 
 ### Known bugs these tests document
 
-- **QUEUE-1** (`playlistPlaybackSlice.test.ts`, `it.fails`): with shuffle off, removing a track from the playing playlist can make a different track "current". `removeTrackFromQueue` always walks the shuffled order, which only matches the playlist order by chance.
+- **QUEUE-1** (`playlistPlaybackSlice.test.ts`): with shuffle off, removing a track from the playing playlist could make a different track "current", because `removeTrackFromQueue` always walked the shuffled order. Fixed in 0.5.0 (BUG-11); the test is a normal test now, with three more for removing the current and a later track and for the shuffled order that remains.
 - Characterisation only, not marked as bugs: `startQueue` with a track id that is not in the list gives `current: -1`; removing the current track when it is last in the shuffled order also gives `current: -1`.
 
 ### Helpers for new tests
@@ -88,7 +88,7 @@ End-to-end: `playlists.spec.ts` also checks that the player bar shows no title, 
 
 Saving is not delayed outside a held button or key because Electron destroys the player view without running its `pagehide` or `beforeunload` handlers when the app quits (`BrowserViewManagerMain.removeAllBrowserViews` closes and destroys at once), so a held-back save would be lost. For a change held back at the moment of closing, `src/index.ts` holds the first quit, or the main window's first close (`src/main/saveBeforeClose.ts`), and `PlayerManager.saveBeforeClose` asks the player to save first. The quit is held at `before-quit` because holding a window's `close` during a quit cancels the quit, and Electron then does not close that window again when the quit is repeated (the app never exited). A crash of the main process can still lose up to 500 ms of slider movement.
 
-BUG-11 (QUEUE-1) is still open in the current player: `removeTrackFromQueue` can still point "current" at the wrong entry with shuffle off. The BUG-8 fix does not rely on it: after the playing track is deleted, `usePlaylistPlayback` works out the queue position itself from the queue as it was before the deletion.
+BUG-11 (QUEUE-1) was fixed in 0.5.0: `removeTrackFromQueue` reads "current" in the playlist's order when shuffle is off. The BUG-8 fix never relied on it: after the playing track is deleted, `usePlaylistPlayback` works out the queue position itself from the queue as it was before the deletion.
 
 ## Library database tests
 
@@ -106,7 +106,7 @@ The new engine in `src/player/engine` is tested without a browser: `testing/fake
 | `engine.test.ts` | Routing by bus, fade all and stop all, events, the progress ticker running only while something plays (PERF-1), playing addresses through the loader. |
 | `sources/*.test.ts` | Stream or decode (PERF-7), the LRU buffer cache with its memory cap, the resolver hook for PLY-11 and BUG-10, reading small files with early give-up. |
 
-The old player's characterisation tests stay as they are until WP5 moves the player onto the engine. The QUEUE-1 test in `playlistPlaybackSlice.test.ts` stays `it.fails` until then; its fix lives in the engine's queue (`queue.test.ts`, "remove (BUG-11)").
+The old player's characterisation tests stay as they are until WP5 moves the player onto the engine. The QUEUE-1 test in `playlistPlaybackSlice.test.ts` passes since 0.5.0 (BUG-11 fixed in the old player too); the engine's queue has its own fix (`queue.test.ts`, "remove (BUG-11)").
 
 ## WP2 Tabs
 

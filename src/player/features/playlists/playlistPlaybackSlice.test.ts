@@ -191,8 +191,6 @@ describe("removeTrackFromQueue (shuffled)", () => {
 });
 
 describe("removeTrackFromQueue (not shuffled)", () => {
-  // The reducer always walks the shuffled order, even when shuffle is off.
-  // This is only right when `shuffled` happens to be [0, 1, 2, ...].
   it("with shuffled in playlist order: removing the current track moves to the next", () => {
     const state = reducer(withQueue({ current: 1 }), removeTrackFromQueue({ playlistId: "p", trackId: "b" }));
 
@@ -212,16 +210,36 @@ describe("removeTrackFromQueue (not shuffled)", () => {
     expect(currentTrack(state)).toBe("b");
   });
 
-  // QUEUE-1 (documented bug): startQueue always builds a shuffled order, so with
-  // shuffle off the reducer reads `current` as a position in that order. Here
-  // the current track "b" becomes "c" (current stays 1 in tracks [b, c, d]).
-  it.fails("QUEUE-1: removing an earlier track keeps the current track when shuffled is not in playlist order", () => {
-    const state = reducer(
-      withQueue({ current: 1, shuffled: [1, 3, 2, 0] }),
-      removeTrackFromQueue({ playlistId: "p", trackId: "a" }),
-    );
+  // QUEUE-1 / BUG-11 (fixed in 0.5.0): startQueue always builds a shuffled order, and with shuffle off the reducer
+  // used to read `current` as a position in that order, so the current track "b" became "c" here.
+  describe("BUG-11: with shuffle off, the shuffled order does not matter", () => {
+    const unshuffled = (current: number) => withQueue({ current, shuffled: [1, 3, 2, 0] });
 
-    expect(currentTrack(state)).toBe("b");
+    it("QUEUE-1: removing an earlier track keeps the current track when shuffled is not in playlist order", () => {
+      const state = reducer(unshuffled(1), removeTrackFromQueue({ playlistId: "p", trackId: "a" }));
+
+      expect(currentTrack(state)).toBe("b");
+      expect(state.queue).toMatchObject({ tracks: ["b", "c", "d"], current: 0 });
+    });
+
+    it("removing the current track makes the next one in playlist order current", () => {
+      const state = reducer(unshuffled(1), removeTrackFromQueue({ playlistId: "p", trackId: "b" }));
+
+      expect(currentTrack(state)).toBe("c");
+    });
+
+    it("removing a later track keeps the current track", () => {
+      const state = reducer(unshuffled(2), removeTrackFromQueue({ playlistId: "p", trackId: "d" }));
+
+      expect(currentTrack(state)).toBe("c");
+    });
+
+    it("keeps the shuffled order of the remaining tracks for when shuffle is turned on", () => {
+      const state = reducer(unshuffled(2), removeTrackFromQueue({ playlistId: "p", trackId: "a" }));
+
+      // Was b, d, c, a by index into a, b, c, d; now b, d, c into b, c, d.
+      expect(state.queue!.shuffled).toEqual([0, 2, 1]);
+    });
   });
 
   it("does nothing for another playlist or without a queue", () => {
