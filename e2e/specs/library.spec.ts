@@ -337,7 +337,7 @@ test.describe("round 6: the key legend", () => {
     const legend = page.getByText(/^Keys:/);
     await expect(legend).toBeHidden();
     await expect(grid(page)).toHaveAccessibleDescription(/Enter open/);
-    await row(page, /^Select /).first().focus();
+    await row(page, /^Select (?!all )/).first().focus();
     await expect(legend).toBeVisible();
   });
 });

@@ -448,6 +448,8 @@ test.describe("round 5: play order, single tracks, tags, names in scenes and aud
 });
 
 /* Round 6 (design/prototype/ROUND6.md): less text on screen; what leaves the screen is read out instead. */
+// Text for screen readers only is one pixel wide (Playwright counts it as visible); text on screen is wider. 0 if absent.
+const shownWidth = async (text: Locator) => ((await text.count()) ? ((await text.first().boundingBox())?.width ?? 0) : 0);
 test.describe("round 6: fewer sentences in the planner", () => {
   test.beforeEach(() => expectFailureUntilBuilt("round 6"));
 
@@ -455,7 +457,7 @@ test.describe("round 6: fewer sentences in the planner", () => {
     await openAbbey(page);
     await abbey(page).getByRole("button", { name: "Add tracks or playlists…" }).click();
     await expect(dialog(page)).toHaveAccessibleDescription(/^Tick playlists, single tracks or both/);
-    await expect(dialog(page).getByText(/^Tick playlists, single tracks or both/)).toBeHidden();
+    expect(await shownWidth(dialog(page).getByText(/^Tick playlists, single tracks or both/))).toBeLessThanOrEqual(1);
     await expect(dialog(page).getByText(/Preview plays in your headphones only/)).toHaveCount(0);
   });
 
@@ -463,6 +465,6 @@ test.describe("round 6: fewer sentences in the planner", () => {
     await openRoute(page, "session/crown/s14");
     const box = page.getByRole("region", { name: "Session playlists", exact: true });
     await expect(box).toHaveAccessibleDescription("In every scene tonight.");
-    await expect(box.getByText("In every scene tonight.")).toBeHidden();
+    expect(await shownWidth(box.getByText("In every scene tonight."))).toBeLessThanOrEqual(1);
   });
 });

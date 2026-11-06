@@ -6078,7 +6078,7 @@ var L = (function () {
         return '<button class="chip lb-pick" data-act="lbshape" data-v="' + x[0] + '" data-k="lb-shape-' + x[0] + '" aria-pressed="' + on + '">' + L.shapeGlyph(x[0]) + esc(x[1]) + '</button>';
       // Round 6: two words for Lyre's suggestion (the why on hover); the GM's own choice needs no words unless it differs.
       }).join('') + '</div>' + (t.shape ? (L.suggestedShape(t) && L.suggestedShape(t) !== t.shape ? '<p class="hint">Lyre suggested ' + L.shapeName[L.suggestedShape(t)].toLowerCase() + '. <button class="btn s ghost" data-act="lbshapeauto" data-k="lb-shapeauto">Use the suggestion</button></p>' : '')
-        : '<p class="hint" title="From the track\'s loudness. Choose another to change it.">Suggested by Lyre</p>') + '</div></div>' +
+        : '<p class="hint" title="From the track\'s loudness. Choose another to change it.">Suggested by Lyre<span class="sr-only"> from the track\'s loudness. Choose another to change it.</span></p>') + '</div></div>' +
       '<div class="lb-tg"><div class="lb-tgl">Role</div>' + choiceChips('lbrole', (t.kind === 'fx' ? ['Effect'].concat(ROLES) : ROLES).map(function (r) { return [r, r]; }), t.role, 'Role') + '</div>' +
       '<div class="lb-tg"><div class="lb-tgl">Looping</div>' + choiceChips('lbloop', LOOPS, t.loop, 'Loop advice') + '</div>' +
       '<div class="lb-tg"><label class="lb-tgl" for="lb-notes">Notes</label><textarea id="lb-notes" class="input" rows="2" data-input="lbnotes" data-k="lb-notes" placeholder="Cues, where it fades, what it reminds you of">' + esc(t.notes) + '</textarea></div></section>';

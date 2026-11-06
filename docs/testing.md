@@ -169,6 +169,8 @@ FND-15. `e2e/specs` holds the acceptance tests for the new interface. Each test 
 
 Design round 5 (`design/prototype/ROUND5.md`) added a `round 5` block to the session planner, campaigns, playlists, library, pad boards, audio profile and Live spec files, `library-files.spec.ts`, and three screens to the sweeps. Each of these checks calls `expectFailureUntilBuilt("round 5")`: `round 5` is a pseudo-name like `on-air bar`, added to `BUILT_SCREENS` when wave 4 builds round 5. The bar is called Now playing from round 5 (it shows previews as well as music on air); the three 0.3 checks of the bar accept either name, so they keep passing in the app. Two pad board checks changed with the design and carry the same mark: growing a board brings spare pads back onto the grid, and a quick size larger than the board takes its spare pad (SFX-11).
 
+Design round 6 (`design/prototype/ROUND6.md`) took text off the screen and into accessible descriptions and hover text. Checks that read the removed text now check the accessible description, or count rows where an open box no longer repeats its count (markers, spare pads), so most pass in the app as it is. The checks the app does not meet yet (the key legend shown only while the keyboard is in the list, the picker's and the session lists' descriptions, a resting status shown only on a folded box, the loop crossfade's and spare pads' descriptions) call `expectFailureUntilBuilt("round 6")`.
+
 ### Running them
 
 ```

@@ -34,18 +34,54 @@ This round is subtraction only. No behaviour changed, and nothing a game master 
 
 | | Before | After | Change |
 | --- | ---: | ---: | ---: |
-| Visible words | 14,373 | @WORDS@ | @WORDSP@ |
-| Hint and explanation lines | 314 | @HINTS@ | @HINTSP@ |
-| Facts shown twice | 330 | @TWICE@ | @TWICEP@ |
-| Visible controls | 4,964 | @CTLS@ | @CTLSP@ |
-| Badge kinds (sum over screens) | 245 | @BADGES@ | @BADGESP@ |
+| Visible words | 14,373 | 12,342 | -14 % |
+| Hint and explanation lines | 314 | 188 | -40 % |
+| Facts shown twice | 330 | 282 | -15 % |
+| Visible controls | 4,964 | 4,832 | -3 % |
+| Badge kinds (sum over screens) | 245 | 215 | -12 % |
+
+The five busiest screens (Library with a track open, the music picker with a playlist open, a manual playlist, the
+planner with two scenes open, Back up with a file open), at 1920×1080: words 2,113 → 1,680 (−20 %), hint lines
+43 → 22, controls 684 → 668. Live is almost unchanged on purpose.
 
 Controls fall least: almost every control is used, and the round removes words, not functions. The column
 button is still there for a keyboard user; it only stops drawing the eye.
 
 ## Per screen (1920×1080; words at 960×1000 in brackets)
 
-@TABLE@
+| Screen and state | Words | Hint lines | Shown twice | Controls |
+| --- | ---: | ---: | ---: | ---: |
+| campaigns | 121 → 113 (106 → 98) | 4 → 3 | 6 → 6 | 15 → 15 |
+| campaign | 132 → 108 (115 → 91) | 3 → 1 | 2 → 1 | 80 → 73 |
+| campaign-onair | 155 → 131 (138 → 114) | 3 → 1 | 2 → 1 | 86 → 79 |
+| planner | 263 → 204 (246 → 187) | 8 → 2 | 6 → 4 | 125 → 118 |
+| planner-two-scenes | 269 → 228 (240 → 181) | 8 → 2 | 7 → 5 | 131 → 124 |
+| planner-order-menu | 318 → 259 (301 → 242) | 9 → 3 | 6 → 4 | 130 → 123 |
+| picker-inside | 479 → 318 (443 → 294) | 12 → 3 | 7 → 4 | 171 → 164 |
+| library | 448 → 404 (265 → 218) | 3 → 2 | 4 → 5 | 168 → 166 |
+| library-track | 686 → 576 (424 → 380) | 7 → 3 | 16 → 13 | 214 → 216 |
+| library-t44 | 584 → 501 (367 → 327) | 6 → 4 | 14 → 13 | 199 → 197 |
+| library-filters | 448 → 404 (221 → 207) | 3 → 2 | 4 → 5 | 168 → 166 |
+| playlists | 143 → 133 (128 → 118) | 1 → 1 | 0 → 0 | 147 → 147 |
+| playlist-manual | 382 → 338 (322 → 288) | 5 → 3 | 9 → 5 | 134 → 130 |
+| playlist-dynamic | 197 → 150 (182 → 135) | 6 → 3 | 3 → 1 | 61 → 57 |
+| playlist-gothic | 245 → 207 (230 → 192) | 6 → 3 | 2 → 0 | 85 → 81 |
+| boards | 87 → 87 (72 → 72) | 1 → 1 | 6 → 6 | 34 → 34 |
+| board | 264 → 221 (249 → 206) | 4 → 2 | 8 → 7 | 84 → 80 |
+| board-try | 232 → 204 (217 → 189) | 4 → 3 | 0 → 0 | 82 → 78 |
+| profile | 268 → 228 (235 → 195) | 6 → 2 | 7 → 7 | 60 → 60 |
+| profile-scene | 266 → 236 (221 → 192) | 6 → 3 | 6 → 6 | 49 → 49 |
+| live | 122 → 121 (107 → 106) | 3 → 3 | 0 → 0 | 52 → 52 |
+| live-playing | 221 → 219 (206 → 204) | 6 → 6 | 6 → 6 | 72 → 72 |
+| live-aftermath | 189 → 189 (174 → 174) | 3 → 3 | 4 → 4 | 64 → 64 |
+| outputs | 115 → 111 (100 → 96) | 3 → 2 | 5 → 5 | 28 → 28 |
+| look | 340 → 340 (285 → 285) | 12 → 12 | 26 → 26 | 33 → 33 |
+| backup-open | 297 → 220 (282 → 205) | 11 → 11 | 9 → 9 | 34 → 34 |
+| moved | 181 → 179 (166 → 164) | 6 → 6 | 1 → 1 | 17 → 17 |
+| relink | 203 → 180 (188 → 165) | 5 → 4 | 4 → 4 | 18 → 18 |
+| bar-both | 252 → 212 (236 → 196) | 6 → 2 | 6 → 5 | 96 → 89 |
+
+Screen names are the states in `tools/r6-measure.js` (for example `picker-inside` is the music picker with a playlist open).
 
 ## Cuts, per screen
 
@@ -73,8 +109,8 @@ row: shown on the open row only, on hover elsewhere. The key legend shows while 
 the grid's accessible description. "None: showing every track" when no filter is on. Details: the summary repeating
 the title field; "Point Lyre at the folder it moved to." (Relink's hover text); "Names in scenes: None…" row (shown
 only when it has names); "Whole track, then the next one." (shown only when the track does something else); "Suggested
-by Lyre from the track's loudness. Choose another to change it." became "Suggested by Lyre" (the rest on hover), and
-"Your choice." goes when it is also Lyre's suggestion; "Manual" on each playlist row (only "Dynamic" is marked); "Add
+by Lyre from the track's loudness. Choose another to change it." became "Suggested by Lyre" (the rest on hover and
+read out); "Your choice." goes, and "Lyre suggested … Use the suggestion" shows only when your choice differs; "Manual" on each playlist row (only "Dynamic" is marked); "Add
 it to a scene directly, or to a playlist a scene plays." (hover).
 
 **Playlists.** "Drop audio files on a row to add them" in the box header (hover text of the list). The count beside
@@ -139,4 +175,5 @@ pads) are checked by counting rows. New `round 6` checks: the Library key legend
 session playlists' description and a quiet status on a playlist page. Checks the app does not meet yet call
 `expectFailureUntilBuilt("round 6")`.
 
-Screenshots before and after for the five busiest screens are in `shots/r6` (not committed).
+Screenshots before and after for the five busiest screens are in `shots/r6/before` and `shots/r6/after` (2.6 MB, so
+not committed; `SHOTS=1 ONLY=… node tools/r6-measure.js <dir>` makes them again, `OUT=<old build>` for the before).
