@@ -10,11 +10,12 @@
  * most. A track's result shows the name it is shown by (its title, else its
  * file-tag title, else its file name).
  */
-import type { Lane } from "../../../common/domain";
+import type { Lane, TrackShape } from "../../../common/domain";
 import type { SQLInputValue } from "../sqlite";
 import { LANES } from "../types";
 import type { Store } from "../store";
 import * as v from "../validate";
+import { trackIdsByShapeSql, trackShapeParams } from "./tracks";
 
 export const SEARCH_KINDS = ["track", "playlist", "board", "campaign", "session", "scene"] as const;
 export type SearchKind = (typeof SEARCH_KINDS)[number];
@@ -39,6 +40,8 @@ export type SearchOptions = {
    * ambience by kind; FX is sound effects and stings (isFx in src/common/domain).
    */
   lane?: Lane;
+  /** Only tracks whose shape (chosen, else suggested) is one of these (DAT-13). */
+  shapes?: readonly TrackShape[];
   /** At most this many results (default 50). */
   limit?: number;
 };
@@ -104,6 +107,12 @@ export function searchQuery(text: string, options: SearchOptions = {}): { sql: s
         : "d.kind = 'track' AND EXISTS (SELECT 1 FROM tracks t WHERE t.id = d.ref_id AND t.kind = ?)",
     );
     if (lane !== "fx") params.push(lane);
+  }
+  if (options.shapes !== undefined) {
+    const shapes = trackShapeParams(options.shapes);
+    if (shapes.length === 0) return null;
+    where.push(`d.kind = 'track' AND d.ref_id IN (${trackIdsByShapeSql(shapes.length / 2)})`);
+    params.push(...shapes);
   }
   return {
     sql: `SELECT d.kind AS kind, d.ref_id AS id, search_fts.title AS title, bm25(search_fts, ${WEIGHTS.join(", ")}) AS score

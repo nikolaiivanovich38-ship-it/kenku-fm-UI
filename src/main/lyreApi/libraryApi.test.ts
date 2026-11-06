@@ -137,6 +137,19 @@ describe("main-process LyreApi only", () => {
     expect((await api.library.listTracks()).map((t) => [t.id, t.suggestedShape])).toEqual(seed.tracks.map((t) => [t.id, t.suggestedShape]));
     expect(await api.library.peaksOf("t02")).toEqual(seed.peaks.t02);
     expect((await api.library.search({ text: "", shapes: ["peaksThenFalls"], limit: 100 })).trackIds).toContain("t02");
+    // Security review w4 (could): words and a Shape together. The words asked the data layer for 100,000 results,
+    // which it refuses (at most 1,000), so this threw.
+    const lists = await api.library.listTracks();
+    const steady = new Set(lists.filter((t) => (t.shape ?? t.suggestedShape) === "steady").map((t) => t.id));
+    const words = (await api.library.search({ text: "the", limit: 1000 })).trackIds;
+    const both = await api.library.search({ text: "the", shapes: ["steady"], limit: 3 });
+    expect(both.total).toBe(words.filter((id) => steady.has(id)).length);
+    expect(both.total).toBeGreaterThan(3);
+    expect(both.trackIds).toEqual(words.filter((id) => steady.has(id)).slice(0, 3));
+    // A lane narrows a Shape search too.
+    const ambience = await api.library.search({ text: "", shapes: ["steady"], lane: "amb", limit: 100 });
+    expect(ambience.trackIds.length).toBeGreaterThan(0);
+    expect(ambience.trackIds.every((id) => lists.find((t) => t.id === id)?.kind === "amb" && steady.has(id))).toBe(true);
     api.stopBackgroundWork();
     library.close();
     fs.rmSync(dir, { recursive: true, force: true });

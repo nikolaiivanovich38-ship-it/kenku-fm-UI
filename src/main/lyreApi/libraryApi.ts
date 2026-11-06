@@ -561,13 +561,15 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       async search({ text, lane, limit = 50, shapes }) {
         const max = Math.max(0, limit);
         const inLane = (t: LibraryTrack) => !lane || (lane === "fx" ? isFx(t) : t.kind === lane);
+        if (shapes && shapes.length && !trimmed(text)) {
+          // DAT-13, the Shape filter: the shape index gives the tracks, in library order, narrowed to the lane in SQL.
+          const all = quietly(() => listTrackIdsByShape(store, shapes, { lane }), []);
+          return { trackIds: all.slice(0, max), total: all.length };
+        }
         if (shapes && shapes.length) {
-          // DAT-13, the Shape filter: the shape index gives the tracks; words and lane narrow them in memory.
-          const shaped = new Set(quietly(() => listTrackIdsByShape(store, shapes), []));
-          const wanted = trimmed(text) ? new Set(search(store, text, { kinds: ["track"], lane, limit: 100_000 }).map((h) => h.id)) : null;
-          const all = libraryTracks().filter((t) => shaped.has(t.id) && inLane(t) && (!wanted || wanted.has(t.id)));
-          if (wanted) all.sort((a, b) => [...wanted].indexOf(a.id) - [...wanted].indexOf(b.id));
-          return { trackIds: all.slice(0, max).map((t) => t.id), total: all.length };
+          // Words and a Shape (security review w4): the search joins the shape index, ranked as words alone are.
+          const hits = max === 0 ? [] : quietly(() => search(store, text, { kinds: ["track"], lane, shapes, limit: Math.min(max, 1000) }), []);
+          return { trackIds: hits.map((h) => h.id), total: quietly(() => searchCount(store, text, { kinds: ["track"], lane, shapes }), 0) };
         }
         if (!trimmed(text)) {
           const all = libraryTracks().filter(inLane);

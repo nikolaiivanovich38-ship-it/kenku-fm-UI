@@ -365,21 +365,39 @@ export function listNewTrackIds(store: Store): string[] {
  * order. A suggestion from peaks of an earlier copy of the file counts until new peaks replace it. Exported for the
  * query-plan tests.
  */
-export function tracksByShapeSql(count: number): string {
+/**
+ * The ids of the tracks whose shape (chosen, else suggested) is one of `count` shapes, as a subquery; its parameters
+ * are the shapes twice (`trackShapeParams`). Search joins it too (security review w4: words and a Shape together).
+ */
+export function trackIdsByShapeSql(count: number): string {
   const list = placeholders(count);
-  return `SELECT t.id FROM tracks t WHERE t.id IN (
-      SELECT id FROM tracks WHERE shape IN (${list})
+  return `SELECT id FROM tracks WHERE shape IN (${list})
       UNION ALL
-      SELECT p.track_id FROM track_peaks p JOIN tracks c ON c.id = p.track_id WHERE p.suggested_shape IN (${list}) AND c.shape IS NULL)
+      SELECT p.track_id FROM track_peaks p JOIN tracks c ON c.id = p.track_id WHERE p.suggested_shape IN (${list}) AND c.shape IS NULL`;
+}
+
+/** The shapes asked for, checked and without repeats, as `trackIdsByShapeSql`'s parameters. */
+export function trackShapeParams(shapes: readonly TrackShape[]): string[] {
+  if (!Array.isArray(shapes)) throw new ValidationError("shapes", "shapes must be a list.");
+  const wanted = [...new Set(shapes.map((shape, i) => v.oneOf(`shapes[${i}]`, shape, TRACK_SHAPES)))];
+  return [...wanted, ...wanted];
+}
+
+/** One lane as the Library's kind filter shows it (FX is effects and stings), on tracks named `t`. */
+const LANE_SQL = { music: "t.kind = 'music'", amb: "t.kind = 'amb'", fx: "(t.kind = 'fx' OR t.role = 'sting')" } as const;
+
+export function tracksByShapeSql(count: number, lane?: keyof typeof LANE_SQL): string {
+  return `SELECT t.id FROM tracks t WHERE t.id IN (
+      ${trackIdsByShapeSql(count)})${lane ? ` AND ${LANE_SQL[lane]}` : ""}
     ORDER BY t.added_seq`;
 }
 
 /** DAT-13: the ids of the tracks whose shape (chosen, else suggested) is one of `shapes`, in library order. */
-export function listTrackIdsByShape(store: Store, shapes: TrackShape[]): string[] {
-  if (!Array.isArray(shapes)) throw new ValidationError("shapes", "shapes must be a list.");
-  const wanted = [...new Set(shapes.map((shape, i) => v.oneOf(`shapes[${i}]`, shape, TRACK_SHAPES)))];
-  if (wanted.length === 0) return [];
-  return store.all<{ id: string }>(tracksByShapeSql(wanted.length), ...wanted, ...wanted).map((r) => r.id);
+export function listTrackIdsByShape(store: Store, shapes: TrackShape[], options: { lane?: keyof typeof LANE_SQL } = {}): string[] {
+  const params = trackShapeParams(shapes);
+  if (params.length === 0) return [];
+  const lane = options.lane === undefined ? undefined : v.oneOf("lane", options.lane, ["music", "amb", "fx"] as const);
+  return store.all<{ id: string }>(tracksByShapeSql(params.length / 2, lane), ...params).map((r) => r.id);
 }
 
 /** Changes only the fields given; null clears an optional field. */
