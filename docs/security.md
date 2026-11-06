@@ -731,3 +731,10 @@ Lyre write more than the file itself holds.
   250 (tracks, then playlists, boards, campaigns and each of their sessions, then settings) with the event loop free
   between them; reading the library and comparing take turns of their own. 8,000 playlists, 2,000 boards and 2,000
   campaigns beside as many of yours open and come in with no turn over 200 ms (`hostileFile.test.ts`).
+- **Preview the file found (review Should 5).** Find missing files' Preview on a "check it" row (a match by name
+  only) plays the file Lyre found, through MEDIA_PREPARE like any track, not the track's old address. The main process
+  reads only folders the library names; while a relink plan lasts, the library also names each file of a planned
+  match by name only (`previewableFiles`, sent with the media folders), so exactly those files may be prepared, not
+  the files beside them (`MediaAccess` treats a listed file as a folder of one). Planning sends a "folders" change so
+  the list is asked for again. When a file leaves the list (a new plan, a relink, a restart), the main process drops
+  every page's `lyre-media:` address for it (`MediaGrants.revokeFile`). No IPC channel or argument check changed.

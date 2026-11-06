@@ -84,6 +84,10 @@ export function wireLyreLibrary(options: WiringOptions): WiredLibrary {
     latest = options.service
       .mediaFolders()
       .then((list) => {
+        // Security review w4, Should 5: the list also names single files (a planned "check it" match of Find missing
+        // files, which the Lyre page may preview). One that leaves the list loses the addresses it was given.
+        const kept = new Set(list);
+        for (const gone of folders ?? []) if (!kept.has(gone)) options.grants?.revokeFile(gone);
         folders = list;
       })
       .catch((error) => log("Could not read the library's folders", error));

@@ -88,6 +88,19 @@ export class MediaGrants {
     return this.pages.get(pageId)?.files.get(fileToken);
   }
 
+  /**
+   * Drops every page's grant of one file (security review w4, Should 5: a file Find missing files offered to preview,
+   * once the library no longer lists it).
+   */
+  revokeFile(filePath: string): void {
+    for (const page of this.pages.values()) {
+      const fileToken = page.byPath.get(filePath);
+      if (fileToken === undefined) continue;
+      page.byPath.delete(filePath);
+      page.files.delete(fileToken);
+    }
+  }
+
   /** Drops every grant of a page (it was closed or reloaded). */
   revokePage(pageId: number): void {
     const page = this.pages.get(pageId);

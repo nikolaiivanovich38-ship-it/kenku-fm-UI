@@ -44,6 +44,14 @@ describe("MediaAccess (BUG-10, PLY-11): the main process prepares library files 
     });
   });
 
+  it("allows exactly one file listed on its own, and not the files beside it (security review w4, Should 5)", async () => {
+    // Find missing files lists the file it asks the game master to check, so its Preview can play it.
+    fs.writeFileSync(path.join(outside, "found.flac"), "1234");
+    folders = [library, path.join(outside, "found.flac")];
+    expect(await access().check(url(path.join(outside, "found.flac")))).toMatchObject({ ok: true, path: path.join(outside, "found.flac") });
+    expect(await access().check(url(path.join(outside, "diary.txt")))).toEqual({ ok: false, message: "Lyre only plays files from your library folders." });
+  });
+
   it("refuses a parent-folder trick and a link that leads out of the folder", async () => {
     fs.symlinkSync(path.join(outside, "diary.txt"), path.join(library, "diary.flac"));
     expect((await access().check(url(path.join(library, "diary.flac")))).ok).toBe(false);

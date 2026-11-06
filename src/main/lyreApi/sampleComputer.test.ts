@@ -55,6 +55,20 @@ describe("the sample computer of a test build", () => {
     expect((await api.import.findMissing()).map((m) => m.id).sort()).toEqual(["t26", "t37"]);
   });
 
+  it("lets the page preview only the file found for a row to check, while that plan lasts (security review w4, Should 5)", async () => {
+    const { api } = await sampleApi();
+    const events: string[][] = [];
+    api.subscribe((event) => event.type === "changed" && events.push(event.areas));
+    expect(api.previewableFiles()).toEqual([]);
+    const plan = valueOf(await api.import.planRelink({ from: "path", path: "E:\\Music\\Scores" }));
+    // t26 matches by name only ("check it"); t19 by name and size is not offered for a preview.
+    expect(api.previewableFiles()).toEqual([plan.matches[0].to]);
+    // The main process refreshes its list of what the page may read.
+    expect(events).toContainEqual(["folders"]);
+    valueOf(await api.import.applyRelink([plan.matches[1]]));
+    expect(api.previewableFiles()).toEqual([]);
+  });
+
   it("says what came across from Kenku FM 1.5.5, with the three missing files", async () => {
     const { api } = await sampleApi();
     const report = await api.transfer.movedReport();

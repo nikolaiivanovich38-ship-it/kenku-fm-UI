@@ -188,6 +188,12 @@ export interface LibraryApiOptions {
 export type LibraryApi = LyreApi & {
   /** Stops background work (the peaks being worked out); call before library.close(). */
   stopBackgroundWork(): void;
+  /**
+   * Security review w4, Should 5: the files outside the library the Lyre page may preview, for MEDIA_PREPARE's list
+   * (libraryProcessCore.ts): the found file of each planned match Find missing files asks the game master to check
+   * (same name only), while that plan lasts. A new plan, a relink or a restart ends it.
+   */
+  previewableFiles(): string[];
 };
 
 /** A level byte (repo/peaks.ts) as the API's 0 to 1, to three places (enough for any screen, a third of the JSON). */
@@ -1218,7 +1224,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           const none: ApiRelinkPlan = { folder: "", matches: [], ambiguous: [], notFound: [], summary: "No folder was chosen." };
           return { ok: true, value: none, changed: [], undoLabel: stateLabel() };
         }
-        return writeOutside([], async () => {
+        // "folders": the files the page may preview changed (previewableFiles), so the main process asks again.
+        return writeOutside(["folders"], async () => {
           // Security review 5: looking through a whole drive or a system folder would read every file in it.
           const unsafe = unsafeFolderReason(folder);
           if (unsafe) refuse("invalid", unsafe, "path");
@@ -1363,6 +1370,10 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
     stopBackgroundWork() {
       if (loudnessSweep) clearTimeout(loudnessSweep);
       peakJobs?.close();
+    },
+
+    previewableFiles() {
+      return [...planned.values()].filter((m) => m.confidence === "name").map((m) => m.to);
     },
 
     subscribe(listener) {
