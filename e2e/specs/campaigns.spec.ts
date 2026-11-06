@@ -286,7 +286,6 @@ test.describe("round 5: the Now playing bar and play order on the campaign page"
 
 /* Round 5, volume normalisation (design/prototype/ROUND5.md "Volume normalisation (PLY-15, DAT-15)"): built in wave 4. */
 test.describe("round 5: volume normalisation in the Now playing bar", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 5"));
 
   test("PLY-15: a Now playing row's track name says on hover how much its volume is evened out, for the players and for a preview", async ({ page }) => {
     await openRoute(page, "campaign/crown");
