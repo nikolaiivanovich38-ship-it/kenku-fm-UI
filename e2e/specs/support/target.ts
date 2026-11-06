@@ -173,6 +173,13 @@ export async function leaveAllRooms(page: Page): Promise<void> {
   });
 }
 
+/** Round 6, part 5: make the next save fail, as a full or read-only drive would, to show the failed-save pop-up.
+ *  The prototype has a hook for it (its strip's "Make the next save fail"); the app needs a test-build hook. */
+export async function failNextSave(page: Page): Promise<void> {
+  if (isApp()) notBuilt("failNextSave: a test-build hook that makes the library's next write fail");
+  await page.evaluate(() => (window as any).L.failNextSave());
+}
+
 /** CSS selectors for parts of the page that are not Lyre itself (the prototype's own strip of controls).
  *  The sweeps leave them out. The app has none. */
 export function notLyre(): string[] {

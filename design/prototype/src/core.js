@@ -328,7 +328,7 @@ var L = (function () {
   L.acts.normsave = function () {
     var on = document.getElementById('norm-on').checked, r = document.querySelector('#lyre-sheet input[name="norm-target"]:checked');
     D.normalise.on = on; if (r) D.normalise.target = r.value;
-    L.closeSheet(); L.changed(); L.say('Normalise volume: ' + L.libraryNormWords());
+    L.closeSheet(); L.changed(); L.say('Normalise volume: ' + L.libraryNormWords()); L.saved('library volume setting');
   };
   /* ORG-11 tags where music is chosen: a compact strip of the track's tags, each with its tag group's coloured dot, the
      first few only and "+n" for the rest (named in its tooltip), plus the shape glyph. */
@@ -724,6 +724,8 @@ var L = (function () {
     // The saved setting shows at once in a room playing that track: a Repeat chosen there for this play gives way.
     [pb].concat(Object.keys(pb.own).map(function (x) { return pb.own[x]; })).forEach(function (m) { if (m.music && m.music.id === id && L.lanePlace(m.music) === key) m.rep = null; });
     L.say((on ? 'Repeat one on, saved with the scene: ' : 'Repeat one off: ') + L.title(L.track(id))); L.render();
+    var a = key.split(':'), s = L.session(a[1], a[2]), sc = s && s.scenes.filter(function (x) { return x.id === a[3]; })[0];
+    L.saved('Repeat one in ' + (sc ? sc.name : 'this scene'), { key: 'rep1-' + key + id });
   };
   // The Now playing row's Shuffle, beside Repeat: the PLY-13 shuffle of that playlist where it plays from.
   L.shuffleButton = function (ln, target, k) {
@@ -734,6 +736,8 @@ var L = (function () {
   L.acts.laneshuffle = function (el) {
     var c = mixOf(el.dataset.room)[el.dataset.lane]; if (!c || !c.playlistId) return; var key = L.lanePlace(c), o = L.orderOf(c.playlistId, key);
     L.setOrder(c.playlistId, key, { shuffle: !o.shuffle }); L.state.shuffleRound++; L.say(o.shuffle ? 'Shuffle off' : 'Shuffle on'); L.changed();
+    // Shuffle is the playlist's play order where it plays from (PLY-13), which is saved; Repeat here is not.
+    L.saved('play order of ' + L.playlist(c.playlistId).name + ' ' + L.placeWords(key), { key: 'ord-' + c.playlistId + key });
   };
   /* PLY-13: what happens when a track from a playlist ends by itself, by its play order where it plays (the same rule
      as the domain's whenTrackEnds): repeat one plays it again, repeat all starts the playlist again after its last
@@ -769,14 +773,107 @@ var L = (function () {
   // event (within half a second) is shown but not read out again.
   var saidAt = 0;
   L.say = function (msg) { saidAt = Date.now(); var r = document.getElementById('lyre-live'); if (r) { r.textContent = ''; setTimeout(function () { r.textContent = msg; }, 30); } };
-  var toastTimer;
-  L.toast = function (msg) { var t = document.getElementById('lyre-toast'); t.textContent = msg; t.hidden = false; if (Date.now() - saidAt < 500) t.setAttribute('aria-hidden', 'true'); else t.removeAttribute('aria-hidden'); clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 2200); };
+  /* Round 6, part 5: one pop-up for the whole app (ROUND6.md "Part 5: the Saved pop-up"). Nik, 6 Nov 16:14: "little
+     pop ups somewhere unobtrusive but noticeable as a consistent design standard indicating something has been saved".
+       L.saved(what, { key, detail })  "Saved: <what>" (" · <detail>" after it when given). key: what was saved (default
+                                       what); the same key again within 2 s refreshes the pop-up instead of a new one.
+       L.toast(text, { key })          any other short note (Undone, a warning, what a drop did): same place, same look.
+       L.saveFailed(what, retry)       a failed save: warning style, read out as an alert, stays until Try again works
+                                       or it is dismissed. (L.failNextSave() makes the next L.saved fail: the demo.)
+       data-save="<what>" on a field   it saves on Enter, on leaving it, or after a second without typing, never per
+                                       keystroke ({v} in <what> is its value); a list, tick box or slider so marked saves
+                                       when it changes. Wired once below.
+     Where: the top-right corner of the work area, just under its header (Live's top strip), so it covers neither the
+     Now playing bar nor On air (both along the bottom), nor the header itself. It never takes focus. */
+  var NOTE_MS = 3000, MERGE_MS = 2000, note = { key: null, at: 0, timer: 0 }, fail = null, failNext = false, beforeToast = null;
+  function toasts() { return document.getElementById('lyre-toasts'); }
+  L.placeToasts = function () {
+    var box = toasts(), v = document.getElementById('view'); if (!box || !v) return;
+    var r = v.getBoundingClientRect(), head = v.querySelector('.viewhead, .lv-top'), top = head ? head.getBoundingClientRect().bottom : r.top;
+    box.style.top = Math.round(top + 8) + 'px'; box.style.right = Math.round(window.innerWidth - r.right + 12) + 'px';
+    box.style.maxWidth = Math.max(160, Math.min(400, r.width - 24)) + 'px';
+    // Never over the field or control in use (a Description field at the top right, say): then it sits just under it.
+    var a = document.activeElement, b = box.getBoundingClientRect();
+    if (a && a !== document.body && !box.contains(a) && v.contains(a) && b.height) {
+      var q = a.getBoundingClientRect();
+      if (q.left < b.right && q.right > b.left && q.top < b.bottom && q.bottom > b.top) box.style.top = Math.round(q.bottom + 8) + 'px';
+    }
+  };
+  function showNote(text, o) {
+    var t = document.getElementById('lyre-toast'); if (!t) return; o = o || {};
+    var key = o.key || text, now = Date.now(), same = note.key === key && now - note.at < MERGE_MS && !!t.textContent;
+    // Could 14 of the round 6 review: a note that follows an announcement of the same event (within half a second) is
+    // shown but not read out again; a refresh of the same save within 2 s is not read out again either.
+    var quiet = same || now - saidAt < 500;
+    t.setAttribute('aria-live', quiet ? 'off' : 'polite');
+    if (!same || t.textContent !== text) {
+      t.className = 'toast' + (o.saved ? ' t-saved' : '');
+      t.innerHTML = (o.saved ? L.icon('check', 's') : '') + '<span>' + (o.saved ? '<b>Saved:</b> ' + esc(text.replace(/^Saved: /, '')) : esc(text)) + '</span>';
+    }
+    // A refresh shows a short pulse instead of a second pop-up (no pulse with reduced motion: ui.css).
+    if (same) { t.classList.remove('t-again'); void t.offsetWidth; t.classList.add('t-again'); }
+    if (quiet) setTimeout(function () { t.setAttribute('aria-live', 'polite'); }, 150);
+    note.key = key; note.at = now; L.placeToasts();
+    clearTimeout(note.timer); note.timer = setTimeout(hideNote, Math.min(6000, Math.max(NOTE_MS, text.length * 55)));
+  }
+  function hideNote() { var t = document.getElementById('lyre-toast'); if (t) { t.innerHTML = ''; t.className = 'toast'; } note.key = null; }
+  L.toast = function (msg, o) { showNote(msg, o); };
+  L.saved = function (what, o) {
+    o = o || {};
+    if (failNext) { failNext = false; L.saveFailed(what, function () { L.saved(what, o); }); return; }
+    if (fail && fail.what === what) clearFail();   // the same thing saved after all: the failure goes
+    showNote('Saved: ' + what + (o.detail ? ' · ' + o.detail : ''), { key: 'saved:' + (o.key || what), saved: true });
+  };
+  L.failNextSave = function () { failNext = true; };
+  L.saveFailed = function (what, retry) {
+    var f = document.getElementById('lyre-fail'); if (!f) return;
+    fail = { what: what, retry: retry };
+    f.innerHTML = L.icon('warn', 's') + '<div class="grow"><b>Not saved: ' + esc(what) + '</b> <span>Lyre could not write it to your computer. Try again; if it fails again, check that the drive has space.</span></div>' +
+      '<button class="btn s" type="button" data-act="savetry">Try again</button><button class="closer" type="button" data-act="savefailx" aria-label="Dismiss: not saved: ' + esc(what) + '" title="Dismiss">' + L.icon('close') + '</button>';
+    f.className = 'toast t-fail'; L.placeToasts();
+  };
+  function clearFail() { var f = document.getElementById('lyre-fail'); if (f) { f.innerHTML = ''; f.className = 'toast'; } fail = null; }
+  // A person may Tab to Try again or Dismiss (the pop-up never takes focus); afterwards focus goes back to their work.
+  document.addEventListener('focusin', function (e) { var b = toasts(); if (b && !b.contains(e.target)) beforeToast = e.target; });
+  function backToWork() { var b = beforeToast, a = document.activeElement; if ((!a || a === document.body) && b && document.contains(b)) b.focus(); }
+  L.acts.savetry = function () { var f = fail; if (!f) return; clearFail(); backToWork(); f.retry(); };
+  L.acts.savefailx = function () { clearFail(); backToWork(); };
+  window.addEventListener('resize', L.placeToasts);
+
+  /* Fields that save themselves (data-save). The views redraw while typing and find the field again by its data-k, so
+     a pending save is kept per data-k (or id), and the text is read from the field as it is when the save happens. */
+  var pendingSave = {};
+  function fieldKey(el) { return el.dataset.k || el.id || el.dataset.save; }
+  function fieldNow(k) { return document.querySelector('[data-k="' + k + '"]') || document.getElementById(k); }
+  function saveText(el) { return el.dataset.save.replace('{v}', '“' + (el.value || '').trim() + '”'); }
+  function flushField(k) {
+    var p = pendingSave[k]; if (!p) return; clearTimeout(p.timer); delete pendingSave[k];
+    var el = fieldNow(k); if (el && el.dataset && el.dataset.save) p.text = saveText(el);
+    L.saved(p.text, { key: k });
+  }
+  function isTextField(el) { return el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && !/^(checkbox|radio|range|button|submit|color)$/.test(el.type)); }
+  function saving(el) { return el && el.dataset && el.dataset.save; }
+  document.addEventListener('input', function (e) {
+    var el = e.target; if (!saving(el) || !isTextField(el)) return;
+    var k = fieldKey(el), p = pendingSave[k] || (pendingSave[k] = {});
+    p.text = saveText(fieldNow(k) || el); clearTimeout(p.timer); p.timer = setTimeout(function () { flushField(k); }, 1000);
+  });
+  // After the view's own handler (which may announce the change: then the pop-up is shown, not read out again).
+  document.addEventListener('change', function (e) { var el = e.target; if (saving(el) && !isTextField(el)) { var k = fieldKey(el); pendingSave[k] = { text: saveText(el) }; setTimeout(function () { flushField(k); }, 0); } });
+  document.addEventListener('keydown', function (e) { var el = e.target; if (e.key === 'Enter' && saving(el) && el.tagName === 'INPUT' && isTextField(el)) flushField(fieldKey(el)); }, true);
+  // Leaving the field saves it; a redraw that puts focus back in the same field (same data-k) does not count.
+  document.addEventListener('focusout', function (e) {
+    var el = e.target; if (!saving(el) || !isTextField(el)) return; var k = fieldKey(el);
+    setTimeout(function () { var a = document.activeElement; if (pendingSave[k] && !(saving(a) && fieldKey(a) === k)) flushField(k); }, 0);
+  });
 
   /* ---------- panes ---------- */
-  /* Round 6 (ROUND6.md): a resting status (Ready, Saved, Empty, Copied, or a count the open box already lists) tells
-     nothing new while the box is open, so it shows only on a folded box, where it is the one line left. Statuses that
-     say something is happening (Playing, On air, a warning, n selected) always show. */
-  L.quietStatus = function (st) { return !!st && (st.tone || 'idle') === 'idle' && /^(Ready|Saved|Empty|Copied|\d+( [a-z]+)?)$/.test(st.text); };
+  /* Round 6 (ROUND6.md): a resting status (Empty, Copied, or a count the open box already lists) tells nothing new
+     while the box is open, so it shows only on a folded box, where it is the one line left. Statuses that say something
+     is happening (Playing, On air, a warning, n selected) always show. Part 5 (Nik, 6 Nov 16:14): no box says Ready or
+     Saved at all, open or folded (a box with nothing to say has no status; saving shows in the Saved pop-up, L.saved),
+     and no box counts scenes. */
+  L.quietStatus = function (st) { return !!st && (st.tone || 'idle') === 'idle' && /^(Empty|Copied|\d+( [a-z]+)?)$/.test(st.text); };
   L.pane = function (o) {
     var st = L.state.panes[o.id], collapsed = st == null ? !!o.collapsed : st === 'c';
     if (!collapsed && L.quietStatus(o.status)) o = Object.assign({}, o, { status: null });
@@ -967,7 +1064,8 @@ var L = (function () {
   function finishRename(save) {
     var r = renameAt; if (!r) return; renameAt = null;
     var box = document.querySelector('[data-rename="' + r.id + '"]'), name = box ? box.value.trim() : '';
-    if (save && name && box && name !== box.dataset.was) r.onSave(name);
+    // Round 6, part 5: a rename shows the Saved pop-up (after onSave's own announcement, so it is not read out twice).
+    if (save && name && box && name !== box.dataset.was) { r.onSave(name); L.saved('name “' + name + '”', { key: 'rn-' + r.id }); }
     L.render();
     var back = r.back && document.querySelector('[data-k="' + r.back + '"]'); if (back) back.focus();
   }
@@ -1003,6 +1101,7 @@ var L = (function () {
       if (v.after) v.after(document.getElementById('view'), r.p);
       paintProto(r, v, theme);
       if (L.paintHelp) L.paintHelp();
+      L.placeToasts();
     } finally { rendering = false; }
   };
   /* UX-16 the Now playing bar, and the destination tags used everywhere sound is shown (round 5, Nik's notes of
@@ -1164,10 +1263,13 @@ var L = (function () {
       p.innerHTML = '<b>Lyre · design round 6</b><span>Clickable prototype, no real sound.</span>' +
         '<label>Theme <select id="pTheme">' + THEMES.map(function (t) { return '<option value="' + t[0] + '">' + t[1] + '</option>'; }).join('') + '</select></label>' +
         '<label>Screen <select id="pFrame">' + FRAMES.map(function (t) { return '<option value="' + t[0] + '">' + t[1] + '</option>'; }).join('') + '</select></label>' +
-        '<button id="pNotes" type="button">Design notes</button>';
+        '<button id="pNotes" type="button">Design notes</button>' +
+        // Round 6, part 5: a failed save cannot happen in the prototype, so this makes the next save fail, to show it.
+        '<button id="pFail" type="button" title="The next thing you save fails, to show the failed-save pop-up">Make the next save fail</button>';
       p.querySelector('#pTheme').addEventListener('change', function (e) { L.state.theme = e.target.value; L.save(); L.render(); });
       p.querySelector('#pFrame').addEventListener('change', function (e) { L.state.frame = e.target.value; L.save(); applyFrame(); L.render(); });
       p.querySelector('#pNotes').addEventListener('click', function () { L.state.notes = !L.state.notes; L.save(); L.render(); });
+      p.querySelector('#pFail').addEventListener('click', function () { L.failNextSave(); L.say('The next save fails'); });
     }
     p.querySelector('#pTheme').value = L.state.theme; p.querySelector('#pFrame').value = L.state.frame;
     p.querySelector('#pNotes').setAttribute('aria-pressed', String(L.state.notes));

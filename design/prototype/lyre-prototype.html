@@ -425,7 +425,21 @@ table.grid tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 v
 .notes h2 { font: 600 14px "Lora", Georgia, serif; margin-bottom: 2px; }
 .notes ul { padding-left: 18px; columns: 2 320px; column-gap: 24px; }
 .notes li { margin: 1px 0; break-inside: avoid; }
-.toast { position: fixed; left: 50%; bottom: 36px; transform: translateX(-50%); z-index: 50; background: var(--ink); color: var(--bg); padding: 6px 12px; border-radius: var(--r-m); font-size: var(--fs-s); font-weight: 700; box-shadow: var(--shadow); pointer-events: none; }
+/* Round 6, part 5: the Saved pop-up and every other note, in one place: the top-right corner of the work area, just
+   under its header (core.js L.placeToasts sets top and right). Inverted ink so it is noticed in every theme; it lets
+   clicks through, so it never blocks what it briefly covers. A failed save is a warning card that stays. */
+.toasts { position: fixed; top: 52px; right: 12px; z-index: 60; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; pointer-events: none; }
+.toast { display: flex; align-items: center; gap: 8px; max-width: 100%; background: var(--ink); color: var(--bg); padding: 7px 12px; border-radius: var(--r-m); font-size: var(--fs-s); font-weight: 600; line-height: 1.35; box-shadow: var(--shadow); overflow-wrap: anywhere; pointer-events: none; animation: toast-in .16s ease-out; }
+.toast:empty { padding: 0; box-shadow: none; background: none; border: 0; animation: none; }
+.toast b { font-weight: 800; }
+.toast > svg { flex: none; }
+.toast.t-again > svg { animation: toast-pulse .45s ease-out; }
+.toast.t-fail { pointer-events: auto; align-items: flex-start; background: var(--surface); color: var(--ink); border: 2px solid var(--warn); border-left-width: 6px; padding: 8px 6px 8px 10px; }
+.toast.t-fail > svg { color: var(--warn); margin-top: 2px; }
+.toast.t-fail .grow b { display: block; }
+.toast.t-fail .grow span { color: var(--ink-2); font-weight: 400; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-6px); } }
+@keyframes toast-pulse { 40% { transform: scale(1.35); } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 /* Picker sheet */
 .pk-list { display: flex; flex-direction: column; max-height: 52vh; overflow: auto; border: 1px solid var(--line); border-radius: var(--r-m); }
@@ -2275,7 +2289,8 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
   </div>
 </div>
 <div id="lyre-live" class="sr-only" aria-live="polite"></div>
-<div id="lyre-toast" class="toast" role="status" hidden></div>
+<!-- Round 6, part 5: the one place for the Saved pop-up and every other note (core.js L.saved, L.toast, L.saveFailed). -->
+<div id="lyre-toasts" class="toasts"><div id="lyre-fail" class="toast" role="alert"></div><div id="lyre-toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div></div>
 <script>
 var LYRE_HELP_FILES = [{"file":"01-connect-discord.md","text":"---\ntitle: Connect Discord and bring a bot into a room\ngroup: Get started\nwords: discord bot token server voice channel room rooms settings connect invite\n---\nLyre plays to your players through a Discord bot. You make the bot once; Lyre logs it in.\n\n1. Choose the **Lyre Player** tab at the top of the window, then **Settings** (the gear at the top of its sidebar).\n2. Under **Discord bots**, follow **Where do I get my token?**: make a bot in Discord's Developer Portal and invite it to your server with the Connect and Speak permissions.\n3. Paste the bot's token in **Token** and press **Connect**. Lyre keeps the token on this computer, encrypted.\n4. Back in the **Lyre** tab, open **Rooms**. Your bot's box says **Not in a room**.\n5. Press its **Room** button and choose a voice channel. The box takes the room's name and lists who hears it.\n\nTo move the bot during a game, choose another room in the same menu; the sound goes on. **Kick**, beside it, takes the bot out. **Test** plays a short chime in that room only.\n\nFor a second room (a side scene, a split party), press **Add a second bot** in Settings and give it its own token.\n"},{"file":"02-kenku-fm.md","text":"---\ntitle: What came across from Kenku FM\ngroup: Get started\nwords: kenku fm import copy moved first start soundboards bookmarks old\n---\nOn its first start, Lyre copies your Kenku FM library. Kenku FM's own files stay as they were, so you can go back to it.\n\nLibrary › **⋯** beside **Add tracks** › **What came across from Kenku FM** shows:\n\n- what Lyre copied and where it is now: playlists and their tracks, soundboards (now pad boards, their sounds now pads) and bookmarks (website tabs);\n- **Files Lyre cannot find**, with **Find them…**;\n- **Not brought across**: what Lyre left behind.\n\nThe old player is still there as the **Lyre Player** tab, with your Kenku FM playlists and soundboards.\n"},{"file":"03-add-music.md","text":"---\ntitle: Add your music and tag it\ngroup: Prepare\nwords: library add tracks files folder watch import drop tag tags mood leitmotif scene type title details search filters find\n---\nLyre never copies or changes your audio files. It remembers where they are.\n\n1. Open **Library** and press **Add tracks**: **Add files…**, **Add a folder…** (with its subfolders) or **Watch a folder…** (new files there appear by themselves). You can also drop files and folders anywhere on the page.\n2. Open a track (its row, or `Enter`) for its **Details**: **Your title**, the title in the file, the file name and the folder.\n3. To tag it, type in a tag group's box (**+ Add mood**, and the same for each group) and press `Enter` or `Tab`. A new word makes a new tag.\n4. To tag many tracks at once, select them (their boxes, or `Space` on a row), then press **Tag…**.\n\nThe search box finds titles, file names, artists and tags. **Filters** narrows the list by kind (Music, Ambience, FX), tag, energy, shape, folder and missing files.\n\nTags are what dynamic playlists and Live's **Find a track** use, so a few good tags save time at the table.\n"},{"file":"04-dynamic-playlist.md","text":"---\ntitle: Make a playlist from tags\ngroup: Prepare\nwords: playlist dynamic manual rules tags shape matching copy new\n---\nA dynamic playlist holds every track that matches its rules, and grows as you tag more tracks.\n\n1. Open **Playlists** and press **New playlist**.\n2. Choose **Dynamic**, then **Music**, **Ambience** or **FX**.\n3. Under **Rules**, add the tags a track must have. **Shape** narrows it to tracks that build, fall away and so on; none pressed means any shape.\n4. **Matching tracks** shows what it holds now.\n\nTo put the tracks in an order of your own, press **Make a manual copy**: it makes a Manual playlist of the tracks that match today.\n\nA **Manual** playlist holds the tracks you pick, in the order you drag them to. Add tracks from its page, or drop audio files on it.\n"},{"file":"05-plan-campaign.md","text":"---\ntitle: Plan a campaign, session and scenes\ngroup: Prepare\nwords: campaign session scene planner new prepare plan music ambience pad boards order run\n---\nA campaign holds your sessions; a session holds its scenes, in the order you will play them.\n\n1. **Campaigns** › **New campaign**: give it a name, a game system and a theme.\n2. In the campaign, press **New session**. The session planner opens.\n3. Press **Add scene** for each moment of the story. Name it, and note when it starts (**Starts when**).\n4. In a scene, **Add tracks or playlists…** gives it music: it plays in order, and the first item starts the scene. Under **Ambience**, **Choose…** one ambience track or ambience playlist. Under **Pad boards**, add the boards you want there.\n5. Playlists, pad boards and single tracks for the whole evening go in the session's own lists; for every session, in the campaign's. Use **Use in…** on a track in the Library to put it there.\n\nA track's ⋯ in a scene › **Name in this scene…** gives it a name for that scene only. Its wave button opens the Audio profile for that scene.\n\nDrag scenes, or use their ⋯ menu, to change the order.\n\nWhen you are ready, press **Run this session**: Live opens with the first scene ready.\n"},{"file":"06-audio-profile.md","text":"---\ntitle: How a track plays (Audio profile)\ngroup: Prepare\nwords: audio profile waveform start end loop fade fades markers settings place scene playlist track\n---\nThe Audio profile says where a track starts and ends, what happens at its end, and how it fades. Open it from a track's **Audio profile** link in the Library's Details, or from the wave button by a track in a scene. From a scene it opens on that scene's settings, and **Back to** the scene takes you there again.\n\n- **Start** and **End**: drag them on the waveform, move them with the arrow keys, or type a time.\n- **At the end**: loop back to the loop start, move to the next track, or stop.\n- **Fades**: a fade in and a fade out, each with its length.\n- **Markers**: notes on the waveform, such as where it peaks.\n- `Space` plays from the playhead in your headphones only, as the profile says.\n\n**Settings for** chooses whose settings you change: the track everywhere, or only in one playlist or scene. A place uses the track's settings until you press **Give this place its own settings**; **Back to the track's settings** undoes that.\n"},{"file":"07-pad-boards.md","text":"---\ntitle: Pad boards\ngroup: Prepare\nwords: pad board pads sound effects keys hotkey play mode one-shot loop hold spare preview grid\n---\nA pad board is a grid of sound effects, each on a pad you press or play with a key.\n\n1. **Pad boards** › **New board**.\n2. Click an empty slot, then **Add pad**. Give the pad a **Label** and its **Sound**: one file, several variants, or any effect with a tag.\n3. Choose a **Play mode**: One-shot, Toggle loop, Hold to play or Restart on press.\n4. To give it a key, click its key box and press a letter, a number or `F1` to `F12`.\n\n**Preview** on a pad plays it in your headphones only; **Play on air** plays it for the players.\n\n**Try pads** in the Pads header: while it is on, pressing a pad or its key plays it as it will in Live, in your headphones only. Hold a Hold to play pad. Press **Try pads** again to stop.\n\n**Columns** and **Rows** change the grid. Pads that no longer fit go to **Spare pads**; nothing is deleted.\n\nAdd the board to a scene, a session or a campaign, and it shows in Live's **Pads**.\n"},{"file":"08-play-order.md","text":"---\ntitle: Shuffle and repeat per place\ngroup: Prepare\nwords: shuffle repeat order play order random loop playlist place scene\n---\nThe play order button, two small icons by a playlist, chooses how it plays: **Shuffle**, then **No repeat**, **Repeat all** or **Repeat one**.\n\nIt is on each playlist in Playlists and on its page, in a scene's music and the session and campaign lists, in Live's scene music, and in the Now playing bar.\n\n- On the Playlists page, it is the playlist's own order.\n- In a scene, a session's list or a campaign's list, the choice is for that place only. The button shows an accent edge and dot there. **Use the playlist's own order here** takes the choice away.\n\nWith no choice made, a playlist on its own plays in order and repeats all; in a scene it plays in order, then the scene moves on.\n\n- **Repeat one** plays the same track until you press Next.\n- **Repeat all** starts the playlist again after its last track.\n- **No repeat**: in a scene, the scene moves on; on its own, the playlist stops.\n"},{"file":"09-normalise.md","text":"---\ntitle: Normalise volume\ngroup: Prepare\nwords: normalise normalize volume loudness level lufs even quiet loud target gain\n---\nLyre can even out how loud your tracks are as it plays them. It never changes your files: it measures each track once and keeps the measurement in its library.\n\n1. Library › **⋯** beside **Add tracks** › **Normalise volume…**.\n2. Turn on **Normalise volume for the whole library** and choose a **Target level**: Quiet, Standard or Loud.\n\nA playlist (in its Details) and a track (Details › How it plays) have **Normalise volume** too: **Library setting**, **On** or **Off**. The track's own choice wins, then its playlist's, then the library's.\n\nA track not measured yet plays as it is. Hover a track's name in the Now playing bar to see how much it is turned up or down.\n"},{"file":"10-live.md","text":"---\ntitle: Run a session in Live\ngroup: Run a session\nwords: live run session scene next space undo keys shortcuts find track search on air room rooms pads fade stop kick nobody there\n---\nLive is where you run the evening. **Run this session** on a campaign or session page loads it here.\n\n- **Scenes**: press `Space`, or **Next scene**, to start the next scene. Click a scene's name to see what it plays before you start it. Changed your mind? **Undo**, or `Ctrl+Z`, within 8 seconds.\n- **Current scene**: the scene that runs, its music in the order it plays, its ambience and its pads. Its pads answer to their keys.\n- **On air**: a part for each room, with what it plays, **Up next**, its volume and its bot.\n- **This session** and **Whole campaign**: their playlists and pads, to play a whole playlist, one of its tracks or a pad at any time.\n- **Find a track** (`/`): search the whole library for anything not in the plan.\n- **Fade all** (`Shift+Esc`) fades everything out; **Stop all** stops at once.\n\nA room is a voice channel with one of your bots in it. Scenes always start in the first room. With two rooms or more, **To:** on a box chooses where it plays. **No room** or **Nobody there** means the players hear nothing: the button beside it puts the bot where the players are.\n\n`Ctrl+Z` takes back only the last thing you did, while its **Undo** shows.\n\n**Keys** lists every key. If single keys get in your way, turn **Single-key shortcuts** off there; `Shift+Esc` and `Ctrl+Z` still work.\n"},{"file":"11-preview-on-air.md","text":"---\ntitle: Preview or play on air\ngroup: Run a session\nwords: preview headphones only you on air players hear now playing bar stop volume paused room\n---\nEvery sound in Lyre says where it goes.\n\n- **Preview** plays in your headphones only. Its tag reads **Only you**.\n- **Play on air** plays for the players. Its tag reads **On air**, with the room's name when you have two or more rooms. **On air · no room** means no bot is in a voice channel: only this computer plays it.\n\nThe **Now playing** bar, at the foot of the screen, shows what plays: a row per room and a row for your preview, each with its own Stop and volume. A paused row turns grey. The bar goes when everything stops.\n\nIn Live, the On air boxes show what each room hears, so the bar there shows only your preview.\n"},{"file":"12-backup.md","text":"---\ntitle: Back up, move or share\ngroup: Your library\nwords: backup back up save file open share move computer lyre file export import bring in duplicate merge\n---\nLibrary › **⋯** beside **Add tracks** › **Back up, move or share…**.\n\n**Save to a file** makes one .lyre file of the whole library, one campaign, session, scene, playlist or pad board, or the tags only. Tick **Include the audio files** to take the music with it, for another computer or another game master.\n\n**Open a file**: drop a .lyre file on the page, or choose one. Lyre shows what is in it and what you have already. For each of those, choose **Skip**, **Merge** or **Keep both**, then press **Bring in**.\n\nA file that is not a Lyre file, or is damaged, is refused, and nothing in your library changes.\n\nLyre also backs up its library by itself every day.\n"},{"file":"13-missing-files.md","text":"---\ntitle: Find missing files\ngroup: Your library\nwords: missing files moved relink find folder drive lost not found\n---\nWhen you move or rename audio files, Lyre can no longer find them. Their rows in the Library say **Missing**, and **Filters** › **Missing** lists them.\n\n1. Library › **⋯** beside **Add tracks** › **Find missing files…**.\n2. **Look in a folder**: type a folder, choose one, or drop it on the page.\n3. Lyre matches files by name and size. A match with the same name and size is ticked. The same name with another size is not ticked: Preview it first.\n4. Press **Relink** (it says how many files). **Undo** puts them back if a match was wrong.\n"},{"file":"14-diagnostics.md","text":"---\ntitle: Save diagnostics for a bug report\ngroup: Your library\nwords: diagnostics bug report problem error log crash support zip\n---\nWhen something goes wrong, a diagnostics file helps us find out why.\n\n1. Press **Help** (or `F1`), then **Save diagnostics…** at the foot.\n2. Choose a folder. Lyre saves one zip file there and names it.\n3. Attach the zip to your bug report.\n\nThe zip holds Lyre's version, your Windows version, the last lines of Lyre's log, its settings, and any warnings about blocked content.\n\nYour bot tokens and other secrets are taken out, and so is your user name in folder paths. Your music and your library are not in it.\n\nNothing is sent anywhere: the file stays where you saved it until you send it yourself.\n"},{"file":"15-up-next.md","text":"---\ntitle: Play next, Add to queue and Repeat\ngroup: Run a session\nwords: queue add to queue play next up next list order repeat repeat one loop room skip clear saved\n---\nEach room plays a list for the evening: the scene's music (or a playlist) in its order, and what you add to it.\n\n- **Play next**, on any track or playlist in Live, plays it right after the track playing now.\n- **Add to queue** puts it at the bottom of the room's list, after everything already there.\n- **Up next**, in the room's part of On air, shows the list from the next track to the bottom. **×** takes one out for this evening; **Clear added** takes out everything you added.\n- Starting another scene clears what you added. That scene's **Undo** brings it back.\n\nThere are two repeats.\n\n- **Repeat** in On air, and on the Now playing bar, is for what plays in that room now: off, all, then one. It is never saved and ends when that room's music stops.\n- **Repeat one** on a track of a scene is saved with the scene: the track plays again when it ends, every time the scene plays. A pressed one has a small dot.\n\nWith **Repeat all**, what you added comes round again with the rest. A scene's music always starts again from its top.\n"}];
 ;
@@ -2880,7 +2895,7 @@ var L = (function () {
   L.acts.normsave = function () {
     var on = document.getElementById('norm-on').checked, r = document.querySelector('#lyre-sheet input[name="norm-target"]:checked');
     D.normalise.on = on; if (r) D.normalise.target = r.value;
-    L.closeSheet(); L.changed(); L.say('Normalise volume: ' + L.libraryNormWords());
+    L.closeSheet(); L.changed(); L.say('Normalise volume: ' + L.libraryNormWords()); L.saved('library volume setting');
   };
   /* ORG-11 tags where music is chosen: a compact strip of the track's tags, each with its tag group's coloured dot, the
      first few only and "+n" for the rest (named in its tooltip), plus the shape glyph. */
@@ -3276,6 +3291,8 @@ var L = (function () {
     // The saved setting shows at once in a room playing that track: a Repeat chosen there for this play gives way.
     [pb].concat(Object.keys(pb.own).map(function (x) { return pb.own[x]; })).forEach(function (m) { if (m.music && m.music.id === id && L.lanePlace(m.music) === key) m.rep = null; });
     L.say((on ? 'Repeat one on, saved with the scene: ' : 'Repeat one off: ') + L.title(L.track(id))); L.render();
+    var a = key.split(':'), s = L.session(a[1], a[2]), sc = s && s.scenes.filter(function (x) { return x.id === a[3]; })[0];
+    L.saved('Repeat one in ' + (sc ? sc.name : 'this scene'), { key: 'rep1-' + key + id });
   };
   // The Now playing row's Shuffle, beside Repeat: the PLY-13 shuffle of that playlist where it plays from.
   L.shuffleButton = function (ln, target, k) {
@@ -3286,6 +3303,8 @@ var L = (function () {
   L.acts.laneshuffle = function (el) {
     var c = mixOf(el.dataset.room)[el.dataset.lane]; if (!c || !c.playlistId) return; var key = L.lanePlace(c), o = L.orderOf(c.playlistId, key);
     L.setOrder(c.playlistId, key, { shuffle: !o.shuffle }); L.state.shuffleRound++; L.say(o.shuffle ? 'Shuffle off' : 'Shuffle on'); L.changed();
+    // Shuffle is the playlist's play order where it plays from (PLY-13), which is saved; Repeat here is not.
+    L.saved('play order of ' + L.playlist(c.playlistId).name + ' ' + L.placeWords(key), { key: 'ord-' + c.playlistId + key });
   };
   /* PLY-13: what happens when a track from a playlist ends by itself, by its play order where it plays (the same rule
      as the domain's whenTrackEnds): repeat one plays it again, repeat all starts the playlist again after its last
@@ -3321,14 +3340,107 @@ var L = (function () {
   // event (within half a second) is shown but not read out again.
   var saidAt = 0;
   L.say = function (msg) { saidAt = Date.now(); var r = document.getElementById('lyre-live'); if (r) { r.textContent = ''; setTimeout(function () { r.textContent = msg; }, 30); } };
-  var toastTimer;
-  L.toast = function (msg) { var t = document.getElementById('lyre-toast'); t.textContent = msg; t.hidden = false; if (Date.now() - saidAt < 500) t.setAttribute('aria-hidden', 'true'); else t.removeAttribute('aria-hidden'); clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 2200); };
+  /* Round 6, part 5: one pop-up for the whole app (ROUND6.md "Part 5: the Saved pop-up"). Nik, 6 Nov 16:14: "little
+     pop ups somewhere unobtrusive but noticeable as a consistent design standard indicating something has been saved".
+       L.saved(what, { key, detail })  "Saved: <what>" (" · <detail>" after it when given). key: what was saved (default
+                                       what); the same key again within 2 s refreshes the pop-up instead of a new one.
+       L.toast(text, { key })          any other short note (Undone, a warning, what a drop did): same place, same look.
+       L.saveFailed(what, retry)       a failed save: warning style, read out as an alert, stays until Try again works
+                                       or it is dismissed. (L.failNextSave() makes the next L.saved fail: the demo.)
+       data-save="<what>" on a field   it saves on Enter, on leaving it, or after a second without typing, never per
+                                       keystroke ({v} in <what> is its value); a list, tick box or slider so marked saves
+                                       when it changes. Wired once below.
+     Where: the top-right corner of the work area, just under its header (Live's top strip), so it covers neither the
+     Now playing bar nor On air (both along the bottom), nor the header itself. It never takes focus. */
+  var NOTE_MS = 3000, MERGE_MS = 2000, note = { key: null, at: 0, timer: 0 }, fail = null, failNext = false, beforeToast = null;
+  function toasts() { return document.getElementById('lyre-toasts'); }
+  L.placeToasts = function () {
+    var box = toasts(), v = document.getElementById('view'); if (!box || !v) return;
+    var r = v.getBoundingClientRect(), head = v.querySelector('.viewhead, .lv-top'), top = head ? head.getBoundingClientRect().bottom : r.top;
+    box.style.top = Math.round(top + 8) + 'px'; box.style.right = Math.round(window.innerWidth - r.right + 12) + 'px';
+    box.style.maxWidth = Math.max(160, Math.min(400, r.width - 24)) + 'px';
+    // Never over the field or control in use (a Description field at the top right, say): then it sits just under it.
+    var a = document.activeElement, b = box.getBoundingClientRect();
+    if (a && a !== document.body && !box.contains(a) && v.contains(a) && b.height) {
+      var q = a.getBoundingClientRect();
+      if (q.left < b.right && q.right > b.left && q.top < b.bottom && q.bottom > b.top) box.style.top = Math.round(q.bottom + 8) + 'px';
+    }
+  };
+  function showNote(text, o) {
+    var t = document.getElementById('lyre-toast'); if (!t) return; o = o || {};
+    var key = o.key || text, now = Date.now(), same = note.key === key && now - note.at < MERGE_MS && !!t.textContent;
+    // Could 14 of the round 6 review: a note that follows an announcement of the same event (within half a second) is
+    // shown but not read out again; a refresh of the same save within 2 s is not read out again either.
+    var quiet = same || now - saidAt < 500;
+    t.setAttribute('aria-live', quiet ? 'off' : 'polite');
+    if (!same || t.textContent !== text) {
+      t.className = 'toast' + (o.saved ? ' t-saved' : '');
+      t.innerHTML = (o.saved ? L.icon('check', 's') : '') + '<span>' + (o.saved ? '<b>Saved:</b> ' + esc(text.replace(/^Saved: /, '')) : esc(text)) + '</span>';
+    }
+    // A refresh shows a short pulse instead of a second pop-up (no pulse with reduced motion: ui.css).
+    if (same) { t.classList.remove('t-again'); void t.offsetWidth; t.classList.add('t-again'); }
+    if (quiet) setTimeout(function () { t.setAttribute('aria-live', 'polite'); }, 150);
+    note.key = key; note.at = now; L.placeToasts();
+    clearTimeout(note.timer); note.timer = setTimeout(hideNote, Math.min(6000, Math.max(NOTE_MS, text.length * 55)));
+  }
+  function hideNote() { var t = document.getElementById('lyre-toast'); if (t) { t.innerHTML = ''; t.className = 'toast'; } note.key = null; }
+  L.toast = function (msg, o) { showNote(msg, o); };
+  L.saved = function (what, o) {
+    o = o || {};
+    if (failNext) { failNext = false; L.saveFailed(what, function () { L.saved(what, o); }); return; }
+    if (fail && fail.what === what) clearFail();   // the same thing saved after all: the failure goes
+    showNote('Saved: ' + what + (o.detail ? ' · ' + o.detail : ''), { key: 'saved:' + (o.key || what), saved: true });
+  };
+  L.failNextSave = function () { failNext = true; };
+  L.saveFailed = function (what, retry) {
+    var f = document.getElementById('lyre-fail'); if (!f) return;
+    fail = { what: what, retry: retry };
+    f.innerHTML = L.icon('warn', 's') + '<div class="grow"><b>Not saved: ' + esc(what) + '</b> <span>Lyre could not write it to your computer. Try again; if it fails again, check that the drive has space.</span></div>' +
+      '<button class="btn s" type="button" data-act="savetry">Try again</button><button class="closer" type="button" data-act="savefailx" aria-label="Dismiss: not saved: ' + esc(what) + '" title="Dismiss">' + L.icon('close') + '</button>';
+    f.className = 'toast t-fail'; L.placeToasts();
+  };
+  function clearFail() { var f = document.getElementById('lyre-fail'); if (f) { f.innerHTML = ''; f.className = 'toast'; } fail = null; }
+  // A person may Tab to Try again or Dismiss (the pop-up never takes focus); afterwards focus goes back to their work.
+  document.addEventListener('focusin', function (e) { var b = toasts(); if (b && !b.contains(e.target)) beforeToast = e.target; });
+  function backToWork() { var b = beforeToast, a = document.activeElement; if ((!a || a === document.body) && b && document.contains(b)) b.focus(); }
+  L.acts.savetry = function () { var f = fail; if (!f) return; clearFail(); backToWork(); f.retry(); };
+  L.acts.savefailx = function () { clearFail(); backToWork(); };
+  window.addEventListener('resize', L.placeToasts);
+
+  /* Fields that save themselves (data-save). The views redraw while typing and find the field again by its data-k, so
+     a pending save is kept per data-k (or id), and the text is read from the field as it is when the save happens. */
+  var pendingSave = {};
+  function fieldKey(el) { return el.dataset.k || el.id || el.dataset.save; }
+  function fieldNow(k) { return document.querySelector('[data-k="' + k + '"]') || document.getElementById(k); }
+  function saveText(el) { return el.dataset.save.replace('{v}', '“' + (el.value || '').trim() + '”'); }
+  function flushField(k) {
+    var p = pendingSave[k]; if (!p) return; clearTimeout(p.timer); delete pendingSave[k];
+    var el = fieldNow(k); if (el && el.dataset && el.dataset.save) p.text = saveText(el);
+    L.saved(p.text, { key: k });
+  }
+  function isTextField(el) { return el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && !/^(checkbox|radio|range|button|submit|color)$/.test(el.type)); }
+  function saving(el) { return el && el.dataset && el.dataset.save; }
+  document.addEventListener('input', function (e) {
+    var el = e.target; if (!saving(el) || !isTextField(el)) return;
+    var k = fieldKey(el), p = pendingSave[k] || (pendingSave[k] = {});
+    p.text = saveText(fieldNow(k) || el); clearTimeout(p.timer); p.timer = setTimeout(function () { flushField(k); }, 1000);
+  });
+  // After the view's own handler (which may announce the change: then the pop-up is shown, not read out again).
+  document.addEventListener('change', function (e) { var el = e.target; if (saving(el) && !isTextField(el)) { var k = fieldKey(el); pendingSave[k] = { text: saveText(el) }; setTimeout(function () { flushField(k); }, 0); } });
+  document.addEventListener('keydown', function (e) { var el = e.target; if (e.key === 'Enter' && saving(el) && el.tagName === 'INPUT' && isTextField(el)) flushField(fieldKey(el)); }, true);
+  // Leaving the field saves it; a redraw that puts focus back in the same field (same data-k) does not count.
+  document.addEventListener('focusout', function (e) {
+    var el = e.target; if (!saving(el) || !isTextField(el)) return; var k = fieldKey(el);
+    setTimeout(function () { var a = document.activeElement; if (pendingSave[k] && !(saving(a) && fieldKey(a) === k)) flushField(k); }, 0);
+  });
 
   /* ---------- panes ---------- */
-  /* Round 6 (ROUND6.md): a resting status (Ready, Saved, Empty, Copied, or a count the open box already lists) tells
-     nothing new while the box is open, so it shows only on a folded box, where it is the one line left. Statuses that
-     say something is happening (Playing, On air, a warning, n selected) always show. */
-  L.quietStatus = function (st) { return !!st && (st.tone || 'idle') === 'idle' && /^(Ready|Saved|Empty|Copied|\d+( [a-z]+)?)$/.test(st.text); };
+  /* Round 6 (ROUND6.md): a resting status (Empty, Copied, or a count the open box already lists) tells nothing new
+     while the box is open, so it shows only on a folded box, where it is the one line left. Statuses that say something
+     is happening (Playing, On air, a warning, n selected) always show. Part 5 (Nik, 6 Nov 16:14): no box says Ready or
+     Saved at all, open or folded (a box with nothing to say has no status; saving shows in the Saved pop-up, L.saved),
+     and no box counts scenes. */
+  L.quietStatus = function (st) { return !!st && (st.tone || 'idle') === 'idle' && /^(Empty|Copied|\d+( [a-z]+)?)$/.test(st.text); };
   L.pane = function (o) {
     var st = L.state.panes[o.id], collapsed = st == null ? !!o.collapsed : st === 'c';
     if (!collapsed && L.quietStatus(o.status)) o = Object.assign({}, o, { status: null });
@@ -3519,7 +3631,8 @@ var L = (function () {
   function finishRename(save) {
     var r = renameAt; if (!r) return; renameAt = null;
     var box = document.querySelector('[data-rename="' + r.id + '"]'), name = box ? box.value.trim() : '';
-    if (save && name && box && name !== box.dataset.was) r.onSave(name);
+    // Round 6, part 5: a rename shows the Saved pop-up (after onSave's own announcement, so it is not read out twice).
+    if (save && name && box && name !== box.dataset.was) { r.onSave(name); L.saved('name “' + name + '”', { key: 'rn-' + r.id }); }
     L.render();
     var back = r.back && document.querySelector('[data-k="' + r.back + '"]'); if (back) back.focus();
   }
@@ -3555,6 +3668,7 @@ var L = (function () {
       if (v.after) v.after(document.getElementById('view'), r.p);
       paintProto(r, v, theme);
       if (L.paintHelp) L.paintHelp();
+      L.placeToasts();
     } finally { rendering = false; }
   };
   /* UX-16 the Now playing bar, and the destination tags used everywhere sound is shown (round 5, Nik's notes of
@@ -3716,10 +3830,13 @@ var L = (function () {
       p.innerHTML = '<b>Lyre · design round 6</b><span>Clickable prototype, no real sound.</span>' +
         '<label>Theme <select id="pTheme">' + THEMES.map(function (t) { return '<option value="' + t[0] + '">' + t[1] + '</option>'; }).join('') + '</select></label>' +
         '<label>Screen <select id="pFrame">' + FRAMES.map(function (t) { return '<option value="' + t[0] + '">' + t[1] + '</option>'; }).join('') + '</select></label>' +
-        '<button id="pNotes" type="button">Design notes</button>';
+        '<button id="pNotes" type="button">Design notes</button>' +
+        // Round 6, part 5: a failed save cannot happen in the prototype, so this makes the next save fail, to show it.
+        '<button id="pFail" type="button" title="The next thing you save fails, to show the failed-save pop-up">Make the next save fail</button>';
       p.querySelector('#pTheme').addEventListener('change', function (e) { L.state.theme = e.target.value; L.save(); L.render(); });
       p.querySelector('#pFrame').addEventListener('change', function (e) { L.state.frame = e.target.value; L.save(); applyFrame(); L.render(); });
       p.querySelector('#pNotes').addEventListener('click', function () { L.state.notes = !L.state.notes; L.save(); L.render(); });
+      p.querySelector('#pFail').addEventListener('click', function () { L.failNextSave(); L.say('The next save fails'); });
     }
     p.querySelector('#pTheme').value = L.state.theme; p.querySelector('#pFrame').value = L.state.frame;
     p.querySelector('#pNotes').setAttribute('aria-pressed', String(L.state.notes));
@@ -4106,8 +4223,8 @@ var L = (function () {
     if (b.status !== 'connected') { L.toast(b.name + (b.status === 'connecting' ? ' is still joining. Try again in a moment.' : ' is not in a voice channel. Choose a room first.')); return; }
     if (b.muted) { L.toast(chName(b) + ' is muted: unmute it to hear the test chime'); return; }
     var n = L.botListeners(b).length; testUntil[b.id] = Date.now() + 1600;
+    // Round 6, part 5: one message, read out once (it was a note and an announcement of the same event).
     L.toast('Test chime in ' + chName(b) + ' only' + (n ? ' (' + people(n).toLowerCase() + ' there)' : ': nobody is there to hear it'));
-    L.say('Test chime played in ' + L.botWhere(b));
   };
   // Volume: dragging updates the number only; letting go saves it (re-rendering while dragging would drop the thumb).
   L.inputs.opvol = function (el, ev) {
@@ -4158,7 +4275,7 @@ var L = (function () {
         (inRoom(b) ? kickBtn(b, 'op-leave-' + b.id) : '') + '</div>' +
       (here ? '<span class="op-l">Playing</span><div class="op-play">' + playingHTML(b) + '</div>' +
         '<span class="op-l">Hears it</span><div class="op-who ellipsis" title="' + esc(who.join(', ')) + '">' + (who.length ? '<b>' + people(who.length) + '</b>' : '<span class="op-nobody">' + ic('alert', 's') + 'Nobody here yet</span>') + (who.length ? '<span class="muted">: ' + esc(who.join(', ')) + '</span>' : '') + '</div>' : '') +
-      '<label class="op-l" for="op-vol-' + b.id + '">Volume</label><div class="op-volrow"><input type="range" id="op-vol-' + b.id + '" min="0" max="100" step="5" value="' + b.volume + '" data-input="opvol" data-bot="' + b.id + '" data-k="op-vol-' + b.id + '" aria-valuetext="' + b.volume + '%"><output class="num" id="op-vo-' + b.id + '" for="op-vol-' + b.id + '">' + b.volume + '%</output><span class="op-lvl" title="Level: how loud the room is right now"><span class="op-lvl-l" aria-hidden="true">Level</span><span class="op-meter" aria-hidden="true"><span data-opmeter="' + b.id + '"></span></span></span></div>' +
+      '<label class="op-l" for="op-vol-' + b.id + '">Volume</label><div class="op-volrow"><input type="range" id="op-vol-' + b.id + '" min="0" max="100" step="5" value="' + b.volume + '" data-input="opvol" data-bot="' + b.id + '" data-k="op-vol-' + b.id + '" data-save="' + esc(b.name) + ' volume" aria-valuetext="' + b.volume + '%"><output class="num" id="op-vo-' + b.id + '" for="op-vol-' + b.id + '">' + b.volume + '%</output><span class="op-lvl" title="Level: how loud the room is right now"><span class="op-lvl-l" aria-hidden="true">Level</span><span class="op-meter" aria-hidden="true"><span data-opmeter="' + b.id + '"></span></span></span></div>' +
       '</div>' + warnings(b);
     return L.pane({ id: 'op-r-' + b.id, title: here ? c.name : b.name, icon: 'broadcast', kind: 'onair', size: 'auto', noMax: true, cls: 'op-box-room' + (pill(b).text === 'Playing' ? '' : ' is-silent'), status: pill(b), actions: actions,
       body: body });
@@ -4325,7 +4442,8 @@ var L = (function () {
       seg('kind', 'Manual or dynamic', [['all', 'All'], ['manual', 'Manual', 'hand'], ['dynamic', 'Dynamic', 'tag']]) +
       seg('used', 'Used or not', [['all', 'All'], ['used', 'Used'], ['unused', 'Not used yet']]) + '</div>' +
       '<div class="col pl-listcol">' + L.pane({ id: 'pl-all', title: anyFilter ? 'Showing ' + rows.length + ' of ' + all : 'All playlists', icon: 'playlist', kind: 'music', noMax: true, flush: true, scroll: 'pl-all',
-        status: D.playlists.some(playlistOnAir) ? status('Playing', 'live') : status('Ready'),
+        // Round 6, part 5 (Nik, 6 Nov 16:14): no Ready, no Saved; a box with nothing to say has no status.
+        status: D.playlists.some(playlistOnAir) ? status('Playing', 'live') : null,
         body: table.replace('<ul class="pl-list" aria-label="Playlists">', '<ul class="pl-list" aria-label="Playlists" title="Drop audio files on a row to add them">') }) + '</div></div>' + dropZone();
   }
 
@@ -4393,7 +4511,7 @@ var L = (function () {
         '<p class="hint pl-foot keys-on-focus" id="pl-keys">Drag rows, or press Alt+Up / Alt+Down, to change the order.</p>'
       : '<div class="empty">No tracks yet. Add them from <b>Add tracks</b>, or drop audio files or folders here.</div>';
     return L.pane({ id: 'pl-tracks', title: 'Tracks', icon: 'list', kind: 'music', flush: true, size: 'auto', scroll: 'pl-tracks',
-      status: air ? status('Playing', 'live') : tracks.length ? status('Ready') : status('Empty'),
+      status: air ? status('Playing', 'live') : tracks.length ? null : status('Empty'),
       summary: plural(tracks.length, 'track') + ' · ' + fmtLong(totalOf(tracks)),
       actions: '<button class="btn s" data-act="pladdopen" data-k="pladdopen">' + L.icon('plus', 's') + 'Add tracks</button>', body: body });
   }
@@ -4404,7 +4522,7 @@ var L = (function () {
         (hits.length > addLimit ? '<div class="pl-more"><button class="btn s" data-act="plmore" data-k="plmore">Show ' + Math.min(25, hits.length - addLimit) + ' more of ' + hits.length + '</button></div>' : '')
       : '<div class="empty">Nothing in the library matches "' + esc(q) + '".</div>';
     // Round 6: the search box's own words say what to type; dropping files is the list's hover text.
-    return L.pane({ id: 'pl-add', title: 'Add tracks', icon: 'search', kind: 'search', flush: true, scroll: 'pl-add', status: status('Ready'),
+    return L.pane({ id: 'pl-add', title: 'Add tracks', icon: 'search', kind: 'search', flush: true, scroll: 'pl-add',
       body: '<div class="pl-addbar"><div class="search grow">' + L.icon('search') + '<input class="input" type="search" data-input="plq" data-k="plq" value="' + esc(addQuery) + '" placeholder="Any name or tag: Abbess, Eerie, Conan, Lothlorien…" aria-label="Search the library by any name or tag"></div>' +
         '<div class="seg s" role="group" aria-label="Search in">' + ['music', 'amb', 'fx'].map(function (l) { return '<button type="button" data-act="pladdlane" data-v="' + l + '" data-k="al-' + l + '" aria-pressed="' + (lane === l) + '">' + laneName(l) + '</button>'; }).join('') + '</div>' +
         '<span class="muted pl-count" aria-live="polite">' + (q ? hits.length + (hits.length === 1 ? ' match' : ' matches') : plural(hits.length, 'track')) + '</span></div>' +
@@ -4430,7 +4548,7 @@ var L = (function () {
     var r = pl.rule, en = r.energy || [0, 5], words = ruleWords(r), waiting = r.conds.some(function (c) { return !c.values.length; });
     function opts(sel) { var h = ''; for (var i = 0; i <= 5; i++) h += '<option' + (i === sel ? ' selected' : '') + '>' + i + '</option>'; return h; }
     var none = !L.playlistTracks(pl).length;
-    return L.pane({ id: 'pl-rules', title: 'Rules', icon: 'rule', kind: 'search', size: 'auto', status: none ? status('Empty', 'warn') : status('Ready'), summary: esc(words || 'Every ' + laneName(pl.lane).toLowerCase() + ' track'), foldedSummary: true,
+    return L.pane({ id: 'pl-rules', title: 'Rules', icon: 'rule', kind: 'search', size: 'auto', status: none ? status('Empty', 'warn') : null, summary: esc(words || 'Every ' + laneName(pl.lane).toLowerCase() + ' track'), foldedSummary: true,
       body: '<div class="pl-conds">' + (r.conds.length ? r.conds.map(condRow).join('') : '<p class="muted">No conditions yet, so every ' + laneName(pl.lane).toLowerCase() + ' track in the library matches.</p>') + '</div>' +
         '<div class="pl-rulebar"><button class="btn s" data-act="plcadd" data-k="plcadd">' + L.icon('plus', 's') + 'Add condition</button>' +
         '<span class="pl-energy" title="Energy 0 means a track with no energy set"><span class="faint" id="pl-en-l">Energy from</span><select class="input pl-sel pl-num" data-input="plen" data-e="0" data-k="en0" aria-label="Lowest energy" aria-describedby="pl-en-hint">' + opts(en[0]) + '</select>' +
@@ -4447,7 +4565,7 @@ var L = (function () {
   }
   function matchPane(pl, tracks, air) {
     return L.pane({ id: 'pl-match', title: 'Matching tracks', icon: 'list', kind: 'music', flush: true, scroll: 'pl-match',
-      status: air ? status('Playing', 'live') : tracks.length ? status('Ready') : status('Empty'),
+      status: air ? status('Playing', 'live') : tracks.length ? null : status('Empty'),
       summary: plural(tracks.length, 'track') + ' · ' + fmtLong(totalOf(tracks)),
       actions: '<button class="btn s" data-act="plcopyhand" data-k="plcopyhand" title="Freeze these tracks into a new Manual playlist you can reorder"' + (tracks.length ? '' : ' disabled') + '>' + L.icon('hand', 's') + 'Make a manual copy</button>',
       body: tracks.length ? '<div class="pl-scroll" data-scroll="pl-match-n"><ul class="pl-tracks" aria-label="Matching tracks">' + tracks.map(function (t) { return trackRow(t, { prefix: 'x-', air: air }); }).join('') + '</ul></div>'
@@ -4464,7 +4582,7 @@ var L = (function () {
       return '<li class="lrow pl-use" title="' + esc(main + '\n' + sub) + '"><span class="pl-lv">' + LV[u.level] + '</span><a class="ellipsis pl-ulink grow" href="' + href + '" data-k="use-' + i + '">' + esc(main) + '<span class="sr-only">, ' + esc(sub) + '</span></a>' +
         (u.level === 'scene' ? '<span class="num muted pl-upos">' + (u.scene.amb === pl.id ? 'Amb.' : (u.scene.music.indexOf(pl.id) + 1) + ' of ' + L.sceneItems(u.scene).length) + '</span>' : '') + '</li>';
     }).join('');
-    return L.pane({ id: 'pl-uses', title: 'Used in', icon: 'link', kind: 'scenes', size: 'auto', flush: true, status: uses.length ? status('Ready') : status('Empty'),
+    return L.pane({ id: 'pl-uses', title: 'Used in', icon: 'link', kind: 'scenes', size: 'auto', flush: true, status: uses.length ? null : status('Empty'),
       // Round 6: what each level means is the Use in… button's hover text and read out with the list.
       actions: '<button class="btn s" data-act="pluse" data-id="' + pl.id + '" data-k="pluse2" title="' + LEVELS + '">Use in…</button>',
       describe: LEVELS, body: uses.length ? '<ul class="list">' + rows + '</ul>' : '<div class="empty">Not used yet.</div>' });
@@ -4472,12 +4590,12 @@ var L = (function () {
   function detailsPane(pl, tracks) {
     var k = KIND[pl.kind];
     // EDT-8: a dynamic playlist's Details sit at the top with its rules, folded until opened (a new one opens them).
-    return L.pane({ id: 'pl-details', title: 'Details', icon: 'edit', kind: 'plain', size: 'auto', status: status('Saved'), summary: pl.notes ? 'Has notes' : '',
+    return L.pane({ id: 'pl-details', title: 'Details', icon: 'edit', kind: 'plain', size: 'auto', summary: pl.notes ? 'Has notes' : '',
       collapsed: pl.kind === 'dynamic',
-      body: '<div class="stack pl-details"><div class="field"><label for="pl-name">Name</label><input id="pl-name" class="input" type="text" data-input="plname" data-k="plname" value="' + esc(pl.name) + '"></div>' +
+      body: '<div class="stack pl-details"><div class="field"><label for="pl-name">Name</label><input id="pl-name" class="input" type="text" data-input="plname" data-k="plname" data-save="playlist name {v}" value="' + esc(pl.name) + '"></div>' +
         // PLY-15: normalise this playlist's tracks when they play from it (Library setting / On / Off).
         L.normChoice({ id: 'pl-norm', value: pl.norm, act: 'plnorm', line: plNormLine(pl, tracks), hint: pl.norm ? 'A track\'s own choice still comes first.' : 'Follows the library (' + L.libraryNormWords() + '). A track\'s own choice comes first.' }) +
-        '<div class="field"><label for="pl-notes">Notes</label><textarea id="pl-notes" class="input" rows="3" data-input="plnotes" data-k="plnotes" placeholder="When to use it, what to avoid…">' + esc(pl.notes || '') + '</textarea></div>' +
+        '<div class="field"><label for="pl-notes">Notes</label><textarea id="pl-notes" class="input" rows="3" data-input="plnotes" data-k="plnotes" data-save="' + esc(pl.name) + ' notes" placeholder="When to use it, what to avoid…">' + esc(pl.notes || '') + '</textarea></div>' +
         '<div class="row-flex pl-danger"><span class="grow"></span>' +
         '<button class="btn s danger" data-act="pldel" data-k="pldel">' + L.icon('trash', 's') + 'Delete playlist…</button></div></div>' });
   }
@@ -4496,7 +4614,7 @@ var L = (function () {
   L.acts.plnorm = function (el) {
     var pl = cur(); if (!pl) return;
     if (el.dataset.v === 'library') delete pl.norm; else pl.norm = el.dataset.v;
-    L.render(); var b = document.querySelector('[data-k="pl-norm-' + el.dataset.v + '"]'); if (b) b.focus();
+    L.render(); var b = document.querySelector('[data-k="pl-norm-' + el.dataset.v + '"]'); if (b) b.focus(); L.saved(pl.name + ' volume setting');
     L.say('Normalise volume: ' + (el.dataset.v === 'library' ? 'Library setting' : el.dataset.v === 'on' ? 'On' : 'Off'));
   };
   function renderOne(p) {
@@ -4524,7 +4642,7 @@ var L = (function () {
     var from = pl.items.indexOf(tid); if (from < 0) return;
     to = Math.max(0, Math.min(pl.items.length - 1, to)); if (to === from) return;
     pl.items.splice(from, 1); pl.items.splice(to, 0, tid); L.render();
-    L.say('Moved ' + L.title(L.track(tid)) + ' to position ' + (to + 1) + ' of ' + pl.items.length);
+    L.say('Moved ' + L.title(L.track(tid)) + ' to position ' + (to + 1) + ' of ' + pl.items.length); L.saved('order of ' + pl.name, { key: 'plord-' + pl.id });
   }
   L.acts.plmove = function (el) { var pl = cur(); if (pl) { moveTo(pl, el.dataset.tid, pl.items.indexOf(el.dataset.tid) + +el.dataset.d); focusK('m-more-' + el.dataset.tid); } };
   L.onKey(function (e) {
@@ -4537,12 +4655,12 @@ var L = (function () {
     var pl = cur(), tid = el.dataset.tid, i = pl.items.indexOf(tid); if (i < 0) return;
     pl.items.splice(i, 1); var next = pl.items[i] || pl.items[i - 1];
     L.render(); focusK(next ? 'm-more-' + next : 'pladdopen');
-    L.say('Removed ' + L.title(L.track(tid)) + '. ' + plural(pl.items.length, 'track') + ' left.');
+    L.say('Removed ' + L.title(L.track(tid)) + '. ' + plural(pl.items.length, 'track') + ' left.'); L.saved(pl.name, { detail: 'removed ' + L.title(L.track(tid)), key: 'pl-' + pl.id });
   };
   L.acts.pladd = function (el) {
     var pl = cur(), tid = el.dataset.tid;
     if (pl.items.indexOf(tid) > -1) { L.toast('Already in this playlist'); return; }
-    pl.items.push(tid); L.render(); L.say('Added ' + L.title(L.track(tid)) + ' at position ' + pl.items.length);
+    pl.items.push(tid); L.render(); L.say('Added ' + L.title(L.track(tid)) + ' at position ' + pl.items.length); L.saved(pl.name, { detail: 'added ' + L.title(L.track(tid)), key: 'pl-' + pl.id });
   };
   L.acts.pladdopen = function () { L.state.panes['pl-add'] = 'o'; if (L.state.maxed) L.state.maxed = null; L.render(); focusK('plq'); };
   L.inputs.plq = function (el) { addQuery = el.value; addLimit = 20; L.render(); };
@@ -4565,7 +4683,7 @@ var L = (function () {
   L.inputs.plnotes = function (el) { cur().notes = el.value; };
 
   // Rule builder
-  function ruleChanged(pl, msg) { cleanRule(pl.rule); L.render(); L.say((msg ? msg + '. ' : '') + plural(L.playlistTracks(pl).length, 'track') + ' match'); }
+  function ruleChanged(pl, msg) { cleanRule(pl.rule); L.render(); L.say((msg ? msg + '. ' : '') + plural(L.playlistTracks(pl).length, 'track') + ' match'); L.saved(pl.name + ' rules', { key: 'plrules-' + pl.id }); }
   L.acts.plcadd = function () {
     var pl = cur(), used = pl.rule.conds.map(function (c) { return c.group; });
     var g = D.tagGroups.filter(function (x) { return used.indexOf(x.id) < 0; })[0] || D.tagGroups[0];
@@ -4755,7 +4873,7 @@ var L = (function () {
       '<b>Round 5:</b> every playlist row has its <b>play order</b> button: shuffle, and repeat all, one or none. This is the playlist\'s own order; a scene, session or campaign can choose its own, which applies only there.',
       'Round 4 clean-up: one line per playlist (kind icon, a small lane dot, name, tracks, length). The rule and where it is used show on hover and in the row\'s expander.',
       'Every row has the same three buttons: <b>Preview</b>, <b>Play on air</b>, then <b>⋯</b> for Open and Use in…. Clicking a row opens it.',
-      'The box header says what it is doing: <b>Playing</b> (red, the players hear it) or <b>Ready</b>.',
+      'The box header says <b>Playing</b> (red) when the players hear it, and nothing when nothing is happening.',
       'Filters: Music / Ambience / FX, Manual / Dynamic, Used / Not used yet, and search.',
       'Drop audio files or folders from your computer on a row to add them to that playlist and your Library; drop anywhere else to choose.'
     ],
@@ -4768,7 +4886,7 @@ var L = (function () {
       '<b>Round 5:</b> the <b>play order</b> button sits by Play on air. A dynamic playlist now has <b>Details</b> at the top with its rules (folded until you open it), and its rules can ask for a <b>Shape</b>. A track\'s ⋯ menu has <b>Use in…</b>.',
       'Round 4 clean-up: one line per track. Hover a title for the title in the file, file name, tags and energy; click it to open the track in the Library.',
       'Each row: <b>Preview</b>, <b>Play on air</b>, then <b>⋯</b> for Move up / Move down, Remove, Audio profile in this playlist and Open in the Library. Drag rows or press Alt+Up / Alt+Down to reorder.',
-      'Each box shows one status: Tracks <b>Playing</b> (red) / Ready / Empty, Used in Ready / Empty, Details Saved.',
+      'Each box shows at most one status: Tracks <b>Playing</b> (red) or Empty, Used in Empty. Saving shows in the Saved pop-up (round 6 part 5).',
       '<b>Dynamic</b> (try "Abbey: eerie, low energy"): add conditions; the matches and the rule in plain words update as you go. <b>Make a manual copy</b> freezes them.',
       'Drop audio files or folders from your computer onto a Manual playlist: a line shows where they go, and they also go into your Library.'
     ],
@@ -4896,8 +5014,19 @@ var L = (function () {
     np.fadeOut.dur = clamp(np.fadeOut.dur, 0, span); np.fadeIn.dur = clamp(np.fadeIn.dur, 0, span - np.fadeOut.dur);
     np.loopXfade = clamp(np.loopXfade, 0, Math.min(10, np.end - np.loopStart - 1));
     if (S.key) { D.profiles[S.key] = D.profiles[S.key] || {}; D.profiles[S.key][t.id] = np; } else t.profile = np;
-    S.saved = true; return true;
+    S.saved = true; profileChanged(); return true;
   }
+  /* Round 6, part 5: the Saved pop-up for the profile. A drag, a nudge or typing changes it many times: the pop-up shows
+     once the change is done (a click or a release at once; keys and typing after a second's pause, Enter or leaving the
+     field), never per step. A change that has its own Undo message (Reset to whole track) shows that instead. */
+  var saveDue = 0;
+  function apWhat() { return S.key ? 'audio profile in ' + placeName(S.key).replace(/^the /, '') : 'audio profile of the track'; }
+  function profileChanged() { clearTimeout(saveDue); saveDue = setTimeout(profileSaved, 1000); }
+  function profileSaved() { if (!saveDue) return; clearTimeout(saveDue); saveDue = 0; if (L.current().name === 'profile') L.saved(apWhat(), { key: 'ap-' + S.key }); }
+  function noProfileSave() { clearTimeout(saveDue); saveDue = 0; }
+  ['click', 'pointerup'].forEach(function (type) { document.addEventListener(type, function () { if (saveDue) setTimeout(profileSaved, 0); }); });
+  document.addEventListener('focusout', function (e) { if (saveDue && e.target && e.target.closest && e.target.closest('.ap-body')) setTimeout(function () { if (!L.typing(document.activeElement)) profileSaved(); }, 0); });
+  document.addEventListener('keydown', function (e) { if (saveDue && e.key === 'Enter') setTimeout(profileSaved, 0); });
   var POINT = { start: 'Start', end: 'End', loop: 'Loop start', fadein: 'Fade in', fadeout: 'Fade out', xfade: 'Loop crossfade' };
   function value(p, which) { return { start: p.start, end: p.end, loop: p.loopStart, fadein: p.fadeIn.dur, fadeout: p.fadeOut.dur, xfade: p.loopXfade }[which]; }
   function range(t, which) {
@@ -5236,7 +5365,7 @@ var L = (function () {
   }
   function sceneNameHTML(t) {
     if (S.key.indexOf('sc:') !== 0) return '';
-    return '<div class="field ap-scname"><label for="ap-scname">Name in this scene</label><input class="input" id="ap-scname" data-input="apscname" data-k="ap-scname" value="' + esc(L.sceneNameOf(t, S.key)) + '" placeholder="' + esc(L.title(t)) + ' (its own name)" autocomplete="off"></div>';
+    return '<div class="field ap-scname"><label for="ap-scname">Name in this scene</label><input class="input" id="ap-scname" data-input="apscname" data-k="ap-scname" data-save="name in this scene {v}" value="' + esc(L.sceneNameOf(t, S.key)) + '" placeholder="' + esc(L.title(t)) + ' (its own name)" autocomplete="off"></div>';
   }
   /* PLY-15: the track's own normalising choice, and the loudness and gain where these settings apply (a playlist's
      choice counts when the page shows that playlist's settings). */
@@ -5248,11 +5377,12 @@ var L = (function () {
   L.acts.apnorm = function (el) {
     var t = track(); if (!t) return;
     if (el.dataset.v === 'library') delete t.norm; else t.norm = el.dataset.v;
-    S.focusK = 'ap-norm-' + el.dataset.v; L.render(); L.say('Normalise volume: ' + L.normLine(t, S.key.indexOf('pl:') === 0 ? S.key.slice(3) : ''));
+    S.focusK = 'ap-norm-' + el.dataset.v; L.render(); L.say('Normalise volume: ' + L.normLine(t, S.key.indexOf('pl:') === 0 ? S.key.slice(3) : '')); L.saved(L.title(t) + ' volume setting');
   };
   L.inputs.apscname = function (el) { var t = track(); if (!t) return; L.setNameIn(t, S.key, el.value); };
   // UX-18: Back is core's (L.backButton); the old one-off apback is gone.
-  function waveStatus() { return S.playing ? { text: 'Previewing ' + L.fmt(S.pos), tone: 'on' } : { text: S.event ? 'Paused' : 'Ready', tone: 'idle' }; }
+  // Round 6, part 5: no Ready (a box with nothing to say has no status).
+  function waveStatus() { return S.playing ? { text: 'Previewing ' + L.fmt(S.pos), tone: 'on' } : S.event ? { text: 'Paused', tone: 'idle' } : null; }
   function endStatus(p) { return p.after === 'loop' ? 'Loops from ' + L.fmt(p.loopStart) : p.after === 'next' ? 'Moves on at ' + L.fmt(p.end) : 'Stops at ' + L.fmt(p.end); }
   function afterText(t, p) { return p.after === 'loop' ? 'Loops back to ' + L.fmt(p.loopStart) : p.after === 'next' ? 'Moves on to ' + L.title(L.track(ctxOf(t).next)) : 'Stops'; }
 
@@ -5284,7 +5414,9 @@ var L = (function () {
         // Round 6: the file's names are in the Library's details and on hover here; length and shape stay.
         '<p class="ap-meta" title="' + esc('Title in the file: ' + (t.metaTitle || 'none') + ' · File name: ' + t.file) + '"><span><span class="faint">Length</span> <span class="num">' + L.fmt(t.dur) + '</span></span><span>' + L.shapeTag(t) + '</span></p>' + sceneNameHTML(t) + normHTML(t) + '</div>' +
         '<div class="ap-headacts">' + backHTML(t) +
-        '<span class="ap-saved" role="status">' + (!ed ? 'Uses the track\'s settings (read-only until you give it its own)' : S.saved ? L.icon('check', 's') + 'Saved' : '') + '</span>' +
+        // Round 6, part 5: no "Saved" here; saving shows in the Saved pop-up. The read-only note stays (it says why
+        // nothing can be changed).
+        '<span class="ap-saved" role="status">' + (!ed ? 'Uses the track\'s settings (read-only until you give it its own)' : '') + '</span>' +
         '<button class="btn s ghost" data-act="apreset" data-k="ap-reset" title="Start at 0:00 and End at ' + L.fmt(t.dur) + ', no fades"' + dis(t) + '>' + L.icon('restart', 's') + 'Reset to whole track</button></div>' +
         placeHTML(t) + '</div>';
       var body = '<div class="viewbody ap-body" data-scroll="ap-body"><div class="ap-grid">' +
@@ -5385,7 +5517,7 @@ var L = (function () {
   L.acts.apreset = function () {
     var t = track(), restore = L.snapshot(['tracks', 'profiles']);
     if (!write(t, { start: 0, end: t.dur, loopStart: 0, loopXfade: 0, fadeIn: { dur: 0, shape: 50 }, fadeOut: { dur: 0, shape: 50 } })) return; S.invalid = {}; S.editing = null;
-    L.undoNote('Back to the whole track: 0:00 to ' + L.fmt(t.dur) + ', no loop and no fades.', restore); L.say('Reset to the whole track'); L.render();
+    L.undoNote('Back to the whole track: 0:00 to ' + L.fmt(t.dur) + ', no loop and no fades.', restore); noProfileSave(); L.say('Reset to the whole track'); L.render();
   };
   L.acts.apmadd = function () { addMarker(true); };
   function addMarker(focus) {
@@ -5402,7 +5534,7 @@ var L = (function () {
   // Places
   function goPlace(key) { L.route('#/profile/' + S.tid + (key ? '/' + key : '')); setTimeout(function () { var s = document.querySelector('[data-k="ap-place"]'); if (s) s.focus(); }, 0); }
   L.inputs.applace = function (el) { goPlace(el.value); L.say('Settings for ' + placeName(el.value)); };
-  L.acts.apown = function () { var t = track(); L.profileStore(t, S.key, true); S.saved = true; S.undoClear = null; S.focusK = 'ap-clear'; L.say('This place now has its own settings, copied from the track\'s'); L.toast('Own settings for ' + placeName(S.key) + ', copied from the track\'s'); L.render(); };
+  L.acts.apown = function () { var t = track(); L.profileStore(t, S.key, true); S.saved = true; S.undoClear = null; S.focusK = 'ap-clear'; L.say('This place now has its own settings, copied from the track\'s'); L.saved('own settings for ' + placeName(S.key).replace(/^the /, ''), { detail: 'copied from the track\'s' }); L.render(); };
   L.acts.apuse = function () { L.say('Using the track\'s settings here'); };
   L.acts.apclear = function () { var t = track(); S.undoClear = { key: S.key, p: D.profiles[S.key][t.id] }; L.clearProfile(t, S.key); S.saved = false; S.focusK = 'ap-own'; L.say('Back to the track\'s settings here'); L.render(); };
   L.acts.apundo = function () { var t = track(), u = S.undoClear; if (!u) return; D.profiles[u.key] = D.profiles[u.key] || {}; D.profiles[u.key][t.id] = u.p; S.undoClear = null; S.focusK = 'ap-clear'; L.say('Own settings brought back'); L.render(); };
@@ -5527,7 +5659,7 @@ var L = (function () {
   L.acts.sttoksave = function (el) {
     var b = L.bot(el.dataset.id), f = document.getElementById('st-tok-' + el.dataset.id), v = f ? f.value.trim() : '';
     if (!v) { L.toast('Paste the token first'); if (f) f.focus(); return; }
-    b.token = v.slice(-4); S.replacing = ''; L.say('New token saved for ' + b.name); connect(b);
+    b.token = v.slice(-4); S.replacing = ''; L.say('New token saved for ' + b.name); L.saved(b.name + ' token'); connect(b);
     var c = document.querySelector('[data-k="st-b-' + b.id + '-conn"]'); if (c) c.focus();
   };
   L.acts.stbotmenu = function (el) {
@@ -5540,7 +5672,7 @@ var L = (function () {
     L.sheet({ title: 'Rename ' + b.name, body: '<div class="field"><label for="st-ren">Name in Lyre</label><input class="input" id="st-ren" value="' + esc(b.name) + '" autocomplete="off"></div>',
       footer: '<button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="stbotrensave" data-id="' + b.id + '">Rename</button>' });
   };
-  L.acts.stbotrensave = function (el) { var b = L.bot(el.dataset.id), v = document.getElementById('st-ren').value.trim(); if (v) b.name = v; L.closeSheet(); L.render(); L.say('Renamed ' + b.name); };
+  L.acts.stbotrensave = function (el) { var b = L.bot(el.dataset.id), v = document.getElementById('st-ren').value.trim(); if (v) b.name = v; L.closeSheet(); L.render(); L.say('Renamed ' + b.name); if (v) L.saved('name “' + v + '”'); };
   // Removing a bot takes it out of its voice channel and forgets its token; Undo puts it back as it was.
   L.acts.stbotrm = function (el) {
     var list = D.discord.bots, i = list.map(function (b) { return b.id; }).indexOf(el.dataset.id); if (i < 0 || list.length < 2) return;
@@ -5624,7 +5756,7 @@ var L = (function () {
   /* ---------- the other settings ---------- */
   function sw(id, label, on, act, o) {
     o = o || {};
-    return '<label class="lv-switch st-sw' + (o.disabled ? ' dis' : '') + '"' + (o.title ? ' title="' + esc(o.title) + '"' : '') + '><input type="checkbox" role="switch" data-input="' + act + '" data-k="st-' + id + '"' + (on ? ' checked' : '') + (o.disabled ? ' disabled aria-describedby="st-' + id + '-why"' : '') + '><span class="lv-switch-t"><b>' + label + '</b></span></label>' +
+    return '<label class="lv-switch st-sw' + (o.disabled ? ' dis' : '') + '"' + (o.title ? ' title="' + esc(o.title) + '"' : '') + '><input type="checkbox" role="switch" data-input="' + act + '" data-k="st-' + id + '" data-save="setting: ' + esc(label) + '"' + (on ? ' checked' : '') + (o.disabled ? ' disabled aria-describedby="st-' + id + '-why"' : '') + '><span class="lv-switch-t"><b>' + label + '</b></span></label>' +
       (o.disabled && o.why ? '<span class="sr-only" id="st-' + id + '-why">' + esc(o.why) + '</span>' : '');
   }
   var MODES = [['quality', 'Best sound quality', 'Clearer sound; works the computer a little harder.'], ['light', 'Lighter on the computer', 'Leaves more power for other programs; slightly less clear.']];
@@ -5633,11 +5765,11 @@ var L = (function () {
       return '<button role="radio" aria-checked="' + (S.mode === m[0]) + '" data-act="stmode" data-v="' + m[0] + '" data-k="st-mode-' + m[0] + '" title="' + esc(m[2]) + '">' + m[1] + '</button>';
     }).join('') + '</div>';
   }
-  L.acts.stmode = function (el) { S.mode = el.dataset.v; L.say(el.textContent + '. Applies the next time a bot joins a voice channel.'); L.render(); };
+  L.acts.stmode = function (el) { S.mode = el.dataset.v; L.say(el.textContent + '. Applies the next time a bot joins a voice channel.'); L.render(); L.saved('setting: ' + el.textContent, { key: 'st-mode' }); };
   function remoteBody() {
     return sw('remote', 'Stream Deck and other programs', S.remote, 'stremote', { title: 'Lets the Kenku FM Stream Deck plugin or another program control Lyre' }) +
-      '<div class="row-flex st-addr"><div class="field"><label for="st-ra">Address</label><input class="input num" id="st-ra" data-input="stra" value="' + esc(S.address) + '"' + (S.remote ? ' disabled' : '') + ' title="127.0.0.1: only programs on this computer"></div>' +
-      '<div class="field"><label for="st-rp">Port</label><input class="input num" id="st-rp" data-input="strp" value="' + esc(S.port) + '"' + (S.remote ? ' disabled' : '') + '></div></div>' +
+      '<div class="row-flex st-addr"><div class="field"><label for="st-ra">Address</label><input class="input num" id="st-ra" data-input="stra" data-k="st-ra" data-save="setting: remote control address" value="' + esc(S.address) + '"' + (S.remote ? ' disabled' : '') + ' title="127.0.0.1: only programs on this computer"></div>' +
+      '<div class="field"><label for="st-rp">Port</label><input class="input num" id="st-rp" data-input="strp" data-k="st-rp" data-save="setting: remote control port" value="' + esc(S.port) + '"' + (S.remote ? ' disabled' : '') + '></div></div>' +
       '<a class="st-link" href="https://github.com/owlbear-rodeo/kenku-fm" target="_blank" rel="noopener" data-act="stdeck" data-k="st-deck">About the Kenku FM Stream Deck plugin</a>';
   }
   L.inputs.stremote = function (el) { S.remote = el.checked; L.say('Remote control ' + (S.remote ? 'on' : 'off')); L.render(); };
@@ -5658,7 +5790,7 @@ var L = (function () {
       return '<li class="lrow"><span class="grow ellipsis num" title="' + esc(f) + '">' + esc(f) + '</span><button class="btn s ghost" data-act="stforget" data-i="' + i + '" data-k="st-forget-' + i + '" aria-label="Ask again before opening files in ' + esc(f) + '">Ask again</button></li>';
     }).join('') + '</ul>';
   }
-  L.acts.stforget = function (el) { var f = S.folders.splice(+el.dataset.i, 1)[0]; L.say('Lyre asks again before opening files in ' + f); L.render(); var h = document.querySelector('[data-k="pane-st-files"]'); if (h) h.focus(); };
+  L.acts.stforget = function (el) { var f = S.folders.splice(+el.dataset.i, 1)[0]; L.say('Lyre asks again before opening files in ' + f); L.render(); L.saved('setting: ask before opening files in ' + f); var h = document.querySelector('[data-k="pane-st-files"]'); if (h) h.focus(); };
 
   L.view('settings', {
     nav: 'settings',
@@ -5747,7 +5879,9 @@ var L = (function () {
       '<div class="tf-actrow"><button class="btn primary" data-act="tfsave" data-k="tf-save">' + L.icon('download', 's') + 'Save to a file…</button><span class="hint">Saves ' + esc(exportName()) + '</span></div>' +
       (ex.saved ? '<p class="tf-done" role="status">' + L.icon('check', 's') + '<span class="grow">Saved <b>' + esc(ex.saved.name) + '</b> (' + esc(ex.saved.size) + ') in Documents\\Lyre.</span><button class="btn s" data-act="tfshow" data-k="tf-show">' + L.icon('folder', 's') + 'Show in folder</button></p>' : '');
     return L.pane({ id: 'tf-export', title: 'Save to a file', icon: 'download', kind: 'plain', noMax: true, size: 'auto',
-      status: ex.saved ? { text: 'Saved', tone: 'idle' } : { text: 'Ready', tone: 'idle' }, body: body });
+      // Round 6, part 5: no Saved or Ready pill. The result line ("Saved … in Documents\\Lyre" with Show in folder) stays
+      // in the box: it is a result with an action that outlives a pop-up, so it is this save's one message.
+      body: body });
   }
   L.inputs.tfwhat = function (el) { ex.what = el.value; ex.saved = null; L.render(); focusSoon('tf-w-' + ex.what); };
   L.inputs.tfpick = function (el) { ex.pick[ex.what] = el.value; ex.saved = null; L.render(); };
@@ -5796,7 +5930,7 @@ var L = (function () {
         '<div class="tf-actrow"><a class="btn s" href="#/relink" data-k="tf-torelink">' + L.icon('folder', 's') + 'Find missing files…</a><button class="btn s ghost" data-act="tfcancel" data-k="tf-again">Open another file</button></div>';
     }
     return L.pane({ id: 'tf-import', title: 'Open a file', icon: 'upload', kind: 'plain', noMax: true, size: 'auto',
-      status: !im ? { text: 'Ready', tone: 'idle' } : im.state === 'refused' ? { text: 'Refused', tone: 'warn' } : im.state === 'preview' ? { text: 'Not brought in yet', tone: 'on' } : { text: 'Brought in', tone: 'idle' }, body: body });
+      status: !im ? null : im.state === 'refused' ? { text: 'Refused', tone: 'warn' } : im.state === 'preview' ? { text: 'Not brought in yet', tone: 'on' } : { text: 'Brought in', tone: 'idle' }, body: body });
   }
   L.acts.tfchoose = function () { im = readFile(SAMPLE.file); L.render(); L.say('Opened ' + im.file + ': ' + SAMPLE.items.length + ' kinds of thing in it. Choose what to do with the ones you have already.'); focusSoon('tf-bring'); };
   L.acts.tfchoice = function (el) { im.choices[el.dataset.id] = el.dataset.v; L.render(); focusSoon(el.dataset.k); };
@@ -5911,7 +6045,7 @@ var L = (function () {
         '<div class="viewbody tf-body"><div class="tf-cols tf-one"><div class="col">' +
         (rl.done ? '<p class="tf-done" role="status">' + L.icon('check', 's') + '<span class="grow">' + esc(rl.done) + '</span></p>' : '') +
         L.pane({ id: 'tf-missing', title: 'Missing files', icon: 'warn', kind: 'plain', noMax: true, size: 'auto', status: miss.length ? { text: plural(miss.length, 'file'), tone: 'warn' } : { text: 'None', tone: 'idle' }, body: list }) +
-        (miss.length || p ? L.pane({ id: 'tf-look', title: 'Look in a folder', icon: 'folder', kind: 'search', noMax: true, size: 'auto', status: p ? { text: p.filter(function (x) { return x.how !== 'none'; }).length + ' found', tone: 'on' } : { text: 'Ready', tone: 'idle' }, body: look + found }) : '') +
+        (miss.length || p ? L.pane({ id: 'tf-look', title: 'Look in a folder', icon: 'folder', kind: 'search', noMax: true, size: 'auto', status: p ? { text: p.filter(function (x) { return x.how !== 'none'; }).length + ' found', tone: 'on' } : null, body: look + found }) : '') +
         '</div></div></div>';
     }
   });
@@ -6024,13 +6158,14 @@ var L = (function () {
     L.setOrder(pid, key, el.dataset.shuffle ? { shuffle: !o.shuffle } : { repeat: el.dataset.repeat });
     L.state.shuffleRound++;
     L.say(L.orderWords(L.orderOf(pid, key)) + ' ' + whereWords(key));
+    L.saved('play order of ' + L.playlist(pid).name + ' ' + whereWords(key), { key: 'ord-' + pid + key });
     // Keep the menu open on the same item so shuffle and repeat can both be changed; the button behind it is redrawn.
     L.closeMenu(); L.render(); if (pk) paintList();
     var a = document.querySelector('[data-k="' + anchorK + '"]'); if (!a) return;
     L.acts.ordmenu(a);
     var item = document.querySelector('.menu [data-act="ordset"][' + (which === 'shuffle' ? 'data-shuffle' : 'data-repeat="' + which + '"') + ']'); if (item) item.focus();
   };
-  L.acts.ordclear = function (el) { L.clearOrder(el.dataset.pid, el.dataset.key); L.say('Uses the playlist\'s own order here: ' + L.orderWords(L.orderOf(el.dataset.pid, el.dataset.key))); L.render(); if (pk) paintList(); };
+  L.acts.ordclear = function (el) { L.clearOrder(el.dataset.pid, el.dataset.key); L.say('Uses the playlist\'s own order here: ' + L.orderWords(L.orderOf(el.dataset.pid, el.dataset.key))); L.render(); if (pk) paintList(); L.saved('play order of ' + L.playlist(el.dataset.pid).name + ' ' + whereWords(el.dataset.key), { key: 'ord-' + el.dataset.pid + el.dataset.key }); };
   L.expanded = function (key) { return !!L.state.xp[key]; };
   L.expanderButton = function (key, label, open) {
     open = open == null ? L.expanded(key) : open;
@@ -6083,7 +6218,8 @@ var L = (function () {
     var a = group.split('|'), key = a[1], pid = a[2], ids = L.placeTracks(pid, key).map(function (t) { return t.id; });
     if (to < 0 || to >= ids.length || from === to) return false;
     var x = ids.splice(from, 1)[0]; ids.splice(to, 0, x); L.setPlaceOrder(pid, key, ids);
-    L.say(L.title(L.track(x)) + ' is now ' + (to + 1) + ' of ' + ids.length + ' ' + placeWords(key)); return true;
+    L.say(L.title(L.track(x)) + ' is now ' + (to + 1) + ' of ' + ids.length + ' ' + placeWords(key));
+    L.saved('order of ' + L.playlist(pid).name + ' ' + placeWords(key), { key: 'tro-' + key + pid }); return true;
   };
   L.state.reordering = L.state.reordering || {};
   L.acts.rotoggle = function (el) { var g = el.dataset.g; L.state.reordering[g] = !L.state.reordering[g]; L.render(); var b = document.querySelector('[data-k="' + el.dataset.k + '"]'); if (b) b.focus(); L.say(L.state.reordering[g] ? 'Move up and Move down shown on each track' : 'Done reordering'); };
@@ -6096,7 +6232,7 @@ var L = (function () {
     if (!n || n.disabled) n = document.querySelector('[data-k="' + (d < 0 ? k.replace(/^roup-/, 'rodn-') : k.replace(/^rodn-/, 'roup-')) + '"]');
     if (n) n.focus();
   };
-  L.acts.roclear = function (el) { var p = L.playlist(el.dataset.pid); L.clearPlaceOrder(el.dataset.pid, el.dataset.key); L.say((p ? p.name : 'The playlist') + ' plays in its own order ' + placeWords(el.dataset.key) + ' again'); L.render(); };
+  L.acts.roclear = function (el) { var p = L.playlist(el.dataset.pid); L.clearPlaceOrder(el.dataset.pid, el.dataset.key); L.say((p ? p.name : 'The playlist') + ' plays in its own order ' + placeWords(el.dataset.key) + ' again'); L.render(); L.saved('order of ' + (p ? p.name : 'the playlist') + ' ' + placeWords(el.dataset.key), { key: 'tro-' + el.dataset.key + el.dataset.pid }); };
   function roMove(row, to) {
     var group = row.dataset.ro, kind = group.split('|')[0], from = +row.dataset.ri, f = L.reorder[kind]; if (!f) return false;
     var a = document.activeElement, k = a && row.contains(a) && a.dataset ? a.dataset.k : null;
@@ -6183,7 +6319,9 @@ var L = (function () {
     var c = document.getElementById('pk-count'); if (c) c.textContent = count();
   }
   L.pickerSheet = function (o) {
-    pk = { items: o.items, sel: (o.selected || []).slice(), multi: !!o.multi, inside: !!o.inside, onDone: o.onDone, q: '', fold: !!o.fold, open: {}, filters: o.filters || null, filter: o.filters ? o.filters[0].id : '' };
+    pk = { items: o.items, sel: (o.selected || []).slice(), multi: !!o.multi, inside: !!o.inside, onDone: o.onDone, q: '', fold: !!o.fold, open: {}, filters: o.filters || null, filter: o.filters ? o.filters[0].id : '',
+      // Round 6, part 5: what Done saves, for the Saved pop-up (shown only when the ticks changed).
+      saved: o.saved || '', was: (o.selected || []).join('|') };
     if (pk.fold) { (o.openGroups || []).forEach(function (g) { pk.open[g] = true; }); o.items.forEach(function (it) { if (pk.sel.indexOf(it.id) > -1) pk.open[it.group] = true; }); }
     L.sheet({ title: o.title, wide: !!o.wide,
       // Round 6: the intro is read out with the dialog (its description) and is the list's hover text; on screen the
@@ -6205,7 +6343,7 @@ var L = (function () {
     // The same track can be ticked inside its playlist and in the Tracks list: redraw so both boxes agree.
     if (pk.inside) paintList();
   };
-  L.acts.pkdone = function () { var f = pk.onDone, s = pk.sel.slice(); L.closeSheet(); if (f) f(s); L.render(); };
+  L.acts.pkdone = function () { var f = pk.onDone, s = pk.sel.slice(), what = pk.saved, changed = s.join('|') !== pk.was; L.closeSheet(); if (f) f(s); L.render(); if (what && changed) L.saved(what); };
   // Closing a picker stops its preview, so nothing keeps playing in your headphones after you leave it.
   var closeSheet = L.closeSheet; L.closeSheet = function () { var had = document.getElementById('pk-list'); closeSheet(); if (had && L.pb.preview) L.stopPreview(); };
 
@@ -6234,23 +6372,23 @@ var L = (function () {
     var items = D.playlists.filter(function (p) { return !o.lane || p.lane === o.lane; }).map(function (p) {
       return playlistItem(p, p.lane === 'amb' ? 'Ambience playlists' : p.lane === 'fx' ? 'FX playlists' : p.kind === 'dynamic' ? 'Music: dynamic' : 'Music: manual');
     });
-    L.pickerSheet({ title: o.title || 'Choose playlists', items: items, selected: o.selected, multi: o.multi !== false, onDone: o.onDone, intro: o.intro });
+    L.pickerSheet({ title: o.title || 'Choose playlists', items: items, selected: o.selected, multi: o.multi !== false, onDone: o.onDone, intro: o.intro, saved: o.saved });
   };
   L.pickBoards = function (o) {
-    L.pickerSheet({ title: o.title || 'Choose pad boards', selected: o.selected, multi: o.multi !== false, onDone: o.onDone, intro: o.intro,
+    L.pickerSheet({ title: o.title || 'Choose pad boards', selected: o.selected, multi: o.multi !== false, onDone: o.onDone, intro: o.intro, saved: o.saved,
       items: D.boards.map(function (b) { return { id: b.id, label: b.name, sub: b.cols + ' × ' + b.rows + ' grid · ' + L.boardPads(b).filter(Boolean).length + ' pads', search: L.boardPads(b).filter(Boolean).map(function (p) { return p.label; }).join(' '), preview: { kind: 'board', id: b.id }, contents: { kind: 'board', id: b.id } }; }) });
   };
   L.pickTracks = function (o) {
     var kinds = o.kinds || ['music', 'amb', 'fx'];
     var items = D.tracks.filter(function (t) { return kinds.indexOf(t.kind) > -1; }).map(function (t) { return trackItem(t, ''); });
-    L.pickerSheet({ title: o.title || 'Choose tracks', items: items, selected: o.selected, multi: o.multi !== false, onDone: o.onDone, intro: o.intro,
+    L.pickerSheet({ title: o.title || 'Choose tracks', items: items, selected: o.selected, multi: o.multi !== false, onDone: o.onDone, intro: o.intro, saved: o.saved,
       filters: laneFilters.filter(function (f) { return f.id === 'all' || kinds.indexOf(f.id) > -1; }) });
   };
   // A scene's music: tracks and playlists in one list, ticked items added in the order ticked.
   L.pickSceneMusic = function (o) {
     var items = D.playlists.filter(function (p) { return p.lane !== 'amb'; }).map(function (p) { return playlistItem(p, 'Playlists'); })
       .concat(D.tracks.filter(function (t) { return t.kind !== 'amb'; }).map(function (t) { return trackItem(t, 'Tracks'); }));
-    L.pickerSheet({ title: o.title || 'Add music to the scene', items: items, selected: o.selected, multi: true, inside: true, onDone: o.onDone, wide: true,
+    L.pickerSheet({ title: o.title || 'Add music to the scene', items: items, selected: o.selected, multi: true, inside: true, onDone: o.onDone, wide: true, saved: o.saved,
       intro: o.intro || 'Tick playlists, single tracks or both; open a playlist to tick only some of its tracks. They play in the scene in the order you tick them; you can reorder them afterwards.',
       filters: [{ id: 'all', label: 'All', test: function () { return true; } }, { id: 'pl', label: 'Playlists', test: function (it) { return it.isPlaylist; } },
         { id: 'music', label: 'Tracks', test: function (it) { return !it.isPlaylist && it.kind === 'music' && !L.isFx(it.track); } }, { id: 'fx', label: 'FX', test: function (it) { return it.isPlaylist ? it.lane === 'fx' : L.isFx(it.track); } }] });
@@ -6258,7 +6396,7 @@ var L = (function () {
   L.pickAmbience = function (o) {
     var items = D.playlists.filter(function (p) { return p.lane === 'amb'; }).map(function (p) { return playlistItem(p, 'Ambience playlists'); })
       .concat(D.tracks.filter(function (t) { return t.kind === 'amb'; }).map(function (t) { return trackItem(t, 'Ambience tracks'); }));
-    L.pickerSheet({ title: o.title || 'Choose the ambience', items: items, selected: o.selected, multi: false, onDone: o.onDone, intro: o.intro || 'One ambience track, or an ambience playlist that moves from bed to bed.' });
+    L.pickerSheet({ title: o.title || 'Choose the ambience', items: items, selected: o.selected, multi: false, onDone: o.onDone, saved: o.saved, intro: o.intro || 'One ambience track, or an ambience playlist that moves from bed to bed.' });
   };
 
   /* ---------- Use in… ---------- */
@@ -6289,7 +6427,7 @@ var L = (function () {
   L.assignSheet = function (kind, id) {
     var t = targets(kind, id), obj = kind === 'board' ? L.board(id) : kind === 'track' ? L.track(id) : L.playlist(id), name = kind === 'track' ? L.title(obj) : obj.name;
     var isAmb = kind === 'track' ? obj.kind === 'amb' : obj.lane === 'amb';
-    L.pickerSheet({ title: 'Use "' + name + '" in…', multi: true, items: t.items, selected: t.sel, okLabel: 'Save', fold: true,
+    L.pickerSheet({ title: 'Use "' + name + '" in…', multi: true, items: t.items, selected: t.sel, okLabel: 'Save', fold: true, saved: 'where “' + name + '” is used',
       openGroups: [(L.campaign(L.state.ctx.cid) || {}).name],
       intro: 'Tick a campaign to make it available all campaign long, a session for that evening, or a scene to ' + (kind === 'board' ? 'add this board to that scene.' : 'play it in that scene.'),
       onDone: function (ids) {
@@ -6306,7 +6444,6 @@ var L = (function () {
             });
           });
         });
-        L.toast('Saved where "' + name + '" is used');
       } });
   };
 })();
@@ -6476,6 +6613,7 @@ var L = (function () {
     var x = ctx(), target = el.dataset.scope === 'c' ? x.c : x.s, kind = el.dataset.kind, list = kind === 'pl' ? target.playlists : target.boards;
     var where = el.dataset.scope === 'c' ? 'every session of ' + x.c.name : 'every scene of Session ' + x.s.n;
     var o = { title: (kind === 'pl' ? 'Playlists' : 'Pad boards') + ' on hand in ' + where, selected: list, multi: true, okLabel: 'Save',
+      saved: (el.dataset.scope === 'c' ? x.c.name : 'Session ' + x.s.n) + (kind === 'pl' ? ' playlists' : ' pads'),
       intro: 'Tick the ' + (kind === 'pl' ? 'playlists' : 'pad boards') + ' to keep on hand in ' + esc(where) + '.',
       onDone: function (ids) {
         var keep = list.filter(function (id) { return ids.indexOf(id) > -1; }), added = ids.filter(function (id) { return list.indexOf(id) < 0; });
@@ -6488,7 +6626,8 @@ var L = (function () {
     var x = ctx(), scope = group.split('|')[1], list = scope === 'c' ? x.c.playlists : x.s.playlists;
     if (to < 0 || to >= list.length || from === to) return false;
     var id = list.splice(from, 1)[0]; list.splice(to, 0, id);
-    L.say(L.playlist(id).name + ' is now ' + (to + 1) + ' of ' + list.length + ' in this ' + (scope === 'c' ? 'campaign' : 'session')); return true;
+    L.say(L.playlist(id).name + ' is now ' + (to + 1) + ' of ' + list.length + ' in this ' + (scope === 'c' ? 'campaign' : 'session'));
+    L.saved('order of ' + (scope === 'c' ? x.c.name : 'Session ' + x.s.n) + ' playlists', { key: 'apl-' + scope }); return true;
   };
   L.acts.cpplmove = function (el) { var x = ctx(), list = el.dataset.scope === 'c' ? x.c.playlists : x.s.playlists, i = list.indexOf(el.dataset.id); focusK = 'more-' + el.dataset.scope + 'pl' + el.dataset.id; if (L.reorder.apl('apl|' + el.dataset.scope, i, i + +el.dataset.dir)) L.render(); };
   L.acts.cprm = function (el) {
@@ -6509,6 +6648,7 @@ var L = (function () {
     var item = arr.splice(from, 1)[0]; arr.splice(to, 0, item);
     if (list === 'sessions') { renumber(x.c); L.say((item.name || 'That session') + ' is now Session ' + item.n + ', ' + (to + 1) + ' of ' + arr.length); }
     else L.say('Scene ' + item.name + ' moved to position ' + (to + 1) + ' of ' + arr.length);
+    L.saved(list === 'sessions' ? 'order of ' + x.c.name + ' sessions' : 'order of Session ' + x.s.n + ' scenes', { key: 'mv-' + list });
     return true;
   }
   L.acts.cpmove = function (el) {
@@ -6565,16 +6705,17 @@ var L = (function () {
     L.filesFromDrop(e, function (files) {
       if (!files.length) { L.toast('No audio files in what you dropped'); return; }
       var before = D.tracks.length, ids = L.importFiles(files), created = D.tracks.slice(before).map(function (t) { return t.id; }), name = x.sc.name || 'this scene';
-      var lib = created.length ? plural(created.length, 'new track') + ' added to the Library. ' : '';
+      var lib = created.length ? plural(created.length, 'new track') + ' added to the Library' : '';
       current = x.sc.id;
       if (where === 'amb') {
         created.forEach(function (id) { L.track(id).kind = 'amb'; });   // dropped on Ambience: new files are ambience beds
         x.sc.amb = ids[0]; focusK = 'pa-' + x.sc.id; L.render();
-        L.toast(lib + 'Ambience of "' + name + '": ' + L.title(L.track(ids[0])) + (ids.length > 1 ? ' (one ambience per scene; the others are in the Library)' : ''));
+        // Round 6, part 5: a drop is a save. One ambience per scene: the others go to the Library only.
+        L.saved(name + ' ambience', { detail: L.title(L.track(ids[0])) + (lib ? ' · ' + lib : '') });
         return;
       }
       [].splice.apply(x.sc.music, [at, 0].concat(ids)); focusK = 'in-' + x.sc.id + '-music-' + ids[0]; L.render();
-      L.toast(lib + plural(ids.length, 'track') + ' placed in the music of "' + name + '" at position ' + (at + 1) + '.');
+      L.saved(name + ' music', { detail: plural(ids.length, 'track') + ' from position ' + (at + 1) + (lib ? ' · ' + lib : '') });
     });
   });
 
@@ -6619,7 +6760,7 @@ var L = (function () {
   /* Obsidian placeholders (not working yet): stored on the campaign, the session and each scene for a later version. */
   var OBS_REASON = 'Lyre will open these notes in a later version.';
   function obsFields(pre, o, input) {
-    function f(key, label, ph) { return '<div class="field"><label for="' + pre + key + '">' + label + '</label><input class="input" id="' + pre + key + '" data-input="' + input + '" data-f="' + key + '" data-k="' + pre + key + '" value="' + esc(o[key] || '') + '" placeholder="' + ph + '" autocomplete="off"></div>'; }
+    function f(key, label, ph) { return '<div class="field"><label for="' + pre + key + '">' + label + '</label><input class="input" id="' + pre + key + '" data-input="' + input + '" data-f="' + key + '" data-k="' + pre + key + '"' + (input === 'cpobs' ? ' data-save="Obsidian ' + label.toLowerCase() + '"' : '') + '" value="' + esc(o[key] || '') + '" placeholder="' + ph + '" autocomplete="off"></div>'; }
     return '<div class="cp-obs-grid">' + f('vault', 'Vault', 'Name of your Obsidian vault') + f('note', 'Campaign note', 'e.g. Campaigns/The Sunken Crown/Overview.md') + f('sessions', 'Session notes folder', 'e.g. Campaigns/The Sunken Crown/Sessions') + '</div>' + obsButton(pre);
   }
   function obsButton(pre) { return '<div class="cp-obs-btn"><button class="btn s" disabled aria-describedby="' + pre + 'why">' + L.icon('link', 's') + 'Open in Obsidian</button><span class="hint" id="' + pre + 'why">Not working yet: ' + OBS_REASON + '</span></div>'; }
@@ -6718,12 +6859,12 @@ var L = (function () {
         '<h1>' + esc(c.name || 'Untitled campaign') + '</h1><span class="grow"></span>' +
         L.modeSwitch(c.id) + (nx ? '<button class="btn primary" data-act="cprun" data-cid="' + c.id + '" data-sid="' + nx.id + '" data-k="hrun">' + L.icon('broadcast', 's') + 'Run next session <span class="cp-btnsub">S' + nx.n + '</span></button>' : '') + '</div>';
       var details = '<div class="cp-details">' +
-        '<div class="field cp-f-name"><label for="cp-c-name">Name</label><input class="input" id="cp-c-name" data-input="cpcamp" data-f="name" data-k="c-name" value="' + esc(c.name) + '" autocomplete="off"></div>' +
-        '<div class="field cp-f-sys"><label for="cp-c-sys">Game system</label><input class="input" id="cp-c-sys" list="cp-systems-c" data-input="cpcamp" data-f="system" data-k="c-sys" value="' + esc(c.system) + '" autocomplete="off">' +
+        '<div class="field cp-f-name"><label for="cp-c-name">Name</label><input class="input" id="cp-c-name" data-input="cpcamp" data-f="name" data-k="c-name" data-save="campaign name {v}" value="' + esc(c.name) + '" autocomplete="off"></div>' +
+        '<div class="field cp-f-sys"><label for="cp-c-sys">Game system</label><input class="input" id="cp-c-sys" list="cp-systems-c" data-input="cpcamp" data-f="system" data-k="c-sys" data-save="' + esc(c.name) + ' game system" value="' + esc(c.system) + '" autocomplete="off">' +
         '<datalist id="cp-systems-c">' + SYSTEMS.map(function (s) { return '<option value="' + esc(s) + '">'; }).join('') + '</datalist></div>' +
-        '<div class="field cp-f-theme"><label for="cp-c-theme">Theme</label><select class="input" id="cp-c-theme" data-input="cpcamp" data-f="theme" data-k="c-theme"' + (forced ? ' aria-describedby="cp-forced"' : '') + '>' +
+        '<div class="field cp-f-theme"><label for="cp-c-theme">Theme</label><select class="input" id="cp-c-theme" data-input="cpcamp" data-f="theme" data-k="c-theme" data-save="' + esc(c.name) + ' theme"' + (forced ? ' aria-describedby="cp-forced"' : '') + '>' +
         L.THEMES.slice(1).map(function (t) { return '<option value="' + t[0] + '"' + (c.theme === t[0] ? ' selected' : '') + '>' + esc(themeName(t[0])) + '</option>'; }).join('') + '</select></div>' +
-        '<div class="field cp-f-blurb"><label for="cp-c-blurb">Description</label><input class="input" id="cp-c-blurb" data-input="cpcamp" data-f="blurb" data-k="c-blurb" value="' + esc(c.blurb) + '" autocomplete="off"></div>' +
+        '<div class="field cp-f-blurb"><label for="cp-c-blurb">Description</label><input class="input" id="cp-c-blurb" data-input="cpcamp" data-f="blurb" data-k="c-blurb" data-save="' + esc(c.name) + ' description" value="' + esc(c.blurb) + '" autocomplete="off"></div>' +
         (forced ? '<p class="hint cp-forced" id="cp-forced">The prototype strip is showing every page in ' + esc(themeName(L.state.theme)) + '. Choose "Each campaign\'s own" there to see this campaign\'s theme.</p>' : '') + '</div>';
 
       var played = c.sessions.filter(function (s) { return s.status === 'played'; }).length;
@@ -6732,8 +6873,8 @@ var L = (function () {
         actions: '<button class="btn s" data-act="cpnewsession" data-k="newsession">' + L.icon('plus', 's') + 'New session</button>',
         body: c.sessions.length ? '<ol class="list cp-slist" aria-label="Sessions in order">' + c.sessions.map(function (s, i) { return sessionRow(c, s, i); }).join('') + '</ol>' : '<p class="cp-none">No sessions yet.</p>', flush: true, scroll: 'cp-sessions' });
       var notes = L.pane({ id: 'cp-notes', title: 'Notes', icon: 'edit', size: 'auto', kind: 'plain',
-        status: { text: c.notes ? 'Saved' : 'Empty', tone: 'idle' },
-        body: '<label class="sr-only" for="cp-c-notes">Campaign notes</label><textarea class="input cp-notes" id="cp-c-notes" data-input="cpcampnotes" data-k="c-notes" rows="4" placeholder="Anything to remember across sessions">' + esc(c.notes || '') + '</textarea>' });
+        status: c.notes ? null : { text: 'Empty', tone: 'idle' },
+        body: '<label class="sr-only" for="cp-c-notes">Campaign notes</label><textarea class="input cp-notes" id="cp-c-notes" data-input="cpcampnotes" data-k="c-notes" data-save="' + esc(c.name) + ' notes" rows="4" placeholder="Anything to remember across sessions">' + esc(c.notes || '') + '</textarea>' });
       var cpl = assignedPane({ id: 'cp-cpl', title: 'Campaign playlists', kind: 'pl', scope: 'c', ids: c.playlists, tracks: c.tracks, why: 'In every session.' });
       var cbd = assignedPane({ id: 'cp-cbd', title: 'Campaign pads', kind: 'bd', scope: 'c', ids: c.boards, why: 'In every session.' });
       var ob = c.obsidian || {};
@@ -6745,7 +6886,8 @@ var L = (function () {
     },
     after: afterRender
   });
-  L.inputs.cpcampnotes = function (el) { ctx().c.notes = el.value; var st = el.closest('.pane').querySelector('.pane-status'); if (st) st.textContent = el.value ? 'Saved' : 'Empty'; };
+  // Round 6, part 5: the notes save themselves (data-save: the Saved pop-up); the box has no Saved status.
+  L.inputs.cpcampnotes = function (el) { ctx().c.notes = el.value; };
 
   /* ======================================================================
      3. Session page: the planner
@@ -6830,13 +6972,13 @@ var L = (function () {
     if (!isOpen) return '<li class="cp-scene" data-drag="scenes" data-filedrop="music" data-sc="' + sc.id + '" data-idx="' + i + '" aria-label="Scene ' + (i + 1) + ': ' + nm + '">' + head + '</li>';
     var f = 'sc' + sc.id;
     var body = '<div class="cp-scene-body" id="scb-' + sc.id + '">' +
-      '<div class="field"><label for="' + f + 'n">Name</label><input class="input" id="' + f + 'n" data-input="cpscf" data-f="name" data-sc="' + sc.id + '" data-k="scname-' + sc.id + '" value="' + esc(sc.name) + '" autocomplete="off"></div>' +
-      '<div class="field"><label for="' + f + 'w">Starts when</label><input class="input" id="' + f + 'w" data-input="cpscf" data-f="when" data-sc="' + sc.id + '" data-k="scwhen-' + sc.id + '" value="' + esc(sc.when) + '" placeholder="The moment in the story" autocomplete="off"></div>' +
+      '<div class="field"><label for="' + f + 'n">Name</label><input class="input" id="' + f + 'n" data-input="cpscf" data-f="name" data-sc="' + sc.id + '" data-k="scname-' + sc.id + '" data-save="scene name {v}" value="' + esc(sc.name) + '" autocomplete="off"></div>' +
+      '<div class="field"><label for="' + f + 'w">Starts when</label><input class="input" id="' + f + 'w" data-input="cpscf" data-f="when" data-sc="' + sc.id + '" data-k="scwhen-' + sc.id + '" data-save="when ' + esc(sc.name || 'the scene') + ' starts" value="' + esc(sc.when) + '" placeholder="The moment in the story" autocomplete="off"></div>' +
       '<div class="field cp-span" role="group" aria-labelledby="' + f + 'm"><span class="label" id="' + f + 'm">Music</span>' + musicList(sc) + '</div>' +
       '<div class="field cp-span" role="group" aria-labelledby="' + f + 'a"><span class="label" id="' + f + 'a">Ambience</span>' + ambSlot(sc) + '</div>' +
       '<div class="field cp-span" role="group" aria-labelledby="' + f + 'b"><span class="label" id="' + f + 'b">Pad boards</span>' + boardList(sc) + '</div>' +
-      '<div class="field"><label for="' + f + 'x">Notes</label><textarea class="input" id="' + f + 'x" rows="2" data-input="cpscf" data-f="notes" data-sc="' + sc.id + '" data-k="scnotes-' + sc.id + '" placeholder="Reminders for this scene">' + esc(sc.notes) + '</textarea></div>' +
-      '<div class="field cp-obsfield"><label for="' + f + 'o">Note link <span class="cp-later">Coming later</span></label><input class="input" id="' + f + 'o" data-input="cpscf" data-f="noteLink" data-sc="' + sc.id + '" data-k="scnote-' + sc.id + '" value="' + esc(sc.noteLink || '') + '" placeholder="Optional: an Obsidian note" title="Kept for later; Lyre does not open Obsidian notes yet" autocomplete="off"></div></div>';
+      '<div class="field"><label for="' + f + 'x">Notes</label><textarea class="input" id="' + f + 'x" rows="2" data-input="cpscf" data-f="notes" data-sc="' + sc.id + '" data-k="scnotes-' + sc.id + '" data-save="' + esc(sc.name || 'scene') + ' notes" placeholder="Reminders for this scene">' + esc(sc.notes) + '</textarea></div>' +
+      '<div class="field cp-obsfield"><label for="' + f + 'o">Note link <span class="cp-later">Coming later</span></label><input class="input" id="' + f + 'o" data-input="cpscf" data-f="noteLink" data-sc="' + sc.id + '" data-k="scnote-' + sc.id + '" data-save="' + esc(sc.name || 'scene') + ' note link" value="' + esc(sc.noteLink || '') + '" placeholder="Optional: an Obsidian note" title="Kept for later; Lyre does not open Obsidian notes yet" autocomplete="off"></div></div>';
     // UX-18: a screen opened from inside this scene goes Back to it, with the scene open.
     return '<li class="cp-scene open" data-drag="scenes" data-idx="' + i + '" data-back-label="' + nm + '" data-back-open="' + sc.id + '" aria-label="Scene ' + (i + 1) + ': ' + nm + '">' + head + body + '</li>';
   }
@@ -6881,6 +7023,7 @@ var L = (function () {
     var x = findScene(el.dataset.sc), t = L.track(el.dataset.id), v = (document.getElementById('cp-nmin') || {}).value || '';
     L.setNameIn(t, sceneKey(x.sc), v); focusK = 'in-' + x.sc.id + '-music-' + t.id; L.closeSheet(); L.render();
     L.say(v.trim() ? 'In this scene it is now called ' + v.trim() : 'It uses its own name in this scene');
+    L.saved('name in ' + (x.sc.name || 'this scene') + (v.trim() ? ' “' + v.trim() + '”' : ': its own'));
   };
   document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target && e.target.id === 'cp-nmin') { e.preventDefault(); var b = document.querySelector('[data-act="cpnamesave"]'); if (b) b.click(); } });
   function findScene(id) { var s = ctx().s; for (var i = 0; i < s.scenes.length; i++) if (s.scenes[i].id === id) return { s: s, sc: s.scenes[i], i: i }; return null; }
@@ -6897,15 +7040,17 @@ var L = (function () {
     if (el.dataset.op === 'remove') {
       arr.splice(i, 1);
       focusK = arr.length ? 'im-' + x.sc.id + '-' + list + '-' + arr[Math.min(i, arr.length - 1)] : (list === 'boards' ? 'ab-' : 'am-') + x.sc.id;
-      L.render(); L.say('Removed ' + nm + ' from this scene' + (i === 0 && arr.length ? '. ' + itemName(arr[0], list) + lead : '')); return;
+      L.render(); L.say('Removed ' + nm + ' from this scene' + (i === 0 && arr.length ? '. ' + itemName(arr[0], list) + lead : ''));
+      L.saved((x.sc.name || 'scene') + (list === 'boards' ? ' pad boards' : ' music')); return;
     }
     var to = el.dataset.op === 'first' ? 0 : el.dataset.op === 'up' ? i - 1 : i + 1; if (to < 0 || to >= arr.length) return;
     arr.splice(i, 1); arr.splice(to, 0, id); focusK = 'im-' + x.sc.id + '-' + list + '-' + id; L.render();
     L.say(to === 0 ? nm + lead : nm + ' moved to position ' + (to + 1) + ' of ' + arr.length + (i === 0 ? '. ' + itemName(arr[0], list) + lead : ''));
+    L.saved('order of ' + (x.sc.name || 'scene') + (list === 'boards' ? ' pad boards' : ' music'), { key: 'ord-' + x.sc.id + list });
   };
   L.acts.cpaddmusic = function (el) {
     var x = findScene(el.dataset.sc), m = x.sc.music; current = x.sc.id;
-    L.pickSceneMusic({ title: 'Music for "' + (x.sc.name || 'this scene') + '"', selected: m,
+    L.pickSceneMusic({ title: 'Music for "' + (x.sc.name || 'this scene') + '"', selected: m, saved: (x.sc.name || 'scene') + ' music',
       onDone: function (ids) {
         m.length = 0; ids.forEach(function (id) { m.push(id); }); focusK = 'am-' + x.sc.id;
         L.say(plural(m.length, 'music item') + ' in this scene' + (m.length ? '; ' + itemName(m[0]) + ' starts it' : ''));
@@ -6914,7 +7059,7 @@ var L = (function () {
   L.acts.cpaddboards = function (el) {
     var x = findScene(el.dataset.sc); current = x.sc.id; if (!x.sc.boards) x.sc.boards = L.sceneBoards(x.sc).slice();
     var b = x.sc.boards;
-    L.pickBoards({ title: 'Pad boards for "' + (x.sc.name || 'this scene') + '"', selected: b, multi: true,
+    L.pickBoards({ title: 'Pad boards for "' + (x.sc.name || 'this scene') + '"', selected: b, multi: true, saved: (x.sc.name || 'scene') + ' pad boards',
       intro: 'Tick the boards to have in this scene. New ones are added at the end; the first one shows when the scene starts.',
       onDone: function (ids) {
         var keep = b.filter(function (id) { return ids.indexOf(id) > -1; }), added = ids.filter(function (id) { return b.indexOf(id) < 0; });
@@ -6924,10 +7069,10 @@ var L = (function () {
   };
   L.acts.cppickamb = function (el) {
     var x = findScene(el.dataset.sc); current = x.sc.id;
-    L.pickAmbience({ title: 'Ambience for "' + (x.sc.name || 'this scene') + '"', selected: x.sc.amb ? [x.sc.amb] : [],
+    L.pickAmbience({ title: 'Ambience for "' + (x.sc.name || 'this scene') + '"', selected: x.sc.amb ? [x.sc.amb] : [], saved: (x.sc.name || 'scene') + ' ambience',
       onDone: function (ids) { focusK = 'pa-' + x.sc.id; if (ids[0]) { x.sc.amb = ids[0]; L.say('Ambience for this scene: ' + itemName(ids[0])); } } });
   };
-  L.acts.cpclearamb = function (el) { var x = findScene(el.dataset.sc); x.sc.amb = ''; focusK = 'pa-' + x.sc.id; L.render(); L.say('No ambience in this scene'); };
+  L.acts.cpclearamb = function (el) { var x = findScene(el.dataset.sc); x.sc.amb = ''; focusK = 'pa-' + x.sc.id; L.render(); L.say('No ambience in this scene'); L.saved((x.sc.name || 'scene') + ' ambience'); };
   function addSceneAfter(afterId) {
     var s = ctx().s, at = s.scenes.length;
     if (afterId) for (var i = 0; i < s.scenes.length; i++) if (s.scenes[i].id === afterId) at = i + 1;
@@ -6991,7 +7136,7 @@ var L = (function () {
       'A scene\'s <b>Music</b> is now one ordered list of <b>tracks and playlists in any mix</b>: slot a track between playlists, or use only one kind. It plays from the top and loops; the first item starts the scene, and in play you can start any item. Open <b>The abbey ruins</b> to see one.',
       '<b>Add tracks or playlists…</b> opens a picker with Preview on every row and an arrow to see a playlist\'s tracks before you add it. Move, remove, open and the Audio profile are in each row\'s ⋯ menu.',
       '<b>Ambience</b> can be one track or an ambience playlist, with Preview. <b>Pad boards</b>: a scene can have several; the first shows when the scene starts, and each one can be previewed and opened to see its pads.',
-      '<b>Cleaner:</b> every box has a coloured top edge for its purpose (blue music, lime pads, accent for plans) and one status pill (e.g. "6 scenes", "Coming later"). Folded scenes show one line and one chip; hover the scene name for its Starts when, ambience and boards. Rows show Preview and Play on air, then ⋯ for the rest.',
+      '<b>Cleaner:</b> every box has a coloured top edge for its purpose (blue music, lime pads, accent for plans) and at most one status pill (e.g. "Coming later"; round 6 part 5: no scene count, no Ready or Saved). Folded scenes show one line and one chip; hover the scene name for its Starts when, ambience and boards. Rows show Preview and Play on air, then ⋯ for the rest.',
       '<b>Prep | Live</b> and <b>Run this session</b> are both in the header.',
       'Obsidian placeholders (coming later): a <b>Session note</b> in the folded Obsidian pane, and an optional <b>Note link</b> per scene.'
     ],
@@ -7008,15 +7153,13 @@ var L = (function () {
         statusBadge(s.status) + '<span class="grow"></span>' + L.modeSwitch(c.id) +
         '<button class="btn' + (s.status === 'next' ? ' primary' : '') + '" data-act="cprunthis" data-k="runthis">' + L.icon('broadcast', 's') + 'Run this session</button></div>';
       var details = '<div class="cp-details cp-sdetails">' +
-        '<div class="field cp-f-name"><label for="cp-s-name">Session name</label><input class="input" id="cp-s-name" data-input="cpsess" data-f="name" data-k="s-name" value="' + esc(s.name) + '" placeholder="Name this session" autocomplete="off"></div>' +
-        '<div class="field cp-f-date"><label for="cp-s-date">Date</label><input class="input" type="date" id="cp-s-date" data-input="cpsess" data-f="date" data-k="s-date" value="' + esc(s.date) + '"></div>' +
-        '<div class="field cp-f-status"><label for="cp-s-status">Status</label><select class="input" id="cp-s-status" data-input="cpsess" data-f="status" data-k="s-status">' +
-        ['played', 'next', 'draft'].map(function (k) { return '<option value="' + k + '"' + (s.status === k ? ' selected' : '') + '>' + STATUS[k] + '</option>'; }).join('') + '</select></div>' +
-        // Round 6: how Live's lists are ordered is read out here and lives in the guide; it is not needed while planning.
-        '<p class="sr-only">In play: this scene\'s music first, then this session\'s, then the campaign\'s, then the whole library.</p></div>';
+        '<div class="field cp-f-name"><label for="cp-s-name">Session name</label><input class="input" id="cp-s-name" data-input="cpsess" data-f="name" data-k="s-name" data-save="session name {v}" value="' + esc(s.name) + '" placeholder="Name this session" autocomplete="off"></div>' +
+        '<div class="field cp-f-date"><label for="cp-s-date">Date</label><input class="input" type="date" id="cp-s-date" data-input="cpsess" data-f="date" data-k="s-date" data-save="Session ' + s.n + ' date" value="' + esc(s.date) + '"></div>' +
+        '<div class="field cp-f-status"><label for="cp-s-status">Status</label><select class="input" id="cp-s-status" data-input="cpsess" data-f="status" data-k="s-status" data-save="Session ' + s.n + ' status">' +
+        ['played', 'next', 'draft'].map(function (k) { return '<option value="' + k + '"' + (s.status === k ? ' selected' : '') + '>' + STATUS[k] + '</option>'; }).join('') + '</select></div></div>';
       var allOpen = s.scenes.length && s.scenes.every(function (sc) { return open[sc.id]; });
       var scenes = L.pane({ id: 'ss-scenes', title: 'Scenes', icon: 'map', kind: 'scenes',
-        status: { text: s.scenes.length ? plural(s.scenes.length, 'scene') : 'Empty', tone: 'idle' },
+        status: s.scenes.length ? null : { text: 'Empty', tone: 'idle' },
         actions: (s.scenes.length ? '<button class="closer" data-act="cpallscenes" data-k="allscenes" title="' + (allOpen ? 'Fold all scenes' : 'Open all scenes') + '" aria-label="' + (allOpen ? 'Fold all scenes' : 'Open all scenes') + '">' + L.icon(allOpen ? 'chevup' : 'chevdown') + '</button>' : '') +
           '<button class="btn s" data-act="cpaddscene" data-k="addscene">' + L.icon('plus', 's') + 'Add scene</button>',
         body: s.scenes.length ? '<ol class="cp-scenes" aria-label="Scenes in order">' + s.scenes.map(function (sc, i) { return sceneCard(s, sc, i); }).join('') + '</ol>' : '<p class="cp-none">No scenes yet. Use Add scene.</p>',
@@ -7024,7 +7167,7 @@ var L = (function () {
       var spl = assignedPane({ id: 'ss-spl', title: 'Session playlists', kind: 'pl', scope: 's', ids: s.playlists, tracks: s.tracks, why: 'In every scene tonight.' });
       var sbd = assignedPane({ id: 'ss-sbd', title: 'Session pads', kind: 'bd', scope: 's', ids: s.boards, why: 'In every scene tonight.' });
       var obs = L.pane({ id: 'ss-obs', title: 'Obsidian', icon: 'link', size: 'auto', collapsed: true, kind: 'plain', status: { text: 'Coming later', tone: 'idle' },
-        body: '<div class="field"><label for="cp-s-obs">Session note</label><input class="input" id="cp-s-obs" data-input="cpsess" data-f="obsidianNote" data-k="s-obs" value="' + esc(s.obsidianNote || '') + '" placeholder="' + esc(((c.obsidian || {}).sessions || 'Sessions') + '/Session ' + s.n + '.md') + '" autocomplete="off"></div>' + obsButton('cp-s-o-') });
+        body: '<div class="field"><label for="cp-s-obs">Session note</label><input class="input" id="cp-s-obs" data-input="cpsess" data-f="obsidianNote" data-k="s-obs" data-save="Session ' + s.n + ' Obsidian note" value="' + esc(s.obsidianNote || '') + '" placeholder="' + esc(((c.obsidian || {}).sessions || 'Sessions') + '/Session ' + s.n + '.md') + '" autocomplete="off"></div>' + obsButton('cp-s-o-') });
       var cbNames = c.boards.map(function (b) { var x = L.board(b); return x ? x.name : ''; }).filter(Boolean);
       // Round 6: Change sits where the other boxes have Add, as an icon link to the campaign.
       var cpl = L.pane({ id: 'ss-cpl', title: 'Campaign playlists', icon: 'crown', size: 'auto', kind: 'music',
@@ -7264,7 +7407,7 @@ var L = (function () {
     var onAir = onAirNow(t);
     var h = '<div class="lb-d">';
     if (t.missing) h += '<p class="lb-missing" role="note">' + L.icon('warn', 's') + '<span class="grow">Lyre cannot find this file where it was.</span><a class="btn s" href="#/relink" data-k="lb-relink1" title="Point Lyre at the folder it moved to">Relink…</a></p>';
-    h += '<div class="field"><label for="lb-title">Your title</label><input id="lb-title" class="input" data-input="lbtitle" data-k="lb-title" value="' + esc(t.title) + '" placeholder="A title you will recognise at the table"></div>';
+    h += '<div class="field"><label for="lb-title">Your title</label><input id="lb-title" class="input" data-input="lbtitle" data-k="lb-title" data-save="title {v}" value="' + esc(t.title) + '" placeholder="A title you will recognise at the table"></div>';
     if (!t.title && t.metaTitle) h += '<p class="lb-warn"><button class="btn s ghost" data-act="lbusemeta" data-k="lb-usemeta">' + L.icon('edit', 's') + 'Use the title in the file</button></p>';
     h += '<dl class="lb-names">' +
       '<dt>Title in the file</dt><dd>' + (t.metaTitle ? esc(t.metaTitle) : '<span class="lb-none">The file has no title</span>') + '</dd>' +
@@ -7294,7 +7437,7 @@ var L = (function () {
       '<div class="lb-tg lb-normrow">' + L.normChoice({ id: 'lb-norm', value: t.norm, act: 'lbnorm', line: L.normLine(t), hint: normHint(t) }) + '</div>' +
       '<div class="lb-tg"><div class="lb-tgl">Role</div>' + choiceChips('lbrole', (t.kind === 'fx' ? ['Effect'].concat(ROLES) : ROLES).map(function (r) { return [r, r]; }), t.role, 'Role') + '</div>' +
       '<div class="lb-tg"><div class="lb-tgl">Looping</div>' + choiceChips('lbloop', LOOPS, t.loop, 'Loop advice') + '</div>' +
-      '<div class="lb-tg"><label class="lb-tgl" for="lb-notes">Notes</label><textarea id="lb-notes" class="input" rows="2" data-input="lbnotes" data-k="lb-notes" placeholder="Cues, where it fades, what it reminds you of">' + esc(t.notes) + '</textarea></div></section>';
+      '<div class="lb-tg"><label class="lb-tgl" for="lb-notes">Notes</label><textarea id="lb-notes" class="input" rows="2" data-input="lbnotes" data-k="lb-notes" data-save="' + esc(L.title(t)) + ' notes" placeholder="Cues, where it fades, what it reminds you of">' + esc(t.notes) + '</textarea></div></section>';
     var man = pls.filter(function (p) { return p.kind === 'manual'; }), dyn = pls.filter(function (p) { return p.kind === 'dynamic'; });
     h += '<section class="lb-sec" aria-labelledby="lb-h-pl"><div class="lb-hrow"><h3 class="lb-h" id="lb-h-pl">In playlists</h3><button class="btn s" data-act="lbpladdmenu" data-k="lb-pladd" aria-haspopup="menu" aria-expanded="false">' + L.icon('plus', 's') + 'Add to playlist</button></div>';
     h += pls.length ? '<ul class="lb-pls">' + man.map(function (p) {
@@ -7334,7 +7477,7 @@ var L = (function () {
   L.acts.lbnorm = function (el) {
     var t = L.track(L.current().p.tid); if (!t) return;
     if (el.dataset.v === 'library') delete t.norm; else t.norm = el.dataset.v;
-    L.render(); var b = document.querySelector('[data-k="lb-norm-' + el.dataset.v + '"]'); if (b) b.focus();
+    L.render(); var b = document.querySelector('[data-k="lb-norm-' + el.dataset.v + '"]'); if (b) b.focus(); L.saved(L.title(t) + ' volume setting');
     L.say('Normalise volume: ' + L.normLine(t));
   };
   // One line describing the track's audio profile, e.g. "Ends at 5:18, then loops from 1:04".
@@ -7365,7 +7508,7 @@ var L = (function () {
     notesTitle: 'Library: what changed',
     notes: [
       '<b>Round 5:</b> a track\'s <b>Shape</b> (Steady, Builds, Falls away, Peaks then falls, Rises and falls) is suggested from its loudness and can be changed in its details; filter by shape. <b>Names in scenes</b> sit with its other names. <b>Use in…</b> adds it to campaigns, sessions and scenes. Files Lyre cannot find show <b>Missing</b> and have a filter; ⋯ beside Add tracks has <b>Back up, move or share</b>, <b>Find missing files</b> and <b>What came across from Kenku FM</b>.',
-      'Less on screen: one line per track (your title, then the file\'s title in small type when it differs), one tag, then Preview, Play on air and ⋯ for the rest. Artist, album and the other tags are in the details and on hover. Each box shows one status: the track count or <i>n selected</i>, and <i>Saved</i> or <i>Playing</i> for the open track.',
+      'Less on screen: one line per track (your title, then the file\'s title in small type when it differs), one tag, then Preview, Play on air and ⋯ for the rest. Artist, album and the other tags are in the details and on hover. Each box shows at most one status: the track count or <i>n selected</i>, and <i>Playing</i> for the open track. Changes show in the Saved pop-up (round 6 part 5).',
       'Every row now has <b>Preview</b> (headphones: only you hear it) and <b>Play on air</b> (the players hear it). With a row focused, <b>P</b> previews and <b>A</b> plays on air.',
       'Filters: <b>All / Music / Ambience / FX</b>. FX lists sound effects and stings; rows show a small Amb, FX or Sting marker.',
       '<b>Used in</b> (in a track\'s details) lists scenes that use the track <i>directly</i> as well as scenes that reach it <i>through</i> a playlist, and says which.',
@@ -7398,7 +7541,8 @@ var L = (function () {
       function dPane(strip) {
         return L.pane({ id: 'lb-details', title: 'Details', icon: 'file', cls: 'lb-details' + (strip ? ' lb-strip' : ''), scroll: 'lb-details-' + (t ? t.id : 'none'),
           kind: 'plain', summary: t && dC ? esc(L.title(t)) : '',
-          status: t ? (onAirNow(t) ? { text: 'Playing', tone: 'live' } : { text: 'Saved' }) : { text: 'Empty' },
+          // Round 6, part 5: no Saved status; changes show in the Saved pop-up.
+          status: t ? (onAirNow(t) ? { text: 'Playing', tone: 'live' } : null) : { text: 'Empty' },
           actions: t && mode !== 'narrow' ? '<button class="closer" data-act="lbclose" data-k="lb-close" title="Close details" aria-label="Close details">' + L.icon('close') + '</button>' : '',
           body: t ? detailsBody(t) : emptyDetails() });
       }
@@ -7489,7 +7633,8 @@ var L = (function () {
     var id = el.dataset.tid;
     L.pickerSheet({ title: 'Add "' + L.title(L.track(id)) + '" to playlists', multi: true, okLabel: 'Add',
       items: D.playlists.filter(function (p) { return p.kind === 'manual' && p.items.indexOf(id) < 0; }).map(function (p) { return { id: p.id, label: p.name, sub: plural(p.items.length, 'track'), group: L.kindName[p.lane] }; }),
-      onDone: function (ids) { ids.forEach(function (pid) { L.playlist(pid).items.push(id); }); if (ids.length) L.toast('Added to ' + plural(ids.length, 'playlist')); } });
+      saved: 'playlists of ' + L.title(L.track(id)),
+      onDone: function (ids) { ids.forEach(function (pid) { L.playlist(pid).items.push(id); }); } });
   };
   L.acts.lbbclear = function () { st.sel = []; L.render(); L.say('Selection cleared'); var q = document.querySelector('[data-k="lb-q"]'); if (q) q.focus(); };
   L.acts.lbprev = function (el) { L.preview(el.dataset.tid); };
@@ -7512,30 +7657,30 @@ var L = (function () {
   /* ---------- details actions ---------- */
   function cur() { var p = L.current().p; return p.tid ? L.track(p.tid) : null; }
   L.inputs.lbtitle = function (el) { var t = cur(); if (!t) return; t.title = el.value; settle(t); L.render(); };
-  L.acts.lbusemeta = function () { var t = cur(); if (!t) return; t.title = t.metaTitle; settle(t); L.render(); var f = document.querySelector('[data-k="lb-title"]'); if (f) { f.focus(); f.select(); } L.say('Your title is now ' + t.title + '. Type to change it.'); };
+  L.acts.lbusemeta = function () { var t = cur(); if (!t) return; t.title = t.metaTitle; settle(t); L.render(); var f = document.querySelector('[data-k="lb-title"]'); if (f) { f.focus(); f.select(); } L.say('Your title is now ' + t.title + '. Type to change it.'); L.saved('title “' + t.title + '”', { key: 'lb-title' }); };
   L.inputs.lbnotes = function (el) { var t = cur(); if (t) t.notes = el.value; };
-  L.acts.lbenergy = function (el) { var t = cur(), v = +el.dataset.v; t.energy = t.energy === v ? 0 : v; L.render(); L.say(t.energy ? 'Energy ' + v : 'Energy cleared'); };
+  L.acts.lbenergy = function (el) { var t = cur(), v = +el.dataset.v; t.energy = t.energy === v ? 0 : v; L.render(); L.say(t.energy ? 'Energy ' + v : 'Energy cleared'); L.saved(L.title(t) + ' energy'); };
   // Choosing the shape Lyre suggests is the same as no choice of your own: it keeps following the suggestion.
-  L.acts.lbshape = function (el) { var t = cur(), v = el.dataset.v; t.shape = v === L.suggestedShape(t) ? null : v; L.render(); L.say('Shape: ' + L.shapeName[L.shapeOf(t)] + (t.shape ? '' : ', as Lyre suggests')); };
-  L.acts.lbshapeauto = function () { var t = cur(); t.shape = null; L.render(); L.say('Shape: ' + L.shapeName[L.shapeOf(t)] + ', as Lyre suggests'); };
-  L.acts.lbrole = function (el) { var t = cur(); t.role = t.role === el.dataset.v ? '' : el.dataset.v; L.render(); };
-  L.acts.lbloop = function (el) { var t = cur(); t.loop = t.loop === el.dataset.v ? '' : el.dataset.v; L.render(); };
+  L.acts.lbshape = function (el) { var t = cur(), v = el.dataset.v; t.shape = v === L.suggestedShape(t) ? null : v; L.render(); L.say('Shape: ' + L.shapeName[L.shapeOf(t)] + (t.shape ? '' : ', as Lyre suggests')); L.saved(L.title(t) + ' shape'); };
+  L.acts.lbshapeauto = function () { var t = cur(); t.shape = null; L.render(); L.say('Shape: ' + L.shapeName[L.shapeOf(t)] + ', as Lyre suggests'); L.saved(L.title(t) + ' shape'); };
+  L.acts.lbrole = function (el) { var t = cur(); t.role = t.role === el.dataset.v ? '' : el.dataset.v; L.render(); L.saved(L.title(t) + ' role'); };
+  L.acts.lbloop = function (el) { var t = cur(); t.loop = t.loop === el.dataset.v ? '' : el.dataset.v; L.render(); L.saved(L.title(t) + ' loop advice'); };
   L.acts.lbcopy = function () { var t = cur(), p = t.folder + '\\' + t.file; try { navigator.clipboard.writeText(p).catch(function () {}); } catch (e) { /* clipboard unavailable in the prototype */ } L.toast('Path copied: ' + p); };
   L.acts.lbshow = function () { L.toast('Lyre would open ' + cur().folder + ' in File Explorer'); };
   function onAir(t) { L.play(t.id, { fade: 3 }); L.toast('On air: ' + L.title(t)); }
   L.acts.lbonair = function () { onAir(cur()); };
   L.acts.lbuntag = function (el) {
     var t = cur(), g = el.dataset.g, v = el.dataset.v; t.tags[g] = t.tags[g].filter(function (x) { return x !== v; });
-    L.render(); L.say('Removed ' + v + ' from ' + groupName(g)); var f = document.querySelector('[data-k="lb-cbx-' + g + '"]'); if (f) f.focus();
+    L.render(); L.say('Removed ' + v + ' from ' + groupName(g)); var f = document.querySelector('[data-k="lb-cbx-' + g + '"]'); if (f) f.focus(); L.saved(L.title(t) + ' tags', { key: 'lb-tags' });
   };
-  L.acts.lbplrm = function (el) { var t = cur(), p = L.playlist(el.dataset.pid); p.items = p.items.filter(function (x) { return x !== t.id; }); L.render(); L.toast('Removed from ' + p.name); var b = document.querySelector('[data-k="lb-pladd"]'); if (b) b.focus(); };
+  L.acts.lbplrm = function (el) { var t = cur(), p = L.playlist(el.dataset.pid); p.items = p.items.filter(function (x) { return x !== t.id; }); L.render(); L.saved(p.name, { detail: 'removed ' + L.title(t) }); var b = document.querySelector('[data-k="lb-pladd"]'); if (b) b.focus(); };
   L.acts.lbpladdmenu = function (el) {
     var t = cur(), opts = D.playlists.filter(function (p) { return p.kind === 'manual' && (p.lane === t.kind || (p.lane === 'fx' && L.isFx(t))) && p.items.indexOf(t.id) < 0; });
     L.menu(el, '<div class="group">Manual playlists: ' + L.kindName[t.kind] + (t.kind !== 'fx' && L.isFx(t) ? ' and FX' : '') + '</div>' +
       (opts.length ? opts.map(function (p) { return '<button role="menuitem" data-act="lbpladd" data-pid="' + p.id + '">' + L.icon('playlist', 's') + '<span class="ellipsis grow">' + esc(p.name) + '</span><span class="hint">' + p.items.length + '</span></button>'; }).join('') : '<div class="group">It is already in all of them.</div>') +
       '<div class="sep"></div><button role="menuitem" data-act="lbplnew1">' + L.icon('plus', 's') + 'New playlist with this track</button>', 'Add to playlist');
   };
-  L.acts.lbpladd = function (el) { var t = cur(), p = L.playlist(el.dataset.pid); p.items.push(t.id); L.render(); L.toast('Added to ' + p.name); var b = document.querySelector('[data-k="lb-pladd"]'); if (b) b.focus(); };
+  L.acts.lbpladd = function (el) { var t = cur(), p = L.playlist(el.dataset.pid); p.items.push(t.id); L.render(); L.saved(p.name, { detail: 'added ' + L.title(t) }); var b = document.querySelector('[data-k="lb-pladd"]'); if (b) b.focus(); };
   function newPlaylist(ids) {
     var tracks = ids.map(L.track).filter(Boolean), count = { music: 0, amb: 0, fx: 0 }; tracks.forEach(function (t) { count[t.kind]++; });
     var n = 1; while (D.playlists.some(function (p) { return p.name === 'New playlist ' + n; })) n++;
@@ -7554,7 +7699,7 @@ var L = (function () {
     if (!known) D.tagValues[g].push(v); else v = known;
     if (t.tags[g].indexOf(v) < 0) t.tags[g].push(v);
     settle(t); cbx = { g: g, q: '', act: 0, open: false };
-    L.render(); L.say((known ? 'Added ' : 'Created and added ') + v + ' to ' + groupName(g));
+    L.render(); L.say((known ? 'Added ' : 'Created and added ') + v + ' to ' + groupName(g)); L.saved(L.title(t) + ' tags', { key: 'lb-tags' });
   }
   L.inputs.lbcbx = function (el) { cbx = { g: el.dataset.g, q: el.value, act: 0, open: true }; L.render(); };
   L.acts.lbcbxopen = function (el) { if (cbx.g !== el.dataset.g || !cbx.open) { cbx = { g: el.dataset.g, q: el.value, act: 0, open: true }; L.render(); } };
@@ -7894,7 +8039,7 @@ var L = (function () {
       }
       msg = p.label + ' moved to ' + place(b, j) + (other ? ', swapped with ' + other.label + (at.where === 'spare' ? ', which went to Spare pads' : '') : '');
     }
-    L.say(msg); L.render();
+    L.say(msg); L.render(); L.saved('layout of ' + b.name, { key: 'layout-' + b.id });
   }
   function putBack(b, pid) {
     var j = b.slots.indexOf(null); if (j < 0) { L.toast('No empty slot. Make the grid bigger first.'); return; }
@@ -8072,7 +8217,7 @@ var L = (function () {
     var msg = ui.msg && ui.msg.bid === b.id ? '<div class="pb-msg" role="status">' + L.icon('check', 's') + '<span class="grow">' + esc(ui.msg.text) + '</span>' +
       '<button class="btn s" data-act="pbundo" data-k="pb-undo">Undo</button><button class="closer" data-act="pbmsgx" data-k="pb-msgx" title="Dismiss" aria-label="Dismiss message">' + L.icon('close') + '</button></div>' : '';
     var body = '<div class="pb-tools">' +
-      '<div class="field pb-name"><label for="pb-name">Board name</label><input id="pb-name" class="input" data-input="pbname" data-k="pb-name" value="' + esc(b.name) + '"></div>' +
+      '<div class="field pb-name"><label for="pb-name">Board name</label><input id="pb-name" class="input" data-input="pbname" data-k="pb-name" data-save="board name {v}" value="' + esc(b.name) + '"></div>' +
       '<div class="pb-sizes">' + stepper('Columns', 'c', b.cols) + stepper('Rows', 'r', b.rows) +
       '<div class="seg s" role="group" aria-label="Quick sizes">' + QUICK.map(function (q) {
         var on = b.cols === q[0] && b.rows === q[1];
@@ -8120,7 +8265,7 @@ var L = (function () {
     }).join('') + '</div>';
     if (s.kind === 'tag') {
       var files = tagFiles(s.tag);
-      h += '<div class="field"><label for="pb-tag">Tag</label><input id="pb-tag" class="input" list="pb-tags" data-input="pbtag" data-k="pb-tag" value="' + esc(s.tag || '') + '" placeholder="For example: door"><datalist id="pb-tags">' + TAG_SUGGEST.map(function (t) { return '<option value="' + t + '">'; }).join('') + '</datalist></div>' +
+      h += '<div class="field"><label for="pb-tag">Tag</label><input id="pb-tag" class="input" list="pb-tags" data-input="pbtag" data-k="pb-tag" data-save="' + esc(p.label) + ' sound tag" value="' + esc(s.tag || '') + '" placeholder="For example: door"><datalist id="pb-tags">' + TAG_SUGGEST.map(function (t) { return '<option value="' + t + '">'; }).join('') + '</datalist></div>' +
         '<p class="hint">Each press picks one of these ' + plural(files.length, 'effect') + '.</p>' +
         (files.length ? '<ul class="pb-files">' + files.map(function (f) { var t = fxTrackByFile(f); return '<li>' + L.icon('file', 's') + '<span class="ellipsis grow">' + (t ? esc(L.title(t)) + ' <span class="faint">' + esc(f) + '</span>' : esc(f)) + '</span>' + (t ? L.previewButton('track', t.id) : '') + '</li>'; }).join('') + '</ul>' : '<p class="pb-none">No effects have this tag yet.</p>');
     } else {
@@ -8139,7 +8284,7 @@ var L = (function () {
   }
   function editorPane(b, sel) {
     if (!sel) {
-      return L.pane({ id: 'pb-pad', title: 'Pad', icon: 'edit', kind: 'plain', status: { text: 'Ready', tone: 'idle' }, summary: 'No pad selected',
+      return L.pane({ id: 'pb-pad', title: 'Pad', icon: 'edit', kind: 'plain', summary: 'No pad selected',
         body: '<p class="empty">Select a pad to change it, or click an empty slot to add one.</p>' });
     }
     var p = sel.pad, other = keyOwner(b, p.key, p.id), on = L.padActive(b.id, p.id);
@@ -8147,7 +8292,7 @@ var L = (function () {
       '<div class="pb-testrow"><button class="btn pb-prev" data-act="pbpreview" data-k="pb-prev" aria-pressed="' + previewing(b, p) + '" title="Only you hear it">' + L.icon(previewing(b, p) ? 'stop' : 'headphones', 's') + (previewing(b, p) ? 'Stop preview' : 'Preview') + '</button>' +
       '<button class="btn" data-act="pbtest" data-k="pb-test" aria-pressed="' + on + '" title="The players hear it">' + L.icon(on && p.mode === 'toggle' ? 'stop' : 'broadcast', 's') + (on && p.mode === 'toggle' ? 'Stop on air' : 'Play on air') + '</button>' +
       (on ? L.destTag('air', '') : '') + '</div>' +
-      '<div class="field"><label for="pb-label">Label</label><input id="pb-label" class="input" data-input="pblabel" data-k="pb-label" value="' + esc(p.label) + '"></div>' +
+      '<div class="field"><label for="pb-label">Label</label><input id="pb-label" class="input" data-input="pblabel" data-k="pb-label" data-save="pad label {v}" value="' + esc(p.label) + '"></div>' +
       soundEditor(p) +
       fieldset('Play mode', '<div class="pb-modes" role="group" aria-label="Play mode">' + ['oneshot', 'toggle', 'hold', 'retrigger'].map(function (m) {
         return '<button class="btn s" data-act="pbmode" data-v="' + m + '" data-k="pbm-' + m + '" aria-pressed="' + (p.mode === m) + '" aria-describedby="pb-modehelp" title="' + MODE_HELP[m] + '">' + L.icon(L.modeIcon[m], 's') + L.modeName[m] + '</button>';
@@ -8158,16 +8303,17 @@ var L = (function () {
       (ui.capture || sel.where === 'spare' ? '<p class="hint" id="pb-key-h">' + (ui.capture ? 'Esc cancels, Backspace removes the key.' : 'This pad is spare, so its key does nothing until it is back on the grid.') + '</p>' : '') +
       (other ? '<p class="pb-warn" role="alert">' + L.icon('bolt', 's') + '<span class="grow">' + esc(String(p.key).toUpperCase()) + ' is also the key for "' + esc(other.label) + '" on this board.</span><button class="btn s" data-act="pbkeyswap" data-other="' + other.id + '" data-k="pb-keyswap">Take it from that pad</button></p>' : '') + '</div>' +
       fieldset('Colour <span class="pb-cur">' + COLOUR_NAMES[p.color] + '</span>', '<div class="pb-swatches">' + Object.keys(L.colors).map(function (c) {
-        return '<label class="pb-sw" title="' + COLOUR_NAMES[c] + '" style="--pc:' + L.colors[c] + '"><input type="radio" class="pb-vh" name="pb-colour" value="' + c + '" data-input="pbcolour" data-k="pbc-' + c + '"' + (p.color === c ? ' checked' : '') + '><span class="pb-sw-dot"></span><span class="sr-only">' + COLOUR_NAMES[c] + '</span></label>';
+        return '<label class="pb-sw" title="' + COLOUR_NAMES[c] + '" style="--pc:' + L.colors[c] + '"><input type="radio" class="pb-vh" name="pb-colour" value="' + c + '" data-input="pbcolour" data-k="pbc-' + c + '" data-save="' + esc(p.label) + ' colour"' + (p.color === c ? ' checked' : '') + '><span class="pb-sw-dot"></span><span class="sr-only">' + COLOUR_NAMES[c] + '</span></label>';
       }).join('') + '</div>') +
       fieldset('Icon <span class="pb-cur">' + esc(ICON_NAMES[p.icon] || p.icon) + '</span>', '<div class="pb-icons">' + PAD_ICONS.map(function (n) {
-        return '<label class="pb-ic" title="' + ICON_NAMES[n] + '"><input type="radio" class="pb-vh" name="pb-icon" value="' + n + '" data-input="pbicon" data-k="pbi-' + n + '"' + (p.icon === n ? ' checked' : '') + '>' + L.icon(n) + '<span class="sr-only">' + ICON_NAMES[n] + '</span></label>';
+        return '<label class="pb-ic" title="' + ICON_NAMES[n] + '"><input type="radio" class="pb-vh" name="pb-icon" value="' + n + '" data-input="pbicon" data-k="pbi-' + n + '" data-save="' + esc(p.label) + ' icon"' + (p.icon === n ? ' checked' : '') + '>' + L.icon(n) + '<span class="sr-only">' + ICON_NAMES[n] + '</span></label>';
       }).join('') + '</div>') +
-      '<div class="pb-levels"><div class="field grow"><label for="pb-vol">Volume <output id="pb-vol-o" class="num">' + p.vol + '</output></label><input id="pb-vol" type="range" min="0" max="100" step="5" value="' + p.vol + '" data-input="pbvol" data-k="pb-vol"></div>' +
-      '<div class="field pb-fade"><label for="pb-fadein">Fade out (seconds)</label><input id="pb-fadein" class="input num" type="number" min="0" max="10" step="0.5" value="' + p.fade + '" data-input="pbfade" data-k="pb-fade"></div></div>' +
+      '<div class="pb-levels"><div class="field grow"><label for="pb-vol">Volume <output id="pb-vol-o" class="num">' + p.vol + '</output></label><input id="pb-vol" type="range" min="0" max="100" step="5" value="' + p.vol + '" data-input="pbvol" data-k="pb-vol" data-save="' + esc(p.label) + ' volume"></div>' +
+      '<div class="field pb-fade"><label for="pb-fadein">Fade out (seconds)</label><input id="pb-fadein" class="input num" type="number" min="0" max="10" step="0.5" value="' + p.fade + '" data-input="pbfade" data-k="pb-fade" data-save="' + esc(p.label) + ' fade"></div></div>' +
       '</div>';
     return L.pane({ id: 'pb-pad', title: 'Pad: ' + p.label, icon: 'edit', kind: 'plain', scroll: 'pb-pad',
-      status: on ? { text: 'Playing', tone: 'live' } : previewing(b, p) ? { text: 'Preview', tone: 'on' } : { text: 'Saved', tone: 'idle' },
+      // Round 6, part 5: no Saved status (changes show in the Saved pop-up).
+      status: on ? { text: 'Playing', tone: 'live' } : previewing(b, p) ? { text: 'Preview', tone: 'on' } : null,
       actions: '<button class="btn s icon" data-act="pbpadmenu" data-k="pb-padmenu" aria-haspopup="menu" aria-expanded="false" title="More" aria-label="More for this pad">' + L.icon('more', 's') + '</button>', body: body });
   }
   function usedPane(b) {
@@ -8208,6 +8354,7 @@ var L = (function () {
   });
 
   /* ---------- editor actions ---------- */
+  function padSaved(p, what) { L.saved(p.label + ' ' + what, { key: 'pad-' + p.id + what }); }
   function withPad(fn) { return function (el, ev) { var b = board(); if (!b) return; var s = selPad(b); if (!s) return; fn(b, s.pad, el, ev, s); }; }
   L.acts.pbsize = function (el) {
     if (el.getAttribute('aria-disabled') === 'true') { L.say(el.dataset.d > 0 ? 'Already at the largest size, 8' : 'Already at the smallest size, 1'); return; }
@@ -8238,7 +8385,7 @@ var L = (function () {
   L.acts.pbputall = function () {
     var b = board(), n = 0;
     while (b.spare.length && b.slots.indexOf(null) > -1) { b.slots[b.slots.indexOf(null)] = b.spare.shift(); n++; }
-    L.say(plural(n, 'pad') + ' put back in the grid' + (b.spare.length ? '; ' + b.spare.length + ' still spare' : '')); L.render();
+    L.say(plural(n, 'pad') + ' put back in the grid' + (b.spare.length ? '; ' + b.spare.length + ' still spare' : '')); L.render(); L.saved('layout of ' + b.name, { key: 'layout-' + b.id });
   };
   L.acts.pbtest = withPad(function (b, p) { firePad(b, p); });
   L.acts.pbtrymode = function () { ui.trying = !ui.trying; if (!ui.trying) stopTries(); ui.pendingFocus = 'pb-trymode'; L.render(); L.say(ui.trying ? 'Trying pads: press a pad or its key to hear it as it will play. Only you hear it.' : 'Stopped trying pads'); };
@@ -8258,18 +8405,18 @@ var L = (function () {
     var k = el.dataset.v; if (p.sound.kind === k) return;
     p.sound.kind = k; p.sound.files = p.sound.files || []; if (k === 'variants' && !p.sound.order) p.sound.order = 'random';
     if (k === 'tag' && !p.sound.tag) p.sound.tag = (p.sound.files[0] || '').split(/[_.]/)[0] || '';
-    L.render();
+    L.render(); padSaved(p, 'sound');
   });
   L.acts.pbaddfile = withPad(function (b, p) {
     var s = p.sound, base = s.files[0] ? s.files[0].replace(/(_\d+)?\.wav$/i, '') : slug(p.label), name;
     if (s.kind === 'single') { name = base + (s.files[0] ? '_alt' : '') + '.wav'; if (s.files.length) s.files[0] = name; else s.files.push(name); L.say('File chosen: ' + name); }
     if (p.label === 'New pad' && name) p.label = name.replace(/\.wav$/i, '').replace(/_/g, ' ');
     else { var i = s.files.length + 1; do { name = base + '_' + String(i++).padStart(2, '0') + '.wav'; } while (s.files.indexOf(name) > -1); s.files.push(name); L.say('Added ' + name + '. ' + s.files.length + ' variants.'); }
-    L.render();
+    L.render(); padSaved(p, 'sound');
   });
   L.acts.pbpicklib = withPad(function (b, p) {
     var s = p.sound, cur = D.tracks.filter(function (t) { return t.kind === 'fx' && s.files.indexOf(t.file) > -1; }).map(function (t) { return t.id; });
-    L.pickTracks({ title: 'Sounds for "' + p.label + '"', kinds: ['fx'], selected: cur, multi: true,
+    L.pickTracks({ title: 'Sounds for "' + p.label + '"', kinds: ['fx'], selected: cur, multi: true, saved: p.label + ' sound',
       intro: 'Tick one effect, or several to play them as variants. Preview lets you hear each one first; the players hear nothing.',
       onDone: function (ids) {
         if (!ids.length) return;
@@ -8282,14 +8429,14 @@ var L = (function () {
         L.say(plural(files.length, 'sound') + ' from the library on ' + p.label);
       } });
   });
-  L.acts.pbrmfile = withPad(function (b, p, el) { var f = p.sound.files.splice(+el.dataset.i, 1)[0]; L.say('Removed ' + f); ui.pendingFocus = 'pb-addfile'; L.render(); });
-  L.acts.pborder = withPad(function (b, p, el) { p.sound.order = el.dataset.v; L.render(); });
+  L.acts.pbrmfile = withPad(function (b, p, el) { var f = p.sound.files.splice(+el.dataset.i, 1)[0]; L.say('Removed ' + f); ui.pendingFocus = 'pb-addfile'; L.render(); padSaved(p, 'sound'); });
+  L.acts.pborder = withPad(function (b, p, el) { p.sound.order = el.dataset.v; L.render(); padSaved(p, 'order of variants'); });
   L.inputs.pbtag = withPad(function (b, p, el) { p.sound.tag = el.value; L.render(); });
-  L.acts.pbmode = withPad(function (b, p, el) { p.mode = el.dataset.v; L.say(L.modeName[p.mode] + '. ' + MODE_HELP[p.mode]); L.render(); });
+  L.acts.pbmode = withPad(function (b, p, el) { p.mode = el.dataset.v; L.say(L.modeName[p.mode] + '. ' + MODE_HELP[p.mode]); L.render(); padSaved(p, 'play mode'); });
   L.acts.pbkeycap = function () { ui.capture = !ui.capture; L.render(); };
-  L.acts.pbkeyclear = withPad(function (b, p) { p.key = ''; L.say('Hotkey removed'); ui.pendingFocus = 'pb-keycap'; L.render(); });
+  L.acts.pbkeyclear = withPad(function (b, p) { p.key = ''; L.say('Hotkey removed'); ui.pendingFocus = 'pb-keycap'; L.render(); padSaved(p, 'hotkey'); });
   L.acts.pbkeyswap = withPad(function (b, p, el) {
-    var o = find(b, el.dataset.other); if (!o) return; o.pad.key = ''; L.say(String(p.key).toUpperCase() + ' now belongs to ' + p.label + ' only. ' + o.pad.label + ' has no key.'); ui.pendingFocus = 'pb-keycap'; L.render();
+    var o = find(b, el.dataset.other); if (!o) return; o.pad.key = ''; L.say(String(p.key).toUpperCase() + ' now belongs to ' + p.label + ' only. ' + o.pad.label + ' has no key.'); padSaved(p, 'hotkey'); ui.pendingFocus = 'pb-keycap'; L.render();
   });
   L.inputs.pbcolour = withPad(function (b, p, el) { p.color = el.value; L.render(); });
   L.inputs.pbicon = withPad(function (b, p, el) { p.icon = el.value; L.render(); });
@@ -8409,7 +8556,7 @@ var L = (function () {
       s.pad.key = e.key.length === 1 ? e.key.toLowerCase() : e.key; ui.capture = false;
       var o = keyOwner(b, s.pad.key, s.pad.id); L.say('Hotkey ' + e.key.toUpperCase() + (o ? '. Warning: ' + o.label + ' uses it too' : ''));
     } else { L.say('That key cannot be used. Try a letter, a number or F1 to F12.'); return; }
-    L.render();
+    L.render(); if (e.key !== 'Escape') padSaved(s.pad, 'hotkey');
   }, true);
   document.addEventListener('focusout', function (e) { if (ui.capture && e.target.dataset && e.target.dataset.k === 'pb-keycap') setTimeout(function () { if (ui.capture && (!document.activeElement || document.activeElement.dataset.k !== 'pb-keycap')) { ui.capture = false; L.render(); } }, 0); });
 
@@ -8417,7 +8564,7 @@ var L = (function () {
     return [
       '<b>Round 5:</b> <b>resizing fills the grid</b> left to right, top to bottom, in pad order; pads go to Spare pads only when the grid is full, and spare pads come back when it grows (Undo puts the old layout back). Try Weather and places: Fewer rows, then More rows.',
       '<b>Round 5:</b> each pad has a violet <b>▶ Preview</b> on its tile, and <b>Try pads</b> (in the Pads header) lets you press pads and their keys to hear them play as in Live (one-shot, toggle loop, hold to play, restart on press) in your headphones only.',
-      '<b>Less on screen.</b> Each box has one job and one status pill in its header: <b>Pads</b> (12 pads, or n sounding), <b>Spare pads</b> (Empty or n pads), <b>Pad</b> (Saved, Preview or Playing) and <b>Used in</b>. Effects boxes share the FX edge colour used across Lyre.',
+      '<b>Less on screen.</b> Each box has one job and one status pill in its header: <b>Pads</b> (12 pads, or n sounding), <b>Spare pads</b> (Empty or n pads), <b>Pad</b> (Preview or Playing; saving shows in the Saved pop-up) and <b>Used in</b>. Effects boxes share the FX edge colour used across Lyre.',
       '<b>Quieter pads:</b> a tile shows the label, the key and a small mode icon; the colour stripe is the pad\'s identity. Everything else is in the Pad box when you select it. The headphones button on a tile (or P, or a double-click) previews it to you only.',
       '<b>Same buttons everywhere:</b> Preview, then Play on air, then ⋯ for the rest (Duplicate, Move to…, Delete, Use in…). Right-click a pad for its menu.',
       '<b>Spare pads</b> hold pads that are not on the grid. Make a board smaller and the pads that no longer fit go there, with an Undo; put them back when it grows. Their keys do nothing while spare. Try 3×3 on Drowned Abbey, then 5×3 and <b>Put all back</b>.',
@@ -8984,8 +9131,9 @@ var L = (function () {
       }).join('') + '</ol>' +
       (compact && s.scenes.length > 2 ? '<button class="lv-more lv-allsc" data-act="lvallsc" data-k="lv-allsc" aria-expanded="' + !!S.allScenes + '">' + (S.allScenes ? 'Show only Now and Next' : 'Show all ' + s.scenes.length + ' scenes') + '</button>' : '');
     var cur = s.scenes[now];
+    // Round 6, part 5 (Nik, 6 Nov 16:14: "Let's kill ready, seems dumb. Kill the scene count, unnecessary."): no status;
+    // the list's Now and Next say where the evening is, and the folded box says them in its summary.
     return L.pane({ id: 'lv-scenes', title: 'Scenes', icon: 'scroll', kind: 'scenes', size: 'auto', flush: true, noMax: true, keys: 'Alt+1', body: body,
-      status: S.notStarted ? { text: 'Ready', tone: 'idle' } : { text: 'Scene ' + (now + 1) + ' of ' + s.scenes.length, tone: 'on' },
       summary: collapsed('lv-scenes') ? (cur ? 'Now: ' + esc(cur.name) : '') + (n ? (cur ? ' · ' : '') + 'Next: ' + esc(n.name) : '') : '' });
   }
   /* SHW-7, round 6 part 3 (Nik, 6 Nov 12:24: "expand each scene, and choose to play it or not, and see its details,

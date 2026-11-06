@@ -216,7 +216,7 @@
     var onAir = onAirNow(t);
     var h = '<div class="lb-d">';
     if (t.missing) h += '<p class="lb-missing" role="note">' + L.icon('warn', 's') + '<span class="grow">Lyre cannot find this file where it was.</span><a class="btn s" href="#/relink" data-k="lb-relink1" title="Point Lyre at the folder it moved to">Relink…</a></p>';
-    h += '<div class="field"><label for="lb-title">Your title</label><input id="lb-title" class="input" data-input="lbtitle" data-k="lb-title" value="' + esc(t.title) + '" placeholder="A title you will recognise at the table"></div>';
+    h += '<div class="field"><label for="lb-title">Your title</label><input id="lb-title" class="input" data-input="lbtitle" data-k="lb-title" data-save="title {v}" value="' + esc(t.title) + '" placeholder="A title you will recognise at the table"></div>';
     if (!t.title && t.metaTitle) h += '<p class="lb-warn"><button class="btn s ghost" data-act="lbusemeta" data-k="lb-usemeta">' + L.icon('edit', 's') + 'Use the title in the file</button></p>';
     h += '<dl class="lb-names">' +
       '<dt>Title in the file</dt><dd>' + (t.metaTitle ? esc(t.metaTitle) : '<span class="lb-none">The file has no title</span>') + '</dd>' +
@@ -246,7 +246,7 @@
       '<div class="lb-tg lb-normrow">' + L.normChoice({ id: 'lb-norm', value: t.norm, act: 'lbnorm', line: L.normLine(t), hint: normHint(t) }) + '</div>' +
       '<div class="lb-tg"><div class="lb-tgl">Role</div>' + choiceChips('lbrole', (t.kind === 'fx' ? ['Effect'].concat(ROLES) : ROLES).map(function (r) { return [r, r]; }), t.role, 'Role') + '</div>' +
       '<div class="lb-tg"><div class="lb-tgl">Looping</div>' + choiceChips('lbloop', LOOPS, t.loop, 'Loop advice') + '</div>' +
-      '<div class="lb-tg"><label class="lb-tgl" for="lb-notes">Notes</label><textarea id="lb-notes" class="input" rows="2" data-input="lbnotes" data-k="lb-notes" placeholder="Cues, where it fades, what it reminds you of">' + esc(t.notes) + '</textarea></div></section>';
+      '<div class="lb-tg"><label class="lb-tgl" for="lb-notes">Notes</label><textarea id="lb-notes" class="input" rows="2" data-input="lbnotes" data-k="lb-notes" data-save="' + esc(L.title(t)) + ' notes" placeholder="Cues, where it fades, what it reminds you of">' + esc(t.notes) + '</textarea></div></section>';
     var man = pls.filter(function (p) { return p.kind === 'manual'; }), dyn = pls.filter(function (p) { return p.kind === 'dynamic'; });
     h += '<section class="lb-sec" aria-labelledby="lb-h-pl"><div class="lb-hrow"><h3 class="lb-h" id="lb-h-pl">In playlists</h3><button class="btn s" data-act="lbpladdmenu" data-k="lb-pladd" aria-haspopup="menu" aria-expanded="false">' + L.icon('plus', 's') + 'Add to playlist</button></div>';
     h += pls.length ? '<ul class="lb-pls">' + man.map(function (p) {
@@ -286,7 +286,7 @@
   L.acts.lbnorm = function (el) {
     var t = L.track(L.current().p.tid); if (!t) return;
     if (el.dataset.v === 'library') delete t.norm; else t.norm = el.dataset.v;
-    L.render(); var b = document.querySelector('[data-k="lb-norm-' + el.dataset.v + '"]'); if (b) b.focus();
+    L.render(); var b = document.querySelector('[data-k="lb-norm-' + el.dataset.v + '"]'); if (b) b.focus(); L.saved(L.title(t) + ' volume setting');
     L.say('Normalise volume: ' + L.normLine(t));
   };
   // One line describing the track's audio profile, e.g. "Ends at 5:18, then loops from 1:04".
@@ -317,7 +317,7 @@
     notesTitle: 'Library: what changed',
     notes: [
       '<b>Round 5:</b> a track\'s <b>Shape</b> (Steady, Builds, Falls away, Peaks then falls, Rises and falls) is suggested from its loudness and can be changed in its details; filter by shape. <b>Names in scenes</b> sit with its other names. <b>Use in…</b> adds it to campaigns, sessions and scenes. Files Lyre cannot find show <b>Missing</b> and have a filter; ⋯ beside Add tracks has <b>Back up, move or share</b>, <b>Find missing files</b> and <b>What came across from Kenku FM</b>.',
-      'Less on screen: one line per track (your title, then the file\'s title in small type when it differs), one tag, then Preview, Play on air and ⋯ for the rest. Artist, album and the other tags are in the details and on hover. Each box shows one status: the track count or <i>n selected</i>, and <i>Saved</i> or <i>Playing</i> for the open track.',
+      'Less on screen: one line per track (your title, then the file\'s title in small type when it differs), one tag, then Preview, Play on air and ⋯ for the rest. Artist, album and the other tags are in the details and on hover. Each box shows at most one status: the track count or <i>n selected</i>, and <i>Playing</i> for the open track. Changes show in the Saved pop-up (round 6 part 5).',
       'Every row now has <b>Preview</b> (headphones: only you hear it) and <b>Play on air</b> (the players hear it). With a row focused, <b>P</b> previews and <b>A</b> plays on air.',
       'Filters: <b>All / Music / Ambience / FX</b>. FX lists sound effects and stings; rows show a small Amb, FX or Sting marker.',
       '<b>Used in</b> (in a track\'s details) lists scenes that use the track <i>directly</i> as well as scenes that reach it <i>through</i> a playlist, and says which.',
@@ -350,7 +350,8 @@
       function dPane(strip) {
         return L.pane({ id: 'lb-details', title: 'Details', icon: 'file', cls: 'lb-details' + (strip ? ' lb-strip' : ''), scroll: 'lb-details-' + (t ? t.id : 'none'),
           kind: 'plain', summary: t && dC ? esc(L.title(t)) : '',
-          status: t ? (onAirNow(t) ? { text: 'Playing', tone: 'live' } : { text: 'Saved' }) : { text: 'Empty' },
+          // Round 6, part 5: no Saved status; changes show in the Saved pop-up.
+          status: t ? (onAirNow(t) ? { text: 'Playing', tone: 'live' } : null) : { text: 'Empty' },
           actions: t && mode !== 'narrow' ? '<button class="closer" data-act="lbclose" data-k="lb-close" title="Close details" aria-label="Close details">' + L.icon('close') + '</button>' : '',
           body: t ? detailsBody(t) : emptyDetails() });
       }
@@ -441,7 +442,8 @@
     var id = el.dataset.tid;
     L.pickerSheet({ title: 'Add "' + L.title(L.track(id)) + '" to playlists', multi: true, okLabel: 'Add',
       items: D.playlists.filter(function (p) { return p.kind === 'manual' && p.items.indexOf(id) < 0; }).map(function (p) { return { id: p.id, label: p.name, sub: plural(p.items.length, 'track'), group: L.kindName[p.lane] }; }),
-      onDone: function (ids) { ids.forEach(function (pid) { L.playlist(pid).items.push(id); }); if (ids.length) L.toast('Added to ' + plural(ids.length, 'playlist')); } });
+      saved: 'playlists of ' + L.title(L.track(id)),
+      onDone: function (ids) { ids.forEach(function (pid) { L.playlist(pid).items.push(id); }); } });
   };
   L.acts.lbbclear = function () { st.sel = []; L.render(); L.say('Selection cleared'); var q = document.querySelector('[data-k="lb-q"]'); if (q) q.focus(); };
   L.acts.lbprev = function (el) { L.preview(el.dataset.tid); };
@@ -464,30 +466,30 @@
   /* ---------- details actions ---------- */
   function cur() { var p = L.current().p; return p.tid ? L.track(p.tid) : null; }
   L.inputs.lbtitle = function (el) { var t = cur(); if (!t) return; t.title = el.value; settle(t); L.render(); };
-  L.acts.lbusemeta = function () { var t = cur(); if (!t) return; t.title = t.metaTitle; settle(t); L.render(); var f = document.querySelector('[data-k="lb-title"]'); if (f) { f.focus(); f.select(); } L.say('Your title is now ' + t.title + '. Type to change it.'); };
+  L.acts.lbusemeta = function () { var t = cur(); if (!t) return; t.title = t.metaTitle; settle(t); L.render(); var f = document.querySelector('[data-k="lb-title"]'); if (f) { f.focus(); f.select(); } L.say('Your title is now ' + t.title + '. Type to change it.'); L.saved('title “' + t.title + '”', { key: 'lb-title' }); };
   L.inputs.lbnotes = function (el) { var t = cur(); if (t) t.notes = el.value; };
-  L.acts.lbenergy = function (el) { var t = cur(), v = +el.dataset.v; t.energy = t.energy === v ? 0 : v; L.render(); L.say(t.energy ? 'Energy ' + v : 'Energy cleared'); };
+  L.acts.lbenergy = function (el) { var t = cur(), v = +el.dataset.v; t.energy = t.energy === v ? 0 : v; L.render(); L.say(t.energy ? 'Energy ' + v : 'Energy cleared'); L.saved(L.title(t) + ' energy'); };
   // Choosing the shape Lyre suggests is the same as no choice of your own: it keeps following the suggestion.
-  L.acts.lbshape = function (el) { var t = cur(), v = el.dataset.v; t.shape = v === L.suggestedShape(t) ? null : v; L.render(); L.say('Shape: ' + L.shapeName[L.shapeOf(t)] + (t.shape ? '' : ', as Lyre suggests')); };
-  L.acts.lbshapeauto = function () { var t = cur(); t.shape = null; L.render(); L.say('Shape: ' + L.shapeName[L.shapeOf(t)] + ', as Lyre suggests'); };
-  L.acts.lbrole = function (el) { var t = cur(); t.role = t.role === el.dataset.v ? '' : el.dataset.v; L.render(); };
-  L.acts.lbloop = function (el) { var t = cur(); t.loop = t.loop === el.dataset.v ? '' : el.dataset.v; L.render(); };
+  L.acts.lbshape = function (el) { var t = cur(), v = el.dataset.v; t.shape = v === L.suggestedShape(t) ? null : v; L.render(); L.say('Shape: ' + L.shapeName[L.shapeOf(t)] + (t.shape ? '' : ', as Lyre suggests')); L.saved(L.title(t) + ' shape'); };
+  L.acts.lbshapeauto = function () { var t = cur(); t.shape = null; L.render(); L.say('Shape: ' + L.shapeName[L.shapeOf(t)] + ', as Lyre suggests'); L.saved(L.title(t) + ' shape'); };
+  L.acts.lbrole = function (el) { var t = cur(); t.role = t.role === el.dataset.v ? '' : el.dataset.v; L.render(); L.saved(L.title(t) + ' role'); };
+  L.acts.lbloop = function (el) { var t = cur(); t.loop = t.loop === el.dataset.v ? '' : el.dataset.v; L.render(); L.saved(L.title(t) + ' loop advice'); };
   L.acts.lbcopy = function () { var t = cur(), p = t.folder + '\\' + t.file; try { navigator.clipboard.writeText(p).catch(function () {}); } catch (e) { /* clipboard unavailable in the prototype */ } L.toast('Path copied: ' + p); };
   L.acts.lbshow = function () { L.toast('Lyre would open ' + cur().folder + ' in File Explorer'); };
   function onAir(t) { L.play(t.id, { fade: 3 }); L.toast('On air: ' + L.title(t)); }
   L.acts.lbonair = function () { onAir(cur()); };
   L.acts.lbuntag = function (el) {
     var t = cur(), g = el.dataset.g, v = el.dataset.v; t.tags[g] = t.tags[g].filter(function (x) { return x !== v; });
-    L.render(); L.say('Removed ' + v + ' from ' + groupName(g)); var f = document.querySelector('[data-k="lb-cbx-' + g + '"]'); if (f) f.focus();
+    L.render(); L.say('Removed ' + v + ' from ' + groupName(g)); var f = document.querySelector('[data-k="lb-cbx-' + g + '"]'); if (f) f.focus(); L.saved(L.title(t) + ' tags', { key: 'lb-tags' });
   };
-  L.acts.lbplrm = function (el) { var t = cur(), p = L.playlist(el.dataset.pid); p.items = p.items.filter(function (x) { return x !== t.id; }); L.render(); L.toast('Removed from ' + p.name); var b = document.querySelector('[data-k="lb-pladd"]'); if (b) b.focus(); };
+  L.acts.lbplrm = function (el) { var t = cur(), p = L.playlist(el.dataset.pid); p.items = p.items.filter(function (x) { return x !== t.id; }); L.render(); L.saved(p.name, { detail: 'removed ' + L.title(t) }); var b = document.querySelector('[data-k="lb-pladd"]'); if (b) b.focus(); };
   L.acts.lbpladdmenu = function (el) {
     var t = cur(), opts = D.playlists.filter(function (p) { return p.kind === 'manual' && (p.lane === t.kind || (p.lane === 'fx' && L.isFx(t))) && p.items.indexOf(t.id) < 0; });
     L.menu(el, '<div class="group">Manual playlists: ' + L.kindName[t.kind] + (t.kind !== 'fx' && L.isFx(t) ? ' and FX' : '') + '</div>' +
       (opts.length ? opts.map(function (p) { return '<button role="menuitem" data-act="lbpladd" data-pid="' + p.id + '">' + L.icon('playlist', 's') + '<span class="ellipsis grow">' + esc(p.name) + '</span><span class="hint">' + p.items.length + '</span></button>'; }).join('') : '<div class="group">It is already in all of them.</div>') +
       '<div class="sep"></div><button role="menuitem" data-act="lbplnew1">' + L.icon('plus', 's') + 'New playlist with this track</button>', 'Add to playlist');
   };
-  L.acts.lbpladd = function (el) { var t = cur(), p = L.playlist(el.dataset.pid); p.items.push(t.id); L.render(); L.toast('Added to ' + p.name); var b = document.querySelector('[data-k="lb-pladd"]'); if (b) b.focus(); };
+  L.acts.lbpladd = function (el) { var t = cur(), p = L.playlist(el.dataset.pid); p.items.push(t.id); L.render(); L.saved(p.name, { detail: 'added ' + L.title(t) }); var b = document.querySelector('[data-k="lb-pladd"]'); if (b) b.focus(); };
   function newPlaylist(ids) {
     var tracks = ids.map(L.track).filter(Boolean), count = { music: 0, amb: 0, fx: 0 }; tracks.forEach(function (t) { count[t.kind]++; });
     var n = 1; while (D.playlists.some(function (p) { return p.name === 'New playlist ' + n; })) n++;
@@ -506,7 +508,7 @@
     if (!known) D.tagValues[g].push(v); else v = known;
     if (t.tags[g].indexOf(v) < 0) t.tags[g].push(v);
     settle(t); cbx = { g: g, q: '', act: 0, open: false };
-    L.render(); L.say((known ? 'Added ' : 'Created and added ') + v + ' to ' + groupName(g));
+    L.render(); L.say((known ? 'Added ' : 'Created and added ') + v + ' to ' + groupName(g)); L.saved(L.title(t) + ' tags', { key: 'lb-tags' });
   }
   L.inputs.lbcbx = function (el) { cbx = { g: el.dataset.g, q: el.value, act: 0, open: true }; L.render(); };
   L.acts.lbcbxopen = function (el) { if (cbx.g !== el.dataset.g || !cbx.open) { cbx = { g: el.dataset.g, q: el.value, act: 0, open: true }; L.render(); } };

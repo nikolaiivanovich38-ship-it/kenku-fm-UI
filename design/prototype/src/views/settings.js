@@ -70,7 +70,7 @@
   L.acts.sttoksave = function (el) {
     var b = L.bot(el.dataset.id), f = document.getElementById('st-tok-' + el.dataset.id), v = f ? f.value.trim() : '';
     if (!v) { L.toast('Paste the token first'); if (f) f.focus(); return; }
-    b.token = v.slice(-4); S.replacing = ''; L.say('New token saved for ' + b.name); connect(b);
+    b.token = v.slice(-4); S.replacing = ''; L.say('New token saved for ' + b.name); L.saved(b.name + ' token'); connect(b);
     var c = document.querySelector('[data-k="st-b-' + b.id + '-conn"]'); if (c) c.focus();
   };
   L.acts.stbotmenu = function (el) {
@@ -83,7 +83,7 @@
     L.sheet({ title: 'Rename ' + b.name, body: '<div class="field"><label for="st-ren">Name in Lyre</label><input class="input" id="st-ren" value="' + esc(b.name) + '" autocomplete="off"></div>',
       footer: '<button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="stbotrensave" data-id="' + b.id + '">Rename</button>' });
   };
-  L.acts.stbotrensave = function (el) { var b = L.bot(el.dataset.id), v = document.getElementById('st-ren').value.trim(); if (v) b.name = v; L.closeSheet(); L.render(); L.say('Renamed ' + b.name); };
+  L.acts.stbotrensave = function (el) { var b = L.bot(el.dataset.id), v = document.getElementById('st-ren').value.trim(); if (v) b.name = v; L.closeSheet(); L.render(); L.say('Renamed ' + b.name); if (v) L.saved('name “' + v + '”'); };
   // Removing a bot takes it out of its voice channel and forgets its token; Undo puts it back as it was.
   L.acts.stbotrm = function (el) {
     var list = D.discord.bots, i = list.map(function (b) { return b.id; }).indexOf(el.dataset.id); if (i < 0 || list.length < 2) return;
@@ -167,7 +167,7 @@
   /* ---------- the other settings ---------- */
   function sw(id, label, on, act, o) {
     o = o || {};
-    return '<label class="lv-switch st-sw' + (o.disabled ? ' dis' : '') + '"' + (o.title ? ' title="' + esc(o.title) + '"' : '') + '><input type="checkbox" role="switch" data-input="' + act + '" data-k="st-' + id + '"' + (on ? ' checked' : '') + (o.disabled ? ' disabled aria-describedby="st-' + id + '-why"' : '') + '><span class="lv-switch-t"><b>' + label + '</b></span></label>' +
+    return '<label class="lv-switch st-sw' + (o.disabled ? ' dis' : '') + '"' + (o.title ? ' title="' + esc(o.title) + '"' : '') + '><input type="checkbox" role="switch" data-input="' + act + '" data-k="st-' + id + '" data-save="setting: ' + esc(label) + '"' + (on ? ' checked' : '') + (o.disabled ? ' disabled aria-describedby="st-' + id + '-why"' : '') + '><span class="lv-switch-t"><b>' + label + '</b></span></label>' +
       (o.disabled && o.why ? '<span class="sr-only" id="st-' + id + '-why">' + esc(o.why) + '</span>' : '');
   }
   var MODES = [['quality', 'Best sound quality', 'Clearer sound; works the computer a little harder.'], ['light', 'Lighter on the computer', 'Leaves more power for other programs; slightly less clear.']];
@@ -176,11 +176,11 @@
       return '<button role="radio" aria-checked="' + (S.mode === m[0]) + '" data-act="stmode" data-v="' + m[0] + '" data-k="st-mode-' + m[0] + '" title="' + esc(m[2]) + '">' + m[1] + '</button>';
     }).join('') + '</div>';
   }
-  L.acts.stmode = function (el) { S.mode = el.dataset.v; L.say(el.textContent + '. Applies the next time a bot joins a voice channel.'); L.render(); };
+  L.acts.stmode = function (el) { S.mode = el.dataset.v; L.say(el.textContent + '. Applies the next time a bot joins a voice channel.'); L.render(); L.saved('setting: ' + el.textContent, { key: 'st-mode' }); };
   function remoteBody() {
     return sw('remote', 'Stream Deck and other programs', S.remote, 'stremote', { title: 'Lets the Kenku FM Stream Deck plugin or another program control Lyre' }) +
-      '<div class="row-flex st-addr"><div class="field"><label for="st-ra">Address</label><input class="input num" id="st-ra" data-input="stra" value="' + esc(S.address) + '"' + (S.remote ? ' disabled' : '') + ' title="127.0.0.1: only programs on this computer"></div>' +
-      '<div class="field"><label for="st-rp">Port</label><input class="input num" id="st-rp" data-input="strp" value="' + esc(S.port) + '"' + (S.remote ? ' disabled' : '') + '></div></div>' +
+      '<div class="row-flex st-addr"><div class="field"><label for="st-ra">Address</label><input class="input num" id="st-ra" data-input="stra" data-k="st-ra" data-save="setting: remote control address" value="' + esc(S.address) + '"' + (S.remote ? ' disabled' : '') + ' title="127.0.0.1: only programs on this computer"></div>' +
+      '<div class="field"><label for="st-rp">Port</label><input class="input num" id="st-rp" data-input="strp" data-k="st-rp" data-save="setting: remote control port" value="' + esc(S.port) + '"' + (S.remote ? ' disabled' : '') + '></div></div>' +
       '<a class="st-link" href="https://github.com/owlbear-rodeo/kenku-fm" target="_blank" rel="noopener" data-act="stdeck" data-k="st-deck">About the Kenku FM Stream Deck plugin</a>';
   }
   L.inputs.stremote = function (el) { S.remote = el.checked; L.say('Remote control ' + (S.remote ? 'on' : 'off')); L.render(); };
@@ -201,7 +201,7 @@
       return '<li class="lrow"><span class="grow ellipsis num" title="' + esc(f) + '">' + esc(f) + '</span><button class="btn s ghost" data-act="stforget" data-i="' + i + '" data-k="st-forget-' + i + '" aria-label="Ask again before opening files in ' + esc(f) + '">Ask again</button></li>';
     }).join('') + '</ul>';
   }
-  L.acts.stforget = function (el) { var f = S.folders.splice(+el.dataset.i, 1)[0]; L.say('Lyre asks again before opening files in ' + f); L.render(); var h = document.querySelector('[data-k="pane-st-files"]'); if (h) h.focus(); };
+  L.acts.stforget = function (el) { var f = S.folders.splice(+el.dataset.i, 1)[0]; L.say('Lyre asks again before opening files in ' + f); L.render(); L.saved('setting: ask before opening files in ' + f); var h = document.querySelector('[data-k="pane-st-files"]'); if (h) h.focus(); };
 
   L.view('settings', {
     nav: 'settings',

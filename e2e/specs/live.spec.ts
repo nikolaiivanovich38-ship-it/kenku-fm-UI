@@ -39,7 +39,7 @@ test.describe("scenes and undo", () => {
     await openRoute(page, "live");
     await clickAway(page);
     await page.keyboard.press("Space");
-    await expect(region(page, "Scenes").getByText("Scene 1 of 6")).toBeVisible();
+    await expect(region(page, "Scenes").getByRole("button", { name: "Restart scene 1: Recap and the coast road" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Next scene: Greyhollow inn" })).toBeFocused();
     await expect(room(page, "Table").getByText("Playing")).toBeVisible();
   });
@@ -72,7 +72,7 @@ test.describe("scenes and undo", () => {
     await page.getByRole("button", { name: "Next scene: Greyhollow inn" }).click();
     await page.getByRole("button", { name: "Undo" }).click();
     await expect(page.getByRole("button", { name: "Next scene: Greyhollow inn" })).toBeVisible();
-    await expect(region(page, "Scenes").getByText("Scene 1 of 6")).toBeVisible();
+    await expect(region(page, "Scenes").getByRole("button", { name: "Restart scene 1: Recap and the coast road" })).toBeVisible();
   });
 
   test("the Undo strip goes away after about 8 seconds", async ({ page }) => {
@@ -485,7 +485,7 @@ test.describe("round 6: see a scene before it starts, Add to queue, Repeat, and 
     const abbeyRow = scenes(page).getByRole("listitem").filter({ has: page.getByRole("list", { name: "The abbey ruins: music in play order" }) });
     await expect(abbeyRow).toContainText(/Ambience: \S/);
     await expect(abbeyRow).toContainText(/Pad boards: \S/);
-    await expect(scenes(page).getByText("Scene 1 of 6")).toBeVisible();
+    await expect(scenes(page).getByRole("button", { name: "Restart scene 1: Recap and the coast road" })).toBeVisible();
     await expect(room(page, "Table")).not.toContainText("Eerie dread");
     await expect(scenes(page).getByRole("button", { name: "Start scene 3: The abbey ruins" })).toBeVisible();
   });
@@ -534,7 +534,7 @@ test.describe("round 6: see a scene before it starts, Add to queue, Repeat, and 
     await clickAway(page);
     await page.keyboard.press("Control+z");
     await expect(table.getByRole("list", { name: "Up next" })).not.toContainText("Added: The Abbess");
-    await expect(scenes(page).getByText("Scene 3 of 6")).toBeVisible();
+    await expect(scenes(page).getByRole("button", { name: "Restart scene 3: The abbey ruins" })).toBeVisible();
   });
 
   test("PLY-16: a track in an unfolded scene can be added to the queue before that scene starts", async ({ page }) => {
@@ -828,5 +828,38 @@ test.describe("round 6, part 4: the review's fixes in Live", () => {
   test("Could 21: the next scene's cue reads Starts when: and its words", async ({ page }) => {
     await openRoute(page, "live");
     await expect(scenes(page)).toContainText("Starts when: As the recap starts");
+  });
+});
+
+/* Round 6, part 5 (design/prototype/ROUND6.md "Part 5: the Saved pop-up"; Nik, 6 Nov 16:14: "Let's kill ready, seems
+   dumb. Kill the scene count, unnecessary."). Not built yet. */
+test.describe("round 6, part 5: Live's Scenes box and the Saved pop-up", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
+  const scenes = (page: Page) => region(page, "Scenes");
+
+  test("the Scenes box says neither Ready nor a scene count, before or after a scene starts, open or folded", async ({ page }) => {
+    await openRoute(page, "live");
+    await expect(scenes(page).getByText(/^Ready$|^Scene \d+ of \d+$|^\d+ scenes$/)).toHaveCount(0);
+    await startAbbey(page);
+    await expect(scenes(page).getByText(/^Ready$|^Scene \d+ of \d+$|^\d+ scenes$/)).toHaveCount(0);
+    await scenes(page).getByRole("button", { name: "Scenes", exact: true }).click();
+    await expect(scenes(page)).toContainText("Now: The abbey ruins");
+    await expect(scenes(page).getByText(/^Ready$|^Scene \d+ of \d+$|^\d+ scenes$/)).toHaveCount(0);
+  });
+
+  test("Repeat one saved with a scene shows the Saved pop-up under the top strip, clear of On air", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    const repeat = sceneMusic(page).getByRole("button", { name: /^Repeat one: / }).first();
+    await repeat.click();
+    const saved = page.getByRole("status").filter({ hasText: "Saved: Repeat one in The abbey ruins" });
+    await expect(saved).toBeVisible();
+    await expect(repeat).toBeFocused();
+    const pop = await saved.boundingBox();
+    const onAir = await region(page, "On air").boundingBox();
+    const strip = await page.getByRole("searchbox", { name: /^Find a track/ }).boundingBox();
+    if (!pop || !onAir || !strip) throw new Error("not on screen");
+    expect(pop.y + pop.height).toBeLessThanOrEqual(onAir.y);
+    expect(pop.y).toBeGreaterThanOrEqual(strip.y + strip.height);
   });
 });

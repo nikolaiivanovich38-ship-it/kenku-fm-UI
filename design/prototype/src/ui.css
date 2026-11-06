@@ -192,7 +192,21 @@ table.grid tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 v
 .notes h2 { font: 600 14px "Lora", Georgia, serif; margin-bottom: 2px; }
 .notes ul { padding-left: 18px; columns: 2 320px; column-gap: 24px; }
 .notes li { margin: 1px 0; break-inside: avoid; }
-.toast { position: fixed; left: 50%; bottom: 36px; transform: translateX(-50%); z-index: 50; background: var(--ink); color: var(--bg); padding: 6px 12px; border-radius: var(--r-m); font-size: var(--fs-s); font-weight: 700; box-shadow: var(--shadow); pointer-events: none; }
+/* Round 6, part 5: the Saved pop-up and every other note, in one place: the top-right corner of the work area, just
+   under its header (core.js L.placeToasts sets top and right). Inverted ink so it is noticed in every theme; it lets
+   clicks through, so it never blocks what it briefly covers. A failed save is a warning card that stays. */
+.toasts { position: fixed; top: 52px; right: 12px; z-index: 60; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; pointer-events: none; }
+.toast { display: flex; align-items: center; gap: 8px; max-width: 100%; background: var(--ink); color: var(--bg); padding: 7px 12px; border-radius: var(--r-m); font-size: var(--fs-s); font-weight: 600; line-height: 1.35; box-shadow: var(--shadow); overflow-wrap: anywhere; pointer-events: none; animation: toast-in .16s ease-out; }
+.toast:empty { padding: 0; box-shadow: none; background: none; border: 0; animation: none; }
+.toast b { font-weight: 800; }
+.toast > svg { flex: none; }
+.toast.t-again > svg { animation: toast-pulse .45s ease-out; }
+.toast.t-fail { pointer-events: auto; align-items: flex-start; background: var(--surface); color: var(--ink); border: 2px solid var(--warn); border-left-width: 6px; padding: 8px 6px 8px 10px; }
+.toast.t-fail > svg { color: var(--warn); margin-top: 2px; }
+.toast.t-fail .grow b { display: block; }
+.toast.t-fail .grow span { color: var(--ink-2); font-weight: 400; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(-6px); } }
+@keyframes toast-pulse { 40% { transform: scale(1.35); } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 /* Picker sheet */
 .pk-list { display: flex; flex-direction: column; max-height: 52vh; overflow: auto; border: 1px solid var(--line); border-radius: var(--r-m); }

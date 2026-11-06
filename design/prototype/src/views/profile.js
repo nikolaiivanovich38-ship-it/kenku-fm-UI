@@ -96,8 +96,19 @@
     np.fadeOut.dur = clamp(np.fadeOut.dur, 0, span); np.fadeIn.dur = clamp(np.fadeIn.dur, 0, span - np.fadeOut.dur);
     np.loopXfade = clamp(np.loopXfade, 0, Math.min(10, np.end - np.loopStart - 1));
     if (S.key) { D.profiles[S.key] = D.profiles[S.key] || {}; D.profiles[S.key][t.id] = np; } else t.profile = np;
-    S.saved = true; return true;
+    S.saved = true; profileChanged(); return true;
   }
+  /* Round 6, part 5: the Saved pop-up for the profile. A drag, a nudge or typing changes it many times: the pop-up shows
+     once the change is done (a click or a release at once; keys and typing after a second's pause, Enter or leaving the
+     field), never per step. A change that has its own Undo message (Reset to whole track) shows that instead. */
+  var saveDue = 0;
+  function apWhat() { return S.key ? 'audio profile in ' + placeName(S.key).replace(/^the /, '') : 'audio profile of the track'; }
+  function profileChanged() { clearTimeout(saveDue); saveDue = setTimeout(profileSaved, 1000); }
+  function profileSaved() { if (!saveDue) return; clearTimeout(saveDue); saveDue = 0; if (L.current().name === 'profile') L.saved(apWhat(), { key: 'ap-' + S.key }); }
+  function noProfileSave() { clearTimeout(saveDue); saveDue = 0; }
+  ['click', 'pointerup'].forEach(function (type) { document.addEventListener(type, function () { if (saveDue) setTimeout(profileSaved, 0); }); });
+  document.addEventListener('focusout', function (e) { if (saveDue && e.target && e.target.closest && e.target.closest('.ap-body')) setTimeout(function () { if (!L.typing(document.activeElement)) profileSaved(); }, 0); });
+  document.addEventListener('keydown', function (e) { if (saveDue && e.key === 'Enter') setTimeout(profileSaved, 0); });
   var POINT = { start: 'Start', end: 'End', loop: 'Loop start', fadein: 'Fade in', fadeout: 'Fade out', xfade: 'Loop crossfade' };
   function value(p, which) { return { start: p.start, end: p.end, loop: p.loopStart, fadein: p.fadeIn.dur, fadeout: p.fadeOut.dur, xfade: p.loopXfade }[which]; }
   function range(t, which) {
@@ -436,7 +447,7 @@
   }
   function sceneNameHTML(t) {
     if (S.key.indexOf('sc:') !== 0) return '';
-    return '<div class="field ap-scname"><label for="ap-scname">Name in this scene</label><input class="input" id="ap-scname" data-input="apscname" data-k="ap-scname" value="' + esc(L.sceneNameOf(t, S.key)) + '" placeholder="' + esc(L.title(t)) + ' (its own name)" autocomplete="off"></div>';
+    return '<div class="field ap-scname"><label for="ap-scname">Name in this scene</label><input class="input" id="ap-scname" data-input="apscname" data-k="ap-scname" data-save="name in this scene {v}" value="' + esc(L.sceneNameOf(t, S.key)) + '" placeholder="' + esc(L.title(t)) + ' (its own name)" autocomplete="off"></div>';
   }
   /* PLY-15: the track's own normalising choice, and the loudness and gain where these settings apply (a playlist's
      choice counts when the page shows that playlist's settings). */
@@ -448,11 +459,12 @@
   L.acts.apnorm = function (el) {
     var t = track(); if (!t) return;
     if (el.dataset.v === 'library') delete t.norm; else t.norm = el.dataset.v;
-    S.focusK = 'ap-norm-' + el.dataset.v; L.render(); L.say('Normalise volume: ' + L.normLine(t, S.key.indexOf('pl:') === 0 ? S.key.slice(3) : ''));
+    S.focusK = 'ap-norm-' + el.dataset.v; L.render(); L.say('Normalise volume: ' + L.normLine(t, S.key.indexOf('pl:') === 0 ? S.key.slice(3) : '')); L.saved(L.title(t) + ' volume setting');
   };
   L.inputs.apscname = function (el) { var t = track(); if (!t) return; L.setNameIn(t, S.key, el.value); };
   // UX-18: Back is core's (L.backButton); the old one-off apback is gone.
-  function waveStatus() { return S.playing ? { text: 'Previewing ' + L.fmt(S.pos), tone: 'on' } : { text: S.event ? 'Paused' : 'Ready', tone: 'idle' }; }
+  // Round 6, part 5: no Ready (a box with nothing to say has no status).
+  function waveStatus() { return S.playing ? { text: 'Previewing ' + L.fmt(S.pos), tone: 'on' } : S.event ? { text: 'Paused', tone: 'idle' } : null; }
   function endStatus(p) { return p.after === 'loop' ? 'Loops from ' + L.fmt(p.loopStart) : p.after === 'next' ? 'Moves on at ' + L.fmt(p.end) : 'Stops at ' + L.fmt(p.end); }
   function afterText(t, p) { return p.after === 'loop' ? 'Loops back to ' + L.fmt(p.loopStart) : p.after === 'next' ? 'Moves on to ' + L.title(L.track(ctxOf(t).next)) : 'Stops'; }
 
@@ -484,7 +496,9 @@
         // Round 6: the file's names are in the Library's details and on hover here; length and shape stay.
         '<p class="ap-meta" title="' + esc('Title in the file: ' + (t.metaTitle || 'none') + ' · File name: ' + t.file) + '"><span><span class="faint">Length</span> <span class="num">' + L.fmt(t.dur) + '</span></span><span>' + L.shapeTag(t) + '</span></p>' + sceneNameHTML(t) + normHTML(t) + '</div>' +
         '<div class="ap-headacts">' + backHTML(t) +
-        '<span class="ap-saved" role="status">' + (!ed ? 'Uses the track\'s settings (read-only until you give it its own)' : S.saved ? L.icon('check', 's') + 'Saved' : '') + '</span>' +
+        // Round 6, part 5: no "Saved" here; saving shows in the Saved pop-up. The read-only note stays (it says why
+        // nothing can be changed).
+        '<span class="ap-saved" role="status">' + (!ed ? 'Uses the track\'s settings (read-only until you give it its own)' : '') + '</span>' +
         '<button class="btn s ghost" data-act="apreset" data-k="ap-reset" title="Start at 0:00 and End at ' + L.fmt(t.dur) + ', no fades"' + dis(t) + '>' + L.icon('restart', 's') + 'Reset to whole track</button></div>' +
         placeHTML(t) + '</div>';
       var body = '<div class="viewbody ap-body" data-scroll="ap-body"><div class="ap-grid">' +
@@ -585,7 +599,7 @@
   L.acts.apreset = function () {
     var t = track(), restore = L.snapshot(['tracks', 'profiles']);
     if (!write(t, { start: 0, end: t.dur, loopStart: 0, loopXfade: 0, fadeIn: { dur: 0, shape: 50 }, fadeOut: { dur: 0, shape: 50 } })) return; S.invalid = {}; S.editing = null;
-    L.undoNote('Back to the whole track: 0:00 to ' + L.fmt(t.dur) + ', no loop and no fades.', restore); L.say('Reset to the whole track'); L.render();
+    L.undoNote('Back to the whole track: 0:00 to ' + L.fmt(t.dur) + ', no loop and no fades.', restore); noProfileSave(); L.say('Reset to the whole track'); L.render();
   };
   L.acts.apmadd = function () { addMarker(true); };
   function addMarker(focus) {
@@ -602,7 +616,7 @@
   // Places
   function goPlace(key) { L.route('#/profile/' + S.tid + (key ? '/' + key : '')); setTimeout(function () { var s = document.querySelector('[data-k="ap-place"]'); if (s) s.focus(); }, 0); }
   L.inputs.applace = function (el) { goPlace(el.value); L.say('Settings for ' + placeName(el.value)); };
-  L.acts.apown = function () { var t = track(); L.profileStore(t, S.key, true); S.saved = true; S.undoClear = null; S.focusK = 'ap-clear'; L.say('This place now has its own settings, copied from the track\'s'); L.toast('Own settings for ' + placeName(S.key) + ', copied from the track\'s'); L.render(); };
+  L.acts.apown = function () { var t = track(); L.profileStore(t, S.key, true); S.saved = true; S.undoClear = null; S.focusK = 'ap-clear'; L.say('This place now has its own settings, copied from the track\'s'); L.saved('own settings for ' + placeName(S.key).replace(/^the /, ''), { detail: 'copied from the track\'s' }); L.render(); };
   L.acts.apuse = function () { L.say('Using the track\'s settings here'); };
   L.acts.apclear = function () { var t = track(); S.undoClear = { key: S.key, p: D.profiles[S.key][t.id] }; L.clearProfile(t, S.key); S.saved = false; S.focusK = 'ap-own'; L.say('Back to the track\'s settings here'); L.render(); };
   L.acts.apundo = function () { var t = track(), u = S.undoClear; if (!u) return; D.profiles[u.key] = D.profiles[u.key] || {}; D.profiles[u.key][t.id] = u.p; S.undoClear = null; S.focusK = 'ap-clear'; L.say('Own settings brought back'); L.render(); };

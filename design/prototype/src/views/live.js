@@ -555,8 +555,9 @@
       }).join('') + '</ol>' +
       (compact && s.scenes.length > 2 ? '<button class="lv-more lv-allsc" data-act="lvallsc" data-k="lv-allsc" aria-expanded="' + !!S.allScenes + '">' + (S.allScenes ? 'Show only Now and Next' : 'Show all ' + s.scenes.length + ' scenes') + '</button>' : '');
     var cur = s.scenes[now];
+    // Round 6, part 5 (Nik, 6 Nov 16:14: "Let's kill ready, seems dumb. Kill the scene count, unnecessary."): no status;
+    // the list's Now and Next say where the evening is, and the folded box says them in its summary.
     return L.pane({ id: 'lv-scenes', title: 'Scenes', icon: 'scroll', kind: 'scenes', size: 'auto', flush: true, noMax: true, keys: 'Alt+1', body: body,
-      status: S.notStarted ? { text: 'Ready', tone: 'idle' } : { text: 'Scene ' + (now + 1) + ' of ' + s.scenes.length, tone: 'on' },
       summary: collapsed('lv-scenes') ? (cur ? 'Now: ' + esc(cur.name) : '') + (n ? (cur ? ' · ' : '') + 'Next: ' + esc(n.name) : '') : '' });
   }
   /* SHW-7, round 6 part 3 (Nik, 6 Nov 12:24: "expand each scene, and choose to play it or not, and see its details,

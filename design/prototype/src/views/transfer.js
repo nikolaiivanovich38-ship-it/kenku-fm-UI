@@ -57,7 +57,9 @@
       '<div class="tf-actrow"><button class="btn primary" data-act="tfsave" data-k="tf-save">' + L.icon('download', 's') + 'Save to a file…</button><span class="hint">Saves ' + esc(exportName()) + '</span></div>' +
       (ex.saved ? '<p class="tf-done" role="status">' + L.icon('check', 's') + '<span class="grow">Saved <b>' + esc(ex.saved.name) + '</b> (' + esc(ex.saved.size) + ') in Documents\\Lyre.</span><button class="btn s" data-act="tfshow" data-k="tf-show">' + L.icon('folder', 's') + 'Show in folder</button></p>' : '');
     return L.pane({ id: 'tf-export', title: 'Save to a file', icon: 'download', kind: 'plain', noMax: true, size: 'auto',
-      status: ex.saved ? { text: 'Saved', tone: 'idle' } : { text: 'Ready', tone: 'idle' }, body: body });
+      // Round 6, part 5: no Saved or Ready pill. The result line ("Saved … in Documents\\Lyre" with Show in folder) stays
+      // in the box: it is a result with an action that outlives a pop-up, so it is this save's one message.
+      body: body });
   }
   L.inputs.tfwhat = function (el) { ex.what = el.value; ex.saved = null; L.render(); focusSoon('tf-w-' + ex.what); };
   L.inputs.tfpick = function (el) { ex.pick[ex.what] = el.value; ex.saved = null; L.render(); };
@@ -106,7 +108,7 @@
         '<div class="tf-actrow"><a class="btn s" href="#/relink" data-k="tf-torelink">' + L.icon('folder', 's') + 'Find missing files…</a><button class="btn s ghost" data-act="tfcancel" data-k="tf-again">Open another file</button></div>';
     }
     return L.pane({ id: 'tf-import', title: 'Open a file', icon: 'upload', kind: 'plain', noMax: true, size: 'auto',
-      status: !im ? { text: 'Ready', tone: 'idle' } : im.state === 'refused' ? { text: 'Refused', tone: 'warn' } : im.state === 'preview' ? { text: 'Not brought in yet', tone: 'on' } : { text: 'Brought in', tone: 'idle' }, body: body });
+      status: !im ? null : im.state === 'refused' ? { text: 'Refused', tone: 'warn' } : im.state === 'preview' ? { text: 'Not brought in yet', tone: 'on' } : { text: 'Brought in', tone: 'idle' }, body: body });
   }
   L.acts.tfchoose = function () { im = readFile(SAMPLE.file); L.render(); L.say('Opened ' + im.file + ': ' + SAMPLE.items.length + ' kinds of thing in it. Choose what to do with the ones you have already.'); focusSoon('tf-bring'); };
   L.acts.tfchoice = function (el) { im.choices[el.dataset.id] = el.dataset.v; L.render(); focusSoon(el.dataset.k); };
@@ -221,7 +223,7 @@
         '<div class="viewbody tf-body"><div class="tf-cols tf-one"><div class="col">' +
         (rl.done ? '<p class="tf-done" role="status">' + L.icon('check', 's') + '<span class="grow">' + esc(rl.done) + '</span></p>' : '') +
         L.pane({ id: 'tf-missing', title: 'Missing files', icon: 'warn', kind: 'plain', noMax: true, size: 'auto', status: miss.length ? { text: plural(miss.length, 'file'), tone: 'warn' } : { text: 'None', tone: 'idle' }, body: list }) +
-        (miss.length || p ? L.pane({ id: 'tf-look', title: 'Look in a folder', icon: 'folder', kind: 'search', noMax: true, size: 'auto', status: p ? { text: p.filter(function (x) { return x.how !== 'none'; }).length + ' found', tone: 'on' } : { text: 'Ready', tone: 'idle' }, body: look + found }) : '') +
+        (miss.length || p ? L.pane({ id: 'tf-look', title: 'Look in a folder', icon: 'folder', kind: 'search', noMax: true, size: 'auto', status: p ? { text: p.filter(function (x) { return x.how !== 'none'; }).length + ' found', tone: 'on' } : null, body: look + found }) : '') +
         '</div></div></div>';
     }
   });

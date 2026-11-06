@@ -200,7 +200,8 @@ test.describe("different settings for different places", () => {
     await page.getByRole("combobox", { name: "Settings for" }).selectOption({ label: "Playlist: Gothic dread · uses the track's" });
     await expect(page.getByRole("combobox", { name: "Settings for" })).toBeFocused();
     await expect(atEnd(page).getByRole("textbox", { name: "End" })).toBeDisabled();
-    await expect(page.getByRole("status")).toContainText("Uses the track's settings (read-only until you give it its own)");
+    // Round 6, part 5: the page also has the Saved pop-up's status, so the note is found by its words.
+    await expect(page.getByRole("status").filter({ hasText: "Uses the track's settings" })).toContainText("Uses the track's settings (read-only until you give it its own)");
   });
 
   test("giving a place its own settings copies and unlocks them, and a change there leaves the track's own alone", async ({ page }) => {

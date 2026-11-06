@@ -20,6 +20,8 @@ This round is subtraction only. No behaviour changed, and nothing a game master 
 4. **Quiet when resting.** A box's resting status (Ready, Saved, Empty, Copied, or a count of rows the box already
    lists) shows only while the box is folded, where it is the one line left. Statuses that say something is happening
    (Playing, On air, n selected, n sounding, a warning) always show. Same for a summary that repeats the open body.
+   (Part 5, Nik's answer: Ready, Saved and the scene count are gone altogether, folded boxes too; saving shows in
+   the Saved pop-up.)
 5. **Hide the rare, show the frequent.** "Fill the column" shows on pointer hover or keyboard focus in the box header
    (it stays in the Tab order, with its name). Key legends show while the keyboard is in their box.
 6. **Never lose meaning for keyboard and screen-reader users.** Text taken off screen goes to an accessible
@@ -95,8 +97,8 @@ drawn in its theme; the name is in the card's hover text.
 "In every session. New ones: Playlists." in both side boxes: read out with the box, in the Add button's hover text;
 new playlists and boards are made from the rail. Resting counts and "Saved"/"Empty" on open boxes.
 
-**Session planner.** "In play: this scene's music first, then this session's, then the campaign's, then the whole
-library." (about Live, not the plan; read out, and for the guide). "Plays in order, then loops. Drop files here to
+**Session planner.** The sentence about the order of Live's lists (about Live, not the plan; deleted in part 5,
+screen-reader copy included). "Plays in order, then loops. Drop files here to
 add them." and "The first is shown when the scene starts." became the buttons' hover text. "From the campaign.
 Change." became an edit icon in the box header; "Campaign pad boards: …" line kept. "6 scenes" and counts on open boxes.
 
@@ -155,14 +157,16 @@ FM (read once), and the Now playing bar (round 5, approved yesterday).
 
 ## Questions for Nik
 
-1. **Resting statuses only on folded boxes.** Open boxes no longer say Ready, Saved, Empty or "6 scenes".
+1. **Resting statuses only on folded boxes.** Open boxes no longer say Ready, Saved, Empty or "6 scenes". (Nik,
+   16:14: no Saved in any box, a Saved pop-up instead; Ready and the scene count go, folded too. Done in part 5.)
    *Recommend keeping:* those words never asked you to do anything, and seven boxes on a screen saying Ready is seven
    things to read. Playing, On air, n selected and warnings still show.
 2. **Fill the column on hover.** The ⤢ button appears when the pointer is over the box or the keyboard is in its
    header. *Recommend keeping:* it is a rare layout action and was in every header. If you use it often, say so and it
    comes back for good.
-3. **"In play: this scene's music first, …" off the planner.** *Recommend keeping it off:* it explains Live's list
-   order, which Live itself shows. It stays for screen readers and goes in the guide.
+3. **The sentence about Live's list order off the planner.** *Recommend keeping it off:* it explains Live's list
+   order, which Live itself shows. (Nik, 16:14: "Definitely delete the planner sentence": deleted in part 5, the
+   screen-reader copy too.)
 4. **Only the exception is marked.** "Manual" is gone from pickers, the Library details and Live; "Dynamic" stays.
    *Recommend keeping:* most playlists are manual, so the word told you nothing; a dynamic playlist changes as you tag,
    which is worth a word.
@@ -595,3 +599,111 @@ Open `design/prototype/lyre-prototype.html`.
 14. Narrow the window (or zoom to 200 %): the top strip wraps, and each room becomes one line.
 15. Rooms in the menu: **Kick** (door and arrow) on a bot; **Tokens and new bots** › Add a bot: the Application ID's
     place comes before its field.
+
+## Part 5: the Saved pop-up; Ready, Saved and the scene count go
+
+> "We should have little pop ups somewhere unobtrusive but noticeable as a consistent design standard indicating
+> something has been saved, so we have consistent feedback across the whole platform. I don't want saved in each box.
+> Let's kill ready, seems dumb. Kill the scene count, unnecessary. […] Definitely delete the planner sentence."
+>
+> Nik, 6 Nov 2026, 16:14
+
+### The standard (build it once, in the shell)
+
+**Where.** The top-right corner of the work area, 8 px under its header (Live: under the top strip), 12 px in from
+the right edge, at most 400 px wide. The same place on every screen and at every width. It covers neither the Now
+playing bar nor On air (both along the bottom) nor the header. If it would sit over the field or button in use (a
+Description field at the top right, say), it moves to just under that control. Clicks pass through it, so it never
+blocks what it briefly covers. With Help open it stays in the work area, left of Help.
+
+**When.** Whenever something is saved: a field on Enter, on leaving it, or after a second without typing (never per
+key); a list, tick box, switch or slider when it changes (a slider on release); Done in a picker when the ticks
+changed; a drop; a reorder; a rename; a change in the Audio profile once the drag, nudge or typing is over; Repeat one
+and a play order (saved with their place); Settings. Not when the change already shows its own message with an
+action: an Undo strip (Live's scene change and queue, a deleted scene or board, Tag…, Reset to whole track), the
+export's "Saved … in Documents\Lyre" with Show in folder, an import's or relink's result, a drop on the Playlists page
+or Library that asks what to do or offers Open. One event, one message.
+
+**Wording.** "Saved: " and what, in a few words: "Saved: The Sunken Crown notes", "Saved: Repeat one in The abbey
+ruins", "Saved: order of Session 14 scenes", "Saved: name “The Abbess”". A drop adds what came in after " · ":
+"Saved: The abbey ruins music · 2 tracks from position 3 · 2 new tracks added to the Library". Other notes (Undone, a
+warning, a test chime) use the same place and look without the tick and "Saved:".
+
+**Timing.** 3 s (longer text up to 6 s). The same save again within 2 s refreshes the one pop-up: its timer restarts,
+the tick pulses once, and it is not read out again. A different save replaces it: one pop-up at a time.
+
+**Failure.** A warning card in the same place: warning icon, "Not saved: <what>", "Lyre could not write it to your
+computer. Try again; if it fails again, check that the drive has space.", **Try again** and a close button. It stays
+until Try again works or it is dismissed; a later note shows under it. In the prototype: **Make the next save fail**
+in the strip at the top, then change anything.
+
+**Accessibility.** The pop-up is a status (role=status, polite, atomic) that is always in the page and empty when
+nothing shows, so screen readers read it once when it fills. It is not read out when the same event was just
+announced (Could 14) or on a refresh within 2 s. The failure is an alert. It never takes focus; Try again and the close
+button are reachable with Tab (after the page), and focus goes back to where it was. Reduced motion: no slide, no
+pulse. Contrast (`tools/r6-saved.js`, five themes): Saved 11.9 to 15.7:1; failure text 8.9 to 14.9:1; warning edge
+5.9 to 10.4:1.
+
+**For the lead: what changes in the app.**
+- `src/lyre/shell/Announcer.tsx`: the toast moves from bottom centre to the place above (measure the work area and its
+  header, as the prototype's `L.placeToasts`); it stays mounted and empty instead of `hidden`; 3 s, up to 6 s for long
+  text; `aria-live="off"` within 0.5 s of `say` and on a refresh. Add `saved(what, { key, detail })` with the 2 s merge
+  by key, and `saveFailed(what, retry)` (role=alert, Try again, Dismiss, focus back). `toast` keeps its name for
+  other notes.
+- A field hook (`useSavedField`, or in the field components): Enter, leaving the field, or 1 s without typing. The
+  Library's title saves 400 ms after typing today (ARCHITECTURE.md, `TrackDetails.tsx`): same rule, with the pop-up.
+- Each screen's successful write calls `saved`; a refused or failed write (`isRefused`) calls `saveFailed` with the same
+  write as retry.
+- `UndoNote.tsx`: stays where it is (above the Now playing bar in Prep; Live has its own strips). A change that offers
+  Undo shows no pop-up; "Undone" goes through `toast`, so it moves to the new place by itself.
+- Remove from the screens: the Library details' Saved, the playlist boxes' Ready and Saved, the pad editor's Ready and
+  Saved, the campaign Notes' Saved, the Audio profile's "Saved" line and its waveform box's Ready, the export box's and
+  the import and Look in a folder boxes' Ready and Saved pills, Live's Scenes box "Ready" and "Scene n of m", the
+  planner's "6 scenes", and the planner's sentence about Live's list order (its screen-reader copy too).
+
+### Changes (prototype)
+
+| # | Change |
+| --- | --- |
+| 1 | `core.js`: `L.saved`, `L.toast`, `L.saveFailed`, `L.failNextSave`, fields marked `data-save` save themselves; `L.placeToasts`; renames in place show the pop-up. `index.html`: `#lyre-toasts` with the status and the alert. `ui.css`: the look. |
+| 1 | Every save in the prototype shows it: campaign, session and scene fields and notes; Obsidian fields; pickers (scene music, ambience, pad boards, on hand, Use in…, Add to playlists, a pad's sounds); planner drops; reorders (sessions, scenes, scene music and boards, on-hand playlists, a playlist's tracks in a place, a manual playlist); play order and Repeat one; Library details (title, notes, tags, energy, shape, role, loop advice, volume, playlists); playlist name, notes, rules, volume, add and remove; pad board name, pad label, sound, play mode, hotkey, colour, icon, volume, fade, layout; Audio profile; Rooms volume; Settings switches, sound mode, remote address and port, tokens, bot names, Ask again; library volume setting. |
+| 2 | "Saved" left every box: Library details, playlist Details, pad editor, campaign Notes, Audio profile (`ap-saved` keeps only the read-only note), the export box. The export's "Saved X in Documents\Lyre" with Show in folder **stays in its box**: a result with an action outlives a 3 s pop-up, and it is that save's one message. |
+| 3 | "Ready" left every box: All playlists, Tracks, Matching tracks, Add tracks, Rules, Used in, the pad editor with no pad, the waveform box (Paused still shows), the export, Open a file, Look in a folder, Live's Scenes before a scene runs. |
+| 4 | Scene count gone: Live's "Scene n of m" (Now and Next say it) and the planner's "6 scenes" (Empty still shows when there are none). Kept, as they are not the same kind: Sessions "4 sessions", Campaign and Session playlists and pads counts, "12 pads", markers, "n found", "n of m bots in rooms" (each says whether a folded box holds anything worth opening, or is a result). |
+| 5 | The planner's screen-reader sentence about Live's list order is deleted, and its copies in this file. |
+| 6 | `L.quietStatus` and its comment, `CLEANUP.md` status words, the prototype's design notes (campaign, playlists, library, pad board) say the same. No help draft mentioned these words. |
+| – | Also: Rooms' Test chime was a note and an announcement of the same event; now the note only (read once). |
+
+### Numbers
+
+`tools/r6-measure.js`, before and after (all 31 states, both sizes): words 13,478 → 13,450, hint lines 182 → 182,
+facts shown twice 306 → 306, controls 5,570 → 5,570, badge kinds 240 → 230. Live with a scene playing: 217 → 213 words
+(199 → 195 at 960). Open boxes already hid Ready and Saved since part 1, so the rest of the drop is on folded boxes
+and in Live. The pop-up is outside the page's boxes and is not counted.
+
+Checks: `tools/r6-saved.js` (new: one place at 1920 and 960 on Live and three Prep screens, text, merge read out once,
+focus, failure stays, contrast in five themes) passes; screenshots `shots/r6/saved-*.png`. `tools/r5-check.js`,
+`tools/check-contrast.js`, `tools/lv-keys.js` and the prototype spec project (`yarn heavy`) pass.
+
+### Specs
+
+New `round 6, part 5` blocks (each `expectFailureUntilBuilt("round 6")`): campaigns (the pop-up's words after a pause,
+not per key, focus kept, no Saved in Notes; leaving a field saves; the same save within 2 s is one pop-up read out
+once; the same place on a Prep screen and in Live; a failed save stays and Try again saves it, through
+`target.failNextSave`), Live (no Ready or scene count, open or folded; Repeat one's pop-up under the top strip, clear
+of On air), the session planner (no scene count, no sentence about Live, a scene's notes save with the pop-up),
+playlists (no Ready or Saved in any box, open or folded; notes save with the pop-up). Changed: Live's "Scene 1 of 6"
+checks find the running scene by its Restart button; the Audio profile's read-only note is found by its words (the
+page now has the pop-up's status too).
+
+### Try it
+
+1. Campaigns › The Sunken Crown. Type in Notes and stop: "Saved: The Sunken Crown notes" shows at the top right for
+   3 seconds. Type again within 2 seconds of it: the same pop-up, its tick pulses.
+2. Press **Make the next save fail** in the strip at the top, type a letter in Notes and press Tab: "Not saved" stays
+   with Try again. Press **Try again**.
+3. Run next session › Start The abbey ruins. Point at the first track in Current scene and press Repeat one: the pop-up
+   is in the same corner, under the top strip, nowhere near On air. Scenes has no "Scene 3 of 6" or "Ready".
+4. Prep › Session 14: no "6 scenes" on Scenes. Open The abbey ruins; on its second music item press ⋯ › Move up:
+   "Saved: order of The abbey ruins music".
+5. Playlists › The Abbess: no box says Ready or Saved, open or folded.

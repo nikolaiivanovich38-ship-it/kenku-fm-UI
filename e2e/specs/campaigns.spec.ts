@@ -4,7 +4,7 @@
  */
 import type { Page } from "@playwright/test";
 import { expect, test, expectFailureUntilBuilt } from "./support/test";
-import { openRoute } from "./support/target";
+import { failNextSave, openRoute } from "./support/target";
 
 const region = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
 const dialog = (page: Page) => page.getByRole("dialog");
@@ -376,5 +376,75 @@ test.describe("round 6: Repeat on the Now playing bar, the campaign's own order,
     await openRoute(page, "campaign/crown");
     await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Library" }).click();
     await expect(page.getByRole("button", { name: /^Back to / })).toHaveCount(0);
+  });
+});
+
+/* Round 6, part 5 (design/prototype/ROUND6.md "Part 5: the Saved pop-up"). Nik, 6 Nov 16:14: "little pop ups somewhere
+   unobtrusive but noticeable as a consistent design standard indicating something has been saved, so we have
+   consistent feedback across the whole platform. I don't want saved in each box." Not built yet. */
+test.describe("round 6, part 5: the Saved pop-up", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
+  const notes = (page: Page) => region(page, "Notes").getByRole("textbox", { name: "Campaign notes" });
+  const savedNotes = (page: Page) => page.getByRole("status").filter({ hasText: "Saved: The Sunken Crown notes" });
+  /** Where the pop-up is: its right edge's distance from the work area's right edge, and its top below the work area's top. */
+  const placeOf = async (page: Page, text: string) => {
+    const pop = await page.getByRole("status").filter({ hasText: text }).boundingBox();
+    const main = await page.getByRole("main").boundingBox();
+    if (!pop || !main) throw new Error("not on screen");
+    return { fromRight: Math.round(main.x + main.width - (pop.x + pop.width)), fromTop: Math.round(pop.y - main.y) };
+  };
+  /** How many live regions (read out by screen readers) hold these words now. */
+  const readOutIn = (page: Page, text: string) =>
+    page.evaluate((t) => Array.from(document.querySelectorAll("[aria-live], [role=status], [role=alert]")).filter((e) => e.getAttribute("aria-live") !== "off" && (e.textContent ?? "").includes(t)).length, text);
+
+  test("notes save after a pause in typing, never per key: Saved and what, while the cursor stays in the notes", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    await notes(page).click();
+    await page.keyboard.type("Bring dice");
+    await expect(savedNotes(page)).toHaveCount(0);
+    await expect(savedNotes(page)).toBeVisible();
+    await expect(notes(page)).toBeFocused();
+    await expect(region(page, "Notes").getByText(/^(Saved|Ready)$/)).toHaveCount(0);
+  });
+
+  test("leaving a field saves it at once; the same save again within 2 s refreshes the one pop-up, read out once", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    await notes(page).fill("Bring dice");
+    await page.keyboard.press("Tab");
+    await expect(savedNotes(page)).toBeVisible();
+    expect(await readOutIn(page, "Saved: The Sunken Crown notes")).toBe(1);
+    await notes(page).fill("Bring dice and snacks");
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("status").filter({ hasText: /^Saved: / })).toHaveCount(1);
+    expect(await readOutIn(page, "Saved: The Sunken Crown notes")).toBeLessThanOrEqual(1);
+  });
+
+  test("the pop-up is in the same place on a prep screen and in Live: top right of the work area", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    await notes(page).fill("Bring dice");
+    await page.keyboard.press("Tab");
+    const prep = await placeOf(page, "Saved: The Sunken Crown notes");
+    await openRoute(page, "live");
+    await page.getByRole("button", { name: "Start scene 3: The abbey ruins" }).click();
+    await region(page, "Current scene").getByRole("button", { name: /^Repeat one: / }).first().click();
+    const live = await placeOf(page, "Saved: Repeat one in The abbey ruins");
+    expect(Math.abs(prep.fromRight - live.fromRight)).toBeLessThanOrEqual(2);
+    expect(prep.fromRight).toBeLessThanOrEqual(24);
+    for (const at of [prep, live]) expect(at.fromTop).toBeLessThanOrEqual(120);
+  });
+
+  test("a failed save stays until dismissed, says what to do, and Try again saves it", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    await failNextSave(page);
+    await notes(page).fill("Bring dice");
+    await page.keyboard.press("Tab");
+    const failed = page.getByRole("alert").filter({ hasText: "Not saved: The Sunken Crown notes" });
+    await expect(failed).toBeVisible();
+    await expect(failed).toContainText("Try again");
+    await page.waitForTimeout(5_000);
+    await expect(failed).toBeVisible();
+    await failed.getByRole("button", { name: "Try again" }).click();
+    await expect(failed).toHaveCount(0);
+    await expect(savedNotes(page)).toBeVisible();
   });
 });

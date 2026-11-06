@@ -123,8 +123,8 @@
     if (b.status !== 'connected') { L.toast(b.name + (b.status === 'connecting' ? ' is still joining. Try again in a moment.' : ' is not in a voice channel. Choose a room first.')); return; }
     if (b.muted) { L.toast(chName(b) + ' is muted: unmute it to hear the test chime'); return; }
     var n = L.botListeners(b).length; testUntil[b.id] = Date.now() + 1600;
+    // Round 6, part 5: one message, read out once (it was a note and an announcement of the same event).
     L.toast('Test chime in ' + chName(b) + ' only' + (n ? ' (' + people(n).toLowerCase() + ' there)' : ': nobody is there to hear it'));
-    L.say('Test chime played in ' + L.botWhere(b));
   };
   // Volume: dragging updates the number only; letting go saves it (re-rendering while dragging would drop the thumb).
   L.inputs.opvol = function (el, ev) {
@@ -175,7 +175,7 @@
         (inRoom(b) ? kickBtn(b, 'op-leave-' + b.id) : '') + '</div>' +
       (here ? '<span class="op-l">Playing</span><div class="op-play">' + playingHTML(b) + '</div>' +
         '<span class="op-l">Hears it</span><div class="op-who ellipsis" title="' + esc(who.join(', ')) + '">' + (who.length ? '<b>' + people(who.length) + '</b>' : '<span class="op-nobody">' + ic('alert', 's') + 'Nobody here yet</span>') + (who.length ? '<span class="muted">: ' + esc(who.join(', ')) + '</span>' : '') + '</div>' : '') +
-      '<label class="op-l" for="op-vol-' + b.id + '">Volume</label><div class="op-volrow"><input type="range" id="op-vol-' + b.id + '" min="0" max="100" step="5" value="' + b.volume + '" data-input="opvol" data-bot="' + b.id + '" data-k="op-vol-' + b.id + '" aria-valuetext="' + b.volume + '%"><output class="num" id="op-vo-' + b.id + '" for="op-vol-' + b.id + '">' + b.volume + '%</output><span class="op-lvl" title="Level: how loud the room is right now"><span class="op-lvl-l" aria-hidden="true">Level</span><span class="op-meter" aria-hidden="true"><span data-opmeter="' + b.id + '"></span></span></span></div>' +
+      '<label class="op-l" for="op-vol-' + b.id + '">Volume</label><div class="op-volrow"><input type="range" id="op-vol-' + b.id + '" min="0" max="100" step="5" value="' + b.volume + '" data-input="opvol" data-bot="' + b.id + '" data-k="op-vol-' + b.id + '" data-save="' + esc(b.name) + ' volume" aria-valuetext="' + b.volume + '%"><output class="num" id="op-vo-' + b.id + '" for="op-vol-' + b.id + '">' + b.volume + '%</output><span class="op-lvl" title="Level: how loud the room is right now"><span class="op-lvl-l" aria-hidden="true">Level</span><span class="op-meter" aria-hidden="true"><span data-opmeter="' + b.id + '"></span></span></span></div>' +
       '</div>' + warnings(b);
     return L.pane({ id: 'op-r-' + b.id, title: here ? c.name : b.name, icon: 'broadcast', kind: 'onair', size: 'auto', noMax: true, cls: 'op-box-room' + (pill(b).text === 'Playing' ? '' : ' is-silent'), status: pill(b), actions: actions,
       body: body });

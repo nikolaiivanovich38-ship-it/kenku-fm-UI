@@ -508,3 +508,30 @@ test.describe("round 6, part 4: the review's fixes in the planner", () => {
     expect(await ambience.nth(0).getAttribute("aria-label")).not.toBe(await ambience.nth(1).getAttribute("aria-label"));
   });
 });
+
+/* Round 6, part 5 (Nik, 6 Nov 16:14: "Kill the scene count, unnecessary. … Definitely delete the planner sentence."). */
+test.describe("round 6, part 5: no scene count, no sentence about Live, and the Saved pop-up", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
+  const scenesBox = (page: Page) => page.getByRole("region", { name: "Scenes", exact: true });
+
+  test("the Scenes box has no scene count, open or folded", async ({ page }) => {
+    await openRoute(page, "session/crown/s14");
+    await expect(scenesBox(page).getByText(/^\d+ scenes?$/)).toHaveCount(0);
+    await scenesBox(page).getByRole("button", { name: "Scenes", exact: true }).click();
+    await expect(scenesBox(page).getByText(/^\d+ scenes?$/)).toHaveCount(0);
+  });
+
+  test("the sentence about the order of Live's lists is gone, for screen readers too", async ({ page }) => {
+    await openRoute(page, "session/crown/s14");
+    await expect(page.getByText(/^In play:/)).toHaveCount(0);
+  });
+
+  test("a scene's notes save after a pause in typing, with the Saved pop-up", async ({ page }) => {
+    await openRoute(page, "session/crown/s14");
+    await page.getByRole("button", { name: "Scene 3: The abbey ruins", exact: true }).click();
+    const notes = scene(page, "The abbey ruins").getByRole("textbox", { name: "Notes" });
+    await notes.fill("Bells first");
+    await expect(page.getByRole("status").filter({ hasText: "Saved: The abbey ruins notes" })).toBeVisible();
+    await expect(notes).toBeFocused();
+  });
+});

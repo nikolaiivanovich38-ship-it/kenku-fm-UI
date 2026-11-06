@@ -123,7 +123,7 @@
       }
       msg = p.label + ' moved to ' + place(b, j) + (other ? ', swapped with ' + other.label + (at.where === 'spare' ? ', which went to Spare pads' : '') : '');
     }
-    L.say(msg); L.render();
+    L.say(msg); L.render(); L.saved('layout of ' + b.name, { key: 'layout-' + b.id });
   }
   function putBack(b, pid) {
     var j = b.slots.indexOf(null); if (j < 0) { L.toast('No empty slot. Make the grid bigger first.'); return; }
@@ -301,7 +301,7 @@
     var msg = ui.msg && ui.msg.bid === b.id ? '<div class="pb-msg" role="status">' + L.icon('check', 's') + '<span class="grow">' + esc(ui.msg.text) + '</span>' +
       '<button class="btn s" data-act="pbundo" data-k="pb-undo">Undo</button><button class="closer" data-act="pbmsgx" data-k="pb-msgx" title="Dismiss" aria-label="Dismiss message">' + L.icon('close') + '</button></div>' : '';
     var body = '<div class="pb-tools">' +
-      '<div class="field pb-name"><label for="pb-name">Board name</label><input id="pb-name" class="input" data-input="pbname" data-k="pb-name" value="' + esc(b.name) + '"></div>' +
+      '<div class="field pb-name"><label for="pb-name">Board name</label><input id="pb-name" class="input" data-input="pbname" data-k="pb-name" data-save="board name {v}" value="' + esc(b.name) + '"></div>' +
       '<div class="pb-sizes">' + stepper('Columns', 'c', b.cols) + stepper('Rows', 'r', b.rows) +
       '<div class="seg s" role="group" aria-label="Quick sizes">' + QUICK.map(function (q) {
         var on = b.cols === q[0] && b.rows === q[1];
@@ -349,7 +349,7 @@
     }).join('') + '</div>';
     if (s.kind === 'tag') {
       var files = tagFiles(s.tag);
-      h += '<div class="field"><label for="pb-tag">Tag</label><input id="pb-tag" class="input" list="pb-tags" data-input="pbtag" data-k="pb-tag" value="' + esc(s.tag || '') + '" placeholder="For example: door"><datalist id="pb-tags">' + TAG_SUGGEST.map(function (t) { return '<option value="' + t + '">'; }).join('') + '</datalist></div>' +
+      h += '<div class="field"><label for="pb-tag">Tag</label><input id="pb-tag" class="input" list="pb-tags" data-input="pbtag" data-k="pb-tag" data-save="' + esc(p.label) + ' sound tag" value="' + esc(s.tag || '') + '" placeholder="For example: door"><datalist id="pb-tags">' + TAG_SUGGEST.map(function (t) { return '<option value="' + t + '">'; }).join('') + '</datalist></div>' +
         '<p class="hint">Each press picks one of these ' + plural(files.length, 'effect') + '.</p>' +
         (files.length ? '<ul class="pb-files">' + files.map(function (f) { var t = fxTrackByFile(f); return '<li>' + L.icon('file', 's') + '<span class="ellipsis grow">' + (t ? esc(L.title(t)) + ' <span class="faint">' + esc(f) + '</span>' : esc(f)) + '</span>' + (t ? L.previewButton('track', t.id) : '') + '</li>'; }).join('') + '</ul>' : '<p class="pb-none">No effects have this tag yet.</p>');
     } else {
@@ -368,7 +368,7 @@
   }
   function editorPane(b, sel) {
     if (!sel) {
-      return L.pane({ id: 'pb-pad', title: 'Pad', icon: 'edit', kind: 'plain', status: { text: 'Ready', tone: 'idle' }, summary: 'No pad selected',
+      return L.pane({ id: 'pb-pad', title: 'Pad', icon: 'edit', kind: 'plain', summary: 'No pad selected',
         body: '<p class="empty">Select a pad to change it, or click an empty slot to add one.</p>' });
     }
     var p = sel.pad, other = keyOwner(b, p.key, p.id), on = L.padActive(b.id, p.id);
@@ -376,7 +376,7 @@
       '<div class="pb-testrow"><button class="btn pb-prev" data-act="pbpreview" data-k="pb-prev" aria-pressed="' + previewing(b, p) + '" title="Only you hear it">' + L.icon(previewing(b, p) ? 'stop' : 'headphones', 's') + (previewing(b, p) ? 'Stop preview' : 'Preview') + '</button>' +
       '<button class="btn" data-act="pbtest" data-k="pb-test" aria-pressed="' + on + '" title="The players hear it">' + L.icon(on && p.mode === 'toggle' ? 'stop' : 'broadcast', 's') + (on && p.mode === 'toggle' ? 'Stop on air' : 'Play on air') + '</button>' +
       (on ? L.destTag('air', '') : '') + '</div>' +
-      '<div class="field"><label for="pb-label">Label</label><input id="pb-label" class="input" data-input="pblabel" data-k="pb-label" value="' + esc(p.label) + '"></div>' +
+      '<div class="field"><label for="pb-label">Label</label><input id="pb-label" class="input" data-input="pblabel" data-k="pb-label" data-save="pad label {v}" value="' + esc(p.label) + '"></div>' +
       soundEditor(p) +
       fieldset('Play mode', '<div class="pb-modes" role="group" aria-label="Play mode">' + ['oneshot', 'toggle', 'hold', 'retrigger'].map(function (m) {
         return '<button class="btn s" data-act="pbmode" data-v="' + m + '" data-k="pbm-' + m + '" aria-pressed="' + (p.mode === m) + '" aria-describedby="pb-modehelp" title="' + MODE_HELP[m] + '">' + L.icon(L.modeIcon[m], 's') + L.modeName[m] + '</button>';
@@ -387,16 +387,17 @@
       (ui.capture || sel.where === 'spare' ? '<p class="hint" id="pb-key-h">' + (ui.capture ? 'Esc cancels, Backspace removes the key.' : 'This pad is spare, so its key does nothing until it is back on the grid.') + '</p>' : '') +
       (other ? '<p class="pb-warn" role="alert">' + L.icon('bolt', 's') + '<span class="grow">' + esc(String(p.key).toUpperCase()) + ' is also the key for "' + esc(other.label) + '" on this board.</span><button class="btn s" data-act="pbkeyswap" data-other="' + other.id + '" data-k="pb-keyswap">Take it from that pad</button></p>' : '') + '</div>' +
       fieldset('Colour <span class="pb-cur">' + COLOUR_NAMES[p.color] + '</span>', '<div class="pb-swatches">' + Object.keys(L.colors).map(function (c) {
-        return '<label class="pb-sw" title="' + COLOUR_NAMES[c] + '" style="--pc:' + L.colors[c] + '"><input type="radio" class="pb-vh" name="pb-colour" value="' + c + '" data-input="pbcolour" data-k="pbc-' + c + '"' + (p.color === c ? ' checked' : '') + '><span class="pb-sw-dot"></span><span class="sr-only">' + COLOUR_NAMES[c] + '</span></label>';
+        return '<label class="pb-sw" title="' + COLOUR_NAMES[c] + '" style="--pc:' + L.colors[c] + '"><input type="radio" class="pb-vh" name="pb-colour" value="' + c + '" data-input="pbcolour" data-k="pbc-' + c + '" data-save="' + esc(p.label) + ' colour"' + (p.color === c ? ' checked' : '') + '><span class="pb-sw-dot"></span><span class="sr-only">' + COLOUR_NAMES[c] + '</span></label>';
       }).join('') + '</div>') +
       fieldset('Icon <span class="pb-cur">' + esc(ICON_NAMES[p.icon] || p.icon) + '</span>', '<div class="pb-icons">' + PAD_ICONS.map(function (n) {
-        return '<label class="pb-ic" title="' + ICON_NAMES[n] + '"><input type="radio" class="pb-vh" name="pb-icon" value="' + n + '" data-input="pbicon" data-k="pbi-' + n + '"' + (p.icon === n ? ' checked' : '') + '>' + L.icon(n) + '<span class="sr-only">' + ICON_NAMES[n] + '</span></label>';
+        return '<label class="pb-ic" title="' + ICON_NAMES[n] + '"><input type="radio" class="pb-vh" name="pb-icon" value="' + n + '" data-input="pbicon" data-k="pbi-' + n + '" data-save="' + esc(p.label) + ' icon"' + (p.icon === n ? ' checked' : '') + '>' + L.icon(n) + '<span class="sr-only">' + ICON_NAMES[n] + '</span></label>';
       }).join('') + '</div>') +
-      '<div class="pb-levels"><div class="field grow"><label for="pb-vol">Volume <output id="pb-vol-o" class="num">' + p.vol + '</output></label><input id="pb-vol" type="range" min="0" max="100" step="5" value="' + p.vol + '" data-input="pbvol" data-k="pb-vol"></div>' +
-      '<div class="field pb-fade"><label for="pb-fadein">Fade out (seconds)</label><input id="pb-fadein" class="input num" type="number" min="0" max="10" step="0.5" value="' + p.fade + '" data-input="pbfade" data-k="pb-fade"></div></div>' +
+      '<div class="pb-levels"><div class="field grow"><label for="pb-vol">Volume <output id="pb-vol-o" class="num">' + p.vol + '</output></label><input id="pb-vol" type="range" min="0" max="100" step="5" value="' + p.vol + '" data-input="pbvol" data-k="pb-vol" data-save="' + esc(p.label) + ' volume"></div>' +
+      '<div class="field pb-fade"><label for="pb-fadein">Fade out (seconds)</label><input id="pb-fadein" class="input num" type="number" min="0" max="10" step="0.5" value="' + p.fade + '" data-input="pbfade" data-k="pb-fade" data-save="' + esc(p.label) + ' fade"></div></div>' +
       '</div>';
     return L.pane({ id: 'pb-pad', title: 'Pad: ' + p.label, icon: 'edit', kind: 'plain', scroll: 'pb-pad',
-      status: on ? { text: 'Playing', tone: 'live' } : previewing(b, p) ? { text: 'Preview', tone: 'on' } : { text: 'Saved', tone: 'idle' },
+      // Round 6, part 5: no Saved status (changes show in the Saved pop-up).
+      status: on ? { text: 'Playing', tone: 'live' } : previewing(b, p) ? { text: 'Preview', tone: 'on' } : null,
       actions: '<button class="btn s icon" data-act="pbpadmenu" data-k="pb-padmenu" aria-haspopup="menu" aria-expanded="false" title="More" aria-label="More for this pad">' + L.icon('more', 's') + '</button>', body: body });
   }
   function usedPane(b) {
@@ -437,6 +438,7 @@
   });
 
   /* ---------- editor actions ---------- */
+  function padSaved(p, what) { L.saved(p.label + ' ' + what, { key: 'pad-' + p.id + what }); }
   function withPad(fn) { return function (el, ev) { var b = board(); if (!b) return; var s = selPad(b); if (!s) return; fn(b, s.pad, el, ev, s); }; }
   L.acts.pbsize = function (el) {
     if (el.getAttribute('aria-disabled') === 'true') { L.say(el.dataset.d > 0 ? 'Already at the largest size, 8' : 'Already at the smallest size, 1'); return; }
@@ -467,7 +469,7 @@
   L.acts.pbputall = function () {
     var b = board(), n = 0;
     while (b.spare.length && b.slots.indexOf(null) > -1) { b.slots[b.slots.indexOf(null)] = b.spare.shift(); n++; }
-    L.say(plural(n, 'pad') + ' put back in the grid' + (b.spare.length ? '; ' + b.spare.length + ' still spare' : '')); L.render();
+    L.say(plural(n, 'pad') + ' put back in the grid' + (b.spare.length ? '; ' + b.spare.length + ' still spare' : '')); L.render(); L.saved('layout of ' + b.name, { key: 'layout-' + b.id });
   };
   L.acts.pbtest = withPad(function (b, p) { firePad(b, p); });
   L.acts.pbtrymode = function () { ui.trying = !ui.trying; if (!ui.trying) stopTries(); ui.pendingFocus = 'pb-trymode'; L.render(); L.say(ui.trying ? 'Trying pads: press a pad or its key to hear it as it will play. Only you hear it.' : 'Stopped trying pads'); };
@@ -487,18 +489,18 @@
     var k = el.dataset.v; if (p.sound.kind === k) return;
     p.sound.kind = k; p.sound.files = p.sound.files || []; if (k === 'variants' && !p.sound.order) p.sound.order = 'random';
     if (k === 'tag' && !p.sound.tag) p.sound.tag = (p.sound.files[0] || '').split(/[_.]/)[0] || '';
-    L.render();
+    L.render(); padSaved(p, 'sound');
   });
   L.acts.pbaddfile = withPad(function (b, p) {
     var s = p.sound, base = s.files[0] ? s.files[0].replace(/(_\d+)?\.wav$/i, '') : slug(p.label), name;
     if (s.kind === 'single') { name = base + (s.files[0] ? '_alt' : '') + '.wav'; if (s.files.length) s.files[0] = name; else s.files.push(name); L.say('File chosen: ' + name); }
     if (p.label === 'New pad' && name) p.label = name.replace(/\.wav$/i, '').replace(/_/g, ' ');
     else { var i = s.files.length + 1; do { name = base + '_' + String(i++).padStart(2, '0') + '.wav'; } while (s.files.indexOf(name) > -1); s.files.push(name); L.say('Added ' + name + '. ' + s.files.length + ' variants.'); }
-    L.render();
+    L.render(); padSaved(p, 'sound');
   });
   L.acts.pbpicklib = withPad(function (b, p) {
     var s = p.sound, cur = D.tracks.filter(function (t) { return t.kind === 'fx' && s.files.indexOf(t.file) > -1; }).map(function (t) { return t.id; });
-    L.pickTracks({ title: 'Sounds for "' + p.label + '"', kinds: ['fx'], selected: cur, multi: true,
+    L.pickTracks({ title: 'Sounds for "' + p.label + '"', kinds: ['fx'], selected: cur, multi: true, saved: p.label + ' sound',
       intro: 'Tick one effect, or several to play them as variants. Preview lets you hear each one first; the players hear nothing.',
       onDone: function (ids) {
         if (!ids.length) return;
@@ -511,14 +513,14 @@
         L.say(plural(files.length, 'sound') + ' from the library on ' + p.label);
       } });
   });
-  L.acts.pbrmfile = withPad(function (b, p, el) { var f = p.sound.files.splice(+el.dataset.i, 1)[0]; L.say('Removed ' + f); ui.pendingFocus = 'pb-addfile'; L.render(); });
-  L.acts.pborder = withPad(function (b, p, el) { p.sound.order = el.dataset.v; L.render(); });
+  L.acts.pbrmfile = withPad(function (b, p, el) { var f = p.sound.files.splice(+el.dataset.i, 1)[0]; L.say('Removed ' + f); ui.pendingFocus = 'pb-addfile'; L.render(); padSaved(p, 'sound'); });
+  L.acts.pborder = withPad(function (b, p, el) { p.sound.order = el.dataset.v; L.render(); padSaved(p, 'order of variants'); });
   L.inputs.pbtag = withPad(function (b, p, el) { p.sound.tag = el.value; L.render(); });
-  L.acts.pbmode = withPad(function (b, p, el) { p.mode = el.dataset.v; L.say(L.modeName[p.mode] + '. ' + MODE_HELP[p.mode]); L.render(); });
+  L.acts.pbmode = withPad(function (b, p, el) { p.mode = el.dataset.v; L.say(L.modeName[p.mode] + '. ' + MODE_HELP[p.mode]); L.render(); padSaved(p, 'play mode'); });
   L.acts.pbkeycap = function () { ui.capture = !ui.capture; L.render(); };
-  L.acts.pbkeyclear = withPad(function (b, p) { p.key = ''; L.say('Hotkey removed'); ui.pendingFocus = 'pb-keycap'; L.render(); });
+  L.acts.pbkeyclear = withPad(function (b, p) { p.key = ''; L.say('Hotkey removed'); ui.pendingFocus = 'pb-keycap'; L.render(); padSaved(p, 'hotkey'); });
   L.acts.pbkeyswap = withPad(function (b, p, el) {
-    var o = find(b, el.dataset.other); if (!o) return; o.pad.key = ''; L.say(String(p.key).toUpperCase() + ' now belongs to ' + p.label + ' only. ' + o.pad.label + ' has no key.'); ui.pendingFocus = 'pb-keycap'; L.render();
+    var o = find(b, el.dataset.other); if (!o) return; o.pad.key = ''; L.say(String(p.key).toUpperCase() + ' now belongs to ' + p.label + ' only. ' + o.pad.label + ' has no key.'); padSaved(p, 'hotkey'); ui.pendingFocus = 'pb-keycap'; L.render();
   });
   L.inputs.pbcolour = withPad(function (b, p, el) { p.color = el.value; L.render(); });
   L.inputs.pbicon = withPad(function (b, p, el) { p.icon = el.value; L.render(); });
@@ -638,7 +640,7 @@
       s.pad.key = e.key.length === 1 ? e.key.toLowerCase() : e.key; ui.capture = false;
       var o = keyOwner(b, s.pad.key, s.pad.id); L.say('Hotkey ' + e.key.toUpperCase() + (o ? '. Warning: ' + o.label + ' uses it too' : ''));
     } else { L.say('That key cannot be used. Try a letter, a number or F1 to F12.'); return; }
-    L.render();
+    L.render(); if (e.key !== 'Escape') padSaved(s.pad, 'hotkey');
   }, true);
   document.addEventListener('focusout', function (e) { if (ui.capture && e.target.dataset && e.target.dataset.k === 'pb-keycap') setTimeout(function () { if (ui.capture && (!document.activeElement || document.activeElement.dataset.k !== 'pb-keycap')) { ui.capture = false; L.render(); } }, 0); });
 
@@ -646,7 +648,7 @@
     return [
       '<b>Round 5:</b> <b>resizing fills the grid</b> left to right, top to bottom, in pad order; pads go to Spare pads only when the grid is full, and spare pads come back when it grows (Undo puts the old layout back). Try Weather and places: Fewer rows, then More rows.',
       '<b>Round 5:</b> each pad has a violet <b>▶ Preview</b> on its tile, and <b>Try pads</b> (in the Pads header) lets you press pads and their keys to hear them play as in Live (one-shot, toggle loop, hold to play, restart on press) in your headphones only.',
-      '<b>Less on screen.</b> Each box has one job and one status pill in its header: <b>Pads</b> (12 pads, or n sounding), <b>Spare pads</b> (Empty or n pads), <b>Pad</b> (Saved, Preview or Playing) and <b>Used in</b>. Effects boxes share the FX edge colour used across Lyre.',
+      '<b>Less on screen.</b> Each box has one job and one status pill in its header: <b>Pads</b> (12 pads, or n sounding), <b>Spare pads</b> (Empty or n pads), <b>Pad</b> (Preview or Playing; saving shows in the Saved pop-up) and <b>Used in</b>. Effects boxes share the FX edge colour used across Lyre.',
       '<b>Quieter pads:</b> a tile shows the label, the key and a small mode icon; the colour stripe is the pad\'s identity. Everything else is in the Pad box when you select it. The headphones button on a tile (or P, or a double-click) previews it to you only.',
       '<b>Same buttons everywhere:</b> Preview, then Play on air, then ⋯ for the rest (Duplicate, Move to…, Delete, Use in…). Right-click a pad for its menu.',
       '<b>Spare pads</b> hold pads that are not on the grid. Make a board smaller and the pads that no longer fit go there, with an Undo; put them back when it grows. Their keys do nothing while spare. Try 3×3 on Drowned Abbey, then 5×3 and <b>Put all back</b>.',
