@@ -8,6 +8,7 @@ import os from "os";
 import path from "path";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { isRefused, type WriteResult } from "../../common/lyre/api";
 import { valueOf } from "../../common/lyre/contract";
 import { prototypeSeed } from "../../common/lyre/seed";
 import { openLibrary } from "../data";
@@ -61,10 +62,18 @@ describe("the sample computer of a test build", () => {
     api.subscribe((event) => event.type === "changed" && events.push(event.areas));
     expect(api.previewableFiles()).toEqual([]);
     const plan = valueOf(await api.import.planRelink({ from: "path", path: "E:\\Music\\Scores" }));
+    // SEC-17: planning grants nothing; Preview the file found grants that one file, for as long as the screen is open.
+    expect(api.previewableFiles()).toEqual([]);
     // t26 matches by name only ("check it"); t19 by name and size is not offered for a preview.
+    expect(valueOf(await api.import.previewFound("t26"))).toEqual({ url: plan.matches[0].toUrl });
     expect(api.previewableFiles()).toEqual([plan.matches[0].to]);
     // The main process refreshes its list of what the page may read.
     expect(events).toContainEqual(["folders"]);
+    expect(refusalOf(await api.import.previewFound("t19")).code).toBe("invalid");
+    expect(refusalOf(await api.import.previewFound("t01")).code).toBe("not-found");
+    valueOf(await api.import.endRelinkPreview());
+    expect(api.previewableFiles()).toEqual([]);
+    valueOf(await api.import.previewFound("t26"));
     valueOf(await api.import.applyRelink([plan.matches[1]]));
     expect(api.previewableFiles()).toEqual([]);
   });
@@ -113,3 +122,8 @@ describe("the sample computer of a test build", () => {
     expect(report.summary).toBe('Brought in Curse of Strahd, 3 playlists, a pad board, 3 tag values and 38 tracks (8 as copies). 3 copies named "(from Sam)". The audio files were not in the file: Find missing files finds them on this computer.');
   });
 });
+
+function refusalOf(result: WriteResult<unknown>) {
+  if (!isRefused(result)) throw new Error("expected a refusal");
+  return result.refusal;
+}

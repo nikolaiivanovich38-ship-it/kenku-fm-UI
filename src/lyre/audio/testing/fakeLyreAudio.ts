@@ -13,7 +13,7 @@ import { TypedEmitter } from "tiny-typed-emitter";
 import type { CueOutcome, DeviceStatus, LaneNowPlaying, LyreAudio, LyreAudioEvents, NowPlaying, OutputDeviceInfo, PreviewNowPlaying, RoomNowPlaying } from "../lyreAudio";
 
 export const EMPTY_NOW_PLAYING: NowPlaying = {
-  rooms: [{ roomId: "table", name: "Table", volume: 0.85, music: null, ambience: null, upNext: null, queued: [], effects: [] }],
+  rooms: [{ roomId: "table", name: "Table", volume: 0.85, music: null, ambience: null, upNext: null, queued: [], upNextList: [], repeat: { chosen: null, shown: "off" }, canUndoUpNext: false, effects: [] }],
   broadcasting: false,
   preview: null,
   previewDevice: null,
@@ -26,10 +26,13 @@ type Call = [method: string, ...args: unknown[]];
 export type FakeLane = Omit<LaneNowPlaying, "place" | "playOrder" | "gainDb"> & Partial<Pick<LaneNowPlaying, "place" | "playOrder" | "gainDb">>;
 /** A preview as a test gives it: its key and label, the rest filled in (a track, playing, full volume). */
 export type FakePreview = Pick<PreviewNowPlaying, "key" | "label"> & Partial<PreviewNowPlaying>;
+/** A room's round 6 fields may be left out: nothing in Up next, no Repeat chosen (off), nothing to undo. */
+type RoundSixRoom = "upNextList" | "repeat" | "canUndoUpNext";
 /** Now-playing state as a test gives it to setNowPlaying. */
 export type FakeNowPlaying = Partial<Omit<NowPlaying, "rooms" | "preview">> & {
   /** A room's volume may be left out: 0.85, as rooms start in the app. */
-  rooms?: (Omit<RoomNowPlaying, "music" | "ambience" | "volume"> & { music: FakeLane | null; ambience: FakeLane | null; volume?: number })[];
+  rooms?: (Omit<RoomNowPlaying, "music" | "ambience" | "volume" | RoundSixRoom> &
+    Partial<Pick<RoomNowPlaying, RoundSixRoom>> & { music: FakeLane | null; ambience: FakeLane | null; volume?: number })[];
   preview?: FakePreview | null;
 };
 
@@ -50,7 +53,9 @@ export class FakeLyreAudio extends TypedEmitter<LyreAudioEvents> implements Lyre
     this.state = {
       ...this.state,
       ...rest,
-      ...(rooms ? { rooms: rooms.map((r) => ({ volume: 0.85, ...r, music: lane(r.music), ambience: lane(r.ambience) })) } : {}),
+      ...(rooms
+        ? { rooms: rooms.map((r): RoomNowPlaying => ({ volume: 0.85, upNextList: [], repeat: { chosen: null, shown: "off" as const }, canUndoUpNext: false, ...r, music: lane(r.music), ambience: lane(r.ambience) })) }
+        : {}),
       ...(shown !== undefined ? { preview: preview(shown) } : {}),
     };
     this.subscribers.forEach((listener) => listener());
@@ -70,6 +75,21 @@ export class FakeLyreAudio extends TypedEmitter<LyreAudioEvents> implements Lyre
   stopPads = this.record("stopPads");
   removeQueued = this.record("removeQueued");
   undoSceneStart = this.record("undoSceneStart");
+  playNext = this.record("playNext");
+  addToQueue = this.record("addToQueue");
+  removeFromUpNext = this.record("removeFromUpNext");
+  clearAdded = this.record("clearAdded");
+  undoUpNext = this.record("undoUpNext");
+  setRepeat = this.record("setRepeat");
+  cycleRepeat = this.record("cycleRepeat");
+
+  savedRepeatOneChanged(scene: unknown, trackId: string): void {
+    this.calls.push(["savedRepeatOneChanged", scene, trackId]);
+  }
+
+  sessionLoaded(): void {
+    this.calls.push(["sessionLoaded"]);
+  }
   run = this.record("run");
   previewTrack = this.record("previewTrack");
   previewPlaylist = this.record("previewPlaylist");

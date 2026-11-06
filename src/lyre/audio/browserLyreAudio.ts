@@ -221,4 +221,6 @@ export const EMPTY_LIBRARY: LyreAudioLibrary = {
   pad: () => undefined,
   playOrders: () => ({}),
   normaliseSettings: () => DEFAULT_LIBRARY_NORMALISE,
+  trackOrders: () => ({}),
+  repeatOnes: () => ({}),
 };

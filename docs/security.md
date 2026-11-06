@@ -794,3 +794,44 @@ Lyre write more than the file itself holds.
 - **BUG-20.** New cue action `stopPads` (`{ type, target?, fadeMs? }`), checked by `isCueAction` like `fadeAll` (target and a fade of 0 to 60 s). It cannot be put on a hotkey (`cueActions.ts` refuses it). It reaches the engine only from the Lyre page's own audio host; it crosses no process boundary.
 - **BUG-21.** Renaming goes through the existing `sessions.update` call and its argument checks.
 - No IPC channel, argument check, permission or Content-Security-Policy changed.
+
+## w6-contracts
+
+### In plain language
+
+Settings in Lyre can add a Discord bot, replace its token, rename or remove it, and open its invite. A token you paste
+goes straight to the part of Lyre that keeps it encrypted, as before; the screen only ever gets its last four
+characters back. The invite link is made by Lyre itself from the Application ID, so the screen cannot open any other
+address. Find missing files can play a file it found only when you press its Preview, and only that one file, until
+you leave the screen.
+
+### Technical details
+
+- **Bot channels** (`lyreOutputsBridge.ts`, rules in `ipcChannels.ts` "w6-contracts", Lyre page only): `LYRE_BOT_ADD`
+  (a token of at most 200 characters and an Application ID of digits or null), `LYRE_BOT_SET_TOKEN`, `_RENAME` (at most
+  200 characters), `_SET_APP_ID`, `_REMOVE`, `_RESTORE` (invoke; a bot id first), `_CONNECT`, `_DISCONNECT` (send; a
+  bot id), `_OPEN_INVITE` (send; an Application ID, `isApplicationId`). The main process checks a token's and an
+  Application ID's shape (`tokenProblem`, `applicationIdProblem`) and answers in plain words, so Discord only sees a
+  token that could be one.
+- **SEC-5 kept**: tokens are encrypted by `BotTokenStore` as before; `LyreOutputs` carries `tokenEnd` (four characters,
+  worked out once in memory, never written in clear). A removed bot is held in memory with its encrypted token for
+  Remove's Undo; a token kept for this session only is held apart (`SESSION_TOKENS`), so it is in nothing sent or
+  written. The Application ID is not a secret and is saved in `discord-bots.json`.
+- **The invite** is `botInviteUrl` (`https://discord.com/oauth2/authorize?client_id=<digits>&scope=bot&permissions=3146752`:
+  View Channels, Connect, Speak), opened through `openExternalIfAllowed`. In test builds the fake Discord's
+  `inviteOpened` stands in for the browser.
+- **SEC-17**: planning a relink grants nothing; `import.previewFound(trackId)` puts the one found file of a match by
+  name only on the list `MediaAccess` reads (`previewableFiles`), replacing any earlier one, until a new plan, a
+  relink or `import.endRelinkPreview()`; each change sends a "folders" event so the main process asks again and drops
+  addresses that left the list (`MediaGrants.revokeFile`).
+- **UX-19**: a write SQLite could not save is a `"not-saved"` refusal; the hook that makes the next write fail is
+  honoured only by a test build's sample library (`fail-next-write`, ignored when not seeded) and exposed only in test
+  builds (`__lyreLibraryTest`).
+
+### Manual checks (Windows, real Discord)
+
+1. Settings › Add a bot: paste a real Application ID; Open the invite opens Discord's page in your browser asking for
+   View Channels, Connect and Speak, nothing else.
+2. Paste the bot's token and Connect: the bot shows "••••••••" and the token's last four characters only; restart Lyre:
+   it still connects.
+3. Remove the bot, then Undo: it comes back, connects and goes back to its voice channel.

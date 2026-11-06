@@ -394,7 +394,16 @@ export class Voice extends TypedEmitter<VoiceEvents> {
   }
 
   private loopsNatively() {
-    return Boolean(this.plan?.native) && this.options.loop;
+    return Boolean(this.plan?.native) && this.looping();
+  }
+
+  /**
+   * Whether the voice goes round again at End: asked to loop, and its plan has something to loop (BUG-22: a profile
+   * whose Loop start is past the end of a file shorter than Lyre thought has nothing; looping a part of no length went
+   * round and round with no sound).
+   */
+  private looping(): boolean {
+    return this.options.loop && (this.plan === null || this.plan.loop);
   }
 
   /** End is before the end of the media, so the voice must stop each pass itself. */
@@ -432,7 +441,7 @@ export class Voice extends TypedEmitter<VoiceEvents> {
       return;
     }
     const now = this.context.currentTime;
-    if (this.options.loop) {
+    if (this.looping()) {
       const handoverAt = endsAt - this.plan.overlap;
       const prepareAt = Math.max(handoverAt - PREPARE_AHEAD_SECONDS[pass.layer.kind], this.outgoing ? this.outgoingEndsAt : 0);
       this.transitionTimer = this.after(prepareAt - now, () => this.prepareTransition(pass));
@@ -502,7 +511,7 @@ export class Voice extends TypedEmitter<VoiceEvents> {
     }
     if (this.state === "stopping") {
       this.finish("stopped");
-    } else if (this.options.loop) {
+    } else if (this.looping()) {
       // The pass ended without a hand-over (e.g. a stream that did not say
       // how long it is): start the next one at once.
       this.cancelTransition();

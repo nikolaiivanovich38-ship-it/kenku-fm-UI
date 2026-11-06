@@ -19,6 +19,10 @@ export interface BotSummary {
   hasToken: boolean;
   /** True when the token is saved encrypted; false when kept for this session only. */
   tokenRemembered: boolean;
+  /** OUT-8: the last four characters of the token (Settings shows "••••••••Kq7w"), or null. Never more of it. */
+  tokenEnd: string | null;
+  /** OUT-8: the bot's Application ID, for its invite link; null when not given. */
+  applicationId: string | null;
 }
 
 interface StoredBot {
@@ -26,7 +30,21 @@ interface StoredBot {
   name: string;
   /** Token encrypted with safeStorage, base64. Never plain text. */
   encryptedToken?: string;
+  /** OUT-8: the Application ID (a Discord id, digits only), for the invite link. Not a secret. */
+  applicationId?: string;
 }
+
+/**
+ * A bot taken out by Remove, kept in memory until its Undo is gone, to put it back as it was: its place, name,
+ * Application ID and encrypted token. A token kept for this session only is held outside the object (so it is never
+ * part of anything written or sent).
+ */
+export interface RemovedBot {
+  readonly id: string;
+  readonly index: number;
+  readonly bot: Readonly<StoredBot>;
+}
+const SESSION_TOKENS = new WeakMap<RemovedBot, string>();
 
 interface StoredFile {
   version: 1;
@@ -63,6 +81,8 @@ export class BotTokenStore {
   private bots: StoredBot[] = [];
   /** Tokens for this session only (no encryption available). */
   private sessionTokens = new Map<string, string>();
+  /** OUT-8: each token's last four characters, worked out once (decrypting on every state would cost each time). */
+  private tokenEnds = new Map<string, string | null>();
   readonly encryption: boolean;
 
   constructor(
@@ -83,7 +103,54 @@ export class BotTokenStore {
       name: bot.name,
       hasToken: Boolean(bot.encryptedToken) || this.sessionTokens.has(bot.id),
       tokenRemembered: Boolean(bot.encryptedToken),
+      tokenEnd: this.tokenEnd(bot.id),
+      applicationId: bot.applicationId ?? null,
     }));
+  }
+
+  /** OUT-8: Rename. False for an unknown bot or a blank name. */
+  rename(id: string, name: string): boolean {
+    const bot = this.bots.find((candidate) => candidate.id === id);
+    const clean = typeof name === "string" ? name.trim().slice(0, 100) : "";
+    if (!bot || !clean) return false;
+    bot.name = clean;
+    this.save();
+    return true;
+  }
+
+  /** OUT-8: the bot's Application ID (null: none), for its invite link. The caller checks its shape. */
+  setApplicationId(id: string, applicationId: string | null): void {
+    const bot = this.bots.find((candidate) => candidate.id === id);
+    if (!bot) return;
+    if (applicationId) bot.applicationId = applicationId;
+    else delete bot.applicationId;
+    this.save();
+  }
+
+  /** OUT-8 Remove: takes the bot out and answers what putBack needs to undo it; null for an unknown bot. */
+  takeOut(id: string): RemovedBot | null {
+    const index = this.bots.findIndex((bot) => bot.id === id);
+    if (index < 0) return null;
+    const removed: RemovedBot = { id, index, bot: { ...this.bots[index] } };
+    const session = this.sessionTokens.get(id);
+    if (session) SESSION_TOKENS.set(removed, session);
+    this.removeBot(id);
+    return removed;
+  }
+
+  /** OUT-8 Remove's Undo: the bot comes back where it was, with its name, Application ID and token. */
+  putBack(removed: RemovedBot): void {
+    if (this.has(removed.id)) return;
+    this.bots.splice(Math.min(removed.index, this.bots.length), 0, { ...removed.bot });
+    const session = SESSION_TOKENS.get(removed);
+    if (session) this.sessionTokens.set(removed.id, session);
+    this.tokenEnds.delete(removed.id);
+    this.save();
+  }
+
+  private tokenEnd(id: string): string | null {
+    if (!this.tokenEnds.has(id)) this.tokenEnds.set(id, this.token(id)?.slice(-4) ?? null);
+    return this.tokenEnds.get(id) ?? null;
   }
 
   has(id: string): boolean {
@@ -101,6 +168,7 @@ export class BotTokenStore {
   removeBot(id: string): void {
     this.bots = this.bots.filter((bot) => bot.id !== id);
     this.sessionTokens.delete(id);
+    this.tokenEnds.delete(id);
     this.save();
   }
 
@@ -113,6 +181,7 @@ export class BotTokenStore {
     if (!bot) {
       return false;
     }
+    this.tokenEnds.delete(id);
     if (this.encryption) {
       bot.encryptedToken = this.safeStorage.encryptString(token).toString("base64");
       this.sessionTokens.delete(id);
@@ -130,6 +199,7 @@ export class BotTokenStore {
       delete bot.encryptedToken;
     }
     this.sessionTokens.delete(id);
+    this.tokenEnds.delete(id);
     this.save();
   }
 
@@ -176,6 +246,7 @@ export class BotTokenStore {
           id: bot.id,
           name: typeof bot.name === "string" ? bot.name.slice(0, 100) : "Bot",
           ...(typeof bot.encryptedToken === "string" ? { encryptedToken: bot.encryptedToken } : {}),
+          ...(typeof bot.applicationId === "string" && /^\d{15,22}$/.test(bot.applicationId) ? { applicationId: bot.applicationId } : {}),
         }));
     } catch (error) {
       console.error("Unable to read the Discord bot list", error);

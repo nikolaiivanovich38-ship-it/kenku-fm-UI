@@ -6,7 +6,7 @@ import { randomUUID } from "crypto";
 import fs from "fs";
 import path from "path";
 
-import { parseKeyOfPlace, parsePlaceKey, type PlayOrderOverrides, type ProfileOverrides } from "../../common/domain";
+import { parseKeyOfPlace, parsePlaceKey, type PlayOrderOverrides, type ProfileOverrides, type TrackOrders } from "../../common/domain";
 import type { BringInChoices, BringInReport, OpenedFile, SavedFile, TransferEstimate, TransferScope } from "../../common/lyre/api";
 import { plural } from "../../common/lyre/text";
 import type { TransferContents, TransferLibrary } from "../../common/lyre/transfer";
@@ -63,6 +63,7 @@ export interface SaveInput {
   contents: TransferContents;
   overrides: ProfileOverrides;
   playOrders: PlayOrderOverrides;
+  trackOrders: TrackOrders;
   includeAudio: boolean;
   /** A track's file on this computer (null: a web address). */
   fileOf(trackId: string): string | null;
@@ -71,7 +72,7 @@ export interface SaveInput {
 }
 
 /** The audio settings and play orders of the places inside the scope, for its tracks and playlists. */
-function settingsInside(contents: TransferContents, overrides: ProfileOverrides, playOrders: PlayOrderOverrides) {
+function settingsInside(contents: TransferContents, overrides: ProfileOverrides, playOrders: PlayOrderOverrides, trackOrders: TrackOrders) {
   const tracks = new Set(contents.tracks.map((t) => t.id));
   const playlists = new Set(contents.playlists.map((p) => p.id));
   const sessions = new Set<string>();
@@ -91,16 +92,25 @@ function settingsInside(contents: TransferContents, overrides: ProfileOverrides,
     const kept = Object.fromEntries(Object.entries(byTrack).filter(([t]) => tracks.has(t)));
     if (Object.keys(kept).length) outOverrides[key] = kept;
   }
+  // Whole campaigns only: a session or scene file cuts its campaign down, so the campaign's list is not in it.
+  const placeInside = (key: string) => {
+    const p = parseKeyOfPlace(key);
+    return !!p && (p.kind === "campaign" ? campaigns.has(p.campaignId) && contents.campaigns.some((c) => c.id === p.campaignId && c.playlistIds.length > 0) : p.kind === "session" ? sessions.has(`${p.campaignId}:${p.sessionId}`) : scenes.has(`${p.campaignId}:${p.sessionId}:${p.sceneId}`));
+  };
   const outOrders: PlayOrderOverrides = {};
   for (const [key, byPlaylist] of Object.entries(playOrders)) {
-    const p = parseKeyOfPlace(key);
-    // Whole campaigns only: a session or scene file cuts its campaign down, so the campaign's list is not in it.
-    const inside = p && (p.kind === "campaign" ? campaigns.has(p.campaignId) && contents.campaigns.some((c) => c.id === p.campaignId && c.playlistIds.length > 0) : p.kind === "session" ? sessions.has(`${p.campaignId}:${p.sessionId}`) : scenes.has(`${p.campaignId}:${p.sessionId}:${p.sceneId}`));
-    if (!inside) continue;
+    if (!placeInside(key)) continue;
     const kept = Object.fromEntries(Object.entries(byPlaylist).filter(([id]) => playlists.has(id)));
     if (Object.keys(kept).length) outOrders[key] = kept;
   }
-  return { overrides: outOverrides, playOrders: outOrders };
+  // ORG-13: a track order names only tracks in the file (the rest follow in the playlist's order there too).
+  const outTrackOrders: TrackOrders = {};
+  for (const [key, byPlaylist] of Object.entries(trackOrders)) {
+    if (!placeInside(key)) continue;
+    const kept = Object.fromEntries(Object.entries(byPlaylist).filter(([id]) => playlists.has(id)).map(([id, ids]) => [id, ids.filter((t) => tracks.has(t))]));
+    if (Object.keys(kept).length) outTrackOrders[key] = kept;
+  }
+  return { overrides: outOverrides, playOrders: outOrders, trackOrders: outTrackOrders };
 }
 
 const fileTrack = ({ url: _url, addedAt: _added, isNew: _isNew, suggestedShape: _suggested, loudness: _loudness, ...rest }: TransferContents["tracks"][number]): FileTrack => rest;
@@ -129,7 +139,7 @@ export async function saveLyreFile(input: SaveInput): Promise<SavedFile> {
     playlists: contents.playlists,
     boards: contents.boards,
     campaigns: contents.campaigns,
-    ...settingsInside(contents, input.overrides, input.playOrders),
+    ...settingsInside(contents, input.overrides, input.playOrders, input.trackOrders),
   };
   let bytes: number;
   try {

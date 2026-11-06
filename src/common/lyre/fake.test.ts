@@ -18,15 +18,19 @@ const fixtureOptions: FakeLyreOptions = {
   folderFiles: { "D:\\Moved": ["07 Memories of Mother.flac", "cover.jpg"] },
 };
 
-lyreApiContract("in-memory fake", () => ({
-  api: createFakeLyreApi(fixtureOptions),
+lyreApiContract("in-memory fake", () => {
+  const api = createFakeLyreApi(fixtureOptions);
+  return {
+  api,
+  failNextWrite: () => api.failNextWrite(),
   newAudioFiles: ["D:\\Incoming\\Ambience\\harbour_night.wav", "D:\\Incoming\\Dune\\02 Leaving Caladan.flac"],
   notAudioFile: "D:\\Incoming\\notes.txt",
   missingTrackId: "t43",
   relinkFolder: "D:\\Moved",
   folderToWatch: "H:\\Audio\\Incoming",
   transferFiles: { saveTo: "D:\\Shared\\The Sunken Crown.lyre", notLyreFile: "D:\\Shared\\photo.jpg" },
-}));
+  };
+});
 
 describe("the seed is the prototype's sample data", () => {
   // data.js defines a global LYRE_DATA; run it in a sandbox, as src/main/data/repo/domain.test.ts does.

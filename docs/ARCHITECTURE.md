@@ -585,3 +585,59 @@ Fixes from Nik's test of 0.4.0 (BUG-19 to BUG-21).
 - **What goes to the players is heard only through Discord** (BUG-19). The audio host joins no room audibly to the Lyre page's speakers (`LyreAudioParts` has no `speakers` any more; every room's mix feeds `keepAlive`, a gain of 0 into them, because Chromium runs only the parts of a graph that lead somewhere, and with no bot nothing else taps the rooms), and the capture window plays the Lyre page's room frames into the room's `volume` node, past `input`, so they reach that room's encoder and never "This Computer" (`RoomMix.localVolume` carries the room's tabs and input devices there at the same volume). Preview and Try pads still play in the headphones (PRV-1). With no bot in a voice channel the table plays to nobody: the Now playing row says "No bot is in a voice channel: nobody hears it", and Live's "On air: no room yet" box shows "Nobody hears it" while something plays there; the top strip keeps its Join. The old player and website tabs are unchanged.
 - **Stop pads in Live** (BUG-20). `RoomPlayer.firePad` stops a pad that sounds in that room on a press, whatever its play mode (a toggle or hold pad with its own fade, a one-shot or restart pad in `DEFAULT_FADES.padStop`, 0.3 s), and the Director picks a variant only for a press that starts one. New cue action `stopPads` (`LyreAudio.stopPads()`, "Pads stopped"): every pad sound in every room; music, ambience and effects played on their own go on. It cannot be put on a hotkey (`cueActions.ts` refuses it). Live's pad tiles are pressed (and show On, with one room) while they sound, for every mode; the Pads header has Stop pads (dimmed with `aria-disabled` while none plays, so focus stays on it). Try pads follows the same rule (`LyreAudio.tryPad`, the board's tiles pressed while a pad sounds), and the play mode help says so. One-shot and Restart on press now behave the same in Live.
 - **Rename a session on its page and in Live** (BUG-21). The session page's h1 is a button holding "Session n: name" (click or F2 turns the name, not the number, into `kit/RenameInPlace`'s box; Enter saves through `sessions.update`, Esc cancels, focus goes back to the title). Live's session menu button (`LiveTop.tsx`) takes F2 and has Rename session first in its menu; while editing, the strip shows the campaign, "Session n:" and the box. `PopMenuButton` gained `onKeyDown` and `dataK` for it.
+
+## Wave 6: w6-contracts
+
+Step 1 of the 0.5.0 build: the data, calls and sound state design round 6 needs (design/prototype/ROUND6.md parts 3 to
+5, R6-NIK-DECISIONS.md), tested, with no screens. Schema version 5 is in docs/data-model.md.
+
+**Shared rules** (`src/common/domain`): `round6.ts` (`TrackOrders`, `tracksInPlaceOrder`, `placeOrderToKeep`,
+`RepeatOnes`, `repeatsOneIn`) and `roomList.ts`, each room's running list as pure functions over an immutable
+`RoomList`: `playNext` (right after the current track, newest first; Play next of the track the plan plays next
+anyway skips the planned copy), `addToQueue` (after the bottom of the plan, in the order added), `playNow` (a single
+track while the plan plays), `pickNext` (Repeat one, the rest of a Play next playlist, Play next, the plan with its
+skips and the play order's own loop inside a scene, what was added, then round again or stop), `upNext` (entries top to
+bottom with the `ref` × takes), `removeFromUpNext`, `clearAdded`, `undoLast` (the last add, removal or clear, once),
+`newPlan`, `sceneStarted` (clears what was added), `musicStopped`, and the room's Repeat (`RoomRepeat`,
+`shownRepeat`, `nextRepeat`). The host gives each call a `PlanView` (the plan's steps and where it is).
+
+**LyreApi** (`api.ts`, `LYRE_API_METHODS`, the fake, the main process, argument checks and the contract suite follow):
+
+| Area | Added or changed |
+| --- | --- |
+| library | `find({ text, lane?, limit?, in? })`: tracks (as `search`) and playlists in one call; a playlist found in Live's session (or its campaign) comes with its tracks in that list's order and that place (ORG-14). |
+| playlists | `trackOrders()`, `setTrackOrder(id, place, trackIds)` (answers the order that plays there, or null for the playlist's own), `clearTrackOrder(id, place)` (ORG-13). |
+| sessions | `SceneInfo.repeatOnes`; `setRepeatOne(scene, trackId, on)` (PLY-17). `repeatOnesOf(campaigns)` (`lookup.ts`). |
+| import | `previewFound(trackId)` and `endRelinkPreview()` (SEC-17). |
+| every write | A write the computer could not save (SQLite FULL, IOERR, READONLY, CANTOPEN, BUSY, LOCKED, PERM) is refused with the new code `"not-saved"` and `NOT_SAVED`'s words, nothing changed, instead of a thrown fault (UX-19). `failNextWrite()` on the fake and the main API (tests; test builds through `__lyreLibraryTest`). |
+
+**Audio host** (`src/lyre/audio`, engine `src/player/engine/queue`): `RoomPlayer` keeps a `RoomList` and the plan item
+beside its music lane; every track end, Next and Previous go through `pickNext`; a scene start clears what was added
+and the scene's Undo snapshot holds the list. `ShowLibrary`/`LyreAudioLibrary` gain `trackOrders()` and `repeatOnes()`
+(`LibrarySnapshot` loads them), and `sequenceOf` deals a playlist in its place's track order (shuffle on top).
+
+- `RoomNowPlaying` gains `upNextList` (`UpNextEntryNow`: `ref`, `kind` playNext / planned / added, `trackIds`, `title`,
+  `playlistId`, `rest`), `repeat` (`{ chosen, shown }`) and `canUndoUpNext`. `upNext` and `queued` keep their meaning
+  (the first entry; what was added).
+- New calls: `playNext(what, { target })`, `addToQueue(what, { target })` (`what`: a track with its `from`, or a
+  playlist with its `place`; a silent room plays it at once), `removeFromUpNext(ref)`, `clearAdded()`, `undoUpNext()`,
+  `setRepeat(repeat)`, `cycleRepeat()`, `savedRepeatOneChanged(scene, trackId)`, `sessionLoaded()`. `playTrack({ when:
+  "next" })` and `removeQueued` work on the same list; several Play next tracks now play the newest first.
+- BUG-22: `profilePlan` keeps a start's distance before the file's real End, and a voice loops only when its plan has
+  something to loop.
+
+**Bots in the Lyre page** (OUT-8, OUT-7): `LyreBot` gains `savedName`, `tokenEnd` (last four characters), `tokenRemembered`,
+`applicationId`, `inviteUrl`, `canRemove`; `LyreOutputs.encryption`. `src/common/lyreOutputs.ts` has
+`BOT_INVITE_PERMISSIONS` (3146752), `botInviteUrl`, `isApplicationId`, `isBotToken`, `applicationIdProblem`,
+`tokenProblem`, `undoOfMove` and `LyreBotResult`. `window.lyre.outputs` gains `addBot`, `replaceToken`, `rename`,
+`setApplicationId`, `remove`, `restore`, `connect`, `disconnect`, `openInvite` (`OutputManager.addBotWithToken`,
+`replaceToken`, `renameBot`, `setApplicationId`, `removeBotForUndo`, `restoreBot`, `disconnect`,
+`inviteOpenedByDriver`; `BotTokenStore` keeps the name and Application ID, works out the token's end once, and
+`takeOut`/`putBack` for Remove's Undo). Moving a bot or Kick (`move`, `leave`) are as before; `undoOfMove(before, bot)`
+says what undoes them. `FakeOutputs` does all of it in memory; the test builds' Discord admits a new bot once its
+invite was opened (`FakeWorld.notInvited`, `DiscordDriver.inviteOpened`).
+
+What the screen streams must know: Find a track is `library.find`; Up next is `upNextList`; call
+`savedRepeatOneChanged` after `sessions.setRepeatOne`, `sessionLoaded` when Live loads another session, and
+`import.previewFound` before "Preview the file found" (`endRelinkPreview` when Find missing files closes). The order
+of playlists in a session's or campaign's list is `campaigns.setOnHand`.

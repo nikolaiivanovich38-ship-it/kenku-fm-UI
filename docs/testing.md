@@ -187,11 +187,11 @@ CUE_DESK_E2E_BUILD=1 yarn package                                               
 npx playwright test -c playwright.spec.config.ts --project=app                    # the app (see below; xvfb-run -a on Linux)
 ```
 
-No build is needed for the `prototype` project; it opens `design/prototype/lyre-prototype.html` as a file. All specs must pass there: that proves the specs describe the approved design before the app exists. If your machine's Playwright browser differs from the one Playwright expects, point `LYRE_SPEC_CHROMIUM` at a Chromium executable. These specs are not part of `yarn e2e` (`e2e/playwright.config.ts` ignores `e2e/specs`).
+No build is needed for the `prototype` project; it opens `design/prototype/lyre-prototype.html` as a file. All specs must pass there: that proves the specs describe the approved design before the app exists. If your machine's Playwright browser differs from the one Playwright expects, point `LYRE_SPEC_CHROMIUM` at a Chromium executable. On the build machine Playwright 1.64.1 expects Chromium build 1248 and `/opt/pw-browsers` holds build 1243; matching them would need a download (`playwright install`) or another Playwright version, so the runs use `LYRE_SPEC_CHROMIUM=$(ls -d /opt/pw-browsers/chromium-1243/chrome-linux*/chrome)` (FND-17). These specs are not part of `yarn e2e` (`e2e/playwright.config.ts` ignores `e2e/specs`).
 
 ### What differs between the prototype and the app
 
-Only `e2e/specs/support/target.ts`. It has one function per thing a person cannot do from the page itself: `openRoute(page, route, { theme })`, `joinRoom(page, bot, channel)` (a Discord bot joining a voice channel), `leaveAllRooms(page)`, `notLyre()` (parts of the page that are the prototype's own controls, left out of the sweeps) and `knownAxeIssues()`. Each is implemented for the prototype and, for the app, throws "not built yet". `support/drop.ts` drops files the way a browser does and works on both.
+Only `e2e/specs/support/target.ts`. It has one function per thing a person cannot do from the page itself: `openRoute(page, route, { theme })`, `joinRoom(page, bot, channel)` (a Discord bot joining a voice channel), `leaveAllRooms(page)`, `notLyre()` (parts of the page that are the prototype's own controls, left out of the sweeps) and `knownAxeIssues()`. Each is implemented for the prototype and, for the app, throws "not built yet". `failNextSave(page)` (round 6 part 5) is built for the app: it calls the test build's `__lyreLibraryTest.failNextWrite()`, and the library's next write is refused with "not-saved". `support/drop.ts` drops files the way a browser does and works on both.
 
 ### The app branch of `openRoute`
 

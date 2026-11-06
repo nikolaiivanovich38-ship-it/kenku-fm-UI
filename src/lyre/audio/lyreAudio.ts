@@ -38,7 +38,12 @@ import {
   type PlayOrder,
   type PlayOrderOverrides,
   type ProfileOverrides,
+  type Repeat,
+  type RepeatOnes,
+  type RoomRepeat,
   type RoomTarget,
+  type TrackOrders,
+  type UpNextRef,
   type UsePlace,
 } from "../../common/domain";
 import type { GainLike, NodeLike } from "../../player/engine/audio/types";
@@ -53,7 +58,7 @@ import {
 } from "../../player/engine/preview/previewPlayer";
 import type { DeviceStatus, OutputDeviceChooser, OutputDeviceInfo } from "../../player/engine/preview/outputDevices";
 import { DEFAULT_FADES, type CueAction, type CueOutcome, type TrackFrom } from "../../player/engine/queue/actions";
-import { Director, padWithoutSound } from "../../player/engine/queue/director";
+import { Director, padWithoutSound, type ListWhat } from "../../player/engine/queue/director";
 import type { PadSound, SceneRef, ShowLibrary } from "../../player/engine/queue/library";
 import { playOrderOf, type Origin } from "../../player/engine/queue/nowPlaying";
 import type { Random } from "../../player/engine/queue/queue";
@@ -64,7 +69,7 @@ import type { MediaRequest } from "../../player/engine/sources/sourceLoader";
 import type { Voice } from "../../player/engine/voice/voice";
 import { StableRooms } from "./stableRooms";
 
-export type { CueAction, CueOutcome, TrackFrom, SceneRef, Origin, RoomLane, OutputDeviceInfo, DeviceStatus, PreviewKind };
+export type { CueAction, CueOutcome, TrackFrom, SceneRef, Origin, RoomLane, OutputDeviceInfo, DeviceStatus, PreviewKind, ListWhat, UpNextRef };
 
 // ---------- what the screens give LyreAudio ----------
 
@@ -91,6 +96,10 @@ export interface LyreAudioLibrary extends DomainLookup {
   playOrders(): PlayOrderOverrides;
   /** PLY-15: the library's Normalise volume setting (LyreApi library.normaliseSettings). */
   normaliseSettings(): LibraryNormalise;
+  /** ORG-13: a playlist's track order chosen in places (LyreApi playlists.trackOrders); optional for older hosts. */
+  trackOrders?(): TrackOrders;
+  /** PLY-17: Repeat one saved on scenes' tracks (repeatOnesOf the campaigns); optional for older hosts. */
+  repeatOnes?(): RepeatOnes;
 }
 
 // ---------- what the screens read ----------
@@ -144,10 +153,38 @@ export interface RoomNowPlaying {
   ambience: LaneNowPlaying | null;
   /** The track Next would play in the music lane. */
   upNext: { trackId: string; title: string } | null;
-  /** Play next queue, in order. */
+  /** What was added to the room's list (Play next items, then Add to queue items); `entryId` for removeQueued. */
   queued: { entryId: string; trackId: string; title: string }[];
+  /**
+   * PLY-16: Up next, top to bottom: Play next items ("playNext"), the plan's tracks still to come ("planned"), then
+   * what was added with Add to queue ("added"). Each can be taken out with removeFromUpNext(entry.ref). For this
+   * evening only; nothing is saved.
+   */
+  upNextList: UpNextEntryNow[];
+  /**
+   * PLY-17: the room's Repeat for what plays now: `chosen` is the one pressed (null until then; never saved, back to
+   * null when the music stops or a new plan starts), `shown` the one that applies (the chosen one, else the scene
+   * track's saved Repeat one, else its playlist's play order there, else off).
+   */
+  repeat: { chosen: RoomRepeat; shown: Repeat };
+  /** The last add, removal or Clear added in this room can be undone (undoUpNext). */
+  canUndoUpNext: boolean;
   /** Effects and pads sounding. `padKey` is "<board id>/<pad id>" for a pad. */
   effects: { trackId: string; title: string; padKey: string | null }[];
+}
+
+/** One entry of a room's Up next (RoomNowPlaying.upNextList). */
+export interface UpNextEntryNow {
+  /** What × passes to removeFromUpNext. */
+  ref: UpNextRef;
+  kind: "playNext" | "planned" | "added";
+  /** The tracks still to play of it (one for a track; a playlist's rest in its order). */
+  trackIds: string[];
+  /** A playlist's name, or the track's name where it was added from (DAT-14: its scene's name for it). */
+  title: string;
+  playlistId: string | null;
+  /** The rest of an added playlist that plays now. */
+  rest: boolean;
 }
 
 export interface NowPlaying {
@@ -254,6 +291,29 @@ export interface LyreAudio {
   stopPads(): CueOutcome;
   removeQueued(entryId: string, target?: RoomTarget): CueOutcome;
   undoSceneStart(): CueOutcome;
+
+  // ----- round 6: each room's running list and its Repeat (PLY-16, PLY-17), for the evening, never saved -----
+  /** Play next: right after the current track (the newest first). A silent room plays it at once. Default: the first room. */
+  playNext(what: ListWhat, options?: { target?: RoomTarget }): CueOutcome;
+  /** Add to queue: after the bottom of the room's list, in the order added. A silent room plays it at once. */
+  addToQueue(what: ListWhat, options?: { target?: RoomTarget }): CueOutcome;
+  /** × in Up next: a planned track is skipped this evening, an added item goes. */
+  removeFromUpNext(ref: UpNextRef, target?: RoomTarget): CueOutcome;
+  /** Clear added: Play next and the queue empty. */
+  clearAdded(target?: RoomTarget): CueOutcome;
+  /** Undo (Ctrl+Z, the 8-second strip) of the last add, removal or Clear added in that room. */
+  undoUpNext(target?: RoomTarget): CueOutcome;
+  /** The room's Repeat (null: back to what the music does by itself). */
+  setRepeat(repeat: RoomRepeat, target?: RoomTarget): CueOutcome;
+  /** Repeat pressed: off, all, one in turn from what it shows. */
+  cycleRepeat(target?: RoomTarget): CueOutcome;
+  /**
+   * PLY-17: the screen saved Repeat one on (or off) for that scene's track (LyreApi sessions.setRepeatOne): a Repeat
+   * chosen in a room playing it gives way, so the saved one shows at once. Call setLibrary with the reloaded data too.
+   */
+  savedRepeatOneChanged(scene: SceneRef, trackId: string): void;
+  /** Live loaded another session: every room's list is cleared; what plays goes on. */
+  sessionLoaded(): void;
   /** Any cue action (hotkeys, cues, later the remote API). */
   run(action: CueAction): CueOutcome;
 
@@ -389,6 +449,8 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       pad: (boardId, padId) => this.library.pad(boardId, padId),
       playOrders: () => this.library.playOrders(),
       normaliseSettings: () => this.library.normaliseSettings(),
+      trackOrders: () => this.library.trackOrders?.() ?? {},
+      repeatOnes: () => this.library.repeatOnes?.() ?? {},
     };
     this.director = new Director({ engine: parts.engine, rooms: this.rooms, library, random: parts.random });
 
@@ -547,6 +609,64 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
 
   removeQueued(entryId: string, target: RoomTarget = FIRST_ROOM): CueOutcome {
     return this.perform({ type: "removeQueued", entryId, target });
+  }
+
+  playNext(what: ListWhat, options: { target?: RoomTarget } = {}): CueOutcome {
+    return this.addToList("next", what, options.target ?? FIRST_ROOM);
+  }
+
+  addToQueue(what: ListWhat, options: { target?: RoomTarget } = {}): CueOutcome {
+    return this.addToList("queue", what, options.target ?? FIRST_ROOM);
+  }
+
+  removeFromUpNext(ref: UpNextRef, target: RoomTarget = FIRST_ROOM): CueOutcome {
+    return this.listCall(() => this.director.removeFromList(ref, this.rooms.target(target)));
+  }
+
+  clearAdded(target: RoomTarget = FIRST_ROOM): CueOutcome {
+    return this.listCall(() => this.director.clearList(this.rooms.target(target)));
+  }
+
+  undoUpNext(target: RoomTarget = FIRST_ROOM): CueOutcome {
+    return this.listCall(() => this.director.undoList(this.rooms.target(target)));
+  }
+
+  setRepeat(repeat: RoomRepeat, target: RoomTarget = FIRST_ROOM): CueOutcome {
+    if (repeat !== null && !["off", "all", "one"].includes(repeat)) return this.fail("Repeat is off, all or one.");
+    return this.listCall(() => this.director.setRepeat(repeat, this.rooms.target(target)));
+  }
+
+  cycleRepeat(target: RoomTarget = FIRST_ROOM): CueOutcome {
+    const outcome = this.listCall(() => this.director.cycleRepeat(this.rooms.target(target)));
+    if (outcome.ok) {
+      const shown = this.director.shownRepeat(this.targetRooms(target)[0]);
+      this.emit("announce", `Repeat: ${shown}, for what plays now${this.inRoom(target)}`);
+    }
+    return outcome;
+  }
+
+  savedRepeatOneChanged(scene: SceneRef, trackId: string): void {
+    if (!this.disposed) this.director.savedRepeatOneChanged(scene, trackId);
+  }
+
+  sessionLoaded(): void {
+    if (!this.disposed) this.director.sessionLoaded();
+  }
+
+  private addToList(how: "next" | "queue", what: ListWhat, target: RoomTarget): CueOutcome {
+    const outcome = this.listCall(() => this.director.addToList(how, what, this.rooms.target(target)));
+    if (outcome.ok) {
+      const name = what.name ?? (what.kind === "track" ? trackTitle(this.library.track(what.trackId)) : (this.library.playlist(what.playlistId)?.name ?? ""));
+      this.emit("announce", `${how === "next" ? "Plays next" : "Added to the queue"}${this.inRoom(target)}: ${name}`);
+    }
+    return outcome;
+  }
+
+  private listCall(call: () => CueOutcome): CueOutcome {
+    if (this.disposed) return this.fail("Lyre's sound has stopped. Reopen the Lyre tab.");
+    const outcome = call();
+    if ("message" in outcome && outcome.message) this.emit("error", outcome.message);
+    return outcome;
   }
 
   undoSceneStart(): CueOutcome {
@@ -927,6 +1047,13 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       ambience: room.ambience ? this.laneState(room.roomId, "ambience", room.ambience) : null,
       upNext: room.upNext ? { trackId: room.upNext, title: title(room.upNext) } : null,
       queued: room.queued.map((entry) => ({ ...entry, title: title(entry.trackId) })),
+      upNextList: room.list.map((entry) =>
+        entry.kind === "plan"
+          ? { ref: entry.ref, kind: "planned" as const, trackIds: [entry.trackId], title: title(entry.trackId), playlistId: entry.playlistId, rest: false }
+          : { ref: entry.ref, kind: entry.source === "pn" ? ("playNext" as const) : ("added" as const), trackIds: [...entry.trackIds], title: entry.name, playlistId: entry.playlistId, rest: entry.rest },
+      ),
+      repeat: { ...room.repeat },
+      canUndoUpNext: room.canUndoList,
       effects: room.effects.map((effect) => ({ ...effect, title: title(effect.trackId) })),
     };
   }
@@ -956,8 +1083,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
 /** Where a lane's track plays from, for the Now playing bar: its scene, or the list its playlist was played from. */
 function placeOfOrigin(origin: Origin): UsePlace | null {
   if (origin.kind === "scene") return { kind: "scene", ...origin.scene };
-  if (origin.kind === "playlist") return origin.place ?? null;
-  return null;
+  return origin.place ?? null;
 }
 
 /** The fades screens show next to their buttons, in milliseconds (from the prototype). */

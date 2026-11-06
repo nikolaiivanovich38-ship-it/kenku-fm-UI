@@ -4,3 +4,5 @@ export * from "./rules";
 export * from "./round5";
 export * from "./placeWords";
 export * from "./normalise";
+export * from "./round6";
+export * from "./roomList";

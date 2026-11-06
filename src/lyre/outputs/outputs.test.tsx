@@ -9,13 +9,13 @@ import { describe, expect, it, vi } from "vitest";
 import { LYRE_OUTPUTS_STATE, NO_OUTPUTS, type LyreOutputs } from "../../common/lyreOutputs";
 import { createLyreOutputsBridge } from "./preloadOutputs";
 import { OutputsProvider, outputsLabel, useOutputs } from "./OutputsProvider";
-import { FakeOutputs, PROTOTYPE_OUTPUTS } from "./testing/fakeOutputs";
+import { FakeOutputs, PROTOTYPE_OUTPUTS, SIDE_BOT } from "./testing/fakeOutputs";
 
 function fakeIpc() {
   const listeners = new Map<string, Set<(event: unknown, ...args: unknown[]) => void>>();
   return {
     sent: [] as unknown[][],
-    invoke: vi.fn(async () => PROTOTYPE_OUTPUTS),
+    invoke: vi.fn(async (_channel: string, ..._args: unknown[]): Promise<unknown> => PROTOTYPE_OUTPUTS),
     send(channel: string, ...args: unknown[]) {
       this.sent.push([channel, ...args]);
     },
@@ -62,6 +62,50 @@ describe("the outputs bridge (preload)", () => {
       ["LYRE_OUTPUT_SET_VOLUME", "bot-a", 0.8],
       ["LYRE_OUTPUT_RETRY", "bot-a"],
     ]);
+  });
+});
+
+describe("Settings in Lyre (OUT-8) through the page's bridge", () => {
+  it("adds, replaces, renames, removes and puts back bots, answering what the main process said; connects and opens the invite", async () => {
+    const ipc = fakeIpc();
+    ipc.invoke.mockImplementation(async (channel: string) => (channel === "LYRE_OUTPUTS_GET" ? PROTOTYPE_OUTPUTS : { ok: true, botId: "bot-x" }));
+    const bridge = createLyreOutputsBridge(ipc);
+    expect(await bridge.addBot("MTAx.new-bot.abcd", "123456789012345678")).toEqual({ ok: true, botId: "bot-x" });
+    await bridge.replaceToken("bot-a", "MTAx.secret-part.wxyz");
+    await bridge.rename("bot-a", "Side");
+    await bridge.setApplicationId("bot-a", null);
+    await bridge.remove("bot-a");
+    await bridge.restore("bot-a");
+    bridge.connect("bot-a");
+    bridge.disconnect("bot-a");
+    bridge.openInvite("123456789012345678");
+    expect(ipc.invoke.mock.calls.map((c) => c[0])).toEqual(["LYRE_BOT_ADD", "LYRE_BOT_SET_TOKEN", "LYRE_BOT_RENAME", "LYRE_BOT_SET_APP_ID", "LYRE_BOT_REMOVE", "LYRE_BOT_RESTORE"]);
+    expect(ipc.sent).toEqual([["LYRE_BOT_CONNECT", "bot-a"], ["LYRE_BOT_DISCONNECT", "bot-a"], ["LYRE_BOT_OPEN_INVITE", "123456789012345678"]]);
+    ipc.invoke.mockImplementation(async () => ({ token: "leak" }));
+    expect(await bridge.addBot("MTAx.new-bot.abcd", null)).toEqual({ ok: false, message: "Lyre could not reach the Discord bots. Close the Lyre tab, open it again and try once more." });
+  });
+
+  it("the fake for screen tests does the same in memory: tokens show as their last four characters, Remove has Undo", async () => {
+    const fake = new FakeOutputs();
+    const added = await fake.addBot("MTAx.new-bot.abcd", "123456789012345678");
+    expect(added.ok).toBe(true);
+    const third = fake.state.bots[2];
+    expect(third).toMatchObject({ name: "Lyre Third", tokenEnd: "abcd", serverIds: [], inviteUrl: expect.stringContaining("client_id=123456789012345678") });
+    fake.openInvite("123456789012345678");
+    expect((await fake.addBot("MTAx.other.efgh", null)).ok).toBe(true);
+    expect(fake.state.bots[3].serverIds).toEqual(["1001"]);
+    await fake.replaceToken(SIDE_BOT, "MTAx.secret-part.wxyz");
+    expect(fake.state.bots[1].tokenEnd).toBe("wxyz");
+    expect(JSON.stringify(fake.state)).not.toContain("secret-part");
+    expect(await fake.remove(SIDE_BOT)).toEqual({ ok: true, botId: SIDE_BOT });
+    expect(fake.state.bots.map((b) => b.id)).not.toContain(SIDE_BOT);
+    await fake.restore(SIDE_BOT);
+    expect(fake.state.bots[1].id).toBe(SIDE_BOT);
+    fake.disconnect(SIDE_BOT);
+    expect(fake.state.bots[1].login).toBe("offline");
+    fake.connect(SIDE_BOT);
+    expect(fake.state.bots[1].login).toBe("ready");
+    expect(await fake.addBot("nope", null)).toEqual({ ok: false, message: expect.stringContaining("Reset Token") });
   });
 });
 

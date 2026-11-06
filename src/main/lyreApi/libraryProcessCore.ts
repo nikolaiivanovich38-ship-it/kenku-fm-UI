@@ -214,6 +214,9 @@ export function runLibraryProcess(port: PortLike, options: LibraryProcessOptions
       } else if (message?.t === "media-folders" && library) {
         // Security review w4, Should 5: with the folders, the single files Find missing files offers to preview.
         port.postMessage({ t: "media-folders", id: message.id, folders: [...mediaFolders(library), ...(api?.previewableFiles() ?? [])] });
+      } else if (message?.t === "fail-next-write" && seed) {
+        // UX-19: only a test build's sample library (seed, which only test builds ask for) takes this.
+        api?.failNextWrite();
       } else if (message?.t === "close") {
         closeLibrary();
         stop();

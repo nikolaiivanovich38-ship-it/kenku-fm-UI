@@ -116,15 +116,40 @@ describe("LyreLibraryService", () => {
     await s.stop();
   });
 
-  it("names the one file Find missing files asks to check beside the folders while that plan lasts (security review w4, Should 5)", async () => {
+  it("names the one file Find missing files asks to check beside the folders, once asked, until it closes (security review w4, Should 5; SEC-17)", async () => {
     const { s } = service();
     s.start();
     const castamere = "E:\\Music\\Scores\\Ramin Djawadi\\Game of Thrones, Season 3\\18 The Rains of Castamere.flac";
     expect(await s.mediaFolders()).not.toContain(castamere);
     await call(s, "import", "planRelink", { from: "path", path: "E:\\Music\\Scores" });
+    expect(await s.mediaFolders()).not.toContain(castamere);
+    await call(s, "import", "previewFound", "t26");
     expect(await s.mediaFolders()).toEqual(["H:\\Audio\\Scores", "H:\\Audio\\Ambience", "H:\\Audio\\Effects", castamere]);
+    await call(s, "import", "endRelinkPreview");
+    expect(await s.mediaFolders()).not.toContain(castamere);
+    await call(s, "import", "planRelink", { from: "path", path: "E:\\Music\\Scores" });
+    await call(s, "import", "previewFound", "t26");
     await call(s, "import", "planRelink", { from: "path", path: "E:\\Elsewhere" });
     expect(await s.mediaFolders()).not.toContain(castamere);
+    await s.stop();
+  });
+
+  it("UX-19: a test build of the sample library can make the next write fail, as a full drive would (failNextSave)", async () => {
+    const { s } = service();
+    s.start();
+    await s.failNextWrite();
+    const failed = (await call(s, "campaigns", "update", "crown", { notes: "Bring the map" })) as { ok: boolean; refusal?: { code: string } };
+    expect(failed).toMatchObject({ ok: false, refusal: { code: "not-saved" } });
+    expect(await call(s, "campaigns", "update", "crown", { notes: "Bring the map" })).toMatchObject({ ok: true });
+    await s.stop();
+  });
+
+  it("UX-19: a real library never takes that message", async () => {
+    const { s } = service({ seed: false });
+    s.start();
+    await s.failNextWrite();
+    const made = (await call(s, "campaigns", "create", { name: "Crown" })) as { ok: boolean };
+    expect(made.ok).toBe(true);
     await s.stop();
   });
 

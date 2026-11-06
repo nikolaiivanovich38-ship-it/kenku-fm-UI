@@ -204,7 +204,11 @@ export async function leaveAllRooms(page: Page): Promise<void> {
 /** Round 6, part 5: make the next save fail, as a full or read-only drive would, to show the failed-save pop-up.
  *  The prototype has a hook for it (its strip's "Make the next save fail"); the app needs a test-build hook. */
 export async function failNextSave(page: Page): Promise<void> {
-  if (isApp()) notBuilt("failNextSave: a test-build hook that makes the library's next write fail");
+  if (isApp()) {
+    // w6-contracts (UX-19): the test build's library refuses its next write with "not-saved", as a full drive would.
+    await runningApp("failNextSave").evaluate(() => (globalThis as unknown as { __lyreLibraryTest: { failNextWrite: () => Promise<void> } }).__lyreLibraryTest.failNextWrite());
+    return;
+  }
   await page.evaluate(() => (window as any).L.failNextSave());
 }
 

@@ -9,7 +9,41 @@
  * the old one fades out); a track reaching End hands over with no extra fade,
  * since its own profile already shapes the join.
  */
-import { DEFAULT_LIBRARY_NORMALISE, normalisedGainDb, type AfterEnd, type AudioProfile, type DomainScene, type DomainTrack } from "../../../common/domain";
+import {
+  addToQueue,
+  clearAdded,
+  DEFAULT_LIBRARY_NORMALISE,
+  emptyRoomList,
+  keyOfPlace,
+  musicStopped,
+  newPlan,
+  nextRepeat,
+  normalisedGainDb,
+  parseKeyOfPlace,
+  pickNext,
+  playNext as listPlayNext,
+  playNow as listPlayNow,
+  removeFromUpNext,
+  repeatsOneIn,
+  sceneStarted,
+  setRoomRepeat,
+  shownRepeat,
+  undoLast,
+  upNext as listUpNext,
+  type AfterEnd,
+  type AudioProfile,
+  type DomainScene,
+  type DomainTrack,
+  type ListItem,
+  type ListPick,
+  type PlanView,
+  type Repeat,
+  type RoomList,
+  type RoomRepeat,
+  type UpNextEntry,
+  type UpNextRef,
+  type UsePlace,
+} from "../../../common/domain";
 import type { PlaybackEngine } from "../engine";
 import { laneProfile } from "../profile/trackProfile";
 import { positionAfter } from "../profile/position";
@@ -19,22 +53,22 @@ import type { Voice, VoiceOptions, VoiceState } from "../voice/voice";
 import { DEFAULT_FADES } from "./actions";
 import type { PadSound, SceneRef, ShowLibrary } from "./library";
 import {
-  advance,
+  afterEnd,
   afterTrackEnded,
   EMPTY_LANE,
+  itemAt,
+  locate,
   MusicLane,
   Origin,
   placesOf,
   Playing,
   playlistItem,
-  playNow,
+  playOrderOf,
   previous,
-  queueNext,
-  removeQueued,
   sceneItem,
+  sequenceOf,
   single,
   stepFrom,
-  upNext,
 } from "./nowPlaying";
 
 export interface RoomPlayerDeps {
@@ -68,7 +102,14 @@ export interface RoomReport {
   music: PlayingReport | null;
   /** The track Next would play. */
   upNext: string | null;
+  /** What was added to the room's list (Play next items, then Add to queue items), as entries of `list`. */
   queued: { entryId: string; trackId: string }[];
+  /** PLY-16: Up next, top to bottom (roomList.ts upNext): Play next items, the plan still to come, what was added. */
+  list: UpNextEntry[];
+  /** PLY-17: the room's Repeat: the one chosen for what plays now (null: none) and the one that applies. */
+  repeat: { chosen: RoomRepeat; shown: Repeat };
+  /** The last add, removal or Clear added can be undone. */
+  canUndoList: boolean;
   ambience: PlayingReport | null;
   /** Effects and pads sounding (not fading out). */
   effects: { trackId: string; padKey: string | null }[];
@@ -77,6 +118,9 @@ export interface RoomReport {
 /** What Undo needs to bring a room's music and ambience back. */
 export interface RoomSnapshot {
   music: MusicLane;
+  /** Round 6: the room's list and its plan, which a new scene clears and the scene's Undo brings back. */
+  list: RoomList;
+  plan: Playing | null;
   musicAt: number | null;
   ambience: Playing | null;
   ambienceAt: number | null;
@@ -95,8 +139,20 @@ interface LaneVoice {
   after: AfterEnd;
 }
 
+/** What a screen adds to a room's list: one track (with where it came from) or a playlist's tracks in its order there. */
+export interface ListEntry {
+  trackIds: string[];
+  playlistId: string | null;
+  place: UsePlace | null;
+  name: string;
+}
+
 export class RoomPlayer {
   private music: MusicLane = EMPTY_LANE;
+  /** PLY-16, PLY-17: the room's running list for the evening and its Repeat (src/common/domain/roomList.ts). */
+  private list: RoomList = emptyRoomList();
+  /** The item the plan last played: a scene's step, a playlist's step, or a single track played as the plan. */
+  private plan: Playing | null = null;
   private musicVoice: LaneVoice | null = null;
   private ambienceItem: Playing | null = null;
   private ambienceVoice: LaneVoice | null = null;
@@ -116,37 +172,106 @@ export class RoomPlayer {
 
   // ---------- music ----------
 
-  /** Play now, crossfading over `fadeSeconds`. */
+  /**
+   * Play now, crossfading over `fadeSeconds`. A playlist or a scene's step is a new plan for the room (what was added
+   * stays, its Repeat and skips go); a single track while music plays plays now and the list carries on after it.
+   */
   playMusic(item: Playing, fadeSeconds: number): void {
-    this.music = playNow(this.music, item, this.deps.library);
-    this.startMusic(item, fadeSeconds);
+    if (item.origin.kind === "single" && this.music.current) {
+      const now = listPlayNow(this.list, this.newItem({ trackIds: [item.trackId], playlistId: item.playlistId, place: null, name: this.titleOf(item.trackId) }), this.planView(false));
+      if (now.pick) {
+        this.list = now.list;
+        this.startPick(now.pick, fadeSeconds);
+        return;
+      }
+    }
+    this.list = newPlan(this.list);
+    this.startPlan(item, fadeSeconds);
   }
 
-  /** Play next: after the current track. With nothing playing, it plays at once. */
+  /** Play next (PLY-16): right after the current track. With nothing playing, `asPlan` plays at once. */
   queueMusic(item: Playing, fadeSeconds: number): void {
+    this.addToList("next", { trackIds: [item.trackId], playlistId: item.playlistId, place: null, name: this.titleOf(item.trackId) }, item, fadeSeconds);
+  }
+
+  /** Play next or Add to queue (PLY-16). With nothing playing, `asPlan` plays at once as the room's plan. */
+  addToList(how: "next" | "queue", entry: ListEntry, asPlan: Playing, fadeSeconds: number): "added" | "playing" {
     if (!this.music.current) {
-      this.playMusic(item, fadeSeconds);
-      return;
+      this.playMusic(asPlan, fadeSeconds);
+      return "playing";
     }
-    this.music = queueNext(this.music, { entryId: this.deps.newEntryId(), item });
+    const item = this.newItem(entry);
+    this.list = how === "next" ? listPlayNext(this.list, item, this.planView(false)) : addToQueue(this.list, item);
     this.deps.changed();
+    return "added";
+  }
+
+  /** × in Up next. False when that entry is no longer there. */
+  removeFromList(ref: UpNextRef): boolean {
+    return this.changeList((list) => removeFromUpNext(list, ref));
   }
 
   removeQueued(entryId: string): boolean {
-    const before = this.music;
-    this.music = removeQueued(this.music, entryId);
-    this.deps.changed();
-    return this.music !== before;
+    return this.removeFromList({ kind: "added", itemId: entryId });
   }
 
-  /** Next (the queue, the way back, then the sequence) or Previous (the sequence). False when there is nowhere to go. */
+  /** Clear added: Play next and the queue empty. False when there was nothing added. */
+  clearList(): boolean {
+    return this.changeList(clearAdded);
+  }
+
+  /** Undo of the last add, removal or Clear added. False when there is none. */
+  undoList(): boolean {
+    return this.list.undo !== null && this.changeList(undoLast);
+  }
+
+  /** PLY-17: the room's Repeat for what plays now (null: back to what the music does by itself). */
+  setRepeat(repeat: RoomRepeat): void {
+    this.list = setRoomRepeat(this.list, repeat);
+    this.deps.changed();
+  }
+
+  /** PLY-17: Repeat pressed: off, all, one in turn from what it shows. */
+  cycleRepeat(): Repeat {
+    const next = nextRepeat(this.shownRepeat());
+    this.setRepeat(next);
+    return next;
+  }
+
+  /** PLY-17: a saved Repeat one changed on the track this room plays in that scene: the Repeat chosen here gives way. */
+  savedRepeatOneChanged(sceneKey: string, trackId: string): void {
+    const cur = this.music.current;
+    if (cur && cur.trackId === trackId && cur.origin.kind === "scene" && keyOfPlace({ kind: "scene", ...cur.origin.scene }) === sceneKey) this.setRepeat(null);
+  }
+
+  /** Another session was loaded: the room's list is cleared; what plays goes on. */
+  sessionLoaded(): void {
+    this.list = emptyRoomList();
+    this.deps.changed();
+  }
+
+  /** Next (the list: Play next, the plan, what was added) or Previous (the plan). False when there is nowhere to go. */
   stepMusic(direction: 1 | -1, fadeSeconds: number): boolean {
-    const lib = this.deps.library;
-    const { lane, play } = direction === 1 ? advance(this.music, lib, { sequence: true }) : previous(this.music, lib);
+    if (direction === 1) {
+      const { list, pick } = pickNext(this.list, this.planView(false), { ended: false, repeat: this.shownRepeat() });
+      if (!pick) return false;
+      this.list = list;
+      this.startPick(pick, fadeSeconds);
+      return true;
+    }
+    // From something added, Previous goes back to where the plan was.
+    if (this.list.now.kind !== "plan" && this.list.ret !== null && this.plan) {
+      const at = this.list.ret;
+      this.list = { ...this.list, now: { kind: "plan" }, ret: null, backToQueue: null };
+      this.startPick({ from: "plan", at }, fadeSeconds);
+      return true;
+    }
+    const { lane, play } = previous(this.music, this.deps.library);
     if (!play) {
       return false;
     }
     this.music = lane;
+    this.plan = play;
     this.startMusic(play, fadeSeconds);
     return true;
   }
@@ -155,10 +280,11 @@ export class RoomPlayer {
     const lib = this.deps.library;
     const seed = this.deps.newSeed?.();
     const first = sceneItem(ref, 0, lib, seed);
-    // A new scene starts with an empty queue (as the prototype's live view).
+    // A new scene clears what was added to the room's list (Nik, 6 Nov 13:55); its Undo brings it back (snapshot).
+    this.list = sceneStarted(this.list);
     this.music = { ...this.music, queued: [], returnTo: null };
     if (first) {
-      this.playMusic(first, DEFAULT_FADES.sceneMusic);
+      this.startPlan(first, DEFAULT_FADES.sceneMusic);
     }
     const ambience = scene.ambience;
     // The scene's ambience playlist plays as its play order in this scene says (PLY-13).
@@ -169,6 +295,80 @@ export class RoomPlayer {
       this.fadeLane("ambience", DEFAULT_FADES.sceneAmbience);
     }
     this.deps.changed();
+  }
+
+  /** A plan item plays now (a new plan, or the plan's next step). */
+  private startPlan(item: Playing, fadeSeconds: number): void {
+    this.plan = item;
+    this.music = { ...this.music, current: item, returnTo: null };
+    this.startMusic(item, fadeSeconds);
+  }
+
+  /** Play what the list picked. */
+  private startPick(pick: ListPick, fadeSeconds: number): void {
+    if (pick.from === "plan") {
+      const item = this.planItemAt(pick.at);
+      if (item) this.startPlan(item, fadeSeconds);
+      return;
+    }
+    const place = pick.item.placeKey ? parseKeyOfPlace(pick.item.placeKey) : null;
+    const item: Playing = { trackId: pick.trackId, origin: place ? { kind: "single", place } : { kind: "single" }, playlistId: pick.item.playlistId };
+    this.music = { ...this.music, current: item, returnTo: null };
+    this.startMusic(item, fadeSeconds);
+  }
+
+  /** The plan's step `at` as an item to play. */
+  private planItemAt(at: number): Playing | null {
+    const plan = this.plan;
+    if (!plan) return null;
+    if (plan.origin.kind === "single") return plan;
+    const seq = sequenceOf(plan.origin, this.deps.library);
+    return seq[at] ? itemAt(plan, seq, at) : null;
+  }
+
+  /** The room's plan as the list sees it now (roomList.ts PlanView). */
+  private planView(ended: boolean): PlanView {
+    const plan = this.plan;
+    const lib = this.deps.library;
+    if (!plan) return { steps: [], at: null, inner: null, loops: false, keepAdded: false };
+    const origin = plan.origin;
+    const seq = origin.kind === "single" ? [{ trackId: plan.trackId, playlistId: plan.playlistId, itemIndex: 0 }] : sequenceOf(origin, lib);
+    // A skip is kept by the step's place: its position in a scene, its track in a playlist (a new deal moves positions).
+    const steps = seq.map((step, i) => ({ trackId: step.trackId, playlistId: step.playlistId, key: origin.kind === "scene" ? `s:${i}` : `t:${step.trackId}` }));
+    const plays = this.list.now.kind === "plan" && this.music.current !== null;
+    const at = plays ? (origin.kind === "single" ? 0 : locate(seq, plan).index) : null;
+    const repeat = this.list.repeat ?? (origin.kind === "playlist" ? playOrderOf(origin.playlistId, origin, lib).repeat : "off");
+    // In a scene a playlist's own play order may keep the scene on it (Repeat all goes back to its first track).
+    let inner: number | null = null;
+    if (ended && at !== null && this.list.repeat === null && origin.kind === "scene") {
+      const choice = afterEnd(plan, lib);
+      if (choice && choice.origin.kind === "scene") inner = choice.origin.at;
+    }
+    return { steps, at, inner, loops: origin.kind === "scene" || repeat === "all", keepAdded: repeat === "all" };
+  }
+
+  /** PLY-17: the Repeat that applies to what plays now: the room's, else the scene track's saved one, else its playlist's. */
+  private shownRepeat(): Repeat {
+    const cur = this.music.current;
+    const lib = this.deps.library;
+    if (!cur) return this.list.repeat ?? "off";
+    const sceneKey = cur.origin.kind === "scene" ? keyOfPlace({ kind: "scene", ...cur.origin.scene }) : null;
+    const fromPlan = this.list.now.kind === "plan";
+    return shownRepeat(this.list.repeat, {
+      savedOne: fromPlan && repeatsOneIn(lib.repeatOnes?.() ?? {}, sceneKey, cur.trackId),
+      playlistRepeat: fromPlan && cur.playlistId ? playOrderOf(cur.playlistId, cur.origin, lib).repeat : null,
+    });
+  }
+
+  private newItem(entry: ListEntry): ListItem {
+    return { id: this.deps.newEntryId(), trackIds: entry.trackIds, playlistId: entry.playlistId, placeKey: entry.place ? keyOfPlace(entry.place) : null, name: entry.name };
+  }
+
+  private changeList(change: (list: RoomList) => RoomList): boolean {
+    const before = this.list;
+    this.list = change(before);
+    this.deps.changed();
+    return this.list !== before;
   }
 
   private startMusic(item: Playing, fadeSeconds: number, resume?: { at: number; elapsed: number }): void {
@@ -198,12 +398,20 @@ export class RoomPlayer {
     });
   }
 
-  /** The music's track ended by itself (`ended`), or could not play: the queue, the way back, then the sequence. */
+  /**
+   * The music's track ended by itself (`ended`), or could not play: the room's list decides (Repeat, Play next, the
+   * plan, what was added). A track whose profile says "stop" ends there unless something was added after it.
+   */
   private musicEnded(after: AfterEnd, ended = true) {
-    const { lane, play } = advance(this.music, this.deps.library, { sequence: after === "next", ended });
-    this.music = lane;
-    if (play) {
-      this.startMusic(play, 0);
+    const repeat = this.shownRepeat();
+    const { list, pick } = pickNext(this.list, this.planView(ended), { ended, repeat });
+    const stopsHere = ended && after !== "next" && pick?.from === "plan" && repeat !== "one";
+    if (pick && !stopsHere) {
+      this.list = list;
+      this.startPick(pick, 0);
+    } else {
+      this.music = { ...this.music, current: null };
+      this.list = musicStopped(this.list);
     }
     this.deps.changed();
   }
@@ -215,6 +423,7 @@ export class RoomPlayer {
     if (this.failures >= MAX_FAILURES_IN_A_ROW) {
       this.failures = 0;
       this.music = { ...this.music, current: null };
+      this.list = musicStopped(this.list);
       this.deps.changed();
       return;
     }
@@ -327,6 +536,8 @@ export class RoomPlayer {
       void this.musicVoice?.voice.stop(fadeSeconds);
       this.musicVoice = null;
       this.music = { ...this.music, current: null };
+      // PLY-17: the room's Repeat ends with its music (Nik, 6 Nov 12:24).
+      this.list = musicStopped(this.list);
     } else if (lane === "ambience") {
       void this.ambienceVoice?.voice.stop(fadeSeconds);
       this.ambienceVoice = null;
@@ -350,6 +561,8 @@ export class RoomPlayer {
   snapshot(): RoomSnapshot {
     return {
       music: this.music,
+      list: this.list,
+      plan: this.plan,
       musicAt: this.musicVoice ? this.musicVoice.voice.position() : null,
       ambience: this.ambienceItem,
       ambienceAt: this.ambienceVoice ? this.ambienceVoice.voice.position() : null,
@@ -361,12 +574,14 @@ export class RoomPlayer {
   restore(snapshot: RoomSnapshot, fadeSeconds: number): void {
     const elapsed = this.deps.engine.currentTime - snapshot.takenAt;
     this.music = snapshot.music;
+    this.plan = snapshot.plan;
     if (snapshot.music.current) {
       this.startMusic(snapshot.music.current, fadeSeconds, snapshot.musicAt === null ? undefined : { at: snapshot.musicAt, elapsed });
     } else {
       this.fadeLane("music", fadeSeconds);
       this.music = snapshot.music;
     }
+    this.list = snapshot.list;
     if (snapshot.ambience) {
       this.playAmbience(snapshot.ambience, fadeSeconds, snapshot.ambienceAt === null ? undefined : { at: snapshot.ambienceAt, elapsed });
     } else {
@@ -378,13 +593,17 @@ export class RoomPlayer {
   // ---------- reporting ----------
 
   report(name: string): RoomReport {
-    const lib = this.deps.library;
+    const list = this.music.current ? listUpNext(this.list, this.planView(false)) : [];
+    const first = list[0];
     return {
       roomId: this.roomId,
       name,
       music: this.music.current ? this.playingReport(this.music.current, this.musicVoice) : null,
-      upNext: upNext(this.music, lib)?.trackId ?? null,
-      queued: this.music.queued.map((q) => ({ entryId: q.entryId, trackId: q.item.trackId })),
+      upNext: first ? (first.kind === "plan" ? first.trackId : first.trackIds[0]) : null,
+      queued: [...this.list.pn, ...this.list.q].map((item) => ({ entryId: item.id, trackId: item.trackIds[0] })),
+      list,
+      repeat: { chosen: this.list.repeat, shown: this.shownRepeat() },
+      canUndoList: this.list.undo !== null,
       ambience: this.ambienceItem ? this.playingReport(this.ambienceItem, this.ambienceVoice) : null,
       effects: this.effects.filter((e) => e.voice.state !== "stopping").map(({ trackId, padKey }) => ({ trackId, padKey })),
     };
@@ -403,6 +622,8 @@ export class RoomPlayer {
   dispose(): void {
     this.stopAll(0);
     this.music = EMPTY_LANE;
+    this.list = emptyRoomList();
+    this.plan = null;
   }
 
   // ---------- shared ----------

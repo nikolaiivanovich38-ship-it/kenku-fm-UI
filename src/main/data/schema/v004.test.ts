@@ -24,8 +24,8 @@ describe("schema version 4 (volume normalisation)", () => {
   });
   afterEach(() => db.close());
 
-  it("is the newest version and leaves no broken link", () => {
-    expect(schemaVersion(db)).toBe(4);
+  it("is in place and leaves no broken link", () => {
+    expect(schemaVersion(db)).toBe(MIGRATIONS.length);
     expect(all(db, "PRAGMA foreign_key_check")).toEqual([]);
   });
 
@@ -70,7 +70,7 @@ describe("upgrading a version 3 library to version 4", () => {
     migrate(db, MIGRATIONS.slice(0, 3));
     db.exec(BASE);
     db.exec("INSERT INTO track_peaks (track_id, file_size, file_mtime_ms, levels, worked_out_at) VALUES ('t', 10, 20, NULL, 30)");
-    expect(migrate(db, MIGRATIONS)).toMatchObject({ from: 3, to: 4, applied: [4] });
+    expect(migrate(db, MIGRATIONS.slice(0, 4))).toMatchObject({ from: 3, to: 4, applied: [4] });
     expect(all(db, "SELECT id, normalise FROM tracks ORDER BY id")).toEqual([
       { id: "t", normalise: null },
       { id: "u", normalise: null },

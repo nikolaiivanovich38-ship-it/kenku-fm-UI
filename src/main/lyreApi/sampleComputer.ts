@@ -110,7 +110,7 @@ const pad = (n: number, trackId: string, label: string): Pad => ({
   sound: { kind: "single", trackIds: [trackId], order: "random", tag: null }, volume: 0.8, fadeOutMs: 1500, aside: false,
 });
 
-const scene = (id: string, name: string, music: SceneInfo["music"], boardIds: string[] = []): SceneInfo => ({ id, name, music, ambience: null, boardIds, startsWhen: "", notes: "", noteLink: "", trackNames: {} });
+const scene = (id: string, name: string, music: SceneInfo["music"], boardIds: string[] = []): SceneInfo => ({ id, name, music, ambience: null, boardIds, startsWhen: "", notes: "", noteLink: "", trackNames: {}, repeatOnes: [] });
 
 export function sampleSharedLibrary(seed: SeedData): LyreFileLibrary {
   const tracks = samTracks(seed);
@@ -144,6 +144,7 @@ export function sampleSharedLibrary(seed: SeedData): LyreFileLibrary {
     campaigns: [campaign],
     overrides: {},
     playOrders: {},
+    trackOrders: {},
   };
 }
 

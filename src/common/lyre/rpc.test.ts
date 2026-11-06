@@ -34,11 +34,11 @@ afterEach(() => {
 });
 
 lyreApiContract("in-memory fake across a message port", () => {
-  const { client, server } = connect(
-    createFakeLyreApi({ missingTrackIds: ["t43"], folderFiles: { "D:\\Moved": ["07 Memories of Mother.flac"] } }),
-  );
+  const fake = createFakeLyreApi({ missingTrackIds: ["t43"], folderFiles: { "D:\\Moved": ["07 Memories of Mother.flac"] } });
+  const { client, server } = connect(fake);
   return {
     api: client.api,
+    failNextWrite: () => fake.failNextWrite(),
     newAudioFiles: ["D:\\Incoming\\Ambience\\harbour_night.wav", "D:\\Incoming\\Dune\\02 Leaving Caladan.flac"],
     notAudioFile: "D:\\Incoming\\notes.txt",
     missingTrackId: "t43",

@@ -32,6 +32,7 @@ import {
   setSceneAmbience,
   savePeaks,
   setSceneTrackName,
+  setRepeatOne,
   setTrackNormalise,
   trackLoudness,
   trackPeaks,
@@ -141,6 +142,7 @@ export async function seedLibrary(library: Library, seed: SeedData, options: See
           if (sc.ambience) setSceneAmbience(store, sc.id, sc.ambience);
           if (sc.boardIds.length) addSceneBoards(store, sc.id, sc.boardIds);
           for (const [trackId, name] of Object.entries(sc.trackNames)) setSceneTrackName(store, sc.id, trackId, name);
+          for (const trackId of sc.repeatOnes ?? []) setRepeatOne(store, sc.id, trackId, true);
         }
       }
     }

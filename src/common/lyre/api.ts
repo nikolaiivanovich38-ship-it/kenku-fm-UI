@@ -25,6 +25,7 @@ import type {
   PlayOrder,
   PlayOrderOverrides,
   PlaylistRule,
+  TrackOrders,
   ProfileOverrides,
   ProfilePlace,
   SoundRef,
@@ -60,8 +61,16 @@ export const REFUSAL_CODES = [
   "not-lyre-file",
   /** This version of Lyre cannot do that yet (the screen says when it comes). */
   "unavailable",
+  /**
+   * UX-19: the library could not write it to the computer (a full or read-only drive, a file another program holds).
+   * Nothing changed; the same write may work when tried again (the Saved pop-up's failure card offers Try again).
+   */
+  "not-saved",
 ] as const;
 export type RefusalCode = (typeof REFUSAL_CODES)[number];
+
+/** UX-19: the words of a "not-saved" refusal, shown on the Saved pop-up's failure card under "Not saved: <what>". */
+export const NOT_SAVED = "Lyre could not write it to your computer. Try again; if it fails again, check that the drive has space.";
 
 export interface Refusal {
   code: RefusalCode;
@@ -172,6 +181,40 @@ export interface SearchResult {
   trackIds: string[];
   /** How many tracks match in all, for "Show 25 more of 80". */
   total: number;
+}
+
+/**
+ * ORG-14 Find (Live's top strip; Nik, 6 Nov 17:14: "The search bar should be able to find a track or a playlist"):
+ * one call for both. Words as for `search`: each must start a word of a track's names, tags, artist, album, markers
+ * or notes, or of a playlist's name or notes.
+ */
+export interface FindRequest {
+  text: string;
+  /** Only this lane (FX: sound effects and stings; for playlists, the FX lane). */
+  lane?: Lane;
+  /** At most this many of each (default 50). */
+  limit?: number;
+  /**
+   * The session Live runs (or a campaign): a found playlist in that session's list, else in its campaign's list, comes
+   * with its tracks in that place's order (ORG-13) and that place, so Play on air there uses its play order.
+   */
+  in?: { campaignId: string; sessionId?: string };
+}
+export interface FoundPlaylist {
+  id: string;
+  name: string;
+  lane: Lane;
+  kind: "manual" | "dynamic";
+  /** Its tracks in the order they play in `place` (ORG-13; a shuffle, where it applies, is dealt when it plays). */
+  trackIds: string[];
+  /** The session or campaign list it was found in (FindRequest.in), or null: its own order. */
+  place: PlayPlace | null;
+}
+export interface FindResult {
+  /** Tracks, best matches first, as `search` gives them. */
+  tracks: SearchResult;
+  /** Playlists, best matches first. */
+  playlists: FoundPlaylist[];
 }
 
 /* ---------- tags ---------- */
@@ -298,6 +341,11 @@ export interface SceneInfo extends DomainScene {
   noteLink: string;
   /** DAT-14: names tracks have in this scene only, by track id (trackNameIn; trackNamesOf gathers every scene's). */
   trackNames: Record<string, string>;
+  /**
+   * PLY-17: the tracks with Repeat one in this scene (saved with the scene; Nik, 6 Nov 12:30): each plays again when it
+   * ends, every time this scene plays. Any track of the scene's music or of its playlists. repeatOnesOf gathers them.
+   */
+  repeatOnes: string[];
 }
 
 export interface SessionInfo extends DomainSession {
@@ -562,6 +610,8 @@ export interface LyreApi {
     setNormaliseSettings(setting: LibraryNormalise): Promise<WriteResult<LibraryNormalise>>;
     /** PLY-15: the track's own choice; null is "Library setting". library.js L.acts.lbnorm; profile.js L.acts.apnorm. */
     setNormalise(trackId: string, choice: NormaliseChoice | null): Promise<WriteResult<LibraryTrack>>;
+    /** ORG-14: tracks and playlists in one call, grouped (Live's Find; round 6 part 6). live.js find(), search(). */
+    find(request: FindRequest): Promise<FindResult>;
   };
   tags: {
     /** Tag groups and their values. library.js filters, tag combobox and Tag… sheet; playlists.js rule builder (plvaladd). */
@@ -601,6 +651,20 @@ export interface LyreApi {
     clearPlayOrder(playlistId: string, place: PlayPlace | null): Promise<WriteResult>;
     /** PLY-15: the playlist's choice for its tracks; null is "Library setting". playlists.js L.acts.plnorm. */
     setNormalise(playlistId: string, choice: NormaliseChoice | null): Promise<WriteResult<PlaylistInfo>>;
+    /**
+     * ORG-13: every place's own track order, by place key then playlist id (tracksInPlaceOrder applies one). core.js
+     * L.placeTracks.
+     */
+    trackOrders(): Promise<TrackOrders>;
+    /**
+     * ORG-13: the playlist's tracks in this order in that place only (a drag, Alt+Up/Down, Move up or Move down in a
+     * scene, Session playlists or Campaign playlists). Only its tracks count, each once, the rest after; the
+     * playlist's own order keeps no order there. Answers the order that now plays there, or null for its own. core.js
+     * L.setPlaceOrder. (The order of the playlists in a session's or campaign's list is `campaigns.setOnHand`.)
+     */
+    setTrackOrder(playlistId: string, place: PlayPlace, trackIds: string[]): Promise<WriteResult<string[] | null>>;
+    /** ORG-13: "Back to the playlist's order" in that place. core.js L.clearPlaceOrder. */
+    clearTrackOrder(playlistId: string, place: PlayPlace): Promise<WriteResult>;
   };
   boards: {
     /** Every pad board with its pads. boards.js list view, board editor; _shared.js pickBoards, contentsHTML. */
@@ -673,6 +737,12 @@ export interface LyreApi {
     setSceneBoards(scene: SceneAddress, boardIds: string[]): Promise<WriteResult>;
     /** DAT-14: the track's name in this scene only; empty gives it back its own name there. campaigns.js Name in this scene…. */
     setTrackName(scene: SceneAddress, trackId: string, name: string): Promise<WriteResult>;
+    /**
+     * PLY-17: Repeat one on (or off) for a track in this scene, saved with the scene (SceneInfo.repeatOnes). The same
+     * button in Current scene, an unfolded scene and the session planner. core.js L.acts.rep1. A Repeat chosen in a
+     * room playing that track gives way (LyreAudio.savedRepeatOneChanged).
+     */
+    setRepeatOne(scene: SceneAddress, trackId: string, on: boolean): Promise<WriteResult>;
   };
   profiles: {
     /** Every place's own settings, keyed by placeKey (src/common/domain). profile.js, library.js profileSummary, playlists.js and campaigns.js own-settings marks. */
@@ -693,6 +763,14 @@ export interface LyreApi {
     planRelink(source: { from: "choose-folder" } | { from: "path"; path: string }): Promise<WriteResult<RelinkPlan>>;
     /** Points tracks at the files the game master confirmed, in one undo step (DAT-8). */
     applyRelink(matches: Pick<RelinkMatch, "trackId" | "to">[]): Promise<WriteResult<{ relinked: string[] }>>;
+    /**
+     * SEC-17: Preview the file found, for a planned match by name only ("check it"): from now until another one, a
+     * new plan, a relink or endRelinkPreview, the page may play that one file (its address in `url`), and no other.
+     * Call it before previewing (LyreAudio.previewTrack with `file: url`). No undo step.
+     */
+    previewFound(trackId: string): Promise<WriteResult<{ url: string }>>;
+    /** SEC-17: Find missing files closed: the file it could preview may no longer be played. No undo step. */
+    endRelinkPreview(): Promise<WriteResult>;
   };
   /** DAT-7 (views/transfer.js). The main-process implementation of these comes in a later step; until then it refuses with "unavailable". */
   transfer: {
@@ -720,14 +798,14 @@ export interface LyreApi {
 
 /** Method names by area, for the contract tests' "every method is covered" guard and for IPC channel lists. */
 export const LYRE_API_METHODS = {
-  library: ["listTracks", "search", "updateTrack", "listFolders", "showInFolder", "peaksOf", "setShape", "normaliseSettings", "setNormaliseSettings", "setNormalise"],
+  library: ["listTracks", "search", "updateTrack", "listFolders", "showInFolder", "peaksOf", "setShape", "normaliseSettings", "setNormaliseSettings", "setNormalise", "find"],
   tags: ["listGroups", "tagTracks"],
-  playlists: ["list", "tracks", "containing", "create", "update", "copyAsManual", "delete", "addTracks", "removeTrack", "moveTrack", "playOrders", "setPlayOrder", "clearPlayOrder", "setNormalise"],
+  playlists: ["list", "tracks", "containing", "create", "update", "copyAsManual", "delete", "addTracks", "removeTrack", "moveTrack", "playOrders", "setPlayOrder", "clearPlayOrder", "setNormalise", "trackOrders", "setTrackOrder", "clearTrackOrder"],
   boards: ["list", "create", "rename", "resize", "duplicate", "delete", "addPad", "updatePad", "duplicatePad", "movePad", "putAllBack", "deletePad"],
   campaigns: ["list", "get", "create", "update", "setOnHand", "usesOf", "setUses"],
-  sessions: ["create", "update", "move", "createScene", "updateScene", "moveScene", "duplicateScene", "deleteScene", "setSceneMusic", "setSceneAmbience", "setSceneBoards", "setTrackName"],
+  sessions: ["create", "update", "move", "createScene", "updateScene", "moveScene", "duplicateScene", "deleteScene", "setSceneMusic", "setSceneAmbience", "setSceneBoards", "setTrackName", "setRepeatOne"],
   profiles: ["overrides", "set", "clear"],
-  import: ["start", "watchFolder", "findMissing", "planRelink", "applyRelink"],
+  import: ["start", "watchFolder", "findMissing", "planRelink", "applyRelink", "previewFound", "endRelinkPreview"],
   transfer: ["estimate", "save", "open", "bringIn", "movedReport"],
   history: ["state", "undo", "redo"],
 } as const satisfies { [A in Exclude<keyof LyreApi, "subscribe">]: readonly (keyof LyreApi[A])[] };

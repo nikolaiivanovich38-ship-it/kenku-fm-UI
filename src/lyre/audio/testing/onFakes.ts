@@ -42,6 +42,8 @@ export function staticAudioLibrary(data: AudioTestData): LyreAudioLibrary {
     pad: (boardId, padId): LyrePad | undefined => data.pads?.find((p) => p.boardId === boardId && p.padId === padId),
     playOrders: () => data.playOrders ?? {},
     normaliseSettings: () => data.normalise ?? DEFAULT_LIBRARY_NORMALISE,
+    trackOrders: () => data.trackOrders ?? {},
+    repeatOnes: () => data.repeatOnes ?? {},
   };
 }
 

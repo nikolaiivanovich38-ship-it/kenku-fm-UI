@@ -276,6 +276,18 @@ describe("PLY-13 play order per place in the sequence", () => {
     expect(seq.slice(1)).toEqual(tracksInOrder(["b", "c", "d", "x", "y"], { shuffle: true, repeat: "off" }, 11 + 1));
   });
 
+  it("ORG-13: a playlist plays in the track order chosen where it plays from: in its scene, or the session list", () => {
+    const session = { kind: "session" as const, campaignId: "c1", sessionId: "s1" };
+    data.campaigns[0].sessions[0].scenes[0].music = [{ kind: "playlist", id: "L" }];
+    data.trackOrders = { [keyOfPlace(scenePlace)]: { L: ["c", "a"] }, [keyOfPlace(session)]: { L: ["d", "c", "b", "a"] } };
+    expect(sequenceOf(sceneItem(ref, 0, lib)!.origin, lib).map((s) => s.trackId)).toEqual(["c", "a", "b", "d"]);
+    expect(sequenceOf(playlistItem("L", null, lib, { place: session })!.origin, lib).map((s) => s.trackId)).toEqual(["d", "c", "b", "a"]);
+    expect(sequenceOf(playlistItem("L", null, lib)!.origin, lib).map((s) => s.trackId)).toEqual(["a", "b", "c", "d"]);
+    // Shuffle still applies on top: the same tracks, dealt from the place's order.
+    data.playOrders = { [keyOfPlace(session)]: { L: { shuffle: true, repeat: "all" } } };
+    expect(sequenceOf(playlistItem("L", null, lib, { place: session, seed: 3 })!.origin, lib).map((s) => s.trackId)).toEqual(shuffledOrder(["d", "c", "b", "a"], 3));
+  });
+
   it("a track played from a session list uses the session's own audio settings first (PLY-14)", () => {
     const session = { kind: "session" as const, campaignId: "c1", sessionId: "s1" };
     expect(placesOf(playlistItem("P", "a", lib, { place: session })!)).toEqual([session, { kind: "playlist", playlistId: "P" }]);

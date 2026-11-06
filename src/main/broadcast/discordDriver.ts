@@ -12,6 +12,11 @@ declare const __CUE_DESK_TEST_BUILD__: boolean;
 export interface DiscordDriver {
   createClient(): Client;
   joinVoiceChannel(options: Parameters<typeof joinVoiceChannel>[0]): VoiceConnection;
+  /**
+   * OUT-8, test builds only: Lyre opened a bot's invite. The fake Discord admits the bot to its servers instead of a
+   * browser opening; the real driver has none, so the invite opens in the browser.
+   */
+  inviteOpened?(applicationId: string): void;
 }
 
 export const realDiscordDriver: DiscordDriver = {

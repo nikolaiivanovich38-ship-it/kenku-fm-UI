@@ -125,6 +125,15 @@ export class LyreLibraryService {
     return Array.isArray(folders) ? folders.filter((f): f is string => typeof f === "string") : [];
   }
 
+  /**
+   * UX-19, test builds of the sample library only (the library's process ignores it otherwise): the next write fails
+   * as a full drive would, for the specs' "Make the next save fail" (e2e/specs/support/target.ts failNextSave).
+   */
+  async failNextWrite(): Promise<void> {
+    await this.ready;
+    this.child?.postMessage({ t: "fail-next-write" });
+  }
+
   /** Closes the library cleanly (backups stop, the database is closed), then the process ends. */
   async stop(timeoutMs = 3000): Promise<void> {
     this.stopping = true;

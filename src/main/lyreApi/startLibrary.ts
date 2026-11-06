@@ -69,6 +69,13 @@ export function startLyreLibrary(): StartedLibrary {
     (globalThis as unknown as { lyreLibraryPid: () => number | undefined }).lyreLibraryPid = () => current?.pid;
   }
 
+  if (testBuild) {
+    // Test builds only (UX-19): the specs' failNextSave makes the library's next write fail, as a full drive would.
+    (globalThis as unknown as { __lyreLibraryTest: { failNextWrite: () => Promise<void> } }).__lyreLibraryTest = {
+      failNextWrite: () => service.failNextWrite(),
+    };
+  }
+
   // DAT-7: .lyre files are saved to, and brought in from, Documents\Lyre. A test build of the sample library keeps
   // them in its own data folder and answers the two dialogs itself (Playwright cannot click native dialogs).
   const transferFolder = seed ? path.join(app.getPath("userData"), "Documents", "Lyre") : path.join(app.getPath("documents"), "Lyre");

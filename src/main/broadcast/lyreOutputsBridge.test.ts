@@ -10,8 +10,9 @@ import { OutputManager } from "./OutputManager";
 import { BotTokenStore, type SafeStorageLike } from "./botTokenStore";
 import { LyreOutputsBridge } from "./lyreOutputsBridge";
 import { FakeDiscord, type FakeWorld } from "./testing/fakeDiscord";
+import type { DiscordDriver } from "./discordDriver";
 import { fakeIpcMain, fakePage, fromMainFrame, type FakePage } from "../security/testing/fakeIpc";
-import { LYRE_OUTPUTS_STATE, type LyreOutputs } from "../../common/lyreOutputs";
+import { LYRE_OUTPUTS_STATE, type LyreBotResult, type LyreOutputs } from "../../common/lyreOutputs";
 
 vi.mock("electron", async () => {
   const { fakeIpcMain } = await import("../security/testing/fakeIpc");
@@ -38,10 +39,16 @@ const WORLD: FakeWorld = {
   usernames: { "fake-a": "Lyre Table", "fake-b": "Lyre Side" },
 };
 
+/** As the real driver: no test hook for invites, so an invite opens in the browser. */
+function withoutInviteHook(driver: DiscordDriver): DiscordDriver {
+  return { createClient: driver.createClient, joinVoiceChannel: driver.joinVoiceChannel };
+}
+
 let folder: string;
 let manager: OutputManager;
 let bridge: LyreOutputsBridge;
 let lyre: FakePage;
+let opened: string[];
 const window = { webContents: { send: vi.fn(), isDestroyed: () => false } };
 const settle = (ms = 40) => new Promise((resolve) => setTimeout(resolve, ms));
 const fromLyre = () => fromMainFrame(lyre);
@@ -51,8 +58,9 @@ beforeEach(() => {
   fakeIpcMain.reset();
   vi.spyOn(console, "error").mockImplementation(() => undefined);
   vi.spyOn(console, "warn").mockImplementation(() => undefined);
-  manager = new OutputManager(window as never, new BotTokenStore(BotTokenStore.fileIn(folder), safeStorage), new FakeDiscord({ world: WORLD }).driver);
-  bridge = new LyreOutputsBridge(manager);
+  manager = new OutputManager(window as never, new BotTokenStore(BotTokenStore.fileIn(folder), safeStorage), withoutInviteHook(new FakeDiscord({ world: WORLD }).driver));
+  opened = [];
+  bridge = new LyreOutputsBridge(manager, { openExternal: async (url) => void opened.push(url) });
   lyre = fakePage("lyre-view");
 });
 
@@ -146,5 +154,62 @@ describe("LyreOutputsBridge (w4-outputs)", () => {
     const reconnect = vi.spyOn(manager, "reconnect");
     fakeIpcMain.deliver("LYRE_OUTPUT_RETRY", fromLyre(), a);
     expect(reconnect).toHaveBeenCalledWith(a);
+  });
+});
+
+describe("LyreOutputsBridge: Settings in Lyre (OUT-8)", () => {
+  it("adds a bot with its token and Application ID, answering in plain words; the page sees only the token's last four characters", async () => {
+    await twoBots();
+    bridge.setView(lyre as never);
+    const added = (await fakeIpcMain.invoke("LYRE_BOT_ADD", fromLyre(), "fake-c.third-part.abcd", "123456789012345678")) as LyreBotResult;
+    expect(added).toEqual({ ok: true, botId: expect.any(String) });
+    await settle();
+    const bot = last()!.bots.find((b) => added.ok && b.id === added.botId)!;
+    expect(bot).toMatchObject({ tokenEnd: "abcd", applicationId: "123456789012345678", inviteUrl: expect.stringContaining("client_id=123456789012345678") });
+    expect(JSON.stringify(pushed())).not.toContain("third-part");
+    expect(await fakeIpcMain.invoke("LYRE_BOT_ADD", fromLyre(), "not a token", null)).toEqual({ ok: false, message: expect.stringContaining("Reset Token") });
+  });
+
+  it("replaces a token, renames, sets the Application ID, connects and disconnects a bot", async () => {
+    const [, b] = await twoBots();
+    expect(await fakeIpcMain.invoke("LYRE_BOT_SET_TOKEN", fromLyre(), b, "fake-b.new-part.wxyz")).toEqual({ ok: true, botId: b });
+    expect(await fakeIpcMain.invoke("LYRE_BOT_RENAME", fromLyre(), b, "Side")).toEqual({ ok: true, botId: b });
+    expect(await fakeIpcMain.invoke("LYRE_BOT_SET_APP_ID", fromLyre(), b, "123456789012345678")).toEqual({ ok: true, botId: b });
+    await settle();
+    expect(manager.state().bots[1]).toMatchObject({ name: "Side", tokenEnd: "wxyz", applicationId: "123456789012345678", status: "ready" });
+    fakeIpcMain.deliver("LYRE_BOT_DISCONNECT", fromLyre(), b);
+    await settle();
+    expect(manager.state().bots[1].status).toBe("offline");
+    fakeIpcMain.deliver("LYRE_BOT_CONNECT", fromLyre(), b);
+    await settle();
+    expect(manager.state().bots[1].status).toBe("ready");
+  });
+
+  it("removes a bot and puts it back with Undo", async () => {
+    const [a, b] = await twoBots();
+    expect(await fakeIpcMain.invoke("LYRE_BOT_REMOVE", fromLyre(), b)).toEqual({ ok: true, botId: b });
+    expect(manager.state().bots.map((x) => x.id)).toEqual([a]);
+    expect(await fakeIpcMain.invoke("LYRE_BOT_REMOVE", fromLyre(), a)).toEqual({ ok: false, message: expect.stringContaining("one bot at least") });
+    expect(await fakeIpcMain.invoke("LYRE_BOT_RESTORE", fromLyre(), b)).toEqual({ ok: true, botId: b });
+    expect(manager.state().bots.map((x) => x.id)).toEqual([a, b]);
+  });
+
+  it("opens a bot's invite in the browser, made in the main process from the Application ID alone", async () => {
+    fakeIpcMain.deliver("LYRE_BOT_OPEN_INVITE", fromLyre(), "123456789012345678");
+    await settle();
+    expect(opened).toEqual(["https://discord.com/oauth2/authorize?client_id=123456789012345678&scope=bot&permissions=3146752"]);
+  });
+
+  it("refuses other pages and arguments that are not a bot, a token, a name or an Application ID", async () => {
+    const [a] = await twoBots();
+    await expect(fakeIpcMain.invoke("LYRE_BOT_ADD", fromMainFrame(fakePage("main-window")), "fake-x.y.z", null)).rejects.toThrow();
+    await expect(fakeIpcMain.invoke("LYRE_BOT_ADD", fromLyre(), 42, null)).rejects.toThrow();
+    await expect(fakeIpcMain.invoke("LYRE_BOT_SET_TOKEN", fromLyre(), "../bot", "fake-x.y.z")).rejects.toThrow();
+    await expect(fakeIpcMain.invoke("LYRE_BOT_RENAME", fromLyre(), a, "x".repeat(5000))).rejects.toThrow();
+    await expect(fakeIpcMain.invoke("LYRE_BOT_SET_APP_ID", fromLyre(), a, "https://evil.example")).rejects.toThrow();
+    fakeIpcMain.deliver("LYRE_BOT_OPEN_INVITE", fromLyre(), "123&scope=admin");
+    fakeIpcMain.deliver("LYRE_BOT_OPEN_INVITE", fromMainFrame(fakePage("player-view")), "123456789012345678");
+    await settle();
+    expect(opened).toEqual([]);
   });
 });

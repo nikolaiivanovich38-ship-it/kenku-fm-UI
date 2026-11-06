@@ -39,6 +39,8 @@ import {
   listTagGroups,
   listTags,
   setPlayOrder,
+  setRepeatOne,
+  setTrackOrder,
   setProfileOverride,
   setSceneAmbience,
   setSceneTrackName,
@@ -456,6 +458,11 @@ export async function bringIn(store: Store, file: LyreFileLibrary, mine: Current
         const mapped = trackMap.get(trackId);
         if (mapped && name.trim()) setSceneTrackName(store, scene.id, mapped, name);
       }
+      // PLY-17: the scene's Repeat ones come with it.
+      for (const trackId of sc.repeatOnes) {
+        const mapped = trackMap.get(trackId);
+        if (mapped) setRepeatOne(store, scene.id, mapped, true);
+      }
     }
   };
 
@@ -499,6 +506,17 @@ export async function bringIn(store: Store, file: LyreFileLibrary, mine: Current
       for (const [playlistId, order] of Object.entries(byPlaylist)) {
         const p = playlistMap.get(playlistId);
         if (p) setPlayOrder(store, p, mapped, order);
+      }
+    }
+    // ORG-13: a playlist's track order in a place the bring-in made (yours are never changed by a file).
+    for (const [key, byPlaylist] of Object.entries(file.trackOrders)) {
+      const place = parseKeyOfPlace(key);
+      const mapped = place && mapUsePlace(place);
+      if (!mapped) continue;
+      for (const [playlistId, ids] of Object.entries(byPlaylist)) {
+        const p = playlistMap.get(playlistId);
+        const tracks = ids.map((id) => trackMap.get(id)).filter((id): id is string => !!id);
+        if (p && tracks.length) setTrackOrder(store, p, mapped, tracks);
       }
     }
   };

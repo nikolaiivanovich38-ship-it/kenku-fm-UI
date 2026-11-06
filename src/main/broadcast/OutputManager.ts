@@ -4,10 +4,13 @@ import type { ErrorCause } from "../../common/errorCause";
 import type { Room } from "../../common/domain/types";
 import { LOCAL_OUTPUT_ID, roomsOf, type OutputsState } from "../../common/outputs";
 import { guardIpc } from "../security/ipcGuard";
-import type { BotTokenStore } from "./botTokenStore";
+import { applicationIdProblem, isApplicationId, tokenProblem, type LyreBotResult } from "../../common/lyreOutputs";
+import type { BotTokenStore, RemovedBot } from "./botTokenStore";
 import { defaultDiscordDriver, type DiscordDriver } from "./discordDriver";
 import { DiscordBot, isTokenProblem } from "./DiscordBot";
 import { RetryClock } from "./retryClock";
+
+const GONE: LyreBotResult = { ok: false, message: "That bot is no longer in Lyre." };
 
 /** UX finding 5: what Discord refusing a token means, and what to do, in plain words. */
 export const TOKEN_REFUSED =
@@ -67,6 +70,8 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
   private lastRooms: Room[] = [];
   /** OUT-5: room volumes by bot id; a bot not listed is at full volume. */
   private volumes = new Map<string, number>();
+  /** OUT-8: bots taken out by Remove, kept in memory (never written) until the app closes, for Remove's Undo. */
+  private removed = new Map<string, { record: RemovedBot; channelId: string | null; volume: number | undefined; muted: boolean }>();
 
   constructor(
     private readonly window: WindowLike,
@@ -123,6 +128,8 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
           ...(bot.discordName ? { discordName: bot.discordName } : {}),
           hasToken: summary?.hasToken ?? false,
           tokenRemembered: summary?.tokenRemembered ?? false,
+          ...(summary?.tokenEnd ? { tokenEnd: summary.tokenEnd } : {}),
+          ...(summary?.applicationId ? { applicationId: summary.applicationId } : {}),
           status: bot.status,
           ...(bot.error ? { error: plainBotError(bot.error) } : {}),
           ...(bot.notice ? { notice: bot.notice } : {}),
@@ -257,6 +264,118 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
     const remembered = this.tokens.setToken(id, token.trim());
     this.publish();
     return remembered;
+  }
+
+  // ---------- OUT-8: Settings in Lyre (the Lyre page, through lyreOutputsBridge.ts) ----------
+
+  /**
+   * Add a bot: its token (stored encrypted, SEC-5) and, when given, its Application ID; it logs in at once. The
+   * shapes are checked first, so Discord only ever sees a token that could be one.
+   */
+  addBotWithToken(token: string, applicationId: string | null): LyreBotResult {
+    const problem = tokenProblem(String(token)) ?? (applicationId === null ? null : applicationIdProblem(String(applicationId)));
+    if (problem) return { ok: false, message: problem };
+    const id = this.addBot();
+    this.tokens.setToken(id, token.trim());
+    if (applicationId !== null) this.tokens.setApplicationId(id, applicationId.trim());
+    this.publish();
+    void this.connect(id);
+    return { ok: true, botId: id };
+  }
+
+  /** Replace…: a new token for the bot; it logs in again with it. */
+  replaceToken(id: string, token: string): LyreBotResult {
+    const bot = this.bots.get(id);
+    if (!bot) return GONE;
+    const problem = tokenProblem(String(token));
+    if (problem) return { ok: false, message: problem };
+    bot.disconnect();
+    this.tokens.setToken(id, token.trim());
+    this.publish();
+    void this.connect(id);
+    return { ok: true, botId: id };
+  }
+
+  renameBot(id: string, name: string): LyreBotResult {
+    if (!this.bots.has(id)) return GONE;
+    if (!this.tokens.rename(id, name)) return { ok: false, message: "Give the bot a name." };
+    this.publish();
+    return { ok: true, botId: id };
+  }
+
+  /** The bot's Application ID (null: none), for its invite link. */
+  setApplicationId(id: string, applicationId: string | null): LyreBotResult {
+    if (!this.bots.has(id)) return GONE;
+    const problem = applicationId === null ? null : applicationIdProblem(String(applicationId));
+    if (problem) return { ok: false, message: problem };
+    this.tokens.setApplicationId(id, applicationId === null ? null : applicationId.trim());
+    this.publish();
+    return { ok: true, botId: id };
+  }
+
+  /** Remove (with Undo): the bot leaves its voice channel and logs out; restoreBot puts it back. The last bot stays. */
+  removeBotForUndo(id: string): LyreBotResult {
+    const bot = this.bots.get(id);
+    if (!bot) return GONE;
+    if (this.bots.size <= 1) return { ok: false, message: "Lyre needs one bot at least: replace its token instead." };
+    const channelId = bot.voice().find((session) => session.status !== "error")?.channelId ?? null;
+    const volume = this.volumes.get(id);
+    const record = this.tokens.takeOut(id);
+    if (!record) return GONE;
+    this.removed.set(id, { record, channelId, volume, muted: bot.muted });
+    bot.destroy();
+    this.bots.delete(id);
+    this.volumes.delete(id);
+    this.retries.forget(id);
+    this.updateRooms();
+    this.updateActive();
+    this.publish();
+    return { ok: true, botId: id };
+  }
+
+  /** Remove's Undo: the bot back in its place, logged in again and back in the voice channel it was in. */
+  restoreBot(id: string): LyreBotResult {
+    const kept = this.removed.get(id);
+    if (!kept || this.bots.has(id)) return { ok: false, message: "There is nothing to put back." };
+    this.removed.delete(id);
+    this.tokens.putBack(kept.record);
+    // The bots' order is the store's: rebuild the map in that order with the bot in its old place.
+    const order = this.tokens.list().map((b) => b.id);
+    const bot = this.createBot(id);
+    bot.muted = kept.muted;
+    const entries = order.map((botId) => [botId, this.bots.get(botId) ?? bot] as const);
+    this.bots.clear();
+    for (const [botId, b] of entries) this.bots.set(botId, b);
+    if (kept.volume !== undefined) this.volumes.set(id, kept.volume);
+    this.publish();
+    if (this.tokens.token(id)) {
+      void this.connect(id).then(() => {
+        if (!kept.channelId) return;
+        const join = () => {
+          if (bot.status !== "ready") return;
+          bot.off("change", join);
+          void this.moveBot(id, kept.channelId!);
+        };
+        bot.on("change", join);
+        join();
+      });
+    }
+    return { ok: true, botId: id };
+  }
+
+  /** Disconnect in Settings: the bot logs out (and leaves its voice channel); Connect logs it in again. */
+  disconnect(id: string): void {
+    this.bots.get(id)?.disconnect();
+  }
+
+  /**
+   * OUT-8, test builds: the fake Discord admits a bot whose invite Lyre opened. False with the real driver: the caller
+   * opens the invite in the browser.
+   */
+  inviteOpenedByDriver(applicationId: string): boolean {
+    if (!isApplicationId(applicationId) || !this.driver.inviteOpened) return false;
+    this.driver.inviteOpened(applicationId);
+    return true;
   }
 
   removeToken(id: string): void {

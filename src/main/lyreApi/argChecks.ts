@@ -155,6 +155,8 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
     normaliseSettings: read(),
     setNormaliseSettings: write(object({ on: bool, target: text(MAX_ID) })),
     setNormalise: write(id, nullable(text(MAX_ID))),
+    // ORG-14: Find in Live (words, a lane, the session Live runs).
+    find: read(object({ text: text(1_000), "lane?": text(MAX_ID), "limit?": whole, "in?": owner })),
   },
   tags: {
     listGroups: read(),
@@ -180,6 +182,10 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
     playOrders: read(),
     setPlayOrder: write(id, nullable(playPlace), playOrder),
     clearPlayOrder: write(id, nullable(playPlace)),
+    // ORG-13: a playlist's track order in one place (never its own: that is its list).
+    trackOrders: read(),
+    setTrackOrder: write(id, playPlace, list(id, 10_000)),
+    clearTrackOrder: write(id, playPlace),
   },
   boards: {
     list: read(),
@@ -217,6 +223,8 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
     setSceneAmbience: write(sceneAddress, nullable(soundRef)),
     setSceneBoards: write(sceneAddress, list(id, 1_000)),
     setTrackName: write(sceneAddress, id, text(1_000)),
+    // PLY-17: Repeat one on a scene's track, on or off.
+    setRepeatOne: write(sceneAddress, id, bool),
   },
   profiles: {
     overrides: read(),
@@ -228,6 +236,8 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
     watchFolder: write(folderSource),
     findMissing: read(),
     planRelink: write(folderSource),
+    previewFound: write(id),
+    endRelinkPreview: write(),
     applyRelink: write(list(object({ trackId: id, to: fullPath }))),
   },
   transfer: {

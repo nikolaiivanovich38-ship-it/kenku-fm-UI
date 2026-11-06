@@ -48,6 +48,10 @@ export interface BotState {
   hasToken: boolean;
   /** False: the token is kept only until Lyre closes (no secure storage). */
   tokenRemembered: boolean;
+  /** OUT-8: the last four characters of its token, so the game master can tell tokens apart; never more (SEC-5). */
+  tokenEnd?: string;
+  /** OUT-8: the bot's Application ID (General Information in the Discord Developer Portal), for its invite link only. */
+  applicationId?: string;
   status: BotStatus;
   /** Plain-language reason when `status` is "error" (or why it is logging in again). */
   error?: string;

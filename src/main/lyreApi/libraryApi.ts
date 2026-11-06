@@ -13,7 +13,19 @@
 import fs from "fs";
 import path from "path";
 
-import { isFx, type DomainCampaign, type Lane, type NormaliseChoice, type PlaylistRule, type ProfilePlace, type SoundRef, type Use } from "../../common/domain";
+import {
+  isFx,
+  keyOfPlace,
+  tracksInPlaceOrder,
+  type DomainCampaign,
+  type Lane,
+  type NormaliseChoice,
+  type PlaylistRule,
+  type ProfilePlace,
+  type SoundRef,
+  type Use,
+  type UsePlace,
+} from "../../common/domain";
 import type {
   AddedTracks,
   CampaignInfo,
@@ -39,7 +51,7 @@ import type {
   TrackPatch as ApiTrackPatch,
   WriteResult,
 } from "../../common/lyre/api";
-import { CAMPAIGN_THEMES } from "../../common/lyre/api";
+import { CAMPAIGN_THEMES, NOT_SAVED } from "../../common/lyre/api";
 import { estimateTransfer, NOT_BROUGHT_ACROSS, transferContents, type TransferLibrary } from "../../common/lyre/transfer";
 import { fileAddress } from "../../common/lyre/media";
 import { plural, quoted, shownTitle, tagValue, trimmed } from "../../common/lyre/text";
@@ -75,6 +87,11 @@ import {
   getLibraryNormalise,
   getPlayOrderOverrides,
   getTrackNames,
+  getRepeatOnes,
+  getTrackOrders,
+  setRepeatOne,
+  setTrackOrder,
+  clearTrackOrder,
   getProfileOverride,
   getProfileOverrides,
   importAudio,
@@ -188,8 +205,10 @@ export interface LibraryApiOptions {
 
 /** LyreApi plus what its owner calls before closing the library. */
 export type LibraryApi = LyreApi & {
-  /** Stops background work (the peaks being worked out); call before library.close(). */
+  /** Stops background work (the peaks being worked out) and closes a .lyre file left open (PERF-10); call before library.close(). */
   stopBackgroundWork(): void;
+  /** UX-19, test builds and tests: the next write fails as a full drive would ("not-saved"), once. */
+  failNextWrite(): void;
   /**
    * Security review w4, Should 5: the files outside the library the Lyre page may preview, for MEDIA_PREPARE's list
    * (libraryProcessCore.ts): the found file of each planned match Find missing files asks the game master to check
@@ -226,7 +245,24 @@ export function refusalFor(error: unknown): ApiRefusal | null {
   if (error instanceof ValidationError) return { code: "invalid", message: error.message, field: error.field };
   if (error instanceof NotFoundError) return { code: "not-found", message: ENTITY_WORDS[error.entity] ?? "That is no longer in your library." };
   if (error instanceof LibraryBusyError) return { code: "busy", message: error.message };
+  if (isWriteFailure(error)) return { code: "not-saved", message: NOT_SAVED };
   return null;
+}
+
+/**
+ * SQLite's primary result codes that mean the computer could not take the write (UX-19): the drive is full (FULL 13),
+ * a disk error (IOERR 10), the file is read-only (READONLY 8) or cannot be opened (CANTOPEN 14), another program holds
+ * it (BUSY 5, LOCKED 6), or the folder's permissions refuse it (PERM 3). Nothing was changed: the transaction rolled back.
+ */
+const WRITE_FAILURES = new Set([3, 5, 6, 8, 10, 13, 14]);
+export function isWriteFailure(error: unknown): boolean {
+  const e = error as { code?: unknown; errcode?: unknown } | null;
+  return !!e && e.code === "ERR_SQLITE_ERROR" && typeof e.errcode === "number" && WRITE_FAILURES.has(e.errcode & 0xff);
+}
+
+/** What node:sqlite throws when the drive is full, for failNextWrite. */
+function driveFullError(): Error {
+  return Object.assign(new Error("database or disk is full"), { code: "ERR_SQLITE_ERROR", errcode: 13, errstr: "database or disk is full" });
 }
 
 /** "f5" as stored, "F5" as the screens show it; a letter or digit as it is. */
@@ -255,6 +291,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
     today: options.transfer?.today ?? store.now,
     freeBytes: options.transfer?.freeBytes,
   };
+  /** SEC-17: the one found file Find missing files may preview now (previewFound), or none. */
+  let previewGrant: string | null = null;
   /** The .lyre file opened last, waiting for Bring in (one at a time). */
   let opened: OpenTransfer | null = null;
   const listeners = new Set<(event: LyreEvent) => void>();
@@ -334,10 +372,16 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
     };
   })();
 
+  /** UX-19: failNextWrite was called (test builds and tests). */
+  let failNext = false;
   async function write<T>(areas: LyreArea[], body: () => T | Promise<T>): Promise<WriteResult<T>> {
     const before = history.recorded;
     let value: T;
     try {
+      if (failNext) {
+        failNext = false;
+        throw driveFullError();
+      }
       value = await body();
     } catch (error) {
       const refusal = refusalFor(error);
@@ -494,11 +538,11 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
   const cellOf = (slot: number, cols: number) => ({ row: Math.floor(slot / cols), col: slot % cols });
 
   /** What every campaign's info reads, read once for a list of them (security review w4, Should 3). */
-  const campaignLookups = () => ({ campaigns: new Map(listCampaigns(store).map((c) => [c.id, c])), names: getTrackNames(store) });
+  const campaignLookups = () => ({ campaigns: new Map(listCampaigns(store).map((c) => [c.id, c])), names: getTrackNames(store), ones: getRepeatOnes(store) });
   function campaignInfo(tree: DomainCampaign, lookups = campaignLookups()): CampaignInfo {
     const campaign = lookups.campaigns.get(tree.id);
     const sessions = new Map(listSessions(store, tree.id).map((s) => [s.id, s]));
-    const { names } = lookups;
+    const { names, ones } = lookups;
     return {
       id: tree.id,
       name: campaign.name,
@@ -523,8 +567,10 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           trackIds: s.trackIds ?? [],
           scenes: s.scenes.map((sc): SceneInfo => {
             const scene = scenes.get(sc.id);
-            const trackNames = { ...(names[`sc:${tree.id}:${s.id}:${sc.id}`] ?? {}) };
-            return { ...sc, name: scene.name, startsWhen: scene.startsWhen, notes: scene.notes, noteLink: scene.noteLink, trackNames };
+            const key = `sc:${tree.id}:${s.id}:${sc.id}`;
+            const trackNames = { ...(names[key] ?? {}) };
+            const repeatOnes = [...(ones[key] ?? [])];
+            return { ...sc, name: scene.name, startsWhen: scene.startsWhen, notes: scene.notes, noteLink: scene.noteLink, trackNames, repeatOnes };
           }),
         };
       }),
@@ -617,6 +663,27 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
         }
         const hits = max === 0 ? [] : search(store, text, { kinds: ["track"], lane, limit: Math.min(max, 1000) });
         return { trackIds: hits.map((h) => h.id), total: searchCount(store, text, { kinds: ["track"], lane }) };
+      },
+      async find({ text, lane, limit = 50, in: where }) {
+        const max = Math.max(0, limit);
+        const tracks = await api.library.search({ text, lane, limit: max });
+        const words = trimmed(text);
+        const all = playlistInfos();
+        const byId = new Map(all.map((p) => [p.id, p]));
+        const hits = !words ? all.map((p) => p.id) : quietly(() => search(store, text, { kinds: ["playlist"], limit: 1000 }), []).map((h) => h.id);
+        const found = hits.map((id) => byId.get(id)).filter((p): p is PlaylistInfo => !!p && (!lane || p.lane === lane)).slice(0, max);
+        const c = where ? campaignById(where.campaignId) : null;
+        const s = c && where?.sessionId ? c.sessions.find((x) => x.id === where.sessionId) : undefined;
+        const orders = found.length ? getTrackOrders(store) : {};
+        return {
+          tracks,
+          playlists: found.map((p) => {
+            const place: UsePlace | null = s?.playlistIds.includes(p.id) ? { kind: "session", campaignId: c!.id, sessionId: s.id } : c?.playlistIds.includes(p.id) ? { kind: "campaign", campaignId: c.id } : null;
+            const own = quietly(() => listPlaylistTrackIds(store, p.id), []).map((id) => ({ id }));
+            const trackIds = tracksInPlaceOrder(own, place ? orders[keyOfPlace(place)]?.[p.id] : undefined).map((t) => t.id);
+            return { id: p.id, name: p.name, lane: p.lane, kind: p.kind, trackIds, place };
+          }),
+        };
       },
       async updateTrack(id, patch: ApiTrackPatch) {
         return write(["tracks"], () => {
@@ -817,6 +884,27 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       },
       async clearPlayOrder(playlistId, place) {
         return write(["playlists"], () => clearPlayOrder(store, playlistId, place));
+      },
+      async trackOrders() {
+        return getTrackOrders(store);
+      },
+      async setTrackOrder(playlistId, place, trackIds) {
+        return write(["playlists"], () => {
+          requirePlaylist(playlistId);
+          if (!place) refuse("invalid", "A playlist's own order is its list: choose a scene, a session or a campaign.", "place");
+          if (!Array.isArray(trackIds) || trackIds.some((id) => typeof id !== "string")) refuse("invalid", "The order is a list of tracks.", "trackIds");
+          // Ids not in the playlist are left out (the screens may send what they show); the repository keeps the rest.
+          const own = new Set(listPlaylistTrackIds(store, playlistId));
+          setTrackOrder(store, playlistId, place, trackIds.filter((id) => own.has(id)));
+          return getTrackOrders(store)[keyOfPlace(place)]?.[playlistId] ?? null;
+        });
+      },
+      async clearTrackOrder(playlistId, place) {
+        return write(["playlists"], () => {
+          requirePlaylist(playlistId);
+          if (!place) refuse("invalid", "A playlist's own order is its list: choose a scene, a session or a campaign.", "place");
+          clearTrackOrder(store, playlistId, place);
+        });
       },
       async setNormalise(playlistId, choice) {
         return write(["playlists"], () => {
@@ -1115,6 +1203,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
             if (scene.boardIds.length) addSceneBoards(store, id, scene.boardIds);
             // DAT-14: a copy of the scene keeps its names for its tracks.
             for (const [trackId, name] of Object.entries(scene.trackNames)) setSceneTrackName(store, id, trackId, name);
+            // PLY-17: and its Repeat ones (its play orders and track orders stay with the original, as audio settings do).
+            for (const trackId of scene.repeatOnes) setRepeatOne(store, id, trackId, true);
           });
           return requireScene({ ...address, sceneId: id }).scene;
         });
@@ -1166,6 +1256,14 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           requireTrack(trackId);
           if (typeof name !== "string") refuse("invalid", "A name is text.", "name");
           setSceneTrackName(store, scene.id, trackId, name);
+        });
+      },
+      async setRepeatOne(address, trackId, on) {
+        return write(["campaigns"], () => {
+          const { scene } = requireScene(address);
+          requireTrack(trackId);
+          if (typeof on !== "boolean") refuse("invalid", "Repeat one is on or off.", "on");
+          setRepeatOne(store, scene.id, trackId, on);
         });
       },
     },
@@ -1273,6 +1371,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           if (unsafe) refuse("invalid", unsafe, "path");
           const plan = await planRelink(store, await findMissingTracks(store, { probe }), folder, { probe });
           planned = new Map(plan.matches.map((m) => [relinkKey(m.trackId, m.to), m]));
+          previewGrant = null;
           plannedChoices = new Set(plan.ambiguous.flatMap((a) => a.candidates.map((to) => relinkKey(a.trackId, to))));
           return {
             folder,
@@ -1282,6 +1381,18 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
             summary: plan.summary,
           };
         });
+      },
+      async previewFound(trackId) {
+        const match = [...planned.values()].find((m) => m.trackId === trackId);
+        if (!match) return { ok: false, refusal: { code: "not-found", message: "Look for the missing files again: Lyre has no file found for that track now." } };
+        if (match.confidence !== "name") return { ok: false, refusal: { code: "invalid", message: "Only a file found by its name alone needs a listen before relinking.", field: "trackId" } };
+        previewGrant = match.to;
+        // "folders": the main process asks again which files the page may read (previewableFiles).
+        return writeOutside(["folders"], () => ({ url: fileAddress(match.to) }));
+      },
+      async endRelinkPreview() {
+        previewGrant = null;
+        return writeOutside(["folders"], (): void => undefined);
       },
       async applyRelink(matches) {
         return write(["tracks"], async () => {
@@ -1294,6 +1405,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           });
           await applyRelink(store, chosen);
           planned = new Map();
+          previewGrant = null;
           plannedChoices = new Set();
           return { relinked: matches.map((m) => m.trackId) };
         });
@@ -1319,6 +1431,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
             contents: transferContents(request.scope, lib) ?? refuse("not-found", "That is no longer in your library."),
             overrides: getProfileOverrides(store),
             playOrders: getPlayOrderOverrides(store),
+            trackOrders: getTrackOrders(store),
             includeAudio: request.includeAudio,
             fileOf: (trackId) => trackFile(trackId),
             probe,
@@ -1417,12 +1530,21 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
     stopBackgroundWork() {
       if (loudnessSweep) clearTimeout(loudnessSweep);
       peakJobs?.close();
+      // PERF-10: a .lyre file opened and never brought in is closed with the library (not left to the garbage
+      // collector, which Node warns about: DEP0137).
+      const file = opened;
+      opened = null;
+      void file?.close().catch((error: unknown) => options.log?.("Could not close an opened Lyre file", error));
       // The undo history does not outlive the library: an undone bring-in's files are not needed again.
       void unpackedFiles.settle({ redoGone: true });
     },
 
+    failNextWrite() {
+      failNext = true;
+    },
     previewableFiles() {
-      return [...planned.values()].filter((m) => m.confidence === "name").map((m) => m.to);
+      // SEC-17: only the one file the game master asked to hear (previewFound), until the screen closes.
+      return previewGrant ? [previewGrant] : [];
     },
 
     subscribe(listener) {

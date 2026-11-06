@@ -282,13 +282,14 @@ describe("Now Playing queue and Undo (PLY-1)", () => {
     expect(heard).toEqual(["x", "m2"]);
   });
 
-  it("Play next waits for the current track to end, then the sequence goes on", async () => {
+  it("Play next waits for the current track to end, the newest first (round 6), then the sequence goes on", async () => {
     await run({ type: "startScene", scene: S1 });
     await run({ type: "playTrack", trackId: "x", target: table, when: "next" });
     await run({ type: "playTrack", trackId: "m3", target: table, when: "next" });
-    expect(director.report()[0].queued.map((q) => q.trackId)).toEqual(["x", "m3"]);
+    // Nik, 6 Nov 12:14: Play next goes right after the current track, so the last one pressed plays first.
+    expect(director.report()[0].queued.map((q) => q.trackId)).toEqual(["m3", "x"]);
     const heard = await listenToMusic(40);
-    expect(heard).toEqual(["m1", "x", "m3", "m2"]);
+    expect(heard).toEqual(["m1", "m3", "x", "m2"]);
   });
 
   it("a shuffled playlist after a track the scene just played does not bring that track straight back", async () => {
