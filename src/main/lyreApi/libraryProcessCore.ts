@@ -69,6 +69,16 @@ export function mediaFolders(library: Library): string[] {
   return [...new Set([...roots, ...outside])];
 }
 
+/**
+ * Security review w4: the page's Save to a file goes where the game master chose in the save dialog. A `path` in
+ * the page's call is dropped, so a page cannot write a .lyre file at a place it names. Tests calling the library
+ * directly, and a seeded test build, keep it.
+ */
+export function withSaveDialogOnly(api: LibraryApi): LibraryApi {
+  const save = api.transfer.save;
+  return { ...api, transfer: { ...api.transfer, save: (request) => save({ scope: request.scope, includeAudio: request.includeAudio }) } };
+}
+
 /** Plain words for a damaged library, with or without a backup to put back (security review 8). */
 export function damagedWords(message: string, canRestore: boolean): string {
   const first = message.replace(/ Lyre can put back.*$| No backup was found.*$/, "");
@@ -154,7 +164,7 @@ export function runLibraryProcess(port: PortLike, options: LibraryProcessOptions
     // DAT-15: loudness is measured by the same background job, with the same bundled ffmpeg.
     const loudnessReader = peakReader && ffmpegPath ? new FfmpegLoudnessReader({ ffmpegPath }) : undefined;
     api = createLibraryApi(opened, host, { tagReader, peakReader: peakReader ?? undefined, loudnessReader, lengthProbe, log, transfer, ...(seed ? { files: sampleComputer(prototypeSeed()) } : {}) });
-    server = serveLyreApi(api, port);
+    server = serveLyreApi(seed ? api : withSaveDialogOnly(api), port);
     if (backupsWanted && !stopBackups) stopBackups = startDailyBackups(opened, { onError: (error) => log("The daily backup failed", error) });
     port.postMessage({ t: "ready" });
     // Security review 8: the background check's result is acted on: a damaged library is no longer used.
@@ -202,7 +212,8 @@ export function runLibraryProcess(port: PortLike, options: LibraryProcessOptions
         const report = await importLegacyLibrary(library, message.raw, { tagReader });
         port.postMessage({ t: "legacy-report", id: message.id, report });
       } else if (message?.t === "media-folders" && library) {
-        port.postMessage({ t: "media-folders", id: message.id, folders: mediaFolders(library) });
+        // Security review w4, Should 5: with the folders, the single files Find missing files offers to preview.
+        port.postMessage({ t: "media-folders", id: message.id, folders: [...mediaFolders(library), ...(api?.previewableFiles() ?? [])] });
       } else if (message?.t === "close") {
         closeLibrary();
         stop();

@@ -625,7 +625,7 @@ Fixes from the wave 3 security review. The new interface now reads your audio fi
 
 ## w4-contracts
 
-No new IPC channel: the round 5 calls go through `LYRE_API_CALL` like every LyreApi call, so the guard checks their names against `LYRE_API_METHODS` and the call's size. Their arguments are checked in the library before it acts (`src/main/lyreApi/argChecks.ts`, security review 5): `library.setShape` (an id, a short text or null), `playlists.setPlayOrder` and `clearPlayOrder` (an id, a place branched by `kind` with its ids, `{ shuffle: boolean, repeat: text }`), `sessions.setTrackName` (a scene address, an id, a text of at most 1,000 characters; the library keeps 200), `campaigns.setOnHand` (now also "tracks") and `setUses` (now also a track), a session place for `profiles.set`/`clear`, rule `shapes` and search `shapes` (lists of short texts), and `transfer.*` (a scope branched by `kind`, a full path when given, a duplicate choice from skip, merge, keepBoth). The main process does not open or write .lyre files yet (`save`, `open` and `bringIn` refuse with "unavailable"); the stream that adds them must check the file's path as `planRelink` does and treat a file's contents as untrusted.
+No new IPC channel: the round 5 calls go through `LYRE_API_CALL` like every LyreApi call, so the guard checks their names against `LYRE_API_METHODS` and the call's size. Their arguments are checked in the library before it acts (`src/main/lyreApi/argChecks.ts`, security review 5): `library.setShape` (an id, a short text or null), `playlists.setPlayOrder` and `clearPlayOrder` (an id, a place branched by `kind` with its ids, `{ shuffle: boolean, repeat: text }`), `sessions.setTrackName` (a scene address, an id, a text of at most 1,000 characters; the library keeps 200), `campaigns.setOnHand` (now also "tracks") and `setUses` (now also a track), a session place for `profiles.set`/`clear`, rule `shapes` and search `shapes` (lists of short texts), and `transfer.*` (a scope branched by `kind`, a full path when given, a duplicate choice from skip, merge, keepBoth). The .lyre files themselves are opened and written as "w4-transfer" below says.
 
 
 ## w4-outputs
@@ -675,8 +675,8 @@ library's own process (`src/main/transfer`, `src/main/lyreApi/transferApi.ts`), 
   match. At most 200,002 entries, a 32 MB list of entries, one audio file 2 GB, the whole file under 4 GB.
 - **Zip-slip.** Entry names that are absolute, hold a backslash, a drive letter, a NUL, or an empty, "." or ".."
   part are refused (`isSafeEntryName`). Audio is unpacked under names Lyre makes from the track's file name (its last
-  part only, characters Windows refuses replaced, Windows' reserved names prefixed, 150 characters at most), inside
-  `Brought in\<file name>`, and the target is checked once more to be inside that folder before writing. A track whose
+  part only, characters Windows refuses replaced, Windows' reserved names prefixed, 150 characters at most) with the
+  entry's own audio extension (w4-review-fix), inside `Brought in\<file name>`, and the target is checked once more to be inside that folder before writing. A track whose
   file name holds a folder refuses the file. Unpacked files are written through "<name>.part" with their CRC checked
   and removed again if bringing in fails.
 - **Every value rebuilt.** library.json is never used as parsed: each track, playlist, rule, pad, board, campaign,
@@ -694,6 +694,8 @@ library's own process (`src/main/transfer`, `src/main/lyreApi/transferApi.ts`), 
   without opening it, and nothing of a refused file's content goes back to the page.
 - **Saving** writes only where the game master chose in the save dialog (the main process asks; the library sends a
   suggested name, of which only the last part is used), through "<name>.part" moved into place at the end.
+  `transfer.save` has a `path` for tests that call the library directly; the library's process drops it from the
+  page's calls (`withSaveDialogOnly`, w4-review-fix), except in a seeded test build.
 - **Test builds only** (`CUE_DESK_LYRE_SEED=prototype`, gated on `__CUE_DESK_TEST_BUILD__` through `wantsSeededLibrary`):
   the two dialogs and the folder chooser answer by themselves, and the library looks at the prototype's computer
   (`sampleComputer.ts`) instead of the disk. Release builds never seed, so none of this is reachable there.
@@ -745,3 +747,43 @@ user name in folder paths. Help's articles are plain text bundled with Lyre: the
    folder and the file; Show in folder opens Explorer on it.
 2. Open the zip: no bot token anywhere (search for the first 10 characters of yours), and paths start with `~`.
 3. With the network cable out or Wi-Fi off, saving works the same.
+
+## w4-review-fix
+
+### In plain language
+
+Fixes from the independent review of wave 4. A Lyre file someone sends you can now only ever put audio files on
+your computer: a part of the file that is not audio Lyre plays is left out, and Lyre says how many. A file cannot make
+Lyre write more than the file itself holds.
+
+### Technical details
+
+- **Only audio is unpacked (review Must 1).** A .lyre entry is unpacked only when its name (already restricted to
+  `audio/<number><audio extension>`) has an extension in `AUDIO_EXTENSIONS` and its first 4 KB start the way that
+  format starts (`looksLikeAudio`, `src/main/transfer/audioBytes.ts`: `fLaC`, `ID3` or an MPEG frame, `RIFF…WAVE`,
+  `OggS`, `ftyp`, the ASF GUID, `FORM…AIFF`, EBML, `MAC `, `wvpk`, `TTA1`, the AC-3 sync word, `MPCK`). The file lands
+  under the track's name with the entry's extension, never the extension of the track's `fileName`:
+  `Session notes.pdf.exe` with an MP3 entry becomes `Session notes.pdf.mp3`. `unpackAudio` refuses a target whose
+  extension differs from the entry's. Parts left out are counted in the summary ("3 audio files in it were not audio
+  Lyre can play, so Lyre left them out."); their tracks are brought in as missing files, which Find missing files can
+  relink only to audio files (`collectAudioFiles`).
+- **No more written than the file holds (review Should 2).** Stored parts lie side by side, so `readLyreFile` refuses
+  ("damaged") a file whose distinct audio parts together say they are larger than the file (zip entries that overlap).
+  A part named by several tracks is unpacked once; the library keeps one track per file, so those tracks are brought
+  in as the one that has it, and the summary says so. Before unpacking, the drive's free space (`statfs`) must hold
+  the parts, or Bring in is refused with nothing written. The review's 5 MB file that wrote 1,048 MB now writes 5 MB.
+- **No file holds the library for long (review Should 3).** Bringing in compares the file with the library through
+  maps (names, ids, tag values), never by scanning a list for each item, and does its work as one list in batches of
+  250 (tracks, then playlists, boards, campaigns and each of their sessions, then settings) with the event loop free
+  between them; reading the library and comparing take turns of their own. 8,000 playlists, 2,000 boards and 2,000
+  campaigns beside as many of yours open and come in with no turn over 200 ms (`hostileFile.test.ts`).
+- **Preview the file found (review Should 5).** Find missing files' Preview on a "check it" row (a match by name
+  only) plays the file Lyre found, through MEDIA_PREPARE like any track, not the track's old address. The main process
+  reads only folders the library names; while a relink plan lasts, the library also names each file of a planned
+  match by name only (`previewableFiles`, sent with the media folders), so exactly those files may be prepared, not
+  the files beside them (`MediaAccess` treats a listed file as a folder of one). Planning sends a "folders" change so
+  the list is asked for again. When a file leaves the list (a new plan, a relink, a restart), the main process drops
+  every page's `lyre-media:` address for it (`MediaGrants.revokeFile`). No IPC channel or argument check changed.
+- **Undo of a bring-in (review, could).** The audio files a bring-in unpacked stay while Redo can bring it back; once
+  it cannot (a new step, another bring-in, the library closing), the files no track uses are removed, with their
+  brought-in folder when it is left empty. Only files that bring-in wrote itself are ever removed.

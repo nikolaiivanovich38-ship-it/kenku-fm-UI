@@ -817,18 +817,24 @@ function useTryPads(board: PadBoard, tracks: readonly LibraryTrack[], sound: Ret
       if (pad.mode === "hold") held.current = { padId: pad.id, key: e.key.toLowerCase() };
       latest.current.press(pad, "down");
     };
-    const up = (e: KeyboardEvent) => {
+    const letGo = () => {
       const h = held.current;
-      if (!h || h.key !== e.key.toLowerCase()) return;
+      if (!h) return;
       held.current = null;
       const pad = latest.current.board.slots.find((p): p is Pad => !!p && p.id === h.padId);
       if (pad) latest.current.press(pad, "up");
     };
+    const up = (e: KeyboardEvent) => {
+      if (held.current?.key === e.key.toLowerCase()) letGo();
+    };
+    // The window losing focus (Alt+Tab to Discord) lets go of a held pad, as in Live: no keyup would ever come.
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
+    window.addEventListener("blur", letGo);
     return () => {
       window.removeEventListener("keydown", down);
       window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", letGo);
     };
   }, [on]);
 

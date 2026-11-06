@@ -229,7 +229,7 @@ describe("MEDIA_PREPARE never waits for ever (security review 1)", () => {
 });
 
 describe("MEDIA_PREPARE answers the Lyre page with lyre-media: addresses (security review 6)", () => {
-  async function wired() {
+  async function wired(folders: string[][] = [["/music"]]) {
     const { MediaGrants } = await import("../media/mediaProtocol");
     const grants = new MediaGrants();
     const handlers = new Map<string, Handler>();
@@ -246,8 +246,9 @@ describe("MEDIA_PREPARE answers the Lyre page with lyre-media: addresses (securi
     const player = page(2);
     registry.trust(lyre, "lyre-view");
     registry.trust(player, "player-view");
-    wireLyreLibrary({
-      service: { call: vi.fn(), mediaFolders: async () => ["/music"], bringInOldLibrary: vi.fn() },
+    const answers = [...folders];
+    const library = wireLyreLibrary({
+      service: { call: vi.fn(), mediaFolders: async () => (answers.length > 1 ? (answers.shift() as string[]) : answers[0]), bringInOldLibrary: vi.fn() },
       ipc: guardIpc(ipc, { registry, warn: () => undefined }),
       send: () => undefined,
       media: () => ({ prepare: async (address) => (address.includes("bad") ? { error: "Lyre only plays files from your library folders." } : { url: address }) }),
@@ -259,7 +260,7 @@ describe("MEDIA_PREPARE answers the Lyre page with lyre-media: addresses (securi
     });
     const prepare = (sender: ReturnType<typeof page>, address: string) =>
       Promise.resolve(handlers.get("MEDIA_PREPARE")!({ sender, senderFrame: sender.mainFrame } as never, address, { keepLocal: false })) as Promise<{ url?: string; error?: string }>;
-    return { grants, prepare, lyre, player, destroyed };
+    return { grants, prepare, lyre, player, destroyed, library };
   }
 
   it("gives the Lyre page an address for the prepared file only, and the old player its file: address as before", async () => {
@@ -269,6 +270,19 @@ describe("MEDIA_PREPARE answers the Lyre page with lyre-media: addresses (securi
     expect(grants.resolve(answer.url as string)).toBe(path.normalize("/music/a b.flac"));
     expect(await prepare(player, "file:///music/a.flac")).toEqual({ url: "file:///music/a.flac" });
     expect(await prepare(lyre, "file:///music/bad.flac")).toEqual({ error: "Lyre only plays files from your library folders." });
+  });
+
+  it("drops the address of a file Find missing files offered once the library no longer lists it (security review w4, Should 5)", async () => {
+    // The library lists the file of a planned "check it" match beside its folders while the plan lasts.
+    const { grants, prepare, lyre, library } = await wired([["/music", "/found/a.flac"], ["/music"]]);
+    await library.ready();
+    const found = await prepare(lyre, "file:///found/a.flac");
+    const kept = await prepare(lyre, "file:///music/b.flac");
+    expect(grants.resolve(found.url as string)).toBe(path.normalize("/found/a.flac"));
+    library.onEvent({ type: "changed", areas: ["tracks"] });
+    await library.ready();
+    expect(grants.resolve(found.url as string)).toBeUndefined();
+    expect(grants.resolve(kept.url as string)).toBe(path.normalize("/music/b.flac"));
   });
 
   it("drops the page's addresses when the page goes", async () => {

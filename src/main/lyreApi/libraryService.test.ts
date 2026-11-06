@@ -116,6 +116,18 @@ describe("LyreLibraryService", () => {
     await s.stop();
   });
 
+  it("names the one file Find missing files asks to check beside the folders while that plan lasts (security review w4, Should 5)", async () => {
+    const { s } = service();
+    s.start();
+    const castamere = "E:\\Music\\Scores\\Ramin Djawadi\\Game of Thrones, Season 3\\18 The Rains of Castamere.flac";
+    expect(await s.mediaFolders()).not.toContain(castamere);
+    await call(s, "import", "planRelink", { from: "path", path: "E:\\Music\\Scores" });
+    expect(await s.mediaFolders()).toEqual(["H:\\Audio\\Scores", "H:\\Audio\\Ambience", "H:\\Audio\\Effects", castamere]);
+    await call(s, "import", "planRelink", { from: "path", path: "E:\\Elsewhere" });
+    expect(await s.mediaFolders()).not.toContain(castamere);
+    await s.stop();
+  });
+
   it("gives new tracks their file-tag title, artist, album and length (DAT-5, music-metadata in the library's process)", async () => {
     const { s } = service();
     s.start();
@@ -159,6 +171,20 @@ describe("LyreLibraryService", () => {
     s.start();
     expect(await call(s, "import", "start", { from: "choose-files" })).toMatchObject({ ok: true, value: { cancelled: true } });
     expect(chooseFiles).toHaveBeenCalled();
+    await s.stop();
+  });
+
+  it("saves a .lyre file only where the save dialog says, never at a path the page names (security review w4)", async () => {
+    const dir = tempFolder();
+    const chosen = path.join(dir, "Chosen.lyre");
+    const chooseSaveFile = vi.fn(async () => chosen);
+    const { s } = service({ seed: false, host: { chooseSaveFile } });
+    s.start();
+    const named = path.join(dir, "Named by the page.lyre");
+    expect(await call(s, "transfer", "save", { scope: { kind: "library" }, includeAudio: false, path: named })).toMatchObject({ ok: true, value: { path: chosen } });
+    expect(chooseSaveFile).toHaveBeenCalled();
+    expect(fs.existsSync(named)).toBe(false);
+    expect(fs.existsSync(chosen)).toBe(true);
     await s.stop();
   });
 

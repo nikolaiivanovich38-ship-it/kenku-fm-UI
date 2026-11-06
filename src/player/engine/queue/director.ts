@@ -129,7 +129,7 @@ export class Director extends TypedEmitter<DirectorEvents> {
       case "firePad": {
         const pad = this.library.pad(action.boardId, action.padId);
         if (!pad || pad.trackIds.length === 0) {
-          return fail("That pad has no sound.");
+          return fail(padWithoutSound(pad));
         }
         const key = `${action.boardId}/${action.padId}`;
         const phase = action.phase ?? "down";
@@ -265,4 +265,13 @@ export class Director extends TypedEmitter<DirectorEvents> {
 
 function fail(message: string): CueOutcome {
   return { ok: false, message };
+}
+
+/**
+ * Security review w4: what a press of a pad with no sound says, naming the pad, so the game master knows mid-game which
+ * one to fix ("Horse whinny has no sound: give it one on its board.").
+ */
+export function padWithoutSound(pad: { label?: string } | undefined): string {
+  if (!pad) return "That pad is no longer on its board.";
+  return `${pad.label?.trim() || "That pad"} has no sound: give it one on its board.`;
 }

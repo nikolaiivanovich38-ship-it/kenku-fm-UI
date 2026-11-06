@@ -152,7 +152,7 @@ describe("playing on air (L.play, L.next/L.prev, L.upNext)", () => {
     expect(rig.audio.playTrack("gone")).toEqual({ ok: false, message: "That track is no longer in the library." });
     rig.audio.next("music");
     rig.audio.firePad("b", "silent");
-    expect(errors).toEqual(["That track is no longer in the library.", "There is nothing to move on to.", "That pad has no sound."]);
+    expect(errors).toEqual(["That track is no longer in the library.", "There is nothing to move on to.", "Silent has no sound: give it one on its board."]);
   });
 
   it("reports a file that cannot play", async () => {
@@ -365,7 +365,9 @@ describe("pads (L.firePad): one-shot, toggle, hold, retrigger", () => {
     expect(state().preview).toMatchObject({ key: "pad:b/door" });
     await rig.advance(3);
     expect(state().preview).toBeNull();
-    expect(rig.audio.tryPad("b", "silent")).toEqual({ ok: false, message: "That pad has no sound." });
+    expect(rig.audio.tryPad("b", "silent")).toEqual({ ok: false, message: "Silent has no sound: give it one on its board." });
+    // A pad that is gone altogether says so.
+    expect(rig.audio.tryPad("b", "gone")).toEqual({ ok: false, message: "That pad is no longer on its board." });
   });
 
   it("plays a pad only in the room it is sent to", async () => {
@@ -393,6 +395,16 @@ describe("preview: the game master's headphones only, never on air (PRV-1)", () 
     // The preview's nodes live in another audio context: nothing joins them to the rooms.
     expect(rig.context.allNodes.some((node) => rig.previewContext.allNodes.includes(node as never))).toBe(false);
     expect(announced).toContain("Previewing in your headphones: M2");
+  });
+
+  it("previews the file Find missing files found as the track, from its own address (security review w4, Should 5)", async () => {
+    const found = "file:///E:/Music/Scores/07%20The%20Storm.flac";
+    rig.previewContext.mediaDurations.set(found, 60);
+    rig.audio.previewTrack("m2", { file: found, from: "Find missing files" });
+    await rig.advance(1);
+    expect(rig.previewContext.elements.map((e) => e.src)).toContain(found);
+    expect(state().preview).toMatchObject({ key: "m2", label: "M2", from: "Find missing files" });
+    expect(rig.hearPreview()).toBeCloseTo(1);
   });
 
   it("previews on the speakers' context never, even outside a broadcast", async () => {

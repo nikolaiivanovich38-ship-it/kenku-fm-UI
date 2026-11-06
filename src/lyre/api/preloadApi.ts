@@ -25,15 +25,33 @@ export interface IpcRendererLike {
 }
 
 export function createLyreApiBridge(ipc: IpcRendererLike): LyreApiBridge {
+  // One listener on the channel for the whole page, handing each event to every part that subscribed (security
+  // review w4): one per subscriber made Electron warn "MaxListenersExceededWarning" on every start, which would hide
+  // a real leak.
+  const listeners = new Set<(event: LyreEvent) => void>();
+  const handler = (_event: unknown, event: unknown) => {
+    if (!event || typeof event !== "object" || typeof (event as { type?: unknown }).type !== "string") return;
+    for (const listener of [...listeners]) {
+      try {
+        listener(event as LyreEvent);
+      } catch (error) {
+        // As with listeners of their own: one that fails is reported and the others still hear the event.
+        queueMicrotask(() => {
+          throw error;
+        });
+      }
+    }
+  };
   return {
     call: (area, method, args) => ipc.invoke(LYRE_API_CALL_CHANNEL, area, method, args),
     onEvent: (listener) => {
-      const handler = (_event: unknown, event: unknown) => {
-        if (event && typeof event === "object" && typeof (event as { type?: unknown }).type === "string") listener(event as LyreEvent);
-      };
-      ipc.on(LYRE_API_EVENT_CHANNEL, handler);
+      // A function of its own, so the same listener subscribed twice is two subscriptions.
+      const one = (event: LyreEvent) => listener(event);
+      if (listeners.size === 0) ipc.on(LYRE_API_EVENT_CHANNEL, handler);
+      listeners.add(one);
       return () => {
-        ipc.off(LYRE_API_EVENT_CHANNEL, handler);
+        if (!listeners.delete(one)) return;
+        if (listeners.size === 0) ipc.off(LYRE_API_EVENT_CHANNEL, handler);
       };
     },
   };

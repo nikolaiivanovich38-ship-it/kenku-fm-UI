@@ -10,6 +10,7 @@
  *   refusals); anything else is a fault and rejects.
  * - What needs a person or the desktop (choosing files, opening File Explorer) is asked of the host.
  */
+import fs from "fs";
 import path from "path";
 
 import { isFx, type DomainCampaign, type Lane, type NormaliseChoice, type PlaylistRule, type ProfilePlace, type SoundRef, type Use } from "../../common/domain";
@@ -84,6 +85,7 @@ import {
   listPlaylistTrackIds,
   listPlaylists,
   listRoots,
+  findTrackByLocation,
   listSceneMusic,
   listScenes,
   listSessions,
@@ -137,6 +139,7 @@ import {
   type TagReader,
   type UseTarget,
 } from "../data";
+import { nextTurn } from "../data/store";
 import { diskProbe, type FileProbe } from "../data/import/relink";
 import { joinRoot, unsafeFolderReason } from "../data/paths";
 import { saveLyreFile, openLyreFile, bringInLyreFile, type OpenTransfer, type TransferFiles } from "./transferApi";
@@ -187,6 +190,12 @@ export interface LibraryApiOptions {
 export type LibraryApi = LyreApi & {
   /** Stops background work (the peaks being worked out); call before library.close(). */
   stopBackgroundWork(): void;
+  /**
+   * Security review w4, Should 5: the files outside the library the Lyre page may preview, for MEDIA_PREPARE's list
+   * (libraryProcessCore.ts): the found file of each planned match Find missing files asks the game master to check
+   * (same name only), while that plan lasts. A new plan, a relink or a restart ends it.
+   */
+  previewableFiles(): string[];
 };
 
 /** A level byte (repo/peaks.ts) as the API's 0 to 1, to three places (enough for any screen, a third of the JSON). */
@@ -244,6 +253,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
   const transferFiles: TransferFiles = {
     broughtInFolder: options.transfer?.broughtInFolder ?? path.join(path.dirname(library.databasePath), "Brought in"),
     today: options.transfer?.today ?? store.now,
+    freeBytes: options.transfer?.freeBytes,
   };
   /** The .lyre file opened last, waiting for Bring in (one at a time). */
   let opened: OpenTransfer | null = null;
@@ -288,6 +298,42 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
    * One write: refusals in plain words, faults passed on, and a "changed" event when it made an undo step.
    * `body` makes its own `store.change` (or batches) with the step's label.
    */
+  /**
+   * The audio files each bring-in unpacked (security review w4, could). Undoing the bring-in leaves them while Redo
+   * can bring it back; once it cannot (a new step, the library closing), those no track uses are removed, with their
+   * brought-in folder when it is left empty.
+   */
+  const unpackedFiles = (() => {
+    const steps: { label: string; files: string[]; undone: boolean }[] = [];
+    const lastWith = (label: string, undone: boolean) => [...steps].reverse().find((s) => s.label === label && s.undone === undone);
+    return {
+      made(label: string, files: string[]) {
+        if (files.length) steps.push({ label, files, undone: false });
+        // The undo history keeps a limited number of steps; so does this.
+        if (steps.length > 100) steps.splice(0, steps.length - 100);
+      },
+      undone(label: string) {
+        const step = lastWith(label, false);
+        if (step) step.undone = true;
+      },
+      redone(label: string) {
+        const step = lastWith(label, true);
+        if (step) step.undone = false;
+      },
+      async settle(when: { redoGone?: boolean } = {}) {
+        if (!steps.some((s) => s.undone) || (!when.redoGone && history.state().canRedo)) return;
+        const gone = steps.filter((s) => s.undone);
+        steps.splice(0, steps.length, ...steps.filter((s) => !s.undone));
+        const roots = listRoots(store);
+        for (const file of gone.flatMap((s) => s.files)) {
+          if (quietly(() => findTrackByLocation(store, { file }, roots), null)) continue;
+          await fs.promises.rm(file, { force: true }).catch((error: unknown) => options.log?.("Could not remove an unpacked file", error));
+          await fs.promises.rmdir(path.dirname(file)).catch((): void => undefined);
+        }
+      },
+    };
+  })();
+
   async function write<T>(areas: LyreArea[], body: () => T | Promise<T>): Promise<WriteResult<T>> {
     const before = history.recorded;
     let value: T;
@@ -299,6 +345,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       throw error;
     }
     if (history.recorded === before) return { ok: true, value, changed: [], undoLabel: stateLabel() };
+    await unpackedFiles.settle();
     const changed: LyreArea[] = [...areas, "history"];
     emit({ type: "changed", areas: changed });
     return { ok: true, value, changed, undoLabel: stateLabel() };
@@ -313,6 +360,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       if (refusal) return { ok: false, refusal };
       throw error;
     }
+    await unpackedFiles.settle();
     if (areas.length) emit({ type: "changed", areas });
     return { ok: true, value, changed: areas, undoLabel: stateLabel() };
   }
@@ -445,10 +493,12 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
   }
   const cellOf = (slot: number, cols: number) => ({ row: Math.floor(slot / cols), col: slot % cols });
 
-  function campaignInfo(tree: DomainCampaign): CampaignInfo {
-    const campaign = listCampaigns(store).find((c) => c.id === tree.id);
+  /** What every campaign's info reads, read once for a list of them (security review w4, Should 3). */
+  const campaignLookups = () => ({ campaigns: new Map(listCampaigns(store).map((c) => [c.id, c])), names: getTrackNames(store) });
+  function campaignInfo(tree: DomainCampaign, lookups = campaignLookups()): CampaignInfo {
+    const campaign = lookups.campaigns.get(tree.id);
     const sessions = new Map(listSessions(store, tree.id).map((s) => [s.id, s]));
-    const names = getTrackNames(store);
+    const { names } = lookups;
     return {
       id: tree.id,
       name: campaign.name,
@@ -479,6 +529,10 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
         };
       }),
     };
+  }
+  function allCampaignInfos(): CampaignInfo[] {
+    const lookups = campaignLookups();
+    return listDomainCampaigns(store).map((tree) => campaignInfo(tree, lookups));
   }
   function campaignById(id: string): CampaignInfo | null {
     const tree = quietly(() => getDomainCampaign(store, id), null);
@@ -528,7 +582,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
   /** The library in the API's shapes: what a .lyre file is made from, and what an opened one is compared with. */
   function currentLibrary(): TransferLibrary {
     const tags = tagRefsById();
-    return { tracks: libraryTracks(), playlists: playlistInfos(), boards: listBoards(store).map((b) => padBoard(b.id, tags)), campaigns: listDomainCampaigns(store).map(campaignInfo), tagGroups: tagGroups() };
+    return { tracks: libraryTracks(), playlists: playlistInfos(), boards: listBoards(store).map((b) => padBoard(b.id, tags)), campaigns: allCampaignInfos(), tagGroups: tagGroups() };
   }
   /** A track's file on this computer, or null for a web address. */
   function trackFile(trackId: string): string | null {
@@ -547,13 +601,15 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       async search({ text, lane, limit = 50, shapes }) {
         const max = Math.max(0, limit);
         const inLane = (t: LibraryTrack) => !lane || (lane === "fx" ? isFx(t) : t.kind === lane);
+        if (shapes && shapes.length && !trimmed(text)) {
+          // DAT-13, the Shape filter: the shape index gives the tracks, in library order, narrowed to the lane in SQL.
+          const all = quietly(() => listTrackIdsByShape(store, shapes, { lane }), []);
+          return { trackIds: all.slice(0, max), total: all.length };
+        }
         if (shapes && shapes.length) {
-          // DAT-13, the Shape filter: the shape index gives the tracks; words and lane narrow them in memory.
-          const shaped = new Set(quietly(() => listTrackIdsByShape(store, shapes), []));
-          const wanted = trimmed(text) ? new Set(search(store, text, { kinds: ["track"], lane, limit: 100_000 }).map((h) => h.id)) : null;
-          const all = libraryTracks().filter((t) => shaped.has(t.id) && inLane(t) && (!wanted || wanted.has(t.id)));
-          if (wanted) all.sort((a, b) => [...wanted].indexOf(a.id) - [...wanted].indexOf(b.id));
-          return { trackIds: all.slice(0, max).map((t) => t.id), total: all.length };
+          // Words and a Shape (security review w4): the search joins the shape index, ranked as words alone are.
+          const hits = max === 0 ? [] : quietly(() => search(store, text, { kinds: ["track"], lane, shapes, limit: Math.min(max, 1000) }), []);
+          return { trackIds: hits.map((h) => h.id), total: quietly(() => searchCount(store, text, { kinds: ["track"], lane, shapes }), 0) };
         }
         if (!trimmed(text)) {
           const all = libraryTracks().filter(inLane);
@@ -917,7 +973,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
 
     campaigns: {
       async list() {
-        return listDomainCampaigns(store).map(campaignInfo);
+        return allCampaignInfos();
       },
       async get(id) {
         return campaignById(id);
@@ -1210,7 +1266,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           const none: ApiRelinkPlan = { folder: "", matches: [], ambiguous: [], notFound: [], summary: "No folder was chosen." };
           return { ok: true, value: none, changed: [], undoLabel: stateLabel() };
         }
-        return writeOutside([], async () => {
+        // "folders": the files the page may preview changed (previewableFiles), so the main process asks again.
+        return writeOutside(["folders"], async () => {
           // Security review 5: looking through a whole drive or a system folder would read every file in it.
           const unsafe = unsafeFolderReason(folder);
           if (unsafe) refuse("invalid", unsafe, "path");
@@ -1285,7 +1342,12 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
         return write(["tracks", "tags", "playlists", "boards", "campaigns", "profiles"], async () => {
           // As an import does: a backup first, so the library can be put back as it was.
           await library.backupBeforeImport();
-          const report = await bringInLyreFile(store, file, currentLibrary(), choices, transferFiles);
+          // The backup's last step and reading the library each take a turn of their own (security review w4, Should 3).
+          await nextTurn();
+          // This bring-in is a new step, so an undone one can no longer be redone: its files go (none named " (2)").
+          await unpackedFiles.settle({ redoGone: true });
+          const { report, files } = await bringInLyreFile(store, file, currentLibrary(), choices, transferFiles);
+          unpackedFiles.made(`Bring in ${file.preview.fileName}`, files);
           opened = null;
           await file.close();
           return report;
@@ -1325,6 +1387,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
         try {
           const label = await history.undo();
           if (label === null) return { ok: false, refusal: { code: "nothing-to-undo", message: "There is nothing to undo." } };
+          unpackedFiles.undone(label);
           // The history does not know which parts a step touched, so every part is reloaded.
           const changed: LyreArea[] = ["tracks", "tags", "folders", "playlists", "boards", "campaigns", "profiles", "history"];
           emit({ type: "changed", areas: changed });
@@ -1339,6 +1402,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
         try {
           const label = await history.redo();
           if (label === null) return { ok: false, refusal: { code: "nothing-to-redo", message: "There is nothing to redo." } };
+          unpackedFiles.redone(label);
           const changed: LyreArea[] = ["tracks", "tags", "folders", "playlists", "boards", "campaigns", "profiles", "history"];
           emit({ type: "changed", areas: changed });
           return { ok: true, value: { redone: label }, changed, undoLabel: stateLabel() };
@@ -1353,6 +1417,12 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
     stopBackgroundWork() {
       if (loudnessSweep) clearTimeout(loudnessSweep);
       peakJobs?.close();
+      // The undo history does not outlive the library: an undone bring-in's files are not needed again.
+      void unpackedFiles.settle({ redoGone: true });
+    },
+
+    previewableFiles() {
+      return [...planned.values()].filter((m) => m.confidence === "name").map((m) => m.to);
     },
 
     subscribe(listener) {

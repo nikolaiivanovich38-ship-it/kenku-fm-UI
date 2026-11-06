@@ -24,6 +24,8 @@ interface Row {
   title: string;
   /** Where it was found, or the files to choose from when there are several. */
   at: string;
+  /** The address the found file plays from (Preview), or "" when nothing was found. */
+  atUrl: string;
   candidates: string[];
   words: string;
   warn: boolean;
@@ -48,10 +50,10 @@ export function RelinkScreen() {
     const rows: Row[] = [];
     for (const m of p.matches) {
       const how = howSure(m, byId.get(m.trackId));
-      rows.push({ trackId: m.trackId, title: byId.get(m.trackId)?.title ?? m.trackId, at: m.to, candidates: [], words: how.words, warn: how.warn });
+      rows.push({ trackId: m.trackId, title: byId.get(m.trackId)?.title ?? m.trackId, at: m.to, atUrl: m.toUrl, candidates: [], words: how.words, warn: how.warn });
     }
-    for (const a of p.ambiguous) rows.push({ trackId: a.trackId, title: byId.get(a.trackId)?.title ?? a.trackId, at: "", candidates: a.candidates, words: "More than one file: choose which", warn: true });
-    for (const id of p.notFound) rows.push({ trackId: id, title: byId.get(id)?.title ?? id, at: "", candidates: [], words: "Not in that folder", warn: false });
+    for (const a of p.ambiguous) rows.push({ trackId: a.trackId, title: byId.get(a.trackId)?.title ?? a.trackId, at: "", atUrl: "", candidates: a.candidates, words: "More than one file: choose which", warn: true });
+    for (const id of p.notFound) rows.push({ trackId: id, title: byId.get(id)?.title ?? id, at: "", atUrl: "", candidates: [], words: "Not in that folder", warn: false });
     // In the order of the missing list, as the screen lists them.
     const order = new Map(list.map((m, i) => [m.id, i]));
     return rows.sort((a, b) => (order.get(a.trackId) ?? 0) - (order.get(b.trackId) ?? 0));
@@ -254,7 +256,7 @@ export function RelinkScreen() {
                                   {r.warn && <Icon name="warn" size="s" />}
                                   {r.words}
                                 </span>{" "}
-                                {r.warn && r.at && <PreviewButton target={{ kind: "track", id: r.trackId }} name={r.title} />}
+                                {r.warn && r.atUrl && <PreviewButton target={{ kind: "track", id: r.trackId, file: r.atUrl }} name={`the file found for ${r.title}`} />}
                               </td>
                             </tr>
                           );

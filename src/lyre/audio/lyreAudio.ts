@@ -51,7 +51,7 @@ import {
 } from "../../player/engine/preview/previewPlayer";
 import type { DeviceStatus, OutputDeviceChooser, OutputDeviceInfo } from "../../player/engine/preview/outputDevices";
 import { DEFAULT_FADES, type CueAction, type CueOutcome, type TrackFrom } from "../../player/engine/queue/actions";
-import { Director } from "../../player/engine/queue/director";
+import { Director, padWithoutSound } from "../../player/engine/queue/director";
 import type { PadSound, SceneRef, ShowLibrary } from "../../player/engine/queue/library";
 import { playOrderOf, type Origin } from "../../player/engine/queue/nowPlaying";
 import type { Random } from "../../player/engine/queue/queue";
@@ -193,6 +193,11 @@ export interface PreviewTrackOptions {
    * its normalising choice applies, as it would on air from there.
    */
   playlistId?: string;
+  /**
+   * DAT-8, security review w4 Should 5: play this file's address as the track (Find missing files: the file it found,
+   * before relinking). The main process prepares it only while that relink is planned.
+   */
+  file?: string;
 }
 
 /** Where a preview was started from (the Now playing bar's "Previewed from …"). */
@@ -358,8 +363,6 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
   private disposed = false;
   /** Each room's volume by its real id (a bot id, or "table"), kept while the app runs. */
   private readonly roomVolumes = new Map<string, number>();
-  /** The real ids of the rooms last seen, to hand the table's volume to the room that takes it over. */
-  private lastRooms: string[] = [];
   private readonly cleanups: (() => void)[] = [];
 
   constructor(parts: LyreAudioParts) {
@@ -557,7 +560,8 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     if (!track) {
       return this.fail("That track is no longer in the library.");
     }
-    const media = this.library.media(track);
+    // A file found for the track is not the track's own: no track id, so nothing cached for the track is used.
+    const media = options?.file ? { url: options.file } : this.library.media(track);
     if (!media) {
       return this.fail(`Unable to preview: ${trackTitle(track)}`);
     }
@@ -600,7 +604,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     const track = pad?.trackIds.length ? this.library.track(pad.trackIds[0]) : undefined;
     const media = track ? this.library.media(track) : null;
     if (!pad || !media) {
-      return this.fail("That pad has no sound.");
+      return this.fail(padWithoutSound(pad));
     }
     // A pad's sound plays on its own on air: the track's choice, then the library's.
     preview.play({ ...padPreview({ boardId, padId, label: pad.label, media }), trackId: track!.id, options: { gainDb: this.previewGain(track!.id, null) }, from: options.from ?? null });
@@ -612,7 +616,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     const key = `pad:${boardId}/${padId}`;
     const pad = this.library.pad(boardId, padId);
     if (!pad || pad.trackIds.length === 0) {
-      return this.fail("That pad has no sound.");
+      return this.fail(padWithoutSound(pad));
     }
     const on = preview.isPreviewing(key);
     // The same rules as RoomPlayer.firePad, on the preview: a let-go only ends a hold pad; a toggle's second press
@@ -628,7 +632,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     const track = this.library.track(this.tryVariant(key, pad.trackIds, pad.order));
     const media = track ? this.library.media(track) : null;
     if (!media) {
-      return this.fail("That pad has no sound.");
+      return this.fail(padWithoutSound(pad));
     }
     const loop = pad.mode === "toggle" || pad.mode === "hold";
     // Quiet: the board says what the press did ("Storm: loop stopped"), in the words of Try pads.
@@ -812,15 +816,14 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     return this.roomVolumes.get(realId) ?? this.parts.startRoomVolume ?? 1;
   }
 
-  /** Each room's mix plays at its volume; the room that took over the table (the first bot to join) keeps its volume. */
+  /**
+   * Each room's mix plays at its volume. A level chosen for the table stays with the table: the first bot's room
+   * does not take it over (security review w4, Should 4), because from then on every slider shows and changes the
+   * bot's own volume, kept by the main process, and the room would have stayed quieter than any slider said.
+   */
   private applyRoomVolumes(): void {
     if (this.disposed) return;
-    const ids = this.realRoomIds();
-    if (this.lastRooms.length === 1 && this.lastRooms[0] === TABLE_ROOM && ids[0] !== TABLE_ROOM && !this.roomVolumes.has(ids[0])) {
-      this.roomVolumes.set(ids[0], this.roomVolume(TABLE_ROOM));
-    }
-    this.lastRooms = ids;
-    for (const id of ids) this.parts.mixer.setLevel(id, "master", this.roomVolume(id));
+    for (const id of this.realRoomIds()) this.parts.mixer.setLevel(id, "master", this.roomVolume(id));
   }
 
   /** Outside a broadcast the first room plays on this page's speakers; during one, only on Discord and "This Computer". */
