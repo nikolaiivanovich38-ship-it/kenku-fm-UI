@@ -11,6 +11,7 @@ import { TRACK_SHAPES, type PlaylistRule, type TagCondition, type TrackShape } f
 import { ValidationError } from "../errors";
 import { GAP } from "../ordering";
 import type { SQLInputValue } from "../sqlite";
+import { tagsWithInside } from "./round7";
 import type { Store } from "../store";
 import { newId, placeholders, requireRow } from "./common";
 
@@ -169,21 +170,26 @@ export function dynamicTracksQuery(store: Store, playlistId: string): { sql: str
     // tag is deleted, and must not widen the playlist to its whole lane. The rule editor previews a
     // condition still being written with withoutEmptyConditions, so that never reaches the database.
     if (tagIds.length === 0) return { sql: "SELECT t.id FROM tracks t WHERE 0", params: [] };
+    // DAT-10: a tag finds the tracks of the tags inside it too (trackHasTag in src/common/domain).
+    const inside = (ids: string[]) => tagsWithInside(store, ids);
     const has = (ids: string[]) => `EXISTS (SELECT 1 FROM track_tags tt WHERE tt.track_id = t.id AND tt.tag_id IN (${placeholders(ids.length)}))`;
     if (cond.match === "any") {
-      where.push(has(tagIds));
-      params.push(...tagIds);
+      const all = inside(tagIds);
+      where.push(has(all));
+      params.push(...all);
     } else if (cond.match === "all") {
       for (const tagId of tagIds) {
-        where.push(has([tagId]));
-        params.push(tagId);
+        const one = inside([tagId]);
+        where.push(has(one));
+        params.push(...one);
       }
     } else {
-      where.push(`NOT ${has(tagIds)}`);
-      params.push(...tagIds);
+      const all = inside(tagIds);
+      where.push(`NOT ${has(all)}`);
+      params.push(...all);
     }
     if (driver === null && cond.match !== "none") {
-      const first = cond.match === "any" ? tagIds : [tagIds[0]];
+      const first = inside(cond.match === "any" ? tagIds : [tagIds[0]]);
       driver = `t.id IN (SELECT track_id FROM track_tags WHERE tag_id IN (${placeholders(first.length)}))`;
       driverParams.push(...first);
     }

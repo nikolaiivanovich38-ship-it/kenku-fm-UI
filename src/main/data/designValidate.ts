@@ -51,10 +51,14 @@ export function cleanProfile(field: string, value: unknown): AudioProfileInput {
   if (input.markers !== undefined) {
     clean.markers = list(`${field}.markers`, input.markers, MAX_MARKERS).map((marker, index) => {
       const m = v.record(`${field}.markers[${index}]`, marker);
-      onlyKeys(`${field}.markers[${index}]`, m, ["atMs", "label"]);
+      onlyKeys(`${field}.markers[${index}]`, m, ["atMs", "label", "mix"]);
       if (typeof m.label !== "string") throw new ValidationError(`${field}.markers[${index}].label`, "A marker needs a label (it may be empty).");
-      return { atMs: v.milliseconds(`${field}.markers[${index}].atMs`, m.atMs), label: v.optionalText("label", m.label, v.MAX_NAME_LENGTH) };
+      const out: { atMs: number; label: string; mix?: boolean } = { atMs: v.milliseconds(`${field}.markers[${index}].atMs`, m.atMs), label: v.optionalText("label", m.label, v.MAX_NAME_LENGTH) };
+      // DAT-3: the mix-out point, where the next track crossfades in.
+      if (m.mix !== undefined && v.boolean(`${field}.markers[${index}].mix`, m.mix)) out.mix = true;
+      return out;
     });
+    if (clean.markers.filter((m) => m.mix).length > 1) throw new ValidationError(`${field}.markers`, "A track has one mix-out marker: choose one.");
   }
   const { startMs, endMs, loopStartMs } = clean;
   if (startMs !== undefined && endMs !== undefined && startMs >= endMs) {

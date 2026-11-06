@@ -17,7 +17,8 @@ import type { Store } from "../store";
 import * as v from "../validate";
 import { trackIdsByShapeSql, trackShapeParams } from "./tracks";
 
-export const SEARCH_KINDS = ["track", "playlist", "board", "campaign", "session", "scene"] as const;
+/** Version 6 adds pads (their label; UX-12 Find and play). */
+export const SEARCH_KINDS = ["track", "playlist", "board", "campaign", "session", "scene", "pad"] as const;
 export type SearchKind = (typeof SEARCH_KINDS)[number];
 
 export type SearchHit = {
