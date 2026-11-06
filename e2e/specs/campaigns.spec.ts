@@ -386,12 +386,13 @@ test.describe("round 6, part 5: the Saved pop-up", () => {
   test.beforeEach(() => expectFailureUntilBuilt("round 6"));
   const notes = (page: Page) => region(page, "Notes").getByRole("textbox", { name: "Campaign notes" });
   const savedNotes = (page: Page) => page.getByRole("status").filter({ hasText: "Saved: The Sunken Crown notes" });
-  /** Where the pop-up is: its right edge's distance from the work area's right edge, and its top below the work area's top. */
+  /** Where the pop-up is: its right edge's distance from the work area's right edge, and its bottom's distance from
+   *  the work area's bottom (round 6 part 6: bottom right; part 5 had it at the top right). */
   const placeOf = async (page: Page, text: string) => {
     const pop = await page.getByRole("status").filter({ hasText: text }).boundingBox();
     const main = await page.getByRole("main").boundingBox();
     if (!pop || !main) throw new Error("not on screen");
-    return { fromRight: Math.round(main.x + main.width - (pop.x + pop.width)), fromTop: Math.round(pop.y - main.y) };
+    return { fromRight: Math.round(main.x + main.width - (pop.x + pop.width)), fromBottom: Math.round(main.y + main.height - (pop.y + pop.height)) };
   };
   /** How many live regions (read out by screen readers) hold these words now. */
   const readOutIn = (page: Page, text: string) =>
@@ -419,7 +420,7 @@ test.describe("round 6, part 5: the Saved pop-up", () => {
     expect(await readOutIn(page, "Saved: The Sunken Crown notes")).toBeLessThanOrEqual(1);
   });
 
-  test("the pop-up is in the same place on a prep screen and in Live: top right of the work area", async ({ page }) => {
+  test("the pop-up is in the same place on a prep screen and in Live: bottom right of the work area (part 6)", async ({ page }) => {
     await openRoute(page, "campaign/crown");
     await notes(page).fill("Bring dice");
     await page.keyboard.press("Tab");
@@ -430,7 +431,7 @@ test.describe("round 6, part 5: the Saved pop-up", () => {
     const live = await placeOf(page, "Saved: Repeat one in The abbey ruins");
     expect(Math.abs(prep.fromRight - live.fromRight)).toBeLessThanOrEqual(2);
     expect(prep.fromRight).toBeLessThanOrEqual(24);
-    for (const at of [prep, live]) expect(at.fromTop).toBeLessThanOrEqual(120);
+    for (const at of [prep, live]) expect(at.fromBottom).toBeLessThanOrEqual(24);
   });
 
   test("a failed save stays until dismissed, says what to do, and Try again saves it", async ({ page }) => {
@@ -446,5 +447,112 @@ test.describe("round 6, part 5: the Saved pop-up", () => {
     await failed.getByRole("button", { name: "Try again" }).click();
     await expect(failed).toHaveCount(0);
     await expect(savedNotes(page)).toBeVisible();
+  });
+});
+
+/* Round 6, part 6 (design/prototype/ROUND6.md "Part 6"; Nik, 6 Nov 17:14: "Let's move the saved pop up to the bottom
+   right hand corner [...] I'm missing the contextual back button in the top bar. It should be constantly present in the
+   top left of the top bar. We should also have a sensible place for breadcrumbs."). Not built yet. */
+test.describe("round 6, part 6: the Saved pop-up at the bottom right, Back always top left, one place for the trail", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
+  const back = (page: Page) => page.getByRole("main").getByRole("button", { name: /^Back( to .+)?$/ }).first();
+  const trail = (page: Page) => page.getByRole("navigation", { name: "Breadcrumb" });
+  const box = async (l: ReturnType<Page["getByRole"]>) => {
+    const b = await l.boundingBox();
+    if (!b) throw new Error("not on screen");
+    return b;
+  };
+
+  test("the Saved pop-up sits above the Now playing bar, at the bottom right of the work area", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    await region(page, "Campaign playlists").getByRole("button", { name: "Play on air: The Company themes" }).click();
+    const bar = await box(region(page, "Now playing"));
+    await region(page, "Notes").getByRole("textbox", { name: "Campaign notes" }).fill("Bring dice");
+    await page.keyboard.press("Tab");
+    const pop = await box(page.getByRole("status").filter({ hasText: "Saved: The Sunken Crown notes" }));
+    const main = await box(page.getByRole("main"));
+    expect(pop.y + pop.height).toBeLessThanOrEqual(bar.y);
+    expect(bar.y - (pop.y + pop.height)).toBeLessThanOrEqual(24);
+    expect(main.x + main.width - (pop.x + pop.width)).toBeLessThanOrEqual(24);
+  });
+
+  test("Back is top left on every screen, in the same place, before anything else in the bar", async ({ page }) => {
+    const places: { x: number; y: number }[] = [];
+    for (const route of ["settings", "campaigns", "campaign/crown", "session/crown/s14", "library", "playlist/p-abbess", "board/abbey", "profile/t13", "outputs", "live"]) {
+      await openRoute(page, route);
+      const b = await box(back(page));
+      const main = await box(page.getByRole("main"));
+      expect(b.x - main.x, route).toBeLessThanOrEqual(16);
+      expect(b.y - main.y, route).toBeLessThanOrEqual(14);
+      places.push({ x: Math.round(b.x), y: Math.round(b.y) });
+    }
+    for (const p of places) {
+      expect(Math.abs(p.x - places[0].x)).toBeLessThanOrEqual(1);
+      expect(Math.abs(p.y - places[0].y)).toBeLessThanOrEqual(1);
+    }
+  });
+
+  test("with nowhere to go back to, Back stays where it is, disabled, and says why on hover", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Pad boards" }).click();
+    await expect(back(page)).toHaveAccessibleName("Back");
+    await expect(back(page)).toHaveAttribute("aria-disabled", "true");
+    await expect(back(page)).toHaveAttribute("title", /nothing to go back to/i);
+    await page.getByRole("link", { name: /^Drowned Abbey/ }).first().click();
+    await expect(back(page)).toHaveAccessibleName("Back to Pad boards");
+    await expect(back(page)).not.toHaveAttribute("aria-disabled", "true");
+  });
+
+  test("each screen with a parent has its trail right after Back: every part a link, the screen's title last", async ({ page }) => {
+    const cases: [string, string[], RegExp][] = [
+      ["session/crown/s14", ["Campaigns", "The Sunken Crown"], /Session 14/],
+      ["campaign/crown", ["Campaigns"], /The Sunken Crown/],
+      ["board/abbey", ["Pad boards"], /Drowned Abbey/],
+      ["playlist/p-abbess", ["Playlists"], /The Abbess/],
+      ["profile/t13", ["Library"], /Audio profile/],
+      ["backup", ["Library"], /Back up, move or share/],
+    ];
+    for (const [route, links, title] of cases) {
+      await openRoute(page, route);
+      const nav = trail(page);
+      await expect(nav.getByRole("link"), route).toHaveText(links);
+      const b = await box(back(page));
+      const n = await box(nav);
+      const h = await box(page.getByRole("heading", { level: 1 }));
+      expect(n.x, route).toBeGreaterThan(b.x + b.width - 1);
+      expect(Math.abs(n.y + n.height / 2 - (b.y + b.height / 2)), route).toBeLessThanOrEqual(8);
+      expect(h.x, route).toBeGreaterThan(n.x);
+      await expect(page.getByRole("heading", { level: 1 }), route).toContainText(title);
+    }
+    for (const route of ["campaigns", "library", "playlists", "boards", "outputs", "settings"]) {
+      await openRoute(page, route);
+      await expect(trail(page), route).toHaveCount(0);
+    }
+  });
+
+  test("Back never repeats the trail: from the campaign page to a session it says Back, and its name says where", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    await page.getByRole("link", { name: /^Session 14/ }).first().click();
+    const b = page.getByRole("button", { name: "Back to The Sunken Crown" });
+    await expect(b).toHaveText("Back");
+    await expect(b).toHaveAttribute("title", /Back to The Sunken Crown/);
+    await expect(trail(page).getByRole("link", { name: "The Sunken Crown" })).toBeVisible();
+  });
+
+  test("Back names where it goes when the trail does not show it: Rooms opened from Live says Back to Live", async ({ page }) => {
+    await openRoute(page, "live");
+    await page.getByRole("button", { name: "Lyre Table in Table: change" }).click();
+    await page.getByRole("menuitem", { name: "Rooms" }).click();
+    await expect(page.getByRole("button", { name: "Back to Live" })).toHaveText("Back to Live");
+  });
+
+  test("a long trail is cut in the middle with … and the whole path on hover", async ({ page }) => {
+    await page.setViewportSize({ width: 600, height: 900 });
+    await openRoute(page, "session/crown/s14");
+    const nav = trail(page);
+    await expect(nav).toHaveAttribute("title", "Campaigns › The Sunken Crown › Session 14: The Drowned Abbey");
+    await expect(nav.getByText("…")).toBeVisible();
+    await expect(nav.getByRole("link", { name: "The Sunken Crown" })).toBeVisible();
+    await expect(nav.getByRole("link", { name: "Campaigns" })).toBeHidden();
   });
 });
