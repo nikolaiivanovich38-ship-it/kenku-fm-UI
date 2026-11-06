@@ -17,6 +17,7 @@ import { valueOf } from "../../common/lyre/contract";
 import { CAMPAIGN_THEMES } from "../../common/lyre/api";
 import { createBoard, createCampaign, createPlaylist, openLibrary, type Library } from "../data";
 import { budget } from "../data/testing/perfBudget";
+import { longestHold } from "../data/testing/longestHold";
 import { AUDIO_EXTENSIONS } from "../data/import/audioFiles";
 import { createLibraryApi, type LibraryHost, type LibraryApiOptions } from "../lyreApi/libraryApi";
 import { looksLikeAudio } from "./audioBytes";
@@ -263,19 +264,19 @@ describe("Should 3: bringing in many playlists, boards and campaigns", () => {
     const campaigns = Array.from({ length: N / 4 }, (_, i): Json => ({ id: `c${i}`, name: `Campaign ${i}`, system: "", theme: CAMPAIGN_THEMES[0], description: "", notes: "", obsidian: { vault: "", note: "", sessionsFolder: "" }, playlistIds: [`p${i}`], boardIds: [`b${i}`], trackIds: [], sessions: [] }));
     const file = await lyreFile(dir, "Many.lyre", [], { tracks, playlists, boards, campaigns });
 
-    let longest = 0;
-    let last = performance.now();
-    const timer = setInterval(() => {
-      const now = performance.now();
-      longest = Math.max(longest, now - last);
-      last = now;
-    }, 5);
     const started = performance.now();
-    const opened = valueOf(await api.transfer.open({ from: "path", path: file })) as OpenedFile;
-    const openTook = performance.now() - started;
-    const report = valueOf(await api.transfer.bringIn(opened.id, {}));
+    let openTook = 0;
+    let report!: Awaited<ReturnType<typeof bringInAll>>;
+    const bringInAll = async () => {
+      const opened = valueOf(await api.transfer.open({ from: "path", path: file })) as OpenedFile;
+      openTook = performance.now() - started;
+      return valueOf(await api.transfer.bringIn(opened.id, {}));
+    };
+    // The processor time of the longest turn: a full `yarn test` runs other files alongside, which stretch the clock.
+    const { cpu: longest } = await longestHold(async () => {
+      report = await bringInAll();
+    });
     const took = performance.now() - started;
-    clearInterval(timer);
 
     expect(report.added.filter((x) => x.kind === "playlist")).toHaveLength(N);
     expect((await api.campaigns.list()).find((c) => c.name === "Campaign 7")?.playlistIds).toHaveLength(1);

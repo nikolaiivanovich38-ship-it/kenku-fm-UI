@@ -21,6 +21,7 @@ import path from "path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { budget } from "./testing/perfBudget";
+import { longestHold } from "./testing/longestHold";
 import { openLibrary, type Library } from "./library";
 import { search } from "./repo/search";
 import { deleteTracks, getTrack, listTracks, updateTrack } from "./repo/tracks";
@@ -51,49 +52,6 @@ const results: Record<string, number> = {};
 function median(values: number[]) {
   const sorted = [...values].sort((a, b) => a - b);
   return sorted[Math.floor(sorted.length / 2)];
-}
-
-/**
- * The longest time the event loop was held while `work` ran, in milliseconds
- * (DB review 1): a turn that takes longer than 200 ms makes Discord's audio
- * queue run dry. A synchronous call holds it for its whole length; bulk work
- * that yields between batches holds it for its longest batch. `cpu` counts the
- * processor time this thread used in that turn, which other programs on a busy
- * machine cannot inflate (the test may run alongside others), and which
- * leaves out worker threads (a backup's copy); `wall` is the clock time.
- */
-async function longestHold(work: () => unknown): Promise<{ wall: number; cpu: number }> {
-  const cpuNow = () => {
-    const used = process.threadCpuUsage();
-    return (used.user + used.system) / 1000;
-  };
-  let wall = 0;
-  let cpu = 0;
-  let lastWall = performance.now();
-  let lastCpu = cpuNow();
-  let running = true;
-  const turn = () => {
-    const nowWall = performance.now();
-    const nowCpu = cpuNow();
-    wall = Math.max(wall, nowWall - lastWall);
-    cpu = Math.max(cpu, nowCpu - lastCpu);
-    lastWall = nowWall;
-    lastCpu = nowCpu;
-  };
-  const tick = () => {
-    turn();
-    if (running) setImmediate(tick);
-  };
-  setImmediate(tick);
-  lastWall = performance.now();
-  lastCpu = cpuNow();
-  try {
-    await work();
-  } finally {
-    running = false;
-  }
-  turn();
-  return { wall, cpu };
 }
 
 function measure(runs: number, fn: (run: number) => void): number {
