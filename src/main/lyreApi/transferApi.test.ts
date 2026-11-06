@@ -90,6 +90,52 @@ async function namesOf(api: LyreApi) {
   };
 }
 
+/** Round 7 in a .lyre file: tags inside tags with their other words, dividers, steps and Then, how a track plays, mix out. */
+describe("DAT-7 with round 7's data", () => {
+  it("keeps tag places, dividers, a scene's and a pad's own steps, Then, Follow with, Ending, Pick up and the mix-out marker", async () => {
+    const dir = folder();
+    const from = await libraryAt(path.join(dir, "here"), true);
+    const ruins = { campaignId: "crown", sessionId: "s14", sceneId: "sc3" };
+    valueOf(await from.api.playlists.addDivider("p-abbess", "After the font", 2));
+    valueOf(await from.api.boards.setDivider("abbey", 1, "Spells"));
+    valueOf(await from.api.tags.updateTag({ group: "mood", value: "Tense" }, { color: "ember" }));
+    valueOf(await from.api.boards.setPadSteps("abbey", "bell", [{ do: "sound" }, { do: "pad", boardId: "abbey", padId: "slam" }]));
+    valueOf(await from.api.sessions.setSceneSteps(ruins, [{ do: "fade", level: 0.3, ms: 2000 }, { do: "pad", boardId: "abbey", padId: "bell" }, { do: "scene", scene: { ...ruins, sceneId: "sc4" } }], { when: "musicEnds" }));
+    valueOf(await from.api.library.updateTrack("t13", { fadesOut: true, resume: true, follow: { kind: "playlist", id: "p-ashen" } }));
+    valueOf(await from.api.profiles.set("t13", null, { markers: [{ atMs: 30_000, label: "Low swell", mix: true }] }));
+    const target = path.join(dir, "all.lyre");
+    valueOf(await from.api.transfer.save({ scope: { kind: "library" }, includeAudio: false, path: target }));
+
+    const to = await libraryAt(path.join(dir, "there"), false);
+    const opened = valueOf(await to.api.transfer.open({ from: "path", path: target })) as OpenedFile;
+    valueOf(await to.api.transfer.bringIn(opened.id, { all: "skip" }));
+    const mood = (await to.api.tags.listGroups()).find((g) => g.name === "Mood");
+    expect(mood.tags.find((t) => t.name === "Grief")?.parent).toBe("Melancholy");
+    expect(mood.tags.find((t) => t.name === "Melancholy")?.also).toEqual(["sad", "sorrowful"]);
+    expect(mood.tags.find((t) => t.name === "Tense")?.color).toBe("ember");
+    const abbess = (await to.api.playlists.list()).find((p) => p.name === "The Abbess");
+    expect(abbess.dividers).toEqual([{ id: expect.any(String), name: "After the font", at: 2 }]);
+    const board = (await to.api.boards.list()).find((b) => b.name === "Drowned Abbey");
+    expect(board.dividers).toEqual([{ row: 1, name: "Spells" }]);
+    const pads = new Map([...board.slots, ...board.spare].filter(Boolean).map((p) => [p.label, p]));
+    expect(pads.get("Abbey bell").steps).toEqual([{ do: "sound" }, { do: "pad", boardId: board.id, padId: pads.get("Door slams").id }]);
+    const crown = (await to.api.campaigns.list()).find((c) => c.name === "The Sunken Crown");
+    const s14 = crown.sessions.find((s) => s.number === 14);
+    const scene = s14.scenes.find((x) => x.name === "The abbey ruins");
+    const next = s14.scenes.find((x) => x.name === s14.scenes[s14.scenes.indexOf(scene) + 1].name);
+    expect(scene.movesOn).toEqual({ when: "musicEnds" });
+    expect(scene.steps).toEqual([
+      { do: "fade", level: 0.3, ms: 2000 },
+      { do: "pad", boardId: board.id, padId: pads.get("Abbey bell").id },
+      { do: "scene", scene: { campaignId: crown.id, sessionId: s14.id, sceneId: next.id } },
+    ]);
+    const t13 = (await to.api.library.listTracks()).find((t) => t.fileName === "06 Bridge of Death.flac");
+    const ashen = (await to.api.playlists.list()).find((p) => p.name === "Ashen King");
+    expect(t13).toMatchObject({ fadesOut: true, resume: true, follow: { kind: "playlist", id: ashen.id } });
+    expect(t13.profile?.markers).toEqual([{ atMs: 30_000, label: "Low swell", mix: true }]);
+  });
+});
+
 const SCOPES: TransferScope[] = [
   { kind: "library" },
   { kind: "tags" },

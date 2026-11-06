@@ -100,6 +100,9 @@ function samTracks(seed: SeedData): FileTrack[] {
       folder: BAROVIA,
       notes: "",
       sizeBytes: null,
+      fadesOut: false,
+      resume: false,
+      follow: null,
     });
   }
   return own;
@@ -107,19 +110,21 @@ function samTracks(seed: SeedData): FileTrack[] {
 
 const pad = (n: number, trackId: string, label: string): Pad => ({
   id: `sam-pad-${n}`, label, icon: "bolt", color: "plum", key: String(n), mode: "oneshot",
-  sound: { kind: "single", trackIds: [trackId], order: "random", tag: null }, volume: 0.8, fadeOutMs: 1500, aside: false,
+  sound: { kind: "single", trackIds: [trackId], order: "random", tag: null }, volume: 0.8, fadeOutMs: 1500, aside: false, steps: null,
 });
 
-const scene = (id: string, name: string, music: SceneInfo["music"], boardIds: string[] = []): SceneInfo => ({ id, name, music, ambience: null, boardIds, startsWhen: "", notes: "", noteLink: "", trackNames: {}, repeatOnes: [] });
+const scene = (id: string, name: string, music: SceneInfo["music"], boardIds: string[] = []): SceneInfo => ({ id, name, music, ambience: null, boardIds, startsWhen: "", notes: "", noteLink: "", trackNames: {}, repeatOnes: [], steps: null, movesOn: { when: "stay" } });
+
+const tagInfos = (names: string[]) => names.map((name) => ({ name, parent: null as string | null, also: [] as string[], color: null as null }));
 
 export function sampleSharedLibrary(seed: SeedData): LyreFileLibrary {
   const tracks = samTracks(seed);
   const playlists: PlaylistInfo[] = [
-    { id: "sam-mist", name: "Barovia mist", lane: "music", kind: "manual", trackIds: ["sam-1", "sam-2", "sam-3", "sam-4", "sam-5", "sam-6"], notes: "", order: null, normalise: null },
-    { id: "sam-gothic", name: "Gothic dread", lane: "music", kind: "dynamic", rule: { conds: [{ group: "mood", match: "any", values: ["Gothic", "Dread"] }] }, notes: "", order: null, normalise: null },
-    { id: "sam-halls", name: "Castle corridors", lane: "music", kind: "manual", trackIds: ["sam-t38", "sam-t20", "sam-7", "sam-t12"], notes: "", order: { shuffle: true, repeat: "all" }, normalise: null },
+    { id: "sam-mist", name: "Barovia mist", lane: "music", kind: "manual", trackIds: ["sam-1", "sam-2", "sam-3", "sam-4", "sam-5", "sam-6"], notes: "", order: null, normalise: null, folderId: null, dividers: [] },
+    { id: "sam-gothic", name: "Gothic dread", lane: "music", kind: "dynamic", rule: { conds: [{ group: "mood", match: "any", values: ["Gothic", "Dread"] }] }, notes: "", order: null, normalise: null, folderId: null, dividers: [] },
+    { id: "sam-halls", name: "Castle corridors", lane: "music", kind: "manual", trackIds: ["sam-t38", "sam-t20", "sam-7", "sam-t12"], notes: "", order: { shuffle: true, repeat: "all" }, normalise: null, folderId: null, dividers: [] },
   ];
-  const board: PadBoard = { id: "sam-ravenloft", name: "Ravenloft", cols: 3, rows: 3, spare: [], slots: Array.from({ length: 9 }, (_, i) => pad(i + 1, `sam-${22 + Math.min(i, 8)}`, ["Bats", "Wolves", "Thunder", "Organ", "Bell", "Door", "Scream", "Chains", "Raven"][i])) };
+  const board: PadBoard = { id: "sam-ravenloft", name: "Ravenloft", cols: 3, rows: 3, spare: [], dividers: [], folderId: null, slots: Array.from({ length: 9 }, (_, i) => pad(i + 1, `sam-${22 + Math.min(i, 8)}`, ["Bats", "Wolves", "Thunder", "Organ", "Bell", "Door", "Scream", "Chains", "Raven"][i])) };
   const music = (...ids: string[]): SceneInfo["music"] => ids.map((id) => (id.startsWith("sam-") && playlists.some((p) => p.id === id) ? { kind: "playlist", id } : { kind: "track", id }));
   const campaign: CampaignInfo = {
     id: "sam-cos", name: "Curse of Strahd", system: "D&D 5e", theme: "elysium", description: "Gothic horror in the mists of Barovia.", notes: "",
@@ -136,8 +141,8 @@ export function sampleSharedLibrary(seed: SeedData): LyreFileLibrary {
   return {
     tracks,
     tagGroups: [
-      { id: "mood", name: "Mood", values: ["Gothic", "Dread"] },
-      { id: "motif", name: "Leitmotif", values: ["Strahd", "Ireena"] },
+      { id: "mood", name: "Mood", values: ["Gothic", "Dread"], color: null, tags: tagInfos(["Gothic", "Dread"]) },
+      { id: "motif", name: "Leitmotif", values: ["Strahd", "Ireena"], color: null, tags: tagInfos(["Strahd", "Ireena"]) },
     ],
     playlists,
     boards: [board],

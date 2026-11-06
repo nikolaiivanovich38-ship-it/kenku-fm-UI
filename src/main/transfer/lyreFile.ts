@@ -16,7 +16,7 @@
 import path from "path";
 import fs from "fs";
 
-import { PAD_MODES, REPEATS, TRACK_KINDS, TRACK_ROLES, TRACK_SHAPES, type AudioProfileInput, type PlayOrder, type PlayOrderOverrides, type PlaylistRule, type ProfileOverrides, type SoundRef, type TrackOrders } from "../../common/domain";
+import { CUE_STEP_KINDS, PAD_MODES, REPEATS, STEP_HOWS, STEP_STOPS, STEP_UP_NEXTS, TRACK_KINDS, TRACK_ROLES, TRACK_SHAPES, type AudioProfileInput, type CueStep, type MovesOn, type PlayOrder, type PlayOrderOverrides, type PlaylistRule, type ProfileOverrides, type SoundRef, type TrackOrders } from "../../common/domain";
 import { CAMPAIGN_THEMES, PAD_COLORS, SESSION_STATUSES, type CampaignInfo, type LibraryTrack, type PadBoard, type Pad, type PlaylistInfo, type SceneInfo, type SessionInfo, type TagGroup, type TransferCounts, type TransferScope } from "../../common/lyre/api";
 import { AUDIO_EXTENSIONS } from "../data/import/audioFiles";
 import { AUDIO_HEAD_BYTES, looksLikeAudio } from "./audioBytes";
@@ -351,8 +351,60 @@ function checkProfile(v: unknown, at: string): AudioProfileInput {
     const f = obj(o[key], `${at}.${key}`);
     out[key] = { ms: num(f.ms, `${at}.${key}.ms`, 0, 1e9), shape: num(f.shape, `${at}.${key}.shape`, 0, 100) };
   }
-  if (o.markers !== undefined) out.markers = list(o.markers, `${at}.markers`, (m, mat) => ({ atMs: num(obj(m, mat).atMs, `${mat}.atMs`, 0, 1e9), label: str(obj(m, mat).label, `${mat}.label`, 500) }), 1000);
+  if (o.markers !== undefined) {
+    out.markers = list(
+      o.markers,
+      `${at}.markers`,
+      (m, mat) => {
+        const marker: { atMs: number; label: string; mix?: boolean } = { atMs: num(obj(m, mat).atMs, `${mat}.atMs`, 0, 1e9), label: str(obj(m, mat).label, `${mat}.label`, 500) };
+        // DAT-3 (Lyre 0.5): the mix-out marker; files from 0.4 have none.
+        if (obj(m, mat).mix !== undefined && bool(obj(m, mat).mix, `${mat}.mix`)) marker.mix = true;
+        return marker;
+      },
+      1000,
+    );
+    if (out.markers.filter((m) => m.mix).length > 1) throw bad(`${at}.markers`);
+  }
   return out;
+}
+
+/** PLY-8 (Lyre 0.5): one step of a scene's or pad's own start, with exactly its facts (files from 0.4 have none). */
+function checkStep(v: unknown, at: string): CueStep {
+  const o = obj(v, at);
+  const kind = oneOf(CUE_STEP_KINDS, o.do, `${at}.do`);
+  const what = () => soundRef(o.what, `${at}.what`);
+  const play = () => ({ what: what(), how: oneOf(STEP_HOWS, o.how, `${at}.how`), upNext: oneOf(STEP_UP_NEXTS, o.upNext, `${at}.upNext`), fromMs: orNull(o.fromMs ?? null, (x) => int(x, `${at}.fromMs`, 0, 1e9)) });
+  switch (kind) {
+    case "music":
+      return { do: "music", ...play() };
+    case "play":
+      return { do: "play", ...play() };
+    case "ambience":
+      return { do: "ambience", what: what() };
+    case "board":
+      return { do: "board", boardId: id(o.boardId, `${at}.boardId`) };
+    case "sound":
+      return { do: "sound" };
+    case "stop":
+      return { do: "stop", what: oneOf(STEP_STOPS, o.what, `${at}.what`) };
+    case "fade":
+      return { do: "fade", level: num(o.level, `${at}.level`, 0, 1), ms: int(o.ms, `${at}.ms`, 0, 60_000) };
+    case "wait":
+      return { do: "wait", ms: int(o.ms, `${at}.ms`, 0, 600_000) };
+    case "pad":
+      return { do: "pad", boardId: id(o.boardId, `${at}.boardId`), padId: id(o.padId, `${at}.padId`) };
+    case "scene": {
+      const sc = obj(o.scene, `${at}.scene`);
+      return { do: "scene", scene: { campaignId: id(sc.campaignId, `${at}.scene.campaignId`), sessionId: id(sc.sessionId, `${at}.scene.sessionId`), sceneId: id(sc.sceneId, `${at}.scene.sceneId`) } };
+    }
+  }
+}
+const stepsOrNull = (v: unknown, at: string): CueStep[] | null => (v === undefined ? null : orNull(v, (x) => list(x, at, checkStep, 50)));
+function checkMovesOn(v: unknown, at: string): MovesOn {
+  if (v === undefined) return { when: "stay" };
+  const o = obj(v, at);
+  const when = oneOf(["stay", "musicEnds", "after"] as const, o.when, `${at}.when`);
+  return when === "after" ? { when, ms: int(o.ms, `${at}.ms`, 1000, 21_600_000) } : { when };
 }
 
 const shapeOrNull = (v: unknown, at: string) => orNull(v, (x) => oneOf(TRACK_SHAPES, x, at));
@@ -380,6 +432,10 @@ function checkTrack(v: unknown, at: string): FileTrack {
     folder: str(o.folder ?? "", `${at}.folder`, 4096),
     notes: str(o.notes ?? "", `${at}.notes`),
     sizeBytes: orNull(o.sizeBytes, (x) => int(x, `${at}.sizeBytes`)),
+    // PLY-4, SHW-3 (Lyre 0.5): files from 0.4 have none.
+    fadesOut: o.fadesOut === undefined ? false : bool(o.fadesOut, `${at}.fadesOut`),
+    resume: o.resume === undefined ? false : bool(o.resume, `${at}.resume`),
+    follow: o.follow === undefined ? null : orNull(o.follow, (x) => soundRef(x, `${at}.follow`)),
   };
 }
 
@@ -410,7 +466,11 @@ function checkPlaylist(v: unknown, at: string): PlaylistInfo {
   const o = obj(v, at);
   const base = { id: id(o.id, `${at}.id`), name: str(o.name, `${at}.name`, 500), lane: oneOf(TRACK_KINDS, o.lane, `${at}.lane`), notes: str(o.notes ?? "", `${at}.notes`), order: orNull(o.order, (x) => checkOrder(x, `${at}.order`)), normalise: normaliseOrNull(o.normalise, `${at}.normalise`) };
   const kind = oneOf(["manual", "dynamic"] as const, o.kind, `${at}.kind`);
-  return kind === "manual" ? { ...base, kind, trackIds: list(o.trackIds, `${at}.trackIds`, id) } : { ...base, kind, rule: checkRule(o.rule, `${at}.rule`) };
+  // ORG-4 (Lyre 0.5): a manual playlist's dividers; the folder it is in stays with the library it came from.
+  const dividers = list(o.dividers ?? [], `${at}.dividers`, (d, dat) => ({ id: id(obj(d, dat).id, `${dat}.id`), name: str(obj(d, dat).name, `${dat}.name`, 200), at: int(obj(d, dat).at, `${dat}.at`, 0, 1e6) }), 1000);
+  return kind === "manual"
+    ? { ...base, folderId: null, dividers, kind, trackIds: list(o.trackIds, `${at}.trackIds`, id) }
+    : { ...base, folderId: null, dividers: [], kind, rule: checkRule(o.rule, `${at}.rule`) };
 }
 
 function checkPad(v: unknown, at: string): Pad {
@@ -432,6 +492,7 @@ function checkPad(v: unknown, at: string): Pad {
     volume: num(o.volume, `${at}.volume`, 0, 1),
     fadeOutMs: num(o.fadeOutMs, `${at}.fadeOutMs`, 0, 1e9),
     aside: o.aside === undefined ? false : bool(o.aside, `${at}.aside`),
+    steps: stepsOrNull(o.steps, `${at}.steps`),
   };
 }
 
@@ -441,7 +502,8 @@ function checkBoard(v: unknown, at: string): PadBoard {
   const rows = int(o.rows, `${at}.rows`, 1, 8);
   const slots = list(o.slots, `${at}.slots`, (p, pat) => orNull(p, (x) => checkPad(x, pat)), 64);
   if (slots.length !== cols * rows) throw bad(`${at}.slots`);
-  return { id: id(o.id, `${at}.id`), name: str(o.name, `${at}.name`, 500), cols, rows, slots, spare: list(o.spare, `${at}.spare`, checkPad, 10_000) };
+  const dividers = list(o.dividers ?? [], `${at}.dividers`, (d, dat) => ({ row: int(obj(d, dat).row, `${dat}.row`, 0, 7), name: str(obj(d, dat).name, `${dat}.name`, 200) }), 8);
+  return { id: id(o.id, `${at}.id`), name: str(o.name, `${at}.name`, 500), cols, rows, slots, spare: list(o.spare, `${at}.spare`, checkPad, 10_000), dividers, folderId: null };
 }
 
 const soundRef = (v: unknown, at: string): SoundRef => {
@@ -463,6 +525,9 @@ function checkScene(v: unknown, at: string): SceneInfo {
     trackNames: record(o.trackNames ?? {}, `${at}.trackNames`, (n, nat) => str(n, nat, 500)),
     // PLY-17 (Lyre 0.5): files from 0.4 have none.
     repeatOnes: list(o.repeatOnes ?? [], `${at}.repeatOnes`, id, 10_000),
+    // PLY-8 (Lyre 0.5).
+    steps: stepsOrNull(o.steps, `${at}.steps`),
+    movesOn: checkMovesOn(o.movesOn, `${at}.movesOn`),
   };
 }
 
@@ -506,11 +571,25 @@ function checkCampaign(v: unknown, at: string): CampaignInfo {
   };
 }
 
+const colorOrNull = (v: unknown, at: string) => (v === undefined ? null : orNull(v, (x) => oneOf(PAD_COLORS, x, at)));
+/** DAT-10 (Lyre 0.5): a group's colour and its tags' places, other words and colours; files from 0.4 have values only. */
+function checkTagGroup(v: unknown, at: string): TagGroup {
+  const g = obj(v, at);
+  const values = list(g.values, `${at}.values`, (s, sat) => str(s, sat, 500), 100_000);
+  const given = new Map(
+    list(g.tags ?? [], `${at}.tags`, (t, tat) => {
+      const x = obj(t, tat);
+      return { name: str(x.name, `${tat}.name`, 500), parent: x.parent === undefined ? null : orNull(x.parent, (p) => str(p, `${tat}.parent`, 500)), also: list(x.also ?? [], `${tat}.also`, (w, wat) => str(w, wat, 200), 100), color: colorOrNull(x.color, `${tat}.color`) };
+    }, 100_000).map((t) => [t.name, t]),
+  );
+  return { id: id(g.id, `${at}.id`), name: str(g.name, `${at}.name`, 200), values, color: colorOrNull(g.color, `${at}.color`), tags: values.map((name) => given.get(name) ?? { name, parent: null, also: [], color: null }) };
+}
+
 export function checkLibrary(raw: unknown): LyreFileLibrary {
   const o = obj(raw, "library");
   return {
     tracks: list(o.tracks, "tracks", checkTrack, LYRE_FILE_LIMITS.tracks),
-    tagGroups: list(o.tagGroups, "tagGroups", (g, at) => ({ id: id(obj(g, at).id, `${at}.id`), name: str(obj(g, at).name, `${at}.name`, 200), values: list(obj(g, at).values, `${at}.values`, (s, sat) => str(s, sat, 500), 100_000) }), 1000),
+    tagGroups: list(o.tagGroups, "tagGroups", checkTagGroup, 1000),
     playlists: list(o.playlists, "playlists", checkPlaylist),
     boards: list(o.boards, "boards", checkBoard),
     campaigns: list(o.campaigns, "campaigns", checkCampaign, 10_000),

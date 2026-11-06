@@ -29,6 +29,8 @@ import {
 import type {
   AddedTracks,
   CampaignInfo,
+  FindRequest,
+  FindResult,
   FolderRoot,
   ImportSummary,
   LibraryTrack,
@@ -144,6 +146,12 @@ import {
   updateScene,
   updateSession,
   updateTrack,
+  allBoardDividers,
+  getAllMovesOn,
+  getAllSteps,
+  setMovesOn,
+  setSteps,
+  setTrackPlay,
   PeakJobs,
   tracksNeedingLoudness,
   type LoudnessReader,
@@ -161,6 +169,7 @@ import { diskProbe, type FileProbe } from "../data/import/relink";
 import { joinRoot, unsafeFolderReason } from "../data/paths";
 import { saveLyreFile, openLyreFile, bringInLyreFile, type OpenTransfer, type TransferFiles } from "./transferApi";
 import { withCheckedArguments } from "./argChecks";
+import { libraryApiRound7 } from "./libraryApiRound7";
 import { Refused } from "./refused";
 
 /** What the library's API asks of the app around it: a person to choose files, the desktop to show a folder. */
@@ -195,6 +204,11 @@ export interface LibraryApiOptions {
   transfer?: Partial<TransferFiles>;
   /** DAT-15: measures each track's loudness (ffmpeg) with its peaks; without it tracks stay not measured. */
   loudnessReader?: LoudnessReader;
+  /**
+   * UX-11, PRV-2, UX-12 (round 7): where this computer's settings are kept; null keeps them in memory (tests). The
+   * default is "this-computer.json" beside a library file (an in-memory library keeps them in memory).
+   */
+  computerSettingsFile?: string | null;
   /**
    * DAT-15: how long after start every track not measured yet (a library from before version 4, or files changed
    * while Lyre was closed) is queued in the background (default 20 s, so starting up is not slowed).
@@ -450,6 +464,10 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
         isNew: row.is_new === 1,
         url: row.url ?? (file === null ? null : fileAddress(file)),
         sizeBytes: row.file_size,
+        // Round 7 (PLY-4, SHW-3): how it plays.
+        fadesOut: t.fadesOut ?? false,
+        resume: t.resume ?? false,
+        follow: t.follow ?? null,
       };
     });
   }
@@ -457,7 +475,18 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
 
   function tagGroups(): ApiTagGroup[] {
     const tags = listTags(store);
-    return listTagGroups(store).map((g) => ({ id: g.id, name: g.name, values: tags.filter((t) => t.groupId === g.id).map((t) => t.name) }));
+    const names = new Map(tags.map((t) => [t.id, t.name]));
+    return listTagGroups(store).map((g) => {
+      const mine = tags.filter((t) => t.groupId === g.id);
+      return {
+        id: g.id,
+        name: g.name,
+        values: mine.map((t) => t.name),
+        color: g.color as ApiTagGroup["color"],
+        // DAT-10 (round 7): where each tag sits, its other words (shown in lower case, as the prototype keeps them).
+        tags: mine.map((t) => ({ name: t.name, parent: t.parentId ? (names.get(t.parentId) ?? null) : null, also: [...new Set(t.synonyms.map((w) => w.toLowerCase()))].sort(), color: t.color as ApiTagGroup["color"] })),
+      };
+    });
   }
   /** The tag's id, by group and name in any letter case; undefined when the group has no such tag. */
   function tagIdOf(ref: TagRef): string | undefined {
@@ -471,12 +500,19 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
 
   function playlistInfos(): PlaylistInfo[] {
     const items = new Map<string, string[]>();
-    for (const row of store.all<{ playlist_id: string; track_id: string }>(
-      "SELECT playlist_id, track_id FROM playlist_items WHERE kind = 'track' ORDER BY playlist_id, position",
+    // ORG-4: a divider sits above the tracks after it: `at` counts the tracks before it.
+    const dividers = new Map<string, PlaylistInfo["dividers"]>();
+    for (const row of store.all<{ id: string; playlist_id: string; kind: "track" | "divider"; track_id: string | null; label: string }>(
+      "SELECT id, playlist_id, kind, track_id, label FROM playlist_items ORDER BY playlist_id, position",
     )) {
-      const list = items.get(row.playlist_id);
-      if (list) list.push(row.track_id);
-      else items.set(row.playlist_id, [row.track_id]);
+      const list = items.get(row.playlist_id) ?? [];
+      items.set(row.playlist_id, list);
+      if (row.kind === "track") list.push(row.track_id as string);
+      else {
+        const lines = dividers.get(row.playlist_id) ?? [];
+        dividers.set(row.playlist_id, lines);
+        lines.push({ id: row.id, name: row.label, at: list.length });
+      }
     }
     const orders = ownPlayOrders(store, "all");
     const choices = new Map(store.all<{ id: string; normalise: NormaliseChoice | null }>("SELECT id, normalise FROM playlists").map((r) => [r.id, r.normalise]));
@@ -484,8 +520,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       const order = orders.get(p.id) ?? null;
       const normalise = choices.get(p.id) ?? null;
       return p.kind === "dynamic"
-        ? { id: p.id, name: p.title, lane: p.lane, order, normalise, kind: "dynamic", rule: p.rule as PlaylistRule, notes: p.notes }
-        : { id: p.id, name: p.title, lane: p.lane, order, normalise, kind: "manual", trackIds: items.get(p.id) ?? [], notes: p.notes };
+        ? { id: p.id, name: p.title, lane: p.lane, order, normalise, kind: "dynamic", rule: p.rule as PlaylistRule, notes: p.notes, folderId: p.folderId, dividers: [] }
+        : { id: p.id, name: p.title, lane: p.lane, order, normalise, kind: "manual", trackIds: items.get(p.id) ?? [], notes: p.notes, folderId: p.folderId, dividers: dividers.get(p.id) ?? [] };
     });
   }
   const requirePlaylist = (id: string) => playlistInfos().find((p) => p.id === id) ?? refuse("not-found", ENTITY_WORDS.playlist);
@@ -501,7 +537,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
     return { before: items[Math.max(0, Math.floor(index))].id };
   }
 
-  function apiPad(pad: Pad, tags: Map<string, TagRef>): ApiPad {
+  function apiPad(pad: Pad, tags: Map<string, TagRef>, steps = getAllSteps(store).pads): ApiPad {
     return {
       id: pad.id,
       label: pad.label,
@@ -513,17 +549,20 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       volume: pad.volume,
       fadeOutMs: pad.fadeMs,
       aside: pad.putAside,
+      steps: steps[pad.id] ?? null,
     };
   }
-  function padBoard(id: string, tags = tagRefsById()): PadBoard {
+  function padBoard(id: string, tags = tagRefsById(), steps = getAllSteps(store).pads, dividers = allBoardDividers(store)): PadBoard {
     const layout = getBoardLayout(store, id);
     return {
       id: layout.board.id,
       name: layout.board.title,
       cols: layout.board.cols,
       rows: layout.board.rows,
-      slots: layout.slots.map((p) => (p ? apiPad(p, tags) : null)),
-      spare: layout.spare.map((p) => apiPad(p, tags)),
+      slots: layout.slots.map((p) => (p ? apiPad(p, tags, steps) : null)),
+      spare: layout.spare.map((p) => apiPad(p, tags, steps)),
+      dividers: dividers[layout.board.id] ?? [],
+      folderId: layout.board.folderId,
     };
   }
   const requireBoard = (id: string) => quietly(() => padBoard(id), null) ?? refuse("not-found", ENTITY_WORDS.board);
@@ -538,11 +577,17 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
   const cellOf = (slot: number, cols: number) => ({ row: Math.floor(slot / cols), col: slot % cols });
 
   /** What every campaign's info reads, read once for a list of them (security review w4, Should 3). */
-  const campaignLookups = () => ({ campaigns: new Map(listCampaigns(store).map((c) => [c.id, c])), names: getTrackNames(store), ones: getRepeatOnes(store) });
+  const campaignLookups = () => ({
+    campaigns: new Map(listCampaigns(store).map((c) => [c.id, c])),
+    names: getTrackNames(store),
+    ones: getRepeatOnes(store),
+    steps: getAllSteps(store).scenes,
+    movesOn: getAllMovesOn(store),
+  });
   function campaignInfo(tree: DomainCampaign, lookups = campaignLookups()): CampaignInfo {
     const campaign = lookups.campaigns.get(tree.id);
     const sessions = new Map(listSessions(store, tree.id).map((s) => [s.id, s]));
-    const { names, ones } = lookups;
+    const { names, ones, steps, movesOn } = lookups;
     return {
       id: tree.id,
       name: campaign.name,
@@ -570,7 +615,17 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
             const key = `sc:${tree.id}:${s.id}:${sc.id}`;
             const trackNames = { ...(names[key] ?? {}) };
             const repeatOnes = [...(ones[key] ?? [])];
-            return { ...sc, name: scene.name, startsWhen: scene.startsWhen, notes: scene.notes, noteLink: scene.noteLink, trackNames, repeatOnes };
+            return {
+              ...sc,
+              name: scene.name,
+              startsWhen: scene.startsWhen,
+              notes: scene.notes,
+              noteLink: scene.noteLink,
+              trackNames,
+              repeatOnes,
+              steps: steps[sc.id] ?? null,
+              movesOn: movesOn[sc.id] ?? { when: "stay" },
+            };
           }),
         };
       }),
@@ -639,6 +694,56 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
 
   /* ---------- the API ---------- */
 
+  /** Round 6's find (ORG-14): tracks and playlists; round 7's (libraryApiRound7.ts) adds pads and scenes. */
+  async function round6Find({ text, lane, limit = 50, in: where }: FindRequest): Promise<Pick<FindResult, "tracks" | "playlists">> {
+    const max = Math.max(0, limit);
+    const tracks = await api.library.search({ text, lane, limit: max });
+    const words = trimmed(text);
+    const all = playlistInfos();
+    const byId = new Map(all.map((p) => [p.id, p]));
+    const hits = !words ? all.map((p) => p.id) : quietly(() => search(store, text, { kinds: ["playlist"], limit: 1000 }), []).map((h) => h.id);
+    const found = hits.map((id) => byId.get(id)).filter((p): p is PlaylistInfo => !!p && (!lane || p.lane === lane)).slice(0, max);
+    const c = where ? campaignById(where.campaignId) : null;
+    const s = c && where?.sessionId ? c.sessions.find((x) => x.id === where.sessionId) : undefined;
+    const orders = found.length ? getTrackOrders(store) : {};
+    return {
+      tracks,
+      playlists: found.map((p) => {
+        const place: UsePlace | null = s?.playlistIds.includes(p.id) ? { kind: "session", campaignId: c!.id, sessionId: s.id } : c?.playlistIds.includes(p.id) ? { kind: "campaign", campaignId: c.id } : null;
+        const own = quietly(() => listPlaylistTrackIds(store, p.id), []).map((id) => ({ id }));
+        const trackIds = tracksInPlaceOrder(own, place ? orders[keyOfPlace(place)]?.[p.id] : undefined).map((t) => t.id);
+        return { id: p.id, name: p.name, lane: p.lane, kind: p.kind, trackIds, place };
+      }),
+    };
+  }
+
+  // Round 7 (libraryApiRound7.ts): its methods join the areas below.
+  const r7 = libraryApiRound7({
+    store,
+    write,
+    writeOutside,
+    refuse,
+    libraryTracks: () => libraryTracks(),
+    requireTrack,
+    playlistInfos,
+    requireManual,
+    requireBoard,
+    padBoard: (id) => padBoard(id),
+    requirePad,
+    requireScene,
+    allCampaignInfos,
+    tagGroups,
+    checkMusic: (ref) => checkMusic(ref, new Map(libraryTracks().map((t) => [t.id, t])), new Map(playlistInfos().map((p) => [p.id, p]))),
+    round6Find,
+    computerFile:
+      options.computerSettingsFile !== undefined
+        ? options.computerSettingsFile
+        : library.databasePath === ":memory:" || library.databasePath === ""
+          ? null
+          : path.join(path.dirname(library.databasePath), "this-computer.json"),
+    log: options.log,
+  });
+
   const api: LibraryApi = {
     library: {
       async listTracks() {
@@ -664,26 +769,11 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
         const hits = max === 0 ? [] : search(store, text, { kinds: ["track"], lane, limit: Math.min(max, 1000) });
         return { trackIds: hits.map((h) => h.id), total: searchCount(store, text, { kinds: ["track"], lane }) };
       },
-      async find({ text, lane, limit = 50, in: where }) {
-        const max = Math.max(0, limit);
-        const tracks = await api.library.search({ text, lane, limit: max });
-        const words = trimmed(text);
-        const all = playlistInfos();
-        const byId = new Map(all.map((p) => [p.id, p]));
-        const hits = !words ? all.map((p) => p.id) : quietly(() => search(store, text, { kinds: ["playlist"], limit: 1000 }), []).map((h) => h.id);
-        const found = hits.map((id) => byId.get(id)).filter((p): p is PlaylistInfo => !!p && (!lane || p.lane === lane)).slice(0, max);
-        const c = where ? campaignById(where.campaignId) : null;
-        const s = c && where?.sessionId ? c.sessions.find((x) => x.id === where.sessionId) : undefined;
-        const orders = found.length ? getTrackOrders(store) : {};
-        return {
-          tracks,
-          playlists: found.map((p) => {
-            const place: UsePlace | null = s?.playlistIds.includes(p.id) ? { kind: "session", campaignId: c!.id, sessionId: s.id } : c?.playlistIds.includes(p.id) ? { kind: "campaign", campaignId: c.id } : null;
-            const own = quietly(() => listPlaylistTrackIds(store, p.id), []).map((id) => ({ id }));
-            const trackIds = tracksInPlaceOrder(own, place ? orders[keyOfPlace(place)]?.[p.id] : undefined).map((t) => t.id);
-            return { id: p.id, name: p.name, lane: p.lane, kind: p.kind, trackIds, place };
-          }),
-        };
+      async find(request) {
+        return r7.library.find(request);
+      },
+      async put(request) {
+        return r7.library.put(request);
       },
       async updateTrack(id, patch: ApiTrackPatch) {
         return write(["tracks"], () => {
@@ -691,7 +781,13 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           const changes: Record<string, unknown> = {};
           for (const key of ["title", "notes", "energy", "role", "kind"] as const) if (patch[key] !== undefined) changes[key] = patch[key];
           if (patch.loop !== undefined) changes.loopable = patch.loop;
-          store.change(`Change ${quoted(shownTitle(track))}`, () => updateTrack(store, id, changes));
+          // Round 7 (PLY-4, SHW-3): how it plays, in the same undo step.
+          const play: Record<string, unknown> = {};
+          for (const key of ["fadesOut", "resume", "follow"] as const) if (patch[key] !== undefined) play[key] = patch[key];
+          store.change(`Change ${quoted(shownTitle(track))}`, () => {
+            if (Object.keys(changes).length) updateTrack(store, id, changes);
+            if (Object.keys(play).length) setTrackPlay(store, id, play);
+          });
           return requireTrack(id);
         });
       },
@@ -741,6 +837,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
     },
 
     tags: {
+      ...r7.tags,
       async listGroups() {
         return tagGroups();
       },
@@ -782,6 +879,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
     },
 
     playlists: {
+      ...r7.playlists,
       async list() {
         return playlistInfos();
       },
@@ -837,7 +935,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
         });
       },
       async delete(id) {
-        return write(["playlists", "campaigns", "profiles"], () => {
+        // Round 7: a track's Follow with and the steps that played it go with it.
+        return write(["playlists", "campaigns", "profiles", "tracks", "boards"], () => {
           const pl = requirePlaylist(id);
           store.change(`Delete playlist ${quoted(pl.name)}`, () => deletePlaylist(store, id));
         });
@@ -915,6 +1014,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
     },
 
     boards: {
+      ...r7.boards,
       async list() {
         const tags = tagRefsById();
         return listBoards(store).map((b) => padBoard(b.id, tags));
@@ -1052,7 +1152,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
         });
       },
       async deletePad(boardId, padId) {
-        return write(["boards"], () => {
+        // Round 7: steps that fired it go with it (a scene's start: "campaigns").
+        return write(["boards", "campaigns"], () => {
           const { pad } = requirePad(boardId, padId);
           store.change(`Delete the pad ${quoted(pad.label)}`, () => deletePads(store, [padId]));
         });
@@ -1135,6 +1236,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
     },
 
     sessions: {
+      ...r7.sessions,
       async create(campaignId) {
         return write(["campaigns"], () => {
           requireCampaign(campaignId);
@@ -1205,6 +1307,9 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
             for (const [trackId, name] of Object.entries(scene.trackNames)) setSceneTrackName(store, id, trackId, name);
             // PLY-17: and its Repeat ones (its play orders and track orders stay with the original, as audio settings do).
             for (const trackId of scene.repeatOnes) setRepeatOne(store, id, trackId, true);
+            // PLY-8: and what it does when it starts.
+            if (scene.steps) setSteps(store, { sceneId: id }, scene.steps);
+            if (scene.movesOn.when !== "stay") setMovesOn(store, id, scene.movesOn);
           });
           return requireScene({ ...address, sceneId: id }).scene;
         });
@@ -1492,6 +1597,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       },
     },
 
+    folders: r7.folders,
+    settings: r7.settings,
     history: {
       async state() {
         return history.state();

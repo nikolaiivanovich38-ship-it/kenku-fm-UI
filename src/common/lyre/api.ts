@@ -12,6 +12,14 @@
  * Times are milliseconds; volumes are 0 to 1.
  */
 import type {
+  AudioDevices,
+  Crossfade,
+  CueStep,
+  DisplaySettings,
+  DropPlace,
+  MovesOn,
+  ShortcutAction,
+  ShortcutMap,
   AudioProfileInput,
   DomainCampaign,
   DomainPlaylist,
@@ -84,8 +92,11 @@ export interface Refusal {
  * The parts of the library a screen may show. A "changed" event lists the areas to reload. "peaks": loudness peaks
  * of some tracks were worked out (library.peaksOf), or their loudness measured (LibraryTrack.loudness, DAT-15);
  * sent in the background, at most a few times a second. The library's Normalise volume setting changes "tracks".
+ * "settings" (round 7): the crossfade, the keyboard shortcuts, Next scene's guard and this computer's settings.
+ * "folders" is the Library's folders on disk (FolderRoot); the folders playlists and boards are kept in (ORG-4) change
+ * "playlists" or "boards".
  */
-export const LYRE_AREAS = ["tracks", "tags", "folders", "playlists", "boards", "campaigns", "profiles", "history", "peaks"] as const;
+export const LYRE_AREAS = ["tracks", "tags", "folders", "playlists", "boards", "campaigns", "profiles", "history", "peaks", "settings"] as const;
 export type LyreArea = (typeof LYRE_AREAS)[number];
 
 export interface Done<T> {
@@ -148,6 +159,12 @@ export interface LibraryTrack extends DomainTrack {
   url: string | null;
   /** The file's size in bytes, when known. */
   sizeBytes: number | null;
+  /** PLY-4: Ending "Fades out" (roleProfile: 4 s unless the Audio profile has a fade out); false plays to its end. */
+  fadesOut: boolean;
+  /** PLY-4: Pick up where it stopped (this evening; the audio host remembers where). */
+  resume: boolean;
+  /** SHW-3: Then › Follow with: plays when it ends unless something is already waiting; null: nothing. */
+  follow: SoundRef | null;
 }
 
 /** The fields a screen can change on a track (Details pane, and a dropped file's kind in the session planner). */
@@ -158,6 +175,10 @@ export type TrackPatch = Partial<{
   role: TrackRole | null;
   loop: LoopAdvice | null;
   kind: TrackKind;
+  /** Round 7 (r7play.js r7ending, r7resume, r7followok, r7follownone). */
+  fadesOut: boolean;
+  resume: boolean;
+  follow: SoundRef | null;
 }>;
 
 /** A folder the Library lists under Folders: a library folder, or one Lyre watches for new files. */
@@ -210,11 +231,31 @@ export interface FoundPlaylist {
   /** The session or campaign list it was found in (FindRequest.in), or null: its own order. */
   place: PlayPlace | null;
 }
+/** UX-12 Find and play: a pad found by its label. Enter fires it. */
+export interface FoundPad {
+  boardId: string;
+  padId: string;
+  label: string;
+  boardName: string;
+}
+/** UX-12 Find and play: a scene found by its name. Enter starts it. */
+export interface FoundScene {
+  campaignId: string;
+  sessionId: string;
+  sceneId: string;
+  name: string;
+  /** "Session 14". */
+  sessionNumber: number;
+}
 export interface FindResult {
   /** Tracks, best matches first, as `search` gives them. */
   tracks: SearchResult;
   /** Playlists, best matches first. */
   playlists: FoundPlaylist[];
+  /** UX-12 (round 7): pads, best matches first (`lane` leaves them out unless it is FX). */
+  pads: FoundPad[];
+  /** UX-12 (round 7): scenes, best matches first, the session Live runs (FindRequest.in) first (`lane` leaves them out). */
+  scenes: FoundScene[];
 }
 
 /* ---------- tags ---------- */
@@ -224,6 +265,25 @@ export interface TagGroup {
   name: string;
   /** Values in the order the game master keeps them. */
   values: string[];
+  /** DAT-10 (round 7): the group's colour from the pad palette, or none. */
+  color: PadColor | null;
+  /** DAT-10 (round 7): each value's place in the vocabulary, in `values` order. */
+  tags: TagInfo[];
+}
+
+/** DAT-10: a tag of a group: the tag it sits inside, its other words ("sad" offers Melancholy), its own colour. */
+export interface TagInfo {
+  name: string;
+  /** Another tag of the same group, or null for a tag of its own. */
+  parent: string | null;
+  also: string[];
+  /** Its own colour; null: the group's. */
+  color: PadColor | null;
+}
+export type TagPatch = Partial<Pick<TagInfo, "parent" | "also" | "color">>;
+/** How many tracks a rename, merge or delete changed (the Undo note above the bar says so). */
+export interface TagChangeCount {
+  tracks: number;
 }
 
 /** One tag value of one group, as tracks carry them (DomainTrack.tags). */
@@ -242,7 +302,32 @@ export interface TagChange {
 
 /* ---------- playlists ---------- */
 
+/** ORG-4: a divider in a manual playlist: a named line above its `at`-th track (0: above the first; the track count: at the end). */
+export interface PlaylistDivider {
+  id: string;
+  name: string;
+  at: number;
+}
+
+/**
+ * ORG-4: a folder playlists or pad boards are kept in; nested folders name their parent. (The library's folders can
+ * hold sessions too; the screens have no place for them yet, so LyreApi offers playlists and boards: ROUND7.md "later".)
+ */
+export const FOLDER_KINDS = ["playlists", "boards"] as const;
+export type FolderKind = (typeof FOLDER_KINDS)[number];
+export interface FolderInfo {
+  id: string;
+  kind: FolderKind;
+  name: string;
+  parentId: string | null;
+  color: PadColor | null;
+}
+
 export type PlaylistInfo = DomainPlaylist & {
+  /** ORG-4: the folder it is in, or null at the top level. */
+  folderId: string | null;
+  /** ORG-4: dividers in its list (manual playlists only; none for a dynamic one). Not tracks: counts and playback skip them. */
+  dividers: PlaylistDivider[];
   notes: string;
   /** PLY-13: the playlist's own play order (the Playlists page); null: the default where it plays (resolvePlayOrder). */
   order: PlayOrder | null;
@@ -301,9 +386,11 @@ export interface Pad {
    * taking its place). It stays there when the grid grows; spare pads a resize moved come back. False on the grid.
    */
   aside: boolean;
+  /** PLY-8: what it does when pressed (null: the usual, playing its sound). boards.setPadSteps. */
+  steps: CueStep[] | null;
 }
 
-export type PadPatch = Partial<Omit<Pad, "id" | "sound" | "aside">> & { sound?: Partial<PadSound> };
+export type PadPatch = Partial<Omit<Pad, "id" | "sound" | "aside" | "steps">> & { sound?: Partial<PadSound> };
 
 export interface PadBoard {
   id: string;
@@ -314,6 +401,10 @@ export interface PadBoard {
   slots: (Pad | null)[];
   /** Pads that are not on the grid; their keys do nothing. */
   spare: Pad[];
+  /** ORG-4: names above rows of pads (row 0 is the top), by row. A row the grid no longer has keeps its divider. */
+  dividers: { row: number; name: string }[];
+  /** ORG-4: the folder it is in, or null at the top level. */
+  folderId: string | null;
 }
 
 /** Where a pad goes: a place on the grid (row by row from 0) or the spare pads. */
@@ -346,6 +437,10 @@ export interface SceneInfo extends DomainScene {
    * ends, every time this scene plays. Any track of the scene's music or of its playlists. repeatOnesOf gathers them.
    */
   repeatOnes: string[];
+  /** PLY-8: what it does when it starts (null: the usual: its music, its ambience, its first board). */
+  steps: CueStep[] | null;
+  /** PLY-8 "Then": it stays until Next, or moves on by itself ("Moves on by itself"). */
+  movesOn: MovesOn;
 }
 
 export interface SessionInfo extends DomainSession {
@@ -568,6 +663,54 @@ export interface MoveReport {
   notBrought: { what: string; why: string }[];
 }
 
+/* ---------- ORG-5 drag between lists ---------- */
+
+/**
+ * ORG-5 (r7org.js put): what was dragged (or chosen in Add to…) and where it goes. A room's Up next is not here: that
+ * is the audio host's Add to queue (LyreAudio.addToQueue).
+ */
+export interface PutRequest {
+  place: Exclude<DropPlace, { kind: "queue" }>;
+  what: { kind: "tracks" | "playlists" | "boards"; ids: string[] };
+  /** The manual playlist the tracks were dragged from (Shift moves them out of it). */
+  from?: string;
+  /** Shift held: the tracks leave `from`. */
+  move?: boolean;
+}
+export interface PutResult {
+  /** What came in, in order: track ids for a playlist, new pad ids for a board, track, playlist or board ids for a scene. */
+  added: string[];
+  /** Already there, so not added twice. */
+  alreadyIn: string[];
+  /** The tracks left the playlist they came from. */
+  moved: boolean;
+  /** The place's name for the Saved pop-up ("Ashen King", "Weather and places", "The abbey ruins music"). */
+  placeName: string;
+}
+
+/* ---------- round 7 settings ---------- */
+
+/**
+ * Settings round 7 adds. With the library (in backups, not in .lyre files): the crossfade (Settings › Sound to
+ * Discord › Between tracks), the keys the game master changed and Next scene's guard. Per computer (kept beside the
+ * library, never in a backup or a .lyre file, and no undo step): Look and feel › Display, Headphones and speakers, and
+ * whether Next scene and Fade everything out work in other programs too.
+ */
+export interface LyreSettings {
+  crossfade: Crossfade;
+  /** Only the changed keys; shortcutKey gives the key in use for every action. */
+  shortcuts: ShortcutMap;
+  nextSceneGuard: boolean;
+  display: DisplaySettings;
+  devices: AudioDevices;
+  globalKeys: boolean;
+}
+export interface ComputerSettingsPatch {
+  display?: Partial<DisplaySettings>;
+  devices?: Partial<AudioDevices>;
+  globalKeys?: boolean;
+}
+
 /* ---------- history ---------- */
 
 export interface HistoryState {
@@ -610,14 +753,49 @@ export interface LyreApi {
     setNormaliseSettings(setting: LibraryNormalise): Promise<WriteResult<LibraryNormalise>>;
     /** PLY-15: the track's own choice; null is "Library setting". library.js L.acts.lbnorm; profile.js L.acts.apnorm. */
     setNormalise(trackId: string, choice: NormaliseChoice | null): Promise<WriteResult<LibraryTrack>>;
-    /** ORG-14: tracks and playlists in one call, grouped (Live's Find; round 6 part 6). live.js find(), search(). */
+    /** ORG-14: tracks and playlists in one call, grouped (Live's Find; round 6 part 6). live.js find(), search(). UX-12: pads and scenes too (r7shell.js Find and play). */
     find(request: FindRequest): Promise<FindResult>;
+    /** ORG-5: a drop, or Add to… (r7org.js put): one undo step, copying (or with `move`, moving) what was dragged. */
+    put(request: PutRequest): Promise<WriteResult<PutResult>>;
   };
   tags: {
     /** Tag groups and their values. library.js filters, tag combobox and Tag… sheet; playlists.js rule builder (plvaladd). */
     listGroups(): Promise<TagGroup[]>;
     /** Adds and removes tags on tracks, creating new values. library.js L.acts.lbcbxpick, lbuntag, lbtsapply, lbtsnew. */
     tagTracks(change: TagChange): Promise<WriteResult<{ created: TagRef[] }>>;
+    /** DAT-10 (r7tags.js): New group, at the end. tgnewgroupok. */
+    createGroup(name: string, color?: PadColor | null): Promise<WriteResult<TagGroup>>;
+    /** tggrenameok, tggcolourok. */
+    updateGroup(groupId: string, patch: { name?: string; color?: PadColor | null }): Promise<WriteResult<TagGroup>>;
+    /** Move up (-1) or Move down (1). tggmove. */
+    moveGroup(groupId: string, by: -1 | 1): Promise<WriteResult>;
+    /** Its tags come off every track; rules lose their conditions on it. tggdelok. */
+    deleteGroup(groupId: string): Promise<WriteResult<TagChangeCount>>;
+    /** Add tag (inside another, or of its own). tgaddok. */
+    createTag(group: string, name: string, parent?: string | null): Promise<WriteResult<TagRef>>;
+    /** Every track and dynamic rule follow; a name already in the group is refused (Merge into… instead). tgrenameok. */
+    renameTag(tag: TagRef, name: string): Promise<WriteResult<TagChangeCount>>;
+    /** Its tracks and rules get `into` (same group); its name becomes another word of `into`. tgmergeok. */
+    mergeTag(tag: TagRef, into: string): Promise<WriteResult<TagChangeCount>>;
+    /** It comes off every track and rule; the tags inside it move up a level. tgdelok. */
+    deleteTag(tag: TagRef): Promise<WriteResult<TagChangeCount>>;
+    /** Put inside… (parent), Other words…, Colour…. tgparentok, tgalsook, tgcolourok. */
+    updateTag(tag: TagRef, patch: TagPatch): Promise<WriteResult<TagInfo>>;
+    /** Move up or down among the tags at the same level. tgmove. */
+    moveTag(tag: TagRef, by: -1 | 1): Promise<WriteResult>;
+  };
+  /** ORG-4 (r7org.js): folders for playlists and pad boards. Changes send "playlists" or "boards". */
+  folders: {
+    /** One kind's folders, parents before what is inside them. inFolders(). */
+    list(kind: FolderKind): Promise<FolderInfo[]>;
+    /** New folder… (inside `parentId`), holding `moveIn` when given (Move to folder… › New folder…). fonewok. */
+    create(kind: FolderKind, folder: { name: string; parentId?: string | null; moveIn?: string }): Promise<WriteResult<FolderInfo>>;
+    /** forenameok, focolourok. (Folding a folder is the screen's, kept per computer like an open box.) */
+    update(folderId: string, patch: { name?: string; color?: PadColor | null }): Promise<WriteResult<FolderInfo>>;
+    /** Delete folder: what was in it moves up a level. fodel. */
+    delete(folderId: string): Promise<WriteResult>;
+    /** Move to folder… or a drop on a folder (null: out of every folder). fomovetook, drop on a folder row. */
+    moveInto(kind: FolderKind, itemId: string, folderId: string | null): Promise<WriteResult>;
   };
   playlists: {
     /** Every playlist, in list order. playlists.js renderList(); _shared.js pickPlaylists. */
@@ -665,6 +843,17 @@ export interface LyreApi {
     setTrackOrder(playlistId: string, place: PlayPlace, trackIds: string[]): Promise<WriteResult<string[] | null>>;
     /** ORG-13: "Back to the playlist's order" in that place. core.js L.clearPlaceOrder. */
     clearTrackOrder(playlistId: string, place: PlayPlace): Promise<WriteResult>;
+    /** ORG-4: Add a divider above (`at`: the track it goes above, as PlaylistDivider.at). r7org.js divaddok. */
+    addDivider(playlistId: string, name: string, at: number): Promise<WriteResult<PlaylistDivider>>;
+    /** divrenok. */
+    renameDivider(playlistId: string, dividerId: string, name: string): Promise<WriteResult<PlaylistDivider>>;
+    /** divrm. */
+    removeDivider(playlistId: string, dividerId: string): Promise<WriteResult>;
+    /**
+     * ORG-4: a drag in the list with its dividers: the track or divider goes to `toIndex` of the list as shown
+     * (tracks and dividers together, withDividers). r7org.js: a divider "drags like a track".
+     */
+    moveItem(playlistId: string, item: { trackId: string } | { dividerId: string }, toIndex: number): Promise<WriteResult>;
   };
   boards: {
     /** Every pad board with its pads. boards.js list view, board editor; _shared.js pickBoards, contentsHTML. */
@@ -695,6 +884,10 @@ export interface LyreApi {
     putAllBack(boardId: string): Promise<WriteResult<{ putBack: string[] }>>;
     /** boards.js L.acts.pbdelpadok. */
     deletePad(boardId: string, padId: string): Promise<WriteResult>;
+    /** ORG-4: a name above a row of pads (0 is the top row); null removes it. r7org.js pbdivaddok, pbdivrm. */
+    setDivider(boardId: string, row: number, name: string | null): Promise<WriteResult<PadBoard>>;
+    /** PLY-8: What it does… (null or the usual steps: back to the usual). r7play.js stpdone, stpusual. */
+    setPadSteps(boardId: string, padId: string, steps: CueStep[] | null): Promise<WriteResult<Pad>>;
   };
   campaigns: {
     /** Every campaign tree. campaigns.js Campaigns view; _shared.js assignSheet targets; boards.js campaign filter. */
@@ -743,6 +936,11 @@ export interface LyreApi {
      * room playing that track gives way (LyreAudio.savedRepeatOneChanged).
      */
     setRepeatOne(scene: SceneAddress, trackId: string, on: boolean): Promise<WriteResult>;
+    /**
+     * PLY-8: What it does when it starts…: its steps (null or the usual steps: back to the usual) and Then. One undo
+     * step. r7play.js stpdone.
+     */
+    setSceneSteps(scene: SceneAddress, steps: CueStep[] | null, movesOn: MovesOn): Promise<WriteResult<SceneInfo>>;
   };
   profiles: {
     /** Every place's own settings, keyed by placeKey (src/common/domain). profile.js, library.js profileSummary, playlists.js and campaigns.js own-settings marks. */
@@ -785,6 +983,20 @@ export interface LyreApi {
     /** What came across from Kenku FM, or null when nothing did (a new library). transfer.js the moved view. */
     movedReport(): Promise<MoveReport | null>;
   };
+  /** Round 7 settings (LyreSettings says which are kept with the library and which per computer). */
+  settings: {
+    get(): Promise<LyreSettings>;
+    /** PLY-8: Between tracks and the crossfade curve. settings.js stxf, stcurve. */
+    setCrossfade(crossfade: Crossfade): Promise<WriteResult<LyreSettings>>;
+    /** UX-12: Change… then a key (null: Lyre's key). A key in use is refused, naming its action. r7shell.js L.setKey. */
+    setShortcut(action: ShortcutAction, key: string | null): Promise<WriteResult<LyreSettings>>;
+    /** UX-12: Put back Lyre's keys. L.resetKeys. */
+    resetShortcuts(): Promise<WriteResult<LyreSettings>>;
+    /** UX-12: ignore a second Next scene within a second. */
+    setNextSceneGuard(on: boolean): Promise<WriteResult<LyreSettings>>;
+    /** UX-11, PRV-2, UX-12: this computer's settings; no undo step. look.js, settings.js stairdev, stpvdev, stsplit, stear. */
+    setComputer(patch: ComputerSettingsPatch): Promise<WriteResult<LyreSettings>>;
+  };
   history: {
     /** boards.js gridPane message with Undo; profile.js apundo (and the shell's Undo and Redo). */
     state(): Promise<HistoryState>;
@@ -798,14 +1010,16 @@ export interface LyreApi {
 
 /** Method names by area, for the contract tests' "every method is covered" guard and for IPC channel lists. */
 export const LYRE_API_METHODS = {
-  library: ["listTracks", "search", "updateTrack", "listFolders", "showInFolder", "peaksOf", "setShape", "normaliseSettings", "setNormaliseSettings", "setNormalise", "find"],
-  tags: ["listGroups", "tagTracks"],
-  playlists: ["list", "tracks", "containing", "create", "update", "copyAsManual", "delete", "addTracks", "removeTrack", "moveTrack", "playOrders", "setPlayOrder", "clearPlayOrder", "setNormalise", "trackOrders", "setTrackOrder", "clearTrackOrder"],
-  boards: ["list", "create", "rename", "resize", "duplicate", "delete", "addPad", "updatePad", "duplicatePad", "movePad", "putAllBack", "deletePad"],
+  library: ["listTracks", "search", "updateTrack", "listFolders", "showInFolder", "peaksOf", "setShape", "normaliseSettings", "setNormaliseSettings", "setNormalise", "find", "put"],
+  tags: ["listGroups", "tagTracks", "createGroup", "updateGroup", "moveGroup", "deleteGroup", "createTag", "renameTag", "mergeTag", "deleteTag", "updateTag", "moveTag"],
+  folders: ["list", "create", "update", "delete", "moveInto"],
+  playlists: ["list", "tracks", "containing", "create", "update", "copyAsManual", "delete", "addTracks", "removeTrack", "moveTrack", "playOrders", "setPlayOrder", "clearPlayOrder", "setNormalise", "trackOrders", "setTrackOrder", "clearTrackOrder", "addDivider", "renameDivider", "removeDivider", "moveItem"],
+  boards: ["list", "create", "rename", "resize", "duplicate", "delete", "addPad", "updatePad", "duplicatePad", "movePad", "putAllBack", "deletePad", "setDivider", "setPadSteps"],
   campaigns: ["list", "get", "create", "update", "setOnHand", "usesOf", "setUses"],
-  sessions: ["create", "update", "move", "createScene", "updateScene", "moveScene", "duplicateScene", "deleteScene", "setSceneMusic", "setSceneAmbience", "setSceneBoards", "setTrackName", "setRepeatOne"],
+  sessions: ["create", "update", "move", "createScene", "updateScene", "moveScene", "duplicateScene", "deleteScene", "setSceneMusic", "setSceneAmbience", "setSceneBoards", "setTrackName", "setRepeatOne", "setSceneSteps"],
   profiles: ["overrides", "set", "clear"],
   import: ["start", "watchFolder", "findMissing", "planRelink", "applyRelink", "previewFound", "endRelinkPreview"],
   transfer: ["estimate", "save", "open", "bringIn", "movedReport"],
+  settings: ["get", "setCrossfade", "setShortcut", "resetShortcuts", "setNextSceneGuard", "setComputer"],
   history: ["state", "undo", "redo"],
 } as const satisfies { [A in Exclude<keyof LyreApi, "subscribe">]: readonly (keyof LyreApi[A])[] };

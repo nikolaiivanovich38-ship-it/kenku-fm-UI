@@ -28,6 +28,7 @@ const PARTS_OF: Record<LyreArea, Part[]> = {
   // The audio host never reads the loudness peaks (the wave does, through useTrackPeaks), but the same job measures
   // each track's loudness (DAT-15), which its normalising gain needs.
   peaks: ["tracks"],
+  settings: [],
 };
 
 export class LibrarySnapshot implements LyreAudioLibrary {

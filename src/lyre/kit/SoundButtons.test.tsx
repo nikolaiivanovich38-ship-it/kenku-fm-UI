@@ -11,8 +11,8 @@ import { AnnouncerProvider } from "../shell/Announcer";
 import { expectNoAxeViolations } from "../test/axe";
 import { PlayOnAirButton, PreviewButton, previewKeyOf, type SoundTarget } from "./SoundButtons";
 
-const pad = (id: string, label: string) => ({ id, label, sound: { kind: "none" } as never, mode: "oneshot" as const, key: "", color: "steel" as const, icon: "star", volume: 1, fadeOutMs: 0, aside: false });
-const board: PadBoard = { id: "combat", name: "Combat", cols: 2, rows: 1, slots: [null, pad("sword", "Sword")], spare: [] };
+const pad = (id: string, label: string) => ({ id, label, sound: { kind: "none" } as never, mode: "oneshot" as const, key: "", color: "steel" as const, icon: "star", volume: 1, fadeOutMs: 0, aside: false, steps: null as null });
+const board: PadBoard = { id: "combat", name: "Combat", cols: 2, rows: 1, slots: [null, pad("sword", "Sword")], spare: [], dividers: [], folderId: null };
 
 function show(ui: React.ReactNode, audio = new FakeLyreAudio()) {
   render(
