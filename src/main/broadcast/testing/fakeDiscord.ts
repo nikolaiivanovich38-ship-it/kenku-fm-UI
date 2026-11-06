@@ -61,8 +61,13 @@ type ChannelSpec = {
  */
 export interface FakeWorld {
   guilds: { id: string; name: string; channels: (Omit<ChannelSpec, "type" | "guildId"> & { type?: ChannelType })[] }[];
-  /** Bot names by token. */
+  /** Bot names by token. A token named here logs in even if it does not start with "fake-" (the specs paste tokens). */
   usernames?: Record<string, string>;
+  /**
+   * OUT-8: tokens of bots not invited to any server yet: they see no server until Lyre opens an invite (the
+   * driver's inviteOpened), as a bot does before someone with Manage Server authorises it.
+   */
+  notInvited?: string[];
 }
 
 const TEST_WORLD: FakeWorld = { guilds: [{ id: FAKE_GUILD_ID, name: "Test Server", channels: Object.values(FAKE_CHANNELS) }] };
@@ -233,7 +238,7 @@ export class FakeClient extends EventEmitter {
     if (this.discord.networkDown) {
       throw new Error("getaddrinfo ENOTFOUND discord.com");
     }
-    if (!token.startsWith("fake-")) {
+    if (!token.startsWith("fake-") && !this.discord.usernameFor(token)) {
       throw new Error("An invalid token was provided.");
     }
     const number = this.discord.clients.indexOf(this) + 1;
@@ -255,7 +260,7 @@ export class FakeClient extends EventEmitter {
     const discord = this.discord;
     return {
       fetch: async () =>
-        new FakeCollection(discord.world.guilds.map((g): [string, { id: string; fetch: () => Promise<ReturnType<FakeDiscord["guild"]>> }] => [g.id, { id: g.id, fetch: async () => discord.guild(g.id) }])),
+        new FakeCollection((discord.invited(this.token.value) ? discord.world.guilds : []).map((g): [string, { id: string; fetch: () => Promise<ReturnType<FakeDiscord["guild"]>> }] => [g.id, { id: g.id, fetch: async () => discord.guild(g.id) }])),
     };
   }
 
@@ -295,8 +300,15 @@ export class FakeDiscord {
     const world = options.world ?? TEST_WORLD;
     this.world = {
       usernames: world.usernames,
+      notInvited: world.notInvited,
       guilds: world.guilds.map((g) => ({ ...g, channels: g.channels.map((c) => ({ ...c, members: [...(c.members ?? [])] })) })),
     };
+  }
+
+  /** OUT-8: an invite was opened: bots not invited so far are now in the servers (the fake cannot tell which). */
+  private admitted = false;
+  invited(token: string | null | undefined): boolean {
+    return this.admitted || !token || !(this.world.notInvited ?? []).includes(token);
   }
 
   /** The Discord name of the bot that logs in with this token, if the world names it. */
@@ -323,6 +335,9 @@ export class FakeDiscord {
 
   readonly driver: DiscordDriver = {
     createClient: () => new FakeClient(this) as unknown as Client,
+    inviteOpened: () => {
+      this.admitted = true;
+    },
     joinVoiceChannel: (options) => {
       const group = options.group ?? "default";
       const existing = this.connections.find(

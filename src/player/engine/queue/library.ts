@@ -15,6 +15,8 @@ import type {
   DomainTrack,
   PlayOrderOverrides,
   ProfileOverrides,
+  RepeatOnes,
+  TrackOrders,
 } from "../../../common/domain";
 import { DEFAULT_LIBRARY_NORMALISE, type LibraryNormalise } from "../../../common/domain";
 import type { MediaRequest } from "../sources/sourceLoader";
@@ -55,6 +57,10 @@ export interface ShowLibrary extends DomainLookup {
   playOrders?(): PlayOrderOverrides;
   /** PLY-15: the library's Normalise volume setting; none: off (every track plays as it is unless it says On). */
   normaliseSettings?(): LibraryNormalise;
+  /** ORG-13: a playlist's track order chosen in places, by place key then playlist id; none: its own order. */
+  trackOrders?(): TrackOrders;
+  /** PLY-17: Repeat one saved on scenes' tracks, by scene key; none: no track repeats by itself. */
+  repeatOnes?(): RepeatOnes;
 }
 
 /** A library as plain data, for tests and the test hook. */
@@ -66,6 +72,8 @@ export interface ShowData {
   pads?: (PadSound & { boardId: string; padId: string })[];
   playOrders?: PlayOrderOverrides;
   normalise?: LibraryNormalise;
+  trackOrders?: TrackOrders;
+  repeatOnes?: RepeatOnes;
 }
 
 /** Reads `data` on every call, so a test can change it while things play (e.g. delete a track). */
@@ -87,6 +95,8 @@ export function staticLibrary(data: ShowData): ShowLibrary {
     pad: (boardId, padId) => data.pads?.find((p) => p.boardId === boardId && p.padId === padId),
     playOrders: () => data.playOrders ?? {},
     normaliseSettings: () => data.normalise ?? DEFAULT_LIBRARY_NORMALISE,
+    trackOrders: () => data.trackOrders ?? {},
+    repeatOnes: () => data.repeatOnes ?? {},
   };
 }
 

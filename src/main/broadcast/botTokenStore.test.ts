@@ -45,7 +45,7 @@ describe("BotTokenStore (SEC-5)", () => {
     expect(allWritten()).not.toContain(TOKEN);
 
     const reopened = new BotTokenStore(file, fakeSafeStorage());
-    expect(reopened.list()).toEqual([{ id, name: "Bot 1", hasToken: true, tokenRemembered: true }]);
+    expect(reopened.list()).toEqual([{ id, name: "Bot 1", hasToken: true, tokenRemembered: true, tokenEnd: "6789", applicationId: null }]);
     expect(reopened.token(id)).toBe(TOKEN);
   });
 
@@ -152,4 +152,48 @@ describe("BotTokenStore (SEC-5)", () => {
       expect(fs.existsSync(`${file}.tmp`)).toBe(false);
     },
   );
+});
+
+describe("BotTokenStore: Settings in Lyre (OUT-8)", () => {
+  it("keeps a bot's name and Application ID across restarts, and the last four characters of its token", () => {
+    const store = new BotTokenStore(file, fakeSafeStorage());
+    const id = store.addBot();
+    store.setToken(id, TOKEN);
+    expect(store.rename(id, "  Lyre Table  ")).toBe(true);
+    store.setApplicationId(id, "123456789012345678");
+    const again = new BotTokenStore(file, fakeSafeStorage());
+    expect(again.list()).toEqual([{ id, name: "Lyre Table", hasToken: true, tokenRemembered: true, tokenEnd: "6789", applicationId: "123456789012345678" }]);
+    expect(allWritten()).not.toContain(TOKEN);
+    expect(allWritten()).not.toContain("6789\"");
+    store.setApplicationId(id, null);
+    expect(new BotTokenStore(file, fakeSafeStorage()).list()[0].applicationId).toBeNull();
+    expect(store.rename(id, "   ")).toBe(false);
+    expect(store.rename("bot-nope", "X")).toBe(false);
+  });
+
+  it("takes a bot out with its encrypted token and puts it back where it was (Remove's Undo)", () => {
+    const store = new BotTokenStore(file, fakeSafeStorage());
+    const a = store.addBot();
+    const b = store.addBot();
+    store.setToken(b, TOKEN);
+    store.setApplicationId(b, "123456789012345678");
+    const removed = store.takeOut(b)!;
+    expect(store.list().map((x) => x.id)).toEqual([a]);
+    expect(JSON.stringify(removed)).not.toContain(TOKEN);
+    store.putBack(removed);
+    expect(store.list().map((x) => x.id)).toEqual([a, b]);
+    expect(store.token(b)).toBe(TOKEN);
+    expect(new BotTokenStore(file, fakeSafeStorage()).list()[1]).toMatchObject({ id: b, hasToken: true, applicationId: "123456789012345678" });
+    expect(store.takeOut("bot-nope")).toBeNull();
+  });
+
+  it("keeps a token for this session only where nothing can encrypt it, and still knows its last four characters", () => {
+    const store = new BotTokenStore(file, fakeSafeStorage({ isEncryptionAvailable: () => false }));
+    const id = store.addBot();
+    store.setToken(id, TOKEN);
+    expect(store.list()[0]).toMatchObject({ hasToken: true, tokenRemembered: false, tokenEnd: "6789" });
+    const removed = store.takeOut(id)!;
+    store.putBack(removed);
+    expect(store.token(id)).toBe(TOKEN);
+  });
 });

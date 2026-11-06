@@ -144,6 +144,7 @@ export function sampleSharedLibrary(seed: SeedData): LyreFileLibrary {
     campaigns: [campaign],
     overrides: {},
     playOrders: {},
+    trackOrders: {},
   };
 }
 

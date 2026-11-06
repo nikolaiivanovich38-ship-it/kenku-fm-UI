@@ -605,3 +605,77 @@ describe("Voice connection edge cases (WP1 review)", () => {
     expect(m.active).toBe(false);
   });
 });
+
+describe("OutputManager: Settings in Lyre (OUT-8)", () => {
+  const NEW_TOKEN = "fake-new.bot-part.abcd";
+
+  it("adds a bot with its token and Application ID, logs it in, and shows only the token's last four characters", async () => {
+    const m = newManager();
+    const result = m.addBotWithToken(` ${NEW_TOKEN} `, "123456789012345678");
+    expect(result).toEqual({ ok: true, botId: expect.stringMatching(/^bot-/) });
+    await settle();
+    const bot = m.state().bots.find((b) => result.ok && b.id === result.botId)!;
+    expect(bot).toMatchObject({ status: "ready", hasToken: true, tokenEnd: "abcd", applicationId: "123456789012345678" });
+    expect(JSON.stringify(m.state())).not.toContain("bot-part");
+  });
+
+  it("refuses a token or Application ID that cannot be right, in plain words, and adds nothing", () => {
+    const m = newManager();
+    const before = m.state().bots.length;
+    expect(m.addBotWithToken("not a token", null)).toEqual({ ok: false, message: expect.stringContaining("Bot › Reset Token › Copy") });
+    expect(m.addBotWithToken(NEW_TOKEN, "12")).toEqual({ ok: false, message: expect.stringContaining("General Information › Application ID") });
+    expect(m.state().bots.length).toBe(before);
+  });
+
+  it("Replace… takes a new token and logs in with it; Rename and the Application ID are kept", async () => {
+    const m = newManager();
+    const id = await connectedBot(m);
+    expect(m.replaceToken(id, "fake-other.part.wxyz")).toEqual({ ok: true, botId: id });
+    await settle();
+    expect(m.state().bots[0]).toMatchObject({ status: "ready", tokenEnd: "wxyz" });
+    expect(m.renameBot(id, "Lyre Table")).toEqual({ ok: true, botId: id });
+    expect(m.state().bots[0].name).toBe("Lyre Table");
+    expect(m.renameBot(id, "  ")).toEqual({ ok: false, message: "Give the bot a name." });
+    expect(m.setApplicationId(id, "123456789012345678")).toEqual({ ok: true, botId: id });
+    expect(m.setApplicationId(id, null)).toEqual({ ok: true, botId: id });
+    expect(m.state().bots[0].applicationId).toBeUndefined();
+    expect(m.replaceToken("bot-nope", "fake-other.part.wxyz")).toEqual({ ok: false, message: "That bot is no longer in Lyre." });
+  });
+
+  it("Remove takes a bot out; its Undo puts it back as it was, logged in and in its voice channel; the last bot stays", async () => {
+    const m = newManager();
+    const first = await connectedBot(m);
+    const second = await connectedBot(m, "fake-second.bot.efgh");
+    await m.moveBot(second, FAKE_CHANNELS.tavern.id);
+    await settle();
+    expect(m.removeBotForUndo(second)).toEqual({ ok: true, botId: second });
+    await settle();
+    expect(m.state().bots.map((b) => b.id)).toEqual([first]);
+    expect(m.rooms()).toEqual([]);
+    expect(m.restoreBot(second)).toEqual({ ok: true, botId: second });
+    await settle(80);
+    expect(m.state().bots.map((b) => b.id)).toEqual([first, second]);
+    expect(m.state().bots[1]).toMatchObject({ status: "ready", tokenEnd: "efgh" });
+    expect(m.rooms().map((r) => r.botId)).toEqual([second]);
+    expect(m.restoreBot(second)).toEqual({ ok: false, message: "There is nothing to put back." });
+    m.removeBotForUndo(second);
+    expect(m.removeBotForUndo(first)).toEqual({ ok: false, message: "Lyre needs one bot at least: replace its token instead." });
+  });
+
+  it("an invite opened in a test build lets the fake Discord admit the new bot (the specs' Add a bot)", async () => {
+    discord = new FakeDiscord({ world: { guilds: [{ id: "1001", name: "The Gull and Lantern", channels: [{ id: "1011", name: "Table" }] }], usernames: { [NEW_TOKEN]: "Lyre Third" }, notInvited: [NEW_TOKEN] } });
+    const m = newManager();
+    const a = m.addBotWithToken(NEW_TOKEN, "123456789012345678");
+    await settle();
+    expect(m.state().bots.find((b) => a.ok && b.id === a.botId)!.guilds).toEqual([]);
+    expect(m.inviteOpenedByDriver("123456789012345678")).toBe(true);
+    const b = m.addBotWithToken(NEW_TOKEN, "123456789012345678");
+    await settle();
+    expect(m.state().bots.find((x) => b.ok && x.id === b.botId)).toMatchObject({ discordName: "Lyre Third", guilds: [expect.objectContaining({ name: "The Gull and Lantern" })] });
+    // The real Discord driver has no such hook: the invite opens in the browser instead (lyreOutputsBridge).
+    m.destroy();
+    fakeIpcMain.reset();
+    manager = new OutputManager(window as never, new BotTokenStore(BotTokenStore.fileIn(folder), safeStorage), { createClient: discord.driver.createClient, joinVoiceChannel: discord.driver.joinVoiceChannel });
+    expect(manager.inviteOpenedByDriver("123456789012345678")).toBe(false);
+  });
+});

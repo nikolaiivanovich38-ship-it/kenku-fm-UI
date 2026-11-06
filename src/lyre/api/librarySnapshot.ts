@@ -4,12 +4,14 @@
  * once, answers from memory, and reloads the parts a "changed" event names. Give it to the host with
  * `audio.setLibrary(snapshot)`, and again from `snapshot.subscribe` so now-playing titles follow renames.
  */
-import { DEFAULT_LIBRARY_NORMALISE, isFx, type DomainPlaylist, type DomainScene, type DomainTrack, type LibraryNormalise, type PlayOrderOverrides, type ProfileOverrides } from "../../common/domain";
+import { DEFAULT_LIBRARY_NORMALISE, isFx, type DomainPlaylist, type DomainScene, type DomainTrack, type LibraryNormalise, type PlayOrderOverrides, type ProfileOverrides, type RepeatOnes, type TrackOrders } from "../../common/domain";
+import { repeatOnesOf } from "../../common/lyre/lookup";
 import type { CampaignInfo, LibraryTrack, LyreApi, LyreArea, PadBoard, PlaylistInfo, Pad } from "../../common/lyre/api";
 import type { MediaRequest } from "../../player/engine/sources/sourceLoader";
 import type { LyreAudioLibrary, LyrePad, SceneRef } from "../audio/lyreAudio";
 
-type Part = "tracks" | "playlists" | "campaigns" | "boards" | "overrides" | "playOrders" | "normalise";
+type Part = "tracks" | "playlists" | "campaigns" | "boards" | "overrides" | "playOrders" | "trackOrders" | "normalise";
+const ALL_PARTS: Part[] = ["tracks", "playlists", "campaigns", "boards", "overrides", "playOrders", "trackOrders", "normalise"];
 
 /** Which parts each changed area makes stale. Tags change tracks (their tag values) and pads that play by tag. */
 const PARTS_OF: Record<LyreArea, Part[]> = {
@@ -17,8 +19,8 @@ const PARTS_OF: Record<LyreArea, Part[]> = {
   tracks: ["tracks", "normalise"],
   tags: ["tracks"],
   folders: [],
-  // PLY-13: play orders chosen in places belong to the playlists area.
-  playlists: ["playlists", "playOrders"],
+  // PLY-13, ORG-13: play orders and track orders chosen in places belong to the playlists area.
+  playlists: ["playlists", "playOrders", "trackOrders"],
   boards: ["boards"],
   campaigns: ["campaigns"],
   profiles: ["overrides"],
@@ -36,9 +38,12 @@ export class LibrarySnapshot implements LyreAudioLibrary {
   private boards: PadBoard[] = [];
   private overrides: ProfileOverrides = {};
   private orders: PlayOrderOverrides = {};
+  private placeOrders: TrackOrders = {};
+  /** PLY-17: from the campaign trees (SceneInfo.repeatOnes). */
+  private ones: RepeatOnes = {};
   private normalise: LibraryNormalise = { ...DEFAULT_LIBRARY_NORMALISE };
   /** The newest request per part: an older answer arriving later is dropped. */
-  private readonly asked: Record<Part, number> = { tracks: 0, playlists: 0, campaigns: 0, boards: 0, overrides: 0, playOrders: 0, normalise: 0 };
+  private readonly asked: Record<Part, number> = { tracks: 0, playlists: 0, campaigns: 0, boards: 0, overrides: 0, playOrders: 0, trackOrders: 0, normalise: 0 };
   private readonly listeners = new Set<() => void>();
   private readonly stopEvents: () => void;
   private disposed = false;
@@ -54,7 +59,7 @@ export class LibrarySnapshot implements LyreAudioLibrary {
   /** Loads everything once; resolves when the snapshot can answer. */
   static async load(api: LyreApi): Promise<LibrarySnapshot> {
     const snapshot = new LibrarySnapshot(api);
-    await Promise.all((["tracks", "playlists", "campaigns", "boards", "overrides", "playOrders", "normalise"] as Part[]).map((part) => snapshot.reload(part)));
+    await Promise.all(ALL_PARTS.map((part) => snapshot.reload(part)));
     return snapshot;
   }
 
@@ -106,6 +111,14 @@ export class LibrarySnapshot implements LyreAudioLibrary {
     return this.normalise;
   }
 
+  trackOrders(): TrackOrders {
+    return this.placeOrders;
+  }
+
+  repeatOnes(): RepeatOnes {
+    return this.ones;
+  }
+
   media(track: DomainTrack): MediaRequest | null {
     const known = this.trackById.get(track.id);
     if (!known?.url) return null;
@@ -146,6 +159,8 @@ export class LibrarySnapshot implements LyreAudioLibrary {
         return this.api.profiles.overrides();
       case "playOrders":
         return this.api.playlists.playOrders();
+      case "trackOrders":
+        return this.api.playlists.trackOrders();
       case "normalise":
         return this.api.library.normaliseSettings();
     }
@@ -162,6 +177,7 @@ export class LibrarySnapshot implements LyreAudioLibrary {
         break;
       case "campaigns":
         this.campaigns = answer as CampaignInfo[];
+        this.ones = repeatOnesOf(this.campaigns);
         break;
       case "boards":
         this.boards = answer as PadBoard[];
@@ -171,6 +187,9 @@ export class LibrarySnapshot implements LyreAudioLibrary {
         break;
       case "playOrders":
         this.orders = answer as PlayOrderOverrides;
+        break;
+      case "trackOrders":
+        this.placeOrders = answer as TrackOrders;
         break;
       case "normalise":
         this.normalise = answer as LibraryNormalise;

@@ -25,6 +25,7 @@ import {
   optional,
 } from "./ipcArgs";
 import { isLyreMethod } from "../../common/lyre/rpc";
+import { isApplicationId } from "../../common/lyreOutputs";
 import type { AppPageRole } from "./permissions";
 
 export interface IpcChannelRule {
@@ -74,6 +75,11 @@ const isOutputId: ArgCheck = (value) => value === "local" || isBotId(value);
 const isDiscordId: ArgCheck = (value) => typeof value === "string" && /^\d{1,25}$/.test(value);
 /** A bot token: non-empty text, at most MAX_SHORT_TEXT (real ones are ~70 characters). */
 const isBotToken: ArgCheck = (value) => isShortText(value) && (value as string).trim() !== "";
+// --- w6-contracts ---
+/** OUT-8: an Application ID (a Discord id, digits only: isApplicationId), the only part of an invite the page sends. */
+const isApplicationIdArg: ArgCheck = (value) => isApplicationId(value);
+/** OUT-8: an Application ID as typed (trimmed by the main process, which answers a wrong one in words), or null. */
+const isApplicationIdOrNull: ArgCheck = (value) => value === null || (typeof value === "string" && value.length <= 40 && /^\s*\d*\s*$/.test(value));
 
 // --- Rooms and buses ---
 /** A volume: a finite number from 0 to 1. */
@@ -249,6 +255,22 @@ export const IPC_CHANNELS = {
   // shows the last saved file in its folder. Neither takes an argument: the page never names a path.
   LYRE_DIAGNOSTICS_SAVE: { from: ["lyre-view"], args: noArgs },
   LYRE_DIAGNOSTICS_SHOW: { from: ["lyre-view"], args: noArgs },
+
+  // --- w6-contracts ---
+  // OUT-8 (src/main/broadcast/lyreOutputsBridge.ts): Settings in Lyre. ADD (invoke): a token and an Application ID or
+  // null; SET_TOKEN, RENAME, SET_APP_ID, REMOVE, RESTORE (invoke): one bot by its id, then a token, a name or an
+  // Application ID (or null); each answers { ok, botId } or { ok: false, message } (the main process checks a token's
+  // and an Application ID's shape in plain words). CONNECT, DISCONNECT (send): one bot. OPEN_INVITE (send): an
+  // Application ID; the main process makes the invite address itself. No channel sends a token back (SEC-5).
+  LYRE_BOT_ADD: { from: ["lyre-view"], args: argsMatch(isBotToken, isApplicationIdOrNull) },
+  LYRE_BOT_SET_TOKEN: { from: ["lyre-view"], args: argsMatch(isBotId, isBotToken) },
+  LYRE_BOT_RENAME: { from: ["lyre-view"], args: argsMatch(isBotId, isStringUpTo(200)) },
+  LYRE_BOT_SET_APP_ID: { from: ["lyre-view"], args: argsMatch(isBotId, isApplicationIdOrNull) },
+  LYRE_BOT_REMOVE: { from: ["lyre-view"], args: argsMatch(isBotId) },
+  LYRE_BOT_RESTORE: { from: ["lyre-view"], args: argsMatch(isBotId) },
+  LYRE_BOT_CONNECT: { from: ["lyre-view"], args: argsMatch(isBotId) },
+  LYRE_BOT_DISCONNECT: { from: ["lyre-view"], args: argsMatch(isBotId) },
+  LYRE_BOT_OPEN_INVITE: { from: ["lyre-view"], args: argsMatch(isApplicationIdArg) },
 } satisfies Record<string, IpcChannelRule>;
 
 export type IpcChannel = keyof typeof IPC_CHANNELS;

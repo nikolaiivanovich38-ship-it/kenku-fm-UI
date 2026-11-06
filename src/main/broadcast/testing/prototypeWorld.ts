@@ -28,13 +28,22 @@ export const PROTOTYPE_WORLD: FakeWorld = {
       ],
     },
   ],
-  usernames: { "fake-lyre-table": "Lyre Table", "fake-lyre-side": "Lyre Side" },
+  // OUT-8 (round 6 specs, e2e/specs/settings.spec.ts): the tokens end as the prototype shows them (Kq7w, p3Zd); the
+  // specs' new bot "Lyre Third" and Lyre Side's replaced token log in too, and the new bot is in no server until an
+  // invite is opened (testing/fakeDiscord.ts notInvited).
+  usernames: {
+    "fake-lyre-table.prototype.Kq7w": "Lyre Table",
+    "fake-lyre-side.prototype.p3Zd": "Lyre Side",
+    "MTAx.new-bot.abcd": "Lyre Third",
+    "MTAx.secret-part.wxyz": "Lyre Side",
+  },
+  notInvited: ["MTAx.new-bot.abcd"],
 };
 
 /** The prototype's bots, in order: their token, the channel the first starts in, and their volume (85 %). */
 const BOTS: readonly { token: string; startsIn: string | null }[] = [
-  { token: "fake-lyre-table", startsIn: "1011" },
-  { token: "fake-lyre-side", startsIn: null },
+  { token: "fake-lyre-table.prototype.Kq7w", startsIn: "1011" },
+  { token: "fake-lyre-side.prototype.p3Zd", startsIn: null },
 ];
 const VOLUME = 0.85;
 

@@ -45,6 +45,19 @@ describe("LibrarySnapshot", () => {
     await vi.waitFor(() => expect(library.track("t43").loudness).not.toBeNull());
   });
 
+  it("PLY-17, ORG-13: has the scenes' saved Repeat ones and the playlists' track orders per place, and follows their changes", async () => {
+    const api = createFakeLyreApi();
+    const library = await LibrarySnapshot.load(api);
+    expect(library.repeatOnes()).toEqual({});
+    expect(library.trackOrders()).toEqual({});
+    const scene = { campaignId: "crown", sessionId: "s14", sceneId: "sc3" };
+    await api.sessions.setRepeatOne(scene, "t13", true);
+    const own = await api.playlists.tracks("p-abbess");
+    await api.playlists.setTrackOrder("p-abbess", { kind: "scene", ...scene }, [...own].reverse());
+    await vi.waitFor(() => expect(library.repeatOnes()).toEqual({ "sc:crown:s14:sc3": ["t13"] }));
+    await vi.waitFor(() => expect(library.trackOrders()).toEqual({ "sc:crown:s14:sc3": { "p-abbess": [...own].reverse() } }));
+  });
+
   it("a pad that plays any effect with a tag plays every FX track with that tag", async () => {
     const api = createFakeLyreApi();
     await api.boards.updatePad("court", "glass", { sound: { kind: "tag", tag: { group: "mood", value: "Dread" } } });

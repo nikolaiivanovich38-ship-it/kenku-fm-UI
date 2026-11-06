@@ -2,18 +2,28 @@
  * w4-outputs: outputs for screen tests, on the prototype's Discord (design/prototype/src/data.js): two servers, six
  * voice channels with their people, Lyre Table in Table and Lyre Side in no room, both at 85 %. A move joins
  * ("joining") and connects a moment later, as Discord does; `settle()` waits for that. Every call is recorded.
+ * OUT-8: Settings' calls work in memory as the prototype's settings.js does: a new bot is named "Lyre Third" and
+ * so on, and is in no server until an invite was opened (then in The Gull and Lantern); tokens show their last four.
  */
-import type { LyreBot, LyreOutputs } from "../../../common/lyreOutputs";
+import { applicationIdProblem, botInviteUrl, tokenProblem, type LyreBot, type LyreBotResult, type LyreOutputs } from "../../../common/lyreOutputs";
 import type { OutputsClient } from "../OutputsProvider";
 
 export const TABLE_BOT = "bot-00000000-0000-4000-8000-000000000001";
 export const SIDE_BOT = "bot-00000000-0000-4000-8000-000000000002";
 
+/** What Settings shows of a prototype bot: its own name, its token's end, no Application ID yet. */
+function settings(savedName: string, tokenEnd: string): Pick<LyreBot, "savedName" | "tokenEnd" | "tokenRemembered" | "applicationId" | "inviteUrl" | "canRemove"> {
+  return { savedName, tokenEnd, tokenRemembered: true, applicationId: null, inviteUrl: null, canRemove: true };
+}
+
+const NEW_NAMES = ["Lyre Third", "Lyre Fourth", "Lyre Fifth", "Lyre Sixth"];
+
 export const PROTOTYPE_OUTPUTS: LyreOutputs = {
   bots: [
-    { id: TABLE_BOT, name: "Lyre Table", login: "ready", room: { serverId: "1001", channelId: "1011", status: "connected" }, muted: false, volume: 0.85, serverIds: ["1001", "1002"] },
-    { id: SIDE_BOT, name: "Lyre Side", login: "ready", room: null, muted: false, volume: 0.85, serverIds: ["1001", "1002"] },
+    { id: TABLE_BOT, name: "Lyre Table", ...settings("Bot 1", "Kq7w"), login: "ready", room: { serverId: "1001", channelId: "1011", status: "connected" }, muted: false, volume: 0.85, serverIds: ["1001", "1002"] },
+    { id: SIDE_BOT, name: "Lyre Side", ...settings("Bot 2", "p3Zd"), login: "ready", room: null, muted: false, volume: 0.85, serverIds: ["1001", "1002"] },
   ],
+  encryption: true,
   servers: [
     {
       id: "1001",
@@ -98,6 +108,90 @@ export class FakeOutputs implements OutputsClient {
 
   retry(botId: string): void {
     this.calls.push(["retry", botId]);
+  }
+
+  private invited = false;
+  private removed = new Map<string, { bot: LyreBot; index: number }>();
+  private made = 0;
+
+  async addBot(token: string, applicationId: string | null): Promise<LyreBotResult> {
+    this.calls.push(["addBot", token.slice(-4), applicationId]);
+    const problem = tokenProblem(token) ?? (applicationId === null ? null : applicationIdProblem(applicationId));
+    if (problem) return { ok: false, message: problem };
+    const id = `bot-fake-${++this.made}`;
+    const appId = applicationId?.trim() || null;
+    const bot: LyreBot = {
+      id, name: NEW_NAMES[this.made - 1] ?? `Lyre ${this.made + 2}`, savedName: `Bot ${this.state.bots.length + 1}`, tokenEnd: token.trim().slice(-4), tokenRemembered: true,
+      applicationId: appId, inviteUrl: appId ? botInviteUrl(appId) : null, canRemove: true, login: "ready", room: null, muted: false, volume: 0.85, serverIds: this.invited ? ["1001"] : [],
+    };
+    this.push(this.withRemovable([...this.state.bots, bot]));
+    return { ok: true, botId: id };
+  }
+
+  async replaceToken(botId: string, token: string): Promise<LyreBotResult> {
+    this.calls.push(["replaceToken", botId, token.slice(-4)]);
+    if (!this.bot(botId)) return { ok: false, message: "That bot is no longer in Lyre." };
+    const problem = tokenProblem(token);
+    if (problem) return { ok: false, message: problem };
+    this.change(botId, { tokenEnd: token.trim().slice(-4), login: "ready" });
+    return { ok: true, botId };
+  }
+
+  async rename(botId: string, name: string): Promise<LyreBotResult> {
+    this.calls.push(["rename", botId, name]);
+    if (!name.trim()) return { ok: false, message: "Give the bot a name." };
+    this.change(botId, { savedName: name.trim() });
+    return { ok: true, botId };
+  }
+
+  async setApplicationId(botId: string, applicationId: string | null): Promise<LyreBotResult> {
+    this.calls.push(["setApplicationId", botId, applicationId]);
+    const problem = applicationId === null ? null : applicationIdProblem(applicationId);
+    if (problem) return { ok: false, message: problem };
+    const appId = applicationId?.trim() || null;
+    this.change(botId, { applicationId: appId, inviteUrl: appId ? botInviteUrl(appId) : null });
+    return { ok: true, botId };
+  }
+
+  async remove(botId: string): Promise<LyreBotResult> {
+    this.calls.push(["remove", botId]);
+    const index = this.state.bots.findIndex((b) => b.id === botId);
+    if (index < 0) return { ok: false, message: "That bot is no longer in Lyre." };
+    if (this.state.bots.length <= 1) return { ok: false, message: "Lyre needs one bot at least: replace its token instead." };
+    this.removed.set(botId, { bot: this.state.bots[index], index });
+    this.push(this.withRemovable(this.state.bots.filter((b) => b.id !== botId)));
+    return { ok: true, botId };
+  }
+
+  async restore(botId: string): Promise<LyreBotResult> {
+    this.calls.push(["restore", botId]);
+    const kept = this.removed.get(botId);
+    if (!kept) return { ok: false, message: "There is nothing to put back." };
+    this.removed.delete(botId);
+    const bots = [...this.state.bots];
+    bots.splice(kept.index, 0, kept.bot);
+    this.push(this.withRemovable(bots));
+    return { ok: true, botId };
+  }
+
+  connect(botId: string): void {
+    this.calls.push(["connect", botId]);
+    this.change(botId, { login: "ready" });
+  }
+
+  disconnect(botId: string): void {
+    this.calls.push(["disconnect", botId]);
+    this.change(botId, { login: "offline", room: null });
+  }
+
+  /** As the test builds' Discord: an invite opened lets new bots into The Gull and Lantern. */
+  openInvite(applicationId: string): void {
+    this.calls.push(["openInvite", applicationId]);
+    this.invited = true;
+  }
+
+  private withRemovable(bots: LyreBot[]): LyreOutputs {
+    return { ...this.state, bots: bots.map((b) => ({ ...b, canRemove: bots.length > 1 })) };
   }
 
   /** Wait until every join so far has connected. */

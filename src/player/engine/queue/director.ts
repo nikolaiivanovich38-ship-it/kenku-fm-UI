@@ -14,15 +14,20 @@
  */
 import { TypedEmitter } from "tiny-typed-emitter";
 
-import { roomsFor, sceneRoom } from "../../../common/domain";
-import type { RoomTarget, UsePlace } from "../../../common/domain";
+import { keyOfPlace, roomsFor, sceneRoom } from "../../../common/domain";
+import type { Repeat, RoomRepeat, RoomTarget, UpNextRef, UsePlace } from "../../../common/domain";
 import type { PlaybackEngine } from "../engine";
 import type { RoomsAudio } from "../rooms.contract";
 import { CueAction, CueOutcome, DEFAULT_FADES, TrackFrom } from "./actions";
 import type { ShowLibrary } from "./library";
 import { Playing, playlistItem, sceneItem, sequenceOf, single } from "./nowPlaying";
 import type { Random } from "./queue";
-import { RoomPlayer, RoomReport, RoomSnapshot } from "./roomPlayer";
+import { RoomPlayer, RoomReport, RoomSnapshot, type ListEntry } from "./roomPlayer";
+
+/** PLY-16: what Play next and Add to queue take: a track (from where it was picked) or a whole playlist. */
+export type ListWhat =
+  | { kind: "track"; trackId: string; from?: TrackFrom; name?: string }
+  | { kind: "playlist"; playlistId: string; place?: UsePlace | null; name?: string };
 
 interface DirectorEvents {
   /** What a room plays changed; read `report()`. */
@@ -71,6 +76,87 @@ export class Director extends TypedEmitter<DirectorEvents> {
   libraryChanged(): void {
     for (const player of this.players.values()) player.refreshGains();
     this.emit("change");
+  }
+
+  // ---------- round 6: each room's running list and its Repeat (PLY-16, PLY-17) ----------
+
+  /** Play next (right after the current track) or Add to queue (after the bottom of the plan), in the target's rooms. */
+  addToList(how: "next" | "queue", what: ListWhat, target: RoomTarget): CueOutcome {
+    try {
+      const made = this.listEntry(what);
+      if (!("entry" in made)) return made;
+      return this.eachRoom(target, (player) => (player.addToList(how, made.entry, made.asPlan, DEFAULT_FADES.crossfade), OK));
+    } finally {
+      this.emit("change");
+    }
+  }
+
+  /** × in Up next, in one room. */
+  removeFromList(ref: UpNextRef, target: RoomTarget): CueOutcome {
+    return this.listChange(target, (player) => player.removeFromList(ref), "That is no longer in Up next.");
+  }
+
+  clearList(target: RoomTarget): CueOutcome {
+    return this.listChange(target, (player) => player.clearList(), "Nothing was added to clear.");
+  }
+
+  undoList(target: RoomTarget): CueOutcome {
+    return this.listChange(target, (player) => player.undoList(), "There is nothing in Up next to undo.");
+  }
+
+  /** PLY-17: the room's Repeat (null: what the music does by itself). */
+  setRepeat(repeat: RoomRepeat, target: RoomTarget): CueOutcome {
+    return this.listChange(target, (player) => (player.setRepeat(repeat), true), "");
+  }
+
+  cycleRepeat(target: RoomTarget): CueOutcome {
+    return this.listChange(target, (player) => (player.cycleRepeat(), true), "");
+  }
+
+  savedRepeatOneChanged(scene: { campaignId: string; sessionId: string; sceneId: string }, trackId: string): void {
+    const key = keyOfPlace({ kind: "scene", ...scene });
+    for (const player of this.players.values()) player.savedRepeatOneChanged(key, trackId);
+    this.emit("change");
+  }
+
+  /** Another session was loaded: every room's list is cleared. */
+  sessionLoaded(): void {
+    for (const player of this.players.values()) player.sessionLoaded();
+    this.emit("change");
+  }
+
+  /** What one Repeat shows now in a room (for an announcement). */
+  shownRepeat(roomId: string): Repeat {
+    return this.player(roomId).report("").repeat.shown;
+  }
+
+  private listChange(target: RoomTarget, act: (player: RoomPlayer) => boolean, failed: string): CueOutcome {
+    try {
+      return this.eachRoom(target, (player) => (act(player) ? OK : fail(failed)));
+    } finally {
+      this.emit("change");
+    }
+  }
+
+  /** A list entry for what was asked, and what plays as the plan in a room where nothing plays. */
+  private listEntry(what: ListWhat): { entry: ListEntry; asPlan: Playing } | CueOutcome {
+    if (what.kind === "track") {
+      const track = this.library.track(what.trackId);
+      if (!track) return fail("That track is no longer in the library.");
+      if (track.kind !== "music") return fail("Only music goes in Up next: play ambience and effects on their own.");
+      const asPlan = this.itemFor(what.trackId, what.from);
+      const place = what.from && "playlistId" in what.from ? (what.from.place ?? null) : null;
+      const name = what.name ?? (track.title || track.metaTitle || track.fileName);
+      return { entry: { trackIds: [what.trackId], playlistId: asPlan.playlistId, place, name }, asPlan };
+    }
+    const playlist = this.library.playlist(what.playlistId);
+    if (!playlist) return fail("That playlist is no longer there.");
+    if (playlist.lane !== "music") return fail("Only music goes in Up next: play ambience and effects on their own.");
+    const asPlan = playlistItem(what.playlistId, null, this.library, { place: what.place ?? undefined, seed: this.newSeed() });
+    if (!asPlan) return fail("This playlist has no tracks yet.");
+    // A queued playlist is one item with its tracks in its place's order (ORG-13), dealt as it would play there.
+    const trackIds = sequenceOf(asPlan.origin, this.library).map((step) => step.trackId);
+    return { entry: { trackIds, playlistId: what.playlistId, place: what.place ?? null, name: what.name ?? playlist.name }, asPlan };
   }
 
   /** Whether Undo of the last scene start is still possible. */
@@ -187,7 +273,12 @@ export class Director extends TypedEmitter<DirectorEvents> {
     if (playlist.lane === "amb") {
       return this.eachRoom(target, (player) => (player.playAmbience(item, fade), OK));
     }
-    return this.eachRoom(target, (player) => (when === "next" ? player.queueMusic(item, fade) : player.playMusic(item, fade), OK));
+    if (when === "next") {
+      const trackIds = sequenceOf(item.origin, this.library).map((step) => step.trackId);
+      const entry = { trackIds, playlistId, place: place ?? null, name: playlist.name };
+      return this.eachRoom(target, (player) => (player.addToList("next", entry, item, fade), OK));
+    }
+    return this.eachRoom(target, (player) => (player.playMusic(item, fade), OK));
   }
 
   /** The item for a track picked from a scene or a playlist; off script when it is not (or no longer) there. */

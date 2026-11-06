@@ -47,6 +47,9 @@ const room = (roomId: string, name: string, over: Partial<RoomNowPlaying> = {}):
   ambience: null,
   upNext: null,
   queued: [],
+  upNextList: [],
+  repeat: { chosen: null, shown: "off" },
+  canUndoUpNext: false,
   effects: [],
   ...over,
 });
