@@ -123,7 +123,7 @@ export function Contents({
     if (tracks.length === 0) return <p className="hint">No tracks yet{p.kind === "dynamic" ? ": no track matches its tags." : "."}</p>;
     const key = place === undefined ? `pl:${p.id}` : place;
     const where = key ? parseKeyOfPlace(key) : null;
-    if (where && key && (where.kind === "scene" || where.kind === "session")) return <PlaceTracks name={p.name} tracks={tracks} placeKey={key} />;
+    if (where && key && (where.kind === "scene" || where.kind === "session")) return <PlaceTracks name={p.name} playlistId={p.id} tracks={tracks} placeKey={key} />;
     return (
       <ol className="list" aria-label={`Tracks in ${p.name}`}>
         {tracks.map((t, i) => {
@@ -167,7 +167,7 @@ export function Contents({
 }
 
 /** A playlist's tracks in a scene or a session list (views/_shared.js contentsHTML with a scene's or session's key). */
-function PlaceTracks({ name, tracks, placeKey: key }: { name: string; tracks: ReturnType<LibraryIndex["tracksOf"]>; placeKey: string }) {
+function PlaceTracks({ name, playlistId, tracks, placeKey: key }: { name: string; playlistId: string; tracks: ReturnType<LibraryIndex["tracksOf"]>; placeKey: string }) {
   const groups = useTagGroups().data ?? [];
   const names = useTrackNames();
   const place = parseKeyOfPlace(key);
@@ -192,7 +192,7 @@ function PlaceTracks({ name, tracks, placeKey: key }: { name: string; tracks: Re
             >
               <Icon name="wave" size="s" />
             </a>
-            <PreviewButton target={{ kind: "track", id: t.id }} name={n.name} />
+            <PreviewButton target={{ kind: "track", id: t.id, playlistId }} name={n.name} />
           </li>
         );
       })}

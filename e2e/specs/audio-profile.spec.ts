@@ -266,7 +266,6 @@ test.describe("round 5: settings for the scene or session it was opened from, th
 
 /* Round 5, volume normalisation (design/prototype/ROUND5.md "Volume normalisation (PLY-15, DAT-15)"): built in wave 4. */
 test.describe("round 5: volume normalisation", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 5"));
 
   test("PLY-15: the header shows the loudness and the gain where these settings apply; a track's Off wins over its playlist's On", async ({ page }) => {
     await openRoute(page, "profile/t18/pl:p-ashen");

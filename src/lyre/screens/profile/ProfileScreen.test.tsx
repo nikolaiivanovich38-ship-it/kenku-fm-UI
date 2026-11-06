@@ -616,3 +616,24 @@ describe("round 5: opened from a scene or a session list (PLY-14), the name ther
     expect(screen.getByTitle("Shape: Peaks then falls (suggested from its loudness)")).toBeInTheDocument();
   });
 });
+
+describe("round 5: volume normalisation in the header (PLY-15)", () => {
+  it("shows the loudness and the gain where these settings apply, whose choice counts on hover, and changes the track's choice", async () => {
+    const { api, user } = await open("profile/t18/pl:p-ashen");
+    const norm = await screen.findByRole("group", { name: "Normalise volume" });
+    expect(within(norm).getByRole("button", { name: "Library setting" })).toHaveAttribute("aria-pressed", "true");
+    expect(norm).toHaveAccessibleDescription("-15.8 LUFS · -2.2 dB");
+    expect(screen.getByTitle("In the playlist Ashen King: the playlist's choice (On).")).toBeInTheDocument();
+    await user.click(within(norm).getByRole("button", { name: "Off" }));
+    await waitFor(async () => expect((await api.library.listTracks()).find((t) => t.id === "t18")?.normalise).toBe("off"));
+    await waitFor(() => expect(norm).toHaveAccessibleDescription("-15.8 LUFS · plays as it is"));
+  });
+
+  it("a track's own Off wins over its playlist's On", async () => {
+    await open("profile/t26/pl:p-ashen");
+    const norm = await screen.findByRole("group", { name: "Normalise volume" });
+    expect(within(norm).getByRole("button", { name: "Off" })).toHaveAttribute("aria-pressed", "true");
+    expect(norm).toHaveAccessibleDescription("-22.7 LUFS · plays as it is");
+    expect(screen.getByTitle("In the playlist Ashen King: this track's own choice.")).toBeInTheDocument();
+  });
+});

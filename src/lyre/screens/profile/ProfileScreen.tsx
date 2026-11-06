@@ -7,9 +7,10 @@
  */
 import React, { useRef } from "react";
 
-import { shapeFromPeaks } from "../../../common/domain";
+import { DEFAULT_LIBRARY_NORMALISE, normaliseLine, parsePlaceKey, shapeFromPeaks, type NormaliseChoice as Choice } from "../../../common/domain";
 import { isRefused } from "../../../common/lyre/api";
-import { useLyreApi } from "../../api";
+import { useLyreApi, useLyreQuery } from "../../api";
+import { NormaliseChoice, profileNormaliseHint } from "../../kit/NormaliseChoice";
 import { Button } from "../../kit/Button";
 import { Icon } from "../../kit/Icon";
 import { Pane } from "../../kit/Pane";
@@ -105,6 +106,45 @@ function SceneName({ editor }: { editor: ProfileEditor }) {
   );
 }
 
+/**
+ * PLY-15: the track's own normalising choice, with the loudness and gain where these settings apply: in the playlist
+ * that "Settings for" names, else the track on its own (profile.js normHTML). Whose choice counts is on hover.
+ */
+function Normalise({ editor }: { editor: ProfileEditor }) {
+  const api = useLyreApi();
+  const { say, toast } = useAnnounce();
+  const library = useLyreQuery("normalise-settings", (a) => a.library.normaliseSettings(), ["tracks"]).data ?? DEFAULT_LIBRARY_NORMALISE;
+  const { track, view, key } = editor;
+  const place = parsePlaceKey(key);
+  const playlist = place?.kind === "playlist" ? (view.playlists.find((p) => p.id === place.playlistId) ?? null) : null;
+  // The choice shows at once while the library keeps it.
+  const [chosen, setChosen] = React.useState<{ value: Choice | null } | null>(null);
+  React.useEffect(() => setChosen(null), [track.normalise]);
+  const value = chosen ? chosen.value : (track.normalise ?? null);
+  const shown = { ...track, normalise: value };
+  const change = async (next: Choice | null) => {
+    setChosen({ value: next });
+    const result = await api.library.setNormalise(track.id, next);
+    if (isRefused(result)) {
+      setChosen(null);
+      toast(result.refusal.message);
+      return;
+    }
+    say(`Normalise volume: ${normaliseLine({ ...track, normalise: next }, playlist, library)}`);
+  };
+  return (
+    <div className="ap-norm">
+      <NormaliseChoice
+        value={value}
+        onChange={(next) => void change(next)}
+        library={library}
+        line={normaliseLine(shown, playlist, library)}
+        hint={profileNormaliseHint(shown, playlist, library)}
+      />
+    </div>
+  );
+}
+
 function ProfileBody({ editor }: { editor: ProfileEditor }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const c = useProfileController(editor, rootRef);
@@ -144,6 +184,7 @@ function ProfileBody({ editor }: { editor: ProfileEditor }) {
             </span>
           </p>
           <SceneName editor={editor} />
+          <Normalise editor={editor} />
         </div>
         <div className="ap-headacts">
           <BackButton editor={editor} />
