@@ -142,8 +142,8 @@ test.describe("single-key shortcuts", () => {
     await startAbbey(page);
     await clickAway(page);
     await page.keyboard.press("/");
-    await page.keyboard.type("q");
-    await expect(page.getByRole("searchbox", { name: /Off script/ })).toHaveValue("q");
+    await page.keyboard.type("r");
+    await expect(page.getByRole("searchbox", { name: /Off script/ })).toHaveValue("r");
     await expect(region(page, "On air: Table")).toContainText(/Effects\s*None/);
   });
 
@@ -151,7 +151,8 @@ test.describe("single-key shortcuts", () => {
     await openRoute(page, "live");
     await startAbbey(page);
     await clickAway(page);
-    await page.keyboard.press("q");
+    // R: Stone door grinds, a pad whose sound is a library track in the app's seeded library too (not every pad's is).
+    await page.keyboard.press("r");
     await expect(region(page, "On air: Table")).not.toContainText(/Effects\s*None/);
   });
 });
@@ -161,9 +162,10 @@ test.describe("choosing what plays", () => {
     await openRoute(page, "live");
     await startAbbey(page);
     await clickAway(page);
-    await page.keyboard.down("4");
+    // F: Heartbeat, a hold pad whose sound is a library track in the app's seeded library too.
+    await page.keyboard.down("f");
     await expect(region(page, "On air: Table")).not.toContainText(/Effects\s*None/);
-    await page.keyboard.up("4");
+    await page.keyboard.up("f");
     await expect(region(page, "On air: Table")).toContainText(/Effects\s*None/);
   });
 
@@ -355,9 +357,10 @@ test.describe("rooms", () => {
     await region(page, "Pads").getByRole("button", { name: /choose a room/i }).click();
     await page.getByRole("menuitemradio", { name: "Side room" }).click();
     await clickAway(page);
-    await page.keyboard.press("w");
-    await expect(region(page, "On air: Side room").getByText(/Storm/)).toBeVisible();
-    await expect(region(page, "On air: Table")).not.toContainText("Storm");
+    // 1: Thunder crack, a pad whose sound is a library track in the app's seeded library too.
+    await page.keyboard.press("1");
+    await expect(region(page, "On air: Side room").getByText(/Thunder/)).toBeVisible();
+    await expect(region(page, "On air: Table")).not.toContainText("Thunder");
   });
 
   test("Next scene always starts in the first room, whatever the Scene music box points to", async ({ page }) => {
