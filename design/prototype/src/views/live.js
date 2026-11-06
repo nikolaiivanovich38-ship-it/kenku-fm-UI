@@ -749,7 +749,7 @@
     notesTitle: 'Live: what changed since round 1',
     notes: [
       '<b>Round 6, part 3:</b> seven boxes, each with one job. <b>Scenes</b> and <b>Current scene</b> on the left; <b>Session</b> and <b>Campaign</b> playlists and pads beside them; <b>On air</b> along the bottom, always in view. <b>Find a track</b> is in the top strip (/).',
-      '<b>Play next</b> plays right after the current track; <b>Add to queue</b> goes to the bottom of the room\'s list. Both show on a row when you point at it or tab to it. <b>Up next</b> in On air lists the room\'s list top to bottom, each with ×.',
+      '<b>Play next</b> plays right after the current track; <b>Add to queue</b> goes to the bottom of the room\'s list. Both are on every row, greyed until you point at them. <b>Up next</b> in On air lists the room\'s list top to bottom, each with ×.',
       '<b>Repeat</b> in On air and on the Now playing bar is for what plays now in that room, never saved. <b>Repeat one</b> on a scene\'s track is saved with the scene, and shows in the planner too.',
       '<b>Round 6 review:</b> Ctrl+Z takes back only the last thing done; a room in an empty channel says <b>Nobody there</b>; the session\'s and the campaign\'s boxes sit under <b>This session</b> and <b>Whole campaign</b>; row buttons are greyed, not hidden; a new scene clears what was added (Undo brings it back); <b>Help</b> (F1) holds what left the screen.',
       'Keys: <span class="kbd">Space</span> next scene, <span class="kbd">Ctrl+Z</span> undo (8 s), <span class="kbd">Alt+1</span>…<span class="kbd">7</span> or <span class="kbd">F6</span> move between boxes, <span class="kbd">Shift+Esc</span> fade all, <span class="kbd">/</span> find, pad keys (the Current scene\'s board).'

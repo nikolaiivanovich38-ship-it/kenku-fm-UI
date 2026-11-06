@@ -1161,7 +1161,7 @@ var L = (function () {
     var p = document.getElementById('proto');
     if (!p.dataset.built) {
       p.dataset.built = 1;
-      p.innerHTML = '<b>Lyre · design round 5</b><span>Clickable prototype, no real sound.</span>' +
+      p.innerHTML = '<b>Lyre · design round 6</b><span>Clickable prototype, no real sound.</span>' +
         '<label>Theme <select id="pTheme">' + THEMES.map(function (t) { return '<option value="' + t[0] + '">' + t[1] + '</option>'; }).join('') + '</select></label>' +
         '<label>Screen <select id="pFrame">' + FRAMES.map(function (t) { return '<option value="' + t[0] + '">' + t[1] + '</option>'; }).join('') + '</select></label>' +
         '<button id="pNotes" type="button">Design notes</button>';
