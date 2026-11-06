@@ -28,3 +28,4 @@
 .lk-radio input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
 .lk-size input[type=range] { width: 160px; accent-color: var(--accent); }
 .lk-sizev { min-width: 42px; }
+.lk-pic::after { content: attr(data-label); }
