@@ -1044,3 +1044,140 @@ test.describe("round 6, part 6: On air at the top, Back and the trail, Find play
     await expect(scenes(page).getByRole("button", { name: /^Start: Breakfast in the great hall/ })).toBeVisible();
   });
 });
+
+/* Round 7, part 2 (design/prototype/ROUND7.md, "Round 7, part 2: Live"): what Live needs from round 7. The prototype
+   keeps its data in the page, so a change made on a prep screen is taken to Live by the menu, not by openRoute. */
+test.describe("round 7, part 2: Live", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
+  const goLive = (page: Page) => page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: /^Live/ }).click();
+  const scenes = (page: Page) => region(page, "Scenes");
+  async function sceneSteps(page: Page, scene: string) {
+    await openRoute(page, "session/crown/s14");
+    await page.getByRole("button", { name: `More for ${scene}`, exact: true }).click();
+    await page.getByRole("menuitem", { name: "What it does when it starts…" }).click();
+    return page.getByRole("dialog");
+  }
+
+  test("What played opens in the room itself, newest first, with Play again and Play next; nothing covers On air", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    await page.getByRole("button", { name: "Next music track" }).click();
+    const table = room(page, "Table");
+    await table.getByRole("button", { name: "What played" }).click();
+    await expect(table.getByRole("button", { name: "What played" })).toHaveAttribute("aria-expanded", "true");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    const played = table.getByRole("list", { name: "What played in Table" }).getByRole("listitem");
+    await expect(played).toHaveCount(2);
+    await expect(played.nth(1)).toContainText("Eerie dread");
+    await played.nth(1).getByRole("button", { name: /^Play again: / }).click();
+    await expect(table.getByRole("list", { name: "What played in Table" })).toHaveCount(0);
+    await expect(table).toContainText("Eerie dread");
+  });
+
+  test("a scene that moves on by itself says so in Scenes, and its own steps run when it starts", async ({ page }) => {
+    const d = await sceneSteps(page, "The abbey ruins");
+    await d.getByRole("button", { name: "Add a step" }).click();
+    await page.getByRole("menuitem", { name: "Fire a pad…" }).click();
+    await d.getByRole("list", { name: "Steps" }).getByRole("listitem").nth(3).getByRole("combobox", { name: "Pad" }).selectOption({ label: "Drowned Abbey › Abbey bell" });
+    await d.getByRole("combobox", { name: "Then" }).selectOption({ label: "Start the next scene when its music ends" });
+    await d.getByRole("button", { name: "Done" }).click();
+    await goLive(page);
+    const row = scenes(page).getByRole("listitem").filter({ has: page.getByRole("button", { name: "Scene 3: The abbey ruins", exact: true }) });
+    await expect(row).toContainText("Moves on by itself");
+    await startAbbey(page);
+    await expect(sceneMusic(page).getByRole("button", { name: /^Abbey bell/ })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("a play step set to Play next from a marker waits in Up next, and starts at the marker", async ({ page }) => {
+    const d = await sceneSteps(page, "Greyhollow inn");
+    await d.getByRole("button", { name: "Add a step" }).click();
+    await page.getByRole("menuitem", { name: "Play…" }).click();
+    const step = d.getByRole("list", { name: "Steps" }).getByRole("listitem").nth(3);
+    await step.getByRole("combobox", { name: "What" }).selectOption({ label: "Eerie dread, low cello and choir - something wrong in the dark (loops with crossfade)" });
+    await step.getByRole("combobox", { name: "Up next" }).selectOption({ label: "Play next" });
+    await step.getByRole("combobox", { name: "From" }).selectOption({ label: "Low swell (3:10)" });
+    await d.getByRole("button", { name: "Done" }).click();
+    await goLive(page);
+    await page.getByRole("button", { name: "Start scene 2: Greyhollow inn" }).click();
+    const table = room(page, "Table");
+    await expect(table.getByRole("list", { name: "Up next" }).getByRole("listitem").first()).toContainText("Eerie dread");
+    await page.getByRole("button", { name: "Next music track" }).click();
+    await expect(table).toContainText(/3:1\d \/ 5:18/);
+  });
+
+  test("a pad's own steps run when it is pressed in Live", async ({ page }) => {
+    await openRoute(page, "board/weather");
+    await page.getByRole("region", { name: "Pad: Thunder crack" }).getByRole("button", { name: "More for this pad" }).click();
+    await page.getByRole("menuitem", { name: "What it does…" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Add a step" }).click();
+    await page.getByRole("menuitem", { name: "Fade the music…" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Done" }).click();
+    await goLive(page);
+    await startFirstScene(page);
+    await sceneMusic(page).getByRole("button", { name: /^Thunder crack/ }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Music down to 30% over 2 s" })).toBeVisible();
+  });
+
+  test("a board's dividers show above their row of pads in Live", async ({ page }) => {
+    await openRoute(page, "board/abbey");
+    await page.getByRole("button", { name: "More for this board" }).click();
+    await page.getByRole("menuitem", { name: "Add a divider…" }).click();
+    await page.getByRole("dialog").getByRole("textbox", { name: "Name" }).fill("Spirits");
+    await page.getByRole("dialog").getByRole("combobox", { name: "Above row" }).selectOption("2");
+    await page.getByRole("dialog").getByRole("button", { name: "Add divider" }).click();
+    await goLive(page);
+    await startAbbey(page);
+    await expect(sceneMusic(page).getByRole("group", { name: "Pads on Drowned Abbey" }).getByRole("heading", { name: "Spirits" })).toBeVisible();
+  });
+
+  test("Live's keys follow Settings › Keyboard shortcuts", async ({ page }) => {
+    await openRoute(page, "settings");
+    const keys = region(page, "Keyboard shortcuts");
+    await keys.getByRole("button", { name: "Keyboard shortcuts", exact: true }).click();
+    await keys.getByRole("button", { name: "Change the key for Next scene" }).click();
+    await page.keyboard.press("n");
+    await expect(keys.getByRole("row", { name: /^Next scene/ })).toContainText("N");
+    await goLive(page);
+    await clickAway(page);
+    await page.keyboard.press(" ");
+    await expect(page.getByRole("button", { name: "Start: Recap and the coast road" })).toBeVisible();
+    await page.keyboard.press("n");
+    await expect(page.getByRole("button", { name: "Restart scene 1: Recap and the coast road" })).toBeVisible();
+  });
+
+  test("a second Next scene within a second is ignored, so a double press never skips a scene", async ({ page }) => {
+    await openRoute(page, "live");
+    await startFirstScene(page);
+    await clickAway(page);
+    await page.waitForTimeout(1100);
+    await page.keyboard.press(" ");
+    await page.keyboard.press(" ");
+    await expect(page.getByRole("button", { name: "Restart scene 2: Greyhollow inn" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Restart scene 3: The abbey ruins" })).toHaveCount(0);
+  });
+
+  test("Ctrl+K opens Find and play in Live too", async ({ page }) => {
+    await openRoute(page, "live");
+    await page.keyboard.press("Control+K");
+    await expect(page.getByRole("dialog", { name: "Find and play" })).toBeVisible();
+  });
+
+  test("each room's progress line shows the track's markers", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    await expect(room(page, "Table").getByTitle("Choir enters 1:04")).toHaveCount(1);
+  });
+
+  test("with Comfortable and 200 % text, Live still fits: nothing scrolls sideways and On air is in view", async ({ page }) => {
+    await openRoute(page, "look");
+    const display = region(page, "Display");
+    await display.getByRole("radiogroup", { name: "Density" }).getByRole("radio", { name: "Comfortable" }).check();
+    const size = display.getByRole("slider", { name: "Text size" });
+    await size.focus();
+    for (let i = 0; i < 4; i++) await page.keyboard.press("ArrowRight");
+    await openRoute(page, "live");
+    await startAbbey(page);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+    await expect(region(page, "On air")).toBeInViewport();
+  });
+});
