@@ -21,8 +21,15 @@ const AXE_SOURCE = fs.readFileSync(AXE_PATH, "utf8");
 const AXE_VERSION = "4.14.0";
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
-/** `owner` is the spec file (screen) that has to be built for the sweep to be required in the app. */
-type Screen = { name: string; route: string; owner: string; prepare?: (page: Page, options: { playing: boolean }) => Promise<void> };
+/** `owner` is the spec file (screen) that has to be built for the sweep to be required in the app; `round`, for a
+ *  screen that is new in a design round, names that round too (BUILD-LIST.md lists the sweep under it). */
+type Screen = { name: string; route: string; owner: string; round?: string; prepare?: (page: Page, options: { playing: boolean }) => Promise<void> };
+
+/** Mark a sweep "expected to fail" in the app until its screen (and the round that made the screen) is built. */
+function expectFailureUntilScreenBuilt(screen: Screen): void {
+  expectFailureUntilBuilt(screen.owner);
+  if (screen.round) expectFailureUntilBuilt(screen.round);
+}
 
 const SCREENS: Screen[] = [
   { name: "Campaigns", owner: "campaigns", route: "campaigns" },
@@ -89,10 +96,10 @@ const SCREENS: Screen[] = [
   },
   { name: "Outputs", owner: "outputs", route: "outputs" },
   // Round 6, part 2 (OUT-8): Settings in Lyre.
-  { name: "Settings", owner: "settings", route: "settings" },
+  { name: "Settings", owner: "settings", round: "round 6", route: "settings" },
   { name: "Look and feel", owner: "look", route: "look" },
   // Round 7 (DAT-10): the Tags screen.
-  { name: "Tags", owner: "tags", route: "tags" },
+  { name: "Tags", owner: "tags", round: "round 7", route: "tags" },
   // Round 5 (design/prototype/ROUND5.md): the three new screens, with their tables and choices showing.
   {
     name: "Back up, move or share, with a file open",
@@ -235,7 +242,7 @@ for (const screen of SCREENS) {
   for (const size of SIZES) {
     for (const { label, theme } of THEMES.filter((t) => size.themes.includes(t.theme))) {
       test(`${screen.name} at ${size.width}×${size.height} in the ${label}: no sideways scroll, no overlapping or cut-off controls, no accessibility failures`, async ({ page }) => {
-        expectFailureUntilBuilt(screen.owner);
+        expectFailureUntilScreenBuilt(screen);
         await page.setViewportSize(size);
         await openRoute(page, screen.route, { theme });
         await screen.prepare?.(page, { playing: true });
@@ -267,7 +274,7 @@ for (const screen of SCREENS) {
 // (design/prototype/tools/tab-outputs.js and tab-playlists.js). It runs once per screen at 960×1000.
 for (const screen of SCREENS) {
   test(`${screen.name}: Tab reaches every control on the screen and does not get stuck`, async ({ page }) => {
-    expectFailureUntilBuilt(screen.owner);
+    expectFailureUntilScreenBuilt(screen);
     await openRoute(page, screen.route);
     await screen.prepare?.(page, { playing: false });
     const ignore = notLyre();
@@ -348,7 +355,7 @@ const COLUMNS: Record<string, { what: "regions" | "articles" | "outputs"; expect
 for (const screen of SCREENS) {
   test(`${screen.name}: resized from 600 to 2560 px wide, nothing scrolls sideways, overlaps or is cut off${COLUMNS[screen.name] ? ", and the columns change where the design says" : ""}`, async ({ page }) => {
     test.setTimeout(120_000);
-    expectFailureUntilBuilt(screen.owner);
+    expectFailureUntilScreenBuilt(screen);
     await page.setViewportSize({ width: WIDTHS[0], height: 1000 });
     await openRoute(page, screen.route);
     await screen.prepare?.(page, { playing: false });
@@ -387,7 +394,7 @@ for (const screen of SCREENS) {
 // A short window (1280×600): the page scrolls, so every control can be brought into view and is not covered.
 for (const screen of SCREENS) {
   test(`${screen.name}: in a short window (1280×600) the page scrolls to every control`, async ({ page }) => {
-    expectFailureUntilBuilt(screen.owner);
+    expectFailureUntilScreenBuilt(screen);
     await page.setViewportSize({ width: 1280, height: 600 });
     await openRoute(page, screen.route);
     await screen.prepare?.(page, { playing: false });
@@ -416,7 +423,7 @@ for (const screen of SCREENS) {
 for (const screen of SCREENS) {
   for (const size of [{ width: 960, height: 1000 }, { width: 1920, height: 1080 }]) {
     test(`${screen.name} at ${size.width}×${size.height}: every name cut short has its full text on hover`, async ({ page }) => {
-      expectFailureUntilBuilt(screen.owner);
+      expectFailureUntilScreenBuilt(screen);
       expectFailureUntilBuilt("round 7");
       await page.setViewportSize(size);
       await openRoute(page, screen.route);
