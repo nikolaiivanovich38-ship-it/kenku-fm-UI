@@ -144,19 +144,11 @@ export async function openFirstStart(page: Page): Promise<void> {
     await page.getByRole("main").getByRole("heading", { level: 1 }).waitFor();
     return;
   }
-  await page.addInitScript(() => {
-    try {
-      // Only on the first load in this tab, so a reload (reopen) finds what the page saved. Marked in sessionStorage:
-      // localStorage read this early in a reloaded file page can come back empty, which would wipe the page's save.
-      if (!sessionStorage.getItem("lyre-first-start")) {
-        sessionStorage.setItem("lyre-first-start", "1");
-        localStorage.setItem("lyre-r2", JSON.stringify({ frame: "full", notes: false }));
-      }
-    } catch {
-      /* storage unavailable */
-    }
-  });
+  // No init script: one that reads storage can run before a reloaded page's storage is ready, find nothing, and
+  // write over what the page saved (seen on reopen). The page's own settings are written once, then it reloads.
   await page.goto(`${PROTOTYPE}#campaigns`);
+  await page.evaluate(() => localStorage.setItem("lyre-r2", JSON.stringify({ frame: "full", notes: false })));
+  await Promise.all([page.waitForEvent("load"), page.evaluate(() => window.location.reload())]);
   await page.getByRole("main").getByRole("heading", { level: 1 }).waitFor();
 }
 
