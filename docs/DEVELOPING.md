@@ -151,6 +151,17 @@ To listen-check a change without speakers, draw each sound with ffmpeg (a check 
 
 New libraries are added only at versions published at least two weeks earlier, their dependencies included: after `yarn add <name>@<version> --exact`, check every new `yarn.lock` entry with `npm view <name> time` and pin any newer one under `resolutions` in `package.json` to the newest release old enough. Wave 3 pins `strtok3` 10.6.2, `token-types` 6.1.2 and `@borewit/text-codec` 0.2.2 for `music-metadata` 11.16.1 (MIT, reads track tags and lengths). `ffmpeg-static` 5.3.0 bundles an ffmpeg binary (GPL-3.0-or-later, compatible with the app's GPL-3.0); its postinstall downloads the binary for the building machine's platform, so the Windows installer is built on Windows.
 
+### Outdated libraries (FND-7, checked 6 November 2026)
+
+Upgraded in 0.5.0: fastify 4 to 5.12.7, uuid 10 to 11.1.1 (SEC-9); discord.js 14.27.0, @discordjs/voice 0.19.2, libsodium-wrappers 0.8.4, TypeScript 5.9.3. Left, and why:
+
+- The old player's interface libraries (MUI 6, @dnd-kit/core 3 and /sortable 4, react-router 6, redux-persist, electron-store 8, @reduxjs/toolkit and react-redux): only the old player and the main window's shell use them; they leave with the old player (FND-16) rather than be rewritten for it. react-router 6 has two moderate advisories that do not reach the player (no server rendering, no links to outside addresses).
+- React 19: the new interface and the old player share React 18; moving both at once is a change of its own, best after FND-16.
+- Electron 45, Electron Forge 8, @electron/fuses 2, @electron/asar 4: majors that change packaging; Electron 44 is supported until Electron 47 (about March 2027). Electron 44.9.3 and later patches are reviewed in the monthly step (docs/RELEASE_CHECKLIST.md).
+- vitest 5, jsdom 31, TypeScript 7, css-loader 7, style-loader 4: test and build tools, majors with breaking changes; they ship nothing.
+- music-metadata 12: the library process belongs to the data stream; 11.16.1 has no advisory.
+- Newer than 14 days, so not yet: discord.js 14.28, eslint 10.14, typescript-eslint 8.72.1, @playwright/test 1.65, fastify 5.12.8.
+
 ## CI
 
 `.github/workflows/`:
