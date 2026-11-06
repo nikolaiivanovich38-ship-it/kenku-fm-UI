@@ -549,7 +549,7 @@ test.describe("round 7: what a scene does when it starts", () => {
     await page.getByRole("menuitem", { name: "What it does when it starts…" }).click();
     await expect(dialog(page)).toHaveAccessibleName("When The abbey ruins starts");
     await expect(steps(page)).toHaveCount(3);
-    await expect(steps(page).nth(0)).toContainText("Play the music: Bridge of Death");
+    await expect(steps(page).nth(0)).toContainText("Play the music: Eerie dread");
     await expect(steps(page).nth(1)).toContainText("Play the ambience: Abbey ambience");
     await expect(steps(page).nth(2)).toContainText("Show the pads: Drowned Abbey");
     await expect(abbey(page)).not.toContainText("Moves on by itself");

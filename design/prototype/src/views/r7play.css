@@ -1,0 +1,18 @@
+/* Round 7: steps (PLY-8), marks on a scene, marker ticks (DAT-3), what played (PLY-1). */
+.stp-list { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.stp { border: 1px solid var(--line); border-radius: var(--r-m); padding: 6px 8px; background: var(--surface-2); }
+.stp-1 { display: flex; align-items: center; gap: 6px; }
+.stp-n { width: 18px; text-align: center; color: var(--ink-2); }
+.stp-s { min-width: 0; overflow-wrap: anywhere; }
+.stp-ctl { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 6px 0 2px 24px; }
+.stp-f { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-s); color: var(--ink-2); }
+.stp-f .input { max-width: 260px; }
+.stp-tools { gap: 8px; }
+.stp-then { margin-top: 10px; }
+.r7-mark { gap: 4px; flex: none; }
+.r7-mkbar { position: relative; }
+.r7-mk { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--ink-2); border-radius: 1px; }
+.r7-mk.mix { background: var(--accent); }
+.r7-played .lrow { gap: 8px; }
+.lb-resume { border: 0; padding: 4px 0; }
+.pb-steps { margin: 2px 0 6px; }

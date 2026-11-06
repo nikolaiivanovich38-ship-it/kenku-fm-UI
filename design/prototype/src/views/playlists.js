@@ -84,7 +84,7 @@
     var tracks = L.playlistTracks(p), uses = L.usesOfPlaylist(p.id), k = KIND[p.kind], rule = p.kind === 'dynamic' ? ruleWords(p.rule) : '';
     var xk = 'pls:' + p.id, open = L.expanded(xk), len = fmtLong(totalOf(tracks));
     var tip = k.name + (rule ? ': ' + rule : '') + ' · ' + laneName(p.lane) + '\n' + (uses.length ? 'Used in ' + usedText(uses) : 'Not used yet') + '\nClick to open';
-    return '<li class="pl-item' + (open ? ' pl-open' : '') + (flashPl === p.id ? ' pl-flash' : '') + '" data-pid="' + p.id + '"><div class="pl-grid pl-row" data-act="plrow" data-id="' + p.id + '" title="' + esc(tip) + '">' +
+    return '<li class="pl-item' + (open ? ' pl-open' : '') + (flashPl === p.id ? ' pl-flash' : '') + '" data-pid="' + p.id + '" ' + L.orgItem('playlists', p.id) + '><div class="pl-grid pl-row" data-act="plrow" data-id="' + p.id + '" title="' + esc(tip) + '">' +
       '<div class="pl-namecell">' + L.expanderButton(xk, p.name) +
         '<span class="pl-kicon" aria-hidden="true">' + L.icon(k.icon, 's') + '</span><span class="lane-dot ' + p.lane + '" aria-hidden="true"></span>' +
         '<a href="#/playlist/' + p.id + '" data-k="open-' + p.id + '" class="ellipsis pl-nm">' + esc(p.name || 'Untitled playlist') + '<span class="sr-only">, ' + k.name + ', ' + laneName(p.lane) + ', ' + (uses.length ? 'used in ' + usedText(uses) : 'not used yet') + '</span></a>' +
@@ -98,11 +98,11 @@
   function renderList() {
     var rows = filtered(), all = D.playlists.length, anyFilter = filt.lane !== 'all' || filt.kind !== 'all' || filt.used !== 'all' || filt.q;
     var table = rows.length ? '<div class="pl-grid pl-colhead" aria-hidden="true"><span>Name</span><span class="pl-c">Tracks</span><span class="pl-c">Length</span><span></span></div>' +
-      '<ul class="pl-list" aria-label="Playlists">' + rows.map(listRow).join('') + '</ul>'
+      '<ul class="pl-list" aria-label="Playlists">' + L.inFolders('playlists', rows, listRow) + '</ul>'
       : !all ? '<div class="empty"><b>No playlists yet.</b> A playlist is music, ambience or effects that play together, in your order or picked by their tags. Start with <b>New playlist</b>, or tick tracks in the Library and choose <b>New playlist from these</b>.</div>'
       : '<div class="empty">No playlists match these filters. <button class="btn s" data-act="plclear" data-k="plclear">Show all playlists</button></div>';
     return '<div class="viewhead"><h1>Playlists</h1><span class="muted">' + plural(all, 'playlist') + '</span><span class="grow"></span>' +
-      '<button class="btn primary" data-act="plnew" data-k="plnew" aria-haspopup="menu" aria-expanded="false">' + L.icon('plus', 's') + 'New playlist' + L.icon('chevdown', 's') + '</button></div>' +
+      L.newFolderButton('playlists') + '<button class="btn primary" data-act="plnew" data-k="plnew" aria-haspopup="menu" aria-expanded="false">' + L.icon('plus', 's') + 'New playlist' + L.icon('chevdown', 's') + '</button></div>' +
       '<div class="viewbody fill pl-listbody">' + dropNotice('list') +
       '<div class="pl-tools"><div class="search pl-search">' + L.icon('search') + '<input class="input" type="search" placeholder="Search playlists" aria-label="Search playlists by name or tag" data-input="plfq" data-k="plfq" value="' + esc(filt.q) + '"></div>' +
       seg('lane', 'Music, ambience or FX', [['all', 'All'], ['music', 'Music'], ['amb', 'Ambience'], ['fx', 'FX']]) +
@@ -122,7 +122,7 @@
   L.acts.plrowmore = function (el) {
     var p = L.playlist(el.dataset.id);
     L.menu(el, '<button role="menuitem" data-act="plrow" data-id="' + p.id + '">' + L.icon('right', 's') + 'Open</button>' +
-      '<button role="menuitem" data-act="pluse" data-id="' + p.id + '">' + L.icon('link', 's') + 'Use in…</button>', 'More for ' + p.name);
+      '<button role="menuitem" data-act="pluse" data-id="' + p.id + '">' + L.icon('link', 's') + 'Use in…</button>' + L.moveToFolderItem('playlists', p.id, p.name), 'More for ' + p.name);
   };
   L.acts.plnew = function (el) {
     function item(kind, lane, sub) { return '<button role="menuitem" data-act="plcreate" data-kind="' + kind + '" data-lane="' + lane + '">' + L.icon(KIND[kind].icon, 's') + '<span class="grow"><span style="display:block">' + KIND[kind].name + '</span><span class="hint" style="display:block">' + sub + '</span></span></button>'; }
@@ -162,6 +162,9 @@
     if (el.dataset.manual) h += '<button role="menuitem" data-act="plmove" data-d="-1" data-tid="' + t.id + '"' + (i === 0 ? ' disabled' : '') + '>' + L.icon('chevup', 's') + 'Move up<span class="kbd pl-mk">Alt+↑</span></button>' +
       '<button role="menuitem" data-act="plmove" data-d="1" data-tid="' + t.id + '"' + (i === n - 1 ? ' disabled' : '') + '>' + L.icon('chevdown', 's') + 'Move down<span class="kbd pl-mk">Alt+↓</span></button>' +
       '<button role="menuitem" data-act="plrm" data-tid="' + t.id + '">' + L.icon('close', 's') + 'Remove from this playlist</button><div class="sep"></div>';
+    // Round 7: Add to… (ORG-5, the keyboard's way to put it in another list) and a divider above it (ORG-4).
+    h += '<button role="menuitem" data-act="addto" data-ids="' + t.id + '" data-from="' + (el.dataset.manual ? pl.id : '') + '">' + L.icon('plus', 's') + 'Add to…</button>' +
+      (el.dataset.manual ? '<button role="menuitem" data-act="divadd" data-pid="' + pl.id + '" data-before="' + t.id + '">' + L.icon('list', 's') + 'Add a divider above</button>' : '') + '<div class="sep"></div>';
     h += '<button role="menuitem" data-act="plprofile" data-tid="' + t.id + '">' + L.icon('wave', 's') + 'Audio profile in this playlist</button>' +
       '<button role="menuitem" data-act="pltusein" data-tid="' + t.id + '">' + L.icon('link', 's') + 'Use in…</button>' +
       '<button role="menuitem" data-act="pllib" data-tid="' + t.id + '">' + L.icon('library', 's') + 'Open in the Library</button>';
@@ -174,13 +177,19 @@
   /* ---------- one playlist ---------- */
   function tracksPane(pl, tracks, air) {
     var body = tracks.length
-      ? '<div class="pl-scroll" data-scroll="pl-tracks-n"><ol class="pl-tracks" aria-label="Tracks in order" aria-describedby="pl-keys">' + tracks.map(function (t, i) { return trackRow(t, { prefix: 'm-', manual: true, pos: i + 1, n: tracks.length, air: air }); }).join('') + '</ol></div>' +
+      ? '<div class="pl-scroll" data-scroll="pl-tracks-n"><ol class="pl-tracks" aria-label="Tracks in order" aria-describedby="pl-keys">' + withDividers(pl, tracks, function (t, i) { return trackRow(t, { prefix: 'm-', manual: true, pos: i + 1, n: tracks.length, air: air }); }) + '</ol></div>' +
         '<p class="hint pl-foot keys-on-focus" id="pl-keys">Drag rows, or press Alt+Up / Alt+Down, to change the order.</p>'
       : '<div class="empty">No tracks yet. Add them from <b>Add tracks</b>, or drop audio files or folders here.</div>';
-    return L.pane({ id: 'pl-tracks', title: 'Tracks', icon: 'list', kind: 'music', flush: true, size: 'auto', scroll: 'pl-tracks',
+    return L.pane({ id: 'pl-tracks', title: 'Tracks', icon: 'list', kind: 'music', flush: true, size: 'auto', scroll: 'pl-tracks', describe: plural(tracks.length, 'track') + ' · ' + fmtLong(totalOf(tracks)),
       status: air ? status('Playing', 'live') : tracks.length ? null : status('Empty'),
       summary: plural(tracks.length, 'track') + ' · ' + fmtLong(totalOf(tracks)),
       actions: '<button class="btn s" data-act="pladdopen" data-k="pladdopen">' + L.icon('plus', 's') + 'Add tracks</button>', body: body });
+  }
+  // Round 7 (ORG-4): a manual playlist's dividers (r7org.js) sit between its tracks, in the order of pl.items.
+  function withDividers(pl, tracks, row) {
+    var n = 0, out = '';
+    pl.items.forEach(function (id) { if (L.isDivider(id)) out += L.dividerRow(pl, id); else { var t = L.track(id); if (t) out += row(t, n++); } });
+    return out;
   }
   function addPane(pl) {
     var lane = addLane[pl.id] || pl.lane, q = addQuery.trim(), pool = D.tracks.filter(laneTest(lane));

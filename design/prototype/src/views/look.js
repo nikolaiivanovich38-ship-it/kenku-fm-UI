@@ -19,6 +19,28 @@
       '<div class="lk-sw" aria-hidden="true"><i style="background:var(--bg)"></i><i style="background:var(--surface)"></i><i style="background:var(--surface-3)"></i><i style="background:var(--ink)"></i><i style="background:var(--accent)"></i><i style="background:var(--second)"></i></div>' +
       '</div>';
   }
+  var INTRO = 'Each campaign can have its own theme, and Lyre switches to it when you open that campaign. Choose one here to use it everywhere.';
+  /* Round 7, UX-11 and A11Y-6: Display, kept per computer (r7shell.js L.display, L.setDisplay). Density, Text size
+     (100 to 200 %), High contrast, and a link to the tag colours, which are set with the tags themselves. */
+  function displayHTML() {
+    var d = L.display ? L.display() : { density: 'compact', size: 100, contrast: false };
+    function radio(v, label, hint) {
+      return '<label class="lk-radio" title="' + esc(hint) + '"><input type="radio" name="lk-density" value="' + v + '" data-input="lkdensity" data-k="lk-d-' + v + '"' + (d.density === v ? ' checked' : '') + '><span>' + label + '</span></label>';
+    }
+    return '<section class="lk-display" aria-label="Display"><h2 class="display lk-h2">Display</h2><div class="lk-drow">' +
+      '<div class="lk-dgrp" role="radiogroup" aria-label="Density"><span class="lk-dl" aria-hidden="true">Density</span>' + radio('compact', 'Compact', '28 px controls, 30 px rows: Lyre\'s default') + radio('comfortable', 'Comfortable', 'Larger controls and rows, more space between them') + '</div>' +
+      '<label class="lk-dgrp lk-size"><span class="lk-dl">Text size</span><input type="range" min="100" max="200" step="25" value="' + d.size + '" data-input="lksize" data-k="lk-size" aria-valuetext="' + d.size + ' percent"><span class="num lk-sizev" aria-hidden="true">' + d.size + ' %</span></label>' +
+      '<label class="lv-switch lk-dgrp" title="Hints and quiet text as strong as the rest, stronger lines, in every theme"><input type="checkbox" role="switch" data-input="lkcontrast" data-k="lk-contrast"' + (d.contrast ? ' checked' : '') + '><span class="lv-switch-t"><b>High contrast</b></span></label>' +
+      '<a class="btn s ghost" href="#/tags" data-k="lk-tagcol" title="Each tag group and tag can have a colour; the tag\'s name always shows with it">' + L.icon('tag', 's') + 'Tag colours…</a>' +
+      '</div></section>';
+  }
+  L.inputs.lkdensity = function (el) { if (!el.checked) return; L.setDisplay('density', el.value); L.saved('density ' + (el.value === 'compact' ? 'Compact' : 'Comfortable'), { key: 'lk-density' }); };
+  // The size applies when the slider is let go (or on each arrow key, which is a change too).
+  L.inputs.lksize = function (el, ev) {
+    var v = +el.value; el.setAttribute('aria-valuetext', v + ' percent'); var o = el.parentNode.querySelector('.lk-sizev'); if (o) o.textContent = v + ' %';
+    if (ev.type === 'change') { L.setDisplay('size', v); L.saved('text size ' + v + ' %', { key: 'lk-size' }); }
+  };
+  L.inputs.lkcontrast = function (el) { L.setDisplay('contrast', el.checked); L.saved('high contrast ' + (el.checked ? 'on' : 'off'), { key: 'lk-contrast' }); };
   L.acts.usetheme = function (el) { L.state.theme = el.dataset.theme; L.save(); L.render(); L.toast('Prototype now uses ' + el.dataset.name); };
   L.view('look', {
     nav: 'look',
@@ -30,8 +52,9 @@
       'Every text colour passes WCAG AA (4.5:1) on its background; a check runs over every theme.'
     ],
     render: function () {
-      return '<div class="viewhead"><h1>Look and feel</h1><span class="muted">One Lyre, a theme per table</span></div>' +
-        '<div class="viewbody"><div class="lk-intro"><p>Each campaign can have its own theme, and Lyre switches to it when you open that campaign. Choose one here to use it everywhere.</p></div>' +
+      // Round 7: the intro sentence is the page's hover text and description (less to read); Display comes first.
+      return '<div class="viewhead"><h1 title="' + esc(INTRO) + '" aria-describedby="lk-intro">Look and feel</h1><p class="sr-only" id="lk-intro">' + esc(INTRO) + '</p></div>' +
+        '<div class="viewbody">' + displayHTML() +
         '<div class="lk-grid">' + themes.map(function (t) {
           return '<article class="lk-card"><header><h2 class="display">' + esc(t.name) + '</h2><span class="muted">' + esc(t.games) + '</span></header>' + sample(t) +
             '<p>' + esc(t.line) + '</p>' +

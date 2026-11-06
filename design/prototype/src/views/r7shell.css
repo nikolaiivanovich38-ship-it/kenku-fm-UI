@@ -1,0 +1,41 @@
+/* Round 7, the shell: display options (UX-11), Find and play (UX-12), the full-text tooltip (UX-6). */
+
+/* Density: Comfortable is a little roomier than Lyre's compact default. */
+[data-density="comfortable"] { --ctl: 32px; --ctl-s: 28px; --row: 36px; --pane-head: 36px; --gap: 10px; --gap-s: 6px; --gap-l: 14px; }
+[data-density="comfortable"] .rail a, [data-density="comfortable"] .rail button.nav { height: 38px; }
+
+/* High contrast: quiet text is as strong as the main text and lines are stronger, in every theme. Colour still is
+   never the only signal, so nothing else has to change. */
+html[data-contrast="high"], html[data-contrast="high"] [data-theme] { --ink-2: var(--ink); --ink-3: var(--ink); --line: var(--line-strong); }
+html[data-contrast="high"] :focus-visible { outline-width: 3px; }
+html[data-contrast="high"] .btn.ghost, html[data-contrast="high"] .closer { border-color: var(--line-strong); }
+
+/* Find and play */
+.pal-wrap { position: fixed; inset: 0; z-index: 60; display: flex; justify-content: center; align-items: flex-start; padding: 12vh 16px 16px; background: rgb(0 0 0 / .35); }
+.pal { width: min(560px, 100%); background: var(--surface); color: var(--ink); border: 1px solid var(--line-strong); border-radius: var(--r-l); box-shadow: var(--shadow); padding: 10px; display: flex; flex-direction: column; gap: 8px; max-height: 70vh; }
+.pal-search .input { width: 100%; height: 36px; font-size: var(--fs-l); }
+.pal-list { list-style: none; margin: 0; padding: 0; overflow: auto; min-height: 0; }
+.pal-list [role=option] { display: flex; align-items: center; gap: 8px; min-height: var(--row); padding: 0 8px; border-radius: var(--r-s); cursor: pointer; }
+.pal-list [role=option][aria-selected="true"] { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.pal-k { flex: none; width: 64px; font-size: var(--fs-xs); color: var(--ink-2); text-transform: capitalize; }
+.pal-none:empty { display: none; }
+.pal-none { margin: 0; padding: 4px 8px; }
+.pal-acts { display: flex; flex-wrap: wrap; gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
+
+/* The full text of a name cut short, under the focused control (UX-6). */
+.r7-tip { position: fixed; z-index: 70; max-width: min(480px, calc(100vw - 8px)); padding: 4px 8px; border-radius: var(--r-s); background: var(--ink); color: var(--bg); font-size: var(--fs-s); line-height: 1.35; pointer-events: none; box-shadow: var(--shadow); }
+
+/* Two lines, then the rest on hover and focus (UX-6), for names on cards. */
+.r7-two { white-space: normal !important; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+/* A menu opened from inside a sheet (Add a step) shows above it. */
+.menu { z-index: 45; }
+
+/* UX-6: names on cards wrap to two lines, then the rest is on hover and focus. */
+.pb-card-name, .cp-card-name { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+
+/* A11Y-4: text over a picture (none in Lyre today; Kenku FM's playlist backgrounds are not shown over text). If a
+   picture ever carries text, it sits on this scrim: black at 62 % under the text keeps white text at 5.7:1 or more,
+   even over a white picture. The picture itself has alt="" (it is decoration). */
+.over-art { position: relative; color: #fff; }
+.over-art::before { content: ""; position: absolute; inset: 0; background: linear-gradient(rgb(0 0 0 / .62), rgb(0 0 0 / .62)); border-radius: inherit; }
+.over-art > * { position: relative; }

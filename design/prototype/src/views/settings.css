@@ -35,3 +35,14 @@
 .st-handbtn:hover { color: var(--ink); text-decoration: underline; }
 .st-result { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px; border-radius: var(--r-s); background: var(--surface-2); border: 1px solid var(--accent); }
 a.btn[aria-disabled="true"] { opacity: .5; }
+/* Round 7: remote control code (SEC-4), headphones and speakers (PRV-2), crossfade (PLY-8), keys (UX-12). */
+.st-code { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
+.st-codev { font-size: 20px; letter-spacing: .08em; padding: 2px 8px; border: 1px dashed var(--line-strong); border-radius: var(--r-s); }
+.st-listen, .st-ears { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 6px 0; }
+.st-addr2 { display: flex; gap: 8px; align-items: center; margin: 4px 0 8px; }
+.st-xf { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 10px; }
+.st-keys { margin-bottom: 8px; }
+.st-keys th[scope=row] { font-weight: 400; color: var(--ink); text-align: left; }
+.st-keys td, .st-keys th { padding: 3px 8px; }
+.st-press { color: var(--accent-text); font-weight: 700; }
+@media print { .st-print { color: #000; } }

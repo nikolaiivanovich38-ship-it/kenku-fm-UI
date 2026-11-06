@@ -44,7 +44,7 @@
     if (st.shapes.length && st.shapes.indexOf(L.shapeOf(t)) < 0) return false;
     if (!inFolder(t, st.folder)) return false;
     if (!(st.emin <= 1 && st.emax >= 5) && (t.energy < st.emin || t.energy > st.emax)) return false;
-    if (!D.tagGroups.every(function (g) { var want = st.tags[g.id]; return !want.length || want.some(function (v) { return (t.tags[g.id] || []).indexOf(v) > -1; }); })) return false;
+    if (!D.tagGroups.every(function (g) { var w = want(g.id); return !w.length || w.some(function (v) { return L.trackHasTag(t, g.id, v); }); })) return false;
     var words = st.q.toLowerCase().split(/\s+/).filter(Boolean);
     if (words.length) {
       var hay = [t.title, t.metaTitle, t.file, t.artist, t.album].concat(tagsOf(t)).join(' ').toLowerCase();
@@ -63,9 +63,12 @@
     }[st.sort];
     return list.sort(f);
   }
-  function nFilters() { return (st.kind !== 'all') + st.newOnly + st.missing + st.shapes.length + !!st.folder + (st.emin > 1 || st.emax < 5) + D.tagGroups.reduce(function (a, g) { return a + st.tags[g.id].length; }, 0); }
-  function filtersOn() { return st.kind !== 'all' || st.newOnly || st.missing || st.shapes.length || st.folder || st.emin > 1 || st.emax < 5 || D.tagGroups.some(function (g) { return st.tags[g.id].length; }); }
+  function nFilters() { return (st.kind !== 'all') + st.newOnly + st.missing + st.shapes.length + !!st.folder + (st.emin > 1 || st.emax < 5) + D.tagGroups.reduce(function (a, g) { return a + want(g.id).length; }, 0); }
+  function filtersOn() { return st.kind !== 'all' || st.newOnly || st.missing || st.shapes.length || st.folder || st.emin > 1 || st.emax < 5 || D.tagGroups.some(function (g) { return want(g.id).length; }); }
   function clearFilters() { st.kind = 'all'; st.newOnly = false; st.missing = false; st.shapes = []; st.folder = ''; st.emin = 1; st.emax = 5; D.tagGroups.forEach(function (g) { st.tags[g.id] = []; }); }
+  // Round 7 (DAT-10): groups come and go on the Tags screen; a group's filter list is made when first needed.
+  function want(id) { return st.tags[id] || (st.tags[id] = []); }
+  L.libTagFilters = function () { return st.tags; };
   // Kind marker in the list: text as well as colour.
   function kindMark(t) {
     var k = t.kind === 'fx' ? ['fx', 'FX', 'Sound effect'] : t.kind === 'amb' ? ['amb', 'Amb', 'Ambience'] : L.isFx(t) ? ['fx', 'FX · Sting', 'FX: a sting (short music cue)'] : null;
@@ -90,7 +93,7 @@
     if (st.newOnly) parts.push('New, not tagged yet');
     if (st.missing) parts.push('Missing files');
     if (st.shapes.length) parts.push(st.shapes.map(function (x) { return L.shapeName[x]; }).join(', '));
-    D.tagGroups.forEach(function (g) { if (st.tags[g.id].length) parts.push(st.tags[g.id].join(', ')); });
+    D.tagGroups.forEach(function (g) { if (want(g.id).length) parts.push(want(g.id).join(', ')); });
     if (st.emin > 1 || st.emax < 5) parts.push('energy ' + st.emin + ' to ' + st.emax);
     if (st.folder) parts.push(shortPath(st.folder));
     return parts.length ? esc(parts.join(' · ')) : '';
@@ -111,11 +114,11 @@
       return '<button class="chip lb-fchip" data-act="lbfshape" data-v="' + x[0] + '" data-k="lb-fs-' + x[0] + '" aria-pressed="' + on + '">' + (on ? L.icon('check', 's') : L.shapeGlyph(x[0])) + x[1] + '<span class="lb-n num">' + n + '</span></button>';
     }).join('') + '</div></div>';
     D.tagGroups.forEach(function (g) {
-      var vals = D.tagValues[g.id].map(function (v) { return [v, base.filter(function (t) { return (t.tags[g.id] || []).indexOf(v) > -1; }).length]; })
-        .filter(function (x) { return x[1] || st.tags[g.id].indexOf(x[0]) > -1; });
+      var vals = D.tagValues[g.id].map(function (v) { return [v, base.filter(function (t) { return L.trackHasTag(t, g.id, v); }).length]; })
+        .filter(function (x) { return x[1] || want(g.id).indexOf(x[0]) > -1; });
       h += '<div class="lb-fg" role="group" aria-labelledby="lb-fh-' + g.id + '"><h3 class="lb-fh" id="lb-fh-' + g.id + '">' + esc(g.name) + '' + '</h3><div class="chips">' +
         (vals.length ? vals.map(function (x, i) {
-          var on = st.tags[g.id].indexOf(x[0]) > -1;
+          var on = want(g.id).indexOf(x[0]) > -1;
           return '<button class="chip lb-fchip" data-act="lbftag" data-g="' + g.id + '" data-v="' + esc(x[0]) + '" data-k="lb-ft-' + g.id + '-' + i + '" aria-pressed="' + on + '">' + (on ? L.icon('check', 's') : '') + esc(x[0]) + '<span class="lb-n num">' + x[1] + '</span></button>';
         }).join('') : '<span class="hint">No values used yet</span>') + '</div></div>';
     });
@@ -167,7 +170,8 @@
       var own = t.title, meta = t.metaTitle, shown = own || meta || t.file;
       var air = (onAirNow(t) ? L.destTag('air', '') : '') + (L.previewing(t.id) ? L.destTag('you', '') : '');
       var tip = (own ? '' : 'No title of your own yet. ') + (meta && meta !== own ? 'In the file: ' + meta + '. ' : '') + t.artist + (t.album ? ', ' + t.album : '');
-      h += '<tr data-tid="' + t.id + '" data-act="lbopen" data-k="lbrow-' + t.id + '" tabindex="' + (t.id === st.cursor ? 0 : -1) + '" aria-selected="' + sel + '"' + (open ? ' class="lb-open" aria-current="true"' : '') + '>' +
+      // Round 7 (ORG-5): a row can be dragged to another list; with ticked rows, all of them go.
+      h += '<tr data-tid="' + t.id + '" ' + L.orgItem('track', st.sel.indexOf(t.id) > -1 ? st.sel.join(',') : t.id) + ' data-act="lbopen" data-k="lbrow-' + t.id + '" tabindex="' + (t.id === st.cursor ? 0 : -1) + '" aria-selected="' + sel + '"' + (open ? ' class="lb-open" aria-current="true"' : '') + '>' +
         '<td class="lb-c-ck" data-act="lbsel" data-tid="' + t.id + '"><span class="lb-ckl"><input type="checkbox" tabindex="-1" aria-label="Select ' + esc(L.title(t)) + '"' + (sel ? ' checked' : '') + '></span></td>' +
         '<td class="lb-c-title" title="' + esc(shown + ' — ' + tip) + '"><div class="lb-tl">' + kindMark(t) + '<span class="lb-t1' + (own ? '' : ' untitled') + '">' + esc(shown) + '</span>' +
           (own && meta && meta !== own && open ? '<span class="lb-t2">' + esc(meta) + '</span>' : '') + air + (t.isNew ? '<span class="badge lb-newb">New</span>' : '') +
@@ -186,10 +190,12 @@
   function cbxOptions(t, g) {
     if (cbx.g !== g) return [];
     var q = cbx.q.trim().toLowerCase(), have = t.tags[g] || [];
-    var vals = D.tagValues[g].filter(function (v) { return have.indexOf(v) < 0 && (!q || v.toLowerCase().indexOf(q) > -1); });
+    // Round 7 (DAT-10): another word for a tag ("sad" for Melancholy) offers the tag itself, never a new one.
+    function via(v) { return q ? L.tagAlso(g, v).filter(function (a) { return a.toLowerCase().indexOf(q) === 0; })[0] || '' : ''; }
+    var vals = D.tagValues[g].filter(function (v) { return have.indexOf(v) < 0 && (!q || v.toLowerCase().indexOf(q) > -1 || via(v)); });
     vals.sort(function (a, b) { return (b.toLowerCase().indexOf(q) === 0) - (a.toLowerCase().indexOf(q) === 0); });
-    var opts = vals.slice(0, 8).map(function (v) { return { v: v }; });
-    if (q && !D.tagValues[g].some(function (v) { return v.toLowerCase() === q; })) opts.push({ v: cap(cbx.q), isNew: true });
+    var opts = vals.slice(0, 8).map(function (v) { return { v: v, via: v.toLowerCase().indexOf(q) > -1 ? '' : via(v) }; });
+    if (q && !D.tagValues[g].some(function (v) { return v.toLowerCase() === q || L.tagAlso(g, v).some(function (a) { return a.toLowerCase() === q; }); })) opts.push({ v: cap(cbx.q), isNew: true });
     return opts;
   }
   function tagRow(t, g) {
@@ -198,7 +204,7 @@
     var lbx = '<ul class="lb-lbx" id="lb-lbx-' + g.id + '" role="listbox" aria-label="' + esc(g.name) + ' values"' + (open && opts.length ? '' : ' hidden') + '>' +
       opts.map(function (o, i) {
         return '<li role="option" id="lb-opt-' + g.id + '-' + i + '" aria-selected="' + (i === cbx.act) + '" data-act="lbcbxpick" data-g="' + g.id + '" data-v="' + esc(o.v) + '"' + (o.isNew ? ' data-new="1"' : '') + '>' +
-          (o.isNew ? L.icon('plus', 's') + '<span>Create <b>' + esc(o.v) + '</b> in ' + esc(g.name) + '</span>' : esc(o.v)) + '</li>';
+          (o.isNew ? L.icon('plus', 's') + '<span>Create <b>' + esc(o.v) + '</b> in ' + esc(g.name) + '</span>' : esc(o.v) + (o.via ? ' <span class="hint">(' + esc(o.via) + ')</span>' : '')) + '</li>';
       }).join('') + '</ul>';
     return '<div class="lb-tg"><div class="lb-tgl" id="lb-tgl-' + g.id + '">' + esc(g.name) + '</div><div class="chips">' +
       mine.map(function (v) { return chip(g.id, v, '<button class="x" data-act="lbuntag" data-g="' + g.id + '" data-v="' + esc(v) + '" data-k="lb-x-' + g.id + '-' + v.replace(/\W/g, '_') + '" title="Remove" aria-label="Remove ' + esc(v) + ' from ' + esc(g.name) + '">' + L.icon('close') + '</button>'); }).join('') +
@@ -245,7 +251,8 @@
       // PLY-15, DAT-15: normalise this track (Library setting / On / Off), with what Lyre measured and the gain it gets.
       '<div class="lb-tg lb-normrow">' + L.normChoice({ id: 'lb-norm', value: t.norm, act: 'lbnorm', line: L.normLine(t), hint: normHint(t) }) + '</div>' +
       '<div class="lb-tg"><div class="lb-tgl">Role</div>' + choiceChips('lbrole', (t.kind === 'fx' ? ['Effect'].concat(ROLES) : ROLES).map(function (r) { return [r, r]; }), t.role, 'Role') + '</div>' +
-      '<div class="lb-tg"><div class="lb-tgl">Looping</div>' + choiceChips('lbloop', LOOPS, t.loop, 'Loop advice') + '</div>' +
+      // Round 7 (PLY-4, SHW-3): a sting never loops; the ending, resume and follow-with rows (r7play.js).
+      L.loopRow(t, '<div class="lb-tg"><div class="lb-tgl">Looping</div>' + choiceChips('lbloop', LOOPS, t.loop, 'Loop advice') + '</div>') + L.playRows(t) +
       '<div class="lb-tg"><label class="lb-tgl" for="lb-notes">Notes</label><textarea id="lb-notes" class="input" rows="2" data-input="lbnotes" data-k="lb-notes" data-save="' + esc(L.title(t)) + ' notes" placeholder="Cues, where it fades, what it reminds you of">' + esc(t.notes) + '</textarea></div></section>';
     var man = pls.filter(function (p) { return p.kind === 'manual'; }), dyn = pls.filter(function (p) { return p.kind === 'dynamic'; });
     h += '<section class="lb-sec" aria-labelledby="lb-h-pl"><div class="lb-hrow"><h3 class="lb-h" id="lb-h-pl">In playlists</h3><button class="btn s" data-act="lbpladdmenu" data-k="lb-pladd" aria-haspopup="menu" aria-expanded="false">' + L.icon('plus', 's') + 'Add to playlist</button></div>';
@@ -393,7 +400,7 @@
   L.acts.lbmissing = function () { st.missing = !st.missing; L.render(); L.say(st.missing ? 'Showing files Lyre cannot find' : 'Showing all tracks'); };
   L.acts.lbfshape = function (el) { var v = el.dataset.v, i = st.shapes.indexOf(v); if (i > -1) st.shapes.splice(i, 1); else st.shapes.push(v); L.render(); L.say(visible().length + ' tracks shown'); };
   L.acts.lbnew = function () { st.newOnly = !st.newOnly; L.render(); L.say(st.newOnly ? 'Showing new tracks not tagged yet' : 'Showing all tracks'); };
-  L.acts.lbftag = function (el) { var a = st.tags[el.dataset.g], v = el.dataset.v, i = a.indexOf(v); if (i > -1) a.splice(i, 1); else a.push(v); L.render(); L.say(visible().length + ' tracks shown'); };
+  L.acts.lbftag = function (el) { var a = want(el.dataset.g), v = el.dataset.v, i = a.indexOf(v); if (i > -1) a.splice(i, 1); else a.push(v); L.render(); L.say(visible().length + ' tracks shown'); };
   L.acts.lbfolder = function (el) { st.folder = el.dataset.f; L.render(); };
   L.inputs.lbemin = function (el) { st.emin = +el.value; if (st.emax < st.emin) st.emax = st.emin; L.render(); };
   L.inputs.lbemax = function (el) { st.emax = +el.value; if (st.emin > st.emax) st.emin = st.emax; L.render(); };
@@ -431,6 +438,7 @@
     L.menu(el, '<button role="menuitem" data-act="lbrmopen" data-tid="' + id + '">' + L.icon('file', 's') + 'Open details</button>' +
       '<button role="menuitem" data-act="lbrmsel" data-tid="' + id + '">' + L.icon('check', 's') + (sel ? 'Deselect' : 'Select') + '</button>' +
       '<button role="menuitem" data-act="lbrmpl" data-tid="' + id + '">' + L.icon('playlist', 's') + 'Add to playlist…</button>' +
+      '<button role="menuitem" data-act="addto" data-ids="' + (sel ? st.sel.join(',') : id) + '">' + L.icon('plus', 's') + 'Add to…</button>' +
       '<button role="menuitem" data-act="lbusein" data-tid="' + id + '">' + L.icon('link', 's') + 'Use in…</button>' +
       (L.profileLink ? '<button role="menuitem" data-act="lbrmprof" data-tid="' + id + '">' + L.icon('fade', 's') + 'Audio profile</button>' : ''), 'More for ' + L.title(t));
   };
@@ -574,7 +582,7 @@
     var b = document.getElementById('lb-ts-apply'); if (b) { b.textContent = tsApplyLabel(); b.disabled = !tsCount(); b.className = 'btn ' + (ts.mode === 'remove' ? 'danger' : 'primary'); }
   }
   L.acts.lbbtag = function () {
-    ts = { mode: 'add', pick: { mood: [], motif: [], scene: [] }, newq: { mood: '', motif: '', scene: '' } };
+    ts = { mode: 'add', pick: {}, newq: {} }; D.tagGroups.forEach(function (g) { ts.pick[g.id] = []; ts.newq[g.id] = ''; });
     L.sheet({ title: 'Tag ' + plural(st.sel.length, 'track'), body: '<div id="lb-ts">' + tsBody() + '</div>',
       footer: '<button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" id="lb-ts-apply" data-act="lbtsapply" disabled>' + tsApplyLabel() + '</button>' });
   };
@@ -657,7 +665,9 @@
       '<button role="menuitem" data-act="lbgo" data-href="#/relink">' + L.icon('folder', 's') + 'Find missing files' + (n ? ' (' + n + ')' : '') + '…</button>' +
       '<button role="menuitem" data-act="lbgo" data-href="#/moved">' + L.icon('file', 's') + 'What came across from Kenku FM</button>' +
       // PLY-15: the library's normalisation setting (off until turned on), in a small dialog.
-      '<div class="sep"></div><button role="menuitem" data-act="normopen">' + L.icon('volume', 's') + 'Normalise volume…</button>', 'More for the library');
+      '<div class="sep"></div><button role="menuitem" data-act="normopen">' + L.icon('volume', 's') + 'Normalise volume…</button>' +
+      // Round 7 (DAT-10): the tag vocabulary has its own screen.
+      '<button role="menuitem" data-act="lbgo" data-href="#/tags">' + L.icon('tag', 's') + 'Tags and groups…</button>', 'More for the library');
   };
   L.acts.lbgo = function (el) { L.route(el.dataset.href); };
   L.acts.lbaddmenu = function (el) {
