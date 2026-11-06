@@ -360,3 +360,8 @@
 .lv-room > header { min-width: 0; }
 .lv-room .pane-h { min-width: 0; flex: 0 1 auto; }
 .lv-off-count { justify-content: flex-end; }
+/* BUG-21: the session renamed in place in the top strip. */
+.lv-sess-edit { padding-right: 3px; }
+.lv-sess-edit:hover { background: none; }
+.lv-sess-rename { width: 18ch; min-width: 0; height: calc(var(--ctl) - 6px); }
+

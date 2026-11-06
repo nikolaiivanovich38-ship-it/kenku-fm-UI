@@ -594,6 +594,13 @@
     L.render();
   };
   L.acts.cprunthis = function () { var x = ctx(); run(x.c.id, x.s.id); };
+  L.renameSession = function (s, backK) { L.startRename('sess-' + s.id, function (name) { s.name = name; L.say('Session ' + s.n + ' is now called ' + name); }, backK); };
+  L.acts.cprename = function () { L.renameSession(ctx().s, 'cp-h1-name'); };
+  // F2 on a control marked data-f2 runs that action (rename in place).
+  document.addEventListener('keydown', function (e) {
+    var t = e.target; if (e.key !== 'F2' || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || !t || !t.dataset || !t.dataset.f2) return;
+    e.preventDefault(); L.acts[t.dataset.f2](t);
+  });
 
   L.view('session', {
     nav: 'campaigns',
@@ -615,7 +622,10 @@
       if (!s) return '<div class="viewhead"><h1>Session not found</h1></div><div class="empty"><a href="#/campaigns">Back to Campaigns</a></div>';
       var head = '<div class="viewhead"><nav class="crumbs" aria-label="Breadcrumb"><a href="#/campaigns" data-k="crumb-c">Campaigns</a><span class="sep" aria-hidden="true">›</span>' +
         '<a href="#/campaign/' + c.id + '" data-k="crumb-cp">' + esc(c.name) + '</a><span class="sep" aria-hidden="true">›</span></nav>' +
-        '<h1>' + esc(sLabel(s)) + '</h1>' + statusBadge(s.status) + '<span class="grow"></span>' + L.modeSwitch(c.id) +
+        // BUG-21: the title renames the session in place (click or F2); only the name, not the number.
+        '<h1>' + (L.renaming('sess-' + s.id) ? 'Session ' + s.n + ': ' + L.renameBox('sess-' + s.id, s.name, 'Name of Session ' + s.n, 'cp-h1-rename') :
+          '<button class="cp-h1-name" data-act="cprename" data-k="cp-h1-name" data-f2="cprename" title="Rename (click or F2)">' + esc(sLabel(s)) + '</button>') + '</h1>' +
+        statusBadge(s.status) + '<span class="grow"></span>' + L.modeSwitch(c.id) +
         '<button class="btn' + (s.status === 'next' ? ' primary' : '') + '" data-act="cprunthis" data-k="runthis">' + L.icon('broadcast', 's') + 'Run this session</button></div>';
       var details = '<div class="cp-details cp-sdetails">' +
         '<div class="field cp-f-name"><label for="cp-s-name">Session name</label><input class="input" id="cp-s-name" data-input="cpsess" data-f="name" data-k="s-name" value="' + esc(s.name) + '" placeholder="Name this session" autocomplete="off"></div>' +

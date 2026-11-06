@@ -750,6 +750,34 @@ var L = (function () {
     var c = L.campaign(cid), d = D.defaultTheme || 'candle'; return (r.name === 'campaigns' || r.name === 'look') ? d : (c ? c.theme || d : d);
   };
 
+  /* ---------- rename in place (EDT-1, BUG-21) ----------
+     L.startRename(id, onSave, backK): the name `id` turns into a text box where it is (the screen draws
+     L.renameBox(id, value, label) while L.renaming(id)). Enter saves, Esc cancels, leaving the box saves; an empty or
+     unchanged name saves nothing. Focus goes back to the control with data-k `backK`. */
+  var renameAt = null;
+  L.renaming = function (id) { return !!renameAt && renameAt.id === id; };
+  L.renameBox = function (id, value, label, cls) {
+    return '<input class="input ' + (cls || '') + '" type="text" autocomplete="off" data-rename="' + id + '" data-k="rn-' + id + '" aria-label="' + esc(label) + '" placeholder="No name yet" value="' + esc(value) + '" data-was="' + esc(value) + '">';
+  };
+  L.startRename = function (id, onSave, backK) {
+    renameAt = { id: id, onSave: onSave, back: backK };
+    L.render();
+    var box = document.querySelector('[data-rename="' + id + '"]'); if (box) { box.focus(); box.select(); }
+  };
+  function finishRename(save) {
+    var r = renameAt; if (!r) return; renameAt = null;
+    var box = document.querySelector('[data-rename="' + r.id + '"]'), name = box ? box.value.trim() : '';
+    if (save && name && box && name !== box.dataset.was) r.onSave(name);
+    L.render();
+    var back = r.back && document.querySelector('[data-k="' + r.back + '"]'); if (back) back.focus();
+  }
+  document.addEventListener('keydown', function (e) {
+    if (!e.target || !e.target.dataset || !e.target.dataset.rename) return;
+    if (e.key === 'Enter') { e.preventDefault(); finishRename(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finishRename(false); }
+  }, true);
+  document.addEventListener('focusout', function (e) { if (renameAt && e.target && e.target.dataset && e.target.dataset.rename) finishRename(true); });
+
   /* ---------- rendering with focus and scroll kept ---------- */
   function paint(el, html) {
     var a = document.activeElement, k = a && el.contains(a) && a.dataset ? a.dataset.k : null, selStart = a && a.selectionStart, selEnd = a && a.selectionEnd;

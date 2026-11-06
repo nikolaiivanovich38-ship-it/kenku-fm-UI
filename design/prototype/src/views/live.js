@@ -222,9 +222,12 @@
   /* ---------- top strip ---------- */
   function top() {
     var c = camp(), s = sess();
-    return '<div class="lv-top"><h1 class="sr-only">Live</h1>' + L.modeSwitch(c.id) +
-      '<button class="lv-sess" data-act="lvsessmenu" data-k="lv-sess" aria-haspopup="menu" aria-expanded="false" title="Loaded: ' + esc(c.name + ' › Session ' + s.n + ': ' + s.name) + '. Choose another session">' +
-        L.icon('crown', 's') + '<span class="lv-sess-c">' + esc(c.name) + '</span><span class="lv-sess-sep" aria-hidden="true">›</span><span class="lv-sess-s">Session ' + s.n + ': ' + esc(s.name) + '</span>' + L.icon('chevdown', 's') + '</button>' +
+    // BUG-21: F2 on the session, or Rename session in its menu, renames it in place (only the name, not the number).
+    var sessBox = L.renaming('sess-' + s.id) ? '<span class="lv-sess lv-sess-edit">' + L.icon('crown', 's') + '<span class="lv-sess-c">' + esc(c.name) + '</span><span class="lv-sess-sep" aria-hidden="true">›</span><span class="lv-sess-s">Session ' + s.n + ':</span>' +
+        L.renameBox('sess-' + s.id, s.name, 'Name of Session ' + s.n, 'lv-sess-rename') + '</span>' :
+      '<button class="lv-sess" data-act="lvsessmenu" data-k="lv-sess" data-f2="lvsessrename" aria-haspopup="menu" aria-expanded="false" title="Loaded: ' + esc(c.name + ' › Session ' + s.n + ': ' + s.name) + '. Choose another session, or press F2 to rename it">' +
+        L.icon('crown', 's') + '<span class="lv-sess-c">' + esc(c.name) + '</span><span class="lv-sess-sep" aria-hidden="true">›</span><span class="lv-sess-s">Session ' + s.n + ': ' + esc(s.name) + '</span>' + L.icon('chevdown', 's') + '</button>';
+    return '<div class="lv-top"><h1 class="sr-only">Live</h1>' + L.modeSwitch(c.id) + sessBox +
       (rooms().length ? '' : noBotWarning()) +
       '<span class="grow"></span>' +
       '<button class="btn s" data-act="lvfade" data-k="lv-fade" title="Fade everything out over 3 seconds (Shift+Esc)" aria-keyshortcuts="Shift+Escape" aria-label="Fade all">' + L.icon('fade', 's') + '<span class="lv-btxt">Fade all</span></button>' +
@@ -568,8 +571,9 @@
   });
 
   /* ---------- menus ---------- */
+  L.acts.lvsessrename = function () { L.renameSession(sess(), 'lv-sess'); };
   L.acts.lvsessmenu = function (el) {
-    L.menu(el, D.campaigns.map(function (c) {
+    L.menu(el, '<button role="menuitem" data-act="lvsessrename">' + L.icon('edit', 's') + '<span class="grow">Rename session</span></button><div class="sep" role="separator"></div>' + D.campaigns.map(function (c) {
       return '<div class="group">' + esc(c.name) + '</div>' + c.sessions.map(function (s) {
         var cur = c.id === live().cid && s.id === live().sid;
         return '<button role="menuitemradio" aria-checked="' + cur + '" data-act="lvsess" data-cid="' + c.id + '" data-sid="' + s.id + '">' + (cur ? L.icon('check', 's') : '<span style="width:14px"></span>') +

@@ -1261,6 +1261,12 @@ select.input.pl-asksel { width: auto; max-width: 220px; height: var(--ctl-s); pa
 a.btn.cp-prof { text-decoration: none; color: var(--ink-2); }
 a.btn.cp-prof:hover { color: var(--ink); }
 .cp-it-sub .faint { white-space: nowrap; flex: none; }
+/* BUG-21: the session title renames in place. */
+.viewhead h1 .cp-h1-name { font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; background: none; border: 0; padding: 0; margin: 0; max-width: 100%;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: text; border-radius: var(--r-s); }
+.viewhead h1 .cp-h1-name:hover { text-decoration: underline dotted; text-underline-offset: 3px; }
+.viewhead h1 .cp-h1-rename { width: 22ch; max-width: 60vw; height: var(--ctl); font: inherit; font-size: var(--fs); text-transform: none; vertical-align: middle; }
+
 
 /* Library view (lb-): Filters | Tracks | Details. */
 #view[data-view="library"] { position: relative; }
@@ -2021,6 +2027,11 @@ td.lb-c-tags > .chip { max-width: calc(100% - 26px); }
 .lv-room > header { min-width: 0; }
 .lv-room .pane-h { min-width: 0; flex: 0 1 auto; }
 .lv-off-count { justify-content: flex-end; }
+/* BUG-21: the session renamed in place in the top strip. */
+.lv-sess-edit { padding-right: 3px; }
+.lv-sess-edit:hover { background: none; }
+.lv-sess-rename { width: 18ch; min-width: 0; height: calc(var(--ctl) - 6px); }
+
 
 </style>
 </head>
@@ -3060,6 +3071,34 @@ var L = (function () {
     var cid = r.p.cid || (r.name === 'live' ? L.state.live.cid : L.state.ctx.cid);
     var c = L.campaign(cid), d = D.defaultTheme || 'candle'; return (r.name === 'campaigns' || r.name === 'look') ? d : (c ? c.theme || d : d);
   };
+
+  /* ---------- rename in place (EDT-1, BUG-21) ----------
+     L.startRename(id, onSave, backK): the name `id` turns into a text box where it is (the screen draws
+     L.renameBox(id, value, label) while L.renaming(id)). Enter saves, Esc cancels, leaving the box saves; an empty or
+     unchanged name saves nothing. Focus goes back to the control with data-k `backK`. */
+  var renameAt = null;
+  L.renaming = function (id) { return !!renameAt && renameAt.id === id; };
+  L.renameBox = function (id, value, label, cls) {
+    return '<input class="input ' + (cls || '') + '" type="text" autocomplete="off" data-rename="' + id + '" data-k="rn-' + id + '" aria-label="' + esc(label) + '" placeholder="No name yet" value="' + esc(value) + '" data-was="' + esc(value) + '">';
+  };
+  L.startRename = function (id, onSave, backK) {
+    renameAt = { id: id, onSave: onSave, back: backK };
+    L.render();
+    var box = document.querySelector('[data-rename="' + id + '"]'); if (box) { box.focus(); box.select(); }
+  };
+  function finishRename(save) {
+    var r = renameAt; if (!r) return; renameAt = null;
+    var box = document.querySelector('[data-rename="' + r.id + '"]'), name = box ? box.value.trim() : '';
+    if (save && name && box && name !== box.dataset.was) r.onSave(name);
+    L.render();
+    var back = r.back && document.querySelector('[data-k="' + r.back + '"]'); if (back) back.focus();
+  }
+  document.addEventListener('keydown', function (e) {
+    if (!e.target || !e.target.dataset || !e.target.dataset.rename) return;
+    if (e.key === 'Enter') { e.preventDefault(); finishRename(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finishRename(false); }
+  }, true);
+  document.addEventListener('focusout', function (e) { if (renameAt && e.target && e.target.dataset && e.target.dataset.rename) finishRename(true); });
 
   /* ---------- rendering with focus and scroll kept ---------- */
   function paint(el, html) {
@@ -6138,6 +6177,13 @@ var L = (function () {
     L.render();
   };
   L.acts.cprunthis = function () { var x = ctx(); run(x.c.id, x.s.id); };
+  L.renameSession = function (s, backK) { L.startRename('sess-' + s.id, function (name) { s.name = name; L.say('Session ' + s.n + ' is now called ' + name); }, backK); };
+  L.acts.cprename = function () { L.renameSession(ctx().s, 'cp-h1-name'); };
+  // F2 on a control marked data-f2 runs that action (rename in place).
+  document.addEventListener('keydown', function (e) {
+    var t = e.target; if (e.key !== 'F2' || e.ctrlKey || e.altKey || e.metaKey || e.shiftKey || !t || !t.dataset || !t.dataset.f2) return;
+    e.preventDefault(); L.acts[t.dataset.f2](t);
+  });
 
   L.view('session', {
     nav: 'campaigns',
@@ -6159,7 +6205,10 @@ var L = (function () {
       if (!s) return '<div class="viewhead"><h1>Session not found</h1></div><div class="empty"><a href="#/campaigns">Back to Campaigns</a></div>';
       var head = '<div class="viewhead"><nav class="crumbs" aria-label="Breadcrumb"><a href="#/campaigns" data-k="crumb-c">Campaigns</a><span class="sep" aria-hidden="true">›</span>' +
         '<a href="#/campaign/' + c.id + '" data-k="crumb-cp">' + esc(c.name) + '</a><span class="sep" aria-hidden="true">›</span></nav>' +
-        '<h1>' + esc(sLabel(s)) + '</h1>' + statusBadge(s.status) + '<span class="grow"></span>' + L.modeSwitch(c.id) +
+        // BUG-21: the title renames the session in place (click or F2); only the name, not the number.
+        '<h1>' + (L.renaming('sess-' + s.id) ? 'Session ' + s.n + ': ' + L.renameBox('sess-' + s.id, s.name, 'Name of Session ' + s.n, 'cp-h1-rename') :
+          '<button class="cp-h1-name" data-act="cprename" data-k="cp-h1-name" data-f2="cprename" title="Rename (click or F2)">' + esc(sLabel(s)) + '</button>') + '</h1>' +
+        statusBadge(s.status) + '<span class="grow"></span>' + L.modeSwitch(c.id) +
         '<button class="btn' + (s.status === 'next' ? ' primary' : '') + '" data-act="cprunthis" data-k="runthis">' + L.icon('broadcast', 's') + 'Run this session</button></div>';
       var details = '<div class="cp-details cp-sdetails">' +
         '<div class="field cp-f-name"><label for="cp-s-name">Session name</label><input class="input" id="cp-s-name" data-input="cpsess" data-f="name" data-k="s-name" value="' + esc(s.name) + '" placeholder="Name this session" autocomplete="off"></div>' +
@@ -7797,9 +7846,12 @@ var L = (function () {
   /* ---------- top strip ---------- */
   function top() {
     var c = camp(), s = sess();
-    return '<div class="lv-top"><h1 class="sr-only">Live</h1>' + L.modeSwitch(c.id) +
-      '<button class="lv-sess" data-act="lvsessmenu" data-k="lv-sess" aria-haspopup="menu" aria-expanded="false" title="Loaded: ' + esc(c.name + ' › Session ' + s.n + ': ' + s.name) + '. Choose another session">' +
-        L.icon('crown', 's') + '<span class="lv-sess-c">' + esc(c.name) + '</span><span class="lv-sess-sep" aria-hidden="true">›</span><span class="lv-sess-s">Session ' + s.n + ': ' + esc(s.name) + '</span>' + L.icon('chevdown', 's') + '</button>' +
+    // BUG-21: F2 on the session, or Rename session in its menu, renames it in place (only the name, not the number).
+    var sessBox = L.renaming('sess-' + s.id) ? '<span class="lv-sess lv-sess-edit">' + L.icon('crown', 's') + '<span class="lv-sess-c">' + esc(c.name) + '</span><span class="lv-sess-sep" aria-hidden="true">›</span><span class="lv-sess-s">Session ' + s.n + ':</span>' +
+        L.renameBox('sess-' + s.id, s.name, 'Name of Session ' + s.n, 'lv-sess-rename') + '</span>' :
+      '<button class="lv-sess" data-act="lvsessmenu" data-k="lv-sess" data-f2="lvsessrename" aria-haspopup="menu" aria-expanded="false" title="Loaded: ' + esc(c.name + ' › Session ' + s.n + ': ' + s.name) + '. Choose another session, or press F2 to rename it">' +
+        L.icon('crown', 's') + '<span class="lv-sess-c">' + esc(c.name) + '</span><span class="lv-sess-sep" aria-hidden="true">›</span><span class="lv-sess-s">Session ' + s.n + ': ' + esc(s.name) + '</span>' + L.icon('chevdown', 's') + '</button>';
+    return '<div class="lv-top"><h1 class="sr-only">Live</h1>' + L.modeSwitch(c.id) + sessBox +
       (rooms().length ? '' : noBotWarning()) +
       '<span class="grow"></span>' +
       '<button class="btn s" data-act="lvfade" data-k="lv-fade" title="Fade everything out over 3 seconds (Shift+Esc)" aria-keyshortcuts="Shift+Escape" aria-label="Fade all">' + L.icon('fade', 's') + '<span class="lv-btxt">Fade all</span></button>' +
@@ -8143,8 +8195,9 @@ var L = (function () {
   });
 
   /* ---------- menus ---------- */
+  L.acts.lvsessrename = function () { L.renameSession(sess(), 'lv-sess'); };
   L.acts.lvsessmenu = function (el) {
-    L.menu(el, D.campaigns.map(function (c) {
+    L.menu(el, '<button role="menuitem" data-act="lvsessrename">' + L.icon('edit', 's') + '<span class="grow">Rename session</span></button><div class="sep" role="separator"></div>' + D.campaigns.map(function (c) {
       return '<div class="group">' + esc(c.name) + '</div>' + c.sessions.map(function (s) {
         var cur = c.id === live().cid && s.id === live().sid;
         return '<button role="menuitemradio" aria-checked="' + cur + '" data-act="lvsess" data-cid="' + c.id + '" data-sid="' + s.id + '">' + (cur ? L.icon('check', 's') : '<span style="width:14px"></span>') +
