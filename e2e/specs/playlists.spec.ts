@@ -4,7 +4,7 @@
  * Music, Ambience and FX; expanders in the list; Preview and Play on air; no Duplicate; drop files in.
  */
 import type { Page } from "@playwright/test";
-import { expect, test } from "./support/test";
+import { expect, expectFailureUntilBuilt, test } from "./support/test";
 import { openRoute } from "./support/target";
 import { dropFiles } from "./support/drop";
 

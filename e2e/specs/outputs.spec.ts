@@ -4,7 +4,7 @@
  * A room is named after its voice channel; each shows which bot is in it, who hears it and its volume.
  */
 import type { Page } from "@playwright/test";
-import { expect, test } from "./support/test";
+import { expect, expectFailureUntilBuilt, test } from "./support/test";
 import { joinRoom, openRoute } from "./support/target";
 
 const room = (page: Page, name: string) => page.getByRole("region", { name, exact: true });

@@ -3,7 +3,7 @@
  * (design/prototype/tools/lb-flow.js, lb-size.js and src/views/library.js).
  */
 import type { Page } from "@playwright/test";
-import { expect, test } from "./support/test";
+import { expect, expectFailureUntilBuilt, test } from "./support/test";
 import { openRoute } from "./support/target";
 import { dropFiles } from "./support/drop";
 

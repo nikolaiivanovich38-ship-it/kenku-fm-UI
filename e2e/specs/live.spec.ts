@@ -3,7 +3,7 @@
  * Elements are found by role, accessible name and visible text only.
  */
 import type { Page } from "@playwright/test";
-import { expect, test } from "./support/test";
+import { expect, expectFailureUntilBuilt, test } from "./support/test";
 import { joinRoom, leaveAllRooms, openRoute } from "./support/target";
 
 const region = (page: Page, name: string) => page.getByRole("region", { name, exact: true });

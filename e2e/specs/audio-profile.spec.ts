@@ -4,7 +4,7 @@
  * (t13), which loops from 1:04 to 5:18 and has its own settings in the scene "The abbey ruins".
  */
 import type { Page } from "@playwright/test";
-import { expect, test } from "./support/test";
+import { expect, expectFailureUntilBuilt, test } from "./support/test";
 import { openRoute } from "./support/target";
 
 const wave = (page: Page) => page.getByRole("region", { name: "Waveform and listening", exact: true });

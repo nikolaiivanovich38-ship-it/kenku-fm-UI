@@ -4,7 +4,7 @@
  * search and filter.
  */
 import type { Page } from "@playwright/test";
-import { expect, test } from "./support/test";
+import { expect, expectFailureUntilBuilt, test } from "./support/test";
 import { openRoute } from "./support/target";
 
 const boards = (page: Page) => page.getByRole("list", { name: "Pad boards", exact: true });
