@@ -543,9 +543,12 @@ describe("AudioCaptureManagerPreload: one mix and one encoder per room (OUT-5)",
     manager.setRooms([A, B]);
     await manager.startBroadcast("lowLatency");
     expect(manager._mixes.get(B)!.volume.gain.value).toBe(0.25);
+    expect(manager._mixes.get(B)!.localVolume.gain.value).toBe(0.25);
     expect(manager._mixes.get(A)!.volume.gain.value).toBe(1);
     manager.setRoomVolume(A, 0.5);
     expect(manager._mixes.get(A)!.volume.gain.value).toBe(0.5);
+    // This Computer hears the room's tabs at the same volume.
+    expect(manager._mixes.get(A)!.localVolume.gain.value).toBe(0.5);
   });
 
   it("plays only the first room's tabs and input devices on this computer", async () => {
@@ -636,7 +639,8 @@ describe("AudioCaptureManagerPreload: engine rooms and preview from the player p
     port.deliver(roomFrame(B, 4));
     expect(inlets()).toHaveLength(1);
     const inlet = inlets()[0];
-    expect(inlet.connections).toEqual(new Set([manager._mixes.get(B)!.input]));
+    // Past the room's input (tabs and devices), into its volume towards the bot only (BUG-19).
+    expect(inlet.connections).toEqual(new Set([manager._mixes.get(B)!.volume]));
     expect(inlet.port.postMessage).toHaveBeenCalledWith(
       expect.objectContaining({ index: 4, samples: expect.any(Float32Array) }),
       [expect.any(ArrayBuffer)],

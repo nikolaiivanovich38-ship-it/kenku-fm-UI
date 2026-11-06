@@ -124,7 +124,7 @@ describe("To: where each box plays", () => {
     expect(boxTarget(rooms.slice(0, 1), SIDE_BOT).name).toBe("Table");
   });
 
-  it("with no room, sound goes to the table (this computer)", () => {
+  it("with no room, sound goes to the table (which nobody hears)", () => {
     expect(boxTarget([], undefined)).toEqual({ choice: "table", targets: [{ room: "table" }], name: "Table" });
   });
 });

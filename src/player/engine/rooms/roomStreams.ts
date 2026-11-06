@@ -82,9 +82,9 @@ export class PlayerAudioLink extends TypedEmitter<LinkEvents> {
 
 interface RoomStreamsEvents {
   /**
-   * A bot joined (true) or the last left (false). While broadcasting, the
-   * host should not also play room outputs on this page's speakers (the
-   * capture window's "This Computer" plays the first room).
+   * A bot joined (true) or the last left (false). Rooms are heard only on
+   * Discord: a host never plays room outputs on this page's speakers, in a
+   * broadcast or outside one (BUG-19).
    */
   broadcast: (active: boolean) => void;
 }

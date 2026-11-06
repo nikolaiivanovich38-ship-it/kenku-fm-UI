@@ -3,7 +3,7 @@
  * the same number:
  *
  * - a bot's room plays at the bot's volume, kept by the main process (the Outputs bridge);
- * - the table (no bot in a voice channel) plays at the audio host's level for it, which only this computer hears;
+ * - the table (no bot in a voice channel) plays at the audio host's level for it, which nobody hears (BUG-19);
  * - a page without the Outputs bridge (tests, the prototype) has only the audio host's levels.
  *
  * While the bridge has not yet said what a bot's volume is, its slider shows the room as it plays and changes

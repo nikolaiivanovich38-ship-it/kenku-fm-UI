@@ -24,12 +24,23 @@ import { LIVE_FADE_MS } from "./TrackRow";
 export function OnAirBoxes() {
   const { rooms, now, outputs } = useLive();
   const table = now.rooms.find((r) => r.roomId === TABLE) ?? now.rooms[0] ?? null;
+  // BUG-19: with no bot in a voice channel, what plays goes nowhere (Lyre never plays it on this computer).
+  const unheard = !!table && (!!table.music || !!table.ambience || table.effects.length > 0);
   return (
     <>
       {rooms.length ? (
         rooms.map((r) => <RoomBox key={r.roomId} r={r} />)
       ) : (
-        <Pane id="lv-room-none" title="On air: no room yet" icon="broadcast" kind="onair" size="auto" flush noMax status={{ text: "Silent", tone: "idle" }}>
+        <Pane
+          id="lv-room-none"
+          title="On air: no room yet"
+          icon="broadcast"
+          kind="onair"
+          size="auto"
+          flush
+          noMax
+          status={unheard ? { text: "Nobody hears it", tone: "warn" } : { text: "Silent", tone: "idle" }}
+        >
           <div className="lv-onair">
             <Lane lane="music" room={table} roomName="Table" />
             <Lane lane="ambience" room={table} roomName="Table" />

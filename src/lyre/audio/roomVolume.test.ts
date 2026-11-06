@@ -1,6 +1,6 @@
 /**
  * UX-16: each room's volume, the one the Now playing bar, Live's room box and Outputs show (core.js: a room's
- * volume slider, 0 to 100 in steps of 5). It is the room's mix level, so the players and this computer hear it, and
+ * volume slider, 0 to 100 in steps of 5). It is the room's mix level, so the players hear it (never this computer, BUG-19), and
  * it is kept per room while the app runs.
  */
 import { describe, expect, it } from "vitest";

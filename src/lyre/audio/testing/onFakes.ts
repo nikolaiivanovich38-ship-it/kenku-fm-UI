@@ -3,7 +3,7 @@
  * (src/player/engine/testing/fakeAudio.ts): the engine, Director, room
  * mixer, RoomStreams with fake frame taps on a fake channel to the capture
  * window, and the PreviewPlayer in an audio context of its own. Tests listen
- * to each room, this page's speakers and the preview, and play the capture
+ * to each room, this page's speakers (which no room may reach, BUG-19) and the preview, and play the capture
  * window's side of the channel (`broadcast`).
  */
 import { DEFAULT_LIBRARY_NORMALISE, type DomainTrack, type Room } from "../../../common/domain";
@@ -135,7 +135,6 @@ export function lyreAudioOnFakes(data: AudioTestData, options: { devices?: Outpu
     engine,
     mixer,
     streams,
-    speakers: context.destination,
     preview,
     previewDevices,
     library: staticAudioLibrary(data),
@@ -179,7 +178,7 @@ export function lyreAudioOnFakes(data: AudioTestData, options: { devices?: Outpu
     hearRoom(roomId: string) {
       return context.signalAt(mixer.output(roomId) as FakeGain);
     },
-    /** What this page's speakers play now. */
+    /** What this page's speakers play now: nothing from a room, ever (BUG-19). */
     hearSpeakers() {
       return context.signalAt(context.destination);
     },

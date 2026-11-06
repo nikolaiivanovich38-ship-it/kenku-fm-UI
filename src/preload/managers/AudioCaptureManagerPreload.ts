@@ -47,8 +47,15 @@ export type PacketSink = (packet: Uint8Array, room?: string) => void;
 export interface RoomMix {
   /** The room's bot id, or "" for the single mix used while no rooms are named. */
   id: string;
+  /** Tabs and input devices routed to this room. */
   input: GainNode;
+  /** The room's volume on the way to its bot: `input` and the Lyre page's frames go through it to `pcmNode`. */
   volume: GainNode;
+  /**
+   * The same volume on the way to "This Computer", for `input` only. BUG-19: the Lyre page's room frames never go
+   * this way, so what goes to the players is heard only through Discord.
+   */
+  localVolume: GainNode;
   pcmNode: AudioWorkletNode;
   encoder: AudioEncoder;
 }
@@ -119,14 +126,15 @@ export function opusEncoderConfig(mode: StreamingMode): AudioEncoderConfig {
  * OUT-5: one mix, worklet and encoder per room (every bot in a voice channel),
  * so each bot hears its own room. Each source (a tab, an input device) goes
  * to the rooms its route names: every room, the first room (the table) or
- * one room. "This Computer" plays the first room.
+ * one room. "This Computer" plays the first room's tabs and input devices,
+ * never the Lyre page's rooms (BUG-19: those are heard only through Discord).
  */
 export class AudioCaptureManagerPreload {
   /** Audio context to mix media streams into one audio output */
   _audioContext?: AudioContext;
   /** OUT-5: one mix per room, first room first (built once the worklet has loaded). */
   _mixes = new Map<string, RoomMix>();
-  /** Feeds "This Computer": the first room's mix. */
+  /** Feeds "This Computer": the first room's tabs and input devices (BUG-19: not the Lyre page's rooms). */
   _loopbackNode?: GainNode;
   _streamingMode: StreamingMode = "performance";
   /** Set while broadcasting; resolves true once sources can be connected. */
@@ -289,10 +297,10 @@ export class AudioCaptureManagerPreload {
       let first = true;
       for (const mix of this._mixes.values()) {
         if (first) {
-          mix.volume.connect(loopback);
+          mix.localVolume.connect(loopback);
         } else {
           try {
-            mix.volume.disconnect(loopback);
+            mix.localVolume.disconnect(loopback);
           } catch {
             // Was not connected: nothing to undo.
           }
@@ -305,9 +313,10 @@ export class AudioCaptureManagerPreload {
   _createMix(context: AudioContext, id: string): RoomMix {
     const input = context.createGain();
     const volume = context.createGain();
-    volume.gain.value = this._roomVolumes.get(id) ?? 1;
+    const localVolume = context.createGain();
+    volume.gain.value = localVolume.gain.value = this._roomVolumes.get(id) ?? 1;
     const pcmNode = new AudioWorkletNode(context, "pcm-stream");
-    const mix: RoomMix = { id, input, volume, pcmNode, encoder: this._createEncoder(id) };
+    const mix: RoomMix = { id, input, volume, localVolume, pcmNode, encoder: this._createEncoder(id) };
     pcmNode.port.onmessage = (event: MessageEvent<WorkletFrame[]>) => {
       // Frames still on their way from a room that has gone are dropped.
       if (this._mixes.get(id) !== mix) {
@@ -318,6 +327,7 @@ export class AudioCaptureManagerPreload {
       }
     };
     input.connect(volume);
+    input.connect(localVolume);
     volume.connect(pcmNode);
     return mix;
   }
@@ -326,6 +336,7 @@ export class AudioCaptureManagerPreload {
     this._releasePlayerInlet(mix.id);
     mix.input.disconnect();
     mix.volume.disconnect();
+    mix.localVolume.disconnect();
     mix.pcmNode.disconnect();
     if (mix.encoder.state !== "closed") {
       mix.encoder.close();
@@ -384,7 +395,10 @@ export class AudioCaptureManagerPreload {
     }
   }
 
-  /** OUT-5: 20 ms of an engine room, into that room's mix (only while broadcasting, only a room it has). */
+  /**
+   * OUT-5: 20 ms of an engine room, into that room's mix towards its bot (only while broadcasting, only a room it
+   * has). BUG-19: past `input`, so never to "This Computer".
+   */
   _playRoomFrame(room: string, index: number, samples: Float32Array): void {
     const context = this._audioContext;
     const mix = this._mixes.get(room);
@@ -398,7 +412,7 @@ export class AudioCaptureManagerPreload {
         numberOfOutputs: 1,
         outputChannelCount: [2],
       });
-      node.connect(mix.input);
+      node.connect(mix.volume);
       inlet = { node };
       this._playerInlets.set(room, inlet);
       this._updateRunning();
@@ -521,6 +535,7 @@ export class AudioCaptureManagerPreload {
     const mix = this._mixes.get(room);
     if (mix) {
       mix.volume.gain.value = level;
+      mix.localVolume.gain.value = level;
     }
   }
 

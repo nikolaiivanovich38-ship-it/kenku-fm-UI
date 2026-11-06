@@ -149,7 +149,8 @@ function RoomRow({ audio, room, named, broadcasting, first }: { audio: LyreAudio
   const extras = [
     room.music && room.ambience ? `Ambience: ${room.ambience.title}` : "",
     room.effects.length ? `${room.effects.length} effect${room.effects.length > 1 ? "s" : ""} sounding` : "",
-    broadcasting ? "" : "No bot is in a voice channel: only this computer plays it",
+    // BUG-19: the players' sound goes only to Discord, so with no bot in a voice channel nobody hears it.
+    broadcasting ? "" : "No bot is in a voice channel: nobody hears it",
   ].filter(Boolean);
 
   return (

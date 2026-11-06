@@ -106,13 +106,14 @@ describe("assembleLyreAudio: LyreAudio wired into the new page as docs/ARCHITECT
     await audio.dispose();
   });
 
-  it("plays on this page's speakers outside a broadcast only", async () => {
+  it("never plays a room on this page's speakers, in a broadcast or outside one (BUG-19)", async () => {
     const audio = assemble();
     const port = new FakeAudioPort();
     deliverPort(port);
     audio.playTrack("m1");
     await context.advance(4);
-    expect(context.signalAt(context.destination)).toBeCloseTo(1);
+    expect(audio.getNowPlaying().rooms[0].music?.trackId).toBe("m1");
+    expect(context.signalAt(context.destination)).toBe(0);
     port.deliver({ kind: "broadcast", active: true });
     expect(context.signalAt(context.destination)).toBe(0);
     await audio.dispose();

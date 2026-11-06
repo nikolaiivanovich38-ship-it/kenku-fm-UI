@@ -6,7 +6,8 @@
  *   Discord's Opus only at that rate);
  * - each room's mix reaches its bot only through RoomStreams over the private
  *   channel; this page is never tab-captured (role "lyre-view");
- * - this page's speakers play the first room only while no broadcast runs;
+ * - no room ever plays on this page's speakers (BUG-19: the players' sound is
+ *   heard only through Discord);
  * - the preview plays in a sink-less audio context of its own and reaches the
  *   game master's chosen device through the capture window, never a room.
  *
@@ -14,7 +15,7 @@
  * them and is what the unit tests check with fakes.
  */
 import { DEFAULT_LIBRARY_NORMALISE, type DomainLookup } from "../../common/domain";
-import { fromAudioContext, type EngineContext, type GainLike, type NodeLike, type Scheduler } from "../../player/engine/audio/types";
+import { fromAudioContext, type EngineContext, type GainLike, type Scheduler } from "../../player/engine/audio/types";
 import { createBrowserEngine } from "../../player/engine/browser";
 import type { PlaybackEngine } from "../../player/engine/engine";
 import {
@@ -51,8 +52,8 @@ export interface LyreAudioPieces {
   /** `window.lyre.audio` (preloadAudio.ts). */
   bridge: LyreAudioBridge;
   library: LyreAudioLibrary;
-  /** The engine's audio context (48 kHz), with its speakers. */
-  context: EngineContext & { readonly destination: NodeLike };
+  /** The engine's audio context (48 kHz). Nothing is joined to its speakers. */
+  context: EngineContext;
   engine: PlaybackEngine;
   link: PlayerAudioLink;
   createTap: FrameTapFactory;
@@ -88,7 +89,6 @@ export function assembleLyreAudio(pieces: LyreAudioPieces): EngineLyreAudio {
     engine: pieces.engine,
     mixer,
     streams,
-    speakers: pieces.context.destination,
     preview,
     previewDevices,
     library: pieces.library,
@@ -144,8 +144,7 @@ export async function startLyreAudio(options: { window: Window; bridge: LyreAudi
     window: target,
     bridge,
     library: options.library,
-    // The page's speakers, used outside a broadcast only.
-    context: Object.assign(fromAudioContext(audioContext), { destination: audioContext.destination as unknown as NodeLike }),
+    context: fromAudioContext(audioContext),
     engine,
     link,
     createTap,

@@ -15,9 +15,10 @@
  * Where sound goes (docs/ARCHITECTURE.md, "Host wiring for wave 3"):
  * - On air: each room's mix goes to its bot only through RoomStreams. The new
  *   page is never tab-captured (permissions.ts, AudioCaptureManagerMain).
- * - This page's speakers play the first room only while no broadcast runs.
- *   During a broadcast the capture window's "This Computer" plays the first
- *   room, so the game master never hears it twice.
+ * - BUG-19: what goes to the players is heard only through Discord. No room
+ *   ever plays on this page's speakers (nothing joins the engine to them), and
+ *   the capture window keeps engine rooms off "This Computer". With no bot in
+ *   a voice channel the table plays to nobody; the screens say so.
  * - Preview plays in an audio context of its own whose only way out is the
  *   capture window's preview player; it can never reach a room.
  */
@@ -39,7 +40,7 @@ import {
   type RoomTarget,
   type UsePlace,
 } from "../../common/domain";
-import type { GainLike, NodeLike } from "../../player/engine/audio/types";
+import type { GainLike } from "../../player/engine/audio/types";
 import type { PlaybackEngine } from "../../player/engine/engine";
 import {
   padPreview,
@@ -151,7 +152,7 @@ export interface RoomNowPlaying {
 export interface NowPlaying {
   /** One entry per room, the first room (where scenes play) first. */
   rooms: RoomNowPlaying[];
-  /** A bot is in a voice channel: rooms play on Discord, not on this page's speakers. */
+  /** A bot is in a voice channel: rooms are heard on Discord. While false nobody hears them (BUG-19). */
   broadcasting: boolean;
   /** What plays in the game master's headphones only. Key: track id, "pl:<id>" or "pad:<board>/<pad>". */
   preview: PreviewNowPlaying | null;
@@ -322,8 +323,6 @@ export interface LyreAudioParts {
   mixer: RoomMixer;
   /** RoomStreams: sends the rooms to Discord and says when a broadcast runs. */
   streams: BroadcastSignal;
-  /** This page's speakers (the engine context's destination). */
-  speakers: NodeLike;
   preview: PreviewPlayer;
   /** The preview's device choice, already attached to the preview output. */
   previewDevices?: OutputDeviceChooser;
@@ -358,7 +357,6 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
   private snapshot: NowPlaying | null = null;
   private notifyQueued = false;
   private stopProgress: (() => void) | null = null;
-  private speakerSource: GainLike | null = null;
   private wantedKey = "";
   private disposed = false;
   /** Each room's volume by its real id (a bot id, or "table"), kept while the app runs. */
@@ -388,13 +386,9 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     const onDirectorError = (message: string) => this.emit("error", message);
     const onRooms = () => {
       this.applyRoomVolumes();
-      this.routeSpeakers();
       this.changed();
     };
-    const onBroadcast = () => {
-      this.routeSpeakers();
-      this.changed();
-    };
+    const onBroadcast = () => this.changed();
     const onVoice = () => this.changed();
     const onPreview = (_state: PreviewState | null, announcement: string) => {
       if (announcement) this.emit("announce", announcement);
@@ -427,7 +421,6 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       () => parts.previewDevices?.off("status", onDevice),
     );
     this.applyRoomVolumes();
-    this.routeSpeakers();
   }
 
   /** Read from another library from now on (the data layer reloaded). */
@@ -738,7 +731,6 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     this.rooms.dispose();
     this.parts.preview.dispose();
     this.parts.previewDevices?.dispose();
-    this.routeSpeakers();
     this.removeAllListeners();
     await this.parts.onDispose?.();
   }
@@ -824,23 +816,6 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
   private applyRoomVolumes(): void {
     if (this.disposed) return;
     for (const id of this.realRoomIds()) this.parts.mixer.setLevel(id, "master", this.roomVolume(id));
-  }
-
-  /** Outside a broadcast the first room plays on this page's speakers; during one, only on Discord and "This Computer". */
-  private routeSpeakers() {
-    const wanted = this.disposed || this.parts.streams.broadcasting ? null : this.parts.mixer.output(TABLE_ROOM);
-    if (wanted === this.speakerSource) {
-      return;
-    }
-    if (this.speakerSource) {
-      try {
-        this.speakerSource.disconnect(this.parts.speakers);
-      } catch {
-        // Already disconnected: the room it belonged to has gone.
-      }
-    }
-    wanted?.connect(this.parts.speakers);
-    this.speakerSource = wanted;
   }
 
   private changed() {
