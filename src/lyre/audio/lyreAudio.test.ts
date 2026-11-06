@@ -335,6 +335,39 @@ describe("pads (L.firePad): one-shot, toggle, hold, retrigger", () => {
     expect(padIsOn(state(), "b", "drone")).toBe(false);
   });
 
+  it("SFX-12: tries a pad as it plays in Live, in the headphones only: toggle on and off, hold while held, one-shot once", async () => {
+    onDiscord();
+    expect(rig.audio.tryPad("b", "rain")).toEqual({ ok: true });
+    await rig.advance(40);
+    // A toggle loop goes round (the bed is 30 s long) until pressed again, and no room hears it.
+    expect(state().preview).toMatchObject({ key: "pad:b/rain", kind: "pad", padKey: "b/rain" });
+    expect(rig.hearPreview()).toBeGreaterThan(0.5);
+    expect(rig.hearRoom("bot-a")).toBe(0);
+    expect(padIsOn(state(), "b", "rain")).toBe(false);
+    rig.audio.tryPad("b", "rain");
+    await rig.advance(0.5);
+    expect(state().preview).toBeNull();
+
+    rig.audio.tryPad("b", "drone", "down");
+    await rig.advance(12);
+    expect(state().preview).toMatchObject({ key: "pad:b/drone" });
+    rig.audio.tryPad("b", "drone", "down");
+    expect(state().preview).toMatchObject({ key: "pad:b/drone" });
+    rig.audio.tryPad("b", "drone", "up");
+    await rig.advance(0.5);
+    expect(state().preview).toBeNull();
+
+    rig.audio.tryPad("b", "door");
+    await rig.advance(0.5);
+    expect(state().preview).toMatchObject({ key: "pad:b/door" });
+    // A second press plays it again from the start; it does not stop it as Preview would.
+    rig.audio.tryPad("b", "door");
+    expect(state().preview).toMatchObject({ key: "pad:b/door" });
+    await rig.advance(3);
+    expect(state().preview).toBeNull();
+    expect(rig.audio.tryPad("b", "silent")).toEqual({ ok: false, message: "That pad has no sound." });
+  });
+
   it("plays a pad only in the room it is sent to", async () => {
     onDiscord();
     rig.audio.firePad("b", "rain", "down", { room: "bot-b" });

@@ -5,6 +5,7 @@
  * Written without undo history: the seeded library starts with nothing to undo.
  */
 import { parseKeyOfPlace, parsePlaceKey } from "../../common/domain";
+import { prototypeLevels } from "../../common/lyre/prototypeLevels";
 import type { SeedData } from "../../common/lyre/seed";
 import { SAMPLE_FILE_BYTES } from "./sampleComputer";
 import {
@@ -33,6 +34,7 @@ import {
   setSceneTrackName,
   setTrackNormalise,
   trackLoudness,
+  trackPeaks,
   updateTrack,
   type Library,
 } from "../data";
@@ -173,4 +175,19 @@ export async function seedLibrary(library: Library, seed: SeedData, options: See
     if (t.loudness && measuring.state === "needed") saveLoudness(store, measuring.source, t.loudness);
   }
   store.clearHistory();
+}
+
+/**
+ * Test builds only, after seedLibrary: the seeded tracks' files are not on the test machine, so their peaks are the
+ * prototype's made-up loudness (prototypeLevels), as the in-memory fake answers them. Lyre then suggests the shapes
+ * the approved design shows (DAT-13) and draws the same waves. Not part of seedLibrary, so the contract tests keep a
+ * library whose peaks are worked out when asked, as the fake's are.
+ */
+export function seedPrototypePeaks(library: Library, seed: SeedData): void {
+  const { store } = library;
+  for (const t of seed.tracks) {
+    const state = trackPeaks(store, t.id);
+    if (state.state !== "needed") continue;
+    savePeaks(store, state.source, Uint8Array.from(prototypeLevels(t), (v) => Math.round(v * 255)));
+  }
 }

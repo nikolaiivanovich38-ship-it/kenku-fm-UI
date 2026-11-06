@@ -75,6 +75,7 @@ import {
   type WriteResult,
 } from "./api";
 import { lookupFrom } from "./lookup";
+import { prototypeLevels } from "./prototypeLevels";
 import { fileAddress } from "./media";
 import { plural, quoted, shownTitle, tagValue, trimmed } from "./text";
 import { prototypeSeed, type SeedData } from "./seed";
@@ -188,26 +189,12 @@ function guessKind(folder: string): LibraryTrack["kind"] {
   return "music";
 }
 
-/** A made-up wave of 1,000 levels for a track, the same for the same id (the fake has no files to read). */
 /** A made-up loudness for a track the fake "measures" (-26 to -14 LUFS, peaks 8 to 14 dB above it, at most 0 dBTP). */
 export function madeUpLoudness(trackId: string): { lufs: number; truePeakDb: number } {
   let hash = 7;
   for (const c of trackId) hash = (hash * 33 + c.charCodeAt(0)) >>> 0;
   const lufs = -26 + (hash % 120) / 10;
   return { lufs: Math.round(lufs * 10) / 10, truePeakDb: Math.min(0, Math.round((lufs + 8 + ((hash >> 8) % 60) / 10) * 10) / 10) };
-}
-
-export function madeUpPeaks(trackId: string): number[] {
-  let hash = 0;
-  for (const c of trackId) hash = (hash * 31 + c.charCodeAt(0)) >>> 0;
-  const phase = (hash % 628) / 100;
-  const swells = 2 + (hash % 5);
-  return Array.from({ length: 1000 }, (_, i) => {
-    const x = i / 999;
-    const envelope = Math.min(1, x * 12, (1 - x) * 8);
-    const level = envelope * (0.55 + 0.3 * Math.sin(phase + x * swells * 2 * Math.PI)) + 0.06 * Math.sin(i * 0.9 + phase);
-    return Math.round(Math.max(0, Math.min(1, level)) * 1000) / 1000;
-  });
 }
 
 export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
@@ -259,11 +246,10 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
         workingOut.delete(id);
         const t = state.tracks.find((x) => x.id === id);
         if (!t) continue;
-        if (!peaks.has(id)) {
-          peaks.set(id, madeUpPeaks(id));
-          // DAT-13: the suggestion is kept with the peaks, outside undo, as the library keeps it.
-          t.suggestedShape = shapeFromPeaks(peaks.get(id));
-        }
+        // The prototype's made-up loudness (core.js L.levels), so the suggestions are the design's.
+        peaks.set(id, prototypeLevels(t));
+        // DAT-13: the suggestion is kept with the peaks, outside undo, as the library keeps it.
+        t.suggestedShape = shapeFromPeaks(peaks.get(id));
         // DAT-15: the same job measures loudness; a made-up figure stands in for ffmpeg's.
         t.loudness ??= madeUpLoudness(id);
       }

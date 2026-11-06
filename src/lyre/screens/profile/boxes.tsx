@@ -415,15 +415,17 @@ export function MarkersBox({ c }: C) {
 export function PlaceBar({ c }: C) {
   const { view, key, editable, actions } = c;
   const trackId = c.editor.track.id;
-  const { pls, scs } = placesOf(trackId, view);
+  const { pls, scs, sss } = placesOf(trackId, view);
   // An address can name a place that no longer uses the track and has no settings of its own; it is listed so the choice shows it.
-  if (key && ![...pls, ...scs].some((x) => x.key === key)) (key.startsWith("pl:") ? pls : scs).push({ key, label: placeName(key, view).replace(/^the (playlist|scene) /, "") });
+  if (key && ![...pls, ...scs, ...sss].some((x) => x.key === key)) {
+    (key.startsWith("pl:") ? pls : key.startsWith("ss:") ? sss : scs).push({ key, label: placeName(key, view).replace(/^the (playlist|scene|session) /, "") });
+  }
   const option = (k: string, label: string) => (
     <option key={k} value={k}>
       {`${label}${!k ? "" : hasOwn(trackId, k, view.overrides) ? " · own settings" : " · uses the track's"}`}
     </option>
   );
-  const kind = key.startsWith("sc:") ? "scene" : "playlist";
+  const kind = key.startsWith("sc:") ? "scene" : key.startsWith("ss:") ? "session" : "playlist";
   let status: React.ReactNode;
   if (!key) {
     const others = ownPlaceKeys(trackId, view.overrides);
@@ -478,6 +480,7 @@ export function PlaceBar({ c }: C) {
         {option("", "This track everywhere (its own)")}
         {pls.length > 0 && <optgroup label="Playlists">{pls.map((x) => option(x.key, `Playlist: ${x.label}`))}</optgroup>}
         {scs.length > 0 && <optgroup label="Scenes (cues)">{scs.map((x) => option(x.key, `Scene: ${x.label}`))}</optgroup>}
+        {sss.length > 0 && <optgroup label="Sessions">{sss.map((x) => option(x.key, `Session list: ${x.label}`))}</optgroup>}
       </select>
       <div className="ap-place-st">{status}</div>
     </div>

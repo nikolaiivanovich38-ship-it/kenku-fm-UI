@@ -4,7 +4,7 @@
  * search and filter.
  */
 import type { Page } from "@playwright/test";
-import { expect, expectFailureUntilBuilt, test } from "./support/test";
+import { expect, test } from "./support/test";
 import { openRoute } from "./support/target";
 
 const boards = (page: Page) => page.getByRole("list", { name: "Pad boards", exact: true });
@@ -97,7 +97,6 @@ test.describe("resizing a board: spare pads", () => {
   // Changed in round 5 (SFX-11): growing the grid fills its free slots from Spare pads, in their order, so there is
   // nothing left to put back. Before: "4 empty slots to fill. Spare pads can go back into them." and Put all back.
   test("making the grid bigger again brings the spare pads back into it, in their order", async ({ page }) => {
-    expectFailureUntilBuilt("round 5");
     await openRoute(page, "board/weather");
     await page.getByRole("button", { name: "Fewer rows" }).click();
     await page.getByRole("button", { name: "More rows" }).click();
@@ -117,7 +116,6 @@ test.describe("resizing a board: spare pads", () => {
 
   // Round 5 (SFX-11): Mugs clink was put in Spare pads by hand, so it stays there however large the grid gets (8 of 24).
   test("the quick sizes set columns and rows at once, and the current size is pressed", async ({ page }) => {
-    expectFailureUntilBuilt("round 5");
     await openRoute(page, "board/weather");
     const quick = page.getByRole("group", { name: "Quick sizes" });
     await expect(quick.getByRole("button", { name: "4 columns by 2 rows" })).toHaveAttribute("aria-pressed", "true");
@@ -242,7 +240,8 @@ test.describe("pads on a board", () => {
 
 /* Round 5 (design/prototype/ROUND5.md): built in wave 4, so each check waits for "round 5" in the app. */
 test.describe("round 5: resizing fills the grid; trying pads as they play", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 5"));
+  // Try pads uses pads that have a sound in the app's sample library too (seed.ts leaves out pad files with no FX
+  // track): Crowd whispers (toggle, key 3) and Heartbeat (hold) on the Elysium court board, as Live's checks do.
 
   test("SFX-11: after a resize the pads fill the grid left to right, top to bottom, in their order", async ({ page }) => {
     await openRoute(page, "board/combat");
@@ -277,22 +276,22 @@ test.describe("round 5: resizing fills the grid; trying pads as they play", () =
   });
 
   test("SFX-12: Try pads plays a toggle loop on and off, privately, by click and by its key; each pad also has Preview", async ({ page }) => {
-    await openRoute(page, "board/weather");
+    await openRoute(page, "board/court");
     const grid = page.getByRole("region", { name: "Pads", exact: true });
-    await expect(padGrid(page).getByRole("button", { name: "Preview Storm" })).toBeVisible();
+    await expect(padGrid(page).getByRole("button", { name: "Preview Crowd whispers" })).toBeVisible();
     await grid.getByRole("button", { name: "Try pads" }).click();
     await expect(grid.getByRole("button", { name: "Try pads" })).toHaveAttribute("aria-pressed", "true");
     await expect(grid).toContainText("only you hear them");
-    await pad(page, "Storm").click();
-    await expect(pad(page, "Storm")).toHaveAttribute("aria-pressed", "true");
-    await expect(pad(page, "Storm")).toHaveAccessibleName(/, trying$/);
-    await pad(page, "Storm").click();
-    await expect(pad(page, "Storm")).toHaveAttribute("aria-pressed", "false");
-    await page.keyboard.press("w");
-    await expect(pad(page, "Storm")).toHaveAttribute("aria-pressed", "true");
+    await pad(page, "Crowd whispers").click();
+    await expect(pad(page, "Crowd whispers")).toHaveAttribute("aria-pressed", "true");
+    await expect(pad(page, "Crowd whispers")).toHaveAccessibleName(/, trying$/);
+    await pad(page, "Crowd whispers").click();
+    await expect(pad(page, "Crowd whispers")).toHaveAttribute("aria-pressed", "false");
+    await page.keyboard.press("3");
+    await expect(pad(page, "Crowd whispers")).toHaveAttribute("aria-pressed", "true");
     // Nothing went on air, and the pad box still edits the pad that was selected.
-    await expect(page.getByRole("region", { name: "Pad: Thunder crack" })).toBeVisible();
-    await expect(pad(page, "Storm")).not.toHaveAccessibleName(/on air/);
+    await expect(page.getByRole("region", { name: "Pad: Heartbeat" })).toBeVisible();
+    await expect(pad(page, "Crowd whispers")).not.toHaveAccessibleName(/on air/);
   });
 
   test("SFX-12: Try pads plays a one-shot once and a hold-to-play pad while held", async ({ page }) => {
@@ -301,10 +300,12 @@ test.describe("round 5: resizing fills the grid; trying pads as they play", () =
     await pad(page, "Sword clash").click();
     await expect(pad(page, "Sword clash")).toHaveAccessibleName(/, trying$/);
     await expect(pad(page, "Sword clash")).not.toHaveAccessibleName(/, trying$/, { timeout: 6_000 });
-    await pad(page, "Skeletons rattle").focus();
+    await openRoute(page, "board/court");
+    await page.getByRole("region", { name: "Pads", exact: true }).getByRole("button", { name: "Try pads" }).click();
+    await pad(page, "Heartbeat").focus();
     await page.keyboard.down(" ");
-    await expect(pad(page, "Skeletons rattle")).toHaveAttribute("aria-pressed", "true");
+    await expect(pad(page, "Heartbeat")).toHaveAttribute("aria-pressed", "true");
     await page.keyboard.up(" ");
-    await expect(pad(page, "Skeletons rattle")).toHaveAttribute("aria-pressed", "false");
+    await expect(pad(page, "Heartbeat")).toHaveAttribute("aria-pressed", "false");
   });
 });

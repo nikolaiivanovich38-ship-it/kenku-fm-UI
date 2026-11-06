@@ -42,7 +42,7 @@ import { FfmpegLoudnessReader } from "../media/ffmpegLoudness";
 import { FfmpegPeakReader } from "../media/ffmpegPeaks";
 import { createLibraryApi, type LibraryApi, type LibraryHost } from "./libraryApi";
 import { SAMPLE_TODAY, sampleComputer, writeSampleSharedFile } from "./sampleComputer";
-import { seedLibrary } from "./seedLibrary";
+import { seedLibrary, seedPrototypePeaks } from "./seedLibrary";
 
 export interface LibraryProcessOptions {
   /** Opens the library; tests pass openLibrary with a temporary folder. */
@@ -137,7 +137,11 @@ export function runLibraryProcess(port: PortLike, options: LibraryProcessOptions
       return;
     }
     library = opened;
-    if (seed && !opened.store.get("SELECT 1 AS found FROM tracks LIMIT 1")) await seedLibrary(opened, prototypeSeed(), { sample: true });
+    if (seed && !opened.store.get("SELECT 1 AS found FROM tracks LIMIT 1")) {
+      const sample = prototypeSeed();
+      await seedLibrary(opened, sample, { sample: true });
+      seedPrototypePeaks(opened, sample);
+    }
     // Test builds of the sample library look at the prototype's computer, not the disk (sampleComputer.ts).
     if (seed && transferFolder) await writeSampleSharedFile(transferFolder);
     const peakReader = peakReaderFor(ffmpegPath);

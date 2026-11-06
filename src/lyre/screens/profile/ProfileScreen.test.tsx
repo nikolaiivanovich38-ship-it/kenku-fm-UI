@@ -581,3 +581,59 @@ describe("keeping the changes", () => {
     expect(atEnd().getByRole("textbox", { name: "End" })).toHaveValue("5:18");
   });
 });
+
+describe("round 5: opened from a scene or a session list (PLY-14), the name there (DAT-14), the shape (DAT-13)", () => {
+  it("opened from a scene, it shows that scene's settings read-only, the name in the scene, and Back to the scene", async () => {
+    const { api, user } = await open("profile/t07/sc:crown:s14:sc6");
+    expect(screen.getByRole("combobox", { name: "Settings for" })).toHaveValue("sc:crown:s14:sc6");
+    expect(within(screen.getByRole("group", { name: "Settings in the scene Aftermath" })).getByRole("button", { name: "Give this place its own settings" })).toBeInTheDocument();
+    const name = screen.getByRole("textbox", { name: "Name in this scene" });
+    expect(name).toHaveValue("Dawn over the abbey");
+    await user.clear(name);
+    await user.type(name, "First light");
+    await user.tab();
+    await waitFor(async () => {
+      const scene = (await api.campaigns.get("crown"))!.sessions.find((s) => s.id === "s14")!.scenes.find((s) => s.id === "sc6")!;
+      expect(scene.trackNames.t07).toBe("First light");
+    });
+    expect(screen.queryByRole("link", { name: /Back to track/ })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Back to Aftermath" }));
+    expect(window.location.hash).toBe("#/session/crown/s14");
+  });
+
+  it("a session list is a place too: listed under Sessions, with Back to the session and no name in a scene", async () => {
+    await open("profile/t03/ss:crown:s14");
+    const place = screen.getByRole("combobox", { name: "Settings for" }) as HTMLSelectElement;
+    expect(place).toHaveValue("ss:crown:s14");
+    expect(Array.from(place.options).filter((o) => o.label.startsWith("Session list: Session 14: The Drowned Abbey"))).toHaveLength(1);
+    expect(screen.getByRole("group", { name: "Settings in the session Session 14: The Drowned Abbey" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Back to Session 14" })).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Name in this scene" })).toBeNull();
+  });
+
+  it("the header shows the track's shape", async () => {
+    await open("profile/t02");
+    expect(screen.getByTitle("Shape: Peaks then falls (suggested from its loudness)")).toBeInTheDocument();
+  });
+});
+
+describe("round 5: volume normalisation in the header (PLY-15)", () => {
+  it("shows the loudness and the gain where these settings apply, whose choice counts on hover, and changes the track's choice", async () => {
+    const { api, user } = await open("profile/t18/pl:p-ashen");
+    const norm = await screen.findByRole("group", { name: "Normalise volume" });
+    expect(within(norm).getByRole("button", { name: "Library setting" })).toHaveAttribute("aria-pressed", "true");
+    expect(norm).toHaveAccessibleDescription("-15.8 LUFS · -2.2 dB");
+    expect(screen.getByTitle("In the playlist Ashen King: the playlist's choice (On).")).toBeInTheDocument();
+    await user.click(within(norm).getByRole("button", { name: "Off" }));
+    await waitFor(async () => expect((await api.library.listTracks()).find((t) => t.id === "t18")?.normalise).toBe("off"));
+    await waitFor(() => expect(norm).toHaveAccessibleDescription("-15.8 LUFS · plays as it is"));
+  });
+
+  it("a track's own Off wins over its playlist's On", async () => {
+    await open("profile/t26/pl:p-ashen");
+    const norm = await screen.findByRole("group", { name: "Normalise volume" });
+    expect(within(norm).getByRole("button", { name: "Off" })).toHaveAttribute("aria-pressed", "true");
+    expect(norm).toHaveAccessibleDescription("-22.7 LUFS · plays as it is");
+    expect(screen.getByTitle("In the playlist Ashen King: this track's own choice.")).toBeInTheDocument();
+  });
+});

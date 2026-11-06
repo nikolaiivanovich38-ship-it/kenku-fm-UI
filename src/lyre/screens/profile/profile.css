@@ -168,6 +168,11 @@
   .ap-pos { font-size: 26px; }
 }
 
+/* Round 5: the track's name in this scene (DAT-14), in the header when opened from a scene. */
+.ap-scname { max-width: 360px; margin-top: 6px; }
+/* Round 5: the track's normalising choice (PLY-15). */
+.ap-norm { margin-top: 6px; }
+
 /* ---------- app only ---------- */
 /* The screen's root holds the head, the body and the on-air bar for focus look-ups; it adds no box of its own, so
    #view's column layout (viewhead, scrolling viewbody, on-air bar) is unchanged. */

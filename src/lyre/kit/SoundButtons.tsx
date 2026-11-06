@@ -20,7 +20,8 @@ import { cx } from "./cx";
 import { HOLD_MS, useHeldPads } from "./heldPads";
 
 export type SoundTarget =
-  | { kind: "track"; id: string }
+  /** playlistId: the playlist it is shown in, so its normalising choice applies to the preview (PLY-15). */
+  | { kind: "track"; id: string; playlistId?: string }
   /**
    * empty: the playlist has no tracks, so Play on air says so instead. place: the session or campaign list it is shown
    * in, so that list's play order applies and the Now playing bar says where it comes from (PLY-13, UX-16).
@@ -62,15 +63,20 @@ export interface SoundButtonProps {
   className?: string;
 }
 
+export interface PreviewButtonProps extends SoundButtonProps {
+  /** The icon while it is not playing: headphones, or ▶ where the button sits on the thing itself (a pad tile). */
+  icon?: "headphones" | "play";
+}
+
 /** Preview in your headphones; Stop preview while it plays. */
-export function PreviewButton({ target, name, tabIndex, className }: SoundButtonProps) {
+export function PreviewButton({ target, name, tabIndex, className, icon = "headphones" }: PreviewButtonProps) {
   const audio = useLyreAudio();
   const on = usePreviewKey() === previewKeyOf(target);
   const board = target.kind === "board";
   const start = () => {
     switch (target.kind) {
       case "track":
-        return audio.previewTrack(target.id);
+        return target.playlistId ? audio.previewTrack(target.id, { playlistId: target.playlistId }) : audio.previewTrack(target.id);
       case "playlist":
         return audio.previewPlaylist(target.id);
       case "pad":
@@ -93,7 +99,7 @@ export function PreviewButton({ target, name, tabIndex, className }: SoundButton
         else start();
       }}
     >
-      <Icon name={on ? "stop" : "headphones"} size="s" />
+      <Icon name={on ? "stop" : icon} size="s" />
     </button>
   );
 }

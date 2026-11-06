@@ -128,13 +128,15 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
     (from: number, id = track.id, profile: Prof | null = p, mode: ClockMode = clockRef.current.mode): boolean => {
       // Past End the players never hear it, so it plays the plain file there (to the end of the file).
       const shaped = profile && from < profile.end ? toInput(heardProfile(profile, mode)) : undefined;
-      const outcome = audio.previewTrack(id, { startAtMs: Math.round(from * 1000), profile: shaped, quiet: true });
+      // PLY-15: in a playlist's settings it is heard with that playlist's normalising choice, as on air from there.
+      const playlistId = key.startsWith("pl:") ? key.slice(3) : undefined;
+      const outcome = audio.previewTrack(id, { startAtMs: Math.round(from * 1000), profile: shaped, quiet: true, ...(playlistId ? { playlistId } : {}) });
       sounding.current = outcome.ok ? id : null;
       setFollowing(false);
       if (!outcome.ok && clockRef.current.playing) setClock(pauseClock(clockRef.current));
       return outcome.ok;
     },
-    [audio, track.id, p, setClock, setFollowing],
+    [audio, track.id, key, p, setClock, setFollowing],
   );
   // A seek or a profile change while it plays starts the sound again from the playhead once the keys or the handle
   // rest, not on every press (each start loads the file again). Until then the old sound's positions are ignored.

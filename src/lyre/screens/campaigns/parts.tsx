@@ -6,9 +6,11 @@
  */
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
-import { placeKey, type PadMode, type ProfilePlace } from "../../../common/domain";
+import { parseKeyOfPlace, placeKey, type PadMode, type ProfilePlace } from "../../../common/domain";
 import { isRefused, type CampaignInfo, type Done, type PadBoard, type PlaylistInfo, type WriteResult } from "../../../common/lyre/api";
-import { useBoards, usePlaylists, useProfileOverrides, useTracks } from "../../api";
+import { useBoards, usePlaylists, useProfileOverrides, useTagGroups, useTracks } from "../../api";
+import { TagStrip } from "../../kit/TagStrip";
+import { ownNameTitle, trackNameAt, useTrackNames } from "../../kit/trackName";
 import { Icon, ICON_NAMES, type IconName } from "../../kit/Icon";
 import { useLiveSession, runInLive } from "../../kit/liveSession";
 import { ProfileLink } from "../../kit/ProfileLink";
@@ -99,7 +101,9 @@ const padIcon = (name: string): IconName => ((ICON_NAMES as string[]).includes(n
 
 /**
  * A playlist's tracks (with Preview and a link to each track's audio profile in `place`) or a board's pads (with
- * Preview), shown under an open expander. `place` null: no profile links (pickers).
+ * Preview), shown under an open expander. `place` null: no profile links (pickers). In a scene or a session list
+ * ("sc:…", "ss:…") each track shows its tags (ORG-11), its name in the scene (DAT-14) and the wave button to its
+ * waveform, end and fades there (PLY-14).
  */
 export function Contents({
   item,
@@ -118,6 +122,8 @@ export function Contents({
     const tracks = index.tracksOf(p);
     if (tracks.length === 0) return <p className="hint">No tracks yet{p.kind === "dynamic" ? ": no track matches its tags." : "."}</p>;
     const key = place === undefined ? `pl:${p.id}` : place;
+    const where = key ? parseKeyOfPlace(key) : null;
+    if (where && key && (where.kind === "scene" || where.kind === "session")) return <PlaceTracks name={p.name} playlistId={p.id} tracks={tracks} placeKey={key} />;
     return (
       <ol className="list" aria-label={`Tracks in ${p.name}`}>
         {tracks.map((t, i) => {
@@ -157,6 +163,40 @@ export function Contents({
         ))}
       </ul>
     </>
+  );
+}
+
+/** A playlist's tracks in a scene or a session list (views/_shared.js contentsHTML with a scene's or session's key). */
+function PlaceTracks({ name, playlistId, tracks, placeKey: key }: { name: string; playlistId: string; tracks: ReturnType<LibraryIndex["tracksOf"]>; placeKey: string }) {
+  const groups = useTagGroups().data ?? [];
+  const names = useTrackNames();
+  const place = parseKeyOfPlace(key);
+  const where = place?.kind === "scene" ? "scene" : "session";
+  return (
+    <ol className="list" aria-label={`Tracks in ${name}`}>
+      {tracks.map((t, i) => {
+        const n = trackNameAt(t, place, names);
+        return (
+          <li key={t.id} className="xp-row">
+            <span className="faint num">{i + 1}</span>
+            <span className="grow ellipsis" title={ownNameTitle(n)}>
+              {n.name}
+            </span>
+            <TagStrip track={t} groups={groups} />
+            <span className="num faint">{formatLength(t.durationMs)}</span>
+            <a
+              className="btn s icon cp-prof"
+              href={`#/profile/${t.id}/${key}`}
+              title={`Waveform, end and fades of ${n.name} in this ${where}`}
+              aria-label={`Waveform, end and fades in this ${where}: ${n.name}`}
+            >
+              <Icon name="wave" size="s" />
+            </a>
+            <PreviewButton target={{ kind: "track", id: t.id, playlistId }} name={n.name} />
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 

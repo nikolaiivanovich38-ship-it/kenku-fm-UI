@@ -11,7 +11,8 @@ import { shownTitle } from "../../../common/lyre/text";
 import { useTagGroups } from "../../api";
 import { useLyreAudio } from "../../audio/LyreAudioProvider";
 import { Icon } from "../../kit/Icon";
-import { PickerDialog, type PickerFilter, type PickerItem } from "../../kit/Picker";
+import { PickerDialog, type PickerFilter, type PickerItem, type PickerTicks } from "../../kit/Picker";
+import { TagStrip } from "../../kit/TagStrip";
 import { boardPads, formatLength, laneWord, roleWord, type LibraryIndex } from "./model";
 import { PreviewButton } from "../../kit/SoundButtons";
 import { Contents } from "./parts";
@@ -151,8 +152,10 @@ export function LibraryPicker({ open, kind, index, title, intro, selected, onDon
       multi={kind !== "ambience"}
       filters={filters}
       hint={HINT}
-      renderContents={(item) => {
+      renderContents={(item, ticks) => {
         const e = byId.get(item.id);
+        // ORG-10: in a scene's music, an open playlist's tracks can be ticked one by one.
+        if (e?.playlist && kind === "music") return <InsidePlaylist playlist={e.playlist} index={index} groups={groups ?? []} ticks={ticks} />;
         if (e?.playlist) return <Contents item={{ kind: "playlist", playlist: e.playlist }} index={index} place={null} />;
         const board = e?.boardId ? index.board(e.boardId) : undefined;
         return board ? <Contents item={{ kind: "board", board }} index={index} /> : null;
@@ -160,7 +163,13 @@ export function LibraryPicker({ open, kind, index, title, intro, selected, onDon
       renderActions={(item) => {
         const e = byId.get(item.id);
         if (e?.playlist) return <PreviewButton target={{ kind: "playlist", id: e.playlist.id }} name={e.playlist.name} />;
-        if (e?.track) return <PreviewButton target={{ kind: "track", id: e.track.id }} name={item.label} />;
+        if (e?.track)
+          return (
+            <>
+              <TagStrip track={e.track} groups={groups ?? []} />
+              <PreviewButton target={{ kind: "track", id: e.track.id }} name={item.label} />
+            </>
+          );
         const board = e?.boardId ? index.board(e.boardId) : undefined;
         return board ? <PreviewButton target={{ kind: "board", board }} name={board.name} /> : null;
       }}
@@ -173,5 +182,32 @@ export function LibraryPicker({ open, kind, index, title, intro, selected, onDon
         onClose();
       }}
     />
+  );
+}
+
+/** ORG-10: a playlist's tracks in the music picker, each with a box that adds that track alone. */
+function InsidePlaylist({ playlist, index, groups, ticks }: { playlist: PlaylistInfo; index: LibraryIndex; groups: Parameters<typeof TagStrip>[0]["groups"]; ticks: PickerTicks }) {
+  const tracks = index.tracksOf(playlist);
+  if (tracks.length === 0) return <p className="hint">No tracks yet.</p>;
+  return (
+    <div className="pk-inside">
+      <p className="hint pk-inside-h">Tick single tracks to add only those, or tick the playlist above to add all of it.</p>
+      <ul className="list" aria-label={`Tracks in ${playlist.name}`}>
+        {tracks.map((t) => {
+          const key = trackKey(t.id);
+          return (
+            <li key={t.id} className="pk-row pk-inrow">
+              <label className="pk-item">
+                <input type="checkbox" checked={ticks.isTicked(key)} onChange={(event) => ticks.tick(key, event.target.checked)} />
+                <span className="grow ellipsis">{shownTitle(t)}</span>
+              </label>
+              <TagStrip track={t} groups={groups} />
+              <span className="num faint">{formatLength(t.durationMs)}</span>
+              <PreviewButton target={{ kind: "track", id: t.id }} name={shownTitle(t)} />
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }

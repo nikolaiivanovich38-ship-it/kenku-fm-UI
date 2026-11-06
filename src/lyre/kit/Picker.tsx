@@ -23,6 +23,12 @@ export interface PickerItem {
   tags?: readonly string[];
 }
 
+/** What an item's contents can tick (ORG-10: single tracks inside an open playlist), shared with the list's boxes. */
+export interface PickerTicks {
+  isTicked(id: string): boolean;
+  tick(id: string, on: boolean): void;
+}
+
 export interface PickerFilter {
   id: string;
   label: string;
@@ -40,8 +46,11 @@ export interface PickerDialogProps {
   multi?: boolean;
   /** A "Show" switch above the list, e.g. All, Playlists, Tracks, FX; the first is on at the start. */
   filters?: readonly PickerFilter[];
-  /** What is inside an item, behind an expander that starts closed; null for items with nothing to show. */
-  renderContents?: (item: PickerItem) => React.ReactNode;
+  /**
+   * What is inside an item, behind an expander that starts closed; null for items with nothing to show. `ticks` lets
+   * the contents have boxes of their own, ticked in the same list as the items (the same id ticks both).
+   */
+  renderContents?: (item: PickerItem, ticks: PickerTicks) => React.ReactNode;
   /** Buttons at the end of an item's row (the screens add Preview here). */
   renderActions?: (item: PickerItem) => React.ReactNode;
   /** A line under the list, e.g. the preview hint. */
@@ -127,6 +136,7 @@ function PickerBody({
       setChosen((current) => (on ? (current.includes(id) ? current : [...current, id]) : current.filter((x) => x !== id)));
     }
   };
+  const ticks: PickerTicks = { isTicked: (id) => chosen.includes(id), tick: pick };
 
   return (
     <Dialog
@@ -174,7 +184,7 @@ function PickerBody({
               {group.name && !fold && <div className="pk-group">{group.name}</div>}
               {shown &&
                 group.items.map((item) => {
-                  const contents = renderContents?.(item);
+                  const contents = renderContents?.(item, ticks);
                   const open = !!expanded[item.id];
                   return (
                     <React.Fragment key={item.id}>

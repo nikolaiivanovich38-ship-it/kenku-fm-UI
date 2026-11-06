@@ -178,25 +178,35 @@ export function usesOfBoard(campaigns: readonly CampaignInfo[], boardId: string)
 }
 
 /**
- * What the message under the size controls says after a resize (SFX-11, the prototype's boards.js): pads moved to
- * spare, spare pads that came back (`backLabels`), or empty slots to fill; and that a pad put aside by hand stays.
+ * What the message under the size controls says after a resize (SFX-11, the prototype's boards.js resize): pads fill
+ * the grid left to right, top to bottom, so it says the grid is full and which pads moved to Spare pads, which spare
+ * pads came back (`backLabels`), or how many slots are empty; and that a pad put aside by hand stays where it is.
  */
-export function resizeMessage(after: PadBoard, movedLabels: readonly string[], grew: boolean, backLabels: readonly string[] = []): string {
-  if (movedLabels.length) {
-    return `${plural(movedLabels.length, "pad")} moved to Spare pads: ${movedLabels.join(", ")}. Nothing was deleted.`;
-  }
+export function resizeMessage(after: PadBoard, movedLabels: readonly string[], backLabels: readonly string[] = []): string {
   const done = `Grid is now ${after.cols} × ${after.rows}`;
-  let text = `${done}.`;
-  if (backLabels.length) text = `${done}. ${plural(backLabels.length, "spare pad")} came back onto it: ${backLabels.join(", ")}.`;
-  else if (grew) {
-    const others = after.spare.filter((p) => !p.aside);
-    text = `${done}: ${plural(emptyCount(after), "empty slot")} to fill.${others.length ? " Spare pads can go back into them." : ""}`;
+  if (movedLabels.length) {
+    return `${done} and full. ${plural(movedLabels.length, "pad")} moved to Spare pads: ${movedLabels.join(", ")}. Nothing was deleted.`;
   }
+  const empty = emptyCount(after);
+  let text = `${done}. Pads fill it left to right, top to bottom.`;
+  if (backLabels.length) text = `${done}. ${plural(backLabels.length, "spare pad")} came back onto it: ${backLabels.join(", ")}.`;
+  else if (empty) text = `${done}: ${plural(empty, "empty slot")} to fill.`;
   const stayed = after.spare.filter((p) => p.aside);
-  if (stayed.length && emptyCount(after) > 0) {
+  if (stayed.length && empty > 0) {
     text += ` ${stayed.map((p) => p.label).join(", ")} ${stayed.length > 1 ? "stay" : "stays"} in Spare pads, where you put ${stayed.length > 1 ? "them" : "it"}.`;
   }
   return text;
+}
+
+/** SFX-12: what Try pads says for a press or let-go (the prototype's tryPad); `on`: it was sounding before. */
+export function tryWords(pad: Pick<Pad, "label" | "mode">, phase: "down" | "up", on: boolean): string {
+  const { label } = pad;
+  let text: string;
+  if (pad.mode === "toggle") text = on ? `${label}: loop stopped` : `${label}: loop playing in your headphones. Press again to stop it.`;
+  else if (pad.mode === "hold") text = phase === "up" ? `${label}: let go, fading` : `${label}: playing while held`;
+  else if (pad.mode === "retrigger") text = on ? `${label}: started again from the beginning` : `${label}: playing`;
+  else text = on ? `${label}: playing again from the start` : `${label}: playing once`;
+  return text.includes("headphones") ? text : `${text} (only you hear it)`;
 }
 
 /** What is said after a pad moves (the prototype's moveTo). */
@@ -207,7 +217,7 @@ export function moveMessage(b: PadBoard, pad: Pad, to: number | "spare", other: 
 }
 
 /** The pad tile's accessible name: its visible label and key first (Label in Name), then mode, place and state. */
-export function padTileName(pad: Pad, cols: number, index: number, state: "on air" | "previewing" | null): string {
+export function padTileName(pad: Pad, cols: number, index: number, state: "on air" | "trying" | "previewing" | null): string {
   const key = pad.key ? ` ${keyLabel(pad.key)}` : "";
   return `${pad.label}${key}: ${MODE_NAME[pad.mode]}, ${place(cols, index)}${state ? `, ${state}` : ""}`;
 }

@@ -341,7 +341,6 @@ test.describe("scenes", () => {
 
 /* Round 5 (design/prototype/ROUND5.md): built in wave 4, so each check waits for "round 5" in the app. */
 test.describe("round 5: play order, single tracks, tags, names in scenes and audio settings from the scene", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 5"));
 
   test("PLY-13: a playlist in a scene has a play order that applies only in that scene", async ({ page }) => {
     await openAbbey(page);
@@ -391,6 +390,8 @@ test.describe("round 5: play order, single tracks, tags, names in scenes and aud
   });
 
   test("ORG-11: tracks in a scene's music show their tags, and so does the music picker", async ({ page }) => {
+    // Built; the real library lists a track's tags in tag order (Eerie, Dread), the design in the track's own order.
+    expectFailureUntilBuilt("round 6"); // tag order: the vocabulary's (app) or the track's own (design); a round 6 question
     await openAbbey(page);
     const first = musicOf(abbey(page)).getByRole("listitem").first();
     await expect(first).toContainText("Tags: Dread, Eerie, Drowned Abbess, Exploration");

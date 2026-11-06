@@ -349,3 +349,97 @@ describe("renaming a scene in place (EDT-1, BUG-18)", () => {
     await waitFor(async () => expect(await sceneName(api)).toBe("The Lantern"));
   });
 });
+
+describe("round 5 in the session planner", () => {
+  const music = () => within(abbey().getByRole("list", { name: "Music in order" }));
+  const dialog = () => within(screen.getByRole("dialog"));
+
+  it("PLY-13: a playlist in a scene has the scene's play order; session playlists have the session's", async () => {
+    const user = userEvent.setup();
+    await openAbbey();
+    const order = await music().findByRole("button", { name: /^Play order of Abbey: eerie, low energy: / });
+    expect(order).toHaveAccessibleName("Play order of Abbey: eerie, low energy: Shuffle, no repeat");
+    await user.click(order);
+    expect(screen.getByRole("menu", { name: "Play order" })).toHaveTextContent("Play order in the scene The abbey ruins");
+    await user.keyboard("{Escape}");
+    expect(region("Session playlists").getByRole("button", { name: "Play order of Wistful with some warmth: Shuffle, repeat all" })).toBeInTheDocument();
+  });
+
+  it("ORG-11, DAT-14, PLY-14: a scene's tracks show their tags, the scene's name with their own, and a wave button to this scene's settings", async () => {
+    await openAbbey();
+    const first = music().getAllByRole("listitem")[0];
+    expect(first).toHaveTextContent("Tags: Dread, Eerie, Drowned Abbess, Exploration");
+    expect(first).toHaveTextContent("+1");
+    expect(within(first).getByRole("link", { name: /^Waveform, end and fades in this scene: Eerie dread/ })).toHaveAttribute("href", "#/profile/t13/sc:crown:s14:sc3");
+    await userEvent.click(screen.getByRole("button", { name: "Scene 6: Aftermath" }));
+    const aftermath = within(screen.getByRole("listitem", { name: /^Scene 6: Aftermath$/ }));
+    const row = within(aftermath.getByRole("list", { name: "Music in order" })).getAllByRole("listitem")[0];
+    expect(row.querySelector("a")?.textContent).toMatch(/^Dawn over the abbey/);
+    expect(row).toHaveTextContent("Release after loss, ethereal voice, resolves - end of session or death of an NPC");
+    // Folded, a scene's chip uses its name for the track too.
+    expect(screen.getByRole("listitem", { name: /^Scene 4: Crypt ambush$/ })).toHaveTextContent("The wight rises");
+  });
+
+  it("DAT-14: Name in this scene… names a track for this scene only", async () => {
+    const user = userEvent.setup();
+    const { api } = await openAbbey();
+    await user.click(music().getByRole("button", { name: "More for Haunted sea shanty, grey and slow - the drowned bells" }));
+    await user.click(screen.getByRole("menuitem", { name: "Name in this scene…" }));
+    await user.type(dialog().getByRole("textbox", { name: 'Name in "The abbey ruins"' }), "The drowned bells");
+    await user.click(dialog().getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(musicNames()[2]).toBe("The drowned bells"));
+    const scene = (await s14(api)).scenes.find((x) => x.name === "The abbey ruins")!;
+    expect(scene.trackNames).toMatchObject({ [scene.music[2].id]: "The drowned bells" });
+  });
+
+  it("ORG-12: Use in… on a scene's track keeps it on hand for the session, listed as a single track", async () => {
+    const user = userEvent.setup();
+    await openAbbey();
+    await user.click(music().getByRole("button", { name: "More for Haunted sea shanty, grey and slow - the drowned bells" }));
+    await user.click(screen.getByRole("menuitem", { name: "Use in…" }));
+    expect(dialog().getByRole("heading", { name: 'Use "Haunted sea shanty, grey and slow - the drowned bells" in…' })).toBeInTheDocument();
+    expect(dialog().getByRole("checkbox", { name: /^Scene: The abbey ruins/ })).toBeChecked();
+    await user.click(dialog().getByRole("checkbox", { name: /^Session 14: The Drowned Abbey/ }));
+    await user.click(dialog().getByRole("button", { name: "Save" }));
+    const single = await region("Session playlists").findByRole("link", { name: /^Haunted sea shanty, grey and slow - the drowned bells \(single track\)/ });
+    expect(single.closest("li")).toHaveTextContent("Single track");
+  }, 40_000);
+
+  it("ORG-10: an open playlist in the music picker has a box per track, to add just that track", async () => {
+    const user = userEvent.setup();
+    await openAbbey();
+    await user.click(abbey().getByRole("button", { name: "Add tracks or playlists…" }));
+    await user.type(dialog().getByRole("searchbox", { name: "Search the list" }), "Ashen King");
+    await user.click(dialog().getByRole("button", { name: "Show contents of Ashen King" }));
+    const inside = within(dialog().getByRole("list", { name: "Tracks in Ashen King" }));
+    await user.click(inside.getByRole("checkbox", { name: "Gothic menace, pounding low brass - villain reveal" }));
+    expect(dialog().getByRole("checkbox", { name: /^Ashen King/ })).not.toBeChecked();
+    await user.click(dialog().getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(musicNames()).toContain("Gothic menace, pounding low brass - villain reveal"));
+    expect(musicNames()).not.toContain("Ashen King");
+  });
+
+  it("ORG-11: the music picker shows each track's tags", async () => {
+    const user = userEvent.setup();
+    await openAbbey();
+    await user.click(abbey().getByRole("button", { name: "Add tracks or playlists…" }));
+    await user.type(dialog().getByRole("searchbox", { name: "Search the list" }), "Bridge of Death");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Tags: Dread, Eerie, Drowned Abbess, Exploration");
+  });
+
+  it("PLY-14: coming back from the Audio profile opens the scene and focuses the track's wave button", async () => {
+    const { returnToSession } = await import("../../kit/sceneReturn");
+    openAt("campaigns");
+    await screen.findByRole("heading", { level: 1 });
+    act(() => returnToSession({ campaignId: "crown", sessionId: "s14", sceneId: "sc3", trackId: "t13" }));
+    act(() => window.dispatchEvent(new HashChangeEvent("hashchange")));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Scene 3: The abbey ruins" })).toHaveAttribute("aria-expanded", "true"));
+    await waitFor(() => expect(music().getByRole("link", { name: /^Waveform, end and fades in this scene: Eerie dread/ })).toHaveFocus());
+  });
+
+  it("has no accessibility failures with a scene open", async () => {
+    await openAbbey();
+    await music().findByRole("button", { name: /^Play order of Abbey/ });
+    await expectNoAxeViolations();
+  });
+});

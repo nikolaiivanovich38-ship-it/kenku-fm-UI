@@ -7,10 +7,10 @@
  */
 import React, { useEffect, useRef, useState } from "react";
 
-import type { SoundRef } from "../../../common/domain";
+import type { SoundRef, TrackNames, UsePlace } from "../../../common/domain";
 import { isRefused, type CampaignInfo, type SceneAddress, type SceneInfo, type SessionInfo, type SessionStatus } from "../../../common/lyre/api";
 import { shownTitle } from "../../../common/lyre/text";
-import { useCampaign, useLyreApi } from "../../api";
+import { useCampaign, useLyreApi, useTagGroups } from "../../api";
 import { Button, IconButton } from "../../kit/Button";
 import { Dialog } from "../../kit/Dialog";
 import { ExpanderButton } from "../../kit/Expander";
@@ -42,6 +42,12 @@ import {
   useWrite,
 } from "./parts";
 import { PlayOnAirButton, PreviewButton } from "../../kit/SoundButtons";
+import { PlayOrderButton } from "../../kit/PlayOrderButton";
+import { takeSceneReturn } from "../../kit/sceneReturn";
+import { TagStrip } from "../../kit/TagStrip";
+import { trackNameAt, useTrackNames } from "../../kit/trackName";
+import type { TagGroup } from "../../../common/lyre/api";
+import { NameInSceneDialog, TrackUseInDialog } from "./trackDialogs";
 import { LibraryPicker, playlistKey, refOfKey, trackKey } from "./pickers";
 import { useOptimisticScenes, type ScenePlay } from "./optimistic";
 import { useDragReorder } from "./reorder";
@@ -73,6 +79,13 @@ interface SceneContext {
   dropFiles: (scene: SceneInfo, where: "music" | "ambience", paths: string[], at: number) => void;
   /** Change a scene's music, ambience or pad boards: shown at once, then saved. Resolves false when refused. */
   saveScene: (scene: SceneInfo, patch: ScenePlay) => Promise<boolean>;
+  /** ORG-11: the tag groups, for the tag strips. */
+  groups: readonly TagGroup[];
+  /** DAT-14: every scene's names for its tracks. */
+  names: TrackNames;
+  /** DAT-14: Name in this scene…; ORG-12: Use in… for a track. */
+  nameInScene: (scene: SceneInfo, trackId: string) => void;
+  useIn: (trackId: string) => void;
 }
 
 function SessionPage({ campaign: c, session: saved, index }: { campaign: CampaignInfo; session: SessionInfo; index: LibraryIndex }) {
@@ -89,6 +102,26 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
   const [deleting, setDeleting] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   useEffect(() => setNameDraft((d) => (d !== null && d.trim() === s.name ? null : d)), [s.name]);
+  const groups = useTagGroups().data ?? [];
+  const names = useTrackNames();
+  const [naming, setNaming] = useState<{ sceneId: string; trackId: string } | null>(null);
+  const [usingIn, setUsingIn] = useState<string | null>(null);
+
+  // PLY-14: back from the Audio profile ("Back to <scene>"): the scene opens and the track's wave button takes the focus.
+  useEffect(() => {
+    const back = takeSceneReturn(c.id, s.id);
+    if (!back) return;
+    if (back.sceneId && s.scenes.some((x) => x.id === back.sceneId)) {
+      const sceneId = back.sceneId;
+      setOpen((o) => ({ ...o, [sceneId]: true }));
+      setCurrent(sceneId);
+      focus(`prof-${sceneId}-music-${back.trackId}`);
+    } else {
+      focus(`more-str${back.trackId}`);
+    }
+    // Once, when the page opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const address = (scene: SceneInfo): SceneAddress => ({ campaignId: c.id, sessionId: s.id, sceneId: scene.id });
   const sceneAt = (id: string | null) => s.scenes.find((x) => x.id === id);
@@ -108,6 +141,10 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
         if (patch.boardIds) return write(api.sessions.setSceneBoards(at, patch.boardIds));
         return write(api.sessions.setSceneAmbience(at, patch.ambience ?? null));
       })),
+    groups,
+    names,
+    nameInScene: (scene, trackId) => setNaming({ sceneId: scene.id, trackId }),
+    useIn: setUsingIn,
   };
 
   /* ----- the session ----- */
@@ -339,6 +376,7 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
               kind="playlists"
               owner={{ campaignId: c.id, sessionId: s.id }}
               ids={s.playlistIds}
+              trackIds={s.trackIds}
               index={index}
               why="In every scene tonight."
               where={`every scene of Session ${s.number}`}
@@ -359,7 +397,7 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
               <p className="hint cp-why">
                 From the campaign. <a href={`#/campaign/${c.id}`}>Change</a>.
               </p>
-              <OnHandList ids={c.playlistIds} kind="playlists" index={index} scope="r" />
+              <OnHandList ids={c.playlistIds} trackIds={c.trackIds} kind="playlists" index={index} scope="r" place={{ kind: "campaign", campaignId: c.id }} />
               <p className="hint cp-make">Campaign pad boards: {campaignBoards.length ? campaignBoards.join(", ") : "none"}.</p>
             </Pane>
             <Pane id="ss-obs" title="Obsidian" icon="link" size="auto" collapsed kind="plain" status={{ text: "Coming later" }}>
@@ -408,6 +446,19 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
           }}
         />
       )}
+      {naming && sceneAt(naming.sceneId) && index.track(naming.trackId) && (
+        <NameInSceneDialog
+          scene={sceneAt(naming.sceneId)!}
+          address={address(sceneAt(naming.sceneId)!)}
+          track={index.track(naming.trackId)!}
+          onClose={(saved) => {
+            focus(`in-${naming.sceneId}-music-${naming.trackId}`);
+            setNaming(null);
+            if (saved !== null) say(saved ? `In this scene it is now called ${saved}` : "It uses its own name in this scene");
+          }}
+        />
+      )}
+      {usingIn && index.track(usingIn) && <TrackUseInDialog track={index.track(usingIn)!} index={index} onClose={() => setUsingIn(null)} />}
       <Dialog
         open={!!deletingScene}
         title="Delete this scene?"
@@ -445,8 +496,8 @@ interface SceneCardProps {
 }
 
 /** What a folded scene's tooltip says: its Starts when, music, ambience and pad boards. */
-function sceneTip(scene: SceneInfo, index: LibraryIndex): string {
-  const music = scene.music.map((r) => soundInfo(r, index)?.name).filter(Boolean);
+function sceneTip(scene: SceneInfo, index: LibraryIndex, names: TrackNames, place: UsePlace): string {
+  const music = scene.music.map((r) => nameInScene(r, index, names, place)).filter(Boolean);
   const ambience = scene.ambience && soundInfo(scene.ambience, index);
   const boards = scene.boardIds.map((id) => index.board(id)?.name).filter(Boolean);
   return [
@@ -498,7 +549,13 @@ function SceneCard({ scene, position, ctx, open, onToggle, drag, menu }: SceneCa
         },
       };
 
-  const first = scene.music.map((r) => soundInfo(r, ctx.index)).filter((x): x is ItemInfo => !!x);
+  const scenePlace: UsePlace = { kind: "scene", ...ctx.address(scene) };
+  const first = scene.music
+    .map((r) => {
+      const info = soundInfo(r, ctx.index);
+      return info && { ...info, name: nameInScene(r, ctx.index, ctx.names, scenePlace) ?? info.name };
+    })
+    .filter((x): x is ItemInfo => !!x);
   return (
     <li
       className={`cp-scene${open ? " open" : ""}${fileOver ? " cp-fdrop" : ""} ${drag.rowClass(position)}`}
@@ -536,7 +593,7 @@ function SceneCard({ scene, position, ctx, open, onToggle, drag, menu }: SceneCa
             data-k={`sct-${scene.id}`}
             aria-expanded={open}
             aria-controls={open ? `scb-${scene.id}` : undefined}
-            title={open ? undefined : sceneTip(scene, ctx.index)}
+            title={open ? undefined : sceneTip(scene, ctx.index, ctx.names, { kind: "scene", ...ctx.address(scene) })}
             onClick={onToggle}
             onKeyDown={renameKeys(rename.start)}
             onDoubleClick={(event) => {
@@ -639,6 +696,12 @@ function SceneCard({ scene, position, ctx, open, onToggle, drag, menu }: SceneCa
   );
 }
 
+/** A music item's name in this scene: a track's name there (DAT-14), else its own; a playlist's name. */
+function nameInScene(ref: SoundRef, index: LibraryIndex, names: TrackNames, place: UsePlace): string | undefined {
+  const track = ref.kind === "track" ? index.track(ref.id) : undefined;
+  return track ? trackNameAt(track, place, names).name : soundInfo(ref, index)?.name;
+}
+
 /* ---------- a scene's ordered lists: music items and pad boards ---------- */
 
 type ListKind = "music" | "boards";
@@ -671,12 +734,20 @@ function ItemRow({
   const own = list === "music" && info.kind === "track" && ownSettings(info.id, place);
   const playlist = info.kind === "playlist" ? ctx.index.playlist(info.id) : undefined;
   const board = info.kind === "board" ? ctx.index.board(info.id) : undefined;
+  const track = list === "music" && info.kind === "track" ? ctx.index.track(info.id) : undefined;
+  // DAT-14: a track shows the scene's name for it, with its own name on a second line.
+  const named = track ? trackNameAt(track, place, ctx.names) : null;
+  const shown = named ? named.name : info.name;
   const items: MenuEntry[] = [
     ...(position > 0 ? [{ label: list === "boards" ? "Show it first" : "Start the scene with it", icon: "play" as const, onSelect: () => onChange("first") }] : []),
     ...(position > 0 ? [{ label: "Move up", icon: "chevup" as const, onSelect: () => onChange("up") }] : []),
     ...(position < count - 1 ? [{ label: "Move down", icon: "chevdown" as const, onSelect: () => onChange("down") }] : []),
-    ...(list === "music" && info.kind === "track"
-      ? [{ label: "Audio profile in this scene", icon: "wave" as const, onSelect: () => (window.location.hash = `#/profile/${info.id}/${placeKey}`) }]
+    ...(track
+      ? [
+          { label: "Audio profile in this scene", icon: "wave" as const, onSelect: () => (window.location.hash = `#/profile/${info.id}/${placeKey}`) },
+          { label: "Name in this scene…", icon: "tag" as const, onSelect: () => ctx.nameInScene(scene, info.id) },
+          { label: "Use in…", icon: "link" as const, onSelect: () => ctx.useIn(info.id) },
+        ]
       : []),
     { label: "Open", icon: "right", onSelect: () => (window.location.hash = info.href) },
     { separator: true },
@@ -690,10 +761,34 @@ function ItemRow({
           {position + 1}
         </span>
         <span className={`lane-dot ${info.lane}`} aria-hidden="true" />
-        <a className="ellipsis grow cp-it-name" href={info.href} title={`${info.name} · ${info.label} · ${info.sub}`}>
-          {info.name}
-          <span className="sr-only"> ({info.label})</span>
-        </a>
+        {track && named ? (
+          <span className="cp-it-main">
+            <a
+              className="ellipsis grow cp-it-name"
+              href={info.href}
+              data-k={`in-${scene.id}-music-${info.id}`}
+              title={`${named.name !== named.own ? `${named.name} (in this scene) · its own name: ${named.own}` : shown} · ${info.label} · ${info.sub}`}
+            >
+              {shown}
+              <span className="sr-only"> ({info.label})</span>
+            </a>
+            <span className="cp-it-sub">
+              {named.name !== named.own && (
+                <span className="cp-scname-mark" title="Named for this scene">
+                  <Icon name="tag" size="s" />
+                  <span className="ellipsis">{named.own}</span>
+                  <span className="sr-only">: its own name</span>
+                </span>
+              )}
+              <TagStrip track={track} groups={ctx.groups} />
+            </span>
+          </span>
+        ) : (
+          <a className="ellipsis grow cp-it-name" href={info.href} title={`${info.name} · ${info.label} · ${info.sub}`}>
+            {info.name}
+            <span className="sr-only"> ({info.label})</span>
+          </a>
+        )}
         {position === 0 && <span className="cp-firsttag">{list === "boards" ? "Shown first" : "Starts the scene"}</span>}
         {own && (
           <span className="cp-own" title="Has its own audio settings in this scene">
@@ -704,10 +799,22 @@ function ItemRow({
         {board ? (
           <PreviewButton target={{ kind: "board", board }} name={info.name} />
         ) : (
-          <PreviewButton target={info.kind === "playlist" ? { kind: "playlist", id: info.id } : { kind: "track", id: info.id }} name={info.name} />
+          <PreviewButton target={info.kind === "playlist" ? { kind: "playlist", id: info.id } : { kind: "track", id: info.id }} name={shown} />
         )}
-        {info.kind !== "board" && <PlayOnAirButton target={info.kind === "playlist" ? { kind: "playlist", id: info.id } : { kind: "track", id: info.id }} name={info.name} />}
-        <RowMenu label={`More for ${info.name}`} k={`im-${scene.id}-${list}-${info.id}`} items={items} />
+        {info.kind !== "board" && <PlayOnAirButton target={info.kind === "playlist" ? { kind: "playlist", id: info.id } : { kind: "track", id: info.id }} name={shown} />}
+        {playlist && list === "music" && <PlayOrderButton playlistId={playlist.id} place={place} />}
+        {track && (
+          <a
+            className="btn s icon cp-prof"
+            href={`#/profile/${info.id}/${placeKey}`}
+            data-k={`prof-${scene.id}-music-${info.id}`}
+            title={`Waveform, end and fades of ${shown} in this scene`}
+            aria-label={`Waveform, end and fades in this scene: ${shown}`}
+          >
+            <Icon name="wave" size="s" />
+          </a>
+        )}
+        <RowMenu label={`More for ${shown}`} k={`im-${scene.id}-${list}-${info.id}`} items={items} />
       </div>
       {open && (playlist || board) && (
         <div className="xp-body cp-xp">

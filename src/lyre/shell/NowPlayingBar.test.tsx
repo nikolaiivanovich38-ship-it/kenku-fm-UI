@@ -68,14 +68,6 @@ const bar = () => screen.getByRole("region", { name: "Now playing" });
 const said = () => document.getElementById("lyre-live")?.textContent ?? "";
 
 describe("when it shows", () => {
-  it("says on hover how a track's volume is evened out (PLY-15), for screen readers too, and nothing when it is not", () => {
-    show({ rooms: [room("table", "Table", { ...lane(), gainDb: 4.6 }), room("side", "Side room", { ...lane(), gainDb: 0 })] });
-    const from = within(bar()).getByRole("group", { name: "On air: Table" }).querySelector(".oab-from");
-    expect(from).toHaveAttribute("title", expect.stringContaining("Volume evened out: +4.6 dB"));
-    expect(within(bar()).getByRole("group", { name: "On air: Table" })).toHaveTextContent("Volume evened out: +4.6 dB");
-    expect(within(bar()).getByRole("group", { name: "On air: Side room" })).not.toHaveTextContent("Volume evened out");
-  });
-
   it("is not there while nothing plays, nor for effects alone (they are short)", () => {
     const audio = show({ rooms: [room("table", "Table", null, { effects: [{ trackId: "t60", title: "Thunder", padKey: null }] })] });
     expect(screen.queryByRole("region", { name: "Now playing" })).toBeNull();
@@ -154,7 +146,7 @@ describe("a room's row: what the players hear", () => {
     const table = within(bar()).getByRole("group", { name: "On air: Table" });
     await waitFor(() => expect(table).toHaveTextContent("Scene: The abbey ruins (Session 14) · Abbey: eerie, low energy"));
     const side = within(bar()).getByRole("group", { name: "On air: Side room" });
-    await waitFor(() => expect(within(side).getByTitle("Its own name: Release after loss")).toHaveTextContent("Dawn over the abbey"));
+    await waitFor(() => expect(within(side).getByTitle(/^Its own name: Release after loss( · |$)/)).toHaveTextContent("Dawn over the abbey"));
     expect(side).toHaveTextContent("Scene: Aftermath (Session 14)");
   });
 
@@ -274,4 +266,23 @@ it("has no accessibility failures with a room, two rooms and the preview", async
   show({ rooms: [room("table", "Table", lane()), room("side", "Side room", lane({ paused: true }))], preview: { key: "pl:p-ashen", label: "Ashen King", from: "the campaign page" } });
   await screen.findAllByRole("button", { name: /^Play order/ });
   await expectNoAxeViolations(document.body);
+});
+
+describe("volume normalisation (PLY-15)", () => {
+  it("a row's track name says on hover how much its volume is evened out where it plays, for the players and for a preview", async () => {
+    const ashen = lane({ trackId: "t18", title: "Gothic menace, pounding low brass - villain reveal", playlistId: "p-ashen", origin: { kind: "playlist", playlistId: "p-ashen", at: 0, place: crown } });
+    show({
+      rooms: [room("table", "Table", ashen)],
+      preview: { key: "t18", label: "Ashen King: Gothic menace, pounding low brass - villain reveal", trackId: "t18", playlistId: "p-ashen" },
+    });
+    const air = within(bar()).getByRole("group", { name: "On air" });
+    expect(await within(air).findByTitle("Gothic menace, pounding low brass - villain reveal · Volume evened out: -2.2 dB (-15.8 LUFS measured)")).toBeInTheDocument();
+    const you = within(bar()).getByRole("group", { name: "Only you" });
+    expect(within(you).getByTitle(/· Volume evened out: -2\.2 dB/)).toBeInTheDocument();
+  });
+
+  it("says so when it plays as it is", async () => {
+    show({ rooms: [room("table", "Table", lane())] });
+    expect(await within(bar()).findByTitle(/· Volume not evened out$/)).toBeInTheDocument();
+  });
 });
