@@ -668,7 +668,7 @@
     var rows = ids.map(function (pid) {
       return plRow(L.playlist(pid), { src: scope + 'p', place: place, box: scope, trackOpts: function () { return { pl: pid, place: place, inner: true, box: scope }; } });
     }).concat(tr.map(function (tid) { return trackRow(L.track(tid), scope + 't', { place: place, box: scope }); }));
-    // Should 7 of the round 6 review: in three columns the boxes of the trays' column share its height (live.css).
+    // Round 6 part 7 (Nik, 21:59): the trays' boxes grow with what they hold and the page scrolls (live.css).
     // Round 6 part 6 (Nik, 17:14: "Session playlists should start closed"): every box in the trays starts folded; once
     // unfolded, a box stays unfolded (L.state.panes, kept on this computer). Should 6: the session's and the campaign's
     // boxes sit under "This session" and "Whole campaign" (scopeHidden: the word is read out with the box's name, not

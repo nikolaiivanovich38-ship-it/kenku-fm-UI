@@ -348,11 +348,12 @@ button .shape-g { color: inherit; }
 .norm-targets { border: 0; padding: 0; margin: 0; display: grid; gap: 6px; min-width: 0; }
 .norm-targets legend { font-size: var(--fs-s); font-weight: 700; margin-bottom: 4px; padding: 0; }
 @media (max-width: 520px) { .norm { grid-template-columns: minmax(0, 1fr); } .norm-l { padding-top: 0; } }
-/* UX-18, round 6 part 6: Back is the first thing in every top bar (.viewhead, Live's .lv-top), in the same place: 12 px
-   from the left, 10 px from the top, whatever the bar holds. It never grows past a short name; with nowhere to go back
-   to it stays, greyed. */
-.nav-back { flex: none; max-width: min(32ch, 50%); align-self: flex-start; margin-top: calc((44px - 12px - var(--ctl-s)) / 2); }
-.nav-back .ellipsis { min-width: 0; }
+/* UX-18, round 6 parts 6 and 7: Back is the first thing in every top bar (.viewhead, Live's .lv-top), in the same
+   place: 12 px from the left, 8 px from the top, whatever the bar holds. At the very start of the history it stays,
+   greyed. */
+.nav-back { flex: none; align-self: flex-start; margin-top: calc((44px - 12px - var(--ctl)) / 2); }
+/* Round 6 part 7 (Nik, 22:04: "Back should just be a < symbol in a box"): a 28 px square, its name on hover. */
+.nav-back.icon { width: var(--ctl); height: var(--ctl); padding: 0; }
 .nav-back[aria-disabled="true"] { color: var(--ink-3); border-color: var(--line); background: transparent; cursor: default; }
 .nav-back[aria-disabled="true"]:hover { background: transparent; }
 /* The trail (breadcrumbs): right after Back, each parent a link, the screen's h1 after it as the last part. */

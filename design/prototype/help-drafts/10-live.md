@@ -16,6 +16,6 @@ A room is a voice channel with one of your bots in it. Scenes always start in th
 
 `Ctrl+Z` takes back only the last thing you did, while its **Undo** shows.
 
-**Back**, at the top left, goes back to the screen you came from. `Alt+1` to `Alt+7` jump to the boxes, from On air down.
+**‹** (Back), at the top left of every screen, goes back one step through everywhere you have been: screens, tracks, the menu, Live. It remembers the last 50 places, each as you left it. `Alt+Left` does the same. `Alt+1` to `Alt+7` jump to the boxes, from On air down.
 
 **Keys** lists every key. If single keys get in your way, turn **Single-key shortcuts** off there; `Shift+Esc` and `Ctrl+Z` still work.

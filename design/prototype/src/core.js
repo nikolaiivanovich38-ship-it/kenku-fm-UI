@@ -963,24 +963,28 @@ var L = (function () {
     var h = v.querySelector('h1'); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); } window.dispatchEvent(new Event('lyre:route'));
   }
   /* UX-18 Back (Nik, 6 Nov 10:34: "I need a contextual back button everywhere."; 17:14: "It should be constantly
-     present in the top left of the top bar."). Back is the first thing in every screen's top bar (Live's strip too),
-     always in the same place. Its name says where it goes ("Back to Session 14"); it returns to the same place: the
-     route (so the selected track, playlist or board), every box's scroll position, the open scene (the views keep
-     their own open and folded state) and the control that was used to leave. Alt+Left and the mouse's back button do
-     the same. With nowhere to go back to (a screen opened from the menu or by address) it stays where it is, disabled
-     (aria-disabled, so it can still be found with Tab, and its hover says why). Moving within one screen (the Library
-     choosing another track, the Audio profile choosing another place) does not add a step.
-     L.route(h)                    from a link or button on a screen: adds a step
-     L.route(h, { menu: true })    from the rail: clears the steps
-     L.back()                      goes back one step (returns false when there is none)
-     L.backButton(fallback, trail) the button; fallback { route, label } is used when there is no step (the Audio
-                                   profile goes back to the scene or session it shows). trail: the words of the
-                                   screen's trail; Back shows "Back to X" only when the trail does not already say X.
+     present in the top left of the top bar."; 22:04: "Back should just be a < symbol in a box [...] It should function
+     across tabs in the side menu: it should record where I am and where I was before regardless of what happened
+     between [...] and should let me go back at least five steps.").
+     Back is a ‹ in a box, the first thing in every screen's top bar (Live's strip too), always in the same place. Its
+     name and hover say where it goes ("Back to Session 14"). It walks back through one history of places across the
+     whole app: every change of screen counts, from the menu, a link or a button, and so does every change within one
+     (the Library opening another track, the Audio profile choosing another place). Each press goes one step back to
+     where Nik was: the route (so the selected track, playlist or board), every box's scroll position, the open scene
+     and the control that was used to leave (the views keep their own open and folded boxes, Live its unfolded scenes).
+     HISTORY_MAX places are kept (50; Nik asked for at least 5); a place that no longer exists (a deleted board) is
+     skipped. Only at the very start of the history (the first screen since Lyre opened) is Back greyed: aria-disabled,
+     still reachable with Tab, its hover says why. Alt+Left and the mouse's back button do the same as Back.
+     L.route(h, { from })          goes there and adds the place left to the history
+     L.back(fallback)              goes back one place (returns false when there is none)
+     L.backButton(fallback)        the button; fallback { route, label } is used when the history is empty (the Audio
+                                   profile opened by its address goes back to the scene or session it shows).
      The trail (breadcrumbs, round 6 part 6): a view's crumbs(p) gives its parents, each { href, label }, then its own
      title { label } (the screen's h1, or Live's session). Core draws the parents right after Back, each a link, and
-     the screen's h1 that follows is the last part, so the title is not said twice. Both go where the view puts
-     '<!--lead-->', else first in its header (.viewhead or .lv-top). */
-  var steps = [];
+     the screen's h1 that follows is the last part, so the title is not said twice. Back has no words, so it never
+     repeats the trail. Both go where the view puts '<!--lead-->', else first in its header (.viewhead or .lv-top). */
+  var steps = [], HISTORY_MAX = 50;
+  L.HISTORY_MAX = HISTORY_MAX;
   function viewOf(h) { for (var i = 0; i < ROUTES.length; i++) if ((h || '').match(ROUTES[i][0])) return ROUTES[i][1]; return ''; }
   var ROUTE_WORDS = { campaigns: 'Campaigns', library: 'Library', playlists: 'Playlists', boards: 'Pad boards', profile: 'Audio profile', live: 'Live', outputs: 'Rooms',
     look: 'Look and feel', backup: 'Back up, move or share', moved: 'What came across', relink: 'Find missing files', settings: 'Settings' };
@@ -990,33 +994,49 @@ var L = (function () {
     if (v === 'session') { var s = L.session(a[1], a[2]); return s ? 'Session ' + s.n : 'Session'; }
     if (v === 'playlist') return (L.playlist(a[1]) || {}).name || 'Playlist';
     if (v === 'board') return (L.board(a[1]) || {}).name || 'Pad board';
+    // A track in the Library, or its Audio profile, is named by the track.
+    if (v === 'library' && a[1] && L.track(a[1])) return 'Library: ' + L.title(L.track(a[1]));
+    if (v === 'profile' && L.track(a[1])) return 'Audio profile: ' + L.title(L.track(a[1]));
     return ROUTE_WORDS[v] || 'the last screen';
   };
+  // Whether a place still exists (a board, playlist, campaign, session or track may have been deleted since).
+  function alive(h) {
+    var v = viewOf(h), a = (h || '').replace(/^#\//, '').split('/');
+    if (v === 'campaign') return !!L.campaign(a[1]);
+    if (v === 'session') return !!L.session(a[1], a[2]);
+    if (v === 'playlist') return !!L.playlist(a[1]);
+    if (v === 'board') return !!L.board(a[1]);
+    if (v === 'profile' || (v === 'library' && a[1])) return !!L.track(a[1]);
+    return !!v;
+  }
+  // The control last used in the work area, so Back can put focus there again after Nik left by the menu.
+  var lastViewK = '';
+  document.addEventListener('focusin', function (e) { var v = document.getElementById('view'); if (v && v.contains(e.target) && e.target.dataset && e.target.dataset.k) lastViewK = e.target.dataset.k; });
   function stepHere(from) {
     var v = document.getElementById('view'), scrolls = {}, a = document.activeElement;
+    if (from && !(v && v.contains(from)) && !(from.closest && from.closest('.menu'))) from = null;
+    if (a && v && !v.contains(a)) a = null;
     if (v) v.querySelectorAll('[data-scroll]').forEach(function (s) { scrolls[s.dataset.scroll] = s.scrollTop; });
     // A link inside a scene card (or anything marked data-back-label) names that place: "Back to The abbey ruins".
     var named = from && from.closest && from.closest('[data-back-label]');
     // Could 15 of the round 6 review: a link in a menu came from the menu's button; Back puts focus there.
     var viaMenu = from && from.closest && from.closest('.menu') && menuAnchor && menuAnchor.dataset ? menuAnchor.dataset.k : '';
     return { route: curRoute, label: named ? named.dataset.backLabel : L.routeLabel(curRoute), open: named && named.dataset.backOpen ? named.dataset.backOpen : '',
-      scrolls: scrolls, top: v ? v.scrollTop : 0, k: viaMenu || (from && from.dataset && from.dataset.k) || (a && a.dataset && a.dataset.k) || '' };
+      scrolls: scrolls, top: v ? v.scrollTop : 0, k: viaMenu || (from && from.dataset && from.dataset.k) || (a && a.dataset && a.dataset.k) || lastViewK || '' };
   }
   L.route = function (h, o) {
     o = o || {};
     if (h === curRoute) { L.render(); return; }
-    if (o.menu) steps.length = 0;
-    else if (!o.back && curRoute && viewOf(h) !== viewOf(curRoute)) {
-      // Going to where the last step came from is going back, not a new step.
-      if (steps.length && steps[steps.length - 1].route === h) steps.pop(); else steps.push(stepHere(o.from));
-      if (steps.length > 30) steps.shift();
-    }
+    if (!o.back && curRoute) { steps.push(stepHere(o.from)); if (steps.length > HISTORY_MAX) steps.shift(); }
+    lastViewK = '';
     curRoute = h;
     try { history.replaceState(null, '', encodeRoute(h)); } catch (e) { /* address bar not available: the route still changes */ }
     afterRoute(o.back);
   };
-  L.canGoBack = function () { return steps.length > 0; };
+  function prune() { while (steps.length && (!alive(steps[steps.length - 1].route) || steps[steps.length - 1].route === curRoute)) steps.pop(); }
+  L.canGoBack = function () { prune(); return steps.length > 0; };
   L.back = function (fallback) {
+    prune();
     var st = steps.pop() || (fallback && fallback.route ? { route: fallback.route, label: fallback.label, scrolls: {}, top: 0, k: fallback.k || '', open: fallback.open || '' } : null);
     if (!st) return false;
     if (st.open) L.state.openScene = { sc: st.open, k: st.k };
@@ -1025,16 +1045,13 @@ var L = (function () {
     return true;
   };
   var backFallback = null;
-  L.backButton = function (fallback, trail) {
+  L.backButton = function (fallback) {
+    prune();
     var st = steps[steps.length - 1] || (fallback && fallback.route ? fallback : null); backFallback = steps.length ? null : fallback || null;
-    if (!st) return '<button class="btn s nav-back" data-act="navback" data-k="nav-back" aria-disabled="true" title="Nothing to go back to: you opened this screen from the menu">' + L.icon('chevleft', 's') + '<span>Back</span></button>';
-    // Back and the trail never say the same thing twice: when the trail shows where Back goes, Back says only "Back"
-    // (its name and hover still say where).
-    var said = (trail || []).some(function (w) { return w.toLowerCase().indexOf(String(st.label).toLowerCase()) > -1; });
-    return '<button class="btn s nav-back" data-act="navback" data-k="nav-back" aria-keyshortcuts="Alt+ArrowLeft"' + (said ? ' aria-label="Back to ' + esc(st.label) + '"' : '') + ' title="Back to ' + esc(st.label) + ' (Alt+Left)">' + L.icon('chevleft', 's') +
-      '<span class="ellipsis">' + (said ? 'Back' : 'Back to ' + esc(st.label)) + '</span></button>';
+    if (!st) return '<button class="btn icon nav-back" data-act="navback" data-k="nav-back" aria-disabled="true" aria-label="Back" title="Nothing to go back to yet: this is the first screen since Lyre opened">' + L.icon('chevleft') + '</button>';
+    return '<button class="btn icon nav-back" data-act="navback" data-k="nav-back" aria-keyshortcuts="Alt+ArrowLeft" aria-label="Back to ' + esc(st.label) + '" title="Back to ' + esc(st.label) + ' (Alt+Left)">' + L.icon('chevleft') + '</button>';
   };
-  L.acts.navback = function (el) { if (el && el.getAttribute('aria-disabled') === 'true') { L.say('Nothing to go back to'); return; } L.back(backFallback); };
+  L.acts.navback = function (el) { if (el && el.getAttribute('aria-disabled') === 'true') { L.say('Nothing to go back to yet'); return; } L.back(backFallback); };
   /* The trail: the parents as links, cut in the middle when it is long. With three parents or more only the first and
      the last show, with "…" between; below 640 px of app only the last parent shows after "…" (ui.css). The whole
      path is the hover text, and what "…" stands for is read out in its place. */
@@ -1050,8 +1067,8 @@ var L = (function () {
   };
   // Back and the trail go first in the header (or where the view put '<!--lead-->').
   function withBack(html, v, p) {
-    var list = v && v.crumbs ? v.crumbs(p) : null, words = (list || []).map(function (x) { return x.label; });
-    var lead = L.backButton(L._backFallback, words) + L.trailHTML(list); L._backFallback = null;
+    var list = v && v.crumbs ? v.crumbs(p) : null;
+    var lead = L.backButton(L._backFallback) + L.trailHTML(list); L._backFallback = null;
     html = html.replace('<!--back-->', '');
     if (html.indexOf('<!--lead-->') > -1) return html.replace('<!--lead-->', lead);
     return html.replace(/<div class="(viewhead|lv-top)[^"]*">/, function (m) { return m + lead; });
@@ -1341,12 +1358,14 @@ var L = (function () {
     if (e.defaultPrevented || menuEl || document.getElementById('lyre-sheet')) return;
     for (var i = 0; i < L.keys.length; i++) if (L.keys[i](e)) { e.preventDefault(); return; }
   });
-  window.addEventListener('hashchange', function () { var r = decodeRoute(location.hash); if (r && r !== curRoute) { steps.length = 0; curRoute = r; afterRoute(); } });
+  // An address typed or pasted is a place like any other: the one left goes into Back's history.
+  window.addEventListener('hashchange', function () { var r = decodeRoute(location.hash); if (r && r !== curRoute) L.route(r); });
   // In-app links (href="#/...") change the route without touching the page address directly.
   document.addEventListener('click', function (e) {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
     var a = e.target.closest('a[href^="#/"]'); if (!a) return;
-    e.preventDefault(); L.route(a.getAttribute('href'), a.closest('#rail') ? { menu: true } : { from: a });
+    // From the menu too (round 6 part 7): every place goes into Back's history.
+    e.preventDefault(); L.route(a.getAttribute('href'), a.closest('#rail') ? {} : { from: a });
   });
   window.addEventListener('resize', function () { clearTimeout(L._rz); L._rz = setTimeout(L.render, 120); });
   L.boot = function () { applyFrame(); curRoute = decodeRoute(location.hash) || '#/campaigns'; L.render(); };

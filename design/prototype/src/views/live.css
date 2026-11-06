@@ -489,14 +489,9 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 .lv-grp-ss { background: color-mix(in srgb, var(--ink) 12%, var(--bg)); }
 .lv-grp-cp { border: 2px dashed var(--line-strong); }
 .lv-grp-h { margin: 0; padding: 0 2px; font-size: var(--fs-xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
-/* Should 7: in three columns, the boxes of a column share its height down to On air and scroll inside, so no box moves
-   when a list in another one grows. */
-.lv-cols.c3 { grid-template-rows: minmax(0, 1fr); align-items: stretch; }
-.lv-cols.c3 > .col { display: flex; flex-direction: column; min-height: 0; }
-.lv-cols.c3 > .col > .pane:not(.collapsed), .lv-cols.c3 .lv-grp > .pane:not(.collapsed) { flex: 1 1 0; min-height: calc(var(--pane-head) + 52px); }
-.lv-cols.c3 > .col > .pane:not(.collapsed) > .pane-body, .lv-cols.c3 .lv-grp > .pane:not(.collapsed) > .pane-body { overflow: auto; }
-.lv-cols.c3 .lv-grp:has(> .pane:not(.collapsed)) { flex: 1 1 0; min-height: 0; }
-.lv-cols.c3 .lv-grp { flex: none; }
+/* Should 7 of the round 6 review (part 4) shared a column's height between its boxes, each scrolling inside. Undone:
+   Scenes and Current scene in part 6, the trays in part 7 (Nik, 6 Nov 21:59). Every box now takes the height of its
+   contents and the page under On air scrolls. */
 /* Must 4 (WCAG 1.4.10 Reflow): below 640 px of app (320 px windows, 200 % zoom) the top strip wraps (Prep | Live and
    the icon buttons, then the session, then Find a track the whole width), a room's header wraps (its name and status,
    then its controls), and a lane's label goes above its title. Under 480 px of height each room is one line (live.js). */
@@ -528,17 +523,16 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 /* ---------- Round 6, part 6 (Nik, 6 Nov 17:14) ----------
    On air at the top, the whole width, right under the top strip, always in view (it scrolls inside itself past 40 % of
    the height). Under it the columns scroll as one page; Scenes and Current scene take the height of their contents
-   again (part 4's shared column height and inner scroll are undone for them). The trays keep theirs in three columns:
-   their column stays in view while Scenes scrolls, and its boxes share its height, so no box there moves when a list
-   in another one grows (Should 7). */
+   again (part 4's shared column height and inner scroll are undone for them). Part 7 (Nik, 21:59: "they should be able
+   to expand the page and make me scroll the whole thing"): the trays (This session, Whole campaign) do the same: their
+   boxes grow with what they hold, nothing scrolls inside them, the page scrolls. */
 .lv-top { padding: 6px 12px; min-height: 44px; }
 .lv-dock { order: 0; max-height: 40%; padding: 8px 8px 0; }
-.lv-cols { container: lvcols / size; }
 .lv-cols.c3 { grid-template-rows: auto; align-items: start; }
 .lv-cols.c3 > .col { display: flex; flex-direction: column; min-height: 0; }
-.lv-cols.c3 > .col > .pane:not(.collapsed) { flex: none; min-height: 0; }
-.lv-cols.c3 > .col > .pane:not(.collapsed) > .pane-body { overflow: visible; }
-.lv-cols.c3 > .col.lv-c-trays { position: sticky; top: 0; height: 100cqh; }
+.lv-cols.c3 > .col > .pane:not(.collapsed), .lv-cols .lv-grp > .pane:not(.collapsed) { flex: none; min-height: 0; }
+.lv-cols > .col > .pane:not(.collapsed) > .pane-body, .lv-cols .lv-grp > .pane:not(.collapsed) > .pane-body { overflow: visible; max-height: none; }
+.lv-cols .lv-grp { flex: none; }
 .lv-cols.c2 { align-items: start; }
 /* Back and the trail lead the strip; the session is the trail's last part. */
 .lv-top .crumbs { flex: 0 1 auto; min-width: 0; }

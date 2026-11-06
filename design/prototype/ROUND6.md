@@ -821,3 +821,60 @@ Open `design/prototype/lyre-prototype.html`.
    air: it plays.
 7. Press Add to queue on three tracks of Current scene: Up next folds to one line with "n more"; press it.
 8. Press /, type abbess: Playlists, then Tracks. Unfold The Abbess; press Esc twice.
+
+## Part 7: the trays grow, and Back is one history (round 6 approved)
+
+> "the This Session and Whole Campaign boxes in the live view should expand as a whole as their content expands, not
+> just have the contents expand and adding an internal scroll - they should be able to expand the page and make me
+> scroll the whole thing."
+>
+> "1) Back should just be a < symbol in a box, it doesn't need text. 2) It should function across tabs in the side menu:
+> it should record where I am and where I was before regardless of what happened between (switching menu tabs and
+> functions, moving to tracks, going into details, whatever) and should let me go back at least five steps."
+>
+> Nik, 6 Nov 2026, 21:59 and 22:04. Round 6 is approved with these. Part 6's two questions stand as recommended:
+> ambience Play next and Add to queue wait in Up next until Next on the ambience; Alt+1 is On air.
+
+| # | What | Why |
+| --- | --- | --- |
+| 1 | **The trays grow with their contents.** This session and Whole campaign, and each box in them, take the height of what they hold; nothing scrolls inside them, and the page under On air scrolls (On air stays in view at the top). Part 4's Should 7 (a column's boxes sharing its height, each scrolling inside) and part 6's sticky trays' column are gone; Should 7's spec now checks the opposite: a box under a growing list moves down. Part 6's narrow trays' column while all its boxes are folded stays, so names in Scenes and Current scene stay readable at 1280 and 960. | Nik's words. |
+| 2 | **Back is a ‹ in a box**, 28 px square (Live's controls are 24 to 28 px, so 28 there too), first in every top bar at the same place (12 px from the left, 8 px from the top of the bar). No words: its name and hover say where it goes ("Back to Session 14 (Alt+Left)"). Back and the trail therefore never say the same thing twice, and part 6's rule for shortening Back is gone. | Nik's words. |
+| 3 | **Back is one history across the whole app.** Every move counts: from the menu, a link, a button or a typed address, between screens and within one (another track in the Library, the Audio profile choosing another place). Each press goes one step back to where Nik was: the route (so the track, playlist or board selected), every box's scroll position, the scene open in the planner and the control last used in the work area (also when he left by the menu); the views keep their own open and folded boxes, and Live its unfolded scenes, so they come back as they were. **50 places are kept** (Nik asked for at least five); a place deleted since (a board, a playlist) is skipped. Back is greyed only at the very start of the history, the first screen since Lyre opened: `aria-disabled`, still reachable with Tab, its hover "Nothing to go back to yet: this is the first screen since Lyre opened". The Audio profile opened by its address still goes back to the scene or session it shows. Alt+Left and the mouse's back button do the same as Back. Back is named by the place: a track in the Library is "Library: <track>", an Audio profile "Audio profile: <track>". This replaces part 6's "greyed when opened from the menu" and UX-18's "the menu clears the steps". | Nik's words. Like a browser's Back, so there is nothing new to learn. |
+
+The help draft `10-live.md` says what ‹ does.
+
+**For the lead (the app):** one history in the shell (route, scroll positions, focus key, open scene), pushed on every
+route change including the rail and same-view changes, popped by Back, Alt+Left and the mouse's back button, capped at
+50, skipping routes that no longer resolve; `aria-disabled` only when it is empty and the screen has no fallback.
+
+### Numbers
+
+`tools/r6-measure.js`, part 6 (after its 1280/960 follow-up) and part 7; 1920×1080, words at 960×1000 in brackets.
+
+| Screen and state | Words | Controls |
+| --- | ---: | ---: |
+| live | 82 → 81 (60 → 59) | 44 → 44 |
+| live-playing | 211 → 210 (189 → 188) | 96 → 96 |
+| live-aftermath | 167 → 166 (145 → 144) | 78 → 78 |
+| live-scene-open | 254 → 253 (222 → 221) | 122 → 122 |
+| planner | 205 → 204 (178 → 185) | 122 → 122 |
+
+Back's word goes from every screen (one word fewer each). Hint lines are unchanged (182). All 31 states, both sizes:
+words 13,386 → 13,340, controls 5,609 → 5,619, facts shown twice 299 → 302. The only rises are the planner and its
+picker at 960 (+7 words, +3 controls, one more "+1 more" counted as shown twice): with no word in Back its top bar no
+longer wraps, so one more scene row of the same page fits in the window; nothing new is on the page.
+
+Checks: the prototype spec project (`yarn heavy`): 555 passed. `tools/r5-check.js` ("every screen passed"),
+`tools/check-contrast.js`, `tools/lv-keys.js`, `tools/r6-saved.js` pass. Screenshots retaken
+(`shots/r6/live-part6-*.png`, `prep-part6-960.png`).
+
+### Specs
+
+Written first and run on the part 6 build: 11 of the 12 new or changed checks failed (the one that passed, Back greyed
+on Live as the first screen, held already). New (`campaigns.spec.ts`, `round 6, part 7`): Library, a track, its Audio
+profile, Pad boards from the menu, a board, Live with Crypt ambush unfolded and Rooms, then Back seven times: Live with
+Crypt ambush still unfolded, the board, Pad boards, the Audio profile, the Library with the track open, the Library,
+and Back greyed; Back a ‹ in a box at least 24 px with no words, and Alt+Left; the planner's scroll position back after
+a menu move. `live.spec.ts` (committed by the lead): every tray box opened, nothing scrolls inside, the page scrolls.
+Changed: part 6's Back checks (greyed only at the start; no words), Settings' and the campaign page's "no Back from the
+menu" (now Back to where Nik was; the campaign page's is marked `round 6`), Should 7 (the box below moves down).
