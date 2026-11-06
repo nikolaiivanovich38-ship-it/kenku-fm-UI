@@ -58,13 +58,18 @@ function prototypeCurve(t: LevelTrack): number[] {
   return out;
 }
 
-/** The prototype's levels across the file at the library's density (core.js L.levelAt), rounded to three places. */
+/**
+ * The prototype's levels across the file at the library's density (core.js L.levelAt) and precision: one byte each
+ * (repo/peaks.ts), answered to three places as LyreApi's peaksOf does. The one copy (FND-17): the seed's peaks, the
+ * fake's and a seeded test library's all come from here, so they hold the same levels and suggest the same shapes.
+ */
 export function prototypeLevels(t: LevelTrack): number[] {
   const curve = prototypeCurve(t);
   return Array.from({ length: POINTS }, (_, i) => {
     const f = (i / (POINTS - 1)) * (curve.length - 1);
     const lo = Math.floor(f);
     const hi = Math.min(curve.length - 1, lo + 1);
-    return Math.round((curve[lo] + (curve[hi] - curve[lo]) * (f - lo)) * 1000) / 1000;
+    const byte = Math.round((curve[lo] + (curve[hi] - curve[lo]) * (f - lo)) * 255);
+    return Math.round((byte / 255) * 1000) / 1000;
   });
 }

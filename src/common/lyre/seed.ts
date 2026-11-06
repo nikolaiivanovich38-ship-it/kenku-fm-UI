@@ -9,6 +9,7 @@
  */
 import { shapeFromPeaks, DEFAULT_LIBRARY_NORMALISE, type AudioProfileInput, type LibraryNormalise, type LoopAdvice, type NormaliseChoice, type PadMode, type PlayOrder, type PlayOrderOverrides, type PlaylistRule, type ProfileOverrides, type TrackLoudness, type TrackRole, type TrackShape } from "../domain";
 import { fileAddress } from "./media";
+import { prototypeLevels } from "./prototypeLevels";
 import type { CampaignInfo, CampaignTheme, FolderRoot, LibraryTrack, MoveReport, Pad, PadBoard, PadColor, PlaylistInfo, SessionStatus, TagGroup } from "./api";
 import { NOT_BROUGHT_ACROSS } from "./transfer";
 
@@ -417,79 +418,14 @@ function campaigns(soundRef: (id: string) => { kind: "track" | "playlist"; id: s
   }));
 }
 
-/* ---------- DAT-13: the prototype's loudness ---------- */
-
-/** core.js seeded(): the same numbers for the same text (FNV-1a, then a mixer). */
-function seededNumbers(text: string): () => number {
-  let a = 2166136261;
-  for (let i = 0; i < text.length; i++) {
-    a ^= text.charCodeAt(i);
-    a = Math.imul(a, 16777619);
-  }
-  return () => {
-    a = Math.imul(a ^ (a >>> 15), 2246822507);
-    a = Math.imul(a ^ (a >>> 13), 3266489909);
-    a ^= a >>> 16;
-    return (a >>> 0) / 4294967296;
-  };
-}
-
-type CurvedTrack = Pick<LibraryTrack, "id" | "kind" | "title" | "notes" | "profile">;
-
-/** core.js curveKind(): how a sample track moves, from words in its title where they say so, else from its id. */
-function curveOf(t: CurvedTrack): TrackShape {
-  const words = `${t.title} ${t.notes}`.toLowerCase();
-  if (t.profile?.markers.some((m) => /peak/i.test(m.label))) return "peaksThenFalls";
-  if (/build|rising|rises|ends huge|slow-burn|swells/.test(words)) return "builds";
-  if (/\bfade\b|resolves|release after|dies away/.test(words)) return "fallsAway";
-  if (/loops well|great loop|\(loops\)|steady|crowd|ostinato|never lets up/.test(words) || t.kind === "amb") return "steady";
-  const kinds: TrackShape[] = ["steady", "builds", "peaksThenFalls", "risesAndFalls", "fallsAway", "steady"];
-  return kinds[Math.floor(seededNumbers(t.id)() * 6)];
-}
-
-/** core.js L.levels(): 48 levels from 0.05 to 1 along the track's curve, with a little made-up noise. */
-export function prototypeLevels(t: CurvedTrack): number[] {
-  const kind = curveOf(t);
-  const noise = seededNumbers(`${t.id}:lv`);
-  const out: number[] = [];
-  for (let i = 0; i < 48; i++) {
-    const x = i / 47;
-    const v =
-      kind === "builds"
-        ? 0.28 + 0.62 * Math.pow(x, 1.4)
-        : kind === "fallsAway"
-          ? 0.88 - 0.58 * Math.pow(x, 0.8)
-          : kind === "peaksThenFalls"
-            ? 0.3 + 0.6 * Math.sin(Math.PI * Math.pow(x, 0.85))
-            : kind === "risesAndFalls"
-              ? 0.52 + 0.3 * Math.sin(Math.PI * 4 * x)
-              : 0.6 + 0.04 * Math.sin(x * 9);
-    out.push(Math.max(0.05, Math.min(1, v + (noise() - 0.5) * 0.08)));
-  }
-  return out;
-}
-
-/**
- * A track's 48 prototype levels spread over 1,000 points (core.js L.levelAt), at the library's precision: one byte
- * each, answered to three places. So the fake and a seeded library hold the same levels and suggest the same shape.
- */
-function seededPeaks(t: CurvedTrack): number[] {
-  const lv = prototypeLevels(t);
-  return Array.from({ length: 1000 }, (_, i) => {
-    const f = (i / 999) * (lv.length - 1);
-    const j = Math.floor(f);
-    const k = Math.min(lv.length - 1, j + 1);
-    const byte = Math.round((lv[j] + (lv[k] - lv[j]) * (f - j)) * 255);
-    return Math.round((byte / 255) * 1000) / 1000;
-  });
-}
+/* ---------- DAT-13: the prototype's loudness (prototypeLevels.ts, FND-17: one copy) ---------- */
 
 /** A fresh copy of the prototype's sample data. `now` dates the three tracks data.js added "Today". */
 export function prototypeSeed(now: number = Date.UTC(2026, 10, 5, 12)): SeedData {
   const allTracks = tracks(now);
   const peaks: Record<string, number[]> = {};
   for (const t of allTracks) {
-    peaks[t.id] = seededPeaks(t);
+    peaks[t.id] = prototypeLevels(t);
     // As the library suggests a shape: from the bytes it keeps (repo/peaks.ts savePeaks).
     t.suggestedShape = shapeFromPeaks(peaks[t.id].map((level) => Math.round(level * 255) / 255));
   }
