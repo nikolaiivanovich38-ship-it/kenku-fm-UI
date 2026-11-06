@@ -5,6 +5,8 @@
  * Times are milliseconds.
  */
 
+import type { NormaliseChoice, TrackLoudness } from "./normalise";
+
 /** What kind of sound a track is. "fx" covers sound effects; stings are music tracks with role "sting". */
 export const TRACK_KINDS = ["music", "amb", "fx"] as const;
 export type TrackKind = (typeof TRACK_KINDS)[number];
@@ -54,6 +56,10 @@ export interface DomainTrack {
   shape?: TrackShape | null;
   /** DAT-13: the shape Lyre suggests from the track's loudness (shapeFromPeaks), used while none is chosen. */
   suggestedShape?: TrackShape | null;
+  /** PLY-15: the track's own normalising choice; null or missing follows its playlist, then the library. */
+  normalise?: NormaliseChoice | null;
+  /** DAT-15: what Lyre measured from its file; null or missing: not measured yet (it plays as it is). */
+  loudness?: TrackLoudness | null;
 }
 
 /** One condition of a dynamic playlist. A condition with no values is ignored (it is still being written). */
@@ -88,6 +94,8 @@ export type DomainPlaylist = {
   lane: Lane;
   /** PLY-13: the playlist's own play order; null or missing: the default for where it plays (resolvePlayOrder). */
   order?: PlayOrder | null;
+  /** PLY-15: the playlist's normalising choice for its tracks; null or missing follows the library. */
+  normalise?: NormaliseChoice | null;
 } & (
   | { kind: "manual"; trackIds: string[] }
   | { kind: "dynamic"; rule: PlaylistRule }

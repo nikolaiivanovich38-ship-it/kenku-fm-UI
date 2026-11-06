@@ -66,10 +66,12 @@ describe("planRelink and applyRelink (DAT-8)", () => {
     // In the order of the tracks' names, as findMissingTracks lists them.
     expect(plan.matches).toEqual([
       expect.objectContaining({ trackId: renamed.id, to: path.join(newHome, "Fx", "door creak (old).wav"), confidence: "sure" }),
+      // Round 5 (DAT-8): the same name with another size is offered, not ticked ("Same name, different size: check it").
+      expect.objectContaining({ trackId: changed.id, to: path.join(newHome, "Ambience", "rain.ogg"), confidence: "name" }),
       expect.objectContaining({ trackId: moved.id, to: path.join(newHome, "Scores", "Witcher", "Silver for Monsters.flac"), confidence: "sure" }),
     ]);
-    expect(plan.notFound.sort()).toEqual([changed.id, lost.id].sort());
-    expect(plan.summary).toBe("Found 2 of 4 missing files. 2 were not found in that folder.");
+    expect(plan.notFound).toEqual([lost.id]);
+    expect(plan.summary).toBe("Found 3 of 4 missing files. 1 was not found in that folder.");
   });
 
   it("matches by name alone when the library never knew the file's size (moved in from the old player), and says so", async () => {
@@ -78,6 +80,29 @@ describe("planRelink and applyRelink (DAT-8)", () => {
     const found = writeAudio(newHome, "Barovia/Strahd's waltz.flac", "waltz");
     const plan = await planRelink(t.store, await findMissingTracks(t.store), newHome);
     expect(plan.matches).toEqual([expect.objectContaining({ trackId: track.id, to: found, confidence: "name" })]);
+  });
+
+  it("looks through the files a probe gives, so a test build can stand in for a computer (the sample library)", async () => {
+    const track = createTrack(t.store, { title: "Storm", file: { path: "H:\\Audio\\Scores\\07 The Storm.flac", size: 9_000_000 } });
+    const sized = createTrack(t.store, { title: "Rains", file: { path: "H:\\Audio\\Scores\\18 Rains.flac", size: 9_000_000 } });
+    createTrack(t.store, { title: "Here", file: { path: "H:\\Audio\\Scores\\here.flac", size: 9_000_000 } });
+    const files = new Map([
+      ["H:\\Audio\\Scores\\here.flac", 9_000_000],
+      ["E:\\Music\\Scores\\Kilar\\07 The Storm.flac", 9_000_000],
+      ["E:\\Music\\Scores\\Djawadi\\18 Rains.flac", 8_400_000],
+    ]);
+    const probe = {
+      exists: async (p: string) => files.has(p),
+      facts: async (p: string) => ({ path: p, size: files.get(p) ?? 0, mtimeMs: 0, checksum: `q1:${p}` }),
+      audioFilesUnder: async (folder: string) => [...files.keys()].filter((p) => p.startsWith(`${folder}\\`)),
+    };
+    const missing = await findMissingTracks(t.store, { probe });
+    expect(missing.map((m) => m.id).sort()).toEqual([track.id, sized.id].sort());
+    const plan = await planRelink(t.store, missing, "E:\\Music\\Scores", { probe });
+    expect(plan.matches.map((m) => [m.trackId, m.confidence])).toEqual([
+      [sized.id, "name"],
+      [track.id, "likely"],
+    ]);
   });
 
   it("prefers the candidate whose folders match the old path, reports a tie, and never uses a file already in the library", async () => {

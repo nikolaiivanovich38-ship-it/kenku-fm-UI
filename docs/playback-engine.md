@@ -241,3 +241,13 @@ None until the new interface uses the show engine; the wave 3 screens will list 
 - Pause and resume of a lane as an action (the prototype's pause button), and shuffle within a scene.
 - Starting the next track a little before End to hide the time a streamed file takes to open (a short gap is possible today).
 - Undo for other rooms, and an Undo for actions other than a scene start.
+
+## Wave 4: volume normalisation (PLY-15)
+
+Lyre never changes your files: the level is evened out as Lyre plays them, and the measurement is kept in Lyre's library (docs/data-model.md "Version 4").
+
+- Each voice has a **level** stage of its own between its envelope and its volume (`voice.ts`, `VoiceOptions.gainDb`, `setGainDb`), so the track's own volume, its fades, the bus and the room's volume all apply on top of it. Gains multiply in a floating-point graph, so its place in the chain does not change the sound.
+- The gain is `normalisedGainDb(track, playlist, library)` (src/common/domain/normalise.ts): the track's choice, then the playlist it plays from, then the library's setting; 0 when off there or not measured yet. `RoomPlayer` gives it to every music, ambience and effect voice (an effect or pad sound has no playlist); a crossfade moves from one voice's gain to the next one's.
+- `LaneNowPlaying.gainDb` and `PreviewNowPlaying.gainDb` say the gain applied (normaliseHover words it). The preview hears the gain the players would: a track alone, a playlist's first track with the playlist's choice, a track previewed from a playlist (`PreviewTrackOptions.playlistId`), a pad's sound as on air.
+- When the library changes (the setting, a choice, a new measurement), `EngineLyreAudio.setLibrary` calls `Director.libraryChanged()` and moves what plays, and the preview, to its new gain over 50 ms. `LibrarySnapshot` loads `library.normaliseSettings()` with "tracks" and reloads tracks on "peaks" (new loudness).
+- Tests: `voice.test.ts` (the level, a change while playing, nothing left behind), `director.test.ts` "volume normalisation" (off by default, the library's target, playlist and track precedence, crossfade, pads, a change while playing), `lyreAudio.test.ts` (now-playing gains, previews, a library change).

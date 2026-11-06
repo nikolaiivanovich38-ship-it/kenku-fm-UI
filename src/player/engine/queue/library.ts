@@ -16,6 +16,7 @@ import type {
   PlayOrderOverrides,
   ProfileOverrides,
 } from "../../../common/domain";
+import { DEFAULT_LIBRARY_NORMALISE, type LibraryNormalise } from "../../../common/domain";
 import type { MediaRequest } from "../sources/sourceLoader";
 
 /** A scene, named by where it lives. Also the key of its audio profile overrides. */
@@ -50,6 +51,8 @@ export interface ShowLibrary extends DomainLookup {
   pad(boardId: string, padId: string): PadSound | undefined;
   /** PLY-13: play order chosen in places, by place key then playlist id; none: every playlist plays its own order. */
   playOrders?(): PlayOrderOverrides;
+  /** PLY-15: the library's Normalise volume setting; none: off (every track plays as it is unless it says On). */
+  normaliseSettings?(): LibraryNormalise;
 }
 
 /** A library as plain data, for tests and the test hook. */
@@ -60,6 +63,7 @@ export interface ShowData {
   profiles?: ProfileOverrides;
   pads?: (PadSound & { boardId: string; padId: string })[];
   playOrders?: PlayOrderOverrides;
+  normalise?: LibraryNormalise;
 }
 
 /** Reads `data` on every call, so a test can change it while things play (e.g. delete a track). */
@@ -80,6 +84,7 @@ export function staticLibrary(data: ShowData): ShowLibrary {
     },
     pad: (boardId, padId) => data.pads?.find((p) => p.boardId === boardId && p.padId === padId),
     playOrders: () => data.playOrders ?? {},
+    normaliseSettings: () => data.normalise ?? DEFAULT_LIBRARY_NORMALISE,
   };
 }
 

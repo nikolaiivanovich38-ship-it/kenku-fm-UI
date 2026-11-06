@@ -35,5 +35,5 @@ export {
   type LegacyImportReport,
   type LegacyPlayerState,
 } from "./legacy";
-export { findMissingTracks, planRelink, applyRelink, type MissingTrack, type RelinkMatch, type RelinkPlan } from "./relink";
+export { findMissingTracks, planRelink, applyRelink, diskProbe, type FileProbe, type MissingTrack, type RelinkMatch, type RelinkPlan } from "./relink";
 export { suggestFromTitles, applyTitleSuggestions, type TitleSuggestion, type AcceptedSuggestion } from "./titleTags";

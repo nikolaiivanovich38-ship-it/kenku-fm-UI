@@ -10,7 +10,9 @@
  *   refusals); anything else is a fault and rejects.
  * - What needs a person or the desktop (choosing files, opening File Explorer) is asked of the host.
  */
-import { isFx, type DomainCampaign, type Lane, type PlaylistRule, type ProfilePlace, type SoundRef, type Use } from "../../common/domain";
+import path from "path";
+
+import { isFx, type DomainCampaign, type Lane, type NormaliseChoice, type PlaylistRule, type ProfilePlace, type SoundRef, type Use } from "../../common/domain";
 import type {
   AddedTracks,
   CampaignInfo,
@@ -37,7 +39,7 @@ import type {
   WriteResult,
 } from "../../common/lyre/api";
 import { CAMPAIGN_THEMES } from "../../common/lyre/api";
-import { estimateTransfer, NOT_BROUGHT_ACROSS } from "../../common/lyre/transfer";
+import { estimateTransfer, NOT_BROUGHT_ACROSS, transferContents, type TransferLibrary } from "../../common/lyre/transfer";
 import { fileAddress } from "../../common/lyre/media";
 import { plural, quoted, shownTitle, tagValue, trimmed } from "../../common/lyre/text";
 import {
@@ -69,6 +71,7 @@ import {
   getBoardLayout,
   getDomainCampaign,
   getDomainLookup,
+  getLibraryNormalise,
   getPlayOrderOverrides,
   getTrackNames,
   getProfileOverride,
@@ -104,9 +107,12 @@ import {
   searchCount,
   setBoardUses,
   setPlaylistUses,
+  setLibraryNormalise,
+  setPlaylistNormalise,
   setPlayOrder,
   setProfileOverride,
   setSceneTrackName,
+  setTrackNormalise,
   setTrackUses,
   setSceneAmbience,
   tagTracks,
@@ -120,6 +126,8 @@ import {
   updateSession,
   updateTrack,
   PeakJobs,
+  tracksNeedingLoudness,
+  type LoudnessReader,
   trackPeaks,
   type Library,
   type Pad,
@@ -129,8 +137,9 @@ import {
   type TagReader,
   type UseTarget,
 } from "../data";
-import { fileExists } from "../data/import/fileFacts";
+import { diskProbe, type FileProbe } from "../data/import/relink";
 import { joinRoot, unsafeFolderReason } from "../data/paths";
+import { saveLyreFile, openLyreFile, bringInLyreFile, type OpenTransfer, type TransferFiles } from "./transferApi";
 import { withCheckedArguments } from "./argChecks";
 import { Refused } from "./refused";
 
@@ -142,6 +151,10 @@ export interface LibraryHost {
   chooseFolder(): Promise<string | null>;
   /** Opens File Explorer with the file selected. */
   showItemInFolder(path: string): void;
+  /** DAT-7: a save dialog for a .lyre file, starting at the suggested name; null when closed. */
+  chooseSaveFile(suggestedName: string): Promise<string | null>;
+  /** DAT-7: an open dialog for .lyre files; null when closed. */
+  chooseLyreFile(): Promise<string | null>;
 }
 
 export interface LibraryApiOptions {
@@ -153,6 +166,20 @@ export interface LibraryApiOptions {
   lengthProbe?: (filePath: string) => Promise<number | null>;
   /** How often a "changed" event for "peaks" may be sent while they are worked out (default 250 ms). */
   peakNotifyEveryMs?: number;
+  /**
+   * How Lyre looks at and reads files on the computer (missing files, relinking, audio for a .lyre file). The disk,
+   * unless a test build of the sample library stands in for the prototype's computer (sampleComputer.ts).
+   */
+  files?: FileProbe & { open?(file: string): NodeJS.ReadableStream };
+  /** DAT-7: where brought-in audio files go, and the day in file names (a test build of the sample library: 5 Nov 2026). */
+  transfer?: Partial<TransferFiles>;
+  /** DAT-15: measures each track's loudness (ffmpeg) with its peaks; without it tracks stay not measured. */
+  loudnessReader?: LoudnessReader;
+  /**
+   * DAT-15: how long after start every track not measured yet (a library from before version 4, or files changed
+   * while Lyre was closed) is queued in the background (default 20 s, so starting up is not slowed).
+   */
+  loudnessSweepAfterMs?: number;
   log?: (message: string, error?: unknown) => void;
 }
 
@@ -193,9 +220,6 @@ export function refusalFor(error: unknown): ApiRefusal | null {
   return null;
 }
 
-/** DAT-7 until the stream that saves and opens .lyre files is merged. */
-const TRANSFER_LATER = "Saving to a file and opening one come in a later version of Lyre.";
-
 /** "f5" as stored, "F5" as the screens show it; a letter or digit as it is. */
 const keyOut = (hotkey: string | null) => (hotkey === null ? "" : /^f([1-9]|1[0-2])$/.test(hotkey) ? hotkey.toUpperCase() : hotkey);
 const lastSeparator = (p: string) => Math.max(p.lastIndexOf("\\"), p.lastIndexOf("/"));
@@ -216,6 +240,13 @@ const TRACK_EXTRA_SQL = "SELECT id, root_id, path, url, file_size, notes, source
 
 export function createLibraryApi(library: Library, host: LibraryHost, options: LibraryApiOptions = {}): LibraryApi {
   const { store, history } = library;
+  const probe = options.files ?? diskProbe;
+  const transferFiles: TransferFiles = {
+    broughtInFolder: options.transfer?.broughtInFolder ?? path.join(path.dirname(library.databasePath), "Brought in"),
+    today: options.transfer?.today ?? store.now,
+  };
+  /** The .lyre file opened last, waiting for Bring in (one at a time). */
+  let opened: OpenTransfer | null = null;
   const listeners = new Set<(event: LyreEvent) => void>();
   let importing = false;
   /**
@@ -232,13 +263,26 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
   };
   const stateLabel = () => history.state().undoLabel;
   // Loudness peaks: worked out one track at a time by ffmpeg in its own process; screens hear when some are ready.
+  // DAT-15: the same job measures loudness; a "peaks" event then also means some tracks' loudness is known.
   const peakJobs = options.peakReader
     ? new PeakJobs(store, options.peakReader, {
         onReady: () => emit({ type: "changed", areas: ["peaks"] }),
         notifyEveryMs: options.peakNotifyEveryMs ?? 250,
         log: options.log,
+        loudness: options.loudnessReader,
       })
     : null;
+  const loudnessSweep =
+    peakJobs && options.loudnessReader
+      ? setTimeout(() => {
+          try {
+            peakJobs.inBackground(tracksNeedingLoudness(store));
+          } catch (error) {
+            options.log?.("Could not list the tracks to measure", error);
+          }
+        }, options.loudnessSweepAfterMs ?? 20_000)
+      : null;
+  loudnessSweep?.unref?.();
 
   /**
    * One write: refusals in plain words, faults passed on, and a "changed" event when it made an undo step.
@@ -304,6 +348,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
         ...t,
         shape: t.shape ?? null,
         suggestedShape: t.suggestedShape ?? null,
+        normalise: t.normalise ?? null,
+        loudness: t.loudness ?? null,
         artist: row.source_composer ?? "",
         album: row.source_album ?? "",
         folder: file === null ? "" : file.slice(0, Math.max(0, lastSeparator(file))),
@@ -341,11 +387,13 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       else items.set(row.playlist_id, [row.track_id]);
     }
     const orders = ownPlayOrders(store, "all");
+    const choices = new Map(store.all<{ id: string; normalise: NormaliseChoice | null }>("SELECT id, normalise FROM playlists").map((r) => [r.id, r.normalise]));
     return listPlaylists(store).map((p): PlaylistInfo => {
       const order = orders.get(p.id) ?? null;
+      const normalise = choices.get(p.id) ?? null;
       return p.kind === "dynamic"
-        ? { id: p.id, name: p.title, lane: p.lane, order, kind: "dynamic", rule: p.rule as PlaylistRule, notes: p.notes }
-        : { id: p.id, name: p.title, lane: p.lane, order, kind: "manual", trackIds: items.get(p.id) ?? [], notes: p.notes };
+        ? { id: p.id, name: p.title, lane: p.lane, order, normalise, kind: "dynamic", rule: p.rule as PlaylistRule, notes: p.notes }
+        : { id: p.id, name: p.title, lane: p.lane, order, normalise, kind: "manual", trackIds: items.get(p.id) ?? [], notes: p.notes };
     });
   }
   const requirePlaylist = (id: string) => playlistInfos().find((p) => p.id === id) ?? refuse("not-found", ENTITY_WORDS.playlist);
@@ -477,6 +525,18 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
   }
   const requireName = (name: unknown, what: string) => trimmed(name) || refuse("invalid", `Give the ${what} a name.`, "name");
 
+  /** The library in the API's shapes: what a .lyre file is made from, and what an opened one is compared with. */
+  function currentLibrary(): TransferLibrary {
+    const tags = tagRefsById();
+    return { tracks: libraryTracks(), playlists: playlistInfos(), boards: listBoards(store).map((b) => padBoard(b.id, tags)), campaigns: listDomainCampaigns(store).map(campaignInfo), tagGroups: tagGroups() };
+  }
+  /** A track's file on this computer, or null for a web address. */
+  function trackFile(trackId: string): string | null {
+    const row = store.get<TrackExtra>(`${TRACK_EXTRA_SQL} WHERE id = ?`, trackId);
+    return row ? fullPath(row, rootPaths()) : null;
+  }
+  const dayOf = (ms: number) => new Date(ms).toISOString().slice(0, 10);
+
   /* ---------- the API ---------- */
 
   const api: LibraryApi = {
@@ -521,7 +581,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           const row = store.get<TrackExtra>(`${TRACK_EXTRA_SQL} WHERE id = ?`, trackId) as TrackExtra;
           const file = fullPath(row, rootPaths());
           if (file === null) refuse("invalid", `"${shownTitle(track)}" plays from a web address, not a file.`);
-          if (!(await fileExists(file))) refuse("file-missing", "The file is not where your library expects it. Use Find missing files to look for it.");
+          if (!(await probe.exists(file))) refuse("file-missing", "The file is not where your library expects it. Use Find missing files to look for it.");
           host.showItemInFolder(file);
         });
       },
@@ -530,6 +590,22 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           const track = requireTrack(trackId);
           const label = shape === null ? `Let Lyre suggest the shape of ${quoted(shownTitle(track))}` : `Give ${quoted(shownTitle(track))} a shape`;
           store.change(label, () => updateTrack(store, trackId, { shape }));
+          return requireTrack(trackId);
+        });
+      },
+      async normaliseSettings() {
+        return getLibraryNormalise(store);
+      },
+      async setNormaliseSettings(setting) {
+        // Every track's gain follows it, so screens showing tracks reload.
+        return write(["tracks"], () => {
+          setLibraryNormalise(store, setting);
+          return getLibraryNormalise(store);
+        });
+      },
+      async setNormalise(trackId, choice) {
+        return write(["tracks"], () => {
+          setTrackNormalise(store, trackId, choice);
           return requireTrack(trackId);
         });
       },
@@ -685,6 +761,12 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       },
       async clearPlayOrder(playlistId, place) {
         return write(["playlists"], () => clearPlayOrder(store, playlistId, place));
+      },
+      async setNormalise(playlistId, choice) {
+        return write(["playlists"], () => {
+          setPlaylistNormalise(store, playlistId, choice);
+          return requirePlaylist(playlistId);
+        });
       },
     },
 
@@ -1113,7 +1195,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
         });
       },
       async findMissing() {
-        return (await findMissingTracks(store)).map((m): MissingTrack => ({
+        return (await findMissingTracks(store, { probe })).map((m): MissingTrack => ({
           id: m.id,
           title: m.title,
           path: m.path,
@@ -1132,7 +1214,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           // Security review 5: looking through a whole drive or a system folder would read every file in it.
           const unsafe = unsafeFolderReason(folder);
           if (unsafe) refuse("invalid", unsafe, "path");
-          const plan = await planRelink(store, await findMissingTracks(store), folder);
+          const plan = await planRelink(store, await findMissingTracks(store, { probe }), folder, { probe });
           planned = new Map(plan.matches.map((m) => [relinkKey(m.trackId, m.to), m]));
           plannedChoices = new Set(plan.ambiguous.flatMap((a) => a.candidates.map((to) => relinkKey(a.trackId, to))));
           return {
@@ -1163,36 +1245,71 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
 
     transfer: {
       async estimate(scope) {
-        const lib = { tracks: libraryTracks(), playlists: playlistInfos(), boards: listBoards(store).map((b) => padBoard(b.id)), campaigns: listDomainCampaigns(store).map(campaignInfo), tagGroups: tagGroups() };
-        const out = estimateTransfer(scope, lib, new Date(store.now()).toISOString().slice(0, 10));
+        const out = estimateTransfer(scope, currentLibrary(), dayOf(transferFiles.today()));
         if (!out) throw new Error("That is no longer in your library.");
         return out;
       },
-      // DAT-7: saving, opening and bringing in .lyre files are a later step's (docs/ARCHITECTURE.md, w4-contracts).
-      async save() {
-        return { ok: false, refusal: { code: "unavailable", message: TRANSFER_LATER } };
+      async save(request) {
+        return writeOutside([], async () => {
+          const lib = currentLibrary();
+          const estimate = estimateTransfer(request.scope, lib, dayOf(transferFiles.today())) ?? refuse("not-found", "That is no longer in your library.");
+          const target = request.path ?? (await host.chooseSaveFile(estimate.fileName));
+          if (!target) return null;
+          return saveLyreFile({
+            target,
+            scope: request.scope,
+            estimate,
+            contents: transferContents(request.scope, lib) ?? refuse("not-found", "That is no longer in your library."),
+            overrides: getProfileOverrides(store),
+            playOrders: getPlayOrderOverrides(store),
+            includeAudio: request.includeAudio,
+            fileOf: (trackId) => trackFile(trackId),
+            probe,
+            savedAt: transferFiles.today(),
+          });
+        });
       },
-      async open() {
-        return { ok: false, refusal: { code: "unavailable", message: TRANSFER_LATER } };
+      async open(source) {
+        return writeOutside([], async () => {
+          const file = source.from === "path" ? source.path : await host.chooseLyreFile();
+          if (!file) return null;
+          const next = await openLyreFile(file, currentLibrary());
+          await opened?.close();
+          opened = next;
+          return next.preview;
+        });
       },
-      async bringIn() {
-        return { ok: false, refusal: { code: "unavailable", message: TRANSFER_LATER } };
+      async bringIn(openedId, choices) {
+        const file = opened;
+        if (!file || file.preview.id !== openedId) return { ok: false, refusal: { code: "not-found", message: "Open the file again: Lyre no longer has it open." } };
+        return write(["tracks", "tags", "playlists", "boards", "campaigns", "profiles"], async () => {
+          // As an import does: a backup first, so the library can be put back as it was.
+          await library.backupBeforeImport();
+          const report = await bringInLyreFile(store, file, currentLibrary(), choices, transferFiles);
+          opened = null;
+          await file.close();
+          return report;
+        });
       },
       async movedReport() {
         // What the first start's move from the old player recorded (import/legacy.ts, library_jobs).
         const job = store.get<{ detail: string; finished_at: number | null }>("SELECT detail, finished_at FROM library_jobs WHERE name = 'legacy-player' AND state = 'done'");
-        const report = job ? (JSON.parse(job.detail).report as { status?: string; counts?: { playlists: number; tracks: number; boards: number; pads: number }; missingTrackIds?: string[] } | undefined) : undefined;
+        const report = job
+          ? (JSON.parse(job.detail).report as { status?: string; from?: string; bookmarks?: number; counts?: { playlists: number; tracks: number; boards: number; pads: number }; missingTrackIds?: string[] } | undefined)
+          : undefined;
         if (!job || !report?.counts || report.status === "nothing-to-move") return null;
         const gone = new Set(report.missingTrackIds ?? []);
         const missing = gone.size ? (await api.import.findMissing()).filter((m) => gone.has(m.id)) : [];
         return {
-          from: "Kenku FM",
+          // The record names the app and its version when it knows them ("Kenku FM 1.5.5").
+          from: typeof report.from === "string" && /^Kenku FM\b/.test(report.from) ? report.from : "Kenku FM",
           at: job.finished_at ?? 0,
           copied: [
             { what: "Playlists", count: report.counts.playlists, nowIn: "Playlists (Manual)", route: "#/playlists" },
             { what: "Tracks", count: report.counts.tracks, nowIn: "Library", route: "#/library" },
             { what: "Soundboards", count: report.counts.boards, nowIn: "Pad boards", route: "#/boards" },
             { what: "Sounds", count: report.counts.pads, nowIn: "Pads on those boards", route: "#/boards" },
+            ...(typeof report.bookmarks === "number" ? [{ what: "Bookmarks", count: report.bookmarks, nowIn: "Website tabs", route: null }] : []),
           ],
           missing,
           notBrought: NOT_BROUGHT_ACROSS.map((x) => ({ ...x })),
@@ -1234,6 +1351,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
     },
 
     stopBackgroundWork() {
+      if (loudnessSweep) clearTimeout(loudnessSweep);
       peakJobs?.close();
     },
 

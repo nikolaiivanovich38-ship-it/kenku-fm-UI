@@ -7,8 +7,7 @@
  * the prototype names files. A pad file whose name (without its _01 number) is an FX track's file plays that
  * track; the 60 pad files with no such track are left out, so the Library keeps its 69 tracks.
  */
-import { shapeFromPeaks } from "../domain";
-import type { AudioProfileInput, LoopAdvice, PadMode, PlayOrder, PlayOrderOverrides, PlaylistRule, ProfileOverrides, TrackRole, TrackShape } from "../domain";
+import { shapeFromPeaks, DEFAULT_LIBRARY_NORMALISE, type AudioProfileInput, type LibraryNormalise, type LoopAdvice, type NormaliseChoice, type PadMode, type PlayOrder, type PlayOrderOverrides, type PlaylistRule, type ProfileOverrides, type TrackLoudness, type TrackRole, type TrackShape } from "../domain";
 import { fileAddress } from "./media";
 import type { CampaignInfo, CampaignTheme, FolderRoot, LibraryTrack, MoveReport, Pad, PadBoard, PadColor, PlaylistInfo, SessionStatus, TagGroup } from "./api";
 import { NOT_BROUGHT_ACROSS } from "./transfer";
@@ -32,6 +31,8 @@ export interface SeedData {
    * prototype's curve (core.js L.levels). The tracks' suggested shapes are worked out from them, as the library does.
    */
   peaks: Record<string, number[]>;
+  /** Round 5 (PLY-15): the library's Normalise volume setting (off, Standard). */
+  normalise: LibraryNormalise;
 }
 
 /* ---------- rows copied from data.js ---------- */
@@ -126,6 +127,25 @@ const OWN_ORDERS: Record<string, PlayOrder> = { 'p-combat-big': { shuffle: true,
 const ORDERS: PlayOrderOverrides = { 'sc:crown:s14:sc3': { 'p-abbey-eerie': { shuffle: true, repeat: 'off' } }, 'ss:crown:s14': { 'p-wistful': { shuffle: true, repeat: 'all' } } };
 /** DAT-14: a track's name in one scene. */
 const SCENE_NAMES: Record<string, Record<string, string>> = { 'sc:crown:s14:sc6': { t07: 'Dawn over the abbey' }, 'sc:crown:s14:sc4': { t39: 'The wight rises' } };
+/** DAT-15: loudness measured from each sample track's file, "id LUFS true-peak" (data.js LOUDNESS, copied as it is). */
+const LOUDNESS = 't01 -16.2 -5.1, t02 -22.6 -8.0, t03 -18.1 -6.8, t04 -14.1 -3.1, t05 -22.8 -6.9, t06 -13.1 -0.3, t07 -22.8 -11.6, t08 -14.1 0.6, ' +
+  't09 -31.5 -14.2, t10 -17.0 -3.3, t11 -15.4 -1.6, t12 -21.5 -7.4, t13 -26.4 -9.1, t14 -21.4 -7.5, t15 -23.1 -9.1, t16 -17.5 -3.8, ' +
+  't17 -15.0 -1.3, t18 -15.8 -0.9, t19 -19.1 -4.9, t20 -20.7 -8.8, t21 -24.3 -12.6, t22 -18.7 -7.0, t23 -22.4 -10.8, t24 -12.4 0.4, ' +
+  't25 -20.7 -9.1, t26 -22.7 -10.6, t27 -16.4 -4.4, t28 -20.7 -9.2, t29 -22.7 -10.6, t30 -15.0 -0.7, t31 -14.6 -0.1, t32 -21.0 -6.4, ' +
+  't33 -20.6 -5.9, t34 -17.0 -2.2, t35 -20.6 -5.6, t36 -18.6 -4.2, t37 -19.0 -4.4, t38 -22.6 -8.0, t39 -17.0 -2.2, t40 -16.6 -1.8, ' +
+  't41 -21.1 -6.4, t42 -21.1 -6.6, b01 -28.7 -15.0, b02 -25.9 -11.2, b03 -25.3 -10.7, b04 -26.0 -11.5, b05 -25.9 -11.0, b06 -25.1 -10.3, ' +
+  'b07 -26.0 -11.3, b08 -25.2 -10.6, b09 -25.9 -11.4, b10 -28.6 -16.2, f01 -9.8 -0.2, f02 -11.9 -5.5, f03 -13.0 -6.8, f04 -13.0 -6.5, ' +
+  'f05 -11.9 -5.6, f06 -12.9 -6.7, f07 -12.0 -6.0, f08 -13.0 -6.7, f09 -11.9 -5.8, f10 -15.5 -11.4, f11 -8.3 -4.1, f12 -15.4 -11.0, ' +
+  'f13 -15.4 -6.6, f14 -8.5 0.0';
+const MEASURED: Record<string, TrackLoudness> = Object.fromEntries(
+  LOUDNESS.split(", ").map((entry) => {
+    const [id, lufs, peak] = entry.split(" ");
+    return [id, { lufs: Number(lufs), truePeakDb: Number(peak) }];
+  }),
+);
+/** PLY-15: Ashen King normalises its tracks; its calling-card song is set to Off (the track's choice wins). */
+const NORMALISE_PLAYLISTS: Record<string, NormaliseChoice> = { 'p-ashen': 'on' };
+const NORMALISE_TRACKS: Record<string, NormaliseChoice> = { t26: 'off' };
 /** ORG-12: single tracks kept on hand (data.js: campaigns[0].tracks). */
 const ON_HAND: Record<string, string[]> = { crown: ['t26'] };
 /** SFX-11: spare pads put there by hand (data.js: Mugs clink, aside). */
@@ -282,7 +302,7 @@ function profile(p: ProtoProfile): AudioProfileInput {
 }
 
 function tracks(now: number): LibraryTrack[] {
-  const music = MUSIC.map((r, i): Omit<LibraryTrack, "url" | "sizeBytes"> => ({
+  const music = MUSIC.map((r, i): Omit<LibraryTrack, "url" | "sizeBytes" | "normalise" | "loudness"> => ({
     id: r[0],
     kind: "music",
     title: r[1],
@@ -305,29 +325,32 @@ function tracks(now: number): LibraryTrack[] {
     addedAt: i >= 42 ? now - (MUSIC.length - i) : i < 20 ? SEP_12 : OCT_30,
     isNew: i >= 42,
   }));
-  const ambience = AMBIENCE.map((r): Omit<LibraryTrack, "url" | "sizeBytes"> => ({
+  const ambience = AMBIENCE.map((r): Omit<LibraryTrack, "url" | "sizeBytes" | "normalise" | "loudness"> => ({
     id: r[0], kind: "amb", title: r[1], metaTitle: "", fileName: r[2], durationMs: secs(240), role: "loop_bed", loop: "yes", energy: 1,
     tags: { mood: [...r[3]], motif: [], scene: [...r[4]] }, profile: null, shape: null, suggestedShape: null,
     artist: "Field recording", album: "Ambience", folder: "H:\\Audio\\Ambience", notes: "", addedAt: SEP_12, isNew: false,
   }));
-  const effects = EFFECTS.map((r): Omit<LibraryTrack, "url" | "sizeBytes"> => ({
+  const effects = EFFECTS.map((r): Omit<LibraryTrack, "url" | "sizeBytes" | "normalise" | "loudness"> => ({
     id: r[0], kind: "fx", title: r[1], metaTitle: "", fileName: r[2], durationMs: secs(r[3]), role: "effect", loop: /loop/.test(r[2]) ? "yes" : "no", energy: 2,
     tags: { mood: [...r[4]], motif: [], scene: [...r[5]] }, profile: null, shape: null, suggestedShape: null,
     artist: "Sound effect", album: "Effects", folder: "H:\\Audio\\Effects", notes: "", addedAt: SEP_12, isNew: false,
   }));
   // The prototype has no files; each sample track gets the address its file would have.
-  return [...music, ...ambience, ...effects].map((t): LibraryTrack => ({ ...t, url: fileAddress(`${t.folder}\\${t.fileName}`), sizeBytes: null }));
+  return [...music, ...ambience, ...effects].map(
+    (t): LibraryTrack => ({ ...t, normalise: NORMALISE_TRACKS[t.id] ?? null, loudness: MEASURED[t.id] ? { ...MEASURED[t.id] } : null, url: fileAddress(`${t.folder}\\${t.fileName}`), sizeBytes: null }),
+  );
 }
 
 function playlists(): PlaylistInfo[] {
   return PLAYLISTS.map((p): PlaylistInfo => {
     // data.js: every ambience playlist repeats all; a few have an order of their own.
     const order = OWN_ORDERS[p.id] ? { ...OWN_ORDERS[p.id] } : p.lane === "amb" ? { shuffle: false, repeat: "all" as const } : null;
-    if (p.kind === "manual") return { id: p.id, name: p.name, lane: p.lane, order, kind: "manual", trackIds: [...p.items], notes: "" };
+    const normalise = NORMALISE_PLAYLISTS[p.id] ?? null;
+    if (p.kind === "manual") return { id: p.id, name: p.name, lane: p.lane, order, normalise, kind: "manual", trackIds: [...p.items], notes: "" };
     const rule: PlaylistRule = { conds: p.rule.conds.map((c) => ({ ...c, values: [...c.values] })) };
     if (p.rule.energy) rule.energy = [p.rule.energy[0], p.rule.energy[1]];
     if (p.rule.notRole === "Sting") rule.leaveOutStings = true;
-    return { id: p.id, name: p.name, lane: p.lane, order, kind: "dynamic", rule, notes: "" };
+    return { id: p.id, name: p.name, lane: p.lane, order, normalise, kind: "dynamic", rule, notes: "" };
   });
 }
 
@@ -485,6 +508,7 @@ export function prototypeSeed(now: number = Date.UTC(2026, 10, 5, 12)): SeedData
     overrides,
     playOrders: JSON.parse(JSON.stringify(ORDERS)) as PlayOrderOverrides,
     missing: [...MISSING],
+    normalise: { ...DEFAULT_LIBRARY_NORMALISE },
     // data.js `moved`: Kenku FM 1.5.5 on 5 Nov 2026 at 18:42.
     moved: {
       from: "Kenku FM 1.5.5",

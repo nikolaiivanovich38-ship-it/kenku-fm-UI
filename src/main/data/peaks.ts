@@ -12,10 +12,15 @@
  *   library's process never waits on it (security review 9).
  * - While the library saves bulk work (LibraryBusyError), the save waits and tries again.
  * - `onReady` hears which tracks have levels, gathered into one notice per `notifyEveryMs`.
+ * - DAT-15: with a LoudnessReader (options.loudness), the same job also measures each track's loudness (a second
+ *   read of the file, media/ffmpegLoudness.ts), so a track needs work when either is missing; `onReady` then also
+ *   means "loudness changed". A file that cannot be measured is kept as not measurable until it changes.
  */
 import fs from "fs";
 
 import { LibraryBusyError } from "./errors";
+import type { TrackLoudness } from "../../common/domain";
+import { saveLoudness, trackLoudness, type LoudnessSource } from "./repo/loudness";
 import { savePeaks, trackPeaks, type PeakSource } from "./repo/peaks";
 import type { Store } from "./store";
 
@@ -24,7 +29,14 @@ export interface PeakReader {
   read(file: string, signal: AbortSignal): Promise<Uint8Array>;
 }
 
+export interface LoudnessReader {
+  /** The file's loudness; null for silence; rejects when it cannot be read or `signal` aborts. */
+  measure(file: string, signal: AbortSignal): Promise<TrackLoudness | null>;
+}
+
 export interface PeakJobsOptions {
+  /** DAT-15: also measure each track's loudness. */
+  loudness?: LoudnessReader;
   /** Tracks whose levels are now ready. */
   onReady(trackIds: string[]): void;
   /** Gather ready tracks into one notice per this many ms (default 500; 0 sends each at once). */
@@ -137,32 +149,63 @@ export class PeakJobs {
   }
 
   private async workOut(trackId: string): Promise<void> {
-    const state = trackPeaks(this.store, trackId);
-    if (state.state !== "needed") return;
-    const { source } = state;
-    if (!(await fileThereWithin(source.file, this.options.fileCheckMs ?? 5000, this.options.exists)) || this.closed) return;
+    const peaks = trackPeaks(this.store, trackId);
+    const loudness = this.options.loudness ? trackLoudness(this.store, trackId) : null;
+    const peaksNeeded = peaks.state === "needed" ? peaks.source : null;
+    const loudnessNeeded = loudness?.state === "needed" ? loudness.source : null;
+    const file = (peaksNeeded ?? loudnessNeeded)?.file;
+    if (file === undefined) return;
+    if (!(await fileThereWithin(file, this.options.fileCheckMs ?? 5000, this.options.exists)) || this.closed) return;
+    let changed = false;
+    if (peaksNeeded) changed = (await this.workOutPeaks(peaksNeeded)) || changed;
+    if (loudnessNeeded && !this.closed) changed = (await this.measure(loudnessNeeded)) || changed;
+    if (changed && !this.closed) this.ready(trackId);
+  }
+
+  /** True when levels were saved. */
+  private async workOutPeaks(source: PeakSource): Promise<boolean> {
     const controller = new AbortController();
     this.current = controller;
     let levels: Uint8Array | null;
     try {
       levels = await this.reader.read(source.file, controller.signal);
     } catch (error) {
-      if (this.closed) return;
+      if (this.closed) return false;
       this.options.log?.(`Could not work out the loudness peaks of ${fileName(source.file)}`, error);
       levels = null;
     } finally {
       this.current = null;
     }
-    if (this.closed) return;
-    if ((await this.save(source, levels)) && levels) this.ready(trackId);
+    if (this.closed) return false;
+    return (await this.save(() => savePeaks(this.store, source, levels))) && levels !== null;
+  }
+
+  /** True when the track's loudness was saved (measured, or found silent). */
+  private async measure(source: LoudnessSource): Promise<boolean> {
+    const reader = this.options.loudness as LoudnessReader;
+    const controller = new AbortController();
+    this.current = controller;
+    let loudness: TrackLoudness | null = null;
+    let measured = true;
+    try {
+      loudness = await reader.measure(source.file, controller.signal);
+    } catch (error) {
+      if (this.closed) return false;
+      this.options.log?.(`Could not measure how loud ${fileName(source.file)} is`, error);
+      measured = false;
+    } finally {
+      this.current = null;
+    }
+    if (this.closed) return false;
+    return (await this.save(() => saveLoudness(this.store, source, loudness))) && measured;
   }
 
   /** Saves, waiting while bulk work holds the library. */
-  private async save(source: PeakSource, levels: Uint8Array | null): Promise<boolean> {
+  private async save(saving: () => boolean): Promise<boolean> {
     for (;;) {
       if (this.closed) return false;
       try {
-        return savePeaks(this.store, source, levels);
+        return saving();
       } catch (error) {
         if (!(error instanceof LibraryBusyError)) throw error;
         await pause(this.options.busyRetryMs ?? 250);
