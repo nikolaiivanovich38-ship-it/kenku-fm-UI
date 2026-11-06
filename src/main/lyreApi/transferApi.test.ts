@@ -9,7 +9,7 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { isRefused, type LyreApi, type OpenedFile, type TransferScope, type WriteResult } from "../../common/lyre/api";
 import { valueOf } from "../../common/lyre/contract";
@@ -402,4 +402,29 @@ describe("DAT-7 a large library", () => {
     // Bringing in runs in batches with the process free between them (the library's process answers other calls).
     expect(longest).toBeLessThan(budget(1_500));
   }, 120_000);
+});
+
+describe("PERF-10: every file the library opens is closed (no DEP0137 FileHandle warning)", () => {
+  it("a .lyre file opened and not brought in is closed when the library stops", async () => {
+    const dir = folder();
+    const from = await libraryAt(path.join(dir, "here"), true);
+    const target = path.join(dir, "file.lyre");
+    valueOf(await from.api.transfer.save({ scope: { kind: "board", boardId: "combat" }, includeAudio: false, path: target }));
+    const handles: fs.promises.FileHandle[] = [];
+    const open = fs.promises.open;
+    const spy = vi.spyOn(fs.promises, "open").mockImplementation(async (...args: Parameters<typeof open>) => {
+      const handle = await open(...args);
+      handles.push(handle);
+      return handle;
+    });
+    const to = await libraryAt(path.join(dir, "there"), false);
+    valueOf(await to.api.transfer.open({ from: "path", path: target }));
+    valueOf(await to.api.transfer.open({ from: "path", path: target }));
+    expect(handles.length).toBeGreaterThan(0);
+    // The first was closed when the second opened; the second stays open for Bring in, until the library stops.
+    expect(handles.filter((h) => h.fd !== -1)).toHaveLength(1);
+    to.api.stopBackgroundWork();
+    await vi.waitFor(() => expect(handles.every((h) => h.fd === -1)).toBe(true));
+    spy.mockRestore();
+  });
 });

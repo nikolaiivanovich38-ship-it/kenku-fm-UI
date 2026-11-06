@@ -763,6 +763,14 @@ export interface LyreApi {
     planRelink(source: { from: "choose-folder" } | { from: "path"; path: string }): Promise<WriteResult<RelinkPlan>>;
     /** Points tracks at the files the game master confirmed, in one undo step (DAT-8). */
     applyRelink(matches: Pick<RelinkMatch, "trackId" | "to">[]): Promise<WriteResult<{ relinked: string[] }>>;
+    /**
+     * SEC-17: Preview the file found, for a planned match by name only ("check it"): from now until another one, a
+     * new plan, a relink or endRelinkPreview, the page may play that one file (its address in `url`), and no other.
+     * Call it before previewing (LyreAudio.previewTrack with `file: url`). No undo step.
+     */
+    previewFound(trackId: string): Promise<WriteResult<{ url: string }>>;
+    /** SEC-17: Find missing files closed: the file it could preview may no longer be played. No undo step. */
+    endRelinkPreview(): Promise<WriteResult>;
   };
   /** DAT-7 (views/transfer.js). The main-process implementation of these comes in a later step; until then it refuses with "unavailable". */
   transfer: {
@@ -797,7 +805,7 @@ export const LYRE_API_METHODS = {
   campaigns: ["list", "get", "create", "update", "setOnHand", "usesOf", "setUses"],
   sessions: ["create", "update", "move", "createScene", "updateScene", "moveScene", "duplicateScene", "deleteScene", "setSceneMusic", "setSceneAmbience", "setSceneBoards", "setTrackName", "setRepeatOne"],
   profiles: ["overrides", "set", "clear"],
-  import: ["start", "watchFolder", "findMissing", "planRelink", "applyRelink"],
+  import: ["start", "watchFolder", "findMissing", "planRelink", "applyRelink", "previewFound", "endRelinkPreview"],
   transfer: ["estimate", "save", "open", "bringIn", "movedReport"],
   history: ["state", "undo", "redo"],
 } as const satisfies { [A in Exclude<keyof LyreApi, "subscribe">]: readonly (keyof LyreApi[A])[] };

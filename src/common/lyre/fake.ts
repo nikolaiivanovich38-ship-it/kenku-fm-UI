@@ -103,6 +103,8 @@ export interface FakeLyreOptions {
 export interface FakeLyreApi extends LyreApi {
   /** UX-19: the next write fails as a full or read-only drive would ("not-saved"), once (the test builds' hook). */
   failNextWrite(): void;
+  /** SEC-17: the found file the page may preview now (import.previewFound), as the main process lists it; or none. */
+  previewableFiles(): string[];
   /** Files appear in a watched folder: they become New tracks, as the real folder watcher makes them. Returns their ids. */
   arrive(folder: string, fileNames: string[]): Promise<string[]>;
 }
@@ -230,6 +232,9 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
   let importing = false;
   /** UX-19: failNextWrite was called. */
   let failNext = false;
+  /** DAT-8, SEC-17: the last relink plan, and the one found file Find missing files may preview now. */
+  let lastPlan: RelinkPlan | null = null;
+  let previewing: string | null = null;
   /** Loudness peaks worked out so far, and those being worked out (not part of undo, as in the real library). */
   // The sample tracks' peaks are in the seed, as a library that has read their files has them (DAT-13).
   const peaks = new Map<string, number[]>(Object.entries(seed.peaks ?? {}));
@@ -1416,7 +1421,22 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
         plan.summary = folder
           ? [`Found ${plural(plan.matches.length, "missing file")}.`, plan.ambiguous.length ? `${plural(plan.ambiguous.length, "track")} could be one of several files.` : "", plan.notFound.length ? `${plural(plan.notFound.length, "file")} not found.` : ""].filter(Boolean).join(" ")
           : "No folder was chosen.";
+        lastPlan = plan;
+        previewing = null;
         return { ok: true, value: plan, changed: [], undoLabel: history().undoLabel };
+      },
+      async previewFound(trackId) {
+        const match = lastPlan?.matches.find((m) => m.trackId === trackId);
+        if (!match) return { ok: false, refusal: { code: "not-found", message: "Look for the missing files again: Lyre has no file found for that track now." } };
+        if (match.confidence !== "name") return { ok: false, refusal: { code: "invalid", message: "Only a file found by its name alone needs a listen before relinking.", field: "trackId" } };
+        previewing = match.to;
+        emit({ type: "changed", areas: ["folders"] });
+        return { ok: true, value: { url: match.toUrl }, changed: ["folders"], undoLabel: history().undoLabel };
+      },
+      async endRelinkPreview() {
+        previewing = null;
+        emit({ type: "changed", areas: ["folders"] });
+        return { ok: true, value: undefined, changed: ["folders"], undoLabel: history().undoLabel };
       },
       async applyRelink(matches) {
         return write((r: { relinked: string[] }) => `Find ${plural(r.relinked.length, "missing file")}`, ["tracks"], () => {
@@ -1631,6 +1651,9 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
 
     failNextWrite() {
       failNext = true;
+    },
+    previewableFiles() {
+      return previewing ? [previewing] : [];
     },
     async arrive(folder, fileNames) {
       if (!state.folders.some((f) => f.watched && f.path.toLowerCase() === folder.toLowerCase())) return [];

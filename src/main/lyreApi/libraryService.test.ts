@@ -116,13 +116,19 @@ describe("LyreLibraryService", () => {
     await s.stop();
   });
 
-  it("names the one file Find missing files asks to check beside the folders while that plan lasts (security review w4, Should 5)", async () => {
+  it("names the one file Find missing files asks to check beside the folders, once asked, until it closes (security review w4, Should 5; SEC-17)", async () => {
     const { s } = service();
     s.start();
     const castamere = "E:\\Music\\Scores\\Ramin Djawadi\\Game of Thrones, Season 3\\18 The Rains of Castamere.flac";
     expect(await s.mediaFolders()).not.toContain(castamere);
     await call(s, "import", "planRelink", { from: "path", path: "E:\\Music\\Scores" });
+    expect(await s.mediaFolders()).not.toContain(castamere);
+    await call(s, "import", "previewFound", "t26");
     expect(await s.mediaFolders()).toEqual(["H:\\Audio\\Scores", "H:\\Audio\\Ambience", "H:\\Audio\\Effects", castamere]);
+    await call(s, "import", "endRelinkPreview");
+    expect(await s.mediaFolders()).not.toContain(castamere);
+    await call(s, "import", "planRelink", { from: "path", path: "E:\\Music\\Scores" });
+    await call(s, "import", "previewFound", "t26");
     await call(s, "import", "planRelink", { from: "path", path: "E:\\Elsewhere" });
     expect(await s.mediaFolders()).not.toContain(castamere);
     await s.stop();

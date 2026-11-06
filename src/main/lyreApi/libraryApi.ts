@@ -205,7 +205,7 @@ export interface LibraryApiOptions {
 
 /** LyreApi plus what its owner calls before closing the library. */
 export type LibraryApi = LyreApi & {
-  /** Stops background work (the peaks being worked out); call before library.close(). */
+  /** Stops background work (the peaks being worked out) and closes a .lyre file left open (PERF-10); call before library.close(). */
   stopBackgroundWork(): void;
   /** UX-19, test builds and tests: the next write fails as a full drive would ("not-saved"), once. */
   failNextWrite(): void;
@@ -291,6 +291,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
     today: options.transfer?.today ?? store.now,
     freeBytes: options.transfer?.freeBytes,
   };
+  /** SEC-17: the one found file Find missing files may preview now (previewFound), or none. */
+  let previewGrant: string | null = null;
   /** The .lyre file opened last, waiting for Bring in (one at a time). */
   let opened: OpenTransfer | null = null;
   const listeners = new Set<(event: LyreEvent) => void>();
@@ -1369,6 +1371,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           if (unsafe) refuse("invalid", unsafe, "path");
           const plan = await planRelink(store, await findMissingTracks(store, { probe }), folder, { probe });
           planned = new Map(plan.matches.map((m) => [relinkKey(m.trackId, m.to), m]));
+          previewGrant = null;
           plannedChoices = new Set(plan.ambiguous.flatMap((a) => a.candidates.map((to) => relinkKey(a.trackId, to))));
           return {
             folder,
@@ -1378,6 +1381,18 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
             summary: plan.summary,
           };
         });
+      },
+      async previewFound(trackId) {
+        const match = [...planned.values()].find((m) => m.trackId === trackId);
+        if (!match) return { ok: false, refusal: { code: "not-found", message: "Look for the missing files again: Lyre has no file found for that track now." } };
+        if (match.confidence !== "name") return { ok: false, refusal: { code: "invalid", message: "Only a file found by its name alone needs a listen before relinking.", field: "trackId" } };
+        previewGrant = match.to;
+        // "folders": the main process asks again which files the page may read (previewableFiles).
+        return writeOutside(["folders"], () => ({ url: fileAddress(match.to) }));
+      },
+      async endRelinkPreview() {
+        previewGrant = null;
+        return writeOutside(["folders"], () => undefined);
       },
       async applyRelink(matches) {
         return write(["tracks"], async () => {
@@ -1390,6 +1405,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           });
           await applyRelink(store, chosen);
           planned = new Map();
+          previewGrant = null;
           plannedChoices = new Set();
           return { relinked: matches.map((m) => m.trackId) };
         });
@@ -1514,6 +1530,11 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
     stopBackgroundWork() {
       if (loudnessSweep) clearTimeout(loudnessSweep);
       peakJobs?.close();
+      // PERF-10: a .lyre file opened and never brought in is closed with the library (not left to the garbage
+      // collector, which Node warns about: DEP0137).
+      const file = opened;
+      opened = null;
+      void file?.close().catch((error: unknown) => options.log?.("Could not close an opened Lyre file", error));
       // The undo history does not outlive the library: an undone bring-in's files are not needed again.
       void unpackedFiles.settle({ redoGone: true });
     },
@@ -1522,7 +1543,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       failNext = true;
     },
     previewableFiles() {
-      return [...planned.values()].filter((m) => m.confidence === "name").map((m) => m.to);
+      // SEC-17: only the one file the game master asked to hear (previewFound), until the screen closes.
+      return previewGrant ? [previewGrant] : [];
     },
 
     subscribe(listener) {

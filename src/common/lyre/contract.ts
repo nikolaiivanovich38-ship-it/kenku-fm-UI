@@ -736,6 +736,15 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         expect((await api.history.state()).canUndo).toBe(true);
         expectRefused(await api.import.applyRelink([{ trackId: "nope", to: match.to }]), "not-found");
       });
+
+      it("SEC-17: Preview the file found is allowed for one planned file at a time, until Find missing files closes", async () => {
+        const plan = valueOf(await api.import.planRelink({ from: "path", path: fx.relinkFolder }));
+        const check = plan.matches.find((m) => m.confidence === "name");
+        if (check) expect(valueOf(await api.import.previewFound(check.trackId))).toEqual({ url: check.toUrl });
+        expectRefused(await api.import.previewFound("nope"), "not-found");
+        const done = await api.import.endRelinkPreview();
+        expect(done.ok && done.changed).toEqual(["folders"]);
+      });
     });
 
     describe("design round 5", () => {

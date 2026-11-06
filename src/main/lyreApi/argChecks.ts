@@ -236,6 +236,8 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
     watchFolder: write(folderSource),
     findMissing: read(),
     planRelink: write(folderSource),
+    previewFound: write(id),
+    endRelinkPreview: write(),
     applyRelink: write(list(object({ trackId: id, to: fullPath }))),
   },
   transfer: {
