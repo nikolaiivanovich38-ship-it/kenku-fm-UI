@@ -925,6 +925,18 @@ test.describe("round 6, part 6: On air at the top, Back and the trail, Find play
     expect(await scrollsInside(sceneMusic(page))).toBe(false);
   });
 
+  test("the trays grow with their contents: every box in This session and Whole campaign opened, nothing scrolls inside them, the page scrolls (Nik, 21:59)", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openRoute(page, "live");
+    const boxes = ["Session playlists", "Session pads", "Campaign playlists", "Campaign pads"].map((n) => region(page, n));
+    for (const b of boxes) await unfold(b);
+    for (const b of boxes) expect(await scrollsInside(b)).toBe(false);
+    const last = await box(boxes[3]);
+    expect(last.y + last.height).toBeGreaterThan(800);
+    await boxes[3].getByRole("heading", { level: 2 }).scrollIntoViewIfNeeded();
+    await expect(boxes[3].getByRole("heading", { level: 2 })).toBeInViewport();
+  });
+
   test("Session playlists start folded, and stay open once unfolded, also after leaving Live", async ({ page }) => {
     await openRoute(page, "live");
     const toggle = sessionPlaylists(page).getByRole("button", { name: /Session\s*playlists/i }).first();
