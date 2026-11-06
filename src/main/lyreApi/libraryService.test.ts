@@ -174,6 +174,20 @@ describe("LyreLibraryService", () => {
     await s.stop();
   });
 
+  it("saves a .lyre file only where the save dialog says, never at a path the page names (security review w4)", async () => {
+    const dir = tempFolder();
+    const chosen = path.join(dir, "Chosen.lyre");
+    const chooseSaveFile = vi.fn(async () => chosen);
+    const { s } = service({ seed: false, host: { chooseSaveFile } });
+    s.start();
+    const named = path.join(dir, "Named by the page.lyre");
+    expect(await call(s, "transfer", "save", { scope: { kind: "library" }, includeAudio: false, path: named })).toMatchObject({ ok: true, value: { path: chosen } });
+    expect(chooseSaveFile).toHaveBeenCalled();
+    expect(fs.existsSync(named)).toBe(false);
+    expect(fs.existsSync(chosen)).toBe(true);
+    await s.stop();
+  });
+
   it("says plainly when the library stops, starts it again, and the library is as it was saved", async () => {
     const { s, children, events } = service();
     s.start();

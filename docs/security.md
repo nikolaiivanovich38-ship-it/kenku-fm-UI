@@ -625,7 +625,7 @@ Fixes from the wave 3 security review. The new interface now reads your audio fi
 
 ## w4-contracts
 
-No new IPC channel: the round 5 calls go through `LYRE_API_CALL` like every LyreApi call, so the guard checks their names against `LYRE_API_METHODS` and the call's size. Their arguments are checked in the library before it acts (`src/main/lyreApi/argChecks.ts`, security review 5): `library.setShape` (an id, a short text or null), `playlists.setPlayOrder` and `clearPlayOrder` (an id, a place branched by `kind` with its ids, `{ shuffle: boolean, repeat: text }`), `sessions.setTrackName` (a scene address, an id, a text of at most 1,000 characters; the library keeps 200), `campaigns.setOnHand` (now also "tracks") and `setUses` (now also a track), a session place for `profiles.set`/`clear`, rule `shapes` and search `shapes` (lists of short texts), and `transfer.*` (a scope branched by `kind`, a full path when given, a duplicate choice from skip, merge, keepBoth). The main process does not open or write .lyre files yet (`save`, `open` and `bringIn` refuse with "unavailable"); the stream that adds them must check the file's path as `planRelink` does and treat a file's contents as untrusted.
+No new IPC channel: the round 5 calls go through `LYRE_API_CALL` like every LyreApi call, so the guard checks their names against `LYRE_API_METHODS` and the call's size. Their arguments are checked in the library before it acts (`src/main/lyreApi/argChecks.ts`, security review 5): `library.setShape` (an id, a short text or null), `playlists.setPlayOrder` and `clearPlayOrder` (an id, a place branched by `kind` with its ids, `{ shuffle: boolean, repeat: text }`), `sessions.setTrackName` (a scene address, an id, a text of at most 1,000 characters; the library keeps 200), `campaigns.setOnHand` (now also "tracks") and `setUses` (now also a track), a session place for `profiles.set`/`clear`, rule `shapes` and search `shapes` (lists of short texts), and `transfer.*` (a scope branched by `kind`, a full path when given, a duplicate choice from skip, merge, keepBoth). The .lyre files themselves are opened and written as "w4-transfer" below says.
 
 
 ## w4-outputs
@@ -694,6 +694,8 @@ library's own process (`src/main/transfer`, `src/main/lyreApi/transferApi.ts`), 
   without opening it, and nothing of a refused file's content goes back to the page.
 - **Saving** writes only where the game master chose in the save dialog (the main process asks; the library sends a
   suggested name, of which only the last part is used), through "<name>.part" moved into place at the end.
+  `transfer.save` has a `path` for tests that call the library directly; the library's process drops it from the
+  page's calls (`withSaveDialogOnly`, w4-review-fix), except in a seeded test build.
 - **Test builds only** (`CUE_DESK_LYRE_SEED=prototype`, gated on `__CUE_DESK_TEST_BUILD__` through `wantsSeededLibrary`):
   the two dialogs and the folder chooser answer by themselves, and the library looks at the prototype's computer
   (`sampleComputer.ts`) instead of the disk. Release builds never seed, so none of this is reachable there.
