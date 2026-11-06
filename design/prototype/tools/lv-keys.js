@@ -1,5 +1,6 @@
 // Live view check: tab order and reachability, the live keys, Undo, the rows' buttons, rooms. Round 6 (part 3 and the
-// review fixes, ROUND6.md part 4): seven boxes, Find a track in the top strip, On air docked at the bottom.
+// review fixes, ROUND6.md part 4): seven boxes, Find in the top strip. Part 6: On air at the top (box 1), Back and the
+// trail first in the strip, Find finds playlists, full row buttons in an unfolded scene and on the ambience.
 //   node design/prototype/tools/lv-keys.js            (OUT=<built file> to check another build; LYRE_SPEC_CHROMIUM for Chromium)
 const { chromium } = require('playwright'); const path = require('path');
 const FILE = 'file://' + path.resolve(__dirname, '..', process.env.OUT || 'lyre-prototype.html');
@@ -136,7 +137,9 @@ const ok = (c, m) => { if (!c) fails++; console.log((c ? 'PASS ' : 'FAIL ') + m)
   await click('lv-addroom'); await p.waitForTimeout(50);
   await ev(() => document.querySelector('.menu [data-act="lvaddjoin"][data-id="b2"][data-c="c2"]').click()); await p.waitForTimeout(1300);
   ok(await ev(() => { const r = document.querySelector('[data-room="b2"]'); return !!r && /Nobody there/.test(r.querySelector('.pane-status').textContent) && !/Move to/.test(r.textContent); }), 'a second room in an empty channel says Nobody there (no channel with players is free to move to)');
-  ok(await ev(() => !!document.querySelector('[data-k="lv-to-music"]') && !!document.querySelector('[data-k="lv-to-ss"]')), 'two rooms: To: on Current scene and Session playlists');
+  // Part 6: Session playlists start folded; its To: shows once it is unfolded.
+  await ev(() => { if (document.querySelector('[data-pane="lv-ssp"].collapsed')) document.querySelector('[data-k="pane-lv-ssp"]').click(); }); await p.waitForTimeout(50);
+  ok(await ev(() => !!document.querySelector('[data-k="lv-to-music"]') && !!document.querySelector('[data-k="lv-to-ss"]')), 'two rooms: To: on Current scene and (unfolded) Session playlists');
   await click('lv-to-music'); await p.waitForTimeout(50);
   await ev(() => document.querySelector('.menu [data-act="lvtoset"][data-v="b2"]').click()); await p.waitForTimeout(50);
   ok(await ev(() => document.activeElement && document.activeElement.dataset.k === 'lv-to-music' && /Side room/.test(document.activeElement.textContent)), 'To: Side room; focus back on the chip');
@@ -163,7 +166,40 @@ const ok = (c, m) => { if (!c) fails++; console.log((c ? 'PASS ' : 'FAIL ') + m)
   await p2.goto(FILE + '#campaigns'); await p2.waitForTimeout(300);
   await p2.evaluate(() => { document.querySelector('#rail [data-k="rail-live"]').click(); }); await p2.waitForTimeout(300);
   ok(await p2.evaluate(() => !L.pb.music && /^Start: /.test(document.querySelector('[data-k="lv-nextsc"]').textContent)), 'Live opened from another page is on standby, nothing playing');
+  ok(await p2.evaluate(() => !!document.querySelector('[data-pane="lv-ssp"].collapsed')), 'Session playlists start folded (part 6)');
+  await p2.evaluate(() => document.querySelector('[data-k="pane-lv-ssp"]').click()); await p2.waitForTimeout(100);
   ok(await p2.evaluate(() => { const a = document.querySelector('[data-pane="lv-ssp"] .lv-trk-acts'); return !!a && [...a.querySelectorAll('button')].map((x) => x.getAttribute('aria-label').split(':')[0]).join('|') === 'Preview|Play next|Add to queue|Play on air'; }), 'a playlist row has Preview, Play next, Add to queue, Play on air');
+
+  // Round 6, part 6 (Nik, 6 Nov 17:14).
+  const p3 = await b.newPage({ viewport: { width: 1280, height: 800 } }); await p3.addInitScript(SET);
+  p3.on('pageerror', (e) => errs.push(e.message)); p3.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });
+  await p3.goto(FILE + '#/live'); await p3.waitForTimeout(400);
+  const e3 = (f, a) => p3.evaluate(f, a);
+  ok(await e3(() => document.querySelector('.lv-top button, .lv-top a, .lv-top input').dataset.k === 'nav-back'), 'Back is the first control in the top strip');
+  ok(await e3(() => { const a = document.querySelector('[data-pane=lv-onair]').getBoundingClientRect(), s = document.querySelector('[data-pane=lv-scenes]').getBoundingClientRect(), t = document.querySelector('.lv-top').getBoundingClientRect(); return a.top >= t.bottom && a.bottom <= s.top; }), 'On air is under the top strip, above Scenes');
+  await e3(() => document.body.focus()); await p3.keyboard.press('Alt+1'); await p3.waitForTimeout(50);
+  const f6 = [await e3(() => document.activeElement.dataset.k)];
+  for (let i = 0; i < 3; i++) { await p3.keyboard.press('F6'); await p3.waitForTimeout(50); f6.push(await e3(() => document.activeElement.dataset.k)); }
+  ok(f6.join(' ') === 'pane-lv-onair pane-lv-scenes pane-lv-current pane-lv-ssp', 'Alt+1 is On air, then F6: Scenes, Current scene, Session playlists (' + f6.join(' ') + ')');
+  const acts = (sel) => e3((sel) => [...document.querySelectorAll(sel)].map((r) => [...r.querySelectorAll(':scope > .lv-trk-r .lv-trk-acts button, :scope.lv-amb-r .lv-trk-acts button')].map((x) => x.getAttribute('aria-label').split(':')[0]).filter((n) => n !== 'Repeat one').join('|')), sel);
+await e3(() => document.querySelector('[data-k="lv-scn-3"]').click()); await p3.waitForTimeout(100);
+  const rowsIn = await acts('#lv-scb-3 .lv-items > li');
+  ok(rowsIn.length === 4 && rowsIn.every((x) => x === 'Preview|Play next|Add to queue|Play on air'), 'an unfolded scene that is not running: every row has Preview, Play next, Add to queue, Play on air (' + rowsIn.join(' / ') + ')');
+  ok((await acts('#lv-scb-3 .lv-amb-r')).join('') === 'Preview|Play next|Add to queue|Play on air', 'its ambience has the same buttons');
+  const sc3 = await e3(() => L.state.live.scene);
+  await e3(() => document.querySelector('#lv-scb-3 .lv-items > li.lv-trk [data-act=lvplay]').click()); await p3.waitForTimeout(100);
+  ok(await e3((s) => L.state.live.scene === s && L.pb.music.id === 't39' && !!document.querySelector('#lv-scb-3 .lv-items > li.lv-trk.on'), sc3), 'Play on air there plays the track (marked on air) and the scene does not start');
+  await e3(() => document.querySelector('#lv-scb-3 .lv-amb-r [data-act=lvplaynext]').click()); await p3.waitForTimeout(100);
+  ok(await e3(() => [...document.querySelectorAll('.lv-up-i.amb')].some((x) => /Ambience next:/.test(x.textContent))), 'Play next on an ambience waits in Up next as Ambience next');
+  await e3(() => document.querySelector('[data-k="lv-next-amb"]').click()); await p3.waitForTimeout(100);
+  ok(await e3(() => L.pb.amb && L.pb.amb.id === 'b02' && !document.querySelector('.lv-up-i.amb')), 'Next on the ambience plays it');
+  for (let i = 0; i < 4; i++) await e3((i) => document.querySelectorAll('[data-pane=lv-current] .lv-items [data-act=lvqueue]')[i % 2].click(), i);
+  await p3.waitForTimeout(100);
+  ok(await e3(() => document.querySelectorAll('.lv-up ol > li').length === 1 && /\d+ more/.test(document.querySelector('.lv-up ol > li').textContent)), 'a long Up next folds to one line with "n more"');
+  await p3.keyboard.press('/'); await p3.keyboard.type('abbess'); await p3.waitForTimeout(150);
+  ok(await e3(() => { const h = [...document.querySelectorAll('.lv-found .lv-found-h')].map((x) => x.textContent); return h.join('|') === 'Playlists|Tracks' && document.querySelector('[data-k="lv-q"]').placeholder === 'Find a track or playlist'; }), 'Find a track or playlist: Playlists, then Tracks');
+  ok((await acts('.lv-found ol[aria-labelledby=lv-found-p] > li'))[0] === 'Preview|Play next|Add to queue|Play on air', 'a playlist found has the row buttons');
+
   console.log(errs.length ? errs : 'no errors'); await b.close();
   process.exit(fails || errs.length ? 1 : 0);
 })();

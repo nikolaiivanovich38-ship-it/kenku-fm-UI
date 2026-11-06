@@ -186,7 +186,7 @@
   L.acts.pbclear = function () { bf = { q: '', used: 'all', cid: 'all' }; ui.pendingFocus = 'pbq'; L.render(); };
   function card(b) {
     norm(b); var uses = L.usesOfBoard(b.id), hits = padHits(b);
-    return '<li class="pb-card">' +
+    return '<li class="pb-card" ' + L.orgItem('boards', b.id) + '>' +
       '<a class="pb-card-main" href="#/board/' + b.id + '" data-k="card-' + b.id + '" tabindex="-1">' + mini(b) +
       '<span class="pb-card-text"><span class="pb-card-name ellipsis">' + esc(b.name) + '</span><span class="pb-card-size">' + esc(sizeText(b)) + '</span></span></a>' +
       (hits.length ? '<div class="pb-card-used"><span class="pb-lbl">Pads</span> <span class="pb-used-text">' + esc(hits.map(function (p) { return p.label; }).join(', ')) + '</span></div>' : '') +
@@ -208,7 +208,7 @@
         '<div class="viewbody"><div class="pb-ltools"><div class="search pb-lsearch">' + L.icon('search') + '<input class="input" type="search" placeholder="Search boards and pads" aria-label="Search pad boards by board name or pad label" data-input="pbq" data-k="pbq" value="' + esc(bf.q) + '"></div>' +
         filtSeg() + '<label class="pb-camp"><span>Campaign</span><select class="input" data-input="pbcamp" data-k="pbcamp">' +
         '<option value="all">All campaigns</option>' + D.campaigns.map(function (c) { return '<option value="' + c.id + '"' + (bf.cid === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>'; }).join('') + '</select></label></div>' +
-        (list.length ? '<ul class="pb-cards" aria-label="Pad boards">' + list.map(card).join('') + '</ul>'
+        (list.length ? '<ul class="pb-cards" aria-label="Pad boards">' + L.inFolders('boards', list, card) + '</ul>'
           : all ? '<div class="empty">No pad boards match. <button class="btn s" data-act="pbclear" data-k="pbclear">Show all boards</button></div>' : '<p class="empty"><b>No pad boards yet.</b> A pad board is a grid of buttons for sound effects you play during a game, each with its own key. Start with <b>New board</b>.</p>') + '</div>';
     },
     after: function (root) { if (ui.pendingFocus) { var n = root.querySelector('[data-k="' + ui.pendingFocus + '"]'); ui.pendingFocus = null; if (n) n.focus(); } }
@@ -309,7 +309,7 @@
       }).join('') + '</div>' +
       '<span class="pb-count"><b class="num">' + n + '</b> of <b class="num">' + slots + '</b> slots used</span></div></div>' + msg +
       '<div class="pb-grid" role="group" aria-label="Pads, ' + b.cols + ' columns by ' + b.rows + ' rows" aria-describedby="pb-gridhelp" style="grid-template-columns:repeat(' + b.cols + ',minmax(0,1fr))">' +
-      b.slots.map(function (p, i) { return slotHTML(b, p, i, sel, fi); }).join('') + '</div>' +
+      b.slots.map(function (p, i) { return (i % b.cols === 0 ? L.boardDividerHTML(b, i / b.cols + 1) : '') + slotHTML(b, p, i, sel, fi); }).join('') + '</div>' +
       '<p class="hint pb-help keys-on-focus" id="pb-gridhelp">Drag to swap pads. Keys: arrows move, P previews, Alt+arrow moves the pad.</p>';
     var sounding = b.slots.filter(function (p) { return p && L.padActive(b.id, p.id); }).length;
     if (ui.trying) body = body.replace('<div class="pb-grid"', '<p class="pb-tryhint" role="note">' + L.icon('headphones', 's') + '<span title="Pads play as they will in Live, keys too. Click a pad, or press its key; hold a Hold to play pad.">Trying: only you hear them.</span></p><div class="pb-grid"');
@@ -413,6 +413,8 @@
   function col(ids, html, cls) { return '<div class="col ' + cls + (ids.indexOf(L.state.maxed) > -1 ? ' has-max' : '') + '">' + html + '</div>'; }
 
   L.view('board', {
+    // Round 6 part 6: the trail (core.js L.trailHTML) is Pad boards › the board.
+    crumbs: function (p) { var b = L.board(p.bid); return b ? [{ href: '#/boards', label: 'Pad boards' }, { label: b.name }] : null; },
     nav: 'boards',
     title: function (p) { var b = L.board(p.bid); return b ? b.name : 'Pad board'; },
     notes: boardNotes(),
@@ -423,7 +425,7 @@
       // First visit to a board selects its first pad; after a delete (pid null) nothing stays selected.
       if (!ui.sel || ui.sel.bid !== b.id || (ui.sel.pid && !find(b, ui.sel.pid))) { var first = b.slots.filter(Boolean)[0] || b.spare[0]; select(b, first ? first.id : null); }
       var sel = selPad(b);
-      return '<div class="viewhead"><nav class="crumbs" aria-label="Breadcrumb"><a href="#/boards" data-k="pb-crumb">Pad boards</a><span class="sep" aria-hidden="true">›</span></nav><h1>' + esc(b.name) + '</h1>' +
+      return '<div class="viewhead"><h1>' + esc(b.name) + '</h1>' +
         '<span class="grow"></span>' +
         '<button class="btn" data-act="pbuse" data-id="' + b.id + '" data-k="pb-usehead">' + L.icon('link', 's') + 'Use in…</button>' +
         '<button class="btn icon" data-act="pbboardmenu" data-k="pb-bmenu" title="More for this board" aria-label="More for this board" aria-haspopup="menu" aria-expanded="false">' + L.icon('more') + '</button></div>' +
@@ -561,6 +563,8 @@
   L.acts.pbmoveto = function (el) { var b = board(); var pid = ui.menuPad; ui.pendingFocus = el.dataset.to === 'spare' ? 'sp-' + pid : el.dataset.to.replace(':', '-'); moveTo(b, pid, el.dataset.to); };
   function boardMenuHTML(b, inEditor) {
     return (inEditor ? '<a role="menuitem" class="item" href="#/live">' + L.icon('broadcast', 's') + 'See it in the live view</a>' : '<button role="menuitem" data-act="pbuse" data-id="' + b.id + '">' + L.icon('link', 's') + 'Use in…</button>') +
+      // Round 7 (ORG-4): folders for boards, and dividers that name a row of pads.
+      (inEditor ? L.boardDividerItem(b) : L.moveToFolderItem('boards', b.id, b.name)) +
       '<button role="menuitem" data-act="pbdupboard" data-id="' + b.id + '">Duplicate board</button><div class="sep"></div><button role="menuitem" data-act="pbdelboard" data-id="' + b.id + '">' + L.icon('trash', 's') + 'Delete board…</button>';
   }
   L.acts.pbcardmenu = function (el) { L.menu(el, boardMenuHTML(L.board(el.dataset.id), false), 'Board'); };
@@ -575,7 +579,8 @@
   }
   L.acts.pbpadmenu = withPad(function (b, p, el) {
     ui.menuPad = p.id; ui.menuAnchor = el;
-    L.menu(el, '<button role="menuitem" data-act="pbduppad">Duplicate pad</button><button role="menuitem" data-act="pbmovemenu2">Move to…</button><div class="sep"></div>' +
+    // Round 7 (PLY-8): what the pad does, as steps (its sound, unless more are added), out of sight in this menu.
+    L.menu(el, L.stepsItem('pad', b.id + '/' + p.id) + '<button role="menuitem" data-act="pbduppad">Duplicate pad</button><button role="menuitem" data-act="pbmovemenu2">Move to…</button><div class="sep"></div>' +
       '<button role="menuitem" data-act="pbdelpad" data-pid="' + p.id + '">' + L.icon('trash', 's') + 'Delete pad…</button>', 'Pad');
   });
   L.acts.pbmovemenu2 = function () { var b = board(), a = ui.menuAnchor && document.contains(ui.menuAnchor) ? ui.menuAnchor : document.querySelector('.pb-pad.sel'); if (a) L.menu(a, moveMenu(b, ui.menuPad), 'Move to'); };

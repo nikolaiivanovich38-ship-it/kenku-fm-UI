@@ -1,7 +1,8 @@
 // Round 6, part 5: checks the Saved pop-up (ROUND6.md "Part 5: the Saved pop-up") and takes its screenshots.
-// For Live (a scene playing) and three Prep screens, at 1920×1080 and 960×1000:
-//   place     the pop-up's top-right corner is the same distance from the work area's top-right corner (under its
-//             header) on every screen, and it covers neither On air, the Now playing bar nor Live's top strip
+// For Live (a scene playing) and three Prep screens, at 1920×1080, 1280×800 and 960×1000:
+//   place     (part 6) the pop-up's bottom-right corner is the same distance from the work area's bottom-right corner
+//             (above the Now playing bar when it shows) on every screen, and it covers neither On air, the Now playing
+//             bar nor the top bar; what it lies over in Live is printed
 //   text      "Saved: <what>"
 //   merge     the same save again within 2 s refreshes the one pop-up (one element, text unchanged, not read out again)
 //   focus     focus stays where it was
@@ -19,7 +20,7 @@ const SCREENS = [
   ['playlist', '#playlist--p-abbess', '', "document.querySelector('[data-act=plmove][data-d=\"1\"]') ? document.querySelector('[data-act=plmove][data-d=\"1\"]').click() : L.acts.plnorm({ dataset: { v: 'on' } });"],
   ['planner', '#session--crown--s14', "document.querySelector('[data-act=cpscene][data-id=sc3]').click();", "var f = document.querySelector('[data-k=scnotes-sc3]'); f.focus(); f.value += ' Bells.'; f.dispatchEvent(new Event('input', { bubbles: true })); f.blur();"],
 ];
-const SIZES = [[1920, 1080], [960, 1000]];
+const SIZES = [[1920, 1080], [1280, 800], [960, 1000]];
 const THEMES = ['candle', 'fern', 'hearth', 'parchment', 'elysium'];
 
 function rgb(s) { const m = s.match(/[\d.]+/g).map(Number); return m.slice(0, 3); }
@@ -41,17 +42,19 @@ function ratio(a, b) { const [x, y] = [lum(rgb(a)), lum(rgb(b))].sort((p, q) => 
       await p.evaluate(save); await p.waitForTimeout(400);
       const r = await p.evaluate(() => {
         const t = document.getElementById('lyre-toast'), q = t.getBoundingClientRect(), v = document.getElementById('view').getBoundingClientRect();
-        const head = document.querySelector('#view .viewhead, #view .lv-top').getBoundingClientRect();
+        const bar = document.querySelector('#view .onairbar'), floor = bar ? bar.getBoundingClientRect().top : v.bottom;
         const hit = (sel) => [...document.querySelectorAll(sel)].some((e) => { const z = e.getBoundingClientRect(); return z.width && q.left < z.right && q.right > z.left && q.top < z.bottom && q.bottom > z.top; });
-        return { text: t.textContent, n: document.querySelectorAll('#lyre-toasts [role=status]').length, fromRight: Math.round(v.right - q.right), belowHead: Math.round(q.top - head.bottom),
-          covers: ['[data-pane=lv-onair], .lv-onair', '.onairbar', '.lv-top'].filter(hit), focus: (document.activeElement && (document.activeElement.dataset.k || document.activeElement.id)) || 'body' };
+        // What lies under the pop-up (Live): the boxes it overlaps, or empty space.
+        const under = [...document.querySelectorAll('#view .pane, #view .lv-grp')].filter((e) => { const z = e.getBoundingClientRect(); return z.width && q.left < z.right && q.right > z.left && q.top < z.bottom && q.bottom > z.top; }).map((e) => e.getAttribute('aria-label') || e.querySelector('.lv-grp-h').textContent);
+        return { text: t.textContent, n: document.querySelectorAll('#lyre-toasts [role=status]').length, fromRight: Math.round(v.right - q.right), aboveFloor: Math.round(floor - q.bottom), under: under.join(' + ') || 'empty space',
+          covers: ['[data-pane=lv-onair], .lv-onair', '.onairbar', '.lv-top', '.viewhead'].filter(hit), focus: (document.activeElement && (document.activeElement.dataset.k || document.activeElement.id)) || 'body' };
       });
-      console.log(`${name}@${w}: "${r.text}" ${r.fromRight}px from the right, ${r.belowHead}px under the header${r.covers.length ? ', covers ' + r.covers.join(' ') : ''}`);
+      console.log(`${name}@${w}: "${r.text}" ${r.fromRight}px from the right, ${r.aboveFloor}px above the bottom (or the Now playing bar), over ${r.under}${r.covers.length ? ', covers ' + r.covers.join(' ') : ''}`);
       if (!/^Saved: \S/.test(r.text)) bad('no "Saved: <what>"');
       if (r.covers.length) bad('covers ' + r.covers.join(', '));
       if (focusBefore !== 'body' && r.focus !== focusBefore && name === 'live') bad('focus moved from ' + focusBefore + ' to ' + r.focus);
-      places.push(r.fromRight + ',' + r.belowHead);
-      if (name === 'live' || name === 'campaign') await p.screenshot({ path: path.join(SHOTS, `saved-${name}-${w}.png`) });
+      places.push(r.fromRight + ',' + r.aboveFloor);
+      if ((name === 'live' || name === 'campaign') && w !== 1280) await p.screenshot({ path: path.join(SHOTS, `saved-${name}-${w}.png`) });
       // Merge: the same save again within 2 s refreshes the one pop-up; its text is put in (read out) once.
       if (name === 'campaign') {
         await p.evaluate(() => { window.__puts = []; new MutationObserver(() => { const t = document.getElementById('lyre-toast'); if (t.textContent) window.__puts.push(t.getAttribute('aria-live')); }).observe(document.getElementById('lyre-toast'), { childList: true, subtree: true, characterData: true }); });

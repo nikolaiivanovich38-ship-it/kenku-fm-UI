@@ -86,7 +86,7 @@
 
   /* ---------- the profile being shown and edited ---------- */
   function prof(t) { return L.profileOf(t, S.key || null); }
-  function copyOf(p) { return { start: p.start, end: p.end, after: p.after, loopStart: p.loopStart, loopXfade: p.loopXfade, fadeIn: { dur: p.fadeIn.dur, shape: p.fadeIn.shape }, fadeOut: { dur: p.fadeOut.dur, shape: p.fadeOut.shape }, markers: p.markers.map(function (m) { return { at: m.at, label: m.label }; }) }; }
+  function copyOf(p) { return { start: p.start, end: p.end, after: p.after, loopStart: p.loopStart, loopXfade: p.loopXfade, fadeIn: { dur: p.fadeIn.dur, shape: p.fadeIn.shape }, fadeOut: { dur: p.fadeOut.dur, shape: p.fadeOut.shape }, markers: p.markers.map(function (m) { return m.mix ? { at: m.at, label: m.label, mix: true } : { at: m.at, label: m.label }; }) }; }
   function write(t, patch) {
     if (!editable(t)) return false;
     var np = copyOf(prof(t));
@@ -409,6 +409,9 @@
       return '<li class="lrow ap-mrow"><span class="num faint ap-mt">' + L.fmt(m.at) + '</span>' +
         '<input class="input ap-ml" data-input="apmlabel" data-i="' + i + '" data-k="ap-ml-' + i + '" value="' + esc(m.label) + '" aria-label="Marker label at ' + L.fmt(m.at) + '"' + dis(t) + '>' +
         '<button class="btn s" data-act="apgo" data-at="' + m.at + '" data-k="ap-mgo-' + i + '" title="Move the playhead to ' + L.fmt(m.at) + '" aria-label="Go to ' + esc(m.label) + '">' + L.icon('right', 's') + 'Go to</button>' +
+        // Round 7 (DAT-3): the mix-out point (where the next track crossfades in; one per track) and playing from here.
+        '<button class="btn s' + (m.mix ? ' primary' : ' ghost r7-hov') + '" data-act="apmix" data-i="' + i + '" data-k="ap-mmix-' + i + '" aria-pressed="' + !!m.mix + '" aria-label="Mix out at ' + esc(m.label) + '" title="The next track crossfades in here"' + dis(t) + '>' + L.icon('fade', 's') + 'Mix out</button>' +
+        '<button class="btn s icon r7-hov" data-act="apfrom" data-at="' + m.at + '" data-k="ap-mfrom-' + i + '" aria-label="Play on air from ' + esc(m.label) + '" title="Play on air from ' + L.fmt(m.at) + ' (the players hear it)">' + L.icon('playair', 's') + '</button>' +
         '<button class="closer" data-act="apmdel" data-i="' + i + '" data-k="ap-mdel-' + i + '" title="Remove this marker" aria-label="Remove marker ' + esc(m.label) + '"' + dis(t) + '>' + L.icon('trash') + '</button></li>';
     }).join('') + '</ol>';
   }
@@ -469,6 +472,7 @@
   function afterText(t, p) { return p.after === 'loop' ? 'Loops back to ' + L.fmt(p.loopStart) : p.after === 'next' ? 'Moves on to ' + L.title(L.track(ctxOf(t).next)) : 'Stops'; }
 
   L.view('profile', {
+    crumbs: function (p) { var t = L.track(p.tid); return t ? [{ href: '#/library/' + t.id, label: 'Library' }, { label: L.title(t) + ' › Audio profile' }] : null; },
     nav: 'library',
     notesTitle: 'Audio profile: where a track ends, how it fades, and what comes next',
     notes: [
@@ -490,12 +494,14 @@
         S.tid = t.id; S.key = key; S.playing = false; S.handover = null; S.event = null; S.loops = 0; S.ctx = 0; S.saved = false; S.editing = null; S.invalid = {}; S.pos = prof(t).start;
       }
       var p = prof(t), ed = editable(t);
-      var head = '<div class="viewhead ap-head"><div class="ap-id">' +
-        '<nav class="crumbs" aria-label="Breadcrumb"><a href="#/library" data-k="ap-cr-lib">Library</a><span class="sep" aria-hidden="true">›</span><a class="ap-cr-t" href="#/library/' + esc(t.id) + '" data-k="ap-cr-t" title="' + esc(L.title(t)) + '">' + esc(L.title(t)) + '</a><span class="sep" aria-hidden="true">›</span><span>Audio profile</span></nav>' +
-        '<h1 title="' + esc(L.title(t)) + '">' + esc(L.title(t)) + '</h1>' +
+      // Round 6 part 6: Back, then the trail Library › (core.js), then the h1: the track › Audio profile. The track is
+      // the screen's title, so it is not a crumb as well (it would show twice).
+      backHTML(t);
+      var head = '<div class="viewhead ap-head"><div class="ap-id"><div class="ap-titlerow"><!--lead-->' +
+        '<h1 title="' + esc(L.title(t)) + ' › Audio profile"><span class="ap-h1-t">' + esc(L.title(t)) + '</span><span class="ap-h1-k"><span aria-hidden="true">›</span> Audio profile</span></h1></div>' +
         // Round 6: the file's names are in the Library's details and on hover here; length and shape stay.
         '<p class="ap-meta" title="' + esc('Title in the file: ' + (t.metaTitle || 'none') + ' · File name: ' + t.file) + '"><span><span class="faint">Length</span> <span class="num">' + L.fmt(t.dur) + '</span></span><span>' + L.shapeTag(t) + '</span></p>' + sceneNameHTML(t) + normHTML(t) + '</div>' +
-        '<div class="ap-headacts">' + backHTML(t) +
+        '<div class="ap-headacts">' +
         // Round 6, part 5: no "Saved" here; saving shows in the Saved pop-up. The read-only note stays (it says why
         // nothing can be changed).
         '<span class="ap-saved" role="status">' + (!ed ? 'Uses the track\'s settings (read-only until you give it its own)' : '') + '</span>' +
@@ -602,6 +608,12 @@
     L.undoNote('Back to the whole track: 0:00 to ' + L.fmt(t.dur) + ', no loop and no fades.', restore); noProfileSave(); L.say('Reset to the whole track'); L.render();
   };
   L.acts.apmadd = function () { addMarker(true); };
+  L.acts.apmix = function (el) {
+    var t = track(), i = +el.dataset.i, ms = copyOf(prof(t)).markers, on = !ms[i].mix;
+    ms.forEach(function (m, j) { if (on && j !== i) delete m.mix; }); if (on) ms[i].mix = true; else delete ms[i].mix;
+    write(t, { markers: ms }); noProfileSave(); S.focusK = 'ap-mmix-' + i; L.render(); L.saved(on ? 'mix out at ' + L.fmt(ms[i].at) + ', ' + ms[i].label : 'no mix-out point', { key: 'ap-mix-' + t.id });
+  };
+  L.acts.apfrom = function (el) { L.playFrom(track().id, +el.dataset.at); };
   function addMarker(focus) {
     var t = track(); if (!editable(t)) { readOnlyNote(); return; }
     var p = prof(t), at = Math.round(S.pos * 10) / 10, ms = copyOf(p).markers;

@@ -8,6 +8,7 @@ Each room plays a list for the evening: the scene's music (or a playlist) in its
 - **Play next**, on any track or playlist in Live, plays it right after the track playing now.
 - **Add to queue** puts it at the bottom of the room's list, after everything already there.
 - **Up next**, in the room's part of On air, shows the list from the next track to the bottom. **×** takes one out for this evening; **Clear added** takes out everything you added.
+- An ambience has **Play next** and **Add to queue** too: it waits at the bottom of Up next as **Ambience next** and plays when you press **Next** on the room's ambience (an ambience loops until you change it).
 - Starting another scene clears what you added. That scene's **Undo** brings it back.
 
 There are two repeats.

@@ -1,9 +1,10 @@
 /* Live view (#/live): the screen Nik runs a game from.
    Round 6, part 3 (Nik, 6 Nov 12:24: "In live I need several boxes …"): seven boxes, each with one job, a plain
    name and a place that never moves during play:
-     Scenes · Current scene · On air (docked along the bottom, always in view) ·
-     Session playlists · Session pads · Campaign playlists · Campaign pads.
-   Find a track (the old Off script box) is a search field in the top strip; its results open under it.
+     On air · Scenes · Current scene · Session playlists · Session pads · Campaign playlists · Campaign pads.
+   Round 6, part 6 (Nik, 6 Nov 17:14): On air is at the top, the whole width, under the top strip, and always in view;
+   Scenes and Current scene take the height of their contents. Find (the old Off script box) is a search field in the
+   top strip that finds tracks and playlists; its results open under it.
    Columns come from the width of #app: one below 820 px, two up to 1200 px, three above (LAYOUT).
    Each room keeps its own running list for the evening (Play next, Add to queue, Up next) and a Repeat for what plays
    there now (never saved). */
@@ -32,7 +33,17 @@
      now is 'plan' while the plan plays, 'pn' or 'q' while an added item plays; ret is the plan position to carry on
      from. An item is { ids, at, pl, place, name }: a track has one id, a playlist all its tracks in that place's order.
      None of this is saved: it is gone when another session is loaded. */
-  function RM(tg) { return S.rm[tg] || (S.rm[tg] = { pn: [], pnCur: null, q: [], qAt: -1, now: 'plan', ret: null, skip: {}, playing: '' }); }
+  function RM(tg) { return S.rm[tg] || (S.rm[tg] = { pn: [], pnCur: null, q: [], qAt: -1, now: 'plan', ret: null, skip: {}, playing: '', aq: [] }); }
+  /* Round 6, part 6: ambience has Play next and Add to queue too (Nik, 17:14: "I need all of them"). An ambience loops
+     until it is changed, so what waits is kept apart from the music's list: aq, the room's ambience to come. Next on
+     the room's ambience plays the first of it (Play next puts an ambience first, Add to queue at the end). It is shown
+     at the bottom of Up next, marked with the ambience colour and read out as "Ambience next:". */
+  function aqOf(tg) { var rm = RM(tg); return rm.aq || (rm.aq = []); }
+  function nextAmb(tg) {
+    var it = aqOf(tg).shift(); if (!it) return false;
+    L.play(it.ids[0], { lane: 'amb', playlistId: it.pl || '', place: it.place || '', fade: 3, target: tg });
+    return true;
+  }
   function copySeq(q) { return q ? { cid: q.cid, sid: q.sid, scene: q.scene, at: q.at } : null; }
   function posOf(c) { return c ? { id: c.id, pl: c.playlistId || '', place: c.place || '', seq: copySeq(c.seq) } : null; }
   function seqList(q) { var s0 = L.session(q.cid, q.sid), sc0 = s0 && s0.scenes[q.scene]; return sc0 ? L.sceneSequence(sc0) : []; }
@@ -129,7 +140,7 @@
     });
     return out;
   }
-  L.next = function (ln, target) { var tg = tgOf(target); if (ln === 'music' && advance(M(tg).music, tg)) return; coreNext(ln, target); };
+  L.next = function (ln, target) { var tg = tgOf(target); if (ln === 'music' && advance(M(tg).music, tg)) return; if (ln === 'amb' && nextAmb(tg)) return; coreNext(ln, target); };
   L.prev = function (ln, target) {
     var tg = tgOf(target), c = M(tg).music, rm = RM(tg);
     if (ln === 'music' && c && rm.now !== 'plan' && c.id === rm.playing && rm.ret && !rm.ret.q) { var r = rm.ret; rm.now = 'plan'; rm.ret = null; rm.pnCur = null; startEntry(r, tg); return; }
@@ -203,7 +214,7 @@
     S.undo = { snap: snap, label: prevName, started: s.scenes[idx].name, until: Date.now() + UNDO_MS, focus: 'lv-nextsc' }; S.board = null;
     // A new scene is a new plan in the first room, and (Nik, 6 Nov 13:55) it clears what was added to every room's
     // list: a new scene is a change of mood. The scene's Undo brings the lists back (snap.rm).
-    Object.keys(S.rm).forEach(function (tg) { var r = S.rm[tg]; r.pn = []; r.q = []; r.pnCur = null; r.qAt = -1; if (r.now !== 'plan') { r.now = 'plan'; r.ret = null; } });
+    Object.keys(S.rm).forEach(function (tg) { var r = S.rm[tg]; r.pn = []; r.q = []; r.aq = []; r.pnCur = null; r.qAt = -1; if (r.now !== 'plan') { r.now = 'plan'; r.ret = null; } });
     var first = tgOf(L.firstRoom()), rm = RM(first); rm.now = 'plan'; rm.ret = null; rm.pnCur = null; rm.qAt = -1; M(first).rep = null;
     L.startScene(lv.cid, lv.sid, idx);
     rm.playing = M(first).music ? M(first).music.id : '';
@@ -293,17 +304,18 @@
     pb.musicOut = []; pb.ambOut = [];
   }
 
-  /* ---------- top strip: Prep | Live, the session, Find a track, Fade all, Stop all, Keys ---------- */
+  /* ---------- top strip: Back and the trail, the session, Prep | Live, Find, Fade all, Stop all, Keys ---------- */
   function top() {
     var c = camp(), s = sess();
     // BUG-21: F2 on the session, or Rename session in its menu, renames it in place (only the name, not the number).
-    // Round 6 review: the campaign's name is read out and in the hover text, not shown: the theme around the screen is
-    // the campaign's, and the words it took keep Live's reading load at part 3's numbers.
+    // Round 6 part 6: Back and the trail come first (core.js: the campaign, a link to its page); the session is the
+    // trail's last part, and its button chooses another one. The button still reads out the campaign's name, as it is
+    // read on its own when it has focus.
     var sessBox = L.renaming('sess-' + s.id) ? '<span class="lv-sess lv-sess-edit">' + L.icon('crown', 's') + '<span class="sr-only">' + esc(c.name) + ' </span><span class="lv-sess-s">Session ' + s.n + ':</span>' +
         L.renameBox('sess-' + s.id, s.name, 'Name of Session ' + s.n, 'lv-sess-rename') + '</span>' :
       '<button class="lv-sess" data-act="lvsessmenu" data-k="lv-sess" data-f2="lvsessrename" aria-haspopup="menu" aria-expanded="false" title="Loaded: ' + esc(c.name + ' › Session ' + s.n + ': ' + s.name) + '. Choose another session, or press F2 to rename it">' +
-        L.icon('crown', 's') + '<span class="sr-only">' + esc(c.name) + ' </span><span class="lv-sess-s">Session ' + s.n + ': ' + esc(s.name) + '</span>' + L.icon('chevdown', 's') + '</button>';
-    return '<div class="lv-top"><h1 class="sr-only">Live</h1>' + L.modeSwitch(c.id) + sessBox + find() +
+        L.icon('crown', 's') + '<span class="sr-only">' + esc(c.name) + ' </span><span class="lv-sess-s">Session ' + s.n + '<span class="lv-sess-nm sr-only">: ' + esc(s.name) + '</span></span>' + L.icon('chevdown', 's') + '</button>';
+    return '<div class="lv-top"><h1 class="sr-only">Live</h1><!--lead-->' + sessBox + L.modeSwitch(c.id) + find() +
       '<button class="btn s" data-act="lvfade" data-k="lv-fade" title="Fade everything out over 3 seconds (Shift+Esc)" aria-keyshortcuts="Shift+Escape" aria-label="Fade all">' + L.icon('fade', 's') + '<span class="lv-btxt">Fade all</span></button>' +
       '<button class="btn s danger" data-act="lvstop" data-k="lv-stop" title="Stop everything at once" aria-label="Stop all">' + L.icon('stop', 's') + '<span class="lv-btxt">Stop all</span></button>' +
       '<span class="lv-keyswrap"><button class="btn s" data-act="lvkeys" data-k="lv-keys" aria-expanded="' + S.keysOpen + '" aria-controls="lv-keys-pop" title="Keyboard keys for the live screen">Keys' + L.icon(S.keysOpen ? 'chevup' : 'chevdown', 's') + '</button>' +
@@ -314,8 +326,8 @@
     function k(key, what, single) { return '<li' + (single ? off : '') + '><span class="kbd">' + key + '</span><span>' + what + '</span></li>'; }
     return '<div class="lv-pop" id="lv-keys-pop" role="group" aria-label="Keys on the live screen">' +
       '<label class="lv-switch"><input type="checkbox" role="switch" data-input="lvkeys1" data-k="lv-keys1"' + (S.keys1 ? ' checked' : '') + '><span class="lv-switch-t"><b>Single-key shortcuts</b><span class="hint">Space, / and the pad keys. Turn off if they get in the way.</span></span></label>' +
-      '<ul class="lv-keylist">' + k('Space', 'Start the next scene', 1) + k('/', 'Find a track', 1) + k(esc(pk), b ? 'Pads on ' + esc(b.name) + ' (Current scene)' : 'Pads of the current scene', 1) +
-      k('Alt+1…7', 'Go to a box: Scenes, Current scene, On air, Session playlists, Session pads, Campaign playlists, Campaign pads') + k('F6', 'Next box (Shift+F6: the one before)') +
+      '<ul class="lv-keylist">' + k('Space', 'Start the next scene', 1) + k('/', 'Find a track or playlist', 1) + k(esc(pk), b ? 'Pads on ' + esc(b.name) + ' (Current scene)' : 'Pads of the current scene', 1) +
+      k('Alt+1…7', 'Go to a box: On air, Scenes, Current scene, Session playlists, Session pads, Campaign playlists, Campaign pads') + k('F6', 'Next box (Shift+F6: the one before)') +
       k('Shift+Esc', 'Fade everything out (3 s)') + k('Ctrl+Z', 'Undo the last change (for 8 s)') + k('Esc', 'Close a menu or clear the search') + '</ul>' +
       '<p class="hint">' + (S.keys1 ? 'Keys do nothing while you type in a box.' : 'Single-key shortcuts are off. Shift+Esc and Ctrl+Z still work.') + '</p>' +
       // Should 12 of the round 6 review: what left the screen in round 6 is in Help (the rail's Help, or F1).
@@ -323,7 +335,7 @@
   }
 
   /* ---------- To: which room a box plays in (shown only with two rooms or more). Scenes always start in the first. ---------- */
-  var BOXNAMES = { music: 'Current scene', off: 'Find a track', ss: 'Session playlists', cp: 'Campaign playlists', ssd: 'Session pads', cpd: 'Campaign pads' };
+  var BOXNAMES = { music: 'Current scene', off: 'Find', ss: 'Session playlists', cp: 'Campaign playlists', ssd: 'Session pads', cpd: 'Campaign pads' };
   function rooms() { return L.rooms ? L.rooms() : []; }
   function roomName(tg) { var b = tg === 'table' ? L.bots()[0] : L.bot(tg); return b ? L.outputName(b) : 'Table'; }
   function roomTg(b) { return b.id === L.bots()[0].id ? 'table' : b.id; }
@@ -380,35 +392,44 @@
     h += '</div><div class="lv-lane-c" role="group" aria-label="' + word + ' in ' + esc(name) + '">';
     if (isM) h += '<button class="btn s icon" data-act="lvprevt" data-lane="music"' + tga + ' data-k="lv-prev-m' + kx + '" title="Previous track" aria-label="Previous music track"' + (c.playlistId || c.seq || c.added || (RM(tg).now !== 'plan' && RM(tg).ret) ? '' : ' disabled') + '>' + L.icon('prev', 's') + '</button>';
     h += '<button class="btn s icon" data-act="lvpause" data-lane="' + ln + '"' + tga + ' data-k="lv-pause-' + ln + kx + '" title="' + (c.paused ? 'Resume' : 'Pause') + ' ' + word.toLowerCase() + '" aria-label="' + (c.paused ? 'Resume' : 'Pause') + ' ' + word.toLowerCase() + '">' + L.icon(c.paused ? 'play' : 'pause', 's') + '</button>' +
-      '<button class="btn s icon" data-act="lvnextt" data-lane="' + ln + '"' + tga + ' data-k="lv-next-' + ln + kx + '" title="Next ' + (isM ? 'track' : 'ambience') + ' (crossfade)" aria-label="Next ' + word.toLowerCase() + ' track"' + (c.playlistId || c.seq || (isM && upcoming(tg).length) ? '' : ' disabled') + '>' + L.icon('next', 's') + '</button>' +
+      '<button class="btn s icon" data-act="lvnextt" data-lane="' + ln + '"' + tga + ' data-k="lv-next-' + ln + kx + '" title="Next ' + (isM ? 'track' : 'ambience') + ' (crossfade)" aria-label="Next ' + word.toLowerCase() + ' track"' + (c.playlistId || c.seq || (isM && upcoming(tg).length) || (!isM && aqOf(tg).length) ? '' : ' disabled') + '>' + L.icon('next', 's') + '</button>' +
       // Round 6 part 3: Repeat here is the room's, for what plays now; never saved (core's L.repeatButton).
       (isM ? L.repeatButton('music', tg, 'lv-rep' + kx) : '') +
       '<button class="btn s icon" data-act="lvfadeout" data-lane="' + ln + '"' + tga + ' data-k="lv-fo-' + ln + kx + '" title="Fade ' + word.toLowerCase() + ' out over 3 seconds" aria-label="Fade ' + word.toLowerCase() + ' out">' + L.icon('fade', 's') + '</button></div></div>';
     return h;
   }
-  // Up next: the room's running list from the next track to the bottom. Folded, the planned part shows only its first
-  // track; what you added always shows, each with ×.
+  /* Up next: the room's running list from the next track to the bottom, then the ambience waiting (aq). Folded, the
+     planned part shows only its first track; what you added shows, each with ×. Round 6 part 6: On air is at the top, so
+     it must stay short: past four lines Up next folds to one line, its first entry and "n more" (UPNEXT_LINES). */
+  var UPNEXT_LINES = 4;
   function upNextBlock(tg) {
-    var list = upcoming(tg), kx = tg === 'table' ? '' : '-' + tg, open = !!S.upOpen[tg], shownPlans = 1, tga = ' data-tg="' + tg + '"', plans = 0, hidden = 0, rows = [];
-    if (!list.length) return '';
-    list.forEach(function (u, i) {
-      // The planned part shows its next track only: the rest is Current scene's list, in the same order, just above.
+    var list = upcoming(tg), kx = tg === 'table' ? '' : '-' + tg, open = !!S.upOpen[tg], shownPlans = 1, tga = ' data-tg="' + tg + '"', plans = 0, hidden = 0, rows = [], amb = aqOf(tg);
+    if (!list.length && !amb.length) return '';
+    function entry(u, i, tail) {
+      var label, more = '', added = u.kind !== 'plan', icon = u.kind === 'aq' ? '<span class="lane-dot amb" aria-hidden="true"></span>' : L.icon(u.kind.indexOf('pn') === 0 ? 'next' : 'queue', 's');
+      if (u.e) { var t = L.track(u.e.id), key = u.e.seq ? L.sceneKeyOf(L.session(u.e.seq.cid, u.e.seq.sid).scenes[u.e.seq.scene]) : u.e.place; label = L.nameIn(t, key); }
+      else { label = u.it.name; var left = u.it.ids.length - (u.kind.slice(-3) === 'cur' ? u.it.at + 1 : 0); if (u.it.ids.length > 1 && u.kind !== 'aq') more = left + ' left'; }
+      return '<li class="lv-up-i' + (added ? ' added' : '') + (u.kind === 'aq' ? ' amb' : '') + '">' + (added ? icon + '<span class="sr-only">' + (u.kind === 'aq' ? 'Ambience next: ' : u.kind.indexOf('pn') === 0 ? 'Play next: ' : 'Added: ') + '</span>' : '') +
+        '<span class="ellipsis grow" title="' + esc(label + (more ? ' (' + more + ')' : '')) + '">' + esc(label) + '</span>' + (more ? '<span class="faint num">' + more + '</span>' : '') +
+        '<button class="x" data-act="lvupx" data-kind="' + u.kind + '"' + tga + ' data-i="' + (u.i != null ? u.i : '') + '" data-key="' + esc(u.e ? u.e.key : '') + '" data-k="lv-upx-' + i + kx + '" title="Take out of Up next (this evening only)" aria-label="Remove ' + esc(label) + ' from Up next">' + L.icon('close', 's') + '</button>' + (tail || '') + '</li>';
+    }
+    var all = list.concat(amb.map(function (it, i) { return { kind: 'aq', it: it, i: i }; }));
+    all.forEach(function (u, i) {
+      // The planned part shows its next track only: the rest is Current scene's list, in the same order, just below.
       if (u.kind === 'plan') { plans++; if (plans > shownPlans && !open) { hidden++; return; } }
       if (u.kind !== 'plan' && hidden && !open && !rows.gap) { rows.push(gapRow(hidden, tg)); rows.gap = true; }
-      var label, more = '', added = u.kind !== 'plan';
-      if (u.e) { var t = L.track(u.e.id), key = u.e.seq ? L.sceneKeyOf(L.session(u.e.seq.cid, u.e.seq.sid).scenes[u.e.seq.scene]) : u.e.place; label = L.nameIn(t, key); }
-      else { label = u.it.name; var left = u.it.ids.length - (u.kind.slice(-3) === 'cur' ? u.it.at + 1 : 0); if (u.it.ids.length > 1) more = left + ' left'; }
-      rows.push('<li class="lv-up-i' + (added ? ' added' : '') + '">' + (added ? L.icon(u.kind.indexOf('pn') === 0 ? 'next' : 'queue', 's') + '<span class="sr-only">' + (u.kind.indexOf('pn') === 0 ? 'Play next: ' : 'Added: ') + '</span>' : '') +
-        '<span class="ellipsis grow" title="' + esc(label + (more ? ' (' + more + ')' : '')) + '">' + esc(label) + '</span>' + (more ? '<span class="faint num">' + more + '</span>' : '') +
-        '<button class="x" data-act="lvupx" data-kind="' + u.kind + '"' + tga + ' data-i="' + (u.i != null ? u.i : '') + '" data-key="' + esc(u.e ? u.e.key : '') + '" data-k="lv-upx-' + i + kx + '" title="Take out of Up next (this evening only)" aria-label="Remove ' + esc(label) + ' from Up next">' + L.icon('close', 's') + '</button></li>');
+      rows.push(entry(u, i));
     });
     if (hidden && !open && !rows.gap) rows.push(gapRow(hidden, tg));
-    if (open && plans > shownPlans) rows.push('<li class="lv-up-gap"><button class="lv-more" data-act="lvupopen"' + tga + ' data-k="lv-upopen' + kx + '" aria-expanded="true">Show fewer</button></li>');
-    var nAdded = RM(tg).q.length + RM(tg).pn.length;
+    var one = !open && rows.length > UPNEXT_LINES;
+    if (one) rows = [entry(all[0], 0, moreButton(all.length - 1, tg, false))];
+    if (open && (plans > shownPlans || rows.length > UPNEXT_LINES)) rows.push('<li class="lv-up-gap"><button class="lv-more" data-act="lvupopen"' + tga + ' data-k="lv-upopen' + kx + '" aria-expanded="true">Show fewer</button></li>');
+    var nAdded = RM(tg).q.length + RM(tg).pn.length + amb.length;
     return '<div class="lv-up"><span class="lv-q-l" id="lv-up-l' + kx + '">Up next</span><ol aria-labelledby="lv-up-l' + kx + '">' + rows.join('') + '</ol>' +
-      (nAdded > 1 ? '<button class="btn s ghost lv-qclear" data-act="lvqclear"' + tga + ' data-k="lv-qclear' + kx + '" title="Take out everything you added this evening">Clear added</button>' : '') + '</div>';
+      (nAdded > 1 && !one ? '<button class="btn s ghost lv-qclear" data-act="lvqclear"' + tga + ' data-k="lv-qclear' + kx + '" title="Take out everything you added this evening">Clear added</button>' : '') + '</div>';
   }
-  function gapRow(n, tg) { return '<li class="lv-up-gap"><button class="lv-more" data-act="lvupopen" data-tg="' + tg + '" data-k="lv-upopen' + (tg === 'table' ? '' : '-' + tg) + '" aria-expanded="false">' + n + ' more</button></li>'; }
+  function moreButton(n, tg, open) { return '<button class="lv-more" data-act="lvupopen" data-tg="' + tg + '" data-k="lv-upopen' + (tg === 'table' ? '' : '-' + tg) + '" aria-expanded="' + open + '">' + n + ' more</button>'; }
+  function gapRow(n, tg) { return '<li class="lv-up-gap">' + moreButton(n, tg, false) + '</li>'; }
   /* Must 4: in a window under 480 px high (1280×800 at 200 %), each room is one line (its name, status, what it plays
      and Pause) and opens on demand, so the boxes above keep the height. */
   function short() { return window.innerHeight < 480; }
@@ -444,7 +465,7 @@
     }
     var fxLine = fx.length ? '<div class="lv-line lv-fx"><span class="lv-line-l"><span class="lane-dot fx"></span>Effects</span><span class="ellipsis grow"><b>' + fx.length + ' sounding</b>: ' + esc(fx.map(function (f) { return f.label; }).join(', ')) + '</span>' +
       '<button class="btn s icon" data-act="lvfxstop" data-tg="' + tg + '" data-k="lv-fxstop' + kx + '" title="Stop effects in ' + esc(name) + '" aria-label="Stop effects in ' + esc(name) + '">' + L.icon('stop', 's') + '</button></div>' : '';
-    var lanes = laneBlock('music', tg, name) + laneBlock('amb', tg, name) + fxLine, up = m.music ? upNextBlock(tg) : '';
+    var lanes = laneBlock('music', tg, name) + laneBlock('amb', tg, name) + fxLine, up = m.music || aqOf(tg).length ? upNextBlock(tg) : '';
     return '<div class="lv-rm' + (st.text === 'Playing' ? '' : ' is-silent') + '" role="group" aria-labelledby="' + hid + '" data-room="' + tg + '"' + (rooms().length > 1 ? ' title="To play in ' + esc(name) + ', choose To: ' + esc(name) + ' in a box"' : '') + '>' +
       '<div class="lv-rm-h">' + (short() ? '<button class="xp-btn" data-act="lvrmopen" data-tg="' + tg + '" data-k="lv-rmopen' + kx + '" aria-expanded="true" title="Show one line for ' + esc(name) + '" aria-label="Show everything in ' + esc(name) + '">' + L.icon('chevdown', 's') + '</button>' : '') + '<h3 id="' + hid + '" class="lv-rm-n ellipsis">' + esc(name) + '</h3><span class="pane-status s-' + st.tone + '">' + esc(st.text) + '</span><span class="grow"></span>' + ctl + '</div>' + none +
       (lanes || up ? '<div class="lv-rm-b"><div class="lv-rm-lanes">' + lanes + '</div>' + (up ? '<div class="lv-rm-up">' + up + '</div>' : '') + '</div>' : '') + undoStrip('room:' + tg) + '</div>';
@@ -454,7 +475,7 @@
     var parts = rs.length ? rs.map(function (r) { return roomPart(roomTg(r.bots[0]), r.bots[0], r.name); }) : [roomPart('table', null, 'No room')];
     var add = idle.length ? '<button class="btn s icon" data-act="lvaddroom" data-k="lv-addroom" aria-haspopup="menu" aria-expanded="false" aria-label="Add a room" title="Add a room: put another bot in a voice channel">' + L.icon('plus', 's') + '</button>' : '';
     var sum = collapsed('lv-onair') ? (rs.length ? rs : [{ name: 'No room', mix: pb }]).map(function (r) { var c = r.mix.music; return esc(r.name) + ': ' + (c ? esc(L.title(L.track(c.id))) : 'silent'); }).join(' · ') : '';
-    return '<div class="lv-dock">' + L.pane({ id: 'lv-onair', title: 'On air', icon: 'broadcast', kind: 'onair', size: 'auto', flush: true, noMax: true, keys: 'Alt+3', actions: add, summary: sum,
+    return '<div class="lv-dock">' + L.pane({ id: 'lv-onair', title: 'On air', icon: 'broadcast', kind: 'onair', size: 'auto', flush: true, noMax: true, keys: 'Alt+1', actions: add, summary: sum,
       body: undoStrip('onair') + '<div class="lv-rooms' + (parts.length > 1 ? ' many' : '') + '">' + parts.join('') + '</div>' }) + '</div>';
   }
 
@@ -469,10 +490,11 @@
   /* PLY-16 Add to queue (the bottom of the room's list) and Play next (right after the current track), side by side on
      every track and playlist in Live (Nik, 6 Nov 12:14). They show on the row on air, on hover and on keyboard focus,
      so a list of rows reads as names with Preview and Play on air. */
-  function addBtns(box, data, k, nm) {
-    var where = inWhere(box);
-    return '<button class="closer lv-hov" data-act="lvplaynext" data-box="' + box + '" ' + data + ' data-k="' + k + '-n" title="Play next' + where + ': right after the track playing now" aria-label="Play next' + where + ': ' + esc(nm) + '">' + L.icon('next') + '</button>' +
-      '<button class="closer lv-hov" data-act="lvqueue" data-box="' + box + '" ' + data + ' data-k="' + k + '-q" title="Add to queue' + where + ': at the bottom of Up next" aria-label="Add to queue' + where + ': ' + esc(nm) + '">' + L.icon('queue') + '</button>';
+  // amb: an ambience (round 6 part 6): it waits for Next on the room's ambience instead of following a track.
+  function addBtns(box, data, k, nm, amb) {
+    var where = inWhere(box), ln = amb ? ' data-lane="amb"' : '';
+    return '<button class="closer lv-hov" data-act="lvplaynext" data-box="' + box + '" ' + data + ln + ' data-k="' + k + '-n" title="Play next' + where + (amb ? ': the next ambience, when you press Next on the ambience' : ': right after the track playing now') + '" aria-label="Play next' + where + ': ' + esc(nm) + '">' + L.icon('next') + '</button>' +
+      '<button class="closer lv-hov" data-act="lvqueue" data-box="' + box + '" ' + data + ln + ' data-k="' + k + '-q" title="Add to queue' + where + (amb ? ': after the ambience waiting in Up next' : ': at the bottom of Up next') + '" aria-label="Add to queue' + where + ': ' + esc(nm) + '">' + L.icon('queue') + '</button>';
   }
   function playBtn(box, data, k, nm, extra) {
     var where = inWhere(box);
@@ -504,7 +526,7 @@
       '<span class="num lv-dur" title="' + (Math.round(len) !== Math.round(t.dur) ? 'Plays ' + L.fmt(len) + ' of the file\'s ' + L.fmt(t.dur) : 'Length ' + L.fmt(t.dur)) + '">' + L.fmt(len) + '</span>' +
       '<span class="lv-trk-acts' + (onAirNow ? ' shown' : '') + '">' +
         '<button class="closer lv-pvb' + (pv || o.noPlay ? '' : ' lv-hov') + '" data-act="lvpv" data-id="' + t.id + '" data-k="' + k + '-v" aria-pressed="' + pv + '" title="' + (pv ? 'Stop the preview' : 'Preview in your headphones (players do not hear it)') + '" aria-label="Preview: ' + esc(nm) + '">' + L.icon('headphones') + '</button>' +
-        (isAmb || isFx ? '' : addBtns(box, data, k, nm)) +
+        (isFx ? '' : addBtns(box, data, k, nm, isAmb)) +
         // Decision 4 (Nik, 6 Nov 12:30): Repeat one on a scene's track is saved with the scene (L.repeatOneButton).
         (o.rep && !isAmb && !isFx ? L.repeatOneButton(o.rep, t.id, k + '-r', nm, onAirNow) : '') +
         (o.noPlay ? '' : playBtn(box, data, k, nm, isFx ? ', over the music' : ', crossfading from what is playing')) +
@@ -525,7 +547,7 @@
       '<span class="lv-ord' + (air || (o.place && L.orderOf(p.id, o.place).source === 'place') ? ' shown' : '') + '">' + L.orderButton(p.id, o.place) + '</span>' +
       '<span class="lv-trk-acts' + (air ? ' shown' : '') + '">' +
         '<button class="closer lv-pvb' + (pv || o.noPlay ? '' : ' lv-hov') + '" data-act="lvpvpl" data-id="' + p.id + '" data-k="' + k + '-v" aria-pressed="' + pv + '" title="' + (pv ? 'Stop the preview' : 'Preview in your headphones') + '" aria-label="Preview: ' + esc(p.name) + '">' + L.icon('headphones') + '</button>' +
-        addBtns(box, whole, k, p.name) +
+        (p.lane === 'fx' ? '' : addBtns(box, whole, k, p.name, p.lane === 'amb')) +
         (o.noPlay ? '' : playBtn(box, 'data-id="' + (o.firstId || (ts[0] ? ts[0].id : '')) + '" data-pl="' + p.id + '" data-place="' + esc(o.place) + '"' + seqAttrs(o.firstSeq), k, p.name, ', from its first track')) +
       '</span></div>' +
       (open ? '<ol class="lv-list lv-sub" aria-label="Tracks in ' + esc(p.name) + '">' + ts.map(function (t) { return trackRow(t, o.src, o.trackOpts(t)); }).join('') + '</ol>' : '') + '</li>';
@@ -557,19 +579,23 @@
     var cur = s.scenes[now];
     // Round 6, part 5 (Nik, 6 Nov 16:14: "Let's kill ready, seems dumb. Kill the scene count, unnecessary."): no status;
     // the list's Now and Next say where the evening is, and the folded box says them in its summary.
-    return L.pane({ id: 'lv-scenes', title: 'Scenes', icon: 'scroll', kind: 'scenes', size: 'auto', flush: true, noMax: true, keys: 'Alt+1', body: body,
+    return L.pane({ id: 'lv-scenes', title: 'Scenes', icon: 'scroll', kind: 'scenes', size: 'auto', flush: true, noMax: true, keys: 'Alt+2', body: body,
       summary: collapsed('lv-scenes') ? (cur ? 'Now: ' + esc(cur.name) : '') + (n ? (cur ? ' · ' : '') + 'Next: ' + esc(n.name) : '') : '' });
   }
   /* SHW-7, round 6 part 3 (Nik, 6 Nov 12:24: "expand each scene, and choose to play it or not, and see its details,
      pads, playlists and tracks, and do any live adjustments"): when it starts, its notes, its music in the order it
-     will play (Preview, Play next, Add to queue, Repeat one saved with the scene, a playlist's play order there),
-     its ambience and its pad boards (each unfolds to its pads). Unfolding never changes what plays; Start does. */
+     will play, its ambience and its pad boards (each unfolds to its pads). Unfolding never changes what plays.
+     Round 6 part 6 (Nik, 17:14: "I need a play now button on tracks and playlists in the live -> scenes pane for all of
+     them"): every track, playlist and the ambience has the row's buttons of Current scene, in its order: Preview, Play
+     next, Add to queue, (Repeat one, a playlist's play order), Play on air. In a scene that is not running, Play on air
+     plays that item in the room and does not start the scene: a track plays now and the room's list carries on after
+     it (as from Find); a playlist plays from its first track, in the scene's order for it. Start plays the scene. */
   function sceneInside(sc, i) {
-    var amb = sc.amb && ambName(sc.amb), bds = sceneBoards(sc);
+    var amb = sc.amb && ambName(sc.amb), bds = sceneBoards(sc), running = !S.notStarted && i === live().scene;
     return '<div class="lv-sc-in" id="lv-scb-' + i + '">' +
       (sc.when ? '<div class="lv-sc-when"><span class="faint">Starts when:</span> ' + esc(sc.when) + '</div>' : '') +
       (sc.notes ? '<div class="lv-sc-notes"><span class="lv-sc-notes-t">' + esc(sc.notes) + '</span></div>' : '') +
-      (L.sceneItems(sc).length ? sceneList(sc, i, { src: 'in' + i, label: sc.name + ': music in play order', noPlay: true }) : '<p class="lv-in-none">No music</p>') +
+      (L.sceneItems(sc).length ? sceneList(sc, i, { src: 'in' + i, label: sc.name + ': music in play order', loose: !running }) : '<p class="lv-in-none">No music</p>') +
       ambLine(sc, 'lv-in' + i) +
       '<div class="lv-in-line lv-in-bds"><span class="lane-dot fx" aria-hidden="true"></span><span class="sr-only">Pad boards: </span>' + (bds.length ? bds.map(function (id) {
         var xk = 'lv-scbd-' + sc.id + '-' + id, open = L.expanded(xk);
@@ -577,19 +603,33 @@
       }).join('') : '<span class="faint">No pad boards</span>') + '</div>' +
       bds.filter(function (id) { return L.expanded('lv-scbd-' + sc.id + '-' + id); }).map(function (id) { return padGrid(L.board(id), 'music', false); }).join('') + '</div>';
   }
+  // A scene's ambience, as a row with the row's buttons (round 6 part 6): Preview, Play next, Add to queue (the room's
+  // next ambience, played on Next), Play on air (the room's ambience now, crossfading).
   function ambLine(sc, k) {
-    var amb = sc.amb && ambName(sc.amb);
-    return '<div class="lv-in-line"><span class="lane-dot amb" aria-hidden="true"></span><span class="sr-only">Ambience: </span><span class="grow ellipsis">' + (amb ? esc(amb) : '<span class="faint">No ambience</span>') + '</span>' +
-      (amb ? '<button class="closer lv-pvb" data-act="' + (L.playlist(sc.amb) ? 'lvpvpl' : 'lvpv') + '" data-id="' + sc.amb + '" data-k="' + k + '-amb" aria-pressed="' + L.previewing(L.playlist(sc.amb) ? 'pl:' + sc.amb : sc.amb) + '" title="Preview in your headphones" aria-label="Preview: ' + esc(amb) + '">' + L.icon('headphones') + '</button>' : '') + '</div>';
+    var amb = sc.amb && ambName(sc.amb), p = amb && L.playlist(sc.amb), first = amb ? L.ambTracks(sc.amb)[0] : null, key = L.sceneKeyOf(sc);
+    if (!amb) return '<div class="lv-in-line"><span class="lane-dot amb" aria-hidden="true"></span><span class="sr-only">Ambience: </span><span class="grow ellipsis"><span class="faint">No ambience</span></span></div>';
+    var on = rooms().some(function (r) { var a = r.mix.amb; return a && (p ? a.playlistId === p.id : a.id === sc.amb); }) || (pb.amb && (p ? pb.amb.playlistId === p.id : pb.amb.id === sc.amb));
+    var data = p ? 'data-whole="' + p.id + '" data-place="' + esc(key) + '"' : 'data-id="' + sc.amb + '" data-place="' + esc(key) + '"', pv = L.previewing(p ? 'pl:' + sc.amb : sc.amb);
+    return '<div class="lv-in-line lv-trk-r lv-amb-r' + (on ? ' on' : '') + '" role="group" aria-label="Ambience: ' + esc(amb) + '"><span class="lane-dot amb" aria-hidden="true"></span><span class="sr-only">Ambience: </span><span class="grow ellipsis" title="' + esc(amb) + '">' + esc(amb) + '</span>' +
+      '<span class="lv-trk-acts' + (on ? ' shown' : '') + '">' +
+        '<button class="closer lv-pvb' + (pv ? '' : ' lv-hov') + '" data-act="' + (p ? 'lvpvpl' : 'lvpv') + '" data-id="' + sc.amb + '" data-k="' + k + '-amb" aria-pressed="' + pv + '" title="' + (pv ? 'Stop the preview' : 'Preview in your headphones (players do not hear it)') + '" aria-label="Preview: ' + esc(amb) + '">' + L.icon('headphones') + '</button>' +
+        addBtns('music', data, k + '-amb', amb, true) +
+        (first ? playBtn('music', 'data-id="' + first.id + '" data-pl="' + (p ? p.id : '') + '" data-place="' + esc(key) + '"', k + '-amb', amb, ', as the ambience now (crossfading)') : '') +
+      '</span></div>';
   }
   L.acts.lvscopen = function (el) { var i = +el.dataset.i; S.scOpen[i] = !S.scOpen[i]; L.render(); focusK('lv-scn-' + i); };
 
   // A scene's music in its order: track items as track rows, playlist items as rows that unfold (folded at first).
-  // o: { src, label, noPlay }
+  // o: { src, label, loose (a scene that is not running: its items play on their own, outside the scene's order) }
   function sceneList(sc, idx, o) {
     var items = L.sceneItems(sc), q = L.sceneSequence(sc), here = seqHere(pb.music), key = L.sceneKeyOf(sc);
     var cur = here && here.scene === idx && q[here.at] ? q[here.at].item : -1;
     function pos(at) { return { cid: live().cid, sid: live().sid, scene: idx, at: at }; }
+    if (o.loose) return '<ol class="lv-list lv-items" aria-label="' + esc(o.label) + '">' + items.map(function (it, i) {
+      if (it.kind === 'track') return trackRow(it.obj, o.src + '-' + i, { place: key, rep: key });
+      var ts = L.orderedTracks(it.id, key);
+      return plRow(it.obj, { src: o.src + '-' + i, place: key, box: 'music', firstId: ts[0] ? ts[0].id : '', trackOpts: function () { return { pl: it.obj.id, place: key, inner: true, rep: key }; } });
+    }).join('') + '</ol>';
     return '<ol class="lv-list lv-items" aria-label="' + esc(o.label) + '">' + items.map(function (it, i) {
       var first = -1; q.forEach(function (x, j) { if (x.item === i && first < 0) first = j; });
       if (it.kind === 'track') return trackRow(it.obj, o.src + '-' + i, { seq: pos(first), rep: key, noPlay: o.noPlay });
@@ -617,7 +657,7 @@
           padGrid(b, 'music', true) + '</div>' : '');
     }
     var more = sc ? '<button class="closer" data-act="lvcurmenu" data-k="lv-curmenu" aria-haspopup="menu" aria-expanded="false" aria-label="More for ' + esc(sc.name) + '" title="More">' + L.icon('more') + '</button>' : '';
-    return L.pane({ id: 'lv-current', title: 'Current scene', icon: 'play', kind: 'current', size: 'auto', flush: true, noMax: true, keys: 'Alt+2', actions: toChip('music') + more, body: body,
+    return L.pane({ id: 'lv-current', title: 'Current scene', icon: 'play', kind: 'current', size: 'auto', flush: true, noMax: true, keys: 'Alt+3', actions: toChip('music') + more, body: body,
       summary: sc ? '<b class="lv-cur-n" title="' + esc(sc.name + (sc.when ? '. Started when: ' + sc.when : '')) + '">' + esc(sc.name) + '</b>' : '' });
   }
 
@@ -628,11 +668,12 @@
     var rows = ids.map(function (pid) {
       return plRow(L.playlist(pid), { src: scope + 'p', place: place, box: scope, trackOpts: function () { return { pl: pid, place: place, inner: true, box: scope }; } });
     }).concat(tr.map(function (tid) { return trackRow(L.track(tid), scope + 't', { place: place, box: scope }); }));
-    // Should 7 of the round 6 review: in three columns the boxes of a column share its height (live.css). Which boxes
-    // start folded is as in part 3: opening the pads and the campaign's boxes at first would add 25 to 60 words to
-    // read, over the part 3 numbers Live must keep (ROUND6.md part 4). Once unfolded, a box stays unfolded. Should 6: the session's and the campaign's boxes sit under "This session" and "Whole
-    // campaign" (scopeHidden: the word is read out with the box's name, not shown again in its header).
-    return L.pane({ id: id, title: title, scope: scope === 'ss' ? 'Session' : 'Campaign', scopeHidden: true, label: 'Playlists', icon: 'playlist', kind: 'music', size: 'auto', collapsed: scope === 'cp', flush: true, noMax: true, keys: scope === 'ss' ? 'Alt+4' : 'Alt+6',
+    // Round 6 part 7 (Nik, 21:59): the trays' boxes grow with what they hold and the page scrolls (live.css).
+    // Round 6 part 6 (Nik, 17:14: "Session playlists should start closed"): every box in the trays starts folded; once
+    // unfolded, a box stays unfolded (L.state.panes, kept on this computer). Should 6: the session's and the campaign's
+    // boxes sit under "This session" and "Whole campaign" (scopeHidden: the word is read out with the box's name, not
+    // shown again in its header).
+    return L.pane({ id: id, title: title, scope: scope === 'ss' ? 'Session' : 'Campaign', scopeHidden: true, label: 'Playlists', icon: 'playlist', kind: 'music', size: 'auto', collapsed: true, flush: true, noMax: true, keys: scope === 'ss' ? 'Alt+4' : 'Alt+6',
       actions: toChip(scope), body: rows.length ? '<ol class="lv-list" aria-label="' + esc(title) + '">' + rows.join('') + '</ol>' : '<p class="lv-in-none">None</p>',
       status: { text: String(rows.length), tone: 'idle' }, summary: '' });
   }
@@ -687,16 +728,29 @@
       var hay = [t.title, t.metaTitle, t.file, t.artist, t.album, t.role].concat(t.tags.mood, t.tags.motif, t.tags.scene).join(' ').toLowerCase();
       return words.every(function (w) { return hay.indexOf(w) > -1; });
     });
-    if (!S.tags.length) return { list: base, any: false };
+    var pls = searchPlaylists(words);
+    if (!S.tags.length) return { list: base, pls: pls, any: false };
     var all = base.filter(function (t) { return S.tags.every(function (x) { return hasTag(t, x); }); });
-    if (all.length || S.tags.length < 2) return { list: all, any: false };
+    if (all.length || S.tags.length < 2) return { list: all, pls: pls, any: false };
     var some = base.filter(function (t) { return S.tags.some(function (x) { return hasTag(t, x); }); });
     some.sort(function (a, b) { return S.tags.filter(function (x) { return hasTag(b, x); }).length - S.tags.filter(function (x) { return hasTag(a, x); }).length; });
-    return { list: some, any: true };
+    return { list: some, pls: pls, any: true };
+  }
+  /* Round 6 part 6 (Nik, 17:14: "The search bar should be able to find a track or a playlist"): a playlist is found by
+     its name (and notes); with tags picked, it is found when one of its tracks has all of them. The Music, Ambience and
+     FX filter applies to playlists too. */
+  function searchPlaylists(words) {
+    return D.playlists.filter(function (p) {
+      if (S.lane !== 'all' && p.lane !== S.lane) return false;
+      if (!words.length && !S.tags.length) return false;
+      var hay = (p.name + ' ' + (p.notes || '')).toLowerCase();
+      if (!words.every(function (w) { return hay.indexOf(w) > -1; })) return false;
+      return !S.tags.length || L.playlistTracks(p).some(function (t) { return S.tags.every(function (x) { return hasTag(t, x); }); });
+    });
   }
   function tagChip(g, v) { var gn = D.tagGroups.filter(function (x) { return x.id === g; })[0]; return '<button class="chip lv-mood" data-act="lvtag" data-g="' + g + '" data-v="' + esc(v) + '" data-k="lv-tag-' + g + '-' + esc(v) + '" aria-pressed="' + tagOn(g, v) + '" title="' + esc(gn ? gn.name : '') + '">' + (tagOn(g, v) ? L.icon('check', 's') : '') + esc(v) + '</button>'; }
   function find() {
-    var field = '<div class="search lv-find-f">' + L.icon('search') + '<input class="input" type="search" data-input="lvq" data-k="lv-q" value="' + esc(S.q) + '" placeholder="Find a track" aria-label="Find a track in the whole library"' + (S.findOpen ? ' aria-controls="lv-found"' : '') + '' + (S.keys1 ? ' aria-keyshortcuts="/"><span class="kbd" aria-hidden="true">/</span>' : '>') + '</div>';
+    var field = '<div class="search lv-find-f">' + L.icon('search') + '<input class="input" type="search" data-input="lvq" data-k="lv-q" value="' + esc(S.q) + '" placeholder="Find a track or playlist" aria-label="Find a track or playlist in the whole library"' + (S.findOpen ? ' aria-controls="lv-found"' : '') + '' + (S.keys1 ? ' aria-keyshortcuts="/"><span class="kbd" aria-hidden="true">/</span>' : '>') + '</div>';
     return '<div class="lv-find">' + field + (S.findOpen ? found() : '') + '</div>';
   }
   function found() {
@@ -710,13 +764,19 @@
       return '<div class="lv-taggrp"><span class="lv-taggrp-l">' + esc(g.name) + '</span><div class="chips" role="group" aria-label="' + esc(g.name) + '">' + D.tagValues[g.id].map(function (v) { return tagChip(g.id, v); }).join('') + '</div></div>';
     }).join('');
     var prefer = S.tags.filter(function (x) { return x.g === 'mood'; }).map(function (x) { return x.v; });
-    var res = !active ? '' : '<div class="lv-off-count" role="status"><span>' + (r.list.length ? r.list.length + ' found' : 'Nothing found') + (r.any ? ': none has all these tags, so tracks with some of them' : '') + '</span>' +
+    // Results: Playlists first (each unfolds to its tracks, as in the playlist boxes), then Tracks; each row has the
+    // buttons it has everywhere in Live.
+    var n = active ? r.list.length + r.pls.length : 0;
+    var res = !active ? '' : '<div class="lv-off-count" role="status"><span>' + (n ? n + ' found' : 'Nothing found') + (r.any ? ': none has all these tags, so tracks with some of them' : '') + '</span>' +
         '<button class="lv-more" data-act="lvclear" data-k="lv-clear">Clear</button></div>' +
-      (r.list.length ? '<ol class="lv-list" aria-label="Found tracks">' + r.list.map(function (t) { return trackRow(t, 'off', { prefer: prefer, box: 'off' }); }).join('') + '</ol>' : '');
-    return '<section class="lv-found" id="lv-found" aria-label="Find a track"><div class="lv-off-f"><div class="seg s" role="group" aria-label="Show">' + [['all', 'All'], ['music', 'Music'], ['amb', 'Ambience'], ['fx', 'FX']].map(function (x) {
+      (r.pls.length ? '<h3 class="lv-found-h" id="lv-found-p">Playlists</h3><ol class="lv-list" aria-labelledby="lv-found-p">' + r.pls.map(function (p) {
+        var place = placeOfPl(p.id); return plRow(p, { src: 'offp', place: place, box: 'off', trackOpts: function () { return { pl: p.id, place: place, inner: true, box: 'off' }; } });
+      }).join('') + '</ol>' : '') +
+      (r.list.length ? '<h3 class="lv-found-h" id="lv-found-t">Tracks</h3><ol class="lv-list" aria-labelledby="lv-found-t">' + r.list.map(function (t) { return trackRow(t, 'off', { prefer: prefer, box: 'off' }); }).join('') + '</ol>' : '');
+    return '<section class="lv-found" id="lv-found" aria-label="Find a track or playlist"><div class="lv-off-f"><div class="seg s" role="group" aria-label="Show">' + [['all', 'All'], ['music', 'Music'], ['amb', 'Ambience'], ['fx', 'FX']].map(function (x) {
         return '<button data-act="lvlane" data-v="' + x[0] + '" data-k="lv-lane-' + x[0] + '" aria-pressed="' + (S.lane === x[0]) + '">' + x[1] + '</button>';
       }).join('') + '</div><span class="grow"></span>' + toChip('off') +
-      '<button class="closer" data-act="lvfindclose" data-k="lv-findclose" title="Close (Esc)" aria-label="Close Find a track">' + L.icon('close') + '</button></div>' + chips + res + '</section>';
+      '<button class="closer" data-act="lvfindclose" data-k="lv-findclose" title="Close (Esc)" aria-label="Close Find">' + L.icon('close') + '</button></div>' + chips + res + '</section>';
   }
   function openFind() { if (!S.findOpen) { S.findOpen = true; L.render(); } }
   function closeFind(refocus) { if (!S.findOpen) return false; S.findOpen = false; L.render(); if (refocus) focusK('lv-q'); return true; }
@@ -735,9 +795,12 @@
 
   /* ---------- layout ---------- */
   var PANES = { scenes: scenesBox, current: currentScene, ssp: function () { return playlistsBox('ss'); }, ssd: function () { return padsBox('ss'); }, cpp: function () { return playlistsBox('cp'); }, cpd: function () { return padsBox('cp'); } };
-  // Scenes and Current scene where the eye starts; session things, then campaign things; On air along the bottom.
+  // On air at the top, the whole width (round 6 part 6); under it Scenes and Current scene where the eye starts, then
+  // the session's things, then the campaign's.
   var LAYOUT = { 1: [['scenes', 'current', 'ssp', 'ssd', 'cpp', 'cpd']], 2: [['scenes', 'ssp', 'ssd', 'cpp', 'cpd'], ['current']], 3: [['scenes'], ['current'], ['ssp', 'ssd', 'cpp', 'cpd']] };
-  var BOXES = ['lv-scenes', 'lv-current', 'lv-onair', 'lv-ssp', 'lv-ssd', 'lv-cpp', 'lv-cpd'];
+  // The boxes in the order of Alt+1 to Alt+7 and of F6: top to bottom, left to right, the same in every layout.
+  var BOXES = ['lv-onair', 'lv-scenes', 'lv-current', 'lv-ssp', 'lv-ssd', 'lv-cpp', 'lv-cpd'];
+  L.f6Order = function () { return onLive() ? BOXES.map(function (id) { return document.querySelector('[data-k="pane-' + id + '"]'); }).filter(Boolean) : null; };
   function groups(ids) {
     var out = [];
     ids.forEach(function (id) { var sc = /^ss/.test(id) ? 'ss' : /^cp/.test(id) ? 'cp' : ''; var last = out[out.length - 1]; if (sc && last && last.scope === sc) last.ids.push(id); else out.push({ scope: sc, ids: [id] }); });
@@ -747,13 +810,16 @@
 
   L.view('live', {
     nav: 'live',
+    // Round 6 part 6: the trail is the campaign (a link to its page) › the session (the session button, last).
+    crumbs: function () { var c = camp(), s = sess(); return c && s ? [{ href: '#/campaign/' + c.id, label: c.name }, { label: 'Session ' + s.n + ': ' + s.name }] : null; },
     notesTitle: 'Live: what changed since round 1',
     notes: [
-      '<b>Round 6, part 3:</b> seven boxes, each with one job. <b>Scenes</b> and <b>Current scene</b> on the left; <b>Session</b> and <b>Campaign</b> playlists and pads beside them; <b>On air</b> along the bottom, always in view. <b>Find a track</b> is in the top strip (/).',
+      '<b>Round 6, part 6:</b> <b>On air</b> at the top, the whole width; <b>Scenes</b> and <b>Current scene</b> under it, as tall as what they hold; <b>Back</b> and the trail (campaign › session) first in the strip; <b>Find a track or playlist</b> (/); every row of an unfolded scene, and its ambience, has Preview, Play next, Add to queue and Play on air. Session playlists start folded.',
+      '<b>Round 6, part 3:</b> seven boxes, each with one job. <b>Scenes</b> and <b>Current scene</b>; <b>Session</b> and <b>Campaign</b> playlists and pads beside them; <b>On air</b> always in view. <b>Find</b> is in the top strip (/).',
       '<b>Play next</b> plays right after the current track; <b>Add to queue</b> goes to the bottom of the room\'s list. Both are on every row, greyed until you point at them. <b>Up next</b> in On air lists the room\'s list top to bottom, each with ×.',
       '<b>Repeat</b> in On air and on the Now playing bar is for what plays now in that room, never saved. <b>Repeat one</b> on a scene\'s track is saved with the scene, and shows in the planner too.',
       '<b>Round 6 review:</b> Ctrl+Z takes back only the last thing done; a room in an empty channel says <b>Nobody there</b>; the session\'s and the campaign\'s boxes sit under <b>This session</b> and <b>Whole campaign</b>; row buttons are greyed, not hidden; a new scene clears what was added (Undo brings it back); <b>Help</b> (F1) holds what left the screen.',
-      'Keys: <span class="kbd">Space</span> next scene, <span class="kbd">Ctrl+Z</span> undo (8 s), <span class="kbd">Alt+1</span>…<span class="kbd">7</span> or <span class="kbd">F6</span> move between boxes, <span class="kbd">Shift+Esc</span> fade all, <span class="kbd">/</span> find, pad keys (the Current scene\'s board).'
+      'Keys: <span class="kbd">Space</span> next scene, <span class="kbd">Ctrl+Z</span> undo (8 s), <span class="kbd">Alt+1</span> (On air)…<span class="kbd">7</span> or <span class="kbd">F6</span> move between boxes, <span class="kbd">Shift+Esc</span> fade all, <span class="kbd">/</span> find, pad keys (the Current scene\'s board).'
     ],
     // Find's results stay inside the window: under the field, moved left when the field is near the right edge.
     after: function (view) {
@@ -766,13 +832,14 @@
       var lv = live(), key = lv.cid + '/' + lv.sid + '/' + (S.notStarted ? '-' : lv.scene);
       if (key !== S.sceneKey) { S.sceneKey = key; S.board = null; S.notesOpen = false; }
       var mode = layoutFor();
-      return '<div class="lv">' + top() + '<div class="lv-cols c' + mode + '" data-scroll="lv-page">' + LAYOUT[mode].map(function (ids) {
-        return '<div class="col">' + groups(ids).map(function (g) {
+      return '<div class="lv">' + top() + onAir() + '<div class="lv-cols c' + mode + '" data-scroll="lv-page">' + LAYOUT[mode].map(function (ids) {
+        var trays = mode === 3 && /^(ss|cp)/.test(ids[0]);
+        return '<div class="col' + (trays ? ' lv-c-trays' : '') + '">' + groups(ids).map(function (g) {
           if (!g.scope) return PANES[g.ids[0]](mode === 1);
           // A tray per scope: the session's boxes on a filled tray, the campaign's on an outlined one (Should 6).
           return '<div class="lv-grp lv-grp-' + g.scope + '"><p class="lv-grp-h" aria-hidden="true">' + (g.scope === 'ss' ? 'This session' : 'Whole campaign') + '</p>' + g.ids.map(function (id) { return PANES[id](mode === 1); }).join('') + '</div>';
         }).join('') + '</div>';
-      }).join('') + '</div>' + onAir() + '</div>';
+      }).join('') + '</div></div>';
     }
   });
 
@@ -844,6 +911,7 @@
     else if (kind === 'pn') rm.pn.splice(i, 1);
     else if (kind === 'pncur') rm.pnCur.ids = rm.pnCur.ids.slice(0, rm.pnCur.at + 1);
     else if (kind === 'qcur') rm.q[i].ids = rm.q[i].ids.slice(0, rm.q[i].at + 1);
+    else if (kind === 'aq') aqOf(tg).splice(i, 1);
     else { rm.q.splice(i, 1); if (i < rm.qAt) rm.qAt--; }
     softUndo('Taken out of Up next: ' + label, function () { snap.playing = RM(tg).playing; S.rm[tg] = snap; }, 'room:' + tg, 'lv-upx-0' + (tg === 'table' ? '' : '-' + tg));
     L.render(); focusK(document.querySelector('[data-k="' + el.dataset.k + '"]') ? el.dataset.k : 'lv-undo2');
@@ -851,7 +919,7 @@
   };
   L.acts.lvupopen = function (el) { var tg = tgArg(el); S.upOpen[tg] = !S.upOpen[tg]; L.render(); focusK(el.dataset.k); };
   L.acts.lvqclear = function (el) {
-    var tg = tgArg(el), rm = RM(tg), snap = clone(rm); rm.q = []; rm.pn = []; rm.qAt = -1;
+    var tg = tgArg(el), rm = RM(tg), snap = clone(rm); rm.q = []; rm.pn = []; rm.aq = []; rm.qAt = -1;
     softUndo('Cleared what you added', function () { snap.playing = RM(tg).playing; S.rm[tg] = snap; }, 'room:' + tg, 'lv-qclear' + (tg === 'table' ? '' : '-' + tg));
     L.render(); focusK('lv-undo2'); L.say('Cleared what you added. Undo is available for 8 seconds, or press Ctrl+Z.');
   };
@@ -963,6 +1031,7 @@
     var place = el.dataset.place || (whole ? placeOfPl(whole.id) : ''), ids = whole ? L.orderedTracks(whole.id, place).map(function (x) { return x.id; }) : [t.id];
     if (!ids.length) { L.toast('This playlist has no tracks yet'); return; }
     var name = whole ? whole.name : L.nameIn(t, place), added = [], items = [], started = false, box = el.dataset.box || 'music';
+    if (el.dataset.lane === 'amb') { addAmb(el, how, { ids: ids.slice(0, 1), at: 0, pl: whole ? whole.id : el.dataset.pl || '', place: place, name: name }, box); return; }
     eachTo(box, function (tg) {
       if (!M(tg).music) { playMusic(ids[0], whole ? whole.id : el.dataset.pl, whole ? null : seqOf(el), tg, place, name); started = true; return; }
       var rm = RM(tg), snap = clone(rm), it = { ids: ids.slice(), at: 0, pl: whole ? whole.id : '', place: place, name: name };
@@ -983,6 +1052,23 @@
     } else if (started) L.say('Playing now: ' + name);
     L.render();
   }
+  // An ambience waits for Next on the room's ambience (aq); with no ambience playing it plays now.
+  function addAmb(el, how, item, box) {
+    var added = [], started = false;
+    touched();
+    eachTo(box, function (tg) {
+      if (!M(tg).amb) { L.play(item.ids[0], { lane: 'amb', playlistId: item.pl, place: item.place, fade: 3, target: tg }); started = true; return; }
+      var rm = RM(tg), snap = clone(rm), it = clone(item);
+      if (how === 'next') aqOf(tg).unshift(it); else aqOf(tg).push(it);
+      added.push({ tg: tg, snap: snap });
+    });
+    if (added.length) {
+      var verb = how === 'next' ? 'Ambience next' : 'Ambience added to the queue';
+      softUndo(verb + ': ' + item.name, function () { added.forEach(function (a) { a.snap.playing = RM(a.tg).playing; S.rm[a.tg] = a.snap; }); }, 'room:' + added[0].tg, el.dataset.k);
+      L.say(verb + (rooms().length > 1 ? ' in ' + toName(box) : '') + ': ' + item.name + '. It plays when you press Next on the ambience. Undo is available for 8 seconds, or press Ctrl+Z.');
+    } else if (started) L.say('Ambience now: ' + item.name);
+    L.render();
+  }
   L.acts.lvqueue = function (el) { addItem(el, 'queue'); };
   L.acts.lvplaynext = function (el) { addItem(el, 'next'); };
   L.acts.lvpv = function (el) { L.preview(el.dataset.id); };
@@ -990,7 +1076,7 @@
   L.acts.lvtag = function (el) {
     var g = el.dataset.g, v = el.dataset.v;
     if (tagOn(g, v)) S.tags = S.tags.filter(function (x) { return !(x.g === g && x.v === v); }); else S.tags.push({ g: g, v: v });
-    L.render(); var r = search(); L.say(r.list.length + ' found');
+    L.render(); var r = search(); L.say((r.list.length + r.pls.length) + ' found');
   };
   L.acts.lvmoretags = function () { S.moreTags = !S.moreTags; L.render(); };
   L.acts.lvlane = function (el) { S.lane = el.dataset.v; L.render(); };

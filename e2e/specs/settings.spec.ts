@@ -13,11 +13,11 @@ const bots = (page: Page) => region(page, "Discord bots");
 const sheet = (page: Page) => page.getByRole("dialog");
 
 test.describe("Settings", () => {
-  test("is in the menu, has no Back when opened from it, and lists each bot with its status, servers and a masked token", async ({ page }) => {
+  test("is in the menu, has Back to where Nik was (round 6 part 7), and lists each bot with its status, servers and a masked token", async ({ page }) => {
     await openRoute(page, "campaigns");
     await page.getByRole("link", { name: "Settings", exact: true }).click();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Settings");
-    await expect(page.getByRole("button", { name: /^Back to / })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Back to Campaigns" })).toBeVisible();
     const table = bots(page).getByRole("group", { name: "Lyre Table" });
     await expect(table).toContainText("Connected");
     await expect(table).toContainText("The Gull and Lantern, Night court");
@@ -56,10 +56,12 @@ test.describe("Settings", () => {
 
   test("the other settings Lyre still needs are here; the rare ones are folded", async ({ page }) => {
     await openRoute(page, "settings");
-    await expect(region(page, "Sound to Discord").getByRole("radio", { name: "Best sound quality" })).toHaveAttribute("aria-checked", "true");
-    for (const name of ["Remote control", "Website tabs", "Local files"]) {
+    // Round 7: Sound to Discord is set once, so it is folded with the other rare settings.
+    for (const name of ["Sound to Discord", "Headphones and speakers", "Remote control", "Keyboard shortcuts", "Website tabs", "Local files"]) {
       await expect(region(page, name).getByRole("button", { name, exact: true })).toHaveAttribute("aria-expanded", "false");
     }
+    await region(page, "Sound to Discord").getByRole("button", { name: "Sound to Discord", exact: true }).click();
+    await expect(region(page, "Sound to Discord").getByRole("radio", { name: "Best sound quality" })).toHaveAttribute("aria-checked", "true");
     await region(page, "Website tabs").getByRole("button", { name: "Website tabs", exact: true }).click();
     await expect(region(page, "Website tabs").getByRole("switch", { name: "Use several inputs at once" })).toBeDisabled();
     await region(page, "Website tabs").getByRole("switch", { name: "Microphones and other inputs" }).check();
@@ -150,5 +152,121 @@ test.describe("round 6, part 4: Add a bot in the order it is done", () => {
     await sheet(page).getByLabel("Application ID").fill("123456789012345678");
     await sheet(page).getByRole("button", { name: "Next" }).click();
     await expect(sheet(page)).toContainText("Discord shows it once.");
+  });
+});
+
+/* Round 7 (design/prototype/ROUND7.md): the remote control's secret code (SEC-4), headphones and speakers (PRV-2),
+   the default crossfade (PLY-8) and keyboard shortcuts (UX-12). */
+const unfold = async (page: Page, name: string) => {
+  const b = region(page, name).getByRole("button", { name, exact: true });
+  if ((await b.getAttribute("aria-expanded")) !== "true") await b.click();
+  return region(page, name);
+};
+
+test.describe("round 7: remote control needs a secret code", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
+
+  test("is off by default; on, it shows the code to type on the other device and listens on this computer only", async ({ page }) => {
+    await openRoute(page, "settings");
+    const box = await unfold(page, "Remote control");
+    const on = box.getByRole("switch", { name: "Let other devices control Lyre" });
+    await expect(on).not.toBeChecked();
+    await expect(box.getByRole("group", { name: "Secret code" })).toHaveCount(0);
+    await on.check();
+    await expect(box.getByRole("group", { name: "Secret code" })).toContainText(/^.*[A-Z0-9]{4}-[A-Z0-9]{4}/);
+    await expect(box.getByRole("radio", { name: "This computer only" })).toBeChecked();
+    await expect(page.getByRole("status").filter({ hasText: "Saved: remote control on" })).toBeVisible();
+  });
+
+  test("Make a new code replaces the code, so the old one stops working", async ({ page }) => {
+    await openRoute(page, "settings");
+    const box = await unfold(page, "Remote control");
+    await box.getByRole("switch", { name: "Let other devices control Lyre" }).check();
+    const code = box.getByRole("group", { name: "Secret code" }).locator("output");
+    const before = await code.textContent();
+    await box.getByRole("button", { name: "Make a new code" }).click();
+    await expect(code).not.toHaveText(before ?? "");
+    await expect(page.getByRole("status").filter({ hasText: /new remote control code/ })).toBeVisible();
+  });
+
+  test("it can listen on the home network instead, for a phone or tablet", async ({ page }) => {
+    await openRoute(page, "settings");
+    const box = await unfold(page, "Remote control");
+    await box.getByRole("switch", { name: "Let other devices control Lyre" }).check();
+    await box.getByRole("radio", { name: "Your home network" }).check();
+    await expect(box.getByRole("radio", { name: "Your home network" })).toBeChecked();
+    await expect(box).toContainText(/192\.168\./);
+  });
+});
+
+test.describe("round 7: headphones and speakers", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
+
+  test("the preview and what you hear of On air each have their own device, remembered", async ({ page }) => {
+    await openRoute(page, "settings");
+    const box = await unfold(page, "Headphones and speakers");
+    await box.getByRole("combobox", { name: "Preview (only you)" }).selectOption("Headset (Arctis 7)");
+    await expect(page.getByRole("status").filter({ hasText: "Saved: preview plays on Headset (Arctis 7)" })).toBeVisible();
+    await expect(box.getByRole("combobox", { name: "On air, on this computer" })).toHaveValue("System default");
+  });
+
+  test("one headset can be split: the preview in one ear, On air in the other", async ({ page }) => {
+    await openRoute(page, "settings");
+    const box = await unfold(page, "Headphones and speakers");
+    await expect(box.getByRole("radio", { name: "Preview in the left ear" })).toHaveCount(0);
+    await box.getByRole("switch", { name: "Split one headset" }).check();
+    await expect(box.getByRole("radio", { name: "Preview in the left ear" })).toBeChecked();
+    await box.getByRole("radio", { name: "Preview in the right ear" }).check();
+    await expect(box.getByRole("radio", { name: "Preview in the right ear" })).toBeChecked();
+  });
+});
+
+test.describe("round 7: crossfade and keyboard shortcuts", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
+
+  test("the crossfade between tracks has a default, in Sound to Discord", async ({ page }) => {
+    await openRoute(page, "settings");
+    const box = await unfold(page, "Sound to Discord");
+    const x = box.getByRole("combobox", { name: "Between tracks" });
+    await expect(x).toHaveValue("3");
+    await x.selectOption("5");
+    await expect(page.getByRole("status").filter({ hasText: "Saved: crossfade between tracks 5 s" })).toBeVisible();
+  });
+
+  test("every shortcut is listed with its key; one can be changed by pressing the new key, and reset", async ({ page }) => {
+    await openRoute(page, "settings");
+    const box = await unfold(page, "Keyboard shortcuts");
+    const palette = box.getByRole("row", { name: /^Find and play/ });
+    await expect(palette).toContainText("Ctrl+K");
+    await expect(box.getByRole("row", { name: /^Next scene/ })).toContainText("Space");
+    await palette.getByRole("button", { name: "Change the key for Find and play" }).click();
+    await expect(palette).toContainText("Press the new key");
+    await page.keyboard.press("Control+J");
+    await expect(palette).toContainText("Ctrl+J");
+    await page.keyboard.press("Control+J");
+    await expect(page.getByRole("dialog", { name: "Find and play" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await box.getByRole("button", { name: "Put back Lyre's keys" }).click();
+    await expect(palette).toContainText("Ctrl+K");
+  });
+
+  test("a key already in use is refused, and Esc keeps the old key", async ({ page }) => {
+    await openRoute(page, "settings");
+    const box = await unfold(page, "Keyboard shortcuts");
+    const palette = box.getByRole("row", { name: /^Find and play/ });
+    await palette.getByRole("button", { name: "Change the key for Find and play" }).click();
+    await page.keyboard.press("Shift+Escape");
+    await expect(page.getByRole("status").filter({ hasText: /Shift\+Esc is already Fade everything out/ })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(palette).toContainText("Ctrl+K");
+  });
+
+  test("a printable sheet lists every key", async ({ page }) => {
+    await openRoute(page, "settings");
+    const box = await unfold(page, "Keyboard shortcuts");
+    await box.getByRole("button", { name: "Printable sheet" }).click();
+    const sheetBox = page.getByRole("dialog", { name: "Lyre's keys" });
+    await expect(sheetBox.getByRole("table")).toContainText("Fade everything out");
+    await expect(sheetBox.getByRole("button", { name: "Print" })).toBeVisible();
   });
 });

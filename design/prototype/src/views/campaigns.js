@@ -342,6 +342,8 @@
   };
 
   L.view('campaign', {
+    // Round 6 part 6: the trail (core.js L.trailHTML) is Campaigns › the campaign.
+    crumbs: function (p) { var c = L.campaign(p.cid); return c ? [{ href: '#/campaigns', label: 'Campaigns' }, { label: c.name || 'Untitled campaign' }] : null; },
     nav: 'campaigns',
     title: function (p) { var c = L.campaign(p.cid); return c ? c.name : 'Campaign'; },
     notesTitle: 'Campaign page: sessions and what stays on hand',
@@ -357,7 +359,7 @@
       var c = L.campaign(p.cid);
       if (!c) return '<div class="viewhead"><h1>Campaign not found</h1></div><div class="empty"><a href="#/campaigns">Back to Campaigns</a></div>';
       var nx = nextSession(c), forced = L.state.theme !== 'campaign';
-      var head = '<div class="viewhead"><nav class="crumbs" aria-label="Breadcrumb"><a href="#/campaigns" data-k="crumb-c">Campaigns</a><span class="sep" aria-hidden="true">›</span></nav>' +
+      var head = '<div class="viewhead">' +
         '<h1>' + esc(c.name || 'Untitled campaign') + '</h1><span class="grow"></span>' +
         L.modeSwitch(c.id) + (nx ? '<button class="btn primary" data-act="cprun" data-cid="' + c.id + '" data-sid="' + nx.id + '" data-k="hrun">' + L.icon('broadcast', 's') + 'Run next session <span class="cp-btnsub">S' + nx.n + '</span></button>' : '') + '</div>';
       var details = '<div class="cp-details">' +
@@ -470,7 +472,7 @@
       '<button class="cp-scene-toggle" data-act="cpscene" data-id="' + sc.id + '" data-k="sct-' + sc.id + '" aria-expanded="' + isOpen + '" aria-controls="scb-' + sc.id + '"' + (isOpen ? '' : ' title="' + esc(sceneTip(sc)) + '"') + '>' +
       L.icon('chevdown', 's chev') + '<span class="num cp-scn" aria-hidden="true">' + (i + 1) + '</span><span class="ellipsis cp-scname"><span class="sr-only">Scene ' + (i + 1) + ': </span>' + nm + '</span></button>' +
       (isOpen ? '' : '<span class="cp-scchip">' + sceneChip(sc) + '</span>') +
-      '<button class="closer" data-act="cpscmenu" data-id="' + sc.id + '" data-idx="' + i + '" data-k="scm-' + sc.id + '" title="More for this scene" aria-label="More for ' + nm + '" aria-haspopup="menu" aria-expanded="false">' + L.icon('more') + '</button></div>';
+      L.sceneMarks(sc) + '<button class="closer" data-act="cpscmenu" data-id="' + sc.id + '" data-idx="' + i + '" data-k="scm-' + sc.id + '" title="More for this scene" aria-label="More for ' + nm + '" aria-haspopup="menu" aria-expanded="false">' + L.icon('more') + '</button></div>';
     if (!isOpen) return '<li class="cp-scene" data-drag="scenes" data-filedrop="music" data-sc="' + sc.id + '" data-idx="' + i + '" aria-label="Scene ' + (i + 1) + ': ' + nm + '">' + head + '</li>';
     var f = 'sc' + sc.id;
     var body = '<div class="cp-scene-body" id="scb-' + sc.id + '">' +
@@ -591,6 +593,8 @@
     L.menu(el, (i > 0 ? '<button role="menuitem" data-act="cpmove" data-dir="-1" ' + mv + '>' + L.icon('chevup') + 'Move up</button>' : '') +
       (i < n - 1 ? '<button role="menuitem" data-act="cpmove" data-dir="1" ' + mv + '>' + L.icon('chevdown') + 'Move down</button>' : '') +
       '<button role="menuitem" data-act="cpaddscene" data-id="' + id + '">' + L.icon('plus') + 'Add a scene after this one</button>' +
+      // Round 7 (PLY-8, SHW-3): what the scene does when it starts, as steps, and whether it moves on by itself.
+      '<button role="menuitem" data-act="stepsopen" data-what="scene" data-ref="' + ctx().c.id + '/' + ctx().s.id + '/' + id + '">' + L.icon('list') + 'What it does when it starts…</button>' +
       '<button role="menuitem" data-act="cpdup" data-id="' + id + '">' + L.icon('queue') + 'Duplicate</button><div class="sep"></div>' +
       '<button role="menuitem" data-act="cpdelask" data-id="' + id + '" class="cp-danger">' + L.icon('trash') + 'Delete…</button>', 'Scene actions');
   };
@@ -630,6 +634,8 @@
   });
 
   L.view('session', {
+    // Round 6 part 6: Campaigns › the campaign › the session (its h1).
+    crumbs: function (p) { var c = L.campaign(p.cid), s = L.session(p.cid, p.sid); return s ? [{ href: '#/campaigns', label: 'Campaigns' }, { href: '#/campaign/' + c.id, label: c.name }, { label: sLabel(s) }] : null; },
     nav: 'campaigns',
     title: function (p) { var s = L.session(p.cid, p.sid); return s ? 'Session ' + s.n : 'Session'; },
     notesTitle: 'Session planner: scenes and playlists',
@@ -647,8 +653,7 @@
       // Back from a track's audio settings in a scene opens that scene again, with focus on the track.
       if (L.state.openScene && s) { var back = L.state.openScene; L.state.openScene = null; if (s.scenes.some(function (x) { return x.id === back.sc; })) { open[back.sc] = true; current = back.sc; focusK = back.k || 'sct-' + back.sc; } }
       if (!s) return '<div class="viewhead"><h1>Session not found</h1></div><div class="empty"><a href="#/campaigns">Back to Campaigns</a></div>';
-      var head = '<div class="viewhead"><nav class="crumbs" aria-label="Breadcrumb"><a href="#/campaigns" data-k="crumb-c">Campaigns</a><span class="sep" aria-hidden="true">›</span>' +
-        '<a href="#/campaign/' + c.id + '" data-k="crumb-cp">' + esc(c.name) + '</a><span class="sep" aria-hidden="true">›</span></nav>' +
+      var head = '<div class="viewhead">' +
         // BUG-21: the title renames the session in place (click or F2); only the name, not the number.
         '<h1>' + (L.renaming('sess-' + s.id) ? 'Session ' + s.n + ': ' + L.renameBox('sess-' + s.id, s.name, 'Name of Session ' + s.n, 'cp-h1-rename') :
           '<button class="cp-h1-name" data-act="cprename" data-k="cp-h1-name" data-f2="cprename" title="Rename (click or F2)">' + esc(sLabel(s)) + '</button>') + '</h1>' +

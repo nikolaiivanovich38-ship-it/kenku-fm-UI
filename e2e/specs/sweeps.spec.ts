@@ -91,6 +91,8 @@ const SCREENS: Screen[] = [
   // Round 6, part 2 (OUT-8): Settings in Lyre.
   { name: "Settings", owner: "settings", route: "settings" },
   { name: "Look and feel", owner: "look", route: "look" },
+  // Round 7 (DAT-10): the Tags screen.
+  { name: "Tags", owner: "tags", route: "tags" },
   // Round 5 (design/prototype/ROUND5.md): the three new screens, with their tables and choices showing.
   {
     name: "Back up, move or share, with a file open",
@@ -408,3 +410,50 @@ for (const screen of SCREENS) {
     expect(unreachable, "controls that cannot be scrolled into view").toEqual([]);
   });
 }
+
+// UX-6 (design round 7): no hidden text. Wherever a name is cut short (an ellipsis, or two lines and then an ellipsis),
+// its full text is on hover (a title on it or on the row it is in), and keyboard focus on it shows the same text.
+for (const screen of SCREENS) {
+  for (const size of [{ width: 960, height: 1000 }, { width: 1920, height: 1080 }]) {
+    test(`${screen.name} at ${size.width}×${size.height}: every name cut short has its full text on hover`, async ({ page }) => {
+      expectFailureUntilBuilt(screen.owner);
+      expectFailureUntilBuilt("round 7");
+      await page.setViewportSize(size);
+      await openRoute(page, screen.route);
+      await screen.prepare?.(page, { playing: true });
+      await page.waitForTimeout(300);
+      const hidden = await page.evaluate((ignore) => {
+        const norm = (t: string) => t.replace(/\s+/g, " ").trim().toLowerCase();
+        const out: string[] = [];
+        for (const e of Array.from(document.querySelectorAll<HTMLElement>("main *, [role=region][aria-label='Now playing'] *"))) {
+          if (!e.offsetParent || ignore.some((s) => e.closest(s)) || e.closest(".sr-only")) continue;
+          const cs = getComputedStyle(e);
+          const clamp = cs.getPropertyValue("-webkit-line-clamp");
+          const cutX = cs.textOverflow === "ellipsis" && e.scrollWidth > e.clientWidth + 1;
+          const cutY = clamp !== "" && clamp !== "none" && e.scrollHeight > e.clientHeight + 1;
+          if (!cutX && !cutY) continue;
+          const text = norm(e.textContent ?? "");
+          if (text.length < 3) continue;
+          let ok = false;
+          for (let n: HTMLElement | null = e; n && n.tagName !== "MAIN"; n = n.parentElement) {
+            const t = norm(n.getAttribute("title") ?? "");
+            if (t && t.includes(text.slice(0, 40))) { ok = true; break; }
+          }
+          if (!ok) out.push(text.slice(0, 60));
+        }
+        return out.slice(0, 10);
+      }, notLyre());
+      expect(hidden, "names cut short with no way to read the rest").toEqual([]);
+    });
+  }
+}
+
+test("UX-6: keyboard focus on a name cut short shows its full text", async ({ page }) => {
+  expectFailureUntilBuilt("library");
+  expectFailureUntilBuilt("round 7");
+  await page.setViewportSize({ width: 960, height: 1000 });
+  await openRoute(page, "library");
+  const rowEl = page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Very short heroic moment/ });
+  await rowEl.focus();
+  await expect(page.getByRole("tooltip")).toContainText("Cool vibe! (Don't loop, use as a sting, cue something up after)");
+});

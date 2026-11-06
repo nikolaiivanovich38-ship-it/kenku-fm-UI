@@ -489,14 +489,9 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 .lv-grp-ss { background: color-mix(in srgb, var(--ink) 12%, var(--bg)); }
 .lv-grp-cp { border: 2px dashed var(--line-strong); }
 .lv-grp-h { margin: 0; padding: 0 2px; font-size: var(--fs-xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
-/* Should 7: in three columns, the boxes of a column share its height down to On air and scroll inside, so no box moves
-   when a list in another one grows. */
-.lv-cols.c3 { grid-template-rows: minmax(0, 1fr); align-items: stretch; }
-.lv-cols.c3 > .col { display: flex; flex-direction: column; min-height: 0; }
-.lv-cols.c3 > .col > .pane:not(.collapsed), .lv-cols.c3 .lv-grp > .pane:not(.collapsed) { flex: 1 1 0; min-height: calc(var(--pane-head) + 52px); }
-.lv-cols.c3 > .col > .pane:not(.collapsed) > .pane-body, .lv-cols.c3 .lv-grp > .pane:not(.collapsed) > .pane-body { overflow: auto; }
-.lv-cols.c3 .lv-grp:has(> .pane:not(.collapsed)) { flex: 1 1 0; min-height: 0; }
-.lv-cols.c3 .lv-grp { flex: none; }
+/* Should 7 of the round 6 review (part 4) shared a column's height between its boxes, each scrolling inside. Undone:
+   Scenes and Current scene in part 6, the trays in part 7 (Nik, 6 Nov 21:59). Every box now takes the height of its
+   contents and the page under On air scrolls. */
 /* Must 4 (WCAG 1.4.10 Reflow): below 640 px of app (320 px windows, 200 % zoom) the top strip wraps (Prep | Live and
    the icon buttons, then the session, then Find a track the whole width), a room's header wraps (its name and status,
    then its controls), and a lane's label goes above its title. Under 480 px of height each room is one line (live.js). */
@@ -524,3 +519,54 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 .lv-rm.lv-rm-1 .lv-rm-h > .lv-rm-t { flex: 1 1 auto; height: auto; }
 /* A room is never named "Ta…": its name keeps up to 40 % of the header before anything else gives way. */
 .lv-rm-h .lv-rm-n { flex: 0 0 auto; max-width: 40%; }
+
+/* ---------- Round 6, part 6 (Nik, 6 Nov 17:14) ----------
+   On air at the top, the whole width, right under the top strip, always in view (it scrolls inside itself past 40 % of
+   the height). Under it the columns scroll as one page; Scenes and Current scene take the height of their contents
+   again (part 4's shared column height and inner scroll are undone for them). Part 7 (Nik, 21:59: "they should be able
+   to expand the page and make me scroll the whole thing"): the trays (This session, Whole campaign) do the same: their
+   boxes grow with what they hold, nothing scrolls inside them, the page scrolls. */
+.lv-top { padding: 6px 12px; min-height: 44px; }
+.lv-dock { order: 0; max-height: 40%; padding: 8px 8px 0; }
+.lv-cols.c3 { grid-template-rows: auto; align-items: start; }
+.lv-cols.c3 > .col { display: flex; flex-direction: column; min-height: 0; }
+.lv-cols.c3 > .col > .pane:not(.collapsed), .lv-cols .lv-grp > .pane:not(.collapsed) { flex: none; min-height: 0; }
+.lv-cols > .col > .pane:not(.collapsed) > .pane-body, .lv-cols .lv-grp > .pane:not(.collapsed) > .pane-body { overflow: visible; max-height: none; }
+.lv-cols .lv-grp { flex: none; }
+.lv-cols.c2 { align-items: start; }
+/* Back and the trail lead the strip; the session is the trail's last part. */
+.lv-top .crumbs { flex: 0 1 auto; min-width: 0; }
+.lv-top .crumbs a { max-width: 18ch; }
+.lv-top .lv-sess { flex: 0 1 auto; }
+/* Find's results: Playlists, then Tracks, each under a small heading. */
+.lv-found-h { margin: 6px 8px 2px; font-size: var(--fs-xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+/* A scene's ambience is a row like the others, with the row's buttons. */
+.lv-amb-r { padding: 2px 4px 2px 8px; border-radius: var(--r-s); }
+.lv .lv-sc-in .lv-amb-r { padding: 2px 4px 2px 0; }
+.lv-amb-r.on { background: color-mix(in srgb, var(--amb, var(--surface-2)) 14%, transparent); }
+.lv-up-i.amb > .lane-dot { flex: none; }
+.lv-up-i > .lv-more { flex: none; margin-left: 2px; }
+@container app (max-width: 639px) {
+  /* Must 4 at 320 px: Back, Prep | Live and the buttons on the first line, then the trail and the session, then Find. */
+  .lv-top::before { content: ""; order: 4; flex: 1 0 100%; height: 0; }
+  .lv-top .crumbs { order: 5; }
+  .lv-top .lv-sess { order: 6; flex: 1 1 0; }
+  .lv-dock { padding: 6px 6px 0; }
+}
+/* With Back and the trail in the strip, below 1100 px of app (960 windows) Fade all and Stop all are icons (their names
+   are read out and on hover), so Find keeps its words. The session shows its number only at every width (its name is
+   read out and on hover): the trail reads Campaign › Session, and Live's words stay at part 5's. */
+@container app (max-width: 1100px) {
+  .lv-top .lv-btxt { display: none; }
+  .lv-top [data-act="lvfade"], .lv-top [data-act="lvstop"] { width: var(--ctl-s); padding: 0; }
+}
+/* Part 6 follow-up: names in Scenes and Current scene stay readable at 1280 and 960 (UX-6: a name wraps to two lines,
+   then shows whole on hover (its title) and while its row has keyboard focus). While every box in the trays is folded,
+   the trays' column is only as wide as its folded headers need, and Scenes and Current scene get the room. A name keeps
+   at least 14 characters' width: below that, the row's buttons go under the name instead of squeezing it. */
+.lv-cols.c3:not(:has(.lv-c-trays .pane:not(.collapsed))) { grid-template-columns: minmax(0, 35fr) minmax(0, 45fr) minmax(236px, 20fr); }
+.lv-trk-r { flex-wrap: wrap; row-gap: 0; }
+.lv-trk-r > .lv-trk-t, .lv-trk-r > .lv-pli-n { flex: 1 1 14ch; min-width: 14ch; }
+.lv-trk-r > .lv-trk-acts { margin-left: auto; }
+.lv-trk-t > span, .lv-pli-n > b.ellipsis { overflow-wrap: break-word; }
+.lv-trk-r:focus-within .lv-trk-t > span, .lv-trk-r:focus-within .lv-pli-n > b.ellipsis { -webkit-line-clamp: unset; display: block; }

@@ -610,11 +610,14 @@ Open `design/prototype/lyre-prototype.html`.
 
 ### The standard (build it once, in the shell)
 
-**Where.** The top-right corner of the work area, 8 px under its header (Live: under the top strip), 12 px in from
-the right edge, at most 400 px wide. The same place on every screen and at every width. It covers neither the Now
-playing bar nor On air (both along the bottom) nor the header. If it would sit over the field or button in use (a
-Description field at the top right, say), it moves to just under that control. Clicks pass through it, so it never
-blocks what it briefly covers. With Help open it stays in the work area, left of Help.
+**Where** (changed in part 6, Nik, 17:14: "Let's move the saved pop up to the bottom right hand corner"). The
+bottom-right corner of the work area, 12 px in from the right edge and 12 px above the bottom, or 12 px above the Now
+playing bar when the bar shows; at most 400 px wide. The same place on every screen and at every width. It covers
+neither the Now playing bar, nor On air (at the top of Live since part 6), nor the top bar. The failure card and the
+Undo note (Reset to whole track, Delete board, Tag…) stack in the same corner: the Undo note lowest, then the failure,
+then the pop-up. If it would sit over the field or button in use (a Notes field at the bottom right, say), it moves to
+just above that control. Clicks pass through it, so it never blocks what it briefly covers. With Help open it stays in
+the work area, left of Help.
 
 **When.** Whenever something is saved: a field on Enter, on leaving it, or after a second without typing (never per
 key); a list, tick box, switch or slider when it changes (a slider on release); Done in a picker when the ticks
@@ -645,8 +648,8 @@ pulse. Contrast (`tools/r6-saved.js`, five themes): Saved 11.9 to 15.7:1; failur
 5.9 to 10.4:1.
 
 **For the lead: what changes in the app.**
-- `src/lyre/shell/Announcer.tsx`: the toast moves from bottom centre to the place above (measure the work area and its
-  header, as the prototype's `L.placeToasts`); it stays mounted and empty instead of `hidden`; 3 s, up to 6 s for long
+- `src/lyre/shell/Announcer.tsx`: the toast moves from bottom centre to the place above (measure the work area and the
+  Now playing bar, as the prototype's `L.placeToasts`); it stays mounted and empty instead of `hidden`; 3 s, up to 6 s for long
   text; `aria-live="off"` within 0.5 s of `say` and on a refresh. Add `saved(what, { key, detail })` with the 2 s merge
   by key, and `saveFailed(what, retry)` (role=alert, Try again, Dismiss, focus back). `toast` keeps its name for
   other notes.
@@ -654,8 +657,8 @@ pulse. Contrast (`tools/r6-saved.js`, five themes): Saved 11.9 to 15.7:1; failur
   Library's title saves 400 ms after typing today (ARCHITECTURE.md, `TrackDetails.tsx`): same rule, with the pop-up.
 - Each screen's successful write calls `saved`; a refused or failed write (`isRefused`) calls `saveFailed` with the same
   write as retry.
-- `UndoNote.tsx`: stays where it is (above the Now playing bar in Prep; Live has its own strips). A change that offers
-  Undo shows no pop-up; "Undone" goes through `toast`, so it moves to the new place by itself.
+- `UndoNote.tsx`: in the same corner, under the pop-up (part 6; Live has its own strips). A change that offers Undo
+  shows no pop-up; "Undone" goes through `toast`, so it moves to the new place by itself.
 - Remove from the screens: the Library details' Saved, the playlist boxes' Ready and Saved, the pad editor's Ready and
   Saved, the campaign Notes' Saved, the Audio profile's "Saved" line and its waveform box's Ready, the export box's and
   the import and Look in a folder boxes' Ready and Saved pills, Live's Scenes box "Ready" and "Scene n of m", the
@@ -707,3 +710,171 @@ page now has the pop-up's status too).
 4. Prep › Session 14: no "6 scenes" on Scenes. Open The abbey ruins; on its second music item press ⋯ › Move up:
    "Saved: order of The abbey ruins music".
 5. Playlists › The Abbess: no box says Ready or Saved, open or folded.
+
+## Part 6: Nik's 17:14 changes
+
+> "Let's move the saved pop up to the bottom right hand corner, rather than the top right hand corner. Session
+> playlists should start closed. Also, in Live, let's put the on air box at the top of the screen, across the whole
+> screen, beneath the top bar with search in it. Let's let the Scenes and current scene boxes adjust their height
+> dynamically based on their contents, as they used to.
+> I'm missing the contextual back button in the top bar. It should be constantly present in the top left of the top
+> bar. We should also have a sensible place for breadcrumbs.
+> The search bar should be able to find a track or a playlist.
+> I need a play now button on tracks and playlists in the live -> scenes pane for all of them, not just for the current
+> scene.
+> Why do I only have play in headphones for the single track great hall on the live Scenes pane, and not the play next
+> and play? I need all of them."
+>
+> Nik, 6 Nov 2026, 17:14
+
+### What changed, and why
+
+| # | What | Why |
+| --- | --- | --- |
+| 1 | **Saved pop-up at the bottom right** of the work area, 12 px in and 12 px up, or 12 px above the Now playing bar when it shows; the failure card and the Undo note (Reset to whole track, Delete board, Tag…) stack in the same corner. The Part 5 standard above is updated. In Live (a scene playing, the trays folded) it lies over empty space at 1920, 1280 and 960: under the Whole campaign tray at 1920 and 1280, beside the trays under Current scene at 960. With the trays unfolded it lies over the lower edge of the last of them (Campaign pads), or at 960 over the bottom of a long Current scene. | Nik's words. On air is now at the top, so the bottom corner is the quiet one. |
+| 2 | **Session playlists start folded**, like the other three tray boxes; once unfolded it stays so on this computer (also after leaving Live). | Nik's words. |
+| 3 | **On air at the top, the whole width**, right under the top strip, on every size; under it Scenes and Current scene (and the trays), which scroll as one page. **Scenes and Current scene take the height of their contents** again (part 4's shared height and inner scroll undone for them). **The trays keep theirs** in three columns: their column stays in view while Scenes scrolls and its boxes share its height, so a box there never moves when a list above it grows (Should 7 still holds). On air is at most 40 % of the height (it scrolls inside beyond that); a room's Up next past four lines folds to one line, its first entry and "n more". With a scene playing On air is 187 px tall, so the start of Scenes and of Current scene is in view at 1280×800 and 960×1000 (both start 195 px under the strip). **Keys: On air is box 1** (Alt+1, then Alt+2 Scenes, Alt+3 Current scene, Alt+4 to 7 the trays as before), and F6 follows that order in every layout. Reflow at 320 px passes: Back, Prep \| Live and the buttons, then the trail and the session, then Find. | Nik's words; On air as box 1 because Alt and F6 now follow the screen from the top. |
+| 4 | **Back, always, top left of every top bar** (every Prep screen's header and Live's strip), before anything else, at the same place on every screen (12 px from the left, 10 px from the top of the bar; checked on ten screens). With nowhere to go back to (opened from the menu or by address) it stays, greyed, `aria-disabled`, still reachable with Tab, its hover "Nothing to go back to: you opened this screen from the menu". Core puts it there (`withBack`); a view's own Back and the code that dropped a duplicate breadcrumb are gone. | Nik's words. Never moving or vanishing is what makes it findable without looking. |
+| 5 | **The trail, one place:** right after Back in the same bar, each parent a link, and the screen's own title (its h1) as the last part, plain text: Campaigns › The Sunken Crown › *Session 14*; Pad boards › *Drowned Abbey*; Playlists › *The Abbess*; Library › *track › Audio profile*; Library › *Back up, move or share*; Live: The Sunken Crown › *Session 14* (the session button, which still chooses another session). Screens with no parent (Campaigns, Library, Playlists, Pad boards, Rooms, Settings, Look and feel) have none: Rooms and Settings are top-level and their sections are boxes on one page, so a trail there would point nowhere. A trail of three parents or more shows the first and the last with "…" between; under 640 px of app only the last parent after "…"; the whole path is the trail's hover text and what "…" stands for is read out. **Never twice:** Back says only "Back" when the trail already shows where it goes (its name and hover still say "Back to The Sunken Crown"); it says "Back to Live" when the trail does not (Rooms opened from Live). The title is the trail's last part, so it is not repeated in the trail either. Views give `crumbs(p)`; core draws it (`L.trailHTML`). | One place, one look; the h1 doubling as the last part costs no extra line or words. |
+| 6 | **Find a track or playlist** (the field's name; it fits at 960 because, below 1100 px of app, Fade all and Stop all are icons, named on hover and read out; and the session button shows "Session 14" at every width, its name on hover and read out, so the trail reads Campaign › Session). Results: **Playlists** (by name or notes; with tags picked, those with a track that has them all; the Music, Ambience and FX filter applies), then **Tracks**, each under a small heading, each row with Preview, Play next, Add to queue and Play on air; a playlist unfolds to its tracks as in the playlist boxes. `/` focuses it, Esc clears, a second Esc closes. | Nik's words. |
+| 7 | **An unfolded scene in Scenes has the full row buttons** on every track and playlist, as Current scene: Preview, Play next, Add to queue (Repeat one, a playlist's play order), Play on air, greyed at rest, same names and icons. **The ambience line too** (Great hall was an ambience, so it had only Preview), in Scenes and in Current scene. In a scene that is not running, **Play on air plays that item and does not start the scene**: a track plays now in the room (Current scene's To:), and the room's list carries on after it, as from Find; a playlist plays from its first track in the scene's order for it; an ambience becomes the room's ambience. Scenes still marks the running scene Now, Current scene does not change, and the row played is marked On air in the unfolded scene. On air shows that track (by the scene's name for it) in the room's Music, with Up next carrying on with the running scene's music; in Live the Now playing bar shows only a preview, so it does not change; on a Prep screen afterwards its row reads "Scene: Crypt ambush (Session 14)" as where the track came from. **Ambience Play next and Add to queue** put it in the room's "next ambience" list, shown at the bottom of Up next as "Ambience next: …" with ×; Next on the room's ambience plays it (an ambience loops until changed, so it cannot follow on by itself). Not saved; a new scene clears it like the rest (its Undo brings it back). Effects keep Preview and Play on air only. | Nik's words. Start stays the only thing that plays a scene. |
+
+Also: names in Scenes and Current scene stay readable at 1280 and 960. While every tray box is folded, the trays'
+column is only as wide as its folded headers (35 : 45 : 20, at least 236 px), so Scenes and Current scene get the room;
+opening a tray box gives the columns part 4's widths back. A name keeps at least 14 characters' width (the row's
+buttons go under it rather than squeeze it), wraps to two lines and then shows whole on hover (its title) and while its
+row has keyboard focus (UX-6). Words do not rise (scene unfolded at 960: 226 → 222); the Live and sweep specs pass.
+The help drafts say On air is at the top, Find a track or playlist, Alt+1 to Alt+7 from On air, Back, playing
+from an unfolded scene, and Ambience next (`10-live.md`, `15-up-next.md`, `03-add-music.md`). The session button still
+reads out the campaign's name, as it is read on its own when it has focus.
+
+**For the lead (the contracts):** per room, `aq`: a list of `{ trackIds, playlistId | null, placeKey, name }` (the
+ambience waiting); Next on the ambience takes its first. Back: always rendered, `aria-disabled` without a step. The
+trail: each screen's parents, from its route.
+
+### Numbers
+
+`tools/r6-measure.js`, part 5 (before) and after; 1920×1080, words at 960×1000 in brackets.
+
+| Screen and state | Words | Hint lines | Shown twice | Controls |
+| --- | ---: | ---: | ---: | ---: |
+| live | 84 → 82 (66 → 60) | 1 → 1 | 0 → 0 | 48 → 44 |
+| live-playing | 213 → 211 (195 → 189) | 2 → 2 | 5 → 5 | 97 → 96 |
+| live-aftermath | 169 → 167 (151 → 145) | 1 → 1 | 4 → 4 | 79 → 78 |
+| live-scene-open (Crypt ambush unfolded) | 256 → 254 (232 → 226) | 3 → 3 | 7 → 7 | 116 → 122 |
+| profile (Audio profile) | 242 → 226 (204 → 188) | 2 → 2 | 7 → 6 | 65 → 64 |
+
+Live reads less in every state. Back and the trail add four words ("Back", "The Sunken Crown"); Session playlists folded
+and the session's name moved to hover take more away. Controls rise only with a scene unfolded (+6: Play on air on each
+row and the ambience's three buttons), as item 7 asks; elsewhere they fall (Session playlists folded). The Audio
+profile no longer shows the track's name twice. All 31 states, both sizes: words 13,450 → 13,386, hint lines 182 → 182,
+facts shown twice 306 → 299, controls 5,570 → 5,609 (Back on every screen: +1 each).
+
+Checks: the prototype spec project (`yarn heavy`): 547 passed, 4 failed, and the 4 are not part 6's: the
+`library-files` checks for the export's, the import's and the relink's result line as a status fail on the part 5 build
+too, since commit 5fca9bc took `role="status"` off those lines (so each result is read out once); the lead should
+decide whether the specs or the prototype gives way; `tools/r5-check.js` ("every screen passed"),
+`tools/check-contrast.js` (five themes), `tools/lv-keys.js` (every check, 12 new for part 6), `tools/r6-saved.js` (now
+also at 1280; the pop-up 12 px from the right and 12 px above the bottom on every screen, in Live over empty space at
+1920, 1280 and 960). Screenshots: `shots/r6/live-part6-1920.png`, `-1280.png`, `-960.png` (The abbey ruins playing,
+Crypt ambush unfolded) and `shots/r6/prep-part6-960.png` (Session 14 opened from the campaign page: Back, then
+Campaigns › The Sunken Crown ›).
+
+### Specs
+
+New `round 6, part 6` blocks (each `expectFailureUntilBuilt("round 6")`), written first and run on the part 5
+prototype: 22 of the 26 new or changed checks failed there; the four that passed were the two "start of Scenes and
+Current scene in view" checks (true while On air was at the bottom too), "nothing scrolls inside Scenes and Current
+scene" at 1920 (true when they were short enough), and Back to Live from Rooms (part 5's Back already said it). Live (`live.spec.ts`): On air at the top, the whole width;
+in view at 1280×800 and 960×1000; no inner scroll; Session playlists folded and remembered; Up next folded past four
+lines; Keys and Alt+1; Back first in the strip, disabled with its reason; the trail and Back after Run; Find with
+Playlists then Tracks; the row buttons in an unfolded scene and on Great hall, and Play on air there not starting the
+scene. Prep (`campaigns.spec.ts`): the pop-up above the Now playing bar; Back in the same place on ten screens; Back
+disabled from the menu; the trail on six screens with the h1 last, and none on six; Back not repeating the trail; Back
+to Live from Rooms; a long trail cut in the middle at 600 px. Changed: On air above Current scene (was below); the trays'
+boxes all folded; Alt+3 and F6 to Session playlists; Should 7 unfolds Session playlists first; the pop-up at the
+bottom right (Live and Prep); the rooms checks unfold Session playlists before its To:; "Found tracks" is "Tracks".
+
+### Questions for Nik (round 6, part 6)
+
+1. **Ambience Play next and Add to queue.** An ambience loops until it is changed, so what you add waits as "Ambience
+   next" at the bottom of Up next and plays when you press Next on the room's ambience. *Recommend keeping it:* it gives
+   the ambience the same buttons as everything else and nothing changes until you choose. The other choice is Preview
+   and Play on air only on an ambience.
+2. **Alt+1 is now On air** (it was Scenes): the keys follow the screen from the top, as F6 does. *Recommend keeping it.*
+   The other choice is the old numbers (Scenes 1, Current scene 2, On air 3), which no longer match the order on screen.
+
+### Try it
+
+Open `design/prototype/lyre-prototype.html`.
+1. Campaigns › The Sunken Crown › Session 14 (its name): the top bar reads ‹ Back, Campaigns › The Sunken Crown ›
+   Session 14. Point at Back: "Back to The Sunken Crown".
+2. Pad boards in the menu: Back is greyed; point at it ("Nothing to go back to…"). Open Drowned Abbey: Back, then
+   Pad boards › Drowned Abbey.
+3. Campaigns › The Sunken Crown › Run next session. On air is at the top; the trail reads The Sunken Crown › Session 14.
+   Session playlists is folded.
+4. Start The abbey ruins. On its first track in Current scene press Repeat one: "Saved: Repeat one in The abbey ruins"
+   at the bottom right.
+5. Click Crypt ambush in Scenes: every row, and its ambience, has Preview, Play next, Add to queue and Play on air.
+   Press Play on air on its first track: On air plays it; Scenes still says Now: The abbey ruins.
+6. Press Play next on Crypt ambush's ambience: Up next ends with it ("Ambience next"). Press Next on the ambience in On
+   air: it plays.
+7. Press Add to queue on three tracks of Current scene: Up next folds to one line with "n more"; press it.
+8. Press /, type abbess: Playlists, then Tracks. Unfold The Abbess; press Esc twice.
+
+## Part 7: the trays grow, and Back is one history (round 6 approved)
+
+> "the This Session and Whole Campaign boxes in the live view should expand as a whole as their content expands, not
+> just have the contents expand and adding an internal scroll - they should be able to expand the page and make me
+> scroll the whole thing."
+>
+> "1) Back should just be a < symbol in a box, it doesn't need text. 2) It should function across tabs in the side menu:
+> it should record where I am and where I was before regardless of what happened between (switching menu tabs and
+> functions, moving to tracks, going into details, whatever) and should let me go back at least five steps."
+>
+> Nik, 6 Nov 2026, 21:59 and 22:04. Round 6 is approved with these. Part 6's two questions stand as recommended:
+> ambience Play next and Add to queue wait in Up next until Next on the ambience; Alt+1 is On air.
+
+| # | What | Why |
+| --- | --- | --- |
+| 1 | **The trays grow with their contents.** This session and Whole campaign, and each box in them, take the height of what they hold; nothing scrolls inside them, and the page under On air scrolls (On air stays in view at the top). Part 4's Should 7 (a column's boxes sharing its height, each scrolling inside) and part 6's sticky trays' column are gone; Should 7's spec now checks the opposite: a box under a growing list moves down. Part 6's narrow trays' column while all its boxes are folded stays, so names in Scenes and Current scene stay readable at 1280 and 960. | Nik's words. |
+| 2 | **Back is a ‹ in a box**, 28 px square (Live's controls are 24 to 28 px, so 28 there too), first in every top bar at the same place (12 px from the left, 8 px from the top of the bar). No words: its name and hover say where it goes ("Back to Session 14 (Alt+Left)"). Back and the trail therefore never say the same thing twice, and part 6's rule for shortening Back is gone. | Nik's words. |
+| 3 | **Back is one history across the whole app.** Every move counts: from the menu, a link, a button or a typed address, between screens and within one (another track in the Library, the Audio profile choosing another place). Each press goes one step back to where Nik was: the route (so the track, playlist or board selected), every box's scroll position, the scene open in the planner and the control last used in the work area (also when he left by the menu); the views keep their own open and folded boxes, and Live its unfolded scenes, so they come back as they were. **50 places are kept** (Nik asked for at least five); a place deleted since (a board, a playlist) is skipped. Back is greyed only at the very start of the history, the first screen since Lyre opened: `aria-disabled`, still reachable with Tab, its hover "Nothing to go back to yet: this is the first screen since Lyre opened". The Audio profile opened by its address still goes back to the scene or session it shows. Alt+Left and the mouse's back button do the same as Back. Back is named by the place: a track in the Library is "Library: <track>", an Audio profile "Audio profile: <track>". This replaces part 6's "greyed when opened from the menu" and UX-18's "the menu clears the steps". | Nik's words. Like a browser's Back, so there is nothing new to learn. |
+
+The help draft `10-live.md` says what ‹ does.
+
+**For the lead (the app):** one history in the shell (route, scroll positions, focus key, open scene), pushed on every
+route change including the rail and same-view changes, popped by Back, Alt+Left and the mouse's back button, capped at
+50, skipping routes that no longer resolve; `aria-disabled` only when it is empty and the screen has no fallback.
+
+### Numbers
+
+`tools/r6-measure.js`, part 6 (after its 1280/960 follow-up) and part 7; 1920×1080, words at 960×1000 in brackets.
+
+| Screen and state | Words | Controls |
+| --- | ---: | ---: |
+| live | 82 → 81 (60 → 59) | 44 → 44 |
+| live-playing | 211 → 210 (189 → 188) | 96 → 96 |
+| live-aftermath | 167 → 166 (145 → 144) | 78 → 78 |
+| live-scene-open | 254 → 253 (222 → 221) | 122 → 122 |
+| planner | 205 → 204 (178 → 185) | 122 → 122 |
+
+Back's word goes from every screen (one word fewer each). Hint lines are unchanged (182). All 31 states, both sizes:
+words 13,386 → 13,340, controls 5,609 → 5,619, facts shown twice 299 → 302. The only rises are the planner and its
+picker at 960 (+7 words, +3 controls, one more "+1 more" counted as shown twice): with no word in Back its top bar no
+longer wraps, so one more scene row of the same page fits in the window; nothing new is on the page.
+
+Checks: the prototype spec project (`yarn heavy`): 555 passed. `tools/r5-check.js` ("every screen passed"),
+`tools/check-contrast.js`, `tools/lv-keys.js`, `tools/r6-saved.js` pass. Screenshots retaken
+(`shots/r6/live-part6-*.png`, `prep-part6-960.png`).
+
+### Specs
+
+Written first and run on the part 6 build: 11 of the 12 new or changed checks failed (the one that passed, Back greyed
+on Live as the first screen, held already). New (`campaigns.spec.ts`, `round 6, part 7`): Library, a track, its Audio
+profile, Pad boards from the menu, a board, Live with Crypt ambush unfolded and Rooms, then Back seven times: Live with
+Crypt ambush still unfolded, the board, Pad boards, the Audio profile, the Library with the track open, the Library,
+and Back greyed; Back a ‹ in a box at least 24 px with no words, and Alt+Left; the planner's scroll position back after
+a menu move. `live.spec.ts` (committed by the lead): every tray box opened, nothing scrolls inside, the page scrolls.
+Changed: part 6's Back checks (greyed only at the start; no words), Settings' and the campaign page's "no Back from the
+menu" (now Back to where Nik was; the campaign page's is marked `round 6`), Should 7 (the box below moves down).

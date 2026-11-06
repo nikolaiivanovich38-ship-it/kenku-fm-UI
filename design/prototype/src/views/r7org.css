@@ -1,0 +1,28 @@
+/* Round 7: folders and dividers (ORG-4), the drop tray and Add to… (ORG-5). */
+.fo { list-style: none; }
+.fo-row { display: flex; align-items: center; gap: 4px; min-height: var(--row); padding: 0 8px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+.fo-toggle { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; min-height: var(--ctl-s); border: 0; background: transparent; color: var(--ink); font: inherit; font-weight: 700; cursor: pointer; text-align: left; padding: 0; }
+.fo-toggle[aria-expanded="false"] .chev { transform: rotate(-90deg); }
+.fo-c .fo-i { color: var(--fo); }
+.fo-n { margin-left: auto; font-weight: 400; flex: none; }
+.fo-in { list-style: none; margin: 0; padding: 0 0 0 16px; border-left: 2px solid var(--fo, var(--line)); }
+.pb-cards > .fo, .fo-in > .fo { grid-column: 1 / -1; }
+.pb-cards .fo-row { border: 1px solid var(--line); border-radius: var(--r-m); }
+.pb-cards .fo-in { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: var(--gap); padding-top: var(--gap); }
+.dt-over { outline: 2px solid var(--accent) !important; outline-offset: -2px; background: var(--accent-soft) !important; }
+.fo-pick, .addto { display: flex; flex-direction: column; gap: 6px; }
+.addto-g { border: 0; margin: 0 0 6px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.addto-g legend { font-size: var(--fs-xs); font-weight: 700; color: var(--ink-2); padding: 0 0 2px; }
+.addto-move { margin-top: 8px; border: 0; }
+.pl-div { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 0 8px; color: var(--accent-text); }
+.pl-div-line { flex: 1; height: 1px; background: var(--line-strong); min-width: 12px; }
+.pl-div-name { flex: none; max-width: 60%; font-size: var(--fs-s); }
+.pb-div { display: flex; align-items: center; gap: 6px; border-bottom: 1px solid var(--line-strong); padding: 2px 0; }
+.pb-div-h { flex: 1; font-size: var(--fs-s); font-weight: 700; color: var(--accent-text); margin: 0; }
+.droptray { position: fixed; z-index: 55; top: 64px; right: 12px; bottom: 64px; width: min(280px, 40vw); overflow: auto; display: flex; flex-direction: column; gap: 8px; padding: 10px;
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r-l); box-shadow: var(--shadow); }
+.dt-head { display: flex; flex-direction: column; gap: 2px; }
+.dt-how { font-size: var(--fs-xs); }
+.dt-g { display: flex; flex-direction: column; gap: 4px; }
+.dt-gh { font-size: var(--fs-xs); color: var(--ink-2); margin: 4px 0 0; }
+.dt-t { min-height: var(--ctl); padding: 0 8px; text-align: left; border: 1px dashed var(--line-strong); border-radius: var(--r-s); background: var(--surface-2); color: var(--ink); font: inherit; cursor: copy; }

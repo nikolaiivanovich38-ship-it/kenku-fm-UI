@@ -26,7 +26,14 @@
   L.INVITE_PERMISSIONS = 1024 + 1048576 + 2097152;   // View Channels, Connect, Speak
   L.inviteURL = function (appId) { return 'https://discord.com/oauth2/authorize?client_id=' + encodeURIComponent(appId) + '&scope=bot&permissions=' + L.INVITE_PERMISSIONS; };
   var S = { mode: 'quality', remote: false, address: '127.0.0.1', port: '3333', urlBar: true, inputs: false, several: false, folders: ['H:\\Audio\\Incoming'],
-    add: null, replacing: '', opened: [] };
+    add: null, replacing: '', opened: [],
+    // Round 7 (SEC-4): the secret code (made on first run; the app keeps it encrypted, SEC-5) and where it listens.
+    code: newCode(), listen: 'local',
+    // Round 7 (PRV-2): the device for what you hear of On air, the preview's, and one headset split between them.
+    airDevice: 'System default', pvDevice: 'System default', split: false, pvEar: 'left',
+    // Round 7 (PLY-8): the crossfade between tracks, unless a track or a step says otherwise.
+    xfade: '3', curve: 'even', changing: '' };
+  function newCode() { var a = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', c = ''; for (var i = 0; i < 8; i++) c += a[Math.floor(Math.random() * a.length)]; return c.slice(0, 4) + '-' + c.slice(4); }
 
   /* ---------- the bots ---------- */
   function loginWords(b) { return { online: 'Connected', connecting: 'Connecting…', offline: 'Not connected', error: 'Could not connect' }[b.login || 'online']; }
@@ -174,18 +181,95 @@
   function soundBody() {
     return '<div class="seg" role="radiogroup" aria-label="Sound to Discord">' + MODES.map(function (m) {
       return '<button role="radio" aria-checked="' + (S.mode === m[0]) + '" data-act="stmode" data-v="' + m[0] + '" data-k="st-mode-' + m[0] + '" title="' + esc(m[2]) + '">' + m[1] + '</button>';
-    }).join('') + '</div>';
+    }).join('') + '</div>' + xfadeHTML();
   }
+  // Round 7 (PLY-8): the default crossfade, used by Next, a playlist moving on and a scene's play steps.
+  var XFADES = [['0', 'Cut'], ['1', '1 s'], ['2', '2 s'], ['3', '3 s'], ['5', '5 s'], ['8', '8 s']];
+  function xfadeHTML() {
+    return '<div class="st-xf"><div class="field"><label for="st-xf">Between tracks</label><select class="input" id="st-xf" data-input="stxf" data-k="st-xf" title="How one track hands over to the next when nothing else says">' +
+      XFADES.map(function (x) { return '<option value="' + x[0] + '"' + (S.xfade === x[0] ? ' selected' : '') + '>' + (x[0] === '0' ? 'Cut' : 'Crossfade ' + x[1]) + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field"><label for="st-curve">Crossfade curve</label><select class="input" id="st-curve" data-input="stcurve" data-k="st-curve" title="Equal power keeps the level steady in the middle of a crossfade">' +
+      [['even', 'Even'], ['power', 'Equal power']].map(function (x) { return '<option value="' + x[0] + '"' + (S.curve === x[0] ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') + '</select></div></div>';
+  }
+  L.inputs.stxf = function (el) { S.xfade = el.value; L.defaultCrossfade = +el.value; L.saved(el.value === '0' ? 'cut between tracks' : 'crossfade between tracks ' + el.value + ' s', { key: 'st-xf' }); };
+  L.inputs.stcurve = function (el) { S.curve = el.value; L.saved('crossfade curve ' + el.options[el.selectedIndex].text, { key: 'st-curve' }); };
+  L.defaultCrossfade = 3;
+
+  /* Round 7 (PRV-2): headphones and speakers. What you hear of On air (the monitor, a copy of what goes to Discord)
+     and the preview each have a device; one headset can be split, the preview in one ear and On air in the other.
+     Remembered; if a device is unplugged, Lyre uses the computer's default until it is back. */
+  var DEVICES = ['System default', 'Speakers (Realtek Audio)', 'Headset (Arctis 7)', 'USB audio (Focusrite)'];
+  function devSelect(id, label, cur, act) {
+    return '<div class="field"><label for="st-' + id + '">' + label + '</label><div class="row-flex"><select class="input" id="st-' + id + '" data-input="' + act + '" data-k="st-' + id + '">' +
+      DEVICES.map(function (d) { return '<option' + (d === cur ? ' selected' : '') + '>' + esc(d) + '</option>'; }).join('') + '</select>' +
+      '<button class="btn s" data-act="sttest" data-v="' + id + '" data-k="st-' + id + '-test" aria-label="Test: ' + esc(label) + '" title="Plays a short chime on this device">' + L.icon('volume', 's') + 'Test</button></div></div>';
+  }
+  function devicesBody() {
+    return (S.split ? '' : devSelect('air', 'On air, on this computer', S.airDevice, 'stairdev')) + devSelect('pv', S.split ? 'Headset' : 'Preview (only you)', S.pvDevice, 'stpvdev') +
+      sw('split', 'Split one headset', S.split, 'stsplit', { title: 'The preview in one ear and On air in the other, on one headset' }) +
+      (S.split ? '<div class="st-ears" role="radiogroup" aria-label="Which ear has the preview">' + [['left', 'Preview in the left ear'], ['right', 'Preview in the right ear']].map(function (e) {
+        return '<label class="lk-radio"><input type="radio" name="st-ear" value="' + e[0] + '" data-input="stear" data-k="st-ear-' + e[0] + '"' + (S.pvEar === e[0] ? ' checked' : '') + '><span>' + e[1] + '</span></label>';
+      }).join('') + '</div>' : '');
+  }
+  L.inputs.stairdev = function (el) { S.airDevice = el.value; L.saved('On air plays on ' + el.value, { key: 'st-air' }); };
+  L.inputs.stpvdev = function (el) { S.pvDevice = el.value; L.saved('preview plays on ' + el.value, { key: 'st-pv' }); };
+  L.inputs.stsplit = function (el) { S.split = el.checked; if (S.split && S.pvDevice === 'System default') S.pvDevice = 'Headset (Arctis 7)'; L.render(); L.saved(S.split ? 'one headset split: preview in the ' + S.pvEar + ' ear' : 'headset not split', { key: 'st-split' }); };
+  L.inputs.stear = function (el) { if (!el.checked) return; S.pvEar = el.value; L.render(); L.saved('preview in the ' + S.pvEar + ' ear', { key: 'st-split' }); };
+  L.acts.sttest = function (el) { L.toast('Test chime on ' + (el.dataset.v === 'air' ? S.airDevice : S.pvDevice) + (S.split ? ', ' + (el.dataset.v === 'pv' ? S.pvEar : S.pvEar === 'left' ? 'right' : 'left') + ' ear' : '')); };
+
+  /* Round 7 (UX-12): keyboard shortcuts. Each action with its key; Change… then press the new key (Esc keeps the
+     old one; a key in use is refused). Put back Lyre's keys; a printable sheet. */
+  function keysBody() {
+    var rows = L.SHORTCUTS.map(function (k) {
+      var now = S.changing === k.id;
+      return '<tr aria-label="' + esc(k.name) + '"><th scope="row">' + esc(k.name) + '</th><td>' + (now ? '<span class="st-press">Press the new key (Esc keeps ' + esc(L.keyFor(k.id)) + ')</span>' : '<span class="kbd">' + esc(L.keyFor(k.id)) + '</span>') + '</td>' +
+        '<td class="faint">' + esc(k.where) + '</td><td><button class="btn s ghost" data-act="stkey" data-id="' + k.id + '" data-k="st-key-' + k.id + '" aria-label="Change the key for ' + esc(k.name) + '"' + (now ? ' aria-pressed="true"' : '') + '>Change…</button></td></tr>';
+    }).join('');
+    return '<table class="grid st-keys" aria-label="Keyboard shortcuts"><tbody>' + rows + '</tbody></table>' +
+      sw('guard', 'Ignore a second Next scene within a second', L.keyGuard, 'stguard', { title: 'So a double press never skips a scene' }) +
+      sw('global', 'Next scene and Fade everything out work in other programs too', L.keyGlobal, 'stglobal', { title: 'While Discord or your VTT is in front. Off: the keys work only in Lyre.' }) +
+      '<p class="hint">Pad keys are set on each pad board.</p><div class="row-flex"><button class="btn s" data-act="stkeyreset" data-k="st-keyreset">' + L.icon('restart', 's') + 'Put back Lyre\'s keys</button>' +
+      '<button class="btn s" data-act="stkeysheet" data-k="st-keysheet">' + L.icon('file', 's') + 'Printable sheet</button></div>';
+  }
+  L.acts.stkey = function (el) {
+    var id = el.dataset.id; S.changing = id; L.render(); var f = document.querySelector('[data-k="st-key-' + id + '"]'); if (f) f.focus();
+    L.say('Press the new key, or Esc to keep ' + L.keyFor(id));
+    L.captureKey(id, function (key) {
+      var name = (L.SHORTCUTS.filter(function (x) { return x.id === id; })[0] || {}).name;
+      S.changing = ''; if (key) L.setKey(id, key); L.render(); var b = document.querySelector('[data-k="st-key-' + id + '"]'); if (b) b.focus();
+      if (key) L.saved('key for ' + name + ': ' + key); else L.say('Kept ' + L.keyFor(id) + ' for ' + name);
+    });
+  };
+  L.inputs.stguard = function (el) { L.keyGuard = el.checked; L.saveKeyOptions(); L.saved('a second Next scene within a second is ' + (el.checked ? 'ignored' : 'not ignored'), { key: 'st-guard' }); };
+  L.inputs.stglobal = function (el) { L.keyGlobal = el.checked; L.saveKeyOptions(); L.saved('keys in other programs ' + (el.checked ? 'on' : 'off'), { key: 'st-global' }); };
+  L.acts.stkeyreset = function () { L.resetKeys(); L.render(); L.saved('Lyre\'s keys put back'); };
+  L.acts.stkeysheet = function () {
+    var rows = L.SHORTCUTS.map(function (k) { return '<tr><th scope="row">' + esc(k.name) + '</th><td><span class="kbd">' + esc(L.keyFor(k.id)) + '</span></td><td>' + esc(k.where) + '</td></tr>'; }).join('');
+    L.sheet({ title: 'Lyre\'s keys', body: '<table class="grid st-keys st-print"><thead><tr><th>What</th><th>Key</th><th>Where</th></tr></thead><tbody>' + rows + '</tbody></table><p class="hint">Pad keys are on each pad board.</p>',
+      footer: '<button class="btn" data-act="closesheet">Close</button><button class="btn primary" data-act="stprint">' + L.icon('file', 's') + 'Print</button>' });
+  };
+  L.acts.stprint = function () { try { window.print(); } catch (e) { /* no printer in the prototype */ } };
   L.acts.stmode = function (el) { S.mode = el.dataset.v; L.say(el.textContent + '. Applies the next time a bot joins a voice channel.'); L.render(); L.saved('setting: ' + el.textContent, { key: 'st-mode' }); };
+  /* Round 7 (SEC-4): remote control needs a secret code. Off by default. On: the code to type on the remote device
+     (Stream Deck plugin, phone or tablet), Copy code, Make a new code (the old one stops working at once), and where
+     Lyre listens: this computer only (127.0.0.1, the default) or your home network (for a phone on the same Wi-Fi). Every
+     remote request needs the code; requests from web pages and other addresses are refused (docs/security.md). */
   function remoteBody() {
-    return sw('remote', 'Stream Deck and other programs', S.remote, 'stremote', { title: 'Lets the Kenku FM Stream Deck plugin or another program control Lyre' }) +
-      '<div class="row-flex st-addr"><div class="field"><label for="st-ra">Address</label><input class="input num" id="st-ra" data-input="stra" data-k="st-ra" data-save="setting: remote control address" value="' + esc(S.address) + '"' + (S.remote ? ' disabled' : '') + ' title="127.0.0.1: only programs on this computer"></div>' +
-      '<div class="field"><label for="st-rp">Port</label><input class="input num" id="st-rp" data-input="strp" data-k="st-rp" data-save="setting: remote control port" value="' + esc(S.port) + '"' + (S.remote ? ' disabled' : '') + '></div></div>' +
+    var home = S.listen === 'home', addr = home ? '192.168.1.20' : '127.0.0.1';
+    return sw('remote', 'Let other devices control Lyre', S.remote, 'stremote', { title: 'The Stream Deck plugin, a phone or another program on this computer or your network' }) +
+      (S.remote ? '<div class="st-code" role="group" aria-label="Secret code"><span class="st-l">Code</span><output class="num st-codev">' + esc(S.code) + '</output>' +
+        '<button class="btn s" data-act="stcodecopy" data-k="st-codecopy">' + L.icon('file', 's') + 'Copy code</button>' +
+        '<button class="btn s ghost" data-act="stcodenew" data-k="st-codenew" title="The old code stops working at once; type the new one on each device">' + L.icon('restart', 's') + 'Make a new code</button></div>' +
+        '<div class="st-listen" role="radiogroup" aria-label="Listens on">' + [['local', 'This computer only'], ['home', 'Your home network']].map(function (x) {
+          return '<label class="lk-radio"><input type="radio" name="st-listen" value="' + x[0] + '" data-input="stlisten" data-k="st-listen-' + x[0] + '"' + (S.listen === x[0] ? ' checked' : '') + '><span>' + x[1] + '</span></label>';
+        }).join('') + '</div>' +
+        '<p class="st-addr2"><span class="st-l">Address</span><span class="num" title="Type this address and the code on the remote device">' + addr + ':' + esc(S.port) + '</span></p>' : '') +
       '<a class="st-link" href="https://github.com/owlbear-rodeo/kenku-fm" target="_blank" rel="noopener" data-act="stdeck" data-k="st-deck">About the Kenku FM Stream Deck plugin</a>';
   }
-  L.inputs.stremote = function (el) { S.remote = el.checked; L.say('Remote control ' + (S.remote ? 'on' : 'off')); L.render(); };
-  L.inputs.stra = function (el) { S.address = el.value; };
-  L.inputs.strp = function (el) { S.port = el.value; };
+  L.inputs.stremote = function (el) { S.remote = el.checked; L.say('Remote control ' + (S.remote ? 'on' : 'off')); L.render(); L.saved('remote control ' + (S.remote ? 'on' : 'off'), { key: 'st-remote' }); };
+  L.acts.stcodecopy = function () { try { navigator.clipboard.writeText(S.code).catch(function () {}); } catch (e) { /* clipboard unavailable in the prototype */ } L.toast('Code copied'); };
+  L.acts.stcodenew = function () { S.code = newCode(); L.render(); L.saved('new remote control code', { detail: 'the old one stops working' }); };
+  L.inputs.stlisten = function (el) { if (!el.checked) return; S.listen = el.value; L.render(); L.saved('remote control listens on ' + (S.listen === 'home' ? 'your home network' : 'this computer only'), { key: 'st-listen' }); };
   function tabsBody() {
     return sw('urlbar', 'Show the address bar on tabs', S.urlBar, 'sturl') + sw('inputs', 'Microphones and other inputs', S.inputs, 'stinputs') +
       sw('several', 'Use several inputs at once', S.several, 'stseveral', { disabled: !S.inputs, why: 'Turn on Microphones and other inputs first.', title: S.inputs ? '' : 'Turn on Microphones and other inputs first' }) +
@@ -219,13 +303,20 @@
         actions: '<button class="btn s" data-act="stadd" data-k="st-add">' + L.icon('plus', 's') + 'Add a bot</button>',
         describe: 'Each bot is one voice in Discord: one room at a time.',
         body: '<div class="st-bots">' + bots.map(botRow).join('') + '</div>' });
-      var sound = L.pane({ id: 'st-sound', title: 'Sound to Discord', icon: 'broadcast', kind: 'plain', size: 'auto', noMax: true, body: soundBody(),
+      // Round 7: set once, so folded like the other rare settings (and less to read on the screen).
+      var sound = L.pane({ id: 'st-sound', title: 'Sound to Discord', icon: 'broadcast', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: soundBody(),
         describe: 'Both send sound to Discord with the same short delay. A change applies the next time a bot joins a voice channel.' });
-      var remote = L.pane({ id: 'st-remote', title: 'Remote control', icon: 'link', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: remoteBody(), status: { text: S.remote ? 'On' : 'Off', tone: S.remote ? 'on' : 'idle' } });
+      var devices = L.pane({ id: 'st-devices', title: 'Headphones and speakers', icon: 'headphones', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: devicesBody(),
+        describe: 'If a device is unplugged, Lyre uses the computer\'s default until it is back.' });
+      // Round 6 rule 4 and Nik's 16:14 answer: no resting status; "On" says something is open to other devices.
+      var remote = L.pane({ id: 'st-remote', title: 'Remote control', icon: 'link', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: remoteBody(), status: S.remote ? { text: 'On', tone: 'on' } : null,
+        describe: 'Off until you turn it on. Each device needs the secret code.' });
+      var keys = L.pane({ id: 'st-keys', title: 'Keyboard shortcuts', icon: 'grid', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: keysBody(),
+        describe: 'Ctrl+K finds and plays anything. Change any key here.' });
       var tabs = L.pane({ id: 'st-tabs', title: 'Website tabs', icon: 'grid', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: tabsBody() });
       var files = L.pane({ id: 'st-files', title: 'Local files', icon: 'folder', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: filesBody(),
         describe: 'Lyre asks before opening a file from your computer. Folders you choose not to be asked about again are listed here.' });
-      return head + '<div class="viewbody st-body"><div class="st-split"><div class="col">' + botPane + '</div><div class="col">' + sound + remote + tabs + files + '</div></div></div>';
+      return head + '<div class="viewbody st-body"><div class="st-split"><div class="col">' + botPane + '</div><div class="col">' + sound + devices + remote + keys + tabs + files + '</div></div></div>';
     }
   });
 })();
