@@ -472,7 +472,7 @@
       '<button class="cp-scene-toggle" data-act="cpscene" data-id="' + sc.id + '" data-k="sct-' + sc.id + '" aria-expanded="' + isOpen + '" aria-controls="scb-' + sc.id + '"' + (isOpen ? '' : ' title="' + esc(sceneTip(sc)) + '"') + '>' +
       L.icon('chevdown', 's chev') + '<span class="num cp-scn" aria-hidden="true">' + (i + 1) + '</span><span class="ellipsis cp-scname"><span class="sr-only">Scene ' + (i + 1) + ': </span>' + nm + '</span></button>' +
       (isOpen ? '' : '<span class="cp-scchip">' + sceneChip(sc) + '</span>') +
-      '<button class="closer" data-act="cpscmenu" data-id="' + sc.id + '" data-idx="' + i + '" data-k="scm-' + sc.id + '" title="More for this scene" aria-label="More for ' + nm + '" aria-haspopup="menu" aria-expanded="false">' + L.icon('more') + '</button></div>';
+      L.sceneMarks(sc) + '<button class="closer" data-act="cpscmenu" data-id="' + sc.id + '" data-idx="' + i + '" data-k="scm-' + sc.id + '" title="More for this scene" aria-label="More for ' + nm + '" aria-haspopup="menu" aria-expanded="false">' + L.icon('more') + '</button></div>';
     if (!isOpen) return '<li class="cp-scene" data-drag="scenes" data-filedrop="music" data-sc="' + sc.id + '" data-idx="' + i + '" aria-label="Scene ' + (i + 1) + ': ' + nm + '">' + head + '</li>';
     var f = 'sc' + sc.id;
     var body = '<div class="cp-scene-body" id="scb-' + sc.id + '">' +
@@ -593,6 +593,8 @@
     L.menu(el, (i > 0 ? '<button role="menuitem" data-act="cpmove" data-dir="-1" ' + mv + '>' + L.icon('chevup') + 'Move up</button>' : '') +
       (i < n - 1 ? '<button role="menuitem" data-act="cpmove" data-dir="1" ' + mv + '>' + L.icon('chevdown') + 'Move down</button>' : '') +
       '<button role="menuitem" data-act="cpaddscene" data-id="' + id + '">' + L.icon('plus') + 'Add a scene after this one</button>' +
+      // Round 7 (PLY-8, SHW-3): what the scene does when it starts, as steps, and whether it moves on by itself.
+      '<button role="menuitem" data-act="stepsopen" data-what="scene" data-ref="' + ctx().c.id + '/' + ctx().s.id + '/' + id + '">' + L.icon('list') + 'What it does when it starts…</button>' +
       '<button role="menuitem" data-act="cpdup" data-id="' + id + '">' + L.icon('queue') + 'Duplicate</button><div class="sep"></div>' +
       '<button role="menuitem" data-act="cpdelask" data-id="' + id + '" class="cp-danger">' + L.icon('trash') + 'Delete…</button>', 'Scene actions');
   };

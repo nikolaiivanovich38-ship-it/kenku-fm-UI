@@ -1,0 +1,8 @@
+/* Round 7, DAT-10: the Tags screen */
+.tg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; align-items: start; }
+.tg-list { list-style: none; margin: 0; padding: 0; }
+.tg-row { display: flex; align-items: center; gap: 6px; min-height: var(--row); padding: 0 4px 0 calc(4px + var(--depth, 0) * 18px); border-bottom: 1px solid var(--line); }
+.tg-row:last-child { border-bottom: 0; }
+.tg-chip { max-width: 100%; min-width: 0; color: var(--ink) !important; }
+.tg-colours { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 6px 12px; }
+.tg-sw { width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--line-strong); flex: none; }

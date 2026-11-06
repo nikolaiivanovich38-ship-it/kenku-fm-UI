@@ -631,3 +631,56 @@ test.describe("round 6, part 7: Back is one history across the whole app", () =>
     expect(Math.abs((await top()) - before)).toBeLessThanOrEqual(2);
   });
 });
+
+/* Round 7 (design/prototype/ROUND7.md): what played tonight, with Play again (PLY-1), and the Find and play palette
+   on Ctrl+K (UX-12), both reached from any screen. */
+test.describe("round 7: what played, and Find and play", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
+
+  test("What played lists the room's tracks, newest first, each with Play again and Play next", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    await region(page, "Campaign playlists").getByRole("button", { name: "Play on air: The Company themes" }).click();
+    const row = region(page, "Now playing").getByRole("group", { name: "On air", exact: true });
+    await row.getByRole("button", { name: "Next" }).click();
+    await expect(row).toContainText("Heroic charge");
+    await row.getByRole("button", { name: "What played" }).click();
+    const played = dialog(page).getByRole("list", { name: "Played, newest first" }).getByRole("listitem");
+    await expect(played.nth(0)).toContainText("Heroic charge");
+    await expect(played.nth(1)).toContainText("Epic choir hero anthem");
+    await played.nth(1).getByRole("button", { name: /^Play again/ }).click();
+    await expect(row).toContainText("Epic choir hero anthem");
+    await expect(dialog(page)).toHaveCount(0);
+  });
+
+  test("Ctrl+K opens Find and play: type part of a name, Enter plays it on air, Esc closes and puts focus back", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    // Focus starts on a control of the screen (the heading takes focus only after moving between screens).
+    const start = region(page, "Campaign playlists").getByRole("button", { name: "Preview The Company themes" });
+    await start.focus();
+    await page.keyboard.press("Control+K");
+    const d = page.getByRole("dialog", { name: "Find and play" });
+    await expect(d).toBeVisible();
+    await d.getByRole("combobox", { name: /Type a track, playlist, pad or scene/ }).fill("abbess");
+    await expect(d.getByRole("option", { name: /^The Abbess, playlist/ })).toBeVisible();
+    await page.keyboard.press("Enter");
+    await expect(d).toHaveCount(0);
+    await expect(region(page, "Now playing").getByRole("group", { name: "On air", exact: true })).toContainText("Playlist: The Abbess");
+    await page.keyboard.press("Control+K");
+    await page.keyboard.press("Escape");
+    await expect(start).toBeFocused();
+  });
+
+  test("in Find and play, Alt+Enter previews, Shift+Enter adds to the queue, and a pad or a scene can be found too", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    await page.keyboard.press("Control+K");
+    const d = page.getByRole("dialog", { name: "Find and play" });
+    const box = d.getByRole("combobox", { name: /Type a track, playlist, pad or scene/ });
+    await box.fill("thunder");
+    await expect(d.getByRole("option", { name: /^Thunder crack, pad/ })).toBeVisible();
+    await box.fill("abbey ruins");
+    await expect(d.getByRole("option", { name: /^The abbey ruins, scene/ })).toBeVisible();
+    await box.fill("lullaby");
+    await page.keyboard.press("Alt+Enter");
+    await expect(region(page, "Now playing").getByRole("group", { name: /^Only you/ })).toContainText("Lullaby");
+  });
+});

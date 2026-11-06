@@ -86,7 +86,7 @@
 
   /* ---------- the profile being shown and edited ---------- */
   function prof(t) { return L.profileOf(t, S.key || null); }
-  function copyOf(p) { return { start: p.start, end: p.end, after: p.after, loopStart: p.loopStart, loopXfade: p.loopXfade, fadeIn: { dur: p.fadeIn.dur, shape: p.fadeIn.shape }, fadeOut: { dur: p.fadeOut.dur, shape: p.fadeOut.shape }, markers: p.markers.map(function (m) { return { at: m.at, label: m.label }; }) }; }
+  function copyOf(p) { return { start: p.start, end: p.end, after: p.after, loopStart: p.loopStart, loopXfade: p.loopXfade, fadeIn: { dur: p.fadeIn.dur, shape: p.fadeIn.shape }, fadeOut: { dur: p.fadeOut.dur, shape: p.fadeOut.shape }, markers: p.markers.map(function (m) { return m.mix ? { at: m.at, label: m.label, mix: true } : { at: m.at, label: m.label }; }) }; }
   function write(t, patch) {
     if (!editable(t)) return false;
     var np = copyOf(prof(t));
@@ -409,6 +409,9 @@
       return '<li class="lrow ap-mrow"><span class="num faint ap-mt">' + L.fmt(m.at) + '</span>' +
         '<input class="input ap-ml" data-input="apmlabel" data-i="' + i + '" data-k="ap-ml-' + i + '" value="' + esc(m.label) + '" aria-label="Marker label at ' + L.fmt(m.at) + '"' + dis(t) + '>' +
         '<button class="btn s" data-act="apgo" data-at="' + m.at + '" data-k="ap-mgo-' + i + '" title="Move the playhead to ' + L.fmt(m.at) + '" aria-label="Go to ' + esc(m.label) + '">' + L.icon('right', 's') + 'Go to</button>' +
+        // Round 7 (DAT-3): the mix-out point (where the next track crossfades in; one per track) and playing from here.
+        '<button class="btn s' + (m.mix ? ' primary' : ' ghost r7-hov') + '" data-act="apmix" data-i="' + i + '" data-k="ap-mmix-' + i + '" aria-pressed="' + !!m.mix + '" aria-label="Mix out at ' + esc(m.label) + '" title="The next track crossfades in here"' + dis(t) + '>' + L.icon('fade', 's') + 'Mix out</button>' +
+        '<button class="btn s icon r7-hov" data-act="apfrom" data-at="' + m.at + '" data-k="ap-mfrom-' + i + '" aria-label="Play on air from ' + esc(m.label) + '" title="Play on air from ' + L.fmt(m.at) + ' (the players hear it)">' + L.icon('playair', 's') + '</button>' +
         '<button class="closer" data-act="apmdel" data-i="' + i + '" data-k="ap-mdel-' + i + '" title="Remove this marker" aria-label="Remove marker ' + esc(m.label) + '"' + dis(t) + '>' + L.icon('trash') + '</button></li>';
     }).join('') + '</ol>';
   }
@@ -605,6 +608,12 @@
     L.undoNote('Back to the whole track: 0:00 to ' + L.fmt(t.dur) + ', no loop and no fades.', restore); noProfileSave(); L.say('Reset to the whole track'); L.render();
   };
   L.acts.apmadd = function () { addMarker(true); };
+  L.acts.apmix = function (el) {
+    var t = track(), i = +el.dataset.i, ms = copyOf(prof(t)).markers, on = !ms[i].mix;
+    ms.forEach(function (m, j) { if (on && j !== i) delete m.mix; }); if (on) ms[i].mix = true; else delete ms[i].mix;
+    write(t, { markers: ms }); noProfileSave(); S.focusK = 'ap-mmix-' + i; L.render(); L.saved(on ? 'mix out at ' + L.fmt(ms[i].at) + ', ' + ms[i].label : 'no mix-out point', { key: 'ap-mix-' + t.id });
+  };
+  L.acts.apfrom = function (el) { L.playFrom(track().id, +el.dataset.at); };
   function addMarker(focus) {
     var t = track(); if (!editable(t)) { readOnlyNote(); return; }
     var p = prof(t), at = Math.round(S.pos * 10) / 10, ms = copyOf(p).markers;

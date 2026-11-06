@@ -535,3 +535,57 @@ test.describe("round 6, part 5: no scene count, no sentence about Live, and the 
     await expect(notes).toBeFocused();
   });
 });
+
+/* Round 7 (design/prototype/ROUND7.md): what a scene does when it starts, as steps (PLY-8), and a scene that moves on
+   by itself (SHW-3). Out of sight until wanted: the steps are behind the scene's ⋯ menu, and only a scene that does
+   something other than the usual is marked. */
+test.describe("round 7: what a scene does when it starts", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
+  const steps = (page: Page) => dialog(page).getByRole("list", { name: "Steps" }).getByRole("listitem");
+
+  test("the usual start is three steps: its music, its ambience and its first pad board", async ({ page }) => {
+    await openRoute(page, "session/crown/s14");
+    await page.getByRole("button", { name: "More for The abbey ruins" }).click();
+    await page.getByRole("menuitem", { name: "What it does when it starts…" }).click();
+    await expect(dialog(page)).toHaveAccessibleName("When The abbey ruins starts");
+    await expect(steps(page)).toHaveCount(3);
+    await expect(steps(page).nth(0)).toContainText("Play the music: Eerie dread");
+    await expect(steps(page).nth(1)).toContainText("Play the ambience: Abbey ambience");
+    await expect(steps(page).nth(2)).toContainText("Show the pads: Drowned Abbey");
+    await expect(abbey(page)).not.toContainText("Moves on by itself");
+  });
+
+  test("a step can be added, changed and moved; a play step has its transition and what it does to Up next", async ({ page }) => {
+    await openRoute(page, "session/crown/s14");
+    await page.getByRole("button", { name: "More for The abbey ruins" }).click();
+    await page.getByRole("menuitem", { name: "What it does when it starts…" }).click();
+    await dialog(page).getByRole("button", { name: "Add a step" }).click();
+    await page.getByRole("menuitem", { name: "Fire a pad…" }).click();
+    await expect(steps(page)).toHaveCount(4);
+    await steps(page).nth(3).getByRole("combobox", { name: "Pad" }).selectOption({ label: "Drowned Abbey › Abbey bell" });
+    await steps(page).nth(0).getByRole("combobox", { name: "How it comes in" }).selectOption({ label: "At the mix-out marker" });
+    await steps(page).nth(0).getByRole("combobox", { name: "Up next" }).selectOption({ label: "Play next" });
+    await steps(page).nth(3).getByRole("button", { name: "Move up" }).click();
+    await expect(steps(page).nth(2)).toContainText("Abbey bell");
+    await dialog(page).getByRole("button", { name: "Done" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Saved: what The abbey ruins does when it starts" })).toBeVisible();
+  });
+
+  test("Then: the scene can move on by itself when its music ends, and is marked", async ({ page }) => {
+    await openRoute(page, "session/crown/s14");
+    await page.getByRole("button", { name: "More for The abbey ruins" }).click();
+    await page.getByRole("menuitem", { name: "What it does when it starts…" }).click();
+    await dialog(page).getByRole("combobox", { name: "Then" }).selectOption({ label: "Start the next scene when its music ends" });
+    await dialog(page).getByRole("button", { name: "Done" }).click();
+    await expect(abbey(page)).toContainText("Moves on by itself");
+  });
+
+  test("Try in headphones plays the first step's music as a preview", async ({ page }) => {
+    await openRoute(page, "session/crown/s14");
+    await page.getByRole("button", { name: "More for The abbey ruins" }).click();
+    await page.getByRole("menuitem", { name: "What it does when it starts…" }).click();
+    await dialog(page).getByRole("button", { name: "Try in headphones" }).click();
+    await dialog(page).getByRole("button", { name: "Done" }).click();
+    await expect(page.getByRole("region", { name: "Now playing" }).getByRole("group", { name: /^Only you/ })).toBeVisible();
+  });
+});

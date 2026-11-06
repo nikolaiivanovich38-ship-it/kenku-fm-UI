@@ -322,7 +322,8 @@ test.describe("round 5: shape, names in scenes, Use in… and missing files", ()
   test("the ⋯ beside Add tracks leads to Back up, move or share, Find missing files and the move report", async ({ page }) => {
     await openRoute(page, "library");
     await page.getByRole("button", { name: "More for the library" }).click();
-    await expect(page.getByRole("menuitem")).toHaveText(["Back up, move or share…", "Find missing files (3)…", "What came across from Kenku FM", "Normalise volume…"]);
+    // Round 7 (DAT-10) adds Tags and groups… to this menu in the prototype.
+    await expect(page.getByRole("menuitem").filter({ hasNotText: "Tags and groups…" })).toHaveText(["Back up, move or share…", "Find missing files (3)…", "What came across from Kenku FM", "Normalise volume…"]);
     await page.getByRole("menuitem", { name: "Back up, move or share…" }).click();
     await expect(page.getByRole("heading", { name: "Back up, move or share", level: 1 })).toBeVisible();
   });
@@ -394,5 +395,61 @@ test.describe("round 5: volume normalisation", () => {
     await expect(norm).toHaveAccessibleDescription("-31.5 LUFS · +12.0 dB (the most Lyre adds)");
     await openTrack(page, "Memories of Mother");
     await expect(details(page).getByRole("group", { name: "Normalise volume" })).toHaveAccessibleDescription("Not measured yet: plays as it is");
+  });
+});
+
+/* Round 7 (design/prototype/ROUND7.md): tracks behave as tagged (PLY-4), follow-with hand-overs (SHW-3), and dragging
+   several selected tracks to another list (ORG-5). */
+test.describe("round 7: how a track behaves", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
+
+  test("a sting never loops: its loop choices are off, and say why", async ({ page }) => {
+    await openRoute(page, "library");
+    await openTrack(page, "Dread rising, choir stabs");
+    const loop = details(page).getByRole("group", { name: "Loop advice" });
+    await expect(details(page).getByRole("group", { name: "Role" }).getByRole("button", { name: "Sting" })).toHaveAttribute("aria-pressed", "true");
+    await expect(loop.getByRole("button", { name: "Loops well" })).toBeDisabled();
+    await expect(loop).toHaveAccessibleDescription(/A sting plays once/);
+  });
+
+  test("Follow with… hands over to a playlist or track when it ends", async ({ page }) => {
+    await openRoute(page, "library");
+    await openTrack(page, "Dread rising, choir stabs");
+    await details(page).getByRole("button", { name: "Follow with…" }).click();
+    await page.getByRole("dialog").getByRole("combobox", { name: "When it ends, play" }).selectOption({ label: "Crypt ambush (playlist)" });
+    await page.getByRole("dialog").getByRole("button", { name: "Done" }).click();
+    await expect(details(page).getByRole("group", { name: "Then" })).toContainText("Crypt ambush");
+    await expect(page.getByRole("status").filter({ hasText: /follows with Crypt ambush$/ })).toBeVisible();
+  });
+
+  test("Ending: Fades out, and Pick up where it stopped, are saved with the track", async ({ page }) => {
+    await openRoute(page, "library");
+    // An underscore: it can fade out at its end, and pick up where it stopped.
+    await openTrack(page, "Storm and dark romance");
+    await details(page).getByRole("group", { name: "Ending" }).getByRole("button", { name: "Fades out" }).click();
+    await expect(page.getByRole("status").filter({ hasText: /ending: fades out$/ })).toBeVisible();
+    await details(page).getByRole("switch", { name: "Pick up where it stopped" }).check();
+    await expect(page.getByRole("status").filter({ hasText: /picks up where it stopped$/ })).toBeVisible();
+  });
+});
+
+test.describe("round 7: dragging selected tracks to another list", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
+
+  test("two ticked tracks dragged onto a playlist are both added", async ({ page }) => {
+    await openRoute(page, "library");
+    await row(page, "Ashes").getByRole("checkbox").check();
+    await row(page, "Memories of Mother").getByRole("checkbox").check();
+    await row(page, "Ashes").scrollIntoViewIfNeeded();
+    const b = await row(page, "Ashes").getByRole("gridcell").nth(1).boundingBox();
+    await page.mouse.move(b!.x + 20, b!.y + b!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(b!.x + 60, b!.y + 60, { steps: 5 });
+    const tray = page.getByRole("region", { name: "Drop on" });
+    await expect(tray).toContainText("2 tracks");
+    const t = await tray.getByRole("button", { name: "The Abbess", exact: true }).boundingBox();
+    await page.mouse.move(t!.x + t!.width / 2, t!.y + t!.height / 2, { steps: 5 });
+    await page.mouse.up();
+    await expect(page.getByRole("status").filter({ hasText: /^Saved: The Abbess · 2 tracks added/ })).toBeVisible();
   });
 });

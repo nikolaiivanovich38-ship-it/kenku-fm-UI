@@ -116,7 +116,7 @@ var L = (function () {
   L.title = function (t) { return t ? (t.title || t.metaTitle || t.file) : ''; };
   L.tagChips = function (t, max) {
     var out = [], n = 0; max = max || 99;
-    D.tagGroups.forEach(function (g) { (t.tags[g.id] || []).forEach(function (v) { if (n++ < max) out.push('<span class="chip ' + g.cls + '" title="' + esc(g.name) + '"><span class="dot"></span>' + esc(v) + '</span>'); }); });
+    D.tagGroups.forEach(function (g) { (t.tags[g.id] || []).forEach(function (v) { if (n++ < max) out.push('<span class="chip ' + g.cls + '" data-tag="' + esc(g.id + ':' + v) + '" title="' + esc(g.name) + '"><span class="dot"></span>' + esc(v) + '</span>'); }); });
     if (n > max) out.push('<span class="chip">+' + (n - max) + '</span>');
     return out.join('');
   };
@@ -139,7 +139,8 @@ var L = (function () {
     return (rule.conds || []).every(function (c) {
       if (!c.values.length) return true; // a condition still being written does not empty the list
       var have = t.tags[c.group] || [];
-      var hits = c.values.filter(function (v) { return have.indexOf(v) > -1; }).length;
+      // Round 7 (DAT-10): a tag holds the tags inside it (L.trackHasTag, r7tags.js).
+      var hits = c.values.filter(function (v) { return L.trackHasTag ? L.trackHasTag(t, c.group, v) : have.indexOf(v) > -1; }).length;
       return c.match === 'all' ? hits === c.values.length : c.match === 'none' ? hits === 0 : hits > 0;
     });
   };
@@ -339,7 +340,7 @@ var L = (function () {
     var shown = all.slice(0, max), rest = all.slice(max);
     if (!all.length && !L.shapeOf(t)) return '';
     return '<span class="tagstrip"><span class="sr-only">Tags: ' + esc(all.map(function (x) { return x.v; }).join(', ') || 'none') + '. </span>' + L.shapeTag(t, true) +
-      shown.map(function (x) { return '<span class="chip ' + x.g.cls + '" title="' + esc(x.g.name) + '" aria-hidden="true"><span class="dot"></span>' + esc(x.v) + '</span>'; }).join('') +
+      shown.map(function (x) { return '<span class="chip ' + x.g.cls + '" data-tag="' + esc(x.g.id + ':' + x.v) + '" title="' + esc(x.g.name) + '" aria-hidden="true"><span class="dot"></span>' + esc(x.v) + '</span>'; }).join('') +
       (rest.length ? '<span class="chip ts-more" title="' + esc(rest.map(function (x) { return x.g.name + ': ' + x.v; }).join(', ')) + '" aria-hidden="true">+' + rest.length + '</span>' : '') + '</span>';
   };
   /* DAT-14 a track's name in a scene: L.data.sceneNames[sceneKey][trackId]. L.nameIn(t, key) is the scene's name for it
@@ -945,7 +946,7 @@ var L = (function () {
     [/^#\/campaigns$/, 'campaigns', []], [/^#\/campaign\/([\w-]+)$/, 'campaign', ['cid']], [/^#\/session\/([\w-]+)\/([\w-]+)$/, 'session', ['cid', 'sid']],
     [/^#\/library(?:\/([\w-]+))?$/, 'library', ['tid']], [/^#\/playlists$/, 'playlists', []], [/^#\/playlist\/([\w-]+)$/, 'playlist', ['pid']],
     [/^#\/profile\/([\w-]+)(?:\/([\w:-]+))?$/, 'profile', ['tid', 'ctx']], [/^#\/boards$/, 'boards', []], [/^#\/board\/([\w-]+)$/, 'board', ['bid']], [/^#\/live$/, 'live', []], [/^#\/outputs$/, 'outputs', []], [/^#\/look$/, 'look', []],
-    [/^#\/backup$/, 'backup', []], [/^#\/moved$/, 'moved', []], [/^#\/relink$/, 'relink', []], [/^#\/settings$/, 'settings', []]
+    [/^#\/tags$/, 'tags', []], [/^#\/backup$/, 'backup', []], [/^#\/moved$/, 'moved', []], [/^#\/relink$/, 'relink', []], [/^#\/settings$/, 'settings', []]
   ];
   L.view = function (name, def) { L.views[name] = def; };
   /* Routes are kept in memory ('#/session/crown/s14'). The page address shows a plain form ('#session--crown--s14'),
@@ -987,7 +988,7 @@ var L = (function () {
   L.HISTORY_MAX = HISTORY_MAX;
   function viewOf(h) { for (var i = 0; i < ROUTES.length; i++) if ((h || '').match(ROUTES[i][0])) return ROUTES[i][1]; return ''; }
   var ROUTE_WORDS = { campaigns: 'Campaigns', library: 'Library', playlists: 'Playlists', boards: 'Pad boards', profile: 'Audio profile', live: 'Live', outputs: 'Rooms',
-    look: 'Look and feel', backup: 'Back up, move or share', moved: 'What came across', relink: 'Find missing files', settings: 'Settings' };
+    look: 'Look and feel', tags: 'Tags', backup: 'Back up, move or share', moved: 'What came across', relink: 'Find missing files', settings: 'Settings' };
   L.routeLabel = function (h) {
     var v = viewOf(h), a = (h || '').replace(/^#\//, '').split('/');
     if (v === 'campaign') return (L.campaign(a[1]) || {}).name || 'Campaign';
@@ -1197,7 +1198,9 @@ var L = (function () {
         '<button class="btn s icon" data-act="oabpause" data-lane="' + ln + '" data-room="' + target + '" data-k="' + k + '-pause" aria-label="' + (paused ? 'Play' : 'Pause') + '" title="' + (paused ? 'Play the ' + word + ' again' : 'Pause the ' + word) + esc(where) + '">' + L.icon(paused ? 'play' : 'pause', 's') + '</button>' +
         '<button class="btn s" data-act="oabstop" data-room="' + target + '" data-k="' + k + '-stop" title="Stop what the players hear' + esc(where) + ' (fades out in a second)">' + L.icon('stop', 's') + 'Stop</button>' +
         '<button class="btn s icon" data-act="oabnext" data-lane="' + ln + '" data-room="' + target + '" data-k="' + k + '-next" aria-label="Next" title="' + (canNext ? 'Next track (crossfade)' : 'A single track has no next one') + '"' + (canNext ? '' : ' disabled') + '>' + L.icon('next', 's') + '</button>' +
-        L.shuffleButton(ln, target, k + '-shuf') + L.repeatButton(ln, target, k + '-rep') + '</div>' +
+        L.shuffleButton(ln, target, k + '-shuf') + L.repeatButton(ln, target, k + '-rep') +
+        // Round 7 (PLY-1): what played in this room tonight, with Play again (r7play.js).
+        (L.historyButton ? L.historyButton(target, r.name, k) : '') + '</div>' +
       (bot ? '<label class="oab-vol" title="Volume of what the players hear' + esc(where) + '">' + L.icon('volume', 's') + '<span class="sr-only">Volume' + esc(where) + '</span><input type="range" min="0" max="100" step="5" value="' + bot.volume + '" data-input="oabvol" data-bot="' + bot.id + '" data-k="' + k + '-vol" aria-valuetext="' + bot.volume + ' percent"></label>' : '') +
       (first && !inLive ? '<a class="btn s" href="#/live" data-k="oab-live">' + L.icon('broadcast', 's') + 'Go to Live</a>' : '') + '</div>';
   }
