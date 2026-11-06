@@ -146,8 +146,12 @@ export async function openFirstStart(page: Page): Promise<void> {
   }
   await page.addInitScript(() => {
     try {
-      // Only on the first load: a reload (reopen) finds what the page saved.
-      if (!localStorage.getItem("lyre-r2")) localStorage.setItem("lyre-r2", JSON.stringify({ frame: "full", notes: false }));
+      // Only on the first load in this tab, so a reload (reopen) finds what the page saved. Marked in sessionStorage:
+      // localStorage read this early in a reloaded file page can come back empty, which would wipe the page's save.
+      if (!sessionStorage.getItem("lyre-first-start")) {
+        sessionStorage.setItem("lyre-first-start", "1");
+        localStorage.setItem("lyre-r2", JSON.stringify({ frame: "full", notes: false }));
+      }
     } catch {
       /* storage unavailable */
     }
