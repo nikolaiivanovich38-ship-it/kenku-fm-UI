@@ -291,6 +291,33 @@ describe("Now Playing queue and Undo (PLY-1)", () => {
     expect(heard).toEqual(["m1", "x", "m3", "m2"]);
   });
 
+  it("a shuffled playlist after a track the scene just played does not bring that track straight back", async () => {
+    // The wave 4 release run: The abbey ruins plays t13, then "Abbey: eerie" (t13, t14, t21, t42, shuffled). With
+    // seed 4 the deal was t14, t13, …: Next went to t14 and up next was t13 again. The scene's seed is 4 here.
+    data.tracks.push(track("q1", 20), track("q2", 20), track("q3", 20), track("q4", 20));
+    data.playlists.push({ id: "Q", name: "Eerie", lane: "music", kind: "manual", trackIds: ["q1", "q2", "q3", "q4"], order: { shuffle: true, repeat: "off" } });
+    data.campaigns[0].sessions[0].scenes.push({ id: "s5", name: "Abbey", music: [{ kind: "track", id: "q1" }, { kind: "playlist", id: "Q" }], ambience: null, boardIds: [] });
+    const S5: SceneRef = { campaignId: "c", sessionId: "s", sceneId: "s5" };
+    const seeded = new Director({ engine: new PlaybackEngine({ context, scheduler: context.clock, loader: new SourceLoader({ context, createElement: () => context.createMediaElement(), fetchBytes: async () => null }) }), rooms, library: staticLibrary(data), random: () => 4 / 2 ** 31 });
+    seeded.run({ type: "startScene", scene: S5 });
+    await context.flush();
+    seeded.run({ type: "next", lane: "music", target: table });
+    await context.flush();
+    const now = seeded.report()[0];
+    expect(now.music?.trackId).not.toBe("q1");
+    expect(now.upNext).not.toBe("q1");
+    // q1 still plays in the playlist: after its other tracks.
+    const heard = [now.music!.trackId];
+    for (let i = 0; i < 3; i++) {
+      seeded.run({ type: "next", lane: "music", target: table });
+      await context.flush();
+      heard.push(seeded.report()[0].music!.trackId);
+    }
+    expect(heard).toHaveLength(4);
+    expect(heard.slice(0, 3)).not.toContain("q1");
+    seeded.dispose();
+  });
+
   it("a track picked from a shuffled playlist in a scene plays as that scene's step, wherever the new deal puts it", async () => {
     // Live lists a scene's playlist in one order; the Director deals a fresh shuffle when the track is played, so the
     // step the screen named may now hold another track. The track still plays from the scene (so Next goes on there),
