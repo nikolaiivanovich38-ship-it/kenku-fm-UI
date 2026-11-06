@@ -51,7 +51,7 @@ import {
 } from "../../player/engine/preview/previewPlayer";
 import type { DeviceStatus, OutputDeviceChooser, OutputDeviceInfo } from "../../player/engine/preview/outputDevices";
 import { DEFAULT_FADES, type CueAction, type CueOutcome, type TrackFrom } from "../../player/engine/queue/actions";
-import { Director } from "../../player/engine/queue/director";
+import { Director, padWithoutSound } from "../../player/engine/queue/director";
 import type { PadSound, SceneRef, ShowLibrary } from "../../player/engine/queue/library";
 import { playOrderOf, type Origin } from "../../player/engine/queue/nowPlaying";
 import type { Random } from "../../player/engine/queue/queue";
@@ -604,7 +604,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     const track = pad?.trackIds.length ? this.library.track(pad.trackIds[0]) : undefined;
     const media = track ? this.library.media(track) : null;
     if (!pad || !media) {
-      return this.fail("That pad has no sound.");
+      return this.fail(padWithoutSound(pad));
     }
     // A pad's sound plays on its own on air: the track's choice, then the library's.
     preview.play({ ...padPreview({ boardId, padId, label: pad.label, media }), trackId: track!.id, options: { gainDb: this.previewGain(track!.id, null) }, from: options.from ?? null });
@@ -616,7 +616,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     const key = `pad:${boardId}/${padId}`;
     const pad = this.library.pad(boardId, padId);
     if (!pad || pad.trackIds.length === 0) {
-      return this.fail("That pad has no sound.");
+      return this.fail(padWithoutSound(pad));
     }
     const on = preview.isPreviewing(key);
     // The same rules as RoomPlayer.firePad, on the preview: a let-go only ends a hold pad; a toggle's second press
@@ -632,7 +632,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     const track = this.library.track(this.tryVariant(key, pad.trackIds, pad.order));
     const media = track ? this.library.media(track) : null;
     if (!media) {
-      return this.fail("That pad has no sound.");
+      return this.fail(padWithoutSound(pad));
     }
     const loop = pad.mode === "toggle" || pad.mode === "hold";
     // Quiet: the board says what the press did ("Storm: loop stopped"), in the words of Try pads.

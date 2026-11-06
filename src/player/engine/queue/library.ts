@@ -33,6 +33,8 @@ export type { PadMode };
 
 /** What a pad plays: one sound, or variants picked at random or in turn. */
 export interface PadSound {
+  /** The pad's name, for what a press says when it has no sound (the new interface's pads have one). */
+  label?: string;
   trackIds: string[];
   order: "random" | "roundrobin";
   mode: PadMode;

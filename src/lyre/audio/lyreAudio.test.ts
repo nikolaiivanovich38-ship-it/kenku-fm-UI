@@ -152,7 +152,7 @@ describe("playing on air (L.play, L.next/L.prev, L.upNext)", () => {
     expect(rig.audio.playTrack("gone")).toEqual({ ok: false, message: "That track is no longer in the library." });
     rig.audio.next("music");
     rig.audio.firePad("b", "silent");
-    expect(errors).toEqual(["That track is no longer in the library.", "There is nothing to move on to.", "That pad has no sound."]);
+    expect(errors).toEqual(["That track is no longer in the library.", "There is nothing to move on to.", "Silent has no sound: give it one on its board."]);
   });
 
   it("reports a file that cannot play", async () => {
@@ -365,7 +365,9 @@ describe("pads (L.firePad): one-shot, toggle, hold, retrigger", () => {
     expect(state().preview).toMatchObject({ key: "pad:b/door" });
     await rig.advance(3);
     expect(state().preview).toBeNull();
-    expect(rig.audio.tryPad("b", "silent")).toEqual({ ok: false, message: "That pad has no sound." });
+    expect(rig.audio.tryPad("b", "silent")).toEqual({ ok: false, message: "Silent has no sound: give it one on its board." });
+    // A pad that is gone altogether says so.
+    expect(rig.audio.tryPad("b", "gone")).toEqual({ ok: false, message: "That pad is no longer on its board." });
   });
 
   it("plays a pad only in the room it is sent to", async () => {

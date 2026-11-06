@@ -37,6 +37,22 @@ lyreApiContract("in-memory fake through the page's IPC bridge", () => ({
 }));
 
 describe("the page's IPC bridge", () => {
+  it("listens on the channel once however many parts of the page subscribe, so Electron warns of no leak (review w4)", () => {
+    const on: unknown[] = [];
+    const off: unknown[] = [];
+    const bridge = createLyreApiBridge({ on: (_c, l) => on.push(l), off: (_c, l) => off.push(l), invoke: async () => null });
+    const seen: number[] = [];
+    const stops = Array.from({ length: 20 }, (_, i) => bridge.onEvent(() => seen.push(i)));
+    expect(on).toHaveLength(1);
+    (on[0] as (event: unknown, payload: unknown) => void)({}, { type: "changed", areas: ["boards"] });
+    expect(seen).toEqual(Array.from({ length: 20 }, (_, i) => i));
+    stops.slice(1).forEach((stop) => stop());
+    expect(off).toHaveLength(0);
+    stops[0]();
+    stops[0]();
+    expect(off).toEqual(on);
+  });
+
   it("rejects a fault with the main process's own words", async () => {
     const api = ipcLyreApi(createLyreApiBridge(ipcFor(createFakeLyreApi(), "Lyre's library stopped unexpectedly and is starting again.")));
     await expect(api.boards.list()).rejects.toThrow(/^Lyre's library stopped unexpectedly and is starting again\.$/);
