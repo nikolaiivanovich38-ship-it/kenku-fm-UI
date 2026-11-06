@@ -249,6 +249,37 @@ describe("single-key shortcuts", () => {
   });
 });
 
+describe("BUG-21: renaming the session in Live's top strip", () => {
+  const session = (name: string) => screen.getByRole("button", { name: `The Sunken Crown Session 14: ${name}` });
+
+  it("F2 on the session edits only its name; Enter saves and focus goes back", async () => {
+    const { api } = await openLive();
+    const user = userEvent.setup();
+    session("The Drowned Abbey").focus();
+    await user.keyboard("{F2}");
+    const box = screen.getByRole("textbox", { name: "Name of Session 14" });
+    expect(box).toHaveFocus();
+    expect(box).toHaveValue("The Drowned Abbey");
+    expect(screen.getByText("Session 14:")).toBeInTheDocument();
+    await user.keyboard("{Control>}a{/Control}The Flooded Abbey{Enter}");
+    await waitFor(async () => expect((await api.campaigns.get("crown"))?.sessions.find((s) => s.id === "s14")?.name).toBe("The Flooded Abbey"));
+    await waitFor(() => expect(session("The Flooded Abbey")).toHaveFocus());
+  });
+
+  it("Rename session in the session menu edits it too; Esc cancels", async () => {
+    const { api } = await openLive();
+    const user = userEvent.setup();
+    await user.click(session("The Drowned Abbey"));
+    await user.click(screen.getByRole("menuitem", { name: "Rename session" }));
+    const box = await screen.findByRole("textbox", { name: "Name of Session 14" });
+    await waitFor(() => expect(box).toHaveFocus());
+    await user.keyboard("Nowhere{Escape}");
+    expect(screen.queryByRole("textbox", { name: "Name of Session 14" })).toBeNull();
+    await waitFor(() => expect(session("The Drowned Abbey")).toHaveFocus());
+    expect((await api.campaigns.get("crown"))?.sessions.find((s) => s.id === "s14")?.name).toBe("The Drowned Abbey");
+  });
+});
+
 describe("BUG-20: stopping pads in Live", () => {
   const padsSounding = (sound: Opened["sound"]) => sound.audio.getNowPlaying().rooms.flatMap((r) => r.effects.flatMap((e) => (e.padKey ? [e.padKey] : [])));
 

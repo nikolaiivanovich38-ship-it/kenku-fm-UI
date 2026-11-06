@@ -350,6 +350,44 @@ describe("renaming a scene in place (EDT-1, BUG-18)", () => {
   });
 });
 
+describe("renaming the session from its title (BUG-21)", () => {
+  const title = () => screen.getByRole("heading", { level: 1 });
+  const sessionName = async (api: FakeLyreApi) => (await s14(api)).name;
+
+  it("a click on the title edits only the name; Enter saves, the title and the name field follow, focus goes back", async () => {
+    const { api } = openAt("session/crown/s14");
+    const user = userEvent.setup();
+    await user.click(await within(await screen.findByRole("heading", { level: 1, name: "Session 14: The Drowned Abbey" })).findByRole("button", { name: "Session 14: The Drowned Abbey" }));
+    const box = screen.getByRole("textbox", { name: "Name of Session 14" });
+    expect(box).toHaveFocus();
+    expect(box).toHaveValue("The Drowned Abbey");
+    expect(title()).toHaveTextContent(/^Session 14:/);
+    await user.clear(box);
+    await user.keyboard("The Flooded Abbey{Enter}");
+    await waitFor(async () => expect(await sessionName(api)).toBe("The Flooded Abbey"));
+    const renamed = await within(title()).findByRole("button", { name: "Session 14: The Flooded Abbey" });
+    await waitFor(() => expect(renamed).toHaveFocus());
+    expect(screen.getByRole("textbox", { name: "Session name" })).toHaveValue("The Flooded Abbey");
+    expect(await screen.findByText("Session 14 is now called The Flooded Abbey")).toBeInTheDocument();
+  });
+
+  it("F2 on the title edits it too; Esc cancels and an empty name saves nothing", async () => {
+    const { api } = openAt("session/crown/s14");
+    const user = userEvent.setup();
+    (await within(await screen.findByRole("heading", { level: 1, name: "Session 14: The Drowned Abbey" })).findByRole("button")).focus();
+    await user.keyboard("{F2}");
+    await user.keyboard("{Control>}a{/Control}Nowhere{Escape}");
+    expect(screen.queryByRole("textbox", { name: "Name of Session 14" })).toBeNull();
+    expect(within(title()).getByRole("button", { name: "Session 14: The Drowned Abbey" })).toHaveFocus();
+    await user.keyboard("{F2}");
+    await user.clear(screen.getByRole("textbox", { name: "Name of Session 14" }));
+    await user.keyboard("{Enter}");
+    expect(await sessionName(api)).toBe("The Drowned Abbey");
+    expect(title()).toHaveTextContent("Session 14: The Drowned Abbey");
+    await expectNoAxeViolations();
+  });
+});
+
 describe("round 5 in the session planner", () => {
   const music = () => within(abbey().getByRole("list", { name: "Music in order" }));
   const dialog = () => within(screen.getByRole("dialog"));

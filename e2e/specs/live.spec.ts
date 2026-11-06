@@ -157,6 +157,27 @@ test.describe("single-key shortcuts", () => {
   });
 });
 
+test.describe("BUG-21: renaming the session in the top strip", () => {
+  test("F2 on the session, or Rename session in its menu, renames it in place; Enter saves, Esc cancels", async ({ page }) => {
+    await openRoute(page, "live");
+    const session = (name: string) => page.getByRole("button", { name: `The Sunken Crown Session 14: ${name}` });
+    await session("The Drowned Abbey").focus();
+    await page.keyboard.press("F2");
+    const box = page.getByRole("textbox", { name: "Name of Session 14" });
+    await expect(box).toBeFocused();
+    await box.fill("The Flooded Abbey");
+    await box.press("Enter");
+    await expect(session("The Flooded Abbey")).toBeFocused();
+    await session("The Flooded Abbey").click();
+    await page.getByRole("menuitem", { name: "Rename session" }).click();
+    await expect(box).toBeFocused();
+    await box.fill("Something else");
+    await box.press("Escape");
+    await expect(session("The Flooded Abbey")).toBeFocused();
+    await expect(page.getByRole("textbox", { name: "Name of Session 14" })).toHaveCount(0);
+  });
+});
+
 test.describe("BUG-20: stopping pads", () => {
   test("a pad that plays says so, and pressing it again stops it, whatever its play mode", async ({ page }) => {
     await openRoute(page, "live");

@@ -56,6 +56,25 @@ test.describe("the session page", () => {
     await expect(page.getByRole("combobox", { name: "Status" })).toBeVisible();
   });
 
+  test("BUG-21: the title renames the session in place: click or F2, Enter saves, Esc cancels, and only the name changes", async ({ page }) => {
+    await openRoute(page, "session/crown/s14");
+    const title = page.getByRole("heading", { level: 1 });
+    await title.getByRole("button", { name: "Session 14: The Drowned Abbey" }).click();
+    const box = page.getByRole("textbox", { name: "Name of Session 14" });
+    await expect(box).toBeFocused();
+    await expect(box).toHaveValue("The Drowned Abbey");
+    await box.fill("The Flooded Abbey");
+    await box.press("Enter");
+    await expect(title).toHaveText("Session 14: The Flooded Abbey");
+    await expect(title.getByRole("button", { name: "Session 14: The Flooded Abbey" })).toBeFocused();
+    await expect(page.getByRole("textbox", { name: "Session name", exact: true })).toHaveValue("The Flooded Abbey");
+    await page.keyboard.press("F2");
+    await page.getByRole("textbox", { name: "Name of Session 14" }).fill("Something else");
+    await page.keyboard.press("Escape");
+    await expect(title).toHaveText("Session 14: The Flooded Abbey");
+    await expect(title.getByRole("button", { name: "Session 14: The Flooded Abbey" })).toBeFocused();
+  });
+
   test("session and campaign playlists are listed for the whole evening, closed by default, with Preview and Play on air", async ({ page }) => {
     await openRoute(page, "session/crown/s14");
     const session = page.getByRole("region", { name: "Session playlists", exact: true });
