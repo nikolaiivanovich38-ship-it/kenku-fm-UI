@@ -794,3 +794,53 @@ Lyre write more than the file itself holds.
 - **BUG-20.** New cue action `stopPads` (`{ type, target?, fadeMs? }`), checked by `isCueAction` like `fadeAll` (target and a fade of 0 to 60 s). It cannot be put on a hotkey (`cueActions.ts` refuses it). It reaches the engine only from the Lyre page's own audio host; it crosses no process boundary.
 - **BUG-21.** Renaming goes through the existing `sessions.update` call and its argument checks.
 - No IPC channel, argument check, permission or Content-Security-Policy changed.
+
+## w6-found
+
+### In plain language
+
+**Remote control (SEC-4).** The remote control (for a Stream Deck or a phone) is off until you turn it on, and then listens on 127.0.0.1, which only programs on this computer can reach, unless you choose this computer's network address. Every request must now carry Lyre's secret code, made the first time Lyre starts and kept encrypted on this computer. Web pages cannot use it, even ones open on this computer, and a wrong code tried ten times in ten minutes locks that device out for a while. Its answers no longer show where your files are. The Kenku FM Stream Deck plugin does not send the code, so it cannot control Lyre until it does; Settings will show the code (round 7).
+
+**Updates (SEC-14).** When Lyre cannot check for an update, or cannot install one, it now says so in plain words in the message box once (and again only after a check has worked), instead of only writing it to the log.
+
+**Libraries (SEC-9).** The remote control's web server library (fastify) moved to version 5, which fixes its known security problems; no library Lyre ships has a known high or critical problem.
+
+### Technical details
+
+- **Settings and code.** `src/main/remote/remoteSettings.ts` keeps `{ enabled, address, port }` and the code in `remote-control.json` (mode 0600, written through a fresh temporary file like `discord-bots.json`). Defaults: off, `127.0.0.1`, 3333. The address must be `localhost` or an IP address (at most 64 characters), the port 1024 to 65535; a damaged or edited file falls back to the defaults. The code (`remoteCode.ts`) is 20 Crockford base32 symbols from 13 random bytes (100 bits), shown as five groups of four; it is encrypted with `safeStorage` (`encryptedCode`), or kept in memory only where `canEncrypt` says no (then a new code each start; `codeRemembered: false`). One store is shared by every `PlayerManager`, so a reload keeps the code.
+- **Server.** `remoteServer.ts` `createRemoteServer` (fastify 5, `bodyLimit` 16 KB) runs one `onRequest` hook before every route, in this order: at most 600 requests a minute per address (429 with `Retry-After`); any `Origin` header refused (403); `Host` must be `localhost`, an IPv4 address or a bracketed IPv6 address with the server's port (403; DNS rebinding needs a name); an address with 10 wrong codes in 10 minutes refused (429); `Authorization: Bearer <code>` compared with `codesMatch` (SHA-256 of both, `timingSafeEqual`), else 401 with `WWW-Authenticate: Bearer realm="Lyre"`. The `text/plain` body reader is removed, so only JSON bodies are read (415 otherwise). A `preSerialization` hook drops `url` keys and `file:` text from every answer. Unknown routes answer 401 before 404, so they reveal nothing without the code.
+- **Lifecycle.** `remoteControl.ts` `RemoteControl` starts, moves or stops the server to match the settings, one change at a time, and turns listen errors into plain words (port taken, address not on this computer, port not allowed). `PlayerManager` makes one per main-window load, starts it if it was left on (after the previous window's server has closed), and closes it in `destroy()` without changing the setting. The old Settings' `PLAYER_START_REMOTE` / `PLAYER_STOP_REMOTE` now set the settings (a refused address or a listen problem goes to the main window's `ERROR`).
+- **Updates.** `src/main/updateStatus.ts` records each step of Electron's `autoUpdater` (`src/autoUpdate.ts`: checking, downloading, up to date, ready, error, or off with the reason) and turns errors into plain words without the user's folder names (`plainUpdateError`). The first error after a working check goes to the main window's `ERROR`; later ones only to the log and the state, as checks repeat every 15 minutes.
+
+### Channels
+
+| Channel | Sent by | Arguments | Handled in |
+|---|---|---|---|
+| `REMOTE_GET` (invoke) | Lyre page | none; answers a `RemoteState` (`src/common/remoteControl.ts`: on, running, address, port, the secret code, `codeRemembered`, `problem`) | `PlayerManager` |
+| `REMOTE_SET` (invoke) | Lyre page | one plain object with only `enabled` (boolean), `address` (text ≤ 64), `port` (integer 1 to 65535); the store then checks address and port; answers the new state or `{ error }` | `PlayerManager` |
+| `REMOTE_NEW_CODE` (invoke) | Lyre page | none; answers the new state | `PlayerManager` |
+| `REMOTE_STATE` (main to page) | main process | one `RemoteState`, after each change, to pages registered as `lyre-view` only | `src/lyre/remote/preloadRemote.ts` |
+| `UPDATE_GET` (invoke) | Lyre page | none; answers an `UpdateState` (`src/common/appUpdates.ts`) | `LyreManager` |
+| `UPDATE_STATE` (main to page) | main process | one `UpdateState`, after each change, to the Lyre page | `src/lyre/updates/preloadUpdates.ts` |
+
+The Lyre page reaches them as `window.lyre.remote` (`get`, `set`, `newCode`, `onChange`) and `window.lyre.updates` (`get`, `onChange`). The main window, the old player, the capture window and website tabs cannot use them. `PLAYER_START_REMOTE` and `PLAYER_STOP_REMOTE` keep their senders and argument checks.
+
+### Tests
+
+| Test | Covers |
+|---|---|
+| `src/main/remote/remoteCode.test.ts`, `rateLimit.test.ts` | Code format and randomness, forgiving comparison, wrong lengths; per-caller windows, retry time, memory cap |
+| `src/main/remote/remoteServer.test.ts` | 401 without or with a wrong code (also GET and unknown routes), lock-out after 10 wrong codes and its end, `Origin` and web-name `Host` refused even with the code, the Host table, text/plain and form bodies refused, 600 a minute, no file addresses in answers |
+| `src/main/remote/remoteSettings.test.ts` | Defaults, code made on first run and kept encrypted, session-only code without encryption, new code, unreadable code, saved settings, refused address and port, damaged file, file mode |
+| `src/main/remote/remoteControl.test.ts` | Off until on, 127.0.0.1 only, start after a restart, port closed when off, new code at once, moving port, port taken in plain words, refused address |
+| `src/main/managers/PlayerManager.test.ts` | The three channels from the Lyre page only, argument shapes, `REMOTE_STATE`, the old Start and Stop Remote, start when left on, close on destroy, reload |
+| `src/lyre/remote/preloadRemote.test.ts`, `src/lyre/updates/preloadUpdates.test.ts` | The page's bridges pass only well-formed answers |
+| `src/main/updateStatus.test.ts`, `src/autoUpdate.test.ts`, `src/main/managers/LyreManager.test.ts` | Plain update errors without folder names, told once per run of failures, every updater step, off reasons, listeners removed on close, `UPDATE_GET` / `UPDATE_STATE` for the Lyre page only |
+| `e2e/remote.spec.ts` | The packaged app: code read through the Lyre page, 401 without it, 403 for `Origin` and a web-name `Host`, 415 for text/plain, no `file:` in answers, every route with the code, off closes the port |
+
+### Manual checks (Windows)
+
+1. Settings > Remote > Start Remote, then in PowerShell: `Invoke-WebRequest http://127.0.0.1:3333/v1/playlist`. The answer is 401 and says to copy the secret code from Lyre's Settings.
+2. Once round 7's Settings shows the code: `Invoke-WebRequest http://127.0.0.1:3333/v1/playlist -Headers @{ Authorization = "Bearer <code>" }` lists your playlists, with no file paths.
+3. Quit and start Lyre: the remote is on again with the same code (Windows encrypts it).
+4. Turn the network off and wait up to 15 minutes in an installed copy: one message says Lyre could not check for updates because the computer seems to be offline.

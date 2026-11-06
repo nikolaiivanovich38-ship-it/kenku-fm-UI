@@ -155,9 +155,11 @@ New libraries are added only at versions published at least two weeks earlier, t
 
 `.github/workflows/`:
 
-- `ci.yml`: every push and pull request. Type check, lint, tests with coverage (artifact `coverage-report`), script tests, audit gate, gitleaks secret scan, and end-to-end tests of the packaged app on Windows (artifact `e2e-report` on failure).
-- `codeql.yml`: CodeQL security analysis, also weekly.
-- `release.yml`: on `v*` tags or by hand. Runs `ci.yml`, then builds the unsigned Windows x64 installer and zip and the demo kit, and attaches them to a draft release.
+- `ci.yml` (FND-5): every push and pull request. Type check, lint, tests with coverage (artifact `coverage-report`), script tests, audit gate, gitleaks secret scan, and on Windows the packaged app's smoke test with the axe accessibility checks (`yarn e2e smoke.spec lyre.spec`); pull requests, "Run workflow" and releases (input `full-e2e`) run every end-to-end test instead (artifact `e2e-report` on failure). About 10 minutes for a push (the jobs run side by side; the Windows job is the longest), about 30 with every end-to-end test. Each job ends, when it fails, with a step that says in plain words what failed and what to do (`::error` annotations, shown on the pull request, and the run summary).
+- `codeql.yml`: CodeQL security analysis on every push, weekly, and when the release calls it.
+- `release.yml`: on `v*` tags or by hand. Runs `ci.yml` with every end-to-end test and `codeql.yml`; only when both pass does it build the unsigned Windows x64 installer and zip and the demo kit, and attach them to a draft release.
+
+`scripts/ci-gate.test.mjs` checks these rules in the workflow files (`yarn test:scripts`), and `scripts/electron-support.test.mjs` that Electron stays a pinned, supported, standard release (SEC-1).
 
 Third-party actions are pinned by full commit SHA with the version in a comment. To update one, look up the tag's commit (`git ls-remote https://github.com/OWNER/ACTION refs/tags/vX.Y.Z`; for annotated tags use the `^{}` line) and change both.
 

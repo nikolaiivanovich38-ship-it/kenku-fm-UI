@@ -4,6 +4,16 @@ All notable changes to Lyre (called Cue Desk in versions 0.1.x). Versions follow
 
 ## [Unreleased]
 
+**Security**
+- The remote control (Stream Deck, phone) now needs Lyre's secret code with every request, made the first time Lyre starts and kept encrypted on your computer. It stays off until you turn it on and listens only on this computer unless you choose otherwise. Web pages cannot use it, a device that tries ten wrong codes is locked out for ten minutes, and its answers no longer show where your files are. The Kenku FM Stream Deck plugin does not send the code yet, so it cannot control Lyre for now; Settings will show the code. [SEC-4]
+- When Lyre cannot check for or install an update, it now tells you once, in plain words, instead of only writing it to its log. [SEC-14]
+- The remote control's web server library moved to its current version, which fixes its known security problems. No library Lyre ships has a known serious security problem. [SEC-9]
+- Every change is now checked automatically for its tests, a start of the app, accessibility, library security problems, secrets and code security; a release is built only after all of them pass, and a failing check says in plain words what to do. [FND-5, SEC-1]
+
+**Fixes**
+- Deleting a track from the playing playlist with shuffle off no longer makes a different track the current one. [BUG-11]
+- Long sounds on a soundboard (ambience over 30 seconds) are streamed instead of being loaded whole into memory. The first time you play a sound without fades, it streams while Lyre learns its length. [PERF-7]
+
 ## [0.4.1] - 2026-11-06: fixes from your test of 0.4.0
 
 - What goes to your players never plays on your computer's speakers. You hear it only through Discord, in the voice channel. When no bot is in a voice channel, Live's On air box and the Now playing bar say nobody hears it. Preview and Try pads still play in your headphones only. [BUG-19]
