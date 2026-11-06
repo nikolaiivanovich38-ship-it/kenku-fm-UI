@@ -361,7 +361,7 @@ describe("the selected pad's own box", () => {
     const user = userEvent.setup();
     const { api } = await open("board/weather");
     const box = screen.getByRole("region", { name: "Pad: Thunder crack" });
-    expect(box).toHaveTextContent("Plays once from the start on each press. Quick presses overlap.");
+    expect(box).toHaveTextContent("Plays once from the start. Press it again while it plays to stop it.");
     await user.click(within(within(box).getAllByRole("group", { name: "Play mode" })[1]).getByRole("button", { name: "Toggle loop" }));
     await waitFor(() => expect(pad("Thunder crack")).toHaveAccessibleName(/Toggle loop/));
     expect(within(box).getByRole("button", { name: "Toggle loop" })).toHaveAttribute("aria-pressed", "true");
@@ -616,7 +616,8 @@ describe("Try pads (SFX-12): pads played as in Live, in the headphones only", ()
     await user.click(pad("Sword clash"));
     previewing(audio, "pad:combat/sword");
     expect(pad("Sword clash")).toHaveAccessibleName(/, trying$/);
-    expect(pad("Sword clash")).toHaveAttribute("aria-pressed", "false");
+    // BUG-20: pressed while it plays, since pressing it again stops it.
+    expect(pad("Sword clash")).toHaveAttribute("aria-pressed", "true");
     expect(within(grid()).getByText("Playing")).toBeInTheDocument();
     // Its sound is 1.6 s long in the library.
     await waitFor(() => expect(pad("Sword clash")).not.toHaveAccessibleName(/, trying$/), { timeout: 3000 });
@@ -628,6 +629,21 @@ describe("Try pads (SFX-12): pads played as in Live, in the headphones only", ()
     expect(pad("Skeletons rattle")).toHaveAttribute("aria-pressed", "true");
     fireEvent.keyUp(pad("Skeletons rattle"), { key: " " });
     expect(audio.calls).toContainEqual(["tryPad", "combat", "bones", "up"]);
+  });
+
+  it("BUG-20: pressing a one-shot that plays stops it, as in Live", async () => {
+    const user = userEvent.setup();
+    const { audio } = await open("board/combat");
+    await user.click(tryButton());
+    await user.click(pad("Sword clash"));
+    previewing(audio, "pad:combat/sword");
+    expect(pad("Sword clash")).toHaveAccessibleName(/, trying$/);
+    await user.click(pad("Sword clash"));
+    expect(audio.calls.filter((c) => c[0] === "tryPad")).toHaveLength(2);
+    expect(await spoken()).toBe("Sword clash: stopped (only you hear it)");
+    previewing(audio, null);
+    expect(pad("Sword clash")).not.toHaveAccessibleName(/, trying$/);
+    expect(pad("Sword clash")).toHaveAttribute("aria-pressed", "false");
   });
 
   it("a hold pad held by its key is let go when the window loses focus, as in Live (security review w4)", async () => {

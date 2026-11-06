@@ -157,6 +157,42 @@ test.describe("single-key shortcuts", () => {
   });
 });
 
+test.describe("BUG-20: stopping pads", () => {
+  test("a pad that plays says so, and pressing it again stops it, whatever its play mode", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    await region(page, "Pads").getByRole("button", { name: "Pads", exact: true }).click();
+    // Stone door grinds: a one-shot, whose sound is a library track in the app's seeded library too.
+    const door = page.getByRole("group", { name: "Pads on Drowned Abbey" }).getByRole("button", { name: /^Stone door grinds/ });
+    await expect(door).toHaveAttribute("aria-pressed", "false");
+    await door.click();
+    await expect(door).toHaveAttribute("aria-pressed", "true");
+    await expect(door).toHaveAccessibleName(/\bOn$/);
+    await door.click();
+    await expect(door).toHaveAttribute("aria-pressed", "false");
+    await expect(region(page, "On air: Table")).toContainText(/Effects\s*None/);
+  });
+
+  test("Stop pads in the Pads box stops every pad and leaves the music and ambience playing", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    const pads = region(page, "Pads");
+    await pads.getByRole("button", { name: "Pads", exact: true }).click();
+    await expect(pads.getByRole("button", { name: "Stop pads" })).toHaveAttribute("aria-disabled", "true");
+    await clickAway(page);
+    // R: Stone door grinds (one-shot); F: Heartbeat, a hold pad, held down.
+    await page.keyboard.press("r");
+    await page.keyboard.down("f");
+    await expect(pads.getByText("2 sounding")).toBeVisible();
+    await pads.getByRole("button", { name: "Stop pads" }).click();
+    await expect(region(page, "On air: Table")).toContainText(/Effects\s*None/);
+    await expect(pads.getByRole("button", { name: "Stop pads" })).toBeFocused();
+    await expect(region(page, "On air: Table").getByText("Playing")).toBeVisible();
+    await expect(region(page, "On air: Table")).toContainText("Eerie dread, low cello and choir");
+    await page.keyboard.up("f");
+  });
+});
+
 test.describe("choosing what plays", () => {
   test("a hold pad plays while its key is down and stops when it comes up", async ({ page }) => {
     await openRoute(page, "live");

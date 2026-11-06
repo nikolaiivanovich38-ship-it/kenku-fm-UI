@@ -249,6 +249,53 @@ describe("single-key shortcuts", () => {
   });
 });
 
+describe("BUG-20: stopping pads in Live", () => {
+  const padsSounding = (sound: Opened["sound"]) => sound.audio.getNowPlaying().rooms.flatMap((r) => r.effects.flatMap((e) => (e.padKey ? [e.padKey] : [])));
+
+  it("a pad that plays says so (pressed, On) and pressing it again stops it, whatever its play mode", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await userEvent.click(region("Pads").getByRole("button", { name: "Pads" }));
+    const grid = within(screen.getByRole("group", { name: "Pads on Drowned Abbey" }));
+    const door = () => grid.getByRole("button", { name: /^Stone door grinds/ });
+    expect(door()).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(door());
+    await playOn(sound, 0.5);
+    expect(door()).toHaveAttribute("aria-pressed", "true");
+    expect(door()).toHaveAccessibleName(/^Stone door grinds.*\bOn$/);
+    await userEvent.click(door());
+    await playOn(sound, 0.1);
+    expect(door()).toHaveAttribute("aria-pressed", "false");
+    expect(door()).not.toHaveAccessibleName(/\bOn$/);
+    expect(padsSounding(sound)).toEqual([]);
+  });
+
+  it("Stop pads stops every pad and leaves the scene's music and ambience; it is dimmed while no pad plays", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    await userEvent.click(region("Pads").getByRole("button", { name: "Pads" }));
+    const stop = () => region("Pads").getByRole("button", { name: "Stop pads" });
+    expect(stop()).toHaveAttribute("aria-disabled", "true");
+    blur();
+    press("r");
+    press("f");
+    await playOn(sound, 0.5);
+    expect(padsSounding(sound)).toEqual(["abbey/stonedoor", "abbey/heartab"]);
+    expect(stop()).not.toHaveAttribute("aria-disabled", "true");
+    await userEvent.click(stop());
+    await playOn(sound, 0.5);
+    expect(padsSounding(sound)).toEqual([]);
+    expect(stop()).toHaveFocus();
+    expect(stop()).toHaveAttribute("aria-disabled", "true");
+    const table = sound.audio.getNowPlaying().rooms[0];
+    expect(table.music).not.toBeNull();
+    expect(table.ambience).not.toBeNull();
+    expect(await screen.findByText("Pads stopped")).toBeInTheDocument();
+    fireEvent.keyUp(document.body, { key: "f" });
+  });
+});
+
 describe("choosing what plays", () => {
   it("Scene music lists the scene's tracks and playlists in order and marks the one on air", async () => {
     const { sound } = await openLive();

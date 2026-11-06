@@ -86,7 +86,9 @@ describe("pad board words and rules (boards.js helpers)", () => {
     expect(tryWords({ label: "Skeletons rattle", mode: "hold" }, "down", false)).toBe("Skeletons rattle: playing while held (only you hear it)");
     expect(tryWords({ label: "Skeletons rattle", mode: "hold" }, "up", true)).toBe("Skeletons rattle: let go, fading (only you hear it)");
     expect(tryWords({ label: "Sword clash", mode: "oneshot" }, "down", false)).toBe("Sword clash: playing once (only you hear it)");
-    expect(tryWords({ label: "Knock", mode: "retrigger" }, "down", true)).toBe("Knock: started again from the beginning (only you hear it)");
+    // BUG-20: pressing a pad that plays stops it, as in Live.
+    expect(tryWords({ label: "Knock", mode: "retrigger" }, "down", true)).toBe("Knock: stopped (only you hear it)");
+    expect(tryWords({ label: "Sword clash", mode: "oneshot" }, "down", true)).toBe("Sword clash: stopped (only you hear it)");
   });
 
   it("says where a pad went and what it swapped with", () => {

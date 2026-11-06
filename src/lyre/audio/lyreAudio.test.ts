@@ -317,15 +317,33 @@ describe("pause, fades and stops (L.pauseLane, L.stopLane, L.fadeAll, L.stopAll)
 });
 
 describe("pads (L.firePad): one-shot, toggle, hold, retrigger", () => {
-  it("one-shot presses overlap; retrigger cuts the last copy", async () => {
-    rig.audio.firePad("b", "door");
+  it("BUG-20: a second press stops a one-shot or restart pad that plays, rather than playing it again", async () => {
     rig.audio.firePad("b", "door");
     await rig.advance(0.2);
-    expect(first().effects).toHaveLength(2);
-    rig.audio.firePad("b", "knock");
+    expect(padIsOn(state(), "b", "door")).toBe(true);
+    rig.audio.firePad("b", "door");
+    expect(padIsOn(state(), "b", "door")).toBe(false);
     rig.audio.firePad("b", "knock");
     await rig.advance(0.2);
-    expect(first().effects.filter((e) => e.padKey === "b/knock")).toHaveLength(1);
+    rig.audio.firePad("b", "knock");
+    await rig.advance(0.5);
+    expect(first().effects).toEqual([]);
+    expect(rig.hearRoom("table")).toBe(0);
+  });
+
+  it("BUG-20: Stop pads stops every pad in every room, says so, and leaves the music and an Off script effect", async () => {
+    onDiscord();
+    rig.audio.playTrack("m1");
+    rig.audio.firePad("b", "rain", "down", { room: "bot-a" });
+    rig.audio.firePad("b", "drone", "down", { room: "bot-b" });
+    rig.audio.playTrack("fx2", { target: { room: "bot-b" } });
+    await rig.advance(0.5);
+    expect(rig.audio.stopPads()).toEqual({ ok: true });
+    expect(announced).toContain("Pads stopped");
+    expect(state().rooms.flatMap((r) => r.effects.map((e) => e.padKey ?? e.trackId))).toEqual(["fx2"]);
+    await rig.advance(0.5);
+    expect(room("bot-a")!.music?.trackId).toBe("m1");
+    expect(rig.hearRoom("bot-a")).toBeCloseTo(1);
   });
 
   it("toggle turns on, then off; hold plays while held", async () => {
@@ -369,10 +387,12 @@ describe("pads (L.firePad): one-shot, toggle, hold, retrigger", () => {
     rig.audio.tryPad("b", "door");
     await rig.advance(0.5);
     expect(state().preview).toMatchObject({ key: "pad:b/door" });
-    // A second press plays it again from the start; it does not stop it as Preview would.
-    rig.audio.tryPad("b", "door");
-    expect(state().preview).toMatchObject({ key: "pad:b/door" });
     await rig.advance(3);
+    expect(state().preview).toBeNull();
+    // BUG-20: as in Live, a second press while it plays stops it.
+    rig.audio.tryPad("b", "door");
+    await rig.advance(0.5);
+    rig.audio.tryPad("b", "door");
     expect(state().preview).toBeNull();
     expect(rig.audio.tryPad("b", "silent")).toEqual({ ok: false, message: "Silent has no sound: give it one on its board." });
     // A pad that is gone altogether says so.

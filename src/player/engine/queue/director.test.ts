@@ -450,6 +450,9 @@ describe("cue actions go to rooms (PLY-8)", () => {
     expect(isCueAction({ type: "startScene", scene: S1 })).toBe(true);
     expect(isCueAction({ type: "firePad", boardId: "b", padId: "door", target: "all", phase: "up" })).toBe(true);
     expect(isCueAction({ type: "fadeAll" })).toBe(true);
+    expect(isCueAction({ type: "stopPads" })).toBe(true);
+    expect(isCueAction({ type: "stopPads", target: { room: "table" }, fadeMs: 300 })).toBe(true);
+    expect(isCueAction({ type: "stopPads", target: "everywhere" })).toBe(false);
     expect(isCueAction({ type: "playTrack", trackId: "m1", target: "everywhere" })).toBe(false);
     expect(isCueAction({ type: "playTrack", trackId: "", target: "all" })).toBe(false);
     expect(isCueAction({ type: "fadeLane", lane: "preview", target: "all" })).toBe(false);
@@ -467,16 +470,49 @@ describe("pads (PLY-8)", () => {
   const fire = (padId: string, phase?: "down" | "up", target: RoomTarget = table) =>
     run({ type: "firePad", boardId: "b", padId, phase, target });
 
-  it("a one-shot pad plays once over the music; quick presses overlap", async () => {
+  it("a one-shot pad plays once over the music and ends by itself", async () => {
     await run({ type: "startScene", scene: S1 });
     await fire("door");
     await context.advance(0.5);
-    await fire("door");
-    expect(effects()).toEqual(["fx1", "fx1"]);
-    expect(rooms.hear("table", "effects")).toBeCloseTo(2);
+    expect(effects()).toEqual(["fx1"]);
+    expect(rooms.hear("table", "effects")).toBeCloseTo(1);
     await context.advance(3);
     expect(effects()).toEqual([]);
     expect(music()).toBe("m1");
+  });
+
+  it("BUG-20: pressing a pad that plays stops it with a short fade, whatever its play mode", async () => {
+    await run({ type: "startScene", scene: S1 });
+    for (const pad of ["door", "knock", "rain", "drone"]) {
+      await fire(pad, "down");
+      await context.advance(0.5);
+      expect(effects(), pad).toHaveLength(1);
+      await fire(pad, "down");
+      // Gone from what sounds at once; silent after a short fade (a toggle loop after its own, 1 s here).
+      expect(effects(), pad).toEqual([]);
+      await context.advance(1.1);
+      expect(rooms.hear("table", "effects"), pad).toBe(0);
+      await fire(pad, "up");
+    }
+    await fire("door");
+    await fire("door");
+    await context.advance(0.35);
+    expect(rooms.hear("table", "effects")).toBe(0);
+    expect(music()).toBe("m1");
+  });
+
+  it("BUG-20: Stop pads stops every pad sound in every room and leaves music, ambience and other effects", async () => {
+    await run({ type: "startScene", scene: S1 });
+    await fire("rain", "down", table);
+    await fire("drone", "down", whisper);
+    await run({ type: "playTrack", trackId: "fx2", target: table });
+    await context.advance(0.5);
+    expect(await run({ type: "stopPads" })).toEqual({ ok: true });
+    expect(director.report().flatMap((r) => r.effects.filter((e) => e.padKey))).toEqual([]);
+    expect(effects()).toEqual(["fx2"]);
+    await context.advance(0.5);
+    expect(rooms.hear("whisper", "effects")).toBe(0);
+    expect([music(), ambience()]).toEqual(["m1", "amb1"]);
   });
 
   it("a toggle pad starts a loop and the next press fades it out", async () => {
@@ -498,19 +534,19 @@ describe("pads (PLY-8)", () => {
     expect(effects()).toEqual([]);
   });
 
-  it("a retrigger pad stops its last copy before playing again", async () => {
-    await fire("knock");
+  it("variants in turn take each sound in order; a press that stops one uses no turn", async () => {
+    const heard: string[] = [];
+    for (let i = 0; i < 3; i++) {
+      await fire("steps");
+      heard.push(...effects());
+      await context.advance(2.5);
+    }
+    expect(heard).toEqual(["fx1", "fx2", "fx1"]);
+    await fire("steps");
+    await fire("steps");
     await context.advance(0.5);
-    await fire("knock");
-    await context.advance(0.1);
+    await fire("steps");
     expect(effects()).toEqual(["fx1"]);
-  });
-
-  it("variants in turn take each sound in order", async () => {
-    await fire("steps");
-    await fire("steps");
-    await fire("steps");
-    expect(effects()).toEqual(["fx1", "fx2", "fx1"]);
   });
 
   it("a toggle pad is on or off per room", async () => {

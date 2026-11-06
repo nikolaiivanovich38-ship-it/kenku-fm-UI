@@ -194,7 +194,7 @@ test.describe("pads on a board", () => {
   test("a pad's play mode is chosen with buttons and explained in words", async ({ page }) => {
     await openRoute(page, "board/weather");
     const box = page.getByRole("region", { name: "Pad: Thunder crack" });
-    await expect(box).toContainText("Plays once from the start on each press. Quick presses overlap.");
+    await expect(box).toContainText("Plays once from the start. Press it again while it plays to stop it.");
     await box.getByRole("group", { name: "Play mode" }).getByRole("button", { name: "Toggle loop" }).click();
     await expect(box.getByRole("group", { name: "Play mode" }).getByRole("button", { name: "Toggle loop" })).toHaveAttribute("aria-pressed", "true");
     await expect(pad(page, "Thunder crack")).toHaveAccessibleName(/Toggle loop/);
