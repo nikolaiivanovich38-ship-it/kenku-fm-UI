@@ -8,8 +8,11 @@ import { AnnouncerProvider } from "../shell/Announcer";
 import { expectNoAxeViolations } from "../test/axe";
 import type { DiagnosticsBridge, DiagnosticsResult } from "../../common/lyreDiagnostics";
 
-function bridge(answer: Promise<DiagnosticsResult> | DiagnosticsResult): DiagnosticsBridge & { show: ReturnType<typeof vi.fn> } {
-  return { save: vi.fn(() => Promise.resolve(answer)), show: vi.fn() };
+function bridge(answer: Promise<DiagnosticsResult> | DiagnosticsResult) {
+  const save = vi.fn((): Promise<DiagnosticsResult> => Promise.resolve(answer));
+  const show = vi.fn((): void => undefined);
+  const made: DiagnosticsBridge = { save, show };
+  return Object.assign(made, { save, show });
 }
 
 function panel(props: Partial<React.ComponentProps<typeof HelpPanel>> = {}) {

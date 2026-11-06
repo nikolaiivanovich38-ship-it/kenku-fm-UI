@@ -16,7 +16,8 @@ export function createLyreDiagnosticsBridge(ipc: IpcRendererLike): DiagnosticsBr
     save: async (): Promise<DiagnosticsResult> => {
       const answer = await ipc.invoke(LYRE_DIAGNOSTICS_SAVE);
       if (!isDiagnosticsResult(answer)) return { ok: false, cancelled: false, message: "Lyre did not answer. Try again." };
-      return answer.ok ? { ok: true, folder: answer.folder, file: answer.file } : answer.cancelled ? { ok: false, cancelled: true } : { ok: false, cancelled: false, message: answer.message };
+      if (answer.ok === true) return { ok: true, folder: answer.folder, file: answer.file };
+      return "message" in answer ? { ok: false, cancelled: false, message: answer.message } : { ok: false, cancelled: true };
     },
     show: () => ipc.send(LYRE_DIAGNOSTICS_SHOW),
   };

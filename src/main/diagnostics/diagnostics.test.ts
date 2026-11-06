@@ -67,7 +67,7 @@ describe("the log", () => {
     const log = new LogBuffer(10);
     const blocked = new LogBuffer(10);
     const written: string[] = [];
-    const fake = { log: (...a: unknown[]) => written.push(a.join(" ")), info: () => undefined, warn: (...a: unknown[]) => written.push(a.join(" ")), error: () => undefined };
+    const fake = { log: (...a: unknown[]) => written.push(a.join(" ")), info: (): void => undefined, warn: (...a: unknown[]) => written.push(a.join(" ")), error: (): void => undefined };
     captureConsole(fake, log, blocked);
     fake.log("Lyre started", 3);
     fake.warn("Blocked tab navigation: not an https address");

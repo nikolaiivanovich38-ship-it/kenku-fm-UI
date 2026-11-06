@@ -34,6 +34,6 @@ export interface DiagnosticsBridge {
 
 /** The one line Help shows after saving; null when there is nothing to say (cancelled). */
 export function diagnosticsResultWords(result: DiagnosticsResult): string | null {
-  if (result.ok) return `Saved in ${result.folder}: ${result.file}`;
-  return result.cancelled ? null : `Could not save diagnostics: ${result.message}`;
+  if (result.ok === true) return `Saved in ${result.folder}: ${result.file}`;
+  return "message" in result ? `Could not save diagnostics: ${result.message}` : null;
 }
