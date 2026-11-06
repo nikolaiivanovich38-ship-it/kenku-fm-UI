@@ -62,7 +62,10 @@ test("music started on one screen keeps playing, with the Now playing bar, on th
   const lyre = await openLyreRoute(await launched.mainWindow(), "playlists");
   await lyre.getByRole("button", { name: "Play on air: The Company themes" }).first().click();
   await expect(onAirBar(lyre)).toBeVisible();
-  const title = (await onAirBar(lyre).locator(".oab-title").first().textContent())?.trim() ?? "";
+  // The playlist it plays from, which the bar and Live's room box both name: the test files are a few seconds long, so
+  // the track itself may have moved on to the next one between screens.
+  const from = "The Company themes";
+  await expect(onAirBar(lyre)).toContainText(from);
   await expectSound(launched.app, lyre, "music on air on Playlists");
   // Through the rail, as a person goes: Library, Pad boards, Campaigns, then Live. In Live the room boxes show what is on
   // air, so the bar there shows previews only (UX-16) and the track is in the room's On air box.
@@ -76,10 +79,10 @@ test("music started on one screen keeps playing, with the Now playing bar, on th
     await expect(lyre.getByRole("main").getByRole("heading", { level: 1 })).toContainText(heading);
     if (heading === "Live") {
       await expect(onAirBar(lyre), "no room rows in the bar in Live").toHaveCount(0);
-      await expect(lyre.getByRole("region", { name: /^On air/ }).first()).toContainText(title);
+      await expect(lyre.getByRole("region", { name: /^On air/ }).first()).toContainText(from);
     } else {
       await expect(onAirBar(lyre), `the bar on ${heading}`).toBeInViewport();
-      await expect(onAirBar(lyre)).toContainText(title);
+      await expect(onAirBar(lyre)).toContainText(from);
     }
     await expectSound(launched.app, lyre, `music on air on ${heading}`);
   }

@@ -294,12 +294,15 @@ test.describe("round 5: resizing fills the grid; trying pads as they play", () =
     await expect(pad(page, "Crowd whispers")).not.toHaveAccessibleName(/on air/);
   });
 
-  test("SFX-12: Try pads plays a one-shot once and a hold-to-play pad while held", async ({ page }) => {
+  test("SFX-12: Try pads plays a one-shot once", async ({ page }) => {
     await openRoute(page, "board/combat");
     await page.getByRole("region", { name: "Pads", exact: true }).getByRole("button", { name: "Try pads" }).click();
     await pad(page, "Sword clash").click();
     await expect(pad(page, "Sword clash")).toHaveAccessibleName(/, trying$/);
     await expect(pad(page, "Sword clash")).not.toHaveAccessibleName(/, trying$/, { timeout: 6_000 });
+  });
+
+  test("SFX-12: Try pads plays a hold-to-play pad while held", async ({ page }) => {
     await openRoute(page, "board/court");
     await page.getByRole("region", { name: "Pads", exact: true }).getByRole("button", { name: "Try pads" }).click();
     await pad(page, "Heartbeat").focus();
