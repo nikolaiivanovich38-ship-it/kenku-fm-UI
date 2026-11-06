@@ -1,10 +1,10 @@
 import { FastifyPluginCallback } from "fastify";
 
-import { PlayerManager } from "../../../managers/PlayerManager";
+import type { RemoteHost } from "../..";
 import { VIEW_ERROR } from "../..";
 import { PlaylistsReply } from "../../../../types/player";
 
-export const get: (manager: PlayerManager) => FastifyPluginCallback =
+export const get: (manager: RemoteHost) => FastifyPluginCallback =
   (manager) => (fastify, _, done) => {
     fastify.get("/", async (_, reply) => {
       const view = manager.getView();

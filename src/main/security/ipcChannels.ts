@@ -113,6 +113,23 @@ const isLyreCall: ArgsCheck = (args) => {
   }
 };
 
+// --- w6-found ---
+/**
+ * SEC-4 (src/main/remote/remoteSettings.ts): a change to the remote control's settings, a plain object with any of
+ * `enabled` (boolean), `address` (text, at most 64 characters) and `port` (a whole number 1 to 65535), and nothing
+ * else. The main process then checks the address is an IP address or localhost and the port 1024 to 65535.
+ */
+const REMOTE_SETTING_CHECKS: Record<string, ArgCheck> = {
+  enabled: isBoolean,
+  address: isStringUpTo(64),
+  port: isIntegerIn(1, 65535),
+};
+const isRemoteChange: ArgCheck = (value) =>
+  isPlainObject(value) &&
+  Object.entries(value as Record<string, unknown>).every(
+    ([key, item]) => Object.prototype.hasOwnProperty.call(REMOTE_SETTING_CHECKS, key) && REMOTE_SETTING_CHECKS[key](item),
+  );
+
 export const IPC_CHANNELS = {
   // src/index.ts
   GET_VERSION: { from: MAIN, args: noArgs, refusedReturnValue: "" },
@@ -249,6 +266,15 @@ export const IPC_CHANNELS = {
   // shows the last saved file in its folder. Neither takes an argument: the page never names a path.
   LYRE_DIAGNOSTICS_SAVE: { from: ["lyre-view"], args: noArgs },
   LYRE_DIAGNOSTICS_SHOW: { from: ["lyre-view"], args: noArgs },
+
+  // --- w6-found ---
+  // SEC-4 (PlayerManager, src/main/remote/remoteControl.ts): the remote control's settings for Settings (round 7
+  // designs the screen). All invoke. GET answers a RemoteState (on, running, address, port, the secret code, whether
+  // the code survives a restart, and a plain problem); SET changes some settings and answers the new state or
+  // { error }; NEW_CODE replaces the code. Only the Lyre page: the old Settings keeps PLAYER_START/STOP_REMOTE.
+  REMOTE_GET: { from: ["lyre-view"], args: noArgs },
+  REMOTE_SET: { from: ["lyre-view"], args: argsMatch(isRemoteChange) },
+  REMOTE_NEW_CODE: { from: ["lyre-view"], args: noArgs },
 } satisfies Record<string, IpcChannelRule>;
 
 export type IpcChannel = keyof typeof IPC_CHANNELS;

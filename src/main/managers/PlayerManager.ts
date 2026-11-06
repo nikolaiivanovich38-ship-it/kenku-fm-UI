@@ -1,7 +1,7 @@
-import { ipcMain, BrowserWindow, webContents } from "electron";
-import Fastify, { FastifyInstance } from "fastify";
-import { registerRemote } from "../remote";
+import { app, ipcMain, BrowserWindow, safeStorage, webContents } from "electron";
 import { PlayerRequests } from "../remote/playerRequests";
+import { RemoteControl, type RemoteState } from "../remote/remoteControl";
+import { RemoteSettingsStore, type RemoteSettings } from "../remote/remoteSettings";
 import { guardIpc } from "../security/ipcGuard";
 import { trustedContents } from "../security/trustedContents";
 
@@ -10,13 +10,33 @@ declare const PLAYER_WINDOW_WEBPACK_ENTRY: string;
 /** How long closing waits for the player to save its changes (PERF-6). */
 export const SAVE_BEFORE_CLOSE_TIMEOUT_MS = 1000;
 
+/**
+ * SEC-4: the remote control's settings and secret code, shared by every PlayerManager (one per main-window load), so
+ * a code that cannot be saved encrypted stays the same until Lyre quits.
+ */
+let sharedRemoteStore: RemoteSettingsStore | undefined;
+function remoteSettingsStore(): RemoteSettingsStore {
+  sharedRemoteStore ??= new RemoteSettingsStore(RemoteSettingsStore.fileIn(app.getPath("userData")), safeStorage);
+  return sharedRemoteStore;
+}
+
+/**
+ * The last PlayerManager's remote server, still closing. When the main window reloads, the next PlayerManager is
+ * made at once; it waits for this so its server does not find the port still taken.
+ */
+let previousRemoteClosed: Promise<void> = Promise.resolve();
+
+export interface PlayerManagerOptions {
+  /** Tests give their own store; the app uses the shared one in the data folder. */
+  remoteStore?: RemoteSettingsStore;
+}
+
 export class PlayerManager {
   registeredViewId?: number;
-  fastify: FastifyInstance | null = null;
-  address = "127.0.0.1";
-  port = "3333";
   /** PERF-9: remote API questions to the player, matched to its answers. */
   requests = new PlayerRequests();
+  /** SEC-4: the remote-control server, on only when its settings say so, and only with the secret code. */
+  readonly remote: RemoteControl;
   /** SEC-8: message listeners; each channel accepts only the pages IPC_CHANNELS names. */
   private ipc = guardIpc(ipcMain);
   /** OUT-5, PRV-1: told when a player page is registered (SessionManager joins it to the capture window). */
@@ -24,19 +44,31 @@ export class PlayerManager {
   /** Callers of saveBeforeClose waiting for the player's PLAYER_SAVED. */
   private savedWaiters = new Set<() => void>();
 
-  constructor() {
+  constructor(options: PlayerManagerOptions = {}) {
+    this.remote = new RemoteControl({
+      store: options.remoteStore ?? remoteSettingsStore(),
+      host: this,
+      onChange: (state) => this._tellPagesAboutRemote(state),
+    });
     this.ipc.on("PLAYER_GET_URL", this._handleGetURL);
     this.ipc.on("PLAYER_REGISTER_VIEW", this._handleRegisterView);
     this.ipc.on("PLAYER_START_REMOTE", this._handleStartRemote);
     this.ipc.on("PLAYER_STOP_REMOTE", this._handleStopRemote);
     this.ipc.on("PLAYER_SAVED", this._handleSaved);
+    this.ipc.handle("REMOTE_GET", () => this.remote.state());
+    this.ipc.handle("REMOTE_SET", (_event, change) => this.remote.set(change as Partial<RemoteSettings>));
+    this.ipc.handle("REMOTE_NEW_CODE", () => this.remote.newCode());
+    // Left on last time: on again, without waiting for a page to ask.
+    void previousRemoteClosed.then(() => this.remote.start());
   }
 
-  destroy() {
+  /** Resolves once the remote-control server has stopped listening. */
+  destroy(): Promise<void> {
     this._finishSaving();
     this.ipc.dispose();
     this.requests.destroy();
-    this.stopRemote();
+    previousRemoteClosed = this.remote.close();
+    return previousRemoteClosed;
   }
 
   /** The player view, or undefined when none is registered or it has been closed. */
@@ -88,45 +120,33 @@ export class PlayerManager {
     }
   };
 
+  /** The old Settings' Start Remote: turn the remote on at this address and port. */
   startRemote(address: string, port: string) {
-    this.address = address;
-    this.port = port;
-
-    this.fastify = Fastify();
-
-    registerRemote(this);
-
-    this.fastify.listen({ port: Number(this.port), host: this.address }, (err) => {
-      const windows = BrowserWindow.getAllWindows();
-      if (err) {
-        for (const window of windows) {
-          window.webContents.send("ERROR", err.message);
-        }
-        this.stopRemote();
-      } else {
-        for (const window of windows) {
-          window.webContents.send("PLAYER_REMOTE_ENABLED", true);
+    void this.remote.set({ enabled: true, address, port: port as unknown as number }).then((answer) => {
+      const problem = "error" in answer ? answer.error : answer.problem;
+      if (problem) {
+        for (const window of BrowserWindow.getAllWindows()) {
+          window.webContents.send("ERROR", problem);
         }
       }
     });
   }
 
+  /** The old Settings' Stop Remote. */
   stopRemote() {
-    if (this.fastify) {
-      this.fastify.close();
-      this.fastify = null;
-
-      const windows = BrowserWindow.getAllWindows();
-      for (const window of windows) {
-        window.webContents.send("PLAYER_REMOTE_ENABLED", false);
-      }
-    }
+    void this.remote.set({ enabled: false });
   }
 
-  getRemoteInfo() {
-    return `Running: ${this.fastify !== null}\nAddress: ${
-      this.address
-    }\nPort: ${this.port}`;
+  /** The main window's player tab shows whether the remote runs; the Lyre page gets the whole state. */
+  private _tellPagesAboutRemote(state: RemoteState) {
+    for (const window of BrowserWindow.getAllWindows()) {
+      window.webContents.send("PLAYER_REMOTE_ENABLED", state.running);
+    }
+    for (const contents of webContents.getAllWebContents()) {
+      if (!contents.isDestroyed() && trustedContents.roleOf(contents) === "lyre-view") {
+        contents.send("REMOTE_STATE", state);
+      }
+    }
   }
 
   _handleStartRemote = (

@@ -4,6 +4,7 @@ import { createLyreApiBridge, type IpcRendererLike as ApiIpc } from "./api/prelo
 import { createLyreAudioBridge, type IpcRendererLike as AudioIpc } from "./audio/preloadAudio";
 import { createLyreOutputsBridge, type IpcRendererLike as OutputsIpc } from "./outputs/preloadOutputs";
 import { createLyreDiagnosticsBridge, type IpcRendererLike as DiagnosticsIpc } from "./help/preloadDiagnostics";
+import { createLyreRemoteBridge, type IpcRendererLike as RemoteIpc } from "./remote/preloadRemote";
 
 /**
  * WP5: the new interface page's bridge to the rest of the app, exposed as `window.lyre`. Every IPC channel it uses
@@ -17,6 +18,8 @@ import { createLyreDiagnosticsBridge, type IpcRendererLike as DiagnosticsIpc } f
  *     and turning them up or down (LYRE_OUTPUT_*); src/lyre/outputs/preloadOutputs.ts.
  *   - diagnostics (w4-guide): Help › Save diagnostics (LYRE_DIAGNOSTICS_SAVE, _SHOW; no arguments);
  *     src/lyre/help/preloadDiagnostics.ts.
+ *   - remote (w6-found, SEC-4): the remote control's settings and secret code for Settings (REMOTE_GET, _SET,
+ *     _NEW_CODE; REMOTE_STATE after each change); src/lyre/remote/preloadRemote.ts.
  * The page runs sandboxed with context isolation; nothing from Node or Electron reaches it except this object.
  */
 const api = {
@@ -28,6 +31,7 @@ const api = {
   files: { pathOf: (file: File): string => webUtils.getPathForFile(file) },
   outputs: createLyreOutputsBridge(ipcRenderer as unknown as OutputsIpc),
   diagnostics: createLyreDiagnosticsBridge(ipcRenderer as unknown as DiagnosticsIpc),
+  remote: createLyreRemoteBridge(ipcRenderer as unknown as RemoteIpc),
 };
 
 contextBridge.exposeInMainWorld("lyre", api);

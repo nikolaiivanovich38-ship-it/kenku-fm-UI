@@ -259,8 +259,9 @@ export function Settings({ open, onClose }: SettingsProps) {
         {settings.remoteEnabled ? "Stop Remote" : "Start Remote"}
       </Button>
       <Typography variant="caption" color="text.secondary" pt={1}>
-        Works with the existing Kenku FM Stream Deck plugin. To use another device on your network, change the
-        address to this computer's network address; anything on that network can then control Lyre.
+        Every remote request must now carry Lyre's secret code, which the Lyre tab's Settings will show; the Kenku FM
+        Stream Deck plugin does not send it yet. To use another device on your network, change the address to this
+        computer's network address.
       </Typography>
       <Link
         href={STREAM_DECK_PLUGIN_HELP_URL}
