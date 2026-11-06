@@ -30,8 +30,11 @@ import {
   normalisedGainDb,
   playlistTracks,
   roomsFor,
+  type AudioDevices,
   type AudioProfile,
+  type Crossfade,
   type DomainLookup,
+  type PlayedFrom,
   type DomainScene,
   type DomainTrack,
   type LibraryNormalise,
@@ -100,6 +103,10 @@ export interface LyreAudioLibrary extends DomainLookup {
   trackOrders?(): TrackOrders;
   /** PLY-17: Repeat one saved on scenes' tracks (repeatOnesOf the campaigns); optional for older hosts. */
   repeatOnes?(): RepeatOnes;
+  /** PLY-8: Settings › Between tracks (LyreApi settings.get().crossfade); optional for older hosts. */
+  crossfade?(): Crossfade;
+  /** PLY-8: the scene after this one in its session, for a scene that moves on by itself; optional for older hosts. */
+  nextScene?(ref: SceneRef): SceneRef | null;
 }
 
 // ---------- what the screens read ----------
@@ -130,6 +137,8 @@ export interface LaneNowPlaying {
    * yet). normaliseHover words it for the Now playing bar and Live.
    */
   gainDb: number;
+  /** PLY-8: the level a Fade step left the music at, 0 to 1 (1: as it plays; ambience is always 1). */
+  level: number;
 }
 
 /** UX-16: what plays in the game master's headphones only (the Now playing bar's "Only you" row). */
@@ -171,6 +180,11 @@ export interface RoomNowPlaying {
   canUndoUpNext: boolean;
   /** Effects and pads sounding. `padKey` is "<board id>/<pad id>" for a pad. */
   effects: { trackId: string; title: string; padKey: string | null }[];
+  /**
+   * PLY-1: What played in this room this evening, newest first (kept while the app runs, never saved). Play again is
+   * playTrack(trackId, { from }); Play next is playNext({ kind: "track", trackId, from }).
+   */
+  played: { trackId: string; title: string; at: number; from: PlayedFrom | null }[];
 }
 
 /** One entry of a room's Up next (RoomNowPlaying.upNextList). */
@@ -198,6 +212,8 @@ export interface NowPlaying {
   previewDevice: DeviceStatus | null;
   /** Undo of the last scene start is possible. */
   canUndo: boolean;
+  /** PRV-2: which ear the preview plays in ("both" unless one headset is split, setAudioDevices). */
+  previewEar: "both" | "left" | "right";
 }
 
 export interface LyreAudioEvents {
@@ -209,6 +225,10 @@ export interface LyreAudioEvents {
   "preview-position": (at: PreviewPosition) => void;
   /** A preview could not play: its key and why (a quiet preview announces nothing, so its screen hears it here). */
   "preview-failed": (at: { key: string; message: string }) => void;
+  /** PLY-8: a step shows a pad board (Live shows it). */
+  "show-board": (at: { boardId: string; scene: SceneRef | null }) => void;
+  /** PLY-8: a scene started: pressed, by a step, or moving on by itself ("moved-on": Live follows it). */
+  "scene-started": (at: { scene: SceneRef; by: "press" | "step" | "moved-on" }) => void;
 }
 
 /** The preview's place in its file: its key (a track's id, "pl:…", "pad:…") and the position in milliseconds. */
@@ -260,6 +280,8 @@ export interface PlayOptions {
   fadeMs?: number;
   /** PLY-13: the session or campaign list a playlist is played from, so its play order (and audio settings) there apply. */
   place?: UsePlace;
+  /** DAT-3 Play on air from a marker: where in the file it starts (default: its Start, or where it stopped, PLY-4). */
+  fromMs?: number;
 }
 
 /**
@@ -346,6 +368,12 @@ export interface LyreAudio {
   previewDevices(): Promise<OutputDeviceInfo[]>;
   /** Choose and remember the preview's device ("" for the default). */
   choosePreviewDevice(deviceId: string): Promise<DeviceStatus>;
+  /**
+   * PRV-2: Settings › Headphones and speakers (LyreApi settings.get().devices): the preview's device and, with one
+   * headset split, the ear the preview plays in. On air is heard through Discord (BUG-19); `airDevice` is kept for a
+   * later monitor and not used here.
+   */
+  setAudioDevices(devices: AudioDevices): Promise<DeviceStatus | null>;
 
   // ----- state -----
   /** Read the library from here on (the screens' data layer loaded or reloaded). */
@@ -404,6 +432,8 @@ export interface LyreAudioParts {
   onDispose?: () => Promise<void> | void;
   /** The volume a room starts at, 0 to 1 (default 1; the app starts rooms at ROOM_START_VOLUME). */
   startRoomVolume?: number;
+  /** PRV-2: puts the preview in one ear (or both) on its way to the game master's device; none: it plays in both. */
+  setPreviewEar?: (ear: "both" | "left" | "right") => void;
 }
 
 /**
@@ -428,6 +458,8 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
   /** The room outputs joined to the keep-alive node now. */
   private readonly kept = new Set<GainLike>();
   private wantedKey = "";
+  /** PRV-2: the ear the preview plays in. */
+  private previewEar: "both" | "left" | "right" = "both";
   private disposed = false;
   /** Each room's volume by its real id (a bot id, or "table"), kept while the app runs. */
   private readonly roomVolumes = new Map<string, number>();
@@ -451,6 +483,8 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       normaliseSettings: () => this.library.normaliseSettings(),
       trackOrders: () => this.library.trackOrders?.() ?? {},
       repeatOnes: () => this.library.repeatOnes?.() ?? {},
+      crossfade: () => this.library.crossfade?.() ?? { ms: DEFAULT_FADES.crossfade * 1000, curve: "even" },
+      nextScene: (ref) => this.library.nextScene?.(ref) ?? null,
     };
     this.director = new Director({ engine: parts.engine, rooms: this.rooms, library, random: parts.random });
 
@@ -477,6 +511,11 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     };
     this.director.on("change", onChange);
     this.director.on("error", onDirectorError);
+    this.director.on("show-board", (at) => this.emit("show-board", at));
+    this.director.on("scene-started", (at) => {
+      if (at.by !== "press") this.emit("announce", `Scene: ${this.library.scene(at.scene)?.name ?? ""}`);
+      this.emit("scene-started", at);
+    });
     parts.mixer.on("rooms", onRooms);
     parts.streams.on("broadcast", onBroadcast);
     parts.engine.on("voice", onVoice);
@@ -511,7 +550,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
 
   playTrack(trackId: string, options: PlayOptions = {}): CueOutcome {
     const target = options.target ?? FIRST_ROOM;
-    const outcome = this.perform({ type: "playTrack", trackId, target, when: options.when, from: options.from, fadeMs: options.fadeMs });
+    const outcome = this.perform({ type: "playTrack", trackId, target, when: options.when, from: options.from, fadeMs: options.fadeMs, fromMs: options.fromMs });
     if (outcome.ok) {
       const track = this.library.track(trackId);
       const what = track?.kind === "fx" ? "Effect" : track?.kind === "amb" ? "Ambience" : options.when === "next" ? "Plays next" : "Music";
@@ -819,6 +858,18 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     return this.parts.previewDevices ? this.parts.previewDevices.list() : [];
   }
 
+  async setAudioDevices(devices: AudioDevices): Promise<DeviceStatus | null> {
+    const ear = devices.split ? devices.previewEar : "both";
+    if (ear !== this.previewEar) {
+      this.previewEar = ear;
+      this.parts.setPreviewEar?.(ear);
+      this.changed();
+    }
+    if (!this.parts.previewDevices) return null;
+    // A device that is not there plays on the computer's default until it is back (outputDevices.ts).
+    return this.choosePreviewDevice(devices.previewDevice).catch(() => this.parts.previewDevices?.status("preview") ?? null);
+  }
+
   async choosePreviewDevice(deviceId: string): Promise<DeviceStatus> {
     if (!this.parts.previewDevices) {
       throw new Error("This version of Lyre cannot choose a sound device for the preview.");
@@ -1005,6 +1056,14 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     const ids = new Set<string>();
     for (const room of this.director.report()) {
       [room.music?.trackId, room.upNext, room.ambience?.trackId].forEach((id) => id && ids.add(id));
+      // SHW-3: what follows the playing track when nothing else waits.
+      const follow = room.music && !room.upNext ? this.library.track(room.music.trackId)?.follow : null;
+      if (follow?.kind === "track") ids.add(follow.id);
+      else if (follow?.kind === "playlist") {
+        const playlist = this.library.playlist(follow.id);
+        const first = playlist ? playlistTracks(playlist, this.library)[0] : undefined;
+        if (first) ids.add(first.id);
+      }
     }
     const key = [...ids].join("\n");
     if (key === this.wantedKey) {
@@ -1034,6 +1093,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       preview,
       previewDevice: this.parts.previewDevices?.status("preview") ?? null,
       canUndo: this.director.canUndo(),
+      previewEar: this.previewEar,
     };
   }
 
@@ -1055,6 +1115,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       repeat: { ...room.repeat },
       canUndoUpNext: room.canUndoList,
       effects: room.effects.map((effect) => ({ ...effect, title: title(effect.trackId) })),
+      played: room.played.map((p) => ({ ...p, title: title(p.trackId) })),
     };
   }
 
@@ -1076,6 +1137,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       place: placeOfOrigin(playing.origin),
       playOrder: playing.playlistId ? playOrderOf(playing.playlistId, playing.origin, this.library) : null,
       gainDb: playing.gainDb,
+      level: playing.level,
     };
   }
 }

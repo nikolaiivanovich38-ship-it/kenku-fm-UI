@@ -9,8 +9,8 @@ import { bringItems, chimeMessage, heardTwice, moveMessage, outputName, people, 
 const withBots = (change: (bots: LyreOutputs["bots"]) => LyreOutputs["bots"]): LyreOutputs => ({ ...PROTOTYPE_OUTPUTS, bots: change(PROTOTYPE_OUTPUTS.bots) });
 const sideIn = (channelId: string, status: "connected" | "joining" = "connected") =>
   withBots(([table, side]) => [table, { ...side, room: { serverId: channelId.startsWith("102") ? "1002" : "1001", channelId, status } }]);
-const room = (over: Partial<RoomNowPlaying>): RoomNowPlaying => ({ roomId: TABLE_BOT, name: "Table", volume: 1, music: null, ambience: null, upNext: null, queued: [], upNextList: [], repeat: { chosen: null, shown: "off" }, canUndoUpNext: false, effects: [], ...over });
-const lane = (paused = false): LaneNowPlaying => ({ trackId: "t1", title: "Tavern", origin: { kind: "single" } as never, playlistId: null, position: 1, length: 9, paused, loading: false, place: null, playOrder: null, gainDb: 0 });
+const room = (over: Partial<RoomNowPlaying>): RoomNowPlaying => ({ roomId: TABLE_BOT, name: "Table", volume: 1, music: null, ambience: null, upNext: null, queued: [], upNextList: [], repeat: { chosen: null, shown: "off" }, canUndoUpNext: false, effects: [], played: [], ...over });
+const lane = (paused = false): LaneNowPlaying => ({ trackId: "t1", title: "Tavern", origin: { kind: "single" } as never, playlistId: null, position: 1, length: 9, paused, loading: false, place: null, playOrder: null, gainDb: 0, level: 1 });
 
 describe("outputsModel", () => {
   it("names an output after its room, or after the bot while it is in none", () => {

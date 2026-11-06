@@ -18,6 +18,7 @@ The library database (backlog DAT-6, DAT-1, DAT-2, DAT-10, DAT-11, ORG-4, ORG-7,
 - **Tracks on hand** (version 3): single tracks a campaign or a session keeps beside its playlists.
 - **Repeat one in a scene** (version 5): a track of a scene (or of one of its playlists) that plays again when it ends, every time the scene plays. It goes with the scene or the track. The Repeat button on the Now playing bar and in Live's On air is not stored at all: it lasts while that room's music plays.
 - **A playlist's order in one place** (version 5): its tracks dragged into another order in one scene, one session's list or one campaign's list, used only there. Tracks added to the playlist later come after them; "Back to the playlist's order" removes it. The order of the playlists in a session's or campaign's list was already kept (version 1).
+- **Round 7 (version 6).** Tag groups, tags and folders can have a colour from the pad colours. A pad board can name a row of pads ("Spells"). A scene's start and a pad can do their own steps (play, stop, fade the music, wait, fire a pad, start a scene); a scene can start the next one by itself. A track can say what follows it when it ends, start again where it was stopped, and fade out at its end; one marker of an audio profile can be where the next track comes in. The keys you changed, the crossfade between tracks and Next scene's guard are kept with the library. Pads are found by Find and play.
 - **Campaigns, sessions and scenes.** A campaign has a look (theme), a game system, a description and (for later) its Obsidian notes, and the playlists and boards you use all campaign long. A session has a number (counted from the campaign's first session number in session order, so moving a session renumbers them all, as the prototype does), a name, a date, a status (played, next, draft; only one "next" per campaign) and its own playlists and boards. A scene has a name, a "starts when" line, notes, a music list (tracks and playlists in any mix, in playing order), one ambience track or playlist, and its pad boards.
 - **Folders** for playlists, boards and sessions, inside each other as deep as you like.
 - **Keys** (hotkeys) and what each runs: play a track or playlist, start a scene, next, previous, fade a lane, fade or stop everything, press a pad, undo a scene start, in order. Deleting a track, playlist, scene or pad takes it off every key.
@@ -86,12 +87,12 @@ Measured with 20,000 tracks, 500 playlists and 3 campaigns of 50 sessions with 8
 | File | Purpose |
 | --- | --- |
 | `sqlite.ts` | Loads `node:sqlite` (decision D3) without its experimental warning; `openConnection()` turns on foreign keys, recursive triggers, `temp_store = MEMORY` and, for files, WAL with `synchronous = NORMAL` (or a rollback journal with `FULL` where WAL cannot work). |
-| `schema/migrate.ts`, `schema/index.ts`, `schema/v001-library.ts`, `schema/v002-peaks.ts`, `schema/v003-round5.ts`, `schema/v004-loudness.ts`, `schema/v005-round6.ts` | Numbered schema versions (five so far: the library, loudness peaks, design round 5, volume normalisation, design round 6), the upgrade runner (`MigrationContext.startVersion` tells a step whether the library is new) and `rebuildTable()` (with `withoutRowid` for link tables). |
+| `schema/migrate.ts`, `schema/index.ts`, `schema/v001-library.ts`, `schema/v002-peaks.ts`, `schema/v003-round5.ts`, `schema/v004-loudness.ts`, `schema/v005-round6.ts`, `schema/v006-round7.ts` | Numbered schema versions (six so far: the library, loudness peaks, design round 5, volume normalisation, design rounds 6 and 7), the upgrade runner (`MigrationContext.startVersion` tells a step whether the library is new) and `rebuildTable()` (with `withoutRowid` for link tables). |
 | `store.ts` | `Store`: prepared statements (the 200 most recently used), injected clock, `change(label, fn)` (one transaction, one undo step), `changeInBatches(label, items, fn)` (bulk work, one undo step), `exclusive()`, `changeWithoutHistory(fn)` (clears the history), `busyWith`, `searchCaughtUp()`. |
 | `searchIndex.ts` | Temporary triggers that mark changed tracks, and `flushSearchIndex` (each marked track's search entry rebuilt once, before COMMIT). |
 | `ordering.ts` | Gap ordering (`positionFor`, `positionsFor`, `assignPositions`). |
 | `validate.ts`, `designValidate.ts`, `errors.ts`, `types.ts` | Input checks (`designValidate` for audio profiles and rules, mirroring the tables' CHECKs), error classes, data-layer types. |
-| `repo/*.ts` | Repository functions: `roots`, `tracks`, `markers`, `folders`, `playlists` and `boards` (both on `containers`), `tags`, `campaigns`, `profiles`, `cueActions`, `search`; `domain` maps rows to the shared shapes of `src/common/domain`. `profileRows` and `ruleRows` store profiles and rules as rows (used inside other modules' changes); `peaks` reads and saves a track's loudness peaks (`trackPeaks`, `savePeaks`). Version 3: `playOrders` (PLY-13), `sceneNames` (DAT-14), `places` (checks a scene, session or campaign place and names it as a key). Version 5: `round6` (PLY-17 Repeat one, ORG-13 track order per place). |
+| `repo/*.ts` | Repository functions: `roots`, `tracks`, `markers`, `folders`, `playlists` and `boards` (both on `containers`), `tags`, `campaigns`, `profiles`, `cueActions`, `search`; `domain` maps rows to the shared shapes of `src/common/domain`. `profileRows` and `ruleRows` store profiles and rules as rows (used inside other modules' changes); `peaks` reads and saves a track's loudness peaks (`trackPeaks`, `savePeaks`). Version 3: `playOrders` (PLY-13), `sceneNames` (DAT-14), `places` (checks a scene, session or campaign place and names it as a key). Version 5: `round6` (PLY-17 Repeat one, ORG-13 track order per place). Version 6: `round7` (board dividers, steps, moving on, how a track plays, tags inside tags, shortcuts and play settings). |
 | `peaks.ts` | `PeakJobs`: works out loudness peaks one track at a time through a `PeakReader` (the real one runs ffmpeg: `src/main/media/ffmpegPeaks.ts`); on demand first, then after imports. |
 | `undo.ts` | `UndoHistory` (100 steps and 64 MB at most; a large step is replayed 500 rows at a time); `Store.clearHistory()` empties it. |
 | `import/*.ts` | Bringing audio in: `audioFiles` (which files, walking folders), `kindGuess`, `fileFacts` (quick checksum), `tagReader` (DAT-5, behind an interface), `musicMetadata` (the real reader; only the library's process imports it), `pipeline` (EDT-6 `importAudio`, `refreshEmbeddedTags`), `legacy` (DAT-9), `relink` (DAT-8), `titleTags` (DAT-4). |
@@ -223,6 +224,12 @@ Conventions: text ids (UUIDs; ids from older data can be kept); times in millise
 | `repeat_ones` | Version 5 (PLY-17): a scene's track with Repeat one on (a row while on) | (`scene_id`, `track_id`) (`WITHOUT ROWID`) | both CASCADE | BCNF |
 | `track_orders` | Version 5 (ORG-13): a playlist's track order in exactly one place (scene, session list or campaign list) | `id`; partial unique: (`scene_id`, `playlist_id`), (`session_id`, `playlist_id`), (`campaign_id`, `playlist_id`) | exactly one place (CHECK); all CASCADE | BCNF |
 | `track_order_items` | Version 5 (ORG-13): the tracks of one order, each once, in order | (`order_id`, `track_id`) (`WITHOUT ROWID`); (`order_id`, `position`) | both CASCADE (a deleted track drops out) | BCNF |
+| `board_dividers` | Version 6 (ORG-4): a name above a row of a pad board | (`board_id`, `grid_row`) (`WITHOUT ROWID`) | row 0–7; name trimmed 1–200; board CASCADE | BCNF |
+| `cue_lists` | Version 6 (PLY-8): one scene's or one pad's own steps (no row: the usual) | `id`; `scene_id` UNIQUE, `pad_id` UNIQUE | exactly one owner (CHECK); both CASCADE | BCNF |
+| `cue_steps` | Version 6 (PLY-8): a list's steps in order | `id`; (`list_id`, `position`) | `action` one of ten; exactly the columns its action needs (a CHECK per column); level 0–1; fade ≤ 60 s, wait ≤ 10 min; list, track, playlist, board, pad, scene CASCADE | BCNF |
+| `scene_moves_on` | Version 6 (PLY-8 Then): a scene that starts the next by itself | `scene_id` (`WITHOUT ROWID`) | `musicEnds` or `after` with `after_ms` 1 s–6 h (CHECK both or neither); CASCADE | BCNF |
+| `track_follows` | Version 6 (SHW-3): what plays when a track ends | `track_id` (`WITHOUT ROWID`) | exactly one of a track or a playlist, never itself; all CASCADE | BCNF |
+| `shortcut_keys` | Version 6 (UX-12): keys the game master changed | `action` (`WITHOUT ROWID`); `key` any case | action one of `SHORTCUT_ACTIONS`; key 1–40 | BCNF |
 | `schema_migrations` | Applied versions | `version` | | |
 
 #### Notes on choices
@@ -278,6 +285,11 @@ Every table is in third normal form, and all but three in Boyce-Codd normal form
 | Version 3: tracks on hand in the campaign tree (`campaignTreeQueries`: `campaignTracks`, `sessionTracks`); uses of a track on hand (`USES_QUERIES.track` 0 and 1) | `campaign_tracks_order`, `session_tracks_order`; `campaign_tracks_track`, `session_tracks_track` |
 | Version 5: a scene's Repeat ones, a track's in every scene (`REPEAT_ONES_SQL`) | `repeat_ones` primary key; `repeat_ones_track` |
 | Version 5: a playlist's track order in a place (`TRACK_ORDER_LOOKUP_SQL`), its tracks in order (`TRACK_ORDER_ITEMS_SQL`) | `track_orders_scene`, `track_orders_session`, `track_orders_campaign`; `track_order_items_order`; deletes: `track_orders_playlist`, `track_order_items_track` |
+| Version 6: a board's dividers (`BOARD_DIVIDERS_SQL`) | `board_dividers` primary key |
+| Version 6: an owner's steps (`CUE_LIST_SQL`, `CUE_STEPS_SQL`); deletes of what a step names | `sqlite_autoindex_cue_lists_1`/`_2` (the UNIQUE owners), `cue_steps_order`; `cue_steps_track`, `_playlist`, `_board`, `_pad`, `_scene` |
+| Version 6: a tag with the tags inside it (`TAGS_WITH_INSIDE_SQL`, dynamic rules) | `tags_parent` (a recursive search per level) |
+| Version 6: one mix-out marker per profile; a key does one thing | `audio_profile_markers_mix` (partial unique); `shortcut_keys_key` (unique, any case) |
+| Version 6: deletes of a followed track or playlist | `track_follows_track`, `track_follows_playlist` |
 | Full-text search (`searchQuery`) | `search_fts` (FTS5, prefix indexes of 1–3 characters), `search_docs` primary key; within a playlist also `playlist_items_order` |
 | Reading rules; tag merges and deletes | `rule_conditions_order`, `rule_condition_tags_order`, `rule_condition_tags_tag` (tag first) |
 | Lists in hand-made order | `folders_order`, `playlists_order`, `boards_order` (on `coalesce(parent or folder, '')`, the expression the repository queries with, so the top level is ordered too), `tag_groups_order`, `tags_order`, `track_follow_with_order`, `campaigns_order` |
@@ -392,6 +404,54 @@ the room's own Repeat live in the audio host for the evening (`src/common/domain
 - **Backups and the .lyre file**: backups copy the whole database, so both are in them. A .lyre file's `library.json`
   gains `trackOrders` (places inside the scope, tracks inside the file), and each scene its `repeatOnes`; files from 0.4
   have neither and open as before (no new file version: an older Lyre ignores the new keys).
+
+### Version 6: design round 7 (0.5.0, w7-contracts)
+
+`schema/v006-round7.ts` adds what design round 7 saves (design/prototype/ROUND7.md, each item's "Data"). What version 1
+already had was checked first: tag groups and tags in order with a parent tag and other words (`tags.parent_id`,
+`tag_synonyms`), folders for playlists, boards and sessions (`folders`), a manual playlist's dividers
+(`playlist_items.kind = 'divider'`), a track's Ending (`tracks.ending = 'fades'`), markers in a profile.
+
+- **Colours by name.** Tag groups, tags and folders take a pad colour (steel, ember, gold, moss, violet, plum, sea,
+  bone), as the prototype's `L.colors`; a version 5 colour that is not one is dropped in the upgrade (no screen wrote
+  one). `validate.nullablePaletteColor`.
+- **Tags inside tags** (DAT-10). `matchesRule` and `playlistTracks` take a `TagTree` (`DomainLookup.tagTree`), and
+  `dynamicTracksQuery` widens each condition's tags with `TAGS_WITH_INSIDE_SQL`, so a rule naming Melancholy plays the
+  grieving tracks; `ruleRows.test.ts` and `domain.test.ts` still agree. Deleting a tag moves the tags inside it up a
+  level (to its own parent), as the prototype does; a merge gives them to the tag merged into.
+- **Steps** (PLY-8). The usual steps are never stored (`stepsToKeep` drops steps equal to `usualSceneSteps` /
+  `usualPadSteps`). `cue_lists` makes "own steps" a row of its own, so an own start with every step removed is kept
+  (it does nothing) and "Put back the usual" deletes one row; cue lists, shortcuts and remote buttons can own a list
+  later with one more nullable key. Which steps fit an owner (a pad's sound only on a pad, a scene's music only on a
+  scene) spans two tables and is checked by `checkSteps` in the repository, not by a trigger (undo replays child
+  rows before parents with foreign keys deferred). A step whose track, playlist, board, pad or scene is deleted goes
+  with it (CASCADE, one undo step). A duplicated scene keeps its steps and its Then.
+- **Then** is `scene_moves_on`, a row only for a scene that moves on (no row: it stays), apart from the steps:
+  Put back the usual resets the steps; Then is chosen on its own.
+- **Follow with** (SHW-3) is `track_follows`, one track or playlist. Version 1's `track_follow_with` (a list of
+  suggestions no screen showed) gave each track its first suggestion in the upgrade; it is no longer read and can be
+  dropped in a later version. **Pick up where it stopped** is `tracks.resume`; where it stopped is the audio host's,
+  for the evening (not saved).
+- **Mix out** (DAT-3) is `audio_profile_markers.mix_out`, at most one per profile (a partial unique index):
+  `AudioProfile.markers[].mix`.
+- **Settings.** The keys the game master changed are `shortcut_keys` (none: Lyre's keys); the crossfade
+  (`crossfade_ms`, `crossfade_curve`) and Next scene's guard are columns of the one-row `library_settings`. They are
+  part of the library (backups, undo) because they are how the game master runs a game, like Normalise volume. Display,
+  sound devices and "Next scene in other programs too" belong to the computer (a screen, a headset, other programs):
+  LyreApi keeps them in `this-computer.json` beside the library, never in a backup or a .lyre file, with no undo step.
+- **Pads in search** (UX-12 Find and play): pads get search entries (their label) from triggers, like boards.
+- **Backups and .lyre files.** Backups copy the whole database. A .lyre file's `library.json` gains, per tag group,
+  `color` and `tags` (each tag's parent, other words and colour), per manual playlist `dividers`, per board `dividers`,
+  per pad and scene `steps`, per scene `movesOn`, per track `fadesOut`, `resume`, `follow`, and markers' `mix`. Files
+  from 0.4 have none and open as before; Bring in gives the things it makes the file's tag places, dividers and steps
+  (steps naming something the file does not bring are left out); yours are never changed. Folders stay with the
+  library they belong to.
+
+| Test | Covers |
+| --- | --- |
+| `schema/v006.test.ts` | Every new CHECK and key, what goes with what, pads in search, the upgrade from version 5 with data |
+| `repo/round7.test.ts` | Board dividers, steps (refusals, undo, what a delete takes), moving on, how a track plays, mix out, tags inside tags in a rule, shortcuts and play settings, pads found by search |
+| `../lyreApi/transferApi.test.ts` (round 7) | Tag places, dividers, a scene's and a pad's steps, Then, Follow with, Ending, Pick up and mix out through a .lyre file |
 
 ### Import (EDT-6, DAT-5, DAT-8, DAT-4)
 

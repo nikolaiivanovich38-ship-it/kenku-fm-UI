@@ -4,20 +4,22 @@
  * once, answers from memory, and reloads the parts a "changed" event names. Give it to the host with
  * `audio.setLibrary(snapshot)`, and again from `snapshot.subscribe` so now-playing titles follow renames.
  */
-import { DEFAULT_LIBRARY_NORMALISE, isFx, type DomainPlaylist, type DomainScene, type DomainTrack, type LibraryNormalise, type PlayOrderOverrides, type ProfileOverrides, type RepeatOnes, type TrackOrders } from "../../common/domain";
-import { repeatOnesOf } from "../../common/lyre/lookup";
-import type { CampaignInfo, LibraryTrack, LyreApi, LyreArea, PadBoard, PlaylistInfo, Pad } from "../../common/lyre/api";
+import { DEFAULT_CROSSFADE, DEFAULT_LIBRARY_NORMALISE, isFx, type Crossfade, type TagTree, type DomainPlaylist, type DomainScene, type DomainTrack, type LibraryNormalise, type PlayOrderOverrides, type ProfileOverrides, type RepeatOnes, type TrackOrders } from "../../common/domain";
+import { repeatOnesOf, tagTreeOf } from "../../common/lyre/lookup";
+import type { CampaignInfo, LibraryTrack, LyreApi, LyreArea, LyreSettings, PadBoard, PlaylistInfo, Pad, TagGroup } from "../../common/lyre/api";
+import { nextSceneIn } from "../../player/engine/queue/library";
 import type { MediaRequest } from "../../player/engine/sources/sourceLoader";
 import type { LyreAudioLibrary, LyrePad, SceneRef } from "../audio/lyreAudio";
 
-type Part = "tracks" | "playlists" | "campaigns" | "boards" | "overrides" | "playOrders" | "trackOrders" | "normalise";
-const ALL_PARTS: Part[] = ["tracks", "playlists", "campaigns", "boards", "overrides", "playOrders", "trackOrders", "normalise"];
+type Part = "tracks" | "playlists" | "campaigns" | "boards" | "overrides" | "playOrders" | "trackOrders" | "normalise" | "tagTree" | "settings";
+const ALL_PARTS: Part[] = ["tracks", "playlists", "campaigns", "boards", "overrides", "playOrders", "trackOrders", "normalise", "tagTree", "settings"];
 
 /** Which parts each changed area makes stale. Tags change tracks (their tag values) and pads that play by tag. */
 const PARTS_OF: Record<LyreArea, Part[]> = {
   // PLY-15: the library's Normalise volume setting changes "tracks" (every track's gain follows it).
   tracks: ["tracks", "normalise"],
-  tags: ["tracks"],
+  // DAT-10: tags inside tags widen dynamic playlists (tagTree).
+  tags: ["tracks", "tagTree"],
   folders: [],
   // PLY-13, ORG-13: play orders and track orders chosen in places belong to the playlists area.
   playlists: ["playlists", "playOrders", "trackOrders"],
@@ -28,7 +30,8 @@ const PARTS_OF: Record<LyreArea, Part[]> = {
   // The audio host never reads the loudness peaks (the wave does, through useTrackPeaks), but the same job measures
   // each track's loudness (DAT-15), which its normalising gain needs.
   peaks: ["tracks"],
-  settings: [],
+  // PLY-8: the crossfade between tracks.
+  settings: ["settings"],
 };
 
 export class LibrarySnapshot implements LyreAudioLibrary {
@@ -43,8 +46,10 @@ export class LibrarySnapshot implements LyreAudioLibrary {
   /** PLY-17: from the campaign trees (SceneInfo.repeatOnes). */
   private ones: RepeatOnes = {};
   private normalise: LibraryNormalise = { ...DEFAULT_LIBRARY_NORMALISE };
+  private tree: TagTree = {};
+  private fade: Crossfade = { ...DEFAULT_CROSSFADE };
   /** The newest request per part: an older answer arriving later is dropped. */
-  private readonly asked: Record<Part, number> = { tracks: 0, playlists: 0, campaigns: 0, boards: 0, overrides: 0, playOrders: 0, trackOrders: 0, normalise: 0 };
+  private readonly asked: Record<Part, number> = { tracks: 0, playlists: 0, campaigns: 0, boards: 0, overrides: 0, playOrders: 0, trackOrders: 0, normalise: 0, tagTree: 0, settings: 0 };
   private readonly listeners = new Set<() => void>();
   private readonly stopEvents: () => void;
   private disposed = false;
@@ -120,6 +125,21 @@ export class LibrarySnapshot implements LyreAudioLibrary {
     return this.ones;
   }
 
+  /** DAT-10: tags inside tags (a rule naming one plays the tracks of the tags inside it). */
+  tagTree(): TagTree {
+    return this.tree;
+  }
+
+  /** PLY-8: Settings › Between tracks. */
+  crossfade(): Crossfade {
+    return this.fade;
+  }
+
+  /** PLY-8: the scene after this one in its session (a scene that moves on by itself). */
+  nextScene(ref: SceneRef): SceneRef | null {
+    return nextSceneIn(this.campaigns, ref);
+  }
+
   media(track: DomainTrack): MediaRequest | null {
     const known = this.trackById.get(track.id);
     if (!known?.url) return null;
@@ -133,7 +153,7 @@ export class LibrarySnapshot implements LyreAudioLibrary {
     const { sound } = pad;
     // "Any effect with a tag": every FX track (effects and stings) carrying that tag, in library order.
     const trackIds = sound.kind === "tag" ? (sound.tag ? this.trackList.filter((t) => isFx(t) && (t.tags[sound.tag.group] ?? []).includes(sound.tag.value)).map((t) => t.id) : []) : [...sound.trackIds];
-    return { label: pad.label, trackIds, order: sound.order === "in_turn" ? "roundrobin" : "random", mode: pad.mode, fadeMs: pad.fadeOutMs, volume: pad.volume };
+    return { label: pad.label, trackIds, order: sound.order === "in_turn" ? "roundrobin" : "random", mode: pad.mode, fadeMs: pad.fadeOutMs, volume: pad.volume, ...(pad.steps ? { steps: pad.steps } : {}) };
   }
 
   /* ---------- loading ---------- */
@@ -164,6 +184,10 @@ export class LibrarySnapshot implements LyreAudioLibrary {
         return this.api.playlists.trackOrders();
       case "normalise":
         return this.api.library.normaliseSettings();
+      case "tagTree":
+        return this.api.tags.listGroups();
+      case "settings":
+        return this.api.settings.get();
     }
   }
 
@@ -194,6 +218,12 @@ export class LibrarySnapshot implements LyreAudioLibrary {
         break;
       case "normalise":
         this.normalise = answer as LibraryNormalise;
+        break;
+      case "tagTree":
+        this.tree = tagTreeOf(answer as TagGroup[]);
+        break;
+      case "settings":
+        this.fade = { ...(answer as LyreSettings).crossfade };
         break;
     }
   }

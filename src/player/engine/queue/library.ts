@@ -18,7 +18,7 @@ import type {
   RepeatOnes,
   TrackOrders,
 } from "../../../common/domain";
-import { DEFAULT_LIBRARY_NORMALISE, type LibraryNormalise } from "../../../common/domain";
+import { DEFAULT_LIBRARY_NORMALISE, type Crossfade, type CueStep, type LibraryNormalise } from "../../../common/domain";
 import type { MediaRequest } from "../sources/sourceLoader";
 
 /** A scene, named by where it lives. Also the key of its audio profile overrides. */
@@ -44,6 +44,8 @@ export interface PadSound {
   fadeMs: number;
   /** 0 to 1. */
   volume: number;
+  /** PLY-8: what a press does (src/common/domain CueStep); null or missing: it plays its sound. */
+  steps?: CueStep[] | null;
 }
 
 export interface ShowLibrary extends DomainLookup {
@@ -61,6 +63,17 @@ export interface ShowLibrary extends DomainLookup {
   trackOrders?(): TrackOrders;
   /** PLY-17: Repeat one saved on scenes' tracks, by scene key; none: no track repeats by itself. */
   repeatOnes?(): RepeatOnes;
+  /** PLY-8: Settings › Between tracks (Next, a playlist moving on, play steps); none: DEFAULT_FADES.crossfade. */
+  crossfade?(): Crossfade;
+  /** PLY-8: the scene after this one in its session (a scene that moves on by itself), or null for the last. */
+  nextScene?(ref: SceneRef): SceneRef | null;
+}
+
+/** The scene after `ref` in its session, from campaign trees (what nextScene answers in the hosts). */
+export function nextSceneIn(campaigns: readonly DomainCampaign[], ref: SceneRef): SceneRef | null {
+  const s = campaigns.find((c) => c.id === ref.campaignId)?.sessions.find((x) => x.id === ref.sessionId);
+  const i = s ? s.scenes.findIndex((x) => x.id === ref.sceneId) : -1;
+  return s && i > -1 && i + 1 < s.scenes.length ? { campaignId: ref.campaignId, sessionId: ref.sessionId, sceneId: s.scenes[i + 1].id } : null;
 }
 
 /** A library as plain data, for tests and the test hook. */
@@ -74,6 +87,7 @@ export interface ShowData {
   normalise?: LibraryNormalise;
   trackOrders?: TrackOrders;
   repeatOnes?: RepeatOnes;
+  crossfade?: Crossfade;
 }
 
 /** Reads `data` on every call, so a test can change it while things play (e.g. delete a track). */
@@ -97,6 +111,8 @@ export function staticLibrary(data: ShowData): ShowLibrary {
     normaliseSettings: () => data.normalise ?? DEFAULT_LIBRARY_NORMALISE,
     trackOrders: () => data.trackOrders ?? {},
     repeatOnes: () => data.repeatOnes ?? {},
+    crossfade: () => data.crossfade ?? { ms: 3000, curve: "even" },
+    nextScene: (ref) => nextSceneIn(data.campaigns, ref),
   };
 }
 

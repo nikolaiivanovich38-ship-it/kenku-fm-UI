@@ -29,7 +29,12 @@ import {
   setRoomRepeat,
   shownRepeat,
   undoLast,
+  addPlayed,
+  roleProfile,
   upNext as listUpNext,
+  type PlayedEntry,
+  type PlayedFrom,
+  type StepHow,
   type AfterEnd,
   type AudioProfile,
   type DomainScene,
@@ -45,7 +50,8 @@ import {
   type UsePlace,
 } from "../../../common/domain";
 import type { PlaybackEngine } from "../engine";
-import { laneProfile } from "../profile/trackProfile";
+import { laneProfile, profileInputFor } from "../profile/trackProfile";
+import type { Scheduler } from "../audio/types";
 import { positionAfter } from "../profile/position";
 import type { RoomLane, RoomsAudio } from "../rooms.contract";
 import type { MediaRequest } from "../sources/sourceLoader";
@@ -82,6 +88,16 @@ export interface RoomPlayerDeps {
   newEntryId: () => string;
   /** PLY-13: a seed to deal a shuffled playlist with (a new order each time it starts). */
   newSeed?: () => number;
+  /** Round 7: timers on the engine's clock (a hand-over at a mix-out marker or at the end of a loop). */
+  timers?: Scheduler;
+  /** PLY-4: where each "Pick up where it stopped" track was last stopped this evening, in seconds (shared by rooms). */
+  resumeAt?: Map<string, number>;
+  /** PLY-1: the time now (ms since 1970), for What played. */
+  now?: () => number;
+  /** PLY-8: whether a scene's music plays once (it moves on when its music ends) instead of starting again. */
+  playsOnce?: (scene: SceneRef) => boolean;
+  /** PLY-8: the room's scene played its music to the end with nothing waiting (a scene that moves on). */
+  planEnded?: (scene: SceneRef) => void;
 }
 
 export interface PlayingReport {
@@ -94,6 +110,8 @@ export interface PlayingReport {
   state: VoiceState | null;
   /** PLY-15: the normalising gain it plays at, in dB (0: as it is). */
   gainDb: number;
+  /** PLY-8: the level a Fade step left it at, 0 to 1 (1: as it plays). */
+  level: number;
 }
 
 export interface RoomReport {
@@ -113,6 +131,8 @@ export interface RoomReport {
   ambience: PlayingReport | null;
   /** Effects and pads sounding (not fading out). */
   effects: { trackId: string; padKey: string | null }[];
+  /** PLY-1: the music that played in this room this evening, newest first. */
+  played: PlayedEntry[];
 }
 
 /** What Undo needs to bring a room's music and ambience back. */
@@ -137,6 +157,8 @@ interface LaneVoice {
   voice: Voice;
   item: Playing;
   after: AfterEnd;
+  /** The profile it plays with (where its mix-out marker and End are). */
+  profile: AudioProfile;
 }
 
 /** What a screen adds to a room's list: one track (with where it came from) or a playlist's tracks in its order there. */
@@ -164,6 +186,14 @@ export class RoomPlayer {
   }
   private failures = 0;
   private plays = 0;
+  /** PLY-1: what played here this evening, newest first. */
+  private played: PlayedEntry[] = [];
+  /** PLY-8: the music's level after a Fade step (a new track starts at full level). */
+  private musicLevel = 1;
+  /** PLY-8: a play step waiting for the current track to end, its mix-out marker or the end of its loop. */
+  private handOver: { start: () => void; cancel: () => void } | null = null;
+  /** DAT-3: where an added item's first track starts (Play next or Add to queue from a marker), in seconds. */
+  private readonly startFrom = new Map<string, number>();
 
   constructor(
     readonly roomId: string,
@@ -176,31 +206,35 @@ export class RoomPlayer {
    * Play now, crossfading over `fadeSeconds`. A playlist or a scene's step is a new plan for the room (what was added
    * stays, its Repeat and skips go); a single track while music plays plays now and the list carries on after it.
    */
-  playMusic(item: Playing, fadeSeconds: number): void {
+  playMusic(item: Playing, fadeSeconds: number, fromSeconds?: number): void {
+    this.cancelHandOver();
     if (item.origin.kind === "single" && this.music.current) {
-      const now = listPlayNow(this.list, this.newItem({ trackIds: [item.trackId], playlistId: item.playlistId, place: null, name: this.titleOf(item.trackId) }), this.planView(false));
+      const added = this.newItem({ trackIds: [item.trackId], playlistId: item.playlistId, place: null, name: this.titleOf(item.trackId) });
+      const now = listPlayNow(this.list, added, this.planView(false));
       if (now.pick) {
         this.list = now.list;
+        if (fromSeconds !== undefined) this.startFrom.set(added.id, fromSeconds);
         this.startPick(now.pick, fadeSeconds);
         return;
       }
     }
     this.list = newPlan(this.list);
-    this.startPlan(item, fadeSeconds);
+    this.startPlan(item, fadeSeconds, fromSeconds);
   }
 
   /** Play next (PLY-16): right after the current track. With nothing playing, `asPlan` plays at once. */
-  queueMusic(item: Playing, fadeSeconds: number): void {
-    this.addToList("next", { trackIds: [item.trackId], playlistId: item.playlistId, place: null, name: this.titleOf(item.trackId) }, item, fadeSeconds);
+  queueMusic(item: Playing, fadeSeconds: number, fromSeconds?: number): void {
+    this.addToList("next", { trackIds: [item.trackId], playlistId: item.playlistId, place: null, name: this.titleOf(item.trackId) }, item, fadeSeconds, fromSeconds);
   }
 
   /** Play next or Add to queue (PLY-16). With nothing playing, `asPlan` plays at once as the room's plan. */
-  addToList(how: "next" | "queue", entry: ListEntry, asPlan: Playing, fadeSeconds: number): "added" | "playing" {
+  addToList(how: "next" | "queue", entry: ListEntry, asPlan: Playing, fadeSeconds: number, fromSeconds?: number): "added" | "playing" {
     if (!this.music.current) {
-      this.playMusic(asPlan, fadeSeconds);
+      this.playMusic(asPlan, fadeSeconds, fromSeconds);
       return "playing";
     }
     const item = this.newItem(entry);
+    if (fromSeconds !== undefined) this.startFrom.set(item.id, fromSeconds);
     this.list = how === "next" ? listPlayNext(this.list, item, this.planView(false)) : addToQueue(this.list, item);
     this.deps.changed();
     return "added";
@@ -276,32 +310,92 @@ export class RoomPlayer {
     return true;
   }
 
-  startScene(ref: SceneRef, scene: DomainScene): void {
+  startScene(ref: SceneRef, scene: DomainScene, own?: { music: { at: number; fadeSeconds: number; fromSeconds?: number } | null; ambience: boolean; keepMusic?: boolean }): void {
     const lib = this.deps.library;
     const seed = this.deps.newSeed?.();
-    const first = sceneItem(ref, 0, lib, seed);
+    this.cancelHandOver();
+    // PLY-8: a scene with its own start plays its music from the item its music step names (none: silent).
+    const first = own ? (own.music ? sceneItem(ref, own.music.at, lib, seed) : null) : sceneItem(ref, 0, lib, seed);
     // A new scene clears what was added to the room's list (Nik, 6 Nov 13:55); its Undo brings it back (snapshot).
     this.list = sceneStarted(this.list);
     this.music = { ...this.music, queued: [], returnTo: null };
     if (first) {
-      this.startPlan(first, DEFAULT_FADES.sceneMusic);
+      this.startPlan(first, own?.music ? own.music.fadeSeconds : DEFAULT_FADES.sceneMusic, own?.music?.fromSeconds);
+    } else if (own && !own.keepMusic) {
+      this.fadeLane("music", DEFAULT_FADES.sceneAmbience);
     }
-    const ambience = scene.ambience;
+    const ambience = own && !own.ambience ? null : scene.ambience;
     // The scene's ambience playlist plays as its play order in this scene says (PLY-13).
     const item = ambience?.kind === "playlist" ? playlistItem(ambience.id, null, lib, { place: { kind: "scene", ...ref }, seed }) : ambience ? single(ambience.id) : null;
     if (item) {
       this.playAmbience(item, DEFAULT_FADES.sceneAmbience);
-    } else if (!ambience) {
+    } else {
       this.fadeLane("ambience", DEFAULT_FADES.sceneAmbience);
     }
     this.deps.changed();
   }
 
+  // ---------- round 7: steps, hand-overs, fades (PLY-8) ----------
+
+  /**
+   * PLY-8: start something when the current track ends, at its mix-out marker, or at the end of its loop (a play
+   * step's How it comes in). Nothing playing, a crossfade or a cut: now. Another press cancels a waiting one.
+   */
+  handOverAt(when: StepHow, start: () => void): void {
+    this.cancelHandOver();
+    const lane = this.musicVoice;
+    if (!lane || when === "crossfade" || when === "cut" || !this.deps.timers) {
+      start();
+      return;
+    }
+    const at = lane.voice.position();
+    const mix = lane.profile.markers.find((m) => m.mix);
+    const end = lane.profile.endMs / 1000;
+    let waitSeconds: number | null = null;
+    if (when === "mixOut" && mix && mix.atMs / 1000 > at) waitSeconds = mix.atMs / 1000 - at;
+    // A track that loops never ends by itself: the end of its loop is where it hands over.
+    else if (when === "loopEnds" || lane.after === "loop") waitSeconds = Math.max(0, end - at);
+    const timers = this.deps.timers;
+    if (waitSeconds === null) {
+      // When it ends (musicEnded runs what waits).
+      this.handOver = { start, cancel: () => undefined };
+      return;
+    }
+    const handle = timers.setTimeout(() => {
+      if (this.handOver?.start !== start) return;
+      this.handOver = null;
+      start();
+    }, waitSeconds * 1000);
+    this.handOver = { start, cancel: () => timers.clearTimeout(handle) };
+  }
+
+  /** PLY-8: the scene's music from step `at` of its list, as a new plan (a music step that waited for its moment). */
+  startScenePlan(ref: SceneRef, at: number, fadeSeconds: number, fromSeconds?: number): void {
+    const item = sceneItem(ref, at, this.deps.library, this.deps.newSeed?.());
+    if (!item) return;
+    this.list = newPlan(this.list);
+    this.startPlan(item, fadeSeconds, fromSeconds);
+    this.deps.changed();
+  }
+
+  /** A waiting hand-over is called off (another track was started, the music stopped, Undo). */
+  cancelHandOver(): void {
+    this.handOver?.cancel();
+    this.handOver = null;
+  }
+
+  /** PLY-8 Fade step: the music to `level` (0 to 1) over `seconds`; the next track starts at full level. */
+  fadeMusicTo(level: number, seconds: number): void {
+    this.musicLevel = Math.max(0, Math.min(1, level));
+    this.musicVoice?.voice.setVolume(this.musicLevel, seconds);
+    this.deps.changed();
+  }
+
   /** A plan item plays now (a new plan, or the plan's next step). */
-  private startPlan(item: Playing, fadeSeconds: number): void {
+  private startPlan(item: Playing, fadeSeconds: number, fromSeconds?: number): void {
     this.plan = item;
     this.music = { ...this.music, current: item, returnTo: null };
-    this.startMusic(item, fadeSeconds);
+    this.startMusic(item, fadeSeconds, undefined, fromSeconds);
   }
 
   /** Play what the list picked. */
@@ -314,7 +408,10 @@ export class RoomPlayer {
     const place = pick.item.placeKey ? parseKeyOfPlace(pick.item.placeKey) : null;
     const item: Playing = { trackId: pick.trackId, origin: place ? { kind: "single", place } : { kind: "single" }, playlistId: pick.item.playlistId };
     this.music = { ...this.music, current: item, returnTo: null };
-    this.startMusic(item, fadeSeconds);
+    // DAT-3: an item added from a marker starts its first track there.
+    const from = pick.trackId === pick.item.trackIds[0] ? this.startFrom.get(pick.item.id) : undefined;
+    this.startFrom.delete(pick.item.id);
+    this.startMusic(item, fadeSeconds, undefined, from);
   }
 
   /** The plan's step `at` as an item to play. */
@@ -344,7 +441,9 @@ export class RoomPlayer {
       const choice = afterEnd(plan, lib);
       if (choice && choice.origin.kind === "scene") inner = choice.origin.at;
     }
-    return { steps, at, inner, loops: origin.kind === "scene" || repeat === "all", keepAdded: repeat === "all" };
+    // PLY-8: a scene that moves on when its music ends plays its list once.
+    const loops = origin.kind === "scene" ? !this.deps.playsOnce?.(origin.scene) : repeat === "all";
+    return { steps, at, inner, loops, keepAdded: repeat === "all" };
   }
 
   /** PLY-17: the Repeat that applies to what plays now: the room's, else the scene track's saved one, else its playlist's. */
@@ -371,13 +470,15 @@ export class RoomPlayer {
     return this.list !== before;
   }
 
-  private startMusic(item: Playing, fadeSeconds: number, resume?: { at: number; elapsed: number }): void {
-    const started = this.startLane("music", item, fadeSeconds, resume);
+  private startMusic(item: Playing, fadeSeconds: number, resume?: { at: number; elapsed: number }, fromSeconds?: number): void {
+    const started = this.startLane("music", item, fadeSeconds, resume, fromSeconds);
     this.musicVoice = started;
     if (!started) {
       this.musicFailed(item);
       return;
     }
+    // PLY-1: What played (an Undo puts back what played before; it does not play again).
+    if (!resume) this.played = addPlayed(this.played, { trackId: item.trackId, at: (this.deps.now ?? Date.now)(), from: playedFrom(item) });
     const { voice } = started;
     voice.on("state", (state) => {
       if (state === "playing" && this.musicVoice === started) {
@@ -387,6 +488,13 @@ export class RoomPlayer {
     voice.on("ended", () => {
       if (this.musicVoice === started) {
         this.musicVoice = null;
+        // PLY-8: a play step waiting for this track to end comes in now.
+        const waiting = this.handOver;
+        if (waiting) {
+          this.handOver = null;
+          waiting.start();
+          return;
+        }
         this.musicEnded(started.after);
       }
     });
@@ -409,9 +517,25 @@ export class RoomPlayer {
     if (pick && !stopsHere) {
       this.list = list;
       this.startPick(pick, 0);
-    } else {
-      this.music = { ...this.music, current: null };
-      this.list = musicStopped(this.list);
+      this.deps.changed();
+      return;
+    }
+    const cur = this.music.current;
+    const lib = this.deps.library;
+    this.music = { ...this.music, current: null };
+    this.list = musicStopped(this.list);
+    // PLY-8: a scene that moves on when its music ends starts the next one (its own next item came first, above).
+    if (ended && cur?.origin.kind === "scene" && this.deps.playsOnce?.(cur.origin.scene)) {
+      this.deps.changed();
+      this.deps.planEnded?.(cur.origin.scene);
+      return;
+    }
+    // SHW-3: Follow with plays when nothing was waiting (Play next, the queue and the plan came first, above).
+    const follow = ended && cur ? lib.track(cur.trackId)?.follow : null;
+    const item = follow ? (follow.kind === "playlist" ? playlistItem(follow.id, null, lib, { seed: this.deps.newSeed?.() }) : lib.track(follow.id) ? single(follow.id) : null) : null;
+    if (item) {
+      this.list = newPlan(this.list);
+      this.startPlan(item, 0);
     }
     this.deps.changed();
   }
@@ -533,6 +657,8 @@ export class RoomPlayer {
 
   fadeLane(lane: RoomLane, fadeSeconds: number): void {
     if (lane === "music") {
+      this.cancelHandOver();
+      if (this.musicVoice) this.rememberWhere(this.musicVoice);
       void this.musicVoice?.voice.stop(fadeSeconds);
       this.musicVoice = null;
       this.music = { ...this.music, current: null };
@@ -572,6 +698,7 @@ export class RoomPlayer {
 
   /** Bring a snapshot back, each track where it would be had it kept playing. */
   restore(snapshot: RoomSnapshot, fadeSeconds: number): void {
+    this.cancelHandOver();
     const elapsed = this.deps.engine.currentTime - snapshot.takenAt;
     this.music = snapshot.music;
     this.plan = snapshot.plan;
@@ -606,6 +733,7 @@ export class RoomPlayer {
       canUndoList: this.list.undo !== null,
       ambience: this.ambienceItem ? this.playingReport(this.ambienceItem, this.ambienceVoice) : null,
       effects: this.effects.filter((e) => e.voice.state !== "stopping").map(({ trackId, padKey }) => ({ trackId, padKey })),
+      played: this.played.map((p) => ({ ...p })),
     };
   }
 
@@ -629,22 +757,40 @@ export class RoomPlayer {
   // ---------- shared ----------
 
   /** Start `item` on a lane, crossfading from that lane's voice; null when it cannot play. */
-  private startLane(lane: "music" | "ambience", item: Playing, fadeSeconds: number, resume?: { at: number; elapsed: number }): LaneVoice | null {
+  private startLane(lane: "music" | "ambience", item: Playing, fadeSeconds: number, resume?: { at: number; elapsed: number }, fromSeconds?: number): LaneVoice | null {
     const old = lane === "music" ? this.musicVoice : this.ambienceVoice;
     if (old) {
+      this.rememberWhere(old);
       void old.voice.stop(Math.max(fadeSeconds, MIN_HANDOVER_SECONDS));
     }
     const found = this.trackAndMedia(item.trackId);
     if (!found) {
       return null;
     }
-    const profile = laneProfile(found.track, lane, placesOf(item), this.deps.library.profileOverrides());
+    const places = placesOf(item);
+    const overrides = this.deps.library.profileOverrides();
+    // PLY-4: a sting never loops; Ending "Fades out" fades unless a profile has a fade out of its own.
+    const profile = roleProfile(found.track, laneProfile(found.track, lane, places, overrides), { fadeOutChosen: profileInputFor(found.track, places, overrides).fadeOut !== undefined });
+    // Where it starts: as it was (Undo), from a marker (DAT-3), else where it stopped this evening (PLY-4 Pick up).
+    const picked = !resume && fromSeconds === undefined && found.track.resume ? this.deps.resumeAt?.get(found.track.id) : undefined;
+    const startAt = resume ? positionAfter(profile, resume.at, resume.elapsed) : fromSeconds ?? picked;
+    if (lane === "music") this.musicLevel = 1;
     const voice = this.play(lane, found, profile, {
       gainDb: this.gainOf(found.track, item.playlistId),
       crossfadeInSeconds: fadeSeconds,
-      startAt: resume ? positionAfter(profile, resume.at, resume.elapsed) : undefined,
+      startAt,
     });
-    return { voice, item, after: profile.after };
+    return { voice, item, after: profile.after, profile };
+  }
+
+  /** PLY-4: where a "Pick up where it stopped" track was stopped (near its end: from the top next time). */
+  private rememberWhere(lane: LaneVoice): void {
+    const track = this.deps.library.track(lane.item.trackId);
+    const resumeAt = this.deps.resumeAt;
+    if (!track?.resume || !resumeAt || lane.voice.isFinal()) return;
+    const at = lane.voice.position();
+    if (at > 0 && at < lane.profile.endMs / 1000 - 2) resumeAt.set(track.id, at);
+    else resumeAt.delete(track.id);
   }
 
   private play(lane: RoomLane, found: { track: DomainTrack; media: MediaRequest }, profile: AudioProfile, options: VoiceOptions): Voice {
@@ -679,6 +825,14 @@ export class RoomPlayer {
       positionSeconds: voice && voice.state !== "loading" ? voice.position() : null,
       state: voice ? voice.state : null,
       gainDb: voice ? voice.gainDb : this.gainOf(this.deps.library.track(item.trackId), item.playlistId),
+      level: lane === this.musicVoice ? this.musicLevel : 1,
     };
   }
+}
+
+/** PLY-1: where a played track came from, so Play again plays it the same way (null: on its own). */
+function playedFrom(item: Playing): PlayedFrom | null {
+  if (item.origin.kind === "scene") return { scene: item.origin.scene, at: item.origin.at };
+  if (item.origin.kind === "playlist") return item.origin.place ? { playlistId: item.origin.playlistId, place: item.origin.place } : { playlistId: item.origin.playlistId };
+  return null;
 }

@@ -71,6 +71,9 @@ export function laneProfile(
 }
 
 /** The settings resolveProfile used: the first place with its own, else the track's. */
+export function profileInputFor(track: DomainTrack, places: readonly ProfilePlace[], overrides: ProfileOverrides): AudioProfileInput {
+  return chosenInput(track, places, overrides);
+}
 function chosenInput(track: DomainTrack, places: readonly ProfilePlace[], overrides: ProfileOverrides): AudioProfileInput {
   for (const place of places) {
     const own = overrides[placeKey(place)]?.[track.id];

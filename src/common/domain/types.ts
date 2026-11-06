@@ -119,6 +119,10 @@ export interface DomainScene {
   ambience: SoundRef | null;
   /** Pad boards; the first shows when the scene starts. */
   boardIds: string[];
+  /** PLY-8: what it does when it starts (round7.ts CueStep); null or missing: the usual (usualSceneSteps). */
+  steps?: import("./round7").CueStep[] | null;
+  /** PLY-8 "Then": whether it starts the next scene by itself; missing: it stays until Next. */
+  movesOn?: import("./round7").MovesOn;
 }
 
 export interface DomainSession {
