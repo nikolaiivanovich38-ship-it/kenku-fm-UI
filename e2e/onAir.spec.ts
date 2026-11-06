@@ -76,6 +76,12 @@ test("adding, moving and removing in a scene leaves the music on air and the pre
   await expect(onAirBar(lyre)).toContainText(title);
   await expect(stopPreview).toHaveAttribute("aria-pressed", "true");
   await expectSound(launched.app, lyre, "music on air after adding, moving and removing", { previewing: true });
+
+  // BUG-19: with the preview stopped, the music on air goes on at Table and this computer falls silent.
+  await stopPreview.click();
+  await expect(musicOf(lyre).getByRole("button", { name: /^Preview Haunted sea shanty/ })).toHaveAttribute("aria-pressed", "false");
+  await expect.poll(() => thisComputerPlays(launched.app), { message: "the preview stopped: this computer is silent", timeout: 8_000 }).toBe(false);
+  await expectSound(launched.app, lyre, "music on air with the preview stopped");
 });
 
 test("music started on one screen keeps playing, with the Now playing bar, on the others until Stop (BUG-13)", async ({ launchApp }) => {
