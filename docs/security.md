@@ -740,3 +740,6 @@ Lyre write more than the file itself holds.
   the files beside them (`MediaAccess` treats a listed file as a folder of one). Planning sends a "folders" change so
   the list is asked for again. When a file leaves the list (a new plan, a relink, a restart), the main process drops
   every page's `lyre-media:` address for it (`MediaGrants.revokeFile`). No IPC channel or argument check changed.
+- **Undo of a bring-in (review, could).** The audio files a bring-in unpacked stay while Redo can bring it back; once
+  it cannot (a new step, another bring-in, the library closing), the files no track uses are removed, with their
+  brought-in folder when it is left empty. Only files that bring-in wrote itself are ever removed.

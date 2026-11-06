@@ -10,6 +10,7 @@
  *   refusals); anything else is a fault and rejects.
  * - What needs a person or the desktop (choosing files, opening File Explorer) is asked of the host.
  */
+import fs from "fs";
 import path from "path";
 
 import { isFx, type DomainCampaign, type Lane, type NormaliseChoice, type PlaylistRule, type ProfilePlace, type SoundRef, type Use } from "../../common/domain";
@@ -84,6 +85,7 @@ import {
   listPlaylistTrackIds,
   listPlaylists,
   listRoots,
+  findTrackByLocation,
   listSceneMusic,
   listScenes,
   listSessions,
@@ -296,6 +298,42 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
    * One write: refusals in plain words, faults passed on, and a "changed" event when it made an undo step.
    * `body` makes its own `store.change` (or batches) with the step's label.
    */
+  /**
+   * The audio files each bring-in unpacked (security review w4, could). Undoing the bring-in leaves them while Redo
+   * can bring it back; once it cannot (a new step, the library closing), those no track uses are removed, with their
+   * brought-in folder when it is left empty.
+   */
+  const unpackedFiles = (() => {
+    const steps: { label: string; files: string[]; undone: boolean }[] = [];
+    const lastWith = (label: string, undone: boolean) => [...steps].reverse().find((s) => s.label === label && s.undone === undone);
+    return {
+      made(label: string, files: string[]) {
+        if (files.length) steps.push({ label, files, undone: false });
+        // The undo history keeps a limited number of steps; so does this.
+        if (steps.length > 100) steps.splice(0, steps.length - 100);
+      },
+      undone(label: string) {
+        const step = lastWith(label, false);
+        if (step) step.undone = true;
+      },
+      redone(label: string) {
+        const step = lastWith(label, true);
+        if (step) step.undone = false;
+      },
+      async settle(when: { redoGone?: boolean } = {}) {
+        if (!steps.some((s) => s.undone) || (!when.redoGone && history.state().canRedo)) return;
+        const gone = steps.filter((s) => s.undone);
+        steps.splice(0, steps.length, ...steps.filter((s) => !s.undone));
+        const roots = listRoots(store);
+        for (const file of gone.flatMap((s) => s.files)) {
+          if (quietly(() => findTrackByLocation(store, { file }, roots), null)) continue;
+          await fs.promises.rm(file, { force: true }).catch((error: unknown) => options.log?.("Could not remove an unpacked file", error));
+          await fs.promises.rmdir(path.dirname(file)).catch((): void => undefined);
+        }
+      },
+    };
+  })();
+
   async function write<T>(areas: LyreArea[], body: () => T | Promise<T>): Promise<WriteResult<T>> {
     const before = history.recorded;
     let value: T;
@@ -307,6 +345,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       throw error;
     }
     if (history.recorded === before) return { ok: true, value, changed: [], undoLabel: stateLabel() };
+    await unpackedFiles.settle();
     const changed: LyreArea[] = [...areas, "history"];
     emit({ type: "changed", areas: changed });
     return { ok: true, value, changed, undoLabel: stateLabel() };
@@ -321,6 +360,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       if (refusal) return { ok: false, refusal };
       throw error;
     }
+    await unpackedFiles.settle();
     if (areas.length) emit({ type: "changed", areas });
     return { ok: true, value, changed: areas, undoLabel: stateLabel() };
   }
@@ -1304,7 +1344,10 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           await library.backupBeforeImport();
           // The backup's last step and reading the library each take a turn of their own (security review w4, Should 3).
           await nextTurn();
-          const report = await bringInLyreFile(store, file, currentLibrary(), choices, transferFiles);
+          // This bring-in is a new step, so an undone one can no longer be redone: its files go (none named " (2)").
+          await unpackedFiles.settle({ redoGone: true });
+          const { report, files } = await bringInLyreFile(store, file, currentLibrary(), choices, transferFiles);
+          unpackedFiles.made(`Bring in ${file.preview.fileName}`, files);
           opened = null;
           await file.close();
           return report;
@@ -1344,6 +1387,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
         try {
           const label = await history.undo();
           if (label === null) return { ok: false, refusal: { code: "nothing-to-undo", message: "There is nothing to undo." } };
+          unpackedFiles.undone(label);
           // The history does not know which parts a step touched, so every part is reloaded.
           const changed: LyreArea[] = ["tracks", "tags", "folders", "playlists", "boards", "campaigns", "profiles", "history"];
           emit({ type: "changed", areas: changed });
@@ -1358,6 +1402,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
         try {
           const label = await history.redo();
           if (label === null) return { ok: false, refusal: { code: "nothing-to-redo", message: "There is nothing to redo." } };
+          unpackedFiles.redone(label);
           const changed: LyreArea[] = ["tracks", "tags", "folders", "playlists", "boards", "campaigns", "profiles", "history"];
           emit({ type: "changed", areas: changed });
           return { ok: true, value: { redone: label }, changed, undoLabel: stateLabel() };
@@ -1372,6 +1417,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
     stopBackgroundWork() {
       if (loudnessSweep) clearTimeout(loudnessSweep);
       peakJobs?.close();
+      // The undo history does not outlive the library: an undone bring-in's files are not needed again.
+      void unpackedFiles.settle({ redoGone: true });
     },
 
     previewableFiles() {

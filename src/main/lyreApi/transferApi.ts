@@ -208,8 +208,11 @@ export async function freeBytesAt(folder: string): Promise<number | null> {
   }
 }
 
-/** Unpacks the audio of the tracks that will be added, then brings the file in (one undo step). */
-export async function bringInLyreFile(store: Store, open: OpenTransfer, mine: TransferLibrary, choices: BringInChoices, files: TransferFiles): Promise<BringInReport> {
+/**
+ * Unpacks the audio of the tracks that will be added, then brings the file in (one undo step). Answers the report and
+ * the audio files it unpacked (removed again when the step is undone for good: libraryApi.ts `unpackedFiles`).
+ */
+export async function bringInLyreFile(store: Store, open: OpenTransfer, mine: TransferLibrary, choices: BringInChoices, files: TransferFiles): Promise<{ report: BringInReport; files: string[] }> {
   const { file, preview } = open;
   // Reading the library (`mine`) took the caller's turn; comparing the file with it takes the next one.
   await nextTurn();
@@ -266,7 +269,8 @@ export async function bringInLyreFile(store: Store, open: OpenTransfer, mine: Tr
       unpacked.set(t.id, target);
       unpackedBy.set(entry.entry, t.id);
     }
-    return await bringIn(store, file.library, mine, choices, { fileName: preview.fileName, folder, unpacked, sameAudioAs, notAudio: leftOut.size, includesAudio: preview.includesAudio });
+    const report = await bringIn(store, file.library, mine, choices, { fileName: preview.fileName, folder, unpacked, sameAudioAs, notAudio: leftOut.size, includesAudio: preview.includesAudio });
+    return { report, files: made };
   } catch (error) {
     await Promise.all(made.map((f) => fs.promises.rm(f, { force: true })));
     if (error instanceof LyreFileError) throw new Refused("not-lyre-file", refusalWords(preview.fileName, error.problem));

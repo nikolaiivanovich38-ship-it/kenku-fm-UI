@@ -10,7 +10,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { crc32 } from "zlib";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { isRefused, type LyreApi, type OpenedFile, type WriteResult } from "../../common/lyre/api";
 import { valueOf } from "../../common/lyre/contract";
@@ -298,5 +298,49 @@ describe("tag values in two letter cases", () => {
     const mood = (await api.tags.listGroups()).find((g) => g.name === "Mood");
     expect(mood?.values.filter((v) => v.toLowerCase() === "gothic")).toEqual(["Gothic"]);
     expect((await api.library.listTracks())[0].tags[mood?.id ?? ""]).toEqual(["Gothic"]);
+  });
+});
+
+describe("undo of a bring-in (review w4, could)", () => {
+  const AUDIO = Buffer.concat([MP3, Buffer.alloc(1000, 1)]);
+
+  it("removes the audio files it unpacked once Redo can no longer bring them back, and only those no track uses", async () => {
+    const { api, dir, brought, library } = rig();
+    const tracks = [track(1)];
+    const file = await lyreFile(dir, "Undo me.lyre", [{ entry: "audio/00001.mp3", trackId: "t1", bytes: AUDIO.length }], { tracks }, [{ name: "audio/00001.mp3", bytes: AUDIO }]);
+    const unpacked = path.join(brought, "Undo me", "a1.mp3");
+    valueOf(await openAndBringIn(api, file));
+    expect(fs.existsSync(unpacked)).toBe(true);
+    valueOf(await api.history.undo());
+    // Redo would bring the track back, so its file stays for now.
+    valueOf(await api.history.redo());
+    expect((await api.library.listTracks()).map((t) => t.fileName)).toEqual(["a1.mp3"]);
+    expect(fs.existsSync(unpacked)).toBe(true);
+    valueOf(await api.history.undo());
+    // A new change: Redo is gone, and so is the file nothing uses.
+    valueOf(await api.playlists.create({ name: "Another", lane: "music", kind: "manual", trackIds: [] }));
+    expect(fs.existsSync(unpacked)).toBe(false);
+    expect(fs.existsSync(path.join(brought, "Undo me"))).toBe(false);
+  });
+
+  it("bringing the same file in again after Undo reuses the name instead of adding a1 (2).mp3", async () => {
+    const { api, dir, brought } = rig();
+    const tracks = [track(1)];
+    const file = await lyreFile(dir, "Undo me.lyre", [{ entry: "audio/00001.mp3", trackId: "t1", bytes: AUDIO.length }], { tracks }, [{ name: "audio/00001.mp3", bytes: AUDIO }]);
+    valueOf(await openAndBringIn(api, file));
+    valueOf(await api.history.undo());
+    valueOf(await openAndBringIn(api, file));
+    expect(filesUnder(brought)).toEqual([path.join("Undo me", "a1.mp3")]);
+    expect((await api.library.listTracks()).map((t) => t.fileName)).toEqual(["a1.mp3"]);
+  });
+
+  it("removes them when the library closes, since the undo history goes with it", async () => {
+    const { api, dir, brought } = rig();
+    const tracks = [track(1)];
+    const file = await lyreFile(dir, "Undo me.lyre", [{ entry: "audio/00001.mp3", trackId: "t1", bytes: AUDIO.length }], { tracks }, [{ name: "audio/00001.mp3", bytes: AUDIO }]);
+    valueOf(await openAndBringIn(api, file));
+    valueOf(await api.history.undo());
+    api.stopBackgroundWork();
+    await vi.waitFor(() => expect(filesUnder(brought)).toEqual([]));
   });
 });
