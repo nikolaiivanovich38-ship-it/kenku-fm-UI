@@ -379,3 +379,6 @@ button .shape-g { color: inherit; }
 .ro-own-t { display: inline-flex; align-items: center; gap: 4px; }
 .ro-btns { display: inline-flex; flex: none; }
 .ro-tog[aria-pressed="true"] { background: var(--surface-3); border-color: var(--ink-2); color: var(--ink); }
+/* A crumb shrinks (its name cut with "…", the whole name on hover) before it can run into what follows it. */
+.crumbs li > a { display: inline-flex; min-width: 0; overflow: hidden; }
+.crumbs li > a > .ellipsis { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

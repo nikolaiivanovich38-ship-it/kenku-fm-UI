@@ -610,11 +610,14 @@ Open `design/prototype/lyre-prototype.html`.
 
 ### The standard (build it once, in the shell)
 
-**Where.** The top-right corner of the work area, 8 px under its header (Live: under the top strip), 12 px in from
-the right edge, at most 400 px wide. The same place on every screen and at every width. It covers neither the Now
-playing bar nor On air (both along the bottom) nor the header. If it would sit over the field or button in use (a
-Description field at the top right, say), it moves to just under that control. Clicks pass through it, so it never
-blocks what it briefly covers. With Help open it stays in the work area, left of Help.
+**Where** (changed in part 6, Nik, 17:14: "Let's move the saved pop up to the bottom right hand corner"). The
+bottom-right corner of the work area, 12 px in from the right edge and 12 px above the bottom, or 12 px above the Now
+playing bar when the bar shows; at most 400 px wide. The same place on every screen and at every width. It covers
+neither the Now playing bar, nor On air (at the top of Live since part 6), nor the top bar. The failure card and the
+Undo note (Reset to whole track, Delete board, Tag…) stack in the same corner: the Undo note lowest, then the failure,
+then the pop-up. If it would sit over the field or button in use (a Notes field at the bottom right, say), it moves to
+just above that control. Clicks pass through it, so it never blocks what it briefly covers. With Help open it stays in
+the work area, left of Help.
 
 **When.** Whenever something is saved: a field on Enter, on leaving it, or after a second without typing (never per
 key); a list, tick box, switch or slider when it changes (a slider on release); Done in a picker when the ticks
@@ -645,8 +648,8 @@ pulse. Contrast (`tools/r6-saved.js`, five themes): Saved 11.9 to 15.7:1; failur
 5.9 to 10.4:1.
 
 **For the lead: what changes in the app.**
-- `src/lyre/shell/Announcer.tsx`: the toast moves from bottom centre to the place above (measure the work area and its
-  header, as the prototype's `L.placeToasts`); it stays mounted and empty instead of `hidden`; 3 s, up to 6 s for long
+- `src/lyre/shell/Announcer.tsx`: the toast moves from bottom centre to the place above (measure the work area and the
+  Now playing bar, as the prototype's `L.placeToasts`); it stays mounted and empty instead of `hidden`; 3 s, up to 6 s for long
   text; `aria-live="off"` within 0.5 s of `say` and on a refresh. Add `saved(what, { key, detail })` with the 2 s merge
   by key, and `saveFailed(what, retry)` (role=alert, Try again, Dismiss, focus back). `toast` keeps its name for
   other notes.
@@ -654,8 +657,8 @@ pulse. Contrast (`tools/r6-saved.js`, five themes): Saved 11.9 to 15.7:1; failur
   Library's title saves 400 ms after typing today (ARCHITECTURE.md, `TrackDetails.tsx`): same rule, with the pop-up.
 - Each screen's successful write calls `saved`; a refused or failed write (`isRefused`) calls `saveFailed` with the same
   write as retry.
-- `UndoNote.tsx`: stays where it is (above the Now playing bar in Prep; Live has its own strips). A change that offers
-  Undo shows no pop-up; "Undone" goes through `toast`, so it moves to the new place by itself.
+- `UndoNote.tsx`: in the same corner, under the pop-up (part 6; Live has its own strips). A change that offers Undo
+  shows no pop-up; "Undone" goes through `toast`, so it moves to the new place by itself.
 - Remove from the screens: the Library details' Saved, the playlist boxes' Ready and Saved, the pad editor's Ready and
   Saved, the campaign Notes' Saved, the Audio profile's "Saved" line and its waveform box's Ready, the export box's and
   the import and Look in a folder boxes' Ready and Saved pills, Live's Scenes box "Ready" and "Scene n of m", the

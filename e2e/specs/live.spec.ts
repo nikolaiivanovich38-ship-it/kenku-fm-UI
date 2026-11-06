@@ -27,7 +27,13 @@ const startFirstScene = (page: Page) => page.getByRole("button", { name: "Start:
 const startAbbey = (page: Page) => page.getByRole("button", { name: "Start scene 3: The abbey ruins" }).click();
 /** Round 6 part 3: the session's playlists have their own box; it plays in the room its To: names. */
 const sessionPlaylists = (page: Page) => region(page, "Session playlists");
+/** Round 6 part 6: Session playlists (and the other trays' boxes) start folded; this unfolds a box that is folded. */
+const unfold = async (box: ReturnType<typeof region>) => {
+  const toggle = box.getByRole("heading", { level: 2 }).getByRole("button");
+  if ((await toggle.count()) && (await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
+};
 const toSideRoom = async (page: Page, box: ReturnType<typeof region>) => {
+  await unfold(box);
   await box.getByRole("button", { name: /choose a room/i }).click();
   await page.getByRole("menuitemradio", { name: "Side room" }).click();
 };
@@ -336,6 +342,7 @@ test.describe("rooms", () => {
   test("with two rooms, each box that plays gets a To: Table choice (round 6: Current scene, Session playlists, Find a track)", async ({ page }) => {
     await openRoute(page, "live");
     await addSideRoom(page);
+    await unfold(sessionPlaylists(page));
     await openFind(page);
     for (const box of [sceneMusic(page), sessionPlaylists(page), found(page)]) {
       await expect(box.getByRole("button", { name: /choose a room/i })).toHaveText(/^To:\s*Table$/);
@@ -637,7 +644,7 @@ test.describe("round 6, part 3: Live in seven boxes, Play next and Add to queue,
     await page.keyboard.press("Alt+3");
     await expect(sceneMusic(page).getByRole("button", { name: /Current scene/ }).first()).toBeFocused();
     await page.keyboard.press("F6");
-    await expect(sessionPlaylists(page).getByRole("button", { name: /Session\s*playlists/ }).first()).toBeFocused();
+    await expect(sessionPlaylists(page).getByRole("button", { name: /Session\s*playlists/i }).first()).toBeFocused();
     await page.keyboard.press("Alt+1");
     await expect(region(page, "On air").getByRole("button", { name: /On air/ }).first()).toBeFocused();
   });
@@ -754,7 +761,7 @@ test.describe("round 6, part 4: the review's fixes in Live", () => {
   test("Should 7: in three columns a box keeps its place when a list in the box above grows", async ({ page }) => {
     await page.setViewportSize({ width: 1920, height: 1080 });
     await openRoute(page, "live");
-    await sessionPlaylists(page).getByRole("button", { name: /Session\s*playlists/ }).first().click();
+    await sessionPlaylists(page).getByRole("button", { name: /Session\s*playlists/i }).first().click();
     const before = (await region(page, "Session pads").boundingBox())!;
     await sessionPlaylists(page).getByRole("button", { name: /^Show contents of / }).first().click();
     expect((await region(page, "Session pads").boundingBox())!.y).toBe(before.y);
@@ -920,13 +927,13 @@ test.describe("round 6, part 6: On air at the top, Back and the trail, Find play
 
   test("Session playlists start folded, and stay open once unfolded, also after leaving Live", async ({ page }) => {
     await openRoute(page, "live");
-    const toggle = sessionPlaylists(page).getByRole("button", { name: /Session\s*playlists/ }).first();
+    const toggle = sessionPlaylists(page).getByRole("button", { name: /Session\s*playlists/i }).first();
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     await toggle.click();
     await expect(sessionPlaylists(page).getByRole("listitem").first()).toBeVisible();
     await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Library" }).click();
     await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: /^Live/ }).click();
-    await expect(sessionPlaylists(page).getByRole("button", { name: /Session\s*playlists/ }).first()).toHaveAttribute("aria-expanded", "true");
+    await expect(sessionPlaylists(page).getByRole("button", { name: /Session\s*playlists/i }).first()).toHaveAttribute("aria-expanded", "true");
   });
 
   test("a long Up next (over four lines) folds to one line with how many more, and unfolds", async ({ page }) => {
@@ -957,7 +964,8 @@ test.describe("round 6, part 6: On air at the top, Back and the trail, Find play
     await expect(back).toHaveAttribute("title", /nothing to go back to/i);
     const b = await box(back);
     for (const other of [page.getByRole("group", { name: "Prep or live" }), top(page)]) expect((await box(other)).x).toBeGreaterThan(b.x);
-    await back.click();
+    // Playwright will not click an aria-disabled button by itself; a person can, and nothing happens.
+    await back.click({ force: true });
     await expect(region(page, "Scenes")).toBeVisible();
   });
 
@@ -1015,7 +1023,7 @@ test.describe("round 6, part 6: On air at the top, Back and the trail, Find play
 
   test("the ambience of an unfolded scene (Great hall) has the same buttons, and Play on air changes the room's ambience", async ({ page }) => {
     await openRoute(page, "live");
-    await page.getByRole("button", { name: /^Session 14/ }).click();
+    await page.getByRole("button", { name: /The Sunken Crown Session 14/ }).click();
     await page.getByRole("menuitemradio", { name: /Session 4: Frost fair/ }).click();
     await scenes(page).getByRole("button", { name: "Scene 1: Breakfast in the great hall", exact: true }).click();
     const hall = scenes(page).getByRole("group", { name: "Ambience: Great hall" });

@@ -309,12 +309,12 @@
     var c = camp(), s = sess();
     // BUG-21: F2 on the session, or Rename session in its menu, renames it in place (only the name, not the number).
     // Round 6 part 6: Back and the trail come first (core.js: the campaign, a link to its page); the session is the
-    // trail's last part, and its button chooses another one. The campaign's name is in the trail, so the button no
-    // longer reads it out too.
-    var sessBox = L.renaming('sess-' + s.id) ? '<span class="lv-sess lv-sess-edit">' + L.icon('crown', 's') + '<span class="lv-sess-s">Session ' + s.n + ':</span>' +
+    // trail's last part, and its button chooses another one. The button still reads out the campaign's name, as it is
+    // read on its own when it has focus.
+    var sessBox = L.renaming('sess-' + s.id) ? '<span class="lv-sess lv-sess-edit">' + L.icon('crown', 's') + '<span class="sr-only">' + esc(c.name) + ' </span><span class="lv-sess-s">Session ' + s.n + ':</span>' +
         L.renameBox('sess-' + s.id, s.name, 'Name of Session ' + s.n, 'lv-sess-rename') + '</span>' :
       '<button class="lv-sess" data-act="lvsessmenu" data-k="lv-sess" data-f2="lvsessrename" aria-haspopup="menu" aria-expanded="false" title="Loaded: ' + esc(c.name + ' › Session ' + s.n + ': ' + s.name) + '. Choose another session, or press F2 to rename it">' +
-        L.icon('crown', 's') + '<span class="lv-sess-s">Session ' + s.n + '<span class="lv-sess-nm">: ' + esc(s.name) + '</span></span>' + L.icon('chevdown', 's') + '</button>';
+        L.icon('crown', 's') + '<span class="sr-only">' + esc(c.name) + ' </span><span class="lv-sess-s">Session ' + s.n + '<span class="lv-sess-nm">: ' + esc(s.name) + '</span></span>' + L.icon('chevdown', 's') + '</button>';
     return '<div class="lv-top"><h1 class="sr-only">Live</h1><!--lead-->' + sessBox + L.modeSwitch(c.id) + find() +
       '<button class="btn s" data-act="lvfade" data-k="lv-fade" title="Fade everything out over 3 seconds (Shift+Esc)" aria-keyshortcuts="Shift+Escape" aria-label="Fade all">' + L.icon('fade', 's') + '<span class="lv-btxt">Fade all</span></button>' +
       '<button class="btn s danger" data-act="lvstop" data-k="lv-stop" title="Stop everything at once" aria-label="Stop all">' + L.icon('stop', 's') + '<span class="lv-btxt">Stop all</span></button>' +
@@ -814,11 +814,12 @@
     crumbs: function () { var c = camp(), s = sess(); return c && s ? [{ href: '#/campaign/' + c.id, label: c.name }, { label: 'Session ' + s.n + ': ' + s.name }] : null; },
     notesTitle: 'Live: what changed since round 1',
     notes: [
-      '<b>Round 6, part 3:</b> seven boxes, each with one job. <b>Scenes</b> and <b>Current scene</b> on the left; <b>Session</b> and <b>Campaign</b> playlists and pads beside them; <b>On air</b> along the bottom, always in view. <b>Find a track</b> is in the top strip (/).',
+      '<b>Round 6, part 6:</b> <b>On air</b> at the top, the whole width; <b>Scenes</b> and <b>Current scene</b> under it, as tall as what they hold; <b>Back</b> and the trail (campaign › session) first in the strip; <b>Find a track or playlist</b> (/); every row of an unfolded scene, and its ambience, has Preview, Play next, Add to queue and Play on air. Session playlists start folded.',
+      '<b>Round 6, part 3:</b> seven boxes, each with one job. <b>Scenes</b> and <b>Current scene</b>; <b>Session</b> and <b>Campaign</b> playlists and pads beside them; <b>On air</b> always in view. <b>Find</b> is in the top strip (/).',
       '<b>Play next</b> plays right after the current track; <b>Add to queue</b> goes to the bottom of the room\'s list. Both are on every row, greyed until you point at them. <b>Up next</b> in On air lists the room\'s list top to bottom, each with ×.',
       '<b>Repeat</b> in On air and on the Now playing bar is for what plays now in that room, never saved. <b>Repeat one</b> on a scene\'s track is saved with the scene, and shows in the planner too.',
       '<b>Round 6 review:</b> Ctrl+Z takes back only the last thing done; a room in an empty channel says <b>Nobody there</b>; the session\'s and the campaign\'s boxes sit under <b>This session</b> and <b>Whole campaign</b>; row buttons are greyed, not hidden; a new scene clears what was added (Undo brings it back); <b>Help</b> (F1) holds what left the screen.',
-      'Keys: <span class="kbd">Space</span> next scene, <span class="kbd">Ctrl+Z</span> undo (8 s), <span class="kbd">Alt+1</span>…<span class="kbd">7</span> or <span class="kbd">F6</span> move between boxes, <span class="kbd">Shift+Esc</span> fade all, <span class="kbd">/</span> find, pad keys (the Current scene\'s board).'
+      'Keys: <span class="kbd">Space</span> next scene, <span class="kbd">Ctrl+Z</span> undo (8 s), <span class="kbd">Alt+1</span> (On air)…<span class="kbd">7</span> or <span class="kbd">F6</span> move between boxes, <span class="kbd">Shift+Esc</span> fade all, <span class="kbd">/</span> find, pad keys (the Current scene\'s board).'
     ],
     // Find's results stay inside the window: under the field, moved left when the field is near the right edge.
     after: function (view) {
