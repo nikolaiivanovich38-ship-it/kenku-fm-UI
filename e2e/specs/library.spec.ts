@@ -340,7 +340,7 @@ test.describe("round 5: volume normalisation", () => {
     await expect(dialog.getByRole("group", { name: "Target level" }).getByRole("radio")).toHaveCount(3);
     await expect(dialog.getByRole("radio", { name: /^Standard \(-18 LUFS\)/ })).toBeChecked();
     await expect(dialog.getByTitle(/It adds at most 12 dB and keeps peaks under -1 dBTP\./)).toContainText("Normalise volume for the whole library");
-    await expect(dialog.getByRole("status")).toHaveText("66 of 69 tracks measured");
+    await expect(dialog.getByRole("status")).toHaveText(/^66 of 69 tracks measured/); // then, for screen readers, what the hover says
     await on.check();
     await dialog.getByRole("button", { name: "Save" }).click();
     await expect(dialog).toHaveCount(0);
