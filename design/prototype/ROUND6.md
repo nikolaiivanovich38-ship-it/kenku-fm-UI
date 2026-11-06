@@ -327,3 +327,190 @@ The one word added on most prep screens is the rail's Settings. The unfolded sce
 3. **Repeat on the bar is the playlist's play order where it plays from**, remembered like the play order button, not
    only for this play. *Recommend this:* one setting, shown the same on the bar, in Live and in the planner; a repeat
    for this play only would show one thing on the bar and another in the scene.
+
+## Part 3: Live
+
+> "In live I need several boxes - one for scenes, where I can expand each scene, and choose to play it or not, and
+> see its details, pads, playlists and tracks, and do any live adjustments I need. One for the current playing scene,
+> with all the details of that scene expanded. One for the currently playing music (On Air) which shows what's being
+> played to which audience. One for campaign playlists, that I can expand and choose to play in whole or part at any
+> time, one the same for session playlists, one for campaign pads, and one for session pads. They need to be clearly
+> distinguished, their functions very visually clear and distinct at a glance, and with simple, easy to understand
+> names, wordings, buttons and layouts. What we had wasn't bad, but it was high on cognitive load and I think we can
+> reduce that a bit."
+>
+> "you have a tracklist, which has a top and a bottom - the first added and last added. Add to queue should play after
+> last added. We need a separate play next button (which I think we already have in some places)."
+>
+> "we need to have separate repeat functions for the things playing on each output. Repeat on the now playing bar
+> should not persist. It should end once the music has stopped. The now playing bar is about what's happening right
+> now, and it's transient."
+>
+> Nik, 6 Nov 2026, 12:14 and 12:24. At 12:30 he chose to keep Repeat one on a track in Current scene saved with the
+> scene.
+
+This section replaces part 2's PLY-16 (Add to queue after the current track) and PLY-17 (Repeat on the bar saved as the
+playlist's play order) where they differ, and answers part 2's questions 1 to 3.
+
+### Layout
+
+```
+ three columns (from 1200 px of app: 1920x1080, 1280x800)
+ +-----------------------------------------------------------------------------------------+
+ | Prep|Live   The Sunken Crown > Session 14 v   [ Find a track  / ]    Fade all  Stop all  Keys |
+ +----------------+---------------------------+--------------------------------------------+
+ | 1 SCENES       | 2 CURRENT SCENE  name     | 4 [Session] PLAYLISTS     (open)            |
+ | Next scene >   |   notes                   | 5 [Session] PADS          (folded)          |
+ | > scene  Start |   music in play order     | 6 [Campaign] PLAYLISTS    (folded)          |
+ | > scene  Start |   ambience                | 7 [Campaign] PADS         (folded)          |
+ |   ...          |   the scene's pads + keys |                                            |
+ +----------------+---------------------------+--------------------------------------------+
+ | 3 ON AIR                                                                        [+ room] |
+ | Table  Playing                  mute  volume  bot v  x  | Side room ...                  |
+ |  Music  title  progress  |< || >| repeat fade | Up next |                                |
+ |  Ambience title ...                          |  ...    |                                |
+ +-----------------------------------------------------------------------------------------+
+ two columns (820 to 1199 px, 960x1000): Scenes, then the session and campaign boxes | Current scene; On air below.
+ one column (below 820 px): Scenes, Current scene, the four session and campaign boxes; On air below.
+```
+
+The boxes never change places during play. Scenes and Current scene are where the eye starts; the session's boxes come
+before the campaign's; On air is docked along the bottom of the screen in every layout, so it is in view whatever the
+other boxes do (it takes at most 46 % of the height and scrolls inside itself beyond that). Each kind of box has one
+icon and one coloured edge, and the name in words: scenes (scroll, grey), the running scene (play, the theme's accent),
+On air (broadcast, red), playlists (playlist icon, the music blue), pads (grid, the pads lime). The session and campaign
+versions of a box are the same box with a small tag in words, "Session" or "Campaign", before the name. Colour is never
+the only cue, and no new colours were added: `tools/check-contrast.js` passes for all five themes.
+
+Each box is a region named as Nik named it, with a level 2 heading. Alt+1 to Alt+7 go straight to the boxes in the
+order of the diagram (each box's toggle has its `aria-keyshortcuts`), and F6 / Shift+F6 move to the next or previous box.
+F6 gives way to a pad of the Current scene's board that has F6 as its key, so pad keys F1 to F12 keep working. Space,
+Ctrl+Z, Shift+Esc and / are unchanged. Queue, Play next, Up next, Kick, Undo and Stop pads are announced in the page's
+live region.
+
+Folded at first: Session pads, Campaign pads and Campaign playlists. The running scene's own pads are open in Current
+scene, and tonight's planned music is the scene's and the session's. A box once unfolded stays unfolded on this
+computer.
+
+### The boxes
+
+**Scenes.** Next scene (Space) and the 8-second Undo strip at the top, then every scene with Now and Next marked and
+Start (or Restart) on each. "Starts when" shows for the next scene only: the running scene's details are in Current
+scene. A scene's name unfolds it in place (Enter or Right; Left folds): when it starts, its notes, its music in play
+order, its ambience and its pad boards, each board unfolding to its pads. In an unfolded scene a track has Preview,
+Play next, Add to queue and Repeat one, and a playlist its play order there; there is no Play on air, because Start is
+how a scene is played, and unfolding never changes what plays.
+
+**Current scene.** The running scene, all of it: its name in the header, its notes (two lines, More), its music in
+the order it plays with the track on air marked, its ambience, and its pad boards (a switch when it has more than one)
+with their keys. Before the first scene it says "No scene yet". Its ⋯ holds the rare things: play its music from the
+top, open it in the session planner, edit its pad board. Stop pads appears beside the pads while a pad sounds.
+
+**On air.** What each room hears, a part per room with the room's name as a heading: Playing, Paused, Muted, Joining
+or Silent; Mute, volume, the bot button (change channel or bot, copy another room, Outputs, Bots and tokens) and Kick.
+Under it the music (Previous, Pause, Next, Repeat, Fade), the ambience, the effects while any sound, and Up next. With
+no bot in a voice channel the part is "No room", says "Nobody hears it", and offers Join Table (BUG-19). Add a room is
+the + in the header. Up next is the room's running list from the next track to the bottom: Play next items, the
+planned tracks still to come (folded to the first, with "n more"), then what was added, marked with the queue icon and
+read out as "Added:". Each entry has ×, which takes it out for this evening only, with Undo.
+
+**Session playlists** and **Campaign playlists.** Each playlist unfolds to its tracks in that place's order; Play on
+air plays it from the top, and a single track plays any time. The session's and the campaign's single tracks are rows
+at the bottom (ORG-12). With two rooms or more each has its own To:.
+
+**Session pads** and **Campaign pads.** The boards of the session or the campaign, a switch when there are several,
+pads to click. Pad keys belong to the Current scene's board only, so two boards with the same keys never compete.
+
+**Find a track** (was the Off script box). A field in the top strip; / or a click opens its results under it, with the
+Music, Ambience and FX filter, the moods and All tags. Esc clears it, a second Esc (or ×, or a click elsewhere) closes
+it, and no box moves.
+
+**Rows.** Every track and playlist row in Live reads as its name and length with one action showing, Play on air
+(Preview in an unfolded scene). Preview, Play next, Add to queue, Repeat one and the play order show on the row on
+air, on hover and when the keyboard is on the row; they are always in the Tab order, and on a touch screen they always
+show. Moods and energy are in a row's details, opened by its name.
+
+### Play next, Add to queue and Repeat (the data for the contracts)
+
+**Queue per room, for the evening, not saved.** Each room keeps a running list: the plan (a scene's music in order, a
+playlist in its place's order, or one track), Play next items, which play right after the current track (the newest
+first, and before the rest of a Play next playlist that is playing), and Add to queue items, which play after the
+bottom of the plan in the order added. A queued playlist is one item with its tracks in its place's order. With Repeat
+off, an added item plays once and leaves the list; with Repeat all, added items come round again with the rest. After
+the bottom: a scene's music starts again from its top, as it always has; a playlist starts again with Repeat all and
+otherwise stops. × in Up next takes a planned track out for this evening (a skip, keyed by its position in the scene or
+the playlist) or removes an added item. Starting another scene starts a new plan; what was added stays at the bottom.
+Loading another session clears the lists. The contract needs, per room: `pn` and `q` lists of
+`{ trackIds, playlistId | null, placeKey, name }`, the playing position (plan, Play next or added), the plan position
+to return to, and the skips. Nothing is written to the database. Ctrl+Z and the 8-second Undo take back the last add,
+removal or Clear added.
+
+**Repeat per room, not saved.** Each room has `repeat: null | 'off' | 'all' | 'one'` for what plays now, shown on the
+Now playing bar and in On air. Until it is pressed it shows what the music does by itself: a scene track's saved Repeat
+one, a playlist's own play order where it plays from (PLY-13), or off. Pressing goes off, all, one in turn. It goes back
+to null when that room's music stops, and when a scene or Play on air starts a new plan. The play order saved per place
+(PLY-13, `play_orders`) is never changed by it.
+
+**Repeat one per scene and track, saved.** `repeat_ones (place_key 'sc:<campaign>:<session>:<scene>', track_id)`, a row
+while it is on; for the contract, it goes with the scene or the track and is in backups. The same button is on that track in
+Current scene, in an unfolded scene and in the session planner (the scene's tracks, and the tracks of its playlists).
+Starting the scene next session repeats that track again. Pressing it while that track plays clears a Repeat chosen in
+that room, so the saved setting shows at once.
+
+### Numbers
+
+Round 6 script (`tools/r6-measure.js`), Live as it was this morning (round 6 with part 2 and the 0.4.1 fixes) and
+after; 1920×1080, words at 960×1000 in brackets. Before a scene runs (`live`) and mid-scene (`live-playing`) are the two
+Nik's rule is about; both are below this morning's on every count.
+
+| Screen and state | Words | Hint lines | Shown twice | Controls |
+| --- | ---: | ---: | ---: | ---: |
+| live | 115 → 85 (99 → 69) | 2 → 1 | 0 → 0 | 55 → 44 |
+| live-playing | 223 → 218 (207 → 202) | 6 → 2 | 6 → 5 | 84 → 84 |
+| live-aftermath | 193 → 174 (177 → 158) | 3 → 1 | 3 → 4 | 74 → 72 |
+| live-scene-open (Crypt ambush unfolded) | 416 → 261 (384 → 240) | 6 → 3 | 11 → 7 | 119 → 95 |
+
+Mid-scene the screen now shows the scene's pads, Session playlists, the four session and campaign boxes and Up next,
+which this morning were folded or did not exist, for 5 fewer words and the same number of controls. Most of the room
+comes from one action per row (Play on air) with the others on hover and focus, the track counts and the scene
+position moved to hover text, the moods and energy moved to a row's details, the Off script box's filters and moods
+moved under Find a track, and no "Starts when" on the running scene. The unfolded scene is shorter because a playlist
+in it is one row that unfolds, where part 2 listed all 17 tracks. The prep screens are unchanged (planner 205, two
+scenes 229, campaign with the bar 132, the bar with two rooms 213 words): the planner's Repeat one is hidden until the
+row is pointed at or focused, or it is on.
+
+Checks: the prototype spec project passes (`yarn heavy`), `tools/r5-check.js` passes ("every screen passed"),
+`tools/check-contrast.js` passes for the five themes. Screenshots of Live mid-scene, with a Play next and an added
+playlist in Up next, are in `shots/r6/live-part3-1920.png`, `-1280.png` and `-960.png`.
+
+### Questions for Nik (round 6, part 3)
+
+1. **Find a track is a field in the top strip, not an eighth box.** Your seven boxes have no place for Off script.
+   *Recommend keeping it there:* the search is used in bursts, the field is always in the same place, / still jumps to
+   it, and its results cover the boxes only while you search (Esc puts everything back). The other choice is an eighth
+   box, folded.
+2. **One action per row.** A track or playlist row shows Play on air; Preview, Play next, Add to queue, Repeat one and
+   the play order show when you point at the row, when the keyboard is on it, and on the row on air (always on a touch
+   screen). *Recommend keeping:* it is most of the drop in reading load, and the buttons are where your pointer already
+   is. If you miss them, say so and Preview comes back for good.
+3. **What you add stays when the next scene starts.** Play next and Add to queue items belong to the room for the
+   evening, so they stay at the bottom of the new scene's list (× or Clear added takes them out). *Recommend keeping:*
+   it is what "for this evening" means, and nothing you queued is lost by pressing Space. The other choice is that a
+   new scene clears them.
+
+### Try it
+
+Open the prototype and choose Live: S14 in the menu (or Live in Prep | Live).
+1. Press Start beside The abbey ruins in Scenes. On air, along the bottom, says Table, Playing, and lists Up next.
+2. Point at "Haunted sea shanty…" in Current scene and press Play next (the arrow to a bar). It is first in Up next.
+3. Point at The Abbess and press Add to queue (the list with a plus). It is last in Up next, "5 left". Press its × and
+   then Undo.
+4. Press Next (|>) in On air: Haunted sea shanty plays.
+5. Press Repeat in On air: all, then one. Press Stop all, then Restart beside The abbey ruins: Repeat is off again.
+6. Point at the first track in Current scene and press Repeat one (the loop with a 1). Press Prep, open scene 3 in the
+   planner: the same track shows Repeat one pressed. Press Live to go back.
+7. Click "Crypt ambush" in Scenes: it unfolds with its notes, music, ambience and boards; nothing changes in On air.
+8. Click Session Pads to unfold it and press a pad. Press a pad key (1 to 4, Q to R): the scene's pads play.
+9. Press /, type bells, press Esc twice.
+10. Press Alt+1 to Alt+7, then F6: the keyboard moves from box to box.
+11. Press + in On air and choose Side room: a second room appears beside Table, and each box gets To:.

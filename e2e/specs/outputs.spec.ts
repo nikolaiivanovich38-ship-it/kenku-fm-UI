@@ -141,7 +141,7 @@ test.describe("outputs and the live game", () => {
     const modes = page.getByRole("group", { name: "Prep or live" });
     await expect(modes.getByRole("button", { name: "Prep" })).toHaveAttribute("aria-pressed", "true");
     await modes.getByRole("button", { name: "Live" }).click();
-    await expect(page.getByRole("region", { name: "On air: Table", exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "On air", exact: true }).getByRole("group", { name: "Table", exact: true })).toBeVisible();
   });
 
   test("a room that a bot is moved to on the Outputs screen also gets its On air box in Live", async ({ page }) => {
@@ -149,8 +149,8 @@ test.describe("outputs and the live game", () => {
     await openRoute(page, "outputs");
     await joinRoom(page, "Lyre Side", "Whispers");
     await page.getByRole("group", { name: "Prep or live" }).getByRole("button", { name: "Live" }).click();
-    await expect(page.getByRole("region", { name: "On air: Whispers", exact: true })).toBeVisible();
-    await expect(page.getByRole("region", { name: "On air: Table", exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "On air", exact: true }).getByRole("group", { name: "Whispers", exact: true })).toBeVisible();
+    await expect(page.getByRole("region", { name: "On air", exact: true }).getByRole("group", { name: "Table", exact: true })).toBeVisible();
   });
 });
 

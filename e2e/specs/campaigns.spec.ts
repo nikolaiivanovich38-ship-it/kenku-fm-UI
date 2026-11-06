@@ -310,7 +310,7 @@ test.describe("round 5: volume normalisation in the Now playing bar", () => {
 test.describe("round 6: Repeat on the Now playing bar, the campaign's own order, and Back", () => {
   test.beforeEach(() => expectFailureUntilBuilt("round 6"));
 
-  test("PLY-17: a Now playing row has Shuffle and Repeat; Repeat goes off, all, one for the place it plays from", async ({ page }) => {
+  test("PLY-17: a Now playing row has Shuffle and Repeat; Repeat goes off, all, one for what plays now, not saved (round 6 part 3)", async ({ page }) => {
     await openRoute(page, "campaign/crown");
     await region(page, "Campaign playlists").getByRole("button", { name: "Play on air: The Company themes" }).click();
     const row = region(page, "Now playing").getByRole("group", { name: "On air", exact: true });
@@ -320,7 +320,7 @@ test.describe("round 6: Repeat on the Now playing bar, the campaign's own order,
     await repeat.click();
     await expect(repeat).toHaveAccessibleName("Repeat: one");
     await expect(repeat).toHaveAttribute("aria-pressed", "true");
-    await expect(region(page, "Campaign playlists").getByRole("button", { name: /^Play order of The Company themes: / })).toHaveAccessibleName("Play order of The Company themes: In order, repeat one");
+    await expect(region(page, "Campaign playlists").getByRole("button", { name: /^Play order of The Company themes: / })).toHaveAccessibleName("Play order of The Company themes: In order, repeat all");
     await repeat.click();
     await expect(repeat).toHaveAccessibleName("Repeat: off");
     await expect(repeat).toHaveAttribute("aria-pressed", "false");
