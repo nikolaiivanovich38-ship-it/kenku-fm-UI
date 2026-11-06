@@ -87,11 +87,11 @@ function onDiscord() {
 }
 
 describe("playing on air (L.play, L.next/L.prev, L.upNext)", () => {
-  it("plays a track in the first room, on this page's speakers while no bot is in a voice channel", async () => {
+  it("plays a track in the first room, and never on this page's speakers while no bot is in a voice channel (BUG-19)", async () => {
     expect(rig.audio.playTrack("m1")).toEqual({ ok: true });
     await rig.advance(4);
     expect(rig.hearRoom("table")).toBeCloseTo(1);
-    expect(rig.hearSpeakers()).toBeCloseTo(1);
+    expect(rig.hearSpeakers()).toBe(0);
     expect(state().rooms).toHaveLength(1);
     expect(first()).toMatchObject({ roomId: "table", name: "Table", music: { trackId: "m1", title: "M1", paused: false, loading: false, length: 20 } });
     expect(first().music!.position).toBeGreaterThan(3.5);
@@ -239,24 +239,33 @@ describe("rooms: each room's sound goes only to its own bot (roomsFor, sceneRoom
   });
 });
 
-describe("no double hearing: this page's speakers only outside a broadcast", () => {
-  it("silences the speakers while a broadcast runs and brings them back after", async () => {
-    rig.setRooms([TAVERN]);
+describe("BUG-19: what goes to the players is heard only through Discord, never on this page's speakers", () => {
+  it("keeps the speakers silent before, during and after a broadcast, while the room goes on to its bot", async () => {
     rig.audio.playTrack("m1");
     await rig.advance(4);
-    expect(rig.hearSpeakers()).toBeCloseTo(1);
+    expect(rig.hearSpeakers()).toBe(0);
+    rig.setRooms([TAVERN]);
     rig.broadcast(true);
     expect(rig.hearSpeakers()).toBe(0);
     expect(rig.hearRoom("bot-a")).toBeCloseTo(1);
     expect(state().broadcasting).toBe(true);
     rig.broadcast(false);
-    expect(rig.hearSpeakers()).toBeCloseTo(1);
+    rig.setRooms([]);
+    rig.audio.playTrack("m2");
+    await rig.advance(4);
+    expect(state().broadcasting).toBe(false);
+    expect(rig.hearRoom("table")).toBeCloseTo(1);
+    expect(rig.hearSpeakers()).toBe(0);
   });
 
-  it("plays only the first room on the speakers", async () => {
+  it("plays no room on the speakers, first or other, nor its effects and pads", async () => {
     rig.setRooms([TAVERN, DUNGEON]);
-    rig.audio.playTrack("m1", { target: { room: "bot-b" } });
-    await rig.advance(4);
+    rig.audio.playTrack("m1");
+    rig.audio.playTrack("m2", { target: { room: "bot-b" } });
+    rig.audio.firePad("b", "rain");
+    rig.audio.testChime("bot-a");
+    await rig.advance(1);
+    expect(rig.hearRoom("bot-a")).toBeGreaterThan(0);
     expect(rig.hearSpeakers()).toBe(0);
   });
 });

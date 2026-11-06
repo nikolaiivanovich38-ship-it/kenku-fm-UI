@@ -483,6 +483,20 @@ describe("rooms", () => {
   });
 });
 
+describe("BUG-19: with no room, nobody hears what plays", () => {
+  it("the On air box says Silent, then Nobody hears it once something plays there", async () => {
+    const { outputs, sound } = await openLive();
+    act(() => outputs.leave(TABLE_BOT));
+    const box = await findRegion("On air: no room yet");
+    expect(box.getAllByText("Silent").length).toBeGreaterThan(0);
+    expect(box.queryByText("Nobody hears it")).toBeNull();
+    await startAbbey();
+    await playOn(sound);
+    expect(region("On air: no room yet").getByText("Nobody hears it")).toBeInTheDocument();
+    expect(sound.hearSpeakers()).toBe(0);
+  });
+});
+
 describe("the Now playing bar in Live (UX-16)", () => {
   it("shows only a preview, tagged Only you, because the room boxes show what each room hears", async () => {
     const { sound } = await openLive();

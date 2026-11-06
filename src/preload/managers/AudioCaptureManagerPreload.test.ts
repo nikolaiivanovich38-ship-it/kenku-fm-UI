@@ -138,6 +138,15 @@ class FakeAudioData {
   }
 }
 
+/** Whether sound put into `from` reaches `to` along the connections made. */
+function reaches(from: unknown, to: unknown, seen = new Set<FakeNode>()): boolean {
+  const node = from as FakeNode;
+  if (node === to) return true;
+  if (seen.has(node)) return false;
+  seen.add(node);
+  return [...node.connections].some((next) => reaches(next, to, seen));
+}
+
 const contexts: FakeAudioContext[] = [];
 const workletNodes: FakeWorkletNode[] = [];
 const encoders: FakeEncoder[] = [];
@@ -539,15 +548,14 @@ describe("AudioCaptureManagerPreload: one mix and one encoder per room (OUT-5)",
     expect(manager._mixes.get(A)!.volume.gain.value).toBe(0.5);
   });
 
-  it("plays only the first room on this computer", async () => {
+  it("plays only the first room's tabs and input devices on this computer", async () => {
     const manager = await broadcastingRooms();
-    const loopback = manager._loopbackNode as unknown as FakeNode;
-    const volume = (room: string) => manager._mixes.get(room)!.volume as unknown as FakeNode;
-    expect(volume(A).connections.has(loopback)).toBe(true);
-    expect(volume(B).connections.has(loopback)).toBe(false);
+    const loopback = manager._loopbackNode;
+    expect(reaches(roomInput(manager, A), loopback)).toBe(true);
+    expect(reaches(roomInput(manager, B), loopback)).toBe(false);
     manager.setRooms([B]);
     await manager._ready;
-    expect(volume(B).connections.has(loopback)).toBe(true);
+    expect(reaches(roomInput(manager, B), loopback)).toBe(true);
     expect(elements).toHaveLength(1);
   });
 
@@ -636,6 +644,24 @@ describe("AudioCaptureManagerPreload: engine rooms and preview from the player p
     port.deliver(roomFrame(B, 5));
     expect(inlets()).toHaveLength(1);
     expect(contexts[0].state).toBe("running");
+  });
+
+  it("BUG-19: never plays an engine room on this computer; its frames still reach that room's encoder", async () => {
+    const { manager, port } = await withPlayer();
+    const loopback = manager._loopbackNode;
+    port.deliver(roomFrame(A));
+    const inlet = inlets()[0];
+    expect(reaches(inlet, manager._mixes.get(A)!.pcmNode)).toBe(true);
+    expect(reaches(inlet, loopback)).toBe(false);
+    // A tab in the first room still plays here, as the old player and websites always did.
+    await manager.startBrowserViewStream(7, "source-7");
+    expect(reaches(manager._mediaStreamOutputs[7], loopback)).toBe(true);
+    // Nor once the rooms change and another room becomes the first.
+    manager.setRooms([B, A]);
+    port.deliver(roomFrame(B));
+    expect(inlets()).toHaveLength(2);
+    for (const node of inlets()) expect(reaches(node, loopback)).toBe(false);
+    expect(reaches(inlets()[1], manager._mixes.get(B)!.pcmNode)).toBe(true);
   });
 
   it("drops frames for a room it does not have, or outside a broadcast, or that are odd", async () => {

@@ -2,31 +2,51 @@
  * BUG-12, BUG-13 (w31-fix) in the packaged app: what plays belongs to the Lyre page, not to a screen. Preparing a
  * scene never stops what is on air or in preview, and music keeps playing, with the Now playing bar, wherever the game
  * master goes until Stop. Seeded with the prototype's library, whose files play a stand-in tone
- * (src/main/lyreApi/seedAudio.ts).
+ * (src/main/lyreApi/seedAudio.ts), and the prototype's Discord: Lyre Table is in the voice channel Table.
+ *
+ * BUG-19 (w5-fixes): what goes to the players is heard only through Discord. Sound on air is checked as the packets
+ * the fake Discord's Table receives; this computer (the Lyre page and the capture window, by Chromium's own
+ * audibility check) never plays it, with a bot in a room or without one.
  */
 import type { ElectronApplication, Page } from "@playwright/test";
 import { test, expect } from "./fixtures/app";
 import { openLyreRoute } from "./fixtures/lyre";
 
-const SEEDED = { CUE_DESK_LYRE_SEED: "prototype", CUE_DESK_FAKE_DISCORD: "1" };
+const SEEDED = { CUE_DESK_LYRE_SEED: "prototype", CUE_DESK_FAKE_DISCORD: "prototype" };
+/** The prototype world's voice channel Table (src/main/broadcast/testing/prototypeWorld.ts). */
+const TABLE_CHANNEL = "1011";
 
-/** Whether the Lyre page sends sound to this computer's speakers now (Chromium's own audibility check). */
-function audible(app: ElectronApplication): Promise<boolean> {
+/** Packets with sound the fake Discord's Table has received so far. */
+function heardAtTable(app: ElectronApplication): Promise<number> {
   return app.evaluate(
-    ({ webContents }) => webContents.getAllWebContents().find((c) => !c.isDestroyed() && c.getTitle() === "Lyre Interface")?.isCurrentlyAudible() ?? false,
+    (_electron, channelId) => (globalThis as unknown as { __cueDeskFakeDiscord?: { decode(id: string): unknown[] } }).__cueDeskFakeDiscord?.decode(channelId).length ?? -1,
+    TABLE_CHANNEL,
   );
+}
+
+/** Whether this computer's speakers get sound from Lyre: the Lyre page or the capture window (Chromium's audibility check). */
+function thisComputerPlays(app: ElectronApplication): Promise<boolean> {
+  return app.evaluate(({ webContents }) =>
+    webContents.getAllWebContents().some((c) => !c.isDestroyed() && ["Lyre Interface", "Audio Capture"].includes(c.getTitle()) && c.isCurrentlyAudible()),
+  );
+}
+
+/**
+ * Table hears it now and still a second and a half later (so a short gap between tracks is not taken for silence); this
+ * computer stays silent.
+ */
+async function expectSound(app: ElectronApplication, lyre: Page, why: string) {
+  const before = await heardAtTable(app);
+  await expect.poll(() => heardAtTable(app), { message: why, timeout: 5_000 }).toBeGreaterThan(before + 10);
+  const after = await heardAtTable(app);
+  await lyre.waitForTimeout(1500);
+  expect(await heardAtTable(app), why).toBeGreaterThan(after + 10);
+  expect(await thisComputerPlays(app), `${why}: never on this computer`).toBe(false);
 }
 
 const onAirBar = (lyre: Page) => lyre.getByRole("region", { name: "Now playing" });
 const abbey = (lyre: Page) => lyre.getByRole("listitem", { name: /^Scene \d+: The abbey ruins$/ });
 const musicOf = (lyre: Page) => abbey(lyre).getByRole("group", { name: "Music", exact: true }).getByRole("list", { name: "Music in order" });
-
-/** Sound now and still a second and a half later, so a short gap between tracks is not taken for silence. */
-async function expectSound(app: ElectronApplication, lyre: Page, why: string) {
-  await expect.poll(() => audible(app), { message: why, timeout: 5_000 }).toBe(true);
-  await lyre.waitForTimeout(1500);
-  expect(await audible(app), why).toBe(true);
-}
 
 test("adding, moving and removing in a scene leaves the music on air and the preview playing (BUG-12)", async ({ launchApp }) => {
   const launched = await launchApp({ env: SEEDED });
@@ -89,5 +109,25 @@ test("music started on one screen keeps playing, with the Now playing bar, on th
   await lyre.getByRole("navigation").getByRole("link", { name: "Library" }).first().click();
   await onAirBar(lyre).getByRole("button", { name: "Stop", exact: true }).click();
   await expect(onAirBar(lyre)).toHaveCount(0);
-  await expect.poll(() => audible(launched.app), { timeout: 10_000 }).toBe(false);
+  // Stopped: after the fade, Table receives nothing more.
+  await lyre.waitForTimeout(2000);
+  const stopped = await heardAtTable(launched.app);
+  await lyre.waitForTimeout(1500);
+  expect(await heardAtTable(launched.app)).toBe(stopped);
+});
+
+test("with no bot in a voice channel, music on air plays nowhere: nobody hears it, and the bar says so (BUG-19)", async ({ launchApp }) => {
+  const launched = await launchApp({ env: SEEDED });
+  const lyre = await openLyreRoute(await launched.mainWindow(), "playlists");
+  await launched.app.evaluate(() => (globalThis as unknown as { __lyreOutputsTest: { leaveAll(): Promise<void> } }).__lyreOutputsTest.leaveAll());
+  await lyre.getByRole("button", { name: "Play on air: The Company themes" }).first().click();
+  const row = onAirBar(lyre).getByRole("group", { name: "On air: no room" });
+  await expect(row).toContainText("nobody hears it");
+  await expect(row.locator(".num")).not.toHaveText(/^0:00/, { timeout: 5_000 });
+  const heard = await heardAtTable(launched.app);
+  for (let i = 0; i < 6; i++) {
+    expect(await thisComputerPlays(launched.app), "nothing on this computer").toBe(false);
+    await lyre.waitForTimeout(500);
+  }
+  expect(await heardAtTable(launched.app)).toBe(heard);
 });

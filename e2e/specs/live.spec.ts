@@ -285,6 +285,16 @@ test.describe("rooms", () => {
     await expect(page.getByText(/players hear nothing/)).toHaveCount(0, { timeout: 5000 });
   });
 
+  test("BUG-19: with no room joined, what plays says nobody hears it, in its On air box and in the Now playing bar", async ({ page }) => {
+    await openRoute(page, "live");
+    await leaveAllRooms(page);
+    await startFirstScene(page);
+    await expect(region(page, "On air: no room yet").getByText("Nobody hears it")).toBeVisible();
+    await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Library" }).click();
+    const row = region(page, "Now playing").getByRole("group", { name: "On air: no room" });
+    await expect(row).toContainText("No bot is in a voice channel: nobody hears it");
+  });
+
   test("with one room there is no To: choice anywhere", async ({ page }) => {
     await openRoute(page, "live");
     await expect(page.getByRole("button", { name: /choose a room/i })).toHaveCount(0);

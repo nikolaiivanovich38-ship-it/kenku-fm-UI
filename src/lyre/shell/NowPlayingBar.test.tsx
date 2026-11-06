@@ -202,11 +202,12 @@ describe("a room's row: what the players hear", () => {
     expect(within(rows[0]).getByRole("link", { name: "Go to Live" })).toBeInTheDocument();
   });
 
-  it("with no bot in a voice channel, says there is no room and only this computer plays it", () => {
+  it("with no bot in a voice channel, says there is no room and nobody hears it (BUG-19)", () => {
     show({ broadcasting: false, rooms: [room("table", "Table", lane())] });
     const row = within(bar()).getByRole("group", { name: "On air: no room" });
     expect(within(row).getByTitle("The players hear this in no room")).toHaveTextContent("On air · no room");
-    expect(row).toHaveTextContent("No bot is in a voice channel: only this computer plays it");
+    expect(row).toHaveTextContent("No bot is in a voice channel: nobody hears it");
+    expect(row).not.toHaveTextContent(/this computer/);
     expect(within(row).getByRole("slider", { name: "Volume in Table" })).toBeInTheDocument();
   });
 });
