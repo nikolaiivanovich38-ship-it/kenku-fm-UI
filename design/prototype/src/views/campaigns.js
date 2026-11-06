@@ -71,7 +71,8 @@
       label: fx ? (t.role === 'Sting' ? 'FX · Sting' : 'FX') : t.kind === 'amb' ? 'Ambience track' : 'Track', sub: (t.role && t.kind === 'music' && !fx ? t.role + ' · ' : '') + L.fmt(t.dur) };
   }
   // Preview, optional expander and contents for a playlist or board row. xk: expander key unique to this place on the page.
-  function xpBody(it, xk, pkey) { return (it.kind === 'playlist' || it.kind === 'board') && L.expanded(xk) ? '<div class="xp-body cp-xp">' + L.contentsHTML(it.kind, it.id, pkey) + '</div>' : ''; }
+  // okey (ORG-13): the place whose own track order the open playlist shows and changes.
+  function xpBody(it, xk, pkey, okey) { return (it.kind === 'playlist' || it.kind === 'board') && L.expanded(xk) ? '<div class="xp-body cp-xp">' + L.contentsHTML(it.kind, it.id, pkey, it.kind === 'playlist' ? okey : '') + '</div>' : ''; }
   function xpBtn(it, xk) { return it.kind === 'playlist' || it.kind === 'board' ? L.expanderButton(xk, it.name) : '<span class="cp-xpgap" aria-hidden="true"></span>'; }
 
   /* ---------- shared: assigned playlists and pad boards as compact rows ---------- */
@@ -87,11 +88,12 @@
     var key = scopeKey(scope);
     return '<ul class="list cp-alist">' + ids.map(function (id) {
       var it = info(id, kind === 'bd'); if (!it) return ''; var o = it.obj, xk = 'cp-' + scope + ':' + id, nm = esc(o.name);
-      var sub = kind === 'pl' ? plSub(o) : it.label + ' · ' + it.sub;
-      return '<li class="cp-arow-wrap"><div class="cp-arow">' + xpBtn(it, xk) + '<span class="lane-dot ' + it.cls + '" aria-hidden="true"></span>' +
+      var sub = kind === 'pl' ? plSub(o) : it.label + ' · ' + it.sub, ro = kind === 'pl' && !readonly && ids.length > 1;
+      // ORG-13: the session's and the campaign's playlists can be dragged (or moved with Alt+Up / Alt+Down) into order.
+      return '<li class="cp-arow-wrap"' + (ro ? ' data-ro="apl|' + scope + '" data-ri="' + ids.indexOf(id) + '"' : '') + '><div class="cp-arow">' + (ro ? '<span class="ro-handle" title="Drag to change the order (or Alt+Up / Alt+Down)" aria-hidden="true">' + L.icon('drag', 's') + '</span>' : '') + xpBtn(it, xk) + '<span class="lane-dot ' + it.cls + '" aria-hidden="true"></span>' +
         '<a class="ellipsis grow cp-aname" href="' + it.href + '" data-k="open-' + scope + kind + id + '" title="' + esc(o.name + ' · ' + sub) + '">' + nm + '</a>' +
         L.previewButton(it.kind, id) + (kind === 'pl' ? L.playOnAirButton('playlist', id, key) + L.orderButton(id, key) : '') +
-        (readonly ? '' : moreBtn('more-' + scope + kind + id, nm, 'data-menu="assigned" data-scope="' + scope + '" data-kind="' + kind + '" data-id="' + id + '"')) + '</div>' + xpBody(it, xk, scope === 's' ? key : '') + '</li>';
+        (readonly ? '' : moreBtn('more-' + scope + kind + id, nm, 'data-menu="assigned" data-scope="' + scope + '" data-kind="' + kind + '" data-id="' + id + '"')) + '</div>' + xpBody(it, xk, scope === 's' ? key : '', scope === 'r' ? '' : key) + '</li>';
     }).join('') + tracks.map(function (id) {
       var it = info(id), t = it.obj, nm = esc(it.name);
       return '<li class="cp-arow-wrap"><div class="cp-arow"><span class="cp-xpgap" aria-hidden="true"></span><span class="lane-dot ' + it.cls + '" aria-hidden="true"></span>' +
@@ -121,6 +123,13 @@
       } };
     if (kind === 'pl') L.pickPlaylists(o); else L.pickBoards(o);
   };
+  L.reorder.apl = function (group, from, to) {
+    var x = ctx(), scope = group.split('|')[1], list = scope === 'c' ? x.c.playlists : x.s.playlists;
+    if (to < 0 || to >= list.length || from === to) return false;
+    var id = list.splice(from, 1)[0]; list.splice(to, 0, id);
+    L.say(L.playlist(id).name + ' is now ' + (to + 1) + ' of ' + list.length + ' in this ' + (scope === 'c' ? 'campaign' : 'session')); return true;
+  };
+  L.acts.cpplmove = function (el) { var x = ctx(), list = el.dataset.scope === 'c' ? x.c.playlists : x.s.playlists, i = list.indexOf(el.dataset.id); focusK = 'more-' + el.dataset.scope + 'pl' + el.dataset.id; if (L.reorder.apl('apl|' + el.dataset.scope, i, i + +el.dataset.dir)) L.render(); };
   L.acts.cprm = function (el) {
     var x = ctx(), target = el.dataset.scope === 'c' ? x.c : x.s, kind = el.dataset.kind, list = kind === 'pl' ? target.playlists : kind === 'tr' ? target.tracks : target.boards, id = el.dataset.id;
     var i = list.indexOf(id); if (i < 0) return; list.splice(i, 1);
@@ -416,7 +425,7 @@
       (it.kind === 'playlist' && list === 'music' ? L.orderButton(it.id, key) : '') +
       (isTrack && L.profileLink ? '<a class="btn s icon cp-prof" href="#/profile/' + it.id + '/' + key + '" data-k="prof-' + k + '" title="Waveform, end and fades of ' + esc(shown) + ' in this scene" aria-label="Waveform, end and fades in this scene: ' + nm + '">' + L.icon('wave', 's') + '</a>' : '') +
       moreBtn('im-' + k, nm, 'data-menu="item" data-list="' + list + '" data-sc="' + sc.id + '" data-idx="' + i + '"') +
-      '</div>' + xpBody(it, xk, list === 'music' ? sceneKey(sc) : '') + '</li>';
+      '</div>' + xpBody(it, xk, list === 'music' ? sceneKey(sc) : '', list === 'music' ? sceneKey(sc) : '') + '</li>';
   }
   function sceneKey(sc) { var x = ctx(); return 'sc:' + x.c.id + ':' + x.s.id + ':' + sc.id; }
   // A small marker when a track has its own audio settings in this scene; the Audio profile link is in the row's ⋯ menu.
@@ -474,7 +483,9 @@
     function item(act, label, icon, extra) { return '<button role="menuitem" data-act="' + act + '" ' + (extra || '') + '>' + L.icon(icon) + label + '</button>'; }
     if (d.menu === 'assigned') {
       var where = d.scope === 'c' ? 'campaign' : 'session';
-      h = item('cpgo', 'Open', 'right', 'data-href="' + (d.kind === 'pl' ? '#/playlist/' : d.kind === 'tr' ? '#/library/' : '#/board/') + d.id + '"') +
+      var plist = d.kind === 'pl' ? (d.scope === 'c' ? ctx().c.playlists : ctx().s.playlists) : [], pi = plist.indexOf(d.id);
+      h = (pi > 0 ? item('cpplmove', 'Move up', 'chevup', 'data-scope="' + d.scope + '" data-id="' + d.id + '" data-dir="-1"') : '') + (pi > -1 && pi < plist.length - 1 ? item('cpplmove', 'Move down', 'chevdown', 'data-scope="' + d.scope + '" data-id="' + d.id + '" data-dir="1"') : '') +
+        item('cpgo', 'Open', 'right', 'data-href="' + (d.kind === 'pl' ? '#/playlist/' : d.kind === 'tr' ? '#/library/' : '#/board/') + d.id + '"') +
         (d.kind === 'tr' && d.scope === 's' ? item('cpgo', 'Waveform, end and fades in this session', 'wave', 'data-href="#/profile/' + d.id + '/' + scopeKey('s') + '"') : '') +
         (d.kind === 'tr' ? item('cpusein', 'Use in…', 'link', 'data-id="' + d.id + '"') : '') + '<div class="sep"></div>' +
         item('cprm', 'Remove from this ' + where, 'close', 'data-scope="' + d.scope + '" data-kind="' + d.kind + '" data-id="' + d.id + '" data-k="rm-' + d.scope + d.kind + d.id + '"');

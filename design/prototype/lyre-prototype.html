@@ -558,6 +558,14 @@ button .shape-g { color: inherit; }
 /* UX-18: Back sits first in every header it is in, and never grows past a short name. */
 .nav-back { flex: none; max-width: min(40ch, 60%); }
 .nav-back .ellipsis { min-width: 0; }
+/* ORG-13: rows that can be put in another order in one place. */
+.ro-handle { flex: none; display: inline-grid; place-items: center; width: 18px; color: var(--ink-3); cursor: grab; }
+.ro-list .xp-row:hover .ro-handle { color: var(--ink-2); }
+[data-ro].ro-dragging { opacity: .5; }
+[data-ro].ro-before { box-shadow: inset 0 2px 0 var(--accent); }
+[data-ro].ro-after { box-shadow: inset 0 -2px 0 var(--accent); }
+.ro-own { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; font-size: var(--fs-s); color: var(--ink-2); }
+.ro-own-t { display: inline-flex; align-items: center; gap: 4px; }
 
 /* Outputs view (prefix op-) */
 .op-body { padding: 10px 12px; }
@@ -2715,8 +2723,27 @@ var L = (function () {
   };
   L.clearOrder = function (pid, key) { if (key && D.orders[key]) delete D.orders[key][pid]; else if (!key && L.playlist(pid)) delete L.playlist(pid).order; };
   L.orderWords = function (o) { return (o.shuffle ? 'Shuffle' : 'In order') + ', ' + (o.repeat === 'all' ? 'repeat all' : o.repeat === 'one' ? 'repeat one' : 'no repeat'); };
+  /* ORG-13 order per place (Nik, 6 Nov 10:34: reorder a playlist's tracks "in the scene view, and have that reordering
+     apply only in that scene", and the same in a session's and a campaign's playlists). D.trackOrders[placeKey][pid] is
+     the track ids in the order chosen there; tracks it does not name (added to the playlist later) follow, in the
+     playlist's own order. L.placeTracks(pid, key) is that order (shuffle not applied), L.hasPlaceOrder(pid, key),
+     L.setPlaceOrder(pid, key, ids), L.clearPlaceOrder(pid, key) ("Back to the playlist's order"). Shuffle still applies on
+     top, in L.orderedTracks. */
+  D.trackOrders = D.trackOrders || {};
+  L.hasPlaceOrder = function (pid, key) { return !!(key && D.trackOrders[key] && D.trackOrders[key][pid]); };
+  L.placeTracks = function (pid, key) {
+    var ts = L.playlistTracks(L.playlist(pid)); if (!L.hasPlaceOrder(pid, key)) return ts;
+    var ord = D.trackOrders[key][pid], rank = {}; ord.forEach(function (id, i) { rank[id] = i; });
+    return ts.map(function (t, i) { return { t: t, r: rank[t.id] != null ? rank[t.id] : ord.length + i }; }).sort(function (a, b) { return a.r - b.r; }).map(function (x) { return x.t; });
+  };
+  L.setPlaceOrder = function (pid, key, ids) {
+    if (!key) return; var own = L.playlistTracks(L.playlist(pid)).map(function (t) { return t.id; });
+    if (ids.join() === own.join()) { L.clearPlaceOrder(pid, key); return; }
+    if (!D.trackOrders[key]) D.trackOrders[key] = {}; D.trackOrders[key][pid] = ids.slice();
+  };
+  L.clearPlaceOrder = function (pid, key) { if (D.trackOrders[key]) delete D.trackOrders[key][pid]; };
   L.orderedTracks = function (pid, key) {
-    var ts = L.playlistTracks(L.playlist(pid)); if (!L.orderOf(pid, key).shuffle || ts.length < 3) return ts;
+    var ts = L.placeTracks(pid, key); if (!L.orderOf(pid, key).shuffle || ts.length < 3) return ts;
     var r = seeded(pid + '|' + (key || '') + '|' + L.state.shuffleRound), out = ts.slice();
     for (var i = out.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)), x = out[i]; out[i] = out[j]; out[j] = x; }
     if (out.every(function (t, k) { return t === ts[k]; })) out.push(out.shift());   // a shuffle always changes the order
@@ -5526,16 +5553,22 @@ var L = (function () {
   };
   L.acts.xp = function (el) { var k = el.dataset.key; L.state.xp[k] = !L.state.xp[k]; if (pk && document.getElementById('pk-list') && document.getElementById('pk-list').contains(el)) { paintList(); var b = document.querySelector('#pk-list [data-key="' + k + '"]'); if (b) b.focus(); } else L.render(); };
   // profileKey (optional): the place each track's Audio profile link opens (default: this playlist).
-  L.contentsHTML = function (kind, id, profileKey) {
+  // orderKey (optional, ORG-13): the place ('sc:…', 'ss:…', 'cp:…') whose own track order this list shows and changes:
+  // rows can be dragged, or moved with Alt+Up / Alt+Down, and "Back to the playlist's order" shows once it differs.
+  L.contentsHTML = function (kind, id, profileKey, orderKey) {
     if (kind === 'playlist') {
-      var p = L.playlist(id), ts = L.playlistTracks(p);
+      var p = L.playlist(id), ts = orderKey ? L.placeTracks(id, orderKey) : L.playlistTracks(p), own = orderKey && L.hasPlaceOrder(id, orderKey);
       if (!ts.length) return '<p class="hint">No tracks yet' + (p && p.kind === 'dynamic' ? ': no track matches its tags.' : '.') + '</p>';
       // In a scene, each track shows the scene's name for it (DAT-14) and its tags (ORG-11); its waveform, end and fades
       // open on the scene's or session's own settings (PLY-14).
-      var inScene = profileKey && String(profileKey).indexOf('sc:') === 0 ? profileKey : '';
-      return '<ol class="list" aria-label="Tracks in ' + esc(p.name) + '">' + ts.map(function (t, i) {
+      var inScene = profileKey && String(profileKey).indexOf('sc:') === 0 ? profileKey : '', where = orderKey ? placeWords(orderKey) : '';
+      var grp = orderKey ? 'tro|' + orderKey + '|' + id : '', did = orderKey ? 'ro-d-' + (orderKey + '-' + id).replace(/[^\w-]/g, '_') : '';
+      return (own ? '<div class="ro-own"><span class="ro-own-t">' + L.icon('drag', 's') + 'Order ' + esc(where) + '</span><button type="button" class="btn s ghost" data-act="roclear" data-key="' + esc(orderKey) + '" data-pid="' + esc(id) + '" data-k="roclear-' + esc(did) + '">' + L.icon('restart', 's') + 'Back to the playlist\'s order</button></div>' : '') +
+        (orderKey ? '<p class="sr-only" id="' + did + '">Drag a track, or press Alt+Up or Alt+Down on it, to change the order ' + esc(where) + ' only.</p>' : '') +
+        '<ol class="list' + (orderKey ? ' ro-list' : '') + '" aria-label="Tracks in ' + esc(p.name) + (orderKey ? ', in the order ' + esc(where) : '') + '"' + (orderKey ? ' aria-describedby="' + did + '"' : '') + '>' + ts.map(function (t, i) {
         var nm = L.nameIn(t, inScene);
-        return '<li class="xp-row"><span class="faint num">' + (i + 1) + '</span><span class="grow ellipsis" title="' + esc(nm !== L.title(t) ? 'Its own name: ' + L.title(t) : L.title(t)) + '">' + esc(nm) + '</span>' + L.tagStrip(t, 2) + '<span class="num faint">' + L.fmt(t.dur) + '</span>' + (L.profileLink && profileKey !== false ? L.profileLink(t.id, profileKey || 'pl:' + id, true) : '') + L.previewButton('track', t.id) + '</li>';
+        return '<li class="xp-row"' + (orderKey ? ' data-ro="' + esc(grp) + '" data-ri="' + i + '"' : '') + '>' + (orderKey ? '<span class="ro-handle" title="Drag to change the order ' + esc(where) + ' (or Alt+Up / Alt+Down)" aria-hidden="true">' + L.icon('drag', 's') + '</span>' : '') +
+          '<span class="faint num">' + (i + 1) + '</span><span class="grow ellipsis" title="' + esc(nm !== L.title(t) ? 'Its own name: ' + L.title(t) : L.title(t)) + '">' + esc(nm) + '</span>' + L.tagStrip(t, 2) + '<span class="num faint">' + L.fmt(t.dur) + '</span>' + (L.profileLink && profileKey !== false ? L.profileLink(t.id, profileKey || 'pl:' + id, true) : '') + L.previewButton('track', t.id) + '</li>';
       }).join('') + '</ol>';
     }
     var b = L.board(id); if (!b) return '';
@@ -5544,6 +5577,59 @@ var L = (function () {
       return '<li class="xp-row"><span class="lane-dot" style="background:' + (L.colors[p.color] || 'var(--fx)') + '"></span>' + L.icon(p.icon, 's') + '<span class="grow">' + esc(p.label) + '</span>' + (p.key ? '<span class="kbd">' + esc(p.key.toUpperCase()) + '</span>' : '') + '<span class="hint">' + esc(L.modeName[p.mode]) + '</span>' + L.previewButton('pad', b.id + '/' + p.id) + '</li>';
     }).join('') + '</ul>';
   };
+
+  /* ---------- ORG-13: reorder rows by drag or Alt+Up / Alt+Down, kept only in their place ----------
+     A row is <li data-ro="<group>" data-ri="<index>"> with a .ro-handle; L.reorder[<group kind>](group, from, to) moves
+     it and returns true. Kinds: 'tro' a playlist's tracks in a place (tro|<placeKey>|<playlistId>); views add their own
+     (the session's and campaign's playlists: 'apl'). Focus stays on the same control of the moved row. */
+  function placeWords(key) { var k = L.placeKind(key); return k === 'scene' ? 'in this scene' : k === 'session' ? 'in this session' : k === 'campaign' ? 'in this campaign' : 'here'; }
+  L.placeWords = placeWords;
+  L.reorder = L.reorder || {};
+  L.reorder.tro = function (group, from, to) {
+    var a = group.split('|'), key = a[1], pid = a[2], ids = L.placeTracks(pid, key).map(function (t) { return t.id; });
+    if (to < 0 || to >= ids.length || from === to) return false;
+    var x = ids.splice(from, 1)[0]; ids.splice(to, 0, x); L.setPlaceOrder(pid, key, ids);
+    L.say(L.title(L.track(x)) + ' is now ' + (to + 1) + ' of ' + ids.length + ' ' + placeWords(key)); return true;
+  };
+  L.acts.roclear = function (el) { var p = L.playlist(el.dataset.pid); L.clearPlaceOrder(el.dataset.pid, el.dataset.key); L.say((p ? p.name : 'The playlist') + ' plays in its own order ' + placeWords(el.dataset.key) + ' again'); L.render(); };
+  function roMove(row, to) {
+    var group = row.dataset.ro, kind = group.split('|')[0], from = +row.dataset.ri, f = L.reorder[kind]; if (!f) return false;
+    var a = document.activeElement, k = a && row.contains(a) && a.dataset ? a.dataset.k : null;
+    if (!f(group, from, to)) return false;
+    L.render();
+    // The same control, in the row at its new place (a track can have the same control elsewhere on the page).
+    var moved = [].slice.call(document.querySelectorAll('[data-ro]')).filter(function (r) { return r.dataset.ro === group && +r.dataset.ri === to; })[0];
+    var n = moved && k ? moved.querySelector('[data-k="' + k + '"]') : null; if (n) n.focus();
+    return true;
+  }
+  document.addEventListener('keydown', function (e) {
+    if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') || e.ctrlKey || e.metaKey) return;
+    var row = e.target && e.target.closest && e.target.closest('[data-ro]'); if (!row || L.typing(e.target)) return;
+    e.preventDefault(); e.stopPropagation(); roMove(row, +row.dataset.ri + (e.key === 'ArrowUp' ? -1 : 1));
+  }, true);
+  var roDrag = null;
+  function roClear() { document.querySelectorAll('.ro-before, .ro-after, .ro-dragging').forEach(function (n) { n.classList.remove('ro-before', 'ro-after', 'ro-dragging'); }); }
+  document.addEventListener('pointerdown', function (e) { var h = e.target.closest && e.target.closest('.ro-handle'); if (h) { var r = h.closest('[data-ro]'); if (r) r.setAttribute('draggable', 'true'); } });
+  document.addEventListener('pointerup', function () { if (!roDrag) document.querySelectorAll('[data-ro][draggable="true"]').forEach(function (n) { n.removeAttribute('draggable'); }); });
+  document.addEventListener('dragstart', function (e) {
+    var r = e.target.closest && e.target.closest('[data-ro]'); if (!r || r.getAttribute('draggable') !== 'true') return;
+    roDrag = { group: r.dataset.ro, from: +r.dataset.ri }; e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', r.dataset.ri); } catch (err) { /* some browsers refuse custom data */ }
+    r.classList.add('ro-dragging'); e.stopPropagation();
+  }, true);
+  document.addEventListener('dragover', function (e) {
+    if (!roDrag) return; var r = e.target.closest && e.target.closest('[data-ro]'); if (!r || r.dataset.ro !== roDrag.group) return;
+    e.preventDefault(); e.stopPropagation(); var b = r.getBoundingClientRect(), after = e.clientY > b.top + b.height / 2;
+    document.querySelectorAll('.ro-before, .ro-after').forEach(function (n) { n.classList.remove('ro-before', 'ro-after'); });
+    if (+r.dataset.ri !== roDrag.from) r.classList.add(after ? 'ro-after' : 'ro-before');
+  }, true);
+  document.addEventListener('drop', function (e) {
+    if (!roDrag) return; var r = e.target.closest && e.target.closest('[data-ro]'); if (!r || r.dataset.ro !== roDrag.group) return;
+    e.preventDefault(); e.stopPropagation(); var b = r.getBoundingClientRect(), to = +r.dataset.ri + (e.clientY > b.top + b.height / 2 ? 1 : 0), d = roDrag;
+    if (to > d.from) to--; roDrag = null; roClear();
+    var src = document.querySelector('[data-ro="' + d.group.replace(/"/g, '\\"') + '"][data-ri="' + d.from + '"]'); if (src) roMove(src, to);
+  }, true);
+  document.addEventListener('dragend', function () { if (!roDrag) return; roDrag = null; roClear(); document.querySelectorAll('[data-ro][draggable="true"]').forEach(function (n) { n.removeAttribute('draggable'); }); }, true);
 
   /* ---------- picker sheet ---------- */
   function visible(it) {
@@ -5841,7 +5927,8 @@ var L = (function () {
       label: fx ? (t.role === 'Sting' ? 'FX · Sting' : 'FX') : t.kind === 'amb' ? 'Ambience track' : 'Track', sub: (t.role && t.kind === 'music' && !fx ? t.role + ' · ' : '') + L.fmt(t.dur) };
   }
   // Preview, optional expander and contents for a playlist or board row. xk: expander key unique to this place on the page.
-  function xpBody(it, xk, pkey) { return (it.kind === 'playlist' || it.kind === 'board') && L.expanded(xk) ? '<div class="xp-body cp-xp">' + L.contentsHTML(it.kind, it.id, pkey) + '</div>' : ''; }
+  // okey (ORG-13): the place whose own track order the open playlist shows and changes.
+  function xpBody(it, xk, pkey, okey) { return (it.kind === 'playlist' || it.kind === 'board') && L.expanded(xk) ? '<div class="xp-body cp-xp">' + L.contentsHTML(it.kind, it.id, pkey, it.kind === 'playlist' ? okey : '') + '</div>' : ''; }
   function xpBtn(it, xk) { return it.kind === 'playlist' || it.kind === 'board' ? L.expanderButton(xk, it.name) : '<span class="cp-xpgap" aria-hidden="true"></span>'; }
 
   /* ---------- shared: assigned playlists and pad boards as compact rows ---------- */
@@ -5857,11 +5944,12 @@ var L = (function () {
     var key = scopeKey(scope);
     return '<ul class="list cp-alist">' + ids.map(function (id) {
       var it = info(id, kind === 'bd'); if (!it) return ''; var o = it.obj, xk = 'cp-' + scope + ':' + id, nm = esc(o.name);
-      var sub = kind === 'pl' ? plSub(o) : it.label + ' · ' + it.sub;
-      return '<li class="cp-arow-wrap"><div class="cp-arow">' + xpBtn(it, xk) + '<span class="lane-dot ' + it.cls + '" aria-hidden="true"></span>' +
+      var sub = kind === 'pl' ? plSub(o) : it.label + ' · ' + it.sub, ro = kind === 'pl' && !readonly && ids.length > 1;
+      // ORG-13: the session's and the campaign's playlists can be dragged (or moved with Alt+Up / Alt+Down) into order.
+      return '<li class="cp-arow-wrap"' + (ro ? ' data-ro="apl|' + scope + '" data-ri="' + ids.indexOf(id) + '"' : '') + '><div class="cp-arow">' + (ro ? '<span class="ro-handle" title="Drag to change the order (or Alt+Up / Alt+Down)" aria-hidden="true">' + L.icon('drag', 's') + '</span>' : '') + xpBtn(it, xk) + '<span class="lane-dot ' + it.cls + '" aria-hidden="true"></span>' +
         '<a class="ellipsis grow cp-aname" href="' + it.href + '" data-k="open-' + scope + kind + id + '" title="' + esc(o.name + ' · ' + sub) + '">' + nm + '</a>' +
         L.previewButton(it.kind, id) + (kind === 'pl' ? L.playOnAirButton('playlist', id, key) + L.orderButton(id, key) : '') +
-        (readonly ? '' : moreBtn('more-' + scope + kind + id, nm, 'data-menu="assigned" data-scope="' + scope + '" data-kind="' + kind + '" data-id="' + id + '"')) + '</div>' + xpBody(it, xk, scope === 's' ? key : '') + '</li>';
+        (readonly ? '' : moreBtn('more-' + scope + kind + id, nm, 'data-menu="assigned" data-scope="' + scope + '" data-kind="' + kind + '" data-id="' + id + '"')) + '</div>' + xpBody(it, xk, scope === 's' ? key : '', scope === 'r' ? '' : key) + '</li>';
     }).join('') + tracks.map(function (id) {
       var it = info(id), t = it.obj, nm = esc(it.name);
       return '<li class="cp-arow-wrap"><div class="cp-arow"><span class="cp-xpgap" aria-hidden="true"></span><span class="lane-dot ' + it.cls + '" aria-hidden="true"></span>' +
@@ -5891,6 +5979,13 @@ var L = (function () {
       } };
     if (kind === 'pl') L.pickPlaylists(o); else L.pickBoards(o);
   };
+  L.reorder.apl = function (group, from, to) {
+    var x = ctx(), scope = group.split('|')[1], list = scope === 'c' ? x.c.playlists : x.s.playlists;
+    if (to < 0 || to >= list.length || from === to) return false;
+    var id = list.splice(from, 1)[0]; list.splice(to, 0, id);
+    L.say(L.playlist(id).name + ' is now ' + (to + 1) + ' of ' + list.length + ' in this ' + (scope === 'c' ? 'campaign' : 'session')); return true;
+  };
+  L.acts.cpplmove = function (el) { var x = ctx(), list = el.dataset.scope === 'c' ? x.c.playlists : x.s.playlists, i = list.indexOf(el.dataset.id); focusK = 'more-' + el.dataset.scope + 'pl' + el.dataset.id; if (L.reorder.apl('apl|' + el.dataset.scope, i, i + +el.dataset.dir)) L.render(); };
   L.acts.cprm = function (el) {
     var x = ctx(), target = el.dataset.scope === 'c' ? x.c : x.s, kind = el.dataset.kind, list = kind === 'pl' ? target.playlists : kind === 'tr' ? target.tracks : target.boards, id = el.dataset.id;
     var i = list.indexOf(id); if (i < 0) return; list.splice(i, 1);
@@ -6186,7 +6281,7 @@ var L = (function () {
       (it.kind === 'playlist' && list === 'music' ? L.orderButton(it.id, key) : '') +
       (isTrack && L.profileLink ? '<a class="btn s icon cp-prof" href="#/profile/' + it.id + '/' + key + '" data-k="prof-' + k + '" title="Waveform, end and fades of ' + esc(shown) + ' in this scene" aria-label="Waveform, end and fades in this scene: ' + nm + '">' + L.icon('wave', 's') + '</a>' : '') +
       moreBtn('im-' + k, nm, 'data-menu="item" data-list="' + list + '" data-sc="' + sc.id + '" data-idx="' + i + '"') +
-      '</div>' + xpBody(it, xk, list === 'music' ? sceneKey(sc) : '') + '</li>';
+      '</div>' + xpBody(it, xk, list === 'music' ? sceneKey(sc) : '', list === 'music' ? sceneKey(sc) : '') + '</li>';
   }
   function sceneKey(sc) { var x = ctx(); return 'sc:' + x.c.id + ':' + x.s.id + ':' + sc.id; }
   // A small marker when a track has its own audio settings in this scene; the Audio profile link is in the row's ⋯ menu.
@@ -6244,7 +6339,9 @@ var L = (function () {
     function item(act, label, icon, extra) { return '<button role="menuitem" data-act="' + act + '" ' + (extra || '') + '>' + L.icon(icon) + label + '</button>'; }
     if (d.menu === 'assigned') {
       var where = d.scope === 'c' ? 'campaign' : 'session';
-      h = item('cpgo', 'Open', 'right', 'data-href="' + (d.kind === 'pl' ? '#/playlist/' : d.kind === 'tr' ? '#/library/' : '#/board/') + d.id + '"') +
+      var plist = d.kind === 'pl' ? (d.scope === 'c' ? ctx().c.playlists : ctx().s.playlists) : [], pi = plist.indexOf(d.id);
+      h = (pi > 0 ? item('cpplmove', 'Move up', 'chevup', 'data-scope="' + d.scope + '" data-id="' + d.id + '" data-dir="-1"') : '') + (pi > -1 && pi < plist.length - 1 ? item('cpplmove', 'Move down', 'chevdown', 'data-scope="' + d.scope + '" data-id="' + d.id + '" data-dir="1"') : '') +
+        item('cpgo', 'Open', 'right', 'data-href="' + (d.kind === 'pl' ? '#/playlist/' : d.kind === 'tr' ? '#/library/' : '#/board/') + d.id + '"') +
         (d.kind === 'tr' && d.scope === 's' ? item('cpgo', 'Waveform, end and fades in this session', 'wave', 'data-href="#/profile/' + d.id + '/' + scopeKey('s') + '"') : '') +
         (d.kind === 'tr' ? item('cpusein', 'Use in…', 'link', 'data-id="' + d.id + '"') : '') + '<div class="sep"></div>' +
         item('cprm', 'Remove from this ' + where, 'close', 'data-scope="' + d.scope + '" data-kind="' + d.kind + '" data-id="' + d.id + '" data-k="rm-' + d.scope + d.kind + d.id + '"');

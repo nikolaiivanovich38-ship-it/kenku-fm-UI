@@ -375,8 +375,27 @@ var L = (function () {
   };
   L.clearOrder = function (pid, key) { if (key && D.orders[key]) delete D.orders[key][pid]; else if (!key && L.playlist(pid)) delete L.playlist(pid).order; };
   L.orderWords = function (o) { return (o.shuffle ? 'Shuffle' : 'In order') + ', ' + (o.repeat === 'all' ? 'repeat all' : o.repeat === 'one' ? 'repeat one' : 'no repeat'); };
+  /* ORG-13 order per place (Nik, 6 Nov 10:34: reorder a playlist's tracks "in the scene view, and have that reordering
+     apply only in that scene", and the same in a session's and a campaign's playlists). D.trackOrders[placeKey][pid] is
+     the track ids in the order chosen there; tracks it does not name (added to the playlist later) follow, in the
+     playlist's own order. L.placeTracks(pid, key) is that order (shuffle not applied), L.hasPlaceOrder(pid, key),
+     L.setPlaceOrder(pid, key, ids), L.clearPlaceOrder(pid, key) ("Back to the playlist's order"). Shuffle still applies on
+     top, in L.orderedTracks. */
+  D.trackOrders = D.trackOrders || {};
+  L.hasPlaceOrder = function (pid, key) { return !!(key && D.trackOrders[key] && D.trackOrders[key][pid]); };
+  L.placeTracks = function (pid, key) {
+    var ts = L.playlistTracks(L.playlist(pid)); if (!L.hasPlaceOrder(pid, key)) return ts;
+    var ord = D.trackOrders[key][pid], rank = {}; ord.forEach(function (id, i) { rank[id] = i; });
+    return ts.map(function (t, i) { return { t: t, r: rank[t.id] != null ? rank[t.id] : ord.length + i }; }).sort(function (a, b) { return a.r - b.r; }).map(function (x) { return x.t; });
+  };
+  L.setPlaceOrder = function (pid, key, ids) {
+    if (!key) return; var own = L.playlistTracks(L.playlist(pid)).map(function (t) { return t.id; });
+    if (ids.join() === own.join()) { L.clearPlaceOrder(pid, key); return; }
+    if (!D.trackOrders[key]) D.trackOrders[key] = {}; D.trackOrders[key][pid] = ids.slice();
+  };
+  L.clearPlaceOrder = function (pid, key) { if (D.trackOrders[key]) delete D.trackOrders[key][pid]; };
   L.orderedTracks = function (pid, key) {
-    var ts = L.playlistTracks(L.playlist(pid)); if (!L.orderOf(pid, key).shuffle || ts.length < 3) return ts;
+    var ts = L.placeTracks(pid, key); if (!L.orderOf(pid, key).shuffle || ts.length < 3) return ts;
     var r = seeded(pid + '|' + (key || '') + '|' + L.state.shuffleRound), out = ts.slice();
     for (var i = out.length - 1; i > 0; i--) { var j = Math.floor(r() * (i + 1)), x = out[i]; out[i] = out[j]; out[j] = x; }
     if (out.every(function (t, k) { return t === ts[k]; })) out.push(out.shift());   // a shuffle always changes the order

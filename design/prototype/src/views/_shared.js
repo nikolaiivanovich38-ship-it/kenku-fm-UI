@@ -94,16 +94,22 @@
   };
   L.acts.xp = function (el) { var k = el.dataset.key; L.state.xp[k] = !L.state.xp[k]; if (pk && document.getElementById('pk-list') && document.getElementById('pk-list').contains(el)) { paintList(); var b = document.querySelector('#pk-list [data-key="' + k + '"]'); if (b) b.focus(); } else L.render(); };
   // profileKey (optional): the place each track's Audio profile link opens (default: this playlist).
-  L.contentsHTML = function (kind, id, profileKey) {
+  // orderKey (optional, ORG-13): the place ('sc:…', 'ss:…', 'cp:…') whose own track order this list shows and changes:
+  // rows can be dragged, or moved with Alt+Up / Alt+Down, and "Back to the playlist's order" shows once it differs.
+  L.contentsHTML = function (kind, id, profileKey, orderKey) {
     if (kind === 'playlist') {
-      var p = L.playlist(id), ts = L.playlistTracks(p);
+      var p = L.playlist(id), ts = orderKey ? L.placeTracks(id, orderKey) : L.playlistTracks(p), own = orderKey && L.hasPlaceOrder(id, orderKey);
       if (!ts.length) return '<p class="hint">No tracks yet' + (p && p.kind === 'dynamic' ? ': no track matches its tags.' : '.') + '</p>';
       // In a scene, each track shows the scene's name for it (DAT-14) and its tags (ORG-11); its waveform, end and fades
       // open on the scene's or session's own settings (PLY-14).
-      var inScene = profileKey && String(profileKey).indexOf('sc:') === 0 ? profileKey : '';
-      return '<ol class="list" aria-label="Tracks in ' + esc(p.name) + '">' + ts.map(function (t, i) {
+      var inScene = profileKey && String(profileKey).indexOf('sc:') === 0 ? profileKey : '', where = orderKey ? placeWords(orderKey) : '';
+      var grp = orderKey ? 'tro|' + orderKey + '|' + id : '', did = orderKey ? 'ro-d-' + (orderKey + '-' + id).replace(/[^\w-]/g, '_') : '';
+      return (own ? '<div class="ro-own"><span class="ro-own-t">' + L.icon('drag', 's') + 'Order ' + esc(where) + '</span><button type="button" class="btn s ghost" data-act="roclear" data-key="' + esc(orderKey) + '" data-pid="' + esc(id) + '" data-k="roclear-' + esc(did) + '">' + L.icon('restart', 's') + 'Back to the playlist\'s order</button></div>' : '') +
+        (orderKey ? '<p class="sr-only" id="' + did + '">Drag a track, or press Alt+Up or Alt+Down on it, to change the order ' + esc(where) + ' only.</p>' : '') +
+        '<ol class="list' + (orderKey ? ' ro-list' : '') + '" aria-label="Tracks in ' + esc(p.name) + (orderKey ? ', in the order ' + esc(where) : '') + '"' + (orderKey ? ' aria-describedby="' + did + '"' : '') + '>' + ts.map(function (t, i) {
         var nm = L.nameIn(t, inScene);
-        return '<li class="xp-row"><span class="faint num">' + (i + 1) + '</span><span class="grow ellipsis" title="' + esc(nm !== L.title(t) ? 'Its own name: ' + L.title(t) : L.title(t)) + '">' + esc(nm) + '</span>' + L.tagStrip(t, 2) + '<span class="num faint">' + L.fmt(t.dur) + '</span>' + (L.profileLink && profileKey !== false ? L.profileLink(t.id, profileKey || 'pl:' + id, true) : '') + L.previewButton('track', t.id) + '</li>';
+        return '<li class="xp-row"' + (orderKey ? ' data-ro="' + esc(grp) + '" data-ri="' + i + '"' : '') + '>' + (orderKey ? '<span class="ro-handle" title="Drag to change the order ' + esc(where) + ' (or Alt+Up / Alt+Down)" aria-hidden="true">' + L.icon('drag', 's') + '</span>' : '') +
+          '<span class="faint num">' + (i + 1) + '</span><span class="grow ellipsis" title="' + esc(nm !== L.title(t) ? 'Its own name: ' + L.title(t) : L.title(t)) + '">' + esc(nm) + '</span>' + L.tagStrip(t, 2) + '<span class="num faint">' + L.fmt(t.dur) + '</span>' + (L.profileLink && profileKey !== false ? L.profileLink(t.id, profileKey || 'pl:' + id, true) : '') + L.previewButton('track', t.id) + '</li>';
       }).join('') + '</ol>';
     }
     var b = L.board(id); if (!b) return '';
@@ -112,6 +118,59 @@
       return '<li class="xp-row"><span class="lane-dot" style="background:' + (L.colors[p.color] || 'var(--fx)') + '"></span>' + L.icon(p.icon, 's') + '<span class="grow">' + esc(p.label) + '</span>' + (p.key ? '<span class="kbd">' + esc(p.key.toUpperCase()) + '</span>' : '') + '<span class="hint">' + esc(L.modeName[p.mode]) + '</span>' + L.previewButton('pad', b.id + '/' + p.id) + '</li>';
     }).join('') + '</ul>';
   };
+
+  /* ---------- ORG-13: reorder rows by drag or Alt+Up / Alt+Down, kept only in their place ----------
+     A row is <li data-ro="<group>" data-ri="<index>"> with a .ro-handle; L.reorder[<group kind>](group, from, to) moves
+     it and returns true. Kinds: 'tro' a playlist's tracks in a place (tro|<placeKey>|<playlistId>); views add their own
+     (the session's and campaign's playlists: 'apl'). Focus stays on the same control of the moved row. */
+  function placeWords(key) { var k = L.placeKind(key); return k === 'scene' ? 'in this scene' : k === 'session' ? 'in this session' : k === 'campaign' ? 'in this campaign' : 'here'; }
+  L.placeWords = placeWords;
+  L.reorder = L.reorder || {};
+  L.reorder.tro = function (group, from, to) {
+    var a = group.split('|'), key = a[1], pid = a[2], ids = L.placeTracks(pid, key).map(function (t) { return t.id; });
+    if (to < 0 || to >= ids.length || from === to) return false;
+    var x = ids.splice(from, 1)[0]; ids.splice(to, 0, x); L.setPlaceOrder(pid, key, ids);
+    L.say(L.title(L.track(x)) + ' is now ' + (to + 1) + ' of ' + ids.length + ' ' + placeWords(key)); return true;
+  };
+  L.acts.roclear = function (el) { var p = L.playlist(el.dataset.pid); L.clearPlaceOrder(el.dataset.pid, el.dataset.key); L.say((p ? p.name : 'The playlist') + ' plays in its own order ' + placeWords(el.dataset.key) + ' again'); L.render(); };
+  function roMove(row, to) {
+    var group = row.dataset.ro, kind = group.split('|')[0], from = +row.dataset.ri, f = L.reorder[kind]; if (!f) return false;
+    var a = document.activeElement, k = a && row.contains(a) && a.dataset ? a.dataset.k : null;
+    if (!f(group, from, to)) return false;
+    L.render();
+    // The same control, in the row at its new place (a track can have the same control elsewhere on the page).
+    var moved = [].slice.call(document.querySelectorAll('[data-ro]')).filter(function (r) { return r.dataset.ro === group && +r.dataset.ri === to; })[0];
+    var n = moved && k ? moved.querySelector('[data-k="' + k + '"]') : null; if (n) n.focus();
+    return true;
+  }
+  document.addEventListener('keydown', function (e) {
+    if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') || e.ctrlKey || e.metaKey) return;
+    var row = e.target && e.target.closest && e.target.closest('[data-ro]'); if (!row || L.typing(e.target)) return;
+    e.preventDefault(); e.stopPropagation(); roMove(row, +row.dataset.ri + (e.key === 'ArrowUp' ? -1 : 1));
+  }, true);
+  var roDrag = null;
+  function roClear() { document.querySelectorAll('.ro-before, .ro-after, .ro-dragging').forEach(function (n) { n.classList.remove('ro-before', 'ro-after', 'ro-dragging'); }); }
+  document.addEventListener('pointerdown', function (e) { var h = e.target.closest && e.target.closest('.ro-handle'); if (h) { var r = h.closest('[data-ro]'); if (r) r.setAttribute('draggable', 'true'); } });
+  document.addEventListener('pointerup', function () { if (!roDrag) document.querySelectorAll('[data-ro][draggable="true"]').forEach(function (n) { n.removeAttribute('draggable'); }); });
+  document.addEventListener('dragstart', function (e) {
+    var r = e.target.closest && e.target.closest('[data-ro]'); if (!r || r.getAttribute('draggable') !== 'true') return;
+    roDrag = { group: r.dataset.ro, from: +r.dataset.ri }; e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', r.dataset.ri); } catch (err) { /* some browsers refuse custom data */ }
+    r.classList.add('ro-dragging'); e.stopPropagation();
+  }, true);
+  document.addEventListener('dragover', function (e) {
+    if (!roDrag) return; var r = e.target.closest && e.target.closest('[data-ro]'); if (!r || r.dataset.ro !== roDrag.group) return;
+    e.preventDefault(); e.stopPropagation(); var b = r.getBoundingClientRect(), after = e.clientY > b.top + b.height / 2;
+    document.querySelectorAll('.ro-before, .ro-after').forEach(function (n) { n.classList.remove('ro-before', 'ro-after'); });
+    if (+r.dataset.ri !== roDrag.from) r.classList.add(after ? 'ro-after' : 'ro-before');
+  }, true);
+  document.addEventListener('drop', function (e) {
+    if (!roDrag) return; var r = e.target.closest && e.target.closest('[data-ro]'); if (!r || r.dataset.ro !== roDrag.group) return;
+    e.preventDefault(); e.stopPropagation(); var b = r.getBoundingClientRect(), to = +r.dataset.ri + (e.clientY > b.top + b.height / 2 ? 1 : 0), d = roDrag;
+    if (to > d.from) to--; roDrag = null; roClear();
+    var src = document.querySelector('[data-ro="' + d.group.replace(/"/g, '\\"') + '"][data-ri="' + d.from + '"]'); if (src) roMove(src, to);
+  }, true);
+  document.addEventListener('dragend', function () { if (!roDrag) return; roDrag = null; roClear(); document.querySelectorAll('[data-ro][draggable="true"]').forEach(function (n) { n.removeAttribute('draggable'); }); }, true);
 
   /* ---------- picker sheet ---------- */
   function visible(it) {

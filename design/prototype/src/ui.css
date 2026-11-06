@@ -325,3 +325,11 @@ button .shape-g { color: inherit; }
 /* UX-18: Back sits first in every header it is in, and never grows past a short name. */
 .nav-back { flex: none; max-width: min(40ch, 60%); }
 .nav-back .ellipsis { min-width: 0; }
+/* ORG-13: rows that can be put in another order in one place. */
+.ro-handle { flex: none; display: inline-grid; place-items: center; width: 18px; color: var(--ink-3); cursor: grab; }
+.ro-list .xp-row:hover .ro-handle { color: var(--ink-2); }
+[data-ro].ro-dragging { opacity: .5; }
+[data-ro].ro-before { box-shadow: inset 0 2px 0 var(--accent); }
+[data-ro].ro-after { box-shadow: inset 0 -2px 0 var(--accent); }
+.ro-own { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; font-size: var(--fs-s); color: var(--ink-2); }
+.ro-own-t { display: inline-flex; align-items: center; gap: 4px; }
