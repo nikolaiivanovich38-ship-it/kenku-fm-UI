@@ -54,6 +54,7 @@ export interface NormaliseChoiceProps {
 export function NormaliseChoice({ value, onChange, library, line, hint, disabled, className }: NormaliseChoiceProps) {
   const labelId = useId();
   const lineId = useId();
+  const hintId = useId();
   return (
     <div className={cx("norm", className)}>
       <span className="norm-l" id={labelId}>
@@ -67,6 +68,8 @@ export function NormaliseChoice({ value, onChange, library, line, hint, disabled
               type="button"
               aria-pressed={value === choice.value}
               title={choice.value === null ? `The library's setting: ${libraryNormaliseWords(library)}` : undefined}
+              // The hover text, also for keyboard and screen-reader users (round 6: nothing on hover only).
+              aria-describedby={hint ? hintId : undefined}
               disabled={disabled}
               onClick={() => onChange(choice.value)}
             >
@@ -78,6 +81,11 @@ export function NormaliseChoice({ value, onChange, library, line, hint, disabled
         <p className="norm-line num" id={lineId} title={hint}>
           {line}
         </p>
+        {hint && (
+          <span className="sr-only" id={hintId}>
+            {hint}
+          </span>
+        )}
       </div>
     </div>
   );
@@ -131,6 +139,8 @@ export function NormaliseDialog({ open, setting, measured, total, onSave, onClos
   const [on, setOn] = useState(setting.on);
   const [target, setTarget] = useState<NormaliseTarget>(setting.target);
   const name = useId();
+  const whatId = useId();
+  const statusId = useId();
   // Each time it opens it starts from the library's setting as it is.
   useEffect(() => {
     if (open) {
@@ -155,22 +165,31 @@ export function NormaliseDialog({ open, setting, measured, total, onSave, onClos
     >
       <div className="stack norm-sheet">
         <label className="norm-on" title={WHAT_IT_DOES}>
-          <input type="checkbox" checked={on} onChange={(event) => setOn(event.target.checked)} />
+          <input type="checkbox" checked={on} aria-describedby={whatId} onChange={(event) => setOn(event.target.checked)} />
           Normalise volume for the whole library
         </label>
+        <span className="sr-only" id={whatId}>
+          {WHAT_IT_DOES}
+        </span>
         <fieldset className="norm-targets">
           <legend>Target level</legend>
           {NORMALISE_TARGETS.map((value) => (
             <label key={value} className="norm-opt" title={TARGET_HINTS[value]}>
-              <input type="radio" name={name} value={value} checked={target === value} onChange={() => setTarget(value)} />
+              <input type="radio" name={name} value={value} checked={target === value} aria-describedby={`${statusId}-${value}`} onChange={() => setTarget(value)} />
               <span>
                 {NORMALISE_TARGET_WORDS[value]} ({NORMALISE_TARGET_LUFS[value]} LUFS)
               </span>
             </label>
           ))}
         </fieldset>
+        {NORMALISE_TARGETS.map((value) => (
+          <span key={value} className="sr-only" id={`${statusId}-${value}`}>
+            {TARGET_HINTS[value]}
+          </span>
+        ))}
         <p className="hint" role="status" title={measured < total ? "The rest are measured in the background; until then they play as they are." : undefined}>
           {measured} of {total} tracks measured
+          {measured < total && <span className="sr-only">. The rest are measured in the background; until then they play as they are.</span>}
         </p>
       </div>
     </Dialog>

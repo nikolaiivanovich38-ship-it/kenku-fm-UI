@@ -43,6 +43,8 @@ describe("NormaliseChoice", () => {
     // Where the choice comes from is on hover over the line, not a line of its own.
     expect(screen.getByText("-22.6 LUFS · plays as it is")).toHaveAttribute("title", "True peak -8.0 dBTP. Follows the library (Off), or the playlist it plays from when that has its own choice.");
     expect(document.querySelectorAll(".norm .hint")).toHaveLength(0);
+    // The same words for keyboard and screen-reader users: each choice is described by them.
+    expect(within(group).getByRole("button", { name: "On" })).toHaveAccessibleDescription("True peak -8.0 dBTP. Follows the library (Off), or the playlist it plays from when that has its own choice.");
   });
 
   it("choosing On, Off or Library setting says so at once, by mouse and by keyboard", async () => {
@@ -95,9 +97,16 @@ describe("NormaliseDialog (Library › ⋯ › Normalise volume…)", () => {
     expect(within(targets).getAllByRole("radio").map((r) => r.getAttribute("value"))).toEqual(["quiet", "standard", "loud"]);
     expect(within(targets).getByRole("radio", { name: "Standard (-18 LUFS)" })).toBeChecked();
     expect(within(targets).getByRole("radio", { name: "Quiet (-23 LUFS)" }).closest("label")).toHaveAttribute("title", "The broadcast level. The most room for loud moments.");
-    expect(within(dialog).getByRole("status")).toHaveTextContent(/^66 of 69 tracks measured$/);
+    // Seen: "66 of 69 tracks measured"; the rest is for screen readers and on hover.
+    expect(within(dialog).getByRole("status")).toHaveTextContent(/^66 of 69 tracks measured\. The rest are measured in the background/);
     expect(within(dialog).getByRole("status")).toHaveAttribute("title", "The rest are measured in the background; until then they play as they are.");
     expect(dialog.querySelectorAll(".body p")).toHaveLength(1);
+  });
+
+  it("what is on hover is also the controls' description, for keyboard and screen-reader users (round 6)", () => {
+    const { dialog } = open();
+    expect(within(dialog).getByRole("checkbox", { name: "Normalise volume for the whole library" })).toHaveAccessibleDescription(expect.stringContaining("It adds at most 12 dB and keeps peaks under -1 dBTP."));
+    expect(within(dialog).getByRole("radio", { name: "Quiet (-23 LUFS)" })).toHaveAccessibleDescription("The broadcast level. The most room for loud moments.");
   });
 
   it("Save keeps the choice; Cancel and Escape change nothing", async () => {
