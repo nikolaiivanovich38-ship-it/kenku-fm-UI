@@ -612,19 +612,22 @@ var L = (function () {
   // target: a bot id with its own sound, 'table' (default) or 'all' (every output at once).
   L.firePad = function (boardId, padId, phase, target) {
     var b = L.board(boardId); if (!b) return; var p = b.slots.concat(b.spare).filter(function (x) { return x && x.id === padId; })[0]; if (!p) return;
-    // A toggle pad is on or off per room: pressing it with a target stops it only in that room (or starts it there).
+    // A pad is on or off per room: pressing it with a target stops it only in that room (or starts it there).
     var ref = boardId + '/' + padId, on = pb.fx.filter(function (f) { return f.ref === ref && !f.fadeOut && (target == null || f.target === fxTarget(target)); });
-    if (p.mode === 'toggle' && on.length) { on.forEach(function (f) { f.fadeOut = p.fade; }); L.changed(); return; }
     if (p.mode === 'hold' && phase === 'up') { on.forEach(function (f) { f.fadeOut = .4; }); L.changed(); return; }
-    if (p.mode === 'hold' && phase !== 'down') return;
+    if (phase === 'up') return;
+    // BUG-20: pressing a pad that plays stops it, whatever its play mode: a toggle loop with its own fade, others quickly.
+    if (on.length) { on.forEach(function (f) { f.fadeOut = p.mode === 'toggle' ? p.fade : .3; }); L.changed(); return; }
     var ts = target == null ? L.sendTargets() : [target]; if (!ts.length) { L.sendWarn(); return; }
-    if (p.mode === 'retrigger') on.forEach(function (f) { f.fadeOut = .05; });
     ts.forEach(function (tg) { pb.fx.push({ uid: L.uid('fx'), ref: ref, label: p.label, target: fxTarget(tg), pos: 0, dur: p.mode === 'toggle' || p.mode === 'hold' ? 1e9 : 2.5, loop: p.mode === 'toggle' || p.mode === 'hold' }); });
     L.changed();
   };
   function fxTarget(t) { if (t === 'all') return 'all'; return mixOf(t) === pb ? 'table' : t; }
   // Effects sounding for a target: L.fxFor('table'|botId) (effects sent to every output count for each).
   L.fxFor = function (t) { var k = fxTarget(t); return pb.fx.filter(function (f) { return f.target === k || f.target === 'all' || (!f.target && k === 'table'); }); };
+  // BUG-20: Live's Stop pads: every pad sound fades out quickly; music, ambience and Off script effects go on.
+  L.padSounds = function () { return pb.fx.filter(function (f) { return !f.fadeOut && f.ref && f.ref.indexOf('track/') !== 0; }); };
+  L.stopPads = function () { L.padSounds().forEach(function (f) { f.fadeOut = .3; }); L.changed(); };
   L.padActive = function (boardId, padId) { return pb.fx.some(function (f) { return f.ref === boardId + '/' + padId && !f.fadeOut; }); };
   L.stopFx = function (uid) { pb.fx.forEach(function (f) { if (!uid || f.uid === uid) f.fadeOut = .8; }); L.changed(); };
   /* Preview: only you hear it. L.preview(trackId) toggles a track; L.previewPlaylist(pid) its first track (or an ambience

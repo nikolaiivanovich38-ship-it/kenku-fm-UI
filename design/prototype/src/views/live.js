@@ -593,12 +593,13 @@
       // Which rooms a sounding pad is in, when there is more than one room.
       var inRooms = many ? rooms().filter(function (r) { return L.fxFor(tgOf(r.bots[0].id)).some(function (f) { return f.ref === ref && !f.fadeOut; }); }).map(function (r) { return r.name; }) : [];
       var onHere = targetsOf('pads').some(function (tg) { return L.fxFor(tg).some(function (f) { return f.ref === ref && !f.fadeOut; }); });
+      // BUG-20: every pad says whether it plays (pressed), since pressing a playing pad stops it.
       return '<button class="lv-pad' + (on ? ' on' : '') + '" data-bid="' + b.id + '" data-pid="' + p.id + '" data-mode="' + p.mode + '"' + (p.mode === 'hold' ? '' : ' data-act="lvpad"') +
-        ' data-k="lv-pad-' + b.id + '-' + p.id + '" style="--pad:' + (L.colors[p.color] || L.colors.bone) + '"' + (tog ? ' aria-pressed="' + (many ? onHere : on) + '"' : '') +
+        ' data-k="lv-pad-' + b.id + '-' + p.id + '" style="--pad:' + (L.colors[p.color] || L.colors.bone) + '" aria-pressed="' + (many ? onHere : on) + '"' +
         ' title="' + esc(p.label) + (p.key ? ' (key ' + p.key.toUpperCase() + ')' : '') + ': ' + L.modeName[p.mode] + inWhere('pads') + (inRooms.length ? '. Sounding in ' + esc(inRooms.join(' and ')) : '') + '"' + (p.key && S.keys1 ? ' aria-keyshortcuts="' + esc(p.key) + '"' : '') + '>' +
         L.icon(p.icon, 's') + '<span class="lv-pad-l ellipsis">' + esc(p.label) + '</span>' +
         (inRooms.length ? '<span class="lv-pad-rm" aria-hidden="true">' + inRooms.map(function (n) { return esc(n.charAt(0)); }).join('') + '</span><span class="sr-only">, sounding in ' + esc(inRooms.join(' and ')) + '</span>' : '') +
-        (tog && on && !many ? '<span class="lv-pad-on">On</span>' : p.mode === 'oneshot' || (tog && on) ? '' : '<span class="lv-pad-mode" title="' + L.modeName[p.mode] + '">' + L.icon(L.modeIcon[p.mode], 's') + '<span class="sr-only">' + L.modeName[p.mode] + '</span></span>') +
+        (on && !many ? '<span class="lv-pad-on">On</span>' : p.mode === 'oneshot' || on ? '' : '<span class="lv-pad-mode" title="' + L.modeName[p.mode] + '">' + L.icon(L.modeIcon[p.mode], 's') + '<span class="sr-only">' + L.modeName[p.mode] + '</span></span>') +
         (p.key && S.keys1 ? '<span class="kbd" aria-hidden="true">' + esc(p.key.toUpperCase()) + '</span>' : '') + '</button>';
     }).join('') + '</div>';
     // The scene's boards as a small switch (the first shows when the scene starts); everything else in a menu.
@@ -608,8 +609,10 @@
       '<button class="btn s lv-boardbtn" data-act="lvboardmenu" data-k="lv-boardbtn" aria-haspopup="menu" aria-expanded="false" aria-pressed="' + !inScene + '" title="Session, campaign and other pad boards">' + L.icon('grid', 's') + '<span class="ellipsis">' + (inScene ? 'Other boards' : esc(b.name)) + '</span>' + L.icon('chevdown', 's') + '</button>' +
       '<span class="hint ellipsis grow">' + (S.keys1 ? '' : 'Single-key shortcuts are off') + '</span>' +
       '<a class="btn s ghost" href="#/board/' + b.id + '" data-k="lv-editboard">' + L.icon('edit', 's') + 'Edit board</a></div>' + grid;
-    var n = sounding().length;
-    return L.pane({ id: 'lv-pads', title: 'Pads', icon: 'grid', kind: 'fx', size: 'auto', collapsed: true, flush: true, noMax: true, body: body, actions: toChip('pads'),
+    var n = sounding().length, padsOn = L.padSounds().length;
+    // BUG-20: Stop pads stops every pad sound, in every room; music and ambience go on. Dimmed while none plays.
+    var stopPads = '<button class="btn s icon" data-act="lvpadstop" data-k="lv-padstop" aria-label="Stop pads"' + (padsOn ? '' : ' aria-disabled="true"') + ' title="Stop pads (music and ambience go on)">' + L.icon('stop', 's') + '</button>';
+    return L.pane({ id: 'lv-pads', title: 'Pads', icon: 'grid', kind: 'fx', size: 'auto', collapsed: true, flush: true, noMax: true, body: body, actions: toChip('pads') + stopPads,
       status: n ? { text: n + ' sounding', tone: 'live' } : null,
       summary: collapsed('lv-pads', true) ? '<span title="' + esc(S.keys1 && keys.length ? 'Pad keys ' + keys.join(' ') + ' work while this box is folded' : '') + '">' + esc(b.name) + '</span>' : '' });
   }
@@ -824,15 +827,16 @@
   L.acts.lvmoretags = function () { S.moreTags = !S.moreTags; L.render(); };
   L.acts.lvlane = function (el) { S.lane = el.dataset.v; L.render(); };
   L.acts.lvclear = function () { S.q = ''; S.tags = []; L.render(); var q = document.querySelector('[data-k="lv-q"]'); if (q) q.focus(); L.say('Search cleared'); };
-  // Pads (clicks and keys) go to the Pads box's room. With "All rooms", a toggle pad that sounds anywhere stops everywhere.
+  // Pads (clicks and keys) go to the Pads box's room. With "All rooms", a pad that sounds anywhere stops everywhere.
   function firePads(bid, pid, phase) {
     var b = L.board(bid), p = b && b.slots.concat(b.spare).filter(function (x) { return x && x.id === pid; })[0]; if (!p) return;
     var tgs = targetsOf('pads'), ref = bid + '/' + pid;
     function onIn(tg) { return L.fxFor(tg).some(function (f) { return f.ref === ref && !f.fadeOut; }); }
-    if (p.mode === 'toggle' && tgs.length > 1) { var any = tgs.some(onIn); tgs.forEach(function (tg) { if (!any || onIn(tg)) L.firePad(bid, pid, phase, tg); }); return; }
+    if (tgs.length > 1 && phase !== 'up') { var any = tgs.some(onIn); tgs.forEach(function (tg) { if (!any || onIn(tg)) L.firePad(bid, pid, phase, tg); }); return; }
     tgs.forEach(function (tg) { L.firePad(bid, pid, phase, tg); });
   }
   L.acts.lvpad = function (el) { firePads(el.dataset.bid, el.dataset.pid); };
+  L.acts.lvpadstop = function (el) { if (el.getAttribute('aria-disabled') === 'true') return; L.stopPads(); L.say('Pads stopped'); };
 
   /* ---------- keys and hold-to-play ---------- */
   function onLive() { return L.current().name === 'live'; }

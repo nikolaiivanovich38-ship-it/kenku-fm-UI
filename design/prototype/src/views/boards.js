@@ -9,10 +9,10 @@
   var MAX = 8, QUICK = [[2, 2], [3, 2], [4, 2], [4, 3], [4, 4], [6, 4]];
   var ui = { sel: null, focus: {}, msg: null, capture: false, last: { pid: null, t: 0 }, menuPad: null, menuAnchor: null, pendingFocus: null, nb: null, trying: false, tries: {}, held: null };
   var MODE_HELP = {
-    oneshot: 'Plays once from the start on each press. Quick presses overlap.',
+    oneshot: 'Plays once from the start. Press it again while it plays to stop it.',
     toggle: 'First press starts a loop; the next press fades it out.',
     hold: 'Plays while you hold the key or button, and fades when you let go.',
-    retrigger: 'Each press stops the last one and starts again, so it never overlaps.'
+    retrigger: 'Plays from the start, never over itself. Press it again while it plays to stop it.'
   };
   var COLOUR_NAMES = { steel: 'Steel', ember: 'Ember', gold: 'Gold', moss: 'Moss', violet: 'Violet', plum: 'Plum', sea: 'Sea', bone: 'Bone' };
   var ICON_NAMES = { swords: 'Crossed swords', arrow: 'Arrow', shield: 'Shield', flame: 'Flame', bolt: 'Lightning', skull: 'Skull', heart: 'Heart', bell: 'Bell',
@@ -137,8 +137,8 @@
     clearTimeout(ui.pvTimer); var c = L.pb.preview;
     if (c && String(c.key).indexOf('pad:') === 0) ui.pvTimer = setTimeout(function () { if (!L.pb.preview || L.pb.preview.key !== c.key) L.render(); else watchPreview(); }, Math.max(200, (c.dur - c.pos) * 1000 + 300));
   }
-  /* SFX-12 Try pads: a private test of a pad as it will play in Live. One-shot plays once (presses overlap), restart on
-     press starts it again, toggle loop starts and stops, hold to play sounds while held. Only Nik hears it. */
+  /* SFX-12 Try pads: a private test of a pad as it will play in Live. One-shot and restart on press play once, toggle
+     loop starts, hold to play sounds while held; pressing a pad that plays stops it (BUG-20). Only Nik hears it. */
   var TRY_LEN = 2.5;
   function tryKey(b, p) { return b.id + '/' + p.id; }
   function trying(b, p) { var x = ui.tries[tryKey(b, p)]; return !!(x && (x.loop || x.until > Date.now())); }
@@ -146,7 +146,7 @@
     var k = tryKey(b, p), on = trying(b, p), say = '';
     if (p.mode === 'toggle') { if (phase === 'up') return; if (on) { delete ui.tries[k]; say = p.label + ': loop stopped'; } else { ui.tries[k] = { loop: true }; say = p.label + ': loop playing in your headphones. Press again to stop it.'; } }
     else if (p.mode === 'hold') { if (phase === 'up') { if (!on) return; delete ui.tries[k]; say = p.label + ': let go, fading'; } else { if (on) return; ui.tries[k] = { loop: true }; say = p.label + ': playing while held'; } }
-    else { if (phase === 'up') return; var again = on; ui.tries[k] = { until: Date.now() + TRY_LEN * 1000, n: (again ? (ui.tries[k].n || 1) + 1 : 1) }; say = p.label + (p.mode === 'retrigger' ? (again ? ': started again from the beginning' : ': playing') : again ? ': playing again over itself' : ': playing once'); }
+    else { if (phase === 'up') return; if (on) { delete ui.tries[k]; say = p.label + ': stopped'; } else { ui.tries[k] = { until: Date.now() + TRY_LEN * 1000 }; say = p.label + ': playing once'; } }
     L.say(say + (say.indexOf('headphones') > -1 ? '' : ' (only you hear it)')); L.render(); watchTries();
   }
   function watchTries() { clearTimeout(ui.tryTimer); var soon = Object.keys(ui.tries).map(function (k) { return ui.tries[k].until; }).filter(Boolean); if (!soon.length) return;
@@ -281,8 +281,8 @@
       return '<div class="pb-slot" data-drop="slot:' + i + '"><button class="pb-empty" data-act="pbadd" data-i="' + i + '" data-k="slot-' + i + '" data-slot="' + i + '" tabindex="' + tab + '" aria-label="Empty slot, ' + rc + '. Add a pad">' + L.icon('plus', 's') + '<span class="pb-empty-t">Add pad</span></button></div>';
     }
     var on = L.padActive(b.id, p.id), pv = previewing(b, p), isSel = sel && sel.pad.id === p.id, tr = trying(b, p);
-    // While trying, the tile is the pad as in Live: pressing it plays it (aria-pressed shows a toggle loop or a held pad sounding).
-    var pressed = ui.trying ? (p.mode === 'toggle' || p.mode === 'hold' ? tr : false) : !!isSel;
+    // While trying, the tile is the pad as in Live: pressing it plays it (aria-pressed shows it sounding).
+    var pressed = ui.trying ? tr : !!isSel;
     return '<div class="pb-slot pb-has' + (isSel ? ' sel' : '') + (on ? ' on' : '') + (pv ? ' pv' : '') + (tr ? ' trying' : '') + '" ' + swatch(p) + ' data-drop="slot:' + i + '"><button class="pb-pad' + (isSel ? ' sel' : '') + '" draggable="' + !ui.trying + '" data-drag="' + p.id + '" data-act="' + (ui.trying ? (p.mode === 'hold' ? 'pbnoop' : 'pbtry') : 'pbpad') + '" data-mode="' + p.mode + '" data-pid="' + p.id + '" data-k="slot-' + i + '" data-slot="' + i + '" tabindex="' + tab + '" aria-pressed="' + pressed + '"' +
       ' aria-label="' + esc(p.label) + (p.key ? ' ' + esc(String(p.key).toUpperCase()) : '') + ': ' + L.modeName[p.mode] + ', ' + rc + (on ? ', on air' : tr ? ', trying' : pv ? ', previewing' : '') + '">' +
       '<span class="pb-pad-label">' + esc(p.label) + '</span> ' +
