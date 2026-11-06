@@ -137,6 +137,7 @@ import {
   type TagReader,
   type UseTarget,
 } from "../data";
+import { nextTurn } from "../data/store";
 import { diskProbe, type FileProbe } from "../data/import/relink";
 import { joinRoot, unsafeFolderReason } from "../data/paths";
 import { saveLyreFile, openLyreFile, bringInLyreFile, type OpenTransfer, type TransferFiles } from "./transferApi";
@@ -446,10 +447,12 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
   }
   const cellOf = (slot: number, cols: number) => ({ row: Math.floor(slot / cols), col: slot % cols });
 
-  function campaignInfo(tree: DomainCampaign): CampaignInfo {
-    const campaign = listCampaigns(store).find((c) => c.id === tree.id);
+  /** What every campaign's info reads, read once for a list of them (security review w4, Should 3). */
+  const campaignLookups = () => ({ campaigns: new Map(listCampaigns(store).map((c) => [c.id, c])), names: getTrackNames(store) });
+  function campaignInfo(tree: DomainCampaign, lookups = campaignLookups()): CampaignInfo {
+    const campaign = lookups.campaigns.get(tree.id);
     const sessions = new Map(listSessions(store, tree.id).map((s) => [s.id, s]));
-    const names = getTrackNames(store);
+    const { names } = lookups;
     return {
       id: tree.id,
       name: campaign.name,
@@ -480,6 +483,10 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
         };
       }),
     };
+  }
+  function allCampaignInfos(): CampaignInfo[] {
+    const lookups = campaignLookups();
+    return listDomainCampaigns(store).map((tree) => campaignInfo(tree, lookups));
   }
   function campaignById(id: string): CampaignInfo | null {
     const tree = quietly(() => getDomainCampaign(store, id), null);
@@ -529,7 +536,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
   /** The library in the API's shapes: what a .lyre file is made from, and what an opened one is compared with. */
   function currentLibrary(): TransferLibrary {
     const tags = tagRefsById();
-    return { tracks: libraryTracks(), playlists: playlistInfos(), boards: listBoards(store).map((b) => padBoard(b.id, tags)), campaigns: listDomainCampaigns(store).map(campaignInfo), tagGroups: tagGroups() };
+    return { tracks: libraryTracks(), playlists: playlistInfos(), boards: listBoards(store).map((b) => padBoard(b.id, tags)), campaigns: allCampaignInfos(), tagGroups: tagGroups() };
   }
   /** A track's file on this computer, or null for a web address. */
   function trackFile(trackId: string): string | null {
@@ -918,7 +925,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
 
     campaigns: {
       async list() {
-        return listDomainCampaigns(store).map(campaignInfo);
+        return allCampaignInfos();
       },
       async get(id) {
         return campaignById(id);
@@ -1286,6 +1293,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
         return write(["tracks", "tags", "playlists", "boards", "campaigns", "profiles"], async () => {
           // As an import does: a backup first, so the library can be put back as it was.
           await library.backupBeforeImport();
+          // The backup's last step and reading the library each take a turn of their own (security review w4, Should 3).
+          await nextTurn();
           const report = await bringInLyreFile(store, file, currentLibrary(), choices, transferFiles);
           opened = null;
           await file.close();

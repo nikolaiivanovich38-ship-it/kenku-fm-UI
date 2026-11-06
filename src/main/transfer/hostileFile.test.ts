@@ -14,7 +14,9 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { isRefused, type LyreApi, type OpenedFile, type WriteResult } from "../../common/lyre/api";
 import { valueOf } from "../../common/lyre/contract";
-import { openLibrary, type Library } from "../data";
+import { CAMPAIGN_THEMES } from "../../common/lyre/api";
+import { createBoard, createCampaign, createPlaylist, openLibrary, type Library } from "../data";
+import { budget } from "../data/testing/perfBudget";
 import { AUDIO_EXTENSIONS } from "../data/import/audioFiles";
 import { createLibraryApi, type LibraryHost, type LibraryApiOptions } from "../lyreApi/libraryApi";
 import { looksLikeAudio } from "./audioBytes";
@@ -45,9 +47,10 @@ function rig(transfer: LibraryApiOptions["transfer"] = {}): Rig {
   return { dir, brought, library, api };
 }
 
-const track = (i: number, over: Record<string, unknown> = {}) => ({ id: `t${i}`, kind: "music", title: `T${i}`, metaTitle: "", fileName: `a${i}.mp3`, durationMs: 1000 + i * 2000, role: null, loop: null, energy: null, tags: {}, profile: null, shape: null, artist: "", album: "", folder: "", notes: "", sizeBytes: null, ...over });
+type Json = Record<string, unknown>;
+const track = (i: number, over: Json = {}): Json => ({ id: `t${i}`, kind: "music", title: `T${i}`, metaTitle: "", fileName: `a${i}.mp3`, durationMs: 1000 + i * 2000, role: null, loop: null, energy: null, tags: {}, profile: null, shape: null, artist: "", album: "", folder: "", notes: "", sizeBytes: null, ...over });
 const manifest = (audio: unknown[]) => ({ format: "lyre-library-file", version: 1, madeWith: "Lyre 0.4.0", savedAt: 1, scope: { kind: "library" }, title: "x", counts: { tracks: 0, playlists: 0, boards: 0, campaigns: 0, sessions: 0, scenes: 0, tagGroups: 0 }, audio });
-const libraryJson = (o: Record<string, unknown>) => ({ tracks: [], tagGroups: [], playlists: [], boards: [], campaigns: [], overrides: {}, playOrders: {}, ...o });
+const libraryJson = (o: Json): Json => ({ tracks: [], tagGroups: [], playlists: [], boards: [], campaigns: [], overrides: {}, playOrders: {}, ...o });
 
 async function lyreFile(dir: string, name: string, audio: unknown[], library: Record<string, unknown>, parts: { name: string; bytes: Buffer }[] = []): Promise<string> {
   const file = path.join(dir, name);
@@ -209,7 +212,7 @@ describe("Should 2: a file cannot make Lyre write more than it holds", () => {
   it("unpacks one audio part named by 200 tracks once (the review's 5 MB file that wrote 1 GB), shared by them", async () => {
     const { api, dir, brought } = rig();
     const tracks = Array.from({ length: 200 }, (_, i) => track(i));
-    const playlist = { id: "p", name: "All of them", lane: "music", notes: "", order: null, kind: "manual", trackIds: tracks.map((t) => t.id) };
+    const playlist: Json = { id: "p", name: "All of them", lane: "music", notes: "", order: null, kind: "manual", trackIds: tracks.map((t) => t.id) };
     const file = await lyreFile(dir, "amp.lyre", tracks.map((t) => ({ entry: "audio/00001.mp3", trackId: t.id, bytes: FIVE_MB.length })), { tracks, playlists: [playlist] }, [{ name: "audio/00001.mp3", bytes: FIVE_MB }]);
     const report = valueOf(await openAndBringIn(api, file, { all: "keepBoth" }));
     expect(bytesUnder(brought)).toBeLessThanOrEqual(fs.statSync(file).size);
@@ -243,4 +246,45 @@ describe("Should 2: a file cannot make Lyre write more than it holds", () => {
     expect(filesUnder(brought)).toEqual([]);
     expect(await api.library.listTracks()).toEqual([]);
   });
+});
+
+describe("Should 3: bringing in many playlists, boards and campaigns", () => {
+  it.skipIf(process.env.CUE_DESK_SKIP_PERF === "1")("opens and brings in 8,000 playlists, 2,000 boards and 2,000 campaigns beside as many of yours in linear time, never holding the library past 200 ms", async () => {
+    const { api, dir, library } = rig();
+    const N = 8000;
+    library.store.change("Yours", () => {
+      for (let i = 0; i < N; i++) createPlaylist(library.store, { title: `Yours ${i}`, kind: "manual", lane: "music", notes: "" });
+      for (let i = 0; i < N / 4; i++) createBoard(library.store, { title: `Your board ${i}`, cols: 1, rows: 1 });
+      for (let i = 0; i < N / 4; i++) createCampaign(library.store, { name: `Your campaign ${i}` });
+    });
+    const tracks = [track(1)];
+    const playlists = Array.from({ length: N }, (_, i): Json => ({ id: `p${i}`, name: `List ${i}`, lane: "music", notes: "", order: null, kind: "manual", trackIds: ["t1"] }));
+    const boards = Array.from({ length: N / 4 }, (_, i): Json => ({ id: `b${i}`, name: `Board ${i}`, cols: 1, rows: 1, slots: [null], spare: [] }));
+    const campaigns = Array.from({ length: N / 4 }, (_, i): Json => ({ id: `c${i}`, name: `Campaign ${i}`, system: "", theme: CAMPAIGN_THEMES[0], description: "", notes: "", obsidian: { vault: "", note: "", sessionsFolder: "" }, playlistIds: [`p${i}`], boardIds: [`b${i}`], trackIds: [], sessions: [] }));
+    const file = await lyreFile(dir, "Many.lyre", [], { tracks, playlists, boards, campaigns });
+
+    let longest = 0;
+    let last = performance.now();
+    const timer = setInterval(() => {
+      const now = performance.now();
+      longest = Math.max(longest, now - last);
+      last = now;
+    }, 5);
+    const started = performance.now();
+    const opened = valueOf(await api.transfer.open({ from: "path", path: file })) as OpenedFile;
+    const openTook = performance.now() - started;
+    const report = valueOf(await api.transfer.bringIn(opened.id, {}));
+    const took = performance.now() - started;
+    clearInterval(timer);
+
+    expect(report.added.filter((x) => x.kind === "playlist")).toHaveLength(N);
+    expect((await api.campaigns.list()).find((c) => c.name === "Campaign 7")?.playlistIds).toHaveLength(1);
+    expect((await api.history.state()).undoLabel).toBe("Bring in Many.lyre");
+    expect(openTook).toBeLessThan(budget(3_000));
+    expect(took).toBeLessThan(budget(15_000));
+    expect(longest).toBeLessThan(budget(200));
+    // Undo takes it all back as one step.
+    valueOf(await api.history.undo());
+    expect(await api.playlists.list()).toHaveLength(N);
+  }, 120_000);
 });

@@ -11,6 +11,7 @@ import type { BringInChoices, BringInReport, OpenedFile, SavedFile, TransferEsti
 import { plural } from "../../common/lyre/text";
 import type { TransferContents, TransferLibrary } from "../../common/lyre/transfer";
 import { ValidationError, type Store } from "../data";
+import { nextTurn } from "../data/store";
 import { baseName } from "../data/import/tagReader";
 import type { FileProbe } from "../data/import/relink";
 import { bringIn, describeFile, tracksToAdd, type FileItem } from "../transfer/bringIn";
@@ -210,6 +211,8 @@ export async function freeBytesAt(folder: string): Promise<number | null> {
 /** Unpacks the audio of the tracks that will be added, then brings the file in (one undo step). */
 export async function bringInLyreFile(store: Store, open: OpenTransfer, mine: TransferLibrary, choices: BringInChoices, files: TransferFiles): Promise<BringInReport> {
   const { file, preview } = open;
+  // Reading the library (`mine`) took the caller's turn; comparing the file with it takes the next one.
+  await nextTurn();
   const folder = path.join(files.broughtInFolder, safeFileName(preview.fileName.replace(/\.lyre$/i, ""), "Brought in"));
   const adding = tracksToAdd(file.library, mine, choices).flatMap((t) => {
     const entry = file.audioOf(t.id);

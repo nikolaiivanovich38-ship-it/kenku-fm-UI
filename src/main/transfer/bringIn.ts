@@ -17,7 +17,7 @@
 import path from "path";
 
 import { parseKeyOfPlace, parsePlaceKey, type ProfilePlace, type SoundRef, type UsePlace } from "../../common/domain";
-import type { BringInChoices, BringInReport, DuplicateChoice, IncomingItem, LibraryTrack, PlaylistInfo, TagGroup } from "../../common/lyre/api";
+import type { BringInChoices, BringInReport, DuplicateChoice, IncomingItem, LibraryTrack, PadBoard, PlaylistInfo, TagGroup } from "../../common/lyre/api";
 import { plural, shownTitle } from "../../common/lyre/text";
 import {
   addPad,
@@ -48,6 +48,7 @@ import {
   type TrackInput,
 } from "../data";
 import { setPlaylistNormalise, setTrackNormalise } from "../data/repo/normalise";
+import { nextTurn } from "../data/store";
 import { findRoot, isAbsolutePath, normalizePath } from "../data/paths";
 import type { FileTrack, LyreFileLibrary } from "./lyreFile";
 
@@ -60,7 +61,19 @@ export interface CurrentLibrary {
   tagGroups: readonly TagGroup[];
 }
 
-const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+/** How names are compared (any letter case, spaces at the ends ignored), and the key of an index by name. */
+const nameKey = (name: string) => name.trim().toLowerCase();
+const same = (a: string, b: string) => nameKey(a) === nameKey(b);
+
+/**
+ * The first of `items` for each name, so each lookup is one step (security review w4, Should 3: a file with
+ * thousands of playlists, boards or campaigns took minutes when each was compared with every one of yours).
+ */
+function byName<T>(items: readonly T[], nameOf: (item: T) => string): Map<string, T> {
+  const index = new Map<string, T>();
+  for (const item of items) if (!index.has(nameKey(nameOf(item)))) index.set(nameKey(nameOf(item)), item);
+  return index;
+}
 /** Same file name and length, within a second (another computer may round the length differently). */
 const sameTrack = (a: { fileName: string; durationMs: number }, b: { fileName: string; durationMs: number }) =>
   same(a.fileName, b.fileName) && Math.abs(a.durationMs - b.durationMs) < 1000;
@@ -97,8 +110,11 @@ export interface FileItem extends IncomingItem {
 /** The items the Open a file box lists, in the prototype's order: campaigns, playlists, boards, tracks, tags. */
 export function describeFile(file: LyreFileLibrary, mine: CurrentLibrary): FileItem[] {
   const items: FileItem[] = [];
+  const campaigns = byName(mine.campaigns, (x) => x.name);
+  const playlists = byName(mine.playlists, (x) => x.name);
+  const boards = byName(mine.boards, (x) => x.name);
   for (const c of file.campaigns) {
-    const yours = mine.campaigns.find((x) => same(x.name, c.name));
+    const yours = campaigns.get(nameKey(c.name));
     const scenes = c.sessions.reduce((n, s) => n + s.scenes.length, 0);
     items.push({
       key: `campaign:${c.id}`, kind: "campaign", name: c.name, fileIds: [c.id],
@@ -107,7 +123,7 @@ export function describeFile(file: LyreFileLibrary, mine: CurrentLibrary): FileI
     });
   }
   for (const p of file.playlists) {
-    const yours = mine.playlists.find((x) => same(x.name, p.name));
+    const yours = playlists.get(nameKey(p.name));
     const what = p.kind === "dynamic" ? "Dynamic" : plural(p.trackIds.length, "track");
     const theirs = yours && yours.kind === "manual" && p.kind === "manual" && yours.trackIds.length === p.trackIds.length ? ` and ${plural(p.trackIds.length, "track")}` : "";
     items.push({
@@ -117,7 +133,7 @@ export function describeFile(file: LyreFileLibrary, mine: CurrentLibrary): FileI
     });
   }
   for (const b of file.boards) {
-    const yours = mine.boards.find((x) => same(x.name, b.name));
+    const yours = boards.get(nameKey(b.name));
     const pads = [...b.slots, ...b.spare].filter(Boolean).length;
     items.push({
       key: `board:${b.id}`, kind: "board", name: b.name, fileIds: [b.id],
@@ -155,7 +171,8 @@ function newTagValues(file: LyreFileLibrary, mine: CurrentLibrary): { group: str
   const out: { group: string; value: string }[] = [];
   for (const g of file.tagGroups) {
     const yours = mine.tagGroups.find((x) => x.id === g.id) ?? mine.tagGroups.find((x) => same(x.name, g.name));
-    for (const value of g.values) if (!yours?.values.some((v) => same(v, value))) out.push({ group: g.name, value });
+    const have = new Set(yours?.values.map(nameKey));
+    for (const value of g.values) if (!have.has(nameKey(value))) out.push({ group: g.name, value });
   }
   return out;
 }
@@ -190,6 +207,10 @@ export interface BringInOptions {
  */
 export async function bringIn(store: Store, file: LyreFileLibrary, mine: CurrentLibrary, choices: BringInChoices, options: BringInOptions): Promise<BringInReport> {
   const items = describeFile(file, mine);
+  const itemOf = new Map(items.map((i) => [i.key, i]));
+  const yourPlaylist = new Map(mine.playlists.map((x) => [x.id, x]));
+  const yourBoard = new Map(mine.boards.map((x) => [x.id, x]));
+  const yourCampaign = new Map(mine.campaigns.map((x) => [x.id, x]));
   const choiceOf = (item: FileItem): DuplicateChoice | "new" => (item.status === "new" ? "new" : (choices.each?.[item.key] ?? choices.all ?? "skip"));
   const from = ` (from ${fromWhom(options.fileName)})`;
   const report: BringInReport = { added: [], merged: [], keptBoth: [], skipped: [], missingFiles: 0, summary: "" };
@@ -253,10 +274,12 @@ export async function bringIn(store: Store, file: LyreFileLibrary, mine: Current
     file.boards.forEach((b) => [...b.slots, ...b.spare].forEach((pad) => pad?.sound.tag && want(pad.sound.tag.group, pad.sound.tag.value)));
     const ids = new Map<string, string>();
     for (const [group, values] of wanted) {
-      const mineIn = listTags(store, { groupId: groupOf.get(group) });
+      const mineIn = new Map(listTags(store, { groupId: groupOf.get(group) }).map((t) => [nameKey(t.name), t.id]));
       for (const value of values) {
-        const yours = mineIn.find((t) => same(t.name, value));
-        ids.set(`${group}\u0000${value.toLowerCase()}`, yours ? yours.id : createTag(store, { groupId: groupOf.get(group) as string, name: value.trim() }).id);
+        // A value made here is reused for the same value in another letter case.
+        const id = mineIn.get(nameKey(value)) ?? createTag(store, { groupId: groupOf.get(group) as string, name: value.trim() }).id;
+        mineIn.set(nameKey(value), id);
+        ids.set(`${group}\u0000${value.toLowerCase()}`, id);
       }
     }
     tagIdOf = (group, value) => ids.get(`${group}\u0000${value.toLowerCase()}`);
@@ -335,127 +358,127 @@ export async function bringIn(store: Store, file: LyreFileLibrary, mine: Current
     return mapped ? { kind: r.kind, id: mapped } : null;
   };
 
-  const bringPlaylists = () => {
-    for (const p of file.playlists) {
-      const item = items.find((i) => i.key === `playlist:${p.id}`) as FileItem;
-      const choice = choiceOf(item);
-      const yours = item.yours ? mine.playlists.find((x) => x.id === item.yours?.id) : undefined;
-      if (yours && (choice === "skip" || choice === "merge")) {
-        playlistMap.set(p.id, yours.id);
-        if (choice === "merge" && yours.kind === "manual" && p.kind === "manual") {
-          const adding = tracksOf(p.trackIds).filter((x) => !yours.trackIds.includes(x));
-          if (adding.length) addTracksToPlaylist(store, yours.id, adding);
-        }
-        if (choice === "merge") report.merged.push({ kind: "playlist", id: yours.id, name: yours.name });
-        else report.skipped.push({ kind: "playlist", name: p.name });
-        continue;
+  const bringPlaylist = (p: PlaylistInfo) => {
+    const item = itemOf.get(`playlist:${p.id}`) as FileItem;
+    const choice = choiceOf(item);
+    const yours = item.yours ? yourPlaylist.get(item.yours.id) : undefined;
+    if (yours && (choice === "skip" || choice === "merge")) {
+      playlistMap.set(p.id, yours.id);
+      if (choice === "merge" && yours.kind === "manual" && p.kind === "manual") {
+        const theirs = new Set(yours.trackIds);
+        const adding = tracksOf(p.trackIds).filter((x) => !theirs.has(x));
+        if (adding.length) addTracksToPlaylist(store, yours.id, adding);
       }
-      const name = choice === "keepBoth" ? `${p.name}${from}` : p.name;
-      const made =
-        p.kind === "manual"
-          ? createPlaylist(store, { title: name, kind: "manual", lane: p.lane, notes: p.notes })
-          : createPlaylist(store, {
-              title: name,
-              kind: "dynamic",
-              lane: p.lane,
-              notes: p.notes,
-              rule: { ...p.rule, conds: p.rule.conds.filter((c) => groupOf.has(c.group)).map((c) => ({ ...c, group: groupOf.get(c.group) as string })) },
-            });
-      if (p.kind === "manual") {
-        const ids = tracksOf(p.trackIds);
-        if (ids.length) addTracksToPlaylist(store, made.id, ids);
-      }
-      if (p.order) setPlayOrder(store, made.id, null, p.order);
-      if (p.normalise) setPlaylistNormalise(store, made.id, p.normalise);
-      playlistMap.set(p.id, made.id);
-      newPlaylists.add(made.id);
-      (choice === "keepBoth" ? report.keptBoth : report.added).push({ kind: "playlist", id: made.id, name });
+      if (choice === "merge") report.merged.push({ kind: "playlist", id: yours.id, name: yours.name });
+      else report.skipped.push({ kind: "playlist", name: p.name });
+      return;
     }
+    const name = choice === "keepBoth" ? `${p.name}${from}` : p.name;
+    const made =
+      p.kind === "manual"
+        ? createPlaylist(store, { title: name, kind: "manual", lane: p.lane, notes: p.notes })
+        : createPlaylist(store, {
+            title: name,
+            kind: "dynamic",
+            lane: p.lane,
+            notes: p.notes,
+            rule: { ...p.rule, conds: p.rule.conds.filter((c) => groupOf.has(c.group)).map((c) => ({ ...c, group: groupOf.get(c.group) as string })) },
+          });
+    if (p.kind === "manual") {
+      const ids = tracksOf(p.trackIds);
+      if (ids.length) addTracksToPlaylist(store, made.id, ids);
+    }
+    if (p.order) setPlayOrder(store, made.id, null, p.order);
+    if (p.normalise) setPlaylistNormalise(store, made.id, p.normalise);
+    playlistMap.set(p.id, made.id);
+    newPlaylists.add(made.id);
+    (choice === "keepBoth" ? report.keptBoth : report.added).push({ kind: "playlist", id: made.id, name });
   };
 
-  const bringBoards = () => {
-    for (const b of file.boards) {
-      const item = items.find((i) => i.key === `board:${b.id}`) as FileItem;
-      const choice = choiceOf(item);
-      const padInput = (pad: NonNullable<(typeof b.slots)[number]>) => ({
-        label: pad.label,
-        icon: pad.icon,
-        color: pad.color,
-        hotkey: pad.key ? pad.key.toLowerCase() : null,
-        mode: pad.mode,
-        volume: pad.volume,
-        fadeMs: pad.fadeOutMs,
-        sound: { kind: pad.sound.kind, trackIds: tracksOf(pad.sound.trackIds), order: pad.sound.order, tagId: pad.sound.tag ? (tagIdOf(pad.sound.tag.group, pad.sound.tag.value) ?? null) : null },
-      });
-      const yours = item.yours ? mine.boards.find((x) => x.id === item.yours?.id) : undefined;
-      if (yours && (choice === "skip" || choice === "merge")) {
-        boardMap.set(b.id, yours.id);
-        if (choice === "merge") {
-          const labels = [...yours.slots, ...yours.spare].filter(Boolean).map((p) => (p as { label: string }).label);
-          // New pads go among the spare pads, without a key: yours keep their places and keys.
-          for (const pad of [...b.slots, ...b.spare]) if (pad && !labels.some((l) => same(l, pad.label))) addPad(store, yours.id, { ...padInput(pad), hotkey: null, at: "spare" });
-          report.merged.push({ kind: "board", id: yours.id, name: yours.name });
-        } else report.skipped.push({ kind: "board", name: b.name });
-        continue;
-      }
-      const name = choice === "keepBoth" ? `${b.name}${from}` : b.name;
-      const made = createBoard(store, { title: name, cols: b.cols, rows: b.rows });
-      b.slots.forEach((pad, i) => pad && addPad(store, made.id, { ...padInput(pad), at: { row: Math.floor(i / b.cols), col: i % b.cols } }));
-      for (const pad of b.spare) {
-        const added = addPad(store, made.id, { ...padInput(pad), at: "spare" });
-        if (!pad.aside) store.run("UPDATE pads SET put_aside = 0 WHERE id = ?", added.id);
-      }
-      boardMap.set(b.id, made.id);
-      (choice === "keepBoth" ? report.keptBoth : report.added).push({ kind: "board", id: made.id, name });
+  const bringBoard = (b: PadBoard) => {
+    const item = itemOf.get(`board:${b.id}`) as FileItem;
+    const choice = choiceOf(item);
+    const padInput = (pad: NonNullable<(typeof b.slots)[number]>) => ({
+      label: pad.label,
+      icon: pad.icon,
+      color: pad.color,
+      hotkey: pad.key ? pad.key.toLowerCase() : null,
+      mode: pad.mode,
+      volume: pad.volume,
+      fadeMs: pad.fadeOutMs,
+      sound: { kind: pad.sound.kind, trackIds: tracksOf(pad.sound.trackIds), order: pad.sound.order, tagId: pad.sound.tag ? (tagIdOf(pad.sound.tag.group, pad.sound.tag.value) ?? null) : null },
+    });
+    const yours = item.yours ? yourBoard.get(item.yours.id) : undefined;
+    if (yours && (choice === "skip" || choice === "merge")) {
+      boardMap.set(b.id, yours.id);
+      if (choice === "merge") {
+        const labels = new Set([...yours.slots, ...yours.spare].filter(Boolean).map((p) => nameKey((p as { label: string }).label)));
+        // New pads go among the spare pads, without a key: yours keep their places and keys.
+        for (const pad of [...b.slots, ...b.spare]) if (pad && !labels.has(nameKey(pad.label))) addPad(store, yours.id, { ...padInput(pad), hotkey: null, at: "spare" });
+        report.merged.push({ kind: "board", id: yours.id, name: yours.name });
+      } else report.skipped.push({ kind: "board", name: b.name });
+      return;
     }
+    const name = choice === "keepBoth" ? `${b.name}${from}` : b.name;
+    const made = createBoard(store, { title: name, cols: b.cols, rows: b.rows });
+    b.slots.forEach((pad, i) => pad && addPad(store, made.id, { ...padInput(pad), at: { row: Math.floor(i / b.cols), col: i % b.cols } }));
+    for (const pad of b.spare) {
+      const added = addPad(store, made.id, { ...padInput(pad), at: "spare" });
+      if (!pad.aside) store.run("UPDATE pads SET put_aside = 0 WHERE id = ?", added.id);
+    }
+    boardMap.set(b.id, made.id);
+    (choice === "keepBoth" ? report.keptBoth : report.added).push({ kind: "board", id: made.id, name });
   };
 
   const playlistsOf = (ids: readonly string[]) => [...new Set(ids.map((x) => playlistMap.get(x)).filter((x): x is string => !!x))];
   const boardsOf = (ids: readonly string[]) => [...new Set(ids.map((x) => boardMap.get(x)).filter((x): x is string => !!x))];
 
-  const bringSessions = (c: LyreFileLibrary["campaigns"][number], campaignId: string, asDrafts: boolean) => {
-    for (const s of c.sessions) {
-      const session = createSession(store, { campaignId, name: s.name, date: s.date, status: asDrafts ? "draft" : s.status, noteLink: s.noteLink });
-      sessionMap.set(`${c.id}:${s.id}`, { campaignId, sessionId: session.id });
-      addToSession(store, session.id, { playlistIds: playlistsOf(s.playlistIds), boardIds: boardsOf(s.boardIds), trackIds: tracksOf(s.trackIds) });
-      for (const sc of s.scenes) {
-        const scene = createScene(store, { sessionId: session.id, name: sc.name, startsWhen: sc.startsWhen, notes: sc.notes, noteLink: sc.noteLink });
-        sceneMap.set(`${c.id}:${s.id}:${sc.id}`, { campaignId, sessionId: session.id, sceneId: scene.id });
-        const music = sc.music.map(refOf).filter((r): r is SoundRef => !!r);
-        if (music.length) addSceneMusic(store, scene.id, music);
-        const ambience = sc.ambience ? refOf(sc.ambience) : null;
-        if (ambience) setSceneAmbience(store, scene.id, ambience);
-        const boards = boardsOf(sc.boardIds);
-        if (boards.length) addSceneBoards(store, scene.id, boards);
-        for (const [trackId, name] of Object.entries(sc.trackNames)) {
-          const mapped = trackMap.get(trackId);
-          if (mapped && name.trim()) setSceneTrackName(store, scene.id, mapped, name);
-        }
+  type FileCampaign = LyreFileLibrary["campaigns"][number];
+  /** Where each campaign's sessions go (yours, when merging, as drafts), or nowhere when it is skipped. */
+  const sessionsGoTo = new Map<string, { campaignId: string; asDrafts: boolean }>();
+  const bringSession = (c: FileCampaign, s: FileCampaign["sessions"][number]) => {
+    const to = sessionsGoTo.get(c.id);
+    if (!to) return;
+    const { campaignId, asDrafts } = to;
+    const session = createSession(store, { campaignId, name: s.name, date: s.date, status: asDrafts ? "draft" : s.status, noteLink: s.noteLink });
+    sessionMap.set(`${c.id}:${s.id}`, { campaignId, sessionId: session.id });
+    addToSession(store, session.id, { playlistIds: playlistsOf(s.playlistIds), boardIds: boardsOf(s.boardIds), trackIds: tracksOf(s.trackIds) });
+    for (const sc of s.scenes) {
+      const scene = createScene(store, { sessionId: session.id, name: sc.name, startsWhen: sc.startsWhen, notes: sc.notes, noteLink: sc.noteLink });
+      sceneMap.set(`${c.id}:${s.id}:${sc.id}`, { campaignId, sessionId: session.id, sceneId: scene.id });
+      const music = sc.music.map(refOf).filter((r): r is SoundRef => !!r);
+      if (music.length) addSceneMusic(store, scene.id, music);
+      const ambience = sc.ambience ? refOf(sc.ambience) : null;
+      if (ambience) setSceneAmbience(store, scene.id, ambience);
+      const boards = boardsOf(sc.boardIds);
+      if (boards.length) addSceneBoards(store, scene.id, boards);
+      for (const [trackId, name] of Object.entries(sc.trackNames)) {
+        const mapped = trackMap.get(trackId);
+        if (mapped && name.trim()) setSceneTrackName(store, scene.id, mapped, name);
       }
     }
   };
 
-  const bringCampaigns = () => {
-    for (const c of file.campaigns) {
-      const item = items.find((i) => i.key === `campaign:${c.id}`) as FileItem;
-      const choice = choiceOf(item);
-      if (item.yours && choice === "skip") {
-        report.skipped.push({ kind: "campaign", name: c.name });
-        continue;
-      }
-      if (item.yours && choice === "merge") {
-        // Their sessions join yours, as drafts after yours: yours keep their order and which one is next.
-        bringSessions(c, item.yours.id, true);
-        report.merged.push({ kind: "campaign", id: item.yours.id, name: mine.campaigns.find((x) => x.id === item.yours?.id)?.name ?? c.name });
-        continue;
-      }
-      const name = choice === "keepBoth" ? `${c.name}${from}` : c.name;
-      const made = createCampaign(store, { name, system: c.system, theme: c.theme, description: c.description, notes: c.notes, obsidian: c.obsidian, firstSessionNumber: c.sessions[0]?.number ?? 1 });
-      campaignMap.set(c.id, made.id);
-      addToCampaign(store, made.id, { playlistIds: playlistsOf(c.playlistIds), boardIds: boardsOf(c.boardIds), trackIds: tracksOf(c.trackIds) });
-      bringSessions(c, made.id, false);
-      (choice === "keepBoth" ? report.keptBoth : report.added).push({ kind: "campaign", id: made.id, name });
+  /** A campaign itself; its sessions follow as work of their own (`bringSession`). */
+  const bringCampaign = (c: FileCampaign) => {
+    const item = itemOf.get(`campaign:${c.id}`) as FileItem;
+    const choice = choiceOf(item);
+    if (item.yours && choice === "skip") {
+      report.skipped.push({ kind: "campaign", name: c.name });
+      return;
     }
+    if (item.yours && choice === "merge") {
+      // Their sessions join yours, as drafts after yours: yours keep their order and which one is next.
+      sessionsGoTo.set(c.id, { campaignId: item.yours.id, asDrafts: true });
+      report.merged.push({ kind: "campaign", id: item.yours.id, name: yourCampaign.get(item.yours.id)?.name ?? c.name });
+      return;
+    }
+    const name = choice === "keepBoth" ? `${c.name}${from}` : c.name;
+    const made = createCampaign(store, { name, system: c.system, theme: c.theme, description: c.description, notes: c.notes, obsidian: c.obsidian, firstSessionNumber: c.sessions[0]?.number ?? 1 });
+    campaignMap.set(c.id, made.id);
+    addToCampaign(store, made.id, { playlistIds: playlistsOf(c.playlistIds), boardIds: boardsOf(c.boardIds), trackIds: tracksOf(c.trackIds) });
+    sessionsGoTo.set(c.id, { campaignId: made.id, asDrafts: false });
+    (choice === "keepBoth" ? report.keptBoth : report.added).push({ kind: "campaign", id: made.id, name });
   };
 
   /** Audio settings and play orders of the places this bring-in made (yours are never changed by a file). */
@@ -504,19 +527,35 @@ export async function bringIn(store: Store, file: LyreFileLibrary, mine: Current
     return sc ? { kind: "scene", ...sc } : null;
   };
 
+  // Security review w4, Should 3: everything is work in one list, in the order things name each other (tracks, then
+  // playlists, boards, campaigns and their sessions, then settings), so batches of about 500 each keep the library's
+  // process free between them, however many playlists, boards or campaigns a file holds.
+  type Work = { kind: "track"; t: FileTrack } | { kind: "playlist"; p: PlaylistInfo } | { kind: "board"; b: PadBoard } | { kind: "campaign"; c: FileCampaign } | { kind: "session"; c: FileCampaign; s: FileCampaign["sessions"][number] } | { kind: "settings" };
+  const work: Work[] = [
+    ...file.tracks.map((t): Work => ({ kind: "track", t })),
+    ...file.playlists.map((p): Work => ({ kind: "playlist", p })),
+    ...file.boards.map((b): Work => ({ kind: "board", b })),
+    ...file.campaigns.flatMap((c): Work[] => [{ kind: "campaign", c }, ...c.sessions.map((s): Work => ({ kind: "session", c, s }))]),
+    { kind: "settings" },
+  ];
   let tagsDone = false;
-  await store.changeInBatches(`Bring in ${options.fileName}`, file.tracks, (batch, last) => {
+  // Comparing the file with the library above takes a turn of its own; the first batch runs in the next.
+  await nextTurn();
+  await store.changeInBatches(`Bring in ${options.fileName}`, work, (batch) => {
     if (!tagsDone) {
       groupOf = bringTags();
       tagsDone = true;
     }
-    bringTracks(batch);
-    if (!last) return;
-    bringPlaylists();
-    bringBoards();
-    bringCampaigns();
-    bringSettings();
-  });
+    bringTracks(batch.flatMap((w) => (w.kind === "track" ? [w.t] : [])));
+    for (const w of batch) {
+      if (w.kind === "playlist") bringPlaylist(w.p);
+      else if (w.kind === "board") bringBoard(w.b);
+      else if (w.kind === "campaign") bringCampaign(w.c);
+      else if (w.kind === "session") bringSession(w.c, w.s);
+      else if (w.kind === "settings") bringSettings();
+    }
+    // A playlist, board or campaign is several writes: half the usual batch keeps each turn well under 200 ms.
+  }, { batchSize: 250 });
 
   if (trackItem) {
     const entry = { kind: "tracks" as const, id: "", name: plural(newTracks.size + mergedTracks, "track") };

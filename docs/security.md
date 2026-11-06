@@ -726,3 +726,8 @@ Lyre write more than the file itself holds.
   A part named by several tracks is unpacked once; the library keeps one track per file, so those tracks are brought
   in as the one that has it, and the summary says so. Before unpacking, the drive's free space (`statfs`) must hold
   the parts, or Bring in is refused with nothing written. The review's 5 MB file that wrote 1,048 MB now writes 5 MB.
+- **No file holds the library for long (review Should 3).** Bringing in compares the file with the library through
+  maps (names, ids, tag values), never by scanning a list for each item, and does its work as one list in batches of
+  250 (tracks, then playlists, boards, campaigns and each of their sessions, then settings) with the event loop free
+  between them; reading the library and comparing take turns of their own. 8,000 playlists, 2,000 boards and 2,000
+  campaigns beside as many of yours open and come in with no turn over 200 ms (`hostileFile.test.ts`).
