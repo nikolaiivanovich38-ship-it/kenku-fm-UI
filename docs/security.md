@@ -787,3 +787,10 @@ Lyre write more than the file itself holds.
 - **Undo of a bring-in (review, could).** The audio files a bring-in unpacked stay while Redo can bring it back; once
   it cannot (a new step, another bring-in, the library closing), the files no track uses are removed, with their
   brought-in folder when it is left empty. Only files that bring-in wrote itself are ever removed.
+
+## w5-fixes
+
+- **BUG-19.** No room of the Lyre page ever plays on this computer. The audio host joins no room to the page's speakers, and the capture window plays the page's room frames (the private `PLAYER_AUDIO_PORT` channel) past each room's `input`, into the `volume` node towards that room's encoder only; "This Computer" is fed from a separate `localVolume` that only tabs and input devices reach (`AudioCaptureManagerPreload.test.ts`, `e2e/onAir.spec.ts`). Preview and Try pads keep their own path to the headphones (PRV-1). The w3-host manual check 1 ("play music before any bot joins: you hear it on this computer") is replaced by: play music before any bot joins: nothing is heard on this computer, and Live and the Now playing bar say nobody hears it; join Bot 1 to "Table": the players hear it in Discord, you hear it only if you are in "Table" yourself.
+- **BUG-20.** New cue action `stopPads` (`{ type, target?, fadeMs? }`), checked by `isCueAction` like `fadeAll` (target and a fade of 0 to 60 s). It cannot be put on a hotkey (`cueActions.ts` refuses it). It reaches the engine only from the Lyre page's own audio host; it crosses no process boundary.
+- **BUG-21.** Renaming goes through the existing `sessions.update` call and its argument checks.
+- No IPC channel, argument check, permission or Content-Security-Policy changed.
