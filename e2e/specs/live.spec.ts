@@ -758,13 +758,13 @@ test.describe("round 6, part 4: the review's fixes in Live", () => {
     expect(second!.y).toBeLessThan(cpp!.y);
   });
 
-  test("Should 7: in three columns a box keeps its place when a list in the box above grows", async ({ page }) => {
+  test("Should 7, replaced by Nik's 21:59 (part 7): when a list in a tray grows, the box under it moves down and the page grows", async ({ page }) => {
     await page.setViewportSize({ width: 1920, height: 1080 });
     await openRoute(page, "live");
     await sessionPlaylists(page).getByRole("button", { name: /Session\s*playlists/i }).first().click();
     const before = (await region(page, "Session pads").boundingBox())!;
     await sessionPlaylists(page).getByRole("button", { name: /^Show contents of / }).first().click();
-    expect((await region(page, "Session pads").boundingBox())!.y).toBe(before.y);
+    expect((await region(page, "Session pads").boundingBox())!.y).toBeGreaterThan(before.y);
   });
 
   test("Should 8 (Nik, 6 Nov 13:55): Preview, Play next and Add to queue show on every row at rest", async ({ page }) => {
@@ -968,9 +968,8 @@ test.describe("round 6, part 6: On air at the top, Back and the trail, Find play
     await expect(page.getByRole("group", { name: "Keys on the live screen" })).toContainText("On air, Scenes, Current scene, Session playlists");
   });
 
-  test("Back is the first thing in Live's top strip; opened from the menu it is there, disabled, saying why", async ({ page }) => {
-    await openRoute(page, "campaigns");
-    await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: /^Live/ }).click();
+  test("Back is the first thing in Live's top strip; as the first screen it is there, greyed, saying why (part 7)", async ({ page }) => {
+    await openRoute(page, "live");
     const back = page.getByRole("button", { name: "Back", exact: true });
     await expect(back).toHaveAttribute("aria-disabled", "true");
     await expect(back).toHaveAttribute("title", /nothing to go back to/i);
@@ -987,7 +986,7 @@ test.describe("round 6, part 6: On air at the top, Back and the trail, Find play
     const trail = page.getByRole("navigation", { name: "Breadcrumb" });
     await expect(trail.getByRole("link", { name: "The Sunken Crown" })).toBeVisible();
     const back = page.getByRole("button", { name: "Back to The Sunken Crown" });
-    await expect(back).toHaveText("Back");
+    await expect(back).toHaveText("");
     expect((await box(trail)).x).toBeGreaterThan((await box(back)).x);
     await trail.getByRole("link", { name: "The Sunken Crown" }).click();
     await expect(page.getByRole("heading", { level: 1 })).toContainText("The Sunken Crown");

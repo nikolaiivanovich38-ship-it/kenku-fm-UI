@@ -372,10 +372,11 @@ test.describe("round 6: Repeat on the Now playing bar, the campaign's own order,
     await expect(region(page, "Campaign playlists").getByRole("link", { name: "Ashen King" })).toBeFocused();
   });
 
-  test("UX-18: screens opened from the menu have no Back", async ({ page }) => {
+  test("UX-18, round 6 part 7 (Nik, 22:04): a screen opened from the menu has Back to where Nik was", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // was: screens opened from the menu have no Back
     await openRoute(page, "campaign/crown");
     await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Library" }).click();
-    await expect(page.getByRole("button", { name: /^Back to / })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Back to The Sunken Crown" })).toBeVisible();
   });
 });
 
@@ -492,15 +493,16 @@ test.describe("round 6, part 6: the Saved pop-up at the bottom right, Back alway
     }
   });
 
-  test("with nowhere to go back to, Back stays where it is, disabled, and says why on hover", async ({ page }) => {
+  test("at the very start of the history Back stays where it is, greyed, saying why; after a move from the menu it goes back (part 7)", async ({ page }) => {
     await openRoute(page, "campaign/crown");
-    await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Pad boards" }).click();
     await expect(back(page)).toHaveAccessibleName("Back");
     await expect(back(page)).toHaveAttribute("aria-disabled", "true");
     await expect(back(page)).toHaveAttribute("title", /nothing to go back to/i);
+    await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Pad boards" }).click();
+    await expect(back(page)).toHaveAccessibleName("Back to The Sunken Crown");
+    await expect(back(page)).not.toHaveAttribute("aria-disabled", "true");
     await page.getByRole("link", { name: /^Drowned Abbey/ }).first().click();
     await expect(back(page)).toHaveAccessibleName("Back to Pad boards");
-    await expect(back(page)).not.toHaveAttribute("aria-disabled", "true");
   });
 
   test("each screen with a parent has its trail right after Back: every part a link, the screen's title last", async ({ page }) => {
@@ -530,20 +532,21 @@ test.describe("round 6, part 6: the Saved pop-up at the bottom right, Back alway
     }
   });
 
-  test("Back never repeats the trail: from the campaign page to a session it says Back, and its name says where", async ({ page }) => {
+  test("Back never repeats the trail: it is a ‹ in a box (part 7), its name and hover say where it goes", async ({ page }) => {
     await openRoute(page, "campaign/crown");
     await page.getByRole("link", { name: /^Session 14/ }).first().click();
     const b = page.getByRole("button", { name: "Back to The Sunken Crown" });
-    await expect(b).toHaveText("Back");
+    await expect(b).toHaveText("");
     await expect(b).toHaveAttribute("title", /Back to The Sunken Crown/);
     await expect(trail(page).getByRole("link", { name: "The Sunken Crown" })).toBeVisible();
   });
 
-  test("Back names where it goes when the trail does not show it: Rooms opened from Live says Back to Live", async ({ page }) => {
+  test("Back's name says where it goes: Rooms opened from Live has Back to Live (a ‹ with no words, part 7)", async ({ page }) => {
     await openRoute(page, "live");
     await page.getByRole("button", { name: "Lyre Table in Table: change" }).click();
     await page.getByRole("menuitem", { name: "Rooms" }).click();
-    await expect(page.getByRole("button", { name: "Back to Live" })).toHaveText("Back to Live");
+    await expect(page.getByRole("button", { name: "Back to Live" })).toHaveText("");
+    await expect(page.getByRole("button", { name: "Back to Live" })).toHaveAttribute("title", /^Back to Live/);
   });
 
   test("a long trail is cut in the middle with … and the whole path on hover", async ({ page }) => {
@@ -554,5 +557,77 @@ test.describe("round 6, part 6: the Saved pop-up at the bottom right, Back alway
     await expect(nav.getByText("…")).toBeVisible();
     await expect(nav.getByRole("link", { name: "The Sunken Crown" })).toBeVisible();
     await expect(nav.getByRole("link", { name: "Campaigns" })).toBeHidden();
+  });
+});
+
+/* Round 6, part 7 (design/prototype/ROUND6.md "Part 7"; Nik, 6 Nov 22:04: "Back should just be a < symbol in a box, it
+   doesn't need text. It should function across tabs in the side menu: it should record where I am and where I was
+   before regardless of what happened between [...] and should let me go back at least five steps."). Not built yet. */
+test.describe("round 6, part 7: Back is one history across the whole app", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
+  const back = (page: Page) => page.getByRole("main").getByRole("button", { name: /^Back( to .+)?$/ }).first();
+  const menu = (page: Page, name: string | RegExp) => page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name });
+  const h1 = (page: Page) => page.getByRole("heading", { level: 1 });
+  const details = (page: Page) => page.getByRole("complementary", { name: /Details/ }).or(page.getByRole("region", { name: "Details", exact: true }));
+  const scenes = (page: Page) => region(page, "Scenes");
+
+  test("five steps and more: Library, a track, its Audio profile, Pad boards (menu), a board, Live with a scene unfolded; Back walks back through each, as it was", async ({ page }) => {
+    await openRoute(page, "library");
+    await expect(back(page)).toHaveAttribute("aria-disabled", "true");
+    await page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Ashes/ }).getByRole("gridcell").nth(1).click();
+    await expect(details(page).getByRole("textbox", { name: "Your title" })).toBeVisible();
+    await details(page).getByRole("link", { name: "Audio profile" }).click();
+    await expect(h1(page)).toContainText("Ashes");
+    await menu(page, "Pad boards").click();
+    await page.getByRole("link", { name: /^Drowned Abbey/ }).first().click();
+    await expect(h1(page)).toHaveText("Drowned Abbey");
+    await menu(page, /^Live/).click();
+    const crypt = scenes(page).getByRole("button", { name: "Scene 4: Crypt ambush", exact: true });
+    await crypt.click();
+    await menu(page, /^Rooms/).click();
+    await expect(h1(page)).toHaveText("Rooms");
+
+    await back(page).click();
+    await expect(crypt).toHaveAttribute("aria-expanded", "true");
+    await expect(back(page)).toHaveAccessibleName("Back to Drowned Abbey");
+    await back(page).click();
+    await expect(h1(page)).toHaveText("Drowned Abbey");
+    await back(page).click();
+    await expect(h1(page)).toHaveText("Pad boards");
+    await back(page).click();
+    await expect(h1(page)).toContainText("Ashes");
+    await expect(h1(page)).toContainText("Audio profile");
+    await back(page).click();
+    await expect(h1(page)).toHaveText("Library");
+    await expect(details(page)).toContainText("13 Ashes.flac");
+    await back(page).click();
+    await expect(details(page).getByRole("textbox", { name: "Your title" })).toHaveCount(0);
+    await expect(back(page)).toHaveAttribute("aria-disabled", "true");
+  });
+
+  test("Back is a ‹ in a box at least 24 px square, and Alt+Left does the same as Back", async ({ page }) => {
+    await openRoute(page, "settings");
+    await menu(page, "Library").click();
+    const b = await back(page).boundingBox();
+    expect(b!.width).toBeGreaterThanOrEqual(24);
+    expect(b!.height).toBeGreaterThanOrEqual(24);
+    await expect(back(page)).toHaveText("");
+    await expect(back(page)).toHaveAccessibleName("Back to Settings");
+    await page.keyboard.press("Alt+ArrowLeft");
+    await expect(h1(page)).toHaveText("Settings");
+  });
+
+  test("going back returns to the same scroll position and the control that was used to leave", async ({ page }) => {
+    await page.setViewportSize({ width: 960, height: 600 });
+    await openRoute(page, "session/crown/s14");
+    await page.getByRole("button", { name: "Scene 3: The abbey ruins" }).click();
+    const top = () => page.evaluate(() => { const s = Array.from(document.querySelectorAll("#view, #view [data-scroll]")).find((e) => e.scrollTop > 0); return s ? s.scrollTop : 0; });
+    await page.mouse.wheel(0, 400);
+    await expect.poll(top).toBeGreaterThan(0);
+    const before = await top();
+    await menu(page, "Playlists").click();
+    await back(page).click();
+    await expect(h1(page)).toContainText("Session 14");
+    expect(Math.abs((await top()) - before)).toBeLessThanOrEqual(2);
   });
 });
