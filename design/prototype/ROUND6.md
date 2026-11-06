@@ -34,15 +34,18 @@ This round is subtraction only. No behaviour changed, and nothing a game master 
 
 | | Before | After | Change |
 | --- | ---: | ---: | ---: |
-| Visible words | 14,373 | 12,342 | -14 % |
-| Hint and explanation lines | 314 | 188 | -40 % |
-| Facts shown twice | 330 | 282 | -15 % |
-| Visible controls | 4,964 | 4,832 | -3 % |
-| Badge kinds (sum over screens) | 245 | 215 | -12 % |
+| Visible words | 14,373 | 12,446 | −13 % |
+| Hint and explanation lines | 314 | 188 | −40 % |
+| Facts shown twice | 330 | 282 | −15 % |
+| Visible controls | 4,964 | 4,848 | −2 % |
+| Badge kinds (sum over screens) | 245 | 215 | −12 % |
 
 The five busiest screens (Library with a track open, the music picker with a playlist open, a manual playlist, the
-planner with two scenes open, Back up with a file open), at 1920×1080: words 2,113 → 1,680 (−20 %), hint lines
-43 → 22, controls 684 → 668. Live is almost unchanged on purpose.
+planner with two scenes open, Back up with a file open), at 1920×1080: words 2,113 → 1,698 (−20 %), hint lines
+43 → 22, controls 684 → 672. Live is almost unchanged on purpose.
+
+Volume normalisation (PLY-15, merged from wave4 after the cut) adds about 100 words on the Library details, a
+playlist's Details and the Audio profile, and no hint lines: its explanations are hover text already.
 
 Controls fall least: almost every control is used, and the round removes words, not functions. The column
 button is still there for a keyboard user; it only stops drawing the eye.
@@ -59,18 +62,18 @@ button is still there for a keyboard user; it only stops drawing the eye.
 | planner-order-menu | 318 → 259 (301 → 242) | 9 → 3 | 6 → 4 | 130 → 123 |
 | picker-inside | 479 → 318 (443 → 294) | 12 → 3 | 7 → 4 | 171 → 164 |
 | library | 448 → 404 (265 → 218) | 3 → 2 | 4 → 5 | 168 → 166 |
-| library-track | 686 → 576 (424 → 380) | 7 → 3 | 16 → 13 | 214 → 216 |
-| library-t44 | 584 → 501 (367 → 327) | 6 → 4 | 14 → 13 | 199 → 197 |
+| library-track | 686 → 582 (424 → 391) | 7 → 3 | 16 → 13 | 214 → 217 |
+| library-t44 | 584 → 514 (367 → 336) | 6 → 4 | 14 → 13 | 199 → 200 |
 | library-filters | 448 → 404 (221 → 207) | 3 → 2 | 4 → 5 | 168 → 166 |
 | playlists | 143 → 133 (128 → 118) | 1 → 1 | 0 → 0 | 147 → 147 |
-| playlist-manual | 382 → 338 (322 → 288) | 5 → 3 | 9 → 5 | 134 → 130 |
+| playlist-manual | 382 → 350 (322 → 300) | 5 → 3 | 9 → 5 | 134 → 133 |
 | playlist-dynamic | 197 → 150 (182 → 135) | 6 → 3 | 3 → 1 | 61 → 57 |
 | playlist-gothic | 245 → 207 (230 → 192) | 6 → 3 | 2 → 0 | 85 → 81 |
 | boards | 87 → 87 (72 → 72) | 1 → 1 | 6 → 6 | 34 → 34 |
 | board | 264 → 221 (249 → 206) | 4 → 2 | 8 → 7 | 84 → 80 |
 | board-try | 232 → 204 (217 → 189) | 4 → 3 | 0 → 0 | 82 → 78 |
-| profile | 268 → 228 (235 → 195) | 6 → 2 | 7 → 7 | 60 → 60 |
-| profile-scene | 266 → 236 (221 → 192) | 6 → 3 | 6 → 6 | 49 → 49 |
+| profile | 268 → 240 (235 → 204) | 6 → 2 | 7 → 7 | 60 → 63 |
+| profile-scene | 266 → 248 (221 → 200) | 6 → 3 | 6 → 6 | 49 → 52 |
 | live | 122 → 121 (107 → 106) | 3 → 3 | 0 → 0 | 52 → 52 |
 | live-playing | 221 → 219 (206 → 204) | 6 → 6 | 6 → 6 | 72 → 72 |
 | live-aftermath | 189 → 189 (174 → 174) | 3 → 3 | 4 → 4 | 64 → 64 |
