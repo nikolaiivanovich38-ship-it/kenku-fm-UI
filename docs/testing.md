@@ -211,3 +211,13 @@ Each fault Nik found in 0.3.0 has a test that failed before its fix.
 | BUG-16 | `BoardScreen.test.tsx`: every icon by mouse and keyboard; a choice shows at once while the library is slow, and a second click is kept. `e2e/padIcons.spec.ts`: every icon, each clicked twice, and the arrows, in the packaged app. |
 | BUG-17 | `previewClock.test.ts`, `ProfileScreen.test.tsx`: Play goes round Start to End (or the loop) until stopped, the playhead, time and loop count following every pass; the last 10 s of a loop go round too. |
 | BUG-18 | `CampaignScreen.test.tsx`, `SessionScreen.test.tsx`: F2, double-click and Rename start editing; Enter saves; Esc cancels; focus goes back. |
+
+## 0.4.1 fixes (w5-fixes)
+
+Each fault Nik found in 0.4.0 has a test that failed before its fix.
+
+| Backlog | Tests |
+| --- | --- |
+| BUG-19 | `lyreAudio.test.ts`, `browserLyreAudio.test.ts`: no room, effect or pad reaches the Lyre page's speakers, in a broadcast or outside one. `AudioCaptureManagerPreload.test.ts`: the page's room frames reach the room's encoder and never This Computer; tabs still do. `NowPlayingBar.test.tsx`, `LiveScreen.test.tsx`, `live.spec.ts`: with no room, "nobody hears it". `e2e/onAir.spec.ts` now checks sound on air as packets at the fake Discord's Table and that neither the Lyre page nor the capture window is audible, with a bot in a room and without one. |
+| BUG-20 | `director.test.ts`: a press stops a sounding pad in every play mode and takes no turn of its variants; `stopPads` leaves music, ambience and other effects; `isCueAction` checks it. `lyreAudio.test.ts` (also Try pads), `LiveScreen.test.tsx`, `BoardScreen.test.tsx`, `boardModel.test.ts`; `live.spec.ts` (press again, Stop pads), `pad-boards.spec.ts` (the one-shot help's new words). |
+| BUG-21 | `SessionScreen.test.tsx`, `LiveScreen.test.tsx`, `session-planner.spec.ts`, `live.spec.ts`: click or F2 on the session page's title, F2 or Rename session in Live's top strip; Enter saves, Esc cancels, only the name. |
