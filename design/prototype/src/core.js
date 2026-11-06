@@ -422,6 +422,23 @@ var L = (function () {
   L.botLeave = function (botId) { var b = L.bot(botId); if (!b) return; var w = L.botWhere(b); b.status = 'idle'; b.server = ''; b.channel = ''; if (pb.own[botId]) delete pb.own[botId];
     if (botId === D.discord.bots[0].id) { ['music', 'amb'].forEach(function (ln) { if (pb[ln]) { pb[ln].fadeOut = 2; pb[ln + 'Out'].push(pb[ln]); pb[ln] = null; } }); pb.fx.forEach(function (f) { if (f.target === 'table') f.fadeOut = .8; }); }
     pb.fx.forEach(function (f) { if (f.target === botId) f.fadeOut = .8; }); L.say(b.name + ' left ' + w); L.changed(); };
+  /* OUT-7: Kick takes a bot out of its voice channel at once. If the players there were hearing something, the caller
+     shows an Undo instead of asking first: L.botKick(botId) -> { lost: true|false, restore() } where restore puts the
+     bot back in that channel and plays what it played, from where it was. L.freeBots() are the connected bots in no
+     voice channel (Add bot offers them). */
+  L.freeBots = function () { return D.discord.bots.filter(function (b) { return b.status === 'idle' && (!b.login || b.login === 'online'); }); };
+  L.botKick = function (botId) {
+    var b = L.bot(botId); if (!b || b.status === 'idle') return null;
+    var m = mixOf(botId), lanes = ['music', 'amb'].map(function (ln) { var c = m[ln]; return c ? { ln: ln, id: c.id, playlistId: c.playlistId, place: c.place, seq: c.seq, pos: c.pos, paused: c.paused } : null; }).filter(Boolean);
+    var where = { server: b.server, channel: b.channel }, lost = lanes.some(function (x) { return !x.paused; }) && L.botListeners(b).length > 0;
+    L.botLeave(botId);
+    return { lost: lost, restore: function () {
+      L.botJoin(botId, where.server, where.channel);
+      var say = L.say; L.say = function () {};
+      try { lanes.forEach(function (x) { L.play(x.id, { lane: x.ln, playlistId: x.playlistId, place: x.place, seq: x.seq, fade: 1, target: botId }); var c = mixOf(botId)[x.ln]; if (c) { c.pos = x.pos; c.paused = x.paused; } }); } finally { L.say = say; }
+      L.changed();
+    } };
+  };
   L.botMute = function (botId, on) { var b = L.bot(botId); if (b) { b.muted = on == null ? !b.muted : !!on; L.say(b.name + (b.muted ? ' muted' : ' unmuted')); L.changed(); } };
   L.botVolume = function (botId, n) { var b = L.bot(botId); if (b) { b.volume = Math.max(0, Math.min(100, +n)); L.changed(); } };
 
@@ -622,7 +639,7 @@ var L = (function () {
       var target = mx[0], m = mx[1];
       ['music', 'amb'].forEach(function (ln) {
         var c = m[ln];
-        if (c && !c.paused) { c.pos += dt; if (c.fadeIn) c.vol = Math.min(1, c.vol + dt / c.fadeIn); else c.vol = 1; if (c.pos >= c.dur) { var t = L.track(c.id), pf = L.profileOf(t, laneCtx(c.playlistId, c.seq, c.place)); if (pf.after === 'loop' || ln === 'amb') c.pos = pf.loopStart; else if (pf.after === 'next' && (c.seq || c.playlistId)) trackEnded(m, ln, c, pf, target); else m[ln] = null; } moved = true; }
+        if (c && !c.paused) { c.pos += dt; if (c.fadeIn) c.vol = Math.min(1, c.vol + dt / c.fadeIn); else c.vol = 1; if (c.pos >= c.dur) { var t = L.track(c.id), pf = L.profileOf(t, laneCtx(c.playlistId, c.seq, c.place)); if (pf.after === 'loop' || ln === 'amb') c.pos = pf.loopStart; else if (L.repeatsOne(c)) c.pos = pf.start; else if (pf.after === 'next' && (c.seq || c.playlistId)) trackEnded(m, ln, c, pf, target); else m[ln] = null; } moved = true; }
         m[ln + 'Out'] = m[ln + 'Out'].filter(function (o) { o.pos += dt; o.vol -= dt / (o.fadeOut || .3); return o.vol > 0; });
       });
     });
@@ -630,6 +647,49 @@ var L = (function () {
     if (pb.preview && !pb.preview.paused) { pb.preview.pos += dt; if (pb.preview.pos >= pb.preview.dur) pb.preview = null; moved = true; }
     if (moved || pb.fx.length) L.tick();
   }, 250);
+  /* PLY-17 Repeat from where you are (Nik, 6 Nov 10:34: "I need a repeat button on the now playing bar" and "repeat one
+     buttons on the tracks in the current scene music pane").
+     L.repeatButton(lane, target)   the Now playing row's Repeat: off, all, one in turn. For a track from a playlist it is
+                                    the PLY-13 play order of that playlist in the place it plays from (the scene, session
+                                    or campaign list; the playlist's own on its own); for a single track, off or one.
+     L.oneRepeats(placeKey, trackId) / L.setOneRepeats(placeKey, trackId, on)   Repeat one on a track row of Current scene
+                                    music: that track plays again when it ends, in that place only (D.repeatOne).
+     L.repeatsOne(lane)             whether the lane's track starts again when it ends. */
+  D.repeatOne = D.repeatOne || {};
+  L.oneRepeats = function (key, tid) { return !!(D.repeatOne[key || ''] && D.repeatOne[key || ''][tid]); };
+  L.setOneRepeats = function (key, tid, on) { key = key || ''; if (!D.repeatOne[key]) D.repeatOne[key] = {}; if (on) D.repeatOne[key][tid] = true; else delete D.repeatOne[key][tid]; };
+  L.repeatsOne = function (c) { return !!c && (!!c.repeatOne || L.oneRepeats(L.lanePlace(c), c.id) || (!!c.playlistId && L.orderOf(c.playlistId, L.lanePlace(c)).repeat === 'one')); };
+  function laneRepeat(c) { if (!c) return 'off'; if (L.oneRepeats(L.lanePlace(c), c.id) || c.repeatOne) return 'one'; return c.playlistId ? L.orderOf(c.playlistId, L.lanePlace(c)).repeat : 'off'; }
+  L.laneRepeat = laneRepeat;
+  var REPEAT_WORDS = { off: 'Repeat: off', all: 'Repeat: all', one: 'Repeat: one' };
+  L.repeatButton = function (ln, target, k) {
+    var c = mixOf(target)[ln]; if (!c) return '';
+    var r = laneRepeat(c), next = c.playlistId ? { off: 'all', all: 'one', one: 'off' }[r] : r === 'one' ? 'off' : 'one';
+    return '<button class="btn s icon rep' + (r === 'off' ? '' : ' on') + '" data-act="lanerepeat" data-lane="' + ln + '" data-room="' + esc(target || 'table') + '" data-k="' + esc(k || 'rep-' + ln) + '" aria-pressed="' + (r !== 'off') + '" aria-label="' + REPEAT_WORDS[r] + '"' +
+      ' title="' + REPEAT_WORDS[r] + '. Press for ' + REPEAT_WORDS[next].toLowerCase().replace('repeat: ', 'repeat ').replace('repeat off', 'no repeat') + (c.playlistId ? ' (' + esc(L.placeKind(L.lanePlace(c)) ? 'in ' + L.placeLabel(L.lanePlace(c)) : (L.playlist(c.playlistId) || {}).name) + ')' : '') + '">' + L.icon(r === 'one' ? 'repeat1' : 'loop', 's') + '</button>';
+  };
+  L.acts.lanerepeat = function (el) {
+    var c = mixOf(el.dataset.room)[el.dataset.lane]; if (!c) return;
+    var r = laneRepeat(c), key = L.lanePlace(c);
+    if (!c.playlistId) { c.repeatOne = r !== 'one'; L.setOneRepeats(key, c.id, false); }
+    else {
+      var next = { off: 'all', all: 'one', one: 'off' }[r];
+      // A Repeat one set on the track's row gives way to the playlist's order once you cycle on from it.
+      if (L.oneRepeats(key, c.id)) { L.setOneRepeats(key, c.id, false); next = 'off'; }
+      L.setOrder(c.playlistId, key, { repeat: next });
+    }
+    L.say(REPEAT_WORDS[laneRepeat(c)]); L.changed();
+  };
+  // The Now playing row's Shuffle, beside Repeat: the PLY-13 shuffle of that playlist where it plays from.
+  L.shuffleButton = function (ln, target, k) {
+    var c = mixOf(target)[ln]; if (!c || !c.playlistId) return '';
+    var on = L.orderOf(c.playlistId, L.lanePlace(c)).shuffle;
+    return '<button class="btn s icon rep' + (on ? ' on' : '') + '" data-act="laneshuffle" data-lane="' + ln + '" data-room="' + esc(target || 'table') + '" data-k="' + esc(k || 'shuf-' + ln) + '" aria-pressed="' + on + '" aria-label="Shuffle" title="Shuffle ' + (on ? 'on' : 'off') + '">' + L.icon(on ? 'shuffle' : 'inorder', 's') + '</button>';
+  };
+  L.acts.laneshuffle = function (el) {
+    var c = mixOf(el.dataset.room)[el.dataset.lane]; if (!c || !c.playlistId) return; var key = L.lanePlace(c), o = L.orderOf(c.playlistId, key);
+    L.setOrder(c.playlistId, key, { shuffle: !o.shuffle }); L.state.shuffleRound++; L.say(o.shuffle ? 'Shuffle off' : 'Shuffle on'); L.changed();
+  };
   /* PLY-13: what happens when a track from a playlist ends by itself, by its play order where it plays (the same rule
      as the domain's whenTrackEnds): repeat one plays it again, repeat all starts the playlist again after its last
      track, no repeat moves the scene on (or stops a playlist playing on its own). Next and Previous always move on. */
@@ -903,7 +963,7 @@ var L = (function () {
         '<button class="btn s icon" data-act="oabpause" data-lane="' + ln + '" data-room="' + target + '" data-k="' + k + '-pause" aria-label="' + (paused ? 'Play' : 'Pause') + '" title="' + (paused ? 'Play the ' + word + ' again' : 'Pause the ' + word) + esc(where) + '">' + L.icon(paused ? 'play' : 'pause', 's') + '</button>' +
         '<button class="btn s" data-act="oabstop" data-room="' + target + '" data-k="' + k + '-stop" title="Stop what the players hear' + esc(where) + ' (fades out in a second)">' + L.icon('stop', 's') + 'Stop</button>' +
         '<button class="btn s icon" data-act="oabnext" data-lane="' + ln + '" data-room="' + target + '" data-k="' + k + '-next" aria-label="Next" title="' + (canNext ? 'Next track (crossfade)' : 'A single track has no next one') + '"' + (canNext ? '' : ' disabled') + '>' + L.icon('next', 's') + '</button>' +
-        (c.playlistId && L.orderButton ? L.orderButton(c.playlistId, key) : '') + '</div>' +
+        L.shuffleButton(ln, target, k + '-shuf') + L.repeatButton(ln, target, k + '-rep') + '</div>' +
       (bot ? '<label class="oab-vol" title="Volume of what the players hear' + esc(where) + '">' + L.icon('volume', 's') + '<span class="sr-only">Volume' + esc(where) + '</span><input type="range" min="0" max="100" step="5" value="' + bot.volume + '" data-input="oabvol" data-bot="' + bot.id + '" data-k="' + k + '-vol" aria-valuetext="' + bot.volume + ' percent"></label>' : '') +
       (first && !inLive ? '<a class="btn s" href="#/live" data-k="oab-live">' + L.icon('broadcast', 's') + 'Go to Live</a>' : '') + '</div>';
   }

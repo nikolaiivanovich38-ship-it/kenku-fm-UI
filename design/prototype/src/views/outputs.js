@@ -8,7 +8,8 @@
    name as its title and a quiet "via <bot>" line, Room (server › channel, a menu of every voice channel to move it),
    what that room is playing now, who hears it, volume and a level meter; Mute and Test in the header. A box whose room
    is not playing gets class is-silent (core keeps the red edge for rooms the players hear).
-   All voice channels (kind plain): every channel with who is in it, which bot is there, and Bring… to move a bot there.
+   All voice channels (kind plain): every channel with who is in it and each bot in it with Kick (×); Add bot puts the
+   one free bot there in one click, or offers a short choice when there are several (OUT-7, round 6: "Bring…" is gone).
 
    For the Live view: L.botsMenuHTML() returns a compact menu (each room and its bot, the rooms it can move to, Leave,
    Open Outputs) for L.menu(anchor, L.botsMenuHTML(), 'Discord'). Its items use data-act opmove / opleave /
@@ -68,7 +69,7 @@
       return '<div class="group' + (compact ? ' op-mg2' : '') + '">' + esc(g.name) + '</div>' + items;
     }).join('');
   }
-  function leaveItem(b) { return inRoom(b) ? '<div class="sep"></div><button role="menuitem" data-act="opleave" data-bot="' + b.id + '">' + ic('off', 's') + 'Leave ' + esc(chName(b)) + '</button>' : ''; }
+  function leaveItem(b) { return inRoom(b) ? '<div class="sep"></div><button role="menuitem" data-act="opleave" data-bot="' + b.id + '">' + ic('off', 's') + 'Kick from ' + esc(chName(b)) + '</button>' : ''; }
   L.botsMenuHTML = function () {
     return '<div class="op-menu">' + L.bots().map(function (b) {
       return '<div role="group" aria-label="' + esc(L.outputName(b)) + '"><div class="group op-mg">' + esc(L.outputName(b)) + (inRoom(b) ? ' <span class="op-mg-bot">' + esc(b.name) + '</span>' : '') + ': ' + esc(pill(b).text) + '</div>' +
@@ -87,18 +88,25 @@
     else L.toast(b.name + ' is joining ' + c.name);
     refocus(b.id);
   };
-  L.acts.opleave = function (el) { var b = L.bot(el.dataset.bot); if (b) { var w = chName(b); L.botLeave(b.id); L.toast(b.name + ' left ' + w); refocus(b.id); } };
+  // OUT-7: Kick at once; when the players there lose sound, an Undo puts the bot back with what it played.
+  L.acts.opleave = function (el) {
+    var b = L.bot(el.dataset.bot); if (!b) return; var w = chName(b), k = L.botKick(b.id); if (!k) return;
+    if (k.lost) L.undoNote(b.name + ' left ' + w + ': the players there hear nothing now.', k.restore); else L.toast(b.name + ' left ' + w);
+    L.render(); refocus(b.id);
+  };
   L.acts.opgo = function () { L.route('#/outputs'); };
   L.acts.opretry = function (el) { var b = L.bot(el.dataset.bot); if (b && b.server && b.channel) L.botJoin(b.id, b.server, b.channel); };
   L.acts.oproom = function (el) { var b = L.bot(el.dataset.bot); L.menu(el, '<div class="op-menu" role="group" aria-label="Rooms for ' + esc(b.name) + '">' + roomItems(b, false) + leaveItem(b) + '</div>', 'Room for ' + b.name); };
-  // Bring…: the bots that could move to this channel, each with what the move means.
-  L.acts.opbring = function (el) {
-    var sid = el.dataset.server, cid = el.dataset.channel, c = L.channel(sid, cid), here = roomBots(sid, cid), n = c.members.length;
-    L.menu(el, '<div class="op-menu"><div class="group">Bring a bot to ' + esc(c.name) + '</div>' + L.bots().filter(function (b) { return here.indexOf(b) < 0; }).map(function (b) {
-      var w = here.length ? names(here) + ' is here: players would hear it twice' : !n ? 'Empty: nobody would hear it' : '';
-      return '<button role="menuitem" class="op-mi" data-act="opmove" data-bot="' + b.id + '" data-server="' + sid + '" data-channel="' + cid + '">' + L.icon('arrow', 's') + '<span class="grow op-mi-t"><span class="op-mi-n">' + esc(b.name) + '</span><span class="op-mi-s">' + (inRoom(b) ? 'Leaves ' + esc(chName(b)) : 'Not in a room now') + '</span>' +
-        (w ? '<span class="op-mi-w">' + ic('alert', 's') + esc(w) + '</span>' : '') + '</span></button>';
-    }).join('') + '</div>', 'Bring a bot to ' + c.name);
+  // OUT-7 Add bot: with one free bot it joins at once; with several, a short choice. With none free, the choice moves a
+  // bot from its room (it says which room goes silent).
+  function candidates(sid, cid) { var here = roomBots(sid, cid), free = L.freeBots(); return free.length ? free : L.bots().filter(function (b) { return here.indexOf(b) < 0 && L.botOnline(b); }); }
+  L.acts.opadd = function (el) {
+    var sid = el.dataset.server, cid = el.dataset.channel, c = L.channel(sid, cid), list = candidates(sid, cid);
+    if (list.length === 1 && list[0].status === 'idle') { var only = { dataset: { bot: list[0].id, server: sid, channel: cid } }; L.acts.opmove(only); setTimeout(function () { var n = document.querySelector('[data-k="op-kick-' + list[0].id + '-' + cid + '"]'); if (n) n.focus(); }, 0); return; }
+    L.menu(el, '<div class="op-menu">' + list.map(function (b) {
+      return '<button role="menuitem" class="op-mi" data-act="opmove" data-bot="' + b.id + '" data-server="' + sid + '" data-channel="' + cid + '">' + L.icon('plus', 's') + '<span class="grow op-mi-t"><span class="op-mi-n">' + esc(b.name) + '</span>' +
+        (inRoom(b) ? '<span class="op-mi-w">' + ic('alert', 's') + 'Leaves ' + esc(chName(b)) + '</span>' : '') + '</span></button>';
+    }).join('') + '</div>', 'Add a bot to ' + c.name);
   };
   // Swap the rooms of the two bots that are in rooms (both rejoin; about a second each, as in Lyre 0.2).
   function swapPair() { var bs = L.bots().filter(inRoom); return bs.length === 2 && !(bs[0].server === bs[1].server && bs[0].channel === bs[1].channel) ? bs : null; }
@@ -152,7 +160,7 @@
   }
   function warnings(b) {
     var out = [], dup = sharing(b);
-    if (dup.length) out.push('<p class="op-warn">' + ic('alert', 's') + '<span class="grow">' + esc(names(dup)) + ' is in ' + esc(chName(b)) + ' too: the players hear both.</span><button class="btn s" data-act="opleave" data-bot="' + b.id + '" data-k="op-wl-' + b.id + '">Leave</button></p>');
+    if (dup.length) out.push('<p class="op-warn">' + ic('alert', 's') + '<span class="grow">' + esc(names(dup)) + ' is in ' + esc(chName(b)) + ' too: the players hear both.</span><button class="btn s" data-act="opleave" data-bot="' + b.id + '" data-k="op-wl-' + b.id + '">Kick</button></p>');
     if (b.status === 'error') out.push('<p class="op-warn op-err">' + ic('alert', 's') + '<span class="grow">' + esc(L.botStatusText(b)) + '</span>' + (b.server ? '<button class="btn s" data-act="opretry" data-bot="' + b.id + '" data-k="op-retry-' + b.id + '">Try again</button>' : '') + '</p>');
     return out.join('');
   }
@@ -164,7 +172,7 @@
     var body = (here ? '<p class="op-via">via ' + esc(b.name) + '</p>' : '') + '<div class="op-f">' +
       '<span class="op-l" id="op-rl-' + b.id + '">Room</span><div class="op-roomrow">' +
         '<button class="btn s op-room' + (here ? '' : ' primary') + '" data-act="oproom" data-bot="' + b.id + '" data-k="op-room-' + b.id + '" aria-haspopup="menu" aria-expanded="false" aria-labelledby="op-rl-' + b.id + ' op-rv-' + b.id + '" title="Move ' + esc(b.name) + ' to another voice channel">' + room + L.icon('chevdown', 's') + '</button>' +
-        (inRoom(b) ? '<button class="btn s ghost" data-act="opleave" data-bot="' + b.id + '" data-k="op-leave-' + b.id + '" aria-label="' + esc(b.name) + ': leave ' + esc(chName(b)) + '">Leave</button>' : '') + '</div>' +
+        (inRoom(b) ? kickBtn(b, 'op-leave-' + b.id) : '') + '</div>' +
       (here ? '<span class="op-l">Playing</span><div class="op-play">' + playingHTML(b) + '</div>' +
         '<span class="op-l">Hears it</span><div class="op-who ellipsis" title="' + esc(who.join(', ')) + '">' + (who.length ? '<b>' + people(who.length) + '</b>' : '<span class="op-nobody">' + ic('alert', 's') + 'Nobody here yet</span>') + (who.length ? '<span class="muted">: ' + esc(who.join(', ')) + '</span>' : '') + '</div>' : '') +
       '<label class="op-l" for="op-vol-' + b.id + '">Volume</label><div class="op-volrow"><input type="range" id="op-vol-' + b.id + '" min="0" max="100" step="5" value="' + b.volume + '" data-input="opvol" data-bot="' + b.id + '" data-k="op-vol-' + b.id + '" aria-valuetext="' + b.volume + '%"><output class="num" id="op-vo-' + b.id + '" for="op-vol-' + b.id + '">' + b.volume + '%</output><span class="op-lvl" title="Level: how loud the room is right now"><span class="op-lvl-l" aria-hidden="true">Level</span><span class="op-meter" aria-hidden="true"><span data-opmeter="' + b.id + '"></span></span></span></div>' +
@@ -174,13 +182,20 @@
   }
 
   /* ---------- all voice channels ---------- */
+  function kickBtn(b, k) {
+    return '<button class="btn s icon op-kick" data-act="opleave" data-bot="' + b.id + '" data-k="' + k + '" aria-label="Kick ' + esc(b.name) + ' from ' + esc(chName(b)) + '" title="Kick ' + esc(b.name) + ' from ' + esc(chName(b)) + '">' + L.icon('close', 's') + '</button>';
+  }
   function channelRow(g, c) {
-    var here = roomBots(g.id, c.id), n = c.members.length, away = L.bots().filter(function (b) { return here.indexOf(b) < 0; });
-    var chip = here.length > 1 ? '<span class="chip op-twice" title="The players hear both">' + ic('alert', 's') + esc(names(here)) + ': heard twice</span>'
-      : here.length ? '<span class="chip op-botchip" title="' + esc(here[0].name + ': ' + pill(here[0]).text) + '">' + L.icon('broadcast', 's') + esc(here[0].name) + '</span>' : '<span></span>';
+    var here = roomBots(g.id, c.id), n = c.members.length, list = candidates(g.id, c.id);
+    var bots = here.map(function (b) {
+      return '<span class="chip op-botchip' + (here.length > 1 ? ' op-twice' : '') + '" title="' + esc(b.name + ': ' + pill(b).text + (here.length > 1 ? '. Two bots here: the players hear both' : '')) + '">' + L.icon(here.length > 1 ? 'warn' : 'broadcast', 's') + '<span class="ellipsis">' + esc(b.name) + '</span>' + kickBtn(b, 'op-kick-' + b.id + '-' + c.id) + '</span>';
+    }).join('');
+    var one = list.length === 1 && list[0].status === 'idle';
+    var add = list.length ? '<button class="btn s op-add" data-act="opadd" data-server="' + g.id + '" data-channel="' + c.id + '" data-k="op-add-' + c.id + '"' + (one ? '' : ' aria-haspopup="menu" aria-expanded="false"') +
+      ' aria-label="Add bot to ' + esc(c.name) + '" title="' + (one ? esc(list[0].name) + ' joins ' + esc(c.name) : 'Choose a bot for ' + esc(c.name)) + (here.length ? ' (the players would hear both)' : !n ? ' (nobody is there yet)' : '') + '">' + L.icon('plus', 's') + 'Add bot' + (one ? '' : L.icon('chevdown', 's')) + '</button>' : '';
     return '<li class="op-ch' + (here.length ? ' live' : '') + '">' + L.icon('horn', 's') + '<b class="op-ch-n ellipsis">' + esc(c.name) + '</b>' +
-      '<span class="op-ch-who ellipsis" title="' + esc(c.members.join(', ')) + '">' + (n ? n + ': ' + esc(c.members.join(', ')) : '<span class="faint">Empty</span>') + '</span>' + chip +
-      (away.length ? '<button class="btn s op-bring" data-act="opbring" data-server="' + g.id + '" data-channel="' + c.id + '" data-k="op-bring-' + c.id + '" aria-haspopup="menu" aria-expanded="false" aria-label="Bring a bot to ' + esc(c.name) + '" title="Bring a bot to ' + esc(c.name) + '">' + L.icon('arrow', 's') + 'Bring…</button>' : '<span class="op-bring-sp"></span>') + '</li>';
+      '<span class="op-ch-who ellipsis" title="' + esc(c.members.join(', ')) + '">' + (n ? n + ': ' + esc(c.members.join(', ')) : '<span class="faint">Empty</span>') + '</span>' +
+      '<span class="op-ch-bots">' + bots + '</span>' + (here.length ? '' : add) + '</li>';
   }
   function channelsHTML() {
     return D.discord.servers.map(function (g) {
@@ -198,8 +213,8 @@
       'One <b>On air</b> box per bot, titled with its room (the voice channel it is in), with one pill saying what it is doing: Playing, Silent, Muted, Joining or Not in a room.',
       'Each box shows what that room is playing now, who hears it, its volume and a level meter. Its red edge shows only while the players there hear something.',
       '<b>Room</b> moves a bot to any voice channel; the list says how many people are there and warns when another bot is there (players would hear it twice) or nobody is. <b>Swap rooms</b> trades two bots\' rooms.',
-      '<b>All voice channels</b>: who is in each channel and which bot is there; <b>Bring…</b> moves a bot there. Test (bell) plays a chime in one room only.',
-      'Try it: give Lyre Side the Side room, then try bringing it into Table too.'
+      '<b>All voice channels</b> (round 6, OUT-7): who is in each channel and each bot in it with <b>×</b> to kick it. <b>Add bot</b> puts the free bot there in one click (a short choice when there are several). Kicking a bot the players hear shows <b>Undo</b>, not a question. Test (bell) plays a chime in one room only.',
+      'Try it: Add bot on Side room, then × on Lyre Table while it plays.'
     ],
     render: function () {
       var bots = L.bots(), on = bots.filter(function (b) { return inRoom(b); }), sw = swapPair();
@@ -209,7 +224,7 @@
         status: { text: on.length + ' of ' + bots.length + ' bots in rooms', tone: 'idle' },
         summary: nCh + ' channels in ' + D.discord.servers.length + ' servers',
         actions: sw ? '<button class="btn s" data-act="opswap" data-k="op-swap" title="' + esc(sw[0].name + ' to ' + chName(sw[1]) + ', ' + sw[1].name + ' to ' + chName(sw[0])) + '">' + ic('swap', 's') + 'Swap rooms</button>' : '',
-        body: channelsHTML() + '<p class="hint op-foot">' + L.icon('gear', 's') + '<span>Tokens and new bots: Settings.</span></p>' });
+        body: channelsHTML() + '<p class="hint op-foot">' + L.icon('gear', 's') + '<a href="#/settings" data-k="op-settings">Tokens and new bots</a></p>' });
       return head + '<div class="viewbody fill op-body"><div class="op-split"><div class="col op-roomcol" data-scroll="op-roomcol">' + bots.map(roomBox).join('') + '</div><div class="col op-chcol">' + chPane + '</div></div></div>';
     }
   });

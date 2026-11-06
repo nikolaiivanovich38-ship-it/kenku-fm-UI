@@ -360,3 +360,23 @@
 .lv-room > header { min-width: 0; }
 .lv-room .pane-h { min-width: 0; flex: 0 1 auto; }
 .lv-off-count { justify-content: flex-end; }
+/* Round 6, part 2. SHW-7: a scene's name unfolds it in place (a button that reads as the name). */
+button.lv-sc-name { background: none; border: 0; padding: 2px 4px; margin: 0 -4px; font: inherit; font-weight: 700; color: inherit; text-align: left; cursor: pointer; border-radius: var(--r-s); min-width: 0; }
+button.lv-sc-name:hover { background: var(--surface-2); }
+button.lv-sc-name[aria-expanded="true"] { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--ink-3); }
+.lv-sc-in { display: flex; flex-direction: column; gap: 2px; margin: 4px 0 2px 22px; padding: 4px 0 2px 8px; border-left: 2px solid var(--line-strong); min-width: 0; }
+.lv-in-list { list-style: none; margin: 0; padding: 0; }
+.lv-in-row, .lv-in-line { display: flex; align-items: center; gap: 6px; min-height: var(--ctl-s); min-width: 0; font-size: var(--fs-s); }
+.lv-in-row.lv-in-new { border-top: 1px dashed var(--line); }
+.lv-in-row .closer, .lv-in-line .closer { color: var(--ink-2); }
+.lv-in-line { color: var(--ink-2); }
+/* PLY-17: Repeat one shows on the row on air, when on, and on hover or keyboard focus (round 6 rule 5). */
+.lv-rep1:not(.shown):not([aria-pressed="true"]) { opacity: 0; }
+.lv-trk-r:hover .lv-rep1, .lv-rep1:focus-visible { opacity: 1; }
+.lv-rep1[aria-pressed="true"], .rep.on { color: var(--accent) !important; }
+/* OUT-7: the room's bot, as a button, and Kick. */
+.lv-botpick { max-width: 140px; min-width: 0; gap: 4px; }
+.lv-botpick .ellipsis { min-width: 0; }
+.lv-kick:hover { color: var(--onair); border-color: var(--onair); }
+.lv-onair .lv-undo2, .col > .lv-undo2 { border: 1px solid var(--line); border-radius: var(--r-m); }
+@container app (max-width: 900px) { .lv-botpick { max-width: 96px; } }
