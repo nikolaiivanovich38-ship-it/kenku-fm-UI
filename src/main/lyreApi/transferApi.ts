@@ -22,6 +22,8 @@ export interface TransferFiles {
   broughtInFolder: string;
   /** Now, for the file's date and the whole library's file name. */
   today: () => number;
+  /** Free bytes on the drive of a folder (default `freeBytesAt`); tests answer for a full drive. */
+  freeBytes?: (folder: string) => Promise<number | null>;
 }
 
 /** "45 MB", "40 KB" (as a file manager rounds). */
@@ -190,23 +192,56 @@ export async function openLyreFile(file: string, mine: TransferLibrary): Promise
 
 /* ---------- Bring in ---------- */
 
+/** Free bytes on the drive that holds `folder` (or would, once made), or null when the system does not say. */
+export async function freeBytesAt(folder: string): Promise<number | null> {
+  let at = path.resolve(folder);
+  for (;;) {
+    try {
+      const stats = await fs.promises.statfs(at);
+      return stats.bavail * stats.bsize;
+    } catch (error) {
+      const up = path.dirname(at);
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT" || up === at) return null;
+      at = up;
+    }
+  }
+}
+
 /** Unpacks the audio of the tracks that will be added, then brings the file in (one undo step). */
 export async function bringInLyreFile(store: Store, open: OpenTransfer, mine: TransferLibrary, choices: BringInChoices, files: TransferFiles): Promise<BringInReport> {
   const { file, preview } = open;
   const folder = path.join(files.broughtInFolder, safeFileName(preview.fileName.replace(/\.lyre$/i, ""), "Brought in"));
+  const adding = tracksToAdd(file.library, mine, choices).flatMap((t) => {
+    const entry = file.audioOf(t.id);
+    return entry ? [{ t, entry }] : [];
+  });
+  // Security review w4, Should 2: each part is unpacked once, so at most what the file holds (lyreFile.ts checks the
+  // parts fit inside it); and not at all when the drive has no room for them.
+  const need = [...new Map(adding.map((a) => [a.entry.entry, a.entry.bytes])).values()].reduce((n, b) => n + b, 0);
+  if (need > 0) {
+    const free = await (files.freeBytes ?? freeBytesAt)(files.broughtInFolder);
+    if (free !== null && free < need) throw new Refused("invalid", `There is not enough room on the drive for the audio files in "${preview.fileName}" (${sizeWords(need)}). Make room, then bring it in again. Nothing was brought in.`);
+  }
   const unpacked = new Map<string, string>();
+  /** Tracks that name a part another track unpacked already: they become that track. */
+  const sameAudioAs = new Map<string, string>();
+  const unpackedBy = new Map<string, string>();
+  const leftOut = new Set<string>();
   const made: string[] = [];
-  let notAudio = 0;
   try {
     const taken = new Set<string>();
-    for (const t of tracksToAdd(file.library, mine, choices)) {
-      const entry = file.audioOf(t.id);
-      if (!entry) continue;
+    for (const { t, entry } of adding) {
+      const first = unpackedBy.get(entry.entry);
+      if (first) {
+        sameAudioAs.set(t.id, first);
+        continue;
+      }
+      if (leftOut.has(entry.entry)) continue;
       // Security review w4, Must 1: the file lands under the track's name with the entry's audio extension (the entry
       // name is Lyre's own, already checked), never the extension the track's file name gives (".exe", ".lnk").
       const ext = entryExtension(entry);
       if (!ext) {
-        notAudio++;
+        leftOut.add(entry.entry);
         continue;
       }
       const clean = safeFileName(t.fileName);
@@ -220,14 +255,15 @@ export async function bringInLyreFile(store: Store, open: OpenTransfer, mine: Tr
       if (path.relative(folder, target).startsWith("..") || path.isAbsolute(path.relative(folder, target))) throw new LyreFileError("unsafe", "A name would leave the folder.");
       await fs.promises.mkdir(folder, { recursive: true });
       if (!(await file.unpackAudio(entry, target))) {
-        notAudio++;
+        leftOut.add(entry.entry);
         continue;
       }
       taken.add(target.toLowerCase());
       made.push(target);
       unpacked.set(t.id, target);
+      unpackedBy.set(entry.entry, t.id);
     }
-    return await bringIn(store, file.library, mine, choices, { fileName: preview.fileName, folder, unpacked, notAudio, includesAudio: preview.includesAudio });
+    return await bringIn(store, file.library, mine, choices, { fileName: preview.fileName, folder, unpacked, sameAudioAs, notAudio: leftOut.size, includesAudio: preview.includesAudio });
   } catch (error) {
     await Promise.all(made.map((f) => fs.promises.rm(f, { force: true })));
     if (error instanceof LyreFileError) throw new Refused("not-lyre-file", refusalWords(preview.fileName, error.problem));

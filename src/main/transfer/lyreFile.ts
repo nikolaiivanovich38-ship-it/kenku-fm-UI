@@ -183,8 +183,9 @@ export function entryExtension(entry: LyreFileAudio): string {
 export async function readLyreFile(file: string): Promise<OpenedLyreFile> {
   if (path.extname(file).toLowerCase() !== ".lyre") throw new LyreFileError("not-lyre", "The name does not end in .lyre.");
   let zip: OpenedZip;
+  let size: number;
   try {
-    const size = (await fs.promises.stat(file)).size;
+    size = (await fs.promises.stat(file)).size;
     if (size > LYRE_FILE_LIMITS.fileBytes) throw new LyreFileError("too-big", "Larger than a Lyre file can be.");
     zip = await openZip(file, { maxEntries: LYRE_FILE_LIMITS.tracks + 2 });
   } catch (error) {
@@ -207,6 +208,10 @@ export async function readLyreFile(file: string): Promise<OpenedLyreFile> {
       if (byTrack.has(a.trackId)) throw new LyreFileError("changed", "Two audio files for one track.");
       byTrack.set(a.trackId, a);
     }
+    // Security review w4, Should 2: stored parts lie side by side in the file, so together they cannot be larger than
+    // it. Parts that say they are (entries that overlap) would make Lyre write more than the file holds.
+    const audioBytes = [...new Set(manifest.audio.map((a) => a.entry))].reduce((n, entry) => n + (entries.get(entry)?.size ?? 0), 0);
+    if (audioBytes > size) throw new LyreFileError("changed", "The audio parts say they hold more than the file.");
     return {
       manifest,
       library,

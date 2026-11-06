@@ -173,6 +173,11 @@ export interface BringInOptions {
   folder: string;
   /** Tracks whose audio the file holds: the file name it is unpacked to (already unpacked by the caller). */
   unpacked: Map<string, string>;
+  /**
+   * Tracks that name an audio part another track was unpacked from (security review w4, Should 2): file track id →
+   * the file track that has it. The library keeps one track per file, so each becomes that track.
+   */
+  sameAudioAs?: Map<string, string>;
   /** Audio parts left out because they were not audio Lyre plays (security review w4, Must 1). */
   notAudio?: number;
   includesAudio: boolean;
@@ -204,6 +209,7 @@ export async function bringIn(store: Store, file: LyreFileLibrary, mine: Current
   let copiedTracks = 0;
   let mergedTracks = 0;
   let skippedTracks = 0;
+  let sharedTracks = 0;
 
   const roots = listRoots(store);
   const planned = new Set<string>();
@@ -278,7 +284,12 @@ export async function bringIn(store: Store, file: LyreFileLibrary, mine: Current
 
   const bringTracks = (batch: FileTrack[]) => {
     const making: { t: FileTrack; input: TrackInput }[] = [];
+    const sharing: FileTrack[] = [];
     for (const t of batch) {
+      if (options.sameAudioAs?.has(t.id)) {
+        sharing.push(t);
+        continue;
+      }
       const yours = yoursFor(mine, t);
       if (yours && trackChoice !== "keepBoth") {
         trackMap.set(t.id, yours.id);
@@ -299,8 +310,7 @@ export async function bringIn(store: Store, file: LyreFileLibrary, mine: Current
       if (yours) copiedTracks++;
       making.push({ t, input: trackInput(t, yours ? `${shownTitle(t)}${from}` : t.title) });
     }
-    if (!making.length) return;
-    const made = createTracks(store, making.map((m) => m.input));
+    const made = making.length ? createTracks(store, making.map((m) => m.input)) : [];
     made.forEach((track, i) => {
       const t = making[i].t;
       trackMap.set(t.id, track.id);
@@ -310,6 +320,13 @@ export async function bringIn(store: Store, file: LyreFileLibrary, mine: Current
       if (tags.length) void tagTracks(store, [track.id], tags);
       if (t.normalise) setTrackNormalise(store, track.id, t.normalise);
     });
+    // The track that has their audio comes earlier in the file, so it is made by now.
+    for (const t of sharing) {
+      const theirs = trackMap.get(options.sameAudioAs?.get(t.id) ?? "");
+      if (!theirs) continue;
+      trackMap.set(t.id, theirs);
+      sharedTracks++;
+    }
   };
 
   const tracksOf = (ids: readonly string[]) => [...new Set(ids.map((x) => trackMap.get(x)).filter((x): x is string => !!x))];
@@ -510,14 +527,14 @@ export async function bringIn(store: Store, file: LyreFileLibrary, mine: Current
   }
   const tagItem = items.find((i) => i.kind === "tags");
   if (tagItem) report.added.push({ kind: "tags", id: "", name: tagItem.name });
-  report.summary = summaryOf(report, { file, tracksAdded: newTracks.size, copies: copiedTracks, merged: mergedTracks, skipped: skippedTracks, from, includesAudio: options.includesAudio, unpacked: options.unpacked.size, notAudio: options.notAudio ?? 0, newTagValues: newTagValues(file, mine).length });
+  report.summary = summaryOf(report, { file, tracksAdded: newTracks.size, copies: copiedTracks, merged: mergedTracks, skipped: skippedTracks, from, includesAudio: options.includesAudio, unpacked: options.unpacked.size, notAudio: options.notAudio ?? 0, shared: sharedTracks, newTagValues: newTagValues(file, mine).length });
   return report;
 }
 
 /** "Brought in Curse of Strahd, 3 playlists, a pad board, 3 tag values and 38 tracks (8 as copies). …" */
 function summaryOf(
   report: BringInReport,
-  facts: { file: LyreFileLibrary; tracksAdded: number; copies: number; merged: number; skipped: number; from: string; includesAudio: boolean; unpacked: number; notAudio: number; newTagValues: number },
+  facts: { file: LyreFileLibrary; tracksAdded: number; copies: number; merged: number; skipped: number; from: string; includesAudio: boolean; unpacked: number; notAudio: number; shared: number; newTagValues: number },
 ): string {
   const done = [...report.added, ...report.keptBoth, ...report.merged];
   const count = (kind: string, one: string, many: string) => {
@@ -537,6 +554,9 @@ function summaryOf(
   if (facts.tracksAdded) {
     if (!facts.includesAudio) sentences.push("The audio files were not in the file: Find missing files finds them on this computer.");
     else if (facts.unpacked) sentences.push(`${plural(facts.unpacked, "audio file")} ${facts.unpacked === 1 ? "was" : "were"} unpacked next to your library.`);
+  }
+  if (facts.shared) {
+    sentences.push(`${plural(facts.shared, "track")} in it used the same audio file as another track, so Lyre brought ${facts.shared === 1 ? "it" : "them"} in as that track.`);
   }
   if (facts.notAudio) {
     sentences.push(`${plural(facts.notAudio, "audio file")} in it ${facts.notAudio === 1 ? "was" : "were"} not audio Lyre can play, so Lyre left ${facts.notAudio === 1 ? "it" : "them"} out.`);

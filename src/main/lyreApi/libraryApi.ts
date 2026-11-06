@@ -244,6 +244,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
   const transferFiles: TransferFiles = {
     broughtInFolder: options.transfer?.broughtInFolder ?? path.join(path.dirname(library.databasePath), "Brought in"),
     today: options.transfer?.today ?? store.now,
+    freeBytes: options.transfer?.freeBytes,
   };
   /** The .lyre file opened last, waiting for Bring in (one at a time). */
   let opened: OpenTransfer | null = null;

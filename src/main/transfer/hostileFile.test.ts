@@ -109,6 +109,14 @@ describe("Must 1: a .lyre file never writes anything but audio", () => {
     expect(report.summary).toContain("1 audio file in it was not audio Lyre can play, so Lyre left it out.");
   });
 
+  it("keeps a part's audio extension when a track of the same name is already there", async () => {
+    const { api, dir, brought } = rig();
+    const tracks = [track(1, { fileName: "Theme.exe" }), track(2, { fileName: "Theme.mp3" })];
+    const file = await lyreFile(dir, "Sam.lyre", [{ entry: "audio/00001.mp3", trackId: "t1", bytes: MP3.length }, { entry: "audio/00002.mp3", trackId: "t2", bytes: MP3.length }], { tracks }, [{ name: "audio/00001.mp3", bytes: MP3 }, { name: "audio/00002.mp3", bytes: MP3 }]);
+    valueOf(await openAndBringIn(api, file));
+    expect(filesUnder(brought).sort()).toEqual([path.join("Sam", "Theme (2).mp3"), path.join("Sam", "Theme.mp3")]);
+  });
+
   it("knows the first bytes of every kind of audio Lyre plays, and refuses programs, scripts and archives", () => {
     for (const ext of AUDIO_EXTENSIONS) {
       for (const head of [PROGRAM, Buffer.from("#!/bin/sh\n"), Buffer.from("PK\u0003\u0004"), Buffer.from("<html><script>"), Buffer.alloc(0)]) expect(looksLikeAudio(ext, head), `${ext} ${head.subarray(0, 4).toString("latin1")}`).toBe(false);
@@ -142,5 +150,97 @@ describe("Must 1: a .lyre file never writes anything but audio", () => {
     // The extension is what Lyre looks at: FLAC bytes under .mp3 are not an MP3.
     expect(looksLikeAudio(".mp3", FLAC)).toBe(false);
     expect(looksLikeAudio(".exe", MP3)).toBe(false);
+  });
+});
+
+/**
+ * A zip whose central directory lists `names`, every one pointing at the same stored part (zip entries that overlap):
+ * each says it holds all of `data`, so together they claim far more than the file.
+ */
+function overlappingZip(file: string, head: { name: string; bytes: Buffer }[], names: string[], data: Buffer) {
+  const parts: Buffer[] = [];
+  const central: Buffer[] = [];
+  let offset = 0;
+  const local = (name: Buffer, bytes: Buffer, crc: number) => {
+    const h = Buffer.alloc(30);
+    h.writeUInt32LE(0x04034b50, 0);
+    h.writeUInt16LE(20, 4);
+    h.writeUInt16LE(0x800, 6);
+    h.writeUInt32LE(crc, 14);
+    h.writeUInt32LE(bytes.length, 18);
+    h.writeUInt32LE(bytes.length, 22);
+    h.writeUInt16LE(name.length, 26);
+    return h;
+  };
+  const centralEntry = (name: Buffer, size: number, crc: number, at: number) => {
+    const c = Buffer.alloc(46);
+    c.writeUInt32LE(0x02014b50, 0);
+    c.writeUInt16LE(20, 4);
+    c.writeUInt16LE(20, 6);
+    c.writeUInt16LE(0x800, 8);
+    c.writeUInt32LE(crc, 16);
+    c.writeUInt32LE(size, 20);
+    c.writeUInt32LE(size, 24);
+    c.writeUInt16LE(name.length, 28);
+    c.writeUInt32LE(at, 42);
+    central.push(c, name);
+  };
+  for (const e of [...head, { name: names[0], bytes: data }]) {
+    const name = Buffer.from(e.name);
+    const crc = crc32(e.bytes) >>> 0;
+    parts.push(local(name, e.bytes, crc), name, e.bytes);
+    if (e.name === names[0]) names.forEach((n) => centralEntry(Buffer.from(n), e.bytes.length, crc, offset));
+    else centralEntry(name, e.bytes.length, crc, offset);
+    offset += 30 + name.length + e.bytes.length;
+  }
+  const directory = Buffer.concat(central);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(head.length + names.length, 8);
+  end.writeUInt16LE(head.length + names.length, 10);
+  end.writeUInt32LE(directory.length, 12);
+  end.writeUInt32LE(offset, 16);
+  fs.writeFileSync(file, Buffer.concat([...parts, directory, end]));
+}
+
+describe("Should 2: a file cannot make Lyre write more than it holds", () => {
+  const FIVE_MB = Buffer.concat([MP3, Buffer.alloc(5 * 1024 * 1024 - MP3.length, 7)]);
+
+  it("unpacks one audio part named by 200 tracks once (the review's 5 MB file that wrote 1 GB), shared by them", async () => {
+    const { api, dir, brought } = rig();
+    const tracks = Array.from({ length: 200 }, (_, i) => track(i));
+    const playlist = { id: "p", name: "All of them", lane: "music", notes: "", order: null, kind: "manual", trackIds: tracks.map((t) => t.id) };
+    const file = await lyreFile(dir, "amp.lyre", tracks.map((t) => ({ entry: "audio/00001.mp3", trackId: t.id, bytes: FIVE_MB.length })), { tracks, playlists: [playlist] }, [{ name: "audio/00001.mp3", bytes: FIVE_MB }]);
+    const report = valueOf(await openAndBringIn(api, file, { all: "keepBoth" }));
+    expect(bytesUnder(brought)).toBeLessThanOrEqual(fs.statSync(file).size);
+    expect(filesUnder(brought)).toEqual([path.join("amp", "a0.mp3")]);
+    const [only] = await api.library.listTracks();
+    expect((await api.library.listTracks()).length).toBe(1);
+    expect((await api.playlists.list()).find((p) => p.name === "All of them")).toMatchObject({ trackIds: [only.id] });
+    expect(report.summary).toContain("1 audio file was unpacked next to your library.");
+    expect(report.summary).toContain("199 tracks in it used the same audio file as another track, so Lyre brought them in as that track.");
+  });
+
+  it("refuses a file whose audio parts overlap: together they say they hold more than the file", async () => {
+    const { api, dir, brought } = rig();
+    const tracks = Array.from({ length: 200 }, (_, i) => track(i));
+    const names = tracks.map((_, i) => `audio/${String(i + 1).padStart(5, "0")}.mp3`);
+    const file = path.join(dir, "overlap.lyre");
+    overlappingZip(file, [
+      { name: "lyre.json", bytes: Buffer.from(JSON.stringify(manifest(tracks.map((t, i) => ({ entry: names[i], trackId: t.id, bytes: FIVE_MB.length }))))) },
+      { name: "library.json", bytes: Buffer.from(JSON.stringify(libraryJson({ tracks }))) },
+    ], names, FIVE_MB);
+    expect(refusal(await api.transfer.open({ from: "path", path: file })).message).toBe('"overlap.lyre" is damaged: part of it was changed or cannot be read, so Lyre cannot tell what is in it. Nothing was brought in. Ask for the file again.');
+    expect(filesUnder(brought)).toEqual([]);
+  });
+
+  it("refuses to bring in audio when the drive has no room for it, before writing any", async () => {
+    const { api, dir, brought } = rig({ freeBytes: async () => 1000 });
+    const tracks = [track(1)];
+    const file = await lyreFile(dir, "Big.lyre", [{ entry: "audio/00001.mp3", trackId: "t1", bytes: FIVE_MB.length }], { tracks }, [{ name: "audio/00001.mp3", bytes: FIVE_MB }]);
+    const opened = valueOf(await api.transfer.open({ from: "path", path: file })) as OpenedFile;
+    expect(refusal(await api.transfer.bringIn(opened.id, {}))).toEqual({ code: "invalid", message: "There is not enough room on the drive for the audio files in \"Big.lyre\" (5 MB). Make room, then bring it in again. Nothing was brought in." });
+    expect(filesUnder(brought)).toEqual([]);
+    expect(await api.library.listTracks()).toEqual([]);
   });
 });

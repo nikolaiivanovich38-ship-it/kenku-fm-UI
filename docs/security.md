@@ -721,3 +721,8 @@ Lyre write more than the file itself holds.
   extension differs from the entry's. Parts left out are counted in the summary ("3 audio files in it were not audio
   Lyre can play, so Lyre left them out."); their tracks are brought in as missing files, which Find missing files can
   relink only to audio files (`collectAudioFiles`).
+- **No more written than the file holds (review Should 2).** Stored parts lie side by side, so `readLyreFile` refuses
+  ("damaged") a file whose distinct audio parts together say they are larger than the file (zip entries that overlap).
+  A part named by several tracks is unpacked once; the library keeps one track per file, so those tracks are brought
+  in as the one that has it, and the summary says so. Before unpacking, the drive's free space (`statfs`) must hold
+  the parts, or Bring in is refused with nothing written. The review's 5 MB file that wrote 1,048 MB now writes 5 MB.
