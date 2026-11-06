@@ -40,7 +40,7 @@ test.describe("the rooms", () => {
 
   test("the rail shows how many outputs are connected", async ({ page }) => {
     await openRoute(page, "outputs");
-    await expect(page.getByRole("link", { name: "Outputs (1/2)" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /^(Outputs|Rooms) \(1\/2\)$/ })).toBeVisible();
   });
 });
 
@@ -55,7 +55,7 @@ test.describe("moving a bot between rooms", () => {
     await expect(room(page, "Side room")).toBeVisible({ timeout: 5000 });
     await expect(room(page, "Side room")).toContainText("via Lyre Side");
     await expect(room(page, "Side room")).toContainText("Nobody here yet");
-    await expect(page.getByRole("link", { name: "Outputs (2/2)" })).toBeVisible();
+    await expect(page.getByRole("link", { name: /^(Outputs|Rooms) \(2\/2\)$/ })).toBeVisible();
   });
 
   test("a bot that is already in a room is moved to another room on the fly; its old room goes", async ({ page }) => {
@@ -75,7 +75,7 @@ test.describe("moving a bot between rooms", () => {
     await page.keyboard.press("ArrowDown");
     await page.keyboard.press("Enter");
     await expect(page.getByRole("menu")).toHaveCount(0);
-    await expect(page.getByRole("link", { name: "Outputs (2/2)" })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole("link", { name: /^(Outputs|Rooms) \(2\/2\)$/ })).toBeVisible({ timeout: 5000 });
   });
 
   test("Bring… (round 6: Add bot) on a voice channel in the list brings a bot there", async ({ page }) => {
@@ -190,7 +190,7 @@ test.describe("round 6: Add bot and Kick in the voice channels", () => {
   test("OUT-7: kicking a bot the players are hearing asks nothing, and Undo puts it back with its music", async ({ page }) => {
     await openRoute(page, "campaign/crown");
     await page.getByRole("region", { name: "Campaign playlists", exact: true }).getByRole("button", { name: "Play on air: The Company themes" }).click();
-    await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: /^Outputs/ }).click();
+    await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: /^(Outputs|Rooms)/ }).click();
     await channels(page).getByRole("button", { name: "Kick Lyre Table from Table" }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(room(page, "Table")).toHaveCount(0);
@@ -202,7 +202,20 @@ test.describe("round 6: Add bot and Kick in the voice channels", () => {
     await openRoute(page, "outputs");
     await page.getByRole("link", { name: "Tokens and new bots" }).click();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Settings");
-    await page.getByRole("button", { name: "Back to Outputs" }).click();
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Outputs");
+    await page.getByRole("button", { name: /^Back to (Outputs|Rooms)$/ }).click();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(/^(Outputs|Rooms)$/);
+  });
+});
+
+/* Round 6, part 4 (design/prototype/ROUND6.md "Part 4: review fixes", Should 13; Nik, 6 Nov 13:55: "room"
+   everywhere, and Outputs is renamed Rooms). The address stays #/outputs. */
+test.describe("round 6, part 4: the screen is Rooms", () => {
+  test("the menu, the screen's title and Back say Rooms", async ({ page }) => {
+    expectFailureUntilBuilt("round 6");
+    await openRoute(page, "outputs");
+    await expect(page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Rooms (1/2)" })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Rooms");
+    await page.getByRole("link", { name: "Tokens and new bots" }).click();
+    await expect(page.getByRole("button", { name: "Back to Rooms" })).toBeVisible();
   });
 });

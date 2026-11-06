@@ -173,6 +173,8 @@ Design round 6 (`design/prototype/ROUND6.md`) took text off the screen and into 
 
 Round 6, part 2 (`ROUND6.md`, "Your notes on 0.4.0") added a `round 6` block to the Live, Outputs and campaigns spec files, `settings.spec.ts` for Settings in Lyre (`#/settings`, the `settings` screen in `screenOfRoute`), and two sweep screens (a scene unfolded in Live, and Settings). Checks of controls the app already has under their round 5 names read either name (`Scene music` or `Current scene music`, `Play next` or `Add to queue`, `Bring a bot to` or `Add bot to`, `Leave` or `Kick`), so they keep passing in the app; the row play order button in the Now playing bar became Shuffle and Repeat and is checked in the round 6 block.
 
+Round 6, part 4 (`ROUND6.md`, "Part 4: review fixes") added a `round 6, part 4` block to the Live, Outputs, pad boards, session planner and Settings spec files (Ctrl+Z after a pause, a room with nobody in it, reflow at 320 px and in a 400 px high window, the This session and Whole campaign trays, boxes that keep their place, row buttons shown at rest, Kick's word, "On air · no room", pad names not cut, Help in Keys, the queue cleared by a new scene, Reorder with Move up and Move down, Rooms, Add pad, Add a bot's order). Each calls `expectFailureUntilBuilt("round 6")`. Checks of names that changed read either name (`Outputs` or `Rooms`, `Empty slot…` or `Add pad: …`, `Campaign pad boards` or `Campaign pads`, a Side room that is `Silent` or `Nobody there`), so they keep passing in the app. `openRoute` marks the first-run tour as seen in the prototype, which has Help (FND-8) from this round.
+
 ### Running them
 
 ```

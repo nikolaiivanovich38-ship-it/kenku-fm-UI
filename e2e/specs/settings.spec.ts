@@ -5,7 +5,7 @@
  * here is expected to fail in the app until "settings" is in support/built.ts.
  */
 import type { Page } from "@playwright/test";
-import { expect, test } from "./support/test";
+import { expect, expectFailureUntilBuilt, test } from "./support/test";
 import { openRoute } from "./support/target";
 
 const region = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
@@ -133,5 +133,22 @@ test.describe("Add a bot, in the order Discord needs", () => {
     await expect(sheet(page).getByRole("link", { name: "Invite it" })).toHaveAttribute("href", /client_id=123456789012345678&scope=bot&permissions=3146752$/);
     await sheet(page).getByRole("button", { name: "Done" }).click();
     await expect(bots(page).getByRole("group", { name: "Lyre Third" })).toContainText("In no server yet");
+  });
+});
+
+/* Round 6, part 4 (design/prototype/ROUND6.md "Part 4: review fixes", Could 17): where to find each thing comes before
+   the field it goes in, and the token step says Discord shows the token once. */
+test.describe("round 6, part 4: Add a bot in the order it is done", () => {
+  test("step 2 says where the Application ID is before its field; step 3 says Discord shows the token once", async ({ page }) => {
+    expectFailureUntilBuilt("round 6");
+    await openRoute(page, "settings");
+    await bots(page).getByRole("button", { name: "Add a bot" }).click();
+    await sheet(page).getByRole("button", { name: "Next" }).click();
+    const where = await sheet(page).getByText("General Information › Application ID › Copy").boundingBox();
+    const field = await sheet(page).getByLabel("Application ID").boundingBox();
+    expect(where!.y).toBeLessThan(field!.y);
+    await sheet(page).getByLabel("Application ID").fill("123456789012345678");
+    await sheet(page).getByRole("button", { name: "Next" }).click();
+    await expect(sheet(page)).toContainText("Discord shows it once.");
   });
 });

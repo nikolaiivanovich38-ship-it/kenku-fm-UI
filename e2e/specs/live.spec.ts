@@ -326,7 +326,7 @@ test.describe("rooms", () => {
   test("Add a room: a second On air box for it appears, saying Silent", async ({ page }) => {
     await openRoute(page, "live");
     await addSideRoom(page);
-    await expect(room(page, "Side room").getByText("Silent")).toBeVisible();
+    await expect(room(page, "Side room").getByText(/^(Silent|Nobody there)$/)).toBeVisible();
     await expect(room(page, "Side room").getByText("Receiving")).toHaveCount(0);
   });
 
@@ -353,7 +353,7 @@ test.describe("rooms", () => {
     await expect(music.getByRole("button", { name: /choose a room/i })).toBeFocused();
     await expect(music.getByRole("button", { name: /choose a room/i })).toHaveText(/^To:\s*Side room$/);
     await music.getByRole("button", { name: /^Play on air in Side room: / }).first().click();
-    await expect(room(page, "Side room").getByText("Playing")).toBeVisible();
+    await expect(room(page, "Side room").getByText(/^(Playing|Nobody there)$/)).toBeVisible();
     await expect(room(page, "Table").getByText("Silent")).toBeVisible();
   });
 
@@ -365,7 +365,7 @@ test.describe("rooms", () => {
     await toSideRoom(page, off);
     await findField(page).fill("bells");
     await off.getByRole("list", { name: "Found tracks" }).getByRole("button", { name: /^Play on air in Side room/ }).first().click();
-    await expect(room(page, "Side room").getByText("Playing")).toBeVisible();
+    await expect(room(page, "Side room").getByText(/^(Playing|Nobody there)$/)).toBeVisible();
     await expect(room(page, "Table").getByText("Silent")).toBeVisible();
   });
 
@@ -387,7 +387,7 @@ test.describe("rooms", () => {
     await page.getByRole("menuitemradio", { name: "Side room" }).click();
     await startFirstScene(page);
     await expect(room(page, "Table").getByText("Playing")).toBeVisible();
-    await expect(room(page, "Side room").getByText("Silent")).toBeVisible();
+    await expect(room(page, "Side room").getByText(/^(Silent|Nobody there)$/)).toBeVisible();
   });
 
   test("a room's menu offers to copy what another room is playing", async ({ page }) => {
@@ -682,5 +682,151 @@ test.describe("round 6, part 3: Live in seven boxes, Play next and Add to queue,
     await page.keyboard.press("Escape");
     await expect(found(page)).toHaveCount(0);
     expect((await sceneMusic(page).boundingBox())!.y).toBe(before.y);
+  });
+});
+
+/* Round 6, part 4: the independent review's fixes (reviews/r6-ux.md; design/prototype/ROUND6.md "Part 4: review
+   fixes") and Nik's answers of 6 Nov 13:55. Not built yet. */
+test.describe("round 6, part 4: the review's fixes in Live", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
+  const scenes = (page: Page) => region(page, "Scenes");
+  const shanty = "Haunted sea shanty, grey and slow - the drowned bells";
+
+  test("Must 1: Ctrl+Z takes back only the last action: after a pause it leaves the scene change alone", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    await room(page, "Table").getByRole("button", { name: "Pause music" }).click();
+    await expect(page.getByRole("button", { name: "Undo" })).toHaveCount(0);
+    await clickAway(page);
+    await page.keyboard.press("Control+z");
+    await expect(scenes(page).getByRole("listitem").filter({ hasText: "Now" })).toContainText("The abbey ruins");
+  });
+
+  test("Must 2: a bot moved to a channel with nobody in it says Nobody there, offers Move to Table, and has Undo", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    await page.getByRole("button", { name: "Lyre Table in Table: change" }).click();
+    const menu = page.getByRole("menu", { name: "Room Table" });
+    await expect(menu.getByRole("menuitemradio", { name: /^Side room\s*empty$/ })).toBeVisible();
+    await expect(menu.getByRole("menuitemradio", { name: /players/ })).toHaveCount(1);
+    await menu.getByRole("menuitemradio", { name: /^Side room/ }).click();
+    await expect(room(page, "Side room").getByText("Nobody there", { exact: true })).toBeVisible();
+    await expect(room(page, "Side room").getByRole("button", { name: "Move to Table" })).toBeVisible();
+    await room(page, "Side room").getByRole("button", { name: "Undo" }).click();
+    await expect(room(page, "Table")).toBeVisible();
+  });
+
+  test("Must 4: at 320 px Live does not scroll sideways and Find a track, Fade all, Stop all and Keys are on screen", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 640 });
+    await openRoute(page, "live");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+    for (const control of [findField(page), page.getByRole("button", { name: "Fade all" }), page.getByRole("button", { name: "Stop all" }), page.getByRole("button", { name: "Keys" })]) {
+      await expect(control).toBeInViewport();
+    }
+  });
+
+  test("Must 4: in a window 400 px high each room is one line, and opens to show everything", async ({ page }) => {
+    await page.setViewportSize({ width: 640, height: 400 });
+    await openRoute(page, "live");
+    await startFirstScene(page);
+    const open = room(page, "Table").getByRole("button", { name: "Show everything in Table" });
+    await expect(open).toHaveAttribute("aria-expanded", "false");
+    await expect(room(page, "Table").getByRole("button", { name: "Pause music" })).toBeVisible();
+    await open.click();
+    await expect(room(page, "Table").getByRole("button", { name: /^Kick / })).toBeVisible();
+  });
+
+  test("Should 6: the session's and the campaign's boxes sit under This session and Whole campaign", async ({ page }) => {
+    await openRoute(page, "live");
+    const first = await page.getByRole("main").getByText("This session", { exact: true }).boundingBox();
+    const second = await page.getByRole("main").getByText("Whole campaign", { exact: true }).boundingBox();
+    const ssp = await sessionPlaylists(page).boundingBox();
+    const cpp = await region(page, "Campaign playlists").boundingBox();
+    expect(first!.y).toBeLessThan(ssp!.y);
+    expect(second!.y).toBeGreaterThan(ssp!.y);
+    expect(second!.y).toBeLessThan(cpp!.y);
+  });
+
+  test("Should 7: in three columns a box keeps its place when a list in the box above grows", async ({ page }) => {
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await openRoute(page, "live");
+    const before = (await region(page, "Session pads").boundingBox())!;
+    await sessionPlaylists(page).getByRole("button", { name: /^Show contents of / }).first().click();
+    expect((await region(page, "Session pads").boundingBox())!.y).toBe(before.y);
+  });
+
+  test("Should 8 (Nik, 6 Nov 13:55): Preview, Play next and Add to queue show on every row at rest", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    for (const name of ["Preview: The Abbess", "Play next: The Abbess", "Add to queue: The Abbess"]) {
+      const button = sceneMusic(page).getByRole("button", { name, exact: true });
+      expect(await button.evaluate((el) => Number(getComputedStyle(el).opacity))).toBe(1);
+    }
+  });
+
+  test("Should 9: Kick shows its word from 1280 px", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openRoute(page, "live");
+    await expect(page.getByRole("button", { name: "Kick Lyre Table from Table" })).toHaveText("Kick");
+  });
+
+  test("Should 10: with no bot in a voice channel, the row on air says On air · no room", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    await leaveAllRooms(page);
+    await sceneMusic(page).getByRole("button", { name: /^Play on air: / }).first().click();
+    await expect(sceneMusic(page).getByText("On air · no room")).toBeVisible();
+  });
+
+  test("Should 11: the pads' names in Current scene are not cut at 1280 px", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await openRoute(page, "live");
+    await startAbbey(page);
+    const pads = sceneMusic(page).getByRole("group", { name: "Pads on Drowned Abbey" }).getByRole("button");
+    for (const pad of await pads.all()) {
+      const cut = await pad.evaluate((el) => Array.from(el.querySelectorAll("span")).some((s) => s.children.length === 0 && s.clientWidth > 1 && s.textContent!.trim().length > 1 && (s.scrollWidth > s.clientWidth + 1 || s.scrollHeight > s.clientHeight + 1)));
+      expect(cut, await pad.getAttribute("title")).toBe(false);
+    }
+  });
+
+  test("Should 12: Help is at the foot of Live's Keys, and F1 opens it anywhere", async ({ page }) => {
+    await openRoute(page, "live");
+    await page.getByRole("button", { name: "Keys" }).click();
+    await page.getByRole("group", { name: "Keys on the live screen" }).getByRole("button", { name: "Help" }).click();
+    await expect(page.getByRole("complementary", { name: "Help" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Run a session in Live" })).toBeVisible();
+  });
+
+  test("Nik, 6 Nov 13:55: a new scene clears what was added; its Undo brings it back", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    await sceneMusic(page).getByRole("button", { name: "Add to queue: The Abbess" }).click();
+    const upNext = room(page, "Table").getByRole("list", { name: "Up next" });
+    await expect(upNext).toContainText("Added: The Abbess");
+    await page.getByRole("button", { name: /^Next scene: / }).click();
+    await expect(upNext).not.toContainText("Added:");
+    await scenes(page).getByRole("button", { name: "Undo" }).click();
+    await expect(upNext).toContainText("Added: The Abbess");
+  });
+
+  test("Play next of the track the scene plays next lists it once in Up next", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    await sceneMusic(page).getByRole("button", { name: "Play next: " + shanty, exact: true }).click();
+    await expect(room(page, "Table").getByRole("list", { name: "Up next" }).getByRole("listitem").filter({ hasText: shanty })).toHaveCount(1);
+  });
+
+  test("Could 15: Back from the planner opened in Current scene's ⋯ puts focus back on that ⋯", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    await sceneMusic(page).getByRole("button", { name: "More for The abbey ruins" }).click();
+    await page.getByRole("menuitem", { name: "Open in the session planner" }).click();
+    await page.getByRole("button", { name: "Back to Live" }).click();
+    await expect(sceneMusic(page).getByRole("button", { name: "More for The abbey ruins" })).toBeFocused();
+  });
+
+  test("Could 21: the next scene's cue reads Starts when: and its words", async ({ page }) => {
+    await openRoute(page, "live");
+    await expect(scenes(page)).toContainText("Starts when: As the recap starts");
   });
 });

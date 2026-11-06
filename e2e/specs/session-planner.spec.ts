@@ -468,3 +468,43 @@ test.describe("round 6: fewer sentences in the planner", () => {
     expect(await shownWidth(box.getByText("In every scene tonight."))).toBeLessThanOrEqual(1);
   });
 });
+
+/* Round 6, part 4 (design/prototype/ROUND6.md "Part 4: review fixes"). Not built yet. */
+test.describe("round 6, part 4: the review's fixes in the planner", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
+
+  test("Must 3 (WCAG 2.5.7; Nik, 6 Nov 13:51): Reorder shows Move up and Move down on a scene's playlist, for this scene only", async ({ page }) => {
+    await openAbbey(page);
+    const list = musicOf(abbey(page));
+    await list.getByRole("button", { name: "Show contents of The Abbess" }).click();
+    const tracks = list.getByRole("list", { name: /^Tracks in The Abbess/ });
+    // Dragging stays the main way: the buttons show only while Reorder is on.
+    await expect(tracks.getByRole("button", { name: /^Move up: / })).toHaveCount(0);
+    const reorder = list.getByRole("button", { name: "Reorder" });
+    await reorder.click();
+    await expect(reorder).toHaveAttribute("aria-pressed", "true");
+    const second = (await tracks.getByRole("button", { name: /^Move up: / }).nth(1).getAttribute("aria-label"))!.replace(/^Move up: /, "");
+    await tracks.getByRole("button", { name: `Move up: ${second}` }).click();
+    await expect(tracks.getByRole("listitem").first()).toContainText(second);
+    await expect(tracks.getByRole("button", { name: `Move up: ${second}` })).toBeDisabled();
+    await expect(list.getByRole("button", { name: "Back to the playlist's order" })).toBeVisible();
+    await reorder.click();
+    await expect(tracks.getByRole("button", { name: /^Move up: / })).toHaveCount(0);
+  });
+
+  test("Should 13: the session's boards are Session pads, as in Live", async ({ page }) => {
+    await openRoute(page, "session/crown/s14");
+    await expect(page.getByRole("region", { name: "Session pads", exact: true })).toBeVisible();
+  });
+
+  test("Could 19: two new scenes have names of their own, and so have their buttons", async ({ page }) => {
+    await openRoute(page, "session/crown/s14");
+    await page.getByRole("button", { name: "Add scene" }).click();
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Add scene" }).click();
+    await page.keyboard.press("Escape");
+    const ambience = page.getByRole("button", { name: /^Choose ambience for Scene \d+$/ });
+    await expect(ambience).toHaveCount(2);
+    expect(await ambience.nth(0).getAttribute("aria-label")).not.toBe(await ambience.nth(1).getAttribute("aria-label"));
+  });
+});

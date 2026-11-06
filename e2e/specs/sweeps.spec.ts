@@ -65,7 +65,7 @@ const SCREENS: Screen[] = [
     prepare: async (page, { playing }) => {
       await page.getByRole("button", { name: "Add a room" }).click();
       await page.getByRole("menuitemradio", { name: /Side room/ }).click();
-      await expect(page.getByRole("region", { name: "On air", exact: true }).getByRole("group", { name: "Side room", exact: true })).toContainText("Silent");
+      await expect(page.getByRole("region", { name: "On air", exact: true }).getByRole("group", { name: "Side room", exact: true })).toContainText(/Silent|Nobody there/);
       // Sound on air redraws the screen every moment, so the keyboard sweep (which marks elements) leaves it silent.
       if (playing) await page.getByRole("button", { name: /^Start: / }).click();
       for (const name of ["Session pads", "Campaign playlists", "Campaign pads"]) {

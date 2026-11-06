@@ -124,8 +124,9 @@ export async function openRoute(page: Page, route: Route, options: { theme?: The
   const theme = options.theme === "parchment" ? "parchment" : "campaign";
   await page.addInitScript((t) => {
     try {
-      // "frame: full" and "notes: false" hide the prototype's own presentation strips.
-      localStorage.setItem("lyre-r2", JSON.stringify({ theme: t, frame: "full", notes: false }));
+      // "frame: full" and "notes: false" hide the prototype's own presentation strips; "tour: done": the first-run
+      // tour (FND-8, the Help the prototype has since the round 6 review) was seen.
+      localStorage.setItem("lyre-r2", JSON.stringify({ theme: t, frame: "full", notes: false, tour: "done" }));
     } catch {
       /* storage unavailable: the prototype opens in its default theme */
     }

@@ -64,7 +64,7 @@ test.describe("all pad boards", () => {
     await sheet.getByRole("radio", { name: /^6 × 4/ }).check();
     await sheet.getByRole("button", { name: "Make board" }).click();
     await expect(page.getByRole("heading", { name: "Harbour at night", level: 1 })).toBeVisible();
-    await expect(page.getByRole("button", { name: /^Empty slot/ })).toHaveCount(24);
+    await expect(page.getByRole("button", { name: /^(Empty slot|Add pad:)/ })).toHaveCount(24);
   });
 
   test("Delete board… asks first and says what happens to the places it is used", async ({ page }) => {
@@ -137,7 +137,7 @@ test.describe("resizing a board: spare pads", () => {
 
   test("an empty slot can be filled with a new pad", async ({ page }) => {
     await openRoute(page, "board/combat");
-    await page.getByRole("button", { name: "Empty slot, row 3, column 4. Add a pad" }).click();
+    await page.getByRole("button", { name: /^(Empty slot, row 3, column 4\. Add a pad|Add pad: row 3, column 4)$/ }).click();
     await expect(pads(page)).toHaveCount(12);
   });
 });
@@ -309,5 +309,15 @@ test.describe("round 5: resizing fills the grid; trying pads as they play", () =
     await expect(pad(page, "Skeletons rattle")).toHaveAttribute("aria-pressed", "true");
     await page.keyboard.up(" ");
     await expect(pad(page, "Skeletons rattle")).toHaveAttribute("aria-pressed", "false");
+  });
+});
+
+/* Round 6, part 4 (design/prototype/ROUND6.md "Part 4: review fixes", Must 5): an empty slot is named as it reads. */
+test.describe("round 6, part 4: the review's fixes on a pad board", () => {
+  test("Must 5 (WCAG 2.5.3): an empty slot shows Add pad and is named Add pad: row, column", async ({ page }) => {
+    expectFailureUntilBuilt("round 6");
+    await openRoute(page, "board/combat");
+    await expect(page.getByRole("button", { name: "Add pad: row 3, column 4", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Empty slot/ })).toHaveCount(0);
   });
 });

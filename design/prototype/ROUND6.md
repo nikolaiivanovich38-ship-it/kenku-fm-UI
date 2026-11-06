@@ -500,17 +500,98 @@ playlist in Up next, are in `shots/r6/live-part3-1920.png`, `-1280.png` and `-96
 
 ### Try it
 
-Open the prototype and choose Live: S14 in the menu (or Live in Prep | Live).
-1. Press Start beside The abbey ruins in Scenes. On air, along the bottom, says Table, Playing, and lists Up next.
-2. Point at "Haunted sea shanty…" in Current scene and press Play next (the arrow to a bar). It is first in Up next.
-3. Point at The Abbess and press Add to queue (the list with a plus). It is last in Up next, "5 left". Press its × and
-   then Undo.
-4. Press Next (|>) in On air: Haunted sea shanty plays.
-5. Press Repeat in On air: all, then one. Press Stop all, then Restart beside The abbey ruins: Repeat is off again.
-6. Point at the first track in Current scene and press Repeat one (the loop with a 1). Press Prep, open scene 3 in the
-   planner: the same track shows Repeat one pressed. Press Live to go back.
-7. Click "Crypt ambush" in Scenes: it unfolds with its notes, music, ambience and boards; nothing changes in On air.
-8. Click Session Pads to unfold it and press a pad. Press a pad key (1 to 4, Q to R): the scene's pads play.
-9. Press /, type bells, press Esc twice.
-10. Press Alt+1 to Alt+7, then F6: the keyboard moves from box to box.
-11. Press + in On air and choose Side room: a second room appears beside Table, and each box gets To:.
+The click list for the whole of round 6 is at the end of Part 4.
+
+## Part 4: review fixes
+
+> "dragging is generally fine for me and my audience, so don't over clutter the interface if you can avoid it."
+>
+> Nik, 6 Nov 2026, 13:51. His answers of 13:55 (`R6-NIK-DECISIONS.md`) decided the row buttons, the queue on a new
+> scene, "room" and Find a track.
+
+The independent review is `reviews/r6-ux.md`. One line per finding:
+
+| # | Finding | What was done |
+| --- | --- | --- |
+| 1 | Ctrl+Z after an action with no Undo took back the scene before it | Fixed as proposed. Pause, Next, Previous, Fade, a pad, Repeat, Repeat one, mute, volume, moving or kicking a bot, Play on air, Fade all and Stop all end the Undo strips showing (`touched()` in `live.js`, with core's Repeat, Repeat one, `botJoin` and `botLeave` wrapped). Only one Undo is live at a time, the latest. |
+| 2 | A bot moved into an empty channel still said Playing; the move had no Undo | Fixed: the room says **Nobody there** (warning) with **Move to Table**; a move that leaves listeners silent has the 8-second Undo; the channel list says "empty" and marks "players"; the Now playing bar says "Nobody is in Side room: nobody hears it". The fix offers only a channel with two people or more and no other bot. |
+| 3 | A scene's playlist could be reordered only by dragging or Alt+Up/Down (WCAG 2.5.7) | Fixed with Nik's 13:51 rule instead of a ⋯ on every row: one **Reorder** switch above an open playlist's tracks (in a scene, the session and the campaign) shows **Move up** and **Move down** on each row while it is on. Dragging stays the main way and the rows stay as they were at rest. Chosen over hover-and-right-click because a trackpad user can see it, a touch screen can press it, and it is one control per list, not one per row. |
+| 4 | Live did not reflow at 320 px or 200 % zoom | Fixed: below 640 px the top strip wraps (Prep \| Live and the icon buttons, then the session, then Find a track full width), a room's header wraps, a lane's label goes above its title; under 480 px of height each room is one line (name, status, title, Pause) with **Show everything in …**. Text read out after a cut-off title no longer widens the page. No sideways scroll at 320×640 or 640×400. |
+| 5 | An empty pad slot showed "Add pad" but was named "Empty slot…" | Fixed as proposed: "Add pad: row 3, column 4". |
+| 6 | The seven boxes could not be told apart without colour | Fixed with shape: On air has a filled band for a header; Current scene a 5 px accent edge down its left side; box icons are 18 px. Instead of the Session/Campaign tags, the four boxes sit in two trays headed **This session** (filled) and **Whole campaign** (dashed outline), so position and shape say which is which. Checked with the review's five-second test in all five themes, in greyscale and with deuteranopia: the band, the left edge and the two trays are told apart in each. |
+| 7 | Three boxes start folded while 40 % of the screen is empty | Partly. In three columns the boxes of a column now share its height down to On air and scroll inside, so no blank space is left and no box moves when a list grows. Session pads and the campaign's boxes still start folded (once unfolded they stay so): opening them adds 25 to 60 words, over the part 3 numbers Live must keep. Up next still shows one planned track: the rest is Current scene's list, in the same order, just above it. When Session pads is open and its board is the one Current scene shows, it says "Drowned Abbey: in Current scene" instead of drawing the same 12 pads twice. |
+| 8 | Play next, Add to queue and Preview invisible until hover | Fixed as Nik decided: always shown, greyed (`--ink-3`) at rest, full colour on hover and focus. Repeat one and the play order button still show on hover or focus (they are settings, not quick actions). |
+| 9 | One icon for opposite actions | Fixed: Undo is a hooked arrow (restart keeps the circle); a muted room shows a struck-through speaker; Kick is a door with an arrow out (Live and Rooms), in Live with the word Kick from 1280 px, 8 px from the bot button; Play on air is a play triangle sounding out, so it no longer looks like the On air tag. |
+| 10 | "On air · The players hear this" with no room | Fixed: "On air · no room" (or "On air · nobody there"), outlined in the warning colour, hover "Nobody hears it: …". The Now playing bar uses the same tag. |
+| 11 | Pad and playlist names cut at 1280 and 960 | Fixed: pad names wrap to two lines in every pad box, with the key in the top-right corner and the play mode (or On) in the bottom-right; playlist names wrap to two lines. |
+| 12 | Nowhere for "the guide" | Fixed with the app's own Help (FND-8, from wave4, files unchanged): **Help** at the foot of the rail, F1, a side panel with search and the articles; **Help** at the foot of Live's Keys. The Live article is rewritten and a new one, "Play next, Add to queue and Repeat", holds what left the screen (list order, Repeat against Repeat one, rooms). Drafts in `design/prototype/help-drafts`, which replace the app's article of the same name in the prototype. |
+| 13 | Different names for the same things | Fixed: the planner's and campaign page's boxes are **Session pads** and **Campaign pads**; Outputs is **Rooms** (menu, screen title, Back, Live's room menu, "Open Rooms"; the address stays `#/outputs`); Repeat one's hover says "Repeat in this scene (saved)" and a pressed one has the saved dot. |
+| 14 | Two announcements for one event | Fixed: a toast within half a second of an announcement is shown but not read out again. |
+| 15 | Back from a screen opened from Live's ⋯ focused Prep \| Live | Fixed: a link in a menu records the menu's button, and Back focuses it. |
+| 16 | Live keeps Back after Run | Left: Nik asked for "a contextual back button everywhere" (6 Nov 10:34). Back goes where he came from (the campaign page after Run); Prep \| Live goes to the planner. |
+| 17 | Add a bot step 2: the ID's place after the field | Fixed: "General Information › Application ID › Copy" comes first; step 3 says "Discord shows it once." |
+| 18 | Settings shows 0.4.0 | Fixed: the version is `L.version` (0.5.0 here; the app shows its own). |
+| 19 | Two new scenes gave duplicate control names | Fixed: a new scene is "Scene <n>" until renamed; the ambience button is "Choose ambience for <scene>". |
+| 20 | On air's Fade is icon-only, with a non-standard glyph | Left: the word on each lane (music and ambience in every room) would raise Live's words over part 3's; the button's name and hover say "Fade music out". |
+| 21 | "Starts when As the recap starts" | Fixed: "Starts when: As the recap starts". |
+
+Also done:
+- **Queue on a new scene** (Nik, 13:55): starting a scene clears what was added to every room's list; the scene's
+  Undo brings it back.
+- **Play next of the track the scene plays next** listed it twice; it now plays once (the planned copy is skipped,
+  and Undo restores it). While fixing it: after a Play next track started, Up next disappeared until the next redraw
+  (the playing item was marked after core drew the screen); fixed in `startEntry`.
+- **The campaign's name** left the top strip (it is read out, and in the session button's hover text). Its three
+  words paid for Help in the rail and Kick in each room.
+- `tools/lv-keys.js` is rewritten for the seven boxes (it pointed at Scene music, Off script and the old room boxes);
+  it now also checks Must 1, Must 2, the queue, Help and the greyed row buttons. All its checks pass.
+- Every tool, and `openRoute` in the specs, marks the first-run tour as seen (`tour: "done"`), as wave4 does.
+
+### Numbers
+
+`tools/r6-measure.js`, part 3 (before) and after; 1920×1080, words at 960×1000 in brackets.
+
+| Screen and state | Words | Hint lines | Shown twice | Controls |
+| --- | ---: | ---: | ---: | ---: |
+| live | 85 → 84 (69 → 66) | 1 → 1 | 0 → 0 | 44 → 48 |
+| live-playing | 218 → 217 (202 → 199) | 2 → 2 | 5 → 5 | 84 → 97 |
+| live-aftermath | 174 → 173 (158 → 155) | 1 → 1 | 4 → 4 | 72 → 79 |
+| live-scene-open | 261 → 260 (240 → 236) | 3 → 3 | 7 → 7 | 95 → 116 |
+| planner-playlist-open | 269 → 261 (228 → 227) | 2 → 2 | 6 → 5 | 128 → 130 |
+| outputs (Rooms) | 109 → 110 (93 → 93) | 2 → 2 | 5 → 5 | 30 → 31 |
+| bar-both | 213 → 220 (196 → 202) | 2 → 2 | 5 → 4 | 93 → 94 |
+
+Live's reading load is at or under part 3 in every state. Controls rise because Preview, Play next and Add to queue
+now show on every row (Nik's 13:55 answer: they are icons, so nothing more to read) and Help joins the rail.
+`bar-both` gains "Nobody is in Side room: nobody hears it" (Must 2). Checks: the prototype spec project passes
+(`yarn heavy`), `tools/r5-check.js` ("every screen passed"), `tools/check-contrast.js`, `tools/lv-keys.js`.
+
+### For the lead: Help words for the app
+
+The app's articles are the lead's (`src/lyre/help/articles`). Drafts in `design/prototype/help-drafts`:
+- `10-live.md`: rewritten for the seven boxes, rooms, Nobody there and Ctrl+Z.
+- `15-up-next.md` (new): Play next, Add to queue, Up next, the two Repeats.
+- `01-connect-discord.md`: Outputs → Rooms, Leave → Kick (the rest of it still describes 0.4's Settings).
+- `03-add-music.md`: Off script → Find a track.
+
+### Try it (the whole of round 6, in the order of an evening)
+
+Open `design/prototype/lyre-prototype.html`.
+1. Press F1: Help opens beside the screen. Search "queue", open the article, press Esc.
+2. Campaigns › The Sunken Crown › Session 14. Open The abbey ruins, then The Abbess under its music.
+3. Press **Reorder** above its tracks and **Move up** on the second track. Press Reorder again: the arrows go.
+4. Add scene twice: two new scenes, "Scene 7" and "Scene 8".
+5. Press **Live** in Prep | Live. Click "Crypt ambush" in Scenes: it unfolds; nothing changes in On air.
+6. Press **Start** beside The abbey ruins. On air, along the bottom, says Table, Playing.
+7. On "Haunted sea shanty…" in Current scene, press **Play next** (greyed until you point at it, but always there).
+   It is listed once in Up next.
+8. Press **Add to queue** on The Abbess, then **Next scene**: what you added goes. Press **Undo**: it comes back.
+9. Press **Pause** in On air, then Ctrl+Z: the scene stays.
+10. Press **Repeat** in On air: all, then one. Point at Repeat one on the first track: "Repeat in this scene (saved)".
+11. Unfold **Pads** under This session: "Drowned Abbey: in Current scene". Press a pad key (1 to 4, Q to R).
+12. The bot button (Lyre Table) › Side room ("empty"): the room says **Nobody there** with **Move to Table** and Undo.
+    Press Undo.
+13. Press /, type bells, press Esc twice.
+14. Narrow the window (or zoom to 200 %): the top strip wraps, and each room becomes one line.
+15. Rooms in the menu: **Kick** (door and arrow) on a bot; **Tokens and new bots** › Add a bot: the Application ID's
+    place comes before its field.

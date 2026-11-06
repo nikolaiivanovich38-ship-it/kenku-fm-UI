@@ -203,7 +203,7 @@ test.describe("playlists and pad boards on hand in every session", () => {
 
   test("campaign pad boards open to show their pads and have a Preview of the first pad", async ({ page }) => {
     await openRoute(page, "campaign/crown");
-    const boards = region(page, "Campaign pad boards");
+    const boards = page.getByRole("region", { name: /^Campaign pad(s| boards)$/ });
     await expect(boards.getByRole("button", { name: "Preview the first pad of Combat" })).toBeVisible();
     await boards.getByRole("button", { name: "Show contents of Combat" }).click();
     await expect(boards.getByRole("button", { name: "Hide contents of Combat" })).toBeVisible();
