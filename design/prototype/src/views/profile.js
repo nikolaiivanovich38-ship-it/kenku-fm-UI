@@ -96,8 +96,19 @@
     np.fadeOut.dur = clamp(np.fadeOut.dur, 0, span); np.fadeIn.dur = clamp(np.fadeIn.dur, 0, span - np.fadeOut.dur);
     np.loopXfade = clamp(np.loopXfade, 0, Math.min(10, np.end - np.loopStart - 1));
     if (S.key) { D.profiles[S.key] = D.profiles[S.key] || {}; D.profiles[S.key][t.id] = np; } else t.profile = np;
-    S.saved = true; return true;
+    S.saved = true; profileChanged(); return true;
   }
+  /* Round 6, part 5: the Saved pop-up for the profile. A drag, a nudge or typing changes it many times: the pop-up shows
+     once the change is done (a click or a release at once; keys and typing after a second's pause, Enter or leaving the
+     field), never per step. A change that has its own Undo message (Reset to whole track) shows that instead. */
+  var saveDue = 0;
+  function apWhat() { return S.key ? 'audio profile in ' + placeName(S.key).replace(/^the /, '') : 'audio profile of the track'; }
+  function profileChanged() { clearTimeout(saveDue); saveDue = setTimeout(profileSaved, 1000); }
+  function profileSaved() { if (!saveDue) return; clearTimeout(saveDue); saveDue = 0; if (L.current().name === 'profile') L.saved(apWhat(), { key: 'ap-' + S.key }); }
+  function noProfileSave() { clearTimeout(saveDue); saveDue = 0; }
+  ['click', 'pointerup'].forEach(function (type) { document.addEventListener(type, function () { if (saveDue) setTimeout(profileSaved, 0); }); });
+  document.addEventListener('focusout', function (e) { if (saveDue && e.target && e.target.closest && e.target.closest('.ap-body')) setTimeout(function () { if (!L.typing(document.activeElement)) profileSaved(); }, 0); });
+  document.addEventListener('keydown', function (e) { if (saveDue && e.key === 'Enter') setTimeout(profileSaved, 0); });
   var POINT = { start: 'Start', end: 'End', loop: 'Loop start', fadein: 'Fade in', fadeout: 'Fade out', xfade: 'Loop crossfade' };
   function value(p, which) { return { start: p.start, end: p.end, loop: p.loopStart, fadein: p.fadeIn.dur, fadeout: p.fadeOut.dur, xfade: p.loopXfade }[which]; }
   function range(t, which) {
@@ -361,7 +372,8 @@
       ev = '<div class="ap-event">' + L.icon(S.event.type === 'loop' ? 'loop' : S.event.type === 'stop' ? 'stop' : 'note', 's') + '<span>' + esc(S.event.text) + '</span></div>';
     }
     var keys = '<div class="ap-keys"><label class="ap-switch"><input type="checkbox" role="switch" data-input="apkeys1" data-k="ap-keys1"' + (S.keys1 ? ' checked' : '') + '>Single-key shortcuts</label>' +
-      '<span class="hint" title="Space play or pause · I Start · O End · L loop start · M marker · arrows move the playhead 1 s (Shift: 10 s). Keys do nothing while you type.">' + (S.keys1 ? '<span class="kbd">Space</span> <span class="kbd">I</span> <span class="kbd">O</span> <span class="kbd">L</span> <span class="kbd">M</span> <span class="kbd">←</span><span class="kbd">→</span> play, Start, End, loop, marker, playhead' : 'Off') + '</span></div>';
+      // Round 6: the key legend shows while the keyboard is in this box; the switch says whether they are on.
+      (S.keys1 ? '<span class="hint keys-on-focus" title="Space play or pause · I Start · O End · L loop start · M marker · arrows move the playhead 1 s (Shift: 10 s). Keys do nothing while you type."><span class="kbd">Space</span> <span class="kbd">I</span> <span class="kbd">O</span> <span class="kbd">L</span> <span class="kbd">M</span> <span class="kbd">←</span><span class="kbd">→</span> play, Start, End, loop, marker, playhead</span>' : '') + '</div>';
     return waveHTML(t, p) + '<div class="ap-listen">' + tr + ro + air + '</div>' + ev + keys;
   }
   function endHTML(t, p) {
@@ -369,7 +381,7 @@
     var opts = '<fieldset class="ap-opts"' + dis(t) + '><legend class="sr-only">At the end</legend>' +
       radio(t, p.after, 'loop', 'loop', 'Loop back to loop start', 'Repeats ' + L.fmt(p.loopStart) + ' to ' + L.fmt(p.end)) +
       radio(t, p.after, 'next', 'next', 'Move to the next track', 'The scene or playlist moves on; played on its own, it stops') +
-      radio(t, p.after, 'stop', 'stop', 'Stop', 'Then silence') + '</fieldset>';
+      radio(t, p.after, 'stop', 'stop', 'Stop', '') + '</fieldset>';
     var nx = '';
     if (p.after === 'next') {
       nx = '<div class="ap-next"><span class="ap-ro-l">Next track</span>' +
@@ -384,7 +396,8 @@
   function fadesHTML(t, p) {
     var h = fadeBlock(t, p, 'in') + fadeBlock(t, p, 'out');
     if (p.after === 'loop') {
-      h += '<div class="ap-fadeblock"><div class="ap-fb-h"><b>Crossfade the loop</b><span class="hint">smooths the jump back to ' + L.fmt(p.loopStart) + '</span></div>' +
+      // Round 6: what the crossfade does is read out with its group and shown on hover.
+      h += '<div class="ap-fadeblock" role="group" aria-labelledby="ap-xf-h" aria-describedby="ap-xf-d" title="Smooths the jump back to ' + L.fmt(p.loopStart) + '"><div class="ap-fb-h"><b id="ap-xf-h">Crossfade the loop</b><span class="sr-only" id="ap-xf-d">Smooths the jump back to ' + L.fmt(p.loopStart) + '</span></div>' +
         '<div class="ap-fb-row"><span class="ap-fb-l">Length</span>' + stepper(t, 'xfade', p.loopXfade, 'loop crossfade') + err('xfade') + '</div>' +
         '</div>';
     }
@@ -409,7 +422,8 @@
     var st;
     if (!S.key) {
       var others = L.profileKeys(t);
-      st = '<span class="ap-badge own">' + L.icon('edit', 's') + 'Editing the track\'s own settings</span>' + (others.length ? '<span class="hint ap-place-h">Not used in ' + others.map(function (k) { return esc(placeName(k)); }).join(', ') + ' (own settings)</span>' : '');
+      // Round 6: "This track everywhere" in the list already says whose settings these are.
+      st = (others.length ? '<span class="hint ap-place-h">Not used in ' + others.map(function (k) { return esc(placeName(k)); }).join(', ') + ' (own settings)</span>' : '');
     } else if (own) {
       st = '<span class="ap-badge own">' + L.icon('edit', 's') + 'Editing own settings for ' + esc(placeName(S.key)) + '</span>' +
         '<button class="btn s" data-act="apclear" data-k="ap-clear" title="Remove the settings for this ' + kind + ' and use the track\'s own settings here">' + L.icon('restart', 's') + 'Back to the track\'s settings</button>';
@@ -424,14 +438,16 @@
   /* PLY-14: opened from a scene or a session, the page keeps that place (its own settings, or the track's until it gets
      its own) and Back returns there, with the scene open. DAT-14: in a scene, the track's name there can be set here. */
   function backHTML(t) {
+    // UX-18: the one Back of every screen (core). Opened by address or from the menu, it goes to the place shown here.
     var a = S.key.split(':'), s = (a[0] === 'sc' || a[0] === 'ss') && L.session(a[1], a[2]);
-    if (!s) return '<a class="btn s" href="#/library/' + esc(t.id) + '" data-k="ap-back">' + L.icon('chevleft', 's') + 'Back to track</a>';
-    var sc = a[0] === 'sc' && s.scenes.filter(function (x) { return x.id === a[3]; })[0];
-    return '<button class="btn s" data-act="apback" data-cid="' + esc(a[1]) + '" data-sid="' + esc(a[2]) + '" data-sc="' + esc(sc ? sc.id : '') + '" data-k="ap-back">' + L.icon('chevleft', 's') + 'Back to ' + esc(sc ? sc.name : 'Session ' + s.n) + '</button>';
+    var sc = s && a[0] === 'sc' && s.scenes.filter(function (x) { return x.id === a[3]; })[0];
+    L._backFallback = s ? { route: '#/session/' + a[1] + '/' + a[2], label: sc ? sc.name : 'Session ' + s.n, open: sc ? sc.id : '', k: sc ? 'prof-' + sc.id + '-music-' + t.id : '' }
+      : { route: '#/library/' + t.id, label: 'Library', k: '' };
+    return '<!--back-->';
   }
   function sceneNameHTML(t) {
     if (S.key.indexOf('sc:') !== 0) return '';
-    return '<div class="field ap-scname"><label for="ap-scname">Name in this scene</label><input class="input" id="ap-scname" data-input="apscname" data-k="ap-scname" value="' + esc(L.sceneNameOf(t, S.key)) + '" placeholder="' + esc(L.title(t)) + ' (its own name)" autocomplete="off"></div>';
+    return '<div class="field ap-scname"><label for="ap-scname">Name in this scene</label><input class="input" id="ap-scname" data-input="apscname" data-k="ap-scname" data-save="name in this scene {v}" value="' + esc(L.sceneNameOf(t, S.key)) + '" placeholder="' + esc(L.title(t)) + ' (its own name)" autocomplete="off"></div>';
   }
   /* PLY-15: the track's own normalising choice, and the loudness and gain where these settings apply (a playlist's
      choice counts when the page shows that playlist's settings). */
@@ -443,11 +459,12 @@
   L.acts.apnorm = function (el) {
     var t = track(); if (!t) return;
     if (el.dataset.v === 'library') delete t.norm; else t.norm = el.dataset.v;
-    S.focusK = 'ap-norm-' + el.dataset.v; L.render(); L.say('Normalise volume: ' + L.normLine(t, S.key.indexOf('pl:') === 0 ? S.key.slice(3) : ''));
+    S.focusK = 'ap-norm-' + el.dataset.v; L.render(); L.say('Normalise volume: ' + L.normLine(t, S.key.indexOf('pl:') === 0 ? S.key.slice(3) : '')); L.saved(L.title(t) + ' volume setting');
   };
   L.inputs.apscname = function (el) { var t = track(); if (!t) return; L.setNameIn(t, S.key, el.value); };
-  L.acts.apback = function (el) { L.state.openScene = el.dataset.sc ? { sc: el.dataset.sc, k: 'prof-' + el.dataset.sc + '-music-' + S.tid } : null; L.route('#/session/' + el.dataset.cid + '/' + el.dataset.sid); };
-  function waveStatus() { return S.playing ? { text: 'Previewing ' + L.fmt(S.pos), tone: 'on' } : { text: S.event ? 'Paused' : 'Ready', tone: 'idle' }; }
+  // UX-18: Back is core's (L.backButton); the old one-off apback is gone.
+  // Round 6, part 5: no Ready (a box with nothing to say has no status).
+  function waveStatus() { return S.playing ? { text: 'Previewing ' + L.fmt(S.pos), tone: 'on' } : S.event ? { text: 'Paused', tone: 'idle' } : null; }
   function endStatus(p) { return p.after === 'loop' ? 'Loops from ' + L.fmt(p.loopStart) : p.after === 'next' ? 'Moves on at ' + L.fmt(p.end) : 'Stops at ' + L.fmt(p.end); }
   function afterText(t, p) { return p.after === 'loop' ? 'Loops back to ' + L.fmt(p.loopStart) : p.after === 'next' ? 'Moves on to ' + L.title(L.track(ctxOf(t).next)) : 'Stops'; }
 
@@ -476,9 +493,12 @@
       var head = '<div class="viewhead ap-head"><div class="ap-id">' +
         '<nav class="crumbs" aria-label="Breadcrumb"><a href="#/library" data-k="ap-cr-lib">Library</a><span class="sep" aria-hidden="true">›</span><a class="ap-cr-t" href="#/library/' + esc(t.id) + '" data-k="ap-cr-t" title="' + esc(L.title(t)) + '">' + esc(L.title(t)) + '</a><span class="sep" aria-hidden="true">›</span><span>Audio profile</span></nav>' +
         '<h1 title="' + esc(L.title(t)) + '">' + esc(L.title(t)) + '</h1>' +
-        '<p class="ap-meta"><span><span class="faint">Title in the file</span> ' + esc(t.metaTitle || 'none') + '</span><span><span class="faint">File name</span> ' + esc(t.file) + '</span><span><span class="faint">Length</span> <span class="num">' + L.fmt(t.dur) + '</span></span><span>' + L.shapeTag(t) + '</span></p>' + sceneNameHTML(t) + normHTML(t) + '</div>' +
+        // Round 6: the file's names are in the Library's details and on hover here; length and shape stay.
+        '<p class="ap-meta" title="' + esc('Title in the file: ' + (t.metaTitle || 'none') + ' · File name: ' + t.file) + '"><span><span class="faint">Length</span> <span class="num">' + L.fmt(t.dur) + '</span></span><span>' + L.shapeTag(t) + '</span></p>' + sceneNameHTML(t) + normHTML(t) + '</div>' +
         '<div class="ap-headacts">' + backHTML(t) +
-        '<span class="ap-saved" role="status">' + (!ed ? 'Uses the track\'s settings (read-only until you give it its own)' : S.saved ? L.icon('check', 's') + 'Saved' : '') + '</span>' +
+        // Round 6, part 5: no "Saved" here; saving shows in the Saved pop-up. The read-only note stays (it says why
+        // nothing can be changed).
+        '<span class="ap-saved" role="status">' + (!ed ? 'Uses the track\'s settings (read-only until you give it its own)' : '') + '</span>' +
         '<button class="btn s ghost" data-act="apreset" data-k="ap-reset" title="Start at 0:00 and End at ' + L.fmt(t.dur) + ', no fades"' + dis(t) + '>' + L.icon('restart', 's') + 'Reset to whole track</button></div>' +
         placeHTML(t) + '</div>';
       var body = '<div class="viewbody ap-body" data-scroll="ap-body"><div class="ap-grid">' +
@@ -579,7 +599,7 @@
   L.acts.apreset = function () {
     var t = track(), restore = L.snapshot(['tracks', 'profiles']);
     if (!write(t, { start: 0, end: t.dur, loopStart: 0, loopXfade: 0, fadeIn: { dur: 0, shape: 50 }, fadeOut: { dur: 0, shape: 50 } })) return; S.invalid = {}; S.editing = null;
-    L.undoNote('Back to the whole track: 0:00 to ' + L.fmt(t.dur) + ', no loop and no fades.', restore); L.say('Reset to the whole track'); L.render();
+    L.undoNote('Back to the whole track: 0:00 to ' + L.fmt(t.dur) + ', no loop and no fades.', restore); noProfileSave(); L.say('Reset to the whole track'); L.render();
   };
   L.acts.apmadd = function () { addMarker(true); };
   function addMarker(focus) {
@@ -596,7 +616,7 @@
   // Places
   function goPlace(key) { L.route('#/profile/' + S.tid + (key ? '/' + key : '')); setTimeout(function () { var s = document.querySelector('[data-k="ap-place"]'); if (s) s.focus(); }, 0); }
   L.inputs.applace = function (el) { goPlace(el.value); L.say('Settings for ' + placeName(el.value)); };
-  L.acts.apown = function () { var t = track(); L.profileStore(t, S.key, true); S.saved = true; S.undoClear = null; S.focusK = 'ap-clear'; L.say('This place now has its own settings, copied from the track\'s'); L.toast('Own settings for ' + placeName(S.key) + ', copied from the track\'s'); L.render(); };
+  L.acts.apown = function () { var t = track(); L.profileStore(t, S.key, true); S.saved = true; S.undoClear = null; S.focusK = 'ap-clear'; L.say('This place now has its own settings, copied from the track\'s'); L.saved('own settings for ' + placeName(S.key).replace(/^the /, ''), { detail: 'copied from the track\'s' }); L.render(); };
   L.acts.apuse = function () { L.say('Using the track\'s settings here'); };
   L.acts.apclear = function () { var t = track(); S.undoClear = { key: S.key, p: D.profiles[S.key][t.id] }; L.clearProfile(t, S.key); S.saved = false; S.focusK = 'ap-own'; L.say('Back to the track\'s settings here'); L.render(); };
   L.acts.apundo = function () { var t = track(), u = S.undoClear; if (!u) return; D.profiles[u.key] = D.profiles[u.key] || {}; D.profiles[u.key][t.id] = u.p; S.undoClear = null; S.focusK = 'ap-clear'; L.say('Own settings brought back'); L.render(); };

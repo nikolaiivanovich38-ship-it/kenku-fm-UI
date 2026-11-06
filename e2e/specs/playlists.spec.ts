@@ -320,6 +320,30 @@ test.describe("round 5: play order, Details with the rules, shapes and Use in…
   });
 });
 
+/* Round 6 (design/prototype/ROUND6.md): a resting status shows only on a folded box. Part 5 (Nik, 6 Nov 16:14): Ready
+   and Saved are gone altogether, open or folded; saving shows in the Saved pop-up. */
+test.describe("round 6: quiet statuses", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
+
+  test("no box says Ready or Saved, open or folded", async ({ page }) => {
+    await openRoute(page, "playlist/p-abbess");
+    for (const name of ["Used in", "Tracks", "Details"]) {
+      const box = page.getByRole("region", { name, exact: true });
+      await expect(box.getByText(/^(Ready|Saved)$/)).toHaveCount(0);
+      await box.getByRole("button", { name, exact: true }).click();
+      await expect(box.getByText(/^(Ready|Saved)$/)).toHaveCount(0);
+    }
+  });
+
+  test("a playlist's notes save after a pause in typing, with the Saved pop-up", async ({ page }) => {
+    await openRoute(page, "playlist/p-abbess");
+    const notes = page.getByRole("textbox", { name: "Notes" });
+    await notes.fill("Only after the bell");
+    await expect(page.getByRole("status").filter({ hasText: "Saved: The Abbess notes" })).toBeVisible();
+    await expect(notes).toBeFocused();
+  });
+});
+
 /* Round 5, volume normalisation (design/prototype/ROUND5.md "Volume normalisation (PLY-15, DAT-15)"): built in wave 4. */
 test.describe("round 5: volume normalisation", () => {
 

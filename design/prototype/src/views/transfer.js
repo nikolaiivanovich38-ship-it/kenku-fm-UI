@@ -49,14 +49,17 @@
     var body = '<fieldset class="tf-what"><legend>What to save</legend>' + WHAT.map(function (w) {
       var on = ex.what === w[0], sel = '';
       if (on && w[0] !== 'all' && w[0] !== 'tags') sel = '<select class="input tf-pick" data-input="tfpick" data-k="tf-pick" aria-label="Which ' + w[1].replace('One ', '') + '">' + options(w[0]).map(function (o) { return '<option value="' + esc(o[0]) + '"' + (o[0] === ex.pick[w[0]] ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select>';
-      return '<div class="tf-opt' + (on ? ' on' : '') + '"><label><input type="radio" name="tf-what" value="' + w[0] + '" data-input="tfwhat" data-k="tf-w-' + w[0] + '"' + (on ? ' checked' : '') + '><span><b>' + w[1] + '</b><span class="hint tf-sub">' + w[2] + '</span></span></label>' + sel + '</div>';
+      // Round 6: only the chosen option says what goes in; the others say it on hover.
+      return '<div class="tf-opt' + (on ? ' on' : '') + '"><label' + (on ? '' : ' title="' + esc(w[2]) + '"') + '><input type="radio" name="tf-what" value="' + w[0] + '" data-input="tfwhat" data-k="tf-w-' + w[0] + '"' + (on ? ' checked' : '') + '><span><b>' + w[1] + '</b>' + (on ? '<span class="hint tf-sub">' + w[2] + '</span>' : '') + '</span></label>' + sel + '</div>';
     }).join('') + '</fieldset>' +
       '<label class="tf-check"><input type="checkbox" data-input="tfaudio" data-k="tf-audio"' + (ex.audio ? ' checked' : '') + (ex.what === 'tags' ? ' disabled' : '') + '><span><b>Include the audio files</b><span class="hint tf-sub">' +
         (ex.what === 'tags' ? 'Tags have no audio files.' : ex.audio ? 'About ' + (n * 9) + ' MB: ' + plural(n, 'audio file') + ' go into the file, so it works on a PC that has none of them.' : 'Without them the file stays small. The other PC needs the same files; Lyre finds them there with Find missing files.') + '</span></span></label>' +
       '<div class="tf-actrow"><button class="btn primary" data-act="tfsave" data-k="tf-save">' + L.icon('download', 's') + 'Save to a file…</button><span class="hint">Saves ' + esc(exportName()) + '</span></div>' +
-      (ex.saved ? '<p class="tf-done" role="status">' + L.icon('check', 's') + '<span class="grow">Saved <b>' + esc(ex.saved.name) + '</b> (' + esc(ex.saved.size) + ') in Documents\\Lyre.</span><button class="btn s" data-act="tfshow" data-k="tf-show">' + L.icon('folder', 's') + 'Show in folder</button></p>' : '');
+      (ex.saved ? '<p class="tf-done">' + L.icon('check', 's') + '<span class="grow">Saved <b>' + esc(ex.saved.name) + '</b> (' + esc(ex.saved.size) + ') in Documents\\Lyre.</span><button class="btn s" data-act="tfshow" data-k="tf-show">' + L.icon('folder', 's') + 'Show in folder</button></p>' : '');
     return L.pane({ id: 'tf-export', title: 'Save to a file', icon: 'download', kind: 'plain', noMax: true, size: 'auto',
-      status: ex.saved ? { text: 'Saved', tone: 'idle' } : { text: 'Ready', tone: 'idle' }, body: body });
+      // Round 6, part 5: no Saved or Ready pill. The result line ("Saved … in Documents\\Lyre" with Show in folder) stays
+      // in the box: it is a result with an action that outlives a pop-up, so it is this save's one message.
+      body: body });
   }
   L.inputs.tfwhat = function (el) { ex.what = el.value; ex.saved = null; L.render(); focusSoon('tf-w-' + ex.what); };
   L.inputs.tfpick = function (el) { ex.pick[ex.what] = el.value; ex.saved = null; L.render(); };
@@ -97,14 +100,15 @@
             }).join('') + '</span>' : '<span class="badge">New</span>') + '</li>';
         }).join('') + '</ul>' +
         '<div class="tf-actrow"><span class="hint">For every item you have already:</span>' + CHOICES.map(function (c) { return '<button class="btn s" data-act="tfall" data-v="' + c[0] + '" data-k="tf-all-' + c[0] + '" aria-label="' + c[1] + ' for every item you have already">' + c[1] + '</button>'; }).join('') + '</div>' +
-        '<p class="hint">The 38 tracks come without their audio files: Lyre lists them under Find missing files until you point it at a folder that has them.</p>' +
+        // Round 6: one short line; the rest is its hover text.
+        '<p class="hint" title="Lyre lists them under Find missing files until you point it at a folder that has them.">No audio files: find them later with Find missing files.</p>' +
         '<div class="tf-actrow"><button class="btn primary" data-act="tfbring" data-k="tf-bring">' + L.icon('upload', 's') + 'Bring in</button><button class="btn" data-act="tfcancel" data-k="tf-cancel">Cancel</button></div>';
     } else {
-      body = '<p class="tf-done" role="status">' + L.icon('check', 's') + '<span class="grow">' + esc(im.summary) + '</span></p>' +
+      body = '<p class="tf-done">' + L.icon('check', 's') + '<span class="grow">' + esc(im.summary) + '</span></p>' +
         '<div class="tf-actrow"><a class="btn s" href="#/relink" data-k="tf-torelink">' + L.icon('folder', 's') + 'Find missing files…</a><button class="btn s ghost" data-act="tfcancel" data-k="tf-again">Open another file</button></div>';
     }
     return L.pane({ id: 'tf-import', title: 'Open a file', icon: 'upload', kind: 'plain', noMax: true, size: 'auto',
-      status: !im ? { text: 'Ready', tone: 'idle' } : im.state === 'refused' ? { text: 'Refused', tone: 'warn' } : im.state === 'preview' ? { text: 'Not brought in yet', tone: 'on' } : { text: 'Brought in', tone: 'idle' }, body: body });
+      status: !im ? null : im.state === 'refused' ? { text: 'Refused', tone: 'warn' } : im.state === 'preview' ? { text: 'Not brought in yet', tone: 'on' } : { text: 'Brought in', tone: 'idle' }, body: body });
   }
   L.acts.tfchoose = function () { im = readFile(SAMPLE.file); L.render(); L.say('Opened ' + im.file + ': ' + SAMPLE.items.length + ' kinds of thing in it. Choose what to do with the ones you have already.'); focusSoon('tf-bring'); };
   L.acts.tfchoice = function (el) { im.choices[el.dataset.id] = el.dataset.v; L.render(); focusSoon(el.dataset.k); };
@@ -198,10 +202,11 @@
       var miss = missing(), p = rl.plan;
       var list = miss.length ? '<table class="grid tf-table"><caption class="sr-only">Missing files</caption><thead><tr><th scope="col">Track</th><th scope="col">File name</th><th scope="col">Was in</th></tr></thead><tbody>' +
         miss.map(function (t) { return '<tr><td class="tf-cell" title="' + esc(L.title(t)) + '">' + esc(L.title(t)) + '</td><td class="tf-cell">' + esc(t.file) + '</td><td class="tf-cell" title="' + esc(t.folder) + '">' + esc(t.folder) + '</td></tr>'; }).join('') + '</tbody></table>'
-        : '<p class="tf-done" role="status">' + L.icon('check', 's') + 'Every file is where Lyre expects it.</p>';
+        : '<p class="tf-done">' + L.icon('check', 's') + 'Every file is where Lyre expects it.</p>';
       var look = '<div class="tf-lookrow"><div class="field grow"><label for="tf-folder">Look in this folder (and the folders inside it)</label><input class="input" id="tf-folder" data-input="tffolder" data-k="tf-folder" value="' + esc(rl.folder) + '" autocomplete="off"></div>' +
-        '<button class="btn" data-act="tfpickfolder" data-k="tf-pickfolder">' + L.icon('folder', 's') + 'Choose…</button><button class="btn' + (p ? '' : ' primary') + '" data-act="tflook" data-k="tf-look"' + (miss.length ? '' : ' disabled') + '>' + L.icon('search', 's') + 'Look there</button></div>' +
-        '<p class="hint">Lyre matches on the file name and its size, so a file with the same name from another album is not mixed up.</p>';
+        '<button class="btn" data-act="tfpickfolder" data-k="tf-pickfolder">' + L.icon('folder', 's') + 'Choose…</button><button class="btn' + (p ? '' : ' primary') + '" data-act="tflook" data-k="tf-look" title="Lyre matches on the file name and its size, so a file with the same name from another album is not mixed up"' + (miss.length ? '' : ' disabled') + '>' + L.icon('search', 's') + 'Look there</button></div>' +
+        // Round 6: how Lyre matches is the hover text of Look there.
+        '';
       var found = '';
       if (p) {
         var n = p.filter(function (x) { return rl.ticked[x.t.id]; }).length;
@@ -216,9 +221,9 @@
       }
       return '<div class="viewhead">' + crumbs() + '<h1>Find missing files</h1></div>' +
         '<div class="viewbody tf-body"><div class="tf-cols tf-one"><div class="col">' +
-        (rl.done ? '<p class="tf-done" role="status">' + L.icon('check', 's') + '<span class="grow">' + esc(rl.done) + '</span></p>' : '') +
+        (rl.done ? '<p class="tf-done">' + L.icon('check', 's') + '<span class="grow">' + esc(rl.done) + '</span></p>' : '') +
         L.pane({ id: 'tf-missing', title: 'Missing files', icon: 'warn', kind: 'plain', noMax: true, size: 'auto', status: miss.length ? { text: plural(miss.length, 'file'), tone: 'warn' } : { text: 'None', tone: 'idle' }, body: list }) +
-        (miss.length || p ? L.pane({ id: 'tf-look', title: 'Look in a folder', icon: 'folder', kind: 'search', noMax: true, size: 'auto', status: p ? { text: p.filter(function (x) { return x.how !== 'none'; }).length + ' found', tone: 'on' } : { text: 'Ready', tone: 'idle' }, body: look + found }) : '') +
+        (miss.length || p ? L.pane({ id: 'tf-look', title: 'Look in a folder', icon: 'folder', kind: 'search', noMax: true, size: 'auto', status: p ? { text: p.filter(function (x) { return x.how !== 'none'; }).length + ' found', tone: 'on' } : null, body: look + found }) : '') +
         '</div></div></div>';
     }
   });

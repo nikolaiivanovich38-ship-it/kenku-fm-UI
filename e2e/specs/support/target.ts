@@ -21,7 +21,7 @@ export type Theme = "default" | "parchment";
 
 /** Routes, as the prototype writes them: "live", "campaigns", "campaign/crown", "session/crown/s14", "library",
  *  "playlists", "boards", "board/abbey", "profile/t13", "profile/t13/sc:crown:s14:sc3", "outputs", and (round 5)
- *  "profile/t03/ss:crown:s14", "backup", "moved", "relink". */
+ *  "profile/t03/ss:crown:s14", "backup", "moved", "relink", and (round 6) "settings". */
 export type Route = string;
 
 const PROTOTYPE = pathToFileURL(path.resolve(__dirname, "../../../design/prototype/lyre-prototype.html")).href;
@@ -104,6 +104,8 @@ export function screenOfRoute(route: Route): string {
     backup: "library-files",
     moved: "library-files",
     relink: "library-files",
+    // Round 6 (OUT-8): Settings in Lyre (settings.spec.ts).
+    settings: "settings",
   };
   return screens[first] ?? first;
 }
@@ -197,6 +199,13 @@ export async function leaveAllRooms(page: Page): Promise<void> {
     const L = (window as any).L;
     for (const b of L.bots()) L.botLeave(b.id);
   });
+}
+
+/** Round 6, part 5: make the next save fail, as a full or read-only drive would, to show the failed-save pop-up.
+ *  The prototype has a hook for it (its strip's "Make the next save fail"); the app needs a test-build hook. */
+export async function failNextSave(page: Page): Promise<void> {
+  if (isApp()) notBuilt("failNextSave: a test-build hook that makes the library's next write fail");
+  await page.evaluate(() => (window as any).L.failNextSave());
 }
 
 /** CSS selectors for parts of the page that are not Lyre itself (the prototype's own strip of controls).

@@ -58,19 +58,38 @@ const SCREENS: Screen[] = [
   { name: "Audio profile", owner: "audio-profile", route: "profile/t13" },
   { name: "Live, standby", owner: "live", route: "live" },
   {
+    // Round 6, part 3: the session's and the campaign's pads and playlists unfolded too.
     name: "Live with a second room and the pads open",
     owner: "live",
     route: "live",
     prepare: async (page, { playing }) => {
       await page.getByRole("button", { name: "Add a room" }).click();
       await page.getByRole("menuitemradio", { name: /Side room/ }).click();
-      await expect(page.getByRole("region", { name: "On air: Side room" })).toContainText("Silent");
+      await expect(page.getByRole("region", { name: "On air", exact: true }).getByRole("group", { name: "Side room", exact: true })).toContainText(/Silent|Nobody there/);
       // Sound on air redraws the screen every moment, so the keyboard sweep (which marks elements) leaves it silent.
       if (playing) await page.getByRole("button", { name: /^Start: / }).click();
-      await page.getByRole("region", { name: "Pads", exact: true }).getByRole("button", { name: "Pads", exact: true }).click();
+      for (const name of ["Session pads", "Campaign playlists", "Campaign pads"]) {
+        const toggle = page.getByRole("region", { name, exact: true }).getByRole("button", { expanded: false }).first();
+        if (await toggle.isVisible()) await toggle.click();
+      }
+    },
+  },
+  {
+    // Round 6, part 2 (SHW-7): a scene unfolded in Live's scene list, with its music, ambience and pad boards.
+    name: "Live with a scene unfolded",
+    owner: "round 6",
+    route: "live",
+    prepare: async (page) => {
+      // Narrow, the list shows only Now and Next until "Show all 6 scenes".
+      const all = page.getByRole("button", { name: "Show all 6 scenes" });
+      if (await all.isVisible()) await all.click();
+      await page.getByRole("button", { name: "Scene 3: The abbey ruins", exact: true }).click();
+      await expect(page.getByRole("list", { name: "The abbey ruins: music in play order" })).toBeVisible();
     },
   },
   { name: "Outputs", owner: "outputs", route: "outputs" },
+  // Round 6, part 2 (OUT-8): Settings in Lyre.
+  { name: "Settings", owner: "settings", route: "settings" },
   { name: "Look and feel", owner: "look", route: "look" },
   // Round 5 (design/prototype/ROUND5.md): the three new screens, with their tables and choices showing.
   {

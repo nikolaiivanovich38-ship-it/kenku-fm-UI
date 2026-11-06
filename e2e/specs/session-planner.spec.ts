@@ -466,3 +466,92 @@ test.describe("round 5: play order, single tracks, tags, names in scenes and aud
     await expect(page.getByRole("region", { name: "Session playlists", exact: true }).getByRole("link", { name: /^Haunted sea shanty, grey and slow - the drowned bells \(single track\)/ })).toBeVisible();
   });
 });
+
+/* Round 6 (design/prototype/ROUND6.md): less text on screen; what leaves the screen is read out instead. */
+// Text for screen readers only is one pixel wide (Playwright counts it as visible); text on screen is wider. 0 if absent.
+const shownWidth = async (text: Locator) => ((await text.count()) ? ((await text.first().boundingBox())?.width ?? 0) : 0);
+test.describe("round 6: fewer sentences in the planner", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
+
+  test("the music picker's how-to is read out with the dialog, not shown above the list", async ({ page }) => {
+    await openAbbey(page);
+    await abbey(page).getByRole("button", { name: "Add tracks or playlists…" }).click();
+    await expect(dialog(page)).toHaveAccessibleDescription(/^Tick playlists, single tracks or both/);
+    expect(await shownWidth(dialog(page).getByText(/^Tick playlists, single tracks or both/))).toBeLessThanOrEqual(1);
+    await expect(dialog(page).getByText(/Preview plays in your headphones only/)).toHaveCount(0);
+  });
+
+  test("the session's playlists say they are for every scene to a screen reader, not on screen", async ({ page }) => {
+    await openRoute(page, "session/crown/s14");
+    const box = page.getByRole("region", { name: "Session playlists", exact: true });
+    await expect(box).toHaveAccessibleDescription("In every scene tonight.");
+    expect(await shownWidth(box.getByText("In every scene tonight."))).toBeLessThanOrEqual(1);
+  });
+});
+
+/* Round 6, part 4 (design/prototype/ROUND6.md "Part 4: review fixes"). Not built yet. */
+test.describe("round 6, part 4: the review's fixes in the planner", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
+
+  test("Must 3 (WCAG 2.5.7; Nik, 6 Nov 13:51): Reorder shows Move up and Move down on a scene's playlist, for this scene only", async ({ page }) => {
+    await openAbbey(page);
+    const list = musicOf(abbey(page));
+    await list.getByRole("button", { name: "Show contents of The Abbess" }).click();
+    const tracks = list.getByRole("list", { name: /^Tracks in The Abbess/ });
+    // Dragging stays the main way: the buttons show only while Reorder is on.
+    await expect(tracks.getByRole("button", { name: /^Move up: / })).toHaveCount(0);
+    const reorder = list.getByRole("button", { name: "Reorder" });
+    await reorder.click();
+    await expect(reorder).toHaveAttribute("aria-pressed", "true");
+    const second = (await tracks.getByRole("button", { name: /^Move up: / }).nth(1).getAttribute("aria-label"))!.replace(/^Move up: /, "");
+    await tracks.getByRole("button", { name: `Move up: ${second}` }).click();
+    await expect(tracks.getByRole("listitem").first()).toContainText(second);
+    await expect(tracks.getByRole("button", { name: `Move up: ${second}` })).toBeDisabled();
+    await expect(list.getByRole("button", { name: "Back to the playlist's order" })).toBeVisible();
+    await reorder.click();
+    await expect(tracks.getByRole("button", { name: /^Move up: / })).toHaveCount(0);
+  });
+
+  test("Should 13: the session's boards are Session pads, as in Live", async ({ page }) => {
+    await openRoute(page, "session/crown/s14");
+    await expect(page.getByRole("region", { name: "Session pads", exact: true })).toBeVisible();
+  });
+
+  test("Could 19: two new scenes have names of their own, and so have their buttons", async ({ page }) => {
+    await openRoute(page, "session/crown/s14");
+    await page.getByRole("button", { name: "Add scene" }).click();
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Add scene" }).click();
+    await page.keyboard.press("Escape");
+    const ambience = page.getByRole("button", { name: /^Choose ambience for Scene \d+$/ });
+    await expect(ambience).toHaveCount(2);
+    expect(await ambience.nth(0).getAttribute("aria-label")).not.toBe(await ambience.nth(1).getAttribute("aria-label"));
+  });
+});
+
+/* Round 6, part 5 (Nik, 6 Nov 16:14: "Kill the scene count, unnecessary. … Definitely delete the planner sentence."). */
+test.describe("round 6, part 5: no scene count, no sentence about Live, and the Saved pop-up", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
+  const scenesBox = (page: Page) => page.getByRole("region", { name: "Scenes", exact: true });
+
+  test("the Scenes box has no scene count, open or folded", async ({ page }) => {
+    await openRoute(page, "session/crown/s14");
+    await expect(scenesBox(page).getByText(/^\d+ scenes?$/)).toHaveCount(0);
+    await scenesBox(page).getByRole("button", { name: "Scenes", exact: true }).click();
+    await expect(scenesBox(page).getByText(/^\d+ scenes?$/)).toHaveCount(0);
+  });
+
+  test("the sentence about the order of Live's lists is gone, for screen readers too", async ({ page }) => {
+    await openRoute(page, "session/crown/s14");
+    await expect(page.getByText(/^In play:/)).toHaveCount(0);
+  });
+
+  test("a scene's notes save after a pause in typing, with the Saved pop-up", async ({ page }) => {
+    await openRoute(page, "session/crown/s14");
+    await page.getByRole("button", { name: "Scene 3: The abbey ruins", exact: true }).click();
+    const notes = scene(page, "The abbey ruins").getByRole("textbox", { name: "Notes" });
+    await notes.fill("Bells first");
+    await expect(page.getByRole("status").filter({ hasText: "Saved: The abbey ruins notes" })).toBeVisible();
+    await expect(notes).toBeFocused();
+  });
+});

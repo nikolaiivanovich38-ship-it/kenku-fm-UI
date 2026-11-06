@@ -71,7 +71,8 @@
       label: fx ? (t.role === 'Sting' ? 'FX · Sting' : 'FX') : t.kind === 'amb' ? 'Ambience track' : 'Track', sub: (t.role && t.kind === 'music' && !fx ? t.role + ' · ' : '') + L.fmt(t.dur) };
   }
   // Preview, optional expander and contents for a playlist or board row. xk: expander key unique to this place on the page.
-  function xpBody(it, xk, pkey) { return (it.kind === 'playlist' || it.kind === 'board') && L.expanded(xk) ? '<div class="xp-body cp-xp">' + L.contentsHTML(it.kind, it.id, pkey) + '</div>' : ''; }
+  // okey (ORG-13): the place whose own track order the open playlist shows and changes.
+  function xpBody(it, xk, pkey, okey) { return (it.kind === 'playlist' || it.kind === 'board') && L.expanded(xk) ? '<div class="xp-body cp-xp">' + L.contentsHTML(it.kind, it.id, pkey, it.kind === 'playlist' ? okey : '') + '</div>' : ''; }
   function xpBtn(it, xk) { return it.kind === 'playlist' || it.kind === 'board' ? L.expanderButton(xk, it.name) : '<span class="cp-xpgap" aria-hidden="true"></span>'; }
 
   /* ---------- shared: assigned playlists and pad boards as compact rows ---------- */
@@ -87,11 +88,12 @@
     var key = scopeKey(scope);
     return '<ul class="list cp-alist">' + ids.map(function (id) {
       var it = info(id, kind === 'bd'); if (!it) return ''; var o = it.obj, xk = 'cp-' + scope + ':' + id, nm = esc(o.name);
-      var sub = kind === 'pl' ? plSub(o) : it.label + ' · ' + it.sub;
-      return '<li class="cp-arow-wrap"><div class="cp-arow">' + xpBtn(it, xk) + '<span class="lane-dot ' + it.cls + '" aria-hidden="true"></span>' +
+      var sub = kind === 'pl' ? plSub(o) : it.label + ' · ' + it.sub, ro = kind === 'pl' && !readonly && ids.length > 1;
+      // ORG-13: the session's and the campaign's playlists can be dragged (or moved with Alt+Up / Alt+Down) into order.
+      return '<li class="cp-arow-wrap"' + (ro ? ' data-ro="apl|' + scope + '" data-ri="' + ids.indexOf(id) + '"' : '') + '><div class="cp-arow">' + (ro ? '<span class="ro-handle" title="Drag to change the order (or Alt+Up / Alt+Down)" aria-hidden="true">' + L.icon('drag', 's') + '</span>' : '') + xpBtn(it, xk) + '<span class="lane-dot ' + it.cls + '" aria-hidden="true"></span>' +
         '<a class="ellipsis grow cp-aname" href="' + it.href + '" data-k="open-' + scope + kind + id + '" title="' + esc(o.name + ' · ' + sub) + '">' + nm + '</a>' +
         L.previewButton(it.kind, id) + (kind === 'pl' ? L.playOnAirButton('playlist', id, key) + L.orderButton(id, key) : '') +
-        (readonly ? '' : moreBtn('more-' + scope + kind + id, nm, 'data-menu="assigned" data-scope="' + scope + '" data-kind="' + kind + '" data-id="' + id + '"')) + '</div>' + xpBody(it, xk, scope === 's' ? key : '') + '</li>';
+        (readonly ? '' : moreBtn('more-' + scope + kind + id, nm, 'data-menu="assigned" data-scope="' + scope + '" data-kind="' + kind + '" data-id="' + id + '"')) + '</div>' + xpBody(it, xk, scope === 's' ? key : '', scope === 'r' ? '' : key) + '</li>';
     }).join('') + tracks.map(function (id) {
       var it = info(id), t = it.obj, nm = esc(it.name);
       return '<li class="cp-arow-wrap"><div class="cp-arow"><span class="cp-xpgap" aria-hidden="true"></span><span class="lane-dot ' + it.cls + '" aria-hidden="true"></span>' +
@@ -104,14 +106,16 @@
     var kindWord = o.kind === 'pl' ? 'playlists' : 'pad boards', n = o.ids.length + (o.tracks || []).length;
     return L.pane({ id: o.id, title: o.title, icon: o.kind === 'pl' ? 'playlist' : 'grid', size: 'auto', kind: o.kind === 'pl' ? 'music' : 'fx',
       status: n ? { text: String(n), tone: 'idle' } : { text: 'Empty', tone: 'idle' },
-      actions: '<button class="btn s icon" data-act="cpadd" data-scope="' + o.scope + '" data-kind="' + o.kind + '" data-k="add-' + o.scope + o.kind + '" aria-label="Add ' + kindWord + '…" title="Add ' + kindWord + ' from your library">' + L.icon('plus', 's') + '</button>',
-      body: '<p class="hint cp-why">' + o.why + ' New ones: <a href="' + (o.kind === 'pl' ? '#/playlists' : '#/boards') + '" data-k="mk-' + o.scope + o.kind + '">' + (o.kind === 'pl' ? 'Playlists' : 'Pad boards') + '</a>.</p>' + assigned(o.ids, o.kind, o.scope, false, o.tracks) });
+      actions: '<button class="btn s icon" data-act="cpadd" data-scope="' + o.scope + '" data-kind="' + o.kind + '" data-k="add-' + o.scope + o.kind + '" aria-label="Add ' + kindWord + '…" title="Add ' + kindWord + ' from your library (' + o.why.replace(/\.$/, '').toLowerCase() + ')">' + L.icon('plus', 's') + '</button>',
+      // Round 6: "In every session." is read out, not shown (the title says Campaign or Session); new ones are made from the rail.
+      describe: o.why, body: assigned(o.ids, o.kind, o.scope, false, o.tracks) });
   }
 
   L.acts.cpadd = function (el) {
     var x = ctx(), target = el.dataset.scope === 'c' ? x.c : x.s, kind = el.dataset.kind, list = kind === 'pl' ? target.playlists : target.boards;
     var where = el.dataset.scope === 'c' ? 'every session of ' + x.c.name : 'every scene of Session ' + x.s.n;
     var o = { title: (kind === 'pl' ? 'Playlists' : 'Pad boards') + ' on hand in ' + where, selected: list, multi: true, okLabel: 'Save',
+      saved: (el.dataset.scope === 'c' ? x.c.name : 'Session ' + x.s.n) + (kind === 'pl' ? ' playlists' : ' pads'),
       intro: 'Tick the ' + (kind === 'pl' ? 'playlists' : 'pad boards') + ' to keep on hand in ' + esc(where) + '.',
       onDone: function (ids) {
         var keep = list.filter(function (id) { return ids.indexOf(id) > -1; }), added = ids.filter(function (id) { return list.indexOf(id) < 0; });
@@ -120,6 +124,14 @@
       } };
     if (kind === 'pl') L.pickPlaylists(o); else L.pickBoards(o);
   };
+  L.reorder.apl = function (group, from, to) {
+    var x = ctx(), scope = group.split('|')[1], list = scope === 'c' ? x.c.playlists : x.s.playlists;
+    if (to < 0 || to >= list.length || from === to) return false;
+    var id = list.splice(from, 1)[0]; list.splice(to, 0, id);
+    L.say(L.playlist(id).name + ' is now ' + (to + 1) + ' of ' + list.length + ' in this ' + (scope === 'c' ? 'campaign' : 'session'));
+    L.saved('order of ' + (scope === 'c' ? x.c.name : 'Session ' + x.s.n) + ' playlists', { key: 'apl-' + scope }); return true;
+  };
+  L.acts.cpplmove = function (el) { var x = ctx(), list = el.dataset.scope === 'c' ? x.c.playlists : x.s.playlists, i = list.indexOf(el.dataset.id); focusK = 'more-' + el.dataset.scope + 'pl' + el.dataset.id; if (L.reorder.apl('apl|' + el.dataset.scope, i, i + +el.dataset.dir)) L.render(); };
   L.acts.cprm = function (el) {
     var x = ctx(), target = el.dataset.scope === 'c' ? x.c : x.s, kind = el.dataset.kind, list = kind === 'pl' ? target.playlists : kind === 'tr' ? target.tracks : target.boards, id = el.dataset.id;
     var i = list.indexOf(id); if (i < 0) return; list.splice(i, 1);
@@ -138,6 +150,7 @@
     var item = arr.splice(from, 1)[0]; arr.splice(to, 0, item);
     if (list === 'sessions') { renumber(x.c); L.say((item.name || 'That session') + ' is now Session ' + item.n + ', ' + (to + 1) + ' of ' + arr.length); }
     else L.say('Scene ' + item.name + ' moved to position ' + (to + 1) + ' of ' + arr.length);
+    L.saved(list === 'sessions' ? 'order of ' + x.c.name + ' sessions' : 'order of Session ' + x.s.n + ' scenes', { key: 'mv-' + list });
     return true;
   }
   L.acts.cpmove = function (el) {
@@ -194,16 +207,17 @@
     L.filesFromDrop(e, function (files) {
       if (!files.length) { L.toast('No audio files in what you dropped'); return; }
       var before = D.tracks.length, ids = L.importFiles(files), created = D.tracks.slice(before).map(function (t) { return t.id; }), name = x.sc.name || 'this scene';
-      var lib = created.length ? plural(created.length, 'new track') + ' added to the Library. ' : '';
+      var lib = created.length ? plural(created.length, 'new track') + ' added to the Library' : '';
       current = x.sc.id;
       if (where === 'amb') {
         created.forEach(function (id) { L.track(id).kind = 'amb'; });   // dropped on Ambience: new files are ambience beds
         x.sc.amb = ids[0]; focusK = 'pa-' + x.sc.id; L.render();
-        L.toast(lib + 'Ambience of "' + name + '": ' + L.title(L.track(ids[0])) + (ids.length > 1 ? ' (one ambience per scene; the others are in the Library)' : ''));
+        // Round 6, part 5: a drop is a save. One ambience per scene: the others go to the Library only.
+        L.saved(name + ' ambience', { detail: L.title(L.track(ids[0])) + (lib ? ' · ' + lib : '') });
         return;
       }
       [].splice.apply(x.sc.music, [at, 0].concat(ids)); focusK = 'in-' + x.sc.id + '-music-' + ids[0]; L.render();
-      L.toast(lib + plural(ids.length, 'track') + ' placed in the music of "' + name + '" at position ' + (at + 1) + '.');
+      L.saved(name + ' music', { detail: plural(ids.length, 'track') + ' from position ' + (at + 1) + (lib ? ' · ' + lib : '') });
     });
   });
 
@@ -212,8 +226,9 @@
      ====================================================================== */
   function card(c) {
     var nx = nextSession(c), th = themeFor(c.theme);
-    return '<article class="cp-card" data-theme="' + th + '" aria-labelledby="cph-' + c.id + '" title="' + esc(plural(c.sessions.length, 'session') + ' · ' + plural(usedPlaylists(c), 'playlist') + ' · ' + plural(usedBoards(c), 'pad board')) + '">' +
-      '<div class="cp-card-top"><span class="cp-sys">' + esc(c.system || 'No game system') + '</span><span class="cp-thname">' + L.icon('palette', 's') + esc(themeName(c.theme || defTheme())) + '</span></div>' +
+    // Round 6: the card is drawn in its theme, so the theme's name is hover text.
+    return '<article class="cp-card" data-theme="' + th + '" aria-labelledby="cph-' + c.id + '" title="' + esc(plural(c.sessions.length, 'session') + ' · ' + plural(usedPlaylists(c), 'playlist') + ' · ' + plural(usedBoards(c), 'pad board') + ' · theme: ' + themeName(c.theme || defTheme())) + '">' +
+      '<div class="cp-card-top"><span class="cp-sys">' + esc(c.system || 'No game system') + '</span></div>' +
       '<h2 class="display cp-card-name" id="cph-' + c.id + '">' + esc(c.name) + '</h2>' +
       '<p class="cp-blurb ellipsis" title="' + esc(c.blurb) + '">' + (c.blurb ? esc(c.blurb) : '<span class="faint">No description</span>') + '</p>' +
       '<p class="cp-next">' + (nx ? '<span class="cp-next-lbl">Next</span><span class="cp-next-name ellipsis">' + esc(sLabel(nx)) + '</span><span class="cp-next-date">' + esc(fmtDate(nx.date)) + '</span>'
@@ -235,7 +250,7 @@
       'New: an <b>Obsidian</b> section (folded, marked "coming later") in New campaign for your vault, campaign note and session notes folder. These are placeholders; nothing connects yet.'
     ],
     render: function () {
-      return '<div class="viewhead"><h1>Campaigns</h1><span class="muted cp-count">' + plural(D.campaigns.length, 'campaign') + '</span><span class="grow"></span>' +
+      return '<div class="viewhead"><h1>Campaigns</h1><span class="grow"></span>' +
         '<button class="btn primary" data-act="cpnew" data-k="cpnew">' + L.icon('plus', 's') + 'New campaign</button></div>' +
         '<div class="viewbody" data-scroll="cp-grid">' + (D.campaigns.length ? '<div class="cp-grid">' + D.campaigns.map(card).join('') + '</div>'
           // A first-time user: what a campaign is and what to do first (w3-ux 9).
@@ -247,7 +262,7 @@
   /* Obsidian placeholders (not working yet): stored on the campaign, the session and each scene for a later version. */
   var OBS_REASON = 'Lyre will open these notes in a later version.';
   function obsFields(pre, o, input) {
-    function f(key, label, ph) { return '<div class="field"><label for="' + pre + key + '">' + label + '</label><input class="input" id="' + pre + key + '" data-input="' + input + '" data-f="' + key + '" data-k="' + pre + key + '" value="' + esc(o[key] || '') + '" placeholder="' + ph + '" autocomplete="off"></div>'; }
+    function f(key, label, ph) { return '<div class="field"><label for="' + pre + key + '">' + label + '</label><input class="input" id="' + pre + key + '" data-input="' + input + '" data-f="' + key + '" data-k="' + pre + key + '"' + (input === 'cpobs' ? ' data-save="Obsidian ' + label.toLowerCase() + '"' : '') + '" value="' + esc(o[key] || '') + '" placeholder="' + ph + '" autocomplete="off"></div>'; }
     return '<div class="cp-obs-grid">' + f('vault', 'Vault', 'Name of your Obsidian vault') + f('note', 'Campaign note', 'e.g. Campaigns/The Sunken Crown/Overview.md') + f('sessions', 'Session notes folder', 'e.g. Campaigns/The Sunken Crown/Sessions') + '</div>' + obsButton(pre);
   }
   function obsButton(pre) { return '<div class="cp-obs-btn"><button class="btn s" disabled aria-describedby="' + pre + 'why">' + L.icon('link', 's') + 'Open in Obsidian</button><span class="hint" id="' + pre + 'why">Not working yet: ' + OBS_REASON + '</span></div>'; }
@@ -334,7 +349,7 @@
       '<b>Round 5:</b> each campaign playlist has its <b>play order</b> button (shuffle, repeat all, repeat one); a choice made here applies only when it plays from this campaign. Single tracks kept on hand for the whole campaign (<b>Use in…</b> on a track) are listed under the playlists. Anything playing shows in the <b>Now playing</b> bar at the bottom, one row for each room the players hear (tagged <b>On air</b>, with Pause, Stop, Next, the play order and the room\'s volume) and one for your preview (tagged <b>Only you</b>, with its own volume). Try Preview and Play on air together.',
       '<b>Prep | Live</b> sits next to Run in the header: switch to Live and back without leaving the campaign. <b>Run next session</b> is still there.',
       'Every session now has a <b>Run</b> button, so you can run a played session again. The next session\'s is the coloured one; the others are plain grey.',
-      '<b>Campaign playlists</b> and <b>Campaign pad boards</b>: each row has Preview (only you hear it), Play on air for playlists, and an arrow that shows the tracks or pads inside (closed until you open it). Pickers have the same.',
+      '<b>Campaign playlists</b> and <b>Campaign pads</b>: each row has Preview (only you hear it), Play on air for playlists, and an arrow that shows the tracks or pads inside (closed until you open it). Pickers have the same.',
       '<b>Cleaner:</b> one line per row, one status pill per box, and a ⋯ menu on each row for Open, Remove and moving. Hover a playlist or session name for its details.',
       '<b>Obsidian</b> (folded, at the bottom right) keeps a vault, campaign note and session notes folder for later. Open in Obsidian is greyed out until Lyre can do it.'
     ],
@@ -346,24 +361,24 @@
         '<h1>' + esc(c.name || 'Untitled campaign') + '</h1><span class="grow"></span>' +
         L.modeSwitch(c.id) + (nx ? '<button class="btn primary" data-act="cprun" data-cid="' + c.id + '" data-sid="' + nx.id + '" data-k="hrun">' + L.icon('broadcast', 's') + 'Run next session <span class="cp-btnsub">S' + nx.n + '</span></button>' : '') + '</div>';
       var details = '<div class="cp-details">' +
-        '<div class="field cp-f-name"><label for="cp-c-name">Name</label><input class="input" id="cp-c-name" data-input="cpcamp" data-f="name" data-k="c-name" value="' + esc(c.name) + '" autocomplete="off"></div>' +
-        '<div class="field cp-f-sys"><label for="cp-c-sys">Game system</label><input class="input" id="cp-c-sys" list="cp-systems-c" data-input="cpcamp" data-f="system" data-k="c-sys" value="' + esc(c.system) + '" autocomplete="off">' +
+        '<div class="field cp-f-name"><label for="cp-c-name">Name</label><input class="input" id="cp-c-name" data-input="cpcamp" data-f="name" data-k="c-name" data-save="campaign name {v}" value="' + esc(c.name) + '" autocomplete="off"></div>' +
+        '<div class="field cp-f-sys"><label for="cp-c-sys">Game system</label><input class="input" id="cp-c-sys" list="cp-systems-c" data-input="cpcamp" data-f="system" data-k="c-sys" data-save="' + esc(c.name) + ' game system" value="' + esc(c.system) + '" autocomplete="off">' +
         '<datalist id="cp-systems-c">' + SYSTEMS.map(function (s) { return '<option value="' + esc(s) + '">'; }).join('') + '</datalist></div>' +
-        '<div class="field cp-f-theme"><label for="cp-c-theme">Theme</label><select class="input" id="cp-c-theme" data-input="cpcamp" data-f="theme" data-k="c-theme"' + (forced ? ' aria-describedby="cp-forced"' : '') + '>' +
+        '<div class="field cp-f-theme"><label for="cp-c-theme">Theme</label><select class="input" id="cp-c-theme" data-input="cpcamp" data-f="theme" data-k="c-theme" data-save="' + esc(c.name) + ' theme"' + (forced ? ' aria-describedby="cp-forced"' : '') + '>' +
         L.THEMES.slice(1).map(function (t) { return '<option value="' + t[0] + '"' + (c.theme === t[0] ? ' selected' : '') + '>' + esc(themeName(t[0])) + '</option>'; }).join('') + '</select></div>' +
-        '<div class="field cp-f-blurb"><label for="cp-c-blurb">Description</label><input class="input" id="cp-c-blurb" data-input="cpcamp" data-f="blurb" data-k="c-blurb" value="' + esc(c.blurb) + '" autocomplete="off"></div>' +
+        '<div class="field cp-f-blurb"><label for="cp-c-blurb">Description</label><input class="input" id="cp-c-blurb" data-input="cpcamp" data-f="blurb" data-k="c-blurb" data-save="' + esc(c.name) + ' description" value="' + esc(c.blurb) + '" autocomplete="off"></div>' +
         (forced ? '<p class="hint cp-forced" id="cp-forced">The prototype strip is showing every page in ' + esc(themeName(L.state.theme)) + '. Choose "Each campaign\'s own" there to see this campaign\'s theme.</p>' : '') + '</div>';
 
       var played = c.sessions.filter(function (s) { return s.status === 'played'; }).length;
       var sessions = L.pane({ id: 'cp-sessions', title: 'Sessions', icon: 'scroll', kind: 'scenes',
-        status: { text: c.sessions.length ? plural(c.sessions.length, 'session') : 'Empty', tone: 'idle' }, summary: played && nx ? 'Next: ' + esc(sLabel(nx)) : '',
+        status: { text: c.sessions.length ? plural(c.sessions.length, 'session') : 'Empty', tone: 'idle' },
         actions: '<button class="btn s" data-act="cpnewsession" data-k="newsession">' + L.icon('plus', 's') + 'New session</button>',
         body: c.sessions.length ? '<ol class="list cp-slist" aria-label="Sessions in order">' + c.sessions.map(function (s, i) { return sessionRow(c, s, i); }).join('') + '</ol>' : '<p class="cp-none">No sessions yet.</p>', flush: true, scroll: 'cp-sessions' });
       var notes = L.pane({ id: 'cp-notes', title: 'Notes', icon: 'edit', size: 'auto', kind: 'plain',
-        status: { text: c.notes ? 'Saved' : 'Empty', tone: 'idle' },
-        body: '<label class="sr-only" for="cp-c-notes">Campaign notes</label><textarea class="input cp-notes" id="cp-c-notes" data-input="cpcampnotes" data-k="c-notes" rows="4" placeholder="Anything to remember across sessions">' + esc(c.notes || '') + '</textarea>' });
+        status: c.notes ? null : { text: 'Empty', tone: 'idle' },
+        body: '<label class="sr-only" for="cp-c-notes">Campaign notes</label><textarea class="input cp-notes" id="cp-c-notes" data-input="cpcampnotes" data-k="c-notes" data-save="' + esc(c.name) + ' notes" rows="4" placeholder="Anything to remember across sessions">' + esc(c.notes || '') + '</textarea>' });
       var cpl = assignedPane({ id: 'cp-cpl', title: 'Campaign playlists', kind: 'pl', scope: 'c', ids: c.playlists, tracks: c.tracks, why: 'In every session.' });
-      var cbd = assignedPane({ id: 'cp-cbd', title: 'Campaign pad boards', kind: 'bd', scope: 'c', ids: c.boards, why: 'In every session.' });
+      var cbd = assignedPane({ id: 'cp-cbd', title: 'Campaign pads', kind: 'bd', scope: 'c', ids: c.boards, why: 'In every session.' });
       var ob = c.obsidian || {};
       var obs = L.pane({ id: 'cp-obs', title: 'Obsidian', icon: 'link', size: 'auto', collapsed: true, kind: 'plain', status: { text: 'Coming later', tone: 'idle' },
         body: '<p class="hint cp-why">Placeholders; nothing connects yet.</p>' + obsFields('cp-c-o-', ob, 'cpobs') });
@@ -373,7 +388,8 @@
     },
     after: afterRender
   });
-  L.inputs.cpcampnotes = function (el) { ctx().c.notes = el.value; var st = el.closest('.pane').querySelector('.pane-status'); if (st) st.textContent = el.value ? 'Saved' : 'Empty'; };
+  // Round 6, part 5: the notes save themselves (data-save: the Saved pop-up); the box has no Saved status.
+  L.inputs.cpcampnotes = function (el) { ctx().c.notes = el.value; };
 
   /* ======================================================================
      3. Session page: the planner
@@ -411,10 +427,12 @@
       (isTrack ? '<span class="cp-it-sub">' + (shown !== own ? '<span class="cp-scname-mark" title="Named for this scene">' + L.icon('tag', 's') + '<span class="ellipsis">' + esc(own) + '</span><span class="sr-only">: its own name</span></span>' : '') + L.tagStrip(it.obj, 3) + '</span></span>' : '') +
       (i === 0 ? '<span class="cp-firsttag">' + firstTag + '</span>' : '') + ownMark(sc, list, it) +
       L.previewButton(it.kind, it.id) + (it.kind !== 'board' ? L.playOnAirButton(it.kind, it.id) : '') +
+      // Round 6 part 3 (decision 4): Repeat one, saved with the scene; the same button as on the track in Live.
+      (isTrack ? L.repeatOneButton(key, it.id, 'r1-' + k, shown) : '') +
       (it.kind === 'playlist' && list === 'music' ? L.orderButton(it.id, key) : '') +
       (isTrack && L.profileLink ? '<a class="btn s icon cp-prof" href="#/profile/' + it.id + '/' + key + '" data-k="prof-' + k + '" title="Waveform, end and fades of ' + esc(shown) + ' in this scene" aria-label="Waveform, end and fades in this scene: ' + nm + '">' + L.icon('wave', 's') + '</a>' : '') +
       moreBtn('im-' + k, nm, 'data-menu="item" data-list="' + list + '" data-sc="' + sc.id + '" data-idx="' + i + '"') +
-      '</div>' + xpBody(it, xk, list === 'music' ? sceneKey(sc) : '') + '</li>';
+      '</div>' + xpBody(it, xk, list === 'music' ? sceneKey(sc) : '', list === 'music' ? sceneKey(sc) : '') + '</li>';
   }
   function sceneKey(sc) { var x = ctx(); return 'sc:' + x.c.id + ':' + x.s.id + ':' + sc.id; }
   // A small marker when a track has its own audio settings in this scene; the Audio profile link is in the row's ⋯ menu.
@@ -427,18 +445,18 @@
     return '<div class="cp-box" data-filedrop="music" data-sc="' + sc.id + '" title="Drop audio files or folders here to add them">' +
       (items.length ? '<ol class="cp-items" aria-label="Music in order">' + items.map(function (x, i) { return itemRow(sc, 'music', info(x.id), i, items.length, 'Starts the scene'); }).join('') + '</ol>'
         : '<p class="faint cp-mnone">No music yet. The first item you add starts the scene.</p>') +
-      '<div class="cp-boxbtns"><button class="btn s" data-act="cpaddmusic" data-sc="' + sc.id + '" data-k="am-' + sc.id + '">' + L.icon('plus', 's') + 'Add tracks or playlists…</button><span class="hint">Plays in order, then loops. Drop files here to add them.</span></div></div>';
+      '<div class="cp-boxbtns"><button class="btn s" data-act="cpaddmusic" data-sc="' + sc.id + '" data-k="am-' + sc.id + '" title="Plays in order; drop audio files on the box to add them">' + L.icon('plus', 's') + 'Add tracks or playlists…</button></div></div>';
   }
   function boardList(sc) {
     var bds = L.sceneBoards(sc).filter(function (b) { return L.board(b); });
     return '<div class="cp-box">' +
       (bds.length ? '<ol class="cp-items" aria-label="Pad boards in order">' + bds.map(function (b, i) { return itemRow(sc, 'boards', info(b, true), i, bds.length, 'Shown first'); }).join('') + '</ol>'
         : '<p class="faint cp-mnone">No pad boards yet.</p>') +
-      '<div class="cp-boxbtns"><button class="btn s" data-act="cpaddboards" data-sc="' + sc.id + '" data-k="ab-' + sc.id + '" aria-label="Add pad boards… to ' + esc(sc.name) + '">' + L.icon('plus', 's') + 'Add pad boards…</button><span class="hint">The first is shown when the scene starts.</span></div></div>';
+      '<div class="cp-boxbtns"><button class="btn s" data-act="cpaddboards" data-sc="' + sc.id + '" data-k="ab-' + sc.id + '" aria-label="Add pad boards… to ' + esc(sc.name) + '" title="The first board shows when the scene starts">' + L.icon('plus', 's') + 'Add pad boards…</button></div></div>';
   }
   function ambSlot(sc) {
     var it = sc.amb ? info(sc.amb) : null, xk = 'cp-' + sc.id + ':amb:' + (it ? it.id : '');
-    if (!it) return '<div class="cp-box cp-amb" data-filedrop="amb" data-sc="' + sc.id + '" title="Choose, or drop an audio file here"><div class="cp-it-row"><span class="faint grow">No ambience</span><button class="btn s" data-act="cppickamb" data-sc="' + sc.id + '" data-k="pa-' + sc.id + '">' + L.icon('plus', 's') + 'Choose…</button></div></div>';
+    if (!it) return '<div class="cp-box cp-amb" data-filedrop="amb" data-sc="' + sc.id + '" title="Choose, or drop an audio file here"><div class="cp-it-row"><span class="faint grow">No ambience</span><button class="btn s" data-act="cppickamb" data-sc="' + sc.id + '" data-k="pa-' + sc.id + '" aria-label="Choose ambience for ' + esc(sc.name) + '">' + L.icon('plus', 's') + 'Choose…</button></div></div>';
     return '<div class="cp-box cp-amb" data-filedrop="amb" data-sc="' + sc.id + '" title="Change, or drop an audio file here"><div class="cp-it-row">' + xpBtn(it, xk) + '<span class="lane-dot ' + it.cls + '" aria-hidden="true"></span>' +
       '<a class="ellipsis grow cp-it-name" href="' + it.href + '" data-k="an-' + sc.id + '" title="' + esc(it.name + ' · ' + it.label + ' · ' + it.sub) + '">' + esc(it.name) + '</a>' +
       '<button class="btn s" data-act="cppickamb" data-sc="' + sc.id + '" data-k="pa-' + sc.id + '">Change…</button>' +
@@ -456,14 +474,15 @@
     if (!isOpen) return '<li class="cp-scene" data-drag="scenes" data-filedrop="music" data-sc="' + sc.id + '" data-idx="' + i + '" aria-label="Scene ' + (i + 1) + ': ' + nm + '">' + head + '</li>';
     var f = 'sc' + sc.id;
     var body = '<div class="cp-scene-body" id="scb-' + sc.id + '">' +
-      '<div class="field"><label for="' + f + 'n">Name</label><input class="input" id="' + f + 'n" data-input="cpscf" data-f="name" data-sc="' + sc.id + '" data-k="scname-' + sc.id + '" value="' + esc(sc.name) + '" autocomplete="off"></div>' +
-      '<div class="field"><label for="' + f + 'w">Starts when</label><input class="input" id="' + f + 'w" data-input="cpscf" data-f="when" data-sc="' + sc.id + '" data-k="scwhen-' + sc.id + '" value="' + esc(sc.when) + '" placeholder="The moment in the story" autocomplete="off"></div>' +
+      '<div class="field"><label for="' + f + 'n">Name</label><input class="input" id="' + f + 'n" data-input="cpscf" data-f="name" data-sc="' + sc.id + '" data-k="scname-' + sc.id + '" data-save="scene name {v}" value="' + esc(sc.name) + '" autocomplete="off"></div>' +
+      '<div class="field"><label for="' + f + 'w">Starts when</label><input class="input" id="' + f + 'w" data-input="cpscf" data-f="when" data-sc="' + sc.id + '" data-k="scwhen-' + sc.id + '" data-save="when ' + esc(sc.name || 'the scene') + ' starts" value="' + esc(sc.when) + '" placeholder="The moment in the story" autocomplete="off"></div>' +
       '<div class="field cp-span" role="group" aria-labelledby="' + f + 'm"><span class="label" id="' + f + 'm">Music</span>' + musicList(sc) + '</div>' +
       '<div class="field cp-span" role="group" aria-labelledby="' + f + 'a"><span class="label" id="' + f + 'a">Ambience</span>' + ambSlot(sc) + '</div>' +
       '<div class="field cp-span" role="group" aria-labelledby="' + f + 'b"><span class="label" id="' + f + 'b">Pad boards</span>' + boardList(sc) + '</div>' +
-      '<div class="field"><label for="' + f + 'x">Notes</label><textarea class="input" id="' + f + 'x" rows="2" data-input="cpscf" data-f="notes" data-sc="' + sc.id + '" data-k="scnotes-' + sc.id + '" placeholder="Reminders for this scene">' + esc(sc.notes) + '</textarea></div>' +
-      '<div class="field cp-obsfield"><label for="' + f + 'o">Note link <span class="cp-later">Coming later</span></label><input class="input" id="' + f + 'o" data-input="cpscf" data-f="noteLink" data-sc="' + sc.id + '" data-k="scnote-' + sc.id + '" value="' + esc(sc.noteLink || '') + '" placeholder="Optional: an Obsidian note" title="Kept for later; Lyre does not open Obsidian notes yet" autocomplete="off"></div></div>';
-    return '<li class="cp-scene open" data-drag="scenes" data-idx="' + i + '" aria-label="Scene ' + (i + 1) + ': ' + nm + '">' + head + body + '</li>';
+      '<div class="field"><label for="' + f + 'x">Notes</label><textarea class="input" id="' + f + 'x" rows="2" data-input="cpscf" data-f="notes" data-sc="' + sc.id + '" data-k="scnotes-' + sc.id + '" data-save="' + esc(sc.name || 'scene') + ' notes" placeholder="Reminders for this scene">' + esc(sc.notes) + '</textarea></div>' +
+      '<div class="field cp-obsfield"><label for="' + f + 'o">Note link <span class="cp-later">Coming later</span></label><input class="input" id="' + f + 'o" data-input="cpscf" data-f="noteLink" data-sc="' + sc.id + '" data-k="scnote-' + sc.id + '" data-save="' + esc(sc.name || 'scene') + ' note link" value="' + esc(sc.noteLink || '') + '" placeholder="Optional: an Obsidian note" title="Kept for later; Lyre does not open Obsidian notes yet" autocomplete="off"></div></div>';
+    // UX-18: a screen opened from inside this scene goes Back to it, with the scene open.
+    return '<li class="cp-scene open" data-drag="scenes" data-idx="' + i + '" data-back-label="' + nm + '" data-back-open="' + sc.id + '" aria-label="Scene ' + (i + 1) + ': ' + nm + '">' + head + body + '</li>';
   }
   /* ⋯ menus for rows: assigned playlists and boards, scene music and board items, the ambience slot. */
   L.acts.cprowmenu = function (el) {
@@ -471,7 +490,9 @@
     function item(act, label, icon, extra) { return '<button role="menuitem" data-act="' + act + '" ' + (extra || '') + '>' + L.icon(icon) + label + '</button>'; }
     if (d.menu === 'assigned') {
       var where = d.scope === 'c' ? 'campaign' : 'session';
-      h = item('cpgo', 'Open', 'right', 'data-href="' + (d.kind === 'pl' ? '#/playlist/' : d.kind === 'tr' ? '#/library/' : '#/board/') + d.id + '"') +
+      var plist = d.kind === 'pl' ? (d.scope === 'c' ? ctx().c.playlists : ctx().s.playlists) : [], pi = plist.indexOf(d.id);
+      h = (pi > 0 ? item('cpplmove', 'Move up', 'chevup', 'data-scope="' + d.scope + '" data-id="' + d.id + '" data-dir="-1"') : '') + (pi > -1 && pi < plist.length - 1 ? item('cpplmove', 'Move down', 'chevdown', 'data-scope="' + d.scope + '" data-id="' + d.id + '" data-dir="1"') : '') +
+        item('cpgo', 'Open', 'right', 'data-href="' + (d.kind === 'pl' ? '#/playlist/' : d.kind === 'tr' ? '#/library/' : '#/board/') + d.id + '"') +
         (d.kind === 'tr' && d.scope === 's' ? item('cpgo', 'Waveform, end and fades in this session', 'wave', 'data-href="#/profile/' + d.id + '/' + scopeKey('s') + '"') : '') +
         (d.kind === 'tr' ? item('cpusein', 'Use in…', 'link', 'data-id="' + d.id + '"') : '') + '<div class="sep"></div>' +
         item('cprm', 'Remove from this ' + where, 'close', 'data-scope="' + d.scope + '" data-kind="' + d.kind + '" data-id="' + d.id + '" data-k="rm-' + d.scope + d.kind + d.id + '"');
@@ -504,6 +525,7 @@
     var x = findScene(el.dataset.sc), t = L.track(el.dataset.id), v = (document.getElementById('cp-nmin') || {}).value || '';
     L.setNameIn(t, sceneKey(x.sc), v); focusK = 'in-' + x.sc.id + '-music-' + t.id; L.closeSheet(); L.render();
     L.say(v.trim() ? 'In this scene it is now called ' + v.trim() : 'It uses its own name in this scene');
+    L.saved('name in ' + (x.sc.name || 'this scene') + (v.trim() ? ' “' + v.trim() + '”' : ': its own'));
   };
   document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target && e.target.id === 'cp-nmin') { e.preventDefault(); var b = document.querySelector('[data-act="cpnamesave"]'); if (b) b.click(); } });
   function findScene(id) { var s = ctx().s; for (var i = 0; i < s.scenes.length; i++) if (s.scenes[i].id === id) return { s: s, sc: s.scenes[i], i: i }; return null; }
@@ -520,15 +542,17 @@
     if (el.dataset.op === 'remove') {
       arr.splice(i, 1);
       focusK = arr.length ? 'im-' + x.sc.id + '-' + list + '-' + arr[Math.min(i, arr.length - 1)] : (list === 'boards' ? 'ab-' : 'am-') + x.sc.id;
-      L.render(); L.say('Removed ' + nm + ' from this scene' + (i === 0 && arr.length ? '. ' + itemName(arr[0], list) + lead : '')); return;
+      L.render(); L.say('Removed ' + nm + ' from this scene' + (i === 0 && arr.length ? '. ' + itemName(arr[0], list) + lead : ''));
+      L.saved((x.sc.name || 'scene') + (list === 'boards' ? ' pad boards' : ' music')); return;
     }
     var to = el.dataset.op === 'first' ? 0 : el.dataset.op === 'up' ? i - 1 : i + 1; if (to < 0 || to >= arr.length) return;
     arr.splice(i, 1); arr.splice(to, 0, id); focusK = 'im-' + x.sc.id + '-' + list + '-' + id; L.render();
     L.say(to === 0 ? nm + lead : nm + ' moved to position ' + (to + 1) + ' of ' + arr.length + (i === 0 ? '. ' + itemName(arr[0], list) + lead : ''));
+    L.saved('order of ' + (x.sc.name || 'scene') + (list === 'boards' ? ' pad boards' : ' music'), { key: 'ord-' + x.sc.id + list });
   };
   L.acts.cpaddmusic = function (el) {
     var x = findScene(el.dataset.sc), m = x.sc.music; current = x.sc.id;
-    L.pickSceneMusic({ title: 'Music for "' + (x.sc.name || 'this scene') + '"', selected: m,
+    L.pickSceneMusic({ title: 'Music for "' + (x.sc.name || 'this scene') + '"', selected: m, saved: (x.sc.name || 'scene') + ' music',
       onDone: function (ids) {
         m.length = 0; ids.forEach(function (id) { m.push(id); }); focusK = 'am-' + x.sc.id;
         L.say(plural(m.length, 'music item') + ' in this scene' + (m.length ? '; ' + itemName(m[0]) + ' starts it' : ''));
@@ -537,7 +561,7 @@
   L.acts.cpaddboards = function (el) {
     var x = findScene(el.dataset.sc); current = x.sc.id; if (!x.sc.boards) x.sc.boards = L.sceneBoards(x.sc).slice();
     var b = x.sc.boards;
-    L.pickBoards({ title: 'Pad boards for "' + (x.sc.name || 'this scene') + '"', selected: b, multi: true,
+    L.pickBoards({ title: 'Pad boards for "' + (x.sc.name || 'this scene') + '"', selected: b, multi: true, saved: (x.sc.name || 'scene') + ' pad boards',
       intro: 'Tick the boards to have in this scene. New ones are added at the end; the first one shows when the scene starts.',
       onDone: function (ids) {
         var keep = b.filter(function (id) { return ids.indexOf(id) > -1; }), added = ids.filter(function (id) { return b.indexOf(id) < 0; });
@@ -547,14 +571,17 @@
   };
   L.acts.cppickamb = function (el) {
     var x = findScene(el.dataset.sc); current = x.sc.id;
-    L.pickAmbience({ title: 'Ambience for "' + (x.sc.name || 'this scene') + '"', selected: x.sc.amb ? [x.sc.amb] : [],
+    L.pickAmbience({ title: 'Ambience for "' + (x.sc.name || 'this scene') + '"', selected: x.sc.amb ? [x.sc.amb] : [], saved: (x.sc.name || 'scene') + ' ambience',
       onDone: function (ids) { focusK = 'pa-' + x.sc.id; if (ids[0]) { x.sc.amb = ids[0]; L.say('Ambience for this scene: ' + itemName(ids[0])); } } });
   };
-  L.acts.cpclearamb = function (el) { var x = findScene(el.dataset.sc); x.sc.amb = ''; focusK = 'pa-' + x.sc.id; L.render(); L.say('No ambience in this scene'); };
+  L.acts.cpclearamb = function (el) { var x = findScene(el.dataset.sc); x.sc.amb = ''; focusK = 'pa-' + x.sc.id; L.render(); L.say('No ambience in this scene'); L.saved((x.sc.name || 'scene') + ' ambience'); };
   function addSceneAfter(afterId) {
     var s = ctx().s, at = s.scenes.length;
     if (afterId) for (var i = 0; i < s.scenes.length; i++) if (s.scenes[i].id === afterId) at = i + 1;
-    var sc = blankScene(); s.scenes.splice(at, 0, sc); open[sc.id] = true; current = sc.id; focusK = 'scname-' + sc.id;
+    // Could 19 of the round 6 review: a new scene is "Scene <n>" until renamed, so two new scenes never share their
+    // controls' names ("Add pad boards… to Scene 4").
+    var nn = at + 1; while (s.scenes.some(function (x) { return x.name === 'Scene ' + nn; })) nn++;
+    var sc = blankScene('Scene ' + nn); s.scenes.splice(at, 0, sc); open[sc.id] = true; current = sc.id; focusK = 'scname-' + sc.id;
     L.render(); var f = document.querySelector('[data-k="scname-' + sc.id + '"]'); if (f) f.select();
     L.say('New scene added as scene ' + (at + 1) + ' of ' + s.scenes.length);
   }
@@ -611,7 +638,7 @@
       'A scene\'s <b>Music</b> is now one ordered list of <b>tracks and playlists in any mix</b>: slot a track between playlists, or use only one kind. It plays from the top and loops; the first item starts the scene, and in play you can start any item. Open <b>The abbey ruins</b> to see one.',
       '<b>Add tracks or playlists…</b> opens a picker with Preview on every row and an arrow to see a playlist\'s tracks before you add it. Move, remove, open and the Audio profile are in each row\'s ⋯ menu.',
       '<b>Ambience</b> can be one track or an ambience playlist, with Preview. <b>Pad boards</b>: a scene can have several; the first shows when the scene starts, and each one can be previewed and opened to see its pads.',
-      '<b>Cleaner:</b> every box has a coloured top edge for its purpose (blue music, lime pads, accent for plans) and one status pill (e.g. "6 scenes", "Coming later"). Folded scenes show one line and one chip; hover the scene name for its Starts when, ambience and boards. Rows show Preview and Play on air, then ⋯ for the rest.',
+      '<b>Cleaner:</b> every box has a coloured top edge for its purpose (blue music, lime pads, accent for plans) and at most one status pill (e.g. "Coming later"; round 6 part 5: no scene count, no Ready or Saved). Folded scenes show one line and one chip; hover the scene name for its Starts when, ambience and boards. Rows show Preview and Play on air, then ⋯ for the rest.',
       '<b>Prep | Live</b> and <b>Run this session</b> are both in the header.',
       'Obsidian placeholders (coming later): a <b>Session note</b> in the folded Obsidian pane, and an optional <b>Note link</b> per scene.'
     ],
@@ -628,28 +655,29 @@
         statusBadge(s.status) + '<span class="grow"></span>' + L.modeSwitch(c.id) +
         '<button class="btn' + (s.status === 'next' ? ' primary' : '') + '" data-act="cprunthis" data-k="runthis">' + L.icon('broadcast', 's') + 'Run this session</button></div>';
       var details = '<div class="cp-details cp-sdetails">' +
-        '<div class="field cp-f-name"><label for="cp-s-name">Session name</label><input class="input" id="cp-s-name" data-input="cpsess" data-f="name" data-k="s-name" value="' + esc(s.name) + '" placeholder="Name this session" autocomplete="off"></div>' +
-        '<div class="field cp-f-date"><label for="cp-s-date">Date</label><input class="input" type="date" id="cp-s-date" data-input="cpsess" data-f="date" data-k="s-date" value="' + esc(s.date) + '"></div>' +
-        '<div class="field cp-f-status"><label for="cp-s-status">Status</label><select class="input" id="cp-s-status" data-input="cpsess" data-f="status" data-k="s-status">' +
-        ['played', 'next', 'draft'].map(function (k) { return '<option value="' + k + '"' + (s.status === k ? ' selected' : '') + '>' + STATUS[k] + '</option>'; }).join('') + '</select></div>' +
-        '<p class="cp-order">' + L.icon('list', 's') + '<span>In play: this scene\'s music first, then this session\'s, then the campaign\'s, then the whole library.</span></p></div>';
+        '<div class="field cp-f-name"><label for="cp-s-name">Session name</label><input class="input" id="cp-s-name" data-input="cpsess" data-f="name" data-k="s-name" data-save="session name {v}" value="' + esc(s.name) + '" placeholder="Name this session" autocomplete="off"></div>' +
+        '<div class="field cp-f-date"><label for="cp-s-date">Date</label><input class="input" type="date" id="cp-s-date" data-input="cpsess" data-f="date" data-k="s-date" data-save="Session ' + s.n + ' date" value="' + esc(s.date) + '"></div>' +
+        '<div class="field cp-f-status"><label for="cp-s-status">Status</label><select class="input" id="cp-s-status" data-input="cpsess" data-f="status" data-k="s-status" data-save="Session ' + s.n + ' status">' +
+        ['played', 'next', 'draft'].map(function (k) { return '<option value="' + k + '"' + (s.status === k ? ' selected' : '') + '>' + STATUS[k] + '</option>'; }).join('') + '</select></div></div>';
       var allOpen = s.scenes.length && s.scenes.every(function (sc) { return open[sc.id]; });
       var scenes = L.pane({ id: 'ss-scenes', title: 'Scenes', icon: 'map', kind: 'scenes',
-        status: { text: s.scenes.length ? plural(s.scenes.length, 'scene') : 'Empty', tone: 'idle' },
+        status: s.scenes.length ? null : { text: 'Empty', tone: 'idle' },
         actions: (s.scenes.length ? '<button class="closer" data-act="cpallscenes" data-k="allscenes" title="' + (allOpen ? 'Fold all scenes' : 'Open all scenes') + '" aria-label="' + (allOpen ? 'Fold all scenes' : 'Open all scenes') + '">' + L.icon(allOpen ? 'chevup' : 'chevdown') + '</button>' : '') +
           '<button class="btn s" data-act="cpaddscene" data-k="addscene">' + L.icon('plus', 's') + 'Add scene</button>',
         body: s.scenes.length ? '<ol class="cp-scenes" aria-label="Scenes in order">' + s.scenes.map(function (sc, i) { return sceneCard(s, sc, i); }).join('') + '</ol>' : '<p class="cp-none">No scenes yet. Use Add scene.</p>',
         scroll: 'ss-scenes' });
       var spl = assignedPane({ id: 'ss-spl', title: 'Session playlists', kind: 'pl', scope: 's', ids: s.playlists, tracks: s.tracks, why: 'In every scene tonight.' });
-      var sbd = assignedPane({ id: 'ss-sbd', title: 'Session pad boards', kind: 'bd', scope: 's', ids: s.boards, why: 'In every scene tonight.' });
+      var sbd = assignedPane({ id: 'ss-sbd', title: 'Session pads', kind: 'bd', scope: 's', ids: s.boards, why: 'In every scene tonight.' });
       var obs = L.pane({ id: 'ss-obs', title: 'Obsidian', icon: 'link', size: 'auto', collapsed: true, kind: 'plain', status: { text: 'Coming later', tone: 'idle' },
-        body: '<div class="field"><label for="cp-s-obs">Session note</label><input class="input" id="cp-s-obs" data-input="cpsess" data-f="obsidianNote" data-k="s-obs" value="' + esc(s.obsidianNote || '') + '" placeholder="' + esc(((c.obsidian || {}).sessions || 'Sessions') + '/Session ' + s.n + '.md') + '" autocomplete="off"></div>' + obsButton('cp-s-o-') });
+        body: '<div class="field"><label for="cp-s-obs">Session note</label><input class="input" id="cp-s-obs" data-input="cpsess" data-f="obsidianNote" data-k="s-obs" data-save="Session ' + s.n + ' Obsidian note" value="' + esc(s.obsidianNote || '') + '" placeholder="' + esc(((c.obsidian || {}).sessions || 'Sessions') + '/Session ' + s.n + '.md') + '" autocomplete="off"></div>' + obsButton('cp-s-o-') });
       var cbNames = c.boards.map(function (b) { var x = L.board(b); return x ? x.name : ''; }).filter(Boolean);
+      // Round 6: Change sits where the other boxes have Add, as an icon link to the campaign.
       var cpl = L.pane({ id: 'ss-cpl', title: 'Campaign playlists', icon: 'crown', size: 'auto', kind: 'music',
         status: { text: c.playlists.length ? String(c.playlists.length) : 'Empty', tone: 'idle' },
-        body: '<p class="hint cp-why">From the campaign. <a href="#/campaign/' + c.id + '" data-k="tocamp">Change</a>.</p>' +
+        actions: '<a class="btn s icon" href="#/campaign/' + c.id + '" data-k="tocamp" aria-label="Change the campaign\'s playlists" title="From the campaign: change them there">' + L.icon('edit', 's') + '</a>',
+        body: '' +
           assigned(c.playlists, 'pl', 'r', true, c.tracks) +
-          '<p class="hint cp-make">Campaign pad boards: ' + (cbNames.length ? esc(cbNames.join(', ')) : 'none') + '.</p>' });
+          '<p class="hint cp-make">Campaign pads: ' + (cbNames.length ? esc(cbNames.join(', ')) : 'none') + '.</p>' });
       return head + '<div class="viewbody fill cp-body">' + details +
         '<div class="cp-split cp-ssplit"><div class="' + colClass(['ss-scenes']) + '">' + scenes + '</div>' +
         '<div class="' + colClass(['ss-spl', 'ss-sbd', 'ss-cpl', 'ss-obs']) + ' cp-side">' + spl + sbd + cpl + obs + '</div></div></div>';

@@ -7,7 +7,8 @@
 ## Rules for every view
 1. **One box, one job.** The title says the job in Nik's words. Each box gets `kind` (identity edge, shared by all boxes
    of that purpose across the app) and **one status pill** (`status: { text, tone }`) in its header saying what it is
-   doing now: e.g. Playing / Silent / Ready / 3 sounding / 2 selected / Unsaved. Use `L.pane({ ..., kind, status })`.
+   doing now: e.g. Playing / Silent / 3 sounding / 2 selected. A box with nothing to say has no pill (round 6 part 5:
+   no Ready, no Saved, no scene count). Use `L.pane({ ..., kind, status })`.
    Kinds: `onair` (what players hear, red), `music` (choosing music: playlists, scene music, track lists, blue),
    `scenes` (plans: campaigns, sessions, scenes, accent), `search` (finding: off script, filters, neutral), `fx` (pads and
    effects, lime), `plain` (details, settings).
@@ -21,6 +22,6 @@
 4. **Buttons.** Repeated row actions are small icon buttons with tooltips and accessible names, always in the same
    order: Preview (headphones), Play next (where it exists), Play on air (broadcast), then a ⋯ menu for the rest.
    A box has at most one text button in its header: its main action.
-5. **Status words** (use these exact words): Playing, Paused, Silent, Ready, Joining, Muted, Receiving, Not receiving,
-   Empty, n selected, Saved.
+5. **Status words** (use these exact words): Playing, Paused, Silent, Joining, Muted, Receiving, Not receiving,
+   Empty, n selected. Saving is shown by the Saved pop-up (`L.saved`, ROUND6.md part 5), never as a box status.
 6. Keep everything that already works (keys, accessibility, half-screen layout, no overlaps); this is subtraction.

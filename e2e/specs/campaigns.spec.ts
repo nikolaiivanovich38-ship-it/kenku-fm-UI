@@ -4,7 +4,7 @@
  */
 import type { Page } from "@playwright/test";
 import { expect, test, expectFailureUntilBuilt } from "./support/test";
-import { openRoute } from "./support/target";
+import { failNextSave, openRoute } from "./support/target";
 
 const region = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
 const dialog = (page: Page) => page.getByRole("dialog");
@@ -203,7 +203,7 @@ test.describe("playlists and pad boards on hand in every session", () => {
 
   test("campaign pad boards open to show their pads and have a Preview of the first pad", async ({ page }) => {
     await openRoute(page, "campaign/crown");
-    const boards = region(page, "Campaign pad boards");
+    const boards = page.getByRole("region", { name: /^Campaign pad(s| boards)$/ });
     await expect(boards.getByRole("button", { name: "Preview the first pad of Combat" })).toBeVisible();
     await boards.getByRole("button", { name: "Show contents of Combat" }).click();
     await expect(boards.getByRole("button", { name: "Hide contents of Combat" })).toBeVisible();
@@ -228,7 +228,7 @@ test.describe("round 5: the Now playing bar and play order on the campaign page"
     await expect(row).toContainText("Playlist: The Company themes · The Sunken Crown");
     await expect(row).toContainText(/\d:\d\d \/ 3:57/);
     await expect(row.getByRole("slider", { name: "Volume in Table" })).toHaveValue("85");
-    await expect(row.getByRole("button", { name: /^Play order of The Company themes: / })).toBeVisible();
+    // Round 6 (PLY-17): the row's play order is Shuffle and Repeat buttons (checked in the round 6 block below).
     await expect(row.getByRole("link", { name: "Go to Live" })).toBeVisible();
     await row.getByRole("button", { name: "Next" }).click();
     await expect(row).toContainText("Heroic charge - horns, gallop, full orchestra");
@@ -300,5 +300,148 @@ test.describe("round 5: volume normalisation in the Now playing bar", () => {
     await air.getByRole("button", { name: "Stop", exact: true }).click();
     await lists.getByRole("button", { name: "Play on air: The Company themes" }).click();
     await expect(air.getByTitle(/· Volume not evened out$/)).toBeVisible();
+  });
+});
+
+/* Round 6, part 2 (design/prototype/ROUND6.md, "Your notes on 0.4.0", Nik, 6 Nov 10:34). Not built yet. */
+test.describe("round 6: Repeat on the Now playing bar, the campaign's own order, and Back", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
+
+  test("PLY-17: a Now playing row has Shuffle and Repeat; Repeat goes off, all, one for what plays now, not saved (round 6 part 3)", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    await region(page, "Campaign playlists").getByRole("button", { name: "Play on air: The Company themes" }).click();
+    const row = region(page, "Now playing").getByRole("group", { name: "On air", exact: true });
+    await expect(row.getByRole("button", { name: "Shuffle" })).toHaveAttribute("aria-pressed", "false");
+    const repeat = row.getByRole("button", { name: /^Repeat: / });
+    await expect(repeat).toHaveAccessibleName("Repeat: all");
+    await repeat.click();
+    await expect(repeat).toHaveAccessibleName("Repeat: one");
+    await expect(repeat).toHaveAttribute("aria-pressed", "true");
+    await expect(region(page, "Campaign playlists").getByRole("button", { name: /^Play order of The Company themes: / })).toHaveAccessibleName("Play order of The Company themes: In order, repeat all");
+    await repeat.click();
+    await expect(repeat).toHaveAccessibleName("Repeat: off");
+    await expect(repeat).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("ORG-13: a campaign playlist's tracks can be put in another order for this campaign only, and back", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    const box = region(page, "Campaign playlists");
+    await box.getByRole("button", { name: "Show contents of The Company themes" }).click();
+    const list = box.getByRole("list", { name: "Tracks in The Company themes, in the order in this campaign" });
+    await expect(list).toHaveAccessibleDescription(/Alt\+Up or Alt\+Down/);
+    await expect(list.getByRole("listitem").first()).toContainText("Epic choir hero anthem");
+    await list.getByRole("listitem").first().getByRole("button", { name: /^Preview / }).focus();
+    await page.keyboard.press("Alt+ArrowDown");
+    await expect(list.getByRole("listitem").nth(1)).toContainText("Epic choir hero anthem");
+    await expect(list.getByRole("listitem").nth(1).getByRole("button", { name: /^Preview / })).toBeFocused();
+    await expect(box.getByRole("button", { name: "Back to the playlist's order" })).toBeVisible();
+  });
+
+  test("ORG-13: Back to the playlist's order undoes the campaign's own order", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    const box = region(page, "Campaign playlists");
+    await box.getByRole("button", { name: "Show contents of The Company themes" }).click();
+    const list = box.getByRole("list", { name: "Tracks in The Company themes, in the order in this campaign" });
+    await expect(box.getByRole("button", { name: "Back to the playlist's order" })).toHaveCount(0);
+    await list.getByRole("listitem").first().getByRole("button", { name: /^Preview / }).focus();
+    await page.keyboard.press("Alt+ArrowDown");
+    await box.getByRole("button", { name: "Back to the playlist's order" }).click();
+    await expect(list.getByRole("listitem").first()).toContainText("Epic choir hero anthem");
+    await expect(box.getByRole("button", { name: "Back to the playlist's order" })).toHaveCount(0);
+  });
+
+  test("ORG-13: the campaign's playlists themselves can be moved into another order", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    const box = region(page, "Campaign playlists");
+    await box.getByRole("link", { name: "The Company themes" }).focus();
+    await page.keyboard.press("Alt+ArrowDown");
+    await expect(box.getByRole("listitem").nth(1)).toContainText("The Company themes");
+    await expect(box.getByRole("link", { name: "The Company themes" })).toBeFocused();
+  });
+
+  test("UX-18: a playlist opened from the campaign page has Back to the campaign, and Back returns to the same row", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    await expect(page.getByRole("button", { name: /^Back to / })).toHaveCount(0);
+    await region(page, "Campaign playlists").getByRole("link", { name: "Ashen King" }).click();
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Ashen King");
+    await page.getByRole("button", { name: "Back to The Sunken Crown" }).click();
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("The Sunken Crown");
+    await expect(region(page, "Campaign playlists").getByRole("link", { name: "Ashen King" })).toBeFocused();
+  });
+
+  test("UX-18: screens opened from the menu have no Back", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Library" }).click();
+    await expect(page.getByRole("button", { name: /^Back to / })).toHaveCount(0);
+  });
+});
+
+/* Round 6, part 5 (design/prototype/ROUND6.md "Part 5: the Saved pop-up"). Nik, 6 Nov 16:14: "little pop ups somewhere
+   unobtrusive but noticeable as a consistent design standard indicating something has been saved, so we have
+   consistent feedback across the whole platform. I don't want saved in each box." Not built yet. */
+test.describe("round 6, part 5: the Saved pop-up", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
+  const notes = (page: Page) => region(page, "Notes").getByRole("textbox", { name: "Campaign notes" });
+  const savedNotes = (page: Page) => page.getByRole("status").filter({ hasText: "Saved: The Sunken Crown notes" });
+  /** Where the pop-up is: its right edge's distance from the work area's right edge, and its top below the work area's top. */
+  const placeOf = async (page: Page, text: string) => {
+    const pop = await page.getByRole("status").filter({ hasText: text }).boundingBox();
+    const main = await page.getByRole("main").boundingBox();
+    if (!pop || !main) throw new Error("not on screen");
+    return { fromRight: Math.round(main.x + main.width - (pop.x + pop.width)), fromTop: Math.round(pop.y - main.y) };
+  };
+  /** How many live regions (read out by screen readers) hold these words now. */
+  const readOutIn = (page: Page, text: string) =>
+    page.evaluate((t) => Array.from(document.querySelectorAll("[aria-live], [role=status], [role=alert]")).filter((e) => e.getAttribute("aria-live") !== "off" && (e.textContent ?? "").includes(t)).length, text);
+
+  test("notes save after a pause in typing, never per key: Saved and what, while the cursor stays in the notes", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    await notes(page).click();
+    await page.keyboard.type("Bring dice");
+    await expect(savedNotes(page)).toHaveCount(0);
+    await expect(savedNotes(page)).toBeVisible();
+    await expect(notes(page)).toBeFocused();
+    await expect(region(page, "Notes").getByText(/^(Saved|Ready)$/)).toHaveCount(0);
+  });
+
+  test("leaving a field saves it at once; the same save again within 2 s refreshes the one pop-up, read out once", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    await notes(page).fill("Bring dice");
+    await page.keyboard.press("Tab");
+    await expect(savedNotes(page)).toBeVisible();
+    expect(await readOutIn(page, "Saved: The Sunken Crown notes")).toBe(1);
+    await notes(page).fill("Bring dice and snacks");
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("status").filter({ hasText: /^Saved: / })).toHaveCount(1);
+    expect(await readOutIn(page, "Saved: The Sunken Crown notes")).toBeLessThanOrEqual(1);
+  });
+
+  test("the pop-up is in the same place on a prep screen and in Live: top right of the work area", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    await notes(page).fill("Bring dice");
+    await page.keyboard.press("Tab");
+    const prep = await placeOf(page, "Saved: The Sunken Crown notes");
+    await openRoute(page, "live");
+    await page.getByRole("button", { name: "Start scene 3: The abbey ruins" }).click();
+    await region(page, "Current scene").getByRole("button", { name: /^Repeat one: / }).first().click();
+    const live = await placeOf(page, "Saved: Repeat one in The abbey ruins");
+    expect(Math.abs(prep.fromRight - live.fromRight)).toBeLessThanOrEqual(2);
+    expect(prep.fromRight).toBeLessThanOrEqual(24);
+    for (const at of [prep, live]) expect(at.fromTop).toBeLessThanOrEqual(120);
+  });
+
+  test("a failed save stays until dismissed, says what to do, and Try again saves it", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    await failNextSave(page);
+    await notes(page).fill("Bring dice");
+    await page.keyboard.press("Tab");
+    const failed = page.getByRole("alert").filter({ hasText: "Not saved: The Sunken Crown notes" });
+    await expect(failed).toBeVisible();
+    await expect(failed).toContainText("Try again");
+    await page.waitForTimeout(5_000);
+    await expect(failed).toBeVisible();
+    await failed.getByRole("button", { name: "Try again" }).click();
+    await expect(failed).toHaveCount(0);
+    await expect(savedNotes(page)).toBeVisible();
   });
 });

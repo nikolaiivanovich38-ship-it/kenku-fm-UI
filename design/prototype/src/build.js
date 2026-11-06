@@ -13,7 +13,11 @@ const views = fs.readdirSync(path.join(src, 'views')).sort((a, b) => (order.inde
 const css = ['tokens.css', 'ui.css'].map(rd).concat(views.filter(f => f.endsWith('.css')).map(f => rd('views/' + f))).join('\n');
 // FND-8: the help articles are the app's own (src/lyre/help/articles/*.md), so the prototype shows the words Lyre ships.
 const helpDir = path.resolve(src, '..', '..', '..', 'src', 'lyre', 'help', 'articles');
-const helpFiles = fs.existsSync(helpDir) ? fs.readdirSync(helpDir).filter((f) => f.endsWith('.md')).sort().map((f) => ({ file: f, text: fs.readFileSync(path.join(helpDir, f), 'utf8') })) : [];
+const mdIn = (dir) => fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.md')).sort().map((f) => ({ file: f, text: fs.readFileSync(path.join(dir, f), 'utf8') })) : [];
+// Round 6 review (Should 12): design/prototype/help-drafts holds the design's new or changed articles; a draft takes
+// the place of the app's article with the same file name until the lead copies it into the app.
+const drafts = mdIn(path.resolve(src, '..', 'help-drafts'));
+const helpFiles = mdIn(helpDir).filter((f) => !drafts.some((d) => d.file === f.file)).concat(drafts).sort((a, b) => a.file.localeCompare(b.file));
 const helpData = 'var LYRE_HELP_FILES = ' + JSON.stringify(helpFiles).replace(/<\//g, '<\\/') + ';';
 const js = [helpData].concat(['data.js', 'core.js'].map(rd)).concat(views.filter(f => f.endsWith('.js')).map(f => rd('views/' + f))).join('\n;\n');
 let h = rd('index.html').replace('<!--@fonts-->', () => fonts).replace('<!--@css-->', () => '<style>\n' + css + '\n</style>').replace('<!--@js-->', () => '<script>\n' + js + '\n</script>');

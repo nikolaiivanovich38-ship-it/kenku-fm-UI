@@ -6,7 +6,7 @@ const shot = n => path.resolve(__dirname, '..', 'shots', 'profile-' + n + '.png'
   async function page(route, w, h, theme) {
     const p = await b.newPage({ viewport: { width: w || 960, height: h || 1000 } });
     p.errs = []; p.on('pageerror', e => p.errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') p.errs.push(m.text()); });
-    await p.addInitScript(([t]) => { try { localStorage.setItem('lyre-r2', JSON.stringify({ theme: t || 'campaign', frame: 'full', notes: false })); } catch (e) {} }, [theme]);
+    await p.addInitScript(([t]) => { try { localStorage.setItem('lyre-r2', JSON.stringify({ theme: t || 'campaign', frame: 'full', notes: false, tour: 'done' })); } catch (e) {} }, [theme]);
     await p.goto('file://' + path.resolve(__dirname, '..', process.env.OUT || 'profile.html') + route); await p.waitForTimeout(300); return p;
   }
   const ok = (c, m) => console.log((c ? 'PASS ' : 'FAIL ') + m);

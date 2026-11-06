@@ -19,7 +19,8 @@
   </div>
 </div>
 <div id="lyre-live" class="sr-only" aria-live="polite"></div>
-<div id="lyre-toast" class="toast" role="status" hidden></div>
+<!-- Round 6, part 5: the one place for the Saved pop-up and every other note (core.js L.saved, L.toast, L.saveFailed). -->
+<div id="lyre-toasts" class="toasts"><div id="lyre-fail" class="toast" role="alert"></div><div id="lyre-toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div></div>
 <!--@js-->
 <script>L.boot();</script>
 </body>

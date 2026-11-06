@@ -1,7 +1,6 @@
 /* Campaigns, Campaign and Session views (prefix cp-). */
 
 /* ---------- Campaigns: card grid, 1 column at 720, 2 at 960, 3 at 1280 ---------- */
-.cp-count { font-size: var(--fs-s); }
 .cp-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; align-items: stretch; }
 @container app (min-width: 900px) { .cp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @container app (min-width: 1200px) { .cp-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
@@ -11,7 +10,6 @@
 .cp-card::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: linear-gradient(90deg, var(--accent), var(--second)); }
 .cp-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; font-size: var(--fs-xs); }
 .cp-sys { font-weight: 700; color: var(--ink-2); letter-spacing: .02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.cp-thname { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-3); white-space: nowrap; flex: none; }
 .cp-card-name { font-size: calc(19px * var(--display-scale)); line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cp-blurb { color: var(--ink-2); font-size: var(--fs-s); }
 .cp-next { display: flex; align-items: baseline; gap: 6px; min-width: 0; font-size: var(--fs-s); }
@@ -56,8 +54,6 @@
 .cp-details .cp-f-date { flex: 0 1 150px; }
 .cp-details .cp-f-status { flex: 0 1 110px; }
 .cp-forced { flex: 1 1 100%; }
-.cp-order { flex: 1 1 100%; display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--ink-3); }
-.cp-order svg { flex: none; }
 .cp-split { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 34%); gap: var(--gap); }
 .cp-split.cp-ssplit { grid-template-columns: minmax(0, 1fr) minmax(260px, 34%); }
 .cp-split > .col { min-height: 0; }

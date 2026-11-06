@@ -4,7 +4,7 @@ const file = 'file://' + path.resolve(__dirname, '..', 'campaigns.html');
 (async () => {
   const b = await chromium.launch(process.env.LYRE_SPEC_CHROMIUM ? { executablePath: process.env.LYRE_SPEC_CHROMIUM } : {}); const p = await b.newPage({ viewport: { width: 960, height: 1000 } });
   const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
-  await p.addInitScript(() => { try { localStorage.setItem('lyre-r2', JSON.stringify({ theme: 'campaign', frame: 'full', notes: false })); } catch (e) {} });
+  await p.addInitScript(() => { try { localStorage.setItem('lyre-r2', JSON.stringify({ theme: 'campaign', frame: 'full', notes: false, tour: 'done' })); } catch (e) {} });
   const desc = () => p.evaluate(() => { const a = document.activeElement; if (!a || a === document.body) return '(body)'; const inApp = document.getElementById('view').contains(a) ? '' : '[outside view] '; return inApp + a.tagName.toLowerCase() + ' ' + ((a.getAttribute('aria-label') || a.textContent || a.value || a.title || '').trim().replace(/\s+/g, ' ').slice(0, 50)); });
   async function walk(route, n) {
     await p.goto(file + route); await p.waitForTimeout(300);
