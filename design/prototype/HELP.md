@@ -82,9 +82,9 @@ named on screen and `` `Key` `` for a key.
 | Your library | Find missing files |
 | Your library | Save diagnostics for a bug report |
 
-Each article describes the app as built in wave 4, not the prototype. Where round 5 is still being built by another
-stream (Try pads on pad boards; the play order button in the session planner and campaign lists), the article says
-only what is there now; add those lines when they merge.
+Each article describes the app as built in wave 4, round 5 included (Try pads, the play order button in scenes and
+the session and campaign lists, names in scenes, single tracks on hand, the wave button from a scene), checked after
+those streams merged.
 
 ## Words added
 
