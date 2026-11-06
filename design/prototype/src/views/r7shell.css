@@ -42,3 +42,8 @@ html[data-contrast="high"] .btn.ghost, html[data-contrast="high"] .closer { bord
 
 /* A11Y-6: the board's "Used in" links are 24 px high, so each can be hit on its own. */
 .pb-uselink { min-height: 24px; display: inline-flex; align-items: center; }
+
+/* Rare row buttons (What played, a marker's Mix out and Play from): shown on pointer hover or keyboard focus in
+   their row, as Fill the column is (round 6 rule 5); a pressed one stays. */
+.r7-hov:not([aria-pressed="true"]) { opacity: 0; }
+:is(.oab-row, .ap-mrow):is(:hover, :focus-within) .r7-hov, .r7-hov:focus-visible { opacity: 1; }

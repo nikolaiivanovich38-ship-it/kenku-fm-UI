@@ -135,9 +135,15 @@
     });
     paintPalette(); L.say('Find and play');
   };
+  // Focus goes back where it was; if the screen was drawn again meanwhile, to the same control (or heading) there.
+  function refocus(back) {
+    if (!back) return;
+    if (!document.contains(back)) back = (back.dataset && back.dataset.k && document.querySelector('[data-k="' + back.dataset.k + '"]')) || (back.tagName === 'H1' && document.querySelector('#view h1')) || null;
+    if (back) { if (back.tagName === 'H1') back.setAttribute('tabindex', '-1'); back.focus({ preventScroll: true }); }
+  }
   function closePalette(keepFocus) {
     if (!pal) return; var back = pal.back; pal.el.remove(); pal = null;
-    if (!keepFocus && back && document.contains(back)) back.focus();
+    if (!keepFocus) refocus(back);
   }
   L.closePalette = closePalette;
   function run(how) {
@@ -152,7 +158,7 @@
     if (r.t || r.p) L.acts.onair({ dataset: { kind: r.t ? 'track' : 'playlist', id: r.id } });
     else if (r.kind === 'pad') { L.firePad(r.bid, r.pid); L.toast('Pad on air: ' + r.name); }
     else { L.startScene(r.cid, r.sid, r.idx); L.toast('Scene on air: ' + r.name); }
-    if (back && document.contains(back)) back.focus();
+    refocus(back);
   }
   document.addEventListener('keydown', function (e) {
     if (pal || capture || document.getElementById('lyre-sheet') || e.defaultPrevented) return;

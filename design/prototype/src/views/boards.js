@@ -204,7 +204,7 @@
     render: function () {
       var list = shown(), all = D.boards.length, any = bf.q || bf.used !== 'all' || bf.cid !== 'all';
       return '<div class="viewhead"><h1>Pad boards</h1><span class="muted grow pb-sub">' + (any ? 'Showing ' + list.length + ' of ' + all : plural(all, 'board')) + '</span>' +
-        L.newFolderButton('boards') + '<button class="btn primary" data-act="pbnew" data-k="pb-new">' + L.icon('plus', 's') + 'New board</button></div>' +
+        '<button class="btn primary" data-act="pbnew" data-k="pb-new">' + L.icon('plus', 's') + 'New board</button></div>' +
         '<div class="viewbody"><div class="pb-ltools"><div class="search pb-lsearch">' + L.icon('search') + '<input class="input" type="search" placeholder="Search boards and pads" aria-label="Search pad boards by board name or pad label" data-input="pbq" data-k="pbq" value="' + esc(bf.q) + '"></div>' +
         filtSeg() + '<label class="pb-camp"><span>Campaign</span><select class="input" data-input="pbcamp" data-k="pbcamp">' +
         '<option value="all">All campaigns</option>' + D.campaigns.map(function (c) { return '<option value="' + c.id + '"' + (bf.cid === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>'; }).join('') + '</select></label></div>' +
@@ -378,8 +378,6 @@
       (on ? L.destTag('air', '') : '') + '</div>' +
       '<div class="field"><label for="pb-label">Label</label><input id="pb-label" class="input" data-input="pblabel" data-k="pb-label" data-save="pad label {v}" value="' + esc(p.label) + '"></div>' +
       soundEditor(p) +
-      // Round 7 (PLY-8): what the pad does, as steps; one step (its sound) unless more are added.
-      '<div class="pb-steps">' + L.stepsButton('pad', b.id + '/' + p.id) + '</div>' +
       fieldset('Play mode', '<div class="pb-modes" role="group" aria-label="Play mode">' + ['oneshot', 'toggle', 'hold', 'retrigger'].map(function (m) {
         return '<button class="btn s" data-act="pbmode" data-v="' + m + '" data-k="pbm-' + m + '" aria-pressed="' + (p.mode === m) + '" aria-describedby="pb-modehelp" title="' + MODE_HELP[m] + '">' + L.icon(L.modeIcon[m], 's') + L.modeName[m] + '</button>';
       }).join('') + '</div><p class="pb-modehelp" id="pb-modehelp">' + MODE_HELP[p.mode] + '</p>') +
@@ -579,7 +577,8 @@
   }
   L.acts.pbpadmenu = withPad(function (b, p, el) {
     ui.menuPad = p.id; ui.menuAnchor = el;
-    L.menu(el, '<button role="menuitem" data-act="pbduppad">Duplicate pad</button><button role="menuitem" data-act="pbmovemenu2">Move to…</button><div class="sep"></div>' +
+    // Round 7 (PLY-8): what the pad does, as steps (its sound, unless more are added), out of sight in this menu.
+    L.menu(el, L.stepsItem('pad', b.id + '/' + p.id) + '<button role="menuitem" data-act="pbduppad">Duplicate pad</button><button role="menuitem" data-act="pbmovemenu2">Move to…</button><div class="sep"></div>' +
       '<button role="menuitem" data-act="pbdelpad" data-pid="' + p.id + '">' + L.icon('trash', 's') + 'Delete pad…</button>', 'Pad');
   });
   L.acts.pbmovemenu2 = function () { var b = board(), a = ui.menuAnchor && document.contains(ui.menuAnchor) ? ui.menuAnchor : document.querySelector('.pb-pad.sel'); if (a) L.menu(a, moveMenu(b, ui.menuPad), 'Move to'); };

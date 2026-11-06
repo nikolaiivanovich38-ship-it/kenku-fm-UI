@@ -170,10 +170,9 @@
       var own = t.title, meta = t.metaTitle, shown = own || meta || t.file;
       var air = (onAirNow(t) ? L.destTag('air', '') : '') + (L.previewing(t.id) ? L.destTag('you', '') : '');
       var tip = (own ? '' : 'No title of your own yet. ') + (meta && meta !== own ? 'In the file: ' + meta + '. ' : '') + t.artist + (t.album ? ', ' + t.album : '');
-      // Round 7 (ORG-5): a row can be dragged to another list; with ticked rows, all of them go.
-      h += '<tr data-tid="' + t.id + '" ' + L.orgItem('track', st.sel.indexOf(t.id) > -1 ? st.sel.join(',') : t.id) + ' data-act="lbopen" data-k="lbrow-' + t.id + '" tabindex="' + (t.id === st.cursor ? 0 : -1) + '" aria-selected="' + sel + '"' + (open ? ' class="lb-open" aria-current="true"' : '') + '>' +
+      h += '<tr data-tid="' + t.id + '" data-act="lbopen" data-k="lbrow-' + t.id + '" tabindex="' + (t.id === st.cursor ? 0 : -1) + '" aria-selected="' + sel + '"' + (open ? ' class="lb-open" aria-current="true"' : '') + '>' +
         '<td class="lb-c-ck" data-act="lbsel" data-tid="' + t.id + '"><span class="lb-ckl"><input type="checkbox" tabindex="-1" aria-label="Select ' + esc(L.title(t)) + '"' + (sel ? ' checked' : '') + '></span></td>' +
-        '<td class="lb-c-title" title="' + esc(shown + ' — ' + tip) + '"><div class="lb-tl">' + kindMark(t) + '<span class="lb-t1' + (own ? '' : ' untitled') + '">' + esc(shown) + '</span>' +
+        '<td class="lb-c-title" title="' + esc(shown + ' — ' + tip) + '"><div class="lb-tl" ' + dragAttrs(t) + '>' + kindMark(t) + '<span class="lb-t1' + (own ? '' : ' untitled') + '">' + esc(shown) + '</span>' +
           (own && meta && meta !== own && open ? '<span class="lb-t2">' + esc(meta) + '</span>' : '') + air + (t.isNew ? '<span class="badge lb-newb">New</span>' : '') +
           (t.missing ? '<span class="badge warn lb-miss" title="Lyre cannot find this file at ' + esc(t.folder) + '">' + L.icon('warn', 's') + 'Missing</span>' : '') + '</div></td>' +
         '<td class="lb-c-tags"><span class="lb-tagcell">' + L.shapeTag(t, true) + rowChips(t, 1) + '</span></td>' +
@@ -187,6 +186,8 @@
   }
 
   /* ---------- Details pane ---------- */
+  // Round 7 (ORG-5): a row's title is dragged to another list; with ticked rows, all of them go.
+  function dragAttrs(t) { return L.orgItem('track', st.sel.indexOf(t.id) > -1 ? st.sel.join(',') : t.id); }
   function cbxOptions(t, g) {
     if (cbx.g !== g) return [];
     var q = cbx.q.trim().toLowerCase(), have = t.tags[g] || [];

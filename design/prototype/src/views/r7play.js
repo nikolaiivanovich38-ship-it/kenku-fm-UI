@@ -110,10 +110,7 @@
     var a = document.activeElement, keep = k || (a && a.dataset && a.dataset.k); b.innerHTML = edBody();
     var f = keep && b.querySelector('[data-k="' + keep + '"]'); if (f && !f.disabled) f.focus(); else { var g = b.querySelector('[data-k="stp-add"]'); if (g) g.focus(); }
   }
-  L.stepsButton = function (what, ref) {
-    var x = what === 'pad' && padOf(ref), changed = x && x.p.steps;
-    return '<button class="btn s' + (changed ? '' : ' ghost') + '" data-act="stepsopen" data-what="' + what + '" data-ref="' + esc(ref) + '" data-k="steps-' + esc(ref) + '" title="' + esc(words(L.stepsOf(what, ref))) + '">' + L.icon('list', 's') + 'What it does…</button>';
-  };
+  L.stepsItem = function (what, ref) { return '<button role="menuitem" data-act="stepsopen" data-what="' + what + '" data-ref="' + esc(ref) + '">' + L.icon('list', 's') + 'What it does…</button>'; };
   L.sceneMarks = function (sc) {
     var m = '';
     if (sc.then && sc.then !== 'stay') m += '<span class="badge r7-mark" title="' + (sc.then === 'end' ? 'Starts the next scene when its music ends' : 'Starts the next scene after ' + (sc.afterMin || 5) + ' minutes') + '">' + L.icon('next', 's') + 'Moves on by itself</span>';
@@ -246,15 +243,19 @@
     return row.replace('role="group" aria-label="Loop advice"', 'role="group" aria-label="Loop advice" aria-describedby="r7-sting"').replace(/<button class="chip lb-pick"/g, '<button disabled class="chip lb-pick"') +
       '<p class="sr-only" id="r7-sting">A sting plays once; it never loops.</p>';
   };
+  // Only the choices that fit the track's role show (less to read): an underscore can fade out at its end, pick up
+  // where it stopped and hand over; a loop bed picks up; a sting or a transition hands over (and a transition can
+  // fade). A track with no role yet shows none of them.
+  var ROWS = { Underscore: ['ending', 'resume', 'then'], 'Loop bed': ['resume'], Sting: ['then'], Transition: ['ending', 'then'] };
   L.playRows = function (t) {
-    if (t.kind === 'fx') return '';
-    var fades = t.ending === 'fades', f = t.follow;
-    return '<div class="lb-tg"><div class="lb-tgl">Ending</div><div class="chips" role="group" aria-label="Ending">' +
-      [['hard', 'Hard end'], ['fades', 'Fades out']].map(function (x) { var on = (fades ? 'fades' : 'hard') === x[0]; return '<button class="chip lb-pick" data-act="r7ending" data-v="' + x[0] + '" data-k="lb-end-' + x[0] + '" aria-pressed="' + on + '" title="' + (x[0] === 'fades' ? 'Lyre fades it out before its end (set the length in the Audio profile)' : 'It plays to its last second') + '">' + (on ? L.icon('check', 's') : '') + x[1] + '</button>'; }).join('') + '</div></div>' +
-      '<label class="lv-switch lb-resume" title="A long underscore starts again where it was last stopped"><input type="checkbox" role="switch" data-input="r7resume" data-k="lb-resume"' + (t.resume ? ' checked' : '') + '><span class="lv-switch-t"><b>Pick up where it stopped</b></span></label>' +
-      '<div class="lb-tg"><div class="lb-tgl" id="lb-then-l">Then</div><div class="chips" role="group" aria-labelledby="lb-then-l">' +
+    var rows = (t.kind !== 'fx' || t.role === 'Sting') && ROWS[t.role] || []; if (!rows.length) return '';
+    var fades = t.ending === 'fades', f = t.follow, has = function (x) { return rows.indexOf(x) > -1; };
+    return (has('ending') ? '<div class="lb-tg"><div class="lb-tgl">Ending</div><div class="chips" role="group" aria-label="Ending">' +
+      [['hard', 'Hard end'], ['fades', 'Fades out']].map(function (x) { var on = (fades ? 'fades' : 'hard') === x[0]; return '<button class="chip lb-pick" data-act="r7ending" data-v="' + x[0] + '" data-k="lb-end-' + x[0] + '" aria-pressed="' + on + '" title="' + (x[0] === 'fades' ? 'Lyre fades it out before its end (set the length in the Audio profile)' : 'It plays to its last second') + '">' + (on ? L.icon('check', 's') : '') + x[1] + '</button>'; }).join('') + '</div></div>' : '') +
+      (has('resume') ? '<label class="lv-switch lb-resume" title="A long underscore or bed starts again where it was last stopped"><input type="checkbox" role="switch" data-input="r7resume" data-k="lb-resume"' + (t.resume ? ' checked' : '') + '><span class="lv-switch-t"><b>Pick up where it stopped</b></span></label>' : '') +
+      (!has('then') ? '' : '<div class="lb-tg"><div class="lb-tgl" id="lb-then-l">Then</div><div class="chips" role="group" aria-labelledby="lb-then-l">' +
       (f ? '<span class="chip"><span class="lane-dot music" aria-hidden="true"></span>' + esc(itemName(f)) + '<button class="x" data-act="r7follownone" data-k="lb-follow-x" title="Remove" aria-label="Stop following with ' + esc(itemName(f)) + '">' + L.icon('close') + '</button></span><button class="btn s ghost" data-act="r7follow" data-k="lb-follow">Change…</button>'
-        : '<button class="btn s ghost" data-act="r7follow" data-k="lb-follow" title="When it ends, play a playlist or a track">' + L.icon('next', 's') + 'Follow with…</button>') + '</div></div>';
+        : '<button class="btn s ghost" data-act="r7follow" data-k="lb-follow" title="When it ends, play a playlist or a track">' + L.icon('next', 's') + 'Follow with…</button>') + '</div></div>');
   };
   function curTrack() { var r = L.current(); return r.name === 'library' && L.track(r.p.tid); }
   L.acts.r7ending = function (el) {
@@ -274,7 +275,8 @@
 
   /* ---------- PLY-1 what played ---------- */
   L.historyButton = function (target, name, k) {
-    return '<button class="btn s icon" data-act="r7played" data-room="' + esc(target) + '" data-name="' + esc(name || '') + '" data-k="' + k + '-played" aria-label="What played" title="What played' + (name ? ' in ' + esc(name) : '') + ', with Play again">' + L.icon('queue', 's') + '</button>';
+    // Shown on pointer hover or keyboard focus in the row (round 6 rule 5: hide the rare, show the frequent).
+    return '<button class="btn s icon r7-hov" data-act="r7played" data-room="' + esc(target) + '" data-name="' + esc(name || '') + '" data-k="' + k + '-played" aria-label="What played" title="What played' + (name ? ' in ' + esc(name) : '') + ', with Play again">' + L.icon('queue', 's') + '</button>';
   };
   function ago(at) { var m = Math.round((Date.now() - at) / 60000); return m < 1 ? 'Now' : m + ' min ago'; }
   L.acts.r7played = function (el) {

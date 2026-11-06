@@ -410,8 +410,8 @@
         '<input class="input ap-ml" data-input="apmlabel" data-i="' + i + '" data-k="ap-ml-' + i + '" value="' + esc(m.label) + '" aria-label="Marker label at ' + L.fmt(m.at) + '"' + dis(t) + '>' +
         '<button class="btn s" data-act="apgo" data-at="' + m.at + '" data-k="ap-mgo-' + i + '" title="Move the playhead to ' + L.fmt(m.at) + '" aria-label="Go to ' + esc(m.label) + '">' + L.icon('right', 's') + 'Go to</button>' +
         // Round 7 (DAT-3): the mix-out point (where the next track crossfades in; one per track) and playing from here.
-        '<button class="btn s' + (m.mix ? ' primary' : ' ghost') + '" data-act="apmix" data-i="' + i + '" data-k="ap-mmix-' + i + '" aria-pressed="' + !!m.mix + '" aria-label="Mix out at ' + esc(m.label) + '" title="The next track crossfades in here"' + dis(t) + '>' + L.icon('fade', 's') + 'Mix out</button>' +
-        '<button class="btn s icon" data-act="apfrom" data-at="' + m.at + '" data-k="ap-mfrom-' + i + '" aria-label="Play on air from ' + esc(m.label) + '" title="Play on air from ' + L.fmt(m.at) + ' (the players hear it)">' + L.icon('playair', 's') + '</button>' +
+        '<button class="btn s' + (m.mix ? ' primary' : ' ghost r7-hov') + '" data-act="apmix" data-i="' + i + '" data-k="ap-mmix-' + i + '" aria-pressed="' + !!m.mix + '" aria-label="Mix out at ' + esc(m.label) + '" title="The next track crossfades in here"' + dis(t) + '>' + L.icon('fade', 's') + 'Mix out</button>' +
+        '<button class="btn s icon r7-hov" data-act="apfrom" data-at="' + m.at + '" data-k="ap-mfrom-' + i + '" aria-label="Play on air from ' + esc(m.label) + '" title="Play on air from ' + L.fmt(m.at) + ' (the players hear it)">' + L.icon('playair', 's') + '</button>' +
         '<button class="closer" data-act="apmdel" data-i="' + i + '" data-k="ap-mdel-' + i + '" title="Remove this marker" aria-label="Remove marker ' + esc(m.label) + '"' + dis(t) + '>' + L.icon('trash') + '</button></li>';
     }).join('') + '</ol>';
   }

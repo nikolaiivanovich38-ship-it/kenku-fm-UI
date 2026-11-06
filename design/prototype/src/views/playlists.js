@@ -102,7 +102,7 @@
       : !all ? '<div class="empty"><b>No playlists yet.</b> A playlist is music, ambience or effects that play together, in your order or picked by their tags. Start with <b>New playlist</b>, or tick tracks in the Library and choose <b>New playlist from these</b>.</div>'
       : '<div class="empty">No playlists match these filters. <button class="btn s" data-act="plclear" data-k="plclear">Show all playlists</button></div>';
     return '<div class="viewhead"><h1>Playlists</h1><span class="muted">' + plural(all, 'playlist') + '</span><span class="grow"></span>' +
-      L.newFolderButton('playlists') + '<button class="btn primary" data-act="plnew" data-k="plnew" aria-haspopup="menu" aria-expanded="false">' + L.icon('plus', 's') + 'New playlist' + L.icon('chevdown', 's') + '</button></div>' +
+      '<button class="btn primary" data-act="plnew" data-k="plnew" aria-haspopup="menu" aria-expanded="false">' + L.icon('plus', 's') + 'New playlist' + L.icon('chevdown', 's') + '</button></div>' +
       '<div class="viewbody fill pl-listbody">' + dropNotice('list') +
       '<div class="pl-tools"><div class="search pl-search">' + L.icon('search') + '<input class="input" type="search" placeholder="Search playlists" aria-label="Search playlists by name or tag" data-input="plfq" data-k="plfq" value="' + esc(filt.q) + '"></div>' +
       seg('lane', 'Music, ambience or FX', [['all', 'All'], ['music', 'Music'], ['amb', 'Ambience'], ['fx', 'FX']]) +

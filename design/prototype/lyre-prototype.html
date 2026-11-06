@@ -2341,6 +2341,11 @@ html[data-contrast="high"] .btn.ghost, html[data-contrast="high"] .closer { bord
 /* A11Y-6: the board's "Used in" links are 24 px high, so each can be hit on its own. */
 .pb-uselink { min-height: 24px; display: inline-flex; align-items: center; }
 
+/* Rare row buttons (What played, a marker's Mix out and Play from): shown on pointer hover or keyboard focus in
+   their row, as Fill the column is (round 6 rule 5); a pressed one stays. */
+.r7-hov:not([aria-pressed="true"]) { opacity: 0; }
+:is(.oab-row, .ap-mrow):is(:hover, :focus-within) .r7-hov, .r7-hov:focus-visible { opacity: 1; }
+
 /* Round 7, DAT-10: the Tags screen */
 .tg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; align-items: start; }
 .tg-list { list-style: none; margin: 0; padding: 0; }
@@ -2396,7 +2401,6 @@ html[data-contrast="high"] .btn.ghost, html[data-contrast="high"] .closer { bord
 .r7-mk.mix { background: var(--accent); }
 .r7-played .lrow { gap: 8px; }
 .lb-resume { border: 0; padding: 4px 0; }
-.pb-steps { margin: 2px 0 6px; }
 
 </style>
 </head>
@@ -4561,7 +4565,7 @@ var L = (function () {
       : !all ? '<div class="empty"><b>No playlists yet.</b> A playlist is music, ambience or effects that play together, in your order or picked by their tags. Start with <b>New playlist</b>, or tick tracks in the Library and choose <b>New playlist from these</b>.</div>'
       : '<div class="empty">No playlists match these filters. <button class="btn s" data-act="plclear" data-k="plclear">Show all playlists</button></div>';
     return '<div class="viewhead"><h1>Playlists</h1><span class="muted">' + plural(all, 'playlist') + '</span><span class="grow"></span>' +
-      L.newFolderButton('playlists') + '<button class="btn primary" data-act="plnew" data-k="plnew" aria-haspopup="menu" aria-expanded="false">' + L.icon('plus', 's') + 'New playlist' + L.icon('chevdown', 's') + '</button></div>' +
+      '<button class="btn primary" data-act="plnew" data-k="plnew" aria-haspopup="menu" aria-expanded="false">' + L.icon('plus', 's') + 'New playlist' + L.icon('chevdown', 's') + '</button></div>' +
       '<div class="viewbody fill pl-listbody">' + dropNotice('list') +
       '<div class="pl-tools"><div class="search pl-search">' + L.icon('search') + '<input class="input" type="search" placeholder="Search playlists" aria-label="Search playlists by name or tag" data-input="plfq" data-k="plfq" value="' + esc(filt.q) + '"></div>' +
       seg('lane', 'Music, ambience or FX', [['all', 'All'], ['music', 'Music'], ['amb', 'Ambience'], ['fx', 'FX']]) +
@@ -5463,8 +5467,8 @@ var L = (function () {
         '<input class="input ap-ml" data-input="apmlabel" data-i="' + i + '" data-k="ap-ml-' + i + '" value="' + esc(m.label) + '" aria-label="Marker label at ' + L.fmt(m.at) + '"' + dis(t) + '>' +
         '<button class="btn s" data-act="apgo" data-at="' + m.at + '" data-k="ap-mgo-' + i + '" title="Move the playhead to ' + L.fmt(m.at) + '" aria-label="Go to ' + esc(m.label) + '">' + L.icon('right', 's') + 'Go to</button>' +
         // Round 7 (DAT-3): the mix-out point (where the next track crossfades in; one per track) and playing from here.
-        '<button class="btn s' + (m.mix ? ' primary' : ' ghost') + '" data-act="apmix" data-i="' + i + '" data-k="ap-mmix-' + i + '" aria-pressed="' + !!m.mix + '" aria-label="Mix out at ' + esc(m.label) + '" title="The next track crossfades in here"' + dis(t) + '>' + L.icon('fade', 's') + 'Mix out</button>' +
-        '<button class="btn s icon" data-act="apfrom" data-at="' + m.at + '" data-k="ap-mfrom-' + i + '" aria-label="Play on air from ' + esc(m.label) + '" title="Play on air from ' + L.fmt(m.at) + ' (the players hear it)">' + L.icon('playair', 's') + '</button>' +
+        '<button class="btn s' + (m.mix ? ' primary' : ' ghost r7-hov') + '" data-act="apmix" data-i="' + i + '" data-k="ap-mmix-' + i + '" aria-pressed="' + !!m.mix + '" aria-label="Mix out at ' + esc(m.label) + '" title="The next track crossfades in here"' + dis(t) + '>' + L.icon('fade', 's') + 'Mix out</button>' +
+        '<button class="btn s icon r7-hov" data-act="apfrom" data-at="' + m.at + '" data-k="ap-mfrom-' + i + '" aria-label="Play on air from ' + esc(m.label) + '" title="Play on air from ' + L.fmt(m.at) + ' (the players hear it)">' + L.icon('playair', 's') + '</button>' +
         '<button class="closer" data-act="apmdel" data-i="' + i + '" data-k="ap-mdel-' + i + '" title="Remove this marker" aria-label="Remove marker ' + esc(m.label) + '"' + dis(t) + '>' + L.icon('trash') + '</button></li>';
     }).join('') + '</ol>';
   }
@@ -7621,10 +7625,9 @@ var L = (function () {
       var own = t.title, meta = t.metaTitle, shown = own || meta || t.file;
       var air = (onAirNow(t) ? L.destTag('air', '') : '') + (L.previewing(t.id) ? L.destTag('you', '') : '');
       var tip = (own ? '' : 'No title of your own yet. ') + (meta && meta !== own ? 'In the file: ' + meta + '. ' : '') + t.artist + (t.album ? ', ' + t.album : '');
-      // Round 7 (ORG-5): a row can be dragged to another list; with ticked rows, all of them go.
-      h += '<tr data-tid="' + t.id + '" ' + L.orgItem('track', st.sel.indexOf(t.id) > -1 ? st.sel.join(',') : t.id) + ' data-act="lbopen" data-k="lbrow-' + t.id + '" tabindex="' + (t.id === st.cursor ? 0 : -1) + '" aria-selected="' + sel + '"' + (open ? ' class="lb-open" aria-current="true"' : '') + '>' +
+      h += '<tr data-tid="' + t.id + '" data-act="lbopen" data-k="lbrow-' + t.id + '" tabindex="' + (t.id === st.cursor ? 0 : -1) + '" aria-selected="' + sel + '"' + (open ? ' class="lb-open" aria-current="true"' : '') + '>' +
         '<td class="lb-c-ck" data-act="lbsel" data-tid="' + t.id + '"><span class="lb-ckl"><input type="checkbox" tabindex="-1" aria-label="Select ' + esc(L.title(t)) + '"' + (sel ? ' checked' : '') + '></span></td>' +
-        '<td class="lb-c-title" title="' + esc(shown + ' — ' + tip) + '"><div class="lb-tl">' + kindMark(t) + '<span class="lb-t1' + (own ? '' : ' untitled') + '">' + esc(shown) + '</span>' +
+        '<td class="lb-c-title" title="' + esc(shown + ' — ' + tip) + '"><div class="lb-tl" ' + dragAttrs(t) + '>' + kindMark(t) + '<span class="lb-t1' + (own ? '' : ' untitled') + '">' + esc(shown) + '</span>' +
           (own && meta && meta !== own && open ? '<span class="lb-t2">' + esc(meta) + '</span>' : '') + air + (t.isNew ? '<span class="badge lb-newb">New</span>' : '') +
           (t.missing ? '<span class="badge warn lb-miss" title="Lyre cannot find this file at ' + esc(t.folder) + '">' + L.icon('warn', 's') + 'Missing</span>' : '') + '</div></td>' +
         '<td class="lb-c-tags"><span class="lb-tagcell">' + L.shapeTag(t, true) + rowChips(t, 1) + '</span></td>' +
@@ -7638,6 +7641,8 @@ var L = (function () {
   }
 
   /* ---------- Details pane ---------- */
+  // Round 7 (ORG-5): a row's title is dragged to another list; with ticked rows, all of them go.
+  function dragAttrs(t) { return L.orgItem('track', st.sel.indexOf(t.id) > -1 ? st.sel.join(',') : t.id); }
   function cbxOptions(t, g) {
     if (cbx.g !== g) return [];
     var q = cbx.q.trim().toLowerCase(), have = t.tags[g] || [];
@@ -8390,7 +8395,7 @@ var L = (function () {
     render: function () {
       var list = shown(), all = D.boards.length, any = bf.q || bf.used !== 'all' || bf.cid !== 'all';
       return '<div class="viewhead"><h1>Pad boards</h1><span class="muted grow pb-sub">' + (any ? 'Showing ' + list.length + ' of ' + all : plural(all, 'board')) + '</span>' +
-        L.newFolderButton('boards') + '<button class="btn primary" data-act="pbnew" data-k="pb-new">' + L.icon('plus', 's') + 'New board</button></div>' +
+        '<button class="btn primary" data-act="pbnew" data-k="pb-new">' + L.icon('plus', 's') + 'New board</button></div>' +
         '<div class="viewbody"><div class="pb-ltools"><div class="search pb-lsearch">' + L.icon('search') + '<input class="input" type="search" placeholder="Search boards and pads" aria-label="Search pad boards by board name or pad label" data-input="pbq" data-k="pbq" value="' + esc(bf.q) + '"></div>' +
         filtSeg() + '<label class="pb-camp"><span>Campaign</span><select class="input" data-input="pbcamp" data-k="pbcamp">' +
         '<option value="all">All campaigns</option>' + D.campaigns.map(function (c) { return '<option value="' + c.id + '"' + (bf.cid === c.id ? ' selected' : '') + '>' + esc(c.name) + '</option>'; }).join('') + '</select></label></div>' +
@@ -8564,8 +8569,6 @@ var L = (function () {
       (on ? L.destTag('air', '') : '') + '</div>' +
       '<div class="field"><label for="pb-label">Label</label><input id="pb-label" class="input" data-input="pblabel" data-k="pb-label" data-save="pad label {v}" value="' + esc(p.label) + '"></div>' +
       soundEditor(p) +
-      // Round 7 (PLY-8): what the pad does, as steps; one step (its sound) unless more are added.
-      '<div class="pb-steps">' + L.stepsButton('pad', b.id + '/' + p.id) + '</div>' +
       fieldset('Play mode', '<div class="pb-modes" role="group" aria-label="Play mode">' + ['oneshot', 'toggle', 'hold', 'retrigger'].map(function (m) {
         return '<button class="btn s" data-act="pbmode" data-v="' + m + '" data-k="pbm-' + m + '" aria-pressed="' + (p.mode === m) + '" aria-describedby="pb-modehelp" title="' + MODE_HELP[m] + '">' + L.icon(L.modeIcon[m], 's') + L.modeName[m] + '</button>';
       }).join('') + '</div><p class="pb-modehelp" id="pb-modehelp">' + MODE_HELP[p.mode] + '</p>') +
@@ -8765,7 +8768,8 @@ var L = (function () {
   }
   L.acts.pbpadmenu = withPad(function (b, p, el) {
     ui.menuPad = p.id; ui.menuAnchor = el;
-    L.menu(el, '<button role="menuitem" data-act="pbduppad">Duplicate pad</button><button role="menuitem" data-act="pbmovemenu2">Move to…</button><div class="sep"></div>' +
+    // Round 7 (PLY-8): what the pad does, as steps (its sound, unless more are added), out of sight in this menu.
+    L.menu(el, L.stepsItem('pad', b.id + '/' + p.id) + '<button role="menuitem" data-act="pbduppad">Duplicate pad</button><button role="menuitem" data-act="pbmovemenu2">Move to…</button><div class="sep"></div>' +
       '<button role="menuitem" data-act="pbdelpad" data-pid="' + p.id + '">' + L.icon('trash', 's') + 'Delete pad…</button>', 'Pad');
   });
   L.acts.pbmovemenu2 = function () { var b = board(), a = ui.menuAnchor && document.contains(ui.menuAnchor) ? ui.menuAnchor : document.querySelector('.pb-pad.sel'); if (a) L.menu(a, moveMenu(b, ui.menuPad), 'Move to'); };
@@ -10067,9 +10071,15 @@ var L = (function () {
     });
     paintPalette(); L.say('Find and play');
   };
+  // Focus goes back where it was; if the screen was drawn again meanwhile, to the same control (or heading) there.
+  function refocus(back) {
+    if (!back) return;
+    if (!document.contains(back)) back = (back.dataset && back.dataset.k && document.querySelector('[data-k="' + back.dataset.k + '"]')) || (back.tagName === 'H1' && document.querySelector('#view h1')) || null;
+    if (back) { if (back.tagName === 'H1') back.setAttribute('tabindex', '-1'); back.focus({ preventScroll: true }); }
+  }
   function closePalette(keepFocus) {
     if (!pal) return; var back = pal.back; pal.el.remove(); pal = null;
-    if (!keepFocus && back && document.contains(back)) back.focus();
+    if (!keepFocus) refocus(back);
   }
   L.closePalette = closePalette;
   function run(how) {
@@ -10084,7 +10094,7 @@ var L = (function () {
     if (r.t || r.p) L.acts.onair({ dataset: { kind: r.t ? 'track' : 'playlist', id: r.id } });
     else if (r.kind === 'pad') { L.firePad(r.bid, r.pid); L.toast('Pad on air: ' + r.name); }
     else { L.startScene(r.cid, r.sid, r.idx); L.toast('Scene on air: ' + r.name); }
-    if (back && document.contains(back)) back.focus();
+    refocus(back);
   }
   document.addEventListener('keydown', function (e) {
     if (pal || capture || document.getElementById('lyre-sheet') || e.defaultPrevented) return;
@@ -10162,7 +10172,7 @@ var L = (function () {
 /* Round 7, DAT-10: tag groups. The Tags screen (#/tags; Library › ⋯ › Tags and groups…, and Look and feel › Tag
    colours…) keeps the vocabulary tidy: groups (Mood, Leitmotif, Scene type and any of the game master's own), each
    with its tags, in the order chosen; a colour per group and, if wanted, per tag; a tag inside another (Leitmotif ›
-   Villains › Ashen King); other words for a tag (typing "sad" offers Melancholy). Rename, Merge into… and Delete…
+   Villains › Ashen King; the sample has Mood › Dread › Eerie); other words for a tag (typing "sad" offers Melancholy). Rename, Merge into… and Delete…
    change every track, and every dynamic playlist rule that names the tag, in one step that Undo takes back.
 
    The data (for the lead's contract; src/common/domain has groups and values already):
@@ -10179,9 +10189,9 @@ var L = (function () {
   var COLOURS = Object.keys(L.colors); // steel, ember, gold, moss, violet, plum, sea, bone
   function colourName(c) { return c ? c[0].toUpperCase() + c.slice(1) : ''; }
   D.tagMeta = D.tagMeta || { mood: { Melancholy: { also: ['sad', 'sorrowful'] }, Dread: { also: ['fear', 'horror'] }, Tense: { also: ['suspense'] } },
-    motif: { 'Ashen King': { parent: 'Villains' }, 'Drowned Abbess': { parent: 'Villains' } }, scene: {} };
-  // The sample's villains get a tag to hold them (Leitmotif › Villains › Ashen King).
-  if (D.tagValues.motif.indexOf('Villains') < 0) D.tagValues.motif.splice(1, 0, 'Villains');
+    motif: {}, scene: {} };
+  // The sample has one tag inside another: Mood › Dread › Eerie (filtering by Dread finds the eerie tracks too).
+  D.tagMeta.mood.Eerie = { parent: 'Dread' };
 
   function meta(g, v, make) { if (!D.tagMeta[g]) D.tagMeta[g] = {}; if (!D.tagMeta[g][v] && make) D.tagMeta[g][v] = {}; return D.tagMeta[g][v] || {}; }
   function group(id) { return D.tagGroups.filter(function (g) { return g.id === id; })[0]; }
@@ -10383,7 +10393,7 @@ var L = (function () {
     notes: [
       'One box per <b>group</b>, in your order (⋯ › Move up, Move down). <b>Add tag</b> in each box; <b>New group</b> at the top.',
       'A tag\'s ⋯: <b>Rename…</b>, <b>Merge into…</b>, <b>Put inside…</b> (Leitmotif › Villains › Ashen King), <b>Other words…</b> (try typing "sad" in a track\'s Mood), <b>Colour…</b>, <b>Delete…</b>. Rename, merge and delete change every track and dynamic playlist rule at once, with Undo.',
-      'Filtering by a tag that holds others finds their tracks too (Library › Filters › Leitmotif › Villains).'
+      'Filtering by a tag that holds others finds their tracks too (Library › Filters › Mood › Dread finds the eerie ones).'
     ],
     render: function () {
       return '<div class="viewhead"><h1>Tags</h1><span class="grow"></span><button class="btn" data-act="tgnewgroup" data-k="tg-newgroup">' + L.icon('plus', 's') + 'New group</button></div>' +
@@ -10397,7 +10407,8 @@ var L = (function () {
 /* Round 7, ORG-4 folders and dividers, ORG-5 dragging between lists (ROUND7.md).
 
    Folders (Playlists page and Pad boards page; the same parts serve sessions and scene blocks later)
-     New folder beside New playlist / New board; a folder row folds and unfolds; ⋯: Rename…, New folder inside…,
+     A folder is made from a playlist's or board's ⋯ › Move to folder… › New folder… (it then holds that one), or with
+     a folder's ⋯ › New folder inside…; a folder row folds and unfolds; ⋯: Rename…, New folder inside…,
      Colour…, Delete folder (what was in it moves up a level, nothing is deleted). A playlist or board goes in with
      its ⋯ › Move to folder…, or by dragging it onto the folder.
      Data: D.orgFolders[kind] = [{ id, name, parent, color, closed }], D.orgIn[kind][itemId] = folderId.
@@ -10426,7 +10437,6 @@ var L = (function () {
 
   /* ---------- folders ---------- */
   L.orgItem = function (kind, id) { return 'draggable="true" data-org="' + kind + ':' + esc(id) + '"'; };
-  L.newFolderButton = function (kind) { return '<button class="btn" data-act="fonew" data-kind="' + kind + '" data-k="fo-new-' + kind + '">' + L.icon('folder', 's') + 'New folder</button>'; };
   L.moveToFolderItem = function (kind, id, name) { return '<button role="menuitem" data-act="fomoveto" data-kind="' + kind + '" data-id="' + esc(id) + '" data-name="' + esc(name) + '">' + L.icon('folder', 's') + 'Move to folder…</button>'; };
   // items: what the screen shows now (after its search and filters), in its order; row(item) draws one.
   L.inFolders = function (kind, items, row) {
@@ -10455,12 +10465,15 @@ var L = (function () {
   }
   function nameVal() { var f = document.getElementById('fo-name'); return f ? f.value.trim() : ''; }
   function focusK(k) { var n = document.querySelector('[data-k="' + k + '"]'); if (n) n.focus(); }
-  L.acts.fonew = function (el) { nameSheet('New folder', '', 'Add folder', 'fonewok', 'data-kind="' + el.dataset.kind + '" data-parent="' + (el.dataset.parent || '') + '"'); };
+  // A folder is made from Move to folder… (it then holds what was being moved) or inside another folder.
+  L.acts.fonew = function (el) { nameSheet('New folder', '', 'Add folder', 'fonewok', 'data-kind="' + el.dataset.kind + '" data-parent="' + (el.dataset.parent || '') + '" data-move="' + esc(el.dataset.move || '') + '"'); };
   L.acts.fonewok = function (el) {
     var kind = el.dataset.kind, name = nameVal(); if (!name) { L.toast('Give the folder a name'); return; }
     var f = { id: L.uid('fo'), name: name, parent: el.dataset.parent || '', color: '', closed: false }; folders(kind).push(f);
     if (f.parent) folder(kind, f.parent).closed = false;
-    L.closeSheet(); L.render(); L.saved('folder “' + name + '”'); focusK('fo-' + f.id);
+    L.closeSheet();
+    if (el.dataset.move) { moveInto(kind, el.dataset.move, f.id); focusK('fo-' + f.id); return; }
+    L.render(); L.saved('folder “' + name + '”'); focusK('fo-' + f.id);
   };
   L.acts.fotoggle = function (el) { var f = folder(el.dataset.kind, el.dataset.id); f.closed = !f.closed; L.render(); L.say(f.name + (f.closed ? ' folded' : ' open')); focusK('fo-' + f.id); };
   L.acts.fomenu = function (el) {
@@ -10494,7 +10507,7 @@ var L = (function () {
     L.sheet({ title: 'Move ' + el.dataset.name + ' to', body: folders(kind).length ? '<div class="fo-pick" role="radiogroup" aria-label="Folder">' + opts.map(function (o) {
       return '<label class="lk-radio"><input type="radio" name="fo-to" value="' + o[0] + '"' + (cur === o[0] ? ' checked' : '') + '><span>' + esc(o[1]) + '</span></label>';
     }).join('') + '</div>' : '<p>No folders yet.</p>',
-      footer: '<button class="btn" data-act="closesheet">Cancel</button><button class="btn" data-act="fonew" data-kind="' + kind + '">' + L.icon('folder', 's') + 'New folder…</button><button class="btn primary" data-act="fomovetook" data-kind="' + kind + '" data-id="' + esc(id) + '">Move</button>' });
+      footer: '<button class="btn" data-act="closesheet">Cancel</button><button class="btn" data-act="fonew" data-kind="' + kind + '" data-move="' + esc(id) + '">' + L.icon('folder', 's') + 'New folder…</button><button class="btn primary" data-act="fomovetook" data-kind="' + kind + '" data-id="' + esc(id) + '">Move</button>' });
     var f = document.querySelector('#lyre-sheet input:checked') || document.querySelector('#lyre-sheet input'); if (f) f.focus();
   };
   function moveInto(kind, id, fid) {
@@ -10783,10 +10796,7 @@ var L = (function () {
     var a = document.activeElement, keep = k || (a && a.dataset && a.dataset.k); b.innerHTML = edBody();
     var f = keep && b.querySelector('[data-k="' + keep + '"]'); if (f && !f.disabled) f.focus(); else { var g = b.querySelector('[data-k="stp-add"]'); if (g) g.focus(); }
   }
-  L.stepsButton = function (what, ref) {
-    var x = what === 'pad' && padOf(ref), changed = x && x.p.steps;
-    return '<button class="btn s' + (changed ? '' : ' ghost') + '" data-act="stepsopen" data-what="' + what + '" data-ref="' + esc(ref) + '" data-k="steps-' + esc(ref) + '" title="' + esc(words(L.stepsOf(what, ref))) + '">' + L.icon('list', 's') + 'What it does…</button>';
-  };
+  L.stepsItem = function (what, ref) { return '<button role="menuitem" data-act="stepsopen" data-what="' + what + '" data-ref="' + esc(ref) + '">' + L.icon('list', 's') + 'What it does…</button>'; };
   L.sceneMarks = function (sc) {
     var m = '';
     if (sc.then && sc.then !== 'stay') m += '<span class="badge r7-mark" title="' + (sc.then === 'end' ? 'Starts the next scene when its music ends' : 'Starts the next scene after ' + (sc.afterMin || 5) + ' minutes') + '">' + L.icon('next', 's') + 'Moves on by itself</span>';
@@ -10919,15 +10929,19 @@ var L = (function () {
     return row.replace('role="group" aria-label="Loop advice"', 'role="group" aria-label="Loop advice" aria-describedby="r7-sting"').replace(/<button class="chip lb-pick"/g, '<button disabled class="chip lb-pick"') +
       '<p class="sr-only" id="r7-sting">A sting plays once; it never loops.</p>';
   };
+  // Only the choices that fit the track's role show (less to read): an underscore can fade out at its end, pick up
+  // where it stopped and hand over; a loop bed picks up; a sting or a transition hands over (and a transition can
+  // fade). A track with no role yet shows none of them.
+  var ROWS = { Underscore: ['ending', 'resume', 'then'], 'Loop bed': ['resume'], Sting: ['then'], Transition: ['ending', 'then'] };
   L.playRows = function (t) {
-    if (t.kind === 'fx') return '';
-    var fades = t.ending === 'fades', f = t.follow;
-    return '<div class="lb-tg"><div class="lb-tgl">Ending</div><div class="chips" role="group" aria-label="Ending">' +
-      [['hard', 'Hard end'], ['fades', 'Fades out']].map(function (x) { var on = (fades ? 'fades' : 'hard') === x[0]; return '<button class="chip lb-pick" data-act="r7ending" data-v="' + x[0] + '" data-k="lb-end-' + x[0] + '" aria-pressed="' + on + '" title="' + (x[0] === 'fades' ? 'Lyre fades it out before its end (set the length in the Audio profile)' : 'It plays to its last second') + '">' + (on ? L.icon('check', 's') : '') + x[1] + '</button>'; }).join('') + '</div></div>' +
-      '<label class="lv-switch lb-resume" title="A long underscore starts again where it was last stopped"><input type="checkbox" role="switch" data-input="r7resume" data-k="lb-resume"' + (t.resume ? ' checked' : '') + '><span class="lv-switch-t"><b>Pick up where it stopped</b></span></label>' +
-      '<div class="lb-tg"><div class="lb-tgl" id="lb-then-l">Then</div><div class="chips" role="group" aria-labelledby="lb-then-l">' +
+    var rows = (t.kind !== 'fx' || t.role === 'Sting') && ROWS[t.role] || []; if (!rows.length) return '';
+    var fades = t.ending === 'fades', f = t.follow, has = function (x) { return rows.indexOf(x) > -1; };
+    return (has('ending') ? '<div class="lb-tg"><div class="lb-tgl">Ending</div><div class="chips" role="group" aria-label="Ending">' +
+      [['hard', 'Hard end'], ['fades', 'Fades out']].map(function (x) { var on = (fades ? 'fades' : 'hard') === x[0]; return '<button class="chip lb-pick" data-act="r7ending" data-v="' + x[0] + '" data-k="lb-end-' + x[0] + '" aria-pressed="' + on + '" title="' + (x[0] === 'fades' ? 'Lyre fades it out before its end (set the length in the Audio profile)' : 'It plays to its last second') + '">' + (on ? L.icon('check', 's') : '') + x[1] + '</button>'; }).join('') + '</div></div>' : '') +
+      (has('resume') ? '<label class="lv-switch lb-resume" title="A long underscore or bed starts again where it was last stopped"><input type="checkbox" role="switch" data-input="r7resume" data-k="lb-resume"' + (t.resume ? ' checked' : '') + '><span class="lv-switch-t"><b>Pick up where it stopped</b></span></label>' : '') +
+      (!has('then') ? '' : '<div class="lb-tg"><div class="lb-tgl" id="lb-then-l">Then</div><div class="chips" role="group" aria-labelledby="lb-then-l">' +
       (f ? '<span class="chip"><span class="lane-dot music" aria-hidden="true"></span>' + esc(itemName(f)) + '<button class="x" data-act="r7follownone" data-k="lb-follow-x" title="Remove" aria-label="Stop following with ' + esc(itemName(f)) + '">' + L.icon('close') + '</button></span><button class="btn s ghost" data-act="r7follow" data-k="lb-follow">Change…</button>'
-        : '<button class="btn s ghost" data-act="r7follow" data-k="lb-follow" title="When it ends, play a playlist or a track">' + L.icon('next', 's') + 'Follow with…</button>') + '</div></div>';
+        : '<button class="btn s ghost" data-act="r7follow" data-k="lb-follow" title="When it ends, play a playlist or a track">' + L.icon('next', 's') + 'Follow with…</button>') + '</div></div>');
   };
   function curTrack() { var r = L.current(); return r.name === 'library' && L.track(r.p.tid); }
   L.acts.r7ending = function (el) {
@@ -10947,7 +10961,8 @@ var L = (function () {
 
   /* ---------- PLY-1 what played ---------- */
   L.historyButton = function (target, name, k) {
-    return '<button class="btn s icon" data-act="r7played" data-room="' + esc(target) + '" data-name="' + esc(name || '') + '" data-k="' + k + '-played" aria-label="What played" title="What played' + (name ? ' in ' + esc(name) : '') + ', with Play again">' + L.icon('queue', 's') + '</button>';
+    // Shown on pointer hover or keyboard focus in the row (round 6 rule 5: hide the rare, show the frequent).
+    return '<button class="btn s icon r7-hov" data-act="r7played" data-room="' + esc(target) + '" data-name="' + esc(name || '') + '" data-k="' + k + '-played" aria-label="What played" title="What played' + (name ? ' in ' + esc(name) : '') + ', with Play again">' + L.icon('queue', 's') + '</button>';
   };
   function ago(at) { var m = Math.round((Date.now() - at) / 60000); return m < 1 ? 'Now' : m + ' min ago'; }
   L.acts.r7played = function (el) {

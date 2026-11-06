@@ -370,39 +370,38 @@ test.describe("round 5: volume normalisation", () => {
 test.describe("round 7: folders", () => {
   test.beforeEach(() => expectFailureUntilBuilt("round 7"));
 
-  async function newFolder(page: Page, name: string) {
-    await page.getByRole("button", { name: "New folder" }).click();
+  // A folder is made from Move to folder… (and then holds that playlist), or inside another folder.
+  async function intoNewFolder(page: Page, playlist: string, name: string) {
+    await page.getByRole("button", { name: `More for ${playlist}`, exact: true }).click();
+    await page.getByRole("menuitem", { name: "Move to folder…" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "New folder…" }).click();
     await page.getByRole("dialog").getByRole("textbox", { name: "Name" }).fill(name);
     await page.getByRole("dialog").getByRole("button", { name: "Add folder" }).click();
   }
   const folder = (page: Page, name: string) => page.getByRole("button", { name: new RegExp(`^Folder ${name}`) });
 
-  test("New folder, then Move to folder… from a playlist's ⋯ puts it inside; folding the folder hides it", async ({ page }) => {
+  test("Move to folder… › New folder… makes a folder with the playlist in it; folding the folder hides it", async ({ page }) => {
     await openRoute(page, "playlists");
-    await newFolder(page, "The abbey");
-    await expect(folder(page, "The abbey")).toBeVisible();
-    await page.getByRole("button", { name: "More for The Abbess" }).click();
-    await page.getByRole("menuitem", { name: "Move to folder…" }).click();
-    await page.getByRole("dialog").getByRole("radio", { name: "The abbey" }).check();
-    await page.getByRole("dialog").getByRole("button", { name: "Move" }).click();
+    await intoNewFolder(page, "The Abbess", "The abbey");
     await expect(page.getByRole("list", { name: "In The abbey" }).getByRole("link", { name: /^The Abbess / })).toBeVisible();
     await folder(page, "The abbey").click();
     await expect(folder(page, "The abbey")).toHaveAttribute("aria-expanded", "false");
     await expect(page.getByRole("link", { name: /^The Abbess / })).toBeHidden();
   });
 
-  test("folders nest, and deleting a folder keeps its playlists (they move up a level)", async ({ page }) => {
+  test("folders nest, a playlist moves between them, and deleting a folder keeps its playlists (they move up a level)", async ({ page }) => {
     await openRoute(page, "playlists");
-    await newFolder(page, "Sunken Crown");
+    await intoNewFolder(page, "Ashen King", "Sunken Crown");
     await page.getByRole("button", { name: "More for the folder Sunken Crown" }).click();
     await page.getByRole("menuitem", { name: "New folder inside…" }).click();
     await page.getByRole("dialog").getByRole("textbox", { name: "Name" }).fill("Villains");
     await page.getByRole("dialog").getByRole("button", { name: "Add folder" }).click();
     await expect(page.getByRole("list", { name: "In Sunken Crown" }).getByRole("button", { name: /^Folder Villains/ })).toBeVisible();
-    await page.getByRole("button", { name: "More for Ashen King" }).click();
+    await page.getByRole("button", { name: "More for Ashen King", exact: true }).click();
     await page.getByRole("menuitem", { name: "Move to folder…" }).click();
     await page.getByRole("dialog").getByRole("radio", { name: "Sunken Crown › Villains" }).check();
     await page.getByRole("dialog").getByRole("button", { name: "Move" }).click();
+    await expect(page.getByRole("list", { name: "In Villains" }).getByRole("link", { name: /^Ashen King / })).toBeVisible();
     await page.getByRole("button", { name: "More for the folder Villains" }).click();
     await page.getByRole("menuitem", { name: "Delete folder" }).click();
     await expect(page.getByRole("list", { name: "In Sunken Crown" }).getByRole("link", { name: /^Ashen King / })).toBeVisible();
@@ -410,7 +409,7 @@ test.describe("round 7: folders", () => {
 
   test("a playlist can be dragged onto a folder", async ({ page }) => {
     await openRoute(page, "playlists");
-    await newFolder(page, "Travel");
+    await intoNewFolder(page, "Open country", "Travel");
     await page.getByRole("link", { name: /^Coast road travel / }).dragTo(folder(page, "Travel"));
     await expect(page.getByRole("list", { name: "In Travel" }).getByRole("link", { name: /^Coast road travel / })).toBeVisible();
   });

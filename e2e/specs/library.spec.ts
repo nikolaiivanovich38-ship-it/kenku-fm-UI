@@ -424,7 +424,8 @@ test.describe("round 7: how a track behaves", () => {
 
   test("Ending: Fades out, and Pick up where it stopped, are saved with the track", async ({ page }) => {
     await openRoute(page, "library");
-    await openTrack(page, "Ancient sorrow, choir");
+    // An underscore: it can fade out at its end, and pick up where it stopped.
+    await openTrack(page, "Storm and dark romance");
     await details(page).getByRole("group", { name: "Ending" }).getByRole("button", { name: "Fades out" }).click();
     await expect(page.getByRole("status").filter({ hasText: /ending: fades out$/ })).toBeVisible();
     await details(page).getByRole("switch", { name: "Pick up where it stopped" }).check();

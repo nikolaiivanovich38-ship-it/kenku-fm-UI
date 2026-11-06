@@ -1,7 +1,8 @@
 /* Round 7, ORG-4 folders and dividers, ORG-5 dragging between lists (ROUND7.md).
 
    Folders (Playlists page and Pad boards page; the same parts serve sessions and scene blocks later)
-     New folder beside New playlist / New board; a folder row folds and unfolds; ⋯: Rename…, New folder inside…,
+     A folder is made from a playlist's or board's ⋯ › Move to folder… › New folder… (it then holds that one), or with
+     a folder's ⋯ › New folder inside…; a folder row folds and unfolds; ⋯: Rename…, New folder inside…,
      Colour…, Delete folder (what was in it moves up a level, nothing is deleted). A playlist or board goes in with
      its ⋯ › Move to folder…, or by dragging it onto the folder.
      Data: D.orgFolders[kind] = [{ id, name, parent, color, closed }], D.orgIn[kind][itemId] = folderId.
@@ -30,7 +31,6 @@
 
   /* ---------- folders ---------- */
   L.orgItem = function (kind, id) { return 'draggable="true" data-org="' + kind + ':' + esc(id) + '"'; };
-  L.newFolderButton = function (kind) { return '<button class="btn" data-act="fonew" data-kind="' + kind + '" data-k="fo-new-' + kind + '">' + L.icon('folder', 's') + 'New folder</button>'; };
   L.moveToFolderItem = function (kind, id, name) { return '<button role="menuitem" data-act="fomoveto" data-kind="' + kind + '" data-id="' + esc(id) + '" data-name="' + esc(name) + '">' + L.icon('folder', 's') + 'Move to folder…</button>'; };
   // items: what the screen shows now (after its search and filters), in its order; row(item) draws one.
   L.inFolders = function (kind, items, row) {
@@ -59,12 +59,15 @@
   }
   function nameVal() { var f = document.getElementById('fo-name'); return f ? f.value.trim() : ''; }
   function focusK(k) { var n = document.querySelector('[data-k="' + k + '"]'); if (n) n.focus(); }
-  L.acts.fonew = function (el) { nameSheet('New folder', '', 'Add folder', 'fonewok', 'data-kind="' + el.dataset.kind + '" data-parent="' + (el.dataset.parent || '') + '"'); };
+  // A folder is made from Move to folder… (it then holds what was being moved) or inside another folder.
+  L.acts.fonew = function (el) { nameSheet('New folder', '', 'Add folder', 'fonewok', 'data-kind="' + el.dataset.kind + '" data-parent="' + (el.dataset.parent || '') + '" data-move="' + esc(el.dataset.move || '') + '"'); };
   L.acts.fonewok = function (el) {
     var kind = el.dataset.kind, name = nameVal(); if (!name) { L.toast('Give the folder a name'); return; }
     var f = { id: L.uid('fo'), name: name, parent: el.dataset.parent || '', color: '', closed: false }; folders(kind).push(f);
     if (f.parent) folder(kind, f.parent).closed = false;
-    L.closeSheet(); L.render(); L.saved('folder “' + name + '”'); focusK('fo-' + f.id);
+    L.closeSheet();
+    if (el.dataset.move) { moveInto(kind, el.dataset.move, f.id); focusK('fo-' + f.id); return; }
+    L.render(); L.saved('folder “' + name + '”'); focusK('fo-' + f.id);
   };
   L.acts.fotoggle = function (el) { var f = folder(el.dataset.kind, el.dataset.id); f.closed = !f.closed; L.render(); L.say(f.name + (f.closed ? ' folded' : ' open')); focusK('fo-' + f.id); };
   L.acts.fomenu = function (el) {
@@ -98,7 +101,7 @@
     L.sheet({ title: 'Move ' + el.dataset.name + ' to', body: folders(kind).length ? '<div class="fo-pick" role="radiogroup" aria-label="Folder">' + opts.map(function (o) {
       return '<label class="lk-radio"><input type="radio" name="fo-to" value="' + o[0] + '"' + (cur === o[0] ? ' checked' : '') + '><span>' + esc(o[1]) + '</span></label>';
     }).join('') + '</div>' : '<p>No folders yet.</p>',
-      footer: '<button class="btn" data-act="closesheet">Cancel</button><button class="btn" data-act="fonew" data-kind="' + kind + '">' + L.icon('folder', 's') + 'New folder…</button><button class="btn primary" data-act="fomovetook" data-kind="' + kind + '" data-id="' + esc(id) + '">Move</button>' });
+      footer: '<button class="btn" data-act="closesheet">Cancel</button><button class="btn" data-act="fonew" data-kind="' + kind + '" data-move="' + esc(id) + '">' + L.icon('folder', 's') + 'New folder…</button><button class="btn primary" data-act="fomovetook" data-kind="' + kind + '" data-id="' + esc(id) + '">Move</button>' });
     var f = document.querySelector('#lyre-sheet input:checked') || document.querySelector('#lyre-sheet input'); if (f) f.focus();
   };
   function moveInto(kind, id, fid) {
