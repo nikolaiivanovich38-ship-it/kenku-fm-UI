@@ -123,7 +123,7 @@ function measure() {
     for (const [w, h] of SIZES) {
       const p = await b.newPage({ viewport: { width: w, height: h } });
       const errs = []; p.on('pageerror', (e) => errs.push(e.message));
-      await p.addInitScript(() => { try { localStorage.setItem('lyre-r2', JSON.stringify({ theme: 'campaign', frame: 'full', notes: false })); } catch (e) { /* no storage */ } });
+      await p.addInitScript(() => { try { localStorage.setItem('lyre-r2', JSON.stringify({ theme: 'campaign', frame: 'full', notes: false, tour: 'done' })); } catch (e) { /* no storage */ } });
       await p.goto(FILE + route); await p.waitForTimeout(250);
       if (act) { try { await p.evaluate(act); } catch (e) { errs.push('could not prepare the screen: ' + e.message.split('\n')[0]); } await p.waitForTimeout(400); }
       const r = await p.evaluate(measure);

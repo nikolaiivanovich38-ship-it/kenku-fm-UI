@@ -37,7 +37,7 @@ const CONTRAST_SEL = '.tagstrip .chip, .shape-tag, .dest, .onairbar .oab-title, 
     if (w === 1920 && theme === 'parchment') continue;
     const p = await b.newPage({ viewport: { width: w, height: h } });
     const errs = []; p.on('pageerror', (e) => errs.push(e.message)); p.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });
-    await p.addInitScript((t) => { try { localStorage.setItem('lyre-r2', JSON.stringify({ theme: t, frame: 'full', notes: false })); } catch (e) { /* no storage */ } }, theme);
+    await p.addInitScript((t) => { try { localStorage.setItem('lyre-r2', JSON.stringify({ theme: t, frame: 'full', notes: false, tour: 'done' })); } catch (e) { /* no storage */ } }, theme);
     await p.goto(FILE + route); await p.waitForTimeout(250);
     if (act) { try { await p.evaluate(act); } catch (e) { errs.push('could not prepare the screen: ' + e.message.split('\n')[0]); } await p.waitForTimeout(400); }
     const r = await p.evaluate((sel) => {

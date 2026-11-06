@@ -24,6 +24,8 @@
 var L = (function () {
   var D = LYRE_DATA;
   var L = { data: D, views: {}, acts: {}, inputs: {}, keys: [] };
+  // Could 18 of the round 6 review: the version shown is the one running (in Lyre, the app's own; here, the design's).
+  L.version = '0.5.0';
 
   /* ---------- icons (24 px stroke paths) ---------- */
   var I = {
@@ -58,8 +60,13 @@ var L = (function () {
     inorder: 'M4 7h10M4 12h10M4 17h6M17 9v10M14 16l3 3 3-3',
     volume: 'M3 10v4h3l5 4V6l-5 4zM15 9a4 4 0 0 1 0 6M17.5 6.5a7.5 7.5 0 0 1 0 11',
     upload: 'M12 16V4M7 9l5-5 5 5M4 16v4h16v-4', download: 'M12 4v12M7 11l5 5 5-5M4 16v4h16v-4', warn: 'M12 3 2 20h20zM12 10v4M12 17h.01',
+    help: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8M12 17h.01',
     hand: 'M8 13V5a1.5 1.5 0 0 1 3 0v6M11 11V4a1.5 1.5 0 0 1 3 0v7M14 11V5.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7 6 6 0 0 1-5-3l-2.5-4a1.5 1.5 0 0 1 2.5-1.6L8 15',
     restart: 'M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5',
+    // Should 9 of the round 6 review: one icon, one meaning. Undo is a hooked arrow (restart stays the circle), a muted
+    // room a speaker struck through, Kick a door with an arrow out, Play on air a play triangle sounding out.
+    undo: 'M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11', mute: 'M3 10v4h3l8 5V5L6 10zM17 9.5l5 5M22 9.5l-5 5',
+    leave: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9', playair: 'M4 5v14l10-7zM17 8.5a4 4 0 0 1 0 7M19.8 5.7a8 8 0 0 1 0 12.6',
     one: 'M5 5v14l10-7zM19 5v14',
     headphones: 'M3 18v-6a9 9 0 0 1 18 0v6M21 19a2 2 0 0 1-2 2h-1v-6h3zM3 19a2 2 0 0 0 2 2h1v-6H3z',
     play: 'M7 4v16l13-8z', stop: 'M6 6h12v12H6z', pause: 'M7 5h3v14H7zM14 5h3v14h-3z',
@@ -500,9 +507,9 @@ var L = (function () {
   /* ---------- state ---------- */
   var saved = {};
   try { saved = JSON.parse(localStorage.getItem('lyre-r2') || '{}'); } catch (e) { saved = {}; }
-  L.state = { theme: saved.theme || 'campaign', frame: saved.frame || 'half', rail: saved.rail || 'auto', panes: saved.panes || {}, notes: saved.notes !== false,
+  L.state = { theme: saved.theme || 'campaign', frame: saved.frame || 'half', rail: saved.rail || 'auto', panes: saved.panes || {}, notes: saved.notes !== false, tour: saved.tour === 'done' ? 'done' : '',
     live: { cid: 'crown', sid: 's14', scene: 1, standby: 2 }, ctx: { cid: 'crown' }, shuffleRound: 0 };
-  L.save = function () { try { localStorage.setItem('lyre-r2', JSON.stringify({ theme: L.state.theme, frame: L.state.frame, rail: L.state.rail, panes: L.state.panes, notes: L.state.notes })); } catch (e) { /* storage unavailable: settings last for this visit */ } };
+  L.save = function () { try { localStorage.setItem('lyre-r2', JSON.stringify({ theme: L.state.theme, frame: L.state.frame, rail: L.state.rail, panes: L.state.panes, notes: L.state.notes, tour: L.state.tour })); } catch (e) { /* storage unavailable: settings last for this visit */ } };
 
   /* ---------- simulated playback ---------- */
   var pb = L.pb = { music: null, amb: null, musicOut: [], ambOut: [], fx: [], preview: null, held: false, own: {} };
@@ -708,7 +715,9 @@ var L = (function () {
   L.repeatOneButton = function (key, tid, k, nm, shown) {
     var on = L.oneRepeats(key, tid);
     return '<button class="closer rep1' + (on || shown ? ' shown' : '') + '" data-act="rep1" data-key="' + esc(key) + '" data-id="' + esc(tid) + '" data-k="' + esc(k) + '" aria-pressed="' + on + '"' +
-      ' title="' + (on ? 'Repeats when it ends, every time this scene plays: press to stop' : 'Repeat one: plays again when it ends, saved with this scene') + '" aria-label="Repeat one: ' + esc(nm) + '">' + L.icon('repeat1') + '</button>';
+      // Should 13 of the round 6 review: this Repeat is saved with the scene, unlike On air's (this play only): the
+      // hover text says so, and a pressed one carries a small dot, as a play order chosen for one place does.
+      ' title="' + (on ? 'Repeat in this scene (saved): press to stop' : 'Repeat in this scene (saved): plays again when it ends, every time this scene plays') + '" aria-label="Repeat one: ' + esc(nm) + '">' + L.icon('repeat1') + (on ? '<span class="ord-dot" aria-hidden="true"></span>' : '') + '</button>';
   };
   L.acts.rep1 = function (el) {
     var key = el.dataset.key, id = el.dataset.id, on = !L.oneRepeats(key, id); L.setOneRepeats(key, id, on);
@@ -756,9 +765,12 @@ var L = (function () {
   L.changed = function () { L.render(); L.tick(); };
 
   /* ---------- announcements ---------- */
-  L.say = function (msg) { var r = document.getElementById('lyre-live'); if (r) { r.textContent = ''; setTimeout(function () { r.textContent = msg; }, 30); } };
+  // Could 14 of the round 6 review: one event is announced once. A toast that follows an announcement of the same
+  // event (within half a second) is shown but not read out again.
+  var saidAt = 0;
+  L.say = function (msg) { saidAt = Date.now(); var r = document.getElementById('lyre-live'); if (r) { r.textContent = ''; setTimeout(function () { r.textContent = msg; }, 30); } };
   var toastTimer;
-  L.toast = function (msg) { var t = document.getElementById('lyre-toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 2200); };
+  L.toast = function (msg) { var t = document.getElementById('lyre-toast'); t.textContent = msg; t.hidden = false; if (Date.now() - saidAt < 500) t.setAttribute('aria-hidden', 'true'); else t.removeAttribute('aria-hidden'); clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.hidden = true; }, 2200); };
 
   /* ---------- panes ---------- */
   /* Round 6 (ROUND6.md): a resting status (Ready, Saved, Empty, Copied, or a count the open box already lists) tells
@@ -775,7 +787,7 @@ var L = (function () {
       '<header><h2 class="pane-h"><button class="pane-toggle" data-act="pane" data-id="' + o.id + '" data-k="pane-' + o.id + '" aria-expanded="' + !collapsed + '"' + (o.keys ? ' aria-keyshortcuts="' + esc(o.keys) + '"' : '') + ' title="' + (collapsed ? 'Expand' : 'Collapse') + ' ' + esc(o.title) + (o.keys ? ' (' + esc(o.keys) + ')' : '') + '">' +
       L.icon('chevdown', 's chev') + (o.icon ? L.icon(o.icon, 's') : '') +
       // o.scope + o.label (round 6, part 3): the same box for a session and a campaign, told apart by a small tag.
-      (o.scope ? '<span class="pane-scope">' + esc(o.scope) + '</span><span class="sr-only"> </span>' : '') + '<span class="pane-title">' + esc(o.label || o.title) + '</span></button></h2>' +
+      (o.scope ? (o.scopeHidden ? '<span class="sr-only">' + esc(o.scope) + ' </span>' : '<span class="pane-scope">' + esc(o.scope) + '</span><span class="sr-only"> </span>') : '') + '<span class="pane-title">' + esc(o.label || o.title) + '</span></button></h2>' +
       '<div class="pane-summary">' + (o.summary || '') + '</div>' + (o.status ? '<span class="pane-status s-' + (o.status.tone || 'idle') + '">' + esc(o.status.text) + '</span>' : '') + '<div class="pane-actions">' + (collapsed ? '' : (o.actions || '')) +
       (o.noMax ? '' : '<button class="closer" data-act="panemax" data-id="' + o.id + '" data-k="max-' + o.id + '" title="' + (L.state.maxed === o.id ? 'Back to all panes' : 'Fill the column with ' + esc(o.title)) + '" aria-pressed="' + (L.state.maxed === o.id) + '">' + L.icon(L.state.maxed === o.id ? 'shrink' : 'expand') + '</button>') +
       '</div></header><div class="pane-body' + (o.flush ? ' flush' : '') + '"' + (o.scroll ? ' data-scroll="' + o.scroll + '"' : '') + '>' + (o.body || '') + '</div></section>';
@@ -862,7 +874,7 @@ var L = (function () {
                                    Audio profile goes back to the scene or session it shows). */
   var steps = [];
   function viewOf(h) { for (var i = 0; i < ROUTES.length; i++) if ((h || '').match(ROUTES[i][0])) return ROUTES[i][1]; return ''; }
-  var ROUTE_WORDS = { campaigns: 'Campaigns', library: 'Library', playlists: 'Playlists', boards: 'Pad boards', profile: 'Audio profile', live: 'Live', outputs: 'Outputs',
+  var ROUTE_WORDS = { campaigns: 'Campaigns', library: 'Library', playlists: 'Playlists', boards: 'Pad boards', profile: 'Audio profile', live: 'Live', outputs: 'Rooms',
     look: 'Look and feel', backup: 'Back up, move or share', moved: 'What came across', relink: 'Find missing files', settings: 'Settings' };
   L.routeLabel = function (h) {
     var v = viewOf(h), a = (h || '').replace(/^#\//, '').split('/');
@@ -877,8 +889,10 @@ var L = (function () {
     if (v) v.querySelectorAll('[data-scroll]').forEach(function (s) { scrolls[s.dataset.scroll] = s.scrollTop; });
     // A link inside a scene card (or anything marked data-back-label) names that place: "Back to The abbey ruins".
     var named = from && from.closest && from.closest('[data-back-label]');
+    // Could 15 of the round 6 review: a link in a menu came from the menu's button; Back puts focus there.
+    var viaMenu = from && from.closest && from.closest('.menu') && menuAnchor && menuAnchor.dataset ? menuAnchor.dataset.k : '';
     return { route: curRoute, label: named ? named.dataset.backLabel : L.routeLabel(curRoute), open: named && named.dataset.backOpen ? named.dataset.backOpen : '',
-      scrolls: scrolls, top: v ? v.scrollTop : 0, k: (from && from.dataset && from.dataset.k) || (a && a.dataset && a.dataset.k) || '' };
+      scrolls: scrolls, top: v ? v.scrollTop : 0, k: viaMenu || (from && from.dataset && from.dataset.k) || (a && a.dataset && a.dataset.k) || '' };
   }
   L.route = function (h, o) {
     o = o || {};
@@ -929,6 +943,7 @@ var L = (function () {
     return { name: 'live', p: {} };
   }
   L.current = function () { return resolve(); };
+  L.paint = paint;
   L.themeFor = function (r) {
     if (L.state.theme !== 'campaign') return L.state.theme;
     var cid = r.p.cid || (r.name === 'live' ? L.state.live.cid : L.state.ctx.cid);
@@ -987,6 +1002,7 @@ var L = (function () {
       document.querySelectorAll('#view .col').forEach(function (c) { c.classList.toggle('has-max', !!c.querySelector(':scope > .pane.maxed')); });
       if (v.after) v.after(document.getElementById('view'), r.p);
       paintProto(r, v, theme);
+      if (L.paintHelp) L.paintHelp();
     } finally { rendering = false; }
   };
   /* UX-16 the Now playing bar, and the destination tags used everywhere sound is shown (round 5, Nik's notes of
@@ -1003,9 +1019,11 @@ var L = (function () {
      the track, where it was previewed from, the time, Pause/Play, Stop and the headphone volume.
      In Live the room boxes show what each room hears, so the bar there has the preview row only. Effects alone do not
      bring a row up (they are short): Play on air on an effect says "Effect on air: …". */
-  L.destTag = function (kind, room, paused) {
+  // nobody (round 6 review, Should 10): the hover text when the players do not hear it after all (no room, or nobody
+  // in the room's channel); the tag is then outlined in the warning colour, not filled.
+  L.destTag = function (kind, room, paused, nobody) {
     var you = kind === 'you', words = you ? 'Only you' : 'On air' + (room ? ' · ' + room : '');
-    return '<span class="dest ' + (you ? 'you' : 'air') + (paused ? ' paused' : '') + '" title="' + (you ? 'Only you hear this, in your headphones' : 'The players hear this' + (room ? ' in ' + esc(room) : '')) + '">' +
+    return '<span class="dest ' + (you ? 'you' : 'air') + (paused ? ' paused' : '') + (nobody ? ' warn' : '') + '" title="' + (you ? 'Only you hear this, in your headphones' : nobody ? esc(nobody) : 'The players hear this' + (room ? ' in ' + esc(room) : '')) + '">' +
       L.icon(you ? 'headphones' : 'broadcast', 's') + '<span class="ellipsis">' + esc(words) + '</span></span>';
   };
   function originOf(c) {
@@ -1015,7 +1033,7 @@ var L = (function () {
     return 'Single track';
   }
   L.onAirOrigin = originOf;
-  var SCREEN_NAMES = { campaigns: 'Campaigns', campaign: 'the campaign page', session: 'the session planner', library: 'the Library', playlists: 'Playlists', playlist: 'the playlist', boards: 'Pad boards', board: 'the pad board', profile: 'the Audio profile', live: 'Live', outputs: 'Outputs', backup: 'Back up, move or share', moved: 'What came across', relink: 'Find missing files', settings: 'Settings' };
+  var SCREEN_NAMES = { campaigns: 'Campaigns', campaign: 'the campaign page', session: 'the session planner', library: 'the Library', playlists: 'Playlists', playlist: 'the playlist', boards: 'Pad boards', board: 'the pad board', profile: 'the Audio profile', live: 'Live', outputs: 'Rooms', backup: 'Back up, move or share', moved: 'What came across', relink: 'Find missing files', settings: 'Settings' };
   L.previewVol = 80;
   function roomRow(r, named, first, inLive) {
     var m = r.mix, c = m.music || m.amb, ln = m.music ? 'music' : 'amb', target = r.main ? 'table' : r.id, pk = ln + (r.main ? '' : '@' + r.id);
@@ -1023,11 +1041,13 @@ var L = (function () {
     var room = r.none ? 'no room' : named ? r.name : '', where = r.none ? '' : ' in ' + r.name, bot = r.bots && r.bots[0], fx = L.fxFor(target).length, k = 'oab-' + (r.main ? 't' : r.id);
     var canNext = !!(c.seq || c.playlistId);
     return '<div class="oab-row air' + (paused ? ' paused' : '') + '" role="group" aria-label="' + (paused ? 'Paused' : 'On air') + (room ? ': ' + esc(room) : '') + '">' +
-      '<span class="oab-dest">' + L.destTag('air', room, paused) + (paused ? '<span class="badge oab-paused">Paused</span>' : '') + '</span>' +
+      '<span class="oab-dest">' + L.destTag('air', room, paused, r.none ? 'Nobody hears it: no bot is in a voice channel' : '') + (paused ? '<span class="badge oab-paused">Paused</span>' : '') + '</span>' +
       '<div class="oab-now"><div class="oab-title ellipsis" title="' + esc((nm !== own ? 'Its own name: ' + own : own) + ' · ' + L.normHover(t, c.playlistId)) + '"><span class="lane-dot ' + ln + '" aria-hidden="true"></span><span class="ellipsis">' + esc(nm) + '</span>' +
         (nm !== own ? '<span class="sr-only"> (its own name: ' + esc(own) + ')</span>' : '') + '</div>' +
         '<div class="oab-from ellipsis" title="' + esc(originOf(c)) + '">' + esc(originOf(c)) + (m.music && m.amb ? ' · <span class="lane-dot amb" aria-hidden="true"></span>Ambience: ' + esc(L.title(L.track(m.amb.id))) : '') +
-        (fx ? ' · ' + fx + ' effect' + (fx > 1 ? 's' : '') + ' sounding' : '') + (r.none ? ' · No bot is in a voice channel: nobody hears it' : '') + '</div></div>' +
+        (fx ? ' · ' + fx + ' effect' + (fx > 1 ? 's' : '') + ' sounding' : '') + (r.none ? ' · No bot is in a voice channel: nobody hears it' : '') +
+        // Must 2 of the round 6 review: a bot in a voice channel with nobody in it plays to no one.
+        (bot && bot.status === 'connected' && !L.botListeners(bot).length ? ' · Nobody is in ' + esc(r.name) + ': nobody hears it' : '') + '</div></div>' +
       '<div class="oab-time"><div class="progress ' + ln + '"><span data-progress="' + pk + '"></span></div><span class="num" data-time="' + pk + '"></span></div>' +
       '<div class="oab-ctl" role="group" aria-label="Control what the players hear' + esc(where) + '">' +
         '<button class="btn s icon" data-act="oabpause" data-lane="' + ln + '" data-room="' + target + '" data-k="' + k + '-pause" aria-label="' + (paused ? 'Play' : 'Pause') + '" title="' + (paused ? 'Play the ' + word + ' again' : 'Pause the ' + word) + esc(where) + '">' + L.icon(paused ? 'play' : 'pause', 's') + '</button>' +
@@ -1105,8 +1125,10 @@ var L = (function () {
     var s = L.session(L.state.live.cid, L.state.live.sid);
     return '<div class="logo">' + L.logo + '<b>Lyre</b></div><nav aria-label="Lyre"><div class="stack" style="gap:2px">' +
       a('#/campaigns', 'campaigns', 'crown', 'Campaigns') + a('#/library', 'library', 'library', 'Library') + a('#/playlists', 'playlists', 'playlist', 'Playlists') + a('#/boards', 'boards', 'grid', 'Pad boards') +
-      a('#/live', 'live', 'broadcast', 'Live' + (s ? ': S' + s.n : '')) + a('#/outputs', 'outputs', 'users', 'Outputs' + outputsBadge()) + '</div></nav>' +
+      a('#/live', 'live', 'broadcast', 'Live' + (s ? ': S' + s.n : '')) + a('#/outputs', 'outputs', 'users', 'Rooms' + outputsBadge()) + '</div></nav>' +
       '<div class="bottom stack" style="gap:2px">' + a('#/settings', 'settings', 'gear', 'Settings') + a('#/look', 'look', 'palette', 'Look and feel') +
+      // FND-8: Help, beside Look and feel (views/help.js). It opens a side panel, not a screen, so it is a button.
+      '<button class="nav" data-act="help" data-k="rail-help" aria-controls="lyre-help" aria-expanded="' + !!(L.helpOpen && L.helpOpen()) + '" aria-keyshortcuts="F1"' + (min ? ' title="Help"' : '') + '>' + L.icon('help') + '<span class="lbl">Help</span></button>' +
       '<button class="nav" data-act="rail" data-k="railtoggle" title="' + (min ? 'Show labels' : 'Icons only') + '" aria-label="' + (min ? 'Show menu labels' : 'Show icons only') + '">' + L.icon(min ? 'chevright' : 'chevleft') + '<span class="lbl">Icons only</span></button></div>';
   }
   /* Prep and Live for the campaign in hand: L.modeSwitch(cid) gives a two-button switch for a view header.

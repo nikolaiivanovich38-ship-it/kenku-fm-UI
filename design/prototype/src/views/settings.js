@@ -106,17 +106,19 @@
     if (n === 0) body = '<ol class="st-do">' +
       '<li><a class="btn s" href="https://discord.com/developers/applications" target="_blank" rel="noopener" data-act="stportal" data-k="st-portal">' + L.icon('link', 's') + 'Open the Discord Developer Portal</a></li>' +
       '<li><b>New Application</b>, give it a name (for example ' + esc(a.name) + '), <b>Create</b>.</li></ol>';
+    // Could 17 of the round 6 review: where to find the ID comes before the field, in the order it is done.
     else if (n === 1) body = '<p class="st-why">Invite the bot before you give Lyre its token.</p>' +
-      '<div class="field"><label for="st-appid">Application ID</label><div class="row-flex"><input class="input num" id="st-appid" data-input="stappid" data-k="st-appid" value="' + esc(a.appId) + '" inputmode="numeric" autocomplete="off" placeholder="From General Information" aria-describedby="st-appid-d">' +
+      '<ol class="st-do"><li><b>General Information</b> › <b>Application ID</b> › <b>Copy</b></li></ol>' +
+      '<div class="field"><label for="st-appid">Application ID</label><div class="row-flex"><input class="input num" id="st-appid" data-input="stappid" data-k="st-appid" value="' + esc(a.appId) + '" inputmode="numeric" autocomplete="off" placeholder="Paste it here">' +
         '<a class="btn s primary" href="' + esc(L.inviteURL(a.appId || '')) + '" target="_blank" rel="noopener" data-act="stopeninv" data-k="st-openinv"' + (/^\d{15,22}$/.test(a.appId) ? '' : ' aria-disabled="true"') + '>' + L.icon('link', 's') + 'Open the invite</a></div>' +
-        '<span class="hint" id="st-appid-d">General Information › Application ID › Copy</span></div>' +
+        '</div>' +
       '<ol class="st-do"><li>Choose your server, <b>Authorize</b>. You need <b>Manage Server</b> on it.</li></ol>' +
       '<button class="st-handbtn" data-act="stbyhand" data-k="st-byhand" aria-expanded="' + !!a.byHand + '" aria-controls="st-hand">' + L.icon(a.byHand ? 'chevup' : 'chevdown', 's') + 'Or make the invite by hand</button>' +
       (a.byHand ? '<ol class="st-do" id="st-hand"><li><b>OAuth2</b> › <b>URL Generator</b></li><li>Scopes: <b>bot</b></li><li>Bot Permissions: <b>View Channels</b>, <b>Connect</b>, <b>Speak</b></li>' +
         '<li>Open the <b>Generated URL</b>, choose your server, <b>Authorize</b></li></ol>' : '');
-    else body = '<ol class="st-do"><li><b>Bot</b> › <b>Reset Token</b> › <b>Copy</b></li></ol>' +
+    else body = '<ol class="st-do"><li><b>Bot</b> › <b>Reset Token</b> › <b>Copy</b>. Discord shows it once.</li></ol>' +
       '<div class="field"><label for="st-newtok">Token</label><input class="input" type="password" id="st-newtok" data-input="stnewtok" data-k="st-newtok" autocomplete="off" placeholder="Paste it here" aria-describedby="st-newtok-d">' +
-        '<span class="hint" id="st-newtok-d" title="Discord shows a token once; Reset Token makes a new one">Kept encrypted on this computer.</span></div>' +
+        '<span class="hint" id="st-newtok-d" title="Lost it? Reset Token again makes a new one">Kept encrypted on this computer.</span></div>' +
       (a.result ? '<div class="st-result" role="status">' + a.result + '</div>' : '');
     return '<div class="st-add">' + nav + '<div class="st-stepbody" id="st-stepbody">' + body + '</div></div>';
   }
@@ -212,7 +214,7 @@
     ],
     render: function () {
       var bots = L.bots();
-      var head = '<div class="viewhead"><h1>Settings</h1><span class="grow"></span><span class="faint num" title="Lyre version">0.4.0</span></div>';
+      var head = '<div class="viewhead"><h1>Settings</h1><span class="grow"></span><span class="faint num" title="Lyre version">' + esc(L.version) + '</span></div>';
       var botPane = L.pane({ id: 'st-bots', title: 'Discord bots', icon: 'users', kind: 'onair', size: 'auto', noMax: true, cls: 'is-silent',
         actions: '<button class="btn s" data-act="stadd" data-k="st-add">' + L.icon('plus', 's') + 'Add a bot</button>',
         describe: 'Each bot is one voice in Discord: one room at a time.',

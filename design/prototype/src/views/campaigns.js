@@ -345,7 +345,7 @@
       '<b>Round 5:</b> each campaign playlist has its <b>play order</b> button (shuffle, repeat all, repeat one); a choice made here applies only when it plays from this campaign. Single tracks kept on hand for the whole campaign (<b>Use in…</b> on a track) are listed under the playlists. Anything playing shows in the <b>Now playing</b> bar at the bottom, one row for each room the players hear (tagged <b>On air</b>, with Pause, Stop, Next, the play order and the room\'s volume) and one for your preview (tagged <b>Only you</b>, with its own volume). Try Preview and Play on air together.',
       '<b>Prep | Live</b> sits next to Run in the header: switch to Live and back without leaving the campaign. <b>Run next session</b> is still there.',
       'Every session now has a <b>Run</b> button, so you can run a played session again. The next session\'s is the coloured one; the others are plain grey.',
-      '<b>Campaign playlists</b> and <b>Campaign pad boards</b>: each row has Preview (only you hear it), Play on air for playlists, and an arrow that shows the tracks or pads inside (closed until you open it). Pickers have the same.',
+      '<b>Campaign playlists</b> and <b>Campaign pads</b>: each row has Preview (only you hear it), Play on air for playlists, and an arrow that shows the tracks or pads inside (closed until you open it). Pickers have the same.',
       '<b>Cleaner:</b> one line per row, one status pill per box, and a ⋯ menu on each row for Open, Remove and moving. Hover a playlist or session name for its details.',
       '<b>Obsidian</b> (folded, at the bottom right) keeps a vault, campaign note and session notes folder for later. Open in Obsidian is greyed out until Lyre can do it.'
     ],
@@ -374,7 +374,7 @@
         status: { text: c.notes ? 'Saved' : 'Empty', tone: 'idle' },
         body: '<label class="sr-only" for="cp-c-notes">Campaign notes</label><textarea class="input cp-notes" id="cp-c-notes" data-input="cpcampnotes" data-k="c-notes" rows="4" placeholder="Anything to remember across sessions">' + esc(c.notes || '') + '</textarea>' });
       var cpl = assignedPane({ id: 'cp-cpl', title: 'Campaign playlists', kind: 'pl', scope: 'c', ids: c.playlists, tracks: c.tracks, why: 'In every session.' });
-      var cbd = assignedPane({ id: 'cp-cbd', title: 'Campaign pad boards', kind: 'bd', scope: 'c', ids: c.boards, why: 'In every session.' });
+      var cbd = assignedPane({ id: 'cp-cbd', title: 'Campaign pads', kind: 'bd', scope: 'c', ids: c.boards, why: 'In every session.' });
       var ob = c.obsidian || {};
       var obs = L.pane({ id: 'cp-obs', title: 'Obsidian', icon: 'link', size: 'auto', collapsed: true, kind: 'plain', status: { text: 'Coming later', tone: 'idle' },
         body: '<p class="hint cp-why">Placeholders; nothing connects yet.</p>' + obsFields('cp-c-o-', ob, 'cpobs') });
@@ -451,7 +451,7 @@
   }
   function ambSlot(sc) {
     var it = sc.amb ? info(sc.amb) : null, xk = 'cp-' + sc.id + ':amb:' + (it ? it.id : '');
-    if (!it) return '<div class="cp-box cp-amb" data-filedrop="amb" data-sc="' + sc.id + '" title="Choose, or drop an audio file here"><div class="cp-it-row"><span class="faint grow">No ambience</span><button class="btn s" data-act="cppickamb" data-sc="' + sc.id + '" data-k="pa-' + sc.id + '">' + L.icon('plus', 's') + 'Choose…</button></div></div>';
+    if (!it) return '<div class="cp-box cp-amb" data-filedrop="amb" data-sc="' + sc.id + '" title="Choose, or drop an audio file here"><div class="cp-it-row"><span class="faint grow">No ambience</span><button class="btn s" data-act="cppickamb" data-sc="' + sc.id + '" data-k="pa-' + sc.id + '" aria-label="Choose ambience for ' + esc(sc.name) + '">' + L.icon('plus', 's') + 'Choose…</button></div></div>';
     return '<div class="cp-box cp-amb" data-filedrop="amb" data-sc="' + sc.id + '" title="Change, or drop an audio file here"><div class="cp-it-row">' + xpBtn(it, xk) + '<span class="lane-dot ' + it.cls + '" aria-hidden="true"></span>' +
       '<a class="ellipsis grow cp-it-name" href="' + it.href + '" data-k="an-' + sc.id + '" title="' + esc(it.name + ' · ' + it.label + ' · ' + it.sub) + '">' + esc(it.name) + '</a>' +
       '<button class="btn s" data-act="cppickamb" data-sc="' + sc.id + '" data-k="pa-' + sc.id + '">Change…</button>' +
@@ -570,7 +570,10 @@
   function addSceneAfter(afterId) {
     var s = ctx().s, at = s.scenes.length;
     if (afterId) for (var i = 0; i < s.scenes.length; i++) if (s.scenes[i].id === afterId) at = i + 1;
-    var sc = blankScene(); s.scenes.splice(at, 0, sc); open[sc.id] = true; current = sc.id; focusK = 'scname-' + sc.id;
+    // Could 19 of the round 6 review: a new scene is "Scene <n>" until renamed, so two new scenes never share their
+    // controls' names ("Add pad boards… to Scene 4").
+    var nn = at + 1; while (s.scenes.some(function (x) { return x.name === 'Scene ' + nn; })) nn++;
+    var sc = blankScene('Scene ' + nn); s.scenes.splice(at, 0, sc); open[sc.id] = true; current = sc.id; focusK = 'scname-' + sc.id;
     L.render(); var f = document.querySelector('[data-k="scname-' + sc.id + '"]'); if (f) f.select();
     L.say('New scene added as scene ' + (at + 1) + ' of ' + s.scenes.length);
   }
@@ -658,7 +661,7 @@
         body: s.scenes.length ? '<ol class="cp-scenes" aria-label="Scenes in order">' + s.scenes.map(function (sc, i) { return sceneCard(s, sc, i); }).join('') + '</ol>' : '<p class="cp-none">No scenes yet. Use Add scene.</p>',
         scroll: 'ss-scenes' });
       var spl = assignedPane({ id: 'ss-spl', title: 'Session playlists', kind: 'pl', scope: 's', ids: s.playlists, tracks: s.tracks, why: 'In every scene tonight.' });
-      var sbd = assignedPane({ id: 'ss-sbd', title: 'Session pad boards', kind: 'bd', scope: 's', ids: s.boards, why: 'In every scene tonight.' });
+      var sbd = assignedPane({ id: 'ss-sbd', title: 'Session pads', kind: 'bd', scope: 's', ids: s.boards, why: 'In every scene tonight.' });
       var obs = L.pane({ id: 'ss-obs', title: 'Obsidian', icon: 'link', size: 'auto', collapsed: true, kind: 'plain', status: { text: 'Coming later', tone: 'idle' },
         body: '<div class="field"><label for="cp-s-obs">Session note</label><input class="input" id="cp-s-obs" data-input="cpsess" data-f="obsidianNote" data-k="s-obs" value="' + esc(s.obsidianNote || '') + '" placeholder="' + esc(((c.obsidian || {}).sessions || 'Sessions') + '/Session ' + s.n + '.md') + '" autocomplete="off"></div>' + obsButton('cp-s-o-') });
       var cbNames = c.boards.map(function (b) { var x = L.board(b); return x ? x.name : ''; }).filter(Boolean);
@@ -668,7 +671,7 @@
         actions: '<a class="btn s icon" href="#/campaign/' + c.id + '" data-k="tocamp" aria-label="Change the campaign\'s playlists" title="From the campaign: change them there">' + L.icon('edit', 's') + '</a>',
         body: '' +
           assigned(c.playlists, 'pl', 'r', true, c.tracks) +
-          '<p class="hint cp-make">Campaign pad boards: ' + (cbNames.length ? esc(cbNames.join(', ')) : 'none') + '.</p>' });
+          '<p class="hint cp-make">Campaign pads: ' + (cbNames.length ? esc(cbNames.join(', ')) : 'none') + '.</p>' });
       return head + '<div class="viewbody fill cp-body">' + details +
         '<div class="cp-split cp-ssplit"><div class="' + colClass(['ss-scenes']) + '">' + scenes + '</div>' +
         '<div class="' + colClass(['ss-spl', 'ss-sbd', 'ss-cpl', 'ss-obs']) + ' cp-side">' + spl + sbd + cpl + obs + '</div></div></div>';

@@ -233,6 +233,7 @@ table.grid tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 v
 .dest.air { background: var(--onair); color: var(--onair-ink); }
 .dest.you { background: transparent; color: var(--preview); border-color: var(--preview); }
 .dest.paused { background: transparent; color: var(--ink-2); border-color: var(--line-strong); }
+.dest.warn { background: transparent; color: var(--warn); border-color: var(--warn); }
 .onairbar { flex: none; min-width: 0; border-top: 1px solid var(--line-strong); background: var(--surface-2); container-type: inline-size; container-name: oab; }
 /* The rows share one grid (subgrid), so the tags, times, buttons and volumes line up from row to row. */
 .oab-rows { display: grid; grid-template-columns: [dest] max-content [now] minmax(0, 1fr) [time] minmax(70px, 150px) [ctl] max-content [vol] minmax(64px, 110px) [live] max-content; column-gap: 8px; }
@@ -262,6 +263,7 @@ table.grid tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 v
 .btn.s.ord .ord-rep.off { opacity: .35; }
 .btn.s.ord.own { border-color: var(--accent); }
 .ord-dot { position: absolute; top: 2px; right: 2px; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+.rep1 { position: relative; }
 .menu .ord-note { max-width: 280px; white-space: normal; font-size: var(--fs-xs); }
 
 /* DAT-13 track shape: a small line drawing of how the track moves, beside its word. */
@@ -342,3 +344,5 @@ button .shape-g { color: inherit; }
 [data-ro].ro-after { box-shadow: inset 0 -2px 0 var(--accent); }
 .ro-own { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; font-size: var(--fs-s); color: var(--ink-2); }
 .ro-own-t { display: inline-flex; align-items: center; gap: 4px; }
+.ro-btns { display: inline-flex; flex: none; }
+.ro-tog[aria-pressed="true"] { background: var(--surface-3); border-color: var(--ink-2); color: var(--ink); }

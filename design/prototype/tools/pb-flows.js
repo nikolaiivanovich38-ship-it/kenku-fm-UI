@@ -3,7 +3,7 @@ const { chromium } = require('playwright'); const path = require('path');
 (async () => {
   const b = await chromium.launch(process.env.LYRE_SPEC_CHROMIUM ? { executablePath: process.env.LYRE_SPEC_CHROMIUM } : {}); const p = await b.newPage({ viewport: { width: 960, height: 1000 } });
   const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
-  await p.addInitScript(() => { try { localStorage.setItem('lyre-r2', JSON.stringify({ theme: 'campaign', frame: 'full', notes: false })); } catch (e) {} });
+  await p.addInitScript(() => { try { localStorage.setItem('lyre-r2', JSON.stringify({ theme: 'campaign', frame: 'full', notes: false, tour: 'done' })); } catch (e) {} });
   await p.goto('file://' + path.resolve(__dirname, '..', process.env.OUT || 'boards.html') + '#/board/abbey'); await p.waitForTimeout(300);
   const live = () => p.evaluate(() => document.getElementById('lyre-live').textContent);
   const slots = () => p.evaluate(() => L.board('abbey').slots.map(x => x ? x.label : '-').join(' | '));

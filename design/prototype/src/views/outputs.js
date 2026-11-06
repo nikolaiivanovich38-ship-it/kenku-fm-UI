@@ -1,4 +1,4 @@
-/* Outputs (#/outputs): where Lyre's sound goes in Discord, and moving bots between rooms during play.
+/* Rooms (#/outputs; the screen was called Outputs until the round 6 review, Nik 6 Nov 13:55: "room" everywhere): where Lyre's sound goes in Discord, and moving bots between rooms during play.
 
    Round 4 model (core, "Rooms"): every bot in a voice channel is a room named after its channel, and every room plays
    its own sound (L.mix(botId), L.fxFor(botId)). What Nik starts goes to the rooms ticked in Send to
@@ -12,7 +12,7 @@
    one free bot there in one click, or offers a short choice when there are several (OUT-7, round 6: "Bring…" is gone).
 
    For the Live view: L.botsMenuHTML() returns a compact menu (each room and its bot, the rooms it can move to, Leave,
-   Open Outputs) for L.menu(anchor, L.botsMenuHTML(), 'Discord'). Its items use data-act opmove / opleave /
+   Open Rooms) for L.menu(anchor, L.botsMenuHTML(), 'Discord'). Its items use data-act opmove / opleave /
    opgo, handled here. Candidates for core: L.botsMenuHTML and L.botSwap. */
 (function () {
   var esc = L.esc, D = L.data;
@@ -74,7 +74,7 @@
     return '<div class="op-menu">' + L.bots().map(function (b) {
       return '<div role="group" aria-label="' + esc(L.outputName(b)) + '"><div class="group op-mg">' + esc(L.outputName(b)) + (inRoom(b) ? ' <span class="op-mg-bot">' + esc(b.name) + '</span>' : '') + ': ' + esc(pill(b).text) + '</div>' +
         roomItems(b, true) + leaveItem(b) + '</div>';
-    }).join('<div class="sep"></div>') + '<div class="sep"></div><button role="menuitem" data-act="opgo">' + L.icon('users', 's') + 'Open Outputs</button></div>';
+    }).join('<div class="sep"></div>') + '<div class="sep"></div><button role="menuitem" data-act="opgo">' + L.icon('users', 's') + 'Open Rooms</button></div>';
   };
   // After a choice in a menu the menu is gone; on this page, put focus back on that bot's Room button.
   function refocus(botId) { setTimeout(function () { var a = document.activeElement; if (a && a !== document.body && document.contains(a)) return; var r = document.querySelector('[data-k="op-room-' + botId + '"]'); if (r) r.focus(); }, 0); }
@@ -183,7 +183,7 @@
 
   /* ---------- all voice channels ---------- */
   function kickBtn(b, k) {
-    return '<button class="btn s icon op-kick" data-act="opleave" data-bot="' + b.id + '" data-k="' + k + '" aria-label="Kick ' + esc(b.name) + ' from ' + esc(chName(b)) + '" title="Kick ' + esc(b.name) + ' from ' + esc(chName(b)) + '">' + L.icon('close', 's') + '</button>';
+    return '<button class="btn s icon op-kick" data-act="opleave" data-bot="' + b.id + '" data-k="' + k + '" aria-label="Kick ' + esc(b.name) + ' from ' + esc(chName(b)) + '" title="Kick ' + esc(b.name) + ' from ' + esc(chName(b)) + '">' + L.icon('leave', 's') + '</button>';
   }
   function channelRow(g, c) {
     var here = roomBots(g.id, c.id), n = c.members.length, list = candidates(g.id, c.id);
@@ -207,8 +207,8 @@
   /* ---------- view ---------- */
   L.view('outputs', {
     nav: 'outputs',
-    title: function () { return 'Outputs'; },
-    notesTitle: 'Outputs: your rooms in Discord',
+    title: function () { return 'Rooms'; },
+    notesTitle: 'Rooms: your rooms in Discord',
     notes: [
       'One <b>On air</b> box per bot, titled with its room (the voice channel it is in), with one pill saying what it is doing: Playing, Silent, Muted, Joining or Not in a room.',
       'Each box shows what that room is playing now, who hears it, its volume and a level meter. Its red edge shows only while the players there hear something.',
@@ -218,7 +218,7 @@
     ],
     render: function () {
       var bots = L.bots(), on = bots.filter(function (b) { return inRoom(b); }), sw = swapPair();
-      var head = '<div class="viewhead"><h1>Outputs</h1><span class="grow"></span>' + (L.state.live.cid && L.campaign(L.state.live.cid) ? L.modeSwitch(L.state.live.cid) : '') + '</div>';
+      var head = '<div class="viewhead"><h1>Rooms</h1><span class="grow"></span>' + (L.state.live.cid && L.campaign(L.state.live.cid) ? L.modeSwitch(L.state.live.cid) : '') + '</div>';
       var nCh = D.discord.servers.reduce(function (n, g) { return n + g.channels.length; }, 0);
       var chPane = L.pane({ id: 'op-rooms', title: 'All voice channels', icon: 'map', kind: 'plain', scroll: 'op-rooms', noMax: true,
         status: { text: on.length + ' of ' + bots.length + ' bots in rooms', tone: 'idle' },

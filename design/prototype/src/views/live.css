@@ -431,10 +431,10 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 .lv-found .lv-off-f { padding: 6px 6px 6px 8px; }
 .lv-top { gap: 8px; }
 .lv-top > .lv-find + .btn { margin-left: auto; }
-/* Rows: Preview and Play on air always; Play next and Add to queue on the row on air, on hover and on keyboard focus. */
-.lv-trk-acts:not(.shown) .lv-hov { opacity: 0; }
-.lv-trk-r:is(:hover, :focus-within) .lv-hov { opacity: 1; }
-@media (hover: none) { .lv-hov { opacity: 1 !important; } }
+/* Rows (Nik, 6 Nov 13:55, Should 8 of the round 6 review): Preview, Play next and Add to queue always show, greyed at
+   rest (icons, so nothing more to read), in full colour on the row on air, on hover and on keyboard focus. */
+.lv-trk-acts:not(.shown) .lv-hov { color: var(--ink-3); }
+.lv-trk-r:is(:hover, :focus-within) .lv-hov, .lv-hov:focus-visible { color: var(--ink); }
 .lv-none, .lv-in-none { padding: 10px 12px; font-size: var(--fs-s); color: var(--ink-2); }
 .lv-in-none { padding: 4px 0; }
 .pane-summary .lv-cur-n { color: var(--ink); font-size: var(--fs-l); }
@@ -463,3 +463,64 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 .lv-trk-r:is(:hover, :focus-within) .lv-ord > .btn { opacity: 1; }
 @media (hover: none) { .lv-ord > .btn { opacity: 1 !important; } }
 .lv-lane-sub:empty { display: none; }
+
+/* ---------- Round 6 review fixes ---------- */
+/* Should 9: Kick has its own icon (a door and an arrow out) and, from 1280 px, its word; 8 px away from the bot button. */
+.lv-kick { margin-left: 8px; flex: none; gap: 4px; }
+@media (max-width: 1279px) { .lv-kick-t { display: none; } .lv-kick { width: var(--ctl-s); padding: 0; justify-content: center; } }
+/* Should 11: a pad's name wraps to two lines in every pad box (Current scene too); its key sits in the top-right corner
+   and its play mode (or On) in the bottom-right, so the name has the width. */
+.lv-pad { position: relative; height: auto; min-height: 40px; padding: 3px 24px 3px 10px; }
+.lv-pad .lv-pad-l.ellipsis { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 15px; overflow-wrap: anywhere; text-overflow: clip; }
+.lv-pad .kbd { position: absolute; top: 3px; right: 3px; padding: 0 3px; font-size: 11px; line-height: 14px; }
+.lv-pad .lv-pad-mode, .lv-pad .lv-pad-on { position: absolute; bottom: 3px; right: 4px; }
+.lv-pad .lv-pad-on { font-size: 10px; line-height: 13px; }
+.lv-pad-empty { height: auto; min-height: 40px; }
+@container lvgrid (max-width: 400px) { .lv-pad { padding-right: 20px; } .lv-pad .lv-pad-l.ellipsis { font-size: var(--fs-xs); line-height: 13px; } }
+/* … and a playlist's name too (it was cut at 1280 and 960), up to two lines. */
+.lv-pli-n > b.ellipsis { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; line-height: 16px; }
+/* Should 6: each kind of box is told apart by shape as well as colour. On air has a filled band for a header; Current
+   scene a thick accent edge down its left side; the box icons are 18 px. The session's and the campaign's boxes sit
+   in two trays, headed "This session" (filled) and "Whole campaign" (outlined), so their position says which is which. */
+.lv .pane > header .pane-toggle > svg.i:not(.chev) { width: 18px; height: 18px; }
+.lv-dock .pane.k-onair > header { background: color-mix(in srgb, var(--onair) 34%, var(--surface-2)); border-bottom-color: var(--onair); }
+.lv .pane.k-current { border-left: 5px solid var(--accent); }
+.lv-grp { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 4px 6px 6px; border-radius: var(--r-l); }
+.lv-grp-ss { background: color-mix(in srgb, var(--ink) 12%, var(--bg)); }
+.lv-grp-cp { border: 2px dashed var(--line-strong); }
+.lv-grp-h { margin: 0; padding: 0 2px; font-size: var(--fs-xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+/* Should 7: in three columns, the boxes of a column share its height down to On air and scroll inside, so no box moves
+   when a list in another one grows. */
+.lv-cols.c3 { grid-template-rows: minmax(0, 1fr); align-items: stretch; }
+.lv-cols.c3 > .col { display: flex; flex-direction: column; min-height: 0; }
+.lv-cols.c3 > .col > .pane:not(.collapsed), .lv-cols.c3 .lv-grp > .pane:not(.collapsed) { flex: 1 1 0; min-height: calc(var(--pane-head) + 52px); }
+.lv-cols.c3 > .col > .pane:not(.collapsed) > .pane-body, .lv-cols.c3 .lv-grp > .pane:not(.collapsed) > .pane-body { overflow: auto; }
+.lv-cols.c3 .lv-grp:has(> .pane:not(.collapsed)) { flex: 1 1 0; min-height: 0; }
+.lv-cols.c3 .lv-grp { flex: none; }
+/* Must 4 (WCAG 1.4.10 Reflow): below 640 px of app (320 px windows, 200 % zoom) the top strip wraps (Prep | Live and
+   the icon buttons, then the session, then Find a track the whole width), a room's header wraps (its name and status,
+   then its controls), and a lane's label goes above its title. Under 480 px of height each room is one line (live.js). */
+@container app (max-width: 639px) {
+  .lv-top { flex-wrap: wrap; row-gap: 6px; }
+  .lv-top .lv-find { order: 10; flex: 1 1 100%; max-width: none; min-width: 0; }
+  .lv-top > .lv-find + .btn { margin-left: 0; }
+  .lv-top .lv-sess { order: 5; min-width: 0; flex: 1 1 100%; }
+  .lv-top .mode-switch button { padding: 0 6px; }
+  .lv-rm-h { flex-wrap: wrap; row-gap: 2px; padding-top: 4px; padding-bottom: 4px; }
+  .lv-rm-h > .grow { flex: 1 0 100%; height: 0; }
+  .lv-rm-h .lv-vol { flex: 1 1 60px; }
+  .lv-cols { padding: 6px; }
+  .lv-dock { padding: 0 6px 6px; }
+}
+@container lvrm (max-width: 420px) {
+  .lv-lane { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "l l" "t t" "p c" "e e" "s s"; }
+  .lv-lane-l { flex-direction: row; align-items: center; padding-top: 0; }
+}
+/* Text read out after a cut-off title stays inside its box (it widened the page at 320 px). */
+.lv-lane-t, .lv-trk-t, .lv-pli-n { position: relative; }
+.lv-rm-1 .lv-rm-h { flex-wrap: nowrap; }
+.lv-rm-1 .lv-rm-t { font-size: var(--fs-s); min-width: 0; }
+.lv-rm-1 .lv-rm-n { flex: 0 1 auto; }
+.lv-rm.lv-rm-1 .lv-rm-h > .lv-rm-t { flex: 1 1 auto; height: auto; }
+/* A room is never named "Ta…": its name keeps up to 40 % of the header before anything else gives way. */
+.lv-rm-h .lv-rm-n { flex: 0 0 auto; max-width: 40%; }

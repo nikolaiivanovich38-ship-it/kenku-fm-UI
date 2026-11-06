@@ -43,7 +43,7 @@
   // place (optional): the session or campaign list it is played from ('ss:…' / 'cp:…'), for its play order and audio settings.
   L.playOnAirButton = function (kind, id, place) {
     var name = kind === 'track' ? L.title(L.track(id)) : (L.playlist(id) || {}).name;
-    return '<button type="button" class="btn s icon" data-act="onair" data-kind="' + kind + '" data-id="' + esc(id) + '"' + (place ? ' data-place="' + esc(place) + '"' : '') + ' data-k="air-' + kind + '-' + esc(id) + '" title="Play on air (the players hear it)" aria-label="Play on air: ' + esc(name) + '">' + L.icon('broadcast', 's') + '</button>';
+    return '<button type="button" class="btn s icon" data-act="onair" data-kind="' + kind + '" data-id="' + esc(id) + '"' + (place ? ' data-place="' + esc(place) + '"' : '') + ' data-k="air-' + kind + '-' + esc(id) + '" title="Play on air (the players hear it)" aria-label="Play on air: ' + esc(name) + '">' + L.icon('playair', 's') + '</button>';
   };
   L.acts.onair = function (el) {
     var k = el.dataset.kind, id = el.dataset.id, place = el.dataset.place || '';
@@ -104,14 +104,21 @@
       // open on the scene's or session's own settings (PLY-14).
       var inScene = profileKey && String(profileKey).indexOf('sc:') === 0 ? profileKey : '', where = orderKey ? placeWords(orderKey) : '';
       var grp = orderKey ? 'tro|' + orderKey + '|' + id : '', did = orderKey ? 'ro-d-' + (orderKey + '-' + id).replace(/[^\w-]/g, '_') : '';
-      return (own ? '<div class="ro-own"><span class="ro-own-t">' + L.icon('drag', 's') + 'Order ' + esc(where) + '</span><button type="button" class="btn s ghost" data-act="roclear" data-key="' + esc(orderKey) + '" data-pid="' + esc(id) + '" data-k="roclear-' + esc(did) + '">' + L.icon('restart', 's') + 'Back to the playlist\'s order</button></div>' : '') +
+      /* Must 3 of the round 6 review (WCAG 2.5.7), Nik 6 Nov 13:51: "dragging is generally fine for me … don't over
+         clutter the interface". Dragging stays the main way; one Reorder switch above the list shows Move up and Move
+         down on each row while it is on, so a single click (a trackpad, a touch screen) can do what a drag does. */
+      var ron = !!L.state.reordering[grp];
+      return (orderKey ? '<div class="ro-own">' + '<button type="button" class="btn s ghost ro-tog" data-act="rotoggle" data-g="' + esc(grp) + '" data-k="rotog-' + esc(did) + '" aria-pressed="' + ron + '" title="' + (ron ? 'Done reordering' : 'Show Move up and Move down on each track (or drag a track)') + '">' + L.icon('drag', 's') + 'Reorder</button>' +
+        (own ? '<span class="ro-own-t">Order ' + esc(where) + '</span><button type="button" class="btn s ghost" data-act="roclear" data-key="' + esc(orderKey) + '" data-pid="' + esc(id) + '" data-k="roclear-' + esc(did) + '">' + L.icon('restart', 's') + 'Back to the playlist\'s order</button>' : '') + '</div>' : '') +
         (orderKey ? '<p class="sr-only" id="' + did + '">Drag a track, or press Alt+Up or Alt+Down on it, to change the order ' + esc(where) + ' only.</p>' : '') +
         '<ol class="list' + (orderKey ? ' ro-list' : '') + '" aria-label="Tracks in ' + esc(p.name) + (orderKey ? ', in the order ' + esc(where) : '') + '"' + (orderKey ? ' aria-describedby="' + did + '"' : '') + '>' + ts.map(function (t, i) {
         var nm = L.nameIn(t, inScene);
         return '<li class="xp-row"' + (orderKey ? ' data-ro="' + esc(grp) + '" data-ri="' + i + '"' : '') + '>' + (orderKey ? '<span class="ro-handle" title="Drag to change the order ' + esc(where) + ' (or Alt+Up / Alt+Down)" aria-hidden="true">' + L.icon('drag', 's') + '</span>' : '') +
           '<span class="faint num">' + (i + 1) + '</span><span class="grow ellipsis" title="' + esc(nm !== L.title(t) ? 'Its own name: ' + L.title(t) : L.title(t)) + '">' + esc(nm) + '</span>' + L.tagStrip(t, 2) + '<span class="num faint">' + L.fmt(t.dur) + '</span>' + (L.profileLink && profileKey !== false ? L.profileLink(t.id, profileKey || 'pl:' + id, true) : '') + L.previewButton('track', t.id) +
           // Round 6 part 3 (decision 4): a scene's Repeat one, saved with the scene, shows and changes here as in Live.
-          (inScene && p.lane === 'music' ? L.repeatOneButton(inScene, t.id, 'r1-' + (did || id) + '-' + t.id, nm) : '') + '</li>';
+          (inScene && p.lane === 'music' ? L.repeatOneButton(inScene, t.id, 'r1-' + (did || id) + '-' + t.id, nm) : '') +
+          (ron ? '<span class="ro-btns"><button type="button" class="closer" data-act="romove" data-d="-1" data-k="roup-' + did + '-' + t.id + '" aria-label="Move up: ' + esc(nm) + '" title="Move up (Alt+Up)"' + (i === 0 ? ' disabled' : '') + '>' + L.icon('chevup', 's') + '</button>' +
+            '<button type="button" class="closer" data-act="romove" data-d="1" data-k="rodn-' + did + '-' + t.id + '" aria-label="Move down: ' + esc(nm) + '" title="Move down (Alt+Down)"' + (i === ts.length - 1 ? ' disabled' : '') + '>' + L.icon('chevdown', 's') + '</button></span>' : '') + '</li>';
       }).join('') + '</ol>';
     }
     var b = L.board(id); if (!b) return '';
@@ -133,6 +140,17 @@
     if (to < 0 || to >= ids.length || from === to) return false;
     var x = ids.splice(from, 1)[0]; ids.splice(to, 0, x); L.setPlaceOrder(pid, key, ids);
     L.say(L.title(L.track(x)) + ' is now ' + (to + 1) + ' of ' + ids.length + ' ' + placeWords(key)); return true;
+  };
+  L.state.reordering = L.state.reordering || {};
+  L.acts.rotoggle = function (el) { var g = el.dataset.g; L.state.reordering[g] = !L.state.reordering[g]; L.render(); var b = document.querySelector('[data-k="' + el.dataset.k + '"]'); if (b) b.focus(); L.say(L.state.reordering[g] ? 'Move up and Move down shown on each track' : 'Done reordering'); };
+  // A Move up / Move down button: the row moves, and focus stays on the same button in its new place (or on the
+  // other one when it reaches the top or the bottom).
+  L.acts.romove = function (el) {
+    var row = el.closest('[data-ro]'); if (!row) return; var d = +el.dataset.d, to = +row.dataset.ri + d, k = el.dataset.k;
+    if (!roMove(row, to)) return;
+    var n = document.querySelector('[data-k="' + k + '"]');
+    if (!n || n.disabled) n = document.querySelector('[data-k="' + (d < 0 ? k.replace(/^roup-/, 'rodn-') : k.replace(/^rodn-/, 'roup-')) + '"]');
+    if (n) n.focus();
   };
   L.acts.roclear = function (el) { var p = L.playlist(el.dataset.pid); L.clearPlaceOrder(el.dataset.pid, el.dataset.key); L.say((p ? p.name : 'The playlist') + ' plays in its own order ' + placeWords(el.dataset.key) + ' again'); L.render(); };
   function roMove(row, to) {

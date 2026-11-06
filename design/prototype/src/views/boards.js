@@ -278,7 +278,7 @@
   function slotHTML(b, p, i, sel, fi) {
     var tab = i === fi ? '0' : '-1', rc = place(b, i);
     if (!p) {
-      return '<div class="pb-slot" data-drop="slot:' + i + '"><button class="pb-empty" data-act="pbadd" data-i="' + i + '" data-k="slot-' + i + '" data-slot="' + i + '" tabindex="' + tab + '" aria-label="Empty slot, ' + rc + '. Add a pad">' + L.icon('plus', 's') + '<span class="pb-empty-t">Add pad</span></button></div>';
+      return '<div class="pb-slot" data-drop="slot:' + i + '"><button class="pb-empty" data-act="pbadd" data-i="' + i + '" data-k="slot-' + i + '" data-slot="' + i + '" tabindex="' + tab + '" aria-label="Add pad: ' + rc + '">' + L.icon('plus', 's') + '<span class="pb-empty-t">Add pad</span></button></div>';
     }
     var on = L.padActive(b.id, p.id), pv = previewing(b, p), isSel = sel && sel.pad.id === p.id, tr = trying(b, p);
     // While trying, the tile is the pad as in Live: pressing it plays it (aria-pressed shows it sounding).
