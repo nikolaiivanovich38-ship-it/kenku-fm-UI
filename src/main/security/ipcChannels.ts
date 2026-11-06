@@ -242,6 +242,13 @@ export const IPC_CHANNELS = {
   LYRE_OUTPUT_SET_MUTED: { from: ["lyre-view"], args: argsMatch(isBotId, isBoolean) },
   LYRE_OUTPUT_SET_VOLUME: { from: ["lyre-view"], args: argsMatch(isBotId, isUnitInterval) },
   LYRE_OUTPUT_RETRY: { from: ["lyre-view"], args: argsMatch(isBotId) },
+
+  // --- w4-guide ---
+  // FND-9 (src/main/diagnostics/diagnosticsBridge.ts): Help › Save diagnostics. SAVE (invoke) asks the game master
+  // for a folder in the main process, writes the zip there and answers names only ({ ok, folder, file }); SHOW
+  // shows the last saved file in its folder. Neither takes an argument: the page never names a path.
+  LYRE_DIAGNOSTICS_SAVE: { from: ["lyre-view"], args: noArgs },
+  LYRE_DIAGNOSTICS_SHOW: { from: ["lyre-view"], args: noArgs },
 } satisfies Record<string, IpcChannelRule>;
 
 export type IpcChannel = keyof typeof IPC_CHANNELS;

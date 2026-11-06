@@ -4,6 +4,7 @@ import { LyreManager } from "./LyreManager";
 import { PlaybackManager } from "./PlaybackManager";
 import { PlayerManager } from "./PlayerManager";
 import { WindowManager } from "./WindowManager";
+import { DiagnosticsBridge } from "../diagnostics/diagnosticsBridge";
 
 export class SessionManager {
   private playbackManager: PlaybackManager;
@@ -12,6 +13,8 @@ export class SessionManager {
   private windowManager: WindowManager;
   /** WP5: the new interface page in the "Lyre" tab. */
   private lyreManager: LyreManager;
+  /** FND-9: Help › Save diagnostics. */
+  private diagnostics: DiagnosticsBridge;
 
   constructor(window: BrowserWindow) {
     this.playbackManager = new PlaybackManager(window);
@@ -25,6 +28,12 @@ export class SessionManager {
     this.lyreManager.onAttachView = (view) => this.playbackManager.setLyreView(view);
     // OUT-5, PRV-1: the player page's private audio channel to the capture window.
     this.playerManager.onRegisterView = (view) => this.playbackManager.setPlayerView(view);
+    // --- w4-guide wiring --- Save diagnostics reads the windows' settings and the bots' state:
+    this.diagnostics = new DiagnosticsBridge({
+      window,
+      lyreView: () => this.lyreManager.getView(),
+      outputs: () => this.playbackManager.outputs.state(),
+    });
   }
 
   /** PERF-6: lets the player save changes it is holding back; see saveBeforeClose.ts. */
@@ -38,5 +47,6 @@ export class SessionManager {
     this.windowManager.destroy();
     this.playerManager.destroy();
     this.lyreManager.destroy();
+    this.diagnostics.destroy();
   }
 }

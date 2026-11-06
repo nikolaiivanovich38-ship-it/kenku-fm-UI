@@ -19,4 +19,11 @@ describe("remembered shell settings", () => {
     localStorage.setItem(SHELL_SETTINGS_KEY, JSON.stringify({ theme: "neon", rail: "wide", panes: { a: "x", b: "o" } }));
     expect(loadShellSettings()).toEqual({ theme: "campaign", rail: "auto", panes: { b: "o" } });
   });
+
+  it("FND-8: remembers that the first-run tour was seen, and nothing else counts as seen", () => {
+    saveShellSettings({ theme: "campaign", rail: "auto", panes: {}, tour: "done" });
+    expect(loadShellSettings().tour).toBe("done");
+    localStorage.setItem(SHELL_SETTINGS_KEY, JSON.stringify({ tour: "yes" }));
+    expect(loadShellSettings().tour).toBeUndefined();
+  });
 });

@@ -30,4 +30,10 @@ module.exports = [
     test: /\.(png|svg|jpg|jpeg|gif)$/i,
     type: "asset/resource",
   },
+  // FND-8: help articles (src/lyre/help/articles/*.md) are bundled as text: `import text from "./a.md?raw"`.
+  {
+    test: /\.md$/,
+    resourceQuery: /raw/,
+    type: "asset/source",
+  },
 ];

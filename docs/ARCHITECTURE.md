@@ -562,3 +562,18 @@ Phase B of wave 4 for the Campaigns screens, the session planner, the Audio prof
 | `audio/lyreAudio.ts` | `tryPad(board, pad, phase, { from })`: the pad played as in Live (toggle, hold, one-shot, restart; variants random or in turn) on the preview, so only the game master hears it. `ScreenSound` fills in `from`. |
 | PLY-15 (after merging w4-normalise) | The Audio profile header has `NormaliseChoice` for the track (line and hover for the playlist that Settings for names, else the track on its own); its previews, and previews of a scene's or session's playlist tracks (`PreviewButton` track target `playlistId`), follow that playlist's choice. The Now playing bar's track names add `normaliseHover` to their hover (`TrackName` `hover`). |
 | `common/lyre/prototypeLevels.ts` | The prototype's made-up loudness (core.js `L.levels`). The fake answers it as peaks, and test builds seed it (`seedPrototypePeaks`), so the sample library suggests the design's shapes. |
+
+## Wave 4: w4-guide
+
+FND-8 (Help in the app, the first-run tour) and FND-9 (Save diagnostics); design in design/prototype/HELP.md.
+
+| Where | What it does |
+| --- | --- |
+| `src/lyre/help/articles/*.md`, `articles.ts` | The help articles (one Markdown file each, bundled as text with `?raw`: webpack `asset/source` in `webpack.rules.js`), their head (`title`, `group`, `words`), `blocksOf` (paragraphs, steps, lists, labels, keys) and `searchArticles`. The prototype's build inlines the same files. |
+| `src/lyre/help/HelpPanel.tsx`, `HelpText.tsx`, `help.css` | The side panel: search, groups, an article with Back, Take the tour and Save diagnostics… with its result line. A landmark (`aside`, "Help") in `#app`'s third column, over the screen below 900 px. |
+| `src/lyre/help/Tour.tsx` | The five steps (`TOUR_STEPS`), a ring round the target and a popover with an arrow. |
+| `src/lyre/help/useHelp.tsx` | What the shell places: the rail button's state, the panel, the tour; F1 on the window (after screens' own keys, so a Live pad on F1 wins); focus in and back; the tour shown once when `<Shell firstRunTour>` (the page root) and remembered as `tour: "done"` in `lyre-shell`. |
+| `src/lyre/help/keys.ts` | `keepKeysHere`: keys in Help and the tour stop there, except Ctrl/Alt keys, F keys and Shift+Esc. |
+| `src/lyre/shell/Rail.tsx` | The Help button (`#rail-help`) between Look and feel and Icons only. |
+| `src/common/lyreDiagnostics.ts`, `src/lyre/help/preloadDiagnostics.ts` | `window.lyre.diagnostics` (`save`, `show`) and its result shape. |
+| `src/main/diagnostics/` | `logBuffer.ts` (in-memory log and blocked warnings), `diagnosticsLog.ts` (started first in `src/index.ts`), `scrub.ts`, `diagnosticsZip.ts` (the zip, on `transfer/zip.ts`), `diagnosticsBridge.ts` (the two channels, the sources; wired in `SessionManager` at `--- w4-guide wiring ---`). |

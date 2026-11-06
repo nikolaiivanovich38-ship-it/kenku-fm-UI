@@ -30,13 +30,23 @@ async function appPages(page: Page): Promise<{ main: Page; lyre: Page }> {
   return { main: main as Page, lyre: lyre as Page };
 }
 
-/** Choose the "Lyre" tab in the main window, so the new interface is in front. Returns the Lyre page. */
-export async function openLyreTab(page: Page): Promise<Page> {
+/**
+ * Choose the "Lyre" tab in the main window, so the new interface is in front. Returns the Lyre page.
+ * FND-8: on a first start the Lyre page shows its tour; it is skipped (and so remembered as seen) unless `keepTour`.
+ */
+export async function openLyreTab(page: Page, options: { keepTour?: boolean } = {}): Promise<Page> {
   const { main, lyre } = await appPages(page);
   await main.getByRole("list", { name: "Tabs" }).getByRole("button", { name: "Lyre", exact: true }).click();
   await lyre.getByRole("main").getByRole("heading", { level: 1 }).waitFor();
+  if (!options.keepTour) {
+    const skip = lyre.getByRole("dialog", { name: TOUR_NAME }).getByRole("button", { name: "Skip" });
+    if (await skip.isVisible()) await skip.click();
+  }
   return lyre;
 }
+
+/** The tour's popover is named by its step: "Lyre's places 1 of 5". */
+const TOUR_NAME = /\d of \d$/;
 
 /**
  * Open the Lyre tab at a route ("campaign/crown", "profile/t13/sc:crown:s14:sc3"), in a theme: "default" follows
@@ -53,7 +63,8 @@ export async function openLyreRoute(page: Page, route: string, theme: "default" 
       } catch {
         saved = {};
       }
-      localStorage.setItem(key, JSON.stringify({ ...saved, theme: choice }));
+      // tour: the first-run tour (FND-8) counts as seen, so it covers nothing in the tests.
+      localStorage.setItem(key, JSON.stringify({ ...saved, theme: choice, tour: "done" }));
       window.location.hash = `#/${path}`;
       window.location.reload();
     },

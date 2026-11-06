@@ -11,6 +11,7 @@ import { SoundMessages } from "./SoundMessages";
 import { UndoNoteBar, UndoNoteProvider } from "./UndoNote";
 import { ShellSettingsProvider, useShellSettings } from "./ShellSettings";
 import { themeFor } from "./themes";
+import { useHelp } from "../help/useHelp";
 
 /** How long the shell waits for a new screen's heading (it appears once the screen's data has loaded). */
 const HEADING_WAIT_MS = 5000;
@@ -21,29 +22,33 @@ const NARROW_APP_PX = 1100;
 export interface ShellProps {
   /** The screen for each route; the app passes SCREENS. */
   screens?: Record<RouteName, ScreenComponent>;
+  /** FND-8: show the first-run tour if it was not seen yet (the app's page root asks for it). */
+  firstRunTour?: boolean;
 }
 
 /**
  * The new interface's frame (UX-3, UX-9): the rail, the screen for the page address, the theme, and the keyboard
  * and announcement rules every screen shares. Data and audio come from providers around it (AppProviders.tsx).
  */
-export function Shell({ screens = SCREENS }: ShellProps) {
+export function Shell({ screens = SCREENS, firstRunTour = false }: ShellProps) {
   return (
     <ShellSettingsProvider>
       <AnnouncerProvider>
         <SoundMessages />
-        <ShellFrame screens={screens} />
+        <ShellFrame screens={screens} firstRunTour={firstRunTour} />
       </AnnouncerProvider>
     </ShellSettingsProvider>
   );
 }
 
-function ShellFrame({ screens }: { screens: Record<RouteName, ScreenComponent> }) {
+function ShellFrame({ screens, firstRunTour }: { screens: Record<RouteName, ScreenComponent>; firstRunTour: boolean }) {
   const route = useHashRoute();
   const data = useShellData();
   const { settings, update } = useShellSettings();
   const { say } = useAnnounce();
   const appRef = useRef<HTMLDivElement>(null);
+  // FND-8: Help (the rail's button, F1, the side panel) and the first-run tour.
+  const help = useHelp({ firstRunTour });
 
   // The campaign in hand: the last one opened. Shared screens (Library, Pad boards...) keep its theme.
   const campaignInHand = useRef<string | undefined>(undefined);
@@ -126,7 +131,13 @@ function ShellFrame({ screens }: { screens: Record<RouteName, ScreenComponent> }
   const Screen = screens[route.name];
   return (
     <div id="app" ref={appRef}>
-      <Rail section={sectionOf(route)} min={railMin} onToggleMin={() => update({ rail: railMin ? "full" : "min" })} />
+      <Rail
+        section={sectionOf(route)}
+        min={railMin}
+        onToggleMin={() => update({ rail: railMin ? "full" : "min" })}
+        helpOpen={help.helpOpen}
+        onHelp={help.toggleHelp}
+      />
       <main id="view" className="view" data-view={route.name}>
         <UndoNoteProvider live={route.name === "live"}>
           <ErrorBoundary key={route.path} where="this screen">
@@ -140,6 +151,8 @@ function ShellFrame({ screens }: { screens: Record<RouteName, ScreenComponent> }
         </UndoNoteProvider>
         {data.NowPlayingBar && <data.NowPlayingBar previewOnly={!!Screen.showsOnAir} />}
       </main>
+      {help.panel}
+      {help.tour}
     </div>
   );
 }

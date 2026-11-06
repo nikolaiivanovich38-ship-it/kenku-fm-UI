@@ -1,5 +1,7 @@
 // FND-1: must stay the first import; it moves the data folder before anything uses it.
 import { getDataCarryOverResult, runDataCarryOver } from "./main/migration";
+// FND-9: Lyre's recent log (in memory only, for Help › Save diagnostics) starts before anything else logs.
+import { startDiagnosticsLog } from "./main/diagnostics/diagnosticsLog";
 import os from "os";
 import {
   app,
@@ -32,6 +34,8 @@ let saveFirst: SaveBeforeClose | null = null;
 /** WP5: Lyre's library, in its own process; started when the app is ready, closed before quitting. */
 let lyreLibrary: StartedLibrary | null = null;
 let lyreLibraryClosed = false;
+
+startDiagnosticsLog();
 
 // WP1 review 1: files from the user's computer get a scheme of their own,
 // which Electron accepts only before the app is ready.

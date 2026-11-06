@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { createLyreApiBridge, type IpcRendererLike as ApiIpc } from "./api/preloadApi";
 import { createLyreAudioBridge, type IpcRendererLike as AudioIpc } from "./audio/preloadAudio";
 import { createLyreOutputsBridge, type IpcRendererLike as OutputsIpc } from "./outputs/preloadOutputs";
+import { createLyreDiagnosticsBridge, type IpcRendererLike as DiagnosticsIpc } from "./help/preloadDiagnostics";
 
 /**
  * WP5: the new interface page's bridge to the rest of the app, exposed as `window.lyre`. Every IPC channel it uses
@@ -14,6 +15,8 @@ import { createLyreOutputsBridge, type IpcRendererLike as OutputsIpc } from "./o
  *     (webUtils.getPathForFile, as the old player's preload; no IPC). "" for a file that is not on disk.
  *   - outputs (w4-outputs): the Discord bots, their rooms and voice channels (LYRE_OUTPUTS_*), and moving, muting
  *     and turning them up or down (LYRE_OUTPUT_*); src/lyre/outputs/preloadOutputs.ts.
+ *   - diagnostics (w4-guide): Help › Save diagnostics (LYRE_DIAGNOSTICS_SAVE, _SHOW; no arguments);
+ *     src/lyre/help/preloadDiagnostics.ts.
  * The page runs sandboxed with context isolation; nothing from Node or Electron reaches it except this object.
  */
 const api = {
@@ -24,6 +27,7 @@ const api = {
   audio: createLyreAudioBridge(ipcRenderer as unknown as AudioIpc, window),
   files: { pathOf: (file: File): string => webUtils.getPathForFile(file) },
   outputs: createLyreOutputsBridge(ipcRenderer as unknown as OutputsIpc),
+  diagnostics: createLyreDiagnosticsBridge(ipcRenderer as unknown as DiagnosticsIpc),
 };
 
 contextBridge.exposeInMainWorld("lyre", api);

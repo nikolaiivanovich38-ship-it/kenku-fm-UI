@@ -241,3 +241,106 @@ describe("keyboard: F6 and Shift+F6 jump between boxes (UX-12)", () => {
     expect(screen.getByRole("button", { name: "Rooms" })).toHaveFocus();
   });
 });
+
+describe("FND-8 Help in the shell: one entry at the foot of the rail, and F1", () => {
+  const help = () => screen.queryByRole("complementary", { name: "Help" });
+  const press = (key: string, target: Element = document.body) => act(() => void target.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true })));
+
+  it("has a Help button right after Look and feel, before Icons only, closed at first", () => {
+    render(<Shell screens={SHELL_SCREENS} />);
+    const button = screen.getByRole("button", { name: "Help" });
+    expect(button).toHaveAttribute("aria-expanded", "false");
+    expect(button).toHaveAttribute("aria-keyshortcuts", "F1");
+    expect(button.querySelector("svg")).not.toBeNull();
+    expect(button.previousElementSibling).toBe(screen.getByRole("link", { name: "Look and feel" }));
+    expect(button.nextElementSibling).toBe(screen.getByRole("button", { name: "Show icons only" }));
+    expect(help()).toBeNull();
+  });
+
+  it("opens Help beside the screen from the rail; Esc closes it and focus goes back to the button", async () => {
+    const user = userEvent.setup();
+    render(<Shell screens={SHELL_SCREENS} />);
+    await user.click(screen.getByRole("button", { name: "Help" }));
+    expect(help()).toBeInTheDocument();
+    expect(help()?.parentElement?.id).toBe("app");
+    expect(screen.getByRole("button", { name: "Help" })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("searchbox", { name: "Search help" })).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(help()).toBeNull();
+    expect(screen.getByRole("button", { name: "Help" })).toHaveFocus();
+  });
+
+  it("F1 opens it from anywhere, and stays open across screens", () => {
+    render(<Shell screens={SHELL_SCREENS} />);
+    press("F1");
+    expect(screen.getByRole("searchbox", { name: "Search help" })).toHaveFocus();
+    go("library");
+    expect(help()).toBeInTheDocument();
+  });
+
+  it("leaves F1 to a screen that uses it (a Live pad on F1)", () => {
+    const takeF1 = (e: KeyboardEvent) => e.key === "F1" && e.preventDefault();
+    document.addEventListener("keydown", takeF1);
+    try {
+      render(<Shell screens={SHELL_SCREENS} />);
+      press("F1");
+      expect(help()).toBeNull();
+    } finally {
+      document.removeEventListener("keydown", takeF1);
+    }
+  });
+
+  it("shows the tour only when the page asks for it", () => {
+    render(<Shell screens={SHELL_SCREENS} />);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+
+describe("FND-8 the first-run tour", () => {
+  const tour = () => screen.queryByRole("dialog", { name: /\d of 5$/ });
+
+  it("shows five short steps with Skip on each, then remembers it was seen", async () => {
+    const user = userEvent.setup();
+    render(<Shell screens={SHELL_SCREENS} firstRunTour />);
+    const titles: string[] = [];
+    for (let step = 1; step <= 5; step++) {
+      const box = screen.getByRole("dialog", { name: new RegExp(` ${step} of 5$`) });
+      expect(within(box).getByRole("button", { name: "Skip" })).toBeInTheDocument();
+      titles.push(within(box).getByRole("heading").textContent ?? "");
+      if (step === 1) expect(within(box).getByRole("button", { name: "Next" })).toHaveFocus();
+      await user.click(within(box).getByRole("button", { name: step === 5 ? "Done" : "Next" }));
+    }
+    expect(titles).toEqual(["Lyre's places", "Library", "Scenes", "Live", "Now playing"]);
+    expect(tour()).toBeNull();
+    expect(loadShellSettings().tour).toBe("done");
+  });
+
+  it("Back goes to the step before; Skip and Esc end it", async () => {
+    const user = userEvent.setup();
+    render(<Shell screens={SHELL_SCREENS} firstRunTour />);
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await user.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("dialog", { name: "Lyre's places 1 of 5" })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    expect(tour()).toBeNull();
+    expect(loadShellSettings().tour).toBe("done");
+  });
+
+  it("does not come back once seen, and plays again from Help › Take the tour", async () => {
+    const user = userEvent.setup();
+    localStorage.setItem("lyre-shell", JSON.stringify({ tour: "done" }));
+    render(<Shell screens={SHELL_SCREENS} firstRunTour />);
+    expect(tour()).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Help" }));
+    await user.click(screen.getByRole("button", { name: "Take the tour" }));
+    expect(screen.queryByRole("complementary", { name: "Help" })).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Lyre's places 1 of 5" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Skip" }));
+    expect(screen.getByRole("button", { name: "Help" })).toHaveFocus();
+  });
+
+  it("passes axe with the tour up", async () => {
+    render(<Shell screens={SHELL_SCREENS} firstRunTour />);
+    await expectNoAxeViolations();
+  });
+});

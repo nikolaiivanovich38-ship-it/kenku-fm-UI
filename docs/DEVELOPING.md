@@ -61,6 +61,19 @@ CUE_DESK_SKIP_NATIVE_REBUILD=1 yarn package
 
 Prefer libraries without C++ code (WebAssembly, prebuilt binaries for Electron, or Node built-ins such as `node:sqlite`): a module compiled from source needs a C++ toolchain on every build machine.
 
+## Help articles (FND-8)
+
+Help's articles live in `src/lyre/help/articles/`, one Markdown file each, named `<number>-<id>.md`; the number
+gives the order in the panel. To add one:
+
+1. Write the file. It starts with its head between two `---` lines: `title:`, `group:` (Get started, Prepare, Run a
+   session or Your library) and `words:` (more words a search should find it by). Then plain paragraphs, `- ` lists
+   and `1. ` steps, each item on one line; `**Label**` for a name on screen, `` `Key` `` for a key. Nothing else
+   is read: no links, pictures or HTML. Keep it under 300 words, in plain words, and check it against the app.
+2. Import it in `src/lyre/help/articles.ts` (`FILES`). `articles.test.ts` fails until every file is imported, and
+   checks the head, the group and the length.
+3. Rebuild the prototype (`node design/prototype/src/build.js`): it shows the same files.
+
 ## End-to-end tests (FND-4)
 
 `e2e/` holds Playwright tests that start the packaged app. Playwright drives Electron through `--inspect`, which release builds switch off, so build a test package first:
