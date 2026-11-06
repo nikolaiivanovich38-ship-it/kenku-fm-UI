@@ -174,6 +174,8 @@ export function PopMenuButton({
   ariaLabel,
   focusKey,
   tabIndex,
+  onKeyDown,
+  dataK,
 }: {
   label: string;
   className?: string;
@@ -184,6 +186,10 @@ export function PopMenuButton({
   ariaLabel?: string;
   focusKey?: string;
   tabIndex?: number;
+  /** Keys on the button itself (BUG-21: F2 renames the session Live's menu button shows). */
+  onKeyDown?: React.KeyboardEventHandler<HTMLButtonElement>;
+  /** The button's data-k, so focus can find it again once it is drawn anew (RenameInPlace). */
+  dataK?: string;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLButtonElement>(null);
@@ -200,7 +206,9 @@ export function PopMenuButton({
         aria-label={ariaLabel}
         title={title}
         data-focus={focusKey}
+        data-k={dataK}
         tabIndex={tabIndex}
+        onKeyDown={onKeyDown}
         onClick={(event) => {
           event.stopPropagation();
           setOpen(!open);
