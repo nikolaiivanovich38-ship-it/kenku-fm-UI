@@ -48,4 +48,9 @@ describe("routes: the addresses the prototype writes (UX-9)", () => {
     expect(["boards", "board/weather"].map(section)).toEqual(["boards", "boards"]);
     expect(["live", "outputs", "look"].map(section)).toEqual(["live", "outputs", "look"]);
   });
+
+  it("round 5: Back up, move or share, What came across from Kenku FM and Find missing files are part of the Library", () => {
+    expect(["backup", "moved", "relink"].map((p) => parseRoute(p).name)).toEqual(["backup", "moved", "relink"]);
+    expect(["backup", "moved", "relink"].map((p) => sectionOf(parseRoute(p)))).toEqual(["library", "library", "library"]);
+  });
 });

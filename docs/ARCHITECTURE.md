@@ -478,6 +478,39 @@ Phase A of wave 4: the round 5 kit the prep screens and Live build on, and the N
 
 Audio host changes: `RoomNowPlaying.volume` and `setRoomVolume(target, 0..1)` (the room's mix level, kept per room while the app runs; the room that takes over the table keeps its volume; rooms start at `ROOM_START_VOLUME`, 0.85, in the app, 1 in tests unless `startRoomVolume` says otherwise). A lane's `length` is the library's length of the track when it has one, so the bar agrees with the lists.
 
+## Wave 4: w4-transfer
+
+DAT-7 (Back up, move or share), the move report and DAT-8 (Find missing files): the .lyre file in the main process
+and three screens (design/prototype/ROUND5.md "Three screens that had none").
+
+| Where | What it does |
+| --- | --- |
+| `src/main/transfer/zip.ts` | A small zip writer (stored audio streamed with a data descriptor, deflated JSON, CRC-32) and a hostile-file reader (docs/security.md "w4-transfer"). Node's zlib only. |
+| `src/main/transfer/lyreFile.ts` | The .lyre format (docs/data-model.md "The .lyre file"): `writeLyreFile`, `readLyreFile` (manifest, version, entries, every value rebuilt), `refusalWords`. |
+| `src/main/transfer/bringIn.ts` | `describeFile` (new or yours already) and `bringIn` (Skip, Merge, Keep both; ids mapped; one undo step in batches). |
+| `src/main/lyreApi/transferApi.ts` | `saveLyreFile`, `openLyreFile`, `bringInLyreFile` for `transfer.save`, `open`, `bringIn` in `libraryApi.ts` (a backup first, audio unpacked into `Brought in\<file>`). |
+| `src/main/lyreApi/sampleComputer.ts` | Test builds of the sample library only: the prototype's computer (files 9 MB, three missing, E:\Music\Scores, Sam's "Curse of Strahd" file), so the specs check the design's own sample. `seedLibrary(…, { sample: true })` records the file sizes and the move from Kenku FM 1.5.5. |
+| `src/lyre/screens/transfer/` | `BackupScreen` (`#/backup`), `MovedScreen` (`#/moved`), `RelinkScreen` (`#/relink`), `LibraryMoreMenu` (the ⋯ beside Add tracks), `model.ts` (words), `transfer.css` (the prototype's, scoped to `.view`). |
+
+- **Host.** `LibraryHost` gains `chooseSaveFile(suggestedName)` and `chooseLyreFile()`; `startLibrary.ts` shows the
+  dialogs at Documents\Lyre (test builds of the sample library answer them, and the folder chooser, by themselves).
+  `LyreLibraryService` passes `transferFolder` in the library process's `init` message.
+- **Relinking.** `findMissingTracks` and `planRelink` take a `FileProbe` (the disk by default). A file with the same
+  name and another size is now offered as "name" (not ticked: "Same name, different size: check it").
+- **Move report.** `transfer.movedReport()` names the app's version and the bookmarks when the record holds them.
+- **Shared files touched:** `src/lyre/shell/routes.ts` (three routes, section Library), `src/lyre/screens/index.tsx`,
+  `src/lyre/kit/icons.ts` (download, upload, warn), one import and one line in `LibraryScreen.tsx`, `e2e/specs/support/built.ts`.
+
+## Wave 4: w4-normalise
+
+Volume normalisation (PLY-15, DAT-15; design/prototype/ROUND5.md "Volume normalisation"). Lyre never changes your files: the level is evened out as Lyre plays them, and the measurement is kept in Lyre's library.
+
+- **Rules** (`src/common/domain/normalise.ts`): `normaliseDecision` (track, then playlist, then library), `normaliseGain` (target - loudness, at most +12 dB, true peak at or below -1 dBTP), `normalisedGainDb`, and the words (`normaliseLine`, `playlistNormaliseLine`, `normaliseHover`, `libraryNormaliseWords`). `DomainTrack.normalise`, `loudness`; `DomainPlaylist.normalise`.
+- **Data**: schema version 4 (docs/data-model.md). The library's process measures loudness with the bundled ffmpeg in the peaks job (`media/ffmpegLoudness.ts`) and queues unmeasured tracks 20 s after start.
+- **LyreApi**: `library.normaliseSettings()`, `setNormaliseSettings({ on, target })`, `setNormalise(trackId, "on" | "off" | null)`; `playlists.setNormalise(id, choice)`; `LibraryTrack.normalise`, `loudness`; `PlaylistInfo.normalise`. The setting changes "tracks"; new loudness comes with "peaks".
+- **Audio host**: `LyreAudioLibrary.normaliseSettings()`; `LaneNowPlaying.gainDb`, `PreviewNowPlaying.gainDb`; `PreviewTrackOptions.playlistId`. docs/playback-engine.md "Wave 4: volume normalisation".
+- **Kit**: `kit/NormaliseChoice.tsx` (`NormaliseChoice`, `NormaliseDialog`, `trackNormaliseHint`, `playlistNormaliseHint`, `profileNormaliseHint`), not yet placed in screens.
+
 ## Wave 4: w4-prep-b
 
 Phase B of wave 4 for the Campaigns screens, the session planner, the Audio profile and the pad boards (design/prototype/ROUND5.md).

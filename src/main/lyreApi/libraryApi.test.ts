@@ -6,7 +6,7 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { MessageChannel, type MessagePort } from "worker_threads";
 
@@ -19,7 +19,7 @@ import { seedLibrary } from "./seedLibrary";
 
 /** A host with no person to ask: choosers answer what the test says. */
 function testHost(over: Partial<LibraryHost> = {}): LibraryHost {
-  return { chooseFiles: async () => null, chooseFolder: async () => null, showItemInFolder: () => undefined, ...over };
+  return { chooseFiles: async () => null, chooseFolder: async () => null, showItemInFolder: () => undefined, chooseSaveFile: async () => null, chooseLyreFile: async () => null, ...over };
 }
 
 async function seededLibrary() {
@@ -49,6 +49,7 @@ async function contractFixture(): Promise<ContractFixture> {
     missingTrackId: "t43",
     relinkFolder: path.dirname(write("moved/07 Memories of Mother.flac")),
     folderToWatch: path.join(dir, "watch"),
+    transferFiles: { saveTo: path.join(dir, "Shared", "The Sunken Crown.lyre"), notLyreFile: write("Shared/photo.jpg") },
     close: () => {
       api.stopBackgroundWork();
       library.close();
@@ -86,6 +87,31 @@ lyreApiContract("main-process LyreApi over the library, across a message port", 
 });
 
 describe("main-process LyreApi only", () => {
+  it("DAT-15: measures every track not measured yet in the background, a while after it starts, and says so", async () => {
+    const { dir, library, write } = await seededLibrary();
+    const file = write("new/Bells.wav");
+    // t43 is one of the three new sample tracks, not measured yet; its file is put where the library finds it.
+    const added = { id: "t43" };
+    library.store.changeWithoutHistory(() => library.store.run("UPDATE tracks SET root_id = NULL, path = ? WHERE id = ?", file, added.id));
+    const measured: string[] = [];
+    const api = createLibraryApi(library, testHost(), {
+      peakReader: madeUpPeakReader,
+      loudnessReader: { measure: async (f) => (measured.push(f), { lufs: -19.5, truePeakDb: -4 }) },
+      loudnessSweepAfterMs: 10,
+    });
+    const events: string[][] = [];
+    api.subscribe((e) => e.type === "changed" && events.push(e.areas));
+    try {
+      await vi.waitFor(() => expect(measured).toContain(file), { timeout: 3000 });
+      await vi.waitFor(async () => expect((await api.library.listTracks()).find((t) => t.id === added.id)?.loudness).toEqual({ lufs: -19.5, truePeakDb: -4 }));
+      await vi.waitFor(() => expect(events).toContainEqual(["peaks"]));
+    } finally {
+      api.stopBackgroundWork();
+      library.close();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("asks its host for files and folders, and to open a track's folder", async () => {
     const { dir, library, write } = await seededLibrary();
     const files = [write("pick/01 One.flac")];

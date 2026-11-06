@@ -152,6 +152,9 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
     showInFolder: write(id),
     peaksOf: read(id),
     setShape: write(id, nullable(text(MAX_ID))),
+    normaliseSettings: read(),
+    setNormaliseSettings: write(object({ on: bool, target: text(MAX_ID) })),
+    setNormalise: write(id, nullable(text(MAX_ID))),
   },
   tags: {
     listGroups: read(),
@@ -173,6 +176,7 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
     addTracks: withOptional(write(id, list(id), whole), 2),
     removeTrack: write(id, id),
     moveTrack: write(id, id, whole),
+    setNormalise: write(id, nullable(text(MAX_ID))),
     playOrders: read(),
     setPlayOrder: write(id, nullable(playPlace), playOrder),
     clearPlayOrder: write(id, nullable(playPlace)),

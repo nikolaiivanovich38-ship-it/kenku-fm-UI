@@ -296,3 +296,19 @@ button .shape-g { color: inherit; }
 /* A menu's explanation line (kit/PopMenu.tsx note): read as the menu's description, not an item. */
 .menu .menu-note { max-width: 280px; white-space: normal; font-size: var(--fs-xs); color: var(--ink-2); cursor: default; }
 .menu .menu-note:hover { background: transparent; }
+
+/* PLY-15 the NormaliseChoice control (kit/NormaliseChoice.tsx: Library setting / On / Off with the measured line)
+   and the library's Normalise volume dialog, as design/prototype/src/ui.css draws them. */
+.norm { display: grid; grid-template-columns: minmax(74px, max-content) minmax(0, 1fr); gap: 4px 8px; align-items: start; }
+.norm-l { font-size: var(--fs-xs); font-weight: 700; color: var(--ink-2); padding-top: 5px; }
+.norm-box { display: grid; gap: 3px; justify-items: start; min-width: 0; }
+.norm-line { margin: 0; font-size: var(--fs-s); color: var(--ink); }
+.norm-box .hint { margin: 0; }
+.norm-sheet p { margin: 0; }
+.norm-on { display: flex; align-items: center; gap: 8px; font-weight: 700; }
+.norm-targets { border: 0; padding: 0; margin: 0; display: grid; gap: 6px; min-width: 0; }
+.norm-targets legend { font-size: var(--fs-s); font-weight: 700; margin-bottom: 4px; padding: 0; }
+.norm-opt { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-height: var(--ctl); padding: 3px 8px; border: 1px solid var(--line); border-radius: var(--r-m); cursor: pointer; font-weight: 700; font-size: var(--fs-s); }
+.norm-opt:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.norm-opt .hint { flex-basis: 100%; padding-left: 22px; font-weight: 400; }
+@media (max-width: 520px) { .norm { grid-template-columns: minmax(0, 1fr); } .norm-l { padding-top: 0; } }

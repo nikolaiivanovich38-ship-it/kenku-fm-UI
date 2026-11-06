@@ -1,7 +1,8 @@
 /**
  * The new interface's screens and their addresses (UX-9), exactly as the design prototype writes them:
  * "campaigns", "campaign/crown", "session/crown/s14", "library", "library/t44", "playlists", "playlist/p-abbess",
- * "profile/t13", "profile/t13/sc:crown:s14:sc3", "boards", "board/weather", "live", "outputs", "look".
+ * "profile/t13", "profile/t13/sc:crown:s14:sc3", "boards", "board/weather", "live", "outputs", "look", and (round 5)
+ * "backup", "moved", "relink" (Back up, move or share; What came across from Kenku FM; Find missing files).
  *
  * The page address is "#/" + the route ("#/session/crown/s14"). The prototype's own page form ("#session--crown--s14",
  * which its artifact host needed) is read too.
@@ -19,7 +20,10 @@ export type RouteName =
   | "board"
   | "live"
   | "outputs"
-  | "look";
+  | "look"
+  | "backup"
+  | "moved"
+  | "relink";
 
 /** The rail's sections; every screen lights one of them. */
 export type Section = "campaigns" | "library" | "playlists" | "boards" | "live" | "outputs" | "look";
@@ -50,6 +54,9 @@ const ROUTES: [RegExp, RouteName, string[]][] = [
   [/^live$/, "live", []],
   [/^outputs$/, "outputs", []],
   [/^look$/, "look", []],
+  [/^backup$/, "backup", []],
+  [/^moved$/, "moved", []],
+  [/^relink$/, "relink", []],
 ];
 
 const SECTION: Record<RouteName, Section> = {
@@ -65,6 +72,9 @@ const SECTION: Record<RouteName, Section> = {
   live: "live",
   outputs: "outputs",
   look: "look",
+  backup: "library",
+  moved: "library",
+  relink: "library",
 };
 
 /** The screen for a route such as "session/crown/s14". An unknown address opens Live, as in the prototype. */

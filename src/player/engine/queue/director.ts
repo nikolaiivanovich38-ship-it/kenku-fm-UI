@@ -67,6 +67,12 @@ export class Director extends TypedEmitter<DirectorEvents> {
     return this.rooms.rooms().map((room) => this.player(room.botId).report(room.name));
   }
 
+  /** PLY-15: the library changed (its Normalise volume setting, a choice, or a track measured): gains follow. */
+  libraryChanged(): void {
+    for (const player of this.players.values()) player.refreshGains();
+    this.emit("change");
+  }
+
   /** Whether Undo of the last scene start is still possible. */
   canUndo(): boolean {
     return this.undo !== null;

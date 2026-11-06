@@ -1,0 +1,51 @@
+/* Back up, move or share (DAT-7), What came across from Kenku FM, Find missing files (DAT-8): prefix tf-.
+   Ported from design/prototype/src/views/transfer.css. Each rule is scoped to .view so it wins ties with ui.css, which
+   the page loads after the screens. Lyre's own additions are at the end. */
+.view .tf-body { padding: 10px 12px; }
+.view .tf-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: start; }
+.view .tf-cols.tf-one { grid-template-columns: minmax(0, 860px); }
+@container app (max-width: 1000px) { .view .tf-cols { grid-template-columns: minmax(0, 1fr); } }
+.view .tf-what { border: 0; padding: 0; margin: 0 0 8px; display: flex; flex-direction: column; gap: 2px; }
+.view .tf-what legend { font-size: var(--fs-xs); font-weight: 700; color: var(--ink-2); margin-bottom: 4px; }
+.view .tf-opt { display: flex; flex-direction: column; gap: 4px; padding: 4px 6px; border-radius: var(--r-m); }
+.view .tf-opt.on { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--accent); }
+.view .tf-opt > label, .view .tf-check { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; font-size: var(--fs-s); min-width: 0; }
+.view .tf-opt > label input, .view .tf-check input { margin-top: 2px; }
+.view .tf-sub { display: block; }
+.view .tf-pick { margin-left: 24px; width: calc(100% - 24px); }
+.view .tf-check { padding: 6px; border-top: 1px solid var(--line); }
+.view .tf-actrow { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 8px; margin-top: 8px; }
+.view .tf-actrow a.btn { text-decoration: none; }
+.view .tf-done, .view .tf-refused { display: flex; align-items: center; gap: 8px; padding: 6px 8px; margin-top: 8px; border: 1px solid var(--line-strong); border-left: 3px solid var(--accent); border-radius: var(--r-m); font-size: var(--fs-s); background: var(--surface-2); }
+.view .tf-done > svg.i { color: var(--accent-text); flex: none; }
+.view .tf-refused { border-left-color: var(--warn); }
+.view .tf-refused > svg.i { color: var(--warn); flex: none; }
+.view .tf-drop { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 10px; border: 2px dashed var(--line-strong); border-radius: var(--r-m); text-align: center; }
+.view .tf-drop p { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--ink-2); }
+.view .tf-drop.over { border-color: var(--accent); background: var(--accent-soft); }
+.view .tf-file { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 0 0 6px; font-size: var(--fs-s); }
+.view .tf-items { border: 1px solid var(--line); border-radius: var(--r-m); }
+.view .tf-item { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-bottom: 1px solid var(--line); min-width: 0; flex-wrap: wrap; }
+.view .tf-item:last-child { border-bottom: 0; }
+.view .tf-kind { flex: none; width: 70px; font-size: var(--fs-xs); color: var(--ink-2); }
+.view .tf-iname { display: flex; flex-direction: column; min-width: 0; font-size: var(--fs-s); }
+.view .tf-item .tf-iname { flex: 1 1 160px; }
+.view .tf-lead { margin: 0 0 8px; font-size: var(--fs-s); }
+.view .tf-table { width: 100%; border-collapse: collapse; font-size: var(--fs-s); table-layout: fixed; }
+.view .tf-table th { text-align: left; font-size: var(--fs-xs); color: var(--ink-2); padding: 4px 6px; border-bottom: 1px solid var(--line-strong); }
+.view .tf-table td { padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.view .tf-table .num { text-align: right; width: 80px; }
+.view .tf-cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.view .tf-confirm th:first-child, .view .tf-confirm td:first-child { width: 30px; }
+.view .tf-confirm th:last-child { width: 34%; }
+.view .tf-how { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs); }
+.view .tf-how.warn { color: var(--warn); }
+.view .tf-lookrow { display: flex; align-items: flex-end; gap: 6px; flex-wrap: wrap; }
+.view .tf-lookrow .field { min-width: 220px; }
+.view .tf-miss .lrow, .view .tf-not .lrow { padding: 4px 2px; }
+/* Lyre: the duplicate choices wrap under the name on a narrow box; the hidden caption of a table. */
+.view .tf-item .seg { flex: none; }
+.view .tf-refused, .view .tf-done { overflow-wrap: anywhere; }
+.view .tf-cell a { overflow: hidden; text-overflow: ellipsis; }
+.view .tf-drop .btn { flex: none; }
+.view .tf-pick select, .view select.tf-pick { max-width: 100%; }

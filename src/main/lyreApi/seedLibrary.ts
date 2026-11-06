@@ -7,6 +7,7 @@
 import { parseKeyOfPlace, parsePlaceKey } from "../../common/domain";
 import { prototypeLevels } from "../../common/lyre/prototypeLevels";
 import type { SeedData } from "../../common/lyre/seed";
+import { SAMPLE_FILE_BYTES } from "./sampleComputer";
 import {
   addPad,
   addRoot,
@@ -23,17 +24,30 @@ import {
   createTag,
   createTagGroup,
   createTracks,
+  saveLoudness,
+  setLibraryNormalise,
+  setPlaylistNormalise,
   setPlayOrder,
   setProfileOverride,
   setSceneAmbience,
   savePeaks,
   setSceneTrackName,
+  setTrackNormalise,
+  trackLoudness,
   trackPeaks,
   updateTrack,
   type Library,
 } from "../data";
 
-export async function seedLibrary(library: Library, seed: SeedData): Promise<void> {
+export interface SeedOptions {
+  /**
+   * Test builds of the sample library: the tracks get the sample computer's file sizes (sampleComputer.ts), and the
+   * library remembers the move from Kenku FM the prototype shows (data.js `moved`), with its three missing files.
+   */
+  sample?: boolean;
+}
+
+export async function seedLibrary(library: Library, seed: SeedData, options: SeedOptions = {}): Promise<void> {
   const { store } = library;
   if (store.get("SELECT 1 AS found FROM tracks LIMIT 1")) throw new Error("Only a new, empty library can be seeded.");
   // A new library starts with Lyre's own tag groups (Mood, Leitmotif, Scene type); the seed brings the prototype's.
@@ -55,7 +69,7 @@ export async function seedLibrary(library: Library, seed: SeedData): Promise<voi
         kind: t.kind,
         title: t.title,
         metaTitle: t.metaTitle,
-        file: { path: `${t.folder}\\${t.fileName}` },
+        file: { path: `${t.folder}\\${t.fileName}`, size: options.sample ? SAMPLE_FILE_BYTES : null },
         durationMs: t.durationMs,
         role: t.role,
         loopable: t.loop,
@@ -70,6 +84,8 @@ export async function seedLibrary(library: Library, seed: SeedData): Promise<voi
     for (const t of seed.tracks) {
       store.run("UPDATE tracks SET created_at = ? WHERE id = ?", t.addedAt, t.id);
       if (t.shape) updateTrack(store, t.id, { shape: t.shape });
+      // PLY-15: the sample choices (their loudness is saved below, as bookkeeping of its own).
+      if (t.normalise) setTrackNormalise(store, t.id, t.normalise);
       for (const [group, values] of Object.entries(t.tags)) {
         for (const value of values) store.run("INSERT INTO track_tags (track_id, tag_id) VALUES (?, ?)", t.id, tagIds.get(`${group}\u0000${value}`));
       }
@@ -78,7 +94,9 @@ export async function seedLibrary(library: Library, seed: SeedData): Promise<voi
       createPlaylist(store, p.kind === "manual" ? { id: p.id, title: p.name, kind: "manual", lane: p.lane, notes: p.notes } : { id: p.id, title: p.name, kind: "dynamic", lane: p.lane, rule: p.rule, notes: p.notes });
       if (p.kind === "manual" && p.trackIds.length) addTracksToPlaylist(store, p.id, p.trackIds);
       if (p.order) setPlayOrder(store, p.id, null, p.order);
+      if (p.normalise) setPlaylistNormalise(store, p.id, p.normalise);
     }
+    if (seed.normalise) setLibraryNormalise(store, seed.normalise);
     for (const b of seed.boards) {
       createBoard(store, { id: b.id, title: b.name, cols: b.cols, rows: b.rows });
       const pads = [
@@ -136,7 +154,19 @@ export async function seedLibrary(library: Library, seed: SeedData): Promise<voi
       if (!place) throw new Error(`The seed has a play order for an unknown place: ${key}`);
       for (const [playlistId, order] of Object.entries(byPlaylist)) setPlayOrder(store, playlistId, place, order);
     }
+    if (options.sample) {
+      // What the first start's move from the old player records (import/legacy.ts, the "legacy-player" job), as
+      // the prototype's move report shows it: Kenku FM 1.5.5, its counts, bookmarks and the files it could not find.
+      const counts = Object.fromEntries(seed.moved.copied.map((row) => [row.what.toLowerCase(), row.count]));
+      const report = { status: "moved", from: seed.moved.from, counts: { playlists: counts.playlists, tracks: counts.tracks, boards: counts.soundboards, pads: counts.sounds }, bookmarks: counts.bookmarks, missingTrackIds: [...seed.missing] };
+      store.run("INSERT INTO library_jobs (name, state, detail, started_at, finished_at) VALUES ('legacy-player', 'done', ?, ?, ?)", JSON.stringify({ backupPath: null, report }), seed.moved.at, seed.moved.at);
+    }
   });
+  // DAT-15: what would have been measured from the files (the seed has no files), kept as the job keeps it.
+  for (const t of seed.tracks) {
+    const measuring = trackLoudness(store, t.id);
+    if (t.loudness && measuring.state === "needed") saveLoudness(store, measuring.source, t.loudness);
+  }
   store.clearHistory();
 }
 

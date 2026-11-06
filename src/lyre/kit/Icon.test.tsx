@@ -8,7 +8,7 @@ describe("the icon set (from the prototype's core.js)", () => {
     for (const name of ["play", "stop", "pause", "broadcast", "crown", "library", "playlist", "grid", "users", "palette", "chevdown", "expand", "shrink", "headphones", "close", "more", "search", "fade", "check", "shuffle", "inorder", "loop", "repeat1", "volume", "upload", "download", "warn"]) {
       expect(ICON_NAMES).toContain(name);
     }
-    // All 83 of the prototype's icons (core.js, round 5 added six), nothing more.
+    // All of the prototype's icons (core.js; round 5 added play order, volume and the transfer screens' download, upload and warn), nothing more.
     expect(ICON_NAMES).toHaveLength(83);
   });
 

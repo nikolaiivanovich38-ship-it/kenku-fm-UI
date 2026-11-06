@@ -22,8 +22,8 @@ export const EMPTY_NOW_PLAYING: NowPlaying = {
 
 type Call = [method: string, ...args: unknown[]];
 
-/** A lane as a test gives it: where it plays from and its play order may be left out (none: a single track). */
-export type FakeLane = Omit<LaneNowPlaying, "place" | "playOrder"> & Partial<Pick<LaneNowPlaying, "place" | "playOrder">>;
+/** A lane as a test gives it: where it plays from, its play order and its gain may be left out (a single track, as it is). */
+export type FakeLane = Omit<LaneNowPlaying, "place" | "playOrder" | "gainDb"> & Partial<Pick<LaneNowPlaying, "place" | "playOrder" | "gainDb">>;
 /** A preview as a test gives it: its key and label, the rest filled in (a track, playing, full volume). */
 export type FakePreview = Pick<PreviewNowPlaying, "key" | "label"> & Partial<PreviewNowPlaying>;
 /** Now-playing state as a test gives it to setNowPlaying. */
@@ -33,9 +33,9 @@ export type FakeNowPlaying = Partial<Omit<NowPlaying, "rooms" | "preview">> & {
   preview?: FakePreview | null;
 };
 
-const lane = (l: FakeLane | null): LaneNowPlaying | null => (l ? { place: null, playOrder: null, ...l } : null);
+const lane = (l: FakeLane | null): LaneNowPlaying | null => (l ? { place: null, playOrder: null, gainDb: 0, ...l } : null);
 const preview = (p: FakePreview | null | undefined): PreviewNowPlaying | null =>
-  p ? { kind: "track", trackId: p.key.startsWith("pl:") || p.key.startsWith("pad:") ? null : p.key, playlistId: null, padKey: null, from: null, paused: false, position: null, length: null, volume: 1, ...p } : null;
+  p ? { kind: "track", trackId: p.key.startsWith("pl:") || p.key.startsWith("pad:") ? null : p.key, playlistId: null, padKey: null, from: null, paused: false, position: null, length: null, volume: 1, gainDb: 0, ...p } : null;
 
 export class FakeLyreAudio extends TypedEmitter<LyreAudioEvents> implements LyreAudio {
   calls: Call[] = [];

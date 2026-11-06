@@ -29,8 +29,8 @@ describe("schema version 3 (design round 5)", () => {
   });
   afterEach(() => db.close());
 
-  it("is the newest version and leaves no broken link", () => {
-    expect(schemaVersion(db)).toBe(3);
+  it("is in place and leaves no broken link", () => {
+    expect(schemaVersion(db)).toBeGreaterThanOrEqual(3);
     expect(all(db, "PRAGMA foreign_key_check")).toEqual([]);
   });
 
@@ -139,7 +139,7 @@ describe("upgrading a version 2 library to version 3", () => {
       INSERT INTO search_fts (rowid, title, meta_title, file_name, artist, album, tags, markers, notes, cue)
         SELECT doc_id, 'Abbey bells', '', 't.flac', '', '', '', '', '', '' FROM search_docs WHERE kind = 'track' AND ref_id = 't';`);
 
-    expect(migrate(db, MIGRATIONS)).toEqual({ from: 2, to: 3, applied: [3] });
+    expect(migrate(db, MIGRATIONS.slice(0, 3))).toEqual({ from: 2, to: 3, applied: [3] });
     expect(all(db, "SELECT id, track_id, playlist_id, scene_id, session_id, end_ms, after_end, fade_in_ms, fade_in_shape FROM audio_profiles ORDER BY id")).toEqual([
       { id: "a1", track_id: "t", playlist_id: null, scene_id: "x", session_id: null, end_ms: 9000, after_end: null, fade_in_ms: 500, fade_in_shape: 40 },
       { id: "a2", track_id: "t", playlist_id: "p", scene_id: null, session_id: null, end_ms: null, after_end: "stop", fade_in_ms: null, fade_in_shape: null },

@@ -24,7 +24,12 @@ import {
   TRACK_ROLES,
   TRACK_SHAPES,
   SHAPE_WORDS,
+  NORMALISE_CHOICES,
+  NORMALISE_TARGETS,
+  DEFAULT_LIBRARY_NORMALISE,
   type AudioProfileInput,
+  type LibraryNormalise,
+  type NormaliseChoice,
   type DomainLookup,
   type PlayOrder,
   type PlayOrderOverrides,
@@ -110,11 +115,13 @@ interface State {
   playOrders: PlayOrderOverrides;
   /** Ids of tracks whose files have gone (part of the "tracks" area). */
   missing: string[];
+  /** PLY-15: the library's Normalise volume setting (part of the "tracks" area: every track's gain follows it). */
+  normalise: LibraryNormalise;
 }
 
 /** Which part of the state each area is: an undo step keeps a copy of the parts its areas name. */
 const SLICES: Record<Exclude<LyreArea, "history">, (keyof State)[]> = {
-  tracks: ["tracks", "missing"],
+  tracks: ["tracks", "missing", "normalise"],
   tags: ["tagGroups"],
   folders: ["folders"],
   playlists: ["playlists", "playOrders"],
@@ -182,6 +189,14 @@ function guessKind(folder: string): LibraryTrack["kind"] {
   return "music";
 }
 
+/** A made-up loudness for a track the fake "measures" (-26 to -14 LUFS, peaks 8 to 14 dB above it, at most 0 dBTP). */
+export function madeUpLoudness(trackId: string): { lufs: number; truePeakDb: number } {
+  let hash = 7;
+  for (const c of trackId) hash = (hash * 33 + c.charCodeAt(0)) >>> 0;
+  const lufs = -26 + (hash % 120) / 10;
+  return { lufs: Math.round(lufs * 10) / 10, truePeakDb: Math.min(0, Math.round((lufs + 8 + ((hash >> 8) % 60) / 10) * 10) / 10) };
+}
+
 export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
   const now = options.now ?? (() => Date.now());
   const seed = copy(options.seed ?? prototypeSeed(now()));
@@ -195,6 +210,7 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
     overrides: seed.overrides,
     playOrders: seed.playOrders,
     missing: [...(options.missingTrackIds ?? seed.missing)],
+    normalise: { ...(seed.normalise ?? DEFAULT_LIBRARY_NORMALISE) },
   };
   /** DAT-7: .lyre files saved so far, by path (lower case), as a real file would hold them. */
   const lyreFiles = new Map<string, { contents: TransferContents; includesAudio: boolean; savedAt: number }>();
@@ -232,6 +248,8 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
         peaks.set(id, prototypeLevels(t));
         // DAT-13: the suggestion is kept with the peaks, outside undo, as the library keeps it.
         t.suggestedShape = shapeFromPeaks(peaks.get(id));
+        // DAT-15: the same job measures loudness; a made-up figure stands in for ffmpeg's.
+        t.loudness ??= madeUpLoudness(id);
       }
       emit({ type: "changed", areas: ["peaks"] });
     });
@@ -300,6 +318,10 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
   const lookup = (): DomainLookup => lookupFrom(state.tracks, state.playlists);
   function track(id: string): LibraryTrack {
     return state.tracks.find((t) => t.id === id) ?? refuse("not-found", "That track is no longer in your library.");
+  }
+  /** PLY-15: On, Off, or null for the library's setting. */
+  function checkNormalise(choice: NormaliseChoice | null) {
+    if (choice !== null && !(NORMALISE_CHOICES as readonly string[]).includes(choice)) refuse("invalid", "Choose Library setting, On or Off.", "normalise");
   }
   function playlist(id: string): PlaylistInfo {
     return state.playlists.find((p) => p.id === id) ?? refuse("not-found", "That playlist no longer exists.");
@@ -486,6 +508,8 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
       profile: null,
       shape: null,
       suggestedShape: null,
+      normalise: null,
+      loudness: null,
       artist: "",
       album: "",
       folder,
@@ -604,6 +628,27 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           return t;
         });
       },
+      async normaliseSettings() {
+        return copy(state.normalise);
+      },
+      async setNormaliseSettings(setting) {
+        return write("Normalise volume", ["tracks"], () => {
+          if (typeof setting?.on !== "boolean") refuse("invalid", "Choose whether to normalise the library.", "on");
+          if (!(NORMALISE_TARGETS as readonly string[]).includes(setting.target)) refuse("invalid", "Choose Quiet, Standard or Loud.", "target");
+          state.normalise = { on: setting.on, target: setting.target };
+          return state.normalise;
+        });
+      },
+      async setNormalise(trackId, choice) {
+        let name = "";
+        return write(() => `Normalise volume of ${quoted(name)}`, ["tracks"], () => {
+          const t = track(trackId);
+          checkNormalise(choice);
+          name = shownTitle(t);
+          t.normalise = choice;
+          return t;
+        });
+      },
       async showInFolder(trackId) {
         try {
           track(trackId);
@@ -674,11 +719,11 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           if (input.kind === "manual") {
             const ids = [...new Set(input.trackIds ?? [])];
             ids.forEach(track);
-            pl = { id: newId("playlist"), name, lane: input.lane, order: null, kind: "manual", trackIds: ids, notes: input.notes ?? "" };
+            pl = { id: newId("playlist"), name, lane: input.lane, order: null, normalise: null, kind: "manual", trackIds: ids, notes: input.notes ?? "" };
           } else if (input.kind === "dynamic") {
             const rule = copy(input.rule ?? { conds: [] });
             checkRule(rule);
-            pl = { id: newId("playlist"), name, lane: input.lane, order: null, kind: "dynamic", rule, notes: input.notes ?? "" };
+            pl = { id: newId("playlist"), name, lane: input.lane, order: null, normalise: null, kind: "dynamic", rule, notes: input.notes ?? "" };
           } else refuse("invalid", "A playlist is manual or dynamic.", "kind");
           state.playlists.unshift(pl);
           return pl;
@@ -701,7 +746,7 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
       async copyAsManual(id) {
         return write((pl: PlaylistInfo) => `Make ${quoted(pl.name)}`, ["playlists"], () => {
           const pl = playlist(id);
-          const made: PlaylistInfo = { id: newId("playlist"), name: `${pl.name} (manual)`, lane: pl.lane, order: null, kind: "manual", trackIds: playlistTracks(pl, lookup()).map((t) => t.id), notes: pl.notes };
+          const made: PlaylistInfo = { id: newId("playlist"), name: `${pl.name} (manual)`, lane: pl.lane, order: null, normalise: pl.normalise, kind: "manual", trackIds: playlistTracks(pl, lookup()).map((t) => t.id), notes: pl.notes };
           state.playlists.splice(state.playlists.indexOf(pl) + 1, 0, made);
           return made;
         });
@@ -751,6 +796,16 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
       },
       async playOrders() {
         return copy(state.playOrders);
+      },
+      async setNormalise(playlistId, choice) {
+        let name = "";
+        return write(() => `Normalise volume of ${quoted(name)}`, ["playlists"], () => {
+          const pl = playlist(playlistId);
+          checkNormalise(choice);
+          name = pl.name;
+          pl.normalise = choice;
+          return pl;
+        });
       },
       async setPlayOrder(playlistId, place, order) {
         let label = "";

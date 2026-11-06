@@ -283,3 +283,23 @@ test.describe("round 5: the Now playing bar and play order on the campaign page"
     await expect(region(page, "Campaign playlists").getByRole("button", { name: "Play on air: Ominous song, the villain's calling card (short)" })).toBeVisible();
   });
 });
+
+/* Round 5, volume normalisation (design/prototype/ROUND5.md "Volume normalisation (PLY-15, DAT-15)"): built in wave 4. */
+test.describe("round 5: volume normalisation in the Now playing bar", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 5"));
+
+  test("PLY-15: a Now playing row's track name says on hover how much its volume is evened out, for the players and for a preview", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    const lists = region(page, "Campaign playlists");
+    await lists.getByRole("button", { name: "Play on air: Ashen King" }).click();
+    const bar = region(page, "Now playing");
+    const air = bar.getByRole("group", { name: "On air", exact: true });
+    await expect(air.getByTitle("Gothic menace, pounding low brass - villain reveal · Volume evened out: -2.2 dB (-15.8 LUFS measured)")).toBeVisible();
+    await lists.getByRole("button", { name: "Preview Ashen King" }).click();
+    const you = bar.getByRole("group", { name: "Only you", exact: true });
+    await expect(you.getByTitle(/· Volume evened out: -2\.2 dB/)).toBeVisible();
+    await air.getByRole("button", { name: "Stop", exact: true }).click();
+    await lists.getByRole("button", { name: "Play on air: The Company themes" }).click();
+    await expect(air.getByTitle(/· Volume not evened out$/)).toBeVisible();
+  });
+});

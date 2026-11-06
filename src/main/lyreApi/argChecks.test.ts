@@ -15,7 +15,7 @@ import { ARGUMENT_SHAPES, NOT_UNDERSTOOD, argumentProblem } from "./argChecks";
 import { createLibraryApi } from "./libraryApi";
 import { seedLibrary } from "./seedLibrary";
 
-const host = { chooseFiles: async (): Promise<null> => null, chooseFolder: async (): Promise<null> => null, showItemInFolder: (): void => undefined };
+const host = { chooseFiles: async (): Promise<null> => null, chooseFolder: async (): Promise<null> => null, showItemInFolder: (): void => undefined, chooseSaveFile: async (): Promise<null> => null, chooseLyreFile: async (): Promise<null> => null };
 const cleanups: (() => void)[] = [];
 afterEach(() => cleanups.splice(0).forEach((c) => c()));
 

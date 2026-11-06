@@ -74,7 +74,7 @@ export function peakArgs(input: string): string[] {
 }
 
 /** Background work gives way to Lyre's own processes and the game master's other programs. */
-function belowNormal(pid: number): void {
+export function belowNormal(pid: number): void {
   try {
     os.setPriority(pid, os.constants.priority.PRIORITY_BELOW_NORMAL);
   } catch {
