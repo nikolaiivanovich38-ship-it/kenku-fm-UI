@@ -4,6 +4,12 @@ All notable changes to Lyre (called Cue Desk in versions 0.1.x). Versions follow
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-06: fixes from your test of 0.4.0
+
+- What goes to your players never plays on your computer's speakers. You hear it only through Discord, in the voice channel. When no bot is in a voice channel, Live's On air box and the Now playing bar say nobody hears it. Preview and Try pads still play in your headphones only. [BUG-19]
+- Press a playing pad to stop it, whatever its play mode. Stop pads in Live's Pads box stops every pad and leaves the music and ambience playing. A playing pad shows that it plays. [BUG-20]
+- Rename a session from its own page and from Live's top strip: click the name or press F2, Enter saves, Esc cancels. [BUG-21]
+
 ## [0.4.0] - 2026-11-06: run your games in Lyre
 
 **Live**
