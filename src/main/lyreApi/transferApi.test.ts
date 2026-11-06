@@ -174,16 +174,19 @@ describe("DAT-7 Save to a file, then Bring in on another computer", () => {
     const from = await libraryAt(path.join(dir, "here"), false);
     const music = path.join(dir, "Music");
     fs.mkdirSync(music);
-    fs.writeFileSync(path.join(music, "a.flac"), Buffer.alloc(100_000, 7));
-    fs.writeFileSync(path.join(music, "b.ogg"), "ogg bytes");
-    createTracks(from.library.store, [{ kind: "music", file: { path: path.join(music, "a.flac"), size: 100_000 }, durationMs: 1000 }, { kind: "music", file: { path: path.join(music, "b.ogg"), size: 9 }, durationMs: 2000 }]);
+    // Each starts the way its kind of file starts: Lyre unpacks only what looks like audio (security review w4).
+    const flac = Buffer.alloc(100_000, 7);
+    flac.write("fLaC");
+    fs.writeFileSync(path.join(music, "a.flac"), flac);
+    fs.writeFileSync(path.join(music, "b.ogg"), "OggS bytes");
+    createTracks(from.library.store, [{ kind: "music", file: { path: path.join(music, "a.flac"), size: 100_000 }, durationMs: 1000 }, { kind: "music", file: { path: path.join(music, "b.ogg"), size: 10 }, durationMs: 2000 }]);
     const [a, b] = await from.api.library.listTracks();
     valueOf(await from.api.playlists.create({ name: "Two", lane: "music", kind: "manual", trackIds: [a.id, b.id] }));
     const pl = (await from.api.playlists.list())[0];
-    expect((await from.api.transfer.estimate({ kind: "playlist", playlistId: pl.id })).audioBytes).toBe(100_009);
+    expect((await from.api.transfer.estimate({ kind: "playlist", playlistId: pl.id })).audioBytes).toBe(100_010);
     const target = path.join(dir, "Two.lyre");
     const saved = valueOf(await from.api.transfer.save({ scope: { kind: "playlist", playlistId: pl.id }, includeAudio: true, path: target }));
-    expect(saved.bytes).toBeGreaterThan(100_009);
+    expect(saved.bytes).toBeGreaterThan(100_010);
 
     const to = await libraryAt(path.join(dir, "there"), false);
     const opened = valueOf(await to.api.transfer.open({ from: "path", path: target })) as OpenedFile;
@@ -195,7 +198,7 @@ describe("DAT-7 Save to a file, then Bring in on another computer", () => {
     const tracks = await to.api.library.listTracks();
     const unpacked = path.join(dir, "there", "Brought in", "Two");
     expect(tracks.map((t) => t.folder).sort()).toEqual([unpacked, unpacked]);
-    expect(fs.readFileSync(path.join(unpacked, "a.flac"))).toEqual(Buffer.alloc(100_000, 7));
+    expect(fs.readFileSync(path.join(unpacked, "a.flac"))).toEqual(flac);
   });
 
   it("a file saved with the audio files of tracks whose files are gone says so, and leaves them out", async () => {

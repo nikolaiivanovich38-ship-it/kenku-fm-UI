@@ -59,9 +59,12 @@ export function sampleComputer(seed: SeedData): FileProbe & { open(file: string)
     open: (p) => {
       const size = found(p)?.size ?? 0;
       const chunk = Buffer.alloc(64 * 1024, 0x55);
+      // The first bytes are those of a real file of its kind: Bring in unpacks only what looks like audio (audioBytes.ts).
+      const first = Buffer.from(chunk);
+      first.write(path.win32.extname(p).toLowerCase() === ".wav" ? "RIFF\u0000\u0000\u0000\u0000WAVE" : "fLaC", "latin1");
       return Readable.from(
         (function* () {
-          for (let sent = 0; sent < size; sent += chunk.length) yield chunk.subarray(0, Math.min(chunk.length, size - sent));
+          for (let sent = 0; sent < size; sent += chunk.length) yield (sent === 0 ? first : chunk).subarray(0, Math.min(chunk.length, size - sent));
         })(),
       );
     },

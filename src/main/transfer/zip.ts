@@ -178,6 +178,8 @@ export interface OpenedZip {
   has(name: string): boolean;
   /** An entry's bytes, refused ("too-big") when it would be over `maxBytes`. */
   read(name: string, maxBytes: number): Promise<Buffer>;
+  /** The first `maxBytes` bytes (or fewer) of a stored entry, unchecked: enough to tell what kind of file it is. */
+  head(name: string, maxBytes: number): Promise<Buffer>;
   /** Streams a stored entry to `target` (through "<target>.part"), checking its CRC; nothing is left when it fails. */
   copyTo(name: string, target: string): Promise<void>;
   close(): Promise<void>;
@@ -281,6 +283,11 @@ export async function openZip(file: string, limits: ZipLimits = {}): Promise<Ope
         }
         if (bytes.length !== entry.size || crc32(bytes) >>> 0 !== entry.crc) throw damaged(`${name} was changed or is cut off.`);
         return bytes;
+      },
+      async head(name, maxBytes) {
+        const entry = entryOf(name);
+        if (entry.method !== 0) throw new ZipError("unsupported", "Audio parts are stored, not packed.");
+        return readAt(handle, await dataStart(entry), Math.min(maxBytes, entry.size));
       },
       async copyTo(name, target) {
         const entry = entryOf(name);

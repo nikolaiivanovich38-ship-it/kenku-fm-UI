@@ -14,7 +14,7 @@ import { ValidationError, type Store } from "../data";
 import { baseName } from "../data/import/tagReader";
 import type { FileProbe } from "../data/import/relink";
 import { bringIn, describeFile, tracksToAdd, type FileItem } from "../transfer/bringIn";
-import { LYRE_FILE_LIMITS, LyreFileError, readLyreFile, refusalWords, writeLyreFile, type FileTrack, type LyreFileLibrary, type OpenedLyreFile } from "../transfer/lyreFile";
+import { LYRE_FILE_LIMITS, LyreFileError, entryExtension, readLyreFile, refusalWords, writeLyreFile, type FileTrack, type LyreFileLibrary, type OpenedLyreFile } from "../transfer/lyreFile";
 import { Refused } from "./refused";
 
 export interface TransferFiles {
@@ -196,27 +196,38 @@ export async function bringInLyreFile(store: Store, open: OpenTransfer, mine: Tr
   const folder = path.join(files.broughtInFolder, safeFileName(preview.fileName.replace(/\.lyre$/i, ""), "Brought in"));
   const unpacked = new Map<string, string>();
   const made: string[] = [];
+  let notAudio = 0;
   try {
     const taken = new Set<string>();
     for (const t of tracksToAdd(file.library, mine, choices)) {
       const entry = file.audioOf(t.id);
       if (!entry) continue;
-      await fs.promises.mkdir(folder, { recursive: true });
+      // Security review w4, Must 1: the file lands under the track's name with the entry's audio extension (the entry
+      // name is Lyre's own, already checked), never the extension the track's file name gives (".exe", ".lnk").
+      const ext = entryExtension(entry);
+      if (!ext) {
+        notAudio++;
+        continue;
+      }
       const clean = safeFileName(t.fileName);
-      const ext = path.extname(clean);
+      const stem = clean.slice(0, clean.length - path.extname(clean).length) || "track";
       let target = "";
       for (let n = 1; ; n++) {
-        target = path.join(folder, `${clean.slice(0, clean.length - ext.length)}${n === 1 ? "" : ` (${n})`}${ext}`);
+        target = path.join(folder, `${stem}${n === 1 ? "" : ` (${n})`}${ext}`);
         if (!taken.has(target.toLowerCase()) && !fs.existsSync(target)) break;
       }
       // Security: the target is Lyre's own name inside the brought-in folder, checked once more before writing.
       if (path.relative(folder, target).startsWith("..") || path.isAbsolute(path.relative(folder, target))) throw new LyreFileError("unsafe", "A name would leave the folder.");
+      await fs.promises.mkdir(folder, { recursive: true });
+      if (!(await file.unpackAudio(entry, target))) {
+        notAudio++;
+        continue;
+      }
       taken.add(target.toLowerCase());
-      await file.copyAudio(entry, target);
       made.push(target);
       unpacked.set(t.id, target);
     }
-    return await bringIn(store, file.library, mine, choices, { fileName: preview.fileName, folder, unpacked, includesAudio: preview.includesAudio });
+    return await bringIn(store, file.library, mine, choices, { fileName: preview.fileName, folder, unpacked, notAudio, includesAudio: preview.includesAudio });
   } catch (error) {
     await Promise.all(made.map((f) => fs.promises.rm(f, { force: true })));
     if (error instanceof LyreFileError) throw new Refused("not-lyre-file", refusalWords(preview.fileName, error.problem));

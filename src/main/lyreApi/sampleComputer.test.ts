@@ -71,6 +71,14 @@ describe("the sample computer of a test build", () => {
     expect(all?.summary).toMatch(/^Saved Lyre library 2026-11-05\.lyre \(\d+ KB\) in /);
   });
 
+  it("files saved with their audio start like real FLAC and WAV files, so Bring in unpacks them (security review w4)", async () => {
+    const { api, dir } = await sampleApi();
+    const saved = valueOf(await api.transfer.save({ scope: { kind: "playlist", playlistId: "p-abbess" }, includeAudio: true, path: path.join(dir, "Abbess.lyre") }));
+    const opened = valueOf(await api.transfer.open({ from: "path", path: saved?.path ?? "" }));
+    const report = valueOf(await api.transfer.bringIn(opened?.id ?? "", { all: "keepBoth" }));
+    expect(report.summary).toContain("5 audio files were unpacked next to your library.");
+  });
+
   it("offers Sam's shared file: a campaign, three playlists (two you have), a board, 38 tracks (8 you have) and three new tag values", async () => {
     const { api, shared } = await sampleApi();
     expect(path.basename(shared)).toBe(SAMPLE_SHARED_FILE);

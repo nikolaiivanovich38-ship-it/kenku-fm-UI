@@ -173,6 +173,8 @@ export interface BringInOptions {
   folder: string;
   /** Tracks whose audio the file holds: the file name it is unpacked to (already unpacked by the caller). */
   unpacked: Map<string, string>;
+  /** Audio parts left out because they were not audio Lyre plays (security review w4, Must 1). */
+  notAudio?: number;
   includesAudio: boolean;
 }
 
@@ -508,14 +510,14 @@ export async function bringIn(store: Store, file: LyreFileLibrary, mine: Current
   }
   const tagItem = items.find((i) => i.kind === "tags");
   if (tagItem) report.added.push({ kind: "tags", id: "", name: tagItem.name });
-  report.summary = summaryOf(report, { file, tracksAdded: newTracks.size, copies: copiedTracks, merged: mergedTracks, skipped: skippedTracks, from, includesAudio: options.includesAudio, unpacked: options.unpacked.size, newTagValues: newTagValues(file, mine).length });
+  report.summary = summaryOf(report, { file, tracksAdded: newTracks.size, copies: copiedTracks, merged: mergedTracks, skipped: skippedTracks, from, includesAudio: options.includesAudio, unpacked: options.unpacked.size, notAudio: options.notAudio ?? 0, newTagValues: newTagValues(file, mine).length });
   return report;
 }
 
 /** "Brought in Curse of Strahd, 3 playlists, a pad board, 3 tag values and 38 tracks (8 as copies). …" */
 function summaryOf(
   report: BringInReport,
-  facts: { file: LyreFileLibrary; tracksAdded: number; copies: number; merged: number; skipped: number; from: string; includesAudio: boolean; unpacked: number; newTagValues: number },
+  facts: { file: LyreFileLibrary; tracksAdded: number; copies: number; merged: number; skipped: number; from: string; includesAudio: boolean; unpacked: number; notAudio: number; newTagValues: number },
 ): string {
   const done = [...report.added, ...report.keptBoth, ...report.merged];
   const count = (kind: string, one: string, many: string) => {
@@ -533,11 +535,11 @@ function summaryOf(
   if (report.skipped.length) sentences.push(`${plural(report.skipped.length, "duplicate")} skipped.`);
   if (report.keptBoth.length) sentences.push(`${plural(report.keptBoth.length, "copy", "copies")} named "${facts.from.trim()}".`);
   if (facts.tracksAdded) {
-    sentences.push(
-      facts.includesAudio
-        ? `${plural(facts.unpacked, "audio file")} ${facts.unpacked === 1 ? "was" : "were"} unpacked next to your library.`
-        : "The audio files were not in the file: Find missing files finds them on this computer.",
-    );
+    if (!facts.includesAudio) sentences.push("The audio files were not in the file: Find missing files finds them on this computer.");
+    else if (facts.unpacked) sentences.push(`${plural(facts.unpacked, "audio file")} ${facts.unpacked === 1 ? "was" : "were"} unpacked next to your library.`);
+  }
+  if (facts.notAudio) {
+    sentences.push(`${plural(facts.notAudio, "audio file")} in it ${facts.notAudio === 1 ? "was" : "were"} not audio Lyre can play, so Lyre left ${facts.notAudio === 1 ? "it" : "them"} out.`);
   }
   return sentences.join(" ");
 }

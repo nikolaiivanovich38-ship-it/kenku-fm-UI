@@ -19,6 +19,7 @@ import fs from "fs";
 import { PAD_MODES, REPEATS, TRACK_KINDS, TRACK_ROLES, TRACK_SHAPES, type AudioProfileInput, type PlayOrder, type PlayOrderOverrides, type PlaylistRule, type ProfileOverrides, type SoundRef } from "../../common/domain";
 import { CAMPAIGN_THEMES, PAD_COLORS, SESSION_STATUSES, type CampaignInfo, type LibraryTrack, type PadBoard, type Pad, type PlaylistInfo, type SceneInfo, type SessionInfo, type TagGroup, type TransferCounts, type TransferScope } from "../../common/lyre/api";
 import { AUDIO_EXTENSIONS } from "../data/import/audioFiles";
+import { AUDIO_HEAD_BYTES, looksLikeAudio } from "./audioBytes";
 import { ZipError, openZip, writeZip, type OpenedZip } from "./zip";
 import { version as LYRE_VERSION } from "../../../package.json";
 
@@ -163,9 +164,19 @@ export interface OpenedLyreFile {
   library: LyreFileLibrary;
   /** The audio entry the file holds for a track, if any. */
   audioOf(trackId: string): LyreFileAudio | null;
-  /** Unpacks one audio entry to `target`, checking its CRC. */
-  copyAudio(entry: LyreFileAudio, target: string): Promise<void>;
+  /**
+   * Unpacks one audio entry to `target`, checking its CRC (security review w4, Must 1). Only an entry with an audio
+   * extension whose first bytes are that format is written, and only under a name with that same extension; for
+   * anything else nothing is written and the answer is false.
+   */
+  unpackAudio(entry: LyreFileAudio, target: string): Promise<boolean>;
   close(): Promise<void>;
+}
+
+/** The audio extension of an entry ("audio/00001.flac" gives ".flac"), or "" when it has none Lyre plays. */
+export function entryExtension(entry: LyreFileAudio): string {
+  const ext = path.posix.extname(entry.entry).toLowerCase();
+  return AUDIO_EXTENSIONS.includes(ext) ? ext : "";
 }
 
 /** Opens and checks a .lyre file; throws LyreFileError when Lyre does not open it. Nothing is written. */
@@ -200,9 +211,15 @@ export async function readLyreFile(file: string): Promise<OpenedLyreFile> {
       manifest,
       library,
       audioOf: (trackId) => byTrack.get(trackId) ?? null,
-      copyAudio: async (a, target) => {
+      unpackAudio: async (a, target) => {
+        const ext = entryExtension(a);
+        if (!ext || a.bytes === 0) return false;
+        // The name it lands under ends in the entry's own audio extension, whatever the track's file name says.
+        if (path.extname(target).toLowerCase() !== ext) throw new LyreFileError("unsafe", "An audio file would be written under another kind of name.");
         try {
+          if (!looksLikeAudio(ext, await zip.head(a.entry, AUDIO_HEAD_BYTES))) return false;
           await zip.copyTo(a.entry, target);
+          return true;
         } catch (error) {
           throw asFileError(error);
         }

@@ -675,8 +675,8 @@ library's own process (`src/main/transfer`, `src/main/lyreApi/transferApi.ts`), 
   match. At most 200,002 entries, a 32 MB list of entries, one audio file 2 GB, the whole file under 4 GB.
 - **Zip-slip.** Entry names that are absolute, hold a backslash, a drive letter, a NUL, or an empty, "." or ".."
   part are refused (`isSafeEntryName`). Audio is unpacked under names Lyre makes from the track's file name (its last
-  part only, characters Windows refuses replaced, Windows' reserved names prefixed, 150 characters at most), inside
-  `Brought in\<file name>`, and the target is checked once more to be inside that folder before writing. A track whose
+  part only, characters Windows refuses replaced, Windows' reserved names prefixed, 150 characters at most) with the
+  entry's own audio extension (w4-review-fix), inside `Brought in\<file name>`, and the target is checked once more to be inside that folder before writing. A track whose
   file name holds a folder refuses the file. Unpacked files are written through "<name>.part" with their CRC checked
   and removed again if bringing in fails.
 - **Every value rebuilt.** library.json is never used as parsed: each track, playlist, rule, pad, board, campaign,
@@ -701,3 +701,23 @@ library's own process (`src/main/transfer`, `src/main/lyreApi/transferApi.ts`), 
 ## w4-normalise
 
 No new IPC channel. The four normalisation calls go through `LYRE_API_CALL`; their arguments are checked in the library before it acts (`argChecks.ts`): `library.normaliseSettings` (none), `library.setNormaliseSettings` (`{ on: boolean, target: short text }`), `library.setNormalise` and `playlists.setNormalise` (an id, a short text or null). The data layer then refuses any target other than quiet, standard and loud and any choice other than on, off or null. Measuring loudness runs the bundled ffmpeg with the same safety as the peaks (`src/main/media/ffmpegLoudness.ts`): no shell, each argument as it is, `-protocol_whitelist file`, the reader fixed by the extension (security review 7), the first audio stream only, below-normal priority, a time limit, and nothing written (`-f null`); its report is read from the error stream as text and only numbers are kept.
+
+## w4-review-fix
+
+### In plain language
+
+Fixes from the independent review of wave 4. A Lyre file someone sends you can now only ever put audio files on
+your computer: a part of the file that is not audio Lyre plays is left out, and Lyre says how many. A file cannot make
+Lyre write more than the file itself holds.
+
+### Technical details
+
+- **Only audio is unpacked (review Must 1).** A .lyre entry is unpacked only when its name (already restricted to
+  `audio/<number><audio extension>`) has an extension in `AUDIO_EXTENSIONS` and its first 4 KB start the way that
+  format starts (`looksLikeAudio`, `src/main/transfer/audioBytes.ts`: `fLaC`, `ID3` or an MPEG frame, `RIFF…WAVE`,
+  `OggS`, `ftyp`, the ASF GUID, `FORM…AIFF`, EBML, `MAC `, `wvpk`, `TTA1`, the AC-3 sync word, `MPCK`). The file lands
+  under the track's name with the entry's extension, never the extension of the track's `fileName`:
+  `Session notes.pdf.exe` with an MP3 entry becomes `Session notes.pdf.mp3`. `unpackAudio` refuses a target whose
+  extension differs from the entry's. Parts left out are counted in the summary ("3 audio files in it were not audio
+  Lyre can play, so Lyre left them out."); their tracks are brought in as missing files, which Find missing files can
+  relink only to audio files (`collectAudioFiles`).
