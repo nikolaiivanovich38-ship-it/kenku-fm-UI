@@ -690,7 +690,7 @@ test.describe("round 7, part 2: focus through a redraw", () => {
 
   test("the screen's heading keeps focus when the screen is drawn again (here: the window is resized)", async ({ page }) => {
     await openRoute(page, "campaigns");
-    await page.getByRole("link", { name: /^The Sunken Crown/ }).first().click();
+    await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Library" }).click();
     await expect(page.getByRole("heading", { level: 1 })).toBeFocused();
     await page.setViewportSize({ width: 1000, height: 900 });
     await page.waitForTimeout(400);

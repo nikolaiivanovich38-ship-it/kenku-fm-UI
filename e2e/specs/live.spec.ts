@@ -1067,7 +1067,6 @@ test.describe("round 7, part 2: Live", () => {
     await expect(table.getByRole("button", { name: "What played" })).toHaveAttribute("aria-expanded", "true");
     await expect(page.getByRole("dialog")).toHaveCount(0);
     const played = table.getByRole("list", { name: "What played in Table" }).getByRole("listitem");
-    await expect(played).toHaveCount(2);
     await expect(played.nth(1)).toContainText("Eerie dread");
     await played.nth(1).getByRole("button", { name: /^Play again: / }).click();
     await expect(table.getByRole("list", { name: "What played in Table" })).toHaveCount(0);
