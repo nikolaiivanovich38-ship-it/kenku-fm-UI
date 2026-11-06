@@ -148,6 +148,19 @@ describe("Find missing files", () => {
     expect((await api.import.findMissing()).length).toBe(3);
   });
 
+  it("Preview on a row to check plays the file Lyre found, not the track's missing one (security review w4, Should 5)", async () => {
+    const { audio } = openAt("relink", { folderFiles: { "E:\\Music\\Scores": ["07 The Storm.flac"] } });
+    const user = userEvent.setup();
+    await waitFor(() => expect(within(region("Missing files")).getAllByRole("row")).toHaveLength(4));
+    const look = region("Look in a folder");
+    await user.type(within(look).getByRole("textbox", { name: "Look in this folder (and the folders inside it)" }), "E:\\Music\\Scores");
+    await user.click(within(look).getByRole("button", { name: "Look there" }));
+    const preview = await within(look).findByRole("button", { name: "Preview the file found for Storm and dark romance, swells - villain's tragic backstory" });
+    await user.click(preview);
+    const call = audio.calls.find(([method]) => method === "previewTrack");
+    expect(call?.[2]).toMatchObject({ file: "file:///E:/Music/Scores/07%20The%20Storm.flac", from: "Find missing files" });
+  });
+
   it("Look there with nothing typed asks for the folder", async () => {
     const asked: string[] = [];
     openAt("relink", { choose: { folder: () => (asked.push("folder"), null) } });

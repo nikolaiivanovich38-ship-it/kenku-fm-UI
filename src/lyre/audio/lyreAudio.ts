@@ -193,6 +193,11 @@ export interface PreviewTrackOptions {
    * its normalising choice applies, as it would on air from there.
    */
   playlistId?: string;
+  /**
+   * DAT-8, security review w4 Should 5: play this file's address as the track (Find missing files: the file it found,
+   * before relinking). The main process prepares it only while that relink is planned.
+   */
+  file?: string;
 }
 
 /** Where a preview was started from (the Now playing bar's "Previewed from …"). */
@@ -555,7 +560,8 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     if (!track) {
       return this.fail("That track is no longer in the library.");
     }
-    const media = this.library.media(track);
+    // A file found for the track is not the track's own: no track id, so nothing cached for the track is used.
+    const media = options?.file ? { url: options.file } : this.library.media(track);
     if (!media) {
       return this.fail(`Unable to preview: ${trackTitle(track)}`);
     }
