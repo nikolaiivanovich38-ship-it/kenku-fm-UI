@@ -115,7 +115,7 @@ describe("Play next and Add to queue (Nik, 6 Nov 12:14)", () => {
 
   it("Play next while an added playlist plays goes before the rest of it; the queue then carries on", () => {
     let list = addToQueue(emptyRoomList(), playlist("q1", "x", "y", "z"));
-    let r = pickNext(list, scene(3), { ended: true, repeat: "off" });
+    const r = pickNext(list, scene(3), { ended: true, repeat: "off" });
     expect(r.pick).toMatchObject({ from: "added", trackId: "x" });
     list = playNext(r.list, track("n1", "n"), scene(null));
     expect(upNextTracks(list, scene(null))).toEqual(["n", "y", "z"]);

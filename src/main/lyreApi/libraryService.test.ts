@@ -134,6 +134,25 @@ describe("LyreLibraryService", () => {
     await s.stop();
   });
 
+  it("UX-19: a test build of the sample library can make the next write fail, as a full drive would (failNextSave)", async () => {
+    const { s } = service();
+    s.start();
+    await s.failNextWrite();
+    const failed = (await call(s, "campaigns", "update", "crown", { notes: "Bring the map" })) as { ok: boolean; refusal?: { code: string } };
+    expect(failed).toMatchObject({ ok: false, refusal: { code: "not-saved" } });
+    expect(await call(s, "campaigns", "update", "crown", { notes: "Bring the map" })).toMatchObject({ ok: true });
+    await s.stop();
+  });
+
+  it("UX-19: a real library never takes that message", async () => {
+    const { s } = service({ seed: false });
+    s.start();
+    await s.failNextWrite();
+    const made = (await call(s, "campaigns", "create", { name: "Crown" })) as { ok: boolean };
+    expect(made.ok).toBe(true);
+    await s.stop();
+  });
+
   it("gives new tracks their file-tag title, artist, album and length (DAT-5, music-metadata in the library's process)", async () => {
     const { s } = service();
     s.start();

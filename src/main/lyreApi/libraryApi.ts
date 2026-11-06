@@ -1392,7 +1392,7 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
       },
       async endRelinkPreview() {
         previewGrant = null;
-        return writeOutside(["folders"], () => undefined);
+        return writeOutside(["folders"], (): void => undefined);
       },
       async applyRelink(matches) {
         return write(["tracks"], async () => {

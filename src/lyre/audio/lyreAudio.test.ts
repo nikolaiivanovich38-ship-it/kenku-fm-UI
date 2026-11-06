@@ -487,7 +487,7 @@ describe("preview: the game master's headphones only, never on air (PRV-1)", () 
   it("BUG-22: a file shorter than Lyre thinks: the last 10 s before End play its last 10 s, with sound, and say its real length", async () => {
     // The file is 20 s long (the rig's media), but the library still has 180 s for it (the file was replaced).
     rig.data.tracks.find((t) => t.id === "m2")!.durationMs = 180_000;
-    const profile = { startMs: 0, endMs: 180_000, after: "loop" as const, loopStartMs: 60_000, loopCrossfadeMs: 0, fadeIn: { ms: 0, shape: 50 }, fadeOut: { ms: 0, shape: 50 }, markers: [] };
+    const profile = { startMs: 0, endMs: 180_000, after: "loop" as const, loopStartMs: 60_000, loopCrossfadeMs: 0, fadeIn: { ms: 0, shape: 50 }, fadeOut: { ms: 0, shape: 50 }, markers: [] as { atMs: number; label: string }[] };
     rig.audio.previewTrack("m2", { startAtMs: 170_000, profile, quiet: true });
     await rig.advance(1);
     expect(rig.hearPreview()).toBeCloseTo(1);
