@@ -9,7 +9,7 @@
      L.onKey(fn(ev) -> true if handled)  global keys; each handler checks L.typing(ev.target) itself
      L.render()                        re-render the current view (focus and scroll are kept by data-k / data-scroll)
      L.pane({ id, title, icon, summary, actions, body, flush, size, collapsed, kind, status })  collapsible, expandable pane;
-       kind 'onair'|'music'|'scenes'|'search'|'fx'|'plain' gives the box its identity edge; status { text, tone: 'live'|'on'|'idle'|'warn' } is the one status pill in its header
+       kind 'onair'|'music'|'scenes'|'current'|'search'|'fx'|'plain' gives the box its identity edge (with its icon); scope + label show a small tag (Session, Campaign) before a short title; keys: its aria-keyshortcuts; status { text, tone: 'live'|'on'|'idle'|'warn' } is the one status pill in its header
      L.menu(anchor, html) / L.closeMenu()       anchored menu (items use data-act)
      L.sheet({ title, body, footer, wide }) / L.closeSheet()   modal sheet with focus trap (prep views only)
      L.say(text) screen-reader announcement; L.toast(text) short visible note
@@ -661,46 +661,60 @@ var L = (function () {
       var target = mx[0], m = mx[1];
       ['music', 'amb'].forEach(function (ln) {
         var c = m[ln];
-        if (c && !c.paused) { c.pos += dt; if (c.fadeIn) c.vol = Math.min(1, c.vol + dt / c.fadeIn); else c.vol = 1; if (c.pos >= c.dur) { var t = L.track(c.id), pf = L.profileOf(t, laneCtx(c.playlistId, c.seq, c.place)); if (pf.after === 'loop' || ln === 'amb') c.pos = pf.loopStart; else if (L.repeatsOne(c)) c.pos = pf.start; else if (pf.after === 'next' && (c.seq || c.playlistId)) trackEnded(m, ln, c, pf, target); else m[ln] = null; } moved = true; }
+        if (c && !c.paused) { c.pos += dt; if (c.fadeIn) c.vol = Math.min(1, c.vol + dt / c.fadeIn); else c.vol = 1; if (c.pos >= c.dur) { var t = L.track(c.id), pf = L.profileOf(t, laneCtx(c.playlistId, c.seq, c.place)); if (pf.after === 'loop' || ln === 'amb') c.pos = pf.loopStart; else if (L.repeatsOne(c, m)) c.pos = pf.start; else if (pf.after === 'next' && (c.seq || c.playlistId)) trackEnded(m, ln, c, pf, target); else m[ln] = null; } moved = true; }
         m[ln + 'Out'] = m[ln + 'Out'].filter(function (o) { o.pos += dt; o.vol -= dt / (o.fadeOut || .3); return o.vol > 0; });
       });
+      // A room's Repeat lasts while its music plays (round 6, part 3).
+      if (!m.music && m.rep) m.rep = null;
     });
     pb.fx = pb.fx.filter(function (f) { f.pos += dt; if (f.fadeOut) { f.fadeOut -= dt; return f.fadeOut > 0; } return f.loop || f.pos < f.dur; });
     if (pb.preview && !pb.preview.paused) { pb.preview.pos += dt; if (pb.preview.pos >= pb.preview.dur) pb.preview = null; moved = true; }
     if (moved || pb.fx.length) L.tick();
   }, 250);
-  /* PLY-17 Repeat from where you are (Nik, 6 Nov 10:34: "I need a repeat button on the now playing bar" and "repeat one
-     buttons on the tracks in the current scene music pane").
-     L.repeatButton(lane, target)   the Now playing row's Repeat: off, all, one in turn. For a track from a playlist it is
-                                    the PLY-13 play order of that playlist in the place it plays from (the scene, session
-                                    or campaign list; the playlist's own on its own); for a single track, off or one.
-     L.oneRepeats(placeKey, trackId) / L.setOneRepeats(placeKey, trackId, on)   Repeat one on a track row of Current scene
-                                    music: that track plays again when it ends, in that place only (D.repeatOne).
-     L.repeatsOne(lane)             whether the lane's track starts again when it ends. */
+  /* PLY-17 Repeat (Nik, 6 Nov 10:34; round 6 part 3, Nik, 6 Nov 12:24: "Repeat on the now playing bar should not
+     persist. It should end once the music has stopped.").
+     L.repeatButton(lane, target)   a room's Repeat, on the Now playing bar and in Live's On air: off, all, one in turn,
+                                    for what plays in that room now. Never saved; it ends when that room's music stops
+                                    (mix.rep goes back to null). Until it is chosen it shows what the music does by
+                                    itself: a playlist's play order where it plays from (PLY-13, not changed by this),
+                                    a scene track's saved Repeat one, or off.
+     L.oneRepeats(placeKey, trackId) / L.setOneRepeats(placeKey, trackId, on)   Repeat one on a scene's track, saved with
+                                    the scene (D.repeatOne, the data's repeat_ones): starting the scene again repeats it.
+     L.repeatOneButton(placeKey, trackId, k, name, shown)   that button, the same in Live and in the planner.
+     L.repeatsOne(lane, mix)        whether the lane's track starts again when it ends. */
   D.repeatOne = D.repeatOne || {};
   L.oneRepeats = function (key, tid) { return !!(D.repeatOne[key || ''] && D.repeatOne[key || ''][tid]); };
   L.setOneRepeats = function (key, tid, on) { key = key || ''; if (!D.repeatOne[key]) D.repeatOne[key] = {}; if (on) D.repeatOne[key][tid] = true; else delete D.repeatOne[key][tid]; };
-  L.repeatsOne = function (c) { return !!c && (!!c.repeatOne || L.oneRepeats(L.lanePlace(c), c.id) || (!!c.playlistId && L.orderOf(c.playlistId, L.lanePlace(c)).repeat === 'one')); };
-  function laneRepeat(c) { if (!c) return 'off'; if (L.oneRepeats(L.lanePlace(c), c.id) || c.repeatOne) return 'one'; return c.playlistId ? L.orderOf(c.playlistId, L.lanePlace(c)).repeat : 'off'; }
+  function laneRepeat(c, m) {
+    if (!c) return 'off'; if (m && m.rep) return m.rep;
+    if (L.oneRepeats(L.lanePlace(c), c.id) || c.repeatOne) return 'one';
+    return c.playlistId ? L.orderOf(c.playlistId, L.lanePlace(c)).repeat : 'off';
+  }
+  L.repeatsOne = function (c, m) { return laneRepeat(c, m) === 'one'; };
   L.laneRepeat = laneRepeat;
-  var REPEAT_WORDS = { off: 'Repeat: off', all: 'Repeat: all', one: 'Repeat: one' };
+  L.roomRepeat = function (target) { var m = mixOf(target); return laneRepeat(m.music, m); };
+  var REPEAT_WORDS = { off: 'Repeat: off', all: 'Repeat: all', one: 'Repeat: one' }, REPEAT_NEXT = { off: 'all', all: 'one', one: 'off' };
   L.repeatButton = function (ln, target, k) {
-    var c = mixOf(target)[ln]; if (!c) return '';
-    var r = laneRepeat(c), next = c.playlistId ? { off: 'all', all: 'one', one: 'off' }[r] : r === 'one' ? 'off' : 'one';
+    var m = mixOf(target), c = m[ln]; if (!c) return '';
+    var r = laneRepeat(c, m), next = REPEAT_NEXT[r], room = m === pb ? (L.rooms().length > 1 ? ' in ' + L.outputName(L.bots()[0]) : '') : ' in ' + L.outputName(L.bot(target));
     return '<button class="btn s icon rep' + (r === 'off' ? '' : ' on') + '" data-act="lanerepeat" data-lane="' + ln + '" data-room="' + esc(target || 'table') + '" data-k="' + esc(k || 'rep-' + ln) + '" aria-pressed="' + (r !== 'off') + '" aria-label="' + REPEAT_WORDS[r] + '"' +
-      ' title="' + REPEAT_WORDS[r] + '. Press for ' + REPEAT_WORDS[next].toLowerCase().replace('repeat: ', 'repeat ').replace('repeat off', 'no repeat') + (c.playlistId ? ' (' + esc(L.placeKind(L.lanePlace(c)) ? 'in ' + L.placeLabel(L.lanePlace(c)) : (L.playlist(c.playlistId) || {}).name) + ')' : '') + '">' + L.icon(r === 'one' ? 'repeat1' : 'loop', 's') + '</button>';
+      ' title="' + REPEAT_WORDS[r] + ', for what plays now' + esc(room) + ' (not saved). Press for ' + REPEAT_WORDS[next].toLowerCase().replace('repeat: ', 'repeat ').replace('repeat off', 'no repeat') + '">' + L.icon(r === 'one' ? 'repeat1' : 'loop', 's') + '</button>';
   };
   L.acts.lanerepeat = function (el) {
-    var c = mixOf(el.dataset.room)[el.dataset.lane]; if (!c) return;
-    var r = laneRepeat(c), key = L.lanePlace(c);
-    if (!c.playlistId) { c.repeatOne = r !== 'one'; L.setOneRepeats(key, c.id, false); }
-    else {
-      var next = { off: 'all', all: 'one', one: 'off' }[r];
-      // A Repeat one set on the track's row gives way to the playlist's order once you cycle on from it.
-      if (L.oneRepeats(key, c.id)) { L.setOneRepeats(key, c.id, false); next = 'off'; }
-      L.setOrder(c.playlistId, key, { repeat: next });
-    }
-    L.say(REPEAT_WORDS[laneRepeat(c)]); L.changed();
+    var m = mixOf(el.dataset.room), c = m[el.dataset.lane]; if (!c) return;
+    m.rep = REPEAT_NEXT[laneRepeat(c, m)];
+    L.say(REPEAT_WORDS[m.rep] + ', for what plays now'); L.changed();
+  };
+  L.repeatOneButton = function (key, tid, k, nm, shown) {
+    var on = L.oneRepeats(key, tid);
+    return '<button class="closer rep1' + (on || shown ? ' shown' : '') + '" data-act="rep1" data-key="' + esc(key) + '" data-id="' + esc(tid) + '" data-k="' + esc(k) + '" aria-pressed="' + on + '"' +
+      ' title="' + (on ? 'Repeats when it ends, every time this scene plays: press to stop' : 'Repeat one: plays again when it ends, saved with this scene') + '" aria-label="Repeat one: ' + esc(nm) + '">' + L.icon('repeat1') + '</button>';
+  };
+  L.acts.rep1 = function (el) {
+    var key = el.dataset.key, id = el.dataset.id, on = !L.oneRepeats(key, id); L.setOneRepeats(key, id, on);
+    // The saved setting shows at once in a room playing that track: a Repeat chosen there for this play gives way.
+    [pb].concat(Object.keys(pb.own).map(function (x) { return pb.own[x]; })).forEach(function (m) { if (m.music && m.music.id === id && L.lanePlace(m.music) === key) m.rep = null; });
+    L.say((on ? 'Repeat one on, saved with the scene: ' : 'Repeat one off: ') + L.title(L.track(id))); L.render();
   };
   // The Now playing row's Shuffle, beside Repeat: the PLY-13 shuffle of that playlist where it plays from.
   L.shuffleButton = function (ln, target, k) {
@@ -718,9 +732,13 @@ var L = (function () {
   function trackEnded(m, ln, c, pf, target) {
     if (!c.playlistId) { L.next(ln, target); return; }
     var key = L.lanePlace(c), o = L.orderOf(c.playlistId, key), list = L.orderedTracks(c.playlistId, key), last = list.length && list[list.length - 1].id === c.id;
-    if (o.repeat === 'one') { c.pos = pf.start; return; }
+    // The room's Repeat, chosen for this play, comes before the playlist's own play order (which it does not change).
+    var rep = m.rep || o.repeat;
+    if (rep === 'one') { c.pos = pf.start; return; }
     if (!last) { L.next(ln, target); return; }
-    if (o.repeat === 'all') {
+    // Live keeps a running list per room (Play next, Add to queue): it decides what comes after the last track.
+    if ((!c.seq && L.carriesOn && L.carriesOn(target)) || (c.seq && m.rep)) { L.next(ln, target); return; }
+    if (rep === 'all') {
       var first = list[0]; if (!first) return;
       if (c.seq) { var s0 = L.session(c.seq.cid, c.seq.sid), q = L.sceneSequence(s0.scenes[c.seq.scene]), at = -1; q.forEach(function (x, i) { if (at < 0 && x.playlistId === c.playlistId && x.trackId === first.id) at = i; });
         L.play(first.id, { lane: ln, playlistId: c.playlistId, fade: 3, seq: { cid: c.seq.cid, sid: c.seq.sid, scene: c.seq.scene, at: Math.max(0, at) }, target: target }); return; }
@@ -754,8 +772,10 @@ var L = (function () {
     if (!collapsed && o.foldedSummary) o = Object.assign({}, o, { summary: '' });
     // o.describe (round 6): what the box is for, read out with its name and shown on hover, not on screen.
     return '<section class="pane' + (collapsed ? ' collapsed' : '') + (L.state.maxed === o.id ? ' maxed' : '') + (o.kind ? ' k-' + o.kind : '') + (o.cls ? ' ' + o.cls : '') + '" data-pane="' + o.id + '"' + (o.size ? ' data-size="' + o.size + '"' : '') + ' aria-label="' + esc(o.title) + '"' + (o.describe ? ' aria-describedby="pd-' + o.id + '"' : '') + '>' + (o.describe ? '<p class="sr-only" id="pd-' + o.id + '">' + esc(o.describe) + '</p>' : '') +
-      '<header><h2 class="pane-h"><button class="pane-toggle" data-act="pane" data-id="' + o.id + '" data-k="pane-' + o.id + '" aria-expanded="' + !collapsed + '" title="' + (collapsed ? 'Expand' : 'Collapse') + ' ' + esc(o.title) + '">' +
-      L.icon('chevdown', 's chev') + (o.icon ? L.icon(o.icon, 's') : '') + '<span class="pane-title">' + esc(o.title) + '</span></button></h2>' +
+      '<header><h2 class="pane-h"><button class="pane-toggle" data-act="pane" data-id="' + o.id + '" data-k="pane-' + o.id + '" aria-expanded="' + !collapsed + '"' + (o.keys ? ' aria-keyshortcuts="' + esc(o.keys) + '"' : '') + ' title="' + (collapsed ? 'Expand' : 'Collapse') + ' ' + esc(o.title) + (o.keys ? ' (' + esc(o.keys) + ')' : '') + '">' +
+      L.icon('chevdown', 's chev') + (o.icon ? L.icon(o.icon, 's') : '') +
+      // o.scope + o.label (round 6, part 3): the same box for a session and a campaign, told apart by a small tag.
+      (o.scope ? '<span class="pane-scope">' + esc(o.scope) + '</span><span class="sr-only"> </span>' : '') + '<span class="pane-title">' + esc(o.label || o.title) + '</span></button></h2>' +
       '<div class="pane-summary">' + (o.summary || '') + '</div>' + (o.status ? '<span class="pane-status s-' + (o.status.tone || 'idle') + '">' + esc(o.status.text) + '</span>' : '') + '<div class="pane-actions">' + (collapsed ? '' : (o.actions || '')) +
       (o.noMax ? '' : '<button class="closer" data-act="panemax" data-id="' + o.id + '" data-k="max-' + o.id + '" title="' + (L.state.maxed === o.id ? 'Back to all panes' : 'Fill the column with ' + esc(o.title)) + '" aria-pressed="' + (L.state.maxed === o.id) + '">' + L.icon(L.state.maxed === o.id ? 'shrink' : 'expand') + '</button>') +
       '</div></header><div class="pane-body' + (o.flush ? ' flush' : '') + '"' + (o.scroll ? ' data-scroll="' + o.scroll + '"' : '') + '>' + (o.body || '') + '</div></section>';
@@ -1144,7 +1164,7 @@ var L = (function () {
   L.onKey = function (fn) { L.keys.push(fn); };
   // F6 / Shift+F6 jump between boxes (pane headers), so the keyboard can reach any box quickly.
   document.addEventListener('keydown', function (e) {
-    if (e.key !== 'F6' || menuEl || document.getElementById('lyre-sheet')) return;
+    if (e.key !== 'F6' || menuEl || document.getElementById('lyre-sheet') || (L.f6Taken && L.f6Taken())) return;
     var heads = [].slice.call(document.querySelectorAll('#view .pane-toggle')).filter(function (b) { return b.offsetParent; }); if (!heads.length) return;
     e.preventDefault(); var cur = document.activeElement && document.activeElement.closest('.pane'), i = -1;
     heads.forEach(function (h, j) { if (cur && cur.contains(h)) i = j; });

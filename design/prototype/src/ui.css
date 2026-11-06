@@ -297,6 +297,15 @@ button .shape-g { color: inherit; }
 .pane.k-scenes { border-top-color: var(--ink-2); }
 .pane.k-search { border-top-color: var(--line-strong); }
 .pane.k-fx { border-top-color: var(--fx); }
+.pane.k-current { border-top-color: var(--accent); }
+/* Round 6, part 3: the same box for a session and a campaign (playlists, pads), told apart by a small tag in words. */
+.pane-scope { flex: none; display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: 3px;
+  font-family: var(--body); font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--ink); background: var(--surface); }
+/* PLY-17 Repeat one on a scene's track (Live and the planner): shown when on, on the row on air, and on hover or keyboard focus. */
+.rep1:not(.shown):not([aria-pressed="true"]) { opacity: 0; }
+:is(.lv-trk-r, .cp-it-row, .xp-row):is(:hover, :focus-within) .rep1, .rep1:focus-visible { opacity: 1; }
+@media (hover: none) { .rep1 { opacity: 1 !important; } }
+.rep1[aria-pressed="true"], .rep.on { color: var(--accent-text) !important; }
 .pane-status { flex: none; display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 8px; border-radius: 999px; font-size: var(--fs-xs); font-weight: 700; border: 1px solid var(--line-strong); color: var(--ink-2); background: transparent; white-space: nowrap; }
 .pane-status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ink-3); }
 .pane-status.s-live { color: var(--onair-ink); background: var(--onair); border-color: var(--onair); }

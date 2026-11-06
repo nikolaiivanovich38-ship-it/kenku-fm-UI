@@ -359,7 +359,7 @@
 .lv-room input.lv-vol { width: 64px; min-width: 40px; flex: 0 1 64px; }
 .lv-room > header { min-width: 0; }
 .lv-room .pane-h { min-width: 0; flex: 0 1 auto; }
-.lv-off-count { justify-content: flex-end; }
+.lv-off-count { justify-content: space-between; }
 /* Round 6, part 2. SHW-7: a scene's name unfolds it in place (a button that reads as the name). */
 button.lv-sc-name { background: none; border: 0; padding: 2px 4px; margin: 0 -4px; font: inherit; font-weight: 700; color: inherit; text-align: left; cursor: pointer; border-radius: var(--r-s); min-width: 0; }
 button.lv-sc-name:hover { background: var(--surface-2); }
@@ -370,10 +370,6 @@ button.lv-sc-name[aria-expanded="true"] { text-decoration: underline; text-under
 .lv-in-row.lv-in-new { border-top: 1px dashed var(--line); }
 .lv-in-row .closer, .lv-in-line .closer { color: var(--ink-2); }
 .lv-in-line { color: var(--ink-2); }
-/* PLY-17: Repeat one shows on the row on air, when on, and on hover or keyboard focus (round 6 rule 5). */
-.lv-rep1:not(.shown):not([aria-pressed="true"]) { opacity: 0; }
-.lv-trk-r:hover .lv-rep1, .lv-rep1:focus-visible { opacity: 1; }
-.lv-rep1[aria-pressed="true"], .rep.on { color: var(--accent) !important; }
 /* OUT-7: the room's bot, as a button, and Kick. */
 .lv-botpick { max-width: 140px; min-width: 0; gap: 4px; }
 .lv-botpick .ellipsis { min-width: 0; }
@@ -391,3 +387,79 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 .lv-sess-edit:hover { background: none; }
 .lv-sess-rename { width: 18ch; min-width: 0; height: calc(var(--ctl) - 6px); }
 
+
+/* ---------- Round 6, part 3: seven boxes ----------
+   The boxes scroll in their columns; On air is docked along the bottom and never moves. */
+.lv-cols { flex: 1 1 auto; min-height: 0; }
+.lv-dock { flex: none; max-height: 46%; overflow-y: auto; overscroll-behavior: contain; padding: 0 8px 8px; }
+.lv-dock > .pane { border-top-width: 3px; }
+.lv-dock .pane > header { position: sticky; top: 0; z-index: 2; }
+.lv-rooms { display: grid; grid-template-columns: minmax(0, 1fr); }
+.lv-rooms.many { grid-template-columns: repeat(auto-fit, minmax(min(440px, 100%), 1fr)); }
+.lv-rooms.many > .lv-rm + .lv-rm { border-left: 1px solid var(--line); }
+.lv-rm { min-width: 0; display: flex; flex-direction: column; container: lvrm / inline-size; }
+.lv-rm-h { display: flex; align-items: center; gap: 6px; min-height: 34px; padding: 2px 6px 2px 10px; border-bottom: 1px solid var(--line); min-width: 0; background: var(--surface); }
+.lv-rm-n { margin: 0; font-size: var(--fs-l); font-weight: 700; min-width: 0; flex: 0 1 auto; }
+.lv-rm-h .lv-vol { width: 72px; min-width: 40px; flex: 0 1 72px; }
+.lv-rm-b { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; }
+@container lvrm (min-width: 620px) { .lv-rm-b { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); } .lv-rm-up { border-left: 1px solid var(--line); } }
+.lv-rm-lanes { min-width: 0; }
+.lv-rm-lanes > :last-child { border-bottom: 0; }
+.lv-rm.is-silent .lv-rm-n { color: var(--ink-2); }
+.lv-noroom { display: flex; align-items: center; gap: 8px; padding: 6px 10px; font-size: var(--fs-s); font-weight: 700; color: var(--warn); border-bottom: 1px solid var(--line); }
+.lv-noroom .btn { color: var(--ink); }
+/* Up next: the room's running list, top to bottom. */
+.lv-up { display: flex; flex-direction: column; gap: 2px; padding: 5px 8px 6px; min-width: 0; }
+.lv-up .lv-q-l { padding-left: 2px; }
+.lv-up ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; min-width: 0; }
+.lv-up-i { display: flex; align-items: center; gap: 6px; min-height: 26px; padding: 0 0 0 4px; font-size: var(--fs-s); min-width: 0; border-radius: var(--r-s); }
+.lv-up-i:hover { background: var(--surface-2); }
+.lv-up-i > svg { flex: none; color: var(--ink-2); }
+.lv-up-i.added { font-weight: 700; }
+.lv-up-i .num { flex: none; font-size: var(--fs-xs); }
+.lv-up-i .x { flex: none; width: 24px; height: 24px; display: inline-grid; place-items: center; border: 0; border-radius: var(--r-s); background: transparent; color: var(--ink-2); cursor: pointer; }
+.lv-up-i .x:hover { background: var(--surface-3); color: var(--ink); }
+.lv-up-gap { padding-left: 2px; }
+.lv-qclear { align-self: flex-start; }
+/* Find a track: the field in the top strip, its results under it (closed with Esc, × or a click elsewhere). */
+.lv-find { position: relative; flex: 1 1 220px; min-width: 120px; max-width: 420px; }
+.lv-find-f { width: 100%; }
+.lv-find-f .kbd { position: absolute; right: 6px; pointer-events: none; }
+.lv-find-f .input { padding-right: 26px; width: 100%; }
+.lv-found { position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; width: min(680px, calc(100vw - 24px)); max-height: min(70vh, 640px); overflow-y: auto; overscroll-behavior: contain;
+  background: var(--surface); border: 1px solid var(--line-strong); border-top: 3px solid var(--line-strong); border-radius: var(--r-l); box-shadow: var(--shadow); }
+.lv-found .lv-off-f { padding: 6px 6px 6px 8px; }
+.lv-top { gap: 8px; }
+.lv-top > .lv-find + .btn { margin-left: auto; }
+/* Rows: Preview and Play on air always; Play next and Add to queue on the row on air, on hover and on keyboard focus. */
+.lv-trk-acts:not(.shown) .lv-hov { opacity: 0; }
+.lv-trk-r:is(:hover, :focus-within) .lv-hov { opacity: 1; }
+@media (hover: none) { .lv-hov { opacity: 1 !important; } }
+.lv-none, .lv-in-none { padding: 10px 12px; font-size: var(--fs-s); color: var(--ink-2); }
+.lv-in-none { padding: 4px 0; }
+.pane-summary .lv-cur-n { color: var(--ink); font-size: var(--fs-l); }
+.lv-cur-notes { margin: 6px 8px 4px; }
+.lv-cur-pads { border-top: 1px solid var(--line); }
+.lv-bd1 { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-s); font-weight: 700; min-width: 0; }
+.lv .lv-in-line { padding: 0 8px; }
+.lv .lv-sc-in .lv-in-line { padding: 0; }
+.lv-in-bds { flex-wrap: wrap; }
+.lv-in-bd { display: inline-flex; align-items: center; gap: 2px; min-width: 0; margin-right: 8px; }
+.lv-sc-in .lv-grid { padding: 4px 0 6px; }
+.lv-sc-in .lv-list { border: 1px solid var(--line); border-radius: var(--r-m); margin: 2px 0; }
+.lv-sc-in .lv-sc-notes, .lv-sc-in .lv-sc-when { margin-left: 0; }
+.lv-sc-chev { flex: none; color: var(--ink-3); transform: rotate(-90deg); transition: transform .15s; margin-right: 2px; }
+.lv-sc-name[aria-expanded="true"] .lv-sc-chev { transform: none; }
+.lv-sc.open { background: color-mix(in srgb, var(--surface-2) 50%, var(--surface)); }
+.lv-pli-n > b, .lv-pli-n > .faint { max-width: 100%; }
+/* A box's name is never cut: its summary gives way first. */
+.lv .pane > header .pane-h { max-width: none; flex: 0 1 auto; min-width: 0; }
+.lv .pane > header .pane-toggle { min-width: 0; }
+.lv .pane > header .pane-title { min-width: 2.5em; flex: 0 1 auto; }
+.lv .pane > header .pane-summary { flex: 1 1 0; }
+@container lvgrid (max-width: 480px) { .lv-pad[data-mode="toggle"] .lv-pad-mode, .lv-pad[data-mode="retrigger"] .lv-pad-mode { display: none; } }
+.lv-ord { display: inline-flex; flex: none; }
+.lv-ord:not(.shown) > .btn { opacity: 0; }
+.lv-trk-r:is(:hover, :focus-within) .lv-ord > .btn { opacity: 1; }
+@media (hover: none) { .lv-ord > .btn { opacity: 1 !important; } }
+.lv-lane-sub:empty { display: none; }
