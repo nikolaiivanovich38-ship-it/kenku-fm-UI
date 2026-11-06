@@ -213,6 +213,8 @@ var LYRE_DATA = (function () {
 
   // Discord: the servers and voice channels the bots can see, and the bots themselves (simulated).
   // A bot is in at most one voice channel at a time (one per server is Discord's rule; Lyre uses one).
+  // Round 6 (OUT-8): login is the bot's connection to Discord (Settings: online, connecting, offline, error), token the
+  // last four characters of its token (the rest is never shown), servers the Discord servers it was invited to.
   var discord = {
     servers: [
       { id: 'g1', name: 'The Gull and Lantern', channels: [
@@ -225,8 +227,8 @@ var LYRE_DATA = (function () {
         { id: 'c6', name: 'Private audience', members: [] }] }
     ],
     bots: [
-      { id: 'b1', name: 'Lyre Table', status: 'connected', server: 'g1', channel: 'c1', muted: false, volume: 85, mix: 'table' },
-      { id: 'b2', name: 'Lyre Side', status: 'idle', server: '', channel: '', muted: false, volume: 85, mix: 'table' }
+      { id: 'b1', name: 'Lyre Table', status: 'connected', server: 'g1', channel: 'c1', muted: false, volume: 85, mix: 'table', login: 'online', token: 'Kq7w', servers: ['g1', 'g2'] },
+      { id: 'b2', name: 'Lyre Side', status: 'idle', server: '', channel: '', muted: false, volume: 85, mix: 'table', login: 'online', token: 'p3Zd', servers: ['g1'] }
     ]
   };
   // Round 5 (PLY-13): play order. A playlist's own choice is pl.order; a choice for one place (a scene 'sc:…', a

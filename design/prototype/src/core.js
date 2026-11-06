@@ -412,6 +412,8 @@ var L = (function () {
   L.botStatusText = function (b) { return { connected: b.muted ? 'In ' + L.botWhere(b) + ', muted' : 'Broadcasting to ' + L.botWhere(b), connecting: 'Joining ' + L.botWhere(b) + '…', idle: 'Not in a voice channel', error: 'Could not join: ' + (b.error || 'try again') }[b.status] || b.status; };
   L.botJoin = function (botId, serverId, channelId) {
     var b = L.bot(botId), c = L.channel(serverId, channelId); if (!b || !c) return;
+    // OUT-8: a bot that is not connected to Discord (Settings) cannot join a voice channel.
+    if (b.login && b.login !== 'online') { L.toast(b.name + ' is not connected: connect it in Settings'); return; }
     var other = D.discord.bots.filter(function (x) { return x !== b && x.server === serverId && x.channel === channelId && x.status !== 'idle'; })[0];
     b.server = serverId; b.channel = channelId; b.status = 'connecting'; b.error = '';
     L.say(b.name + ' is joining ' + L.botWhere(b)); L.changed();
@@ -727,7 +729,7 @@ var L = (function () {
     [/^#\/campaigns$/, 'campaigns', []], [/^#\/campaign\/([\w-]+)$/, 'campaign', ['cid']], [/^#\/session\/([\w-]+)\/([\w-]+)$/, 'session', ['cid', 'sid']],
     [/^#\/library(?:\/([\w-]+))?$/, 'library', ['tid']], [/^#\/playlists$/, 'playlists', []], [/^#\/playlist\/([\w-]+)$/, 'playlist', ['pid']],
     [/^#\/profile\/([\w-]+)(?:\/([\w:-]+))?$/, 'profile', ['tid', 'ctx']], [/^#\/boards$/, 'boards', []], [/^#\/board\/([\w-]+)$/, 'board', ['bid']], [/^#\/live$/, 'live', []], [/^#\/outputs$/, 'outputs', []], [/^#\/look$/, 'look', []],
-    [/^#\/backup$/, 'backup', []], [/^#\/moved$/, 'moved', []], [/^#\/relink$/, 'relink', []]
+    [/^#\/backup$/, 'backup', []], [/^#\/moved$/, 'moved', []], [/^#\/relink$/, 'relink', []], [/^#\/settings$/, 'settings', []]
   ];
   L.view = function (name, def) { L.views[name] = def; };
   /* Routes are kept in memory ('#/session/crown/s14'). The page address shows a plain form ('#session--crown--s14'),
@@ -735,13 +737,90 @@ var L = (function () {
   var curRoute = null;
   function encodeRoute(h) { return '#' + h.replace(/^#\//, '').split('/').join('--'); }
   function decodeRoute(hash) { var m = (hash || '').replace(/^#\/?/, ''); return m ? '#/' + m.split('--').join('/') : null; }
-  function afterRoute() { L.state.maxed = null; L.closeMenu(); L.render(); var v = document.getElementById('view'); var h = v.querySelector('h1'); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); } window.dispatchEvent(new Event('lyre:route')); }
-  L.route = function (h) {
+  function afterRoute(back) {
+    L.state.maxed = null; L.closeMenu(); L.render(); var v = document.getElementById('view');
+    // Back: the same scroll positions and the control that was used to leave; otherwise focus goes to the heading.
+    if (back) {
+      v.scrollTop = back.top || 0; v.querySelectorAll('[data-scroll]').forEach(function (s) { if (back.scrolls[s.dataset.scroll] != null) s.scrollTop = back.scrolls[s.dataset.scroll]; });
+      var n = back.k && v.querySelector('[data-k="' + back.k + '"]'); if (n) { n.focus({ preventScroll: true }); window.dispatchEvent(new Event('lyre:route')); return; }
+    }
+    var h = v.querySelector('h1'); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); } window.dispatchEvent(new Event('lyre:route'));
+  }
+  /* UX-18 Back (Nik, 6 Nov 10:34: "I need a contextual back button everywhere."). Every screen opened from another
+     one has Back in its header, named for where it goes ("Back to Session 14"); it returns to the same place: the
+     route (so the selected track, playlist or board), every box's scroll position, the open scene (the views keep
+     their own open and folded state) and the control that was used to leave. Alt+Left and the mouse's back button do
+     the same. Screens opened from the menu (the rail) or by address have no Back, and moving within one screen (the
+     Library choosing another track, the Audio profile choosing another place) does not add a step.
+     L.route(h)                    from a link or button on a screen: adds a step
+     L.route(h, { menu: true })    from the rail: clears the steps
+     L.back()                      goes back one step (returns false when there is none)
+     L.backButton(fallback)        the header button; a view puts '<!--back-->' where it goes, else core puts it first
+                                   in the view's header. fallback { route, label } is used when there is no step (the
+                                   Audio profile goes back to the scene or session it shows). */
+  var steps = [];
+  function viewOf(h) { for (var i = 0; i < ROUTES.length; i++) if ((h || '').match(ROUTES[i][0])) return ROUTES[i][1]; return ''; }
+  var ROUTE_WORDS = { campaigns: 'Campaigns', library: 'Library', playlists: 'Playlists', boards: 'Pad boards', profile: 'Audio profile', live: 'Live', outputs: 'Outputs',
+    look: 'Look and feel', backup: 'Back up, move or share', moved: 'What came across', relink: 'Find missing files', settings: 'Settings' };
+  L.routeLabel = function (h) {
+    var v = viewOf(h), a = (h || '').replace(/^#\//, '').split('/');
+    if (v === 'campaign') return (L.campaign(a[1]) || {}).name || 'Campaign';
+    if (v === 'session') { var s = L.session(a[1], a[2]); return s ? 'Session ' + s.n : 'Session'; }
+    if (v === 'playlist') return (L.playlist(a[1]) || {}).name || 'Playlist';
+    if (v === 'board') return (L.board(a[1]) || {}).name || 'Pad board';
+    return ROUTE_WORDS[v] || 'the last screen';
+  };
+  function stepHere(from) {
+    var v = document.getElementById('view'), scrolls = {}, a = document.activeElement;
+    if (v) v.querySelectorAll('[data-scroll]').forEach(function (s) { scrolls[s.dataset.scroll] = s.scrollTop; });
+    // A link inside a scene card (or anything marked data-back-label) names that place: "Back to The abbey ruins".
+    var named = from && from.closest && from.closest('[data-back-label]');
+    return { route: curRoute, label: named ? named.dataset.backLabel : L.routeLabel(curRoute), open: named && named.dataset.backOpen ? named.dataset.backOpen : '',
+      scrolls: scrolls, top: v ? v.scrollTop : 0, k: (from && from.dataset && from.dataset.k) || (a && a.dataset && a.dataset.k) || '' };
+  }
+  L.route = function (h, o) {
+    o = o || {};
     if (h === curRoute) { L.render(); return; }
+    if (o.menu) steps.length = 0;
+    else if (!o.back && curRoute && viewOf(h) !== viewOf(curRoute)) {
+      // Going to where the last step came from is going back, not a new step.
+      if (steps.length && steps[steps.length - 1].route === h) steps.pop(); else steps.push(stepHere(o.from));
+      if (steps.length > 30) steps.shift();
+    }
     curRoute = h;
     try { history.replaceState(null, '', encodeRoute(h)); } catch (e) { /* address bar not available: the route still changes */ }
-    afterRoute();
+    afterRoute(o.back);
   };
+  L.canGoBack = function () { return steps.length > 0; };
+  L.back = function (fallback) {
+    var st = steps.pop() || (fallback && fallback.route ? { route: fallback.route, label: fallback.label, scrolls: {}, top: 0, k: fallback.k || '', open: fallback.open || '' } : null);
+    if (!st) return false;
+    if (st.open) L.state.openScene = { sc: st.open, k: st.k };
+    L.route(st.route, { back: st });
+    L.say('Back to ' + st.label);
+    return true;
+  };
+  var backFallback = null;
+  L.backButton = function (fallback) {
+    var st = steps[steps.length - 1] || (fallback && fallback.route ? fallback : null); backFallback = steps.length ? null : fallback || null;
+    if (!st) return '';
+    return '<button class="btn s nav-back" data-act="navback" data-k="nav-back" aria-keyshortcuts="Alt+ArrowLeft" title="Back to ' + esc(st.label) + ' (Alt+Left)">' + L.icon('chevleft', 's') + '<span class="ellipsis">Back to ' + esc(st.label) + '</span></button>';
+  };
+  L.acts.navback = function () { L.back(backFallback); };
+  // Put Back in the header, and leave out the breadcrumb that goes to the same place (it would say it twice).
+  function withBack(html) {
+    var b = L.backButton(L._backFallback), st = steps[steps.length - 1]; L._backFallback = null;
+    if (html.indexOf('<!--back-->') > -1) return html.replace('<!--back-->', b);
+    if (!b) return html;
+    if (st) html = html.replace(new RegExp('<a href="' + st.route.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&') + '"[^>]*>[^<]*</a><span class="sep"[^>]*>›</span>'), '');
+    return html.replace(/<div class="(viewhead|lv-top)[^"]*">/, function (m) { return m + b; });
+  }
+  document.addEventListener('keydown', function (e) {
+    if (!e.altKey || e.key !== 'ArrowLeft' || e.ctrlKey || e.shiftKey || e.metaKey || menuEl || document.getElementById('lyre-sheet')) return;
+    if (L.back(backFallback)) e.preventDefault();
+  });
+  // The mouse's back button (button 3). Electron on Windows also sends it as the window's 'browser-backward' command.
+  document.addEventListener('mouseup', function (e) { if (e.button === 3 && L.back(backFallback)) e.preventDefault(); });
   function resolve() {
     var h = curRoute || '#/campaigns';
     for (var i = 0; i < ROUTES.length; i++) { var m = h.match(ROUTES[i][0]); if (m) { var p = {}; ROUTES[i][2].forEach(function (k, j) { p[k] = m[j + 1]; }); return { name: ROUTES[i][1], p: p }; } }
@@ -773,7 +852,7 @@ var L = (function () {
       var railMin = L.state.rail === 'min' || (L.state.rail === 'auto' && w < 1100);
       paint(document.getElementById('rail'), railHTML(v.nav || r.name, railMin));
       document.getElementById('rail').className = 'rail' + (railMin ? ' min' : '');
-      paint(document.getElementById('view'), v.render(r.p) + (r.name === 'live' ? onAirBar(true) : undoNoteHTML() + onAirBar(false)));
+      paint(document.getElementById('view'), withBack(v.render(r.p)) + (r.name === 'live' ? onAirBar(true) : undoNoteHTML() + onAirBar(false)));
       document.getElementById('view').dataset.view = r.name;
       document.querySelectorAll('#view .col').forEach(function (c) { c.classList.toggle('has-max', !!c.querySelector(':scope > .pane.maxed')); });
       if (v.after) v.after(document.getElementById('view'), r.p);
@@ -806,7 +885,7 @@ var L = (function () {
     return 'Single track';
   }
   L.onAirOrigin = originOf;
-  var SCREEN_NAMES = { campaigns: 'Campaigns', campaign: 'the campaign page', session: 'the session planner', library: 'the Library', playlists: 'Playlists', playlist: 'the playlist', boards: 'Pad boards', board: 'the pad board', profile: 'the Audio profile', live: 'Live', outputs: 'Outputs', backup: 'Back up, move or share', moved: 'What came across', relink: 'Find missing files' };
+  var SCREEN_NAMES = { campaigns: 'Campaigns', campaign: 'the campaign page', session: 'the session planner', library: 'the Library', playlists: 'Playlists', playlist: 'the playlist', boards: 'Pad boards', board: 'the pad board', profile: 'the Audio profile', live: 'Live', outputs: 'Outputs', backup: 'Back up, move or share', moved: 'What came across', relink: 'Find missing files', settings: 'Settings' };
   L.previewVol = 80;
   function roomRow(r, named, first, inLive) {
     var m = r.mix, c = m.music || m.amb, ln = m.music ? 'music' : 'amb', target = r.main ? 'table' : r.id, pk = ln + (r.main ? '' : '@' + r.id);
@@ -897,7 +976,7 @@ var L = (function () {
     return '<div class="logo">' + L.logo + '<b>Lyre</b></div><nav aria-label="Lyre"><div class="stack" style="gap:2px">' +
       a('#/campaigns', 'campaigns', 'crown', 'Campaigns') + a('#/library', 'library', 'library', 'Library') + a('#/playlists', 'playlists', 'playlist', 'Playlists') + a('#/boards', 'boards', 'grid', 'Pad boards') +
       a('#/live', 'live', 'broadcast', 'Live' + (s ? ': S' + s.n : '')) + a('#/outputs', 'outputs', 'users', 'Outputs' + outputsBadge()) + '</div></nav>' +
-      '<div class="bottom stack" style="gap:2px">' + a('#/look', 'look', 'palette', 'Look and feel') +
+      '<div class="bottom stack" style="gap:2px">' + a('#/settings', 'settings', 'gear', 'Settings') + a('#/look', 'look', 'palette', 'Look and feel') +
       '<button class="nav" data-act="rail" data-k="railtoggle" title="' + (min ? 'Show labels' : 'Icons only') + '" aria-label="' + (min ? 'Show menu labels' : 'Show icons only') + '">' + L.icon(min ? 'chevright' : 'chevleft') + '<span class="lbl">Icons only</span></button></div>';
   }
   /* Prep and Live for the campaign in hand: L.modeSwitch(cid) gives a two-button switch for a view header.
@@ -979,12 +1058,12 @@ var L = (function () {
     if (e.defaultPrevented || menuEl || document.getElementById('lyre-sheet')) return;
     for (var i = 0; i < L.keys.length; i++) if (L.keys[i](e)) { e.preventDefault(); return; }
   });
-  window.addEventListener('hashchange', function () { var r = decodeRoute(location.hash); if (r && r !== curRoute) { curRoute = r; afterRoute(); } });
+  window.addEventListener('hashchange', function () { var r = decodeRoute(location.hash); if (r && r !== curRoute) { steps.length = 0; curRoute = r; afterRoute(); } });
   // In-app links (href="#/...") change the route without touching the page address directly.
   document.addEventListener('click', function (e) {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
     var a = e.target.closest('a[href^="#/"]'); if (!a) return;
-    e.preventDefault(); L.route(a.getAttribute('href'));
+    e.preventDefault(); L.route(a.getAttribute('href'), a.closest('#rail') ? { menu: true } : { from: a });
   });
   window.addEventListener('resize', function () { clearTimeout(L._rz); L._rz = setTimeout(L.render, 120); });
   L.boot = function () { applyFrame(); curRoute = decodeRoute(location.hash) || '#/campaigns'; L.render(); };

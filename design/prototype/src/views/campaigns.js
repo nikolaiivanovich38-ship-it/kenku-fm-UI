@@ -465,7 +465,8 @@
       '<div class="field cp-span" role="group" aria-labelledby="' + f + 'b"><span class="label" id="' + f + 'b">Pad boards</span>' + boardList(sc) + '</div>' +
       '<div class="field"><label for="' + f + 'x">Notes</label><textarea class="input" id="' + f + 'x" rows="2" data-input="cpscf" data-f="notes" data-sc="' + sc.id + '" data-k="scnotes-' + sc.id + '" placeholder="Reminders for this scene">' + esc(sc.notes) + '</textarea></div>' +
       '<div class="field cp-obsfield"><label for="' + f + 'o">Note link <span class="cp-later">Coming later</span></label><input class="input" id="' + f + 'o" data-input="cpscf" data-f="noteLink" data-sc="' + sc.id + '" data-k="scnote-' + sc.id + '" value="' + esc(sc.noteLink || '') + '" placeholder="Optional: an Obsidian note" title="Kept for later; Lyre does not open Obsidian notes yet" autocomplete="off"></div></div>';
-    return '<li class="cp-scene open" data-drag="scenes" data-idx="' + i + '" aria-label="Scene ' + (i + 1) + ': ' + nm + '">' + head + body + '</li>';
+    // UX-18: a screen opened from inside this scene goes Back to it, with the scene open.
+    return '<li class="cp-scene open" data-drag="scenes" data-idx="' + i + '" data-back-label="' + nm + '" data-back-open="' + sc.id + '" aria-label="Scene ' + (i + 1) + ': ' + nm + '">' + head + body + '</li>';
   }
   /* ⋯ menus for rows: assigned playlists and boards, scene music and board items, the ambience slot. */
   L.acts.cprowmenu = function (el) {

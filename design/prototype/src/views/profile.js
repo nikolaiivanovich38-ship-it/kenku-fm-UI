@@ -427,10 +427,12 @@
   /* PLY-14: opened from a scene or a session, the page keeps that place (its own settings, or the track's until it gets
      its own) and Back returns there, with the scene open. DAT-14: in a scene, the track's name there can be set here. */
   function backHTML(t) {
+    // UX-18: the one Back of every screen (core). Opened by address or from the menu, it goes to the place shown here.
     var a = S.key.split(':'), s = (a[0] === 'sc' || a[0] === 'ss') && L.session(a[1], a[2]);
-    if (!s) return '<a class="btn s" href="#/library/' + esc(t.id) + '" data-k="ap-back">' + L.icon('chevleft', 's') + 'Back to track</a>';
-    var sc = a[0] === 'sc' && s.scenes.filter(function (x) { return x.id === a[3]; })[0];
-    return '<button class="btn s" data-act="apback" data-cid="' + esc(a[1]) + '" data-sid="' + esc(a[2]) + '" data-sc="' + esc(sc ? sc.id : '') + '" data-k="ap-back">' + L.icon('chevleft', 's') + 'Back to ' + esc(sc ? sc.name : 'Session ' + s.n) + '</button>';
+    var sc = s && a[0] === 'sc' && s.scenes.filter(function (x) { return x.id === a[3]; })[0];
+    L._backFallback = s ? { route: '#/session/' + a[1] + '/' + a[2], label: sc ? sc.name : 'Session ' + s.n, open: sc ? sc.id : '', k: sc ? 'prof-' + sc.id + '-music-' + t.id : '' }
+      : { route: '#/library/' + t.id, label: 'Library', k: '' };
+    return '<!--back-->';
   }
   function sceneNameHTML(t) {
     if (S.key.indexOf('sc:') !== 0) return '';
@@ -449,7 +451,7 @@
     S.focusK = 'ap-norm-' + el.dataset.v; L.render(); L.say('Normalise volume: ' + L.normLine(t, S.key.indexOf('pl:') === 0 ? S.key.slice(3) : ''));
   };
   L.inputs.apscname = function (el) { var t = track(); if (!t) return; L.setNameIn(t, S.key, el.value); };
-  L.acts.apback = function (el) { L.state.openScene = el.dataset.sc ? { sc: el.dataset.sc, k: 'prof-' + el.dataset.sc + '-music-' + S.tid } : null; L.route('#/session/' + el.dataset.cid + '/' + el.dataset.sid); };
+  // UX-18: Back is core's (L.backButton); the old one-off apback is gone.
   function waveStatus() { return S.playing ? { text: 'Previewing ' + L.fmt(S.pos), tone: 'on' } : { text: S.event ? 'Paused' : 'Ready', tone: 'idle' }; }
   function endStatus(p) { return p.after === 'loop' ? 'Loops from ' + L.fmt(p.loopStart) : p.after === 'next' ? 'Moves on at ' + L.fmt(p.end) : 'Stops at ' + L.fmt(p.end); }
   function afterText(t, p) { return p.after === 'loop' ? 'Loops back to ' + L.fmt(p.loopStart) : p.after === 'next' ? 'Moves on to ' + L.title(L.track(ctxOf(t).next)) : 'Stops'; }

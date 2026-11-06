@@ -322,3 +322,6 @@ button .shape-g { color: inherit; }
 .norm-targets { border: 0; padding: 0; margin: 0; display: grid; gap: 6px; min-width: 0; }
 .norm-targets legend { font-size: var(--fs-s); font-weight: 700; margin-bottom: 4px; padding: 0; }
 @media (max-width: 520px) { .norm { grid-template-columns: minmax(0, 1fr); } .norm-l { padding-top: 0; } }
+/* UX-18: Back sits first in every header it is in, and never grows past a short name. */
+.nav-back { flex: none; max-width: min(40ch, 60%); }
+.nav-back .ellipsis { min-width: 0; }

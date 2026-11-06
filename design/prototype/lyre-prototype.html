@@ -555,6 +555,9 @@ button .shape-g { color: inherit; }
 .norm-targets { border: 0; padding: 0; margin: 0; display: grid; gap: 6px; min-width: 0; }
 .norm-targets legend { font-size: var(--fs-s); font-weight: 700; margin-bottom: 4px; padding: 0; }
 @media (max-width: 520px) { .norm { grid-template-columns: minmax(0, 1fr); } .norm-l { padding-top: 0; } }
+/* UX-18: Back sits first in every header it is in, and never grows past a short name. */
+.nav-back { flex: none; max-width: min(40ch, 60%); }
+.nav-back .ellipsis { min-width: 0; }
 
 /* Outputs view (prefix op-) */
 .op-body { padding: 10px 12px; }
@@ -959,6 +962,44 @@ select.input.pl-asksel { width: auto; max-width: 220px; height: var(--ctl-s); pa
 /* Round 5: the track's name in this scene (DAT-14), in the header when opened from a scene. */
 .ap-scname { max-width: 360px; margin-top: 6px; }
 .ap-norm { margin-top: 6px; }
+
+/* Settings (OUT-8): bots on the left, the rest on the right; one column when narrow. */
+.st-split { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 10px; align-items: start; }
+@media (max-width: 1100px) { .st-split { grid-template-columns: minmax(0, 1fr); } }
+#stagewrap.half .st-split { grid-template-columns: minmax(0, 1fr); }
+.st-bots { display: flex; flex-direction: column; gap: 8px; }
+.st-bot { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--surface-2); }
+.st-bot-1, .st-bot-2 { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.st-bot-1 b { min-width: 0; }
+.st-l { flex: none; width: 64px; font-size: var(--fs-xs); color: var(--ink-2); font-weight: 700; }
+.st-tok { color: var(--ink-2); letter-spacing: .08em; }
+.st-tok-new { display: flex; gap: 6px; flex: 1; min-width: 0; }
+.st-tok-new .input { flex: 1; min-width: 0; }
+.st-none { display: inline-flex; align-items: center; gap: 4px; color: var(--warn); }
+.st-err { display: flex; align-items: center; gap: 6px; color: var(--warn); font-size: var(--fs-s); }
+.st-sw { margin: 2px 0 8px; }
+.st-sw.dis { opacity: .55; }
+.st-addr { gap: 8px; margin-bottom: 8px; }
+.st-addr .field { flex: 1; }
+.st-link { font-size: var(--fs-s); color: var(--ink-2); }
+.st-folders .lrow { gap: 8px; }
+/* The Add a bot stepper. */
+.st-steps { display: flex; gap: 6px; list-style: none; margin: 0 0 12px; padding: 0; flex-wrap: wrap; }
+.st-steps li { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-2); font-size: var(--fs-s); }
+.st-steps li .num { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--surface-3); color: var(--ink); font-size: var(--fs-xs); }
+.st-steps li.now { border-color: var(--accent); color: var(--ink); font-weight: 700; }
+.st-steps li.now .num { background: var(--accent); color: var(--accent-ink); }
+.st-steps li.done .num { background: var(--surface-3); color: var(--ink-2); }
+.st-stepbody { display: flex; flex-direction: column; gap: 10px; }
+.st-do { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.st-do li::marker { color: var(--ink-3); }
+.st-why { margin: 0; font-weight: 700; }
+.st-stepbody .row-flex { gap: 6px; }
+.st-stepbody .row-flex .input { flex: 1; min-width: 0; }
+.st-handbtn { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; background: none; border: 0; padding: 4px 2px; color: var(--ink-2); font: inherit; font-size: var(--fs-s); cursor: pointer; border-radius: var(--r-s); }
+.st-handbtn:hover { color: var(--ink); text-decoration: underline; }
+.st-result { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px; border-radius: var(--r-s); background: var(--surface-2); border: 1px solid var(--accent); }
+a.btn[aria-disabled="true"] { opacity: .5; }
 
 /* Round 5: Back up, move or share (DAT-7), the move report, Find missing files (DAT-8). Prefix tf-. */
 .tf-body { padding: 10px 12px; }
@@ -2216,6 +2257,8 @@ var LYRE_DATA = (function () {
 
   // Discord: the servers and voice channels the bots can see, and the bots themselves (simulated).
   // A bot is in at most one voice channel at a time (one per server is Discord's rule; Lyre uses one).
+  // Round 6 (OUT-8): login is the bot's connection to Discord (Settings: online, connecting, offline, error), token the
+  // last four characters of its token (the rest is never shown), servers the Discord servers it was invited to.
   var discord = {
     servers: [
       { id: 'g1', name: 'The Gull and Lantern', channels: [
@@ -2228,8 +2271,8 @@ var LYRE_DATA = (function () {
         { id: 'c6', name: 'Private audience', members: [] }] }
     ],
     bots: [
-      { id: 'b1', name: 'Lyre Table', status: 'connected', server: 'g1', channel: 'c1', muted: false, volume: 85, mix: 'table' },
-      { id: 'b2', name: 'Lyre Side', status: 'idle', server: '', channel: '', muted: false, volume: 85, mix: 'table' }
+      { id: 'b1', name: 'Lyre Table', status: 'connected', server: 'g1', channel: 'c1', muted: false, volume: 85, mix: 'table', login: 'online', token: 'Kq7w', servers: ['g1', 'g2'] },
+      { id: 'b2', name: 'Lyre Side', status: 'idle', server: '', channel: '', muted: false, volume: 85, mix: 'table', login: 'online', token: 'p3Zd', servers: ['g1'] }
     ]
   };
   // Round 5 (PLY-13): play order. A playlist's own choice is pl.order; a choice for one place (a scene 'sc:…', a
@@ -2684,6 +2727,8 @@ var L = (function () {
   L.botStatusText = function (b) { return { connected: b.muted ? 'In ' + L.botWhere(b) + ', muted' : 'Broadcasting to ' + L.botWhere(b), connecting: 'Joining ' + L.botWhere(b) + '…', idle: 'Not in a voice channel', error: 'Could not join: ' + (b.error || 'try again') }[b.status] || b.status; };
   L.botJoin = function (botId, serverId, channelId) {
     var b = L.bot(botId), c = L.channel(serverId, channelId); if (!b || !c) return;
+    // OUT-8: a bot that is not connected to Discord (Settings) cannot join a voice channel.
+    if (b.login && b.login !== 'online') { L.toast(b.name + ' is not connected: connect it in Settings'); return; }
     var other = D.discord.bots.filter(function (x) { return x !== b && x.server === serverId && x.channel === channelId && x.status !== 'idle'; })[0];
     b.server = serverId; b.channel = channelId; b.status = 'connecting'; b.error = '';
     L.say(b.name + ' is joining ' + L.botWhere(b)); L.changed();
@@ -2999,7 +3044,7 @@ var L = (function () {
     [/^#\/campaigns$/, 'campaigns', []], [/^#\/campaign\/([\w-]+)$/, 'campaign', ['cid']], [/^#\/session\/([\w-]+)\/([\w-]+)$/, 'session', ['cid', 'sid']],
     [/^#\/library(?:\/([\w-]+))?$/, 'library', ['tid']], [/^#\/playlists$/, 'playlists', []], [/^#\/playlist\/([\w-]+)$/, 'playlist', ['pid']],
     [/^#\/profile\/([\w-]+)(?:\/([\w:-]+))?$/, 'profile', ['tid', 'ctx']], [/^#\/boards$/, 'boards', []], [/^#\/board\/([\w-]+)$/, 'board', ['bid']], [/^#\/live$/, 'live', []], [/^#\/outputs$/, 'outputs', []], [/^#\/look$/, 'look', []],
-    [/^#\/backup$/, 'backup', []], [/^#\/moved$/, 'moved', []], [/^#\/relink$/, 'relink', []]
+    [/^#\/backup$/, 'backup', []], [/^#\/moved$/, 'moved', []], [/^#\/relink$/, 'relink', []], [/^#\/settings$/, 'settings', []]
   ];
   L.view = function (name, def) { L.views[name] = def; };
   /* Routes are kept in memory ('#/session/crown/s14'). The page address shows a plain form ('#session--crown--s14'),
@@ -3007,13 +3052,90 @@ var L = (function () {
   var curRoute = null;
   function encodeRoute(h) { return '#' + h.replace(/^#\//, '').split('/').join('--'); }
   function decodeRoute(hash) { var m = (hash || '').replace(/^#\/?/, ''); return m ? '#/' + m.split('--').join('/') : null; }
-  function afterRoute() { L.state.maxed = null; L.closeMenu(); L.render(); var v = document.getElementById('view'); var h = v.querySelector('h1'); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); } window.dispatchEvent(new Event('lyre:route')); }
-  L.route = function (h) {
+  function afterRoute(back) {
+    L.state.maxed = null; L.closeMenu(); L.render(); var v = document.getElementById('view');
+    // Back: the same scroll positions and the control that was used to leave; otherwise focus goes to the heading.
+    if (back) {
+      v.scrollTop = back.top || 0; v.querySelectorAll('[data-scroll]').forEach(function (s) { if (back.scrolls[s.dataset.scroll] != null) s.scrollTop = back.scrolls[s.dataset.scroll]; });
+      var n = back.k && v.querySelector('[data-k="' + back.k + '"]'); if (n) { n.focus({ preventScroll: true }); window.dispatchEvent(new Event('lyre:route')); return; }
+    }
+    var h = v.querySelector('h1'); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); } window.dispatchEvent(new Event('lyre:route'));
+  }
+  /* UX-18 Back (Nik, 6 Nov 10:34: "I need a contextual back button everywhere."). Every screen opened from another
+     one has Back in its header, named for where it goes ("Back to Session 14"); it returns to the same place: the
+     route (so the selected track, playlist or board), every box's scroll position, the open scene (the views keep
+     their own open and folded state) and the control that was used to leave. Alt+Left and the mouse's back button do
+     the same. Screens opened from the menu (the rail) or by address have no Back, and moving within one screen (the
+     Library choosing another track, the Audio profile choosing another place) does not add a step.
+     L.route(h)                    from a link or button on a screen: adds a step
+     L.route(h, { menu: true })    from the rail: clears the steps
+     L.back()                      goes back one step (returns false when there is none)
+     L.backButton(fallback)        the header button; a view puts '<!--back-->' where it goes, else core puts it first
+                                   in the view's header. fallback { route, label } is used when there is no step (the
+                                   Audio profile goes back to the scene or session it shows). */
+  var steps = [];
+  function viewOf(h) { for (var i = 0; i < ROUTES.length; i++) if ((h || '').match(ROUTES[i][0])) return ROUTES[i][1]; return ''; }
+  var ROUTE_WORDS = { campaigns: 'Campaigns', library: 'Library', playlists: 'Playlists', boards: 'Pad boards', profile: 'Audio profile', live: 'Live', outputs: 'Outputs',
+    look: 'Look and feel', backup: 'Back up, move or share', moved: 'What came across', relink: 'Find missing files', settings: 'Settings' };
+  L.routeLabel = function (h) {
+    var v = viewOf(h), a = (h || '').replace(/^#\//, '').split('/');
+    if (v === 'campaign') return (L.campaign(a[1]) || {}).name || 'Campaign';
+    if (v === 'session') { var s = L.session(a[1], a[2]); return s ? 'Session ' + s.n : 'Session'; }
+    if (v === 'playlist') return (L.playlist(a[1]) || {}).name || 'Playlist';
+    if (v === 'board') return (L.board(a[1]) || {}).name || 'Pad board';
+    return ROUTE_WORDS[v] || 'the last screen';
+  };
+  function stepHere(from) {
+    var v = document.getElementById('view'), scrolls = {}, a = document.activeElement;
+    if (v) v.querySelectorAll('[data-scroll]').forEach(function (s) { scrolls[s.dataset.scroll] = s.scrollTop; });
+    // A link inside a scene card (or anything marked data-back-label) names that place: "Back to The abbey ruins".
+    var named = from && from.closest && from.closest('[data-back-label]');
+    return { route: curRoute, label: named ? named.dataset.backLabel : L.routeLabel(curRoute), open: named && named.dataset.backOpen ? named.dataset.backOpen : '',
+      scrolls: scrolls, top: v ? v.scrollTop : 0, k: (from && from.dataset && from.dataset.k) || (a && a.dataset && a.dataset.k) || '' };
+  }
+  L.route = function (h, o) {
+    o = o || {};
     if (h === curRoute) { L.render(); return; }
+    if (o.menu) steps.length = 0;
+    else if (!o.back && curRoute && viewOf(h) !== viewOf(curRoute)) {
+      // Going to where the last step came from is going back, not a new step.
+      if (steps.length && steps[steps.length - 1].route === h) steps.pop(); else steps.push(stepHere(o.from));
+      if (steps.length > 30) steps.shift();
+    }
     curRoute = h;
     try { history.replaceState(null, '', encodeRoute(h)); } catch (e) { /* address bar not available: the route still changes */ }
-    afterRoute();
+    afterRoute(o.back);
   };
+  L.canGoBack = function () { return steps.length > 0; };
+  L.back = function (fallback) {
+    var st = steps.pop() || (fallback && fallback.route ? { route: fallback.route, label: fallback.label, scrolls: {}, top: 0, k: fallback.k || '', open: fallback.open || '' } : null);
+    if (!st) return false;
+    if (st.open) L.state.openScene = { sc: st.open, k: st.k };
+    L.route(st.route, { back: st });
+    L.say('Back to ' + st.label);
+    return true;
+  };
+  var backFallback = null;
+  L.backButton = function (fallback) {
+    var st = steps[steps.length - 1] || (fallback && fallback.route ? fallback : null); backFallback = steps.length ? null : fallback || null;
+    if (!st) return '';
+    return '<button class="btn s nav-back" data-act="navback" data-k="nav-back" aria-keyshortcuts="Alt+ArrowLeft" title="Back to ' + esc(st.label) + ' (Alt+Left)">' + L.icon('chevleft', 's') + '<span class="ellipsis">Back to ' + esc(st.label) + '</span></button>';
+  };
+  L.acts.navback = function () { L.back(backFallback); };
+  // Put Back in the header, and leave out the breadcrumb that goes to the same place (it would say it twice).
+  function withBack(html) {
+    var b = L.backButton(L._backFallback), st = steps[steps.length - 1]; L._backFallback = null;
+    if (html.indexOf('<!--back-->') > -1) return html.replace('<!--back-->', b);
+    if (!b) return html;
+    if (st) html = html.replace(new RegExp('<a href="' + st.route.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&') + '"[^>]*>[^<]*</a><span class="sep"[^>]*>›</span>'), '');
+    return html.replace(/<div class="(viewhead|lv-top)[^"]*">/, function (m) { return m + b; });
+  }
+  document.addEventListener('keydown', function (e) {
+    if (!e.altKey || e.key !== 'ArrowLeft' || e.ctrlKey || e.shiftKey || e.metaKey || menuEl || document.getElementById('lyre-sheet')) return;
+    if (L.back(backFallback)) e.preventDefault();
+  });
+  // The mouse's back button (button 3). Electron on Windows also sends it as the window's 'browser-backward' command.
+  document.addEventListener('mouseup', function (e) { if (e.button === 3 && L.back(backFallback)) e.preventDefault(); });
   function resolve() {
     var h = curRoute || '#/campaigns';
     for (var i = 0; i < ROUTES.length; i++) { var m = h.match(ROUTES[i][0]); if (m) { var p = {}; ROUTES[i][2].forEach(function (k, j) { p[k] = m[j + 1]; }); return { name: ROUTES[i][1], p: p }; } }
@@ -3045,7 +3167,7 @@ var L = (function () {
       var railMin = L.state.rail === 'min' || (L.state.rail === 'auto' && w < 1100);
       paint(document.getElementById('rail'), railHTML(v.nav || r.name, railMin));
       document.getElementById('rail').className = 'rail' + (railMin ? ' min' : '');
-      paint(document.getElementById('view'), v.render(r.p) + (r.name === 'live' ? onAirBar(true) : undoNoteHTML() + onAirBar(false)));
+      paint(document.getElementById('view'), withBack(v.render(r.p)) + (r.name === 'live' ? onAirBar(true) : undoNoteHTML() + onAirBar(false)));
       document.getElementById('view').dataset.view = r.name;
       document.querySelectorAll('#view .col').forEach(function (c) { c.classList.toggle('has-max', !!c.querySelector(':scope > .pane.maxed')); });
       if (v.after) v.after(document.getElementById('view'), r.p);
@@ -3078,7 +3200,7 @@ var L = (function () {
     return 'Single track';
   }
   L.onAirOrigin = originOf;
-  var SCREEN_NAMES = { campaigns: 'Campaigns', campaign: 'the campaign page', session: 'the session planner', library: 'the Library', playlists: 'Playlists', playlist: 'the playlist', boards: 'Pad boards', board: 'the pad board', profile: 'the Audio profile', live: 'Live', outputs: 'Outputs', backup: 'Back up, move or share', moved: 'What came across', relink: 'Find missing files' };
+  var SCREEN_NAMES = { campaigns: 'Campaigns', campaign: 'the campaign page', session: 'the session planner', library: 'the Library', playlists: 'Playlists', playlist: 'the playlist', boards: 'Pad boards', board: 'the pad board', profile: 'the Audio profile', live: 'Live', outputs: 'Outputs', backup: 'Back up, move or share', moved: 'What came across', relink: 'Find missing files', settings: 'Settings' };
   L.previewVol = 80;
   function roomRow(r, named, first, inLive) {
     var m = r.mix, c = m.music || m.amb, ln = m.music ? 'music' : 'amb', target = r.main ? 'table' : r.id, pk = ln + (r.main ? '' : '@' + r.id);
@@ -3169,7 +3291,7 @@ var L = (function () {
     return '<div class="logo">' + L.logo + '<b>Lyre</b></div><nav aria-label="Lyre"><div class="stack" style="gap:2px">' +
       a('#/campaigns', 'campaigns', 'crown', 'Campaigns') + a('#/library', 'library', 'library', 'Library') + a('#/playlists', 'playlists', 'playlist', 'Playlists') + a('#/boards', 'boards', 'grid', 'Pad boards') +
       a('#/live', 'live', 'broadcast', 'Live' + (s ? ': S' + s.n : '')) + a('#/outputs', 'outputs', 'users', 'Outputs' + outputsBadge()) + '</div></nav>' +
-      '<div class="bottom stack" style="gap:2px">' + a('#/look', 'look', 'palette', 'Look and feel') +
+      '<div class="bottom stack" style="gap:2px">' + a('#/settings', 'settings', 'gear', 'Settings') + a('#/look', 'look', 'palette', 'Look and feel') +
       '<button class="nav" data-act="rail" data-k="railtoggle" title="' + (min ? 'Show labels' : 'Icons only') + '" aria-label="' + (min ? 'Show menu labels' : 'Show icons only') + '">' + L.icon(min ? 'chevright' : 'chevleft') + '<span class="lbl">Icons only</span></button></div>';
   }
   /* Prep and Live for the campaign in hand: L.modeSwitch(cid) gives a two-button switch for a view header.
@@ -3251,12 +3373,12 @@ var L = (function () {
     if (e.defaultPrevented || menuEl || document.getElementById('lyre-sheet')) return;
     for (var i = 0; i < L.keys.length; i++) if (L.keys[i](e)) { e.preventDefault(); return; }
   });
-  window.addEventListener('hashchange', function () { var r = decodeRoute(location.hash); if (r && r !== curRoute) { curRoute = r; afterRoute(); } });
+  window.addEventListener('hashchange', function () { var r = decodeRoute(location.hash); if (r && r !== curRoute) { steps.length = 0; curRoute = r; afterRoute(); } });
   // In-app links (href="#/...") change the route without touching the page address directly.
   document.addEventListener('click', function (e) {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey) return;
     var a = e.target.closest('a[href^="#/"]'); if (!a) return;
-    e.preventDefault(); L.route(a.getAttribute('href'));
+    e.preventDefault(); L.route(a.getAttribute('href'), a.closest('#rail') ? { menu: true } : { from: a });
   });
   window.addEventListener('resize', function () { clearTimeout(L._rz); L._rz = setTimeout(L.render, 120); });
   L.boot = function () { applyFrame(); curRoute = decodeRoute(location.hash) || '#/campaigns'; L.render(); };
@@ -4495,10 +4617,12 @@ var L = (function () {
   /* PLY-14: opened from a scene or a session, the page keeps that place (its own settings, or the track's until it gets
      its own) and Back returns there, with the scene open. DAT-14: in a scene, the track's name there can be set here. */
   function backHTML(t) {
+    // UX-18: the one Back of every screen (core). Opened by address or from the menu, it goes to the place shown here.
     var a = S.key.split(':'), s = (a[0] === 'sc' || a[0] === 'ss') && L.session(a[1], a[2]);
-    if (!s) return '<a class="btn s" href="#/library/' + esc(t.id) + '" data-k="ap-back">' + L.icon('chevleft', 's') + 'Back to track</a>';
-    var sc = a[0] === 'sc' && s.scenes.filter(function (x) { return x.id === a[3]; })[0];
-    return '<button class="btn s" data-act="apback" data-cid="' + esc(a[1]) + '" data-sid="' + esc(a[2]) + '" data-sc="' + esc(sc ? sc.id : '') + '" data-k="ap-back">' + L.icon('chevleft', 's') + 'Back to ' + esc(sc ? sc.name : 'Session ' + s.n) + '</button>';
+    var sc = s && a[0] === 'sc' && s.scenes.filter(function (x) { return x.id === a[3]; })[0];
+    L._backFallback = s ? { route: '#/session/' + a[1] + '/' + a[2], label: sc ? sc.name : 'Session ' + s.n, open: sc ? sc.id : '', k: sc ? 'prof-' + sc.id + '-music-' + t.id : '' }
+      : { route: '#/library/' + t.id, label: 'Library', k: '' };
+    return '<!--back-->';
   }
   function sceneNameHTML(t) {
     if (S.key.indexOf('sc:') !== 0) return '';
@@ -4517,7 +4641,7 @@ var L = (function () {
     S.focusK = 'ap-norm-' + el.dataset.v; L.render(); L.say('Normalise volume: ' + L.normLine(t, S.key.indexOf('pl:') === 0 ? S.key.slice(3) : ''));
   };
   L.inputs.apscname = function (el) { var t = track(); if (!t) return; L.setNameIn(t, S.key, el.value); };
-  L.acts.apback = function (el) { L.state.openScene = el.dataset.sc ? { sc: el.dataset.sc, k: 'prof-' + el.dataset.sc + '-music-' + S.tid } : null; L.route('#/session/' + el.dataset.cid + '/' + el.dataset.sid); };
+  // UX-18: Back is core's (L.backButton); the old one-off apback is gone.
   function waveStatus() { return S.playing ? { text: 'Previewing ' + L.fmt(S.pos), tone: 'on' } : { text: S.event ? 'Paused' : 'Ready', tone: 'idle' }; }
   function endStatus(p) { return p.after === 'loop' ? 'Loops from ' + L.fmt(p.loopStart) : p.after === 'next' ? 'Moves on at ' + L.fmt(p.end) : 'Stops at ' + L.fmt(p.end); }
   function afterText(t, p) { return p.after === 'loop' ? 'Loops back to ' + L.fmt(p.loopStart) : p.after === 'next' ? 'Moves on to ' + L.title(L.track(ctxOf(t).next)) : 'Stops'; }
@@ -4717,6 +4841,237 @@ var L = (function () {
     if (k === 'l') { setHere('loop'); return true; }
     if (k === 'm') { addMarker(false); return true; }
     return false;
+  });
+})();
+
+;
+/* Settings (#/settings, in the menu): OUT-8, round 6 part 2 (Nik, 6 Nov 10:34: "Enhance the instructions for adding
+   new bots with proper directions about the Oauth2 URL step and inviting the bot to the server, and doing that before
+   having the token is added to Lyre", and when Settings, tokens and new bots come to the new interface).
+
+   Everything the old main window's Settings panel had that Lyre still needs (src/renderer/features/settings):
+     Discord bots      each bot: status, the servers it is in, Connect or Disconnect, its token (only the last four
+                       characters show; Replace… takes a new one) and, behind ⋯, Rename and Remove. Add a bot opens the
+                       stepper below. Tokens are kept encrypted on this computer (SEC-5).
+     Sound to Discord  the streaming mode (Best sound quality or Lighter on the computer).
+     Remote control    the Stream Deck remote: on or off, address and port (folded: rare).
+     Website tabs      the address bar, microphones and other inputs, several inputs at once, Clear website data (folded).
+     Local files       folders whose files open without asking, each with Ask again (folded).
+   Look and feel stays its own screen in the menu.
+
+   Add a bot, in the order Discord needs (checked against Discord's documentation, see ROUND6.md):
+     1 Create an application in the Discord Developer Portal (New Application, a name, Create).
+     2 Invite the bot to your server, before Lyre has its token: paste the Application ID (General Information) and Lyre
+       opens the invite with the right permissions, https://discord.com/oauth2/authorize?client_id=<id>&scope=bot&
+       permissions=3146752 (View Channels 1024 + Connect 1048576 + Speak 2097152); or by hand: OAuth2 › URL Generator,
+       scope bot, permissions View Channels, Connect, Speak, open the Generated URL, choose the server, Authorize. You
+       need Manage Server on that server.
+     3 Bot › Reset Token, copy it, paste it here, Connect. Then: the servers the bot is in, or "In no server yet" with
+       the invite again. */
+(function () {
+  var esc = L.esc, D = L.data;
+  L.INVITE_PERMISSIONS = 1024 + 1048576 + 2097152;   // View Channels, Connect, Speak
+  L.inviteURL = function (appId) { return 'https://discord.com/oauth2/authorize?client_id=' + encodeURIComponent(appId) + '&scope=bot&permissions=' + L.INVITE_PERMISSIONS; };
+  var S = { mode: 'quality', remote: false, address: '127.0.0.1', port: '3333', urlBar: true, inputs: false, several: false, folders: ['H:\\Audio\\Incoming'],
+    add: null, replacing: '', opened: [] };
+
+  /* ---------- the bots ---------- */
+  function loginWords(b) { return { online: 'Connected', connecting: 'Connecting…', offline: 'Not connected', error: 'Could not connect' }[b.login || 'online']; }
+  function loginTone(b) { return { online: 'on', connecting: 'warn', offline: 'idle', error: 'warn' }[b.login || 'online']; }
+  function serverNames(b) { return (b.servers || []).map(function (id) { return (L.server(id) || {}).name; }).filter(Boolean); }
+  L.botOnline = function (b) { return !b.login || b.login === 'online'; };
+  function connect(b) {
+    b.login = 'connecting'; L.say(b.name + ' is connecting'); L.changed();
+    setTimeout(function () {
+      if (b.login !== 'connecting') return;
+      if (!b.token) { b.login = 'error'; b.error = 'No token yet'; } else b.login = 'online';
+      L.say(b.name + (b.login === 'online' ? ' is connected. ' + (serverNames(b).length ? 'In ' + serverNames(b).join(' and ') : 'It is in no server yet: invite it first') : ' could not connect: paste its token'));
+      L.changed();
+    }, 900);
+  }
+  function botRow(b) {
+    var srv = serverNames(b), k = 'st-b-' + b.id, rep = S.replacing === b.id;
+    var token = rep
+      ? '<div class="st-tok-new"><label class="sr-only" for="st-tok-' + b.id + '">New token for ' + esc(b.name) + '</label><input class="input" type="password" id="st-tok-' + b.id + '" data-input="sttok" data-id="' + b.id + '" data-k="' + k + '-tokin" autocomplete="off" placeholder="Paste the new token">' +
+        '<button class="btn s primary" data-act="sttoksave" data-id="' + b.id + '" data-k="' + k + '-toksave">Save</button><button class="btn s ghost" data-act="sttokcancel" data-k="' + k + '-tokx">Cancel</button></div>'
+      : '<span class="st-tok num" title="Kept encrypted on this computer; only the last four characters show">' + (b.token ? '••••••••' + esc(b.token) : '<span class="faint">No token</span>') + '</span>' +
+        '<button class="btn s ghost" data-act="sttokrep" data-id="' + b.id + '" data-k="' + k + '-tokrep" aria-label="Replace the token of ' + esc(b.name) + '">Replace…</button>';
+    var on = b.login === 'online' || b.login === 'connecting';
+    return '<li class="st-bot" role="group" aria-label="' + esc(b.name) + '">' +
+      '<div class="st-bot-1"><b class="ellipsis">' + esc(b.name) + '</b><span class="pane-status s-' + loginTone(b) + '">' + loginWords(b) + '</span><span class="grow"></span>' +
+        '<button class="btn s' + (on ? '' : ' primary') + '" data-act="stconn" data-id="' + b.id + '" data-k="' + k + '-conn"' + (b.login === 'connecting' ? ' aria-disabled="true"' : '') + '>' + (on ? 'Disconnect' : 'Connect') + '</button>' +
+        '<button class="closer" data-act="stbotmenu" data-id="' + b.id + '" data-k="' + k + '-more" aria-haspopup="menu" aria-expanded="false" title="More for ' + esc(b.name) + '" aria-label="More for ' + esc(b.name) + '">' + L.icon('more') + '</button></div>' +
+      '<div class="st-bot-2"><span class="st-l">Token</span>' + token + '</div>' +
+      (b.login === 'online' ? '<div class="st-bot-2"><span class="st-l">Servers</span>' + (srv.length ? '<span class="ellipsis" title="' + esc(srv.join(', ')) + '">' + esc(srv.join(', ')) + '</span>'
+        : '<span class="st-none">' + L.icon('warn', 's') + 'In no server yet</span>' + (b.appId ? '<a class="btn s" href="' + esc(L.inviteURL(b.appId)) + '" target="_blank" rel="noopener" data-act="stinvite" data-id="' + b.id + '" data-k="' + k + '-inv">Invite it…</a>' : '')) + '</div>' : '') +
+      (b.login === 'error' ? '<p class="st-err" role="alert">' + L.icon('warn', 's') + esc(b.error || 'Discord refused the token') + '</p>' : '') + '</li>';
+  }
+  L.acts.stconn = function (el) {
+    var b = L.bot(el.dataset.id); if (!b || b.login === 'connecting') return;
+    if (b.login === 'online') { if (b.status !== 'idle') L.botLeave(b.id); b.login = 'offline'; L.say(b.name + ' disconnected'); L.changed(); return; }
+    connect(b);
+  };
+  L.acts.sttokrep = function (el) { S.replacing = el.dataset.id; L.render(); var f = document.querySelector('[data-k="st-b-' + el.dataset.id + '-tokin"]'); if (f) f.focus(); };
+  L.acts.sttokcancel = function () { var id = S.replacing; S.replacing = ''; L.render(); var f = document.querySelector('[data-k="st-b-' + id + '-tokrep"]'); if (f) f.focus(); };
+  L.inputs.sttok = function () {};
+  L.acts.sttoksave = function (el) {
+    var b = L.bot(el.dataset.id), f = document.getElementById('st-tok-' + el.dataset.id), v = f ? f.value.trim() : '';
+    if (!v) { L.toast('Paste the token first'); if (f) f.focus(); return; }
+    b.token = v.slice(-4); S.replacing = ''; L.say('New token saved for ' + b.name); connect(b);
+    var c = document.querySelector('[data-k="st-b-' + b.id + '-conn"]'); if (c) c.focus();
+  };
+  L.acts.stbotmenu = function (el) {
+    var b = L.bot(el.dataset.id), only = L.bots().length < 2;
+    L.menu(el, '<button role="menuitem" data-act="stbotren" data-id="' + b.id + '">' + L.icon('edit', 's') + 'Rename…</button>' +
+      '<button role="menuitem" data-act="stbotrm" data-id="' + b.id + '"' + (only ? ' disabled title="Lyre needs at least one bot"' : '') + '>' + L.icon('trash', 's') + 'Remove ' + esc(b.name) + '</button>', 'More for ' + b.name);
+  };
+  L.acts.stbotren = function (el) {
+    var b = L.bot(el.dataset.id);
+    L.sheet({ title: 'Rename ' + b.name, body: '<div class="field"><label for="st-ren">Name in Lyre</label><input class="input" id="st-ren" value="' + esc(b.name) + '" autocomplete="off"></div>',
+      footer: '<button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="stbotrensave" data-id="' + b.id + '">Rename</button>' });
+  };
+  L.acts.stbotrensave = function (el) { var b = L.bot(el.dataset.id), v = document.getElementById('st-ren').value.trim(); if (v) b.name = v; L.closeSheet(); L.render(); L.say('Renamed ' + b.name); };
+  // Removing a bot takes it out of its voice channel and forgets its token; Undo puts it back as it was.
+  L.acts.stbotrm = function (el) {
+    var list = D.discord.bots, i = list.map(function (b) { return b.id; }).indexOf(el.dataset.id); if (i < 0 || list.length < 2) return;
+    var b = list[i], was = JSON.parse(JSON.stringify(b));
+    if (b.status !== 'idle') L.botLeave(b.id);
+    list.splice(i, 1); L.state.sendTo = L.state.sendTo.filter(function (x) { return x !== b.id; });
+    L.undoNote('Removed ' + b.name + ' and its token.', function () { list.splice(i, 0, was); });
+    L.render(); L.say('Removed ' + b.name + '. Undo is above the Now playing bar, or press Ctrl+Z.');
+    var n = document.querySelector('[data-k="st-add"]'); if (n) n.focus();
+  };
+
+  /* ---------- Add a bot: three steps, in the order Discord needs ---------- */
+  var STEPS = ['Create it', 'Invite it', 'Connect it'];
+  function stepper() {
+    var a = S.add, n = a.step;
+    var nav = '<ol class="st-steps" aria-label="Steps">' + STEPS.map(function (x, i) {
+      return '<li' + (i === n ? ' aria-current="step" class="now"' : i < n ? ' class="done"' : '') + '><span class="num">' + (i + 1) + '</span>' + x + '</li>';
+    }).join('') + '</ol>';
+    var body;
+    if (n === 0) body = '<ol class="st-do">' +
+      '<li><a class="btn s" href="https://discord.com/developers/applications" target="_blank" rel="noopener" data-act="stportal" data-k="st-portal">' + L.icon('link', 's') + 'Open the Discord Developer Portal</a></li>' +
+      '<li><b>New Application</b>, give it a name (for example ' + esc(a.name) + '), <b>Create</b>.</li></ol>';
+    else if (n === 1) body = '<p class="st-why">Invite the bot before you give Lyre its token.</p>' +
+      '<div class="field"><label for="st-appid">Application ID</label><div class="row-flex"><input class="input num" id="st-appid" data-input="stappid" data-k="st-appid" value="' + esc(a.appId) + '" inputmode="numeric" autocomplete="off" placeholder="From General Information" aria-describedby="st-appid-d">' +
+        '<a class="btn s primary" href="' + esc(L.inviteURL(a.appId || '')) + '" target="_blank" rel="noopener" data-act="stopeninv" data-k="st-openinv"' + (/^\d{15,22}$/.test(a.appId) ? '' : ' aria-disabled="true"') + '>' + L.icon('link', 's') + 'Open the invite</a></div>' +
+        '<span class="hint" id="st-appid-d">General Information › Application ID › Copy</span></div>' +
+      '<ol class="st-do"><li>Choose your server, <b>Authorize</b>. You need <b>Manage Server</b> on it.</li></ol>' +
+      '<button class="st-handbtn" data-act="stbyhand" data-k="st-byhand" aria-expanded="' + !!a.byHand + '" aria-controls="st-hand">' + L.icon(a.byHand ? 'chevup' : 'chevdown', 's') + 'Or make the invite by hand</button>' +
+      (a.byHand ? '<ol class="st-do" id="st-hand"><li><b>OAuth2</b> › <b>URL Generator</b></li><li>Scopes: <b>bot</b></li><li>Bot Permissions: <b>View Channels</b>, <b>Connect</b>, <b>Speak</b></li>' +
+        '<li>Open the <b>Generated URL</b>, choose your server, <b>Authorize</b></li></ol>' : '');
+    else body = '<ol class="st-do"><li><b>Bot</b> › <b>Reset Token</b> › <b>Copy</b></li></ol>' +
+      '<div class="field"><label for="st-newtok">Token</label><input class="input" type="password" id="st-newtok" data-input="stnewtok" data-k="st-newtok" autocomplete="off" placeholder="Paste it here" aria-describedby="st-newtok-d">' +
+        '<span class="hint" id="st-newtok-d" title="Discord shows a token once; Reset Token makes a new one">Kept encrypted on this computer.</span></div>' +
+      (a.result ? '<div class="st-result" role="status">' + a.result + '</div>' : '');
+    return '<div class="st-add">' + nav + '<div class="st-stepbody" id="st-stepbody">' + body + '</div></div>';
+  }
+  function footer() {
+    var n = S.add.step;
+    return '<button class="btn" data-act="' + (n ? 'stprev' : 'closesheet') + '" data-k="st-prev">' + (n ? 'Previous' : 'Cancel') + '</button>' +
+      (n < 2 ? '<button class="btn primary" data-act="stnext" data-k="st-next">Next</button>' : S.add.done ? '<button class="btn primary" data-act="stdone" data-k="st-done">Done</button>' : '<button class="btn primary" data-act="stconnew" data-k="st-connew">Connect</button>');
+  }
+  // The sheet stays open between steps; only its title, body and buttons change.
+  function openStepper(focusK) {
+    var title = 'Add a bot: step ' + (S.add.step + 1) + ' of 3', sh = document.getElementById('lyre-sheet');
+    if (sh) { sh.querySelector('#sheet-title').textContent = title; sh.querySelector('.body').innerHTML = stepper(); sh.querySelector('footer').innerHTML = footer(); }
+    else L.sheet({ title: title, describe: 'Create the application, invite the bot to your server, then give Lyre its token.', body: stepper(), footer: footer() });
+    var f = focusK && document.querySelector('#lyre-sheet [data-k="' + focusK + '"]'); if (f) f.focus();
+  }
+  L.acts.stadd = function () { S.add = { step: 0, name: 'Lyre ' + ['Side', 'Third', 'Fourth', 'Fifth'][Math.max(0, L.bots().length - 1)] , appId: '', opened: false, byHand: false, result: '', done: false }; openStepper(); };
+  L.acts.stnext = function () { S.add.step++; openStepper(S.add.step === 1 ? 'st-appid' : 'st-newtok'); L.say('Step ' + (S.add.step + 1) + ' of 3: ' + STEPS[S.add.step]); };
+  L.acts.stprev = function () { S.add.step--; openStepper('st-prev'); L.say('Step ' + (S.add.step + 1) + ' of 3: ' + STEPS[S.add.step]); };
+  L.acts.stbyhand = function () { S.add.byHand = !S.add.byHand; openStepper('st-byhand'); };
+  // The prototype cannot open Discord or a browser: these links say where they would go.
+  L.acts.stportal = function () { L.toast('Opens the Discord Developer Portal in your browser'); };
+  L.acts.stinvite = function () { L.toast('Opens the invite in your browser: choose your server, Authorize'); };
+  L.acts.stdeck = function () { L.toast('Opens the Stream Deck plugin\'s page in your browser'); };
+  L.inputs.stappid = function (el) {
+    S.add.appId = el.value.replace(/\D/g, ''); var a = document.querySelector('[data-k="st-openinv"]');
+    if (a) { a.href = L.inviteURL(S.add.appId); if (/^\d{15,22}$/.test(S.add.appId)) a.removeAttribute('aria-disabled'); else a.setAttribute('aria-disabled', 'true'); }
+  };
+  // The prototype cannot open Discord: it notes that the invite was opened (and so the bot will be in a server).
+  L.acts.stopeninv = function (el, e) {
+    if (el.getAttribute('aria-disabled') === 'true') { L.toast('Paste the Application ID first (General Information)'); var f = document.getElementById('st-appid'); if (f) f.focus(); return; }
+    S.add.opened = true; L.toast('Opens Discord in your browser: choose your server, Authorize'); L.say('Invite opened in your browser');
+  };
+  L.inputs.stnewtok = function () {};
+  L.acts.stconnew = function () {
+    var f = document.getElementById('st-newtok'), v = f ? f.value.trim() : '';
+    if (!v) { L.toast('Paste the token first'); if (f) f.focus(); return; }
+    var a = S.add, b = { id: L.uid('b'), name: a.name, status: 'idle', server: '', channel: '', muted: false, volume: 85, mix: 'own', login: 'online', token: v.slice(-4), appId: a.appId, servers: a.opened ? ['g1'] : [] };
+    D.discord.bots.push(b); a.done = true; a.botId = b.id;
+    var srv = serverNames(b);
+    a.result = L.icon('check', 's') + '<b>' + esc(b.name) + ' is connected.</b> ' + (srv.length ? 'In ' + esc(srv.join(', ')) + '.'
+      : 'It is in no server yet. <a href="' + esc(L.inviteURL(a.appId || '')) + '" target="_blank" rel="noopener" data-act="stopeninv" data-k="st-inv2">Invite it</a>, then it shows here.');
+    openStepper('st-done'); L.say(b.name + ' is connected' + (srv.length ? ', in ' + srv.join(' and ') : ', in no server yet')); L.render();
+  };
+  L.acts.stdone = function () { var id = S.add && S.add.botId; L.closeSheet(); S.add = null; L.render(); var n = document.querySelector('[data-k="st-b-' + id + '-conn"]') || document.querySelector('[data-k="st-add"]'); if (n) n.focus(); };
+
+  /* ---------- the other settings ---------- */
+  function sw(id, label, on, act, o) {
+    o = o || {};
+    return '<label class="lv-switch st-sw' + (o.disabled ? ' dis' : '') + '"' + (o.title ? ' title="' + esc(o.title) + '"' : '') + '><input type="checkbox" role="switch" data-input="' + act + '" data-k="st-' + id + '"' + (on ? ' checked' : '') + (o.disabled ? ' disabled aria-describedby="st-' + id + '-why"' : '') + '><span class="lv-switch-t"><b>' + label + '</b></span></label>' +
+      (o.disabled && o.why ? '<span class="sr-only" id="st-' + id + '-why">' + esc(o.why) + '</span>' : '');
+  }
+  var MODES = [['quality', 'Best sound quality', 'Clearer sound; works the computer a little harder.'], ['light', 'Lighter on the computer', 'Leaves more power for other programs; slightly less clear.']];
+  function soundBody() {
+    return '<div class="seg" role="radiogroup" aria-label="Sound to Discord">' + MODES.map(function (m) {
+      return '<button role="radio" aria-checked="' + (S.mode === m[0]) + '" data-act="stmode" data-v="' + m[0] + '" data-k="st-mode-' + m[0] + '" title="' + esc(m[2]) + '">' + m[1] + '</button>';
+    }).join('') + '</div>';
+  }
+  L.acts.stmode = function (el) { S.mode = el.dataset.v; L.say(el.textContent + '. Applies the next time a bot joins a voice channel.'); L.render(); };
+  function remoteBody() {
+    return sw('remote', 'Stream Deck and other programs', S.remote, 'stremote', { title: 'Lets the Kenku FM Stream Deck plugin or another program control Lyre' }) +
+      '<div class="row-flex st-addr"><div class="field"><label for="st-ra">Address</label><input class="input num" id="st-ra" data-input="stra" value="' + esc(S.address) + '"' + (S.remote ? ' disabled' : '') + ' title="127.0.0.1: only programs on this computer"></div>' +
+      '<div class="field"><label for="st-rp">Port</label><input class="input num" id="st-rp" data-input="strp" value="' + esc(S.port) + '"' + (S.remote ? ' disabled' : '') + '></div></div>' +
+      '<a class="st-link" href="https://github.com/owlbear-rodeo/kenku-fm" target="_blank" rel="noopener" data-act="stdeck" data-k="st-deck">About the Kenku FM Stream Deck plugin</a>';
+  }
+  L.inputs.stremote = function (el) { S.remote = el.checked; L.say('Remote control ' + (S.remote ? 'on' : 'off')); L.render(); };
+  L.inputs.stra = function (el) { S.address = el.value; };
+  L.inputs.strp = function (el) { S.port = el.value; };
+  function tabsBody() {
+    return sw('urlbar', 'Show the address bar on tabs', S.urlBar, 'sturl') + sw('inputs', 'Microphones and other inputs', S.inputs, 'stinputs') +
+      sw('several', 'Use several inputs at once', S.several, 'stseveral', { disabled: !S.inputs, why: 'Turn on Microphones and other inputs first.', title: S.inputs ? '' : 'Turn on Microphones and other inputs first' }) +
+      '<button class="btn s" data-act="stclear" data-k="st-clear" title="Logs you out of websites in tabs and deletes their saved files. Your library, playlists and settings are kept.">Clear website data</button>';
+  }
+  L.inputs.sturl = function (el) { S.urlBar = el.checked; L.render(); };
+  L.inputs.stinputs = function (el) { S.inputs = el.checked; if (!S.inputs) S.several = false; L.render(); };
+  L.inputs.stseveral = function (el) { S.several = el.checked; L.render(); };
+  L.acts.stclear = function () { L.toast('Website data cleared: tabs are logged out'); L.say('Website data cleared'); };
+  function filesBody() {
+    if (!S.folders.length) return '<p class="faint">None</p>';
+    return '<ul class="list st-folders" aria-label="Folders opened without asking">' + S.folders.map(function (f, i) {
+      return '<li class="lrow"><span class="grow ellipsis num" title="' + esc(f) + '">' + esc(f) + '</span><button class="btn s ghost" data-act="stforget" data-i="' + i + '" data-k="st-forget-' + i + '" aria-label="Ask again before opening files in ' + esc(f) + '">Ask again</button></li>';
+    }).join('') + '</ul>';
+  }
+  L.acts.stforget = function (el) { var f = S.folders.splice(+el.dataset.i, 1)[0]; L.say('Lyre asks again before opening files in ' + f); L.render(); var h = document.querySelector('[data-k="pane-st-files"]'); if (h) h.focus(); };
+
+  L.view('settings', {
+    nav: 'settings',
+    title: function () { return 'Settings'; },
+    notesTitle: 'Settings (round 6, OUT-8)',
+    notes: [
+      'Everything Lyre still needs from the old main window\'s Settings. <b>Discord bots</b> first: status, servers, Connect or Disconnect, the token (last four characters; <b>Replace…</b>), and Rename or Remove behind ⋯.',
+      '<b>Add a bot</b> walks through Discord in its order: create the application, <b>invite it first</b> (paste the Application ID and Lyre opens the invite, or make it by hand with OAuth2 › URL Generator), then paste the token and Connect.',
+      'The rare settings are folded: remote control, website tabs, local files.'
+    ],
+    render: function () {
+      var bots = L.bots();
+      var head = '<div class="viewhead"><h1>Settings</h1><span class="grow"></span><span class="faint num" title="Lyre version">0.4.0</span></div>';
+      var botPane = L.pane({ id: 'st-bots', title: 'Discord bots', icon: 'users', kind: 'onair', size: 'auto', noMax: true, cls: 'is-silent',
+        actions: '<button class="btn s" data-act="stadd" data-k="st-add">' + L.icon('plus', 's') + 'Add a bot</button>',
+        describe: 'Each bot is one voice in Discord: one room at a time.',
+        body: '<ul class="list st-bots">' + bots.map(botRow).join('') + '</ul>' });
+      var sound = L.pane({ id: 'st-sound', title: 'Sound to Discord', icon: 'broadcast', kind: 'plain', size: 'auto', noMax: true, body: soundBody(),
+        describe: 'Both send sound to Discord with the same short delay. A change applies the next time a bot joins a voice channel.' });
+      var remote = L.pane({ id: 'st-remote', title: 'Remote control', icon: 'link', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: remoteBody(), status: { text: S.remote ? 'On' : 'Off', tone: S.remote ? 'on' : 'idle' } });
+      var tabs = L.pane({ id: 'st-tabs', title: 'Website tabs', icon: 'grid', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: tabsBody() });
+      var files = L.pane({ id: 'st-files', title: 'Local files', icon: 'folder', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: filesBody(),
+        describe: 'Lyre asks before opening a file from your computer. Folders you choose not to be asked about again are listed here.' });
+      return head + '<div class="viewbody st-body"><div class="st-split"><div class="col">' + botPane + '</div><div class="col">' + sound + remote + tabs + files + '</div></div></div>';
+    }
   });
 })();
 
@@ -5780,7 +6135,8 @@ var L = (function () {
       '<div class="field cp-span" role="group" aria-labelledby="' + f + 'b"><span class="label" id="' + f + 'b">Pad boards</span>' + boardList(sc) + '</div>' +
       '<div class="field"><label for="' + f + 'x">Notes</label><textarea class="input" id="' + f + 'x" rows="2" data-input="cpscf" data-f="notes" data-sc="' + sc.id + '" data-k="scnotes-' + sc.id + '" placeholder="Reminders for this scene">' + esc(sc.notes) + '</textarea></div>' +
       '<div class="field cp-obsfield"><label for="' + f + 'o">Note link <span class="cp-later">Coming later</span></label><input class="input" id="' + f + 'o" data-input="cpscf" data-f="noteLink" data-sc="' + sc.id + '" data-k="scnote-' + sc.id + '" value="' + esc(sc.noteLink || '') + '" placeholder="Optional: an Obsidian note" title="Kept for later; Lyre does not open Obsidian notes yet" autocomplete="off"></div></div>';
-    return '<li class="cp-scene open" data-drag="scenes" data-idx="' + i + '" aria-label="Scene ' + (i + 1) + ': ' + nm + '">' + head + body + '</li>';
+    // UX-18: a screen opened from inside this scene goes Back to it, with the scene open.
+    return '<li class="cp-scene open" data-drag="scenes" data-idx="' + i + '" data-back-label="' + nm + '" data-back-open="' + sc.id + '" aria-label="Scene ' + (i + 1) + ': ' + nm + '">' + head + body + '</li>';
   }
   /* ⋯ menus for rows: assigned playlists and boards, scene music and board items, the ambience slot. */
   L.acts.cprowmenu = function (el) {
