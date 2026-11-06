@@ -58,6 +58,7 @@ var L = (function () {
     inorder: 'M4 7h10M4 12h10M4 17h6M17 9v10M14 16l3 3 3-3',
     volume: 'M3 10v4h3l5 4V6l-5 4zM15 9a4 4 0 0 1 0 6M17.5 6.5a7.5 7.5 0 0 1 0 11',
     upload: 'M12 16V4M7 9l5-5 5 5M4 16v4h16v-4', download: 'M12 4v12M7 11l5 5 5-5M4 16v4h16v-4', warn: 'M12 3 2 20h20zM12 10v4M12 17h.01',
+    help: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8M12 17h.01',
     hand: 'M8 13V5a1.5 1.5 0 0 1 3 0v6M11 11V4a1.5 1.5 0 0 1 3 0v7M14 11V5.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7 6 6 0 0 1-5-3l-2.5-4a1.5 1.5 0 0 1 2.5-1.6L8 15',
     restart: 'M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5',
     one: 'M5 5v14l10-7zM19 5v14',
@@ -462,9 +463,9 @@ var L = (function () {
   /* ---------- state ---------- */
   var saved = {};
   try { saved = JSON.parse(localStorage.getItem('lyre-r2') || '{}'); } catch (e) { saved = {}; }
-  L.state = { theme: saved.theme || 'campaign', frame: saved.frame || 'half', rail: saved.rail || 'auto', panes: saved.panes || {}, notes: saved.notes !== false,
+  L.state = { theme: saved.theme || 'campaign', frame: saved.frame || 'half', rail: saved.rail || 'auto', panes: saved.panes || {}, notes: saved.notes !== false, tour: saved.tour === 'done' ? 'done' : '',
     live: { cid: 'crown', sid: 's14', scene: 1, standby: 2 }, ctx: { cid: 'crown' }, shuffleRound: 0 };
-  L.save = function () { try { localStorage.setItem('lyre-r2', JSON.stringify({ theme: L.state.theme, frame: L.state.frame, rail: L.state.rail, panes: L.state.panes, notes: L.state.notes })); } catch (e) { /* storage unavailable: settings last for this visit */ } };
+  L.save = function () { try { localStorage.setItem('lyre-r2', JSON.stringify({ theme: L.state.theme, frame: L.state.frame, rail: L.state.rail, panes: L.state.panes, notes: L.state.notes, tour: L.state.tour })); } catch (e) { /* storage unavailable: settings last for this visit */ } };
 
   /* ---------- simulated playback ---------- */
   var pb = L.pb = { music: null, amb: null, musicOut: [], ambOut: [], fx: [], preview: null, held: false, own: {} };
@@ -739,6 +740,7 @@ var L = (function () {
     return { name: 'live', p: {} };
   }
   L.current = function () { return resolve(); };
+  L.paint = paint;
   L.themeFor = function (r) {
     if (L.state.theme !== 'campaign') return L.state.theme;
     var cid = r.p.cid || (r.name === 'live' ? L.state.live.cid : L.state.ctx.cid);
@@ -769,6 +771,7 @@ var L = (function () {
       document.querySelectorAll('#view .col').forEach(function (c) { c.classList.toggle('has-max', !!c.querySelector(':scope > .pane.maxed')); });
       if (v.after) v.after(document.getElementById('view'), r.p);
       paintProto(r, v, theme);
+      if (L.paintHelp) L.paintHelp();
     } finally { rendering = false; }
   };
   /* UX-16 the Now playing bar, and the destination tags used everywhere sound is shown (round 5, Nik's notes of
@@ -889,6 +892,8 @@ var L = (function () {
       a('#/campaigns', 'campaigns', 'crown', 'Campaigns') + a('#/library', 'library', 'library', 'Library') + a('#/playlists', 'playlists', 'playlist', 'Playlists') + a('#/boards', 'boards', 'grid', 'Pad boards') +
       a('#/live', 'live', 'broadcast', 'Live' + (s ? ': S' + s.n : '')) + a('#/outputs', 'outputs', 'users', 'Outputs' + outputsBadge()) + '</div></nav>' +
       '<div class="bottom stack" style="gap:2px">' + a('#/look', 'look', 'palette', 'Look and feel') +
+      // FND-8: Help, beside Look and feel (views/help.js). It opens a side panel, not a screen, so it is a button.
+      '<button class="nav" data-act="help" data-k="rail-help" aria-controls="lyre-help" aria-expanded="' + !!(L.helpOpen && L.helpOpen()) + '" aria-keyshortcuts="F1"' + (min ? ' title="Help"' : '') + '>' + L.icon('help') + '<span class="lbl">Help</span></button>' +
       '<button class="nav" data-act="rail" data-k="railtoggle" title="' + (min ? 'Show labels' : 'Icons only') + '" aria-label="' + (min ? 'Show menu labels' : 'Show icons only') + '">' + L.icon(min ? 'chevright' : 'chevleft') + '<span class="lbl">Icons only</span></button></div>';
   }
   /* Prep and Live for the campaign in hand: L.modeSwitch(cid) gives a two-button switch for a view header.

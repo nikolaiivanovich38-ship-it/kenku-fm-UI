@@ -11,7 +11,11 @@ const fonts = '<style>' + [
 const order = ['_shared', 'look', 'campaigns', 'library', 'boards', 'live'];
 const views = fs.readdirSync(path.join(src, 'views')).sort((a, b) => (order.indexOf(a.split('.')[0]) - order.indexOf(b.split('.')[0])) || a.localeCompare(b));
 const css = ['tokens.css', 'ui.css'].map(rd).concat(views.filter(f => f.endsWith('.css')).map(f => rd('views/' + f))).join('\n');
-const js = ['data.js', 'core.js'].map(rd).concat(views.filter(f => f.endsWith('.js')).map(f => rd('views/' + f))).join('\n;\n');
+// FND-8: the help articles are the app's own (src/lyre/help/articles/*.md), so the prototype shows the words Lyre ships.
+const helpDir = path.resolve(src, '..', '..', '..', 'src', 'lyre', 'help', 'articles');
+const helpFiles = fs.existsSync(helpDir) ? fs.readdirSync(helpDir).filter((f) => f.endsWith('.md')).sort().map((f) => ({ file: f, text: fs.readFileSync(path.join(helpDir, f), 'utf8') })) : [];
+const helpData = 'var LYRE_HELP_FILES = ' + JSON.stringify(helpFiles).replace(/<\//g, '<\\/') + ';';
+const js = [helpData].concat(['data.js', 'core.js'].map(rd)).concat(views.filter(f => f.endsWith('.js')).map(f => rd('views/' + f))).join('\n;\n');
 let h = rd('index.html').replace('<!--@fonts-->', () => fonts).replace('<!--@css-->', () => '<style>\n' + css + '\n</style>').replace('<!--@js-->', () => '<script>\n' + js + '\n</script>');
 fs.writeFileSync(out, h); console.log('built', out, Math.round(h.length / 1024) + ' KB', 'views:', views.join(' '));
 // Artifact copy (only when ARTIFACT_DIR is given): the host adds its own document skeleton, so the page starts at <title>.

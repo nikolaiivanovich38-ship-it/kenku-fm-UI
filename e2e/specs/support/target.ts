@@ -71,7 +71,8 @@ export async function withAppPage(use: (page: Page) => Promise<void>): Promise<v
     if (actionTimeout) app.context().setDefaultTimeout(actionTimeout);
     if (navigationTimeout) app.context().setDefaultNavigationTimeout(navigationTimeout);
     const main = await app.firstWindow();
-    const lyre = await openLyreTab(main);
+    // The first-run tour stays up: openRoute marks it as seen, openFirstStart (help.spec.ts) uses it.
+    const lyre = await openLyreTab(main, { keepTour: true });
     // The page the specs see is as big as in the prototype project (the config's viewport), not the window's default.
     const { viewport } = test.info().project.use;
     if (viewport) await lyre.setViewportSize(viewport);
@@ -123,12 +124,46 @@ export async function openRoute(page: Page, route: Route, options: { theme?: The
   await page.addInitScript((t) => {
     try {
       // "frame: full" and "notes: false" hide the prototype's own presentation strips.
-      localStorage.setItem("lyre-r2", JSON.stringify({ theme: t, frame: "full", notes: false }));
+      // "tour: done": the first-run tour was seen (help.spec.ts opens a first start with openFirstStart).
+      localStorage.setItem("lyre-r2", JSON.stringify({ theme: t, frame: "full", notes: false, tour: "done" }));
     } catch {
       /* storage unavailable: the prototype opens in its default theme */
     }
   }, theme);
   await page.goto(`${PROTOTYPE}#${route.split("/").join("--")}`);
+  await page.getByRole("main").getByRole("heading", { level: 1 }).waitFor();
+}
+
+/**
+ * FND-8: Lyre as a person finds it on its very first start, before the first-run tour was seen (openRoute marks the
+ * tour as seen). The app: the Lyre tab of a fresh copy, as withAppPage opened it. The prototype: no settings yet.
+ */
+export async function openFirstStart(page: Page): Promise<void> {
+  if (isApp()) {
+    if (!BUILT_SCREENS.includes("help")) notBuilt("openFirstStart: the help screen");
+    await page.getByRole("main").getByRole("heading", { level: 1 }).waitFor();
+    return;
+  }
+  await page.addInitScript(() => {
+    try {
+      // Only on the first load: a reload (reopen) finds what the page saved.
+      if (!localStorage.getItem("lyre-r2")) localStorage.setItem("lyre-r2", JSON.stringify({ frame: "full", notes: false }));
+    } catch {
+      /* storage unavailable */
+    }
+  });
+  await page.goto(`${PROTOTYPE}#campaigns`);
+  await page.getByRole("main").getByRole("heading", { level: 1 }).waitFor();
+}
+
+/** Close and open the page again (the next start), keeping what it saved. */
+export async function reopen(page: Page): Promise<void> {
+  if (isApp()) {
+    await page.evaluate(() => window.location.reload());
+    await page.waitForLoadState("domcontentloaded");
+  } else {
+    await page.reload();
+  }
   await page.getByRole("main").getByRole("heading", { level: 1 }).waitFor();
 }
 
