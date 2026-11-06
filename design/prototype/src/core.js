@@ -1125,10 +1125,13 @@ var L = (function () {
   /* ---------- rendering with focus and scroll kept ---------- */
   function paint(el, html) {
     var a = document.activeElement, k = a && el.contains(a) && a.dataset ? a.dataset.k : null, selStart = a && a.selectionStart, selEnd = a && a.selectionEnd;
+    // The screen's heading has no data-k; a redraw gives focus back to the new heading (round 7 part 2).
+    var onH1 = !k && a && a.tagName === 'H1' && el.contains(a);
     var scrolls = {}; el.querySelectorAll('[data-scroll]').forEach(function (s) { scrolls[s.dataset.scroll] = s.scrollTop; });
     el.innerHTML = html;
     el.querySelectorAll('[data-scroll]').forEach(function (s) { if (scrolls[s.dataset.scroll] != null) s.scrollTop = scrolls[s.dataset.scroll]; });
     if (k) { var n = el.querySelector('[data-k="' + k + '"]'); if (n) { n.focus({ preventScroll: true }); try { if (selStart != null && n.setSelectionRange) n.setSelectionRange(selStart, selEnd); } catch (e) { /* not a text field */ } } }
+    else if (onH1) { var h = el.querySelector('h1'); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); } }
   }
   var rendering = false;
   L.render = function () {

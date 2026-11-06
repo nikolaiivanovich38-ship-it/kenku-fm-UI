@@ -204,13 +204,8 @@
   }
   var fillAt = 0;
   function laterFill() { cancelAnimationFrame(fillAt); fillAt = requestAnimationFrame(function () { fillTitles(); }); }
-  // A redraw keeps focus on the screen's heading when it had it (core's paint finds other controls by data-k).
   var render0 = L.render;
-  L.render = function () {
-    var a = document.activeElement, onH1 = a && a.tagName === 'H1' && a.closest('#view');
-    render0.apply(L, arguments); laterFill();
-    if (onH1 && !document.contains(a)) { var h = document.querySelector('#view h1'); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); } }
-  };
+  L.render = function () { render0.apply(L, arguments); laterFill(); };
   window.addEventListener('resize', laterFill);
 
   var tip = null;
