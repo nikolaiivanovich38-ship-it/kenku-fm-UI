@@ -25,7 +25,7 @@ import type {
   Use,
 } from "../../../common/domain";
 import type { Store } from "../store";
-import { LOUDNESS_COLUMNS } from "./loudness";
+import { LOUDNESS_COLUMNS, LOUDNESS_JOIN } from "./loudness";
 import { ownPlayOrders } from "./playOrders";
 import { ownProfiles } from "./profileRows";
 import { readRules } from "./ruleRows";
@@ -54,9 +54,9 @@ type DomainTrackRow = {
 /** Ids never contain control characters (validate.ts), so this one can join them. */
 const TAG_SEPARATOR = "\u001f";
 /** One row per track with its tag ids, read through the track_tags primary key: no join or sort over every tag. */
-const TRACK_SELECT = `SELECT id, kind, title, meta_title, file_name, duration_ms, role, loopable, energy, shape, normalise, ${LOUDNESS_COLUMNS},
+const TRACK_SELECT = `SELECT tracks.id AS id, kind, title, meta_title, file_name, duration_ms, role, loopable, energy, shape, normalise, ${LOUDNESS_COLUMNS},
   (SELECT suggested_shape FROM track_peaks WHERE track_id = tracks.id) AS suggested_shape,
-  (SELECT group_concat(tag_id, char(31)) FROM track_tags WHERE track_id = tracks.id) AS tag_ids FROM tracks`;
+  (SELECT group_concat(tag_id, char(31)) FROM track_tags WHERE track_id = tracks.id) AS tag_ids FROM tracks ${LOUDNESS_JOIN}`;
 
 function toDomainTrack(row: DomainTrackRow, tags: Record<string, string[]>, profile: AudioProfileInput | null): DomainTrack {
   return {
@@ -119,7 +119,7 @@ export function getDomainLookup(store: Store): DomainLookup {
   return {
     track(id) {
       if (tracks.has(id)) return tracks.get(id);
-      const row = store.get<DomainTrackRow>(`${TRACK_SELECT} WHERE id = ?`, id);
+      const row = store.get<DomainTrackRow>(`${TRACK_SELECT} WHERE tracks.id = ?`, id);
       const track = row ? toTrack(row, ownProfiles(store, [id])) : undefined;
       tracks.set(id, track);
       return track;
@@ -160,7 +160,7 @@ export function getDomainLookup(store: Store): DomainLookup {
       if (!all) {
         // Library order: the order tracks were added (added_seq, kept by undo).
         const profiles = ownProfiles(store, "all");
-        all = store.all<DomainTrackRow>(`${TRACK_SELECT} ORDER BY added_seq`).map((row) => toTrack(row, profiles));
+        all = store.all<DomainTrackRow>(`${TRACK_SELECT} ORDER BY tracks.added_seq`).map((row) => toTrack(row, profiles));
         for (const track of all) tracks.set(track.id, track);
       }
       return all;

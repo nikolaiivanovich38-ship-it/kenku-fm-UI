@@ -45,12 +45,13 @@ const STATE_SQL = `
   WHERE t.id = ?`;
 
 /**
- * The SQL of a track's figures from its current file only, for a SELECT over `tracks` (repo/domain.ts): NULL when
- * not measured, not measurable, or measured from another file.
+ * A track's figures from its current file only, for a SELECT over `tracks` (repo/domain.ts): the columns, and the
+ * join they need after `FROM tracks`. NULL when not measured, not measurable, or measured from another file. One
+ * join by the primary key rather than a subquery per column: reading the whole library stays as fast as before.
  */
-export const LOUDNESS_COLUMNS = `
-  (SELECT l.lufs FROM track_loudness l WHERE l.track_id = tracks.id AND l.file_size IS tracks.file_size AND l.file_mtime_ms IS tracks.file_mtime_ms) AS loudness_lufs,
-  (SELECT l.true_peak_db FROM track_loudness l WHERE l.track_id = tracks.id AND l.file_size IS tracks.file_size AND l.file_mtime_ms IS tracks.file_mtime_ms) AS loudness_peak`;
+export const LOUDNESS_COLUMNS = "track_loudness.lufs AS loudness_lufs, track_loudness.true_peak_db AS loudness_peak";
+export const LOUDNESS_JOIN = `LEFT JOIN track_loudness ON track_loudness.track_id = tracks.id
+  AND track_loudness.file_size IS tracks.file_size AND track_loudness.file_mtime_ms IS tracks.file_mtime_ms`;
 
 export function trackLoudness(store: Store, trackId: string): LoudnessState {
   const row = store.get<Row>(STATE_SQL, trackId);
@@ -76,7 +77,7 @@ export function tracksNeedingLoudness(store: Store): string[] {
 
 /** Every track measured from its current file, by id. */
 export function allLoudness(store: Store): Map<string, TrackLoudness> {
-  const rows = store.all<{ id: string; loudness_lufs: number | null; loudness_peak: number | null }>(`SELECT id, ${LOUDNESS_COLUMNS} FROM tracks`);
+  const rows = store.all<{ id: string; loudness_lufs: number | null; loudness_peak: number | null }>(`SELECT id, ${LOUDNESS_COLUMNS} FROM tracks ${LOUDNESS_JOIN}`);
   const out = new Map<string, TrackLoudness>();
   for (const row of rows) if (row.loudness_lufs !== null && row.loudness_peak !== null) out.set(row.id, { lufs: row.loudness_lufs, truePeakDb: row.loudness_peak });
   return out;
