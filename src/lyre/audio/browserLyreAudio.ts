@@ -15,7 +15,7 @@
  * them and is what the unit tests check with fakes.
  */
 import { DEFAULT_LIBRARY_NORMALISE, type DomainLookup } from "../../common/domain";
-import { fromAudioContext, type EngineContext, type GainLike, type Scheduler } from "../../player/engine/audio/types";
+import { fromAudioContext, type EngineContext, type GainLike, type NodeLike, type Scheduler } from "../../player/engine/audio/types";
 import { createBrowserEngine } from "../../player/engine/browser";
 import type { PlaybackEngine } from "../../player/engine/engine";
 import {
@@ -52,8 +52,10 @@ export interface LyreAudioPieces {
   /** `window.lyre.audio` (preloadAudio.ts). */
   bridge: LyreAudioBridge;
   library: LyreAudioLibrary;
-  /** The engine's audio context (48 kHz). Nothing is joined to its speakers. */
+  /** The engine's audio context (48 kHz). */
   context: EngineContext;
+  /** BUG-19: a gain of 0 into the context's speakers, so the rooms' graph runs with no bot in a voice channel. */
+  keepAlive?: NodeLike;
   engine: PlaybackEngine;
   link: PlayerAudioLink;
   createTap: FrameTapFactory;
@@ -89,6 +91,7 @@ export function assembleLyreAudio(pieces: LyreAudioPieces): EngineLyreAudio {
     engine: pieces.engine,
     mixer,
     streams,
+    keepAlive: pieces.keepAlive,
     preview,
     previewDevices,
     library: pieces.library,
@@ -145,6 +148,7 @@ export async function startLyreAudio(options: { window: Window; bridge: LyreAudi
     bridge,
     library: options.library,
     context: fromAudioContext(audioContext),
+    keepAlive: silentSink(audioContext),
     engine,
     link,
     createTap,
@@ -187,6 +191,14 @@ export function playChime(context: BaseAudioContext, into: GainLike): void {
     tone.stop(now + 1.6);
     if (i === 0) tone.onended = () => ring.disconnect();
   });
+}
+
+/** A gain of 0 into the speakers: rooms joined to it keep running and are never heard (BUG-19). */
+function silentSink(context: AudioContext): NodeLike {
+  const silent = context.createGain();
+  silent.gain.value = 0;
+  silent.connect(context.destination);
+  return silent as unknown as NodeLike;
 }
 
 /** localStorage, or a stand-in that remembers nothing when the page may not use it. */

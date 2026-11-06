@@ -16,7 +16,8 @@
  * - On air: each room's mix goes to its bot only through RoomStreams. The new
  *   page is never tab-captured (permissions.ts, AudioCaptureManagerMain).
  * - BUG-19: what goes to the players is heard only through Discord. No room
- *   ever plays on this page's speakers (nothing joins the engine to them), and
+ *   ever plays on this page's speakers (rooms reach them only through a gain
+ *   of 0, which keeps the graph running), and
  *   the capture window keeps engine rooms off "This Computer". With no bot in
  *   a voice channel the table plays to nobody; the screens say so.
  * - Preview plays in an audio context of its own whose only way out is the
@@ -40,7 +41,7 @@ import {
   type RoomTarget,
   type UsePlace,
 } from "../../common/domain";
-import type { GainLike } from "../../player/engine/audio/types";
+import type { GainLike, NodeLike } from "../../player/engine/audio/types";
 import type { PlaybackEngine } from "../../player/engine/engine";
 import {
   padPreview,
@@ -324,6 +325,12 @@ export interface LyreAudioParts {
   mixer: RoomMixer;
   /** RoomStreams: sends the rooms to Discord and says when a broadcast runs. */
   streams: BroadcastSignal;
+  /**
+   * BUG-19: a silent node in the engine's context (a gain of 0 into its speakers). Every room's mix is joined to it,
+   * because Chromium runs only the parts of an audio graph that lead somewhere: with no bot in a voice channel
+   * nothing taps the rooms, and without it what plays there would stand still at 0:00. It is never heard.
+   */
+  keepAlive?: NodeLike;
   preview: PreviewPlayer;
   /** The preview's device choice, already attached to the preview output. */
   previewDevices?: OutputDeviceChooser;
@@ -358,6 +365,8 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
   private snapshot: NowPlaying | null = null;
   private notifyQueued = false;
   private stopProgress: (() => void) | null = null;
+  /** The room outputs joined to the keep-alive node now. */
+  private readonly kept = new Set<GainLike>();
   private wantedKey = "";
   private disposed = false;
   /** Each room's volume by its real id (a bot id, or "table"), kept while the app runs. */
@@ -387,6 +396,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     const onDirectorError = (message: string) => this.emit("error", message);
     const onRooms = () => {
       this.applyRoomVolumes();
+      this.keepRoomsRunning();
       this.changed();
     };
     const onBroadcast = () => this.changed();
@@ -422,6 +432,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       () => parts.previewDevices?.off("status", onDevice),
     );
     this.applyRoomVolumes();
+    this.keepRoomsRunning();
   }
 
   /** Read from another library from now on (the data layer reloaded). */
@@ -740,6 +751,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     this.rooms.dispose();
     this.parts.preview.dispose();
     this.parts.previewDevices?.dispose();
+    this.keepRoomsRunning();
     this.removeAllListeners();
     await this.parts.onDispose?.();
   }
@@ -825,6 +837,27 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
   private applyRoomVolumes(): void {
     if (this.disposed) return;
     for (const id of this.realRoomIds()) this.parts.mixer.setLevel(id, "master", this.roomVolume(id));
+  }
+
+  /** Every room's mix joined to the silent keep-alive node (and none once disposed), so the graph keeps running. */
+  private keepRoomsRunning(): void {
+    const keepAlive = this.parts.keepAlive;
+    if (!keepAlive) return;
+    const wanted = new Set(this.disposed ? [] : this.realRoomIds().map((id) => this.parts.mixer.output(id)));
+    for (const output of this.kept) {
+      if (wanted.has(output)) continue;
+      try {
+        output.disconnect(keepAlive);
+      } catch {
+        // Already disconnected: the room it belonged to has gone.
+      }
+      this.kept.delete(output);
+    }
+    for (const output of wanted) {
+      if (this.kept.has(output)) continue;
+      output.connect(keepAlive);
+      this.kept.add(output);
+    }
   }
 
   private changed() {

@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { keyOfPlace, placeKey, shuffledOrder, type Room } from "../../common/domain";
 import { padIsOn, type NowPlaying } from "./lyreAudio";
+import type { FakeGain } from "../../player/engine/testing/fakeAudio";
 import { lyreAudioOnFakes, staticAudioLibrary, testTrack, type AudioTestData } from "./testing/onFakes";
 
 const TAVERN: Room = { botId: "bot-a", name: "Tavern" };
@@ -255,6 +256,18 @@ describe("BUG-19: what goes to the players is heard only through Discord, never 
     await rig.advance(4);
     expect(state().broadcasting).toBe(false);
     expect(rig.hearRoom("table")).toBeCloseTo(1);
+    expect(rig.hearSpeakers()).toBe(0);
+  });
+
+  it("keeps every room's graph running into a silent node, so what plays with no bot still moves on (Chromium pulls only what leads somewhere)", async () => {
+    const keepAlive = rig.keepAlive;
+    expect(rig.context.reaches(rig.mixer.output("table") as FakeGain, keepAlive)).toBe(true);
+    expect(rig.context.reaches(keepAlive, rig.context.destination)).toBe(true);
+    rig.setRooms([TAVERN, DUNGEON]);
+    expect(rig.context.reaches(rig.mixer.output("bot-a") as FakeGain, keepAlive)).toBe(true);
+    expect(rig.context.reaches(rig.mixer.output("bot-b") as FakeGain, keepAlive)).toBe(true);
+    rig.audio.playTrack("m1");
+    await rig.advance(4);
     expect(rig.hearSpeakers()).toBe(0);
   });
 

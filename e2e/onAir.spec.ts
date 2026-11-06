@@ -33,15 +33,16 @@ function thisComputerPlays(app: ElectronApplication): Promise<boolean> {
 
 /**
  * Table hears it now and still a second and a half later (so a short gap between tracks is not taken for silence); this
- * computer stays silent.
+ * computer stays silent. While a preview plays, the capture window plays it in the headphones, so this computer's
+ * silence is checked only without one.
  */
-async function expectSound(app: ElectronApplication, lyre: Page, why: string) {
+async function expectSound(app: ElectronApplication, lyre: Page, why: string, { previewing = false } = {}) {
   const before = await heardAtTable(app);
   await expect.poll(() => heardAtTable(app), { message: why, timeout: 5_000 }).toBeGreaterThan(before + 10);
   const after = await heardAtTable(app);
   await lyre.waitForTimeout(1500);
   expect(await heardAtTable(app), why).toBeGreaterThan(after + 10);
-  expect(await thisComputerPlays(app), `${why}: never on this computer`).toBe(false);
+  if (!previewing) expect(await thisComputerPlays(app), `${why}: never on this computer`).toBe(false);
 }
 
 const onAirBar = (lyre: Page) => lyre.getByRole("region", { name: "Now playing" });
@@ -59,7 +60,7 @@ test("adding, moving and removing in a scene leaves the music on air and the pre
   await musicOf(lyre).getByRole("button", { name: /^Preview Haunted sea shanty/ }).click();
   const stopPreview = musicOf(lyre).getByRole("button", { name: /^Stop preview of Haunted sea shanty/ });
   await expect(stopPreview).toHaveAttribute("aria-pressed", "true");
-  await expectSound(launched.app, lyre, "music on air before preparing");
+  await expectSound(launched.app, lyre, "music on air before preparing", { previewing: true });
 
   await abbey(lyre).getByRole("button", { name: "Add tracks or playlists…" }).click();
   const sheet = lyre.getByRole("dialog");
@@ -74,7 +75,7 @@ test("adding, moving and removing in a scene leaves the music on air and the pre
 
   await expect(onAirBar(lyre)).toContainText(title);
   await expect(stopPreview).toHaveAttribute("aria-pressed", "true");
-  await expectSound(launched.app, lyre, "music on air after adding, moving and removing");
+  await expectSound(launched.app, lyre, "music on air after adding, moving and removing", { previewing: true });
 });
 
 test("music started on one screen keeps playing, with the Now playing bar, on the others until Stop (BUG-13)", async ({ launchApp }) => {

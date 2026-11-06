@@ -130,11 +130,16 @@ export function lyreAudioOnFakes(data: AudioTestData, options: { devices?: Outpu
     },
   });
 
+  // What the browser host joins rooms to so the graph keeps running (a silent gain into the speakers).
+  const keepAlive = context.createGain();
+  keepAlive.gain.setValueAtTime(0, 0);
+  keepAlive.connect(context.destination);
   const wanted: MediaRequest[][] = [];
   const audio = new EngineLyreAudio({
     engine,
     mixer,
     streams,
+    keepAlive,
     preview,
     previewDevices,
     library: staticAudioLibrary(data),
@@ -158,6 +163,7 @@ export function lyreAudioOnFakes(data: AudioTestData, options: { devices?: Outpu
     context,
     previewContext,
     mixer,
+    keepAlive,
     port,
     sinkIds,
     wanted,
