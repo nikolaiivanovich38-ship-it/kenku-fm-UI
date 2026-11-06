@@ -64,7 +64,8 @@ test("music started on one screen keeps playing, with the Now playing bar, on th
   await expect(onAirBar(lyre)).toBeVisible();
   const title = (await onAirBar(lyre).locator(".oab-title").first().textContent())?.trim() ?? "";
   await expectSound(launched.app, lyre, "music on air on Playlists");
-  // Through the rail, as a person goes: Library, Pad boards, Campaigns, then Live (which says it comes in 0.4).
+  // Through the rail, as a person goes: Library, Pad boards, Campaigns, then Live. In Live the room boxes show what is on
+  // air, so the bar there shows previews only (UX-16) and the track is in the room's On air box.
   for (const [link, heading] of [
     ["Library", "Library"],
     ["Pad boards", "Pad boards"],
@@ -73,10 +74,16 @@ test("music started on one screen keeps playing, with the Now playing bar, on th
   ] as const) {
     await lyre.getByRole("navigation").getByRole("link", { name: link }).first().click();
     await expect(lyre.getByRole("main").getByRole("heading", { level: 1 })).toContainText(heading);
-    await expect(onAirBar(lyre), `the bar on ${heading}`).toBeInViewport();
-    await expect(onAirBar(lyre)).toContainText(title);
+    if (heading === "Live") {
+      await expect(onAirBar(lyre), "no room rows in the bar in Live").toHaveCount(0);
+      await expect(lyre.getByRole("region", { name: /^On air/ }).first()).toContainText(title);
+    } else {
+      await expect(onAirBar(lyre), `the bar on ${heading}`).toBeInViewport();
+      await expect(onAirBar(lyre)).toContainText(title);
+    }
     await expectSound(launched.app, lyre, `music on air on ${heading}`);
   }
+  await lyre.getByRole("navigation").getByRole("link", { name: "Library" }).first().click();
   await onAirBar(lyre).getByRole("button", { name: "Stop", exact: true }).click();
   await expect(onAirBar(lyre)).toHaveCount(0);
   await expect.poll(() => audible(launched.app), { timeout: 10_000 }).toBe(false);

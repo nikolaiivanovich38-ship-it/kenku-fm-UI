@@ -8,7 +8,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { DomainTrack, fadeInGain, placeKey, Room, RoomTarget } from "../../../common/domain";
+import { DomainTrack, fadeInGain, placeKey, Room, RoomTarget, shuffledOrder } from "../../../common/domain";
 import { PlaybackEngine } from "../engine";
 import { RoomLane, RoomsAudio } from "../rooms.contract";
 import { SourceLoader } from "../sources/sourceLoader";
@@ -289,6 +289,24 @@ describe("Now Playing queue and Undo (PLY-1)", () => {
     expect(director.report()[0].queued.map((q) => q.trackId)).toEqual(["x", "m3"]);
     const heard = await listenToMusic(40);
     expect(heard).toEqual(["m1", "x", "m3", "m2"]);
+  });
+
+  it("a track picked from a shuffled playlist in a scene plays as that scene's step, wherever the new deal puts it", async () => {
+    // Live lists a scene's playlist in one order; the Director deals a fresh shuffle when the track is played, so the
+    // step the screen named may now hold another track. The track still plays from the scene (so Next goes on there),
+    // not off script.
+    data.tracks.push(track("q1", 20), track("q2", 20), track("q3", 20), track("q4", 20));
+    data.playlists.push({ id: "Q", name: "Shuffled", lane: "music", kind: "manual", trackIds: ["q1", "q2", "q3", "q4"], order: { shuffle: true, repeat: "off" } });
+    data.campaigns[0].sessions[0].scenes.push({ id: "s4", name: "Crypt", music: [{ kind: "track", id: "m1" }, { kind: "playlist", id: "Q" }], ambience: null, boardIds: [] });
+    const S4: SceneRef = { campaignId: "c", sessionId: "s", sceneId: "s4" };
+    // Every seed is 0 here: the deal of item 1 is shuffledOrder([q1..q4], 0 + 1).
+    const listed = ["q1", "q2", "q3", "q4"];
+    const dealt = shuffledOrder(listed, 1);
+    const moved = listed.find((id, i) => dealt[i] !== id)!;
+    await run({ type: "playTrack", trackId: moved, target: table, from: { scene: S4, at: 1 + listed.indexOf(moved) } });
+    const now = director.report()[0].music!;
+    expect(now.trackId).toBe(moved);
+    expect(now.origin).toMatchObject({ kind: "scene", scene: S4, at: 1 + dealt.indexOf(moved) });
   });
 
   it("Play next with nothing playing plays at once", async () => {

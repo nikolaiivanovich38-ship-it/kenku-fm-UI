@@ -75,15 +75,6 @@ describe("the shell: rail, routes and screens (UX-9)", () => {
   });
 
   // Outputs is built (w4-outputs); Live still says it comes later.
-  it.each([["live", "Live"]])("%s says in plain words that it comes in 0.4 and where to run a session until then (w3-ux 2)", (path, heading) => {
-    window.history.replaceState(null, "", `#/${path}`);
-    render(<Shell screens={SHELL_SCREENS} />);
-    const main = within(screen.getByRole("main"));
-    expect(main.getByRole("heading", { level: 1 })).toHaveTextContent(heading);
-    expect(main.getByText("Live comes in Lyre 0.4. Until then, run your session from the Player tab.")).toBeInTheDocument();
-    expect(main.queryByText("Not built yet.")).toBeNull();
-  });
-
   it("moves focus to the new screen's heading when the route changes, without an outline class", () => {
     render(<Shell screens={SHELL_SCREENS} />);
     go("library");

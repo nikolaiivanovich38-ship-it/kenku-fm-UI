@@ -113,7 +113,9 @@ describe("what plays belongs to the page, not to a screen", () => {
       await screen.findByRole("heading", { level: 1 });
       await playOn(sound, 2);
       expect(sound.audio.getNowPlaying().rooms[0].music, `music on ${next}`).toMatchObject({ trackId: started!.trackId, paused: false });
-      expect(onAirBar(), `bar on ${next}`).toBeInTheDocument();
+      // In Live the room boxes show what is on air, so the bar there is for previews only (UX-16).
+      if (next === "live") expect(onAirBar(), "bar on live").toBeNull();
+      else expect(onAirBar(), `bar on ${next}`).toBeInTheDocument();
     }
   });
 
@@ -129,7 +131,8 @@ describe("what plays belongs to the page, not to a screen", () => {
       await playOn(sound, 2);
       expect(sound.audio.getNowPlaying().rooms[0].music, `music on ${path}`).toMatchObject({ trackId: started!.trackId, paused: false });
       expect(sound.hearRoom("table"), `sound on ${path}`).toBeGreaterThan(0);
-      expect(within(onAirBar()!).getByText(started!.title), `bar on ${path}`).toBeInTheDocument();
+      if (path === "live") expect(within(screen.getByRole("region", { name: /^On air/ })).getAllByText(started!.title).length, "On air box on live").toBeGreaterThan(0);
+      else expect(within(onAirBar()!).getByText(started!.title), `bar on ${path}`).toBeInTheDocument();
     }
     await userEvent.click(within(onAirBar()!).getByRole("button", { name: "Stop" }));
     await playOn(sound, 3);

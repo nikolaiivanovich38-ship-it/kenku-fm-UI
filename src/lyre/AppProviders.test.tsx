@@ -151,16 +151,8 @@ describe("AppProviders", () => {
       expect(within(bar).getByRole("group", { name: "Only you" })).toBeInTheDocument();
     });
 
-    it("shows every row on the Live page that says Live comes in 0.4, which shows nothing on air (BUG-13)", () => {
-      window.history.replaceState(null, "", "#/live");
-      const audio = new FakeLyreAudio();
-      render(
-        <AppProviders api={createFakeLyreApi()} audio={audio}>
-          <Shell screens={quiet} />
-        </AppProviders>,
-      );
-      playing(audio);
-      expect(within(screen.getByRole("region", { name: "Now playing" })).getAllByRole("group", { name: /^On air/ })).toHaveLength(1);
+    it("the Live screen shows the rooms itself, so the bar there has no On air row (UX-16)", () => {
+      expect(SCREENS.live.showsOnAir).toBe(true);
     });
 
     it("previews started on a screen say which screen (UX-16)", async () => {
@@ -202,21 +194,24 @@ describe("AppProviders", () => {
     it("names the loaded session on the rail's Live link, follows a change, and gives Live that campaign's theme", async () => {
       loadInLive(null);
       window.history.replaceState(null, "", "#/live");
+      // A stand-in Live: the real one loads a session as soon as it opens, which is not what this checks.
+      const Live = () => <PlaceholderScreen title="Live" />;
       render(
         <AppProviders api={createFakeLyreApi()} audio={new FakeLyreAudio()}>
-          <Shell screens={quiet} />
+          <Shell screens={{ ...quiet, live: Live }} />
         </AppProviders>,
       );
       const nav = await screen.findByRole("navigation", { name: "Lyre" });
       expect(nav).toHaveTextContent(/Live$|LiveOutputs/);
       act(() => loadInLive({ campaignId: "crown", sessionId: "s14" }));
-      // Seen as "Live: S14", read as "Live: session 14" (review w3-polish 11).
-      const live = await screen.findByRole("link", { name: "Live: session 14" });
+      // Seen as "Live: S14"; its name holds what is seen (WCAG 2.5.3, for speech control) and says "session 14" in words
+      // (review w3-polish 11).
+      const live = await screen.findByRole("link", { name: "Live: S14, session 14" });
       expect(live).toHaveAttribute("href", "#/live");
       expect(live).toHaveTextContent("Live: S14");
       await waitFor(() => expect(document.documentElement.dataset.theme).toBe("hearth"));
       act(() => loadInLive({ campaignId: "crown", sessionId: "s12" }));
-      expect(await screen.findByRole("link", { name: "Live: session 12" })).toBeInTheDocument();
+      expect(await screen.findByRole("link", { name: "Live: S12, session 12" })).toBeInTheDocument();
       act(() => loadInLive(null));
       expect(await screen.findByRole("link", { name: "Live" })).toBeInTheDocument();
     });

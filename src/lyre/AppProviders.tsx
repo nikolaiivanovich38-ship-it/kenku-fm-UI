@@ -131,7 +131,7 @@ function ShellDataFromLibrary({ children }: { children: React.ReactNode }) {
       campaignTheme: (id: string) => themes.get(id),
       liveCampaign: live?.campaignId,
       liveLabel: session ? `Live: S${session.number}` : undefined,
-      liveName: session ? `Live: session ${session.number}` : undefined,
+      liveName: session ? `Live: S${session.number}, session ${session.number}` : undefined,
       outputsLabel: outputsText,
       // The bar follows the audio host itself, so ShellData stays the same while things play.
       NowPlayingBar,
