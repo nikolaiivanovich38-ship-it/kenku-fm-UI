@@ -14,7 +14,7 @@ export interface ShellData {
   liveCampaign?: string;
   /** The rail's Live link, e.g. "Live: S14" while a session is loaded. */
   liveLabel?: string;
-  /** The same as a screen reader should say it, e.g. "Live: session 14" (S14 is read letter by letter). */
+  /** Its name for screen readers and speech control: what is seen, then in words, e.g. "Live: S14, session 14" (WCAG 2.5.3). */
   liveName?: string;
   /** The rail's Outputs link, e.g. "Outputs (1/2)": bots connected of all bots. */
   outputsLabel?: string;
