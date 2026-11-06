@@ -1,7 +1,7 @@
 /**
  * Tags (DAT-10, design round 7: design/prototype/ROUND7.md "DAT-10 tag groups" and src/views/r7tags.js). Nik asked
  * for his tags organised into groups (Mood, Leitmotif, Scene type and his own), each with names, colours and an order
- * he chooses, tags inside tags (Mood › Dread › Eerie in the sample), other words for a tag ("sad" finds Melancholy),
+ * he chooses, tags inside tags (Mood › Melancholy › Grief in the sample), other words for a tag ("sad" finds Melancholy),
  * and rename, merge and delete with every track updated in one undoable step. The screen is not built in the app yet,
  * so every check here is expected to fail there until "tags" is in support/built.ts.
  */
@@ -40,7 +40,7 @@ test.describe("the Tags screen", () => {
 
   test("a tag inside another is shown under it, and other words for a tag are on hover and read out", async ({ page }) => {
     await openRoute(page, "tags");
-    await expect(tag(page, "Mood", "Eerie")).toHaveAccessibleDescription(/Inside Dread/);
+    await expect(tag(page, "Mood", "Grief")).toHaveAccessibleDescription(/Inside Melancholy/);
     await expect(tag(page, "Mood", "Melancholy")).toHaveAccessibleDescription(/Also found by: sad, sorrowful/);
   });
 
@@ -132,8 +132,8 @@ test.describe("tags where you use them", () => {
     await openRoute(page, "library");
     const toggle = page.getByRole("button", { name: "Filters", exact: true });
     if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
-    // Mood › Dread holds Eerie: the lullaby is eerie, not tagged Dread, and is found.
-    await page.getByRole("region", { name: "Filters", exact: true }).getByRole("group", { name: "Mood" }).getByRole("button", { name: /^Dread/ }).click();
-    await expect(page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Lullaby, sad and innocent/ })).toBeVisible();
+    // Mood › Melancholy holds Grief: "Release after loss" is tagged Grief, not Melancholy, and is found.
+    await page.getByRole("region", { name: "Filters", exact: true }).getByRole("group", { name: "Mood" }).getByRole("button", { name: /^Melancholy/ }).click();
+    await expect(page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Release after loss/ })).toBeVisible();
   });
 });

@@ -6699,13 +6699,15 @@ var L = (function () {
     { id: 'parchment', name: 'Parchment', games: 'The light version of Candlelit Library', line: 'A light theme for preparing in daylight; you can still run the session in a dark one.' },
     { id: 'elysium', name: 'Elysium', games: 'Vampire: the Masquerade, gothic and noir', line: 'Soot black, bone and blood red for gothic and vampire chronicles.' }
   ];
+  // Round 7: the sample's buttons are pictures of buttons (spans, hidden from screen readers), not controls that do
+  // nothing.
   function sample(t) {
     return '<div class="lk-sample" data-theme="' + t.id + '">' +
       '<div class="lk-head"><span class="pane-title">' + esc(t.name) + '</span><span class="chip accent">' + esc(t.games.split(',')[0]) + '</span></div>' +
-      '<div class="lk-row"><span class="lane-dot music"></span><div class="grow"><div class="ellipsis"><b>Ancient sorrow, choir</b></div><div class="progress music"><span style="width:42%"></span></div></div><span class="num muted">1:54</span><button class="btn s" tabindex="-1">' + L.icon('fade', 's') + 'Fade</button></div>' +
+      '<div class="lk-row"><span class="lane-dot music"></span><div class="grow"><div class="ellipsis"><b>Ancient sorrow, choir</b></div><div class="progress music"><span style="width:42%"></span></div></div><span class="num muted">1:54</span><span class="btn s" aria-hidden="true">' + L.icon('fade', 's') + 'Fade</span></div>' +
       '<div class="lk-row"><span class="lane-dot amb"></span><div class="grow"><div class="ellipsis">Crypt drips</div><div class="progress amb"><span style="width:70%"></span></div></div>' + L.destTag('air', '') + '</div>' +
       '<div class="chips"><span class="chip mood"><span class="dot"></span>Eerie</span><span class="chip motif"><span class="dot"></span>Drowned Abbess</span><span class="chip scene"><span class="dot"></span>Ritual</span></div>' +
-      '<div class="lk-btns"><button class="btn primary" tabindex="-1">Start scene</button><button class="btn" tabindex="-1">Preview</button><button class="btn ghost" tabindex="-1">More</button></div>' +
+      '<div class="lk-btns" aria-hidden="true"><span class="btn primary">Start scene</span><span class="btn">Preview</span><span class="btn ghost">More</span></div>' +
       '<div class="lk-sw" aria-hidden="true"><i style="background:var(--bg)"></i><i style="background:var(--surface)"></i><i style="background:var(--surface-3)"></i><i style="background:var(--ink)"></i><i style="background:var(--accent)"></i><i style="background:var(--second)"></i></div>' +
       '</div>';
   }
@@ -7708,8 +7710,10 @@ var L = (function () {
       '<div class="lb-tg lb-normrow">' + L.normChoice({ id: 'lb-norm', value: t.norm, act: 'lbnorm', line: L.normLine(t), hint: normHint(t) }) + '</div>' +
       '<div class="lb-tg"><div class="lb-tgl">Role</div>' + choiceChips('lbrole', (t.kind === 'fx' ? ['Effect'].concat(ROLES) : ROLES).map(function (r) { return [r, r]; }), t.role, 'Role') + '</div>' +
       // Round 7 (PLY-4, SHW-3): a sting never loops; the ending, resume and follow-with rows (r7play.js).
-      L.loopRow(t, '<div class="lb-tg"><div class="lb-tgl">Looping</div>' + choiceChips('lbloop', LOOPS, t.loop, 'Loop advice') + '</div>') + L.playRows(t) +
-      '<div class="lb-tg"><label class="lb-tgl" for="lb-notes">Notes</label><textarea id="lb-notes" class="input" rows="2" data-input="lbnotes" data-k="lb-notes" data-save="' + esc(L.title(t)) + ' notes" placeholder="Cues, where it fades, what it reminds you of">' + esc(t.notes) + '</textarea></div></section>';
+      L.loopRow(t, '<div class="lb-tg"><div class="lb-tgl">Looping</div>' + choiceChips('lbloop', LOOPS, t.loop, 'Loop advice') + '</div>') +
+      '<div class="lb-tg"><label class="lb-tgl" for="lb-notes">Notes</label><textarea id="lb-notes" class="input" rows="2" data-input="lbnotes" data-k="lb-notes" data-save="' + esc(L.title(t)) + ' notes" placeholder="Cues, where it fades, what it reminds you of">' + esc(t.notes) + '</textarea></div>' +
+      // The rarer choices that follow from the role (ending, pick up, follow with) come last.
+      L.playRows(t) + '</section>';
     var man = pls.filter(function (p) { return p.kind === 'manual'; }), dyn = pls.filter(function (p) { return p.kind === 'dynamic'; });
     h += '<section class="lb-sec" aria-labelledby="lb-h-pl"><div class="lb-hrow"><h3 class="lb-h" id="lb-h-pl">In playlists</h3><button class="btn s" data-act="lbpladdmenu" data-k="lb-pladd" aria-haspopup="menu" aria-expanded="false">' + L.icon('plus', 's') + 'Add to playlist</button></div>';
     h += pls.length ? '<ul class="lb-pls">' + man.map(function (p) {
@@ -10172,7 +10176,7 @@ var L = (function () {
 /* Round 7, DAT-10: tag groups. The Tags screen (#/tags; Library › ⋯ › Tags and groups…, and Look and feel › Tag
    colours…) keeps the vocabulary tidy: groups (Mood, Leitmotif, Scene type and any of the game master's own), each
    with its tags, in the order chosen; a colour per group and, if wanted, per tag; a tag inside another (Leitmotif ›
-   Villains › Ashen King; the sample has Mood › Dread › Eerie); other words for a tag (typing "sad" offers Melancholy). Rename, Merge into… and Delete…
+   Villains › Ashen King; the sample has Mood › Melancholy › Grief); other words for a tag (typing "sad" offers Melancholy). Rename, Merge into… and Delete…
    change every track, and every dynamic playlist rule that names the tag, in one step that Undo takes back.
 
    The data (for the lead's contract; src/common/domain has groups and values already):
@@ -10190,8 +10194,9 @@ var L = (function () {
   function colourName(c) { return c ? c[0].toUpperCase() + c.slice(1) : ''; }
   D.tagMeta = D.tagMeta || { mood: { Melancholy: { also: ['sad', 'sorrowful'] }, Dread: { also: ['fear', 'horror'] }, Tense: { also: ['suspense'] } },
     motif: {}, scene: {} };
-  // The sample has one tag inside another: Mood › Dread › Eerie (filtering by Dread finds the eerie tracks too).
-  D.tagMeta.mood.Eerie = { parent: 'Dread' };
+  // The sample has one tag inside another: Mood › Melancholy › Grief (filtering by Melancholy finds the grieving
+  // tracks too). No dynamic playlist rule names either, so no playlist changes.
+  D.tagMeta.mood.Grief = { parent: 'Melancholy' };
 
   function meta(g, v, make) { if (!D.tagMeta[g]) D.tagMeta[g] = {}; if (!D.tagMeta[g][v] && make) D.tagMeta[g][v] = {}; return D.tagMeta[g][v] || {}; }
   function group(id) { return D.tagGroups.filter(function (g) { return g.id === id; })[0]; }
@@ -10393,7 +10398,7 @@ var L = (function () {
     notes: [
       'One box per <b>group</b>, in your order (⋯ › Move up, Move down). <b>Add tag</b> in each box; <b>New group</b> at the top.',
       'A tag\'s ⋯: <b>Rename…</b>, <b>Merge into…</b>, <b>Put inside…</b> (Leitmotif › Villains › Ashen King), <b>Other words…</b> (try typing "sad" in a track\'s Mood), <b>Colour…</b>, <b>Delete…</b>. Rename, merge and delete change every track and dynamic playlist rule at once, with Undo.',
-      'Filtering by a tag that holds others finds their tracks too (Library › Filters › Mood › Dread finds the eerie ones).'
+      'Filtering by a tag that holds others finds their tracks too (Library › Filters › Mood › Melancholy finds the grieving ones).'
     ],
     render: function () {
       return '<div class="viewhead"><h1>Tags</h1><span class="grow"></span><button class="btn" data-act="tgnewgroup" data-k="tg-newgroup">' + L.icon('plus', 's') + 'New group</button></div>' +

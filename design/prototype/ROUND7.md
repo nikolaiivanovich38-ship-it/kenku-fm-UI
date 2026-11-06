@@ -20,7 +20,7 @@ group (Mood, Leitmotif, Scene type and any new one), in the order chosen. Each t
 tracks have it; its ⋯: Rename…, Merge into…, Put inside…, Other words…, Colour…, Move up, Move down, Delete…. Each
 group's ⋯: Rename group…, Colour…, Move up, Move down, Delete group…. **New group** at the top, **Add tag** in each box.
 **Where it shows.** Tags show on tracks as before, with their group's (or their own) colour dot and always their name.
-In the Library filters, a tag that holds others (Leitmotif › Villains › Ashen King) finds their tracks too, and so do
+In the Library filters, a tag that holds others (the sample has Mood › Melancholy › Grief) finds their tracks too, and so do
 dynamic playlist rules. Typing another word for a tag while tagging ("sad") offers the tag (Melancholy (sad)), never
 a new one. A new group appears at once on every track's details and in the filters.
 **Why.** Nik's vocabulary grows; renaming or merging by hand on each track is the chore this removes. Rename, merge and
@@ -32,14 +32,15 @@ or any tag inside it) replaces the plain "includes" in filters and rules. Colour
 
 ## ORG-4 folders and dividers
 
-**What.** **New folder** beside New playlist and New board. A folder row folds and unfolds and shows how many it holds;
-its ⋯: Rename…, New folder inside…, Colour…, Delete folder (what was in it moves up a level; Undo). A playlist or board
-goes in with ⋯ › **Move to folder…** (a list of folders, nested ones as "Sunken Crown › Villains") or by dragging it onto
-the folder. **Dividers**: in a manual playlist, a track's ⋯ › **Add a divider above** names a section ("After the
+**What.** A playlist's or board's ⋯ › **Move to folder…** lists the folders (nested ones as "Sunken Crown ›
+Villains") and has **New folder…**, which makes a folder holding that playlist or board; a folder's ⋯ has New folder
+inside…, Rename…, Colour… and Delete folder (what was in it moves up a level; Undo). A folder row folds and unfolds and
+shows how many it holds. Dragging a playlist or board onto a folder puts it in. No New folder button: an empty folder
+is rarely wanted, and the screens keep round 6's reading load. **Dividers**: in a manual playlist, a track's ⋯ › **Add a divider above** names a section ("After the
 font"); it is a line, not a track, so counts, the play order and playback skip it, and it drags like a track. On a pad
 board, the board's ⋯ › **Add a divider…** names a row of pads ("Spells" above row 2).
-**Why.** Long lists by campaign or place, and sections inside long playlists and boards. Folders start folded open,
-so nothing is hidden until the game master folds it.
+**Why.** Long lists by campaign or place, and sections inside long playlists and boards. A new folder is open, so
+nothing is hidden until the game master folds it.
 **Data.** `orgFolders[kind] = [{ id, name, parent, color, closed }]`, `orgIn[kind][itemId] = folderId` for kind
 `playlists`, `boards` (and `sessions`, `sceneBlocks` with the same shape later). A playlist's `items` may hold
 `div:<id>` entries; `dividers[id] = name`. A board has `dividers { row: name }`.
@@ -61,7 +62,7 @@ Add to queue), `sc:<cid>:<sid>:<scene>`. The Saved pop-up names the place and wh
 
 **What.** A scene's start and a pad are a list of **steps**, run in order. The usual ones are not stored or shown: a
 scene plays its music, its ambience and shows its first pad board; a pad plays its sound. The scene's ⋯ › **What it
-does when it starts…** and the pad's **What it does…** open the steps: each is one sentence ("Play the music: …",
+does when it starts…** and the pad's ⋯ › **What it does…** open the steps: each is one sentence ("Play the music: …",
 "Fade the music to 30% over 2 s", "Fire a pad: Drowned Abbey › Abbey bell") with Move up, Move down and Remove. **Add
 a step**: Play…, Stop…, Fade the music…, Wait…, Fire a pad…, Start a scene…. A play step has **How it comes in**
 (Crossfade, with the length from Settings › Sound to Discord › Between tracks; Cut; When the current track ends; At the
@@ -76,11 +77,14 @@ for cue lists, shortcuts and remote buttons later (SHW-1, UX-12, SFX-5), kept ou
 ## PLY-4, DAT-3, SHW-3 tracks behave as tagged, markers, hand-overs
 
 **What.** Library › a track › How it plays: a **Sting** never loops (its loop choices are off; "A sting plays once"
-is read out); a **Loop bed** always loops between its Loop and End handles (the loop in and loop out); **Ending**:
-Hard end or Fades out (4 s unless the Audio profile says otherwise); **Pick up where it stopped**; **Then**: **Follow
-with…** a playlist or track, played when it ends unless something is already waiting (inside a scene its next item;
-in Live, Play next and the queue). The Audio profile's markers each have **Mix out** (one per track: where the next
-track crossfades in) and **Play on air from** that marker. Markers show as ticks on the Now playing bar's progress
+is read out); a **Loop bed** loops between its Loop and End handles (the loop in and loop out) unless its Audio profile
+says otherwise. Only the choices that fit the role show: an Underscore has **Ending** (Hard end or Fades out, 4 s unless
+the Audio profile says otherwise), **Pick up where it stopped** and **Then: Follow with…**; a Loop bed has Pick up; a
+Sting has Follow with; a Transition has Ending and Follow with; a track with no role yet has none. Follow with plays
+a playlist or track when it ends unless something is already waiting (inside a scene its next item; in Live, Play
+next and the queue). The Audio profile's markers each have **Mix out** (one per track: where the next
+track crossfades in) and **Play on air from** that marker, shown on hover and focus in the marker's row (the chosen
+Mix out stays). Markers show as ticks on the Now playing bar's progress
 line (the mix-out one in the accent colour). A scene can **move on by itself** (Then, in its steps).
 **Data.** `track.ending: 'hard' | 'fades'` (fades sets the profile's fade out), `track.resume` with the last position
 kept per track, `track.follow` (playlist or track id), `marker.mix: true`. Play steps and Play on air take `from`.
@@ -88,7 +92,7 @@ kept per track, `track.follow` (playlist or track id), `marker.mix: true`. Play 
 ## PLY-1 what played
 
 **What.** Each room keeps what played tonight, newest first. The Now playing bar's room row has a **What played**
-button (beside Repeat): the list, each with **Play again** and **Play next**. Nothing is added to Live's boxes; Live's
+button (beside Repeat, shown on hover and focus in the row): the list, each with **Play again** and **Play next**. Nothing is added to Live's boxes; Live's
 On air gets the same button in its room header (below).
 **Data.** `played[room] = [{ trackId, at, playlistId, place, scene }]`, kept for the evening (not saved).
 
@@ -143,9 +147,11 @@ on every request, checks the Host header, accepts changes only as JSON, rate-lim
 
 ## What Live needs after the merge
 
-1. On air, each room's header: the **What played** button (same list, as a popover that covers nothing else).
+1. On air, each room's header: the **What played** button, on hover and focus (same list, as a popover that covers
+   nothing else).
 2. A scene with own steps runs them on Start and Next; "Moves on by itself" shows on its row in Scenes.
-3. Pads with steps run them; a board's dividers show above their row of pads.
+3. Pads with steps run them; a board's dividers show above their row of pads; a pad's ⋯ in Live needs no What it
+   does… (steps are set on the board).
 4. Keys read the shortcuts map (Next scene, Fade everything out, Find a track, Undo); Next scene ignores a second press
    within a second when the guard is on; Ctrl+K opens Find and play in Live too (it already does in the prototype).
 5. The progress line of each room shows marker ticks; Play next and Add to queue accept `from`.
@@ -169,20 +175,20 @@ on every request, checks the Host header, accepts changes only as JSON, rate-lim
 
 1. Library › ⋯ › Tags and groups…: one box per group. Mood › ⋯ on Wistful › Rename… "Longing" › Rename: the Undo above
    the bar says how many tracks changed; press Undo.
-2. Leitmotif: Ashen King sits inside Villains. Back to Library › Filters › Leitmotif › Villains: the villains' tracks.
+2. Mood: Grief sits inside Melancholy. Back to Library › Filters › Mood › Melancholy: the grieving tracks are found too.
 3. Open "Ancient sorrow, choir" and type "sad" in + Add mood: Melancholy (sad) is offered.
 4. Tags › New group "Faction" › Add tag "Harbour guild": the track's details now have a Faction row.
-5. Playlists › New folder "The abbey"; drag The Abbess onto it; fold the folder.
+5. Playlists › ⋯ on The Abbess › Move to folder… › New folder… "The abbey"; drag Abbey ambience onto the folder; fold it.
 6. Open The Abbess: ⋯ on "Lullaby" › Add a divider above "After the font".
 7. Drag "Alien, unknowable voices" a little: Drop on appears; drop it on Ashen King (copied). Do it again holding
    Shift (moved). Start a drag and press Esc.
 8. ⋯ on a track › Add to… › Session 14 › The abbey ruins › Add.
 9. Session 14 › ⋯ on The abbey ruins › What it does when it starts…: three steps. Add a step › Fire a pad… › Abbey bell;
    set Then to "Start the next scene when its music ends"; Done: the scene says "Moves on by itself".
-10. Pad boards › Weather and places › Thunder crack › What it does… › Add a step › Fade the music….
-11. Library › "Dread rising" (a sting): its loop choices are off. Follow with… Crypt ambush.
-12. Audio profile of t13 › Markers: Mix out on "Low swell"; Play on air from it; the ticks on the bar.
-13. Campaign page › Play on air The Company themes › Next › What played (in the bar) › Play again.
+10. Pad boards › Weather and places › Thunder crack › ⋯ › What it does… › Add a step › Fade the music….
+11. Library › "Dread rising" (a sting): its loop choices are off. Then › Follow with… Crypt ambush.
+12. Audio profile of t13 › Markers: point at "Low swell": Mix out, then Play on air from it; the ticks on the bar.
+13. Campaign page › Play on air The Company themes › Next › point at the bar: What played › Play again.
 14. Press Ctrl+K anywhere, type "abbess", Enter. Ctrl+K, "lullaby", Alt+Enter.
 15. Settings: Remote control on (the code, Make a new code, Your home network); Headphones and speakers (Split one
     headset); Keyboard shortcuts (Change… on Find and play, press Ctrl+J; Printable sheet).

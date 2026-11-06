@@ -1,7 +1,7 @@
 /* Round 7, DAT-10: tag groups. The Tags screen (#/tags; Library › ⋯ › Tags and groups…, and Look and feel › Tag
    colours…) keeps the vocabulary tidy: groups (Mood, Leitmotif, Scene type and any of the game master's own), each
    with its tags, in the order chosen; a colour per group and, if wanted, per tag; a tag inside another (Leitmotif ›
-   Villains › Ashen King; the sample has Mood › Dread › Eerie); other words for a tag (typing "sad" offers Melancholy). Rename, Merge into… and Delete…
+   Villains › Ashen King; the sample has Mood › Melancholy › Grief); other words for a tag (typing "sad" offers Melancholy). Rename, Merge into… and Delete…
    change every track, and every dynamic playlist rule that names the tag, in one step that Undo takes back.
 
    The data (for the lead's contract; src/common/domain has groups and values already):
@@ -19,8 +19,9 @@
   function colourName(c) { return c ? c[0].toUpperCase() + c.slice(1) : ''; }
   D.tagMeta = D.tagMeta || { mood: { Melancholy: { also: ['sad', 'sorrowful'] }, Dread: { also: ['fear', 'horror'] }, Tense: { also: ['suspense'] } },
     motif: {}, scene: {} };
-  // The sample has one tag inside another: Mood › Dread › Eerie (filtering by Dread finds the eerie tracks too).
-  D.tagMeta.mood.Eerie = { parent: 'Dread' };
+  // The sample has one tag inside another: Mood › Melancholy › Grief (filtering by Melancholy finds the grieving
+  // tracks too). No dynamic playlist rule names either, so no playlist changes.
+  D.tagMeta.mood.Grief = { parent: 'Melancholy' };
 
   function meta(g, v, make) { if (!D.tagMeta[g]) D.tagMeta[g] = {}; if (!D.tagMeta[g][v] && make) D.tagMeta[g][v] = {}; return D.tagMeta[g][v] || {}; }
   function group(id) { return D.tagGroups.filter(function (g) { return g.id === id; })[0]; }
@@ -222,7 +223,7 @@
     notes: [
       'One box per <b>group</b>, in your order (⋯ › Move up, Move down). <b>Add tag</b> in each box; <b>New group</b> at the top.',
       'A tag\'s ⋯: <b>Rename…</b>, <b>Merge into…</b>, <b>Put inside…</b> (Leitmotif › Villains › Ashen King), <b>Other words…</b> (try typing "sad" in a track\'s Mood), <b>Colour…</b>, <b>Delete…</b>. Rename, merge and delete change every track and dynamic playlist rule at once, with Undo.',
-      'Filtering by a tag that holds others finds their tracks too (Library › Filters › Mood › Dread finds the eerie ones).'
+      'Filtering by a tag that holds others finds their tracks too (Library › Filters › Mood › Melancholy finds the grieving ones).'
     ],
     render: function () {
       return '<div class="viewhead"><h1>Tags</h1><span class="grow"></span><button class="btn" data-act="tgnewgroup" data-k="tg-newgroup">' + L.icon('plus', 's') + 'New group</button></div>' +

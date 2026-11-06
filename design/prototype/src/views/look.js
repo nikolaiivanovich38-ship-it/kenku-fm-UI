@@ -9,13 +9,15 @@
     { id: 'parchment', name: 'Parchment', games: 'The light version of Candlelit Library', line: 'A light theme for preparing in daylight; you can still run the session in a dark one.' },
     { id: 'elysium', name: 'Elysium', games: 'Vampire: the Masquerade, gothic and noir', line: 'Soot black, bone and blood red for gothic and vampire chronicles.' }
   ];
+  // Round 7: the sample's buttons are pictures of buttons (spans, hidden from screen readers), not controls that do
+  // nothing.
   function sample(t) {
     return '<div class="lk-sample" data-theme="' + t.id + '">' +
       '<div class="lk-head"><span class="pane-title">' + esc(t.name) + '</span><span class="chip accent">' + esc(t.games.split(',')[0]) + '</span></div>' +
-      '<div class="lk-row"><span class="lane-dot music"></span><div class="grow"><div class="ellipsis"><b>Ancient sorrow, choir</b></div><div class="progress music"><span style="width:42%"></span></div></div><span class="num muted">1:54</span><button class="btn s" tabindex="-1">' + L.icon('fade', 's') + 'Fade</button></div>' +
+      '<div class="lk-row"><span class="lane-dot music"></span><div class="grow"><div class="ellipsis"><b>Ancient sorrow, choir</b></div><div class="progress music"><span style="width:42%"></span></div></div><span class="num muted">1:54</span><span class="btn s" aria-hidden="true">' + L.icon('fade', 's') + 'Fade</span></div>' +
       '<div class="lk-row"><span class="lane-dot amb"></span><div class="grow"><div class="ellipsis">Crypt drips</div><div class="progress amb"><span style="width:70%"></span></div></div>' + L.destTag('air', '') + '</div>' +
       '<div class="chips"><span class="chip mood"><span class="dot"></span>Eerie</span><span class="chip motif"><span class="dot"></span>Drowned Abbess</span><span class="chip scene"><span class="dot"></span>Ritual</span></div>' +
-      '<div class="lk-btns"><button class="btn primary" tabindex="-1">Start scene</button><button class="btn" tabindex="-1">Preview</button><button class="btn ghost" tabindex="-1">More</button></div>' +
+      '<div class="lk-btns" aria-hidden="true"><span class="btn primary">Start scene</span><span class="btn">Preview</span><span class="btn ghost">More</span></div>' +
       '<div class="lk-sw" aria-hidden="true"><i style="background:var(--bg)"></i><i style="background:var(--surface)"></i><i style="background:var(--surface-3)"></i><i style="background:var(--ink)"></i><i style="background:var(--accent)"></i><i style="background:var(--second)"></i></div>' +
       '</div>';
   }

@@ -253,8 +253,10 @@
       '<div class="lb-tg lb-normrow">' + L.normChoice({ id: 'lb-norm', value: t.norm, act: 'lbnorm', line: L.normLine(t), hint: normHint(t) }) + '</div>' +
       '<div class="lb-tg"><div class="lb-tgl">Role</div>' + choiceChips('lbrole', (t.kind === 'fx' ? ['Effect'].concat(ROLES) : ROLES).map(function (r) { return [r, r]; }), t.role, 'Role') + '</div>' +
       // Round 7 (PLY-4, SHW-3): a sting never loops; the ending, resume and follow-with rows (r7play.js).
-      L.loopRow(t, '<div class="lb-tg"><div class="lb-tgl">Looping</div>' + choiceChips('lbloop', LOOPS, t.loop, 'Loop advice') + '</div>') + L.playRows(t) +
-      '<div class="lb-tg"><label class="lb-tgl" for="lb-notes">Notes</label><textarea id="lb-notes" class="input" rows="2" data-input="lbnotes" data-k="lb-notes" data-save="' + esc(L.title(t)) + ' notes" placeholder="Cues, where it fades, what it reminds you of">' + esc(t.notes) + '</textarea></div></section>';
+      L.loopRow(t, '<div class="lb-tg"><div class="lb-tgl">Looping</div>' + choiceChips('lbloop', LOOPS, t.loop, 'Loop advice') + '</div>') +
+      '<div class="lb-tg"><label class="lb-tgl" for="lb-notes">Notes</label><textarea id="lb-notes" class="input" rows="2" data-input="lbnotes" data-k="lb-notes" data-save="' + esc(L.title(t)) + ' notes" placeholder="Cues, where it fades, what it reminds you of">' + esc(t.notes) + '</textarea></div>' +
+      // The rarer choices that follow from the role (ending, pick up, follow with) come last.
+      L.playRows(t) + '</section>';
     var man = pls.filter(function (p) { return p.kind === 'manual'; }), dyn = pls.filter(function (p) { return p.kind === 'dynamic'; });
     h += '<section class="lb-sec" aria-labelledby="lb-h-pl"><div class="lb-hrow"><h3 class="lb-h" id="lb-h-pl">In playlists</h3><button class="btn s" data-act="lbpladdmenu" data-k="lb-pladd" aria-haspopup="menu" aria-expanded="false">' + L.icon('plus', 's') + 'Add to playlist</button></div>';
     h += pls.length ? '<ul class="lb-pls">' + man.map(function (p) {
