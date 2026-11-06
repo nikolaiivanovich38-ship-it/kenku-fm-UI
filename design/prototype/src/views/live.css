@@ -524,3 +524,44 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 .lv-rm.lv-rm-1 .lv-rm-h > .lv-rm-t { flex: 1 1 auto; height: auto; }
 /* A room is never named "Ta…": its name keeps up to 40 % of the header before anything else gives way. */
 .lv-rm-h .lv-rm-n { flex: 0 0 auto; max-width: 40%; }
+
+/* ---------- Round 6, part 6 (Nik, 6 Nov 17:14) ----------
+   On air at the top, the whole width, right under the top strip, always in view (it scrolls inside itself past 40 % of
+   the height). Under it the columns scroll as one page; Scenes and Current scene take the height of their contents
+   again (part 4's shared column height and inner scroll are undone for them). The trays keep theirs in three columns:
+   their column stays in view while Scenes scrolls, and its boxes share its height, so no box there moves when a list
+   in another one grows (Should 7). */
+.lv-top { padding: 6px 12px; min-height: 44px; }
+.lv-dock { order: 0; max-height: 40%; padding: 8px 8px 0; }
+.lv-cols { container: lvcols / size; }
+.lv-cols.c3 { grid-template-rows: auto; align-items: start; }
+.lv-cols.c3 > .col { display: flex; flex-direction: column; min-height: 0; }
+.lv-cols.c3 > .col > .pane:not(.collapsed) { flex: none; min-height: 0; }
+.lv-cols.c3 > .col > .pane:not(.collapsed) > .pane-body { overflow: visible; }
+.lv-cols.c3 > .col.lv-c-trays { position: sticky; top: 0; height: 100cqh; }
+.lv-cols.c2 { align-items: start; }
+/* Back and the trail lead the strip; the session is the trail's last part. */
+.lv-top .crumbs { flex: 0 1 auto; min-width: 0; }
+.lv-top .crumbs a { max-width: 18ch; }
+.lv-top .lv-sess { flex: 0 1 auto; }
+/* Find's results: Playlists, then Tracks, each under a small heading. */
+.lv-found-h { margin: 6px 8px 2px; font-size: var(--fs-xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+/* A scene's ambience is a row like the others, with the row's buttons. */
+.lv-amb-r { padding: 2px 4px 2px 8px; border-radius: var(--r-s); }
+.lv .lv-sc-in .lv-amb-r { padding: 2px 4px 2px 0; }
+.lv-amb-r.on { background: color-mix(in srgb, var(--amb, var(--surface-2)) 14%, transparent); }
+.lv-up-i.amb > .lane-dot { flex: none; }
+.lv-up-i > .lv-more { flex: none; margin-left: 2px; }
+@container app (max-width: 639px) {
+  /* Must 4 at 320 px: Back, Prep | Live and the buttons on the first line, then the trail and the session, then Find. */
+  .lv-top::before { content: ""; order: 4; flex: 1 0 100%; height: 0; }
+  .lv-top .crumbs { order: 5; }
+  .lv-top .lv-sess { order: 6; flex: 1 1 0; }
+  .lv-dock { padding: 6px 6px 0; }
+}
+/* With Back and the trail in the strip, below 1100 px of app (960 windows) Fade all and Stop all are icons (their names
+   are read out and on hover) and the session shows its number only (its name is on hover), so Find keeps its words. */
+@container app (max-width: 1100px) {
+  .lv-top .lv-btxt, .lv-top .lv-sess-nm { display: none; }
+  .lv-top [data-act="lvfade"], .lv-top [data-act="lvstop"] { width: var(--ctl-s); padding: 0; }
+}

@@ -11,7 +11,8 @@
 (function () {
   var esc = L.esc, D = L.data;
   function plural(n, one, many) { return n + ' ' + (n === 1 ? one : (many || one + 's')); }
-  function crumbs() { return '<nav class="crumbs" aria-label="Breadcrumb"><a href="#/library" data-k="tf-crumb">Library</a><span class="sep" aria-hidden="true">›</span></nav>'; }
+  // Round 6 part 6: the trail (core.js L.trailHTML) is Library › the screen; core draws it after Back.
+  function trail(here) { return function () { return [{ href: '#/library', label: 'Library' }, { label: here }]; }; }
   function missing() { return D.tracks.filter(function (t) { return t.missing; }); }
   // Called after L.render(), which paints at once, so the control is there to focus.
   function focusSoon(k) { var el = document.querySelector('[data-k="' + k + '"]'); if (el) el.focus(); }
@@ -132,7 +133,7 @@
   });
 
   L.view('backup', {
-    nav: 'library',
+    nav: 'library', crumbs: trail('Back up, move or share'),
     title: function () { return 'Back up, move or share'; },
     notesTitle: 'Back up, move or share (new, DAT-7)',
     notes: [
@@ -141,7 +142,7 @@
       'A file that is not a Lyre file, or is damaged, is refused in plain words and nothing changes. Try dropping notes.txt or broken.lyre on the box.'
     ],
     render: function () {
-      return '<div class="viewhead">' + crumbs() + '<h1>Back up, move or share</h1></div>' +
+      return '<div class="viewhead"><h1>Back up, move or share</h1></div>' +
         '<div class="viewbody tf-body"><div class="tf-cols"><div class="col">' + exportPane() + '</div><div class="col">' + importPane() + '</div></div></div>';
     }
   });
@@ -150,7 +151,7 @@
      What came across from Kenku FM
      ====================================================================== */
   L.view('moved', {
-    nav: 'library',
+    nav: 'library', crumbs: trail('What came across from Kenku FM'),
     title: function () { return 'What came across from Kenku FM'; },
     notesTitle: 'The move report (new)',
     notes: [
@@ -168,7 +169,7 @@
         return '<li class="lrow"><span class="grow tf-iname"><b class="ellipsis">' + esc(L.title(t)) + '</b><span class="hint ellipsis" title="' + esc(t.folder + '\\' + t.file) + '">' + esc(t.file) + ' · was in ' + esc(t.folder) + '</span></span></li>';
       }).join('') + '</ul><div class="tf-actrow"><a class="btn primary" href="#/relink" data-k="tf-findthem">' + L.icon('folder', 's') + 'Find them…</a></div>' : '<p class="tf-done">' + L.icon('check', 's') + 'Every file is where Lyre expects it.</p>';
       var notBody = '<ul class="list tf-not">' + m.notMoved.map(function (x) { return '<li class="lrow"><span class="grow tf-iname"><b>' + esc(x[0]) + '</b><span class="hint">' + esc(x[1]) + '</span></span></li>'; }).join('') + '</ul>';
-      return '<div class="viewhead">' + crumbs() + '<h1>What came across from Kenku FM</h1></div>' +
+      return '<div class="viewhead"><h1>What came across from Kenku FM</h1></div>' +
         '<div class="viewbody tf-body"><div class="tf-cols"><div class="col">' +
         L.pane({ id: 'tf-what', title: 'What came across', icon: 'check', kind: 'plain', noMax: true, size: 'auto', status: { text: 'Copied', tone: 'idle' }, body: what }) + '</div><div class="col">' +
         L.pane({ id: 'tf-miss', title: 'Files Lyre cannot find', icon: 'warn', kind: 'plain', noMax: true, size: 'auto', status: miss.length ? { text: plural(miss.length, 'file'), tone: 'warn' } : { text: 'None', tone: 'idle' }, body: missBody }) +
@@ -190,7 +191,7 @@
   }
   var HOW = { size: ['Same name and size', 'idle'], name: ['Same name, different size: check it', 'warn'], none: ['Not in that folder', 'idle'] };
   L.view('relink', {
-    nav: 'library',
+    nav: 'library', crumbs: trail('Find missing files'),
     title: function () { return 'Find missing files'; },
     notesTitle: 'Find missing files (new, DAT-8)',
     notes: [
@@ -219,7 +220,7 @@
           }).join('') + '</tbody></table>' +
           '<div class="tf-actrow"><button class="btn primary" data-act="tfrelink" data-k="tf-relink"' + (n ? '' : ' disabled') + '>' + L.icon('link', 's') + 'Relink ' + plural(n, 'file') + '</button><span class="hint">' + plural(p.filter(function (x) { return x.how === 'none'; }).length, 'file') + ' not found there: try another folder after.</span></div>';
       }
-      return '<div class="viewhead">' + crumbs() + '<h1>Find missing files</h1></div>' +
+      return '<div class="viewhead"><h1>Find missing files</h1></div>' +
         '<div class="viewbody tf-body"><div class="tf-cols tf-one"><div class="col">' +
         (rl.done ? '<p class="tf-done">' + L.icon('check', 's') + '<span class="grow">' + esc(rl.done) + '</span></p>' : '') +
         L.pane({ id: 'tf-missing', title: 'Missing files', icon: 'warn', kind: 'plain', noMax: true, size: 'auto', status: miss.length ? { text: plural(miss.length, 'file'), tone: 'warn' } : { text: 'None', tone: 'idle' }, body: list }) +

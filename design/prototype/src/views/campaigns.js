@@ -342,6 +342,8 @@
   };
 
   L.view('campaign', {
+    // Round 6 part 6: the trail (core.js L.trailHTML) is Campaigns › the campaign.
+    crumbs: function (p) { var c = L.campaign(p.cid); return c ? [{ href: '#/campaigns', label: 'Campaigns' }, { label: c.name || 'Untitled campaign' }] : null; },
     nav: 'campaigns',
     title: function (p) { var c = L.campaign(p.cid); return c ? c.name : 'Campaign'; },
     notesTitle: 'Campaign page: sessions and what stays on hand',
@@ -357,7 +359,7 @@
       var c = L.campaign(p.cid);
       if (!c) return '<div class="viewhead"><h1>Campaign not found</h1></div><div class="empty"><a href="#/campaigns">Back to Campaigns</a></div>';
       var nx = nextSession(c), forced = L.state.theme !== 'campaign';
-      var head = '<div class="viewhead"><nav class="crumbs" aria-label="Breadcrumb"><a href="#/campaigns" data-k="crumb-c">Campaigns</a><span class="sep" aria-hidden="true">›</span></nav>' +
+      var head = '<div class="viewhead">' +
         '<h1>' + esc(c.name || 'Untitled campaign') + '</h1><span class="grow"></span>' +
         L.modeSwitch(c.id) + (nx ? '<button class="btn primary" data-act="cprun" data-cid="' + c.id + '" data-sid="' + nx.id + '" data-k="hrun">' + L.icon('broadcast', 's') + 'Run next session <span class="cp-btnsub">S' + nx.n + '</span></button>' : '') + '</div>';
       var details = '<div class="cp-details">' +
@@ -630,6 +632,8 @@
   });
 
   L.view('session', {
+    // Round 6 part 6: Campaigns › the campaign › the session (its h1).
+    crumbs: function (p) { var c = L.campaign(p.cid), s = L.session(p.cid, p.sid); return s ? [{ href: '#/campaigns', label: 'Campaigns' }, { href: '#/campaign/' + c.id, label: c.name }, { label: sLabel(s) }] : null; },
     nav: 'campaigns',
     title: function (p) { var s = L.session(p.cid, p.sid); return s ? 'Session ' + s.n : 'Session'; },
     notesTitle: 'Session planner: scenes and playlists',
@@ -647,8 +651,7 @@
       // Back from a track's audio settings in a scene opens that scene again, with focus on the track.
       if (L.state.openScene && s) { var back = L.state.openScene; L.state.openScene = null; if (s.scenes.some(function (x) { return x.id === back.sc; })) { open[back.sc] = true; current = back.sc; focusK = back.k || 'sct-' + back.sc; } }
       if (!s) return '<div class="viewhead"><h1>Session not found</h1></div><div class="empty"><a href="#/campaigns">Back to Campaigns</a></div>';
-      var head = '<div class="viewhead"><nav class="crumbs" aria-label="Breadcrumb"><a href="#/campaigns" data-k="crumb-c">Campaigns</a><span class="sep" aria-hidden="true">›</span>' +
-        '<a href="#/campaign/' + c.id + '" data-k="crumb-cp">' + esc(c.name) + '</a><span class="sep" aria-hidden="true">›</span></nav>' +
+      var head = '<div class="viewhead">' +
         // BUG-21: the title renames the session in place (click or F2); only the name, not the number.
         '<h1>' + (L.renaming('sess-' + s.id) ? 'Session ' + s.n + ': ' + L.renameBox('sess-' + s.id, s.name, 'Name of Session ' + s.n, 'cp-h1-rename') :
           '<button class="cp-h1-name" data-act="cprename" data-k="cp-h1-name" data-f2="cprename" title="Rename (click or F2)">' + esc(sLabel(s)) + '</button>') + '</h1>' +

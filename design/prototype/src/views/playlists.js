@@ -286,13 +286,13 @@
   };
   function renderOne(p) {
     var pl = L.playlist(p.pid);
-    if (!pl) return '<div class="viewhead"><nav class="crumbs" aria-label="Breadcrumb"><a href="#/playlists">Playlists</a></nav><h1>Playlist not found</h1></div><div class="empty">This playlist no longer exists. <a href="#/playlists">Back to all playlists</a></div>';
+    if (!pl) return '<div class="viewhead"><h1>Playlist not found</h1></div><div class="empty">This playlist no longer exists. <a href="#/playlists">Back to all playlists</a></div>';
     var tracks = L.playlistTracks(pl), uses = L.usesOfPlaylist(pl.id), air = onAirFrom(pl), first = tracks[0];
     var pv = L.previewing('pl:' + pl.id) || tracks.some(function (t) { return L.previewing(t.id); });
     var main = pl.kind === 'manual' ? [tracksPane(pl, tracks, air), addPane(pl)] : [detailsPane(pl, tracks), rulesPane(pl), matchPane(pl, tracks, air)];
     var side = pl.kind === 'manual' ? [usesPane(pl, uses), detailsPane(pl, tracks)] : [usesPane(pl, uses)];
     function col(cls, panes, ids) { return '<div class="col ' + cls + (ids.indexOf(L.state.maxed) > -1 ? ' has-max' : '') + '">' + panes.join('') + '</div>'; }
-    return '<div class="viewhead pl-head"><nav class="crumbs" aria-label="Breadcrumb"><a href="#/playlists" data-k="crumb">Playlists</a><span class="sep">›</span></nav>' +
+    return '<div class="viewhead pl-head">' +
       '<h1 class="pl-h1" title="' + esc(pl.name) + '">' + esc(pl.name || 'Untitled playlist') + '</h1>' +
       '<button class="closer" data-act="plrename" data-k="plrename" title="Rename" aria-label="Rename this playlist">' + L.icon('edit') + '</button>' +
       '<span class="pl-headchips" title="' + (pl.kind === 'manual' ? 'Manual: you pick the tracks and their order.' : 'Dynamic: Lyre fills it with every track that matches the rules, including tracks you tag later.') + '">' + kindLane(pl) + '</span>' +
@@ -547,6 +547,8 @@
     render: renderList
   });
   L.view('playlist', {
+    // Round 6 part 6: the trail (core.js L.trailHTML) is Playlists › the playlist.
+    crumbs: function (p) { var pl = L.playlist(p.pid); return [{ href: '#/playlists', label: 'Playlists' }, { label: pl ? pl.name || 'Untitled playlist' : 'Playlist not found' }]; },
     nav: 'playlists', title: function (p) { var pl = L.playlist(p.pid); return pl ? pl.name : 'Playlist'; },
     notesTitle: 'A playlist: what changed',
     notes: [

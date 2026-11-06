@@ -413,6 +413,8 @@
   function col(ids, html, cls) { return '<div class="col ' + cls + (ids.indexOf(L.state.maxed) > -1 ? ' has-max' : '') + '">' + html + '</div>'; }
 
   L.view('board', {
+    // Round 6 part 6: the trail (core.js L.trailHTML) is Pad boards › the board.
+    crumbs: function (p) { var b = L.board(p.bid); return b ? [{ href: '#/boards', label: 'Pad boards' }, { label: b.name }] : null; },
     nav: 'boards',
     title: function (p) { var b = L.board(p.bid); return b ? b.name : 'Pad board'; },
     notes: boardNotes(),
@@ -423,7 +425,7 @@
       // First visit to a board selects its first pad; after a delete (pid null) nothing stays selected.
       if (!ui.sel || ui.sel.bid !== b.id || (ui.sel.pid && !find(b, ui.sel.pid))) { var first = b.slots.filter(Boolean)[0] || b.spare[0]; select(b, first ? first.id : null); }
       var sel = selPad(b);
-      return '<div class="viewhead"><nav class="crumbs" aria-label="Breadcrumb"><a href="#/boards" data-k="pb-crumb">Pad boards</a><span class="sep" aria-hidden="true">›</span></nav><h1>' + esc(b.name) + '</h1>' +
+      return '<div class="viewhead"><h1>' + esc(b.name) + '</h1>' +
         '<span class="grow"></span>' +
         '<button class="btn" data-act="pbuse" data-id="' + b.id + '" data-k="pb-usehead">' + L.icon('link', 's') + 'Use in…</button>' +
         '<button class="btn icon" data-act="pbboardmenu" data-k="pb-bmenu" title="More for this board" aria-label="More for this board" aria-haspopup="menu" aria-expanded="false">' + L.icon('more') + '</button></div>' +

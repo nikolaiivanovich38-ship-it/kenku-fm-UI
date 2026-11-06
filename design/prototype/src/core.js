@@ -783,20 +783,25 @@ var L = (function () {
        data-save="<what>" on a field   it saves on Enter, on leaving it, or after a second without typing, never per
                                        keystroke ({v} in <what> is its value); a list, tick box or slider so marked saves
                                        when it changes. Wired once below.
-     Where: the top-right corner of the work area, just under its header (Live's top strip), so it covers neither the
-     Now playing bar nor On air (both along the bottom), nor the header itself. It never takes focus. */
+     Where (round 6 part 6, Nik, 6 Nov 17:14: "Let's move the saved pop up to the bottom right hand corner"): the
+     bottom-right corner of the work area, 12 px in from its right edge and 12 px above its bottom, or above the Now
+     playing bar when the bar shows. Live's On air is at the top, so it never covers it. The failure card and the
+     Undo note (UndoNote: Reset to whole track, Delete board, ...) stack in the same corner: the Undo note lowest, then
+     the failure, then the pop-up. It never takes focus. */
   var NOTE_MS = 3000, MERGE_MS = 2000, note = { key: null, at: 0, timer: 0 }, fail = null, failNext = false, beforeToast = null;
   function toasts() { return document.getElementById('lyre-toasts'); }
   L.placeToasts = function () {
     var box = toasts(), v = document.getElementById('view'); if (!box || !v) return;
-    var r = v.getBoundingClientRect(), head = v.querySelector('.viewhead, .lv-top'), top = head ? head.getBoundingClientRect().bottom : r.top;
-    box.style.top = Math.round(top + 8) + 'px'; box.style.right = Math.round(window.innerWidth - r.right + 12) + 'px';
-    box.style.maxWidth = Math.max(160, Math.min(400, r.width - 24)) + 'px';
-    // Never over the field or control in use (a Description field at the top right, say): then it sits just under it.
+    var r = v.getBoundingClientRect(), bar = v.querySelector('.onairbar'), floor = bar && bar.offsetParent ? bar.getBoundingClientRect().top : r.bottom;
+    var right = Math.round(window.innerWidth - r.right + 12) + 'px', width = Math.max(160, Math.min(400, r.width - 24)) + 'px', bottom = Math.round(window.innerHeight - floor + 12);
+    var un = v.querySelector('.undo-note');
+    if (un) { un.style.right = right; un.style.maxWidth = width; un.style.bottom = bottom + 'px'; bottom += un.getBoundingClientRect().height + 6; }
+    box.style.top = 'auto'; box.style.bottom = bottom + 'px'; box.style.right = right; box.style.maxWidth = width;
+    // Never over the field or control in use (a Notes field at the bottom right, say): then it sits just above it.
     var a = document.activeElement, b = box.getBoundingClientRect();
     if (a && a !== document.body && !box.contains(a) && v.contains(a) && b.height) {
       var q = a.getBoundingClientRect();
-      if (q.left < b.right && q.right > b.left && q.top < b.bottom && q.bottom > b.top) box.style.top = Math.round(q.bottom + 8) + 'px';
+      if (q.left < b.right && q.right > b.left && q.top < b.bottom && q.bottom > b.top) box.style.bottom = Math.round(window.innerHeight - q.top + 8) + 'px';
     }
   };
   function showNote(text, o) {
@@ -957,18 +962,24 @@ var L = (function () {
     }
     var h = v.querySelector('h1'); if (h) { h.setAttribute('tabindex', '-1'); h.focus({ preventScroll: true }); } window.dispatchEvent(new Event('lyre:route'));
   }
-  /* UX-18 Back (Nik, 6 Nov 10:34: "I need a contextual back button everywhere."). Every screen opened from another
-     one has Back in its header, named for where it goes ("Back to Session 14"); it returns to the same place: the
+  /* UX-18 Back (Nik, 6 Nov 10:34: "I need a contextual back button everywhere."; 17:14: "It should be constantly
+     present in the top left of the top bar."). Back is the first thing in every screen's top bar (Live's strip too),
+     always in the same place. Its name says where it goes ("Back to Session 14"); it returns to the same place: the
      route (so the selected track, playlist or board), every box's scroll position, the open scene (the views keep
      their own open and folded state) and the control that was used to leave. Alt+Left and the mouse's back button do
-     the same. Screens opened from the menu (the rail) or by address have no Back, and moving within one screen (the
-     Library choosing another track, the Audio profile choosing another place) does not add a step.
+     the same. With nowhere to go back to (a screen opened from the menu or by address) it stays where it is, disabled
+     (aria-disabled, so it can still be found with Tab, and its hover says why). Moving within one screen (the Library
+     choosing another track, the Audio profile choosing another place) does not add a step.
      L.route(h)                    from a link or button on a screen: adds a step
      L.route(h, { menu: true })    from the rail: clears the steps
      L.back()                      goes back one step (returns false when there is none)
-     L.backButton(fallback)        the header button; a view puts '<!--back-->' where it goes, else core puts it first
-                                   in the view's header. fallback { route, label } is used when there is no step (the
-                                   Audio profile goes back to the scene or session it shows). */
+     L.backButton(fallback, trail) the button; fallback { route, label } is used when there is no step (the Audio
+                                   profile goes back to the scene or session it shows). trail: the words of the
+                                   screen's trail; Back shows "Back to X" only when the trail does not already say X.
+     The trail (breadcrumbs, round 6 part 6): a view's crumbs(p) gives its parents, each { href, label }, then its own
+     title { label } (the screen's h1, or Live's session). Core draws the parents right after Back, each a link, and
+     the screen's h1 that follows is the last part, so the title is not said twice. Both go where the view puts
+     '<!--lead-->', else first in its header (.viewhead or .lv-top). */
   var steps = [];
   function viewOf(h) { for (var i = 0; i < ROUTES.length; i++) if ((h || '').match(ROUTES[i][0])) return ROUTES[i][1]; return ''; }
   var ROUTE_WORDS = { campaigns: 'Campaigns', library: 'Library', playlists: 'Playlists', boards: 'Pad boards', profile: 'Audio profile', live: 'Live', outputs: 'Rooms',
@@ -1014,19 +1025,36 @@ var L = (function () {
     return true;
   };
   var backFallback = null;
-  L.backButton = function (fallback) {
+  L.backButton = function (fallback, trail) {
     var st = steps[steps.length - 1] || (fallback && fallback.route ? fallback : null); backFallback = steps.length ? null : fallback || null;
-    if (!st) return '';
-    return '<button class="btn s nav-back" data-act="navback" data-k="nav-back" aria-keyshortcuts="Alt+ArrowLeft" title="Back to ' + esc(st.label) + ' (Alt+Left)">' + L.icon('chevleft', 's') + '<span class="ellipsis">Back to ' + esc(st.label) + '</span></button>';
+    if (!st) return '<button class="btn s nav-back" data-act="navback" data-k="nav-back" aria-disabled="true" title="Nothing to go back to: you opened this screen from the menu">' + L.icon('chevleft', 's') + '<span>Back</span></button>';
+    // Back and the trail never say the same thing twice: when the trail shows where Back goes, Back says only "Back"
+    // (its name and hover still say where).
+    var said = (trail || []).some(function (w) { return w.toLowerCase().indexOf(String(st.label).toLowerCase()) > -1; });
+    return '<button class="btn s nav-back" data-act="navback" data-k="nav-back" aria-keyshortcuts="Alt+ArrowLeft"' + (said ? ' aria-label="Back to ' + esc(st.label) + '"' : '') + ' title="Back to ' + esc(st.label) + ' (Alt+Left)">' + L.icon('chevleft', 's') +
+      '<span class="ellipsis">' + (said ? 'Back' : 'Back to ' + esc(st.label)) + '</span></button>';
   };
-  L.acts.navback = function () { L.back(backFallback); };
-  // Put Back in the header, and leave out the breadcrumb that goes to the same place (it would say it twice).
-  function withBack(html) {
-    var b = L.backButton(L._backFallback), st = steps[steps.length - 1]; L._backFallback = null;
-    if (html.indexOf('<!--back-->') > -1) return html.replace('<!--back-->', b);
-    if (!b) return html;
-    if (st) html = html.replace(new RegExp('<a href="' + st.route.replace(/[.*+?^${}()|[\]\\\/]/g, '\\$&') + '"[^>]*>[^<]*</a><span class="sep"[^>]*>›</span>'), '');
-    return html.replace(/<div class="(viewhead|lv-top)[^"]*">/, function (m) { return m + b; });
+  L.acts.navback = function (el) { if (el && el.getAttribute('aria-disabled') === 'true') { L.say('Nothing to go back to'); return; } L.back(backFallback); };
+  /* The trail: the parents as links, cut in the middle when it is long. With three parents or more only the first and
+     the last show, with "…" between; below 640 px of app only the last parent shows after "…" (ui.css). The whole
+     path is the hover text, and what "…" stands for is read out in its place. */
+  L.trailHTML = function (list) {
+    if (!list || list.length < 2) return '';
+    var parents = list.slice(0, -1), n = parents.length, full = list.map(function (x) { return x.label; }).join(' › ');
+    var names = function (a) { return a.map(function (x) { return x.label; }).join(' › '); };
+    var gap = '<li class="c-gap' + (n > 2 ? ' on' : '') + '" title="' + esc(full) + '"><span aria-hidden="true">…</span><span class="sr-only g-cut">' + esc(names(parents.slice(1, -1))) + '</span><span class="sr-only g-mid">' + esc(names(parents.slice(0, -1))) + '</span><span class="sep" aria-hidden="true">›</span></li>';
+    return '<nav class="crumbs" aria-label="Breadcrumb" title="' + esc(full) + '"><ol>' + parents.map(function (c, i) {
+      var last = i === n - 1;
+      return (last && n > 1 ? gap : '') + '<li class="crumb' + (last ? '' : n > 2 && i > 0 ? ' c-cut' : ' c-mid') + '"><a href="' + esc(c.href) + '" data-k="crumb-' + i + '"><span class="ellipsis" title="' + esc(c.label) + '">' + esc(c.label) + '</span></a><span class="sep" aria-hidden="true">›</span></li>';
+    }).join('') + '</ol></nav>';
+  };
+  // Back and the trail go first in the header (or where the view put '<!--lead-->').
+  function withBack(html, v, p) {
+    var list = v && v.crumbs ? v.crumbs(p) : null, words = (list || []).map(function (x) { return x.label; });
+    var lead = L.backButton(L._backFallback, words) + L.trailHTML(list); L._backFallback = null;
+    html = html.replace('<!--back-->', '');
+    if (html.indexOf('<!--lead-->') > -1) return html.replace('<!--lead-->', lead);
+    return html.replace(/<div class="(viewhead|lv-top)[^"]*">/, function (m) { return m + lead; });
   }
   document.addEventListener('keydown', function (e) {
     if (!e.altKey || e.key !== 'ArrowLeft' || e.ctrlKey || e.shiftKey || e.metaKey || menuEl || document.getElementById('lyre-sheet')) return;
@@ -1095,7 +1123,7 @@ var L = (function () {
       var railMin = L.state.rail === 'min' || (L.state.rail === 'auto' && w < 1100);
       paint(document.getElementById('rail'), railHTML(v.nav || r.name, railMin));
       document.getElementById('rail').className = 'rail' + (railMin ? ' min' : '');
-      paint(document.getElementById('view'), withBack(v.render(r.p)) + (r.name === 'live' ? onAirBar(true) : undoNoteHTML() + onAirBar(false)));
+      paint(document.getElementById('view'), withBack(v.render(r.p), v, r.p) + (r.name === 'live' ? onAirBar(true) : undoNoteHTML() + onAirBar(false)));
       document.getElementById('view').dataset.view = r.name;
       document.querySelectorAll('#view .col').forEach(function (c) { c.classList.toggle('has-max', !!c.querySelector(':scope > .pane.maxed')); });
       if (v.after) v.after(document.getElementById('view'), r.p);
@@ -1289,7 +1317,8 @@ var L = (function () {
   // F6 / Shift+F6 jump between boxes (pane headers), so the keyboard can reach any box quickly.
   document.addEventListener('keydown', function (e) {
     if (e.key !== 'F6' || menuEl || document.getElementById('lyre-sheet') || (L.f6Taken && L.f6Taken())) return;
-    var heads = [].slice.call(document.querySelectorAll('#view .pane-toggle')).filter(function (b) { return b.offsetParent; }); if (!heads.length) return;
+    // A view may give its own order (Live: the order of its boxes on screen, the same as Alt+1 to Alt+7).
+    var heads = ((L.f6Order && L.f6Order()) || [].slice.call(document.querySelectorAll('#view .pane-toggle'))).filter(function (b) { return b.offsetParent; }); if (!heads.length) return;
     e.preventDefault(); var cur = document.activeElement && document.activeElement.closest('.pane'), i = -1;
     heads.forEach(function (h, j) { if (cur && cur.contains(h)) i = j; });
     var n = heads[(i + (e.shiftKey ? -1 : 1) + heads.length) % heads.length]; n.focus(); n.scrollIntoView({ block: 'nearest' }); L.say(n.textContent.trim());
