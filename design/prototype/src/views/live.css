@@ -380,3 +380,9 @@ button.lv-sc-name[aria-expanded="true"] { text-decoration: underline; text-under
 .lv-kick:hover { color: var(--onair); border-color: var(--onair); }
 .lv-onair .lv-undo2, .col > .lv-undo2 { border: 1px solid var(--line); border-radius: var(--r-m); }
 @container app (max-width: 900px) { .lv-botpick { max-width: 96px; } }
+button.lv-sc-name { display: flex; min-width: 0; }
+button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
+/* "Current scene music" is a longer title: it gives way before the header's buttons do. */
+.lv [data-pane="lv-music"] .pane-h { min-width: 0; flex: 0 1 auto; }
+.lv [data-pane="lv-music"] .pane-toggle { min-width: 0; }
+.lv [data-pane="lv-music"] .pane-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

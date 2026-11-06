@@ -180,3 +180,123 @@ session playlists' description and a quiet status on a playlist page. Checks the
 
 Screenshots before and after for the five busiest screens are in `shots/r6/before` and `shots/r6/after` (2.6 MB, so
 not committed; `SHOTS=1 ONLY=… node tools/r6-measure.js <dir>` makes them again, `OUT=<old build>` for the before).
+
+## Your notes on 0.4.0
+
+> "We should add a 'Add to queue' button to tracks and playlists, so that they can be added quickly to the end of the
+> currently playing list, in the live view" · "I need a repeat button on the now playing bar" · "I need the ability to
+> reorder tracks in playlists in the scene view, and have that reordering apply only in that scene. I need the same with
+> playlists in the session playlist view, and campaign playlists in the campaign playlists view" · "I need the ability
+> to click the scene in the live view and have it expand, so I can see everything queued up in that scene, before I
+> press play on that scene. I don't want this to repolace the scene music pane, but that should be retitled 'Current
+> Scene Music' and only display the scene now running." · "I need a contextual back button everywhere." · "I need a way
+> to switch outputs dynamically on the page in live view" · "I also need repeat one buttons on the tracks in the current
+> scene music pane" · "Enhance the instructions for adding new bots with proper directions about the Oauth2 URL step and
+> inviting the bot to the server, and doing that before having the token is added to Lyre" · "I don't like this
+> 'bring...' label or the design for the voice channels pane in outputs. It's confusing and unintuitive and too many
+> clicks to add a bot to a channel, and to take them out of it. There should be an easy way to kick bots with a click,
+> in both that view, and in the live view"
+>
+> Nik, 6 Nov 2026, 10:34, after testing 0.4.0; he also asked when Settings, tokens and new bots come to the new
+> interface.
+
+These designs follow round 6's rules: labels over sentences, no new hint lines, the rare behind ⋯ or on hover, icons
+with names and hover text, and nothing lost for the keyboard or a screen reader. BUG-19, BUG-20 and BUG-21 are the
+w5-fixes stream's.
+
+**UX-18 Back.** Every screen opened from another one has Back first in its header, named for where it goes ("Back to
+Session 14", "Back to The abbey ruins" from inside a scene, "Back to Outputs"). It returns to the same place: the route
+(so the selected track, playlist or board), the scroll position of every box, the open scene, and focus on the control
+you left by. Alt+Left and the mouse's back button do the same. Screens opened from the menu, or by address, have none,
+and moving within one screen (another track in the Library, another place in the Audio profile) is not a step. Where a
+breadcrumb would go to the same place as Back, that breadcrumb is left out. The Audio profile's own Back is now this
+one; opened by address it still goes to the scene or session it shows. *Data:* none; the steps live in the window. In
+Electron, the mouse's back button on Windows arrives as the window's `app-command` `browser-backward`.
+
+**PLY-16 Add to queue.** The queue icon on every track and playlist in Live (Current scene music, its session and
+campaign menus, Off script, an unfolded scene) is now Add to queue: it goes to the end of the queue in that box's room
+(its To: room when there are two or more; all of them for All rooms), or plays at once when the room is silent. The
+room's box lists the queue as Up next, numbered, each with ×, and Clear; a queued playlist is one item with its track
+count, playing its tracks in that place's order. An 8-second Undo shows in the room's box, and Ctrl+Z works too. The
+queued items play after the current track, before the scene or playlist carries on (question 1). *Data:* none saved;
+the queue is per room and per evening.
+
+**PLY-17 Repeat.** Each Now playing row has Shuffle and Repeat beside Next, standard media icons pressed while on.
+Repeat goes off → all → one; for a playlist it is the PLY-13 play order of that playlist in the place it plays from
+(question 3), so the box's play order button shows the same; for a single track it is off or one. Live's room boxes
+have the same Repeat in their music controls. Each track of Current scene music has Repeat one: that track plays again
+when it ends, in this scene only. It shows on the row on air, when it is on, and on hover or keyboard focus, so seven
+rows do not show seven more icons. *Data:* playlists use `play_orders` (PLY-13); Repeat one needs `repeat_ones
+(place_key, track_id)`, a row present while on.
+
+**ORG-13 Order per place.** An open playlist in a scene (the planner), in Session playlists and in Campaign playlists
+shows a drag handle on each track; drag, or Alt+Up / Alt+Down on any control of the row, moves it, in that place only.
+The list's accessible description says so. Once the order differs, "Order in this scene" and "Back to the playlist's
+order" show above it. Live and the Now playing bar play in that order; shuffle still applies on top. The session's and
+the campaign's playlists can be dragged into order in their panes as well, or moved with Move up / Move down in ⋯.
+*Data:* `track_orders (place_key, playlist_id, track_ids)` beside `play_orders`, keyed the same way ('sc:…', 'ss:…',
+'cp:…'). Tracks it does not name (added later) follow in the playlist's own order; a removed track drops out; the row
+goes when it equals the playlist's order, or with its place or playlist. The panes' own order is the position the
+session's and campaign's playlist lists already keep.
+
+**SHW-7 See a scene before it starts.** A scene's name in Live's Scenes box is a button: click it (or Enter, or Right;
+Left folds) and the scene unfolds in place: its music in the order it will play, each track with its length, Preview
+and Add to queue, then its ambience (with Preview) and its pad boards. The row's Start button plays it. Unfolding never
+changes what plays. The music box is now **Current scene music** and shows only the scene that runs: before the first
+scene it says "No scene yet" and offers the session's and campaign's playlists (question 2). *Data:* none.
+
+**OUT-7 Add bot and Kick.** Outputs' voice channels have no Bring…. Each bot in a channel is a chip with its own ×
+(Kick); a channel with no bot has Add bot, which puts the one free bot there in one click, or offers a short choice
+when there are several (with no bot free, the choice says which room the bot leaves). The bot boxes' Leave is the same
+×. In Live, each room box shows its bot as a button beside Mute and volume: it changes the channel (or puts another free
+bot in this channel) on the page, and also holds Copy what another room plays, Outputs, and Bots and tokens. Its × kicks
+the bot. Kicking never asks: when the players there were hearing something, an Undo (8 s in Live, the undo bar
+elsewhere) puts the bot back and plays what it played from where it was. *Data:* none new.
+
+**OUT-8 Settings in Lyre.** Settings is in the menu (gear, above Look and feel). Discord bots first: each bot with its
+status (Connected, Connecting…, Not connected, Could not connect), the servers it is in (or "In no server yet" with
+Invite it…), Connect or Disconnect, its token as its last four characters with Replace…, and Rename and Remove behind ⋯
+(Remove has Undo; the last bot cannot be removed). Add a bot is a three-step sheet in Discord's order: **1 Create it**
+(Open the Discord Developer Portal; New Application, a name, Create); **2 Invite it**, before Lyre has the token: paste
+the Application ID (General Information) and Open the invite opens
+`https://discord.com/oauth2/authorize?client_id=<id>&scope=bot&permissions=3146752` (View Channels 1024 + Connect
+1048576 + Speak 2097152), choose the server, Authorize; you need Manage Server there; "Or make the invite by hand" folds
+out OAuth2 › URL Generator, Scopes: bot, Bot Permissions: View Channels, Connect, Speak, open the Generated URL;
+**3 Connect it**: Bot › Reset Token › Copy, paste, Connect. Then it says which servers the bot is in, or that it is in
+none yet with the invite again. The other main-window settings Lyre still needs (`src/renderer/features/settings`) are
+the rest of the page: Sound to Discord (Best sound quality or Lighter on the computer, the description on hover),
+and folded, Remote control (Stream Deck: on or off, address, port), Website tabs (address bar, microphones and other
+inputs, several inputs at once, Clear website data) and Local files (folders that open without asking, Ask again).
+Outputs' "Tokens and new bots" and Live's "Bots and tokens" open it, with Back. *Data:* a bot's application ID (new,
+optional, only for the invite link); its servers come from Discord at login and are not saved; the token stays
+encrypted (SEC-5).
+
+Sources for the Discord steps, checked 6 Nov 2026 (discord.com/developers/docs now redirects to docs.discord.com):
+- [Building your first Discord Bot](https://docs.discord.com/developers/quick-start/getting-started): New Application
+  and Create; the Application ID on General Information; Bot › Token › Reset Token, copied once; an app installed to a
+  server "must be authorized by a server member with the `MANAGE_GUILD` permission" (Manage Server). It now invites
+  through the Installation page's Install Link; Lyre's own invite link makes that step unnecessary.
+- [Hosting on Cloudflare Workers](https://docs.discord.com/developers/tutorials/hosting-on-cloudflare-workers): "Click
+  on the OAuth2 tab, and choose the URL Generator. Click the bot … scope", check the permissions, "copy the Generated
+  URL", paste it in the browser and select the server.
+- [OAuth2](https://docs.discord.com/developers/topics/oauth2): the bot authorization URL,
+  `https://discord.com/oauth2/authorize?client_id=…&scope=bot&permissions=…`.
+- [Permissions](https://docs.discord.com/developers/topics/permissions): VIEW_CHANNEL 1 << 10, CONNECT 1 << 20, SPEAK
+  1 << 21, MANAGE_GUILD 1 << 5. The page does not give the client's labels; "View Channels", "Connect", "Speak",
+  "Manage Server" and the Authorize button are the portal's and Discord's own words, not checked against the docs.
+
+### Numbers (round 6 script, 1920×1080; 960×1000 words in brackets)
+
+NUMBERS
+
+### Questions for Nik (round 6, part 2)
+
+1. **Add to queue plays after the current track, before the list carries on.** You wrote "to the end of the currently
+   playing list". *Recommend this:* a scene's or playlist's list with Repeat all never ends, so anything added after
+   it would never play; Up next shows the order, and what you add goes to its end.
+2. **Current scene music keeps the Session and Campaign menus.** It shows only the running scene's own list, but its
+   two menus still open the session's and campaign's playlists there. *Recommend keeping them:* mid-game they are the
+   next place you reach for, and a separate box would add a fifth box to Live.
+3. **Repeat on the bar is the playlist's play order where it plays from**, remembered like the play order button, not
+   only for this play. *Recommend this:* one setting, shown the same on the bar, in Live and in the planner; a repeat
+   for this play only would show one thing on the bar and another in the scene.

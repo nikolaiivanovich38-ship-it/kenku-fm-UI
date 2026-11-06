@@ -67,7 +67,12 @@
   }
   function advance(cur, tg) {
     tg = tg || 'table'; var p = pending(cur, tg); if (!p) return false;
-    if (p.queued) { var q = Q(tg); if (q[0].list) { q[0].list.shift(); if (!q[0].list.length) q.shift(); } else q.shift(); }
+    if (p.queued) {
+      var q = Q(tg), item = q[0];
+      // Once a queued item starts playing, its Undo has nothing left to take back.
+      if (S.undo2 && S.undo2.items && S.undo2.items.indexOf(item) > -1) S.undo2 = null;
+      if (item.list) { item.list.shift(); if (!item.list.length) q.shift(); } else q.shift();
+    }
     playMusic(p.id, p.pl, cur, p.seq, tg); return true;
   }
   function seqMove(d, tg) { var c = M(tg).music, n = c && c.seq ? seqStep(c, d) : null; if (!n) return false; playMusic(n.id, n.pl, c, n.seq, tg); return true; }
@@ -386,7 +391,7 @@
           '<div class="lv-sc-1"><span class="num lv-sc-n" aria-hidden="true">' + (i + 1) + '</span>' +
             (isNow ? '<span class="badge lv-nowb">Now</span>' : isNext ? '<span class="badge lv-nextb">Next</span>' : '') +
             // SHW-7: the name unfolds the scene in place (Enter, or Right; Left folds), without touching what plays.
-            '<button class="lv-sc-name ellipsis" data-act="lvscopen" data-i="' + i + '" data-k="lv-scn-' + i + '" aria-expanded="' + !!S.scOpen[i] + '"' + (S.scOpen[i] ? ' aria-controls="lv-scb-' + i + '"' : '') + ' title="' + esc(sc.name + (sc.when ? '. Starts when: ' + sc.when : '')) + ': ' + (S.scOpen[i] ? 'fold' : 'see what it plays') + '"><span class="sr-only">Scene ' + (i + 1) + ': </span>' + esc(sc.name) + '</button>' +
+            '<button class="lv-sc-name" data-act="lvscopen" data-i="' + i + '" data-k="lv-scn-' + i + '" aria-expanded="' + !!S.scOpen[i] + '"' + (S.scOpen[i] ? ' aria-controls="lv-scb-' + i + '"' : '') + ' title="' + esc(sc.name + (sc.when ? '. Starts when: ' + sc.when : '')) + ': ' + (S.scOpen[i] ? 'fold' : 'see what it plays') + '"><span class="sr-only">Scene ' + (i + 1) + ': </span><span class="ellipsis">' + esc(sc.name) + '</span></button>' +
             '<button class="btn s icon lv-sc-go" data-act="lvstart" data-i="' + i + '" data-k="lv-start-' + i + '" title="' + (isNow ? 'Restart' : 'Start') + ' this scene" aria-label="' + (isNow ? 'Restart' : 'Start') + ' scene ' + (i + 1) + ': ' + esc(sc.name) + '">' + L.icon(isNow ? 'restart' : 'play', 's') + '</button></div>' +
           ((isNow || isNext) && sc.when ? '<div class="lv-sc-when ellipsis" title="Starts when: ' + esc(sc.when) + '"><span class="faint">Starts when</span> ' + esc(sc.when) + '</div>' : '') + notes + (S.scOpen[i] ? sceneInside(sc, i) : '') + '</li>';
       }).join('') + '</ol>' +
@@ -514,7 +519,7 @@
       '<span class="lv-pick-more">' + grpBtn('session', 'Session') + grpBtn('campaign', 'Campaign') + '</span></div>';
     // The box's one text button: play what it shows from the top, in the rooms ticked in Send to.
     var action = isScene && sc ? '<button class="btn s" data-act="lvsctop" data-k="lv-plall" title="Play ' + esc(sc.name) + ' from its first item, in order' + inWhere('music') + '">' + L.icon('broadcast', 's') + 'Play from the top</button>' :
-      pl ? L.orderButton(pl.id, placeOfPl(pl.id)) + queueBtn('music', 'data-whole="' + pl.id + '" data-place="' + esc(placeOfPl(pl.id)) + '"', 'lv-plq', pl.name) + '<button class="btn s" data-act="lvplall" data-id="' + pl.id + '" data-k="lv-plall" title="Play ' + esc(pl.name) + ' from its first track' + inWhere('music') + '">' + L.icon('broadcast', 's') + 'Play from the top</button>' : '';
+      pl ? L.orderButton(pl.id, placeOfPl(pl.id)) + '<button class="btn s" data-act="lvplall" data-id="' + pl.id + '" data-k="lv-plall" title="Play ' + esc(pl.name) + ' from its first track' + inWhere('music') + '">' + L.icon('broadcast', 's') + 'Play from the top</button>' : '';
     var playing = rooms().some(function (r) { var c = r.mix.music; return c && (isScene ? c.seq && c.seq.cid === live().cid && c.seq.sid === live().sid && sess().scenes[c.seq.scene] === sc : c.playlistId === sel); });
     var list = isScene && sc ? sceneList(sc) : pl ? '<ol class="lv-list" aria-label="Tracks in ' + esc(pl.name) + '">' + tracks.map(function (t) { return trackRow(t, 'pl', { pl: pl.id, rep: placeOfPl(pl.id) }); }).join('') + '</ol>' :
       (sc ? '<p class="empty">Nothing is assigned to this scene, session or campaign. Use Off script to find a track.</p>' : '<p class="empty">No scene is running yet.</p>');
@@ -664,7 +669,11 @@
     L.menu(el, '<div class="group">' + (el.dataset.g === 'session' ? 'This session' : 'This campaign') + '</div>' + g.map(function (id) {
       var p = L.playlist(id);
       return '<button role="menuitemradio" aria-checked="' + (id === sel) + '" data-act="lvpl" data-id="' + id + '">' + (id === sel ? L.icon('check', 's') : '<span style="width:14px"></span>') + '<span class="grow ellipsis">' + esc(p.name) + '</span><span class="faint">' + L.playlistTracks(p).length + '</span></button>';
-    }).join('') + (tr.length ? '<div class="group">Single tracks</div>' + tr.map(function (id) {
+    }).join('') +
+      // PLY-16: a whole session or campaign playlist goes to the queue from here (the box header has no room for it).
+      '<div class="group">Add to queue</div>' + g.map(function (id) {
+        return '<button role="menuitem" data-act="lvqueue" data-box="music" data-whole="' + id + '" data-place="' + esc(placeOfPl(id)) + '">' + L.icon('queue', 's') + '<span class="grow ellipsis">Add to queue: ' + esc(plName(id)) + '</span></button>';
+      }).join('') + (tr.length ? '<div class="group">Single tracks</div>' + tr.map(function (id) {
       var t = L.track(id); return '<button role="menuitem" data-act="lvplay" data-box="music" data-id="' + id + '" data-pl="">' + L.icon('broadcast', 's') + '<span class="grow ellipsis">Play on air: ' + esc(L.title(t)) + '</span><span class="faint">' + L.fmt(t.dur) + '</span></button>' +
         '<button role="menuitem" data-act="lvqueue" data-box="music" data-id="' + id + '" data-pl="">' + L.icon('queue', 's') + '<span class="grow ellipsis">Add to queue: ' + esc(L.title(t)) + '</span></button>';
     }).join('') : ''), 'Playlists');
@@ -758,7 +767,9 @@
   };
   L.acts.lvaddroom = function (el) {
     var idle = L.bots().filter(function (b) { return b.status === 'idle'; });
-    L.menu(el, idle.map(function (b) { return '<div class="group">' + esc(b.name) + ' joins…</div>' + channelItems(b, 'lvaddjoin'); }).join('') || '<div class="item muted">Every bot is in a room.</div>', 'Add a room');
+    // OUT-8: a new bot is made in Settings (the menu's last item).
+    L.menu(el, (idle.map(function (b) { return '<div class="group">' + esc(b.name) + ' joins…</div>' + channelItems(b, 'lvaddjoin'); }).join('') || '<div class="item muted">Every bot is in a room.</div>') +
+      '<div class="sep"></div><a role="menuitem" class="item" href="#/settings">' + L.icon('plus', 's') + 'New bot…</a>', 'Add a room');
   };
   L.acts.lvaddjoin = function (el) {
     var b = L.bot(el.dataset.id), c = L.channel(el.dataset.g, el.dataset.c); if (!b || !c) return;
@@ -795,6 +806,7 @@
     if (added.length) {
       var tg0 = added[0].tg, back = el.dataset.k;
       softUndo('Added to the queue: ' + name, function () { added.forEach(function (a) { var q = Q(a.tg), i = q.indexOf(a.item); if (i > -1) q.splice(i, 1); }); }, 'room:' + tg0, back);
+      S.undo2.items = added.map(function (a) { return a.item; });
       L.say('Added to the queue' + (rooms().length > 1 ? ' in ' + toName(el.dataset.box || 'music') : '') + ': ' + name + '. Undo is available for 8 seconds, or press Ctrl+Z.');
     } else if (started) L.say('Playing now: ' + name);
     L.render();

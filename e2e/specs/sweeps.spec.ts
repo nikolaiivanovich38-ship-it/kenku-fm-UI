@@ -76,23 +76,16 @@ const SCREENS: Screen[] = [
     owner: "round 6",
     route: "live",
     prepare: async (page) => {
+      // Narrow, the list shows only Now and Next until "Show all 6 scenes".
+      const all = page.getByRole("button", { name: "Show all 6 scenes" });
+      if (await all.isVisible()) await all.click();
       await page.getByRole("button", { name: "Scene 3: The abbey ruins", exact: true }).click();
       await expect(page.getByRole("list", { name: "The abbey ruins: music in play order" })).toBeVisible();
     },
   },
   { name: "Outputs", owner: "outputs", route: "outputs" },
-  // Round 6, part 2 (OUT-8): Settings in Lyre, with the Add a bot stepper's second step showing.
+  // Round 6, part 2 (OUT-8): Settings in Lyre.
   { name: "Settings", owner: "settings", route: "settings" },
-  {
-    name: "Add a bot, step 2",
-    owner: "settings",
-    route: "settings",
-    prepare: async (page) => {
-      await page.getByRole("button", { name: "Add a bot" }).click();
-      await page.getByRole("dialog").getByRole("button", { name: "Next" }).click();
-      await page.getByRole("dialog").getByRole("button", { name: "Or make the invite by hand" }).click();
-    },
-  },
   { name: "Look and feel", owner: "look", route: "look" },
   // Round 5 (design/prototype/ROUND5.md): the three new screens, with their tables and choices showing.
   {

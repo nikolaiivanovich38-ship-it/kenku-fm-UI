@@ -171,6 +171,8 @@ Design round 5 (`design/prototype/ROUND5.md`) added a `round 5` block to the ses
 
 Design round 6 (`design/prototype/ROUND6.md`) took text off the screen and into accessible descriptions and hover text. Checks that read the removed text now check the accessible description, or count rows where an open box no longer repeats its count (markers, spare pads), so most pass in the app as it is. The checks the app does not meet yet (the key legend shown only while the keyboard is in the list, the picker's and the session lists' descriptions, a resting status shown only on a folded box, the loop crossfade's and spare pads' descriptions) call `expectFailureUntilBuilt("round 6")`.
 
+Round 6, part 2 (`ROUND6.md`, "Your notes on 0.4.0") added a `round 6` block to the Live, Outputs and campaigns spec files, `settings.spec.ts` for Settings in Lyre (`#/settings`, the `settings` screen in `screenOfRoute`), and two sweep screens (a scene unfolded in Live, and Settings). Checks of controls the app already has under their round 5 names read either name (`Scene music` or `Current scene music`, `Play next` or `Add to queue`, `Bring a bot to` or `Add bot to`, `Leave` or `Kick`), so they keep passing in the app; the row play order button in the Now playing bar became Shuffle and Repeat and is checked in the round 6 block.
+
 ### Running them
 
 ```

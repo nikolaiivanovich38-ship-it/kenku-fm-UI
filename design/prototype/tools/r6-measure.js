@@ -47,6 +47,10 @@ const SCREENS = [
   ['backup-open', '#backup', click('[data-act=tfchoose]')],
   ['moved', '#moved', ''],
   ['relink', '#relink', click('[data-act=tflook]')],
+  // Round 6, part 2 (ROUND6.md "Your notes on 0.4.0"): Settings, a scene unfolded in Live, an open scene playlist.
+  ['settings', '#settings', ''],
+  ['live-scene-open', '#live', playScene + click('[data-act=lvscopen][data-i="3"]')],
+  ['planner-playlist-open', '#session--crown--s14', click('[data-act=cpscene][data-id=sc3]') + click('[data-key="cp-sc3:music:p-abbey-eerie"]')],
   ['bar-both', '#session--crown--s14', "var D = L.data, b1 = D.discord.bots[0], b2 = D.discord.bots[1]; b2.status = 'connected'; b2.server = b1.server; b2.channel = 'c2'; var m = D.tracks.filter(function (t) { return t.kind === 'music'; }); L.play(m[0].id, { lane: 'music', target: b1.id }); L.play(m[3].id, { lane: 'music', target: b2.id }); L.preview(m[5].id); L.pauseLane('music', b2.id);"],
 ];
 const SIZES = (process.env.SIZES || '1920x1080,960x1000').split(',').map((s) => s.split('x').map(Number));

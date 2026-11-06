@@ -50,14 +50,14 @@
       : '<span class="st-tok num" title="Kept encrypted on this computer; only the last four characters show">' + (b.token ? '••••••••' + esc(b.token) : '<span class="faint">No token</span>') + '</span>' +
         '<button class="btn s ghost" data-act="sttokrep" data-id="' + b.id + '" data-k="' + k + '-tokrep" aria-label="Replace the token of ' + esc(b.name) + '">Replace…</button>';
     var on = b.login === 'online' || b.login === 'connecting';
-    return '<li class="st-bot" role="group" aria-label="' + esc(b.name) + '">' +
+    return '<div class="st-bot" role="group" aria-label="' + esc(b.name) + '">' +
       '<div class="st-bot-1"><b class="ellipsis">' + esc(b.name) + '</b><span class="pane-status s-' + loginTone(b) + '">' + loginWords(b) + '</span><span class="grow"></span>' +
         '<button class="btn s' + (on ? '' : ' primary') + '" data-act="stconn" data-id="' + b.id + '" data-k="' + k + '-conn"' + (b.login === 'connecting' ? ' aria-disabled="true"' : '') + '>' + (on ? 'Disconnect' : 'Connect') + '</button>' +
         '<button class="closer" data-act="stbotmenu" data-id="' + b.id + '" data-k="' + k + '-more" aria-haspopup="menu" aria-expanded="false" title="More for ' + esc(b.name) + '" aria-label="More for ' + esc(b.name) + '">' + L.icon('more') + '</button></div>' +
       '<div class="st-bot-2"><span class="st-l">Token</span>' + token + '</div>' +
       (b.login === 'online' ? '<div class="st-bot-2"><span class="st-l">Servers</span>' + (srv.length ? '<span class="ellipsis" title="' + esc(srv.join(', ')) + '">' + esc(srv.join(', ')) + '</span>'
         : '<span class="st-none">' + L.icon('warn', 's') + 'In no server yet</span>' + (b.appId ? '<a class="btn s" href="' + esc(L.inviteURL(b.appId)) + '" target="_blank" rel="noopener" data-act="stinvite" data-id="' + b.id + '" data-k="' + k + '-inv">Invite it…</a>' : '')) + '</div>' : '') +
-      (b.login === 'error' ? '<p class="st-err" role="alert">' + L.icon('warn', 's') + esc(b.error || 'Discord refused the token') + '</p>' : '') + '</li>';
+      (b.login === 'error' ? '<p class="st-err" role="alert">' + L.icon('warn', 's') + esc(b.error || 'Discord refused the token') + '</p>' : '') + '</div>';
   }
   L.acts.stconn = function (el) {
     var b = L.bot(el.dataset.id); if (!b || b.login === 'connecting') return;
@@ -216,7 +216,7 @@
       var botPane = L.pane({ id: 'st-bots', title: 'Discord bots', icon: 'users', kind: 'onair', size: 'auto', noMax: true, cls: 'is-silent',
         actions: '<button class="btn s" data-act="stadd" data-k="st-add">' + L.icon('plus', 's') + 'Add a bot</button>',
         describe: 'Each bot is one voice in Discord: one room at a time.',
-        body: '<ul class="list st-bots">' + bots.map(botRow).join('') + '</ul>' });
+        body: '<div class="st-bots">' + bots.map(botRow).join('') + '</div>' });
       var sound = L.pane({ id: 'st-sound', title: 'Sound to Discord', icon: 'broadcast', kind: 'plain', size: 'auto', noMax: true, body: soundBody(),
         describe: 'Both send sound to Discord with the same short delay. A change applies the next time a bot joins a voice channel.' });
       var remote = L.pane({ id: 'st-remote', title: 'Remote control', icon: 'link', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: remoteBody(), status: { text: S.remote ? 'On' : 'Off', tone: S.remote ? 'on' : 'idle' } });

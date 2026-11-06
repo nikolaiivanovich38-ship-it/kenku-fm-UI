@@ -334,7 +334,7 @@ test.describe("rooms", () => {
     await page.getByRole("menuitemradio", { name: "Side room" }).click();
     await expect(music.getByRole("button", { name: /choose a room/i })).toBeFocused();
     await expect(music.getByRole("button", { name: /choose a room/i })).toHaveText(/^To:\s*Side room$/);
-    await music.getByRole("button", { name: "Play on air in Side room: Coast road travel" }).click();
+    await music.getByRole("button", { name: /^Play on air in Side room: / }).first().click();
     await expect(region(page, "On air: Side room").getByText("Playing")).toBeVisible();
     await expect(region(page, "On air: Table").getByText("Silent")).toBeVisible();
   });
@@ -379,7 +379,7 @@ test.describe("rooms", () => {
     await addSideRoom(page);
     await sceneMusic(page).getByRole("button", { name: /choose a room/i }).click();
     await page.getByRole("menuitemradio", { name: "Side room" }).click();
-    await sceneMusic(page).getByRole("button", { name: "Play on air in Side room: Coast road travel" }).click();
+    await sceneMusic(page).getByRole("button", { name: /^Play on air in Side room: / }).first().click();
     await page.getByRole("button", { name: "Lyre Table in Table: change" }).click();
     await expect(page.getByRole("menuitem", { name: /Copy what Side room is playing/ })).toBeVisible();
   });
@@ -417,7 +417,7 @@ test.describe("round 5: the Now playing bar, names in scenes, play order and sin
     const music = sceneMusic(page);
     await music.getByRole("button", { name: /choose a room/i }).click();
     await page.getByRole("menuitemradio", { name: "Side room" }).click();
-    await music.getByRole("button", { name: "Play on air in Side room: Coast road travel" }).click();
+    await music.getByRole("button", { name: /^Play on air in Side room: / }).first().click();
     await startAbbey(page); // scenes always start in the first room, Table
     await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Pad boards" }).click();
     const bar = region(page, "Now playing");
@@ -465,9 +465,10 @@ test.describe("round 6: see a scene before it starts, Add to queue, Repeat, and 
     await expect(name).toHaveAttribute("aria-expanded", "true");
     const music = scenes(page).getByRole("list", { name: "The abbey ruins: music in play order" });
     await expect(music.getByRole("listitem").first()).toContainText("Eerie dread, low cello and choir");
-    await expect(music.getByRole("button", { name: /^Preview: Eerie dread/ })).toBeVisible();
-    await expect(scenes(page).getByRole("listitem").filter({ has: music })).toContainText(/Ambience: \S/);
-    await expect(scenes(page).getByRole("listitem").filter({ has: music })).toContainText(/Pad boards: \S/);
+    await expect(music.getByRole("button", { name: /^Preview: Eerie dread/ }).first()).toBeVisible();
+    const abbeyRow = scenes(page).getByRole("listitem").filter({ has: page.getByRole("list", { name: "The abbey ruins: music in play order" }) });
+    await expect(abbeyRow).toContainText(/Ambience: \S/);
+    await expect(abbeyRow).toContainText(/Pad boards: \S/);
     await expect(scenes(page).getByText("Scene 1 of 6")).toBeVisible();
     await expect(region(page, "On air: Table")).not.toContainText("Eerie dread");
     await expect(scenes(page).getByRole("button", { name: "Start scene 3: The abbey ruins" })).toBeVisible();

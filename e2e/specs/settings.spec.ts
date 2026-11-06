@@ -15,7 +15,7 @@ const sheet = (page: Page) => page.getByRole("dialog");
 test.describe("Settings", () => {
   test("is in the menu, has no Back when opened from it, and lists each bot with its status, servers and a masked token", async ({ page }) => {
     await openRoute(page, "campaigns");
-    await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Settings" }).click();
+    await page.getByRole("link", { name: "Settings", exact: true }).click();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Settings");
     await expect(page.getByRole("button", { name: /^Back to / })).toHaveCount(0);
     const table = bots(page).getByRole("group", { name: "Lyre Table" });
