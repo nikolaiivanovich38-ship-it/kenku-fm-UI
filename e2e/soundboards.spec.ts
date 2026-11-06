@@ -17,7 +17,8 @@ test("add sounds, play them with and without loop and fades, stop, edit, delete"
   await createSoundboard(page, "Dungeon");
   await openCard(page, "Dungeon");
 
-  // No fades: played with Web Audio, which downloads the file first.
+  // No fades: streamed with an audio element on its first play, then, once Lyre knows it is short, decoded with
+  // Web Audio (PERF-7). The one-shot below plays it both ways.
   await addSound(page, door, "Door Creak", { fadeIn: 0, fadeOut: 0 });
   // Fades: played with an audio element so loops can cross-fade.
   await addSound(page, rain, "Rain", { fadeIn: 300, fadeOut: 300 });

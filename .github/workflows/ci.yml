@@ -1,5 +1,15 @@
 # FND-5: quality gate. Runs on every push and pull request, and is called by
 # release.yml so a release can only be built from code that passes it.
+#
+# Every push: type check, lint, unit tests, script tests, dependency audit,
+# secret scan (about 8 minutes) and, on Windows, the packaged app's smoke test
+# with the axe accessibility checks (about 10 minutes); CodeQL runs beside it
+# (codeql.yml, about 5 minutes). Pull requests, "Run workflow" and releases run
+# every end-to-end test instead of the smoke test (about 30 minutes). The jobs
+# run side by side, so a push is checked in about 10 minutes.
+#
+# A failing job ends with a step that says in plain words what failed and what
+# to do; GitHub shows it on the pull request and in the run's summary.
 name: CI
 
 on:
@@ -8,6 +18,11 @@ on:
   pull_request:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      full-e2e:
+        description: Run every end-to-end test, not only the smoke test and the accessibility checks
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -32,18 +47,23 @@ jobs:
           node-version: "22.x"
           cache: "yarn"
       - name: Install dependencies (exactly as locked)
+        id: install
         run: yarn install --frozen-lockfile --non-interactive
       - name: Type check
+        id: types
         run: yarn typecheck
       - name: Lint
+        id: lint
         run: yarn lint
       - name: Unit and component tests with coverage
+        id: tests
         # Performance budgets x3 here: coverage on shared runners measures about 2 to 3 times slower than the
         # build machine, where the release checks hold them as stated (src/main/data/testing/perfBudget.ts).
         env:
           CUE_DESK_PERF_SLACK: "3"
         run: yarn test:coverage
       - name: Tests for build scripts
+        id: scripts
         run: yarn test:scripts
       - name: Upload coverage report
         if: always()
@@ -53,9 +73,27 @@ jobs:
           path: coverage/
           if-no-files-found: warn
           retention-days: 14
+      - name: Say what failed, in plain words
+        if: failure()
+        shell: bash
+        env:
+          INSTALL: ${{ steps.install.outcome }}
+          TYPES: ${{ steps.types.outcome }}
+          LINT: ${{ steps.lint.outcome }}
+          TESTS: ${{ steps.tests.outcome }}
+          SCRIPTS: ${{ steps.scripts.outcome }}
+        run: |
+          say() { echo "::error title=$1::$2"; echo "- **$1**: $2" >> "$GITHUB_STEP_SUMMARY"; }
+          if [ "$INSTALL" = failure ]; then say "Install failed" "The libraries could not be installed exactly as yarn.lock lists them. Run yarn install and commit yarn.lock."; fi
+          if [ "$TYPES" = failure ]; then say "Type check failed" "Some code does not match its types. Run yarn typecheck to see where."; fi
+          if [ "$LINT" = failure ]; then say "Lint failed" "Some code breaks the code rules. Run yarn lint to see where."; fi
+          if [ "$TESTS" = failure ]; then say "Tests failed" "A unit or component test failed: something no longer works as it should. Run yarn test to see which."; fi
+          if [ "$SCRIPTS" = failure ]; then say "Script tests failed" "A test of the build scripts or the workflows failed. Run yarn test:scripts to see which."; fi
 
   e2e:
-    # FND-4: start the packaged app and check it opens without errors.
+    # FND-4: start the packaged app and check it opens without errors; axe
+    # checks the Lyre page's accessibility (e2e/lyre.spec.ts). Every test for
+    # pull requests, by hand and for a release.
     name: End-to-end tests (packaged app, Windows)
     # FND-10: the app has no modules compiled from C++ (zlib-sync was
     # dropped), so no Visual Studio is needed and the current image works.
@@ -72,14 +110,22 @@ jobs:
           node-version: "22.x"
           cache: "yarn"
       - name: Install dependencies (exactly as locked)
+        id: install
         run: yarn install --frozen-lockfile --non-interactive
       # CUE_DESK_E2E_BUILD keeps the --inspect fuse on so Playwright can drive
       # the app.
       - name: Package the app for testing
+        id: package
         run: yarn package --arch=x64
         env:
           CUE_DESK_E2E_BUILD: "1"
-      - name: Run end-to-end tests
+      - name: Smoke test and accessibility checks
+        id: smoke
+        if: ${{ !(inputs.full-e2e || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch') }}
+        run: yarn e2e smoke.spec lyre.spec
+      - name: Run every end-to-end test
+        id: full
+        if: ${{ inputs.full-e2e || github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' }}
         run: yarn e2e
       - name: Upload end-to-end report
         if: failure()
@@ -91,6 +137,20 @@ jobs:
             test-results/
           if-no-files-found: ignore
           retention-days: 14
+      - name: Say what failed, in plain words
+        if: failure()
+        shell: bash
+        env:
+          INSTALL: ${{ steps.install.outcome }}
+          PACKAGE: ${{ steps.package.outcome }}
+          SMOKE: ${{ steps.smoke.outcome }}
+          FULL: ${{ steps.full.outcome }}
+        run: |
+          say() { echo "::error title=$1::$2"; echo "- **$1**: $2" >> "$GITHUB_STEP_SUMMARY"; }
+          if [ "$INSTALL" = failure ]; then say "Install failed" "The libraries could not be installed on Windows exactly as yarn.lock lists them."; fi
+          if [ "$PACKAGE" = failure ]; then say "Packaging failed" "The app could not be built on Windows. Run yarn package to see why."; fi
+          if [ "$SMOKE" = failure ]; then say "The app did not start cleanly, or failed an accessibility check" "Download the e2e-report artifact: it shows the screen, the test and the app's log."; fi
+          if [ "$FULL" = failure ]; then say "An end-to-end test failed" "Something a game master does in the app no longer works. Download the e2e-report artifact for the screen, the test and the app's log."; fi
 
   dependency-audit:
     name: Dependency audit (shipped libraries and Electron)
@@ -108,6 +168,12 @@ jobs:
       # Fails on high/critical advisories not listed in scripts/audit-allowlist.json.
       - name: Check for new high or critical advisories
         run: node scripts/audit-check.mjs
+      - name: Say what failed, in plain words
+        if: failure()
+        shell: bash
+        run: |
+          echo "::error title=A library Lyre ships has a known security problem::Upgrade the library named above (docs/DEVELOPING.md > Dependency audit), or, if it cannot be done yet, record why in scripts/audit-allowlist.json."
+          echo "- **Dependency audit**: a library Lyre ships has a high or critical security advisory; see the step above." >> "$GITHUB_STEP_SUMMARY"
 
   secret-scan:
     name: Secret scan
@@ -125,3 +191,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITLEAKS_ENABLE_COMMENTS: "false"
+      - name: Say what failed, in plain words
+        if: failure()
+        shell: bash
+        run: |
+          echo "::error title=A password, token or key may be in the code::Remove it, change it where it is used (it is public now), and push again. The step above names the file and line."
+          echo "- **Secret scan**: something that looks like a password, token or key was committed." >> "$GITHUB_STEP_SUMMARY"

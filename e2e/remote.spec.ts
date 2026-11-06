@@ -1,10 +1,14 @@
 /**
  * The remote-control API used by Kenku Remote and the Stream Deck plugin
  * (src/main/remote): switched on in Settings, then driven over HTTP the way
- * those tools do (https://www.kenku.fm/docs/using-kenku-remote).
+ * those tools do (https://www.kenku.fm/docs/using-kenku-remote), with the
+ * secret code (SEC-4) read through the Lyre page's bridge, as round 7's
+ * Settings will show it.
  */
+import http from "http";
 import net from "net";
 import { test, expect } from "./fixtures/app";
+import { openLyreTab } from "./fixtures/lyre";
 import { writeSineWav } from "./fixtures/audio";
 import { addSound, addTrack, card, createPlaylist, createSoundboard, openCard, transport } from "./fixtures/player";
 
@@ -27,6 +31,9 @@ type SoundboardsReply = {
   sounds: { id: string; title: string }[];
 };
 type SoundboardPlaybackReply = { sounds: { id: string; title: string }[] };
+/** The Lyre page's remote settings bridge (src/common/remoteControl.ts RemoteBridge), as far as this test uses it. */
+type RemoteState = { enabled: boolean; running: boolean; address: string; port: number; code: string };
+type LyreWindow = { lyre: { remote: { get(): Promise<RemoteState> } } };
 
 test("Stream Deck / Kenku Remote API controls playlists and soundboards", async ({
   mainWindow,
@@ -44,6 +51,14 @@ test("Stream Deck / Kenku Remote API controls playlists and soundboards", async 
   await openCard(page, "Remote Board");
   await addSound(page, thunder, "Thunder");
 
+  // SEC-4: the secret code, as the Lyre page gets it. The remote is off until it is turned on.
+  const lyre = await openLyreTab(mainWindow);
+  const before = await lyre.evaluate(() => (window as unknown as LyreWindow).lyre.remote.get());
+  expect(before).toMatchObject({ enabled: false, running: false, address: "127.0.0.1" });
+  const code = before.code;
+  expect(code).toMatch(/^[0-9A-Z]{4}(-[0-9A-Z]{4}){4}$/);
+  await mainWindow.getByRole("list", { name: "Tabs" }).getByRole("button", { name: "Lyre Player" }).click();
+
   // Switch the remote on, on a free port.
   const port = await freePort();
   const base = `http://127.0.0.1:${port}/v1`;
@@ -54,24 +69,41 @@ test("Stream Deck / Kenku Remote API controls playlists and soundboards", async 
   await settings.getByRole("button", { name: "Start Remote" }).click();
   await expect(settings.getByRole("button", { name: "Stop Remote" })).toBeVisible();
 
+  const authorization = `Bearer ${code}`;
   const get = async <T>(path: string): Promise<T> => {
-    const response = await fetch(`${base}${path}`);
+    const response = await fetch(`${base}${path}`, { headers: { authorization } });
     expect(response.status, `GET ${path}`).toBe(200);
     return (await response.json()) as T;
   };
   const put = async (path: string, body?: unknown) => {
     const response = await fetch(`${base}${path}`, {
       method: "PUT",
-      ...(body === undefined ? {} : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
+      headers: { authorization, ...(body === undefined ? {} : { "content-type": "application/json" }) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     expect(response.status, `PUT ${path}`).toBe(200);
   };
+
+  // SEC-4: without the code, from a web page, by a borrowed web name or as text/plain, nothing happens.
+  expect((await fetch(`${base}/playlist`)).status).toBe(401);
+  expect((await fetch(`${base}/playlist`, { headers: { authorization: "Bearer AAAA-BBBB-CCCC-DDDD-EEEE" } })).status).toBe(401);
+  expect((await fetch(`${base}/playlist`, { headers: { authorization, origin: "https://attacker.example" } })).status).toBe(403);
+  expect(await statusWithHost(port, `attacker.example:${port}`, authorization)).toBe(403);
+  const plain = await fetch(`${base}/playlist/play`, {
+    method: "PUT",
+    headers: { authorization, "content-type": "text/plain" },
+    body: JSON.stringify({ id: "nothing" }),
+  });
+  expect(plain.status).toBe(415);
 
   // Playlists and their tracks.
   const library = await get<PlaylistsReply>("/playlist");
   expect(library.playlists.map((playlist) => playlist.title)).toEqual(["Remote Playlist"]);
   const march = library.tracks.find((track) => track.title === "March");
   expect(march).toBeDefined();
+  // SEC-4: answers do not show where the files are.
+  expect(JSON.stringify(library)).not.toContain("file:");
+  expect(march).not.toHaveProperty("url");
   expect(library.playlists[0].tracks).toEqual([march.id]);
 
   // Nothing is playing yet.
@@ -119,4 +151,17 @@ test("Stream Deck / Kenku Remote API controls playlists and soundboards", async 
   await settings.getByRole("button", { name: "Stop Remote" }).click();
   await expect(settings.getByRole("button", { name: "Start Remote" })).toBeVisible();
   await expect.poll(() => fetch(`${base}/playlist`).then(() => "open", () => "closed")).toBe("closed");
+  await expect.poll(() => lyre.evaluate(() => (window as unknown as LyreWindow).lyre.remote.get().then((state) => state.enabled))).toBe(false);
 });
+
+/** fetch() always sends the address it connects to as Host; DNS rebinding sends a web name instead. */
+function statusWithHost(port: number, host: string, authorization: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const request = http.request({ host: "127.0.0.1", port, path: "/v1/playlist", headers: { host, authorization } }, (response) => {
+      response.resume();
+      resolve(response.statusCode ?? 0);
+    });
+    request.on("error", reject);
+    request.end();
+  });
+}

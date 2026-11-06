@@ -108,49 +108,40 @@ export const playlistPlaybackSlice = createSlice({
         state.queue.current = state.queue.tracks.indexOf(currentId);
       }
     },
+    /**
+     * Take a deleted track out of the queue and keep the right track current. `current` is a position in the
+     * shuffled order with shuffle on and in the playlist's own order with it off (BUG-11: it used to be read in the
+     * shuffled order either way). Removing the current track makes the next one in play order current; removing
+     * the last one in play order gives -1, as before.
+     */
     removeTrackFromQueue: (
       state,
       action: PayloadAction<{ playlistId: string; trackId: string }>,
     ) => {
-      if (state.queue && state.queue.playlistId === action.payload.playlistId) {
-        // create a list of tracks in the same order as state.queue.shuffle
-        let shuffleListWithTracks = [];
-        for (const value of state.queue.shuffled) {
-          const track = state.queue.tracks[value];
-          shuffleListWithTracks.push(track);
-        }
-
-        const currentTrack = shuffleListWithTracks[state.queue.current];
-        const cacheQueue = [...state.queue.tracks];
-
-        // remove the track from the shuffleListWithTracks and the queue tracks
-        shuffleListWithTracks = shuffleListWithTracks.filter(
-          (track) => track !== action.payload.trackId,
-        );
-        state.queue.tracks = state.queue.tracks.filter(
-          (track) => track !== action.payload.trackId,
-        );
-
-        // create the shuffle list with indices only
-        const newShuffleOrder = [];
-        for (const track of shuffleListWithTracks) {
-          newShuffleOrder.push(state.queue.tracks.indexOf(track));
-        }
-
-        // get the index of the current track in the new shuffle queue
-        let newCurrentValue = shuffleListWithTracks.indexOf(currentTrack);
-        if (newCurrentValue === -1) {
-          // if the value was deleted then determine the next item
-          const value = state.queue.shuffled[state.queue.current + 1];
-          const nextTrack = cacheQueue[value];
-          newCurrentValue = shuffleListWithTracks.indexOf(nextTrack);
-        }
-
-        // set the new shuffle queue order
-        state.queue.shuffled = newShuffleOrder;
-        // set the index of current value according to the new shuffle order
-        state.queue.current = newCurrentValue;
+      const queue = state.queue;
+      if (!queue || queue.playlistId !== action.payload.playlistId) {
+        return;
       }
+      const removed = action.payload.trackId;
+      const shuffledIds = queue.shuffled.map((index) => queue.tracks[index]);
+      const playOrderBefore = state.shuffle ? shuffledIds : [...queue.tracks];
+      const currentId = playOrderBefore[queue.current];
+
+      const tracks = queue.tracks.filter((track) => track !== removed);
+      const remainingShuffledIds = shuffledIds.filter((track) => track !== removed);
+      const playOrderAfter = state.shuffle ? remainingShuffledIds : tracks;
+
+      let current: number;
+      if (currentId !== removed) {
+        current = playOrderAfter.indexOf(currentId);
+      } else {
+        const nextId = playOrderBefore.slice(queue.current + 1).find((track) => track !== removed);
+        current = nextId === undefined ? -1 : playOrderAfter.indexOf(nextId);
+      }
+
+      queue.tracks = tracks;
+      queue.shuffled = remainingShuffledIds.map((track) => tracks.indexOf(track));
+      queue.current = current;
     },
     addTrackToQueueIfNeeded: (
       state,

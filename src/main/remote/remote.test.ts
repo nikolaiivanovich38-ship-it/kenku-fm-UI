@@ -85,8 +85,8 @@ let requests: PlayerRequests;
 async function startRemote(timeoutMs = 50) {
   requests = new PlayerRequests(timeoutMs);
   app = Fastify();
-  const manager = { fastify: app, getView: () => view, requests };
-  registerRemote(manager as never);
+  const manager = { getView: () => view, requests };
+  registerRemote(app, manager as never);
   await app.ready();
 }
 

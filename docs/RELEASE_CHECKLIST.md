@@ -17,6 +17,7 @@ Release: `vX.Y.Z` · Date: ____ · Checked by: ____
 - [ ] `scripts/audit-allowlist.json` reviewed: each entry still needed, its backlog item still planned, `reviewed` date updated. Stale entries removed.
 - [ ] Audit allowlist expiry dates reviewed: no `reviewBy` date falls before the next planned release (the gate fails once one passes). For each entry near its date, either the backlog item (for example the Electron upgrade, SEC-1) is done and the entry removed, or the entry is re-checked and given a new date.
 - [ ] No secrets, tokens or personal data in the code, logs or release files.
+- [ ] Electron update (monthly, and before every release; SEC-1): on https://releases.electronjs.org, find the newest patch of Lyre's Electron major and which majors are still supported. Upgrade to the newest patch published at least 14 days ago, or to a newer major when Lyre's has under two months of support left; update `FALLBACK_CHROME_VERSION` in `src/main/userAgent.ts` and, when a major leaves support, `OLDEST_SUPPORTED_MAJOR` in `scripts/electron-support.test.mjs`; then run every check above. Date of the last check: ____
 
 ## Usability (on the packaged app)
 

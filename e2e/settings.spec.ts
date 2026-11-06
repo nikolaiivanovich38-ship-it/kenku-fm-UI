@@ -108,7 +108,9 @@ test("Remote control is described in plain words and links only to the Stream De
   const settings = mainWindow.getByRole("dialog", { name: "Settings" });
   await expect(settings.getByText("What is Kenku Remote?")).toHaveCount(0);
   await expect(settings.getByText(/Lets a Stream Deck or another program control the player/)).toBeVisible();
-  await expect(settings.getByText(/Works with the existing Kenku FM Stream Deck plugin/)).toBeVisible();
+  // SEC-4: the remote needs Lyre's secret code, which the Kenku FM plugin does not send.
+  await expect(settings.getByText(/Every remote request must now carry Lyre's secret code/)).toBeVisible();
+  await expect(settings.getByText(/Works with the existing Kenku FM Stream Deck plugin/)).toHaveCount(0);
   await expect(settings.getByRole("link", { name: "About the Kenku FM Stream Deck plugin" })).toHaveAttribute(
     "href",
     "https://www.kenku.fm/docs/using-kenku-remote",
