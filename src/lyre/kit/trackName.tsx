@@ -29,11 +29,14 @@ export function ownNameTitle(n: { name: string; own: string }): string {
   return n.name !== n.own ? `Its own name: ${n.own}` : n.own;
 }
 
-/** A track's name in a place, with its own name on hover (and read out) where the scene calls it something else. */
-export function TrackName({ track, place, names, className }: { track: NamedTrack; place: UsePlace | null; names: TrackNames; className?: string }) {
+/**
+ * A track's name in a place, with its own name on hover (and read out) where the scene calls it something else.
+ * `hover`: more words for the hover, after the name (the Now playing bar's normalising, PLY-15).
+ */
+export function TrackName({ track, place, names, className, hover }: { track: NamedTrack; place: UsePlace | null; names: TrackNames; className?: string; hover?: string }) {
   const n = trackNameAt(track, place, names);
   return (
-    <span className={className} title={ownNameTitle(n)}>
+    <span className={className} title={hover ? `${ownNameTitle(n)} · ${hover}` : ownNameTitle(n)}>
       {n.name}
       {n.name !== n.own && <span className="sr-only"> (its own name: {n.own})</span>}
     </span>

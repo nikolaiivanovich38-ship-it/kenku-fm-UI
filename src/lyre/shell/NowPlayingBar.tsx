@@ -17,9 +17,10 @@
  * or the row that held the keyboard focus, goes away (Stop), focus goes to the bar's first control, or to the
  * screen's heading when the whole bar has gone, so keyboard users are not sent back to the top of the page.
  */
-import React, { useLayoutEffect, useRef } from "react";
+import React, { useCallback, useLayoutEffect, useMemo, useRef } from "react";
 
-import { originWords } from "../../common/domain";
+import { DEFAULT_LIBRARY_NORMALISE, normaliseHover, originWords } from "../../common/domain";
+import { useLyreQuery, usePlaylists, useTracks } from "../api";
 import { useNowPlaying, useOptionalLyreAudio, type LaneNowPlaying, type LyreAudio, type MusicOrAmbience, type PreviewNowPlaying, type RoomNowPlaying } from "../audio";
 import { DestTag } from "../kit/DestTag";
 import { Icon } from "../kit/Icon";
@@ -105,11 +106,30 @@ function Time({ lane, position, length }: { lane: string; position: number | nul
   );
 }
 
+/**
+ * PLY-15: how much a track's volume is evened out where it plays (its playlist's choice applies), for the hover on its
+ * name in a row; words from the domain's normaliseHover.
+ */
+function useNormaliseHover(): (trackId: string | null, playlistId: string | null) => string | undefined {
+  const tracks = useTracks().data;
+  const playlists = usePlaylists().data;
+  const library = useLyreQuery("normalise-settings", (api) => api.library.normaliseSettings(), ["tracks"]).data ?? DEFAULT_LIBRARY_NORMALISE;
+  const byId = useMemo(() => new Map((tracks ?? []).map((t) => [t.id, t])), [tracks]);
+  return useCallback(
+    (trackId, playlistId) => {
+      if (!tracks || !trackId) return undefined;
+      return normaliseHover(byId.get(trackId), playlistId ? playlists?.find((p) => p.id === playlistId) : null, library);
+    },
+    [tracks, byId, playlists, library],
+  );
+}
+
 function RoomRow({ audio, room, named, broadcasting, first }: { audio: LyreAudio; room: RoomNowPlaying; named: boolean; broadcasting: boolean; first: boolean }) {
   const { say } = useAnnounce();
   const places = usePlaceNames();
   const names = useTrackNames();
   const playlists = usePlayOrders()?.playlists;
+  const hoverOf = useNormaliseHover();
   const laneName: MusicOrAmbience = room.music ? "music" : "ambience";
   const lane = (room.music ?? room.ambience) as LaneNowPlaying;
   const paused = lane.paused;
@@ -144,7 +164,7 @@ function RoomRow({ audio, room, named, broadcasting, first }: { audio: LyreAudio
       <div className="oab-now">
         <div className="oab-title">
           <span className={cx("lane-dot", laneName === "music" ? "music" : "amb")} aria-hidden="true" />
-          <TrackName className="ellipsis" track={{ id: lane.trackId, title: lane.title, metaTitle: "", fileName: "" }} place={lane.place} names={names} />
+          <TrackName className="ellipsis" track={{ id: lane.trackId, title: lane.title, metaTitle: "", fileName: "" }} place={lane.place} names={names} hover={hoverOf(lane.trackId, lane.playlistId)} />
         </div>
         <div className="oab-from ellipsis" title={[from, ...extras].join(" · ")}>
           {from}
@@ -220,6 +240,7 @@ function RoomRow({ audio, room, named, broadcasting, first }: { audio: LyreAudio
 
 function PreviewRow({ audio, preview }: { audio: LyreAudio; preview: PreviewNowPlaying }) {
   const paused = preview.paused;
+  const hover = useNormaliseHover()(preview.trackId, preview.kind === "pad" ? null : preview.playlistId);
   const from = preview.from ? `Previewed from ${preview.from}` : "Preview";
   const volume = Math.round(preview.volume * 100);
   return (
@@ -229,7 +250,7 @@ function PreviewRow({ audio, preview }: { audio: LyreAudio; preview: PreviewNowP
         {paused && <span className="badge oab-paused">Paused</span>}
       </span>
       <div className="oab-now">
-        <div className="oab-title" title={preview.label}>
+        <div className="oab-title" title={hover ? `${preview.label} · ${hover}` : preview.label}>
           <span className="lane-dot preview" aria-hidden="true" />
           <span className="ellipsis">{preview.label}</span>
         </div>
