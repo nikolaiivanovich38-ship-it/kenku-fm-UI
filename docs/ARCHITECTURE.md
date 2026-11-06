@@ -545,3 +545,18 @@ PLY-15: the track name in an On air box has `normaliseHover` after its own name 
 Engine change: a track picked from a shuffled playlist in a scene (`playTrack` with `from: { scene, at }`) plays from its place in the new deal, within the same scene item, instead of off script (`Director.itemFor`).
 
 Not built: Copy what another room plays starts that room's tracks from the top (the audio host cannot start a track part-way).
+
+## Wave 4: w4-guide
+
+FND-8 (Help in the app, the first-run tour) and FND-9 (Save diagnostics); design in design/prototype/HELP.md.
+
+| Where | What it does |
+| --- | --- |
+| `src/lyre/help/articles/*.md`, `articles.ts` | The help articles (one Markdown file each, bundled as text with `?raw`: webpack `asset/source` in `webpack.rules.js`), their head (`title`, `group`, `words`), `blocksOf` (paragraphs, steps, lists, labels, keys) and `searchArticles`. The prototype's build inlines the same files. |
+| `src/lyre/help/HelpPanel.tsx`, `HelpText.tsx`, `help.css` | The side panel: search, groups, an article with Back, Take the tour and Save diagnostics… with its result line. A landmark (`aside`, "Help") in `#app`'s third column, over the screen below 900 px. |
+| `src/lyre/help/Tour.tsx` | The five steps (`TOUR_STEPS`), a ring round the target and a popover with an arrow. |
+| `src/lyre/help/useHelp.tsx` | What the shell places: the rail button's state, the panel, the tour; F1 on the window (after screens' own keys, so a Live pad on F1 wins); focus in and back; the tour shown once when `<Shell firstRunTour>` (the page root) and remembered as `tour: "done"` in `lyre-shell`. |
+| `src/lyre/help/keys.ts` | `keepKeysHere`: keys in Help and the tour stop there, except Ctrl/Alt keys, F keys and Shift+Esc. |
+| `src/lyre/shell/Rail.tsx` | The Help button (`#rail-help`) between Look and feel and Icons only. |
+| `src/common/lyreDiagnostics.ts`, `src/lyre/help/preloadDiagnostics.ts` | `window.lyre.diagnostics` (`save`, `show`) and its result shape. |
+| `src/main/diagnostics/` | `logBuffer.ts` (in-memory log and blocked warnings), `diagnosticsLog.ts` (started first in `src/index.ts`), `scrub.ts`, `diagnosticsZip.ts` (the zip, on `transfer/zip.ts`), `diagnosticsBridge.ts` (the two channels, the sources; wired in `SessionManager` at `--- w4-guide wiring ---`). |

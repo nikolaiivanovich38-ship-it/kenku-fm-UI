@@ -701,3 +701,47 @@ library's own process (`src/main/transfer`, `src/main/lyreApi/transferApi.ts`), 
 ## w4-normalise
 
 No new IPC channel. The four normalisation calls go through `LYRE_API_CALL`; their arguments are checked in the library before it acts (`argChecks.ts`): `library.normaliseSettings` (none), `library.setNormaliseSettings` (`{ on: boolean, target: short text }`), `library.setNormalise` and `playlists.setNormalise` (an id, a short text or null). The data layer then refuses any target other than quiet, standard and loud and any choice other than on, off or null. Measuring loudness runs the bundled ffmpeg with the same safety as the peaks (`src/main/media/ffmpegLoudness.ts`): no shell, each argument as it is, `-protocol_whitelist file`, the reader fixed by the extension (security review 7), the first audio stream only, below-normal priority, a time limit, and nothing written (`-f null`); its report is read from the error stream as text and only numbers are kept.
+
+## w4-guide
+
+### In plain language
+
+Help › Save diagnostics makes one zip file for a bug report, in a folder you choose. Lyre never sends it anywhere:
+it has no code that could. Before writing, Lyre takes out your bot tokens, anything named like a secret and your
+user name in folder paths. Help's articles are plain text bundled with Lyre: they cannot open links, pages or files.
+
+### Technical details
+
+- **Channels** (both from the Lyre page only, no arguments, registered by `DiagnosticsBridge` through `guardIpc`):
+
+| Channel | Sent by | Arguments | Handled in |
+|---|---|---|---|
+| `LYRE_DIAGNOSTICS_SAVE` (invoke) | Lyre page | none; answers `{ ok: true, folder, file }` (names only), `{ ok: false, cancelled: true }` or `{ ok: false, cancelled: false, message }` | `src/main/diagnostics/diagnosticsBridge.ts` |
+| `LYRE_DIAGNOSTICS_SHOW` | Lyre page | none; shows the last file this session saved, if it is still there | `src/main/diagnostics/diagnosticsBridge.ts` |
+
+- **The folder** is asked for in the main process (`dialog.showOpenDialog`, Documents first); the page never names a
+  path, and only the folder's and file's names go back to it. The zip is written through "<name>.part" and never
+  replaces a file ("(2)" is added).
+- **What is gathered**: the version, Electron, Chrome, the operating system, architecture and language; the last 500
+  log lines and 200 blocked-content warnings, kept in memory only (`diagnosticsLog.ts`: the main process's console,
+  the app pages' warnings and errors, and of a website tab only Content-Security-Policy refusals, never its own
+  messages); the main window's Settings (the `settings` part of its saved state, not bookmarks), the Lyre page's
+  `lyre-shell`, each read by the main process from that page (`executeJavaScript` of one `localStorage.getItem`,
+  2 s at most); each bot's name ("Bot 1"), status, error, number of servers, voice status, mute and volume (no
+  token, no server, channel or people's names).
+- **Scrubbing** (`scrub.ts`), on every text and value before writing: Discord token patterns become
+  "[token removed]"; values whose name matches token, secret, passw, credential, api key, private key or auth
+  become "[removed]"; the home folder (either slash, any case) becomes "~".
+- **No network**: `src/main/diagnostics` imports no network module (`http`, `https`, `net`, `tls`, `dns`, Electron's
+  `net`, `fetch`); `diagnostics.test.ts` checks the source and that saving calls none of them.
+- **Test builds of the sample library only** (`CUE_DESK_LYRE_SEED=prototype` behind `__CUE_DESK_TEST_BUILD__`):
+  the folder is the data folder's `Documents`, without a dialog.
+- **Help articles** (`src/lyre/help/articles/*.md`) are bundled as text and drawn as React text: paragraphs, lists,
+  bold and keys only. No HTML, link or picture is read from them.
+
+### Manual checks (Windows)
+
+1. Help › Save diagnostics…: a folder chooser opens at Documents; choose one. The line under the button names the
+   folder and the file; Show in folder opens Explorer on it.
+2. Open the zip: no bot token anywhere (search for the first 10 characters of yours), and paths start with `~`.
+3. With the network cable out or Wi-Fi off, saving works the same.
