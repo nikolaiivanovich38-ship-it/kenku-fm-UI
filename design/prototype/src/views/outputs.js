@@ -192,7 +192,7 @@
     }).join('');
     var one = list.length === 1 && list[0].status === 'idle';
     var add = list.length ? '<button class="btn s op-add" data-act="opadd" data-server="' + g.id + '" data-channel="' + c.id + '" data-k="op-add-' + c.id + '"' + (one ? '' : ' aria-haspopup="menu" aria-expanded="false"') +
-      ' aria-label="Add bot to ' + esc(c.name) + '" title="' + (one ? esc(list[0].name) + ' joins ' + esc(c.name) : 'Choose a bot for ' + esc(c.name)) + (here.length ? ' (the players would hear both)' : !n ? ' (nobody is there yet)' : '') + '">' + L.icon('plus', 's') + 'Add bot' + (one ? '' : L.icon('chevdown', 's')) + '</button>' : '';
+      ' aria-label="Add bot to ' + esc(c.name) + '" title="' + (one ? esc(list[0].name) + ' joins ' + esc(c.name) : 'Choose a bot for ' + esc(c.name)) + (here.length ? ' (the players would hear both)' : !n ? ' (nobody is there yet)' : '') + '">' + L.icon('plus', 's') + 'Add' + (one ? '' : L.icon('chevdown', 's')) + '</button>' : '';
     return '<li class="op-ch' + (here.length ? ' live' : '') + '">' + L.icon('horn', 's') + '<b class="op-ch-n ellipsis">' + esc(c.name) + '</b>' +
       '<span class="op-ch-who ellipsis" title="' + esc(c.members.join(', ')) + '">' + (n ? n + ': ' + esc(c.members.join(', ')) : '<span class="faint">Empty</span>') + '</span>' +
       '<span class="op-ch-bots">' + bots + '</span>' + (here.length ? '' : add) + '</li>';

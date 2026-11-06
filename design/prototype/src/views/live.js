@@ -127,7 +127,8 @@
     var g = plGroups(), sc = scene();
     if (S.plSel && S.plSel !== 'scene' && g.session.concat(g.campaign).indexOf(S.plSel) > -1) return S.plSel;
     if (sc && L.sceneItems(sc).length) return 'scene';
-    return g.session[0] || g.campaign[0] || null;
+    // Before a scene runs, nothing is shown until a session or campaign playlist is chosen from the menus.
+    return sc ? g.session[0] || g.campaign[0] || null : null;
   }
   function boardsOf(sc) { return sc ? L.sceneBoards(sc).filter(function (id) { return L.board(id); }) : []; }
   function boardId() { var sc = musicScene(), bs = boardsOf(sc); return S.board || bs[0] || D.boards[0].id; }
@@ -522,7 +523,7 @@
       pl ? L.orderButton(pl.id, placeOfPl(pl.id)) + '<button class="btn s" data-act="lvplall" data-id="' + pl.id + '" data-k="lv-plall" title="Play ' + esc(pl.name) + ' from its first track' + inWhere('music') + '">' + L.icon('broadcast', 's') + 'Play from the top</button>' : '';
     var playing = rooms().some(function (r) { var c = r.mix.music; return c && (isScene ? c.seq && c.seq.cid === live().cid && c.seq.sid === live().sid && sess().scenes[c.seq.scene] === sc : c.playlistId === sel); });
     var list = isScene && sc ? sceneList(sc) : pl ? '<ol class="lv-list" aria-label="Tracks in ' + esc(pl.name) + '">' + tracks.map(function (t) { return trackRow(t, 'pl', { pl: pl.id, rep: placeOfPl(pl.id) }); }).join('') + '</ol>' :
-      (sc ? '<p class="empty">Nothing is assigned to this scene, session or campaign. Use Off script to find a track.</p>' : '<p class="empty">No scene is running yet.</p>');
+      (sc ? '<p class="empty">Nothing is assigned to this scene, session or campaign. Use Off script to find a track.</p>' : '');
     return L.pane({ id: 'lv-music', title: 'Current scene music', icon: 'music', kind: 'music', size: 'auto', flush: true, noMax: true, actions: toChip('music') + action, body: picker + list,
       status: playing ? { text: 'On air', tone: 'live' } : null,
       summary: collapsed('lv-music') ? (isScene && sc ? esc(sc.name) + ', in order' : pl ? esc(pl.name) : 'Nothing to play') + (S.queue.length ? ' · ' + S.queue.length + ' queued' : '') : '' });

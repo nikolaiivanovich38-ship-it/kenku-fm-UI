@@ -13,6 +13,11 @@ const sceneMusic = (page: Page) => page.getByRole("region", { name: /^(Current s
 const clickAway = (page: Page) => page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
 const startFirstScene = (page: Page) => page.getByRole("button", { name: "Start: Recap and the coast road" }).click();
 const startAbbey = (page: Page) => page.getByRole("button", { name: "Start scene 3: The abbey ruins" }).click();
+/** Before a scene runs, round 6 shows no list until a playlist is chosen: show the session's first playlist (both designs). */
+const showSessionPlaylist = async (page: Page) => {
+  await sceneMusic(page).getByRole("button", { name: /^Session:/ }).click();
+  await page.getByRole("menuitemradio").first().click();
+};
 const addSideRoom = async (page: Page) => {
   await page.getByRole("button", { name: "Add a room" }).click();
   await page.getByRole("menuitemradio", { name: /Side room/ }).click();
@@ -334,6 +339,7 @@ test.describe("rooms", () => {
     await page.getByRole("menuitemradio", { name: "Side room" }).click();
     await expect(music.getByRole("button", { name: /choose a room/i })).toBeFocused();
     await expect(music.getByRole("button", { name: /choose a room/i })).toHaveText(/^To:\s*Side room$/);
+    await showSessionPlaylist(page);
     await music.getByRole("button", { name: /^Play on air in Side room: / }).first().click();
     await expect(region(page, "On air: Side room").getByText("Playing")).toBeVisible();
     await expect(region(page, "On air: Table").getByText("Silent")).toBeVisible();
@@ -379,6 +385,7 @@ test.describe("rooms", () => {
     await addSideRoom(page);
     await sceneMusic(page).getByRole("button", { name: /choose a room/i }).click();
     await page.getByRole("menuitemradio", { name: "Side room" }).click();
+    await showSessionPlaylist(page);
     await sceneMusic(page).getByRole("button", { name: /^Play on air in Side room: / }).first().click();
     await page.getByRole("button", { name: "Lyre Table in Table: change" }).click();
     await expect(page.getByRole("menuitem", { name: /Copy what Side room is playing/ })).toBeVisible();
@@ -417,6 +424,7 @@ test.describe("round 5: the Now playing bar, names in scenes, play order and sin
     const music = sceneMusic(page);
     await music.getByRole("button", { name: /choose a room/i }).click();
     await page.getByRole("menuitemradio", { name: "Side room" }).click();
+    await showSessionPlaylist(page);
     await music.getByRole("button", { name: /^Play on air in Side room: / }).first().click();
     await startAbbey(page); // scenes always start in the first room, Table
     await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Pad boards" }).click();
