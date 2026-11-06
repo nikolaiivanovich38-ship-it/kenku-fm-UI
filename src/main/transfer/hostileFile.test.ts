@@ -288,3 +288,15 @@ describe("Should 3: bringing in many playlists, boards and campaigns", () => {
     expect(await api.playlists.list()).toHaveLength(N);
   }, 120_000);
 });
+
+describe("tag values in two letter cases", () => {
+  it("makes one tag for a new value the file names as Gothic and gothic", async () => {
+    const { api, dir } = rig();
+    const tracks = [track(1, { tags: { mood: ["gothic"] } })];
+    const file = await lyreFile(dir, "Case.lyre", [], { tracks, tagGroups: [{ id: "mood", name: "Mood", values: ["Gothic"] }] });
+    valueOf(await openAndBringIn(api, file));
+    const mood = (await api.tags.listGroups()).find((g) => g.name === "Mood");
+    expect(mood?.values.filter((v) => v.toLowerCase() === "gothic")).toEqual(["Gothic"]);
+    expect((await api.library.listTracks())[0].tags[mood?.id ?? ""]).toEqual(["Gothic"]);
+  });
+});
