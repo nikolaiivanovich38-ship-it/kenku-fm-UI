@@ -477,3 +477,20 @@ Phase A of wave 4: the round 5 kit the prep screens and Live build on, and the N
 | `shell/ScreenSound.tsx` | Gives each screen the audio host with `from` filled in on previews that name no place (`SCREEN_WORDS`, core.js SCREEN_NAMES), so "Previewed from the session planner" needs nothing from the screens. |
 
 Audio host changes: `RoomNowPlaying.volume` and `setRoomVolume(target, 0..1)` (the room's mix level, kept per room while the app runs; the room that takes over the table keeps its volume; rooms start at `ROOM_START_VOLUME`, 0.85, in the app, 1 in tests unless `startRoomVolume` says otherwise). A lane's `length` is the library's length of the track when it has one, so the bar agrees with the lists.
+
+## Wave 4: w4-live
+
+The Live screen (`#/live`, UX-2, UX-8, UX-12, UX-14, SFX-2, OUT-6, SHW-1, SHW-2), ported from the prototype's `views/live.js` and `live.css`. It replaces the "comes in 0.4" page.
+
+| Where | What it does |
+| --- | --- |
+| `screens/live/liveModel.ts` | The rules without a screen: the session Live loads (`defaultLiveSession`), the rooms from the outputs (`liveRooms`: each bot joining or in a voice channel, named after it) and their one status, Add a room's choices, the one-click Join, where a box plays (`boxTarget`), Off script search, what Scene music and the Pads box offer, the end words, and what each key does (`liveKey`). |
+| `screens/live/liveState.ts` | What Live keeps while the page is open: the scene on now and on standby, the Undo offer (8 s), To: per box, the list Scene music shows, the board, the search, open rows. A visit to another screen finds Live as it was. |
+| `screens/live/liveData.tsx` | One context for the boxes (library index, session, scene, rooms, names, play orders), and the engine's own sequence rules (`sequenceOf`) so the lists show the order that plays, a shuffled playlist dealt with the seed of the music on air. |
+| `LiveScreen.tsx`, `LiveTop.tsx`, `Scenes.tsx`, `SceneMusic.tsx`, `OffScript.tsx`, `OnAir.tsx`, `Pads.tsx`, `TrackRow.tsx`, `ToChip.tsx`, `live.css` | The screen: one, two or three columns at 820 and 1200 px of the app; the keys on `document` (Space, /, pad keys, Shift+Esc, Ctrl+Z, Esc), the single-key switch kept as `lyre-live-keys1`. |
+
+Live reads `getNowPlaying()` and calls the audio host; it keeps no sound state. A room's volume and mute are the bot's (`useOutputs`, the same as Outputs and the Now playing bar). Live sets `showsOnAir`, so the bar there shows the preview only. Loading another session (Run, the session menu) fades what plays from elsewhere in the first room over 3 s, as `liveStandby` did.
+
+Engine change: a track picked from a shuffled playlist in a scene (`playTrack` with `from: { scene, at }`) plays from its place in the new deal, within the same scene item, instead of off script (`Director.itemFor`).
+
+Not built: Copy what another room plays starts that room's tracks from the top (the audio host cannot start a track part-way).
