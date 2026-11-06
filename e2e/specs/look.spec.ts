@@ -89,16 +89,27 @@ test.describe("round 7: motion and target size", () => {
     expect(moving).toBe(false);
   });
 
-  test("every button and link on the Library and a pad board is at least 24 by 24 px", async ({ page }) => {
+  test("every button and link on the Library and a pad board is at least 24 by 24 px, or has 24 px of space around it", async ({ page }) => {
+    // WCAG 2.2 2.5.8: a target smaller than 24 × 24 passes when a 24 px circle on its centre touches no other target
+    // and no other small target's circle. Links inside a sentence are exempt.
     for (const route of ["library", "board/combat"]) {
       await openRoute(page, route);
-      const small = await page.evaluate(() =>
-        Array.from(document.querySelectorAll("main button, main a[href], main [role=button], main input[type=checkbox], main [role=switch]"))
-          .filter((e) => !e.closest(".sr-only") && (e as HTMLElement).offsetParent)
+      const small = await page.evaluate(() => {
+        const all = Array.from(document.querySelectorAll("main button, main a[href], main [role=button], main input[type=checkbox], main input[type=radio], main [role=switch]"))
+          .filter((e) => !e.closest(".sr-only") && (e as HTMLElement).offsetParent && !(e.tagName === "A" && getComputedStyle(e).display === "inline"))
           .map((e) => ({ e, r: e.getBoundingClientRect() }))
-          .filter(({ e, r }) => r.width > 0 && (r.width < 24 || r.height < 24) && !(e.tagName === "A" && getComputedStyle(e).display === "inline"))
-          .map(({ e, r }) => `${e.getAttribute("aria-label") || e.textContent?.trim().slice(0, 30)} ${Math.round(r.width)}×${Math.round(r.height)}`),
-      );
+          .filter(({ r }) => r.width > 0 && r.height > 0);
+        const isSmall = (r: DOMRect) => r.width < 24 || r.height < 24;
+        const centre = (r: DOMRect) => [r.left + r.width / 2, r.top + r.height / 2];
+        const circleHitsRect = (c: number[], r: DOMRect) => {
+          const x = Math.max(r.left, Math.min(c[0], r.right)), y = Math.max(r.top, Math.min(c[1], r.bottom));
+          return (x - c[0]) ** 2 + (y - c[1]) ** 2 < 144;
+        };
+        return all.filter(({ r }) => isSmall(r)).filter(({ e, r }) => {
+          const c = centre(r);
+          return all.some((o) => o.e !== e && !o.e.contains(e) && !e.contains(o.e) && (circleHitsRect(c, o.r) || (isSmall(o.r) && Math.hypot(centre(o.r)[0] - c[0], centre(o.r)[1] - c[1]) < 24)));
+        }).map(({ e, r }) => `${e.getAttribute("aria-label") || e.textContent?.trim().slice(0, 30)} ${Math.round(r.width)}×${Math.round(r.height)}`);
+      });
       expect(small, route).toEqual([]);
     }
   });

@@ -436,11 +436,13 @@ test.describe("round 7: adding to other lists", () => {
   test.beforeEach(() => expectFailureUntilBuilt("round 7"));
   const trackRow = (page: Page, start: string) => page.getByRole("list", { name: "Tracks in order" }).getByRole("listitem").filter({ hasText: start });
   // The places to drop show only once a drag has started, so the drag is done step by step.
-  async function dragOnto(page: Page, start: string, target: string) {
+  async function dragOnto(page: Page, start: string, target: string, shift = false) {
     const box = await trackRow(page, start).boundingBox();
     await page.mouse.move(box!.x + 40, box!.y + box!.height / 2);
     await page.mouse.down();
     await page.mouse.move(box!.x + 80, box!.y + 60, { steps: 5 });
+    // Shift is held once the drag has started, as a person does when they decide to move it.
+    if (shift) await page.keyboard.down("Shift");
     const to = page.getByRole("region", { name: "Drop on" }).getByRole("button", { name: target, exact: true });
     const t = await to.boundingBox();
     await page.mouse.move(t!.x + t!.width / 2, t!.y + t!.height / 2, { steps: 5 });
@@ -459,8 +461,7 @@ test.describe("round 7: adding to other lists", () => {
 
   test("with Shift held the track moves: it leaves this playlist", async ({ page }) => {
     await openRoute(page, "playlist/p-abbess");
-    await page.keyboard.down("Shift");
-    await dragOnto(page, "Alien, unknowable", "Ashen King");
+    await dragOnto(page, "Alien, unknowable", "Ashen King", true);
     await page.keyboard.up("Shift");
     await expect(page.getByRole("status").filter({ hasText: /Moved to Ashen King/ })).toBeVisible();
     await expect(trackRow(page, "Alien, unknowable")).toHaveCount(0);

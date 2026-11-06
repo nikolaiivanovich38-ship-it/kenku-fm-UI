@@ -124,7 +124,7 @@ test.describe("the Tags screen", () => {
 
 test.describe("tags where you use them", () => {
   test("typing another word for a tag offers the tag itself", async ({ page }) => {
-    await libraryTrack(page, "Ancient sorrow, choir");
+    await libraryTrack(page, "Very short heroic moment");
     await page.getByRole("combobox", { name: "Add a mood tag" }).fill("sad");
     await expect(page.getByRole("option", { name: /^Melancholy/ })).toBeVisible();
   });

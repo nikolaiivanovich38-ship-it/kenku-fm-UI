@@ -39,3 +39,6 @@ html[data-contrast="high"] .btn.ghost, html[data-contrast="high"] .closer { bord
 .over-art { position: relative; color: #fff; }
 .over-art::before { content: ""; position: absolute; inset: 0; background: linear-gradient(rgb(0 0 0 / .62), rgb(0 0 0 / .62)); border-radius: inherit; }
 .over-art > * { position: relative; }
+
+/* A11Y-6: the board's "Used in" links are 24 px high, so each can be hit on its own. */
+.pb-uselink { min-height: 24px; display: inline-flex; align-items: center; }

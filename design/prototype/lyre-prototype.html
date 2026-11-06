@@ -2338,6 +2338,9 @@ html[data-contrast="high"] .btn.ghost, html[data-contrast="high"] .closer { bord
 .over-art::before { content: ""; position: absolute; inset: 0; background: linear-gradient(rgb(0 0 0 / .62), rgb(0 0 0 / .62)); border-radius: inherit; }
 .over-art > * { position: relative; }
 
+/* A11Y-6: the board's "Used in" links are 24 px high, so each can be hit on its own. */
+.pb-uselink { min-height: 24px; display: inline-flex; align-items: center; }
+
 /* Round 7, DAT-10: the Tags screen */
 .tg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; align-items: start; }
 .tg-list { list-style: none; margin: 0; padding: 0; }
@@ -10139,15 +10142,20 @@ var L = (function () {
     if (!cut.length) return;
     var words = cut.slice(0, 2).map(function (x) { return norm(x.textContent); }).join(' · ');
     tip = document.createElement('div'); tip.className = 'r7-tip'; tip.setAttribute('role', 'tooltip'); tip.id = 'lyre-tip'; tip.textContent = words;
-    document.body.appendChild(tip);
-    var r = a.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight, z = parseFloat(document.documentElement.style.zoom || '1') || 1;
+    document.body.appendChild(tip); tipFor = a; placeTip();
+  });
+  // Under the control (above it near the bottom of the window); it follows the control when a box scrolls.
+  var tipFor = null;
+  function placeTip() {
+    if (!tip || !tipFor) return;
+    var r = tipFor.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight, z = parseFloat(document.documentElement.style.zoom || '1') || 1;
     var left = Math.min(Math.max(4, r.left), window.innerWidth / z - w - 4), top = r.bottom + 4;
     if (top + h > window.innerHeight / z - 4) top = Math.max(4, r.top - h - 4);
     tip.style.left = left + 'px'; tip.style.top = top + 'px';
-  });
-  document.addEventListener('focusout', hideTip);
+  }
+  document.addEventListener('focusout', function (e) { if (e.target === tipFor) { hideTip(); tipFor = null; } });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && tip) hideTip(); }, true);
-  document.addEventListener('scroll', hideTip, true);
+  document.addEventListener('scroll', placeTip, true);
 })();
 
 ;
@@ -10834,7 +10842,13 @@ var L = (function () {
     start0.apply(L, arguments);
     var s = L.session(cid, sid), sc = s && s.scenes[idx]; clearTimeout(timer); if (!sc) return;
     // The usual steps (music, ambience, pads) are what Lyre's start already does; the others run after them in order.
-    if (sc.steps) run(sc.steps.filter(function (x) { return !/^(music|amb|pads)$/.test(x.do); }), 0, L.firstRoom());
+    if (sc.steps) {
+      var room = L.firstRoom(), mu = sc.steps.filter(function (x) { return x.do === 'music'; })[0], m = L.mix(room);
+      // A start without its music or ambience step leaves them silent; a music step may start from a marker.
+      if (!mu) L.stopLane('music', 0.3, room); else if (mu.from !== '' && mu.from != null && m.music) m.music.pos = +mu.from;
+      if (!sc.steps.some(function (x) { return x.do === 'amb'; })) L.stopLane('amb', 0.3, room);
+      run(sc.steps.filter(function (x) { return !/^(music|amb|pads)$/.test(x.do); }), 0, room);
+    }
     if (sc.then === 'after' && idx + 1 < s.scenes.length) timer = setTimeout(function () { L.startScene(cid, sid, idx + 1); }, (sc.afterMin || 5) * 60000);
     lastScene = { cid: cid, sid: sid, idx: idx, playing: true };
   };

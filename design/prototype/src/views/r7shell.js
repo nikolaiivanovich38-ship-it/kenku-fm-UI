@@ -210,13 +210,18 @@
     if (!cut.length) return;
     var words = cut.slice(0, 2).map(function (x) { return norm(x.textContent); }).join(' · ');
     tip = document.createElement('div'); tip.className = 'r7-tip'; tip.setAttribute('role', 'tooltip'); tip.id = 'lyre-tip'; tip.textContent = words;
-    document.body.appendChild(tip);
-    var r = a.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight, z = parseFloat(document.documentElement.style.zoom || '1') || 1;
+    document.body.appendChild(tip); tipFor = a; placeTip();
+  });
+  // Under the control (above it near the bottom of the window); it follows the control when a box scrolls.
+  var tipFor = null;
+  function placeTip() {
+    if (!tip || !tipFor) return;
+    var r = tipFor.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight, z = parseFloat(document.documentElement.style.zoom || '1') || 1;
     var left = Math.min(Math.max(4, r.left), window.innerWidth / z - w - 4), top = r.bottom + 4;
     if (top + h > window.innerHeight / z - 4) top = Math.max(4, r.top - h - 4);
     tip.style.left = left + 'px'; tip.style.top = top + 'px';
-  });
-  document.addEventListener('focusout', hideTip);
+  }
+  document.addEventListener('focusout', function (e) { if (e.target === tipFor) { hideTip(); tipFor = null; } });
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && tip) hideTip(); }, true);
-  document.addEventListener('scroll', hideTip, true);
+  document.addEventListener('scroll', placeTip, true);
 })();

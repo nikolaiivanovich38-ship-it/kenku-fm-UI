@@ -169,7 +169,13 @@
     start0.apply(L, arguments);
     var s = L.session(cid, sid), sc = s && s.scenes[idx]; clearTimeout(timer); if (!sc) return;
     // The usual steps (music, ambience, pads) are what Lyre's start already does; the others run after them in order.
-    if (sc.steps) run(sc.steps.filter(function (x) { return !/^(music|amb|pads)$/.test(x.do); }), 0, L.firstRoom());
+    if (sc.steps) {
+      var room = L.firstRoom(), mu = sc.steps.filter(function (x) { return x.do === 'music'; })[0], m = L.mix(room);
+      // A start without its music or ambience step leaves them silent; a music step may start from a marker.
+      if (!mu) L.stopLane('music', 0.3, room); else if (mu.from !== '' && mu.from != null && m.music) m.music.pos = +mu.from;
+      if (!sc.steps.some(function (x) { return x.do === 'amb'; })) L.stopLane('amb', 0.3, room);
+      run(sc.steps.filter(function (x) { return !/^(music|amb|pads)$/.test(x.do); }), 0, room);
+    }
     if (sc.then === 'after' && idx + 1 < s.scenes.length) timer = setTimeout(function () { L.startScene(cid, sid, idx + 1); }, (sc.afterMin || 5) * 60000);
     lastScene = { cid: cid, sid: sid, idx: idx, playing: true };
   };
