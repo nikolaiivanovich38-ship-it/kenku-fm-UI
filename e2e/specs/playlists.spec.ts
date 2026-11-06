@@ -363,3 +363,129 @@ test.describe("round 5: volume normalisation", () => {
     await expect(details.getByTitle("Follows the library (Off). A track's own choice comes first.")).toBeVisible();
   });
 });
+
+/* Round 7 (design/prototype/ROUND7.md): folders and dividers (ORG-4), and adding tracks to other lists by dragging
+   or with Add to… (ORG-5). */
+test.describe("round 7: folders", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
+
+  async function newFolder(page: Page, name: string) {
+    await page.getByRole("button", { name: "New folder" }).click();
+    await page.getByRole("dialog").getByRole("textbox", { name: "Name" }).fill(name);
+    await page.getByRole("dialog").getByRole("button", { name: "Add folder" }).click();
+  }
+  const folder = (page: Page, name: string) => page.getByRole("button", { name: new RegExp(`^Folder ${name}`) });
+
+  test("New folder, then Move to folder… from a playlist's ⋯ puts it inside; folding the folder hides it", async ({ page }) => {
+    await openRoute(page, "playlists");
+    await newFolder(page, "The abbey");
+    await expect(folder(page, "The abbey")).toBeVisible();
+    await page.getByRole("button", { name: "More for The Abbess" }).click();
+    await page.getByRole("menuitem", { name: "Move to folder…" }).click();
+    await page.getByRole("dialog").getByRole("radio", { name: "The abbey" }).check();
+    await page.getByRole("dialog").getByRole("button", { name: "Move" }).click();
+    await expect(page.getByRole("list", { name: "In The abbey" }).getByRole("link", { name: /^The Abbess / })).toBeVisible();
+    await folder(page, "The abbey").click();
+    await expect(folder(page, "The abbey")).toHaveAttribute("aria-expanded", "false");
+    await expect(page.getByRole("link", { name: /^The Abbess / })).toBeHidden();
+  });
+
+  test("folders nest, and deleting a folder keeps its playlists (they move up a level)", async ({ page }) => {
+    await openRoute(page, "playlists");
+    await newFolder(page, "Sunken Crown");
+    await page.getByRole("button", { name: "More for the folder Sunken Crown" }).click();
+    await page.getByRole("menuitem", { name: "New folder inside…" }).click();
+    await page.getByRole("dialog").getByRole("textbox", { name: "Name" }).fill("Villains");
+    await page.getByRole("dialog").getByRole("button", { name: "Add folder" }).click();
+    await expect(page.getByRole("list", { name: "In Sunken Crown" }).getByRole("button", { name: /^Folder Villains/ })).toBeVisible();
+    await page.getByRole("button", { name: "More for Ashen King" }).click();
+    await page.getByRole("menuitem", { name: "Move to folder…" }).click();
+    await page.getByRole("dialog").getByRole("radio", { name: "Sunken Crown › Villains" }).check();
+    await page.getByRole("dialog").getByRole("button", { name: "Move" }).click();
+    await page.getByRole("button", { name: "More for the folder Villains" }).click();
+    await page.getByRole("menuitem", { name: "Delete folder" }).click();
+    await expect(page.getByRole("list", { name: "In Sunken Crown" }).getByRole("link", { name: /^Ashen King / })).toBeVisible();
+  });
+
+  test("a playlist can be dragged onto a folder", async ({ page }) => {
+    await openRoute(page, "playlists");
+    await newFolder(page, "Travel");
+    await page.getByRole("link", { name: /^Coast road travel / }).dragTo(folder(page, "Travel"));
+    await expect(page.getByRole("list", { name: "In Travel" }).getByRole("link", { name: /^Coast road travel / })).toBeVisible();
+  });
+});
+
+test.describe("round 7: dividers inside a playlist", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
+
+  test("a divider goes above a track, names a section, and is not a track", async ({ page }) => {
+    await openRoute(page, "playlist/p-abbess");
+    await page.getByRole("list", { name: "Tracks in order" }).getByRole("button", { name: /^More for Lullaby, sad/ }).click();
+    await page.getByRole("menuitem", { name: "Add a divider above" }).click();
+    await page.getByRole("dialog").getByRole("textbox", { name: "Name" }).fill("After the font");
+    await page.getByRole("dialog").getByRole("button", { name: "Add divider" }).click();
+    const items = page.getByRole("list", { name: "Tracks in order" }).getByRole("listitem");
+    await expect(items.nth(3)).toHaveAccessibleName("Divider: After the font");
+    await expect(items.nth(4)).toContainText("Lullaby, sad");
+    await expect(page.getByRole("region", { name: "Tracks", exact: true })).toHaveAccessibleDescription(/5 tracks/);
+  });
+});
+
+test.describe("round 7: adding to other lists", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
+  const trackRow = (page: Page, start: string) => page.getByRole("list", { name: "Tracks in order" }).getByRole("listitem").filter({ hasText: start });
+  // The places to drop show only once a drag has started, so the drag is done step by step.
+  async function dragOnto(page: Page, start: string, target: string) {
+    const box = await trackRow(page, start).boundingBox();
+    await page.mouse.move(box!.x + 40, box!.y + box!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box!.x + 80, box!.y + 60, { steps: 5 });
+    const to = page.getByRole("region", { name: "Drop on" }).getByRole("button", { name: target, exact: true });
+    const t = await to.boundingBox();
+    await page.mouse.move(t!.x + t!.width / 2, t!.y + t!.height / 2, { steps: 5 });
+    await page.mouse.up();
+  }
+
+  test("dragging a track shows where it can go; dropping it on another playlist copies it there", async ({ page }) => {
+    await openRoute(page, "playlist/p-abbess");
+    const tray = page.getByRole("region", { name: "Drop on" });
+    await expect(tray).toHaveCount(0);
+    await dragOnto(page, "Alien, unknowable", "Ashen King");
+    await expect(page.getByRole("status").filter({ hasText: /^Saved: Ashen King · Alien, unknowable/ })).toBeVisible();
+    await expect(trackRow(page, "Alien, unknowable")).toHaveCount(1);
+    await expect(tray).toHaveCount(0);
+  });
+
+  test("with Shift held the track moves: it leaves this playlist", async ({ page }) => {
+    await openRoute(page, "playlist/p-abbess");
+    await page.keyboard.down("Shift");
+    await dragOnto(page, "Alien, unknowable", "Ashen King");
+    await page.keyboard.up("Shift");
+    await expect(page.getByRole("status").filter({ hasText: /Moved to Ashen King/ })).toBeVisible();
+    await expect(trackRow(page, "Alien, unknowable")).toHaveCount(0);
+  });
+
+  test("Esc while dragging puts everything back", async ({ page }) => {
+    await openRoute(page, "playlist/p-abbess");
+    const box = await trackRow(page, "Alien, unknowable").boundingBox();
+    await page.mouse.move(box!.x + 40, box!.y + box!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box!.x + 80, box!.y + 120, { steps: 5 });
+    await expect(page.getByRole("region", { name: "Drop on" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("region", { name: "Drop on" })).toHaveCount(0);
+    await page.mouse.up();
+    await expect(trackRow(page, "Alien, unknowable")).toHaveCount(1);
+  });
+
+  test("Add to… does the same from the keyboard: a playlist, a scene or Up next", async ({ page }) => {
+    await openRoute(page, "playlist/p-abbess");
+    await page.getByRole("list", { name: "Tracks in order" }).getByRole("button", { name: /^More for Alien, unknowable/ }).click();
+    await page.getByRole("menuitem", { name: "Add to…" }).click();
+    const d = page.getByRole("dialog", { name: /^Add .* to$/ });
+    await expect(d.getByRole("radio", { name: "Up next in Table" })).toBeVisible();
+    await d.getByRole("radio", { name: "Session 14 › The abbey ruins" }).check();
+    await d.getByRole("button", { name: "Add" }).click();
+    await expect(page.getByRole("status").filter({ hasText: /^Saved: The abbey ruins music · Alien, unknowable/ })).toBeVisible();
+  });
+});

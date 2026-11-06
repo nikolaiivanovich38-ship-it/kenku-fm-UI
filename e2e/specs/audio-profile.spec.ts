@@ -287,3 +287,27 @@ test.describe("round 5: volume normalisation", () => {
     await expect(page.getByTitle("In the playlist Ashen King: this track's own choice.")).toBeVisible();
   });
 });
+
+/* Round 7 (design/prototype/ROUND7.md, DAT-3): the mix-out marker, where the next track crossfades in, and playing on
+   air from a marker. Loop in and loop out are the Loop and End handles a loop bed already has. */
+test.describe("round 7: mix out and playing from a marker", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
+  const markers = (page: Page) => page.getByRole("region", { name: "Markers", exact: true });
+
+  test("one marker can be the mix-out point; choosing another moves it", async ({ page }) => {
+    await openRoute(page, "profile/t13");
+    const low = markers(page).getByRole("button", { name: "Mix out at Low swell" });
+    await low.click();
+    await expect(low).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("status").filter({ hasText: /^Saved: mix out at 3:10/ })).toBeVisible();
+    await markers(page).getByRole("button", { name: "Mix out at Choir enters" }).click();
+    await expect(low).toHaveAttribute("aria-pressed", "false");
+    await expect(markers(page).getByRole("button", { name: "Mix out at Choir enters" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("Play on air from a marker starts the track there", async ({ page }) => {
+    await openRoute(page, "profile/t13");
+    await markers(page).getByRole("button", { name: "Play on air from Low swell" }).click();
+    await expect(page.getByRole("region", { name: "Now playing" }).getByRole("group", { name: "On air", exact: true })).toContainText(/3:1\d \//);
+  });
+});

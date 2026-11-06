@@ -321,3 +321,50 @@ test.describe("round 6, part 4: the review's fixes on a pad board", () => {
     await expect(page.getByRole("button", { name: /^Empty slot/ })).toHaveCount(0);
   });
 });
+
+/* Round 7 (design/prototype/ROUND7.md): folders for boards and section dividers on a board (ORG-4), and what a pad
+   does, as steps (PLY-8). */
+test.describe("round 7: folders and dividers", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
+
+  test("boards go into folders with Move to folder…", async ({ page }) => {
+    await openRoute(page, "boards");
+    await page.getByRole("button", { name: "New folder" }).click();
+    await page.getByRole("dialog").getByRole("textbox", { name: "Name" }).fill("Sunken Crown");
+    await page.getByRole("dialog").getByRole("button", { name: "Add folder" }).click();
+    await boards(page).getByRole("button", { name: "More for Combat" }).click();
+    await page.getByRole("menuitem", { name: "Move to folder…" }).click();
+    await page.getByRole("dialog").getByRole("radio", { name: "Sunken Crown" }).check();
+    await page.getByRole("dialog").getByRole("button", { name: "Move" }).click();
+    await expect(page.getByRole("list", { name: "In Sunken Crown" }).getByRole("link", { name: /^Combat/ })).toBeVisible();
+  });
+
+  test("a divider names a row of pads", async ({ page }) => {
+    await openRoute(page, "board/combat");
+    await page.getByRole("button", { name: "More for this board" }).click();
+    await page.getByRole("menuitem", { name: "Add a divider…" }).click();
+    await page.getByRole("dialog").getByRole("textbox", { name: "Name" }).fill("Spells");
+    await page.getByRole("dialog").getByRole("combobox", { name: "Above row" }).selectOption("2");
+    await page.getByRole("dialog").getByRole("button", { name: "Add divider" }).click();
+    await expect(page.getByRole("region", { name: "Pads", exact: true }).getByRole("heading", { name: "Spells" })).toBeVisible();
+  });
+});
+
+test.describe("round 7: what a pad does", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
+
+  test("a pad plays its sound; What it does… adds steps such as turning the music down first", async ({ page }) => {
+    await openRoute(page, "board/weather");
+    const box = page.getByRole("region", { name: "Pad: Thunder crack" });
+    await box.getByRole("button", { name: "What it does…" }).click();
+    const d = page.getByRole("dialog", { name: "When Thunder crack is pressed" });
+    await expect(d.getByRole("list", { name: "Steps" }).getByRole("listitem")).toHaveCount(1);
+    await expect(d.getByRole("list", { name: "Steps" })).toContainText("Play its sound");
+    await d.getByRole("button", { name: "Add a step" }).click();
+    await page.getByRole("menuitem", { name: "Fade the music…" }).click();
+    await expect(d.getByRole("list", { name: "Steps" }).getByRole("listitem")).toHaveCount(2);
+    await expect(d.getByRole("list", { name: "Steps" }).getByRole("listitem").nth(1)).toContainText("Fade the music to 30% over 2 s");
+    await d.getByRole("button", { name: "Done" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Saved: what Thunder crack does" })).toBeVisible();
+  });
+});
