@@ -386,3 +386,8 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 .lv [data-pane="lv-music"] .pane-h { min-width: 0; flex: 0 1 auto; }
 .lv [data-pane="lv-music"] .pane-toggle { min-width: 0; }
 .lv [data-pane="lv-music"] .pane-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* BUG-21: the session renamed in place in the top strip. */
+.lv-sess-edit { padding-right: 3px; }
+.lv-sess-edit:hover { background: none; }
+.lv-sess-rename { width: 18ch; min-width: 0; height: calc(var(--ctl) - 6px); }
+

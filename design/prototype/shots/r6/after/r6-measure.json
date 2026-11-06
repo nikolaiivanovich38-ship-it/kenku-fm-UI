@@ -1,0 +1,143 @@
+{
+ "planner-two-scenes@1920": {
+  "words": 228,
+  "controls": 124,
+  "hints": 2,
+  "twice": 5,
+  "colours": 17,
+  "badges": 6,
+  "hintLines": [
+   "Single track",
+   "Campaign pad boards: Combat, Weather and places."
+  ],
+  "repeated": [
+   "2× +1 more",
+   "2× music",
+   "2× starts the scene",
+   "2× the abbess",
+   "2× drowned abbey"
+  ],
+  "badgeKinds": [
+   "chip.cp-chip",
+   "shape-tag",
+   "chip.mood",
+   "chip.motif",
+   "chip.ts-more",
+   "pane-status.s-idle"
+  ]
+ },
+ "picker-inside@1920": {
+  "words": 318,
+  "controls": 164,
+  "hints": 3,
+  "twice": 4,
+  "colours": 17,
+  "badges": 6,
+  "hintLines": [
+   "Single track",
+   "Campaign pad boards: Combat, Weather and places.",
+   "4 chosen"
+  ],
+  "repeated": [
+   "3× +1 more",
+   "2× the abbess",
+   "2× drowned abbey"
+  ],
+  "badgeKinds": [
+   "chip.cp-chip",
+   "shape-tag",
+   "chip.mood",
+   "chip.motif",
+   "chip.ts-more",
+   "pane-status.s-idle"
+  ]
+ },
+ "library-track@1920": {
+  "words": 576,
+  "controls": 216,
+  "hints": 3,
+  "twice": 13,
+  "colours": 18,
+  "badges": 7,
+  "hintLines": [
+   "69 tracks",
+   "Lyre cannot find this file where it was.",
+   "Suggested by Lyre from the track's loudness. Choose another to change it."
+  ],
+  "repeated": [
+   "3× energy",
+   "3× amb",
+   "3× fx sting",
+   "2× shape",
+   "2× mood",
+   "2× leitmotif",
+   "2× scene type",
+   "2× length",
+   "2× the storm",
+   "2× dynamic"
+  ],
+  "badgeKinds": [
+   "badge.accent",
+   "badge.warn",
+   "chip.lb-fchip",
+   "chip.lb-chip",
+   "shape-tag",
+   "badge.lb-newb",
+   "chip.lb-pick"
+  ]
+ },
+ "playlist-manual@1920": {
+  "words": 338,
+  "controls": 130,
+  "hints": 3,
+  "twice": 5,
+  "colours": 13,
+  "badges": 1,
+  "hintLines": [
+   "45 tracks",
+   "4 of 4",
+   "1 of 2"
+  ],
+  "repeated": [
+   "2× the abbess",
+   "2× alien unknowable voices - ancient magic a ghost speaks",
+   "2× fragile melancholy strings slow swell - loss memory flashbac",
+   "2× scene",
+   "2× add tracks"
+  ],
+  "badgeKinds": [
+   "chip"
+  ]
+ },
+ "backup-open@1920": {
+  "words": 220,
+  "controls": 34,
+  "hints": 11,
+  "twice": 9,
+  "colours": 12,
+  "badges": 2,
+  "hintLines": [
+   "Saves Lyre library 2026-11-05.lyre",
+   "Made with Lyre 0.4, 2 Nov 2026 · audio files not included",
+   "2 sessions, 9 scenes",
+   "6 tracks",
+   "Dynamic · yours has the same name",
+   "4 tracks · yours has the same name and 4 tracks",
+   "9 pads",
+   "8 are already in your library (same file name and length)",
+   "Mood: Gothic · Leitmotif: Strahd, Ireena",
+   "For every item you have already:",
+   "No audio files: find them later with Find missing files."
+  ],
+  "repeated": [
+   "4× new",
+   "4× keep both",
+   "3× playlist",
+   "2× save to a file"
+  ],
+  "badgeKinds": [
+   "pane-status.s-on",
+   "badge"
+  ]
+ }
+}
