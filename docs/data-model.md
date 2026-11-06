@@ -16,6 +16,8 @@ The library database (backlog DAT-6, DAT-1, DAT-2, DAT-10, DAT-11, ORG-4, ORG-7,
 - **A track's name in a scene** (version 3), such as "Strahd's entrance": shown in that scene only, and found by search.
 - **Track shape** (version 3): steady, builds, falls away, peaks then falls, or rises and falls. Lyre suggests one from the track's loudness; your choice wins.
 - **Tracks on hand** (version 3): single tracks a campaign or a session keeps beside its playlists.
+- **Repeat one in a scene** (version 5): a track of a scene (or of one of its playlists) that plays again when it ends, every time the scene plays. It goes with the scene or the track. The Repeat button on the Now playing bar and in Live's On air is not stored at all: it lasts while that room's music plays.
+- **A playlist's order in one place** (version 5): its tracks dragged into another order in one scene, one session's list or one campaign's list, used only there. Tracks added to the playlist later come after them; "Back to the playlist's order" removes it. The order of the playlists in a session's or campaign's list was already kept (version 1).
 - **Campaigns, sessions and scenes.** A campaign has a look (theme), a game system, a description and (for later) its Obsidian notes, and the playlists and boards you use all campaign long. A session has a number (counted from the campaign's first session number in session order, so moving a session renumbers them all, as the prototype does), a name, a date, a status (played, next, draft; only one "next" per campaign) and its own playlists and boards. A scene has a name, a "starts when" line, notes, a music list (tracks and playlists in any mix, in playing order), one ambience track or playlist, and its pad boards.
 - **Folders** for playlists, boards and sessions, inside each other as deep as you like.
 - **Keys** (hotkeys) and what each runs: play a track or playlist, start a scene, next, previous, fade a lane, fade or stop everything, press a pad, undo a scene start, in order. Deleting a track, playlist, scene or pad takes it off every key.
@@ -84,12 +86,12 @@ Measured with 20,000 tracks, 500 playlists and 3 campaigns of 50 sessions with 8
 | File | Purpose |
 | --- | --- |
 | `sqlite.ts` | Loads `node:sqlite` (decision D3) without its experimental warning; `openConnection()` turns on foreign keys, recursive triggers, `temp_store = MEMORY` and, for files, WAL with `synchronous = NORMAL` (or a rollback journal with `FULL` where WAL cannot work). |
-| `schema/migrate.ts`, `schema/index.ts`, `schema/v001-library.ts`, `schema/v002-peaks.ts`, `schema/v003-round5.ts`, `schema/v004-loudness.ts` | Numbered schema versions (four so far: the library, loudness peaks, design round 5, volume normalisation), the upgrade runner (`MigrationContext.startVersion` tells a step whether the library is new) and `rebuildTable()` (with `withoutRowid` for link tables). |
+| `schema/migrate.ts`, `schema/index.ts`, `schema/v001-library.ts`, `schema/v002-peaks.ts`, `schema/v003-round5.ts`, `schema/v004-loudness.ts`, `schema/v005-round6.ts` | Numbered schema versions (five so far: the library, loudness peaks, design round 5, volume normalisation, design round 6), the upgrade runner (`MigrationContext.startVersion` tells a step whether the library is new) and `rebuildTable()` (with `withoutRowid` for link tables). |
 | `store.ts` | `Store`: prepared statements (the 200 most recently used), injected clock, `change(label, fn)` (one transaction, one undo step), `changeInBatches(label, items, fn)` (bulk work, one undo step), `exclusive()`, `changeWithoutHistory(fn)` (clears the history), `busyWith`, `searchCaughtUp()`. |
 | `searchIndex.ts` | Temporary triggers that mark changed tracks, and `flushSearchIndex` (each marked track's search entry rebuilt once, before COMMIT). |
 | `ordering.ts` | Gap ordering (`positionFor`, `positionsFor`, `assignPositions`). |
 | `validate.ts`, `designValidate.ts`, `errors.ts`, `types.ts` | Input checks (`designValidate` for audio profiles and rules, mirroring the tables' CHECKs), error classes, data-layer types. |
-| `repo/*.ts` | Repository functions: `roots`, `tracks`, `markers`, `folders`, `playlists` and `boards` (both on `containers`), `tags`, `campaigns`, `profiles`, `cueActions`, `search`; `domain` maps rows to the shared shapes of `src/common/domain`. `profileRows` and `ruleRows` store profiles and rules as rows (used inside other modules' changes); `peaks` reads and saves a track's loudness peaks (`trackPeaks`, `savePeaks`). Version 3: `playOrders` (PLY-13), `sceneNames` (DAT-14), `places` (checks a scene, session or campaign place and names it as a key). |
+| `repo/*.ts` | Repository functions: `roots`, `tracks`, `markers`, `folders`, `playlists` and `boards` (both on `containers`), `tags`, `campaigns`, `profiles`, `cueActions`, `search`; `domain` maps rows to the shared shapes of `src/common/domain`. `profileRows` and `ruleRows` store profiles and rules as rows (used inside other modules' changes); `peaks` reads and saves a track's loudness peaks (`trackPeaks`, `savePeaks`). Version 3: `playOrders` (PLY-13), `sceneNames` (DAT-14), `places` (checks a scene, session or campaign place and names it as a key). Version 5: `round6` (PLY-17 Repeat one, ORG-13 track order per place). |
 | `peaks.ts` | `PeakJobs`: works out loudness peaks one track at a time through a `PeakReader` (the real one runs ffmpeg: `src/main/media/ffmpegPeaks.ts`); on demand first, then after imports. |
 | `undo.ts` | `UndoHistory` (100 steps and 64 MB at most; a large step is replayed 500 rows at a time); `Store.clearHistory()` empties it. |
 | `import/*.ts` | Bringing audio in: `audioFiles` (which files, walking folders), `kindGuess`, `fileFacts` (quick checksum), `tagReader` (DAT-5, behind an interface), `musicMetadata` (the real reader; only the library's process imports it), `pipeline` (EDT-6 `importAudio`, `refreshEmbeddedTags`), `legacy` (DAT-9), `relink` (DAT-8), `titleTags` (DAT-4). |
@@ -170,6 +172,14 @@ erDiagram
   tracks ||--o{ campaign_tracks : "on hand in"
   sessions ||--o{ session_tracks : "keeps on hand"
   tracks ||--o{ session_tracks : "on hand in"
+  scenes ||--o{ repeat_ones : "repeats"
+  tracks ||--o{ repeat_ones : "repeated in"
+  playlists ||--o{ track_orders : "ordered in"
+  scenes |o--o{ track_orders : "order in"
+  sessions |o--o{ track_orders : "order in"
+  campaigns |o--o{ track_orders : "order in"
+  track_orders ||--o{ track_order_items : "tracks in order"
+  tracks ||--o{ track_order_items : "placed in"
 ```
 
 `schema_migrations`, `library_jobs`, `search_docs`, `search_fts` and `track_peaks` (one row per track, CASCADE) are bookkeeping and derived data, not shown.
@@ -210,6 +220,9 @@ Conventions: text ids (UUIDs; ids from older data can be kept); times in millise
 | `scene_track_names` | Version 3 (DAT-14): a track's name in one scene | (`scene_id`, `track_id`) (`WITHOUT ROWID`) | name trimmed, 1–200 characters; both CASCADE | BCNF |
 | `rule_shapes` | Version 3 (DAT-13): the shapes a dynamic playlist asks for (none: any) | (`playlist_id`, `shape`) (`WITHOUT ROWID`) | one of the five shapes; dynamic playlists only (trigger); CASCADE | BCNF |
 | `campaign_tracks`, `session_tracks` | Version 3 (ORG-12): single tracks on hand, in order | (owner, `track_id`); (owner, `position`) | both CASCADE | BCNF |
+| `repeat_ones` | Version 5 (PLY-17): a scene's track with Repeat one on (a row while on) | (`scene_id`, `track_id`) (`WITHOUT ROWID`) | both CASCADE | BCNF |
+| `track_orders` | Version 5 (ORG-13): a playlist's track order in exactly one place (scene, session list or campaign list) | `id`; partial unique: (`scene_id`, `playlist_id`), (`session_id`, `playlist_id`), (`campaign_id`, `playlist_id`) | exactly one place (CHECK); all CASCADE | BCNF |
+| `track_order_items` | Version 5 (ORG-13): the tracks of one order, each once, in order | (`order_id`, `track_id`) (`WITHOUT ROWID`); (`order_id`, `position`) | both CASCADE (a deleted track drops out) | BCNF |
 | `schema_migrations` | Applied versions | `version` | | |
 
 #### Notes on choices
@@ -263,6 +276,8 @@ Every table is in third normal form, and all but three in Boyce-Codd normal form
 | Version 3: the Shape filter (`tracksByShapeSql`) | `tracks_shape` (the choice), `track_peaks_shape` (the suggestion, for tracks with no choice) |
 | Version 3: a dynamic playlist with shapes (`dynamicTracksQuery`) | `rule_shapes` primary key; per track `track_peaks` by its key (the shape is read before the levels) |
 | Version 3: tracks on hand in the campaign tree (`campaignTreeQueries`: `campaignTracks`, `sessionTracks`); uses of a track on hand (`USES_QUERIES.track` 0 and 1) | `campaign_tracks_order`, `session_tracks_order`; `campaign_tracks_track`, `session_tracks_track` |
+| Version 5: a scene's Repeat ones, a track's in every scene (`REPEAT_ONES_SQL`) | `repeat_ones` primary key; `repeat_ones_track` |
+| Version 5: a playlist's track order in a place (`TRACK_ORDER_LOOKUP_SQL`), its tracks in order (`TRACK_ORDER_ITEMS_SQL`) | `track_orders_scene`, `track_orders_session`, `track_orders_campaign`; `track_order_items_order`; deletes: `track_orders_playlist`, `track_order_items_track` |
 | Full-text search (`searchQuery`) | `search_fts` (FTS5, prefix indexes of 1–3 characters), `search_docs` primary key; within a playlist also `playlist_items_order` |
 | Reading rules; tag merges and deletes | `rule_conditions_order`, `rule_condition_tags_order`, `rule_condition_tags_tag` (tag first) |
 | Lists in hand-made order | `folders_order`, `playlists_order`, `boards_order` (on `coalesce(parent or folder, '')`, the expression the repository queries with, so the top level is ordered too), `tag_groups_order`, `tags_order`, `track_follow_with_order`, `campaigns_order` |
@@ -351,6 +366,33 @@ The library was first designed in WP3 (version 1), rebuilt for design round 4 (v
 - **Measuring**: `PeakJobs` (`peaks.ts`) also measures loudness when given a `LoudnessReader` (`media/ffmpegLoudness.ts`: `ebur128=peak=true`, the report read line by line from ffmpeg's error stream); a track needs work when either its peaks or its loudness are missing. The library's process queues every track not measured yet 20 s after start (`loudnessSweepAfterMs`), so a library from version 3 is measured without an import; a "peaks" event then also means some tracks' loudness is known.
 - **The rule** that combines them (`normaliseDecision`, `normaliseGain`, `normalisedGainDb` in `src/common/domain/normalise.ts`): the track's choice, then the playlist it plays from, then the library; gain = target - loudness, at most +12 dB, lowered so the true peak stays at or below -1 dBTP; not measured plays as it is.
 
+### Version 5: design round 6 (wave 6, w6-contracts)
+
+`schema/v005-round6.ts` adds what design round 6 saves (design/prototype/ROUND6.md part 3, "the data for the
+contracts"). Everything else round 6 shows is not saved: each room's running list (Play next, Add to queue, skips) and
+the room's own Repeat live in the audio host for the evening (`src/common/domain/roomList.ts`).
+
+- **Repeat one** (PLY-17; Nik, 6 Nov 12:30: saved with the scene): `repeat_ones (scene_id, track_id)`, a row while it is
+  on, as the prototype's `repeat_ones (place_key, track_id)` but with the scene's key as a foreign key (the place key
+  'sc:…' is worked out from where the scene is, as for play orders). `repo/round6.ts`: `setRepeatOne` (one undo step;
+  a choice already made makes none), `sceneRepeatOnes`, `getRepeatOnes` (`RepeatOnes` by scene key). LyreApi hands
+  them out as `SceneInfo.repeatOnes`; a duplicated scene keeps them, as it keeps names in the scene.
+- **Order per place** (ORG-13): what v003 holds was checked first: `play_orders` is shuffle and repeat, not order, and
+  `session_playlists.position` / `campaign_playlists.position` already order the playlists in a session's and a
+  campaign's list (`campaigns.setOnHand` reorders them). What was missing is a playlist's track order inside one
+  place. The prototype's `track_orders (place_key, playlist_id, track_ids)` keeps a list in a column; here it is two
+  tables in 3NF: `track_orders` names the playlist and its one place (nullable keys and a CHECK, like `play_orders`,
+  so ON DELETE CASCADE applies to the scene, session, campaign and playlist), and `track_order_items` holds each track
+  once with a position. No row: the playlist's own order. `repo/round6.ts`: `setTrackOrder` (keeps only the
+  playlist's tracks, each once, the rest after; the playlist's own order deletes the place's, `placeOrderToKeep`),
+  `clearTrackOrder`, `getTrackOrder`, `getTrackOrders` (`TrackOrders` by place key, each the order that plays there).
+  Tracks added to the playlist later follow in its own order (`tracksInPlaceOrder`); a deleted track drops out by
+  CASCADE; a track taken out of a manual playlist stays in the rows but no longer counts. A duplicated scene does not
+  copy its track orders, as it does not copy its play orders and audio settings.
+- **Backups and the .lyre file**: backups copy the whole database, so both are in them. A .lyre file's `library.json`
+  gains `trackOrders` (places inside the scope, tracks inside the file), and each scene its `repeatOnes`; files from 0.4
+  have neither and open as before (no new file version: an older Lyre ignores the new keys).
+
 ### Import (EDT-6, DAT-5, DAT-8, DAT-4)
 
 - `importAudio(store, { paths }, { tagReader, onProgress, signal, batchSize })`: walks the folders (no links followed), skips files already in the library (one read of every track's location, keyed by `fileKey`: case ignored, as the coming unique path indexes will), reads file facts and tags 8 files at a time, and saves 500 tracks per `changeWithoutHistory` transaction, letting the event loop run between batches. Clears the undo history afterwards (DB review item 10; `changeWithoutHistory` now does it by itself). Measured: 5,000 files into a 20,000-track library in about 1.2 s, saving 0.5 s, longest batch 70 ms (budget: 5 s, 2 s, 200 ms; `import/pipeline.perf.test.ts`). The tag reader's own time comes on top.
@@ -420,6 +462,8 @@ time, and opens in any zip tool if someone needs to look inside. Node's own zlib
 
 | File | Covers |
 | --- | --- |
+| `schema/v005.test.ts` | Version 5: Repeat one's key and what it goes with; a track order's one place, its items' keys and positions, what goes with the place, the playlist and a track; the upgrade from version 4 with data. |
+| `repo/round6.test.ts` | Version 5's repository functions: Repeat one per scene and track, a track order per place, undo steps, refusals. |
 | `schema/v004.test.ts` | Version 4: the loudness table's CHECKs and key, the choices, the one-row library setting, and the upgrade from version 3. |
 | `repo/normalise.test.ts` | Version 4's repository functions: the library's setting, a track's and a playlist's choice (undo steps, refusals), measured loudness tied to its file and kept out of undo. |
 | `../media/ffmpegLoudness.test.ts`, `../media/filesUntouched.test.ts` | Reading ffmpeg's loudness report, its arguments, the bundled ffmpeg on tones, the demo kit's sounds, a short effect, silence and a broken file; files never changed by measuring or playing. |
