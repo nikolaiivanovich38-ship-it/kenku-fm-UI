@@ -130,6 +130,18 @@ describe("main-process LyreApi only", () => {
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
+  it("DAT-13: a seeded library has the sample tracks' peaks, so it suggests the prototype's shapes", async () => {
+    const { dir, library } = await seededLibrary();
+    const api = createLibraryApi(library, testHost());
+    const seed = prototypeSeed();
+    expect((await api.library.listTracks()).map((t) => [t.id, t.suggestedShape])).toEqual(seed.tracks.map((t) => [t.id, t.suggestedShape]));
+    expect(await api.library.peaksOf("t02")).toEqual(seed.peaks.t02);
+    expect((await api.library.search({ text: "", shapes: ["peaksThenFalls"], limit: 100 })).trackIds).toContain("t02");
+    api.stopBackgroundWork();
+    library.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
   it("turns the library's errors into refusals in plain words, and passes on faults", () => {
     expect(refusalFor(new ValidationError("name", "name cannot be empty."))).toEqual({ code: "invalid", message: "name cannot be empty.", field: "name" });
     expect(refusalFor(new NotFoundError("playlist", "p1")).code).toBe("not-found");

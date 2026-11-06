@@ -21,8 +21,9 @@ const seed = prototypeSeed(Date.UTC(2026, 10, 5, 12));
 const tracks = seed.tracks;
 const groups = seed.tagGroups;
 const titles = (list: LibraryTrack[]) => list.map((t) => t.title || t.metaTitle || t.fileName);
+const missing = new Set(seed.missing);
 const view = (change: Partial<LibraryFilter>, q = "", sort: Parameters<typeof visibleTracks>[3] = "title") =>
-  visibleTracks(tracks, { ...DEFAULT_FILTER, ...change }, q, sort);
+  visibleTracks(tracks, { ...DEFAULT_FILTER, ...change }, q, sort, missing);
 
 describe("the Library's filters (library.js matches and visible)", () => {
   it("All shows every track, sorted by title", () => {
@@ -80,12 +81,29 @@ describe("the Library's filters (library.js matches and visible)", () => {
     expect([...byArtist].sort((a, b) => a.localeCompare(b))).toEqual(byArtist);
   });
 
+  it("DAT-13: Shape shows tracks of the shapes ticked, the game master's choice before Lyre's suggestion", () => {
+    const builds = view({ shapes: ["builds"] });
+    expect(titles(builds)).toContain("Brutal battle, driving brass and strings; long build to full war");
+    // t15 is suggested steady, but the game master chose falls away.
+    expect(builds.map((t) => t.id)).not.toContain("t15");
+    expect(view({ shapes: ["fallsAway"] }).map((t) => t.id)).toContain("t15");
+    expect(view({ shapes: ["builds", "fallsAway"] }).length).toBe(builds.length + view({ shapes: ["fallsAway"] }).length);
+  });
+
+  it("DAT-8: Missing shows only the tracks whose files Lyre cannot find", () => {
+    expect(view({ missing: true }).map((t) => t.id).sort()).toEqual(["t19", "t26", "t37"]);
+    expect(visibleTracks(tracks, { ...DEFAULT_FILTER, missing: true }, "", "title")).toHaveLength(0);
+  });
+
   it("counts and describes the filters in use", () => {
     expect(filterCount(DEFAULT_FILTER)).toBe(0);
     expect(filterSummary(DEFAULT_FILTER, groups)).toBe("None: showing every track");
     const f = { ...DEFAULT_FILTER, kind: "fx" as const, newOnly: true, tags: { mood: ["Grief", "Eerie"] }, emin: 2, folder: "H:\\Audio\\Effects" };
     expect(filterCount(f)).toBe(6);
     expect(filterSummary(f, groups)).toBe("FX · New, not tagged yet · Grief, Eerie · energy 2 to 5 · Effects");
+    const r5 = { ...DEFAULT_FILTER, missing: true, shapes: ["builds" as const, "peaksThenFalls" as const] };
+    expect(filterCount(r5)).toBe(3);
+    expect(filterSummary(r5, groups)).toBe("Missing files · Builds, Peaks then falls");
   });
 
   it("lists library folders with their counts, and a chosen folder's subfolders under it", () => {
@@ -131,5 +149,6 @@ describe("words the Library shows", () => {
     expect(ruleWords({ conds: [{ group: "motif", match: "any", values: ["Drowned Abbess"] }, { group: "mood", match: "all", values: [] }], energy: [0, 1], leaveOutStings: true }, names)).toBe(
       "Leitmotif any of Drowned Abbess; energy 0 to 1; not stings",
     );
+    expect(ruleWords({ conds: [], shapes: ["builds", "peaksThenFalls"] }, names)).toBe("shape builds or peaks then falls");
   });
 });

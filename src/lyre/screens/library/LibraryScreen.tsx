@@ -8,7 +8,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ImportSummary, LibraryTrack, TagRef } from "../../../common/lyre/api";
-import { useCampaigns, useFolders, useLyreApi, useLyreEvent, usePlaylists, useProfileOverrides, useTagGroups } from "../../api";
+import { useCampaigns, useFolders, useLyreApi, useLyreEvent, useMissingTracks, usePlaylists, useProfileOverrides, useTagGroups } from "../../api";
 import { useLyreAudio, useNowPlaying } from "../../audio";
 import { Column, Pane } from "../../kit/Pane";
 import { Icon } from "../../kit/Icon";
@@ -24,7 +24,10 @@ import { FiltersBody } from "./FiltersBody";
 import { useLayoutMode } from "./layout";
 import { getLibraryState, setLibraryState, useLibraryState, type Guide } from "./libraryState";
 import { DEFAULT_FILTER, filterCount, filterSummary, filtersOn, KIND_NAMES, plural, shownTitle, visibleTracks } from "./model";
-import { focusSoon, onAirTrackIds, useWriteResult } from "./shared";
+import { focusSoon, onAirTrackIds, pausedTrackIds, useWriteResult } from "./shared";
+import { UseInDialog } from "./UseInDialog";
+import { useNormaliseSettings } from "./normalise";
+import { NormaliseDialog } from "../../kit/NormaliseChoice";
 import { PopMenuButton, TwoLines, type PopMenuEntry } from "../../kit/PopMenu";
 import { TagSheet } from "./TagSheet";
 import { TrackDetails } from "./TrackDetails";
@@ -58,13 +61,21 @@ export function LibraryScreen({ route }: ScreenProps) {
   const mode = useLayoutMode();
   const [tagging, setTagging] = useState(false);
   const [picker, setPicker] = useState<Picker | null>(null);
+  /** PLY-15: the library's Normalise volume dialog. */
+  const [normaliseOpen, setNormaliseOpen] = useState(false);
+  const normalise = useNormaliseSettings();
+  /** ORG-12: the track whose Use in… sheet is open. */
+  const [useIn, setUseIn] = useState<string | null>(null);
+  const missingList = useMissingTracks().data;
+  const missing = useMemo(() => new Set((missingList ?? NONE).map((m) => m.id)), [missingList]);
 
   const tid = route.params.tid;
   const open = tid ? byId.get(tid) : undefined;
   const all = tracks ?? NONE;
-  const list = useMemo(() => visibleTracks(all, st.filter, st.q, st.sort), [all, st.filter, st.q, st.sort]);
+  const list = useMemo(() => visibleTracks(all, st.filter, st.q, st.sort, missing), [all, st.filter, st.q, st.sort, missing]);
   const sel = useMemo(() => new Set(st.sel), [st.sel]);
   const onAir = useMemo(() => onAirTrackIds(now), [now]);
+  const airPaused = useMemo(() => pausedTrackIds(now), [now]);
   const groupNames = useMemo(() => Object.fromEntries(groups.map((g) => [g.id, g.name])), [groups]);
 
   /* ----- focus after a route change: the row that opened a track, or Back ----- */
@@ -174,6 +185,7 @@ export function LibraryScreen({ route }: ScreenProps) {
         { content: <Item icon="file" text="Open details" />, onSelect: () => openTrack(t.id) },
         { content: <Item icon="check" text={on ? "Deselect" : "Select"} />, onSelect: () => toggleSel(t.id, false) },
         { content: <Item icon="playlist" text="Add to playlist…" />, onSelect: () => setPicker({ kind: "one", id: t.id }) },
+        { content: <Item icon="link" text="Use in…" />, onSelect: () => setUseIn(t.id) },
         { content: <Item icon="fade" text="Audio profile" />, onSelect: () => (window.location.hash = hashOf(`profile/${t.id}`)) },
       ];
     },
@@ -361,7 +373,7 @@ export function LibraryScreen({ route }: ScreenProps) {
         ) : undefined
       }
     >
-      <FiltersBody tracks={all} groups={groups} folders={folders} filter={st.filter} />
+      <FiltersBody tracks={all} groups={groups} folders={folders} filter={st.filter} missing={missing} />
     </Pane>
   );
 
@@ -443,6 +455,9 @@ export function LibraryScreen({ route }: ScreenProps) {
         sel={sel}
         cursor={st.cursor ?? (open ? open.id : null)}
         onAir={onAir}
+        airPaused={airPaused}
+        preview={now.preview}
+        missing={missing}
         emptyText={emptyText}
         sort={st.sort}
         onOpen={openTrack}
@@ -491,7 +506,10 @@ export function LibraryScreen({ route }: ScreenProps) {
           campaigns={campaigns}
           overrides={overrides}
           previewing={now.preview?.key ?? null}
+          missing={missing.has(open.id)}
+          normalise={normalise}
           onNewPlaylist={(ids) => void newPlaylist(ids)}
+          onUseIn={() => setUseIn(open.id)}
         />
       ) : (
         <div className="lb-d lb-dempty">
@@ -565,7 +583,7 @@ export function LibraryScreen({ route }: ScreenProps) {
           Add tracks
           <Icon name="chevdown" size="s" />
         </PopMenuButton>
-        <LibraryMoreMenu />
+        <LibraryMoreMenu onNormalise={() => setNormaliseOpen(true)} />
       </div>
       <div className="viewbody fill lb-body">{body}</div>
       {tagging && (
@@ -574,6 +592,24 @@ export function LibraryScreen({ route }: ScreenProps) {
           groups={groups}
           onClose={() => setTagging(false)}
           onApply={applyTags}
+        />
+      )}
+      <NormaliseDialog
+        open={normaliseOpen}
+        setting={normalise}
+        measured={all.filter((t) => t.loudness).length}
+        total={all.length}
+        onClose={() => setNormaliseOpen(false)}
+        onSave={async (setting) => {
+          if (accept(await api.library.setNormaliseSettings(setting))) setNormaliseOpen(false);
+        }}
+      />
+      {useIn && (
+        <UseInDialog
+          track={byId.get(useIn)}
+          campaigns={campaigns}
+          nameOf={(ref) => (ref.kind === "playlist" ? (playlists.find((p) => p.id === ref.id)?.name ?? "a playlist") : shownTitle(byId.get(ref.id) ?? { title: "a track", metaTitle: "", fileName: "" }))}
+          onClose={() => setUseIn(null)}
         />
       )}
       <PickerDialog

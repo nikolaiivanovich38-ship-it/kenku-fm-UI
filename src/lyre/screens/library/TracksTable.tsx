@@ -7,11 +7,17 @@
  * or listbox. The same idea is used here: only the rows in sight, plus a few either side, are on the page; two
  * empty rows of the right height stand for the rest, so the scroll bar behaves as for the whole list.
  *
+ * Each row says where its sound goes (UX-16: On air, Only you), its shape beside its first tag (DAT-13) and Missing
+ * when Lyre cannot find its file (DAT-8).
+ *
  * Keys (the list is one Tab stop): Up, Down, Home, End move; Shift+Up/Down extends the selection; Space selects;
  * Enter opens the details; P previews; A plays on air.
  */
 import React, { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { LibraryTrack } from "../../../common/lyre/api";
+import type { PreviewNowPlaying } from "../../audio";
+import { DestTag } from "../../kit/DestTag";
+import { ShapeTag } from "../../kit/ShapeGlyph";
 import { EnergyMeter } from "../../kit/Pills";
 import { Icon } from "../../kit/Icon";
 import { cx } from "../../kit/cx";
@@ -34,6 +40,12 @@ export interface TracksTableProps {
   sel: ReadonlySet<string>;
   cursor: string | null;
   onAir: ReadonlySet<string>;
+  /** Tracks on air whose lanes are all paused. */
+  airPaused: ReadonlySet<string>;
+  /** What plays in the game master's headphones. */
+  preview: PreviewNowPlaying | null;
+  /** Tracks whose files Lyre cannot find. */
+  missing: ReadonlySet<string>;
   emptyText: React.ReactNode;
   onOpen: (id: string) => void;
   onToggle: (id: string, range: boolean) => void;
@@ -161,7 +173,9 @@ export function TracksTable(props: TracksTableProps) {
         selected={sel.has(t.id)}
         open={t.id === props.openId}
         tabbable={t.id === tabRow}
-        onAir={props.onAir.has(t.id)}
+        onAir={props.onAir.has(t.id) ? (props.airPaused.has(t.id) ? "paused" : "playing") : null}
+        previewing={props.preview?.key === t.id ? (props.preview.paused ? "paused" : "playing") : null}
+        missing={props.missing.has(t.id)}
         onOpen={props.onOpen}
         onToggle={props.onToggle}
         rowMenu={props.rowMenu}
@@ -225,14 +239,16 @@ interface TrackRowProps {
   selected: boolean;
   open: boolean;
   tabbable: boolean;
-  onAir: boolean;
+  onAir: "playing" | "paused" | null;
+  previewing: "playing" | "paused" | null;
+  missing: boolean;
   onOpen: (id: string) => void;
   onToggle: (id: string, range: boolean) => void;
   rowMenu: (t: LibraryTrack) => readonly PopMenuEntry[];
 }
 
 /** One track's line: drawn again only when that track, its selection or its state changes. */
-const TrackRow = memo(function TrackRow({ t, index, groupNames, selected, open, tabbable, onAir, onOpen, onToggle, rowMenu }: TrackRowProps) {
+const TrackRow = memo(function TrackRow({ t, index, groupNames, selected, open, tabbable, onAir, previewing, missing, onOpen, onToggle, rowMenu }: TrackRowProps) {
   const own = t.title;
   const meta = t.metaTitle;
   const shown = shownTitle(t);
@@ -289,25 +305,35 @@ const TrackRow = memo(function TrackRow({ t, index, groupNames, selected, open, 
           )}
           <span className={cx("lb-t1", !own && "untitled")}>{shown}</span>
           {own && meta && meta !== own && <span className="lb-t2">{meta}</span>}
-          {onAir && <span className="badge onair lb-air">On air</span>}
+          {onAir && <DestTag to="air" paused={onAir === "paused"} />}
+          {previewing && <DestTag to="you" paused={previewing === "paused"} />}
           {t.isNew && <span className="badge lb-newb">New</span>}
+          {missing && (
+            <span className="badge warn lb-miss" title={`Lyre cannot find this file at ${t.folder}`}>
+              <Icon name="warn" size="s" />
+              Missing
+            </span>
+          )}
         </div>
       </td>
       <td className="lb-c-tags">
-        {chips.length ? (
-          <>
-            <span className="chip lb-chip" title={groupNames[chips[0][0]] ?? chips[0][0]}>
-              <span className="ellipsis">{chips[0][1]}</span>
-            </span>
-            {chips.length > 1 && (
-              <span className="lb-more" title={chips.slice(1).map((c) => c[1]).join(", ")}>
-                +{chips.length - 1}
+        <span className="lb-tagcell">
+          <ShapeTag track={t} iconOnly />
+          {chips.length ? (
+            <>
+              <span className="chip lb-chip" title={groupNames[chips[0][0]] ?? chips[0][0]}>
+                <span className="ellipsis">{chips[0][1]}</span>
               </span>
-            )}
-          </>
-        ) : (
-          <span className="lb-none">No tags yet</span>
-        )}
+              {chips.length > 1 && (
+                <span className="lb-more" title={chips.slice(1).map((c) => c[1]).join(", ")}>
+                  +{chips.length - 1}
+                </span>
+              )}
+            </>
+          ) : (
+            <span className="lb-none">No tags yet</span>
+          )}
+        </span>
       </td>
       <td className="lb-c-en">
         {t.energy ? (

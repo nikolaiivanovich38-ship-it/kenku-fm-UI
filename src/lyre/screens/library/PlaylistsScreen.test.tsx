@@ -338,3 +338,127 @@ describe("Playlists: a dynamic playlist", () => {
     await expectNoAxeViolations();
   });
 });
+
+describe("Playlists: round 5", () => {
+  it("PLY-13: every row shows its own play order, and its menu changes it", async () => {
+    openAt("playlists");
+    await screen.findByText("21 playlists");
+    expect(await within(rowOf("Combat: big and loopable")).findByRole("button", { name: "Play order of Combat: big and loopable: Shuffle, repeat all" })).toBeInTheDocument();
+    const order = within(rowOf("The Company themes")).getByRole("button", { name: /^Play order of The Company themes: / });
+    expect(order).toHaveAccessibleName("Play order of The Company themes: In order, repeat all");
+    const user = userEvent.setup();
+    await user.click(order);
+    const menu = screen.getByRole("menu", { name: "Play order" });
+    expect(menu).toHaveTextContent("Play order of this playlist");
+    await user.click(within(menu).getByRole("menuitemradio", { name: /^No repeat/ }));
+    await waitFor(() => expect(order).toHaveAccessibleName("Play order of The Company themes: In order, no repeat"));
+  });
+
+  it("PLY-13: a playlist's page has its play order beside Play on air", async () => {
+    openAt("playlist/p-abbess");
+    const user = userEvent.setup();
+    const order = await screen.findByRole("button", { name: /^Play order of The Abbess: / });
+    expect(order.previousElementSibling).toHaveTextContent("Play on air");
+    await user.click(order);
+    await user.click(screen.getByRole("menuitemradio", { name: /^Repeat one/ }));
+    expect(await screen.findByRole("button", { name: "Play order of The Abbess: In order, repeat one" })).toBeInTheDocument();
+  });
+
+  it("EDT-8: a dynamic playlist's Details sit folded at the top of the main column, with the rules; Used in is on the side", async () => {
+    openAt("playlist/p-abbey-eerie");
+    const rules = await screen.findByRole("region", { name: "Rules" });
+    const details = region("Details");
+    expect(details.parentElement).toBe(rules.parentElement);
+    expect(details.compareDocumentPosition(rules) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(region("Used in").parentElement).not.toBe(rules.parentElement);
+    const toggle = within(details).getByRole("button", { name: "Details" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await userEvent.setup().click(toggle);
+    expect(await screen.findByRole("textbox", { name: "Name" })).toHaveValue("Abbey: eerie, low energy");
+  });
+
+  it("EDT-8: a manual playlist keeps Details on the side, open", async () => {
+    openAt("playlist/p-abbess");
+    const used = await screen.findByRole("region", { name: "Used in" });
+    expect(region("Details").parentElement).toBe(used.parentElement);
+    expect(within(region("Details")).getByRole("button", { name: "Details" })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("DAT-13: a dynamic playlist's rules can ask for shapes; none pressed means any shape", async () => {
+    const { api } = openAt("playlist/p-gothic");
+    const shapes = await screen.findByRole("group", { name: "Shape: how the track moves" });
+    expect(within(shapes).getAllByRole("button").map((b) => b.textContent)).toEqual(["Steady", "Builds", "Falls away", "Peaks then falls", "Rises and falls"]);
+    expect(shapes).toHaveTextContent("Any shape");
+    const matches = () => within(screen.getByRole("list", { name: "Matching tracks" })).getAllByRole("listitem").length;
+    await waitFor(() => expect(matches()).toBeGreaterThan(0));
+    const before = matches();
+    const user = userEvent.setup();
+    await user.click(within(shapes).getByRole("button", { name: "Builds" }));
+    await waitFor(() => expect(within(shapes).getByRole("button", { name: "Builds" })).toHaveAttribute("aria-pressed", "true"));
+    expect(region("Rules")).toHaveTextContent("shape builds");
+    await waitFor(() => expect(matches()).toBeLessThan(before));
+    const saved = (await api.playlists.list()).find((p) => p.id === "p-gothic");
+    expect(saved?.kind === "dynamic" && saved.rule.shapes).toEqual(["builds"]);
+    // Another rule change keeps the shapes.
+    await user.click(within(region("Rules")).getByRole("checkbox", { name: "Leave out stings" }));
+    await waitFor(async () => {
+      const p = (await api.playlists.list()).find((x) => x.id === "p-gothic");
+      expect(p?.kind === "dynamic" && [p.rule.shapes, p.rule.leaveOutStings]).toEqual([["builds"], true]);
+    });
+  });
+
+  it("ORG-12 and ORG-11: a track row shows its tags, and its menu has Use in…", async () => {
+    openAt("playlist/p-abbess");
+    const first = (await within(await screen.findByRole("list", { name: "Tracks in order" })).findAllByRole("listitem"))[0];
+    expect(within(first).getByText(/^Tags: /)).toBeInTheDocument();
+    const user = userEvent.setup();
+    await user.click(within(first).getByRole("button", { name: /^More for / }));
+    await user.click(screen.getByRole("menuitem", { name: "Use in…" }));
+    expect(within(screen.getByRole("dialog")).getByRole("heading", { name: /^Use ".+" in…$/ })).toBeInTheDocument();
+  });
+
+  it("ORG-11: a row's contents show each track's tags", async () => {
+    openAt("playlists");
+    await screen.findByText("21 playlists");
+    await userEvent.setup().click(screen.getByRole("button", { name: "Show contents of The Company themes" }));
+    const items = within(screen.getByRole("list", { name: "Tracks in The Company themes" })).getAllByRole("listitem");
+    expect(within(items[0]).getByText(/^Tags: /)).toBeInTheDocument();
+  });
+
+  it("UX-16: a playlist row and its page say On air while it plays, and a track row Only you while it is previewed", async () => {
+    const { audio } = openAt("playlists");
+    await screen.findByText("21 playlists");
+    const lane = { trackId: "t24", title: "x", origin: { kind: "playlist" as const, playlistId: "p-company", at: 0 }, playlistId: "p-company", position: 0, length: 100, paused: false, loading: false };
+    act(() => audio.setNowPlaying({ rooms: [{ roomId: "table", name: "Table", music: lane, ambience: null, upNext: null, queued: [], effects: [] }] }));
+    expect(within(rowOf("The Company themes")).getByText("On air")).toBeInTheDocument();
+    go("playlist/p-abbess");
+    const first = (await within(await screen.findByRole("list", { name: "Tracks in order" })).findAllByRole("listitem"))[0];
+    act(() => audio.setNowPlaying({ rooms: [], preview: { key: first.dataset.tid as string, label: "x" } }));
+    expect(within(first).getByText("Only you")).toBeInTheDocument();
+  });
+});
+
+describe("Playlists: volume normalisation (PLY-15)", () => {
+  it("a playlist's Details choose Normalise volume after the kind line and before Notes; a track's own choice comes first", async () => {
+    const { api } = openAt("playlist/p-ashen");
+    const details = await screen.findByRole("region", { name: "Details" });
+    const norm = await within(details).findByRole("group", { name: "Normalise volume" });
+    expect(within(norm).getByRole("button", { name: "On" })).toHaveAttribute("aria-pressed", "true");
+    await waitFor(() => expect(norm).toHaveAccessibleDescription("Its tracks get -2.2 dB to +2.7 dB here; 1 plays as it is"));
+    expect(within(details).getByTitle("A track's own choice still comes first.")).toBeInTheDocument();
+    const facts = details.querySelector(".pl-facts") as Element;
+    const notes = within(details).getByRole("textbox", { name: "Notes" });
+    expect(facts.compareDocumentPosition(norm) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(norm.compareDocumentPosition(notes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await userEvent.setup().click(within(norm).getByRole("button", { name: "Library setting" }));
+    await waitFor(() => expect(norm).toHaveAccessibleDescription("Its tracks play as they are"));
+    expect((await api.playlists.list()).find((p) => p.id === "p-ashen")?.normalise).toBeNull();
+  });
+
+  it("a track previewed from a playlist's page plays with that playlist's choice", async () => {
+    const { audio } = openAt("playlist/p-abbess");
+    const first = (await within(await screen.findByRole("list", { name: "Tracks in order" })).findAllByRole("listitem"))[0];
+    await userEvent.setup().click(within(first).getByRole("button", { name: /^Preview / }));
+    expect(audio.calls.find(([m]) => m === "previewTrack")?.[2]).toMatchObject({ playlistId: "p-abbess" });
+  });
+});

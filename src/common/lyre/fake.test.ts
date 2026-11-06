@@ -83,6 +83,36 @@ describe("the seed is the prototype's sample data", () => {
     expect(seed.moved.copied.map((r) => r.count)).toEqual([m.playlists, m.tracks, m.boards, m.pads, m.bookmarks]);
     expect(seed.moved.notBrought.map((r) => [r.what, r.why])).toEqual(m.notMoved);
   });
+
+  it("DAT-13: has each track's loudness as the prototype draws it, so Lyre suggests the prototype's shapes", () => {
+    // core.js needs a page only once it draws; its rules run with these stand-ins.
+    const page: unknown = new Proxy(function () {}, { get: (_t, key): unknown => (key === Symbol.toPrimitive ? () => "" : page), apply: (): unknown => page });
+    const nothing = (): undefined => undefined;
+    const box: Record<string, unknown> = {
+      Math, JSON, Date, console, setTimeout, clearTimeout, setInterval: nothing, clearInterval: nothing, requestAnimationFrame: nothing, addEventListener: nothing,
+      document: page, navigator: {}, location: { hash: "" }, localStorage: { getItem: (): null => null, setItem: nothing }, matchMedia: () => ({ matches: false, addEventListener: nothing }),
+    };
+    box.window = box;
+    vm.createContext(box);
+    vm.runInContext(`${source}; this.LYRE_DATA = LYRE_DATA;`, box);
+    vm.runInContext(fs.readFileSync(path.join(__dirname, "../../../design/prototype/src/core.js"), "utf8"), box);
+    const L = box.L as { data: { tracks: { id: string }[] }; suggestedShape(t: unknown): string; levels(t: unknown): number[] };
+    expect(seed.tracks.map((t) => [t.id, t.suggestedShape])).toEqual(L.data.tracks.map((t) => [t.id, L.suggestedShape(t)]));
+    // The levels are the prototype's curve spread over 1,000 points, as the library keeps a track's peaks.
+    const t02 = L.data.tracks.find((t) => t.id === "t02");
+    expect(seed.peaks.t02).toHaveLength(1000);
+    expect(seed.peaks.t02[0]).toBeCloseTo(L.levels(t02)[0], 2);
+    expect(seed.peaks.t02[999]).toBeCloseTo(L.levels(t02)[47], 2);
+    expect(seed.tracks.find((t) => t.id === "t02")).toMatchObject({ shape: null, suggestedShape: "peaksThenFalls" });
+  });
+});
+
+describe("the fake's sample library", () => {
+  it("DAT-13: starts with every sample track's peaks worked out, as a library that has read its files", async () => {
+    const api = createFakeLyreApi();
+    expect(await api.library.peaksOf("t02")).toEqual(prototypeSeed().peaks.t02);
+    expect((await api.library.listTracks()).find((t) => t.id === "t02")?.suggestedShape).toBe("peaksThenFalls");
+  });
 });
 
 describe("in-memory fake only", () => {

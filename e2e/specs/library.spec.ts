@@ -3,7 +3,7 @@
  * (design/prototype/tools/lb-flow.js, lb-size.js and src/views/library.js).
  */
 import type { Page } from "@playwright/test";
-import { expect, expectFailureUntilBuilt, test } from "./support/test";
+import { expect, test } from "./support/test";
 import { openRoute } from "./support/target";
 import { dropFiles } from "./support/drop";
 
@@ -262,9 +262,8 @@ test.describe("tagging many tracks at once", () => {
   });
 });
 
-/* Round 5 (design/prototype/ROUND5.md): built in wave 4, so each check waits for "round 5" in the app. */
+/* Round 5 (design/prototype/ROUND5.md), built in wave 4 (w4-prep-a; the ⋯ menu and Find missing files: w4-transfer). */
 test.describe("round 5: shape, names in scenes, Use in… and missing files", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 5"));
 
   test("DAT-13: a track's shape is suggested from its loudness, and the game master's choice wins", async ({ page }) => {
     await openRoute(page, "library/t02");
@@ -330,7 +329,6 @@ test.describe("round 5: shape, names in scenes, Use in… and missing files", ()
 
 /* Round 5, volume normalisation (design/prototype/ROUND5.md "Volume normalisation (PLY-15, DAT-15)"): built in wave 4. */
 test.describe("round 5: volume normalisation", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 5"));
 
   test("PLY-15: ⋯ › Normalise volume… is off for the library at first, with Standard (-18 LUFS); turned on, tracks get their gain", async ({ page }) => {
     await openRoute(page, "library");

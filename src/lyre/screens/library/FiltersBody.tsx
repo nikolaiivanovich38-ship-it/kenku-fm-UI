@@ -1,11 +1,13 @@
-/** The Library's Filters box: kind, New, tag values, energy and folders (library.js filtersBody). */
+/** The Library's Filters box: kind, New, Missing (DAT-8), shape (DAT-13), tag values, energy and folders (library.js filtersBody). */
 import React, { useMemo } from "react";
 import type { FolderRoot, LibraryTrack, TagGroup } from "../../../common/lyre/api";
 import { Icon } from "../../kit/Icon";
 import { useAnnounce } from "../../shell/Announcer";
 import { cx } from "../../kit/cx";
 import { getLibraryState, setLibraryState } from "./libraryState";
-import { folderRows, isNewish, kindOk, visibleTracks, type KindFilter, type LibraryFilter } from "./model";
+import { shapeOf } from "../../../common/domain";
+import { ShapeGlyph } from "../../kit/ShapeGlyph";
+import { folderRows, isNewish, kindOk, SHAPES, visibleTracks, type KindFilter, type LibraryFilter } from "./model";
 
 const KINDS: [KindFilter, string][] = [
   ["all", "All"],
@@ -14,10 +16,33 @@ const KINDS: [KindFilter, string][] = [
   ["fx", "FX"],
 ];
 
-export function FiltersBody({ tracks, groups, folders, filter }: { tracks: LibraryTrack[]; groups: TagGroup[]; folders: FolderRoot[]; filter: LibraryFilter }) {
+export function FiltersBody({
+  tracks,
+  groups,
+  folders,
+  filter,
+  missing,
+}: {
+  tracks: LibraryTrack[];
+  groups: TagGroup[];
+  folders: FolderRoot[];
+  filter: LibraryFilter;
+  /** Ids of the tracks whose files Lyre cannot find. */
+  missing: ReadonlySet<string>;
+}) {
   const { say } = useAnnounce();
   const base = useMemo(() => tracks.filter((t) => kindOk(t, filter.kind)), [tracks, filter.kind]);
   const nNew = useMemo(() => base.filter(isNewish).length, [base]);
+  const nMissing = useMemo(() => tracks.filter((t) => missing.has(t.id)).length, [tracks, missing]);
+  // How many tracks of this kind have each shape (chosen, else suggested).
+  const shapeCounts = useMemo(() => {
+    const out = new Map<string, number>();
+    for (const t of base) {
+      const { shape } = shapeOf(t);
+      if (shape) out.set(shape, (out.get(shape) ?? 0) + 1);
+    }
+    return out;
+  }, [base]);
   // Each tag value's count among the tracks of this kind, in one pass.
   const counts = useMemo(() => {
     const out = new Map<string, number>();
@@ -28,7 +53,7 @@ export function FiltersBody({ tracks, groups, folders, filter }: { tracks: Libra
   const setFilter = (change: Partial<LibraryFilter>) => setLibraryState((s) => ({ filter: { ...s.filter, ...change } }));
   const shownCount = () => {
     const s = getLibraryState();
-    return visibleTracks(tracks, s.filter, s.q, s.sort).length;
+    return visibleTracks(tracks, s.filter, s.q, s.sort, missing).length;
   };
 
   return (
@@ -54,6 +79,47 @@ export function FiltersBody({ tracks, groups, folders, filter }: { tracks: Libra
           <span className="grow lb-l">New, not tagged yet</span>
           <span className={cx("badge", nNew > 0 && "accent")}>{nNew}</span>
         </button>
+        {nMissing > 0 && (
+          <button
+            type="button"
+            className="btn s lb-newbtn lb-missbtn"
+            aria-pressed={filter.missing}
+            onClick={() => {
+              setFilter({ missing: !filter.missing });
+              say(filter.missing ? "Showing all tracks" : "Showing files Lyre cannot find");
+            }}
+          >
+            <Icon name={filter.missing ? "check" : "warn"} size="s" />
+            <span className="grow lb-l">Missing</span>
+            <span className="badge warn">{nMissing}</span>
+          </button>
+        )}
+      </div>
+      <div className="lb-fg" role="group" aria-labelledby="lb-fh-shape">
+        <h3 className="lb-fh" id="lb-fh-shape">
+          Shape
+        </h3>
+        <div className="chips">
+          {SHAPES.map(([shape, word]) => {
+            const on = filter.shapes.includes(shape);
+            return (
+              <button
+                key={shape}
+                type="button"
+                className="chip lb-fchip"
+                aria-pressed={on}
+                onClick={() => {
+                  setFilter({ shapes: on ? filter.shapes.filter((x) => x !== shape) : [...filter.shapes, shape] });
+                  say(`${shownCount()} tracks shown`);
+                }}
+              >
+                {on ? <Icon name="check" size="s" /> : <ShapeGlyph shape={shape} />}
+                {word}
+                <span className="lb-n num">{shapeCounts.get(shape) ?? 0}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
       {groups.map((g) => {
         const ticked = filter.tags[g.id] ?? [];

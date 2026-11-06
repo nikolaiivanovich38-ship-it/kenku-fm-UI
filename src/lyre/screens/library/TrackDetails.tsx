@@ -1,18 +1,52 @@
 /**
- * One track's Details (library.js detailsBody): your title beside the title in the file, the file name and folder;
- * Preview, Play on air and the Audio profile; tags by typing; energy, role, looping and notes; the playlists it is in
- * and the scenes that use it.
+ * One track's Details (library.js detailsBody): your title beside the title in the file, the file name and folder,
+ * and its names in scenes (DAT-14); Preview, Play on air, the Audio profile and Use in… (ORG-12); tags by typing;
+ * energy, shape (DAT-13), role, looping and notes; the playlists it is in, the scenes that use it and where it is kept
+ * on hand. A file Lyre cannot find says so and points to Find missing files (DAT-8).
  */
 import React, { useEffect, useId, useMemo, useRef, useState } from "react";
-import { isFx, matchesRule, usesOfPlaylist, usesOfTrack, type ProfileOverrides } from "../../../common/domain";
-import type { CampaignInfo, LibraryTrack, PlaylistInfo, TagGroup } from "../../../common/lyre/api";
+import { normaliseLine, type LibraryNormalise } from "../../../common/domain";
+import { NormaliseChoice, trackNormaliseHint } from "../../kit/NormaliseChoice";
+import {
+  isFx,
+  matchesRule,
+  parseKeyOfPlace,
+  placeLabel,
+  shapeOf,
+  usesOfPlaylist,
+  usesOfTrack,
+  type ProfileOverrides,
+  type TrackShape,
+} from "../../../common/domain";
+import type {
+  CampaignInfo,
+  LibraryTrack,
+  PlaylistInfo,
+  TagGroup,
+} from "../../../common/lyre/api";
+import { trackNamesOf } from "../../../common/lyre/lookup";
 import { tagValue } from "../../../common/lyre/text";
 import { useLyreApi } from "../../api";
 import { useLyreAudio } from "../../audio";
 import { Icon } from "../../kit/Icon";
 import { cx } from "../../kit/cx";
 import { useAnnounce } from "../../shell/Announcer";
-import { addedText, EFFECT_ROLE, ENERGY_WORDS, fmt, KIND_NAMES, LOOPS, plural, profileSummary, ROLES, shownTitle } from "./model";
+import {
+  addedText,
+  EFFECT_ROLE,
+  ENERGY_WORDS,
+  fmt,
+  KIND_NAMES,
+  LOOPS,
+  plural,
+  profileSummary,
+  ROLES,
+  SHAPES,
+  shownTitle,
+} from "./model";
+import { hashOf } from "../../shell/routes";
+import { placeNamesOf } from "../../kit/placeNames";
+import { ShapeGlyph, shapeHint } from "../../kit/ShapeGlyph";
 import { focusSoon, useWriteOk, useWriteResult } from "./shared";
 import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
 import { ProfileLink } from "../../kit/ProfileLink";
@@ -30,11 +64,29 @@ export interface TrackDetailsProps {
   campaigns: CampaignInfo[];
   overrides: ProfileOverrides;
   previewing: string | null;
+  /** DAT-8: Lyre cannot find the track's file where it was. */
+  missing: boolean;
+  /** PLY-15: the library's Normalise volume setting. */
+  normalise: LibraryNormalise;
   /** A new manual playlist with these tracks (library.js newPlaylist). */
   onNewPlaylist: (ids: string[]) => void;
+  /** ORG-12: Use in… for this track. */
+  onUseIn: () => void;
 }
 
-export function TrackDetails({ t, store, groups, playlists, campaigns, overrides, previewing, onNewPlaylist }: TrackDetailsProps) {
+export function TrackDetails({
+  t,
+  store,
+  groups,
+  playlists,
+  campaigns,
+  overrides,
+  previewing,
+  missing,
+  normalise,
+  onNewPlaylist,
+  onUseIn,
+}: TrackDetailsProps) {
   const api = useLyreApi();
   const audio = useLyreAudio();
   const { say, toast } = useAnnounce();
@@ -43,7 +95,10 @@ export function TrackDetails({ t, store, groups, playlists, campaigns, overrides
   /* ----- Your title and notes: shown as typed, saved shortly after ----- */
   const [title, setTitle] = useState(t.title);
   const [notes, setNotes] = useState(t.notes);
-  const pending = useRef<{ timer: ReturnType<typeof setTimeout> | null; patch: { title?: string; notes?: string } }>({ timer: null, patch: {} });
+  const pending = useRef<{
+    timer: ReturnType<typeof setTimeout> | null;
+    patch: { title?: string; notes?: string };
+  }>({ timer: null, patch: {} });
   const flush = () => {
     const p = pending.current;
     if (p.timer) clearTimeout(p.timer);
@@ -76,7 +131,9 @@ export function TrackDetails({ t, store, groups, playlists, campaigns, overrides
     store.update(t.id, (now) => ({ ...now, title: value }));
     saveSoon({ title: value });
   };
-  const write = async (patch: Parameters<typeof api.library.updateTrack>[1]) => {
+  const write = async (
+    patch: Parameters<typeof api.library.updateTrack>[1],
+  ) => {
     const done = accept(await api.library.updateTrack(t.id, patch));
     if (done) store.put(done);
     return done;
@@ -85,9 +142,39 @@ export function TrackDetails({ t, store, groups, playlists, campaigns, overrides
   const shown = shownTitle({ ...t, title });
   const previewOn = previewing === previewKeyOf({ kind: "track", id: t.id });
   const roles = t.kind === "fx" ? [EFFECT_ROLE, ...ROLES] : ROLES;
+  const names = useMemo(
+    () => namesInScenes(t.id, campaigns),
+    [t.id, campaigns],
+  );
+
+  /** DAT-13: choosing the shape Lyre suggests is no choice of your own, so the track keeps following the suggestion. */
+  const chooseShape = async (shape: TrackShape | null) => {
+    const chosen = shape === t.suggestedShape ? null : shape;
+    const done = accept(await api.library.setShape(t.id, chosen));
+    if (!done) return;
+    store.put(done);
+    const now = shapeOf(done).shape;
+    say(
+      now
+        ? `Shape: ${SHAPES.find(([k]) => k === now)?.[1]}${done.shape ? "" : ", as Lyre suggests"}`
+        : "No shape",
+    );
+  };
 
   return (
     <div className="lb-d">
+      {missing && (
+        <p className="lb-missing" role="note">
+          <Icon name="warn" size="s" />
+          <span className="grow">
+            Lyre cannot find this file where it was. Point Lyre at the folder it
+            moved to.
+          </span>
+          <a className="btn s" href={hashOf("relink")}>
+            Relink…
+          </a>
+        </p>
+      )}
       <div className="field">
         <label htmlFor="lb-title">Your title</label>
         <input
@@ -119,7 +206,13 @@ export function TrackDetails({ t, store, groups, playlists, campaigns, overrides
       )}
       <dl className="lb-names">
         <dt>Title in the file</dt>
-        <dd>{t.metaTitle ? t.metaTitle : <span className="lb-none">The file has no title</span>}</dd>
+        <dd>
+          {t.metaTitle ? (
+            t.metaTitle
+          ) : (
+            <span className="lb-none">The file has no title</span>
+          )}
+        </dd>
         <dt>File name</dt>
         <dd className="lb-file">{t.fileName}</dd>
         <dt>Folder</dt>
@@ -130,9 +223,13 @@ export function TrackDetails({ t, store, groups, playlists, campaigns, overrides
               type="button"
               className="btn s"
               onClick={() => {
-                const path = t.folder ? `${t.folder}\\${t.fileName}` : t.fileName;
+                const path = t.folder
+                  ? `${t.folder}\\${t.fileName}`
+                  : t.fileName;
                 try {
-                  void navigator.clipboard?.writeText(path).catch((): void => undefined);
+                  void navigator.clipboard
+                    ?.writeText(path)
+                    .catch((): void => undefined);
                 } catch {
                   /* the clipboard is not available: the toast still shows the path */
                 }
@@ -142,7 +239,11 @@ export function TrackDetails({ t, store, groups, playlists, campaigns, overrides
               <Icon name="file" size="s" />
               Copy path
             </button>
-            <button type="button" className="btn s" onClick={() => void api.library.showInFolder(t.id).then(accept)}>
+            <button
+              type="button"
+              className="btn s"
+              onClick={() => void api.library.showInFolder(t.id).then(accept)}
+            >
               <Icon name="folder" size="s" />
               Show in folder
             </button>
@@ -164,9 +265,30 @@ export function TrackDetails({ t, store, groups, playlists, campaigns, overrides
             </>
           )}
         </dd>
+        <dt>Names in scenes</dt>
+        <dd>
+          {names.length ? (
+            <ul className="lb-scnames">
+              {names.map((n) => (
+                <li key={n.key}>
+                  <b>{n.name}</b> <span className="hint">in {n.label}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <span className="lb-none">
+              None: it shows its own name everywhere
+            </span>
+          )}
+        </dd>
       </dl>
       <div className="lb-acts">
-        <button type="button" className="btn s lb-pvbtn" aria-pressed={previewOn} onClick={() => audio.previewTrack(t.id)}>
+        <button
+          type="button"
+          className="btn s lb-pvbtn"
+          aria-pressed={previewOn}
+          onClick={() => audio.previewTrack(t.id)}
+        >
           <Icon name={previewOn ? "stop" : "headphones"} size="s" />
           {previewOn ? "Stop preview" : "Preview"}
         </button>
@@ -182,6 +304,10 @@ export function TrackDetails({ t, store, groups, playlists, campaigns, overrides
           Play on air
         </button>
         <ProfileLink trackId={t.id} title={shown} hasOwn={!!t.profile} />
+        <button type="button" className="btn s" onClick={onUseIn}>
+          <Icon name="link" size="s" />
+          Use in…
+        </button>
       </div>
       <p className="lb-prof">
         <Icon name="fade" size="s" />
@@ -203,7 +329,11 @@ export function TrackDetails({ t, store, groups, playlists, campaigns, overrides
         </h3>
         <div className="lb-tg">
           <div className="lb-tgl">Energy</div>
-          <div className="seg s lb-seg24" role="group" aria-label="Energy, 1 calm to 5 intense">
+          <div
+            className="seg s lb-seg24"
+            role="group"
+            aria-label="Energy, 1 calm to 5 intense"
+          >
             {[1, 2, 3, 4, 5].map((n) => (
               <button
                 key={n}
@@ -211,7 +341,9 @@ export function TrackDetails({ t, store, groups, playlists, campaigns, overrides
                 aria-pressed={t.energy === n}
                 title={ENERGY_WORDS[n - 1]}
                 onClick={async () => {
-                  const done = await write({ energy: t.energy === n ? null : n });
+                  const done = await write({
+                    energy: t.energy === n ? null : n,
+                  });
                   if (done) say(done.energy ? `Energy ${n}` : "Energy cleared");
                 }}
               >
@@ -220,13 +352,36 @@ export function TrackDetails({ t, store, groups, playlists, campaigns, overrides
             ))}
           </div>
         </div>
+        <ShapeChoice t={t} onChoose={(v) => void chooseShape(v)} />
+        <div className="lb-tg lb-normrow">
+          <NormaliseChoice
+            value={t.normalise}
+            library={normalise}
+            line={normaliseLine(t, null, normalise)}
+            hint={trackNormaliseHint(t, normalise)}
+            onChange={async (choice) => {
+              const done = accept(await api.library.setNormalise(t.id, choice));
+              if (done) store.put(done);
+            }}
+          />
+        </div>
         <div className="lb-tg">
           <div className="lb-tgl">Role</div>
-          <ChoiceChips label="Role" options={roles} value={t.role} onChoose={(v) => void write({ role: t.role === v ? null : v })} />
+          <ChoiceChips
+            label="Role"
+            options={roles}
+            value={t.role}
+            onChoose={(v) => void write({ role: t.role === v ? null : v })}
+          />
         </div>
         <div className="lb-tg">
           <div className="lb-tgl">Looping</div>
-          <ChoiceChips label="Loop advice" options={LOOPS} value={t.loop} onChoose={(v) => void write({ loop: t.loop === v ? null : v })} />
+          <ChoiceChips
+            label="Loop advice"
+            options={LOOPS}
+            value={t.loop}
+            onChoose={(v) => void write({ loop: t.loop === v ? null : v })}
+          />
         </div>
         <div className="lb-tg">
           <label className="lb-tgl" htmlFor="lb-notes">
@@ -248,16 +403,108 @@ export function TrackDetails({ t, store, groups, playlists, campaigns, overrides
       </section>
 
       <InPlaylists t={t} playlists={playlists} onNewPlaylist={onNewPlaylist} />
-      <UsedIn t={t} playlists={playlists} campaigns={campaigns} />
+      <UsedIn
+        t={t}
+        playlists={playlists}
+        campaigns={campaigns}
+        onUseIn={onUseIn}
+      />
     </div>
   );
 }
 
-function ChoiceChips<T extends string>({ label, options, value, onChoose }: { label: string; options: readonly (readonly [T, string])[]; value: T | null; onChoose: (v: T) => void }) {
+/** DAT-14: the names scenes give this track, with each scene in words ("Aftermath (Session 14)"). */
+function namesInScenes(
+  trackId: string,
+  campaigns: CampaignInfo[],
+): { key: string; name: string; label: string }[] {
+  const places = placeNamesOf(campaigns);
+  return Object.entries(trackNamesOf(campaigns)).flatMap(([key, byTrack]) => {
+    const name = byTrack[trackId]?.trim();
+    const place = parseKeyOfPlace(key);
+    return name && place
+      ? [{ key, name, label: placeLabel(place, places) }]
+      : [];
+  });
+}
+
+/**
+ * DAT-13 Shape: how the track moves. The shape that applies is pressed (the game master's, else Lyre's suggestion);
+ * the line under it says which, with Use the suggestion when the two differ.
+ */
+function ShapeChoice({
+  t,
+  onChoose,
+}: {
+  t: LibraryTrack;
+  onChoose: (shape: TrackShape | null) => void;
+}) {
+  const labelId = useId();
+  const current = shapeOf(t).shape;
+  const hint = shapeHint(t);
+  return (
+    <div className="lb-tg">
+      <div className="lb-tgl" id={labelId}>
+        Shape
+      </div>
+      <div className="lb-shapebox">
+        <div className="chips" role="group" aria-labelledby={labelId}>
+          {SHAPES.map(([shape, word]) => (
+            <button
+              key={shape}
+              type="button"
+              className="chip lb-pick"
+              aria-pressed={current === shape}
+              onClick={() => onChoose(shape)}
+            >
+              <ShapeGlyph shape={shape} />
+              {word}
+            </button>
+          ))}
+        </div>
+        {hint && (
+          <p className="hint">
+            {hint}
+            {t.shape && t.suggestedShape && t.suggestedShape !== t.shape && (
+              <>
+                {" "}
+                <button
+                  type="button"
+                  className="btn s ghost"
+                  onClick={() => onChoose(null)}
+                >
+                  Use the suggestion
+                </button>
+              </>
+            )}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ChoiceChips<T extends string>({
+  label,
+  options,
+  value,
+  onChoose,
+}: {
+  label: string;
+  options: readonly (readonly [T, string])[];
+  value: T | null;
+  onChoose: (v: T) => void;
+}) {
   return (
     <div className="chips" role="group" aria-label={label}>
       {options.map(([v, text]) => (
-        <button key={v} type="button" className="chip lb-pick" aria-pressed={value === v} onClick={() => onChoose(v)}>
+        <button
+          key={v}
+          type="button"
+          className="chip lb-pick"
+          aria-pressed={value === v}
+          onClick={() => onChoose(v)}
+        >
           {value === v && <Icon name="check" size="s" />}
           {text}
         </button>
@@ -268,7 +515,15 @@ function ChoiceChips<T extends string>({ label, options, value, onChoose }: { la
 
 /* ---------- tags by typing: a combobox per group ---------- */
 
-function TagRow({ t, group, store }: { t: LibraryTrack; group: TagGroup; store: TrackStore }) {
+function TagRow({
+  t,
+  group,
+  store,
+}: {
+  t: LibraryTrack;
+  group: TagGroup;
+  store: TrackStore;
+}) {
   const api = useLyreApi();
   const { say } = useAnnounce();
   const accept = useWriteResult();
@@ -286,38 +541,74 @@ function TagRow({ t, group, store }: { t: LibraryTrack; group: TagGroup; store: 
   const options = useMemo(() => {
     if (!open) return [];
     const needle = q.trim().toLowerCase();
-    const values = group.values.filter((v) => !mine.includes(v) && (!needle || v.toLowerCase().includes(needle)));
-    values.sort((a, b) => Number(b.toLowerCase().startsWith(needle)) - Number(a.toLowerCase().startsWith(needle)));
-    const out: { value: string; isNew: boolean }[] = values.slice(0, 8).map((value) => ({ value, isNew: false }));
-    if (needle && !group.values.some((v) => v.toLowerCase() === needle)) out.push({ value: tagValue(q), isNew: true });
+    const values = group.values.filter(
+      (v) => !mine.includes(v) && (!needle || v.toLowerCase().includes(needle)),
+    );
+    values.sort(
+      (a, b) =>
+        Number(b.toLowerCase().startsWith(needle)) -
+        Number(a.toLowerCase().startsWith(needle)),
+    );
+    const out: { value: string; isNew: boolean }[] = values
+      .slice(0, 8)
+      .map((value) => ({ value, isNew: false }));
+    if (needle && !group.values.some((v) => v.toLowerCase() === needle))
+      out.push({ value: tagValue(q), isNew: true });
     return out;
   }, [open, q, group.values, mine]);
   const showList = open && options.length > 0;
   const active = Math.min(act, Math.max(0, options.length - 1));
 
   /** Adds a tag (creating it in the group when new). `stay`: focus comes back to the box (Enter, a click), not Tab. */
-  const pick = async (raw: string, { stay = true }: { stay?: boolean } = {}) => {
+  const pick = async (
+    raw: string,
+    { stay = true }: { stay?: boolean } = {},
+  ) => {
     const value = tagValue(raw);
     if (!value) return;
     setQ("");
     setOpen(false);
     setAct(0);
     arrowed.current = false;
-    const done = accept(await api.tags.tagTracks({ trackIds: [t.id], add: [{ group: group.id, value }] }));
+    const done = accept(
+      await api.tags.tagTracks({
+        trackIds: [t.id],
+        add: [{ group: group.id, value }],
+      }),
+    );
     if (!done) return;
     const made = done.created.length > 0;
-    const known = group.values.find((v) => v.toLowerCase() === value.toLowerCase()) ?? value;
+    const known =
+      group.values.find((v) => v.toLowerCase() === value.toLowerCase()) ??
+      value;
     store.update(t.id, (now) => {
       const have = now.tags[group.id] ?? [];
-      return { ...now, tags: { ...now.tags, [group.id]: have.includes(known) ? have : [...have, known] } };
+      return {
+        ...now,
+        tags: {
+          ...now.tags,
+          [group.id]: have.includes(known) ? have : [...have, known],
+        },
+      };
     });
     say(`${made ? "Created and added" : "Added"} ${known} to ${group.name}`);
     if (stay) inputRef.current?.focus();
   };
   const remove = async (value: string) => {
-    const done = accept(await api.tags.tagTracks({ trackIds: [t.id], remove: [{ group: group.id, value }] }));
+    const done = accept(
+      await api.tags.tagTracks({
+        trackIds: [t.id],
+        remove: [{ group: group.id, value }],
+      }),
+    );
     if (!done) return;
-    store.update(t.id, (now) => ({ ...now, tags: { ...now.tags, [group.id]: (now.tags[group.id] ?? []).filter((v) => v !== value) } }));
+    store.update(t.id, (now) => ({
+      ...now,
+      tags: {
+        ...now.tags,
+        [group.id]: (now.tags[group.id] ?? []).filter((v) => v !== value),
+      },
+    }));
     say(`Removed ${value} from ${group.name}`);
     inputRef.current?.focus();
   };
@@ -328,16 +619,26 @@ function TagRow({ t, group, store }: { t: LibraryTrack; group: TagGroup; store: 
       if (!open) {
         setOpen(true);
         setAct(0);
-      } else if (options.length) setAct((active + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length);
+      } else if (options.length)
+        setAct(
+          (active + (event.key === "ArrowDown" ? 1 : -1) + options.length) %
+            options.length,
+        );
       arrowed.current = true;
     } else if (event.key === "Enter") {
       event.preventDefault();
       if (showList && options[active]) void pick(options[active].value);
       else if (q.trim()) void pick(q);
-    } else if (event.key === "Tab" && !event.shiftKey && (q.trim() || (showList && arrowed.current))) {
+    } else if (
+      event.key === "Tab" &&
+      !event.shiftKey &&
+      (q.trim() || (showList && arrowed.current))
+    ) {
       // BUG-15: Tab adds what was typed, or the suggestion chosen, as Enter does, and lets focus move on. An empty
       // box, or suggestions only opened by a click, add nothing.
-      void pick(showList && options[active] ? options[active].value : q, { stay: false });
+      void pick(showList && options[active] ? options[active].value : q, {
+        stay: false,
+      });
     } else if (event.key === "Escape" && (open || q)) {
       event.preventDefault();
       event.stopPropagation();
@@ -353,7 +654,13 @@ function TagRow({ t, group, store }: { t: LibraryTrack; group: TagGroup; store: 
         {mine.map((v) => (
           <span key={v} className="chip lb-chip" title={group.name}>
             <span className="ellipsis">{v}</span>
-            <button type="button" className="x" title="Remove" aria-label={`Remove ${v} from ${group.name}`} onClick={() => void remove(v)}>
+            <button
+              type="button"
+              className="x"
+              title="Remove"
+              aria-label={`Remove ${v} from ${group.name}`}
+              onClick={() => void remove(v)}
+            >
               <Icon name="close" />
             </button>
           </span>
@@ -385,9 +692,22 @@ function TagRow({ t, group, store }: { t: LibraryTrack; group: TagGroup; store: 
               arrowed.current = false;
             }}
           />
-          <ul className="lb-lbx" id={listId} role="listbox" aria-label={`${group.name} values`} hidden={!showList} onMouseDown={(e) => e.preventDefault()}>
+          <ul
+            className="lb-lbx"
+            id={listId}
+            role="listbox"
+            aria-label={`${group.name} values`}
+            hidden={!showList}
+            onMouseDown={(e) => e.preventDefault()}
+          >
             {options.map((o, i) => (
-              <li key={`${o.isNew}:${o.value}`} id={`${listId}-${i}`} role="option" aria-selected={i === active} onClick={() => void pick(o.value)}>
+              <li
+                key={`${o.isNew}:${o.value}`}
+                id={`${listId}-${i}`}
+                role="option"
+                aria-selected={i === active}
+                onClick={() => void pick(o.value)}
+              >
                 {o.isNew ? (
                   <>
                     <Icon name="plus" size="s" />
@@ -409,20 +729,40 @@ function TagRow({ t, group, store }: { t: LibraryTrack; group: TagGroup; store: 
 
 /* ---------- In playlists ---------- */
 
-function InPlaylists({ t, playlists, onNewPlaylist }: { t: LibraryTrack; playlists: PlaylistInfo[]; onNewPlaylist: (ids: string[]) => void }) {
+function InPlaylists({
+  t,
+  playlists,
+  onNewPlaylist,
+}: {
+  t: LibraryTrack;
+  playlists: PlaylistInfo[];
+  onNewPlaylist: (ids: string[]) => void;
+}) {
   const api = useLyreApi();
   const { toast } = useAnnounce();
   const accept = useWriteResult();
   const ok = useWriteOk();
-  const inLane = (p: PlaylistInfo) => (p.lane === "fx" ? isFx(t) : t.kind === p.lane);
-  const manual = playlists.filter((p): p is Extract<PlaylistInfo, { kind: "manual" }> => p.kind === "manual" && p.trackIds.includes(t.id));
-  const dynamic = playlists.filter((p): p is Extract<PlaylistInfo, { kind: "dynamic" }> => p.kind === "dynamic" && inLane(p) && matchesRule(t, p.rule));
+  const inLane = (p: PlaylistInfo) =>
+    p.lane === "fx" ? isFx(t) : t.kind === p.lane;
+  const manual = playlists.filter(
+    (p): p is Extract<PlaylistInfo, { kind: "manual" }> =>
+      p.kind === "manual" && p.trackIds.includes(t.id),
+  );
+  const dynamic = playlists.filter(
+    (p): p is Extract<PlaylistInfo, { kind: "dynamic" }> =>
+      p.kind === "dynamic" && inLane(p) && matchesRule(t, p.rule),
+  );
   const menu = (): PopMenuEntry[] => {
     const options = playlists.filter(
-      (p): p is Extract<PlaylistInfo, { kind: "manual" }> => p.kind === "manual" && (p.lane === t.kind || (p.lane === "fx" && isFx(t))) && !p.trackIds.includes(t.id),
+      (p): p is Extract<PlaylistInfo, { kind: "manual" }> =>
+        p.kind === "manual" &&
+        (p.lane === t.kind || (p.lane === "fx" && isFx(t))) &&
+        !p.trackIds.includes(t.id),
     );
     return [
-      { group: `Manual playlists: ${KIND_NAMES[t.kind]}${t.kind !== "fx" && isFx(t) ? " and FX" : ""}` },
+      {
+        group: `Manual playlists: ${KIND_NAMES[t.kind]}${t.kind !== "fx" && isFx(t) ? " and FX" : ""}`,
+      },
       ...(options.length
         ? options.map(
             (p): PopMenuEntry => ({
@@ -435,7 +775,8 @@ function InPlaylists({ t, playlists, onNewPlaylist }: { t: LibraryTrack; playlis
                 </>
               ),
               onSelect: async () => {
-                if (accept(await api.playlists.addTracks(p.id, [t.id]))) toast(`Added to ${p.name}`);
+                if (accept(await api.playlists.addTracks(p.id, [t.id])))
+                  toast(`Added to ${p.name}`);
               },
             }),
           )
@@ -458,7 +799,12 @@ function InPlaylists({ t, playlists, onNewPlaylist }: { t: LibraryTrack; playlis
         <h3 className="lb-h" id="lb-h-pl">
           In playlists
         </h3>
-        <PopMenuButton label="Add to playlist" className="btn s" focusKey="lb-pladd" items={menu}>
+        <PopMenuButton
+          label="Add to playlist"
+          className="btn s"
+          focusKey="lb-pladd"
+          items={menu}
+        >
           <Icon name="plus" size="s" />
           Add to playlist
         </PopMenuButton>
@@ -494,7 +840,9 @@ function InPlaylists({ t, playlists, onNewPlaylist }: { t: LibraryTrack; playlis
               <a href={`#/playlist/${p.id}`} className="ellipsis">
                 {p.name}
               </a>
-              <span className="hint lb-plk">Dynamic: matches its tag rules</span>
+              <span className="hint lb-plk">
+                Dynamic: matches its tag rules
+              </span>
             </li>
           ))}
         </ul>
@@ -507,11 +855,39 @@ function InPlaylists({ t, playlists, onNewPlaylist }: { t: LibraryTrack; playlis
 
 /* ---------- Used in: scenes directly, or through a playlist ---------- */
 
-function UsedIn({ t, playlists, campaigns }: { t: LibraryTrack; playlists: PlaylistInfo[]; campaigns: CampaignInfo[] }) {
-  const inLane = (p: PlaylistInfo) => (p.lane === "fx" ? isFx(t) : t.kind === p.lane);
-  const mine = playlists.filter((p) => (p.kind === "manual" ? p.trackIds.includes(t.id) : inLane(p) && matchesRule(t, p.rule)));
-  const scenes = new Map<string, { campaignId: string; sessionId: string; sceneId: string; direct: boolean; via: string[] }>();
-  const at = (u: { campaignId: string; sessionId: string; sceneId: string }) => {
+function UsedIn({
+  t,
+  playlists,
+  campaigns,
+  onUseIn,
+}: {
+  t: LibraryTrack;
+  playlists: PlaylistInfo[];
+  campaigns: CampaignInfo[];
+  onUseIn: () => void;
+}) {
+  const inLane = (p: PlaylistInfo) =>
+    p.lane === "fx" ? isFx(t) : t.kind === p.lane;
+  const mine = playlists.filter((p) =>
+    p.kind === "manual"
+      ? p.trackIds.includes(t.id)
+      : inLane(p) && matchesRule(t, p.rule),
+  );
+  const scenes = new Map<
+    string,
+    {
+      campaignId: string;
+      sessionId: string;
+      sceneId: string;
+      direct: boolean;
+      via: string[];
+    }
+  >();
+  const at = (u: {
+    campaignId: string;
+    sessionId: string;
+    sceneId: string;
+  }) => {
     const key = `${u.campaignId}/${u.sessionId}/${u.sceneId}`;
     let e = scenes.get(key);
     if (!e) {
@@ -520,7 +896,23 @@ function UsedIn({ t, playlists, campaigns }: { t: LibraryTrack; playlists: Playl
     }
     return e;
   };
-  for (const u of usesOfTrack(t.id, campaigns)) if (u.level === "scene") at(u).direct = true;
+  const onHand: string[] = [];
+  for (const u of usesOfTrack(t.id, campaigns)) {
+    if (u.level === "scene") at(u).direct = true;
+    else {
+      // ORG-12: kept on hand all campaign long, or for one session's evening.
+      const c = campaigns.find((x) => x.id === u.campaignId);
+      const s =
+        u.level === "session"
+          ? c?.sessions.find((x) => x.id === u.sessionId)
+          : undefined;
+      onHand.push(
+        u.level === "campaign"
+          ? `${c?.name ?? "a campaign"} (whole campaign)`
+          : `${c?.name ?? "a campaign"} › Session ${s?.number ?? ""}`,
+      );
+    }
+  }
   let wider = 0;
   for (const p of mine) {
     for (const u of usesOfPlaylist(p.id, campaigns)) {
@@ -532,17 +924,31 @@ function UsedIn({ t, playlists, campaigns }: { t: LibraryTrack; playlists: Playl
       if (!e.via.includes(p.name)) e.via.push(p.name);
     }
   }
-  const names = (e: { campaignId: string; sessionId: string; sceneId: string }) => {
+  const names = (e: {
+    campaignId: string;
+    sessionId: string;
+    sceneId: string;
+  }) => {
     const c = campaigns.find((x) => x.id === e.campaignId);
     const s = c?.sessions.find((x) => x.id === e.sessionId);
     const sc = s?.scenes.find((x) => x.id === e.sceneId);
-    return { campaign: c?.name ?? "", session: s?.number ?? 0, scene: sc?.name ?? "" };
+    return {
+      campaign: c?.name ?? "",
+      session: s?.number ?? 0,
+      scene: sc?.name ?? "",
+    };
   };
   return (
     <section className="lb-sec" aria-labelledby="lb-h-used">
-      <h3 className="lb-h" id="lb-h-used">
-        Used in
-      </h3>
+      <div className="lb-hrow">
+        <h3 className="lb-h" id="lb-h-used">
+          Used in
+        </h3>
+        <button type="button" className="btn s" onClick={onUseIn}>
+          <Icon name="link" size="s" />
+          Use in…
+        </button>
+      </div>
       {scenes.size ? (
         <ul className="lb-pls lb-used">
           {[...scenes.values()].map((e) => {
@@ -572,9 +978,24 @@ function UsedIn({ t, playlists, campaigns }: { t: LibraryTrack; playlists: Playl
           })}
         </ul>
       ) : (
-        <p className="hint">Not in any scene yet. Add it to a scene directly, or to a playlist a scene plays.</p>
+        <p className="hint">
+          Not in any scene yet. Add it to a scene directly, or to a playlist a
+          scene plays.
+        </p>
       )}
-      {wider > 0 && <p className="hint">Also available in {plural(wider, "campaign or session", "campaigns or sessions")} through its playlists.</p>}
+      {wider > 0 && (
+        <p className="hint">
+          Also available in{" "}
+          {plural(wider, "campaign or session", "campaigns or sessions")}{" "}
+          through its playlists.
+        </p>
+      )}
+      {onHand.length > 0 && (
+        <p className="hint lb-onhand">
+          <Icon name="link" size="s" />
+          On hand in {onHand.join("; ")}
+        </p>
+      )}
     </section>
   );
 }

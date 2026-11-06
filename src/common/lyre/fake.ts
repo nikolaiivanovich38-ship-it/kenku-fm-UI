@@ -233,7 +233,8 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
   let redoStack: Step[] = [];
   let importing = false;
   /** Loudness peaks worked out so far, and those being worked out (not part of undo, as in the real library). */
-  const peaks = new Map<string, number[]>();
+  // The sample tracks' peaks are in the seed, as a library that has read their files has them (DAT-13).
+  const peaks = new Map<string, number[]>(Object.entries(seed.peaks ?? {}));
   const workingOut = new Set<string>();
   let nextId = 1;
   const listeners = new Set<(event: LyreEvent) => void>();
@@ -249,7 +250,8 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
    * a moment later with a "changed" event for "peaks", as the real library sends after ffmpeg has read the file.
    */
   function workOutPeaks(ids: string[]) {
-    const todo = ids.filter((id) => !peaks.has(id) && !workingOut.has(id) && state.tracks.some((t) => t.id === id) && !state.missing.includes(id));
+    // A sample track has its peaks from the seed but may not be measured yet: the job still measures it (DAT-15).
+    const todo = ids.filter((id) => (!peaks.has(id) || !state.tracks.find((t) => t.id === id)?.loudness) && !workingOut.has(id) && state.tracks.some((t) => t.id === id) && !state.missing.includes(id));
     if (todo.length === 0) return;
     todo.forEach((id) => workingOut.add(id));
     queueMicrotask(() => {
@@ -257,9 +259,11 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
         workingOut.delete(id);
         const t = state.tracks.find((x) => x.id === id);
         if (!t) continue;
-        peaks.set(id, madeUpPeaks(id));
-        // DAT-13: the suggestion is kept with the peaks, outside undo, as the library keeps it.
-        t.suggestedShape = shapeFromPeaks(peaks.get(id));
+        if (!peaks.has(id)) {
+          peaks.set(id, madeUpPeaks(id));
+          // DAT-13: the suggestion is kept with the peaks, outside undo, as the library keeps it.
+          t.suggestedShape = shapeFromPeaks(peaks.get(id));
+        }
         // DAT-15: the same job measures loudness; a made-up figure stands in for ffmpeg's.
         t.loudness ??= madeUpLoudness(id);
       }
@@ -626,9 +630,8 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
       },
       async peaksOf(trackId) {
         const ready = peaks.get(trackId);
-        if (ready) return [...ready];
         workOutPeaks([trackId]);
-        return null;
+        return ready ? [...ready] : null;
       },
       async setShape(trackId, shape) {
         let name = "";

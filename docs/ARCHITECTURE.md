@@ -478,6 +478,22 @@ Phase A of wave 4: the round 5 kit the prep screens and Live build on, and the N
 
 Audio host changes: `RoomNowPlaying.volume` and `setRoomVolume(target, 0..1)` (the room's mix level, kept per room while the app runs; the room that takes over the table keeps its volume; rooms start at `ROOM_START_VOLUME`, 0.85, in the app, 1 in tests unless `startRoomVolume` says otherwise). A lane's `length` is the library's length of the track when it has one, so the bar agrees with the lists.
 
+## Wave 4: w4-prep-a
+
+Phase B for the Library and Playlists (design/prototype/ROUND5.md), in `src/lyre/screens/library/`.
+
+| Where | What it does |
+| --- | --- |
+| `model.ts` | `LibraryFilter.shapes` (DAT-13, the shape that applies: chosen, else suggested) and `missing` (DAT-8); `visibleTracks(…, missing)` takes the ids from `import.findMissing()` (`useMissingTracks`); `SHAPES`; `ruleWords` says "shape builds or peaks then falls". |
+| `FiltersBody.tsx`, `TracksTable.tsx` | Filters › Missing (with its count, shown while any file is missing) and Shape (with counts). Rows: the shape glyph beside the first tag, `DestTag` On air or Only you (grey while paused, `pausedTrackIds` in `shared.tsx`), and Missing. |
+| `TrackDetails.tsx` | A missing file's note with Relink… (`#/relink`, the transfer stream's screen); Names in scenes (`trackNamesOf`, `placeLabel`); Use in… by Play on air and in Used in; How it plays › Shape (choosing the suggestion stores no choice, `library.setShape(id, null)`), with `shapeHint` and Use the suggestion; "On hand in …" from `usesOfTrack`'s campaign and session uses. |
+| `UseInDialog.tsx` | Takes `track` or `playlist` (ORG-12; `campaigns.setUses({ kind: "track" })`). With no campaign in hand it opens the first campaign's group, as the prototype starts with one in hand. Opened from a track's details, a Library row's menu and a playlist's track menu. |
+| `PlaylistsScreen.tsx`, `PlaylistPage.tsx` | `PlayOrderButton` (place null) on every row and by Play on air (PLY-13). A dynamic playlist: Details (`pl-details-dynamic`, folded unless just made), Rules, Matching tracks in the main column, Used in on the side (EDT-8); Rules › Shape. Track rows: `TagStrip` (ORG-11), `DestTag`, Use in… in their menu. A row's opened contents show tag strips. |
+
+Seed (DAT-13): `SeedData.peaks` holds each sample track's loudness, the prototype's curve (core.js `L.levels`) over 1,000 points at the library's one-byte precision; tracks' `suggestedShape` comes from it. The fake starts with those peaks and `seedLibrary` saves them (`savePeaks`), so both suggest the prototype's shapes (`fake.test.ts` runs core.js to check every track).
+
+PLY-15 (after merging w4-normalise): the Library's ⋯ (`LibraryMoreMenu`'s `onNormalise`) ends with a separator and "Normalise volume…" (`NormaliseDialog`; `normalise.ts` `useNormaliseSettings`, reloaded on "tracks"); a track's How it plays has `NormaliseChoice` between Shape and Role; a playlist's Details has it after the Manual/Dynamic line; a track previewed from a playlist's page passes `{ playlistId }`. The fake measures a sample track's loudness when its peaks are asked for, though the seed already has the peaks.
+
 ## Wave 4: w4-transfer
 
 DAT-7 (Back up, move or share), the move report and DAT-8 (Find missing files): the .lyre file in the main process

@@ -12,7 +12,8 @@ const go = (route: string) => () => {
   window.location.hash = hashOf(route);
 };
 
-export function LibraryMoreMenu() {
+/** `onNormalise`: the Library's own "Normalise volume…" (PLY-15), after a separator. */
+export function LibraryMoreMenu({ onNormalise }: { onNormalise?: () => void } = {}) {
   const missing = useMissingTracks().data;
   const count = missing?.length ?? 0;
   return (
@@ -23,6 +24,7 @@ export function LibraryMoreMenu() {
         { label: "Back up, move or share…", icon: "download", onSelect: go("backup") },
         { label: count ? `Find missing files (${count})…` : "Find missing files…", icon: "folder", onSelect: go("relink") },
         { label: "What came across from Kenku FM", icon: "check", onSelect: go("moved") },
+        ...(onNormalise ? [{ separator: true as const }, { label: "Normalise volume…", icon: "volume" as const, onSelect: onNormalise }] : []),
       ]}
     />
   );

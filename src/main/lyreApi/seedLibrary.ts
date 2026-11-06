@@ -29,6 +29,7 @@ import {
   setPlayOrder,
   setProfileOverride,
   setSceneAmbience,
+  savePeaks,
   setSceneTrackName,
   setTrackNormalise,
   trackLoudness,
@@ -159,6 +160,13 @@ export async function seedLibrary(library: Library, seed: SeedData, options: See
       store.run("INSERT INTO library_jobs (name, state, detail, started_at, finished_at) VALUES ('legacy-player', 'done', ?, ?, ?)", JSON.stringify({ backupPath: null, report }), seed.moved.at, seed.moved.at);
     }
   });
+  // DAT-13: the sample tracks' peaks, as if their files had been read (the files are not on a test machine).
+  for (const t of seed.tracks) {
+    const levels = seed.peaks[t.id];
+    const facts = store.get<{ size: number | null; mtime: number | null }>("SELECT file_size AS size, file_mtime_ms AS mtime FROM tracks WHERE id = ?", t.id);
+    if (!levels || !facts) continue;
+    savePeaks(store, { trackId: t.id, file: t.fileName, fileSize: facts.size, fileMtimeMs: facts.mtime }, Uint8Array.from(levels, (level) => Math.round(level * 255)));
+  }
   // DAT-15: what would have been measured from the files (the seed has no files), kept as the job keeps it.
   for (const t of seed.tracks) {
     const measuring = trackLoudness(store, t.id);

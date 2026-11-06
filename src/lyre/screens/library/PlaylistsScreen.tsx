@@ -21,6 +21,8 @@ import { DropNotice, DropZone, dropFiles, useDropState, useFileDrops, type DropT
 import { KIND_WORDS, matchesQuery, newlyMade, soundName, useDropActions } from "./playlistParts";
 import { PlaylistPage } from "./PlaylistPage";
 import { UseInDialog } from "./UseInDialog";
+import { DestTag } from "../../kit/DestTag";
+import { PlayOrderButton } from "../../kit/PlayOrderButton";
 import { onAirPlaylistIds, PlaylistContents, useWriteResult } from "./shared";
 import { PopMenuButton, TwoLines, type PopMenuEntry } from "../../kit/PopMenu";
 import { PlayOnAirButton, PreviewButton } from "../../kit/SoundButtons";
@@ -286,7 +288,7 @@ function PlaylistRow({ p, data, open, onToggle, onAir, flash, onUseIn }: { p: Pl
               , {kind.name}, {KIND_NAMES[p.lane]}, {usedWords}
             </span>
           </a>
-          {onAir && <span className="badge onair">On air</span>}
+          {onAir && <DestTag to="air" />}
         </div>
         <div className="num pl-c" aria-label={`${tracks.length} track${tracks.length === 1 ? "" : "s"}`}>
           {tracks.length}
@@ -297,6 +299,7 @@ function PlaylistRow({ p, data, open, onToggle, onAir, flash, onUseIn }: { p: Pl
         <div className="pl-racts">
           <PreviewButton target={{ kind: "playlist", id: p.id }} name={name} />
           <PlayOnAirButton target={{ kind: "playlist", id: p.id, empty: tracks.length === 0 }} name={name} />
+          <PlayOrderButton playlistId={p.id} place={null} />
           <PopMenuButton
             label={`More for ${name}`}
             ariaLabel={`More for ${name}`}
@@ -341,7 +344,13 @@ function PlaylistRow({ p, data, open, onToggle, onAir, flash, onUseIn }: { p: Pl
               {uses.length ? nameUses(uses, data.campaigns).map((u) => u.label).join("; ") : "Not used yet"}
             </span>
           </p>
-          <PlaylistContents playlistId={p.id} name={name} dynamic={p.kind === "dynamic"} tracks={tracks.map((t) => ({ id: t.id, title: shownTitle(t), durationMs: t.durationMs }))} />
+          <PlaylistContents
+            playlistId={p.id}
+            name={name}
+            dynamic={p.kind === "dynamic"}
+            groups={data.groups}
+            tracks={tracks.map((t) => ({ id: t.id, title: shownTitle(t), durationMs: t.durationMs, tags: t.tags, shape: t.shape, suggestedShape: t.suggestedShape }))}
+          />
         </div>
       )}
     </li>
