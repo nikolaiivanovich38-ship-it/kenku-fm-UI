@@ -211,7 +211,8 @@
     return '<header class="dt-head"><b>' + esc(nameOf(drag.kind, drag.ids)) + '</b><span class="faint dt-how" id="dt-how">' + (canMove ? (shiftDown ? 'Moves it' : 'Copies it · Shift moves') : 'Adds it') + ' · Esc cancels</span></header>' +
       groups.map(function (g) {
         return '<div class="dt-g" role="group" aria-label="' + esc(g) + '"><h3 class="dt-gh">' + esc(g) + '</h3>' + ps.filter(function (p) { return p.g === g; }).map(function (p) {
-          return '<button class="dt-t" type="button" data-dropto="' + esc(p.key) + '" tabindex="-1">' + esc(p.name) + '</button>';
+          // Names are told apart by their group for screen readers (a scene and a playlist can share a name).
+          return '<button class="dt-t" type="button" data-dropto="' + esc(p.key) + '" tabindex="-1">' + esc(p.name) + (p.g === 'Playlists' || p.g === 'Up next' ? '' : '<span class="sr-only">, ' + (p.g === 'Pad boards' ? 'new pad' : 'scene') + '</span>') + '</button>';
         }).join('') + '</div>';
       }).join('');
   }

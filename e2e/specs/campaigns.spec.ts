@@ -471,7 +471,9 @@ test.describe("round 7: what played, and Find and play", () => {
 
   test("Ctrl+K opens Find and play: type part of a name, Enter plays it on air, Esc closes and puts focus back", async ({ page }) => {
     await openRoute(page, "campaign/crown");
-    await page.getByRole("heading", { level: 1 }).focus();
+    // Focus starts on a control of the screen (the heading takes focus only after moving between screens).
+    const start = region(page, "Campaign playlists").getByRole("button", { name: "Preview The Company themes" });
+    await start.focus();
     await page.keyboard.press("Control+K");
     const d = page.getByRole("dialog", { name: "Find and play" });
     await expect(d).toBeVisible();
@@ -482,7 +484,7 @@ test.describe("round 7: what played, and Find and play", () => {
     await expect(region(page, "Now playing").getByRole("group", { name: "On air", exact: true })).toContainText("Playlist: The Abbess");
     await page.keyboard.press("Control+K");
     await page.keyboard.press("Escape");
-    await expect(page.getByRole("heading", { level: 1 })).toBeFocused();
+    await expect(start).toBeFocused();
   });
 
   test("in Find and play, Alt+Enter previews, Shift+Enter adds to the queue, and a pad or a scene can be found too", async ({ page }) => {
