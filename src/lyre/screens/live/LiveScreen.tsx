@@ -62,18 +62,22 @@ function readKeys1(): boolean {
   }
 }
 
+/** The number of columns for a width of the app (unmeasured counts as half of a 1920 screen). */
+function columnsFor(width: number): 1 | 2 | 3 {
+  const w = width > 0 ? width : 960;
+  return w >= THREE_COLUMNS_PX ? 3 : w >= TWO_COLUMNS_PX ? 2 : 1;
+}
+
+function appWidth(): number {
+  return document.getElementById("app")?.getBoundingClientRect().width ?? 0;
+}
+
 /** The number of columns for the app's width, following it as the window changes. */
 function useColumns(): 1 | 2 | 3 {
-  const of = (w: number): 1 | 2 | 3 => (w >= THREE_COLUMNS_PX ? 3 : w >= TWO_COLUMNS_PX ? 2 : 1);
-  const measure = () => {
-    const app = document.getElementById("app");
-    const w = app ? app.getBoundingClientRect().width : 0;
-    return of(w > 0 ? w : 960);
-  };
-  const [columns, setColumns] = useState(measure);
+  const [columns, setColumns] = useState(() => columnsFor(appWidth()));
   useLayoutEffect(() => {
     const app = document.getElementById("app");
-    const update = () => setColumns(measure());
+    const update = () => setColumns(columnsFor(appWidth()));
     update();
     if (!app || typeof ResizeObserver === "undefined") {
       window.addEventListener("resize", update);

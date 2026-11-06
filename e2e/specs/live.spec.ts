@@ -3,7 +3,7 @@
  * Elements are found by role, accessible name and visible text only.
  */
 import type { Page } from "@playwright/test";
-import { expect, expectFailureUntilBuilt, test } from "./support/test";
+import { expect, test } from "./support/test";
 import { joinRoom, leaveAllRooms, openRoute } from "./support/target";
 
 const region = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
@@ -390,10 +390,8 @@ test.describe("rooms", () => {
   });
 });
 
-/* Round 5 (design/prototype/ROUND5.md): built in wave 4, so each check waits for "round 5" in the app. */
+/* Round 5 (design/prototype/ROUND5.md), built in Live in wave 4 (w4-live). */
 test.describe("round 5: the Now playing bar, names in scenes, play order and single tracks in Live", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 5"));
-
   test("UX-16: in Live the room boxes show what each room hears, so the Now playing bar shows only a preview, tagged Only you", async ({ page }) => {
     await openRoute(page, "live");
     await startAbbey(page);

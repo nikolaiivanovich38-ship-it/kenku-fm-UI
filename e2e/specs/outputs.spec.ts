@@ -4,7 +4,7 @@
  * A room is named after its voice channel; each shows which bot is in it, who hears it and its volume.
  */
 import type { Page } from "@playwright/test";
-import { expect, expectFailureUntilBuilt, test } from "./support/test";
+import { expect, test } from "./support/test";
 import { joinRoom, openRoute } from "./support/target";
 
 const room = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
@@ -133,8 +133,6 @@ test.describe("mute, volume and test", () => {
 
 test.describe("outputs and the live game", () => {
   test("the Prep | Live switch is here too, with Prep pressed", async ({ page }) => {
-    // Ends on Live's On air box.
-    expectFailureUntilBuilt("live");
     await openRoute(page, "outputs");
     const modes = page.getByRole("group", { name: "Prep or live" });
     await expect(modes.getByRole("button", { name: "Prep" })).toHaveAttribute("aria-pressed", "true");
@@ -143,7 +141,6 @@ test.describe("outputs and the live game", () => {
   });
 
   test("a room that a bot is moved to on the Outputs screen also gets its On air box in Live", async ({ page }) => {
-    expectFailureUntilBuilt("live");
     await openRoute(page, "outputs");
     await joinRoom(page, "Lyre Side", "Whispers");
     await page.getByRole("group", { name: "Prep or live" }).getByRole("button", { name: "Live" }).click();
