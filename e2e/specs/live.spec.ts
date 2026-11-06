@@ -3,9 +3,13 @@
  * Elements are found by role, accessible name and visible text only.
  */
 import type { Page } from "@playwright/test";
-import { expect, expectFailureUntilBuilt, test } from "./support/test";
+import { expect, expectFailureUntilBuilt, metByTheAppAlready, test } from "./support/test";
 import { joinRoom, leaveAllRooms, openRoute } from "./support/target";
 
+/* The app's Live is still 0.4.1's (an On air box per room, Off script, the Pads box). A check written for round 6
+   part 3's Live (one On air box with a part per room, Find a track in the top strip, the scene's pads and row buttons
+   in Current scene) is marked `expectFailureUntilBuilt("round 6")` with what it reads; e2e/specs/BUILD-LIST.md lists
+   them for the Live stream. */
 const region = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
 /** Round 6 part 3: the running scene's box is Current scene (before: Scene music, then Current scene music). */
 const sceneMusic = (page: Page) => page.getByRole("region", { name: /^(Current scene|Current scene music|Scene music)$/ });
@@ -45,6 +49,7 @@ const addSideRoom = async (page: Page) => {
 
 test.describe("scenes and undo", () => {
   test("Space starts the next scene and the Next scene button keeps focus", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: On air is one box with a part per room
     await openRoute(page, "live");
     await clickAway(page);
     await page.keyboard.press("Space");
@@ -92,6 +97,7 @@ test.describe("scenes and undo", () => {
   });
 
   test("Esc on its own does not fade anything, Shift+Esc fades everything out", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: On air is one box with a part per room
     await openRoute(page, "live");
     await startFirstScene(page);
     await clickAway(page);
@@ -118,6 +124,7 @@ test.describe("scenes and undo", () => {
   });
 
   test("opened from another page, Live waits on standby with nothing playing", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: On air is one box with a part per room
     await openRoute(page, "campaigns");
     await page.getByRole("link", { name: /^Live/ }).click();
     await expect(page.getByRole("button", { name: /^Start: / })).toBeVisible();
@@ -137,6 +144,7 @@ test.describe("single-key shortcuts", () => {
   });
 
   test("with single-key shortcuts off, Space, / and pad keys do nothing", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: On air is one box with a part per room
     await openRoute(page, "live");
     await page.getByRole("button", { name: "Keys" }).click();
     await page.getByRole("switch", { name: /Single-key shortcuts/ }).click();
@@ -152,6 +160,7 @@ test.describe("single-key shortcuts", () => {
   });
 
   test("/ jumps to Find a track (round 6: was Off script), typing finds tracks, and Esc in the box clears it", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: Find a track is a field in the top strip
     await openRoute(page, "live");
     await clickAway(page);
     await page.keyboard.press("/");
@@ -164,6 +173,7 @@ test.describe("single-key shortcuts", () => {
   });
 
   test("a pad key is ignored while typing in a box", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: Find a track is a field in the top strip
     await openRoute(page, "live");
     await startAbbey(page);
     await clickAway(page);
@@ -176,6 +186,7 @@ test.describe("single-key shortcuts", () => {
   });
 
   test("a pad key starts that pad's sound", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: On air is one box with a part per room
     await openRoute(page, "live");
     await startAbbey(page);
     await clickAway(page);
@@ -213,6 +224,7 @@ test.describe("BUG-21: renaming the session in the top strip", () => {
 test.describe("BUG-20: stopping pads", () => {
   const abbeyPads = (page: Page) => sceneMusic(page).getByRole("group", { name: "Pads on Drowned Abbey" });
   test("a pad that plays says so, and pressing it again stops it, whatever its play mode", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: the running scene's pads are in Current scene
     await openRoute(page, "live");
     await startAbbey(page);
     // Stone door grinds: a one-shot, whose sound is a library track in the app's seeded library too.
@@ -227,6 +239,7 @@ test.describe("BUG-20: stopping pads", () => {
   });
 
   test("Stop pads beside the scene's pads stops every pad and leaves the music and ambience playing", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: On air is one box with a part per room
     await openRoute(page, "live");
     await startAbbey(page);
     const stop = sceneMusic(page).getByRole("button", { name: "Stop pads" });
@@ -250,6 +263,7 @@ test.describe("BUG-20: stopping pads", () => {
 
 test.describe("choosing what plays", () => {
   test("a hold pad plays while its key is down and stops when it comes up", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: On air is one box with a part per room
     await openRoute(page, "live");
     await startAbbey(page);
     await clickAway(page);
@@ -261,6 +275,7 @@ test.describe("choosing what plays", () => {
   });
 
   test("On air sits above Current scene (round 6 part 6: at the top; before: Scene music above On air)", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: On air is a box at the top (part 6)
     await openRoute(page, "live");
     const music = (await sceneMusic(page).boundingBox())!;
     const onAir = (await region(page, "On air").boundingBox())!;
@@ -268,6 +283,7 @@ test.describe("choosing what plays", () => {
   });
 
   test("Play next (round 6: Add to queue) queues a track and Next music then plays it", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: On air is one box with a part per room
     await openRoute(page, "live");
     await startAbbey(page);
     const queued = "Haunted sea shanty, grey and slow - the drowned bells";
@@ -288,6 +304,7 @@ test.describe("choosing what plays", () => {
   });
 
   test("Next follows the scene's order into the playlist after the track, and up next is never the track already playing", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: On air is one box with a part per room
     await openRoute(page, "live");
     await startAbbey(page);
     const onAir = room(page, "Table");
@@ -302,6 +319,7 @@ test.describe("choosing what plays", () => {
   });
 
   test("a row shows the length that will play with the scene's own end point, with the end rule as a tooltip", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: On air is one box with a part per room
     await openRoute(page, "live");
     await startAbbey(page);
     await expect(sceneMusic(page).getByRole("listitem").first()).toContainText("3:10");
@@ -309,6 +327,7 @@ test.describe("choosing what plays", () => {
   });
 
   test("a track's title opens its details with a link to the Audio profile for this scene, and does not play it", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: On air is one box with a part per room
     await openRoute(page, "live");
     await startFirstScene(page);
     await startAbbey(page);
@@ -319,6 +338,7 @@ test.describe("choosing what plays", () => {
   });
 
   test("row actions read Preview, Play next, Add to queue (round 6), Play on air, in that order", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: each row has Add to queue
     await openRoute(page, "live");
     await startAbbey(page);
     const row = sceneMusic(page).getByRole("listitem").first();
@@ -336,6 +356,7 @@ test.describe("choosing what plays", () => {
   });
 
   test("the scene's pads (round 6: in Current scene) offer the scene's boards as a switch", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: the running scene's pads are in Current scene
     await openRoute(page, "live");
     await startAbbey(page);
     const boards = sceneMusic(page).getByRole("group", { name: "This scene's pad boards" });
@@ -345,6 +366,7 @@ test.describe("choosing what plays", () => {
 
 test.describe("Off script search (round 6: Find a track)", () => {
   test("a tag you pick can be cleared with the X next to the tag list", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: Find a track is a field in the top strip
     await openRoute(page, "live");
     await openFind(page);
     const moods = page.getByRole("group", { name: "Moods" });
@@ -356,6 +378,7 @@ test.describe("Off script search (round 6: Find a track)", () => {
   });
 
   test("the Music, Ambience and FX filter narrows the results, and playing an effect layers it over the music", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: Find a track is a field in the top strip
     await openRoute(page, "live");
     await startFirstScene(page);
     await openFind(page);
@@ -372,6 +395,7 @@ test.describe("Off script search (round 6: Find a track)", () => {
 
 test.describe("rooms", () => {
   test("with no room joined On air (before: the top strip) warns that players hear nothing and offers Join Table", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: On air is one box with a part per room
     await openRoute(page, "live");
     await leaveAllRooms(page);
     await expect(page.getByText(/players hear nothing/)).toBeVisible();
@@ -381,6 +405,7 @@ test.describe("rooms", () => {
   });
 
   test("BUG-19: with no room joined, what plays says nobody hears it, in its On air box and in the Now playing bar", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: On air is one box with a part per room
     await openRoute(page, "live");
     await leaveAllRooms(page);
     await startFirstScene(page);
@@ -397,6 +422,7 @@ test.describe("rooms", () => {
   });
 
   test("a room's box has Mute, shown as the one status Muted, and a volume slider that works from the keyboard", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: On air is one box with a part per room
     await openRoute(page, "live");
     const table = room(page, "Table");
     await table.getByRole("button", { name: "Mute Table" }).click();
@@ -411,6 +437,7 @@ test.describe("rooms", () => {
   });
 
   test("Add a room: a second On air box for it appears, saying Silent", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: On air is one box with a part per room
     await openRoute(page, "live");
     await addSideRoom(page);
     await expect(room(page, "Side room").getByText(/^(Silent|Nobody there)$/)).toBeVisible();
@@ -418,6 +445,7 @@ test.describe("rooms", () => {
   });
 
   test("with two rooms, each box that plays gets a To: Table choice (round 6: Current scene, Session playlists, Find a track)", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: On air is one box with a part per room
     await openRoute(page, "live");
     await addSideRoom(page);
     await unfold(sessionPlaylists(page));
@@ -428,12 +456,14 @@ test.describe("rooms", () => {
   });
 
   test("a room that joins from Discord gets its box too", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: On air is one box with a part per room
     await openRoute(page, "live");
     await joinRoom(page, "Lyre Side", "Whispers");
     await expect(room(page, "Whispers")).toBeVisible();
   });
 
   test("choosing To: Side room sends Play on air from a box (round 6: Session playlists) only to that room, and the row buttons say so", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: On air is one box with a part per room
     await openRoute(page, "live");
     await addSideRoom(page);
     const music = sessionPlaylists(page);
@@ -446,6 +476,7 @@ test.describe("rooms", () => {
   });
 
   test("Off script can send a track to a chosen room too", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: On air is one box with a part per room
     await openRoute(page, "live");
     await addSideRoom(page);
     await openFind(page);
@@ -458,6 +489,7 @@ test.describe("rooms", () => {
   });
 
   test("a pad key plays in the room chosen for the scene's pads (round 6: in Current scene)", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: On air is one box with a part per room
     await openRoute(page, "live");
     await addSideRoom(page);
     await startFirstScene(page);
@@ -471,6 +503,7 @@ test.describe("rooms", () => {
   });
 
   test("Next scene always starts in the first room, whatever the Scene music box points to", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: On air is one box with a part per room
     await openRoute(page, "live");
     await addSideRoom(page);
     await sceneMusic(page).getByRole("button", { name: /choose a room/i }).click();
@@ -503,6 +536,7 @@ test.describe("rooms", () => {
 /* Round 5 (design/prototype/ROUND5.md), built in Live in wave 4 (w4-live). */
 test.describe("round 5: the Now playing bar, names in scenes, play order and single tracks in Live", () => {
   test("UX-16: in Live the room boxes show what each room hears, so the Now playing bar shows only a preview, tagged Only you", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: On air is one box with a part per room
     await openRoute(page, "live");
     await startAbbey(page);
     await expect(room(page, "Table").getByText("Playing")).toBeVisible();
@@ -516,6 +550,7 @@ test.describe("round 5: the Now playing bar, names in scenes, play order and sin
   });
 
   test("UX-16: with two rooms playing, the Now playing bar on a prep screen has a row for each, tagged with the room's name", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: On air is one box with a part per room
     await openRoute(page, "live");
     await addSideRoom(page);
     const music = sessionPlaylists(page);
@@ -531,6 +566,7 @@ test.describe("round 5: the Now playing bar, names in scenes, play order and sin
   });
 
   test("DAT-14: a scene's name for a track shows in its list, its On air box and the bar, with its own name on hover", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: On air is one box with a part per room
     await openRoute(page, "live");
     await page.getByRole("button", { name: "Start scene 6: Aftermath" }).click();
     await expect(room(page, "Table")).toContainText("Dawn over the abbey");
@@ -548,6 +584,7 @@ test.describe("round 5: the Now playing bar, names in scenes, play order and sin
   });
 
   test("ORG-12: the campaign's single tracks are in its list (round 6: Campaign playlists), ready to play on air", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: the campaign's playlists are the Campaign playlists box
     await openRoute(page, "live");
     const box = region(page, "Campaign playlists");
     await box.getByRole("button", { name: "Campaign Playlists", exact: true }).click();
@@ -869,6 +906,7 @@ test.describe("round 6, part 4: the review's fixes in Live", () => {
   });
 
   test("Should 11: the pads' names in Current scene are not cut at 1280 px", async ({ page }) => {
+    metByTheAppAlready("the app's Scene music shows the pads' names whole at 1280 px");
     await page.setViewportSize({ width: 1280, height: 800 });
     await openRoute(page, "live");
     await startAbbey(page);
@@ -985,6 +1023,7 @@ test.describe("round 6, part 6: On air at the top, Back and the trail, Find play
 
   for (const [width, height] of [[1280, 800], [960, 1000]]) {
     test(`at ${width}×${height}, with a scene playing, the start of Scenes and of Current scene is in view without scrolling`, async ({ page }) => {
+      metByTheAppAlready("the app's Next scene button and the first row of Scene music are in view at this size");
       await page.setViewportSize({ width, height });
       await openRoute(page, "live");
       await startAbbey(page);

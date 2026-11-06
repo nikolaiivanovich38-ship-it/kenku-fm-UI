@@ -682,8 +682,9 @@ test.describe("round 7: what played, and Find and play", () => {
   });
 });
 
+// Round 7 part 2 fixed this in the prototype's redraw; the app (React) keeps focus through a redraw already, so the
+// check is required there and not marked.
 test.describe("round 7, part 2: focus through a redraw", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
 
   test("the screen's heading keeps focus when the screen is drawn again (here: the window is resized)", async ({ page }) => {
     await openRoute(page, "campaigns");

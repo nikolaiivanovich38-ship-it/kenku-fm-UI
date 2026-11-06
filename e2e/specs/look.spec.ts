@@ -4,7 +4,7 @@
  * these options are not yet, so each check is marked "round 7".
  */
 import type { Page } from "@playwright/test";
-import { expect, expectFailureUntilBuilt, test } from "./support/test";
+import { expect, expectFailureUntilBuilt, metByTheAppAlready, test } from "./support/test";
 import { openRoute } from "./support/target";
 
 const display = (page: Page) => page.getByRole("region", { name: "Display", exact: true });
@@ -90,6 +90,7 @@ test.describe("round 7: motion and target size", () => {
   });
 
   test("every button and link on the Library and a pad board is at least 24 by 24 px, or has 24 px of space around it", async ({ page }) => {
+    metByTheAppAlready("the app's Library and pad board controls meet the 24 px target size at Compact");
     // WCAG 2.2 2.5.8: a target smaller than 24 × 24 passes when a 24 px circle on its centre touches no other target
     // and no other small target's circle. Links inside a sentence are exempt.
     for (const route of ["library", "board/combat"]) {
