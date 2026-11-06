@@ -16,6 +16,7 @@ import * as profiles from "./repo/profiles";
 import * as cueActions from "./repo/cueActions";
 import * as playOrders from "./repo/playOrders";
 import * as sceneNames from "./repo/sceneNames";
+import * as round6 from "./repo/round6";
 import * as normalise from "./repo/normalise";
 import { search } from "./repo/search";
 import { getDomainLookup } from "./repo/domain";
@@ -117,6 +118,9 @@ async function fixture(store: Store) {
   playOrders.setPlayOrder(store, playlist.id, inScene, { shuffle: true, repeat: "off" });
   sceneNames.setSceneTrackName(store, scene.id, c.id, "The wight rises");
   campaigns.addToCampaign(store, campaign.id, { trackIds: [b.id, c.id] });
+  // Design round 6: Repeat one on a scene's track, a playlist's own order in the session's list.
+  round6.setRepeatOne(store, scene.id, c.id, true);
+  round6.setTrackOrder(store, playlist.id, { kind: "session", campaignId: campaign.id, sessionId: session.id }, [b.id, a.id]);
   return {
     root, a, b, c, marker, folder, sub, playlist, dynamic, items, divider, board, board2, pads, sparePad,
     mood, tense, villain, strahd, campaign, otherCampaign, session, session2, scene, music, inScene,
@@ -229,6 +233,11 @@ const COMMANDS: [string, (s: Store, f: Fixture) => unknown][] = [
   ["clearPlayOrder", (s, f) => playOrders.clearPlayOrder(s, f.playlist.id, f.inScene)],
   ["setSceneTrackName", (s, f) => sceneNames.setSceneTrackName(s, f.scene.id, f.a.id, "Strahd's entrance")],
   ["setSceneTrackName (clear)", (s, f) => sceneNames.setSceneTrackName(s, f.scene.id, f.c.id, "")],
+  ["setRepeatOne", (s, f) => round6.setRepeatOne(s, f.scene.id, f.a.id, true)],
+  ["setRepeatOne (off)", (s, f) => round6.setRepeatOne(s, f.scene.id, f.c.id, false)],
+  ["setTrackOrder", (s, f) => round6.setTrackOrder(s, f.playlist.id, f.inScene, [f.b.id, f.a.id])],
+  ["setTrackOrder (replace)", (s, f) => round6.setTrackOrder(s, f.playlist.id, { kind: "session", campaignId: f.campaign.id, sessionId: f.session.id }, [f.a.id, f.b.id])],
+  ["clearTrackOrder", (s, f) => round6.clearTrackOrder(s, f.playlist.id, { kind: "session", campaignId: f.campaign.id, sessionId: f.session.id })],
   ["setTrackUses", (s, f) => campaigns.setTrackUses(s, f.c.id, [{ campaignId: f.otherCampaign.id }, { sessionId: f.session2.id }])],
   ["addToSession (a track)", (s, f) => campaigns.addToSession(s, f.session.id, { trackIds: [f.a.id, f.c.id] })],
   ["moveInCampaign (a track)", (s, f) => campaigns.moveInCampaign(s, f.campaign.id, { trackId: f.c.id }, "start")],
@@ -264,8 +273,8 @@ describe("undo and redo of every command (EDT-2)", () => {
   });
 
   it("covers every exported write function", async () => {
-    const modules = { tracks, roots, markers, playlists, boards, folders, tags, campaigns, profiles, cueActions, playOrders, sceneNames, normalise };
-    const readers = /^(get|list|find|track|own|tagUsage|campaignsOf|resolve|suggest|tagsOf|requireFolderFor|getFollowWith|ITEM_TABLES|[A-Z_]+$)/;
+    const modules = { tracks, roots, markers, playlists, boards, folders, tags, campaigns, profiles, cueActions, playOrders, sceneNames, normalise, round6 };
+    const readers = /^(get|list|find|track|own|scene|tagUsage|campaignsOf|resolve|suggest|tagsOf|requireFolderFor|getFollowWith|ITEM_TABLES|[A-Z_]+$)/;
     const writers = Object.values(modules)
       .flatMap((m) => Object.keys(m))
       .filter((name) => !readers.test(name) && name !== "markTracksUsed");

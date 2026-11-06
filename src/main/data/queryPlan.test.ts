@@ -18,6 +18,7 @@ import { PLAYLIST_ITEMS_SQL, createPlaylist } from "./repo/playlists";
 import { NEW_TRACKS_SQL, TRACK_BY_PATH_SQL, trackListQuery, tracksByShapeSql, tracksWithTagsSql } from "./repo/tracks";
 import { PLAY_ORDER_LOOKUP_SQL } from "./repo/playOrders";
 import { SCENE_NAMES_SQL } from "./repo/sceneNames";
+import { REPEAT_ONES_SQL, TRACK_ORDER_ITEMS_SQL, TRACK_ORDER_LOOKUP_SQL } from "./repo/round6";
 import { BOARD_PADS_SQL } from "./repo/boards";
 import { PROFILE_LOOKUP_SQL } from "./repo/profileRows";
 import { searchQuery } from "./repo/search";
@@ -147,6 +148,19 @@ describe("query plans of the hot read paths (DAT-11)", () => {
   it("DAT-14 a scene's names for its tracks, and a track's names in every scene", () => {
     expectIndexed(SCENE_NAMES_SQL.ofScene, ["x"], "PRIMARY KEY");
     expectIndexed(SCENE_NAMES_SQL.ofTrack, ["t"], "scene_track_names_track");
+  });
+
+  it("PLY-17 a scene's Repeat ones, and a track's in every scene", () => {
+    expectIndexed(REPEAT_ONES_SQL.ofScene, ["x"], "PRIMARY KEY");
+    expectIndexed(REPEAT_ONES_SQL.ofTrack, ["t"], "repeat_ones_track");
+  });
+
+  it.each(Object.entries(TRACK_ORDER_LOOKUP_SQL))("ORG-13 a playlist's track order by (place, playlist): %s", (place, sql) => {
+    expectIndexed(sql, ["x", "p"], `track_orders_${place.replace("_id", "")}`);
+  });
+
+  it("ORG-13 an order's tracks in order", () => {
+    expectIndexed(TRACK_ORDER_ITEMS_SQL, ["o"], "track_order_items_order");
   });
 
   it("DAT-13 the Shape filter: by the chosen shape, and by the suggested one for tracks with no choice", () => {
