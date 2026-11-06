@@ -78,8 +78,8 @@ for cue lists, shortcuts and remote buttons later (SHW-1, UX-12, SFX-5), kept ou
 
 **What.** Library › a track › How it plays: a **Sting** never loops (its loop choices are off; "A sting plays once"
 is read out); a **Loop bed** loops between its Loop and End handles (the loop in and loop out) unless its Audio profile
-says otherwise. Only the choices that fit the role show: an Underscore has **Ending** (Hard end or Fades out, 4 s unless
-the Audio profile says otherwise), **Pick up where it stopped** and **Then: Follow with…**; a Loop bed has Pick up; a
+says otherwise. Only the choices that fit the role show: an Underscore has **Ending: Fades out** (pressed, 4 s unless
+the Audio profile says otherwise; not pressed, it plays to its end), **Pick up where it stopped** and **Then: Follow with…**; a Loop bed has Pick up; a
 Sting has Follow with; a Transition has Ending and Follow with; a track with no role yet has none. Follow with plays
 a playlist or track when it ends unless something is already waiting (inside a scene its next item; in Live, Play
 next and the queue). The Audio profile's markers each have **Mix out** (one per track: where the next
@@ -159,7 +159,22 @@ on every request, checks the Host header, accepts changes only as JSON, rate-lim
 
 ## Numbers
 
-(filled below)
+`tools/r6-measure.js`, round 6 (5fca9bc) against round 7, all 31 states at 1920×1080 and 960×1000, the new Tags screen
+left out: words 13,450 → 13,351, controls 5,570 → 5,538, hint lines 182 → 178, facts shown twice 306 → 296, badge
+kinds 230 → 228. No screen or state is above round 6 on any count. Lower: Look and feel (words 342 → 298 at 1920,
+controls 35 → 20: the intro sentence went to hover text and the theme samples' buttons became pictures), Settings
+(67 → 64: Sound to Discord folded). Equal: every other state (the round 7 additions are behind menus, folded boxes,
+hover and focus, or shown only for the role they fit). **New screen: Tags** (89 words, 48 controls at 1920; 72 at 960).
+
+Getting there took three passes: the first build added words or controls on 14 states (a New folder button, the
+pad's What it does… button, a filter chip for a new parent tag, ending rows on untagged tracks, the What played and
+Mix out buttons at rest). Each was moved behind a menu, to hover and focus, or to the role it fits.
+
+Specs: 53 new checks, all failing on round 6's prototype first (24 matched by name passed there: older checks, and the
+Tags sweeps on the placeholder page). Now the prototype project passes 632 of 636; the 4 that fail
+(`library-files.spec.ts`: the export's and relink's result as a status inside its box) fail the same way on round 6's
+base (5fca9bc made that line plain text), outside this round. `tools/r5-check.js`, `tools/check-contrast.js` and
+`tools/r7-smoke.js` (every screen at 960 and 1920: no page or console error, no sideways scroll) pass.
 
 ## Questions for Nik
 
