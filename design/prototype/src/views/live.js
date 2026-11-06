@@ -13,7 +13,7 @@
   var S = {
     booted: false, notStarted: false, sceneKey: '', q: '', tags: [], lane: 'all', moreTags: false, findOpen: false,
     board: null, bdss: null, bdcp: null, notesOpen: false, keyNav: false, holding: null, keyHeld: {},
-    keys1: true, keysOpen: false, undo: null, undo2: null, rmOpen: {}, sel: null, allScenes: false, scOpen: {}, rm: {}, upOpen: {}, to: {}, lastM: {}
+    keys1: true, keysOpen: false, playedOpen: {}, lastNextKey: 0, undo: null, undo2: null, rmOpen: {}, sel: null, allScenes: false, scOpen: {}, rm: {}, upOpen: {}, to: {}, lastM: {}
   };
   // Single-key shortcuts (Space, / and pad keys) can be switched off (WCAG 2.1.4); remembered in this browser only.
   try { S.keys1 = localStorage.getItem('lyre-r2-live-keys1') !== 'off'; } catch (e) { S.keys1 = true; }
@@ -118,7 +118,9 @@
     if (S.undo2 && S.undo2.items && e.item && S.undo2.items.indexOf(e.item) > -1) S.undo2 = null;   // nothing left to take back
     // What plays is marked before core draws the screen (L.play renders), so Up next is right at once.
     rm.playing = e.id;
-    L.play(e.id, { lane: 'music', playlistId: e.pl || '', place: e.seq ? '' : (e.place || (e.pl ? placeOfPl(e.pl) : '')), fade: 3, seq: e.seq || null, target: tg });
+    // Round 7 part 2 (DAT-3, PLY-8): an added single track can start from a marker (item.from, seconds).
+    var from = e.item && e.item.from != null && e.item.ids.length === 1 ? e.item.from : null;
+    L.play(e.id, { lane: 'music', playlistId: e.pl || '', place: e.seq ? '' : (e.place || (e.pl ? placeOfPl(e.pl) : '')), fade: 3, seq: e.seq || null, target: tg, r7from: from });
     // An added playlist names itself under the track ("Added: Wistful with some warmth"); a single added track is its
     // own title already.
     var c = M(tg).music; if (c && e.item && e.item.ids.length > 1) { c.added = e.item.name; L.render(); }
@@ -216,7 +218,10 @@
     // list: a new scene is a change of mood. The scene's Undo brings the lists back (snap.rm).
     Object.keys(S.rm).forEach(function (tg) { var r = S.rm[tg]; r.pn = []; r.q = []; r.aq = []; r.pnCur = null; r.qAt = -1; if (r.now !== 'plan') { r.now = 'plan'; r.ret = null; } });
     var first = tgOf(L.firstRoom()), rm = RM(first); rm.now = 'plan'; rm.ret = null; rm.pnCur = null; rm.qAt = -1; M(first).rep = null;
+    var sceneUndo = S.undo;
     L.startScene(lv.cid, lv.sid, idx);
+    // Round 7 part 2: a scene's own steps may add to Up next; the scene's Undo (which takes those back too) stays.
+    S.undo = sceneUndo; S.undo2 = null;
     rm.playing = M(first).music ? M(first).music.id : '';
     L.say('Started ' + s.scenes[idx].name + '. Undo is available for 8 seconds, or press Ctrl+Z.');
   }
@@ -323,12 +328,14 @@
   }
   function keysPop() {
     var b = keysBoard(), pk = keysOf(b).join(' ') || 'none', off = S.keys1 ? '' : ' class="lv-off"';
+    // Round 7 part 2: the keys as Settings › Keyboard shortcuts has them.
+    function kf(id, def) { return esc(L.keyFor ? L.keyFor(id) : def); }
     function k(key, what, single) { return '<li' + (single ? off : '') + '><span class="kbd">' + key + '</span><span>' + what + '</span></li>'; }
     return '<div class="lv-pop" id="lv-keys-pop" role="group" aria-label="Keys on the live screen">' +
       '<label class="lv-switch"><input type="checkbox" role="switch" data-input="lvkeys1" data-k="lv-keys1"' + (S.keys1 ? ' checked' : '') + '><span class="lv-switch-t"><b>Single-key shortcuts</b><span class="hint">Space, / and the pad keys. Turn off if they get in the way.</span></span></label>' +
-      '<ul class="lv-keylist">' + k('Space', 'Start the next scene', 1) + k('/', 'Find a track or playlist', 1) + k(esc(pk), b ? 'Pads on ' + esc(b.name) + ' (Current scene)' : 'Pads of the current scene', 1) +
+      '<ul class="lv-keylist">' + k(kf('nextScene', 'Space'), 'Start the next scene', singleKey('nextScene')) + k(kf('find', '/'), 'Find a track or playlist', singleKey('find')) + k(esc(pk), b ? 'Pads on ' + esc(b.name) + ' (Current scene)' : 'Pads of the current scene', 1) +
       k('Alt+1…7', 'Go to a box: On air, Scenes, Current scene, Session playlists, Session pads, Campaign playlists, Campaign pads') + k('F6', 'Next box (Shift+F6: the one before)') +
-      k('Shift+Esc', 'Fade everything out (3 s)') + k('Ctrl+Z', 'Undo the last change (for 8 s)') + k('Esc', 'Close a menu or clear the search') + '</ul>' +
+      k(kf('fadeAll', 'Shift+Esc'), 'Fade everything out (3 s)') + k(kf('undo', 'Ctrl+Z'), 'Undo the last change (for 8 s)') + k('Esc', 'Close a menu or clear the search') + '</ul>' +
       '<p class="hint">' + (S.keys1 ? 'Keys do nothing while you type in a box.' : 'Single-key shortcuts are off. Shift+Esc and Ctrl+Z still work.') + '</p>' +
       // Should 12 of the round 6 review: what left the screen in round 6 is in Help (the rail's Help, or F1).
       '<button class="btn s ghost lv-keyshelp" data-act="lvhelp" data-k="lv-keyshelp" aria-keyshortcuts="F1">' + L.icon('help', 's') + 'Help</button></div>';
@@ -375,6 +382,14 @@
     if (m.music && m.music.paused) return { text: 'Paused', tone: 'idle' };
     return { text: 'Silent', tone: 'idle' };
   }
+  // Round 7 part 2 (DAT-3): the track's markers as ticks on its progress line (the mix-out one in the accent colour);
+  // their names are hover text, the list itself is in the Audio profile.
+  function markTicks(t, c, ln, tg) {
+    var ctx = L.laneContext ? L.laneContext(ln, tg) : null, ms = t && L.profileOf ? L.profileOf(t, ctx).markers : [];
+    return ms.filter(function (m) { return m.at > 0 && m.at < c.dur; }).map(function (m) {
+      return '<i class="lv-mk' + (m.mix ? ' mix' : '') + '" style="left:' + (m.at / c.dur * 100) + '%" title="' + esc(m.label + ' ' + L.fmt(m.at)) + '" aria-hidden="true"></i>';
+    }).join('');
+  }
   function laneBlock(ln, tg, name) {
     var m = M(tg), c = m[ln], t = c && L.track(c.id), isM = ln === 'music', word = isM ? 'Music' : 'Ambience', at = tg === 'table' ? '' : '@' + tg, kx = tg === 'table' ? '' : '-' + tg, tga = ' data-tg="' + tg + '"';
     if (!c) return '';
@@ -383,7 +398,7 @@
       '<div class="lv-lane-l"><span class="lv-lane-n"><span class="lane-dot ' + ln + '"></span>' + word + '</span>' + (c.paused ? '<span class="badge">Paused</span>' : '') + '</div>' +
       // The scene position and the end rule are hover text (and read out); the track list shows where it is.
       '<div class="lv-lane-m"><div class="lv-lane-t ellipsis" title="' + esc([shown !== L.title(t) ? 'Its own name: ' + L.title(t) : L.title(t), pos, isM ? endText(t, tg) : '', L.normHover(t, c.playlistId)].filter(Boolean).join(' · ')) + '">' + esc(shown) + (shown !== L.title(t) ? '<span class="sr-only"> (its own name: ' + esc(L.title(t)) + ')</span>' : '') + (pos ? '<span class="sr-only">, ' + pos + '</span>' : '') + '</div>' +
-        '<div class="lv-lane-pr"><div class="progress ' + ln + '"><span data-progress="' + ln + at + '"></span></div><span class="num lv-time" data-time="' + ln + at + '"></span></div>';
+        '<div class="lv-lane-pr"><div class="progress lv-mkbar ' + ln + '"><span data-progress="' + ln + at + '"></span>' + markTicks(t, c, ln, tg) + '</div><span class="num lv-time" data-time="' + ln + at + '"></span></div>';
     if (isM) {
       // Where the music comes from, when it is a playlist or something added. What comes next is Up next, beside it.
       var vis = c.added ? 'Added: ' + c.added : c.playlistId ? plName(c.playlistId) : '';
@@ -467,9 +482,39 @@
       '<button class="btn s icon" data-act="lvfxstop" data-tg="' + tg + '" data-k="lv-fxstop' + kx + '" title="Stop effects in ' + esc(name) + '" aria-label="Stop effects in ' + esc(name) + '">' + L.icon('stop', 's') + '</button></div>' : '';
     var lanes = laneBlock('music', tg, name) + laneBlock('amb', tg, name) + fxLine, up = m.music || aqOf(tg).length ? upNextBlock(tg) : '';
     return '<div class="lv-rm' + (st.text === 'Playing' ? '' : ' is-silent') + '" role="group" aria-labelledby="' + hid + '" data-room="' + tg + '"' + (rooms().length > 1 ? ' title="To play in ' + esc(name) + ', choose To: ' + esc(name) + ' in a box"' : '') + '>' +
-      '<div class="lv-rm-h">' + (short() ? '<button class="xp-btn" data-act="lvrmopen" data-tg="' + tg + '" data-k="lv-rmopen' + kx + '" aria-expanded="true" title="Show one line for ' + esc(name) + '" aria-label="Show everything in ' + esc(name) + '">' + L.icon('chevdown', 's') + '</button>' : '') + '<h3 id="' + hid + '" class="lv-rm-n ellipsis">' + esc(name) + '</h3><span class="pane-status s-' + st.tone + '">' + esc(st.text) + '</span><span class="grow"></span>' + ctl + '</div>' + none +
+      '<div class="lv-rm-h">' + (short() ? '<button class="xp-btn" data-act="lvrmopen" data-tg="' + tg + '" data-k="lv-rmopen' + kx + '" aria-expanded="true" title="Show one line for ' + esc(name) + '" aria-label="Show everything in ' + esc(name) + '">' + L.icon('chevdown', 's') + '</button>' : '') + '<h3 id="' + hid + '" class="lv-rm-n ellipsis">' + esc(name) + '</h3><span class="pane-status s-' + st.tone + '">' + esc(st.text) + '</span><span class="grow"></span>' + playedButton(tg, name) + ctl + '</div>' + none + playedList(tg, name) +
       (lanes || up ? '<div class="lv-rm-b"><div class="lv-rm-lanes">' + lanes + '</div>' + (up ? '<div class="lv-rm-up">' + up + '</div>' : '') + '</div>' : '') + undoStrip('room:' + tg) + '</div>';
   }
+  /* Round 7 part 2 (PLY-1): What played in each room, newest first, opened in the room itself (Live never covers
+     its controls), each with Play again and Play next. The button shows on hover and keyboard focus in the room's
+     header (it is rare mid-game); open, it stays. The record is core's (r7play.js, L.data.played). */
+  var PLAYED_SHOWN = 6;
+  function playedOf(tg) { return (D.played && D.played[tg]) || []; }
+  function playedButton(tg, name) {
+    var kx = tg === 'table' ? '' : '-' + tg, open = !!S.playedOpen[tg];
+    return '<button class="btn s icon lv-rm-played' + (open ? ' on' : '') + '" data-act="lvplayed" data-tg="' + tg + '" data-k="lv-played' + kx + '" aria-expanded="' + open + '" aria-label="What played" title="What played in ' + esc(name) + ', with Play again">' + L.icon('queue', 's') + '</button>';
+  }
+  function playedList(tg, name) {
+    if (!S.playedOpen[tg]) return '';
+    var h = playedOf(tg).slice(0, PLAYED_SHOWN), kx = tg === 'table' ? '' : '-' + tg;
+    return '<div class="lv-played"><ol class="lv-played-l" aria-label="What played in ' + esc(name) + '">' + (h.length ? h.map(function (x, i) {
+      var t = L.track(x.id), nm = t ? L.nameIn(t, x.seq ? L.sceneKeyOf(L.session(x.seq.cid, x.seq.sid).scenes[x.seq.scene]) : x.place) : '';
+      return '<li class="lv-trk-r"><span class="ellipsis grow" title="' + esc(t ? L.title(t) : '') + '">' + esc(nm) + '</span><span class="lv-trk-acts">' +
+        '<button class="btn s icon lv-hov" data-act="lvplayedagain" data-tg="' + tg + '" data-i="' + i + '" data-k="lv-pa-' + i + kx + '" aria-label="Play again: ' + esc(nm) + '" title="Play again now">' + L.icon('playair', 's') + '</button>' +
+        '<button class="btn s icon lv-hov" data-act="lvplayednext" data-tg="' + tg + '" data-i="' + i + '" data-k="lv-pn-' + i + kx + '" aria-label="Play next: ' + esc(nm) + '" title="Play next, after the current track">' + L.icon('next', 's') + '</button></span></li>';
+    }).join('') : '<li class="lv-in-none">Nothing yet</li>') + '</ol></div>';
+  }
+  L.acts.lvplayed = function (el) { var tg = el.dataset.tg; S.playedOpen[tg] = !S.playedOpen[tg]; L.render(); focusK(el.dataset.k); };
+  L.acts.lvplayedagain = function (el) {
+    var tg = el.dataset.tg, x = playedOf(tg)[+el.dataset.i]; if (!x) return; touched();
+    S.playedOpen[tg] = false; var rm = RM(tg); rm.now = 'plan'; rm.ret = null; rm.pnCur = null;
+    rm.playing = x.id; L.play(x.id, { lane: 'music', playlistId: x.playlistId, place: x.place, seq: x.seq, fade: 3, target: tg });
+    focusK('lv-played' + (tg === 'table' ? '' : '-' + tg));
+  };
+  L.acts.lvplayednext = function (el) {
+    var tg = el.dataset.tg, x = playedOf(tg)[+el.dataset.i]; if (!x) return;
+    S.playedOpen[tg] = false; addItem({ dataset: { id: x.id, box: 'music', k: 'lv-played' + (tg === 'table' ? '' : '-' + tg) } }, 'next');
+  };
   function onAir() {
     var rs = rooms(), idle = L.freeBots ? L.freeBots() : L.bots().filter(function (b) { return b.status === 'idle'; });
     var parts = rs.length ? rs.map(function (r) { return roomPart(roomTg(r.bots[0]), r.bots[0], r.name); }) : [roomPart('table', null, 'No room')];
@@ -568,6 +613,8 @@
         return '<li class="lv-sc' + (isNow ? ' now' : '') + (isNext ? ' next' : '') + (i < now ? ' done' : '') + (S.scOpen[i] ? ' open' : '') + '"' + (isNow ? ' aria-current="step"' : '') + '>' +
           '<div class="lv-sc-1">' +
             (isNow ? '<span class="badge lv-nowb">Now</span>' : isNext ? '<span class="badge lv-nextb">Next</span>' : '') +
+            // Round 7 part 2 (SHW-3, PLY-8): only a scene that differs from the usual is marked.
+            (L.sceneMarks ? L.sceneMarks(sc) : '') +
             // SHW-7: the name unfolds the scene in place (Enter, or Right; Left folds), without touching what plays.
             '<button class="lv-sc-name" data-act="lvscopen" data-i="' + i + '" data-k="lv-scn-' + i + '" aria-expanded="' + !!S.scOpen[i] + '"' + (S.scOpen[i] ? ' aria-controls="lv-scb-' + i + '"' : '') + ' title="' + esc(sc.name) + ': ' + (S.scOpen[i] ? 'fold' : 'see what it plays') + '">' + L.icon('chevdown', 's lv-sc-chev') + '<span class="sr-only">Scene ' + (i + 1) + ': </span><span class="ellipsis">' + esc(sc.name) + '</span></button>' +
             '<button class="btn s icon lv-sc-go" data-act="lvstart" data-i="' + i + '" data-k="lv-start-' + i + '" title="' + (isNow ? 'Restart' : 'Start') + ' this scene" aria-label="' + (isNow ? 'Restart' : 'Start') + ' scene ' + (i + 1) + ': ' + esc(sc.name) + '">' + L.icon(isNow ? 'restart' : 'play', 's') + '</button></div>' +
@@ -681,7 +728,13 @@
   /* ---------- pads: Current scene's board (with its keys), Session pads and Campaign pads (click only) ---------- */
   function padGrid(b, box, keysOn) {
     var many = rooms().length > 1;
-    return '<div class="lv-grid" style="grid-template-columns:repeat(' + b.cols + ',minmax(0,1fr))" role="group" aria-label="Pads on ' + esc(b.name) + '">' + L.boardPads(b).map(function (p) {
+    return '<div class="lv-grid" style="grid-template-columns:repeat(' + b.cols + ',minmax(0,1fr))" role="group" aria-label="Pads on ' + esc(b.name) + '">' + L.boardPads(b).map(function (p, i) {
+      // Round 7 part 2 (ORG-4): a board's divider names the row of pads under it.
+      var dv = i % b.cols === 0 && b.dividers && b.dividers[i / b.cols + 1];
+      return (dv ? '<h3 class="lv-pad-div ellipsis" style="grid-column:1/-1" title="' + esc(dv) + '">' + esc(dv) + '</h3>' : '') + padHTML(b, p, box, keysOn, many);
+    }).join('') + '</div>';
+  }
+  function padHTML(b, p, box, keysOn, many) {
       if (!p) return '<span class="lv-pad-empty" aria-hidden="true"></span>';
       var on = L.padActive(b.id, p.id), ref = b.id + '/' + p.id, key = keysOn && S.keys1 && p.key;
       // Which rooms a sounding pad is in, when there is more than one room.
@@ -695,7 +748,6 @@
         (inRooms.length ? '<span class="lv-pad-rm" aria-hidden="true">' + inRooms.map(function (n) { return esc(n.charAt(0)); }).join('') + '</span><span class="sr-only">, sounding in ' + esc(inRooms.join(' and ')) + '</span>' : '') +
         (on && !many ? '<span class="lv-pad-on">On</span>' : p.mode === 'oneshot' || on ? '' : '<span class="lv-pad-mode" title="' + L.modeName[p.mode] + '">' + L.icon(L.modeIcon[p.mode], 's') + '<span class="sr-only">' + L.modeName[p.mode] + '</span></span>') +
         (key ? '<span class="kbd" aria-hidden="true">' + esc(String(p.key).toUpperCase()) + '</span>' : '') + '</button>';
-    }).join('') + '</div>';
   }
   function padsBox(scope) {
     var own = scope === 'ss' ? sess() : camp(), bs = boardsOf(own.boards), cur = S['bd' + scope], b = L.board(bs.indexOf(cur) > -1 ? cur : bs[0]), box = scope + 'd', id = 'lv-' + scope + 'd';
@@ -1035,6 +1087,7 @@
     eachTo(box, function (tg) {
       if (!M(tg).music) { playMusic(ids[0], whole ? whole.id : el.dataset.pl, whole ? null : seqOf(el), tg, place, name); started = true; return; }
       var rm = RM(tg), snap = clone(rm), it = { ids: ids.slice(), at: 0, pl: whole ? whole.id : '', place: place, name: name };
+      if (!whole && el.dataset.from != null && el.dataset.from !== '') it.from = +el.dataset.from;
       if (how === 'next') {
         // While a Play next playlist plays, the new item goes before the rest of it.
         if (rm.now === 'pn' && rm.pnCur && rm.pnCur.at < rm.pnCur.ids.length - 1) { var p = rm.pnCur; rm.pn.unshift({ ids: p.ids.slice(p.at + 1), at: 0, pl: p.pl, place: p.place, name: p.name }); p.ids = p.ids.slice(0, p.at + 1); }
@@ -1106,6 +1159,16 @@
   }
   document.addEventListener('keydown', function (e) { if (e.key === 'Tab') S.keyNav = true; }, true);
   document.addEventListener('pointerdown', function () { S.keyNav = false; }, true);
+  /* Round 7 part 2 (UX-12): Next scene, Fade everything out, Undo and Find a track use the keys in Settings › Keyboard
+     shortcuts (r7shell.js L.keyFor; Lyre's keys are Space, Shift+Esc, Ctrl+Z and /). With the guard on (the default),
+     a second Next scene key within a second is ignored, so a double press or a bouncing key never skips a scene. */
+  function isKey(e, id) { return L.keyFor && L.keyName ? L.keyName(e) === L.keyFor(id) : false; }
+  function singleKey(id) { var k = L.keyFor ? L.keyFor(id) : ''; return !/^(Ctrl|Alt)\+/.test(k) && !/^F\d/.test(k); }
+  function nextSceneKey() {
+    var now = Date.now();
+    if (L.keyGuard !== false && now - S.lastNextKey < 1000) { L.say('A second Next scene within a second: ignored'); return; }
+    S.lastNextKey = now; nextScene();
+  }
   L.onKey(function (e) {
     if (!onLive()) return false;
     var t = e.target, a = document.activeElement, typing = L.typing(t);
@@ -1113,9 +1176,10 @@
     if (e.altKey && !e.ctrlKey && !e.metaKey && /^Digit[1-7]$/.test(e.code)) return goBox(+e.code.slice(5) - 1);
     if (e.altKey) return false;
     // Shift+Esc fades everything, even from a text box: two keys, so it is never pressed by accident.
-    if (e.key === 'Escape' && e.shiftKey) { closeKeys(false); L.fadeAll(3); return true; }
+    if (isKey(e, 'fadeAll')) { closeKeys(false); L.fadeAll(3); return true; }
     if (e.key === 'Escape' && S.keysOpen) { closeKeys(true); return true; }
-    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z' && !typing) return undo();
+    if (isKey(e, 'undo') && !typing) return undo();
+    if (isKey(e, 'nextScene') && !singleKey('nextScene')) { if (!e.repeat) nextSceneKey(); return true; }
     if (e.ctrlKey || e.metaKey) return false;
     if (typing) {
       // Esc in Find a track clears it; with nothing typed, it closes the results.
@@ -1131,12 +1195,12 @@
     if (e.key === ' ' || e.key === 'Enter') {
       // A hold pad reached with the keyboard: play while the key is down.
       if (a && a.matches('.lv-pad[data-mode="hold"]') && (e.key === 'Enter' || S.keyNav)) { if (!e.repeat) { S.keyHeld[e.key] = { b: a.dataset.bid, p: a.dataset.pid, box: a.dataset.box }; firePads(a.dataset.bid, a.dataset.pid, 'down', a.dataset.box); } return true; }
-      if (e.key === 'Enter' || !S.keys1) return false;
-      if (onControl && S.keyNav) return false; // Space presses a button you tabbed to
-      if (!e.repeat) nextScene(); return true;
+      if (e.key === 'Enter' || !S.keys1 || !isKey(e, 'nextScene')) { if (e.key === 'Enter' || !S.keys1) return false; }
+      else { if (onControl && S.keyNav) return false; if (!e.repeat) nextSceneKey(); return true; } // Space presses a button you tabbed to
     }
     if (!S.keys1) return false;
-    if (e.key === '/') { focusSearch(); return true; }
+    if (isKey(e, 'nextScene')) { if (onControl && S.keyNav && e.key === ' ') return false; if (!e.repeat) nextSceneKey(); return true; }
+    if (isKey(e, 'find')) { focusSearch(); return true; }
     var kn = keyName(e);
     if (kn) {
       var hit = padFor(kn); if (!hit) return false;

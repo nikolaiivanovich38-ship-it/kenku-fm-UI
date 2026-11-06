@@ -570,3 +570,14 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
 .lv-trk-r > .lv-trk-acts { margin-left: auto; }
 .lv-trk-t > span, .lv-pli-n > b.ellipsis { overflow-wrap: break-word; }
 .lv-trk-r:focus-within .lv-trk-t > span, .lv-trk-r:focus-within .lv-pli-n > b.ellipsis { -webkit-line-clamp: unset; display: block; }
+/* Round 7 part 2: What played in a room (PLY-1), dividers over a row of pads (ORG-4), marker ticks (DAT-3). */
+.lv-rm-played:not(.on):not(:focus-visible) { opacity: 0; }
+.lv-rm-h:is(:hover, :focus-within) .lv-rm-played { opacity: 1; }
+.lv-rm-played.on { background: var(--accent-soft); border-color: var(--accent); }
+.lv-played { padding: 0 8px 6px; }
+.lv-played-l { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.lv-played-l > li { display: flex; align-items: center; gap: 6px; min-height: var(--row); border-bottom: 1px solid var(--line); }
+.lv-pad-div { margin: 2px 0 0; font-size: var(--fs-s); font-weight: 700; color: var(--accent-text); border-bottom: 1px solid var(--line-strong); }
+.lv-mkbar { position: relative; overflow: visible; }
+.lv-mk { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--ink-2); border-radius: 1px; }
+.lv-mk.mix { background: var(--accent); }
