@@ -156,14 +156,12 @@ export async function openFirstStart(page: Page): Promise<void> {
   await page.getByRole("main").getByRole("heading", { level: 1 }).waitFor();
 }
 
-/** Close and open the page again (the next start), keeping what it saved. */
+/**
+ * Close and open the page again (the next start), keeping what it saved. The page reloads itself, as the app's
+ * fixture does: a reload from outside could start a new page process before the old one's storage was written.
+ */
 export async function reopen(page: Page): Promise<void> {
-  if (isApp()) {
-    await page.evaluate(() => window.location.reload());
-    await page.waitForLoadState("domcontentloaded");
-  } else {
-    await page.reload();
-  }
+  await Promise.all([page.waitForEvent("load"), page.evaluate(() => window.location.reload())]);
   await page.getByRole("main").getByRole("heading", { level: 1 }).waitFor();
 }
 

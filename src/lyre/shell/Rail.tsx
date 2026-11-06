@@ -2,16 +2,20 @@ import React from "react";
 import { Icon, LyreLogo, type IconName } from "../kit/Icon";
 import { hashOf, type Section } from "./routes";
 import { useShellData } from "./ShellData";
+import { HELP_BUTTON_ID } from "../help/useHelp";
 
 interface RailProps {
   section: Section;
   /** Icons only (the window is narrow, or the user chose it). */
   min: boolean;
   onToggleMin: () => void;
+  /** FND-8: whether Help's panel is open, and the Help button's press. */
+  helpOpen?: boolean;
+  onHelp?: () => void;
 }
 
-/** The rail: Lyre's sections, in the prototype's order, with Look and feel and "Icons only" at the bottom. */
-export function Rail({ section, min, onToggleMin }: RailProps) {
+/** The rail: Lyre's sections, in the prototype's order, with Look and feel, Help and "Icons only" at the bottom. */
+export function Rail({ section, min, onToggleMin, helpOpen = false, onHelp }: RailProps) {
   const { liveLabel, liveName, outputsLabel } = useShellData();
   const link = (to: Section, icon: IconName, label: string, name?: string) => (
     <a href={hashOf(to)} aria-current={section === to ? "page" : undefined} title={min ? label : undefined} aria-label={name}>
@@ -37,6 +41,22 @@ export function Rail({ section, min, onToggleMin }: RailProps) {
       </nav>
       <div className="bottom stack" style={{ gap: 2 }}>
         {link("look", "palette", "Look and feel")}
+        {onHelp && (
+          // FND-8: Help opens a side panel, not a screen, so it is a button (F1 does the same).
+          <button
+            type="button"
+            id={HELP_BUTTON_ID}
+            className="nav"
+            aria-controls={helpOpen ? "lyre-help" : undefined}
+            aria-expanded={helpOpen}
+            aria-keyshortcuts="F1"
+            title={min ? "Help" : undefined}
+            onClick={onHelp}
+          >
+            <Icon name="help" />
+            <span className="lbl">Help</span>
+          </button>
+        )}
         <button
           type="button"
           className="nav"

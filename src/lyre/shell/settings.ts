@@ -2,7 +2,7 @@ import { isThemeChoice, type ThemeChoice } from "./themes";
 
 /**
  * What the new interface remembers between starts, in this page's own storage: the theme chosen in Look and feel,
- * whether the rail shows labels, and which boxes are open or closed. (The library itself is kept by the main
+ * whether the rail shows labels, which boxes are open or closed, and whether the first-run tour was seen. (The library itself is kept by the main
  * process; this is only how the screen looks.)
  */
 export interface ShellSettings {
@@ -11,6 +11,8 @@ export interface ShellSettings {
   rail: "auto" | "full" | "min";
   /** Boxes the user opened ("o") or closed ("c"), by box id. Boxes not listed use their default. */
   panes: Record<string, "o" | "c">;
+  /** FND-8: "done" once the first-run tour was finished or skipped. */
+  tour?: "done";
 }
 
 export const SHELL_SETTINGS_KEY = "lyre-shell";
@@ -40,6 +42,7 @@ export function loadShellSettings(): ShellSettings {
     theme: isThemeChoice(stored.theme) ? stored.theme : DEFAULTS.theme,
     rail: stored.rail === "full" || stored.rail === "min" ? stored.rail : DEFAULTS.rail,
     panes,
+    ...(stored.tour === "done" ? { tour: "done" as const } : {}),
   };
 }
 

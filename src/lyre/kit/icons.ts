@@ -87,6 +87,7 @@ export const ICONS = {
   upload: "M12 16V4M7 9l5-5 5 5M4 16v4h16v-4",
   download: "M12 4v12M7 11l5 5 5-5M4 16v4h16v-4",
   warn: "M12 3 2 20h20zM12 10v4M12 17h.01",
+  help: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8M12 17h.01",
 } as const;
 
 export type IconName = keyof typeof ICONS;

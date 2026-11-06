@@ -17,6 +17,6 @@ installDocumentDropGuard(document);
 
 createRoot(document.getElementById("root")).render(
   <AppProviders>
-    <Shell screens={SCREENS} />
+    <Shell screens={SCREENS} firstRunTour />
   </AppProviders>,
 );

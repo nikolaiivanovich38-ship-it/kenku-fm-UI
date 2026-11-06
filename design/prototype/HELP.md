@@ -72,7 +72,7 @@ named on screen and `` `Key` `` for a key.
 | Prepare | Add your music and tag it |
 | Prepare | Make a playlist from tags |
 | Prepare | Plan a campaign, session and scenes |
-| Prepare | Set how a track plays (Audio profile) |
+| Prepare | How a track plays (Audio profile) |
 | Prepare | Pad boards |
 | Prepare | Shuffle and repeat per place |
 | Prepare | Normalise volume |

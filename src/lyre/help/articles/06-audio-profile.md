@@ -1,5 +1,5 @@
 ---
-title: Set how a track plays (Audio profile)
+title: How a track plays (Audio profile)
 group: Prepare
 words: audio profile waveform start end loop fade fades markers settings place scene playlist track
 ---
