@@ -433,6 +433,18 @@
     if (S.key.indexOf('sc:') !== 0) return '';
     return '<div class="field ap-scname"><label for="ap-scname">Name in this scene</label><input class="input" id="ap-scname" data-input="apscname" data-k="ap-scname" value="' + esc(L.sceneNameOf(t, S.key)) + '" placeholder="' + esc(L.title(t)) + ' (its own name)" autocomplete="off"></div>';
   }
+  /* PLY-15: the track's own normalising choice, and the loudness and gain where these settings apply (a playlist's
+     choice counts when the page shows that playlist's settings). */
+  function normHTML(t) {
+    var pid = S.key.indexOf('pl:') === 0 ? S.key.slice(3) : '', n = L.normOf(t, pid);
+    var from = n.from === 'track' ? 'this track\'s own choice' : n.from === 'playlist' ? 'the playlist\'s choice (' + (n.on ? 'On' : 'Off') + ')' : 'the library\'s setting (' + L.libraryNormWords() + ')';
+    return '<div class="ap-norm">' + L.normChoice({ id: 'ap-norm', value: t.norm, act: 'apnorm', line: L.normLine(t, pid), hint: (pid ? 'In the playlist ' + L.playlist(pid).name + ': ' : 'On its own: ') + from + '.' }) + '</div>';
+  }
+  L.acts.apnorm = function (el) {
+    var t = track(); if (!t) return;
+    if (el.dataset.v === 'library') delete t.norm; else t.norm = el.dataset.v;
+    S.focusK = 'ap-norm-' + el.dataset.v; L.render(); L.say('Normalise volume: ' + L.normLine(t, S.key.indexOf('pl:') === 0 ? S.key.slice(3) : ''));
+  };
   L.inputs.apscname = function (el) { var t = track(); if (!t) return; L.setNameIn(t, S.key, el.value); };
   L.acts.apback = function (el) { L.state.openScene = el.dataset.sc ? { sc: el.dataset.sc, k: 'prof-' + el.dataset.sc + '-music-' + S.tid } : null; L.route('#/session/' + el.dataset.cid + '/' + el.dataset.sid); };
   function waveStatus() { return S.playing ? { text: 'Previewing ' + L.fmt(S.pos), tone: 'on' } : { text: S.event ? 'Paused' : 'Ready', tone: 'idle' }; }
@@ -464,7 +476,7 @@
       var head = '<div class="viewhead ap-head"><div class="ap-id">' +
         '<nav class="crumbs" aria-label="Breadcrumb"><a href="#/library" data-k="ap-cr-lib">Library</a><span class="sep" aria-hidden="true">›</span><a class="ap-cr-t" href="#/library/' + esc(t.id) + '" data-k="ap-cr-t" title="' + esc(L.title(t)) + '">' + esc(L.title(t)) + '</a><span class="sep" aria-hidden="true">›</span><span>Audio profile</span></nav>' +
         '<h1 title="' + esc(L.title(t)) + '">' + esc(L.title(t)) + '</h1>' +
-        '<p class="ap-meta"><span><span class="faint">Title in the file</span> ' + esc(t.metaTitle || 'none') + '</span><span><span class="faint">File name</span> ' + esc(t.file) + '</span><span><span class="faint">Length</span> <span class="num">' + L.fmt(t.dur) + '</span></span><span>' + L.shapeTag(t) + '</span></p>' + sceneNameHTML(t) + '</div>' +
+        '<p class="ap-meta"><span><span class="faint">Title in the file</span> ' + esc(t.metaTitle || 'none') + '</span><span><span class="faint">File name</span> ' + esc(t.file) + '</span><span><span class="faint">Length</span> <span class="num">' + L.fmt(t.dur) + '</span></span><span>' + L.shapeTag(t) + '</span></p>' + sceneNameHTML(t) + normHTML(t) + '</div>' +
         '<div class="ap-headacts">' + backHTML(t) +
         '<span class="ap-saved" role="status">' + (!ed ? 'Uses the track\'s settings (read-only until you give it its own)' : S.saved ? L.icon('check', 's') + 'Saved' : '') + '</span>' +
         '<button class="btn s ghost" data-act="apreset" data-k="ap-reset" title="Start at 0:00 and End at ' + L.fmt(t.dur) + ', no fades"' + dis(t) + '>' + L.icon('restart', 's') + 'Reset to whole track</button></div>' +

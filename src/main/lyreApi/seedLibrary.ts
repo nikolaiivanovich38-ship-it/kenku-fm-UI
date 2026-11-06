@@ -23,10 +23,15 @@ import {
   createTag,
   createTagGroup,
   createTracks,
+  saveLoudness,
+  setLibraryNormalise,
+  setPlaylistNormalise,
   setPlayOrder,
   setProfileOverride,
   setSceneAmbience,
   setSceneTrackName,
+  setTrackNormalise,
+  trackLoudness,
   updateTrack,
   type Library,
 } from "../data";
@@ -76,6 +81,8 @@ export async function seedLibrary(library: Library, seed: SeedData, options: See
     for (const t of seed.tracks) {
       store.run("UPDATE tracks SET created_at = ? WHERE id = ?", t.addedAt, t.id);
       if (t.shape) updateTrack(store, t.id, { shape: t.shape });
+      // PLY-15: the sample choices (their loudness is saved below, as bookkeeping of its own).
+      if (t.normalise) setTrackNormalise(store, t.id, t.normalise);
       for (const [group, values] of Object.entries(t.tags)) {
         for (const value of values) store.run("INSERT INTO track_tags (track_id, tag_id) VALUES (?, ?)", t.id, tagIds.get(`${group}\u0000${value}`));
       }
@@ -84,7 +91,9 @@ export async function seedLibrary(library: Library, seed: SeedData, options: See
       createPlaylist(store, p.kind === "manual" ? { id: p.id, title: p.name, kind: "manual", lane: p.lane, notes: p.notes } : { id: p.id, title: p.name, kind: "dynamic", lane: p.lane, rule: p.rule, notes: p.notes });
       if (p.kind === "manual" && p.trackIds.length) addTracksToPlaylist(store, p.id, p.trackIds);
       if (p.order) setPlayOrder(store, p.id, null, p.order);
+      if (p.normalise) setPlaylistNormalise(store, p.id, p.normalise);
     }
+    if (seed.normalise) setLibraryNormalise(store, seed.normalise);
     for (const b of seed.boards) {
       createBoard(store, { id: b.id, title: b.name, cols: b.cols, rows: b.rows });
       const pads = [
@@ -150,5 +159,10 @@ export async function seedLibrary(library: Library, seed: SeedData, options: See
       store.run("INSERT INTO library_jobs (name, state, detail, started_at, finished_at) VALUES ('legacy-player', 'done', ?, ?, ?)", JSON.stringify({ backupPath: null, report }), seed.moved.at, seed.moved.at);
     }
   });
+  // DAT-15: what would have been measured from the files (the seed has no files), kept as the job keeps it.
+  for (const t of seed.tracks) {
+    const measuring = trackLoudness(store, t.id);
+    if (t.loudness && measuring.state === "needed") saveLoudness(store, measuring.source, t.loudness);
+  }
   store.clearHistory();
 }

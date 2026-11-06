@@ -242,6 +242,26 @@ var LYRE_DATA = (function () {
   // Round 5 (DAT-7): what came across from the Player (Kenku FM) on first start, for the move report.
   var moved = { from: 'Kenku FM 1.5.5', when: '5 Nov 2026, 18:42', playlists: 9, tracks: 212, boards: 4, pads: 37, bookmarks: 6,
     notMoved: [['The play queue and what was playing', 'Lyre starts with nothing playing'], ['Kenku FM\'s window size and position', 'Lyre opens at its own size']] };
-  return { discord: discord, orders: orders, sceneNames: sceneNames, moved: moved, tagGroups: tagGroups, tagValues: tagValues, tracks: tracks, playlists: playlists, boards: boards, campaigns: campaigns,
+  // Round 5 (DAT-15): each track's measured loudness, as Lyre's background job reads it with ffmpeg: "id loudness peak",
+  // loudness in LUFS (EBU R128 integrated; for a sound under 3 s its loudest moment) and true peak in dBTP. t02 is the
+  // brief's example (-22.6 LUFS, +4.6 dB at Standard), t13 is held back by its peak, t09 meets the +12 dB cap, t06 and
+  // t24 are turned down. The three new tracks (t43-t45) are not measured yet.
+  var LOUDNESS = 't01 -16.2 -5.1, t02 -22.6 -8.0, t03 -18.1 -6.8, t04 -14.1 -3.1, t05 -22.8 -6.9, t06 -13.1 -0.3, t07 -22.8 -11.6, t08 -14.1 0.6, ' +
+    't09 -31.5 -14.2, t10 -17.0 -3.3, t11 -15.4 -1.6, t12 -21.5 -7.4, t13 -26.4 -9.1, t14 -21.4 -7.5, t15 -23.1 -9.1, t16 -17.5 -3.8, ' +
+    't17 -15.0 -1.3, t18 -15.8 -0.9, t19 -19.1 -4.9, t20 -20.7 -8.8, t21 -24.3 -12.6, t22 -18.7 -7.0, t23 -22.4 -10.8, t24 -12.4 0.4, ' +
+    't25 -20.7 -9.1, t26 -22.7 -10.6, t27 -16.4 -4.4, t28 -20.7 -9.2, t29 -22.7 -10.6, t30 -15.0 -0.7, t31 -14.6 -0.1, t32 -21.0 -6.4, ' +
+    't33 -20.6 -5.9, t34 -17.0 -2.2, t35 -20.6 -5.6, t36 -18.6 -4.2, t37 -19.0 -4.4, t38 -22.6 -8.0, t39 -17.0 -2.2, t40 -16.6 -1.8, ' +
+    't41 -21.1 -6.4, t42 -21.1 -6.6, b01 -28.7 -15.0, b02 -25.9 -11.2, b03 -25.3 -10.7, b04 -26.0 -11.5, b05 -25.9 -11.0, b06 -25.1 -10.3, ' +
+    'b07 -26.0 -11.3, b08 -25.2 -10.6, b09 -25.9 -11.4, b10 -28.6 -16.2, f01 -9.8 -0.2, f02 -11.9 -5.5, f03 -13.0 -6.8, f04 -13.0 -6.5, ' +
+    'f05 -11.9 -5.6, f06 -12.9 -6.7, f07 -12.0 -6.0, f08 -13.0 -6.7, f09 -11.9 -5.8, f10 -15.5 -11.4, f11 -8.3 -4.1, f12 -15.4 -11.0, ' +
+    'f13 -15.4 -6.6, f14 -8.5 0.0';
+  var byId = {}; tracks.forEach(function (t) { byId[t.id] = t; });
+  LOUDNESS.split(', ').forEach(function (s) { var a = s.split(' '); byId[a[0]].loud = { lufs: +a[1], peak: +a[2] }; });
+  // Round 5 (PLY-15): normalisation is off for the library until the GM turns it on (Library › ⋯ › Normalise volume…).
+  // The Ashen King playlist has it on; its calling-card song (t26) is set to Off, and the track's own choice wins.
+  var normalise = { on: false, target: 'standard' };
+  playlists.filter(function (p) { return p.id === 'p-ashen'; })[0].norm = 'on';
+  byId.t26.norm = 'off';
+  return { normalise: normalise, discord: discord, orders: orders, sceneNames: sceneNames, moved: moved, tagGroups: tagGroups, tagValues: tagValues, tracks: tracks, playlists: playlists, boards: boards, campaigns: campaigns,
     folders: ['H:\\Audio\\Scores', 'H:\\Audio\\Ambience', 'H:\\Audio\\Effects'], defaultTheme: 'candle', profiles: profiles };
 })();

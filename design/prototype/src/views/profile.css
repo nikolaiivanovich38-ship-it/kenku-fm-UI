@@ -169,3 +169,4 @@
 }
 /* Round 5: the track's name in this scene (DAT-14), in the header when opened from a scene. */
 .ap-scname { max-width: 360px; margin-top: 6px; }
+.ap-norm { margin-top: 6px; }

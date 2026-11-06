@@ -152,6 +152,23 @@ describe("DAT-7 Save to a file, then Bring in on another computer", () => {
     expect((await to.api.history.state()).undoLabel).toBe("Bring in file.lyre");
   });
 
+  it("keeps a playlist's and a track's Normalise volume choice, and leaves the measured loudness behind (PLY-15)", async () => {
+    const dir = folder();
+    const from = await libraryAt(path.join(dir, "here"), true);
+    const target = path.join(dir, "file.lyre");
+    valueOf(await from.api.transfer.save({ scope: { kind: "library" }, includeAudio: false, path: target }));
+    const to = await libraryAt(path.join(dir, "there"), false);
+    const opened = valueOf(await to.api.transfer.open({ from: "path", path: target })) as OpenedFile;
+    valueOf(await to.api.transfer.bringIn(opened.id, { all: "skip" }));
+    const ashen = (await to.api.playlists.list()).find((p) => p.name === "Ashen King");
+    expect(ashen?.normalise).toBe("on");
+    const was = (await from.api.library.listTracks()).find((t) => t.normalise === "off");
+    expect(was).toBeDefined();
+    const now = (await to.api.library.listTracks()).find((t) => t.fileName === was?.fileName);
+    expect(now?.normalise).toBe("off");
+    expect(now?.loudness).toBeNull();
+  });
+
   it("takes the audio files along when asked, unpacks them next to the library and plays them from there", async () => {
     const dir = folder();
     const from = await libraryAt(path.join(dir, "here"), false);

@@ -4,16 +4,17 @@
  * once, answers from memory, and reloads the parts a "changed" event names. Give it to the host with
  * `audio.setLibrary(snapshot)`, and again from `snapshot.subscribe` so now-playing titles follow renames.
  */
-import { isFx, type DomainPlaylist, type DomainScene, type DomainTrack, type PlayOrderOverrides, type ProfileOverrides } from "../../common/domain";
+import { DEFAULT_LIBRARY_NORMALISE, isFx, type DomainPlaylist, type DomainScene, type DomainTrack, type LibraryNormalise, type PlayOrderOverrides, type ProfileOverrides } from "../../common/domain";
 import type { CampaignInfo, LibraryTrack, LyreApi, LyreArea, PadBoard, PlaylistInfo, Pad } from "../../common/lyre/api";
 import type { MediaRequest } from "../../player/engine/sources/sourceLoader";
 import type { LyreAudioLibrary, LyrePad, SceneRef } from "../audio/lyreAudio";
 
-type Part = "tracks" | "playlists" | "campaigns" | "boards" | "overrides" | "playOrders";
+type Part = "tracks" | "playlists" | "campaigns" | "boards" | "overrides" | "playOrders" | "normalise";
 
 /** Which parts each changed area makes stale. Tags change tracks (their tag values) and pads that play by tag. */
 const PARTS_OF: Record<LyreArea, Part[]> = {
-  tracks: ["tracks"],
+  // PLY-15: the library's Normalise volume setting changes "tracks" (every track's gain follows it).
+  tracks: ["tracks", "normalise"],
   tags: ["tracks"],
   folders: [],
   // PLY-13: play orders chosen in places belong to the playlists area.
@@ -22,8 +23,9 @@ const PARTS_OF: Record<LyreArea, Part[]> = {
   campaigns: ["campaigns"],
   profiles: ["overrides"],
   history: [],
-  // The audio host plays files; it never reads the loudness peaks (the wave does, through useTrackPeaks).
-  peaks: [],
+  // The audio host never reads the loudness peaks (the wave does, through useTrackPeaks), but the same job measures
+  // each track's loudness (DAT-15), which its normalising gain needs.
+  peaks: ["tracks"],
 };
 
 export class LibrarySnapshot implements LyreAudioLibrary {
@@ -34,8 +36,9 @@ export class LibrarySnapshot implements LyreAudioLibrary {
   private boards: PadBoard[] = [];
   private overrides: ProfileOverrides = {};
   private orders: PlayOrderOverrides = {};
+  private normalise: LibraryNormalise = { ...DEFAULT_LIBRARY_NORMALISE };
   /** The newest request per part: an older answer arriving later is dropped. */
-  private readonly asked: Record<Part, number> = { tracks: 0, playlists: 0, campaigns: 0, boards: 0, overrides: 0, playOrders: 0 };
+  private readonly asked: Record<Part, number> = { tracks: 0, playlists: 0, campaigns: 0, boards: 0, overrides: 0, playOrders: 0, normalise: 0 };
   private readonly listeners = new Set<() => void>();
   private readonly stopEvents: () => void;
   private disposed = false;
@@ -51,7 +54,7 @@ export class LibrarySnapshot implements LyreAudioLibrary {
   /** Loads everything once; resolves when the snapshot can answer. */
   static async load(api: LyreApi): Promise<LibrarySnapshot> {
     const snapshot = new LibrarySnapshot(api);
-    await Promise.all((["tracks", "playlists", "campaigns", "boards", "overrides", "playOrders"] as Part[]).map((part) => snapshot.reload(part)));
+    await Promise.all((["tracks", "playlists", "campaigns", "boards", "overrides", "playOrders", "normalise"] as Part[]).map((part) => snapshot.reload(part)));
     return snapshot;
   }
 
@@ -99,6 +102,10 @@ export class LibrarySnapshot implements LyreAudioLibrary {
     return this.orders;
   }
 
+  normaliseSettings(): LibraryNormalise {
+    return this.normalise;
+  }
+
   media(track: DomainTrack): MediaRequest | null {
     const known = this.trackById.get(track.id);
     if (!known?.url) return null;
@@ -139,6 +146,8 @@ export class LibrarySnapshot implements LyreAudioLibrary {
         return this.api.profiles.overrides();
       case "playOrders":
         return this.api.playlists.playOrders();
+      case "normalise":
+        return this.api.library.normaliseSettings();
     }
   }
 
@@ -162,6 +171,9 @@ export class LibrarySnapshot implements LyreAudioLibrary {
         break;
       case "playOrders":
         this.orders = answer as PlayOrderOverrides;
+        break;
+      case "normalise":
+        this.normalise = answer as LibraryNormalise;
         break;
     }
   }

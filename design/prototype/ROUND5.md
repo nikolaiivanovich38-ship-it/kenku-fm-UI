@@ -200,13 +200,55 @@ Reached from the ⋯ beside Add tracks in the Library, and from links on the scr
   not ticked, with Preview; not found); **Relink n files**, with Undo. Library rows show **Missing** and Filters has a
   **Missing** filter. Samples: three files moved (t19, t26, t37).
 
+## Volume normalisation (PLY-15, DAT-15)
+
+> "we'll also need volume baseline normalisation across the tracks, and an option we can turn on either at the whole
+> library level or per track or playlist" (5 Nov 2026, 23:47)
+
+- **Lyre never changes your files: the level is evened out as Lyre plays them, and the measurement is kept in
+  Lyre's library.** (Nik, 6 Nov 2026, 00:36: normalisation "must never change the audio files on disk; it applies
+  only to Lyre's output of them".) Measuring only reads a file; nothing is written into it or beside it (no
+  ReplayGain or other tags).
+- **Few words on screen** (Nik, 6 Nov, 00:41: "no added text in the interface"): short labels, the details on hover
+  (title), no explanatory lines.
+- **Measuring (DAT-15).** Lyre measures each track's loudness in the background with the loudness peaks, using its
+  own ffmpeg: integrated loudness (EBU R128, in LUFS) and true peak (dBTP). A sound shorter than 3 s is measured by its
+  loudest moment (momentary loudness), since integrated loudness is unreliable that short. The result is kept with the
+  file's size and modified time and measured again when the file changes. Until then a track is **not measured yet**
+  and plays as it is.
+- **The library's setting.** Library › ⋯ beside Add tracks › **Normalise volume…** opens a small dialog: **Normalise
+  volume for the whole library** (off at first: "an option we can turn on"; what it does on hover), the **Target
+  level** (**Quiet (-23 LUFS)**, **Standard (-18 LUFS)**, the default, **Loud (-14 LUFS)**; each described on hover),
+  and how many tracks are measured. The target applies wherever normalising is on.
+- **A playlist and a track** each have **Normalise volume** with **Library setting** (the default), **On** and **Off**:
+  in a playlist's Details, in a track's details (Library › a track › How it plays) and in the Audio profile's header.
+  Under it, what Lyre measured and the gain the track gets there: "-22.6 LUFS · +4.6 dB", "-22.6 LUFS · plays as it
+  is", "Not measured yet: plays as it is"; a playlist says "Its tracks get -2.2 dB to +2.7 dB here; 1 plays as it is".
+  Hovering that line says where the choice comes from ("Follows the library (Off)…", "This track's own choice,
+  wherever it plays."), and in a track's details its true peak.
+- **Most specific wins** (rule `normaliseDecision`): the track's own choice, then the playlist it plays from, then the
+  library. A track played on its own, a scene's single track and a pad's sound have no playlist: the track, then the
+  library. The Audio profile shows the gain for the place its settings are for (a playlist's choice counts on that
+  playlist's settings).
+- **The gain** (rule `normaliseGain`): target minus measured loudness, at most +12 dB ("(the most Lyre adds)"), and
+  lowered so the true peak stays at or below -1 dBTP ("(kept under -1 dBTP)"). The engine applies it before the
+  track's own volume, its fades and the room's and headphones' volumes; a crossfade moves from one track's gain to the
+  next. Previews and Try pads hear the same gain as the players would, so what you check is what they hear.
+- **Where it shows while playing.** In the Now playing bar the track's name says on hover "Volume evened out: -2.2 dB
+  (-15.8 LUFS measured)" or "Volume not evened out", for a room row and the preview row; Live's On air box does the same.
+- Samples: the library is off; **Ashen King** is On, and its "Ominous song" (t26) is set to Off, so it plays as it is
+  there too. t02 is the example above; t13 is held back by its peak; t09 meets the +12 dB cap; t43 to t45 are not
+  measured yet.
+
 ## Words added
 Play order, Shuffle, No repeat, Repeat all, Repeat one, Use the playlist's own order here; Now playing, On air · <room>,
 Only you, Previewed from …, Headphone volume; Paused; Volume; Single
 track; Shape, Steady, Builds, Falls away, Peaks then falls, Rises and falls, Suggested by Lyre; Name in this scene,
 Names in scenes; Waveform, end and fades in this scene, Back to <scene>, Session list; Try pads, Trying, Sounding;
 Back up, move or share, Save to a file, Include the audio files, Open a file, Bring in, Skip, Merge, Keep both;
-What came across from Kenku FM, Not brought across; Find missing files, Look in a folder, How sure, Relink; Missing.
+What came across from Kenku FM, Not brought across; Find missing files, Look in a folder, How sure, Relink; Missing;
+Normalise volume, Library setting, Target level, Quiet, Standard, Loud, Not measured yet, plays as it is, Volume evened
+out, True peak.
 
 ## Decisions (Nik approved round 5 on 5 Nov 2026, 21:33)
 
@@ -231,5 +273,8 @@ Open `design/prototype/lyre-prototype.html`. Campaigns › The Sunken Crown › 
 - Library: a track's details (Shape, Names in scenes, Use in…); Filters › Shape and Missing; ⋯ beside Add tracks ›
   Back up, move or share, What came across from Kenku FM, Find missing files.
 - Playlists › a dynamic playlist: Details at the top, with the rules.
+- Library: ⋯ beside Add tracks › Normalise volume…, turn it on; then a track's details (How it plays › Normalise
+  volume) and Playlists › Ashen King › Details. Play Ashen King on air from the campaign page and hover the track's
+  name in the Now playing bar.
 - Pad boards › Combat: ▶ on each pad; Try pads, then click pads and press their keys; make the grid smaller, then
   larger again.

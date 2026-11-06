@@ -23,6 +23,7 @@ import {
   usesOfBoard,
   usesOfPlaylist,
   usesOfTrack,
+  normaliseLine,
   type ProfilePlace,
 } from "../domain";
 import { isRefused, LYRE_API_METHODS, REFUSAL_CODES, type Done, type LyreApi, type LyreArea, type LyreEvent, type RefusalCode, type SceneAddress, type WriteResult } from "./api";
@@ -733,6 +734,46 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
     describe("design round 5", () => {
       const ruins = { kind: "scene" as const, campaignId: CROWN, sessionId: S14, sceneId: "sc3" };
       const s14 = { kind: "session" as const, campaignId: CROWN, sessionId: S14 };
+
+      it("PLY-15: the library's Normalise volume setting is off at first with Standard; Save keeps it, as one undo step", async () => {
+        expect(await api.library.normaliseSettings()).toEqual({ on: false, target: "standard" });
+        expect(valueOf(await api.library.setNormaliseSettings({ on: true, target: "loud" }))).toEqual({ on: true, target: "loud" });
+        await changedEvent("tracks", "history");
+        expect(await api.library.normaliseSettings()).toEqual({ on: true, target: "loud" });
+        const same = await api.library.setNormaliseSettings({ on: true, target: "loud" });
+        expect(same.ok && same.changed).toEqual([]);
+        expectRefused(await api.library.setNormaliseSettings({ on: true, target: "deafening" as never }), "invalid");
+        valueOf(await api.history.undo());
+        expect(await api.library.normaliseSettings()).toEqual({ on: false, target: "standard" });
+      });
+
+      it("PLY-15: a track's and a playlist's own choice is On, Off or the library's (null); the samples have Ashen King on and t26 off", async () => {
+        expect((await track("t26")).normalise).toBe("off");
+        expect((await track("t02")).normalise).toBeNull();
+        expect((await api.playlists.list()).find((p) => p.id === "p-ashen").normalise).toBe("on");
+        expect(valueOf(await api.library.setNormalise("t02", "on")).normalise).toBe("on");
+        await changedEvent("tracks", "history");
+        expect(valueOf(await api.library.setNormalise("t26", null)).normalise).toBeNull();
+        expect(valueOf(await api.playlists.setNormalise("p-ashen", "off")).normalise).toBe("off");
+        await changedEvent("playlists", "history");
+        valueOf(await api.history.undo());
+        expect((await api.playlists.list()).find((p) => p.id === "p-ashen").normalise).toBe("on");
+        expectRefused(await api.library.setNormalise("t02", "library" as never), "invalid");
+        expectRefused(await api.library.setNormalise("nope", "on"), "not-found");
+        expectRefused(await api.playlists.setNormalise("p-ashen", "loud" as never), "invalid");
+        expectRefused(await api.playlists.setNormalise("nope", "on"), "not-found");
+        const same = await api.library.setNormalise("t02", "on");
+        expect(same.ok && same.changed).toEqual([]);
+      });
+
+      it("DAT-15: each track carries what Lyre measured from its file, or null until then", async () => {
+        const tracks = await api.library.listTracks();
+        const t02 = tracks.find((x) => x.id === "t02");
+        expect(t02.loudness).toEqual({ lufs: -22.6, truePeakDb: -8 });
+        expect(normaliseLine(t02, null, { on: true, target: "standard" })).toBe("-22.6 LUFS · +4.6 dB");
+        expect(tracks.find((x) => x.id === "t43").loudness).toBeNull();
+        expect(tracks.filter((x) => x.loudness).length).toBe(66);
+      });
 
       it("PLY-13: each playlist has its own play order, each place its own, and resolvePlayOrder agrees with the samples", async () => {
         const playlists = await api.playlists.list();

@@ -29,6 +29,22 @@ describe("LibrarySnapshot", () => {
     expect(library.pad("combat", "nope")).toBeUndefined();
   });
 
+  it("PLY-15, DAT-15: has the library's Normalise volume setting, each track's choice and loudness, and follows their changes", async () => {
+    const api = createFakeLyreApi();
+    const library = await LibrarySnapshot.load(api);
+    expect(library.normaliseSettings()).toEqual({ on: false, target: "standard" });
+    expect(library.track("t02").loudness).toEqual({ lufs: -22.6, truePeakDb: -8 });
+    expect(library.playlist("p-ashen").normalise).toBe("on");
+    await api.library.setNormaliseSettings({ on: true, target: "quiet" });
+    await api.library.setNormalise("t02", "off");
+    await vi.waitFor(() => expect(library.normaliseSettings()).toEqual({ on: true, target: "quiet" }));
+    await vi.waitFor(() => expect(library.track("t02").normalise).toBe("off"));
+    // A track measured in the background arrives with a "peaks" event (the fake measures loudness with the peaks).
+    expect(library.track("t43").loudness).toBeNull();
+    await api.library.peaksOf("t43");
+    await vi.waitFor(() => expect(library.track("t43").loudness).not.toBeNull());
+  });
+
   it("a pad that plays any effect with a tag plays every FX track with that tag", async () => {
     const api = createFakeLyreApi();
     await api.boards.updatePad("court", "glass", { sound: { kind: "tag", tag: { group: "mood", value: "Dread" } } });

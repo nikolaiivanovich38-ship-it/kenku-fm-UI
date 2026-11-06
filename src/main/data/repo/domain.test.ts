@@ -49,6 +49,8 @@ import { getProfileOverrides, setProfileOverride } from "./profiles";
 import { getPlayOrderOverrides, setPlayOrder } from "./playOrders";
 import { getTrackNames, setSceneTrackName } from "./sceneNames";
 import { getDomainCampaign, getDomainLookup, listDomainCampaigns, listUses } from "./domain";
+import { saveLoudness, trackLoudness } from "./loudness";
+import { setPlaylistNormalise, setTrackNormalise } from "./normalise";
 
 /* The prototype's sample data, as the prototype defines it (seconds, display names). */
 type ProtoProfile = {
@@ -76,9 +78,12 @@ type ProtoTrack = {
   profile?: ProtoProfile;
   /** Round 5 (DAT-13): the shape the game master chose. */
   shape?: TrackShape;
+  /** Round 5 (DAT-15, PLY-15): what Lyre measured, and the track's own normalising choice. */
+  loud?: { lufs: number; peak: number };
+  norm?: "on" | "off";
 };
 type ProtoRule = { conds: { group: string; match: "any" | "all" | "none"; values: string[] }[]; energy?: [number, number]; notRole?: string };
-type ProtoPlaylist = { id: string; name: string; kind: "manual" | "dynamic"; lane: "music" | "amb" | "fx"; items?: string[]; rule?: ProtoRule; order?: PlayOrder };
+type ProtoPlaylist = { id: string; name: string; kind: "manual" | "dynamic"; lane: "music" | "amb" | "fx"; items?: string[]; rule?: ProtoRule; order?: PlayOrder; norm?: "on" | "off" };
 type ProtoPad = { id: string; label: string; icon: string; color: string; key: string; mode: string; sound: { kind: string; files: string[]; order?: string }; vol: number; fade: number; aside?: boolean };
 type ProtoBoard = { id: string; name: string; cols: number; rows: number; slots: (ProtoPad | null)[]; spare: ProtoPad[] };
 type ProtoScene = { id: string; name: string; when: string; music: string[]; amb: string; boards: string[]; notes: string };
@@ -167,6 +172,9 @@ function loadIntoDatabase(store: Store, data: ProtoData) {
     const ids = Object.entries(t.tags).flatMap(([g, names]) => names.map((name) => tagId(g, name)));
     if (ids.length) void tagTracks(store, [t.id], ids);
     if (t.shape) updateTrack(store, t.id, { shape: t.shape });
+    if (t.norm) setTrackNormalise(store, t.id, t.norm);
+    const measuring = trackLoudness(store, t.id);
+    if (t.loud && measuring.state === "needed") saveLoudness(store, measuring.source, { lufs: t.loud.lufs, truePeakDb: t.loud.peak });
   }
 
   const rule = (r: ProtoRule) => toRule(r, groupId);
@@ -178,6 +186,7 @@ function loadIntoDatabase(store: Store, data: ProtoData) {
       createPlaylist(store, { id: p.id, title: p.name, kind: "dynamic", lane: p.lane, rule: rule(p.rule!) });
     }
     if (p.order) setPlayOrder(store, p.id, null, p.order);
+    if (p.norm) setPlaylistNormalise(store, p.id, p.norm);
   }
 
   // Pad sounds name files; a file that is not in the library yet is added as a sound effect.
@@ -266,8 +275,8 @@ function toRule(r: ProtoRule, groupId: Record<string, string>): PlaylistRule {
 function expectedPlaylist(p: ProtoPlaylist, groupId: Record<string, string>): DomainPlaylist {
   const order = p.order ? { shuffle: p.order.shuffle, repeat: p.order.repeat } : null;
   return p.kind === "manual"
-    ? { id: p.id, name: p.name, lane: p.lane, order, kind: "manual", trackIds: p.items! }
-    : { id: p.id, name: p.name, lane: p.lane, order, kind: "dynamic", rule: toRule(p.rule!, groupId) };
+    ? { id: p.id, name: p.name, lane: p.lane, order, normalise: p.norm ?? null, kind: "manual", trackIds: p.items! }
+    : { id: p.id, name: p.name, lane: p.lane, order, normalise: p.norm ?? null, kind: "dynamic", rule: toRule(p.rule!, groupId) };
 }
 
 function expectedTrack(t: ProtoTrack, groupId: Record<string, string>): DomainTrack {
@@ -286,6 +295,8 @@ function expectedTrack(t: ProtoTrack, groupId: Record<string, string>): DomainTr
     shape: t.shape ?? null,
     // The prototype makes up a loudness curve for its suggestion (core.js L.levels); the database has no peaks here.
     suggestedShape: null,
+    normalise: t.norm ?? null,
+    loudness: t.loud ? { lufs: t.loud.lufs, truePeakDb: t.loud.peak } : null,
   };
 }
 
@@ -356,17 +367,25 @@ describe("domain shapes from the database (DAT-11, DAT-12)", () => {
 
   it("gives manual and dynamic playlists with their lane and rule", () => {
     for (const p of data.playlists) expect(lookup.playlist(p.id), p.id).toEqual(expectedPlaylist(p, groupId));
-    expect(lookup.playlist("p-coast")).toEqual({ id: "p-coast", name: "Coast road travel", lane: "music", order: null, kind: "manual", trackIds: ["t23", "t03", "t10", "t29"] });
+    expect(lookup.playlist("p-coast")).toEqual({ id: "p-coast", name: "Coast road travel", lane: "music", order: null, normalise: null, kind: "manual", trackIds: ["t23", "t03", "t10", "t29"] });
     expect(lookup.playlist("a-inn")).toMatchObject({ lane: "amb", kind: "manual", trackIds: ["b03", "b08"] });
     expect(lookup.playlist("p-combat-big")).toEqual({
       id: "p-combat-big",
       name: "Combat: big and loopable",
       lane: "music",
       order: { shuffle: true, repeat: "all" },
+      normalise: null,
       kind: "dynamic",
       rule: { conds: [{ group: groupId.scene, match: "any", values: ["Combat"] }], energy: [4, 5], leaveOutStings: true },
     });
     expect(lookup.playlist("missing")).toBeUndefined();
+  });
+
+  it("PLY-15, DAT-15: the sample choices and measured loudness come through: Ashen King on, its song t26 off", () => {
+    expect(lookup.playlist("p-ashen")?.normalise).toBe("on");
+    expect(lookup.track("t26")?.normalise).toBe("off");
+    expect(lookup.track("t02")?.loudness).toEqual({ lufs: -22.6, truePeakDb: -8 });
+    expect(lookup.track("t43")?.loudness).toBeNull();
   });
 
   it("plays the same tracks from every playlist as the in-memory data", () => {

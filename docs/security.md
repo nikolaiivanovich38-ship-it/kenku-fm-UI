@@ -697,3 +697,7 @@ library's own process (`src/main/transfer`, `src/main/lyreApi/transferApi.ts`), 
 - **Test builds only** (`CUE_DESK_LYRE_SEED=prototype`, gated on `__CUE_DESK_TEST_BUILD__` through `wantsSeededLibrary`):
   the two dialogs and the folder chooser answer by themselves, and the library looks at the prototype's computer
   (`sampleComputer.ts`) instead of the disk. Release builds never seed, so none of this is reachable there.
+
+## w4-normalise
+
+No new IPC channel. The four normalisation calls go through `LYRE_API_CALL`; their arguments are checked in the library before it acts (`argChecks.ts`): `library.normaliseSettings` (none), `library.setNormaliseSettings` (`{ on: boolean, target: short text }`), `library.setNormalise` and `playlists.setNormalise` (an id, a short text or null). The data layer then refuses any target other than quiet, standard and loud and any choice other than on, off or null. Measuring loudness runs the bundled ffmpeg with the same safety as the peaks (`src/main/media/ffmpegLoudness.ts`): no shell, each argument as it is, `-protocol_whitelist file`, the reader fixed by the extension (security review 7), the first audio stream only, below-normal priority, a time limit, and nothing written (`-f null`); its report is read from the error stream as text and only numbers are kept.

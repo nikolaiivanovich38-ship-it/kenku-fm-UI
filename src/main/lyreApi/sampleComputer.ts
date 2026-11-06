@@ -91,6 +91,7 @@ function samTracks(seed: SeedData): FileTrack[] {
       tags: { mood: i % 3 === 0 ? ["Gothic", "Dread"] : ["Gothic"], motif: i % 4 === 0 ? ["Strahd"] : i % 7 === 0 ? ["Ireena"] : [], scene: [] },
       profile: null,
       shape: null,
+      normalise: null,
       artist: "Sam's collection",
       album: "Barovia",
       folder: BAROVIA,
@@ -111,9 +112,9 @@ const scene = (id: string, name: string, music: SceneInfo["music"], boardIds: st
 export function sampleSharedLibrary(seed: SeedData): LyreFileLibrary {
   const tracks = samTracks(seed);
   const playlists: PlaylistInfo[] = [
-    { id: "sam-mist", name: "Barovia mist", lane: "music", kind: "manual", trackIds: ["sam-1", "sam-2", "sam-3", "sam-4", "sam-5", "sam-6"], notes: "", order: null },
-    { id: "sam-gothic", name: "Gothic dread", lane: "music", kind: "dynamic", rule: { conds: [{ group: "mood", match: "any", values: ["Gothic", "Dread"] }] }, notes: "", order: null },
-    { id: "sam-halls", name: "Castle corridors", lane: "music", kind: "manual", trackIds: ["sam-t38", "sam-t20", "sam-7", "sam-t12"], notes: "", order: { shuffle: true, repeat: "all" } },
+    { id: "sam-mist", name: "Barovia mist", lane: "music", kind: "manual", trackIds: ["sam-1", "sam-2", "sam-3", "sam-4", "sam-5", "sam-6"], notes: "", order: null, normalise: null },
+    { id: "sam-gothic", name: "Gothic dread", lane: "music", kind: "dynamic", rule: { conds: [{ group: "mood", match: "any", values: ["Gothic", "Dread"] }] }, notes: "", order: null, normalise: null },
+    { id: "sam-halls", name: "Castle corridors", lane: "music", kind: "manual", trackIds: ["sam-t38", "sam-t20", "sam-7", "sam-t12"], notes: "", order: { shuffle: true, repeat: "all" }, normalise: null },
   ];
   const board: PadBoard = { id: "sam-ravenloft", name: "Ravenloft", cols: 3, rows: 3, spare: [], slots: Array.from({ length: 9 }, (_, i) => pad(i + 1, `sam-${22 + Math.min(i, 8)}`, ["Bats", "Wolves", "Thunder", "Organ", "Bell", "Door", "Scream", "Chains", "Raven"][i])) };
   const music = (...ids: string[]): SceneInfo["music"] => ids.map((id) => (id.startsWith("sam-") && playlists.some((p) => p.id === id) ? { kind: "playlist", id } : { kind: "track", id }));
