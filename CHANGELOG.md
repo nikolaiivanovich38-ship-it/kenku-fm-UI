@@ -4,6 +4,46 @@ All notable changes to Lyre (called Cue Desk in versions 0.1.x). Versions follow
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-06: run your games in Lyre
+
+**Live**
+- Live is here: start scenes with Space, undo with Ctrl+Z within 8 seconds, play music off script by name or mood, and use pads, rooms and volumes from one screen. [UX-2, UX-8, SHW-1, SHW-2]
+- One On air box per room, with what plays, what is up next, transport, volume, Mute, and a menu to move, copy or leave. Add a room, then choose which room each box plays to. [UX-14, OUT-6]
+- Pad keys work in Live, also with the Pads box folded. Running another session fades out what was playing from the last one. [SFX-2]
+- The Keys button lists every key; single-key shortcuts can be switched off. [UX-12]
+
+**Outputs**
+- See your bots, who is in each voice channel, and move a bot to another channel during play. Mute a room, change its volume, or play a test chime in that room only. The menu shows how many bots are connected, e.g. "Outputs (1/2)". [OUT-5, OUT-6]
+
+**What you hear, and where**
+- The Now playing bar, on every screen while anything plays or is paused: a row for each room the players hear (On air) and one for your headphone preview (Only you), each with Pause, Stop and its own volume. In Live it shows only your preview. [UX-16]
+- Normalise volume evens out loudness between tracks. Off at first; turn it on for the library (Library › ⋯ › Normalise volume…), or on or off for a playlist or a track. Lyre measures each track's loudness in the background and never changes your files. [PLY-15, DAT-15]
+
+**Preparing**
+- Shuffle, repeat all and repeat one, chosen separately for a playlist itself and for each scene, session or campaign that uses it. [PLY-13]
+- Tracks show their tags and their shape (steady, builds, falls away, peaks then falls, rises and falls), suggested from their loudness; change it in a track's details, filter by it, and use it in dynamic playlist rules. [ORG-11, DAT-13]
+- A track can have its own name in a scene (⋯ › Name in this scene…). [DAT-14]
+- Use in… works on single tracks; keep single tracks on hand for a session or a campaign. [ORG-12]
+- Add tracks or playlists…: open a playlist and tick just the tracks you want. [ORG-10]
+- From a scene, the wave button opens a track's waveform, end and fades for that scene, and Back returns to it. [PLY-14]
+- A dynamic playlist's details sit at the top, with its rules. [EDT-8]
+- Pad boards: changing the grid size fills pads left to right, top to bottom, and pads you put in Spare pads yourself stay there; Try pads plays each pad as it will in Live, in your headphones only. [SFX-11, SFX-12]
+
+**Your library**
+- Back up, move or share: save the whole library, a campaign, session, scene, playlist, pad board or your tags to one .lyre file, with or without the audio. Open a .lyre file to see what is in it, choose Skip, Merge or Keep both for anything you already have, then bring it in; Undo takes it all back. [DAT-7]
+- What came across from Kenku FM: what Lyre copied on its first start, and the files it cannot find. [DAT-9]
+- Find missing files: point Lyre at a folder, check each match, then Relink, with Undo. Missing files are marked in the Library and have a filter. [DAT-8]
+
+**Help**
+- Press F1, or Help at the foot of the menu, for short how-to articles you can search. A short tour on the first start; take it again from Help. [FND-8]
+- Help › Save diagnostics… saves a zip for bug reports. Tokens and your user name are taken out, and nothing is sent anywhere. [FND-9]
+
+**Safety and fixes**
+- A .lyre file from someone else can only put audio files on your computer; anything else in it is left out, and Lyre says so. It cannot fill your drive, and is refused if there is no room for its audio.
+- Undoing a bring-in also clears the audio files it unpacked.
+- A shuffled playlist in a scene no longer plays the scene's previous track again straight away.
+- A room's volume slider always matches what the players hear.
+
 ## [0.3.1] - 2026-11-05: fixes from your first test of 0.3.0
 
 - Music keeps playing while you prepare: adding, moving or removing a track in a scene no longer stops it, and closing the Add tracks window stops only a preview you started in it. [BUG-12]
