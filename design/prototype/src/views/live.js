@@ -331,7 +331,9 @@
   }
   function onAir() {
     var rs = rooms(), idle = L.bots().filter(function (b) { return b.status === 'idle'; });
-    var h = rs.length ? rs.map(roomBox).join('') : L.pane({ id: 'lv-room-none', title: 'On air: no room yet', icon: 'broadcast', kind: 'onair', size: 'auto', flush: true, noMax: true, status: { text: 'Silent', tone: 'idle' },
+    // BUG-19: with no bot in a voice channel what plays goes nowhere: Lyre never plays it on this computer.
+    var tm = M('table'), unheard = tm.music || tm.amb || L.fxFor('table').some(function (f) { return !f.fadeOut; });
+    var h = rs.length ? rs.map(roomBox).join('') : L.pane({ id: 'lv-room-none', title: 'On air: no room yet', icon: 'broadcast', kind: 'onair', size: 'auto', flush: true, noMax: true, status: unheard ? { text: 'Nobody hears it', tone: 'warn' } : { text: 'Silent', tone: 'idle' },
       body: '<div class="lv-onair">' + laneBlock('music', 'table') + laneBlock('amb', 'table') + '</div>' });
     return h + (idle.length ? '<div class="lv-addroom"><button class="btn s ghost" data-act="lvaddroom" data-k="lv-addroom" aria-haspopup="menu" aria-expanded="false">' + L.icon('plus', 's') + 'Add a room</button></div>' : '');
   }
