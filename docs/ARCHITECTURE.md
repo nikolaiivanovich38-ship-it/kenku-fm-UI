@@ -477,3 +477,19 @@ Phase A of wave 4: the round 5 kit the prep screens and Live build on, and the N
 | `shell/ScreenSound.tsx` | Gives each screen the audio host with `from` filled in on previews that name no place (`SCREEN_WORDS`, core.js SCREEN_NAMES), so "Previewed from the session planner" needs nothing from the screens. |
 
 Audio host changes: `RoomNowPlaying.volume` and `setRoomVolume(target, 0..1)` (the room's mix level, kept per room while the app runs; the room that takes over the table keeps its volume; rooms start at `ROOM_START_VOLUME`, 0.85, in the app, 1 in tests unless `startRoomVolume` says otherwise). A lane's `length` is the library's length of the track when it has one, so the bar agrees with the lists.
+
+## Wave 4: w4-prep-b
+
+Phase B of wave 4 for the Campaigns screens, the session planner, the Audio profile and the pad boards (design/prototype/ROUND5.md).
+
+| Where | What it does |
+| --- | --- |
+| `screens/campaigns/SessionScreen.tsx` | A scene's music rows: play order for playlists in the scene (PLY-13); a track's tags and shape on a second line, with the scene's name for it and its own name beside (ORG-11, DAT-14); the wave button "Waveform, end and fades in this scene" (PLY-14); ⋯ › Name in this scene… and Use in… (DAT-14, ORG-12). The folded scene's chip and hover text use the scene's names. Back from the Audio profile opens the scene and focuses the wave button (`kit/sceneReturn.ts`). |
+| `screens/campaigns/OnHand.tsx` | Campaign and session lists: the play order button for that list; single tracks on hand after the playlists ("Single track", tags; ⋯ › Waveform, end and fades in this session, Use in…, Remove) (ORG-12). A session playlist's open tracks link to the session's own settings. |
+| `screens/campaigns/parts.tsx` | `Contents` of a playlist in a scene or session list: names in the scene, tags, the wave button. |
+| `screens/campaigns/pickers.tsx`, `kit/Picker.tsx` | ORG-10: in the music picker an open playlist lists its tracks, each with a box ticked in the picker's own list (`renderContents(item, ticks)`); tracks show their tags. |
+| `screens/campaigns/trackDialogs.tsx` | Name in this scene… (`sessions.setTrackName`) and Use in… for a track (`campaigns.setUses({ kind: "track" })`). |
+| `screens/profile/` | A session list is a place (`places.ts` `sessionOf`, `sss`; "Session list: …" under Sessions). Opened from a scene or session, Back to <scene> / Back to Session n returns to the planner; from a scene, Name in this scene in the header; the shape tag in the header (suggested from the peaks the waveform draws while the track list has none yet). |
+| `screens/boards/` | SFX-11: the resize message as the prototype words it (`resizeMessage(after, moved, cameBack)`). SFX-12: ▶ Preview on every tile; Try pads in the Pads header (`useTryPads` in `BoardScreen.tsx`): a press, or the pad's key, plays it through `LyreAudio.tryPad`; tiles say Playing or Sounding; leaving the board or turning it off stops it. |
+| `audio/lyreAudio.ts` | `tryPad(board, pad, phase, { from })`: the pad played as in Live (toggle, hold, one-shot, restart; variants random or in turn) on the preview, so only the game master hears it. `ScreenSound` fills in `from`. |
+| `common/lyre/prototypeLevels.ts` | The prototype's made-up loudness (core.js `L.levels`). The fake answers it as peaks, and test builds seed it (`seedPrototypePeaks`), so the sample library suggests the design's shapes. |
