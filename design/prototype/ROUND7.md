@@ -157,6 +157,44 @@ on every request, checks the Host header, accepts changes only as JSON, rate-lim
 5. The progress line of each room shows marker ticks; Play next and Add to queue accept `from`.
 6. Comfortable density and 200 % text: Live's grid must still fit (its own check after the merge).
 
+## Round 7, part 2: Live (after the merge with round 6)
+
+The six points above, built in `views/live.js` and `live.css` on round 6 as Nik approved it (On air at the top,
+trays that grow, row buttons greyed at rest, one Saved pop-up, no resting statuses).
+
+1. **What played.** Each room's header in On air has a What played button, shown on hover and keyboard focus (open,
+   it stays lit). It opens the list in the room itself, under its lanes, so nothing is covered: the room's last six
+   tracks, newest first, each with Play again (now) and Play next (greyed at rest, as every Live row button). Play
+   again closes the list.
+2. **A scene's steps.** Start and Next scene run a scene's own steps (core's start does the music, ambience and pads;
+   the other steps follow in order). A play step set to Play next or Add to queue goes to the room's list, from its
+   marker if it has one; the scene's Undo takes it back with the rest. In Scenes, a scene marks only what differs:
+   "Moves on by itself", "Own start".
+3. **Pads.** A pad's own steps run when it is pressed (Fade the music… says "Music down to 30% over 2 s"). A board's
+   dividers are headings over their row of pads, in Current scene and the pad boxes. Live's pad menu has no What it
+   does… (steps are set on the board).
+4. **Keys.** Next scene, Fade everything out, Undo and Find a track use the keys in Settings › Keyboard shortcuts, and
+   the Keys list shows them. A single-key choice (Space, N, /) follows the Single-key shortcuts switch; a key with Ctrl
+   or Alt always works. With the guard on (the default), a second Next scene key within a second is ignored; the
+   Next scene button is not guarded (a click is deliberate). Ctrl+K opens Find and play in Live as everywhere.
+5. **Markers.** Each room's progress line has a tick per marker (its name and time on hover; the mix-out one in the
+   accent colour). An added single track can start from a marker (`item.from`, seconds).
+6. **Comfortable and 200 %.** Checked: Live with a scene playing, Comfortable density and 200 % text at 960 × 1000
+   does not scroll sideways, and On air is in view.
+
+Also: core's `paint` gives focus back to the screen's heading after a redraw (the heading has no data-k, so a redraw,
+such as the first playback tick or a resize, used to drop focus to the page). The shell's patch for it is gone.
+
+Specs: a `round 7, part 2` block in `live.spec.ts` (10 checks) and one in `campaigns.spec.ts` (focus through a
+redraw). On the merged build before this part, 7 of the 10 Live checks failed; the 3 that passed already worked
+through round 7's shared code (a pad's steps, Ctrl+K in Live) or Live's layout (Comfortable at 200 %).
+
+Numbers (`tools/r6-measure.js`, the merge 1d27d7b against this part, every state at both sizes): no change on any
+screen. Live stays at 81 words at rest, 210 with a scene playing, 166 for Aftermath and 253 with a scene unfolded
+(1920; 59, 188, 144 and 221 at 960): What played shows only on hover and focus, the scene marks only for a scene that
+differs, ticks are not text. Checks: the prototype project passes 671 of 671; `tools/r5-check.js`,
+`tools/check-contrast.js`, `tools/lv-keys.js` (66 checks), `tools/r6-saved.js` and `tools/r7-smoke.js` pass.
+
 ## Numbers
 
 `tools/r6-measure.js`, round 6 (5fca9bc) against round 7, all 31 states at 1920×1080 and 960×1000, the new Tags screen
@@ -186,7 +224,7 @@ base (5fca9bc made that line plain text), outside this round. `tools/r5-check.js
 3. **Enter in Find and play.** Enter plays on air at once; Alt+Enter previews. Recommendation: keep it (it is what you
    reach for mid-game); a mistake is one Stop away.
 
-## Try it (about 15 steps)
+## Try it (about 20 steps)
 
 1. Library › ⋯ › Tags and groups…: one box per group. Mood › ⋯ on Wistful › Rename… "Longing" › Rename: the Undo above
    the bar says how many tracks changed; press Undo.
@@ -208,3 +246,9 @@ base (5fca9bc made that line plain text), outside this round. `tools/r5-check.js
 15. Settings: Remote control on (the code, Make a new code, Your home network); Headphones and speakers (Split one
     headset); Keyboard shortcuts (Change… on Find and play, press Ctrl+J; Printable sheet).
 16. Look and feel › Display: Comfortable, Text size 150 %, High contrast.
+17. Live (after 9 and 10): Start The abbey ruins: Scenes says "Moves on by itself", the Abbey bell sounds, and the
+    Table's progress line has a tick at Choir enters. Point at Table's header: What played › Play again.
+18. Live: Start Recap and the coast road, press Thunder crack: "Music down to 30% over 2 s". Press Space twice
+    quickly: one scene moves on, not two.
+19. Settings › Keyboard shortcuts › Change… on Next scene, press N; in Live, N starts the next scene and the Keys list
+    says N.
