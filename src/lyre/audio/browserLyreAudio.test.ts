@@ -34,7 +34,7 @@ function deliverPort(port: FakeAudioPort, source: unknown = win) {
   win.dispatchEvent(event);
 }
 
-function assemble() {
+function assemble(setEar?: (ear: "both" | "left" | "right") => void) {
   const tap = (ctx: FakeAudioContext) => (): FrameTap => {
     const input = ctx.createGain();
     return { input, dispose: () => input.disconnect() };
@@ -49,12 +49,15 @@ function assemble() {
     engine: new PlaybackEngine({ context, scheduler: context.clock, loader }),
     link,
     createTap: tap(context),
-    previewOutput: createBridgedPreviewOutput({
-      context: previewContext,
-      link,
-      createTap: tap(previewContext),
-      closeContext: async () => void closed.push("preview context"),
-    }),
+    previewOutput: {
+      ...createBridgedPreviewOutput({
+        context: previewContext,
+        link,
+        createTap: tap(previewContext),
+        closeContext: async () => void closed.push("preview context"),
+      }),
+      ...(setEar ? { setEar } : {}),
+    },
     previewLoad: (media) => new SourceLoader({ context: previewContext, createElement: () => previewContext.createMediaElement(), fetchBytes: async () => null }).load(media),
     previewScheduler: previewContext.clock,
     devices: { list: async () => [{ deviceId: "hp", label: "Headphones" }], onChange: () => () => undefined },
@@ -129,6 +132,15 @@ describe("assembleLyreAudio: LyreAudio wired into the new page as docs/ARCHITECT
     const second = new FakeAudioPort();
     deliverPort(second);
     await vi.waitFor(() => expect(second.posted).toContainEqual(expect.objectContaining({ kind: "preview-sink", deviceId: "hp" })));
+    await audio.dispose();
+  });
+
+  it("PRV-2: puts the preview in one ear of a split headset, and back in both", async () => {
+    const ears: string[] = [];
+    const audio = assemble((ear) => ears.push(ear));
+    await audio.setAudioDevices({ airDevice: "", previewDevice: "hp", split: true, previewEar: "left" });
+    await audio.setAudioDevices({ airDevice: "", previewDevice: "hp", split: false, previewEar: "left" });
+    expect(ears).toEqual(["left", "both"]);
     await audio.dispose();
   });
 
