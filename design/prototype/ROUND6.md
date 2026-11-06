@@ -765,7 +765,10 @@ row and the ambience's three buttons), as item 7 asks; elsewhere they fall (Sess
 profile no longer shows the track's name twice. All 31 states, both sizes: words 13,450 → 13,386, hint lines 182 → 182,
 facts shown twice 306 → 299, controls 5,570 → 5,609 (Back on every screen: +1 each).
 
-Checks: the prototype spec project (`yarn heavy`) SPECRESULT; `tools/r5-check.js` ("every screen passed"),
+Checks: the prototype spec project (`yarn heavy`): 547 passed, 4 failed, and the 4 are not part 6's: the
+`library-files` checks for the export's, the import's and the relink's result line as a status fail on the part 5 build
+too, since commit 5fca9bc took `role="status"` off those lines (so each result is read out once); the lead should
+decide whether the specs or the prototype gives way; `tools/r5-check.js` ("every screen passed"),
 `tools/check-contrast.js` (five themes), `tools/lv-keys.js` (every check, 12 new for part 6), `tools/r6-saved.js` (now
 also at 1280; the pop-up 12 px from the right and 12 px above the bottom on every screen, in Live over empty space at
 1920, 1280 and 960). Screenshots: `shots/r6/live-part6-1920.png`, `-1280.png`, `-960.png` (The abbey ruins playing,
