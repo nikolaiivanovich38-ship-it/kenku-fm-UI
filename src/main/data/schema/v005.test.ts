@@ -27,7 +27,7 @@ describe("schema version 5 (design round 6)", () => {
   afterEach(() => db.close());
 
   it("is the newest version and leaves no broken link", () => {
-    expect(schemaVersion(db)).toBe(5);
+    expect(schemaVersion(db)).toBeGreaterThanOrEqual(5);
     expect(all(db, "PRAGMA foreign_key_check")).toEqual([]);
   });
 
@@ -89,7 +89,7 @@ describe("upgrading a version 4 library to version 5", () => {
     db.exec(`INSERT INTO play_orders (id, playlist_id, scene_id, shuffle, repeat) VALUES ('o', 'p', 'x', 1, 'one');
       INSERT INTO playlist_items (id, playlist_id, kind, track_id, position) VALUES ('i1', 'p', 'track', 't', 1), ('i2', 'p', 'track', 'u', 2);
       UPDATE library_settings SET normalise_on = 1;`);
-    expect(migrate(db, MIGRATIONS)).toMatchObject({ from: 4, to: 5, applied: [5] });
+    expect(migrate(db, MIGRATIONS.slice(0, 5))).toMatchObject({ from: 4, to: 5, applied: [5] });
     expect(all(db, "SELECT id, name FROM scenes ORDER BY id")).toEqual([
       { id: "x", name: "Ruins" },
       { id: "y", name: "Crypt" },

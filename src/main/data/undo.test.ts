@@ -154,7 +154,7 @@ const COMMANDS: [string, (s: Store, f: Fixture) => unknown][] = [
   ["updateMarker", (s, f) => markers.updateMarker(s, f.marker.id, { label: "big swell", timeMs: 2 })],
   ["deleteMarker", (s, f) => markers.deleteMarker(s, f.marker.id)],
   ["createFolder", (s, f) => folders.createFolder(s, { scope: "playlists", name: "New", parentId: f.folder.id })],
-  ["updateFolder", (s, f) => folders.updateFolder(s, f.folder.id, { name: "City", color: "#123456", collapsed: true })],
+  ["updateFolder", (s, f) => folders.updateFolder(s, f.folder.id, { name: "City", color: "sea", collapsed: true })],
   ["moveFolder", (s, f) => folders.moveFolder(s, f.sub.id, { parentId: null, placement: "start" })],
   ["deleteFolder", (s, f) => folders.deleteFolder(s, f.sub.id)],
   ["createPlaylist", (s) => playlists.createPlaylist(s, { title: "Battle", placement: "start" })],
@@ -182,7 +182,7 @@ const COMMANDS: [string, (s: Store, f: Fixture) => unknown][] = [
   ["duplicatePad", (s, f) => boards.duplicatePad(s, f.pads[0].id)],
   ["deletePads", (s, f) => boards.deletePads(s, [f.pads[0].id, f.sparePad.id])],
   ["createTagGroup", (s) => tags.createTagGroup(s, { name: "Weather" })],
-  ["updateTagGroup", (s, f) => tags.updateTagGroup(s, f.mood.id, { name: "Feeling", color: "#abcdef" })],
+  ["updateTagGroup", (s, f) => tags.updateTagGroup(s, f.mood.id, { name: "Feeling", color: "plum" })],
   ["moveTagGroup", (s, f) => tags.moveTagGroup(s, f.mood.id, "end")],
   ["deleteTagGroup", (s, f) => tags.deleteTagGroup(s, f.mood.id)],
   ["createTag", (s, f) => tags.createTag(s, { groupId: f.mood.id, name: "Spooky", synonyms: ["creepy"] })],
@@ -521,18 +521,18 @@ describe("undo history", () => {
       version: MIGRATIONS.length + 1,
       name: "cue lists (test stand-in)",
       up(db) {
-        db.exec("CREATE TABLE cue_lists (id TEXT PRIMARY KEY, name TEXT NOT NULL)");
+        db.exec("CREATE TABLE standin_cue_sheets (id TEXT PRIMARY KEY, name TEXT NOT NULL)");
       },
     };
     const db = openConnection(":memory:");
     migrate(db, [...MIGRATIONS, later]);
     const store = new Store(db);
     const history = new UndoHistory(store);
-    store.change("Add cue list", () => store.run("INSERT INTO cue_lists VALUES ('q1', 'Main')"));
+    store.change("Add cue list", () => store.run("INSERT INTO standin_cue_sheets VALUES ('q1', 'Main')"));
     await history.undo();
-    expect(store.all("SELECT * FROM cue_lists")).toEqual([]);
+    expect(store.all("SELECT * FROM standin_cue_sheets")).toEqual([]);
     await history.redo();
-    expect(store.all("SELECT * FROM cue_lists")).toEqual([{ id: "q1", name: "Main" }]);
+    expect(store.all("SELECT * FROM standin_cue_sheets")).toEqual([{ id: "q1", name: "Main" }]);
     db.close();
   });
 

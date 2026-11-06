@@ -9,7 +9,8 @@ import { v002Peaks } from "./v002-peaks";
 import { v003Round5 } from "./v003-round5";
 import { v004Loudness } from "./v004-loudness";
 import { v005Round6 } from "./v005-round6";
+import { v006Round7 } from "./v006-round7";
 
-export const MIGRATIONS: readonly Migration[] = [v001Library, v002Peaks, v003Round5, v004Loudness, v005Round6];
+export const MIGRATIONS: readonly Migration[] = [v001Library, v002Peaks, v003Round5, v004Loudness, v005Round6, v006Round7];
 
 export { migrate, rebuildTable, schemaVersion, type Migration, type MigrationResult } from "./migrate";

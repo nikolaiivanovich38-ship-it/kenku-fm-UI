@@ -62,7 +62,7 @@ export function createTagGroup(
 ): TagGroup {
   const id = newId(input.id);
   const name = v.requiredName("name", input.name);
-  const color = v.nullableColor("color", input.color);
+  const color = v.nullablePaletteColor("color", input.color);
   store.change(`Add tag group "${name}"`, () =>
     unique("name", `A tag group called "${name}"`, () =>
       store.run(
@@ -90,7 +90,7 @@ export function updateTagGroup(store: Store, id: string, changes: { name?: strin
   const patch = patchOf(changes, ["name", "color"]);
   const groupId = requireRow(store, "tag_groups", "tag group", id);
   const name = patch.name === undefined ? undefined : v.requiredName("name", patch.name);
-  const color = "color" in patch ? v.nullableColor("color", patch.color) : undefined;
+  const color = "color" in patch ? v.nullablePaletteColor("color", patch.color) : undefined;
   store.change("Change tag group", () =>
     unique("name", `A tag group called "${name}"`, () => {
       if (name !== undefined) store.run("UPDATE tag_groups SET name = ? WHERE id = ?", name, groupId);
@@ -196,7 +196,7 @@ export function createTag(
   const id = newId(input.id);
   const groupId = requireRow(store, "tag_groups", "tag group", input.groupId);
   const name = v.requiredName("name", input.name);
-  const color = v.nullableColor("color", input.color);
+  const color = v.nullablePaletteColor("color", input.color);
   const parentId = checkParent(store, input.parentId, groupId, null);
   const synonyms = cleanSynonyms(input.synonyms);
   store.change(`Add tag "${name}"`, () =>
@@ -247,7 +247,7 @@ export function updateTag(
   const patch = patchOf(changes, ["name", "color", "parentId", "groupId"]);
   const tag = getTag(store, requireRow(store, "tags", "tag", id)) as Tag;
   const name = patch.name === undefined ? undefined : v.requiredName("name", patch.name);
-  const color = "color" in patch ? v.nullableColor("color", patch.color) : undefined;
+  const color = "color" in patch ? v.nullablePaletteColor("color", patch.color) : undefined;
   const groupId = patch.groupId === undefined ? tag.groupId : requireRow(store, "tag_groups", "tag group", patch.groupId);
   const groupChanges = groupId !== tag.groupId;
   const parentId =
@@ -303,11 +303,15 @@ export function tagUsage(store: Store, id: string): TagUsage {
 
 /**
  * Deletes a tag; tracks and dynamic rules lose it (ON DELETE CASCADE), and tags
- * below it move to the top of the group. The tracks lose it in batches (DB review 1).
+ * below it move up a level, under its own parent. The tracks lose it in batches (DB review 1).
  */
 export function deleteTag(store: Store, id: string): Promise<void> {
   const tag = getTag(store, requireRow(store, "tags", "tag", id)) as Tag;
-  return untagInBatches(store, `Delete tag "${tag.name}"`, [tag.id], () => store.run("DELETE FROM tags WHERE id = ?", tag.id));
+  return untagInBatches(store, `Delete tag "${tag.name}"`, [tag.id], () => {
+    // DAT-10 (r7tags.js tgdelok): the tags that were inside it move up a level, to where it was.
+    store.run("UPDATE tags SET parent_id = ? WHERE parent_id = ?", tag.parentId, tag.id);
+    store.run("DELETE FROM tags WHERE id = ?", tag.id);
+  });
 }
 
 export function setTagSynonyms(store: Store, id: string, synonyms: string[]): Tag {
