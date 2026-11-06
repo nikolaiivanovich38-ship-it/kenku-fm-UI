@@ -224,6 +224,14 @@ export function knownAxeIssues(): string[] {
   return [];
 }
 
+/** Help articles the prototype is known to have over the 300-word limit (FND-8, HELP.md), recorded as annotations so
+ *  its run can pass. Always none for the app, whose articles must each stay under 300 words. Round 6's Live draft
+ *  (design/prototype/help-drafts/10-live.md, about 310 words) is over: the Shell stream trims it when it brings the
+ *  drafts into src/lyre/help/articles. */
+export function knownLongHelpArticle(title: string): boolean {
+  return !isApp() && title === "Run a session in Live";
+}
+
 /** Layout findings the prototype is known to have, recorded as annotations so its run can pass. Always none for the
  *  app. The hidden " (Track)" text that widened the session planner below 640 px was fixed in the prototype.
  *  BUG-14 (w31-fix): in the prototype too, a box header with more than fits pushes its buttons out of the box: the
