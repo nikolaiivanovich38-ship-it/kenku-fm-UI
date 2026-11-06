@@ -1178,6 +1178,8 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         expectRefused(await api.folders.moveInto("boards", "weather", abbey.id), "invalid");
         expectRefused(await api.folders.create("playlists", { name: " " }), "invalid");
         expectRefused(await api.folders.moveInto("playlists", "nope", null), "not-found");
+        expectRefused(await api.folders.update("nope", { name: "X" }), "not-found");
+        expectRefused(await api.folders.delete("nope"), "not-found");
       });
 
       it("ORG-4: a manual playlist's dividers are lines, not tracks, and move like tracks", async () => {

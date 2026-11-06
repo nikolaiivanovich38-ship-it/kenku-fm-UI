@@ -373,8 +373,9 @@ export function fakeRound7(cx: FakeContext, computer: { display: LyreSettings["d
       });
     },
     async update(folderId, patch) {
-      const area = areaOf(folderById(folderId)?.kind ?? "playlists");
-      return write((f: FolderInfo) => `Change folder ${quoted(f.name)}`, [area], () => {
+      // The area to reload follows the folder's kind; an unknown folder is refused inside the write.
+      const known = [...st().playlistFolders, ...st().boardFolders].find((f) => f.id === folderId);
+      return write((f: FolderInfo) => `Change folder ${quoted(f.name)}`, [areaOf(known?.kind ?? "playlists")], () => {
         const f = folderById(folderId);
         if (patch.name !== undefined) {
           const name = trimmed(patch.name);
