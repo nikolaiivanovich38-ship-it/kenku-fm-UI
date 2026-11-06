@@ -7,6 +7,8 @@ import { expect, expectFailureUntilBuilt, test } from "./support/test";
 import { joinRoom, leaveAllRooms, openRoute } from "./support/target";
 
 const region = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
+/** Round 6 calls the box Current scene music (SHW-7); the checks written before it accept either name. */
+const sceneMusic = (page: Page) => page.getByRole("region", { name: /^(Current scene music|Scene music)$/ });
 /** Click on empty page: focus is on no control, so the single-key shortcuts apply. */
 const clickAway = (page: Page) => page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
 const startFirstScene = (page: Page) => page.getByRole("button", { name: "Start: Recap and the coast road" }).click();
@@ -169,16 +171,16 @@ test.describe("choosing what plays", () => {
 
   test("Scene music sits above the On air box", async ({ page }) => {
     await openRoute(page, "live");
-    const music = (await region(page, "Scene music").boundingBox())!;
+    const music = (await sceneMusic(page).boundingBox())!;
     const onAir = (await region(page, "On air: Table").boundingBox())!;
     expect(music.y + music.height).toBeLessThanOrEqual(onAir.y + 1);
   });
 
-  test("Play next queues a track and Next music then plays it", async ({ page }) => {
+  test("Play next (round 6: Add to queue) queues a track and Next music then plays it", async ({ page }) => {
     await openRoute(page, "live");
     await startAbbey(page);
     const queued = "Haunted sea shanty, grey and slow - the drowned bells";
-    await region(page, "Scene music").getByRole("button", { name: `Play next: ${queued}` }).click();
+    await sceneMusic(page).getByRole("button", { name: new RegExp(`^(Play next|Add to queue): ${queued}$`) }).click();
     await page.getByRole("button", { name: "Next music track" }).click();
     await expect(region(page, "On air: Table").getByText(queued)).toBeVisible();
   });
@@ -186,7 +188,7 @@ test.describe("choosing what plays", () => {
   test("Scene music lists the scene's tracks and playlists in order and marks the one on air", async ({ page }) => {
     await openRoute(page, "live");
     await startAbbey(page);
-    const items = region(page, "Scene music").getByRole("list", { name: /music in the order it plays/ }).getByRole("listitem");
+    const items = sceneMusic(page).getByRole("list", { name: /music in the order it plays/ }).getByRole("listitem");
     await expect(items).toHaveCount(4);
     await expect(items.nth(0)).toContainText("On air");
     await expect(items.nth(1)).toContainText("Abbey: eerie, low energy");
@@ -208,7 +210,7 @@ test.describe("choosing what plays", () => {
   test("a row shows the length that will play with the scene's own end point, with the end rule as a tooltip", async ({ page }) => {
     await openRoute(page, "live");
     await startAbbey(page);
-    await expect(region(page, "Scene music").getByRole("listitem").first()).toContainText("3:10");
+    await expect(sceneMusic(page).getByRole("listitem").first()).toContainText("3:10");
     await expect(region(page, "On air: Table").getByTitle(/Ends 3:10, then next/)).toBeVisible();
   });
 
@@ -216,24 +218,25 @@ test.describe("choosing what plays", () => {
     await openRoute(page, "live");
     await startFirstScene(page);
     await startAbbey(page);
-    await region(page, "Scene music").getByRole("button", { name: "Haunted sea shanty, grey and slow - the drowned bells", exact: true }).click();
+    await sceneMusic(page).getByRole("button", { name: "Haunted sea shanty, grey and slow - the drowned bells", exact: true }).click();
     await expect(region(page, "On air: Table")).not.toContainText("Item 3 of 4");
-    await region(page, "Scene music").getByRole("button", { name: /^Eerie dread, low cello/, includeHidden: false }).first().click();
-    await expect(region(page, "Scene music").getByRole("link", { name: /profile/i })).toHaveAttribute("href", "#/profile/t13/sc:crown:s14:sc3");
+    await sceneMusic(page).getByRole("button", { name: /^Eerie dread, low cello/, includeHidden: false }).first().click();
+    await expect(sceneMusic(page).getByRole("link", { name: /profile/i })).toHaveAttribute("href", "#/profile/t13/sc:crown:s14:sc3");
   });
 
-  test("row actions read Preview, Play next, Play on air, in that order", async ({ page }) => {
+  test("row actions read Preview, Play next (round 6: Add to queue), Play on air, in that order", async ({ page }) => {
     await openRoute(page, "live");
     await startAbbey(page);
-    const row = region(page, "Scene music").getByRole("listitem").first();
+    const row = sceneMusic(page).getByRole("listitem").first();
     const names = await row.getByRole("button").evaluateAll((bs) => bs.map((b) => (b.getAttribute("aria-label") ?? "").split(":")[0]));
-    expect(names.filter((n) => /^(Preview|Play next|Play on air)/.test(n))).toEqual(["Preview", "Play next", "Play on air"]);
+    const queue = names.includes("Add to queue") ? "Add to queue" : "Play next";
+    expect(names.filter((n) => /^(Preview|Play next|Add to queue|Play on air)$/.test(n))).toEqual(["Preview", queue, "Play on air"]);
   });
 
   test("a playlist in Scene music opens to show its tracks, and the box grows with it instead of scrolling inside", async ({ page }) => {
     await openRoute(page, "live");
     await startAbbey(page);
-    const box = region(page, "Scene music");
+    const box = sceneMusic(page);
     const before = (await box.boundingBox())!.height;
     await box.getByRole("button", { name: "Show contents of The Abbess" }).click();
     await expect.poll(async () => (await box.boundingBox())!.height).toBeGreaterThan(before + 60);
@@ -312,8 +315,8 @@ test.describe("rooms", () => {
   test("with two rooms, Scene music, Off script and Pads each get a To: Table choice", async ({ page }) => {
     await openRoute(page, "live");
     await addSideRoom(page);
-    for (const box of ["Scene music", "Off script"]) {
-      await expect(region(page, box).getByRole("button", { name: /choose a room/i })).toHaveText(/^To:\s*Table$/);
+    for (const box of [sceneMusic(page), region(page, "Off script")]) {
+      await expect(box.getByRole("button", { name: /choose a room/i })).toHaveText(/^To:\s*Table$/);
     }
   });
 
@@ -326,7 +329,7 @@ test.describe("rooms", () => {
   test("choosing To: Side room sends Play on air from Scene music only to that room, and the row buttons say so", async ({ page }) => {
     await openRoute(page, "live");
     await addSideRoom(page);
-    const music = region(page, "Scene music");
+    const music = sceneMusic(page);
     await music.getByRole("button", { name: /choose a room/i }).click();
     await page.getByRole("menuitemradio", { name: "Side room" }).click();
     await expect(music.getByRole("button", { name: /choose a room/i })).toBeFocused();
@@ -363,7 +366,7 @@ test.describe("rooms", () => {
   test("Next scene always starts in the first room, whatever the Scene music box points to", async ({ page }) => {
     await openRoute(page, "live");
     await addSideRoom(page);
-    await region(page, "Scene music").getByRole("button", { name: /choose a room/i }).click();
+    await sceneMusic(page).getByRole("button", { name: /choose a room/i }).click();
     await page.getByRole("menuitemradio", { name: "Side room" }).click();
     await startFirstScene(page);
     await expect(region(page, "On air: Table").getByText("Playing")).toBeVisible();
@@ -371,20 +374,21 @@ test.describe("rooms", () => {
   });
 
   test("a room's menu offers to copy what another room is playing", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // OUT-7: the room's ⋯ menu is now its bot button
     await openRoute(page, "live");
     await addSideRoom(page);
-    await region(page, "Scene music").getByRole("button", { name: /choose a room/i }).click();
+    await sceneMusic(page).getByRole("button", { name: /choose a room/i }).click();
     await page.getByRole("menuitemradio", { name: "Side room" }).click();
-    await region(page, "Scene music").getByRole("button", { name: "Play on air in Side room: Coast road travel" }).click();
-    await page.getByRole("button", { name: "More for Table" }).click();
+    await sceneMusic(page).getByRole("button", { name: "Play on air in Side room: Coast road travel" }).click();
+    await page.getByRole("button", { name: "Lyre Table in Table: change" }).click();
     await expect(page.getByRole("menuitem", { name: /Copy what Side room is playing/ })).toBeVisible();
   });
 
-  test("Leave takes the room's box and the To: choices away again", async ({ page }) => {
+  test("Leave (round 6: Kick) takes the room's box and the To: choices away again", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // OUT-7: Kick (×) in the room's header instead of Leave in its ⋯ menu
     await openRoute(page, "live");
     await addSideRoom(page);
-    await page.getByRole("button", { name: "More for Side room" }).click();
-    await page.getByRole("menuitem", { name: /^Leave/ }).click();
+    await page.getByRole("button", { name: "Kick Lyre Side from Side room" }).click();
     await expect(region(page, "On air: Side room")).toHaveCount(0);
     await expect(page.getByRole("button", { name: /choose a room/i })).toHaveCount(0);
   });
@@ -399,7 +403,7 @@ test.describe("round 5: the Now playing bar, names in scenes, play order and sin
     await startAbbey(page);
     await expect(region(page, "On air: Table").getByText("Playing")).toBeVisible();
     await expect(region(page, "Now playing")).toHaveCount(0);
-    await region(page, "Scene music").getByRole("button", { name: /^Preview: / }).first().click();
+    await sceneMusic(page).getByRole("button", { name: /^Preview: / }).first().click();
     const bar = region(page, "Now playing");
     await expect(bar.getByRole("group", { name: "Only you", exact: true })).toContainText("Previewed from Live");
     await expect(bar.getByRole("group", { name: /^On air/ })).toHaveCount(0);
@@ -410,7 +414,7 @@ test.describe("round 5: the Now playing bar, names in scenes, play order and sin
   test("UX-16: with two rooms playing, the Now playing bar on a prep screen has a row for each, tagged with the room's name", async ({ page }) => {
     await openRoute(page, "live");
     await addSideRoom(page);
-    const music = region(page, "Scene music");
+    const music = sceneMusic(page);
     await music.getByRole("button", { name: /choose a room/i }).click();
     await page.getByRole("menuitemradio", { name: "Side room" }).click();
     await music.getByRole("button", { name: "Play on air in Side room: Coast road travel" }).click();
@@ -427,7 +431,7 @@ test.describe("round 5: the Now playing bar, names in scenes, play order and sin
     await openRoute(page, "live");
     await page.getByRole("button", { name: "Start scene 6: Aftermath" }).click();
     await expect(region(page, "On air: Table")).toContainText("Dawn over the abbey");
-    await expect(region(page, "Scene music").getByRole("button", { name: "Dawn over the abbey", exact: true })).toBeVisible();
+    await expect(sceneMusic(page).getByRole("button", { name: "Dawn over the abbey", exact: true })).toBeVisible();
     await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Library" }).click();
     await expect(region(page, "Now playing")).toContainText("Dawn over the abbey");
     await expect(region(page, "Now playing").getByTitle("Its own name: Release after loss, ethereal voice, resolves - end of session or death of an NPC")).toBeVisible();
@@ -436,8 +440,8 @@ test.describe("round 5: the Now playing bar, names in scenes, play order and sin
   test("PLY-13: a playlist in the scene's list has its play order for this scene", async ({ page }) => {
     await openRoute(page, "live");
     await startAbbey(page);
-    await expect(region(page, "Scene music").getByRole("button", { name: "Play order of Abbey: eerie, low energy: Shuffle, no repeat" })).toBeVisible();
-    await expect(region(page, "Scene music").getByRole("button", { name: "Play order of The Abbess: In order, no repeat" })).toBeVisible();
+    await expect(sceneMusic(page).getByRole("button", { name: "Play order of Abbey: eerie, low energy: Shuffle, no repeat" })).toBeVisible();
+    await expect(sceneMusic(page).getByRole("button", { name: "Play order of The Abbess: In order, no repeat" })).toBeVisible();
   });
 
   test("ORG-12: the campaign's single tracks are in its menu, ready to play on air", async ({ page }) => {
@@ -445,5 +449,136 @@ test.describe("round 5: the Now playing bar, names in scenes, play order and sin
     await page.getByRole("button", { name: /^Campaign:/ }).click();
     await page.getByRole("menuitem", { name: /^Play on air: Ominous song, the villain's calling card/ }).click();
     await expect(region(page, "On air: Table")).toContainText("Ominous song, the villain's calling card");
+  });
+});
+
+/* Round 6, part 2 (design/prototype/ROUND6.md, "Your notes on 0.4.0", Nik, 6 Nov 10:34). Not built yet. */
+test.describe("round 6: see a scene before it starts, Add to queue, Repeat, and the room's bot", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
+  const scenes = (page: Page) => region(page, "Scenes");
+
+  test("SHW-7: clicking a scene's name unfolds its music in play order, ambience and pad boards, and changes nothing on air", async ({ page }) => {
+    await openRoute(page, "live");
+    await startFirstScene(page);
+    const name = scenes(page).getByRole("button", { name: "Scene 3: The abbey ruins", exact: true });
+    await name.click();
+    await expect(name).toHaveAttribute("aria-expanded", "true");
+    const music = scenes(page).getByRole("list", { name: "The abbey ruins: music in play order" });
+    await expect(music.getByRole("listitem").first()).toContainText("Eerie dread, low cello and choir");
+    await expect(music.getByRole("button", { name: /^Preview: Eerie dread/ })).toBeVisible();
+    await expect(scenes(page).getByRole("listitem").filter({ has: music })).toContainText(/Ambience: \S/);
+    await expect(scenes(page).getByRole("listitem").filter({ has: music })).toContainText(/Pad boards: \S/);
+    await expect(scenes(page).getByText("Scene 1 of 6")).toBeVisible();
+    await expect(region(page, "On air: Table")).not.toContainText("Eerie dread");
+    await expect(scenes(page).getByRole("button", { name: "Start scene 3: The abbey ruins" })).toBeVisible();
+  });
+
+  test("SHW-7: Right unfolds a scene from the keyboard and Left folds it", async ({ page }) => {
+    await openRoute(page, "live");
+    const name = scenes(page).getByRole("button", { name: "Scene 4: Crypt ambush", exact: true });
+    await name.focus();
+    await page.keyboard.press("ArrowRight");
+    await expect(name).toHaveAttribute("aria-expanded", "true");
+    await expect(name).toBeFocused();
+    await page.keyboard.press("ArrowLeft");
+    await expect(name).toHaveAttribute("aria-expanded", "false");
+  });
+
+  test("SHW-7: the music box is Current scene music; before a scene starts it shows no scene", async ({ page }) => {
+    await openRoute(page, "session/crown/s14");
+    await page.getByRole("button", { name: "Run this session" }).click();
+    const music = region(page, "Current scene music");
+    await expect(music.getByRole("button", { name: "No scene yet" })).toBeDisabled();
+    await expect(music.getByRole("list", { name: /music in the order it plays/ })).toHaveCount(0);
+    await startFirstScene(page);
+    await expect(music.getByRole("list", { name: "Recap and the coast road: music in the order it plays" })).toBeVisible();
+  });
+
+  test("PLY-16: Add to queue on a track puts it in the room's Up next, where × takes it out", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    const track = "Haunted sea shanty, grey and slow - the drowned bells";
+    await region(page, "Current scene music").getByRole("button", { name: `Add to queue: ${track}` }).click();
+    const upNext = region(page, "On air: Table").getByRole("list", { name: "Up next" });
+    await expect(upNext.getByRole("listitem")).toHaveCount(1);
+    await expect(upNext).toContainText(track);
+    await upNext.getByRole("button", { name: `Remove ${track} from the queue` }).click();
+    await expect(region(page, "On air: Table").getByRole("list", { name: "Up next" })).toHaveCount(0);
+  });
+
+  test("PLY-16: Add to queue on a playlist queues all of it, and Undo (or Ctrl+Z) takes it back", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    await region(page, "Current scene music").getByRole("button", { name: "Add to queue: The Abbess" }).click();
+    const room = region(page, "On air: Table");
+    await expect(room.getByRole("list", { name: "Up next" })).toContainText("The Abbess");
+    await expect(room.getByRole("status").filter({ hasText: "Added to the queue: The Abbess" })).toBeVisible();
+    await clickAway(page);
+    await page.keyboard.press("Control+z");
+    await expect(room.getByRole("list", { name: "Up next" })).toHaveCount(0);
+    await expect(scenes(page).getByText("Scene 3 of 6")).toBeVisible();
+  });
+
+  test("PLY-16: a track in an unfolded scene can be added to the queue before that scene starts", async ({ page }) => {
+    await openRoute(page, "live");
+    await startFirstScene(page);
+    await scenes(page).getByRole("button", { name: "Scene 6: Aftermath", exact: true }).click();
+    await scenes(page).getByRole("list", { name: "Aftermath: music in play order" }).getByRole("button", { name: /^Add to queue: / }).first().click();
+    await expect(region(page, "On air: Table").getByRole("list", { name: "Up next" })).toContainText("Release after loss, ethereal voice");
+  });
+
+  test("PLY-17: the room's music has Repeat, pressed while on, going off, all, one", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    await page.getByRole("button", { name: "Next music track" }).click(); // into the playlist Abbey: eerie
+    const room = region(page, "On air: Table");
+    const repeat = room.getByRole("button", { name: /^Repeat: / });
+    await expect(repeat).toHaveAccessibleName("Repeat: off");
+    await expect(repeat).toHaveAttribute("aria-pressed", "false");
+    await repeat.click();
+    await expect(repeat).toHaveAccessibleName("Repeat: all");
+    await expect(repeat).toHaveAttribute("aria-pressed", "true");
+    await repeat.click();
+    await expect(repeat).toHaveAccessibleName("Repeat: one");
+    await expect(region(page, "Current scene music").getByRole("button", { name: "Play order of Abbey: eerie, low energy: Shuffle, repeat one" })).toBeVisible();
+  });
+
+  test("PLY-17: each track of Current scene music has Repeat one, pressed while on", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    const one = region(page, "Current scene music").getByRole("button", { name: "Repeat one: Eerie dread, low cello and choir - something wrong in the dark (loops with crossfade)" });
+    await expect(one).toHaveAttribute("aria-pressed", "false");
+    await one.click();
+    await expect(one).toHaveAttribute("aria-pressed", "true");
+    await expect(one).toBeVisible();
+  });
+
+  test("OUT-7: each room box shows its bot; the bot button changes the channel on the page", async ({ page }) => {
+    await openRoute(page, "live");
+    await page.getByRole("button", { name: "Lyre Table in Table: change" }).click();
+    const menu = page.getByRole("menu", { name: "Room Table" });
+    await expect(menu).toContainText("Lyre Table plays in");
+    await menu.getByRole("menuitemradio", { name: /^Whispers/ }).click();
+    await expect(region(page, "On air: Whispers")).toBeVisible();
+    await expect(region(page, "On air: Table")).toHaveCount(0);
+  });
+
+  test("OUT-7: Kick takes the bot out at once; if the players were hearing it, Undo puts it back", async ({ page }) => {
+    await openRoute(page, "live");
+    await startFirstScene(page);
+    await page.getByRole("button", { name: "Kick Lyre Table from Table" }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(region(page, "On air: Table")).toHaveCount(0);
+    await page.getByRole("status").filter({ hasText: "Lyre Table left Table" }).getByRole("button", { name: "Undo" }).click();
+    await expect(region(page, "On air: Table").getByText("Playing")).toBeVisible({ timeout: 5000 });
+  });
+
+  test("UX-18: Live opened from the session planner has Back to the session; Alt+Left goes there too", async ({ page }) => {
+    await openRoute(page, "session/crown/s14");
+    await page.getByRole("group", { name: "Prep or live" }).getByRole("button", { name: "Live" }).click();
+    await expect(page.getByRole("button", { name: "Back to Session 14" })).toBeVisible();
+    await clickAway(page);
+    await page.keyboard.press("Alt+ArrowLeft");
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Session 14");
   });
 });

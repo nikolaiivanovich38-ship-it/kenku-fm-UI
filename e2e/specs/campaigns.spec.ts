@@ -228,7 +228,7 @@ test.describe("round 5: the Now playing bar and play order on the campaign page"
     await expect(row).toContainText("Playlist: The Company themes · The Sunken Crown");
     await expect(row).toContainText(/\d:\d\d \/ 3:57/);
     await expect(row.getByRole("slider", { name: "Volume in Table" })).toHaveValue("85");
-    await expect(row.getByRole("button", { name: /^Play order of The Company themes: / })).toBeVisible();
+    // Round 6 (PLY-17): the row's play order is Shuffle and Repeat buttons (checked in the round 6 block below).
     await expect(row.getByRole("link", { name: "Go to Live" })).toBeVisible();
     await row.getByRole("button", { name: "Next" }).click();
     await expect(row).toContainText("Heroic charge - horns, gallop, full orchestra");
@@ -303,5 +303,78 @@ test.describe("round 5: volume normalisation in the Now playing bar", () => {
     await air.getByRole("button", { name: "Stop", exact: true }).click();
     await lists.getByRole("button", { name: "Play on air: The Company themes" }).click();
     await expect(air.getByTitle(/· Volume not evened out$/)).toBeVisible();
+  });
+});
+
+/* Round 6, part 2 (design/prototype/ROUND6.md, "Your notes on 0.4.0", Nik, 6 Nov 10:34). Not built yet. */
+test.describe("round 6: Repeat on the Now playing bar, the campaign's own order, and Back", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
+
+  test("PLY-17: a Now playing row has Shuffle and Repeat; Repeat goes off, all, one for the place it plays from", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    await region(page, "Campaign playlists").getByRole("button", { name: "Play on air: The Company themes" }).click();
+    const row = region(page, "Now playing").getByRole("group", { name: "On air", exact: true });
+    await expect(row.getByRole("button", { name: "Shuffle" })).toHaveAttribute("aria-pressed", "false");
+    const repeat = row.getByRole("button", { name: /^Repeat: / });
+    await expect(repeat).toHaveAccessibleName("Repeat: all");
+    await repeat.click();
+    await expect(repeat).toHaveAccessibleName("Repeat: one");
+    await expect(repeat).toHaveAttribute("aria-pressed", "true");
+    await expect(region(page, "Campaign playlists").getByRole("button", { name: /^Play order of The Company themes: / })).toHaveAccessibleName("Play order of The Company themes: In order, repeat one");
+    await repeat.click();
+    await expect(repeat).toHaveAccessibleName("Repeat: off");
+    await expect(repeat).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("ORG-13: a campaign playlist's tracks can be put in another order for this campaign only, and back", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    const box = region(page, "Campaign playlists");
+    await box.getByRole("button", { name: "Show contents of The Company themes" }).click();
+    const list = box.getByRole("list", { name: "Tracks in The Company themes, in the order in this campaign" });
+    await expect(list).toHaveAccessibleDescription(/Alt\+Up or Alt\+Down/);
+    await expect(list.getByRole("listitem").first()).toContainText("Epic choir hero anthem");
+    await list.getByRole("listitem").first().getByRole("button", { name: /^Preview / }).focus();
+    await page.keyboard.press("Alt+ArrowDown");
+    await expect(list.getByRole("listitem").nth(1)).toContainText("Epic choir hero anthem");
+    await expect(list.getByRole("listitem").nth(1).getByRole("button", { name: /^Preview / })).toBeFocused();
+    await expect(box.getByRole("button", { name: "Back to the playlist's order" })).toBeVisible();
+  });
+
+  test("ORG-13: Back to the playlist's order undoes the campaign's own order", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    const box = region(page, "Campaign playlists");
+    await box.getByRole("button", { name: "Show contents of The Company themes" }).click();
+    const list = box.getByRole("list", { name: "Tracks in The Company themes, in the order in this campaign" });
+    await expect(box.getByRole("button", { name: "Back to the playlist's order" })).toHaveCount(0);
+    await list.getByRole("listitem").first().getByRole("button", { name: /^Preview / }).focus();
+    await page.keyboard.press("Alt+ArrowDown");
+    await box.getByRole("button", { name: "Back to the playlist's order" }).click();
+    await expect(list.getByRole("listitem").first()).toContainText("Epic choir hero anthem");
+    await expect(box.getByRole("button", { name: "Back to the playlist's order" })).toHaveCount(0);
+  });
+
+  test("ORG-13: the campaign's playlists themselves can be moved into another order", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    const box = region(page, "Campaign playlists");
+    await box.getByRole("link", { name: "The Company themes" }).focus();
+    await page.keyboard.press("Alt+ArrowDown");
+    await expect(box.getByRole("listitem").nth(1)).toContainText("The Company themes");
+    await expect(box.getByRole("link", { name: "The Company themes" })).toBeFocused();
+  });
+
+  test("UX-18: a playlist opened from the campaign page has Back to the campaign, and Back returns to the same row", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    await expect(page.getByRole("button", { name: /^Back to / })).toHaveCount(0);
+    await region(page, "Campaign playlists").getByRole("link", { name: "Ashen King" }).click();
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Ashen King");
+    await page.getByRole("button", { name: "Back to The Sunken Crown" }).click();
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("The Sunken Crown");
+    await expect(region(page, "Campaign playlists").getByRole("link", { name: "Ashen King" })).toBeFocused();
+  });
+
+  test("UX-18: screens opened from the menu have no Back", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Library" }).click();
+    await expect(page.getByRole("button", { name: /^Back to / })).toHaveCount(0);
   });
 });

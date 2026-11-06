@@ -21,7 +21,7 @@ export type Theme = "default" | "parchment";
 
 /** Routes, as the prototype writes them: "live", "campaigns", "campaign/crown", "session/crown/s14", "library",
  *  "playlists", "boards", "board/abbey", "profile/t13", "profile/t13/sc:crown:s14:sc3", "outputs", and (round 5)
- *  "profile/t03/ss:crown:s14", "backup", "moved", "relink". */
+ *  "profile/t03/ss:crown:s14", "backup", "moved", "relink", and (round 6) "settings". */
 export type Route = string;
 
 const PROTOTYPE = pathToFileURL(path.resolve(__dirname, "../../../design/prototype/lyre-prototype.html")).href;
@@ -103,6 +103,8 @@ export function screenOfRoute(route: Route): string {
     backup: "library-files",
     moved: "library-files",
     relink: "library-files",
+    // Round 6 (OUT-8): Settings in Lyre (settings.spec.ts).
+    settings: "settings",
   };
   return screens[first] ?? first;
 }

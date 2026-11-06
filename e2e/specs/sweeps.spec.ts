@@ -70,7 +70,29 @@ const SCREENS: Screen[] = [
       await page.getByRole("region", { name: "Pads", exact: true }).getByRole("button", { name: "Pads", exact: true }).click();
     },
   },
+  {
+    // Round 6, part 2 (SHW-7): a scene unfolded in Live's scene list, with its music, ambience and pad boards.
+    name: "Live with a scene unfolded",
+    owner: "round 6",
+    route: "live",
+    prepare: async (page) => {
+      await page.getByRole("button", { name: "Scene 3: The abbey ruins", exact: true }).click();
+      await expect(page.getByRole("list", { name: "The abbey ruins: music in play order" })).toBeVisible();
+    },
+  },
   { name: "Outputs", owner: "outputs", route: "outputs" },
+  // Round 6, part 2 (OUT-8): Settings in Lyre, with the Add a bot stepper's second step showing.
+  { name: "Settings", owner: "settings", route: "settings" },
+  {
+    name: "Add a bot, step 2",
+    owner: "settings",
+    route: "settings",
+    prepare: async (page) => {
+      await page.getByRole("button", { name: "Add a bot" }).click();
+      await page.getByRole("dialog").getByRole("button", { name: "Next" }).click();
+      await page.getByRole("dialog").getByRole("button", { name: "Or make the invite by hand" }).click();
+    },
+  },
   { name: "Look and feel", owner: "look", route: "look" },
   // Round 5 (design/prototype/ROUND5.md): the three new screens, with their tables and choices showing.
   {
