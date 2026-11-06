@@ -206,7 +206,11 @@ function SceneList() {
         if (!p) return null;
         const key = `${scene!.id}-${i}`;
         const open = !!state.expanded[key];
-        const dealt = playlistInPlace(index, orders, p.id, place, seed === undefined ? undefined : seed + i);
+        // On air from this scene: the order the engine dealt (its own sequence); else the playlist's own order.
+        const dealt =
+          seed === undefined
+            ? playlistInPlace(index, orders, p.id, place)
+            : steps.filter((s) => s.itemIndex === i).flatMap((s) => (index.track(s.trackId) ? [index.track(s.trackId)!] : []));
         const onStep = [...onSteps].find((at) => steps[at]?.itemIndex === i);
         const on = onStep !== undefined || now.rooms.some((r) => r.music?.playlistId === p.id);
         const pos = onStep !== undefined ? dealt.findIndex((t) => t.id === steps[onStep].trackId) : -1;

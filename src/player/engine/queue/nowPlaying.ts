@@ -116,7 +116,8 @@ export function playOrderOf(playlistId: string, origin: Origin, lib: ShowLibrary
 /**
  * The steps of the scene or playlist an item came from, as they are now: sceneSequence and playlistTracks, with each
  * playlist dealt in the play order that applies there (PLY-13). A scene's playlist item at index i is dealt with the
- * scene's seed plus i, so two shuffled playlists in one scene differ.
+ * scene's seed plus i, so two shuffled playlists in one scene differ. In a scene, a shuffled playlist deals the track
+ * played just before it last, so the shuffle never brings it straight back.
  */
 export function sequenceOf(origin: Origin, lib: ShowLibrary): SequenceStep[] {
   const seed = origin.kind === "single" ? 0 : (origin.seed ?? 0);
@@ -133,7 +134,12 @@ export function sequenceOf(origin: Origin, lib: ShowLibrary): SequenceStep[] {
         if (lib.track(ref.id)) out.push({ trackId: ref.id, itemIndex, playlistId: null });
         return;
       }
-      for (const t of dealt(ref.id, seed + itemIndex)) out.push({ trackId: t.id, itemIndex, playlistId: ref.id });
+      let tracks = dealt(ref.id, seed + itemIndex);
+      // A shuffle never brings back at once the track the scene played just before the playlist: that track goes to
+      // the end of the deal, after the playlist's other tracks (the wave 4 release run heard t13, t14, then t13).
+      const before = out[out.length - 1]?.trackId;
+      if (before && playOrderOf(ref.id, origin, lib).shuffle) tracks = [...tracks.filter((t) => t.id !== before), ...tracks.filter((t) => t.id === before)];
+      for (const t of tracks) out.push({ trackId: t.id, itemIndex, playlistId: ref.id });
     });
     return out;
   }
