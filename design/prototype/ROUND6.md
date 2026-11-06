@@ -243,10 +243,12 @@ session's and campaign's playlist lists already keep.
 Left folds) and the scene unfolds in place: its music in the order it will play, each track with its length, Preview
 and Add to queue, then its ambience (with Preview) and its pad boards. The row's Start button plays it. Unfolding never
 changes what plays. The music box is now **Current scene music** and shows only the scene that runs: before the first
-scene it says "No scene yet" and offers the session's and campaign's playlists (question 2). *Data:* none.
+scene it says "No scene yet" and lists nothing until a session or campaign playlist is chosen from its two menus
+(question 2). *Data:* none.
 
 **OUT-7 Add bot and Kick.** Outputs' voice channels have no Bring…. Each bot in a channel is a chip with its own ×
-(Kick); a channel with no bot has Add bot, which puts the one free bot there in one click, or offers a short choice
+(Kick); a channel with no bot has Add (read out as "Add bot to Whispers"), which puts the one free bot there in one
+click, or offers a short choice
 when there are several (with no bot free, the choice says which room the bot leaves). The bot boxes' Leave is the same
 ×. In Live, each room box shows its bot as a button beside Mute and volume: it changes the channel (or puts another free
 bot in this channel) on the page, and also holds Copy what another room plays, Outputs, and Bots and tokens. Its × kicks
@@ -287,7 +289,32 @@ Sources for the Discord steps, checked 6 Nov 2026 (discord.com/developers/docs n
 
 ### Numbers (round 6 script, 1920×1080; 960×1000 words in brackets)
 
-NUMBERS
+The twelve screens these designs change, before (the prototype after round 6's cuts and the wave 4 merge) and after:
+words 2,270 → 2,278 (+0.4 %) at 1920×1080 and 1,995 → 1,991 at 960×1000; hint lines 30 → 29; facts shown twice
+48 → 47; controls 937 → 975 (+4 %: Repeat, the bot button and Kick, Add to queue on playlist rows, and scene names that
+are now buttons). Live on standby has fewer words than before (121 → 115): before a scene runs, Current scene music
+lists nothing.
+
+| Screen and state | Words | Hint lines | Shown twice | Controls |
+| --- | ---: | ---: | ---: | ---: |
+| live | 121 → 115 (106 → 99) | 3 → 2 | 0 → 0 | 52 → 55 |
+| live-playing | 219 → 223 (204 → 207) | 6 → 6 | 6 → 6 | 72 → 84 |
+| live-aftermath | 189 → 193 (174 → 177) | 3 → 3 | 4 → 3 | 64 → 74 |
+| outputs | 111 → 109 (96 → 93) | 2 → 2 | 5 → 5 | 28 → 30 |
+| campaign | 108 → 109 (91 → 91) | 1 → 1 | 1 → 1 | 73 → 74 |
+| campaign-onair | 131 → 132 (114 → 114) | 1 → 1 | 1 → 1 | 79 → 81 |
+| planner | 204 → 205 (187 → 187) | 2 → 2 | 4 → 4 | 118 → 119 |
+| planner-two-scenes | 228 → 229 (181 → 181) | 2 → 2 | 5 → 5 | 124 → 125 |
+| planner-order-menu | 259 → 260 (242 → 242) | 3 → 3 | 4 → 4 | 123 → 124 |
+| profile | 240 → 241 (204 → 204) | 2 → 2 | 7 → 7 | 63 → 64 |
+| profile-scene | 248 → 249 (200 → 200) | 3 → 3 | 6 → 6 | 52 → 53 |
+| bar-both | 212 → 213 (196 → 196) | 2 → 2 | 5 → 5 | 89 → 92 |
+| settings (new) | 66 (50) | 0 | 3 | 23 |
+| live-scene-open (new: Crypt ambush unfolded while playing) | 416 (384) | 6 | 11 | 119 |
+| planner-playlist-open (new: a scene's playlist open, own order) | 269 (228) | 2 | 6 | 127 |
+
+The one word added on most prep screens is the rail's Settings. The unfolded scene is long because Crypt ambush plays
+17 tracks; it is folded unless you open it.
 
 ### Questions for Nik (round 6, part 2)
 
