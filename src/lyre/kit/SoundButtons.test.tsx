@@ -28,6 +28,7 @@ afterEach(() => vi.useRealTimers());
 describe("Preview (only you hear it)", () => {
   it.each<[SoundTarget, string, string, unknown[]]>([
     [{ kind: "track", id: "t13" }, "Bridge", "Preview Bridge", ["previewTrack", "t13"]],
+    [{ kind: "track", id: "t18", playlistId: "p-ashen" }, "Menace", "Preview Menace", ["previewTrack", "t18", { playlistId: "p-ashen" }]],
     [{ kind: "playlist", id: "p-company" }, "The Company themes", "Preview The Company themes", ["previewPlaylist", "p-company"]],
     [{ kind: "pad", boardId: "combat", padId: "sword" }, "Sword", "Preview Sword", ["previewPad", "combat", "sword"]],
     [{ kind: "board", board }, "Combat", "Preview the first pad of Combat", ["previewPad", "combat", "sword"]],

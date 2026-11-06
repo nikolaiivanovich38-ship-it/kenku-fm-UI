@@ -20,7 +20,8 @@ import { cx } from "./cx";
 import { HOLD_MS, useHeldPads } from "./heldPads";
 
 export type SoundTarget =
-  | { kind: "track"; id: string }
+  /** playlistId: the playlist it is shown in, so its normalising choice applies to the preview (PLY-15). */
+  | { kind: "track"; id: string; playlistId?: string }
   /**
    * empty: the playlist has no tracks, so Play on air says so instead. place: the session or campaign list it is shown
    * in, so that list's play order applies and the Now playing bar says where it comes from (PLY-13, UX-16).
@@ -75,7 +76,7 @@ export function PreviewButton({ target, name, tabIndex, className, icon = "headp
   const start = () => {
     switch (target.kind) {
       case "track":
-        return audio.previewTrack(target.id);
+        return target.playlistId ? audio.previewTrack(target.id, { playlistId: target.playlistId }) : audio.previewTrack(target.id);
       case "playlist":
         return audio.previewPlaylist(target.id);
       case "pad":
