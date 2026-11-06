@@ -127,7 +127,13 @@ export function profilePlan(input: AudioProfile, duration: number, startAt?: num
   const loop = profile.after === "loop" && endAt > loopFrom;
   // Two passes at most: the crossfade is never more than half the looped part.
   const overlap = loop ? Math.min(profile.loopCrossfadeMs / 1000, (endAt - loopFrom) / 2) : 0;
-  const first = Math.min(Math.max(startAt ?? startMs / 1000, 0), endAt);
+  // BUG-22: a file shorter than the profile's End (it was replaced, and Lyre still has the old length). A start at or
+  // past the file's real end keeps its distance before End ("the last 10 s" are the file's last 10 s), so the preview
+  // never starts at the end and goes round its loop with no sound.
+  const asked = Math.max(startAt ?? startMs / 1000, 0);
+  const shortBy = input.endMs / 1000 - endAt;
+  const shifted = shortBy > 0 && asked >= endAt ? Math.max(startMs / 1000, asked - shortBy) : asked;
+  const first = Math.min(shifted, endAt);
   const fadeInEnd = (startMs + profile.fadeIn.ms) / 1000;
   const fadeOutStart = (endMs - profile.fadeOut.ms) / 1000;
   return {
