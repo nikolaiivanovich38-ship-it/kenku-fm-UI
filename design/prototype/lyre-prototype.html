@@ -2344,6 +2344,16 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
   .lv-top .lv-btxt { display: none; }
   .lv-top [data-act="lvfade"], .lv-top [data-act="lvstop"] { width: var(--ctl-s); padding: 0; }
 }
+/* Part 6 follow-up: names in Scenes and Current scene stay readable at 1280 and 960 (UX-6: a name wraps to two lines,
+   then shows whole on hover (its title) and while its row has keyboard focus). While every box in the trays is folded,
+   the trays' column is only as wide as its folded headers need, and Scenes and Current scene get the room. A name keeps
+   at least 14 characters' width: below that, the row's buttons go under the name instead of squeezing it. */
+.lv-cols.c3:not(:has(.lv-c-trays .pane:not(.collapsed))) { grid-template-columns: minmax(0, 35fr) minmax(0, 45fr) minmax(236px, 20fr); }
+.lv-trk-r { flex-wrap: wrap; row-gap: 0; }
+.lv-trk-r > .lv-trk-t, .lv-trk-r > .lv-pli-n { flex: 1 1 14ch; min-width: 14ch; }
+.lv-trk-r > .lv-trk-acts { margin-left: auto; }
+.lv-trk-t > span, .lv-pli-n > b.ellipsis { overflow-wrap: break-word; }
+.lv-trk-r:focus-within .lv-trk-t > span, .lv-trk-r:focus-within .lv-pli-n > b.ellipsis { -webkit-line-clamp: unset; display: block; }
 
 </style>
 </head>
