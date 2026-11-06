@@ -305,7 +305,7 @@ describe("undo of a bring-in (review w4, could)", () => {
   const AUDIO = Buffer.concat([MP3, Buffer.alloc(1000, 1)]);
 
   it("removes the audio files it unpacked once Redo can no longer bring them back, and only those no track uses", async () => {
-    const { api, dir, brought, library } = rig();
+    const { api, dir, brought } = rig();
     const tracks = [track(1)];
     const file = await lyreFile(dir, "Undo me.lyre", [{ entry: "audio/00001.mp3", trackId: "t1", bytes: AUDIO.length }], { tracks }, [{ name: "audio/00001.mp3", bytes: AUDIO }]);
     const unpacked = path.join(brought, "Undo me", "a1.mp3");
