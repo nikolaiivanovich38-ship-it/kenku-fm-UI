@@ -358,8 +358,6 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
   private disposed = false;
   /** Each room's volume by its real id (a bot id, or "table"), kept while the app runs. */
   private readonly roomVolumes = new Map<string, number>();
-  /** The real ids of the rooms last seen, to hand the table's volume to the room that takes it over. */
-  private lastRooms: string[] = [];
   private readonly cleanups: (() => void)[] = [];
 
   constructor(parts: LyreAudioParts) {
@@ -812,15 +810,14 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     return this.roomVolumes.get(realId) ?? this.parts.startRoomVolume ?? 1;
   }
 
-  /** Each room's mix plays at its volume; the room that took over the table (the first bot to join) keeps its volume. */
+  /**
+   * Each room's mix plays at its volume. A level chosen for the table stays with the table: the first bot's room
+   * does not take it over (security review w4, Should 4), because from then on every slider shows and changes the
+   * bot's own volume, kept by the main process, and the room would have stayed quieter than any slider said.
+   */
   private applyRoomVolumes(): void {
     if (this.disposed) return;
-    const ids = this.realRoomIds();
-    if (this.lastRooms.length === 1 && this.lastRooms[0] === TABLE_ROOM && ids[0] !== TABLE_ROOM && !this.roomVolumes.has(ids[0])) {
-      this.roomVolumes.set(ids[0], this.roomVolume(TABLE_ROOM));
-    }
-    this.lastRooms = ids;
-    for (const id of ids) this.parts.mixer.setLevel(id, "master", this.roomVolume(id));
+    for (const id of this.realRoomIds()) this.parts.mixer.setLevel(id, "master", this.roomVolume(id));
   }
 
   /** Outside a broadcast the first room plays on this page's speakers; during one, only on Discord and "This Computer". */

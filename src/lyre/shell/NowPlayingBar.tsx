@@ -30,6 +30,7 @@ import { usePlayOrders } from "../kit/playOrders";
 import { TrackName, useTrackNames } from "../kit/trackName";
 import { cx } from "../kit/cx";
 import { useOutputs } from "../outputs/OutputsProvider";
+import { roomVolumeControl } from "../outputs/roomVolume";
 import { useAnnounce } from "./Announcer";
 
 /** Stop on a room's row fades that room out this fast (the prototype's L.stopLane(…, 1)). */
@@ -140,15 +141,11 @@ function RoomRow({ audio, room, named, broadcasting, first }: { audio: LyreAudio
   const playlistName = lane.playlistId ? (playlists?.get(lane.playlistId)?.name ?? null) : null;
   const from = originWords({ place: lane.place, playlistName }, places);
   const canNext = lane.origin.kind !== "single";
-  // One room volume: the bot's own (kept by the main process, the same slider as on Outputs and in Live). Without the
-  // Outputs bridge (tests, a page with no bots) the audio host's room level stands in.
+  // One room volume: the bot's own (kept by the main process, the same slider as on Outputs and in Live). The table,
+  // and a page without the Outputs bridge (tests), use the audio host's room level (roomVolume.ts).
   const { outputs, client } = useOutputs();
   const bot = outputs?.bots.find((b) => b.id === room.roomId) ?? null;
-  const volume = Math.round((bot && client ? bot.volume : room.volume) * 100);
-  const changeVolume = (value: number) => {
-    if (bot && client) client.setVolume(bot.id, value / 100);
-    else audio.setRoomVolume(target, value / 100);
-  };
+  const { volume, change: changeVolume } = roomVolumeControl({ roomId: room.roomId, level: room.volume }, bot, client, audio);
   const extras = [
     room.music && room.ambience ? `Ambience: ${room.ambience.title}` : "",
     room.effects.length ? `${room.effects.length} effect${room.effects.length > 1 ? "s" : ""} sounding` : "",

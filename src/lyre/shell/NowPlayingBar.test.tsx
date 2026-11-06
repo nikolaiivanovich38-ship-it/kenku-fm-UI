@@ -12,6 +12,8 @@ import { createFakeLyreApi } from "../../common/lyre/fake";
 import { LyreApiProvider } from "../api";
 import { LyreAudioProvider } from "../audio";
 import { FakeLyreAudio, type FakeLane, type FakeNowPlaying } from "../audio/testing/fakeLyreAudio";
+import { OutputsProvider } from "../outputs/OutputsProvider";
+import { FakeOutputs, PROTOTYPE_OUTPUTS, TABLE_BOT } from "../outputs/testing/fakeOutputs";
 import { expectNoAxeViolations } from "../test/axe";
 import { AnnouncerProvider } from "./Announcer";
 import { NowPlayingBar } from "./NowPlayingBar";
@@ -45,19 +47,21 @@ const room = (roomId: string, name: string, music: FakeLane | null, more: Partia
   ...more,
 });
 
-function show(state: FakeNowPlaying, previewOnly = false) {
+function show(state: FakeNowPlaying, previewOnly = false, outputs: FakeOutputs | null = null) {
   const audio = new FakeLyreAudio();
   audio.setNowPlaying({ broadcasting: true, ...state });
   render(
     <LyreApiProvider api={createFakeLyreApi()}>
       <LyreAudioProvider audio={audio}>
-        <AnnouncerProvider>
-          <main id="view">
-            <h1>The Sunken Crown</h1>
-            <button type="button">Elsewhere</button>
-            <NowPlayingBar previewOnly={previewOnly} />
-          </main>
-        </AnnouncerProvider>
+        <OutputsProvider client={outputs}>
+          <AnnouncerProvider>
+            <main id="view">
+              <h1>The Sunken Crown</h1>
+              <button type="button">Elsewhere</button>
+              <NowPlayingBar previewOnly={previewOnly} />
+            </main>
+          </AnnouncerProvider>
+        </OutputsProvider>
       </LyreAudioProvider>
     </LyreApiProvider>,
   );
@@ -115,6 +119,19 @@ describe("a room's row: what the players hear", () => {
       ["setRoomVolume", { room: "side" }, 0.6],
     ]);
     await waitFor(() => expect(said()).toBe("Stopped"));
+  });
+
+  it("one volume per room: a bot's room changes the bot's volume, and before the bot is known nothing (security review w4, Should 4)", async () => {
+    const outputs = new FakeOutputs({ ...PROTOTYPE_OUTPUTS, bots: [] });
+    const audio = show({ rooms: [room(TABLE_BOT, "Table", lane())] }, false, outputs);
+    const slider = within(bar()).getByRole("slider", { name: "Volume in Table" });
+    fireEvent.change(slider, { target: { value: "40" } });
+    expect(audio.calls.filter(([m]) => m === "setRoomVolume")).toEqual([]);
+    act(() => outputs.push(PROTOTYPE_OUTPUTS));
+    await waitFor(() => expect(slider).toHaveValue("85"));
+    fireEvent.change(slider, { target: { value: "60" } });
+    expect(outputs.calls).toContainEqual(["setVolume", TABLE_BOT, 0.6]);
+    expect(audio.calls.filter(([m]) => m === "setRoomVolume")).toEqual([]);
   });
 
   it("paused: the tag turns grey, a Paused badge stands beside it, and Play carries on", async () => {

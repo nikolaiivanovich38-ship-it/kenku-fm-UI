@@ -32,13 +32,30 @@ describe("room volume", () => {
     expect(rig.audio.getNowPlaying().rooms[0].volume).toBe(0.5);
   });
 
-  it("is kept per room, and the room that takes over the table keeps the table's volume", async () => {
+  it("a volume chosen before the first bot joins stays with the table: the bot's room plays at its own volume (security review w4, Should 4)", async () => {
+    // The review's probe: the table at 40, a track plays, a bot joins. The room played at 0.40 while every slider
+    // showed the bot's volume (100), so nothing could turn it back up.
+    const rig = lyreAudioOnFakes(data());
+    rig.audio.setRoomVolume({ room: "table" }, 0.4);
+    rig.audio.playTrack("m1");
+    await rig.advance(4);
+    expect(rig.hearRoom("table")).toBeCloseTo(0.4);
+    rig.setRooms([TAVERN]);
+    await rig.advance(2);
+    expect(rig.hearRoom("bot-a")).toBeCloseTo(1);
+    expect(rig.audio.getNowPlaying().rooms[0]).toMatchObject({ roomId: "bot-a", volume: 1 });
+    // The bot leaves: the table is as it was.
+    rig.setRooms([]);
+    expect(rig.audio.getNowPlaying().rooms[0]).toMatchObject({ roomId: "table", volume: 0.4 });
+  });
+
+  it("is kept per room", async () => {
     const rig = lyreAudioOnFakes(data());
     rig.audio.setRoomVolume({ room: "table" }, 0.6);
     rig.setRooms([TAVERN, DUNGEON]);
     await rig.advance(1);
     expect(rig.audio.getNowPlaying().rooms.map((r) => [r.roomId, r.volume])).toEqual([
-      ["bot-a", 0.6],
+      ["bot-a", 1],
       ["bot-b", 1],
     ]);
     rig.audio.setRoomVolume({ room: "bot-b" }, 0.3);

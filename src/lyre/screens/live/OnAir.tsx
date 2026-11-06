@@ -13,6 +13,7 @@ import { Pane } from "../../kit/Pane";
 import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
 import { trackNameAt } from "../../kit/trackName";
 import { cx } from "../../kit/cx";
+import { roomVolumeControl } from "../../outputs/roomVolume";
 import { useAnnounce } from "../../shell/Announcer";
 import { clockTime } from "../../shell/NowPlayingBar";
 import { laneProfile, sceneSteps, showLibraryOf, useLive } from "./liveData";
@@ -83,6 +84,8 @@ function RoomActions({ r }: { r: LiveRoom }) {
   const { client, audio } = useLive();
   const { say } = useAnnounce();
   const bot = r.bot;
+  // One volume per room: the bot's, or the audio host's level for the table (roomVolume.ts).
+  const volume = roomVolumeControl({ roomId: r.roomId, level: r.room?.volume ?? 1 }, bot, client, audio);
   return (
     <>
       {bot && client && (
@@ -100,11 +103,7 @@ function RoomActions({ r }: { r: LiveRoom }) {
           <Icon name={bot.muted ? "close" : "horn"} size="s" />
         </button>
       )}
-      <RoomVolume
-        name={r.name}
-        saved={Math.round((bot && client ? bot.volume : (r.room?.volume ?? 1)) * 100)}
-        onChange={(v) => (bot && client ? client.setVolume(bot.id, v / 100) : audio.setRoomVolume({ room: r.roomId }, v / 100))}
-      />
+      <RoomVolume name={r.name} saved={volume.volume} onChange={volume.change} />
       <RoomMenu r={r} />
     </>
   );
