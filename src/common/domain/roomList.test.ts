@@ -22,12 +22,13 @@ import {
   upNext,
   type ListItem,
   type ListPick,
+  type PlanStep,
   type PlanView,
   type RoomList,
 } from "./roomList";
 
 /** A scene's plan: four tracks, a to d. */
-const steps = ["a", "b", "c", "d"].map((t, i) => ({ trackId: t, playlistId: null, key: `s:${i}` }));
+const steps = ["a", "b", "c", "d"].map((t, i): PlanStep => ({ trackId: t, playlistId: null, key: `s:${i}` }));
 const scene = (at: number | null, extra: Partial<PlanView> = {}): PlanView => ({ steps, at, inner: null, loops: true, keepAdded: false, ...extra });
 /** A playlist played on its own: Repeat all (its own, or the room's) starts it again and keeps what was added. */
 const playlistAlone = (at: number | null, repeatAll = false): PlanView => ({ steps, at, inner: null, loops: repeatAll, keepAdded: repeatAll });

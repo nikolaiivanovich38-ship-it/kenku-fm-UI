@@ -24,10 +24,12 @@ import {
   usesOfPlaylist,
   usesOfTrack,
   normaliseLine,
+  repeatsOneIn,
+  tracksInPlaceOrder,
   type ProfilePlace,
 } from "../domain";
 import { isRefused, LYRE_API_METHODS, REFUSAL_CODES, type Done, type LyreApi, type LyreArea, type LyreEvent, type RefusalCode, type SceneAddress, type WriteResult } from "./api";
-import { lookupFrom, trackNamesOf } from "./lookup";
+import { lookupFrom, repeatOnesOf, trackNamesOf } from "./lookup";
 import { fileAddress } from "./media";
 
 export interface ContractFixture {
@@ -48,6 +50,11 @@ export interface ContractFixture {
    * saves and opens files. Without it, save, open and bring in must refuse with "unavailable" (not built yet).
    */
   transferFiles?: { saveTo: string; notLyreFile: string };
+  /**
+   * UX-19: makes the library's next write fail as a full or read-only drive would (the test builds' "Make the next
+   * save fail"), so the contract sees the "not-saved" refusal and Try again.
+   */
+  failNextWrite(): Promise<void> | void;
   close?(): Promise<void> | void;
 }
 
@@ -958,6 +965,104 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         valueOf(await api.history.undo());
         expect((await api.campaigns.list()).length).toBe(before);
         expectRefused(await api.transfer.bringIn("nope", { all: "skip" }), "not-found");
+      });
+    });
+
+    describe("design round 6", () => {
+      const ruins = { kind: "scene" as const, campaignId: CROWN, sessionId: S14, sceneId: "sc3" };
+      const s14 = { kind: "session" as const, campaignId: CROWN, sessionId: S14 };
+
+      it("ORG-13: a playlist's tracks reordered in one place play in that order there only; its own order is no order", async () => {
+        expect(await api.playlists.trackOrders()).toEqual({});
+        const own = await api.playlists.tracks("p-abbess");
+        expect(own.length).toBeGreaterThanOrEqual(3);
+        const moved = [own[1], own[0], ...own.slice(2)];
+        expect(valueOf(await api.playlists.setTrackOrder("p-abbess", ruins, moved))).toEqual(moved);
+        await changedEvent("playlists", "history");
+        const orders = await api.playlists.trackOrders();
+        expect(orders).toEqual({ "sc:crown:s14:sc3": { "p-abbess": moved } });
+        const tracks = own.map((id) => ({ id }));
+        expect(tracksInPlaceOrder(tracks, orders[keyOfPlace(ruins)]["p-abbess"]).map((t) => t.id)).toEqual(moved);
+        expect(tracksInPlaceOrder(tracks, orders[keyOfPlace({ ...ruins, sceneId: "sc5" })]?.["p-abbess"]).map((t) => t.id)).toEqual(own);
+        // Only the playlist's tracks count, each once; the rest follow.
+        expect(valueOf(await api.playlists.setTrackOrder("p-abbess", s14, [own[2], "t-nope", own[2]]))).toEqual([own[2], own[0], own[1], ...own.slice(3)]);
+        const same = await api.playlists.setTrackOrder("p-abbess", ruins, moved);
+        expect(same.ok && same.changed).toEqual([]);
+        expect(valueOf(await api.playlists.setTrackOrder("p-abbess", ruins, own))).toBeNull();
+        expect((await api.playlists.trackOrders())["sc:crown:s14:sc3"]).toBeUndefined();
+        valueOf(await api.history.undo());
+        expect((await api.playlists.trackOrders())["sc:crown:s14:sc3"]).toEqual({ "p-abbess": moved });
+        valueOf(await api.playlists.clearTrackOrder("p-abbess", ruins));
+        expect((await api.playlists.trackOrders())["sc:crown:s14:sc3"]).toBeUndefined();
+        const nothing = await api.playlists.clearTrackOrder("p-abbess", ruins);
+        expect(nothing.ok && nothing.changed).toEqual([]);
+        expectRefused(await api.playlists.setTrackOrder("p-abbess", null as never, moved), "invalid");
+        expectRefused(await api.playlists.setTrackOrder("p-abbess", ruins, "a, b" as never), "invalid");
+        expectRefused(await api.playlists.setTrackOrder("nope", ruins, moved), "not-found");
+        expectRefused(await api.playlists.setTrackOrder("p-abbess", { ...ruins, sceneId: "nope" }, moved), "not-found");
+        expectRefused(await api.playlists.clearTrackOrder("nope", ruins), "not-found");
+      });
+
+      it("ORG-13: an order goes with its place and its playlist", async () => {
+        const own = await api.playlists.tracks("p-abbess");
+        valueOf(await api.playlists.setTrackOrder("p-abbess", ruins, [...own].reverse()));
+        valueOf(await api.sessions.deleteScene(sc("sc3")));
+        expect(await api.playlists.trackOrders()).toEqual({});
+        valueOf(await api.playlists.setTrackOrder("p-abbess", s14, [...own].reverse()));
+        valueOf(await api.playlists.delete("p-abbess"));
+        expect(await api.playlists.trackOrders()).toEqual({});
+      });
+
+      it("PLY-17: Repeat one on a scene's track is saved with the scene, as one undo step, and copied with the scene", async () => {
+        expect((await scene(sc("sc3"))).repeatOnes).toEqual([]);
+        valueOf(await api.sessions.setRepeatOne(sc("sc3"), "t13", true));
+        await changedEvent("campaigns", "history");
+        expect((await scene(sc("sc3"))).repeatOnes).toEqual(["t13"]);
+        expect(repeatOnesOf(await api.campaigns.list())).toEqual({ "sc:crown:s14:sc3": ["t13"] });
+        expect(repeatsOneIn(repeatOnesOf(await api.campaigns.list()), keyOfPlace(ruins), "t13")).toBe(true);
+        const same = await api.sessions.setRepeatOne(sc("sc3"), "t13", true);
+        expect(same.ok && same.changed).toEqual([]);
+        const copy = valueOf(await api.sessions.duplicateScene(sc("sc3")));
+        expect(copy.repeatOnes).toEqual(["t13"]);
+        valueOf(await api.sessions.setRepeatOne(sc("sc3"), "t13", false));
+        expect((await scene(sc("sc3"))).repeatOnes).toEqual([]);
+        valueOf(await api.history.undo());
+        expect((await scene(sc("sc3"))).repeatOnes).toEqual(["t13"]);
+        expectRefused(await api.sessions.setRepeatOne(sc("nope"), "t13", true), "not-found");
+        expectRefused(await api.sessions.setRepeatOne(sc("sc3"), "nope", true), "not-found");
+        expectRefused(await api.sessions.setRepeatOne(sc("sc3"), "t13", "yes" as never), "invalid");
+      });
+
+      it("UX-19: a write the computer could not save is refused in plain words, changes nothing, and works when tried again", async () => {
+        const before = await api.history.state();
+        await fx.failNextWrite();
+        const failed = await api.campaigns.update(CROWN, { notes: "Bring the map" });
+        expectRefused(failed, "not-saved");
+        expect(isRefused(failed) && failed.refusal.message).toBe("Lyre could not write it to your computer. Try again; if it fails again, check that the drive has space.");
+        expect((await api.campaigns.get(CROWN)).notes).not.toBe("Bring the map");
+        expect(await api.history.state()).toEqual(before);
+        expect(valueOf(await api.campaigns.update(CROWN, { notes: "Bring the map" })).notes).toBe("Bring the map");
+      });
+
+      it("ORG-14: Find gives tracks and playlists in one call, grouped, each playlist with its tracks in its place's order", async () => {
+        const found = await api.library.find({ text: "abbess" });
+        expect(found.playlists.map((p) => p.id)).toContain("p-abbess");
+        const abbess = found.playlists.find((p) => p.id === "p-abbess");
+        expect(abbess).toMatchObject({ name: "The Abbess", lane: "music", kind: "manual", place: null });
+        expect(abbess.trackIds).toEqual(await api.playlists.tracks("p-abbess"));
+        expect(found.tracks).toEqual(await api.library.search({ text: "abbess" }));
+        // In Live's session: a playlist of the session's list comes with that list's order and place.
+        const own = await api.playlists.tracks("p-wistful");
+        valueOf(await api.playlists.setTrackOrder("p-wistful", s14, [...own].reverse()));
+        const inSession = await api.library.find({ text: "wistful", in: { campaignId: CROWN, sessionId: S14 } });
+        expect(inSession.playlists.find((p) => p.id === "p-wistful")).toMatchObject({ place: s14, trackIds: [...own].reverse() });
+        const inCampaign = await api.library.find({ text: "company", in: { campaignId: CROWN, sessionId: S14 } });
+        expect(inCampaign.playlists.find((p) => p.id === "p-company")?.place).toEqual({ kind: "campaign", campaignId: CROWN });
+        const ambience = await api.library.find({ text: "abbey", lane: "amb" });
+        expect(ambience.playlists.length).toBeGreaterThan(0);
+        expect(ambience.playlists.every((p) => p.lane === "amb")).toBe(true);
+        expect((await api.library.find({ text: "zzzz-nothing" })).playlists).toEqual([]);
+        expect((await api.library.find({ text: "a", limit: 2 })).playlists.length).toBeLessThanOrEqual(2);
       });
     });
 

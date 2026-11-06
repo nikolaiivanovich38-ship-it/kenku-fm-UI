@@ -16,7 +16,7 @@
 import path from "path";
 import fs from "fs";
 
-import { PAD_MODES, REPEATS, TRACK_KINDS, TRACK_ROLES, TRACK_SHAPES, type AudioProfileInput, type PlayOrder, type PlayOrderOverrides, type PlaylistRule, type ProfileOverrides, type SoundRef } from "../../common/domain";
+import { PAD_MODES, REPEATS, TRACK_KINDS, TRACK_ROLES, TRACK_SHAPES, type AudioProfileInput, type PlayOrder, type PlayOrderOverrides, type PlaylistRule, type ProfileOverrides, type SoundRef, type TrackOrders } from "../../common/domain";
 import { CAMPAIGN_THEMES, PAD_COLORS, SESSION_STATUSES, type CampaignInfo, type LibraryTrack, type PadBoard, type Pad, type PlaylistInfo, type SceneInfo, type SessionInfo, type TagGroup, type TransferCounts, type TransferScope } from "../../common/lyre/api";
 import { AUDIO_EXTENSIONS } from "../data/import/audioFiles";
 import { AUDIO_HEAD_BYTES, looksLikeAudio } from "./audioBytes";
@@ -56,6 +56,8 @@ export interface LyreFileLibrary {
   overrides: ProfileOverrides;
   /** Play orders per place (keyOfPlace, then playlist id), only places inside the scope. */
   playOrders: PlayOrderOverrides;
+  /** ORG-13 (Lyre 0.5): track orders per place (keyOfPlace, then playlist id, then track ids); files from 0.4 have none. */
+  trackOrders: TrackOrders;
 }
 
 export interface LyreFileAudio {
@@ -459,6 +461,8 @@ function checkScene(v: unknown, at: string): SceneInfo {
     notes: str(o.notes ?? "", `${at}.notes`),
     noteLink: str(o.noteLink ?? "", `${at}.noteLink`, 2000),
     trackNames: record(o.trackNames ?? {}, `${at}.trackNames`, (n, nat) => str(n, nat, 500)),
+    // PLY-17 (Lyre 0.5): files from 0.4 have none.
+    repeatOnes: list(o.repeatOnes ?? [], `${at}.repeatOnes`, id, 10_000),
   };
 }
 
@@ -512,5 +516,6 @@ export function checkLibrary(raw: unknown): LyreFileLibrary {
     campaigns: list(o.campaigns, "campaigns", checkCampaign, 10_000),
     overrides: record(o.overrides ?? {}, "overrides", (byTrack, at) => record(byTrack, at, checkProfile)),
     playOrders: record(o.playOrders ?? {}, "playOrders", (byPlaylist, at) => record(byPlaylist, at, checkOrder)),
+    trackOrders: record(o.trackOrders ?? {}, "trackOrders", (byPlaylist, at) => record(byPlaylist, at, (ids, iat) => list(ids, iat, id, 100_000))),
   };
 }

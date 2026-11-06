@@ -50,6 +50,7 @@ async function contractFixture(): Promise<ContractFixture> {
     relinkFolder: path.dirname(write("moved/07 Memories of Mother.flac")),
     folderToWatch: path.join(dir, "watch"),
     transferFiles: { saveTo: path.join(dir, "Shared", "The Sunken Crown.lyre"), notLyreFile: write("Shared/photo.jpg") },
+    failNextWrite: () => api.failNextWrite(),
     close: () => {
       api.stopBackgroundWork();
       library.close();

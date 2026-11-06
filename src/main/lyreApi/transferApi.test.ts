@@ -58,6 +58,7 @@ async function namesOf(api: LyreApi) {
   const campaigns = await api.campaigns.list();
   const overrides = await api.profiles.overrides();
   const orders = await api.playlists.playOrders();
+  const trackOrders = await api.playlists.trackOrders();
   const t = (id: string) => tracks.find((x) => x.id === id)?.fileName ?? `?${id}`;
   const p = (id: string) => playlists.find((x) => x.name && x.id === id)?.name ?? `?${id}`;
   const b = (id: string) => boards.find((x) => x.id === id)?.name ?? `?${id}`;
@@ -80,11 +81,12 @@ async function namesOf(api: LyreApi) {
     boards: boards.map((x) => ({ name: x.name, size: `${x.cols}x${x.rows}`, pads: x.slots.map((pad) => pad && `${pad.label} ${pad.key} ${pad.sound.trackIds.map(t).join("+")}${pad.sound.tag ? ` tag ${pad.sound.tag.value}` : ""}`), spare: x.spare.map((pad) => `${pad.label}${pad.aside ? " aside" : ""}`) })),
     campaigns: campaigns.map((c) => ({
       name: c.name, theme: c.theme, onHand: [...c.playlistIds.map(p), ...c.boardIds.map(b), ...c.trackIds.map(t)],
-      sessions: c.sessions.map((s) => ({ number: s.number, name: s.name, status: s.status, onHand: [...s.playlistIds.map(p), ...s.boardIds.map(b), ...s.trackIds.map(t)], scenes: s.scenes.map((sc) => ({ name: sc.name, music: sc.music.map(ref), ambience: sc.ambience && ref(sc.ambience), boards: sc.boardIds.map(b) })) })),
+      sessions: c.sessions.map((s) => ({ number: s.number, name: s.name, status: s.status, onHand: [...s.playlistIds.map(p), ...s.boardIds.map(b), ...s.trackIds.map(t)], scenes: s.scenes.map((sc) => ({ name: sc.name, music: sc.music.map(ref), ambience: sc.ambience && ref(sc.ambience), boards: sc.boardIds.map(b), repeatOnes: sc.repeatOnes.map(t).sort() })) })),
     })),
     sceneNames: names,
     overrides: Object.fromEntries(Object.entries(overrides).map(([k, v]) => [placeName(k), Object.fromEntries(Object.entries(v).map(([id, prof]) => [t(id), prof]))])),
     orders: Object.fromEntries(Object.entries(orders).map(([k, v]) => [placeName(k), Object.fromEntries(Object.entries(v).map(([id, o]) => [p(id), o]))])),
+    trackOrders: Object.fromEntries(Object.entries(trackOrders).map(([k, v]) => [placeName(k), Object.fromEntries(Object.entries(v).map(([id, ids]) => [p(id), ids.map(t)]))])),
   };
 }
 
@@ -102,6 +104,12 @@ describe("DAT-7 Save to a file, then Bring in on another computer", () => {
   it.each(SCOPES.map((s) => [s.kind, s] as const))("a round trip of the sample library's %s keeps everything in it", async (_kind, scope) => {
     const dir = folder();
     const from = await libraryAt(path.join(dir, "here"), true);
+    // Round 6 (PLY-17, ORG-13): a Repeat one in a scene, and a playlist's track order in a scene and in a session list.
+    const abbess = await from.api.playlists.tracks("p-abbess");
+    valueOf(await from.api.sessions.setRepeatOne({ campaignId: "crown", sessionId: "s14", sceneId: "sc3" }, "t13", true));
+    valueOf(await from.api.playlists.setTrackOrder("p-abbess", { kind: "scene", campaignId: "crown", sessionId: "s14", sceneId: "sc3" }, [...abbess].reverse()));
+    valueOf(await from.api.playlists.setTrackOrder("p-wistful", { kind: "session", campaignId: "crown", sessionId: "s14" }, [...(await from.api.playlists.tracks("p-wistful"))].reverse()));
+    from.library.store.clearHistory();
     const target = path.join(dir, "Shared", "file.lyre");
     fs.mkdirSync(path.dirname(target));
     const saved = valueOf(await from.api.transfer.save({ scope, includeAudio: false, path: target }));
@@ -134,7 +142,11 @@ describe("DAT-7 Save to a file, then Bring in on another computer", () => {
       for (const [place, orders] of Object.entries(got.orders)) expect(orders, place).toEqual(expected.orders[place]);
       expect(Object.keys(got.orders).length).toBeGreaterThan(0);
       for (const [scene, names] of Object.entries(got.sceneNames)) expect(names, scene).toEqual(expected.sceneNames[scene]);
+      expect(got.trackOrders).toEqual(expected.trackOrders);
+      expect(Object.keys(got.trackOrders).length).toBe(2);
     }
+    if (scope.kind === "session") expect(Object.keys(got.trackOrders).sort()).toEqual(["scene The Sunken Crown/14/The abbey ruins", "session The Sunken Crown/14"]);
+    if (scope.kind === "scene") expect(Object.keys(got.trackOrders)).toEqual(["scene The Sunken Crown/14/The abbey ruins"]);
     if (scope.kind === "session" || scope.kind === "scene") {
       const [c] = got.campaigns;
       expect(c.name).toBe("The Sunken Crown");

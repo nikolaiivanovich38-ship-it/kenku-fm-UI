@@ -38,6 +38,9 @@ import {
   type ProfilePlace,
   type SoundRef,
   type Use,
+  placeOrderToKeep,
+  tracksInPlaceOrder,
+  type TrackOrders,
 } from "../domain";
 import {
   CAMPAIGN_THEMES,
@@ -48,6 +51,7 @@ import {
   type DuplicateChoice,
   type FolderRoot,
   type IncomingItem,
+  NOT_SAVED,
   type MoveReport,
   type OpenedFile,
   type PlayPlace,
@@ -97,6 +101,8 @@ export interface FakeLyreOptions {
 }
 
 export interface FakeLyreApi extends LyreApi {
+  /** UX-19: the next write fails as a full or read-only drive would ("not-saved"), once (the test builds' hook). */
+  failNextWrite(): void;
   /** Files appear in a watched folder: they become New tracks, as the real folder watcher makes them. Returns their ids. */
   arrive(folder: string, fileNames: string[]): Promise<string[]>;
 }
@@ -113,6 +119,8 @@ interface State {
   overrides: ProfileOverrides;
   /** PLY-13: play order chosen in a place (part of the "playlists" area; a playlist's own order is on the playlist). */
   playOrders: PlayOrderOverrides;
+  /** ORG-13: a playlist's track order chosen in a place (part of the "playlists" area). */
+  trackOrders: TrackOrders;
   /** Ids of tracks whose files have gone (part of the "tracks" area). */
   missing: string[];
   /** PLY-15: the library's Normalise volume setting (part of the "tracks" area: every track's gain follows it). */
@@ -124,7 +132,7 @@ const SLICES: Record<Exclude<LyreArea, "history">, (keyof State)[]> = {
   tracks: ["tracks", "missing", "normalise"],
   tags: ["tagGroups"],
   folders: ["folders"],
-  playlists: ["playlists", "playOrders"],
+  playlists: ["playlists", "playOrders", "trackOrders"],
   boards: ["boards"],
   campaigns: ["campaigns"],
   profiles: ["overrides"],
@@ -209,6 +217,7 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
     campaigns: seed.campaigns,
     overrides: seed.overrides,
     playOrders: seed.playOrders,
+    trackOrders: {},
     missing: [...(options.missingTrackIds ?? seed.missing)],
     normalise: { ...(seed.normalise ?? DEFAULT_LIBRARY_NORMALISE) },
   };
@@ -219,6 +228,8 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
   let undoStack: Step[] = [];
   let redoStack: Step[] = [];
   let importing = false;
+  /** UX-19: failNextWrite was called. */
+  let failNext = false;
   /** Loudness peaks worked out so far, and those being worked out (not part of undo, as in the real library). */
   // The sample tracks' peaks are in the seed, as a library that has read their files has them (DAT-13).
   const peaks = new Map<string, number[]>(Object.entries(seed.peaks ?? {}));
@@ -277,6 +288,10 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
    * refuses. A refusal or a write that changed nothing leaves no undo step and sends no event.
    */
   function write<T>(label: string | ((value: T) => string), areas: LyreArea[], fn: () => T): WriteResult<T> {
+    if (failNext) {
+      failNext = false;
+      return { ok: false, refusal: { code: "not-saved", message: NOT_SAVED } };
+    }
     const before = slicesOf(areas);
     let value: T;
     try {
@@ -451,10 +466,12 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
   /* ---------- shared changes ---------- */
 
   function takeOutOfCampaigns(kind: "playlist" | "board", id: string) {
-    if (kind === "playlist") for (const key of Object.keys(state.playOrders)) {
-      delete state.playOrders[key][id];
-      if (Object.keys(state.playOrders[key]).length === 0) delete state.playOrders[key];
-    }
+    if (kind === "playlist")
+      for (const orders of [state.playOrders, state.trackOrders] as Record<string, Record<string, unknown>>[])
+        for (const key of Object.keys(orders)) {
+          delete orders[key][id];
+          if (Object.keys(orders[key]).length === 0) delete orders[key];
+        }
     for (const c of state.campaigns) {
       const key = kind === "playlist" ? "playlistIds" : "boardIds";
       c[key] = c[key].filter((x) => x !== id);
@@ -471,7 +488,7 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
     }
   }
   function blankScene(name: string): SceneInfo {
-    return { id: newId("scene"), name, startsWhen: "", notes: "", noteLink: "", music: [], ambience: null, boardIds: [], trackNames: {} };
+    return { id: newId("scene"), name, startsWhen: "", notes: "", noteLink: "", music: [], ambience: null, boardIds: [], trackNames: {}, repeatOnes: [] };
   }
   function blankPad(): Pad {
     return { id: newId("pad"), label: "New pad", icon: "star", color: "gold", key: "", mode: "oneshot", sound: { kind: "single", trackIds: [], order: "random", tag: null }, volume: 0.8, fadeOutMs: 1500, aside: false };
@@ -595,6 +612,36 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
         }
         scored.sort((a, b) => b.score - a.score || shownTitle(a.t).localeCompare(shownTitle(b.t)));
         return { trackIds: scored.slice(0, Math.max(0, limit)).map((x) => x.t.id), total: scored.length };
+      },
+      async find({ text, lane, limit = 50, in: where }) {
+        const tracks = await api.library.search({ text, lane, limit });
+        const want = words(text ?? "");
+        const c = where ? state.campaigns.find((x) => x.id === where.campaignId) : undefined;
+        const s = c && where?.sessionId ? c.sessions.find((x) => x.id === where.sessionId) : undefined;
+        const scored: { p: PlaylistInfo; score: number }[] = [];
+        for (const p of state.playlists) {
+          if (lane && p.lane !== lane) continue;
+          const name = words(p.name);
+          const notes = words(p.notes);
+          let score = 0;
+          for (const w of want) {
+            const best = name.some((x) => x.startsWith(w)) ? 10 : notes.some((x) => x.startsWith(w)) ? 1 : 0;
+            if (!best) {
+              score = -1;
+              break;
+            }
+            score += best;
+          }
+          if (score >= 0) scored.push({ p, score });
+        }
+        scored.sort((a, b) => b.score - a.score || a.p.name.localeCompare(b.p.name));
+        const playlists = scored.slice(0, Math.max(0, limit)).map(({ p }) => {
+          const place: PlayPlace | null = s?.playlistIds.includes(p.id) ? { kind: "session", campaignId: c!.id, sessionId: s.id } : c?.playlistIds.includes(p.id) ? { kind: "campaign", campaignId: c.id } : null;
+          const own = playlistTracks(p, lookup());
+          const ordered = tracksInPlaceOrder(own, place ? state.trackOrders[keyOfPlace(place)]?.[p.id] : undefined);
+          return { id: p.id, name: p.name, lane: p.lane, kind: p.kind, trackIds: ordered.map((t) => t.id), place };
+        });
+        return { tracks, playlists };
       },
       async updateTrack(id, patch) {
         let name = "";
@@ -832,6 +879,39 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
             }
           } else pl.order = null;
           label = where ? `Use the playlist's own order in ${where.words}` : `Play ${quoted(pl.name)} in the default order`;
+        });
+      },
+      async trackOrders() {
+        return copy(state.trackOrders);
+      },
+      async setTrackOrder(playlistId, place, trackIds) {
+        let label = "";
+        return write(() => label, ["playlists"], () => {
+          const pl = playlist(playlistId);
+          if (!place) refuse("invalid", "A playlist's own order is its list: choose a scene, a session or a campaign.", "place");
+          const where = playPlace(place);
+          if (!Array.isArray(trackIds) || trackIds.some((id) => typeof id !== "string")) refuse("invalid", "The order is a list of tracks.", "trackIds");
+          const keep = placeOrderToKeep(playlistTracks(pl, lookup()).map((t) => t.id), trackIds);
+          if (keep) (state.trackOrders[where.key] ??= {})[pl.id] = keep;
+          else if (state.trackOrders[where.key]) {
+            delete state.trackOrders[where.key][pl.id];
+            if (Object.keys(state.trackOrders[where.key]).length === 0) delete state.trackOrders[where.key];
+          }
+          label = keep ? `Order ${quoted(pl.name)} in ${where.words}` : `Back to the order of ${quoted(pl.name)} in ${where.words}`;
+          return keep;
+        });
+      },
+      async clearTrackOrder(playlistId, place) {
+        let label = "";
+        return write(() => label, ["playlists"], () => {
+          const pl = playlist(playlistId);
+          if (!place) refuse("invalid", "A playlist's own order is its list: choose a scene, a session or a campaign.", "place");
+          const where = playPlace(place);
+          if (state.trackOrders[where.key]) {
+            delete state.trackOrders[where.key][pl.id];
+            if (Object.keys(state.trackOrders[where.key]).length === 0) delete state.trackOrders[where.key];
+          }
+          label = `Back to the order of ${quoted(pl.name)} in ${where.words}`;
         });
       },
     },
@@ -1178,6 +1258,7 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
       async duplicateScene(address) {
         return write((sc: SceneInfo) => `Make ${quoted(sc.name)}`, ["campaigns"], () => {
           const { session: s, scene: sc, index } = scene(address);
+          // DAT-14, PLY-17: a copy keeps the scene's names for its tracks and its Repeat ones (not its play orders).
           const made: SceneInfo = { ...copy(sc), id: newId("scene"), name: `${sc.name || "Scene"} (copy)` };
           s.scenes.splice(index + 1, 0, made);
           return made;
@@ -1190,6 +1271,7 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           s.scenes.splice(index, 1);
           delete state.overrides[placeKey({ kind: "scene", ...address })];
           delete state.playOrders[keyOfPlace({ kind: "scene", ...address })];
+          delete state.trackOrders[keyOfPlace({ kind: "scene", ...address })];
           label = `Delete the scene ${quoted(sc.name)}`;
         });
       },
@@ -1231,6 +1313,20 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           else delete sc.trackNames[t.id];
           const where = sc.name ? `the scene ${quoted(sc.name)}` : "this scene";
           label = clean ? `Name the track ${quoted(clean)} in ${where}` : `Use the track's own name in ${where}`;
+        });
+      },
+      async setRepeatOne(address, trackId, on) {
+        let label = "";
+        return write(() => label, ["campaigns"], () => {
+          const { scene: sc } = scene(address);
+          const t = track(trackId);
+          if (typeof on !== "boolean") refuse("invalid", "Repeat one is on or off.", "on");
+          const ones = new Set(sc.repeatOnes);
+          if (on) ones.add(t.id);
+          else ones.delete(t.id);
+          sc.repeatOnes = [...ones].sort();
+          const where = sc.name ? `the scene ${quoted(sc.name)}` : "this scene";
+          label = on ? `Repeat one in ${where}` : `Stop repeating one in ${where}`;
         });
       },
     },
@@ -1533,6 +1629,9 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
       };
     },
 
+    failNextWrite() {
+      failNext = true;
+    },
     async arrive(folder, fileNames) {
       if (!state.folders.some((f) => f.watched && f.path.toLowerCase() === folder.toLowerCase())) return [];
       const known = new Set(state.tracks.map((t) => pathOf(t).toLowerCase()));

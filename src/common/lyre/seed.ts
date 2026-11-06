@@ -411,6 +411,7 @@ function campaigns(soundRef: (id: string) => { kind: "track" | "playlist"; id: s
         ambience: sc.amb ? soundRef(sc.amb) : null,
         boardIds: [...sc.boards],
         trackNames: { ...(SCENE_NAMES[`sc:${c.id}:${s.id}:${sc.id}`] ?? {}) },
+        repeatOnes: [] as string[],
       })),
     })),
   }));

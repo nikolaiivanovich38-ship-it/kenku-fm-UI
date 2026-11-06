@@ -303,7 +303,7 @@ export function clearAdded(list: RoomList): RoomList {
 export function undoLast(list: RoomList): RoomList {
   const u = list.undo;
   if (!u) return list;
-  const base = { ...list, undo: null };
+  const base: RoomList = { ...list, undo: null };
   switch (u.kind) {
     case "add":
       return { ...base, pn: list.pn.filter((i) => i.id !== u.id), q: list.q.filter((i) => i.id !== u.id), skips: u.skip ? list.skips.filter((k) => k !== u.skip) : list.skips };

@@ -26,15 +26,19 @@ function ipcFor(api: LyreApi, fault?: string): IpcRendererLike {
   };
 }
 
-lyreApiContract("in-memory fake through the page's IPC bridge", () => ({
-  api: ipcLyreApi(createLyreApiBridge(ipcFor(createFakeLyreApi({ missingTrackIds: ["t43"], folderFiles: { "D:\\Moved": ["07 Memories of Mother.flac"] } })))),
+lyreApiContract("in-memory fake through the page's IPC bridge", () => {
+  const fake = createFakeLyreApi({ missingTrackIds: ["t43"], folderFiles: { "D:\\Moved": ["07 Memories of Mother.flac"] } });
+  return {
+  api: ipcLyreApi(createLyreApiBridge(ipcFor(fake))),
+  failNextWrite: () => fake.failNextWrite(),
   newAudioFiles: ["D:\\Incoming\\Ambience\\harbour_night.wav", "D:\\Incoming\\Dune\\02 Leaving Caladan.flac"],
   notAudioFile: "D:\\Incoming\\notes.txt",
   missingTrackId: "t43",
   relinkFolder: "D:\\Moved",
   folderToWatch: "H:\\Audio\\Incoming",
   transferFiles: { saveTo: "D:\\Shared\\The Sunken Crown.lyre", notLyreFile: "D:\\Shared\\photo.jpg" },
-}));
+  };
+});
 
 describe("the page's IPC bridge", () => {
   it("listens on the channel once however many parts of the page subscribe, so Electron warns of no leak (review w4)", () => {
