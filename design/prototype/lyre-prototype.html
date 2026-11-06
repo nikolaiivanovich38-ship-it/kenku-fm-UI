@@ -2338,9 +2338,10 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
   .lv-dock { padding: 6px 6px 0; }
 }
 /* With Back and the trail in the strip, below 1100 px of app (960 windows) Fade all and Stop all are icons (their names
-   are read out and on hover) and the session shows its number only (its name is on hover), so Find keeps its words. */
+   are read out and on hover), so Find keeps its words. The session shows its number only at every width (its name is
+   read out and on hover): the trail reads Campaign › Session, and Live's words stay at part 5's. */
 @container app (max-width: 1100px) {
-  .lv-top .lv-btxt, .lv-top .lv-sess-nm { display: none; }
+  .lv-top .lv-btxt { display: none; }
   .lv-top [data-act="lvfade"], .lv-top [data-act="lvstop"] { width: var(--ctl-s); padding: 0; }
 }
 
@@ -8999,7 +9000,7 @@ var L = (function () {
     var sessBox = L.renaming('sess-' + s.id) ? '<span class="lv-sess lv-sess-edit">' + L.icon('crown', 's') + '<span class="sr-only">' + esc(c.name) + ' </span><span class="lv-sess-s">Session ' + s.n + ':</span>' +
         L.renameBox('sess-' + s.id, s.name, 'Name of Session ' + s.n, 'lv-sess-rename') + '</span>' :
       '<button class="lv-sess" data-act="lvsessmenu" data-k="lv-sess" data-f2="lvsessrename" aria-haspopup="menu" aria-expanded="false" title="Loaded: ' + esc(c.name + ' › Session ' + s.n + ': ' + s.name) + '. Choose another session, or press F2 to rename it">' +
-        L.icon('crown', 's') + '<span class="sr-only">' + esc(c.name) + ' </span><span class="lv-sess-s">Session ' + s.n + '<span class="lv-sess-nm">: ' + esc(s.name) + '</span></span>' + L.icon('chevdown', 's') + '</button>';
+        L.icon('crown', 's') + '<span class="sr-only">' + esc(c.name) + ' </span><span class="lv-sess-s">Session ' + s.n + '<span class="lv-sess-nm sr-only">: ' + esc(s.name) + '</span></span>' + L.icon('chevdown', 's') + '</button>';
     return '<div class="lv-top"><h1 class="sr-only">Live</h1><!--lead-->' + sessBox + L.modeSwitch(c.id) + find() +
       '<button class="btn s" data-act="lvfade" data-k="lv-fade" title="Fade everything out over 3 seconds (Shift+Esc)" aria-keyshortcuts="Shift+Escape" aria-label="Fade all">' + L.icon('fade', 's') + '<span class="lv-btxt">Fade all</span></button>' +
       '<button class="btn s danger" data-act="lvstop" data-k="lv-stop" title="Stop everything at once" aria-label="Stop all">' + L.icon('stop', 's') + '<span class="lv-btxt">Stop all</span></button>' +

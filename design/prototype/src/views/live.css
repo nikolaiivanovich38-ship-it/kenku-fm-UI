@@ -560,8 +560,9 @@ button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
   .lv-dock { padding: 6px 6px 0; }
 }
 /* With Back and the trail in the strip, below 1100 px of app (960 windows) Fade all and Stop all are icons (their names
-   are read out and on hover) and the session shows its number only (its name is on hover), so Find keeps its words. */
+   are read out and on hover), so Find keeps its words. The session shows its number only at every width (its name is
+   read out and on hover): the trail reads Campaign › Session, and Live's words stay at part 5's. */
 @container app (max-width: 1100px) {
-  .lv-top .lv-btxt, .lv-top .lv-sess-nm { display: none; }
+  .lv-top .lv-btxt { display: none; }
   .lv-top [data-act="lvfade"], .lv-top [data-act="lvstop"] { width: var(--ctl-s); padding: 0; }
 }
