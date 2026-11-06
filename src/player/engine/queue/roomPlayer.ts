@@ -288,23 +288,36 @@ export class RoomPlayer {
     return true;
   }
 
-  /** A pad press ("down") or let-go ("up"), with the sound the director picked for this press. */
+  /** Whether that pad sounds here (not fading out). */
+  padSounding(padKey: string): boolean {
+    return this.effects.some((e) => e.padKey === padKey && e.voice.state !== "stopping");
+  }
+
+  /**
+   * A pad press ("down") or let-go ("up"), with the sound the director picked for this press. BUG-20: a press on a
+   * pad that sounds stops it, whatever its play mode: a toggle or hold pad with its own fade, others quickly.
+   */
   firePad(padKey: string, pad: PadSound, phase: "down" | "up", trackId: string): void {
     const on = this.effects.filter((e) => e.padKey === padKey && e.voice.state !== "stopping");
-    if (pad.mode === "toggle" && phase === "down" && on.length > 0) {
-      on.forEach((e) => void e.voice.stop(pad.fadeMs / 1000));
-      return;
-    }
     if (phase === "up") {
       if (pad.mode === "hold") {
         on.forEach((e) => void e.voice.stop(DEFAULT_FADES.holdRelease));
       }
       return;
     }
-    if (pad.mode === "retrigger") {
-      on.forEach((e) => void e.voice.stop(DEFAULT_FADES.retrigger));
+    if (on.length > 0) {
+      const fade = pad.mode === "toggle" || pad.mode === "hold" ? pad.fadeMs / 1000 : DEFAULT_FADES.padStop;
+      on.forEach((e) => void e.voice.stop(fade));
+      this.deps.changed();
+      return;
     }
     this.playEffect(trackId, { padKey, loop: pad.mode === "toggle" || pad.mode === "hold", volume: pad.volume });
+  }
+
+  /** BUG-20: Stop pads: every pad sound here fades out; effects played on their own go on. */
+  stopPads(fadeSeconds: number): void {
+    this.effects.filter((e) => e.padKey !== null).forEach((e) => void e.voice.stop(fadeSeconds));
+    this.deps.changed();
   }
 
   // ---------- fades ----------

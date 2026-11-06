@@ -23,10 +23,10 @@ export const MODES: readonly PadMode[] = ["oneshot", "toggle", "hold", "retrigge
 export const MODE_NAME: Record<PadMode, string> = { oneshot: "One-shot", toggle: "Toggle loop", hold: "Hold to play", retrigger: "Restart on press" };
 export const MODE_ICON: Record<PadMode, IconName> = { oneshot: "one", toggle: "loop", hold: "hand", retrigger: "restart" };
 export const MODE_HELP: Record<PadMode, string> = {
-  oneshot: "Plays once from the start on each press. Quick presses overlap.",
+  oneshot: "Plays once from the start. Press it again while it plays to stop it.",
   toggle: "First press starts a loop; the next press fades it out.",
   hold: "Plays while you hold the key or button, and fades when you let go.",
-  retrigger: "Each press stops the last one and starts again, so it never overlaps.",
+  retrigger: "Plays from the start, never over itself. Press it again while it plays to stop it.",
 };
 
 /** Pad colours are identities (a stripe and a swatch); the text keeps the theme's ink. */
@@ -204,8 +204,9 @@ export function tryWords(pad: Pick<Pad, "label" | "mode">, phase: "down" | "up",
   let text: string;
   if (pad.mode === "toggle") text = on ? `${label}: loop stopped` : `${label}: loop playing in your headphones. Press again to stop it.`;
   else if (pad.mode === "hold") text = phase === "up" ? `${label}: let go, fading` : `${label}: playing while held`;
-  else if (pad.mode === "retrigger") text = on ? `${label}: started again from the beginning` : `${label}: playing`;
-  else text = on ? `${label}: playing again from the start` : `${label}: playing once`;
+  // BUG-20: as in Live, a press on a one-shot or restart pad that plays stops it.
+  else if (pad.mode === "retrigger") text = on ? `${label}: stopped` : `${label}: playing`;
+  else text = on ? `${label}: stopped` : `${label}: playing once`;
   return text.includes("headphones") ? text : `${text} (only you hear it)`;
 }
 

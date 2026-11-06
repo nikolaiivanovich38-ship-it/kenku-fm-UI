@@ -341,9 +341,10 @@ describe("pads (L.firePad): one-shot, toggle, hold, retrigger", () => {
     expect(rig.audio.stopPads()).toEqual({ ok: true });
     expect(announced).toContain("Pads stopped");
     expect(state().rooms.flatMap((r) => r.effects.map((e) => e.padKey ?? e.trackId))).toEqual(["fx2"]);
-    await rig.advance(0.5);
+    await rig.advance(3);
     expect(room("bot-a")!.music?.trackId).toBe("m1");
     expect(rig.hearRoom("bot-a")).toBeCloseTo(1);
+    expect(rig.hearRoom("bot-b")).toBe(0);
   });
 
   it("toggle turns on, then off; hold plays while held", async () => {
@@ -377,8 +378,6 @@ describe("pads (L.firePad): one-shot, toggle, hold, retrigger", () => {
 
     rig.audio.tryPad("b", "drone", "down");
     await rig.advance(12);
-    expect(state().preview).toMatchObject({ key: "pad:b/drone" });
-    rig.audio.tryPad("b", "drone", "down");
     expect(state().preview).toMatchObject({ key: "pad:b/drone" });
     rig.audio.tryPad("b", "drone", "up");
     await rig.advance(0.5);

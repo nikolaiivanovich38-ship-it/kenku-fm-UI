@@ -478,9 +478,9 @@ function BoardEditor({ board }: { board: PadBoard }) {
     const pv = !tried && sound.previewing(board.id, pad.id);
     const isSel = selected?.pad.id === pad.id;
     const at: PadAt = { where: "slot", index, pad };
-    const lasting = pad.mode === "toggle" || pad.mode === "hold";
-    // While trying, aria-pressed says whether a toggle loop or a held pad sounds; otherwise which pad is selected.
-    const pressed = tryPads.on ? lasting && tried : isSel;
+    // While trying, aria-pressed says whether the pad sounds (a press then stops it, BUG-20); otherwise which pad is
+    // selected.
+    const pressed = tryPads.on ? tried : isSel;
     const classes = ["pb-slot", "pb-has", isSel && "sel", on && "on", pv && "pv", tried && "trying", dropOver === String(index) && "pb-over"].filter(Boolean).join(" ");
     return (
       <div key={index} className={classes} style={colourOf(pad.color)} {...dropProps(String(index))}>
@@ -509,7 +509,7 @@ function BoardEditor({ board }: { board: PadBoard }) {
             <span className="pb-mode" title={MODE_NAME[pad.mode]}>
               <Icon name={MODE_ICON[pad.mode]} size="s" />
             </span>
-            {on ? <span className="pb-playing">On air</span> : tried && <span className="pb-trying">{lasting ? "Sounding" : "Playing"}</span>}
+            {on ? <span className="pb-playing">On air</span> : tried && <span className="pb-trying">{pad.mode === "toggle" || pad.mode === "hold" ? "Sounding" : "Playing"}</span>}
           </span>
         </button>
         <span className="pb-tile-pv">
@@ -759,8 +759,8 @@ function soundLength(pad: Pad, tracks: readonly LibraryTrack[]): number | null {
 /**
  * SFX-12 Try pads (boards.js tryPad): while on, pressing a pad on the grid, or its key, plays it as it will play in
  * Live (LyreAudio.tryPad), in the headphones only. A toggle loop and a held pad sound while the preview is theirs; a
- * one-shot or restart pad says "Playing" for as long as its sound lasts. Turning it off, or leaving the board, stops
- * what is being tried.
+ * one-shot or restart pad says "Playing" for as long as its sound lasts, and a press while it plays stops it (BUG-20).
+ * Turning it off, or leaving the board, stops what is being tried.
  */
 function useTryPads(board: PadBoard, tracks: readonly LibraryTrack[], sound: ReturnType<typeof useBoardSound>) {
   const { say } = useAnnounce();
@@ -790,7 +790,8 @@ function useTryPads(board: PadBoard, tracks: readonly LibraryTrack[], sound: Ret
     const outcome = sound.audio.tryPad(board.id, pad.id, phase);
     if (!outcome.ok) return;
     if (phase === "down" && (pad.mode === "oneshot" || pad.mode === "retrigger")) {
-      setUntil((u) => ({ ...u, [pad.id]: Date.now() + (soundLength(pad, tracks) ?? TRY_FALLBACK_MS) }));
+      // A press while it plays stopped it (BUG-20): it no longer says Playing.
+      setUntil((u) => ({ ...u, [pad.id]: was ? 0 : Date.now() + (soundLength(pad, tracks) ?? TRY_FALLBACK_MS) }));
     }
     say(tryWords(pad, phase, was));
   };

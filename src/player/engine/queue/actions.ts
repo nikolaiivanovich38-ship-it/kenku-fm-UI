@@ -32,8 +32,10 @@ export type CueAction =
   | { type: "fadeLane"; lane: RoomLane; target: RoomTarget; fadeMs?: number }
   | { type: "fadeAll"; target?: RoomTarget; fadeMs?: number }
   | { type: "stopAll"; target?: RoomTarget }
-  /** "down" by default; "up" lets go of a hold pad. */
+  /** "down" by default; "up" lets go of a hold pad. A press on a pad that sounds there stops it (BUG-20). */
   | { type: "firePad"; boardId: string; padId: string; target: RoomTarget; phase?: "down" | "up" }
+  /** BUG-20: every pad sound fades out quickly (every room by default); music, ambience and other effects go on. */
+  | { type: "stopPads"; target?: RoomTarget; fadeMs?: number }
   | { type: "removeQueued"; entryId: string; target: RoomTarget }
   /** Go back to the music and ambience from before the last scene start. */
   | { type: "undoSceneStart" };
@@ -56,8 +58,8 @@ export const DEFAULT_FADES = {
   undo: 1.5,
   /** A hold pad let go. */
   holdRelease: 0.4,
-  /** A retrigger pad cuts its last copy. */
-  retrigger: 0.05,
+  /** BUG-20: a one-shot or restart pad pressed while it sounds, and Stop pads. */
+  padStop: 0.3,
 } as const;
 
 const LIMIT = 200;
@@ -88,6 +90,8 @@ export function isCueAction(value: unknown): value is CueAction {
       return v.target === undefined || isTarget(v.target);
     case "firePad":
       return isId(v.boardId) && isId(v.padId) && isTarget(v.target) && (v.phase === undefined || v.phase === "down" || v.phase === "up");
+    case "stopPads":
+      return (v.target === undefined || isTarget(v.target)) && fade;
     case "removeQueued":
       return isId(v.entryId) && isTarget(v.target);
     case "undoSceneStart":

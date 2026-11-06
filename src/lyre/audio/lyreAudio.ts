@@ -247,8 +247,10 @@ export interface LyreAudio {
   stopAll(): CueOutcome;
   /** UX-16: a room's volume (or every room's), 0 to 1, kept for that room while the app runs. */
   setRoomVolume(target: RoomTarget, volume: number): CueOutcome;
-  /** A pad press ("down", default) or let-go ("up", for hold pads). */
+  /** A pad press ("down", default) or let-go ("up", for hold pads). A press on a pad that sounds stops it (BUG-20). */
   firePad(boardId: string, padId: string, phase?: "down" | "up", target?: RoomTarget): CueOutcome;
+  /** BUG-20: Live's Stop pads: every pad sound in every room fades out quickly; music, ambience and other effects go on. */
+  stopPads(): CueOutcome;
   removeQueued(entryId: string, target?: RoomTarget): CueOutcome;
   undoSceneStart(): CueOutcome;
   /** Any cue action (hotkeys, cues, later the remote API). */
@@ -264,9 +266,8 @@ export interface LyreAudio {
   previewPad(boardId: string, padId: string, options?: PreviewFrom): CueOutcome;
   /**
    * SFX-12 Try pads: a press ("down", default) or let-go ("up") played as the pad plays in Live, but in the
-   * headphones only, as the preview (key "pad:<board>/<pad>"): a toggle loop starts and stops, a hold pad loops while
-   * held, a one-shot plays once and a restart pad starts again. One preview at a time, so a second one-shot press
-   * starts it again rather than overlapping.
+   * headphones only, as the preview (key "pad:<board>/<pad>"): a toggle loop starts, a hold pad loops while held, a
+   * one-shot or restart pad plays once; as in Live, a press on a pad that sounds stops it (BUG-20).
    */
   tryPad(boardId: string, padId: string, phase?: "down" | "up", options?: PreviewFrom): CueOutcome;
   stopPreview(): void;
@@ -525,6 +526,14 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     return this.perform({ type: "firePad", boardId, padId, phase, target });
   }
 
+  stopPads(): CueOutcome {
+    const outcome = this.perform({ type: "stopPads" });
+    if (outcome.ok) {
+      this.emit("announce", "Pads stopped");
+    }
+    return outcome;
+  }
+
   removeQueued(entryId: string, target: RoomTarget = FIRST_ROOM): CueOutcome {
     return this.perform({ type: "removeQueued", entryId, target });
   }
@@ -612,14 +621,14 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       return this.fail(padWithoutSound(pad));
     }
     const on = preview.isPreviewing(key);
-    // The same rules as RoomPlayer.firePad, on the preview: a let-go only ends a hold pad; a toggle's second press
-    // stops it; a hold pad already sounding goes on.
+    // The same rules as RoomPlayer.firePad, on the preview: a let-go only ends a hold pad; a press on a pad that
+    // sounds stops it, whatever its play mode (BUG-20).
     if (phase === "up") {
       if (pad.mode === "hold" && on) preview.stop();
       return OK;
     }
-    if ((pad.mode === "toggle" && on) || (pad.mode === "hold" && on)) {
-      if (pad.mode === "toggle") preview.stop();
+    if (on) {
+      preview.stop();
       return OK;
     }
     const track = this.library.track(this.tryVariant(key, pad.trackIds, pad.order));

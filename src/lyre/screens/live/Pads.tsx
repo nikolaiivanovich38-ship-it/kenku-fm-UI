@@ -1,8 +1,9 @@
 /**
  * Pads (live.js pads), folded at first: the scene's boards as a switch, every other board in a menu, and the board's
  * pads with their keys. Pad keys work while the box is folded (LiveScreen). A hold pad plays while it is pressed;
- * a toggle pad is on or off. Sound goes to the box's room (To:); a sounding pad shows the initial of its room when
- * there are two or more rooms.
+ * a toggle pad is on or off. BUG-20: pressing any pad that plays stops it, so every tile is pressed (and says On)
+ * while it plays, and Stop pads in the header stops them all, leaving music and ambience. Sound goes to the box's
+ * room (To:); a sounding pad shows the initial of its room when there are two or more rooms.
  */
 import React, { useEffect, useRef } from "react";
 
@@ -28,13 +29,13 @@ function padOnIn(now: NowPlaying, roomId: string, key: string): boolean {
 }
 
 /**
- * Press or let go of a pad in the box's rooms. With All rooms, a toggle pad that sounds in any of them stops where it
- * sounds; otherwise it starts in every one.
+ * Press or let go of a pad in the box's rooms. With All rooms, a press on a pad that sounds in any of them stops it
+ * where it sounds (BUG-20); otherwise it starts in every one.
  */
 export function firePads(audio: LyreAudio, now: NowPlaying, targets: RoomTarget[], board: PadBoard, pad: Pad, phase: "down" | "up" = "down"): void {
   const key = `${board.id}/${pad.id}`;
   const rooms = targets.flatMap((t) => (t === "all" ? [] : [t.room]));
-  if (pad.mode === "toggle" && rooms.length > 1) {
+  if (phase === "down" && rooms.length > 1) {
     const anyOn = rooms.some((id) => padOnIn(now, id, key));
     for (const id of rooms) if (!anyOn || padOnIn(now, id, key)) audio.firePad(board.id, pad.id, phase, { room: id });
     return;
@@ -50,6 +51,10 @@ export function PadsPane() {
   const board = currentBoard(state.board, scene, index);
   const inScene = sceneBoards(scene, index);
   const sounding = now.rooms.reduce((n, r) => n + r.effects.filter((e) => e.padKey).length, 0);
+  const stopPads = () => {
+    // Dimmed, not disabled, while no pad plays, so focus stays on it after a press.
+    if (sounding) audio.stopPads();
+  };
   const held = useRef<{ board: PadBoard; pad: Pad } | null>(null);
 
   // A hold pad pressed with the pointer is let go wherever the pointer comes up, or when the window loses focus.
@@ -107,7 +112,14 @@ export function PadsPane() {
       flush
       noMax
       collapsed
-      actions={<ToChip box="pads" />}
+      actions={
+        <>
+          <ToChip box="pads" />
+          <button type="button" className="btn s icon" aria-label="Stop pads" aria-disabled={sounding ? undefined : true} title="Stop pads (music and ambience go on)" onClick={stopPads}>
+            <Icon name="stop" size="s" />
+          </button>
+        </>
+      }
       status={sounding ? { text: `${sounding} sounding`, tone: "live" } : undefined}
       summary={folded && board ? <span title={keys1 && keys.length ? `Pad keys ${keys.join(" ")} work while this box is folded` : undefined}>{board.name}</span> : undefined}
     >
@@ -181,7 +193,6 @@ function PadTile({ board, pad, rooms, now, keys1, inWhere, mine, press, hold }: 
   const on = now.rooms.some((r) => r.effects.some((e) => e.padKey === key));
   const onHere = mine.some((id) => padOnIn(now, id, key));
   const inRooms = many ? rooms.filter((r) => padOnIn(now, r.roomId, key)).map((r) => r.name) : [];
-  const toggle = pad.mode === "toggle";
   const isHold = pad.mode === "hold";
   const keyHeld = useRef(false);
   const icon: IconName = (pad.icon in ICONS ? pad.icon : "note") as IconName;
@@ -191,7 +202,7 @@ function PadTile({ board, pad, rooms, now, keys1, inWhere, mine, press, hold }: 
       className={cx("lv-pad", on && "on")}
       data-lv={`pad-${key}`}
       style={{ ["--pad" as string]: (PAD_COLOUR[pad.color] ?? PAD_COLOUR.bone).hex }}
-      aria-pressed={toggle ? (many ? onHere : on) : undefined}
+      aria-pressed={many ? onHere : on}
       aria-keyshortcuts={pad.key && keys1 ? pad.key : undefined}
       title={`${pad.label}${pad.key ? ` (key ${pad.key.toUpperCase()})` : ""}: ${MODE_NAME[pad.mode]}${inWhere}${inRooms.length ? `. Sounding in ${inRooms.join(" and ")}` : ""}`}
       onClick={isHold ? undefined : () => press("down")}
@@ -247,9 +258,13 @@ function PadTile({ board, pad, rooms, now, keys1, inWhere, mine, press, hold }: 
           <span className="sr-only">, sounding in {inRooms.join(" and ")}</span>
         </>
       )}
-      {toggle && on && !many ? (
-        <span className="lv-pad-on">On</span>
-      ) : pad.mode === "oneshot" || (toggle && on) ? null : (
+      {on && !many ? (
+        <>
+          {/* A space, so "On" is a word of its own in the name a screen reader hears. */}
+          {" "}
+          <span className="lv-pad-on">On</span>
+        </>
+      ) : pad.mode === "oneshot" || on ? null : (
         <span className="lv-pad-mode" title={MODE_NAME[pad.mode]}>
           <Icon name={MODE_ICON[pad.mode]} size="s" />
           <span className="sr-only">{MODE_NAME[pad.mode]}</span>

@@ -67,6 +67,7 @@ export class FakeLyreAudio extends TypedEmitter<LyreAudioEvents> implements Lyre
   stopAll = this.record("stopAll");
   setRoomVolume = this.record("setRoomVolume");
   firePad = this.record("firePad");
+  stopPads = this.record("stopPads");
   removeQueued = this.record("removeQueued");
   undoSceneStart = this.record("undoSceneStart");
   run = this.record("run");

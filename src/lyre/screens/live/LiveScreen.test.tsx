@@ -262,7 +262,7 @@ describe("BUG-20: stopping pads in Live", () => {
     await userEvent.click(door());
     await playOn(sound, 0.5);
     expect(door()).toHaveAttribute("aria-pressed", "true");
-    expect(door()).toHaveAccessibleName(/^Stone door grinds.*\bOn$/);
+    expect(door()).toHaveAccessibleName("Stone door grinds On");
     await userEvent.click(door());
     await playOn(sound, 0.1);
     expect(door()).toHaveAttribute("aria-pressed", "false");

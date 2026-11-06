@@ -498,7 +498,8 @@ describe("pads (PLY-8)", () => {
     await fire("door");
     await context.advance(0.35);
     expect(rooms.hear("table", "effects")).toBe(0);
-    expect(music()).toBe("m1");
+    // The scene's music went on throughout (m1 ends at 5 s and hands over to the playlist).
+    expect(music()).toBe("m2");
   });
 
   it("BUG-20: Stop pads stops every pad sound in every room and leaves music, ambience and other effects", async () => {

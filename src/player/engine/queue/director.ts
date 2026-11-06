@@ -133,10 +133,13 @@ export class Director extends TypedEmitter<DirectorEvents> {
         }
         const key = `${action.boardId}/${action.padId}`;
         const phase = action.phase ?? "down";
-        // One variant per press, the same in every room it plays in.
-        const trackId = phase === "down" ? this.pickVariant(key, pad.trackIds, pad.order) : pad.trackIds[0];
+        // One variant per press, the same in every room it plays in; a press that only stops it (BUG-20) takes none.
+        const starts = phase === "down" && roomsFor(action.target, [...this.rooms.rooms()]).some((id) => !this.player(id).padSounding(key));
+        const trackId = starts ? this.pickVariant(key, pad.trackIds, pad.order) : pad.trackIds[0];
         return this.eachRoom(action.target, (player) => (player.firePad(key, pad, phase, trackId), OK));
       }
+      case "stopPads":
+        return this.eachRoom(action.target ?? "all", (player) => (player.stopPads(seconds(action.fadeMs, DEFAULT_FADES.padStop)), OK));
       case "removeQueued":
         return this.eachRoom(action.target, (player) => (player.removeQueued(action.entryId) ? OK : fail("That track is no longer in the queue.")));
       case "undoSceneStart": {
