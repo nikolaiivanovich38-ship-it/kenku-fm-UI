@@ -50,7 +50,7 @@ const room = (roomId: string, name: string, over: Partial<RoomNowPlaying> = {}):
   effects: [],
   ...over,
 });
-const playing: LaneNowPlaying = { trackId: "t13", title: "Eerie", origin: { kind: "single" }, playlistId: null, position: 1, length: 10, paused: false, loading: false, place: null, playOrder: null };
+const playing: LaneNowPlaying = { trackId: "t13", title: "Eerie", origin: { kind: "single" }, playlistId: null, position: 1, length: 10, paused: false, loading: false, place: null, playOrder: null, gainDb: 0 };
 const withSide = (status: "joining" | "connected"): LyreOutputs => ({
   ...PROTOTYPE_OUTPUTS,
   bots: [PROTOTYPE_OUTPUTS.bots[0], { ...PROTOTYPE_OUTPUTS.bots[1], room: { serverId: "1001", channelId: "1012", status } }],

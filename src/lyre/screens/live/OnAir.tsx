@@ -6,6 +6,7 @@
  */
 import React, { useEffect, useRef, useState } from "react";
 
+import { normaliseHover } from "../../../common/domain";
 import type { LaneNowPlaying, MusicOrAmbience, RoomNowPlaying } from "../../audio/lyreAudio";
 import { Icon } from "../../kit/Icon";
 import { Pane } from "../../kit/Pane";
@@ -245,6 +246,8 @@ function Lane({ lane, room, roomName }: { lane: MusicOrAmbience; room: RoomNowPl
   const target = room ? { room: room.roomId } : undefined;
   const track = playing ? index.track(playing.trackId) : undefined;
   const shown = playing && track ? trackNameAt(track, playing.place, names) : playing ? { name: playing.title, own: playing.title } : null;
+  // PLY-15: how its volume is evened out where it plays, on hover only (Nik: no added words on screen).
+  const volumeHover = playing ? normaliseHover(track, playing.playlistId ? index.playlist(playing.playlistId) : null, live.normalise) : "";
   const single = !playing || playing.origin.kind === "single";
   const canNext = !!playing && (!single || (isMusic && !!room?.queued.length) || (isMusic && !!room?.upNext));
   let sub: React.ReactNode = null;
@@ -278,7 +281,7 @@ function Lane({ lane, room, roomName }: { lane: MusicOrAmbience; room: RoomNowPl
           </span>
           {playing?.paused && <span className="badge">Paused</span>}
         </div>
-        <div className="lv-lane-t ellipsis" title={shown ? (shown.name !== shown.own ? `Its own name: ${shown.own}` : shown.own) : undefined}>
+        <div className="lv-lane-t ellipsis" title={shown ? [shown.name !== shown.own ? `Its own name: ${shown.own}` : shown.own, volumeHover].join("\n") : undefined}>
           {shown ? (
             <>
               {shown.name}

@@ -11,6 +11,7 @@ import {
   resolveProfile,
   tracksInOrder,
   type DomainScene,
+  type LibraryNormalise,
   type PlayOrder,
   type ProfileOverrides,
   type RoomTarget,
@@ -49,6 +50,8 @@ export interface LiveData {
   orders: PlayOrderData | undefined;
   tagGroups: TagGroup[];
   keys1: boolean;
+  /** PLY-15: the library's Normalise volume setting, for the hover on a track on air. */
+  normalise: LibraryNormalise;
 }
 
 const LiveContext = createContext<LiveData | null>(null);

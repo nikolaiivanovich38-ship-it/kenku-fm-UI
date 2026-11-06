@@ -8,6 +8,7 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { normaliseHover } from "../../../common/domain";
 import { createFakeLyreApi } from "../../../common/lyre/fake";
 import type { LyreOutputs } from "../../../common/lyreOutputs";
 import { AppProviders } from "../../AppProviders";
@@ -341,6 +342,24 @@ describe("choosing what plays", () => {
     await startAbbey();
     expect(await region("Scene music").findByRole("button", { name: "Play order of Abbey: eerie, low energy: Shuffle, no repeat" })).toBeInTheDocument();
     expect(region("Scene music").getByRole("button", { name: "Play order of The Abbess: In order, no repeat" })).toBeInTheDocument();
+  });
+
+  it("hovering the track in an On air box says how its volume is evened out, with no words added on screen (PLY-15)", async () => {
+    const { sound, api } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    const settings = await api.library.normaliseSettings();
+    const t13 = (await api.library.listTracks()).find((t) => t.id === "t13")!;
+    const expected = normaliseHover(t13, null, settings);
+    // The title is the track's own name, then the volume line on its own line.
+    const name = region("On air: Table").getByTitle((_, element) => element?.getAttribute("title") === `${t13.title}\n${expected}`);
+    expect(name).toHaveTextContent(/^Eerie dread/);
+    expect(region("On air: Table").queryByText(/evened out/)).toBeNull();
+    // Normalise volume switched on in the Library: the hover follows.
+    await act(async () => void (await api.library.setNormaliseSettings({ on: true, target: "standard" })));
+    const on = normaliseHover({ ...t13 }, null, { on: true, target: "standard" });
+    expect(on).toMatch(/^Volume evened out|not measured yet/);
+    await waitFor(() => expect(region("On air: Table").getByTitle((_, element) => element?.getAttribute("title") === `${t13.title}\n${on}`)).toBeInTheDocument());
   });
 
   it("a scene's name for a track shows in its list and its On air box (DAT-14)", async () => {

@@ -16,6 +16,7 @@ import * as profiles from "./repo/profiles";
 import * as cueActions from "./repo/cueActions";
 import * as playOrders from "./repo/playOrders";
 import * as sceneNames from "./repo/sceneNames";
+import * as normalise from "./repo/normalise";
 import { search } from "./repo/search";
 import { getDomainLookup } from "./repo/domain";
 
@@ -235,6 +236,9 @@ const COMMANDS: [string, (s: Store, f: Fixture) => unknown][] = [
   ["updateTrack (shape)", (s, f) => tracks.updateTrack(s, f.a.id, { shape: "risesAndFalls" })],
   ["movePad (to spare, put aside)", (s, f) => boards.movePad(s, f.pads[1].id, "spare")],
   ["resizeBoard (packs the pads)", (s, f) => boards.resizeBoard(s, f.board.id, { cols: 2, rows: 3 })],
+  ["setLibraryNormalise", (s) => normalise.setLibraryNormalise(s, { on: true, target: "quiet" })],
+  ["setTrackNormalise", (s, f) => normalise.setTrackNormalise(s, f.a.id, "off")],
+  ["setPlaylistNormalise", (s, f) => normalise.setPlaylistNormalise(s, f.playlist.id, "on")],
   ["updateTrack (design fields)", (s, f) => tracks.updateTrack(s, f.c.id, { kind: "fx", title: "", metaTitle: "Gamma tag", role: "effect", loopable: "crossfade", profile: { endMs: 9 } })],
 ];
 
@@ -260,7 +264,7 @@ describe("undo and redo of every command (EDT-2)", () => {
   });
 
   it("covers every exported write function", async () => {
-    const modules = { tracks, roots, markers, playlists, boards, folders, tags, campaigns, profiles, cueActions, playOrders, sceneNames };
+    const modules = { tracks, roots, markers, playlists, boards, folders, tags, campaigns, profiles, cueActions, playOrders, sceneNames, normalise };
     const readers = /^(get|list|find|track|own|tagUsage|campaignsOf|resolve|suggest|tagsOf|requireFolderFor|getFollowWith|ITEM_TABLES|[A-Z_]+$)/;
     const writers = Object.values(modules)
       .flatMap((m) => Object.keys(m))

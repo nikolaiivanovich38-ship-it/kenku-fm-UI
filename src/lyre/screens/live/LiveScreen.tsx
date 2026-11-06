@@ -13,7 +13,8 @@
  */
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { useBoards, useCampaigns, useProfileOverrides, useTagGroups, usePlaylists, useTracks } from "../../api";
+import { DEFAULT_LIBRARY_NORMALISE } from "../../../common/domain";
+import { useBoards, useCampaigns, useLyreQuery, useProfileOverrides, useTagGroups, usePlaylists, useTracks } from "../../api";
 import { useLyreAudio, useNowPlaying, type LyreAudio } from "../../audio";
 import { loadInLive, useLiveSession } from "../../kit/liveSession";
 import { usePlayOrders } from "../../kit/playOrders";
@@ -115,6 +116,7 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
   const boards = useBoards().data;
   const overrides = useProfileOverrides().data;
   const tagGroups = useTagGroups().data;
+  const normalise = useLyreQuery("normalise-settings", (api) => api.library.normaliseSettings(), ["tracks"]).data;
   const orders = usePlayOrders();
   const names = useTrackNames();
   const { outputs, client } = useOutputs();
@@ -148,7 +150,7 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
 
   const data: LiveData | null =
     index && campaigns && campaign && session
-      ? { audio, now, index, campaigns, campaign, session, scene, sceneIndex, state, rooms, outputs, client, names, overrides: overrides ?? {}, orders, tagGroups: tagGroups ?? [], keys1 }
+      ? { audio, now, index, campaigns, campaign, session, scene, sceneIndex, state, rooms, outputs, client, names, overrides: overrides ?? {}, orders, tagGroups: tagGroups ?? [], keys1, normalise: normalise ?? DEFAULT_LIBRARY_NORMALISE }
       : null;
   const dataRef = useRef(data);
   dataRef.current = data;

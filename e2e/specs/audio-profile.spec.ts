@@ -265,3 +265,21 @@ test.describe("round 5: settings for the scene or session it was opened from, th
     await expect(page.getByTitle("Shape: Peaks then falls (suggested from its loudness)")).toBeVisible();
   });
 });
+
+/* Round 5, volume normalisation (design/prototype/ROUND5.md "Volume normalisation (PLY-15, DAT-15)"): built in wave 4. */
+test.describe("round 5: volume normalisation", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("round 5"));
+
+  test("PLY-15: the header shows the loudness and the gain where these settings apply; a track's Off wins over its playlist's On", async ({ page }) => {
+    await openRoute(page, "profile/t18/pl:p-ashen");
+    let norm = page.getByRole("group", { name: "Normalise volume" });
+    await expect(norm.getByRole("button", { name: "Library setting" })).toHaveAttribute("aria-pressed", "true");
+    await expect(norm).toHaveAccessibleDescription("-15.8 LUFS · -2.2 dB");
+    await expect(page.getByTitle("In the playlist Ashen King: the playlist's choice (On).")).toBeVisible();
+    await openRoute(page, "profile/t26/pl:p-ashen");
+    norm = page.getByRole("group", { name: "Normalise volume" });
+    await expect(norm.getByRole("button", { name: "Off" })).toHaveAttribute("aria-pressed", "true");
+    await expect(norm).toHaveAccessibleDescription("-22.7 LUFS · plays as it is");
+    await expect(page.getByTitle("In the playlist Ashen King: this track's own choice.")).toBeVisible();
+  });
+});

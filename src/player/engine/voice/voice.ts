@@ -4,8 +4,12 @@
  *
  * Graph per voice:
  *   pass layer -> pass gain ┐                      (the pass's shape: fades, End, loop crossfade)
- *   pass layer -> pass gain ┴> envelope -> volume -> bus input
- *                              (crossfade in, stop fades)  (the item's own volume)
+ *   pass layer -> pass gain ┴> envelope -> level -> volume -> bus input
+ *                              (crossfade in, stop fades)  (PLY-15 normalising gain)  (the item's own volume)
+ *
+ * The level stage is the track's volume normalisation (src/common/domain normalise.ts), a gain of its own so a
+ * change of the item's volume never touches it. Gains multiply in a floating-point graph, so its place in the chain
+ * does not change the sound: it is "before" the volume, fades and bus in the sense that they all apply on top.
  *
  * A "pass" is one play-through, from Start (or Loop start) to End. How passes
  * play is a PassPlan (passPlan.ts): the original straight fades, or a track's
@@ -26,7 +30,7 @@
  */
 import { TypedEmitter } from "tiny-typed-emitter";
 
-import type { AudioProfile } from "../../../common/domain";
+import { dbToGain, type AudioProfile } from "../../../common/domain";
 import { EngineContext, GainLike, NodeLike, rampTo, Scheduler } from "../audio/types";
 import type { BusId } from "../graph/mixer";
 import { Layer, PlayableSource } from "../sources/layers";
@@ -59,6 +63,8 @@ export interface VoiceOptions {
   profile?: AudioProfile;
   /** Fade the whole voice in from silence when it starts (a crossfade from what played before). Default 0. */
   crossfadeInSeconds?: number;
+  /** PLY-15: the track's normalising gain in dB (normalisedGainDb), applied under its volume and fades. Default 0. */
+  gainDb?: number;
 }
 
 export interface VoiceDeps {
@@ -115,6 +121,7 @@ export class Voice extends TypedEmitter<VoiceEvents> {
   private readonly profile: AudioProfile | null;
   private plan: PassPlan | null = null;
   private readonly volume: GainLike;
+  private readonly level: GainLike;
   private readonly envelope: GainLike;
   private source: PlayableSource | null = null;
   private current: Pass | null = null;
@@ -147,11 +154,15 @@ export class Voice extends TypedEmitter<VoiceEvents> {
       fadeOutSeconds: Math.max(0, options.fadeOutSeconds ?? 0),
       startAt: Math.max(0, options.startAt ?? (this.profile ? this.profile.startMs / 1000 : 0)),
       crossfadeInSeconds: Math.max(0, options.crossfadeInSeconds ?? 0),
+      gainDb: finiteDb(options.gainDb),
     };
     this.volume = this.context.createGain();
+    this.level = this.context.createGain();
     this.envelope = this.context.createGain();
     this.volume.gain.setValueAtTime(this.options.volume, this.context.currentTime);
-    this.envelope.connect(this.volume);
+    this.level.gain.setValueAtTime(dbToGain(this.options.gainDb), this.context.currentTime);
+    this.envelope.connect(this.level);
+    this.level.connect(this.volume);
     this.volume.connect(deps.destination);
 
     source.then(
@@ -178,6 +189,19 @@ export class Voice extends TypedEmitter<VoiceEvents> {
     this.options.volume = clamp01(volume);
     if (!this.isFinal()) {
       rampTo(this.volume.gain, this.options.volume, this.context.currentTime, seconds);
+    }
+  }
+
+  /** PLY-15: the normalising gain now applied, in dB. */
+  get gainDb(): number {
+    return this.options.gainDb;
+  }
+
+  /** PLY-15: change the normalising gain (the game master turned normalising on or off while it plays). */
+  setGainDb(db: number, seconds = SMOOTHING_SECONDS): void {
+    this.options.gainDb = finiteDb(db);
+    if (!this.isFinal()) {
+      rampTo(this.level.gain, dbToGain(this.options.gainDb), this.context.currentTime, seconds);
     }
   }
 
@@ -552,6 +576,7 @@ export class Voice extends TypedEmitter<VoiceEvents> {
     }
     this.outgoing = this.current = this.next = null;
     this.envelope.disconnect();
+    this.level.disconnect();
     this.volume.disconnect();
     this.source?.release();
     this.source = null;
@@ -590,6 +615,11 @@ function releasePass(pass: Pass) {
   pass.layer?.release();
   pass.layer = null;
   pass.gain.disconnect();
+}
+
+/** A gain in dB within what normalising can ask (-60 to +12 dB); anything else plays as it is. */
+function finiteDb(db: number | undefined): number {
+  return typeof db === "number" && Number.isFinite(db) ? Math.max(-60, Math.min(12, db)) : 0;
 }
 
 function clamp01(value: number) {

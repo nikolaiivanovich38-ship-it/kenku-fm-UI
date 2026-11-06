@@ -4,22 +4,21 @@
  * The sample library has three files that moved (t19, t26, t37); the sample file to open is "Curse of Strahd from Sam.lyre".
  */
 import type { Page } from "@playwright/test";
-import { expect, expectFailureUntilBuilt, test } from "./support/test";
+import { expect, test } from "./support/test";
 import { openRoute } from "./support/target";
 import { dropFiles } from "./support/drop";
 
 const region = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
 
-test.beforeEach(() => expectFailureUntilBuilt("round 5"));
-
 test.describe("DAT-7 back up, move or share", () => {
   test("saves the whole library to one file, without the audio files unless asked", async ({ page }) => {
+    // The message names the file and its real size; the prototype's "2 MB" was a made-up figure (lead's decision, 6 Nov).
     await openRoute(page, "backup");
     const save = region(page, "Save to a file");
     await expect(save.getByRole("radio", { name: /^The whole library/ })).toBeChecked();
     await expect(save.getByRole("checkbox", { name: /^Include the audio files/ })).not.toBeChecked();
     await save.getByRole("button", { name: "Save to a file…" }).click();
-    await expect(save.getByRole("status")).toContainText("Saved Lyre library 2026-11-05.lyre (2 MB)");
+    await expect(save.getByRole("status")).toContainText(/Saved Lyre library \d{4}-\d{2}-\d{2}\.lyre \(\d+(\.\d+)? (KB|MB)\)/);
   });
 
   test("saves one playlist, campaign, session, scene, pad board or the tags, with the audio files if ticked", async ({ page }) => {

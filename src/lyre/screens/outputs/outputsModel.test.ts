@@ -10,7 +10,7 @@ const withBots = (change: (bots: LyreOutputs["bots"]) => LyreOutputs["bots"]): L
 const sideIn = (channelId: string, status: "connected" | "joining" = "connected") =>
   withBots(([table, side]) => [table, { ...side, room: { serverId: channelId.startsWith("102") ? "1002" : "1001", channelId, status } }]);
 const room = (over: Partial<RoomNowPlaying>): RoomNowPlaying => ({ roomId: TABLE_BOT, name: "Table", volume: 1, music: null, ambience: null, upNext: null, queued: [], effects: [], ...over });
-const lane = (paused = false): LaneNowPlaying => ({ trackId: "t1", title: "Tavern", origin: { kind: "single" } as never, playlistId: null, position: 1, length: 9, paused, loading: false, place: null, playOrder: null });
+const lane = (paused = false): LaneNowPlaying => ({ trackId: "t1", title: "Tavern", origin: { kind: "single" } as never, playlistId: null, position: 1, length: 9, paused, loading: false, place: null, playOrder: null, gainDb: 0 });
 
 describe("outputsModel", () => {
   it("names an output after its room, or after the bot while it is in none", () => {

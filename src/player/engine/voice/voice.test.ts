@@ -331,3 +331,40 @@ describe("Voice releases everything (BUG-4)", () => {
     expect(held()).toEqual(before);
   }, 60_000);
 });
+
+describe.each(["buffer", "stream"] as const)("PLY-15 normalising gain (%s)", (kind) => {
+  it("plays at its normalising gain before its own volume: -6 dB at volume 0.5 is about a quarter", async () => {
+    const voice = await play(kind, 30, { volume: 0.5, gainDb: -6 });
+    await context.advance(0.1);
+    expect(voice.gainDb).toBe(-6);
+    expect(level()).toBeCloseTo(0.5 * 0.501, 2);
+  });
+
+  it("turns up a quiet track (+12 dB is about four times), with nothing set playing as it is", async () => {
+    await play(kind, 30, { gainDb: 12 });
+    await context.advance(0.1);
+    expect(level()).toBeCloseTo(3.981, 2);
+    const plain = await play(kind, 30);
+    expect(plain.gainDb).toBe(0);
+  });
+
+  it("changes its gain smoothly while it plays, and keeps its fades and volume", async () => {
+    const voice = await play(kind, 30, { volume: 0.8 });
+    await context.advance(0.1);
+    voice.setGainDb(-6);
+    await context.advance(0.5);
+    expect(level()).toBeCloseTo(0.8 * 0.501, 2);
+    voice.setVolume(0.4);
+    await context.advance(0.5);
+    expect(level()).toBeCloseTo(0.4 * 0.501, 2);
+  });
+
+  it("leaves no node behind when it ends", async () => {
+    const before = held();
+    const voice = await play(kind, 30, { gainDb: 4.6 });
+    await context.advance(0.1);
+    await voice.stop(0);
+    await context.flush();
+    expect(held()).toEqual(before);
+  });
+});
