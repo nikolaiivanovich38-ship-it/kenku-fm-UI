@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Shell } from "./Shell";
+import { createFakeLyreApi } from "../../common/lyre/fake";
+import { LyreApiProvider } from "../api";
 import { ShellDataProvider } from "./ShellData";
 import { expectNoAxeViolations } from "../test/axe";
 import { loadShellSettings } from "./settings";
@@ -193,9 +195,11 @@ describe("themes (UX-11): Candlelit Library by default, each campaign's own, or 
 
   it("uses the theme chosen in Look and feel everywhere, and remembers it", async () => {
     render(
-      <ShellDataProvider value={data}>
-        <Shell screens={SHELL_SCREENS} />
-      </ShellDataProvider>,
+      <LyreApiProvider api={createFakeLyreApi()}>
+        <ShellDataProvider value={data}>
+          <Shell screens={SHELL_SCREENS} />
+        </ShellDataProvider>
+      </LyreApiProvider>,
     );
     go("look");
     await userEvent.setup().selectOptions(screen.getByRole("combobox", { name: "Theme" }), "Parchment (light)");
