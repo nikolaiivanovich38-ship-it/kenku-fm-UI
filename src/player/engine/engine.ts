@@ -53,7 +53,8 @@ const PROGRESS_INTERVAL_MS = 1000;
 export class PlaybackEngine extends TypedEmitter<EngineEvents> {
   readonly mixer: Mixer;
   private readonly context: EngineContext;
-  private readonly scheduler: Scheduler;
+  /** The engine's clock for timers (round 7: the Director's waits and hand-overs run on it, as voices do). */
+  readonly scheduler: Scheduler;
   private readonly loader: SourceLoader | null;
   private readonly live: Voice[] = [];
   private readonly progressListeners = new Set<(report: VoiceProgress[]) => void>();

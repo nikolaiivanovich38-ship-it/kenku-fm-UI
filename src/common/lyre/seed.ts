@@ -7,7 +7,7 @@
  * the prototype names files. A pad file whose name (without its _01 number) is an FX track's file plays that
  * track; the 60 pad files with no such track are left out, so the Library keeps its 69 tracks.
  */
-import { shapeFromPeaks, DEFAULT_LIBRARY_NORMALISE, type AudioProfileInput, type LibraryNormalise, type LoopAdvice, type NormaliseChoice, type PadMode, type PlayOrder, type PlayOrderOverrides, type PlaylistRule, type ProfileOverrides, type TrackLoudness, type TrackRole, type TrackShape } from "../domain";
+import { shapeFromPeaks, DEFAULT_LIBRARY_NORMALISE, type AudioProfileInput, type CueStep, type MovesOn, type LibraryNormalise, type LoopAdvice, type NormaliseChoice, type PadMode, type PlayOrder, type PlayOrderOverrides, type PlaylistRule, type ProfileOverrides, type TrackLoudness, type TrackRole, type TrackShape } from "../domain";
 import { fileAddress } from "./media";
 import { prototypeLevels } from "./prototypeLevels";
 import type { CampaignInfo, CampaignTheme, FolderRoot, LibraryTrack, MoveReport, Pad, PadBoard, PadColor, PlaylistInfo, SessionStatus, TagGroup } from "./api";
@@ -303,7 +303,7 @@ function profile(p: ProtoProfile): AudioProfileInput {
 }
 
 function tracks(now: number): LibraryTrack[] {
-  const music = MUSIC.map((r, i): Omit<LibraryTrack, "url" | "sizeBytes" | "normalise" | "loudness"> => ({
+  const music = MUSIC.map((r, i): Omit<LibraryTrack, "url" | "sizeBytes" | "normalise" | "loudness" | "fadesOut" | "resume" | "follow"> => ({
     id: r[0],
     kind: "music",
     title: r[1],
@@ -326,19 +326,19 @@ function tracks(now: number): LibraryTrack[] {
     addedAt: i >= 42 ? now - (MUSIC.length - i) : i < 20 ? SEP_12 : OCT_30,
     isNew: i >= 42,
   }));
-  const ambience = AMBIENCE.map((r): Omit<LibraryTrack, "url" | "sizeBytes" | "normalise" | "loudness"> => ({
+  const ambience = AMBIENCE.map((r): Omit<LibraryTrack, "url" | "sizeBytes" | "normalise" | "loudness" | "fadesOut" | "resume" | "follow"> => ({
     id: r[0], kind: "amb", title: r[1], metaTitle: "", fileName: r[2], durationMs: secs(240), role: "loop_bed", loop: "yes", energy: 1,
     tags: { mood: [...r[3]], motif: [], scene: [...r[4]] }, profile: null, shape: null, suggestedShape: null,
     artist: "Field recording", album: "Ambience", folder: "H:\\Audio\\Ambience", notes: "", addedAt: SEP_12, isNew: false,
   }));
-  const effects = EFFECTS.map((r): Omit<LibraryTrack, "url" | "sizeBytes" | "normalise" | "loudness"> => ({
+  const effects = EFFECTS.map((r): Omit<LibraryTrack, "url" | "sizeBytes" | "normalise" | "loudness" | "fadesOut" | "resume" | "follow"> => ({
     id: r[0], kind: "fx", title: r[1], metaTitle: "", fileName: r[2], durationMs: secs(r[3]), role: "effect", loop: /loop/.test(r[2]) ? "yes" : "no", energy: 2,
     tags: { mood: [...r[4]], motif: [], scene: [...r[5]] }, profile: null, shape: null, suggestedShape: null,
     artist: "Sound effect", album: "Effects", folder: "H:\\Audio\\Effects", notes: "", addedAt: SEP_12, isNew: false,
   }));
   // The prototype has no files; each sample track gets the address its file would have.
   return [...music, ...ambience, ...effects].map(
-    (t): LibraryTrack => ({ ...t, normalise: NORMALISE_TRACKS[t.id] ?? null, loudness: MEASURED[t.id] ? { ...MEASURED[t.id] } : null, url: fileAddress(`${t.folder}\\${t.fileName}`), sizeBytes: null }),
+    (t): LibraryTrack => ({ ...t, normalise: NORMALISE_TRACKS[t.id] ?? null, loudness: MEASURED[t.id] ? { ...MEASURED[t.id] } : null, url: fileAddress(`${t.folder}\\${t.fileName}`), sizeBytes: null, fadesOut: false, resume: false, follow: null }),
   );
 }
 
@@ -347,11 +347,11 @@ function playlists(): PlaylistInfo[] {
     // data.js: every ambience playlist repeats all; a few have an order of their own.
     const order = OWN_ORDERS[p.id] ? { ...OWN_ORDERS[p.id] } : p.lane === "amb" ? { shuffle: false, repeat: "all" as const } : null;
     const normalise = NORMALISE_PLAYLISTS[p.id] ?? null;
-    if (p.kind === "manual") return { id: p.id, name: p.name, lane: p.lane, order, normalise, kind: "manual", trackIds: [...p.items], notes: "" };
+    if (p.kind === "manual") return { id: p.id, name: p.name, lane: p.lane, order, normalise, kind: "manual", trackIds: [...p.items], notes: "", folderId: null, dividers: [] };
     const rule: PlaylistRule = { conds: p.rule.conds.map((c) => ({ ...c, values: [...c.values] })) };
     if (p.rule.energy) rule.energy = [p.rule.energy[0], p.rule.energy[1]];
     if (p.rule.notRole === "Sting") rule.leaveOutStings = true;
-    return { id: p.id, name: p.name, lane: p.lane, order, normalise, kind: "dynamic", rule, notes: "" };
+    return { id: p.id, name: p.name, lane: p.lane, order, normalise, kind: "dynamic", rule, notes: "", folderId: null, dividers: [] };
   });
 }
 
@@ -375,8 +375,9 @@ function boards(): PadBoard[] {
     volume: 0.8,
     fadeOutMs: 1500,
     aside: ASIDE.has(p.id),
+    steps: null as Pad["steps"],
   });
-  return BOARDS.map((b) => ({ id: b.id, name: b.name, cols: b.cols, rows: b.rows, slots: b.slots.map((p) => (p ? pad(p) : null)), spare: b.spare.map(pad) }));
+  return BOARDS.map((b) => ({ id: b.id, name: b.name, cols: b.cols, rows: b.rows, slots: b.slots.map((p) => (p ? pad(p) : null)), spare: b.spare.map(pad), dividers: [] as PadBoard["dividers"], folderId: null as string | null }));
 }
 
 function campaigns(soundRef: (id: string) => { kind: "track" | "playlist"; id: string }): CampaignInfo[] {
@@ -413,10 +414,20 @@ function campaigns(soundRef: (id: string) => { kind: "track" | "playlist"; id: s
         boardIds: [...sc.boards],
         trackNames: { ...(SCENE_NAMES[`sc:${c.id}:${s.id}:${sc.id}`] ?? {}) },
         repeatOnes: [] as string[],
+        steps: null as CueStep[] | null,
+        movesOn: { when: "stay" } as MovesOn,
       })),
     })),
   }));
 }
+
+/**
+ * Round 7 (r7tags.js): other words for three moods, and Grief inside Melancholy (filtering by Melancholy finds the
+ * grieving tracks too; no dynamic rule names either, so no playlist changes).
+ */
+const TAG_META: Record<string, Record<string, { parent?: string; also?: string[] }>> = {
+  mood: { Melancholy: { also: ["sad", "sorrowful"] }, Dread: { also: ["fear", "horror"] }, Tense: { also: ["suspense"] }, Grief: { parent: "Melancholy" } },
+};
 
 /* ---------- DAT-13: the prototype's loudness (prototypeLevels.ts, FND-17: one copy) ---------- */
 
@@ -436,7 +447,13 @@ export function prototypeSeed(now: number = Date.UTC(2026, 10, 5, 12)): SeedData
     for (const [trackId, p] of Object.entries(byTrack)) overrides[key][trackId] = profile(p);
   }
   return {
-    tagGroups: TAG_GROUPS.map(([id, name]) => ({ id, name, values: [...TAG_VALUES[id]] })),
+    tagGroups: TAG_GROUPS.map(([id, name]) => ({
+      id,
+      name,
+      values: [...TAG_VALUES[id]],
+      color: null as PadColor | null,
+      tags: TAG_VALUES[id].map((tag) => ({ name: tag, parent: TAG_META[id]?.[tag]?.parent ?? null, also: [...(TAG_META[id]?.[tag]?.also ?? [])], color: null as PadColor | null })),
+    })),
     tracks: allTracks,
     playlists: playlists(),
     boards: boards(),

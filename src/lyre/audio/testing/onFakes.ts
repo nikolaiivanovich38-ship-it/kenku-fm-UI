@@ -12,7 +12,7 @@ import { PlaybackEngine } from "../../../player/engine/engine";
 import { OutputDeviceChooser, type OutputDeviceInfo } from "../../../player/engine/preview/outputDevices";
 import { PreviewPlayer } from "../../../player/engine/preview/previewPlayer";
 import { fakePreviewOutput } from "../../../player/engine/preview/testing/fakePreviewOutput";
-import type { PadSound, ShowData } from "../../../player/engine/queue/library";
+import { nextSceneIn, type PadSound, type ShowData } from "../../../player/engine/queue/library";
 import { PlayerAudioLink, RoomMixer, RoomStreams, type FrameTap, type TapFrame } from "../../../player/engine/rooms";
 import { SourceLoader, type MediaRequest } from "../../../player/engine/sources/sourceLoader";
 import { FakeAudioContext, FakeBuffer, type FakeGain } from "../../../player/engine/testing/fakeAudio";
@@ -44,6 +44,8 @@ export function staticAudioLibrary(data: AudioTestData): LyreAudioLibrary {
     normaliseSettings: () => data.normalise ?? DEFAULT_LIBRARY_NORMALISE,
     trackOrders: () => data.trackOrders ?? {},
     repeatOnes: () => data.repeatOnes ?? {},
+    crossfade: () => data.crossfade ?? { ms: 3000, curve: "even" },
+    nextScene: (ref) => nextSceneIn(data.campaigns, ref),
   };
 }
 

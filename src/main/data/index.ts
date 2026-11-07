@@ -23,6 +23,7 @@ export * from "./repo/profiles";
 export * from "./repo/playOrders";
 export * from "./repo/sceneNames";
 export * from "./repo/round6";
+export * from "./repo/round7";
 export * from "./repo/cueActions";
 export * from "./repo/domain";
 export * from "./repo/search";

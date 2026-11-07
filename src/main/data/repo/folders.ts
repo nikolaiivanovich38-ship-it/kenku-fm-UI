@@ -66,7 +66,7 @@ export function createFolder(
   const id = newId(input.id);
   const scope = v.oneOf("scope", input.scope, FOLDER_SCOPES);
   const name = v.requiredName("name", input.name);
-  const color = v.nullableColor("color", input.color);
+  const color = v.nullablePaletteColor("color", input.color);
   const parentId = requireFolderFor(store, input.parentId, scope);
   store.change(`Add folder "${name}"`, () => {
     const position = positionFor(store, siblings(scope, parentId), input.placement ?? "end");
@@ -118,7 +118,7 @@ export function updateFolder(
   const patch = patchOf(changes, ["name", "color", "collapsed"]);
   const folderId = requireRow(store, "folders", "folder", id);
   const name = patch.name === undefined ? undefined : v.requiredName("name", patch.name);
-  const color = "color" in patch ? v.nullableColor("color", patch.color) : undefined;
+  const color = "color" in patch ? v.nullablePaletteColor("color", patch.color) : undefined;
   const collapsed = patch.collapsed === undefined ? undefined : v.boolean("collapsed", patch.collapsed);
   store.change("Change folder", () => {
     if (name !== undefined) store.run("UPDATE folders SET name = ? WHERE id = ?", name, folderId);

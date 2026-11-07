@@ -16,11 +16,19 @@
  */
 import path from "path";
 
-import { parseKeyOfPlace, parsePlaceKey, type ProfilePlace, type SoundRef, type UsePlace } from "../../common/domain";
+import { parseKeyOfPlace, parsePlaceKey, type CueStep, type ProfilePlace, type SoundRef, type UsePlace } from "../../common/domain";
 import type { BringInChoices, BringInReport, DuplicateChoice, IncomingItem, LibraryTrack, PadBoard, PlaylistInfo, TagGroup } from "../../common/lyre/api";
 import { plural, shownTitle } from "../../common/lyre/text";
 import {
   addPad,
+  addPlaylistDivider,
+  listPlaylistItems,
+  setBoardDivider,
+  setMovesOn,
+  setSteps,
+  setTagSynonyms,
+  setTrackPlay,
+  updateTag,
   addSceneBoards,
   addSceneMusic,
   addToCampaign,
@@ -222,6 +230,9 @@ export async function bringIn(store: Store, file: LyreFileLibrary, mine: Current
   const trackMap = new Map<string, string>();
   const playlistMap = new Map<string, string>();
   const boardMap = new Map<string, string>();
+  /** Round 7: the file's pads, by id, to the pads they became; the steps to bring once every place is in. */
+  const padMap = new Map<string, { boardId: string; padId: string }>();
+  const stepsToBring: { owner: { sceneId: string } | { padId: string }; steps: CueStep[] }[] = [];
   /** Places this bring-in made (their audio settings and play orders come with them), file key → new place. */
   const sceneMap = new Map<string, { campaignId: string; sessionId: string; sceneId: string }>();
   const sessionMap = new Map<string, { campaignId: string; sessionId: string }>();
@@ -262,8 +273,10 @@ export async function bringIn(store: Store, file: LyreFileLibrary, mine: Current
     const groupOf = new Map<string, string>();
     for (const g of file.tagGroups) {
       const yours = groups.find((x) => x.id === g.id) ?? groups.find((x) => same(x.name, g.name));
-      groupOf.set(g.id, yours ? yours.id : createTagGroup(store, { name: g.name }).id);
+      // DAT-10: a group made here takes the file's colour; yours keep theirs.
+      groupOf.set(g.id, yours ? yours.id : createTagGroup(store, { name: g.name, color: g.color ?? null }).id);
     }
+    const madeTags = new Set<string>();
     // Values the file's tracks, rules and pads name, even ones its tag list leaves out.
     const wanted = new Map<string, Set<string>>();
     const want = (group: string, value: string) => {
@@ -279,12 +292,23 @@ export async function bringIn(store: Store, file: LyreFileLibrary, mine: Current
       const mineIn = new Map(listTags(store, { groupId: groupOf.get(group) }).map((t) => [nameKey(t.name), t.id]));
       for (const value of values) {
         // A value made here is reused for the same value in another letter case.
-        const id = mineIn.get(nameKey(value)) ?? createTag(store, { groupId: groupOf.get(group) as string, name: value.trim() }).id;
+        const known = mineIn.get(nameKey(value));
+        const id = known ?? createTag(store, { groupId: groupOf.get(group) as string, name: value.trim() }).id;
+        if (!known) madeTags.add(id);
         mineIn.set(nameKey(value), id);
         ids.set(`${group}\u0000${value.toLowerCase()}`, id);
       }
     }
     tagIdOf = (group, value) => ids.get(`${group}\u0000${value.toLowerCase()}`);
+    // DAT-10: a tag made here sits where it sat in the file, with its other words and colour (yours are not changed).
+    for (const g of file.tagGroups)
+      for (const t of g.tags ?? []) {
+        const tagId = tagIdOf(g.id, t.name);
+        if (!tagId || !madeTags.has(tagId)) continue;
+        const parentId = t.parent ? tagIdOf(g.id, t.parent) : undefined;
+        if (parentId || t.color) updateTag(store, tagId, { ...(parentId ? { parentId } : {}), ...(t.color ? { color: t.color } : {}) });
+        if (t.also.length) setTagSynonyms(store, tagId, t.also);
+      }
     return groupOf;
   };
   let groupOf = new Map<string, string>();
@@ -344,6 +368,8 @@ export async function bringIn(store: Store, file: LyreFileLibrary, mine: Current
       const tags = tagIdsOf(t);
       if (tags.length) void tagTracks(store, [track.id], tags);
       if (t.normalise) setTrackNormalise(store, track.id, t.normalise);
+      // PLY-4: how it plays (its Follow with comes with the settings, once playlists are in).
+      if (t.fadesOut || t.resume) setTrackPlay(store, track.id, { fadesOut: !!t.fadesOut, resume: !!t.resume });
     });
     // The track that has their audio comes earlier in the file, so it is made by now.
     for (const t of sharing) {
@@ -389,6 +415,13 @@ export async function bringIn(store: Store, file: LyreFileLibrary, mine: Current
     if (p.kind === "manual") {
       const ids = tracksOf(p.trackIds);
       if (ids.length) addTracksToPlaylist(store, made.id, ids);
+      // ORG-4: its dividers, above the same tracks (counted among the tracks that came in).
+      const kept = p.trackIds.map((id, i) => ({ i, id: trackMap.get(id) })).filter((x) => !!x.id);
+      for (const d of p.dividers ?? []) {
+        const at = kept.filter((x) => x.i < d.at).length;
+        const items = listPlaylistItems(store, made.id).filter((i) => i.kind === "track");
+        addPlaylistDivider(store, made.id, d.name, at < items.length ? { before: items[at].id } : "end");
+      }
     }
     if (p.order) setPlayOrder(store, made.id, null, p.order);
     if (p.normalise) setPlaylistNormalise(store, made.id, p.normalise);
@@ -423,11 +456,15 @@ export async function bringIn(store: Store, file: LyreFileLibrary, mine: Current
     }
     const name = choice === "keepBoth" ? `${b.name}${from}` : b.name;
     const made = createBoard(store, { title: name, cols: b.cols, rows: b.rows });
-    b.slots.forEach((pad, i) => pad && addPad(store, made.id, { ...padInput(pad), at: { row: Math.floor(i / b.cols), col: i % b.cols } }));
+    b.slots.forEach((pad, i) => pad && padMap.set(pad.id, { boardId: made.id, padId: addPad(store, made.id, { ...padInput(pad), at: { row: Math.floor(i / b.cols), col: i % b.cols } }).id }));
     for (const pad of b.spare) {
       const added = addPad(store, made.id, { ...padInput(pad), at: "spare" });
+      padMap.set(pad.id, { boardId: made.id, padId: added.id });
       if (!pad.aside) store.run("UPDATE pads SET put_aside = 0 WHERE id = ?", added.id);
     }
+    // ORG-4: its dividers; PLY-8: its pads' own steps come with the settings, once every place is in.
+    for (const d of b.dividers ?? []) setBoardDivider(store, made.id, d.row, d.name);
+    for (const pad of [...b.slots, ...b.spare]) if (pad?.steps) stepsToBring.push({ owner: { padId: padMap.get(pad.id)?.padId as string }, steps: pad.steps });
     boardMap.set(b.id, made.id);
     (choice === "keepBoth" ? report.keptBoth : report.added).push({ kind: "board", id: made.id, name });
   };
@@ -458,6 +495,9 @@ export async function bringIn(store: Store, file: LyreFileLibrary, mine: Current
         const mapped = trackMap.get(trackId);
         if (mapped && name.trim()) setSceneTrackName(store, scene.id, mapped, name);
       }
+      // PLY-8: what it does when it starts (its steps once every place is in), and whether it moves on by itself.
+      if (sc.steps) stepsToBring.push({ owner: { sceneId: scene.id }, steps: sc.steps });
+      if (sc.movesOn && sc.movesOn.when !== "stay") setMovesOn(store, scene.id, sc.movesOn);
       // PLY-17: the scene's Repeat ones come with it.
       for (const trackId of sc.repeatOnes) {
         const mapped = trackMap.get(trackId);
@@ -488,8 +528,39 @@ export async function bringIn(store: Store, file: LyreFileLibrary, mine: Current
     (choice === "keepBoth" ? report.keptBoth : report.added).push({ kind: "campaign", id: made.id, name });
   };
 
+  /** PLY-8: a step of the file with what it names mapped to what came in; null when that did not come. */
+  const stepIn = (st: CueStep): CueStep | null => {
+    if (st.do === "music" || st.do === "ambience" || st.do === "play") {
+      const what = refOf(st.what);
+      return what ? { ...st, what } : null;
+    }
+    if (st.do === "board") {
+      const boardId = boardMap.get(st.boardId);
+      return boardId ? { ...st, boardId } : null;
+    }
+    if (st.do === "pad") {
+      const pad = padMap.get(st.padId);
+      return pad ? { do: "pad", ...pad } : null;
+    }
+    if (st.do === "scene") {
+      const scene = sceneMap.get(`${st.scene.campaignId}:${st.scene.sessionId}:${st.scene.sceneId}`);
+      return scene ? { do: "scene", scene } : null;
+    }
+    return { ...st };
+  };
+
   /** Audio settings and play orders of the places this bring-in made (yours are never changed by a file). */
   const bringSettings = () => {
+    // SHW-3: Follow with of the tracks this bring-in made; PLY-8: the own steps of its scenes and pads.
+    for (const t of file.tracks) {
+      const mine = trackMap.get(t.id);
+      const follow = t.follow ? refOf(t.follow) : null;
+      if (mine && newTracks.has(mine) && follow && !(follow.kind === "track" && follow.id === mine)) setTrackPlay(store, mine, { follow });
+    }
+    for (const { owner, steps } of stepsToBring) {
+      if ("padId" in owner && !owner.padId) continue;
+      setSteps(store, owner, steps.map(stepIn).filter((x): x is CueStep => x !== null));
+    }
     for (const [key, byTrack] of Object.entries(file.overrides)) {
       const place = parsePlaceKey(key);
       const mapped = place && mapProfilePlace(place);

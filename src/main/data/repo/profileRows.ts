@@ -30,7 +30,7 @@ export type ProfileRow = {
   fade_out_shape: number | null;
 };
 
-type Marker = { atMs: number; label: string };
+type Marker = { atMs: number; label: string; mix?: boolean };
 
 function settingsOf(profile: AudioProfileInput): Record<string, SQLInputValue> {
   return {
@@ -82,14 +82,15 @@ export function findProfile(store: Store, trackId: string, place: ProfilePlaceRo
 export function markersOf(store: Store, profileIds: string[]): Map<string, Marker[]> {
   const out = new Map<string, Marker[]>();
   if (profileIds.length === 0) return out;
-  const rows = store.all<{ profile_id: string; at_ms: number; label: string }>(
-    `SELECT profile_id, at_ms, label FROM audio_profile_markers
+  const rows = store.all<{ profile_id: string; at_ms: number; label: string; mix_out: number }>(
+    `SELECT profile_id, at_ms, label, mix_out FROM audio_profile_markers
      WHERE profile_id IN (SELECT value FROM json_each(?)) ORDER BY profile_id, position`,
     JSON.stringify(profileIds),
   );
   for (const row of rows) {
     const list = out.get(row.profile_id);
-    const marker = { atMs: row.at_ms, label: row.label };
+    // DAT-3 (version 6): the mix-out marker says so; the others carry no `mix`.
+    const marker: Marker = row.mix_out === 1 ? { atMs: row.at_ms, label: row.label, mix: true } : { atMs: row.at_ms, label: row.label };
     if (list) list.push(marker);
     else out.set(row.profile_id, [marker]);
   }
@@ -145,7 +146,14 @@ export function saveProfile(store: Store, trackId: string, place: ProfilePlaceRo
     store.run(`INSERT INTO audio_profiles (${all.join(", ")}) VALUES (${placeholders(all.length)})`, ...all.map((n) => columns[n]));
   }
   (profile.markers ?? []).forEach((marker, position) =>
-    store.run("INSERT INTO audio_profile_markers (profile_id, position, at_ms, label) VALUES (?, ?, ?, ?)", id, position, marker.atMs, marker.label),
+    store.run(
+      "INSERT INTO audio_profile_markers (profile_id, position, at_ms, label, mix_out) VALUES (?, ?, ?, ?, ?)",
+      id,
+      position,
+      marker.atMs,
+      marker.label,
+      marker.mix ? 1 : 0,
+    ),
   );
 }
 

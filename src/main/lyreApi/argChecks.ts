@@ -132,6 +132,20 @@ const padPatch = object({
   "sound?": object({ "kind?": text(MAX_ID), "trackIds?": list(id, 10_000), "order?": text(MAX_ID), "tag?": nullable(tagRef) }),
 });
 
+/* ---------- round 7 ---------- */
+
+/** PLY-8: steps are checked one by one by the data layer (checkSteps and each step's facts); here only their shape. */
+const steps = nullable(list(object({ do: text(MAX_ID) }), 50));
+const movesOn = object({ when: text(MAX_ID), "ms?": whole });
+const color = nullable(text(MAX_ID));
+/** ORG-5: where a drop goes (a room's Up next is the audio host's, so it is not one of these). */
+const dropPlace = branch("kind", {
+  playlist: object({ playlistId: id }),
+  board: object({ boardId: id }),
+  scene: object({ campaignId: id, sessionId: id, sceneId: id }),
+});
+const folderKind = literal("playlists", "boards");
+
 interface Shape {
   /** One check per argument, in order; arguments after `required` may be left out. */
   args: Check[];
@@ -147,7 +161,10 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
   library: {
     listTracks: read(),
     search: read(object({ text: text(1_000), "lane?": text(MAX_ID), "limit?": whole, "shapes?": list(text(MAX_ID), 20) })),
-    updateTrack: write(id, object({ "title?": text(), "notes?": text(), "energy?": nullable(number), "role?": nullable(text(MAX_ID)), "loop?": nullable(text(MAX_ID)), "kind?": text(MAX_ID) })),
+    updateTrack: write(
+      id,
+      object({ "title?": text(), "notes?": text(), "energy?": nullable(number), "role?": nullable(text(MAX_ID)), "loop?": nullable(text(MAX_ID)), "kind?": text(MAX_ID), "fadesOut?": bool, "resume?": bool, "follow?": nullable(soundRef) }),
+    ),
     listFolders: read(),
     showInFolder: write(id),
     peaksOf: read(id),
@@ -157,10 +174,30 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
     setNormalise: write(id, nullable(text(MAX_ID))),
     // ORG-14: Find in Live (words, a lane, the session Live runs).
     find: read(object({ text: text(1_000), "lane?": text(MAX_ID), "limit?": whole, "in?": owner })),
+    // ORG-5: a drop or Add to….
+    put: write(object({ place: dropPlace, what: object({ kind: literal("tracks", "playlists", "boards"), ids: list(id, 10_000) }), "from?": id, "move?": bool })),
   },
   tags: {
     listGroups: read(),
     tagTracks: write(object({ trackIds: list(id), "add?": list(tagRef, 1_000), "remove?": list(tagRef, 1_000) })),
+    // DAT-10: the vocabulary.
+    createGroup: withOptional(write(text(500), color), 1),
+    updateGroup: write(id, object({ "name?": text(500), "color?": color })),
+    moveGroup: write(id, whole),
+    deleteGroup: write(id),
+    createTag: withOptional(write(id, text(500), nullable(text(500))), 2),
+    renameTag: write(tagRef, text(500)),
+    mergeTag: write(tagRef, text(500)),
+    deleteTag: write(tagRef),
+    updateTag: write(tagRef, object({ "parent?": nullable(text(500)), "also?": list(text(200), 100), "color?": color })),
+    moveTag: write(tagRef, whole),
+  },
+  folders: {
+    list: read(folderKind),
+    create: write(folderKind, object({ name: text(500), "parentId?": nullable(id), "moveIn?": id })),
+    update: write(id, object({ "name?": text(500), "color?": color })),
+    delete: write(id),
+    moveInto: write(folderKind, id, nullable(id)),
   },
   playlists: {
     list: read(),
@@ -186,6 +223,11 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
     trackOrders: read(),
     setTrackOrder: write(id, playPlace, list(id, 10_000)),
     clearTrackOrder: write(id, playPlace),
+    // ORG-4: dividers in a manual playlist.
+    addDivider: write(id, text(500), whole),
+    renameDivider: write(id, id, text(500)),
+    removeDivider: write(id, id),
+    moveItem: write(id, either(object({ trackId: id }), object({ dividerId: id })), whole),
   },
   boards: {
     list: read(),
@@ -200,6 +242,9 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
     movePad: write(id, id, either(literal("spare"), object({ slot: whole }))),
     putAllBack: write(id),
     deletePad: write(id, id),
+    // ORG-4, PLY-8.
+    setDivider: write(id, whole, nullable(text(500))),
+    setPadSteps: write(id, id, steps),
   },
   campaigns: {
     list: read(),
@@ -225,6 +270,8 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
     setTrackName: write(sceneAddress, id, text(1_000)),
     // PLY-17: Repeat one on a scene's track, on or off.
     setRepeatOne: write(sceneAddress, id, bool),
+    // PLY-8: a scene's own start and Then.
+    setSceneSteps: write(sceneAddress, steps, movesOn),
   },
   profiles: {
     overrides: read(),
@@ -246,6 +293,14 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
     open: write(branch("from", { "choose-file": object(), path: object({ path: fullPath }) })),
     bringIn: write(id, object({ "each?": object(), "all?": duplicateChoice })),
     movedReport: read(),
+  },
+  settings: {
+    get: read(),
+    setCrossfade: write(object({ ms: whole, curve: text(MAX_ID) })),
+    setShortcut: write(text(MAX_ID), nullable(text(40))),
+    resetShortcuts: write(),
+    setNextSceneGuard: write(bool),
+    setComputer: write(object({ "display?": object({ "density?": text(MAX_ID), "textSize?": whole, "highContrast?": bool }), "devices?": object({ "airDevice?": text(512), "previewDevice?": text(512), "split?": bool, "previewEar?": text(MAX_ID) }), "globalKeys?": bool })),
   },
   history: {
     state: read(),

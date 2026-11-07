@@ -23,7 +23,7 @@ export type TrackFrom = { scene: SceneRef; at: number } | { playlistId: string; 
 
 export type CueAction =
   /** Music crossfades from what plays (when "now"), or waits in the queue (when "next"); ambience crossfades; an effect plays over everything. */
-  | { type: "playTrack"; trackId: string; target: RoomTarget; when?: "now" | "next"; from?: TrackFrom; fadeMs?: number }
+  | { type: "playTrack"; trackId: string; target: RoomTarget; when?: "now" | "next"; from?: TrackFrom; fadeMs?: number; fromMs?: number }
   /** From its first track, on the lane the playlist is for. */
   | { type: "playPlaylist"; playlistId: string; target: RoomTarget; when?: "now" | "next"; fadeMs?: number; place?: UsePlace }
   | { type: "startScene"; scene: SceneRef }
@@ -74,7 +74,8 @@ export function isCueAction(value: unknown): value is CueAction {
   const when = v.when === undefined || v.when === "now" || v.when === "next";
   switch (v.type) {
     case "playTrack":
-      return isId(v.trackId) && isTarget(v.target) && when && fade && (v.from === undefined || isFrom(v.from));
+      // DAT-3 (round 7): Play on air from a marker.
+      return isId(v.trackId) && isTarget(v.target) && when && fade && (v.from === undefined || isFrom(v.from)) && (v.fromMs === undefined || (typeof v.fromMs === "number" && Number.isFinite(v.fromMs) && v.fromMs >= 0 && v.fromMs <= 1e9));
     case "playPlaylist":
       return isId(v.playlistId) && isTarget(v.target) && when && fade && (v.place === undefined || isPlace(v.place));
     case "startScene":

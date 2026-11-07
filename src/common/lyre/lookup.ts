@@ -2,17 +2,40 @@
  * A DomainLookup over lists a screen already has from LyreApi (library.listTracks, playlists.list), so screens and
  * tests apply the shared rules in src/common/domain (playlistTracks, sceneSequence, ...) without asking again.
  */
-import type { DomainLookup, DomainPlaylist, DomainTrack, RepeatOnes, TrackNames } from "../domain";
-import type { CampaignInfo } from "./api";
+import type { DomainLookup, DomainPlaylist, DomainTrack, RepeatOnes, TagTree, TrackNames } from "../domain";
+import type { CampaignInfo, PlaylistDivider, TagGroup } from "./api";
 
-export function lookupFrom(tracks: readonly DomainTrack[], playlists: readonly DomainPlaylist[]): DomainLookup {
+/** `tree` (DAT-10, tagTreeOf): tags inside tags, so a rule naming a tag finds the tags inside it as the library does. */
+export function lookupFrom(tracks: readonly DomainTrack[], playlists: readonly DomainPlaylist[], tree?: TagTree): DomainLookup {
   const trackById = new Map(tracks.map((t) => [t.id, t]));
   const playlistById = new Map(playlists.map((p) => [p.id, p]));
   return {
     track: (id) => trackById.get(id),
     playlist: (id) => playlistById.get(id),
     tracks: () => tracks,
+    ...(tree ? { tagTree: () => tree } : {}),
   };
+}
+
+/** DAT-10: the TagTree of the shared rules (trackHasTag, matchesRule) from tags.listGroups. */
+export function tagTreeOf(groups: readonly TagGroup[]): TagTree {
+  const out: TagTree = {};
+  for (const g of groups) for (const t of g.tags ?? []) if (t.parent) (out[g.id] ??= {})[t.name] = t.parent;
+  return out;
+}
+
+/** ORG-4: a manual playlist's list as shown: its tracks with its dividers where they are (PlaylistInfo.dividers). */
+export type PlaylistEntry = { kind: "track"; trackId: string } | { kind: "divider"; id: string; name: string };
+export function withDividers(trackIds: readonly string[], dividers: readonly PlaylistDivider[]): PlaylistEntry[] {
+  const out: PlaylistEntry[] = [];
+  const byAt = [...dividers].sort((a, b) => a.at - b.at);
+  let d = 0;
+  trackIds.forEach((trackId, i) => {
+    for (; d < byAt.length && byAt[d].at <= i; d++) out.push({ kind: "divider", id: byAt[d].id, name: byAt[d].name });
+    out.push({ kind: "track", trackId });
+  });
+  for (; d < byAt.length; d++) out.push({ kind: "divider", id: byAt[d].id, name: byAt[d].name });
+  return out;
 }
 
 /** DAT-14: every scene's names for its tracks, keyed by scene key as trackNameIn takes them, from the campaign trees. */

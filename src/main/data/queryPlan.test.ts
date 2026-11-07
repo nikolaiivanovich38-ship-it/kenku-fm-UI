@@ -19,6 +19,7 @@ import { NEW_TRACKS_SQL, TRACK_BY_PATH_SQL, trackListQuery, tracksByShapeSql, tr
 import { PLAY_ORDER_LOOKUP_SQL } from "./repo/playOrders";
 import { SCENE_NAMES_SQL } from "./repo/sceneNames";
 import { REPEAT_ONES_SQL, TRACK_ORDER_ITEMS_SQL, TRACK_ORDER_LOOKUP_SQL } from "./repo/round6";
+import { BOARD_DIVIDERS_SQL, CUE_LIST_SQL, CUE_STEPS_SQL, TAGS_WITH_INSIDE_SQL } from "./repo/round7";
 import { BOARD_PADS_SQL } from "./repo/boards";
 import { PROFILE_LOOKUP_SQL } from "./repo/profileRows";
 import { searchQuery } from "./repo/search";
@@ -161,6 +162,26 @@ describe("query plans of the hot read paths (DAT-11)", () => {
 
   it("ORG-13 an order's tracks in order", () => {
     expectIndexed(TRACK_ORDER_ITEMS_SQL, ["o"], "track_order_items_order");
+  });
+
+  it("ORG-4 a board's dividers by row", () => {
+    expectIndexed(BOARD_DIVIDERS_SQL, ["b"], "PRIMARY KEY");
+  });
+
+  it.each(Object.entries(CUE_LIST_SQL))("PLY-8 a %s's own steps: its cue list by its key", (_owner, sql) => {
+    expectIndexed(sql, ["x"], "sqlite_autoindex_cue_lists");
+  });
+
+  it("PLY-8 a cue list's steps in order, with the pad's board and the scene's session", () => {
+    const details = expectIndexed(CUE_STEPS_SQL, ["l"], "cue_steps_order");
+    expect(details.filter((d) => d.startsWith("USE TEMP B-TREE")), details.join("\n")).toEqual([]);
+  });
+
+  it("DAT-10 a tag with the tags inside it, through tags_parent", () => {
+    // The recursive query reads its own queue and the ids given (json_each); each step looks children up by parent.
+    const details = plan(TAGS_WITH_INSIDE_SQL, ['["t"]']);
+    expect(details.filter((d) => FULL_SCAN.test(d) && !/^SCAN (json_each|i|inside)\b/.test(d)), details.join("\n")).toEqual([]);
+    expect(details.join("\n")).toContain("SEARCH t USING INDEX tags_parent (parent_id=?)");
   });
 
   it("DAT-13 the Shape filter: by the chosen shape, and by the suggested one for tracks with no choice", () => {

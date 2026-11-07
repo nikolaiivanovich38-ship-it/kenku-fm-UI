@@ -642,3 +642,59 @@ What the screen streams must know: Find a track is `library.find`; Up next is `u
 `savedRepeatOneChanged` after `sessions.setRepeatOne`, `sessionLoaded` when Live loads another session, and
 `import.previewFound` before "Preview the file found" (`endRelinkPreview` when Find missing files closes). The order
 of playlists in a session's or campaign's list is `campaigns.setOnHand`.
+
+## 0.5.0 step 1b: w7-contracts
+
+The data, calls and sound state design round 7 needs (design/prototype/ROUND7.md), tested, with no screens. Schema
+version 6 is in docs/data-model.md.
+
+**Shared rules** (`src/common/domain/round7.ts`): `TagTree`, `tagsInside`, `trackHasTag` (rules and `playlistTracks`
+take the tree through `DomainLookup.tagTree`), `offerTags` ("sad" offers Melancholy); `folderPath`; `DropPlace` with
+the prototype's keys (`dropPlaceKey`, `parseDropPlace`); `CueStep`, `MovesOn`, `usualSceneSteps`, `usualPadSteps`,
+`stepsToKeep`, `checkSteps`; `roleChoices`, `roleProfile` (a sting never loops; Ending "Fades out" fades over 4 s
+unless a profile has a fade out); `PlayedEntry`, `addPlayed`; `SHORTCUT_ACTIONS`, `shortcutKey`, `shortcutUsing`,
+`keyName`, `normaliseKey`, `guardAllows`; `DisplaySettings`, `AudioDevices`, `Crossfade` with their checks.
+`DomainTrack` gains `fadesOut`, `resume`, `follow`; `DomainScene` `steps`, `movesOn`; profile markers `mix`.
+
+**LyreApi** (`api.ts`, `LYRE_API_METHODS`, `fake.ts` + `fakeRound7.ts`, `libraryApi.ts` + `libraryApiRound7.ts`,
+`argChecks.ts`, the contract suite's "design round 7"; one IPC channel as before, `LYRE_API_CALL`):
+
+| Area | Added or changed |
+| --- | --- |
+| library | `LibraryTrack.fadesOut`, `resume`, `follow`; `updateTrack` takes them. `find` also answers `pads` (label) and `scenes` (Live's session first). `put({ place, what, from?, move? })` (ORG-5): tracks into a manual playlist (Shift: out of `from`), effects and stings as new pads on a board, tracks, playlists or boards into a scene; one undo step. Up next is not a place here: it is `LyreAudio.addToQueue`. |
+| tags | `TagGroup.color`, `tags` (`TagInfo`: parent, other words, colour); `createGroup`, `updateGroup`, `moveGroup(by)`, `deleteGroup`, `createTag`, `renameTag`, `mergeTag`, `deleteTag` (each of the last three answers how many tracks changed), `updateTag` (parent, other words, colour), `moveTag(by)` among the tags at its level. |
+| folders (new) | `list(kind)`, `create(kind, { name, parentId?, moveIn? })`, `update`, `delete` (what was in it moves up), `moveInto(kind, itemId, folderId)`; kinds playlists and boards. `PlaylistInfo.folderId`, `PadBoard.folderId`. Folding a folder is the screen's (kept per computer like an open box), not a library change. |
+| playlists | `PlaylistInfo.dividers` (`{ id, name, at }`, `at` the track it sits above); `addDivider`, `renameDivider`, `removeDivider`, `moveItem` (a track or divider to a place in the list as shown, `withDividers` in `lookup.ts`). `moveTrack` keeps counting tracks only. |
+| boards | `PadBoard.dividers` (`{ row, name }`), `Pad.steps`; `setDivider(board, row, name \| null)`, `setPadSteps` (the usual steps keep none). |
+| sessions | `SceneInfo.steps`, `movesOn`; `setSceneSteps(scene, steps, movesOn)`. A duplicated scene keeps both. |
+| profiles | markers' `mix` (one per profile). |
+| settings (new) | `get()` → `LyreSettings`; `setCrossfade`, `setShortcut` (a key in use is refused naming its action), `resetShortcuts`, `setNextSceneGuard` (with the library, undoable); `setComputer({ display, devices, globalKeys })` (this computer's, `this-computer.json` beside the library, no undo step). New area `"settings"`. |
+
+`lookup.ts`: `tagTreeOf(groups)`, `withDividers(trackIds, dividers)`; `lookupFrom` takes the tree. The seed has the
+prototype's other words (Melancholy: sad, sorrowful; Dread: fear, horror; Tense: suspense) and Grief inside Melancholy.
+
+**Audio host** (`src/lyre/audio`, engine `src/player/engine/queue`): the Director runs a scene's own start and a pad's
+steps (`runSteps`; waits on the engine's clock, `PlaybackEngine.scheduler`; a scene step starting scenes stops after
+four rounds; a new scene start or Undo stops what waits), and a scene moving on after a time or when its music ends
+(its list then plays once, `playsOnce`). The RoomPlayer applies `roleProfile`, starts a track from a marker
+(`fromMs` on `playTrack` and on Play next / Add to queue's track), picks a "Pick up" track up where it stopped this
+evening (shared by the rooms), hands a play step over at the mix-out marker, at the end of a loop or when the track
+ends (`handOverAt`), plays Follow with when nothing else waits (Play next, the queue and a scene's own next item come
+first), fades the music to a step's level, and keeps What played (`played`, newest first, 100 at most).
+
+- `RoomNowPlaying.played` (`trackId`, `title`, `at`, `from` for Play again); `LaneNowPlaying.level`;
+  `NowPlaying.previewEar`.
+- Events `show-board` (a step shows a board) and `scene-started` (`by`: press, step, moved-on: Live follows it).
+- `setAudioDevices(devices)`: the preview's device, and the preview in one ear of a split headset
+  (`BridgedPreviewOutput.setEar`, a stereo panner before the bridge, only while split).
+- `LyreAudioLibrary.crossfade?()` (Next, a playlist moving on, play steps; default 3 s) and `nextScene?(ref)`;
+  `LibrarySnapshot` loads `settings.get()` and `tags.listGroups()` (the tag tree) and hands pads their steps.
+- PLY-11: read-ahead also holds what follows the playing track when nothing else waits.
+
+What the screen streams must know: call `audio.setAudioDevices(settings.devices)` after `settings.get()` and after
+`setComputer`; apply `display` with `webFrame.setZoomFactor(textSize / 100)` and `data-density` / `data-contrast` on
+`<html>`; Live's keys read `shortcutKey(settings.shortcuts, …)` and Next scene uses `guardAllows`; Live follows
+`scene-started` with `by: "moved-on"` or `"step"` and shows `show-board`'s board; What played's Play again is
+`playTrack(trackId, { from })`; a pad's What it does… and a scene's What it does when it starts… save with
+`stepsToKeep` semantics (sending the usual steps keeps none). Global keys (`globalKeys`) are stored but not yet
+registered: the main process needs `globalShortcut` for Next scene and Fade everything out (a later step).

@@ -884,3 +884,45 @@ The Lyre page reaches them as `window.lyre.remote` (`get`, `set`, `newCode`, `on
 2. Once round 7's Settings shows the code: `Invoke-WebRequest http://127.0.0.1:3333/v1/playlist -Headers @{ Authorization = "Bearer <code>" }` lists your playlists, with no file paths.
 3. Quit and start Lyre: the remote is on again with the same code (Windows encrypts it).
 4. Turn the network off and wait up to 15 minutes in an installed copy: one message says Lyre could not check for updates because the computer seems to be offline.
+
+## w7-contracts
+
+**In plain words.** Lyre's library can now keep more of how you run a game (tag places, folders, dividers, what a
+scene or pad does, your keys, the crossfade). Every new request from the Lyre page is checked before the library acts
+on it, as the older ones are. Your display and sound-device choices are kept in a small file beside the library on
+this computer only; they never go into a backup or a shared .lyre file. A shared .lyre file can now carry the new
+things too, and Lyre checks each of them before anything changes.
+
+### Technical details
+
+- **No new IPC channel.** The round 7 calls go through `LYRE_API_CALL` (lyre-view only); `LYRE_API_METHODS` names
+  them and `argChecks.ts` checks every argument's shape (steps: at most 50 plain objects with a `do` text, each then
+  checked by the data layer's `checkSteps` and per-kind checks; drop places by `kind`; tag colours and folder kinds;
+  keys at most 40 characters, then `normaliseKey`; device ids at most 512 characters). A malformed write answers
+  `invalid` with `NOT_UNDERSTOOD`.
+- **This computer's settings** (`libraryApiRound7.ts`): `this-computer.json` in the library's folder
+  (`%LOCALAPPDATA%\Lyre Library`), written to a `.part` file and moved into place; read with each value checked
+  (`checkDisplay`, `checkDevices`), so a damaged or edited file gives the defaults. It holds no secret (device ids are
+  Chromium's per-origin ids). An in-memory library keeps them in memory.
+- **.lyre files** (`transfer/lyreFile.ts`): steps are checked one by one (`checkStep`: kind, ids, choices, ranges, at
+  most 50), tag colours from the palette, dividers' rows 0–7 and names at most 200 characters, at most one mix-out
+  marker; Bring in maps every id a step names to what the file brought and drops a step naming anything else, so a
+  file cannot make a step fire one of your pads or start one of your scenes.
+- **Steps cannot loop for ever.** A scene start that starts scenes stops after four rounds with a plain message;
+  waits are at most 10 minutes and fades at most a minute (CHECKs and `checkSteps`).
+
+### Tests
+
+| Test | Covers |
+|---|---|
+| `src/main/lyreApi/argChecks.test.ts` | Every method has a shape (the guard), the round 7 ones included |
+| `src/common/lyre/contract.ts` "design round 7" (fake and library, in-process and across a port) | Every round 7 call and refusal |
+| `src/main/lyreApi/transferApi.test.ts` (round 7) | A .lyre round trip of the new data, ids mapped |
+| `src/lyre/audio/round7.test.ts` | A scene starting itself stops; Undo stops waiting steps |
+
+### Manual checks (Windows)
+
+1. Once the Settings screen has it: Settings › Headphones and speakers: choose a headset, turn on Split one headset, preview a track: it plays in the
+   chosen ear only; turn the split off: both ears, at the same loudness as before.
+2. Close Lyre, open `%LOCALAPPDATA%\Lyre Library\this-computer.json` in Notepad, type rubbish into it, save, start
+   Lyre: Look and feel and Headphones and speakers are back at their defaults and nothing else changed.

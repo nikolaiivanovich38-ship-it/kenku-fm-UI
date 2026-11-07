@@ -83,10 +83,30 @@ export async function createBrowserBridgedPreview(link: PlayerAudioLink): Promis
     sinkId: { type: "none" },
   } as AudioContextOptions);
   const createTap = await createBrowserFrameTaps(audioContext);
-  return createBridgedPreviewOutput({
+  const bridged = createBridgedPreviewOutput({
     context: fromAudioContext(audioContext),
     link,
     createTap,
     closeContext: () => audioContext.close(),
   });
+  // PRV-2: with one headset split, a panner before the bridge puts the preview in one ear (the frames stay stereo);
+  // otherwise the preview goes straight on, so its level is as it was. All of it is in the preview's own context, so
+  // nothing of it can reach a room.
+  const target = bridged.input as unknown as AudioNode;
+  const entry = audioContext.createGain();
+  const panner = audioContext.createStereoPanner();
+  panner.connect(target);
+  entry.connect(target);
+  return {
+    ...bridged,
+    input: entry as unknown as typeof bridged.input,
+    setEar: (ear) => {
+      entry.disconnect();
+      if (ear === "both") entry.connect(target);
+      else {
+        panner.pan.setValueAtTime(ear === "left" ? -1 : 1, audioContext.currentTime);
+        entry.connect(panner);
+      }
+    },
+  };
 }

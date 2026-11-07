@@ -188,6 +188,8 @@ export class RoomStreams extends TypedEmitter<RoomStreamsEvents> {
 export interface BridgedPreviewOutput extends PreviewOutput {
   setSinkId(deviceId: string): Promise<void>;
   close(): Promise<void>;
+  /** PRV-2: the preview in one ear of a split headset (or both), on its way to the capture window. */
+  setEar?(ear: "both" | "left" | "right"): void;
 }
 
 /**

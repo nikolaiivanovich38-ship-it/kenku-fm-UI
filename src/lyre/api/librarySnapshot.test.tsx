@@ -126,4 +126,19 @@ describe("LibrarySnapshot", () => {
     t.title = "Changed elsewhere";
     expect(library.track(t.id).title).not.toBe("Changed elsewhere");
   });
+
+  it("round 7: the crossfade, the next scene, tags inside tags, pads' and scenes' own steps, and follows their changes", async () => {
+    const api = createFakeLyreApi();
+    const library = await LibrarySnapshot.load(api);
+    expect(library.crossfade?.()).toEqual({ ms: 3000, curve: "even" });
+    expect(library.nextScene?.({ campaignId: "crown", sessionId: "s14", sceneId: "sc3" })).toEqual({ campaignId: "crown", sessionId: "s14", sceneId: "sc4" });
+    expect(library.tagTree?.()).toEqual({ mood: { Grief: "Melancholy" } });
+    const sc3 = { campaignId: "crown", sessionId: "s14", sceneId: "sc3" };
+    await api.settings.setCrossfade({ ms: 5000, curve: "power" });
+    await api.boards.setPadSteps("weather", "thunder", [{ do: "sound" }, { do: "wait", ms: 500 }]);
+    await api.sessions.setSceneSteps(sc3, [{ do: "wait", ms: 100 }], { when: "musicEnds" });
+    await vi.waitFor(() => expect(library.crossfade?.()).toEqual({ ms: 5000, curve: "power" }));
+    await vi.waitFor(() => expect(library.pad("weather", "thunder")?.steps).toEqual([{ do: "sound" }, { do: "wait", ms: 500 }]));
+    await vi.waitFor(() => expect(library.scene(sc3)).toMatchObject({ steps: [{ do: "wait", ms: 100 }], movesOn: { when: "musicEnds" } }));
+  });
 });

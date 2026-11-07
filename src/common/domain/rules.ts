@@ -20,6 +20,7 @@ import type {
   Use,
 } from "./types";
 import { SHAPE_WORDS } from "./types";
+import { trackHasTag, type TagTree } from "./round7";
 
 /** FX covers sound effects and stings (short one-shot music cues). */
 export function isFx(t: DomainTrack): boolean {
@@ -31,7 +32,7 @@ export function isFx(t: DomainTrack): boolean {
  * matches nothing (it can be left empty when its last tag is deleted, and must not widen the playlist to its whole
  * lane); the rule editor previews with withoutEmptyConditions, so a condition still being written is left out.
  */
-export function matchesRule(t: DomainTrack, rule: PlaylistRule): boolean {
+export function matchesRule(t: DomainTrack, rule: PlaylistRule, tree?: TagTree): boolean {
   if (rule.energy) {
     const e = t.energy ?? 0;
     if (e < rule.energy[0] || e > rule.energy[1]) return false;
@@ -43,8 +44,8 @@ export function matchesRule(t: DomainTrack, rule: PlaylistRule): boolean {
   }
   return rule.conds.every((c) => {
     if (c.values.length === 0) return false;
-    const have = t.tags[c.group] ?? [];
-    const hits = c.values.filter((v) => have.includes(v)).length;
+    // DAT-10: a tag that holds others counts for the tracks that have one of those (trackHasTag).
+    const hits = c.values.filter((v) => trackHasTag(t, c.group, v, tree)).length;
     if (c.match === "all") return hits === c.values.length;
     if (c.match === "none") return hits === 0;
     return hits > 0;
@@ -74,7 +75,8 @@ export function playlistTracks(pl: DomainPlaylist, lookup: DomainLookup): Domain
     return pl.trackIds.map((id) => lookup.track(id)).filter((t): t is DomainTrack => t !== undefined);
   }
   const inLane = (t: DomainTrack) => (pl.lane === "fx" ? isFx(t) : t.kind === pl.lane);
-  return [...lookup.tracks()].filter((t) => inLane(t) && matchesRule(t, pl.rule));
+  const tree = lookup.tagTree?.();
+  return [...lookup.tracks()].filter((t) => inLane(t) && matchesRule(t, pl.rule, tree));
 }
 
 /** The order a scene's music plays in: each track, then each playlist's tracks; afterwards it starts again. */

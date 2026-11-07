@@ -60,6 +60,12 @@ export interface DomainTrack {
   normalise?: NormaliseChoice | null;
   /** DAT-15: what Lyre measured from its file; null or missing: not measured yet (it plays as it is). */
   loudness?: TrackLoudness | null;
+  /** PLY-4: Ending "Fades out": it fades out before its end (roleProfile); missing or false: it plays to its end. */
+  fadesOut?: boolean;
+  /** PLY-4: "Pick up where it stopped": it starts again where it was last stopped this evening. */
+  resume?: boolean;
+  /** SHW-3: what plays when it ends, unless something is already waiting; null or missing: nothing. */
+  follow?: SoundRef | null;
 }
 
 /** One condition of a dynamic playlist. A condition with no values is ignored (it is still being written). */
@@ -113,6 +119,10 @@ export interface DomainScene {
   ambience: SoundRef | null;
   /** Pad boards; the first shows when the scene starts. */
   boardIds: string[];
+  /** PLY-8: what it does when it starts (round7.ts CueStep); null or missing: the usual (usualSceneSteps). */
+  steps?: import("./round7").CueStep[] | null;
+  /** PLY-8 "Then": whether it starts the next scene by itself; missing: it stays until Next. */
+  movesOn?: import("./round7").MovesOn;
 }
 
 export interface DomainSession {
@@ -153,7 +163,8 @@ export interface AudioProfile {
   loopCrossfadeMs: number;
   fadeIn: Fade;
   fadeOut: Fade;
-  markers: { atMs: number; label: string }[];
+  /** DAT-3: named points; `mix` marks the one mix-out point (where the next track crossfades in), at most one. */
+  markers: { atMs: number; label: string; mix?: boolean }[];
 }
 
 export type AudioProfileInput = Partial<AudioProfile>;
@@ -194,6 +205,8 @@ export interface DomainLookup {
   playlist(id: string): DomainPlaylist | undefined;
   /** Every track, for dynamic playlists. */
   tracks(): Iterable<DomainTrack>;
+  /** DAT-10: tags inside other tags (round7.ts TagTree), so a rule naming a tag finds the tags inside it too. */
+  tagTree?(): Record<string, Record<string, string>>;
 }
 
 /** How a pad plays when pressed (SFX-3): once, on/off, while held, or from the start on every press. */

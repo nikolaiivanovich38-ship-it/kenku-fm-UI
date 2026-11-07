@@ -21,6 +21,7 @@ import type {
   PlaylistRule,
   SoundRef,
   TrackKind,
+  TagTree,
   TrackShape,
   Use,
 } from "../../../common/domain";
@@ -29,6 +30,7 @@ import { LOUDNESS_COLUMNS, LOUDNESS_JOIN } from "./loudness";
 import { ownPlayOrders } from "./playOrders";
 import { ownProfiles } from "./profileRows";
 import { readRules } from "./ruleRows";
+import { getTagTree } from "./round7";
 
 type DomainTrackRow = {
   id: string;
@@ -49,12 +51,19 @@ type DomainTrackRow = {
   normalise: string | null;
   loudness_lufs: number | null;
   loudness_peak: number | null;
+  /** Version 6: Ending "Fades out" (PLY-4), Pick up where it stopped (PLY-4) and Follow with (SHW-3). */
+  ending: string | null;
+  resume: number;
+  follow_track_id: string | null;
+  follow_playlist_id: string | null;
 };
 
 /** Ids never contain control characters (validate.ts), so this one can join them. */
 const TAG_SEPARATOR = "\u001f";
 /** One row per track with its tag ids, read through the track_tags primary key: no join or sort over every tag. */
-const TRACK_SELECT = `SELECT tracks.id AS id, kind, title, meta_title, file_name, duration_ms, role, loopable, energy, shape, normalise, ${LOUDNESS_COLUMNS},
+const TRACK_SELECT = `SELECT tracks.id AS id, kind, title, meta_title, file_name, duration_ms, role, loopable, energy, shape, normalise, ending, resume, ${LOUDNESS_COLUMNS},
+  (SELECT follow_track_id FROM track_follows WHERE track_id = tracks.id) AS follow_track_id,
+  (SELECT follow_playlist_id FROM track_follows WHERE track_id = tracks.id) AS follow_playlist_id,
   (SELECT suggested_shape FROM track_peaks WHERE track_id = tracks.id) AS suggested_shape,
   (SELECT group_concat(tag_id, char(31)) FROM track_tags WHERE track_id = tracks.id) AS tag_ids FROM tracks ${LOUDNESS_JOIN}`;
 
@@ -75,6 +84,10 @@ function toDomainTrack(row: DomainTrackRow, tags: Record<string, string[]>, prof
     suggestedShape: row.suggested_shape as TrackShape | null,
     normalise: row.normalise as NormaliseChoice | null,
     loudness: row.loudness_lufs !== null && row.loudness_peak !== null ? { lufs: row.loudness_lufs, truePeakDb: row.loudness_peak } : null,
+    // Version 6 (PLY-4, SHW-3): only when chosen, so a track with none has the shape it always had.
+    ...(row.ending === "fades" ? { fadesOut: true } : {}),
+    ...(row.resume === 1 ? { resume: true } : {}),
+    ...(row.follow_track_id ? { follow: { kind: "track" as const, id: row.follow_track_id } } : row.follow_playlist_id ? { follow: { kind: "playlist" as const, id: row.follow_playlist_id } } : {}),
   };
 }
 
@@ -116,7 +129,13 @@ export function getDomainLookup(store: Store): DomainLookup {
   const toTrack = (row: DomainTrackRow, profiles: Map<string, AudioProfileInput>) =>
     toDomainTrack(row, tagsOf(row.tag_ids), profiles.get(row.id) ?? null);
 
+  let tree: TagTree | null = null;
   return {
+    /** DAT-10: tags inside other tags, so a rule naming one finds the tags inside it (matchesRule). */
+    tagTree() {
+      tree ??= getTagTree(store);
+      return tree;
+    },
     track(id) {
       if (tracks.has(id)) return tracks.get(id);
       const row = store.get<DomainTrackRow>(`${TRACK_SELECT} WHERE tracks.id = ?`, id);

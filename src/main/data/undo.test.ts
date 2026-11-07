@@ -17,6 +17,7 @@ import * as cueActions from "./repo/cueActions";
 import * as playOrders from "./repo/playOrders";
 import * as sceneNames from "./repo/sceneNames";
 import * as round6 from "./repo/round6";
+import * as round7 from "./repo/round7";
 import * as normalise from "./repo/normalise";
 import { search } from "./repo/search";
 import { getDomainLookup } from "./repo/domain";
@@ -121,6 +122,13 @@ async function fixture(store: Store) {
   // Design round 6: Repeat one on a scene's track, a playlist's own order in the session's list.
   round6.setRepeatOne(store, scene.id, c.id, true);
   round6.setTrackOrder(store, playlist.id, { kind: "session", campaignId: campaign.id, sessionId: session.id }, [b.id, a.id]);
+  // Design round 7: a board's divider, a scene's own start and a pad's steps, a scene moving on, how a track plays, a key.
+  round7.setBoardDivider(store, board.id, 1, "Spells");
+  round7.setSteps(store, { sceneId: scene.id }, [{ do: "fade", level: 0.3, ms: 2000 }, { do: "pad", boardId: board.id, padId: pads[1].id }]);
+  round7.setSteps(store, { padId: pads[0].id }, [{ do: "sound" }, { do: "wait", ms: 500 }]);
+  round7.setMovesOn(store, scene.id, { when: "musicEnds" });
+  round7.setTrackPlay(store, c.id, { fadesOut: true, follow: { kind: "playlist", id: playlist.id } });
+  round7.setShortcut(store, "palette", "Ctrl+J");
   return {
     root, a, b, c, marker, folder, sub, playlist, dynamic, items, divider, board, board2, pads, sparePad,
     mood, tense, villain, strahd, campaign, otherCampaign, session, session2, scene, music, inScene,
@@ -154,7 +162,7 @@ const COMMANDS: [string, (s: Store, f: Fixture) => unknown][] = [
   ["updateMarker", (s, f) => markers.updateMarker(s, f.marker.id, { label: "big swell", timeMs: 2 })],
   ["deleteMarker", (s, f) => markers.deleteMarker(s, f.marker.id)],
   ["createFolder", (s, f) => folders.createFolder(s, { scope: "playlists", name: "New", parentId: f.folder.id })],
-  ["updateFolder", (s, f) => folders.updateFolder(s, f.folder.id, { name: "City", color: "#123456", collapsed: true })],
+  ["updateFolder", (s, f) => folders.updateFolder(s, f.folder.id, { name: "City", color: "sea", collapsed: true })],
   ["moveFolder", (s, f) => folders.moveFolder(s, f.sub.id, { parentId: null, placement: "start" })],
   ["deleteFolder", (s, f) => folders.deleteFolder(s, f.sub.id)],
   ["createPlaylist", (s) => playlists.createPlaylist(s, { title: "Battle", placement: "start" })],
@@ -182,7 +190,7 @@ const COMMANDS: [string, (s: Store, f: Fixture) => unknown][] = [
   ["duplicatePad", (s, f) => boards.duplicatePad(s, f.pads[0].id)],
   ["deletePads", (s, f) => boards.deletePads(s, [f.pads[0].id, f.sparePad.id])],
   ["createTagGroup", (s) => tags.createTagGroup(s, { name: "Weather" })],
-  ["updateTagGroup", (s, f) => tags.updateTagGroup(s, f.mood.id, { name: "Feeling", color: "#abcdef" })],
+  ["updateTagGroup", (s, f) => tags.updateTagGroup(s, f.mood.id, { name: "Feeling", color: "plum" })],
   ["moveTagGroup", (s, f) => tags.moveTagGroup(s, f.mood.id, "end")],
   ["deleteTagGroup", (s, f) => tags.deleteTagGroup(s, f.mood.id)],
   ["createTag", (s, f) => tags.createTag(s, { groupId: f.mood.id, name: "Spooky", synonyms: ["creepy"] })],
@@ -248,6 +256,18 @@ const COMMANDS: [string, (s: Store, f: Fixture) => unknown][] = [
   ["setLibraryNormalise", (s) => normalise.setLibraryNormalise(s, { on: true, target: "quiet" })],
   ["setTrackNormalise", (s, f) => normalise.setTrackNormalise(s, f.a.id, "off")],
   ["setPlaylistNormalise", (s, f) => normalise.setPlaylistNormalise(s, f.playlist.id, "on")],
+  ["setBoardDivider", (s, f) => round7.setBoardDivider(s, f.board.id, 0, "Weather")],
+  ["setBoardDivider (rename, remove)", (s, f) => s.change("Dividers", () => (round7.setBoardDivider(s, f.board.id, 1, "Charms"), round7.setBoardDivider(s, f.board.id, 1, null)))],
+  ["setSteps", (s, f) => round7.setSteps(s, { sceneId: f.scene.id }, [{ do: "play", what: { kind: "track", id: f.a.id }, how: "mixOut", upNext: "playNext", fromMs: 1200 }, { do: "stop", what: "ambience" }])],
+  ["setSteps (back to the usual)", (s, f) => round7.setSteps(s, { padId: f.pads[0].id }, null)],
+  ["setSteps (then the pad it fires is deleted)", (s, f) => boards.deletePads(s, [f.pads[1].id])],
+  ["setMovesOn", (s, f) => round7.setMovesOn(s, f.scene.id, { when: "after", ms: 300_000 })],
+  ["setTrackPlay", (s, f) => round7.setTrackPlay(s, f.a.id, { fadesOut: true, resume: true, follow: { kind: "track", id: f.b.id } })],
+  ["setTrackPlay (clear)", (s, f) => round7.setTrackPlay(s, f.c.id, { fadesOut: false, follow: null })],
+  ["setShortcut", (s) => round7.setShortcut(s, "nextScene", "N")],
+  ["resetShortcuts", (s) => round7.resetShortcuts(s)],
+  ["setCrossfade", (s) => round7.setCrossfade(s, { ms: 5000, curve: "power" })],
+  ["setNextSceneGuard", (s) => round7.setNextSceneGuard(s, false)],
   ["updateTrack (design fields)", (s, f) => tracks.updateTrack(s, f.c.id, { kind: "fx", title: "", metaTitle: "Gamma tag", role: "effect", loopable: "crossfade", profile: { endMs: 9 } })],
 ];
 
@@ -273,8 +293,8 @@ describe("undo and redo of every command (EDT-2)", () => {
   });
 
   it("covers every exported write function", async () => {
-    const modules = { tracks, roots, markers, playlists, boards, folders, tags, campaigns, profiles, cueActions, playOrders, sceneNames, normalise, round6 };
-    const readers = /^(get|list|find|track|own|scene|tagUsage|campaignsOf|resolve|suggest|tagsOf|requireFolderFor|getFollowWith|ITEM_TABLES|[A-Z_]+$)/;
+    const modules = { tracks, roots, markers, playlists, boards, folders, tags, campaigns, profiles, cueActions, playOrders, sceneNames, normalise, round6, round7 };
+    const readers = /^(get|list|find|track|own|scene|tagUsage|campaignsOf|resolve|suggest|tagsOf|requireFolderFor|getFollowWith|boardDividers|all[A-Z]|tagsWithInside|ITEM_TABLES|[A-Z_]+$)/;
     const writers = Object.values(modules)
       .flatMap((m) => Object.keys(m))
       .filter((name) => !readers.test(name) && name !== "markTracksUsed");
@@ -521,18 +541,18 @@ describe("undo history", () => {
       version: MIGRATIONS.length + 1,
       name: "cue lists (test stand-in)",
       up(db) {
-        db.exec("CREATE TABLE cue_lists (id TEXT PRIMARY KEY, name TEXT NOT NULL)");
+        db.exec("CREATE TABLE standin_cue_sheets (id TEXT PRIMARY KEY, name TEXT NOT NULL)");
       },
     };
     const db = openConnection(":memory:");
     migrate(db, [...MIGRATIONS, later]);
     const store = new Store(db);
     const history = new UndoHistory(store);
-    store.change("Add cue list", () => store.run("INSERT INTO cue_lists VALUES ('q1', 'Main')"));
+    store.change("Add cue list", () => store.run("INSERT INTO standin_cue_sheets VALUES ('q1', 'Main')"));
     await history.undo();
-    expect(store.all("SELECT * FROM cue_lists")).toEqual([]);
+    expect(store.all("SELECT * FROM standin_cue_sheets")).toEqual([]);
     await history.redo();
-    expect(store.all("SELECT * FROM cue_lists")).toEqual([{ id: "q1", name: "Main" }]);
+    expect(store.all("SELECT * FROM standin_cue_sheets")).toEqual([{ id: "q1", name: "Main" }]);
     db.close();
   });
 

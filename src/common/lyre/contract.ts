@@ -26,10 +26,15 @@ import {
   normaliseLine,
   repeatsOneIn,
   tracksInPlaceOrder,
+  folderPath,
+  trackHasTag,
+  usualPadSteps,
+  usualSceneSteps,
+  type CueStep,
   type ProfilePlace,
 } from "../domain";
 import { isRefused, LYRE_API_METHODS, REFUSAL_CODES, type Done, type LyreApi, type LyreArea, type LyreEvent, type RefusalCode, type SceneAddress, type WriteResult } from "./api";
-import { lookupFrom, repeatOnesOf, trackNamesOf } from "./lookup";
+import { lookupFrom, repeatOnesOf, tagTreeOf, trackNamesOf, withDividers } from "./lookup";
 import { fileAddress } from "./media";
 
 export interface ContractFixture {
@@ -1072,6 +1077,244 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         expect(ambience.playlists.every((p) => p.lane === "amb")).toBe(true);
         expect((await api.library.find({ text: "zzzz-nothing" })).playlists).toEqual([]);
         expect((await api.library.find({ text: "a", limit: 2 })).playlists.length).toBeLessThanOrEqual(2);
+      });
+    });
+
+    describe("design round 7", () => {
+      const ruins = sc("sc3");
+      const groupOf = async (id: string) => (await api.tags.listGroups()).find((g) => g.id === id);
+      const trackOf = async (id: string) => (await api.library.listTracks()).find((t) => t.id === id);
+      const playlistOf = async (id: string) => (await api.playlists.list()).find((p) => p.id === id);
+      const boardOf = async (id: string) => (await api.boards.list()).find((b) => b.id === id);
+      const sceneOf = async (address: SceneAddress) =>
+        (await api.campaigns.get(address.campaignId)).sessions.find((s) => s.id === address.sessionId).scenes.find((x) => x.id === address.sceneId);
+
+      it("DAT-10: tag groups and tags with their places, other words and colours, Grief inside Melancholy", async () => {
+        const mood = await groupOf("mood");
+        expect(mood).toMatchObject({ name: "Mood", color: null });
+        expect(mood.tags.map((t) => t.name)).toEqual(mood.values);
+        expect(mood.tags.find((t) => t.name === "Grief")).toEqual({ name: "Grief", parent: "Melancholy", also: [], color: null });
+        expect(mood.tags.find((t) => t.name === "Melancholy")?.also).toEqual(["sad", "sorrowful"]);
+        // Filtering by Melancholy finds the grieving tracks too (trackHasTag with tagTreeOf).
+        const tree = tagTreeOf(await api.tags.listGroups());
+        const t07 = await trackOf("t07");
+        expect(t07.tags.mood).toContain("Grief");
+        expect(t07.tags.mood).not.toContain("Melancholy");
+        expect(trackHasTag(t07, "mood", "Melancholy", tree)).toBe(true);
+      });
+
+      it("DAT-10: rename and merge change every track and dynamic rule in one undo step; delete takes the tag off", async () => {
+        const before = (await api.library.listTracks()).filter((t) => t.tags.mood.includes("Wistful")).length;
+        const renamed = valueOf(await api.tags.renameTag({ group: "mood", value: "Wistful" }, "Longing"));
+        expect(renamed.tracks).toBe(before);
+        await changedEvent("tags", "tracks", "history");
+        expect((await api.library.listTracks()).some((t) => t.tags.mood.includes("Wistful"))).toBe(false);
+        expect((await groupOf("mood")).values).toContain("Longing");
+        valueOf(await api.history.undo());
+        expect((await groupOf("mood")).values).toContain("Wistful");
+        expectRefused(await api.tags.renameTag({ group: "mood", value: "Wistful" }, "Tense"), "invalid");
+        // A rule naming Eerie names Dread after Eerie merges into Dread; Eerie becomes another word for Dread.
+        const ruled = (await api.playlists.list()).filter((p) => p.kind === "dynamic" && p.rule.conds.some((c) => c.group === "mood" && c.values.includes("Eerie")));
+        const merged = valueOf(await api.tags.mergeTag({ group: "mood", value: "Eerie" }, "Dread"));
+        expect(merged.tracks).toBeGreaterThan(0);
+        for (const p of ruled) {
+          const now = await playlistOf(p.id);
+          expect(now.kind === "dynamic" && now.rule.conds.some((c) => c.values.includes("Eerie"))).toBe(false);
+          expect(now.kind === "dynamic" && now.rule.conds.some((c) => c.values.includes("Dread"))).toBe(true);
+        }
+        expect((await groupOf("mood")).tags.find((t) => t.name === "Dread")?.also).toEqual(expect.arrayContaining(["eerie", "fear", "horror"]));
+        expectRefused(await api.tags.mergeTag({ group: "mood", value: "Dread" }, "Dread"), "invalid");
+        const gone = valueOf(await api.tags.deleteTag({ group: "mood", value: "Melancholy" }));
+        expect(gone.tracks).toBeGreaterThan(0);
+        // The tags inside it move up a level.
+        expect((await groupOf("mood")).tags.find((t) => t.name === "Grief")?.parent).toBeNull();
+        expectRefused(await api.tags.deleteTag({ group: "mood", value: "Nope" }), "not-found");
+      });
+
+      it("DAT-10: groups and tags are made, coloured, nested, given other words and moved", async () => {
+        const faction = valueOf(await api.tags.createGroup("Faction", "moss"));
+        expect(faction).toMatchObject({ name: "Faction", color: "moss", values: [], tags: [] });
+        expect((await api.tags.listGroups()).map((g) => g.name)).toEqual(["Mood", "Leitmotif", "Scene type", "Faction"]);
+        expectRefused(await api.tags.createGroup("Faction"), "invalid");
+        expectRefused(await api.tags.createGroup("Guild", "pink" as never), "invalid");
+        expect(valueOf(await api.tags.createTag(faction.id, "Harbour guild"))).toEqual({ group: faction.id, value: "Harbour guild" });
+        valueOf(await api.tags.createTag(faction.id, "Dock wardens", "Harbour guild"));
+        expectRefused(await api.tags.createTag(faction.id, "Harbour guild"), "invalid");
+        expectRefused(await api.tags.createTag("nope", "X"), "not-found");
+        const info = valueOf(await api.tags.updateTag({ group: faction.id, value: "Dock wardens" }, { also: ["Wardens", "watch"], color: "sea" }));
+        expect(info).toEqual({ name: "Dock wardens", parent: "Harbour guild", also: ["wardens", "watch"], color: "sea" });
+        valueOf(await api.tags.updateTag({ group: faction.id, value: "Dock wardens" }, { parent: null }));
+        expectRefused(await api.tags.updateTag({ group: faction.id, value: "Harbour guild" }, { parent: "Nope" }), "not-found");
+        valueOf(await api.tags.moveTag({ group: faction.id, value: "Dock wardens" }, -1));
+        expect((await groupOf(faction.id)).values).toEqual(["Dock wardens", "Harbour guild"]);
+        valueOf(await api.tags.moveGroup(faction.id, -1));
+        expect((await api.tags.listGroups()).map((g) => g.name)).toEqual(["Mood", "Leitmotif", "Faction", "Scene type"]);
+        valueOf(await api.tags.updateGroup(faction.id, { name: "Factions", color: null }));
+        expect(await groupOf(faction.id)).toMatchObject({ name: "Factions", color: null });
+        // A new group shows on every track at once.
+        expect((await trackOf("t07")).tags[faction.id]).toEqual([]);
+        valueOf(await api.tags.deleteGroup(faction.id));
+        expect(await groupOf(faction.id)).toBeUndefined();
+        expectRefused(await api.tags.deleteGroup("nope"), "not-found");
+      });
+
+      it("ORG-4: folders hold playlists and boards, nest, and deleting one moves what was in it up a level", async () => {
+        const abbey = valueOf(await api.folders.create("playlists", { name: "The abbey", moveIn: "p-abbess" }));
+        expect(abbey).toMatchObject({ kind: "playlists", name: "The abbey", parentId: null, color: null });
+        expect((await playlistOf("p-abbess")).folderId).toBe(abbey.id);
+        await changedEvent("playlists", "history");
+        const inner = valueOf(await api.folders.create("playlists", { name: "Villains", parentId: abbey.id }));
+        valueOf(await api.folders.moveInto("playlists", "p-ashen", inner.id));
+        expect(folderPath(await api.folders.list("playlists"), inner.id)).toBe("The abbey › Villains");
+        valueOf(await api.folders.update(inner.id, { color: "plum" }));
+        expect((await api.folders.list("playlists")).find((f) => f.id === inner.id)?.color).toBe("plum");
+        valueOf(await api.folders.delete(abbey.id));
+        expect((await api.folders.list("playlists")).find((f) => f.id === inner.id)?.parentId).toBeNull();
+        expect((await playlistOf("p-abbess")).folderId).toBeNull();
+        valueOf(await api.history.undo());
+        expect((await playlistOf("p-abbess")).folderId).toBe(abbey.id);
+        const boards = valueOf(await api.folders.create("boards", { name: "Places", moveIn: "weather" }));
+        expect((await boardOf("weather")).folderId).toBe(boards.id);
+        expectRefused(await api.folders.moveInto("boards", "weather", abbey.id), "invalid");
+        expectRefused(await api.folders.create("playlists", { name: " " }), "invalid");
+        expectRefused(await api.folders.moveInto("playlists", "nope", null), "not-found");
+        expectRefused(await api.folders.update("nope", { name: "X" }), "not-found");
+        expectRefused(await api.folders.delete("nope"), "not-found");
+      });
+
+      it("ORG-4: a manual playlist's dividers are lines, not tracks, and move like tracks", async () => {
+        const tracks = await api.playlists.tracks("p-abbess");
+        const div = valueOf(await api.playlists.addDivider("p-abbess", "After the font", 2));
+        expect(div).toMatchObject({ name: "After the font", at: 2 });
+        expect(await api.playlists.tracks("p-abbess")).toEqual(tracks);
+        expect(withDividers(tracks, (await playlistOf("p-abbess")).dividers).map((e) => (e.kind === "track" ? e.trackId : e.name))).toEqual([tracks[0], tracks[1], "After the font", ...tracks.slice(2)]);
+        valueOf(await api.playlists.moveItem("p-abbess", { dividerId: div.id }, 0));
+        expect((await playlistOf("p-abbess")).dividers).toEqual([{ ...div, at: 0 }]);
+        valueOf(await api.playlists.moveItem("p-abbess", { trackId: tracks[3] }, 0));
+        expect((await api.playlists.tracks("p-abbess"))[0]).toBe(tracks[3]);
+        expect((await playlistOf("p-abbess")).dividers[0].at).toBe(1);
+        valueOf(await api.playlists.renameDivider("p-abbess", div.id, "The font"));
+        valueOf(await api.playlists.removeDivider("p-abbess", div.id));
+        expect((await playlistOf("p-abbess")).dividers).toEqual([]);
+        expectRefused(await api.playlists.addDivider("p-combat-big", "Big", 0), "wrong-kind");
+        expectRefused(await api.playlists.renameDivider("p-abbess", "nope", "X"), "not-found");
+        expectRefused(await api.playlists.addDivider("p-abbess", "", 0), "invalid");
+      });
+
+      it("ORG-4: a pad board's dividers name rows", async () => {
+        const board = valueOf(await api.boards.setDivider("abbey", 1, "Spells"));
+        expect(board.dividers).toEqual([{ row: 1, name: "Spells" }]);
+        expect((await boardOf("abbey")).dividers).toEqual([{ row: 1, name: "Spells" }]);
+        valueOf(await api.boards.setDivider("abbey", 1, null));
+        expect((await boardOf("abbey")).dividers).toEqual([]);
+        expectRefused(await api.boards.setDivider("abbey", 9, "x"), "invalid");
+        expectRefused(await api.boards.setDivider("nope", 0, "x"), "not-found");
+      });
+
+      it("ORG-5: put copies tracks into a playlist, moves them with Shift, makes pads on a board, adds to a scene", async () => {
+        const into = valueOf(await api.library.put({ place: { kind: "playlist", playlistId: "p-ashen" }, what: { kind: "tracks", ids: ["t14"] }, from: "p-abbess" }));
+        expect(into).toMatchObject({ added: ["t14"], alreadyIn: [], moved: false, placeName: "Ashen King" });
+        expect(await api.playlists.tracks("p-abbess")).toContain("t14");
+        valueOf(await api.history.undo());
+        const moved = valueOf(await api.library.put({ place: { kind: "playlist", playlistId: "p-ashen" }, what: { kind: "tracks", ids: ["t14"] }, from: "p-abbess", move: true }));
+        expect(moved.moved).toBe(true);
+        expect(await api.playlists.tracks("p-abbess")).not.toContain("t14");
+        expect(await api.playlists.tracks("p-ashen")).toContain("t14");
+        const again = valueOf(await api.library.put({ place: { kind: "playlist", playlistId: "p-ashen" }, what: { kind: "tracks", ids: ["t14"] } }));
+        expect(again).toMatchObject({ added: [], alreadyIn: ["t14"] });
+        const pads = valueOf(await api.library.put({ place: { kind: "board", boardId: "spells" }, what: { kind: "tracks", ids: ["f04", "t39"] } }));
+        expect(pads.added).toHaveLength(2);
+        const spells = await boardOf("spells");
+        const made = [...spells.slots, ...spells.spare].filter((p) => p && pads.added.includes(p.id));
+        expect(made.map((p) => p.sound.trackIds)).toEqual([["f04"], ["t39"]]);
+        const toScene = valueOf(await api.library.put({ place: { kind: "scene", ...ruins }, what: { kind: "playlists", ids: ["p-ashen", "p-abbess"] } }));
+        expect(toScene).toMatchObject({ added: ["p-ashen"], alreadyIn: ["p-abbess"] });
+        valueOf(await api.library.put({ place: { kind: "scene", ...ruins }, what: { kind: "boards", ids: ["spells"] } }));
+        expect((await sceneOf(ruins)).boardIds).toContain("spells");
+        expectRefused(await api.library.put({ place: { kind: "playlist", playlistId: "p-combat-big" }, what: { kind: "tracks", ids: ["t14"] } }), "wrong-kind");
+        expectRefused(await api.library.put({ place: { kind: "board", boardId: "spells" }, what: { kind: "playlists", ids: ["p-ashen"] } }), "wrong-kind");
+        expectRefused(await api.library.put({ place: { kind: "playlist", playlistId: "nope" }, what: { kind: "tracks", ids: ["t14"] } }), "not-found");
+        expectRefused(await api.library.put({ place: { kind: "queue", roomId: "table" } as never, what: { kind: "tracks", ids: ["t14"] } }), "invalid");
+      });
+
+      it("PLY-8: a scene's own start and Then, a pad's steps; the usual is never kept; one undo step", async () => {
+        const scene = await sceneOf(ruins);
+        expect(scene).toMatchObject({ steps: null, movesOn: { when: "stay" } });
+        const usual = usualSceneSteps(scene);
+        const own: CueStep[] = [...usual, { do: "pad", boardId: "abbey", padId: "bell" }, { do: "fade", level: 0.3, ms: 2000 }];
+        const saved = valueOf(await api.sessions.setSceneSteps(ruins, own, { when: "musicEnds" }));
+        expect(saved).toMatchObject({ steps: own, movesOn: { when: "musicEnds" } });
+        await changedEvent("campaigns", "history");
+        expect(valueOf(await api.sessions.setSceneSteps(ruins, usual, { when: "stay" }))).toMatchObject({ steps: null, movesOn: { when: "stay" } });
+        valueOf(await api.history.undo());
+        expect((await sceneOf(ruins)).steps).toEqual(own);
+        expectRefused(await api.sessions.setSceneSteps(ruins, [{ do: "sound" }], { when: "stay" }), "invalid");
+        expectRefused(await api.sessions.setSceneSteps(ruins, [{ do: "pad", boardId: "abbey", padId: "nope" }], { when: "stay" }), "not-found");
+        expectRefused(await api.sessions.setSceneSteps(ruins, null, { when: "after", ms: 5 }), "invalid");
+        const pad = valueOf(await api.boards.setPadSteps("weather", "thunder", [{ do: "sound" }, { do: "stop", what: "music" }]));
+        expect(pad.steps).toEqual([{ do: "sound" }, { do: "stop", what: "music" }]);
+        expect(valueOf(await api.boards.setPadSteps("weather", "thunder", usualPadSteps())).steps).toBeNull();
+        expectRefused(await api.boards.setPadSteps("weather", "thunder", [{ do: "board", boardId: "abbey" }]), "invalid");
+        expectRefused(await api.boards.setPadSteps("weather", "nope", null), "not-found");
+      });
+
+      it("PLY-4, SHW-3: Ending, Pick up and Follow with are kept on the track", async () => {
+        expect(await trackOf("t15")).toMatchObject({ fadesOut: false, resume: false, follow: null });
+        const t = valueOf(await api.library.updateTrack("t15", { fadesOut: true, resume: true, follow: { kind: "playlist", id: "p-ashen" } }));
+        expect(t).toMatchObject({ fadesOut: true, resume: true, follow: { kind: "playlist", id: "p-ashen" } });
+        valueOf(await api.library.updateTrack("t39", { follow: { kind: "track", id: "t15" } }));
+        expect((await trackOf("t39")).follow).toEqual({ kind: "track", id: "t15" });
+        valueOf(await api.library.updateTrack("t15", { follow: null }));
+        expect((await trackOf("t15")).follow).toBeNull();
+        expectRefused(await api.library.updateTrack("t15", { follow: { kind: "track", id: "t15" } }), "invalid");
+        expectRefused(await api.library.updateTrack("t15", { follow: { kind: "playlist", id: "nope" } }), "not-found");
+      });
+
+      it("DAT-3: one marker of a profile is the mix-out point", async () => {
+        valueOf(await api.profiles.set("t13", null, { markers: [{ atMs: 30_000, label: "Low swell", mix: true }, { atMs: 64_000, label: "Choir enters" }] }));
+        expect((await trackOf("t13")).profile?.markers).toEqual([{ atMs: 30_000, label: "Low swell", mix: true }, { atMs: 64_000, label: "Choir enters" }]);
+        expectRefused(await api.profiles.set("t13", null, { markers: [{ atMs: 1, label: "a", mix: true }, { atMs: 2, label: "b", mix: true }] }), "invalid");
+      });
+
+      it("UX-12: Find and play finds tracks, playlists, pads and scenes", async () => {
+        const found = await api.library.find({ text: "abbey" });
+        expect(found.pads.map((p) => p.padId)).toContain("bell");
+        expect(found.pads.find((p) => p.padId === "bell")).toEqual({ boardId: "abbey", padId: "bell", label: "Abbey bell", boardName: "Drowned Abbey" });
+        expect(found.scenes.find((x) => x.sceneId === "sc3")).toEqual({ campaignId: CROWN, sessionId: S14, sceneId: "sc3", name: "The abbey ruins", sessionNumber: 14 });
+        const amb = await api.library.find({ text: "abbey", lane: "amb" });
+        expect(amb.pads).toEqual([]);
+        expect(amb.scenes).toEqual([]);
+        expect((await api.library.find({ text: "thunder", lane: "fx" })).pads.map((p) => p.padId)).toEqual(["thunder"]);
+      });
+
+      it("UX-12, PLY-8, UX-11, PRV-2: settings with the library and per computer", async () => {
+        const start = await api.settings.get();
+        expect(start).toEqual({
+          crossfade: { ms: 3000, curve: "even" },
+          shortcuts: {},
+          nextSceneGuard: true,
+          display: { density: "compact", textSize: 100, highContrast: false },
+          devices: { airDevice: "", previewDevice: "", split: false, previewEar: "left" },
+          globalKeys: false,
+        });
+        expect(valueOf(await api.settings.setShortcut("palette", "ctrl+j")).shortcuts).toEqual({ palette: "Ctrl+J" });
+        await changedEvent("settings", "history");
+        const taken = await api.settings.setShortcut("find", "Ctrl+J");
+        expectRefused(taken, "invalid");
+        expect(isRefused(taken) && taken.refusal.message).toMatch(/Find and play/);
+        expect(valueOf(await api.settings.resetShortcuts()).shortcuts).toEqual({});
+        valueOf(await api.history.undo());
+        expect((await api.settings.get()).shortcuts).toEqual({ palette: "Ctrl+J" });
+        expect(valueOf(await api.settings.setCrossfade({ ms: 5000, curve: "power" })).crossfade).toEqual({ ms: 5000, curve: "power" });
+        expectRefused(await api.settings.setCrossfade({ ms: -1, curve: "even" }), "invalid");
+        expect(valueOf(await api.settings.setNextSceneGuard(false)).nextSceneGuard).toBe(false);
+        const before = await api.history.state();
+        const computer = await api.settings.setComputer({ display: { density: "comfortable", textSize: 150 }, devices: { split: true, previewEar: "right" }, globalKeys: true });
+        expect(valueOf(computer)).toMatchObject({ display: { density: "comfortable", textSize: 150, highContrast: false }, devices: { split: true, previewEar: "right" }, globalKeys: true });
+        expect(computer.ok && computer.undoLabel).toBe(before.undoLabel);
+        expect(await api.history.state()).toEqual(before);
+        expectRefused(await api.settings.setComputer({ display: { textSize: 300 } }), "invalid");
+        expectRefused(await api.settings.setComputer({ devices: { previewEar: "middle" as never } }), "invalid");
       });
     });
 

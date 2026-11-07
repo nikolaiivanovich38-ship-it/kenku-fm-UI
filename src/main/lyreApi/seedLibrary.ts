@@ -33,6 +33,8 @@ import {
   savePeaks,
   setSceneTrackName,
   setRepeatOne,
+  setTagSynonyms,
+  updateTag,
   setTrackNormalise,
   trackLoudness,
   trackPeaks,
@@ -60,8 +62,15 @@ export async function seedLibrary(library: Library, seed: SeedData, options: See
   const tagIds = new Map<string, string>();
   store.changeWithoutHistory(() => {
     for (const group of seed.tagGroups) {
-      createTagGroup(store, { id: group.id, name: group.name });
+      createTagGroup(store, { id: group.id, name: group.name, color: group.color ?? null });
       for (const value of group.values) tagIds.set(`${group.id}\u0000${value}`, createTag(store, { groupId: group.id, name: value }).id);
+      // DAT-10 (round 7): where each tag sits, its other words and its colour.
+      for (const t of group.tags ?? []) {
+        const tagId = tagIds.get(`${group.id}\u0000${t.name}`) as string;
+        const parentId = t.parent ? tagIds.get(`${group.id}\u0000${t.parent}`) : undefined;
+        if (parentId || t.color) updateTag(store, tagId, { ...(parentId ? { parentId } : {}), ...(t.color ? { color: t.color } : {}) });
+        if (t.also.length) setTagSynonyms(store, tagId, t.also);
+      }
     }
     createTracks(
       store,

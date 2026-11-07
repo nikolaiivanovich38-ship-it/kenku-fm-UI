@@ -36,7 +36,7 @@ const tag = (name: string) => listTags(t.store).find((x) => x.name === name)!;
 
 describe("tag groups (DAT-10)", () => {
   it("adds, renames, colours, reorders and deletes groups", async () => {
-    const weather = createTagGroup(t.store, { name: "Weather", color: "#336699" });
+    const weather = createTagGroup(t.store, { name: "Weather", color: "sea" });
     moveTagGroup(t.store, weather.id, { before: group("Mood").id });
     updateTagGroup(t.store, group("Scene type").id, { name: "Scene" });
     expect(listTagGroups(t.store).map((g) => g.name)).toEqual(["Weather", "Mood", "Leitmotif", "Scene"]);
@@ -57,8 +57,8 @@ describe("tags (DAT-10)", () => {
   it("nests tags under a parent in the same group, with synonyms", async () => {
     const leitmotif = group("Leitmotif");
     const villain = createTag(t.store, { groupId: leitmotif.id, name: "Villain" });
-    const strahd = createTag(t.store, { groupId: leitmotif.id, name: "Strahd", parentId: villain.id, color: "#880000" });
-    expect(getTag(t.store, strahd.id)).toMatchObject({ parentId: villain.id, color: "#880000", synonyms: [] });
+    const strahd = createTag(t.store, { groupId: leitmotif.id, name: "Strahd", parentId: villain.id, color: "ember" });
+    expect(getTag(t.store, strahd.id)).toMatchObject({ parentId: villain.id, color: "ember", synonyms: [] });
     setTagSynonyms(t.store, tag("Melancholy").id, ["sad", "Sorrowful", "sad"]);
     expect(getTag(t.store, tag("Melancholy").id)!.synonyms).toEqual(["sad", "Sorrowful"]);
     expect(() => createTag(t.store, { groupId: group("Mood").id, name: "x", parentId: villain.id })).toThrow(/same group/);
@@ -98,6 +98,16 @@ describe("tags (DAT-10)", () => {
     expect(listTags(t.store, { groupId: group("Mood").id }).map((x) => x.name)[0]).toBe("Cosy");
     await deleteTag(t.store, warm.id);
     expect(listTags(t.store, { groupId: group("Mood").id }).map((x) => x.name)).not.toContain("Cosy");
+  });
+
+  it("DAT-10: deleting a tag moves the tags inside it up a level, to where it was", async () => {
+    const mood = group("Mood").id;
+    const sorrow = createTag(t.store, { groupId: mood, name: "Sorrow", parentId: tag("Melancholy").id });
+    const grief = createTag(t.store, { groupId: mood, name: "Grief", parentId: sorrow.id });
+    await deleteTag(t.store, sorrow.id);
+    expect(getTag(t.store, grief.id)!.parentId).toBe(tag("Melancholy").id);
+    await deleteTag(t.store, tag("Melancholy").id);
+    expect(getTag(t.store, grief.id)!.parentId).toBeNull();
   });
 
   it("merges tags: tracks move to the kept tag and the old names become synonyms", async () => {

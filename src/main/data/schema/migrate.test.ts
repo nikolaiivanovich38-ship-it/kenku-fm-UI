@@ -28,7 +28,7 @@ const cueListsLater: Migration = {
   name: "cue lists and pads (test stand-in)",
   up(db) {
     db.exec(`
-      CREATE TABLE cue_lists (
+      CREATE TABLE standin_cue_sheets (
         id TEXT PRIMARY KEY,
         session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
         scene_id TEXT REFERENCES scenes(id) ON DELETE CASCADE,
@@ -36,7 +36,7 @@ const cueListsLater: Migration = {
       );
       CREATE TABLE cues (
         id TEXT PRIMARY KEY,
-        cue_list_id TEXT NOT NULL REFERENCES cue_lists(id) ON DELETE CASCADE,
+        standin_sheet_id TEXT NOT NULL REFERENCES standin_cue_sheets(id) ON DELETE CASCADE,
         number TEXT NOT NULL,
         steps TEXT NOT NULL DEFAULT '[]',
         position REAL NOT NULL
@@ -92,7 +92,7 @@ describe("schema upgrades", () => {
       ]),
     );
     // Cue lists and pad actions wait for their design (WPD).
-    expect(tableNames(db)).not.toContain("cue_lists");
+    expect(tableNames(db)).not.toContain("standin_cue_sheets");
     expect(tableNames(db)).not.toContain("pad_actions");
     expect(db.prepare("PRAGMA user_version").get()).toEqual({ user_version: MIGRATIONS.length });
     db.close();
@@ -166,7 +166,7 @@ describe("schema upgrades", () => {
     ]);
     expect(db.prepare("SELECT title, background FROM boards").get()).toEqual({ title: "Effects", background: "tavern" });
     // The new tables work with the old rows.
-    db.exec("INSERT INTO cue_lists (id, session_id, name) VALUES ('q1', 's1', 'Main')");
+    db.exec("INSERT INTO standin_cue_sheets (id, session_id, name) VALUES ('q1', 's1', 'Main')");
     db.exec("INSERT INTO pads (id, board_id, label, grid_row, grid_col) VALUES ('p1', 'b1', 'Door', 0, 0)");
     db.exec("INSERT INTO pad_actions (id, pad_id) VALUES ('a1', 'p1')");
     // Search still follows the old rows after the upgrade (edits go through a Store, which keeps the index).
