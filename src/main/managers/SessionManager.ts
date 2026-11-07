@@ -5,6 +5,7 @@ import { PlaybackManager } from "./PlaybackManager";
 import { PlayerManager } from "./PlayerManager";
 import { WindowManager } from "./WindowManager";
 import { DiagnosticsBridge } from "../diagnostics/diagnosticsBridge";
+import { WindowSettingsBridge } from "../windowSettings/windowSettingsBridge";
 
 export class SessionManager {
   private playbackManager: PlaybackManager;
@@ -15,6 +16,8 @@ export class SessionManager {
   private lyreManager: LyreManager;
   /** FND-9: Help › Save diagnostics. */
   private diagnostics: DiagnosticsBridge;
+  /** OUT-8 (w6-rooms): the main window's Sound to Discord and Website tabs settings in Settings in Lyre. */
+  private windowSettings: WindowSettingsBridge;
 
   constructor(window: BrowserWindow) {
     this.playbackManager = new PlaybackManager(window);
@@ -34,6 +37,8 @@ export class SessionManager {
       lyreView: () => this.lyreManager.getView(),
       outputs: () => this.playbackManager.outputs.state(),
     });
+    // --- w6-rooms wiring ---
+    this.windowSettings = new WindowSettingsBridge({ mainWindow: () => (window.isDestroyed() ? undefined : window.webContents), lyreView: () => this.lyreManager.getView() });
   }
 
   /** PERF-6: lets the player save changes it is holding back; see saveBeforeClose.ts. */
@@ -48,5 +53,6 @@ export class SessionManager {
     this.playerManager.destroy();
     this.lyreManager.destroy();
     this.diagnostics.destroy();
+    this.windowSettings.destroy();
   }
 }

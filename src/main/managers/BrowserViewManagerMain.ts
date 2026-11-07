@@ -134,6 +134,12 @@ export class BrowserViewManagerMain {
       this.localFiles.forget(folder);
       return this.localFiles.list();
     });
+    // --- w6-rooms --- OUT-8: the same list in Settings in Lyre.
+    this.ipc.handle("LYRE_LOCAL_FOLDERS_LIST", () => this.localFiles.list());
+    this.ipc.handle("LYRE_LOCAL_FOLDERS_FORGET", (_event, folder: string) => {
+      this.localFiles.forget(folder);
+      return this.localFiles.list();
+    });
 
     this.window.on("resize", this._resizeListener);
   }

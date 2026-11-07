@@ -113,3 +113,56 @@ describe("LyreManager: automatic updates for the Lyre page's Settings (SEC-14)",
     expect(lyre.send).toHaveBeenCalledTimes(1);
   });
 });
+
+// --- w6-rooms ---
+describe("LyreManager: keys that work in other programs too (UX-12, globalShortcut)", () => {
+  function fakeShortcuts(heldElsewhere: string[] = []) {
+    const ours = new Map<string, () => void>();
+    return {
+      ours,
+      register: vi.fn((accelerator: string, callback: () => void) => {
+        if (heldElsewhere.includes(accelerator)) return false;
+        ours.set(accelerator, callback);
+        return true;
+      }),
+      unregister: vi.fn((accelerator: string) => void ours.delete(accelerator)),
+    };
+  }
+
+  it("registers Next scene and Fade everything out for the Lyre page only, and tells the page each press", async () => {
+    const shortcuts = fakeShortcuts();
+    manager = new LyreManager({ shortcuts });
+    const lyre = fakePage("lyre-view");
+    allContents.push(lyre);
+    expect(await fakeIpcMain.invoke("LYRE_GLOBAL_KEYS_SET", fromMainFrame(lyre), { on: true, keys: { nextScene: "F9", fadeAll: "Shift+Esc" } })).toEqual({ refused: [] });
+    shortcuts.ours.get("F9")!();
+    expect(lyre.send).toHaveBeenCalledWith("LYRE_GLOBAL_KEY", "nextScene");
+    for (const event of [fromMainFrame(fakePage("main-window")), fromMainFrame(fakePage(null)), fromMainFrame(fakePage("player-view")), fromSubframe(lyre)]) {
+      await expect(fakeIpcMain.invoke("LYRE_GLOBAL_KEYS_SET", event, { on: true, keys: { nextScene: "F10" } })).rejects.toThrow();
+    }
+  });
+
+  it("refuses a malformed request at the boundary (another action, a long key, extra arguments)", async () => {
+    manager = new LyreManager({ shortcuts: fakeShortcuts() });
+    const lyre = fakePage("lyre-view");
+    for (const args of [[{ on: true, keys: { undo: "Ctrl+Z" } }], [{ on: true, keys: { nextScene: "x".repeat(41) } }], [{ on: true, keys: {} }, "extra"], ["on"]]) {
+      await expect(fakeIpcMain.invoke("LYRE_GLOBAL_KEYS_SET", fromMainFrame(lyre), ...args)).rejects.toThrow();
+    }
+  });
+
+  it("says in plain words when another program holds a key", async () => {
+    manager = new LyreManager({ shortcuts: fakeShortcuts(["F9"]) });
+    const answer = await fakeIpcMain.invoke("LYRE_GLOBAL_KEYS_SET", fromMainFrame(fakePage("lyre-view")), { on: true, keys: { nextScene: "F9" } });
+    expect(answer).toEqual({ refused: [{ action: "nextScene", key: "F9", message: expect.stringContaining("Another program already uses F9") }] });
+  });
+
+  it("lets go of every key when destroyed (the window closes)", async () => {
+    const shortcuts = fakeShortcuts();
+    manager = new LyreManager({ shortcuts });
+    await fakeIpcMain.invoke("LYRE_GLOBAL_KEYS_SET", fromMainFrame(fakePage("lyre-view")), { on: true, keys: { nextScene: "F9", fadeAll: "Shift+Esc" } });
+    manager.destroy();
+    manager = undefined;
+    expect(shortcuts.ours.size).toBe(0);
+    expect(fakeIpcMain.handlers.has("LYRE_GLOBAL_KEYS_SET")).toBe(false);
+  });
+});

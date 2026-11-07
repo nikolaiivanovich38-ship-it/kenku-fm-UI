@@ -22,5 +22,7 @@ export function registerAppInfoIpc(info: AppInfo): () => void {
     event.returnValue = info.getPlatform();
   });
   ipc.handle("CLEAR_CACHE", () => info.clearCache());
+  // w6-rooms (OUT-8): Settings in Lyre › Website tabs › Clear website data does the same.
+  ipc.handle("LYRE_CLEAR_WEBSITE_DATA", () => info.clearCache());
   return () => ipc.dispose();
 }
