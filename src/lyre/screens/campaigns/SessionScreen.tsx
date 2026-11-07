@@ -56,6 +56,13 @@ import "./campaigns.css";
 import { takeBackOpen, TopLead } from "../../shell/TopBar";
 import { useSave } from "../../shell/useSave";
 
+/** The scenes open in each session's planner, for this visit (UX-18: Back returns to the page as it was left). */
+const OPEN_SCENES = new Map<string, Record<string, boolean>>();
+/** A new start of the page (tests): every scene folded again. */
+export function forgetOpenScenes(): void {
+  OPEN_SCENES.clear();
+}
+
 export function SessionScreen({ route }: ScreenProps) {
   const query = useCampaign(route.params.cid ?? "");
   const index = useLibraryIndex();
@@ -98,7 +105,15 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
   const { say, toast } = useAnnounce();
   const { offer } = useUndoNote();
   const focus = useFocusLater();
-  const [open, setOpen] = useState<Record<string, boolean>>({});
+  // UX-18: the scenes open in this session stay open for the visit, so Back (and any return) finds the page as it was.
+  const memoryKey = `${c.id}/${saved.id}`;
+  const [open, setOpenNow] = useState<Record<string, boolean>>(() => OPEN_SCENES.get(memoryKey) ?? {});
+  const setOpen = (change: React.SetStateAction<Record<string, boolean>>) =>
+    setOpenNow((was) => {
+      const next = typeof change === "function" ? change(was) : change;
+      OPEN_SCENES.set(memoryKey, next);
+      return next;
+    });
   const [current, setCurrent] = useState<string | null>(null);
   const [picking, setPicking] = useState<Picking>(null);
   const [deleting, setDeleting] = useState<string | null>(null);

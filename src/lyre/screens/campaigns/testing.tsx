@@ -11,6 +11,7 @@ import { FakeLyreAudio } from "../../audio/testing/fakeLyreAudio";
 import { Shell } from "../../shell/Shell";
 import { SCREENS } from "..";
 import { CampaignScreen, CampaignsScreen, SessionScreen } from ".";
+import { forgetOpenScenes } from "./SessionScreen";
 
 export const CAMPAIGN_SCREENS = { ...SCREENS, campaigns: CampaignsScreen, campaign: CampaignScreen, session: SessionScreen };
 
@@ -24,6 +25,8 @@ export function openAt(path: string, options: { api?: FakeLyreApi; audio?: FakeL
   const api = options.api ?? createFakeLyreApi();
   const audio = options.audio ?? new FakeLyreAudio();
   window.history.replaceState(null, "", `#/${path}`);
+  // Each test is a new start of Lyre: no scene is open from the one before.
+  forgetOpenScenes();
   render(
     <AppProviders api={api} audio={audio}>
       <Shell screens={CAMPAIGN_SCREENS} />
