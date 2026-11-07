@@ -1,6 +1,6 @@
 /**
  * w4-outputs: the Lyre page's side of the outputs: the preload bridge (window.lyre.outputs), the provider that keeps
- * the latest state for every screen, the rail's "Outputs (n/m)" and the fake the screen tests use.
+ * the latest state for every screen, the rail's "Rooms (n/m)" and the fake the screen tests use.
  */
 import React from "react";
 import { act, render, screen } from "@testing-library/react";
@@ -122,10 +122,10 @@ describe("OutputsProvider", () => {
         <Probe />
       </OutputsProvider>,
     );
-    expect(await screen.findByText("2 bots, Outputs (1/2)")).toBeInTheDocument();
+    expect(await screen.findByText("2 bots, Rooms (1/2)")).toBeInTheDocument();
     fake.move(fake.state.bots[1].id, "1012");
     await act(() => fake.settle());
-    expect(screen.getByText("2 bots, Outputs (2/2)")).toBeInTheDocument();
+    expect(screen.getByText("2 bots, Rooms (2/2)")).toBeInTheDocument();
   });
 
   it("works without outputs (tests and pages without the bridge)", () => {
@@ -140,9 +140,9 @@ describe("OutputsProvider", () => {
 
 describe("outputsLabel", () => {
   it("counts the bots connected in a voice channel, of all bots", () => {
-    expect(outputsLabel(PROTOTYPE_OUTPUTS)).toBe("Outputs (1/2)");
+    expect(outputsLabel(PROTOTYPE_OUTPUTS)).toBe("Rooms (1/2)");
     const joining: LyreOutputs = { ...PROTOTYPE_OUTPUTS, bots: PROTOTYPE_OUTPUTS.bots.map((b) => ({ ...b, room: b.room && { ...b.room, status: "joining" } })) };
-    expect(outputsLabel(joining)).toBe("Outputs (0/2)");
+    expect(outputsLabel(joining)).toBe("Rooms (0/2)");
   });
 });
 

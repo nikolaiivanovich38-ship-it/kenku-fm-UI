@@ -16,8 +16,9 @@ import { cx } from "../../kit/cx";
 import { useAnnounce } from "../../shell/Announcer";
 import { useUndoNote } from "../../shell/UndoNote";
 import { howSure, plural } from "./model";
-import { Crumbs, focusSoon, pathOfDropped } from "./parts";
+import { focusSoon, pathOfDropped } from "./parts";
 import "./transfer.css";
+import { TopLead } from "../../shell/TopBar";
 
 interface Row {
   trackId: string;
@@ -115,7 +116,7 @@ export function RelinkScreen() {
   return (
     <>
       <div className="viewhead">
-        <Crumbs />
+        <TopLead />
         <h1>Find missing files</h1>
       </div>
       <div

@@ -11,6 +11,7 @@ import { Icon } from "../../kit/Icon";
 import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
 import { RenameField, renameKeys, useRenameInPlace } from "../../kit/RenameInPlace";
 import { useAnnounce } from "../../shell/Announcer";
+import { TopLead } from "../../shell/TopBar";
 import { sessionLabel } from "../campaigns/model";
 import { useWrite } from "../campaigns/parts";
 import { useLive } from "./liveData";
@@ -74,6 +75,7 @@ export function LiveTop({ keysOpen, setKeysOpen, setKeys1, loadSession }: TopPro
 
   return (
     <div className="lv-top">
+      <TopLead />
       <h1 className="sr-only">Live</h1>
       <div className="seg mode-switch" role="group" aria-label="Prep or live">
         <button type="button" aria-pressed="false" onClick={() => (window.location.hash = `#/session/${campaign.id}/${session.id}`)}>

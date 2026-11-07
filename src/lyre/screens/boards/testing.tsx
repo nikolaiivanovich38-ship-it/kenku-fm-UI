@@ -16,6 +16,8 @@ import type { ScreenComponent } from "..";
 export function renderScreen(Screen: ScreenComponent, path: string, options: FakeLyreOptions & { audio?: FakeLyreAudio } = {}) {
   const api: FakeLyreApi = createFakeLyreApi(options);
   const audio = options.audio ?? new FakeLyreAudio();
+  // The address the screen is at, as in the app (Back's trail follows it).
+  window.history.replaceState(null, "", `#/${path}`);
   const view = render(
     <LyreApiProvider api={api}>
       <LyreAudioProvider audio={audio}>

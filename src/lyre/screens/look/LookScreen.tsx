@@ -4,8 +4,12 @@
  * Theme to go back to each campaign's own. Ported from the prototype's views/look.js and look.css;
  * the prototype's "Try it in the prototype" is "Use this theme" here.
  */
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 
+import { DEFAULT_DISPLAY, type DisplaySettings } from "../../../common/domain";
+import { useLyreApi, useSettings } from "../../api";
+import { applyDisplay, pageZoom } from "../../shell/display";
+import { useSave } from "../../shell/useSave";
 import { Select } from "../../kit/Fields";
 import { Icon } from "../../kit/Icon";
 import { cx } from "../../kit/cx";
@@ -13,6 +17,7 @@ import { useAnnounce } from "../../shell/Announcer";
 import { THEME_CHOICES, type ThemeChoice, type ThemeId } from "../../shell/themes";
 import { useThemeChoice } from "../../shell/useThemeChoice";
 import "./look.css";
+import { TopLead } from "../../shell/TopBar";
 
 interface ThemeCard {
   id: ThemeId;
@@ -41,10 +46,12 @@ export function LookScreen() {
   return (
     <>
       <div className="viewhead">
+        <TopLead />
         <h1>Look and feel</h1>
         <span className="muted">One Lyre, a theme per table</span>
       </div>
       <div className="viewbody">
+        <Display />
         <div className="lk-intro">
           <p>Each campaign can have its own theme, and Lyre switches to it when you open that campaign. Choose one here to use it everywhere.</p>
           <Select<ThemeChoice> className="lk-choice" label="Theme" value={choice} options={THEME_CHOICES} onChange={setChoice} />
@@ -177,5 +184,103 @@ function Sample({ card }: { card: ThemeCard }) {
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * UX-11, A11Y-6 (design round 7, look.js displayHTML): Display, kept on this computer. Density (Compact, Lyre's
+ * default, or Comfortable), Text size 100 to 200 % (the whole page zooms), High contrast, and Tag colours… (they are
+ * set with the tags). Each change shows the Saved pop-up.
+ */
+function Display() {
+  const api = useLyreApi();
+  const save = useSave();
+  const stored = useSettings().data?.display;
+  const [shown, setShown] = useState<DisplaySettings>(stored ?? DEFAULT_DISPLAY);
+  // The slider's value while it is moved; the size applies when it is let go (or on each arrow key).
+  const [sliding, setSliding] = useState<number | null>(null);
+  /** Whether the Text size slider is being dragged. */
+  const dragging = useRef(false);
+  useEffect(() => {
+    if (stored) setShown(stored);
+  }, [stored]);
+  const change = (patch: Partial<DisplaySettings>, what: string, key: string) => {
+    const next = { ...shown, ...patch };
+    setShown(next);
+    applyDisplay(next, pageZoom());
+    void save(what, () => api.settings.setComputer({ display: patch }), { key });
+  };
+  const size = sliding ?? shown.textSize;
+  return (
+    <section className="lk-display" aria-label="Display">
+      <h2 className="display lk-h2">Display</h2>
+      <div className="lk-drow">
+        <div className="lk-dgrp" role="radiogroup" aria-label="Density">
+          <span className="lk-dl" aria-hidden="true">
+            Density
+          </span>
+          {(
+            [
+              ["compact", "Compact", "28 px controls, 30 px rows: Lyre's default"],
+              ["comfortable", "Comfortable", "Larger controls and rows, more space between them"],
+            ] as const
+          ).map(([value, label, hint]) => (
+            <label key={value} className="lk-radio" title={hint}>
+              <input
+                type="radio"
+                name="lk-density"
+                value={value}
+                checked={shown.density === value}
+                onChange={(event) => event.target.checked && change({ density: value }, `density ${label}`, "lk-density")}
+              />
+              <span>{label}</span>
+            </label>
+          ))}
+        </div>
+        <label className="lk-dgrp lk-size">
+          <span className="lk-dl">Text size</span>
+          <input
+            type="range"
+            min={100}
+            max={200}
+            step={25}
+            value={size}
+            aria-valuetext={`${size} percent`}
+            onChange={(event) => {
+              const v = Number(event.target.value);
+              setSliding(v);
+              // An arrow key is a whole change; a drag applies when it is let go.
+              if (!dragging.current) {
+                setSliding(null);
+                change({ textSize: v }, `text size ${v} %`, "lk-size");
+              }
+            }}
+            onPointerDown={() => (dragging.current = true)}
+            onPointerUp={(event) => {
+              dragging.current = false;
+              const v = Number((event.target as HTMLInputElement).value);
+              setSliding(null);
+              if (v !== shown.textSize) change({ textSize: v }, `text size ${v} %`, "lk-size");
+            }}
+          />
+          <span className="num lk-sizev" aria-hidden="true">
+            {size} %
+          </span>
+        </label>
+        <label className="lk-switch lk-dgrp" title="Hints and quiet text as strong as the rest, stronger lines, in every theme">
+          <input
+            type="checkbox"
+            role="switch"
+            checked={shown.highContrast}
+            onChange={(event) => change({ highContrast: event.target.checked }, `high contrast ${event.target.checked ? "on" : "off"}`, "lk-contrast")}
+          />
+          <b>High contrast</b>
+        </label>
+        <a className="btn s ghost" href="#/tags" title="Each tag group and tag can have a colour; the tag's name always shows with it">
+          <Icon name="tag" size="s" />
+          Tag colours…
+        </a>
+      </div>
+    </section>
   );
 }

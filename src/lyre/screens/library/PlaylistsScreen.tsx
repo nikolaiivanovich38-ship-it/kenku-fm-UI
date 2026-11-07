@@ -28,6 +28,7 @@ import { PopMenuButton, TwoLines, type PopMenuEntry } from "../../kit/PopMenu";
 import { PlayOnAirButton, PreviewButton } from "../../kit/SoundButtons";
 import "./library.css";
 import "./playlists.css";
+import { TopLead } from "../../shell/TopBar";
 
 export { PlaylistPage as PlaylistScreen };
 
@@ -155,6 +156,7 @@ export function PlaylistsScreen(_props: ScreenProps) {
   return (
     <>
       <div className="viewhead">
+        <TopLead />
         <h1>Playlists</h1>
         <span className="muted">
           {playlists.length} playlist{playlists.length === 1 ? "" : "s"}

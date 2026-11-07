@@ -20,7 +20,7 @@ export const SCREEN_WORDS: Record<RouteName, string> = {
   board: "the pad board",
   profile: "the Audio profile",
   live: "Live",
-  outputs: "Outputs",
+  outputs: "Rooms",
   settings: "Settings",
   look: "Look and feel",
   backup: "Back up, move or share",

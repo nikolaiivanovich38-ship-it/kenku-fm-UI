@@ -60,9 +60,12 @@ describe("the Audio profile screen", () => {
     await open();
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(TITLE);
     const crumbs = screen.getByRole("navigation", { name: "Breadcrumb" });
-    expect(within(crumbs).getByRole("link", { name: "Library" })).toHaveAttribute("href", "#/library");
+    // Round 6 part 6: the trail's Library opens the track there; the h1 is the track, then "› Audio profile".
+    expect(within(crumbs).getByRole("link", { name: "Library" })).toHaveAttribute("href", "#/library/t13");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("› Audio profile");
     expect(screen.getByText("06 Bridge of Death.flac")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Back to track/ })).toHaveAttribute("href", "#/library/t13");
+    // UX-18: Back is the shell's; opened by its address, it goes to the track in the Library.
+    expect(screen.getByRole("button", { name: /^Back to Library: Eerie dread/ })).toBeInTheDocument();
     expect(screen.getAllByText("Length")[0].parentElement).toHaveTextContent("Length 7:21");
   });
 
@@ -528,7 +531,7 @@ describe("different settings for different places", () => {
     await waitFor(() => expect(window.location.hash).toBe("#/profile/t13/pl:p-gothic"));
     await waitFor(() => expect(screen.getByRole("combobox", { name: "Settings for" })).toHaveFocus());
     expect(atEnd().getByRole("textbox", { name: "End" })).toBeDisabled();
-    expect(screen.getByRole("status")).toHaveTextContent("Uses the track's settings (read-only until you give it its own)");
+    expect(screen.getByText("Uses the track's settings (read-only until you give it its own)")).toHaveAttribute("role", "status");
   });
 
   it("giving a place its own settings copies them, and a change there leaves the track's own alone", async () => {

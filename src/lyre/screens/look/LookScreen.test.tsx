@@ -1,9 +1,11 @@
 /** Look and feel (route `look`): the five table themes, as the prototype's views/look.js shows them. */
 import React from "react";
-import { act, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createFakeLyreApi, type FakeLyreApi } from "../../../common/lyre/fake";
+import { LyreApiProvider } from "../../api";
 import { Shell } from "../../shell/Shell";
 import { loadShellSettings } from "../../shell/settings";
 import { expectNoAxeViolations } from "../../test/axe";
@@ -13,9 +15,16 @@ import { LookScreen } from "./LookScreen";
 
 const LOOK_SCREENS = { ...SCREENS, look: LookScreen, campaigns: () => <PlaceholderScreen title="Campaigns" /> };
 
+let api: FakeLyreApi;
+
 function open() {
   window.history.replaceState(null, "", "#/look");
-  render(<Shell screens={LOOK_SCREENS} />);
+  api = createFakeLyreApi();
+  render(
+    <LyreApiProvider api={api}>
+      <Shell screens={LOOK_SCREENS} />
+    </LyreApiProvider>,
+  );
   return within(screen.getByRole("main"));
 }
 
@@ -24,6 +33,41 @@ const card = (name: string) => within(screen.getByRole("article", { name }));
 beforeEach(() => {
   localStorage.clear();
   document.documentElement.removeAttribute("data-theme");
+  document.documentElement.removeAttribute("data-density");
+  document.documentElement.removeAttribute("data-contrast");
+});
+
+describe("Look and feel › Display (UX-11, round 7)", () => {
+  const display = () => within(screen.getByRole("region", { name: "Display" }));
+
+  it("Compact is the default; Comfortable is kept on this computer, marks the page and shows the Saved pop-up", async () => {
+    open();
+    const user = userEvent.setup();
+    expect(display().getByRole("radio", { name: "Compact" })).toBeChecked();
+    await user.click(display().getByRole("radio", { name: "Comfortable" }));
+    expect(document.documentElement.dataset.density).toBe("comfortable");
+    await vi.waitFor(() => expect(document.getElementById("lyre-toast")).toHaveTextContent("Saved: density Comfortable"));
+    expect((await api.settings.get()).display.density).toBe("comfortable");
+  });
+
+  it("Text size goes from 100 to 200 % in steps of 25, read out in per cent", async () => {
+    open();
+    const size = display().getByRole("slider", { name: "Text size" });
+    expect(size).toHaveAttribute("aria-valuetext", "100 percent");
+    await act(async () => fireEvent.change(size, { target: { value: "150" } }));
+    expect(size).toHaveAttribute("aria-valuetext", "150 percent");
+    await vi.waitFor(async () => expect((await api.settings.get()).display.textSize).toBe(150));
+    expect(size).toHaveAttribute("max", "200");
+    expect(size).toHaveAttribute("step", "25");
+  });
+
+  it("High contrast is a switch that marks the page; Tag colours… goes to the tags", async () => {
+    open();
+    const user = userEvent.setup();
+    await user.click(display().getByRole("switch", { name: "High contrast" }));
+    expect(document.documentElement.dataset.contrast).toBe("high");
+    expect(display().getByRole("link", { name: "Tag colours…" })).toHaveAttribute("href", "#/tags");
+  });
 });
 
 describe("Look and feel", () => {

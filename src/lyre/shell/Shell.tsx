@@ -12,6 +12,7 @@ import { UndoNoteBar, UndoNoteProvider } from "./UndoNote";
 import { ShellSettingsProvider, useShellSettings } from "./ShellSettings";
 import { themeFor } from "./themes";
 import { useHelp } from "../help/useHelp";
+import { fallbackNow, NavigationProvider, useBackKeys, useNavigationState } from "./TopBar";
 
 /** How long the shell waits for a new screen's heading (it appears once the screen's data has loaded). */
 const HEADING_WAIT_MS = 5000;
@@ -42,8 +43,13 @@ export function Shell({ screens = SCREENS, firstRunTour = false }: ShellProps) {
 }
 
 function ShellFrame({ screens, firstRunTour }: { screens: Record<RouteName, ScreenComponent>; firstRunTour: boolean }) {
-  const route = useHashRoute();
   const data = useShellData();
+  // UX-18: one history of places for Back. The place left is recorded before the route changes, while it is drawn.
+  const before = useRef<(path: string) => void>(() => undefined);
+  const route = useHashRoute((path) => before.current(path));
+  const navigation = useNavigationState(route.path, data.placeNames);
+  before.current = navigation.beforeRouteChange;
+  useBackKeys(() => navigation.goBack(fallbackNow.current));
   const { settings, update } = useShellSettings();
   const { say } = useAnnounce();
   const appRef = useRef<HTMLDivElement>(null);
@@ -139,29 +145,41 @@ function ShellFrame({ screens, firstRunTour }: { screens: Record<RouteName, Scre
         onHelp={help.toggleHelp}
       />
       <main id="view" className="view" data-view={route.name}>
-        <UndoNoteProvider live={route.name === "live"}>
-          <ErrorBoundary key={route.path} where="this screen">
-            <CampaignInHandContext.Provider value={campaignInHand.current}>
-              <ScreenSound route={route.name}>
-                <Screen route={route} />
-              </ScreenSound>
-            </CampaignInHandContext.Provider>
-          </ErrorBoundary>
-          {route.name !== "live" && <UndoNoteBar />}
-        </UndoNoteProvider>
+        <NavigationProvider value={navigation}>
+          <UndoNoteProvider live={route.name === "live"}>
+            <ErrorBoundary key={route.path} where="this screen">
+              <CampaignInHandContext.Provider value={campaignInHand.current}>
+                <ScreenSound route={route.name}>
+                  <Screen route={route} />
+                </ScreenSound>
+              </CampaignInHandContext.Provider>
+            </ErrorBoundary>
+            {route.name !== "live" && <UndoNoteBar />}
+          </UndoNoteProvider>
+        </NavigationProvider>
         {data.NowPlayingBar && <data.NowPlayingBar previewOnly={!!Screen.showsOnAir} />}
       </main>
       {help.panel}
       {help.tour}
+      {data.FindAndPlay && <data.FindAndPlay />}
     </div>
   );
 }
 
-/** The route in the page address, following its changes (links, Back, the e2e tests). */
-function useHashRoute() {
+/**
+ * The route in the page address, following its changes (links, Back, the e2e tests). `beforeChange` hears the new
+ * path first, while the screen left is still drawn.
+ */
+function useHashRoute(beforeChange: (path: string) => void) {
   const [route, setRoute] = useState(() => routeFromHash(window.location.hash));
+  const hear = useRef(beforeChange);
+  hear.current = beforeChange;
   useEffect(() => {
-    const onHashChange = () => setRoute(routeFromHash(window.location.hash));
+    const onHashChange = () => {
+      const next = routeFromHash(window.location.hash);
+      hear.current(next.path);
+      setRoute(next);
+    };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);

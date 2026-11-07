@@ -21,6 +21,7 @@ import previewOnAir from "./articles/11-preview-on-air.md?raw";
 import backup from "./articles/12-backup.md?raw";
 import missingFiles from "./articles/13-missing-files.md?raw";
 import diagnostics from "./articles/14-diagnostics.md?raw";
+import upNext from "./articles/15-up-next.md?raw";
 
 /** The task groups, in the order the panel lists them. */
 export const HELP_GROUPS = ["Get started", "Prepare", "Run a session", "Your library"] as const;
@@ -113,6 +114,7 @@ const FILES: Record<string, string> = {
   "12-backup.md": backup,
   "13-missing-files.md": missingFiles,
   "14-diagnostics.md": diagnostics,
+  "15-up-next.md": upNext,
 };
 
 export const ARTICLES: readonly HelpArticle[] = Object.keys(FILES)

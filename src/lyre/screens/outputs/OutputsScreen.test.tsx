@@ -55,7 +55,7 @@ describe("Outputs: the rooms", () => {
   it("shows a box per bot in a room, named after the room, with its bot, where it is and who hears it", async () => {
     open();
     const table = await findRoom("Table");
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Outputs");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Rooms");
     expect(table.getByText("Silent")).toBeInTheDocument();
     expect(table.getByText("via Lyre Table")).toBeInTheDocument();
     expect(table.getByRole("button", { name: "Room The Gull and Lantern › Table" })).toHaveAttribute("aria-haspopup", "menu");

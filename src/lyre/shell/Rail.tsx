@@ -36,7 +36,8 @@ export function Rail({ section, min, onToggleMin, helpOpen = false, onHelp }: Ra
           {link("playlists", "playlist", "Playlists")}
           {link("boards", "grid", "Pad boards")}
           {link("live", "broadcast", liveLabel ?? "Live", liveLabel ? liveName : undefined)}
-          {link("outputs", "users", outputsLabel ?? "Outputs")}
+          {/* OUT-9 (round 6, Nik 6 Nov 13:55): the screen is Rooms; its address stays #/outputs. */}
+          {link("outputs", "users", outputsLabel ?? "Rooms")}
         </div>
       </nav>
       <div className="bottom stack" style={{ gap: 2 }}>

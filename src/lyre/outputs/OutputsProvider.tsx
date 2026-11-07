@@ -48,5 +48,5 @@ export function useOutputs(): OutputsValue {
 /** The rail's link, as core.js outputsBadge: bots connected in a voice channel, of all bots. */
 export function outputsLabel(outputs: LyreOutputs): string {
   const connected = outputs.bots.filter((bot) => bot.room?.status === "connected").length;
-  return `Outputs (${connected}/${outputs.bots.length})`;
+  return `Rooms (${connected}/${outputs.bots.length})`;
 }

@@ -53,6 +53,7 @@ import { useOptimisticScenes, type ScenePlay } from "./optimistic";
 import { useDragReorder } from "./reorder";
 
 import "./campaigns.css";
+import { TopLead } from "../../shell/TopBar";
 
 export function SessionScreen({ route }: ScreenProps) {
   const query = useCampaign(route.params.cid ?? "");
@@ -253,16 +254,7 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
   return (
     <>
       <div className="viewhead">
-        <nav className="crumbs" aria-label="Breadcrumb">
-          <a href="#/campaigns">Campaigns</a>
-          <span className="sep" aria-hidden="true">
-            ›
-          </span>
-          <a href={`#/campaign/${c.id}`}>{c.name}</a>
-          <span className="sep" aria-hidden="true">
-            ›
-          </span>
-        </nav>
+        <TopLead />
         <h1>
           {renameTitle.editing ? (
             <>

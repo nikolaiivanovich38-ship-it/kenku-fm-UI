@@ -9,7 +9,7 @@ describe("the help articles (FND-8)", () => {
   it("has every Markdown file in src/lyre/help/articles, in the order of their file names", () => {
     const files = fs.readdirSync(FOLDER).filter((f) => f.endsWith(".md")).sort();
     expect(ARTICLES.map((a) => a.file)).toEqual(files);
-    expect(files).toHaveLength(14);
+    expect(files).toHaveLength(15);
   });
 
   it("gives each a title, one of the task groups and an id from its file name", () => {
@@ -42,6 +42,7 @@ describe("the help articles (FND-8)", () => {
       "Back up, move or share",
       "Find missing files",
       "Save diagnostics for a bug report",
+      "Play next, Add to queue and Repeat",
     ]);
   });
 

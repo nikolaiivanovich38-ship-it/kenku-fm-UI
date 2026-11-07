@@ -8,7 +8,7 @@
  */
 import React, { useEffect, useId, useRef, useState } from "react";
 
-import { isRefused, type LyreSettings } from "../../../common/lyre/api";
+import type { LyreSettings, WriteResult } from "../../../common/lyre/api";
 import { DEFAULT_WINDOW_SETTINGS, type StreamingMode, type WindowSettings, type WindowSettingsChange } from "../../../common/windowSettings";
 import { globalKeyProblem } from "../../../common/globalKeys";
 import { shortcutKey, type AudioDevices, type ShortcutAction } from "../../../common/domain";
@@ -21,6 +21,7 @@ import { Icon } from "../../kit/Icon";
 import { Pane } from "../../kit/Pane";
 import { useGlobalKeyRefusals } from "../../settings/SettingsAppliers";
 import { useAnnounce } from "../../shell/Announcer";
+import { useSave } from "../../shell/useSave";
 import { Radio, RadioButtons, Switch, useSaved, useSettingsBridges } from "./common";
 import { CROSSFADE_CHOICES, STREAMING_MODES, crossfadeSaved, keyPressed, remoteListen, shortcutRows } from "./settingsModel";
 
@@ -50,19 +51,10 @@ function useWindowSettings(): [WindowSettings, (change: WindowSettingsChange) =>
   return [state, set];
 }
 
-/** A LyreApi settings write: the refusal's words as a note, else Saved. */
+/** A LyreApi settings write through the shell's useSave: Saved, the failure card with Try again, or the refusal. */
 function useSettingsWrite() {
-  const saved = useSaved();
-  const { toast } = useAnnounce();
-  return async (write: Promise<{ ok: boolean } & object>, what: string, detail?: string): Promise<boolean> => {
-    const answer = await write;
-    if (isRefused(answer as never)) {
-      toast((answer as unknown as { refusal: { message: string } }).refusal.message);
-      return false;
-    }
-    saved(what, detail);
-    return true;
-  };
+  const save = useSave();
+  return (write: () => Promise<WriteResult<LyreSettings>>, what: string, key?: string): Promise<unknown> => save(what, write, key ? { key } : undefined);
 }
 
 /* ---------- Sound to Discord ---------- */
@@ -100,7 +92,7 @@ export function SoundPane() {
             disabled={!settings}
             onChange={(event) => {
               const ms = Number(event.target.value) * 1000;
-              void write(api.settings.setCrossfade({ ...crossfade, ms }), crossfadeSaved(ms));
+              void write(() => api.settings.setCrossfade({ ...crossfade, ms }), crossfadeSaved(ms));
             }}
           >
             {CROSSFADE_CHOICES.map((c) => (
@@ -120,7 +112,7 @@ export function SoundPane() {
             disabled={!settings}
             onChange={(event) => {
               const curve = event.target.value as "even" | "power";
-              void write(api.settings.setCrossfade({ ...crossfade, curve }), `crossfade curve ${curve === "even" ? "Even" : "Equal power"}`);
+              void write(() => api.settings.setCrossfade({ ...crossfade, curve }), `crossfade curve ${curve === "even" ? "Even" : "Equal power"}`);
             }}
           >
             <option value="even">Even</option>
@@ -154,7 +146,7 @@ export function DevicesPane() {
     };
   }, [audio]);
   const devices = settings?.devices;
-  const set = (patch: Partial<AudioDevices>, what: string): void => void write(api.settings.setComputer({ devices: patch }), what);
+  const set = (patch: Partial<AudioDevices>, what: string): void => void write(() => api.settings.setComputer({ devices: patch }), what);
   const nameOf = (id: string) => (id ? (list.find((d) => d.deviceId === id)?.label ?? "a device that is not plugged in") : DEFAULT_DEVICE_NAME);
   const split = devices?.split ?? false;
   const ear = devices?.previewEar ?? "left";
@@ -361,7 +353,7 @@ export function KeysPane() {
       }
       const name = rows.find((r) => r.id === action)!.name;
       const lyreKey = shortcutKey({}, action);
-      void write(api.settings.setShortcut(action, answer.key === lyreKey ? null : answer.key), `key for ${name}: ${answer.key}`);
+      void write(() => api.settings.setShortcut(action, answer.key === lyreKey ? null : answer.key), `key for ${name}: ${answer.key}`);
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
@@ -411,14 +403,14 @@ export function KeysPane() {
         title="So a double press never skips a scene"
         checked={settings?.nextSceneGuard ?? true}
         disabled={!settings}
-        onChange={(on) => void write(api.settings.setNextSceneGuard(on), `a second Next scene within a second is ${on ? "ignored" : "not ignored"}`)}
+        onChange={(on) => void write(() => api.settings.setNextSceneGuard(on), `a second Next scene within a second is ${on ? "ignored" : "not ignored"}`)}
       />
       <Switch
         label="Next scene and Fade everything out work in other programs too"
         title="While Discord or your VTT is in front. Off: the keys work only in Lyre."
         checked={settings?.globalKeys ?? false}
         disabled={!settings}
-        onChange={(on) => void write(api.settings.setComputer({ globalKeys: on }), `keys in other programs ${on ? "on" : "off"}`)}
+        onChange={(on) => void write(() => api.settings.setComputer({ globalKeys: on }), `keys in other programs ${on ? "on" : "off"}`)}
       />
       {problems.map((message) => (
         <p className="st-err" role="alert" key={message}>
@@ -428,7 +420,7 @@ export function KeysPane() {
       ))}
       <p className="hint">Pad keys are set on each pad board.</p>
       <div className="row-flex">
-        <button type="button" className="btn s" disabled={!settings} onClick={() => void write(api.settings.resetShortcuts(), "Lyre's keys put back")}>
+        <button type="button" className="btn s" disabled={!settings} onClick={() => void write(() => api.settings.resetShortcuts(), "Lyre's keys put back")}>
           <Icon name="restart" size="s" />
           Put back Lyre&apos;s keys
         </button>

@@ -26,6 +26,8 @@ export const useUsesOf = (ref: UsableRef) => useLyreQuery(`uses:${ref.kind}:${re
 
 export const useProfileOverrides = () => useLyreQuery("profile-overrides", (api) => api.profiles.overrides(), ["profiles"]);
 export const useMissingTracks = () => useLyreQuery("missing-tracks", (api) => api.import.findMissing(), ["tracks"]);
+/** Round 7: the crossfade, keys and this computer's settings (Look and feel › Display among them). */
+export const useSettings = () => useLyreQuery("settings", (api) => api.settings.get(), ["settings"]);
 export const useHistory = () => useLyreQuery("history", (api) => api.history.state(), ["history"]);
 
 /** Every event from the API, for screens that show import progress or files arriving in a watched folder. */

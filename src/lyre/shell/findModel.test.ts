@@ -60,6 +60,8 @@ describe("what Find and play lists", () => {
     expect(canDo(byKind("scene"), "queue")).toBe(false);
     expect(canDo(byKind("effect"), "queue")).toBe(false);
     expect(canDo(byKind("scene"), "air")).toBe(true);
+    expect(canDo(byKind("scene"), "preview")).toBe(false);
+    expect(canDo(byKind("ambience"), "preview")).toBe(true);
     expect(canDo(byKind("pad"), "open")).toBe(true);
   });
 });

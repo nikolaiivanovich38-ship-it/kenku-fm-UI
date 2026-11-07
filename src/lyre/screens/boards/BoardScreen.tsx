@@ -44,6 +44,7 @@ import { PadEditor } from "./PadEditor";
 import { PreviewButton } from "../../kit/SoundButtons";
 import { useHeldPads } from "../../kit/heldPads";
 import "./boards.css";
+import { TopLead } from "../../shell/TopBar";
 
 /** A second click on the selected pad within this time previews it (the prototype's double-click). */
 const DOUBLE_CLICK_MS = 450;
@@ -61,6 +62,7 @@ export function BoardScreen({ route }: ScreenProps) {
   if (boards === undefined) {
     return (
       <div className="viewhead">
+        <TopLead />
         <h1>Pad board</h1>
       </div>
     );
@@ -69,6 +71,7 @@ export function BoardScreen({ route }: ScreenProps) {
     return (
       <>
         <div className="viewhead">
+          <TopLead />
           <h1>Pad board not found</h1>
         </div>
         <div className="viewbody">
@@ -523,12 +526,7 @@ function BoardEditor({ board }: { board: PadBoard }) {
   return (
     <>
       <div className="viewhead">
-        <nav className="crumbs" aria-label="Breadcrumb">
-          <a href="#/boards">Pad boards</a>
-          <span className="sep" aria-hidden="true">
-            ›
-          </span>
-        </nav>
+        <TopLead />
         <h1>{nameField.value || board.name}</h1>
         <span className="grow" />
         <Button icon="link" onClick={() => setUseIn(true)}>

@@ -3,7 +3,7 @@
  * without the page. Enter plays on air (a pad fires, a scene starts), Alt+Enter previews, Shift+Enter adds to the
  * queue, Ctrl+Enter opens it.
  */
-import type { FindResult } from "../../common/lyre/api";
+import type { FindResult, PlayPlace } from "../../common/lyre/api";
 import type { TrackKind } from "../../common/domain";
 
 export type FindAction = "air" | "preview" | "queue" | "open";
@@ -22,8 +22,9 @@ export interface FoundItem {
   playlistId?: string;
   pad?: { boardId: string; padId: string };
   scene?: { campaignId: string; sessionId: string; sceneId: string };
-  /** A found playlist's tracks in the order they play where it was found (ORG-13). */
+  /** A found playlist's tracks in the order they play where it was found (ORG-13), and that place. */
   trackIds?: string[];
+  place?: PlayPlace | null;
 }
 
 /** At most this many are listed. */
@@ -35,7 +36,7 @@ const RANK: Record<FoundKind, number> = { playlist: 0, scene: 1, track: 2, ambie
 /** The results in the order they are listed. `trackOf` names a found track (null: not in the library any more). */
 export function foundItems(result: FindResult, trackOf: (id: string) => { title: string; kind: TrackKind } | null): FoundItem[] {
   const items: FoundItem[] = [];
-  for (const p of result.playlists) items.push({ kind: "playlist", key: `p:${p.id}`, name: p.name, playlistId: p.id, trackIds: p.trackIds });
+  for (const p of result.playlists) items.push({ kind: "playlist", key: `p:${p.id}`, name: p.name, playlistId: p.id, trackIds: p.trackIds, place: p.place });
   for (const s of result.scenes)
     items.push({ kind: "scene", key: `s:${s.campaignId}/${s.sessionId}/${s.sceneId}`, name: s.name, sub: `Session ${s.sessionNumber}`, scene: { campaignId: s.campaignId, sessionId: s.sessionId, sceneId: s.sceneId } });
   for (const id of result.tracks.trackIds) {
@@ -53,9 +54,10 @@ export function optionLabel(item: FoundItem): string {
   return `${item.name}, ${item.kind}${item.sub ? `, ${item.sub}` : ""}`;
 }
 
-/** Whether an action applies to a found item (Add to queue is for tracks and playlists only). */
+/** Whether an action applies to a found item: Add to queue is for tracks and playlists only; a scene starts or opens. */
 export function canDo(item: FoundItem, action: FindAction): boolean {
   if (action === "queue") return item.kind === "track" || item.kind === "playlist";
+  if (action === "preview") return item.kind !== "scene";
   return true;
 }
 

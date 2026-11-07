@@ -6,7 +6,6 @@ import React, { createContext, useCallback, useContext, useId, useRef } from "re
 
 import type { RemoteBridge } from "../../../common/remoteControl";
 import { useAnnounce } from "../../shell/Announcer";
-import { savedText } from "../../shell/savedModel";
 import type { LyreWindowSettingsBridge } from "../../windowSettings/preloadWindowSettings";
 
 export interface SettingsBridges {
@@ -31,12 +30,12 @@ export function useSettingsBridges(): SettingsBridges {
 }
 
 /**
- * "Saved: <what>" after a change (UX-19). TODO(w6-shell): show it with the shell's Saved pop-up hook once it lands;
- * until then the page's status note shows the same words.
+ * "Saved: <what>" in the shell's one Saved pop-up (UX-19), for a change saved outside the library (a bot's token or
+ * name, the main window's settings, the remote control). Library writes go through the shell's useSave.
  */
 export function useSaved(): (what: string, detail?: string) => void {
-  const { toast } = useAnnounce();
-  return useCallback((what: string, detail?: string) => toast(savedText(what, detail)), [toast]);
+  const { saved } = useAnnounce();
+  return useCallback((what: string, detail?: string) => saved(what, detail ? { detail } : undefined), [saved]);
 }
 
 /** A switch (a check box read out as a switch), as the prototype's sw(): its name, and why when it is greyed. */

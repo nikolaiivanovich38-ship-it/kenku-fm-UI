@@ -36,6 +36,7 @@ import { ShapeGlyph } from "../../kit/ShapeGlyph";
 import { TagStrip } from "../../kit/TagStrip";
 import "./library.css";
 import "./playlists.css";
+import { TopLead } from "../../shell/TopBar";
 
 /** How many Add tracks results show at first, and how many more each "Show more" adds. */
 const ADD_FIRST = 20;
@@ -67,6 +68,7 @@ export function PlaylistPage({ route }: ScreenProps) {
     if (!data.ready) {
       return (
         <div className="viewhead">
+          <TopLead />
           <h1>Playlist</h1>
         </div>
       );
@@ -74,9 +76,7 @@ export function PlaylistPage({ route }: ScreenProps) {
     return (
       <>
         <div className="viewhead">
-          <nav className="crumbs" aria-label="Breadcrumb">
-            <a href={hashOf("playlists")}>Playlists</a>
-          </nav>
+          <TopLead />
           <h1>Playlist not found</h1>
         </div>
         <div className="empty">
@@ -241,10 +241,7 @@ function OnePlaylist({ pl: saved, data }: { pl: PlaylistInfo; data: PlaylistData
   return (
     <>
       <div className="viewhead pl-head">
-        <nav className="crumbs" aria-label="Breadcrumb">
-          <a href={hashOf("playlists")}>Playlists</a>
-          <span className="sep">›</span>
-        </nav>
+        <TopLead />
         <h1 className="pl-h1" title={name}>
           {name || "Untitled playlist"}
         </h1>

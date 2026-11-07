@@ -9,6 +9,7 @@ import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 
 import { parseKeyOfPlace, placeKey, type PadMode, type ProfilePlace } from "../../../common/domain";
 import { isRefused, type CampaignInfo, type Done, type PadBoard, type PlaylistInfo, type WriteResult } from "../../../common/lyre/api";
 import { useBoards, usePlaylists, useProfileOverrides, useTagGroups, useTracks } from "../../api";
+import { SavedField } from "../../kit/SavedField";
 import { TagStrip } from "../../kit/TagStrip";
 import { ownNameTitle, trackNameAt, useTrackNames } from "../../kit/trackName";
 import { Icon, ICON_NAMES, type IconName } from "../../kit/Icon";
@@ -20,6 +21,7 @@ import { useAnnounce } from "../../shell/Announcer";
 import { boardPads, formatLength, libraryIndex, sessionForLive, STATUS_WORDS, type LibraryIndex } from "./model";
 import type { SessionStatus } from "../../../common/lyre/api";
 import { shownTitle } from "../../../common/lyre/text";
+import { TopLead } from "../../shell/TopBar";
 
 /* ---------- data ---------- */
 
@@ -268,65 +270,8 @@ export function StatusBadge({ status }: { status: SessionStatus }) {
 
 /* ---------- fields that save as you type ---------- */
 
-/** How long typing rests before the field is saved (one undo step per pause, not per letter). */
-const SAVE_AFTER_MS = 300;
-
-type DraftProps = {
-  value: string;
-  /** Saves the text (a LyreApi write); called after a pause in typing, on leaving the field and when it goes away. */
-  onSave: (value: string) => void;
-  /** Called on every change, before saving (to show the new text elsewhere at once). */
-  onDraft?: (value: string) => void;
-  multiline?: boolean;
-} & Omit<React.InputHTMLAttributes<HTMLInputElement> & React.TextareaHTMLAttributes<HTMLTextAreaElement>, "value" | "onChange" | "defaultValue">;
-
-/**
- * A text field or text area that keeps what is typed while the library saves it, so a reload never moves the
- * cursor. It takes the library's value again when it is not being edited.
- */
-export const DraftField = React.forwardRef<HTMLInputElement & HTMLTextAreaElement, DraftProps>(function DraftField(
-  { value, onSave, onDraft, multiline, onBlur, ...rest },
-  ref,
-) {
-  const [draft, setDraft] = useState(value);
-  const editing = useRef(false);
-  const timer = useRef<ReturnType<typeof setTimeout>>();
-  const unsaved = useRef<string | null>(null);
-  const save = useRef(onSave);
-  save.current = onSave;
-
-  const flush = useCallback(() => {
-    clearTimeout(timer.current);
-    if (unsaved.current !== null) {
-      const text = unsaved.current;
-      unsaved.current = null;
-      save.current(text);
-    }
-  }, []);
-  useEffect(() => {
-    if (!editing.current && unsaved.current === null) setDraft(value);
-  }, [value]);
-  useEffect(() => flush, [flush]);
-
-  const props = {
-    ...rest,
-    value: draft,
-    onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      editing.current = true;
-      setDraft(event.target.value);
-      onDraft?.(event.target.value);
-      unsaved.current = event.target.value;
-      clearTimeout(timer.current);
-      timer.current = setTimeout(flush, SAVE_AFTER_MS);
-    },
-    onBlur: (event: React.FocusEvent<HTMLInputElement & HTMLTextAreaElement>) => {
-      editing.current = false;
-      flush();
-      onBlur?.(event);
-    },
-  };
-  return multiline ? <textarea ref={ref} {...props} /> : <input ref={ref} {...props} />;
-});
+/** UX-19: the kit's field that saves itself (on Enter, on leaving it, or after a second without typing). */
+export const DraftField = SavedField;
 
 /* ---------- Obsidian placeholders ---------- */
 
@@ -388,6 +333,7 @@ export function ObsidianFields({ idPrefix, values, onChange }: { idPrefix: strin
 export function Opening() {
   return (
     <div className="viewhead" aria-busy="true">
+      <TopLead />
       <span className="muted">Opening…</span>
     </div>
   );
@@ -413,6 +359,7 @@ export function NotFound({ what }: { what: string }) {
   return (
     <>
       <div className="viewhead">
+        <TopLead />
         <h1>{what} not found</h1>
       </div>
       <div className="viewbody">

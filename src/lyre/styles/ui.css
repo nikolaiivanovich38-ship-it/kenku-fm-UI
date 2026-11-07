@@ -170,11 +170,50 @@ table.grid tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 v
 .crumbs a { color: var(--ink-2); text-decoration: none; border-radius: var(--r-s); padding: 3px 3px; display: inline-block; min-height: 24px; }
 .crumbs a:hover { color: var(--ink); text-decoration: underline; }
 .crumbs .sep { color: var(--ink-3); }
+/* UX-18, round 6 parts 6 and 7: Back is the first thing in every top bar (.viewhead, Live's .lv-top), in the same
+   place: 12 px from the left, 8 px from the top, whatever the bar holds. A ‹ in a 28 px box, its name on hover. At the
+   very start of the history it stays, greyed. */
+.nav-back { flex: none; align-self: flex-start; margin-top: calc((44px - 12px - var(--ctl)) / 2); }
+.nav-back.icon { width: var(--ctl); height: var(--ctl); padding: 0; }
+.nav-back[aria-disabled="true"] { color: var(--ink-3); border-color: var(--line); background: transparent; cursor: default; }
+.nav-back[aria-disabled="true"]:hover { background: transparent; }
+/* The trail: right after Back, each parent a link, the screen's h1 after it as the last part. Three parents or more
+   show the first and the last with "…" between; under 640 px of app only the last parent after "…". */
+.crumbs { flex: 0 1 auto; flex-wrap: nowrap; align-self: flex-start; min-height: var(--ctl); margin-top: calc((44px - 12px - var(--ctl)) / 2); }
+.crumbs ol { display: flex; align-items: center; gap: 4px; list-style: none; margin: 0; padding: 0; min-width: 0; flex-wrap: nowrap; }
+.crumbs li { display: inline-flex; align-items: center; gap: 4px; min-width: 0; flex: 0 1 auto; }
+.crumbs li > a { display: inline-flex; align-items: center; min-width: 0; max-width: 24ch; overflow: hidden; }
+.crumbs li > a > .ellipsis { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crumbs .c-cut, .crumbs .c-gap, .crumbs .g-mid { display: none; }
+.crumbs .c-gap.on { display: inline-flex; color: var(--ink-3); cursor: default; }
+@container app (max-width: 639px) {
+  .crumbs .c-mid { display: none; }
+  .crumbs .c-gap { display: inline-flex; color: var(--ink-3); cursor: default; }
+  .crumbs .c-gap .g-cut { display: none; }
+  .crumbs .c-gap .g-mid { display: inline; }
+  .crumbs li > a { max-width: 16ch; }
+}
 .viewbody { flex: 1; min-height: 0; overflow: auto; padding: 10px 12px; }
 .viewbody.fill { overflow: hidden; display: flex; flex-direction: column; }
 .statusbar { display: flex; align-items: center; gap: 10px; height: 26px; padding: 0 10px; border-top: 1px solid var(--line); font-size: var(--fs-xs); color: var(--ink-2); flex: none; min-width: 0; }
 
-.toast { position: fixed; left: 50%; bottom: 36px; transform: translateX(-50%); z-index: 50; background: var(--ink); color: var(--bg); padding: 6px 12px; border-radius: var(--r-m); font-size: var(--fs-s); font-weight: 700; box-shadow: var(--shadow); pointer-events: none; }
+/* UX-19 (round 6 parts 5 and 6): the one pop-up for every save and short note, the failure card and the Undo note,
+   stacked in the bottom-right corner of the work area (Announcer.tsx places the corner): the Undo note lowest, then
+   the failure, then the pop-up. Clicks pass through the pop-up; it never takes focus. */
+.toasts { position: fixed; bottom: 12px; right: 12px; z-index: 60; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; pointer-events: none; max-width: min(400px, calc(100vw - 24px)); }
+.toast { display: flex; align-items: center; gap: 8px; max-width: 100%; background: var(--ink); color: var(--bg); padding: 7px 12px; border-radius: var(--r-m); font-size: var(--fs-s); font-weight: 600; line-height: 1.35; box-shadow: var(--shadow); overflow-wrap: anywhere; pointer-events: none; animation: toast-in .16s ease-out; }
+.toast:empty { padding: 0; box-shadow: none; background: none; border: 0; animation: none; }
+.toast b { font-weight: 800; }
+.toast > svg, .toast .t-tick { flex: none; display: inline-flex; }
+.toast .t-again { animation: toast-pulse .45s ease-out; }
+.toast.t-fail { pointer-events: auto; align-items: flex-start; background: var(--surface); color: var(--ink); border: 2px solid var(--warn); border-left-width: 6px; padding: 8px 6px 8px 10px; }
+.toast.t-fail > svg { color: var(--warn); margin-top: 2px; }
+.toast.t-fail .grow b { display: block; }
+.toast.t-fail .grow span { color: var(--ink-2); font-weight: 400; }
+.undo-slot { display: contents; }
+.undo-slot .undo-note { pointer-events: auto; margin: 0; box-shadow: var(--shadow); max-width: 100%; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(6px); } }
+@keyframes toast-pulse { 40% { transform: scale(1.35); } }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 /* Picker sheet */
 .pk-list { display: flex; flex-direction: column; max-height: 52vh; overflow: auto; border: 1px solid var(--line); border-radius: var(--r-m); }
@@ -312,3 +351,25 @@ button .shape-g { color: inherit; }
 .norm-opt:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
 .norm-opt .hint { flex-basis: 100%; padding-left: 22px; font-weight: 400; }
 @media (max-width: 520px) { .norm { grid-template-columns: minmax(0, 1fr); } .norm-l { padding-top: 0; } }
+
+/* Round 7, UX-11 (r7shell.css): Comfortable is a little roomier than Lyre's compact default. */
+[data-density="comfortable"] { --ctl: 32px; --ctl-s: 28px; --row: 36px; --pane-head: 36px; --gap: 10px; --gap-s: 6px; --gap-l: 14px; }
+[data-density="comfortable"] .rail a, [data-density="comfortable"] .rail button.nav { height: 38px; }
+/* High contrast: quiet text is as strong as the main text and lines are stronger, in every theme. Colour is never the
+   only signal, so nothing else has to change. */
+html[data-contrast="high"], html[data-contrast="high"] [data-theme] { --ink-2: var(--ink); --ink-3: var(--ink); --line: var(--line-strong); }
+html[data-contrast="high"] :focus-visible { outline-width: 3px; }
+html[data-contrast="high"] .btn.ghost, html[data-contrast="high"] .closer { border-color: var(--line-strong); }
+
+/* UX-12 Find and play (r7shell.css). */
+.pal-wrap { position: fixed; inset: 0; z-index: 70; display: flex; justify-content: center; align-items: flex-start; padding: 12vh 16px 16px; background: rgb(0 0 0 / .35); }
+.pal { width: min(560px, 100%); background: var(--surface); color: var(--ink); border: 1px solid var(--line-strong); border-radius: var(--r-l); box-shadow: var(--shadow); padding: 10px; display: flex; flex-direction: column; gap: 8px; max-height: 70vh; }
+.pal-search { display: flex; align-items: center; gap: 6px; }
+.pal-search .input { width: 100%; height: 36px; font-size: var(--fs-l); }
+.pal-list { list-style: none; margin: 0; padding: 0; overflow: auto; min-height: 0; }
+.pal-list [role=option] { display: flex; align-items: center; gap: 8px; min-height: var(--row); padding: 0 8px; border-radius: var(--r-s); cursor: pointer; min-width: 0; }
+.pal-list [role=option][aria-selected="true"] { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
+.pal-k { flex: none; width: 64px; font-size: var(--fs-xs); color: var(--ink-2); text-transform: capitalize; }
+.pal-none:empty { display: none; }
+.pal-none { margin: 0; padding: 4px 8px; }
+.pal-acts { display: flex; flex-wrap: wrap; gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }

@@ -1,7 +1,7 @@
 ---
 title: Add your music and tag it
 group: Prepare
-words: library add tracks files folder watch import drop tag tags mood leitmotif scene type title details search filters
+words: library add tracks files folder watch import drop tag tags mood leitmotif scene type title details search filters find
 ---
 Lyre never copies or changes your audio files. It remembers where they are.
 
@@ -12,4 +12,4 @@ Lyre never copies or changes your audio files. It remembers where they are.
 
 The search box finds titles, file names, artists and tags. **Filters** narrows the list by kind (Music, Ambience, FX), tag, energy, shape, folder and missing files.
 
-Tags are what dynamic playlists and Live's Off script search use, so a few good tags save time at the table.
+Tags are what dynamic playlists and Live's **Find a track or playlist** use, so a few good tags save time at the table.

@@ -17,6 +17,7 @@ import { CAMPAIGN_THEME_IDS, DEFAULT_CAMPAIGN_THEME, formatDate, nextSession, pl
 import { ObsidianFields, Opening, useHeadingFocusWhenReady, type ObsidianValues } from "./parts";
 
 import "./campaigns.css";
+import { TopLead } from "../../shell/TopBar";
 
 export function CampaignsScreen(_props: ScreenProps) {
   const campaigns = useCampaigns().data;
@@ -30,6 +31,7 @@ function CampaignsList({ campaigns, creating, setCreating }: { campaigns: Campai
   return (
     <>
       <div className="viewhead">
+        <TopLead />
         <h1>Campaigns</h1>
         <span className="muted cp-count">{plural(campaigns.length, "campaign")}</span>
         <span className="grow" />

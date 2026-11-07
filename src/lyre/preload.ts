@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, webUtils } from "electron";
+import { contextBridge, ipcRenderer, webFrame, webUtils } from "electron";
 
 import { createLyreApiBridge, type IpcRendererLike as ApiIpc } from "./api/preloadApi";
 import { createLyreAudioBridge, type IpcRendererLike as AudioIpc } from "./audio/preloadAudio";
@@ -8,6 +8,7 @@ import { createLyreRemoteBridge, type IpcRendererLike as RemoteIpc } from "./rem
 import { createLyreUpdatesBridge, type IpcRendererLike as UpdatesIpc } from "./updates/preloadUpdates";
 import { createLyreKeysBridge, type IpcRendererLike as KeysIpc } from "./keys/preloadKeys";
 import { createLyreWindowSettingsBridge, type IpcRendererLike as WindowSettingsIpc } from "./windowSettings/preloadWindowSettings";
+import { createLyreDisplayBridge } from "./shell/display";
 
 /**
  * WP5: the new interface page's bridge to the rest of the app, exposed as `window.lyre`. Every IPC channel it uses
@@ -30,6 +31,8 @@ import { createLyreWindowSettingsBridge, type IpcRendererLike as WindowSettingsI
  *   - windowSettings (w6-rooms, OUT-8): the main window's Sound to Discord and Website tabs settings, Local files and
  *     Clear website data, for Settings (LYRE_WINDOW_SETTINGS_*, LYRE_LOCAL_FOLDERS_*, LYRE_CLEAR_WEBSITE_DATA);
  *     src/lyre/windowSettings/preloadWindowSettings.ts.
+ *   - display (w6-shell, UX-11): Look and feel › Display's text size zooms this page (webFrame.setZoomFactor, 1 to 2;
+ *     no IPC); src/lyre/shell/display.ts.
  * The page runs sandboxed with context isolation; nothing from Node or Electron reaches it except this object.
  */
 const api = {
@@ -45,6 +48,7 @@ const api = {
   updates: createLyreUpdatesBridge(ipcRenderer as unknown as UpdatesIpc),
   keys: createLyreKeysBridge(ipcRenderer as unknown as KeysIpc),
   windowSettings: createLyreWindowSettingsBridge(ipcRenderer as unknown as WindowSettingsIpc),
+  display: createLyreDisplayBridge(webFrame),
 };
 
 contextBridge.exposeInMainWorld("lyre", api);
