@@ -10,8 +10,8 @@ import { Icon } from "../../kit/Icon";
 import { Column, Pane } from "../../kit/Pane";
 import { hashOf } from "../../shell/routes";
 import { plural } from "./model";
-import { Crumbs } from "./parts";
 import "./transfer.css";
+import { TopLead } from "../../shell/TopBar";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 /** "5 Nov 2026 at 18:42", in this computer's time. */
@@ -25,7 +25,7 @@ export function MovedScreen() {
   const report = useLyreQuery("moved-report", (api) => api.transfer.movedReport(), ["tracks"]);
   const head = (
     <div className="viewhead">
-      <Crumbs />
+      <TopLead />
       <h1>What came across from Kenku FM</h1>
     </div>
   );

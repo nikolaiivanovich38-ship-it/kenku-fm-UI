@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 import type { LyreApi } from "../common/lyre/api";
-import { LibrarySnapshot, LyreApiProvider, useCampaigns, useLyreApi } from "./api";
+import { shownTitle } from "../common/lyre/text";
+import { LibrarySnapshot, LyreApiProvider, useBoards, useCampaigns, useLyreApi, usePlaylists, useTracks } from "./api";
 import { ipcLyreApi } from "./api/ipcClient";
 import { LibraryStatus } from "./api/LibraryStatus";
 import type { LyreApiBridge } from "./api/preloadApi";
@@ -10,6 +11,7 @@ import type { LyreAudioBridge } from "./audio/preloadAudio";
 import { useLiveSession } from "./kit/liveSession";
 import { OutputsProvider, outputsLabel, useOutputs, type OutputsClient } from "./outputs/OutputsProvider";
 import { NowPlayingBar } from "./shell/NowPlayingBar";
+import type { PlaceNames } from "./shell/history";
 import { ShellDataProvider, type ShellData } from "./shell/ShellData";
 import type { ThemeId } from "./shell/themes";
 
@@ -120,6 +122,7 @@ function FeedLibrary({ audio }: { audio: LyreAudio }): null {
  */
 function ShellDataFromLibrary({ children }: { children: React.ReactNode }) {
   const campaigns = useCampaigns().data;
+  const placeNames = usePlaceNames();
   const live = useLiveSession();
   const api = useLyreApi();
   const { outputs } = useOutputs();
@@ -136,7 +139,32 @@ function ShellDataFromLibrary({ children }: { children: React.ReactNode }) {
       // The bar follows the audio host itself, so ShellData stays the same while things play.
       NowPlayingBar,
       history: api.history,
+      placeNames,
     };
-  }, [campaigns, live, api, outputsText]);
+  }, [campaigns, live, api, outputsText, placeNames]);
   return <ShellDataProvider value={value}>{children}</ShellDataProvider>;
+}
+
+/** UX-18: the names Back and the trail give places, from the library's campaigns, playlists, boards and tracks. */
+function usePlaceNames(): PlaceNames {
+  const campaigns = useCampaigns().data;
+  const playlists = usePlaylists().data;
+  const boards = useBoards().data;
+  const tracks = useTracks().data;
+  return useMemo<PlaceNames>(() => {
+    const playlistNames = new Map((playlists ?? []).map((p) => [p.id, p.name || "Untitled playlist"]));
+    const boardNames = new Map((boards ?? []).map((b) => [b.id, b.name || "Untitled board"]));
+    const trackNames = new Map((tracks ?? []).map((t) => [t.id, shownTitle(t)]));
+    return {
+      loaded: !!(campaigns && playlists && boards && tracks),
+      campaign: (id) => {
+        const c = campaigns?.find((x) => x.id === id);
+        return c ? c.name || "Untitled campaign" : null;
+      },
+      session: (cid, sid) => campaigns?.find((x) => x.id === cid)?.sessions.find((s) => s.id === sid)?.number ?? null,
+      playlist: (id) => playlistNames.get(id) ?? null,
+      board: (id) => boardNames.get(id) ?? null,
+      track: (id) => trackNames.get(id) ?? null,
+    };
+  }, [campaigns, playlists, boards, tracks]);
 }

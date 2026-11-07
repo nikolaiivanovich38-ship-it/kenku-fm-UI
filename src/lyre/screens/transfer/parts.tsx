@@ -1,19 +1,5 @@
-/** What the three round 5 screens share: the way back to the Library, focus after a redraw, a dropped file's path. */
+/** What the three round 5 screens share: focus after a redraw, a dropped file's path. (Their trail is the shell's.) */
 import React from "react";
-
-import { hashOf } from "../../shell/routes";
-
-/** The breadcrumb back to the Library, as each of the three screens shows it (transfer.js crumbs). */
-export function Crumbs() {
-  return (
-    <nav className="crumbs" aria-label="Breadcrumb">
-      <a href={hashOf("library")}>Library</a>
-      <span className="sep" aria-hidden="true">
-        ›
-      </span>
-    </nav>
-  );
-}
 
 /**
  * Focuses the control marked data-focus=`key` inside `within` once React has drawn it: the next step after an action

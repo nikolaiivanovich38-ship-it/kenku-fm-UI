@@ -173,7 +173,7 @@ describe("AppProviders", () => {
   });
 
   describe("the Discord bots (w4-outputs)", () => {
-    it("counts on the rail's Outputs link the bots connected in a voice channel, and follows a join", async () => {
+    it("counts on the rail's Rooms link the bots connected in a voice channel, and follows a join", async () => {
       window.history.replaceState(null, "", "#/campaigns");
       const outputs = new FakeOutputs();
       render(
@@ -181,10 +181,10 @@ describe("AppProviders", () => {
           <Shell screens={{ ...SCREENS, campaigns: () => <PlaceholderScreen title="Campaigns" /> }} />
         </AppProviders>,
       );
-      expect(await screen.findByRole("link", { name: "Outputs (1/2)" })).toHaveAttribute("href", "#/outputs");
+      expect(await screen.findByRole("link", { name: "Rooms (1/2)" })).toHaveAttribute("href", "#/outputs");
       act(() => outputs.move(outputs.state.bots[1].id, "1012"));
       await act(() => outputs.settle());
-      expect(screen.getByRole("link", { name: "Outputs (2/2)" })).toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Rooms (2/2)" })).toBeInTheDocument();
     });
   });
 
@@ -202,7 +202,7 @@ describe("AppProviders", () => {
         </AppProviders>,
       );
       const nav = await screen.findByRole("navigation", { name: "Lyre" });
-      expect(nav).toHaveTextContent(/Live$|LiveOutputs/);
+      expect(nav).toHaveTextContent(/Live$|LiveRooms/);
       act(() => loadInLive({ campaignId: "crown", sessionId: "s14" }));
       // Seen as "Live: S14"; its name holds what is seen (WCAG 2.5.3, for speech control) and says "session 14" in words
       // (review w3-polish 11).

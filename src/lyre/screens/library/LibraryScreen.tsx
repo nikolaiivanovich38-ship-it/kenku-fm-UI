@@ -37,6 +37,7 @@ import { SORTS, type SortKey } from "./model";
 import { SearchField } from "../../kit/Fields";
 import { LibraryMoreMenu } from "../transfer/LibraryMoreMenu";
 import "./library.css";
+import { TopLead } from "../../shell/TopBar";
 
 type Picker = { kind: "bulk" } | { kind: "one"; id: string };
 
@@ -569,6 +570,7 @@ export function LibraryScreen({ route }: ScreenProps) {
   return (
     <>
       <div className="viewhead lb-head">
+        <TopLead />
         {mode === "narrow" && open && (
           <button type="button" className="btn s" data-focus="lb-back" onClick={closeTrack}>
             <Icon name="chevleft" size="s" />

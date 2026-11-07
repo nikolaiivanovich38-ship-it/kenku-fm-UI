@@ -12,6 +12,7 @@ import { ProfileScreen } from "./profile/ProfileScreen";
 import { BackupScreen } from "./transfer/BackupScreen";
 import { MovedScreen } from "./transfer/MovedScreen";
 import { RelinkScreen } from "./transfer/RelinkScreen";
+import { PlaceholderScreen } from "./Placeholder";
 
 /** What every screen gets: the route it was opened at (its ids are in route.params). */
 export interface ScreenProps {
@@ -48,4 +49,6 @@ export const SCREENS: Record<RouteName, ScreenComponent> = {
   backup: BackupScreen,
   moved: MovedScreen,
   relink: RelinkScreen,
+  // Round 6 (OUT-8): the Rooms and Settings stream swaps this for Settings in Lyre.
+  settings: () => <PlaceholderScreen title="Settings" />,
 };

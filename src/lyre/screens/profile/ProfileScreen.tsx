@@ -12,11 +12,12 @@ import { isRefused } from "../../../common/lyre/api";
 import { useLyreApi, useLyreQuery } from "../../api";
 import { NormaliseChoice, profileNormaliseHint } from "../../kit/NormaliseChoice";
 import { Button } from "../../kit/Button";
-import { Icon } from "../../kit/Icon";
 import { Pane } from "../../kit/Pane";
 import { returnToSession } from "../../kit/sceneReturn";
 import { ShapeTag } from "../../kit/ShapeGlyph";
 import { useAnnounce } from "../../shell/Announcer";
+import { TopLead, type BackFallback } from "../../shell/TopBar";
+import { shownTitle } from "../../../common/lyre/text";
 import type { ScreenProps } from "..";
 import { DraftField } from "../campaigns/parts";
 import { sceneOf, sessionOf } from "./places";
@@ -37,7 +38,10 @@ export function ProfileScreen({ route }: ScreenProps) {
     <>
       <div className="viewhead ap-head">
         <div className="ap-id">
-          <h1>Audio profile</h1>
+          <div className="ap-titlerow">
+            <TopLead />
+            <h1>Audio profile</h1>
+          </div>
         </div>
       </div>
       <div className="viewbody ap-body">
@@ -54,28 +58,19 @@ export function ProfileScreen({ route }: ScreenProps) {
 }
 
 /**
- * PLY-14: opened from a scene or a session list, Back returns there (the planner with the scene open and the track's
- * button focused); otherwise to the track in the Library.
+ * PLY-14, UX-18: with nothing in Back's history (the Audio profile opened by its address), Back goes to the scene or
+ * session list it was opened for (the planner with the scene open and the track's button focused), else to the track
+ * in the Library.
  */
-function BackButton({ editor }: { editor: ProfileEditor }) {
+function backFallback(editor: ProfileEditor): BackFallback {
   const { key, view, track } = editor;
   const scene = sceneOf(key, view);
   const session = scene ?? sessionOf(key, view);
-  if (!session) {
-    return (
-      <a className="btn s" href={`#/library/${track.id}`}>
-        <Icon name="chevleft" size="s" />
-        Back to track
-      </a>
-    );
-  }
-  const back = () =>
-    returnToSession({ campaignId: session.campaign.id, sessionId: session.session.id, sceneId: scene?.scene.id ?? null, trackId: track.id });
-  return (
-    <Button size="s" icon="chevleft" data-k="ap-back" onClick={back}>
-      Back to {scene ? scene.scene.name || "the scene" : `Session ${session.session.number}`}
-    </Button>
-  );
+  if (!session) return { label: `Library: ${shownTitle(track)}`, go: () => void (window.location.hash = `#/library/${track.id}`) };
+  return {
+    label: scene ? scene.scene.name || "the scene" : `Session ${session.session.number}`,
+    go: () => returnToSession({ campaignId: session.campaign.id, sessionId: session.session.id, sceneId: scene?.scene.id ?? null, trackId: track.id }),
+  };
 }
 
 /** DAT-14: opened from a scene, the track's name there; empty uses its own name. */
@@ -148,26 +143,22 @@ function Normalise({ editor }: { editor: ProfileEditor }) {
 function ProfileBody({ editor }: { editor: ProfileEditor }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const c = useProfileController(editor, rootRef);
-  const { track, dur, editable, saved } = editor;
+  const { track, dur, editable } = editor;
   const title = c.title;
   return (
     <div className="ap-root" ref={rootRef}>
       <div className="viewhead ap-head">
         <div className="ap-id">
-          <nav className="crumbs" aria-label="Breadcrumb">
-            <a href="#/library">Library</a>
-            <span className="sep" aria-hidden="true">
-              ›
-            </span>
-            <a className="ap-cr-t" href={`#/library/${track.id}`} title={title}>
-              {title}
-            </a>
-            <span className="sep" aria-hidden="true">
-              ›
-            </span>
-            <span>Audio profile</span>
-          </nav>
-          <h1 title={title}>{title}</h1>
+          {/* Round 6 part 6: Back and the trail lead the title row; the h1 is the track, then "› Audio profile". */}
+          <div className="ap-titlerow">
+            <TopLead fallback={backFallback(editor)} />
+            <h1 title={`${title} › Audio profile`}>
+              <span className="ap-h1-t">{title}</span>
+              <span className="ap-h1-k">
+                <span aria-hidden="true">›</span> Audio profile
+              </span>
+            </h1>
+          </div>
           <p className="ap-meta">
             <span>
               <span className="faint">Title in the file</span> {track.metaTitle || "none"}
@@ -187,16 +178,9 @@ function ProfileBody({ editor }: { editor: ProfileEditor }) {
           <Normalise editor={editor} />
         </div>
         <div className="ap-headacts">
-          <BackButton editor={editor} />
+          {/* Round 6 part 5: no "Saved" here (saving shows in the Saved pop-up); the read-only note says why nothing changes. */}
           <span className="ap-saved" role="status">
-            {!editable ? (
-              "Uses the track's settings (read-only until you give it its own)"
-            ) : saved ? (
-              <>
-                <Icon name="check" size="s" />
-                Saved
-              </>
-            ) : null}
+            {!editable ? "Uses the track's settings (read-only until you give it its own)" : null}
           </span>
           <Button size="s" variant="ghost" icon="restart" data-k="ap-reset" title={`Start at 0:00 and End at ${fmt(dur)}, no fades`} disabled={!editable} onClick={c.actions.reset}>
             Reset to whole track

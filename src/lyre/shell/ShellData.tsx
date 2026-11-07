@@ -1,5 +1,6 @@
 import React, { createContext, useContext } from "react";
 import type { LyreApi } from "../../common/lyre/api";
+import type { PlaceNames } from "./history";
 import type { ThemeId } from "./themes";
 
 /**
@@ -16,8 +17,10 @@ export interface ShellData {
   liveLabel?: string;
   /** Its name for screen readers and speech control: what is seen, then in words, e.g. "Live: S14, session 14" (WCAG 2.5.3). */
   liveName?: string;
-  /** The rail's Outputs link, e.g. "Outputs (1/2)": bots connected of all bots. */
+  /** The rail's Rooms link, e.g. "Rooms (1/2)": bots connected of all bots. */
   outputsLabel?: string;
+  /** UX-18: the names of campaigns, sessions, playlists, boards and tracks, for Back's label and the trail. */
+  placeNames?: PlaceNames;
   /** The library's history, for the undo message and Ctrl+Z (shell/UndoNote.tsx). */
   history?: Pick<LyreApi["history"], "state" | "undo">;
   /**

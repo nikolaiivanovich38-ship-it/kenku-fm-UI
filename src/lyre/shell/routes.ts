@@ -23,10 +23,11 @@ export type RouteName =
   | "look"
   | "backup"
   | "moved"
-  | "relink";
+  | "relink"
+  | "settings";
 
 /** The rail's sections; every screen lights one of them. */
-export type Section = "campaigns" | "library" | "playlists" | "boards" | "live" | "outputs" | "look";
+export type Section = "campaigns" | "library" | "playlists" | "boards" | "live" | "outputs" | "settings" | "look";
 
 export interface Route {
   name: RouteName;
@@ -57,6 +58,8 @@ const ROUTES: [RegExp, RouteName, string[]][] = [
   [/^backup$/, "backup", []],
   [/^moved$/, "moved", []],
   [/^relink$/, "relink", []],
+  // Round 6 (OUT-8): Settings in Lyre. The Rooms and Settings stream builds its screen.
+  [/^settings$/, "settings", []],
 ];
 
 const SECTION: Record<RouteName, Section> = {
@@ -75,6 +78,7 @@ const SECTION: Record<RouteName, Section> = {
   backup: "library",
   moved: "library",
   relink: "library",
+  settings: "settings",
 };
 
 /** The screen for a route such as "session/crown/s14". An unknown address opens Live, as in the prototype. */

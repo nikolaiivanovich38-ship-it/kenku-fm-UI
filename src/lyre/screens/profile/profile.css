@@ -177,3 +177,10 @@
 /* The screen's root holds the head, the body and the on-air bar for focus look-ups; it adds no box of its own, so
    #view's column layout (viewhead, scrolling viewbody, on-air bar) is unchanged. */
 .ap-root { display: contents; }
+
+/* Round 6 part 6: Back and the trail lead the title row, as in every other top bar; the h1 is the track, then
+   "› Audio profile" (the screen's kind, smaller). */
+.ap-titlerow { display: flex; align-items: flex-start; gap: 6px 8px; min-width: 0; }
+.ap-titlerow .crumbs { flex: none; }
+.ap-titlerow h1 { flex: 1 1 auto; min-width: 0; padding-top: 6px; }
+.ap-h1-k { font-family: var(--ui, inherit); font-size: var(--fs-s); font-weight: 700; color: var(--ink-2); text-transform: none; letter-spacing: 0; margin-left: 6px; white-space: nowrap; }

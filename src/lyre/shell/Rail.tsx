@@ -36,10 +36,12 @@ export function Rail({ section, min, onToggleMin, helpOpen = false, onHelp }: Ra
           {link("playlists", "playlist", "Playlists")}
           {link("boards", "grid", "Pad boards")}
           {link("live", "broadcast", liveLabel ?? "Live", liveLabel ? liveName : undefined)}
-          {link("outputs", "users", outputsLabel ?? "Outputs")}
+          {/* OUT-9 (round 6, Nik 6 Nov 13:55): the screen is Rooms; its address stays #/outputs. */}
+          {link("outputs", "users", outputsLabel ?? "Rooms")}
         </div>
       </nav>
       <div className="bottom stack" style={{ gap: 2 }}>
+        {link("settings", "gear", "Settings")}
         {link("look", "palette", "Look and feel")}
         {onHelp && (
           // FND-8: Help opens a side panel, not a screen, so it is a button (F1 does the same).

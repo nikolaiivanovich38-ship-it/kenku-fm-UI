@@ -49,7 +49,7 @@ describe("the shell: rail, routes and screens (UX-9)", () => {
       "Playlists",
       "Pad boards",
       "Live",
-      "Outputs",
+      "Rooms",
     ]);
     expect(screen.getByRole("link", { name: "Look and feel" })).toHaveAttribute("href", "#/look");
     expect(within(nav).getByRole("link", { name: "Campaigns" })).toHaveAttribute("aria-current", "page");
@@ -71,7 +71,7 @@ describe("the shell: rail, routes and screens (UX-9)", () => {
     const main = screen.getByRole("main");
     expect(within(main).getByRole("heading", { level: 1 })).toHaveTextContent(heading);
     expect(within(main).getByText("Not built yet.")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: section })).toHaveAttribute("aria-current", "page");
+    expect(within(screen.getByRole("navigation", { name: "Lyre" })).getByRole("link", { name: section })).toHaveAttribute("aria-current", "page");
   });
 
   // Outputs is built (w4-outputs); Live still says it comes later.
@@ -319,7 +319,7 @@ describe("FND-8 the first-run tour", () => {
     const user = userEvent.setup();
     render(<Shell screens={SHELL_SCREENS} firstRunTour />);
     await user.click(screen.getByRole("button", { name: "Next" }));
-    await user.click(screen.getByRole("button", { name: "Back" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Back" }));
     expect(screen.getByRole("dialog", { name: "Lyre's places 1 of 5" })).toBeInTheDocument();
     await user.keyboard("{Escape}");
     expect(tour()).toBeNull();
@@ -342,5 +342,78 @@ describe("FND-8 the first-run tour", () => {
   it("passes axe with the tour up", async () => {
     render(<Shell screens={SHELL_SCREENS} firstRunTour />);
     await expectNoAxeViolations();
+  });
+});
+
+describe("Back and the trail (UX-18, round 6 parts 6 and 7)", () => {
+  const back = () => within(screen.getByRole("main")).getAllByRole("button", { name: /^Back( to .+)?$/ })[0];
+
+  it("is first in the top bar, a ‹ with no words; greyed at the very start of the history, saying why", () => {
+    render(<Shell screens={SHELL_SCREENS} />);
+    const head = screen.getByRole("main").querySelector(".viewhead")!;
+    expect(head.firstElementChild).toBe(back());
+    expect(back()).toHaveAccessibleName("Back");
+    expect(back()).toHaveTextContent("");
+    expect(back()).toHaveAttribute("aria-disabled", "true");
+    expect(back()).toHaveAttribute("title", "Nothing to go back to yet: this is the first screen since Lyre opened");
+  });
+
+  it("walks back through every place, from the menu too, one place a press; Alt+Left does the same", async () => {
+    const user = userEvent.setup();
+    render(<Shell screens={SHELL_SCREENS} />);
+    await user.click(within(screen.getByRole("navigation", { name: "Lyre" })).getByRole("link", { name: "Pad boards" }));
+    expect(back()).toHaveAccessibleName("Back to Campaigns");
+    expect(back()).toHaveAttribute("title", "Back to Campaigns (Alt+Left)");
+    go("board/weather");
+    go("library");
+    expect(back()).toHaveAccessibleName("Back to Pad board");
+    await user.click(back());
+    expect(within(screen.getByRole("main")).getByRole("heading", { level: 1 })).toHaveTextContent("Pad board");
+    expect(back()).toHaveAccessibleName("Back to Pad boards");
+    await user.keyboard("{Alt>}{ArrowLeft}{/Alt}");
+    expect(within(screen.getByRole("main")).getByRole("heading", { level: 1 })).toHaveTextContent("Pad boards");
+    await user.click(back());
+    expect(within(screen.getByRole("main")).getByRole("heading", { level: 1 })).toHaveTextContent("Campaigns");
+    expect(back()).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("puts focus back on the control used to leave", async () => {
+    function WithLinks() {
+      return (
+        <>
+          <PlaceholderScreen title="Campaigns" />
+          <a href="#/playlist/a">Ashen King</a>
+          <a href="#/playlist/b">The Abbess</a>
+        </>
+      );
+    }
+    const user = userEvent.setup();
+    render(<Shell screens={{ ...SHELL_SCREENS, campaigns: WithLinks }} />);
+    await user.click(screen.getByRole("link", { name: "The Abbess" }));
+    expect(within(screen.getByRole("main")).getByRole("heading", { level: 1 })).toHaveTextContent("Playlist");
+    await user.click(back());
+    await vi.waitFor(() => expect(screen.getByRole("link", { name: "The Abbess" })).toHaveFocus());
+  });
+
+  it("shows the trail of a screen with parents right after Back, every part a link, the whole path on hover", () => {
+    window.history.replaceState(null, "", "#/session/crown/s14");
+    render(
+      <ShellDataProvider
+        value={{
+          placeNames: { loaded: true, campaign: () => "The Sunken Crown", session: () => 14, playlist: () => null, board: () => null, track: () => null },
+        }}
+      >
+        <Shell screens={SHELL_SCREENS} />
+      </ShellDataProvider>,
+    );
+    const trail = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(back().nextElementSibling).toBe(trail);
+    expect(within(trail).getAllByRole("link").map((a) => a.textContent)).toEqual(["Campaigns", "The Sunken Crown"]);
+    expect(trail).toHaveAttribute("title", "Campaigns › The Sunken Crown › Session");
+  });
+
+  it("has no trail on a screen at the top of the menu", () => {
+    render(<Shell screens={SHELL_SCREENS} />);
+    expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
   });
 });

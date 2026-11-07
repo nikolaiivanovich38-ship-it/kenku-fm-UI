@@ -46,6 +46,7 @@ import {
   type OutputsView,
 } from "./outputsModel";
 import "./outputs.css";
+import { TopLead } from "../../shell/TopBar";
 
 /* ---------- the prototype's own four icons (outputs.js PATHS) ---------- */
 const PATHS = {
@@ -96,7 +97,8 @@ export function OutputsScreen() {
   return (
     <>
       <div className="viewhead">
-        <h1>Outputs</h1>
+        <TopLead />
+        <h1>Rooms</h1>
         <span className="grow" />
         <PrepOrLive />
       </div>

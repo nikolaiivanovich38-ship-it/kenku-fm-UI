@@ -13,6 +13,7 @@ import { useAnnounce } from "../../shell/Announcer";
 import { THEME_CHOICES, type ThemeChoice, type ThemeId } from "../../shell/themes";
 import { useThemeChoice } from "../../shell/useThemeChoice";
 import "./look.css";
+import { TopLead } from "../../shell/TopBar";
 
 interface ThemeCard {
   id: ThemeId;
@@ -41,6 +42,7 @@ export function LookScreen() {
   return (
     <>
       <div className="viewhead">
+        <TopLead />
         <h1>Look and feel</h1>
         <span className="muted">One Lyre, a theme per table</span>
       </div>

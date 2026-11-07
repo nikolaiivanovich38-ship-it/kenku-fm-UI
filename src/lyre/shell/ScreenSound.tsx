@@ -20,11 +20,12 @@ export const SCREEN_WORDS: Record<RouteName, string> = {
   board: "the pad board",
   profile: "the Audio profile",
   live: "Live",
-  outputs: "Outputs",
+  outputs: "Rooms",
   look: "Look and feel",
   backup: "Back up, move or share",
   moved: "What came across from Kenku FM",
   relink: "Find missing files",
+  settings: "Settings",
 };
 
 /** The host with `from` filled in on the preview calls (Try pads too); the same object for the same host and screen. */

@@ -370,3 +370,7 @@
 .lv-sess-edit:hover { background: none; }
 .lv-sess-rename { width: 18ch; min-width: 0; height: calc(var(--ctl) - 6px); }
 
+
+/* UX-18 (round 6 part 6): Back sits in the same place in Live's top strip as in every other top bar, so the strip
+   has the same padding and height as a screen's .viewhead. */
+.lv-top { padding: 6px 12px; min-height: 44px; }

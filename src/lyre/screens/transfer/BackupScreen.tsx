@@ -19,14 +19,15 @@ import { cx } from "../../kit/cx";
 import { useAnnounce } from "../../shell/Announcer";
 import { hashOf } from "../../shell/routes";
 import { CHOICES, KIND_WORDS, WHAT, plural, scopeOptions, sizeWords, type WhatKind } from "./model";
-import { Crumbs, focusSoon, pathOfDropped } from "./parts";
+import { focusSoon, pathOfDropped } from "./parts";
 import "./transfer.css";
+import { TopLead } from "../../shell/TopBar";
 
 export function BackupScreen() {
   return (
     <>
       <div className="viewhead">
-        <Crumbs />
+        <TopLead />
         <h1>Back up, move or share</h1>
       </div>
       <div className="viewbody tf-body">

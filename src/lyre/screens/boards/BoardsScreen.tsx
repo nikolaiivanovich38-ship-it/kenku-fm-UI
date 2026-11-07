@@ -15,6 +15,7 @@ import { PAD_COLOUR, allPads, firstPad, plural, sizeText, usesOfBoard } from "./
 import { DeleteBoardDialog, NewBoardDialog, UseInDialog, useDuplicateBoard } from "./BoardDialogs";
 import { PreviewButton } from "../../kit/SoundButtons";
 import "./boards.css";
+import { TopLead } from "../../shell/TopBar";
 
 type Used = "all" | "used" | "unused";
 const USED_OPTIONS: [Used, string][] = [
@@ -53,6 +54,7 @@ export function BoardsScreen(_props: ScreenProps) {
   return (
     <>
       <div className="viewhead">
+        <TopLead />
         <h1>Pad boards</h1>
         <span className="muted grow pb-sub">{filtered ? `Showing ${shown.length} of ${all.length}` : plural(all.length, "board")}</span>
         <Button variant="primary" icon="plus" onClick={() => setNewBoard(true)}>
