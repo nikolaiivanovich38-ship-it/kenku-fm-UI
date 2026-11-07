@@ -4,7 +4,7 @@
  * has mixed music (track, playlist, track, playlist), an ambience playlist and two pad boards.
  */
 import type { Locator, Page } from "@playwright/test";
-import { expect, test, expectFailureUntilBuilt } from "./support/test";
+import { expect, test, expectFailureUntilBuilt, expectFailureUntilScreenBuilt } from "./support/test";
 import { openRoute } from "./support/target";
 import { dropFiles } from "./support/drop";
 
@@ -33,7 +33,7 @@ test.describe("the session page", () => {
   });
 
   test("has a Prep | Live switch and a Run this session button", async ({ page }) => {
-    expectFailureUntilBuilt("live"); // it ends on the Live screen
+    expectFailureUntilScreenBuilt("live"); // it ends on the Live screen
     await openRoute(page, "session/crown/s14");
     await expect(page.getByRole("group", { name: "Prep or live" }).getByRole("button", { name: "Prep" })).toHaveAttribute("aria-pressed", "true");
     await page.getByRole("button", { name: "Run this session" }).click();
@@ -42,7 +42,7 @@ test.describe("the session page", () => {
   });
 
   test("the Live side of the switch also opens this session in Live", async ({ page }) => {
-    expectFailureUntilBuilt("live"); // it ends on the Live screen
+    expectFailureUntilScreenBuilt("live"); // it ends on the Live screen
     await openRoute(page, "session/crown/s14");
     await page.getByRole("group", { name: "Prep or live" }).getByRole("button", { name: "Live" }).click();
     await expect(page.getByRole("button", { name: /The Sunken Crown Session 14/ })).toBeVisible();
@@ -410,7 +410,7 @@ test.describe("round 5: play order, single tracks, tags, names in scenes and aud
 
   test("ORG-11: tracks in a scene's music show their tags, and so does the music picker", async ({ page }) => {
     // Built; the real library lists a track's tags in tag order (Eerie, Dread), the design in the track's own order.
-    expectFailureUntilBuilt("round 6"); // tag order: the vocabulary's (app) or the track's own (design); a round 6 question
+    expectFailureUntilBuilt("prep"); // tag order: the vocabulary's (app) or the track's own (design); a round 6 question
     await openAbbey(page);
     const first = musicOf(abbey(page)).getByRole("listitem").first();
     await expect(first).toContainText("Tags: Dread, Eerie, Drowned Abbess, Exploration");
@@ -471,7 +471,7 @@ test.describe("round 5: play order, single tracks, tags, names in scenes and aud
 // Text for screen readers only is one pixel wide (Playwright counts it as visible); text on screen is wider. 0 if absent.
 const shownWidth = async (text: Locator) => ((await text.count()) ? ((await text.first().boundingBox())?.width ?? 0) : 0);
 test.describe("round 6: fewer sentences in the planner", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
+  test.beforeEach(() => expectFailureUntilBuilt("prep"));
 
   test("the music picker's how-to is read out with the dialog, not shown above the list", async ({ page }) => {
     await openAbbey(page);
@@ -491,7 +491,7 @@ test.describe("round 6: fewer sentences in the planner", () => {
 
 /* Round 6, part 4 (design/prototype/ROUND6.md "Part 4: review fixes"). Not built yet. */
 test.describe("round 6, part 4: the review's fixes in the planner", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
+  test.beforeEach(() => expectFailureUntilBuilt("prep"));
 
   test("Must 3 (WCAG 2.5.7; Nik, 6 Nov 13:51): Reorder shows Move up and Move down on a scene's playlist, for this scene only", async ({ page }) => {
     await openAbbey(page);
@@ -531,10 +531,10 @@ test.describe("round 6, part 4: the review's fixes in the planner", () => {
 
 /* Round 6, part 5 (Nik, 6 Nov 16:14: "Kill the scene count, unnecessary. … Definitely delete the planner sentence."). */
 test.describe("round 6, part 5: no scene count, no sentence about Live, and the Saved pop-up", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
   const scenesBox = (page: Page) => page.getByRole("region", { name: "Scenes", exact: true });
 
   test("the Scenes box has no scene count, open or folded", async ({ page }) => {
+    expectFailureUntilBuilt("prep");
     await openRoute(page, "session/crown/s14");
     await expect(scenesBox(page).getByText(/^\d+ scenes?$/)).toHaveCount(0);
     await scenesBox(page).getByRole("button", { name: "Scenes", exact: true }).click();
@@ -542,11 +542,13 @@ test.describe("round 6, part 5: no scene count, no sentence about Live, and the 
   });
 
   test("the sentence about the order of Live's lists is gone, for screen readers too", async ({ page }) => {
+    expectFailureUntilBuilt("prep");
     await openRoute(page, "session/crown/s14");
     await expect(page.getByText(/^In play:/)).toHaveCount(0);
   });
 
   test("a scene's notes save after a pause in typing, with the Saved pop-up", async ({ page }) => {
+    expectFailureUntilBuilt("shell", "prep");
     await openRoute(page, "session/crown/s14");
     await page.getByRole("button", { name: "Scene 3: The abbey ruins", exact: true }).click();
     const notes = scene(page, "The abbey ruins").getByRole("textbox", { name: "Notes" });
@@ -560,7 +562,7 @@ test.describe("round 6, part 5: no scene count, no sentence about Live, and the 
    by itself (SHW-3). Out of sight until wanted: the steps are behind the scene's ⋯ menu, and only a scene that does
    something other than the usual is marked. */
 test.describe("round 7: what a scene does when it starts", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
+  test.beforeEach(() => expectFailureUntilBuilt("prep"));
   const steps = (page: Page) => dialog(page).getByRole("list", { name: "Steps" }).getByRole("listitem");
 
   test("the usual start is three steps: its music, its ambience and its first pad board", async ({ page }) => {

@@ -1,11 +1,18 @@
 # Build list: the round 6 and round 7 checks (0.5.0)
 
 Generated from the `app` project run of 7 Nov 2026, 00:22 to 02:02 UTC (commit d83c904), on the packaged test build of b6 with w6-specs. Every check
-listed here calls `expectFailureUntilBuilt("round 6")` or `("round 7")` (directly, through its block's
-`test.beforeEach`, or for a sweep through its screen's `round`), and failed in the app as expected. A stream turns a
-check green by building it and then adding `"round 6"` / `"round 7"` to `BUILT_SCREENS` in `support/built.ts`
-once every check of that round passes; until then a check that starts passing shows up as "expected to fail, but
-passed": take its mark off, or use `metByTheAppAlready()` (support/test.ts) inside a marked block.
+listed here was marked `round 6` or `round 7` and failed in the app as expected.
+
+Since step 0 of the shell stream (w6-shell), each check names the streams that must build it instead of its round:
+`expectFailureUntilBuilt("shell")`, `("live")`, `("rooms-settings")` or `("prep")`, and both where it needs two (its
+stream and the ones under "Also" below), such as `expectFailureUntilBuilt("shell", "prep")`; a sweep through its
+screen's `streams` and, for UX-6, `UX6_NOT_MET_YET` (UX-6 is a kit behaviour: the shell plus the screen's stream). A
+check is expected to fail until every stream it names is in `BUILT_STREAMS` (`support/built.ts`, a list of its own
+because `live` is a screen too). A stream adds its name once all its checks pass. A check that passes before every
+stream it names is built shows up as "expected to fail, but passed": it needed fewer streams than it names, so the
+stream that sees it takes the other names off in the same commit (the table below says who was expected; the mark in
+the spec file is what counts). Inside a marked block, `metByTheAppAlready()` (support/test.ts) still makes one check
+required where the app meets it already.
 
 File:line is in `e2e/specs`. Backlog: the item named in the check, else the design note it comes from (`R6 part N`
 is `design/prototype/ROUND6.md`, `R6 review Must/Should/Could N` its part 4 table; the round 7 items are
@@ -314,8 +321,6 @@ Sweeps (`sweeps.spec.ts`, 17 checks; one line per screen and kind, sizes and the
    pop-up are in; its round 7 part 2 checks (steps, dividers, markers, keys from the shortcuts map) come last, after
    the Prep screens and Settings.
 
-`round 6` and `round 7` are one name each for the whole app in `BUILT_SCREENS`, so they can be added only when every
-stream's checks of that round pass. Until then a stream that turns its checks green sees them as "expected to fail,
-but passed": it takes the check's mark off, or calls `metByTheAppAlready()` in a marked block, in the same commit. (Or
-the lead splits the names per stream, such as `round 6: shell`, before the streams start.)
+Each stream adds its own name to `BUILT_STREAMS` when its checks pass; a check that two streams need stays expected
+to fail until the second of them is in.
 

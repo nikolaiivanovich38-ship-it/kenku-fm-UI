@@ -128,7 +128,7 @@ test.describe("resizing a board: spare pads", () => {
 
   test("the editor says why spare pads exist", async ({ page }) => {
     // Round 6: read out with the box (and its hover text) instead of a line on screen.
-    expectFailureUntilBuilt("round 6");
+    expectFailureUntilBuilt("prep");
     await openRoute(page, "board/weather");
     await expect(spare(page)).toHaveAccessibleDescription("Pads that are not on the grid wait here; their keys do nothing until you put them back.");
   });
@@ -320,7 +320,7 @@ test.describe("round 5: resizing fills the grid; trying pads as they play", () =
 /* Round 6, part 4 (design/prototype/ROUND6.md "Part 4: review fixes", Must 5): an empty slot is named as it reads. */
 test.describe("round 6, part 4: the review's fixes on a pad board", () => {
   test("Must 5 (WCAG 2.5.3): an empty slot shows Add pad and is named Add pad: row, column", async ({ page }) => {
-    expectFailureUntilBuilt("round 6");
+    expectFailureUntilBuilt("prep");
     await openRoute(page, "board/combat");
     await expect(page.getByRole("button", { name: "Add pad: row 3, column 4", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: /^Empty slot/ })).toHaveCount(0);
@@ -330,7 +330,7 @@ test.describe("round 6, part 4: the review's fixes on a pad board", () => {
 /* Round 7 (design/prototype/ROUND7.md): folders for boards and section dividers on a board (ORG-4), and what a pad
    does, as steps (PLY-8). */
 test.describe("round 7: folders and dividers", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
+  test.beforeEach(() => expectFailureUntilBuilt("prep"));
 
   test("boards go into folders with Move to folder… (New folder… makes one)", async ({ page }) => {
     await openRoute(page, "boards");
@@ -359,7 +359,7 @@ test.describe("round 7: folders and dividers", () => {
 });
 
 test.describe("round 7: what a pad does", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
+  test.beforeEach(() => expectFailureUntilBuilt("prep"));
 
   test("a pad plays its sound; its ⋯ › What it does… adds steps such as turning the music down first", async ({ page }) => {
     await openRoute(page, "board/weather");

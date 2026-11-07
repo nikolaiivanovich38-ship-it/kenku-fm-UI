@@ -12,7 +12,8 @@
 import type { Page } from "@playwright/test";
 import fs from "fs";
 import path from "path";
-import { expect, expectFailureUntilBuilt, test } from "./support/test";
+import type { Stream } from "./support/built";
+import { expect, expectFailureUntilBuilt, expectFailureUntilScreenBuilt, test } from "./support/test";
 import { knownAxeIssues, knownLayoutIssue, notLyre, openRoute, type Theme } from "./support/target";
 
 // Injected with page.evaluate: the app's Lyre page has a content policy that refuses added script tags.
@@ -21,14 +22,15 @@ const AXE_SOURCE = fs.readFileSync(AXE_PATH, "utf8");
 const AXE_VERSION = "4.14.0";
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
-/** `owner` is the spec file (screen) that has to be built for the sweep to be required in the app; `round`, for a
- *  screen that is new in a design round, names that round too (BUILD-LIST.md lists the sweep under it). */
-type Screen = { name: string; route: string; owner: string; round?: string; prepare?: (page: Page, options: { playing: boolean }) => Promise<void> };
+/** `owner` is the spec file (screen) that has to be built for the sweep to be required in the app; `streams`, for a
+ *  screen that is new or redesigned in round 6 or 7, names the 0.5.0 streams that build it (BUILD-LIST.md lists the
+ *  sweep under the first). */
+type Screen = { name: string; route: string; owner: string; streams?: [Stream, ...Stream[]]; prepare?: (page: Page, options: { playing: boolean }) => Promise<void> };
 
-/** Mark a sweep "expected to fail" in the app until its screen (and the round that made the screen) is built. */
-function expectFailureUntilScreenBuilt(screen: Screen): void {
-  expectFailureUntilBuilt(screen.owner);
-  if (screen.round) expectFailureUntilBuilt(screen.round);
+/** Mark a sweep "expected to fail" in the app until its screen (and the streams that build the screen) is built. */
+function expectFailureUntilSweptScreenBuilt(screen: Screen): void {
+  expectFailureUntilScreenBuilt(screen.owner);
+  if (screen.streams) expectFailureUntilBuilt(...screen.streams);
 }
 
 const SCREENS: Screen[] = [
@@ -69,7 +71,7 @@ const SCREENS: Screen[] = [
     // round 6's one On air box, which the app's Live (0.4.1's) does not have yet.
     name: "Live with a second room and the pads open",
     owner: "live",
-    round: "round 6",
+    streams: ["live"],
     route: "live",
     prepare: async (page, { playing }) => {
       await page.getByRole("button", { name: "Add a room" }).click();
@@ -86,7 +88,8 @@ const SCREENS: Screen[] = [
   {
     // Round 6, part 2 (SHW-7): a scene unfolded in Live's scene list, with its music, ambience and pad boards.
     name: "Live with a scene unfolded",
-    owner: "round 6",
+    owner: "live",
+    streams: ["live"],
     route: "live",
     prepare: async (page) => {
       // Narrow, the list shows only Now and Next until "Show all 6 scenes".
@@ -98,10 +101,10 @@ const SCREENS: Screen[] = [
   },
   { name: "Outputs", owner: "outputs", route: "outputs" },
   // Round 6, part 2 (OUT-8): Settings in Lyre.
-  { name: "Settings", owner: "settings", round: "round 6", route: "settings" },
+  { name: "Settings", owner: "settings", streams: ["rooms-settings"], route: "settings" },
   { name: "Look and feel", owner: "look", route: "look" },
   // Round 7 (DAT-10): the Tags screen.
-  { name: "Tags", owner: "tags", round: "round 7", route: "tags" },
+  { name: "Tags", owner: "tags", streams: ["prep"], route: "tags" },
   // Round 5 (design/prototype/ROUND5.md): the three new screens, with their tables and choices showing.
   {
     name: "Back up, move or share, with a file open",
@@ -244,7 +247,7 @@ for (const screen of SCREENS) {
   for (const size of SIZES) {
     for (const { label, theme } of THEMES.filter((t) => size.themes.includes(t.theme))) {
       test(`${screen.name} at ${size.width}×${size.height} in the ${label}: no sideways scroll, no overlapping or cut-off controls, no accessibility failures`, async ({ page }) => {
-        expectFailureUntilScreenBuilt(screen);
+        expectFailureUntilSweptScreenBuilt(screen);
         await page.setViewportSize(size);
         await openRoute(page, screen.route, { theme });
         await screen.prepare?.(page, { playing: true });
@@ -276,7 +279,7 @@ for (const screen of SCREENS) {
 // (design/prototype/tools/tab-outputs.js and tab-playlists.js). It runs once per screen at 960×1000.
 for (const screen of SCREENS) {
   test(`${screen.name}: Tab reaches every control on the screen and does not get stuck`, async ({ page }) => {
-    expectFailureUntilScreenBuilt(screen);
+    expectFailureUntilSweptScreenBuilt(screen);
     await openRoute(page, screen.route);
     await screen.prepare?.(page, { playing: false });
     const ignore = notLyre();
@@ -357,7 +360,7 @@ const COLUMNS: Record<string, { what: "regions" | "articles" | "outputs"; expect
 for (const screen of SCREENS) {
   test(`${screen.name}: resized from 600 to 2560 px wide, nothing scrolls sideways, overlaps or is cut off${COLUMNS[screen.name] ? ", and the columns change where the design says" : ""}`, async ({ page }) => {
     test.setTimeout(120_000);
-    expectFailureUntilScreenBuilt(screen);
+    expectFailureUntilSweptScreenBuilt(screen);
     await page.setViewportSize({ width: WIDTHS[0], height: 1000 });
     await openRoute(page, screen.route);
     await screen.prepare?.(page, { playing: false });
@@ -396,7 +399,7 @@ for (const screen of SCREENS) {
 // A short window (1280×600): the page scrolls, so every control can be brought into view and is not covered.
 for (const screen of SCREENS) {
   test(`${screen.name}: in a short window (1280×600) the page scrolls to every control`, async ({ page }) => {
-    expectFailureUntilScreenBuilt(screen);
+    expectFailureUntilSweptScreenBuilt(screen);
     await page.setViewportSize({ width: 1280, height: 600 });
     await openRoute(page, screen.route);
     await screen.prepare?.(page, { playing: false });
@@ -422,23 +425,25 @@ for (const screen of SCREENS) {
 
 // UX-6 (design round 7): no hidden text. Wherever a name is cut short (an ellipsis, or two lines and then an ellipsis),
 // its full text is on hover (a title on it or on the row it is in), and keyboard focus on it shows the same text.
-// The app's built screens meet it already, apart from these (app run of 7 Nov 2026), which stay marked round 7 for the
-// stream that builds their screen; the screens the app does not have are marked by their screen and round as well.
-const UX6_NOT_MET_YET: Record<string, number[]> = {
-  Library: [1920],
-  "Library with a track open": [960, 1920],
-  "A dynamic playlist": [960],
-  "Live with a second room and the pads open": [960, 1920],
-  "Live with a scene unfolded": [960, 1920],
-  Settings: [960, 1920],
-  "Look and feel": [960, 1920],
-  Tags: [960, 1920],
+// The app's built screens meet it already, apart from these (app run of 7 Nov 2026), which stay marked for the shell
+// (UX-6 is one kit behaviour) and the stream that builds their screen; the screens the app does not have are marked by
+// their screen and streams as well.
+const UX6_NOT_MET_YET: Record<string, { widths: number[]; streams: [Stream, ...Stream[]] }> = {
+  Library: { widths: [1920], streams: ["shell", "prep"] },
+  "Library with a track open": { widths: [960, 1920], streams: ["shell", "prep"] },
+  "A dynamic playlist": { widths: [960], streams: ["shell", "prep"] },
+  "Live with a second room and the pads open": { widths: [960, 1920], streams: ["shell", "live"] },
+  "Live with a scene unfolded": { widths: [960, 1920], streams: ["shell", "live"] },
+  Settings: { widths: [960, 1920], streams: ["shell", "rooms-settings"] },
+  "Look and feel": { widths: [960, 1920], streams: ["shell"] },
+  Tags: { widths: [960, 1920], streams: ["shell", "prep"] },
 };
 for (const screen of SCREENS) {
   for (const size of [{ width: 960, height: 1000 }, { width: 1920, height: 1080 }]) {
     test(`${screen.name} at ${size.width}×${size.height}: every name cut short has its full text on hover`, async ({ page }) => {
-      expectFailureUntilScreenBuilt(screen);
-      if (UX6_NOT_MET_YET[screen.name]?.includes(size.width)) expectFailureUntilBuilt("round 7");
+      expectFailureUntilSweptScreenBuilt(screen);
+      const notYet = UX6_NOT_MET_YET[screen.name];
+      if (notYet?.widths.includes(size.width)) expectFailureUntilBuilt(...notYet.streams);
       await page.setViewportSize(size);
       await openRoute(page, screen.route);
       await screen.prepare?.(page, { playing: true });
@@ -470,8 +475,8 @@ for (const screen of SCREENS) {
 }
 
 test("UX-6: keyboard focus on a name cut short shows its full text", async ({ page }) => {
-  expectFailureUntilBuilt("library");
-  expectFailureUntilBuilt("round 7");
+  expectFailureUntilScreenBuilt("library");
+  expectFailureUntilBuilt("shell", "prep");
   await page.setViewportSize({ width: 960, height: 1000 });
   await openRoute(page, "library");
   const rowEl = page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Very short heroic moment/ });
