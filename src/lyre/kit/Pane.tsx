@@ -23,7 +23,8 @@ export function Column({ className, children }: { className?: string; children: 
   );
 }
 
-export type PaneKind = "onair" | "music" | "scenes" | "search" | "fx" | "plain";
+/** The box's top edge: "current" (round 6 part 3) is the accent, for Live's Current scene. */
+export type PaneKind = "onair" | "music" | "scenes" | "search" | "fx" | "current" | "plain";
 
 export interface PaneProps {
   /** Remembers the box's open or closed state across visits; unique on the page. */

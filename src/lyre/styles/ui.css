@@ -378,3 +378,20 @@ html[data-contrast="high"] .btn.ghost, html[data-contrast="high"] .closer { bord
 .full-tip { position: fixed; z-index: 75; max-width: min(480px, calc(100vw - 8px)); padding: 4px 8px; border-radius: var(--r-s); background: var(--ink); color: var(--bg); font-size: var(--fs-s); line-height: 1.35; pointer-events: none; box-shadow: var(--shadow); }
 /* UX-6: names on cards wrap to two lines, then the rest is on hover and focus. */
 #view .pb-card-name, #view .cp-card-name { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+
+/* Kit pieces of round 6 for the screens (w6-shell; prototype ui.css and live.css). */
+/* Live's Current scene box: the accent edge. */
+.pane.k-current { border-top-color: var(--accent); }
+/* A small tag in a box header saying whose it is ("Session", "Campaign"). */
+.pane-scope { flex: none; display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: 3px;
+  font-family: var(--body); font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0; text-transform: none; color: var(--ink); background: var(--surface); }
+/* Row buttons always shown, greyed at rest (icons, so nothing more to read), full colour on the row's hover and
+   keyboard focus (Nik, 6 Nov 13:55). Put .row-quiet on the button and .row-hot on the row. */
+.row-quiet { color: var(--ink-3); }
+.row-hot:is(:hover, :focus-within) .row-quiet, .row-quiet:focus-visible, .row-hot.shown .row-quiet { color: var(--ink); }
+/* A tray of boxes (Live's This session and Whole campaign): a shaded one and a dashed one, each with a small heading;
+   it grows with what it holds (Nik, 21:59). */
+.tray { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 4px 6px 6px; border-radius: var(--r-l); }
+.tray.tray-session { background: color-mix(in srgb, var(--ink) 12%, var(--bg)); }
+.tray.tray-campaign { border: 2px dashed var(--line-strong); }
+.tray-h { margin: 0; padding: 0 2px; font-size: var(--fs-xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
