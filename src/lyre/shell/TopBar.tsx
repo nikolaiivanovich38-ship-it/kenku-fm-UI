@@ -79,8 +79,21 @@ export function useNavigationState(path: string, names?: PlaceNames) {
     restoring.current = null;
     const root = view();
     const active = document.activeElement;
-    const focus = root && active instanceof Element && root.contains(active) && active !== root ? controlKey(active, root) : lastControl.current;
-    history.current.leave({ path: from, label: placeLabel(from, namesRef.current), scrolls: root ? scrollsOf(root) : {}, focus }, to);
+    const inView = root && active instanceof Element && root.contains(active) && active !== root ? active : null;
+    const focus = inView && root ? controlKey(inView, root) : lastControl.current;
+    // A link inside a part that names itself (a scene card: data-back-label, data-back-open) names the place left
+    // after that part, and Back opens it again: "Back to The abbey ruins".
+    const part = inView?.closest<HTMLElement>("[data-back-label]");
+    history.current.leave(
+      {
+        path: from,
+        label: part?.dataset.backLabel || placeLabel(from, namesRef.current),
+        scrolls: root ? scrollsOf(root) : {},
+        focus,
+        ...(part?.dataset.backOpen ? { open: part.dataset.backOpen } : {}),
+      },
+      to,
+    );
     lastControl.current = "";
     redraw((n) => n + 1);
   }, []);
@@ -96,6 +109,7 @@ export function useNavigationState(path: string, names?: PlaceNames) {
         return true;
       }
       restoring.current = place;
+      pendingOpen = place.open ? { path: place.path, open: place.open } : null;
       window.location.hash = `#/${place.path}`;
       redraw((n) => n + 1);
       return true;
@@ -113,6 +127,17 @@ export function useNavigationState(path: string, names?: PlaceNames) {
 
   const back = history.current.peek(path, exists);
   return { backTo: back ? back.label : null, goBack, beforeRouteChange, trail: trailOf(path, names) };
+}
+
+/** What Back is to open again in the place it goes to (Place.open), taken once by that screen. */
+let pendingOpen: { path: string; open: string } | null = null;
+
+/** For a screen: what Back asks it to open again (a scene's id in the planner), once; null when nothing. */
+export function takeBackOpen(path: string): string | null {
+  const note = pendingOpen;
+  if (!note || note.path !== path) return null;
+  pendingOpen = null;
+  return note.open;
 }
 
 /**

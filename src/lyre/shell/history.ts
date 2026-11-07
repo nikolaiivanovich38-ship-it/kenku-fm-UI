@@ -21,6 +21,11 @@ export interface Place {
   scrolls: Record<string, number>;
   /** The control last used in the work area (see shell/restore.ts), so it gets the focus again. */
   focus: string;
+  /**
+   * What to open there again, when Nik left from inside it (a scene in the planner): the `data-back-open` of the
+   * part of the screen the link was in; the screen takes it with `takeBackOpen`.
+   */
+  open?: string;
 }
 
 /** Whether a place still exists: a board, playlist, campaign, session or track may have been deleted since. */

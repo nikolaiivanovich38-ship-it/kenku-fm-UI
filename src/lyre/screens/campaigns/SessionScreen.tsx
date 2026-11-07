@@ -53,7 +53,7 @@ import { useOptimisticScenes, type ScenePlay } from "./optimistic";
 import { useDragReorder } from "./reorder";
 
 import "./campaigns.css";
-import { TopLead } from "../../shell/TopBar";
+import { takeBackOpen, TopLead } from "../../shell/TopBar";
 import { useSave } from "../../shell/useSave";
 
 export function SessionScreen({ route }: ScreenProps) {
@@ -113,6 +113,12 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
 
   // PLY-14: back from the Audio profile ("Back to <scene>"): the scene opens and the track's wave button takes the focus.
   useEffect(() => {
+    // UX-18: Back to a scene the game master left from (its card's data-back-open) opens it again.
+    const reopen = takeBackOpen(`session/${c.id}/${s.id}`);
+    if (reopen && s.scenes.some((x) => x.id === reopen)) {
+      setOpen((o) => ({ ...o, [reopen]: true }));
+      setCurrent(reopen);
+    }
     const back = takeSceneReturn(c.id, s.id);
     if (!back) return;
     if (back.sceneId && s.scenes.some((x) => x.id === back.sceneId)) {
@@ -577,6 +583,9 @@ function SceneCard({ scene, position, ctx, open, onToggle, drag, menu }: SceneCa
     <li
       className={`cp-scene${open ? " open" : ""}${fileOver ? " cp-fdrop" : ""} ${drag.rowClass(position)}`}
       aria-label={`Scene ${number}: ${name}`}
+      // UX-18: a link in this scene names it for Back ("Back to The abbey ruins"), and Back opens it again.
+      data-back-label={name}
+      data-back-open={scene.id}
       {...rowProps}
       {...foldedDrop}
     >

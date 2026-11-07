@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Shell } from "./Shell";
+import { takeBackOpen } from "./TopBar";
 import { createFakeLyreApi } from "../../common/lyre/fake";
 import { LyreApiProvider } from "../api";
 import { ShellDataProvider } from "./ShellData";
@@ -397,6 +398,31 @@ describe("Back and the trail (UX-18, round 6 parts 6 and 7)", () => {
     expect(within(screen.getByRole("main")).getByRole("heading", { level: 1 })).toHaveTextContent("Playlist");
     await user.click(back());
     await vi.waitFor(() => expect(screen.getByRole("link", { name: "The Abbess" })).toHaveFocus());
+  });
+
+  it("a link inside a part that names itself (a scene card) names the place for Back, and Back asks to open it again", async () => {
+    let reopened: string | null = null;
+    function Planner() {
+      React.useEffect(() => {
+        reopened = takeBackOpen("campaigns") ?? reopened;
+      }, []);
+      return (
+        <>
+          <PlaceholderScreen title="Campaigns" />
+          <ul>
+            <li data-back-label="The abbey ruins" data-back-open="sc3">
+              <a href="#/playlist/a">Waveform</a>
+            </li>
+          </ul>
+        </>
+      );
+    }
+    const user = userEvent.setup();
+    render(<Shell screens={{ ...SHELL_SCREENS, campaigns: Planner }} />);
+    await user.click(screen.getByRole("link", { name: "Waveform" }));
+    expect(back()).toHaveAccessibleName("Back to The abbey ruins");
+    await user.click(back());
+    expect(reopened).toBe("sc3");
   });
 
   it("shows the trail of a screen with parents right after Back, every part a link, the whole path on hover", () => {
