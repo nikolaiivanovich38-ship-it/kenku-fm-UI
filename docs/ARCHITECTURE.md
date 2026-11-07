@@ -698,3 +698,18 @@ What the screen streams must know: call `audio.setAudioDevices(settings.devices)
 `playTrack(trackId, { from })`; a pad's What it does… and a scene's What it does when it starts… save with
 `stepsToKeep` semantics (sending the usual steps keeps none). Global keys (`globalKeys`) are stored but not yet
 registered: the main process needs `globalShortcut` for Next scene and Fade everything out (a later step).
+
+## 0.5.0 step 2c: w6-rooms (Rooms and Settings)
+
+| Where | What it does |
+| --- | --- |
+| `src/lyre/screens/outputs/` | Rooms (OUT-7): each bot in a channel a chip with Kick; Add bot (one click with one free bot, else a short choice, `addBotChoice`); Kick and a move away from listening players get the undo bar (`kickLosesSound`, `moveLosesSound`); Undo of a Kick sends the bot back and plays its lanes from where they were (`roomToRestore`, `src/lyre/outputs/roomRestore.ts`); Nobody there with Move to the busiest free channel (`nobodyThere`, `busiestChannel`, review Must 2); a level meter (OUT-10, `meterFill`). The h1 still says Outputs: the shell renames it. |
+| `src/lyre/audio` | `LyreAudio.roomLevel(roomId)`: an AnalyserNode beside a room's mix (`analyserMeter`), made on first ask, let go with its room. |
+| `src/lyre/shell/UndoNote.tsx` | `offerUndo(text, restore)`: the undo bar for a change outside the library (Kick, Remove a bot); Ctrl+Z runs it while it shows. |
+| `src/lyre/screens/settings/` | Settings (route `settings`, rail link above Look and feel): `BotsPane` (bots, Add a bot), `OtherPanes` (Sound to Discord with the crossfade, Headphones and speakers, Remote control, Keyboard shortcuts, Website tabs, Local files), `settingsModel.ts` (words, key capture `keyPressed`). Saves show "Saved: …" through the status note (`useSaved`, a TODO for the shell's pop-up). |
+| `src/lyre/settings/SettingsAppliers.tsx` | In AppProviders: applies `settings.devices` to the audio host, registers the global keys, keeps their refusals (`useGlobalKeyRefusals`), and turns each global press into a cancelable `lyre-global-key` window event (`GLOBAL_KEY_EVENT`). **Live** must listen for it (a key registered globally is not seen by Lyre's own keydown) and `preventDefault()` what it handles; a Fade everything out nobody took fades every room. |
+| `src/lyre/keys/`, `src/lyre/windowSettings/` | `window.lyre.keys`, `window.lyre.windowSettings` (docs/security.md w6-rooms). |
+| `src/main/globalKeys.ts`, `src/main/windowSettings/`, `src/main/remote/homeNetwork.ts` | Global keys, the main window's settings for the Lyre page, the home-network address. |
+
+Shared helpers for Live (OUT-7, Must 2): `outputsModel.ts` `kickLosesSound`, `moveLosesSound`, `roomToRestore`,
+`nobodyThere`, `busiestChannel`; `restoreRoom` for Kick's Undo with the music.

@@ -58,7 +58,7 @@ export class GlobalKeys {
         continue;
       }
       taken.set(accelerator, action);
-      let registered = false;
+      let registered: boolean;
       try {
         registered = this.shortcuts.register(accelerator, () => this.onPress(action));
       } catch {

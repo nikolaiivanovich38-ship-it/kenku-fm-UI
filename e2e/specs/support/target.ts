@@ -62,7 +62,9 @@ export async function withAppPage(use: (page: Page) => Promise<void>): Promise<v
     executablePath,
     args,
     chromiumSandbox,
-    env: { ...env, CUE_DESK_USER_DATA_DIR: dataDir, CUE_DESK_LYRE_SEED: "prototype", CUE_DESK_FAKE_DISCORD: "prototype" },
+    env: { ...env, CUE_DESK_USER_DATA_DIR: dataDir, CUE_DESK_LYRE_SEED: "prototype", CUE_DESK_FAKE_DISCORD: "prototype",
+      // w6-rooms (SEC-4): the e2e machine has no home network; Settings › Remote control shows this address for it.
+      CUE_DESK_FAKE_HOME_ADDRESS: "192.168.1.20" },
   });
   currentApp = app;
   try {

@@ -926,3 +926,66 @@ things too, and Lyre checks each of them before anything changes.
    chosen ear only; turn the split off: both ears, at the same loudness as before.
 2. Close Lyre, open `%LOCALAPPDATA%\Lyre Library\this-computer.json` in Notepad, type rubbish into it, save, start
    Lyre: Look and feel and Headphones and speakers are back at their defaults and nothing else changed.
+
+## w6-rooms
+
+### In plain language
+
+Settings is now inside Lyre. A bot's token goes from the box you paste it in straight to the part of Lyre that keeps it
+encrypted; the screen only ever shows its last four characters. The remote control's secret code is now 8 characters
+with nothing that looks alike (no 0 or O, no 1, I or L), so it is easy to type on a phone. "Your home network" makes
+the remote control listen on this computer's private address on your Wi-Fi and nowhere else (never on the internet's
+side). "Next scene and Fade everything out work in other programs too" takes only those two keys from other programs,
+and only keys you do not type with: Space or Ctrl+Z, for example, are refused in plain words, because Discord and every
+other program would lose them. The keys go back when you turn it off, change a key, close the window or quit.
+
+### Technical details
+
+- **Remote code** (`src/main/remote/remoteCode.ts`, lead decision 7 Nov): 8 symbols of `ABCDEFGHJKMNPQRSTUVWXYZ23456789`
+  (31) from `crypto.randomInt` (no modulo bias), shown `XXXX-XXXX`; 31^8 ≈ 8.5 × 10^11 with the 10-in-10-minutes lock
+  (rateLimit.ts). Comparison as before (`codesMatch`: upper case, no spaces or dashes, SHA-256 + `timingSafeEqual`). A
+  stored code in the older 20-symbol form is replaced on load (`remoteSettings.ts`).
+- **Home network** (`homeNetwork.ts`): `RemoteState.homeAddress` is this computer's private IPv4 address (RFC 1918;
+  192.168 first, then 10, then 172.16–31), or null. `RemoteControl` passes on only an address `isHomeNetworkAddress`
+  accepts, so neither a public address nor 0.0.0.0 is ever offered; the page sets it through `REMOTE_SET` as before.
+  Test builds may be given one with `CUE_DESK_FAKE_HOME_ADDRESS` (`PlayerManager`, gated on `__CUE_DESK_TEST_BUILD__`).
+- **Global keys** (`src/main/globalKeys.ts`, `src/common/globalKeys.ts`): `LyreManager` registers at most two
+  accelerators with `globalShortcut`, for nextScene and fadeAll, only while the page asks with `on: true`;
+  `globalKeyProblem` refuses keys used for typing or other programs' commands before Electron is asked (allowed: F1–F12,
+  Shift+Esc, two modifiers including Ctrl or Alt). A key another program holds (`register` answers false) is refused in
+  plain words. Every key is unregistered on each change, in `LyreManager.destroy()` and on `will-quit`
+  (`globalShortcut.unregisterAll()`, src/index.ts).
+- **The main window's settings** (`src/common/windowSettings.ts`, `src/main/windowSettings/windowSettingsBridge.ts`,
+  `src/renderer/features/settings/windowSettingsSync.ts`): Sound to Discord and Website tabs stay in the main window
+  (its own storage, as Kenku FM). Only the four settings cross, each checked exactly (`isWindowSettings`,
+  `isWindowSettingsChange`); nothing else of the main window's state reaches the Lyre page.
+- **Local files and Clear website data**: Lyre-page twins of `LOCAL_FILES_*` and `CLEAR_CACHE`, handled by the same code.
+- **Bots** (OUT-8): the screen uses the w6-contracts channels only; tokens go in through `password` fields and are never
+  held in the page's state (the field is read on Save or Connect, then emptied).
+
+### Channels
+
+| Channel | Sent by | Arguments | Handled in |
+|---|---|---|---|
+| `LYRE_GLOBAL_KEYS_SET` (invoke) | Lyre page | one object exactly `{ on: boolean, keys: { nextScene?, fadeAll? } }`, keys text ≤ 40 (`isGlobalKeysRequest`); answers `{ refused: [{ action, key, message }] }` | `LyreManager` (`globalKeys.ts`) |
+| `LYRE_GLOBAL_KEY` (main to page) | main process | `"nextScene"` or `"fadeAll"`, on each press | `src/lyre/keys/preloadKeys.ts` |
+| `WINDOW_SETTINGS_STATE` (send) | Main window | one `WindowSettings`, exactly the four keys | `WindowSettingsBridge` |
+| `WINDOW_SETTINGS_SET` (main to main window) | main process | one checked `WindowSettingsChange` from the Lyre page | `windowSettingsSync.ts` |
+| `LYRE_WINDOW_SETTINGS_GET` (invoke) | Lyre page | none; answers the latest `WindowSettings` or null | `WindowSettingsBridge` |
+| `LYRE_WINDOW_SETTINGS_SET` (invoke) | Lyre page | one `WindowSettingsChange` (one to four known keys, each of its kind); answers whether a main window took it | `WindowSettingsBridge` |
+| `LYRE_WINDOW_SETTINGS_STATE` (main to page) | main process | one `WindowSettings` | `preloadWindowSettings.ts` |
+| `LYRE_LOCAL_FOLDERS_LIST`, `LYRE_LOCAL_FOLDERS_FORGET` (invoke) | Lyre page | none; a folder, text ≤ 32,767 | `BrowserViewManagerMain` |
+| `LYRE_CLEAR_WEBSITE_DATA` (invoke) | Lyre page | none | `appInfoIpc.ts` (src/index.ts) |
+
+### Tests
+
+| Test | Covers |
+|---|---|
+| `src/main/remote/remoteCode.test.ts`, `homeNetwork.test.ts`, `remoteSettings.test.ts`, `remoteControl.test.ts` | 8-character code, alphabet, no bias, old codes replaced; private addresses only |
+| `src/common/globalKeys.test.ts`, `src/main/globalKeys.test.ts`, `LyreManager.test.ts` | Accelerators, typing keys refused, a held key refused, release on change, destroy and dispose, Lyre page only |
+| `src/common/windowSettings.test.ts`, `windowSettingsBridge.test.ts`, `windowSettingsSync.test.ts`, `preloadWindowSettings.test.ts`, `appInfoIpc.test.ts`, `BrowserViewManagerMain.test.ts` | Exact shapes, senders, the two-way path |
+
+### Manual checks (Windows)
+
+1. Settings › Remote control: turn it on; the code is two groups of four; `Invoke-WebRequest http://127.0.0.1:3333/v1/playlist -Headers @{ Authorization = "Bearer <code>" }` lists playlists. Choose Your home network: the address shown is 192.168.x.x (or 10.x.x.x); from a phone on the same Wi-Fi, the same request with that address works; Make a new code, and the old one is refused.
+2. Settings › Keyboard shortcuts: turn on "in other programs too" with Next scene on Space: it says Space cannot work there. Give Next scene F9, turn it on, click into Discord and press F9: Live moves to the next scene; type a space in Discord's chat: it types. Turn it off: F9 does nothing outside Lyre. Quit Lyre: F9 works for other programs again.
