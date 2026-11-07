@@ -698,3 +698,23 @@ What the screen streams must know: call `audio.setAudioDevices(settings.devices)
 `playTrack(trackId, { from })`; a pad's What it does… and a scene's What it does when it starts… save with
 `stepsToKeep` semantics (sending the usual steps keeps none). Global keys (`globalKeys`) are stored but not yet
 registered: the main process needs `globalShortcut` for Next scene and Fade everything out (a later step).
+
+## 0.5.0 step 2a: w6-shell (the shell)
+
+Round 6 parts 5 to 7 and round 7's shell (design/prototype/ROUND6.md, ROUND7.md), in `src/lyre/shell` and the kit.
+What the other streams use:
+
+| Piece | Where | Use |
+| --- | --- | --- |
+| Back and the trail (UX-18) | `shell/TopBar.tsx` (`TopLead`), `shell/history.ts`, `shell/restore.ts` | Put `<TopLead />` first in a screen's `.viewhead` (Live: first in `.lv-top`). The shell keeps one history of 50 places (every address change, the menu included), restores scroll positions (`data-scroll` names a scroller; else its place in `#view`) and the control used to leave (`data-k`, `id`, else kind, name and position). A screen with no history may pass `fallback={{ label, go }}`; a screen whose parents are not in its address passes `trail`. Labels and parents come from `ShellData.placeNames` (`history.ts` `placeLabel`, `trailOf`). Alt+Left and the mouse's back button go back too. |
+| The Saved pop-up (UX-19) | `shell/Announcer.tsx` (`saved`, `saveFailed`, `toast`), `shell/useSave.ts`, `kit/SavedField.tsx` | Save with `const save = useSave(); save("The Sunken Crown notes", () => api.x(...), { key, detail })`: Saved on success, the failure card with Try again on `"not-saved"`, the refusal's words otherwise. A text field is a `SavedField` (Enter, leaving, or a second without typing; `SAVE_AFTER_MS`). No box shows Ready or Saved. The Undo note sits in the same corner (`UNDO_SLOT_ID`). |
+| Find and play (UX-12) | `shell/FindAndPlay.tsx`, `shell/findModel.ts` | Ctrl+K anywhere (the key from `settings.shortcuts.palette`), over `library.find`; given to the shell as `ShellData.FindAndPlay`. |
+| Display (UX-11) | `shell/display.ts`, Look and feel's Display | `settings.setComputer({ display })`; `applyDisplay` sets `data-density` and `data-contrast` on `<html>` and zooms through `window.lyre.display.setZoom` (preload, `webFrame.setZoomFactor`, 1 to 2). |
+| No hidden text (UX-6) | `kit/noHiddenText.ts` | Installed by the shell on `#view`: a name cut short gets its full text as hover text and, on focus, in a tooltip. Nothing to do in a screen beyond using an ellipsis or a line clamp. |
+| Help from a screen | `help/useHelp.tsx` `useOpenHelp()` | Opens Help's panel (Live's Keys has Help at its foot). |
+| Kit pieces | `kit/icons.ts`, `styles/ui.css` | Icons `undo`, `mute`, `leave` (Kick), `playair`; `Pane kind="current"`; `.pane-scope`; row buttons greyed at rest (`.row-quiet` in a `.row-hot` row); trays (`.tray.tray-session`, `.tray.tray-campaign`, `.tray-h`). |
+
+Rooms (OUT-9): the rail, the heading and Help say Rooms; the address stays `#/outputs`. Settings is on the rail with a
+placeholder screen at `#/settings` until the Rooms and Settings stream builds it. Help has the round 6 drafts (Live
+rewritten, "Play next, Add to queue and Repeat" new); `design/prototype/help-drafts` is gone, so the prototype reads
+the app's articles again.

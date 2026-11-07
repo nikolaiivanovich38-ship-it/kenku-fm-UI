@@ -926,3 +926,11 @@ things too, and Lyre checks each of them before anything changes.
    chosen ear only; turn the split off: both ears, at the same loudness as before.
 2. Close Lyre, open `%LOCALAPPDATA%\Lyre Library\this-computer.json` in Notepad, type rubbish into it, save, start
    Lyre: Look and feel and Headphones and speakers are back at their defaults and nothing else changed.
+
+## w6-shell
+
+- **Display zoom (UX-11).** The Lyre page's preload gains `display.setZoom(factor)` (`src/lyre/shell/display.ts`):
+  it calls `webFrame.setZoomFactor` for this page only, with a finite number clamped to 1 to 2, and anything else is
+  ignored. No IPC channel is added; nothing else of `webFrame` reaches the page.
+- **Find and play, Back, the Saved pop-up** use the existing LyreApi and audio calls through the existing guarded
+  channels; no new channel or argument.
