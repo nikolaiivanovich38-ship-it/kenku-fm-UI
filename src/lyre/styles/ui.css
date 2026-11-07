@@ -351,3 +351,12 @@ button .shape-g { color: inherit; }
 .norm-opt:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
 .norm-opt .hint { flex-basis: 100%; padding-left: 22px; font-weight: 400; }
 @media (max-width: 520px) { .norm { grid-template-columns: minmax(0, 1fr); } .norm-l { padding-top: 0; } }
+
+/* Round 7, UX-11 (r7shell.css): Comfortable is a little roomier than Lyre's compact default. */
+[data-density="comfortable"] { --ctl: 32px; --ctl-s: 28px; --row: 36px; --pane-head: 36px; --gap: 10px; --gap-s: 6px; --gap-l: 14px; }
+[data-density="comfortable"] .rail a, [data-density="comfortable"] .rail button.nav { height: 38px; }
+/* High contrast: quiet text is as strong as the main text and lines are stronger, in every theme. Colour is never the
+   only signal, so nothing else has to change. */
+html[data-contrast="high"], html[data-contrast="high"] [data-theme] { --ink-2: var(--ink); --ink-3: var(--ink); --line: var(--line-strong); }
+html[data-contrast="high"] :focus-visible { outline-width: 3px; }
+html[data-contrast="high"] .btn.ghost, html[data-contrast="high"] .closer { border-color: var(--line-strong); }

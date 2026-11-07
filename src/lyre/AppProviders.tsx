@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from "react";
 
 import type { LyreApi } from "../common/lyre/api";
 import { shownTitle } from "../common/lyre/text";
-import { LibrarySnapshot, LyreApiProvider, useBoards, useCampaigns, useLyreApi, usePlaylists, useTracks } from "./api";
+import { LibrarySnapshot, LyreApiProvider, useBoards, useCampaigns, useLyreApi, usePlaylists, useSettings, useTracks } from "./api";
+import { applyDisplay, pageZoom } from "./shell/display";
 import { ipcLyreApi } from "./api/ipcClient";
 import { LibraryStatus } from "./api/LibraryStatus";
 import type { LyreApiBridge } from "./api/preloadApi";
@@ -33,6 +34,7 @@ export function AppProviders({ children, api, audio, outputs }: { children: Reac
   return (
     <LyreApiProvider api={lyreApi}>
       <LibraryStatus />
+      <DisplayFromSettings />
       <OutputsProvider client={outputsClient}>
         <WithAudio audio={audio}>
           <ShellDataFromLibrary>{children}</ShellDataFromLibrary>
@@ -167,4 +169,13 @@ function usePlaceNames(): PlaceNames {
       track: (id) => trackNames.get(id) ?? null,
     };
   }, [campaigns, playlists, boards, tracks]);
+}
+
+/** UX-11: this computer's Look and feel › Display on the page, from the start and after every change. */
+function DisplayFromSettings(): null {
+  const display = useSettings().data?.display;
+  useEffect(() => {
+    if (display) applyDisplay(display, pageZoom());
+  }, [display]);
+  return null;
 }

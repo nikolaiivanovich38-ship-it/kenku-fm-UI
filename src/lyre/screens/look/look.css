@@ -21,3 +21,16 @@
 .view .lk-fixed { display: flex; flex-wrap: wrap; gap: 8px 18px; }
 .view .lk-fixed > div { display: flex; align-items: center; gap: 6px; font-size: var(--fs-s); }
 .view .lk-choice { max-width: 320px; }
+
+/* Round 7, UX-11: Display (look.css of the prototype). */
+.lk-display { margin-bottom: 14px; }
+.lk-display .lk-h2 { margin-top: 0; }
+.lk-drow { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; }
+.lk-dgrp { display: inline-flex; align-items: center; gap: 8px; min-height: var(--ctl); }
+.lk-dl { font-size: var(--fs-s); font-weight: 700; color: var(--ink-2); }
+.lk-radio { display: inline-flex; align-items: center; gap: 5px; min-height: 24px; cursor: pointer; }
+.lk-radio input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+.lk-size input[type=range] { width: 160px; max-width: 100%; accent-color: var(--accent); }
+.lk-sizev { min-width: 42px; }
+.lk-switch { cursor: pointer; }
+.lk-switch input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }

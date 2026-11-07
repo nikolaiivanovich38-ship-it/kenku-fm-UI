@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, webUtils } from "electron";
+import { contextBridge, ipcRenderer, webFrame, webUtils } from "electron";
 
 import { createLyreApiBridge, type IpcRendererLike as ApiIpc } from "./api/preloadApi";
 import { createLyreAudioBridge, type IpcRendererLike as AudioIpc } from "./audio/preloadAudio";
@@ -6,6 +6,7 @@ import { createLyreOutputsBridge, type IpcRendererLike as OutputsIpc } from "./o
 import { createLyreDiagnosticsBridge, type IpcRendererLike as DiagnosticsIpc } from "./help/preloadDiagnostics";
 import { createLyreRemoteBridge, type IpcRendererLike as RemoteIpc } from "./remote/preloadRemote";
 import { createLyreUpdatesBridge, type IpcRendererLike as UpdatesIpc } from "./updates/preloadUpdates";
+import { createLyreDisplayBridge } from "./shell/display";
 
 /**
  * WP5: the new interface page's bridge to the rest of the app, exposed as `window.lyre`. Every IPC channel it uses
@@ -23,6 +24,8 @@ import { createLyreUpdatesBridge, type IpcRendererLike as UpdatesIpc } from "./u
  *     _NEW_CODE; REMOTE_STATE after each change); src/lyre/remote/preloadRemote.ts.
  *   - updates (w6-found, SEC-14): what automatic updates are doing and the last problem in plain words
  *     (UPDATE_GET; UPDATE_STATE after each change); src/lyre/updates/preloadUpdates.ts.
+ *   - display (w6-shell, UX-11): Look and feel › Display's text size zooms this page (webFrame.setZoomFactor, 1 to 2;
+ *     no IPC); src/lyre/shell/display.ts.
  * The page runs sandboxed with context isolation; nothing from Node or Electron reaches it except this object.
  */
 const api = {
@@ -36,6 +39,7 @@ const api = {
   diagnostics: createLyreDiagnosticsBridge(ipcRenderer as unknown as DiagnosticsIpc),
   remote: createLyreRemoteBridge(ipcRenderer as unknown as RemoteIpc),
   updates: createLyreUpdatesBridge(ipcRenderer as unknown as UpdatesIpc),
+  display: createLyreDisplayBridge(webFrame),
 };
 
 contextBridge.exposeInMainWorld("lyre", api);
