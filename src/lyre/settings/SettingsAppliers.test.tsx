@@ -50,9 +50,12 @@ function setup(keys: LyreKeysBridge | null) {
 }
 
 describe("SettingsAppliers", () => {
-  it("gives the audio host this computer's devices at the start and after each change (PRV-2)", async () => {
+  it("gives the audio host this computer's devices after each change, and nothing while they are the defaults (PRV-2)", async () => {
     const { api, audio } = setup(null);
-    await waitFor(() => expect(audio.calls).toContainEqual(["setAudioDevices", { airDevice: "", previewDevice: "", split: false, previewEar: "left" }]));
+    // Left as they are, the preview already plays on the default device in both ears: asking again would only make
+    // Chromium switch the device over for nothing (and say so in the capture window's console).
+    await act(async () => void (await new Promise((resolve) => setTimeout(resolve, 50))));
+    expect(audio.calls.some(([m]) => m === "setAudioDevices")).toBe(false);
     await act(async () => void (await api.settings.setComputer({ devices: { split: true, previewEar: "right" } })));
     await waitFor(() => expect(audio.calls).toContainEqual(["setAudioDevices", expect.objectContaining({ split: true, previewEar: "right" })]));
   });
