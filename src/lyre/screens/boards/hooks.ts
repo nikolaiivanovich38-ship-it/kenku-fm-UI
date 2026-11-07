@@ -7,6 +7,7 @@ import { isRefused, type WriteResult } from "../../../common/lyre/api";
 import { useLyreAudio, useNowPlaying } from "../../audio/LyreAudioProvider";
 import { padIsOn } from "../../audio/lyreAudio";
 import { useAnnounce } from "../../shell/Announcer";
+import { SAVE_AFTER_MS } from "../../kit/SavedField";
 
 /** Go to another screen ("boards", "board/combat"). */
 export function go(path: string): void {
@@ -88,7 +89,7 @@ export function usePendingFocus(root: React.RefObject<HTMLElement>) {
  * until the library has it. `save` gets the text as typed; it decides what it can keep.
  * `owner` names what the field belongs to (a board, a pad): a new owner drops the old draft after saving it.
  */
-export function useSavedText(saved: string, save: (text: string) => void, owner: string, delayMs = 400) {
+export function useSavedText(saved: string, save: (text: string) => void, owner: string, delayMs = SAVE_AFTER_MS) {
   const [draft, setDraft] = useState<{ owner: string; text: string } | null>(null);
   const focused = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);

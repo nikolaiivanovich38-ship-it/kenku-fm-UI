@@ -53,7 +53,7 @@ export function ScenesPane({ compact, actions }: { compact: boolean; actions: Sc
       size="auto"
       flush
       noMax
-      status={standby ? { text: "Ready", tone: "on" } : { text: `Scene ${nowAt + 1} of ${scenes.length}`, tone: "on" }}
+      // Round 6 part 5 (Nik, 6 Nov 16:14): no "Ready" and no scene count; Now and Next say where the evening is.
       summary={summary}
     >
       <div className="lv-sc-top">

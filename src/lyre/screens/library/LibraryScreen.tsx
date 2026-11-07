@@ -488,7 +488,7 @@ export function LibraryScreen({ route }: ScreenProps) {
       open={dOpen}
       onOpenChange={setDOpen}
       summary={open ? shownTitle(open) : ""}
-      status={open ? (onAir.has(open.id) ? { text: "Playing", tone: "live" } : { text: "Saved" }) : { text: "Empty" }}
+      status={open ? (onAir.has(open.id) ? { text: "Playing", tone: "live" } : undefined) : { text: "Empty" }}
       actions={
         open && mode !== "narrow" ? (
           <button type="button" className="closer" title="Close details" aria-label="Close details" onClick={closeTrack}>

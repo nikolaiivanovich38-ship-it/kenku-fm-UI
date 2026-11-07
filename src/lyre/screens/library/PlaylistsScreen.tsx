@@ -208,7 +208,7 @@ export function PlaylistsScreen(_props: ScreenProps) {
             kind="music"
             noMax
             flush
-            status={playlists.some((p) => onAir.has(p.id)) ? { text: "Playing", tone: "live" } : { text: "Ready" }}
+            status={playlists.some((p) => onAir.has(p.id)) ? { text: "Playing", tone: "live" } : undefined}
             summary="Drop audio files on a row to add them"
           >
             {shown.length ? (

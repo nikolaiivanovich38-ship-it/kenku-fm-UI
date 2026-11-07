@@ -65,7 +65,7 @@ function FieldError({ c, which }: C & { which: Which }) {
 /* ---------- Waveform and listening ---------- */
 
 export function listenStatus(c: ProfileController) {
-  return c.clock.playing ? { text: `Previewing ${fmt(c.clock.pos)}`, tone: "on" as const } : { text: c.clock.event ? "Paused" : "Ready", tone: "idle" as const };
+  return c.clock.playing ? { text: `Previewing ${fmt(c.clock.pos)}`, tone: "on" as const } : c.clock.event ? { text: "Paused", tone: "idle" as const } : undefined;
 }
 
 export function ListenBox({ c }: C) {

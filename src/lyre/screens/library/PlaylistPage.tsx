@@ -37,12 +37,15 @@ import { TagStrip } from "../../kit/TagStrip";
 import "./library.css";
 import "./playlists.css";
 import { TopLead } from "../../shell/TopBar";
+import { useSave } from "../../shell/useSave";
+import { SAVE_AFTER_MS } from "../../kit/SavedField";
 
 /** How many Add tracks results show at first, and how many more each "Show more" adds. */
 const ADD_FIRST = 20;
 const ADD_MORE = 25;
 /** Typing a name is saved this long after the last key. */
-const NAME_SAVE_MS = 400;
+/** UX-19: a field saves after a second without typing (and on leaving it), never per key: the kit's rule. */
+const NAME_SAVE_MS = SAVE_AFTER_MS;
 /** The Add tracks box's lane per playlist, kept for the visit (the prototype's addLane). */
 const addLanes = new Map<string, "music" | "amb" | "fx">();
 
@@ -103,6 +106,7 @@ function OnePlaylist({ pl: saved, data }: { pl: PlaylistInfo; data: PlaylistData
   const now = useNowPlaying();
   const { say, toast } = useAnnounce();
   const accept = useWriteResult();
+  const save = useSave();
   const ok = useWriteOk();
   const actions = useDropActions(data);
   const drops = useDropState();
@@ -130,7 +134,7 @@ function OnePlaylist({ pl: saved, data }: { pl: PlaylistInfo; data: PlaylistData
     if (nameTimer.current) clearTimeout(nameTimer.current);
     nameTimer.current = null;
     // An empty name is not kept; the last one stays until a name is typed.
-    if (value.trim() && value !== pl.name) void api.playlists.update(pl.id, { name: value }).then(accept);
+    if (value.trim() && value !== pl.name) void save(`playlist name “${value.trim()}”`, () => api.playlists.update(pl.id, { name: value }), { key: "pl-name" });
   };
   useEffect(
     () => () => {
@@ -168,7 +172,7 @@ function OnePlaylist({ pl: saved, data }: { pl: PlaylistInfo; data: PlaylistData
   );
 
   const detailsPane = (
-    <Pane id="pl-details" title="Details" icon="edit" kind="plain" size="auto" status={{ text: "Saved" }} summary={pl.notes ? "Has notes" : ""} open={detailsOpen} onOpenChange={setDetailsOpen}>
+    <Pane id="pl-details" title="Details" icon="edit" kind="plain" size="auto" summary={pl.notes ? "Has notes" : ""} open={detailsOpen} onOpenChange={setDetailsOpen}>
       <DetailsBody
         pl={pl}
         tracks={tracks}
@@ -203,7 +207,7 @@ function OnePlaylist({ pl: saved, data }: { pl: PlaylistInfo; data: PlaylistData
           icon="list"
           kind="music"
           flush
-          status={air ? { text: "Playing", tone: "live" } : tracks.length ? { text: "Ready" } : { text: "Empty" }}
+          status={air ? { text: "Playing", tone: "live" } : tracks.length ? undefined : { text: "Empty" }}
           summary={`${plural(tracks.length, "track")} · ${fmtLong(tracks.reduce((s, t) => s + t.durationMs, 0))}`}
           actions={
             <button
@@ -609,7 +613,7 @@ function TracksPane({
       kind="music"
       flush
       size="auto"
-      status={air ? { text: "Playing", tone: "live" } : tracks.length ? { text: "Ready" } : { text: "Empty" }}
+      status={air ? { text: "Playing", tone: "live" } : tracks.length ? undefined : { text: "Empty" }}
       summary={`${plural(tracks.length, "track")} · ${fmtLong(total)}`}
       actions={
         <button type="button" className="btn s" data-focus="pladdopen" onClick={onAdd}>
@@ -733,7 +737,7 @@ function AddPane({
     else edit(null);
   };
   return (
-    <Pane id="pl-add" title="Add tracks" icon="search" kind="search" flush status={{ text: "Ready" }} summary="Search the library, or drop files here" open={open} onOpenChange={onOpenChange}>
+    <Pane id="pl-add" title="Add tracks" icon="search" kind="search" flush summary="Search the library, or drop files here" open={open} onOpenChange={onOpenChange}>
       <div className="pl-addbar">
         <div className="search grow">
           <Icon name="search" />
@@ -840,7 +844,7 @@ function RulesPane({ pl, edit, data, matches }: { pl: Extract<PlaylistInfo, { ki
       icon="rule"
       kind="search"
       size="auto"
-      status={matches ? { text: "Ready" } : { text: "Empty", tone: "warn" }}
+      status={matches ? undefined : { text: "Empty", tone: "warn" }}
       summary={words || `Every ${laneLower} track`}
     >
       <div className="pl-conds">
@@ -1064,7 +1068,7 @@ function UsesPane({ data, uses, onUseIn }: { data: PlaylistData; uses: ReturnTyp
       kind="scenes"
       size="auto"
       flush
-      status={uses.length ? { text: "Ready" } : { text: "Empty" }}
+      status={uses.length ? undefined : { text: "Empty" }}
       actions={
         <button type="button" className="btn s" onClick={onUseIn}>
           Use in…
@@ -1124,12 +1128,13 @@ function DetailsBody({
   const normalise = useNormaliseSettings();
   const api = useLyreApi();
   const accept = useWriteResult();
+  const save = useSave();
   const [notes, setNotes] = useState(pl.notes);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const saveNotes = (value: string) => {
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
-    if (value !== pl.notes) void api.playlists.update(pl.id, { notes: value }).then(accept);
+    if (value !== pl.notes) void save(`${pl.name} notes`, () => api.playlists.update(pl.id, { notes: value }), { key: "pl-notes" });
   };
   return (
     <div className="stack pl-details">

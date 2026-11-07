@@ -69,7 +69,7 @@ export function PadEditor(props: PadEditorProps) {
       kind="plain"
       open={open}
       onOpenChange={onOpenChange}
-      status={on ? { text: "Playing", tone: "live" } : previewing ? { text: "Preview", tone: "on" } : { text: "Saved", tone: "idle" }}
+      status={on ? { text: "Playing", tone: "live" } : previewing ? { text: "Preview", tone: "on" } : undefined}
       actions={
         <button
           type="button"

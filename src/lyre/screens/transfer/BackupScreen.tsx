@@ -113,7 +113,7 @@ function SavePane() {
       : "Without them the file stays small. The other PC needs the same files; Lyre finds them there with Find missing files.";
 
   return (
-    <Pane id="tf-export" title="Save to a file" icon="download" kind="plain" noMax size="auto" status={{ text: saved ? "Saved" : "Ready", tone: "idle" }}>
+    <Pane id="tf-export" title="Save to a file" icon="download" kind="plain" noMax size="auto">
       <fieldset className="tf-what">
         <legend>What to save</legend>
         {WHAT.map((w) => {
@@ -377,7 +377,7 @@ function OpenPane() {
       </>
     );
   }
-  const status = open.state === "ready" ? { text: "Ready", tone: "idle" as const } : open.state === "refused" ? { text: "Refused", tone: "warn" as const } : open.state === "preview" ? { text: "Not brought in yet", tone: "on" as const } : { text: "Brought in", tone: "idle" as const };
+  const status = open.state === "ready" ? undefined : open.state === "refused" ? { text: "Refused", tone: "warn" as const } : open.state === "preview" ? { text: "Not brought in yet", tone: "on" as const } : { text: "Brought in", tone: "idle" as const };
   return (
     <div ref={paneRef}>
       <Pane id="tf-import" title="Open a file" icon="upload" kind="plain" noMax size="auto" status={status}>
