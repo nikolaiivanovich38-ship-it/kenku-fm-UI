@@ -12,6 +12,7 @@ import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
 import { RenameField, renameKeys, useRenameInPlace } from "../../kit/RenameInPlace";
 import { useAnnounce } from "../../shell/Announcer";
 import { TopLead } from "../../shell/TopBar";
+import { useOpenHelp } from "../../help/useHelp";
 import { sessionLabel } from "../campaigns/model";
 import { useWrite } from "../campaigns/parts";
 import { useLive } from "./liveData";
@@ -169,6 +170,7 @@ function KeysPop({ setKeysOpen, setKeys1, keys1 }: { setKeysOpen: TopProps["setK
   const { state, scene, index } = useLive();
   const ref = useRef<HTMLDivElement>(null);
   const switchRef = useRef<HTMLInputElement>(null);
+  const openHelp = useOpenHelp();
   const board = currentBoard(state.board, scene, index);
   const keys = padKeys(board).join(" ") || "none";
   useEffect(() => {
@@ -203,6 +205,13 @@ function KeysPop({ setKeysOpen, setKeys1, keys1 }: { setKeysOpen: TopProps["setK
         {row("Esc", "Close a menu or clear the search", false)}
       </ul>
       <p className="hint">{keys1 ? "Keys do nothing while you type in a box." : "Single-key shortcuts are off. Shift+Esc and Ctrl+Z still work."}</p>
+      {/* R6 review Should 12: what left Live's screen is in Help (F1 opens it anywhere). */}
+      {openHelp && (
+        <button type="button" className="btn s ghost lv-keys-help" aria-keyshortcuts="F1" onClick={openHelp}>
+          <Icon name="help" size="s" />
+          Help
+        </button>
+      )}
     </div>
   );
 }

@@ -11,7 +11,7 @@ import { SoundMessages } from "./SoundMessages";
 import { UndoNoteBar, UndoNoteProvider } from "./UndoNote";
 import { ShellSettingsProvider, useShellSettings } from "./ShellSettings";
 import { themeFor } from "./themes";
-import { useHelp } from "../help/useHelp";
+import { OpenHelpContext, useHelp } from "../help/useHelp";
 import { fallbackNow, NavigationProvider, useBackKeys, useNavigationState } from "./TopBar";
 import { keepTitles, showFullTextOnFocus } from "../kit/noHiddenText";
 
@@ -157,6 +157,7 @@ function ShellFrame({ screens, firstRunTour }: { screens: Record<RouteName, Scre
         onHelp={help.toggleHelp}
       />
       <main id="view" className="view" data-view={route.name}>
+        <OpenHelpContext.Provider value={help.openHelp}>
         <NavigationProvider value={navigation}>
           <UndoNoteProvider live={route.name === "live"}>
             <ErrorBoundary key={route.path} where="this screen">
@@ -169,6 +170,7 @@ function ShellFrame({ screens, firstRunTour }: { screens: Record<RouteName, Scre
             {route.name !== "live" && <UndoNoteBar />}
           </UndoNoteProvider>
         </NavigationProvider>
+        </OpenHelpContext.Provider>
         {data.NowPlayingBar && <data.NowPlayingBar previewOnly={!!Screen.showsOnAir} />}
       </main>
       {help.panel}
