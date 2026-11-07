@@ -373,3 +373,8 @@ html[data-contrast="high"] .btn.ghost, html[data-contrast="high"] .closer { bord
 .pal-none:empty { display: none; }
 .pal-none { margin: 0; padding: 4px 8px; }
 .pal-acts { display: flex; flex-wrap: wrap; gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
+
+/* UX-6: the full text of a name cut short, under the focused control (kit/noHiddenText.ts). */
+.full-tip { position: fixed; z-index: 75; max-width: min(480px, calc(100vw - 8px)); padding: 4px 8px; border-radius: var(--r-s); background: var(--ink); color: var(--bg); font-size: var(--fs-s); line-height: 1.35; pointer-events: none; box-shadow: var(--shadow); }
+/* UX-6: names on cards wrap to two lines, then the rest is on hover and focus. */
+#view .pb-card-name, #view .cp-card-name { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }

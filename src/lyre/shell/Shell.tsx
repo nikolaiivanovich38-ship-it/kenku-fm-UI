@@ -13,6 +13,7 @@ import { ShellSettingsProvider, useShellSettings } from "./ShellSettings";
 import { themeFor } from "./themes";
 import { useHelp } from "../help/useHelp";
 import { fallbackNow, NavigationProvider, useBackKeys, useNavigationState } from "./TopBar";
+import { keepTitles, showFullTextOnFocus } from "../kit/noHiddenText";
 
 /** How long the shell waits for a new screen's heading (it appears once the screen's data has loaded). */
 const HEADING_WAIT_MS = 5000;
@@ -130,6 +131,17 @@ function ShellFrame({ screens, firstRunTour }: { screens: Record<RouteName, Scre
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [say]);
+
+  // UX-6: no hidden text in the work area (the Now playing bar is in it): full text on hover and on focus.
+  useEffect(() => {
+    const roots = () => Array.from(document.querySelectorAll<HTMLElement>("#view"));
+    const stopTitles = keepTitles(roots, 600);
+    const stopTips = showFullTextOnFocus(roots);
+    return () => {
+      stopTitles();
+      stopTips();
+    };
+  }, []);
 
   const narrow = useNarrow(appRef);
   const railMin = settings.rail === "min" || (settings.rail === "auto" && narrow);
