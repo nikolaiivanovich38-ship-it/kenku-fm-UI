@@ -6,7 +6,7 @@
  * so every check here is expected to fail there until "tags" is in support/built.ts.
  */
 import type { Page } from "@playwright/test";
-import { expect, test } from "./support/test";
+import { expect, expectFailureUntilBuilt, test } from "./support/test";
 import { openRoute } from "./support/target";
 
 const group = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
@@ -25,6 +25,9 @@ async function libraryTrack(page: Page, title: string, reload = true) {
   else await page.getByRole("link", { name: "Library", exact: true }).click();
   await page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: new RegExp(`^Select ${title}`) }).getByRole("gridcell").nth(1).click();
 }
+
+// Round 7 (DAT-10): the Tags screen is a round 7 screen, not built in the app yet (support/built.ts).
+test.beforeEach(() => expectFailureUntilBuilt("round 7"));
 
 test.describe("the Tags screen", () => {
   test("opens from the Library's ⋯ menu, with Back to the Library, and shows each group as its own box in order", async ({ page }) => {

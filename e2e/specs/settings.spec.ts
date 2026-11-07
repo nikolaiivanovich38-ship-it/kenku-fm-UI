@@ -13,6 +13,8 @@ const bots = (page: Page) => region(page, "Discord bots");
 const sheet = (page: Page) => page.getByRole("dialog");
 
 test.describe("Settings", () => {
+  // Round 6 part 2 (OUT-8): Settings in Lyre is a round 6 screen, not built in the app yet.
+  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
   test("is in the menu, has Back to where Nik was (round 6 part 7), and lists each bot with its status, servers and a masked token", async ({ page }) => {
     await openRoute(page, "campaigns");
     await page.getByRole("link", { name: "Settings", exact: true }).click();
@@ -70,6 +72,8 @@ test.describe("Settings", () => {
 });
 
 test.describe("Add a bot, in the order Discord needs", () => {
+  // Round 6 part 2 (OUT-8): Settings in Lyre is a round 6 screen, not built in the app yet.
+  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
   test("three steps: create it, invite it first, then connect it with its token", async ({ page }) => {
     await openRoute(page, "settings");
     await bots(page).getByRole("button", { name: "Add a bot" }).click();

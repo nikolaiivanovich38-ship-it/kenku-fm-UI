@@ -20,6 +20,20 @@ export function expectFailureUntilBuilt(screen: string): void {
   }
 }
 
+/**
+ * For a check in a block marked for a later round (its `test.beforeEach` calls expectFailureUntilBuilt) that the app
+ * meets already: it is required to pass in the app, so it cannot regress unseen and does not show up as "expected to
+ * fail, but passed". Call it first in the test, saying why the app meets it. A screen the app does not have at all
+ * still marks the check (the page fixture's mark is kept).
+ */
+export function metByTheAppAlready(why: string): void {
+  const info = base.info();
+  if (info.project.name !== "app" || !BUILT_SCREENS.includes(path.basename(info.file).replace(/\.spec\.ts$/, ""))) return;
+  for (let i = info.annotations.length - 1; i >= 0; i--) if (info.annotations[i].type === "fail") info.annotations.splice(i, 1);
+  info.annotations.push({ type: "met by the app already", description: why });
+  info.expectedStatus = "passed";
+}
+
 export const test = base.extend<{ screenName: string }>({
   // eslint-disable-next-line no-empty-pattern -- Playwright reads the fixtures a function needs from its first argument
   screenName: [async ({}, use, testInfo) => use(path.basename(testInfo.file).replace(/\.spec\.ts$/, "")), { auto: true }],
