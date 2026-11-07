@@ -1,6 +1,6 @@
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 import { createFakeLyreApi } from "../../common/lyre/fake";
@@ -79,6 +79,16 @@ describe("Find and play (Ctrl+K, UX-12)", () => {
     await screen.findByRole("option", { name: /^Lullaby/ });
     await user.keyboard("{Shift>}{Enter}{/Shift}");
     expect(audio.calls.some(([name, what]) => name === "addToQueue" && (what as { kind: string }).kind === "track")).toBe(true);
+  });
+
+  it("a key pressed before the answer arrives waits for it (typed fast, Alt+Enter at once)", async () => {
+    page();
+    const user = userEvent.setup();
+    await user.keyboard("{Control>}k{/Control}");
+    fireEvent.change(box(), { target: { value: "lullaby" } });
+    fireEvent.keyDown(box(), { key: "Enter", altKey: true });
+    await vi.waitFor(() => expect(audio.calls.some(([name]) => name === "previewTrack")).toBe(true));
+    expect(dialog()).toBeNull();
   });
 
   it("says when nothing is called that, and has no accessibility failures", async () => {
