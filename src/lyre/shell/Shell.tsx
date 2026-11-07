@@ -161,6 +161,7 @@ function ShellFrame({ screens, firstRunTour }: { screens: Record<RouteName, Scre
       </main>
       {help.panel}
       {help.tour}
+      {data.FindAndPlay && <data.FindAndPlay />}
     </div>
   );
 }

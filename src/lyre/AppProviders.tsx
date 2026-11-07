@@ -12,6 +12,7 @@ import type { LyreAudioBridge } from "./audio/preloadAudio";
 import { useLiveSession } from "./kit/liveSession";
 import { OutputsProvider, outputsLabel, useOutputs, type OutputsClient } from "./outputs/OutputsProvider";
 import { NowPlayingBar } from "./shell/NowPlayingBar";
+import { FindAndPlay } from "./shell/FindAndPlay";
 import type { PlaceNames } from "./shell/history";
 import { ShellDataProvider, type ShellData } from "./shell/ShellData";
 import type { ThemeId } from "./shell/themes";
@@ -140,6 +141,7 @@ function ShellDataFromLibrary({ children }: { children: React.ReactNode }) {
       outputsLabel: outputsText,
       // The bar follows the audio host itself, so ShellData stays the same while things play.
       NowPlayingBar,
+      FindAndPlay,
       history: api.history,
       placeNames,
     };

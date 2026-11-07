@@ -28,6 +28,8 @@ export interface ShellData {
    * shows the rooms itself (Live: `showsOnAir`), so it shows only the preview there.
    */
   NowPlayingBar?: React.ComponentType<{ previewOnly: boolean }>;
+  /** UX-12 Find and play (Ctrl+K on every screen): it reads the library and plays, so the providers give it. */
+  FindAndPlay?: React.ComponentType;
 }
 
 const ShellDataContext = createContext<ShellData>({});
