@@ -135,6 +135,7 @@ test.describe("mute, volume and test", () => {
 
 test.describe("outputs and the live game", () => {
   test("the Prep | Live switch is here too, with Prep pressed", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: Live's On air is one box with a part per room
     await openRoute(page, "outputs");
     const modes = page.getByRole("group", { name: "Prep or live" });
     await expect(modes.getByRole("button", { name: "Prep" })).toHaveAttribute("aria-pressed", "true");
@@ -143,6 +144,7 @@ test.describe("outputs and the live game", () => {
   });
 
   test("a room that a bot is moved to on the Outputs screen also gets its On air box in Live", async ({ page }) => {
+    expectFailureUntilBuilt("round 6"); // round 6 part 3: Live's On air is one box with a part per room
     await openRoute(page, "outputs");
     await joinRoom(page, "Lyre Side", "Whispers");
     await page.getByRole("group", { name: "Prep or live" }).getByRole("button", { name: "Live" }).click();
