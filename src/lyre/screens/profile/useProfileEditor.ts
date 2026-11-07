@@ -12,7 +12,7 @@ import { parsePlaceKey, resolveProfile, type AudioProfileInput, type ProfilePlac
 import { isRefused, type LibraryTrack, type WriteResult } from "../../../common/lyre/api";
 import { useCampaigns, useLyreApi, usePlaylists, useProfileOverrides, useTracks } from "../../api";
 import { useAnnounce } from "../../shell/Announcer";
-import { hasOwn, libraryView, type LibraryView } from "./places";
+import { hasOwn, libraryView, placeName, type LibraryView } from "./places";
 import { fromDomain, toInput, type Prof } from "./profileModel";
 
 /** "hold": keep the draft, write when `flush` is called (the end of a drag). */
@@ -52,7 +52,7 @@ export type ProfileEditorState = { status: "loading" } | { status: "missing" } |
 
 export function useProfileEditor(trackId: string, key: string): ProfileEditorState {
   const api = useLyreApi();
-  const { toast } = useAnnounce();
+  const { toast, saved: savedNote, saveFailed } = useAnnounce();
   const tracks = useTracks().data;
   const playlists = usePlaylists().data;
   const campaigns = useCampaigns().data;
@@ -71,6 +71,8 @@ export function useProfileEditor(trackId: string, key: string): ProfileEditorSta
   const [ownNow, setOwnNow] = useState<boolean | null>(null);
   const [undoHere, setUndoHere] = useState(() => undoClear?.trackId === trackId && undoClear.key === key);
   const queued = useRef<Prof | null>(null);
+  /** UX-19: what the Saved pop-up calls this place's settings (the prototype's apWhat). */
+  const what = useRef("audio profile of the track");
   const timer = useRef<ReturnType<typeof setTimeout>>();
   const pending = useRef(0);
 
@@ -92,7 +94,19 @@ export function useProfileEditor(trackId: string, key: string): ProfileEditorSta
     return api.profiles.set(trackId, place, toInput(p)).then(
       (result) => {
         pending.current--;
-        if (!showRefusal(result)) return result.ok ? result.undoLabel : null;
+        if (!isRefused(result)) {
+          savedNote(what.current, { key: `ap-${key}` });
+          return result.undoLabel;
+        }
+        if (result.refusal.code === "not-saved") {
+          // The drive could not take it: the change stays on screen, and Try again writes it.
+          saveFailed(what.current, () => {
+            queued.current = p;
+            void flushRef.current();
+          });
+          return null;
+        }
+        showRefusal(result);
         setDraft(null);
         setSaved(false);
         return null;
@@ -107,7 +121,7 @@ export function useProfileEditor(trackId: string, key: string): ProfileEditorSta
     );
     // place is derived from key; trackId and key fix it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [api, trackId, key, showRefusal, toast]);
+  }, [api, trackId, key, showRefusal, toast, savedNote, saveFailed]);
 
   // A change waiting to be written is written when the screen closes (another place, another screen).
   const flushRef = useRef(flush);
@@ -124,6 +138,7 @@ export function useProfileEditor(trackId: string, key: string): ProfileEditorSta
 
   if (!view) return { status: "loading" };
   if (!track) return { status: "missing" };
+  what.current = key ? `audio profile in ${placeName(key, view).replace(/^the /, "")}` : "audio profile of the track";
 
   const editable = ownNow ?? hasOwn(trackId, key, view.overrides);
   const prof = draft ?? fromDomain(resolveProfile(track, place ? [place] : [], view.overrides).profile);

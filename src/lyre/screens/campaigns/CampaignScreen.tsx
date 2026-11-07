@@ -12,6 +12,7 @@ import { runInLive } from "../../kit/liveSession";
 import { Column, Pane } from "../../kit/Pane";
 import { DOUBLE_CLICK_MS, RenameField, renameKeys, useRenameInPlace } from "../../kit/RenameInPlace";
 import { useAnnounce } from "../../shell/Announcer";
+import { useSave } from "../../shell/useSave";
 import { useThemeChoice } from "../../shell/useThemeChoice";
 import type { ScreenProps } from "..";
 import { SystemList } from "./CampaignsScreen";
@@ -21,6 +22,7 @@ import { DraftField, ModeSwitch, NotFound, Opening, useHeadingFocusWhenReady, Ob
 import { useDragReorder } from "./reorder";
 
 import "./campaigns.css";
+import { TopLead } from "../../shell/TopBar";
 
 export function CampaignScreen({ route }: ScreenProps) {
   const id = route.params.cid ?? "";
@@ -47,7 +49,10 @@ function CampaignPage({ campaign: c, index }: { campaign: CampaignInfo; index: N
   const next = nextSession(c);
   const forced = choice !== "campaign";
 
+  const save = useSave();
   const update = (patch: CampaignPatch) => write(api.campaigns.update(c.id, patch));
+  /** UX-19: a field's save, with the Saved pop-up ("Saved: The Sunken Crown notes"). */
+  const saveField = (patch: CampaignPatch, what: string) => save(what, () => api.campaigns.update(c.id, patch), { key: `cp-${Object.keys(patch)[0]}` });
   const newSession = async () => {
     const made = (await write(api.sessions.create(c.id)))?.value;
     if (!made) return;
@@ -60,12 +65,7 @@ function CampaignPage({ campaign: c, index }: { campaign: CampaignInfo; index: N
   return (
     <>
       <div className="viewhead">
-        <nav className="crumbs" aria-label="Breadcrumb">
-          <a href="#/campaigns">Campaigns</a>
-          <span className="sep" aria-hidden="true">
-            ›
-          </span>
-        </nav>
+        <TopLead />
         <h1>{shownName || "Untitled campaign"}</h1>
         <span className="grow" />
         <ModeSwitch campaign={c} />
@@ -85,12 +85,12 @@ function CampaignPage({ campaign: c, index }: { campaign: CampaignInfo; index: N
               autoComplete="off"
               value={c.name}
               onDraft={setNameDraft}
-              onSave={(name) => void update({ name })}
+              onSave={(name) => void saveField({ name }, `campaign name “${name.trim()}”`)}
             />
           </div>
           <div className="field cp-f-sys">
             <label htmlFor="cp-c-sys">Game system</label>
-            <DraftField className="input" id="cp-c-sys" list="cp-systems-c" autoComplete="off" value={c.system} onSave={(system) => void update({ system })} />
+            <DraftField className="input" id="cp-c-sys" list="cp-systems-c" autoComplete="off" value={c.system} onSave={(system) => void saveField({ system }, `${c.name} game system`)} />
             <SystemList id="cp-systems-c" />
           </div>
           <div className="field cp-f-theme">
@@ -102,7 +102,7 @@ function CampaignPage({ campaign: c, index }: { campaign: CampaignInfo; index: N
               aria-describedby={forced ? "cp-forced" : undefined}
               onChange={async (event) => {
                 const theme = event.target.value as CampaignInfo["theme"];
-                if ((await update({ theme })) !== undefined) say(`Theme: ${themeName(theme)}`);
+                if ((await saveField({ theme }, `${c.name} theme`)) !== undefined) say(`Theme: ${themeName(theme)}`);
               }}
             >
               {CAMPAIGN_THEME_IDS.map((t) => (
@@ -114,7 +114,7 @@ function CampaignPage({ campaign: c, index }: { campaign: CampaignInfo; index: N
           </div>
           <div className="field cp-f-blurb">
             <label htmlFor="cp-c-blurb">Description</label>
-            <DraftField className="input" id="cp-c-blurb" autoComplete="off" value={c.description} onSave={(description) => void update({ description })} />
+            <DraftField className="input" id="cp-c-blurb" autoComplete="off" value={c.description} onSave={(description) => void saveField({ description }, `${c.name} description`)} />
           </div>
           {forced && (
             <p className="hint cp-forced" id="cp-forced">
@@ -140,7 +140,7 @@ function CampaignPage({ campaign: c, index }: { campaign: CampaignInfo; index: N
             >
               <SessionList campaign={c} />
             </Pane>
-            <Pane id="cp-notes" title="Notes" icon="edit" size="auto" kind="plain" status={{ text: (notesDraft ?? c.notes) ? "Saved" : "Empty" }}>
+            <Pane id="cp-notes" title="Notes" icon="edit" size="auto" kind="plain" status={(notesDraft ?? c.notes) ? undefined : { text: "Empty" }}>
               <label className="sr-only" htmlFor="cp-c-notes">
                 Campaign notes
               </label>
@@ -152,7 +152,7 @@ function CampaignPage({ campaign: c, index }: { campaign: CampaignInfo; index: N
                 placeholder="Anything to remember across sessions"
                 value={c.notes}
                 onDraft={setNotesDraft}
-                onSave={(notes) => void update({ notes })}
+                onSave={(notes) => void saveField({ notes }, `${c.name} notes`)}
               />
             </Pane>
           </Column>

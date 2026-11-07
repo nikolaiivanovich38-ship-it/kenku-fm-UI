@@ -58,13 +58,16 @@ describe("one campaign", () => {
     await waitFor(async () => expect((await api.campaigns.get("crown"))?.name).toBe("The Sunken Crown (revised)"));
   });
 
-  it("notes are kept and the box says Saved", async () => {
+  it("notes are kept, with the Saved pop-up; the box itself never says Saved (UX-19)", async () => {
     const { api } = openAt("campaign/crown");
     const notes = await screen.findByRole("textbox", { name: "Campaign notes" });
     expect(within(screen.getByRole("region", { name: "Notes" })).getByText("Empty")).toBeInTheDocument();
     await userEvent.type(notes, "Maeve owes them");
-    await waitFor(async () => expect((await api.campaigns.get("crown"))?.notes).toBe("Maeve owes them"));
-    expect(within(screen.getByRole("region", { name: "Notes" })).getByText("Saved")).toBeInTheDocument();
+    await waitFor(async () => expect((await api.campaigns.get("crown"))?.notes).toBe("Maeve owes them"), { timeout: 3000 });
+    expect(await screen.findByText("The Sunken Crown notes", { exact: false })).toBeInTheDocument();
+    expect(document.getElementById("lyre-toast")).toHaveTextContent("Saved: The Sunken Crown notes");
+    expect(within(screen.getByRole("region", { name: "Notes" })).queryByText(/^(Saved|Empty)$/)).toBeNull();
+    expect(notes).toHaveFocus();
   });
 
   it("New session adds a draft session and opens it", async () => {
