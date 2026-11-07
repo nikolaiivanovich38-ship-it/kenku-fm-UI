@@ -63,7 +63,7 @@ describe("SettingsAppliers", () => {
     await waitFor(() => expect(keys.asked).toEqual([{ on: false, keys: { nextScene: "Space", fadeAll: "Shift+Esc" } }]));
     await act(async () => void (await api.settings.setShortcut("nextScene", "F9")));
     await act(async () => void (await api.settings.setComputer({ globalKeys: true })));
-    await waitFor(() => expect(keys.asked.at(-1)).toEqual({ on: true, keys: { nextScene: "F9", fadeAll: "Shift+Esc" } }));
+    await waitFor(() => expect(keys.asked[keys.asked.length - 1]).toEqual({ on: true, keys: { nextScene: "F9", fadeAll: "Shift+Esc" } }));
   });
 
   it("keeps the main process's refusals for Settings to show", async () => {

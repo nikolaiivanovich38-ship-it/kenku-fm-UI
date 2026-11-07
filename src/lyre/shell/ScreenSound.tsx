@@ -21,6 +21,7 @@ export const SCREEN_WORDS: Record<RouteName, string> = {
   profile: "the Audio profile",
   live: "Live",
   outputs: "Outputs",
+  settings: "Settings",
   look: "Look and feel",
   backup: "Back up, move or share",
   moved: "What came across from Kenku FM",

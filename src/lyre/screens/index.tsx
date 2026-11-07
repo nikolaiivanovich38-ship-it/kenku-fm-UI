@@ -9,6 +9,7 @@ import { LookScreen } from "./look/LookScreen";
 import { CampaignScreen, CampaignsScreen, SessionScreen } from "./campaigns";
 import { OutputsScreen } from "./outputs/OutputsScreen";
 import { ProfileScreen } from "./profile/ProfileScreen";
+import { SettingsScreen } from "./settings/SettingsScreen";
 import { BackupScreen } from "./transfer/BackupScreen";
 import { MovedScreen } from "./transfer/MovedScreen";
 import { RelinkScreen } from "./transfer/RelinkScreen";
@@ -43,6 +44,8 @@ export const SCREENS: Record<RouteName, ScreenComponent> = {
   board: BoardScreen,
   live: LiveScreen,
   outputs: OutputsScreen,
+  // w6-rooms (OUT-8): Settings in Lyre.
+  settings: SettingsScreen,
   look: LookScreen,
   // Round 5: Back up, move or share; What came across from Kenku FM; Find missing files (w4-transfer).
   backup: BackupScreen,

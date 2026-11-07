@@ -52,6 +52,8 @@ export interface PaneProps {
   noMax?: boolean;
   /** A room box that is silent loses its red edge. */
   silent?: boolean;
+  /** w6-rooms (the prototype's o.describe, round 6): what the box is for, read out with its name, not shown. */
+  describe?: string;
   className?: string;
   children?: React.ReactNode;
 }
@@ -76,6 +78,7 @@ export function Pane({
   size,
   noMax,
   silent,
+  describe,
   className,
   children,
 }: PaneProps) {
@@ -115,7 +118,13 @@ export function Pane({
       data-pane={id}
       data-size={size}
       aria-label={title}
+      aria-describedby={describe ? `pd-${id}` : undefined}
     >
+      {describe && (
+        <p className="sr-only" id={`pd-${id}`}>
+          {describe}
+        </p>
+      )}
       <header>
         <h2 className="pane-h">
           <button

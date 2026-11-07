@@ -218,7 +218,7 @@ describe("Outputs: moving a bot between rooms", () => {
     expect(screen.getByRole("group", { name: "Undo" })).toHaveTextContent("Lyre Table moved from Table: the players there hear nothing now.");
     await act(() => outputs.settle());
     await userEvent.click(within(screen.getByRole("group", { name: "Undo" })).getByRole("button", { name: "Undo" }));
-    expect(outputs.calls.at(-1)).toEqual(["move", TABLE_BOT, "1011"]);
+    expect(outputs.calls[outputs.calls.length - 1]).toEqual(["move", TABLE_BOT, "1011"]);
   });
 
   it("Must 2: a room in a channel with nobody in it says so and moves to the players in one click", async () => {
