@@ -65,9 +65,11 @@ const SCREENS: Screen[] = [
   { name: "Audio profile", owner: "audio-profile", route: "profile/t13" },
   { name: "Live, standby", owner: "live", route: "live" },
   {
-    // Round 6, part 3: the session's and the campaign's pads and playlists unfolded too.
+    // Round 6, part 3: the session's and the campaign's pads and playlists unfolded too. Its second room is found in
+    // round 6's one On air box, which the app's Live (0.4.1's) does not have yet.
     name: "Live with a second room and the pads open",
     owner: "live",
+    round: "round 6",
     route: "live",
     prepare: async (page, { playing }) => {
       await page.getByRole("button", { name: "Add a room" }).click();
@@ -420,11 +422,23 @@ for (const screen of SCREENS) {
 
 // UX-6 (design round 7): no hidden text. Wherever a name is cut short (an ellipsis, or two lines and then an ellipsis),
 // its full text is on hover (a title on it or on the row it is in), and keyboard focus on it shows the same text.
+// The app's built screens meet it already, apart from these (app run of 7 Nov 2026), which stay marked round 7 for the
+// stream that builds their screen; the screens the app does not have are marked by their screen and round as well.
+const UX6_NOT_MET_YET: Record<string, number[]> = {
+  Library: [1920],
+  "Library with a track open": [960, 1920],
+  "A dynamic playlist": [960],
+  "Live with a second room and the pads open": [960, 1920],
+  "Live with a scene unfolded": [960, 1920],
+  Settings: [960, 1920],
+  "Look and feel": [960, 1920],
+  Tags: [960, 1920],
+};
 for (const screen of SCREENS) {
   for (const size of [{ width: 960, height: 1000 }, { width: 1920, height: 1080 }]) {
     test(`${screen.name} at ${size.width}×${size.height}: every name cut short has its full text on hover`, async ({ page }) => {
       expectFailureUntilScreenBuilt(screen);
-      expectFailureUntilBuilt("round 7");
+      if (UX6_NOT_MET_YET[screen.name]?.includes(size.width)) expectFailureUntilBuilt("round 7");
       await page.setViewportSize(size);
       await openRoute(page, screen.route);
       await screen.prepare?.(page, { playing: true });
