@@ -5,6 +5,7 @@
 import type { FastifyInstance } from "fastify";
 
 import type { RemoteHost } from ".";
+import { isHomeNetworkAddress } from "./homeNetwork";
 import { createRemoteServer } from "./remoteServer";
 import type { RemoteState } from "../../common/remoteControl";
 import type { Checked, RemoteSettings, RemoteSettingsStore } from "./remoteSettings";
@@ -16,6 +17,8 @@ export interface RemoteControlOptions {
   host: RemoteHost;
   /** Called after every change of state, with the new state. */
   onChange?: (state: RemoteState) => void;
+  /** This computer's home-network address (homeNetworkAddress(os.networkInterfaces()) in the app), asked each time. */
+  homeAddress?: () => string | null;
 }
 
 export class RemoteControl {
@@ -34,7 +37,14 @@ export class RemoteControl {
       code: store.code(),
       codeRemembered: store.codeRemembered,
       ...(this.problem ? { problem: this.problem } : {}),
+      homeAddress: this.homeAddress(),
     };
+  }
+
+  /** Only ever a private address: the home network and nowhere else (homeNetwork.ts). */
+  private homeAddress(): string | null {
+    const address = this.options.homeAddress?.() ?? null;
+    return address && isHomeNetworkAddress(address) ? address : null;
   }
 
   /** Start listening if the settings say it is on (at start-up). */

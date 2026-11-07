@@ -1,40 +1,31 @@
 /**
  * SEC-4: the secret code every remote-control request must carry.
  *
- * 20 symbols of Crockford's base32 (digits and letters without I, L, O and U), shown in five groups of four, hold
- * 100 random bits: far too many to guess, even without the rate limit, and still short enough to type into a
- * Stream Deck plugin. Typing mistakes that are easy to make (lower case, no dashes, O for 0, I or L for 1) still
- * match.
+ * Lead decision (7 Nov, B6-NOTES): 8 symbols from an alphabet with nothing that looks alike (no 0 or O, no 1, I or
+ * L), shown as two groups of four ("K7QD-92XF"), because Nik reads it off the screen and types it on a phone. 31^8 is
+ * about 8.5 × 10^11 codes (39 bits); with ten wrong codes in ten minutes locking a device out (rateLimit.ts), guessing
+ * one on a home network would take thousands of years. Each symbol comes from crypto.randomInt, which has no modulo
+ * bias. Lower case, spaces and a missing dash still match.
  */
-import { createHash, randomBytes, timingSafeEqual } from "crypto";
+import { createHash, randomInt, timingSafeEqual } from "crypto";
 
-const ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
-const SYMBOLS = 20;
+/** A to Z without I, L and O, then 2 to 9. */
+export const REMOTE_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+const SYMBOLS = 8;
 
-/** How a code is shown: AB01-CD23-EF45-GH67-JK89. */
-export const REMOTE_CODE_PATTERN = /^[0-9A-HJKMNP-TV-Z]{4}(-[0-9A-HJKMNP-TV-Z]{4}){4}$/;
+/** How a code is shown: K7QD-92XF. */
+export const REMOTE_CODE_PATTERN = /^[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$/;
 
-export function generateRemoteCode(random: (size: number) => Buffer = randomBytes): string {
-  // 13 bytes are 104 bits; the first 100 become 20 five-bit symbols.
-  const bytes = random(13);
-  let bits = 0;
-  let value = 0;
+/** `random(below)` answers a whole number from 0 to below - 1 (crypto.randomInt in the app; tests give their own). */
+export function generateRemoteCode(random: (below: number) => number = randomInt): string {
   let symbols = "";
-  for (const byte of bytes) {
-    value = (value << 8) | byte;
-    bits += 8;
-    while (bits >= 5 && symbols.length < SYMBOLS) {
-      bits -= 5;
-      symbols += ALPHABET[(value >> bits) & 31];
-    }
-    value &= (1 << bits) - 1;
-  }
-  return symbols.match(/.{4}/g)!.join("-");
+  for (let i = 0; i < SYMBOLS; i++) symbols += REMOTE_CODE_ALPHABET[random(REMOTE_CODE_ALPHABET.length)];
+  return `${symbols.slice(0, 4)}-${symbols.slice(4)}`;
 }
 
-/** The code as compared: upper case, no spaces or dashes, O read as 0 and I or L as 1. */
+/** The code as compared: upper case, without spaces or dashes. */
 export function normaliseRemoteCode(typed: string): string {
-  return typed.toUpperCase().replace(/[\s-]/g, "").replace(/O/g, "0").replace(/[IL]/g, "1");
+  return typed.toUpperCase().replace(/[\s-]/g, "");
 }
 
 /**

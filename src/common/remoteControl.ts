@@ -30,6 +30,19 @@ export interface RemoteState extends RemoteSettings {
   codeRemembered: boolean;
   /** Why it is on but not running, in plain words. */
   problem?: string;
+  /**
+   * Round 7 (Settings › Remote control › Your home network): this computer's private address on its home network
+   * (192.168.x.x and the like), for a phone or tablet on the same Wi-Fi; null when it has none.
+   */
+  homeAddress: string | null;
+}
+
+/** Where the remote control listens when it is for this computer only. */
+export const THIS_COMPUTER_ONLY = "127.0.0.1";
+
+/** Whether the remote control listens for this computer only (127.0.0.1 or localhost). */
+export function listensLocally(state: Pick<RemoteSettings, "address">): boolean {
+  return state.address === THIS_COMPUTER_ONLY || state.address === "localhost";
 }
 
 export function isRemoteState(value: unknown): value is RemoteState {
@@ -42,7 +55,8 @@ export function isRemoteState(value: unknown): value is RemoteState {
     typeof v.port === "number" &&
     typeof v.code === "string" &&
     typeof v.codeRemembered === "boolean" &&
-    (v.problem === undefined || typeof v.problem === "string")
+    (v.problem === undefined || typeof v.problem === "string") &&
+    (v.homeAddress === null || typeof v.homeAddress === "string")
   );
 }
 

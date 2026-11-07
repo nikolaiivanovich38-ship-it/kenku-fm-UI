@@ -11,7 +11,7 @@ import net from "net";
 import path from "path";
 
 import { canEncrypt, type SafeStorageLike } from "../broadcast/botTokenStore";
-import { generateRemoteCode } from "./remoteCode";
+import { REMOTE_CODE_PATTERN, generateRemoteCode } from "./remoteCode";
 
 import type { RemoteSettings } from "../../common/remoteControl";
 
@@ -134,8 +134,12 @@ export class RemoteSettingsStore {
     }
     if (this.codeRemembered && typeof data.encryptedCode === "string") {
       try {
-        this.secret = this.safeStorage.decryptString(Buffer.from(data.encryptedCode, "base64"));
-        this.encryptedCode = data.encryptedCode;
+        const secret = this.safeStorage.decryptString(Buffer.from(data.encryptedCode, "base64"));
+        // A code in the older 20-symbol form (0.5.0 test builds before the lead's 8-character decision) is replaced.
+        if (REMOTE_CODE_PATTERN.test(secret)) {
+          this.secret = secret;
+          this.encryptedCode = data.encryptedCode;
+        }
       } catch {
         // Saved by another user account or computer: a new code is made.
         this.secret = "";

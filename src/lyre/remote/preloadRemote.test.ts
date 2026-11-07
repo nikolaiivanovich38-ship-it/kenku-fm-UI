@@ -7,8 +7,9 @@ const STATE = {
   running: true,
   address: "127.0.0.1",
   port: 3333,
-  code: "AB01-CD23-EF45-GH67-JK89",
+  code: "K7QD-92XF",
   codeRemembered: true,
+  homeAddress: "192.168.1.20",
 };
 
 function fakeIpc(answer: unknown = STATE) {
@@ -42,6 +43,12 @@ describe("the Lyre page's remote-control settings bridge (SEC-4)", () => {
   it("turns a malformed answer into a plain failure", async () => {
     const remote = createLyreRemoteBridge(fakeIpc({ enabled: "yes" }));
     await expect(remote.get()).rejects.toThrow("Lyre did not answer. Try again.");
+  });
+
+  it("passes the home-network address (round 7) only as text or null", async () => {
+    expect(await createLyreRemoteBridge(fakeIpc({ ...STATE, homeAddress: null })).get()).toMatchObject({ homeAddress: null });
+    await expect(createLyreRemoteBridge(fakeIpc({ ...STATE, homeAddress: 42 })).get()).rejects.toThrow("Lyre did not answer");
+    await expect(createLyreRemoteBridge(fakeIpc({ ...STATE, homeAddress: undefined })).get()).rejects.toThrow("Lyre did not answer");
   });
 
   it("tells the page when the state changes, until it stops listening", () => {
