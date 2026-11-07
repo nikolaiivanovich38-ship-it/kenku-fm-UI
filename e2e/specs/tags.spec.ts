@@ -26,11 +26,11 @@ async function libraryTrack(page: Page, title: string, reload = true) {
   await page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: new RegExp(`^Select ${title}`) }).getByRole("gridcell").nth(1).click();
 }
 
-// Round 7 (DAT-10): the Tags screen is a round 7 screen, not built in the app yet (support/built.ts).
-test.beforeEach(() => expectFailureUntilBuilt("round 7"));
+// Round 7 (DAT-10): the Tags screen is not built in the app yet; each check names the streams that build it.
 
 test.describe("the Tags screen", () => {
   test("opens from the Library's ⋯ menu, with Back to the Library, and shows each group as its own box in order", async ({ page }) => {
+    expectFailureUntilBuilt("shell", "prep");
     await openRoute(page, "library");
     await page.getByRole("button", { name: "More for the library" }).click();
     await page.getByRole("menuitem", { name: "Tags and groups…" }).click();
@@ -42,12 +42,14 @@ test.describe("the Tags screen", () => {
   });
 
   test("a tag inside another is shown under it, and other words for a tag are on hover and read out", async ({ page }) => {
+    expectFailureUntilBuilt("prep");
     await openRoute(page, "tags");
     await expect(tag(page, "Mood", "Grief")).toHaveAccessibleDescription(/Inside Melancholy/);
     await expect(tag(page, "Mood", "Melancholy")).toHaveAccessibleDescription(/Also found by: sad, sorrowful/);
   });
 
   test("Rename changes the tag on every track, in one step that Undo takes back", async ({ page }) => {
+    expectFailureUntilBuilt("prep");
     await openRoute(page, "tags");
     await tagMenu(page, "Mood", "Wistful", "Rename…");
     await dialog(page).getByRole("textbox", { name: "Name" }).fill("Longing");
@@ -60,6 +62,7 @@ test.describe("the Tags screen", () => {
   });
 
   test("the renamed tag is what the Library shows on its tracks and in its filters", async ({ page }) => {
+    expectFailureUntilBuilt("prep");
     await openRoute(page, "tags");
     await tagMenu(page, "Mood", "Wistful", "Rename…");
     await dialog(page).getByRole("textbox", { name: "Name" }).fill("Longing");
@@ -73,6 +76,7 @@ test.describe("the Tags screen", () => {
   });
 
   test("Merge into… moves every track to the other tag, and the old name keeps finding it", async ({ page }) => {
+    expectFailureUntilBuilt("prep");
     await openRoute(page, "tags");
     await tagMenu(page, "Mood", "Grief", "Merge into…");
     await dialog(page).getByRole("combobox", { name: "Merge Grief into" }).selectOption("Melancholy");
@@ -83,6 +87,7 @@ test.describe("the Tags screen", () => {
   });
 
   test("Delete… takes a tag off its tracks, with Undo", async ({ page }) => {
+    expectFailureUntilBuilt("prep");
     await openRoute(page, "tags");
     await tagMenu(page, "Scene type", "Chase", "Delete…");
     await expect(dialog(page)).toContainText(/It comes off \d+ tracks?\./);
@@ -93,6 +98,7 @@ test.describe("the Tags screen", () => {
   });
 
   test("a new group with its own tag appears on every track's details and in the Library filters", async ({ page }) => {
+    expectFailureUntilBuilt("prep");
     await openRoute(page, "tags");
     await page.getByRole("button", { name: "New group" }).click();
     await dialog(page).getByRole("textbox", { name: "Name" }).fill("Faction");
@@ -106,6 +112,7 @@ test.describe("the Tags screen", () => {
   });
 
   test("groups can be put in another order, and the track details follow it", async ({ page }) => {
+    expectFailureUntilBuilt("prep");
     await openRoute(page, "tags");
     await group(page, "Mood").getByRole("button", { name: "More for the Mood group" }).click();
     await page.getByRole("menuitem", { name: "Move down" }).click();
@@ -114,6 +121,7 @@ test.describe("the Tags screen", () => {
   });
 
   test("a group's colour is chosen by name; the tag's name always shows with it", async ({ page }) => {
+    expectFailureUntilBuilt("prep");
     await openRoute(page, "tags");
     await group(page, "Mood").getByRole("button", { name: "More for the Mood group" }).click();
     await page.getByRole("menuitem", { name: "Colour…" }).click();
@@ -126,12 +134,14 @@ test.describe("the Tags screen", () => {
 
 test.describe("tags where you use them", () => {
   test("typing another word for a tag offers the tag itself", async ({ page }) => {
+    expectFailureUntilBuilt("prep");
     await libraryTrack(page, "Very short heroic moment");
     await page.getByRole("combobox", { name: "Add a mood tag" }).fill("sad");
     await expect(page.getByRole("option", { name: /^Melancholy/ })).toBeVisible();
   });
 
   test("filtering by a tag that holds others finds the tracks of the tags inside it", async ({ page }) => {
+    expectFailureUntilBuilt("prep");
     await openRoute(page, "library");
     const toggle = page.getByRole("button", { name: "Filters", exact: true });
     if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();

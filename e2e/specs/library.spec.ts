@@ -330,7 +330,7 @@ test.describe("round 5: shape, names in scenes, Use in… and missing files", ()
 
 /* Round 6 (design/prototype/ROUND6.md): less text on screen; what leaves the screen is read out instead. */
 test.describe("round 6: the key legend", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
+  test.beforeEach(() => expectFailureUntilBuilt("prep"));
 
   test("the keys show under the list while the keyboard is in it, and are read out with the list", async ({ page }) => {
     await openRoute(page, "library");
@@ -399,7 +399,7 @@ test.describe("round 5: volume normalisation", () => {
 /* Round 7 (design/prototype/ROUND7.md): tracks behave as tagged (PLY-4), follow-with hand-overs (SHW-3), and dragging
    several selected tracks to another list (ORG-5). */
 test.describe("round 7: how a track behaves", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
+  test.beforeEach(() => expectFailureUntilBuilt("prep"));
 
   test("a sting never loops: its loop choices are off, and say why", async ({ page }) => {
     await openRoute(page, "library");
@@ -432,7 +432,7 @@ test.describe("round 7: how a track behaves", () => {
 });
 
 test.describe("round 7: dragging selected tracks to another list", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
+  test.beforeEach(() => expectFailureUntilBuilt("prep"));
 
   test("two ticked tracks dragged onto a playlist are both added", async ({ page }) => {
     await openRoute(page, "library");

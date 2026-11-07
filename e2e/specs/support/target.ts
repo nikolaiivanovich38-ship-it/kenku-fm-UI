@@ -227,7 +227,8 @@ export function knownAxeIssues(): string[] {
 /** Help articles the prototype is known to have over the 300-word limit (FND-8, HELP.md), recorded as annotations so
  *  its run can pass. None now: round 6's Live draft was trimmed below 300 words (7 Nov). Kept so a future draft can be
  *  recorded the same way. */
-export function knownLongHelpArticle(_title: string): boolean {
+export function knownLongHelpArticle(title: string): boolean {
+  void title; // no article is known to be long now; the parameter stays for the next one
   return false;
 }
 

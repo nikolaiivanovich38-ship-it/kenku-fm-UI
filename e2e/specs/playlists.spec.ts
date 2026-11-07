@@ -324,7 +324,7 @@ test.describe("round 5: play order, Details with the rules, shapes and Use in…
 /* Round 6 (design/prototype/ROUND6.md): a resting status shows only on a folded box. Part 5 (Nik, 6 Nov 16:14): Ready
    and Saved are gone altogether, open or folded; saving shows in the Saved pop-up. */
 test.describe("round 6: quiet statuses", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
+  test.beforeEach(() => expectFailureUntilBuilt("shell", "prep"));
 
   test("no box says Ready or Saved, open or folded", async ({ page }) => {
     await openRoute(page, "playlist/p-abbess");
@@ -366,7 +366,7 @@ test.describe("round 5: volume normalisation", () => {
 /* Round 7 (design/prototype/ROUND7.md): folders and dividers (ORG-4), and adding tracks to other lists by dragging
    or with Add to… (ORG-5). */
 test.describe("round 7: folders", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
+  test.beforeEach(() => expectFailureUntilBuilt("prep"));
 
   // A folder is made from Move to folder… (and then holds that playlist), or inside another folder.
   async function intoNewFolder(page: Page, playlist: string, name: string) {
@@ -414,7 +414,7 @@ test.describe("round 7: folders", () => {
 });
 
 test.describe("round 7: dividers inside a playlist", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
+  test.beforeEach(() => expectFailureUntilBuilt("prep"));
 
   test("a divider goes above a track, names a section, and is not a track", async ({ page }) => {
     await openRoute(page, "playlist/p-abbess");
@@ -430,7 +430,6 @@ test.describe("round 7: dividers inside a playlist", () => {
 });
 
 test.describe("round 7: adding to other lists", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
   const trackRow = (page: Page, start: string) => page.getByRole("list", { name: "Tracks in order" }).getByRole("listitem").filter({ hasText: start });
   // The places to drop show only once a drag has started, so the drag is done step by step.
   async function dragOnto(page: Page, start: string, target: string, shift = false) {
@@ -448,6 +447,7 @@ test.describe("round 7: adding to other lists", () => {
   }
 
   test("dragging a track shows where it can go; dropping it on another playlist copies it there", async ({ page }) => {
+    expectFailureUntilBuilt("prep");
     await openRoute(page, "playlist/p-abbess");
     const tray = page.getByRole("region", { name: "Drop on" });
     await expect(tray).toHaveCount(0);
@@ -458,6 +458,7 @@ test.describe("round 7: adding to other lists", () => {
   });
 
   test("with Shift held the track moves: it leaves this playlist", async ({ page }) => {
+    expectFailureUntilBuilt("prep");
     await openRoute(page, "playlist/p-abbess");
     await dragOnto(page, "Alien, unknowable", "Ashen King", true);
     await page.keyboard.up("Shift");
@@ -466,6 +467,7 @@ test.describe("round 7: adding to other lists", () => {
   });
 
   test("Esc while dragging puts everything back", async ({ page }) => {
+    expectFailureUntilBuilt("prep");
     await openRoute(page, "playlist/p-abbess");
     const box = await trackRow(page, "Alien, unknowable").boundingBox();
     await page.mouse.move(box!.x + 40, box!.y + box!.height / 2);
@@ -479,6 +481,7 @@ test.describe("round 7: adding to other lists", () => {
   });
 
   test("Add to… does the same from the keyboard: a playlist, a scene or Up next", async ({ page }) => {
+    expectFailureUntilBuilt("live", "prep");
     await openRoute(page, "playlist/p-abbess");
     await page.getByRole("list", { name: "Tracks in order" }).getByRole("button", { name: /^More for Alien, unknowable/ }).click();
     await page.getByRole("menuitem", { name: "Add to…" }).click();

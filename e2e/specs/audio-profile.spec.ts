@@ -122,7 +122,7 @@ test.describe("fades", () => {
 
   test("a looping track also has a loop crossfade that smooths the jump back", async ({ page }) => {
     // Round 6: what it does is read out with the group (and is its hover text) instead of a line on screen.
-    expectFailureUntilBuilt("round 6");
+    expectFailureUntilBuilt("prep");
     await openRoute(page, "profile/t13");
     await expect(fades(page).getByRole("group", { name: "Crossfade the loop" })).toHaveAccessibleDescription("Smooths the jump back to 1:04");
     await expect(fades(page).getByRole("textbox", { name: "loop crossfade length in seconds" })).toHaveValue("2");
@@ -292,7 +292,7 @@ test.describe("round 5: volume normalisation", () => {
 /* Round 7 (design/prototype/ROUND7.md, DAT-3): the mix-out marker, where the next track crossfades in, and playing on
    air from a marker. Loop in and loop out are the Loop and End handles a loop bed already has. */
 test.describe("round 7: mix out and playing from a marker", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
+  test.beforeEach(() => expectFailureUntilBuilt("prep"));
   const markers = (page: Page) => page.getByRole("region", { name: "Markers", exact: true });
 
   test("one marker can be the mix-out point; choosing another moves it", async ({ page }) => {

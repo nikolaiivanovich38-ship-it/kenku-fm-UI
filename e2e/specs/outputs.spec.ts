@@ -79,7 +79,7 @@ test.describe("moving a bot between rooms", () => {
   });
 
   test("Bring… (round 6: Add bot) on a voice channel in the list brings a bot there", async ({ page }) => {
-    expectFailureUntilBuilt("round 6"); // OUT-7: one click with one free bot, no menu
+    expectFailureUntilBuilt("rooms-settings"); // OUT-7: one click with one free bot, no menu
     await openRoute(page, "outputs");
     await channels(page).getByRole("button", { name: "Add bot to Whispers" }).click();
     await expect(room(page, "Whispers")).toBeVisible({ timeout: 5000 });
@@ -135,7 +135,7 @@ test.describe("mute, volume and test", () => {
 
 test.describe("outputs and the live game", () => {
   test("the Prep | Live switch is here too, with Prep pressed", async ({ page }) => {
-    expectFailureUntilBuilt("round 6"); // round 6 part 3: Live's On air is one box with a part per room
+    expectFailureUntilBuilt("live", "rooms-settings"); // round 6 part 3: Live's On air is one box with a part per room
     await openRoute(page, "outputs");
     const modes = page.getByRole("group", { name: "Prep or live" });
     await expect(modes.getByRole("button", { name: "Prep" })).toHaveAttribute("aria-pressed", "true");
@@ -144,7 +144,7 @@ test.describe("outputs and the live game", () => {
   });
 
   test("a room that a bot is moved to on the Outputs screen also gets its On air box in Live", async ({ page }) => {
-    expectFailureUntilBuilt("round 6"); // round 6 part 3: Live's On air is one box with a part per room
+    expectFailureUntilBuilt("live", "rooms-settings"); // round 6 part 3: Live's On air is one box with a part per room
     await openRoute(page, "outputs");
     await joinRoom(page, "Lyre Side", "Whispers");
     await page.getByRole("group", { name: "Prep or live" }).getByRole("button", { name: "Live" }).click();
@@ -156,9 +156,8 @@ test.describe("outputs and the live game", () => {
 /* Round 6, part 2 (design/prototype/ROUND6.md, "Your notes on 0.4.0"): Nik found Bring… confusing and too many
    clicks. Each voice channel has Add bot and each bot in it a Kick (×). Not built yet. */
 test.describe("round 6: Add bot and Kick in the voice channels", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
-
   test("OUT-7: no Bring…; each bot in a channel has its own Kick, and a channel with no bot has Add bot", async ({ page }) => {
+    expectFailureUntilBuilt("rooms-settings");
     await openRoute(page, "outputs");
     await expect(channels(page).getByRole("button", { name: /^Bring/ })).toHaveCount(0);
     await expect(channels(page).getByRole("button", { name: "Kick Lyre Table from Table" })).toBeVisible();
@@ -167,6 +166,7 @@ test.describe("round 6: Add bot and Kick in the voice channels", () => {
   });
 
   test("OUT-7: with one free bot, Add bot puts it in the channel in one click; Kick takes it out in one", async ({ page }) => {
+    expectFailureUntilBuilt("rooms-settings");
     await openRoute(page, "outputs");
     await channels(page).getByRole("button", { name: "Add bot to Side room" }).click();
     await expect(page.getByRole("menu")).toHaveCount(0);
@@ -177,6 +177,7 @@ test.describe("round 6: Add bot and Kick in the voice channels", () => {
   });
 
   test("OUT-7: with two free bots, Add bot offers a short choice of them", async ({ page }) => {
+    expectFailureUntilBuilt("rooms-settings");
     await openRoute(page, "outputs");
     await channels(page).getByRole("button", { name: "Kick Lyre Table from Table" }).click();
     await channels(page).getByRole("button", { name: "Add bot to Whispers" }).click();
@@ -187,6 +188,7 @@ test.describe("round 6: Add bot and Kick in the voice channels", () => {
   });
 
   test("OUT-7: kicking a bot the players are hearing asks nothing, and Undo puts it back with its music", async ({ page }) => {
+    expectFailureUntilBuilt("rooms-settings");
     await openRoute(page, "campaign/crown");
     await page.getByRole("region", { name: "Campaign playlists", exact: true }).getByRole("button", { name: "Play on air: The Company themes" }).click();
     await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: /^(Outputs|Rooms)/ }).click();
@@ -198,6 +200,7 @@ test.describe("round 6: Add bot and Kick in the voice channels", () => {
   });
 
   test("OUT-8, UX-18: Tokens and new bots opens Settings, and Back returns to Outputs", async ({ page }) => {
+    expectFailureUntilBuilt("shell", "rooms-settings");
     await openRoute(page, "outputs");
     await page.getByRole("link", { name: "Tokens and new bots" }).click();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Settings");
@@ -210,7 +213,7 @@ test.describe("round 6: Add bot and Kick in the voice channels", () => {
    everywhere, and Outputs is renamed Rooms). The address stays #/outputs. */
 test.describe("round 6, part 4: the screen is Rooms", () => {
   test("the menu, the screen's title and Back say Rooms", async ({ page }) => {
-    expectFailureUntilBuilt("round 6");
+    expectFailureUntilBuilt("shell", "rooms-settings");
     await openRoute(page, "outputs");
     await expect(page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Rooms (1/2)" })).toBeVisible();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Rooms");

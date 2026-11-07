@@ -14,8 +14,8 @@ const sheet = (page: Page) => page.getByRole("dialog");
 
 test.describe("Settings", () => {
   // Round 6 part 2 (OUT-8): Settings in Lyre is a round 6 screen, not built in the app yet.
-  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
   test("is in the menu, has Back to where Nik was (round 6 part 7), and lists each bot with its status, servers and a masked token", async ({ page }) => {
+    expectFailureUntilBuilt("shell", "rooms-settings");
     await openRoute(page, "campaigns");
     await page.getByRole("link", { name: "Settings", exact: true }).click();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Settings");
@@ -29,6 +29,7 @@ test.describe("Settings", () => {
   });
 
   test("Disconnect and Connect a bot", async ({ page }) => {
+    expectFailureUntilBuilt("rooms-settings");
     await openRoute(page, "settings");
     const side = bots(page).getByRole("group", { name: "Lyre Side" });
     await side.getByRole("button", { name: "Disconnect" }).click();
@@ -38,6 +39,7 @@ test.describe("Settings", () => {
   });
 
   test("Replace… takes a new token and shows only its last four characters", async ({ page }) => {
+    expectFailureUntilBuilt("rooms-settings");
     await openRoute(page, "settings");
     const side = bots(page).getByRole("group", { name: "Lyre Side" });
     await side.getByRole("button", { name: "Replace the token of Lyre Side" }).click();
@@ -48,6 +50,7 @@ test.describe("Settings", () => {
   });
 
   test("Remove is behind the bot's ⋯ menu, with an Undo", async ({ page }) => {
+    expectFailureUntilBuilt("rooms-settings");
     await openRoute(page, "settings");
     await bots(page).getByRole("button", { name: "More for Lyre Side" }).click();
     await page.getByRole("menuitem", { name: "Remove Lyre Side" }).click();
@@ -57,6 +60,7 @@ test.describe("Settings", () => {
   });
 
   test("the other settings Lyre still needs are here; the rare ones are folded", async ({ page }) => {
+    expectFailureUntilBuilt("rooms-settings");
     await openRoute(page, "settings");
     // Round 7: Sound to Discord is set once, so it is folded with the other rare settings.
     for (const name of ["Sound to Discord", "Headphones and speakers", "Remote control", "Keyboard shortcuts", "Website tabs", "Local files"]) {
@@ -73,7 +77,7 @@ test.describe("Settings", () => {
 
 test.describe("Add a bot, in the order Discord needs", () => {
   // Round 6 part 2 (OUT-8): Settings in Lyre is a round 6 screen, not built in the app yet.
-  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
+  test.beforeEach(() => expectFailureUntilBuilt("rooms-settings"));
   test("three steps: create it, invite it first, then connect it with its token", async ({ page }) => {
     await openRoute(page, "settings");
     await bots(page).getByRole("button", { name: "Add a bot" }).click();
@@ -146,7 +150,7 @@ test.describe("Add a bot, in the order Discord needs", () => {
    the field it goes in, and the token step says Discord shows the token once. */
 test.describe("round 6, part 4: Add a bot in the order it is done", () => {
   test("step 2 says where the Application ID is before its field; step 3 says Discord shows the token once", async ({ page }) => {
-    expectFailureUntilBuilt("round 6");
+    expectFailureUntilBuilt("rooms-settings");
     await openRoute(page, "settings");
     await bots(page).getByRole("button", { name: "Add a bot" }).click();
     await sheet(page).getByRole("button", { name: "Next" }).click();
@@ -168,7 +172,7 @@ const unfold = async (page: Page, name: string) => {
 };
 
 test.describe("round 7: remote control needs a secret code", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
+  test.beforeEach(() => expectFailureUntilBuilt("rooms-settings"));
 
   test("is off by default; on, it shows the code to type on the other device and listens on this computer only", async ({ page }) => {
     await openRoute(page, "settings");
@@ -204,7 +208,7 @@ test.describe("round 7: remote control needs a secret code", () => {
 });
 
 test.describe("round 7: headphones and speakers", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
+  test.beforeEach(() => expectFailureUntilBuilt("live", "rooms-settings"));
 
   test("the preview and what you hear of On air each have their own device, remembered", async ({ page }) => {
     await openRoute(page, "settings");
@@ -226,9 +230,8 @@ test.describe("round 7: headphones and speakers", () => {
 });
 
 test.describe("round 7: crossfade and keyboard shortcuts", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
-
   test("the crossfade between tracks has a default, in Sound to Discord", async ({ page }) => {
+    expectFailureUntilBuilt("live", "rooms-settings");
     await openRoute(page, "settings");
     const box = await unfold(page, "Sound to Discord");
     const x = box.getByRole("combobox", { name: "Between tracks" });
@@ -238,6 +241,7 @@ test.describe("round 7: crossfade and keyboard shortcuts", () => {
   });
 
   test("every shortcut is listed with its key; one can be changed by pressing the new key, and reset", async ({ page }) => {
+    expectFailureUntilBuilt("live", "rooms-settings");
     await openRoute(page, "settings");
     const box = await unfold(page, "Keyboard shortcuts");
     const palette = box.getByRole("row", { name: /^Find and play/ });
@@ -255,6 +259,7 @@ test.describe("round 7: crossfade and keyboard shortcuts", () => {
   });
 
   test("a key already in use is refused, and Esc keeps the old key", async ({ page }) => {
+    expectFailureUntilBuilt("rooms-settings");
     await openRoute(page, "settings");
     const box = await unfold(page, "Keyboard shortcuts");
     const palette = box.getByRole("row", { name: /^Find and play/ });
@@ -266,6 +271,7 @@ test.describe("round 7: crossfade and keyboard shortcuts", () => {
   });
 
   test("a printable sheet lists every key", async ({ page }) => {
+    expectFailureUntilBuilt("live", "rooms-settings");
     await openRoute(page, "settings");
     const box = await unfold(page, "Keyboard shortcuts");
     await box.getByRole("button", { name: "Printable sheet" }).click();

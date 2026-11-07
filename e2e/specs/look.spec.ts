@@ -33,7 +33,7 @@ async function contrastOf(page: Page, selector: string): Promise<number> {
 }
 
 test.describe("round 7: display options", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
+  test.beforeEach(() => expectFailureUntilBuilt("shell"));
 
   test("Compact is the default; Comfortable makes every control taller", async ({ page }) => {
     await openRoute(page, "look");
@@ -74,7 +74,7 @@ test.describe("round 7: display options", () => {
 });
 
 test.describe("round 7: motion and target size", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
+  test.beforeEach(() => expectFailureUntilBuilt("shell"));
 
   test("with reduced motion asked for, nothing slides or pulses", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });

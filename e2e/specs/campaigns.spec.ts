@@ -3,7 +3,7 @@
  * Source: design/prototype/tools/cp-tab.js and src/views/campaigns.js.
  */
 import type { Page } from "@playwright/test";
-import { expect, test, expectFailureUntilBuilt } from "./support/test";
+import { expect, test, expectFailureUntilBuilt, expectFailureUntilScreenBuilt } from "./support/test";
 import { failNextSave, openRoute } from "./support/target";
 
 const region = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
@@ -20,7 +20,7 @@ test.describe("all campaigns", () => {
   });
 
   test("Run next session opens Live with that session ready to start", async ({ page }) => {
-    expectFailureUntilBuilt("live"); // it ends on the Live screen
+    expectFailureUntilScreenBuilt("live"); // it ends on the Live screen
     await openRoute(page, "campaigns");
     await page.getByRole("button", { name: "Run next session of The Sixth Year: Session 4" }).click();
     await expect(page.getByRole("heading", { name: "Live", level: 1 })).toBeAttached();
@@ -53,7 +53,7 @@ test.describe("all campaigns", () => {
 
 test.describe("one campaign", () => {
   test("a Prep | Live switch sits at the top, with Prep pressed, and Live opens the live screen for this campaign", async ({ page }) => {
-    expectFailureUntilBuilt("live"); // it ends on the Live screen
+    expectFailureUntilScreenBuilt("live"); // it ends on the Live screen
     await openRoute(page, "campaign/crown");
     const modes = page.getByRole("group", { name: "Prep or live" });
     await expect(modes.getByRole("button", { name: "Prep" })).toHaveAttribute("aria-pressed", "true");
@@ -62,7 +62,7 @@ test.describe("one campaign", () => {
   });
 
   test("Run next session sits beside the switch and starts the next session in Live", async ({ page }) => {
-    expectFailureUntilBuilt("live"); // it ends on the Live screen
+    expectFailureUntilScreenBuilt("live"); // it ends on the Live screen
     await openRoute(page, "campaign/crown");
     await page.getByRole("button", { name: /^Run next session/ }).click();
     await expect(page.getByRole("button", { name: /The Sunken Crown Session 14/ })).toBeVisible();
@@ -124,7 +124,7 @@ test.describe("sessions of a campaign", () => {
   });
 
   test("running a played session again opens it in Live", async ({ page }) => {
-    expectFailureUntilBuilt("live"); // it ends on the Live screen
+    expectFailureUntilScreenBuilt("live"); // it ends on the Live screen
     await openRoute(page, "campaign/crown");
     await page.getByRole("button", { name: /^Run Session 12/ }).click();
     await expect(page.getByRole("button", { name: /The Sunken Crown Session 12/ })).toBeVisible();
@@ -169,7 +169,7 @@ test.describe("playlists and pad boards on hand in every session", () => {
   });
 
   test("Play on air from a campaign playlist shows the bar of what the players hear, with Stop and Go to Live", async ({ page }) => {
-    expectFailureUntilBuilt("on-air bar"); // the shell's on-air bar is not built yet
+    expectFailureUntilScreenBuilt("on-air bar"); // the shell's on-air bar is not built yet
     await openRoute(page, "campaign/crown");
     await region(page, "Campaign playlists").getByRole("button", { name: "Play on air: The Company themes" }).click();
     // 0.3's bar is "On air"; round 5 calls it "Now playing" (it also shows a preview).
@@ -215,7 +215,7 @@ test.describe("round 5: the Now playing bar and play order on the campaign page"
   // The three UX-16 checks are built (w4-kit-bar, the shell's Now playing bar). They read the bar as the prototype draws
   // it with its sample bot in the voice channel Table ("On air", not "On air · no room"), so in the app they wait for the
   // test start to have that bot, which the Outputs stream adds. The others are built (w4-prep-b).
-  const needsTheBotInTable = () => expectFailureUntilBuilt("outputs");
+  const needsTheBotInTable = () => expectFailureUntilScreenBuilt("outputs");
 
   test("UX-16: the Now playing bar has a row tagged On air: what plays, where it comes from and how far, with Pause, Stop, Next and Volume", async ({ page }) => {
     needsTheBotInTable();
@@ -305,9 +305,8 @@ test.describe("round 5: volume normalisation in the Now playing bar", () => {
 
 /* Round 6, part 2 (design/prototype/ROUND6.md, "Your notes on 0.4.0", Nik, 6 Nov 10:34). Not built yet. */
 test.describe("round 6: Repeat on the Now playing bar, the campaign's own order, and Back", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
-
   test("PLY-17: a Now playing row has Shuffle and Repeat; Repeat goes off, all, one for what plays now, not saved (round 6 part 3)", async ({ page }) => {
+    expectFailureUntilBuilt("live", "prep");
     await openRoute(page, "campaign/crown");
     await region(page, "Campaign playlists").getByRole("button", { name: "Play on air: The Company themes" }).click();
     const row = region(page, "Now playing").getByRole("group", { name: "On air", exact: true });
@@ -324,6 +323,7 @@ test.describe("round 6: Repeat on the Now playing bar, the campaign's own order,
   });
 
   test("ORG-13: a campaign playlist's tracks can be put in another order for this campaign only, and back", async ({ page }) => {
+    expectFailureUntilBuilt("prep");
     await openRoute(page, "campaign/crown");
     const box = region(page, "Campaign playlists");
     await box.getByRole("button", { name: "Show contents of The Company themes" }).click();
@@ -338,6 +338,7 @@ test.describe("round 6: Repeat on the Now playing bar, the campaign's own order,
   });
 
   test("ORG-13: Back to the playlist's order undoes the campaign's own order", async ({ page }) => {
+    expectFailureUntilBuilt("prep");
     await openRoute(page, "campaign/crown");
     const box = region(page, "Campaign playlists");
     await box.getByRole("button", { name: "Show contents of The Company themes" }).click();
@@ -351,6 +352,7 @@ test.describe("round 6: Repeat on the Now playing bar, the campaign's own order,
   });
 
   test("ORG-13: the campaign's playlists themselves can be moved into another order", async ({ page }) => {
+    expectFailureUntilBuilt("prep");
     await openRoute(page, "campaign/crown");
     const box = region(page, "Campaign playlists");
     await box.getByRole("link", { name: "The Company themes" }).focus();
@@ -360,6 +362,7 @@ test.describe("round 6: Repeat on the Now playing bar, the campaign's own order,
   });
 
   test("UX-18: a playlist opened from the campaign page has Back to the campaign, and Back returns to the same row", async ({ page }) => {
+    expectFailureUntilBuilt("shell", "prep");
     await openRoute(page, "campaign/crown");
     await expect(page.getByRole("button", { name: /^Back to / })).toHaveCount(0);
     await region(page, "Campaign playlists").getByRole("link", { name: "Ashen King" }).click();
@@ -370,7 +373,7 @@ test.describe("round 6: Repeat on the Now playing bar, the campaign's own order,
   });
 
   test("UX-18, round 6 part 7 (Nik, 22:04): a screen opened from the menu has Back to where Nik was", async ({ page }) => {
-    expectFailureUntilBuilt("round 6"); // was: screens opened from the menu have no Back
+    expectFailureUntilBuilt("shell", "prep"); // was: screens opened from the menu have no Back
     await openRoute(page, "campaign/crown");
     await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Library" }).click();
     await expect(page.getByRole("button", { name: "Back to The Sunken Crown" })).toBeVisible();
@@ -381,7 +384,7 @@ test.describe("round 6: Repeat on the Now playing bar, the campaign's own order,
    unobtrusive but noticeable as a consistent design standard indicating something has been saved, so we have
    consistent feedback across the whole platform. I don't want saved in each box." Not built yet. */
 test.describe("round 6, part 5: the Saved pop-up", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
+  test.beforeEach(() => expectFailureUntilBuilt("shell", "prep"));
   const notes = (page: Page) => region(page, "Notes").getByRole("textbox", { name: "Campaign notes" });
   const savedNotes = (page: Page) => page.getByRole("status").filter({ hasText: "Saved: The Sunken Crown notes" });
   /** Where the pop-up is: its right edge's distance from the work area's right edge, and its bottom's distance from
@@ -452,7 +455,7 @@ test.describe("round 6, part 5: the Saved pop-up", () => {
    right hand corner [...] I'm missing the contextual back button in the top bar. It should be constantly present in the
    top left of the top bar. We should also have a sensible place for breadcrumbs."). Not built yet. */
 test.describe("round 6, part 6: the Saved pop-up at the bottom right, Back always top left, one place for the trail", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
+  test.beforeEach(() => expectFailureUntilBuilt("shell", "prep"));
   const back = (page: Page) => page.getByRole("main").getByRole("button", { name: /^Back( to .+)?$/ }).first();
   const trail = (page: Page) => page.getByRole("navigation", { name: "Breadcrumb" });
   const box = async (l: ReturnType<Page["getByRole"]>) => {
@@ -561,7 +564,7 @@ test.describe("round 6, part 6: the Saved pop-up at the bottom right, Back alway
    doesn't need text. It should function across tabs in the side menu: it should record where I am and where I was
    before regardless of what happened between [...] and should let me go back at least five steps."). Not built yet. */
 test.describe("round 6, part 7: Back is one history across the whole app", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 6"));
+  test.beforeEach(() => expectFailureUntilBuilt("shell", "prep"));
   const back = (page: Page) => page.getByRole("main").getByRole("button", { name: /^Back( to .+)?$/ }).first();
   const menu = (page: Page, name: string | RegExp) => page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name });
   const h1 = (page: Page) => page.getByRole("heading", { level: 1 });
@@ -632,9 +635,8 @@ test.describe("round 6, part 7: Back is one history across the whole app", () =>
 /* Round 7 (design/prototype/ROUND7.md): what played tonight, with Play again (PLY-1), and the Find and play palette
    on Ctrl+K (UX-12), both reached from any screen. */
 test.describe("round 7: what played, and Find and play", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("round 7"));
-
   test("What played lists the room's tracks, newest first, each with Play again and Play next", async ({ page }) => {
+    expectFailureUntilBuilt("live", "prep");
     await openRoute(page, "campaign/crown");
     await region(page, "Campaign playlists").getByRole("button", { name: "Play on air: The Company themes" }).click();
     const row = region(page, "Now playing").getByRole("group", { name: "On air", exact: true });
@@ -650,6 +652,7 @@ test.describe("round 7: what played, and Find and play", () => {
   });
 
   test("Ctrl+K opens Find and play: type part of a name, Enter plays it on air, Esc closes and puts focus back", async ({ page }) => {
+    expectFailureUntilBuilt("shell", "prep");
     await openRoute(page, "campaign/crown");
     // Focus starts on a control of the screen (the heading takes focus only after moving between screens).
     const start = region(page, "Campaign playlists").getByRole("button", { name: "Preview The Company themes" });
@@ -668,6 +671,7 @@ test.describe("round 7: what played, and Find and play", () => {
   });
 
   test("in Find and play, Alt+Enter previews, Shift+Enter adds to the queue, and a pad or a scene can be found too", async ({ page }) => {
+    expectFailureUntilBuilt("shell", "prep");
     await openRoute(page, "campaign/crown");
     await page.keyboard.press("Control+K");
     const d = page.getByRole("dialog", { name: "Find and play" });
