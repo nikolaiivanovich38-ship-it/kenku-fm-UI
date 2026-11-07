@@ -209,9 +209,10 @@ test.describe("round 7: remote control needs a secret code", () => {
 });
 
 test.describe("round 7: headphones and speakers", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("live", "rooms-settings"));
-
   test("the preview has its own device, remembered; no On air device (lead decision, 7 Nov: heard only through Discord)", async ({ page }) => {
+    // w6-rooms: the app lists the computer's own devices; the e2e machine has no "Headset (Arctis 7)", so this needs
+    // a test build's stand-in device list as well (reported to the lead).
+    expectFailureUntilBuilt("live", "rooms-settings");
     await openRoute(page, "settings");
     const box = await unfold(page, "Headphones and speakers");
     await box.getByRole("combobox", { name: "Preview (only you)" }).selectOption("Headset (Arctis 7)");
@@ -220,6 +221,7 @@ test.describe("round 7: headphones and speakers", () => {
   });
 
   test("one headset can be split: the preview in one ear, On air in the other", async ({ page }) => {
+    expectFailureUntilBuilt("rooms-settings"); // w6-rooms: passes without Live (it was marked live too)
     await openRoute(page, "settings");
     const box = await unfold(page, "Headphones and speakers");
     await expect(box.getByRole("radio", { name: "Preview in the left ear" })).toHaveCount(0);
