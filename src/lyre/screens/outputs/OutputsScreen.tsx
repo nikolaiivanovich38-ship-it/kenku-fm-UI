@@ -8,12 +8,19 @@
  * channel of every server with who is in it and which bot is there, Bring… to move a bot there, and Swap rooms.
  *
  * The bots come from the main process (useOutputs, src/lyre/outputs); what each room plays from the audio host
- * (useNowPlaying); the Test chime plays through the audio host into that room only. Logging bots in and their
- * tokens stay in Settings in the main window.
+ * (useNowPlaying); the Test chime plays through the audio host into that room only.
  *
- * Not built from the prototype: the level meter (the audio host has no level per room yet).
+ * w6-rooms (round 6): OUT-7 Add bot and Kick. Each bot in a channel is a chip with its own Kick (×); a channel with no
+ * bot has Add, which puts the one free bot there in one click or offers a short choice. Kick never asks: when the
+ * players there were hearing something, the undo bar's Undo puts the bot back and plays what it played from where it
+ * was. A move that leaves listeners in silence has the same Undo (review Must 2), and a room in a channel with nobody
+ * in it offers to move to the channel with the players. OUT-8: Tokens and new bots is Settings in Lyre. OUT-10: a level
+ * meter beside each room's volume, read from the audio host (roomLevel) while the screen is open.
  */
 import React, { useEffect, useId, useRef, useState } from "react";
+
+import { restoreRoom } from "../../outputs/roomRestore";
+import { useUndoNote } from "../../shell/UndoNote";
 
 import { useCampaigns } from "../../api";
 import { useLyreAudio, useNowPlaying } from "../../audio";
@@ -29,17 +36,23 @@ import { useAnnounce } from "../../shell/Announcer";
 import { useCampaignInHand } from "../../shell/CampaignInHand";
 import { ModeSwitch } from "../campaigns/parts";
 import {
-  bringItems,
+  addBotChoice,
+  busiestChannel,
   chimeMessage,
   heardTwice,
   isPlaying,
+  kickLosesSound,
+  meterFill,
+  moveLosesSound,
   moveMessage,
   names,
+  nobodyThere,
   outputName,
   people,
   pill,
   roomBots,
   roomItems,
+  roomToRestore,
   swapPair,
   viewOf,
   type BotView,
@@ -53,6 +66,8 @@ const PATHS = {
   off: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM8 12h8",
   mute: "M3 10v4h3l8 5V5L6 10zM17 9.5l5 5M22 9.5l-5 5",
   swap: "M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7",
+  // core.js leave: Kick (a door with an arrow out).
+  leave: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
 } as const;
 
 function OpIcon({ name }: { name: keyof typeof PATHS }) {
@@ -71,20 +86,39 @@ interface Actions {
 
 function useActions(view: OutputsView | null, client: OutputsClient | null): Actions {
   const { toast, say } = useAnnounce();
+  const audio = useLyreAudio();
+  const now = useNowPlaying();
+  const { offerUndo } = useUndoNote();
+  const roomOf = (of: BotView) => now.rooms.find((r) => r.roomId === of.bot.id);
   return {
     move: (of, channelId) => {
       if (!view || !client) return;
       const text = moveMessage(view, of, channelId);
-      toast(text);
-      if (!(of.inRoom && of.bot.room?.channelId === channelId)) {
-        client.move(of.bot.id, channelId);
-        say(text);
+      if (of.inRoom && of.bot.room?.channelId === channelId) {
+        toast(text);
+        return;
       }
+      // Must 2: one click and no question, so a move that leaves the players in silence can be undone.
+      const back = of.bot.room?.channelId;
+      const lost = back !== undefined && moveLosesSound(of, roomOf(of), channelId);
+      client.move(of.bot.id, channelId);
+      say(text);
+      if (lost) offerUndo(`${of.bot.name} moved from ${of.channel!.name}: the players there hear nothing now.`, () => client.move(of.bot.id, back));
+      else toast(text);
     },
     leave: (of) => {
       if (!client || !of.channel) return;
+      // OUT-7: Kick never asks; Undo puts the bot back with what it played when the players were hearing it.
+      const restore = kickLosesSound(of, roomOf(of)) ? roomToRestore(of, roomOf(of)) : null;
       client.leave(of.bot.id);
-      toast(`${of.bot.name} left ${of.channel.name}`);
+      if (restore) {
+        offerUndo(`${of.bot.name} left ${of.channel.name}: the players there hear nothing now.`, () => {
+          void restoreRoom(restore, { client, audio }).then((back) => {
+            if (!back) toast(`${of.bot.name} could not go back to ${of.channel!.name}. Add it there again from the list.`);
+          });
+        });
+        say(`${of.bot.name} left ${of.channel.name}. Undo is at the foot of the screen, or press Ctrl+Z.`);
+      } else toast(`${of.bot.name} left ${of.channel.name}`);
     },
   };
 }
@@ -115,7 +149,13 @@ export function OutputsScreen() {
         ) : (
           <p className="hint op-none">
             <Icon name="gear" size="s" />
-            <span>{outputs ? "No Discord bot yet. Add one, with its token, in Settings in the main window." : "Looking for your Discord bots…"}</span>
+            {outputs ? (
+              <span>
+                No Discord bot yet. <a href="#/settings">Add one in Settings</a>, with its token.
+              </span>
+            ) : (
+              <span>Looking for your Discord bots…</span>
+            )}
           </p>
         )}
       </div>
@@ -211,10 +251,11 @@ function RoomBox({ view, of, client, actions }: { view: OutputsView; of: BotView
   );
 }
 
-function loginWords(of: BotView): string {
+function loginWords(of: BotView): React.ReactNode {
   if (of.bot.login === "connecting") return "Logging in to Discord…";
-  if (of.bot.login === "error") return `${of.bot.error ?? "Discord refused this bot."} Fix it in Settings in the main window.`;
-  return "Not logged in to Discord. Paste its token in Settings in the main window, then Connect.";
+  const settings = <a href="#/settings">Settings</a>;
+  if (of.bot.login === "error") return <>{of.bot.error ?? "Discord refused this bot."} Fix it in {settings}.</>;
+  return <>Not connected to Discord. Connect it, or give it a new token, in {settings}.</>;
 }
 
 /** Room (server › channel, or Choose a room…) and Leave. */
@@ -253,7 +294,7 @@ function RoomRow({ view, of, actions }: { view: OutputsView; of: BotView; action
       ),
     ]);
     if (of.inRoom) {
-      entries.push({ separator: true }, { key: "leave", content: <><OpIcon name="off" />Leave {of.channel!.name}</>, onSelect: () => actions.leave(of) });
+      entries.push({ separator: true }, { key: "leave", content: <><OpIcon name="off" />Kick from {of.channel!.name}</>, onSelect: () => actions.leave(of) });
     }
     return entries;
   };
@@ -285,11 +326,7 @@ function RoomRow({ view, of, actions }: { view: OutputsView; of: BotView; action
           </span>
           <Icon name="chevdown" size="s" />
         </button>
-        {of.inRoom && (
-          <button type="button" className="btn s ghost" aria-label={`${bot.name}: leave ${of.channel!.name}`} onClick={() => actions.leave(of)}>
-            Leave
-          </button>
-        )}
+        {of.inRoom && <KickButton of={of} actions={actions} />}
       </div>
       {open && (
         <PopMenu
@@ -381,8 +418,55 @@ function Volume({ of, client }: { of: BotView; client: OutputsClient }) {
         <output className="num" htmlFor={id}>
           {shown}%
         </output>
+        <span className="op-lvl" title="Level: how loud the room is right now">
+          <span className="op-lvl-l" aria-hidden="true">
+            Level
+          </span>
+          <LevelMeter roomId={of.bot.id} live={of.inRoom && !of.bot.muted} />
+        </span>
       </div>
     </>
+  );
+}
+
+/** How often the meters read the rooms' levels (the prototype's 160 ms). */
+const METER_MS = 160;
+
+/**
+ * OUT-10: how loud the room is now, while it plays (or a Test chime rings). Moves the bar's width directly, a few
+ * times a second, so the screen does not draw itself again; hidden from screen readers (the status pill says Playing).
+ */
+function LevelMeter({ roomId, live }: { roomId: string; live: boolean }) {
+  const audio = useLyreAudio();
+  const bar = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    const show = (fill: number) => {
+      if (bar.current) bar.current.style.width = `${Math.round(fill * 100)}%`;
+    };
+    if (!live) {
+      show(0);
+      return;
+    }
+    const timer = setInterval(() => show(meterFill(audio.roomLevel(roomId))), METER_MS);
+    return () => {
+      clearInterval(timer);
+      show(0);
+    };
+  }, [audio, roomId, live]);
+  return (
+    <span className="op-meter" aria-hidden="true" data-testid={`meter-${roomId}`}>
+      <span ref={bar} />
+    </span>
+  );
+}
+
+/** OUT-7: Kick (×), the same in the bot's box and in the channel list. */
+function KickButton({ of, actions, className }: { of: BotView; actions: Actions; className?: string }) {
+  const name = `Kick ${of.bot.name} from ${of.channel!.name}`;
+  return (
+    <button type="button" className={cx("btn s icon op-kick", className)} aria-label={name} title={name} onClick={() => actions.leave(of)}>
+      <OpIcon name="leave" />
+    </button>
   );
 }
 
@@ -390,7 +474,10 @@ function Volume({ of, client }: { of: BotView; client: OutputsClient }) {
 function Warnings({ view, of, client, actions }: { view: OutputsView; of: BotView; client: OutputsClient; actions: Actions }) {
   const twice = heardTwice(view, of);
   const failed = of.bot.room?.status === "error" ? of.bot.room : null;
-  if (!twice.length && !failed) return null;
+  // Must 2: nobody is in this bot's channel; the one-click fix moves it to where the players are.
+  const empty = nobodyThere(of);
+  const to = empty ? busiestChannel(view, of) : null;
+  if (!twice.length && !failed && !empty) return null;
   return (
     <>
       {twice.length > 0 && (
@@ -399,9 +486,20 @@ function Warnings({ view, of, client, actions }: { view: OutputsView; of: BotVie
           <span className="grow">
             {names(twice)} is in {of.channel!.name} too: the players hear both.
           </span>
-          <button type="button" className="btn s" aria-label={`${of.bot.name}: leave ${of.channel!.name}`} onClick={() => actions.leave(of)}>
-            Leave
+          <button type="button" className="btn s" aria-label={`Kick ${of.bot.name} from ${of.channel!.name}`} onClick={() => actions.leave(of)}>
+            Kick
           </button>
+        </p>
+      )}
+      {empty && (
+        <p className="op-warn">
+          <OpIcon name="alert" />
+          <span className="grow">Nobody is in {of.channel!.name}: players hear nothing.</span>
+          {to && (
+            <button type="button" className="btn s" title={`${of.bot.name} moves to ${to.where} (${people(to.people)})`} onClick={() => actions.move(of, to.channelId)}>
+              Move to {to.name}
+            </button>
+          )}
         </p>
       )}
       {failed && (
@@ -448,7 +546,11 @@ function ChannelsPane({ view, client, actions }: { view: OutputsView; client: Ou
         )
       }
     >
-      {servers.length === 0 && <p className="hint">No voice channels yet: log a bot in to Discord in Settings in the main window.</p>}
+      {servers.length === 0 && (
+        <p className="hint">
+          No voice channels yet: connect a bot to Discord in <a href="#/settings">Settings</a>.
+        </p>
+      )}
       {servers.map((server) => (
         <section className="op-srv" aria-labelledby={`op-srv-${server.id}`} key={server.id}>
           <h3 className="op-srv-h" id={`op-srv-${server.id}`}>
@@ -464,7 +566,7 @@ function ChannelsPane({ view, client, actions }: { view: OutputsView; client: Ou
       ))}
       <p className="hint op-foot">
         <Icon name="gear" size="s" />
-        <span>Tokens and new bots: Settings, in the main window.</span>
+        <a href="#/settings">Tokens and new bots</a>
       </p>
     </Pane>
   );
@@ -477,31 +579,31 @@ function ChannelRow({ view, serverId, channelId, actions }: { view: OutputsView;
   const channel = view.outputs.servers.find((s) => s.id === serverId)!.channels.find((c) => c.id === channelId)!;
   const here = roomBots(view, serverId, channelId);
   const n = channel.members.length;
-  const bring = bringItems(view, serverId, channelId);
-  const items = (): PopMenuEntry[] => [
-    { group: `Bring a bot to ${channel.name}` },
-    ...bring.map(
-      (b): PopMenuEntry => ({
-        key: b.botId,
+  const choice = addBotChoice(view, serverId, channelId);
+  const one = choice.one ? view.bots.find((v) => v.bot.id === choice.one) : undefined;
+  const items = (): PopMenuEntry[] =>
+    choice.choices.map(
+      (c): PopMenuEntry => ({
+        key: c.botId,
         className: "op-mi",
-        onSelect: () => actions.move(view.bots.find((v) => v.bot.id === b.botId)!, channelId),
+        onSelect: () => actions.move(view.bots.find((v) => v.bot.id === c.botId)!, channelId),
         content: (
           <>
-            <Icon name="arrow" size="s" />
+            <Icon name="plus" size="s" />
             <span className="grow op-mi-t">
-              <span className="op-mi-n">{b.name}</span> <span className="op-mi-s">{b.sub}</span>{" "}
-              {b.warn && (
+              <span className="op-mi-n">{c.name}</span>{" "}
+              {c.leaves && (
                 <span className="op-mi-w">
                   <OpIcon name="alert" />
-                  {b.warn}
+                  Leaves {c.leaves}
                 </span>
               )}
             </span>
           </>
         ),
       }),
-    ),
-  ];
+    );
+  const note = here.length ? " (the players would hear both)" : !n ? " (nobody is there yet)" : "";
   return (
     <li className={cx("op-ch", here.length > 0 && "live")}>
       <Icon name="horn" size="s" />
@@ -509,41 +611,40 @@ function ChannelRow({ view, serverId, channelId, actions }: { view: OutputsView;
       <span className="op-ch-who ellipsis" title={channel.members.join(", ")}>
         {n ? `${n}: ${channel.members.join(", ")}` : <span className="faint">Empty</span>}
       </span>
-      {here.length > 1 ? (
-        <span className="chip op-twice" title="The players hear both">
-          <OpIcon name="alert" />
-          {names(here)}: heard twice
-        </span>
-      ) : here.length === 1 ? (
-        <span className="chip op-botchip" title={here[0].bot.name}>
-          <Icon name="broadcast" size="s" />
-          {here[0].bot.name}
-        </span>
-      ) : (
-        <span />
-      )}
-      {bring.length > 0 ? (
+      <span className="op-ch-bots">
+        {here.map((b) => (
+          <span
+            key={b.bot.id}
+            className={cx("chip op-botchip", here.length > 1 && "op-twice")}
+            title={`${b.bot.name}: ${pill(b, undefined).text}${here.length > 1 ? ". Two bots here: the players hear both" : ""}`}
+          >
+            {here.length > 1 ? <Icon name="warn" size="s" /> : <Icon name="broadcast" size="s" />}
+            <span className="ellipsis">{b.bot.name}</span>
+            <KickButton of={b} actions={actions} />
+          </span>
+        ))}
+      </span>
+      {here.length === 0 && choice.choices.length > 0 ? (
         <button
           ref={ref}
           type="button"
-          className="btn s op-bring"
-          aria-haspopup="menu"
-          aria-expanded={open}
+          className="btn s op-add"
+          aria-haspopup={one ? undefined : "menu"}
+          aria-expanded={one ? undefined : open}
           aria-controls={open ? menuId : undefined}
-          aria-label={`Bring a bot to ${channel.name}`}
-          title={`Bring a bot to ${channel.name}`}
-          onClick={() => setOpen(!open)}
+          aria-label={`Add bot to ${channel.name}`}
+          title={(one ? `${one.bot.name} joins ${channel.name}` : `Choose a bot for ${channel.name}`) + note}
+          onClick={() => (one ? actions.move(one, channelId) : setOpen(!open))}
         >
-          <Icon name="arrow" size="s" />
-          Bring…
+          <Icon name="plus" size="s" />
+          Add
+          {!one && <Icon name="chevdown" size="s" />}
         </button>
-      ) : (
-        <span className="op-bring-sp" />
-      )}
+      ) : null}
       {open && (
         <PopMenu
           id={menuId}
-          label={`Bring a bot to ${channel.name}`}
+          label={`Add a bot to ${channel.name}`}
           items={items()}
           anchor={ref}
           onClose={(refocus) => {

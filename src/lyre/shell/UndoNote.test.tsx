@@ -120,3 +120,51 @@ describe("Ctrl+Z", () => {
     expect(h.undo).not.toHaveBeenCalled();
   });
 });
+
+// --- w6-rooms ---
+function Kicker({ restore }: { restore: () => void }) {
+  const { offerUndo } = useUndoNote();
+  return (
+    <>
+      <PlaceholderScreen title="Rooms" />
+      <button type="button" onClick={() => offerUndo("Lyre Table left Table: the players there hear nothing now.", restore)}>
+        Kick
+      </button>
+    </>
+  );
+}
+
+describe("the undo message for something outside the library (OUT-7 Kick, OUT-8 Remove)", () => {
+  function openKicker(restore: () => void) {
+    window.history.replaceState(null, "", "#/outputs");
+    render(
+      <ShellDataProvider value={{}}>
+        <Shell screens={{ ...SCREENS, outputs: () => <Kicker restore={restore} /> }} />
+      </ShellDataProvider>,
+    );
+  }
+
+  it("shows without a library history, and Undo runs the screen's own undo once", async () => {
+    const restore = vi.fn();
+    openKicker(restore);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Kick" }));
+    expect(note()).toHaveTextContent("Lyre Table left Table: the players there hear nothing now.");
+    await user.click(within(note()!).getByRole("button", { name: "Undo" }));
+    expect(restore).toHaveBeenCalledOnce();
+    expect(note()).toBeNull();
+  });
+
+  it("Ctrl+Z runs it too while it shows, and closing it runs nothing", async () => {
+    const restore = vi.fn();
+    openKicker(restore);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Kick" }));
+    await user.keyboard("{Control>}z{/Control}");
+    expect(restore).toHaveBeenCalledOnce();
+    await user.click(screen.getByRole("button", { name: "Kick" }));
+    await user.click(within(note()!).getByRole("button", { name: "Dismiss message" }));
+    expect(note()).toBeNull();
+    expect(restore).toHaveBeenCalledOnce();
+  });
+});
