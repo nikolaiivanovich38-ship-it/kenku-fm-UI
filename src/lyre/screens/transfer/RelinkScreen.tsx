@@ -121,6 +121,7 @@ export function RelinkScreen() {
       </div>
       <div
         className="viewbody tf-body"
+        data-scroll="body"
         ref={bodyRef}
         onDragOver={(e) => {
           if (Array.from(e.dataTransfer?.types ?? []).includes("Files")) e.preventDefault();

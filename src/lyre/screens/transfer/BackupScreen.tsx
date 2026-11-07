@@ -30,7 +30,7 @@ export function BackupScreen() {
         <TopLead />
         <h1>Back up, move or share</h1>
       </div>
-      <div className="viewbody tf-body">
+      <div className="viewbody tf-body" data-scroll="body">
         <div className="tf-cols">
           <Column>
             <SavePane />

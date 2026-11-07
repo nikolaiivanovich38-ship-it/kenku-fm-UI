@@ -168,7 +168,7 @@ export function PlaylistsScreen(_props: ScreenProps) {
           <Icon name="chevdown" size="s" />
         </PopMenuButton>
       </div>
-      <div className="viewbody fill pl-listbody">
+      <div className="viewbody fill pl-listbody" data-scroll="body">
         <DropNotice where="list" actions={actions} playlists={playlists} />
         <div className="pl-tools">
           <div className="search pl-search">

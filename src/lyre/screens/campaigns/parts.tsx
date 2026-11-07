@@ -362,7 +362,7 @@ export function NotFound({ what }: { what: string }) {
         <TopLead />
         <h1>{what} not found</h1>
       </div>
-      <div className="viewbody">
+      <div className="viewbody" data-scroll="body">
         <p className="empty">
           <a href="#/campaigns">Back to Campaigns</a>
         </p>

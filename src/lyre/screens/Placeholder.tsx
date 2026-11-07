@@ -12,7 +12,7 @@ export function PlaceholderScreen({ title, children }: { title: string; children
         <TopLead />
         <h1>{title}</h1>
       </div>
-      <div className="viewbody">
+      <div className="viewbody" data-scroll="body">
         <div className="placeholder">
           <p className="empty">Not built yet.</p>
           {children}

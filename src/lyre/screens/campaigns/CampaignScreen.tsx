@@ -75,7 +75,7 @@ function CampaignPage({ campaign: c, index }: { campaign: CampaignInfo; index: N
           </Button>
         )}
       </div>
-      <div className="viewbody fill cp-body">
+      <div className="viewbody fill cp-body" data-scroll="body">
         <div className="cp-details">
           <div className="field cp-f-name">
             <label htmlFor="cp-c-name">Name</label>

@@ -142,7 +142,8 @@ export function Pane({
           )}
         </div>
       </header>
-      <div className={cx("pane-body", flush && "flush")}>
+      {/* UX-18: Back finds this box's scroll position again by its id. */}
+      <div className={cx("pane-body", flush && "flush")} data-scroll={id}>
         {open && <ErrorBoundary where={title}>{children}</ErrorBoundary>}
       </div>
     </section>

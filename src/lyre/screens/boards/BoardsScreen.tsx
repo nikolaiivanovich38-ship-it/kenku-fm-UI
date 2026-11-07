@@ -61,7 +61,7 @@ export function BoardsScreen(_props: ScreenProps) {
           New board
         </Button>
       </div>
-      <div className="viewbody">
+      <div className="viewbody" data-scroll="body">
         <div className="pb-ltools">
           <SearchField
             className="pb-lsearch"

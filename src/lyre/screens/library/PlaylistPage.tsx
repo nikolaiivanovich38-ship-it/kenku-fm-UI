@@ -302,7 +302,7 @@ function OnePlaylist({ pl: saved, data }: { pl: PlaylistInfo; data: PlaylistData
           Use in…
         </button>
       </div>
-      <div className="viewbody pl-body">
+      <div className="viewbody pl-body" data-scroll="body">
         <DropNotice where={`page:${pl.id}`} actions={actions} playlists={data.playlists} />
         <div className="pl-page">
           <Column className="pl-main">{main}</Column>

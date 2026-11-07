@@ -102,7 +102,7 @@ export function OutputsScreen() {
         <span className="grow" />
         <PrepOrLive />
       </div>
-      <div className="viewbody fill op-body">
+      <div className="viewbody fill op-body" data-scroll="body">
         {view && view.bots.length > 0 ? (
           <div className="op-split">
             <div className="col op-roomcol">

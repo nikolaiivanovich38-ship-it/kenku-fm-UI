@@ -285,7 +285,7 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
           Run this session
         </Button>
       </div>
-      <div className="viewbody fill cp-body">
+      <div className="viewbody fill cp-body" data-scroll="body">
         <div className="cp-details cp-sdetails">
           <div className="field cp-f-name">
             <label htmlFor="cp-s-name">Session name</label>

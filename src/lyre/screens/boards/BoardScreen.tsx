@@ -87,7 +87,7 @@ export function BoardScreen({ route }: ScreenProps) {
           <TopLead />
           <h1>Pad board not found</h1>
         </div>
-        <div className="viewbody">
+        <div className="viewbody" data-scroll="body">
           <p className="empty">
             This board was deleted. <a href="#/boards">Back to Pad boards</a>
           </p>

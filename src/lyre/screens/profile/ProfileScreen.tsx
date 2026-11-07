@@ -44,7 +44,7 @@ export function ProfileScreen({ route }: ScreenProps) {
           </div>
         </div>
       </div>
-      <div className="viewbody ap-body">
+      <div className="viewbody ap-body" data-scroll="body">
         {state.status === "missing" ? (
           <div className="empty">
             That track is not in the library. <a href="#/library">Back to the Library</a>
@@ -188,7 +188,7 @@ function ProfileBody({ editor }: { editor: ProfileEditor }) {
         </div>
         <PlaceBar c={c} />
       </div>
-      <div className="viewbody ap-body">
+      <div className="viewbody ap-body" data-scroll="body">
         <div className="ap-grid">
           <Pane id="ap-wave" title="Waveform and listening" icon="wave" className="ap-wavepane" noMax kind="music" status={listenStatus(c)}>
             <ListenBox c={c} />

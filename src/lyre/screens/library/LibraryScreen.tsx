@@ -587,7 +587,7 @@ export function LibraryScreen({ route }: ScreenProps) {
         </PopMenuButton>
         <LibraryMoreMenu onNormalise={() => setNormaliseOpen(true)} />
       </div>
-      <div className="viewbody fill lb-body">{body}</div>
+      <div className="viewbody fill lb-body" data-scroll="body">{body}</div>
       {tagging && (
         <TagSheet
           tracks={st.sel.map((id) => byId.get(id)).filter((t): t is LibraryTrack => !!t)}
