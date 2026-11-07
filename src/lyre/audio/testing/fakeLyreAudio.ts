@@ -112,6 +112,13 @@ export class FakeLyreAudio extends TypedEmitter<LyreAudioEvents> implements Lyre
     return this.answer;
   }
 
+  /** OUT-10: what roomLevel answers per room (a test sets it); read many times a second, so not recorded. */
+  levels: Record<string, number> = {};
+
+  roomLevel(roomId: string): number {
+    return this.levels[roomId] ?? 0;
+  }
+
   isPreviewing(key: string): boolean {
     return this.state.preview?.key === key;
   }

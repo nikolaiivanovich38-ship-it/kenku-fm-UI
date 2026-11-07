@@ -364,6 +364,11 @@ export interface LyreAudio {
    * game master can tell which room is which. Not the preview, not the other rooms.
    */
   testChime(roomId: string): CueOutcome;
+  /**
+   * OUT-10 (w6-rooms): how loud a room (a bot id, or "table") is right now, 0 to 1: the peak of what it sends to
+   * Discord over the last moment; 0 when silent or not there. The Rooms screen's meters read it a few times a second.
+   */
+  roomLevel(roomId: string): number;
   /** Sound devices to choose from for the preview (the default first). */
   previewDevices(): Promise<OutputDeviceInfo[]>;
   /** Choose and remember the preview's device ("" for the default). */
@@ -434,6 +439,15 @@ export interface LyreAudioParts {
   startRoomVolume?: number;
   /** PRV-2: puts the preview in one ear (or both) on its way to the game master's device; none: it plays in both. */
   setPreviewEar?: (ear: "both" | "left" | "right") => void;
+  /** OUT-10: listens to a room's mix (an AnalyserNode in the app) for its level meter; none: every level is 0. */
+  meter?: (output: GainLike) => RoomMeter;
+}
+
+/** OUT-10: one room's level meter. */
+export interface RoomMeter {
+  /** The peak of the last moment, 0 to 1 (more when it clips; roomLevel caps it). */
+  level(): number;
+  dispose(): void;
 }
 
 /**
@@ -457,6 +471,8 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
   private stopProgress: (() => void) | null = null;
   /** The room outputs joined to the keep-alive node now. */
   private readonly kept = new Set<GainLike>();
+  /** OUT-10: a meter per room output, made when a screen first asks for that room's level. */
+  private readonly meters = new Map<GainLike, RoomMeter>();
   private wantedKey = "";
   /** PRV-2: the ear the preview plays in. */
   private previewEar: "both" | "left" | "right" = "both";
@@ -854,6 +870,21 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     return OK;
   }
 
+  roomLevel(roomId: string): number {
+    if (this.disposed || !this.parts.meter) return 0;
+    // mixer.output falls back to the first room for an unknown id; a meter must never show another room.
+    const known = roomId === TABLE_ROOM ? this.parts.mixer.rooms().length === 0 : this.parts.mixer.rooms().some((room) => room.botId === roomId);
+    if (!known) return 0;
+    const output = this.parts.mixer.output(roomId);
+    let meter = this.meters.get(output);
+    if (!meter) {
+      meter = this.parts.meter(output);
+      this.meters.set(output, meter);
+    }
+    const level = meter.level();
+    return Number.isFinite(level) ? Math.min(1, Math.max(0, level)) : 0;
+  }
+
   async previewDevices(): Promise<OutputDeviceInfo[]> {
     return this.parts.previewDevices ? this.parts.previewDevices.list() : [];
   }
@@ -1012,9 +1043,15 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
 
   /** Every room's mix joined to the silent keep-alive node (and none once disposed), so the graph keeps running. */
   private keepRoomsRunning(): void {
+    const wanted = new Set(this.disposed ? [] : this.realRoomIds().map((id) => this.parts.mixer.output(id)));
+    // OUT-10: a meter goes with its room.
+    for (const [output, meter] of this.meters) {
+      if (wanted.has(output)) continue;
+      meter.dispose();
+      this.meters.delete(output);
+    }
     const keepAlive = this.parts.keepAlive;
     if (!keepAlive) return;
-    const wanted = new Set(this.disposed ? [] : this.realRoomIds().map((id) => this.parts.mixer.output(id)));
     for (const output of this.kept) {
       if (wanted.has(output)) continue;
       try {

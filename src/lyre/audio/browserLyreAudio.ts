@@ -44,7 +44,7 @@ import { MainMediaResolver } from "../../player/engine/sources/mainMediaResolver
 import { browserObjectUrls, ReadAhead } from "../../player/engine/sources/readAhead";
 import { readBytes } from "../../player/engine/sources/readBytes";
 import { SourceLoader, type MediaRequest } from "../../player/engine/sources/sourceLoader";
-import { EngineLyreAudio, type LyreAudioLibrary } from "./lyreAudio";
+import { EngineLyreAudio, type LyreAudioLibrary, type RoomMeter } from "./lyreAudio";
 import type { LyreAudioBridge } from "./preloadAudio";
 
 export interface LyreAudioPieces {
@@ -70,6 +70,8 @@ export interface LyreAudioPieces {
   closeContext: () => Promise<void>;
   /** w4-outputs: plays the Outputs screen's Test chime into a room's bus. */
   chime?: (into: GainLike) => void;
+  /** OUT-10: a level meter on a room's mix. */
+  meter?: (output: GainLike) => RoomMeter;
 }
 
 /** Joins the parts. Everything it starts, `dispose()` stops. */
@@ -97,6 +99,7 @@ export function assembleLyreAudio(pieces: LyreAudioPieces): EngineLyreAudio {
     library: pieces.library,
     readAhead: pieces.readAhead,
     chime: pieces.chime,
+    meter: pieces.meter,
     setPreviewEar: previewOutput.setEar ? (ear) => previewOutput.setEar?.(ear) : undefined,
     // Rooms start at full level: a room's volume is its bot's (Outputs), so the page does not lower it twice.
     onDispose: async () => {
@@ -163,7 +166,34 @@ export async function startLyreAudio(options: { window: Window; bridge: LyreAudi
       await audioContext.close();
     },
     chime: (into) => playChime(audioContext, into),
+    meter: (output) => analyserMeter(audioContext, output),
   });
+}
+
+/**
+ * OUT-10: a room's level meter, an AnalyserNode beside the room's mix (it only listens: nothing it hears goes on).
+ * The level is the peak of the last 1,024 samples (about 21 ms at 48 kHz).
+ */
+export function analyserMeter(context: BaseAudioContext, output: GainLike): RoomMeter {
+  const analyser = context.createAnalyser();
+  analyser.fftSize = 1024;
+  const samples = new Float32Array(analyser.fftSize);
+  (output as unknown as AudioNode).connect(analyser);
+  return {
+    level: () => {
+      analyser.getFloatTimeDomainData(samples);
+      let peak = 0;
+      for (const sample of samples) peak = Math.max(peak, Math.abs(sample));
+      return peak;
+    },
+    dispose: () => {
+      try {
+        (output as unknown as AudioNode).disconnect(analyser);
+      } catch {
+        // The room's mix has gone already.
+      }
+    },
+  };
 }
 
 /**
