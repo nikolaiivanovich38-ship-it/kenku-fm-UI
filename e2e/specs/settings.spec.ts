@@ -232,7 +232,7 @@ test.describe("round 7: headphones and speakers", () => {
 
 test.describe("round 7: crossfade and keyboard shortcuts", () => {
   test("the crossfade between tracks has a default, in Sound to Discord", async ({ page }) => {
-    expectFailureUntilBuilt("live", "rooms-settings");
+    expectFailureUntilBuilt("rooms-settings"); // w6-rooms: passes without Live (it was marked live too)
     await openRoute(page, "settings");
     const box = await unfold(page, "Sound to Discord");
     const x = box.getByRole("combobox", { name: "Between tracks" });
@@ -242,7 +242,7 @@ test.describe("round 7: crossfade and keyboard shortcuts", () => {
   });
 
   test("every shortcut is listed with its key; one can be changed by pressing the new key, and reset", async ({ page }) => {
-    expectFailureUntilBuilt("live", "rooms-settings");
+    expectFailureUntilBuilt("shell", "rooms-settings"); // w6-rooms: needs the shell's Find and play, not Live
     await openRoute(page, "settings");
     const box = await unfold(page, "Keyboard shortcuts");
     const palette = box.getByRole("row", { name: /^Find and play/ });
@@ -272,7 +272,7 @@ test.describe("round 7: crossfade and keyboard shortcuts", () => {
   });
 
   test("a printable sheet lists every key", async ({ page }) => {
-    expectFailureUntilBuilt("live", "rooms-settings");
+    expectFailureUntilBuilt("rooms-settings"); // w6-rooms: passes without Live (it was marked live too)
     await openRoute(page, "settings");
     const box = await unfold(page, "Keyboard shortcuts");
     await box.getByRole("button", { name: "Printable sheet" }).click();

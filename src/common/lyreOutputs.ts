@@ -138,7 +138,8 @@ function botOf(bot: BotState, canRemove: boolean): LyreBot {
   const applicationId = bot.applicationId && isApplicationId(bot.applicationId) ? bot.applicationId : null;
   return {
     id: bot.id,
-    name: bot.discordName ?? bot.name,
+    // w6-rooms: a bot that disconnects keeps the Discord name it had, so Settings and Rooms still call it by it.
+    name: bot.discordName ?? bot.lastDiscordName ?? bot.name,
     savedName: bot.name,
     tokenEnd: bot.hasToken && bot.tokenEnd ? bot.tokenEnd.slice(-4) : null,
     tokenRemembered: bot.tokenRemembered,

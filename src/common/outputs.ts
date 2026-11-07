@@ -45,6 +45,8 @@ export interface BotState {
   name: string;
   /** The bot's name in Discord, once connected. */
   discordName?: string;
+  /** w6-rooms (OUT-8): its Discord name at the last login with this token, kept while it is disconnected. */
+  lastDiscordName?: string;
   hasToken: boolean;
   /** False: the token is kept only until Lyre closes (no secure storage). */
   tokenRemembered: boolean;

@@ -22,7 +22,7 @@ import { Pane } from "../../kit/Pane";
 import { useGlobalKeyRefusals } from "../../settings/SettingsAppliers";
 import { useAnnounce } from "../../shell/Announcer";
 import { useSave } from "../../shell/useSave";
-import { Radio, RadioButtons, Switch, useSaved, useSettingsBridges } from "./common";
+import { Radio, RadioButtons, Switch, useSaved, useSettingsBridges, useShownAtOnce } from "./common";
 import { CROSSFADE_CHOICES, STREAMING_MODES, crossfadeSaved, keyPressed, remoteListen, shortcutRows } from "./settingsModel";
 
 /** The main window's settings, kept current; Kenku FM's defaults until the main window has told them. */
@@ -145,8 +145,11 @@ export function DevicesPane() {
       current = false;
     };
   }, [audio]);
-  const devices = settings?.devices;
-  const set = (patch: Partial<AudioDevices>, what: string): void => void write(() => api.settings.setComputer({ devices: patch }), what);
+  const [devices, show] = useShownAtOnce(settings?.devices);
+  const set = (patch: Partial<AudioDevices>, what: string): void => {
+    if (devices) show({ ...devices, ...patch });
+    void write(() => api.settings.setComputer({ devices: patch }), what);
+  };
   const nameOf = (id: string) => (id ? (list.find((d) => d.deviceId === id)?.label ?? "a device that is not plugged in") : DEFAULT_DEVICE_NAME);
   const split = devices?.split ?? false;
   const ear = devices?.previewEar ?? "left";
@@ -329,6 +332,8 @@ export function KeysPane() {
   const [sheet, setSheet] = useState(false);
   const map = settings?.shortcuts ?? {};
   const rows = shortcutRows(map);
+  const [guard, showGuard] = useShownAtOnce(settings?.nextSceneGuard ?? true);
+  const [globalKeys, showGlobalKeys] = useShownAtOnce(settings?.globalKeys ?? false);
   const mapRef = useRef(map);
   mapRef.current = map;
 
@@ -401,16 +406,22 @@ export function KeysPane() {
       <Switch
         label="Ignore a second Next scene within a second"
         title="So a double press never skips a scene"
-        checked={settings?.nextSceneGuard ?? true}
+        checked={guard}
         disabled={!settings}
-        onChange={(on) => void write(() => api.settings.setNextSceneGuard(on), `a second Next scene within a second is ${on ? "ignored" : "not ignored"}`)}
+        onChange={(on) => {
+          showGuard(on);
+          void write(() => api.settings.setNextSceneGuard(on), `a second Next scene within a second is ${on ? "ignored" : "not ignored"}`);
+        }}
       />
       <Switch
         label="Next scene and Fade everything out work in other programs too"
         title="While Discord or your VTT is in front. Off: the keys work only in Lyre."
-        checked={settings?.globalKeys ?? false}
+        checked={globalKeys}
         disabled={!settings}
-        onChange={(on) => void write(() => api.settings.setComputer({ globalKeys: on }), `keys in other programs ${on ? "on" : "off"}`)}
+        onChange={(on) => {
+          showGlobalKeys(on);
+          void write(() => api.settings.setComputer({ globalKeys: on }), `keys in other programs ${on ? "on" : "off"}`);
+        }}
       />
       {problems.map((message) => (
         <p className="st-err" role="alert" key={message}>

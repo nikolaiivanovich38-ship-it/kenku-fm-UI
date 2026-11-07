@@ -2,7 +2,7 @@
  * What every Settings box shares: the bridges to the main process (window.lyre, or a test's), the Saved message, and
  * the switch and radio pieces the prototype draws (settings.js sw(), the seg radios).
  */
-import React, { createContext, useCallback, useContext, useId, useRef } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useId, useRef, useState } from "react";
 
 import type { RemoteBridge } from "../../../common/remoteControl";
 import { useAnnounce } from "../../shell/Announcer";
@@ -134,4 +134,19 @@ export function Radio({ name, label, checked, onChange, disabled, title }: { nam
       <span>{label}</span>
     </label>
   );
+}
+
+/**
+ * A value saved elsewhere (the library, the main process), shown changed at once while the save is on its way; the
+ * saved value takes over again whenever it changes.
+ */
+export function useShownAtOnce<T>(saved: T): [T, (next: T) => void] {
+  const [shown, setShown] = useState(saved);
+  const key = JSON.stringify(saved);
+  useEffect(() => {
+    setShown(saved);
+    // key stands for saved: a new object with the same values changes nothing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return [shown, setShown];
 }

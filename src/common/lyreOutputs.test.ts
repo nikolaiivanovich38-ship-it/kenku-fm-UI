@@ -58,6 +58,12 @@ describe("lyreOutputsOf: what the Outputs screen sees of the bots (never a token
     expect(JSON.stringify(outputs)).not.toMatch(/fake-|secret/i);
   });
 
+  // --- w6-rooms ---
+  it("keeps a bot's Discord name after it disconnects, so Settings and Rooms still call it by it (OUT-8)", () => {
+    const outputs = lyreOutputsOf(state([bot({ id: "bot-2", name: "Bot 2", lastDiscordName: "Lyre Side", status: "offline" })]));
+    expect(outputs.bots[0]).toMatchObject({ name: "Lyre Side", savedName: "Bot 2", login: "offline" });
+  });
+
   it("takes the channel a bot is (about to be) heard in as its room; a failed join shows only when there is none", () => {
     const joining = lyreOutputsOf(
       state([

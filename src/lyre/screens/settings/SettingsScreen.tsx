@@ -9,6 +9,7 @@
  */
 import React from "react";
 
+import { TopLead } from "../../shell/TopBar";
 import { BotsPane } from "./BotsPane";
 import { DevicesPane, FilesPane, KeysPane, RemotePane, SoundPane, TabsPane } from "./OtherPanes";
 import "./settings.css";
@@ -17,6 +18,7 @@ export function SettingsScreen() {
   return (
     <>
       <div className="viewhead">
+        <TopLead />
         <h1>Settings</h1>
         <span className="grow" />
       </div>
