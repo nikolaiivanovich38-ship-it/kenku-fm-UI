@@ -225,11 +225,10 @@ export function knownAxeIssues(): string[] {
 }
 
 /** Help articles the prototype is known to have over the 300-word limit (FND-8, HELP.md), recorded as annotations so
- *  its run can pass. Always none for the app, whose articles must each stay under 300 words. Round 6's Live draft
- *  (design/prototype/help-drafts/10-live.md, about 310 words) is over: the Shell stream trims it when it brings the
- *  drafts into src/lyre/help/articles. */
-export function knownLongHelpArticle(title: string): boolean {
-  return !isApp() && title === "Run a session in Live";
+ *  its run can pass. None now: round 6's Live draft was trimmed below 300 words (7 Nov). Kept so a future draft can be
+ *  recorded the same way. */
+export function knownLongHelpArticle(_title: string): boolean {
+  return false;
 }
 
 /** Layout findings the prototype is known to have, recorded as annotations so its run can pass. Always none for the
