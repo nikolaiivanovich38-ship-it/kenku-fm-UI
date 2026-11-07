@@ -548,7 +548,7 @@ test.describe("round 6, part 5: no scene count, no sentence about Live, and the 
   });
 
   test("a scene's notes save after a pause in typing, with the Saved pop-up", async ({ page }) => {
-    expectFailureUntilBuilt("shell", "prep");
+    expectFailureUntilBuilt("shell");
     await openRoute(page, "session/crown/s14");
     await page.getByRole("button", { name: "Scene 3: The abbey ruins", exact: true }).click();
     const notes = scene(page, "The abbey ruins").getByRole("textbox", { name: "Notes" });

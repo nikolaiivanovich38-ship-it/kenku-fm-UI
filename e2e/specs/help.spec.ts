@@ -83,8 +83,8 @@ test.describe("FND-8 the Help entry", () => {
   });
 
   test("round 6: Play next, Add to queue and Repeat is a fifteenth article, under Run a session", async ({ page }) => {
-    // Round 6 review, Should 12 (design/prototype/help-drafts/15-up-next.md): what left Live's screen is in Help.
-    expectFailureUntilBuilt("shell", "live");
+    // Round 6 review, Should 12 (src/lyre/help/articles/15-up-next.md): what left Live's screen is in Help.
+    expectFailureUntilBuilt("shell");
     await openRoute(page, "campaigns");
     await page.keyboard.press("F1");
     const run = helpPanel(page).getByRole("list", { name: "Run a session" });

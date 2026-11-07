@@ -728,7 +728,7 @@ test.describe("round 6: see a scene before it starts, Add to queue, Repeat, and 
   });
 
   test("UX-18: Live opened from the session planner has Back to the session; Alt+Left goes there too", async ({ page }) => {
-    expectFailureUntilBuilt("shell", "live");
+    expectFailureUntilBuilt("shell");
     await openRoute(page, "session/crown/s14");
     await page.getByRole("group", { name: "Prep or live" }).getByRole("button", { name: "Live" }).click();
     await expect(page.getByRole("button", { name: "Back to Session 14" })).toBeVisible();
@@ -942,7 +942,7 @@ test.describe("round 6, part 4: the review's fixes in Live", () => {
   });
 
   test("Should 12: Help is at the foot of Live's Keys, and F1 opens it anywhere", async ({ page }) => {
-    expectFailureUntilBuilt("shell", "live");
+    expectFailureUntilBuilt("shell");
     await openRoute(page, "live");
     await page.getByRole("button", { name: "Keys" }).click();
     await page.getByRole("group", { name: "Keys on the live screen" }).getByRole("button", { name: "Help" }).click();
@@ -994,7 +994,7 @@ test.describe("round 6, part 5: Live's Scenes box and the Saved pop-up", () => {
   const scenes = (page: Page) => region(page, "Scenes");
 
   test("the Scenes box says neither Ready nor a scene count, before or after a scene starts, open or folded", async ({ page }) => {
-    expectFailureUntilBuilt("live");
+    expectFailureUntilBuilt("shell");
     await openRoute(page, "live");
     await expect(scenes(page).getByText(/^Ready$|^Scene \d+ of \d+$|^\d+ scenes$/)).toHaveCount(0);
     await startAbbey(page);
@@ -1320,7 +1320,7 @@ test.describe("round 7, part 2: Live", () => {
   });
 
   test("Ctrl+K opens Find and play in Live too", async ({ page }) => {
-    expectFailureUntilBuilt("shell", "live");
+    expectFailureUntilBuilt("shell");
     await openRoute(page, "live");
     await page.keyboard.press("Control+K");
     await expect(page.getByRole("dialog", { name: "Find and play" })).toBeVisible();

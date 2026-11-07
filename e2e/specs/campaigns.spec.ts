@@ -362,7 +362,7 @@ test.describe("round 6: Repeat on the Now playing bar, the campaign's own order,
   });
 
   test("UX-18: a playlist opened from the campaign page has Back to the campaign, and Back returns to the same row", async ({ page }) => {
-    expectFailureUntilBuilt("shell", "prep");
+    expectFailureUntilBuilt("shell");
     await openRoute(page, "campaign/crown");
     await expect(page.getByRole("button", { name: /^Back to / })).toHaveCount(0);
     await region(page, "Campaign playlists").getByRole("link", { name: "Ashen King" }).click();
@@ -373,7 +373,7 @@ test.describe("round 6: Repeat on the Now playing bar, the campaign's own order,
   });
 
   test("UX-18, round 6 part 7 (Nik, 22:04): a screen opened from the menu has Back to where Nik was", async ({ page }) => {
-    expectFailureUntilBuilt("shell", "prep"); // was: screens opened from the menu have no Back
+    expectFailureUntilBuilt("shell"); // was: screens opened from the menu have no Back
     await openRoute(page, "campaign/crown");
     await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Library" }).click();
     await expect(page.getByRole("button", { name: "Back to The Sunken Crown" })).toBeVisible();
@@ -384,7 +384,7 @@ test.describe("round 6: Repeat on the Now playing bar, the campaign's own order,
    unobtrusive but noticeable as a consistent design standard indicating something has been saved, so we have
    consistent feedback across the whole platform. I don't want saved in each box." Not built yet. */
 test.describe("round 6, part 5: the Saved pop-up", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("shell", "prep"));
+  test.beforeEach(() => expectFailureUntilBuilt("shell"));
   const notes = (page: Page) => region(page, "Notes").getByRole("textbox", { name: "Campaign notes" });
   const savedNotes = (page: Page) => page.getByRole("status").filter({ hasText: "Saved: The Sunken Crown notes" });
   /** Where the pop-up is: its right edge's distance from the work area's right edge, and its bottom's distance from
@@ -422,6 +422,7 @@ test.describe("round 6, part 5: the Saved pop-up", () => {
   });
 
   test("the pop-up is in the same place on a prep screen and in Live: bottom right of the work area (part 6)", async ({ page }) => {
+    expectFailureUntilBuilt("shell", "live"); // Repeat one in Live's Current scene
     await openRoute(page, "campaign/crown");
     await notes(page).fill("Bring dice");
     await page.keyboard.press("Tab");
@@ -455,7 +456,7 @@ test.describe("round 6, part 5: the Saved pop-up", () => {
    right hand corner [...] I'm missing the contextual back button in the top bar. It should be constantly present in the
    top left of the top bar. We should also have a sensible place for breadcrumbs."). Not built yet. */
 test.describe("round 6, part 6: the Saved pop-up at the bottom right, Back always top left, one place for the trail", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("shell", "prep"));
+  test.beforeEach(() => expectFailureUntilBuilt("shell"));
   const back = (page: Page) => page.getByRole("main").getByRole("button", { name: /^Back( to .+)?$/ }).first();
   const trail = (page: Page) => page.getByRole("navigation", { name: "Breadcrumb" });
   const box = async (l: ReturnType<Page["getByRole"]>) => {
@@ -478,6 +479,7 @@ test.describe("round 6, part 6: the Saved pop-up at the bottom right, Back alway
   });
 
   test("Back is top left on every screen, in the same place, before anything else in the bar", async ({ page }) => {
+    expectFailureUntilBuilt("shell", "rooms-settings"); // it opens Settings
     const places: { x: number; y: number }[] = [];
     for (const route of ["settings", "campaigns", "campaign/crown", "session/crown/s14", "library", "playlist/p-abbess", "board/abbey", "profile/t13", "outputs", "live"]) {
       await openRoute(page, route);
@@ -506,6 +508,7 @@ test.describe("round 6, part 6: the Saved pop-up at the bottom right, Back alway
   });
 
   test("each screen with a parent has its trail right after Back: every part a link, the screen's title last", async ({ page }) => {
+    expectFailureUntilBuilt("shell", "rooms-settings"); // it opens Settings
     const cases: [string, string[], RegExp][] = [
       ["session/crown/s14", ["Campaigns", "The Sunken Crown"], /Session 14/],
       ["campaign/crown", ["Campaigns"], /The Sunken Crown/],
@@ -542,6 +545,7 @@ test.describe("round 6, part 6: the Saved pop-up at the bottom right, Back alway
   });
 
   test("Back's name says where it goes: Rooms opened from Live has Back to Live (a ‹ with no words, part 7)", async ({ page }) => {
+    expectFailureUntilBuilt("shell", "live", "rooms-settings"); // the room's bot button in Live (OUT-7)
     await openRoute(page, "live");
     await page.getByRole("button", { name: "Lyre Table in Table: change" }).click();
     await page.getByRole("menuitem", { name: "Rooms" }).click();
@@ -564,7 +568,7 @@ test.describe("round 6, part 6: the Saved pop-up at the bottom right, Back alway
    doesn't need text. It should function across tabs in the side menu: it should record where I am and where I was
    before regardless of what happened between [...] and should let me go back at least five steps."). Not built yet. */
 test.describe("round 6, part 7: Back is one history across the whole app", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("shell", "prep"));
+  test.beforeEach(() => expectFailureUntilBuilt("shell"));
   const back = (page: Page) => page.getByRole("main").getByRole("button", { name: /^Back( to .+)?$/ }).first();
   const menu = (page: Page, name: string | RegExp) => page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name });
   const h1 = (page: Page) => page.getByRole("heading", { level: 1 });
@@ -572,6 +576,7 @@ test.describe("round 6, part 7: Back is one history across the whole app", () =>
   const scenes = (page: Page) => region(page, "Scenes");
 
   test("five steps and more: Library, a track, its Audio profile, Pad boards (menu), a board, Live with a scene unfolded; Back walks back through each, as it was", async ({ page }) => {
+    expectFailureUntilBuilt("shell", "live"); // a scene unfolded in Live's Scenes (SHW-7)
     await openRoute(page, "library");
     await expect(back(page)).toHaveAttribute("aria-disabled", "true");
     await page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Ashes/ }).getByRole("gridcell").nth(1).click();
@@ -606,6 +611,7 @@ test.describe("round 6, part 7: Back is one history across the whole app", () =>
   });
 
   test("Back is a ‹ in a box at least 24 px square, and Alt+Left does the same as Back", async ({ page }) => {
+    expectFailureUntilBuilt("shell", "rooms-settings"); // it starts on Settings
     await openRoute(page, "settings");
     await menu(page, "Library").click();
     const b = await back(page).boundingBox();
@@ -652,7 +658,7 @@ test.describe("round 7: what played, and Find and play", () => {
   });
 
   test("Ctrl+K opens Find and play: type part of a name, Enter plays it on air, Esc closes and puts focus back", async ({ page }) => {
-    expectFailureUntilBuilt("shell", "prep");
+    expectFailureUntilBuilt("shell");
     await openRoute(page, "campaign/crown");
     // Focus starts on a control of the screen (the heading takes focus only after moving between screens).
     const start = region(page, "Campaign playlists").getByRole("button", { name: "Preview The Company themes" });
@@ -671,7 +677,7 @@ test.describe("round 7: what played, and Find and play", () => {
   });
 
   test("in Find and play, Alt+Enter previews, Shift+Enter adds to the queue, and a pad or a scene can be found too", async ({ page }) => {
-    expectFailureUntilBuilt("shell", "prep");
+    expectFailureUntilBuilt("shell");
     await openRoute(page, "campaign/crown");
     await page.keyboard.press("Control+K");
     const d = page.getByRole("dialog", { name: "Find and play" });
