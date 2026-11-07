@@ -135,7 +135,7 @@ function ShellFrame({ screens, firstRunTour }: { screens: Record<RouteName, Scre
   // UX-6: no hidden text in the work area (the Now playing bar is in it): full text on hover and on focus.
   useEffect(() => {
     const roots = () => Array.from(document.querySelectorAll<HTMLElement>("#view"));
-    const stopTitles = keepTitles(roots, 600);
+    const stopTitles = keepTitles(roots);
     const stopTips = showFullTextOnFocus(roots);
     return () => {
       stopTitles();

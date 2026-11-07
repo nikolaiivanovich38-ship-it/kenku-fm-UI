@@ -148,3 +148,6 @@ body .pl-dellist { padding-left: 18px; margin-top: 6px; font-size: var(--fs-s); 
 .view .pl-shapes { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; margin-top: 8px; font-size: var(--fs-s); }
 .view .pl-shapes > .faint { margin-right: 4px; }
 .view .chip.pl-shape { gap: 5px; }
+/* UX-18: with Back and the trail first in the bar, a narrow window wraps the header's buttons to a second line
+   rather than push Use in… out of the bar. */
+@container app (max-width: 760px) { .view .pl-head { flex-wrap: wrap; } }

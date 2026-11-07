@@ -14,6 +14,8 @@ function norm(text: string | null | undefined): string {
 
 /** Whether an element's text is cut short now: an ellipsis on one line, or more than its clamped lines. */
 export function isCut(element: HTMLElement): boolean {
+  // Cheap first: only an element whose content overflows it can be cut (most are not, and styles cost more).
+  if (element.scrollWidth <= element.clientWidth + 1 && element.scrollHeight <= element.clientHeight + 1) return false;
   const style = getComputedStyle(element);
   const clamp = style.getPropertyValue("-webkit-line-clamp");
   return (style.textOverflow === "ellipsis" && element.scrollWidth > element.clientWidth + 1) || (!!clamp && clamp !== "none" && element.scrollHeight > element.clientHeight + 1);
@@ -47,7 +49,7 @@ export function fillTitles(root: HTMLElement): void {
  * Keeps the hover text up to date inside the roots (`roots()` finds them again, as screens come and go): after each
  * change to the page, at most once in `everyMs`, and after a resize.
  */
-export function keepTitles(roots: () => HTMLElement[], everyMs = 400): () => void {
+export function keepTitles(roots: () => HTMLElement[], everyMs = 150): () => void {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const run = () => {
     timer = undefined;
