@@ -88,7 +88,7 @@ describe("the session page", () => {
     const reminder = region("Campaign playlists");
     expect(reminder.getByRole("link", { name: "The Company themes" })).toBeInTheDocument();
     expect(reminder.queryByRole("button", { name: /^More for/ })).not.toBeInTheDocument();
-    expect(reminder.getByText("Campaign pad boards: Combat, Weather and places.")).toBeInTheDocument();
+    expect(reminder.getByText("Campaign pads: Combat, Weather and places.")).toBeInTheDocument();
   });
 });
 
@@ -260,7 +260,7 @@ describe("scenes", () => {
     const { api } = await openAbbey();
     await userEvent.click(screen.getByRole("button", { name: "Add scene" }));
     await waitFor(() => expect(sceneCards()).toHaveLength(7));
-    const field = screen.getByDisplayValue("New scene");
+    const field = screen.getByDisplayValue("Scene 4");
     expect(field).toHaveFocus();
     await userEvent.keyboard("Bells at midnight");
     expect(await screen.findByRole("listitem", { name: "Scene 4: Bells at midnight" })).toBeInTheDocument();

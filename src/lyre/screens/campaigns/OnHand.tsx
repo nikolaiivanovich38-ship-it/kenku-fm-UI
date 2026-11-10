@@ -249,13 +249,19 @@ export function OnHandPane({ paneId, title, kind, owner, ids, trackIds = [], ind
       size="auto"
       kind={kind === "playlists" ? "music" : "fx"}
       status={{ text: ids.length + trackIds.length ? String(ids.length + trackIds.length) : "Empty" }}
+      // Round 6: "In every session." is read out, not shown (the title says Campaign or Session); new ones are made from the rail.
+      description={why}
       actions={
-        <IconButton icon="plus" size="s" label={`Add ${kindWords}…`} hint={`Add ${kindWords} from your library`} data-k={addKey} onClick={() => setPicking(true)} />
+        <IconButton
+          icon="plus"
+          size="s"
+          label={`Add ${kindWords}…`}
+          hint={`Add ${kindWords} from your library (${why.replace(/\.$/, "").toLowerCase()})`}
+          data-k={addKey}
+          onClick={() => setPicking(true)}
+        />
       }
     >
-      <p className="hint cp-why">
-        {why} New ones: <a href={kind === "playlists" ? "#/playlists" : "#/boards"}>{kind === "playlists" ? "Playlists" : "Pad boards"}</a>.
-      </p>
       <OnHandList
         ids={ids}
         trackIds={kind === "playlists" ? trackIds : []}

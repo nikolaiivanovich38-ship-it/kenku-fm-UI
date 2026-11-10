@@ -34,6 +34,11 @@ export interface PaneProps {
   icon?: IconName;
   /** One line beside the title, e.g. "5 scenes". */
   summary?: React.ReactNode;
+  /**
+   * Round 6 (less text on screen): what the box is for, read out with it instead of a line on screen (the
+   * prototype's pane `describe`): "In every scene tonight."
+   */
+  description?: string;
   /** Buttons in the header, shown while the box is open. */
   actions?: React.ReactNode;
   /** Gives the box its coloured top edge: onair (red: the players hear it), music, scenes, search, fx. */
@@ -67,6 +72,7 @@ export function Pane({
   title,
   icon,
   summary,
+  description,
   actions,
   kind,
   status,
@@ -116,7 +122,13 @@ export function Pane({
       data-pane={id}
       data-size={size}
       aria-label={title}
+      aria-describedby={description ? `pd-${id}` : undefined}
     >
+      {description && (
+        <p className="sr-only" id={`pd-${id}`}>
+          {description}
+        </p>
+      )}
       <header>
         <h2 className="pane-h">
           <button

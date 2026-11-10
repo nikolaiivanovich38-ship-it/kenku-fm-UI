@@ -10,7 +10,6 @@ import type { LibraryTrack, PlaylistInfo } from "../../../common/lyre/api";
 import { shownTitle } from "../../../common/lyre/text";
 import { useTagGroups } from "../../api";
 import { useLyreAudio } from "../../audio/LyreAudioProvider";
-import { Icon } from "../../kit/Icon";
 import { PickerDialog, type PickerFilter, type PickerItem, type PickerTicks } from "../../kit/Picker";
 import { TagStrip } from "../../kit/TagStrip";
 import { boardPads, formatLength, laneWord, roleWord, type LibraryIndex } from "./model";
@@ -47,11 +46,6 @@ export interface LibraryPickerProps {
   onClose: () => void;
 }
 
-const HINT = (
-  <p className="hint" style={{ marginTop: 6 }}>
-    <Icon name="headphones" size="s" /> Preview plays in your headphones only. The arrow <Icon name="chevdown" size="s" /> beside a name shows what is inside.
-  </p>
-);
 
 export function LibraryPicker({ open, kind, index, title, intro, selected, onDone, onClose }: LibraryPickerProps) {
   const audio = useLyreAudio();
@@ -146,12 +140,12 @@ export function LibraryPicker({ open, kind, index, title, intro, selected, onDon
     <PickerDialog
       open={open}
       title={title}
-      intro={<span className="cp-sheet">{intro}</span>}
+      intro={intro}
       items={entries.map((e) => e.item)}
       selected={selected}
       multi={kind !== "ambience"}
       filters={filters}
-      hint={HINT}
+      hint={null}
       renderContents={(item, ticks) => {
         const e = byId.get(item.id);
         // ORG-10: in a scene's music, an open playlist's tracks can be ticked one by one.

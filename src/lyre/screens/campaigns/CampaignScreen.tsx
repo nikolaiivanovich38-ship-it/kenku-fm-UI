@@ -171,7 +171,7 @@ function CampaignPage({ campaign: c, index }: { campaign: CampaignInfo; index: N
             />
             <OnHandPane
               paneId="cp-cbd"
-              title="Campaign pad boards"
+              title="Campaign pads"
               kind="boards"
               owner={{ campaignId: c.id }}
               ids={c.boardIds}

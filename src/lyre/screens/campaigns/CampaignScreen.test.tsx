@@ -143,7 +143,7 @@ describe("playlists and pad boards on hand in every session", () => {
     await userEvent.click(playlists.getByRole("button", { name: "Play on air: The Company themes" }));
     // From the campaign's list, so its play order there applies and the Now playing bar names it (PLY-13, UX-16).
     expect(audio.calls).toContainEqual(["playPlaylist", "p-company", { fadeMs: 3000, place: { kind: "campaign", campaignId: "crown" } }]);
-    const boards = region("Campaign pad boards");
+    const boards = region("Campaign pads");
     await userEvent.click(boards.getByRole("button", { name: "Preview the first pad of Combat" }));
     expect(audio.calls.find((c) => c[0] === "previewPad")?.[1]).toBe("combat");
   });
@@ -182,7 +182,7 @@ describe("playlists and pad boards on hand in every session", () => {
   it("campaign pad boards open to show their pads", async () => {
     openAt("campaign/crown");
     await screen.findByRole("link", { name: "Combat" });
-    const boards = region("Campaign pad boards");
+    const boards = region("Campaign pads");
     await userEvent.click(boards.getByRole("button", { name: "Show contents of Combat" }));
     expect(boards.getByRole("list", { name: "Pads on Combat" })).toBeInTheDocument();
     expect(boards.getByRole("button", { name: "Preview Sword clash" })).toBeInTheDocument();

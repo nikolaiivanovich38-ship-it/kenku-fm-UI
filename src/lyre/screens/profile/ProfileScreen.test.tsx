@@ -216,7 +216,7 @@ describe("fades", () => {
 
   it("a looping track has a loop crossfade", async () => {
     await open();
-    expect(region("Fades")).toHaveTextContent(/Crossfade the loop\s*smooths the jump back to 1:04/);
+    expect(fades().getByRole("group", { name: "Crossfade the loop" })).toHaveAccessibleDescription("Smooths the jump back to 1:04");
     expect(fades().getByRole("textbox", { name: "loop crossfade length in seconds" })).toHaveValue("2");
   });
 });

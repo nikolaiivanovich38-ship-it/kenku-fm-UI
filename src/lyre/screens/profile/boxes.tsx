@@ -349,10 +349,13 @@ export function FadesBox({ c }: C) {
       <FadeBlock c={c} kind="in" />
       <FadeBlock c={c} kind="out" />
       {c.p.after === "loop" && (
-        <div className="ap-fadeblock">
+        // Round 6: what the crossfade does is read out with its group and shown on hover, not a line on screen.
+        <div className="ap-fadeblock" role="group" aria-labelledby="ap-xf-h" aria-describedby="ap-xf-d" title={`Smooths the jump back to ${fmt(c.p.loopStart)}`}>
           <div className="ap-fb-h">
-            <b>Crossfade the loop</b>
-            <span className="hint">smooths the jump back to {fmt(c.p.loopStart)}</span>
+            <b id="ap-xf-h">Crossfade the loop</b>
+            <span className="sr-only" id="ap-xf-d">
+              Smooths the jump back to {fmt(c.p.loopStart)}
+            </span>
           </div>
           <div className="ap-fb-row">
             <span className="ap-fb-l">Length</span>

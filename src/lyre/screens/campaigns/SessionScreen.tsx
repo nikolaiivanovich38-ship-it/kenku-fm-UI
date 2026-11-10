@@ -183,6 +183,10 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
     const at = after ? s.scenes.findIndex((x) => x.id === after) + 1 : s.scenes.length;
     const made = (await write(api.sessions.createScene(c.id, s.id, after)))?.value;
     if (!made) return;
+    // Round 6, Could 19: a new scene has a name of its own ("Scene 7"), so its buttons do too.
+    let n = at + 1;
+    while (s.scenes.some((x) => x.name === `Scene ${n}`)) n++;
+    await write(api.sessions.updateScene(address(made), { name: `Scene ${n}` }));
     setOpen((o) => ({ ...o, [made.id]: true }));
     setCurrent(made.id);
     focus(`scname-${made.id}`, undefined, true);
@@ -342,10 +346,6 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
               ))}
             </select>
           </div>
-          <p className="cp-order">
-            <Icon name="list" size="s" />
-            <span>In play: this scene&apos;s music first, then this session&apos;s, then the campaign&apos;s, then the whole library.</span>
-          </p>
         </div>
         <div className="cp-split cp-ssplit">
           <Column>
@@ -354,7 +354,8 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
               title="Scenes"
               icon="map"
               kind="scenes"
-              status={{ text: s.scenes.length ? plural(s.scenes.length, "scene") : "Empty" }}
+              // UX-19 (round 6 part 5, Nik: "Kill the scene count"): a status only when there is nothing.
+              status={s.scenes.length ? undefined : { text: "Empty" }}
               actions={
                 <>
                   {s.scenes.length > 0 && (
@@ -421,7 +422,7 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
             />
             <OnHandPane
               paneId="ss-sbd"
-              title="Session pad boards"
+              title="Session pads"
               kind="boards"
               owner={{ campaignId: c.id, sessionId: s.id }}
               ids={s.boardIds}
@@ -435,7 +436,7 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
                 From the campaign. <a href={`#/campaign/${c.id}`}>Change</a>.
               </p>
               <OnHandList ids={c.playlistIds} trackIds={c.trackIds} kind="playlists" index={index} scope="r" place={{ kind: "campaign", campaignId: c.id }} />
-              <p className="hint cp-make">Campaign pad boards: {campaignBoards.length ? campaignBoards.join(", ") : "none"}.</p>
+              <p className="hint cp-make">Campaign pads: {campaignBoards.length ? campaignBoards.join(", ") : "none"}.</p>
             </Pane>
             <Pane id="ss-obs" title="Obsidian" icon="link" size="auto" collapsed kind="plain" status={{ text: "Coming later" }}>
               <div className="field">
@@ -1037,7 +1038,7 @@ function AmbienceSlot({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
       <div className={`cp-box cp-amb${over ? " cp-fdrop" : ""}`} title="Choose, or drop an audio file here" {...dropProps}>
         <div className="cp-it-row">
           <span className="faint grow">No ambience</span>
-          <Button size="s" icon="plus" data-k={`pa-${scene.id}`} onClick={choose}>
+          <Button size="s" icon="plus" data-k={`pa-${scene.id}`} aria-label={`Choose ambience for ${scene.name || "Untitled scene"}`} onClick={choose}>
             Choose…
           </Button>
         </div>

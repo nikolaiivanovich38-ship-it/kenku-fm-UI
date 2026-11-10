@@ -10,6 +10,8 @@ export interface DialogProps {
   footer?: React.ReactNode;
   /** 900 px wide instead of 640 (pickers with long rows). */
   wide?: boolean;
+  /** Round 6: how-to words read out with the dialog (its description) instead of shown above its content. */
+  description?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -19,8 +21,9 @@ const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([di
  * A modal sheet (ui.css .sheet) for prep screens only: the live view never covers its controls. Focus goes to its
  * first field (or first button), Tab stays inside, and focus returns to what opened it when it closes.
  */
-export function Dialog({ open, title, onClose, footer, wide, children }: DialogProps) {
+export function Dialog({ open, title, onClose, footer, wide, description, children }: DialogProps) {
   const titleId = useId();
+  const descId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -84,6 +87,7 @@ export function Dialog({ open, title, onClose, footer, wide, children }: DialogP
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        aria-describedby={description ? descId : undefined}
         style={wide ? { width: "min(900px, 100%)" } : undefined}
         onKeyDown={onKeyDown}
       >
@@ -91,6 +95,11 @@ export function Dialog({ open, title, onClose, footer, wide, children }: DialogP
           <h2 id={titleId}>{title}</h2>
           <IconButton icon="close" label="Close" quiet onClick={() => onCloseRef.current()} />
         </header>
+        {description && (
+          <p className="sr-only" id={descId}>
+            {description}
+          </p>
+        )}
         <div className="body">{children}</div>
         {footer && <footer>{footer}</footer>}
       </div>

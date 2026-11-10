@@ -488,7 +488,8 @@ function BoardEditor({ board }: { board: PadBoard }) {
             data-slot={index}
             data-pid=""
             tabIndex={tabIndex}
-            aria-label={`Empty slot, ${where}. Add a pad`}
+            // Round 6, Must 5 (WCAG 2.5.3): named as it reads.
+            aria-label={`Add pad: ${where}`}
             onClick={() => {
               setFocusIndex(index);
               void addPad(index);
@@ -945,6 +946,8 @@ function SparePads({
     <Pane
       id="pb-spare"
       title="Spare pads"
+      // Round 6: why spare pads exist is read out with the box, not a line on screen.
+      description="Pads that are not on the grid wait here; their keys do nothing until you put them back."
       icon="queue"
       kind="fx"
       size="auto"
@@ -960,7 +963,6 @@ function SparePads({
         ) : null
       }
     >
-      <p className="pb-spare-intro">Pads that are not on the grid wait here; their keys do nothing until you put them back.</p>
       <div className={dropOver ? "pb-spare pb-over" : "pb-spare"} {...dropProps}>
         {n ? (
           <ul className="list">

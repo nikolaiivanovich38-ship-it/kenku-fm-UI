@@ -472,8 +472,10 @@ export function LibraryScreen({ route }: ScreenProps) {
         onPreview={preview}
         onPlay={playOnAir}
         rowMenu={rowMenu}
+        describedBy="lb-keys"
       />
-      <div className="lb-foot hint">
+      {/* Round 6: the keys show only while the keyboard is in the list, and are read out with it. */}
+      <div className="lb-foot hint keys-on-focus" id="lb-keys">
         Keys: <span className="kbd">↑</span> <span className="kbd">↓</span> move · <span className="kbd">Enter</span> open · <span className="kbd">Space</span> select ·{" "}
         <span className="kbd">P</span> preview · <span className="kbd">A</span> play on air
       </div>

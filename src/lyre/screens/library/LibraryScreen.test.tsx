@@ -176,6 +176,11 @@ describe("Library: a track's details", () => {
     await waitFor(() => expect(within(details()).queryByRole("button", { name: "Remove Melancholy from Mood" })).toBeNull());
   });
 
+  it("round 6: the list's keys are read out with it", async () => {
+    openAt("library");
+    expect(await screen.findByRole("grid", { name: "Tracks" })).toHaveAccessibleDescription(/Enter open/);
+  });
+
   it("DAT-10: typing another word for a tag offers the tag itself, never a new one, and Enter adds it", async () => {
     const { api } = openAt("library/t44");
     const box = await within(details()).findByRole("combobox", { name: "Add a mood tag" });
