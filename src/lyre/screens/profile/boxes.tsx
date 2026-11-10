@@ -404,6 +404,30 @@ export function MarkersBox({ c }: C) {
             <Icon name="right" size="s" />
             Go to
           </button>
+          {/* Round 7 (DAT-3): the mix-out point (where the next track crossfades in; one per track) and playing from here. */}
+          <button
+            type="button"
+            className={cx("btn s", m.mix ? "primary" : "ghost r7-hov")}
+            data-k={`ap-mmix-${i}`}
+            aria-pressed={!!m.mix}
+            aria-label={`Mix out at ${m.label}`}
+            title="The next track crossfades in here"
+            disabled={!editable}
+            onClick={() => actions.mixOutAt(i)}
+          >
+            <Icon name="fade" size="s" />
+            Mix out
+          </button>
+          <button
+            type="button"
+            className="btn s icon r7-hov"
+            data-k={`ap-mfrom-${i}`}
+            aria-label={`Play on air from ${m.label}`}
+            title={`Play on air from ${fmt(m.at)} (the players hear it)`}
+            onClick={() => actions.playFrom(m.at)}
+          >
+            <Icon name="playair" size="s" />
+          </button>
           <button type="button" className="closer" data-k={`ap-mdel-${i}`} title="Remove this marker" aria-label={`Remove marker ${m.label}`} disabled={!editable} onClick={() => actions.removeMarker(i)}>
             <Icon name="trash" />
           </button>

@@ -39,7 +39,8 @@ export interface ProfileEditor {
   saved: boolean;
   /** "Back to the track's settings" was just used here, so Undo can bring them back. */
   canUndoClear: boolean;
-  write(next: Prof, when?: WriteWhen): boolean;
+  /** `what`: the Saved pop-up's words for this one change ("mix out at 3:10, Low swell"); the place's settings by default. */
+  write(next: Prof, when?: WriteWhen, what?: { text: string; key: string }): boolean;
   /** Write at once; resolves with the library's undo label for it (null when refused or nothing changed). */
   writeNow(next: Prof): Promise<string | null>;
   flush(): void;
@@ -73,6 +74,8 @@ export function useProfileEditor(trackId: string, key: string): ProfileEditorSta
   const queued = useRef<Prof | null>(null);
   /** UX-19: what the Saved pop-up calls this place's settings (the prototype's apWhat). */
   const what = useRef("audio profile of the track");
+  /** The words for the next save only (a marker's mix-out choice), then back to `what`. */
+  const nextWhat = useRef<{ text: string; key: string } | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>();
   const pending = useRef(0);
 
@@ -90,17 +93,19 @@ export function useProfileEditor(trackId: string, key: string): ProfileEditorSta
     const p = queued.current;
     if (!p) return Promise.resolve(null);
     queued.current = null;
+    const words = nextWhat.current ?? { text: what.current, key: `ap-${key}` };
+    nextWhat.current = null;
     pending.current++;
     return api.profiles.set(trackId, place, toInput(p)).then(
       (result) => {
         pending.current--;
         if (!isRefused(result)) {
-          savedNote(what.current, { key: `ap-${key}` });
+          savedNote(words.text, { key: words.key });
           return result.undoLabel;
         }
         if (result.refusal.code === "not-saved") {
           // The drive could not take it: the change stays on screen, and Try again writes it.
-          saveFailed(what.current, () => {
+          saveFailed(words.text, () => {
             queued.current = p;
             void flushRef.current();
           });
@@ -153,8 +158,9 @@ export function useProfileEditor(trackId: string, key: string): ProfileEditorSta
     editable,
     saved,
     canUndoClear: undoHere,
-    write(next, when = "now") {
+    write(next, when = "now", words) {
       if (!editable) return false;
+      if (words) nextWhat.current = words;
       setDraft(next);
       setSaved(true);
       queued.current = next;

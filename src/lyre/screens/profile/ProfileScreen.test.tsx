@@ -492,6 +492,25 @@ describe("markers and keys", () => {
     expect(markers.getByRole("button", { name: "Add marker at playhead" })).toHaveFocus();
   });
 
+  it("DAT-3: one marker is the mix-out point; choosing another moves it, saved with the profile", async () => {
+    const { api, user } = await open();
+    const markers = within(region("Markers"));
+    const low = markers.getByRole("button", { name: "Mix out at Low swell" });
+    await user.click(low);
+    expect(low).toHaveAttribute("aria-pressed", "true");
+    await waitFor(() => expect(document.getElementById("lyre-toast")).toHaveTextContent(/^Saved: mix out at 3:10/));
+    await user.click(markers.getByRole("button", { name: "Mix out at Choir enters" }));
+    expect(markers.getByRole("button", { name: "Mix out at Low swell" })).toHaveAttribute("aria-pressed", "false");
+    expect(markers.getByRole("button", { name: "Mix out at Choir enters" })).toHaveAttribute("aria-pressed", "true");
+    await waitFor(async () => expect((await api.library.listTracks()).find((t) => t.id === "t13")!.profile.markers.filter((m) => m.mix).map((m) => m.label)).toEqual(["Choir enters"]));
+  });
+
+  it("DAT-3: Play on air from a marker starts the track there", async () => {
+    const { audio, user } = await open();
+    await user.click(within(region("Markers")).getByRole("button", { name: "Play on air from Low swell" }));
+    expect(audio.calls).toContainEqual(["playTrack", "t13", { fadeMs: 1000, fromMs: 190000 }]);
+  });
+
   it("with single-key shortcuts off, O does nothing, and the choice is remembered", async () => {
     const { user } = await open();
     await user.click(screen.getByRole("switch", { name: "Single-key shortcuts" }));

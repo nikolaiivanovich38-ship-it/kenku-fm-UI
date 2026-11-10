@@ -184,3 +184,7 @@
 .ap-titlerow .crumbs { flex: none; }
 .ap-titlerow h1 { flex: 1 1 auto; min-width: 0; padding-top: 6px; }
 .ap-h1-k { font-family: var(--ui, inherit); font-size: var(--fs-s); font-weight: 700; color: var(--ink-2); text-transform: none; letter-spacing: 0; margin-left: 6px; white-space: nowrap; }
+/* Round 7 (DAT-3): a marker's Mix out and Play on air from show on hover and focus in its row; the chosen Mix out stays. */
+.ap-mrow .r7-hov:not([aria-pressed="true"]) { opacity: 0; }
+.ap-mrow:is(:hover, :focus-within) .r7-hov, .ap-mrow .r7-hov:focus-visible { opacity: 1; }
+@media (hover: none) { .ap-mrow .r7-hov { opacity: 1; } }

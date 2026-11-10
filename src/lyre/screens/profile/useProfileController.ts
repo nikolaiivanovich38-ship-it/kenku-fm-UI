@@ -495,6 +495,27 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
     renameMarker(i: number, label: string) {
       editor.write({ ...p, markers: p.markers.map((m, j) => (j === i ? { ...m, label } : m)) }, "soon");
     },
+    /** DAT-3: this marker becomes the one mix-out point (pressed again: none). */
+    mixOutAt(i: number) {
+      if (!editable) {
+        readOnlyNote();
+        return;
+      }
+      const on = !p.markers[i]?.mix;
+      const markers = p.markers.map((m, j) => {
+        const { mix: _was, ...rest } = m;
+        return on && j === i ? { ...rest, mix: true } : rest;
+      });
+      const m = markers[i];
+      editor.write({ ...p, markers }, "now", { text: on ? `mix out at ${fmt(m.at)}, ${m.label}` : "no mix-out point", key: `ap-mix-${track.id}` });
+      setFocusK(`ap-mmix-${i}`);
+    },
+    /** DAT-3: Play on air from a marker: the players hear the track from there. */
+    playFrom(at: number) {
+      editor.flush();
+      const result = audio.playTrack(track.id, { fadeMs: 1000, fromMs: Math.round(at * 1000) });
+      if (result.ok) say(`On air from ${fmt(at)}: ${title}`);
+    },
     removeMarker(i: number) {
       const gone = p.markers[i];
       if (!editor.write({ ...p, markers: p.markers.filter((_m, j) => j !== i) })) return;
