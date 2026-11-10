@@ -37,6 +37,7 @@ import { TagStrip } from "../../kit/TagStrip";
 import "./library.css";
 import "./playlists.css";
 import { TopLead } from "../../shell/TopBar";
+import { withDividers } from "../../../common/lyre/lookup";
 import { useSave } from "../../shell/useSave";
 import { SAVE_AFTER_MS } from "../../kit/SavedField";
 
@@ -379,7 +380,7 @@ function TrackRow({
   onAir: boolean;
   previewing: string | null;
   /** Its place in a manual playlist (1-based): drawn with a grip and number, draggable, with Move and Remove. */
-  manual?: { pos: number; count: number; onMove: (to: number) => void; onRemove: () => void };
+  manual?: { pos: number; count: number; onMove: (to: number) => void; onRemove: () => void; onDividerAbove?: () => void };
   /** In the Add tracks box: an Add button, or a tick when it is in the playlist already. */
   add?: { inList: boolean; onAdd: () => void };
   flash?: boolean;
@@ -427,6 +428,20 @@ function TrackRow({
           ),
           onSelect: manual.onRemove,
         },
+        // Round 7 (ORG-4): a named line above this track; it is not a track.
+        ...(manual.onDividerAbove
+          ? [
+              {
+                content: (
+                  <>
+                    <Icon name="list" size="s" />
+                    Add a divider above
+                  </>
+                ),
+                onSelect: manual.onDividerAbove,
+              },
+            ]
+          : []),
         { separator: true },
       );
     }
@@ -604,17 +619,30 @@ function TracksPane({
     void moveTo(tid, pl.trackIds.indexOf(tid) + (e.key === "ArrowUp" ? -1 : 1));
   };
   const total = tracks.reduce((s, t) => s + t.durationMs, 0);
+  /** ORG-4: dividers among the tracks, and the one being named (above the track at `at`, or an existing one). */
+  const entries = withDividers(
+    tracks.map((t) => t.id),
+    pl.dividers ?? [],
+  );
+  const [naming, setNaming] = useState<{ at: number } | { divider: { id: string; name: string } } | null>(null);
+  const save = useSave();
+  const removeDivider = async (d: { id: string; name: string }) => {
+    if (await save(pl.name, () => api.playlists.removeDivider(pl.id, d.id), { detail: "divider removed", key: `div-${pl.id}` })) focusSoon("pladdopen");
+  };
+  const summary = `${plural(tracks.length, "track")} · ${fmtLong(total)}`;
+  let position = 0;
 
   return (
     <Pane
       id="pl-tracks"
       title="Tracks"
+      description={summary}
       icon="list"
       kind="music"
       flush
       size="auto"
       status={air ? { text: "Playing", tone: "live" } : tracks.length ? undefined : { text: "Empty" }}
-      summary={`${plural(tracks.length, "track")} · ${fmtLong(total)}`}
+      summary={<span aria-hidden="true">{summary}</span>}
       actions={
         <button type="button" className="btn s" data-focus="pladdopen" onClick={onAdd}>
           <Icon name="plus" size="s" />
@@ -669,8 +697,12 @@ function TracksPane({
                 void moveTo(id, others.indexOf(li.dataset.tid as string) + (after ? 1 : 0));
               }}
             >
-              {tracks.map((t, i) => (
-                <TrackRow
+              {entries.map((entry) => {
+                if (entry.kind === "divider") return <DividerRow key={`div-${entry.id}`} name={entry.name} onRename={() => setNaming({ divider: entry })} onRemove={() => void removeDivider(entry)} />;
+                const i = position++;
+                const t = tracks[i];
+                return (
+                  <TrackRow
                     key={t.id}
                     dropMark={mark?.id === t.id ? (mark.after ? "after" : "before") : null}
                     t={t}
@@ -681,12 +713,34 @@ function TracksPane({
                     previewing={previewing}
                     flash={flash.includes(t.id)}
                     onUseIn={onUseIn}
-                    manual={{ pos: i + 1, count: tracks.length, onMove: (to) => void moveTo(t.id, to), onRemove: () => void remove(t.id) }}
+                    manual={{
+                      pos: i + 1,
+                      count: tracks.length,
+                      onMove: (to) => void moveTo(t.id, to),
+                      onRemove: () => void remove(t.id),
+                      onDividerAbove: () => setNaming({ at: i }),
+                    }}
                   />
-              ))}
+                );
+              })}
             </ol>
           </div>
           <p className="hint pl-foot">Drag rows, or press Alt+Up / Alt+Down, to change the order.</p>
+          {naming && (
+            <DividerDialog
+              title={"at" in naming ? "Add a divider" : "Rename the divider"}
+              okLabel={"at" in naming ? "Add divider" : "Rename"}
+              initial={"at" in naming ? "" : naming.divider.name}
+              onClose={() => setNaming(null)}
+              onDone={async (name) => {
+                const done =
+                  "at" in naming
+                    ? await save(pl.name, () => api.playlists.addDivider(pl.id, name, naming.at), { detail: `divider “${name}”`, key: `div-${pl.id}` })
+                    : await save(`divider “${name}”`, () => api.playlists.renameDivider(pl.id, naming.divider.id, name));
+                if (done) setNaming(null);
+              }}
+            />
+          )}
         </>
       ) : (
         <div className="empty">
@@ -1177,5 +1231,76 @@ function DetailsBody({
         </button>
       </div>
     </div>
+  );
+}
+
+/** ORG-4 (r7org.js dividerRow): a named line between tracks; it is not a track, so counts and playback skip it. */
+function DividerRow({ name, onRename, onRemove }: { name: string; onRename: () => void; onRemove: () => void }) {
+  return (
+    <li className="pl-tr pl-div" aria-label={`Divider: ${name}`}>
+      <span className="pl-div-line" aria-hidden="true" />
+      <b className="ellipsis pl-div-name" title={name}>
+        {name}
+      </b>
+      <span className="pl-div-line" aria-hidden="true" />
+      <PopMenuButton
+        label={`More for the divider ${name}`}
+        ariaLabel={`More for the divider ${name}`}
+        title="More"
+        className="btn s icon ghost"
+        items={() => [
+          {
+            content: (
+              <>
+                <Icon name="edit" size="s" />
+                Rename…
+              </>
+            ),
+            onSelect: onRename,
+          },
+          {
+            content: (
+              <>
+                <Icon name="close" size="s" />
+                Remove the divider
+              </>
+            ),
+            onSelect: onRemove,
+          },
+        ]}
+      >
+        <Icon name="more" size="s" />
+      </PopMenuButton>
+    </li>
+  );
+}
+
+function DividerDialog({ title, okLabel, initial, onClose, onDone }: { title: string; okLabel: string; initial: string; onClose: () => void; onDone: (name: string) => Promise<void> }) {
+  const [name, setName] = useState(initial);
+  const { toast } = useAnnounce();
+  const done = () => {
+    const value = name.trim();
+    if (!value) toast("Give the divider a name");
+    else void onDone(value);
+  };
+  return (
+    <Dialog
+      open
+      title={title}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={done}>
+            {okLabel}
+          </Button>
+        </>
+      }
+    >
+      <div className="field">
+        <label htmlFor="pl-divname">Name</label>
+        <input className="input" id="pl-divname" autoComplete="off" placeholder="For example After the font" value={name} onChange={(e) => setName(e.target.value)} />
+      </div>
+    </Dialog>
   );
 }

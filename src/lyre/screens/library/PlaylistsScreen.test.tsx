@@ -485,3 +485,20 @@ describe("round 7: folders (ORG-4, r7org.js)", () => {
     expect(screen.queryByRole("button", { name: /^Folder The abbey/ })).toBeNull();
   });
 });
+
+describe("round 7: dividers inside a playlist (ORG-4)", () => {
+  it("a divider goes above a track, names a section, and is not a track", async () => {
+    const { api } = openAt("playlist/p-abbess");
+    await waitFor(() => expect(trackNames()).toHaveLength(5));
+    const user = userEvent.setup();
+    const ordered = () => within(screen.getByRole("list", { name: "Tracks in order" }));
+    await user.click(ordered().getByRole("button", { name: /^More for Lullaby, sad/ }));
+    await user.click(screen.getByRole("menuitem", { name: "Add a divider above" }));
+    await user.type(within(screen.getByRole("dialog")).getByRole("textbox", { name: "Name" }), "After the font");
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add divider" }));
+    await waitFor(() => expect(ordered().getAllByRole("listitem")[3]).toHaveAccessibleName("Divider: After the font"));
+    expect(ordered().getAllByRole("listitem")[4]).toHaveTextContent("Lullaby, sad");
+    expect(screen.getByRole("region", { name: "Tracks" })).toHaveAccessibleDescription(/5 tracks/);
+    expect((await api.playlists.list()).find((p) => p.id === "p-abbess")?.dividers).toEqual([expect.objectContaining({ name: "After the font", at: 3 })]);
+  });
+});

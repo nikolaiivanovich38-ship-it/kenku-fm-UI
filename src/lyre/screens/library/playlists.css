@@ -151,3 +151,7 @@ body .pl-dellist { padding-left: 18px; margin-top: 6px; font-size: var(--fs-s); 
 /* UX-18: with Back and the trail first in the bar, a narrow window wraps the header's buttons to a second line
    rather than push Use in… out of the bar. */
 @container app (max-width: 760px) { .view .pl-head { flex-wrap: wrap; } }
+/* Round 7 (ORG-4): a divider in a manual playlist, a named line between tracks. */
+.pl-div { display: flex; align-items: center; gap: 8px; min-height: var(--row); padding: 0 6px; }
+.pl-div-line { flex: 1; height: 1px; background: var(--line-strong); min-width: 12px; }
+.pl-div-name { font-size: var(--fs-s); color: var(--ink-2); max-width: 60%; }
