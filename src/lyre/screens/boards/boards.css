@@ -177,3 +177,6 @@
 .pb-tryhint { display: flex; align-items: center; gap: 6px; padding: 5px 8px; margin: 0 0 6px; border: 1px solid var(--preview); border-radius: var(--r-m); font-size: var(--fs-s); }
 .pb-tryhint > svg.i { color: var(--preview); flex: none; }
 .btn.s.pb-trybtn[aria-pressed="true"] { border-color: var(--preview); background: color-mix(in srgb, var(--preview) 18%, transparent); }
+/* Round 7 (ORG-4): a divider names the row of pads under it. */
+.pb-div { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; min-width: 0; padding-top: 4px; border-bottom: 1px solid var(--line); }
+.pb-div-h { margin: 0; font-size: var(--fs-s); font-weight: 600; color: var(--ink-2); min-width: 0; flex: 1; }

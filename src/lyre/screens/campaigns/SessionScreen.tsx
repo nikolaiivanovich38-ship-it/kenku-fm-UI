@@ -21,6 +21,7 @@ import type { MenuEntry } from "../../kit/Menu";
 import { Column, Pane } from "../../kit/Pane";
 import { useAnnounce } from "../../shell/Announcer";
 import { useUndoNote } from "../../shell/UndoNote";
+import { SceneMarks, StepsDialog } from "../steps/StepsDialog";
 import type { ScreenProps } from "..";
 import { carriesFiles, dropIndex, droppedPaths } from "./drops";
 import { boardInfo, plural, sessionLabel, soundInfo, STATUS_WORDS, type ItemInfo, type LibraryIndex } from "./model";
@@ -117,6 +118,8 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
   const [current, setCurrent] = useState<string | null>(null);
   const [picking, setPicking] = useState<Picking>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  /** PLY-8: the scene whose steps are open (What it does when it starts…). */
+  const [stepsOf, setStepsOf] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   // BUG-21: the title renames the session in place (click or F2); only the name, never the number.
   const renameTitle = useRenameInPlace();
@@ -278,6 +281,7 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
   const drag = useDragReorder("scenes", (from, to) => void moveScene(from, to));
   const allOpen = s.scenes.length > 0 && s.scenes.every((x) => open[x.id]);
   const deletingScene = sceneAt(deleting);
+  const stepsScene = sceneAt(stepsOf);
   const campaignBoards = c.boardIds.map((id) => index.board(id)?.name).filter(Boolean);
 
   return (
@@ -395,6 +399,8 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
                         ...(i > 0 ? [{ label: "Move up", icon: "chevup" as const, onSelect: () => { void moveScene(i, i - 1); } }] : []),
                         ...(i < s.scenes.length - 1 ? [{ label: "Move down", icon: "chevdown" as const, onSelect: () => { void moveScene(i, i + 1); } }] : []),
                         { label: "Add a scene after this one", icon: "plus", onSelect: () => void addScene(scene.id) },
+                        // Round 7 (PLY-8, SHW-3): what the scene does when it starts, as steps, and whether it moves on by itself.
+                        { label: "What it does when it starts…", icon: "list", onSelect: () => setStepsOf(scene.id) },
                         { label: "Duplicate", icon: "queue", onSelect: () => void duplicate(scene) },
                         { separator: true },
                         { label: "Delete…", icon: "trash", danger: true, onSelect: () => setDeleting(scene.id) },
@@ -497,6 +503,7 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
         />
       )}
       {usingIn && index.track(usingIn) && <TrackUseInDialog track={index.track(usingIn)!} index={index} onClose={() => setUsingIn(null)} />}
+      {stepsScene && <StepsDialog owner={{ kind: "scene", campaignId: c.id, sessionId: s.id, scene: stepsScene }} onClose={() => setStepsOf(null)} />}
       <Dialog
         open={!!deletingScene}
         title="Delete this scene?"
@@ -671,6 +678,7 @@ function SceneCard({ scene, position, ctx, open, onToggle, drag, menu }: SceneCa
             )}
           </span>
         )}
+        <SceneMarks scene={scene} />
         <RowMenu
           label={`More for ${name}`}
           title="More for this scene"

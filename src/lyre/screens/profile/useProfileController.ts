@@ -502,10 +502,7 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
         return;
       }
       const on = !p.markers[i]?.mix;
-      const markers = p.markers.map((m, j) => {
-        const { mix: _was, ...rest } = m;
-        return on && j === i ? { ...rest, mix: true } : rest;
-      });
+      const markers = p.markers.map((m, j) => (on && j === i ? { at: m.at, label: m.label, mix: true } : { at: m.at, label: m.label }));
       const m = markers[i];
       editor.write({ ...p, markers }, "now", { text: on ? `mix out at ${fmt(m.at)}, ${m.label}` : "no mix-out point", key: `ap-mix-${track.id}` });
       setFocusK(`ap-mmix-${i}`);

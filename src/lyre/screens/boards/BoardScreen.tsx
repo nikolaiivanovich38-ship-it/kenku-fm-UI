@@ -38,7 +38,8 @@ import {
   usesOfBoard,
   type PadAt,
 } from "./boardModel";
-import { DeleteBoardDialog, DeletePadDialog, UseInDialog, useDuplicateBoard } from "./BoardDialogs";
+import { BoardDividerDialog, DeleteBoardDialog, DeletePadDialog, UseInDialog, useDuplicateBoard } from "./BoardDialogs";
+import { StepsDialog } from "../steps/StepsDialog";
 import { go, useBoardSound, usePendingFocus, useSavedText, useWrite } from "./hooks";
 import { PadEditor } from "./PadEditor";
 import { PreviewButton } from "../../kit/SoundButtons";
@@ -128,6 +129,9 @@ function BoardEditor({ board }: { board: PadBoard }) {
   const [useIn, setUseIn] = useState(false);
   const [deletingBoard, setDeletingBoard] = useState(false);
   const [deletingPad, setDeletingPad] = useState<PadAt | null>(null);
+  /** ORG-4: Add a divider… is open. PLY-8: the pad whose steps are open (What it does…). */
+  const [addingDivider, setAddingDivider] = useState(false);
+  const [stepsPad, setStepsPad] = useState<Pad | null>(null);
   const lastClick = useRef<{ pid: string | null; t: number }>({ pid: null, t: 0 });
   const dragging = useRef<string | null>(null);
   const [dropOver, setDropOver] = useState<string | null>(null);
@@ -315,8 +319,11 @@ function BoardEditor({ board }: { board: PadBoard }) {
     openMenu(anchor, owner, "Move to", items);
   };
   const deletePadEntry = (at: PadAt): MenuEntry => ({ label: "Delete pad…", icon: "trash", onSelect: () => setDeletingPad(at) });
+  /** PLY-8: a pad plays its sound; What it does… adds steps, such as turning the music down first. */
+  const stepsEntry = (at: PadAt): MenuEntry => ({ label: "What it does…", icon: "list", onSelect: () => setStepsPad(at.pad) });
   const padMenu = (at: PadAt, anchor: HTMLElement) =>
     openMenu(anchor, "pad", "Pad", [
+      stepsEntry(at),
       { label: "Duplicate pad", onSelect: () => void duplicatePad(at) },
       { label: "Move to…", onSelect: () => moveMenu(at, anchor, "pad") },
       { separator: true },
@@ -475,6 +482,11 @@ function BoardEditor({ board }: { board: PadBoard }) {
         ? { text: plural(count, "pad"), tone: "idle" as const }
         : { text: "Empty", tone: "idle" as const };
 
+  /** ORG-4: take a divider off the board. */
+  const removeDivider = async (row: number, name: string) => {
+    if (await save(board.name, () => api.boards.setDivider(board.id, row, null), { detail: `divider “${name}” removed` })) focusLater("pb-name");
+  };
+
   const slot = (pad: PadBoard["slots"][number], index: number) => {
     const where = place(board.cols, index);
     const tabIndex = index === fi ? 0 : -1;
@@ -562,6 +574,8 @@ function BoardEditor({ board }: { board: PadBoard }) {
           icon="more"
           items={[
             { label: "See it in the live view", icon: "broadcast", onSelect: () => go("live") },
+            // Round 7 (ORG-4): a name above a row of pads.
+            { label: "Add a divider…", icon: "list", onSelect: () => setAddingDivider(true) },
             { label: "Duplicate board", onSelect: () => void duplicateBoard(board) },
             { separator: true },
             { label: "Delete board…", icon: "trash", onSelect: () => setDeletingBoard(true) },
@@ -660,7 +674,18 @@ function BoardEditor({ board }: { board: PadBoard }) {
                 style={{ gridTemplateColumns: `repeat(${board.cols},minmax(0,1fr))` }}
                 onKeyDown={onGridKeyDown}
               >
-                {board.slots.map(slot)}
+                {board.slots.map((pad, index) => {
+                  // ORG-4: a divider names the row it sits above.
+                  const divider = index % board.cols === 0 ? board.dividers?.find((d) => d.row === index / board.cols) : undefined;
+                  return divider ? (
+                    <React.Fragment key={`d${index}`}>
+                      <BoardDivider name={divider.name} onRemove={() => void removeDivider(divider.row, divider.name)} />
+                      {slot(pad, index)}
+                    </React.Fragment>
+                  ) : (
+                    slot(pad, index)
+                  );
+                })}
               </div>
               <p className="hint pb-help" id={helpId}>
                 Drag to swap pads. Keys: arrows move, P previews, Alt+arrow moves the pad.
@@ -747,6 +772,8 @@ function BoardEditor({ board }: { board: PadBoard }) {
         />
       )}
       {useIn && <UseInDialog board={board} campaigns={campaigns} onClose={() => setUseIn(false)} />}
+      {addingDivider && <BoardDividerDialog board={board} onClose={() => setAddingDivider(false)} />}
+      {stepsPad && <StepsDialog owner={{ kind: "pad", board, padId: stepsPad.id, label: stepsPad.label, steps: stepsPad.steps }} onClose={() => setStepsPad(null)} />}
       {deletingBoard && <DeleteBoardDialog board={board} campaigns={campaigns} onClose={() => setDeletingBoard(false)} onDeleted={() => go("boards")} />}
       <DeletePadDialog
         board={board}
@@ -1000,5 +1027,17 @@ function SparePads({
         )}
       </div>
     </Pane>
+  );
+}
+
+/** ORG-4: a divider's name above its row of pads, with a button to remove it (r7org.js boardDividerHTML). */
+function BoardDivider({ name, onRemove }: { name: string; onRemove: () => void }) {
+  return (
+    <div className="pb-div">
+      <h3 className="pb-div-h ellipsis" title={name}>
+        {name}
+      </h3>
+      <IconButton icon="close" size="s" variant="ghost" label={`Remove the divider ${name}`} hint="Remove this divider" onClick={onRemove} />
+    </div>
   );
 }
