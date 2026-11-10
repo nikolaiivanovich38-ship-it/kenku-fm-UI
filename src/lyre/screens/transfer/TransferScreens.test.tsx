@@ -19,7 +19,7 @@ describe("the ⋯ beside Add tracks in the Library", () => {
     const user = userEvent.setup();
     await user.click(await screen.findByRole("button", { name: "More for the library" }));
     const items = await screen.findAllByRole("menuitem");
-    await waitFor(() => expect(items.map((i) => i.textContent)).toEqual(["Back up, move or share…", "Find missing files (3)…", "What came across from Kenku FM", "Normalise volume…"]));
+    await waitFor(() => expect(items.map((i) => i.textContent)).toEqual(["Back up, move or share…", "Find missing files (3)…", "What came across from Kenku FM", "Normalise volume…", "Tags and groups…"]));
     await user.click(screen.getByRole("menuitem", { name: "Find missing files (3)…" }));
     expect(await screen.findByRole("heading", { level: 1, name: "Find missing files" })).toBeInTheDocument();
   });
