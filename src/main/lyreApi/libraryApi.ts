@@ -1294,7 +1294,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
         });
       },
       async duplicateScene(address) {
-        return write(["campaigns"], () => {
+        // "playlists": the copy's track orders and play orders are the playlists' places.
+        return write(["campaigns", "playlists"], () => {
           const { scene } = requireScene(address);
           const name = `${scene.name || "Scene"} (copy)`;
           let id = "";
@@ -1305,8 +1306,13 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
             if (scene.boardIds.length) addSceneBoards(store, id, scene.boardIds);
             // DAT-14: a copy of the scene keeps its names for its tracks.
             for (const [trackId, name] of Object.entries(scene.trackNames)) setSceneTrackName(store, id, trackId, name);
-            // PLY-17: and its Repeat ones (its play orders and track orders stay with the original, as audio settings do).
+            // PLY-17: and its Repeat ones; the lead's decision (b6 notes, contracts Q1): its track orders and play
+            // orders too, so a copy is the whole scene (its audio settings stay with the original).
             for (const trackId of scene.repeatOnes) setRepeatOne(store, id, trackId, true);
+            const from: UsePlace = { kind: "scene", campaignId: address.campaignId, sessionId: address.sessionId, sceneId: scene.id };
+            const to: UsePlace = { ...from, sceneId: id };
+            for (const [playlistId, trackIds] of Object.entries(getTrackOrders(store)[keyOfPlace(from)] ?? {})) setTrackOrder(store, playlistId, to, trackIds);
+            for (const [playlistId, order] of Object.entries(getPlayOrderOverrides(store)[keyOfPlace(from)] ?? {})) setPlayOrder(store, playlistId, to, order);
             // PLY-8: and what it does when it starts.
             if (scene.steps) setSteps(store, { sceneId: id }, scene.steps);
             if (scene.movesOn.when !== "stay") setMovesOn(store, id, scene.movesOn);

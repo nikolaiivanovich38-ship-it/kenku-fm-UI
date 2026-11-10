@@ -1047,6 +1047,21 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         expectRefused(await api.sessions.setRepeatOne(sc("sc3"), "t13", "yes" as never), "invalid");
       });
 
+      it("lead's decision (b6 notes, contracts Q1): a duplicated scene copies its track orders and play orders too: a copy is the whole scene", async () => {
+        const ruinsPlace = { kind: "scene" as const, campaignId: "crown", sessionId: "s14", sceneId: "sc3" };
+        const own = (await api.playlists.tracks("p-abbess")).slice();
+        valueOf(await api.playlists.setTrackOrder("p-abbess", ruinsPlace, [own[1], own[0], ...own.slice(2)]));
+        valueOf(await api.playlists.setPlayOrder("p-abbess", ruinsPlace, { shuffle: true, repeat: "off" }));
+        const copy = valueOf(await api.sessions.duplicateScene(sc("sc3")));
+        const copyKey = keyOfPlace({ ...ruinsPlace, sceneId: copy.id });
+        expect((await api.playlists.trackOrders())[copyKey]?.["p-abbess"]?.slice(0, 2)).toEqual([own[1], own[0]]);
+        expect((await api.playlists.playOrders())[copyKey]?.["p-abbess"]).toEqual({ shuffle: true, repeat: "off" });
+        // One undo step takes the copy away with its orders.
+        valueOf(await api.history.undo());
+        expect((await api.playlists.trackOrders())[copyKey]).toBeUndefined();
+        expect((await api.playlists.trackOrders())[keyOfPlace(ruinsPlace)]?.["p-abbess"]?.slice(0, 2)).toEqual([own[1], own[0]]);
+      });
+
       it("UX-19: a write the computer could not save is refused in plain words, changes nothing, and works when tried again", async () => {
         const before = await api.history.state();
         await fx.failNextWrite();
