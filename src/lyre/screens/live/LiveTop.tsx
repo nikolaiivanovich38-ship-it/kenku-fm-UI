@@ -28,6 +28,16 @@ export interface TopProps {
   loadSession: (campaignId: string, sessionId: string) => void;
 }
 
+/**
+ * Go to another screen at once: the browser tells the shell of a new address only after the click is over, so for that
+ * moment Live would still answer for the planner's controls (Prep and the planner both have "Scene 3: …").
+ */
+function goNow(hash: string): void {
+  const oldURL = window.location.href;
+  window.location.hash = hash;
+  window.dispatchEvent(new HashChangeEvent("hashchange", { oldURL, newURL: window.location.href }));
+}
+
 const STATUS_WORDS = { next: "next", played: "played", draft: "draft" } as const;
 
 export function LiveTop({ keysOpen, setKeysOpen, setKeys1, loadSession }: TopProps) {
@@ -107,7 +117,7 @@ export function LiveTop({ keysOpen, setKeysOpen, setKeys1, loadSession }: TopPro
         </PopMenuButton>
       )}
       <div className="seg mode-switch" role="group" aria-label="Prep or live">
-        <button type="button" aria-pressed="false" onClick={() => (window.location.hash = `#/session/${campaign.id}/${session.id}`)}>
+        <button type="button" aria-pressed="false" onClick={() => goNow(`#/session/${campaign.id}/${session.id}`)}>
           <Icon name="edit" size="s" />
           Prep
         </button>

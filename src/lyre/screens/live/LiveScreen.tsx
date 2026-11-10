@@ -25,6 +25,7 @@ import { useTrackNames } from "../../kit/trackName";
 import { useOutputs } from "../../outputs/OutputsProvider";
 import { useAnnounce } from "../../shell/Announcer";
 import { useCampaignInHand } from "../../shell/CampaignInHand";
+import { zoomFactorOf } from "../../shell/display";
 import type { ScreenComponent } from "../index";
 import { libraryIndex } from "../campaigns/model";
 import { sessionLabel } from "../campaigns/model";
@@ -81,12 +82,12 @@ function appWidth(): number {
   return document.getElementById("app")?.getBoundingClientRect().width ?? 0;
 }
 
-/** The number of columns for the app's width, following it as the window changes. */
-function useColumns(): 1 | 2 | 3 {
-  const [columns, setColumns] = useState(() => columnsFor(appWidth()));
+/** The app's width in CSS pixels, following it as the window changes. */
+function useAppWidth(): number {
+  const [width, setWidth] = useState(appWidth);
   useLayoutEffect(() => {
     const app = document.getElementById("app");
-    const update = () => setColumns(columnsFor(appWidth()));
+    const update = () => setWidth(appWidth());
     update();
     if (!app || typeof ResizeObserver === "undefined") {
       window.addEventListener("resize", update);
@@ -96,7 +97,7 @@ function useColumns(): 1 | 2 | 3 {
     observer.observe(app);
     return () => observer.disconnect();
   }, []);
-  return columns;
+  return width;
 }
 
 /**
@@ -135,7 +136,8 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
   const inHand = useCampaignInHand();
   const state = useLiveState();
   const { say, toast } = useAnnounce();
-  const columns = useColumns();
+  const width = useAppWidth();
+  const columns = columnsFor(width);
   const [keys1, setKeys1State] = useState(readKeys1);
   const [keysOpen, setKeysOpenState] = useState(false);
 
@@ -463,7 +465,9 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
     };
   }, []);
   if (!data) return null;
-  const compact = columns === 1;
+  // One column shows only Now and Next in Scenes, in a narrow window; a wide window in one column because its text is
+  // large (Look and feel › Display, UX-11) has room to list every scene.
+  const compact = columns === 1 && (width > 0 ? width : 960) * zoomFactorOf(settings?.display?.textSize ?? 100) < TWO_COLUMNS_PX;
   const boxes: Record<BoxId, React.ReactNode> = {
     scenes: <ScenesPane key="scenes" compact={compact} actions={sceneActions} />,
     current: <CurrentScenePane key="current" />,
