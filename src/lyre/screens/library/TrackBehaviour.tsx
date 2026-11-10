@@ -4,7 +4,7 @@
  * where it stopped and Then (Follow with…); a Loop bed has Pick up; a Sting has Then; a Transition has Ending and
  * Then; a track with no role yet has none (roleChoices). Each change is saved with the track, with the Saved pop-up.
  */
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { roleChoices } from "../../../common/domain/round7";
 import type { SoundRef } from "../../../common/domain";
 import type { LibraryTrack, PlaylistInfo } from "../../../common/lyre/api";
@@ -30,11 +30,22 @@ export function TrackBehaviour({ t, playlists, store }: { t: LibraryTrack; playl
   const save = useSave();
   const tracks = useTracks().data ?? [];
   const [choosing, setChoosing] = useState(false);
+  // The switch and the chip show the choice at once; the library's answer then takes over (a refusal puts it back).
+  const [resume, setResume] = useState<boolean | null>(null);
+  const [fadesOut, setFadesOut] = useState<boolean | null>(null);
+  useEffect(() => setResume(null), [t.resume]);
+  useEffect(() => setFadesOut(null), [t.fadesOut]);
+  const resumeOn = resume ?? t.resume;
+  const fadesOn = fadesOut ?? t.fadesOut;
   const choices = roleChoices(t);
   const title = shownTitle(t);
   const write = async (patch: Patch, what: string) => {
     const done = await save(what, () => api.library.updateTrack(t.id, patch));
     if (done) store.put(done.value);
+    else {
+      setResume(null);
+      setFadesOut(null);
+    }
   };
   const followName = (ref: SoundRef | null): string => {
     if (!ref) return "nothing";
@@ -54,11 +65,14 @@ export function TrackBehaviour({ t, playlists, store }: { t: LibraryTrack; playl
             <button
               type="button"
               className="chip lb-pick"
-              aria-pressed={t.fadesOut}
+              aria-pressed={fadesOn}
               title="Lyre fades it out before its end (the length is in the Audio profile); not pressed, it plays to its last second"
-              onClick={() => void write({ fadesOut: !t.fadesOut }, `${title} ending: ${t.fadesOut ? "hard end" : "fades out"}`)}
+              onClick={() => {
+                setFadesOut(!fadesOn);
+                void write({ fadesOut: !fadesOn }, `${title} ending: ${fadesOn ? "hard end" : "fades out"}`);
+              }}
             >
-              {t.fadesOut && <Icon name="check" size="s" />}
+              {fadesOn && <Icon name="check" size="s" />}
               Fades out
             </button>
           </div>
@@ -70,8 +84,11 @@ export function TrackBehaviour({ t, playlists, store }: { t: LibraryTrack; playl
             <input
               type="checkbox"
               role="switch"
-              checked={t.resume}
-              onChange={(e) => void write({ resume: e.target.checked }, `${title} ${e.target.checked ? "picks up where it stopped" : "starts from the top"}`)}
+              checked={resumeOn}
+              onChange={(e) => {
+                setResume(e.target.checked);
+                void write({ resume: e.target.checked }, `${title} ${e.target.checked ? "picks up where it stopped" : "starts from the top"}`);
+              }}
             />
             <span className="lv-switch-t">
               <b>Pick up where it stopped</b>

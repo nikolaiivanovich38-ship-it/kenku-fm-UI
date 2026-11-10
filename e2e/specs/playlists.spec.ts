@@ -481,7 +481,7 @@ test.describe("round 7: adding to other lists", () => {
   });
 
   test("Add to… does the same from the keyboard: a playlist, a scene or Up next", async ({ page }) => {
-    expectFailureUntilBuilt("live", "prep");
+    expectFailureUntilBuilt("prep"); // passes without Live: Add to… lists Up next in Table from the prep screens too
     await openRoute(page, "playlist/p-abbess");
     await page.getByRole("list", { name: "Tracks in order" }).getByRole("button", { name: /^More for Alien, unknowable/ }).click();
     await page.getByRole("menuitem", { name: "Add to…" }).click();

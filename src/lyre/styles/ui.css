@@ -134,7 +134,7 @@ table.grid tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 v
 .progress.music > span { background: var(--music); } .progress.amb > span { background: var(--amb); } .progress.fx > span { background: var(--fx); } .progress.preview > span { background: var(--preview); }
 
 /* ---------- Menus and sheets (inline, never covering the live controls) ---------- */
-.menu { position: absolute; z-index: 30; min-width: 200px; max-width: 320px; max-height: 60vh; overflow: auto; background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: var(--r-m); box-shadow: var(--shadow); padding: 4px; }
+.menu { position: absolute; z-index: 45; min-width: 200px; max-width: 320px; max-height: 60vh; overflow: auto; background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: var(--r-m); box-shadow: var(--shadow); padding: 4px; }
 .menu [role="menuitem"], .menu [role="menuitemradio"], .menu [role="menuitemcheckbox"], .menu [role="option"], .menu .item { display: flex; align-items: center; gap: 8px; width: 100%; min-height: var(--ctl); padding: 0 8px; border: 0; background: transparent; color: var(--ink); text-align: left; border-radius: var(--r-s); cursor: pointer; font-size: var(--fs-s); }
 .menu [role="menuitem"]:hover, .menu [role="menuitemcheckbox"]:hover, .menu [role="menuitemradio"]:hover, .menu [role="option"]:hover, .menu .item:hover, .menu [aria-selected="true"] { background: var(--surface-3); }
 .menu .sep { height: 1px; background: var(--line); margin: 4px 0; }
