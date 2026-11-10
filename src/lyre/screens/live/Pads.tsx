@@ -15,7 +15,8 @@ import { cx } from "../../kit/cx";
 import { ICONS } from "../../kit/icons";
 import { MODE_ICON, MODE_NAME, PAD_COLOUR } from "../boards/boardModel";
 import { useBoxTarget, useLive } from "./liveData";
-import type { LiveBox, LiveRoom } from "./liveModel";
+import { padStepWords, type LiveBox, type LiveRoom } from "./liveModel";
+import { useAnnounce } from "../../shell/Announcer";
 import { touched } from "./liveState";
 
 /** Whether a pad sounds in a room. */
@@ -41,6 +42,7 @@ export function firePads(audio: LyreAudio, now: NowPlaying, targets: RoomTarget[
 /** A board's pads in a box (its rooms are the box's To:). `keysOn`: its pad keys play it (Current scene's board). */
 export function PadGrid({ board, box, keysOn }: { board: PadBoard; box: LiveBox; keysOn: boolean }) {
   const { audio, now, rooms, keys1 } = useLive();
+  const { toast } = useAnnounce();
   const target = useBoxTarget(box);
   const held = useRef<Pad | null>(null);
   const latest = useRef({ audio, now, targets: target.targets });
@@ -90,6 +92,8 @@ export function PadGrid({ board, box, keysOn }: { board: PadBoard; box: LiveBox;
           press={(phase) => {
             if (phase === "down") touched();
             firePads(audio, now, target.targets, board, pad, phase);
+            const words = phase === "down" ? padStepWords(pad) : null;
+            if (words) toast(words);
           }}
           hold={() => (held.current = pad)}
         />

@@ -27,6 +27,7 @@ import {
   moodsByUse,
   offScriptSearch,
   padForKey,
+  padStepWords,
   roomStatus,
   sceneBoards,
   trayContents,
@@ -240,6 +241,12 @@ describe("pads", () => {
     // Current scene shows the scene's boards only: a board chosen before that is not one of them gives way.
     expect(currentBoard("combat", abbey, index)?.id).toBe("abbey");
     expect(currentBoard(null, null, index)).toBeNull();
+  });
+
+  it("a pad's fade step is said when it is pressed (PLY-8)", () => {
+    const pad = index.board("weather")!.slots.find((p) => p)!;
+    expect(padStepWords({ ...pad, steps: null })).toBeNull();
+    expect(padStepWords({ ...pad, steps: [{ do: "sound" }, { do: "fade", level: 0.3, ms: 2000 }] })).toBe("Music down to 30% over 2 s");
   });
 
   it("a key plays the pad on the board's grid with that key (spare pads have none)", () => {

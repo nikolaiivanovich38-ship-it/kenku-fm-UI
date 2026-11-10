@@ -32,7 +32,7 @@ import { CurrentScenePane } from "./CurrentScene";
 import { closeFind, openFind } from "./Find";
 import { focusBox, focusLive } from "./focus";
 import { LiveDataProvider, sceneRefOf, type LiveData } from "./liveData";
-import { boxTarget, currentBoard, defaultLiveSession, LIVE_BOXES, LIVE_KEYS, liveKey, liveRooms, padForKey, UNDO_MS, type LiveKeys } from "./liveModel";
+import { boxTarget, currentBoard, defaultLiveSession, LIVE_BOXES, LIVE_KEYS, liveKey, liveRooms, padForKey, padStepWords, UNDO_MS, type LiveKeys } from "./liveModel";
 import { getLiveState, standbyFor, touched, updateLive, useLiveState } from "./liveState";
 import { LiveTop } from "./LiveTop";
 import { OnAirPane } from "./OnAir";
@@ -303,8 +303,8 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
   keysOpenRef.current = keysOpen;
   const keyNav = useRef(false);
   // The latest callbacks, so the key listeners are added once and a held pad is never let go by a redraw.
-  const calls = useRef({ nextScene, undo, say, setKeysOpen });
-  calls.current = { nextScene, undo, say, setKeysOpen };
+  const calls = useRef({ nextScene, undo, say, toast, setKeysOpen });
+  calls.current = { nextScene, undo, say, toast, setKeysOpen };
   const heldKeys = useRef(new Map<string, () => void>());
   useEffect(() => {
     const onTab = (event: KeyboardEvent) => {
@@ -429,6 +429,8 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
           const targets = boxTarget(d.rooms, s.to.music).targets;
           touched();
           firePads(d.audio, d.now, targets, board, pad, "down");
+          const words = padStepWords(pad);
+          if (words) calls.current.toast(words);
           if (pad.mode === "hold") heldKeys.current.set(decision.key, () => firePads(d.audio, dataRef.current?.now ?? d.now, targets, board, pad, "up"));
           else heldKeys.current.set(decision.key, () => undefined);
           return;

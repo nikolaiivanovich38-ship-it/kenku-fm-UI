@@ -301,6 +301,16 @@ export function ownBoards(ids: readonly string[], index: LibraryIndex): PadBoard
   return [...new Set(ids)].map((id) => index.board(id)).filter((b): b is PadBoard => !!b);
 }
 
+/**
+ * Round 7 part 2 (PLY-8): what a pad's own steps do that the game master would not see happen, said when it is pressed
+ * in Live (r7play.js): "Music down to 30% over 2 s". Null when its steps have nothing to say.
+ */
+export function padStepWords(pad: Pad): string | null {
+  const fade = pad.steps?.find((st): st is Extract<NonNullable<Pad["steps"]>[number], { do: "fade" }> => st.do === "fade");
+  if (!fade) return null;
+  return `Music down to ${Math.round(fade.level * 100)}% over ${Math.round(fade.ms / 100) / 10} s`;
+}
+
 /** The pad on the board's grid with this key (letters in any case, F1 to F12); spare pads' keys do nothing. */
 export function padForKey(board: PadBoard, key: string): Pad | null {
   const k = key.toLowerCase();
