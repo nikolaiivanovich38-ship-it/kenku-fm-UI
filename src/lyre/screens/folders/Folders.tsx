@@ -119,7 +119,9 @@ export function useFolders(kind: FolderKind) {
     const drop = (folder: FolderInfo): React.HTMLAttributes<HTMLDivElement> => ({
       onDragOver: (event) => {
         if (!event.dataTransfer.types.includes(ORG_DRAG_TYPE)) return;
+        // Handled here: the page's drop guard (SEC-7) would otherwise refuse the drop.
         event.preventDefault();
+        event.stopPropagation();
         event.dataTransfer.dropEffect = "move";
         if (over !== folder.id) setOver(folder.id);
       },
@@ -129,6 +131,7 @@ export function useFolders(kind: FolderKind) {
         setOver(null);
         if (!data.startsWith(`${kind}:`)) return;
         event.preventDefault();
+        event.stopPropagation();
         const id = data.slice(kind.length + 1);
         void moveInto(id, folder, props.nameOf(id));
       },

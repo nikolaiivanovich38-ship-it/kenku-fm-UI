@@ -133,7 +133,10 @@ export function DropTray({ resolve }: { resolve: (el: HTMLElement) => Dragged | 
       if (event.shiftKey && !live.current.shift) setShift(true);
       const t = target(event);
       if (!t) return;
+      // Handled here: the page's drop guard (SEC-7, on the document) would otherwise say "no drop" (dropEffect none).
       event.preventDefault();
+      event.stopPropagation();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = live.current.shift ? "move" : "copy";
       setOver(t.dataset.dropto ?? null);
     };
     const onDrop = (event: DragEvent) => {

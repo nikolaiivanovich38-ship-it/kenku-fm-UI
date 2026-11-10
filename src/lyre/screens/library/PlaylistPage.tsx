@@ -694,7 +694,9 @@ function TracksPane({
               onDragOver={(e) => {
                 const li = (e.target as HTMLElement).closest<HTMLElement>(".pl-tr[draggable]");
                 if (!drag.current || !li) return;
+                // Handled here: the page's drop guard (SEC-7) would otherwise refuse the drop.
                 e.preventDefault();
+                e.stopPropagation();
                 e.dataTransfer.dropEffect = "move";
                 const r = li.getBoundingClientRect();
                 const after = e.clientY > r.top + r.height / 2;
@@ -705,6 +707,7 @@ function TracksPane({
                 const id = drag.current;
                 if (!id || !li) return;
                 e.preventDefault();
+                e.stopPropagation();
                 drag.current = null;
                 setMark(null);
                 if (li.dataset.tid === id) return;
