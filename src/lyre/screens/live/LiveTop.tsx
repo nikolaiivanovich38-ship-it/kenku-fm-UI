@@ -75,7 +75,8 @@ export function LiveTop({ keysOpen, setKeysOpen, setKeys1, loadSession }: TopPro
 
   return (
     <div className="lv-top">
-      <TopLead />
+      {/* Round 6 part 6: the trail is the campaign (a link to its page), then the session (its button, below). */}
+      <TopLead trail={[{ href: `#/campaign/${campaign.id}`, label: campaign.name }]} />
       <h1 className="sr-only">Live</h1>
       {rename.editing ? (
         <span className="lv-sess lv-sess-edit">

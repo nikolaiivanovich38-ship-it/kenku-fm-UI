@@ -11,6 +11,7 @@ import type { UsePlace } from "../../../common/domain";
 import { Icon } from "../../kit/Icon";
 import { Pane } from "../../kit/Pane";
 import { useAnnounce } from "../../shell/Announcer";
+import { useRememberedOpen } from "../../shell/ShellSettings";
 import { useLive } from "./liveData";
 import { currentBoard, ownBoards, trayContents } from "./liveModel";
 import { touched, updateLive } from "./liveState";
@@ -33,6 +34,8 @@ export function PlaylistsBox({ scope }: { scope: Scope }) {
   const place = placeOf(scope, d.campaign.id, d.session.id);
   const title = `${SCOPE_WORDS[scope]} playlists`;
   const count = playlists.length + tracks.length;
+  // Round 6: a resting status (how many) shows only on the folded box; open, the list says it.
+  const [open] = useRememberedOpen(`lv-${scope}p`, false);
   return (
     <Pane
       id={`lv-${scope}p`}
@@ -48,7 +51,7 @@ export function PlaylistsBox({ scope }: { scope: Scope }) {
       noMax
       keys={scope === "ss" ? "Alt+4" : "Alt+6"}
       actions={<ToChip box={scope} />}
-      status={{ text: String(count), tone: "idle" }}
+      status={open ? undefined : { text: String(count), tone: "idle" }}
     >
       {count ? (
         <ol className="lv-list" aria-label={title}>
