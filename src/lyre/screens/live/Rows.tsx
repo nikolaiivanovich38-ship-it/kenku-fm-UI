@@ -15,7 +15,7 @@ import type { UsePlace } from "../../../common/domain";
 import type { LibraryTrack, PlaylistInfo, SceneInfo } from "../../../common/lyre/api";
 import { useLyreApi } from "../../api";
 import { usePreviewKey } from "../../audio";
-import type { TrackFrom } from "../../audio/lyreAudio";
+import type { RoomNowPlaying, TrackFrom } from "../../audio/lyreAudio";
 import { DestTag } from "../../kit/DestTag";
 import { ExpanderButton } from "../../kit/Expander";
 import { Icon } from "../../kit/Icon";
@@ -37,8 +37,8 @@ const KIND_WORDS = { amb: "Ambience", fx: "FX" } as const;
 
 /** Where a row's track sounds now, as its tag says it (Should 10: never "On air" when nobody hears it). */
 function AirTag({ trackId, playlistId }: { trackId?: string; playlistId?: string }) {
-  const { rooms, now } = useLive();
-  const plays = (r: (typeof now.rooms)[number]) =>
+  const { rooms } = useLive();
+  const plays = (r: RoomNowPlaying) =>
     trackId ? r.music?.trackId === trackId || r.ambience?.trackId === trackId || r.effects.some((e) => e.trackId === trackId && !e.padKey) : r.music?.playlistId === playlistId || r.ambience?.playlistId === playlistId;
   if (!rooms.length) return <DestTag to="air" room="no room" nobody="Nobody hears it: no bot is in a voice channel" />;
   const where = rooms.filter((r) => r.room && plays(r.room));
