@@ -127,7 +127,10 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
   const boards = useBoards().data;
   const overrides = useProfileOverrides().data;
   const tagGroups = useTagGroups().data;
-  const settings = useSettings().data;
+  const settingsQuery = useSettings();
+  const settings = settingsQuery.data;
+  // UX-12: Live waits for the keys Settings has, so a key changed there never does what it did before for a moment.
+  const keysKnown = settings !== undefined || settingsQuery.error !== null;
   const normalise = useLyreQuery("normalise-settings", (api) => api.library.normaliseSettings(), ["tracks"]).data;
   const orders = usePlayOrders();
   const names = useTrackNames();
@@ -165,7 +168,7 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
   const scene = state.now >= 0 ? (session?.scenes[state.now] ?? null) : null;
 
   const data: LiveData | null =
-    index && campaigns && campaign && session
+    index && campaigns && campaign && session && keysKnown
       ? {
           audio,
           now,
