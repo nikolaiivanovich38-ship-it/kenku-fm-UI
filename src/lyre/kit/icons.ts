@@ -88,6 +88,13 @@ export const ICONS = {
   download: "M12 4v12M7 11l5 5 5-5M4 16v4h16v-4",
   warn: "M12 3 2 20h20zM12 10v4M12 17h.01",
   help: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9.5 9.3a2.6 2.6 0 0 1 5 .9c0 1.7-2.5 2.3-2.5 3.8M12 17h.01",
+  // Round 6 (w6-shell, for the Live and Rooms streams): distinct icons, so no two actions look alike. Undo (a
+  // turned-back arrow, not Restart's circle), muted (a speaker struck out), Kick (leaving through a door) and Play on
+  // air (play with the on-air waves, not the plain broadcast mast).
+  undo: "M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11",
+  mute: "M3 10v4h3l8 5V5L6 10zM17 9.5l5 5M22 9.5l-5 5",
+  leave: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
+  playair: "M4 5v14l10-7zM17 8.5a4 4 0 0 1 0 7M19.8 5.7a8 8 0 0 1 0 12.6",
 } as const;
 
 export type IconName = keyof typeof ICONS;

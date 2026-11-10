@@ -79,10 +79,10 @@ async function addSideRoom(outputs: FakeOutputs) {
 }
 
 describe("Live on standby", () => {
-  it("loads the next session with nothing started: Start the first scene, Ready, and every room Silent", async () => {
+  it("loads the next session with nothing started: Start the first scene, no Ready (round 6 part 5), and every room Silent", async () => {
     await openLive();
     expect(screen.getByRole("heading", { level: 1, name: "Live" })).toBeInTheDocument();
-    expect(region("Scenes").getByText("Ready")).toBeInTheDocument();
+    expect(region("Scenes").queryByText("Ready")).toBeNull();
     expect(region("On air: Table").getByText("Silent")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /The Sunken Crown Session 14/ })).toHaveAttribute("aria-haspopup", "menu");
     expect(within(screen.getByRole("group", { name: "Prep or live" })).getByRole("button", { name: "Live" })).toHaveAttribute("aria-pressed", "true");
@@ -141,7 +141,8 @@ describe("scenes and undo", () => {
     blur();
     press(" ");
     await playOn(sound);
-    expect(region("Scenes").getByText("Scene 1 of 6")).toBeInTheDocument();
+    // Round 6 part 5 (Nik, 6 Nov 16:14): no scene count; Now says which scene runs.
+    expect(region("Scenes").queryByText(/^Scene \d of \d$/)).toBeNull();
     expect(screen.getByRole("button", { name: "Next scene: Greyhollow inn" })).toHaveFocus();
     expect(region("On air: Table").getByText("Playing")).toBeInTheDocument();
   });

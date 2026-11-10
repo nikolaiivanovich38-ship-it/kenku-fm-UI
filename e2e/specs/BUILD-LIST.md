@@ -32,6 +32,14 @@ A sweep with both marks (a round 6 screen's hover-text sweep) counts as round 7:
 
 top bar, Back and its history, breadcrumbs (the trail), the Saved pop-up, the Rooms name, Help, Ctrl+K (Find and play), Display (Look and feel).
 
+**Built (w6-shell): `shell` is in `BUILT_STREAMS`.** The checks below that needed only the shell are marked `"shell"`
+and required. Still waiting for another stream, as their marks now say: campaigns 424 (Repeat one in Live's Current
+scene: live), 480, 508, 608 and look 49 (they open Settings: rooms-settings), 544 (the room's bot button in Live:
+live and rooms-settings), 574 (a scene unfolded in Live: live), look 69 (the Tags screen: prep), tags 32 (prep),
+settings 17, outputs 202 and 215 (Settings and Tokens and new bots: rooms-settings), Live's 974, 1007, 1123, 1136
+and 1336 (round 6 part 3's Live: live), and the UX-6 sweeps of Live, Settings and Tags. The line numbers in the table
+are those of the run it was made from; the marks in the files are what count.
+
 | Check | Round | Backlog | Also | What it checks |
 | --- | --- | --- | --- | --- |
 | `campaigns.spec.ts:362` | 6 | UX-18 | Prep screens | round 6: Repeat on the Now playing bar, the campaign's own order, and Back: UX-18: a playlist opened from the campaign page has Back to the campaign, and Back returns to the same row |

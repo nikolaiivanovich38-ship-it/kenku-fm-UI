@@ -39,7 +39,7 @@ function CampaignsList({ campaigns, creating, setCreating }: { campaigns: Campai
           New campaign
         </Button>
       </div>
-      <div className="viewbody">
+      <div className="viewbody" data-scroll="body">
         {campaigns.length ? (
           <div className="cp-grid">
             {campaigns.map((c) => (

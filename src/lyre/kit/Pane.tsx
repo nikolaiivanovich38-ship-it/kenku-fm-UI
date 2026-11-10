@@ -23,7 +23,8 @@ export function Column({ className, children }: { className?: string; children: 
   );
 }
 
-export type PaneKind = "onair" | "music" | "scenes" | "search" | "fx" | "plain";
+/** The box's top edge: "current" (round 6 part 3) is the accent, for Live's Current scene. */
+export type PaneKind = "onair" | "music" | "scenes" | "search" | "fx" | "current" | "plain";
 
 export interface PaneProps {
   /** Remembers the box's open or closed state across visits; unique on the page. */
@@ -150,7 +151,8 @@ export function Pane({
           )}
         </div>
       </header>
-      <div className={cx("pane-body", flush && "flush")}>
+      {/* UX-18: Back finds this box's scroll position again by its id. */}
+      <div className={cx("pane-body", flush && "flush")} data-scroll={id}>
         {open && <ErrorBoundary where={title}>{children}</ErrorBoundary>}
       </div>
     </section>

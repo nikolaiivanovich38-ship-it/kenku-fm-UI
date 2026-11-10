@@ -324,7 +324,7 @@ test.describe("round 5: play order, Details with the rules, shapes and Use in…
 /* Round 6 (design/prototype/ROUND6.md): a resting status shows only on a folded box. Part 5 (Nik, 6 Nov 16:14): Ready
    and Saved are gone altogether, open or folded; saving shows in the Saved pop-up. */
 test.describe("round 6: quiet statuses", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("shell", "prep"));
+  test.beforeEach(() => expectFailureUntilBuilt("shell"));
 
   test("no box says Ready or Saved, open or folded", async ({ page }) => {
     await openRoute(page, "playlist/p-abbess");

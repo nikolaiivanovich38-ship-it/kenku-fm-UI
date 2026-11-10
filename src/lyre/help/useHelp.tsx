@@ -9,7 +9,7 @@
  *   root does, tests of other parts do not), once: finished or skipped, it is remembered in the shell settings
  *   (`tour: "done"`). Help › Take the tour plays it again.
  */
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useShellSettings } from "../shell/ShellSettings";
 import type { DiagnosticsBridge } from "../../common/lyreDiagnostics";
 import { HelpPanel } from "./HelpPanel";
@@ -18,9 +18,16 @@ import { TOUR_STEPS, Tour } from "./Tour";
 /** The rail's Help button, for focus to come back to. */
 export const HELP_BUTTON_ID = "rail-help";
 
+/** Opens Help's panel from a screen (Live's Keys has Help at its foot, R6 review Should 12). The shell provides it. */
+export const OpenHelpContext = createContext<(() => void) | null>(null);
+export function useOpenHelp(): (() => void) | null {
+  return useContext(OpenHelpContext);
+}
+
 export interface HelpInShell {
   helpOpen: boolean;
   toggleHelp: () => void;
+  openHelp: () => void;
   /** The side panel, or null while Help is closed. */
   panel: React.ReactNode;
   /** The tour's popover, or null. */
@@ -102,6 +109,7 @@ export function useHelp({ firstRunTour = false }: { firstRunTour?: boolean } = {
   return {
     helpOpen,
     toggleHelp: () => (helpOpen ? closeHelp() : openHelp()),
+    openHelp,
     panel: helpOpen ? <HelpPanel onClose={closeHelp} onTour={startTour} diagnostics={pageDiagnostics()} /> : null,
     tour:
       step < 0 ? null : (

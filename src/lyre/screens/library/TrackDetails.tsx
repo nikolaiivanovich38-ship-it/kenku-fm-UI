@@ -52,9 +52,12 @@ import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
 import { ProfileLink } from "../../kit/ProfileLink";
 import { previewKeyOf } from "../../kit/SoundButtons";
 import type { TrackStore } from "./trackStore";
+import { useSave } from "../../shell/useSave";
+import { SAVE_AFTER_MS } from "../../kit/SavedField";
 
 /** Typing in Your title or Notes is saved this long after the last key, as one change. */
-const TYPING_SAVE_MS = 400;
+/** UX-19: saved after a second without typing (and on leaving the track), never per key: the kit's rule. */
+const TYPING_SAVE_MS = SAVE_AFTER_MS;
 
 export interface TrackDetailsProps {
   t: LibraryTrack;
@@ -91,8 +94,9 @@ export function TrackDetails({
   const audio = useLyreAudio();
   const { say, toast } = useAnnounce();
   const accept = useWriteResult();
+  const save = useSave();
 
-  /* ----- Your title and notes: shown as typed, saved shortly after ----- */
+  /* ----- Your title and notes: shown as typed, saved shortly after, with the Saved pop-up ----- */
   const [title, setTitle] = useState(t.title);
   const [notes, setNotes] = useState(t.notes);
   const pending = useRef<{
@@ -106,9 +110,10 @@ export function TrackDetails({
     const patch = p.patch;
     p.patch = {};
     if (Object.keys(patch).length) {
-      void api.library.updateTrack(t.id, patch).then((r) => {
-        const done = accept(r);
-        if (done) store.put(done);
+      // The prototype's words: "Saved: title “Ashes”", "Saved: Ashes notes".
+      const what = patch.title !== undefined ? `title “${patch.title.trim() || shownTitle({ ...t, title: "" })}”` : `${shownTitle(t)} notes`;
+      void save(what, () => api.library.updateTrack(t.id, patch), { key: patch.title !== undefined ? "lb-title" : "lb-notes" }).then((done) => {
+        if (done) store.put(done.value);
       });
     }
   };

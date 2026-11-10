@@ -121,6 +121,7 @@ export function RelinkScreen() {
       </div>
       <div
         className="viewbody tf-body"
+        data-scroll="body"
         ref={bodyRef}
         onDragOver={(e) => {
           if (Array.from(e.dataTransfer?.types ?? []).includes("Files")) e.preventDefault();
@@ -178,7 +179,7 @@ export function RelinkScreen() {
               )}
             </Pane>
             {(list.length > 0 || plan) && (
-              <Pane id="tf-look" title="Look in a folder" icon="folder" kind="search" noMax size="auto" status={plan ? { text: `${found} found`, tone: "on" } : { text: "Ready", tone: "idle" }}>
+              <Pane id="tf-look" title="Look in a folder" icon="folder" kind="search" noMax size="auto" status={plan ? { text: `${found} found`, tone: "on" } : undefined}>
                 <div className="tf-lookrow">
                   <div className="field grow">
                     <label htmlFor="tf-folder">Look in this folder (and the folders inside it)</label>

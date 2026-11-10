@@ -429,9 +429,9 @@ for (const screen of SCREENS) {
 // (UX-6 is one kit behaviour) and the stream that builds their screen; the screens the app does not have are marked by
 // their screen and streams as well.
 const UX6_NOT_MET_YET: Record<string, { widths: number[]; streams: [Stream, ...Stream[]] }> = {
-  Library: { widths: [1920], streams: ["shell", "prep"] },
-  "Library with a track open": { widths: [960, 1920], streams: ["shell", "prep"] },
-  "A dynamic playlist": { widths: [960], streams: ["shell", "prep"] },
+  Library: { widths: [1920], streams: ["shell"] },
+  "Library with a track open": { widths: [960, 1920], streams: ["shell"] },
+  "A dynamic playlist": { widths: [960], streams: ["shell"] },
   "Live with a second room and the pads open": { widths: [960, 1920], streams: ["shell", "live"] },
   "Live with a scene unfolded": { widths: [960, 1920], streams: ["shell", "live"] },
   Settings: { widths: [960, 1920], streams: ["shell", "rooms-settings"] },
@@ -476,7 +476,7 @@ for (const screen of SCREENS) {
 
 test("UX-6: keyboard focus on a name cut short shows its full text", async ({ page }) => {
   expectFailureUntilScreenBuilt("library");
-  expectFailureUntilBuilt("shell", "prep");
+  expectFailureUntilBuilt("shell");
   await page.setViewportSize({ width: 960, height: 1000 });
   await openRoute(page, "library");
   const rowEl = page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Very short heroic moment/ });

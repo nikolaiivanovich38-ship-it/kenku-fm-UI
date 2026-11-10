@@ -35,7 +35,7 @@ export function MovedScreen() {
     return (
       <>
         {head}
-        <div className="viewbody tf-body">
+        <div className="viewbody tf-body" data-scroll="body">
           <p className="empty">Nothing came across from Kenku FM: this library started in Lyre.</p>
         </div>
       </>
@@ -44,7 +44,7 @@ export function MovedScreen() {
   return (
     <>
       {head}
-      <div className="viewbody tf-body">
+      <div className="viewbody tf-body" data-scroll="body">
         <div className="tf-cols">
           <Column>
             <Pane id="tf-what" title="What came across" icon="check" kind="plain" noMax size="auto" status={{ text: "Copied", tone: "idle" }}>

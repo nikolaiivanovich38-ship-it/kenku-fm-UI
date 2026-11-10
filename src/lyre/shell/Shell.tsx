@@ -11,8 +11,9 @@ import { SoundMessages } from "./SoundMessages";
 import { UndoNoteBar, UndoNoteProvider } from "./UndoNote";
 import { ShellSettingsProvider, useShellSettings } from "./ShellSettings";
 import { themeFor } from "./themes";
-import { useHelp } from "../help/useHelp";
+import { OpenHelpContext, useHelp } from "../help/useHelp";
 import { fallbackNow, NavigationProvider, useBackKeys, useNavigationState } from "./TopBar";
+import { keepTitles, showFullTextOnFocus } from "../kit/noHiddenText";
 
 /** How long the shell waits for a new screen's heading (it appears once the screen's data has loaded). */
 const HEADING_WAIT_MS = 5000;
@@ -131,6 +132,17 @@ function ShellFrame({ screens, firstRunTour }: { screens: Record<RouteName, Scre
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [say]);
 
+  // UX-6: no hidden text in the work area (the Now playing bar is in it): full text on hover and on focus.
+  useEffect(() => {
+    const roots = () => Array.from(document.querySelectorAll<HTMLElement>("#view"));
+    const stopTitles = keepTitles(roots);
+    const stopTips = showFullTextOnFocus(roots);
+    return () => {
+      stopTitles();
+      stopTips();
+    };
+  }, []);
+
   const narrow = useNarrow(appRef);
   const railMin = settings.rail === "min" || (settings.rail === "auto" && narrow);
 
@@ -145,6 +157,7 @@ function ShellFrame({ screens, firstRunTour }: { screens: Record<RouteName, Scre
         onHelp={help.toggleHelp}
       />
       <main id="view" className="view" data-view={route.name}>
+        <OpenHelpContext.Provider value={help.openHelp}>
         <NavigationProvider value={navigation}>
           <UndoNoteProvider live={route.name === "live"}>
             <ErrorBoundary key={route.path} where="this screen">
@@ -157,6 +170,7 @@ function ShellFrame({ screens, firstRunTour }: { screens: Record<RouteName, Scre
             {route.name !== "live" && <UndoNoteBar />}
           </UndoNoteProvider>
         </NavigationProvider>
+        </OpenHelpContext.Provider>
         {data.NowPlayingBar && <data.NowPlayingBar previewOnly={!!Screen.showsOnAir} />}
       </main>
       {help.panel}

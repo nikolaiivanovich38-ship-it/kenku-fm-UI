@@ -53,7 +53,15 @@ import { useOptimisticScenes, type ScenePlay } from "./optimistic";
 import { useDragReorder } from "./reorder";
 
 import "./campaigns.css";
-import { TopLead } from "../../shell/TopBar";
+import { takeBackOpen, TopLead } from "../../shell/TopBar";
+import { useSave } from "../../shell/useSave";
+
+/** The scenes open in each session's planner, for this visit (UX-18: Back returns to the page as it was left). */
+const OPEN_SCENES = new Map<string, Record<string, boolean>>();
+/** A new start of the page (tests): every scene folded again. */
+export function forgetOpenScenes(): void {
+  OPEN_SCENES.clear();
+}
 
 export function SessionScreen({ route }: ScreenProps) {
   const query = useCampaign(route.params.cid ?? "");
@@ -97,7 +105,15 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
   const { say, toast } = useAnnounce();
   const { offer } = useUndoNote();
   const focus = useFocusLater();
-  const [open, setOpen] = useState<Record<string, boolean>>({});
+  // UX-18: the scenes open in this session stay open for the visit, so Back (and any return) finds the page as it was.
+  const memoryKey = `${c.id}/${saved.id}`;
+  const [open, setOpenNow] = useState<Record<string, boolean>>(() => OPEN_SCENES.get(memoryKey) ?? {});
+  const setOpen = (change: React.SetStateAction<Record<string, boolean>>) =>
+    setOpenNow((was) => {
+      const next = typeof change === "function" ? change(was) : change;
+      OPEN_SCENES.set(memoryKey, next);
+      return next;
+    });
   const [current, setCurrent] = useState<string | null>(null);
   const [picking, setPicking] = useState<Picking>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -112,6 +128,12 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
 
   // PLY-14: back from the Audio profile ("Back to <scene>"): the scene opens and the track's wave button takes the focus.
   useEffect(() => {
+    // UX-18: Back to a scene the game master left from (its card's data-back-open) opens it again.
+    const reopen = takeBackOpen(`session/${c.id}/${s.id}`);
+    if (reopen && s.scenes.some((x) => x.id === reopen)) {
+      setOpen((o) => ({ ...o, [reopen]: true }));
+      setCurrent(reopen);
+    }
     const back = takeSceneReturn(c.id, s.id);
     if (!back) return;
     if (back.sceneId && s.scenes.some((x) => x.id === back.sceneId)) {
@@ -151,7 +173,10 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
   };
 
   /* ----- the session ----- */
-  const updateSession = (patch: Parameters<typeof api.sessions.update>[2]) => write(api.sessions.update(c.id, s.id, patch));
+  const saveWith = useSave();
+  /** UX-19: a field's save, with the Saved pop-up. */
+  const saveSession = (patch: Parameters<typeof api.sessions.update>[2], what: string) =>
+    saveWith(what, () => api.sessions.update(c.id, s.id, patch), { key: `cp-s-${Object.keys(patch)[0]}` });
 
   /* ----- scenes ----- */
   const addScene = async (after?: string) => {
@@ -264,7 +289,7 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
                 value={s.name}
                 label={`Name of Session ${s.number}`}
                 placeholder="No name yet"
-                onSave={(name) => void updateSession({ name }).then((done) => done !== undefined && say(`Session ${s.number} is now called ${name}`))}
+                onSave={(name) => void saveSession({ name }, `session name “${name.trim()}”`).then((done) => done !== undefined && say(`Session ${s.number} is now called ${name}`))}
                 onDone={renameTitle.done}
               />
             </>
@@ -281,7 +306,7 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
           Run this session
         </Button>
       </div>
-      <div className="viewbody fill cp-body">
+      <div className="viewbody fill cp-body" data-scroll="body">
         <div className="cp-details cp-sdetails">
           <div className="field cp-f-name">
             <label htmlFor="cp-s-name">Session name</label>
@@ -292,12 +317,12 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
               autoComplete="off"
               value={s.name}
               onDraft={setNameDraft}
-              onSave={(name) => void updateSession({ name })}
+              onSave={(name) => void saveSession({ name }, `session name “${name.trim()}”`)}
             />
           </div>
           <div className="field cp-f-date">
             <label htmlFor="cp-s-date">Date</label>
-            <input className="input" type="date" id="cp-s-date" value={s.date ?? ""} onChange={(event) => void updateSession({ date: event.target.value || null })} />
+            <input className="input" type="date" id="cp-s-date" value={s.date ?? ""} onChange={(event) => void saveSession({ date: event.target.value || null }, `Session ${s.number} date`)} />
           </div>
           <div className="field cp-f-status">
             <label htmlFor="cp-s-status">Status</label>
@@ -307,7 +332,7 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
               value={s.status}
               onChange={async (event) => {
                 const status = event.target.value as SessionStatus;
-                if ((await updateSession({ status })) !== undefined) say(`Session ${s.number} is now ${STATUS_WORDS[status]}`);
+                if ((await saveSession({ status }, `Session ${s.number} status`)) !== undefined) say(`Session ${s.number} is now ${STATUS_WORDS[status]}`);
               }}
             >
               {(["played", "next", "draft"] as const).map((k) => (
@@ -421,7 +446,7 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
                   autoComplete="off"
                   value={s.noteLink}
                   placeholder={`${c.obsidian.sessionsFolder || "Sessions"}/Session ${s.number}.md`}
-                  onSave={(noteLink) => void updateSession({ noteLink })}
+                  onSave={(noteLink) => void saveSession({ noteLink }, `Session ${s.number} Obsidian note`)}
                 />
               </div>
               <ObsidianButton idPrefix="cp-s-o-" />
@@ -522,15 +547,16 @@ function sceneTip(scene: SceneInfo, index: LibraryIndex, names: TrackNames, plac
 
 function SceneCard({ scene, position, ctx, open, onToggle, drag, menu }: SceneCardProps) {
   const api = useLyreApi();
-  const write = useWrite();
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   const [fileOver, setFileOver] = useState(false);
   useEffect(() => setNameDraft((d) => (d !== null && d === scene.name ? null : d)), [scene.name]);
   const name = (nameDraft ?? scene.name) || "Untitled scene";
   const number = position + 1;
-  const save = (patch: Parameters<typeof api.sessions.updateScene>[1]) => {
+  const saveWith = useSave();
+  /** UX-19: a scene's field saves with the Saved pop-up ("Saved: The abbey ruins notes"). */
+  const save = (patch: Parameters<typeof api.sessions.updateScene>[1], what: string) => {
     ctx.workedOn(scene.id);
-    void write(api.sessions.updateScene(ctx.address(scene), patch));
+    void saveWith(what, () => api.sessions.updateScene(ctx.address(scene), patch), { key: `sc-${scene.id}-${Object.keys(patch)[0]}` });
   };
   const rowProps = drag.rowProps(position);
   const f = `sc${scene.id}`;
@@ -572,6 +598,9 @@ function SceneCard({ scene, position, ctx, open, onToggle, drag, menu }: SceneCa
     <li
       className={`cp-scene${open ? " open" : ""}${fileOver ? " cp-fdrop" : ""} ${drag.rowClass(position)}`}
       aria-label={`Scene ${number}: ${name}`}
+      // UX-18: a link in this scene names it for Back ("Back to The abbey ruins"), and Back opens it again.
+      data-back-label={name}
+      data-back-open={scene.id}
       {...rowProps}
       {...foldedDrop}
     >
@@ -592,7 +621,7 @@ function SceneCard({ scene, position, ctx, open, onToggle, drag, menu }: SceneCa
               placeholder="Untitled scene"
               onSave={(newName) => {
                 setNameDraft(newName);
-                save({ name: newName });
+                save({ name: newName }, `scene name “${newName.trim()}”`);
               }}
               onDone={rename.done}
             />
@@ -659,12 +688,12 @@ function SceneCard({ scene, position, ctx, open, onToggle, drag, menu }: SceneCa
               autoComplete="off"
               value={scene.name}
               onDraft={setNameDraft}
-              onSave={(value) => save({ name: value })}
+              onSave={(value) => save({ name: value }, `scene name “${value.trim()}”`)}
             />
           </div>
           <div className="field">
             <label htmlFor={`${f}w`}>Starts when</label>
-            <DraftField className="input" id={`${f}w`} placeholder="The moment in the story" autoComplete="off" value={scene.startsWhen} onSave={(value) => save({ startsWhen: value })} />
+            <DraftField className="input" id={`${f}w`} placeholder="The moment in the story" autoComplete="off" value={scene.startsWhen} onSave={(value) => save({ startsWhen: value }, `when ${scene.name || "the scene"} starts`)} />
           </div>
           <div className="field cp-span" role="group" aria-labelledby={`${f}m`}>
             <span className="label" id={`${f}m`}>
@@ -686,7 +715,7 @@ function SceneCard({ scene, position, ctx, open, onToggle, drag, menu }: SceneCa
           </div>
           <div className="field">
             <label htmlFor={`${f}x`}>Notes</label>
-            <DraftField multiline className="input" id={`${f}x`} rows={2} placeholder="Reminders for this scene" value={scene.notes} onSave={(value) => save({ notes: value })} />
+            <DraftField multiline className="input" id={`${f}x`} rows={2} placeholder="Reminders for this scene" value={scene.notes} onSave={(value) => save({ notes: value }, `${scene.name || "scene"} notes`)} />
           </div>
           <div className="field cp-obsfield">
             <label htmlFor={`${f}o`}>
@@ -699,7 +728,7 @@ function SceneCard({ scene, position, ctx, open, onToggle, drag, menu }: SceneCa
               title="Kept for later; Lyre does not open Obsidian notes yet"
               autoComplete="off"
               value={scene.noteLink}
-              onSave={(value) => save({ noteLink: value })}
+              onSave={(value) => save({ noteLink: value }, `${scene.name || "scene"} note link`)}
             />
           </div>
         </div>

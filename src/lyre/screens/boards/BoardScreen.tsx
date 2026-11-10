@@ -45,6 +45,19 @@ import { PreviewButton } from "../../kit/SoundButtons";
 import { useHeldPads } from "../../kit/heldPads";
 import "./boards.css";
 import { TopLead } from "../../shell/TopBar";
+import { useSave } from "../../shell/useSave";
+
+/** What a pad's change saved, for the Saved pop-up ("Saved: pad label “Thunder”", "Saved: Thunder colour"). */
+export function padSaveWords(patch: PadPatch, label: string): string {
+  if (patch.label !== undefined) return `pad label “${patch.label}”`;
+  if (patch.color !== undefined) return `${label} colour`;
+  if (patch.icon !== undefined) return `${label} icon`;
+  if (patch.volume !== undefined) return `${label} volume`;
+  if (patch.fadeOutMs !== undefined) return `${label} fade`;
+  if (patch.key !== undefined) return `${label} hotkey`;
+  if (patch.mode !== undefined) return `${label} play mode`;
+  return `${label} sound`;
+}
 
 /** A second click on the selected pad within this time previews it (the prototype's double-click). */
 const DOUBLE_CLICK_MS = 450;
@@ -74,7 +87,7 @@ export function BoardScreen({ route }: ScreenProps) {
           <TopLead />
           <h1>Pad board not found</h1>
         </div>
-        <div className="viewbody">
+        <div className="viewbody" data-scroll="body">
           <p className="empty">
             This board was deleted. <a href="#/boards">Back to Pad boards</a>
           </p>
@@ -91,6 +104,7 @@ type OpenMenu = { owner: string; label: string; items: MenuEntry[]; n: number };
 function BoardEditor({ board }: { board: PadBoard }) {
   const api = useLyreApi();
   const write = useWrite();
+  const save = useSave();
   const { say, toast } = useAnnounce();
   const campaigns = useCampaigns().data ?? [];
   const tracks = useTracks().data ?? [];
@@ -127,8 +141,18 @@ function BoardEditor({ board }: { board: PadBoard }) {
   const fi = Math.min(focusIndex, board.slots.length - 1);
   const spareShown = spareOpen ?? board.spare.length > 0;
 
-  const nameField = useSavedText(board.name, (text) => text.trim() && void write(api.boards.rename(board.id, text.trim())), board.id);
-  const update = (patch: PadPatch, padId = selected?.pad.id) => (padId ? write(api.boards.updatePad(board.id, padId, patch)) : Promise.resolve(null));
+  // UX-19: the board's name and every change to a pad show the Saved pop-up, in the prototype's words.
+  const nameField = useSavedText(
+    board.name,
+    (text) => text.trim() && void save(`board name “${text.trim()}”`, () => api.boards.rename(board.id, text.trim()), { key: `pb-name-${board.id}` }),
+    board.id,
+  );
+  const update = (patch: PadPatch, padId = selected?.pad.id) => {
+    if (!padId) return Promise.resolve(null);
+    const pad = findPad(board, padId)?.pad;
+    const what = padSaveWords(patch, pad?.label ?? "pad");
+    return save(what, () => api.boards.updatePad(board.id, padId, patch), { key: `pad-${padId}-${what}` }).then((done) => done ?? null);
+  };
 
   /* ---------- changes to the board ---------- */
 
@@ -702,7 +726,7 @@ function BoardEditor({ board }: { board: PadBoard }) {
                 focusLater={focusLater}
               />
             ) : (
-              <Pane id="pb-pad" title="Pad" icon="edit" kind="plain" open={padOpen} onOpenChange={setPadOpen} status={{ text: "Ready", tone: "idle" }} summary="No pad selected">
+              <Pane id="pb-pad" title="Pad" icon="edit" kind="plain" open={padOpen} onOpenChange={setPadOpen} summary="No pad selected">
                 <p className="empty">Select a pad to change it, or click an empty slot to add one.</p>
               </Pane>
             )}

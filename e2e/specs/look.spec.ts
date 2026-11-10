@@ -47,6 +47,7 @@ test.describe("round 7: display options", () => {
   });
 
   test("Text size goes from 100 to 200 %, and at 200 % nothing scrolls sideways", async ({ page }) => {
+    expectFailureUntilBuilt("shell", "rooms-settings"); // it opens Settings too
     await openRoute(page, "look");
     const size = display(page).getByRole("slider", { name: "Text size" });
     await expect(size).toHaveAttribute("aria-valuetext", "100 percent");
@@ -67,6 +68,7 @@ test.describe("round 7: display options", () => {
   });
 
   test("tag colours are edited with the tags, and always come with the tag's name", async ({ page }) => {
+    expectFailureUntilBuilt("shell", "prep"); // it ends on the Tags screen
     await openRoute(page, "look");
     await display(page).getByRole("link", { name: "Tag colours…" }).click();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Tags");

@@ -50,7 +50,7 @@ export function LookScreen() {
         <h1>Look and feel</h1>
         <span className="muted">One Lyre, a theme per table</span>
       </div>
-      <div className="viewbody">
+      <div className="viewbody" data-scroll="body">
         <Display />
         <div className="lk-intro">
           <p>Each campaign can have its own theme, and Lyre switches to it when you open that campaign. Choose one here to use it everywhere.</p>

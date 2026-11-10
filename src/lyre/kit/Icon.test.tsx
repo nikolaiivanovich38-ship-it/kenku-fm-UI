@@ -5,11 +5,12 @@ import { ICON_NAMES, Icon, LyreLogo } from "./Icon";
 
 describe("the icon set (from the prototype's core.js)", () => {
   it("has every icon the prototype draws", () => {
-    for (const name of ["play", "stop", "pause", "broadcast", "crown", "library", "playlist", "grid", "users", "palette", "chevdown", "expand", "shrink", "headphones", "close", "more", "search", "fade", "check", "shuffle", "inorder", "loop", "repeat1", "volume", "upload", "download", "warn", "help"]) {
+    for (const name of ["play", "stop", "pause", "broadcast", "crown", "library", "playlist", "grid", "users", "palette", "chevdown", "expand", "shrink", "headphones", "close", "more", "search", "fade", "check", "shuffle", "inorder", "loop", "repeat1", "volume", "upload", "download", "warn", "help", "undo", "mute", "leave", "playair"]) {
       expect(ICON_NAMES).toContain(name);
     }
-    // All of the prototype's icons (core.js; round 5 added play order, volume and the transfer screens' download, upload and warn; FND-8 help), nothing more.
-    expect(ICON_NAMES).toHaveLength(84);
+    // All of the prototype's icons (core.js; round 5 added play order, volume and the transfer screens' download, upload and warn; FND-8 help;
+    // round 6 Undo, muted, Kick and Play on air), nothing more.
+    expect(ICON_NAMES).toHaveLength(88);
   });
 
   it("is decoration only: hidden from screen readers, sized by class", () => {

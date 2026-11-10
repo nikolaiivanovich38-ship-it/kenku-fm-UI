@@ -168,7 +168,7 @@ export function PlaylistsScreen(_props: ScreenProps) {
           <Icon name="chevdown" size="s" />
         </PopMenuButton>
       </div>
-      <div className="viewbody fill pl-listbody">
+      <div className="viewbody fill pl-listbody" data-scroll="body">
         <DropNotice where="list" actions={actions} playlists={playlists} />
         <div className="pl-tools">
           <div className="search pl-search">
@@ -208,7 +208,7 @@ export function PlaylistsScreen(_props: ScreenProps) {
             kind="music"
             noMax
             flush
-            status={playlists.some((p) => onAir.has(p.id)) ? { text: "Playing", tone: "live" } : { text: "Ready" }}
+            status={playlists.some((p) => onAir.has(p.id)) ? { text: "Playing", tone: "live" } : undefined}
             summary="Drop audio files on a row to add them"
           >
             {shown.length ? (
