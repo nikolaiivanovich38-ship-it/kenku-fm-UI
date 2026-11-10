@@ -38,6 +38,7 @@ import { SearchField } from "../../kit/Fields";
 import { LibraryMoreMenu } from "../transfer/LibraryMoreMenu";
 import "./library.css";
 import { TopLead } from "../../shell/TopBar";
+import { tagTreeOf } from "../../../common/lyre/lookup";
 
 type Picker = { kind: "bulk" } | { kind: "one"; id: string };
 
@@ -73,7 +74,9 @@ export function LibraryScreen({ route }: ScreenProps) {
   const tid = route.params.tid;
   const open = tid ? byId.get(tid) : undefined;
   const all = tracks ?? NONE;
-  const list = useMemo(() => visibleTracks(all, st.filter, st.q, st.sort, missing), [all, st.filter, st.q, st.sort, missing]);
+  // DAT-10: a tag finds the tracks of the tags inside it.
+  const tree = useMemo(() => tagTreeOf(groups), [groups]);
+  const list = useMemo(() => visibleTracks(all, st.filter, st.q, st.sort, missing, tree), [all, st.filter, st.q, st.sort, missing, tree]);
   const sel = useMemo(() => new Set(st.sel), [st.sel]);
   const onAir = useMemo(() => onAirTrackIds(now), [now]);
   const airPaused = useMemo(() => pausedTrackIds(now), [now]);

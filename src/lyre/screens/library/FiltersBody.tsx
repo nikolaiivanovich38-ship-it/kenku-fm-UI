@@ -7,6 +7,8 @@ import { cx } from "../../kit/cx";
 import { getLibraryState, setLibraryState } from "./libraryState";
 import { shapeOf } from "../../../common/domain";
 import { ShapeGlyph } from "../../kit/ShapeGlyph";
+import { tagTreeOf } from "../../../common/lyre/lookup";
+import { trackHasTag } from "../../../common/domain/round7";
 import { folderRows, isNewish, kindOk, SHAPES, visibleTracks, type KindFilter, type LibraryFilter } from "./model";
 
 const KINDS: [KindFilter, string][] = [
@@ -43,17 +45,19 @@ export function FiltersBody({
     }
     return out;
   }, [base]);
-  // Each tag value's count among the tracks of this kind, in one pass.
+  // DAT-10: a tag finds the tracks of the tags inside it, here as in the list.
+  const tree = useMemo(() => tagTreeOf(groups), [groups]);
+  // Each tag value's count among the tracks of this kind (a tag's count includes the tags inside it).
   const counts = useMemo(() => {
     const out = new Map<string, number>();
-    for (const t of base) for (const [g, values] of Object.entries(t.tags)) for (const v of values) out.set(`${g}\u0000${v}`, (out.get(`${g}\u0000${v}`) ?? 0) + 1);
+    for (const g of groups) for (const v of g.values) out.set(`${g.id}\u0000${v}`, base.filter((t) => trackHasTag(t, g.id, v, tree)).length);
     return out;
-  }, [base]);
+  }, [base, groups, tree]);
   const folderList = useMemo(() => folderRows(tracks, folders, filter.folder, filter.kind), [tracks, folders, filter.folder, filter.kind]);
   const setFilter = (change: Partial<LibraryFilter>) => setLibraryState((s) => ({ filter: { ...s.filter, ...change } }));
   const shownCount = () => {
     const s = getLibraryState();
-    return visibleTracks(tracks, s.filter, s.q, s.sort, missing).length;
+    return visibleTracks(tracks, s.filter, s.q, s.sort, missing, tree).length;
   };
 
   return (

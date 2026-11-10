@@ -26,6 +26,7 @@ export const SCREEN_WORDS: Record<RouteName, string> = {
   moved: "What came across from Kenku FM",
   relink: "Find missing files",
   settings: "Settings",
+  tags: "Tags",
 };
 
 /** The host with `from` filled in on the preview calls (Try pads too); the same object for the same host and screen. */

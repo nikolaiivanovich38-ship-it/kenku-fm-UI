@@ -176,6 +176,20 @@ describe("Library: a track's details", () => {
     await waitFor(() => expect(within(details()).queryByRole("button", { name: "Remove Melancholy from Mood" })).toBeNull());
   });
 
+  it("DAT-10: typing another word for a tag offers the tag itself, never a new one, and Enter adds it", async () => {
+    const { api } = openAt("library/t44");
+    const box = await within(details()).findByRole("combobox", { name: "Add a mood tag" });
+    const user = userEvent.setup();
+    await user.click(box);
+    await user.keyboard("sad");
+    const options = within(screen.getByRole("listbox", { name: "Mood values" })).getAllByRole("option");
+    expect(options[0]).toHaveTextContent("Melancholy (sad)");
+    expect(options.some((o) => /Create/.test(o.textContent ?? ""))).toBe(false);
+    await user.keyboard("{Enter}");
+    expect(await within(details()).findByRole("button", { name: "Remove Melancholy from Mood" })).toBeInTheDocument();
+    expect((await api.library.listTracks()).find((t) => t.id === "t44")?.tags.mood).toContain("Melancholy");
+  });
+
   it("Tab adds what was typed (creating a new tag) or the suggestion chosen, and moves on; an empty box adds nothing (BUG-15)", async () => {
     const { api } = openAt("library/t44");
     const box = await within(details()).findByRole("combobox", { name: "Add a mood tag" });

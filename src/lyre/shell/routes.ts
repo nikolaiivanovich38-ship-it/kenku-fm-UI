@@ -24,7 +24,8 @@ export type RouteName =
   | "backup"
   | "moved"
   | "relink"
-  | "settings";
+  | "settings"
+  | "tags";
 
 /** The rail's sections; every screen lights one of them. */
 export type Section = "campaigns" | "library" | "playlists" | "boards" | "live" | "outputs" | "settings" | "look";
@@ -60,6 +61,8 @@ const ROUTES: [RegExp, RouteName, string[]][] = [
   [/^relink$/, "relink", []],
   // Round 6 (OUT-8): Settings in Lyre. The Rooms and Settings stream builds its screen.
   [/^settings$/, "settings", []],
+  // Round 7 (DAT-10): the Tags screen, part of the Library.
+  [/^tags$/, "tags", []],
 ];
 
 const SECTION: Record<RouteName, Section> = {
@@ -79,6 +82,7 @@ const SECTION: Record<RouteName, Section> = {
   moved: "library",
   relink: "library",
   settings: "settings",
+  tags: "library",
 };
 
 /** The screen for a route such as "session/crown/s14". An unknown address opens Live, as in the prototype. */

@@ -13,6 +13,7 @@ import { BackupScreen } from "./transfer/BackupScreen";
 import { MovedScreen } from "./transfer/MovedScreen";
 import { RelinkScreen } from "./transfer/RelinkScreen";
 import { PlaceholderScreen } from "./Placeholder";
+import { TagsScreen } from "./tags/TagsScreen";
 
 /** What every screen gets: the route it was opened at (its ids are in route.params). */
 export interface ScreenProps {
@@ -51,4 +52,6 @@ export const SCREENS: Record<RouteName, ScreenComponent> = {
   relink: RelinkScreen,
   // Round 6 (OUT-8): the Rooms and Settings stream swaps this for Settings in Lyre.
   settings: () => <PlaceholderScreen title="Settings" />,
+  // Round 7 (DAT-10): the tag vocabulary (w6-prep).
+  tags: TagsScreen,
 };

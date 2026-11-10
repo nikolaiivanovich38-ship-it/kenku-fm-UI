@@ -54,6 +54,7 @@ import { previewKeyOf } from "../../kit/SoundButtons";
 import type { TrackStore } from "./trackStore";
 import { useSave } from "../../shell/useSave";
 import { SAVE_AFTER_MS } from "../../kit/SavedField";
+import { offerTags } from "../../../common/domain/round7";
 
 /** Typing in Your title or Notes is saved this long after the last key, as one change. */
 /** UX-19: saved after a second without typing (and on leaving the track), never per key: the kit's rule. */
@@ -554,13 +555,19 @@ function TagRow({
         Number(b.toLowerCase().startsWith(needle)) -
         Number(a.toLowerCase().startsWith(needle)),
     );
-    const out: { value: string; isNew: boolean }[] = values
-      .slice(0, 8)
-      .map((value) => ({ value, isNew: false }));
-    if (needle && !group.values.some((v) => v.toLowerCase() === needle))
+    // DAT-10: a tag one of whose other words starts with what was typed ("sad" offers Melancholy (sad)); the tag
+    // itself is added, never a new tag of that word.
+    const byWord = offerTags(group.tags ?? [], q).filter((o) => o.word !== null && !mine.includes(o.tag) && !values.includes(o.tag));
+    const exactWord = byWord.filter((o) => o.word?.toLowerCase() === needle);
+    const out: { value: string; isNew: boolean; word?: string }[] = [
+      ...exactWord.map((o) => ({ value: o.tag, isNew: false, word: o.word ?? undefined })),
+      ...values.map((value) => ({ value, isNew: false })),
+      ...byWord.filter((o) => !exactWord.includes(o)).map((o) => ({ value: o.tag, isNew: false, word: o.word ?? undefined })),
+    ].slice(0, 8);
+    if (needle && !group.values.some((v) => v.toLowerCase() === needle) && exactWord.length === 0)
       out.push({ value: tagValue(q), isNew: true });
     return out;
-  }, [open, q, group.values, mine]);
+  }, [open, q, group.values, group.tags, mine]);
   const showList = open && options.length > 0;
   const active = Math.min(act, Math.max(0, options.length - 1));
 
@@ -720,6 +727,8 @@ function TagRow({
                       Create <b>{o.value}</b> in {group.name}
                     </span>
                   </>
+                ) : o.word ? (
+                  `${o.value} (${o.word})`
                 ) : (
                   o.value
                 )}

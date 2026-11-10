@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { prototypeSeed } from "../../../common/lyre/seed";
 import type { LibraryTrack } from "../../../common/lyre/api";
+import { tagTreeOf } from "../../../common/lyre/lookup";
 import {
   DEFAULT_FILTER,
   addedText,
@@ -46,6 +47,13 @@ describe("the Library's filters (library.js matches and visible)", () => {
   it("a tag narrows the list; two values in one group widen it again (any of them)", () => {
     expect(view({ tags: { mood: ["Grief"] } })).toHaveLength(5);
     expect(view({ tags: { mood: ["Grief", "Dread"] } }).length).toBeGreaterThan(5);
+  });
+
+  it("DAT-10: a tag that holds others finds the tracks of the tags inside it (Mood › Melancholy › Grief)", () => {
+    const tree = tagTreeOf(groups);
+    const withTree = visibleTracks(tracks, { ...DEFAULT_FILTER, tags: { mood: ["Melancholy"] } }, "", "title", missing, tree);
+    expect(titles(withTree)).toContain("Release after loss, ethereal voice, resolves - end of session or death of an NPC");
+    expect(titles(view({ tags: { mood: ["Melancholy"] } }))).not.toContain("Release after loss, ethereal voice, resolves - end of session or death of an NPC");
   });
 
   it("New, not tagged yet: tracks just added or without tags", () => {
