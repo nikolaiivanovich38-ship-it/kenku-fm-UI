@@ -44,6 +44,7 @@ import { MainMediaResolver } from "../../player/engine/sources/mainMediaResolver
 import { browserObjectUrls, ReadAhead } from "../../player/engine/sources/readAhead";
 import { readBytes } from "../../player/engine/sources/readBytes";
 import { SourceLoader, type MediaRequest } from "../../player/engine/sources/sourceLoader";
+import { storedResumePositions } from "../../player/engine/queue/resumePositions";
 import { EngineLyreAudio, type LyreAudioLibrary } from "./lyreAudio";
 import type { LyreAudioBridge } from "./preloadAudio";
 
@@ -65,6 +66,8 @@ export interface LyreAudioPieces {
   previewScheduler?: Scheduler;
   devices: DeviceSource;
   store: ChoiceStore;
+  /** PLY-4: where Pick up tracks stopped, kept on this computer across restarts. */
+  resumePositions?: Map<string, number>;
   readAhead?: { want(requests: readonly MediaRequest[]): void };
   /** Closes the engine's audio context. */
   closeContext: () => Promise<void>;
@@ -98,6 +101,7 @@ export function assembleLyreAudio(pieces: LyreAudioPieces): EngineLyreAudio {
     readAhead: pieces.readAhead,
     chime: pieces.chime,
     setPreviewEar: previewOutput.setEar ? (ear) => previewOutput.setEar?.(ear) : undefined,
+    resumePositions: pieces.resumePositions,
     // Rooms start at full level: a room's volume is its bot's (Outputs), so the page does not lower it twice.
     onDispose: async () => {
       stopPort();
@@ -157,6 +161,7 @@ export async function startLyreAudio(options: { window: Window; bridge: LyreAudi
     previewLoad: (media) => previewLoader.load(media),
     devices: browserDeviceSource(target.navigator.mediaDevices),
     store: storageChoiceStore(safeStorage(target)),
+    resumePositions: storedResumePositions(safeStorage(target)),
     readAhead,
     closeContext: async () => {
       readAhead.clear();
