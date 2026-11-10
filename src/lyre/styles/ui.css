@@ -310,6 +310,7 @@ table.grid tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 v
 .dest.air { background: var(--onair); color: var(--onair-ink); }
 .dest.you { background: transparent; color: var(--preview); border-color: var(--preview); }
 .dest.paused { background: transparent; color: var(--ink-2); border-color: var(--line-strong); }
+.dest.warn { background: transparent; color: var(--warn); border-color: var(--warn); }
 
 /* DAT-13 track shape (kit/ShapeGlyph.tsx): a small line drawing of how the track moves, beside its word. */
 .shape-g { width: 22px; height: 11px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }

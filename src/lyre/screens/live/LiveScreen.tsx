@@ -1,40 +1,44 @@
 /**
- * Live (route `live`, UX-2, UX-8, UX-12, UX-14, SFX-2, OUT-6, SHW-1, SHW-2, SHW-3): the screen the game master runs a
- * game from, ported from design/prototype/src/views/live.js and live.css. Built to work in half of a 1920 screen.
+ * Live (route `live`): the screen the game master runs a game from, ported from design/prototype/src/views/live.js and
+ * live.css (round 6 parts 3 to 7, round 7 part 2).
  *
- * Order of importance: what is on air (one box per room), the scenes, the scene's music, Off script search, then the
- * pads (folded at first). One column below 820 px of the app, two up to 1200 px, three above; the page scrolls as a
- * whole and Scene music sits above the On air boxes.
+ * Seven boxes, each with one job, a plain name and a place that never moves during play (SHW-8): On air at the top,
+ * the whole width, always in view (a part per room); under it Scenes and Current scene, each as tall as its contents;
+ * then the trays: "This session" (Session playlists, Session pads) and "Whole campaign" (Campaign playlists, Campaign
+ * pads), folded at first, growing with their contents while the page scrolls. Find a track or playlist is a field in
+ * the top strip. Columns come from the width of the app: one below 820 px, two up to 1200 px, three above.
  *
- * The audio host is the engine: Live reads getNowPlaying() and calls it (startScene, playTrack, firePad, undo…); it
- * keeps no sound of its own. What Live keeps (the scene on now, To: choices, the search) is in liveState.ts, so it
- * is the same after a visit to another screen. Keys: Space next scene, / search, pad keys (single-key shortcuts, can
- * be switched off), Shift+Esc fade all, Ctrl+Z undo the scene change, Esc clear the search.
+ * The audio host is the engine: Live reads getNowPlaying() and calls it (startScene, playTrack, playNext, firePad,
+ * undo…); it keeps no sound of its own. What Live keeps (the scene on now, To: choices, open boxes, Find) is in
+ * liveState.ts, so it is the same after a visit to another screen. Keys (Settings › Keyboard shortcuts, UX-12): Space
+ * next scene (a second press within a second is ignored), / Find, pad keys (single-key shortcuts, can be switched
+ * off), Shift+Esc fade all, Ctrl+Z undo the last change, Alt+1 to 7 and F6 go to a box, Esc closes Find.
  */
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
-import { DEFAULT_LIBRARY_NORMALISE } from "../../../common/domain";
-import { useBoards, useCampaigns, useLyreQuery, useProfileOverrides, useTagGroups, usePlaylists, useTracks } from "../../api";
-import { useLyreAudio, useNowPlaying, type LyreAudio } from "../../audio";
+import { DEFAULT_LIBRARY_NORMALISE, guardAllows, keyName, shortcutKey } from "../../../common/domain";
+import { useBoards, useCampaigns, useLyreQuery, useProfileOverrides, useSettings, useTagGroups, usePlaylists, useTracks } from "../../api";
+import { useLyreAudio, useLyreAudioEvent, useNowPlaying, type LyreAudio } from "../../audio";
 import { loadInLive, useLiveSession } from "../../kit/liveSession";
 import { usePlayOrders } from "../../kit/playOrders";
 import { useTrackNames } from "../../kit/trackName";
 import { useOutputs } from "../../outputs/OutputsProvider";
 import { useAnnounce } from "../../shell/Announcer";
 import { useCampaignInHand } from "../../shell/CampaignInHand";
-import { useRememberedOpen } from "../../shell/ShellSettings";
 import type { ScreenComponent } from "../index";
 import { libraryIndex } from "../campaigns/model";
 import { sessionLabel } from "../campaigns/model";
+import { CurrentScenePane } from "./CurrentScene";
+import { closeFind, openFind } from "./Find";
+import { focusBox, focusLive } from "./focus";
 import { LiveDataProvider, sceneRefOf, type LiveData } from "./liveData";
-import { boxTarget, currentBoard, defaultLiveSession, liveKey, liveRooms, padForKey, UNDO_MS } from "./liveModel";
-import { getLiveState, standbyFor, updateLive, useLiveState } from "./liveState";
+import { boxTarget, currentBoard, defaultLiveSession, LIVE_BOXES, LIVE_KEYS, liveKey, liveRooms, padForKey, UNDO_MS, type LiveKeys } from "./liveModel";
+import { getLiveState, standbyFor, touched, updateLive, useLiveState } from "./liveState";
 import { LiveTop } from "./LiveTop";
-import { OffScriptPane } from "./OffScript";
-import { OnAirBoxes } from "./OnAir";
-import { firePads, PadsPane } from "./Pads";
-import { SceneMusicPane } from "./SceneMusic";
-import { focusLive, ScenesPane } from "./Scenes";
+import { OnAirPane } from "./OnAir";
+import { firePads } from "./Pads";
+import { ScenesPane } from "./Scenes";
+import { PadsBox, PlaylistsBox } from "./Trays";
 import "./live.css";
 
 /** Where the single-key shortcuts choice is kept (this page only). */
@@ -45,14 +49,18 @@ const THREE_COLUMNS_PX = 1200;
 /** What plays from another session fades this long when a session is loaded. */
 const SESSION_FADE_MS = 3000;
 
-type PaneId = "onair" | "scenes" | "music" | "off" | "pads";
-const LAYOUT: Record<1 | 2 | 3, PaneId[][]> = {
-  1: [["music", "onair", "off", "scenes", "pads"]],
+type BoxId = "scenes" | "current" | "ssp" | "ssd" | "cpp" | "cpd";
+/**
+ * On air is above, the whole width (round 6 part 6); under it Scenes and Current scene where the eye starts, then the
+ * session's things, then the campaign's. Alt+1 to 7 and F6 follow LIVE_BOXES, the same in every layout.
+ */
+const LAYOUT: Record<1 | 2 | 3, BoxId[][]> = {
+  1: [["scenes", "current", "ssp", "ssd", "cpp", "cpd"]],
   2: [
-    ["scenes", "off"],
-    ["music", "onair", "pads"],
+    ["scenes", "ssp", "ssd", "cpp", "cpd"],
+    ["current"],
   ],
-  3: [["scenes"], ["music", "onair"], ["off", "pads"]],
+  3: [["scenes"], ["current"], ["ssp", "ssd", "cpp", "cpd"]],
 };
 
 function readKeys1(): boolean {
@@ -93,7 +101,8 @@ function useColumns(): 1 | 2 | 3 {
 
 /**
  * Another session loaded (Run, the session menu): what plays in the first room from elsewhere fades out over 3 s, so
- * the new session starts clean (live.js L.liveStandby); music already from that session plays on.
+ * the new session starts clean (live.js L.liveStandby); music already from that session plays on. Every room's list
+ * of what was added for the evening is cleared (the audio host's sessionLoaded).
  */
 function fadeOtherSession(audio: LyreAudio, session: { campaignId: string; sessionId: string }): void {
   const first = audio.getNowPlaying().rooms[0];
@@ -101,6 +110,7 @@ function fadeOtherSession(audio: LyreAudio, session: { campaignId: string; sessi
   const fromThere = o?.kind === "scene" && o.scene.campaignId === session.campaignId && o.scene.sessionId === session.sessionId;
   if (first?.music && !fromThere) audio.stopLane("music", { fadeMs: SESSION_FADE_MS });
   if (first?.ambience) audio.stopLane("ambience", { fadeMs: SESSION_FADE_MS });
+  audio.sessionLoaded();
 }
 
 function isTyping(target: EventTarget | null): boolean {
@@ -116,6 +126,7 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
   const boards = useBoards().data;
   const overrides = useProfileOverrides().data;
   const tagGroups = useTagGroups().data;
+  const settings = useSettings().data;
   const normalise = useLyreQuery("normalise-settings", (api) => api.library.normaliseSettings(), ["tracks"]).data;
   const orders = usePlayOrders();
   const names = useTrackNames();
@@ -127,10 +138,14 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
   const columns = useColumns();
   const [keys1, setKeys1State] = useState(readKeys1);
   const [keysOpen, setKeysOpenState] = useState(false);
-  const [offOpen, setOffOpen] = useRememberedOpen("lv-off", true);
 
   const index = useMemo(() => (tracks && playlists && boards ? libraryIndex(tracks, playlists, boards) : null), [tracks, playlists, boards]);
   const wanted = campaigns ? defaultLiveSession(campaigns, loaded, inHand) : null;
+  const shortcuts = settings?.shortcuts;
+  const keys: LiveKeys = useMemo(
+    () => (shortcuts ? { nextScene: shortcutKey(shortcuts, "nextScene"), fadeAll: shortcutKey(shortcuts, "fadeAll"), undo: shortcutKey(shortcuts, "undo"), find: shortcutKey(shortcuts, "find") } : LIVE_KEYS),
+    [shortcuts],
+  );
 
   // The session shown: the one loaded, else a default, which is then loaded (the rail says "Live: S14"). Another
   // session than the one Live last showed waits on standby with nothing started.
@@ -145,12 +160,32 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
   const rooms = useMemo(() => liveRooms(outputs, now), [outputs, now]);
   const campaign = campaigns?.find((c) => c.id === state.session?.campaignId);
   const session = campaign?.sessions.find((s) => s.id === state.session?.sessionId);
-  const sceneIndex = state.now >= 0 ? state.now : state.standby;
-  const scene = session?.scenes[sceneIndex] ?? (state.now < 0 ? (session?.scenes[0] ?? null) : null);
+  const scene = state.now >= 0 ? (session?.scenes[state.now] ?? null) : null;
 
   const data: LiveData | null =
     index && campaigns && campaign && session
-      ? { audio, now, index, campaigns, campaign, session, scene, sceneIndex, state, rooms, outputs, client, names, overrides: overrides ?? {}, orders, tagGroups: tagGroups ?? [], keys1, normalise: normalise ?? DEFAULT_LIBRARY_NORMALISE }
+      ? {
+          audio,
+          now,
+          index,
+          campaigns,
+          campaign,
+          session,
+          scene,
+          sceneIndex: state.now,
+          state,
+          rooms,
+          outputs,
+          client,
+          names,
+          overrides: overrides ?? {},
+          orders,
+          tagGroups: tagGroups ?? [],
+          keys1,
+          keys,
+          guard: settings?.nextSceneGuard ?? true,
+          normalise: normalise ?? DEFAULT_LIBRARY_NORMALISE,
+        }
       : null;
   const dataRef = useRef(data);
   dataRef.current = data;
@@ -184,12 +219,14 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
       const left = s.now < 0 ? "before the first scene" : (d.session.scenes[s.now]?.name ?? "the previous scene");
       const outcome = d.audio.startScene(sceneRefOf(d.campaign.id, d.session.id, target));
       if (!outcome.ok) return;
+      // A new scene is a change of mood: the audio host clears what was added to the room's list (Nik, 6 Nov 13:55)
+      // and the room's Repeat; the scene's Undo brings them back.
       updateLive({
         now: i,
         standby: Math.min(i + 1, d.session.scenes.length),
         undo: { before: { now: s.now, standby: s.standby }, label: left, started: target.name, until: Date.now() + UNDO_MS },
-        list: null,
-        board: null,
+        undo2: null,
+        boards: { ...s.boards, sc: null },
         notesOpen: false,
       });
       say(`Started ${target.name}. Undo is available for 8 seconds, or press Ctrl+Z.`);
@@ -209,18 +246,40 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
     changeScene(s.standby);
     if (keep) focusLive("nextsc");
   }, [changeScene, toast]);
+  /** Ctrl+Z and the strips: the last change only (Must 1), a scene change or any other. */
   const undo = useCallback(() => {
-    const offer = getLiveState().undo;
+    const s = getLiveState();
+    if (s.undo2) {
+      const offer = s.undo2;
+      updateLive({ undo2: null });
+      offer.restore();
+      focusLive(offer.focus || "nextsc");
+      say(`Undone: ${offer.text}`);
+      return true;
+    }
+    const offer = s.undo;
     if (!offer) return false;
     updateLive({ undo: null });
     const outcome = dataRef.current?.audio.undoSceneStart();
     if (!outcome?.ok) return true;
-    updateLive({ now: offer.before.now, standby: offer.before.standby, list: null, board: null });
+    updateLive({ now: offer.before.now, standby: offer.before.standby, boards: { ...getLiveState().boards, sc: null } });
     focusLive("nextsc");
     say(`Back to ${offer.label}, with its music and ambience`);
     return true;
   }, [say]);
   const sceneActions = useMemo(() => ({ start: changeScene, next: nextScene, undo }), [changeScene, nextScene, undo]);
+
+  // PLY-8: a scene started by another's step, or moving on by itself, is the scene on now; a step can show a board.
+  useLyreAudioEvent("scene-started", (at) => {
+    const d = dataRef.current;
+    if (!d || at.by === "press" || at.scene.campaignId !== d.campaign.id || at.scene.sessionId !== d.session.id) return;
+    const i = d.session.scenes.findIndex((sc) => sc.id === at.scene.sceneId);
+    if (i < 0) return;
+    updateLive((s) => ({ now: i, standby: Math.min(i + 1, d.session.scenes.length), boards: { ...s.boards, sc: null }, notesOpen: false }));
+  });
+  useLyreAudioEvent("show-board", (at) => {
+    updateLive((s) => ({ boards: { ...s.boards, sc: at.boardId } }));
+  });
 
   /** Load another session from the session menu: on standby, fading out music from any other session (3 s). */
   const loadSession = useCallback(
@@ -233,7 +292,7 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
       standbyFor({ campaignId, sessionId });
       const c = d.campaigns.find((x) => x.id === campaignId);
       const ss = c?.sessions.find((x) => x.id === sessionId);
-      if (c && ss) toast(`Loaded ${c.name}, ${sessionLabel(ss).toLowerCase()}.${ss.scenes[0] ? ` Press Space to start ${ss.scenes[0].name}.` : ""}`);
+      if (c && ss) toast(`Loaded ${c.name}, ${sessionLabel(ss).toLowerCase()}.${ss.scenes[0] ? ` Press ${d.keys.nextScene} to start ${ss.scenes[0].name}.` : ""}`);
     },
     [toast],
   );
@@ -244,19 +303,37 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
   keysOpenRef.current = keysOpen;
   const keyNav = useRef(false);
   // The latest callbacks, so the key listeners are added once and a held pad is never let go by a redraw.
-  const calls = useRef({ nextScene, undo, say, setKeysOpen, setOffOpen });
-  calls.current = { nextScene, undo, say, setKeysOpen, setOffOpen };
+  const calls = useRef({ nextScene, undo, say, setKeysOpen });
+  calls.current = { nextScene, undo, say, setKeysOpen };
   const heldKeys = useRef(new Map<string, () => void>());
   useEffect(() => {
     const onTab = (event: KeyboardEvent) => {
       if (event.key === "Tab") keyNav.current = true;
+      // UX-12: F6 goes through the seven boxes in their order (Alt+1 to 7), whatever the columns; it is Live's, not the
+      // shell's, unless a pad of Current scene's board has F6 as its key (pad keys F1 to F12 win in Live).
+      if (event.key === "F6" && !event.ctrlKey && !event.altKey && !document.querySelector('[role="menu"], [role="dialog"][aria-modal="true"]')) {
+        const d = dataRef.current;
+        const board = d && currentBoard(getLiveState().boards.sc, d.scene, d.index);
+        if (d?.keys1 && board && padForKey(board, "f6")) return;
+        const heads = LIVE_BOXES.filter((b) => document.querySelector(`#view [data-pane="${b.id}"] .pane-toggle`));
+        if (!heads.length) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        const inBox = (document.activeElement as HTMLElement | null)?.closest?.("[data-pane]")?.getAttribute("data-pane");
+        const at = heads.findIndex((b) => b.id === inBox);
+        const next = heads[(at + (event.shiftKey ? -1 : 1) + heads.length) % heads.length];
+        const words = focusBox(next.id);
+        if (words) calls.current.say(words);
+      }
     };
     const onPointer = () => {
       keyNav.current = false;
     };
     const focusSearch = () => {
-      calls.current.setOffOpen(true);
-      focusLive("search");
+      openFind();
+      const field = document.querySelector<HTMLInputElement>('[data-lv="search"]');
+      field?.focus();
+      field?.select();
     };
     const onKeyDown = (event: KeyboardEvent) => {
       const d = dataRef.current;
@@ -266,6 +343,8 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
       const s = getLiveState();
       const decision = liveKey({
         key: event.key,
+        name: keyName(event),
+        code: event.code,
         shift: event.shiftKey,
         ctrl: event.ctrlKey || event.metaKey,
         alt: event.altKey,
@@ -274,10 +353,13 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
         inSearch: target?.dataset?.lv === "search",
         searchValue: (target as HTMLInputElement | null)?.value ?? "",
         onControl: !!target && target !== document.body && target.matches("button, a, [role=menuitem]"),
+        onSceneName: !!target?.dataset?.scene,
         keyNav: keyNav.current,
         keys1: d.keys1,
         keysOpen: keysOpenRef.current,
+        findOpen: s.findOpen,
         searchActive: s.search.q !== "" || s.search.tags.length > 0,
+        keys: d.keys,
       });
       const handled = () => event.preventDefault();
       switch (decision.kind) {
@@ -285,8 +367,14 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
           return;
         case "swallow":
           return handled();
+        case "goBox": {
+          const words = focusBox(LIVE_BOXES[decision.box].id);
+          if (words) say(words);
+          return handled();
+        }
         case "fadeAll":
           setKeysOpen(false, false);
+          touched();
           d.audio.fadeAll();
           return handled();
         case "closeKeys":
@@ -296,28 +384,50 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
           if (undo()) handled();
           return;
         case "clearSearchBox":
-          updateLive((x) => ({ search: { ...x.search, q: "" } }));
+          updateLive((x) => ({ search: { ...x.search, q: "", tags: [] } }));
           return handled();
         case "leaveSearchBox":
+          closeFind(false);
           target?.blur();
+          return handled();
+        case "closeFind":
+          closeFind(true);
           return handled();
         case "clearSearch":
           updateLive((x) => ({ search: { ...x.search, q: "", tags: [] } }));
           say("Search cleared");
           return handled();
-        case "nextScene":
+        case "nextScene": {
+          handled();
+          // UX-12: a second Next scene within a second is ignored, so a double press never skips a scene.
+          const at = Date.now();
+          if (!guardAllows(s.lastNextKey, at, d.guard)) {
+            say("A second Next scene within a second: ignored");
+            return;
+          }
+          updateLive({ lastNextKey: at });
           nextScene();
-          return handled();
+          return;
+        }
         case "focusSearch":
           focusSearch();
           return handled();
+        case "unfoldScene":
+        case "foldScene": {
+          const id = target?.dataset?.scene;
+          if (!id) return;
+          const want = decision.kind === "unfoldScene";
+          if (!!s.scOpen[id] !== want) updateLive((x) => ({ scOpen: { ...x.scOpen, [id]: want } }));
+          return handled();
+        }
         case "pad": {
-          const board = currentBoard(s.board, d.scene, d.index);
+          const board = currentBoard(s.boards.sc, d.scene, d.index);
           const pad = board && padForKey(board, decision.key);
           if (!board || !pad) return;
           handled();
           if (event.repeat || heldKeys.current.has(decision.key)) return;
-          const targets = boxTarget(d.rooms, s.to.pads).targets;
+          const targets = boxTarget(d.rooms, s.to.music).targets;
+          touched();
           firePads(d.audio, d.now, targets, board, pad, "down");
           if (pad.mode === "hold") heldKeys.current.set(decision.key, () => firePads(d.audio, dataRef.current?.now ?? d.now, targets, board, pad, "up"));
           else heldKeys.current.set(decision.key, () => undefined);
@@ -336,13 +446,13 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
       heldKeys.current.forEach((release) => release());
       heldKeys.current.clear();
     };
-    document.addEventListener("keydown", onTab, true);
+    window.addEventListener("keydown", onTab, true);
     document.addEventListener("pointerdown", onPointer, true);
     document.addEventListener("keydown", onKeyDown);
     document.addEventListener("keyup", onKeyUp);
     window.addEventListener("blur", onBlur);
     return () => {
-      document.removeEventListener("keydown", onTab, true);
+      window.removeEventListener("keydown", onTab, true);
       document.removeEventListener("pointerdown", onPointer, true);
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("keyup", onKeyUp);
@@ -352,21 +462,35 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
   }, []);
   if (!data) return null;
   const compact = columns === 1;
-  const panes: Record<PaneId, React.ReactNode> = {
-    onair: <OnAirBoxes key="onair" />,
+  const boxes: Record<BoxId, React.ReactNode> = {
     scenes: <ScenesPane key="scenes" compact={compact} actions={sceneActions} />,
-    music: <SceneMusicPane key="music" />,
-    off: <OffScriptPane key="off" open={offOpen} onOpenChange={setOffOpen} keys1={keys1} />,
-    pads: <PadsPane key="pads" />,
+    current: <CurrentScenePane key="current" />,
+    ssp: <PlaylistsBox key="ssp" scope="ss" />,
+    ssd: <PadsBox key="ssd" scope="ss" />,
+    cpp: <PlaylistsBox key="cpp" scope="cp" />,
+    cpd: <PadsBox key="cpd" scope="cp" />,
   };
   return (
     <LiveDataProvider value={data}>
       <div className="lv">
         <LiveTop keysOpen={keysOpen} setKeysOpen={setKeysOpen} setKeys1={setKeys1} loadSession={loadSession} />
-        <div className={`lv-cols c${columns}`}>
+        <OnAirPane undo={undo} />
+        <div className={`lv-cols c${columns}`} data-scroll="lv-page">
           {LAYOUT[columns].map((ids) => (
-            <div className="col" key={ids.join("-")}>
-              {ids.map((id) => panes[id])}
+            <div className={columns === 3 && /^(ss|cp)/.test(ids[0]) ? "col lv-c-trays" : "col"} key={ids.join("-")}>
+              {trays(ids).map((group) =>
+                group.scope ? (
+                  // A tray per scope: the session's boxes on a filled tray, the campaign's on an outlined one (Should 6).
+                  <div className={`lv-grp lv-grp-${group.scope}`} key={group.scope}>
+                    <p className="lv-grp-h" aria-hidden="true">
+                      {group.scope === "ss" ? "This session" : "Whole campaign"}
+                    </p>
+                    {group.ids.map((id) => boxes[id])}
+                  </div>
+                ) : (
+                  boxes[group.ids[0]]
+                ),
+              )}
             </div>
           ))}
         </div>
@@ -375,5 +499,17 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
   );
 };
 
-// The room boxes show what each room hears, so the Now playing bar shows only the preview here (UX-16).
+/** The boxes of a column, the session's and the campaign's grouped in their trays. */
+function trays(ids: BoxId[]): { scope: "ss" | "cp" | ""; ids: BoxId[] }[] {
+  const out: { scope: "ss" | "cp" | ""; ids: BoxId[] }[] = [];
+  for (const id of ids) {
+    const scope = id.startsWith("ss") ? "ss" : id.startsWith("cp") ? "cp" : "";
+    const last = out[out.length - 1];
+    if (scope && last?.scope === scope) last.ids.push(id);
+    else out.push({ scope, ids: [id] });
+  }
+  return out;
+}
+
+// On air shows what each room hears, so the Now playing bar shows only the preview here (UX-16).
 LiveScreen.showsOnAir = true;

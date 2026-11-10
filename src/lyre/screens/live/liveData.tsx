@@ -1,7 +1,7 @@
 /**
- * What every part of the Live screen reads: the library (one index), the loaded session and the scene Scene music
- * shows, the rooms with their To: choices, the names in scenes, and the audio host. One context, filled once per
- * render of the screen, so the boxes stay small.
+ * What every part of the Live screen reads: the library (one index), the loaded session and the scene on now, the
+ * rooms with their To: choices, the names in scenes, the keys and the audio host. One context, filled once per render
+ * of the screen, so the boxes stay small.
  */
 import React, { createContext, useContext } from "react";
 
@@ -28,7 +28,7 @@ import type { OutputsClient } from "../../outputs/OutputsProvider";
 import { sequenceOf } from "../../../player/engine/queue/nowPlaying";
 import type { SceneRef, ShowLibrary } from "../../../player/engine/queue/library";
 import type { LibraryIndex } from "../campaigns/model";
-import { boxTarget, type LiveBox, type LiveRoom } from "./liveModel";
+import { boxTarget, type LiveBox, type LiveKeys, type LiveRoom } from "./liveModel";
 import type { LiveState } from "./liveState";
 
 export interface LiveData {
@@ -38,7 +38,7 @@ export interface LiveData {
   campaigns: CampaignInfo[];
   campaign: CampaignInfo;
   session: SessionInfo;
-  /** The scene on now, else (on standby) the one Next scene starts: what Scene music and Pads show. */
+  /** The scene on now; null on standby (Current scene says "No scene yet"). */
   scene: SceneInfo | null;
   sceneIndex: number;
   state: LiveState;
@@ -50,6 +50,9 @@ export interface LiveData {
   orders: PlayOrderData | undefined;
   tagGroups: TagGroup[];
   keys1: boolean;
+  /** UX-12: Live's keys as Settings › Keyboard shortcuts has them, and whether Next scene's guard is on. */
+  keys: LiveKeys;
+  guard: boolean;
   /** PLY-15: the library's Normalise volume setting, for the hover on a track on air. */
   normalise: LibraryNormalise;
 }
@@ -71,6 +74,11 @@ export function useBoxTarget(box: LiveBox): { choice: string; targets: RoomTarge
   const { rooms, state } = useLive();
   const t = boxTarget(rooms, state.to[box]);
   return { ...t, inWhere: rooms.length > 1 ? ` in ${t.name}` : "" };
+}
+
+/** A room's music (or ambience) target for the audio host. */
+export function roomTarget(roomId: string): RoomTarget {
+  return { room: roomId };
 }
 
 export function sceneRefOf(campaignId: string, sessionId: string, scene: { id: string }): SceneRef {

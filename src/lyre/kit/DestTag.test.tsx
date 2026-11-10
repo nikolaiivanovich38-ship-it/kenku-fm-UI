@@ -32,6 +32,13 @@ describe("DestTag", () => {
     expect(screen.getByTitle("The players hear this")).toHaveTextContent(/^On air$/);
   });
 
+  it("Should 10: when nobody hears it after all, it says why on hover and is outlined in the warning colour", () => {
+    render(<DestTag to="air" room="no room" nobody="Nobody hears it: no bot is in a voice channel" />);
+    const tag = screen.getByTitle("Nobody hears it: no bot is in a voice channel");
+    expect(tag).toHaveClass("warn");
+    expect(tag).toHaveTextContent(/^On air · no room$/);
+  });
+
   it("has no accessibility failures", async () => {
     const { container } = render(
       <p>

@@ -1,22 +1,47 @@
 /**
- * Live's rules and words without a screen, ported from design/prototype/src/views/live.js: which session Live loads,
- * the rooms (one On air box per bot in a voice channel) and their one status, where each box sends its sound (To:),
- * Off script search, what Scene music offers, the pad boards, the end words and what each key does.
+ * Live's rules and words without a screen, ported from design/prototype/src/views/live.js (round 6 part 3: seven
+ * boxes): which session Live loads, the rooms (a part of On air per bot in a voice channel) and their one status,
+ * where each box sends its sound (To:), Find a track or playlist, the trays' contents, the pad boards, how Up next
+ * folds, the end words and what each key does.
  *
  * What plays is the audio host's (getNowPlaying); Live only reads it here.
  */
-import { isFx, type AudioProfile, type ProfileSource, type RoomTarget } from "../../../common/domain";
-import type { CampaignInfo, LibraryTrack, Pad, PadBoard, SceneInfo, SessionInfo } from "../../../common/lyre/api";
+import { isFx, SHORTCUT_ACTIONS, type AudioProfile, type ProfileSource, type RoomTarget } from "../../../common/domain";
+import type { CampaignInfo, LibraryTrack, Pad, PadBoard, PlaylistInfo, SceneInfo, SessionInfo } from "../../../common/lyre/api";
 import type { LyreBot, LyreOutputs } from "../../../common/lyreOutputs";
-import type { NowPlaying, RoomNowPlaying } from "../../audio/lyreAudio";
+import type { NowPlaying, RoomNowPlaying, UpNextEntryNow } from "../../audio/lyreAudio";
 import type { LiveSession } from "../../kit/liveSession";
 import type { StatusTone } from "../../kit/Pills";
 import { boardPads, formatLength, sessionForLive, type LibraryIndex } from "../campaigns/model";
-import { isPlaying, viewOf } from "../outputs/outputsModel";
+import { isPlaying, nobodyThere, viewOf, type BotView } from "../outputs/outputsModel";
 
-/** The three boxes that start sound, each with its own room (To:). */
-export type LiveBox = "music" | "off" | "pads";
-export const BOX_WORDS: Record<LiveBox, string> = { music: "Scene music", off: "Off script", pads: "Pads" };
+/**
+ * The boxes that start sound, each with its own room (To:): Current scene (its music, ambience and pads), Find, the
+ * session's and the campaign's playlists and pads. Scenes always start in the first room.
+ */
+export type LiveBox = "music" | "off" | "ss" | "cp" | "ssd" | "cpd";
+export const BOX_WORDS: Record<LiveBox, string> = {
+  music: "Current scene",
+  off: "Find",
+  ss: "Session playlists",
+  cp: "Campaign playlists",
+  ssd: "Session pads",
+  cpd: "Campaign pads",
+};
+
+/**
+ * The seven boxes in the order of Alt+1 to Alt+7 and of F6 (round 6 part 6: On air is box 1), top to bottom and left
+ * to right, the same in every layout. The ids are the boxes' Pane ids.
+ */
+export const LIVE_BOXES = [
+  { id: "lv-onair", name: "On air" },
+  { id: "lv-scenes", name: "Scenes" },
+  { id: "lv-current", name: "Current scene" },
+  { id: "lv-ssp", name: "Session playlists" },
+  { id: "lv-ssd", name: "Session pads" },
+  { id: "lv-cpp", name: "Campaign playlists" },
+  { id: "lv-cpd", name: "Campaign pads" },
+] as const;
 
 /** The audio host's name for the first room while no bot is in a voice channel. */
 export const TABLE = "table";
@@ -50,6 +75,10 @@ export interface LiveRoom {
   bot: LyreBot | null;
   /** What it plays; null while the audio host has not heard of the room yet. */
   room: RoomNowPlaying | null;
+  /** The bot with its channel looked up (Kick, moving it, Nobody there), when the outputs are known. */
+  view: BotView | null;
+  /** Must 2: its voice channel has nobody in it (bots apart): the players hear nothing there. */
+  nobody: boolean;
 }
 
 /**
@@ -60,15 +89,16 @@ export function liveRooms(outputs: LyreOutputs | null, now: NowPlaying): LiveRoo
   if (outputs) {
     return viewOf(outputs)
       .bots.filter((b) => b.inRoom)
-      .map((b) => ({ roomId: b.bot.id, name: b.channel!.name, bot: b.bot, room: now.rooms.find((r) => r.roomId === b.bot.id) ?? null }));
+      .map((b) => ({ roomId: b.bot.id, name: b.channel!.name, bot: b.bot, room: now.rooms.find((r) => r.roomId === b.bot.id) ?? null, view: b, nobody: nobodyThere(b) }));
   }
-  return now.rooms.filter((r) => r.roomId !== TABLE).map((r): LiveRoom => ({ roomId: r.roomId, name: r.name, bot: null, room: r }));
+  return now.rooms.filter((r) => r.roomId !== TABLE).map((r): LiveRoom => ({ roomId: r.roomId, name: r.name, bot: null, room: r, view: null, nobody: false }));
 }
 
 /** A room's one status pill. */
 export function roomStatus(r: LiveRoom): { text: string; tone: StatusTone } {
   const status = r.bot?.room?.status;
   if (status === "joining" || status === "reconnecting") return { text: "Joining", tone: "warn" };
+  if (r.nobody) return { text: "Nobody there", tone: "warn" };
   if (r.bot?.muted) return { text: "Muted", tone: "idle" };
   if (isPlaying(r.room ?? undefined)) return { text: "Playing", tone: "live" };
   if (r.room?.music?.paused) return { text: "Paused", tone: "idle" };
@@ -82,15 +112,19 @@ export interface ChannelChoice {
   here: boolean;
   /** Another bot is there: a room already. */
   taken: boolean;
-  /** "5 people", "1 person", "Empty", or "a room already". */
+  /** "5 people · players" (Must 2: where most players are), "1 person", "empty", or "a room already". */
   sub: string;
 }
 
-const peopleWords = (n: number) => (n === 0 ? "Empty" : `${n} ${n === 1 ? "person" : "people"}`);
+const peopleWords = (n: number) => (n === 0 ? "empty" : `${n} ${n === 1 ? "person" : "people"}`);
 
-/** Every voice channel a bot can join, by server, marking where it is and where another bot plays already. */
+/**
+ * Every voice channel a bot can join, by server, marking where it is, where another bot plays already, where nobody
+ * is and (Must 2 of the round 6 review) where the players are: the channel most people are in.
+ */
 export function channelChoices(outputs: LyreOutputs, bot: LyreBot): { server: string; items: ChannelChoice[] }[] {
   const view = viewOf(outputs);
+  const players = busiestChannel(outputs);
   return outputs.servers
     .filter((s) => bot.serverIds.includes(s.id))
     .map((s) => ({
@@ -98,7 +132,8 @@ export function channelChoices(outputs: LyreOutputs, bot: LyreBot): { server: st
       items: s.channels.map((c) => {
         const here = view.bots.some((b) => b.bot.id === bot.id && b.inRoom && b.bot.room?.channelId === c.id);
         const taken = view.bots.some((b) => b.bot.id !== bot.id && b.inRoom && b.bot.room?.channelId === c.id);
-        return { channelId: c.id, name: c.name, here, taken, sub: taken ? "a room already" : peopleWords(c.members.length) };
+        const most = !!players && players.people > 0 && players.channelId === c.id;
+        return { channelId: c.id, name: c.name, here, taken, sub: taken ? "a room already" : `${peopleWords(c.members.length)}${most ? " · players" : ""}` };
       }),
     }));
 }
@@ -129,7 +164,57 @@ export function boxTarget(rooms: readonly LiveRoom[], choice: string | undefined
   return { choice: r.roomId, targets: [{ room: r.roomId }], name: r.name };
 }
 
-/* ---------- Off script ---------- */
+/** BUG-19: the status of On air's part while no bot is in a voice channel: what plays goes nowhere. */
+export function noRoomStatus(table: RoomNowPlaying | null): { text: string; tone: StatusTone } {
+  const sounds = !!table && (!!table.music || !!table.ambience || table.effects.length > 0);
+  return sounds ? { text: "Nobody hears it", tone: "warn" } : { text: "Silent", tone: "idle" };
+}
+
+/* ---------- Up next ---------- */
+
+/** Round 6 part 6: On air is at the top, so Up next stays short: past this many lines it folds to one. */
+export const UPNEXT_LINES = 4;
+
+export type UpNextRow =
+  | { kind: "entry"; entry: UpNextEntryNow; at: number }
+  /** An ambience waiting for Next on the room's ambience (Live's own list), by its place in that list. */
+  | { kind: "ambience"; at: number }
+  /** "n more": unfolds Up next. `inline`: it sits in the one line Up next folds to. */
+  | { kind: "more"; n: number; inline: boolean };
+
+/**
+ * Up next as On air shows it (live.js upNextBlock): folded, the plan shows its next track only, with "n more" for the
+ * rest of it; what was added shows, each to be taken out; the ambience waiting comes last. Past four lines it is one
+ * line: the first entry and how many more. Unfolded, everything, with Show fewer (`fewer`) when there was more.
+ */
+export function upNextRows(list: readonly UpNextEntryNow[], ambience: number, open: boolean): { rows: UpNextRow[]; fewer: boolean } {
+  const all: UpNextRow[] = [...list.map((entry, at): UpNextRow => ({ kind: "entry", entry, at })), ...Array.from({ length: ambience }, (_, at): UpNextRow => ({ kind: "ambience", at }))];
+  if (open) {
+    const plans = list.filter((e) => e.kind === "planned").length;
+    return { rows: all, fewer: plans > 1 || all.length > UPNEXT_LINES };
+  }
+  const rows: UpNextRow[] = [];
+  let plans = 0;
+  let hidden = 0;
+  let gap = false;
+  for (const row of all) {
+    const planned = row.kind === "entry" && row.entry.kind === "planned";
+    if (planned && ++plans > 1) {
+      hidden++;
+      continue;
+    }
+    if (!planned && hidden && !gap) {
+      rows.push({ kind: "more", n: hidden, inline: false });
+      gap = true;
+    }
+    rows.push(row);
+  }
+  if (hidden && !gap) rows.push({ kind: "more", n: hidden, inline: false });
+  if (rows.length > UPNEXT_LINES) return { rows: [all[0], { kind: "more", n: all.length - 1, inline: true }], fewer: false };
+  return { rows, fewer: false };
+}
+
+/* ---------- Find a track or playlist (was Off script) ---------- */
 
 export interface TagPick {
   group: string;
@@ -172,41 +257,30 @@ export function moodsByUse(tracks: readonly LibraryTrack[], moods: readonly stri
   return [...moods].sort((a, b) => (uses.get(b) ?? 0) - (uses.get(a) ?? 0));
 }
 
-/* ---------- Scene music ---------- */
-
-export interface PlaylistGroups {
-  /** The scene's music playlists, in its order. */
-  scene: string[];
-  session: string[];
-  campaign: string[];
-  /** ORG-12: single tracks kept on hand. */
-  sessionTracks: string[];
-  campaignTracks: string[];
+/**
+ * ORG-14 (round 6 part 6: "The search bar should be able to find a track or a playlist"): the tracks as Off script
+ * found them, and the playlists whose name or notes hold every word (the Music, Ambience and FX filter applies to
+ * them too); with tags picked, a playlist one of whose tracks has all of them. Null until there are words or tags.
+ */
+export function findSearch(index: LibraryIndex, query: OffScriptQuery): { tracks: LibraryTrack[]; playlists: PlaylistInfo[]; any: boolean; count: number } | null {
+  if (!query.q.trim() && !query.tags.length) return null;
+  const { list, any } = offScriptSearch(index.tracks, query);
+  const words = query.q.toLowerCase().split(/\s+/).filter(Boolean);
+  const playlists = index.playlists.filter((p) => {
+    if (query.lane !== "all" && p.lane !== query.lane) return false;
+    const hay = `${p.name} ${p.notes ?? ""}`.toLowerCase();
+    if (!words.every((w) => hay.includes(w))) return false;
+    return !query.tags.length || index.tracksOf(p).some((t) => query.tags.every((tag) => hasTag(t, tag)));
+  });
+  return { tracks: list, playlists, any, count: list.length + playlists.length };
 }
 
-/** What Scene music can show: the scene's own list, the session's and the campaign's music playlists (each once). */
-export function playlistGroups(scene: SceneInfo | null, session: SessionInfo, campaign: CampaignInfo, index: LibraryIndex): PlaylistGroups {
-  const seen = new Set<string>();
-  const music = (ids: readonly string[]) =>
-    ids.filter((id) => {
-      if (seen.has(id) || index.playlist(id)?.lane !== "music") return false;
-      seen.add(id);
-      return true;
-    });
-  return {
-    scene: music((scene?.music ?? []).filter((m) => m.kind === "playlist").map((m) => m.id)),
-    session: music(session.playlistIds),
-    campaign: music(campaign.playlistIds),
-    sessionTracks: (session.trackIds ?? []).filter((id) => index.track(id)),
-    campaignTracks: (campaign.trackIds ?? []).filter((id) => index.track(id)),
-  };
-}
+/* ---------- the trays ---------- */
 
-/** "scene" (the scene's list in order) or the session or campaign playlist chosen; null when there is nothing. */
-export function selectedList(chosen: string | null, groups: PlaylistGroups, scene: SceneInfo | null): string | null {
-  if (chosen && chosen !== "scene" && [...groups.session, ...groups.campaign].includes(chosen)) return chosen;
-  if (scene && scene.music.length) return "scene";
-  return groups.session[0] ?? groups.campaign[0] ?? null;
+/** A session's or a campaign's music playlists (each once, in its order) and single tracks (ORG-12), for its box. */
+export function trayContents(own: Pick<SessionInfo, "playlistIds" | "trackIds">, index: LibraryIndex): { playlists: string[]; tracks: string[] } {
+  const playlists = [...new Set(own.playlistIds)].filter((id) => index.playlist(id)?.lane === "music");
+  return { playlists, tracks: (own.trackIds ?? []).filter((id) => index.track(id)) };
 }
 
 /* ---------- pads ---------- */
@@ -216,33 +290,15 @@ export function sceneBoards(scene: SceneInfo | null, index: LibraryIndex): PadBo
   return (scene?.boardIds ?? []).map((id) => index.board(id)).filter((b): b is PadBoard => !!b);
 }
 
-/** The board the Pads box shows: the one chosen, else the scene's first, else the first board. */
+/** The board Current scene shows (its pad keys are the live keys): the one chosen among the scene's, else its first. */
 export function currentBoard(chosen: string | null, scene: SceneInfo | null, index: LibraryIndex): PadBoard | null {
-  return (chosen ? index.board(chosen) : undefined) ?? sceneBoards(scene, index)[0] ?? index.boards[0] ?? null;
+  const boards = sceneBoards(scene, index);
+  return boards.find((b) => b.id === chosen) ?? boards[0] ?? null;
 }
 
-/** The board menu: this scene's, this session's, this campaign's, then every other board, each board once. */
-export function boardMenu(scene: SceneInfo | null, session: SessionInfo, campaign: CampaignInfo, index: LibraryIndex): { label: string; boards: PadBoard[] }[] {
-  const seen = new Set<string>();
-  const group = (label: string, ids: readonly string[]) => ({
-    label,
-    boards: ids
-      .map((id) => index.board(id))
-      .filter((b): b is PadBoard => {
-        if (!b || seen.has(b.id)) return false;
-        seen.add(b.id);
-        return true;
-      }),
-  });
-  return [
-    group("This scene", scene?.boardIds ?? []),
-    group("This session", session.boardIds),
-    group("This campaign", campaign.boardIds),
-    group(
-      "Other boards",
-      index.boards.map((b) => b.id),
-    ),
-  ].filter((g) => g.boards.length);
+/** A session's or campaign's boards that still exist, in its order, each once. */
+export function ownBoards(ids: readonly string[], index: LibraryIndex): PadBoard[] {
+  return [...new Set(ids)].map((id) => index.board(id)).filter((b): b is PadBoard => !!b);
 }
 
 /** The pad on the board's grid with this key (letters in any case, F1 to F12); spare pads' keys do nothing. */
@@ -268,9 +324,30 @@ export function endWords(profile: AudioProfile, source: ProfileSource): string {
 
 /* ---------- keys ---------- */
 
+/** The four keys of Live that Settings › Keyboard shortcuts can change, as keyName writes them. */
+export interface LiveKeys {
+  nextScene: string;
+  fadeAll: string;
+  undo: string;
+  find: string;
+}
+
+const keyOf = (id: keyof LiveKeys) => SHORTCUT_ACTIONS.find((a) => a.id === id)!.key;
+/** Lyre's own keys: Space, Shift+Esc, Ctrl+Z and /. */
+export const LIVE_KEYS: LiveKeys = { nextScene: keyOf("nextScene"), fadeAll: keyOf("fadeAll"), undo: keyOf("undo"), find: keyOf("find") };
+
+/** A key pressed alone (no Ctrl or Alt, not F1 to F12): it obeys the single-key shortcuts switch (WCAG 2.1.4). */
+export function isSingleKey(key: string): boolean {
+  return !/^(Ctrl|Alt)\+/.test(key) && !/^F\d/.test(key);
+}
+
 export interface KeyInput {
   /** KeyboardEvent.key */
   key: string;
+  /** The key as Settings writes it (keyName: "Space", "Shift+Esc", "Ctrl+Z", "R"). */
+  name: string;
+  /** KeyboardEvent.code, for Alt+1 to Alt+7 whatever the keyboard's layout. */
+  code: string;
   shift: boolean;
   /** Ctrl, or Cmd on a Mac. */
   ctrl: boolean;
@@ -278,19 +355,25 @@ export interface KeyInput {
   repeat: boolean;
   /** Focus is in a text box, a slider, a tick box or a list (the prototype's L.typing). */
   typing: boolean;
-  /** Focus is in the Off script search box, and what it holds. */
+  /** Focus is in Find a track, and what it holds. */
   inSearch: boolean;
   searchValue: string;
   /** Focus is on a button, a link or a menu item. */
   onControl: boolean;
+  /** Focus is on a scene's name in Scenes (Right unfolds it, Left folds it). */
+  onSceneName: boolean;
   /** The last move was with Tab, so Space presses the button there. */
   keyNav: boolean;
   /** Single-key shortcuts (Space, / and the pad keys) are on (WCAG 2.1.4). */
   keys1: boolean;
   /** The Keys list is open. */
   keysOpen: boolean;
-  /** Off script has words or tags. */
+  /** Find's results are open under its field. */
+  findOpen: boolean;
+  /** Find has words or tags. */
   searchActive: boolean;
+  /** The keys as Settings › Keyboard shortcuts has them. */
+  keys: LiveKeys;
 }
 
 export type KeyDecision =
@@ -302,31 +385,41 @@ export type KeyDecision =
   | { kind: "undo" }
   | { kind: "clearSearchBox" }
   | { kind: "leaveSearchBox" }
+  | { kind: "closeFind" }
   | { kind: "clearSearch" }
   | { kind: "nextScene" }
   | { kind: "focusSearch" }
+  /** Alt+1 to Alt+7: the box at this place in LIVE_BOXES. */
+  | { kind: "goBox"; box: number }
+  | { kind: "unfoldScene" }
+  | { kind: "foldScene" }
   | { kind: "pad"; key: string };
 
 /** What a key does on the live screen (live.js L.onKey), before menus and other screens' keys. */
 export function liveKey(k: KeyInput): KeyDecision {
   const none: KeyDecision = { kind: "none" };
+  const { keys } = k;
+  const next: KeyDecision = k.repeat ? { kind: "swallow" } : { kind: "nextScene" };
+  if (k.alt && !k.ctrl && /^Digit[1-7]$/.test(k.code)) return { kind: "goBox", box: Number(k.code.slice(5)) - 1 };
   if (k.alt) return none;
-  // Two keys, so it is never pressed by accident: works even from a text box.
-  if (k.key === "Escape" && k.shift) return { kind: "fadeAll" };
+  // Shift+Esc: two keys, so it is never pressed by accident; works even from a text box.
+  if (k.name === keys.fadeAll) return { kind: "fadeAll" };
   if (k.key === "Escape" && k.keysOpen) return { kind: "closeKeys" };
-  if (k.ctrl && !k.shift && k.key.toLowerCase() === "z") return k.typing ? none : { kind: "undo" };
+  if (k.name === keys.undo) return k.typing ? none : { kind: "undo" };
+  // A Next scene key with Ctrl or Alt (or F1 to F12) is not a single key: it works whatever the switch says.
+  if (k.name === keys.nextScene && !isSingleKey(keys.nextScene)) return next;
   if (k.ctrl) return none;
   if (k.typing) {
-    if (k.key === "Escape" && k.inSearch) return k.searchValue ? { kind: "clearSearchBox" } : { kind: "leaveSearchBox" };
+    if (k.key === "Escape" && k.inSearch) return k.searchValue || k.searchActive ? { kind: "clearSearchBox" } : { kind: "leaveSearchBox" };
     return none;
   }
-  if (k.key === "Escape") return k.searchActive ? { kind: "clearSearch" } : none;
+  if (k.key === "Escape") return k.findOpen ? { kind: "closeFind" } : k.searchActive ? { kind: "clearSearch" } : none;
+  if (k.onSceneName && (k.key === "ArrowRight" || k.key === "ArrowLeft")) return { kind: k.key === "ArrowRight" ? "unfoldScene" : "foldScene" };
   if (!k.keys1) return none;
-  if (k.key === " ") {
-    if (k.onControl && k.keyNav) return none;
-    return k.repeat ? { kind: "swallow" } : { kind: "nextScene" };
-  }
-  if (k.key === "/") return { kind: "focusSearch" };
+  if (k.name === keys.nextScene) return k.onControl && k.keyNav && (k.key === " " || k.key === "Enter") ? none : next;
+  // Space and Enter press the control with focus; neither is ever a pad's key.
+  if (k.key === "Enter" || k.key === " ") return none;
+  if (k.name === keys.find) return { kind: "focusSearch" };
   if (k.key.length === 1 || /^F([1-9]|1[0-2])$/.test(k.key)) return { kind: "pad", key: k.key.toLowerCase() };
   return none;
 }

@@ -16,14 +16,19 @@ export interface DestTagProps {
   /** The room it plays in, for On air when there are two or more rooms. */
   room?: string;
   paused?: boolean;
+  /**
+   * Should 10 of the round 6 review: the players do not hear it after all (no bot in a voice channel, or nobody in the
+   * room's channel): why, as its hover text. The tag is outlined in the warning colour instead of filled.
+   */
+  nobody?: string;
 }
 
-export function DestTag({ to, room, paused = false }: DestTagProps) {
+export function DestTag({ to, room, paused = false, nobody }: DestTagProps) {
   const you = to === "you";
   const words = you ? "Only you" : room ? `On air · ${room}` : "On air";
-  const title = you ? "Only you hear this, in your headphones" : room ? `The players hear this in ${room}` : "The players hear this";
+  const title = you ? "Only you hear this, in your headphones" : nobody ? nobody : room ? `The players hear this in ${room}` : "The players hear this";
   return (
-    <span className={cx("dest", you ? "you" : "air", paused && "paused")} title={title}>
+    <span className={cx("dest", you ? "you" : "air", paused && "paused", !you && nobody && "warn")} title={title}>
       <Icon name={you ? "headphones" : "broadcast"} size="s" />
       <span className="ellipsis">{words}</span>
     </span>

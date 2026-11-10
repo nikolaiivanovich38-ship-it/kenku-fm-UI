@@ -29,6 +29,27 @@ describe("Pane: every box shows what it is for and what it is doing (UX-3)", () 
     await expectNoAxeViolations();
   });
 
+  it("w6-live: a session's or campaign's box shows its label, its scope read out first; its key is on hover", () => {
+    inShell(
+      <>
+        <Pane id="ssp" title="Session playlists" scope="Session" scopeHidden label="Playlists" keys="Alt+4">
+          <p>Lists</p>
+        </Pane>
+        <Pane id="cpd" title="Campaign pads" scope="Campaign" label="Pads">
+          <p>Pads</p>
+        </Pane>
+      </>,
+    );
+    const ss = screen.getByRole("region", { name: "Session playlists" });
+    const toggle = within(ss).getByRole("button", { name: "Session Playlists" });
+    expect(toggle).toHaveAttribute("aria-keyshortcuts", "Alt+4");
+    expect(toggle).toHaveAttribute("title", "Collapse Session playlists (Alt+4)");
+    expect(within(ss).getByText("Session")).toHaveClass("sr-only");
+    const cp = screen.getByRole("region", { name: "Campaign pads" });
+    expect(within(cp).getByText("Campaign")).toHaveClass("pane-scope");
+    expect(within(cp).getByRole("button", { name: "Campaign Pads" })).toBeInTheDocument();
+  });
+
   it("collapses to its header and opens again; the toggle says which", async () => {
     inShell(
       <Pane id="scenes" title="Scenes" actions={<Button>Add scene</Button>}>

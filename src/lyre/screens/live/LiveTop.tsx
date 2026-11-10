@@ -1,8 +1,8 @@
 /**
- * Live's top strip (live.js top, keysPop): Prep | Live, the session loaded (a menu of every session; F2 or Rename
- * session renames it in place, BUG-21), a warning
- * with one-click Join when no bot is in a voice channel, Fade all (Shift+Esc), Stop all, and Keys: the list of the
- * screen's keys with the switch for single-key shortcuts (WCAG 2.1.4).
+ * Live's top strip (live.js top, keysPop): Back and the trail (UX-18), the session loaded (a menu of every session; F2
+ * or Rename session renames it in place, BUG-21), Prep | Live, Find a track or playlist (/), Fade all (Shift+Esc),
+ * Stop all, and Keys: the list of the screen's keys, as Settings › Keyboard shortcuts has them (UX-12), with the switch
+ * for single-key shortcuts (WCAG 2.1.4). Round 6 part 6: the warning that nobody hears anything is in On air.
  */
 import React, { useEffect, useRef } from "react";
 
@@ -15,8 +15,11 @@ import { TopLead } from "../../shell/TopBar";
 import { useOpenHelp } from "../../help/useHelp";
 import { sessionLabel } from "../campaigns/model";
 import { useWrite } from "../campaigns/parts";
+import { ariaKey } from "./Scenes";
 import { useLive } from "./liveData";
-import { busiestChannel, currentBoard, padKeys } from "./liveModel";
+import { currentBoard, isSingleKey, LIVE_BOXES, padKeys } from "./liveModel";
+import { touched } from "./liveState";
+import { Find } from "./Find";
 
 export interface TopProps {
   keysOpen: boolean;
@@ -29,8 +32,8 @@ const STATUS_WORDS = { next: "next", played: "played", draft: "draft" } as const
 
 export function LiveTop({ keysOpen, setKeysOpen, setKeys1, loadSession }: TopProps) {
   const live = useLive();
-  const { campaign, session, campaigns, audio, rooms, outputs, client, keys1 } = live;
-  const { toast, say } = useAnnounce();
+  const { campaign, session, campaigns, audio, keys1 } = live;
+  const { say } = useAnnounce();
   const api = useLyreApi();
   const write = useWrite();
   const rename = useRenameInPlace();
@@ -70,14 +73,38 @@ export function LiveTop({ keysOpen, setKeysOpen, setKeys1, loadSession }: TopPro
     ]),
   ];
 
-  const joining = outputs?.bots.some((b) => b.room?.status === "joining") ?? false;
-  const fixBot = outputs?.bots.find((b) => b.login === "ready" && !b.room);
-  const best = busiestChannel(outputs);
-
   return (
     <div className="lv-top">
       <TopLead />
       <h1 className="sr-only">Live</h1>
+      {rename.editing ? (
+        <span className="lv-sess lv-sess-edit">
+          <Icon name="crown" size="s" />
+          <span className="sr-only">{campaign.name}</span>{" "}
+          <span className="lv-sess-s">Session {session.number}:</span>
+          <RenameField className="input lv-sess-rename" value={session.name} label={`Name of Session ${session.number}`} placeholder="No name yet" onSave={(name) => void renameSession(name)} onDone={rename.done} />
+        </span>
+      ) : (
+        <PopMenuButton
+          label="Load a session"
+          className="lv-sess"
+          dataK="lv-sess"
+          ariaLabel={`${campaign.name} Session ${session.number}: ${session.name}`}
+          title={`Loaded: ${campaign.name} › ${sessionLabel(session)}. Choose another session, or press F2 to rename it`}
+          items={sessions}
+          onKeyDown={renameKeys(rename.start)}
+        >
+          {/* Round 6 part 6: the session is the trail's last part (the trail shows the campaign), so only its number
+              shows; the campaign and the session's name are read out and on hover. */}
+          <Icon name="crown" size="s" />
+          <span className="sr-only">{campaign.name}</span>{" "}
+          <span className="lv-sess-s">
+            Session {session.number}
+            <span className="sr-only">: {session.name}</span>
+          </span>
+          <Icon name="chevdown" size="s" />
+        </PopMenuButton>
+      )}
       <div className="seg mode-switch" role="group" aria-label="Prep or live">
         <button type="button" aria-pressed="false" onClick={() => (window.location.hash = `#/session/${campaign.id}/${session.id}`)}>
           <Icon name="edit" size="s" />
@@ -88,61 +115,31 @@ export function LiveTop({ keysOpen, setKeysOpen, setKeys1, loadSession }: TopPro
           Live
         </button>
       </div>
-      {rename.editing ? (
-        <span className="lv-sess lv-sess-edit">
-          <Icon name="crown" size="s" />
-          <span className="lv-sess-c">{campaign.name}</span>{" "}
-          <span className="lv-sess-sep" aria-hidden="true">
-            ›
-          </span>{" "}
-          <span className="lv-sess-s">Session {session.number}:</span>
-          <RenameField className="input lv-sess-rename" value={session.name} label={`Name of Session ${session.number}`} placeholder="No name yet" onSave={(name) => void renameSession(name)} onDone={rename.done} />
-        </span>
-      ) : (
-        <PopMenuButton
-          label="Load a session"
-          className="lv-sess"
-          dataK="lv-sess"
-          title={`Loaded: ${campaign.name} › ${sessionLabel(session)}. Choose another session, or press F2 to rename it`}
-          items={sessions}
-          onKeyDown={renameKeys(rename.start)}
-        >
-          <Icon name="crown" size="s" />
-          <span className="lv-sess-c">{campaign.name}</span>{" "}
-          <span className="lv-sess-sep" aria-hidden="true">
-            ›
-          </span>{" "}
-          <span className="lv-sess-s">{sessionLabel(session)}</span>
-          <Icon name="chevdown" size="s" />
-        </PopMenuButton>
-      )}
-      {rooms.length === 0 && (
-        <>
-          <span className="lv-warn" role="status" title="Players hear nothing: no bot is in a voice channel">
-            <Icon name="broadcast" size="s" />
-            <span className="lv-warn-t">{joining ? "Joining…" : "No room: players hear nothing"}</span>
-          </span>
-          {client && fixBot && best && !joining && (
-            <button
-              type="button"
-              className="btn s lv-fix"
-              title={`${fixBot.name} joins ${best.serverName} › ${best.name} (${best.people} there)`}
-              onClick={() => {
-                client.move(fixBot.id, best.channelId);
-                toast(`${fixBot.name} is joining ${best.name}`);
-              }}
-            >
-              Join {best.name}
-            </button>
-          )}
-        </>
-      )}
-      <span className="grow" />
-      <button type="button" className="btn s lv-fade" aria-label="Fade all" aria-keyshortcuts="Shift+Escape" title="Fade everything out over 3 seconds (Shift+Esc)" onClick={() => audio.fadeAll()}>
+      <Find />
+      <button
+        type="button"
+        className="btn s lv-fade"
+        aria-label="Fade all"
+        aria-keyshortcuts={ariaKey(live.keys.fadeAll)}
+        title={`Fade everything out over 3 seconds (${live.keys.fadeAll})`}
+        onClick={() => {
+          touched();
+          audio.fadeAll();
+        }}
+      >
         <Icon name="fade" size="s" />
         <span className="lv-btxt">Fade all</span>
       </button>
-      <button type="button" className="btn s danger lv-stop" aria-label="Stop all" title="Stop everything at once" onClick={() => audio.stopAll()}>
+      <button
+        type="button"
+        className="btn s danger lv-stop"
+        aria-label="Stop all"
+        title="Stop everything at once"
+        onClick={() => {
+          touched();
+          audio.stopAll();
+        }}
+      >
         <Icon name="stop" size="s" />
         <span className="lv-btxt">Stop all</span>
       </button>
@@ -167,12 +164,11 @@ export function LiveTop({ keysOpen, setKeysOpen, setKeys1, loadSession }: TopPro
 
 /** A disclosure, not a menu: a switch and a list. A press outside closes it. */
 function KeysPop({ setKeysOpen, setKeys1, keys1 }: { setKeysOpen: TopProps["setKeysOpen"]; setKeys1: TopProps["setKeys1"]; keys1: boolean }) {
-  const { state, scene, index } = useLive();
-  const ref = useRef<HTMLDivElement>(null);
+  const { state, scene, index, keys } = useLive();
   const switchRef = useRef<HTMLInputElement>(null);
   const openHelp = useOpenHelp();
-  const board = currentBoard(state.board, scene, index);
-  const keys = padKeys(board).join(" ") || "none";
+  const board = currentBoard(state.boards.sc, scene, index);
+  const padList = padKeys(board).join(" ") || "none";
   useEffect(() => {
     switchRef.current?.focus();
     const outside = (event: PointerEvent) => {
@@ -188,20 +184,22 @@ function KeysPop({ setKeysOpen, setKeys1, keys1 }: { setKeysOpen: TopProps["setK
     </li>
   );
   return (
-    <div className="lv-pop" id="lv-keys-pop" role="group" aria-label="Keys on the live screen" ref={ref}>
+    <div className="lv-pop" id="lv-keys-pop" role="group" aria-label="Keys on the live screen">
       <label className="lv-switch">
         <input ref={switchRef} type="checkbox" role="switch" checked={keys1} onChange={(event) => setKeys1(event.target.checked)} />
         <span className="lv-switch-t">
           <b>Single-key shortcuts</b>
-          <span className="hint">Space, / and the pad keys.</span>
+          <span className="hint">Space, / and the pad keys. Turn off if they get in the way.</span>
         </span>
       </label>
       <ul className="lv-keylist">
-        {row("Space", "Start the next scene", true)}
-        {row("/", "Search Off script", true)}
-        {row(keys, `Pads on ${board?.name ?? "the board"}`, true)}
-        {row("Shift+Esc", "Fade everything out (3 s)", false)}
-        {row("Ctrl+Z", "Undo the last scene change (for 8 s)", false)}
+        {row(keys.nextScene, "Start the next scene", isSingleKey(keys.nextScene))}
+        {row(keys.find, "Find a track or playlist", isSingleKey(keys.find))}
+        {row(padList, board ? `Pads on ${board.name} (Current scene)` : "Pads of the current scene", true)}
+        {row("Alt+1…7", `Go to a box: ${LIVE_BOXES.map((b) => b.name).join(", ")}`, false)}
+        {row("F6", "Next box (Shift+F6: the one before)", false)}
+        {row(keys.fadeAll, "Fade everything out (3 s)", false)}
+        {row(keys.undo, "Undo the last change (for 8 s)", false)}
         {row("Esc", "Close a menu or clear the search", false)}
       </ul>
       <p className="hint">{keys1 ? "Keys do nothing while you type in a box." : "Single-key shortcuts are off. Shift+Esc and Ctrl+Z still work."}</p>

@@ -55,6 +55,16 @@ export interface PaneProps {
   silent?: boolean;
   /** w6-rooms (the prototype's o.describe, round 6): what the box is for, read out with its name, not shown. */
   describe?: string;
+  /**
+   * w6-live (round 6 part 3, the prototype's o.scope and o.label): the same box for a session and a campaign. The
+   * header shows `label` ("Playlists"); `scope` ("Session") is read out before it, and shown as a small tag unless
+   * `scopeHidden` (a tray's heading already says it). The region keeps `title` as its name.
+   */
+  scope?: string;
+  scopeHidden?: boolean;
+  label?: string;
+  /** The key that goes to this box ("Alt+3"), read out and on hover. */
+  keys?: string;
   className?: string;
   children?: React.ReactNode;
 }
@@ -80,6 +90,10 @@ export function Pane({
   noMax,
   silent,
   describe,
+  scope,
+  scopeHidden,
+  label,
+  keys,
   className,
   children,
 }: PaneProps) {
@@ -132,12 +146,17 @@ export function Pane({
             type="button"
             className="pane-toggle"
             aria-expanded={open}
-            title={`${open ? "Collapse" : "Expand"} ${title}`}
+            // With a scope, the name is said whole ("Session Playlists"): it holds the words shown (WCAG 2.5.3).
+            aria-label={scope ? `${scope} ${label ?? title}` : undefined}
+            aria-keyshortcuts={keys}
+            title={`${open ? "Collapse" : "Expand"} ${title}${keys ? ` (${keys})` : ""}`}
             onClick={toggle}
           >
             <Icon name="chevdown" size="s" className="chev" />
             {icon && <Icon name={icon} size="s" />}
-            <span className="pane-title">{title}</span>
+            {scope &&
+              (scopeHidden ? <span className="sr-only">{scope} </span> : <span className="pane-scope">{scope}</span>)}
+            <span className="pane-title">{label ?? title}</span>
           </button>
         </h2>
         <div className="pane-summary">{summary}</div>

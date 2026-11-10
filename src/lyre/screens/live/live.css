@@ -1,5 +1,6 @@
-/* Live (#/live), from design/prototype/src/views/live.css. Prefix lv-. Columns are chosen in LiveScreen.tsx from the
-   width of #app (1, 2 or 3). */
+/* Live (#/live), from design/prototype/src/views/live.css (round 6 parts 3 to 7, round 7 part 2). Prefix lv-. Columns
+   are chosen in LiveScreen.tsx from the width of #app (1, 2 or 3). The layers below follow the prototype's, so a change
+   there is found here in the same place. */
 .lv { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
 /* ---------- top strip ---------- */
@@ -360,17 +361,241 @@
 .lv-room input.lv-vol { width: 64px; min-width: 40px; flex: 0 1 64px; }
 .lv-room > header { min-width: 0; }
 .lv-room .pane-h { min-width: 0; flex: 0 1 auto; }
-.lv-off-count { justify-content: flex-end; }
-
-/* ---------- the app's own ---------- */
-/* Room for the tick in menus where an item is not ticked. */
-.lv-mi-gap { display: inline-block; width: 14px; flex: none; }
+.lv-off-count { justify-content: space-between; }
+/* Round 6, part 2. SHW-7: a scene's name unfolds it in place (a button that reads as the name). */
+button.lv-sc-name { background: none; border: 0; padding: 2px 4px; margin: 0 -4px; font: inherit; font-weight: 700; color: inherit; text-align: left; cursor: pointer; border-radius: var(--r-s); min-width: 0; }
+button.lv-sc-name:hover { background: var(--surface-2); }
+button.lv-sc-name[aria-expanded="true"] { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--ink-3); }
+.lv-sc-in { display: flex; flex-direction: column; gap: 2px; margin: 4px 0 2px 22px; padding: 4px 0 2px 8px; border-left: 2px solid var(--line-strong); min-width: 0; }
+.lv-in-list { list-style: none; margin: 0; padding: 0; }
+.lv-in-row, .lv-in-line { display: flex; align-items: center; gap: 6px; min-height: var(--ctl-s); min-width: 0; font-size: var(--fs-s); }
+.lv-in-row.lv-in-new { border-top: 1px dashed var(--line); }
+.lv-in-row .closer, .lv-in-line .closer { color: var(--ink-2); }
+.lv-in-line { color: var(--ink-2); }
+/* OUT-7: the room's bot, as a button, and Kick. */
+.lv-botpick { max-width: 140px; min-width: 0; gap: 4px; }
+.lv-botpick .ellipsis { min-width: 0; }
+.lv-kick:hover { color: var(--onair); border-color: var(--onair); }
+.lv-onair .lv-undo2, .col > .lv-undo2 { border: 1px solid var(--line); border-radius: var(--r-m); }
+@container app (max-width: 900px) { .lv-botpick { max-width: 96px; } }
+button.lv-sc-name { display: flex; min-width: 0; }
+button.lv-sc-name > .ellipsis { display: block; min-width: 0; }
+/* "Current scene music" is a longer title: it gives way before the header's buttons do. */
+.lv [data-pane="lv-music"] .pane-h { min-width: 0; flex: 0 1 auto; }
+.lv [data-pane="lv-music"] .pane-toggle { min-width: 0; }
+.lv [data-pane="lv-music"] .pane-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* BUG-21: the session renamed in place in the top strip. */
 .lv-sess-edit { padding-right: 3px; }
 .lv-sess-edit:hover { background: none; }
 .lv-sess-rename { width: 18ch; min-width: 0; height: calc(var(--ctl) - 6px); }
 
 
+/* ---------- Round 6, part 3: seven boxes ----------
+   The boxes scroll in their columns; On air is docked along the bottom and never moves. */
+.lv-cols { flex: 1 1 auto; min-height: 0; }
+.lv-dock { flex: none; max-height: 46%; overflow-y: auto; overscroll-behavior: contain; padding: 0 8px 8px; }
+.lv-dock > .pane { border-top-width: 3px; }
+.lv-dock .pane > header { position: sticky; top: 0; z-index: 2; }
+.lv-rooms { display: grid; grid-template-columns: minmax(0, 1fr); }
+.lv-rooms.many { grid-template-columns: repeat(auto-fit, minmax(min(440px, 100%), 1fr)); }
+.lv-rooms.many > .lv-rm + .lv-rm { border-left: 1px solid var(--line); }
+.lv-rm { min-width: 0; display: flex; flex-direction: column; container: lvrm / inline-size; }
+.lv-rm-h { display: flex; align-items: center; gap: 6px; min-height: 34px; padding: 2px 6px 2px 10px; border-bottom: 1px solid var(--line); min-width: 0; background: var(--surface); }
+.lv-rm-n { margin: 0; font-size: var(--fs-l); font-weight: 700; min-width: 0; flex: 0 1 auto; }
+.lv-rm-h .lv-vol { width: 72px; min-width: 40px; flex: 0 1 72px; }
+.lv-rm-b { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; }
+@container lvrm (min-width: 620px) { .lv-rm-b { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); } .lv-rm-up { border-left: 1px solid var(--line); } }
+.lv-rm-lanes { min-width: 0; }
+.lv-rm-lanes > :last-child { border-bottom: 0; }
+.lv-rm.is-silent .lv-rm-n { color: var(--ink-2); }
+.lv-noroom { display: flex; align-items: center; gap: 8px; padding: 6px 10px; font-size: var(--fs-s); font-weight: 700; color: var(--warn); border-bottom: 1px solid var(--line); }
+.lv-noroom .btn { color: var(--ink); }
+/* Up next: the room's running list, top to bottom. */
+.lv-up { display: flex; flex-direction: column; gap: 2px; padding: 5px 8px 6px; min-width: 0; }
+.lv-up .lv-q-l { padding-left: 2px; }
+.lv-up ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; min-width: 0; }
+.lv-up-i { display: flex; align-items: center; gap: 6px; min-height: 26px; padding: 0 0 0 4px; font-size: var(--fs-s); min-width: 0; border-radius: var(--r-s); }
+.lv-up-i:hover { background: var(--surface-2); }
+.lv-up-i > svg { flex: none; color: var(--ink-2); }
+.lv-up-i.added { font-weight: 700; }
+.lv-up-i .num { flex: none; font-size: var(--fs-xs); }
+.lv-up-i .x { flex: none; width: 24px; height: 24px; display: inline-grid; place-items: center; border: 0; border-radius: var(--r-s); background: transparent; color: var(--ink-2); cursor: pointer; }
+.lv-up-i .x:hover { background: var(--surface-3); color: var(--ink); }
+.lv-up-gap { padding-left: 2px; }
+.lv-qclear { align-self: flex-start; }
+/* Find a track: the field in the top strip, its results under it (closed with Esc, × or a click elsewhere). */
+.lv-find { position: relative; flex: 1 1 220px; min-width: 120px; max-width: 420px; }
+.lv-find-f { width: 100%; }
+.lv-find-f .kbd { position: absolute; right: 6px; pointer-events: none; }
+.lv-find-f .input { padding-right: 26px; width: 100%; }
+.lv-found { position: absolute; z-index: 40; top: calc(100% + 4px); left: 0; width: min(680px, calc(100vw - 24px)); max-height: min(70vh, 640px); overflow-y: auto; overscroll-behavior: contain;
+  background: var(--surface); border: 1px solid var(--line-strong); border-top: 3px solid var(--line-strong); border-radius: var(--r-l); box-shadow: var(--shadow); }
+.lv-found .lv-off-f { padding: 6px 6px 6px 8px; }
+.lv-top { gap: 8px; }
+.lv-top > .lv-find + .btn { margin-left: auto; }
+/* Rows (Nik, 6 Nov 13:55, Should 8 of the round 6 review): Preview, Play next and Add to queue always show, greyed at
+   rest (icons, so nothing more to read), in full colour on the row on air, on hover and on keyboard focus. */
+.lv-trk-acts:not(.shown) .lv-hov { color: var(--ink-3); }
+.lv-trk-r:is(:hover, :focus-within) .lv-hov, .lv-hov:focus-visible { color: var(--ink); }
+.lv-none, .lv-in-none { padding: 10px 12px; font-size: var(--fs-s); color: var(--ink-2); }
+.lv-in-none { padding: 4px 0; }
+.pane-summary .lv-cur-n { color: var(--ink); font-size: var(--fs-l); }
+.lv-cur-notes { margin: 6px 8px 4px; }
+.lv-cur-pads { border-top: 1px solid var(--line); }
+.lv-bd1 { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-s); font-weight: 700; min-width: 0; }
+.lv .lv-in-line { padding: 0 8px; }
+.lv .lv-sc-in .lv-in-line { padding: 0; }
+.lv-in-bds { flex-wrap: wrap; }
+.lv-in-bd { display: inline-flex; align-items: center; gap: 2px; min-width: 0; margin-right: 8px; }
+.lv-sc-in .lv-grid { padding: 4px 0 6px; }
+.lv-sc-in .lv-list { border: 1px solid var(--line); border-radius: var(--r-m); margin: 2px 0; }
+.lv-sc-in .lv-sc-notes, .lv-sc-in .lv-sc-when { margin-left: 0; }
+.lv-sc-chev { flex: none; color: var(--ink-3); transform: rotate(-90deg); transition: transform .15s; margin-right: 2px; }
+.lv-sc-name[aria-expanded="true"] .lv-sc-chev { transform: none; }
+.lv-sc.open { background: color-mix(in srgb, var(--surface-2) 50%, var(--surface)); }
+.lv-pli-n > b, .lv-pli-n > .faint { max-width: 100%; }
+/* A box's name is never cut: its summary gives way first. */
+.lv .pane > header .pane-h { max-width: none; flex: 0 1 auto; min-width: 0; }
+.lv .pane > header .pane-toggle { min-width: 0; }
+.lv .pane > header .pane-title { min-width: 2.5em; flex: 0 1 auto; }
+.lv .pane > header .pane-summary { flex: 1 1 0; }
+@container lvgrid (max-width: 480px) { .lv-pad[data-mode="toggle"] .lv-pad-mode, .lv-pad[data-mode="retrigger"] .lv-pad-mode { display: none; } }
+.lv-ord { display: inline-flex; flex: none; }
+.lv-ord:not(.shown) > .btn { opacity: 0; }
+.lv-trk-r:is(:hover, :focus-within) .lv-ord > .btn { opacity: 1; }
+@media (hover: none) { .lv-ord > .btn { opacity: 1 !important; } }
+.lv-lane-sub:empty { display: none; }
+
+/* ---------- Round 6 review fixes ---------- */
+/* Should 9: Kick has its own icon (a door and an arrow out) and, from 1280 px, its word; 8 px away from the bot button. */
+.lv-kick { margin-left: 8px; flex: none; gap: 4px; }
+@media (max-width: 1279px) { .lv-kick-t { display: none; } .lv-kick { width: var(--ctl-s); padding: 0; justify-content: center; } }
+/* Should 11: a pad's name wraps to two lines in every pad box (Current scene too); its key sits in the top-right corner
+   and its play mode (or On) in the bottom-right, so the name has the width. */
+.lv-pad { position: relative; height: auto; min-height: 40px; padding: 3px 24px 3px 10px; }
+.lv-pad .lv-pad-l.ellipsis { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 15px; overflow-wrap: anywhere; text-overflow: clip; }
+.lv-pad .kbd { position: absolute; top: 3px; right: 3px; padding: 0 3px; font-size: 11px; line-height: 14px; }
+.lv-pad .lv-pad-mode, .lv-pad .lv-pad-on { position: absolute; bottom: 3px; right: 4px; }
+.lv-pad .lv-pad-on { font-size: 10px; line-height: 13px; }
+.lv-pad-empty { height: auto; min-height: 40px; }
+@container lvgrid (max-width: 400px) { .lv-pad { padding-right: 20px; } .lv-pad .lv-pad-l.ellipsis { font-size: var(--fs-xs); line-height: 13px; } }
+/* … and a playlist's name too (it was cut at 1280 and 960), up to two lines. */
+.lv-pli-n > b.ellipsis { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; line-height: 16px; }
+/* Should 6: each kind of box is told apart by shape as well as colour. On air has a filled band for a header; Current
+   scene a thick accent edge down its left side; the box icons are 18 px. The session's and the campaign's boxes sit
+   in two trays, headed "This session" (filled) and "Whole campaign" (outlined), so their position says which is which. */
+.lv .pane > header .pane-toggle > svg.i:not(.chev) { width: 18px; height: 18px; }
+.lv-dock .pane.k-onair > header { background: color-mix(in srgb, var(--onair) 34%, var(--surface-2)); border-bottom-color: var(--onair); }
+.lv .pane.k-current { border-left: 5px solid var(--accent); }
+.lv-grp { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 4px 6px 6px; border-radius: var(--r-l); }
+.lv-grp-ss { background: color-mix(in srgb, var(--ink) 12%, var(--bg)); }
+.lv-grp-cp { border: 2px dashed var(--line-strong); }
+.lv-grp-h { margin: 0; padding: 0 2px; font-size: var(--fs-xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+/* Should 7 of the round 6 review (part 4) shared a column's height between its boxes, each scrolling inside. Undone:
+   Scenes and Current scene in part 6, the trays in part 7 (Nik, 6 Nov 21:59). Every box now takes the height of its
+   contents and the page under On air scrolls. */
+/* Must 4 (WCAG 1.4.10 Reflow): below 640 px of app (320 px windows, 200 % zoom) the top strip wraps (Prep | Live and
+   the icon buttons, then the session, then Find a track the whole width), a room's header wraps (its name and status,
+   then its controls), and a lane's label goes above its title. Under 480 px of height each room is one line (live.js). */
+@container app (max-width: 639px) {
+  .lv-top { flex-wrap: wrap; row-gap: 6px; }
+  .lv-top .lv-find { order: 10; flex: 1 1 100%; max-width: none; min-width: 0; }
+  .lv-top > .lv-find + .btn { margin-left: 0; }
+  .lv-top .lv-sess { order: 5; min-width: 0; flex: 1 1 100%; }
+  .lv-top .mode-switch button { padding: 0 6px; }
+  .lv-rm-h { flex-wrap: wrap; row-gap: 2px; padding-top: 4px; padding-bottom: 4px; }
+  .lv-rm-h > .grow { flex: 1 0 100%; height: 0; }
+  .lv-rm-h .lv-vol { flex: 1 1 60px; }
+  .lv-cols { padding: 6px; }
+  .lv-dock { padding: 0 6px 6px; }
+}
+@container lvrm (max-width: 420px) {
+  .lv-lane { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "l l" "t t" "p c" "e e" "s s"; }
+  .lv-lane-l { flex-direction: row; align-items: center; padding-top: 0; }
+}
+/* Text read out after a cut-off title stays inside its box (it widened the page at 320 px). */
+.lv-lane-t, .lv-trk-t, .lv-pli-n { position: relative; }
+.lv-rm-1 .lv-rm-h { flex-wrap: nowrap; }
+.lv-rm-1 .lv-rm-t { font-size: var(--fs-s); min-width: 0; }
+.lv-rm-1 .lv-rm-n { flex: 0 1 auto; }
+.lv-rm.lv-rm-1 .lv-rm-h > .lv-rm-t { flex: 1 1 auto; height: auto; }
+/* A room is never named "Ta…": its name keeps up to 40 % of the header before anything else gives way. */
+.lv-rm-h .lv-rm-n { flex: 0 0 auto; max-width: 40%; }
+
+/* ---------- Round 6, part 6 (Nik, 6 Nov 17:14) ----------
+   On air at the top, the whole width, right under the top strip, always in view (it scrolls inside itself past 40 % of
+   the height). Under it the columns scroll as one page; Scenes and Current scene take the height of their contents
+   again (part 4's shared column height and inner scroll are undone for them). Part 7 (Nik, 21:59: "they should be able
+   to expand the page and make me scroll the whole thing"): the trays (This session, Whole campaign) do the same: their
+   boxes grow with what they hold, nothing scrolls inside them, the page scrolls. */
+.lv-top { padding: 6px 12px; min-height: 44px; }
+.lv-dock { order: 0; max-height: 40%; padding: 8px 8px 0; }
+.lv-cols.c3 { grid-template-rows: auto; align-items: start; }
+.lv-cols.c3 > .col { display: flex; flex-direction: column; min-height: 0; }
+.lv-cols.c3 > .col > .pane:not(.collapsed), .lv-cols .lv-grp > .pane:not(.collapsed) { flex: none; min-height: 0; }
+.lv-cols > .col > .pane:not(.collapsed) > .pane-body, .lv-cols .lv-grp > .pane:not(.collapsed) > .pane-body { overflow: visible; max-height: none; }
+.lv-cols .lv-grp { flex: none; }
+.lv-cols.c2 { align-items: start; }
+/* Back and the trail lead the strip; the session is the trail's last part. */
+.lv-top .crumbs { flex: 0 1 auto; min-width: 0; }
+.lv-top .crumbs a { max-width: 18ch; }
+.lv-top .lv-sess { flex: 0 1 auto; }
+/* Find's results: Playlists, then Tracks, each under a small heading. */
+.lv-found-h { margin: 6px 8px 2px; font-size: var(--fs-xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+/* A scene's ambience is a row like the others, with the row's buttons. */
+.lv-amb-r { padding: 2px 4px 2px 8px; border-radius: var(--r-s); }
+.lv .lv-sc-in .lv-amb-r { padding: 2px 4px 2px 0; }
+.lv-amb-r.on { background: color-mix(in srgb, var(--amb, var(--surface-2)) 14%, transparent); }
+.lv-up-i.amb > .lane-dot { flex: none; }
+.lv-up-i > .lv-more { flex: none; margin-left: 2px; }
+@container app (max-width: 639px) {
+  /* Must 4 at 320 px: Back, Prep | Live and the buttons on the first line, then the trail and the session, then Find. */
+  .lv-top::before { content: ""; order: 4; flex: 1 0 100%; height: 0; }
+  .lv-top .crumbs { order: 5; }
+  .lv-top .lv-sess { order: 6; flex: 1 1 0; }
+  .lv-dock { padding: 6px 6px 0; }
+}
+/* With Back and the trail in the strip, below 1100 px of app (960 windows) Fade all and Stop all are icons (their names
+   are read out and on hover), so Find keeps its words. The session shows its number only at every width (its name is
+   read out and on hover): the trail reads Campaign › Session, and Live's words stay at part 5's. */
+@container app (max-width: 1100px) {
+  .lv-top .lv-btxt { display: none; }
+  .lv-top .lv-fade, .lv-top .lv-stop { width: var(--ctl-s); padding: 0; }
+}
+/* Part 6 follow-up: names in Scenes and Current scene stay readable at 1280 and 960 (UX-6: a name wraps to two lines,
+   then shows whole on hover (its title) and while its row has keyboard focus). While every box in the trays is folded,
+   the trays' column is only as wide as its folded headers need, and Scenes and Current scene get the room. A name keeps
+   at least 14 characters' width: below that, the row's buttons go under the name instead of squeezing it. */
+.lv-cols.c3:not(:has(.lv-c-trays .pane:not(.collapsed))) { grid-template-columns: minmax(0, 35fr) minmax(0, 45fr) minmax(236px, 20fr); }
+.lv-trk-r { flex-wrap: wrap; row-gap: 0; }
+.lv-trk-r > .lv-trk-t, .lv-trk-r > .lv-pli-n { flex: 1 1 14ch; min-width: 14ch; }
+.lv-trk-r > .lv-trk-acts { margin-left: auto; }
+.lv-trk-t > span, .lv-pli-n > b.ellipsis { overflow-wrap: break-word; }
+.lv-trk-r:focus-within .lv-trk-t > span, .lv-trk-r:focus-within .lv-pli-n > b.ellipsis { -webkit-line-clamp: unset; display: block; }
+/* Round 7 part 2: What played in a room (PLY-1), dividers over a row of pads (ORG-4), marker ticks (DAT-3). */
+.lv-rm-played:not(.on):not(:focus-visible) { opacity: 0; }
+.lv-rm-h:is(:hover, :focus-within) .lv-rm-played { opacity: 1; }
+.lv-rm-played.on { background: var(--accent-soft); border-color: var(--accent); }
+.lv-played { padding: 0 8px 6px; }
+.lv-played-l { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.lv-played-l > li { display: flex; align-items: center; gap: 6px; min-height: var(--row); border-bottom: 1px solid var(--line); }
+.lv-pad-div { margin: 2px 0 0; font-size: var(--fs-s); font-weight: 700; color: var(--accent-text); border-bottom: 1px solid var(--line-strong); }
+.lv-mkbar { position: relative; overflow: visible; }
+.lv-mk { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--ink-2); border-radius: 1px; }
+.lv-mk.mix { background: var(--accent); }
+
+/* ---------- the app's own ---------- */
+/* Room for the tick in menus where an item is not ticked. */
+.lv-mi-gap { display: inline-block; width: 14px; flex: none; }
 /* UX-18 (round 6 part 6): Back sits in the same place in Live's top strip as in every other top bar, so the strip
    has the same padding and height as a screen's .viewhead. */
 .lv-top { padding: 6px 12px; min-height: 44px; }
+/* Round 7 part 2: a scene that differs from the usual (r7play.css). */
+.lv .r7-mark { gap: 4px; flex: none; }
+/* PLY-17 Repeat one on a scene's track (ui.css in the prototype): shown when on, on the row on air, and on hover or
+   keyboard focus; saved, so a pressed one carries a dot. */
+.lv .rep1 { position: relative; }
+.lv .rep1:not(.shown):not([aria-pressed="true"]) { opacity: 0; }
+.lv .lv-trk-r:is(:hover, :focus-within) .rep1, .lv .rep1:focus-visible { opacity: 1; }
+@media (hover: none) { .lv .rep1 { opacity: 1 !important; } }
+.lv .rep1[aria-pressed="true"], .lv .rep.on { color: var(--accent-text) !important; }

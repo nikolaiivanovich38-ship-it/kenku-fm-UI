@@ -1,25 +1,33 @@
 /**
- * The Scenes box (live.js scenes): Next scene (Space), the Undo strip for about 8 seconds after a scene change
- * (Ctrl+Z), and the session's scenes with Now and Next, each with Start or Restart. Scenes always start in the first
- * room. In one column only Now and Next show, with Show all.
+ * The Scenes box (live.js scenesBox, sceneInside): Next scene (Space), the Undo strip for about 8 seconds after a scene
+ * change (Ctrl+Z), and the session's scenes with Now and Next, each with Start or Restart. Scenes always start in the
+ * first room. Round 6 part 5: no "Ready" and no scene count; Now and Next say where the evening is (the folded box says
+ * them in its summary). In one column only Now and Next show, with Show all.
+ *
+ * SHW-7 (round 6 part 3, Nik 6 Nov 12:24): a scene's name unfolds it in place (Enter, or Right; Left folds), without
+ * touching what plays: when it starts, its notes, its music in the order it will play, its ambience and its pad boards
+ * (each unfolds to its pads). Every row has the row's buttons; Play on air there plays that item only (Rows.tsx).
+ * Round 7 part 2 (PLY-8): a scene that moves on by itself, or has its own start, says so.
  */
-import React, { useEffect, useState } from "react";
+import React from "react";
 
+import type { SceneInfo } from "../../../common/lyre/api";
+import { ExpanderButton } from "../../kit/Expander";
 import { Icon } from "../../kit/Icon";
 import { Pane } from "../../kit/Pane";
 import { cx } from "../../kit/cx";
 import { useRememberedOpen } from "../../shell/ShellSettings";
-import { useLive } from "./liveData";
-import { UNDO_MS } from "./liveModel";
-import { getLiveState, updateLive } from "./liveState";
+import { sceneRefOf, scenePlace, useLive } from "./liveData";
+import { isSingleKey, sceneBoards } from "./liveModel";
+import { updateLive } from "./liveState";
+import { PadGrid } from "./Pads";
+import { AmbienceRow, SceneMusicList } from "./Rows";
+import { SceneUndoStrip } from "./UndoStrips";
 
-/** Where Next scene, Undo and the others are found again after a change (focus). */
-export function focusLive(key: string): void {
-  const find = () => document.querySelector<HTMLElement>(`[data-lv="${key}"]`);
-  const now = find();
-  // Not drawn yet (its box was folded): once it is.
-  if (now) now.focus({ preventScroll: true });
-  else setTimeout(() => find()?.focus({ preventScroll: true }));
+export interface SceneActions {
+  start: (index: number) => void;
+  next: () => void;
+  undo: () => boolean;
 }
 
 /** The box's one-line summary, shown only while it is folded (the prototype's collapsed(id) ? … : ""). */
@@ -28,14 +36,34 @@ export function useFoldedSummary(id: string, openByDefault: boolean, summary: Re
   return open ? undefined : summary;
 }
 
-export interface SceneActions {
-  start: (index: number) => void;
-  next: () => void;
-  undo: () => boolean;
+/** A key as aria-keyshortcuts writes it ("Control+Z", "Shift+Escape", "Space"). */
+export function ariaKey(key: string): string {
+  return key.replace(/^Ctrl\+/, "Control+").replace(/Esc$/, "Escape");
+}
+
+/** PLY-8: only a scene that differs from the usual is marked. */
+function SceneMarks({ scene }: { scene: SceneInfo }) {
+  const movesOn = scene.movesOn;
+  return (
+    <>
+      {movesOn && movesOn.when !== "stay" && (
+        <span className="badge r7-mark" title={movesOn.when === "musicEnds" ? "Starts the next scene when its music ends" : `Starts the next scene after ${Math.round(movesOn.ms / 60000)} minutes`}>
+          <Icon name="next" size="s" />
+          Moves on by itself
+        </span>
+      )}
+      {scene.steps && (
+        <span className="badge r7-mark" title="It does its own steps when it starts">
+          <Icon name="list" size="s" />
+          Own start
+        </span>
+      )}
+    </>
+  );
 }
 
 export function ScenesPane({ compact, actions }: { compact: boolean; actions: SceneActions }) {
-  const { session, state, rooms, keys1 } = useLive();
+  const { session, state, rooms, keys1, keys } = useLive();
   const scenes = session.scenes;
   const nowAt = state.now;
   const next = scenes[state.standby];
@@ -43,65 +71,71 @@ export function ScenesPane({ compact, actions }: { compact: boolean; actions: Sc
   const current = scenes[nowAt];
   const standby = nowAt < 0;
   const firstRoom = rooms[0]?.name;
+  const nextKey = keys.nextScene;
+  // A single key works only while single-key shortcuts are on (WCAG 2.1.4); a key with Ctrl always does.
+  const showKey = !!next && (keys1 || !isSingleKey(nextKey));
   const summary = useFoldedSummary("lv-scenes", true, [current && `Now: ${current.name}`, next && `Next: ${next.name}`].filter(Boolean).join(" · "));
   return (
-    <Pane
-      id="lv-scenes"
-      title="Scenes"
-      icon="scroll"
-      kind="scenes"
-      size="auto"
-      flush
-      noMax
-      // Round 6 part 5 (Nik, 6 Nov 16:14): no "Ready" and no scene count; Now and Next say where the evening is.
-      summary={summary}
-    >
+    <Pane id="lv-scenes" title="Scenes" icon="scroll" kind="scenes" size="auto" flush noMax keys="Alt+2" summary={summary}>
       <div className="lv-sc-top">
         <button
           type="button"
           className="btn primary lv-nextsc"
           data-lv="nextsc"
           aria-disabled={next ? undefined : "true"}
-          aria-keyshortcuts={next && keys1 ? "Space" : undefined}
-          title={next ? `Start ${next.name}${keys1 ? " (Space)" : ""}${rooms.length > 1 && firstRoom ? `. Scenes always play in ${firstRoom}` : ""}` : "That was the last scene"}
+          aria-keyshortcuts={showKey ? ariaKey(nextKey) : undefined}
+          title={next ? `Start ${next.name}${showKey ? ` (${nextKey})` : ""}${rooms.length > 1 && firstRoom ? `. Scenes always play in ${firstRoom}` : ""}` : "That was the last scene"}
           onClick={actions.next}
         >
           <Icon name="next" size="s" />
           <span className="ellipsis">{next ? `${standby ? "Start: " : "Next scene: "}${next.name}` : "No more scenes"}</span>
-          {next && keys1 && (
+          {showKey && (
             <span className="kbd" aria-hidden="true">
-              Space
+              {nextKey}
             </span>
           )}
         </button>
-        {state.undo && <UndoStrip onUndo={actions.undo} />}
+        <SceneUndoStrip onUndo={actions.undo} />
       </div>
       <ol className="lv-scenes">
         {scenes.map((sc, i) => {
           const isNow = i === nowAt;
           const isNext = i === state.standby;
-          if (short && !isNow && !isNext) return null;
+          const open = !!state.scOpen[sc.id];
+          if (short && !isNow && !isNext && !open) return null;
           const name = `${isNow ? "Restart" : "Start"} scene ${i + 1}: ${sc.name}`;
+          const bodyId = `lv-scb-${sc.id}`;
           return (
-            <li key={sc.id} className={cx("lv-sc", isNow && "now", isNext && "next", nowAt > -1 && i < nowAt && "done")} aria-current={isNow ? "step" : undefined}>
+            <li key={sc.id} className={cx("lv-sc", isNow && "now", isNext && "next", nowAt > -1 && i < nowAt && "done", open && "open")} aria-current={isNow ? "step" : undefined}>
               <div className="lv-sc-1">
-                <span className="num lv-sc-n" aria-hidden="true">
-                  {i + 1}
-                </span>
                 {isNow ? <span className="badge lv-nowb">Now</span> : isNext ? <span className="badge lv-nextb">Next</span> : null}
-                <span className="lv-sc-name ellipsis" title={sc.name + (sc.startsWhen ? `. Starts when: ${sc.startsWhen}` : "")}>
-                  {sc.name}
-                </span>
-                <button type="button" className="btn s icon lv-sc-go" aria-label={name} title={`${isNow ? "Restart" : "Start"} this scene`} onClick={() => actions.start(i)}>
+                <SceneMarks scene={sc} />
+                <button
+                  type="button"
+                  className="lv-sc-name"
+                  data-lv={`scn-${sc.id}`}
+                  data-scene={sc.id}
+                  aria-expanded={open}
+                  aria-controls={open ? bodyId : undefined}
+                  aria-label={`Scene ${i + 1}: ${sc.name}`}
+                  title={`${sc.name}: ${open ? "fold" : "see what it plays"}`}
+                  onClick={() => updateLive((s) => ({ scOpen: { ...s.scOpen, [sc.id]: !open } }))}
+                >
+                  <Icon name="chevdown" size="s" className="lv-sc-chev" />
+                  <span className="sr-only">Scene {i + 1}: </span>
+                  <span className="ellipsis">{sc.name}</span>
+                </button>
+                <button type="button" className="btn s icon lv-sc-go" data-lv={`start-${i}`} aria-label={name} title={`${isNow ? "Restart" : "Start"} this scene`} onClick={() => actions.start(i)}>
                   <Icon name={isNow ? "restart" : "play"} size="s" />
                 </button>
               </div>
-              {(isNow || isNext) && sc.startsWhen && (
+              {/* Could 21: the cue for the next change of scene; the running scene's details are in Current scene. */}
+              {isNext && sc.startsWhen && !open && (
                 <div className="lv-sc-when ellipsis" title={`Starts when: ${sc.startsWhen}`}>
-                  <span className="faint">Starts when</span> {sc.startsWhen}
+                  <span className="faint">Starts when:</span> {sc.startsWhen}
                 </div>
               )}
-              {isNow && sc.notes && <Notes text={sc.notes} />}
+              {open && <SceneInside scene={sc} index={i} id={bodyId} />}
             </li>
           );
         })}
@@ -115,55 +149,52 @@ export function ScenesPane({ compact, actions }: { compact: boolean; actions: Sc
   );
 }
 
-function Notes({ text }: { text: string }) {
-  const { state } = useLive();
-  const open = state.notesOpen;
+/** An unfolded scene: when it starts, its notes, its music in play order, its ambience and its pad boards. */
+function SceneInside({ scene, index: i, id }: { scene: SceneInfo; index: number; id: string }) {
+  const d = useLive();
+  const ref = sceneRefOf(d.campaign.id, d.session.id, scene);
+  const running = d.state.now === i;
+  const boards = sceneBoards(scene, d.index);
   return (
-    <div className={cx("lv-sc-notes", open && "open")} id="lv-notes">
-      <span className="lv-sc-notes-t">{text}</span>
-      {text.length > 70 && (
-        <button type="button" className="lv-more" aria-expanded={open} aria-controls="lv-notes" onClick={() => updateLive({ notesOpen: !open })}>
-          {open ? "Less" : "More"}
-        </button>
+    <div className="lv-sc-in" id={id}>
+      {scene.startsWhen && (
+        <div className="lv-sc-when">
+          <span className="faint">Starts when:</span> {scene.startsWhen}
+        </div>
       )}
-    </div>
-  );
-}
-
-/** The strip's countdown waits while the pointer or focus is on it, so it never goes from under a press. */
-function UndoStrip({ onUndo }: { onUndo: () => boolean }) {
-  const undo = useLive().state.undo!;
-  const [left, setLeft] = useState(100);
-  const [held, setHeld] = useState(false);
-  useEffect(() => {
-    const timer = setInterval(() => {
-      const offer = getLiveState().undo;
-      if (!offer) return;
-      const focused = (document.activeElement as HTMLElement | null)?.dataset?.lv === "undo";
-      if (held || focused) {
-        updateLive({ undo: { ...offer, until: Math.max(offer.until, Date.now() + 1500) } });
-        return;
-      }
-      if (Date.now() >= offer.until) {
-        updateLive({ undo: null });
-        return;
-      }
-      setLeft(Math.max(0, Math.min(100, ((offer.until - Date.now()) / UNDO_MS) * 100)));
-    }, 250);
-    return () => clearInterval(timer);
-  }, [held]);
-  return (
-    <div className="lv-undo" role="status" onPointerEnter={() => setHeld(true)} onPointerLeave={() => setHeld(false)}>
-      <span className="ellipsis grow">
-        Started <b>{undo.started}</b>
-      </span>
-      <button type="button" className="btn s" data-lv="undo" aria-keyshortcuts="Control+Z" title={`Go back to ${undo.label}, with its music and ambience (Ctrl+Z)`} onClick={onUndo}>
-        <Icon name="restart" size="s" />
-        <span className="ellipsis">Undo</span>
-      </button>
-      <span className="lv-undo-bar" aria-hidden="true">
-        <span style={{ width: `${left}%` }} />
-      </span>
+      {scene.notes && (
+        <div className="lv-sc-notes">
+          <span className="lv-sc-notes-t" title={scene.notes}>
+            {scene.notes}
+          </span>
+        </div>
+      )}
+      {scene.music.length ? <SceneMusicList scene={scene} label={`${scene.name}: music in play order`} running={running} keyPrefix={`in${scene.id}-`} /> : <p className="lv-in-none">No music</p>}
+      <AmbienceRow scene={scene} place={scenePlace(ref)} dataLv={`in${scene.id}-amb`} />
+      <div className="lv-in-line lv-in-bds">
+        <span className="lane-dot fx" aria-hidden="true" />
+        <span className="sr-only">Pad boards: </span>
+        {boards.length ? (
+          boards.map((b) => {
+            const key = `scbd-${scene.id}-${b.id}`;
+            return (
+              <span key={b.id} className="lv-in-bd">
+                <ExpanderButton label={b.name} expanded={!!d.state.expanded[key]} onToggle={() => updateLive((s) => ({ expanded: { ...s.expanded, [key]: !s.expanded[key] } }))} />
+                <span className="ellipsis" title={b.name}>
+                  {b.name}
+                </span>
+              </span>
+            );
+          })
+        ) : (
+          <span className="faint">No pad boards</span>
+        )}
+      </div>
+      {boards
+        .filter((b) => d.state.expanded[`scbd-${scene.id}-${b.id}`])
+        .map((b) => (
+          <PadGrid key={b.id} board={b} box="music" keysOn={false} />
+        ))}
     </div>
   );
 }
