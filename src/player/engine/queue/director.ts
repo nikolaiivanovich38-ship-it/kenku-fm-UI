@@ -63,13 +63,17 @@ export class Director extends TypedEmitter<DirectorEvents> {
   private sceneRun = 0;
   private movesOnTimer: unknown = null;
   private lastScene: SceneRef | null = null;
-  /** PLY-4: where each "Pick up where it stopped" track was stopped this evening (every room shares it). */
-  private readonly resumeAt = new Map<string, number>();
+  /**
+   * PLY-4: where each "Pick up where it stopped" track was stopped (every room shares it); the host may hand in one
+   * kept across restarts (resumePositions.ts), else it lasts for the evening.
+   */
+  private readonly resumeAt: Map<string, number>;
   private readonly unsubscribe: () => void;
 
-  constructor(options: { engine: PlaybackEngine; rooms: RoomsAudio; library: ShowLibrary; random?: Random }) {
+  constructor(options: { engine: PlaybackEngine; rooms: RoomsAudio; library: ShowLibrary; random?: Random; resumeAt?: Map<string, number> }) {
     super();
     this.engine = options.engine;
+    this.resumeAt = options.resumeAt ?? new Map();
     this.rooms = options.rooms;
     this.library = options.library;
     this.random = options.random ?? Math.random;

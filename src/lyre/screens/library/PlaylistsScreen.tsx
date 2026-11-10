@@ -26,6 +26,7 @@ import { PlayOrderButton } from "../../kit/PlayOrderButton";
 import { onAirPlaylistIds, PlaylistContents, useWriteResult } from "./shared";
 import { PopMenuButton, TwoLines, type PopMenuEntry } from "../../kit/PopMenu";
 import { PlayOnAirButton, PreviewButton } from "../../kit/SoundButtons";
+import { orgDragProps, useFolders } from "../folders/Folders";
 import "./library.css";
 import "./playlists.css";
 import { TopLead } from "../../shell/TopBar";
@@ -56,6 +57,7 @@ export function PlaylistsScreen(_props: ScreenProps) {
   const [useIn, setUseIn] = useState<string | null>(null);
   const onAir = useMemo(() => onAirPlaylistIds(now), [now]);
   const { playlists, groupNames } = data;
+  const folders = useFolders("playlists");
 
   const setFilter = (change: Partial<Filter>) => {
     keptFilter = { ...filter, ...change };
@@ -219,11 +221,28 @@ export function PlaylistsScreen(_props: ScreenProps) {
                   <span className="pl-c">Length</span>
                   <span />
                 </div>
-                <ul className="pl-list" aria-label="Playlists">
-                  {shown.map((p) => (
-                    <PlaylistRow key={p.id} p={p} data={data} open={open.has(p.id)} onToggle={() => toggleOpen(p.id)} onAir={onAir.has(p.id)} flash={drops.flash.includes(p.id)} onUseIn={() => setUseIn(p.id)} />
-                  ))}
-                </ul>
+                {/* ORG-4: folders first at each level, then the playlists. */}
+                {folders.list({
+                  label: "Playlists",
+                  className: "pl-list",
+                  all: playlists,
+                  shown,
+                  filtered: anyFilter,
+                  nameOf: (id) => playlists.find((x) => x.id === id)?.name ?? "The playlist",
+                  renderItem: (p) => (
+                    <PlaylistRow
+                      key={p.id}
+                      p={p}
+                      data={data}
+                      open={open.has(p.id)}
+                      onToggle={() => toggleOpen(p.id)}
+                      onAir={onAir.has(p.id)}
+                      flash={drops.flash.includes(p.id)}
+                      onUseIn={() => setUseIn(p.id)}
+                      onMoveTo={() => folders.openMoveTo(p, p.name || "Untitled playlist")}
+                    />
+                  ),
+                })}
               </>
             ) : data.ready && playlists.length === 0 ? (
               // w3-ux 9: a first-time user learns what a playlist is and how to make one.
@@ -245,12 +264,32 @@ export function PlaylistsScreen(_props: ScreenProps) {
         </Column>
       </div>
       <DropZone />
+      {folders.dialogs}
       {useIn && <UseInDialog playlist={playlists.find((p) => p.id === useIn)} campaigns={data.campaigns} nameOf={soundName(data)} onClose={() => setUseIn(null)} />}
     </>
   );
 }
 
-function PlaylistRow({ p, data, open, onToggle, onAir, flash, onUseIn }: { p: PlaylistInfo; data: PlaylistData; open: boolean; onToggle: () => void; onAir: boolean; flash: boolean; onUseIn: () => void }) {
+function PlaylistRow({
+  p,
+  data,
+  open,
+  onToggle,
+  onAir,
+  flash,
+  onUseIn,
+  onMoveTo,
+}: {
+  p: PlaylistInfo;
+  data: PlaylistData;
+  open: boolean;
+  onToggle: () => void;
+  onAir: boolean;
+  flash: boolean;
+  onUseIn: () => void;
+  /** ORG-4: Move to folder…. */
+  onMoveTo: () => void;
+}) {
   const tracks = data.tracksOf(p);
   const uses = data.usesOf(p.id);
   const kind = KIND_WORDS[p.kind];
@@ -284,7 +323,7 @@ function PlaylistRow({ p, data, open, onToggle, onAir, flash, onUseIn }: { p: Pl
             <Icon name={kind.icon} size="s" />
           </span>
           <span className={`lane-dot ${p.lane}`} aria-hidden="true" />
-          <a href={hashOf(`playlist/${p.id}`)} className="ellipsis pl-nm">
+          <a href={hashOf(`playlist/${p.id}`)} className="ellipsis pl-nm" {...orgDragProps("playlists", p.id)}>
             {name}
             <span className="sr-only">
               , {kind.name}, {KIND_NAMES[p.lane]}, {usedWords}
@@ -325,6 +364,15 @@ function PlaylistRow({ p, data, open, onToggle, onAir, flash, onUseIn }: { p: Pl
                   </>
                 ),
                 onSelect: onUseIn,
+              },
+              {
+                content: (
+                  <>
+                    <Icon name="folder" size="s" />
+                    Move to folder…
+                  </>
+                ),
+                onSelect: onMoveTo,
               },
             ]}
           >

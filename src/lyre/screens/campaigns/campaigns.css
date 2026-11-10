@@ -216,3 +216,12 @@ a.btn.cp-prof:hover { color: var(--ink); }
 .viewhead h1 .cp-h1-name:hover { text-decoration: underline dotted; text-underline-offset: 3px; }
 .viewhead h1 .cp-h1-rename { width: 22ch; max-width: 60vw; height: var(--ctl); font: inherit; font-size: var(--fs); text-transform: none; vertical-align: middle; }
 
+/* ORG-13 (round 6): a playlist's own order in a place: the Reorder switch, Back to the playlist's order, drag handles. */
+.ro-own { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 2px 0 4px; }
+.ro-own-t { font-size: var(--fs-s); color: var(--ink-2); }
+.ro-handle { display: inline-grid; place-items: center; width: 16px; color: var(--ink-3); cursor: grab; flex: none; }
+.ro-dragging { opacity: 0.5; }
+.ro-btns { display: inline-flex; gap: 2px; flex: none; }
+/* PLY-17: Repeat one, saved with the scene. */
+.rep1 { position: relative; }
+.rep1[aria-pressed="true"] { color: var(--accent-text); }

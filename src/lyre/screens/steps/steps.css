@@ -1,0 +1,12 @@
+/* PLY-8: the steps dialog (design/prototype/src/views/r7play.css). */
+.stp-list { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.stp { border: 1px solid var(--line); border-radius: var(--r-m, 6px); padding: 4px 6px; }
+.stp-1 { display: flex; align-items: center; gap: 6px; min-height: var(--row); }
+.stp-n { width: 18px; text-align: right; color: var(--ink-3); flex: none; }
+.stp-s { min-width: 0; overflow-wrap: anywhere; }
+.stp-ctl { display: flex; flex-wrap: wrap; gap: 6px 12px; padding: 4px 0 2px 24px; }
+.stp-f { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-s); min-width: 0; }
+.stp-f select { max-width: 280px; }
+.stp-tools { gap: 8px; flex-wrap: wrap; }
+.stp-then { margin-top: 10px; }
+.r7-mark { display: inline-flex; align-items: center; gap: 4px; }

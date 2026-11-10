@@ -13,6 +13,7 @@ import { SettingsScreen } from "./settings/SettingsScreen";
 import { BackupScreen } from "./transfer/BackupScreen";
 import { MovedScreen } from "./transfer/MovedScreen";
 import { RelinkScreen } from "./transfer/RelinkScreen";
+import { TagsScreen } from "./tags/TagsScreen";
 
 /** What every screen gets: the route it was opened at (its ids are in route.params). */
 export interface ScreenProps {
@@ -51,4 +52,6 @@ export const SCREENS: Record<RouteName, ScreenComponent> = {
   backup: BackupScreen,
   moved: MovedScreen,
   relink: RelinkScreen,
+  // Round 7 (DAT-10): the tag vocabulary (w6-prep).
+  tags: TagsScreen,
 };

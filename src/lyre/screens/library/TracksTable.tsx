@@ -56,10 +56,12 @@ export interface TracksTableProps {
   onPlay: (id: string) => void;
   rowMenu: (t: LibraryTrack) => readonly PopMenuEntry[];
   sort: string;
+  /** Round 6: the id of the key legend under the list, read out with it. */
+  describedBy?: string;
 }
 
 export function TracksTable(props: TracksTableProps) {
-  const { list, sel, cursor, sort } = props;
+  const { list, sel, cursor, sort, describedBy } = props;
   const boxRef = useRef<HTMLDivElement>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [viewHeight, setViewHeight] = useState(UNMEASURED_HEIGHT);
@@ -185,7 +187,7 @@ export function TracksTable(props: TracksTableProps) {
 
   return (
     <div className="lb-scroll" ref={boxRef} onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}>
-      <table className="grid lb-table" role="grid" aria-multiselectable="true" aria-label="Tracks" aria-rowcount={n + 1}>
+      <table className="grid lb-table" role="grid" aria-multiselectable="true" aria-label="Tracks" aria-describedby={describedBy} aria-rowcount={n + 1}>
         <thead>
           <tr aria-rowindex={1}>
             <th className="lb-c-ck">
@@ -259,6 +261,8 @@ const TrackRow = memo(function TrackRow({ t, index, groupNames, selected, open, 
     <tr
       data-tid={t.id}
       data-focus={`row-${t.id}`}
+      // ORG-5: a row is dragged to another list; with ticked rows, all of them go (the Library's DropTray).
+      draggable
       tabIndex={tabbable ? 0 : -1}
       aria-rowindex={index + 2}
       aria-selected={selected}

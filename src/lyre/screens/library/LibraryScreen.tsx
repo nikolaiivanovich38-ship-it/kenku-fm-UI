@@ -38,6 +38,8 @@ import { SearchField } from "../../kit/Fields";
 import { LibraryMoreMenu } from "../transfer/LibraryMoreMenu";
 import "./library.css";
 import { TopLead } from "../../shell/TopBar";
+import { tagTreeOf } from "../../../common/lyre/lookup";
+import { AddToDialog, DropTray } from "../drop/DropTray";
 
 type Picker = { kind: "bulk" } | { kind: "one"; id: string };
 
@@ -73,7 +75,9 @@ export function LibraryScreen({ route }: ScreenProps) {
   const tid = route.params.tid;
   const open = tid ? byId.get(tid) : undefined;
   const all = tracks ?? NONE;
-  const list = useMemo(() => visibleTracks(all, st.filter, st.q, st.sort, missing), [all, st.filter, st.q, st.sort, missing]);
+  // DAT-10: a tag finds the tracks of the tags inside it.
+  const tree = useMemo(() => tagTreeOf(groups), [groups]);
+  const list = useMemo(() => visibleTracks(all, st.filter, st.q, st.sort, missing, tree), [all, st.filter, st.q, st.sort, missing, tree]);
   const sel = useMemo(() => new Set(st.sel), [st.sel]);
   const onAir = useMemo(() => onAirTrackIds(now), [now]);
   const airPaused = useMemo(() => pausedTrackIds(now), [now]);
@@ -179,6 +183,8 @@ export function LibraryScreen({ route }: ScreenProps) {
     [accept, api, playlists, say, store],
   );
 
+  /** ORG-5: the tracks whose Add to… is open. */
+  const [addingTo, setAddingTo] = useState<string[] | null>(null);
   const rowMenu = useCallback(
     (t: LibraryTrack): PopMenuEntry[] => {
       const on = getLibraryState().sel.includes(t.id);
@@ -187,6 +193,8 @@ export function LibraryScreen({ route }: ScreenProps) {
         { content: <Item icon="check" text={on ? "Deselect" : "Select"} />, onSelect: () => toggleSel(t.id, false) },
         { content: <Item icon="playlist" text="Add to playlist…" />, onSelect: () => setPicker({ kind: "one", id: t.id }) },
         { content: <Item icon="link" text="Use in…" />, onSelect: () => setUseIn(t.id) },
+        // Round 7 (ORG-5): the keyboard's way to what a drag does; a ticked row takes the other ticked rows along.
+        { content: <Item icon="plus" text="Add to…" />, onSelect: () => setAddingTo(on ? getLibraryState().sel : [t.id]) },
         { content: <Item icon="fade" text="Audio profile" />, onSelect: () => (window.location.hash = hashOf(`profile/${t.id}`)) },
       ];
     },
@@ -469,8 +477,10 @@ export function LibraryScreen({ route }: ScreenProps) {
         onPreview={preview}
         onPlay={playOnAir}
         rowMenu={rowMenu}
+        describedBy="lb-keys"
       />
-      <div className="lb-foot hint">
+      {/* Round 6: the keys show only while the keyboard is in the list, and are read out with it. */}
+      <div className="lb-foot hint keys-on-focus" id="lb-keys">
         Keys: <span className="kbd">↑</span> <span className="kbd">↓</span> move · <span className="kbd">Enter</span> open · <span className="kbd">Space</span> select ·{" "}
         <span className="kbd">P</span> preview · <span className="kbd">A</span> play on air
       </div>
@@ -606,6 +616,17 @@ export function LibraryScreen({ route }: ScreenProps) {
           if (accept(await api.library.setNormaliseSettings(setting))) setNormaliseOpen(false);
         }}
       />
+      {/* ORG-5: dragging tracks shows where they can go; ticked rows go together. */}
+      <DropTray
+        resolve={(el) => {
+          const row = el.closest<HTMLElement>('[role="grid"][aria-label="Tracks"] tr[data-tid]');
+          const id = row?.dataset.tid;
+          if (!id) return null;
+          const sel = getLibraryState().sel;
+          return { ids: sel.includes(id) ? [...sel] : [id], from: null };
+        }}
+      />
+      {addingTo && <AddToDialog what={{ ids: addingTo, from: null }} onClose={() => setAddingTo(null)} />}
       {useIn && (
         <UseInDialog
           track={byId.get(useIn)}

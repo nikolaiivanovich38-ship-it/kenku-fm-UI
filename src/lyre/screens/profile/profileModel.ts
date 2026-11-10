@@ -23,7 +23,8 @@ export interface Prof {
   loopXfade: number;
   fadeIn: FadeSec;
   fadeOut: FadeSec;
-  markers: { at: number; label: string }[];
+  /** `mix`: the one mix-out point (DAT-3), where the next track crossfades in. */
+  markers: { at: number; label: string; mix?: boolean }[];
 }
 
 /** The points and lengths the handles, fields and steppers change. */
@@ -102,7 +103,7 @@ export function fromDomain(p: AudioProfile): Prof {
     loopXfade: p.loopCrossfadeMs / 1000,
     fadeIn: { dur: p.fadeIn.ms / 1000, shape: p.fadeIn.shape },
     fadeOut: { dur: p.fadeOut.ms / 1000, shape: p.fadeOut.shape },
-    markers: p.markers.map((m) => ({ at: m.atMs / 1000, label: m.label })),
+    markers: p.markers.map((m) => ({ at: m.atMs / 1000, label: m.label, ...(m.mix ? { mix: true } : {}) })),
   };
 }
 
@@ -118,7 +119,7 @@ export function toInput(p: Prof): Required<AudioProfileInput> {
     loopCrossfadeMs: ms(p.loopXfade),
     fadeIn: { ms: ms(p.fadeIn.dur), shape: p.fadeIn.shape },
     fadeOut: { ms: ms(p.fadeOut.dur), shape: p.fadeOut.shape },
-    markers: p.markers.map((m) => ({ atMs: ms(m.at), label: m.label })),
+    markers: p.markers.map((m) => ({ atMs: ms(m.at), label: m.label, ...(m.mix ? { mix: true } : {}) })),
   };
 }
 

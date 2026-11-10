@@ -176,6 +176,57 @@ describe("Library: a track's details", () => {
     await waitFor(() => expect(within(details()).queryByRole("button", { name: "Remove Melancholy from Mood" })).toBeNull());
   });
 
+  it("PLY-4: a sting never loops: its loop choices are off, and say why", async () => {
+    openAt("library/t39");
+    const role = await within(details()).findByRole("group", { name: "Role" });
+    expect(within(role).getByRole("button", { name: "Sting" })).toHaveAttribute("aria-pressed", "true");
+    const loop = within(details()).getByRole("group", { name: "Loop advice" });
+    expect(within(loop).getByRole("button", { name: "Loops well" })).toBeDisabled();
+    expect(loop).toHaveAccessibleDescription(/A sting plays once/);
+  });
+
+  it("SHW-3: Follow with… hands over to a playlist or a track when it ends, saved with the track", async () => {
+    const { api } = openAt("library/t39");
+    const user = userEvent.setup();
+    await user.click(await within(details()).findByRole("button", { name: "Follow with…" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "When it ends, play" }), "Crypt ambush (playlist)");
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(within(details()).getByRole("group", { name: "Then" })).toHaveTextContent("Crypt ambush"));
+    expect(document.getElementById("lyre-toast")).toHaveTextContent(/follows with Crypt ambush$/);
+    expect((await api.library.listTracks()).find((t) => t.id === "t39")?.follow).toEqual({ kind: "playlist", id: "p-crypt" });
+  });
+
+  it("PLY-4: an underscore's Ending: Fades out and Pick up where it stopped are saved with the track", async () => {
+    const { api } = openAt("library/t19");
+    const user = userEvent.setup();
+    const ending = await within(details()).findByRole("group", { name: "Ending" });
+    await user.click(within(ending).getByRole("button", { name: "Fades out" }));
+    await waitFor(() => expect(document.getElementById("lyre-toast")).toHaveTextContent(/ending: fades out$/));
+    await user.click(within(details()).getByRole("switch", { name: "Pick up where it stopped" }));
+    await waitFor(() => expect(document.getElementById("lyre-toast")).toHaveTextContent(/picks up where it stopped$/));
+    const t19 = (await api.library.listTracks()).find((t) => t.id === "t19");
+    expect([t19?.fadesOut, t19?.resume]).toEqual([true, true]);
+  });
+
+  it("round 6: the list's keys are read out with it", async () => {
+    openAt("library");
+    expect(await screen.findByRole("grid", { name: "Tracks" })).toHaveAccessibleDescription(/Enter open/);
+  });
+
+  it("DAT-10: typing another word for a tag offers the tag itself, never a new one, and Enter adds it", async () => {
+    const { api } = openAt("library/t44");
+    const box = await within(details()).findByRole("combobox", { name: "Add a mood tag" });
+    const user = userEvent.setup();
+    await user.click(box);
+    await user.keyboard("sad");
+    const options = within(screen.getByRole("listbox", { name: "Mood values" })).getAllByRole("option");
+    expect(options[0]).toHaveTextContent("Melancholy (sad)");
+    expect(options.some((o) => /Create/.test(o.textContent ?? ""))).toBe(false);
+    await user.keyboard("{Enter}");
+    expect(await within(details()).findByRole("button", { name: "Remove Melancholy from Mood" })).toBeInTheDocument();
+    expect((await api.library.listTracks()).find((t) => t.id === "t44")?.tags.mood).toContain("Melancholy");
+  });
+
   it("Tab adds what was typed (creating a new tag) or the suggestion chosen, and moves on; an empty box adds nothing (BUG-15)", async () => {
     const { api } = openAt("library/t44");
     const box = await within(details()).findByRole("combobox", { name: "Add a mood tag" });

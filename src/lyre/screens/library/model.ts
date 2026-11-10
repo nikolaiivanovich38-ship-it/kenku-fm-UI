@@ -9,6 +9,7 @@
 import { isFx, resolveProfile, shapeOf, SHAPE_WORDS, type DomainTrack, type PlaylistRule, type ProfileOverrides, type TrackShape } from "../../../common/domain";
 import type { FolderRoot, LibraryTrack, TagGroup } from "../../../common/lyre/api";
 import { plural, shownTitle } from "../../../common/lyre/text";
+import { trackHasTag, type TagTree } from "../../../common/domain/round7";
 
 export { plural, shownTitle };
 
@@ -122,8 +123,11 @@ export function searchWords(q: string): string[] {
 /** No track is known to be missing (the list of missing files has not come yet). */
 const NONE_MISSING: ReadonlySet<string> = new Set();
 
-/** `missing`: ids of the tracks whose files Lyre cannot find (LyreApi import.findMissing). */
-export function matches(t: LibraryTrack, f: LibraryFilter, words: string[], skipNew = false, missing: ReadonlySet<string> = NONE_MISSING): boolean {
+/**
+ * `missing`: ids of the tracks whose files Lyre cannot find (LyreApi import.findMissing). `tree` (DAT-10): tags inside
+ * tags, so a tag finds the tracks of the tags inside it too (r7tags.js L.trackHasTag).
+ */
+export function matches(t: LibraryTrack, f: LibraryFilter, words: string[], skipNew = false, missing: ReadonlySet<string> = NONE_MISSING, tree?: TagTree): boolean {
   if (!kindOk(t, f.kind)) return false;
   if (f.newOnly && !skipNew && !isNewish(t)) return false;
   if (f.missing && !missing.has(t.id)) return false;
@@ -134,7 +138,7 @@ export function matches(t: LibraryTrack, f: LibraryFilter, words: string[], skip
   if (!inFolder(t, f.folder)) return false;
   if (!energyOff(f) && ((t.energy ?? 0) < f.emin || (t.energy ?? 0) > f.emax)) return false;
   for (const [group, want] of Object.entries(f.tags)) {
-    if (want.length && !want.some((v) => (t.tags[group] ?? []).includes(v))) return false;
+    if (want.length && !want.some((v) => trackHasTag(t, group, v, tree))) return false;
   }
   if (words.length) {
     const h = haystack(t);
@@ -155,9 +159,9 @@ const SORTERS: Record<SortKey, (a: LibraryTrack, b: LibraryTrack) => number> = {
 };
 
 /** The tracks a filter, search and sort show, in order. */
-export function visibleTracks(tracks: readonly LibraryTrack[], f: LibraryFilter, q: string, sort: SortKey, missing: ReadonlySet<string> = NONE_MISSING): LibraryTrack[] {
+export function visibleTracks(tracks: readonly LibraryTrack[], f: LibraryFilter, q: string, sort: SortKey, missing: ReadonlySet<string> = NONE_MISSING, tree?: TagTree): LibraryTrack[] {
   const words = searchWords(q);
-  return tracks.filter((t) => matches(t, f, words, false, missing)).sort(SORTERS[sort]);
+  return tracks.filter((t) => matches(t, f, words, false, missing, tree)).sort(SORTERS[sort]);
 }
 
 /* ---------- describing the filters ---------- */

@@ -439,6 +439,8 @@ export interface LyreAudioParts {
   startRoomVolume?: number;
   /** PRV-2: puts the preview in one ear (or both) on its way to the game master's device; none: it plays in both. */
   setPreviewEar?: (ear: "both" | "left" | "right") => void;
+  /** PLY-4: where Pick up tracks stopped, kept across restarts (resumePositions.ts); none: for the evening only. */
+  resumePositions?: Map<string, number>;
   /** OUT-10: listens to a room's mix (an AnalyserNode in the app) for its level meter; none: every level is 0. */
   meter?: (output: GainLike) => RoomMeter;
 }
@@ -502,7 +504,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       crossfade: () => this.library.crossfade?.() ?? { ms: DEFAULT_FADES.crossfade * 1000, curve: "even" },
       nextScene: (ref) => this.library.nextScene?.(ref) ?? null,
     };
-    this.director = new Director({ engine: parts.engine, rooms: this.rooms, library, random: parts.random });
+    this.director = new Director({ engine: parts.engine, rooms: this.rooms, library, random: parts.random, resumeAt: parts.resumePositions });
 
     const onChange = () => this.changed();
     const onDirectorError = (message: string) => this.emit("error", message);

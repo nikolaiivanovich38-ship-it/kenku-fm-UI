@@ -21,6 +21,8 @@ import type { MenuEntry } from "../../kit/Menu";
 import { Column, Pane } from "../../kit/Pane";
 import { useAnnounce } from "../../shell/Announcer";
 import { useUndoNote } from "../../shell/UndoNote";
+import { SceneMarks, StepsDialog } from "../steps/StepsDialog";
+import { RepeatOneButton } from "../../kit/RepeatOneButton";
 import type { ScreenProps } from "..";
 import { carriesFiles, dropIndex, droppedPaths } from "./drops";
 import { boardInfo, plural, sessionLabel, soundInfo, STATUS_WORDS, type ItemInfo, type LibraryIndex } from "./model";
@@ -117,6 +119,8 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
   const [current, setCurrent] = useState<string | null>(null);
   const [picking, setPicking] = useState<Picking>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
+  /** PLY-8: the scene whose steps are open (What it does when it starts…). */
+  const [stepsOf, setStepsOf] = useState<string | null>(null);
   const [nameDraft, setNameDraft] = useState<string | null>(null);
   // BUG-21: the title renames the session in place (click or F2); only the name, never the number.
   const renameTitle = useRenameInPlace();
@@ -183,6 +187,10 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
     const at = after ? s.scenes.findIndex((x) => x.id === after) + 1 : s.scenes.length;
     const made = (await write(api.sessions.createScene(c.id, s.id, after)))?.value;
     if (!made) return;
+    // Round 6, Could 19: a new scene has a name of its own ("Scene 7"), so its buttons do too.
+    let n = at + 1;
+    while (s.scenes.some((x) => x.name === `Scene ${n}`)) n++;
+    await write(api.sessions.updateScene(address(made), { name: `Scene ${n}` }));
     setOpen((o) => ({ ...o, [made.id]: true }));
     setCurrent(made.id);
     focus(`scname-${made.id}`, undefined, true);
@@ -274,6 +282,7 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
   const drag = useDragReorder("scenes", (from, to) => void moveScene(from, to));
   const allOpen = s.scenes.length > 0 && s.scenes.every((x) => open[x.id]);
   const deletingScene = sceneAt(deleting);
+  const stepsScene = sceneAt(stepsOf);
   const campaignBoards = c.boardIds.map((id) => index.board(id)?.name).filter(Boolean);
 
   return (
@@ -342,10 +351,6 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
               ))}
             </select>
           </div>
-          <p className="cp-order">
-            <Icon name="list" size="s" />
-            <span>In play: this scene&apos;s music first, then this session&apos;s, then the campaign&apos;s, then the whole library.</span>
-          </p>
         </div>
         <div className="cp-split cp-ssplit">
           <Column>
@@ -354,7 +359,8 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
               title="Scenes"
               icon="map"
               kind="scenes"
-              status={{ text: s.scenes.length ? plural(s.scenes.length, "scene") : "Empty" }}
+              // UX-19 (round 6 part 5, Nik: "Kill the scene count"): a status only when there is nothing.
+              status={s.scenes.length ? undefined : { text: "Empty" }}
               actions={
                 <>
                   {s.scenes.length > 0 && (
@@ -394,6 +400,8 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
                         ...(i > 0 ? [{ label: "Move up", icon: "chevup" as const, onSelect: () => { void moveScene(i, i - 1); } }] : []),
                         ...(i < s.scenes.length - 1 ? [{ label: "Move down", icon: "chevdown" as const, onSelect: () => { void moveScene(i, i + 1); } }] : []),
                         { label: "Add a scene after this one", icon: "plus", onSelect: () => void addScene(scene.id) },
+                        // Round 7 (PLY-8, SHW-3): what the scene does when it starts, as steps, and whether it moves on by itself.
+                        { label: "What it does when it starts…", icon: "list", onSelect: () => setStepsOf(scene.id) },
                         { label: "Duplicate", icon: "queue", onSelect: () => void duplicate(scene) },
                         { separator: true },
                         { label: "Delete…", icon: "trash", danger: true, onSelect: () => setDeleting(scene.id) },
@@ -421,7 +429,7 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
             />
             <OnHandPane
               paneId="ss-sbd"
-              title="Session pad boards"
+              title="Session pads"
               kind="boards"
               owner={{ campaignId: c.id, sessionId: s.id }}
               ids={s.boardIds}
@@ -435,7 +443,7 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
                 From the campaign. <a href={`#/campaign/${c.id}`}>Change</a>.
               </p>
               <OnHandList ids={c.playlistIds} trackIds={c.trackIds} kind="playlists" index={index} scope="r" place={{ kind: "campaign", campaignId: c.id }} />
-              <p className="hint cp-make">Campaign pad boards: {campaignBoards.length ? campaignBoards.join(", ") : "none"}.</p>
+              <p className="hint cp-make">Campaign pads: {campaignBoards.length ? campaignBoards.join(", ") : "none"}.</p>
             </Pane>
             <Pane id="ss-obs" title="Obsidian" icon="link" size="auto" collapsed kind="plain" status={{ text: "Coming later" }}>
               <div className="field">
@@ -496,6 +504,7 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
         />
       )}
       {usingIn && index.track(usingIn) && <TrackUseInDialog track={index.track(usingIn)!} index={index} onClose={() => setUsingIn(null)} />}
+      {stepsScene && <StepsDialog owner={{ kind: "scene", campaignId: c.id, sessionId: s.id, scene: stepsScene }} onClose={() => setStepsOf(null)} />}
       <Dialog
         open={!!deletingScene}
         title="Delete this scene?"
@@ -670,6 +679,7 @@ function SceneCard({ scene, position, ctx, open, onToggle, drag, menu }: SceneCa
             )}
           </span>
         )}
+        <SceneMarks scene={scene} />
         <RowMenu
           label={`More for ${name}`}
           title="More for this scene"
@@ -855,6 +865,10 @@ function ItemRow({
             <Icon name="wave" size="s" />
           </a>
         )}
+        {/* Round 6 part 3 (PLY-17): a scene's Repeat one, saved with the scene, shows and changes here as in Live. */}
+        {track && (
+          <RepeatOneButton scene={ctx.address(scene)} sceneName={scene.name || "the scene"} trackId={info.id} name={shown} on={scene.repeatOnes.includes(info.id)} />
+        )}
         <RowMenu label={`More for ${shown}`} k={`im-${scene.id}-${list}-${info.id}`} items={items} />
       </div>
       {open && (playlist || board) && (
@@ -1037,7 +1051,7 @@ function AmbienceSlot({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
       <div className={`cp-box cp-amb${over ? " cp-fdrop" : ""}`} title="Choose, or drop an audio file here" {...dropProps}>
         <div className="cp-it-row">
           <span className="faint grow">No ambience</span>
-          <Button size="s" icon="plus" data-k={`pa-${scene.id}`} onClick={choose}>
+          <Button size="s" icon="plus" data-k={`pa-${scene.id}`} aria-label={`Choose ambience for ${scene.name || "Untitled scene"}`} onClick={choose}>
             Choose…
           </Button>
         </div>

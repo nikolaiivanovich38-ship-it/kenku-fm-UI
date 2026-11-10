@@ -6,7 +6,7 @@ import { BoardScreen } from "./BoardScreen";
 import { renderScreen, spoken, toastText } from "./testing";
 
 const grid = () => screen.getByRole("group", { name: /^Pads, \d+ columns by \d+ rows$/ });
-const PAD = /^(?!Empty slot).*, row \d+, column \d+/;
+const PAD = /^(?!Empty slot|Add pad).*, row \d+, column \d+/;
 const pads = () => within(grid()).getAllByRole("button", { name: PAD });
 const pad = (label: string) => within(grid()).getByRole("button", { name: new RegExp(`^${label}( \\S+)?: `) });
 const spare = () => screen.getByRole("region", { name: "Spare pads" });
@@ -58,7 +58,7 @@ describe("a pad board: the grid and its size (boards.js board editor)", () => {
     await waitFor(() => expect(pads()).toHaveLength(4));
     expect(spare()).toHaveTextContent("5 pads");
     expect(within(spare()).getByRole("button", { name: /^Storm W ?\(key does nothing while spare\)$/ })).toBeInTheDocument();
-    expect(within(spare()).getByText(/Pads that are not on the grid wait here; their keys do nothing until you put them back\./)).toBeInTheDocument();
+    expect(spare()).toHaveAccessibleDescription("Pads that are not on the grid wait here; their keys do nothing until you put them back.");
     await user.click(screen.getByRole("button", { name: "Undo" }));
     await waitFor(() => expect(pads()).toHaveLength(8));
     expect(await spoken()).toBe("Undone. Grid is 4 × 2 again.");
@@ -111,7 +111,7 @@ describe("a pad board: the grid and its size (boards.js board editor)", () => {
   it("an empty slot gets a new pad, selected, with its label ready to type", async () => {
     const user = userEvent.setup();
     await open("board/combat");
-    await user.click(screen.getByRole("button", { name: "Empty slot, row 3, column 4. Add a pad" }));
+    await user.click(screen.getByRole("button", { name: "Add pad: row 3, column 4" }));
     await waitFor(() => expect(pads()).toHaveLength(12));
     await waitFor(() => expect(screen.getByRole("textbox", { name: "Label" })).toHaveFocus());
     expect(screen.getByRole("textbox", { name: "Label" })).toHaveValue("New pad");
@@ -121,7 +121,7 @@ describe("a pad board: the grid and its size (boards.js board editor)", () => {
   it("a new pad takes the name of the sound chosen for it (w3-ux 16)", async () => {
     const user = userEvent.setup();
     const { api } = await open("board/combat");
-    await user.click(screen.getByRole("button", { name: "Empty slot, row 3, column 4. Add a pad" }));
+    await user.click(screen.getByRole("button", { name: "Add pad: row 3, column 4" }));
     await waitFor(() => expect(screen.getByRole("textbox", { name: "Label" })).toHaveValue("New pad"));
     await user.click(within(padBox()).getByRole("button", { name: "Choose from library…" }));
     const sheet = screen.getByRole("dialog", { name: 'Sounds for "New pad"' });
@@ -516,7 +516,7 @@ describe("the selected pad's own box", () => {
     const user = userEvent.setup();
     await open("board/combat");
     await user.click(screen.getByRole("button", { name: "More for this pad" }));
-    expect(within(screen.getByRole("menu", { name: "Pad" })).getAllByRole("menuitem").map((m) => m.textContent)).toEqual(["Duplicate pad", "Move to…", "Delete pad…"]);
+    expect(within(screen.getByRole("menu", { name: "Pad" })).getAllByRole("menuitem").map((m) => m.textContent)).toEqual(["What it does…", "Duplicate pad", "Move to…", "Delete pad…"]);
     await user.click(screen.getByRole("menuitem", { name: "Duplicate pad" }));
     await waitFor(() => expect(pads()).toHaveLength(12));
     expect(screen.getByRole("region", { name: "Pad: Sword clash (copy)" })).toBeInTheDocument();
@@ -531,7 +531,7 @@ describe("the selected pad's own box", () => {
     await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Delete pad" }));
     await waitFor(() => expect(pads()).toHaveLength(11));
     expect(toastText()).toBe('Deleted the pad "Sword clash (copy)"');
-    expect(screen.getByRole("button", { name: "Empty slot, row 3, column 4. Add a pad" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Add pad: row 3, column 4" })).toHaveFocus();
   });
 
   it("Used in lists each place with a link, and Use in… opens the places to tick", async () => {
@@ -673,5 +673,40 @@ describe("Try pads (SFX-12): pads played as in Live, in the headphones only", ()
     view.audio.calls = [];
     view.unmount();
     expect(view.audio.calls).toContainEqual(["stopPreview"]);
+  });
+});
+
+describe("round 7: dividers and what a pad does (ORG-4, PLY-8)", () => {
+  it("a divider names a row of pads, and can be taken off again", async () => {
+    const { api } = await open("board/combat");
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "More for this board" }));
+    await user.click(screen.getByRole("menuitem", { name: "Add a divider…" }));
+    await user.type(screen.getByRole("textbox", { name: "Name" }), "Spells");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Above row" }), "2");
+    await user.click(screen.getByRole("button", { name: "Add divider" }));
+    expect(await within(screen.getByRole("region", { name: "Pads" })).findByRole("heading", { name: "Spells" })).toBeInTheDocument();
+    expect((await api.boards.list()).find((b) => b.id === "combat")?.dividers).toEqual([{ row: 1, name: "Spells" }]);
+    await user.click(screen.getByRole("button", { name: "Remove the divider Spells" }));
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Spells" })).toBeNull());
+  });
+
+  it("a pad plays its sound; What it does… adds a step that turns the music down first", async () => {
+    const { api } = await open("board/weather");
+    const user = userEvent.setup();
+    await user.click(pad("Thunder crack"));
+    await user.click(within(screen.getByRole("region", { name: "Pad: Thunder crack" })).getByRole("button", { name: "More for this pad" }));
+    await user.click(screen.getByRole("menuitem", { name: "What it does…" }));
+    const d = screen.getByRole("dialog", { name: "When Thunder crack is pressed" });
+    const steps = () => within(within(d).getByRole("list", { name: "Steps" })).getAllByRole("listitem");
+    expect(steps().map((li) => li.textContent)).toEqual([expect.stringContaining("Play its sound")]);
+    await user.click(within(d).getByRole("button", { name: "Add a step" }));
+    await user.click(screen.getByRole("menuitem", { name: "Fade the music…" }));
+    expect(steps()[1]).toHaveTextContent("Fade the music to 30% over 2 s");
+    await user.click(within(d).getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(toastText()).toContain("Saved: what Thunder crack does"));
+    const weather = (await api.boards.list()).find((b) => b.id === "weather")!;
+    const thunder = [...weather.slots, ...weather.spare].find((p) => p?.label === "Thunder crack");
+    expect(thunder?.steps).toEqual([{ do: "sound" }, { do: "fade", level: 0.3, ms: 2000 }]);
   });
 });

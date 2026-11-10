@@ -11,6 +11,7 @@ import { useLyreApi } from "../../api";
 import { useAnnounce } from "../../shell/Announcer";
 import { useCampaignInHand } from "../../shell/CampaignInHand";
 import { useUndoNote } from "../../shell/UndoNote";
+import { useSave } from "../../shell/useSave";
 import { MAX_SIZE, QUICK_SIZES, allPads, plural, usesOfBoard } from "./boardModel";
 import { go, useWrite } from "./hooks";
 
@@ -298,4 +299,54 @@ export function useDuplicateBoard() {
     const made = await write(api.boards.duplicate(board.id));
     if (made) toast(`Made "${made.name}". It is not used anywhere yet.`);
   };
+}
+
+/**
+ * ORG-4 (r7org.js pbdivadd): the board's ⋯ › Add a divider…: a name above a row of pads ("Spells" above row 2), so a
+ * big board reads in sections here and in Live. Rows are counted from 1 on screen; the library counts from 0.
+ */
+export function BoardDividerDialog({ board, onClose }: { board: PadBoard; onClose: () => void }) {
+  const api = useLyreApi();
+  const save = useSave();
+  const { toast } = useAnnounce();
+  const [name, setName] = useState("");
+  const [row, setRow] = useState(1);
+  const add = async () => {
+    const text = name.trim();
+    if (!text) {
+      toast("Give the divider a name");
+      return;
+    }
+    if (await save(board.name, () => api.boards.setDivider(board.id, row - 1, text), { detail: `divider “${text}” above row ${row}` })) onClose();
+  };
+  return (
+    <Dialog
+      open
+      title="Add a divider"
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose}>Cancel</Button>
+          <Button variant="primary" onClick={() => void add()}>
+            Add divider
+          </Button>
+        </>
+      }
+    >
+      <div className="field">
+        <label htmlFor="pb-divname">Name</label>
+        <input className="input" id="pb-divname" autoComplete="off" placeholder="For example Spells" value={name} onChange={(e) => setName(e.target.value)} />
+      </div>
+      <div className="field">
+        <label htmlFor="pb-divrow">Above row</label>
+        <select className="input" id="pb-divrow" value={row} onChange={(e) => setRow(Number(e.target.value))}>
+          {Array.from({ length: board.rows }, (_x, i) => (
+            <option key={i} value={i + 1}>
+              {i + 1}
+            </option>
+          ))}
+        </select>
+      </div>
+    </Dialog>
+  );
 }

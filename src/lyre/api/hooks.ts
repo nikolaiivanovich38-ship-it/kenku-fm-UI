@@ -4,7 +4,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 
-import type { LyreEvent, SearchRequest, UsableRef } from "../../common/lyre/api";
+import type { FolderKind, LyreEvent, SearchRequest, UsableRef } from "../../common/lyre/api";
 import { useLyreApi } from "./LyreApiProvider";
 import { useLyreQuery } from "./useLyreQuery";
 
@@ -16,6 +16,12 @@ export const useTagGroups = () => useLyreQuery("tag-groups", (api) => api.tags.l
 export const usePlaylists = () => useLyreQuery("playlists", (api) => api.playlists.list(), ["playlists"]);
 export const usePlaylistTracks = (id: string) => useLyreQuery(`playlist-tracks:${id}`, (api) => api.playlists.tracks(id), ["playlists", "tracks"]);
 export const usePlaylistsContaining = (trackId: string) => useLyreQuery(`playlists-containing:${trackId}`, (api) => api.playlists.containing(trackId), ["playlists", "tracks"]);
+
+/** ORG-13: each place's own track order of a playlist, by place key then playlist id. */
+export const useTrackOrders = () => useLyreQuery("track-orders", (api) => api.playlists.trackOrders(), ["playlists"]);
+
+/** ORG-4: the folders playlists or pad boards are kept in (a change to them sends "playlists" or "boards"). */
+export const useOrgFolders = (kind: FolderKind) => useLyreQuery(`org-folders:${kind}`, (api) => api.folders.list(kind), [kind, "folders"]);
 
 export const useBoards = () => useLyreQuery("boards", (api) => api.boards.list(), ["boards"]);
 

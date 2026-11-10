@@ -14,6 +14,7 @@ import type { ScreenProps } from "..";
 import { PAD_COLOUR, allPads, firstPad, plural, sizeText, usesOfBoard } from "./boardModel";
 import { DeleteBoardDialog, NewBoardDialog, UseInDialog, useDuplicateBoard } from "./BoardDialogs";
 import { PreviewButton } from "../../kit/SoundButtons";
+import { orgDragProps, useFolders } from "../folders/Folders";
 import "./boards.css";
 import { TopLead } from "../../shell/TopBar";
 
@@ -36,6 +37,7 @@ export function BoardsScreen(_props: ScreenProps) {
   const [newBoard, setNewBoard] = useState(false);
   const [useIn, setUseIn] = useState<PadBoard | null>(null);
   const [deleting, setDeleting] = useState<PadBoard | null>(null);
+  const folders = useFolders("boards");
 
   const all = boards ?? [];
   const needle = query.trim().toLowerCase();
@@ -106,8 +108,15 @@ export function BoardsScreen(_props: ScreenProps) {
           </label>
         </div>
         {boards === undefined ? null : shown.length ? (
-          <ul className="pb-cards" aria-label="Pad boards">
-            {shown.map((b) => (
+          // ORG-4: folders first at each level, then the boards.
+          folders.list({
+            label: "Pad boards",
+            className: "pb-cards",
+            all,
+            shown,
+            filtered,
+            nameOf: (id) => all.find((b) => b.id === id)?.name ?? "The board",
+            renderItem: (b) => (
               <BoardCard
                 key={b.id}
                 board={b}
@@ -116,9 +125,10 @@ export function BoardsScreen(_props: ScreenProps) {
                 onUseIn={() => setUseIn(b)}
                 onDuplicate={() => void duplicate(b)}
                 onDelete={() => setDeleting(b)}
+                onMoveTo={() => folders.openMoveTo(b, b.name)}
               />
-            ))}
-          </ul>
+            ),
+          })
         ) : all.length ? (
           <div className="empty">
             No pad boards match.{" "}
@@ -144,6 +154,7 @@ export function BoardsScreen(_props: ScreenProps) {
       <NewBoardDialog open={newBoard} onClose={() => setNewBoard(false)} />
       <UseInDialog board={useIn} campaigns={campaigns} onClose={() => setUseIn(null)} />
       <DeleteBoardDialog board={deleting} campaigns={campaigns} onClose={() => setDeleting(null)} />
+      {folders.dialogs}
     </>
   );
 }
@@ -166,6 +177,7 @@ function BoardCard({
   onUseIn,
   onDuplicate,
   onDelete,
+  onMoveTo,
 }: {
   board: PadBoard;
   campaigns: readonly CampaignInfo[];
@@ -173,13 +185,15 @@ function BoardCard({
   onUseIn: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  /** ORG-4: Move to folder…. */
+  onMoveTo: () => void;
 }) {
   const uses = usesOfBoard(campaigns, board.id);
   const first = firstPad(board);
   return (
     <li className="pb-card">
       {/* Out of the Tab path: Open below goes to the same place, so each card is one stop plus its buttons. */}
-      <a className="pb-card-main" href={`#/board/${board.id}`} tabIndex={-1}>
+      <a className="pb-card-main" href={`#/board/${board.id}`} tabIndex={-1} {...orgDragProps("boards", board.id)}>
         <MiniGrid board={board} />
         <span className="pb-card-text">
           <span className="pb-card-name ellipsis">{board.name}</span> <span className="pb-card-size">{sizeText(board)}</span>
@@ -208,6 +222,7 @@ function BoardCard({
           size="s"
           items={[
             { label: "Use in…", icon: "link", onSelect: onUseIn },
+            { label: "Move to folder…", icon: "folder", onSelect: onMoveTo },
             { label: "Duplicate board", onSelect: onDuplicate },
             { separator: true },
             { label: "Delete board…", icon: "trash", onSelect: onDelete },

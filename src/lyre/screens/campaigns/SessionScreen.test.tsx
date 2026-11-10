@@ -80,15 +80,15 @@ describe("the session page", () => {
     openAt("session/crown/s14");
     const session = within(await screen.findByRole("region", { name: "Session playlists" }));
     await session.findByRole("link", { name: "Wistful with some warmth" });
-    expect(session.queryByRole("list", { name: "Tracks in Wistful with some warmth" })).not.toBeInTheDocument();
+    expect(session.queryByRole("list", { name: /^Tracks in Wistful with some warmth(,|$)/ })).not.toBeInTheDocument();
     await userEvent.click(session.getByRole("button", { name: "Show contents of Wistful with some warmth" }));
-    expect(session.getByRole("list", { name: "Tracks in Wistful with some warmth" })).toBeInTheDocument();
+    expect(session.getByRole("list", { name: /^Tracks in Wistful with some warmth(,|$)/ })).toBeInTheDocument();
     expect(session.getByRole("button", { name: "Preview Wistful with some warmth" })).toBeInTheDocument();
     expect(session.getByRole("button", { name: "Play on air: Wistful with some warmth" })).toBeInTheDocument();
     const reminder = region("Campaign playlists");
     expect(reminder.getByRole("link", { name: "The Company themes" })).toBeInTheDocument();
     expect(reminder.queryByRole("button", { name: /^More for/ })).not.toBeInTheDocument();
-    expect(reminder.getByText("Campaign pad boards: Combat, Weather and places.")).toBeInTheDocument();
+    expect(reminder.getByText("Campaign pads: Combat, Weather and places.")).toBeInTheDocument();
   });
 });
 
@@ -142,7 +142,7 @@ describe("a scene's music", () => {
     await openAbbey();
     const list = within(abbey().getByRole("list", { name: "Music in order" }));
     await userEvent.click(list.getByRole("button", { name: "Show contents of The Abbess" }));
-    expect(within(list.getByRole("list", { name: "Tracks in The Abbess" })).getAllByRole("listitem")).toHaveLength(5);
+    expect(within(list.getByRole("list", { name: /^Tracks in The Abbess(,|$)/ })).getAllByRole("listitem")).toHaveLength(5);
   });
 
   it("Add tracks or playlists… adds ticked items in the order ticked; the picker filters and searches", async () => {
@@ -208,7 +208,7 @@ describe("a scene's ambience and pad boards", () => {
     const sheet = within(screen.getByRole("dialog", { name: 'Ambience for "The abbey ruins"' }));
     expect(sheet.getByRole("radio", { name: /^Abbey ambience/ })).toBeChecked();
     await userEvent.click(sheet.getByRole("button", { name: "Show contents of Inn and hearth" }));
-    expect(sheet.getByRole("list", { name: "Tracks in Inn and hearth" })).toBeInTheDocument();
+    expect(sheet.getByRole("list", { name: /^Tracks in Inn and hearth(,|$)/ })).toBeInTheDocument();
     await userEvent.click(sheet.getByRole("radio", { name: /^Wind over open moor, gusting/ }));
     await userEvent.click(sheet.getByRole("button", { name: "Done" }));
     expect(await ambience.findByRole("link", { name: /Wind over open moor, gusting/ })).toBeInTheDocument();
@@ -260,7 +260,7 @@ describe("scenes", () => {
     const { api } = await openAbbey();
     await userEvent.click(screen.getByRole("button", { name: "Add scene" }));
     await waitFor(() => expect(sceneCards()).toHaveLength(7));
-    const field = screen.getByDisplayValue("New scene");
+    const field = screen.getByDisplayValue("Scene 4");
     expect(field).toHaveFocus();
     await userEvent.keyboard("Bells at midnight");
     expect(await screen.findByRole("listitem", { name: "Scene 4: Bells at midnight" })).toBeInTheDocument();
@@ -449,7 +449,7 @@ describe("round 5 in the session planner", () => {
     await user.click(abbey().getByRole("button", { name: "Add tracks or playlists…" }));
     await user.type(dialog().getByRole("searchbox", { name: "Search the list" }), "Ashen King");
     await user.click(dialog().getByRole("button", { name: "Show contents of Ashen King" }));
-    const inside = within(dialog().getByRole("list", { name: "Tracks in Ashen King" }));
+    const inside = within(dialog().getByRole("list", { name: /^Tracks in Ashen King(,|$)/ }));
     await user.click(inside.getByRole("checkbox", { name: "Gothic menace, pounding low brass - villain reveal" }));
     expect(dialog().getByRole("checkbox", { name: /^Ashen King/ })).not.toBeChecked();
     await user.click(dialog().getByRole("button", { name: "Done" }));
@@ -479,5 +479,94 @@ describe("round 5 in the session planner", () => {
     await openAbbey();
     await music().findByRole("button", { name: /^Play order of Abbey/ });
     await expectNoAxeViolations();
+  });
+});
+
+describe("round 7: what a scene does when it starts (PLY-8, r7play.js)", () => {
+  const stepItems = () => within(within(screen.getByRole("dialog")).getByRole("list", { name: "Steps" })).getAllByRole("listitem");
+  async function openSteps(user: ReturnType<typeof userEvent.setup>) {
+    await user.click(await screen.findByRole("button", { name: "More for The abbey ruins" }));
+    await user.click(screen.getByRole("menuitem", { name: "What it does when it starts…" }));
+    return screen.getByRole("dialog", { name: "When The abbey ruins starts" });
+  }
+
+  it("the usual start is its music, its ambience and its first pad board, and nothing marks the scene", async () => {
+    const user = userEvent.setup();
+    openAt("session/crown/s14");
+    await openSteps(user);
+    expect(stepItems().map((li) => li.querySelector(".stp-s")?.textContent)).toEqual([
+      expect.stringMatching(/^Play the music: Eerie dread/),
+      "Play the ambience: Abbey ambience",
+      "Show the pads: Drowned Abbey",
+    ]);
+    expect(screen.getByRole("listitem", { name: /^Scene \d+: The abbey ruins$/ })).not.toHaveTextContent("Moves on by itself");
+  });
+
+  it("a step is added, changed and moved, and Done saves them with the Saved pop-up", async () => {
+    const user = userEvent.setup();
+    const { api } = openAt("session/crown/s14");
+    const d = within(await openSteps(user));
+    await user.click(d.getByRole("button", { name: "Add a step" }));
+    await user.click(screen.getByRole("menuitem", { name: "Fire a pad…" }));
+    await user.selectOptions(within(stepItems()[3]).getByRole("combobox", { name: "Pad" }), "Drowned Abbey › Abbey bell");
+    await user.selectOptions(within(stepItems()[0]).getByRole("combobox", { name: "How it comes in" }), "At the mix-out marker");
+    await user.selectOptions(within(stepItems()[0]).getByRole("combobox", { name: "Up next" }), "Play next");
+    await user.click(within(stepItems()[3]).getByRole("button", { name: "Move up" }));
+    expect(stepItems()[2]).toHaveTextContent("Abbey bell");
+    await user.click(d.getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(document.getElementById("lyre-toast")).toHaveTextContent("Saved: what The abbey ruins does when it starts"));
+    const sc3 = (await s14(api)).scenes.find((x) => x.id === "sc3")!;
+    expect(sc3.steps?.map((x) => x.do)).toEqual(["music", "ambience", "pad", "board"]);
+    expect(sc3.steps?.[0]).toMatchObject({ how: "mixOut", upNext: "playNext" });
+  });
+
+  it("Then: the scene moves on by itself when its music ends, and is marked", async () => {
+    const user = userEvent.setup();
+    openAt("session/crown/s14");
+    const d = within(await openSteps(user));
+    await user.selectOptions(d.getByRole("combobox", { name: "Then" }), "Start the next scene when its music ends");
+    await user.click(d.getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(screen.getByRole("listitem", { name: /^Scene \d+: The abbey ruins$/ })).toHaveTextContent("Moves on by itself"));
+  });
+
+  it("Try in headphones previews the first step's music", async () => {
+    const user = userEvent.setup();
+    const { audio } = openAt("session/crown/s14");
+    const d = within(await openSteps(user));
+    await user.click(d.getByRole("button", { name: "Try in headphones" }));
+    expect(audio.calls.some(([m]) => m === "previewTrack" || m === "previewPlaylist")).toBe(true);
+  });
+});
+
+describe("round 6, part 4: Reorder in a scene's playlist (Must 3, ORG-13)", () => {
+  it("Reorder shows Move up and Move down for this scene only; Back to the playlist's order shows once it differs", async () => {
+    const user = userEvent.setup();
+    const { api } = await openAbbey();
+    const music = within(abbey().getByRole("list", { name: "Music in order" }));
+    await user.click(music.getByRole("button", { name: "Show contents of The Abbess" }));
+    const tracks = () => within(music.getByRole("list", { name: /^Tracks in The Abbess/ }));
+    expect(tracks().queryAllByRole("button", { name: /^Move up: / })).toHaveLength(0);
+    const reorder = music.getByRole("button", { name: "Reorder" });
+    await user.click(reorder);
+    expect(reorder).toHaveAttribute("aria-pressed", "true");
+    const second = tracks().getAllByRole("button", { name: /^Move up: / })[1].getAttribute("aria-label")!.replace(/^Move up: /, "");
+    await user.click(tracks().getByRole("button", { name: `Move up: ${second}` }));
+    await waitFor(() => expect(tracks().getAllByRole("listitem")[0]).toHaveTextContent(second));
+    expect(tracks().getByRole("button", { name: `Move up: ${second}` })).toBeDisabled();
+    expect(await music.findByRole("button", { name: "Back to the playlist's order" })).toBeInTheDocument();
+    expect((await api.playlists.trackOrders())["sc:crown:s14:sc3"]?.["p-abbess"]?.length).toBeGreaterThan(0);
+    await user.click(reorder);
+    expect(tracks().queryAllByRole("button", { name: /^Move up: / })).toHaveLength(0);
+  });
+
+  it("PLY-17: Repeat one on a scene's track is saved with the scene", async () => {
+    const user = userEvent.setup();
+    const { api } = await openAbbey();
+    const name = "Repeat one: Eerie dread, low cello and choir - something wrong in the dark (loops with crossfade)";
+    const button = await abbey().findByRole("button", { name });
+    expect(button).toHaveAttribute("aria-pressed", "false");
+    await user.click(button);
+    await waitFor(async () => expect((await s14(api)).scenes.find((x) => x.id === "sc3")?.repeatOnes).toContain("t13"));
+    await waitFor(() => expect(abbey().getByRole("button", { name })).toHaveAttribute("aria-pressed", "true"));
   });
 });

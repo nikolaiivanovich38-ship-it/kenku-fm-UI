@@ -399,8 +399,8 @@ the room's own Repeat live in the audio host for the evening (`src/common/domain
   playlist's tracks, each once, the rest after; the playlist's own order deletes the place's, `placeOrderToKeep`),
   `clearTrackOrder`, `getTrackOrder`, `getTrackOrders` (`TrackOrders` by place key, each the order that plays there).
   Tracks added to the playlist later follow in its own order (`tracksInPlaceOrder`); a deleted track drops out by
-  CASCADE; a track taken out of a manual playlist stays in the rows but no longer counts. A duplicated scene does not
-  copy its track orders, as it does not copy its play orders and audio settings.
+  CASCADE; a track taken out of a manual playlist stays in the rows but no longer counts. A duplicated scene copies its
+  track orders and play orders (the lead's decision, b6 notes: a copy is the whole scene); not its audio settings.
 - **Backups and the .lyre file**: backups copy the whole database, so both are in them. A .lyre file's `library.json`
   gains `trackOrders` (places inside the scope, tracks inside the file), and each scene its `repeatOnes`; files from 0.4
   have neither and open as before (no new file version: an older Lyre ignores the new keys).

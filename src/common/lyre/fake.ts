@@ -1337,11 +1337,17 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
         });
       },
       async duplicateScene(address) {
-        return write((sc: SceneInfo) => `Make ${quoted(sc.name)}`, ["campaigns"], () => {
+        // "playlists": the copy's track orders and play orders are the playlists' places.
+        return write((sc: SceneInfo) => `Make ${quoted(sc.name)}`, ["campaigns", "playlists"], () => {
           const { session: s, scene: sc, index } = scene(address);
-          // DAT-14, PLY-17: a copy keeps the scene's names for its tracks and its Repeat ones (not its play orders).
+          // DAT-14, PLY-17: a copy keeps the scene's names for its tracks and its Repeat ones; the lead's decision (b6
+          // notes, contracts Q1): its track orders and play orders too, so a copy is the whole scene.
           const made: SceneInfo = { ...copy(sc), id: newId("scene"), name: `${sc.name || "Scene"} (copy)` };
           s.scenes.splice(index + 1, 0, made);
+          const from = keyOfPlace({ kind: "scene", ...address });
+          const to = keyOfPlace({ kind: "scene", ...address, sceneId: made.id });
+          if (state.trackOrders[from]) state.trackOrders[to] = copy(state.trackOrders[from]);
+          if (state.playOrders[from]) state.playOrders[to] = copy(state.playOrders[from]);
           return made;
         });
       },

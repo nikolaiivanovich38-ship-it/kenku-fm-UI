@@ -10,6 +10,17 @@ All notable changes to Lyre (called Cue Desk in versions 0.1.x). Versions follow
 - The remote control's web server library moved to its current version, which fixes its known security problems. No library Lyre ships has a known serious security problem. [SEC-9]
 - Every change is now checked automatically for its tests, a start of the app, accessibility, library security problems, secrets and code security; a release is built only after all of them pass, and a failing check says in plain words what to do. [FND-5, SEC-1]
 
+**Preparing your games**
+- A Tags screen keeps your tags tidy: groups in your order, each with a colour, tags inside tags (filtering by Melancholy finds the grieving tracks too), other words that find a tag ("sad" offers Melancholy), and Rename, Merge into… and Delete… that change every track at once, with Undo. Open it from the Library's ⋯ or Look and feel's Tag colours…. [DAT-10]
+- Playlists and pad boards go into folders (Move to folder…, or drag one onto a folder); folders nest and fold. A manual playlist can have dividers that name its sections, and a pad board dividers that name its rows. [ORG-4]
+- Drag tracks onto another playlist, a scene, a pad board or Up next: a Drop on panel shows where they can go. Dropping copies, Shift moves, Esc cancels; ticked Library rows go together. Add to… in a row's ⋯ does the same from the keyboard. [ORG-5]
+- A scene's ⋯ › What it does when it starts… and a pad's ⋯ › What it does… list their steps: add, change and reorder them (fade the music first, fire a pad, play from a marker), try them in your headphones, and let a scene move on by itself. [PLY-8, SHW-3]
+- A track's details show only the choices its role fits: a sting never loops, an underscore can fade out at its end and pick up where it stopped (also after a restart), and a track can be followed by a playlist or track. [PLY-4, SHW-3]
+- In the Audio profile a marker can be the mix-out point, and Play on air from a marker starts the track there. [DAT-3]
+- A playlist's tracks can be put in another order for one scene, session or campaign (drag, Alt+Up/Down, or Reorder's Move up and Move down), and back to the playlist's order; Repeat one on a scene's track shows in the planner. A duplicated scene keeps its orders. [ORG-13, PLY-17]
+- Less to read: the Library's keys show only while you are in the list, the planner has no scene count or sentence about Live, and how-to lines are read out to screen readers instead of shown. New scenes are named Scene 7, Scene 8. [UX-17]
+- Find missing files can preview the file it found again. [SEC-17]
+
 **Fixes**
 - Deleting a track from the playing playlist with shuffle off no longer makes a different track the current one. [BUG-11]
 - Long sounds on a soundboard (ambience over 30 seconds) are streamed instead of being loaded whole into memory. The first time you play a sound without fades, it streams while Lyre learns its length. [PERF-7]

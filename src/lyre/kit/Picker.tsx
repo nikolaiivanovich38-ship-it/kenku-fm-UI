@@ -144,6 +144,8 @@ function PickerBody({
       title={title}
       onClose={onClose}
       wide
+      // Round 6: the intro is read out with the dialog and is the list's hover text, not a line on screen.
+      description={intro}
       footer={
         <>
           <span className="muted grow" aria-live="polite">
@@ -156,16 +158,11 @@ function PickerBody({
         </>
       }
     >
-      {intro && (
-        <p className="muted" style={{ marginBottom: 8 }}>
-          {intro}
-        </p>
-      )}
       <div className="row-flex" style={{ marginBottom: 8, flexWrap: "wrap" }}>
         <SearchField className="grow" label="Search the list" value={query} onChange={setQuery} />
         {filters && <Segmented label="Show" value={filter} onChange={setFilter} options={filters.map((f) => ({ value: f.id, label: f.label }))} />}
       </div>
-      <div className="pk-list" role="group" aria-label={title}>
+      <div className="pk-list" role="group" aria-label={title} title={typeof intro === "string" ? intro : undefined}>
         {groups.length === 0 && <p className="empty">Nothing matches{needle ? ` "${query.trim()}"` : " this filter"}.</p>}
         {groups.map((group) => {
           const shown = !fold || !!needle || !group.name || unfolded.has(group.key);

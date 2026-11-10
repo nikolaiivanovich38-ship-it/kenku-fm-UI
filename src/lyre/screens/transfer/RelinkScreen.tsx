@@ -4,14 +4,15 @@
  * table to confirm each file's new place with How sure (same name and size: ticked; same name, another size: not
  * ticked, with Preview; not found); Relink, with Undo. On the existing calls: findMissing, planRelink, applyRelink.
  */
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 import { isRefused, type RelinkPlan } from "../../../common/lyre/api";
 import { useLyreApi, useMissingTracks } from "../../api";
 import { Button } from "../../kit/Button";
 import { Icon } from "../../kit/Icon";
 import { Column, Pane } from "../../kit/Pane";
-import { PreviewButton } from "../../kit/SoundButtons";
+import { previewKeyOf } from "../../kit/SoundButtons";
+import { useLyreAudio, usePreviewKey } from "../../audio";
 import { cx } from "../../kit/cx";
 import { useAnnounce } from "../../shell/Announcer";
 import { useUndoNote } from "../../shell/UndoNote";
@@ -39,6 +40,8 @@ export function RelinkScreen() {
   const missing = useMissingTracks();
   const [folder, setFolder] = useState("");
   const [plan, setPlan] = useState<{ folder: string; rows: Row[] } | null>(null);
+  // SEC-17: when Find missing files closes, the file it could preview may no longer be played.
+  useEffect(() => () => void api.import.endRelinkPreview(), [api]);
   const [ticked, setTicked] = useState<Record<string, boolean>>({});
   const [chosen, setChosen] = useState<Record<string, string>>({});
   const [done, setDone] = useState<string | null>(null);
@@ -258,7 +261,7 @@ export function RelinkScreen() {
                                   {r.warn && <Icon name="warn" size="s" />}
                                   {r.words}
                                 </span>{" "}
-                                {r.warn && r.atUrl && <PreviewButton target={{ kind: "track", id: r.trackId, file: r.atUrl }} name={`the file found for ${r.title}`} />}
+                                {r.warn && r.atUrl && <FoundPreviewButton trackId={r.trackId} name={`the file found for ${r.title}`} />}
                               </td>
                             </tr>
                           );
@@ -279,5 +282,37 @@ export function RelinkScreen() {
         </div>
       </div>
     </>
+  );
+}
+
+/**
+ * SEC-17: Preview the file found, for a match by name only ("check it"). The library first allows the page to play
+ * that one file (import.previewFound), and only then is it previewed from the address it gives; leaving Find missing
+ * files ends it (endRelinkPreview, in the screen).
+ */
+function FoundPreviewButton({ trackId, name }: { trackId: string; name: string }) {
+  const api = useLyreApi();
+  const audio = useLyreAudio();
+  const { toast } = useAnnounce();
+  const on = usePreviewKey() === previewKeyOf({ kind: "track", id: trackId });
+  return (
+    <button
+      type="button"
+      className="btn s icon pv"
+      aria-pressed={on}
+      title={on ? "Stop preview" : "Preview in your headphones"}
+      aria-label={on ? `Stop preview of ${name}` : `Preview ${name}`}
+      onClick={async () => {
+        if (on) {
+          audio.stopPreview();
+          return;
+        }
+        const allowed = await api.import.previewFound(trackId);
+        if (isRefused(allowed)) toast(allowed.refusal.message);
+        else audio.previewTrack(trackId, { file: allowed.value.url });
+      }}
+    >
+      <Icon name={on ? "stop" : "headphones"} size="s" />
+    </button>
   );
 }

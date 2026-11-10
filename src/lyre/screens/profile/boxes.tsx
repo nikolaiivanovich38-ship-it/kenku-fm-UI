@@ -349,10 +349,13 @@ export function FadesBox({ c }: C) {
       <FadeBlock c={c} kind="in" />
       <FadeBlock c={c} kind="out" />
       {c.p.after === "loop" && (
-        <div className="ap-fadeblock">
+        // Round 6: what the crossfade does is read out with its group and shown on hover, not a line on screen.
+        <div className="ap-fadeblock" role="group" aria-labelledby="ap-xf-h" aria-describedby="ap-xf-d" title={`Smooths the jump back to ${fmt(c.p.loopStart)}`}>
           <div className="ap-fb-h">
-            <b>Crossfade the loop</b>
-            <span className="hint">smooths the jump back to {fmt(c.p.loopStart)}</span>
+            <b id="ap-xf-h">Crossfade the loop</b>
+            <span className="sr-only" id="ap-xf-d">
+              Smooths the jump back to {fmt(c.p.loopStart)}
+            </span>
           </div>
           <div className="ap-fb-row">
             <span className="ap-fb-l">Length</span>
@@ -400,6 +403,30 @@ export function MarkersBox({ c }: C) {
           <button type="button" className="btn s" data-k={`ap-mgo-${i}`} title={`Move the playhead to ${fmt(m.at)}`} aria-label={`Go to ${m.label}`} onClick={() => actions.seek(m.at)}>
             <Icon name="right" size="s" />
             Go to
+          </button>
+          {/* Round 7 (DAT-3): the mix-out point (where the next track crossfades in; one per track) and playing from here. */}
+          <button
+            type="button"
+            className={cx("btn s", m.mix ? "primary" : "ghost r7-hov")}
+            data-k={`ap-mmix-${i}`}
+            aria-pressed={!!m.mix}
+            aria-label={`Mix out at ${m.label}`}
+            title="The next track crossfades in here"
+            disabled={!editable}
+            onClick={() => actions.mixOutAt(i)}
+          >
+            <Icon name="fade" size="s" />
+            Mix out
+          </button>
+          <button
+            type="button"
+            className="btn s icon r7-hov"
+            data-k={`ap-mfrom-${i}`}
+            aria-label={`Play on air from ${m.label}`}
+            title={`Play on air from ${fmt(m.at)} (the players hear it)`}
+            onClick={() => actions.playFrom(m.at)}
+          >
+            <Icon name="playair" size="s" />
           </button>
           <button type="button" className="closer" data-k={`ap-mdel-${i}`} title="Remove this marker" aria-label={`Remove marker ${m.label}`} disabled={!editable} onClick={() => actions.removeMarker(i)}>
             <Icon name="trash" />
