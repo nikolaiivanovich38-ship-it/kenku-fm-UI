@@ -125,11 +125,11 @@ describe("playlists and pad boards on hand in every session", () => {
     openAt("campaign/crown");
     await screen.findByRole("link", { name: "The Company themes" });
     const playlists = region("Campaign playlists");
-    expect(playlists.queryByRole("list", { name: "Tracks in The Company themes" })).not.toBeInTheDocument();
+    expect(playlists.queryByRole("list", { name: /^Tracks in The Company themes(,|$)/ })).not.toBeInTheDocument();
     await userEvent.click(playlists.getByRole("button", { name: "Show contents of The Company themes" }));
-    expect(within(playlists.getByRole("list", { name: "Tracks in The Company themes" })).getAllByRole("listitem")).toHaveLength(6);
+    expect(within(playlists.getByRole("list", { name: /^Tracks in The Company themes(,|$)/ })).getAllByRole("listitem")).toHaveLength(6);
     await userEvent.click(playlists.getByRole("button", { name: "Hide contents of The Company themes" }));
-    expect(playlists.queryByRole("list", { name: "Tracks in The Company themes" })).not.toBeInTheDocument();
+    expect(playlists.queryByRole("list", { name: /^Tracks in The Company themes(,|$)/ })).not.toBeInTheDocument();
   });
 
   it("Preview and Play on air call the audio host", async () => {
@@ -274,5 +274,37 @@ describe("round 5 on the campaign page", () => {
     expect(single.closest("li")).toHaveTextContent("Single track");
     expect(region("Campaign playlists").getByRole("button", { name: "Play on air: Ominous song, the villain's calling card (short)" })).toBeInTheDocument();
     await expectNoAxeViolations();
+  });
+});
+
+describe("round 6: the campaign's own order (ORG-13)", () => {
+  const box = () => region("Campaign playlists");
+  it("a campaign playlist's tracks move with Alt+Down for this campaign only; Back to the playlist's order undoes it", async () => {
+    const user = userEvent.setup();
+    const { api } = openAt("campaign/crown");
+    await screen.findByRole("region", { name: "Campaign playlists" });
+    await user.click(await box().findByRole("button", { name: "Show contents of The Company themes" }));
+    const list = box().getByRole("list", { name: "Tracks in The Company themes, in the order in this campaign" });
+    expect(list).toHaveAccessibleDescription(/Alt\+Up or Alt\+Down/);
+    expect(box().queryByRole("button", { name: "Back to the playlist's order" })).toBeNull();
+    const rows = () => within(box().getByRole("list", { name: /^Tracks in The Company themes/ })).getAllByRole("listitem");
+    expect(rows()[0]).toHaveTextContent("Epic choir hero anthem");
+    within(rows()[0]).getByRole("button", { name: /^Preview / }).focus();
+    await user.keyboard("{Alt>}{ArrowDown}{/Alt}");
+    await waitFor(() => expect(rows()[1]).toHaveTextContent("Epic choir hero anthem"));
+    await waitFor(() => expect(within(rows()[1]).getByRole("button", { name: /^Preview / })).toHaveFocus());
+    expect(Object.keys((await api.playlists.trackOrders())["cp:crown"] ?? {})).toContain("p-company");
+    await user.click(await box().findByRole("button", { name: "Back to the playlist's order" }));
+    await waitFor(() => expect(rows()[0]).toHaveTextContent("Epic choir hero anthem"));
+    await waitFor(() => expect(box().queryByRole("button", { name: "Back to the playlist's order" })).toBeNull());
+  });
+
+  it("the campaign's playlists themselves move with Alt+Down on their name", async () => {
+    const user = userEvent.setup();
+    openAt("campaign/crown");
+    await screen.findByRole("region", { name: "Campaign playlists" });
+    (await box().findByRole("link", { name: "The Company themes" })).focus();
+    await user.keyboard("{Alt>}{ArrowDown}{/Alt}");
+    await waitFor(() => expect(box().getAllByRole("listitem")[1]).toHaveTextContent("The Company themes"));
   });
 });

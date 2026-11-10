@@ -17,6 +17,9 @@ export const usePlaylists = () => useLyreQuery("playlists", (api) => api.playlis
 export const usePlaylistTracks = (id: string) => useLyreQuery(`playlist-tracks:${id}`, (api) => api.playlists.tracks(id), ["playlists", "tracks"]);
 export const usePlaylistsContaining = (trackId: string) => useLyreQuery(`playlists-containing:${trackId}`, (api) => api.playlists.containing(trackId), ["playlists", "tracks"]);
 
+/** ORG-13: each place's own track order of a playlist, by place key then playlist id. */
+export const useTrackOrders = () => useLyreQuery("track-orders", (api) => api.playlists.trackOrders(), ["playlists"]);
+
 export const useBoards = () => useLyreQuery("boards", (api) => api.boards.list(), ["boards"]);
 
 export const useCampaigns = () => useLyreQuery("campaigns", (api) => api.campaigns.list(), ["campaigns"]);

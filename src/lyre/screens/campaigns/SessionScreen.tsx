@@ -22,6 +22,7 @@ import { Column, Pane } from "../../kit/Pane";
 import { useAnnounce } from "../../shell/Announcer";
 import { useUndoNote } from "../../shell/UndoNote";
 import { SceneMarks, StepsDialog } from "../steps/StepsDialog";
+import { RepeatOneButton } from "../../kit/RepeatOneButton";
 import type { ScreenProps } from "..";
 import { carriesFiles, dropIndex, droppedPaths } from "./drops";
 import { boardInfo, plural, sessionLabel, soundInfo, STATUS_WORDS, type ItemInfo, type LibraryIndex } from "./model";
@@ -863,6 +864,10 @@ function ItemRow({
           >
             <Icon name="wave" size="s" />
           </a>
+        )}
+        {/* Round 6 part 3 (PLY-17): a scene's Repeat one, saved with the scene, shows and changes here as in Live. */}
+        {track && (
+          <RepeatOneButton scene={ctx.address(scene)} sceneName={scene.name || "the scene"} trackId={info.id} name={shown} on={scene.repeatOnes.includes(info.id)} />
         )}
         <RowMenu label={`More for ${shown}`} k={`im-${scene.id}-${list}-${info.id}`} items={items} />
       </div>

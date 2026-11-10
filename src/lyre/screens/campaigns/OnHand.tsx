@@ -14,6 +14,7 @@ import { IconButton } from "../../kit/Button";
 import { ExpanderButton } from "../../kit/Expander";
 import { Pane } from "../../kit/Pane";
 import { useAnnounce } from "../../shell/Announcer";
+import { useSave } from "../../shell/useSave";
 import { boardInfo, playlistInfo, plural, trackInfo, type ItemInfo, type LibraryIndex } from "./model";
 import { PlayOnAirButton, PreviewButton } from "../../kit/SoundButtons";
 import { Contents, RowMenu, useFocusLater, useWrite } from "./parts";
@@ -35,6 +36,8 @@ interface ListProps {
   removeLabel?: string;
   /** The session or campaign list this is, so Play on air uses its play order and the Now playing bar names it. */
   place?: UsePlace;
+  /** ORG-13: Alt+Up or Alt+Down on a playlist's row moves it in this list (from, to). */
+  onMove?: (from: number, to: number) => void;
 }
 
 /** The session or campaign whose list it is. */
@@ -43,7 +46,7 @@ export function placeOfOwner(owner: Owner): UsePlace {
 }
 
 /** The rows; "No playlists yet." when there are none. */
-export function OnHandList({ ids, trackIds = [], kind, index, scope, onRemove, removeLabel, place }: ListProps) {
+export function OnHandList({ ids, trackIds = [], kind, index, scope, onRemove, removeLabel, place, onMove }: ListProps) {
   const groups = useTagGroups().data ?? [];
   const [usingIn, setUsingIn] = useState<string | null>(null);
   const tracks = kind === "playlists" ? trackIds.map((id) => index.track(id)).filter((t): t is LibraryTrack => !!t) : [];
@@ -60,8 +63,17 @@ export function OnHandList({ ids, trackIds = [], kind, index, scope, onRemove, r
   return (
     <>
       <ul className="list cp-alist">
-        {rows.map((row) => (
-          <OnHandRow key={row.info.id} {...row} index={index} scope={scope} onRemove={onRemove} removeLabel={removeLabel} place={place} />
+        {rows.map((row, i) => (
+          <OnHandRow
+            key={row.info.id}
+            {...row}
+            index={index}
+            scope={scope}
+            onRemove={onRemove}
+            removeLabel={removeLabel}
+            place={place}
+            onMove={onMove && ((by) => onMove(i, i + by))}
+          />
         ))}
         {tracks.map((t) => (
           <SingleTrackRow key={t.id} track={t} groups={groups} scope={scope} onRemove={onRemove} removeLabel={removeLabel} place={place} onUseIn={setUsingIn} />
@@ -141,17 +153,24 @@ interface RowProps {
   onRemove?: ListProps["onRemove"];
   removeLabel?: string;
   place?: UsePlace;
+  onMove?: (by: -1 | 1) => void;
 }
 
-function OnHandRow({ info, playlist, board, index, scope, onRemove, removeLabel, place }: RowProps) {
+function OnHandRow({ info, playlist, board, index, scope, onRemove, removeLabel, place, onMove }: RowProps) {
   const [open, setOpen] = useState(false);
   const kindKey = playlist ? "pl" : "bd";
+  // ORG-13: Alt+Up or Alt+Down on the row's link or buttons moves it in the list (its own contents keep their keys).
+  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!onMove || !event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return;
+    event.preventDefault();
+    onMove(event.key === "ArrowUp" ? -1 : 1);
+  };
   return (
     <li className="cp-arow-wrap">
-      <div className="cp-arow">
+      <div className="cp-arow" onKeyDown={onKeyDown}>
         <ExpanderButton label={info.name} expanded={open} onToggle={() => setOpen(!open)} />
         <span className={`lane-dot ${info.lane}`} aria-hidden="true" />
-        <a className="ellipsis grow cp-aname" href={info.href} title={`${info.name} · ${info.listSub}`}>
+        <a className="ellipsis grow cp-aname" href={info.href} data-k={`open-${scope}${kindKey}${info.id}`} title={`${info.name} · ${info.listSub}${onMove ? " (Alt+Up or Alt+Down moves it)" : ""}`}>
           {info.name}
         </a>
         {playlist ? <PreviewButton target={{ kind: "playlist", id: playlist.id }} name={info.name} /> : board && <PreviewButton target={{ kind: "board", board }} name={info.name} />}
@@ -172,8 +191,8 @@ function OnHandRow({ info, playlist, board, index, scope, onRemove, removeLabel,
       {open && (
         <div className="xp-body cp-xp">
           {playlist ? (
-            // PLY-14: a session playlist's tracks open the session's own settings.
-            <Contents item={{ kind: "playlist", playlist }} index={index} place={place?.kind === "session" ? keyOfPlace(place) : undefined} />
+            // PLY-14: a session playlist's tracks open the session's own settings; ORG-13: the order is this list's own.
+            <Contents item={{ kind: "playlist", playlist }} index={index} place={place ? keyOfPlace(place) : undefined} />
           ) : (
             board && <Contents item={{ kind: "board", board }} index={index} />
           )}
@@ -225,6 +244,21 @@ export function OnHandPane({ paneId, title, kind, owner, ids, trackIds = [], ind
     if ((await save(next)) !== undefined) say(`${plural(next.length, kind === "playlists" ? "playlist" : "pad board")} now on hand in ${where}`);
   };
 
+  /** ORG-13: the list's own order (Alt+Up / Alt+Down on a row), with the Saved pop-up. */
+  const saveWith = useSave();
+  const move = async (from: number, to: number) => {
+    if (to < 0 || to >= ids.length) return;
+    const next = [...ids];
+    const [id] = next.splice(from, 1);
+    next.splice(to, 0, id);
+    focusLater(`open-${scope}${kindKey}${id}`);
+    const name = kind === "playlists" ? index.playlist(id)?.name : index.board(id)?.name;
+    say(`${name ?? "It"} is now ${to + 1} of ${next.length} in this ${ownerWord}`);
+    await saveWith(`order of ${where.replace(/^every (session|scene) of /, "")} ${kind === "playlists" ? "playlists" : "pads"}`, () => api.campaigns.setOnHand(owner, kind, next), {
+      key: `apl-${scope}${kindKey}`,
+    });
+  };
+
   const remove = async (id: string, what: "playlists" | "boards" | "tracks") => {
     if (what === "tracks") {
       if ((await write(api.campaigns.setOnHand(owner, "tracks", trackIds.filter((x) => x !== id)))) === undefined) return;
@@ -268,6 +302,7 @@ export function OnHandPane({ paneId, title, kind, owner, ids, trackIds = [], ind
         kind={kind}
         index={index}
         scope={scope}
+        onMove={(from, to) => void move(from, to)}
         onRemove={(id, what) => void remove(id, what)}
         removeLabel={`Remove from this ${ownerWord}`}
         place={placeOfOwner(owner)}

@@ -80,9 +80,9 @@ describe("the session page", () => {
     openAt("session/crown/s14");
     const session = within(await screen.findByRole("region", { name: "Session playlists" }));
     await session.findByRole("link", { name: "Wistful with some warmth" });
-    expect(session.queryByRole("list", { name: "Tracks in Wistful with some warmth" })).not.toBeInTheDocument();
+    expect(session.queryByRole("list", { name: /^Tracks in Wistful with some warmth(,|$)/ })).not.toBeInTheDocument();
     await userEvent.click(session.getByRole("button", { name: "Show contents of Wistful with some warmth" }));
-    expect(session.getByRole("list", { name: "Tracks in Wistful with some warmth" })).toBeInTheDocument();
+    expect(session.getByRole("list", { name: /^Tracks in Wistful with some warmth(,|$)/ })).toBeInTheDocument();
     expect(session.getByRole("button", { name: "Preview Wistful with some warmth" })).toBeInTheDocument();
     expect(session.getByRole("button", { name: "Play on air: Wistful with some warmth" })).toBeInTheDocument();
     const reminder = region("Campaign playlists");
@@ -142,7 +142,7 @@ describe("a scene's music", () => {
     await openAbbey();
     const list = within(abbey().getByRole("list", { name: "Music in order" }));
     await userEvent.click(list.getByRole("button", { name: "Show contents of The Abbess" }));
-    expect(within(list.getByRole("list", { name: "Tracks in The Abbess" })).getAllByRole("listitem")).toHaveLength(5);
+    expect(within(list.getByRole("list", { name: /^Tracks in The Abbess(,|$)/ })).getAllByRole("listitem")).toHaveLength(5);
   });
 
   it("Add tracks or playlists… adds ticked items in the order ticked; the picker filters and searches", async () => {
@@ -208,7 +208,7 @@ describe("a scene's ambience and pad boards", () => {
     const sheet = within(screen.getByRole("dialog", { name: 'Ambience for "The abbey ruins"' }));
     expect(sheet.getByRole("radio", { name: /^Abbey ambience/ })).toBeChecked();
     await userEvent.click(sheet.getByRole("button", { name: "Show contents of Inn and hearth" }));
-    expect(sheet.getByRole("list", { name: "Tracks in Inn and hearth" })).toBeInTheDocument();
+    expect(sheet.getByRole("list", { name: /^Tracks in Inn and hearth(,|$)/ })).toBeInTheDocument();
     await userEvent.click(sheet.getByRole("radio", { name: /^Wind over open moor, gusting/ }));
     await userEvent.click(sheet.getByRole("button", { name: "Done" }));
     expect(await ambience.findByRole("link", { name: /Wind over open moor, gusting/ })).toBeInTheDocument();
@@ -449,7 +449,7 @@ describe("round 5 in the session planner", () => {
     await user.click(abbey().getByRole("button", { name: "Add tracks or playlists…" }));
     await user.type(dialog().getByRole("searchbox", { name: "Search the list" }), "Ashen King");
     await user.click(dialog().getByRole("button", { name: "Show contents of Ashen King" }));
-    const inside = within(dialog().getByRole("list", { name: "Tracks in Ashen King" }));
+    const inside = within(dialog().getByRole("list", { name: /^Tracks in Ashen King(,|$)/ }));
     await user.click(inside.getByRole("checkbox", { name: "Gothic menace, pounding low brass - villain reveal" }));
     expect(dialog().getByRole("checkbox", { name: /^Ashen King/ })).not.toBeChecked();
     await user.click(dialog().getByRole("button", { name: "Done" }));
@@ -535,5 +535,38 @@ describe("round 7: what a scene does when it starts (PLY-8, r7play.js)", () => {
     const d = within(await openSteps(user));
     await user.click(d.getByRole("button", { name: "Try in headphones" }));
     expect(audio.calls.some(([m]) => m === "previewTrack" || m === "previewPlaylist")).toBe(true);
+  });
+});
+
+describe("round 6, part 4: Reorder in a scene's playlist (Must 3, ORG-13)", () => {
+  it("Reorder shows Move up and Move down for this scene only; Back to the playlist's order shows once it differs", async () => {
+    const user = userEvent.setup();
+    const { api } = await openAbbey();
+    const music = within(abbey().getByRole("list", { name: "Music in order" }));
+    await user.click(music.getByRole("button", { name: "Show contents of The Abbess" }));
+    const tracks = () => within(music.getByRole("list", { name: /^Tracks in The Abbess/ }));
+    expect(tracks().queryAllByRole("button", { name: /^Move up: / })).toHaveLength(0);
+    const reorder = music.getByRole("button", { name: "Reorder" });
+    await user.click(reorder);
+    expect(reorder).toHaveAttribute("aria-pressed", "true");
+    const second = tracks().getAllByRole("button", { name: /^Move up: / })[1].getAttribute("aria-label")!.replace(/^Move up: /, "");
+    await user.click(tracks().getByRole("button", { name: `Move up: ${second}` }));
+    await waitFor(() => expect(tracks().getAllByRole("listitem")[0]).toHaveTextContent(second));
+    expect(tracks().getByRole("button", { name: `Move up: ${second}` })).toBeDisabled();
+    expect(await music.findByRole("button", { name: "Back to the playlist's order" })).toBeInTheDocument();
+    expect((await api.playlists.trackOrders())["sc:crown:s14:sc3"]?.["p-abbess"]?.length).toBeGreaterThan(0);
+    await user.click(reorder);
+    expect(tracks().queryAllByRole("button", { name: /^Move up: / })).toHaveLength(0);
+  });
+
+  it("PLY-17: Repeat one on a scene's track is saved with the scene", async () => {
+    const user = userEvent.setup();
+    const { api } = await openAbbey();
+    const name = "Repeat one: Eerie dread, low cello and choir - something wrong in the dark (loops with crossfade)";
+    const button = await abbey().findByRole("button", { name });
+    expect(button).toHaveAttribute("aria-pressed", "false");
+    await user.click(button);
+    await waitFor(async () => expect((await s14(api)).scenes.find((x) => x.id === "sc3")?.repeatOnes).toContain("t13"));
+    await waitFor(() => expect(abbey().getByRole("button", { name })).toHaveAttribute("aria-pressed", "true"));
   });
 });
