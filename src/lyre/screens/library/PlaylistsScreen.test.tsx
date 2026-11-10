@@ -75,7 +75,7 @@ describe("Playlists: every playlist", () => {
     expect(audio.calls.some(([m, id]) => m === "playPlaylist" && id === "p-company")).toBe(true);
     await user.click(row.getByRole("button", { name: "More for The Company themes" }));
     const menu = screen.getByRole("menu", { name: "More for The Company themes" });
-    expect(within(menu).getAllByRole("menuitem").map((m) => m.textContent)).toEqual(["Open", "Use in…"]);
+    expect(within(menu).getAllByRole("menuitem").map((m) => m.textContent)).toEqual(["Open", "Use in…", "Move to folder…"]);
   });
 
   it("shows what plays on air in a bar at the foot of the screen", async () => {
@@ -460,5 +460,28 @@ describe("Playlists: volume normalisation (PLY-15)", () => {
     const first = (await within(await screen.findByRole("list", { name: "Tracks in order" })).findAllByRole("listitem"))[0];
     await userEvent.setup().click(within(first).getByRole("button", { name: /^Preview / }));
     expect(audio.calls.find(([m]) => m === "previewTrack")?.[2]).toMatchObject({ playlistId: "p-abbess" });
+  });
+});
+
+describe("round 7: folders (ORG-4, r7org.js)", () => {
+  it("Move to folder… › New folder… makes a folder holding the playlist; folding hides it; deleting moves it up a level", async () => {
+    const user = userEvent.setup();
+    openAt("playlists");
+    await user.click(await screen.findByRole("button", { name: "More for The Abbess" }));
+    await user.click(screen.getByRole("menuitem", { name: "Move to folder…" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "New folder…" }));
+    await user.type(screen.getByRole("textbox", { name: "Name" }), "The abbey");
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Add folder" }));
+    const inside = await screen.findByRole("list", { name: "In The abbey" });
+    expect(within(inside).getByRole("link", { name: /^The Abbess\b/ })).toBeInTheDocument();
+    const toggle = screen.getByRole("button", { name: /^Folder The abbey/ });
+    expect(toggle).toHaveAccessibleName("Folder The abbey, 1 playlist");
+    await user.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("link", { name: /^The Abbess\b/ })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "More for the folder The abbey" }));
+    await user.click(screen.getByRole("menuitem", { name: "Delete folder" }));
+    expect(await screen.findByRole("link", { name: /^The Abbess\b/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /^Folder The abbey/ })).toBeNull();
   });
 });
