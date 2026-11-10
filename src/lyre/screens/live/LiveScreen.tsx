@@ -17,6 +17,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { DEFAULT_LIBRARY_NORMALISE, guardAllows, keyName, shortcutKey } from "../../../common/domain";
+import { GLOBAL_KEY_EVENT } from "../../../common/globalKeys";
 import { useBoards, useCampaigns, useLyreQuery, useProfileOverrides, useSettings, useTagGroups, usePlaylists, useTracks } from "../../api";
 import { useLyreAudio, useLyreAudioEvent, useNowPlaying, type LyreAudio } from "../../audio";
 import { loadInLive, useLiveSession } from "../../kit/liveSession";
@@ -340,9 +341,38 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
       field?.focus();
       field?.select();
     };
+    /** UX-12: Next scene pressed with its key; a second press within a second is ignored, so it never skips a scene. */
+    const nextSceneKey = (d: LiveData) => {
+      const at = Date.now();
+      if (!guardAllows(getLiveState().lastNextKey, at, d.guard)) {
+        calls.current.say("A second Next scene within a second: ignored");
+        return;
+      }
+      updateLive({ lastNextKey: at });
+      calls.current.nextScene();
+    };
+    const fadeAllKey = (d: LiveData) => {
+      calls.current.setKeysOpen(false, false);
+      touched();
+      d.audio.fadeAll();
+    };
+    /**
+     * Keys that Settings lets work in other programs too reach the page only as this event (Windows gives them to the
+     * registration, not to the page): the same Next scene and Fade everything out as the keys pressed here. Taking it
+     * (preventDefault) tells the shell not to fade on its own. Until Settings' keys have loaded, Live takes nothing.
+     */
+    const onGlobalKey = (event: Event) => {
+      const d = dataRef.current;
+      const action = (event as CustomEvent<{ action?: string }>).detail?.action;
+      if (!d) return;
+      if (action === "nextScene") nextSceneKey(d);
+      else if (action === "fadeAll") fadeAllKey(d);
+      else return;
+      event.preventDefault();
+    };
     const onKeyDown = (event: KeyboardEvent) => {
       const d = dataRef.current;
-      const { nextScene, undo, say, setKeysOpen } = calls.current;
+      const { undo, say, setKeysOpen } = calls.current;
       if (!d || event.defaultPrevented || document.querySelector('[role="menu"], [role="dialog"][aria-modal="true"]')) return;
       const target = event.target as HTMLElement | null;
       const s = getLiveState();
@@ -378,9 +408,7 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
           return handled();
         }
         case "fadeAll":
-          setKeysOpen(false, false);
-          touched();
-          d.audio.fadeAll();
+          fadeAllKey(d);
           return handled();
         case "closeKeys":
           setKeysOpen(false, true);
@@ -402,18 +430,10 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
           updateLive((x) => ({ search: { ...x.search, q: "", tags: [] } }));
           say("Search cleared");
           return handled();
-        case "nextScene": {
+        case "nextScene":
           handled();
-          // UX-12: a second Next scene within a second is ignored, so a double press never skips a scene.
-          const at = Date.now();
-          if (!guardAllows(s.lastNextKey, at, d.guard)) {
-            say("A second Next scene within a second: ignored");
-            return;
-          }
-          updateLive({ lastNextKey: at });
-          nextScene();
+          nextSceneKey(d);
           return;
-        }
         case "focusSearch":
           focusSearch();
           return handled();
@@ -454,12 +474,14 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
       heldKeys.current.clear();
     };
     window.addEventListener("keydown", onTab, true);
+    window.addEventListener(GLOBAL_KEY_EVENT, onGlobalKey);
     document.addEventListener("pointerdown", onPointer, true);
     document.addEventListener("keydown", onKeyDown);
     document.addEventListener("keyup", onKeyUp);
     window.addEventListener("blur", onBlur);
     return () => {
       window.removeEventListener("keydown", onTab, true);
+      window.removeEventListener(GLOBAL_KEY_EVENT, onGlobalKey);
       document.removeEventListener("pointerdown", onPointer, true);
       document.removeEventListener("keydown", onKeyDown);
       document.removeEventListener("keyup", onKeyUp);

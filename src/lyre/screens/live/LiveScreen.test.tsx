@@ -10,6 +10,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { normaliseHover } from "../../../common/domain";
+import { GLOBAL_KEY_EVENT } from "../../../common/globalKeys";
 import { createFakeLyreApi } from "../../../common/lyre/fake";
 import type { LyreOutputs } from "../../../common/lyreOutputs";
 import { AppProviders } from "../../AppProviders";
@@ -391,6 +392,32 @@ describe("single-key shortcuts and the keys", () => {
     expect(screen.getByRole("button", { name: "Start: Recap and the coast road" })).toBeInTheDocument();
     press("n");
     expect(await screen.findByRole("button", { name: "Restart scene 1: Recap and the coast road" })).toBeInTheDocument();
+  });
+});
+
+describe("UX-12: keys that work in other programs too", () => {
+  const globalKey = (action: "nextScene" | "fadeAll") => {
+    const event = new CustomEvent(GLOBAL_KEY_EVENT, { detail: { action }, cancelable: true });
+    act(() => void window.dispatchEvent(event));
+    return event;
+  };
+
+  it("Next scene from another program starts the next scene once, with the guard; Live takes the key", async () => {
+    await openLive();
+    const first = globalKey("nextScene");
+    expect(first.defaultPrevented).toBe(true);
+    globalKey("nextScene");
+    expect(await screen.findByRole("button", { name: "Restart scene 1: Recap and the coast road" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Restart scene 2: Greyhollow inn" })).toBeNull();
+  });
+
+  it("Fade everything out from another program fades every room", async () => {
+    const { sound } = await openLive();
+    await userEvent.click(screen.getByRole("button", { name: "Start: Recap and the coast road" }));
+    await playOn(sound);
+    expect(globalKey("fadeAll").defaultPrevented).toBe(true);
+    await playOn(sound, 5);
+    expect(room("Table").getByText("Silent")).toBeInTheDocument();
   });
 });
 
