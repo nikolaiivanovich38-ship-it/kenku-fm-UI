@@ -158,8 +158,9 @@ function Palette({ onClose }: { onClose: (refocus: boolean) => void }) {
     const action = event.target === field.current ? actionOfKey(event) : null;
     if (action) {
       event.preventDefault();
-      // Typed fast and pressed at once: the answer for what is typed now is still on its way.
-      if (answered.current !== text.trim()) waiting.current = action;
+      // Typed fast and pressed at once: the answer for what is typed now is still on its way. The field itself says
+      // what is typed (the screen may not have drawn the newest text yet).
+      if (answered.current !== (field.current?.value ?? text).trim()) waiting.current = action;
       else run(action);
       return;
     }

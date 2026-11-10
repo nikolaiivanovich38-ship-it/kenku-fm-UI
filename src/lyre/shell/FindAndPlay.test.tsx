@@ -91,6 +91,19 @@ describe("Find and play (Ctrl+K, UX-12)", () => {
     expect(dialog()).toBeNull();
   });
 
+  it("a key pressed right after new text, before the screen has drawn it, waits for that text's answer", async () => {
+    page();
+    const user = userEvent.setup();
+    await user.keyboard("{Control>}k{/Control}");
+    await user.type(box(), "abbey ruins");
+    await screen.findByRole("option", { name: /^The abbey ruins, scene/ });
+    act(() => {
+      fireEvent.change(box(), { target: { value: "lullaby" } });
+      fireEvent.keyDown(box(), { key: "Enter", altKey: true });
+    });
+    await vi.waitFor(() => expect(audio.calls.some(([name]) => name === "previewTrack")).toBe(true));
+  });
+
   it("says when nothing is called that, and has no accessibility failures", async () => {
     page();
     const user = userEvent.setup();
