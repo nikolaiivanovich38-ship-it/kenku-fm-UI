@@ -927,7 +927,6 @@ things too, and Lyre checks each of them before anything changes.
 2. Close Lyre, open `%LOCALAPPDATA%\Lyre Library\this-computer.json` in Notepad, type rubbish into it, save, start
    Lyre: Look and feel and Headphones and speakers are back at their defaults and nothing else changed.
 
-<<<<<<< HEAD
 ## w6-shell
 
 - **Display zoom (UX-11).** The Lyre page's preload gains `display.setZoom(factor)` (`src/lyre/shell/display.ts`):
@@ -935,7 +934,7 @@ things too, and Lyre checks each of them before anything changes.
   ignored. No IPC channel is added; nothing else of `webFrame` reaches the page.
 - **Find and play, Back, the Saved pop-up** use the existing LyreApi and audio calls through the existing guarded
   channels; no new channel or argument.
-=======
+
 ## w6-rooms
 
 ### In plain language
@@ -998,4 +997,3 @@ other program would lose them. The keys go back when you turn it off, change a k
 
 1. Settings › Remote control: turn it on; the code is two groups of four; `Invoke-WebRequest http://127.0.0.1:3333/v1/playlist -Headers @{ Authorization = "Bearer <code>" }` lists playlists. Choose Your home network: the address shown is 192.168.x.x (or 10.x.x.x); from a phone on the same Wi-Fi, the same request with that address works; Make a new code, and the old one is refused.
 2. Settings › Keyboard shortcuts: turn on "in other programs too" with Next scene on Space: it says Space cannot work there. Give Next scene F9, turn it on, click into Discord and press F9: Live moves to the next scene; type a space in Discord's chat: it types. Turn it off: F9 does nothing outside Lyre. Quit Lyre: F9 works for other programs again.
->>>>>>> w6-rooms

@@ -537,7 +537,7 @@ The Live screen (`#/live`, UX-2, UX-8, UX-12, UX-14, SFX-2, OUT-6, SHW-1, SHW-2)
 | `screens/live/liveModel.ts` | The rules without a screen: the session Live loads (`defaultLiveSession`), the rooms from the outputs (`liveRooms`: each bot joining or in a voice channel, named after it) and their one status, Add a room's choices, the one-click Join, where a box plays (`boxTarget`), Off script search, what Scene music and the Pads box offer, the end words, and what each key does (`liveKey`). |
 | `screens/live/liveState.ts` | What Live keeps while the page is open: the scene on now and on standby, the Undo offer (8 s), To: per box, the list Scene music shows, the board, the search, open rows. A visit to another screen finds Live as it was. |
 | `screens/live/liveData.tsx` | One context for the boxes (library index, session, scene, rooms, names, play orders), and the engine's own sequence rules (`sequenceOf`) so the lists show the order that plays, a shuffled playlist dealt with the seed of the music on air. |
-| `LiveScreen.tsx`, `LiveTop.tsx`, `Scenes.tsx`, `SceneMusic.tsx`, `OffScript.tsx`, `OnAir.tsx`, `Pads.tsx`, `TrackRow.tsx`, `ToChip.tsx`, `live.css` | The screen: one, two or three columns at 820 and 1200 px of the app; the keys on `document` (Space, /, pad keys, Shift+Esc, Ctrl+Z, Esc), the single-key switch kept as `lyre-live-keys1`. |
+| `LiveScreen.tsx`, `LiveTop.tsx`, `Scenes.tsx`, `OnAir.tsx`, `Pads.tsx`, `ToChip.tsx`, `live.css` | The screen: one, two or three columns at 820 and 1200 px of the app; the keys on `document` (Space, /, pad keys, Shift+Esc, Ctrl+Z, Esc), the single-key switch kept as `lyre-live-keys1`. 0.5.0 replaced Scene music, Off script and the per-room boxes: see "0.5.0 step 2b: w6-live" below. |
 
 Live reads `getNowPlaying()` and calls the audio host; it keeps no sound state. A room's volume and mute are the bot's (`useOutputs`, the same as Outputs and the Now playing bar). Live sets `showsOnAir`, so the bar there shows the preview only. Loading another session (Run, the session menu) fades what plays from elsewhere in the first room over 3 s, as `liveStandby` did.
 
@@ -699,7 +699,6 @@ What the screen streams must know: call `audio.setAudioDevices(settings.devices)
 `stepsToKeep` semantics (sending the usual steps keeps none). Global keys (`globalKeys`) are stored but not yet
 registered: the main process needs `globalShortcut` for Next scene and Fade everything out (a later step).
 
-<<<<<<< HEAD
 ## 0.5.0 step 2a: w6-shell (the shell)
 
 Round 6 parts 5 to 7 and round 7's shell (design/prototype/ROUND6.md, ROUND7.md), in `src/lyre/shell` and the kit.
@@ -719,7 +718,7 @@ Rooms (OUT-9): the rail, the heading and Help say Rooms; the address stays `#/ou
 placeholder screen at `#/settings` until the Rooms and Settings stream builds it. Help has the round 6 drafts (Live
 rewritten, "Play next, Add to queue and Repeat" new); `design/prototype/help-drafts` is gone, so the prototype reads
 the app's articles again.
-=======
+
 ## 0.5.0 step 2c: w6-rooms (Rooms and Settings)
 
 | Where | What it does |
@@ -734,4 +733,26 @@ the app's articles again.
 
 Shared helpers for Live (OUT-7, Must 2): `outputsModel.ts` `kickLosesSound`, `moveLosesSound`, `roomToRestore`,
 `nobodyThere`, `busiestChannel`; `restoreRoom` for Kick's Undo with the music.
->>>>>>> w6-rooms
+
+## 0.5.0 step 2b: w6-live (Live in seven boxes)
+
+Round 6 parts 3 to 7 and round 7 part 2 of Live (`design/prototype/src/views/live.js`, `live.css`; Nik's decisions in
+R6-NIK-DECISIONS). Seven boxes, each a region with its own name: On air (at the top, the whole width, a part per
+room), Scenes, Current scene, and the trays This session (Session playlists, Session pads) and Whole campaign
+(Campaign playlists, Campaign pads). Find a track or playlist is a field in the top strip.
+
+| Where (`src/lyre/screens/live/`) | What it does |
+| --- | --- |
+| `liveModel.ts` | The rules: rooms with Nobody there (`liveRooms`, `roomStatus`, `noRoomStatus`), the channel menu's "empty" and "· players" (`channelChoices`), how Up next folds (`upNextRows`: the plan's next track, "n more", one line past four), Find (`findSearch`: playlists and tracks, ORG-14), the trays (`trayContents`, `ownBoards`), the boxes' order (`LIVE_BOXES`, Alt+1 to 7 and F6), and the keys (`liveKey` with `LIVE_KEYS` or Settings › Keyboard shortcuts). |
+| `liveState.ts` | What Live keeps: the scene on now, the scene's Undo and the other Undo (`undo2`: an add, a removal, Clear added, Kick, a move), `touched()` (Must 1: any other change ends them), To: per box, the boards chosen, Find, open scenes, Up next and What played open, the ambience waiting in each room (`aq`), the names of single tracks played from a place (`airNames`, DAT-14), and the last Next scene key (the guard). |
+| `liveActions.ts` | What the row buttons do: Play on air, Play next and Add to queue (the audio host's `playNext` and `addToQueue`; an ambience waits in `aq` until Next on the ambience), Next in a room, × in Up next and Clear added, each with its Undo. |
+| `Rows.tsx` | The rows: a track, a playlist that unfolds, a scene's ambience, a scene's music in play order (running: each row a step of the scene; not running: Play on air plays that item only, SHW-7). Preview, Play next, Add to queue, Repeat one (saved with the scene: `sessions.setRepeatOne`, then `audio.savedRepeatOneChanged`), play order, Play on air. |
+| `OnAir.tsx` | On air: a part per room with its status, What played, Mute, volume, the bot's menu (move, another bot, copy a room, Rooms, Bots and tokens), Kick with Undo (`restoreRoom`), Nobody there with Move to, the lanes (markers as ticks, Repeat for what plays now), effects, Up next; No room with Join; one line per room under 480 px of height. |
+| `Scenes.tsx`, `CurrentScene.tsx`, `Trays.tsx`, `Find.tsx`, `UndoStrips.tsx`, `focus.ts` | The other boxes, the Undo strips, and where focus goes. |
+| `kit/Pane.tsx` | `scope`, `scopeHidden`, `label` (a tray's box: "Playlists" shown, "Session Playlists" read out) and `keys` (aria-keyshortcuts). |
+| `kit/DestTag.tsx` | `nobody`: "On air · no room" outlined in the warning colour, with why on hover (Should 10). |
+
+Live takes F6 in the capture phase so it follows the boxes' order in every layout (the shell's F6 follows the page's
+order). Loading a session calls `audio.sessionLoaded()`; Live follows `scene-started` (by a step or moving on by
+itself) and `show-board`.
+
