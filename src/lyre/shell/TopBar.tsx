@@ -39,7 +39,7 @@ interface Navigation {
 const NavigationContext = createContext<Navigation | null>(null);
 
 /** How long a place that is drawn again may take to show the control and the scroll height it had. */
-const RESTORE_WAIT_MS = 5000;
+const RESTORE_WAIT_MS = 3000;
 
 function view(): HTMLElement | null {
   return document.getElementById("view");
@@ -145,42 +145,56 @@ export function takeBackOpen(path: string): string | null {
  * control used to leave once it is there. Gives up after a few seconds (the place may have changed since).
  */
 function restorePlace(place: Place): () => void {
-  const scrolls = new Map(Object.entries(place.scrolls));
+  const scrolls = Object.entries(place.scrolls);
   let focusKey = place.focus;
-  const step = () => {
+  let stopped = false;
+  /** Scroll positions are put back, and kept, until Nik scrolls or types himself (a screen may draw a box again). */
+  const putScrolls = () => {
     const root = view();
-    if (!root) return;
-    for (const [key, top] of Array.from(scrolls)) {
+    if (!root || stopped) return;
+    for (const [key, top] of scrolls) {
       const box = findScroller(key, root);
-      if (box && box.scrollHeight - box.clientHeight >= top - 1) {
-        box.scrollTop = top;
-        scrolls.delete(key);
-      }
+      if (box && Math.abs(box.scrollTop - top) > 1 && box.scrollHeight - box.clientHeight >= top - 1) box.scrollTop = top;
     }
-    if (focusKey) {
-      const control = findControl(focusKey, root);
-      if (control) {
-        control.focus({ preventScroll: true });
-        focusKey = "";
-      }
+  };
+  const putFocus = () => {
+    const root = view();
+    if (!root || !focusKey) return;
+    const control = findControl(focusKey, root);
+    if (control) {
+      control.focus({ preventScroll: true });
+      focusKey = "";
     }
-    if (scrolls.size === 0 && !focusKey) stop();
+  };
+  const step = () => {
+    putScrolls();
+    putFocus();
   };
   const observer = typeof MutationObserver === "undefined" ? null : new MutationObserver(step);
   const root = view();
   if (observer && root) observer.observe(root, { childList: true, subtree: true, attributes: true });
+  let frame = 0;
+  const everyFrame = () => {
+    step();
+    if (!stopped) frame = requestAnimationFrame(everyFrame);
+  };
   const timer = setTimeout(() => stop(), RESTORE_WAIT_MS);
+  const ownMove = () => stop();
+  const MOVES = ["wheel", "pointerdown", "keydown", "touchstart"] as const;
+  for (const type of MOVES) window.addEventListener(type, ownMove, { capture: true, passive: true });
   function stop() {
+    stopped = true;
     observer?.disconnect();
     clearTimeout(timer);
-  }
-  // After the shell has given the new heading the focus (Shell.tsx), so the control used to leave wins; the screen's
-  // own data loads after its first drawing, which the observer catches.
-  const frame = requestAnimationFrame(step);
-  return () => {
     cancelAnimationFrame(frame);
-    stop();
-  };
+    for (const type of MOVES) window.removeEventListener(type, ownMove, { capture: true });
+  }
+  // The scroll positions at once, as far as the page already reaches; focus only from the next frame on, after the
+  // shell has given the new heading the focus (Shell.tsx), so the control used to leave wins. The screen's own data
+  // loads after its first drawing, which the observer and the frames catch.
+  putScrolls();
+  frame = requestAnimationFrame(everyFrame);
+  return stop;
 }
 
 export function NavigationProvider({ value, children }: { value: Navigation; children: React.ReactNode }) {
