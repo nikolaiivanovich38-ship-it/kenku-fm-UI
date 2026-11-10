@@ -261,6 +261,8 @@ const TrackRow = memo(function TrackRow({ t, index, groupNames, selected, open, 
     <tr
       data-tid={t.id}
       data-focus={`row-${t.id}`}
+      // ORG-5: a row is dragged to another list; with ticked rows, all of them go (the Library's DropTray).
+      draggable
       tabIndex={tabbable ? 0 : -1}
       aria-rowindex={index + 2}
       aria-selected={selected}

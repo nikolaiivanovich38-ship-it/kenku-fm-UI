@@ -502,3 +502,37 @@ describe("round 7: dividers inside a playlist (ORG-4)", () => {
     expect((await api.playlists.list()).find((p) => p.id === "p-abbess")?.dividers).toEqual([expect.objectContaining({ name: "After the font", at: 3 })]);
   });
 });
+
+describe("round 7: adding to other lists (ORG-5)", () => {
+  it("Add to… puts a track in a scene of the next session, with the Saved pop-up naming the place", async () => {
+    const { api } = openAt("playlist/p-abbess");
+    await waitFor(() => expect(trackNames()).toHaveLength(5));
+    const user = userEvent.setup();
+    await user.click(within(screen.getByRole("list", { name: "Tracks in order" })).getByRole("button", { name: /^More for Alien, unknowable/ }));
+    await user.click(screen.getByRole("menuitem", { name: "Add to…" }));
+    const d = within(screen.getByRole("dialog", { name: /^Add .* to$/ }));
+    expect(d.getByRole("radio", { name: "Up next in Table" })).toBeInTheDocument();
+    await user.click(d.getByRole("radio", { name: "Session 14 › The abbey ruins" }));
+    await user.click(d.getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(document.getElementById("lyre-toast")).toHaveTextContent(/^Saved: The abbey ruins music · Alien, unknowable/));
+    const crown = (await api.campaigns.list()).find((c) => c.id === "crown")!;
+    const sc3 = crown.sessions.find((s) => s.id === "s14")!.scenes.find((x) => x.id === "sc3")!;
+    const alien = (await api.library.listTracks()).find((t) => (t.title || t.metaTitle).startsWith("Alien, unknowable"))!;
+    expect(sc3.music).toContainEqual({ kind: "track", id: alien.id });
+  });
+
+  it("Add to… with Move it out of… moves a track to another playlist", async () => {
+    const { api } = openAt("playlist/p-abbess");
+    await waitFor(() => expect(trackNames()).toHaveLength(5));
+    const user = userEvent.setup();
+    await user.click(within(screen.getByRole("list", { name: "Tracks in order" })).getByRole("button", { name: /^More for Alien, unknowable/ }));
+    await user.click(screen.getByRole("menuitem", { name: "Add to…" }));
+    const d = within(screen.getByRole("dialog"));
+    await user.click(d.getByRole("radio", { name: "Ashen King" }));
+    await user.click(d.getByRole("switch", { name: "Move it out of The Abbess" }));
+    await user.click(d.getByRole("button", { name: "Add" }));
+    await waitFor(() => expect(document.getElementById("lyre-toast")).toHaveTextContent(/Moved to Ashen King/));
+    await waitFor(() => expect(trackNames()).toHaveLength(4));
+    expect(((await api.playlists.list()).find((p) => p.id === "p-ashen") as { trackIds?: string[] } | undefined)?.trackIds?.length).toBeGreaterThan(0);
+  });
+});

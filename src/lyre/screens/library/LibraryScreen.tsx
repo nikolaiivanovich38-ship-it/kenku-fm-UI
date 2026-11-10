@@ -39,6 +39,7 @@ import { LibraryMoreMenu } from "../transfer/LibraryMoreMenu";
 import "./library.css";
 import { TopLead } from "../../shell/TopBar";
 import { tagTreeOf } from "../../../common/lyre/lookup";
+import { AddToDialog, DropTray } from "../drop/DropTray";
 
 type Picker = { kind: "bulk" } | { kind: "one"; id: string };
 
@@ -182,6 +183,8 @@ export function LibraryScreen({ route }: ScreenProps) {
     [accept, api, playlists, say, store],
   );
 
+  /** ORG-5: the tracks whose Add to… is open. */
+  const [addingTo, setAddingTo] = useState<string[] | null>(null);
   const rowMenu = useCallback(
     (t: LibraryTrack): PopMenuEntry[] => {
       const on = getLibraryState().sel.includes(t.id);
@@ -190,6 +193,8 @@ export function LibraryScreen({ route }: ScreenProps) {
         { content: <Item icon="check" text={on ? "Deselect" : "Select"} />, onSelect: () => toggleSel(t.id, false) },
         { content: <Item icon="playlist" text="Add to playlist…" />, onSelect: () => setPicker({ kind: "one", id: t.id }) },
         { content: <Item icon="link" text="Use in…" />, onSelect: () => setUseIn(t.id) },
+        // Round 7 (ORG-5): the keyboard's way to what a drag does; a ticked row takes the other ticked rows along.
+        { content: <Item icon="plus" text="Add to…" />, onSelect: () => setAddingTo(on ? getLibraryState().sel : [t.id]) },
         { content: <Item icon="fade" text="Audio profile" />, onSelect: () => (window.location.hash = hashOf(`profile/${t.id}`)) },
       ];
     },
@@ -611,6 +616,17 @@ export function LibraryScreen({ route }: ScreenProps) {
           if (accept(await api.library.setNormaliseSettings(setting))) setNormaliseOpen(false);
         }}
       />
+      {/* ORG-5: dragging tracks shows where they can go; ticked rows go together. */}
+      <DropTray
+        resolve={(el) => {
+          const row = el.closest<HTMLElement>('[role="grid"][aria-label="Tracks"] tr[data-tid]');
+          const id = row?.dataset.tid;
+          if (!id) return null;
+          const sel = getLibraryState().sel;
+          return { ids: sel.includes(id) ? [...sel] : [id], from: null };
+        }}
+      />
+      {addingTo && <AddToDialog what={{ ids: addingTo, from: null }} onClose={() => setAddingTo(null)} />}
       {useIn && (
         <UseInDialog
           track={byId.get(useIn)}

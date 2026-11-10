@@ -38,6 +38,7 @@ import "./library.css";
 import "./playlists.css";
 import { TopLead } from "../../shell/TopBar";
 import { withDividers } from "../../../common/lyre/lookup";
+import { AddToDialog, DropTray } from "../drop/DropTray";
 import { useSave } from "../../shell/useSave";
 import { SAVE_AFTER_MS } from "../../kit/SavedField";
 
@@ -380,7 +381,7 @@ function TrackRow({
   onAir: boolean;
   previewing: string | null;
   /** Its place in a manual playlist (1-based): drawn with a grip and number, draggable, with Move and Remove. */
-  manual?: { pos: number; count: number; onMove: (to: number) => void; onRemove: () => void; onDividerAbove?: () => void };
+  manual?: { pos: number; count: number; onMove: (to: number) => void; onRemove: () => void; onDividerAbove?: () => void; onAddTo?: () => void };
   /** In the Add tracks box: an Add button, or a tick when it is in the playlist already. */
   add?: { inList: boolean; onAdd: () => void };
   flash?: boolean;
@@ -428,6 +429,20 @@ function TrackRow({
           ),
           onSelect: manual.onRemove,
         },
+        // Round 7 (ORG-5): the keyboard's way to what a drag does: a playlist, a scene or Up next.
+        ...(manual.onAddTo
+          ? [
+              {
+                content: (
+                  <>
+                    <Icon name="plus" size="s" />
+                    Add to…
+                  </>
+                ),
+                onSelect: manual.onAddTo,
+              },
+            ]
+          : []),
         // Round 7 (ORG-4): a named line above this track; it is not a track.
         ...(manual.onDividerAbove
           ? [
@@ -625,6 +640,8 @@ function TracksPane({
     pl.dividers ?? [],
   );
   const [naming, setNaming] = useState<{ at: number } | { divider: { id: string; name: string } } | null>(null);
+  /** ORG-5: the track whose Add to… is open. */
+  const [addingTo, setAddingTo] = useState<string | null>(null);
   const save = useSave();
   const removeDivider = async (d: { id: string; name: string }) => {
     if (await save(pl.name, () => api.playlists.removeDivider(pl.id, d.id), { detail: "divider removed", key: `div-${pl.id}` })) focusSoon("pladdopen");
@@ -719,6 +736,7 @@ function TracksPane({
                       onMove: (to) => void moveTo(t.id, to),
                       onRemove: () => void remove(t.id),
                       onDividerAbove: () => setNaming({ at: i }),
+                      onAddTo: () => setAddingTo(t.id),
                     }}
                   />
                 );
@@ -726,6 +744,14 @@ function TracksPane({
             </ol>
           </div>
           <p className="hint pl-foot">Drag rows, or press Alt+Up / Alt+Down, to change the order.</p>
+          {/* ORG-5: dragging a track shows where it can go; Add to… does the same from the keyboard. */}
+          <DropTray
+            resolve={(el) => {
+              const row = el.closest<HTMLElement>(".pl-tracks .pl-tr[data-tid]");
+              return row?.dataset.tid ? { ids: [row.dataset.tid], from: pl.id } : null;
+            }}
+          />
+          {addingTo && <AddToDialog what={{ ids: [addingTo], from: pl.id }} onClose={() => setAddingTo(null)} />}
           {naming && (
             <DividerDialog
               title={"at" in naming ? "Add a divider" : "Rename the divider"}
