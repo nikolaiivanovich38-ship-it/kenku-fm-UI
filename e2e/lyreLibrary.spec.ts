@@ -99,7 +99,8 @@ test("the Lyre page hears about changes made through it, and the library tells i
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     .poll(() => lyre.evaluate(() => (window as any).lyreEvents.filter((e: { type: string }) => e.type === "library-status").map((e: { ok: boolean }) => e.ok)), { timeout: 20_000 })
     .toEqual([false, true]);
-  await expect(lyre.getByRole("status")).toContainText("Lyre's library is working again.");
+  // 0.5.0: the Saved pop-up is a status of its own, always on the page; the library's message is the one with its words.
+  await expect(lyre.getByRole("status").filter({ hasText: "Lyre's library is working again." })).toBeVisible();
   const boards = await lyreCall<{ name: string }[]>(lyre, "boards", "list");
   expect(boards.map((b) => b.name)).toContain("Storm");
 });

@@ -83,7 +83,8 @@ test("the Lyre page has the player page's protections", async ({ mainWindow, app
 test("routes, focus and themes work in the packaged app with no console errors or policy refusals", async ({ mainWindow, errors }) => {
   const lyre = await openLyreRoute(mainWindow, "profile/t13/sc:crown:s14:sc3");
   await expect(lyre.getByRole("main").getByRole("heading", { level: 1, name: "Audio profile" })).toBeVisible();
-  await expect(lyre.getByRole("link", { name: "Library", exact: true })).toHaveAttribute("aria-current", "page");
+  // 0.5.0: the trail has a Library link too; the menu's is the one marked as the current section.
+  await expect(lyre.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Library", exact: true })).toHaveAttribute("aria-current", "page");
 
   await lyre.getByRole("link", { name: "Pad boards" }).click();
   const heading = lyre.getByRole("main").getByRole("heading", { level: 1, name: "Pad boards" });
