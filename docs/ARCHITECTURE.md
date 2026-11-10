@@ -718,3 +718,25 @@ Rooms (OUT-9): the rail, the heading and Help say Rooms; the address stays `#/ou
 placeholder screen at `#/settings` until the Rooms and Settings stream builds it. Help has the round 6 drafts (Live
 rewritten, "Play next, Add to queue and Repeat" new); `design/prototype/help-drafts` is gone, so the prototype reads
 the app's articles again.
+
+## 0.5.0 step 2d: w6-prep (the prep screens)
+
+Round 6 and round 7 on Library, Tags, Playlists, Pad boards, Campaigns, the session planner and the Audio profile
+(design/prototype/ROUND6.md, ROUND7.md; the prototype's r7tags.js, r7org.js, r7play.js). What the other streams use:
+
+| Piece | Where | Use |
+| --- | --- | --- |
+| Tags (DAT-10) | `screens/tags/` (`#/tags`, section Library) | Groups, tags inside tags, other words, colours; rename, merge and delete with the Undo note. The Library's filters and counts take the tag tree (`model.matches(…, tree)`), and a track's tag box offers a tag for another word (`offerTags`). |
+| Steps (PLY-8, SHW-3) | `screens/steps/StepsDialog.tsx`, `stepsModel.ts` | `<StepsDialog owner={{ kind: "scene", … } \| { kind: "pad", … }} />`: the usual steps when none are kept, Add a step, How it comes in, Up next, From (a marker), Then, Try in headphones; Done saves with `stepsToKeep` semantics. `<SceneMarks scene />` shows Moves on by itself and Own start; Live's Scenes box can use it. |
+| Repeat one (PLY-17) | `kit/RepeatOneButton.tsx` | The saved Repeat one of a scene's track, as the planner shows it; it calls `sessions.setRepeatOne` and then `audio.savedRepeatOneChanged`. Live can use the same button in Current scene. |
+| Order per place (ORG-13) | `screens/campaigns/PlaceTracks.tsx`, `api/hooks.ts useTrackOrders` | A playlist's tracks in a scene, a session or a campaign: Reorder (Move up, Move down), Alt+Up/Down, drag, Back to the playlist's order. The campaign's and session's playlists move with Alt+Up/Down (`OnHandList onMove`). |
+| Folders (ORG-4) | `screens/folders/` (`useFolders(kind)`, `api/hooks.ts useOrgFolders`) | `const f = useFolders("playlists")`; draw the list with `f.list({ label, className, all, shown, filtered, renderItem, nameOf })`, put `f.dialogs` in the screen, offer `f.openMoveTo(item, name)` in an item's ⋯, and `orgDragProps(kind, id)` on what is dragged onto a folder. Folding is kept on this computer (`lyre-folders-closed`). |
+| Dividers (ORG-4) | `PlaylistPage.tsx` (`withDividers`), `BoardScreen.tsx` (`BoardDivider`), `BoardDialogs.tsx` | A manual playlist's dividers are `PlaylistInfo.dividers` (`at`: the track they sit above); a board's are `PadBoard.dividers` (`row` counted from 0; the dialog shows rows from 1). Live draws a board divider as a heading above its row. |
+| Drop on and Add to… (ORG-5) | `screens/drop/` (`DropTray`, `AddToDialog`, `usePut`, `dropTargets`) | `<DropTray resolve={(el) => ({ ids, from } \| null)} />` in a screen whose rows are draggable; places are the prototype's keys (`pl:`, `pb:`, `q:`, `sc:`); `library.put` writes, `audio.addToQueue` fills Up next. |
+| Markers (DAT-3) | `screens/profile/boxes.tsx`, `useProfileController.ts` | Mix out (one per profile, `markers[].mix`) and Play on air from (`audio.playTrack(id, { fromMs })`). Live's progress lines read `profile.markers` (`mix` for the accent tick). |
+| How a track behaves (PLY-4, SHW-3) | `screens/library/TrackBehaviour.tsx` | Ending, Pick up where it stopped and Follow with…, as `roleChoices` allows; a sting's loop advice is off. |
+| Resume positions (PLY-4) | `src/player/engine/queue/resumePositions.ts` | The lead's decision: where Pick up tracks stopped is kept across restarts, on this computer (`lyre-resume-positions`); the host hands the map to the Director. |
+| Kit | `kit/Pane.tsx` `description`, `kit/Dialog.tsx` `description` | Round 6's "read out, not shown": a box's or dialog's how-to is its description (pickers pass their intro so). |
+
+Also: Find missing files' Preview the file found calls `import.previewFound` first and `endRelinkPreview` when it
+closes (SEC-17); a duplicated scene copies its track orders and play orders (the lead's decision, contract suite).
