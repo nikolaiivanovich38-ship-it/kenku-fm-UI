@@ -260,7 +260,7 @@ export class FakeClient extends EventEmitter {
     const discord = this.discord;
     return {
       fetch: async () =>
-        new FakeCollection((discord.invited(this.token.value) ? discord.world.guilds : []).map((g): [string, { id: string; fetch: () => Promise<ReturnType<FakeDiscord["guild"]>> }] => [g.id, { id: g.id, fetch: async () => discord.guild(g.id) }])),
+        new FakeCollection(discord.guildsFor(this.token.value).map((g): [string, { id: string; fetch: () => Promise<ReturnType<FakeDiscord["guild"]>> }] => [g.id, { id: g.id, fetch: async () => discord.guild(g.id) }])),
     };
   }
 
@@ -309,6 +309,15 @@ export class FakeDiscord {
   private admitted = false;
   invited(token: string | null | undefined): boolean {
     return this.admitted || !token || !(this.world.notInvited ?? []).includes(token);
+  }
+
+  /**
+   * The servers a bot with this token is in: all of them, except that a bot the world says was not invited is in
+   * none until an invite is opened, and then in the first only (an invite adds a bot to the one server chosen).
+   */
+  guildsFor(token: string | null | undefined): FakeWorld["guilds"] {
+    if (!this.invited(token)) return [];
+    return token && (this.world.notInvited ?? []).includes(token) ? this.world.guilds.slice(0, 1) : this.world.guilds;
   }
 
   /** The Discord name of the bot that logs in with this token, if the world names it. */

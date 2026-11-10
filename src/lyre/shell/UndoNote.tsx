@@ -15,18 +15,21 @@ import { Icon } from "../kit/Icon";
 import { UNDO_SLOT_ID, useAnnounce } from "./Announcer";
 import { useShellData } from "./ShellData";
 
-interface Note {
-  text: string;
-  undoLabel: string;
-}
+/** A library change (undone by the library's history), or w6-rooms: something outside it the screen undoes itself. */
+type Note = { text: string; undoLabel: string; restore?: undefined } | { text: string; undoLabel?: undefined; restore: () => void };
 
 interface UndoNoteApi {
   /** Show what happened with Undo; `undoLabel` is the write's (no message when it made no undo step). */
   offer: (text: string, undoLabel: string | null) => void;
+  /**
+   * w6-rooms (OUT-7 Kick and a move that leaves the players in silence, OUT-8 Remove a bot): a change outside the
+   * library, which `restore` undoes. Undo (or Ctrl+Z while it shows) runs it once; closing the message runs nothing.
+   */
+  offerUndo: (text: string, restore: () => void) => void;
 }
 
 const UndoNoteContext = createContext<{ api: UndoNoteApi; note: Note | null; undo: () => void; close: () => void }>({
-  api: { offer: () => undefined },
+  api: { offer: () => undefined, offerUndo: () => undefined },
   note: null,
   undo: () => undefined,
   close: () => undefined,
@@ -62,6 +65,7 @@ export function UndoNoteProvider({ live, children }: { live: boolean; children: 
     },
     [history],
   );
+  const offerUndo = useCallback((text: string, restore: () => void) => setNote({ text, restore }), []);
 
   /** Undo the library's last step; with `expected`, only while that step is still the one named. */
   const undoLast = useCallback(
@@ -88,7 +92,8 @@ export function UndoNoteProvider({ live, children }: { live: boolean; children: 
     if (!current) return;
     setNote(null);
     focusHeading();
-    void undoLast(current.undoLabel);
+    if (current.restore) current.restore();
+    else void undoLast(current.undoLabel);
   }, [undoLast]);
   const close = useCallback(() => {
     setNote(null);
@@ -96,10 +101,11 @@ export function UndoNoteProvider({ live, children }: { live: boolean; children: 
   }, []);
 
   useEffect(() => {
-    if (!history || live) return;
+    if (live) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey || event.key.toLowerCase() !== "z") return;
       if (event.defaultPrevented || isTyping(event.target) || document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+      if (!history && !noteRef.current?.restore) return;
       event.preventDefault();
       if (noteRef.current) undo();
       else void undoLast();
@@ -108,7 +114,7 @@ export function UndoNoteProvider({ live, children }: { live: boolean; children: 
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [history, live, undo, undoLast]);
 
-  const value = useMemo(() => ({ api: { offer }, note, undo, close }), [offer, note, undo, close]);
+  const value = useMemo(() => ({ api: { offer, offerUndo }, note, undo, close }), [offer, offerUndo, note, undo, close]);
   return <UndoNoteContext.Provider value={value}>{children}</UndoNoteContext.Provider>;
 }
 

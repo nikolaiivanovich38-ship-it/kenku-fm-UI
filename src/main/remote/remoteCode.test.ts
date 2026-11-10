@@ -1,41 +1,57 @@
 import { describe, expect, it } from "vitest";
 
-import { REMOTE_CODE_PATTERN, codesMatch, generateRemoteCode, normaliseRemoteCode } from "./remoteCode";
+import { REMOTE_CODE_ALPHABET, REMOTE_CODE_PATTERN, codesMatch, generateRemoteCode, normaliseRemoteCode } from "./remoteCode";
 
-describe("the remote control's secret code (SEC-4)", () => {
-  it("is five groups of four letters and digits that are easy to read and type", () => {
+describe("the remote control's secret code (SEC-4, lead decision 7 Nov: 8 characters)", () => {
+  it("is two groups of four letters and digits that cannot be mistaken for each other", () => {
     const code = generateRemoteCode();
     expect(code).toMatch(REMOTE_CODE_PATTERN);
-    // No I, L, O or U: they are read as 1, 1, 0 or misread as V.
-    expect(code).not.toMatch(/[ILOU]/);
+    expect(code).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+    // No 0 or O, no 1, I or L: Nik types it on a phone, reading it off the screen.
+    expect(code).not.toMatch(/[01OIL]/);
   });
 
-  it("is different every time (100 random bits)", () => {
+  it("uses an alphabet of 31 symbols with none that look alike", () => {
+    expect(REMOTE_CODE_ALPHABET).toHaveLength(31);
+    expect(new Set(REMOTE_CODE_ALPHABET).size).toBe(31);
+    expect(REMOTE_CODE_ALPHABET).not.toMatch(/[01OIL]/);
+  });
+
+  it("is different every time", () => {
     const codes = new Set(Array.from({ length: 200 }, () => generateRemoteCode()));
     expect(codes.size).toBe(200);
   });
 
-  it("uses every random byte it is given", () => {
-    const zeros = generateRemoteCode(() => Buffer.alloc(13));
-    const ones = generateRemoteCode(() => Buffer.alloc(13, 0xff));
-    expect(zeros).toBe("0000-0000-0000-0000-0000");
-    expect(ones).toBe("ZZZZ-ZZZZ-ZZZZ-ZZZZ-ZZZZ");
+  it("takes each symbol from the random numbers it is given, first to last", () => {
+    expect(generateRemoteCode(() => 0)).toBe("AAAA-AAAA");
+    expect(generateRemoteCode(() => 30)).toBe("9999-9999");
+    let i = 0;
+    expect(generateRemoteCode(() => i++)).toBe("ABCD-EFGH");
   });
 
-  it("matches a code typed in lower case, without dashes, with spaces or with O for 0 and I or L for 1", () => {
-    const code = "AB01-CD23-EF45-GH67-JK89";
-    for (const typed of ["ab01-cd23-ef45-gh67-jk89", "AB01CD23EF45GH67JK89", " AB01 CD23 EF45 GH67 JK89 ", "ABO1-CD23-EF45-GH67-JK89", "ABOI-CD23-EF45-GH67-JK89", "AB0L-CD23-EF45-GH67-JK89"]) {
+  it("asks for a whole number below the alphabet's size, so every symbol is as likely (no modulo bias)", () => {
+    const asked: number[] = [];
+    generateRemoteCode((below) => {
+      asked.push(below);
+      return 0;
+    });
+    expect(asked).toEqual(Array(8).fill(31));
+  });
+
+  it("matches a code typed in lower case, without the dash or with spaces", () => {
+    const code = "K7QD-92XF";
+    for (const typed of ["k7qd-92xf", "K7QD92XF", " K7QD 92XF ", "k7qd 92xf"]) {
       expect(codesMatch(typed, code), typed).toBe(true);
     }
-    expect(normaliseRemoteCode("ab-0i")).toBe("AB01");
+    expect(normaliseRemoteCode("k7-qd 92xf")).toBe("K7QD92XF");
   });
 
   it("refuses any other code, an empty one and one of another length", () => {
-    const code = "AB01-CD23-EF45-GH67-JK89";
-    expect(codesMatch("AB01-CD23-EF45-GH67-JK88", code)).toBe(false);
+    const code = "K7QD-92XF";
+    expect(codesMatch("K7QD-92XE", code)).toBe(false);
     expect(codesMatch("", code)).toBe(false);
-    expect(codesMatch("AB01", code)).toBe(false);
-    expect(codesMatch(`${code}0`, code)).toBe(false);
+    expect(codesMatch("K7QD", code)).toBe(false);
+    expect(codesMatch(`${code}A`, code)).toBe(false);
     expect(codesMatch(code, "")).toBe(false);
   });
 });

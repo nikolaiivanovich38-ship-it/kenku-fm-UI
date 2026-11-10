@@ -56,7 +56,8 @@ test("Stream Deck / Kenku Remote API controls playlists and soundboards", async 
   const before = await lyre.evaluate(() => (window as unknown as LyreWindow).lyre.remote.get());
   expect(before).toMatchObject({ enabled: false, running: false, address: "127.0.0.1" });
   const code = before.code;
-  expect(code).toMatch(/^[0-9A-Z]{4}(-[0-9A-Z]{4}){4}$/);
+  // Lead decision (7 Nov): 8 characters from an alphabet with nothing that looks alike, two groups of four.
+  expect(code).toMatch(/^[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$/);
   await mainWindow.getByRole("list", { name: "Tabs" }).getByRole("button", { name: "Lyre Player" }).click();
 
   // Switch the remote on, on a free port.

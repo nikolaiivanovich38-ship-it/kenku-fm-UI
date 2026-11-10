@@ -205,7 +205,8 @@
       '<button class="btn s" data-act="sttest" data-v="' + id + '" data-k="st-' + id + '-test" aria-label="Test: ' + esc(label) + '" title="Plays a short chime on this device">' + L.icon('volume', 's') + 'Test</button></div></div>';
   }
   function devicesBody() {
-    return (S.split ? '' : devSelect('air', 'On air, on this computer', S.airDevice, 'stairdev')) + devSelect('pv', S.split ? 'Headset' : 'Preview (only you)', S.pvDevice, 'stpvdev') +
+    // Lead decision (B6-NOTES, 7 Nov): no "On air, on this computer" device; rooms are heard only through Discord.
+    return devSelect('pv', S.split ? 'Headset' : 'Preview (only you)', S.pvDevice, 'stpvdev') +
       sw('split', 'Split one headset', S.split, 'stsplit', { title: 'The preview in one ear and On air in the other, on one headset' }) +
       (S.split ? '<div class="st-ears" role="radiogroup" aria-label="Which ear has the preview">' + [['left', 'Preview in the left ear'], ['right', 'Preview in the right ear']].map(function (e) {
         return '<label class="lk-radio"><input type="radio" name="st-ear" value="' + e[0] + '" data-input="stear" data-k="st-ear-' + e[0] + '"' + (S.pvEar === e[0] ? ' checked' : '') + '><span>' + e[1] + '</span></label>';

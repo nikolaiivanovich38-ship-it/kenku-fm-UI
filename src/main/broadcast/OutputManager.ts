@@ -126,6 +126,7 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
           id: bot.id,
           name: summary?.name ?? "Bot",
           ...(bot.discordName ? { discordName: bot.discordName } : {}),
+          ...(bot.lastDiscordName ? { lastDiscordName: bot.lastDiscordName } : {}),
           hasToken: summary?.hasToken ?? false,
           tokenRemembered: summary?.tokenRemembered ?? false,
           ...(summary?.tokenEnd ? { tokenEnd: summary.tokenEnd } : {}),

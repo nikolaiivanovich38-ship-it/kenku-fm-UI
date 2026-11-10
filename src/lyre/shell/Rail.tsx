@@ -41,6 +41,7 @@ export function Rail({ section, min, onToggleMin, helpOpen = false, onHelp }: Ra
         </div>
       </nav>
       <div className="bottom stack" style={{ gap: 2 }}>
+        {/* w6-rooms (OUT-8): Settings, gear, above Look and feel. */}
         {link("settings", "gear", "Settings")}
         {link("look", "palette", "Look and feel")}
         {onHelp && (

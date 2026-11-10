@@ -26,6 +26,8 @@ import {
 } from "./ipcArgs";
 import { isLyreMethod } from "../../common/lyre/rpc";
 import { isApplicationId } from "../../common/lyreOutputs";
+import { isGlobalKeysRequest as isGlobalKeysRequestShape } from "../../common/globalKeys";
+import { isWindowSettings as isWindowSettingsShape, isWindowSettingsChange as isWindowSettingsChangeShape } from "../../common/windowSettings";
 import type { AppPageRole } from "./permissions";
 
 export interface IpcChannelRule {
@@ -299,6 +301,25 @@ export const IPC_CHANNELS = {
   // SEC-14 (LyreManager, src/main/updateStatus.ts): what automatic updates are doing, for Settings (invoke, no
   // arguments; answers an UpdateState from src/common/appUpdates.ts, with any problem in plain words).
   UPDATE_GET: { from: ["lyre-view"], args: noArgs },
+  // --- w6-rooms ---
+  // UX-12 (LyreManager, src/main/globalKeys.ts): Settings › Keyboard shortcuts › "in other programs too" (invoke). One
+  // plain object { on, keys } with keys only for nextScene and fadeAll, each text of at most 40 characters
+  // (isGlobalKeysRequest); the main process then refuses keys used for typing (globalKeyProblem) and answers
+  // { refused: [{ action, key, message }] }. Each press comes back to the Lyre page as LYRE_GLOBAL_KEY.
+  LYRE_GLOBAL_KEYS_SET: { from: ["lyre-view"], args: argsMatch(isGlobalKeysRequestShape) },
+  // OUT-8 (src/main/windowSettings/windowSettingsBridge.ts, src/common/windowSettings.ts): the main window's Sound to
+  // Discord and Website tabs settings in Settings in Lyre. STATE (send): the main window's four settings, exactly
+  // (isWindowSettings), after each change. GET (invoke): the latest, or null. SET (invoke): one or more of the four,
+  // each of its kind (isWindowSettingsChange), passed to the main window, which keeps them; answers whether it went.
+  WINDOW_SETTINGS_STATE: { from: MAIN, args: argsMatch(isWindowSettingsShape) },
+  LYRE_WINDOW_SETTINGS_GET: { from: ["lyre-view"], args: noArgs },
+  LYRE_WINDOW_SETTINGS_SET: { from: ["lyre-view"], args: argsMatch(isWindowSettingsChangeShape) },
+  // SEC-15 (BrowserViewManagerMain): Settings › Local files in Lyre, as LOCAL_FILES_LIST_FOLDERS / _FORGET_FOLDER
+  // for the main window (invoke; answers the list). A folder path is at most 32767 characters.
+  LYRE_LOCAL_FOLDERS_LIST: { from: ["lyre-view"], args: noArgs },
+  LYRE_LOCAL_FOLDERS_FORGET: { from: ["lyre-view"], args: argsMatch(isStringUpTo(32_767)) },
+  // Website tabs › Clear website data in Lyre: the old Settings' Clear cache (src/index.ts, appInfoIpc.ts; invoke).
+  LYRE_CLEAR_WEBSITE_DATA: { from: ["lyre-view"], args: noArgs },
 } satisfies Record<string, IpcChannelRule>;
 
 export type IpcChannel = keyof typeof IPC_CHANNELS;

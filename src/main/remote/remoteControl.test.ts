@@ -145,4 +145,17 @@ describe("RemoteControl (SEC-4)", () => {
     expect(remote.listeningAddresses()).toEqual([]);
     expect(store.settings().enabled).toBe(true);
   });
+
+  it("says this computer's home-network address, for Settings' Your home network (round 7), or null without one", async () => {
+    expect(remote.state().homeAddress).toBeNull();
+    const home = new RemoteControl({ store, host: { getView: () => view as never, requests }, homeAddress: () => "192.168.1.20" });
+    expect(home.state().homeAddress).toBe("192.168.1.20");
+    await home.close();
+  });
+
+  it("does not offer an address that is not a private one, whatever it is told", async () => {
+    const odd = new RemoteControl({ store, host: { getView: () => view as never, requests }, homeAddress: () => "0.0.0.0" });
+    expect(odd.state().homeAddress).toBeNull();
+    await odd.close();
+  });
 });

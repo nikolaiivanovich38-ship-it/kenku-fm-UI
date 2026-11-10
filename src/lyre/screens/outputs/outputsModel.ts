@@ -8,7 +8,7 @@
  * those boxes say so instead of offering rooms.
  */
 import type { LyreBot, LyreOutputs, LyreServer, LyreVoiceChannel } from "../../../common/lyreOutputs";
-import type { RoomNowPlaying } from "../../audio/lyreAudio";
+import type { LaneNowPlaying, RoomNowPlaying } from "../../audio/lyreAudio";
 import type { StatusTone } from "../../kit/Pills";
 
 /** One bot with its room looked up. */
@@ -163,4 +163,105 @@ export function chimeMessage(of: BotView): { ok: true; toast: string; say: strin
   if (bot.muted) return { ok: false, toast: `${name} is muted: unmute it to hear the test chime` };
   const n = of.listeners.length;
   return { ok: true, toast: `Test chime in ${name} only${n ? ` (${people(n).toLowerCase()} there)` : ": nobody is there to hear it"}`, say: `Test chime played in ${of.where}` };
+}
+
+/* ---------- w6-rooms: round 6 (OUT-7 Add bot and Kick, Must 2 Nobody there) and OUT-10 (the level meter) ---------- */
+
+/** Add bot on a voice channel: the bots it can put there, and the one it puts there in one click, if any. */
+export interface AddBotChoice {
+  /** The only free bot: Add bot puts it there at once, no menu. */
+  one: string | null;
+  /** The short choice: free bots, or with none free every logged-in bot not there, with the room it leaves. */
+  choices: { botId: string; name: string; leaves: string | null }[];
+}
+
+export function addBotChoice(view: OutputsView, serverId: string, channelId: string): AddBotChoice {
+  const here = roomBots(view, serverId, channelId);
+  const usable = view.bots.filter((b) => b.bot.login === "ready" && b.bot.serverIds.includes(serverId) && !here.includes(b));
+  const free = usable.filter((b) => !b.inRoom);
+  const list = free.length ? free : usable;
+  return {
+    one: free.length === 1 ? free[0].bot.id : null,
+    choices: list.map((b) => ({ botId: b.bot.id, name: b.bot.name, leaves: b.inRoom ? b.channel!.name : null })),
+  };
+}
+
+/** Whether the players in this bot's room hear something now (music or ambience playing, or an effect). */
+function playersHear(of: BotView, room: RoomNowPlaying | undefined): boolean {
+  return of.inRoom && of.listeners.length > 0 && !of.bot.muted && isPlaying(room);
+}
+
+/** Kick never asks; it gets an Undo when the players there were hearing something (OUT-7). */
+export function kickLosesSound(of: BotView, room: RoomNowPlaying | undefined): boolean {
+  return playersHear(of, room);
+}
+
+/** A move away from players who were hearing something gets the same Undo (Must 2). */
+export function moveLosesSound(of: BotView, room: RoomNowPlaying | undefined, toChannelId: string): boolean {
+  return of.bot.room?.channelId !== toChannelId && playersHear(of, room);
+}
+
+type Place = NonNullable<LaneNowPlaying["place"]>;
+
+/** One lane to play again after Undo: the track, from where it was, as it came (its scene or playlist). */
+export interface LaneToRestore {
+  trackId: string;
+  fromMs: number;
+  from: { scene: { campaignId: string; sessionId: string; sceneId: string }; at: number } | { playlistId: string; place?: Place } | undefined;
+  place: Place | undefined;
+}
+
+export interface RoomToRestore {
+  botId: string;
+  channelId: string;
+  lanes: LaneToRestore[];
+}
+
+/** What Undo of a Kick needs: the channel the bot was in and what the room played (OUT-7: "back with its music"). */
+export function roomToRestore(of: BotView, room: RoomNowPlaying | undefined): RoomToRestore | null {
+  if (!of.inRoom || !of.bot.room) return null;
+  const lanes: LaneToRestore[] = [];
+  for (const lane of [room?.music, room?.ambience]) {
+    if (!lane || lane.paused) continue;
+    const origin = lane.origin as { kind: string; scene?: unknown; at?: number; playlistId?: string; place?: Place | null };
+    const from: LaneToRestore["from"] =
+      origin.kind === "scene" && origin.scene
+        ? { scene: origin.scene as unknown as { campaignId: string; sessionId: string; sceneId: string }, at: origin.at ?? 0 }
+        : origin.kind === "playlist" && origin.playlistId
+          ? { playlistId: origin.playlistId, ...(origin.place ? { place: origin.place } : {}) }
+          : undefined;
+    lanes.push({ trackId: lane.trackId, fromMs: Math.round((lane.position ?? 0) * 1000), from, place: lane.place ?? undefined });
+  }
+  return { botId: of.bot.id, channelId: of.bot.room.channelId, lanes };
+}
+
+/** Must 2: a bot in a voice channel with nobody in it: the players hear nothing from it. */
+export function nobodyThere(of: BotView): boolean {
+  return of.inRoom && of.bot.room?.status === "connected" && of.listeners.length === 0;
+}
+
+/**
+ * Must 2's one-click fix, "Move to Table": the channel with the most people (two or more) and no other bot, in a server
+ * this bot can join. Null when there is none.
+ */
+export function busiestChannel(view: OutputsView, of: BotView): { serverId: string; channelId: string; name: string; people: number; where: string } | null {
+  let best: { serverId: string; channelId: string; name: string; people: number; where: string } | null = null;
+  for (const server of view.outputs.servers) {
+    if (!of.bot.serverIds.includes(server.id)) continue;
+    for (const channel of server.channels) {
+      const n = channel.members.length;
+      if (n < 2 || roomBots(view, server.id, channel.id).some((b) => b.bot.id !== of.bot.id)) continue;
+      if (of.bot.room?.channelId === channel.id) continue;
+      if (!best || n > best.people) best = { serverId: server.id, channelId: channel.id, name: channel.name, people: n, where: `${server.name} › ${channel.name}` };
+    }
+  }
+  return best;
+}
+
+/** OUT-10: how full a room's meter is (0 to 1) for a peak level, on a decibel scale from -48 dB to full scale. */
+export const METER_FLOOR_DB = -48;
+export function meterFill(peak: number): number {
+  if (!Number.isFinite(peak) || peak <= 0) return 0;
+  const db = 20 * Math.log10(Math.min(1, peak));
+  return Math.max(0, Math.min(1, 1 - db / METER_FLOOR_DB));
 }

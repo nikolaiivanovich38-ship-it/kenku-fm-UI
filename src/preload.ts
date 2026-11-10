@@ -5,6 +5,7 @@ import {
   BrowserViewManagerPreload,
 } from "./preload/managers/BrowserViewManagerPreload";
 import type { OutputsState } from "./common/outputs";
+import type { WindowSettings } from "./common/windowSettings";
 
 const viewManager = new BrowserViewManagerPreload();
 
@@ -182,6 +183,20 @@ const api = {
   },
   clearCache: () => {
     return ipcRenderer.invoke("CLEAR_CACHE");
+  },
+  /**
+   * OUT-8 (w6-rooms): Sound to Discord and Website tabs, shared with Settings in Lyre
+   * (src/renderer/features/settings/windowSettingsSync.ts). This page keeps them.
+   */
+  windowSettings: {
+    report: (settings: WindowSettings) => ipcRenderer.send("WINDOW_SETTINGS_STATE", settings),
+    onSet: (listener: (change: unknown) => void) => {
+      const heard = (_event: unknown, change: unknown) => listener(change);
+      ipcRenderer.on("WINDOW_SETTINGS_SET", heard);
+      return () => {
+        ipcRenderer.removeListener("WINDOW_SETTINGS_SET", heard);
+      };
+    },
   },
   platform: ipcRenderer.sendSync("GET_PLATFORM") as string,
   version: ipcRenderer.sendSync("GET_VERSION") as string,

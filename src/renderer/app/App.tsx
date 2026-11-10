@@ -11,6 +11,7 @@ import { onAppError } from "../common/appErrors";
 import { isErrorCause, type ErrorCause } from "../../common/errorCause";
 import { errorShown, outputHasProblem } from "../features/errors/errorsSlice";
 import { useStore } from "react-redux";
+import { startWindowSettingsSync } from "../features/settings/windowSettingsSync";
 import type { RootState } from "./store";
 
 import icon from "../../assets/icon.svg";
@@ -56,9 +57,12 @@ export function App() {
     });
 
     const stopAppErrors = onAppError(showError);
+    // OUT-8 (w6-rooms): Settings in Lyre shows and changes Sound to Discord and Website tabs, kept here.
+    const stopWindowSettings = window.kenku.windowSettings ? startWindowSettingsSync(store, window.kenku.windowSettings) : (): void => undefined;
 
     return () => {
       stopAppErrors();
+      stopWindowSettings();
       window.kenku.removeAllListeners("MESSAGE");
       window.kenku.removeAllListeners("ERROR");
       window.kenku.removeAllListeners("FATAL_ERROR");

@@ -78,3 +78,7 @@ export function useTrackPeaks(trackId: string | null): readonly number[] | null 
 
   return levels;
 }
+
+// --- w6-rooms ---
+/** Round 7 settings (crossfade, keys, Next scene's guard, this computer's display, devices and global keys). */
+export const useLyreSettings = () => useLyreQuery("settings", (api) => api.settings.get(), ["settings"]);

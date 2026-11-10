@@ -7,6 +7,7 @@ import {
   app,
   BrowserWindow,
   dialog,
+  globalShortcut,
   shell,
   powerSaveBlocker,
 } from "electron";
@@ -172,6 +173,9 @@ if (startupOutcome === "run") {
       .catch((error) => console.error("Could not close Lyre's library", error))
       .finally(() => app.quit());
   });
+
+  // UX-12 (w6-rooms): keys Lyre took from every program for Next scene and Fade everything out go back on quit.
+  app.on("will-quit", () => globalShortcut.unregisterAll());
 
   app.on("second-instance", () => {
     // Someone tried to run a second instance, we should focus our window.

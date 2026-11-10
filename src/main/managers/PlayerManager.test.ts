@@ -63,7 +63,7 @@ afterEach(async () => {
 });
 
 function newManager() {
-  return new PlayerManager({ remoteStore });
+  return new PlayerManager({ remoteStore, homeAddress: () => "192.168.1.20" });
 }
 
 /** A player view created by BrowserViewManagerMain and known to Electron. */
@@ -162,6 +162,7 @@ describe("PlayerManager: remote-control settings over IPC (SEC-4)", () => {
       port: 3333,
       code: remoteStore.code(),
       codeRemembered: false,
+      homeAddress: "192.168.1.20",
     });
   });
 

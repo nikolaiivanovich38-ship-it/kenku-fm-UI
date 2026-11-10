@@ -693,6 +693,39 @@ describe("w4-outputs: the Outputs screen's Test chime, in one room only", () => 
   });
 });
 
+// --- w6-rooms ---
+describe("OUT-10: a level meter per room (roomLevel)", () => {
+  it("reads how loud each room is now, from what that room sends to Discord, and nothing of the others", async () => {
+    onDiscord();
+    expect(rig.audio.roomLevel("bot-a")).toBe(0);
+    rig.audio.testChime("bot-b");
+    await rig.advance(0.25);
+    expect(rig.audio.roomLevel("bot-b")).toBeGreaterThan(0);
+    expect(rig.audio.roomLevel("bot-b")).toBeLessThanOrEqual(1);
+    expect(rig.audio.roomLevel("bot-a")).toBe(0);
+    await rig.advance(2);
+    expect(rig.audio.roomLevel("bot-b")).toBe(0);
+  });
+
+  it("is 0 for a room that is not there, and lets go of a room's meter when its bot leaves", async () => {
+    onDiscord();
+    expect(rig.audio.roomLevel("bot-gone")).toBe(0);
+    rig.audio.roomLevel("bot-b");
+    expect(rig.meters.open).toBe(1);
+    rig.setRooms([{ botId: "bot-a", name: "Table" }]);
+    expect(rig.meters.open).toBe(0);
+  });
+
+  it("lets go of every meter when the page goes", async () => {
+    onDiscord();
+    rig.audio.roomLevel("bot-a");
+    rig.audio.roomLevel("bot-b");
+    await rig.audio.dispose();
+    expect(rig.meters.open).toBe(0);
+    expect(rig.audio.roomLevel("bot-a")).toBe(0);
+  });
+});
+
 describe("volume normalisation: what the players hear and what the game master checks (PLY-15)", () => {
   const at = (id: string) => rig.data.tracks.find((t) => t.id === id)!;
   beforeEach(() => {

@@ -1,0 +1,63 @@
+/* Settings (st-), ported from design/prototype/src/views/settings.css. Scoped to .view (the sheets, drawn outside the
+   view, to body .sheet) so the rules win ties with ui.css, which the page loads after the screens. */
+.view .st-body { padding: 10px 12px; overflow: auto; }
+/* Bots on the left, the rest on the right; one column when narrow. */
+.view .st-split { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 10px; align-items: start; }
+@container app (max-width: 1100px) { .view .st-split { grid-template-columns: minmax(0, 1fr); } }
+.view .st-split > .col { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.view .st-split > .col > .pane { flex: none; }
+.view .st-bots { display: flex; flex-direction: column; gap: 8px; }
+.view .st-bot { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-s); background: var(--surface-2); min-width: 0; }
+.view .st-bot-1, .view .st-bot-2 { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
+.view .st-bot-1 b { min-width: 0; }
+.view .st-l, body .sheet .st-l { flex: none; width: 64px; font-size: var(--fs-xs); color: var(--ink-2); font-weight: 700; }
+.view .st-tok { color: var(--ink-2); letter-spacing: .08em; }
+.view .st-tok-new { display: flex; gap: 6px; flex: 1; min-width: 0; }
+.view .st-tok-new .input { flex: 1; min-width: 0; }
+.view .st-none { display: inline-flex; align-items: center; gap: 4px; color: var(--warn); }
+.view .st-err, body .sheet .st-err { display: flex; align-items: center; gap: 6px; color: var(--warn); font-size: var(--fs-s); margin: 4px 0; }
+/* The switches and radios (the prototype's lv-switch and lk-radio). */
+.view .st-sw { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; margin: 2px 0 8px; min-height: 24px; }
+.view .st-sw input { margin-top: 2px; width: 18px; height: 18px; flex: none; }
+.view .st-sw.dis { opacity: .55; cursor: default; }
+.view .st-radio { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; min-height: 24px; font-size: var(--fs-s); }
+.view .st-radio input { width: 16px; height: 16px; margin: 0; }
+.view .st-radio.dis { opacity: .55; cursor: default; }
+.view .st-link { font-size: var(--fs-s); color: var(--ink-2); }
+.view .st-folders .lrow { gap: 8px; }
+/* Round 7: remote control code (SEC-4), headphones and speakers (PRV-2), crossfade (PLY-8), keys (UX-12). */
+.view .st-code { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
+.view .st-codev { font-size: 20px; letter-spacing: .08em; padding: 2px 8px; border: 1px dashed var(--line-strong); border-radius: var(--r-s); }
+.view .st-listen, .view .st-ears { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 6px 0; }
+.view .st-addr2 { display: flex; gap: 8px; align-items: center; margin: 4px 0 8px; }
+.view .st-xf { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 10px; }
+.view .st-keys, body .sheet .st-keys { margin-bottom: 8px; width: 100%; }
+.view .st-keys th[scope=row], body .sheet .st-keys th[scope=row] { font-weight: 400; color: var(--ink); text-align: left; }
+.view .st-keys td, .view .st-keys th, body .sheet .st-keys td, body .sheet .st-keys th { padding: 3px 8px; }
+.view .st-press { color: var(--accent-text); font-weight: 700; }
+.view .row-flex { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* The Add a bot stepper (a sheet, outside the view). */
+body .sheet .st-steps { display: flex; gap: 6px; list-style: none; margin: 0 0 12px; padding: 0; flex-wrap: wrap; }
+body .sheet .st-steps li { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; border-radius: 999px; border: 1px solid var(--line); color: var(--ink-2); font-size: var(--fs-s); }
+body .sheet .st-steps li .num { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--surface-3); color: var(--ink); font-size: var(--fs-xs); }
+body .sheet .st-steps li.now { border-color: var(--accent); color: var(--ink); font-weight: 700; }
+body .sheet .st-steps li.now .num { background: var(--accent); color: var(--accent-ink); }
+body .sheet .st-steps li.done .num { background: var(--surface-3); color: var(--ink-2); }
+body .sheet .st-stepbody { display: flex; flex-direction: column; gap: 10px; }
+body .sheet .st-do { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+body .sheet .st-do li::marker { color: var(--ink-3); }
+body .sheet .st-why { margin: 0; font-weight: 700; }
+body .sheet .st-stepbody .row-flex { display: flex; gap: 6px; }
+body .sheet .st-stepbody .row-flex .input { flex: 1; min-width: 0; }
+body .sheet .st-handbtn { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; background: none; border: 0; padding: 4px 2px; min-height: 24px; color: var(--ink-2); font: inherit; font-size: var(--fs-s); cursor: pointer; border-radius: var(--r-s); }
+body .sheet .st-handbtn:hover { color: var(--ink); text-decoration: underline; }
+body .sheet .st-result { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 10px; border-radius: var(--r-s); background: var(--surface-2); border: 1px solid var(--accent); }
+body .sheet a.btn[aria-disabled="true"] { opacity: .5; cursor: default; }
+
+/* The printable sheet: only it is printed, in black on white. */
+@media print {
+  body * { visibility: hidden; }
+  body .sheet .st-print, body .sheet .st-print * { visibility: visible; color: #000; }
+  body .sheet .st-print { position: absolute; left: 0; top: 0; width: 100%; }
+}

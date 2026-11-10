@@ -9,10 +9,10 @@ import { LookScreen } from "./look/LookScreen";
 import { CampaignScreen, CampaignsScreen, SessionScreen } from "./campaigns";
 import { OutputsScreen } from "./outputs/OutputsScreen";
 import { ProfileScreen } from "./profile/ProfileScreen";
+import { SettingsScreen } from "./settings/SettingsScreen";
 import { BackupScreen } from "./transfer/BackupScreen";
 import { MovedScreen } from "./transfer/MovedScreen";
 import { RelinkScreen } from "./transfer/RelinkScreen";
-import { PlaceholderScreen } from "./Placeholder";
 
 /** What every screen gets: the route it was opened at (its ids are in route.params). */
 export interface ScreenProps {
@@ -44,11 +44,11 @@ export const SCREENS: Record<RouteName, ScreenComponent> = {
   board: BoardScreen,
   live: LiveScreen,
   outputs: OutputsScreen,
+  // w6-rooms (OUT-8): Settings in Lyre.
+  settings: SettingsScreen,
   look: LookScreen,
   // Round 5: Back up, move or share; What came across from Kenku FM; Find missing files (w4-transfer).
   backup: BackupScreen,
   moved: MovedScreen,
   relink: RelinkScreen,
-  // Round 6 (OUT-8): the Rooms and Settings stream swaps this for Settings in Lyre.
-  settings: () => <PlaceholderScreen title="Settings" />,
 };

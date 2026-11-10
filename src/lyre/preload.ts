@@ -6,6 +6,8 @@ import { createLyreOutputsBridge, type IpcRendererLike as OutputsIpc } from "./o
 import { createLyreDiagnosticsBridge, type IpcRendererLike as DiagnosticsIpc } from "./help/preloadDiagnostics";
 import { createLyreRemoteBridge, type IpcRendererLike as RemoteIpc } from "./remote/preloadRemote";
 import { createLyreUpdatesBridge, type IpcRendererLike as UpdatesIpc } from "./updates/preloadUpdates";
+import { createLyreKeysBridge, type IpcRendererLike as KeysIpc } from "./keys/preloadKeys";
+import { createLyreWindowSettingsBridge, type IpcRendererLike as WindowSettingsIpc } from "./windowSettings/preloadWindowSettings";
 import { createLyreDisplayBridge } from "./shell/display";
 
 /**
@@ -24,6 +26,11 @@ import { createLyreDisplayBridge } from "./shell/display";
  *     _NEW_CODE; REMOTE_STATE after each change); src/lyre/remote/preloadRemote.ts.
  *   - updates (w6-found, SEC-14): what automatic updates are doing and the last problem in plain words
  *     (UPDATE_GET; UPDATE_STATE after each change); src/lyre/updates/preloadUpdates.ts.
+ *   - keys (w6-rooms, UX-12): Next scene and Fade everything out in other programs too (LYRE_GLOBAL_KEYS_SET; each
+ *     press as LYRE_GLOBAL_KEY); src/lyre/keys/preloadKeys.ts.
+ *   - windowSettings (w6-rooms, OUT-8): the main window's Sound to Discord and Website tabs settings, Local files and
+ *     Clear website data, for Settings (LYRE_WINDOW_SETTINGS_*, LYRE_LOCAL_FOLDERS_*, LYRE_CLEAR_WEBSITE_DATA);
+ *     src/lyre/windowSettings/preloadWindowSettings.ts.
  *   - display (w6-shell, UX-11): Look and feel › Display's text size zooms this page (webFrame.setZoomFactor, 1 to 2;
  *     no IPC); src/lyre/shell/display.ts.
  * The page runs sandboxed with context isolation; nothing from Node or Electron reaches it except this object.
@@ -39,6 +46,8 @@ const api = {
   diagnostics: createLyreDiagnosticsBridge(ipcRenderer as unknown as DiagnosticsIpc),
   remote: createLyreRemoteBridge(ipcRenderer as unknown as RemoteIpc),
   updates: createLyreUpdatesBridge(ipcRenderer as unknown as UpdatesIpc),
+  keys: createLyreKeysBridge(ipcRenderer as unknown as KeysIpc),
+  windowSettings: createLyreWindowSettingsBridge(ipcRenderer as unknown as WindowSettingsIpc),
   display: createLyreDisplayBridge(webFrame),
 };
 

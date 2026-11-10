@@ -509,6 +509,18 @@ describe("BrowserViewManagerMain: files from the user's computer (SEC-15)", () =
       "/home/gm/music",
     ]);
   });
+
+  // --- w6-rooms ---
+  it("lists and forgets remembered folders for Settings in Lyre (OUT-8), from the Lyre page only", async () => {
+    setup({ remembered: ["/home/gm/maps", "/home/gm/music"] });
+    const lyre = fromMainFrame(fakePage("lyre-view"));
+    await expect(fakeIpcMain.invoke("LYRE_LOCAL_FOLDERS_LIST", lyre)).resolves.toEqual(["/home/gm/maps", "/home/gm/music"]);
+    await expect(fakeIpcMain.invoke("LYRE_LOCAL_FOLDERS_FORGET", lyre, "/home/gm/maps")).resolves.toEqual(["/home/gm/music"]);
+    for (const event of [fromMainFrame(fakePage(null)), fromMainFrame(fakePage("player-view")), fromSubframe(fakePage("lyre-view"))]) {
+      await expect(fakeIpcMain.invoke("LYRE_LOCAL_FOLDERS_LIST", event)).rejects.toThrow();
+      await expect(fakeIpcMain.invoke("LYRE_LOCAL_FOLDERS_FORGET", event, "/home/gm/music")).rejects.toThrow();
+    }
+  });
 });
 
 // --- w3-shell ---

@@ -45,19 +45,30 @@ body .menu .op-mi-w { display: flex; align-items: center; gap: 4px; font-size: v
 .view .op-srv + .op-srv { margin-top: 10px; }
 .view .op-srv-h { display: flex; align-items: center; gap: 6px; font-size: var(--fs-s); font-weight: 700; padding: 0 2px 4px; min-width: 0; }
 .view .op-chs { border: 1px solid var(--line); border-radius: var(--r-m); }
-.view .op-ch { display: grid; grid-template-columns: 16px minmax(60px, max-content) minmax(0, 1fr) auto 76px; align-items: center; gap: 8px; min-height: var(--row); padding: 2px 8px; border-bottom: 1px solid var(--line); min-width: 0; font-size: var(--fs-s); }
+.view .op-ch { display: grid; grid-template-columns: 16px minmax(60px, max-content) minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: var(--row); padding: 2px 8px; border-bottom: 1px solid var(--line); min-width: 0; font-size: var(--fs-s); }
 .view .op-ch:last-child { border-bottom: 0; }
 .view .op-ch.live { box-shadow: inset 3px 0 0 var(--onair); }
 .view .op-ch-n { min-width: 0; max-width: 160px; }
 .view .op-ch-who { color: var(--ink-2); }
 .view .op-botchip { color: var(--ink); }
 .view .op-twice { color: var(--warn); border-color: var(--warn); font-weight: 700; }
-.view .op-bring { justify-self: end; }
-.view .op-ch > .chip { justify-self: end; }
+/* OUT-7 (round 6): a bot in a channel is a chip with its own Kick (×); a channel with no bot has Add. */
+.view .op-add, .view .op-ch-bots { justify-self: end; }
+.view .op-ch-bots { display: flex; gap: 4px; min-width: 0; }
+.view .op-ch-bots:empty { display: none; }
+.view .op-botchip { gap: 4px; padding-right: 2px; max-width: 180px; }
+.view .op-botchip .op-kick { width: 24px; height: 24px; min-height: 24px; padding: 0; border: 0; background: none; }
+.view .op-botchip .op-kick:hover { color: var(--onair); }
 .view .op-nobody { display: inline-flex; align-items: center; gap: 4px; color: var(--warn); font-weight: 700; }
 .view .op-foot { display: flex; align-items: flex-start; gap: 6px; margin-top: 8px; }
 .view .op-foot svg { margin-top: 1px; }
 .view .op-via { font-size: var(--fs-xs); color: var(--ink-2); margin: -2px 0 6px; }
+/* OUT-10: a labelled level meter after the volume. */
+.view .op-lvl { display: inline-flex; align-items: center; gap: 5px; flex: 0 0 auto; }
+.view .op-lvl-l { font-size: var(--fs-xs); color: var(--ink-2); font-weight: 700; }
+.view .op-meter { flex: none; width: 56px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.view .op-meter > span { display: block; height: 100%; width: 0; background: var(--ink-2); border-radius: 3px; transition: width .14s linear; }
+@media (prefers-reduced-motion: reduce) { .view .op-meter > span { transition: none; } }
 
 /* Lyre's own: a bot that is not logged in to Discord, and no bots at all. */
 .view .op-login { margin: 0; font-size: var(--fs-s); color: var(--ink-2); min-width: 0; }

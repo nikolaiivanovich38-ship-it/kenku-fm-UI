@@ -662,6 +662,37 @@ describe("OutputManager: Settings in Lyre (OUT-8)", () => {
     expect(m.removeBotForUndo(first)).toEqual({ ok: false, message: "Lyre needs one bot at least: replace its token instead." });
   });
 
+  // --- w6-rooms ---
+  it("keeps a bot's last Discord name after Disconnect, so Settings still calls it by it (OUT-8)", async () => {
+    discord = new FakeDiscord({ world: { guilds: [{ id: "1001", name: "The Gull and Lantern", channels: [{ id: "1011", name: "Table" }] }], usernames: { [NEW_TOKEN]: "Lyre Third" } } });
+    const m = newManager();
+    const a = m.addBotWithToken(NEW_TOKEN, null);
+    await settle();
+    const id = a.ok ? a.botId : "";
+    m.disconnect(id);
+    await settle();
+    expect(m.state().bots.find((b) => b.id === id)).toMatchObject({ status: "offline", lastDiscordName: "Lyre Third" });
+    expect(m.state().bots.find((b) => b.id === id)!.discordName).toBeUndefined();
+  });
+
+  it("a new bot admitted by an opened invite is in the first server only, as an invite names one server", async () => {
+    discord = new FakeDiscord({
+      world: {
+        guilds: [
+          { id: "1001", name: "The Gull and Lantern", channels: [{ id: "1011", name: "Table" }] },
+          { id: "1002", name: "Night court", channels: [{ id: "1021", name: "Elysium" }] },
+        ],
+        usernames: { [NEW_TOKEN]: "Lyre Third" },
+        notInvited: [NEW_TOKEN],
+      },
+    });
+    const m = newManager();
+    m.inviteOpenedByDriver("123456789012345678");
+    const a = m.addBotWithToken(NEW_TOKEN, "123456789012345678");
+    await settle();
+    expect(m.state().bots.find((x) => a.ok && x.id === a.botId)!.guilds.map((g) => g.name)).toEqual(["The Gull and Lantern"]);
+  });
+
   it("an invite opened in a test build lets the fake Discord admit the new bot (the specs' Add a bot)", async () => {
     discord = new FakeDiscord({ world: { guilds: [{ id: "1001", name: "The Gull and Lantern", channels: [{ id: "1011", name: "Table" }] }], usernames: { [NEW_TOKEN]: "Lyre Third" }, notInvited: [NEW_TOKEN] } });
     const m = newManager();

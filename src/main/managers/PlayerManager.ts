@@ -1,4 +1,6 @@
 import { app, ipcMain, BrowserWindow, safeStorage, webContents } from "electron";
+import os from "os";
+import { homeNetworkAddress } from "../remote/homeNetwork";
 import { PlayerRequests } from "../remote/playerRequests";
 import { RemoteControl, type RemoteState } from "../remote/remoteControl";
 import { RemoteSettingsStore, type RemoteSettings } from "../remote/remoteSettings";
@@ -6,6 +8,7 @@ import { guardIpc } from "../security/ipcGuard";
 import { trustedContents } from "../security/trustedContents";
 
 declare const PLAYER_WINDOW_WEBPACK_ENTRY: string;
+declare const __CUE_DESK_TEST_BUILD__: boolean;
 
 /** How long closing waits for the player to save its changes (PERF-6). */
 export const SAVE_BEFORE_CLOSE_TIMEOUT_MS = 1000;
@@ -29,6 +32,17 @@ let previousRemoteClosed: Promise<void> = Promise.resolve();
 export interface PlayerManagerOptions {
   /** Tests give their own store; the app uses the shared one in the data folder. */
   remoteStore?: RemoteSettingsStore;
+  /** Tests give their own; the app reads this computer's network cards each time Settings asks. */
+  homeAddress?: () => string | null;
+}
+
+/**
+ * Round 7 (Settings › Remote control › Your home network): this computer's private network address. Test builds may
+ * be given one with CUE_DESK_FAKE_HOME_ADDRESS (the e2e machine has no home network); a release build never reads it.
+ */
+function thisComputersHomeAddress(): string | null {
+  const fake = typeof __CUE_DESK_TEST_BUILD__ !== "undefined" && __CUE_DESK_TEST_BUILD__ ? process.env.CUE_DESK_FAKE_HOME_ADDRESS : undefined;
+  return fake || homeNetworkAddress(os.networkInterfaces());
 }
 
 export class PlayerManager {
@@ -49,6 +63,7 @@ export class PlayerManager {
       store: options.remoteStore ?? remoteSettingsStore(),
       host: this,
       onChange: (state) => this._tellPagesAboutRemote(state),
+      homeAddress: options.homeAddress ?? thisComputersHomeAddress,
     });
     this.ipc.on("PLAYER_GET_URL", this._handleGetURL);
     this.ipc.on("PLAYER_REGISTER_VIEW", this._handleRegisterView);

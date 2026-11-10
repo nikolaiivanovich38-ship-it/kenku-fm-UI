@@ -115,6 +115,8 @@ export class DiscordBot extends TypedEmitter<DiscordBotEvents> {
    */
   notice?: string;
   discordName?: string;
+  /** w6-rooms (OUT-8): the Discord name of the last login with this token, kept after a disconnect. */
+  lastDiscordName?: string;
   guilds: GuildInfo[] = [];
   readonly player = createAudioPlayer({
     behaviors: {
@@ -222,6 +224,7 @@ export class DiscordBot extends TypedEmitter<DiscordBotEvents> {
    */
   private async login(token: string, { holdChannels = false }: { holdChannels?: boolean } = {}): Promise<void> {
     this.closeClient({ holdChannels });
+    if (token !== this.token) this.lastDiscordName = undefined;
     this.token = token;
     this.status = "connecting";
     this.error = undefined;
@@ -294,6 +297,7 @@ export class DiscordBot extends TypedEmitter<DiscordBotEvents> {
       return;
     }
     this.discordName = client.user?.username;
+    this.lastDiscordName = this.discordName ?? this.lastDiscordName;
     this.status = "ready";
     this.error = undefined;
     this.loginAttempts = 0;

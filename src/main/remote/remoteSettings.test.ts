@@ -76,6 +76,14 @@ describe("remote-control settings (SEC-4)", () => {
     expect(store.settings().enabled).toBe(true);
   });
 
+  it("replaces a code saved in the older 20-symbol form with a new 8-character one (lead decision, 7 Nov)", () => {
+    const encrypted = fakeSafeStorage().encryptString("AB01-CD23-EF45-GH67-JK89").toString("base64");
+    fs.writeFileSync(file, JSON.stringify({ version: 1, enabled: false, address: "127.0.0.1", port: 3333, encryptedCode: encrypted }));
+    const store = new RemoteSettingsStore(file, fakeSafeStorage());
+    expect(store.code()).toMatch(REMOTE_CODE_PATTERN);
+    expect(new RemoteSettingsStore(file, fakeSafeStorage()).code()).toBe(store.code());
+  });
+
   it("saves on, off, address and port, and keeps them after a restart", () => {
     const store = new RemoteSettingsStore(file, fakeSafeStorage());
     expect(store.update({ enabled: true, address: "192.168.1.20", port: 4000 })).toEqual({

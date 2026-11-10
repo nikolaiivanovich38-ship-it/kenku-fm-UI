@@ -11,6 +11,7 @@ import { EMPTY_LIBRARY, LyreAudioProvider, startLyreAudio, type LyreAudio } from
 import type { LyreAudioBridge } from "./audio/preloadAudio";
 import { useLiveSession } from "./kit/liveSession";
 import { OutputsProvider, outputsLabel, useOutputs, type OutputsClient } from "./outputs/OutputsProvider";
+import { SettingsAppliers } from "./settings/SettingsAppliers";
 import { NowPlayingBar } from "./shell/NowPlayingBar";
 import { FindAndPlay } from "./shell/FindAndPlay";
 import type { PlaceNames } from "./shell/history";
@@ -24,6 +25,7 @@ import type { ThemeId } from "./shell/themes";
  *   <LyreApiProvider>         the library (src/lyre/api), over IPC to the library's own process
  *     <OutputsProvider>       the Discord bots and their rooms (src/lyre/outputs, w4-outputs)
  *       <LyreAudioProvider>   play on air, preview, stop, now playing (src/lyre/audio), fed with the library
+ *         <SettingsAppliers>  this computer's sound devices and the keys that work in other programs (w6-rooms)
  *         <ShellDataProvider> each campaign's table theme, the session loaded in Live, Outputs (n/m), the Now playing bar
  *           {children}
  *
@@ -85,7 +87,7 @@ function WithAudio({ audio, children }: { audio?: LyreAudio; children: React.Rea
   return (
     <LyreAudioProvider audio={started}>
       <FeedLibrary audio={started} />
-      {children}
+      <SettingsAppliers>{children}</SettingsAppliers>
     </LyreAudioProvider>
   );
 }

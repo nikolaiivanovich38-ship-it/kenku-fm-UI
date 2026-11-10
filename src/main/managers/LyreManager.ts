@@ -1,4 +1,6 @@
-import { ipcMain, webContents } from "electron";
+import { globalShortcut, ipcMain, webContents } from "electron";
+import { LYRE_GLOBAL_KEY, type GlobalKeysRequest } from "../../common/globalKeys";
+import { GlobalKeys, type GlobalShortcutLike } from "../globalKeys";
 import { guardIpc } from "../security/ipcGuard";
 import { trustedContents } from "../security/trustedContents";
 import { updateStatus, type UpdateStatus } from "../updateStatus";
@@ -27,18 +29,34 @@ export class LyreManager {
 
   /** SEC-14: stops telling the Lyre page about update changes. */
   private stopUpdateNews: () => void;
+  /**
+   * UX-12 (w6-rooms): Next scene and Fade everything out from other programs, when Settings turns it on. Each press
+   * goes to the Lyre page as LYRE_GLOBAL_KEY; every key is let go of in destroy() (and on quit, src/index.ts).
+   */
+  private globalKeys: GlobalKeys | null = null;
+  private readonly shortcuts?: GlobalShortcutLike;
 
-  constructor(options: { updates?: UpdateStatus } = {}) {
+  constructor(options: { updates?: UpdateStatus; shortcuts?: GlobalShortcutLike } = {}) {
     const updates = options.updates ?? updateStatus;
+    this.shortcuts = options.shortcuts;
     this.ipc.on("LYRE_GET_URL", this._handleGetURL);
     // SEC-14: Settings (round 7) shows what automatic updates are doing, and the last problem in plain words.
     this.ipc.handle("UPDATE_GET", () => updates.state());
     this.stopUpdateNews = updates.onChange((state) => this.getView()?.send("UPDATE_STATE", state));
+    // --- w6-rooms ---
+    this.ipc.handle("LYRE_GLOBAL_KEYS_SET", (_event, request) => this.keys().set(request as GlobalKeysRequest));
   }
 
   destroy() {
     this.ipc.dispose();
     this.stopUpdateNews();
+    this.globalKeys?.dispose();
+  }
+
+  /** Made on first use, so a window that never turns the keys on never touches globalShortcut. */
+  private keys(): GlobalKeys {
+    this.globalKeys ??= new GlobalKeys(this.shortcuts ?? globalShortcut, (action) => this.getView()?.send(LYRE_GLOBAL_KEY, action));
+    return this.globalKeys;
   }
 
   /** The new interface page, or undefined when it is not open (or has been closed). */

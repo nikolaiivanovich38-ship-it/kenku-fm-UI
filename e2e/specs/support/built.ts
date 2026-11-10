@@ -14,7 +14,7 @@
  * Wave 3: when a screen is built, add its name below in the same commit that implements its functions in
  * target.ts.
  */
-export const BUILT_SCREENS: readonly string[] = ["library", "playlists", "audio-profile", "pad-boards", "campaigns", "session-planner", "on-air bar", "look", "outputs", "library-files", "live", "help"];
+export const BUILT_SCREENS: readonly string[] = ["library", "playlists", "audio-profile", "pad-boards", "campaigns", "session-planner", "on-air bar", "look", "outputs", "library-files", "live", "help", "settings"];
 
 /**
  * 0.5.0 (round 6 and round 7): the build streams. A check of round 6 or 7 names the streams that must build it with
@@ -31,4 +31,4 @@ export const BUILT_SCREENS: readonly string[] = ["library", "playlists", "audio-
  * They are a list of their own because "live" is a screen as well as a stream.
  */
 export type Stream = "shell" | "live" | "rooms-settings" | "prep";
-export const BUILT_STREAMS: readonly Stream[] = ["shell"];
+export const BUILT_STREAMS: readonly Stream[] = ["shell", "rooms-settings"];
