@@ -1146,6 +1146,17 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         expectRefused(await api.tags.deleteTag({ group: "mood", value: "Nope" }), "not-found");
       });
 
+      it("DAT-10: a track's tags are in the order they were added (the sample's own order); a merge keeps the earlier place", async () => {
+        const moods = async (id: string) => (await api.library.listTracks()).find((t) => t.id === id)?.tags.mood;
+        // t13 was tagged Dread, then Eerie (the vocabulary has Eerie first).
+        expect(await moods("t13")).toEqual(["Dread", "Eerie"]);
+        valueOf(await api.tags.tagTracks({ trackIds: ["t13"], add: [{ group: "mood", value: "Heroic" }] }));
+        expect(await moods("t13")).toEqual(["Dread", "Eerie", "Heroic"]);
+        // Dread merged into Heroic: Heroic takes Dread's earlier place.
+        valueOf(await api.tags.mergeTag({ group: "mood", value: "Dread" }, "Heroic"));
+        expect(await moods("t13")).toEqual(["Heroic", "Eerie"]);
+      });
+
       it("DAT-10: groups and tags are made, coloured, nested, given other words and moved", async () => {
         const faction = valueOf(await api.tags.createGroup("Faction", "moss"));
         expect(faction).toMatchObject({ name: "Faction", color: "moss", values: [], tags: [] });

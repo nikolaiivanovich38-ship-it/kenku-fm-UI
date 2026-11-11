@@ -25,7 +25,11 @@ describe("writeStandInTone (test builds: the seeded library's files do not exist
     expect(wav.toString("ascii", 8, 12)).toBe("WAVE");
     const sampleRate = wav.readUInt32LE(24);
     const dataBytes = wav.readUInt32LE(40);
-    expect(dataBytes / 2 / sampleRate).toBeGreaterThanOrEqual(15); // long enough to stay playing through a check
+    // Long enough for every start and marker the specs use (Low swell at 3:10, End at 5:18 on t13), with a margin:
+    // a start past the file's end would be moved back to the start (BUG-22).
+    expect(dataBytes / 2 / sampleRate).toBeGreaterThanOrEqual(6 * 60);
+    expect(wav.readUInt16LE(22)).toBe(1); // mono
+    expect(fs.statSync(file).size).toBeLessThan(6 * 1024 * 1024); // small: a low sample rate
     const peak = Math.max(...Array.from({ length: 2000 }, (_, i) => Math.abs(wav.readInt16LE(44 + i * 2))));
     expect(peak).toBeGreaterThan(1000); // audible, so Play on air reaches a room
     expect(peak).toBeLessThan(16384); // and quiet

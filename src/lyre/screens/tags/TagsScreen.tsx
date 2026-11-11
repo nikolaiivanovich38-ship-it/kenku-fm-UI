@@ -218,7 +218,10 @@ function TagRow({ group, shown, count, menu }: { group: TagGroup; shown: ShownTa
     <li className="tg-row" style={{ "--depth": depth } as React.CSSProperties} aria-describedby={id} title={words}>
       <span className="chip tg-chip">
         <span className={`dot tgdot-${group.id}`} style={colour ? { background: PAD_COLOUR[colour].hex } : undefined} />
-        <span className="ellipsis">{info.name}</span>
+        {/* UX-6: a name cut short has its full text on hover. */}
+        <span className="ellipsis" title={info.name}>
+          {info.name}
+        </span>
       </span>
       <span className="sr-only" id={id}>
         {words}

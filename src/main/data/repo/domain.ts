@@ -60,12 +60,15 @@ type DomainTrackRow = {
 
 /** Ids never contain control characters (validate.ts), so this one can join them. */
 const TAG_SEPARATOR = "\u001f";
-/** One row per track with its tag ids, read through the track_tags primary key: no join or sort over every tag. */
+/**
+ * One row per track with its tag ids, each as "<added>:<id>" (DAT-10: the order they were added in), read through the
+ * track_tags primary key: no join or sort over every tag.
+ */
 const TRACK_SELECT = `SELECT tracks.id AS id, kind, title, meta_title, file_name, duration_ms, role, loopable, energy, shape, normalise, ending, resume, ${LOUDNESS_COLUMNS},
   (SELECT follow_track_id FROM track_follows WHERE track_id = tracks.id) AS follow_track_id,
   (SELECT follow_playlist_id FROM track_follows WHERE track_id = tracks.id) AS follow_playlist_id,
   (SELECT suggested_shape FROM track_peaks WHERE track_id = tracks.id) AS suggested_shape,
-  (SELECT group_concat(tag_id, char(31)) FROM track_tags WHERE track_id = tracks.id) AS tag_ids FROM tracks ${LOUDNESS_JOIN}`;
+  (SELECT group_concat(added || ':' || tag_id, char(31)) FROM track_tags WHERE track_id = tracks.id) AS tag_ids FROM tracks ${LOUDNESS_JOIN}`;
 
 function toDomainTrack(row: DomainTrackRow, tags: Record<string, string[]>, profile: AudioProfileInput | null): DomainTrack {
   return {
@@ -112,17 +115,18 @@ export function getDomainLookup(store: Store): DomainLookup {
   const playlists = new Map<string, DomainPlaylist | undefined>();
   let all: DomainTrack[] | null = null;
 
-  /** Tag names by group (every group present), each group's names in vocabulary order. */
+  /** Tag names by group (every group present), each group's names in the order added (DAT-10), then vocabulary order. */
   const tagsOf = (tagIds: string | null) => {
     const tags: Record<string, string[]> = {};
     for (const id of groupIds) tags[id] = [];
     if (tagIds === null) return tags;
     const found = [];
-    for (const id of tagIds.split(TAG_SEPARATOR)) {
-      const tag = vocabulary.get(id);
-      if (tag) found.push(tag);
+    for (const entry of tagIds.split(TAG_SEPARATOR)) {
+      const at = entry.indexOf(":");
+      const tag = vocabulary.get(entry.slice(at + 1));
+      if (tag) found.push({ ...tag, added: Number(entry.slice(0, at)) });
     }
-    found.sort((a, b) => a.rank - b.rank);
+    found.sort((a, b) => a.added - b.added || a.rank - b.rank);
     for (const tag of found) tags[tag.group].push(tag.name);
     return tags;
   };

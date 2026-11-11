@@ -23,6 +23,8 @@ import { updateLive } from "./liveState";
 import { PadGrid } from "./Pads";
 import { AmbienceRow, SceneMusicList } from "./Rows";
 import { SceneUndoStrip } from "./UndoStrips";
+// PLY-8: a scene that differs from the usual is marked the same way as in the planner.
+import { SceneMarks } from "../steps/StepsDialog";
 
 export interface SceneActions {
   start: (index: number) => void;
@@ -39,27 +41,6 @@ export function useFoldedSummary(id: string, openByDefault: boolean, summary: Re
 /** A key as aria-keyshortcuts writes it ("Control+Z", "Shift+Escape", "Space"). */
 export function ariaKey(key: string): string {
   return key.replace(/^Ctrl\+/, "Control+").replace(/Esc$/, "Escape");
-}
-
-/** PLY-8: only a scene that differs from the usual is marked. */
-function SceneMarks({ scene }: { scene: SceneInfo }) {
-  const movesOn = scene.movesOn;
-  return (
-    <>
-      {movesOn && movesOn.when !== "stay" && (
-        <span className="badge r7-mark" title={movesOn.when === "musicEnds" ? "Starts the next scene when its music ends" : `Starts the next scene after ${Math.round(movesOn.ms / 60000)} minutes`}>
-          <Icon name="next" size="s" />
-          Moves on by itself
-        </span>
-      )}
-      {scene.steps && (
-        <span className="badge r7-mark" title="It does its own steps when it starts">
-          <Icon name="list" size="s" />
-          Own start
-        </span>
-      )}
-    </>
-  );
 }
 
 export function ScenesPane({ compact, actions }: { compact: boolean; actions: SceneActions }) {

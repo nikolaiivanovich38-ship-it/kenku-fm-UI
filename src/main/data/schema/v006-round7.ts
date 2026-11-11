@@ -17,6 +17,8 @@
  * - UX-12: `shortcut_keys`, only the keys the game master changed; PLY-8, UX-12: the crossfade between tracks and
  *   Next scene's guard as columns of the one-row `library_settings`.
  * - UX-12 Find and play: pads get search entries (their label), kept by triggers like boards'.
+ * - DAT-10: `track_tags.added`, the order a track's tags were added in (a track shows them in that order); tags
+ *   already on tracks are numbered in vocabulary order, so an existing library looks the same.
  *
  * Frozen once released: later changes go in a new step.
  */
@@ -112,6 +114,8 @@ CREATE TABLE shortcut_keys (
   key TEXT NOT NULL CHECK (length(key) BETWEEN 1 AND 40)
 ) WITHOUT ROWID;
 
+-- DAT-10: the order a track's tags were added in (1, 2, …; a merge keeps the earlier). 0: not said.
+ALTER TABLE track_tags ADD COLUMN added INTEGER NOT NULL DEFAULT 0;
 -- PLY-4: Pick up where it stopped.
 ALTER TABLE tracks ADD COLUMN resume INTEGER NOT NULL DEFAULT 0 CHECK (resume IN (0, 1));
 -- DAT-3: the mix-out marker.
@@ -197,6 +201,13 @@ export const v006Round7: Migration = {
     db.exec(`INSERT INTO track_follows (track_id, follow_track_id)
       SELECT track_id, follow_track_id FROM track_follow_with f
       WHERE position = (SELECT min(position) FROM track_follow_with g WHERE g.track_id = f.track_id)`);
+    // DAT-10: tags already on tracks are numbered in vocabulary order, so an existing library looks as it did.
+    db.exec(`UPDATE track_tags SET added = (
+      SELECT n FROM (
+        SELECT tt.tag_id AS tag_id, row_number() OVER (ORDER BY g.position, t.position, t.rowid) AS n
+        FROM track_tags tt JOIN tags t ON t.id = tt.tag_id JOIN tag_groups g ON g.id = t.group_id
+        WHERE tt.track_id = track_tags.track_id
+      ) WHERE tag_id = track_tags.tag_id)`);
     db.exec(PAD_SEARCH);
     db.exec(`INSERT OR IGNORE INTO search_docs (kind, ref_id) SELECT 'pad', id FROM pads;
       INSERT INTO search_fts (rowid, title, notes) SELECT d.doc_id, p.label, '' FROM search_docs d JOIN pads p ON p.id = d.ref_id WHERE d.kind = 'pad';`);

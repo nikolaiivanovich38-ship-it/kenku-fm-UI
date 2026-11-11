@@ -129,7 +129,9 @@ export function PlaceTracks({ name, playlistId, lane, tracks, place }: { name: s
               onKeyDown={(e) => onKeyDown(e, i)}
               onDragOver={(e) => {
                 if (dragFrom === null) return;
+                // Handled here: the page's drop guard (SEC-7) would otherwise refuse the drop.
                 e.preventDefault();
+                e.stopPropagation();
               }}
               onDrop={(e) => {
                 if (dragFrom === null) return;
