@@ -1,5 +1,5 @@
 /**
- * UX-12 (w6-rooms): the Lyre page's preload half of "Next scene and Fade everything out work in other programs too"
+ * UX-12 (w6-rooms): the Lyre page's preload half of "Next scene and Fade all work in other programs too"
  * (src/lyre/preload.ts exposes it as `window.lyre.keys`). The main process side is LyreManager with
  * src/main/globalKeys.ts. Only a well-formed answer, and only the two actions' names, reach the page. Kept free of
  * Electron imports, so it is unit-tested.

@@ -1,5 +1,5 @@
 /**
- * UX-12 (Settings › Keyboard shortcuts, "Next scene and Fade everything out work in other programs too"): which keys
+ * UX-12 (Settings › Keyboard shortcuts, "Next scene and Fade all work in other programs too"): which keys
  * Lyre may take from every program on the computer, and how its key names become Electron accelerators. Shared by the
  * main process (src/main/globalKeys.ts, which registers them with globalShortcut) and the Lyre page (which says why a
  * key is refused before it asks).
@@ -7,7 +7,7 @@
  * A key registered with globalShortcut is taken from every other program for as long as Lyre runs. So the game master
  * could not type a space in Discord's chat if Next scene kept Space, and could not copy or undo anywhere if it were
  * Ctrl+C or Ctrl+Z. Lyre therefore only offers keys that are not used for typing or by other programs' own commands:
- * an F key (with or without modifiers, but not Alt+F4 or Ctrl+F4: CR-7), Shift+Esc (Lyre's Fade everything out), or a key with two modifiers of which
+ * an F key (with or without modifiers, but not Alt+F4 or Ctrl+F4: CR-7), Shift+Esc (Lyre's Fade all), or a key with two modifiers of which
  * one is Ctrl or Alt (Ctrl+Shift+N, Alt+Shift+N, Ctrl+Alt+PageDown). Review 0.5.0 CR-6: not Ctrl+Alt with a key that
  * types (Ctrl+Alt+E), because Windows reports AltGr as Ctrl+Alt, and AltGr types @, € and # on Belgian AZERTY.
  */

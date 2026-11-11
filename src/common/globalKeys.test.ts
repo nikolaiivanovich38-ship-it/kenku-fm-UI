@@ -30,7 +30,7 @@ describe("keys that work in other programs too (UX-12, Settings › Keyboard sho
       "Space cannot work in other programs: you type with it there. Give Next scene a key such as F9 or Ctrl+Shift+N (Change… above), then turn this on.",
     );
     for (const key of ["N", "Shift+N", "/", "Enter", "Esc", "Left", "Delete", "Tab"]) {
-      expect(globalKeyProblem("fadeAll", key), key).toMatch(/^.+ cannot work in other programs: you type with it there\. Give Fade everything out a key such as F9/);
+      expect(globalKeyProblem("fadeAll", key), key).toMatch(/^.+ cannot work in other programs: you type with it there\. Give Fade all a key such as F9/);
     }
   });
 
@@ -51,7 +51,7 @@ describe("keys that work in other programs too (UX-12, Settings › Keyboard sho
 
   it("CR-7 (review 0.5.0): refuses Alt+F4 and Ctrl+F4, which close windows and tabs in every program", () => {
     expect(globalKeyProblem("fadeAll", "Alt+F4")).toBe(
-      "Alt+F4 is a key other programs use for themselves (closing a window or a tab). Give Fade everything out a key such as F9 or Ctrl+Shift+N (Change… above), then turn this on.",
+      "Alt+F4 is a key other programs use for themselves (closing a window or a tab). Give Fade all a key such as F9 or Ctrl+Shift+N (Change… above), then turn this on.",
     );
     for (const key of ["Ctrl+F4", "Ctrl+Alt+F4", "Alt+Shift+F4", "Ctrl+Shift+F4"]) {
       expect(globalKeyProblem("nextScene", key), key).toMatch(/closing a window or a tab/);

@@ -30,7 +30,7 @@ export class LyreManager {
   /** SEC-14: stops telling the Lyre page about update changes. */
   private stopUpdateNews: () => void;
   /**
-   * UX-12 (w6-rooms): Next scene and Fade everything out from other programs, when Settings turns it on. Each press
+   * UX-12 (w6-rooms): Next scene and Fade all from other programs, when Settings turns it on. Each press
    * goes to the Lyre page as LYRE_GLOBAL_KEY; every key is let go of in destroy() (and on quit, src/index.ts).
    */
   private globalKeys: GlobalKeys | null = null;

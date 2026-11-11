@@ -359,7 +359,7 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
     };
     /**
      * Keys that Settings lets work in other programs too reach the page only as this event (Windows gives them to the
-     * registration, not to the page): the same Next scene and Fade everything out as the keys pressed here. Taking it
+     * registration, not to the page): the same Next scene and Fade all as the keys pressed here. Taking it
      * (preventDefault) tells the shell not to fade on its own. Until Settings' keys have loaded, Live takes nothing.
      */
     const onGlobalKey = (event: Event) => {

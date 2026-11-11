@@ -129,7 +129,7 @@ describe("LyreManager: keys that work in other programs too (UX-12, globalShortc
     };
   }
 
-  it("registers Next scene and Fade everything out for the Lyre page only, and tells the page each press", async () => {
+  it("registers Next scene and Fade all for the Lyre page only, and tells the page each press", async () => {
     const shortcuts = fakeShortcuts();
     manager = new LyreManager({ shortcuts });
     const lyre = fakePage("lyre-view");

@@ -20,7 +20,7 @@ function fakeShortcuts(heldElsewhere: string[] = []) {
   return shortcuts;
 }
 
-describe("GlobalKeys: Next scene and Fade everything out from other programs (UX-12, globalShortcut)", () => {
+describe("GlobalKeys: Next scene and Fade all from other programs (UX-12, globalShortcut)", () => {
   it("registers nothing until it is turned on", () => {
     const shortcuts = fakeShortcuts();
     new GlobalKeys(shortcuts, () => undefined);
@@ -78,7 +78,7 @@ describe("GlobalKeys: Next scene and Fade everything out from other programs (UX
     const shortcuts = fakeShortcuts();
     const keys = new GlobalKeys(shortcuts, () => undefined);
     expect(keys.set({ on: true, keys: { nextScene: "F9", fadeAll: "F9" } }).refused).toEqual([
-      { action: "fadeAll", key: "F9", message: "F9 is already Next scene. Give Fade everything out another key." },
+      { action: "fadeAll", key: "F9", message: "F9 is already Next scene. Give Fade all another key." },
     ]);
   });
 

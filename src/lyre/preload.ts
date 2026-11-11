@@ -26,7 +26,7 @@ import { createLyreDisplayBridge } from "./shell/display";
  *     _NEW_CODE; REMOTE_STATE after each change); src/lyre/remote/preloadRemote.ts.
  *   - updates (w6-found, SEC-14): what automatic updates are doing and the last problem in plain words
  *     (UPDATE_GET; UPDATE_STATE after each change); src/lyre/updates/preloadUpdates.ts.
- *   - keys (w6-rooms, UX-12): Next scene and Fade everything out in other programs too (LYRE_GLOBAL_KEYS_SET; each
+ *   - keys (w6-rooms, UX-12): Next scene and Fade all in other programs too (LYRE_GLOBAL_KEYS_SET; each
  *     press as LYRE_GLOBAL_KEY); src/lyre/keys/preloadKeys.ts.
  *   - windowSettings (w6-rooms, OUT-8): the main window's Sound to Discord and Website tabs settings, Local files and
  *     Clear website data, for Settings (LYRE_WINDOW_SETTINGS_*, LYRE_LOCAL_FOLDERS_*, LYRE_CLEAR_WEBSITE_DATA);

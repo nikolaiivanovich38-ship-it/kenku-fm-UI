@@ -419,7 +419,7 @@ describe("UX-12: keys that work in other programs too", () => {
     expect(screen.queryByRole("button", { name: "Restart scene 2: Greyhollow inn" })).toBeNull();
   });
 
-  it("Fade everything out from another program fades every room", async () => {
+  it("Fade all from another program fades every room", async () => {
     const { sound } = await openLive();
     await userEvent.click(screen.getByRole("button", { name: "Start: Recap and the coast road" }));
     await playOn(sound);

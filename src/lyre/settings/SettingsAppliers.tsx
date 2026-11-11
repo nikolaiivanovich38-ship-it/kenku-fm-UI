@@ -3,10 +3,10 @@
  *   - PRV-2: the preview's device and a split headset go to the audio host after settings.get() and after each change
  *     (ARCHITECTURE.md "What the screen streams must know"); left at the defaults, nothing is sent, since the preview
  *     already plays on the default device in both ears (asking again makes Chromium switch devices for nothing).
- *   - UX-12: with "Next scene and Fade everything out work in other programs too" on, their keys are registered in
+ *   - UX-12: with "Next scene and Fade all work in other programs too" on, their keys are registered in
  *     the main process (window.lyre.keys, src/main/globalKeys.ts); what it refused is kept for Settings to show.
  *     Each press reaches the page as a cancelable window event, GLOBAL_KEY_EVENT ({ action }): Live takes Next scene
- *     and Fade everything out there (and calls preventDefault); a Fade everything out nobody took fades every room
+ *     and Fade all there (and calls preventDefault); a Fade all nobody took fades every room
  *     here, so it works on any screen. A key registered for other programs is not seen by Lyre's own key handlers
  *     (Windows gives it to the registration), so Live must listen for this event too.
  */

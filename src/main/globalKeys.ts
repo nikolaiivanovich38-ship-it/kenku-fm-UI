@@ -1,5 +1,5 @@
 /**
- * UX-12: Next scene and Fade everything out from other programs too (Settings › Keyboard shortcuts, off by default),
+ * UX-12: Next scene and Fade all from other programs too (Settings › Keyboard shortcuts, off by default),
  * with Electron's globalShortcut. Only the two actions' keys are ever registered, only while the switch is on, and
  * every one Lyre registered is let go of when the switch goes off, a key changes, the main window closes
  * (LyreManager.destroy) and when Lyre quits (src/index.ts, will-quit).

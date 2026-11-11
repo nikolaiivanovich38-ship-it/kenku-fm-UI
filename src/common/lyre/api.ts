@@ -694,7 +694,7 @@ export interface PutResult {
  * Settings round 7 adds. With the library (in backups, not in .lyre files): the crossfade (Settings › Sound to
  * Discord › Between tracks), the keys the game master changed and Next scene's guard. Per computer (kept beside the
  * library, never in a backup or a .lyre file, and no undo step): Look and feel › Display, Headphones and speakers, and
- * whether Next scene and Fade everything out work in other programs too.
+ * whether Next scene and Fade all work in other programs too.
  */
 export interface LyreSettings {
   crossfade: Crossfade;

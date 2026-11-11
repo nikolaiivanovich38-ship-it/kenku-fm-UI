@@ -174,7 +174,7 @@ if (startupOutcome === "run") {
       .finally(() => app.quit());
   });
 
-  // UX-12 (w6-rooms): keys Lyre took from every program for Next scene and Fade everything out go back on quit.
+  // UX-12 (w6-rooms): keys Lyre took from every program for Next scene and Fade all go back on quit.
   app.on("will-quit", () => globalShortcut.unregisterAll());
 
   app.on("second-instance", () => {
