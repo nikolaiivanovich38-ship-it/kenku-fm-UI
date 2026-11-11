@@ -16,6 +16,7 @@ import type { RemoteState } from "../../../common/remoteControl";
 import { useLyreApi, useLyreSettings } from "../../api";
 import { useLyreAudio } from "../../audio";
 import type { OutputDeviceInfo } from "../../audio/lyreAudio";
+import { copyText } from "../../kit/copyText";
 import { Dialog } from "../../kit/Dialog";
 import { Icon } from "../../kit/Icon";
 import { Pane } from "../../kit/Pane";
@@ -255,10 +256,7 @@ export function RemotePane() {
               type="button"
               className="btn s"
               onClick={() => {
-                void navigator.clipboard?.writeText(state.code).then(
-                  () => toast("Code copied"),
-                  () => toast("Lyre could not copy the code: type it on the other device."),
-                );
+                void copyText(state.code).then((copied) => toast(copied ? "Code copied" : "Lyre could not copy the code: type it on the other device."));
               }}
             >
               <Icon name="file" size="s" />
