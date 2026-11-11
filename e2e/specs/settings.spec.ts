@@ -210,8 +210,8 @@ test.describe("round 7: remote control needs a secret code", () => {
 
 test.describe("round 7: headphones and speakers", () => {
   test("the preview has its own device, remembered; no On air device (lead decision, 7 Nov: heard only through Discord)", async ({ page }) => {
-    // w6-rooms: the app lists the computer's own devices; the e2e machine has no "Headset (Arctis 7)", so this needs
-    // a test build's stand-in device list as well (reported to the lead).
+    // The app lists the computer's own devices; test builds add the prototype's stand-ins (src/lyre/audio/standInDevices.ts),
+    // since the e2e machine has none. Playing on a stand-in falls back to the default device.
     expectFailureUntilBuilt("live", "rooms-settings");
     await openRoute(page, "settings");
     const box = await unfold(page, "Headphones and speakers");

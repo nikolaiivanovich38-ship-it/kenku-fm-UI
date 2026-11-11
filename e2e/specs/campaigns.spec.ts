@@ -459,7 +459,9 @@ test.describe("round 6, part 6: the Saved pop-up at the bottom right, Back alway
   test.beforeEach(() => expectFailureUntilBuilt("shell"));
   const back = (page: Page) => page.getByRole("main").getByRole("button", { name: /^Back( to .+)?$/ }).first();
   const trail = (page: Page) => page.getByRole("navigation", { name: "Breadcrumb" });
+  // Measured once drawn: right after a route change the screen draws again, and a box read in between is null.
   const box = async (l: ReturnType<Page["getByRole"]>) => {
+    await expect(l).toBeVisible();
     const b = await l.boundingBox();
     if (!b) throw new Error("not on screen");
     return b;
@@ -614,6 +616,9 @@ test.describe("round 6, part 7: Back is one history across the whole app", () =>
     expectFailureUntilBuilt("shell", "rooms-settings"); // it starts on Settings
     await openRoute(page, "settings");
     await menu(page, "Library").click();
+    // Measured once Back is drawn for the new place (its name follows the route change), not the frame before.
+    await expect(back(page)).toBeVisible();
+    await expect(back(page)).toHaveAccessibleName("Back to Settings");
     const b = await back(page).boundingBox();
     expect(b!.width).toBeGreaterThanOrEqual(24);
     expect(b!.height).toBeGreaterThanOrEqual(24);

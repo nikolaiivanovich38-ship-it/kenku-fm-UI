@@ -19,7 +19,6 @@ import { fromAudioContext, type EngineContext, type GainLike, type NodeLike, typ
 import { createBrowserEngine } from "../../player/engine/browser";
 import type { PlaybackEngine } from "../../player/engine/engine";
 import {
-  browserDeviceSource,
   OutputDeviceChooser,
   storageChoiceStore,
   type ChoiceStore,
@@ -45,6 +44,7 @@ import { browserObjectUrls, ReadAhead } from "../../player/engine/sources/readAh
 import { readBytes } from "../../player/engine/sources/readBytes";
 import { SourceLoader, type MediaRequest } from "../../player/engine/sources/sourceLoader";
 import { storedResumePositions } from "../../player/engine/queue/resumePositions";
+import { outputDeviceSource } from "./deviceSource";
 import { EngineLyreAudio, type LyreAudioLibrary, type RoomMeter } from "./lyreAudio";
 import type { LyreAudioBridge } from "./preloadAudio";
 
@@ -162,7 +162,8 @@ export async function startLyreAudio(options: { window: Window; bridge: LyreAudi
     createTap,
     previewOutput,
     previewLoad: (media) => previewLoader.load(media),
-    devices: browserDeviceSource(target.navigator.mediaDevices),
+    // Test builds add the prototype's stand-in devices (standInDevices.ts); a release build lists real ones only.
+    devices: outputDeviceSource(target.navigator.mediaDevices),
     store: storageChoiceStore(safeStorage(target)),
     resumePositions: storedResumePositions(safeStorage(target)),
     readAhead,
