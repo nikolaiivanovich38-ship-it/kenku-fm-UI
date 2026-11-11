@@ -264,3 +264,16 @@ boxes), campaigns, pad-boards and audio-profile (UX-R3 round 6 cuts, with the ke
 keyboard is in their box), settings (UX-R11 Add a bot's errors under their fields, UX-R16 the version) and help
 (UX-R15 the article's title). The pop-up's words are read from the live region a moment after it shows, so a spec
 that counts what is read out polls (`expect.poll`, campaigns.spec).
+
+## w51-fix2 (Nik's 0.5.0 findings: keys, the crash, the updater)
+
+`e2e/liveFixes.spec.ts` checks, in the packaged app, what Nik saw on Windows: Ctrl+Z undoing Live's last change (after
+a click into Live, after another program had the keyboard, and still undoing typing in a text field), Next scene on F9
+(registered in every program and pressed with Lyre or another window in front, pressed while Settings shows, and in
+Live with "work in other programs too" off), a track's Audio profile opened from a scene in Live, and a Kick undone.
+Its keys are pressed on the keyboard through the X server (`e2e/osKeys.ts` runs `e2e/fixtures/osKeys.py`, XTest), so
+the app menu's Edit › Undo and keys registered with globalShortcut meet them as they meet a real keyboard; Playwright's
+own presses go straight to the page and cannot show that. Without an X server with XTest those tests are skipped.
+Unit checks: `Shell.test.tsx` (a fault never leaves a blank page), `SettingsAppliers.test.tsx` (keys in other programs
+that could not be asked for; Next scene's key on another screen), `LiveScreen.test.tsx` (Ctrl+Z after a Kick; the
+Audio profile from a scene), `updateFeed.test.ts` and `autoUpdate.test.ts` (a Releases page with only drafts).

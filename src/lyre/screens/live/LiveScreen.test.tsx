@@ -585,6 +585,44 @@ describe("Current scene: choosing what plays", () => {
     expect(current().getByRole("link", { name: /profile/i })).toHaveAttribute("href", "#/profile/t13/sc:crown:s14:sc3");
   });
 
+  it.each([
+    ["the running scene, its track on air", "Scene 3: The abbey ruins", "The abbey ruins"],
+    ["another scene", "Scene 4: Crypt ambush", "Crypt ambush"],
+  ])("w51-fix2: a track's Audio profile in an unfolded scene (%s) opens the Audio profile, the music still on air (Nik's 0.5.0 crash)", async (_, scene, name) => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    const sceneButton = region("Scenes").getByRole("button", { name: scene });
+    if (sceneButton.getAttribute("aria-expanded") !== "true") await userEvent.click(sceneButton);
+    const row = within(region("Scenes").getByRole("list", { name: `${name}: music in play order` })).getAllByRole("listitem")[0];
+    await userEvent.click(within(row).getByRole("button", { name: /\(click for details\)|^Eerie|^[A-Z]/, expanded: false }));
+    await userEvent.click(within(row).getByRole("link", { name: /Audio profile/i }));
+    await playOn(sound);
+    expect(screen.queryByText(/Something went wrong/)).toBeNull();
+    expect(await screen.findByRole("heading", { level: 1, name: /Audio profile/i })).toBeInTheDocument();
+    expect(sound.audio.getNowPlaying().rooms[0].music).not.toBeNull();
+  });
+
+  it("w51-fix2: the Audio profile of a track inside a scene's playlist opens, in the unfolded scene and in Current scene", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    for (const box of ["Scenes", "Current scene"]) {
+      if (box === "Scenes" && region("Scenes").getByRole("button", { name: "Scene 3: The abbey ruins" }).getAttribute("aria-expanded") !== "true") {
+        await userEvent.click(region("Scenes").getByRole("button", { name: "Scene 3: The abbey ruins" }));
+      }
+      await userEvent.click(region(box).getAllByRole("button", { name: "Show contents of The Abbess" })[0]);
+      const inner = within(region(box).getAllByRole("list", { name: "Tracks in The Abbess" })[0]).getAllByRole("listitem")[0];
+      await userEvent.click(within(inner).getAllByRole("button", { expanded: false })[0]);
+      await userEvent.click(within(inner).getByRole("link", { name: /Audio profile/i }));
+      await playOn(sound);
+      expect(screen.queryByText(/Something went wrong/)).toBeNull();
+      expect(await screen.findByRole("heading", { level: 1, name: /Audio profile/i })).toBeInTheDocument();
+      act(() => window.history.back());
+      await screen.findByRole("heading", { level: 1, name: "Live" });
+    }
+  });
+
   it("a playlist opens to show its tracks; it has its play order for this scene (PLY-13)", async () => {
     await openLive();
     await startAbbey();
