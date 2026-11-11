@@ -76,6 +76,11 @@ export class StableRooms implements RoomsAudio {
         return real;
       }
     }
+    // A room listed under its own id is that room, even when the table took that id while no bot was in a room
+    // (w51-fix2: the first bot was in a room before this existed, left, and came back).
+    if (this.real.some((room) => room.botId === engineId)) {
+      return engineId;
+    }
     return engineId === this.tableId ? TABLE_ROOM : engineId;
   }
 
