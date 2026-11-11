@@ -98,7 +98,7 @@ vi.mock("./main/security/appInfoIpc", () => ({
 }));
 vi.mock("./assets/icon.png", () => ({ default: "icon.png" }));
 vi.mock("./bounds", () => ({
-  getSavedBounds: () => ({ bounds: {}, maximized: false }),
+  getSavedBounds: () => ({ bounds: {}, maximized: false, minimum: { width: 800, height: 485 } }),
   saveWindowBounds: vi.fn(),
 }));
 vi.mock("./autoUpdate", () => ({ runAutoUpdate: vi.fn() }));
@@ -182,6 +182,11 @@ describe("main window (SEC-10, SEC-7, SEC-3)", () => {
 
   it("has no frame of its own: Lyre's top strip is the title bar, with the system's buttons drawn over it (FND-16 step 2)", () => {
     expect(mainWindow().options).toMatchObject({ titleBarStyle: "hidden", titleBarOverlay: { height: 36 } });
+  });
+
+  it("takes its smallest size from the screen's work area, so a maximised window stops at the taskbar (FND-16)", () => {
+    // The mocked saved bounds report a small screen, 485 points high above its taskbar.
+    expect(mainWindow().options).toMatchObject({ minWidth: 800, minHeight: 485, width: 800, height: 485 });
   });
 
   it("keeps the browser's own user agent: only website tabs needed the spoofed one", () => {

@@ -3,11 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   constructed: 0,
   values: new Map<string, unknown>(),
+  workArea: { x: 0, y: 0, width: 1920, height: 1080 },
 }));
 
 vi.mock("electron", () => ({
   screen: {
-    getDisplayMatching: () => ({ workArea: { x: 0, y: 0, width: 1920, height: 1080 } }),
+    getDisplayMatching: () => ({ workArea: mocks.workArea }),
+    getPrimaryDisplay: () => ({ workArea: mocks.workArea }),
   },
 }));
 vi.mock("electron-store", () => ({
@@ -33,6 +35,7 @@ describe("window position store (FND-1)", () => {
     expect(bounds.getSavedBounds(800, 600)).toEqual({
       bounds: { x: 10, y: 20, width: 900, height: 700 },
       maximized: undefined,
+      minimum: { width: 800, height: 600 },
     });
     expect(mocks.constructed).toBe(1);
 
@@ -80,5 +83,28 @@ describe("clampToWorkArea (FND-16: Nik's 0.5.0 window ran past the taskbar and t
     mocks.values.set("bounds", { x: -8, y: -8, width: 1936, height: 1096 });
     // The mocked display's work area is 1920×1080.
     expect(bounds.getSavedBounds(800, 600).bounds).toEqual({ x: 0, y: 0, width: 1920, height: 1080 });
+  });
+});
+
+describe("the window's smallest size fits the screen (FND-16: a maximised window must stay above the taskbar)", () => {
+  it("is Lyre's smallest size on a screen large enough for it", async () => {
+    const { smallestSizeFor } = await import("./bounds");
+    expect(smallestSizeFor({ x: 0, y: 0, width: 1280, height: 680 }, 800, 600)).toEqual({ width: 800, height: 600 });
+  });
+
+  it("shrinks to the work area on a small screen, so Windows can maximise the window inside it (1366×768 at 150 %)", async () => {
+    const { smallestSizeFor } = await import("./bounds");
+    // 1366×768 at 150 % is 911×512 in screen points; a 40 px taskbar leaves 911×485.
+    expect(smallestSizeFor({ x: 0, y: 0, width: 911, height: 485 }, 800, 600)).toEqual({ width: 800, height: 485 });
+  });
+
+  it("is worked out from the screen the window opens on, saved or not", async () => {
+    const bounds = await import("./bounds");
+    mocks.workArea = { x: 0, y: 0, width: 911, height: 485 };
+    mocks.values.delete("bounds");
+    expect(bounds.getSavedBounds(800, 600)).toMatchObject({ bounds: {}, minimum: { width: 800, height: 485 } });
+    mocks.values.set("bounds", { x: 0, y: 0, width: 900, height: 700 });
+    expect(bounds.getSavedBounds(800, 600)).toMatchObject({ bounds: { x: 0, y: 0, width: 900, height: 485 }, minimum: { width: 800, height: 485 } });
+    mocks.workArea = { x: 0, y: 0, width: 1920, height: 1080 };
   });
 });

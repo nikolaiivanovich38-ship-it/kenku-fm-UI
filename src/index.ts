@@ -55,20 +55,21 @@ const createWindow = (): BrowserWindow => {
   const minWidth = 800;
   const minHeight = 600;
 
-  // Create the browser window.
-  const { bounds, maximized } = getSavedBounds(minWidth, minHeight);
+  // Create the browser window. FND-16: its place, size and smallest size all fit the screen's work area, so a
+  // maximised window stops at the taskbar and the screen's edge.
+  const { bounds, maximized, minimum } = getSavedBounds(minWidth, minHeight);
 
   const mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
+    width: minimum.width,
+    height: minimum.height,
     webPreferences: {
       preload: LYRE_WINDOW_PRELOAD_WEBPACK_ENTRY,
     },
     // FND-16 step 2: Lyre's top strip is the title bar; the system draws its own buttons over its right end.
     ...windowFrameOptions(),
     icon: bundledAssetPath(icon, __dirname),
-    minWidth,
-    minHeight,
+    minWidth: minimum.width,
+    minHeight: minimum.height,
     ...bounds,
   });
 

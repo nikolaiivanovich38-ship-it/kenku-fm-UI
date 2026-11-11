@@ -119,7 +119,9 @@ test("the shell passes axe (WCAG 2.2 A and AA, colour contrast included) in Cand
   }
 });
 
-test("a link the Lyre page opens goes to the system browser, https only, and opens no window (FND-16)", async ({ app, mainWindow }) => {
+test("a link the Lyre page opens goes to the system browser, https only, and opens no window (FND-16)", async ({ app, mainWindow, errors }) => {
+  // The file: and http: links are refused on purpose; the main process says so once for each.
+  errors.expectedMainRefusals.push(/Refused to open external link/, /Refused to open external link/);
   const lyre = await openLyreTab(mainWindow);
   await app.evaluate(({ shell }) => {
     const opened: string[] = [];

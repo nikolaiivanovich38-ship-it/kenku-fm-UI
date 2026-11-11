@@ -33,6 +33,15 @@ export function clampToWorkArea(bounds: Rectangle, area: Rectangle, minWidth: nu
   return { x, y, width, height };
 }
 
+/**
+ * FND-16: Lyre's smallest size, cut down to the work area on a screen smaller than it (1366×768 at 150 % leaves about
+ * 911×485 points). Windows keeps a maximised window at least its minimum size, so a minimum taller than the work area
+ * would push the window under the taskbar again.
+ */
+export function smallestSizeFor(area: Rectangle, minWidth: number, minHeight: number): { width: number; height: number } {
+  return { width: Math.min(minWidth, area.width), height: Math.min(minHeight, area.height) };
+}
+
 const isNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
 
 export function getSavedBounds(
@@ -41,11 +50,17 @@ export function getSavedBounds(
 ): {
   bounds: Partial<Rectangle>;
   maximized: boolean;
+  /** The smallest size to give the window, fitted to the screen it opens on. */
+  minimum: { width: number; height: number };
 } {
   const bounds = store().get("bounds");
   const maximized = store().get("maximized");
-  if (!bounds || ![bounds.x, bounds.y, bounds.width, bounds.height].every(isNumber)) return { bounds: {}, maximized };
-  return { bounds: clampToWorkArea(bounds, screen.getDisplayMatching(bounds).workArea, minWidth, minHeight), maximized };
+  if (!bounds || ![bounds.x, bounds.y, bounds.width, bounds.height].every(isNumber)) {
+    return { bounds: {}, maximized, minimum: smallestSizeFor(screen.getPrimaryDisplay().workArea, minWidth, minHeight) };
+  }
+  const area = screen.getDisplayMatching(bounds).workArea;
+  const minimum = smallestSizeFor(area, minWidth, minHeight);
+  return { bounds: clampToWorkArea(bounds, area, minimum.width, minimum.height), maximized, minimum };
 }
 
 export function saveWindowBounds(window: BrowserWindow) {
