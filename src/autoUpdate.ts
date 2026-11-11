@@ -1,23 +1,31 @@
 import fs from "fs";
 import path from "path";
-import { app, autoUpdater, BrowserWindow } from "electron";
+import { app, autoUpdater, BrowserWindow, net } from "electron";
 import { GITHUB_REPO } from "./main/appIdentity";
-import { buildUpdateFeedUrl } from "./main/updateFeed";
+import { buildUpdateFeedUrl, hasPublishedRelease } from "./main/updateFeed";
 import { isNoPublishedUpdate, updateStatus, type UpdateStatus } from "./main/updateStatus";
 
 const CHECK_INTERVAL_MS = 15 * 60 * 1000;
 
-function checkForAppUpdates() {
+/** Whether the feed has a release at all (w51-fix2): false when every release is a draft, null when unknown. */
+type HasRelease = (feedUrl: string) => Promise<boolean | null>;
+
+const askFeed: HasRelease = (feedUrl) => hasPublishedRelease(feedUrl, (address) => net.fetch(address));
+
+async function checkForAppUpdates(feedUrl: string, status: UpdateStatus, hasRelease: HasRelease) {
   if (process.platform === "win32") {
     const squirrelCommand = process.argv[1];
     if (squirrelCommand === "--squirrel-firstrun") {
       return;
     }
   }
-
-  if (app.isReady()) {
-    autoUpdater.checkForUpdates();
+  if (!app.isReady()) return;
+  // Nothing published (a Releases page with only drafts): no update, and Update.exe is not run to fail on it.
+  if ((await hasRelease(feedUrl)) === false) {
+    status.upToDate();
+    return;
   }
+  autoUpdater.checkForUpdates();
 }
 
 /**
@@ -36,7 +44,9 @@ export function isSquirrelInstall(
  * SEC-14: check the fork's GitHub releases for updates every 15 minutes.
  * Does nothing when the feed cannot be built (repository not configured or
  * platform without update support) and, on Windows, for copies not set up by
- * the installer (the zip build). Every step is recorded in `status` (the Lyre
+ * the installer (the zip build). Before each check the feed is asked whether
+ * anything is published (w51-fix2): with only drafts it is up to date, and
+ * Squirrel's Update.exe is not run. Every step is recorded in `status` (the Lyre
  * page reads it for Settings); errors are logged and the first of a run is
  * shown in the main window's message box in plain words.
  */
@@ -44,6 +54,7 @@ export function runAutoUpdate(
   window: BrowserWindow,
   isInstalled: () => boolean = () => isSquirrelInstall(),
   status: UpdateStatus = updateStatus,
+  hasRelease: HasRelease = askFeed,
 ) {
   const url = buildUpdateFeedUrl({
     repo: GITHUB_REPO,
@@ -94,7 +105,7 @@ export function runAutoUpdate(
   }
 
   const interval = setInterval(() => {
-    checkForAppUpdates();
+    void checkForAppUpdates(url, status, hasRelease);
   }, CHECK_INTERVAL_MS);
 
   window.on("close", () => {

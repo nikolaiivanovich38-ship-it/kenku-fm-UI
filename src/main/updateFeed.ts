@@ -41,3 +41,23 @@ export function buildUpdateFeedUrl({ repo, platform, arch, version }: UpdateFeed
   const name = encodeURIComponent(repo.repo);
   return `${UPDATE_SERVER}/${owner}/${name}/${platform}-${arch}/${version}`;
 }
+
+/** Fetch as Electron's net.fetch does (the main process passes it; tests pass a fake). */
+export type FetchFeed = (url: string) => Promise<Response>;
+
+/**
+ * w51-fix2: whether the feed has a release to compare with, asked before Squirrel's Update.exe runs.
+ * update.electronjs.org skips drafts and answers 404 for RELEASES when every release is a draft (Lyre's Releases page
+ * until a release is published); Update.exe then stops with an error, which Lyre showed as a fault. So: false for that
+ * 404 (nothing published, this copy is up to date), true for a RELEASES file, null when the feed could not be asked
+ * or failed otherwise (the updater runs and reports what went wrong).
+ */
+export async function hasPublishedRelease(feedUrl: string, fetchFeed: FetchFeed): Promise<boolean | null> {
+  try {
+    const response = await fetchFeed(`${feedUrl}/RELEASES`);
+    if (response.status === 404) return false;
+    return response.ok ? true : null;
+  } catch {
+    return null;
+  }
+}

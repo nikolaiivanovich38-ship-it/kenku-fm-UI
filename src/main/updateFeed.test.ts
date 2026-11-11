@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { buildUpdateFeedUrl } from "./updateFeed";
+import { describe, expect, it, vi } from "vitest";
+import { buildUpdateFeedUrl, hasPublishedRelease } from "./updateFeed";
 import { GITHUB_REPO, isGithubRepoConfigured, readmeUrl } from "./appIdentity";
 
 const repo = { owner: "nikolaiivanovich38-ship-it", repo: "kenku-fm-UI" };
@@ -48,5 +48,28 @@ describe("app identity (FND-1)", () => {
 
   it("has no README link while the repository is a placeholder", () => {
     expect(readmeUrl({ owner: "TODO", repo: "x" })).toBeNull();
+  });
+});
+
+describe("hasPublishedRelease (w51-fix2)", () => {
+  const FEED = "https://update.electronjs.org/nikolaiivanovich38-ship-it/kenku-fm-UI/win32-x64/0.5.0";
+
+  it("asks the feed for the RELEASES file Squirrel's updater reads", async () => {
+    const fetchFeed = vi.fn(async () => new Response("", { status: 200 }));
+    await hasPublishedRelease(FEED, fetchFeed);
+    expect(fetchFeed).toHaveBeenCalledWith(`${FEED}/RELEASES`);
+  });
+
+  it("is false when the feed has nothing published: update.electronjs.org answers 404 when every release is a draft", async () => {
+    expect(await hasPublishedRelease(FEED, async () => new Response("Not Found", { status: 404 }))).toBe(false);
+  });
+
+  it("is true when the feed answers with a RELEASES file", async () => {
+    expect(await hasPublishedRelease(FEED, async () => new Response("SHA1 lyre-0.5.1-full.nupkg 1", { status: 200 }))).toBe(true);
+  });
+
+  it("does not know (null) when the feed cannot be reached or fails, so the updater itself tries and reports", async () => {
+    expect(await hasPublishedRelease(FEED, async () => Promise.reject(new Error("net::ERR_INTERNET_DISCONNECTED")))).toBeNull();
+    expect(await hasPublishedRelease(FEED, async () => new Response("", { status: 503 }))).toBeNull();
   });
 });
