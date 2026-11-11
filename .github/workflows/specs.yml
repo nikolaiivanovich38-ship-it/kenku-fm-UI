@@ -238,12 +238,6 @@ jobs:
           name: lyre-linux-x64-test-build
       - name: Unpack the test build
         run: mkdir -p out && tar -xf lyre-linux-x64.tar -C out
-      - name: Describe the machine's sound and screen (TEMPORARY, for comparing with a local run)
-        continue-on-error: true
-        run: |
-          ls -l /dev/snd || true; cat /proc/asound/cards || true; aplay -L 2>&1 | head -20 || true
-          pactl info 2>&1 | head -5 || true; ps -eo comm | grep -iE "pulse|pipewire|wireplumber" || true
-          echo "XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR DBUS=$DBUS_SESSION_BUS_ADDRESS"; fc-list | wc -l; nproc; free -g | head -2
       - name: Run every end-to-end test
         id: e2e
         env:
