@@ -1,6 +1,6 @@
 import { app, ipcMain, BrowserWindow, safeStorage, webContents } from "electron";
 import os from "os";
-import { homeNetworkAddress } from "../remote/homeNetwork";
+import { homeNetworkAddress, ownNetworkAddresses } from "../remote/homeNetwork";
 import { PlayerRequests } from "../remote/playerRequests";
 import { RemoteControl, type RemoteState } from "../remote/remoteControl";
 import { RemoteSettingsStore, type RemoteSettings } from "../remote/remoteSettings";
@@ -19,7 +19,7 @@ export const SAVE_BEFORE_CLOSE_TIMEOUT_MS = 1000;
  */
 let sharedRemoteStore: RemoteSettingsStore | undefined;
 function remoteSettingsStore(): RemoteSettingsStore {
-  sharedRemoteStore ??= new RemoteSettingsStore(RemoteSettingsStore.fileIn(app.getPath("userData")), safeStorage);
+  sharedRemoteStore ??= new RemoteSettingsStore(RemoteSettingsStore.fileIn(app.getPath("userData")), safeStorage, { ownAddresses: thisComputersAddresses });
   return sharedRemoteStore;
 }
 
@@ -41,8 +41,17 @@ export interface PlayerManagerOptions {
  * be given one with CUE_DESK_FAKE_HOME_ADDRESS (the e2e machine has no home network); a release build never reads it.
  */
 function thisComputersHomeAddress(): string | null {
-  const fake = typeof __CUE_DESK_TEST_BUILD__ !== "undefined" && __CUE_DESK_TEST_BUILD__ ? process.env.CUE_DESK_FAKE_HOME_ADDRESS : undefined;
-  return fake || homeNetworkAddress(os.networkInterfaces());
+  return fakeHomeAddress() || homeNetworkAddress(os.networkInterfaces());
+}
+
+/** CR-2: the addresses the remote control may listen on besides 127.0.0.1 must be among these (the test build's too). */
+function thisComputersAddresses(): string[] {
+  const fake = fakeHomeAddress();
+  return [...ownNetworkAddresses(os.networkInterfaces()), ...(fake ? [fake] : [])];
+}
+
+function fakeHomeAddress(): string | undefined {
+  return typeof __CUE_DESK_TEST_BUILD__ !== "undefined" && __CUE_DESK_TEST_BUILD__ ? process.env.CUE_DESK_FAKE_HOME_ADDRESS : undefined;
 }
 
 export class PlayerManager {

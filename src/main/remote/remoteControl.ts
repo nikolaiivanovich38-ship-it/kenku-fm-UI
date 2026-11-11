@@ -8,7 +8,7 @@ import type { RemoteHost } from ".";
 import { isHomeNetworkAddress } from "./homeNetwork";
 import { createRemoteServer } from "./remoteServer";
 import type { RemoteState } from "../../common/remoteControl";
-import type { Checked, RemoteSettings, RemoteSettingsStore } from "./remoteSettings";
+import { remoteAddressProblem, type Checked, type RemoteSettings, type RemoteSettingsStore } from "./remoteSettings";
 
 export type { RemoteState } from "../../common/remoteControl";
 
@@ -84,7 +84,10 @@ export class RemoteControl {
     await this.stopServer();
     this.problem = undefined;
     const settings = this.options.store.settings();
-    if (settings.enabled) {
+    // CR-2: checked again before listening, whoever changed the settings: a home-network address must be this computer's.
+    const addressProblem = settings.enabled ? remoteAddressProblem(settings.address, this.options.store.ownAddresses()) : null;
+    if (addressProblem) this.problem = addressProblem;
+    else if (settings.enabled) {
       const server = createRemoteServer({
         host: this.options.host,
         code: () => this.options.store.code(),

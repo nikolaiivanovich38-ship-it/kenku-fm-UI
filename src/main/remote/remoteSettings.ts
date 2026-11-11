@@ -11,9 +11,10 @@ import net from "net";
 import path from "path";
 
 import { canEncrypt, type SafeStorageLike } from "../broadcast/botTokenStore";
+import { isPrivateListenAddress, sameForm } from "./homeNetwork";
 import { REMOTE_CODE_PATTERN, generateRemoteCode } from "./remoteCode";
 
-import type { RemoteSettings } from "../../common/remoteControl";
+import { THIS_COMPUTER_ONLY, type RemoteSettings } from "../../common/remoteControl";
 
 export type { RemoteSettings };
 
@@ -34,16 +35,38 @@ interface StoredFile extends RemoteSettings {
 
 export type Checked<T> = T | { error: string };
 
-export function checkRemoteAddress(value: unknown): Checked<{ address: string }> {
-  const address = typeof value === "string" ? value.trim() : "";
-  if (address.length <= 64 && (address === "localhost" || net.isIP(address) !== 0)) {
-    return { address };
+const NOT_AN_ADDRESS =
+  "Type this computer's address in numbers: 127.0.0.1 for this computer only, or its network address " +
+  "(such as 192.168.1.20) for a Stream Deck or phone on your network.";
+
+/**
+ * CR-2 (review 0.5.0, SEC-4): what is wrong with an address for the remote control to listen on, in plain words, or
+ * null when it may. Only 127.0.0.1, or a private address this computer has (`ownAddresses`). With `ownAddresses`
+ * null, a private address is not checked against this computer (a saved one, checked again before listening).
+ */
+export function remoteAddressProblem(address: string, ownAddresses: readonly string[] | null): string | null {
+  const plain = sameForm(address);
+  if (plain === THIS_COMPUTER_ONLY) return null;
+  if (plain.length > 64 || net.isIP(plain) === 0) return NOT_AN_ADDRESS;
+  if (/^0\.0\.0\.0$/.test(plain) || /^[0:]+$/.test(plain)) {
+    return "Lyre never listens on every address (0.0.0.0 or ::): choose This computer only, or Your home network.";
   }
-  return {
-    error:
-      "Type this computer's address in numbers: 127.0.0.1 for this computer only, or its network address " +
-      "(such as 192.168.1.20) for a Stream Deck or phone on your network.",
-  };
+  if (!isPrivateListenAddress(plain)) {
+    return (
+      `Lyre does not listen on ${plain}: that is this computer's own loopback or an internet address. Use 127.0.0.1 for ` +
+      "this computer only, or Your home network, so nobody outside your home can reach it."
+    );
+  }
+  if (ownAddresses && !ownAddresses.map(sameForm).includes(plain)) {
+    return `This computer does not have the address ${plain} now. Choose Your home network again in Settings to use the one it has.`;
+  }
+  return null;
+}
+
+export function checkRemoteAddress(value: unknown, ownAddresses: readonly string[] = []): Checked<{ address: string }> {
+  if (typeof value !== "string") return { error: NOT_AN_ADDRESS };
+  const problem = remoteAddressProblem(value, ownAddresses);
+  return problem ? { error: problem } : { address: sameForm(value) };
 }
 
 export function checkRemotePort(value: unknown): Checked<{ port: number }> {
@@ -54,6 +77,13 @@ export function checkRemotePort(value: unknown): Checked<{ port: number }> {
   return { error: `Choose a port number from ${MIN_REMOTE_PORT} to ${MAX_REMOTE_PORT}, for example 3333.` };
 }
 
+export interface RemoteSettingsStoreOptions {
+  /** Tests give their own; the app makes a random code (remoteCode.ts). */
+  generate?: () => string;
+  /** CR-2: this computer's network addresses, asked each time (ownNetworkAddresses in the app); none: 127.0.0.1 only. */
+  ownAddresses?: () => readonly string[];
+}
+
 export class RemoteSettingsStore {
   private current: RemoteSettings = { ...DEFAULT_REMOTE_SETTINGS };
   private secret = "";
@@ -61,11 +91,16 @@ export class RemoteSettingsStore {
   /** True when the code is saved encrypted and survives a restart. */
   readonly codeRemembered: boolean;
 
+  private readonly generate: () => string;
+  private readonly askOwnAddresses: () => readonly string[];
+
   constructor(
     private readonly filePath: string,
     private readonly safeStorage: SafeStorageLike,
-    private readonly generate: () => string = () => generateRemoteCode(),
+    options: RemoteSettingsStoreOptions = {},
   ) {
+    this.generate = options.generate ?? (() => generateRemoteCode());
+    this.askOwnAddresses = options.ownAddresses ?? (() => []);
     this.codeRemembered = canEncrypt(safeStorage);
     this.load();
     if (!this.secret) {
@@ -85,6 +120,11 @@ export class RemoteSettingsStore {
     return this.secret;
   }
 
+  /** CR-2: this computer's network addresses now, which a home-network address must be one of. */
+  ownAddresses(): readonly string[] {
+    return this.askOwnAddresses();
+  }
+
   /** Change some settings. Nothing changes if any value is refused. */
   update(change: Partial<RemoteSettings>): Checked<RemoteSettings> {
     const next = { ...this.current };
@@ -92,7 +132,7 @@ export class RemoteSettingsStore {
       next.enabled = change.enabled === true;
     }
     if (change.address !== undefined) {
-      const address = checkRemoteAddress(change.address);
+      const address = checkRemoteAddress(change.address, this.ownAddresses());
       if ("error" in address) return address;
       next.address = address.address;
     }
@@ -127,10 +167,11 @@ export class RemoteSettingsStore {
     } catch {
       return;
     }
-    const address = checkRemoteAddress(data.address);
     const port = checkRemotePort(data.port);
-    if (typeof data.enabled === "boolean" && !("error" in address) && !("error" in port)) {
-      this.current = { enabled: data.enabled, address: address.address, port: port.port };
+    if (typeof data.enabled === "boolean" && !("error" in port)) {
+      // CR-2: an address of a kind never allowed goes back to 127.0.0.1; a private one is checked before listening.
+      const address = typeof data.address === "string" && !remoteAddressProblem(data.address, null) ? sameForm(data.address) : THIS_COMPUTER_ONLY;
+      this.current = { enabled: data.enabled, address, port: port.port };
     }
     if (this.codeRemembered && typeof data.encryptedCode === "string") {
       try {

@@ -847,7 +847,7 @@ you leave the screen.
 
 ### Technical details
 
-- **Settings and code.** `src/main/remote/remoteSettings.ts` keeps `{ enabled, address, port }` and the code in `remote-control.json` (mode 0600, written through a fresh temporary file like `discord-bots.json`). Defaults: off, `127.0.0.1`, 3333. The address must be `localhost` or an IP address (at most 64 characters), the port 1024 to 65535; a damaged or edited file falls back to the defaults. The code (`remoteCode.ts`) is 20 Crockford base32 symbols from 13 random bytes (100 bits), shown as five groups of four; it is encrypted with `safeStorage` (`encryptedCode`), or kept in memory only where `canEncrypt` says no (then a new code each start; `codeRemembered: false`). One store is shared by every `PlayerManager`, so a reload keeps the code.
+- **Settings and code.** `src/main/remote/remoteSettings.ts` keeps `{ enabled, address, port }` and the code in `remote-control.json` (mode 0600, written through a fresh temporary file like `discord-bots.json`). Defaults: off, `127.0.0.1`, 3333. The address must be `127.0.0.1` or a private address this computer has (since review 0.5.0 CR-2; see that section), the port 1024 to 65535; a damaged or edited file falls back to the defaults. The code (`remoteCode.ts`) is 20 Crockford base32 symbols from 13 random bytes (100 bits), shown as five groups of four; it is encrypted with `safeStorage` (`encryptedCode`), or kept in memory only where `canEncrypt` says no (then a new code each start; `codeRemembered: false`). One store is shared by every `PlayerManager`, so a reload keeps the code.
 - **Server.** `remoteServer.ts` `createRemoteServer` (fastify 5, `bodyLimit` 16 KB) runs one `onRequest` hook before every route, in this order: at most 600 requests a minute per address (429 with `Retry-After`); any `Origin` header refused (403); `Host` must be `localhost`, an IPv4 address or a bracketed IPv6 address with the server's port (403; DNS rebinding needs a name); an address with 10 wrong codes in 10 minutes refused (429); `Authorization: Bearer <code>` compared with `codesMatch` (SHA-256 of both, `timingSafeEqual`), else 401 with `WWW-Authenticate: Bearer realm="Lyre"`. The `text/plain` body reader is removed, so only JSON bodies are read (415 otherwise). A `preSerialization` hook drops `url` keys and `file:` text from every answer. Unknown routes answer 401 before 404, so they reveal nothing without the code.
 - **Lifecycle.** `remoteControl.ts` `RemoteControl` starts, moves or stops the server to match the settings, one change at a time, and turns listen errors into plain words (port taken, address not on this computer, port not allowed). `PlayerManager` makes one per main-window load, starts it if it was left on (after the previous window's server has closed), and closes it in `destroy()` without changing the setting. The old Settings' `PLAYER_START_REMOTE` / `PLAYER_STOP_REMOTE` now set the settings (a refused address or a listen problem goes to the main window's `ERROR`).
 - **Updates.** `src/main/updateStatus.ts` records each step of Electron's `autoUpdater` (`src/autoUpdate.ts`: checking, downloading, up to date, ready, error, or off with the reason) and turns errors into plain words without the user's folder names (`plainUpdateError`). The first error after a working check goes to the main window's `ERROR`; later ones only to the log and the state, as checks repeat every 15 minutes.
@@ -956,6 +956,8 @@ other program would lose them. The keys go back when you turn it off, change a k
 - **Home network** (`homeNetwork.ts`): `RemoteState.homeAddress` is this computer's private IPv4 address (RFC 1918;
   192.168 first, then 10, then 172.16–31), or null. `RemoteControl` passes on only an address `isHomeNetworkAddress`
   accepts, so neither a public address nor 0.0.0.0 is ever offered; the page sets it through `REMOTE_SET` as before.
+  Until review 0.5.0 this was true only of the address offered: the address listened on was any IP address, 0.0.0.0
+  included. The main process now refuses those too (CR-2, below).
   Test builds may be given one with `CUE_DESK_FAKE_HOME_ADDRESS` (`PlayerManager`, gated on `__CUE_DESK_TEST_BUILD__`).
 - **Global keys** (`src/main/globalKeys.ts`, `src/common/globalKeys.ts`): `LyreManager` registers at most two
   accelerators with `globalShortcut`, for nextScene and fadeAll, only while the page asks with `on: true`;
@@ -997,3 +999,25 @@ other program would lose them. The keys go back when you turn it off, change a k
 
 1. Settings › Remote control: turn it on; the code is two groups of four; `Invoke-WebRequest http://127.0.0.1:3333/v1/playlist -Headers @{ Authorization = "Bearer <code>" }` lists playlists. Choose Your home network: the address shown is 192.168.x.x (or 10.x.x.x); from a phone on the same Wi-Fi, the same request with that address works; Make a new code, and the old one is refused.
 2. Settings › Keyboard shortcuts: turn on "in other programs too" with Next scene on Space: it says Space cannot work there. Give Next scene F9, turn it on, click into Discord and press F9: Live moves to the next scene; type a space in Discord's chat: it types. Turn it off: F9 does nothing outside Lyre. Quit Lyre: F9 works for other programs again.
+
+## review-0.5.0 fixes
+
+### In plain language
+
+The remote control now listens only where Settings says it can, whatever asks it: on this computer only (127.0.0.1),
+or on this computer's own address on your home network. "Every address" (0.0.0.0 or ::), an internet address, and an
+address this computer does not have are refused in plain words, even if an old setting or a faulty page asks for one.
+If your computer is not on the home network it was set up on, the remote control waits and says why, instead of
+listening somewhere else.
+
+### Technical details
+
+- **Listen address (CR-2).** `remoteAddressProblem` (`src/main/remote/remoteSettings.ts`) allows `127.0.0.1`, or an
+  address `isPrivateListenAddress` (`homeNetwork.ts`) accepts (RFC 1918, 169.254/16, fe80::/10, fc00::/7) that is one
+  of this computer's addresses (`ownNetworkAddresses(os.networkInterfaces())`, zone dropped, lower case; a test build
+  adds `CUE_DESK_FAKE_HOME_ADDRESS`). 0.0.0.0, `::`, loopback other than 127.0.0.1 (`localhost`, `::1`), IPv4-mapped
+  and internet addresses are refused. It runs in three places: `RemoteSettingsStore.update` (so `REMOTE_SET` and the
+  one-time move of the old setting are checked), `load` (an address of a kind never allowed goes back to 127.0.0.1;
+  on and the port are kept), and `RemoteControl.apply` just before `listen`, against the addresses the computer has at
+  that moment, so a saved home-network address the computer no longer has is not listened on and Settings shows why.
+

@@ -194,6 +194,14 @@ describe("PlayerManager: remote-control settings over IPC (SEC-4)", () => {
     });
   });
 
+  it("CR-2: refuses 0.0.0.0, :: and an internet address from the page, and stays on this computer only", async () => {
+    manager = newManager();
+    for (const address of ["0.0.0.0", "::", "8.8.8.8"]) {
+      expect(await fakeIpcMain.invoke("REMOTE_SET", fromMainFrame(lyre()), { enabled: true, address }), address).toEqual({ error: expect.any(String) });
+    }
+    expect(manager.remote.state()).toMatchObject({ enabled: false, running: false, address: "127.0.0.1" });
+  });
+
   it("refuses settings of the wrong shape", async () => {
     manager = newManager();
     const sender = fromMainFrame(lyre());

@@ -153,6 +153,18 @@ describe("RemoteControl (SEC-4)", () => {
     await home.close();
   });
 
+  it("CR-2: does not listen on a saved home-network address this computer no longer has, and says why", async () => {
+    const port = await freePort();
+    fs.writeFileSync(RemoteSettingsStore.fileIn(folder), JSON.stringify({ version: 1, enabled: true, address: "192.168.77.5", port }));
+    const away = new RemoteSettingsStore(RemoteSettingsStore.fileIn(folder), noEncryption, { ownAddresses: () => [] });
+    const control = new RemoteControl({ store: away, host: { getView: () => view as never, requests } });
+    const state = await control.start();
+    expect(state).toMatchObject({ enabled: true, running: false, address: "192.168.77.5" });
+    expect(state.problem).toMatch(/does not have the address 192\.168\.77\.5/);
+    expect(control.listeningAddresses()).toEqual([]);
+    await control.close();
+  });
+
   it("does not offer an address that is not a private one, whatever it is told", async () => {
     const odd = new RemoteControl({ store, host: { getView: () => view as never, requests }, homeAddress: () => "0.0.0.0" });
     expect(odd.state().homeAddress).toBeNull();
