@@ -5,6 +5,7 @@ import PCMStream from "./PCMStream.worklet";
 // @ts-ignore
 import PlayerFrameInlet from "./PlayerFrameInlet.worklet";
 import {
+  framesFrom,
   isPlayerAudioMessage,
   type AudioPortLike,
   type CaptureAudioMessage,
@@ -164,6 +165,10 @@ export class AudioCaptureManagerPreload {
   _playerPort?: AudioPortLike;
   /** Engine rooms' frames, one inlet per room that is sending. */
   _playerInlets = new Map<string, PlayerInlet>();
+  /** w51-audio: each room's own frames channel from the player page's audio thread. */
+  _roomFramePorts = new Map<string, AudioPortLike>();
+  /** w51-audio: the preview's own frames channel. */
+  _previewFramePort?: AudioPortLike;
   /** w51-audio: frames, holes and drops per room id (and "preview"), since this window loaded. */
   _audioTiming = new Map<string, InletTiming>();
   /** w51-audio: the counts at the last log line, and its timer (running only while frames come). */
@@ -250,6 +255,9 @@ export class AudioCaptureManagerPreload {
     }
     this._ready = undefined;
     this._sendToPlayer({ kind: "broadcast", active: false });
+    for (const room of [...this._roomFramePorts.keys()]) {
+      this._closeRoomFramePort(room);
+    }
     for (const room of [...this._playerInlets.keys()]) {
       this._releasePlayerInlet(room);
     }
@@ -381,6 +389,12 @@ export class AudioCaptureManagerPreload {
    */
   setPlayerPort(port: AudioPortLike): void {
     this._playerPort?.close?.();
+    // The player page starts over on a new channel and sends new frames channels.
+    for (const room of [...this._roomFramePorts.keys()]) {
+      this._closeRoomFramePort(room);
+    }
+    this._previewFramePort?.close?.();
+    this._previewFramePort = undefined;
     this._playerPort = port;
     port.onmessage = (event) => {
       if (this._playerPort === port && isPlayerAudioMessage(event.data)) {
@@ -406,7 +420,54 @@ export class AudioCaptureManagerPreload {
       case "preview-sink":
         void this._setPreviewSink(message.id, message.deviceId);
         break;
+      case "room-frames":
+        this._takeRoomFramePort(message.room, message.port);
+        break;
+      case "preview-frames":
+        this._takePreviewFramePort(message.port);
+        break;
     }
+  }
+
+  /**
+   * w51-audio: a room's frames now come over a channel of their own, straight from the player page's audio thread
+   * (a busy page used to hold them up: Nik heard 0.5.0 stutter). They are played exactly as frames on the player
+   * channel are.
+   */
+  _takeRoomFramePort(room: string, port: AudioPortLike): void {
+    this._closeRoomFramePort(room);
+    this._roomFramePorts.set(room, port);
+    port.onmessage = (event) => {
+      if (this._roomFramePorts.get(room) !== port) return;
+      for (const frame of framesFrom(event.data)) {
+        this._playRoomFrame(room, frame.index, frame.samples);
+      }
+    };
+    port.start?.();
+  }
+
+  _closeRoomFramePort(room: string): void {
+    const port = this._roomFramePorts.get(room);
+    if (!port) return;
+    this._roomFramePorts.delete(room);
+    port.onmessage = null;
+    port.close?.();
+  }
+
+  /** w51-audio: the preview's frames over a channel of their own, as `_takeRoomFramePort`. */
+  _takePreviewFramePort(port: AudioPortLike): void {
+    if (this._previewFramePort) {
+      this._previewFramePort.onmessage = null;
+      this._previewFramePort.close?.();
+    }
+    this._previewFramePort = port;
+    port.onmessage = (event) => {
+      if (this._previewFramePort !== port) return;
+      for (const frame of framesFrom(event.data)) {
+        void this._playPreviewFrame(frame.index, frame.samples);
+      }
+    };
+    port.start?.();
   }
 
   /**
@@ -593,6 +654,9 @@ export class AudioCaptureManagerPreload {
       return;
     }
     this._rooms = [...rooms];
+    for (const room of [...this._roomFramePorts.keys()]) {
+      if (!this._rooms.includes(room)) this._closeRoomFramePort(room);
+    }
     this._syncRooms();
   }
 

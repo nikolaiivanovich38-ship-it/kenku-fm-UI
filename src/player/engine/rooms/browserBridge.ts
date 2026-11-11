@@ -8,10 +8,12 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import pcmStreamUrl from "../../../preload/managers/PCMStream.worklet.js?asset";
+import type { AudioPortLike } from "../../../common/playerAudio";
 import { fromAudioContext, type NodeLike } from "../audio/types";
 import {
   createBridgedPreviewOutput,
   type BridgedPreviewOutput,
+  type FrameChannelFactory,
   type FrameTapFactory,
   type PlayerAudioLink,
   type TapFrame,
@@ -41,6 +43,12 @@ export function listenForPlayerAudioPort(
   return () => target.removeEventListener("message", onMessage);
 }
 
+/** w51-audio: a channel for one tap's frames, from this page's audio thread to the capture window. */
+export const browserFrameChannel: FrameChannelFactory = () => {
+  const channel = new MessageChannel();
+  return { port1: channel.port1 as unknown as AudioPortLike, port2: channel.port2 as unknown as AudioPortLike };
+};
+
 /** Frames are 960 samples = 20 ms only at this rate, the rate Discord's Opus uses. */
 export const BRIDGE_SAMPLE_RATE = 48_000;
 
@@ -62,6 +70,9 @@ export async function createBrowserFrameTaps(audioContext: BaseAudioContext): Pr
     };
     return {
       input: node as unknown as NodeLike,
+      // w51-audio: the frames go from the audio thread straight to `port`, never through this page's main thread.
+      sendTo: (port) =>
+        node.port.postMessage({ kind: "send-to", port }, port ? [port as unknown as Transferable] : []),
       dispose: () => {
         node.port.onmessage = null;
         node.disconnect();
@@ -87,6 +98,7 @@ export async function createBrowserBridgedPreview(link: PlayerAudioLink): Promis
     context: fromAudioContext(audioContext),
     link,
     createTap,
+    createChannel: browserFrameChannel,
     closeContext: () => audioContext.close(),
   });
   // PRV-2: with one headset split, a panner before the bridge puts the preview in one ear (the frames stay stereo);

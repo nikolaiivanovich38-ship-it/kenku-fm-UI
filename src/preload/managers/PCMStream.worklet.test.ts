@@ -102,4 +102,38 @@ describe("PCMStream worklet (PERF-4)", () => {
     // 8 quanta = 1024 samples: one complete frame, posted at once.
     expect(messages.map((message) => message.length)).toEqual([1]);
   });
+
+  it("w51-audio: posts its frames to a port it is given instead of its own, and back to its own when told", () => {
+    const node = new PCMStream({});
+    const own: Frame[][] = [];
+    const port = node.port as unknown as { postMessage(message: Frame[]): void; onmessage: ((event: { data: unknown }) => void) | null };
+    port.postMessage = (message) => own.push(message);
+    const elsewhere: { message: Frame[]; transfer?: unknown[] }[] = [];
+    let closed = false;
+    const target = { postMessage: (message: Frame[], transfer?: unknown[]) => elsewhere.push({ message, transfer }), close: () => (closed = true) };
+
+    port.onmessage?.({ data: { kind: "send-to", port: target } });
+    feed(node, 8, 0.5);
+    expect(own).toEqual([]);
+    expect(elsewhere).toHaveLength(1);
+    expect(elsewhere[0].message[0].index).toBe(0);
+    // The samples move without a copy.
+    expect(elsewhere[0].transfer).toEqual([elsewhere[0].message[0].samples.buffer]);
+
+    port.onmessage?.({ data: { kind: "send-to", port: null } });
+    expect(closed).toBe(true);
+    feed(node, 8, 0.5);
+    expect(own).toHaveLength(1);
+    expect(elsewhere).toHaveLength(1);
+  });
+
+  it("w51-audio: ignores other messages on its own port", () => {
+    const node = new PCMStream({});
+    const own: Frame[][] = [];
+    const port = node.port as unknown as { postMessage(message: Frame[]): void; onmessage: ((event: { data: unknown }) => void) | null };
+    port.postMessage = (message) => own.push(message);
+    for (const odd of [null, "send-to", { kind: "send-to", port: {} }, { kind: "other" }]) port.onmessage?.({ data: odd });
+    feed(node, 8, 0.5);
+    expect(own).toHaveLength(1);
+  });
 });

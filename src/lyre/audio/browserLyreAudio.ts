@@ -30,10 +30,12 @@ import {
   RoomMixer,
   RoomStreams,
   type BridgedPreviewOutput,
+  type FrameChannelFactory,
   type FrameTapFactory,
 } from "../../player/engine/rooms";
 import {
   BRIDGE_SAMPLE_RATE,
+  browserFrameChannel,
   createBrowserBridgedPreview,
   createBrowserFrameTaps,
   listenForPlayerAudioPort,
@@ -60,6 +62,8 @@ export interface LyreAudioPieces {
   engine: PlaybackEngine;
   link: PlayerAudioLink;
   createTap: FrameTapFactory;
+  /** w51-audio: each room's frames go to the capture window over a channel of their own, past this page's main thread. */
+  createChannel?: FrameChannelFactory;
   previewOutput: BridgedPreviewOutput;
   /** Makes sources in the preview's own context. */
   previewLoad: (media: MediaRequest) => Promise<PlayableSource>;
@@ -81,7 +85,7 @@ export interface LyreAudioPieces {
 export function assembleLyreAudio(pieces: LyreAudioPieces): EngineLyreAudio {
   const { bridge, link, previewOutput } = pieces;
   const mixer = new RoomMixer(pieces.context);
-  const streams = new RoomStreams({ mixer, link, createTap: pieces.createTap });
+  const streams = new RoomStreams({ mixer, link, createTap: pieces.createTap, createChannel: pieces.createChannel });
   const preview = new PreviewPlayer({ output: previewOutput, load: pieces.previewLoad, scheduler: pieces.previewScheduler });
   const previewDevices = new OutputDeviceChooser({ devices: pieces.devices, store: pieces.store });
   // The capture window plays the preview; it needs the device each time a
@@ -160,6 +164,7 @@ export async function startLyreAudio(options: { window: Window; bridge: LyreAudi
     engine,
     link,
     createTap,
+    createChannel: browserFrameChannel,
     previewOutput,
     previewLoad: (media) => previewLoader.load(media),
     // Test builds add the prototype's stand-in devices (standInDevices.ts); a release build lists real ones only.

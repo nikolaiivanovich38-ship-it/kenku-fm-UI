@@ -731,6 +731,59 @@ describe("AudioCaptureManagerPreload: engine rooms and preview from the player p
     }
   });
 
+  it("w51-audio: plays a room's frames that come over the room's own channel, as if they came on the player channel", async () => {
+    const { manager, port } = await withPlayer();
+    const frames = new FakePort();
+    port.deliver({ kind: "room-frames", room: B, port: frames });
+    expect(inlets()).toHaveLength(0);
+    frames.deliver([{ index: 4, samples: new Float32Array(1920), last: false }]);
+    expect(inlets()).toHaveLength(1);
+    expect(inlets()[0].connections).toEqual(new Set([manager._mixes.get(B)!.volume]));
+    expect(inlets()[0].port.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ index: 4, samples: expect.any(Float32Array) }),
+      [expect.any(ArrayBuffer)],
+    );
+    frames.deliver([{ index: 5, samples: new Float32Array(3) }]);
+    frames.deliver({ index: 6, samples: new Float32Array(1920) });
+    expect(inlets()[0].port.postMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("w51-audio: closes a room's frames channel when the room goes, a new one comes, the broadcast stops or the player channel is replaced", async () => {
+    const { manager, port } = await withPlayer();
+    const [a1, a2, b] = [new FakePort(), new FakePort(), new FakePort()];
+    port.deliver({ kind: "room-frames", room: A, port: a1 });
+    port.deliver({ kind: "room-frames", room: B, port: b });
+    port.deliver({ kind: "room-frames", room: A, port: a2 });
+    expect(a1.closed).toBe(true);
+    manager.setRooms([A]);
+    expect(b.closed).toBe(true);
+    await manager.stopBroadcast();
+    expect(a2.closed).toBe(true);
+
+    await manager.startBroadcast("lowLatency");
+    const a3 = new FakePort();
+    port.deliver({ kind: "room-frames", room: A, port: a3 });
+    manager.setPlayerPort(new FakePort());
+    expect(a3.closed).toBe(true);
+  });
+
+  it("w51-audio: plays the preview's frames that come over its own channel, and closes the old one for a new one", async () => {
+    const manager = newManager();
+    const port = new FakePort();
+    manager.setPlayerPort(port);
+    const first = new FakePort();
+    port.deliver({ kind: "preview-frames", port: first });
+    first.deliver([{ index: 0, samples: new Float32Array(1920), last: false }]);
+    await settle();
+    const previewInlet = workletNodes.find((node) => node.name === "player-frame-inlet")!;
+    expect(previewInlet.port.postMessage).toHaveBeenCalledTimes(1);
+    const second = new FakePort();
+    port.deliver({ kind: "preview-frames", port: second });
+    expect(first.closed).toBe(true);
+    manager.setPlayerPort(new FakePort());
+    expect(second.closed).toBe(true);
+  });
+
   it("w51-audio: counts each room's and the preview's frames, holes and drops, for Save diagnostics and the tests", async () => {
     const { manager, port } = await withPlayer();
     port.deliver(roomFrame(A, 0));

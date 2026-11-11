@@ -34,10 +34,10 @@ function deliverPort(port: FakeAudioPort, source: unknown = win) {
   win.dispatchEvent(event);
 }
 
-function assemble(setEar?: (ear: "both" | "left" | "right") => void) {
+function assemble(setEar?: (ear: "both" | "left" | "right") => void, { direct = false } = {}) {
   const tap = (ctx: FakeAudioContext) => (): FrameTap => {
     const input = ctx.createGain();
-    return { input, dispose: () => input.disconnect() };
+    return { input, dispose: () => input.disconnect(), ...(direct ? { sendTo: () => undefined } : {}) };
   };
   const link = new PlayerAudioLink();
   const loader = new SourceLoader({ context, createElement: () => context.createMediaElement(), fetchBytes: async () => null });
@@ -49,6 +49,7 @@ function assemble(setEar?: (ear: "both" | "left" | "right") => void) {
     engine: new PlaybackEngine({ context, scheduler: context.clock, loader }),
     link,
     createTap: tap(context),
+    ...(direct ? { createChannel: () => ({ port1: new FakeAudioPort(), port2: new FakeAudioPort() }) } : {}),
     previewOutput: {
       ...createBridgedPreviewOutput({
         context: previewContext,
@@ -96,6 +97,17 @@ describe("assembleLyreAudio: LyreAudio wired into the new page as docs/ARCHITECT
     deliverPort(port);
     port.deliver({ kind: "broadcast", active: true });
     expect(audio.getNowPlaying().broadcasting).toBe(true);
+    await audio.dispose();
+  });
+
+  it("w51-audio: sends each room's frames over a channel of its own when given one", async () => {
+    const audio = assemble(undefined, { direct: true });
+    const port = new FakeAudioPort();
+    deliverPort(port);
+    roomsListener!([{ botId: "bot-a", name: "Tavern" }]);
+    port.deliver({ kind: "broadcast", active: true });
+    expect(port.posted.map((message) => (message as { kind: string; room?: string }).room)).toContain("bot-a");
+    expect(port.posted.some((message) => (message as { kind: string }).kind === "room-frames")).toBe(true);
     await audio.dispose();
   });
 

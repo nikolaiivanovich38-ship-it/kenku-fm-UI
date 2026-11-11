@@ -250,3 +250,109 @@ describe("Bridged preview (PRV-1): the preview is heard only through the capture
     expect(taps[0].disposed).toBe(true);
   });
 });
+
+/**
+ * w51-audio: frames go from the tap's audio thread straight to the capture window over a channel of their own, so
+ * a busy page (a screen redrawing, Live's position ticks) can no longer hold them up. Nik heard 0.5.0 stutter; with
+ * 60 ms of page work every 250 ms the relayed frames left holes in what Discord heard (e2e/audioTiming.spec.ts).
+ */
+describe("Direct frame channels (w51-audio): frames never pass through this page's main thread", () => {
+  /** A channel pair whose two ends are FakePorts; every pair made is kept. */
+  let pairs: { port1: FakePort; port2: FakePort }[];
+  const createChannel = () => {
+    const pair = { port1: new FakePort(), port2: new FakePort() };
+    pairs.push(pair);
+    return pair;
+  };
+  /** Taps that can be told where to send (as the browser's worklet taps can). */
+  let sentTo: Map<FrameTap, AudioPortLike | null>;
+  function directTapFactory(tapContext: FakeAudioContext) {
+    const relay = tapFactory(tapContext);
+    return (onFrame: (frame: TapFrame) => void): FrameTap => {
+      const tap = relay(onFrame);
+      tap.sendTo = (target) => sentTo.set(tap, target);
+      return tap;
+    };
+  }
+
+  beforeEach(() => {
+    pairs = [];
+    sentTo = new Map();
+  });
+
+  function directStreams() {
+    const result = new RoomStreams({ mixer, link, createTap: directTapFactory(context), createChannel });
+    link.connect(port);
+    return result;
+  }
+
+  it("gives each room's tap one end of a new channel and the capture window the other, labelled with the room", () => {
+    directStreams();
+    mixer.setRooms([TABLE, SIDE]);
+    port.deliver({ kind: "broadcast", active: true });
+
+    expect(pairs).toHaveLength(2);
+    const sent = port.posted.filter(({ message }) => message.kind === "room-frames");
+    expect(sent.map(({ message }) => message.room)).toEqual([TABLE.botId, SIDE.botId]);
+    sent.forEach(({ message, transfer }, i) => {
+      expect(message.port).toBe(pairs[i].port2);
+      expect(transfer).toEqual([pairs[i].port2]);
+    });
+    expect(sentTo.get(tapOf(mixer.output(TABLE.botId))!)).toBe(pairs[0].port1);
+    expect(sentTo.get(tapOf(mixer.output(SIDE.botId))!)).toBe(pairs[1].port1);
+  });
+
+  it("relays nothing itself: a frame the tap might still post here is not sent over the channel", () => {
+    directStreams();
+    mixer.setRooms([TABLE]);
+    port.deliver({ kind: "broadcast", active: true });
+    tapOf(mixer.output(TABLE.botId))!.emit({ index: 1 });
+    expect(port.kinds()).toEqual(["room-frames"]);
+  });
+
+  it("stops a room's tap sending when the room goes or the broadcast stops, and starts afresh on a new channel", () => {
+    directStreams();
+    mixer.setRooms([TABLE, SIDE]);
+    port.deliver({ kind: "broadcast", active: true });
+    const side = tapOf(mixer.output(SIDE.botId))!;
+    mixer.setRooms([TABLE]);
+    expect(side.disposed).toBe(true);
+    expect(sentTo.get(side)).toBeNull();
+
+    const next = new FakePort();
+    link.connect(next);
+    expect(taps.every((tap) => tap.disposed)).toBe(true);
+    next.deliver({ kind: "broadcast", active: true });
+    expect(next.kinds()).toEqual(["room-frames"]);
+    expect(pairs).toHaveLength(3);
+  });
+
+  it("falls back to relaying when the taps cannot send elsewhere (the old player's test hook)", () => {
+    const result = new RoomStreams({ mixer, link, createTap: tapFactory(context), createChannel });
+    link.connect(port);
+    mixer.setRooms([TABLE]);
+    port.deliver({ kind: "broadcast", active: true });
+    tapOf(mixer.output(TABLE.botId))!.emit({ index: 4 });
+    expect(port.kinds()).toEqual(["room"]);
+    expect(pairs).toEqual([]);
+    result.dispose();
+  });
+
+  it("sends the preview's frames over a channel of their own, again on every new channel", () => {
+    const previewContext = new FakeAudioContext();
+    createBridgedPreviewOutput({ context: previewContext, link, createTap: directTapFactory(previewContext), createChannel });
+    link.connect(port);
+    const tap = taps[0];
+    expect(port.posted.map(({ message }) => message.kind)).toEqual(["preview-frames"]);
+    expect(port.posted[0].message.port).toBe(pairs[0].port2);
+    expect(port.posted[0].transfer).toEqual([pairs[0].port2]);
+    expect(sentTo.get(tap)).toBe(pairs[0].port1);
+    tap.emit({ index: 9 });
+    expect(port.kinds()).toEqual(["preview-frames"]);
+
+    const next = new FakePort();
+    link.connect(next);
+    expect(next.kinds()).toEqual(["preview-frames"]);
+    expect(sentTo.get(tap)).toBe(pairs[1].port1);
+  });
+});
