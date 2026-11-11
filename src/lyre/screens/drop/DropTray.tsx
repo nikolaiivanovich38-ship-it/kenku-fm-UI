@@ -125,8 +125,11 @@ export function DropTray({ resolve }: { resolve: (el: HTMLElement) => Dragged | 
     const target = (event: Event) => (event.target instanceof Element ? event.target.closest<HTMLElement>("[data-dropto]") : null);
     const onDragOver = (event: DragEvent) => {
       if (cancelled) {
-        // No place takes a cancelled drag: the pointer shows it cannot be dropped.
+        // No place takes a cancelled drag: the pointer shows it cannot be dropped. Stopped here, so this does what the
+        // page's drop guard (SEC-7) would: no browser handling of a file or link (review 0.5.0 CR-8).
+        event.preventDefault();
         event.stopPropagation();
+        if (event.dataTransfer) event.dataTransfer.dropEffect = "none";
         return;
       }
       if (!live.current.drag) return;

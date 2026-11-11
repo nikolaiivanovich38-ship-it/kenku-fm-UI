@@ -1063,3 +1063,11 @@ keyboard (AltGr+é) from Discord and other programs. Ctrl+Alt with an F key, an 
 and the suggestion in every refusal is now "F9 or Ctrl+Shift+N". CR-7: an F4 with Ctrl or Alt (Alt+F4, Ctrl+F4) is
 refused too, because it closes windows and tabs in every program.
 
+### Drop tray (CR-8)
+
+A drag cancelled with Esc is stopped on the document in the capture phase, so no drop place takes it
+(`src/lyre/screens/drop/DropTray.tsx`). That also kept it from the document's drop guard (SEC-7), so for the rest of
+that drag the browser's own handling applied. The cancelled branch now does what the guard does: `preventDefault()`
+and `dropEffect = "none"`. `DropTray.test.tsx` checks it with the real guard installed. The main process's
+`will-navigate` lock still stops any navigation behind it.
+
