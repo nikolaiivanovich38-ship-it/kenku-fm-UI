@@ -130,13 +130,9 @@ describe("schema version 6 (design round 7)", () => {
     expect(() => db.exec("UPDATE library_settings SET crossfade_curve = 'steep'")).toThrow(/CHECK/);
   });
 
-  it("DAT-10: a track's tags remember the order they were added in (added), 0 when not said", () => {
-    db.exec(`INSERT INTO track_tags (track_id, tag_id, added) SELECT 't', id, 2 FROM tags WHERE name = 'Tense';
-      INSERT INTO track_tags (track_id, tag_id) SELECT 'u', id FROM tags WHERE name = 'Tense';`);
-    expect(all(db, "SELECT track_id, added FROM track_tags ORDER BY track_id")).toEqual([
-      { track_id: "t", added: 2 },
-      { track_id: "u", added: 0 },
-    ]);
+  it("DAT-10: a track's tags keep no order of their own (a track lists them in vocabulary order)", () => {
+    const columns = all(db, "PRAGMA table_info(track_tags)").map((c) => (c as { name: string }).name);
+    expect(columns).toEqual(["track_id", "tag_id"]);
   });
 
   it("UX-12: pads are found by search with their label", () => {
@@ -185,8 +181,8 @@ describe("upgrading a version 5 library to version 6", () => {
   });
 });
 
-describe("upgrading a version 5 library to version 6: the order of a track's tags", () => {
-  it("numbers each track's tags in vocabulary order, so a library looks as it did before", () => {
+describe("upgrading a version 5 library to version 6: a track's tags", () => {
+  it("keeps every track's tags as they were, with no order of their own", () => {
     const db = openConnection(":memory:");
     migrate(db, MIGRATIONS.slice(0, 5));
     db.exec(BASE);
@@ -194,11 +190,9 @@ describe("upgrading a version 5 library to version 6: the order of a track's tag
     const id = (name: string) => (all(db, `SELECT id FROM tags WHERE name = '${name}'`)[0] as { id: string }).id;
     const [eerie, tense, heroic] = ["Eerie", "Tense", "Heroic"].map(id);
     db.exec(`INSERT INTO track_tags (track_id, tag_id) VALUES ('t', '${eerie}'), ('t', '${tense}'), ('t', '${heroic}'), ('u', '${eerie}')`);
-    const vocabulary = all(db, `SELECT tt.track_id, t.name FROM track_tags tt JOIN tags t ON t.id = tt.tag_id JOIN tag_groups g ON g.id = t.group_id
-      ORDER BY tt.track_id, g.position, t.position, t.rowid`);
+    const before = all(db, "SELECT * FROM track_tags ORDER BY track_id, tag_id");
     migrate(db, MIGRATIONS);
-    expect(all(db, `SELECT tt.track_id, t.name FROM track_tags tt JOIN tags t ON t.id = tt.tag_id ORDER BY tt.track_id, tt.added`)).toEqual(vocabulary);
-    expect(all(db, "SELECT added FROM track_tags WHERE track_id = 'u'")).toEqual([{ added: 1 }]);
+    expect(all(db, "SELECT * FROM track_tags ORDER BY track_id, tag_id")).toEqual(before);
     db.close();
   });
 });

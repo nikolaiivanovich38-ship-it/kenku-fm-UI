@@ -10,8 +10,9 @@ import { isFx, resolveProfile, shapeOf, SHAPE_WORDS, type DomainTrack, type Play
 import type { FolderRoot, LibraryTrack, TagGroup } from "../../../common/lyre/api";
 import { plural, shownTitle } from "../../../common/lyre/text";
 import { trackHasTag, type TagTree } from "../../../common/domain/round7";
+import { inVocabularyOrder } from "../../../common/lyre/lookup";
 
-export { plural, shownTitle };
+export { inVocabularyOrder, plural, shownTitle };
 
 export type KindFilter = "all" | "music" | "amb" | "fx";
 export type SortKey = "title" | "artist" | "short" | "long" | "new" | "old";

@@ -171,9 +171,6 @@ export function fakeRound7(cx: FakeContext, computer: { display: LyreSettings["d
       if (i < 0) continue;
       n++;
       have.splice(i, 1);
-      // DAT-10: the tag keeps the earlier place of the two (a merge into a tag the track has later moves it up).
-      const j = to ? have.indexOf(to) : -1;
-      if (j > i && to) have.splice(j, 1);
       if (to && !have.includes(to)) have.splice(i, 0, to);
     }
     for (const p of st().playlists) {

@@ -13,7 +13,8 @@
      L.menu(anchor, html) / L.closeMenu()       anchored menu (items use data-act)
      L.sheet({ title, body, footer, wide }) / L.closeSheet()   modal sheet with focus trap (prep views only)
      L.say(text) screen-reader announcement; L.toast(text) short visible note
-     L.icon(name, cls), L.esc, L.fmt(seconds), L.energy(n), L.tagChips(track, max), L.title(track)
+     L.icon(name, cls), L.esc, L.fmt(seconds), L.energy(n), L.tagChips(track, max), L.title(track),
+     L.tagsOn(track, groupId) a track's tags of a group in vocabulary order, the Tags screen's (DAT-10); L.tagOrder(groupId)
      Lookups: L.track(id), L.playlist(id), L.board(id), L.campaign(id), L.session(cid, sid),
               L.playlistTracks(pl), L.usesOfPlaylist(id), L.usesOfBoard(id), L.playlistsOfTrack(id), L.boardPads(board)
      Playback (see 'Rooms' below: without a target, calls that start sound go to the rooms ticked in Send to): L.play(trackId, {lane, playlistId, fade, seq, target}), L.next(lane), L.prev(lane), L.pauseLane(lane), L.stopLane(lane, fade),
@@ -114,9 +115,27 @@ var L = (function () {
   L.fmt = function (s) { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
   L.energy = function (e) { var h = '<span class="energy" role="img" aria-label="Energy ' + (e || 0) + ' of 5">'; for (var i = 1; i <= 5; i++) h += '<span class="' + (i <= e ? 'on' : '') + '"></span>'; return h + '</span>'; };
   L.title = function (t) { return t ? (t.title || t.metaTitle || t.file) : ''; };
+  /* DAT-10 (Nik, 11 Nov): a track lists its tags in vocabulary order, the Tags screen's: group by group, each tag
+     followed depth first by the tags inside it (r7tags.js L.tagParent), in saved order (D.tagValues); never in the order
+     they were added. The same tag sits in the same place on every row (the sample's t13 was tagged Dread, Eerie and
+     shows Eerie, Dread; Grief, inside Melancholy, comes right after it). A tag the vocabulary lacks goes last.
+     L.tagOrder(group) is the group's tags in that order. */
+  L.tagOrder = function (g) {
+    var vals = D.tagValues[g] || [], out = [], seen = {};
+    function parent(v) { return L.tagParent ? L.tagParent(g, v) : ''; }
+    function add(v) { if (seen[v]) return; seen[v] = true; out.push(v); vals.forEach(function (x) { if (parent(x) === v && x !== v) add(x); }); }
+    vals.forEach(function (v) { var p = parent(v); if (!p || p === v || vals.indexOf(p) < 0) add(v); });
+    vals.forEach(add); // a loop in the tree is cut: its tags follow in saved order
+    return out;
+  };
+  L.tagsOn = function (t, g) {
+    var order = L.tagOrder(g), have = (t && t.tags[g]) || [];
+    function rank(v) { var i = order.indexOf(v); return i < 0 ? order.length : i; }
+    return have.map(function (v, i) { return [v, i]; }).sort(function (a, b) { return rank(a[0]) - rank(b[0]) || a[1] - b[1]; }).map(function (x) { return x[0]; });
+  };
   L.tagChips = function (t, max) {
     var out = [], n = 0; max = max || 99;
-    D.tagGroups.forEach(function (g) { (t.tags[g.id] || []).forEach(function (v) { if (n++ < max) out.push('<span class="chip ' + g.cls + '" data-tag="' + esc(g.id + ':' + v) + '" title="' + esc(g.name) + '"><span class="dot"></span>' + esc(v) + '</span>'); }); });
+    D.tagGroups.forEach(function (g) { L.tagsOn(t, g.id).forEach(function (v) { if (n++ < max) out.push('<span class="chip ' + g.cls + '" data-tag="' + esc(g.id + ':' + v) + '" title="' + esc(g.name) + '"><span class="dot"></span>' + esc(v) + '</span>'); }); });
     if (n > max) out.push('<span class="chip">+' + (n - max) + '</span>');
     return out.join('');
   };
@@ -336,7 +355,7 @@ var L = (function () {
   L.tagStrip = function (t, max) {
     if (!t) return '';
     var all = []; max = max || 3;
-    D.tagGroups.forEach(function (g) { (t.tags[g.id] || []).forEach(function (v) { all.push({ g: g, v: v }); }); });
+    D.tagGroups.forEach(function (g) { L.tagsOn(t, g.id).forEach(function (v) { all.push({ g: g, v: v }); }); });
     var shown = all.slice(0, max), rest = all.slice(max);
     if (!all.length && !L.shapeOf(t)) return '';
     return '<span class="tagstrip"><span class="sr-only">Tags: ' + esc(all.map(function (x) { return x.v; }).join(', ') || 'none') + '. </span>' + L.shapeTag(t, true) +

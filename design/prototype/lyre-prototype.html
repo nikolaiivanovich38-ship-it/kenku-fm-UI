@@ -2802,7 +2802,8 @@ var LYRE_DATA = (function () {
      L.menu(anchor, html) / L.closeMenu()       anchored menu (items use data-act)
      L.sheet({ title, body, footer, wide }) / L.closeSheet()   modal sheet with focus trap (prep views only)
      L.say(text) screen-reader announcement; L.toast(text) short visible note
-     L.icon(name, cls), L.esc, L.fmt(seconds), L.energy(n), L.tagChips(track, max), L.title(track)
+     L.icon(name, cls), L.esc, L.fmt(seconds), L.energy(n), L.tagChips(track, max), L.title(track),
+     L.tagsOn(track, groupId) a track's tags of a group in vocabulary order, the Tags screen's (DAT-10); L.tagOrder(groupId)
      Lookups: L.track(id), L.playlist(id), L.board(id), L.campaign(id), L.session(cid, sid),
               L.playlistTracks(pl), L.usesOfPlaylist(id), L.usesOfBoard(id), L.playlistsOfTrack(id), L.boardPads(board)
      Playback (see 'Rooms' below: without a target, calls that start sound go to the rooms ticked in Send to): L.play(trackId, {lane, playlistId, fade, seq, target}), L.next(lane), L.prev(lane), L.pauseLane(lane), L.stopLane(lane, fade),
@@ -2903,9 +2904,27 @@ var L = (function () {
   L.fmt = function (s) { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
   L.energy = function (e) { var h = '<span class="energy" role="img" aria-label="Energy ' + (e || 0) + ' of 5">'; for (var i = 1; i <= 5; i++) h += '<span class="' + (i <= e ? 'on' : '') + '"></span>'; return h + '</span>'; };
   L.title = function (t) { return t ? (t.title || t.metaTitle || t.file) : ''; };
+  /* DAT-10 (Nik, 11 Nov): a track lists its tags in vocabulary order, the Tags screen's: group by group, each tag
+     followed depth first by the tags inside it (r7tags.js L.tagParent), in saved order (D.tagValues); never in the order
+     they were added. The same tag sits in the same place on every row (the sample's t13 was tagged Dread, Eerie and
+     shows Eerie, Dread; Grief, inside Melancholy, comes right after it). A tag the vocabulary lacks goes last.
+     L.tagOrder(group) is the group's tags in that order. */
+  L.tagOrder = function (g) {
+    var vals = D.tagValues[g] || [], out = [], seen = {};
+    function parent(v) { return L.tagParent ? L.tagParent(g, v) : ''; }
+    function add(v) { if (seen[v]) return; seen[v] = true; out.push(v); vals.forEach(function (x) { if (parent(x) === v && x !== v) add(x); }); }
+    vals.forEach(function (v) { var p = parent(v); if (!p || p === v || vals.indexOf(p) < 0) add(v); });
+    vals.forEach(add); // a loop in the tree is cut: its tags follow in saved order
+    return out;
+  };
+  L.tagsOn = function (t, g) {
+    var order = L.tagOrder(g), have = (t && t.tags[g]) || [];
+    function rank(v) { var i = order.indexOf(v); return i < 0 ? order.length : i; }
+    return have.map(function (v, i) { return [v, i]; }).sort(function (a, b) { return rank(a[0]) - rank(b[0]) || a[1] - b[1]; }).map(function (x) { return x[0]; });
+  };
   L.tagChips = function (t, max) {
     var out = [], n = 0; max = max || 99;
-    D.tagGroups.forEach(function (g) { (t.tags[g.id] || []).forEach(function (v) { if (n++ < max) out.push('<span class="chip ' + g.cls + '" data-tag="' + esc(g.id + ':' + v) + '" title="' + esc(g.name) + '"><span class="dot"></span>' + esc(v) + '</span>'); }); });
+    D.tagGroups.forEach(function (g) { L.tagsOn(t, g.id).forEach(function (v) { if (n++ < max) out.push('<span class="chip ' + g.cls + '" data-tag="' + esc(g.id + ':' + v) + '" title="' + esc(g.name) + '"><span class="dot"></span>' + esc(v) + '</span>'); }); });
     if (n > max) out.push('<span class="chip">+' + (n - max) + '</span>');
     return out.join('');
   };
@@ -3125,7 +3144,7 @@ var L = (function () {
   L.tagStrip = function (t, max) {
     if (!t) return '';
     var all = []; max = max || 3;
-    D.tagGroups.forEach(function (g) { (t.tags[g.id] || []).forEach(function (v) { all.push({ g: g, v: v }); }); });
+    D.tagGroups.forEach(function (g) { L.tagsOn(t, g.id).forEach(function (v) { all.push({ g: g, v: v }); }); });
     var shown = all.slice(0, max), rest = all.slice(max);
     if (!all.length && !L.shapeOf(t)) return '';
     return '<span class="tagstrip"><span class="sr-only">Tags: ' + esc(all.map(function (x) { return x.v; }).join(', ') || 'none') + '. </span>' + L.shapeTag(t, true) +
@@ -4648,7 +4667,7 @@ var L = (function () {
   function status(text, tone) { return { text: text, tone: tone }; }
   function moreBtn(k, label, act, attrs) { return '<button type="button" class="btn s icon ghost pl-more-btn" data-act="' + act + '" ' + attrs + ' data-k="' + k + '" aria-haspopup="menu" aria-expanded="false" title="More" aria-label="More for ' + esc(label) + '">' + L.icon('more', 's') + '</button>'; }
   function trackTip(t) {
-    var tags = []; D.tagGroups.forEach(function (g) { tags = tags.concat(t.tags[g.id] || []); });
+    var tags = []; D.tagGroups.forEach(function (g) { tags = tags.concat(L.tagsOn(t, g.id)); });
     return L.title(t) + (t.title && t.metaTitle && t.metaTitle !== t.title ? '\nIn the file: ' + t.metaTitle : '') + (t.title ? '' : '\nNo title of your own yet') + '\nFile: ' + t.file +
       (tags.length ? '\nTags: ' + tags.join(', ') : '') + (t.energy ? '\nEnergy ' + t.energy + ' of 5' : '') + '\nClick to open in the Library';
   }
@@ -7719,7 +7738,7 @@ var L = (function () {
   function chip(g, v, extra) { return '<span class="chip lb-chip" title="' + esc(groupName(g)) + '"><span class="ellipsis">' + esc(v) + '</span>' + (extra || '') + '</span>'; }
   function GROUPCLS(g) { return D.tagGroups.filter(function (x) { return x.id === g; })[0].cls; }
   function rowChips(t, max) {
-    var all = []; D.tagGroups.forEach(function (g) { (t.tags[g.id] || []).forEach(function (v) { all.push([g.id, v]); }); });
+    var all = []; D.tagGroups.forEach(function (g) { L.tagsOn(t, g.id).forEach(function (v) { all.push([g.id, v]); }); });
     if (!all.length) return '<span class="lb-none">No tags yet</span>';
     return all.slice(0, max).map(function (x) { return chip(x[0], x[1]); }).join('') + (all.length > max ? '<span class="lb-more" title="' + esc(all.slice(max).map(function (x) { return x[1]; }).join(', ')) + '">+' + (all.length - max) + '</span>' : '');
   }
@@ -7838,7 +7857,7 @@ var L = (function () {
     return opts;
   }
   function tagRow(t, g) {
-    var mine = t.tags[g.id] || [], open = cbx.g === g.id && cbx.open, opts = open ? cbxOptions(t, g.id) : [];
+    var mine = L.tagsOn(t, g.id), open = cbx.g === g.id && cbx.open, opts = open ? cbxOptions(t, g.id) : [];
     if (open && cbx.act >= opts.length) cbx.act = Math.max(0, opts.length - 1);
     var lbx = '<ul class="lb-lbx" id="lb-lbx-' + g.id + '" role="listbox" aria-label="' + esc(g.name) + ' values"' + (open && opts.length ? '' : ' hidden') + '>' +
       opts.map(function (o, i) {
@@ -9236,7 +9255,7 @@ var L = (function () {
   function ambName(id) { var p = L.playlist(id), t = !p && L.track(id); return p ? p.name : t ? L.title(t) : ''; }
   function sounding() { return pb.fx.filter(function (f) { return !f.fadeOut; }); }
   function moodChips(t, prefer) {
-    var m = (t.tags.mood || []).slice();
+    var m = L.tagsOn(t, 'mood');
     if (prefer && prefer.length) m.sort(function (a, b) { return (prefer.indexOf(b) > -1) - (prefer.indexOf(a) > -1); });
     return m.slice(0, 1).map(function (v) { return '<span class="chip lv-mood" title="Mood">' + esc(v) + '</span>'; }).join('');
   }
@@ -9601,7 +9620,7 @@ var L = (function () {
       '<dl>' + (nm !== ownNm ? '<dt>Name in this scene</dt><dd>' + esc(nm) + '</dd>' : '') + '<dt>Your title</dt><dd>' + (t.title ? esc(t.title) : '<span class="faint">none yet</span>') + '</dd><dt>Title in the file</dt><dd>' + esc(t.metaTitle || '–') + '</dd>' +
       '<dt>File name</dt><dd>' + esc(t.file) + '</dd><dt>From</dt><dd>' + esc(t.artist + ', ' + t.album) + '</dd></dl>' +
       (L.profileLink ? '<div class="lv-trk-ap">' + L.profileLink(t.id, pk, true) + '<span class="hint">Audio profile' + (pk ? (o.seq ? ' in this scene' : ' here') : '') + '</span></div>' : '') +
-      '<div class="chips">' + D.tagGroups.map(function (g) { return (t.tags[g.id] || []).map(function (v) { return '<span class="chip lv-mood" title="' + esc(g.name) + '">' + esc(v) + '</span>'; }).join(''); }).join('') + (t.role ? '<span class="chip">' + esc(t.role) + '</span>' : '') + '</div></div>' : '';
+      '<div class="chips">' + D.tagGroups.map(function (g) { return L.tagsOn(t, g.id).map(function (v) { return '<span class="chip lv-mood" title="' + esc(g.name) + '">' + esc(v) + '</span>'; }).join(''); }).join('') + (t.role ? '<span class="chip">' + esc(t.role) + '</span>' : '') + '</div></div>' : '';
     return '<li class="lv-trk' + (onAirNow ? ' on' : '') + (isAmb ? ' amb' : '') + (open ? ' open' : '') + (o.inner ? ' inner' : '') + '"><div class="lv-trk-r">' +
       (o.num ? '<span class="num lv-num" aria-hidden="true">' + o.num + '</span>' : '') +
       (onAirNow ? airBadge(t) : queued ? '<span class="badge lv-qb">Queued</span>' : '') +

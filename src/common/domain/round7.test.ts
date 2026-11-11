@@ -23,6 +23,7 @@ import {
   stepsOf,
   stepsToKeep,
   tagsInside,
+  inScreenOrder,
   trackHasTag,
   usualPadSteps,
   usualSceneSteps,
@@ -56,6 +57,14 @@ describe("DAT-10: a tag that holds others", () => {
     expect(tagsInside(tree, "mood", "Grief")).toEqual(["Mourning"]);
     expect(tagsInside(tree, "mood", "Heroic")).toEqual([]);
     expect(tagsInside({ mood: { A: "B", B: "A" } }, "mood", "A")).toEqual(["B"]);
+  });
+
+  it("lists tags in the Tags screen's order: each followed depth first by the tags inside it; a loop is cut", () => {
+    const saved = ["Mourning", "Heroic", "Melancholy", "Tense", "Grief"];
+    const parent = (name: string) => tree.mood[name] ?? null;
+    expect(inScreenOrder(saved, (n) => n, parent)).toEqual(["Heroic", "Melancholy", "Grief", "Mourning", "Tense"]);
+    const loop: Record<string, string> = { A: "B", B: "A" };
+    expect(inScreenOrder(["A", "C", "B"], (n) => n, (n) => loop[n] ?? null)).toEqual(["C", "A", "B"]);
   });
 
   it("finds a track that has the tag or a tag inside it", () => {

@@ -11,6 +11,7 @@ import type { Placement, Tag, TagGroup, TagUsage } from "../types";
 import * as v from "../validate";
 import { newId, patchOf, placeholders, plural, requireRow, unique } from "./common";
 import { dropRuleTags, mergeRuleTag } from "./ruleRows";
+import { listTagsInScreenOrder } from "./round7";
 
 type GroupRow = { id: string; name: string; color: string | null; position: number };
 type TagRow = {
@@ -343,14 +344,9 @@ export function mergeTags(store: Store, sourceIds: string[], targetId: string): 
     .changeInBatches(`Merge ${plural(sources.length, "tag")} into "${target.name}"`, tracks, (batch, last) => {
       // Every track listed carries a source tag: it gets the target and loses the sources.
       const untag = `DELETE FROM track_tags WHERE track_id = ? AND tag_id IN (${placeholders(sources.length)})`;
-      // DAT-10: the target keeps the earlier place of the two (its own, or the first source's on that track).
-      const earliest = `SELECT min(added) AS added FROM track_tags WHERE track_id = ? AND tag_id IN (${placeholders(sources.length + 1)})`;
       for (const trackId of batch) {
-        const ids = sources.map((source) => source.id);
-        const added = (store.get<{ added: number }>(earliest, trackId, target.id, ...ids) as { added: number }).added;
-        store.run("INSERT OR IGNORE INTO track_tags (track_id, tag_id, added) VALUES (?, ?, ?)", trackId, target.id, added);
-        store.run("UPDATE track_tags SET added = ? WHERE track_id = ? AND tag_id = ?", added, trackId, target.id);
-        store.run(untag, trackId, ...ids);
+        store.run("INSERT OR IGNORE INTO track_tags (track_id, tag_id) VALUES (?, ?)", trackId, target.id);
+        store.run(untag, trackId, ...sources.map((source) => source.id));
       }
       if (!last) return;
       for (const source of sources) {
@@ -390,9 +386,7 @@ export function tagTracks(store: Store, trackIds: string[], tagIds: string[]): P
     tracks,
     (batch) => {
       for (const trackId of batch) {
-        // DAT-10: tags added together share the track's next number (they then follow the vocabulary).
-        const next = nextAdded(store, trackId);
-        for (const tagId of tags) store.run("INSERT OR IGNORE INTO track_tags (track_id, tag_id, added) VALUES (?, ?, ?)", trackId, tagId, next);
+        for (const tagId of tags) store.run("INSERT OR IGNORE INTO track_tags (track_id, tag_id) VALUES (?, ?)", trackId, tagId);
       }
     },
     { batchSize: tracksPerBatch(tags.length) },
@@ -415,20 +409,16 @@ export function untagTracks(store: Store, trackIds: string[], tagIds: string[]):
   );
 }
 
-/** DAT-10: the number the next tags added to a track get (one more than its last). */
-function nextAdded(store: Store, trackId: string): number {
-  return (store.get<{ n: number }>("SELECT coalesce(max(added), 0) + 1 AS n FROM track_tags WHERE track_id = ?", trackId) as { n: number }).n;
-}
-
-/** A track's tags in the order they were added (DAT-10), tags added together in vocabulary order. */
+/**
+ * A track's tags in vocabulary order (DAT-10), as the Tags screen lists them: group order, then each tag followed depth
+ * first by the tags inside it.
+ */
 export function tagsOfTrack(store: Store, trackId: string): Tag[] {
+  const rows = store.all<TagRow>("SELECT t.* FROM track_tags tt JOIN tags t ON t.id = tt.tag_id WHERE tt.track_id = ?", trackId);
+  const rank = new Map(listTagsInScreenOrder(store).map((tag, i) => [tag.id, i]));
   return toTags(
     store,
-    store.all<TagRow>(
-      `SELECT t.* FROM track_tags tt JOIN tags t ON t.id = tt.tag_id JOIN tag_groups g ON g.id = t.group_id
-       WHERE tt.track_id = ? ORDER BY tt.added, g.position, t.position, t.rowid`,
-      trackId,
-    ),
+    rows.sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0)),
   );
 }
 

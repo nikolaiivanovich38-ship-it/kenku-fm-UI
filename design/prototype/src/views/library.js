@@ -81,7 +81,7 @@
   function chip(g, v, extra) { return '<span class="chip lb-chip" title="' + esc(groupName(g)) + '"><span class="ellipsis">' + esc(v) + '</span>' + (extra || '') + '</span>'; }
   function GROUPCLS(g) { return D.tagGroups.filter(function (x) { return x.id === g; })[0].cls; }
   function rowChips(t, max) {
-    var all = []; D.tagGroups.forEach(function (g) { (t.tags[g.id] || []).forEach(function (v) { all.push([g.id, v]); }); });
+    var all = []; D.tagGroups.forEach(function (g) { L.tagsOn(t, g.id).forEach(function (v) { all.push([g.id, v]); }); });
     if (!all.length) return '<span class="lb-none">No tags yet</span>';
     return all.slice(0, max).map(function (x) { return chip(x[0], x[1]); }).join('') + (all.length > max ? '<span class="lb-more" title="' + esc(all.slice(max).map(function (x) { return x[1]; }).join(', ')) + '">+' + (all.length - max) + '</span>' : '');
   }
@@ -200,7 +200,7 @@
     return opts;
   }
   function tagRow(t, g) {
-    var mine = t.tags[g.id] || [], open = cbx.g === g.id && cbx.open, opts = open ? cbxOptions(t, g.id) : [];
+    var mine = L.tagsOn(t, g.id), open = cbx.g === g.id && cbx.open, opts = open ? cbxOptions(t, g.id) : [];
     if (open && cbx.act >= opts.length) cbx.act = Math.max(0, opts.length - 1);
     var lbx = '<ul class="lb-lbx" id="lb-lbx-' + g.id + '" role="listbox" aria-label="' + esc(g.name) + ' values"' + (open && opts.length ? '' : ' hidden') + '>' +
       opts.map(function (o, i) {

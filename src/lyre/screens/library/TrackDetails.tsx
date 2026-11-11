@@ -36,6 +36,7 @@ import {
   EFFECT_ROLE,
   ENERGY_WORDS,
   fmt,
+  inVocabularyOrder,
   KIND_NAMES,
   LOOPS,
   plural,
@@ -612,7 +613,8 @@ function TagRow({
         ...now,
         tags: {
           ...now.tags,
-          [group.id]: have.includes(known) ? have : [...have, known],
+          // DAT-10: in vocabulary order, as the library lists a track's tags (a new tag goes last).
+          [group.id]: have.includes(known) ? have : inVocabularyOrder(group, [...have, known]),
         },
       };
     });

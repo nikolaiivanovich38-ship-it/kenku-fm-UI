@@ -30,7 +30,7 @@ import { LOUDNESS_COLUMNS, LOUDNESS_JOIN } from "./loudness";
 import { ownPlayOrders } from "./playOrders";
 import { ownProfiles } from "./profileRows";
 import { readRules } from "./ruleRows";
-import { getTagTree } from "./round7";
+import { getTagTree, listTagsInScreenOrder } from "./round7";
 
 type DomainTrackRow = {
   id: string;
@@ -60,15 +60,12 @@ type DomainTrackRow = {
 
 /** Ids never contain control characters (validate.ts), so this one can join them. */
 const TAG_SEPARATOR = "\u001f";
-/**
- * One row per track with its tag ids, each as "<added>:<id>" (DAT-10: the order they were added in), read through the
- * track_tags primary key: no join or sort over every tag.
- */
+/** One row per track with its tag ids, read through the track_tags primary key: no join or sort over every tag. */
 const TRACK_SELECT = `SELECT tracks.id AS id, kind, title, meta_title, file_name, duration_ms, role, loopable, energy, shape, normalise, ending, resume, ${LOUDNESS_COLUMNS},
   (SELECT follow_track_id FROM track_follows WHERE track_id = tracks.id) AS follow_track_id,
   (SELECT follow_playlist_id FROM track_follows WHERE track_id = tracks.id) AS follow_playlist_id,
   (SELECT suggested_shape FROM track_peaks WHERE track_id = tracks.id) AS suggested_shape,
-  (SELECT group_concat(added || ':' || tag_id, char(31)) FROM track_tags WHERE track_id = tracks.id) AS tag_ids FROM tracks ${LOUDNESS_JOIN}`;
+  (SELECT group_concat(tag_id, char(31)) FROM track_tags WHERE track_id = tracks.id) AS tag_ids FROM tracks ${LOUDNESS_JOIN}`;
 
 function toDomainTrack(row: DomainTrackRow, tags: Record<string, string[]>, profile: AudioProfileInput | null): DomainTrack {
   return {
@@ -103,30 +100,23 @@ function toDomainTrack(row: DomainTrackRow, tags: Record<string, string[]>, prof
  */
 export function getDomainLookup(store: Store): DomainLookup {
   const groupIds = store.all<{ id: string }>("SELECT id FROM tag_groups ORDER BY position, rowid").map((g) => g.id);
-  // The tag vocabulary is small: read once, each tag with its rank in vocabulary order.
-  const vocabulary = new Map(
-    store
-      .all<{ id: string; group_id: string; name: string }>(
-        "SELECT t.id, t.group_id, t.name FROM tags t JOIN tag_groups g ON g.id = t.group_id ORDER BY g.position, t.position, t.rowid",
-      )
-      .map((tag, rank) => [tag.id, { group: tag.group_id, name: tag.name, rank }]),
-  );
+  // The tag vocabulary is small: read once, each tag with its rank in vocabulary order (the Tags screen's, DAT-10).
+  const vocabulary = new Map(listTagsInScreenOrder(store).map((tag, rank) => [tag.id, { group: tag.group_id, name: tag.name, rank }]));
   const tracks = new Map<string, DomainTrack | undefined>();
   const playlists = new Map<string, DomainPlaylist | undefined>();
   let all: DomainTrack[] | null = null;
 
-  /** Tag names by group (every group present), each group's names in the order added (DAT-10), then vocabulary order. */
+  /** Tag names by group (every group present), each group's names in vocabulary order. */
   const tagsOf = (tagIds: string | null) => {
     const tags: Record<string, string[]> = {};
     for (const id of groupIds) tags[id] = [];
     if (tagIds === null) return tags;
     const found = [];
-    for (const entry of tagIds.split(TAG_SEPARATOR)) {
-      const at = entry.indexOf(":");
-      const tag = vocabulary.get(entry.slice(at + 1));
-      if (tag) found.push({ ...tag, added: Number(entry.slice(0, at)) });
+    for (const id of tagIds.split(TAG_SEPARATOR)) {
+      const tag = vocabulary.get(id);
+      if (tag) found.push(tag);
     }
-    found.sort((a, b) => a.added - b.added || a.rank - b.rank);
+    found.sort((a, b) => a.rank - b.rank);
     for (const tag of found) tags[tag.group].push(tag.name);
     return tags;
   };

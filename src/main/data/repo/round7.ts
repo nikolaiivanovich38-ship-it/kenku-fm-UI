@@ -8,6 +8,7 @@ import {
   checkCrossfade,
   checkSteps,
   CUE_STEP_KINDS,
+  inScreenOrder,
   normaliseKey,
   SHORTCUT_ACTIONS,
   SHORTCUT_IDS,
@@ -405,6 +406,20 @@ export function getTagTree(store: Store): TagTree {
     (out[r.group_id] ??= {})[r.name] = r.parent;
   }
   return out;
+}
+
+/** A tag as listTagsInScreenOrder lists it (a reader: the undo test knows it by its name). */
+export type VocabularyTag = { id: string; group_id: string; name: string; parent_id: string | null };
+
+/**
+ * DAT-10: every tag in vocabulary order, the Tags screen's: group by group, each tag followed depth first by the tags
+ * inside it, in saved position. A track lists its tags in this order (tagsOfTrack, the domain lookup).
+ */
+export function listTagsInScreenOrder(store: Store): VocabularyTag[] {
+  const saved = store.all<VocabularyTag>(
+    "SELECT t.id, t.group_id, t.name, t.parent_id FROM tags t JOIN tag_groups g ON g.id = t.group_id ORDER BY g.position, g.rowid, t.position, t.rowid",
+  );
+  return inScreenOrder(saved, (tag) => tag.id, (tag) => tag.parent_id);
 }
 
 /* ---------- UX-12, PLY-8 the library's play settings ---------- */

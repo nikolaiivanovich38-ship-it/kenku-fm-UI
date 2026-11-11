@@ -3,7 +3,8 @@
  * used by the database, the in-memory fake, the audio host and the screens. Pure functions only.
  *
  * - DAT-10: a tag can hold other tags (Mood › Melancholy › Grief); filters and dynamic rules find the tags inside too
- *   (trackHasTag; matchesRule takes the TagTree). Another word for a tag offers the tag (offerTags).
+ *   (trackHasTag; matchesRule takes the TagTree); a track lists its tags in the Tags screen's order (inScreenOrder).
+ *   Another word for a tag offers the tag (offerTags).
  * - ORG-4, ORG-5: folder paths; the places a drag can go (DropPlace and its prototype keys).
  * - PLY-8: steps (CueStep) for a scene's start and a pad; the usual ones are never stored (stepsToKeep).
  * - PLY-4, SHW-3: what a track's role means when it plays (roleProfile) and which choices it shows (roleChoices).
@@ -34,6 +35,37 @@ export function tagsInside(tree: TagTree | undefined, group: string, tag: string
     }
   };
   walk(tag);
+  return out;
+}
+
+/**
+ * DAT-10: tags in the Tags screen's order (r7tags.js ordered), the order a track lists its tags in: each tag of its own
+ * (no parent, or a parent not in the list) in saved order, followed depth first by the tags inside it, also in saved
+ * order. `tags` are in saved order; a parent is always in the same group, so a list of several groups keeps their
+ * order. A loop in the tree is cut: its tags follow, in saved order.
+ */
+export function inScreenOrder<T>(tags: readonly T[], key: (tag: T) => string, parent: (tag: T) => string | null): T[] {
+  const keys = new Set(tags.map(key));
+  const children = new Map<string, T[]>();
+  const roots: T[] = [];
+  for (const tag of tags) {
+    const p = parent(tag);
+    if (p !== null && keys.has(p) && p !== key(tag)) {
+      const list = children.get(p);
+      if (list) list.push(tag);
+      else children.set(p, [tag]);
+    } else roots.push(tag);
+  }
+  const out: T[] = [];
+  const seen = new Set<string>();
+  const add = (tag: T) => {
+    if (seen.has(key(tag))) return;
+    seen.add(key(tag));
+    out.push(tag);
+    for (const child of children.get(key(tag)) ?? []) add(child);
+  };
+  roots.forEach(add);
+  tags.forEach(add);
   return out;
 }
 

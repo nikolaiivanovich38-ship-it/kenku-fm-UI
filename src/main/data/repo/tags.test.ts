@@ -92,32 +92,55 @@ describe("tags (DAT-10)", () => {
     expect(() => tagTracks(t.store, [a.id], ["missing"])).toThrow(/No tag/);
   });
 
-  it("DAT-10: a track's tags show in the order they were added; tags added together follow the vocabulary", async () => {
+  it("DAT-10: a track lists its tags in vocabulary order, whatever order they were added in", async () => {
     const [a] = createTracks(t.store, [{ title: "A", file: { path: "/m/a.mp3" } }]);
+    const names = () => tagsOfTrack(t.store, a.id).map((x) => x.name);
+    // Vocabulary: Mood (Melancholy, Heroic, Tense, Wistful, Warm, Triumphant, Eerie), then Leitmotif, then Scene type.
+    const motif = createTag(t.store, { groupId: group("Leitmotif").id, name: "Abbess" });
+    await tagTracks(t.store, [a.id], [motif.id]);
     await tagTracks(t.store, [a.id], [tag("Eerie").id]);
     await tagTracks(t.store, [a.id], [tag("Tense").id, tag("Heroic").id]);
-    expect(tagsOfTrack(t.store, a.id).map((x) => x.name)).toEqual(["Eerie", "Heroic", "Tense"]);
+    expect(names()).toEqual(["Heroic", "Tense", "Eerie", "Abbess"]);
+    expect(getDomainLookup(t.store).track(a.id)?.tags[group("Mood").id]).toEqual(["Heroic", "Tense", "Eerie"]);
+    // Taken off and added again: back in its place.
+    await untagTracks(t.store, [a.id], [tag("Heroic").id]);
+    await tagTracks(t.store, [a.id], [tag("Heroic").id]);
+    expect(names()).toEqual(["Heroic", "Tense", "Eerie", "Abbess"]);
+    // Moved in the vocabulary: it moves on the track too.
+    moveTag(t.store, tag("Eerie").id, { before: tag("Heroic").id });
+    expect(names()).toEqual(["Eerie", "Heroic", "Tense", "Abbess"]);
     expect(getDomainLookup(t.store).track(a.id)?.tags[group("Mood").id]).toEqual(["Eerie", "Heroic", "Tense"]);
-    // Taken off and added again: it goes last.
-    await untagTracks(t.store, [a.id], [tag("Eerie").id]);
-    await tagTracks(t.store, [a.id], [tag("Eerie").id]);
-    expect(tagsOfTrack(t.store, a.id).map((x) => x.name)).toEqual(["Heroic", "Tense", "Eerie"]);
   });
 
-  it("DAT-10: a merge keeps the earlier place of the two tags on each track", async () => {
+  it("DAT-10: a tag inside another is listed right after it, depth first, as on the Tags screen", async () => {
+    const [a] = createTracks(t.store, [{ title: "A", file: { path: "/m/a.mp3" } }]);
+    // Saved order: Melancholy, Heroic, Tense, Wistful, Warm, Triumphant, Eerie. Eerie goes inside Melancholy and
+    // Wistful inside Eerie: the screen lists Melancholy › Eerie › Wistful, then Heroic, Tense, Warm, Triumphant.
+    updateTag(t.store, tag("Eerie").id, { parentId: tag("Melancholy").id });
+    updateTag(t.store, tag("Wistful").id, { parentId: tag("Eerie").id });
+    await tagTracks(t.store, [a.id], [tag("Heroic").id, tag("Wistful").id, tag("Tense").id, tag("Melancholy").id, tag("Eerie").id]);
+    const shown = ["Melancholy", "Eerie", "Wistful", "Heroic", "Tense"];
+    expect(tagsOfTrack(t.store, a.id).map((x) => x.name)).toEqual(shown);
+    expect(getDomainLookup(t.store).track(a.id)?.tags[group("Mood").id]).toEqual(shown);
+    // Without its parent on the track, a tag inside still sits where the screen has it.
+    await untagTracks(t.store, [a.id], [tag("Melancholy").id, tag("Eerie").id]);
+    expect(tagsOfTrack(t.store, a.id).map((x) => x.name)).toEqual(["Wistful", "Heroic", "Tense"]);
+  });
+
+  it("DAT-10: after a merge each track lists the merged tag in its vocabulary place", async () => {
     const [a, b] = createTracks(t.store, [
       { title: "A", file: { path: "/m/a.mp3" } },
       { title: "B", file: { path: "/m/b.mp3" } },
     ]);
-    // Vocabulary: … Warm, Triumphant, Eerie. A: Warm, then Eerie. B: Eerie, Warm, then Triumphant.
-    await tagTracks(t.store, [a.id], [tag("Warm").id]);
-    await tagTracks(t.store, [a.id, b.id], [tag("Eerie").id]);
-    await tagTracks(t.store, [b.id], [tag("Warm").id]);
-    await tagTracks(t.store, [b.id], [tag("Triumphant").id]);
-    await mergeTags(t.store, [tag("Eerie").id], tag("Triumphant").id);
-    // A had no Triumphant: it takes Eerie's place. B keeps the earlier of the two: Eerie's, before Warm.
-    expect(tagsOfTrack(t.store, a.id).map((x) => x.name)).toEqual(["Warm", "Triumphant"]);
-    expect(tagsOfTrack(t.store, b.id).map((x) => x.name)).toEqual(["Triumphant", "Warm"]);
+    // Vocabulary: Melancholy, Heroic, Tense, Wistful, Warm, Triumphant, Eerie. B gets Eerie first, then Melancholy and Warm.
+    await tagTracks(t.store, [a.id], [tag("Melancholy").id, tag("Warm").id]);
+    await tagTracks(t.store, [b.id], [tag("Eerie").id]);
+    await tagTracks(t.store, [b.id], [tag("Melancholy").id, tag("Warm").id]);
+    await mergeTags(t.store, [tag("Melancholy").id], tag("Eerie").id);
+    // Eerie is last in the vocabulary, so it comes after Warm on both, never in Melancholy's place.
+    expect(tagsOfTrack(t.store, a.id).map((x) => x.name)).toEqual(["Warm", "Eerie"]);
+    expect(tagsOfTrack(t.store, b.id).map((x) => x.name)).toEqual(["Warm", "Eerie"]);
+    expect(getDomainLookup(t.store).track(b.id)?.tags[group("Mood").id]).toEqual(["Warm", "Eerie"]);
   });
 
   it("renames, reorders and deletes tags", async () => {

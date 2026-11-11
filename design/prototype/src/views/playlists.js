@@ -24,7 +24,7 @@
   function status(text, tone) { return { text: text, tone: tone }; }
   function moreBtn(k, label, act, attrs) { return '<button type="button" class="btn s icon ghost pl-more-btn" data-act="' + act + '" ' + attrs + ' data-k="' + k + '" aria-haspopup="menu" aria-expanded="false" title="More" aria-label="More for ' + esc(label) + '">' + L.icon('more', 's') + '</button>'; }
   function trackTip(t) {
-    var tags = []; D.tagGroups.forEach(function (g) { tags = tags.concat(t.tags[g.id] || []); });
+    var tags = []; D.tagGroups.forEach(function (g) { tags = tags.concat(L.tagsOn(t, g.id)); });
     return L.title(t) + (t.title && t.metaTitle && t.metaTitle !== t.title ? '\nIn the file: ' + t.metaTitle : '') + (t.title ? '' : '\nNo title of your own yet') + '\nFile: ' + t.file +
       (tags.length ? '\nTags: ' + tags.join(', ') : '') + (t.energy ? '\nEnergy ' + t.energy + ' of 5' : '') + '\nClick to open in the Library';
   }

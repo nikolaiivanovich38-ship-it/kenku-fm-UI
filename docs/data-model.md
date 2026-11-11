@@ -412,7 +412,13 @@ already had was checked first: tag groups and tags in order with a parent tag an
 `tag_synonyms`), folders for playlists, boards and sessions (`folders`), a manual playlist's dividers
 (`playlist_items.kind = 'divider'`), a track's Ending (`tracks.ending = 'fades'`), markers in a profile.
 
-- **The order of a track's tags** (DAT-10): `track_tags.added`, a number per track: each new tag gets one more than the track's last (tags added together share it and follow the vocabulary), a merge keeps the earlier of the two, and a track lists its tags by it, then in vocabulary order. The upgrade numbers tags already on tracks in vocabulary order, so an existing library looks as before. Added to version 6 itself, which had not shipped.
+- **The order of a track's tags** (DAT-10; the product owner's decision of 11 November). A track lists its tags in
+  vocabulary order, the Tags screen's: group by group (`tag_groups.position`), each tag followed depth first by the
+  tags inside it (`tags.parent_id`), in saved position (`tags.position`); `repo/round7.listTagsInScreenOrder` and the
+  shared `inScreenOrder`. So the same tag is in the same place on every row, the sample's Eerie comes before Dread and
+  Grief (inside Melancholy) comes right after Melancholy.
+  `track_tags` keeps no order of its own: a tag added later, or a tag a merge leaves on a track, is listed in its
+  vocabulary place, and moving a tag on the Tags screen moves it on every track.
 - **Colours by name.** Tag groups, tags and folders take a pad colour (steel, ember, gold, moss, violet, plum, sea,
   bone), as the prototype's `L.colors`; a version 5 colour that is not one is dropped in the upgrade (no screen wrote
   one). `validate.nullablePaletteColor`.
