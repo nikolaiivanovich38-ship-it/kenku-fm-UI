@@ -172,7 +172,7 @@ export function DevicesPane() {
       </div>
       <Switch
         label="Split one headset"
-        title="The preview in one ear and what you hear of Discord in the other, on one headset"
+        title="While something plays on air, the preview is in one ear and what you hear of Discord in the other, on one headset; a preview on its own plays in both ears"
         checked={split}
         disabled={!devices}
         onChange={(on) => set({ split: on }, on ? `one headset split: preview in the ${ear} ear` : "headset not split")}

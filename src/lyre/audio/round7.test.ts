@@ -298,8 +298,33 @@ describe("PRV-2: the preview's device and ear", () => {
     rig = lyreAudioOnFakes(makeData(), { devices: [{ deviceId: "hs", label: "Headset" }] });
     await rig.audio.setAudioDevices({ airDevice: "", previewDevice: "hs", split: true, previewEar: "right" });
     expect(rig.sinkIds[rig.sinkIds.length - 1]).toBe("hs");
+    // 0.5.1: the split applies only while something plays on air.
+    rig.audio.playTrack("m1");
+    await rig.advance(1);
     expect(state().previewEar).toBe("right");
     await rig.audio.setAudioDevices({ airDevice: "", previewDevice: "", split: false, previewEar: "right" });
+    expect(state().previewEar).toBe("both");
+  });
+});
+
+describe("0.5.1: Split one headset only while something plays on air (Nik, 11 Nov)", () => {
+  it("the preview is in both ears while it is the only sound, in its ear while music plays on air, and in both again after", async () => {
+    rig = lyreAudioOnFakes(makeData(), { devices: [{ deviceId: "hs", label: "Headset" }] });
+    await rig.audio.setAudioDevices({ airDevice: "", previewDevice: "hs", split: true, previewEar: "right" });
+    rig.audio.previewTrack("m1");
+    await rig.advance(1);
+    expect(state().previewEar).toBe("both");
+    rig.audio.playTrack("m2");
+    await rig.advance(1);
+    expect(state().previewEar).toBe("right");
+    rig.audio.togglePause("music");
+    await rig.advance(0.5);
+    expect(state().previewEar).toBe("both");
+    rig.audio.togglePause("music");
+    await rig.advance(0.5);
+    expect(state().previewEar).toBe("right");
+    rig.audio.stopAll();
+    await rig.advance(1);
     expect(state().previewEar).toBe("both");
   });
 });

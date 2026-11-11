@@ -692,7 +692,9 @@ first), fades the music to a step's level, and keeps What played (`played`, newe
   `NowPlaying.previewEar`.
 - Events `show-board` (a step shows a board) and `scene-started` (`by`: press, step, moved-on: Live follows it).
 - `setAudioDevices(devices)`: the preview's device, and the preview in one ear of a split headset
-  (`BridgedPreviewOutput.setEar`, a stereo panner before the bridge, only while split).
+  (`BridgedPreviewOutput.setEar`, a stereo panner before the bridge, only while split). Since 0.5.1 the split applies
+  only while something plays on air (music or ambience not paused, or an effect, in any room): a preview on its own
+  plays in both ears (`earFor`, applied when the state is rebuilt).
 - `LyreAudioLibrary.crossfade?()` (Next, a playlist moving on, play steps; default 3 s) and `nextScene?(ref)`;
   `LibrarySnapshot` loads `settings.get()` and `tags.listGroups()` (the tag tree) and hands pads their steps.
 - PLY-11: read-ahead also holds what follows the playing track when nothing else waits.

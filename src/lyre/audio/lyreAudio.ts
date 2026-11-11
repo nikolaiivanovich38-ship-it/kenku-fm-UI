@@ -510,6 +510,9 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
   private readonly meters = new Map<GainLike, RoomMeter>();
   private wantedKey = "";
   /** PRV-2: the ear the preview plays in. */
+  /** PRV-2: the ear chosen for the preview when one headset is split; null when it is not split. */
+  private splitEar: "left" | "right" | null = null;
+  /** The ear the preview plays in now (sent to the preview's output when it changes). */
   private previewEar: "both" | "left" | "right" = "both";
   private disposed = false;
   /** Each room's volume by its real id (a bot id, or "table"), kept while the app runs. */
@@ -930,10 +933,9 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
   }
 
   async setAudioDevices(devices: AudioDevices): Promise<DeviceStatus | null> {
-    const ear = devices.split ? devices.previewEar : "both";
-    if (ear !== this.previewEar) {
-      this.previewEar = ear;
-      this.parts.setPreviewEar?.(ear);
+    const split = devices.split ? devices.previewEar : null;
+    if (split !== this.splitEar) {
+      this.splitEar = split;
       this.changed();
     }
     if (!this.parts.previewDevices) return null;
@@ -1153,6 +1155,8 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     this.notifyQueued = true;
     queueMicrotask(() => {
       this.notifyQueued = false;
+      // With a split headset the preview's ear follows what plays on air, even with no screen reading the state.
+      if ((this.splitEar || this.previewEar !== "both") && !this.disposed) this.getNowPlaying();
       for (const listener of [...this.subscribers, ...this.positionSubscribers]) {
         listener();
       }
@@ -1239,14 +1243,32 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       length: this.parts.preview.length(),
       volume: this.parts.preview.volume(),
     };
+    const rooms = this.disposed ? [] : this.director.report().map((room) => this.roomState(room));
+    this.applyPreviewEar(this.earFor(rooms));
     return {
-      rooms: this.disposed ? [] : this.director.report().map((room) => this.roomState(room)),
+      rooms,
       broadcasting: this.parts.streams.broadcasting,
       preview,
       previewDevice: this.parts.previewDevices?.status("preview") ?? null,
       canUndo: this.director.canUndo(),
       previewEar: this.previewEar,
     };
+  }
+
+  /**
+   * 0.5.1 (Nik, 11 Nov): a split headset puts the preview in its ear only while something plays on air with it (music
+   * or ambience not paused, or an effect); when the preview is the only sound it plays in both ears.
+   */
+  private earFor(rooms: readonly RoomNowPlaying[]): "both" | "left" | "right" {
+    if (!this.splitEar) return "both";
+    const onAir = rooms.some((room) => (room.music && !room.music.paused) || (room.ambience && !room.ambience.paused) || room.effects.length > 0);
+    return onAir ? this.splitEar : "both";
+  }
+
+  private applyPreviewEar(ear: "both" | "left" | "right") {
+    if (ear === this.previewEar) return;
+    this.previewEar = ear;
+    this.parts.setPreviewEar?.(ear);
   }
 
   private roomState(room: RoomReport): RoomNowPlaying {
