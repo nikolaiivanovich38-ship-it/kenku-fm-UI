@@ -438,10 +438,20 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
               where={`every scene of Session ${s.number}`}
               ownerWord="session"
             />
-            <Pane id="ss-cpl" title="Campaign playlists" icon="crown" size="auto" kind="music" status={{ text: c.playlistIds.length ? String(c.playlistIds.length) : "Empty" }}>
-              <p className="hint cp-why">
-                From the campaign. <a href={`#/campaign/${c.id}`}>Change</a>.
-              </p>
+            <Pane
+              id="ss-cpl"
+              title="Campaign playlists"
+              icon="crown"
+              size="auto"
+              kind="music"
+              status={{ text: c.playlistIds.length ? String(c.playlistIds.length) : "Empty" }}
+              // Round 6 rule 8 (UX-R3): Change sits where the other boxes have Add, as an icon link to the campaign.
+              actions={
+                <a className="btn s icon" href={`#/campaign/${c.id}`} data-k="tocamp" aria-label="Change the campaign's playlists" title="From the campaign: change them there">
+                  <Icon name="edit" size="s" />
+                </a>
+              }
+            >
               <OnHandList ids={c.playlistIds} trackIds={c.trackIds} kind="playlists" index={index} scope="r" place={{ kind: "campaign", campaignId: c.id }} />
               <p className="hint cp-make">Campaign pads: {campaignBoards.length ? campaignBoards.join(", ") : "none"}.</p>
             </Pane>
@@ -962,10 +972,10 @@ function MusicList({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
         <p className="faint cp-mnone">No music yet. The first item you add starts the scene.</p>
       )}
       <div className="cp-boxbtns">
-        <Button size="s" icon="plus" data-k={`am-${scene.id}`} onClick={() => ctx.pick({ kind: "music", sceneId: scene.id })}>
+        {/* Round 6 (UX-R3): how it plays and that files can be dropped are the button's hover text. */}
+        <Button size="s" icon="plus" data-k={`am-${scene.id}`} title="Plays in order; drop audio files on the box to add them" onClick={() => ctx.pick({ kind: "music", sceneId: scene.id })}>
           Add tracks or playlists…
         </Button>
-        <span className="hint">Plays in order, then loops. Drop files here to add them.</span>
       </div>
     </div>
   );
@@ -1001,11 +1011,11 @@ function BoardList({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
           icon="plus"
           data-k={`ab-${scene.id}`}
           aria-label={`Add pad boards… to ${scene.name}`}
+          title="The first board shows when the scene starts"
           onClick={() => ctx.pick({ kind: "boards", sceneId: scene.id })}
         >
           Add pad boards…
         </Button>
-        <span className="hint">The first is shown when the scene starts.</span>
       </div>
     </div>
   );

@@ -32,8 +32,8 @@ function CampaignsList({ campaigns, creating, setCreating }: { campaigns: Campai
     <>
       <div className="viewhead">
         <TopLead />
+        {/* Round 6 (UX-R3): no count beside the heading; every card is on screen, so the cards are the count. */}
         <h1>Campaigns</h1>
-        <span className="muted cp-count">{plural(campaigns.length, "campaign")}</span>
         <span className="grow" />
         <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>
           New campaign
@@ -79,13 +79,10 @@ function CampaignCard({ campaign: c }: { campaign: CampaignInfo }) {
   const next = nextSession(c);
   const headingId = `cph-${c.id}`;
   return (
-    <article className="cp-card" data-theme={shownTheme(choice, c.theme)} aria-labelledby={headingId} title={counts(c)}>
+    // Round 6 (UX-R3): the card is drawn in its theme; the theme's name is in its hover text, not on the card.
+    <article className="cp-card" data-theme={shownTheme(choice, c.theme)} aria-labelledby={headingId} title={`${counts(c)} · theme: ${themeName(c.theme || DEFAULT_CAMPAIGN_THEME)}`}>
       <div className="cp-card-top">
         <span className="cp-sys">{c.system || "No game system"}</span>
-        <span className="cp-thname">
-          <Icon name="palette" size="s" />
-          {themeName(c.theme || DEFAULT_CAMPAIGN_THEME)}
-        </span>
       </div>
       <h2 className="display cp-card-name" id={headingId}>
         {c.name}

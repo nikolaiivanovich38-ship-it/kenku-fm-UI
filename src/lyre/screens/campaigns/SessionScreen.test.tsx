@@ -89,6 +89,19 @@ describe("the session page", () => {
     expect(reminder.getByRole("link", { name: "The Company themes" })).toBeInTheDocument();
     expect(reminder.queryByRole("button", { name: /^More for/ })).not.toBeInTheDocument();
     expect(reminder.getByText("Campaign pads: Combat, Weather and places.")).toBeInTheDocument();
+    // UX-R3 (round 6 rule 8): Change sits where the other boxes have Add, as an icon link; no line, no open counts.
+    expect(reminder.queryByText(/From the campaign/)).toBeNull();
+    expect(reminder.getByRole("link", { name: "Change the campaign's playlists" })).toHaveAttribute("href", "#/campaign/crown");
+    for (const box of ["Session playlists", "Session pads", "Campaign playlists"]) expect(screen.getByRole("region", { name: box }).querySelector("header")!.textContent).not.toMatch(/\d/);
+  });
+
+  it("UX-R3 (round 6 cuts): the how-to lines under a scene's music and pad boards are the buttons' hover text", async () => {
+    await openAbbey();
+    const scene = screen.getByRole("listitem", { name: /^Scene \d+: The abbey ruins$/ });
+    expect(scene).not.toHaveTextContent("Plays in order, then loops");
+    expect(scene).not.toHaveTextContent("The first is shown when the scene starts");
+    expect(within(scene).getByRole("button", { name: "Add tracks or playlists…" })).toHaveAttribute("title", "Plays in order; drop audio files on the box to add them");
+    expect(within(scene).getByRole("button", { name: /^Add pad boards… to / })).toHaveAttribute("title", "The first board shows when the scene starts");
   });
 });
 

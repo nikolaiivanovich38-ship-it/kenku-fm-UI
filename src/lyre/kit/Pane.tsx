@@ -43,8 +43,13 @@ export interface PaneProps {
   actions?: React.ReactNode;
   /** Gives the box its coloured top edge: onair (red: the players hear it), music, scenes, search, fx. */
   kind?: PaneKind;
-  /** The one status pill: what the box is doing now. */
+  /**
+   * The one status pill: what the box is doing now. Round 6 rule 4 (UX-R3): a resting one (idle: "Empty", "Copied" or
+   * a count such as "4" or "12 pads") shows only while the box is folded, where it is the one line left.
+   */
   status?: { text: string; tone?: StatusTone };
+  /** The summary repeats what the open box shows, so it shows only while the box is folded (the prototype's foldedSummary). */
+  foldedSummary?: boolean;
   /** Closed by default (the design says which boxes start closed). */
   collapsed?: boolean;
   /** Controlled open state, for a screen that opens the box itself; uncontrolled boxes are remembered by id. */
@@ -88,6 +93,7 @@ export function Pane({
   actions,
   kind,
   status,
+  foldedSummary,
   collapsed = false,
   open: controlledOpen,
   onOpenChange,
@@ -165,8 +171,8 @@ export function Pane({
             <span className="pane-title">{label ?? title}</span>
           </button>
         </h2>
-        <div className="pane-summary">{summary}</div>
-        {status && <StatusPill text={status.text} tone={status.tone} />}
+        <div className="pane-summary">{open && foldedSummary ? null : summary}</div>
+        {status && !(open && isRestingStatus(status)) && <StatusPill text={status.text} tone={status.tone} />}
         <div className="pane-actions">
           {open && actions}
           {canMax && (
@@ -182,4 +188,9 @@ export function Pane({
       </div>
     </section>
   );
+}
+
+/** Round 6 rule 4 (the prototype's L.quietStatus): a status that only says the box is at rest, or counts its rows. */
+export function isRestingStatus(status: { text: string; tone?: StatusTone }): boolean {
+  return (status.tone ?? "idle") === "idle" && /^(Empty|Copied|\d+( [a-z]+)?)$/.test(status.text);
 }

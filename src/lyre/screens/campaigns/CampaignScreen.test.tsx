@@ -61,7 +61,8 @@ describe("one campaign", () => {
   it("notes are kept, with the Saved pop-up; the box itself never says Saved (UX-19)", async () => {
     const { api } = openAt("campaign/crown");
     const notes = await screen.findByRole("textbox", { name: "Campaign notes" });
-    expect(within(screen.getByRole("region", { name: "Notes" })).getByText("Empty")).toBeInTheDocument();
+    // UX-R3 (round 6 rule 4): an open box does not say Empty.
+    expect(within(screen.getByRole("region", { name: "Notes" })).queryByText("Empty")).toBeNull();
     await userEvent.type(notes, "Maeve owes them");
     await waitFor(async () => expect((await api.campaigns.get("crown"))?.notes).toBe("Maeve owes them"), { timeout: 3000 });
     expect(await screen.findByText("The Sunken Crown notes", { exact: false })).toBeInTheDocument();
@@ -92,6 +93,12 @@ describe("sessions of a campaign", () => {
     await screen.findByRole("list", { name: "Sessions in order" });
     const rows = sessions().getAllByRole("listitem");
     expect(rows).toHaveLength(4);
+    // UX-R3 (round 6 cuts): the open header repeats neither the count nor the next session (the rows say both),
+    // nor do the side boxes count their open rows.
+    const head = screen.getByRole("region", { name: "Sessions" }).querySelector("header")!;
+    expect(head).not.toHaveTextContent("4 sessions");
+    expect(head).not.toHaveTextContent("Next:");
+    for (const box of ["Campaign playlists", "Campaign pads"]) expect(screen.getByRole("region", { name: box }).querySelector("header")!.textContent).not.toMatch(/\d/);
     expect(rows[0]).toHaveTextContent("Played");
     expect(rows[2]).toHaveTextContent("Next");
     expect(rows[2]).toHaveTextContent("Thu 5 Nov 2026");
