@@ -14,7 +14,7 @@ import fs from "fs";
 import path from "path";
 import type { Stream } from "./support/built";
 import { expect, expectFailureUntilBuilt, expectFailureUntilScreenBuilt, test } from "./support/test";
-import { isWindowMaximised, knownAxeIssues, knownLayoutIssue, lyreIsTheWholeWindow, notLyre, openRoute, windowButtonsBox, type Box, type Theme } from "./support/target";
+import { isWindowMaximised, knownAxeIssues, knownLayoutIssue, lyreIsTheWholeWindow, notLyre, openRoute, pageFillsTheWindow, windowButtonsBox, type Box, type Theme } from "./support/target";
 
 // Injected with page.evaluate: the app's Lyre page has a content policy that refuses added script tags.
 const AXE_PATH = require.resolve("axe-core/axe.min.js");
@@ -649,6 +649,34 @@ test.describe("0.5.1: Lyre is the whole window", () => {
       await expect(help).toHaveCount(0);
     }
   });
+
+  // Nik's 0.5.0 test: "When fully maximised the bottom of the app pushes past the top of my bottom aligned taskbar" and
+  // "The right hand side of the window goes beyond the edge of the screen". The page now fills exactly the window's
+  // content area, at a 1920 screen's work area with a bottom taskbar and at a small laptop's.
+  for (const size of [{ width: 1920, height: 1040 }, { width: 1280, height: 680 }]) {
+    test(`at ${size.width}×${size.height} the page fills exactly the window: nothing runs past its right or bottom edge`, async ({ page }) => {
+      expectFailureUntilScreenBuilt("campaigns");
+      await page.setViewportSize(size);
+      await openRoute(page, "campaign/crown");
+      const fill = await pageFillsTheWindow(page);
+      expect(fill.page, "the page's size is the window's content size").toEqual(fill.content);
+      expect(fill.content).toEqual([size.width, size.height]);
+      const overflow = await page.evaluate(() => {
+        const root = document.documentElement;
+        const app = document.getElementById("app")?.getBoundingClientRect();
+        const bar = document.querySelector(".onairbar")?.getBoundingClientRect();
+        return {
+          sideways: root.scrollWidth - root.clientWidth,
+          down: root.scrollHeight - root.clientHeight,
+          appRight: Math.round((app?.right ?? 0) - window.innerWidth),
+          appBottom: Math.round((app?.bottom ?? 0) - window.innerHeight),
+          barBottom: bar ? Math.round(bar.bottom - window.innerHeight) : 0,
+        };
+      });
+      expect({ sideways: overflow.sideways, down: overflow.down }).toEqual({ sideways: 0, down: 0 });
+      for (const edge of ["appRight", "appBottom", "barBottom"] as const) expect(overflow[edge], edge).toBeLessThanOrEqual(0);
+    });
+  }
 
   test("a sheet as tall as the window (Add a bot, text at 200 %) keeps its controls clear of the window's buttons", async ({ page }) => {
     expectFailureUntilScreenBuilt("settings");

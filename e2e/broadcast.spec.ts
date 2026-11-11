@@ -1,201 +1,68 @@
 /**
- * WP2 PERF-4: audio is recorded and encoded only while an output is in a
- * voice channel, only for tabs that play sound, and the start of a sound
- * reaches Discord. Uses the fake Discord (fixtures/discord.ts).
+ * WP2, OUT-5, PRV-1, FND-16 (0.5.1) in the packaged app: the path every Discord packet takes. The Lyre page sends
+ * each room's mix over the private channel to the hidden capture window, which encodes it for that room's bot only;
+ * a preview stays on this computer. Until 0.5.1 this spec played a website tab and rooms.spec drove the old player's
+ * test hook; both are gone, so the Lyre page itself plays here. Seeded with the prototype's library (its files play a
+ * stand-in tone, src/main/lyreApi/seedAudio.ts) and Discord: Lyre Table is in Table.
  */
-import type { ConsoleMessage, Page } from "@playwright/test";
-import { test, expect, pageWithTitle } from "./fixtures/app";
-import { startLocalSite, type LocalSite } from "./fixtures/localSite";
-import {
-  FAKE_DISCORD_ENV,
-  TONE_PAGE,
-  channelButton,
-  chooseStreamingMode,
-  localOutput,
-  tonePage,
-  connectFakeBot,
-  openTab,
-  packetCount,
-  receivedAudio,
-  receivedPeaks,
-} from "./fixtures/discord";
+import type { ElectronApplication, Page } from "@playwright/test";
+import { test, expect } from "./fixtures/app";
+import { PROTOTYPE_ENV, joinRoom, receivedPeaks, thisComputerPlays, type PrototypeChannel } from "./fixtures/discord";
+import { openLyreRoute } from "./fixtures/lyre";
 
-let site: LocalSite;
+/** A packet louder than this has sound in it (the stand-in tone is far louder; encoded silence is near 0). */
+const SOUND = 0.02;
 
-test.beforeEach(async () => {
-  site = await startLocalSite({
-    "/tone": TONE_PAGE,
-    "/ramp-a": tonePage("/ramp-a"),
-    "/ramp-b": tonePage("/ramp-b"),
-    "/ramp-element": tonePage("/ramp-element"),
-  });
-});
-
-test.afterEach(async () => {
-  await site.close();
-});
-
-/** Collect what the hidden capture window logs. */
-async function captureLog(app: Parameters<typeof pageWithTitle>[0]) {
-  const capture = await pageWithTitle(app, "Audio Capture");
-  const lines: string[] = [];
-  capture.on("console", (message: ConsoleMessage) => lines.push(message.text()));
-  return lines;
+/** Packets with sound a channel received after packet number `from`. */
+async function loudSince(app: ElectronApplication, channel: PrototypeChannel, from: number): Promise<number> {
+  return (await receivedPeaks(app, channel, from)).filter((p) => p.peak > SOUND).length;
 }
 
-async function openToneTab(mainWindow: Page, app: Parameters<typeof pageWithTitle>[0]) {
-  const viewId = await openTab(mainWindow, site.url("/tone"));
-  const tone = await pageWithTitle(app, "Tone");
-  return { viewId, tone };
-}
+const onAirBar = (lyre: Page) => lyre.getByRole("region", { name: "Now playing" });
 
-test("nothing is recorded before an output joins a voice channel; joining starts it and leaving stops it", async ({
-  launchApp,
-}) => {
-  const launched = await launchApp({ env: FAKE_DISCORD_ENV });
+test("music on air reaches its room's bot as sound, and no other room (OUT-5)", async ({ launchApp }) => {
+  const launched = await launchApp({ env: PROTOTYPE_ENV });
   const { app } = launched;
-  const mainWindow = await launched.mainWindow();
-  await launched.playerView();
-  const log = await captureLog(app);
+  const lyre = await openLyreRoute(await launched.mainWindow(), "playlists");
+  // A second room: Lyre Side in the Side room.
+  await joinRoom(app, "Lyre Side", "Side room");
+  const tableBefore = (await receivedPeaks(app, "Table")).length;
+  const sideBefore = (await receivedPeaks(app, "Side room")).length;
 
-  const { viewId, tone } = await openToneTab(mainWindow, app);
-  await tone.evaluate(() => (window as unknown as { playTone(): void }).playTone());
-  await connectFakeBot(mainWindow);
-  // A tab playing sound, a connected bot, but no voice channel: no recording.
-  await mainWindow.waitForTimeout(1_500);
-  expect(log).toEqual([]);
-  expect(await packetCount(app, "Tavern")).toBe(0);
+  await lyre.getByRole("button", { name: "Play on air: The Company themes" }).first().click();
+  await expect(onAirBar(lyre)).toBeVisible();
+  await expect.poll(() => loudSince(app, "Table", tableBefore), { message: "Table hears the music", timeout: 8_000 }).toBeGreaterThan(25);
+  // A second and a half later it still does: the stream keeps going.
+  const heard = await loudSince(app, "Table", tableBefore);
+  await lyre.waitForTimeout(1500);
+  expect(await loudSince(app, "Table", tableBefore)).toBeGreaterThan(heard + 25);
+  // The Side room's bot is in a voice channel too, but this music is not its room's.
+  expect(await loudSince(app, "Side room", sideBefore), "nothing in the Side room").toBe(0);
+  expect(await thisComputerPlays(app), "never on this computer (BUG-19)").toBe(false);
 
-  await channelButton(mainWindow, "Tavern").click();
-  await expect.poll(() => log, { timeout: 10_000 }).toContain(`Capturing audio of view ${viewId}`);
-  expect(log[0]).toBe("Broadcast audio started");
-  await expect.poll(() => packetCount(app, "Tavern"), { timeout: 10_000 }).toBeGreaterThan(10);
-  // The player is silent, so it is not recorded.
-  expect(log.filter((line) => line.startsWith("Capturing audio of view"))).toEqual([
-    `Capturing audio of view ${viewId}`,
-  ]);
-
-  // Joining switched "This Computer" off, as Kenku FM's single output did.
-  await expect(localOutput(mainWindow)).toHaveAttribute("aria-pressed", "false");
-
-  // Clicking the channel again leaves it; recording stops and This Computer is back on.
-  await channelButton(mainWindow, "Tavern").click();
-  await expect.poll(() => log, { timeout: 10_000 }).toContain("Broadcast audio stopped");
-  await expect(localOutput(mainWindow)).toHaveAttribute("aria-pressed", "true");
+  // Stop: after the fade, Table hears nothing more.
+  await onAirBar(lyre).getByRole("button", { name: "Stop", exact: true }).click();
+  await expect(onAirBar(lyre)).toHaveCount(0);
+  await lyre.waitForTimeout(2000);
+  const stopped = (await receivedPeaks(app, "Table")).length;
+  await lyre.waitForTimeout(1500);
+  expect(await loudSince(app, "Table", stopped)).toBe(0);
 });
 
-/** Wait until Discord has been sent everything still on its way (no new packet for half a second). */
-async function packetsSettled(app: Parameters<typeof packetCount>[0]) {
-  let last = -1;
-  await expect
-    .poll(
-      async () => {
-        const now = await packetCount(app, "Tavern");
-        const settled = now === last;
-        last = now;
-        return settled;
-      },
-      { intervals: [500], timeout: 10_000 },
-    )
-    .toBe(true);
-}
-
-/**
- * How much of the start of a sound Discord missed. The tone's volume rises
- * evenly from 0 to full over `rampSeconds`, so the volume of the first sound
- * received tells how far into the tone recording began.
- */
-function missedMs(samples: number[], rampSeconds: number): number {
-  const threshold = 0.003 * 32768;
-  const first = samples.findIndex((sample) => Math.abs(sample) > threshold);
-  if (first < 0) {
-    return Number.POSITIVE_INFINITY;
-  }
-  // Peak over the first 10 ms (480 stereo samples) of sound.
-  const peak = Math.max(...samples.slice(first, first + 960).map(Math.abs)) / 32768;
-  return peak * rampSeconds * 1000;
-}
-
-test("the start of a sound reaches Discord: about 100 ms at most is lost while recording starts", async ({
-  launchApp,
-}) => {
-  test.setTimeout(90_000);
-  const launched = await launchApp({ env: FAKE_DISCORD_ENV });
+test("a preview reaches no room: only the game master hears it (PRV-1)", async ({ launchApp }) => {
+  const launched = await launchApp({ env: PROTOTYPE_ENV });
   const { app } = launched;
-  const mainWindow = await launched.mainWindow();
-  await launched.playerView();
-  await connectFakeBot(mainWindow);
-  await channelButton(mainWindow, "Tavern").click();
-
-  // Three tabs, each recorded only once it plays: Web Audio twice (the
-  // soundboard's way), and an audio element (playlists, YouTube).
-  const rampSeconds = 2;
-  const results: Record<string, number> = {};
-  for (const [path, how] of [
-    ["/ramp-a", "playRamp"],
-    ["/ramp-b", "playRamp"],
-    ["/ramp-element", "playRampElement"],
-  ] as const) {
-    const before = await packetCount(app, "Tavern");
-    await openTab(mainWindow, site.url(path));
-    const page = await pageWithTitle(app, path);
-    await mainWindow.waitForTimeout(500);
-    await page.evaluate(
-      ([method, seconds]) => (window as unknown as Record<string, (s: number) => unknown>)[method](seconds),
-      [how, rampSeconds] as const,
-    );
-    await expect.poll(() => packetCount(app, "Tavern"), { timeout: 10_000 }).toBeGreaterThan(before + 25);
-    const packets = await receivedAudio(app, "Tavern", before, 50);
-    results[path] = Math.round(missedMs(packets.flatMap((packet) => packet.pcm), rampSeconds));
-    // Silence the tab so the next one's start is measured on its own.
-    await page.evaluate(() => document.querySelectorAll("audio").forEach((audio) => audio.pause()));
-    await page.evaluate(() => (window as unknown as { stopTone(): void }).stopTone());
-    await packetsSettled(app);
-  }
-
-  console.log(`Start of each sound missed by (ms): ${JSON.stringify(results)}`);
-  test.info().annotations.push({ type: "missed start (ms)", description: JSON.stringify(results) });
-  const sorted = Object.values(results).sort((a, b) => a - b);
-  // Recording starts when an element starts playing or, at the latest, when
-  // Chromium reports the page audible (it checks 15 times a second, so up to
-  // ~70 ms); opening the capture then takes ~10 ms. Typical: 15-40 ms. The
-  // median is checked because on a heavily loaded test machine one start in
-  // about twenty has taken a few hundred milliseconds.
-  expect(sorted[1]).toBeLessThan(110);
+  const lyre = await openLyreRoute(await launched.mainWindow(), "session/crown/s14");
+  await lyre.getByRole("button", { name: "Scene 3: The abbey ruins" }).click();
+  const music = lyre
+    .getByRole("listitem", { name: /^Scene \d+: The abbey ruins$/ })
+    .getByRole("group", { name: "Music", exact: true })
+    .getByRole("list", { name: "Music in order" });
+  const before = (await receivedPeaks(app, "Table")).length;
+  await music.getByRole("button", { name: /^Preview Haunted sea shanty/ }).click();
+  await expect(music.getByRole("button", { name: /^Stop preview of Haunted sea shanty/ })).toHaveAttribute("aria-pressed", "true");
+  // The capture window plays the preview in the headphones while it lasts.
+  await expect.poll(() => thisComputerPlays(app), { message: "the preview plays on this computer", timeout: 8_000 }).toBe(true);
+  await lyre.waitForTimeout(2000);
+  expect(await loudSince(app, "Table", before), "the preview never reaches Table").toBe(0);
 });
-
-// PERF-8: both modes ("Low Latency" and "Performance" before WP2) have the
-// same short delay; "Performance" used to add half a second.
-for (const mode of ["Best sound quality", "Lighter on the computer"] as const) {
-  test(`delay from a tab's sound to Discord in ${mode} mode`, async ({ launchApp }) => {
-    test.setTimeout(90_000);
-    const launched = await launchApp({ env: FAKE_DISCORD_ENV });
-    const { app } = launched;
-    const mainWindow = await launched.mainWindow();
-    await launched.playerView();
-    await chooseStreamingMode(mainWindow, mode);
-    await connectFakeBot(mainWindow);
-    await channelButton(mainWindow, "Tavern").click();
-    await openTab(mainWindow, site.url("/tone"));
-    const tone = await pageWithTitle(app, "Tone");
-    // A quiet tone first, so the tab is already being recorded.
-    await tone.evaluate(() => (window as unknown as { playQuiet(): void }).playQuiet());
-    await expect.poll(() => packetCount(app, "Tavern"), { timeout: 10_000 }).toBeGreaterThan(50);
-
-    const delays: number[] = [];
-    for (let jump = 0; jump < 3; jump++) {
-      // Let the previous loud half-second pass.
-      await mainWindow.waitForTimeout(1_500);
-      const before = await packetCount(app, "Tavern");
-      const loudAt = await tone.evaluate(() => (window as unknown as { jumpAfter(s: number): number }).jumpAfter(0.3));
-      const firstLoud = async () =>
-        (await receivedPeaks(app, "Tavern", before)).find((packet) => packet.peak > 0.3);
-      await expect.poll(async () => (await firstLoud()) !== undefined, { timeout: 10_000 }).toBe(true);
-      delays.push(Math.round(((await firstLoud())?.at ?? 0) - loudAt));
-    }
-    delays.sort((a, b) => a - b);
-    console.log(`${mode}: delay from the tab to Discord (ms): ${JSON.stringify(delays)}`);
-    test.info().annotations.push({ type: `${mode} delay (ms)`, description: JSON.stringify(delays) });
-    expect(delays[1]).toBeLessThan(250);
-  });
-}

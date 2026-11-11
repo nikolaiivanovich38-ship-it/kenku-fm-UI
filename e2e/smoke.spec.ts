@@ -1,40 +1,34 @@
 /**
- * FND-4: smoke test of the packaged app. It starts, shows the main window and
- * the player, and no page throws an uncaught error.
+ * FND-4: smoke test of the packaged app. It starts, shows the Lyre page as its window (FND-16, 0.5.1), and no page
+ * throws an uncaught error.
  */
 import { test, expect } from "./fixtures/app";
 import { findProblems } from "./fixtures/problems";
 
-test("main window opens with the app name", async ({ mainWindow }) => {
+test("the window opens with the app name, on the Lyre page", async ({ mainWindow }) => {
   await expect(mainWindow).toHaveTitle("Lyre");
+  await expect(mainWindow.getByRole("main").getByRole("heading", { level: 1 })).toBeVisible();
 });
 
-test("player tab shows the Playlists and Soundboards sections", async ({ mainWindow, playerView }) => {
-  // The tab label follows the player page's title once it has loaded.
-  await expect(mainWindow.getByText(/Player$/).first()).toBeVisible();
-  // The section titles are not heading elements yet, so match their exact text.
-  await expect(playerView.getByText("Playlists", { exact: true })).toBeVisible();
-  await expect(playerView.getByText("Soundboards", { exact: true })).toBeVisible();
-});
-
-test("no uncaught errors in the main window, player or main process", async ({ app, mainWindow, playerView, errors }) => {
-  await expect(playerView.getByText("Playlists", { exact: true })).toBeVisible();
-  // Give late start-up work (audio capture window, remote API) time to fail.
+test("no uncaught errors in the Lyre page, the capture window or the main process", async ({ app, mainWindow, errors }) => {
+  await expect(mainWindow.getByRole("main").getByRole("heading", { level: 1 })).toBeVisible();
+  // Give late start-up work (audio capture window, the bots logging in) time to fail.
   await mainWindow.waitForTimeout(3_000);
   expect(findProblems(errors)).toEqual([]);
-  expect(app.windows().length).toBeGreaterThanOrEqual(2);
+  // The Lyre page and the hidden capture window.
+  expect(app.windows().length).toBe(2);
 });
 
-test("the problem check notices a Content-Security-Policy refusal", async ({ playerView, errors }) => {
-  await expect(playerView.getByText("Playlists", { exact: true })).toBeVisible();
-  // An inline script is exactly what the player's policy forbids (SEC-11).
-  await playerView.evaluate(() => {
+test("the problem check notices a Content-Security-Policy refusal", async ({ mainWindow, errors }) => {
+  await expect(mainWindow.getByRole("main").getByRole("heading", { level: 1 })).toBeVisible();
+  // An inline script is exactly what the page's policy forbids (SEC-11).
+  await mainWindow.evaluate(() => {
     const script = document.createElement("script");
     script.textContent = "window.inlineScriptRan = true";
     document.body.append(script);
   });
   await expect.poll(() => findProblems(errors).join("\n")).toMatch(/inline script violates the following Content Security Policy directive/);
-  expect(await playerView.evaluate(() => "inlineScriptRan" in window)).toBe(false);
+  expect(await mainWindow.evaluate(() => "inlineScriptRan" in window)).toBe(false);
   // Forget the planted refusal so the automatic check after this test passes.
   errors.console.length = 0;
 });

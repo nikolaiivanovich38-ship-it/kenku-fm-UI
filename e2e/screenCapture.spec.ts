@@ -6,8 +6,8 @@
  */
 import { test, expect, pageWithTitle } from "./fixtures/app";
 
-test("the main window and the capture window cannot record the screen", async ({ app, mainWindow, playerView }) => {
-  await expect(playerView.getByText("Playlists", { exact: true })).toBeVisible();
+test("the main window and the capture window cannot record the screen", async ({ app, mainWindow }) => {
+  await expect(mainWindow.getByRole("main").getByRole("heading", { level: 1 })).toBeVisible();
   const capture = await pageWithTitle(app, "Audio Capture");
   for (const page of [mainWindow, capture]) {
     const result = await page.evaluate(async () => {

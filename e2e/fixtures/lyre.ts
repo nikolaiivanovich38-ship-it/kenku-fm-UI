@@ -1,42 +1,39 @@
 /**
- * WP5: steps for the new interface page (the "Lyre" tab), shared by e2e/lyre.spec.ts and the acceptance specs'
- * app branch (e2e/specs/support/target.ts). Kept free of the app fixture so both can use it.
+ * WP5: steps for the Lyre page, shared by the e2e specs and the acceptance specs' app branch
+ * (e2e/specs/support/target.ts). Kept free of the app fixture so both can use it. FND-16 (0.5.1): the Lyre page is
+ * the window's own page; there is no Lyre tab to choose any more.
  */
 import { expect, type Page } from "@playwright/test";
 
-/** The Lyre page's document title (the main window's is "Lyre", the old player's "Lyre Player"). */
-export const LYRE_PAGE_TITLE = "Lyre Interface";
+/** The Lyre page's document title, which is the window's title too. */
+export const LYRE_PAGE_TITLE = "Lyre";
 
 /** Where the new interface remembers its look (src/lyre/shell/settings.ts SHELL_SETTINGS_KEY). */
 const SHELL_SETTINGS_KEY = "lyre-shell";
 
-/** The app's main window and the Lyre page, found among the app's pages (they share one browser context). */
-async function appPages(page: Page): Promise<{ main: Page; lyre: Page }> {
-  let main: Page | undefined;
+/** The Lyre page, found among the app's pages (the hidden capture window, "Audio Capture", may come first). */
+async function lyrePage(page: Page): Promise<Page> {
   let lyre: Page | undefined;
   await expect
     .poll(
       async () => {
         for (const candidate of page.context().pages()) {
-          const title = await candidate.title().catch(() => "");
-          if (title === "Lyre") main = candidate;
-          if (title === LYRE_PAGE_TITLE) lyre = candidate;
+          if ((await candidate.title().catch(() => "")) === LYRE_PAGE_TITLE) lyre = candidate;
         }
-        return Boolean(main && lyre);
+        return Boolean(lyre);
       },
-      { message: "the main window and the Lyre page", timeout: 30_000 },
+      { message: "the Lyre page", timeout: 30_000 },
     )
     .toBe(true);
-  return { main: main as Page, lyre: lyre as Page };
+  return lyre as Page;
 }
 
 /**
- * Choose the "Lyre" tab in the main window, so the new interface is in front. Returns the Lyre page.
- * FND-8: on a first start the Lyre page shows its tour; it is skipped (and so remembered as seen) unless `keepTour`.
+ * The Lyre page, once its screen shows. Named for the "Lyre" tab it chose until 0.5.0. FND-8: on a first start the
+ * Lyre page shows its tour; it is skipped (and so remembered as seen) unless `keepTour`.
  */
 export async function openLyreTab(page: Page, options: { keepTour?: boolean } = {}): Promise<Page> {
-  const { main, lyre } = await appPages(page);
-  await main.getByRole("list", { name: "Tabs" }).getByRole("button", { name: "Lyre", exact: true }).click();
+  const lyre = await lyrePage(page);
   await lyre.getByRole("main").getByRole("heading", { level: 1 }).waitFor();
   if (!options.keepTour) {
     const skip = lyre.getByRole("dialog", { name: TOUR_NAME }).getByRole("button", { name: "Skip" });
@@ -49,7 +46,7 @@ export async function openLyreTab(page: Page, options: { keepTour?: boolean } = 
 const TOUR_NAME = /\d of \d$/;
 
 /**
- * Open the Lyre tab at a route ("campaign/crown", "profile/t13/sc:crown:s14:sc3"), in a theme: "default" follows
+ * Open the Lyre page at a route ("campaign/crown", "profile/t13/sc:crown:s14:sc3"), in a theme: "default" follows
  * each campaign's own, "parchment" uses Parchment everywhere (as chosen in Look and feel). The page reloads with the
  * remembered theme, so it opens at the route as a person would find it.
  */

@@ -27,7 +27,7 @@ function heardAtTable(app: ElectronApplication): Promise<number> {
 /** Whether this computer's speakers get sound from Lyre: the Lyre page or the capture window (Chromium's audibility check). */
 function thisComputerPlays(app: ElectronApplication): Promise<boolean> {
   return app.evaluate(({ webContents }) =>
-    webContents.getAllWebContents().some((c) => !c.isDestroyed() && ["Lyre Interface", "Audio Capture"].includes(c.getTitle()) && c.isCurrentlyAudible()),
+    webContents.getAllWebContents().some((c) => !c.isDestroyed() && ["Lyre", "Audio Capture"].includes(c.getTitle()) && c.isCurrentlyAudible()),
   );
 }
 

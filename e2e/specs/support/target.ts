@@ -8,7 +8,7 @@
  * Each function has one branch per project. The `app` branches throw until wave 3 builds the screen; wave 3
  * fills them in (with the app's main window as `page`) and adds the screen to built.ts.
  */
-import { _electron as electron, type ElectronApplication, type Page, test } from "@playwright/test";
+import { _electron as electron, expect, type ElectronApplication, type Page, test } from "@playwright/test";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -75,6 +75,7 @@ export async function withAppPage(use: (page: Page) => Promise<void>): Promise<v
     const main = await app.firstWindow();
     // The first-run tour stays up: openRoute marks it as seen, openFirstStart (help.spec.ts) uses it.
     const lyre = await openLyreTab(main, { keepTour: true });
+    sizeTheWindow(app, lyre);
     // The page the specs see is as big as in the prototype project (the config's viewport), not the window's default.
     const { viewport } = test.info().project.use;
     if (viewport) await lyre.setViewportSize(viewport);
@@ -84,6 +85,30 @@ export async function withAppPage(use: (page: Page) => Promise<void>): Promise<v
     await app.close().catch((): void => undefined);
     fs.rmSync(dataDir, { recursive: true, force: true });
   }
+}
+
+/**
+ * FND-16 (0.5.1): the Lyre page is the window's own page, and Windows draws the window's buttons over its top strip
+ * (titleBarOverlay), placed by the window's size. So a size asked for the page is the window's content size: the
+ * window is resized, not the page emulated (an emulated size would put the buttons, and the space the page keeps for
+ * them, somewhere else). A size below the window's smallest (800×600) is emulated, as before.
+ */
+function sizeTheWindow(app: ElectronApplication, lyre: Page): void {
+  const emulate = lyre.setViewportSize.bind(lyre);
+  lyre.setViewportSize = async (size: { width: number; height: number }) => {
+    if (size.width < 800 || size.height < 600) return emulate(size);
+    await app.evaluate(({ BrowserWindow }, s) => {
+      const window = BrowserWindow.getAllWindows().find((w) => w.isVisible());
+      if (!window) return;
+      if (window.isMaximized()) window.unmaximize();
+      window.setContentSize(s.width, s.height);
+    }, size);
+    await expect
+      .poll(() => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((w) => w.isVisible())?.getContentSize() ?? [0, 0]), {
+        message: `the window's content at ${size.width}×${size.height}`,
+      })
+      .toEqual([size.width, size.height]);
+  };
 }
 
 /** The screen (spec file name, as in built.ts) a route opens: "campaign/crown" is "campaigns", "board/abbey" "pad-boards". */
@@ -115,9 +140,8 @@ export function screenOfRoute(route: Route): string {
 /** Open a screen. `theme: "default"` keeps each campaign's own table theme; "parchment" forces that theme. */
 export async function openRoute(page: Page, route: Route, options: { theme?: Theme } = {}): Promise<void> {
   if (isApp()) {
-    // The app: choose the "Lyre" tab in the main window, then open the route in the Lyre page with the theme
-    // remembered as Look and feel would (e2e/fixtures/lyre.ts). `page` is any page of the app (its main window or
-    // the Lyre page); the spec then works in the Lyre page, so the app project's `page` must be the Lyre page.
+    // The app: open the route in the Lyre page (the window's own page) with the theme remembered as Look and feel
+    // would (e2e/fixtures/lyre.ts).
     await openLyreRoute(page, route, options.theme === "parchment" ? "parchment" : "default");
     // The page opened; a screen the app does not have yet stops here, so no check can pass on its placeholder.
     const screen = screenOfRoute(route);
@@ -288,6 +312,21 @@ export async function lyreIsTheWholeWindow(page: Page): Promise<boolean> {
     const shown = BrowserWindow.getAllWindows().filter((w) => w.isVisible());
     return shown.length === 1 && shown[0].webContents.getURL() === lyre && shown[0].contentView.children.length === 0;
   }, href);
+}
+
+/**
+ * Nik's 0.5.0 test: maximised, the window ran past his bottom taskbar and the screen's right edge. The app: whether
+ * the page fills exactly the window's content area (its CSS size times its zoom is the content size). The prototype
+ * is the page itself, so it always does.
+ */
+export async function pageFillsTheWindow(page: Page): Promise<{ content: number[]; page: number[] }> {
+  const inner = await page.evaluate(() => {
+    const zoom = window.devicePixelRatio || 1;
+    return [Math.round(window.innerWidth * zoom), Math.round(window.innerHeight * zoom)];
+  });
+  if (!isApp()) return { content: inner, page: inner };
+  const content = await runningApp("pageFillsTheWindow").evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((w) => w.isVisible())?.getContentSize() ?? [0, 0]);
+  return { content, page: inner };
 }
 
 /** What the updater can report (src/autoUpdate.ts): an update downloaded, a check that worked, or a failure. */

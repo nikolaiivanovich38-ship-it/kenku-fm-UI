@@ -1,6 +1,6 @@
 /**
- * WP5 (w3-shell): the new interface opens as a built-in "Lyre" tab beside the old player, with the player page's
- * protections, and the old player keeps working.
+ * WP5 (w3-shell), FND-16 (0.5.1): the Lyre page is the window's own page, with its protections; links it opens go to
+ * the system browser.
  */
 import fs from "fs";
 import { test, expect } from "./fixtures/app";
@@ -9,22 +9,18 @@ import { LYRE_PAGE_TITLE, openLyreRoute, openLyreTab } from "./fixtures/lyre";
 
 const AXE_SOURCE = fs.readFileSync(require.resolve("axe-core/axe.min.js"), "utf8");
 
-test("the Lyre tab sits beside the player tab and opens the new interface", async ({ mainWindow, errors }) => {
-  const tabs = mainWindow.getByRole("list", { name: "Tabs" });
-  await expect(tabs.getByRole("button", { name: "Lyre Player" })).toBeVisible();
-  const lyreTab = tabs.getByRole("button", { name: "Lyre", exact: true });
-  await expect(lyreTab).toBeVisible();
-  // The old player still opens first; the Lyre tab cannot be closed.
-  await expect(tabs.getByRole("button", { name: "Lyre Player" })).toHaveAttribute("aria-current", "page");
-  await expect(tabs.getByRole("button", { name: "Close tab Lyre" })).toHaveCount(0);
-
+test("the window opens straight on the Lyre page: no tab bar, no old player, no address bar (FND-16)", async ({ app, mainWindow, errors }) => {
   const lyre = await openLyreTab(mainWindow);
-  await expect(lyreTab).toHaveAttribute("aria-current", "page");
+  expect(lyre).toBe(mainWindow);
   await expect(lyre).toHaveTitle(LYRE_PAGE_TITLE);
   await expect(lyre.getByRole("main").getByRole("heading", { level: 1, name: "Campaigns" })).toBeVisible();
   await expect(lyre.getByRole("navigation", { name: "Lyre" })).toBeVisible();
-  // No address bar over the app's own page.
-  await expect(mainWindow.getByRole("textbox", { name: /address/i })).toHaveCount(0);
+  await expect(lyre.getByRole("list", { name: "Tabs" })).toHaveCount(0);
+  await expect(lyre.getByRole("textbox", { name: /address/i })).toHaveCount(0);
+  // One window shows, and nothing is laid over its page.
+  expect(
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().filter((w) => w.isVisible()).map((w) => w.contentView.children.length)),
+  ).toEqual([0]);
   expect(await lyre.evaluate(() => document.documentElement.dataset.theme)).toBe("candle");
   // The bundled fonts load (the page's policy allows its own font files).
   expect(
@@ -37,7 +33,7 @@ test("the Lyre tab sits beside the player tab and opens the new interface", asyn
   expect(findProblems(errors)).toEqual([]);
 });
 
-test("the Lyre page has the player page's protections", async ({ mainWindow, app, errors }) => {
+test("the Lyre page keeps its protections as the window's own page", async ({ mainWindow, app, errors }) => {
   const lyre = await openLyreTab(mainWindow);
   // Sandboxed with context isolation: only window.lyre reaches the page (its library calls and its audio channel).
   const exposed = await lyre.evaluate(() => {
@@ -69,7 +65,7 @@ test("the Lyre page has the player page's protections", async ({ mainWindow, app
   });
   await lyre.waitForTimeout(500);
   expect(lyre.url()).toMatch(/lyre_window\/index\.html/);
-  // It runs in the app's own session with its sandbox on, like the player page.
+  // It runs in the app's own session with its sandbox on.
   const prefs = await app.evaluate(({ webContents }, title) => {
     const page = webContents.getAllWebContents().find((c) => c.getTitle() === title);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -123,14 +119,22 @@ test("the shell passes axe (WCAG 2.2 A and AA, colour contrast included) in Cand
   }
 });
 
-test("the old Player tab still works beside it", async ({ mainWindow, playerView, errors }) => {
-  await openLyreTab(mainWindow);
-  await mainWindow.getByRole("list", { name: "Tabs" }).getByRole("button", { name: "Lyre Player" }).click();
-  await expect(mainWindow.getByRole("list", { name: "Tabs" }).getByRole("button", { name: "Lyre Player" })).toHaveAttribute("aria-current", "page");
-  await expect(playerView.getByText("Playlists", { exact: true })).toBeVisible();
-  await expect(playerView.getByText("Soundboards", { exact: true })).toBeVisible();
-  await playerView.getByRole("button", { name: "Add Playlist" }).first().click();
-  await expect(playerView.getByRole("dialog", { name: "Add Playlist" })).toBeVisible();
-  await playerView.keyboard.press("Escape");
-  expect(findProblems(errors)).toEqual([]);
+test("a link the Lyre page opens goes to the system browser, https only, and opens no window (FND-16)", async ({ app, mainWindow }) => {
+  const lyre = await openLyreTab(mainWindow);
+  await app.evaluate(({ shell }) => {
+    const opened: string[] = [];
+    (globalThis as unknown as { openedLinks: string[] }).openedLinks = opened;
+    shell.openExternal = async (url: string) => {
+      opened.push(url);
+    };
+  });
+  await lyre.evaluate(() => {
+    window.open("https://discord.com/developers/applications", "_blank");
+    window.open("file:///etc/passwd", "_blank");
+    window.open("http://example.com/", "_blank");
+  });
+  await expect
+    .poll(() => app.evaluate(() => (globalThis as unknown as { openedLinks: string[] }).openedLinks))
+    .toEqual(["https://discord.com/developers/applications"]);
+  expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().filter((w) => w.isVisible()).length)).toBe(1);
 });
