@@ -229,6 +229,18 @@ describe("Library: a track's details", () => {
     expect([t19?.fadesOut, t19?.resume]).toEqual([true, true]);
   });
 
+  it("0.5.1: Pick up where it stopped is offered for a music track with no role and a transition, not for a sting", async () => {
+    const { api } = openAt("library/t44");
+    const user = userEvent.setup();
+    await user.click(await within(details()).findByRole("switch", { name: "Pick up where it stopped" }));
+    await waitFor(async () => expect((await api.library.listTracks()).find((t) => t.id === "t44")?.resume).toBe(true));
+    go("library/t42");
+    expect(await within(details()).findByRole("switch", { name: "Pick up where it stopped" })).toBeInTheDocument();
+    go("library/t39");
+    await within(details()).findByRole("group", { name: "Role" });
+    expect(within(details()).queryByRole("switch", { name: "Pick up where it stopped" })).toBeNull();
+  });
+
   it("round 6: the list's keys are read out with it", async () => {
     openAt("library");
     expect(await screen.findByRole("grid", { name: "Tracks" })).toHaveAccessibleDescription(/Enter open/);

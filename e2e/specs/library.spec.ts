@@ -481,6 +481,16 @@ test.describe("Library targets", () => {
 
 /* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round (support/test.ts appOnly). */
 test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
+  test("a music track with no role offers Pick up where it stopped in its details (\"I don't see pickup where it stops\")", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    await page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Ashes/ }).getByRole("gridcell").nth(1).click();
+    const details = page.getByRole("region", { name: "Details", exact: true });
+    const resume = details.getByRole("switch", { name: "Pick up where it stopped" });
+    await resume.check();
+    await expect(resume).toBeChecked();
+  });
+
   test("the Library's top bar has the Prep | Live switch (\"In library view I still need the Prep and Live toggle\")", async ({ page }) => {
     appOnly();
     await openRoute(page, "library");
