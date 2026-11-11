@@ -962,7 +962,7 @@ other program would lose them. The keys go back when you turn it off, change a k
 - **Global keys** (`src/main/globalKeys.ts`, `src/common/globalKeys.ts`): `LyreManager` registers at most two
   accelerators with `globalShortcut`, for nextScene and fadeAll, only while the page asks with `on: true`;
   `globalKeyProblem` refuses keys used for typing or other programs' commands before Electron is asked (allowed: F1–F12,
-  Shift+Esc, two modifiers including Ctrl or Alt). A key another program holds (`register` answers false) is refused in
+  Shift+Esc, two modifiers including Ctrl or Alt; since review 0.5.0 not Ctrl+Alt with a key that types, CR-6). A key another program holds (`register` answers false) is refused in
   plain words. Every key is unregistered on each change, in `LyreManager.destroy()` and on `will-quit`
   (`globalShortcut.unregisterAll()`, src/index.ts).
 - **The main window's settings** (`src/common/windowSettings.ts`, `src/main/windowSettings/windowSettingsBridge.ts`,
@@ -1054,4 +1054,11 @@ listening somewhere else.
    restart Lyre twice: it stays off.
 2. Lyre › Settings › Remote control › Your home network: the address shown is this computer's 192.168.x.x. Then
    `netstat -ano | findstr :3333` lists that address only, never 0.0.0.0.
+
+### Global keys (CR-6)
+
+`globalKeyProblem` (`src/common/globalKeys.ts`) refuses Ctrl+Alt with a letter, digit, sign or Space, with or without
+Shift: Windows reports AltGr as Ctrl+Alt, so a registered Ctrl+Alt+2 would take every @ typed on a Belgian AZERTY
+keyboard (AltGr+é) from Discord and other programs. Ctrl+Alt with an F key, an arrow or Page Up/Down is still allowed,
+and the suggestion in every refusal is now "F9 or Ctrl+Shift+N".
 
