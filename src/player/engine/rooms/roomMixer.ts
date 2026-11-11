@@ -90,7 +90,8 @@ export class RoomMixer extends TypedEmitter<RoomMixerEvents> implements RoomsCon
   /**
    * Bring the rooms in line with the bots in voice channels (OutputsState →
    * `roomsOf`). A new room starts silent; a room that is no longer listed has
-   * its sound cut at once (its bot left, so nobody hears it any more).
+   * its sound cut at once (its bot left, so nobody hears it any more), except
+   * the first room when the last bots leave: it becomes the table.
    */
   setRooms(rooms: readonly Room[]): void {
     const ids = rooms.map((room) => room.botId);
@@ -121,13 +122,21 @@ export class RoomMixer extends TypedEmitter<RoomMixerEvents> implements RoomsCon
       mix.name = room.name;
       next.set(room.botId, mix);
     }
+    // w51-fix2: the last bots leaving leave the first room's mix as the table, with what it plays (unheard, as before
+    // any bot joined), so On air keeps it and the next bot to join plays it on.
+    const carried = rooms.length === 0 ? this.current[0]?.botId : undefined;
     for (const [id, mix] of this.mixes) {
       if (!next.has(id)) {
-        this.release(id, mix);
+        if (id === carried) {
+          this.outputs.set(TABLE_ROOM, this.outputs.get(id)!);
+          this.outputs.delete(id);
+          mix.name = "Table";
+          next.set(TABLE_ROOM, mix);
+        } else this.release(id, mix);
         removed.push(id);
       }
     }
-    if (rooms.length === 0) {
+    if (rooms.length === 0 && !next.has(TABLE_ROOM)) {
       next.set(TABLE_ROOM, this.createMix("Table"));
     }
     this.mixes = next;

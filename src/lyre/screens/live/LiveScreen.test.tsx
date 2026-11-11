@@ -865,12 +865,36 @@ describe("rooms", () => {
     expect(menu.getByText("Lyre Table plays in")).toBeInTheDocument();
     expect(menu.getByRole("menuitem", { name: /Copy what Side room is playing/ })).toBeInTheDocument();
     await userEvent.keyboard("{Escape}");
-    // Nobody is in Side room: Kick takes it out at once, with nothing to undo.
+    // Nobody is in Side room: Kick takes it out at once, asking nothing, and still offers Undo (w51-fix2: Nik's 0.5.0 test).
     await userEvent.click(screen.getByRole("button", { name: "Kick Lyre Side from Side room" }));
     await act(async () => outputs.settle());
     expect(screen.queryByRole("dialog")).toBeNull();
     await waitFor(() => expect(within(screen.getByRole("region", { name: "On air" })).queryByRole("group", { name: "Side room" })).toBeNull());
     expect(screen.queryByRole("button", { name: /choose a room/i })).toBeNull();
+    const strip = within(screen.getByRole("region", { name: "On air" })).getAllByRole("group", { name: "Undo" }).find((st) => st.textContent?.includes("Lyre Side left Side room"))!;
+    await userEvent.click(within(strip).getByRole("button", { name: "Undo" }));
+    await act(async () => outputs.settle());
+    await findRoom("Side room");
+  });
+
+  it("w51-fix2: kicking the only bot keeps the music in On air; adding the bot again by hand plays it on in the room", async () => {
+    const { outputs, sound } = await openLive();
+    await startAbbey();
+    await playOn(sound, 3);
+    const title = sound.audio.getNowPlaying().rooms[0].music!.title;
+    await userEvent.click(screen.getByRole("button", { name: "Kick Lyre Table from Table" }));
+    await act(async () => outputs.settle());
+    await playOn(sound);
+    // No room still shows what plays (unheard), instead of clearing.
+    const noRoom = within(within(screen.getByRole("region", { name: "On air" })).getByRole("group", { name: "No room" }));
+    expect(noRoom.getByText("No bot is in a voice channel: players hear nothing")).toBeInTheDocument();
+    expect(noRoom.getAllByText(title).length).toBeGreaterThan(0);
+    await userEvent.click(noRoom.getByRole("button", { name: "Join Table" }));
+    await act(async () => outputs.settle());
+    await playOn(sound);
+    await waitFor(() => expect(room("Table").getByText("Playing")).toBeInTheDocument());
+    expect(room("Table").getAllByText(title).length).toBeGreaterThan(0);
+    expect(sound.audio.getNowPlaying().rooms[0].music!.position).toBeGreaterThan(3);
   });
 
   it("OUT-7: Kick of a room the players were hearing offers Undo, which puts the bot back with its music", async () => {

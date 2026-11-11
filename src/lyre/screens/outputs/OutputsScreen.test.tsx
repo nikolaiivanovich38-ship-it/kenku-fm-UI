@@ -216,8 +216,11 @@ describe("Outputs: moving a bot between rooms", () => {
     expect(outputs.calls).toContainEqual(["leave", TABLE_BOT]);
     const undo = within(screen.getByRole("group", { name: "Undo" }));
     expect(screen.getByRole("group", { name: "Undo" })).toHaveTextContent("Lyre Table left Table: the players there hear nothing now.");
+    // The room goes with its bot (another bot is still in a room, so its music stops), and comes back empty.
+    act(() => audio.setNowPlaying({ rooms: [], broadcasting: true }));
     await userEvent.click(undo.getByRole("button", { name: "Undo" }));
     expect(outputs.calls).toContainEqual(["move", TABLE_BOT, "1011"]);
+    act(() => audio.setNowPlaying({ rooms: [{ roomId: TABLE_BOT, name: "Table", music: null, ambience: null, upNext: null, queued: [], effects: [] }], broadcasting: true }));
     await waitFor(() => expect(audio.calls).toContainEqual(["playTrack", "t-anthem", { target: { room: TABLE_BOT }, from: { playlistId: "p-company" }, fromMs: 12000, fadeMs: 1000 }]));
   });
 

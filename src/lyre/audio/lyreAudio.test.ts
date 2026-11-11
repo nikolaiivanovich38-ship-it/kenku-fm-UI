@@ -228,7 +228,7 @@ describe("rooms: each room's sound goes only to its own bot (roomsFor, sceneRoom
     expect(rig.hearRoom("bot-b")).toBeCloseTo(1);
   });
 
-  it("stops a room's sound when its bot leaves, and the fresh table starts silent", async () => {
+  it("stops a room's sound when its bot leaves while another bot stays", async () => {
     onDiscord();
     rig.audio.playTrack("m1", { target: "all" });
     await rig.advance(2);
@@ -236,12 +236,38 @@ describe("rooms: each room's sound goes only to its own bot (roomsFor, sceneRoom
     await rig.advance(1);
     expect(state().rooms.map((r) => r.roomId)).toEqual(["bot-a"]);
     expect(first().music?.trackId).toBe("m1");
+    expect(rig.engine.voices()).toHaveLength(1);
+  });
+
+  it("w51-fix2: the last bot leaving keeps its music going at the table, unheard; a bot joining again plays it on", async () => {
+    rig.setRooms([TAVERN]);
+    rig.broadcast(true);
+    rig.audio.playTrack("m1");
+    await rig.advance(2);
     rig.setRooms([]);
     rig.broadcast(false);
     await rig.advance(1);
-    expect(state().rooms).toEqual([expect.objectContaining({ roomId: "table", music: null })]);
+    expect(state().rooms).toEqual([expect.objectContaining({ roomId: "table", music: expect.objectContaining({ trackId: "m1", paused: false }) })]);
     expect(rig.hearSpeakers()).toBe(0);
-    expect(rig.engine.voices()).toEqual([]);
+    rig.setRooms([TAVERN]);
+    rig.broadcast(true);
+    await rig.advance(1);
+    expect(first()).toMatchObject({ roomId: "bot-a", music: { trackId: "m1" } });
+    expect(first().music!.position).toBeGreaterThan(3.5);
+    expect(rig.hearRoom("bot-a")).toBeCloseTo(1);
+  });
+
+  it("w51-fix2: a bot that joins beside the one that took over the music gets a room of its own, whatever its id", async () => {
+    rig.setRooms([TAVERN, DUNGEON]);
+    rig.setRooms([DUNGEON]);
+    rig.audio.playTrack("m1");
+    rig.setRooms([]);
+    rig.setRooms([TAVERN]);
+    rig.setRooms([TAVERN, DUNGEON]);
+    rig.audio.playTrack("m2", { target: { room: "bot-b" } });
+    await rig.advance(2);
+    expect(room("bot-a")?.music?.trackId).toBe("m1");
+    expect(room("bot-b")?.music?.trackId).toBe("m2");
   });
 });
 
