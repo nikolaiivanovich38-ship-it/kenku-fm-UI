@@ -607,9 +607,10 @@ describe("Current scene: choosing what plays", () => {
     await waitFor(() => expect(current().getByRole("button", { name: `Repeat one: ${eerie}` })).toHaveAttribute("aria-pressed", "true"));
     await waitFor(() => expect(screen.getAllByRole("status").some((st) => st.textContent?.includes("Saved: Repeat one in The abbey ruins"))).toBe(true));
     await waitFor(() => expect(room("Table").getByRole("button", { name: /^Repeat: / })).toHaveAccessibleName("Repeat: one"));
-    // UX-R6: one event, one message: the pop-up is read out, the live region does not say it again.
-    await new Promise((r) => setTimeout(r, 80));
-    expect(document.getElementById("lyre-live")).not.toHaveTextContent("Repeat one on");
+    // UX-R6: one event, one message: Live's fuller words are read out in place of the pop-up's.
+    await new Promise((r) => setTimeout(r, 300));
+    expect(document.getElementById("lyre-live")).toHaveTextContent(/^Repeat one on, saved with the scene: /);
+    expect(document.getElementById("lyre-toast")).toHaveAttribute("aria-live", "off");
   });
 });
 

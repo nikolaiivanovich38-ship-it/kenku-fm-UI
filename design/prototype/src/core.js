@@ -779,9 +779,11 @@ var L = (function () {
     if (text === settledText) return;
     settleTimer = setTimeout(function () { settledText = text; L.say(text); }, 500);
   };
-  var saidAt = 0, readAt = 0;
-  // UX-R6 (0.5.0 review): an announcement within half a second of a note read out is the same event: not spoken again.
-  L.say = function (msg) { if (Date.now() - readAt < 500) return; saidAt = Date.now(); var r = document.getElementById('lyre-live'); if (r) { r.textContent = ''; setTimeout(function () { r.textContent = msg; }, 30); } };
+  var saidAt = 0, readTimer = null;
+  function speak(msg) { var r = document.getElementById('lyre-live'); if (r) { r.textContent = ''; setTimeout(function () { r.textContent = msg; }, 30); } }
+  // UX-R6 (0.5.0 review): a note is read out from the live region 120 ms after it shows; an announcement in that
+  // moment is the same change told more fully, so it takes the note's place: one event, one message.
+  L.say = function (msg) { clearTimeout(readTimer); saidAt = Date.now(); var r = document.getElementById('lyre-live'); if (r) { r.textContent = ''; setTimeout(function () { r.textContent = msg; }, 30); } };
   /* Round 6, part 5: one pop-up for the whole app (ROUND6.md "Part 5: the Saved pop-up"). Nik, 6 Nov 16:14: "little
      pop ups somewhere unobtrusive but noticeable as a consistent design standard indicating something has been saved".
        L.saved(what, { key, detail })  "Saved: <what>" (" · <detail>" after it when given). key: what was saved (default
@@ -819,14 +821,13 @@ var L = (function () {
     // Could 14 of the round 6 review: a note that follows an announcement of the same event (within half a second) is
     // shown but not read out again; a refresh of the same save within 2 s is not read out again either.
     var quiet = same || now - saidAt < 500;
-    t.setAttribute('aria-live', quiet ? 'off' : 'polite'); if (!quiet) readAt = now;
+    t.setAttribute('aria-live', 'off'); clearTimeout(readTimer); if (!quiet) readTimer = setTimeout(function () { speak(text); }, 120);
     if (!same || t.textContent !== text) {
       t.className = 'toast' + (o.saved ? ' t-saved' : '');
       t.innerHTML = (o.saved ? L.icon('check', 's') : '') + '<span>' + (o.saved ? '<b>Saved:</b> ' + esc(text.replace(/^Saved: /, '')) : esc(text)) + '</span>';
     }
     // A refresh shows a short pulse instead of a second pop-up (no pulse with reduced motion: ui.css).
     if (same) { t.classList.remove('t-again'); void t.offsetWidth; t.classList.add('t-again'); }
-    if (quiet) setTimeout(function () { t.setAttribute('aria-live', 'polite'); }, 150);
     note.key = key; note.at = now; L.placeToasts();
     clearTimeout(note.timer); note.timer = setTimeout(hideNote, Math.min(6000, Math.max(NOTE_MS, text.length * 55)));
   }
