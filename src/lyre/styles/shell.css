@@ -1,7 +1,10 @@
 /* The page around the shell: the React root fills the window, and the shell (#app: rail and view) fills the root.
    The rail, view and pane rules themselves come from ui.css, as in the prototype. */
 #root { height: 100%; display: flex; flex-direction: column; }
-#app { flex: 1; min-height: 0; }
+/* FND-16 (ROUND8.md §14): the page is exactly the window. Text for screen readers only (.sr-only) is placed absolutely;
+   far down a scrolled list it made the page up to 208 px taller than a 680 px window, pushing the Now playing bar
+   below the taskbar. #app holds it (position) and clips it (overflow: clip makes no scroll container). */
+#app { flex: 1; min-height: 0; position: relative; overflow: clip; }
 /* A screen that is not built yet. */
 .placeholder { max-width: 60ch; }
 .placeholder p + p { margin-top: var(--gap); }
