@@ -591,7 +591,9 @@ function BoardEditor({ board }: { board: PadBoard }) {
               icon="grid"
               kind="fx"
               size="auto"
+              // Round 6 (UX-R3): the quick-size buttons show the size while the box is open.
               summary={`${board.cols} × ${board.rows}`}
+              foldedSummary
               status={padsStatus}
               actions={
                 <Button
@@ -687,7 +689,8 @@ function BoardEditor({ board }: { board: PadBoard }) {
                   );
                 })}
               </div>
-              <p className="hint pb-help" id={helpId}>
+              {/* Round 6 rule 5 (UX-R3): shown only while the keyboard is in the box; always its description. */}
+              <p className="hint pb-help keys-on-focus" id={helpId}>
                 Drag to swap pads. Keys: arrows move, P previews, Alt+arrow moves the pad.
               </p>
             </Pane>
@@ -981,6 +984,7 @@ function SparePads({
       open={open}
       onOpenChange={onOpenChange}
       summary={n ? board.spare.map((p) => p.label).join(", ") : ""}
+      foldedSummary
       status={n ? { text: plural(n, "pad"), tone: "idle" } : { text: "Empty", tone: "idle" }}
       actions={
         n && empty ? (

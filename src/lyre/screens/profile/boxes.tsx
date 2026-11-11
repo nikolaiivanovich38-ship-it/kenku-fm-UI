@@ -164,16 +164,13 @@ export function ListenBox({ c }: C) {
           <input type="checkbox" role="switch" data-k="ap-keys1" checked={keys1} onChange={(e) => actions.setKeys1(e.target.checked)} />
           Single-key shortcuts
         </label>
-        <span className="hint" title="Space play or pause · I Start · O End · L loop start · M marker · arrows move the playhead 1 s (Shift: 10 s). Keys do nothing while you type.">
-          {keys1 ? (
-            <>
-              <Kbd>Space</Kbd> <Kbd>I</Kbd> <Kbd>O</Kbd> <Kbd>L</Kbd> <Kbd>M</Kbd> <Kbd>←</Kbd>
-              <Kbd>→</Kbd> play, Start, End, loop, marker, playhead
-            </>
-          ) : (
-            "Off"
-          )}
-        </span>
+        {/* Round 6 rule 5 (UX-R3): the legend shows while the keyboard is in the box; with keys off, the switch says so. */}
+        {keys1 && (
+          <span className="hint keys-on-focus" title="Space play or pause · I Start · O End · L loop start · M marker · arrows move the playhead 1 s (Shift: 10 s). Keys do nothing while you type.">
+            <Kbd>Space</Kbd> <Kbd>I</Kbd> <Kbd>O</Kbd> <Kbd>L</Kbd> <Kbd>M</Kbd> <Kbd>←</Kbd>
+            <Kbd>→</Kbd> play, Start, End, loop, marker, playhead
+          </span>
+        )}
       </div>
     </>
   );
@@ -456,12 +453,9 @@ export function PlaceBar({ c }: C) {
   let status: React.ReactNode;
   if (!key) {
     const others = ownPlaceKeys(trackId, view.overrides);
+    // Round 6 (UX-R3): "This track everywhere (its own)" in the list already says whose settings these are.
     status = (
       <>
-        <span className="ap-badge own">
-          <Icon name="edit" size="s" />
-          Editing the track&apos;s own settings
-        </span>
         {others.length > 0 && <span className="hint ap-place-h">Not used in {others.map((k) => placeName(k, view)).join(", ")} (own settings)</span>}
       </>
     );

@@ -62,6 +62,12 @@ describe("the Audio profile screen", () => {
     expectPlayAirIcons();
   });
 
+  it("UX-R3 (round 6 cuts): no badge repeating the list's 'This track everywhere', and the key legend only while the keyboard is in its box", async () => {
+    await open();
+    expect(screen.queryByText(/Editing the track's own settings/)).toBeNull();
+    expect(screen.getByText(/play, Start, End, loop, marker, playhead/).closest(".hint")).toHaveClass("keys-on-focus");
+  });
+
   it("names the track, where it comes from and how long it is", async () => {
     await open();
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(TITLE);
@@ -487,14 +493,15 @@ describe("markers and keys", () => {
     slider("Playhead").focus();
     await user.keyboard("{ArrowRight}{ArrowRight}m");
     const markers = within(region("Markers"));
-    expect(region("Markers")).toHaveTextContent("4 markers");
+    // UX-R3 (round 6 rule 4): an open box does not count its rows; there are four labels now.
+    expect(markers.getAllByRole("textbox", { name: /^Marker label at / })).toHaveLength(4);
     const label = markers.getByRole("textbox", { name: "Marker label at 0:02" });
     await user.clear(label);
     await user.type(label, "First bell");
     await user.click(markers.getByRole("button", { name: "Go to Low swell" }));
     expect(value("Playhead")).toBe(190);
     await user.click(markers.getByRole("button", { name: "Remove marker First bell" }));
-    expect(region("Markers")).toHaveTextContent("3 markers");
+    expect(markers.getAllByRole("textbox", { name: /^Marker label at / })).toHaveLength(3);
     expect(markers.getByRole("button", { name: "Add marker at playhead" })).toHaveFocus();
   });
 

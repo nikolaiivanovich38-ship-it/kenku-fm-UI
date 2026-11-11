@@ -33,6 +33,16 @@ describe("UX-R8: Play on air's icon", () => {
   });
 });
 
+describe("UX-R3: round 6 cuts on a pad board", () => {
+  it("the open Pads box shows the size once (its buttons), no pad count, and the key how-to only while the keyboard is in it", async () => {
+    await open("board/weather");
+    const head = screen.getByRole("region", { name: "Pads" }).querySelector("header")!;
+    expect(head).not.toHaveTextContent("4 × 2");
+    expect(head).not.toHaveTextContent("8 pads");
+    expect(screen.getByText(/^Drag to swap pads\. Keys:/)).toHaveClass("keys-on-focus");
+  });
+});
+
 describe("a pad board: the grid and its size (boards.js board editor)", () => {
   it("shows the board's name, a way back, its pads row by row and the first pad selected", async () => {
     await open("board/weather");
@@ -66,7 +76,9 @@ describe("a pad board: the grid and its size (boards.js board editor)", () => {
     const [message] = await screen.findAllByText("Grid is now 4 × 1 and full. 4 pads moved to Spare pads: Horse whinny, Storm, Wind gust, Fire flares. Nothing was deleted.");
     expect(message.closest("[role=status]")).not.toBeNull();
     await waitFor(() => expect(pads()).toHaveLength(4));
-    expect(spare()).toHaveTextContent("5 pads");
+    // UX-R3 (round 6 rule 4): an open box does not count its rows; its rows are the count.
+    expect(within(spare()).getAllByRole("button", { name: /\(key does nothing while spare\)|while spare/ }).length).toBeGreaterThan(0);
+    expect(spare().querySelector("header")).not.toHaveTextContent("5 pads");
     expect(within(spare()).getByRole("button", { name: /^Storm W ?\(key does nothing while spare\)$/ })).toBeInTheDocument();
     expect(spare()).toHaveAccessibleDescription("Pads that are not on the grid wait here; their keys do nothing until you put them back.");
     await user.click(screen.getByRole("button", { name: "Undo" }));
@@ -85,7 +97,7 @@ describe("a pad board: the grid and its size (boards.js board editor)", () => {
     expect((await screen.findAllByText("Grid is now 4 × 2. 4 spare pads came back onto it: Horse whinny, Storm, Wind gust, Fire flares."))[0]).toBeInTheDocument();
     await waitFor(() => expect(pads()).toHaveLength(8));
     expect(pad("Storm")).toBeInTheDocument();
-    expect(spare()).toHaveTextContent("1 pad");
+    expect(spare().querySelector("header")).not.toHaveTextContent("1 pad");
     await user.click(screen.getByRole("button", { name: "More rows" }));
     expect((await screen.findAllByText("Grid is now 4 × 3: 4 empty slots to fill. Mugs clink stays in Spare pads, where you put it."))[0]).toBeInTheDocument();
     await user.click(within(spare()).getByRole("button", { name: "Put all back" }));
@@ -549,7 +561,7 @@ describe("the selected pad's own box", () => {
     await open("board/weather");
     const used = screen.getByRole("region", { name: "Used in" });
     expect(within(used).getByRole("link", { name: "The Sunken Crown (whole campaign)" })).toHaveAttribute("href", "#/campaign/crown");
-    expect(used).toHaveTextContent("8 places");
+    expect(used.querySelector("header")).not.toHaveTextContent("8 places");
     await user.click(screen.getAllByRole("button", { name: "Use in…" })[0]);
     expect(screen.getByRole("dialog", { name: 'Use "Weather and places" in…' })).toBeInTheDocument();
   });
