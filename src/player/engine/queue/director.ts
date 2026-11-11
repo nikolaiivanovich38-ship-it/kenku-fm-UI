@@ -62,8 +62,12 @@ export class Director extends TypedEmitter<DirectorEvents> {
   /** PLY-8: the scene start whose steps may still run (a new start or Undo stops the old one's), and its timer. */
   private sceneRun = 0;
   private movesOnTimer: unknown = null;
-  /** CR-1: pad step runs still allowed to go on; Stop all and Fade all move it on, which ends every one. */
+  /** The room the scene whose steps may still run plays in. */
+  private sceneRunRoom: string | null = null;
+  /** CR-1: Stop all and Fade all for every room move this on, which ends every pad's steps. */
   private padRunGeneration = 0;
+  /** CR-1: how often each room was stopped on its own; a pad's steps aimed at a room end when it changes. */
+  private readonly roomStops = new Map<string, number>();
   private lastScene: SceneRef | null = null;
   /**
    * PLY-4: where each "Pick up where it stopped" track was stopped (every room shares it); the host may hand in one
@@ -221,10 +225,10 @@ export class Director extends TypedEmitter<DirectorEvents> {
         return this.eachRoom(action.target, (player) => (player.fadeLane(action.lane, fade), OK));
       }
       case "fadeAll":
-        this.cancelEverythingWaiting();
+        this.cancelWaitingIn(action.target);
         return this.eachRoom(action.target ?? "all", (player) => (player.stopAll(seconds(action.fadeMs, DEFAULT_FADES.fadeAll)), OK));
       case "stopAll":
-        this.cancelEverythingWaiting();
+        this.cancelWaitingIn(action.target);
         return this.eachRoom(action.target ?? "all", (player) => (player.stopAll(0), OK));
       case "firePad":
         return this.firePadNow(action.boardId, action.padId, action.phase ?? "down", action.target, 0);
@@ -267,6 +271,7 @@ export class Director extends TypedEmitter<DirectorEvents> {
     if (by === "press") this.undo = { roomId, snapshot: player.snapshot() };
     this.stopSceneRun();
     const run = ++this.sceneRun;
+    this.sceneRunRoom = roomId;
     this.lastScene = ref;
     const steps = scene.steps ?? null;
     if (!steps) player.startScene(ref, scene);
@@ -305,14 +310,21 @@ export class Director extends TypedEmitter<DirectorEvents> {
 
   /**
    * CR-1: Stop all and Fade all leave nothing to start by itself later: the scene's moving on, its steps after a wait,
-   * every pad's steps, and the scene's Undo (the prototype ends the Undo strips here too). Each room's waiting
-   * hand-over ends with its music (RoomPlayer.stopAll).
+   * pads' steps, and the scene's Undo (the prototype ends the Undo strips here too). For every room (no target or
+   * "all", as Live's buttons): all of it. For one room (a saved cue), lead decision 11 Nov: only what waits there; the
+   * scene and its Undo only when it plays in that room. Each room's waiting hand-over ends with its music
+   * (RoomPlayer.stopAll).
    */
-  private cancelEverythingWaiting(): void {
-    this.stopSceneRun();
-    this.padRunGeneration++;
-    this.lastScene = null;
-    this.undo = null;
+  private cancelWaitingIn(target: RoomTarget | undefined): void {
+    const stopped = target === undefined || target === "all" ? null : roomsFor(target, [...this.rooms.rooms()]);
+    if (stopped === null) this.padRunGeneration++;
+    else for (const roomId of stopped) this.roomStops.set(roomId, (this.roomStops.get(roomId) ?? 0) + 1);
+    const inStopped = (roomId: string | null | undefined) => stopped === null || (!!roomId && stopped.includes(roomId));
+    if (inStopped(this.sceneRunRoom)) {
+      this.stopSceneRun();
+      this.lastScene = null;
+    }
+    if (inStopped(this.undo?.roomId)) this.undo = null;
   }
 
   private stopSceneRun(): void {
@@ -330,11 +342,20 @@ export class Director extends TypedEmitter<DirectorEvents> {
     const steps = pad?.steps ?? null;
     // A let-go, or a press that stops a sounding pad (BUG-20), is only about its sound.
     if (pad && steps && phase === "down" && !sounding) {
-      const generation = this.padRunGeneration;
-      this.runSteps(steps, 0, { target, alive: () => this.padRunGeneration === generation, depth, sound: () => this.padSound(boardId, padId, "down", target) });
+      const alive = this.padRunAlive(target);
+      this.runSteps(steps, 0, { target, alive, depth, sound: () => this.padSound(boardId, padId, "down", target) });
       return OK;
     }
     return this.padSound(boardId, padId, phase, target);
+  }
+
+  /** CR-1: whether a pad's steps aimed at `target` may go on: no Stop or Fade all since, for every room or for one of its rooms. */
+  private padRunAlive(target: RoomTarget): () => boolean {
+    const generation = this.padRunGeneration;
+    const rooms = roomsFor(target, [...this.rooms.rooms()]);
+    const stopsNow = () => rooms.map((roomId) => this.roomStops.get(roomId) ?? 0).join(",");
+    const stopsAtStart = stopsNow();
+    return () => this.padRunGeneration === generation && stopsNow() === stopsAtStart;
   }
 
   private padSound(boardId: string, padId: string, phase: "down" | "up", target: RoomTarget): CueOutcome {

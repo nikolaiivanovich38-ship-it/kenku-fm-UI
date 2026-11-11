@@ -6,7 +6,7 @@
  */
 import { beforeEach, describe, expect, it } from "vitest";
 
-import type { CueStep, DomainScene } from "../../common/domain";
+import type { CueStep, DomainScene, Room } from "../../common/domain";
 import type { NowPlaying } from "./lyreAudio";
 import { storedResumePositions } from "../../player/engine/queue/resumePositions";
 import { lyreAudioOnFakes, testTrack, type AudioTestData } from "./testing/onFakes";
@@ -374,6 +374,49 @@ describe("CR-1 (review 0.5.0): Stop all and Fade all cancel everything waiting t
       expect(rig.audio.undoSceneStart().ok).toBe(false);
       await rig.advance(10);
       expect(playing()).toBeNull();
+    });
+  }
+
+  // Lead decision (11 Nov): a Stop or Fade aimed at one room (a saved cue) cancels only what waits in that room.
+  const TAVERN: Room = { botId: "bot-a", name: "Tavern" };
+  const DUNGEON: Room = { botId: "bot-b", name: "Dungeon" };
+  const inRoom = (name: string) => state().rooms.find((r) => r.name === name)?.music?.trackId ?? null;
+
+  for (const type of ["stopAll", "fadeAll"] as const) {
+    it(`${type} aimed at one room leaves a scene running in another room moving on by itself, with its Undo`, async () => {
+      rig.setRooms([TAVERN, DUNGEON]);
+      Object.assign(s1(), { movesOn: { when: "after", ms: 5000 } });
+      rig.audio.startScene(S1); // scenes play in the first room, the Tavern
+      rig.audio.playTrack("m4", { target: { room: DUNGEON.botId } });
+      await rig.advance(1);
+      expect(rig.audio.run({ type, target: { room: DUNGEON.botId } })).toEqual({ ok: true });
+      expect(state().canUndo).toBe(true);
+      await rig.advance(5);
+      expect(inRoom("Tavern")).toBe("m6");
+      expect(inRoom("Dungeon")).toBeNull();
+    });
+
+    it(`${type} aimed at the scene's room cancels its moving on and its Undo`, async () => {
+      rig.setRooms([TAVERN, DUNGEON]);
+      Object.assign(s1(), { movesOn: { when: "after", ms: 5000 } });
+      rig.audio.startScene(S1);
+      await rig.advance(1);
+      rig.audio.run({ type, target: { room: TAVERN.botId } });
+      expect(state().canUndo).toBe(false);
+      await rig.advance(6);
+      expect(inRoom("Tavern")).toBeNull();
+    });
+
+    it(`${type} aimed at one room ends the pad steps waiting there only`, async () => {
+      rig.setRooms([TAVERN, DUNGEON]);
+      addDelayedPad();
+      rig.audio.firePad("b", "delayed", "down", { room: TAVERN.botId });
+      rig.audio.firePad("b", "delayed", "down", { room: DUNGEON.botId });
+      await rig.advance(0.5);
+      rig.audio.run({ type, target: { room: DUNGEON.botId } });
+      await rig.advance(4);
+      expect(inRoom("Tavern")).toBe("m5");
+      expect(inRoom("Dungeon")).toBeNull();
     });
   }
 

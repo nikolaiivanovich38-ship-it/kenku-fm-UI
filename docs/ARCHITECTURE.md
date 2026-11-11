@@ -677,8 +677,10 @@ prototype's other words (Melancholy: sad, sorrowful; Dread: fear, horror; Tense:
 steps (`runSteps`; waits on the engine's clock, `PlaybackEngine.scheduler`; a scene step starting scenes stops after
 four rounds; a new scene start or Undo stops what waits), and a scene moving on after a time or when its music ends
 (its list then plays once, `playsOnce`). Fade all and Stop all cancel everything waiting (review 0.5.0 CR-1,
-`cancelEverythingWaiting`): the scene's moving on, its steps after a wait, every pad's steps (`padRunGeneration`) and the
-scene's Undo, so nothing starts by itself until the game master starts something. The RoomPlayer applies
+`cancelWaitingIn`): the scene's moving on, its steps after a wait, every pad's steps (`padRunGeneration`) and the
+scene's Undo, so nothing starts by itself until the game master starts something. Aimed at one room (a saved cue), they
+cancel only what waits there (lead decision, 11 Nov): pad steps aimed at that room (`roomStops`), and the scene and its
+Undo only when the scene plays in that room. The RoomPlayer applies
 `roleProfile`, starts a track from a marker (`fromMs` on `playTrack` and on Play next / Add to queue's track), picks a
 "Pick up" track up where it stopped (shared by the rooms, kept across restarts; forgotten when it plays to its end,
 CR-5), hands a play step over at the mix-out marker, at the end of a loop or when the track ends (`handOverAt`; Next,
