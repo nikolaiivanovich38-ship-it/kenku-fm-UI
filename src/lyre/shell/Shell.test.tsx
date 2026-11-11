@@ -494,3 +494,90 @@ describe("Back and the trail (UX-18, round 6 parts 6 and 7)", () => {
     expect(screen.queryByRole("navigation", { name: "Breadcrumb" })).toBeNull();
   });
 });
+
+describe("w51-fix2: a fault shows a plain message with a way back, never a blank page", () => {
+  const Broken = () => {
+    throw new Error("broken on purpose");
+  };
+  /** A screen that fails as it is left (an effect's clean-up), as Live did for Nik on the way to an Audio profile. */
+  const FailsOnLeave = () => {
+    React.useEffect(
+      () => () => {
+        throw new Error("broken on leaving");
+      },
+      [],
+    );
+    return <PlaceholderScreen title="Library" />;
+  };
+  /** React and jsdom report each fault on the console; these tests make faults on purpose. */
+  const quietly = async (run: () => Promise<void> | void) => {
+    const quiet = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const stopReport = (event: ErrorEvent) => event.preventDefault();
+    window.addEventListener("error", stopReport);
+    try {
+      await run();
+    } finally {
+      window.removeEventListener("error", stopReport);
+      quiet.mockRestore();
+    }
+  };
+  const alertOf = () => screen.getAllByRole("alert").find((a) => a.textContent?.includes("Something went wrong"));
+
+  it("a screen that fails says so, with Back to the screen before and Show this screen again", () =>
+    quietly(async () => {
+      render(<Shell screens={{ ...SHELL_SCREENS, library: Broken }} />);
+      go("library");
+      const alert = alertOf()!;
+      expect(alert).toHaveTextContent("Something went wrong in this screen, so Lyre stopped showing it. Everything else keeps working.");
+      expect(within(alert).getByRole("button", { name: "Show this screen again" })).toBeInTheDocument();
+      // The rail is still there to go anywhere else, and Back goes to the screen before, as the Back button does.
+      expect(screen.getByRole("navigation", { name: "Lyre" })).toBeInTheDocument();
+      await userEvent.click(within(alert).getByRole("button", { name: "Back" }));
+      expect(await screen.findByRole("heading", { level: 1, name: "Campaigns" })).toBeInTheDocument();
+      expect(alertOf()).toBeUndefined();
+    }));
+
+  it("a screen that fails as it is left does not blank the page: the next screen shows (Nik's 0.5.0 crash)", () =>
+    quietly(() => {
+      render(<Shell screens={{ ...SHELL_SCREENS, library: FailsOnLeave }} />);
+      go("library");
+      expect(screen.getByRole("heading", { level: 1, name: "Library" })).toBeInTheDocument();
+      go("playlists");
+      expect(screen.getByRole("navigation", { name: "Lyre" })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { level: 1, name: "Playlists" })).toBeInTheDocument();
+      expect(alertOf()).toBeUndefined();
+    }));
+
+  it("after a fault, going to another screen from the rail shows that screen", () =>
+    quietly(() => {
+      render(<Shell screens={{ ...SHELL_SCREENS, library: Broken }} />);
+      go("library");
+      expect(alertOf()).toBeDefined();
+      go("playlists");
+      expect(screen.getByRole("heading", { level: 1, name: "Playlists" })).toBeInTheDocument();
+      expect(alertOf()).toBeUndefined();
+    }));
+
+  it("a Now playing bar that fails leaves the screen and the rail standing", () =>
+    quietly(() => {
+      render(
+        <ShellDataProvider value={{ NowPlayingBar: Broken }}>
+          <Shell screens={SHELL_SCREENS} />
+        </ShellDataProvider>,
+      );
+      expect(screen.getByRole("heading", { level: 1, name: "Campaigns" })).toBeInTheDocument();
+      expect(alertOf()).toHaveTextContent("Something went wrong in the Now playing bar");
+    }));
+
+  it("a fault in the frame itself (the rail, Help) shows the message in place of the window, never a blank page", () =>
+    quietly(() => {
+      render(
+        <ShellDataProvider value={{ FindAndPlay: Broken }}>
+          <Shell screens={SHELL_SCREENS} />
+        </ShellDataProvider>,
+      );
+      const alert = alertOf()!;
+      expect(alert).toHaveTextContent("Something went wrong in this window, so Lyre stopped showing it. Everything else keeps working.");
+      expect(within(alert).getByRole("button", { name: "Show this window again" })).toBeInTheDocument();
+    }));
+});
