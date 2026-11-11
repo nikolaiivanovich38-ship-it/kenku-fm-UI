@@ -304,6 +304,48 @@ describe("scenes", () => {
     expect((await s14(api)).scenes.map((s) => s.id)).toEqual(["sc1", "sc2", "sc4", "sc3", "sc5", "sc6"]);
   });
 
+  it("moves down into the last place from its menu, and the last scene has no Move down (Nik, 0.5.0)", async () => {
+    const { api } = openAt("session/crown/s14");
+    await userEvent.click(await screen.findByRole("button", { name: "More for The Abbess" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Move down" }));
+    await waitFor(async () => expect((await s14(api)).scenes.map((s) => s.id)).toEqual(["sc1", "sc2", "sc3", "sc4", "sc6", "sc5"]));
+    await waitFor(() => expect(sceneCards()[5]).toHaveAccessibleName("Scene 6: The Abbess"));
+    await userEvent.click(screen.getByRole("button", { name: "More for The Abbess" }));
+    expect(screen.getByRole("menuitem", { name: "Move up" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Move down" })).toBeNull();
+  });
+
+  it("a scene dragged by its handle below the last one, in the rest of the box, goes last (Nik, 0.5.0)", async () => {
+    const { api } = openAt("session/crown/s14");
+    await waitFor(() => expect(sceneCards()).toHaveLength(6));
+    // jsdom has no layout: each scene card 40 px high from the top of its box, the box 600 px high.
+    const cards = sceneCards();
+    const original = Element.prototype.getBoundingClientRect;
+    Element.prototype.getBoundingClientRect = function (this: Element) {
+      const i = cards.indexOf(this as HTMLElement);
+      const box = (top: number, height: number) => ({ top, bottom: top + height, height, left: 0, right: 600, width: 600, x: 0, y: top, toJSON: () => ({}) }) as DOMRect;
+      if (i >= 0) return box(100 + i * 46, 40);
+      if (this.classList.contains("pane-body")) return box(90, 600);
+      return original.call(this);
+    };
+    try {
+      const first = cards[0];
+      fireEvent.pointerDown(first.querySelector("[title='Drag to reorder']")!);
+      fireEvent.dragStart(first, { dataTransfer: { effectAllowed: "", types: ["text/plain"], setData: (): void => undefined } });
+      const paneBody = first.closest(".pane-body")!;
+      const at = (type: string) => {
+        const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientY: 500 });
+        Object.defineProperty(event, "dataTransfer", { value: { types: ["text/plain"], files: [], dropEffect: "" } });
+        fireEvent(paneBody, event);
+      };
+      at("dragover");
+      at("drop");
+      await waitFor(async () => expect((await s14(api)).scenes.map((s) => s.id)).toEqual(["sc2", "sc3", "sc4", "sc5", "sc6", "sc1"]));
+    } finally {
+      Element.prototype.getBoundingClientRect = original;
+    }
+  });
+
   it("Add scene adds a scene after the one last worked on and puts the cursor in its name", async () => {
     const { api } = await openAbbey();
     await userEvent.click(screen.getByRole("button", { name: "Add scene" }));

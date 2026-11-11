@@ -3,7 +3,7 @@
  * `useNowPlaying()` and never touch Web Audio; the page root starts it once
  * with `startLyreAudio`. See docs/ARCHITECTURE.md, "Wave 3: w3-host".
  */
-export { DEFAULT_FADES_MS, EngineLyreAudio, FIRST_ROOM, ROOM_START_VOLUME, padIsOn, trackTitle } from "./lyreAudio";
+export { DEFAULT_FADES_MS, EngineLyreAudio, FIRST_ROOM, POSITION_TICK_MS, ROOM_START_VOLUME, padIsOn, trackTitle } from "./lyreAudio";
 export type {
   CueAction,
   CueOutcome,
@@ -17,6 +17,7 @@ export type {
   NowPlaying,
   OutputDeviceInfo,
   PlayOptions,
+  PlayPositions,
   PreviewFrom,
   PreviewNowPlaying,
   PreviewPosition,
@@ -27,7 +28,7 @@ export type {
   TrackFrom,
 } from "./lyreAudio";
 export { EMPTY_LIBRARY, startLyreAudio } from "./browserLyreAudio";
-export { LyreAudioProvider, useLyreAudio, useLyreAudioEvent, useNowPlaying, useOptionalLyreAudio, usePreviewKey } from "./LyreAudioProvider";
+export { LyreAudioProvider, useLyreAudio, useLyreAudioEvent, useNowPlaying, useOptionalLyreAudio, usePlayPosition, usePreviewKey } from "./LyreAudioProvider";
 // The preload half (createLyreAudioBridge) is imported by src/lyre/preload.ts
 // directly from ./preloadAudio, so the preload bundle stays free of the engine.
 export type { LyreAudioBridge } from "./preloadAudio";

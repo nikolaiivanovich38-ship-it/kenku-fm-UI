@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { act, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expectNoAxeViolations } from "../../test/axe";
 // The page can start the real audio host, whose worklet file is a webpack asset; these tests use a fake host.
@@ -140,6 +140,20 @@ describe("Library: a track's details", () => {
     expect(d.getByRole("button", { name: "Show in folder" })).toBeInTheDocument();
     // The sample library was added on 5 Nov 2026 (prototypeSeed): "Today" on that day, the date after it.
     expect(d.getByText(addedText(Date.UTC(2026, 10, 5, 12), Date.now()))).toBeInTheDocument();
+  });
+
+  it("Copy path copies the file's whole path and says so; when Lyre cannot copy, it says that in plain words (Nik, 0.5.0)", async () => {
+    openAt("library/t44");
+    await within(details()).findByRole("textbox", { name: "Your title" });
+    const writeText = vi.fn(async (_text: string) => undefined);
+    // Not userEvent: its setup puts a clipboard of its own on the page.
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    fireEvent.click(within(details()).getByRole("button", { name: "Copy path" }));
+    expect(writeText).toHaveBeenCalledWith("H:\\Audio\\Scores\\Bear McCreary\\God of War\\13 Ashes.flac");
+    expect(await screen.findByText("Path copied: H:\\Audio\\Scores\\Bear McCreary\\God of War\\13 Ashes.flac")).toBeInTheDocument();
+    writeText.mockRejectedValueOnce(new DOMException("Write permission denied.", "NotAllowedError"));
+    fireEvent.click(within(details()).getByRole("button", { name: "Copy path" }));
+    expect(await screen.findByText("Lyre could not copy the path: select it and press Ctrl+C.")).toBeInTheDocument();
   });
 
   it("Use the title in the file fills Your title; typing changes the list at once", async () => {

@@ -51,6 +51,7 @@ import { ShapeGlyph, shapeHint } from "../../kit/ShapeGlyph";
 import { focusSoon, useWriteOk, useWriteResult } from "./shared";
 import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
 import { ProfileLink } from "../../kit/ProfileLink";
+import { copyText } from "../../kit/copyText";
 import { previewKeyOf } from "../../kit/SoundButtons";
 import type { TrackStore } from "./trackStore";
 import { useSave } from "../../shell/useSave";
@@ -234,14 +235,9 @@ export function TrackDetails({
                 const path = t.folder
                   ? `${t.folder}\\${t.fileName}`
                   : t.fileName;
-                try {
-                  void navigator.clipboard
-                    ?.writeText(path)
-                    .catch((): void => undefined);
-                } catch {
-                  /* the clipboard is not available: the toast still shows the path */
-                }
-                toast(`Path copied: ${path}`);
+                void copyText(path).then((copied) =>
+                  toast(copied ? `Path copied: ${path}` : "Lyre could not copy the path: select it and press Ctrl+C."),
+                );
               }}
             >
               <Icon name="file" size="s" />

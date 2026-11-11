@@ -891,7 +891,7 @@ function ItemRow({
         {board ? (
           <PreviewButton target={{ kind: "board", board }} name={info.name} />
         ) : (
-          <PreviewButton target={info.kind === "playlist" ? { kind: "playlist", id: info.id } : { kind: "track", id: info.id }} name={shown} />
+          <PreviewButton target={info.kind === "playlist" ? { kind: "playlist", id: info.id, place } : { kind: "track", id: info.id, place }} name={shown} />
         )}
         {info.kind !== "board" && <PlayOnAirButton target={info.kind === "playlist" ? { kind: "playlist", id: info.id } : { kind: "track", id: info.id }} name={shown} />}
         {playlist && list === "music" && <PlayOrderButton playlistId={playlist.id} place={place} />}
@@ -1110,7 +1110,7 @@ function AmbienceSlot({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
         <Button size="s" data-k={`pa-${scene.id}`} onClick={choose}>
           Change…
         </Button>
-        <PreviewButton target={info.kind === "playlist" ? { kind: "playlist", id: info.id } : { kind: "track", id: info.id }} name={info.name} />
+        <PreviewButton target={info.kind === "playlist" ? { kind: "playlist", id: info.id, place: { kind: "scene", ...ctx.address(scene) } } : { kind: "track", id: info.id, place: { kind: "scene", ...ctx.address(scene) } }} name={info.name} />
         <PlayOnAirButton target={info.kind === "playlist" ? { kind: "playlist", id: info.id } : { kind: "track", id: info.id }} name={info.name} />
         <RowMenu
           label={`More for ${info.name}`}

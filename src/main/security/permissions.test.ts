@@ -34,7 +34,7 @@ const EXPECTED: Record<AppPageRole | "tab", string[]> = {
   "main-window": ["media"],
   "audio-capture": ["media"],
   "player-view": ["clipboard-sanitized-write"],
-  "lyre-view": [],
+  "lyre-view": ["clipboard-sanitized-write"],
   tab: ["fullscreen"],
 };
 
@@ -222,6 +222,16 @@ describe("Wave 3: the new interface's page (lyre-view) chooses the preview devic
     for (const mediaTypes of [["audio"], ["video"], [], undefined]) {
       expect(isPermissionAllowed({ role: "lyre-view", permission: "media", mediaTypes, isCheck: true })).toBe(false);
       expect(isPermissionAllowed({ role: "lyre-view", permission: "media", mediaTypes: mediaTypes ?? ["audio"] })).toBe(false);
+    }
+  });
+
+  it("may write text to the clipboard (Copy path, Copy code; Nik, 0.5.0: nothing was copied), checked or requested, but never read it", () => {
+    expect(isPermissionAllowed({ role: "lyre-view", permission: "clipboard-sanitized-write" })).toBe(true);
+    expect(isPermissionAllowed({ role: "lyre-view", permission: "clipboard-sanitized-write", isCheck: true })).toBe(true);
+    expect(isPermissionAllowed({ role: "lyre-view", permission: "clipboard-sanitized-write", isMainFrame: false })).toBe(false);
+    for (const read of ["clipboard-read", "deprecated-sync-clipboard-read"]) {
+      expect(isPermissionAllowed({ role: "lyre-view", permission: read })).toBe(false);
+      expect(isPermissionAllowed({ role: "lyre-view", permission: read, isCheck: true })).toBe(false);
     }
   });
 

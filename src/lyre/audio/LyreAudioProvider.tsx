@@ -6,7 +6,8 @@
  *   `useOptionalLyreAudio()` for the shell, which also works without sound.
  * - `useNowPlaying()`: what plays in each room, redrawn on every change and
  *   about once a second while anything plays (positions); `usePreviewKey()`
- *   only what previews.
+ *   only what previews; `usePlayPosition(pick)` one position, redrawn every
+ *   250 ms while it moves on (the time lines of the Now playing bar and Live).
  * - `useLyreAudioEvent("announce" | "error", handler)`: sentences for the
  *   screen reader's live region, and plain messages for toasts.
  *
@@ -14,7 +15,7 @@
  */
 import React, { createContext, useCallback, useContext, useEffect, useRef, useSyncExternalStore } from "react";
 
-import type { LyreAudio, LyreAudioEvents, NowPlaying } from "./lyreAudio";
+import type { LyreAudio, LyreAudioEvents, NowPlaying, PlayPositions } from "./lyreAudio";
 
 const LyreAudioContext = createContext<LyreAudio | null>(null);
 
@@ -52,6 +53,16 @@ export function usePreviewKey(): string | null {
   const subscribe = useCallback((listener: () => void) => audio.subscribe(listener), [audio]);
   const snapshot = useCallback(() => audio.getNowPlaying().preview?.key ?? null, [audio]);
   return useSyncExternalStore(subscribe, snapshot);
+}
+
+/**
+ * UX-16: one position in seconds (`pick` chooses a room's lane, or the preview), or null while it loads. Only the
+ * component that calls it redraws, every 250 ms while something plays (Nik, 0.5.0: the bar's time stayed at 0:00).
+ */
+export function usePlayPosition(pick: (at: PlayPositions) => number | null): number | null {
+  const audio = useLyreAudio();
+  const subscribe = useCallback((listener: () => void) => audio.subscribePositions(listener), [audio]);
+  return useSyncExternalStore(subscribe, () => pick(audio.getPositions()));
 }
 
 /** Listen to LyreAudio's announcements or errors while the component is shown. */

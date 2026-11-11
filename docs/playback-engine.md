@@ -33,7 +33,7 @@ Long tracks are played straight from the file, a little at a time, so an hour of
 - Deleting a track from a playing playlist no longer changes which track is current (BUG-11). The old player still has this bug until WP5 switches it over.
 - Looping sounds release everything when they stop or loop, checked over 1,000 start/stop cycles and 500 loop passes (BUG-4).
 - Jumping to another point in a sound moves its fade-out and its next loop with it (BUG-5).
-- Nothing checks the time 60 times a second. The engine reports changes as they happen, and the progress bar is updated once a second only while something plays (PERF-1).
+- Nothing checks the time 60 times a second. The engine reports changes as they happen, and the progress bar is updated once a second only while something plays (PERF-1). The new interface's time lines (the Now playing bar, Live's On air) move every 250 ms while something plays: they read the audio host's positions (`subscribePositions`), so only they redraw, and the timer stops when everything is paused or stopped.
 - A track missing from the library is skipped instead of stopping "next" from working.
 
 ### Manual checks

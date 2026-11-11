@@ -61,7 +61,18 @@ describe("PreviewPlayer (PRV-1): only the game master hears it", () => {
     expect(page.signalAt(mixer.outputs.table as unknown as FakeNode)).toBe(0);
     expect(page.signalAt(page.destination)).toBe(0);
     expect(player.current()).toEqual({ key: "tavern", label: "Tavern", kind: "track", trackId: "tavern", playlistId: null, padKey: null, from: null, paused: false, gainDb: 0 });
-    expect(last(changes)?.announcement).toBe("Previewing in your headphones: Tavern");
+    expect(changes.map((c) => c.announcement)).toEqual(["Previewing in your headphones: Tavern", ""]);
+  });
+
+  it("says its length once the file is known, with a quiet change (UX-16: the Now playing bar's time)", async () => {
+    const tavern = track("tavern", "Tavern");
+    player.play(trackPreview(tavern, media(tavern)));
+    expect(player.length()).toBeNull();
+    expect(changes).toHaveLength(1);
+    await headphones.flush();
+    expect(changes).toHaveLength(2);
+    expect(last(changes)).toMatchObject({ announcement: "", state: { key: "tavern" } });
+    expect(player.length()).toBeGreaterThan(0);
   });
 
   it("cannot be wired into the player page's graph: the preview lives in another audio context", () => {
@@ -154,7 +165,8 @@ describe("PreviewPlayer (PRV-1): only the game master hears it", () => {
     player.play({ ...trackPreview(tavern, media(tavern)), quiet: true });
     await headphones.flush();
     player.stop();
-    expect(changes.map((c) => c.announcement)).toEqual(["", ""]);
+    // Started, its length known, stopped.
+    expect(changes.map((c) => c.announcement)).toEqual(["", "", ""]);
     expect(changes[0].state).toMatchObject({ key: "tavern", label: "Tavern" });
   });
 

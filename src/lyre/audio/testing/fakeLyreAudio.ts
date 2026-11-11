@@ -11,7 +11,7 @@
 import type { AudioDevices } from "../../../common/domain";
 import { TypedEmitter } from "tiny-typed-emitter";
 
-import type { CueOutcome, DeviceStatus, LaneNowPlaying, LyreAudio, LyreAudioEvents, NowPlaying, OutputDeviceInfo, PreviewNowPlaying, RoomNowPlaying } from "../lyreAudio";
+import type { CueOutcome, DeviceStatus, LaneNowPlaying, LyreAudio, LyreAudioEvents, NowPlaying, OutputDeviceInfo, PlayPositions, PreviewNowPlaying, RoomNowPlaying } from "../lyreAudio";
 
 export const EMPTY_NOW_PLAYING: NowPlaying = {
   rooms: [{ roomId: "table", name: "Table", volume: 0.85, music: null, ambience: null, upNext: null, queued: [], upNextList: [], repeat: { chosen: null, shown: "off" }, canUndoUpNext: false, effects: [], played: [] }],
@@ -153,6 +153,27 @@ export class FakeLyreAudio extends TypedEmitter<LyreAudioEvents> implements Lyre
     return () => {
       this.subscribers.delete(listener);
     };
+  }
+
+  /** The positions of the now-playing state a test gave, until it gives others with setPositions. */
+  private positions: { from: NowPlaying; at: PlayPositions } | null = null;
+
+  getPositions(): PlayPositions {
+    if (this.positions?.from !== this.state) {
+      const rooms = Object.fromEntries(this.state.rooms.map((r) => [r.roomId, { music: r.music?.position ?? null, ambience: r.ambience?.position ?? null }]));
+      this.positions = { from: this.state, at: { rooms, preview: this.state.preview?.position ?? null } };
+    }
+    return this.positions.at;
+  }
+
+  /** Move positions on without any other change, as the audio host does every 250 ms while something plays. */
+  setPositions(at: PlayPositions): void {
+    this.positions = { from: this.state, at };
+    this.subscribers.forEach((listener) => listener());
+  }
+
+  subscribePositions(listener: () => void): () => void {
+    return this.subscribe(listener);
   }
 
   async dispose(): Promise<void> {
