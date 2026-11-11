@@ -29,6 +29,8 @@ import {
   DEFAULT_LIBRARY_NORMALISE,
   normalisedGainDb,
   playlistTracks,
+  profilePlacesFor,
+  roleProfile,
   roomsFor,
   type AudioDevices,
   type AudioProfile,
@@ -68,6 +70,7 @@ import type { Random } from "../../player/engine/queue/queue";
 import type { PlayingReport, RoomReport } from "../../player/engine/queue/roomPlayer";
 import type { RoomLane } from "../../player/engine/rooms.contract";
 import { TABLE_ROOM, type RoomMixer } from "../../player/engine/rooms";
+import { laneProfile, profileInputFor } from "../../player/engine/profile/trackProfile";
 import type { MediaRequest } from "../../player/engine/sources/sourceLoader";
 import type { Voice } from "../../player/engine/voice/voice";
 import { StableRooms } from "./stableRooms";
@@ -241,8 +244,13 @@ export interface PreviewPosition {
 export interface PreviewTrackOptions {
   /** Start this far into the file (default: the profile's Start, or 0). */
   startAtMs?: number;
-  /** Play as this profile says (Start to End, fades, loop); none plays the whole file. */
+  /**
+   * Play as this profile says (Start to End, fades, loop). None: as the track's audio profile where it is previewed
+   * (`place`, then `playlistId`, then the track's own), as the players would hear it from there.
+   */
   profile?: AudioProfile;
+  /** The scene (or session's list) it is previewed in, whose own audio settings for it apply. */
+  place?: UsePlace;
   /** Announce nothing: the screen says what happens. */
   quiet?: boolean;
   /** UX-16: where the game master started it, in words for the Now playing bar ("the session planner"). */
@@ -262,6 +270,8 @@ export interface PreviewTrackOptions {
 /** Where a preview was started from (the Now playing bar's "Previewed from …"). */
 export interface PreviewFrom {
   from?: string;
+  /** previewPlaylist: the scene (or session's list) it is previewed in, whose audio settings for its first track apply. */
+  place?: UsePlace;
 }
 
 /** The first room: where sound goes when a screen names no room, and where scenes always play. */
@@ -759,7 +769,8 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       return this.fail(`Unable to preview: ${trackTitle(track)}`);
     }
     const gainDb = this.previewGain(track.id, options?.playlistId ?? null);
-    const voice = { startAt: options?.startAtMs === undefined ? undefined : options.startAtMs / 1000, profile: options?.profile, gainDb };
+    const profile = options?.profile ?? this.previewProfile(track, options?.place ?? null, options?.playlistId ?? null);
+    const voice = { startAt: options?.startAtMs === undefined ? undefined : options.startAtMs / 1000, profile, gainDb };
     preview.play({ ...trackPreview(track, media), playlistId: options?.playlistId ?? null, options: voice, quiet: options?.quiet, from: options?.from ?? null });
     return OK;
   }
@@ -783,7 +794,8 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     if ("message" in item) {
       return this.fail(item.message);
     }
-    preview.play({ ...item, options: { gainDb: this.previewGain(item.trackId ?? null, playlistId) }, from: options.from ?? null });
+    const profile = this.previewProfile(first!, options.place ?? null, playlistId);
+    preview.play({ ...item, options: { gainDb: this.previewGain(item.trackId ?? null, playlistId), profile }, from: options.from ?? null });
     return OK;
   }
 
@@ -964,6 +976,18 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
   }
 
   // ---------- inside ----------
+
+  /**
+   * The audio profile a track plays with on air from that place and playlist (the scene's own settings, the
+   * playlist's, then the track's), which its preview plays with too (Nik, 0.5.0: Preview ignored Start, End and fades).
+   * The same as RoomPlayer.startLane: its lane's ending, and a role's (a sting never loops; Ending "Fades out").
+   */
+  private previewProfile(track: DomainTrack, place: UsePlace | null, playlistId: string | null): AudioProfile {
+    const places = profilePlacesFor(place, playlistId);
+    const overrides = this.library.profileOverrides();
+    const lane = track.kind === "amb" ? "ambience" : track.kind === "fx" ? "effects" : "music";
+    return roleProfile(track, laneProfile(track, lane, places, overrides), { fadeOutChosen: profileInputFor(track, places, overrides).fadeOut !== undefined });
+  }
 
   /** PLY-15: the gain a track gets on air from that playlist (or on its own), which its preview hears too. */
   private previewGain(trackId: string | null, playlistId: string | null): number {

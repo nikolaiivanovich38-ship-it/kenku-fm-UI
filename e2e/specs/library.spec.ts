@@ -159,6 +159,13 @@ test.describe("a track's details", () => {
     await expect(you).toHaveCount(0);
   });
 
+  test("Preview plays the track as its audio profile says: from its Start, 0:08 for this one (Nik, 0.5.0)", async ({ page }) => {
+    await openRoute(page, "library/t02");
+    await details(page).getByRole("button", { name: "Preview", exact: true }).click();
+    const you = page.getByRole("region", { name: "Now playing" }).getByRole("group", { name: /^Only you/ });
+    await expect(you).toContainText(/\b0:(0[89]|[1-5]\d) \//);
+  });
+
   test("a mood tag is added by typing in the box: choose from the matches with the arrow keys, or create a new one", async ({ page }) => {
     await openRoute(page, "library/t44");
     const box = details(page).getByRole("combobox", { name: "Add a mood tag" });

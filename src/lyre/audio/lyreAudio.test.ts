@@ -482,6 +482,44 @@ describe("preview: the game master's headphones only, never on air (PRV-1)", () 
     expect(rig.hearPreview()).toBe(0);
   });
 
+  it("a Preview button plays the track as its audio profile says: from Start, fading in, to End with its fade out (Nik, 0.5.0)", async () => {
+    rig.data.tracks.find((t) => t.id === "m2")!.profile = { startMs: 2000, endMs: 6000, after: "next", fadeIn: { ms: 1000, shape: 50 }, fadeOut: { ms: 1000, shape: 50 } };
+    rig.audio.previewTrack("m2", { from: "the Library" });
+    await rig.advance(0.25);
+    expect(state().preview!.position!).toBeGreaterThanOrEqual(2);
+    expect(rig.hearPreview()).toBeGreaterThan(0);
+    expect(rig.hearPreview()).toBeLessThan(0.6);
+    await rig.advance(1.75);
+    expect(rig.hearPreview()).toBeCloseTo(1);
+    // A quarter of a second before End: well into the fade out.
+    await rig.advance(1.75);
+    expect(rig.hearPreview()).toBeLessThan(0.6);
+    await rig.advance(1);
+    expect(state().preview).toBeNull();
+    expect(rig.hearPreview()).toBe(0);
+  });
+
+  it("previewed in a scene or from a playlist, a track plays as its own settings there say; on its own, as the track's", async () => {
+    // makeData: in scene S1, m1 ends at 5 s (the file is 20 s).
+    rig.audio.previewTrack("m1", { place: { kind: "scene", ...S1 } });
+    await rig.advance(4.5);
+    expect(rig.hearPreview()).toBeCloseTo(1);
+    await rig.advance(1);
+    expect(state().preview).toBeNull();
+    rig.audio.previewTrack("m1");
+    await rig.advance(6);
+    expect(state().preview?.key).toBe("m1");
+    rig.audio.stopPreview();
+    // The playlist's own settings for its first track, in the playlist's preview and in a track row on its page.
+    rig.data.profiles = { ...rig.data.profiles, [placeKey({ kind: "playlist", playlistId: "P" })]: { m2: { endMs: 3000, after: "next" } } };
+    rig.audio.previewPlaylist("P");
+    await rig.advance(3.5);
+    expect(state().preview).toBeNull();
+    rig.audio.previewTrack("m2", { playlistId: "P" });
+    await rig.advance(3.5);
+    expect(state().preview).toBeNull();
+  });
+
   it("previews a track from a point with its audio profile, quietly, and says where it is (the Audio profile screen)", async () => {
     const positions: { key: string; positionMs: number }[] = [];
     rig.audio.on("preview-position", (at) => positions.push(at));

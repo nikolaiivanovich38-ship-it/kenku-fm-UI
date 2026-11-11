@@ -178,7 +178,7 @@ export function PlaceTracks({ name, playlistId, lane, tracks, place }: { name: s
                 </a>
               )}
               <span data-ctl="preview">
-                <PreviewButton target={{ kind: "track", id: t.id, playlistId }} name={n.name} />
+                <PreviewButton target={{ kind: "track", id: t.id, playlistId, place }} name={n.name} />
               </span>
               {place.kind === "scene" && lane === "music" && (
                 <span data-ctl="rep1">

@@ -61,4 +61,15 @@ describe("Preview in a track's details", () => {
     expect(sound.hearPreview()).toBe(0);
     expect(details().getByRole("button", { name: "Preview" })).toHaveAttribute("aria-pressed", "false");
   });
+
+  it("Preview plays the track as its audio profile says: The Thin Red Line's track from its Start, 0:08, fading in (Nik, 0.5.0)", async () => {
+    const { sound } = await openPage("library/t02");
+    await userEvent.click(details().getByRole("button", { name: "Preview" }));
+    await playOn(sound, 0.5);
+    expect(sound.audio.getNowPlaying().preview?.key).toBe("t02");
+    expect(sound.audio.getNowPlaying().preview!.position!).toBeGreaterThanOrEqual(8);
+    // Its fade in is 3 s long.
+    expect(sound.hearPreview()).toBeGreaterThan(0);
+    expect(sound.hearPreview()).toBeLessThan(0.5);
+  });
 });

@@ -12,6 +12,7 @@ import { expectNoAxeViolations } from "../test/axe";
 import { PlayOnAirButton, PreviewButton, previewKeyOf, type SoundTarget } from "./SoundButtons";
 
 const pad = (id: string, label: string) => ({ id, label, sound: { kind: "none" } as never, mode: "oneshot" as const, key: "", color: "steel" as const, icon: "star", volume: 1, fadeOutMs: 0, aside: false, steps: null as null });
+const SCENE = { kind: "scene" as const, campaignId: "crown", sessionId: "s14", sceneId: "sc3" };
 const board: PadBoard = { id: "combat", name: "Combat", cols: 2, rows: 1, slots: [null, pad("sword", "Sword")], spare: [], dividers: [], folderId: null };
 
 function show(ui: React.ReactNode, audio = new FakeLyreAudio()) {
@@ -30,6 +31,9 @@ describe("Preview (only you hear it)", () => {
     [{ kind: "track", id: "t13" }, "Bridge", "Preview Bridge", ["previewTrack", "t13"]],
     [{ kind: "track", id: "t18", playlistId: "p-ashen" }, "Menace", "Preview Menace", ["previewTrack", "t18", { playlistId: "p-ashen" }]],
     [{ kind: "playlist", id: "p-company" }, "The Company themes", "Preview The Company themes", ["previewPlaylist", "p-company"]],
+    // In a scene its own audio settings there apply to the preview (Nik, 0.5.0).
+    [{ kind: "track", id: "t18", playlistId: "p-ashen", place: SCENE }, "Menace", "Preview Menace", ["previewTrack", "t18", { playlistId: "p-ashen", place: SCENE }]],
+    [{ kind: "playlist", id: "p-company", place: SCENE }, "The Company themes", "Preview The Company themes", ["previewPlaylist", "p-company", { place: SCENE }]],
     [{ kind: "pad", boardId: "combat", padId: "sword" }, "Sword", "Preview Sword", ["previewPad", "combat", "sword"]],
     [{ kind: "board", board }, "Combat", "Preview the first pad of Combat", ["previewPad", "combat", "sword"]],
   ])("%o is named after it and starts its preview", async (target, name, label, call) => {
