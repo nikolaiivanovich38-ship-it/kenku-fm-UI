@@ -116,6 +116,18 @@ describe("update errors are shown, not only logged (SEC-14)", () => {
     expect(vi.mocked(window.webContents.send).mock.calls.filter(([channel]) => channel === "ERROR")).toHaveLength(2);
   });
 
+  it("takes the feed's 404 (a Releases page with only drafts) as no update, not an error (w51-fix2)", () => {
+    const window = fakeWindow();
+    const status = new UpdateStatus();
+    runAutoUpdate(window, squirrelInstalled, status);
+    handlerFor("checking-for-update")();
+    handlerFor("error")(
+      new Error("Command failed: 4294967295\nSystem.AggregateException: One or more errors occurred. ---> System.Net.WebException: The remote server returned an error: (404) Not Found."),
+    );
+    expect(status.state().kind).toBe("up-to-date");
+    expect(vi.mocked(window.webContents.send).mock.calls.filter(([channel]) => channel === "ERROR")).toEqual([]);
+  });
+
   it("records checking, downloading and a downloaded update, and says to restart in plain words", () => {
     const window = fakeWindow();
     const status = new UpdateStatus();

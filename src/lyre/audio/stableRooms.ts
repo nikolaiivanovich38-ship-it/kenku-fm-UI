@@ -9,10 +9,12 @@
  * the room that took over the table keeps the table's id for the Director for
  * as long as it stays, so the music goes on into Discord.
  *
- * When the last bot leaves, the mixer makes a fresh, silent table; it gets a
- * new id ("table~2", …) so the Director forgets the old one and stops its
- * voices, which played into a mix that is gone. Targets still say "table" for
- * the first room: `roomsFor` sends an unknown room to the first one.
+ * When the last bot leaves, the mixer keeps the first room's mix as the table
+ * (w51-fix2), so the table takes that room's Director id and what it played
+ * goes on, unheard, until a bot joins again and takes it over. A room that
+ * joins later beside it never reuses an id the Director already knows
+ * ("bot-b~3", …). Targets still say "table" for the first room: `roomsFor`
+ * sends an unknown room to the first one.
  *
  * Ids facing the screens are always the real ones: a bot id, or "table".
  */
@@ -74,6 +76,11 @@ export class StableRooms implements RoomsAudio {
         return real;
       }
     }
+    // A room listed under its own id is that room, even when the table took that id while no bot was in a room
+    // (w51-fix2: the first bot was in a room before this existed, left, and came back).
+    if (this.real.some((room) => room.botId === engineId)) {
+      return engineId;
+    }
     return engineId === this.tableId ? TABLE_ROOM : engineId;
   }
 
@@ -88,18 +95,31 @@ export class StableRooms implements RoomsAudio {
 
   private update(rooms: Room[]) {
     const before = this.real;
+    const engineIds = new Map(before.map((room) => [room.botId, this.toEngine(room.botId)]));
+    if (before.length > 0 && rooms.length === 0) {
+      // The mixer keeps the first room's mix as the table (w51-fix2): the Director keeps its player under that id.
+      this.tableId = engineIds.get(before[0].botId)!;
+    }
+    const next = new Map<string, string>();
     if (before.length === 0 && rooms.length > 0) {
       // The mixer moved the table's mix to the first room.
-      this.aliases.set(rooms[0].botId, this.tableId);
+      next.set(rooms[0].botId, this.tableId);
     }
-    for (const real of [...this.aliases.keys()]) {
-      if (!rooms.some((room) => room.botId === real)) {
-        this.aliases.delete(real);
-      }
+    for (const room of rooms) {
+      const kept = engineIds.get(room.botId);
+      if (!next.has(room.botId) && kept !== undefined) next.set(room.botId, kept);
     }
-    if (before.length > 0 && rooms.length === 0) {
-      // A fresh table: a new id, so the Director lets go of the old one.
-      this.tableId = `${TABLE_ROOM}~${++this.generation}`;
+    for (const room of rooms) {
+      if (next.has(room.botId)) continue;
+      // A new room has its own id, unless the Director knows that id as another room (the one that took the table).
+      const used = new Set(next.values());
+      let id = room.botId;
+      while (used.has(id)) id = `${room.botId}~${++this.generation}`;
+      next.set(room.botId, id);
+    }
+    this.aliases.clear();
+    for (const [real, engine] of next) {
+      if (real !== engine) this.aliases.set(real, engine);
     }
     this.real = rooms.map((room) => ({ ...room }));
     for (const listener of [...this.listeners]) {

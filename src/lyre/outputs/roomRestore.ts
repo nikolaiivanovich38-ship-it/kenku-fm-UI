@@ -16,7 +16,11 @@ export async function restoreRoom(what: RoomToRestore, deps: { client: Pick<Outp
   client.move(what.botId, what.channelId);
   const there = await roomAppears(audio, what.botId, deps.waitMs ?? 10_000);
   if (!there) return false;
+  // w51-fix2: when the last bot left, its music went on at the table and came back with it: leave such a lane alone.
+  const back = audio.getNowPlaying().rooms.find((room) => room.roomId === what.botId);
+  const playing = new Set([back?.music, back?.ambience].filter((lane) => lane && !lane.paused).map((lane) => lane!.trackId));
   for (const lane of what.lanes) {
+    if (playing.has(lane.trackId)) continue;
     audio.playTrack(lane.trackId, {
       target: { room: what.botId },
       ...(lane.from ? { from: lane.from as never } : {}),

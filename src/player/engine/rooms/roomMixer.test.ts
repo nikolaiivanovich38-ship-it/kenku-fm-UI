@@ -98,12 +98,26 @@ describe("Rooms (OUT-5): one mix per room", () => {
     expect(heard(TABLE.botId)).toBeCloseTo(1);
   });
 
-  it("goes back to an empty table when the last bot leaves", () => {
+  it("keeps what the last room played on the table when its bot leaves, and gives it to the next bot to join (w51-fix2)", () => {
     rooms.setRooms([TABLE]);
+    const output = rooms.output(TABLE.botId);
     soundInto(rooms.getRoomBus(TABLE.botId, "music"));
     rooms.setRooms([]);
     expect(rooms.rooms()).toEqual([]);
-    expect(heard(TABLE_ROOM)).toBe(0);
+    expect(rooms.output(TABLE_ROOM)).toBe(output);
+    expect(heard(TABLE_ROOM)).toBeCloseTo(1);
+    rooms.setRooms([TABLE]);
+    expect(heard(TABLE.botId)).toBeCloseTo(1);
+  });
+
+  it("keeps the first room's mix when every bot leaves at once, and cuts the others", () => {
+    rooms.setRooms([TABLE, SIDE]);
+    soundInto(rooms.getRoomBus(TABLE.botId, "music"));
+    const sideOutput = rooms.output(SIDE.botId) as FakeGain;
+    soundInto(rooms.getRoomBus(SIDE.botId, "amb"));
+    rooms.setRooms([]);
+    expect(heard(TABLE_ROOM)).toBeCloseTo(1);
+    expect(context.signalAt(sideOutput)).toBe(0);
   });
 
   it("tells listeners when the rooms change, not when nothing did", () => {

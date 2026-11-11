@@ -263,8 +263,9 @@ function RoomControls({ r }: { r: LiveRoom }) {
     const view = r.view;
     if (!client || !view?.channel) return;
     touched();
-    // OUT-7: Kick never asks; Undo puts the bot back with what it played when the players were hearing it.
-    const restore = kickLosesSound(view, r.room ?? undefined) ? roomToRestore(view, r.room ?? undefined) : null;
+    // OUT-7: Kick never asks. w51-fix2 (Nik's 0.5.0 test): it always offers Undo, which puts the bot back with what it
+    // played, from where it was.
+    const restore = roomToRestore(view, r.room ?? undefined);
     client.leave(view.bot.id);
     if (restore) {
       offerSoftUndo(

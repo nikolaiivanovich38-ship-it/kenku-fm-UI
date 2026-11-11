@@ -1,4 +1,8 @@
-/** Drop files onto an element the way the browser does (a real DataTransfer holding File objects). Works on any target. */
+/**
+ * Drop files onto an element the way the browser does (a real DataTransfer holding File objects). Works on any target.
+ * w51-fix2: like the browser, it drops only when the dragover was taken and its drop effect is not "none" (the page's
+ * drop guard used to turn a drop zone's "copy" to "none", and the Library took no drop from Windows Explorer).
+ */
 import { test, type Locator } from "@playwright/test";
 import fs from "fs";
 import os from "os";
@@ -19,8 +23,10 @@ export async function dropFiles(target: Locator, names: string[], options: { typ
       const init = { bubbles: true, cancelable: true, dataTransfer: data, clientX: box.left + 40, clientY: box.top + box.height / 2 };
       const over = document.elementFromPoint(init.clientX, init.clientY) ?? el;
       over.dispatchEvent(new DragEvent("dragenter", init));
-      over.dispatchEvent(new DragEvent("dragover", init));
-      over.dispatchEvent(new DragEvent("drop", init));
+      // As the browser: a drop happens only where the dragover was taken and its drop effect is not "none".
+      data.dropEffect = "copy";
+      const taken = !over.dispatchEvent(new DragEvent("dragover", init));
+      if (taken && data.dropEffect !== "none") over.dispatchEvent(new DragEvent("drop", init));
     },
     { names, type: options.type ?? "audio/flac" },
   );
@@ -60,7 +66,8 @@ async function dropFilesFromDisk(target: Locator, names: string[]): Promise<void
     const init = { bubbles: true, cancelable: true, dataTransfer: data, clientX: box.left + 40, clientY: box.top + box.height / 2 };
     const over = document.elementFromPoint(init.clientX, init.clientY) ?? el;
     over.dispatchEvent(new DragEvent("dragenter", init));
-    over.dispatchEvent(new DragEvent("dragover", init));
-    over.dispatchEvent(new DragEvent("drop", init));
+    data.dropEffect = "copy";
+    const taken = !over.dispatchEvent(new DragEvent("dragover", init));
+    if (taken && data.dropEffect !== "none") over.dispatchEvent(new DragEvent("drop", init));
   });
 }

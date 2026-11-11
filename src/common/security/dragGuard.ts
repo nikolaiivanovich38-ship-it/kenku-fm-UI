@@ -4,9 +4,9 @@
  * Chromium's default for a file or link dropped on a page is to open it in
  * that page, which would replace one of the app's privileged pages. Drop zones
  * handle their events before they bubble up to the document, so they keep
- * working; text and links dropped into a text field are also left alone, so
- * the browser inserts them as text. A cancelled drag shows the "no drop"
- * cursor.
+ * working (a zone that cancelled the dragover keeps the drop effect it chose);
+ * text and links dropped into a text field are also left alone, so the browser
+ * inserts them as text. A drag no zone took shows the "no drop" cursor.
  * @returns a function that removes the guard
  */
 export function installDocumentDropGuard(doc: Document): () => void {
@@ -17,9 +17,12 @@ export function installDocumentDropGuard(doc: Document): () => void {
     if (!hasFiles && isTextField(event.target)) {
       return;
     }
+    // A drop zone that took the drag cancelled it already and chose its drop effect ("copy"): leave that, or the
+    // browser never drops there (w51-fix2: files dragged from Windows Explorer onto the Library did nothing).
+    const taken = event.defaultPrevented;
     event.preventDefault();
-    // Show the "no drop" cursor instead of promising a drop that does nothing.
-    if (dataTransfer) {
+    // Elsewhere, show the "no drop" cursor instead of promising a drop that does nothing.
+    if (dataTransfer && !taken) {
       dataTransfer.dropEffect = "none";
     }
   };

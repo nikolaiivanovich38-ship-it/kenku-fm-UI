@@ -45,10 +45,17 @@ export function go(path: string): void {
 }
 
 /** Drops files with these names on an element, as the browser does (enter, over, drop). */
-export function dropNames(target: Element, names: string[]): void {
+/**
+ * Drop files from the computer as the browser does: the drop happens only when the dragover was taken (cancelled) and
+ * left a drop effect other than "none" (w51-fix2: the page's drop guard used to turn it to "none" after the Library
+ * took it, so the browser never dropped). Answers whether the drop happened.
+ */
+export function dropNames(target: Element, names: string[]): boolean {
   const files = names.map((n) => new File(["x"], n, { type: "audio/flac" }));
-  const dataTransfer = { files, types: ["Files"], items: files.map((f) => ({ kind: "file", getAsFile: () => f })), dropEffect: "none" };
+  const dataTransfer = { files, types: ["Files"], items: files.map((f) => ({ kind: "file", getAsFile: () => f })), dropEffect: "copy" };
   fireEvent.dragEnter(target, { dataTransfer });
-  fireEvent.dragOver(target, { dataTransfer });
+  const taken = !fireEvent.dragOver(target, { dataTransfer });
+  if (!taken || dataTransfer.dropEffect === "none") return false;
   fireEvent.drop(target, { dataTransfer });
+  return true;
 }
