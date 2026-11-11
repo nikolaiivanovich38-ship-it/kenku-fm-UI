@@ -92,6 +92,9 @@ export function showFullTextOnFocus(roots: () => HTMLElement[]): () => void {
     hide();
     const target = event.target;
     if (!(target instanceof HTMLElement) || !roots().some((root) => root.contains(target))) return;
+    // UX-R13: Tab never reaches an element with tabindex -1, so focus there was put by the app (the heading of a
+    // screen just opened): no tooltip over the page; its hover text stays.
+    if (target.getAttribute("tabindex") === "-1") return;
     const cut = [target, ...candidates(target)].filter((e) => norm(e.textContent).length >= 3 && isCut(e));
     if (cut.length === 0) return;
     tip = document.createElement("div");

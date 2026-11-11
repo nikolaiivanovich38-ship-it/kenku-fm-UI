@@ -55,4 +55,16 @@ describe("no hidden text (UX-6): a name cut short has its full text on hover and
     expect(document.querySelector('[role="tooltip"]')).toBeNull();
     stop();
   });
+
+  it("UX-R13: focus the app puts on a heading as a screen opens (tabindex -1) shows no tooltip; hover text stays", () => {
+    const root = document.createElement("main");
+    const h1 = cutShort(document.createElement("h1"), "Eerie dread, low cello and choir - something wrong in the dark");
+    h1.tabIndex = -1;
+    root.append(h1);
+    document.body.append(root);
+    const stop = showFullTextOnFocus(() => [root]);
+    h1.focus();
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    stop();
+  });
 });
