@@ -515,7 +515,9 @@ function Lane({ lane, room, roomName }: { lane: MusicOrAmbience; room: RoomNowPl
   // Where the music comes from: its playlist. What comes next is Up next, beside it.
   const sub = isMusic && playing.playlistId ? (index.playlist(playing.playlistId)?.name ?? "") : "";
   const endText = isMusic && resolved ? endWords(resolved.profile, resolved.source) : "";
-  const length = playing.length;
+  // The time runs to where the track ends here (its audio profile's End), as in the prototype; the file's own length
+  // only when the profile does not know one.
+  const length = resolved && resolved.profile.endMs > 0 ? resolved.profile.endMs / 1000 : playing.length;
   // Round 7 part 2 (DAT-3): the track's markers as ticks on its progress line; their names are hover text.
   const markers = resolved && length ? resolved.profile.markers.filter((m) => m.atMs > 0 && m.atMs < length * 1000) : [];
   const title = [shown.name !== shown.own ? `Its own name: ${shown.own}` : shown.own, pos, endText, volumeHover].filter(Boolean).join(" · ");

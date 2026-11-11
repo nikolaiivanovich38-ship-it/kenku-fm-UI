@@ -517,6 +517,14 @@ describe("Current scene: choosing what plays", () => {
     expect(room("Table").getByTitle(/Ends 3:10, then next/)).toBeInTheDocument();
   });
 
+  it("the lane's time runs to where the track ends here (its audio profile), not the end of the file", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    // t13 is a 7:21 file; in The abbey ruins it ends at 3:10.
+    await waitFor(() => expect(roomEl("Table")).toHaveTextContent(/\d:\d\d \/ 3:10/));
+  });
+
   it("row actions read Preview, Play next, Add to queue, Play on air, in that order; at rest they show, greyed", async () => {
     await openLive();
     await startAbbey();
