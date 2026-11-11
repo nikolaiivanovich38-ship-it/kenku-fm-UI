@@ -80,3 +80,61 @@ describe("Release waits for the gate (FND-5)", () => {
     }
   });
 });
+
+describe("Specs on GitHub, split across machines (FND-15)", () => {
+  const specs = workflow("specs.yml");
+  const specsJobs = jobs(specs);
+
+  it("runs on a push to a ci/ branch and by hand, never for a release", () => {
+    assert.match(specs, /on:\n {2}push:\n {4}branches: \["ci\/\*\*"\]\n {2}workflow_dispatch:\n\n/);
+    assert.doesNotMatch(specs, /tags:|workflow_call:|release/);
+  });
+
+  it("reads the repository and nothing more, and keeps no credentials in the checkout", () => {
+    assert.match(specs, /\npermissions:\n {2}contents: read\n/);
+    assert.doesNotMatch(specs, /: write/);
+    const checkouts = specs.match(/uses: actions\/checkout@/g).length;
+    assert.equal(specs.match(/persist-credentials: false/g).length, checkouts);
+  });
+
+  it("pins every action by full commit SHA with its version in a comment", () => {
+    for (const use of specs.match(/uses: \S+/g)) assert.match(use, /@[0-9a-f]{40}$/, use);
+    assert.equal(specs.match(/uses: \S+@[0-9a-f]{40} # v\d/g).length, specs.match(/uses: /g).length);
+  });
+
+  it("packages once and runs the app's specs in eight parts, one copy of the app at a time, against that package", () => {
+    assert.match(specsJobs.package, /run: yarn package\n {8}env:\n {10}CUE_DESK_E2E_BUILD: "1"/);
+    assert.match(specsJobs.app, /needs: package/);
+    assert.match(specsJobs.app, /shard: \[1, 2, 3, 4, 5, 6, 7, 8\]/);
+    assert.match(specsJobs.app, /--project=app --shard=\$\{\{ matrix\.shard \}\}\/8 --reporter=list,blob/);
+    assert.doesNotMatch(specsJobs.app, /--workers/);
+    assert.match(specsJobs.prototype, /--project=prototype --reporter=list,blob/);
+    assert.match(specsJobs.e2e, /needs: package/);
+    assert.match(specsJobs.e2e, /yarn e2e --reporter=list,blob/);
+  });
+
+  it("keeps Chromium's sandbox on: user namespaces allowed where the app starts, never --no-sandbox", () => {
+    assert.doesNotMatch(specs, /no-sandbox|chromiumSandbox|ELECTRON_DISABLE_SANDBOX/);
+    for (const name of ["app", "e2e"]) assert.match(specsJobs[name], /sudo sysctl -w kernel\.apparmor_restrict_unprivileged_userns=0/, name);
+  });
+
+  it("keeps every job under 30 minutes", () => {
+    for (const [name, block] of Object.entries(specsJobs)) {
+      const minutes = Number(/timeout-minutes: (\d+)/.exec(block)?.[1]);
+      assert.ok(minutes > 0 && minutes <= 30, `job ${name}: ${minutes}`);
+    }
+  });
+
+  it("merges every report after all test jobs, even when some failed, and says the result in plain words", () => {
+    assert.match(specsJobs.summary, /needs: \[package, app, prototype, e2e\]\n {4}if: \$\{\{ !cancelled\(\) \}\}/);
+    assert.match(specsJobs.summary, /npx playwright merge-reports/);
+    assert.match(specsJobs.summary, /node scripts\/test-summary\.mjs/);
+  });
+
+  it("keeps failures' screenshots and traces, and says in plain words what failed, in every job", () => {
+    for (const name of ["app", "prototype", "e2e"]) assert.match(specsJobs[name], /name: failures-[\s\S]*?path: test-results\//, name);
+    for (const [name, block] of Object.entries(specsJobs)) {
+      assert.match(block, /if: failure\(\)[\s\S]*?::error title=/, `job ${name}`);
+    }
+  });
+});

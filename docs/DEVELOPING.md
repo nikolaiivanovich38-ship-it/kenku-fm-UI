@@ -93,7 +93,7 @@ Rebuild the package after any change under `src/`; changes to `e2e/` need no reb
 - On Linux as root (containers, CI) the Chromium sandbox is switched off for the test run only.
 - Failures leave a trace, screenshots and the main-process log in `test-results/`.
 
-CI runs the e2e job on Windows (`.github/workflows/ci.yml`).
+CI runs the e2e job on Windows (`.github/workflows/ci.yml`). To run every spec and end-to-end test on GitHub instead of here (about 20 minutes, split across machines), push a branch named `ci/<name>`: `git push <remote> HEAD:ci/<name>` (docs/testing.md > Specs > On GitHub).
 
 ## Background pictures
 
@@ -167,6 +167,7 @@ Upgraded in 0.5.0: fastify 4 to 5.12.7, uuid 10 to 11.1.1 (SEC-9); discord.js 14
 `.github/workflows/`:
 
 - `ci.yml` (FND-5): every push and pull request. Type check, lint, tests with coverage (artifact `coverage-report`), script tests, audit gate, gitleaks secret scan, and on Windows the packaged app's smoke test with the axe accessibility checks (`yarn e2e smoke.spec lyre.spec`); pull requests, "Run workflow" and releases (input `full-e2e`) run every end-to-end test instead (artifact `e2e-report` on failure). About 10 minutes for a push (the jobs run side by side; the Windows job is the longest), about 30 with every end-to-end test. Each job ends, when it fails, with a step that says in plain words what failed and what to do (`::error` annotations, shown on the pull request, and the run summary).
+- `specs.yml` (FND-15): on a push to a `ci/<name>` branch, or by hand. Packages the Linux test build once, then runs the app's acceptance specs in eight parts side by side, the prototype's specs and `yarn e2e` against it, and merges the results into the `test-report` artifact with a plain-words summary (how many passed or failed, and which) on the run page. About 20 minutes; see docs/testing.md > Specs > On GitHub.
 - `codeql.yml`: CodeQL security analysis on every push, weekly, and when the release calls it.
 - `release.yml`: on `v*` tags or by hand. Runs `ci.yml` with every end-to-end test and `codeql.yml`; only when both pass does it build the unsigned Windows x64 installer and zip and the demo kit, and attach them to a draft release.
 
