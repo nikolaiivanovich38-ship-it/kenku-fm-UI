@@ -45,7 +45,7 @@ describe("the seed is the prototype's sample data", () => {
     tagValues: Record<string, string[]>;
     orders: Record<string, Record<string, { shuffle: boolean; repeat: string }>>;
     sceneNames: Record<string, Record<string, string>>;
-    moved: { from: string; playlists: number; tracks: number; boards: number; pads: number; bookmarks: number; notMoved: [string, string][] };
+    moved: { from: string; playlists: number; tracks: number; boards: number; pads: number; bookmarks: { title: string; url: string }[]; notMoved: [string, string][] };
   };
   const seed = prototypeSeed();
 

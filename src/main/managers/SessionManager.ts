@@ -13,6 +13,7 @@ import { SoundToDiscord } from "../soundToDiscord";
 import { markTokenNoteSeen, moveOldWindowDataOnce, oldWindowRecordFile, type OldWindowRecord } from "../legacy/oldWindowMove";
 import { readPageStorage } from "../legacy/pageStorage";
 import { WindowFrame } from "../window/windowFrame";
+import { RemoteOff } from "../remote/remoteOff";
 
 /** True only in packages built with CUE_DESK_E2E_BUILD=1 (webpack.main.config.js). */
 declare const __CUE_DESK_TEST_BUILD__: boolean;
@@ -53,6 +54,8 @@ export class SessionManager {
   private oldWindowMoveStarted = false;
   /** FND-16 step 2: the window's own buttons' colours, and maximise on a double-click of the strip. */
   private frame: WindowFrame;
+  /** FND-16 step 6: remote control answers "off" until Stream Deck support (WP6). */
+  private remote: RemoteOff;
   private readonly page: Electron.WebContents;
   private readonly joinPage = () => this.lyreManager.attachView(this.page);
   private readonly onPageLoaded = () => {
@@ -63,6 +66,7 @@ export class SessionManager {
   constructor(window: BrowserWindow, private readonly options: SessionOptions = {}) {
     this.page = window.webContents;
     this.frame = new WindowFrame(window);
+    this.remote = new RemoteOff();
     this.playbackManager = new PlaybackManager(window);
     this.lyreManager = new LyreManager();
     this.viewManager = new BrowserViewManagerMain(window);
@@ -168,6 +172,7 @@ export class SessionManager {
     this.page.off("did-finish-load", this.onPageLoaded);
     this.stopLibraryEvents?.();
     this.frame.destroy();
+    this.remote.destroy();
     this.playbackManager.destroy();
     this.viewManager.destroy();
     this.windowManager.destroy();

@@ -1,10 +1,8 @@
 import fs from "fs";
-import net from "net";
 import os from "os";
 import path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PlayerManager } from "./PlayerManager";
-import { RemoteSettingsStore } from "../remote/remoteSettings";
 import {
   fakeIpcMain,
   fakePage,
@@ -37,23 +35,15 @@ vi.mock("electron", async () => {
   };
 });
 
-const noEncryption = {
-  isEncryptionAvailable: () => false,
-  encryptString: (): Buffer => Buffer.alloc(0),
-  decryptString: () => "",
-};
-
 let manager: PlayerManager | undefined;
 let main: FakePage;
 let dataFolder: string;
-let remoteStore: RemoteSettingsStore;
 
 beforeEach(() => {
   fakeIpcMain.reset();
   pages.clear();
   main = fakePage("main-window");
   dataFolder = fs.mkdtempSync(path.join(os.tmpdir(), "lyre-player-manager-"));
-  remoteStore = new RemoteSettingsStore(RemoteSettingsStore.fileIn(dataFolder), noEncryption);
 });
 
 afterEach(async () => {
@@ -63,7 +53,7 @@ afterEach(async () => {
 });
 
 function newManager() {
-  return new PlayerManager({ remoteStore, homeAddress: () => "192.168.1.20" });
+  return new PlayerManager();
 }
 
 /** A player view created by BrowserViewManagerMain and known to Electron. */
@@ -119,151 +109,12 @@ describe("PlayerManager: main window requests (SEC-8)", () => {
     expect(manager.getView()).toBeUndefined();
   });
 
-  it("CR-3: the old Start Remote message no longer reaches the remote control", async () => {
-    manager = newManager();
-    const port = await freePort();
-    fakeIpcMain.deliver("PLAYER_START_REMOTE", fromMainFrame(main), "127.0.0.1", String(port));
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(manager.remote.state()).toMatchObject({ enabled: false, running: false });
-  });
-
   it("stops listening when destroyed", async () => {
     manager = newManager();
     await manager.destroy();
     manager = undefined;
     expect(fakeIpcMain.eventNames()).toEqual([]);
     expect([...fakeIpcMain.handlers.keys()]).toEqual([]);
-  });
-});
-
-async function freePort(): Promise<number> {
-  const server = net.createServer();
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const { port } = server.address() as net.AddressInfo;
-  await new Promise<void>((resolve) => server.close(() => resolve()));
-  return port;
-}
-
-describe("PlayerManager: remote-control settings over IPC (SEC-4)", () => {
-  const lyre = () => {
-    const page = fakePage("lyre-view");
-    pages.set(page.id, page);
-    return page;
-  };
-
-  it("tells the Lyre page the settings and the secret code", async () => {
-    manager = newManager();
-    expect(await fakeIpcMain.invoke("REMOTE_GET", fromMainFrame(lyre()))).toEqual({
-      enabled: false,
-      running: false,
-      address: "127.0.0.1",
-      port: 3333,
-      code: remoteStore.code(),
-      codeRemembered: false,
-      homeAddress: "192.168.1.20",
-    });
-  });
-
-  it("never tells the main window, a website tab, the old player, the capture window or an embedded frame", async () => {
-    manager = newManager();
-    for (const sender of [fromMainFrame(main), fromMainFrame(fakePage(null)), fromMainFrame(fakePage("player-view")), fromMainFrame(fakePage("audio-capture")), fromSubframe(lyre())]) {
-      await expect(fakeIpcMain.invoke("REMOTE_GET", sender)).rejects.toThrow();
-      await expect(fakeIpcMain.invoke("REMOTE_NEW_CODE", sender)).rejects.toThrow();
-      await expect(fakeIpcMain.invoke("REMOTE_SET", sender, { enabled: true })).rejects.toThrow();
-    }
-    expect(remoteStore.settings().enabled).toBe(false);
-  });
-
-  it("turns the remote on and off from the Lyre page, and says so to the pages", async () => {
-    manager = newManager();
-    const page = lyre();
-    const port = await freePort();
-    const on = await fakeIpcMain.invoke("REMOTE_SET", fromMainFrame(page), { enabled: true, port });
-    expect(on).toMatchObject({ enabled: true, running: true, port });
-    expect(page.send).toHaveBeenCalledWith("REMOTE_STATE", expect.objectContaining({ running: true }));
-    const off = await fakeIpcMain.invoke("REMOTE_SET", fromMainFrame(page), { enabled: false });
-    expect(off).toMatchObject({ enabled: false, running: false });
-  });
-
-  it("answers a refused address with the reason", async () => {
-    manager = newManager();
-    expect(await fakeIpcMain.invoke("REMOTE_SET", fromMainFrame(lyre()), { address: "evil.example" })).toEqual({
-      error: expect.stringMatching(/address in numbers/),
-    });
-  });
-
-  it("CR-2: refuses 0.0.0.0, :: and an internet address from the page, and stays on this computer only", async () => {
-    manager = newManager();
-    for (const address of ["0.0.0.0", "::", "8.8.8.8"]) {
-      expect(await fakeIpcMain.invoke("REMOTE_SET", fromMainFrame(lyre()), { enabled: true, address }), address).toEqual({ error: expect.any(String) });
-    }
-    expect(manager.remote.state()).toMatchObject({ enabled: false, running: false, address: "127.0.0.1" });
-  });
-
-  it("refuses settings of the wrong shape", async () => {
-    manager = newManager();
-    const sender = fromMainFrame(lyre());
-    for (const bad of [
-      [],
-      [null],
-      ["on"],
-      [{ enabled: "yes" }],
-      [{ port: "3333" }],
-      [{ port: 3.5 }],
-      [{ address: 127 }],
-      [{ address: "x".repeat(65) }],
-      [{ enabled: true, code: "AAAA" }],
-      [{ enabled: true }, "extra"],
-    ]) {
-      await expect(fakeIpcMain.invoke("REMOTE_SET", sender, ...bad), JSON.stringify(bad)).rejects.toThrow();
-    }
-  });
-
-  it("makes a new secret code on request", async () => {
-    manager = newManager();
-    const old = remoteStore.code();
-    const state = (await fakeIpcMain.invoke("REMOTE_NEW_CODE", fromMainFrame(lyre()))) as { code: string };
-    expect(state.code).not.toBe(old);
-    expect(remoteStore.code()).toBe(state.code);
-  });
-
-  it("CR-3: takes the old main window's Remote choice once, from the main window only, with the address checked", async () => {
-    manager = newManager();
-    const port = await freePort();
-    fakeIpcMain.deliver("REMOTE_MOVE_OLD_SETTING", fromMainFrame(fakePage(null)), { enabled: true, address: "127.0.0.1", port: String(port) });
-    fakeIpcMain.deliver("REMOTE_MOVE_OLD_SETTING", fromMainFrame(main), { enabled: true, address: "127.0.0.1", port: String(port), extra: 1 });
-    fakeIpcMain.deliver("REMOTE_MOVE_OLD_SETTING", fromMainFrame(main), { enabled: "yes", address: "127.0.0.1", port: String(port) });
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(manager.remote.state()).toMatchObject({ enabled: false, running: false });
-    fakeIpcMain.deliver("REMOTE_MOVE_OLD_SETTING", fromMainFrame(main), { enabled: true, address: "0.0.0.0", port: String(port) });
-    await vi.waitFor(() => expect(manager!.remote.state()).toMatchObject({ enabled: true, running: true, address: "127.0.0.1", port }));
-    expect(manager.remote.listeningAddresses()).toEqual([`127.0.0.1:${port}`]);
-    // Only once: a later message from the main window changes nothing.
-    fakeIpcMain.deliver("REMOTE_MOVE_OLD_SETTING", fromMainFrame(main), { enabled: false, address: "127.0.0.1", port: "3333" });
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(manager.remote.state()).toMatchObject({ enabled: true, running: true, port });
-  });
-
-  it("after a reload, the next window's remote waits for the last one to close and takes the same port", async () => {
-    const port = await freePort();
-    remoteStore.update({ enabled: true, port });
-    manager = newManager();
-    await vi.waitFor(() => expect(manager!.remote.state().running).toBe(true));
-    void manager.destroy();
-    manager = newManager();
-    await vi.waitFor(() => expect(manager!.remote.state().running).toBe(true));
-    expect(manager.remote.state().problem).toBeUndefined();
-  });
-
-  it("starts the remote by itself when it was left on, and closes it when the window goes", async () => {
-    const port = await freePort();
-    remoteStore.update({ enabled: true, port });
-    manager = newManager();
-    await vi.waitFor(() => expect(manager!.remote.state().running).toBe(true));
-    await manager.destroy();
-    expect(manager.remote.listeningAddresses()).toEqual([]);
-    expect(remoteStore.settings().enabled).toBe(true);
-    manager = undefined;
   });
 });
 

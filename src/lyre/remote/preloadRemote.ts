@@ -1,6 +1,6 @@
 /**
  * SEC-4: the Lyre page's preload half of the remote control's settings (src/lyre/preload.ts exposes it as
- * `window.lyre.remote`); the main process side is PlayerManager with src/main/remote/remoteControl.ts. Only a
+ * `window.lyre.remote`); the main process side is src/main/remote/remoteOff.ts (hidden until WP6). Only a
  * well-formed state or a refusal's reason comes back. Kept free of Electron imports.
  */
 import {

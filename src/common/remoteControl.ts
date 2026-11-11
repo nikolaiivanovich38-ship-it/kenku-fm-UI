@@ -1,5 +1,6 @@
 /**
- * SEC-4: the remote control's settings as the Lyre page sees them (src/main/remote/remoteControl.ts keeps them).
+ * SEC-4: the remote control's settings as the Lyre page sees them. Hidden in 0.5.1 until Stream Deck support (WP6):
+ * src/main/remote/remoteOff.ts answers "off"; remoteSettings.ts and remoteCode.ts are kept for then.
  * Round 7 designs the Settings screen that shows them; until then only the bridge exists (`window.lyre.remote`).
  */
 
