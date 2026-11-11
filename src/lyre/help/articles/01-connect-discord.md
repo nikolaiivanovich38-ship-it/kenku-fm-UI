@@ -1,16 +1,16 @@
 ---
 title: Connect Discord and add a bot to a room
 group: Get started
-words: discord bot token server voice channel room rooms settings connect invite
+words: discord bot token server voice channel room rooms settings connect invite add a bot application id
 ---
 Lyre plays to your players through a Discord bot. You make the bot once; Lyre logs it in.
 
-1. Choose the **Lyre Player** tab at the top of the window, then **Settings** (the gear at the top of its sidebar).
-2. Under **Discord bots**, follow **Where do I get my token?**: make a bot in Discord's Developer Portal and invite it to your server with the Connect and Speak permissions.
-3. Paste the bot's token in **Token** and press **Connect**. Lyre keeps the token on this computer, encrypted.
-4. Back in the **Lyre** tab, open **Rooms**. Your bot's box says **Not in a room**.
-5. Press its **Room** button and choose a voice channel. The box takes the room's name and lists who hears it.
+1. Open **Settings** in the menu. Under Discord bots, press **Add a bot**. Three steps follow.
+2. **Create it**: press **Open the Discord Developer Portal**. In Discord, choose **New Application**, name it and press **Create**. Back in Lyre, press **Next**.
+3. **Invite it**: in Discord, open **General Information** and copy the Application ID. Paste it into Lyre and press **Open the invite**. Pick your server and press **Authorize**. The invite asks only for View Channels, Connect and Speak.
+4. **Connect it**: in Discord, open **Bot**, press **Reset Token**, then **Copy**. Paste the token into Lyre and press **Connect**, then **Done**. Lyre keeps the token on this computer, encrypted, and shows only its last four characters.
+5. Open **Rooms**. Your bot says Not in a room. Press **Choose a room…** and pick a voice channel, or press **Add** beside the channel.
 
-To move the bot during a game, choose another room in the same menu; the sound goes on. **Kick**, beside it, takes the bot out. **Test** plays a short chime in that room only.
+To move the bot during a game, choose another room; the sound goes on. **Kick** takes the bot out, and **Undo** puts it back with the music.
 
-For a second room (a side scene, a split party), press **Add a second bot** in Settings and give it its own token.
+For a second room (a side scene, a split party), press **Add a bot** again and make a second bot.
