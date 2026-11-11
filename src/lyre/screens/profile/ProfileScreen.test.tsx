@@ -16,6 +16,7 @@ import { Shell } from "../../shell/Shell";
 import { expectNoAxeViolations } from "../../test/axe";
 import { SCREENS } from "..";
 import { ProfileScreen } from "./ProfileScreen";
+import { expectPlayAirIcons } from "../../test/playAirIcon";
 
 const TITLE = /^Eerie dread, low cello and choir/;
 
@@ -56,6 +57,11 @@ async function savedProfile(api: ReturnType<typeof createFakeLyreApi>, id = "t13
 }
 
 describe("the Audio profile screen", () => {
+  it("UX-R8: Play on air shows the play triangle sounding out", async () => {
+    await open();
+    expectPlayAirIcons();
+  });
+
   it("names the track, where it comes from and how long it is", async () => {
     await open();
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(TITLE);

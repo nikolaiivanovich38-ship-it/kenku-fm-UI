@@ -131,7 +131,7 @@ export function ListenBox({ c }: C) {
           </div>
         </div>
         <div className="ap-air">
-          <Button size="s" icon="broadcast" data-k="ap-air" title={`Play on air: the players hear it, from Start, with ${placeName(c.key, view)}`} onClick={actions.playOnAir}>
+          <Button size="s" icon="playair" data-k="ap-air" title={`Play on air: the players hear it, from Start, with ${placeName(c.key, view)}`} onClick={actions.playOnAir}>
             Play on air
           </Button>
           {onAir && <span className="badge onair">On air</span>}

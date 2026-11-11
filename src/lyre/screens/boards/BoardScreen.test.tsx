@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { expectNoAxeViolations } from "../../test/axe";
 import { BoardScreen } from "./BoardScreen";
 import { renderScreen, spoken, toastText } from "./testing";
+import { expectPlayAirIcons } from "../../test/playAirIcon";
 
 const grid = () => screen.getByRole("group", { name: /^Pads, \d+ columns by \d+ rows$/ });
 const PAD = /^(?!Empty slot|Add pad).*, row \d+, column \d+/;
@@ -21,6 +22,15 @@ async function open(path: string, options?: Parameters<typeof renderScreen>[2]) 
 beforeEach(() => {
   localStorage.clear();
   window.history.replaceState(null, "", "#/boards");
+});
+
+describe("UX-R8: Play on air's icon", () => {
+  it("is the play triangle sounding out in the pad's box and in a pad's menu", async () => {
+    await open("board/weather");
+    expectPlayAirIcons();
+    fireEvent.contextMenu(pad("Thunder crack"));
+    expectPlayAirIcons();
+  });
 });
 
 describe("a pad board: the grid and its size (boards.js board editor)", () => {

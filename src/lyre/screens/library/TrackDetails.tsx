@@ -307,7 +307,7 @@ export function TrackDetails({
             if (r.ok) toast(`On air: ${shown}`);
           }}
         >
-          <Icon name="broadcast" size="s" />
+          <Icon name="playair" size="s" />
           Play on air
         </button>
         <ProfileLink trackId={t.id} title={shown} hasOwn={!!t.profile} />

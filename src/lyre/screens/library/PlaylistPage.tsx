@@ -296,7 +296,7 @@ function OnePlaylist({ pl: saved, data }: { pl: PlaylistInfo; data: PlaylistData
             if (r.ok) toast(`On air: ${shownTitle(first)}`);
           }}
         >
-          <Icon name="broadcast" size="s" />
+          <Icon name="playair" size="s" />
           Play on air
         </button>
         <PlayOrderButton playlistId={pl.id} place={null} />
@@ -545,7 +545,7 @@ function TrackRow({
           aria-label={`Play on air: ${title}`}
           onClick={() => (t.kind === "fx" ? audio.playTrack(t.id) : audio.playTrack(t.id, inThis ? { from: { playlistId: pl.id } } : undefined))}
         >
-          <Icon name="broadcast" size="s" />
+          <Icon name="playair" size="s" />
         </button>
         {add ? (
           add.inList ? (

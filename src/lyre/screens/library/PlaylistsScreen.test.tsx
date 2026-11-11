@@ -6,6 +6,7 @@ import { expectNoAxeViolations } from "../../test/axe";
 vi.mock("../../../preload/managers/PCMStream.worklet.js?asset", () => ({ default: "pcm.js" }));
 
 import { dropNames, go, openAt } from "./testHarness";
+import { expectPlayAirIcons } from "../../test/playAirIcon";
 
 const list = () => screen.getByRole("list", { name: "Playlists" });
 /** A playlist's row in the list, found by its expander. */
@@ -164,6 +165,12 @@ describe("Playlists: a manual playlist", () => {
     await user.type(name, "The Abbess, her theme");
     expect(screen.getByRole("heading", { name: "The Abbess, her theme", level: 1 })).toBeInTheDocument();
     await waitFor(async () => expect((await api.playlists.list()).find((p) => p.id === "p-abbess")?.name).toBe("The Abbess, her theme"));
+  });
+
+  it("UX-R8: Play on air shows the play triangle sounding out, in the header and on the rows", async () => {
+    openAt("playlist/p-abbess");
+    await waitFor(() => expect(trackNames()).toHaveLength(5));
+    expectPlayAirIcons();
   });
 
   it("adds a track from the Add tracks box, which searches Music, Ambience or FX", async () => {

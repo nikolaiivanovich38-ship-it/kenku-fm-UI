@@ -361,7 +361,7 @@
       (p.after === 'loop' ? '<div class="ap-ro"><span class="ap-ro-l">Looped</span><span class="ap-loops num">' + (S.loops ? times(S.loops) : 'not yet') + '</span></div>' : '') +
       '<div class="ap-ro ap-meter" role="meter" aria-label="Volume after fades" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><span class="ap-ro-l">Volume <span class="ap-meter-s"></span></span>' +
       '<span class="ap-meter-row"><span class="ap-meter-track"><span class="ap-meter-bar"></span></span><span class="ap-meter-v num">100%</span></span></div></div>';
-    var air = '<div class="ap-air"><button class="btn s" data-act="apair" data-k="ap-air" title="Play on air: the players hear it, from Start, with ' + esc(placeName(S.key)) + '">' + L.icon('broadcast', 's') + 'Play on air</button>' +
+    var air = '<div class="ap-air"><button class="btn s" data-act="apair" data-k="ap-air" title="Play on air: the players hear it, from Start, with ' + esc(placeName(S.key)) + '">' + L.icon('playair', 's') + 'Play on air</button>' +
       (onAir ? L.destTag('air', '') + '<span class="num muted" data-time="music"></span>' : '') + '</div>';
     var ev = '';
     if (S.handover) {

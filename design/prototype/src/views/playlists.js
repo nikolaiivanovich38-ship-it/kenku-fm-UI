@@ -59,7 +59,7 @@
     return '<button type="button" class="btn s icon pv" data-act="plprev" data-tid="' + t.id + '" data-k="' + p + 'pv-' + t.id + '" aria-pressed="' + on + '" title="' + (on ? 'Stop preview' : 'Preview in your headphones') + '" aria-label="' + (on ? 'Stop preview of ' : 'Preview ') + esc(L.title(t)) + '">' + L.icon(on ? 'stop' : 'headphones', 's') + '</button>';
   }
   function airBtn(t, p) {
-    return '<button type="button" class="btn s icon" data-act="pltair" data-tid="' + t.id + '" data-k="' + p + 'air-' + t.id + '" title="Play on air (the players hear it)' + (t.kind === 'fx' ? ', over the music' : '') + '" aria-label="Play on air: ' + esc(L.title(t)) + '">' + L.icon('broadcast', 's') + '</button>';
+    return '<button type="button" class="btn s icon" data-act="pltair" data-tid="' + t.id + '" data-k="' + p + 'air-' + t.id + '" title="Play on air (the players hear it)' + (t.kind === 'fx' ? ', over the music' : '') + '" aria-label="Play on air: ' + esc(L.title(t)) + '">' + L.icon('playair', 's') + '</button>';
   }
   function focusK(k) { setTimeout(function () { var el = document.querySelector('[data-k="' + k + '"]'); if (el) { el.focus(); if (el.select && el.type === 'text') el.select(); } }, 40); }
 
@@ -309,7 +309,7 @@
       '<span class="grow"></span>' +
       (air ? L.destTag('air', '') : '') +
       '<button class="btn pl-pvbtn" data-act="plpreview" data-k="plpreview" aria-pressed="' + !!pv + '"' + (first ? '' : ' disabled') + ' title="' + (pv ? 'Stop the preview' : 'Play the first track in your headphones only') + '">' + L.icon(pv ? 'stop' : 'headphones', 's') + (pv ? 'Stop preview' : 'Preview') + '</button>' +
-      '<button class="btn" data-act="plair" data-k="plair"' + (first ? '' : ' disabled') + ' title="Start the first track for the players">' + L.icon('broadcast', 's') + 'Play on air</button>' + L.orderButton(pl.id, '') +
+      '<button class="btn" data-act="plair" data-k="plair"' + (first ? '' : ' disabled') + ' title="Start the first track for the players">' + L.icon('playair', 's') + 'Play on air</button>' + L.orderButton(pl.id, '') +
       '<button class="btn" data-act="pluse" data-id="' + pl.id + '" data-k="pluse1">' + L.icon('link', 's') + 'Use in…</button></div>' +
       '<div class="viewbody pl-body">' + dropNotice('page:' + pl.id) + '<div class="pl-page">' + col('pl-main', main, ['pl-tracks', 'pl-add', 'pl-details', 'pl-rules', 'pl-match']) + col('pl-side', side, ['pl-uses', 'pl-details']) + '</div></div>' + dropZone();
   }

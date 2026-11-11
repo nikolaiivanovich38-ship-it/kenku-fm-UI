@@ -248,7 +248,7 @@ function Palette({ onClose }: { onClose: (refocus: boolean) => void }) {
         {chosen && (
           <div className="pal-acts">
             <button type="button" className="btn s primary" onClick={() => run("air")}>
-              <Icon name="broadcast" size="s" />
+              <Icon name="playair" size="s" />
               Play on air
             </button>
             <button type="button" className="btn s" disabled={!canDo(chosen, "preview")} onClick={() => run("preview")}>

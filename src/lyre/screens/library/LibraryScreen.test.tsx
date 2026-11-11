@@ -7,6 +7,7 @@ vi.mock("../../../preload/managers/PCMStream.worklet.js?asset", () => ({ default
 
 import { dropNames, go, openAt } from "./testHarness";
 import { addedText } from "./model";
+import { expectPlayAirIcons } from "../../test/playAirIcon";
 
 const grid = () => screen.getByRole("grid", { name: "Tracks" });
 /** A row by its title, read from its selection box ("Select <title>"). */
@@ -151,6 +152,12 @@ describe("Library: a track's details", () => {
     await user.click(d.getByRole("button", { name: "Play on air" }));
     expect(audio.calls.some(([m, id]) => m === "playTrack" && id === "t44")).toBe(true);
     expect(d.getByRole("link", { name: "Audio profile" })).toHaveAttribute("href", "#/profile/t44");
+  });
+
+  it("UX-R8: Play on air shows the play triangle sounding out, on the rows and in the details", async () => {
+    openAt("library/t44");
+    await within(details()).findByRole("combobox", { name: "Add a mood tag" });
+    expectPlayAirIcons();
   });
 
   it("adds a mood by typing: arrows pick a match, Enter adds it or creates a new one, focus stays in the box", async () => {

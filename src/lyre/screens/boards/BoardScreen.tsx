@@ -333,7 +333,7 @@ function BoardEditor({ board }: { board: PadBoard }) {
     openMenu(anchor, `tile-${at.pad.id}`, "Pad", [
       { group: at.pad.label },
       { label: "Preview", icon: "headphones", onSelect: () => sound.previewPad(board.id, at.pad.id) },
-      { label: "Play on air", icon: "broadcast", onSelect: () => fire(at.pad) },
+      { label: "Play on air", icon: "playair", onSelect: () => fire(at.pad) },
       { label: "Duplicate pad", onSelect: () => void duplicatePad(at) },
       { label: "Move to…", onSelect: () => moveMenu(at, anchor, `tile-${at.pad.id}`) },
       deletePadEntry(at),
