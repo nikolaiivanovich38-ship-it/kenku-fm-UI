@@ -113,11 +113,12 @@ describe("Outputs: moving a bot between rooms", () => {
     expect(menu.getByRole("menuitemradio", { name: /^Whispers Empty: nobody would hear it/ })).toBeInTheDocument();
     await userEvent.click(menu.getByRole("menuitemradio", { name: /^Side room/ }));
     expect(outputs.calls).toContainEqual(["move", SIDE_BOT, "1012"]);
-    expect(toast()).toBe("Lyre Side is joining Side room. Nobody is there yet.");
+    expect(toast()).toBe("Lyre Side is joining Side room: nobody there.");
     await act(() => outputs.settle());
     const side = room("Side room");
     expect(side.getByText("via Lyre Side")).toBeInTheDocument();
-    expect(side.getByText("Nobody here yet")).toBeInTheDocument();
+    // UX-R9: one wording for a room nobody is in, as in Live.
+    expect(side.getAllByText("Nobody there").length).toBeGreaterThan(0);
     expect(side.getByRole("button", { name: "Room The Gull and Lantern › Side room" })).toHaveFocus();
   });
 
@@ -235,7 +236,8 @@ describe("Outputs: moving a bot between rooms", () => {
   it("Must 2: a room in a channel with nobody in it says so and moves to the players in one click", async () => {
     const { outputs } = open({ start: { ...PROTOTYPE_OUTPUTS, bots: [{ ...PROTOTYPE_OUTPUTS.bots[0], room: { serverId: "1001", channelId: "1012", status: "connected" } }, PROTOTYPE_OUTPUTS.bots[1]] } });
     const side = await findRoom("Side room");
-    expect(side.getByText("Nobody is in Side room: players hear nothing.")).toBeInTheDocument();
+    expect(side.getByText("Players hear nothing")).toBeInTheDocument();
+    expect(side.getAllByText("Nobody there").length).toBeGreaterThan(0);
     const move = side.getByRole("button", { name: "Move to Table" });
     expect(move).toHaveAttribute("title", "Lyre Table moves to The Gull and Lantern › Table (5 people)");
     await userEvent.click(move);

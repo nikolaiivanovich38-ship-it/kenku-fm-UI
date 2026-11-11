@@ -241,7 +241,7 @@ function RoomBox({ view, of, client, actions }: { view: OutputsView; of: BotView
               ) : (
                 <span className="op-nobody">
                   <OpIcon name="alert" />
-                  Nobody here yet
+                  Nobody
                 </span>
               )}
             </div>
@@ -503,7 +503,8 @@ function Warnings({ view, of, client, actions }: { view: OutputsView; of: BotVie
       {empty && (
         <p className="op-warn">
           <OpIcon name="alert" />
-          <span className="grow">Nobody is in {of.channel!.name}: players hear nothing.</span>
+          {/* UX-R9: the box's status says Nobody there; this line says what it means. */}
+          <span className="grow">Players hear nothing</span>
           {to && (
             <button type="button" className="btn s" title={`${of.bot.name} moves to ${to.where} (${people(to.people)})`} onClick={() => actions.move(of, to.channelId)}>
               Move to {to.name}

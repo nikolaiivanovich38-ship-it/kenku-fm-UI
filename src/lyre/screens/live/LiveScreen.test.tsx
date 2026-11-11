@@ -892,7 +892,11 @@ describe("rooms", () => {
     await act(async () => outputs.settle());
     const side = await findRoom("Side room");
     expect(side.getByText("Nobody there")).toBeInTheDocument();
+    // UX-R9: the status says the one wording; the line under it says what it means, without repeating it.
+    expect(side.getByText("Players hear nothing")).toBeInTheDocument();
     expect(side.getByRole("button", { name: "Move to Table" })).toBeInTheDocument();
+    // The Now playing bar tags the room's row the same way, outlined in the warning colour.
+    expect(screen.getByTitle("Nobody hears it: nobody is in Side room")).toHaveTextContent("On air · nobody there");
     await userEvent.click(side.getByRole("button", { name: "Undo" }));
     await act(async () => outputs.settle());
     expect(await findRoom("Table")).toBeTruthy();

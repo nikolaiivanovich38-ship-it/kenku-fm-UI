@@ -750,7 +750,7 @@ room), Scenes, Current scene, and the trays This session (Session playlists, Ses
 | `OnAir.tsx` | On air: a part per room with its status, What played, Mute, volume, the bot's menu (move, another bot, copy a room, Rooms, Bots and tokens), Kick with Undo (`restoreRoom`), Nobody there with Move to, the lanes (markers as ticks, Repeat for what plays now), effects, Up next; No room with Join; one line per room under 480 px of height. |
 | `Scenes.tsx`, `CurrentScene.tsx`, `Trays.tsx`, `Find.tsx`, `UndoStrips.tsx`, `focus.ts` | The other boxes, the Undo strips, and where focus goes. |
 | `kit/Pane.tsx` | `scope`, `scopeHidden`, `label` (a tray's box: "Playlists" shown, "Session Playlists" read out) and `keys` (aria-keyshortcuts). |
-| `kit/DestTag.tsx` | `nobody`: "On air · no room" outlined in the warning colour, with why on hover (Should 10). |
+| `kit/DestTag.tsx` | `nobody`: "On air · no room" (or "On air · nobody there", UX-R9, also on the Now playing bar) outlined in the warning colour, with why on hover (Should 10). |
 
 Live takes F6 in the capture phase so it follows the boxes' order in every layout (the shell's F6 follows the page's
 order). Loading a session calls `audio.sessionLoaded()`; Live follows `scene-started` (by a step or moving on by

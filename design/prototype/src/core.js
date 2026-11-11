@@ -1196,16 +1196,17 @@ var L = (function () {
   function roomRow(r, named, first, inLive) {
     var m = r.mix, c = m.music || m.amb, ln = m.music ? 'music' : 'amb', target = r.main ? 'table' : r.id, pk = ln + (r.main ? '' : '@' + r.id);
     var t = L.track(c.id), key = L.lanePlace(c), nm = L.nameIn(t, key), own = L.title(t), paused = !!c.paused, word = ln === 'music' ? 'music' : 'ambience';
-    var room = r.none ? 'no room' : named ? r.name : '', where = r.none ? '' : ' in ' + r.name, bot = r.bots && r.bots[0], fx = L.fxFor(target).length, k = 'oab-' + (r.main ? 't' : r.id);
+    var bot = r.bots && r.bots[0], nobody = !!bot && bot.status === 'connected' && !L.botListeners(bot).length;
+    // UX-R9 (round 6 part 4 #10): a room nobody is in is tagged On air · nobody there, in the warning colour.
+    var room = r.none ? 'no room' : nobody ? 'nobody there' : named ? r.name : '', where = r.none ? '' : ' in ' + r.name, fx = L.fxFor(target).length, k = 'oab-' + (r.main ? 't' : r.id);
     var canNext = !!(c.seq || c.playlistId);
-    return '<div class="oab-row air' + (paused ? ' paused' : '') + '" role="group" aria-label="' + (paused ? 'Paused' : 'On air') + (room ? ': ' + esc(room) : '') + '">' +
-      '<span class="oab-dest">' + L.destTag('air', room, paused, r.none ? 'Nobody hears it: no bot is in a voice channel' : '') + (paused ? '<span class="badge oab-paused">Paused</span>' : '') + '</span>' +
+    return '<div class="oab-row air' + (paused ? ' paused' : '') + '" role="group" aria-label="' + (paused ? 'Paused' : 'On air') + (room ? ': ' + esc(room) : '') + (nobody ? ' in ' + esc(r.name) : '') + '">' +
+      '<span class="oab-dest">' + L.destTag('air', room, paused, r.none ? 'Nobody hears it: no bot is in a voice channel' : nobody ? 'Nobody hears it: nobody is in ' + esc(r.name) : '') + (paused ? '<span class="badge oab-paused">Paused</span>' : '') + '</span>' +
       '<div class="oab-now"><div class="oab-title ellipsis" title="' + esc((nm !== own ? 'Its own name: ' + own : own) + ' · ' + L.normHover(t, c.playlistId)) + '"><span class="lane-dot ' + ln + '" aria-hidden="true"></span><span class="ellipsis">' + esc(nm) + '</span>' +
         (nm !== own ? '<span class="sr-only"> (its own name: ' + esc(own) + ')</span>' : '') + '</div>' +
         '<div class="oab-from ellipsis" title="' + esc(originOf(c)) + '">' + esc(originOf(c)) + (m.music && m.amb ? ' · <span class="lane-dot amb" aria-hidden="true"></span>Ambience: ' + esc(L.title(L.track(m.amb.id))) : '') +
         (fx ? ' · ' + fx + ' effect' + (fx > 1 ? 's' : '') + ' sounding' : '') + (r.none ? ' · No bot is in a voice channel: nobody hears it' : '') +
-        // Must 2 of the round 6 review: a bot in a voice channel with nobody in it plays to no one.
-        (bot && bot.status === 'connected' && !L.botListeners(bot).length ? ' · Nobody is in ' + esc(r.name) + ': nobody hears it' : '') + '</div></div>' +
+        '</div></div>' +
       '<div class="oab-time"><div class="progress ' + ln + '"><span data-progress="' + pk + '"></span></div><span class="num" data-time="' + pk + '"></span></div>' +
       '<div class="oab-ctl" role="group" aria-label="Control what the players hear' + esc(where) + '">' +
         '<button class="btn s icon" data-act="oabpause" data-lane="' + ln + '" data-room="' + target + '" data-k="' + k + '-pause" aria-label="' + (paused ? 'Play' : 'Pause') + '" title="' + (paused ? 'Play the ' + word + ' again' : 'Pause the ' + word) + esc(where) + '">' + L.icon(paused ? 'play' : 'pause', 's') + '</button>' +

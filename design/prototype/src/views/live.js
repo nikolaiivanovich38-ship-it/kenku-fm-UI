@@ -470,7 +470,7 @@
     if (nobodyThere(b)) {
       // The same one-click fix as "No room": move this bot to where the players are.
       var to = busiestChannel(b);
-      none = '<div class="lv-noroom" role="status">' + L.icon('warn', 's') + '<span class="grow">Nobody is in ' + esc(name) + ': players hear nothing</span>' +
+      none = '<div class="lv-noroom" role="status">' + L.icon('warn', 's') + '<span class="grow">Players hear nothing</span>' +
         (to ? '<button class="btn s lv-fix" data-act="lvbotjoin" data-id="' + b.id + '" data-g="' + to.g.id + '" data-c="' + to.c.id + '" data-k="lv-fix-' + b.id + '" title="' + esc(b.name + ' moves to ' + to.g.name + ' › ' + to.c.name + ' (' + people(to.c.members.length) + ')') + '">Move to ' + esc(to.c.name) + '</button>' : '') + '</div>';
     }
     if (!b) {
@@ -1050,7 +1050,8 @@
   L.acts.lvaddjoin = function (el) {
     var b = L.bot(el.dataset.id), c = L.channel(el.dataset.g, el.dataset.c); if (!b || !c) return;
     L.botJoin(b.id, el.dataset.g, el.dataset.c);
-    var msg = c.name + ' is joining. It starts silent: choose To: ' + c.name + ' in a box to play there.'; L.say(msg); L.toast(msg);
+    // UX-R9: a channel nobody is in says so in the room's own words.
+    var msg = c.members.length ? c.name + ' is joining. It starts silent: choose To: ' + c.name + ' in a box to play there.' : c.name + ' is joining: nobody there.'; L.say(msg); L.toast(msg);
   };
   L.acts.lvfxstop = function (el) { touched(); var tg = el && el.dataset.tg; if (!tg) { L.stopFx(); return; } L.fxFor(tg).forEach(function (f) { f.fadeOut = .8; }); L.changed(); L.say('Effects stopped in ' + roomName(tg)); };
   L.acts.lvpvstop = function () { L.stopPreview(); L.say('Preview stopped'); };

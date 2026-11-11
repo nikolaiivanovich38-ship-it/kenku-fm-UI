@@ -215,7 +215,8 @@ function NobodyThere({ r }: { r: LiveRoom }) {
   return (
     <div className="lv-noroom" role="status">
       <Icon name="warn" size="s" />
-      <span className="grow">Nobody is in {r.name}: players hear nothing</span>
+      {/* UX-R9: the room's status says Nobody there; this line says what it means. */}
+      <span className="grow">Players hear nothing</span>
       {to && (
         <button type="button" className="btn s lv-fix" title={`${view.bot.name} moves to ${to.where} (${to.people} people)`} onClick={() => move(r, to.channelId)}>
           Move to {to.name}
@@ -919,7 +920,8 @@ function AddRoom() {
               client?.move(bot.id, c.channelId);
               // UX-R4: focus goes to the new room's bot button once it is drawn.
               focusLiveSoon([`room-${lk(bot.id)}`], { move: true });
-              const words = `${c.name} is joining. It starts silent: choose To: ${c.name} in a box to play there.`;
+              // UX-R9: a channel nobody is in says so in the room's own words.
+              const words = c.empty ? `${c.name} is joining: nobody there.` : `${c.name} is joining. It starts silent: choose To: ${c.name} in a box to play there.`;
               say(words);
               toast(words);
             },

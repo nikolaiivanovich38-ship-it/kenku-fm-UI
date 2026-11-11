@@ -42,6 +42,13 @@ describe("outputsModel", () => {
     expect(view.inRooms).toBe(1);
   });
 
+  it("UX-R9: a room nobody is in says Nobody there (as in Live), never Playing", () => {
+    const side = viewOf(sideIn("1012")).bots[1];
+    expect(pill(side, room({ roomId: SIDE_BOT, name: "Side room", music: lane() }))).toEqual({ text: "Nobody there", tone: "warn" });
+    expect(pill(side, undefined)).toEqual({ text: "Nobody there", tone: "warn" });
+    expect(moveMessage(viewOf(PROTOTYPE_OUTPUTS), viewOf(PROTOTYPE_OUTPUTS).bots[1], "1012")).toBe("Lyre Side is joining Side room: nobody there.");
+  });
+
   it("counts people as the prototype words them", () => {
     expect([people(0), people(1), people(5)]).toEqual(["Nobody here", "1 person", "5 people"]);
   });
@@ -99,7 +106,7 @@ describe("outputsModel", () => {
   it("words a move as the prototype does", () => {
     const outputs = viewOf(PROTOTYPE_OUTPUTS);
     const [table, side] = outputs.bots;
-    expect(moveMessage(outputs, side, "1012")).toBe("Lyre Side is joining Side room. Nobody is there yet.");
+    expect(moveMessage(outputs, side, "1012")).toBe("Lyre Side is joining Side room: nobody there.");
     expect(moveMessage(outputs, side, "1011")).toBe("Lyre Side is joining Table, where Lyre Table already plays: players will hear it twice");
     expect(moveMessage(outputs, side, "1014")).toBe("Lyre Side is joining AFK");
     expect(moveMessage(outputs, table, "1011")).toBe("Lyre Table is already in Table");

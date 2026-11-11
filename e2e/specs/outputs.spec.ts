@@ -54,7 +54,7 @@ test.describe("moving a bot between rooms", () => {
     await menu.getByRole("menuitemradio", { name: /^Side room/ }).click();
     await expect(room(page, "Side room")).toBeVisible({ timeout: 5000 });
     await expect(room(page, "Side room")).toContainText("via Lyre Side");
-    await expect(room(page, "Side room")).toContainText("Nobody here yet");
+    await expect(room(page, "Side room")).toContainText("Nobody there"); // UX-R9: one wording, as in Live
     await expect(page.getByRole("link", { name: /^(Outputs|Rooms) \(2\/2\)$/ })).toBeVisible();
   });
 
