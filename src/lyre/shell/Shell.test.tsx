@@ -43,15 +43,15 @@ beforeEach(() => {
 });
 
 describe("the shell: rail, routes and screens (UX-9)", () => {
-  it("shows the rail's sections in the prototype's order, the current one marked", () => {
+  it("shows the rail's sections with Live first (0.5.1, Nik 11 Nov), the current one marked", () => {
     render(<Shell screens={SHELL_SCREENS} />);
     const nav = screen.getByRole("navigation", { name: "Lyre" });
     expect(within(nav).getAllByRole("link").map((a) => a.textContent)).toEqual([
+      "Live",
       "Campaigns",
       "Library",
       "Playlists",
       "Pad boards",
-      "Live",
       "Rooms",
     ]);
     expect(screen.getByRole("link", { name: "Look and feel" })).toHaveAttribute("href", "#/look");

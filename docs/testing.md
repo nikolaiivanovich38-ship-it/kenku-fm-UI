@@ -187,6 +187,8 @@ The 0.5.0 build list (w6-specs, after round 6 parts 6 and 7 and round 7 with its
 
 One mark per stream (w6-shell, step 0): the `round 6` and `round 7` marks are replaced by the 0.5.0 streams that build each check, `expectFailureUntilBuilt("shell" | "live" | "rooms-settings" | "prep", ...)`, with every stream a check needs (BUILD-LIST.md's stream and its "Also"). A check is expected to fail in the app until all the streams it names are in `BUILT_STREAMS` (`support/built.ts`); a stream adds its name when its checks pass. Streams have their own list because `live` is also a screen: screens are still marked by `expectFailureUntilScreenBuilt(screen)` against `BUILT_SCREENS` (each spec file by its name automatically, a sweep by its screen's `owner`, a stream-built screen such as `settings` or `tags` by its stream as well, through the sweep screen's `streams`). The UX-6 hover-text sweeps the app does not meet yet name the shell and the screen's stream (`UX6_NOT_MET_YET`). A check that passes before all its streams are built shows as "expected to fail, but passed": it needs fewer streams than it names, and the stream that sees it takes the others off.
 
+0.5.1 (w51-feat): the features from Nik's test of 0.5.0 were built straight in the app, with no prototype round (Nik, 11 Nov 20:41: "They don't need to be designed or reviewed"). Their checks sit in a `0.5.1: Nik's changes from his test of 0.5.0` block at the end of the screen's spec file and call `appOnly()` (`support/test.ts`) first: the prototype project skips them, the app project runs them like any other check.
+
 ### Running them
 
 ```

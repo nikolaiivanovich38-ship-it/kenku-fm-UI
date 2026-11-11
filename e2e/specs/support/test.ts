@@ -4,7 +4,8 @@
  *
  * A spec file is named after its screen (live.spec.ts is "live") and is marked automatically. sweeps.spec.ts covers
  * every screen, so each of its tests names the screen it belongs to with `expectFailureUntilScreenBuilt`. A check of
- * round 6 or 7 names the streams that build it with `expectFailureUntilBuilt` (support/built.ts).
+ * round 6 or 7 names the streams that build it with `expectFailureUntilBuilt` (support/built.ts). A check of 0.5.1's
+ * features, built in the app with no prototype round, calls `appOnly()`.
  */
 import { test as base, expect } from "@playwright/test";
 import path from "path";
@@ -45,6 +46,15 @@ export function metByTheAppAlready(why: string): void {
   for (let i = info.annotations.length - 1; i >= 0; i--) if (info.annotations[i].type === "fail") info.annotations.splice(i, 1);
   info.annotations.push({ type: "met by the app already", description: why });
   info.expectedStatus = "passed";
+}
+
+/**
+ * 0.5.1: a check of something built straight in the app from Nik's 0.5.0 test, with no prototype round ("They don't
+ * need to be designed or reviewed", 11 Nov 20:41). The prototype does not have it, so the prototype project skips the
+ * check; the app project runs it like any other. Call it first in the test.
+ */
+export function appOnly(): void {
+  base.skip(base.info().project.name !== "app", "Built in the app only (0.5.1, no prototype round)");
 }
 
 export const test = base.extend<{ screenName: string }>({

@@ -3,7 +3,7 @@
  * Source: design/prototype/tools/cp-tab.js and src/views/campaigns.js.
  */
 import type { Page } from "@playwright/test";
-import { expect, test, expectFailureUntilBuilt, expectFailureUntilScreenBuilt } from "./support/test";
+import { appOnly, expect, test, expectFailureUntilBuilt, expectFailureUntilScreenBuilt } from "./support/test";
 import { failNextSave, openRoute } from "./support/target";
 
 const region = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
@@ -725,5 +725,16 @@ test.describe("round 6 cuts on the campaign screens", () => {
     await expect(head("Sessions")).not.toContainText("Next:");
     await expect(head("Notes")).not.toContainText("Empty");
     await expect(head("Campaign playlists")).not.toContainText(/\d/);
+  });
+});
+
+/* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round (support/test.ts appOnly). */
+test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
+  test("Live is first in the menu (\"move the live tab to the top of the left side bar\")", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "campaigns");
+    const links = page.getByRole("navigation", { name: "Lyre" }).getByRole("link");
+    await expect(links.first()).toHaveAccessibleName(/^Live/);
+    await expect(links.nth(1)).toHaveAccessibleName("Campaigns");
   });
 });
