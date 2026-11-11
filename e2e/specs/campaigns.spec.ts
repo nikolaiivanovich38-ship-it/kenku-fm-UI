@@ -414,7 +414,8 @@ test.describe("round 6, part 5: the Saved pop-up", () => {
     await notes(page).fill("Bring dice");
     await page.keyboard.press("Tab");
     await expect(savedNotes(page)).toBeVisible();
-    expect(await readOutIn(page, "Saved: The Sunken Crown notes")).toBe(1);
+    // UX-R6 (0.5.0 review): the pop-up's words are read out from the live region a moment after it shows.
+    await expect.poll(() => readOutIn(page, "Saved: The Sunken Crown notes")).toBe(1);
     await notes(page).fill("Bring dice and snacks");
     await page.keyboard.press("Tab");
     await expect(page.getByRole("status").filter({ hasText: /^Saved: / })).toHaveCount(1);
