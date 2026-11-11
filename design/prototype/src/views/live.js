@@ -1183,7 +1183,7 @@
     if (e.ctrlKey || e.metaKey) return false;
     if (typing) {
       // Esc in Find a track clears it; with nothing typed, it closes the results.
-      if (e.key === 'Escape' && t.dataset.k === 'lv-q') { if (t.value || S.tags.length) { S.q = ''; S.tags = []; L.render(); } else { closeFind(false); t.blur(); } return true; }
+      if (e.key === 'Escape' && t.dataset.k === 'lv-q') { if (t.value || S.tags.length) { S.q = ''; S.tags = []; L.render(); } else { closeFind(false); /* UX-R4: focus stays in the field */ } return true; }
       return false;
     }
     if (e.key === 'Escape') { if (S.findOpen) { closeFind(true); return true; } if (S.q || S.tags.length) { S.q = ''; S.tags = []; L.render(); L.say('Search cleared'); return true; } return false; }

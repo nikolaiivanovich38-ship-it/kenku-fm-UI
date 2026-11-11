@@ -172,6 +172,17 @@ describe("Outputs: moving a bot between rooms", () => {
     await userEvent.click(channels().getByRole("button", { name: "Add bot to Whispers" }));
     expect(within(screen.getByRole("menu", { name: "Add a bot to Whispers" })).getAllByRole("menuitem").map((i) => i.textContent)).toEqual(["Lyre Table Leaves Table", "Lyre Side Leaves Side room"]);
   });
+  it("UX-R4: after Add, focus is on the new bot's Kick in that channel's row; after Kick, on the row's Add", async () => {
+    const { outputs } = open();
+    await findRoom("Table");
+    await userEvent.click(channels().getByRole("button", { name: "Add bot to Whispers" }));
+    await act(() => outputs.settle());
+    await waitFor(() => expect(channels().getByRole("button", { name: "Kick Lyre Side from Whispers" })).toHaveFocus());
+    await userEvent.click(room("Table").getByRole("button", { name: "Kick Lyre Table from Table" }));
+    await act(() => outputs.settle());
+    await waitFor(() => expect(channels().getByRole("button", { name: "Add bot to Table" })).toHaveFocus());
+  });
+
   it("swaps two bots' rooms with one button once both are in rooms", async () => {
     const { outputs } = open({ start: sideIn("1012") });
     await findRoom("Side room");

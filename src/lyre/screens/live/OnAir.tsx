@@ -28,7 +28,7 @@ import { clearAdded, LIVE_FADE_MS, nextInRoom, takeOut } from "./liveActions";
 import { laneProfile, sceneSteps, showLibraryOf, useLive, type LiveData } from "./liveData";
 import { addRoomChoices, busiestChannel, channelChoices, endWords, noRoomStatus, roomStatus, TABLE, UNDO_MS, upNextRows, type LiveRoom } from "./liveModel";
 import { offerSoftUndo, touched, updateLive } from "./liveState";
-import { focusLive } from "./focus";
+import { focusLive, focusLiveSoon } from "./focus";
 import { useFoldedSummary } from "./Scenes";
 import { SoftUndoStrip } from "./UndoStrips";
 
@@ -268,7 +268,8 @@ function RoomControls({ r }: { r: LiveRoom }) {
         {
           text: `${view.bot.name} left ${r.name}`,
           where: "onair",
-          focus: "undo2",
+          // UX-R4: after Undo, focus goes back to the room's bot button once the bot has rejoined.
+          focus: `room-${lk(r.roomId)}`,
           restore: () => {
             void restoreRoom(restore, { client, audio }).then((back) => {
               if (!back) toast(`${view.bot.name} could not go back to ${r.name}. Add it there again from Rooms.`);
@@ -281,7 +282,7 @@ function RoomControls({ r }: { r: LiveRoom }) {
       focusLive("undo2");
     } else {
       say(`${view.bot.name} left ${r.name}`);
-      focusLive("addroom");
+      focusLiveSoon(["addroom", "nextsc"]);
     }
   };
   return (
@@ -697,6 +698,11 @@ function UpNext({ roomId, room }: { roomId: string; room: RoomNowPlaying | null 
   if (!rows.length) return null;
   const k = lk(roomId);
   const labelId = `lv-up-l-${k}`;
+  /** UX-R4: after × the next entry's × (it takes the same place), else the one before, else Undo. */
+  const nextX = (at: number, ambience = false) => {
+    const x = (i: number) => (ambience ? `upx-a${i}-${k}` : `upx-${i}-${k}`);
+    return [x(at), x(at - 1), `upx-a0-${k}`, `upopen-${k}`, "undo2"];
+  };
   const toggle = () => {
     updateLive((s) => ({ upOpen: { ...s.upOpen, [roomId]: !open } }));
     focusLive(`upopen-${k}`);
@@ -741,6 +747,7 @@ function UpNext({ roomId, room }: { roomId: string; room: RoomNowPlaying | null 
               updateLive((s) => ({ aq: { ...s.aq, [roomId]: (s.aq[roomId] ?? []).filter((_, j) => j !== row.at) } }));
               offerSoftUndo({ text: `Taken out of Up next: ${a.name}`, where: `room:${roomId}`, focus: "undo2", restore: () => updateLive({ aq: before }) }, UNDO_MS);
               say(`Taken out of Up next: ${a.name}. Undo is available for 8 seconds, or press Ctrl+Z.`);
+              focusLiveSoon(nextX(row.at, true));
             }}
           >
             <Icon name="close" size="s" />
@@ -772,7 +779,10 @@ function UpNext({ roomId, room }: { roomId: string; room: RoomNowPlaying | null 
           data-lv={`upx-${row.at}-${k}`}
           aria-label={`Remove ${name} from Up next`}
           title="Take out of Up next (this evening only)"
-          onClick={() => takeOut(d, roomId, () => d.audio.removeFromUpNext(e.ref, { room: roomId }).ok, name, `upx-0-${k}`, { say })}
+          onClick={() => {
+            takeOut(d, roomId, () => d.audio.removeFromUpNext(e.ref, { room: roomId }).ok, name, `upx-0-${k}`, { say });
+            focusLiveSoon(nextX(row.at));
+          }}
         >
           <Icon name="close" size="s" />
         </button>
@@ -907,6 +917,8 @@ function AddRoom() {
             ),
             onSelect: () => {
               client?.move(bot.id, c.channelId);
+              // UX-R4: focus goes to the new room's bot button once it is drawn.
+              focusLiveSoon([`room-${lk(bot.id)}`], { move: true });
               const words = `${c.name} is joining. It starts silent: choose To: ${c.name} in a box to play there.`;
               say(words);
               toast(words);

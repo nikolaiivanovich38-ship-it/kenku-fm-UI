@@ -30,6 +30,7 @@ import { Icon } from "../../kit/Icon";
 import { useLiveSession } from "../../kit/liveSession";
 import { Pane } from "../../kit/Pane";
 import { PopMenu, type PopMenuEntry } from "../../kit/PopMenu";
+import { focusSoon } from "../../kit/focusSoon";
 import { cx } from "../../kit/cx";
 import { useOutputs, type OutputsClient } from "../../outputs/OutputsProvider";
 import { useAnnounce } from "../../shell/Announcer";
@@ -463,10 +464,16 @@ function LevelMeter({ roomId, live }: { roomId: string; live: boolean }) {
 }
 
 /** OUT-7: Kick (×), the same in the bot's box and in the channel list. */
-function KickButton({ of, actions, className }: { of: BotView; actions: Actions; className?: string }) {
+function KickButton({ of, actions, className, dataK }: { of: BotView; actions: Actions; className?: string; dataK?: string }) {
   const name = `Kick ${of.bot.name} from ${of.channel!.name}`;
+  const kick = () => {
+    const channelId = of.bot.room?.channelId;
+    actions.leave(of);
+    // UX-R4: focus goes to the channel's Add in the list, not to the page.
+    if (channelId) focusSoon([`[data-k="op-add-${channelId}"]`]);
+  };
   return (
-    <button type="button" className={cx("btn s icon op-kick", className)} aria-label={name} title={name} onClick={() => actions.leave(of)}>
+    <button type="button" className={cx("btn s icon op-kick", className)} data-k={dataK} aria-label={name} title={name} onClick={kick}>
       <OpIcon name="leave" />
     </button>
   );
@@ -583,12 +590,17 @@ function ChannelRow({ view, serverId, channelId, actions }: { view: OutputsView;
   const n = channel.members.length;
   const choice = addBotChoice(view, serverId, channelId);
   const one = choice.one ? view.bots.find((v) => v.bot.id === choice.one) : undefined;
+  /** Add: the bot joins, and focus goes to its Kick in this row (UX-R4). */
+  const add = (bot: BotView) => {
+    actions.move(bot, channelId);
+    focusSoon([`[data-k="op-kick-${bot.bot.id}"]`]);
+  };
   const items = (): PopMenuEntry[] =>
     choice.choices.map(
       (c): PopMenuEntry => ({
         key: c.botId,
         className: "op-mi",
-        onSelect: () => actions.move(view.bots.find((v) => v.bot.id === c.botId)!, channelId),
+        onSelect: () => add(view.bots.find((v) => v.bot.id === c.botId)!),
         content: (
           <>
             <Icon name="plus" size="s" />
@@ -622,7 +634,7 @@ function ChannelRow({ view, serverId, channelId, actions }: { view: OutputsView;
           >
             {here.length > 1 ? <Icon name="warn" size="s" /> : <Icon name="broadcast" size="s" />}
             <span className="ellipsis">{b.bot.name}</span>
-            <KickButton of={b} actions={actions} />
+            <KickButton of={b} actions={actions} dataK={`op-kick-${b.bot.id}`} />
           </span>
         ))}
       </span>
@@ -631,12 +643,13 @@ function ChannelRow({ view, serverId, channelId, actions }: { view: OutputsView;
           ref={ref}
           type="button"
           className="btn s op-add"
+          data-k={`op-add-${channelId}`}
           aria-haspopup={one ? undefined : "menu"}
           aria-expanded={one ? undefined : open}
           aria-controls={open ? menuId : undefined}
           aria-label={`Add bot to ${channel.name}`}
           title={(one ? `${one.bot.name} joins ${channel.name}` : `Choose a bot for ${channel.name}`) + note}
-          onClick={() => (one ? actions.move(one, channelId) : setOpen(!open))}
+          onClick={() => (one ? add(one) : setOpen(!open))}
         >
           <Icon name="plus" size="s" />
           Add

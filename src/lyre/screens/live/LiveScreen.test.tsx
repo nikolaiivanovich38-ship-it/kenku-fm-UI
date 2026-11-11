@@ -350,6 +350,8 @@ describe("single-key shortcuts and the keys", () => {
     expect(search).toHaveValue("");
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("region", { name: "Find a track or playlist" })).toBeNull();
+    // UX-R4: focus stays in the field, not on the page.
+    expect(search).toHaveFocus();
   });
 
   it("a pad key starts its pad, but not while typing in a box; a hold pad plays while its key is down", async () => {
@@ -910,5 +912,39 @@ describe("the Now playing bar in Live (UX-16)", () => {
     const bar = within(screen.getByRole("region", { name: "Now playing" }));
     expect(bar.getByRole("group", { name: "Only you" })).toHaveTextContent("Previewed from Live");
     expect(bar.queryByRole("group", { name: /^On air/ })).toBeNull();
+  });
+});
+
+/* 0.5.0 usability review (UX-R4): when the control in use goes, focus goes to a neighbour, never to the page. */
+describe("UX-R4: focus after the control in use goes", () => {
+  const focusName = () => (document.activeElement as HTMLElement | null)?.getAttribute("aria-label") ?? document.activeElement?.textContent;
+
+  it("× in Up next moves focus to the next ×", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    await userEvent.click(current().getByRole("button", { name: `Add to queue: ${shanty}` }));
+    await userEvent.click(current().getByRole("button", { name: "Add to queue: The Abbess" }));
+    const added = upNext().getAllByRole("listitem").find((li) => li.textContent?.includes(`Added: ${shanty}`))!;
+    await userEvent.click(within(added).getByRole("button", { name: `Remove ${shanty} from Up next` }));
+    await waitFor(() => expect(focusName()).toBe("Remove The Abbess from Up next"));
+  });
+
+  it("Add a room moves focus to the new room's bot button", async () => {
+    const { outputs } = await openLive();
+    await addSideRoom(outputs);
+    await waitFor(() => expect(focusName()).toBe("Lyre Side in Side room: change"));
+  });
+
+  it("Undo after Kick puts focus back on the room's bot button", async () => {
+    const { outputs, sound } = await openLive();
+    await userEvent.click(screen.getByRole("button", { name: "Start: Recap and the coast road" }));
+    await playOn(sound);
+    await userEvent.click(screen.getByRole("button", { name: "Kick Lyre Table from Table" }));
+    await act(async () => outputs.settle());
+    await userEvent.click(within(screen.getByRole("region", { name: "On air" })).getByRole("button", { name: "Undo" }));
+    await act(async () => outputs.settle());
+    await playOn(sound);
+    await waitFor(() => expect(focusName()).toBe("Lyre Table in Table: change"));
   });
 });

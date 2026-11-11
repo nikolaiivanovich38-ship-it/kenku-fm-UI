@@ -823,6 +823,8 @@ test.describe("round 6, part 3: Live in seven boxes, Play next and Add to queue,
     await page.keyboard.press("Escape");
     await page.keyboard.press("Escape");
     await expect(found(page)).toHaveCount(0);
+    // UX-R4 (0.5.0 review): focus stays in the field, not on the page.
+    await expect(findField(page)).toBeFocused();
     expect((await sceneMusic(page).boundingBox())!.y).toBe(before.y);
   });
 });
