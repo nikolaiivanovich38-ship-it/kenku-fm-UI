@@ -8,9 +8,10 @@ import os from "os";
 import path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { OutputManager } from "./OutputManager";
+import { oldWindowCall } from "./testing/oldWindowCalls";
 import { BotTokenStore, type SafeStorageLike } from "./botTokenStore";
 import { FAKE_CHANNELS, FAKE_OTHER_SERVER, FakeDiscord } from "./testing/fakeDiscord";
-import { fakeIpcMain, fakePage, fromMainFrame, fromSubframe } from "../security/testing/fakeIpc";
+import { fakeIpcMain } from "../security/testing/fakeIpc";
 import type { Room } from "../../common/domain";
 
 vi.mock("electron", async () => {
@@ -27,6 +28,8 @@ const safeStorage: SafeStorageLike = {
 let folder: string;
 let discord: FakeDiscord;
 let manager: OutputManager | undefined;
+/** The one-time problems the manager reported ("problem"; until 0.5.1 the old main window showed them). */
+let problems: [string, unknown][] = [];
 const window = { webContents: { send: vi.fn(), isDestroyed: () => false } };
 
 beforeEach(() => {
@@ -45,15 +48,16 @@ afterEach(() => {
 });
 
 function newManager() {
-  manager = new OutputManager(window as never, new BotTokenStore(BotTokenStore.fileIn(folder), safeStorage), discord.driver);
+  manager = new OutputManager(new BotTokenStore(BotTokenStore.fileIn(folder), safeStorage), discord.driver);
+  problems = [];
+  manager.on("problem", (message, cause) => problems.push([message, cause]));
   return manager;
 }
 
-const main = () => fromMainFrame(fakePage("main-window"));
 const settle = (ms = 40) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function errorsShown(): string[] {
-  return window.webContents.send.mock.calls.filter(([channel]) => channel === "ERROR").map(([, message]) => message);
+  return problems.map(([message]) => message);
 }
 
 async function connectedBot(m: OutputManager, token: string) {
@@ -102,7 +106,7 @@ describe("Rooms (OUT-5): every bot in a voice channel is a room", () => {
 
   it("drops a removed bot's room", async () => {
     const { m, table, side } = await twoRooms();
-    fakeIpcMain.deliver("BOT_REMOVE", main(), side);
+    oldWindowCall(manager!, "BOT_REMOVE", side);
     expect(m.rooms()).toEqual([{ botId: table, name: "Tavern" }]);
   });
 });
@@ -135,7 +139,7 @@ describe("One mix per room (OUT-5): each room's packets go to its own bot", () =
 
   it("keeps per-bot mute (WP2): a muted room's packets are not played", async () => {
     const { m, side } = await twoRooms();
-    fakeIpcMain.deliver("OUTPUT_SET_MUTED", main(), side, true);
+    oldWindowCall(manager!, "OUTPUT_SET_MUTED", side, true);
     const before = discord.connectionsIn(FAKE_CHANNELS.dungeon.id)[0].packets.length;
     m.sendPacket(Buffer.from([1, 2, 3, 4]), side);
     await settle(60);
@@ -150,7 +154,7 @@ describe("Room volume (OUT-5)", () => {
     const { m, side } = await twoRooms();
     const changes: [string, number][] = [];
     m.on("roomVolumeChange", (id, volume) => changes.push([id, volume]));
-    fakeIpcMain.deliver("ROOM_SET_VOLUME", main(), side, 0.4);
+    oldWindowCall(manager!, "ROOM_SET_VOLUME", side, 0.4);
     expect(m.state().bots.find((bot) => bot.id === side)?.volume).toBe(0.4);
     expect(changes).toEqual([[side, 0.4]]);
     expect(m.roomVolume(side)).toBe(0.4);
@@ -161,17 +165,6 @@ describe("Room volume (OUT-5)", () => {
     expect(m.roomVolume(table)).toBe(1);
   });
 
-  it("refuses a volume from another page, outside 0 to 1, or for something that is not a bot", async () => {
-    const { m, side } = await twoRooms();
-    fakeIpcMain.deliver("ROOM_SET_VOLUME", fromMainFrame(fakePage("player-view")), side, 0.2);
-    fakeIpcMain.deliver("ROOM_SET_VOLUME", fromMainFrame(fakePage(null)), side, 0.2);
-    fakeIpcMain.deliver("ROOM_SET_VOLUME", fromSubframe(fakePage("main-window")), side, 0.2);
-    fakeIpcMain.deliver("ROOM_SET_VOLUME", main(), side, 1.5);
-    fakeIpcMain.deliver("ROOM_SET_VOLUME", main(), side, Number.NaN);
-    fakeIpcMain.deliver("ROOM_SET_VOLUME", main(), "local", 0.2);
-    fakeIpcMain.deliver("ROOM_SET_VOLUME", main(), side, 0.2, "extra");
-    expect(m.roomVolume(side)).toBe(1);
-  });
 });
 
 describe("Moving a bot to another channel during play (OUT-6)", () => {
@@ -179,7 +172,7 @@ describe("Moving a bot to another channel during play (OUT-6)", () => {
     const { m, side } = await twoRooms();
     const active: boolean[] = [];
     m.on("activeChange", (value) => active.push(value));
-    fakeIpcMain.deliver("BOT_MOVE_TO_CHANNEL", main(), side, FAKE_CHANNELS.stage.id);
+    oldWindowCall(manager!, "BOT_MOVE_TO_CHANNEL", side, FAKE_CHANNELS.stage.id);
     await settle();
     expect(m.rooms()[1]).toEqual({ botId: side, name: "Stage" });
     expect(discord.connectionsIn(FAKE_CHANNELS.dungeon.id)).toHaveLength(0);
@@ -238,17 +231,4 @@ describe("Moving a bot to another channel during play (OUT-6)", () => {
     expect(errorsShown()).toContain("Connect this bot in Settings before choosing a voice channel.");
   });
 
-  it("refuses a move from another page or with odd values", async () => {
-    const { m, side } = await twoRooms();
-    const move = vi.spyOn(m, "moveBot");
-    fakeIpcMain.deliver("BOT_MOVE_TO_CHANNEL", fromMainFrame(fakePage("player-view")), side, FAKE_CHANNELS.stage.id);
-    fakeIpcMain.deliver("BOT_MOVE_TO_CHANNEL", fromMainFrame(fakePage(null)), side, FAKE_CHANNELS.stage.id);
-    fakeIpcMain.deliver("BOT_MOVE_TO_CHANNEL", fromSubframe(fakePage("main-window")), side, FAKE_CHANNELS.stage.id);
-    fakeIpcMain.deliver("BOT_MOVE_TO_CHANNEL", main(), "bot-1", FAKE_CHANNELS.stage.id);
-    fakeIpcMain.deliver("BOT_MOVE_TO_CHANNEL", main(), side, "../902");
-    fakeIpcMain.deliver("BOT_MOVE_TO_CHANNEL", main(), side, 902);
-    await settle();
-    expect(move).not.toHaveBeenCalled();
-    expect(m.rooms()[1].name).toBe("Dungeon");
-  });
 });

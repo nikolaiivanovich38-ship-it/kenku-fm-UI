@@ -211,12 +211,20 @@ describe("AudioCaptureManagerMain audio channel (SEC-2)", () => {
 });
 
 describe("AudioCaptureManagerMain: who may send (SEC-8)", () => {
-  it("forwards capture commands from the main window", () => {
+  it("forwards the kept website-tab commands from the main window role (no page has it since 0.5.1; kept for OUT-12)", () => {
     manager = new AudioCaptureManagerMain();
     const main = fakePage("main-window");
     fakeIpcMain.deliver("AUDIO_CAPTURE_SET_MUTED", fromMainFrame(main), 7, true);
-    fakeIpcMain.deliver("AUDIO_CAPTURE_SET_STREAMING_MODE", fromMainFrame(main), "lowLatency");
     expect(sentToCapture(manager)).toEqual([["AUDIO_CAPTURE_BROWSER_VIEW_MUTED", 7, true]]);
+  });
+
+  it("FND-16: takes Sound to Discord from this computer's settings only (the old window's channel is gone)", () => {
+    manager = new AudioCaptureManagerMain();
+    fakeIpcMain.deliver("AUDIO_CAPTURE_SET_STREAMING_MODE", fromMainFrame(fakePage("main-window")), "lowLatency");
+    manager.startBroadcast();
+    expect(sentToCapture(manager)).toContainEqual(["AUDIO_CAPTURE_BROADCAST_START", "performance"]);
+    manager.stopBroadcast();
+    manager.setStreamingMode("lowLatency");
     manager.startBroadcast();
     expect(sentToCapture(manager)).toContainEqual(["AUDIO_CAPTURE_BROADCAST_START", "lowLatency"]);
   });
@@ -226,11 +234,10 @@ describe("AudioCaptureManagerMain: who may send (SEC-8)", () => {
     for (const event of [
       fromMainFrame(fakePage(null)),
       fromSubframe(fakePage("main-window")),
-      fromMainFrame(fakePage("player-view")),
+      fromMainFrame(fakePage(null)),
     ]) {
       fakeIpcMain.deliver("AUDIO_CAPTURE_SET_MUTED", event, 7, true);
       fakeIpcMain.deliver("AUDIO_CAPTURE_START_EXTERNAL_AUDIO_CAPTURE", event, "mic");
-      fakeIpcMain.deliver("AUDIO_CAPTURE_SET_STREAMING_MODE", event, "lowLatency");
     }
     expect(sentToCapture(manager)).toEqual([]);
     manager.startBroadcast();
@@ -437,15 +444,15 @@ describe("AudioCaptureManagerMain: which views may be captured (SEC-3)", () => {
     expect(captureTargets.has(tab)).toBe(false);
   });
 
-  it("captures only tabs and the player, never the main window or itself (WP1 review)", () => {
+  it("captures only website tabs, never an app page or itself (WP1 review; FND-16: the old player is gone)", () => {
     manager = new AudioCaptureManagerMain();
     manager.startBroadcast();
     const mainPage = soundPage("main-window");
     mainPage.audible = true;
     const capture = Object.assign(capturePage(manager), { isCurrentlyAudible: () => true, setAudioMuted: vi.fn() });
     pages.set(capture.id, capture);
-    const player = soundPage("player-view");
-    player.audible = true;
+    const lyre = soundPage("lyre-view");
+    lyre.audible = true;
     const main = fromMainFrame(mainPage);
     const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
@@ -455,8 +462,8 @@ describe("AudioCaptureManagerMain: which views may be captured (SEC-3)", () => {
     expect(captureTargets.has(capture)).toBe(false);
     expect(errors).toHaveBeenCalledTimes(2);
 
-    fakeIpcMain.deliver("AUDIO_CAPTURE_START_BROWSER_VIEW_STREAM", main, player.id);
-    expect(captureTargets.has(player)).toBe(true);
+    fakeIpcMain.deliver("AUDIO_CAPTURE_START_BROWSER_VIEW_STREAM", main, lyre.id);
+    expect(captureTargets.has(lyre)).toBe(false);
     errors.mockRestore();
   });
 

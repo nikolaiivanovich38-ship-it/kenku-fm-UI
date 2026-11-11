@@ -196,11 +196,11 @@ describe("session hardening (SEC-3)", () => {
     expect(request(sessions.tabs, { id: 778 }, "mediaKeySystem")).toBe(false);
   });
 
-  it("lets the app capture the audio of a tab or the player it chose (Discord)", () => {
+  it("lets the app capture the audio of a tab it chose (Discord), and never an app page", () => {
     secureSessions();
     const tab = { id: 880, once: vi.fn() };
     const player = { id: 881, once: vi.fn() };
-    trustedContents.trust(player, "player-view");
+    trustedContents.trust(player, "lyre-view");
     // The capture window calls getUserMedia, so the request names its origin.
     captureTargets.setCapturer("file:///app/audio_capture_window/index.html");
     const tabCapture = { isMainFrame: true, mediaTypes: [] as string[], securityOrigin: "file:///" };
@@ -209,7 +209,8 @@ describe("session hardening (SEC-3)", () => {
     captureTargets.allow(tab);
     captureTargets.allow(player);
     expect(request(sessions.tabs, tab, "media", tabCapture)).toBe(true);
-    expect(request(sessions.default, player, "media", tabCapture)).toBe(true);
+    // The Lyre page is never captured (permissions.ts NEVER_CAPTURED), even when named.
+    expect(request(sessions.default, player, "media", tabCapture)).toBe(false);
     captureTargets.revokeAll();
     expect(request(sessions.tabs, tab, "media", tabCapture)).toBe(false);
   });
@@ -324,10 +325,10 @@ describe("lyre-media: on the app session only (security review 6)", () => {
 
 // --- Rooms and buses ---
 describe("PRV-2 permission checks", () => {
-  it("lets the player page name and choose output devices, but not a website", () => {
+  it("lets the Lyre page name and choose output devices, but not a website", () => {
     secureSessions();
     const player = { id: 504, once: vi.fn() };
-    trustedContents.trust(player, "player-view");
+    trustedContents.trust(player, "lyre-view");
     expect(sessions.default.checkHandler?.(player, "speaker-selection", "file://", { isMainFrame: true })).toBe(true);
     expect(sessions.default.checkHandler?.({ id: 780 }, "speaker-selection", "https://x.example", { isMainFrame: true })).toBe(
       false,

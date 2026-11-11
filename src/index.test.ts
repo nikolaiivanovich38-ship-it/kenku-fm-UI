@@ -116,7 +116,6 @@ vi.mock("./main/lyreApi/startLibrary", () => {
 vi.mock("./main/managers/SessionManager", () => ({
   SessionManager: class {
     destroy = vi.fn();
-    saveBeforeClose = vi.fn().mockResolvedValue(undefined);
     connectSavedBots = vi.fn();
     constructor() {
       (state as { sessions?: unknown[] }).sessions = [...((state as { sessions?: unknown[] }).sessions ?? []), this];
@@ -231,14 +230,10 @@ describe("main window (SEC-10, SEC-7, SEC-3)", () => {
     expect(state.secureSessions).toHaveBeenCalledTimes(1);
   });
 
-  it("clears website tab data as well when the user clears the cache", async () => {
-    await appInfo.registered?.clearCache();
-    expect(state.clearBrowsingData).toHaveBeenCalled();
-  });
-
-  it("answers version and platform only through the IPC sender guard (SEC-8)", () => {
-    expect(appInfo.registered?.getVersion()).toBe("0.0.0");
-    expect(state.ipcHandlers.has("CLEAR_CACHE")).toBe(false);
+  it("FND-16: Empty the audio cache leaves website data alone, and goes only through the IPC sender guard (SEC-8)", async () => {
+    await appInfo.registered?.emptyAudioCache();
+    expect(state.clearBrowsingData).not.toHaveBeenCalled();
+    expect(state.ipcHandlers.has("LYRE_EMPTY_AUDIO_CACHE")).toBe(false);
   });
 });
 
@@ -269,22 +264,18 @@ describe("Lyre's library (WP5)", () => {
     expect(session.connectSavedBots).toHaveBeenCalledTimes(1);
   });
 
-  it("empties Lyre's audio cache too when the user clears the cache (security review 3)", async () => {
-    await appInfo.registered?.clearCache();
+  it("empties Lyre's audio cache when Settings asks (security review 3, FND-16)", async () => {
+    await appInfo.registered?.emptyAudioCache();
     expect(library().clearAudioCache).toHaveBeenCalled();
   });
 
-  it("is closed before the app quits (after the player has saved), then the quit goes ahead", async () => {
+  it("is closed before the app quits, then the quit goes ahead", async () => {
     const { app, handler } = beforeQuit();
-    // PERF-6 first: the player saves, then the quit is repeated.
-    handler({ preventDefault: vi.fn() });
-    expect(library().stop).not.toHaveBeenCalled();
-    await vi.waitFor(() => expect(app.quit).toHaveBeenCalledTimes(1));
     const event = { preventDefault: vi.fn() };
     handler(event);
     expect(event.preventDefault).toHaveBeenCalled();
     expect(library().stop).toHaveBeenCalledTimes(1);
-    await vi.waitFor(() => expect(app.quit).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(app.quit).toHaveBeenCalledTimes(1));
     const again = { preventDefault: vi.fn() };
     handler(again);
     expect(again.preventDefault).not.toHaveBeenCalled();

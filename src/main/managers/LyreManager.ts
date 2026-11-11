@@ -5,8 +5,6 @@ import { guardIpc } from "../security/ipcGuard";
 import { trustedContents } from "../security/trustedContents";
 import { updateStatus, type UpdateStatus } from "../updateStatus";
 
-declare const LYRE_WINDOW_WEBPACK_ENTRY: string;
-
 /**
  * WP5 (w3-shell): the main process's side of the Lyre page.
  *
@@ -20,7 +18,7 @@ export class LyreManager {
   /** SEC-8: message listeners; each channel accepts only the pages IPC_CHANNELS names. */
   private ipc = guardIpc(ipcMain);
   /**
-   * Told when the Lyre page has been created (already trusted as "lyre-view" by BrowserViewManagerMain).
+   * Told when the Lyre page is there (the window's own page, trusted as "lyre-view" by src/index.ts).
    * --- w3-host wiring --- SessionManager sets this to
    *   (view) => this.playbackManager.setLyreView(view)
    */
@@ -38,7 +36,6 @@ export class LyreManager {
   constructor(options: { updates?: UpdateStatus; shortcuts?: GlobalShortcutLike; restartIntoUpdate?: () => void } = {}) {
     const updates = options.updates ?? updateStatus;
     this.shortcuts = options.shortcuts;
-    this.ipc.on("LYRE_GET_URL", this._handleGetURL);
     // SEC-14: Settings (round 7) shows what automatic updates are doing, and the last problem in plain words.
     this.ipc.handle("UPDATE_GET", () => updates.state());
     this.stopUpdateNews = updates.onChange((state) => this.getView()?.send("UPDATE_STATE", state));
@@ -77,8 +74,4 @@ export class LyreManager {
     }
     this.onAttachView?.(view);
   }
-
-  _handleGetURL = (event: Electron.IpcMainEvent) => {
-    event.returnValue = LYRE_WINDOW_WEBPACK_ENTRY;
-  };
 }

@@ -17,8 +17,8 @@ describe("TrustedContentsRegistry (SEC-3)", () => {
   it("remembers the role of a trusted page", () => {
     const registry = new TrustedContentsRegistry();
     const contents = fakeContents(7);
-    registry.trust(contents, "player-view");
-    expect(registry.roleOf(contents)).toBe("player-view");
+    registry.trust(contents, "lyre-view");
+    expect(registry.roleOf(contents)).toBe("lyre-view");
     expect(registry.roleOf(fakeContents(8))).toBeNull();
   });
 

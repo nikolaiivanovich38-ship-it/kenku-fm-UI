@@ -12,7 +12,7 @@
  * Lyre's own pages. A `null` role means "not one of ours" (a website tab).
  * "lyre-view" is the new interface's page (wave 3, src/lyre).
  */
-export type AppPageRole = "main-window" | "audio-capture" | "player-view" | "lyre-view";
+export type AppPageRole = "main-window" | "audio-capture" | "lyre-view";
 
 /** Media types as reported by Electron's request ("audio"/"video") and check ("unknown") handlers. */
 export type MediaType = "audio" | "video" | "unknown";
@@ -40,32 +40,27 @@ export interface PermissionQuery {
  * never granted (see `isAudioOnly`).
  * - main-window: lists input devices (with names) for the external-input feature.
  * - audio-capture: captures tab audio and external input devices for Discord.
- * - player-view: copies playlist / sound ids to the clipboard.
  * - lyre-view: nothing it can ask for (see APP_PAGE_CHECKS for its device choice).
  */
 const APP_PAGE_PERMISSIONS: Record<AppPageRole, ReadonlySet<string>> = {
   "main-window": new Set(["media"]),
   "audio-capture": new Set(["media"]),
-  "player-view": new Set(["clipboard-sanitized-write"]),
   "lyre-view": new Set(),
 };
 
 /**
  * --- Rooms and buses --- PRV-2: permissions an app page gets only as a check,
  * never as a request.
- * - player-view: "speaker-selection" lets it see the sound output devices'
- *   names (enumerateDevices) and play on one with setSinkId. Probed on
- *   Electron 44 (WP2 wave 2): both ask only this check; without it setSinkId
- *   on a chosen device fails with "No permission to use requested device".
- *   The page still gets no microphone or camera ("media" stays refused), and
- *   no `selectAudioOutput` picker (that is a request).
+ * - lyre-view: "speaker-selection" lets it see the sound output devices'
+ *   names (enumerateDevices) and play on one with setSinkId (PRV-2). Probed on
+ *   Electron 44 (WP2 wave 2, for the old player): both ask only this check;
+ *   without it setSinkId on a chosen device fails with "No permission to use
+ *   requested device". The page still gets no microphone or camera ("media"
+ *   stays refused), and no `selectAudioOutput` picker (that is a request).
  */
 const APP_PAGE_CHECKS: Record<AppPageRole, ReadonlySet<string>> = {
   "main-window": new Set(),
   "audio-capture": new Set(),
-  "player-view": new Set(["speaker-selection"]),
-  // --- w3-host --- The new interface's page chooses the preview device
-  // (PRV-2) exactly as the player page does: device names and setSinkId only.
   "lyre-view": new Set(["speaker-selection"]),
 };
 

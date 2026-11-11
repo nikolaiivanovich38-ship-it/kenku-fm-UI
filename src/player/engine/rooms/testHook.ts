@@ -31,7 +31,13 @@ declare global {
   }
 }
 
-export function installRoomsTestHook(target: Window): void {
+/** Where the hook hears the rooms and asks for the channel's end (the Lyre page: window.lyre.audio). */
+export interface RoomsTestSource {
+  onRooms(callback: (rooms: Room[]) => void): () => void;
+  connect(): void;
+}
+
+export function installRoomsTestHook(target: Window, source: RoomsTestSource): void {
   let state:
     | {
         context: AudioContext;
@@ -73,8 +79,8 @@ export function installRoomsTestHook(target: Window): void {
       };
       const streams = new RoomStreams({ mixer, link, createTap: await createBrowserFrameTaps(context) });
       const preview = await createBrowserBridgedPreview(link);
-      const stopRooms = target.player.onRooms((rooms) => mixer.setRooms(rooms));
-      const stopPort = listenForPlayerAudioPort(target, link);
+      const stopRooms = source.onRooms((rooms) => mixer.setRooms(rooms));
+      const stopPort = listenForPlayerAudioPort(target, link, () => source.connect());
       state = { context, mixer, link, streams, preview, tones: [], stop: [stopRooms, stopPort] };
     },
     status() {

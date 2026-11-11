@@ -24,7 +24,7 @@ import {
   fromSubframe,
 } from "../security/testing/fakeIpc";
 
-const { PLAYER_URL, PLAYER_PRELOAD, LYRE_URL, LYRE_PRELOAD } = vi.hoisted(() => {
+const { PLAYER_URL, LYRE_URL, LYRE_PRELOAD } = vi.hoisted(() => {
   const entries = {
     PLAYER_URL: "file:///app/.webpack/renderer/player_window/index.html",
     PLAYER_PRELOAD: "/app/.webpack/renderer/player_window/preload.js",
@@ -180,10 +180,7 @@ describe("BrowserViewManagerMain: tab URL policy (SEC-6)", () => {
     expect(view.webContents.loadURL).toHaveBeenCalledWith("https://www.youtube.com/");
   });
 
-  it.each([
-    ["a website tab", "https://www.youtube.com/", undefined],
-    ["the player", PLAYER_URL, "player"],
-  ] as const)("sets the user agent of %s before loading, so it loads once", (_, url, kind) => {
+  it.each([["a website tab", "https://www.youtube.com/", undefined]] as const)("sets the user agent of %s before loading, so it loads once", (_, url, kind) => {
     const { create } = setup();
     const { view } = create(url, kind);
     const setAgent = view.webContents.setUserAgent.mock.invocationCallOrder[0];
@@ -281,41 +278,10 @@ describe("BrowserViewManagerMain: isolation (SEC-3)", () => {
     expect(trustedContents.roleOf(view.webContents)).toBeNull();
   });
 
-  it("registers the Kenku player view as trusted and keeps it in the app session", () => {
-    const { create } = setup();
-    const { view } = create(PLAYER_URL, "player");
-    expect(view.options.webPreferences?.preload).toBe(PLAYER_PRELOAD);
-    expect(view.options.webPreferences?.partition).toBeUndefined();
-    expect(trustedContents.roleOf(view.webContents)).toBe("player-view");
-  });
-
-  it("refuses a preload script path from the renderer, even the player's own (SEC-8)", () => {
+  it("refuses a preload script path from the renderer (SEC-8)", () => {
     const { create } = setup();
     expect(create("https://evil.example/", "/tmp/evil.js").id).toBe(-1);
-    expect(create(PLAYER_URL, PLAYER_PRELOAD).id).toBe(-1);
     expect(created).toHaveLength(0);
-  });
-});
-
-describe("BrowserViewManagerMain: player view lock (SEC-7)", () => {
-  it("keeps the player view on its own page", () => {
-    const { create } = setup();
-    const { view } = create(PLAYER_URL, "player");
-    const event = { url: "https://evil.example/", isMainFrame: true, preventDefault: vi.fn() };
-    view.webContents.emit("will-navigate", event);
-    expect(event.preventDefault).toHaveBeenCalled();
-  });
-
-  it("never opens a window from the player view", () => {
-    const { create, window } = setup();
-    const { view, event } = create(PLAYER_URL, "player");
-    expect(view.webContents.windowOpenHandler?.({ url: "file:///etc/passwd" })).toEqual({
-      action: "deny",
-    });
-    const requests = [...window.webContents.send.mock.calls, ...event.reply.mock.calls].filter(
-      ([channel]) => channel === "BROWSER_VIEW_NEW_TAB",
-    );
-    expect(requests).toHaveLength(0);
   });
 });
 
@@ -340,7 +306,7 @@ describe("BrowserViewManagerMain: who may control views (SEC-8)", () => {
   it("ignores navigation requests from the player view", () => {
     const { create } = setup();
     const { view, id } = create("https://example.com/");
-    fakeIpcMain.deliver("BROWSER_VIEW_RELOAD", fromMainFrame(fakePage("player-view")), id);
+    fakeIpcMain.deliver("BROWSER_VIEW_RELOAD", fromMainFrame(fakePage(null)), id);
     expect(view.webContents.reload).not.toHaveBeenCalled();
   });
 
@@ -453,7 +419,7 @@ describe("BrowserViewManagerMain: files from the user's computer (SEC-15)", () =
 
   it("refuses the file channel to anything but the main window", async () => {
     const { askAboutFile } = setup({ answer: { response: 0, checkboxChecked: false } });
-    for (const event of [fromMainFrame(fakePage(null)), fromMainFrame(fakePage("player-view"))]) {
+    for (const event of [fromMainFrame(fakePage(null)), fromMainFrame(fakePage(null))]) {
       await expect(
         fakeIpcMain.invoke("BROWSER_VIEW_OPEN_LOCAL_FILE", event, file, 0, 0, 100, 100),
       ).rejects.toThrow();
@@ -516,96 +482,22 @@ describe("BrowserViewManagerMain: files from the user's computer (SEC-15)", () =
   });
 });
 
-// --- w3-shell ---
-describe("BrowserViewManagerMain: the new interface page, Lyre (WP5)", () => {
-  it("opens the Lyre page with its own preload in the app session, registered as trusted", () => {
+describe("BrowserViewManagerMain: website tabs only (FND-16: the old player and Lyre tabs are gone)", () => {
+  it("refuses any kind of app page, and a preload path, so a page can never get a preload here", () => {
     const { create } = setup();
-    const { view, id } = create(LYRE_URL, "lyre");
-    expect(id).toBe(view.webContents.id);
-    expect(view.options.webPreferences?.preload).toBe(LYRE_PRELOAD);
-    expect(view.options.webPreferences?.partition).toBeUndefined();
-    expect(trustedContents.roleOf(view.webContents)).toBe("lyre-view");
-    expect(view.webContents.loadURL).toHaveBeenCalledWith(LYRE_URL);
-  });
-
-  it("tells its owner about the Lyre page once it is created and trusted (the audio host's hook)", () => {
-    const onLyreView = vi.fn();
-    const manager = new BrowserViewManagerMain(fakeWindow() as never, {
-      localFiles: new LocalFileFolders({ get: () => [], set: () => undefined }, path.posix, fakeRealpath),
-      onLyreView,
-    });
-    const main = fakePage("main-window");
-    fakeIpcMain.deliver("BROWSER_VIEW_CREATE_BROWSER_VIEW", fromMainFrame(main), PLAYER_URL, 0, 0, 100, 100, "player");
-    expect(onLyreView).not.toHaveBeenCalled();
-    fakeIpcMain.deliver("BROWSER_VIEW_CREATE_BROWSER_VIEW", fromMainFrame(main), LYRE_URL, 0, 0, 100, 100, "lyre");
-    const lyre = created[created.length - 1].webContents;
-    expect(onLyreView).toHaveBeenCalledWith(lyre);
-    expect(trustedContents.roleOf(lyre)).toBe("lyre-view");
-    manager.destroy();
-  });
-
-  it("refuses the lyre kind for any other page, and the Lyre preload as a kind", () => {
-    const { create } = setup();
-    expect(create("https://evil.example/", "lyre").id).toBe(-1);
-    expect(create(PLAYER_URL, "lyre").id).toBe(-1);
+    expect(create(PLAYER_URL, "player").id).toBe(-1);
+    expect(create(LYRE_URL, "lyre").id).toBe(-1);
     expect(create(LYRE_URL, LYRE_PRELOAD).id).toBe(-1);
     expect(created).toHaveLength(0);
   });
 
-  it("keeps the Lyre page on its own document, allowing only #route changes", () => {
-    const { create } = setup();
-    const { view } = create(LYRE_URL, "lyre");
-    const away = { url: "https://evil.example/", isMainFrame: true, preventDefault: vi.fn() };
-    view.webContents.emit("will-navigate", away);
-    expect(away.preventDefault).toHaveBeenCalled();
-    const route = { url: `${LYRE_URL}#/library`, isMainFrame: true, preventDefault: vi.fn() };
-    view.webContents.emit("will-navigate", route);
-    expect(route.preventDefault).not.toHaveBeenCalled();
-  });
-
-  it("never opens a window from the Lyre page; an allowed web link becomes an ordinary tab", () => {
-    const { create, window } = setup();
-    const { view, event } = create(LYRE_URL, "lyre");
-    expect(view.webContents.windowOpenHandler?.({ url: "file:///etc/passwd" })).toEqual({ action: "deny" });
-    expect(view.webContents.windowOpenHandler?.({ url: "https://example.com/help" })).toEqual({ action: "deny" });
-    const requests = [...window.webContents.send.mock.calls, ...event.reply.mock.calls].filter(
-      ([channel]) => channel === "BROWSER_VIEW_NEW_TAB",
-    );
-    expect(requests).toEqual([["BROWSER_VIEW_NEW_TAB", "https://example.com/help"]]);
-  });
-
   it("removes a view whose page has already closed without touching the closed page (quitting no longer hangs)", () => {
     const { create, send, window } = setup();
-    const { view, id } = create(LYRE_URL, "lyre");
+    const { view, id } = create("https://example.com/");
     view.webContents.destroyed = true;
     expect(() => send("BROWSER_VIEW_REMOVE_BROWSER_VIEW", id)).not.toThrow();
     expect(view.webContents.close).not.toHaveBeenCalled();
     expect(view.webContents.destroy).not.toHaveBeenCalled();
     expect(window.contentView.removeChildView).toHaveBeenCalled();
-    view.webContents.close.mockClear();
-    const other = create(PLAYER_URL, "player");
-    other.view.webContents.destroyed = true;
-    expect(() => send("BROWSER_VIEW_REMOVE_ALL_BROWSER_VIEWS")).not.toThrow();
-    expect(other.view.webContents.close).not.toHaveBeenCalled();
-  });
-
-  it("never loads another address in the Lyre page", () => {
-    const { create, send } = setup();
-    const { view, id } = create(LYRE_URL, "lyre");
-    view.webContents.loadURL.mockClear();
-    send("BROWSER_VIEW_LOAD_URL", id, "https://example.com/");
-    expect(view.webContents.loadURL).not.toHaveBeenCalled();
-  });
-
-  it("never offers the Lyre page for tab capture: its sound reaches Discord only through the private channel", () => {
-    const { create, window } = setup();
-    const { view, event } = create(LYRE_URL, "lyre");
-    view.webContents.emit("did-finish-load");
-    const player = create(PLAYER_URL, "player");
-    player.view.webContents.emit("did-finish-load");
-    const loaded = [...window.webContents.send.mock.calls, ...event.reply.mock.calls, ...player.event.reply.mock.calls].filter(
-      ([channel]) => channel === "BROWSER_VIEW_LOADED",
-    );
-    expect(loaded).toEqual([["BROWSER_VIEW_LOADED", player.id]]);
   });
 });

@@ -37,12 +37,6 @@ async function pageStorage(contents: WebContents | undefined, key: string): Prom
   return typeof raw === "string" ? JSON.parse(raw) : null;
 }
 
-/** The main window's Settings (remote, streaming, address bar): only the "settings" part of its saved state. */
-async function mainWindowSettings(window: BrowserWindow): Promise<unknown> {
-  const root = (await pageStorage(window.isDestroyed() ? undefined : window.webContents, "persist:root")) as Record<string, unknown> | null;
-  return root && typeof root.settings === "string" ? JSON.parse(root.settings) : null;
-}
-
 /** Each bot's state in plain values: no token, no server, channel or people's names. */
 function botsOf(state: OutputsState) {
   return {
@@ -79,7 +73,6 @@ export function diagnosticsSources(deps: DiagnosticsDeps): DiagnosticsSources {
     log: () => diagnosticsLog.log.lines(),
     blocked: () => diagnosticsLog.blocked.lines(),
     settings: async () => ({
-      mainWindow: await mainWindowSettings(deps.window).catch((e: unknown) => ({ unreadable: String(e) })),
       lyrePage: await pageStorage(deps.lyreView(), "lyre-shell").catch((e: unknown) => ({ unreadable: String(e) })),
       discord: botsOf(deps.outputs()),
     }),

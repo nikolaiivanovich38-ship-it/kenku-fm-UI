@@ -106,23 +106,8 @@ const config = {
           config: "./webpack.renderer.config.js",
           entryPoints: [
             {
-              html: "./src/index.html",
-              js: "./src/renderer.ts",
-              name: "main_window",
-              preload: {
-                js: "./src/preload.ts",
-              },
-            },
-            {
-              html: "./src/player/index.html",
-              js: "./src/player/renderer.ts",
-              name: "player_window",
-              preload: {
-                js: "./src/player/preload.ts",
-              },
-            },
-            {
-              // WP5 (w3-shell): the new interface, opened as the "Lyre" tab.
+              // WP5 (w3-shell): the new interface. FND-16 (0.5.1): the window's own page; the old main window
+              // ("main_window") and the old player ("player_window") are gone.
               html: "./src/lyre/index.html",
               js: "./src/lyre/renderer.ts",
               name: "lyre_window",

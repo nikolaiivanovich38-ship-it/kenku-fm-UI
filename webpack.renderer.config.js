@@ -14,7 +14,7 @@ rules.push({
   use: { loader: "worklet-loader", options: { inline: true } },
 });
 
-// OUT-5: the player page loads the same PCM worklet as a file next to its
+// OUT-5: the Lyre page loads the same PCM worklet as a file next to its
 // bundle (its Content-Security-Policy allows scripts from 'self' only, not
 // the blob: addresses worklet-loader makes): `import url from "./x.worklet.js?asset"`.
 rules.push({

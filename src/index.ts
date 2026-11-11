@@ -2,7 +2,6 @@
 import { getDataCarryOverResult, runDataCarryOver } from "./main/migration";
 // FND-9: Lyre's recent log (in memory only, for Help › Save diagnostics) starts before anything else logs.
 import { startDiagnosticsLog } from "./main/diagnostics/diagnosticsLog";
-import os from "os";
 import {
   app,
   BrowserWindow,
@@ -20,10 +19,9 @@ import { runAutoUpdate } from "./autoUpdate";
 import { getSavedBounds, saveWindowBounds } from "./bounds";
 import { openExternalIfAllowed } from "./main/security/externalLinks";
 import { lockAppPage } from "./main/security/navigationGuards";
-import { clearBrowsingData, registerLocalFileScheme, secureSessions } from "./main/security/sessions";
+import { registerLocalFileScheme, secureSessions } from "./main/security/sessions";
 import { registerAppInfoIpc } from "./main/security/appInfoIpc";
 import { confirmStartAfterCarryOver, startApp } from "./main/startup";
-import { holdCloseUntilSaved, type SaveBeforeClose } from "./main/saveBeforeClose";
 import { startLyreLibrary, type StartedLibrary } from "./main/lyreApi/startLibrary";
 
 // FND-16 (0.5.1): the window is Lyre's own page; the old main window with its tabs and the old player are gone.
@@ -31,8 +29,6 @@ declare const LYRE_WINDOW_WEBPACK_ENTRY: string;
 declare const LYRE_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 
 let window: BrowserWindow | null = null;
-/** PERF-6: holds quitting or closing until the player has saved (saveBeforeClose.ts). */
-let saveFirst: SaveBeforeClose | null = null;
 /** WP5: Lyre's library, in its own process; started when the app is ready, closed before quitting. */
 let lyreLibrary: StartedLibrary | null = null;
 let lyreLibraryClosed = false;
@@ -95,21 +91,9 @@ const createWindow = (): BrowserWindow => {
   // Prevent app suspension for Kenku FM to avoid playback issues
   const powerSaveBlockerId = powerSaveBlocker.start("prevent-app-suspension");
 
-  // PERF-6: the player saves changes it is still holding back before its
-  // view is destroyed with the session.
-  const windowSaveFirst = holdCloseUntilSaved({
-    save: () => session.saveBeforeClose(),
-    close: () => {
-      if (!mainWindow.isDestroyed()) mainWindow.close();
-    },
-    quit: () => app.quit(),
-  });
-  saveFirst = windowSaveFirst;
-
-  mainWindow.on("close", (event) => {
-    if (windowSaveFirst.holdClose(event)) {
-      return;
-    }
+  // FND-16: nothing to wait for on close: the old player saved with a delay (PERF-6, gone with it); Lyre's library
+  // writes go straight to the database in its own process, which is closed cleanly before quitting (below).
+  mainWindow.on("close", () => {
     session.destroy();
     window = null;
     powerSaveBlocker.stop(powerSaveBlockerId);
@@ -158,7 +142,7 @@ if (startupOutcome === "run") {
   });
 
   app.on("before-quit", (event) => {
-    if (saveFirst?.holdQuit(event) || !lyreLibrary || lyreLibraryClosed) {
+    if (!lyreLibrary || lyreLibraryClosed) {
       return;
     }
     // WP5: close the library cleanly (backups stop, the database is closed), then quit.
@@ -201,15 +185,8 @@ if (startupOutcome === "run") {
     }
   });
 
-  // SEC-8: only the main window may ask for these.
+  // SEC-8: only the Lyre page may ask for this (Settings › Sound to Discord › Empty the audio cache).
   registerAppInfoIpc({
-    getVersion: () => app.getVersion(),
-    getPlatform: () => os.platform(),
-    // Security review 3: "Clear cache" empties Lyre's audio cache (converted and local copies) as well.
-    clearCache: async () => {
-      await clearBrowsingData();
-      await lyreLibrary?.clearAudioCache();
-    },
     emptyAudioCache: async () => {
       await lyreLibrary?.clearAudioCache();
     },

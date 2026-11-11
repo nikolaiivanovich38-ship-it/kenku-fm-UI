@@ -15,7 +15,7 @@ export interface DiagnosticsSources {
   log: () => string[];
   /** The recent blocked-content warnings. */
   blocked: () => string[];
-  /** The settings of the main window, the Lyre page and the bots, gathered from the running app. */
+  /** The settings of the Lyre page and the bots, gathered from the running app (FND-16: no old main window). */
   settings: () => Promise<unknown>;
   /** The user's home folder, written as "~". */
   home: string;

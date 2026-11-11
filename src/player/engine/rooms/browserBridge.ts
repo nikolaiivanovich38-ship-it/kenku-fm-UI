@@ -28,8 +28,8 @@ export const PLAYER_AUDIO_PORT_MESSAGE = "lyre-player-audio-port";
 export function listenForPlayerAudioPort(
   target: Window,
   link: PlayerAudioLink,
-  // The player preload holds the end until the page asks for it.
-  request: () => void = () => target.player.connectAudio(),
+  // The preload holds the end until the page asks for it (the Lyre page: window.lyre.audio.connect).
+  request: () => void,
 ): () => void {
   const onMessage = (event: MessageEvent) => {
     if (event.source === target && event.data === PLAYER_AUDIO_PORT_MESSAGE && event.ports[0]) {

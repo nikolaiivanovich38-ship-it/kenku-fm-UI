@@ -3,16 +3,10 @@ import fs from "fs";
 import { getUserAgent } from "../userAgent";
 import { checkTabUrl, isRefused } from "../../common/security/urlPolicy";
 import { guardIpc } from "../security/ipcGuard";
-import { LYRE_VIEW_KIND, PLAYER_VIEW_KIND, REFUSED_VIEW_ID } from "../security/ipcChannels";
-import {
-  guardLocalFileTab,
-  guardTabNavigation,
-  lockAppPage,
-} from "../security/navigationGuards";
+import { REFUSED_VIEW_ID } from "../security/ipcChannels";
+import { guardLocalFileTab, guardTabNavigation } from "../security/navigationGuards";
 import { LOCAL_FILE_PARTITION, TAB_PARTITION } from "../security/partitions";
 import { createRateLimiter, POPUP_LIMIT } from "../security/popupRateLimiter";
-import { trustedContents } from "../security/trustedContents";
-import { classifyViewRequest } from "../security/viewKind";
 import {
   LocalFileFolders,
   LocalFileGate,
@@ -35,26 +29,7 @@ function isFile(filePath: string): boolean {
   }
 }
 
-declare const PLAYER_WINDOW_WEBPACK_ENTRY: string;
-declare const PLAYER_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
-declare const LYRE_WINDOW_WEBPACK_ENTRY: string;
-declare const LYRE_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
-
-/** The kinds of the app's own pages the main window may ask for (see viewKind.ts). */
-type AppViewKind = typeof PLAYER_VIEW_KIND | typeof LYRE_VIEW_KIND;
-
 export { REFUSED_VIEW_ID };
-
-/**
- * The app's own pages that open as views: their preload (chosen here, never by
- * the renderer) and their trusted role. Webpack defines the entry constants.
- */
-const APP_PAGES = {
-  player: { role: "player-view", preload: () => PLAYER_WINDOW_PRELOAD_WEBPACK_ENTRY, capturable: true },
-  // w3-shell: the new interface page (WP5), opened as the "Lyre" tab. Never tab-captured: its sound reaches
-  // Discord only through the private player channel (WAVE3 decision "Audio").
-  lyre: { role: "lyre-view", preload: () => LYRE_WINDOW_PRELOAD_WEBPACK_ENTRY, capturable: false },
-} as const;
 
 /** `webContents.destroy()` exists at run time but is missing from Electron's type definitions. */
 function destroyContents(contents: Electron.WebContents) {
@@ -75,14 +50,16 @@ export interface BrowserViewManagerOptions {
   fileServer?: LocalFileServer;
   /** UX finding 7: whether a (real) path is a file; defaults to a check on the disk. */
   fileExists?: (filePath: string) => boolean;
-  /** w3-shell: told when the new interface page (kind "lyre") has been created and trusted. */
-  onLyreView?: (contents: Electron.WebContents) => void;
 }
 
 /**
- * Manager to help create and manager browser views
- * This class is to be run on the main thread
- * For the render thread counterpart see `BrowserViewManagerPreload.ts`
+ * Website tabs: each a WebContentsView laid over the window, with the tab URL policy, local files (SEC-15) and tab
+ * capture for Discord.
+ *
+ * FND-16 (0.5.1): kept for OUT-12 (playing YouTube, Spotify and other online sources, a later release) and
+ * unreachable: nothing makes this manager (SessionManager does not), and every channel it listens on comes only
+ * from the old main window ("main-window"), which no page is any more. The old main window's own pages that opened
+ * as views here (the player and the Lyre tab) are gone; only website tabs remain. See docs/ARCHITECTURE.md.
  */
 export class BrowserViewManagerMain {
   window: BrowserWindow;
@@ -98,7 +75,6 @@ export class BrowserViewManagerMain {
   private fileGate: LocalFileGate;
   private fileServer: LocalFileServer;
   private destroyed = false;
-  private onLyreView?: (contents: Electron.WebContents) => void;
 
   constructor(window: BrowserWindow, options: BrowserViewManagerOptions = {}) {
     this.window = window;
@@ -115,7 +91,6 @@ export class BrowserViewManagerMain {
       onRefused: () => this.window.webContents.send("ERROR", MISSING_FILE_MESSAGE, { kind: "address" }),
     });
     this.fileServer = options.fileServer ?? sharedLocalFileServer();
-    this.onLyreView = options.onLyreView;
 
     // SEC-8: only the main window's own page may manage views.
     this.ipc.on("BROWSER_VIEW_CREATE_BROWSER_VIEW", this._handleCreateBrowserView);
@@ -167,7 +142,7 @@ export class BrowserViewManagerMain {
     y: number,
     width: number,
     height: number,
-    kind?: AppViewKind
+    kind?: unknown
   ) => {
     const reply: Reply = (channel, ...args) => event.reply(channel, ...args);
     const id = this.createBrowserView(url, x, y, width, height, kind, reply);
@@ -315,16 +290,11 @@ export class BrowserViewManagerMain {
   _handleReload = (_: Electron.IpcMainEvent, id: number) => this.reload(id);
 
   /**
-   * Create a new browser view and attach it to the current window.
-   * SEC-3/SEC-6: website tabs get their own storage partition, no preload,
-   * navigation guards and the tab URL policy.
-   * SEC-8: the renderer asks for the Kenku player with the kind "player" (and,
-   * w3-shell, for the new interface page with the kind "lyre"); the main
-   * process chooses the page's preload itself, and only for that page's own
-   * address, which is registered as trusted.
+   * Create a website tab: no preload, its own storage partition, the navigation guards and the tab URL policy.
+   * SEC-8: a page may never choose a preload; any kind asked for (the old player or Lyre tab) is refused.
    * @param url Initial URL
-   * @param requestedKind `PLAYER_VIEW_KIND` or `LYRE_VIEW_KIND` for an app page, undefined for a website tab
-   * @param reply sends the view's events to the main window
+   * @param requestedKind must be undefined (a website tab)
+   * @param reply sends the view's events to the window
    * @returns id of the created view, or `REFUSED_VIEW_ID`
    */
   createBrowserView(
@@ -333,50 +303,23 @@ export class BrowserViewManagerMain {
     y: number,
     width: number,
     height: number,
-    requestedKind?: AppViewKind,
+    requestedKind?: unknown,
     reply: Reply = (channel, ...args) => this.window.webContents.send(channel, ...args)
   ): number {
-    const kind = classifyViewRequest(url, requestedKind, PLAYER_WINDOW_WEBPACK_ENTRY, LYRE_WINDOW_WEBPACK_ENTRY);
-    if (kind === "refused") {
+    if (requestedKind !== undefined) {
       console.error("Refused to create a view of an unknown kind");
       return REFUSED_VIEW_ID;
     }
-
-    const appPage = kind === "tab" ? undefined : APP_PAGES[kind];
-    const view = new WebContentsView({
-      webPreferences: appPage ? { preload: appPage.preload() } : { partition: TAB_PARTITION },
-    });
+    const view = new WebContentsView({ webPreferences: { partition: TAB_PARTITION } });
     const id = view.webContents.id;
-    if (appPage) {
-      trustedContents.trust(view.webContents, appPage.role);
-      // SEC-7: an app page is pinned to its page; links it opens with
-      // target="_blank" (help pages) still become ordinary tabs.
-      lockAppPage(view.webContents, appPage.role, {
-        onWindowOpen: (popupUrl) => {
-          const check = checkTabUrl(popupUrl);
-          if (!isRefused(check)) {
-            reply("BROWSER_VIEW_NEW_TAB", check.url);
-          }
-        },
-      });
-    } else {
-      guardTabNavigation(view.webContents);
-      view.webContents.setWindowOpenHandler(({ url: popupUrl }) => {
-        this._openPopupAsTab(reply, id, popupUrl);
-        return { action: "deny" };
-      });
-    }
+    guardTabNavigation(view.webContents);
+    view.webContents.setWindowOpenHandler(({ url: popupUrl }) => {
+      this._openPopupAsTab(reply, id, popupUrl);
+      return { action: "deny" };
+    });
     this._addView(view, x, y, width, height);
-    this._watchView(id, reply, { capturable: appPage?.capturable ?? true });
-
-    if (kind === "lyre") {
-      this.onLyreView?.(view.webContents);
-    }
-    if (appPage) {
-      this._load(view, url);
-    } else {
-      this._loadTabUrl(view, url);
-    }
+    this._watchView(id, reply, { capturable: true });
+    this._loadTabUrl(view, url);
     return id;
   }
 
@@ -457,18 +400,13 @@ export class BrowserViewManagerMain {
 
   /**
    * Load an address typed or chosen by the user in an existing tab.
-   * SEC-6/SEC-7: only website tabs can be redirected, and only to addresses
-   * the tab URL policy allows; the player view stays on its own page.
+   * SEC-6/SEC-7: only to addresses the tab URL policy allows.
    * SEC-15: a file's tab only ever shows the file it was opened with; the
    * main window opens other addresses in a new tab instead.
    */
   loadURL(id: number, url: string) {
     const view = this.views[id];
     if (!view) {
-      return;
-    }
-    if (trustedContents.roleOf(view.webContents) !== null) {
-      console.warn("Refused to load a different page in the Kenku player");
       return;
     }
     if (this.localFileViews.has(id)) {

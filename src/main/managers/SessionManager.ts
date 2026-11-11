@@ -1,10 +1,7 @@
 import fs from "fs";
 import { BrowserWindow } from "electron";
-import { BrowserViewManagerMain } from "./BrowserViewManagerMain";
 import { LyreManager } from "./LyreManager";
 import { PlaybackManager } from "./PlaybackManager";
-import { PlayerManager } from "./PlayerManager";
-import { WindowManager } from "./WindowManager";
 import { DiagnosticsBridge } from "../diagnostics/diagnosticsBridge";
 import type { LyreEvent } from "../../common/lyre/api";
 import type { LyreInvoke } from "../../common/lyre/rpc";
@@ -41,9 +38,6 @@ export interface SessionOptions {
  */
 export class SessionManager {
   private playbackManager: PlaybackManager;
-  private playerManager: PlayerManager;
-  private viewManager: BrowserViewManagerMain;
-  private windowManager: WindowManager;
   /** WP5: the Lyre page. */
   private lyreManager: LyreManager;
   /** FND-9: Help › Save diagnostics. */
@@ -67,15 +61,10 @@ export class SessionManager {
     this.page = window.webContents;
     this.frame = new WindowFrame(window);
     this.remote = new RemoteOff();
-    this.playbackManager = new PlaybackManager(window);
+    this.playbackManager = new PlaybackManager();
     this.lyreManager = new LyreManager();
-    this.viewManager = new BrowserViewManagerMain(window);
-    this.windowManager = new WindowManager(window);
-    this.playerManager = new PlayerManager();
     // --- w3-host wiring --- the Lyre page takes the private audio channel and hears the outputs:
     this.lyreManager.onAttachView = (view) => this.playbackManager.setLyreView(view);
-    // OUT-5, PRV-1: the player page's private audio channel to the capture window.
-    this.playerManager.onRegisterView = (view) => this.playbackManager.setPlayerView(view);
     // --- w4-guide wiring --- Save diagnostics reads the windows' settings and the bots' state:
     this.diagnostics = new DiagnosticsBridge({
       window,
@@ -163,20 +152,12 @@ export class SessionManager {
     this.playbackManager.outputs.connectSaved();
   }
 
-  /** PERF-6: lets the player save changes it is holding back; see saveBeforeClose.ts. */
-  saveBeforeClose(): Promise<void> {
-    return this.playerManager.saveBeforeClose();
-  }
-
   destroy() {
     this.page.off("did-finish-load", this.onPageLoaded);
     this.stopLibraryEvents?.();
     this.frame.destroy();
     this.remote.destroy();
     this.playbackManager.destroy();
-    this.viewManager.destroy();
-    this.windowManager.destroy();
-    this.playerManager.destroy();
     this.lyreManager.destroy();
     this.diagnostics.destroy();
   }

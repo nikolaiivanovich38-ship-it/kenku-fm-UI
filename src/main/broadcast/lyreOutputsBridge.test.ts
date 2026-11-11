@@ -49,7 +49,6 @@ let manager: OutputManager;
 let bridge: LyreOutputsBridge;
 let lyre: FakePage;
 let opened: string[];
-const window = { webContents: { send: vi.fn(), isDestroyed: () => false } };
 const settle = (ms = 40) => new Promise((resolve) => setTimeout(resolve, ms));
 const fromLyre = () => fromMainFrame(lyre);
 
@@ -58,7 +57,7 @@ beforeEach(() => {
   fakeIpcMain.reset();
   vi.spyOn(console, "error").mockImplementation(() => undefined);
   vi.spyOn(console, "warn").mockImplementation(() => undefined);
-  manager = new OutputManager(window as never, new BotTokenStore(BotTokenStore.fileIn(folder), safeStorage), withoutInviteHook(new FakeDiscord({ world: WORLD }).driver));
+  manager = new OutputManager(new BotTokenStore(BotTokenStore.fileIn(folder), safeStorage), withoutInviteHook(new FakeDiscord({ world: WORLD }).driver));
   opened = [];
   bridge = new LyreOutputsBridge(manager, { openExternal: async (url) => void opened.push(url) });
   lyre = fakePage("lyre-view");
@@ -97,7 +96,7 @@ describe("LyreOutputsBridge (w4-outputs)", () => {
   it("refuses other pages and wrong arguments", async () => {
     const [a] = await twoBots();
     await expect(fakeIpcMain.invoke("LYRE_OUTPUTS_GET", fromMainFrame(fakePage("main-window")))).rejects.toThrow();
-    await expect(fakeIpcMain.invoke("LYRE_OUTPUTS_GET", fromMainFrame(fakePage("player-view")))).rejects.toThrow();
+    await expect(fakeIpcMain.invoke("LYRE_OUTPUTS_GET", fromMainFrame(fakePage(null)))).rejects.toThrow();
     fakeIpcMain.deliver("LYRE_OUTPUT_MOVE", fromMainFrame(fakePage(null)), a, "1011");
     fakeIpcMain.deliver("LYRE_OUTPUT_MOVE", fromLyre(), "../bot", "1011");
     fakeIpcMain.deliver("LYRE_OUTPUT_SET_VOLUME", fromLyre(), a, 2);
@@ -208,7 +207,7 @@ describe("LyreOutputsBridge: Settings in Lyre (OUT-8)", () => {
     await expect(fakeIpcMain.invoke("LYRE_BOT_RENAME", fromLyre(), a, "x".repeat(5000))).rejects.toThrow();
     await expect(fakeIpcMain.invoke("LYRE_BOT_SET_APP_ID", fromLyre(), a, "https://evil.example")).rejects.toThrow();
     fakeIpcMain.deliver("LYRE_BOT_OPEN_INVITE", fromLyre(), "123&scope=admin");
-    fakeIpcMain.deliver("LYRE_BOT_OPEN_INVITE", fromMainFrame(fakePage("player-view")), "123456789012345678");
+    fakeIpcMain.deliver("LYRE_BOT_OPEN_INVITE", fromMainFrame(fakePage(null)), "123456789012345678");
     await settle();
     expect(opened).toEqual([]);
   });
@@ -231,7 +230,7 @@ describe("LyreOutputsBridge: the note about a token moved from Kenku FM (FND-16)
 
   it("takes the note's Got it from the Lyre page only, with no arguments", async () => {
     manager.setLegacyTokenNote(true);
-    fakeIpcMain.deliver("LYRE_BOT_LEGACY_NOTE_SEEN", fromMainFrame(fakePage("player-view")));
+    fakeIpcMain.deliver("LYRE_BOT_LEGACY_NOTE_SEEN", fromMainFrame(fakePage(null)));
     fakeIpcMain.deliver("LYRE_BOT_LEGACY_NOTE_SEEN", fromLyre(), "extra");
     await settle();
     expect(manager.state().legacyTokenNote).toBe(true);

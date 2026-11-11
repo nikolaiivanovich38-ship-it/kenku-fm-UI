@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, shell } from "electron";
+import { app, Menu, shell } from "electron";
 import { readmeUrl } from "./main/appIdentity";
 
 const isMac = process.platform === "darwin";
@@ -71,31 +71,6 @@ const template: any = [
     submenu: [
       ...(app.isPackaged ? [] : [{ role: "toggleDevTools" }]),
       { role: "togglefullscreen" },
-    ],
-  },
-  {
-    label: "Tab",
-    submenu: [
-      {
-        label: "New Tab",
-        accelerator: isMac ? "Cmd+T" : "Ctrl+T",
-        click: () => {
-          const windows = BrowserWindow.getAllWindows();
-          for (let window of windows) {
-            window.webContents.send("BROWSER_VIEW_NEW_TAB");
-          }
-        },
-      },
-      {
-        label: "Close Tab",
-        accelerator: isMac ? "Cmd+W" : "Ctrl+W",
-        click: () => {
-          const windows = BrowserWindow.getAllWindows();
-          for (let window of windows) {
-            window.webContents.send("BROWSER_VIEW_CLOSE_TAB");
-          }
-        },
-      },
     ],
   },
   // { role: 'windowMenu' }

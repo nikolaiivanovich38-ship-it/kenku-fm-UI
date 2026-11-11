@@ -2,7 +2,7 @@
  * DAT-9: moving the old player's library into the database, once.
  *
  * The old player keeps its playlists and soundboards with redux-persist in
- * the app's localStorage under the key "persist:player" (src/player/app/store.ts;
+ * the app's localStorage under the key "persist:player" (the old player's redux store, gone in 0.5.1: legacyShapes.ts;
  * "persist:root" holds only settings and bookmarks). Wave 3 reads that value
  * (for example `localStorage.getItem("persist:player")` in the player window)
  * and hands it to `importLegacyLibrary` on the new interface's first start.
@@ -30,8 +30,7 @@ import { randomUUID } from "crypto";
 import path from "path";
 import type { Library } from "../library";
 import type { Store } from "../store";
-import type { PlaylistsState } from "../../../player/features/playlists/playlistsSlice";
-import type { SoundboardsState } from "../../../player/features/soundboards/soundboardsSlice";
+import type { PlaylistsState, SoundboardsState } from "./legacyShapes";
 import type { TrackInput, TrackKind } from "../types";
 import { MAX_NAME_LENGTH, MAX_TEXT_LENGTH } from "../validate";
 import { createTracks } from "../repo/tracks";
@@ -116,7 +115,7 @@ function decodeLoosely(text: string): string {
  * Where an old track's audio is: a file path or a web address, or null when
  * Lyre cannot play it (blob: and data: addresses lasted only while the old
  * player ran; a relative path has no folder). The old player wrote files as
- * file://C:/… (src/renderer/common/drop.ts), Kenku FM as file:///C:/…; both are read.
+ * file://C:/… (legacyShapes.ts encodeFilePath), Kenku FM as file:///C:/…; both are read.
  */
 export function legacyLocation(raw: unknown): { file: string } | { url: string } | null {
   if (typeof raw !== "string") return null;

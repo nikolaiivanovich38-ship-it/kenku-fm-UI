@@ -20,7 +20,7 @@ function setup() {
   const player = page(1);
   const mainWindow = page(2);
   const lyre = page(3);
-  registry.trust(player, "player-view");
+  registry.trust(player, "lyre-view");
   registry.trust(mainWindow, "main-window");
   registry.trust(lyre, "lyre-view");
   const guard = guardIpc(ipc, { registry, warn: () => undefined });
@@ -72,8 +72,8 @@ describe("MEDIA_PREPARE (BUG-10, PLY-11)", () => {
     expect(await send(player, "file:///music/a.wma", { keepLocal: false })).toEqual({ error: "This file could not be prepared for playing." });
   });
 
-  it("is listed for the player and the new interface only, and removed again on dispose", () => {
-    expect(IPC_CHANNELS.MEDIA_PREPARE.from).toEqual(["player-view", "lyre-view"]);
+  it("is listed for the Lyre page only, and removed again on dispose", () => {
+    expect(IPC_CHANNELS.MEDIA_PREPARE.from).toEqual(["lyre-view"]);
     const { handlers, unregister } = setup();
     unregister();
     expect(handlers.has("MEDIA_PREPARE")).toBe(false);

@@ -50,8 +50,8 @@ describe("lockAppPage (SEC-7)", () => {
   it("registers the page as trusted with its role", () => {
     const registry = new TrustedContentsRegistry();
     const contents = fakeContents(5, page);
-    lockAppPage(contents, "player-view", { registry });
-    expect(registry.roleOf(contents)).toBe("player-view");
+    lockAppPage(contents, "lyre-view", { registry });
+    expect(registry.roleOf(contents)).toBe("lyre-view");
   });
 
   it("cancels navigation away from the page", () => {
@@ -81,7 +81,7 @@ describe("lockAppPage (SEC-7)", () => {
   it("uses a custom new-window handler when given one, but always denies", () => {
     const contents = fakeContents(5, page);
     const onWindowOpen = vi.fn();
-    lockAppPage(contents, "player-view", {
+    lockAppPage(contents, "lyre-view", {
       registry: new TrustedContentsRegistry(),
       onWindowOpen,
     });

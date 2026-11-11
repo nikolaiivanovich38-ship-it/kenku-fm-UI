@@ -33,7 +33,6 @@ const ALL_PERMISSIONS = [
 const EXPECTED: Record<AppPageRole | "tab", string[]> = {
   "main-window": ["media"],
   "audio-capture": ["media"],
-  "player-view": ["clipboard-sanitized-write"],
   "lyre-view": [],
   tab: ["fullscreen"],
 };
@@ -54,14 +53,14 @@ describe("isPermissionAllowed (SEC-3)", () => {
   describe("pages the app is capturing (tab capture for Discord)", () => {
     // Chromium raises tab capture as a "media" request on the captured page,
     // with no media types (W1 finding, confirmed in e2e/capture.spec.ts).
-    it.each([null, "player-view"] as const)("lets the capture open a %s page", (role) => {
+    it.each([null] as const)("lets the capture open a %s page", (role) => {
       expect(
         isPermissionAllowed({ role, permission: "media", mediaTypes: [], isCaptureTarget: true }),
       ).toBe(true);
     });
 
     it("refuses the same request for a page the app is not capturing", () => {
-      for (const role of [null, "player-view"] as const) {
+      for (const role of [null, "lyre-view"] as const) {
         expect(isPermissionAllowed({ role, permission: "media", mediaTypes: [] })).toBe(false);
       }
     });
@@ -157,19 +156,12 @@ describe("isPermissionAllowed (SEC-3)", () => {
         isMainFrame: false,
       }),
     ).toBe(false);
-    expect(
-      isPermissionAllowed({
-        role: "player-view",
-        permission: "clipboard-sanitized-write",
-        isMainFrame: false,
-      }),
-    ).toBe(false);
   });
 
-  it("denies the player view any media access", () => {
+  it("denies the Lyre page any media access", () => {
     expect(
       isPermissionAllowed({
-        role: "player-view",
+        role: "lyre-view",
         permission: "media",
         mediaTypes: ["audio"],
       }),
@@ -178,23 +170,23 @@ describe("isPermissionAllowed (SEC-3)", () => {
 });
 
 // --- Rooms and buses ---
-describe("PRV-2: the player page may name and choose sound output devices, nothing more", () => {
-  it("answers yes to the player page's speaker-selection check (output device names, setSinkId)", () => {
-    expect(isPermissionAllowed({ role: "player-view", permission: "speaker-selection", isCheck: true })).toBe(true);
+describe("PRV-2: the Lyre page may name and choose sound output devices, nothing more", () => {
+  it("answers yes to the Lyre page's speaker-selection check (output device names, setSinkId)", () => {
+    expect(isPermissionAllowed({ role: "lyre-view", permission: "speaker-selection", isCheck: true })).toBe(true);
   });
 
   it("does not grant speaker-selection as a request, or to an embedded frame", () => {
-    expect(isPermissionAllowed({ role: "player-view", permission: "speaker-selection" })).toBe(false);
+    expect(isPermissionAllowed({ role: "lyre-view", permission: "speaker-selection" })).toBe(false);
     expect(
-      isPermissionAllowed({ role: "player-view", permission: "speaker-selection", isCheck: true, isMainFrame: false }),
+      isPermissionAllowed({ role: "lyre-view", permission: "speaker-selection", isCheck: true, isMainFrame: false }),
     ).toBe(false);
   });
 
-  it("still keeps the microphone and camera from the player page, checked or requested", () => {
+  it("still keeps the microphone and camera from the Lyre page, checked or requested", () => {
     for (const mediaType of ["audio", "video", undefined]) {
       const mediaTypes = mediaType ? [mediaType] : undefined;
-      expect(isPermissionAllowed({ role: "player-view", permission: "media", mediaTypes, isCheck: true })).toBe(false);
-      expect(isPermissionAllowed({ role: "player-view", permission: "media", mediaTypes: mediaTypes ?? ["audio"] })).toBe(
+      expect(isPermissionAllowed({ role: "lyre-view", permission: "media", mediaTypes, isCheck: true })).toBe(false);
+      expect(isPermissionAllowed({ role: "lyre-view", permission: "media", mediaTypes: mediaTypes ?? ["audio"] })).toBe(
         false,
       );
     }

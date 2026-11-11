@@ -6,9 +6,8 @@
 import fs from "fs";
 import path from "path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { PlaylistsState } from "../../../player/features/playlists/playlistsSlice";
-import type { SoundboardsState } from "../../../player/features/soundboards/soundboardsSlice";
-import { encodeFilePath } from "../../../renderer/common/drop";
+import type { PlaylistsState, SoundboardsState } from "./legacyShapes";
+import { encodeFilePath } from "./legacyShapes";
 import { openLibrary, type Library } from "../library";
 import { makeClock, makeTempFolder } from "../test/helpers";
 import { listTracks, resolveTrackLocation, updateTrack } from "../repo/tracks";
