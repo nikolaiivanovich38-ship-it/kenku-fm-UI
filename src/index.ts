@@ -13,7 +13,6 @@ import {
 } from "electron";
 import "./menu";
 import icon from "./assets/icon.png";
-import { getUserAgent } from "./main/userAgent";
 import { bundledAssetPath } from "./main/bundledAsset";
 import { SessionManager } from "./main/managers/SessionManager";
 import { runAutoUpdate } from "./autoUpdate";
@@ -26,8 +25,9 @@ import { confirmStartAfterCarryOver, startApp } from "./main/startup";
 import { holdCloseUntilSaved, type SaveBeforeClose } from "./main/saveBeforeClose";
 import { startLyreLibrary, type StartedLibrary } from "./main/lyreApi/startLibrary";
 
-declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
-declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
+// FND-16 (0.5.1): the window is Lyre's own page; the old main window with its tabs and the old player are gone.
+declare const LYRE_WINDOW_WEBPACK_ENTRY: string;
+declare const LYRE_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 
 let window: BrowserWindow | null = null;
 /** PERF-6: holds quitting or closing until the player has saved (saveBeforeClose.ts). */
@@ -65,10 +65,8 @@ const createWindow = (): BrowserWindow => {
     width: 800,
     height: 600,
     webPreferences: {
-      preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
+      preload: LYRE_WINDOW_PRELOAD_WEBPACK_ENTRY,
     },
-    titleBarStyle: "hidden",
-    trafficLightPosition: { x: 16, y: 18 },
     icon: bundledAssetPath(icon, __dirname),
     minWidth,
     minHeight,
@@ -79,25 +77,17 @@ const createWindow = (): BrowserWindow => {
     mainWindow.maximize();
   }
 
-  // SEC-7/SEC-10: the main window stays on its own page; links it opens go to
-  // the system browser, and only when they are https web addresses.
-  lockAppPage(mainWindow.webContents, "main-window", {
+  // SEC-3/SEC-7/SEC-10: the window's page is trusted as the Lyre page and stays on its own document; links it
+  // opens (the Discord Developer Portal in Add a bot, help links) go to the system browser, and only when they are
+  // https web addresses.
+  lockAppPage(mainWindow.webContents, "lyre-view", {
     onWindowOpen: (url) => openExternalIfAllowed(url, shell.openExternal),
   });
 
-  // Spoof user agent for window.navigator. Set before loading: changing it
-  // during a load restarts the load.
-  mainWindow.webContents.setUserAgent(getUserAgent());
-  // and load the index.html of the app.
-  mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
-
-  let session = new SessionManager(mainWindow);
-
-  mainWindow.webContents.on("did-start-loading", () => {
-    // Restart the session on refresh
-    session.destroy();
-    session = new SessionManager(mainWindow);
-  });
+  // One set of managers for the window's whole life: reloading the page joins it again (SessionManager) without
+  // closing the bots' voice connections.
+  const session = new SessionManager(mainWindow);
+  mainWindow.loadURL(LYRE_WINDOW_WEBPACK_ENTRY);
 
   // Prevent app suspension for Kenku FM to avoid playback issues
   const powerSaveBlockerId = powerSaveBlocker.start("prevent-app-suspension");
@@ -125,8 +115,12 @@ const createWindow = (): BrowserWindow => {
   saveWindowBounds(mainWindow);
 
   // WP5: the daily backups start once the window shows, so they never slow the start; the audio cache is tidied
-  // a while later (security review 3).
-  mainWindow.once("ready-to-show", () => lyreLibrary?.windowShown());
+  // a while later (security review 3). FND-16: the saved Discord bots log in then too (the old Settings panel did
+  // this when it opened).
+  mainWindow.once("ready-to-show", () => {
+    lyreLibrary?.windowShown();
+    session.connectSavedBots();
+  });
 
   if (app.isPackaged) {
     runAutoUpdate(mainWindow);
