@@ -76,6 +76,20 @@ export function packageInputsChangedSince(root, commit) {
   }
 }
 
+/**
+ * Whether a package made from `before` must count as dirty: the app's code had uncommitted changes then or has now, or
+ * a commit made while it packaged changed it (a file changed meanwhile may or may not be in the package). A commit of
+ * tests or documents meanwhile leaves it clean.
+ */
+export function dirtyAfterPackaging(root, before) {
+  if (before.dirty) return true;
+  const after = treeState(root);
+  if (after.dirty) return true;
+  if (after.commit === before.commit) return false;
+  const changed = packageInputsChangedSince(root, before.commit);
+  return changed === null || changed.length > 0;
+}
+
 export function readStamp(root) {
   try {
     return JSON.parse(fs.readFileSync(path.join(root, STAMP), "utf8"));
@@ -151,9 +165,7 @@ async function main(argv) {
     : await run(process.execPath, [path.join(root, "scripts", "heavy-run.mjs"), "--log", path.join(os.tmpdir(), `package-test-${Date.now()}.log`), "--", "yarn", "package"], env);
   if (code !== 0) return code;
 
-  // The tree is read again: a file changed while packaging may or may not be in the package, so it counts as dirty.
-  const after = treeState(root);
-  const dirty = before.dirty || after.dirty || before.commit !== after.commit;
+  const dirty = dirtyAfterPackaging(root, before);
   writeStamp(root, { commit: before.commit, dirty, e2eBuild: E2E_BUILD, asar: fingerprint(asarPath(folder)), builtAt: new Date().toISOString() });
   console.log(`package:test: test package made from ${short(before.commit)}${dirty ? " with uncommitted changes (it will be made again next time)" : ""}.`);
   return 0;

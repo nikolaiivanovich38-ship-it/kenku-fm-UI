@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 
-import { asarPath, decide, packageFolder, packageInputsChangedSince, readStamp, STAMP, treeState, writeStamp } from "./package-test.mjs";
+import { asarPath, decide, dirtyAfterPackaging, packageFolder, packageInputsChangedSince, readStamp, STAMP, treeState, writeStamp } from "./package-test.mjs";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "package-test-"));
 const git = (cwd, ...args) => execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
@@ -115,6 +115,27 @@ describe("what changed since the package's commit", () => {
     git(dir, "commit", "-q", "-am", "the app");
     assert.deepEqual(packageInputsChangedSince(dir, first), ["src/app.ts"]);
     assert.equal(packageInputsChangedSince(dir, "0".repeat(40)), null);
+  });
+});
+
+describe("the dirty flag after packaging", () => {
+  it("is clean when nothing that goes into the package changed while it was made, even if a commit of tests was made", () => {
+    const dir = repository();
+    const before = treeState(dir);
+    assert.equal(dirtyAfterPackaging(dir, before), false);
+    fs.appendFileSync(path.join(dir, "e2e", "a.spec.ts"), "// more\n");
+    git(dir, "commit", "-q", "-am", "a test");
+    assert.equal(dirtyAfterPackaging(dir, before), false);
+  });
+
+  it("is dirty when the app's code changed while it was made, committed or not, or was dirty before", () => {
+    const dir = repository();
+    const before = treeState(dir);
+    fs.appendFileSync(path.join(dir, "src", "app.ts"), "export const b = 2;\n");
+    assert.equal(dirtyAfterPackaging(dir, before), true);
+    git(dir, "commit", "-q", "-am", "the app");
+    assert.equal(dirtyAfterPackaging(dir, before), true);
+    assert.equal(dirtyAfterPackaging(repository(), { commit: "x", dirty: true, dirtyFiles: ["src/a.ts"] }), true);
   });
 });
 
