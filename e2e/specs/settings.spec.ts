@@ -132,6 +132,23 @@ test.describe("Add a bot, in the order Discord needs", () => {
     await expect(bots(page).getByRole("group", { name: "Lyre Third" })).toContainText("••••••••abcd");
   });
 
+  test("UX-R11: a wrong Application ID and a missing token are said under their fields; Open the invite stays off", async ({ page }) => {
+    await openRoute(page, "settings");
+    await bots(page).getByRole("button", { name: "Add a bot" }).click();
+    await sheet(page).getByRole("button", { name: "Next" }).click();
+    const id = sheet(page).getByLabel("Application ID");
+    await id.fill("abc123");
+    await expect(id).toHaveValue("abc123");
+    await expect(id).toHaveAttribute("aria-invalid", "true");
+    await expect(sheet(page)).toContainText("An Application ID is a long number: copy it from General Information.");
+    await expect(sheet(page).getByRole("link", { name: "Open the invite" })).toHaveAttribute("aria-disabled", "true");
+    await id.fill("123456789012345678");
+    await sheet(page).getByRole("button", { name: "Next" }).click();
+    await sheet(page).getByRole("button", { name: "Connect", exact: true }).click();
+    await expect(sheet(page).getByRole("alert")).toContainText("Paste the token first");
+    await expect(sheet(page).getByLabel("Token", { exact: true })).toBeFocused();
+  });
+
   test("a bot connected before it was invited says it is in no server yet, with the invite again", async ({ page }) => {
     await openRoute(page, "settings");
     await bots(page).getByRole("button", { name: "Add a bot" }).click();

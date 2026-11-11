@@ -14,7 +14,7 @@ import { LyreApiProvider } from "../../api";
 import { LyreAudioProvider } from "../../audio/LyreAudioProvider";
 import { FakeLyreAudio } from "../../audio/testing/fakeLyreAudio";
 import { OutputsProvider } from "../../outputs/OutputsProvider";
-import { FakeOutputs, SIDE_BOT } from "../../outputs/testing/fakeOutputs";
+import { FakeOutputs, PROTOTYPE_OUTPUTS, SIDE_BOT } from "../../outputs/testing/fakeOutputs";
 import { SettingsAppliers } from "../../settings/SettingsAppliers";
 import { AnnouncerProvider } from "../../shell/Announcer";
 import { ShellSettingsProvider } from "../../shell/ShellSettings";
@@ -57,9 +57,9 @@ function fakeWindow(start: WindowSettings = DEFAULT_WINDOW_SETTINGS) {
   return bridge;
 }
 
-function open() {
+function open(start?: ConstructorParameters<typeof FakeOutputs>[0]) {
   localStorage.clear();
-  const outputs = new FakeOutputs();
+  const outputs = new FakeOutputs(start);
   const api = createFakeLyreApi();
   const audio = new FakeLyreAudio();
   const remote = fakeRemote();
@@ -179,6 +179,49 @@ describe("Settings › Discord bots (OUT-8)", () => {
     await userEvent.click(sheet.getByRole("button", { name: "Connect" }));
     await waitFor(() => expect(sheet.getByRole("status")).toHaveTextContent("It is in no server yet."));
     expect(sheet.getByRole("link", { name: "Invite it" })).toHaveAttribute("href", expect.stringMatching(/client_id=123456789012345678&scope=bot&permissions=3146752$/));
+  });
+
+  it("UX-R11: an Application ID that is not a long number says so under the field, and Open the invite stays off", async () => {
+    open();
+    await bot("Lyre Table");
+    await userEvent.click(screen.getByRole("button", { name: "Add a bot" }));
+    const sheet = within(screen.getByRole("dialog"));
+    await userEvent.click(sheet.getByRole("button", { name: "Next" }));
+    const field = sheet.getByLabelText("Application ID");
+    await userEvent.type(field, "abc123");
+    expect(field).toHaveValue("abc123");
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAccessibleDescription("An Application ID is a long number: copy it from General Information.");
+    expect(sheet.getByRole("link", { name: "Open the invite" })).toHaveAttribute("aria-disabled", "true");
+    await userEvent.clear(field);
+    await userEvent.type(field, " 123456789012345678 ");
+    expect(field).not.toHaveAttribute("aria-invalid");
+    expect(sheet.getByRole("link", { name: "Open the invite" })).toHaveAttribute("href", expect.stringContaining("client_id=123456789012345678&"));
+  });
+
+  it("UX-R11: Connect with no token says so under the Token field, not in a corner", async () => {
+    open();
+    await bot("Lyre Table");
+    await userEvent.click(screen.getByRole("button", { name: "Add a bot" }));
+    const sheet = within(screen.getByRole("dialog"));
+    await userEvent.click(sheet.getByRole("button", { name: "Next" }));
+    await userEvent.click(sheet.getByRole("button", { name: "Next" }));
+    await userEvent.click(sheet.getByRole("button", { name: "Connect" }));
+    expect(sheet.getByRole("alert")).toHaveTextContent("Paste the token first");
+    expect(sheet.getByLabelText("Token")).toHaveAttribute("aria-invalid", "true");
+    expect(sheet.getByLabelText("Token")).toHaveFocus();
+    expect(toast()).toBe("");
+  });
+
+  it("UX-R10: on a computer that cannot keep tokens encrypted, step 3 says what Settings says", async () => {
+    open({ ...PROTOTYPE_OUTPUTS, encryption: false });
+    await bot("Lyre Table");
+    await userEvent.click(screen.getByRole("button", { name: "Add a bot" }));
+    const sheet = within(screen.getByRole("dialog"));
+    await userEvent.click(sheet.getByRole("button", { name: "Next" }));
+    await userEvent.click(sheet.getByRole("button", { name: "Next" }));
+    expect(sheet.getByLabelText("Token")).toHaveAccessibleDescription("Kept only until Lyre closes: this computer cannot keep it encrypted.");
+    expect(screen.getByRole("dialog")).not.toHaveTextContent("Kept encrypted");
   });
 
   it("is accessible", async () => {

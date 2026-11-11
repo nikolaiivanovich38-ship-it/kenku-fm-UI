@@ -117,8 +117,8 @@
     else if (n === 1) body = '<p class="st-why">Invite the bot before you give Lyre its token.</p>' +
       '<ol class="st-do"><li><b>General Information</b> › <b>Application ID</b> › <b>Copy</b></li></ol>' +
       '<div class="field"><label for="st-appid">Application ID</label><div class="row-flex"><input class="input num" id="st-appid" data-input="stappid" data-k="st-appid" value="' + esc(a.appId) + '" inputmode="numeric" autocomplete="off" placeholder="Paste it here">' +
-        '<a class="btn s primary" href="' + esc(L.inviteURL(a.appId || '')) + '" target="_blank" rel="noopener" data-act="stopeninv" data-k="st-openinv"' + (/^\d{15,22}$/.test(a.appId) ? '' : ' aria-disabled="true"') + '>' + L.icon('link', 's') + 'Open the invite</a></div>' +
-        '</div>' +
+        '<a class="btn s primary" href="' + esc(L.inviteURL(a.appId.trim() || '')) + '" target="_blank" rel="noopener" data-act="stopeninv" data-k="st-openinv"' + (/^\d{15,22}$/.test(a.appId.trim()) ? '' : ' aria-disabled="true"') + '>' + L.icon('link', 's') + 'Open the invite</a></div>' +
+        '<p class="st-err" id="st-appid-e" hidden>' + L.icon('warn', 's') + '<span></span></p></div>' +
       '<ol class="st-do"><li>Choose your server, <b>Authorize</b>. You need <b>Manage Server</b> on it.</li></ol>' +
       '<button class="st-handbtn" data-act="stbyhand" data-k="st-byhand" aria-expanded="' + !!a.byHand + '" aria-controls="st-hand">' + L.icon(a.byHand ? 'chevup' : 'chevdown', 's') + 'Or make the invite by hand</button>' +
       (a.byHand ? '<ol class="st-do" id="st-hand"><li><b>OAuth2</b> › <b>URL Generator</b></li><li>Scopes: <b>bot</b></li><li>Bot Permissions: <b>View Channels</b>, <b>Connect</b>, <b>Speak</b></li>' +
@@ -126,6 +126,7 @@
     else body = '<ol class="st-do"><li><b>Bot</b> › <b>Reset Token</b> › <b>Copy</b>. Discord shows it once.</li></ol>' +
       '<div class="field"><label for="st-newtok">Token</label><input class="input" type="password" id="st-newtok" data-input="stnewtok" data-k="st-newtok" autocomplete="off" placeholder="Paste it here" aria-describedby="st-newtok-d">' +
         '<span class="hint" id="st-newtok-d" title="Lost it? Reset Token again makes a new one">Kept encrypted on this computer.</span></div>' +
+      '<p class="st-err" id="st-newtok-e" role="alert" hidden>' + L.icon('warn', 's') + 'Paste the token first</p>' +
       (a.result ? '<div class="st-result" role="status">' + a.result + '</div>' : '');
     return '<div class="st-add">' + nav + '<div class="st-stepbody" id="st-stepbody">' + body + '</div></div>';
   }
@@ -149,19 +150,27 @@
   L.acts.stportal = function () { L.toast('Opens the Discord Developer Portal in your browser'); };
   L.acts.stinvite = function () { L.toast('Opens the invite in your browser: choose your server, Authorize'); };
   L.acts.stdeck = function () { L.toast('Opens the Stream Deck plugin\'s page in your browser'); };
+  /* UX-R11 (0.5.0 review): what is typed is kept as typed; a wrong one is said under the field. */
+  function appIdProblem(msg) {
+    var f = document.getElementById('st-appid'), p = document.getElementById('st-appid-e'); if (!f || !p) return;
+    p.hidden = !msg; p.querySelector('span').textContent = msg || '';
+    if (msg) { f.setAttribute('aria-invalid', 'true'); f.setAttribute('aria-describedby', 'st-appid-e'); } else { f.removeAttribute('aria-invalid'); f.removeAttribute('aria-describedby'); }
+  }
   L.inputs.stappid = function (el) {
-    S.add.appId = el.value.replace(/\D/g, ''); var a = document.querySelector('[data-k="st-openinv"]');
-    if (a) { a.href = L.inviteURL(S.add.appId); if (/^\d{15,22}$/.test(S.add.appId)) a.removeAttribute('aria-disabled'); else a.setAttribute('aria-disabled', 'true'); }
+    S.add.appId = el.value; var id = el.value.trim(), ok = /^\d{15,22}$/.test(id), a = document.querySelector('[data-k="st-openinv"]');
+    if (a) { a.href = L.inviteURL(id); if (ok) a.removeAttribute('aria-disabled'); else a.setAttribute('aria-disabled', 'true'); }
+    appIdProblem(id && !ok ? 'An Application ID is a long number: copy it from General Information.' : '');
   };
   // The prototype cannot open Discord: it notes that the invite was opened (and so the bot will be in a server).
   L.acts.stopeninv = function (el, e) {
-    if (el.getAttribute('aria-disabled') === 'true') { L.toast('Paste the Application ID first (General Information)'); var f = document.getElementById('st-appid'); if (f) f.focus(); return; }
+    if (el.getAttribute('aria-disabled') === 'true') { var f = document.getElementById('st-appid'); if (f && !f.value.trim()) appIdProblem('Paste the Application ID first (General Information).'); if (f) f.focus(); return; }
     S.add.opened = true; L.toast('Opens Discord in your browser: choose your server, Authorize'); L.say('Invite opened in your browser');
   };
   L.inputs.stnewtok = function () {};
   L.acts.stconnew = function () {
     var f = document.getElementById('st-newtok'), v = f ? f.value.trim() : '';
-    if (!v) { L.toast('Paste the token first'); if (f) f.focus(); return; }
+    // UX-R11: said under the field, not in a corner of the window.
+    if (!v) { var e = document.getElementById('st-newtok-e'); if (e) e.hidden = false; if (f) { f.setAttribute('aria-invalid', 'true'); f.focus(); } return; }
     var a = S.add, b = { id: L.uid('b'), name: a.name, status: 'idle', server: '', channel: '', muted: false, volume: 85, mix: 'own', login: 'online', token: v.slice(-4), appId: a.appId, servers: a.opened ? ['g1'] : [] };
     D.discord.bots.push(b); a.done = true; a.botId = b.id;
     var srv = serverNames(b);
