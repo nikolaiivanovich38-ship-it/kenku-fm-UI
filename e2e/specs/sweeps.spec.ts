@@ -245,12 +245,22 @@ async function axeProblems(page: Page): Promise<string[]> {
         );
 }
 
+/* 0.5.1 (ROUND8.md, part 2): a campaign's own theme always shows on its page, its sessions and its Live, so Parchment as
+   the base theme no longer reaches them. For the Parchment sweep of those screens The Sunken Crown takes Parchment as
+   its own theme first, on its page, so the light theme is still checked there. */
+const OWN_THEME = /^(campaign\/crown|session\/crown\/|live)/;
+async function crownInParchment(page: Page): Promise<void> {
+  await openRoute(page, "campaign/crown", { theme: "parchment" });
+  await page.getByRole("main").getByRole("combobox", { name: "Theme" }).selectOption({ label: "Parchment" });
+}
+
 for (const screen of SCREENS) {
   for (const size of SIZES) {
     for (const { label, theme } of THEMES.filter((t) => size.themes.includes(t.theme))) {
       test(`${screen.name} at ${size.width}×${size.height} in the ${label}: no sideways scroll, no overlapping or cut-off controls, no accessibility failures`, async ({ page }) => {
         expectFailureUntilSweptScreenBuilt(screen);
         await page.setViewportSize(size);
+        if (theme === "parchment" && OWN_THEME.test(screen.route)) await crownInParchment(page);
         await openRoute(page, screen.route, { theme });
         await screen.prepare?.(page, { playing: true });
         await page.waitForTimeout(300);
@@ -659,4 +669,61 @@ test.describe("0.5.1: Lyre is the whole window", () => {
     await expect(page.getByRole("dialog")).toBeVisible();
     expect(await underWindowButtons(page, await windowButtonsBox(page))).toEqual([]);
   });
+});
+
+/* ---------- 0.5.1: Lyre's page fits the window's content area (design/prototype/ROUND8.md, part 2) ----------
+   Nik, 11 Nov: "When fully maximised the bottom of the app pushes past the top of my bottom aligned taskbar." and "The
+   right hand side of the window goes beyond the edge of the screen, rather than stopping at it." Nothing of Lyre's page
+   is wider or taller than the window's content area: the page does not scroll, and the menu, the screen and the Now
+   playing bar end inside it. Checked on every sweep screen, with a campaign playlist on air (so the Now playing bar
+   shows), at a maximised 1920 window above a taskbar (1920×1040) and at a small laptop's (1280×680). */
+async function overflow(page: Page): Promise<string[]> {
+  return page.evaluate((ignore) => {
+    const out: string[] = [];
+    const w = document.documentElement.clientWidth, h = document.documentElement.clientHeight;
+    for (const [what, e] of [["the page", document.documentElement], ["the body", document.body]] as const) {
+      if (e.scrollWidth > w + 1) out.push(`${what} is ${e.scrollWidth - w} px wider than the window`);
+      if (e.scrollHeight > h + 1) out.push(`${what} is ${e.scrollHeight - h} px taller than the window`);
+    }
+    const parts = Array.from(document.querySelectorAll<HTMLElement>("main, nav, [role=region][aria-label='Now playing'], body > *")).filter((e) => !ignore.some((s) => e.closest(s)));
+    for (const e of parts) {
+      const cs = getComputedStyle(e);
+      if (cs.display === "none" || cs.position === "fixed" && cs.visibility === "hidden") continue;
+      const r = e.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) continue;
+      const name = e.getAttribute("aria-label") || e.id || e.tagName.toLowerCase();
+      if (r.right > w + 1) out.push(`${name} ends ${Math.round(r.right - w)} px past the right edge`);
+      if (r.bottom > h + 1) out.push(`${name} ends ${Math.round(r.bottom - h)} px below the bottom edge`);
+    }
+    return out;
+  }, notLyre());
+}
+
+test.describe("0.5.1: Lyre's page fits the window", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("retire"));
+  for (const size of [{ width: 1920, height: 1040 }, { width: 1280, height: 680 }]) {
+    test(`every screen fits a ${size.width}×${size.height} window exactly: nothing wider or taller than it`, async ({ page }) => {
+      test.setTimeout(180_000);
+      await page.setViewportSize(size);
+      await openRoute(page, "campaign/crown");
+      await page.getByRole("region", { name: "Campaign playlists", exact: true }).getByRole("button", { name: "Play on air: The Company themes" }).click();
+      await expect(page.getByRole("region", { name: "Now playing" })).toBeVisible();
+      for (const screen of SCREENS) {
+        await openRoute(page, screen.route);
+        // The campaign playlist plays on, so no scene is started (a screen's "Start" is then not offered).
+        await screen.prepare?.(page, { playing: false });
+        await page.waitForTimeout(150);
+        expect.soft(await overflow(page), `${screen.name} at ${size.width}×${size.height}`).toEqual([]);
+      }
+    });
+  }
+});
+
+/* 0.5.1 (ROUND8.md, part 3). Nik, 11 Nov 20:33: "Let's move the live tab to the top of the left side bar". */
+test("0.5.1: Live is the first entry of the menu", async ({ page }) => {
+  expectFailureUntilBuilt("retire");
+  await openRoute(page, "campaigns");
+  const names = await page.getByRole("navigation", { name: "Lyre" }).getByRole("link").allTextContents();
+  expect(names[0]).toMatch(/^\s*Live/);
+  expect(names[1]).toMatch(/^\s*Campaigns/);
 });

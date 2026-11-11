@@ -352,6 +352,32 @@ prototype seed's six bookmarks (titles and addresses, as `design/prototype/src/d
 | `settings.spec.ts` "0.5.1: a bot token from Kenku FM" (2) | WP1 review 4 | the one-time note under Discord bots, Got it ends it for good; no note otherwise |
 | `library-files.spec.ts` "0.5.1: the old bookmarks, to copy" (3) | FND-16 | the Bookmarks box (title, address, Copy); none: no box and no row; the bookmarks brought are the ones listed |
 
+Part 2: Nik's findings from testing 0.5.0 (ROUND8.md, part 2; R6-NIK-DECISIONS.md, 11 Nov 19:42), also marked
+`expectFailureUntilBuilt("retire")`. The two drag checks fail in the app today; the w51-fix stream fixes them.
+
+| Check | Backlog | What it checks |
+| --- | --- | --- |
+| `live.spec.ts` "0.5.1: On air has Stop, Shuffle and a position bar to jump in" (5) | PLY-17 | Stop beside Pause on the playing track (music and ambience), Stop ends the room's music only; Shuffle beside Repeat per room, greyed for music from no playlist; each room with two rooms; the position bar as a slider (24 px tall, "Position in …", "1:23 of 4:05", click, drag, Left/Right 5 s, Home, End); the ambience's too |
+| `campaigns.spec.ts` "0.5.1: the Now playing bar's position, campaign order and the campaign's theme" (5) | PLY-17, ORG-13, UX-11 | the Now playing bar's position moves while playing and is a slider (click, Left/Right, Home); a session dragged into the last place; campaign cards dragged before and after, into the last place; Reorder's Move earlier and Move later, Alt+arrows; a campaign's theme on its page, planner and Live whatever the base, the base everywhere else |
+| `session-planner.spec.ts` "0.5.1: Play on air for each track, where Add scene puts a scene, dragging into the last place" (4) | SHW-2 | Play on air on each track of a scene's playlist, after Preview, playing it from that playlist; Add scene at the end with no scene selected; right after the selected one, none selected once it is folded; a scene dragged into the last place |
+| `library.spec.ts` "0.5.1: Prep and Live in the Library" (1) | UX-18 | Prep \| Live in the Library's top bar; Live opens the loaded session |
+| `look.spec.ts` "0.5.1: Look and feel's theme is the base" (1) | UX-11 | a Base theme choice of the five themes, no Each campaign's own, the line that a campaign keeps its own; Use as the base theme |
+| `sweeps.spec.ts` "0.5.1: Lyre's page fits the window" (2) | FND-16 | every sweep screen, with the Now playing bar showing, fits 1920×1040 and 1280×680: nothing wider or taller than the window |
+
+Changed: the Parchment sweeps of The Sunken Crown's page, planner and Live give the campaign Parchment as its own theme
+first (a base theme no longer reaches a campaign's pages).
+
+Part 3: more of Nik's findings (ROUND8.md, part 3; R6-NIK-DECISIONS.md, 11 Nov 20:33), also "retire".
+
+| Check | Backlog | What it checks |
+| --- | --- | --- |
+| `live.spec.ts` "0.5.1: fades of 5 seconds, and Rooms' actions in On air" (5) | OUT-7 | Fade all and Fade out say 5 seconds, Keys "Fade all (5 s)"; the bot button chooses a channel in place; Kick beside it and in its menu, Undo after every Kick, focused; Undo brings the music back; Add a room always there, with Add a bot… |
+| `settings.spec.ts` "0.5.1: a split headset only while On air plays too" (1) | PRV-2 | the switch's hover text and the line under it |
+| `help.spec.ts` "0.5.1: Run a session in Live says Fade all takes 5 seconds…" (1) | FND-8 | articles 10 and 11 |
+| `audio-profile.spec.ts` "0.5.1: Start at a marker" (2) | DAT-3 | Start at's choices, the "Starts here" flag; Play on air from the Library starts at the marker |
+| `library.spec.ts` "0.5.1: Pick up where it stopped for every music track" (1) | PLY-4 | any role but a sting, or none |
+| `sweeps.spec.ts` "0.5.1: Live is the first entry of the menu" (1) | UX-R15 | Live, then Campaigns |
+
 Removed in 0.5.1: `settings.spec.ts` "round 7: remote control needs a secret code" (3 checks: off by default with the
 code, Make a new code, home network) and the Website tabs and Local files parts of "the other settings Lyre still
 needs are here" (the folded Website tabs, Local files and Remote control boxes, and the Website tabs switches). The
