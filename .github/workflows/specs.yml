@@ -12,7 +12,7 @@
 #     on the run's summary page, in plain words, how many tests passed and failed, and which.
 # Failures also leave their screenshots and traces in a failures-<job> artifact.
 #
-# Chromium's sandbox stays on. Ubuntu 24.04 stops programs from making the user namespaces the sandbox needs
+# Chromium's sandbox stays on. Ubuntu 24.04 and later (ubuntu-latest) stop programs from making the user namespaces the sandbox needs
 # (AppArmor), so each job that starts the app allows them first (sysctl). Nothing here switches the sandbox off.
 #
 # The repository is public, so GitHub's standard runners cost nothing.
@@ -97,10 +97,13 @@ jobs:
         id: install
         run: yarn install --frozen-lockfile --non-interactive
       # The app project still opens Playwright's own headless browser beside the app (docs/testing.md > Specs).
-      - name: Install Playwright's Chromium and the libraries it and the app need
+      # The runner image already has every library Chromium and Electron need, and Xvfb. --with-deps would only add
+      # fonts, through apt mirrors that were unreachable for 10 minutes on the first run (11 Nov), so it is left out.
+      - name: Install Playwright's Chromium
         id: browser
-        run: npx playwright install --with-deps chromium
-      - name: Let Chromium's sandbox start (Ubuntu 24.04 restricts user namespaces)
+        timeout-minutes: 5
+        run: npx playwright install chromium
+      - name: Let Chromium's sandbox start (Ubuntu 24.04 and later restrict user namespaces)
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Download the test build
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -141,7 +144,7 @@ jobs:
         run: |
           say() { echo "::error title=$1::$2"; echo "- **$1**: $2" >> "$GITHUB_STEP_SUMMARY"; }
           if [ "$INSTALL" = failure ]; then say "Install failed" "The libraries could not be installed on Linux exactly as yarn.lock lists them."; fi
-          if [ "$BROWSER" = failure ]; then say "Browser set-up failed" "Playwright's Chromium or the libraries it needs could not be installed. Run the workflow again; if it fails again, read this step's log."; fi
+          if [ "$BROWSER" = failure ]; then say "Browser set-up failed" "Playwright's Chromium could not be downloaded. Run the workflow again; if it fails again, read this step's log."; fi
           if [ "$SPECS" = failure ]; then say "An app spec failed (part $PART of 8)" "Something approved in the design no longer works in the app. The Summary job names the test; the failures-app-$PART artifact has its screen and trace."; fi
 
   prototype:
@@ -161,9 +164,12 @@ jobs:
       - name: Install dependencies (exactly as locked)
         id: install
         run: yarn install --frozen-lockfile --non-interactive
-      - name: Install Playwright's Chromium and the libraries it needs
+      # The runner image already has every library Chromium and Electron need, and Xvfb. --with-deps would only add
+      # fonts, through apt mirrors that were unreachable for 10 minutes on the first run (11 Nov), so it is left out.
+      - name: Install Playwright's Chromium
         id: browser
-        run: npx playwright install --with-deps chromium
+        timeout-minutes: 5
+        run: npx playwright install chromium
       # No build: the prototype is a page opened as a file. Two at a time (the config's workers on CI).
       - name: Run the prototype's specs
         id: specs
@@ -197,7 +203,7 @@ jobs:
         run: |
           say() { echo "::error title=$1::$2"; echo "- **$1**: $2" >> "$GITHUB_STEP_SUMMARY"; }
           if [ "$INSTALL" = failure ]; then say "Install failed" "The libraries could not be installed on Linux exactly as yarn.lock lists them."; fi
-          if [ "$BROWSER" = failure ]; then say "Browser set-up failed" "Playwright's Chromium or the libraries it needs could not be installed. Run the workflow again; if it fails again, read this step's log."; fi
+          if [ "$BROWSER" = failure ]; then say "Browser set-up failed" "Playwright's Chromium could not be downloaded. Run the workflow again; if it fails again, read this step's log."; fi
           if [ "$SPECS" = failure ]; then say "A prototype spec failed" "The specs and the approved prototype disagree: the prototype or the spec changed. The Summary job names the test; the failures-prototype artifact has its screen and trace."; fi
 
   e2e:
@@ -218,10 +224,13 @@ jobs:
       - name: Install dependencies (exactly as locked)
         id: install
         run: yarn install --frozen-lockfile --non-interactive
-      - name: Install Playwright's Chromium and the libraries it and the app need
+      # The runner image already has every library Chromium and Electron need, and Xvfb. --with-deps would only add
+      # fonts, through apt mirrors that were unreachable for 10 minutes on the first run (11 Nov), so it is left out.
+      - name: Install Playwright's Chromium
         id: browser
-        run: npx playwright install --with-deps chromium
-      - name: Let Chromium's sandbox start (Ubuntu 24.04 restricts user namespaces)
+        timeout-minutes: 5
+        run: npx playwright install chromium
+      - name: Let Chromium's sandbox start (Ubuntu 24.04 and later restrict user namespaces)
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: Download the test build
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -261,7 +270,7 @@ jobs:
         run: |
           say() { echo "::error title=$1::$2"; echo "- **$1**: $2" >> "$GITHUB_STEP_SUMMARY"; }
           if [ "$INSTALL" = failure ]; then say "Install failed" "The libraries could not be installed on Linux exactly as yarn.lock lists them."; fi
-          if [ "$BROWSER" = failure ]; then say "Browser set-up failed" "Playwright's Chromium or the libraries it needs could not be installed. Run the workflow again; if it fails again, read this step's log."; fi
+          if [ "$BROWSER" = failure ]; then say "Browser set-up failed" "Playwright's Chromium could not be downloaded. Run the workflow again; if it fails again, read this step's log."; fi
           if [ "$E2E" = failure ]; then say "An end-to-end test failed" "Something a game master does in the app no longer works. The Summary job names the test; the failures-e2e artifact has its screen, trace and the app's log."; fi
 
   summary:
