@@ -344,7 +344,7 @@ prototype seed's six bookmarks (titles and addresses, as `design/prototype/src/d
 
 | Check | Backlog | What it checks |
 | --- | --- | --- |
-| `sweeps.spec.ts`, one per sweep screen (22) | FND-16 | nothing under the window's buttons at 960×1000 and at 960×1040 with text at 200 %; the top strip drags, its controls do not |
+| `sweeps.spec.ts`, two per sweep screen (44) | FND-16 | nothing under the window's buttons, at 960×1000 and at 960×1040 with text at 200 %; the top strip drags, its controls do not |
 | `sweeps.spec.ts` "0.5.1: Lyre is the whole window" (7) | FND-16 | one window with Lyre's page alone; the buttons' place and size (about 138×36) and focus never under them; double-click maximises (top strip and Live's strip); the trail at 200 %; Help open; a tall sheet at 200 % |
 | `help.spec.ts` "0.5.1: update news and the version" (4) | SEC-14, UX-R16 | the update note (Restart now, stays until dismissed); a failed check shown once; an install failure says what to do; the version at Help's foot |
 | `help.spec.ts` "0.5.1: help for Lyre as one window" (3) | FND-8 | no article mentions the Player tab, website tabs or remote control; article 02 on bookmarks and the token; article 01 on a token from Kenku FM |

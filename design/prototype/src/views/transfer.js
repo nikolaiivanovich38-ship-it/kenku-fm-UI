@@ -155,13 +155,16 @@
     title: function () { return 'What came across from Kenku FM'; },
     notesTitle: 'The move report (new)',
     notes: [
-      'What Lyre copied from Kenku FM on its first start, in Lyre\'s words: playlists, tracks, soundboards (now pad boards), sounds (now pads) and bookmarks (website tabs). Kenku FM\'s own copy is untouched.',
+      'What Lyre copied from Kenku FM on its first start, in Lyre\'s words: playlists, tracks, soundboards (now pad boards) and sounds (now pads). Kenku FM\'s own copy is untouched.',
+      '<b>0.5.1:</b> Lyre has no website tabs, so the <b>Bookmarks</b> box lists the old bookmarks once, each with <b>Copy</b>. With no bookmarks, the box and its row are not shown.',
       '<b>Files Lyre cannot find</b> lists the tracks whose files are not where Kenku FM kept them, with <b>Find them…</b>.',
       '<b>Not brought across</b> says plainly what Lyre does not take over, and why that is fine.'
     ],
     render: function () {
       var m = D.moved, miss = missing();
-      var rows = [['Playlists', m.playlists, 'Playlists (Manual)', '#/playlists'], ['Tracks', m.tracks, 'Library', '#/library'], ['Soundboards', m.boards, 'Pad boards', '#/boards'], ['Sounds', m.pads, 'Pads on those boards', '#/boards'], ['Bookmarks', m.bookmarks, 'Website tabs', '']];
+      var bm = m.bookmarks || [];
+      var rows = [['Playlists', m.playlists, 'Playlists (Manual)', '#/playlists'], ['Tracks', m.tracks, 'Library', '#/library'], ['Soundboards', m.boards, 'Pad boards', '#/boards'], ['Sounds', m.pads, 'Pads on those boards', '#/boards']]
+        .concat(bm.length ? [['Bookmarks', bm.length, 'Listed to copy', '']] : []);
       var what = '<p class="tf-lead">On ' + esc(m.when) + ' Lyre copied your ' + esc(m.from) + ' library. Kenku FM\'s own copy is untouched, so you can still open it.</p>' +
         '<table class="grid tf-table"><caption class="sr-only">What came across</caption><thead><tr><th scope="col">In Kenku FM</th><th scope="col" class="num">How many</th><th scope="col">Now in Lyre</th></tr></thead><tbody>' +
         rows.map(function (r) { return '<tr><td>' + r[0] + '</td><td class="num">' + r[1] + '</td><td>' + (r[3] ? '<a href="' + r[3] + '" data-k="tf-mv-' + r[0] + '">' + r[2] + '</a>' : r[2]) + '</td></tr>'; }).join('') + '</tbody></table>';
@@ -169,13 +172,27 @@
         return '<li class="lrow"><span class="grow tf-iname"><b class="ellipsis">' + esc(L.title(t)) + '</b><span class="hint ellipsis" title="' + esc(t.folder + '\\' + t.file) + '">' + esc(t.file) + ' · was in ' + esc(t.folder) + '</span></span></li>';
       }).join('') + '</ul><div class="tf-actrow"><a class="btn primary" href="#/relink" data-k="tf-findthem">' + L.icon('folder', 's') + 'Find them…</a></div>' : '<p class="tf-done" role="status">' + L.icon('check', 's') + 'Every file is where Lyre expects it.</p>';
       var notBody = '<ul class="list tf-not">' + m.notMoved.map(function (x) { return '<li class="lrow"><span class="grow tf-iname"><b>' + esc(x[0]) + '</b><span class="hint">' + esc(x[1]) + '</span></span></li>'; }).join('') + '</ul>';
+      // 0.5.1: website tabs are gone (Nik, 11 Nov: "Keep the code, remove them from the interface"); the bookmarks
+      // are listed once, to copy into a browser. No bookmarks: no box.
+      var bmBody = '<p class="tf-lead">Websites can\'t be opened in Lyre for now. Copy an address to open it in your browser.</p>' +
+        '<ul class="list tf-bm" aria-label="Bookmarks from Kenku FM">' + bm.map(function (b, i) {
+          return '<li class="lrow"><span class="grow tf-iname"><b class="ellipsis" title="' + esc(b.title) + '">' + esc(b.title) + '</b><span class="hint ellipsis tf-url" title="' + esc(b.url) + '">' + esc(b.url) + '</span></span>' +
+            '<button class="btn s ghost" type="button" data-act="tfbmcopy" data-i="' + i + '" data-k="tf-bm-' + i + '" aria-label="Copy the address of ' + esc(b.title) + '">Copy</button></li>';
+        }).join('') + '</ul>';
       return '<div class="viewhead"><h1>What came across from Kenku FM</h1></div>' +
         '<div class="viewbody tf-body"><div class="tf-cols"><div class="col">' +
-        L.pane({ id: 'tf-what', title: 'What came across', icon: 'check', kind: 'plain', noMax: true, size: 'auto', status: { text: 'Copied', tone: 'idle' }, body: what }) + '</div><div class="col">' +
+        L.pane({ id: 'tf-what', title: 'What came across', icon: 'check', kind: 'plain', noMax: true, size: 'auto', status: { text: 'Copied', tone: 'idle' }, body: what }) +
+        (bm.length ? L.pane({ id: 'tf-bm', title: 'Bookmarks', icon: 'link', kind: 'plain', noMax: true, size: 'auto', body: bmBody }) : '') + '</div><div class="col">' +
         L.pane({ id: 'tf-miss', title: 'Files Lyre cannot find', icon: 'warn', kind: 'plain', noMax: true, size: 'auto', status: miss.length ? { text: plural(miss.length, 'file'), tone: 'warn' } : { text: 'None', tone: 'idle' }, body: missBody }) +
         L.pane({ id: 'tf-not', title: 'Not brought across', icon: 'close', kind: 'plain', noMax: true, size: 'auto', status: { text: String(m.notMoved.length), tone: 'idle' }, body: notBody }) + '</div></div></div>';
     }
   });
+
+  L.acts.tfbmcopy = function (el) {
+    var b = (D.moved.bookmarks || [])[+el.dataset.i]; if (!b) return;
+    try { navigator.clipboard.writeText(b.url).catch(function () {}); } catch (e) { /* clipboard unavailable in the prototype */ }
+    L.toast('Copied: ' + b.url);
+  };
 
   /* ======================================================================
      DAT-8 Find missing files

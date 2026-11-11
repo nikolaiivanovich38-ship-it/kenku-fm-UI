@@ -26,7 +26,7 @@ var L = (function () {
   var D = LYRE_DATA;
   var L = { data: D, views: {}, acts: {}, inputs: {}, keys: [] };
   // Could 18 of the round 6 review: the version shown is the one running (in Lyre, the app's own; here, the design's).
-  L.version = '0.5.0';
+  L.version = '0.5.1';
 
   /* ---------- icons (24 px stroke paths) ---------- */
   var I = {

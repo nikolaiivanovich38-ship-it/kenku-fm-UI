@@ -35,6 +35,9 @@
 
 /* ---------- One playlist: layout ---------- */
 .pl-head { flex-wrap: nowrap; }
+/* 0.5.1: in a narrow app (half a 1920 screen at 150 % text and more), the head wraps instead of running out of the
+   window under its buttons. */
+@container app (max-width: 659px) { .pl-head { flex-wrap: wrap; } .pl-h1 { max-width: none; } }
 .pl-head .crumbs { flex: none; }
 .pl-h1 { flex: 0 1 auto; max-width: 42%; min-width: 60px; padding-right: 2px; }
 .pl-headchips { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 0 1000 auto; flex-wrap: wrap; height: 20px; overflow: hidden; }

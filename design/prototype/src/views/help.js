@@ -2,8 +2,8 @@
 
    Nik, 6 Nov 2026: less text and clutter on screen; help costs the screens nothing until asked for.
    - One Help entry at the foot of the rail (core.js railHTML), and F1, open a side panel: a search box, the articles
-     grouped by task, an article with Back, and at its foot Take the tour and Save diagnostics…. The panel sits beside
-     the screen (over it in a narrow window), so the steps of an article can be followed while it is open.
+     grouped by task, an article with Back, and at its foot Take the tour, Save diagnostics… and Lyre's version (0.5.1).
+     The panel sits beside the screen (over it in a narrow window), so the steps of an article can be followed while it is open.
    - The tour: five short steps pointing at the rail, the Library, Campaigns (where scenes are), Live and the Now
      playing bar. Shown once, on the first start; Skip on every step; Esc skips; replayed from Help.
    - No help text is added to any screen.
@@ -91,7 +91,9 @@
       '<button class="btn s" data-act="helptour" data-k="help-tour">' + L.icon('play', 's') + 'Take the tour</button>' +
       '<button class="btn s" data-act="helpdiag" data-k="help-diag"' + (H.saving ? ' disabled aria-busy="true"' : '') + '>' + L.icon('download', 's') + (H.saving ? 'Saving…' : 'Save diagnostics…') + '</button></div>' +
       (r ? '<div class="help-result">' + L.icon(r.ok ? 'check' : 'warn', 's') + '<span class="grow">' + esc(r.text) + '</span>' +
-        (r.ok ? '<button class="btn ghost s" data-act="helpshow" data-k="help-show">Show in folder</button>' : '') + '</div>' : '') + '</footer>';
+        (r.ok ? '<button class="btn ghost s" data-act="helpshow" data-k="help-show">Show in folder</button>' : '') + '</div>' : '') +
+      // 0.5.1: Lyre's version at the foot of Help, as at the top right of Settings (the old window showed it nowhere).
+      '<p class="help-ver">Lyre <span class="num" title="Lyre version">' + esc(L.version) + '</span></p></footer>';
   }
   function paintPanel() {
     var el = panel();

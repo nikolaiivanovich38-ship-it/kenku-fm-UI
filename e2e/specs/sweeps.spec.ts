@@ -546,23 +546,22 @@ async function dragProblems(page: Page): Promise<{ strip: string; dragging: stri
 }
 
 for (const screen of SCREENS) {
-  test(`${screen.name}: nothing is under the window's buttons, at 960 px and with text at 200 %; the strip's empty parts drag the window`, async ({ page }) => {
-    expectFailureUntilSweptScreenBuilt(screen);
-    expectFailureUntilBuilt("retire");
-    for (const size of [{ width: 960, height: 1000, at200: false }, { width: 960, height: 1040, at200: true }]) {
+  for (const size of [{ width: 960, height: 1000, at200: false }, { width: 960, height: 1040, at200: true }]) {
+    const label = size.at200 ? "at 960×1040 with text at 200 %" : "at 960×1000";
+    test(`${screen.name} ${label}: nothing is under the window's buttons; the strip's empty parts drag the window, its controls do not`, async ({ page }) => {
+      expectFailureUntilSweptScreenBuilt(screen);
+      expectFailureUntilBuilt("retire");
       await page.setViewportSize({ width: size.width, height: size.height });
       if (size.at200) await textAt200(page);
       await openRoute(page, screen.route);
       await screen.prepare?.(page, { playing: true });
       await page.waitForTimeout(300);
-      const box = await windowButtonsBox(page);
-      const label = size.at200 ? "with text at 200 %" : "at 960 px";
-      expect.soft(await underWindowButtons(page, box), `under the window's buttons ${label}`).toEqual([]);
+      expect.soft(await underWindowButtons(page, await windowButtonsBox(page)), "under the window's buttons").toEqual([]);
       const drag = await dragProblems(page);
-      expect.soft(drag.strip, `the top strip drags the window ${label}`).toBe("drag");
-      expect.soft(drag.dragging, `controls in the top strip that would drag the window ${label}`).toEqual([]);
-    }
-  });
+      expect.soft(drag.strip, "the top strip drags the window").toBe("drag");
+      expect.soft(drag.dragging, "controls in the top strip that would drag the window").toEqual([]);
+    });
+  }
 }
 
 test.describe("0.5.1: Lyre is the whole window", () => {

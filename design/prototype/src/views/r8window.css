@@ -1,0 +1,70 @@
+/* Round 8 (0.5.1): Lyre is the whole window (views/r8window.js, ROUND8.md). */
+
+/* The window's own buttons take 138 × 36 px of the screen at the top right, whatever the text size; the page is
+   zoomed for text size, so in CSS pixels they are 138 / zoom by 36 / zoom. The app takes both from the window itself:
+   navigator.windowControlsOverlay.getTitlebarAreaRect() (on its geometrychange event) gives the free part of the
+   title bar; --wco-w is the window's width less that part's right edge, --wco-h its height. */
+#app { --wco-w: calc(138px / var(--zoom, 1)); --wco-h: calc(36px / var(--zoom, 1)); }
+
+/* The stand-in for Windows' buttons: not focusable, hidden from screen readers, on top of everything as theirs are. */
+.winbtns { position: absolute; top: 0; right: 0; z-index: 90; display: flex; width: var(--wco-w); height: var(--wco-h);
+  background: var(--wb-bg, var(--bg)); color: var(--wb-ink, var(--ink)); }
+.winbtns .wb { flex: 1; display: grid; place-items: center; cursor: default; }
+.winbtns .wb svg { width: calc(10px / var(--zoom, 1)); height: calc(10px / var(--zoom, 1)); fill: none; stroke: currentColor; stroke-width: 1; }
+.winbtns .wb:hover { background: color-mix(in srgb, currentColor 14%, transparent); }
+.winbtns .wb-close:hover { background: #c42b1c; color: #fff; }
+
+/* Nothing of Lyre's under the buttons: the strip at the top of the window keeps their width free at its right end. */
+.viewhead { padding-right: calc(12px + var(--wco-w)); }
+.lv-top { padding-right: calc(8px + var(--wco-w)); }
+.help-head { padding-right: calc(8px + var(--wco-w)); }
+/* Help open beside the screen (a wide window): Help's header is under the buttons, so the screen's strip need not. */
+@container app (min-width: 900px) {
+  #app:has(> #lyre-help:not([hidden])) .viewhead { padding-right: 12px; }
+  #app:has(> #lyre-help:not([hidden])) .lv-top { padding-right: 8px; }
+}
+/* A sheet as tall as the window starts below the buttons. In the prototype the stage is the window, so a sheet and
+   Find and play cover the stage only (--app-top is 0 in the app). */
+.sheet, .pal-wrap { top: var(--app-top, 0px); }
+.sheet { padding-top: calc(var(--wco-h) + 8px); }
+
+/* The empty parts of the top strip, Live's strip, Help's header and the logo drag the window; double-clicking them
+   maximises it (Windows does both). Every control, field and text with hover text in them stays itself: a drag area
+   takes the mouse, so it would neither click nor show hover text. */
+:is(.viewhead, .lv-top, .help-head, .rail .logo) { -webkit-app-region: drag; app-region: drag; }
+:is(.viewhead, .lv-top, .help-head) :is(a, button, input, select, textarea, label, summary, [role=button], [role=link], [role=switch], [role=radio], [role=combobox], [tabindex]:not([tabindex="-1"]), [title], [contenteditable]) {
+  -webkit-app-region: no-drag; app-region: no-drag; }
+
+/* Update news: a standing note in the Saved pop-up's place (it stays until dismissed, so it is not the dark pop-up). */
+.toast.t-stand { pointer-events: auto; background: var(--surface-2); color: var(--ink); border: 1px solid var(--line-strong); border-left: 3px solid var(--accent); padding: 4px 4px 4px 10px; font-weight: 600; }
+.toast.t-stand > svg { color: var(--accent-text); }
+.toast.t-stand .grow, .toast.t-fail .grow { min-width: 0; }
+
+/* Settings › Discord bots: the one-time note about a token moved from Kenku FM. */
+.st-legacy { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 8px; padding: 6px 6px 6px 8px; border: 1px solid var(--line-strong); border-left: 3px solid var(--accent); border-radius: var(--r-m); background: var(--surface-2); font-size: var(--fs-s); line-height: 1.4; }
+.st-legacy > svg { color: var(--accent-text); flex: none; margin-top: 2px; }
+.st-legacy p { margin: 0 0 4px; }
+.st-legacy p:last-child { margin: 0; }
+.st-legacy .btn { flex: none; }
+.st-cache { margin-top: 8px; }
+
+/* What came across: the old bookmarks, each with Copy. */
+.tf-bm .lrow { padding: 4px 2px; gap: 8px; }
+.tf-bm .tf-url { font-family: inherit; }
+
+/* Help's foot: Lyre's version. */
+.help-ver { margin: 0; font-size: var(--fs-xs); color: var(--ink-2); }
+
+/* Live's strip wraps earlier than in 0.5.0 (below 640 px of app), as the window's buttons now take 138 px of it: below
+   780 px of app (a 720 px window) it takes two lines: Back, Prep | Live and the buttons, then the trail, the session and
+   Find; so the trail keeps its campaign's name and every button its 24 px (one line squeezed the campaign link to 6 px).
+   Below 640 px of app Find takes a line of its own, as in 0.5.0. */
+@container app (max-width: 779px) {
+  .lv-top { flex-wrap: wrap; row-gap: 6px; }
+  .lv-top::before { content: ""; order: 4; flex: 1 0 100%; height: 0; }
+  .lv-top .crumbs { order: 5; }
+  .lv-top .lv-sess { order: 6; flex: 0 1 auto; min-width: 0; }
+  .lv-top .lv-find { order: 7; flex: 1 1 120px; max-width: none; min-width: 0; }
+  .lv-top > .lv-find + .btn { margin-left: 0; }
+}
+@container app (max-width: 639px) { .lv-top .lv-sess { flex: 1 1 0; } .lv-top .lv-find { order: 10; flex: 1 1 100%; } }
