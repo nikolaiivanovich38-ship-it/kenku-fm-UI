@@ -97,7 +97,7 @@ describe("the session page", () => {
 
   it("UX-18: comes back from Back drawn whole, its rows' tags too, so the scenes box is as tall as when it was left", async () => {
     await openAbbey();
-    expect(await abbey().findByText(/^Tags: Dread/)).toBeInTheDocument();
+    expect(await abbey().findByText(/^Tags: Eerie, Dread/)).toBeInTheDocument();
     go("playlists");
     await screen.findByRole("heading", { level: 1, name: /Playlists/ });
     // The first drawing of the scenes, as Back's scroll position is put back on it.
@@ -112,7 +112,7 @@ describe("the session page", () => {
     } finally {
       watch.disconnect();
     }
-    expect(first).toMatch(/Tags: Dread/);
+    expect(first).toMatch(/Tags: Eerie, Dread/);
   });
 
   it("UX-R3 (round 6 cuts): the how-to lines under a scene's music and pad boards are the buttons' hover text", async () => {
