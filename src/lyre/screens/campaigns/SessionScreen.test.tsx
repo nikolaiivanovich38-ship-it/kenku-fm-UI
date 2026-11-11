@@ -316,7 +316,7 @@ describe("scenes", () => {
     try {
       const first = cards[0];
       fireEvent.pointerDown(first.querySelector("[title='Drag to reorder']")!);
-      fireEvent.dragStart(first, { dataTransfer: { effectAllowed: "", types: ["text/plain"], setData: () => undefined } });
+      fireEvent.dragStart(first, { dataTransfer: { effectAllowed: "", types: ["text/plain"], setData: (): void => undefined } });
       const paneBody = first.closest(".pane-body")!;
       const at = (type: string) => {
         const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientY: 500 });
