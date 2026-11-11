@@ -2,8 +2,8 @@
  * A DomainLookup over lists a screen already has from LyreApi (library.listTracks, playlists.list), so screens and
  * tests apply the shared rules in src/common/domain (playlistTracks, sceneSequence, ...) without asking again.
  */
-import type { DomainLookup, DomainPlaylist, DomainTrack, RepeatOnes, TagTree, TrackNames } from "../domain";
-import type { CampaignInfo, PlaylistDivider, TagGroup } from "./api";
+import { inScreenOrder, type DomainLookup, type DomainPlaylist, type DomainTrack, type RepeatOnes, type TagTree, type TrackNames } from "../domain";
+import type { CampaignInfo, PlaylistDivider, TagGroup, TagInfo } from "./api";
 
 /** `tree` (DAT-10, tagTreeOf): tags inside tags, so a rule naming a tag finds the tags inside it as the library does. */
 export function lookupFrom(tracks: readonly DomainTrack[], playlists: readonly DomainPlaylist[], tree?: TagTree): DomainLookup {
@@ -25,12 +25,14 @@ export function tagTreeOf(groups: readonly TagGroup[]): TagTree {
 }
 
 /**
- * DAT-10: a group's tags on a track in vocabulary order, the order the Tags screen lists the group's tags in, so a tag
- * is in the same place on every row (the library reads a track's tags in this order). A tag the group does not list
- * yet (one just made) goes last.
+ * DAT-10: a group's tags on a track in vocabulary order, the order the Tags screen lists the group's tags in (each tag
+ * followed, depth first, by the tags inside it), so a tag is in the same place on every row (the library reads a
+ * track's tags in this order). A tag the group does not list yet (one just made) goes last.
  */
-export function inVocabularyOrder(group: Pick<TagGroup, "values">, tags: readonly string[]): string[] {
-  const rank = (tag: string) => (group.values.includes(tag) ? group.values.indexOf(tag) : group.values.length);
+export function inVocabularyOrder(group: Pick<TagGroup, "values"> & { tags?: readonly TagInfo[] }, tags: readonly string[]): string[] {
+  const parents = new Map((group.tags ?? []).map((t) => [t.name, t.parent]));
+  const order = inScreenOrder(group.values, (name) => name, (name) => parents.get(name) ?? null);
+  const rank = (tag: string) => (order.includes(tag) ? order.indexOf(tag) : order.length);
   return [...tags].sort((a, b) => rank(a) - rank(b));
 }
 

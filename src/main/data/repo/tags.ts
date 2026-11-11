@@ -11,6 +11,7 @@ import type { Placement, Tag, TagGroup, TagUsage } from "../types";
 import * as v from "../validate";
 import { newId, patchOf, placeholders, plural, requireRow, unique } from "./common";
 import { dropRuleTags, mergeRuleTag } from "./ruleRows";
+import { listTagsInScreenOrder } from "./round7";
 
 type GroupRow = { id: string; name: string; color: string | null; position: number };
 type TagRow = {
@@ -408,15 +409,16 @@ export function untagTracks(store: Store, trackIds: string[], tagIds: string[]):
   );
 }
 
-/** A track's tags in vocabulary order (DAT-10): group order, then tag order, as the Tags screen lists them. */
+/**
+ * A track's tags in vocabulary order (DAT-10), as the Tags screen lists them: group order, then each tag followed depth
+ * first by the tags inside it.
+ */
 export function tagsOfTrack(store: Store, trackId: string): Tag[] {
+  const rows = store.all<TagRow>("SELECT t.* FROM track_tags tt JOIN tags t ON t.id = tt.tag_id WHERE tt.track_id = ?", trackId);
+  const rank = new Map(listTagsInScreenOrder(store).map((tag, i) => [tag.id, i]));
   return toTags(
     store,
-    store.all<TagRow>(
-      `SELECT t.* FROM track_tags tt JOIN tags t ON t.id = tt.tag_id JOIN tag_groups g ON g.id = t.group_id
-       WHERE tt.track_id = ? ORDER BY g.position, t.position, t.rowid`,
-      trackId,
-    ),
+    rows.sort((a, b) => (rank.get(a.id) ?? 0) - (rank.get(b.id) ?? 0)),
   );
 }
 

@@ -413,8 +413,10 @@ already had was checked first: tag groups and tags in order with a parent tag an
 (`playlist_items.kind = 'divider'`), a track's Ending (`tracks.ending = 'fades'`), markers in a profile.
 
 - **The order of a track's tags** (DAT-10; the product owner's decision of 11 November). A track lists its tags in
-  vocabulary order: group by group, each group's tags in their order on the Tags screen (`tag_groups.position`, then
-  `tags.position`), so the same tag is in the same place on every row and the sample's Eerie comes before Dread.
+  vocabulary order, the Tags screen's: group by group (`tag_groups.position`), each tag followed depth first by the
+  tags inside it (`tags.parent_id`), in saved position (`tags.position`); `repo/round7.listTagsInScreenOrder` and the
+  shared `inScreenOrder`. So the same tag is in the same place on every row, the sample's Eerie comes before Dread and
+  Grief (inside Melancholy) comes right after Melancholy.
   `track_tags` keeps no order of its own: a tag added later, or a tag a merge leaves on a track, is listed in its
   vocabulary place, and moving a tag on the Tags screen moves it on every track.
 - **Colours by name.** Tag groups, tags and folders take a pad colour (steel, ember, gold, moss, violet, plum, sea,

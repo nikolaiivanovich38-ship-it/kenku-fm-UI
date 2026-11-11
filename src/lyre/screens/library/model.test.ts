@@ -131,6 +131,14 @@ describe("a track's tags in vocabulary order (DAT-10)", () => {
     expect(inVocabularyOrder(mood, ["Dread", "Eerie", "Heroic"])).toEqual(["Heroic", "Eerie", "Dread"]);
     expect(inVocabularyOrder(mood, ["Just made", "Dread", "Eerie"])).toEqual(["Eerie", "Dread", "Just made"]);
   });
+
+  it("lists a tag inside another right after it, depth first, as the Tags screen does", () => {
+    const mood = prototypeSeed(0).tagGroups.find((g) => g.id === "mood")!;
+    // Saved order: … Melancholy, Desperate, Tense, Grief …; Grief is inside Melancholy.
+    expect(inVocabularyOrder(mood, ["Tense", "Grief", "Melancholy"])).toEqual(["Melancholy", "Grief", "Tense"]);
+    const nested = { ...mood, tags: mood.tags.map((t) => (t.name === "Heroic" ? { ...t, parent: "Grief" } : t)) };
+    expect(inVocabularyOrder(nested, ["Heroic", "Desperate", "Melancholy", "Grief"])).toEqual(["Melancholy", "Grief", "Heroic", "Desperate"]);
+  });
 });
 
 describe("words the Library shows", () => {

@@ -30,7 +30,7 @@ import { LOUDNESS_COLUMNS, LOUDNESS_JOIN } from "./loudness";
 import { ownPlayOrders } from "./playOrders";
 import { ownProfiles } from "./profileRows";
 import { readRules } from "./ruleRows";
-import { getTagTree } from "./round7";
+import { getTagTree, listTagsInScreenOrder } from "./round7";
 
 type DomainTrackRow = {
   id: string;
@@ -100,14 +100,8 @@ function toDomainTrack(row: DomainTrackRow, tags: Record<string, string[]>, prof
  */
 export function getDomainLookup(store: Store): DomainLookup {
   const groupIds = store.all<{ id: string }>("SELECT id FROM tag_groups ORDER BY position, rowid").map((g) => g.id);
-  // The tag vocabulary is small: read once, each tag with its rank in vocabulary order.
-  const vocabulary = new Map(
-    store
-      .all<{ id: string; group_id: string; name: string }>(
-        "SELECT t.id, t.group_id, t.name FROM tags t JOIN tag_groups g ON g.id = t.group_id ORDER BY g.position, t.position, t.rowid",
-      )
-      .map((tag, rank) => [tag.id, { group: tag.group_id, name: tag.name, rank }]),
-  );
+  // The tag vocabulary is small: read once, each tag with its rank in vocabulary order (the Tags screen's, DAT-10).
+  const vocabulary = new Map(listTagsInScreenOrder(store).map((tag, rank) => [tag.id, { group: tag.group_id, name: tag.name, rank }]));
   const tracks = new Map<string, DomainTrack | undefined>();
   const playlists = new Map<string, DomainPlaylist | undefined>();
   let all: DomainTrack[] | null = null;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LibraryTrack, TagGroup } from "../../../common/lyre/api";
-import { tagTreeOf } from "../../../common/lyre/lookup";
+import { inVocabularyOrder, tagTreeOf } from "../../../common/lyre/lookup";
 import { childrenOf, colourName, orderedTags, otherTags, ownCount, sameLevel, tagCount, tagWords } from "./tagsModel";
 
 const mood: TagGroup = {
@@ -26,6 +26,11 @@ describe("the Tags screen's rules (r7tags.js)", () => {
       ["Loss", 2],
       ["Heroic", 0],
     ]);
+  });
+
+  it("DAT-10: a track lists its tags in the order this screen lists them", () => {
+    const shown = orderedTags(mood).map((t) => t.info.name);
+    expect(inVocabularyOrder(mood, ["Heroic", "Loss", "Grief", "Melancholy"])).toEqual(shown);
   });
 
   it("a tag counts the tracks of the tags inside it; Delete counts only its own", () => {

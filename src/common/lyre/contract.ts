@@ -1160,6 +1160,17 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         expect(await moods("t13")).toEqual(["Heroic", "Dread"]);
       });
 
+      it("DAT-10: a tag inside another is listed right after it on a track, depth first, as the Tags screen lists them", async () => {
+        const moods = async (id: string) => (await api.library.listTracks()).find((t) => t.id === id)?.tags.mood;
+        // Saved order: … Wistful, Mysterious, Melancholy, Desperate, Tense, Grief, Eerie, Dread; Grief is inside Melancholy.
+        valueOf(await api.tags.tagTracks({ trackIds: ["t15"], add: [{ group: "mood", value: "Tense" }] }));
+        expect(await moods("t15")).toEqual(["Wistful", "Melancholy", "Grief", "Tense"]);
+        // Dread put inside Grief: Melancholy › Grief › Dread, before Desperate and Tense.
+        valueOf(await api.tags.updateTag({ group: "mood", value: "Dread" }, { parent: "Grief" }));
+        valueOf(await api.tags.tagTracks({ trackIds: ["t15"], add: [{ group: "mood", value: "Dread" }] }));
+        expect(await moods("t15")).toEqual(["Wistful", "Melancholy", "Grief", "Dread", "Tense"]);
+      });
+
       it("DAT-10: groups and tags are made, coloured, nested, given other words and moved", async () => {
         const faction = valueOf(await api.tags.createGroup("Faction", "moss"));
         expect(faction).toMatchObject({ name: "Faction", color: "moss", values: [], tags: [] });
