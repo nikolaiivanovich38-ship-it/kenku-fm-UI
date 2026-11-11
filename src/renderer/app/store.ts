@@ -23,6 +23,7 @@ import {
 } from "redux-persist";
 import storage from "redux-persist/lib/storage";
 import { moveTokenOutOfSettings } from "../features/settings/tokenMigration";
+import { moveRemoteOutOfSettings } from "../features/settings/remoteMigration";
 
 const rootReducer = combineReducers({
   connection: connectionReducer,
@@ -38,6 +39,9 @@ const rootReducer = combineReducers({
   errors: errorsReducer,
 });
 
+/** The remote control's settings as Kenku FM kept them here; version 7 moves them to Lyre's Settings. */
+const OLD_REMOTE_DEFAULTS = { remoteEnabled: false, remoteAddress: "127.0.0.1", remotePort: "3333" };
+
 const migrations: any = {
   2: (state: RootState): RootState => {
     return {
@@ -45,9 +49,7 @@ const migrations: any = {
       settings: {
         ...state.settings,
         urlBarEnabled: true,
-        remoteEnabled: false,
-        remoteAddress: "127.0.0.1",
-        remotePort: "3333",
+        ...OLD_REMOTE_DEFAULTS,
         externalInputsEnabled: false,
         multipleInputsEnabled: false,
       },
@@ -70,11 +72,14 @@ const migrations: any = {
   // (encrypted) and is removed from this storage; OUT-1: "Multiple Outputs" is gone.
   6: (state: RootState): RootState =>
     moveTokenOutOfSettings(state, (token) => window.kenku.outputs.importLegacyToken(token)),
+
+  // Review 0.5.0 CR-3 (version 7): the remote control's on/off, address and port move to Lyre's Settings, once.
+  7: (state: RootState): RootState => moveRemoteOutOfSettings(state, (old) => window.kenku.remoteMoveOldSetting(old)),
 };
 
 const persistConfig = {
   key: "root",
-  version: 6,
+  version: 7,
   storage,
   whitelist: ["bookmarks", "settings"],
   migrate: createMigrate(migrations, { debug: false }),

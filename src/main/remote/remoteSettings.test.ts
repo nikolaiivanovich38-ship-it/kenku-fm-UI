@@ -135,6 +135,32 @@ describe("remote-control settings (SEC-4)", () => {
     expect(new RemoteSettingsStore(file, fakeSafeStorage()).settings()).toEqual(DEFAULT_REMOTE_SETTINGS);
   });
 
+  it("CR-3: moves the old main window's Remote choice in once: kept when allowed, else at 127.0.0.1", () => {
+    const own = { ownAddresses: () => ["192.168.1.20"] };
+    const store = new RemoteSettingsStore(file, fakeSafeStorage(), own);
+    expect(store.moveOldSetting({ enabled: true, address: "192.168.1.20", port: "4000" })).toEqual({ enabled: true, address: "192.168.1.20", port: 4000 });
+    // After that the old setting has no effect, across restarts too.
+    expect(store.moveOldSetting({ enabled: false, address: "127.0.0.1", port: "3333" })).toBeNull();
+    expect(new RemoteSettingsStore(file, fakeSafeStorage(), own).moveOldSetting({ enabled: false, address: "127.0.0.1", port: "3333" })).toBeNull();
+    expect(new RemoteSettingsStore(file, fakeSafeStorage(), own).settings()).toEqual({ enabled: true, address: "192.168.1.20", port: 4000 });
+  });
+
+  it("CR-3: an old address that is not allowed (0.0.0.0, an internet address) comes in as 127.0.0.1; an odd port as 3333", () => {
+    for (const address of ["0.0.0.0", "8.8.8.8", "localhost", "my-computer"]) {
+      fs.rmSync(file, { force: true });
+      const store = new RemoteSettingsStore(file, fakeSafeStorage());
+      expect(store.moveOldSetting({ enabled: true, address, port: "99999" }), address).toEqual({ enabled: true, address: "127.0.0.1", port: 3333 });
+    }
+  });
+
+  it("CR-3: an old setting that was off changes nothing, and is not moved again", () => {
+    const store = new RemoteSettingsStore(file, fakeSafeStorage());
+    store.update({ enabled: true, port: 5000 });
+    expect(store.moveOldSetting({ enabled: false, address: "127.0.0.1", port: "3333" })).toBeNull();
+    expect(store.settings()).toEqual({ enabled: true, address: "127.0.0.1", port: 5000 });
+    expect(store.moveOldSetting({ enabled: true, address: "127.0.0.1", port: "3333" })).toBeNull();
+  });
+
   it("writes the file readable by this user only", () => {
     new RemoteSettingsStore(file, fakeSafeStorage()).update({ enabled: true });
     if (process.platform !== "win32") {

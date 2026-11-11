@@ -5,7 +5,6 @@ import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
 import DialogActions from "@mui/material/DialogActions";
-import TextField from "@mui/material/TextField";
 import Button from "@mui/material/Button";
 import CircularProgress from "@mui/material/CircularProgress";
 import Stack from "@mui/material/Stack";
@@ -28,9 +27,6 @@ import { setStatus } from "../connection/connectionSlice";
 import {
   setExternalInputsEnabled,
   setMultipleInputsEnabled,
-  setRemoteEnabled,
-  setRemoteAddress,
-  setRemotePort,
   setURLBarEnabled,
   setStreamingMode,
   StreamingMode,
@@ -176,92 +172,12 @@ export function Settings({ open, onClose }: SettingsProps) {
     </Stack>
   );
 
-  function handleRemoteToggle() {
-    const enabled = !settings.remoteEnabled;
-    if (enabled) {
-      window.kenku.playerStartRemote(
-        settings.remoteAddress,
-        settings.remotePort,
-      );
-    } else {
-      window.kenku.playerStopRemote();
-    }
-    dispatch(setRemoteEnabled(enabled));
-  }
-
-  function handleRemoteAddressChange(
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) {
-    dispatch(setRemoteAddress(event.target.value));
-  }
-
-  function handleRemotePortChange(event: React.ChangeEvent<HTMLInputElement>) {
-    dispatch(setRemotePort(event.target.value));
-  }
-
-  useEffect(() => {
-    if (settings.remoteEnabled) {
-      window.kenku.playerStartRemote(
-        settings.remoteAddress,
-        settings.remotePort,
-      );
-    }
-  }, []);
-
+  // Review 0.5.0 CR-3: Lyre's own Settings owns the remote control; this panel only says where it is.
   const remoteSettings = (
     <Stack spacing={1}>
-      {/* Minor finding: what the two fields mean, in plain words. */}
       <Typography variant="caption" color="text.secondary" component="p">
-        Lets a Stream Deck or another program control the player. The address 127.0.0.1 means only programs on
-        this computer can connect; the port is the number they use to reach it.
-      </Typography>
-      <Stack direction="row">
-        <TextField
-          margin="dense"
-          size="small"
-          id="remote-address"
-          label="Address"
-          variant="standard"
-          autoComplete="off"
-          InputLabelProps={{
-            shrink: true,
-          }}
-          inputProps={{ pattern: "d{1,3}.d{1,3}.d{1,3}.d{1,3}" }}
-          value={settings.remoteAddress}
-          onChange={handleRemoteAddressChange}
-          disabled={settings.remoteEnabled}
-          sx={{ mr: 0.5 }}
-        />
-        <TextField
-          margin="dense"
-          size="small"
-          id="remote-port"
-          label="Port"
-          variant="standard"
-          autoComplete="off"
-          InputLabelProps={{
-            shrink: true,
-          }}
-          inputProps={{ pattern: "d+" }}
-          value={settings.remotePort}
-          onChange={handleRemotePortChange}
-          disabled={settings.remoteEnabled}
-          sx={{ ml: 0.5 }}
-        />
-      </Stack>
-      <Button
-        onClick={handleRemoteToggle}
-        fullWidth
-        variant="outlined"
-        size="small"
-        disabled={!settings.remoteAddress || !settings.remotePort}
-      >
-        {settings.remoteEnabled ? "Stop Remote" : "Start Remote"}
-      </Button>
-      <Typography variant="caption" color="text.secondary" pt={1}>
-        Every remote request must now carry Lyre's secret code, which the Lyre tab's Settings will show; the Kenku FM
-        Stream Deck plugin does not send it yet. To use another device on your network, change the address to this
-        computer's network address.
+        Lets a Stream Deck, a phone or another program control Lyre. Turn it on, and see its secret code, in the Lyre
+        tab's Settings, under Remote control. The Kenku FM Stream Deck plugin does not send the code yet.
       </Typography>
       <Link
         href={STREAM_DECK_PLUGIN_HELP_URL}

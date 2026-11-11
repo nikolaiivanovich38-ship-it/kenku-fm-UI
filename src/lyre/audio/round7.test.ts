@@ -431,7 +431,10 @@ describe("CR-5 (review 0.5.0): Pick up where it stopped forgets a track that pla
 
   it("is forgotten across restarts too", async () => {
     const saved = new Map<string, string>();
-    const storage = { getItem: (k: string) => saved.get(k) ?? null, setItem: (k: string, v: string) => void saved.set(k, v) };
+    const storage = { getItem: (k: string) => saved.get(k) ?? null, setItem: (k: string, v: string) => {
+        saved.set(k, v);
+      },
+    };
     rig = lyreAudioOnFakes(makeData(), { resumePositions: storedResumePositions(storage) });
     rig.audio.playTrack("long");
     await rig.advance(10);

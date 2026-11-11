@@ -14,9 +14,9 @@ import { canEncrypt, type SafeStorageLike } from "../broadcast/botTokenStore";
 import { isPrivateListenAddress, sameForm } from "./homeNetwork";
 import { REMOTE_CODE_PATTERN, generateRemoteCode } from "./remoteCode";
 
-import { THIS_COMPUTER_ONLY, type RemoteSettings } from "../../common/remoteControl";
+import { THIS_COMPUTER_ONLY, type OldRemoteSetting, type RemoteSettings } from "../../common/remoteControl";
 
-export type { RemoteSettings };
+export type { OldRemoteSetting, RemoteSettings };
 
 export const DEFAULT_REMOTE_SETTINGS: Readonly<RemoteSettings> = Object.freeze({
   enabled: false,
@@ -31,7 +31,10 @@ interface StoredFile extends RemoteSettings {
   version: 1;
   /** The secret code encrypted with safeStorage, base64. Absent where it cannot be encrypted. */
   encryptedCode?: string;
+  /** Review 0.5.0 CR-3: the main window's old choice was moved in (or there was none to move); never again. */
+  oldSettingMoved?: true;
 }
+
 
 export type Checked<T> = T | { error: string };
 
@@ -88,6 +91,7 @@ export class RemoteSettingsStore {
   private current: RemoteSettings = { ...DEFAULT_REMOTE_SETTINGS };
   private secret = "";
   private encryptedCode?: string;
+  private oldSettingMoved = false;
   /** True when the code is saved encrypted and survives a restart. */
   readonly codeRemembered: boolean;
 
@@ -146,6 +150,23 @@ export class RemoteSettingsStore {
     return this.settings();
   }
 
+  /**
+   * Review 0.5.0 CR-3: the main window's old remote control choice, moved in once. On: it is kept, with 127.0.0.1 for
+   * an address that is not allowed and the current port for an odd one. Off: nothing changes. Answers the new
+   * settings, or null when nothing changed (off, or already moved).
+   */
+  moveOldSetting(old: OldRemoteSetting): RemoteSettings | null {
+    if (this.oldSettingMoved) return null;
+    this.oldSettingMoved = true;
+    if (old.enabled === true) {
+      const address = checkRemoteAddress(old.address, this.ownAddresses());
+      const port = checkRemotePort(old.port);
+      this.current = { enabled: true, address: "error" in address ? THIS_COMPUTER_ONLY : address.address, port: "error" in port ? this.current.port : port.port };
+    }
+    this.save();
+    return old.enabled === true ? this.settings() : null;
+  }
+
   /** Make a new secret code; the old one stops working at once. */
   newCode(): string {
     this.replaceCode();
@@ -167,6 +188,7 @@ export class RemoteSettingsStore {
     } catch {
       return;
     }
+    this.oldSettingMoved = data.oldSettingMoved === true;
     const port = checkRemotePort(data.port);
     if (typeof data.enabled === "boolean" && !("error" in port)) {
       // CR-2: an address of a kind never allowed goes back to 127.0.0.1; a private one is checked before listening.
@@ -193,6 +215,7 @@ export class RemoteSettingsStore {
       version: 1,
       ...this.current,
       ...(this.encryptedCode ? { encryptedCode: this.encryptedCode } : {}),
+      ...(this.oldSettingMoved ? { oldSettingMoved: true as const } : {}),
     };
     try {
       fs.mkdirSync(path.dirname(this.filePath), { recursive: true });

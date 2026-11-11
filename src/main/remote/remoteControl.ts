@@ -8,7 +8,7 @@ import type { RemoteHost } from ".";
 import { isHomeNetworkAddress } from "./homeNetwork";
 import { createRemoteServer } from "./remoteServer";
 import type { RemoteState } from "../../common/remoteControl";
-import { remoteAddressProblem, type Checked, type RemoteSettings, type RemoteSettingsStore } from "./remoteSettings";
+import { remoteAddressProblem, type Checked, type OldRemoteSetting, type RemoteSettings, type RemoteSettingsStore } from "./remoteSettings";
 
 export type { RemoteState } from "../../common/remoteControl";
 
@@ -59,6 +59,11 @@ export class RemoteControl {
       if ("error" in saved) return saved;
       return this.apply();
     });
+  }
+
+  /** Review 0.5.0 CR-3: the old main window's choice, once; the server then follows the settings as usual. */
+  moveOldSetting(old: OldRemoteSetting): Promise<RemoteState> {
+    return this.serially(async () => (this.options.store.moveOldSetting(old) ? this.apply() : this.state()));
   }
 
   /** Make a new secret code; the old one is refused from the next request on. */
