@@ -95,7 +95,7 @@ describe("a room's row: what the players hear", () => {
     expect(row).toHaveTextContent("0:12 / 3:57");
     expect(within(row).getByRole("slider", { name: "Volume in Table" })).toHaveValue("85");
     expect(within(row).getByRole("slider", { name: "Volume in Table" })).toHaveAttribute("aria-valuetext", "85 percent");
-    expect(await within(row).findByRole("button", { name: "Play order of The Company themes: In order, repeat all" })).toBeVisible();
+    expect(await within(row).findByRole("button", { name: "Shuffle" })).toHaveAttribute("aria-pressed", "false");
     expect(within(row).getByRole("link", { name: "Go to Live" })).toHaveAttribute("href", "#/live");
     expect(within(row).getByRole("group", { name: "Control what the players hear in Table" })).toBeInTheDocument();
     expect(within(row).getByRole("button", { name: "Pause" })).toHaveAttribute("title", "Pause the music in Table");
@@ -282,7 +282,7 @@ describe("keyboard focus", () => {
 
 it("has no accessibility failures with a room, two rooms and the preview", async () => {
   show({ rooms: [room("table", "Table", lane()), room("side", "Side room", lane({ paused: true }))], preview: { key: "pl:p-ashen", label: "Ashen King", from: "the campaign page" } });
-  await screen.findAllByRole("button", { name: /^Play order/ });
+  await screen.findAllByRole("button", { name: "Shuffle" });
   await expectNoAxeViolations(document.body);
 });
 
@@ -304,3 +304,45 @@ describe("volume normalisation (PLY-15)", () => {
     expect(await within(bar()).findByTitle(/· Volume not evened out$/)).toBeInTheDocument();
   });
 });
+
+describe("round 6 and 7: Shuffle, Repeat and What played on a room's row", () => {
+  it("Shuffle is the playlist's own shuffle where it plays from (saved), pressed while on", async () => {
+    show({ rooms: [room("table", "Table", lane())] });
+    const shuffle = await within(bar()).findByRole("button", { name: "Shuffle" });
+    expect(shuffle).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(shuffle);
+    await waitFor(() => expect(within(bar()).getByRole("button", { name: "Shuffle" })).toHaveAttribute("aria-pressed", "true"));
+  });
+
+  it("PLY-17: Repeat is the room's, for what plays now: it shows what applies and goes off, all, one", async () => {
+    const audio = show({ rooms: [room("table", "Table", lane(), { repeat: { chosen: null, shown: "all" } })] });
+    const repeat = within(bar()).getByRole("button", { name: "Repeat: all" });
+    expect(repeat).toHaveAttribute("aria-pressed", "true");
+    expect(repeat).toHaveAttribute("title", expect.stringMatching(/not saved/));
+    await userEvent.click(repeat);
+    expect(audio.calls).toContainEqual(["cycleRepeat", { room: "table" }]);
+  });
+
+  it("PLY-1: What played opens the room's tracks, newest first, with Play again and Play next; Play again closes it", async () => {
+    const audio = show({
+      rooms: [
+        room("table", "Table", lane(), {
+          played: [
+            { trackId: "t24", title: "Epic choir hero anthem - the Company's big moment", at: Date.now(), from: { playlistId: "p-company", place: crown } },
+            { trackId: "t23", title: "Heroic charge", at: Date.now() - 120_000, from: { playlistId: "p-company", place: crown } },
+          ],
+        }),
+      ],
+    });
+    await userEvent.click(within(bar()).getByRole("button", { name: "What played" }));
+    const dialog = screen.getByRole("dialog", { name: "What played" });
+    const items = within(within(dialog).getByRole("list", { name: "Played, newest first" })).getAllByRole("listitem");
+    expect(items[0]).toHaveTextContent("Epic choir hero anthem");
+    expect(items[1]).toHaveTextContent("2 min ago");
+    expect(within(items[1]).getByRole("button", { name: /^Play next: / })).toBeInTheDocument();
+    await userEvent.click(within(items[1]).getByRole("button", { name: /^Play again: / }));
+    expect(audio.calls).toContainEqual(["playTrack", "t23", expect.objectContaining({ target: { room: "table" }, from: { playlistId: "p-company", place: crown } })]);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+});
+

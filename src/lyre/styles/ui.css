@@ -311,6 +311,10 @@ table.grid tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 v
 .dest.you { background: transparent; color: var(--preview); border-color: var(--preview); }
 .dest.paused { background: transparent; color: var(--ink-2); border-color: var(--line-strong); }
 .dest.warn { background: transparent; color: var(--warn); border-color: var(--warn); }
+/* Round 7 (PLY-1): a rare control (What played) shows on hover and keyboard focus in its row (r7play.css). */
+.oab-row .r7-hov { opacity: 0; }
+.oab-row:is(:hover, :focus-within) .r7-hov, .oab-row .r7-hov:focus-visible { opacity: 1; }
+@media (hover: none) { .oab-row .r7-hov { opacity: 1; } }
 
 /* DAT-13 track shape (kit/ShapeGlyph.tsx): a small line drawing of how the track moves, beside its word. */
 .shape-g { width: 22px; height: 11px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }

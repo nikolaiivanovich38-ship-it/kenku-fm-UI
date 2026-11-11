@@ -7,8 +7,10 @@
  * and music on air show together, as do two rooms. The rows share one grid, so their parts line up.
  *   - A room row: the On air tag (naming the room when there are two or more, "no room" while no bot is in a voice
  *     channel), the track (the scene's name for it, its own name on hover), where it comes from, the ambience under it
- *     and how many effects sound there, the time, Pause/Play, Stop (that room only), Next, the play order where it
- *     plays from, that room's volume, and Go to Live on the first row.
+ *     and how many effects sound there, the time, Pause/Play, Stop (that room only), Next, Shuffle (the playlist's
+ *     own shuffle where it plays from, PLY-13, saved), Repeat (the room's, for what plays now, never saved, PLY-17),
+ *     What played (round 7, PLY-1: a sheet with Play again and Play next), that room's volume, and Go to Live on the
+ *     first row.
  *   - The preview row: the Only you tag, what previews, where it was previewed from, the time, Pause/Play, Stop and the
  *     headphone volume.
  * In Live (`previewOnly`) the room boxes show what each room hears, so only the preview row shows.
@@ -17,17 +19,18 @@
  * or the row that held the keyboard focus, goes away (Stop), focus goes to the bar's first control, or to the
  * screen's heading when the whole bar has gone, so keyboard users are not sent back to the top of the page.
  */
-import React, { useCallback, useLayoutEffect, useMemo, useRef } from "react";
+import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { DEFAULT_LIBRARY_NORMALISE, normaliseHover, originWords } from "../../common/domain";
-import { useLyreQuery, usePlaylists, useTracks } from "../api";
+import { isRefused } from "../../common/lyre/api";
+import { useLyreApi, useLyreQuery, usePlaylists, useTracks } from "../api";
 import { useNowPlaying, useOptionalLyreAudio, type LaneNowPlaying, type LyreAudio, type MusicOrAmbience, type PreviewNowPlaying, type RoomNowPlaying } from "../audio";
 import { DestTag } from "../kit/DestTag";
 import { Icon } from "../kit/Icon";
-import { PlayOrderButton } from "../kit/PlayOrderButton";
+import { Dialog } from "../kit/Dialog";
 import { usePlaceNames } from "../kit/placeNames";
-import { usePlayOrders } from "../kit/playOrders";
-import { TrackName, useTrackNames } from "../kit/trackName";
+import { playOrderIn, playOrderStoreOf, usePlayOrders } from "../kit/playOrders";
+import { TrackName, trackNameAt, useTrackNames } from "../kit/trackName";
 import { cx } from "../kit/cx";
 import { useOutputs } from "../outputs/OutputsProvider";
 import { roomVolumeControl } from "../outputs/roomVolume";
@@ -211,7 +214,9 @@ function RoomRow({ audio, room, named, broadcasting, first }: { audio: LyreAudio
         >
           <Icon name="next" size="s" />
         </button>
-        {lane.playlistId && <PlayOrderButton playlistId={lane.playlistId} place={lane.place} />}
+        {lane.playlistId && <ShuffleButton playlistId={lane.playlistId} place={lane.place} />}
+        {room.music && <RepeatButton audio={audio} room={room} where={where} />}
+        <WhatPlayed audio={audio} room={room} named={named} />
       </div>
       <label className="oab-vol" title={`Volume of what the players hear${where}`}>
         <Icon name="volume" size="s" />
@@ -233,6 +238,138 @@ function RoomRow({ audio, room, named, broadcasting, first }: { audio: LyreAudio
         </a>
       )}
     </div>
+  );
+}
+
+/** PLY-13: the playlist's shuffle where it plays from; it is its play order there, so it is saved. */
+function ShuffleButton({ playlistId, place }: { playlistId: string; place: LaneNowPlaying["place"] }) {
+  const api = useLyreApi();
+  const data = usePlayOrders();
+  const { say, toast } = useAnnounce();
+  if (!data?.playlists.has(playlistId)) return null;
+  const { order } = playOrderIn(data, playlistId, place);
+  const toggle = async () => {
+    const next = { ...order, shuffle: !order.shuffle };
+    const store = playOrderStoreOf(api);
+    store.put(playlistId, place, next);
+    const result = await api.playlists.setPlayOrder(playlistId, place, next);
+    if (isRefused(result)) {
+      toast(result.refusal.message);
+      store.load();
+      return;
+    }
+    say(next.shuffle ? "Shuffle on" : "Shuffle off");
+  };
+  return (
+    <button type="button" className={cx("btn s icon rep", order.shuffle && "on")} aria-pressed={order.shuffle} aria-label="Shuffle" title={`Shuffle ${order.shuffle ? "on" : "off"}`} onClick={() => void toggle()}>
+      <Icon name={order.shuffle ? "shuffle" : "inorder"} size="s" />
+    </button>
+  );
+}
+
+const REPEAT_WORDS = { off: "Repeat: off", all: "Repeat: all", one: "Repeat: one" } as const;
+const REPEAT_NEXT = { off: "repeat all", all: "repeat one", one: "no repeat" } as const;
+
+/** PLY-17 (Nik, 6 Nov 12:24): the room's Repeat, for what plays now; never saved; off again when the music stops. */
+function RepeatButton({ audio, room, where }: { audio: LyreAudio; room: RoomNowPlaying; where: string }) {
+  const { say } = useAnnounce();
+  const shown = room.repeat.shown;
+  return (
+    <button
+      type="button"
+      className={cx("btn s icon rep", shown !== "off" && "on")}
+      aria-pressed={shown !== "off"}
+      aria-label={REPEAT_WORDS[shown]}
+      title={`${REPEAT_WORDS[shown]}, for what plays now${where} (not saved). Press for ${REPEAT_NEXT[shown]}`}
+      onClick={() => {
+        audio.cycleRepeat({ room: room.roomId });
+        say(`${REPEAT_WORDS[shown === "off" ? "all" : shown === "all" ? "one" : "off"]}, for what plays now`);
+      }}
+    >
+      <Icon name={shown === "one" ? "repeat1" : "loop"} size="s" />
+    </button>
+  );
+}
+
+/** "Now", "2 min ago". */
+function ago(at: number): string {
+  const minutes = Math.round((Date.now() - at) / 60_000);
+  return minutes < 1 ? "Now" : `${minutes} min ago`;
+}
+
+/**
+ * Round 7 (PLY-1): what played in this room tonight, newest first, in a sheet (prep screens only: Live shows it in the
+ * room itself), each with Play again (as it came: its scene step or playlist) and Play next. Shown on hover and focus.
+ */
+function WhatPlayed({ audio, room, named }: { audio: LyreAudio; room: RoomNowPlaying; named: boolean }) {
+  const [open, setOpen] = useState(false);
+  const { say } = useAnnounce();
+  const names = useTrackNames();
+  const target = { room: room.roomId };
+  const title = `What played${named ? ` in ${room.name}` : ""}`;
+  const nameOf = (x: RoomNowPlaying["played"][number]) => {
+    const place = x.from && "scene" in x.from ? ({ kind: "scene", ...x.from.scene } as const) : x.from && "place" in x.from ? (x.from.place ?? null) : null;
+    return trackNameAt({ id: x.trackId, title: x.title, metaTitle: "", fileName: "" }, place, names).name;
+  };
+  return (
+    <>
+      <button type="button" className="btn s icon r7-hov" aria-label="What played" title={`${title}, with Play again`} onClick={() => setOpen(true)}>
+        <Icon name="queue" size="s" />
+      </button>
+      <Dialog
+        open={open}
+        title={title}
+        onClose={() => setOpen(false)}
+        footer={
+          <button type="button" className="btn" onClick={() => setOpen(false)}>
+            Close
+          </button>
+        }
+      >
+        {room.played.length ? (
+          <ol className="list r7-played" aria-label="Played, newest first">
+            {room.played.map((x, i) => {
+              const name = nameOf(x);
+              return (
+                <li className="lrow" key={`${x.trackId}-${x.at}-${i}`}>
+                  <span className="grow ellipsis" title={x.title}>
+                    {name}
+                  </span>
+                  <span className="faint num">{ago(x.at)}</span>
+                  <button
+                    type="button"
+                    className="btn s"
+                    aria-label={`Play again: ${name}`}
+                    onClick={() => {
+                      setOpen(false);
+                      audio.playTrack(x.trackId, { target, ...(x.from ? { from: x.from as never } : {}) });
+                    }}
+                  >
+                    <Icon name="playair" size="s" />
+                    Play again
+                  </button>
+                  <button
+                    type="button"
+                    className="btn s ghost"
+                    aria-label={`Play next: ${name}`}
+                    onClick={() => {
+                      setOpen(false);
+                      audio.playNext({ kind: "track", trackId: x.trackId, ...(x.from ? { from: x.from as never } : {}), name }, { target });
+                      say(`Plays next: ${name}`);
+                    }}
+                  >
+                    <Icon name="next" size="s" />
+                    Play next
+                  </button>
+                </li>
+              );
+            })}
+          </ol>
+        ) : (
+          <p className="empty">Nothing has played here yet.</p>
+        )}
+      </Dialog>
+    </>
   );
 }
 
