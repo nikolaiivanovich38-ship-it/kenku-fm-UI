@@ -301,7 +301,7 @@ function RenameSheet({ bot, client, onClose }: { bot: LyreBot; client: OutputsCl
 /* ---------- Add a bot: three steps, in the order Discord needs ---------- */
 
 function AddBotSheet({ outputs, client, onClose }: { outputs: LyreOutputs; client: OutputsClient; onClose: () => void }) {
-  const { say, toast } = useAnnounce();
+  const { say } = useAnnounce();
   const [step, setStep] = useState(0);
   const [appId, setAppId] = useState("");
   const [byHand, setByHand] = useState(false);
