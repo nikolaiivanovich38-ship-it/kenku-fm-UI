@@ -23,10 +23,11 @@ export async function dropFiles(target: Locator, names: string[], options: { typ
       const init = { bubbles: true, cancelable: true, dataTransfer: data, clientX: box.left + 40, clientY: box.top + box.height / 2 };
       const over = document.elementFromPoint(init.clientX, init.clientY) ?? el;
       over.dispatchEvent(new DragEvent("dragenter", init));
-      // As the browser: a drop happens only where the dragover was taken and its drop effect is not "none".
+      // As the browser: a drop happens only where the dragover was taken and its drop effect is not "none" (a handler
+      // may change it, which TypeScript cannot see, hence the cast below).
       data.dropEffect = "copy";
       const taken = !over.dispatchEvent(new DragEvent("dragover", init));
-      if (taken && data.dropEffect !== "none") over.dispatchEvent(new DragEvent("drop", init));
+      if (taken && (data.dropEffect as string) !== "none") over.dispatchEvent(new DragEvent("drop", init));
     },
     { names, type: options.type ?? "audio/flac" },
   );
@@ -68,6 +69,6 @@ async function dropFilesFromDisk(target: Locator, names: string[]): Promise<void
     over.dispatchEvent(new DragEvent("dragenter", init));
     data.dropEffect = "copy";
     const taken = !over.dispatchEvent(new DragEvent("dragover", init));
-    if (taken && data.dropEffect !== "none") over.dispatchEvent(new DragEvent("drop", init));
+    if (taken && (data.dropEffect as string) !== "none") over.dispatchEvent(new DragEvent("drop", init));
   });
 }
