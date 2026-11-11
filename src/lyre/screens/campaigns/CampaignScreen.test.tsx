@@ -125,6 +125,15 @@ describe("sessions of a campaign", () => {
     expect(await screen.findByRole("button", { name: "More for Session 14: The coast road" })).toHaveFocus();
     expect(await screen.findByText("The coast road is now Session 14, 3 of 4")).toBeInTheDocument();
   });
+
+  it("a session moves down into the last place from its menu (Nik, 0.5.0)", async () => {
+    const { api } = openAt("campaign/crown");
+    await userEvent.click(await screen.findByRole("button", { name: /^More for Session 14/ }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Move down" }));
+    await waitFor(async () => expect((await api.campaigns.get("crown"))?.sessions.map((s) => s.id)).toEqual(["s12", "s13", "s15", "s14"]));
+    await userEvent.click(await screen.findByRole("button", { name: /^More for Session 15/ }));
+    expect(screen.queryByRole("menuitem", { name: "Move down" })).toBeNull();
+  });
 });
 
 describe("playlists and pad boards on hand in every session", () => {

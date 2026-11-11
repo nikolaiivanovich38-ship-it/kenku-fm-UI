@@ -2,6 +2,10 @@
  * Reordering a list by dragging a row's handle (the prototype's cp-handle drag and drop): only a drag that starts on
  * the handle moves the row; the row under the pointer shows a line before or after it, and dropping moves the row
  * there. Keyboard users move rows from the row's ⋯ menu.
+ *
+ * Between rows and below the last one (the rest of the box the list is in, its pane), the line shows at the nearest
+ * place and a drop lands there: below the last row is the last place (Nik, 0.5.0: a scene or session could not be
+ * dropped last, because only the rows took a drop).
  */
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
@@ -33,6 +37,18 @@ function undraggable() {
   document.querySelectorAll("[data-drag][draggable='true']").forEach((row) => row.removeAttribute("draggable"));
 }
 
+/** Where in the list a drop at `clientY` lands: before the first row whose middle is below it, else after the last. */
+function slotAt(rows: readonly Element[], clientY: number): number {
+  const i = rows.findIndex((row) => {
+    const box = row.getBoundingClientRect();
+    return clientY < box.top + box.height / 2;
+  });
+  return i < 0 ? rows.length : i;
+}
+
+/** The row's new index once it leaves `start` for the place before `slot` (0 to the number of rows). */
+const indexFor = (start: number, slot: number) => (slot > start ? slot - 1 : slot);
+
 export function useDragReorder(list: string, onMove: (from: number, to: number) => void): DragReorder {
   const from = useRef<number | null>(null);
   const [dragging, setDragging] = useState<number | null>(null);
@@ -49,12 +65,52 @@ export function useDragReorder(list: string, onMove: (from: number, to: number) 
     return () => document.removeEventListener("pointerup", onPointerUp);
   }, []);
 
+  // The box around the list (its pane's body) while a row is dragged: it takes the drags that miss every row.
+  const stopZone = useRef<(() => void) | null>(null);
+
   const reset = () => {
     from.current = null;
     setDragging(null);
     setMark(null);
     undraggable();
+    stopZone.current?.();
+    stopZone.current = null;
   };
+
+  /** Listen on the box around the list for a drag over a gap or below the last row, until the drag ends. */
+  const watchZone = (row: HTMLElement) => {
+    stopZone.current?.();
+    const box = row.closest(".pane-body") ?? row.parentElement;
+    if (!box) return;
+    const rows = () => Array.from(box.querySelectorAll(`[data-drag="${list}"]`));
+    const onRow = (event: Event) => event.target instanceof Element && event.target.closest(`[data-drag="${list}"]`) !== null;
+    const onOver = (event: DragEvent) => {
+      // A row handles its own drags (its handler runs after this one, from React's root).
+      if (from.current === null || onRow(event)) return;
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+      const all = rows();
+      const slot = slotAt(all, event.clientY);
+      if (indexFor(from.current, slot) === from.current) setMark(null);
+      else setMark(slot < all.length ? { index: slot, after: false } : { index: all.length - 1, after: true });
+    };
+    const onDrop = (event: DragEvent) => {
+      if (from.current === null || onRow(event)) return;
+      event.preventDefault();
+      const start = from.current;
+      const to = indexFor(start, slotAt(rows(), event.clientY));
+      reset();
+      if (to !== start) move.current(start, to);
+    };
+    box.addEventListener("dragover", onOver as EventListener);
+    box.addEventListener("drop", onDrop as EventListener);
+    stopZone.current = () => {
+      box.removeEventListener("dragover", onOver as EventListener);
+      box.removeEventListener("drop", onDrop as EventListener);
+    };
+  };
+  // A list taken off the screen mid-drag lets go of its box.
+  useEffect(() => () => stopZone.current?.(), []);
 
   return {
     handleProps: {
@@ -73,6 +129,7 @@ export function useDragReorder(list: string, onMove: (from: number, to: number) 
           // Some browsers refuse data on a drag; the move works without it.
         }
         setDragging(index);
+        watchZone(event.currentTarget);
       },
       onDragOver: (event) => {
         if (from.current === null) return;
@@ -87,8 +144,7 @@ export function useDragReorder(list: string, onMove: (from: number, to: number) 
         event.preventDefault();
         event.stopPropagation();
         const start = from.current;
-        let to = index + (after(event) ? 1 : 0);
-        if (to > start) to--;
+        const to = indexFor(start, index + (after(event) ? 1 : 0));
         reset();
         if (to !== start) move.current(start, to);
       },
