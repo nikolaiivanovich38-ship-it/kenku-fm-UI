@@ -14,6 +14,7 @@ import {
   analyseStream,
   busyMainThread,
   captureCounts,
+  coarseTimers,
   countsSince,
   feedCounts,
   mainNow,
@@ -44,6 +45,8 @@ async function soundPackets(app: ElectronApplication, channel: Channel): Promise
  */
 async function playInTwoRooms(app: ElectronApplication, mainWindow: Page): Promise<Page> {
   const lyre = await openLyreRoute(mainWindow, "live");
+  // As big as the acceptance specs' page (playwright.spec.config.ts), where Live shows its Scenes box unfolded.
+  await lyre.setViewportSize({ width: 960, height: 1000 });
   await watchLongTasks(lyre);
   await app.evaluate(() =>
     (globalThis as unknown as { __lyreOutputsTest: { join(bot: string, channel: string): Promise<void> } }).__lyreOutputsTest.join(
@@ -51,7 +54,13 @@ async function playInTwoRooms(app: ElectronApplication, mainWindow: Page): Promi
       "Side room",
     ),
   );
-  await lyre.getByRole("button", { name: "Start scene 3: The abbey ruins" }).click();
+  const start = lyre.getByRole("button", { name: "Start scene 3: The abbey ruins" });
+  if (!(await start.isVisible().catch(() => false))) {
+    // For diagnosis when Live changes: what it offers instead.
+    const names = await lyre.getByRole("button").evaluateAll((buttons) => buttons.map((b) => b.getAttribute("aria-label") ?? b.textContent));
+    console.log(`Live's buttons: ${JSON.stringify(names)}`);
+  }
+  await start.click();
   const playlists = region(lyre, "Session playlists");
   const toggle = playlists.getByRole("heading", { level: 2 }).getByRole("button");
   if ((await toggle.count()) && (await toggle.getAttribute("aria-expanded")) === "false") await toggle.click();
@@ -106,6 +115,10 @@ const stutter = (timing: StreamTiming) => timing.gaps + timing.jumps;
  */
 const ALLOWED = 3;
 
+/** The busy page's work, in turn, and the pause between (fixtures/audioTiming.ts busyMainThread). */
+const BUSY_WORK_MS = [60, 120, 250] as const;
+const BUSY_GAP_MS = 300;
+
 test("steady sound in two rooms reaches Discord without holes, on Live and on Rooms with its meters", async ({ launchApp }) => {
   test.setTimeout(120_000);
   const launched = await launchApp({ env: SEEDED });
@@ -131,16 +144,16 @@ test("steady sound in two rooms reaches Discord without holes, on Live and on Ro
   }
 });
 
-test("a busy Lyre page does not interrupt the sound: 60 ms of work every 250 ms on its main thread", async ({ launchApp }) => {
+test("a busy Lyre page does not interrupt the sound: 60, 120 and 250 ms of work in turn on its main thread", async ({ launchApp }) => {
   test.setTimeout(120_000);
   const launched = await launchApp({ env: SEEDED });
   const lyre = await playInTwoRooms(launched.app, await launched.mainWindow());
 
-  await busyMainThread(lyre, 60, 250, 10);
+  await busyMainThread(lyre, BUSY_WORK_MS, BUSY_GAP_MS, 10);
   const busy = await listen(launched.app, lyre, 10);
   report("Busy Lyre page, two rooms", busy);
 
-  expect(busy.longTasks.count, "the page was kept busy").toBeGreaterThan(20);
+  expect(busy.longTasks.count, "the page was kept busy").toBeGreaterThan(15);
   for (const channel of Object.keys(CHANNELS) as Channel[]) {
     expect(busy.channels[channel].sound, `${channel} heard the music all along`).toBeGreaterThan(400);
     expect(stutter(busy.channels[channel]), `${channel} holes and lost audio`).toBeLessThanOrEqual(ALLOWED);
@@ -151,6 +164,7 @@ test("a preview reaches the headphones in one piece while the Lyre page is busy 
   test.setTimeout(120_000);
   const launched = await launchApp({ env: SEEDED });
   const lyre = await openLyreRoute(await launched.mainWindow(), "session/crown/s14");
+  await lyre.setViewportSize({ width: 960, height: 1000 });
   await watchLongTasks(lyre);
   const capturePage = await pageWithTitle(launched.app, "Audio Capture");
   await lyre.getByRole("button", { name: "Scene 3: The abbey ruins" }).click();
@@ -161,7 +175,7 @@ test("a preview reaches the headphones in one piece while the Lyre page is busy 
   await music.getByRole("button", { name: /^Preview Haunted sea shanty/ }).click();
   await lyre.waitForTimeout(3_000);
 
-  await busyMainThread(lyre, 60, 250, 10);
+  await busyMainThread(lyre, BUSY_WORK_MS, BUSY_GAP_MS, 10);
   await takeLongTasks(lyre);
   const before = await captureCounts(launched.app, capturePage);
   await lyre.waitForTimeout(10_000);
@@ -173,8 +187,41 @@ test("a preview reaches the headphones in one piece while the Lyre page is busy 
 
   // Only builds with the capture window's counts can be measured here.
   test.skip(counts === null, "this build does not count the preview's frames (0.5.0)");
-  expect(longTasks.count, "the page was kept busy").toBeGreaterThan(20);
+  expect(longTasks.count, "the page was kept busy").toBeGreaterThan(15);
   // 10 s is 500 frames; a timer-driven context that skips sends fewer.
   expect(counts!.preview.frames, "the preview's frames all came").toBeGreaterThan(470);
   expect(counts!.preview.holes + counts!.preview.dropped, "holes and drops in the preview").toBeLessThanOrEqual(ALLOWED);
+});
+
+/**
+ * Windows wakes timers in 15.6 ms steps unless a program asks for finer ones. Chromium runs an audio context on a
+ * timer instead of the sound card when its output has been silent for 30 s, and the preview's (no sound device)
+ * always: such a timer that wakes more than one buffer late skips the buffers it missed. Here the timers of Lyre's
+ * page and the capture window wake up to 15.6 ms late (Linux timer slack), while Chromium's audio service, standing
+ * in for the sound card, keeps exact time.
+ */
+test("with Windows-like coarse timers in Lyre's pages, two rooms and a preview keep the sound card's pace", async ({ launchApp }) => {
+  test.setTimeout(150_000);
+  const launched = await launchApp({ env: SEEDED });
+  const lyre = await playInTwoRooms(launched.app, await launched.mainWindow());
+  const sceneMusic = lyre.getByRole("region", { name: /^(Current scene|Current scene music|Scene music)$/ });
+  await sceneMusic.getByRole("button", { name: /^Preview: / }).first().click();
+  const restore = await coarseTimers(launched.app, ["Lyre Interface", "Audio Capture"]);
+  test.skip(restore === null, "timer slack needs Linux and root");
+  try {
+    // Past Chromium's 30 s of silence, so a context that goes onto a timer has done so.
+    await lyre.waitForTimeout(32_000);
+    const coarse = await listen(launched.app, lyre, 10);
+    report("Coarse timers, two rooms and a preview", coarse);
+    for (const channel of Object.keys(CHANNELS) as Channel[]) {
+      expect(coarse.channels[channel].sound, `${channel} heard the music all along`).toBeGreaterThan(400);
+      expect(stutter(coarse.channels[channel]), `${channel} holes and lost audio`).toBeLessThanOrEqual(ALLOWED);
+    }
+    if (coarse.capture) {
+      expect(coarse.capture.preview?.frames ?? 0, "the preview's frames all came").toBeGreaterThan(470);
+      expect((coarse.capture.preview?.holes ?? 0) + (coarse.capture.preview?.dropped ?? 0), "holes and drops in the preview").toBeLessThanOrEqual(ALLOWED);
+    }
+  } finally {
+    restore?.();
+  }
 });

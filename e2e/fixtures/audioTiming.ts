@@ -165,21 +165,26 @@ export async function takeLongTasks(page: Page): Promise<{ count: number; totalM
 }
 
 /**
- * Keep the page's main thread busy for `workMs` every `everyMs`, for `seconds`: a stand-in for a slow screen
- * redrawing, which on a slower computer (or a bigger library) takes longer.
+ * Keep the page's main thread busy for each of `workMs` in turn, with `gapMs` between, for `seconds`: a stand-in for
+ * screens redrawing (on a slower computer, or with a bigger library, they take longer). Work of uneven length is
+ * what a buffer cannot get used to: a single length is absorbed once the first hole has deepened the buffer.
  */
-export async function busyMainThread(page: Page, workMs: number, everyMs: number, seconds: number): Promise<void> {
+export async function busyMainThread(page: Page, workMs: readonly number[], gapMs: number, seconds: number): Promise<void> {
   await page.evaluate(
-    ([work, every, total]) => {
-      const timer = setInterval(() => {
-        const end = performance.now() + work;
+    ([works, gap, total]) => {
+      const stopAt = performance.now() + total * 1000;
+      let turn = 0;
+      const step = () => {
+        if (performance.now() > stopAt) return;
+        const end = performance.now() + works[turn++ % works.length];
         while (performance.now() < end) {
           // Busy on purpose.
         }
-      }, every);
-      setTimeout(() => clearInterval(timer), total * 1000);
+        setTimeout(step, gap);
+      };
+      setTimeout(step, gap);
     },
-    [workMs, everyMs, seconds] as const,
+    [workMs, gapMs, seconds] as const,
   );
 }
 
@@ -234,4 +239,52 @@ export function countsSince<T extends Record<string, Record<string, number>>>(be
     result[key] = Object.fromEntries(Object.entries(now).map(([name, value]) => [name, name === "wait" ? value : value - (then[name] ?? 0)]));
   }
   return result as T;
+}
+
+/** Windows' timer step when no program asks for finer timers: 1/64 s. */
+export const WINDOWS_TIMER_MS = 15.625;
+
+/**
+ * Make the timers of some of the app's pages wake up to `ms` late, as Windows' coarse timers do, while the sound card
+ * (here Chromium's audio service, left alone) keeps exact time. Uses Linux's per-thread timer slack (as root), set
+ * again every 200 ms so new threads get it too. Returns a function that puts the timers back; null where this cannot
+ * be done (another system, not root), so a test can skip.
+ */
+export async function coarseTimers(app: ElectronApplication, titles: readonly string[], ms = WINDOWS_TIMER_MS): Promise<(() => void) | null> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const fs = require("fs") as typeof import("fs");
+  if (process.platform !== "linux" || process.getuid?.() !== 0) return null;
+  const pids = await app.evaluate(
+    ({ webContents }, names) =>
+      webContents
+        .getAllWebContents()
+        .filter((contents) => !contents.isDestroyed() && names.includes(contents.getTitle()))
+        .map((contents) => contents.getOSProcessId()),
+    [...titles],
+  );
+  if (pids.length !== titles.length) return null;
+  const write = (nanoseconds: number) => {
+    for (const pid of pids) {
+      let threads: string[] = [];
+      try {
+        threads = fs.readdirSync(`/proc/${pid}/task`);
+      } catch {
+        continue; // the page has gone
+      }
+      for (const thread of threads) {
+        try {
+          fs.writeFileSync(`/proc/${pid}/task/${thread}/timerslack_ns`, String(nanoseconds));
+        } catch {
+          // A thread that ended meanwhile.
+        }
+      }
+    }
+  };
+  const slack = Math.round(ms * 1_000_000);
+  write(slack);
+  const timer = setInterval(() => write(slack), 200);
+  return () => {
+    clearInterval(timer);
+    write(0); // 0: back to the thread's default
+  };
 }
