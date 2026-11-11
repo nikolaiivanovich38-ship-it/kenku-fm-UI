@@ -123,7 +123,7 @@ test.describe("round 7: motion and target size", () => {
    shows on its pages (campaigns.spec.ts checks the pages). */
 test.describe("0.5.1: Look and feel's theme is the base", () => {
   test("Look and feel offers a base theme, with no Each campaign's own choice", async ({ page }) => {
-    expectFailureUntilBuilt("retire");
+    expectFailureUntilBuilt("feat");
     await openRoute(page, "look");
     const base = page.getByRole("main").getByRole("combobox", { name: "Base theme" });
     await expect(base).toBeVisible();

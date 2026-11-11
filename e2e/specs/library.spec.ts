@@ -483,7 +483,7 @@ test.describe("Library targets", () => {
    elsewhere." */
 test.describe("0.5.1: Prep and Live in the Library", () => {
   test("the Library's top bar has Prep | Live; Prep is on, and Live opens the session loaded in Live", async ({ page }) => {
-    expectFailureUntilBuilt("retire");
+    expectFailureUntilBuilt("feat");
     await openRoute(page, "library");
     const modes = page.getByRole("main").getByRole("group", { name: "Prep or live" });
     await expect(modes.getByRole("button", { name: "Prep" })).toHaveAttribute("aria-pressed", "true");
@@ -497,7 +497,7 @@ test.describe("0.5.1: Prep and Live in the Library", () => {
    a track". It showed only for underscores and loop beds. */
 test.describe("0.5.1: Pick up where it stopped for every music track", () => {
   test("a track of any role but a sting, or with no role yet, has Pick up where it stopped in its details; a sting has not", async ({ page }) => {
-    expectFailureUntilBuilt("retire");
+    expectFailureUntilBuilt("feat");
     await openRoute(page, "library");
     for (const title of ["Ashes", "Haunted sea shanty"]) {
       await openTrack(page, title);

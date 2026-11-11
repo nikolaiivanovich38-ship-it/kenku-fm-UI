@@ -633,7 +633,7 @@ test.describe("round 7: what a scene does when it starts", () => {
 
 /* 0.5.1 (design/prototype/ROUND8.md, part 2): Nik's findings from testing 0.5.0, 11 Nov. */
 test.describe("0.5.1: Play on air for each track, where Add scene puts a scene, dragging into the last place", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("retire"));
+  test.beforeEach(() => expectFailureUntilBuilt("feat"));
   const scenes = (page: Page) => page.getByRole("list", { name: "Scenes in order" }).getByRole("listitem", { name: /^Scene \d+: / });
 
   /* "In the prep view, there are no 'play on air' buttons against individual tracks in playlists within a scene - I

@@ -1356,7 +1356,7 @@ test.describe("round 7, part 2: Live", () => {
    point in the track"; "I need a stop button in the on air view in live on the currently playing track, not just a
    pause button - I need both"; "I also need a shuffle button in the on air live view". */
 test.describe("0.5.1: On air has Stop, Shuffle and a position bar to jump in", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("retire"));
+  test.beforeEach(() => expectFailureUntilBuilt("feat"));
   const music = (page: Page, name = "Table") => room(page, name).getByRole("group", { name: `Music in ${name}`, exact: true });
   const names = async (group: ReturnType<typeof music>) => group.getByRole("button").evaluateAll((bs) => bs.map((b) => b.getAttribute("aria-label") || (b.textContent ?? "").trim()));
 
@@ -1444,7 +1444,7 @@ test.describe("0.5.1: On air has Stop, Shuffle and a position bar to jump in", (
    table from that view, or more, I don't want to have to tab to the rooms tab." "I don't see an undo button for
    kicking a bot in the live view". */
 test.describe("0.5.1: fades of 5 seconds, and Rooms' actions in On air", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("retire"));
+  test.beforeEach(() => expectFailureUntilBuilt("feat"));
 
   test("Fade all and a lane's Fade out take 5 seconds, and say so", async ({ page }) => {
     await openRoute(page, "live");

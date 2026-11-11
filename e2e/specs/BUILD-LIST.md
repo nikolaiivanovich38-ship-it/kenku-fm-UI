@@ -352,8 +352,10 @@ prototype seed's six bookmarks (titles and addresses, as `design/prototype/src/d
 | `settings.spec.ts` "0.5.1: a bot token from Kenku FM" (2) | WP1 review 4 | the one-time note under Discord bots, Got it ends it for good; no note otherwise |
 | `library-files.spec.ts` "0.5.1: the old bookmarks, to copy" (3) | FND-16 | the Bookmarks box (title, address, Copy); none: no box and no row; the bookmarks brought are the ones listed |
 
-Part 2: Nik's findings from testing 0.5.0 (ROUND8.md, part 2; R6-NIK-DECISIONS.md, 11 Nov 19:42), also marked
-`expectFailureUntilBuilt("retire")`. The two drag checks fail in the app today; the w51-fix stream fixes them.
+Part 2: Nik's findings from testing 0.5.0 (ROUND8.md, part 2; R6-NIK-DECISIONS.md, 11 Nov 19:42). The design marked
+them "retire"; w51-main marked the features `expectFailureUntilBuilt("feat")`, since the w51-feat stream builds them
+(with w51-fix's two drag fixes) and adds `"feat"` to `BUILT_STREAMS` when it merges. "Lyre's page fits the window" is
+the retirement's and stays "retire".
 
 | Check | Backlog | What it checks |
 | --- | --- | --- |
@@ -367,7 +369,8 @@ Part 2: Nik's findings from testing 0.5.0 (ROUND8.md, part 2; R6-NIK-DECISIONS.m
 Changed: the Parchment sweeps of The Sunken Crown's page, planner and Live give the campaign Parchment as its own theme
 first (a base theme no longer reaches a campaign's pages).
 
-Part 3: more of Nik's findings (ROUND8.md, part 3; R6-NIK-DECISIONS.md, 11 Nov 20:33), also "retire".
+Part 3: more of Nik's findings (ROUND8.md, part 3; R6-NIK-DECISIONS.md, 11 Nov 20:33), marked "feat", except the help
+check, which reads articles 10 and 11 as merged with the design and stays "retire".
 
 | Check | Backlog | What it checks |
 | --- | --- | --- |

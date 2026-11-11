@@ -749,7 +749,7 @@ test.describe("0.5.1: Lyre's page fits the window", () => {
 
 /* 0.5.1 (ROUND8.md, part 3). Nik, 11 Nov 20:33: "Let's move the live tab to the top of the left side bar". */
 test("0.5.1: Live is the first entry of the menu", async ({ page }) => {
-  expectFailureUntilBuilt("retire");
+  expectFailureUntilBuilt("feat");
   await openRoute(page, "campaigns");
   const names = await page.getByRole("navigation", { name: "Lyre" }).getByRole("link").allTextContents();
   expect(names[0]).toMatch(/^\s*Live/);

@@ -730,7 +730,7 @@ test.describe("round 6 cuts on the campaign screens", () => {
 
 /* 0.5.1 (design/prototype/ROUND8.md, part 2): Nik's findings from testing 0.5.0, 11 Nov. */
 test.describe("0.5.1: the Now playing bar's position, campaign order and the campaign's theme", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("retire"));
+  test.beforeEach(() => expectFailureUntilBuilt("feat"));
   const bar = (page: Page) => page.getByRole("region", { name: "Now playing" });
 
   /* "The now playing bar track position tracker doesn't work. It just displays 0:00 and no position indicator, until I

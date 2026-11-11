@@ -337,7 +337,7 @@ test.describe("0.5.1: a bot token from Kenku FM", () => {
    simultaneously, it shouldn't apply if it would be the only track playing". */
 test.describe("0.5.1: a split headset only while On air plays too", () => {
   test("Split one headset says it splits only while something plays on air; a preview alone plays in both ears", async ({ page }) => {
-    expectFailureUntilBuilt("retire");
+    expectFailureUntilBuilt("feat");
     await openRoute(page, "settings");
     const box = await unfold(page, "Headphones and speakers");
     const split = box.getByRole("switch", { name: "Split one headset" });

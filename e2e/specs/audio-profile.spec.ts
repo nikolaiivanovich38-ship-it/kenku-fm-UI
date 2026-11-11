@@ -329,7 +329,7 @@ test.describe("round 6 cuts on the Audio profile", () => {
    profile view, to set the default option to have a track start at a given marker, rather than having to click the
    play live button every time." */
 test.describe("0.5.1: Start at a marker", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("retire"));
+  test.beforeEach(() => expectFailureUntilBuilt("feat"));
 
   test("Start at offers Beginning and the track's markers; the chosen one is marked on the waveform", async ({ page }) => {
     await openRoute(page, "profile/t13");
