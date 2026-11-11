@@ -893,6 +893,18 @@ describe("rooms", () => {
     await findRoom("Side room");
   });
 
+  it("w51-fix2: Ctrl+Z undoes a Kick of a room nobody is in, as its Undo does (Nik's 0.5.0: \"Ctrl+z does not work\")", async () => {
+    const { outputs } = await openLive();
+    await addSideRoom(outputs);
+    await userEvent.click(screen.getByRole("button", { name: "Kick Lyre Side from Side room" }));
+    await act(async () => outputs.settle());
+    await waitFor(() => expect(within(screen.getByRole("region", { name: "On air" })).queryByRole("group", { name: "Side room" })).toBeNull());
+    blur();
+    press("z", { ctrlKey: true });
+    await act(async () => outputs.settle());
+    await findRoom("Side room");
+  });
+
   it("w51-fix2: kicking the only bot keeps the music in On air; adding the bot again by hand plays it on in the room", async () => {
     const { outputs, sound } = await openLive();
     await startAbbey();
