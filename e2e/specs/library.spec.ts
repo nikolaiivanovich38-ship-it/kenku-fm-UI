@@ -144,6 +144,21 @@ test.describe("a track's details", () => {
     await expect(d.getByRole("link", { name: "Audio profile" })).toHaveAttribute("href", "#/profile/t44");
   });
 
+  test("Stop preview stops the preview: the Only you row goes and the button is Preview again (Nik, 0.5.0)", async ({ page }) => {
+    await openRoute(page, "library");
+    await openTrack(page, "Ashes");
+    const d = details(page);
+    const you = page.getByRole("region", { name: "Now playing" }).getByRole("group", { name: /^Only you/ });
+    await d.getByRole("button", { name: "Preview", exact: true }).click();
+    await expect(you).toBeVisible();
+    await d.getByRole("button", { name: "Stop preview", exact: true }).click();
+    await expect(you).toHaveCount(0);
+    await expect(d.getByRole("button", { name: "Preview", exact: true })).toHaveAttribute("aria-pressed", "false");
+    // It does not start again a moment later.
+    await page.waitForTimeout(1000);
+    await expect(you).toHaveCount(0);
+  });
+
   test("a mood tag is added by typing in the box: choose from the matches with the arrow keys, or create a new one", async ({ page }) => {
     await openRoute(page, "library/t44");
     const box = details(page).getByRole("combobox", { name: "Add a mood tag" });

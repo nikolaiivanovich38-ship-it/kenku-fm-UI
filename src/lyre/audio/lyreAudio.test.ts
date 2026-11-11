@@ -469,6 +469,19 @@ describe("preview: the game master's headphones only, never on air (PRV-1)", () 
     expect(announced).toContain("Preview stopped");
   });
 
+  it("Stop preview stops it when the screen says where it was started from or the playlist it is in (Nik, 0.5.0)", async () => {
+    // Every screen's audio host names the screen (ScreenSound), so a Preview button always passes `from`.
+    rig.audio.previewTrack("m2", { from: "the Library" });
+    await rig.advance(1);
+    rig.audio.previewTrack("m2", { from: "the Library" });
+    expect(state().preview).toBeNull();
+    rig.audio.previewTrack("m2", { from: "the playlist", playlistId: "P" });
+    rig.audio.previewTrack("m2", { from: "the playlist", playlistId: "P" });
+    expect(state().preview).toBeNull();
+    await rig.advance(1);
+    expect(rig.hearPreview()).toBe(0);
+  });
+
   it("previews a track from a point with its audio profile, quietly, and says where it is (the Audio profile screen)", async () => {
     const positions: { key: string; positionMs: number }[] = [];
     rig.audio.on("preview-position", (at) => positions.push(at));
@@ -756,7 +769,9 @@ describe("volume normalisation: what the players hear and what the game master c
     await rig.advance(1);
     expect(state().preview).toMatchObject({ key: "m2", gainDb: 6 });
     expect(rig.hearPreview()).toBeCloseTo(1.995, 2);
-    // Previewed from the playlist (its row, or a track on its page): the playlist's Off applies, as on air.
+    // Previewed from the playlist (its row, or a track on its page): the playlist's Off applies, as on air. (Pressed
+    // while m2 previews, that button is Stop preview, so the preview is stopped first.)
+    rig.audio.stopPreview();
     rig.audio.previewTrack("m2", { playlistId: "P" });
     await rig.advance(1);
     expect(state().preview).toMatchObject({ gainDb: 0 });

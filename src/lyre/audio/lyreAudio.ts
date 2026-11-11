@@ -341,8 +341,8 @@ export interface LyreAudio {
 
   // ----- preview: the game master's headphones only, never on air -----
   /**
-   * Start previewing, or stop if this one is previewing (the Preview button). With options (the Audio profile
-   * screen) it always starts, from that point and with that profile.
+   * Start previewing, or stop if this one is previewing (the Preview button). Given a point, a profile (the Audio
+   * profile screen) or another file (Find missing files) it always starts, from that point and with that profile.
    */
   previewTrack(trackId: string, options?: PreviewTrackOptions): CueOutcome;
   previewPlaylist(playlistId: string, options?: PreviewFrom): CueOutcome;
@@ -742,7 +742,10 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
 
   previewTrack(trackId: string, options?: PreviewTrackOptions): CueOutcome {
     const preview = this.parts.preview;
-    if (!options && preview.isPreviewing(trackId)) {
+    // Where it was started from or the playlist it is in (every screen passes `from`) is no reason to start again:
+    // only a point, a profile or another file is (Nik, 0.5.0: Stop preview started the track again).
+    const startsAnew = options?.startAtMs !== undefined || options?.profile !== undefined || options?.file !== undefined;
+    if (!startsAnew && preview.isPreviewing(trackId)) {
       preview.stop();
       return OK;
     }
