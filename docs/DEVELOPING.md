@@ -84,7 +84,7 @@ yarn e2e                                 # on Linux without a desktop: xvfb-run 
 yarn e2e playlists                       # one spec file (file names are listed in docs/testing.md)
 ```
 
-Rebuild the package after any change under `src/`; changes to `e2e/` need no rebuild.
+Rebuild the package after any change under `src/`; changes to `e2e/` need no rebuild. `yarn package:test` does this for you: it packages only when the app's code changed since the last test package, and `yarn affected` lists the tests a change needs (docs/testing.md > Only what a change needs).
 
 - `e2e/fixtures/app.ts` starts the app with a new empty data folder (`CUE_DESK_USER_DATA_DIR`, which also skips the Kenku FM carry-over; only test builds read it, release builds ignore it) and finds pages by title (`Lyre`, `Lyre Player`, `Audio Capture`). New specs import `test` and `expect` from it. `launchApp` starts further copies, for tests that restart the app (same data folder by default, or `{ userDataDir: null, env: { XDG_CONFIG_HOME } }` for the normal folder under a private appData).
 - After every test the fixture fails the test if anything went wrong while the app ran (`e2e/fixtures/problems.ts`): an uncaught page error, a console error in any page, a main-process crash, a Content-Security-Policy refusal or an "Ignored a … message" from the IPC guard. A test that causes a console error on purpose lists it in `errors.ignoredConsole`.
