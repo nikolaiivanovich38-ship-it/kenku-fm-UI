@@ -312,3 +312,15 @@ test.describe("round 7: mix out and playing from a marker", () => {
     await expect(page.getByRole("region", { name: "Now playing" }).getByRole("group", { name: "On air", exact: true })).toContainText(/3:1\d \//);
   });
 });
+
+/* 0.5.0 usability review (UX-R3): round 6's cuts on the Audio profile, as the prototype shows them. */
+test.describe("round 6 cuts on the Audio profile", () => {
+  test("UX-R3: no badge beside This track everywhere; the key legend shows only while the keyboard is in the waveform box", async ({ page }) => {
+    await openRoute(page, "profile/t13");
+    await expect(page.getByText("Editing the track's own settings")).toHaveCount(0);
+    const legend = wave(page).getByText(/play, Start, End, loop, marker, playhead/);
+    await expect(legend).toBeHidden();
+    await handle(page, "Playhead").focus();
+    await expect(legend).toBeVisible();
+  });
+});

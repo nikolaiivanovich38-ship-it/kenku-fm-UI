@@ -706,3 +706,19 @@ test.describe("round 7, part 2: focus through a redraw", () => {
     await expect(page.getByRole("heading", { level: 1 })).toBeFocused();
   });
 });
+
+/* 0.5.0 usability review (UX-R3): round 6's cuts, as the prototype shows them. */
+test.describe("round 6 cuts on the campaign screens", () => {
+  test("UX-R3: Campaigns has no count and no theme names on the cards; an open campaign's boxes count nothing", async ({ page }) => {
+    await openRoute(page, "campaigns");
+    await expect(page.getByRole("article")).toHaveCount(3);
+    await expect(page.getByText("3 campaigns")).toHaveCount(0);
+    await expect(page.getByRole("article", { name: "The Sunken Crown" })).not.toContainText("Hearth and Iron");
+    await openRoute(page, "campaign/crown");
+    const head = (name: string) => region(page, name).locator("header");
+    await expect(head("Sessions")).not.toContainText("4 sessions");
+    await expect(head("Sessions")).not.toContainText("Next:");
+    await expect(head("Notes")).not.toContainText("Empty");
+    await expect(head("Campaign playlists")).not.toContainText(/\d/);
+  });
+});

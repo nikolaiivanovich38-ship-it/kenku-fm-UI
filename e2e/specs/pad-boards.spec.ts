@@ -376,3 +376,16 @@ test.describe("round 7: what a pad does", () => {
     await expect(page.getByRole("status").filter({ hasText: "Saved: what Thunder crack does" })).toBeVisible();
   });
 });
+
+/* 0.5.0 usability review (UX-R3): round 6's cuts on a board, as the prototype shows them. */
+test.describe("round 6 cuts on a pad board", () => {
+  test("UX-R3: the open Pads box shows the size only on its buttons, and its key how-to only while the keyboard is in it", async ({ page }) => {
+    await openRoute(page, "board/weather");
+    const pads = page.getByRole("region", { name: "Pads", exact: true });
+    await expect(pads.locator("header")).not.toContainText("4 × 2");
+    const help = page.getByText(/^Drag to swap pads\. Keys:/);
+    await expect(help).toBeHidden();
+    await padGrid(page).getByRole("button").first().focus();
+    await expect(help).toBeVisible();
+  });
+});

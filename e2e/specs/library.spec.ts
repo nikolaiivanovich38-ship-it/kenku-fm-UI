@@ -453,3 +453,16 @@ test.describe("round 7: dragging selected tracks to another list", () => {
     await expect(page.getByRole("status").filter({ hasText: /^Saved: The Abbess · 2 tracks added/ })).toBeVisible();
   });
 });
+
+/* 0.5.0 usability review (UX-R3): round 6's cuts on the Library, as the prototype shows them. */
+test.describe("round 6 cuts on the Library", () => {
+  test("UX-R3: a track's details repeat neither its title in the header nor Manual on its playlists, and say nothing of names it has none of", async ({ page }) => {
+    await openRoute(page, "library/t21");
+    const d = page.getByRole("region", { name: "Details", exact: true });
+    await expect(d.getByRole("textbox", { name: "Your title" })).toBeVisible();
+    await expect(d.locator(".pane-summary")).toHaveText("");
+    await expect(d).not.toContainText("Names in scenes");
+    await expect(d.getByText("Manual", { exact: true })).toHaveCount(0);
+    await expect(d.getByText("Dynamic", { exact: true }).first()).toBeVisible();
+  });
+});
