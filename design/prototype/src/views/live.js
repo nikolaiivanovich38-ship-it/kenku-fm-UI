@@ -239,7 +239,7 @@
   function softUndo(text, restore, where, focus, items) { S.undo = null; S.undo2 = { text: text, restore: restore, where: where, focus: focus || '', at: Date.now(), until: Date.now() + UNDO_MS, items: items || null }; }
   function undoStrip(where) {
     var u = S.undo2; if (!u || u.where !== where) return '';
-    return '<div class="lv-undo lv-undo2" role="status"><span class="ellipsis grow">' + esc(u.text) + '</span>' +
+    return '<div class="lv-undo lv-undo2" role="group" aria-label="Undo"><span class="ellipsis grow">' + esc(u.text) + '</span>' +
       '<button class="btn s" data-act="lvundo2" data-k="lv-undo2" aria-keyshortcuts="Control+Z" title="Undo (Ctrl+Z)">' + L.icon('undo', 's') + '<span class="ellipsis">Undo</span></button>' +
       '<span class="lv-undo-bar" aria-hidden="true"><span data-undo2-left style="width:100%"></span></span></div>';
   }
@@ -604,7 +604,7 @@
     var short = compact && !S.allScenes && s.scenes.length > 2, u = S.undo;
     var body = '<div class="lv-sc-top"><button class="btn primary lv-nextsc" data-act="lvnext" data-k="lv-nextsc"' + (n ? '' : ' aria-disabled="true"') + (n && S.keys1 ? ' aria-keyshortcuts="Space"' : '') + ' title="' + (n ? 'Start ' + esc(n.name) + (S.keys1 ? ' (Space)' : '') + (rooms().length > 1 ? '. Scenes always play in ' + esc(rooms()[0].name) : '') : 'That was the last scene') + '">' +
       L.icon('next', 's') + '<span class="ellipsis">' + (n ? (S.notStarted ? 'Start: ' : 'Next scene: ') + esc(n.name) : 'No more scenes') + '</span>' + (n && S.keys1 ? '<span class="kbd" aria-hidden="true">Space</span>' : '') + '</button>' +
-      (u ? '<div class="lv-undo" role="status"><span class="ellipsis grow">Started <b>' + esc(u.started) + '</b></span>' +
+      (u ? '<div class="lv-undo" role="group" aria-label="Undo"><span class="ellipsis grow">Started <b>' + esc(u.started) + '</b></span>' +
         '<button class="btn s" data-act="lvundo" data-k="lv-undo" aria-keyshortcuts="Control+Z" title="Go back to ' + esc(u.label) + ', with its music and ambience (Ctrl+Z)">' + L.icon('undo', 's') + '<span class="ellipsis">Undo</span></button>' +
         '<span class="lv-undo-bar" aria-hidden="true"><span data-undo-left style="width:100%"></span></span></div>' : '') + '</div>' +
       '<ol class="lv-scenes">' + s.scenes.map(function (sc, i) {

@@ -44,4 +44,14 @@ describe("one pop-up for the same save (merge and timing)", () => {
     expect(rules.show("saved:x", 1400).readOut).toBe(false);
     expect(rules.show("saved:y", 1600).readOut).toBe(true);
   });
+
+  it("UX-R6: an announcement within half a second of a pop-up that was read out is not spoken too", () => {
+    const rules = new NoteRules();
+    rules.show("saved:repeat", 1000);
+    expect(rules.said(1030)).toBe(false);
+    expect(rules.said(1600)).toBe(true);
+    // A pop-up that was not read out (a refresh) does not quiet the next announcement.
+    rules.show("saved:repeat", 1700);
+    expect(rules.said(1730)).toBe(true);
+  });
 });

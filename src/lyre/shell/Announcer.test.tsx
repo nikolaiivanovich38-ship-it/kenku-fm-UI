@@ -110,6 +110,21 @@ describe("the Saved pop-up (UX-19, round 6 part 5)", () => {
     expect(screen.getByRole("status")).toHaveAttribute("aria-live", "off");
   });
 
+  it("UX-R6: an announcement right after the pop-up was read out is not spoken as well (one event, one message)", () => {
+    renderSaver();
+    const live = document.getElementById("lyre-live")!;
+    press("Save notes");
+    expect(screen.getByRole("status")).toHaveAttribute("aria-live", "polite");
+    press("Say");
+    act(() => vi.advanceTimersByTime(40));
+    expect(live).toHaveTextContent("");
+    // Later, an announcement of something else is spoken.
+    act(() => vi.advanceTimersByTime(600));
+    press("Say");
+    act(() => vi.advanceTimersByTime(40));
+    expect(live).toHaveTextContent("Repeat one on");
+  });
+
   it("never takes focus", () => {
     renderSaver();
     const notes = screen.getByRole("textbox", { name: "Campaign notes" });

@@ -201,7 +201,9 @@ describe("scenes and undo", () => {
     await startAbbey();
     await userEvent.click(screen.getByRole("button", { name: "Next scene: Crypt ambush" }));
     await playOn(sound);
-    expect(region("Scenes").getByRole("status")).toHaveTextContent("Started Crypt ambush");
+    // UX-R6: the strip is a group named Undo, not a status: the live region alone reads the change out.
+    expect(region("Scenes").queryByRole("status")).toBeNull();
+    expect(region("Scenes").getByRole("group", { name: "Undo" })).toHaveTextContent("Started Crypt ambush");
     blur();
     press("z", { ctrlKey: true });
     await playOn(sound);
@@ -598,11 +600,16 @@ describe("Current scene: choosing what plays", () => {
     await playOn(sound);
     const one = current().getByRole("button", { name: `Repeat one: ${eerie}` });
     expect(one).toHaveAttribute("aria-pressed", "false");
+    // A moment after the scene's own announcement, as a person would press it.
+    await new Promise((r) => setTimeout(r, 600));
     await userEvent.click(one);
     await waitFor(async () => expect((await api.campaigns.get("crown"))?.sessions.find((s) => s.id === "s14")?.scenes[2].repeatOnes).toContain("t13"));
     await waitFor(() => expect(current().getByRole("button", { name: `Repeat one: ${eerie}` })).toHaveAttribute("aria-pressed", "true"));
     await waitFor(() => expect(screen.getAllByRole("status").some((st) => st.textContent?.includes("Saved: Repeat one in The abbey ruins"))).toBe(true));
     await waitFor(() => expect(room("Table").getByRole("button", { name: /^Repeat: / })).toHaveAccessibleName("Repeat: one"));
+    // UX-R6: one event, one message: the pop-up is read out, the live region does not say it again.
+    await new Promise((r) => setTimeout(r, 80));
+    expect(document.getElementById("lyre-live")).not.toHaveTextContent("Repeat one on");
   });
 });
 
@@ -630,7 +637,7 @@ describe("PLY-16: Play next, Add to queue and Up next", () => {
     await userEvent.click(within(added).getByRole("button", { name: `Remove ${shanty} from Up next` }));
     expect(upNext().queryAllByRole("listitem").filter((li) => li.textContent?.includes(`Added: ${shanty}`))).toHaveLength(0);
     await userEvent.click(current().getByRole("button", { name: "Add to queue: The Abbess" }));
-    expect(room("Table").getByRole("status")).toHaveTextContent("Added to the queue: The Abbess");
+    expect(room("Table").getByRole("group", { name: "Undo" })).toHaveTextContent("Added to the queue: The Abbess");
     blur();
     press("z", { ctrlKey: true });
     expect(upNext().queryByText("The Abbess")).toBeNull();
@@ -851,7 +858,7 @@ describe("rooms", () => {
     await playOn(sound);
     await userEvent.click(screen.getByRole("button", { name: "Kick Lyre Table from Table" }));
     await act(async () => outputs.settle());
-    const strip = within(screen.getByRole("region", { name: "On air" })).getAllByRole("status").find((st) => st.textContent?.includes("Lyre Table left Table"))!;
+    const strip = within(screen.getByRole("region", { name: "On air" })).getAllByRole("group", { name: "Undo" }).find((st) => st.textContent?.includes("Lyre Table left Table"))!;
     await userEvent.click(within(strip).getByRole("button", { name: "Undo" }));
     await act(async () => outputs.settle());
     await playOn(sound);

@@ -772,8 +772,9 @@ var L = (function () {
   /* ---------- announcements ---------- */
   // Could 14 of the round 6 review: one event is announced once. A toast that follows an announcement of the same
   // event (within half a second) is shown but not read out again.
-  var saidAt = 0;
-  L.say = function (msg) { saidAt = Date.now(); var r = document.getElementById('lyre-live'); if (r) { r.textContent = ''; setTimeout(function () { r.textContent = msg; }, 30); } };
+  var saidAt = 0, readAt = 0;
+  // UX-R6 (0.5.0 review): an announcement within half a second of a note read out is the same event: not spoken again.
+  L.say = function (msg) { if (Date.now() - readAt < 500) return; saidAt = Date.now(); var r = document.getElementById('lyre-live'); if (r) { r.textContent = ''; setTimeout(function () { r.textContent = msg; }, 30); } };
   /* Round 6, part 5: one pop-up for the whole app (ROUND6.md "Part 5: the Saved pop-up"). Nik, 6 Nov 16:14: "little
      pop ups somewhere unobtrusive but noticeable as a consistent design standard indicating something has been saved".
        L.saved(what, { key, detail })  "Saved: <what>" (" · <detail>" after it when given). key: what was saved (default
@@ -811,7 +812,7 @@ var L = (function () {
     // Could 14 of the round 6 review: a note that follows an announcement of the same event (within half a second) is
     // shown but not read out again; a refresh of the same save within 2 s is not read out again either.
     var quiet = same || now - saidAt < 500;
-    t.setAttribute('aria-live', quiet ? 'off' : 'polite');
+    t.setAttribute('aria-live', quiet ? 'off' : 'polite'); if (!quiet) readAt = now;
     if (!same || t.textContent !== text) {
       t.className = 'toast' + (o.saved ? ' t-saved' : '');
       t.innerHTML = (o.saved ? L.icon('check', 's') : '') + '<span>' + (o.saved ? '<b>Saved:</b> ' + esc(text.replace(/^Saved: /, '')) : esc(text)) + '</span>';

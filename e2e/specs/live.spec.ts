@@ -72,7 +72,8 @@ test.describe("scenes and undo", () => {
     await openRoute(page, "live");
     await startAbbey(page);
     await page.getByRole("button", { name: "Next scene: Crypt ambush" }).click();
-    await expect(region(page, "Scenes").getByRole("status")).toContainText("Started Crypt ambush");
+    // UX-R6 (0.5.0 review): the strip is a group named Undo; only the hidden live region reads the change out.
+    await expect(region(page, "Scenes").getByRole("group", { name: "Undo" })).toContainText("Started Crypt ambush");
     await expect(page.getByRole("button", { name: "Undo" })).toBeVisible();
     await clickAway(page);
     await page.keyboard.press("Control+z");
@@ -659,7 +660,7 @@ test.describe("round 6: see a scene before it starts, Add to queue, Repeat, and 
     await sceneMusic(page).getByRole("button", { name: "Add to queue: The Abbess" }).click();
     const table = room(page, "Table");
     await expect(table.getByRole("list", { name: "Up next" })).toContainText("Added: The Abbess");
-    await expect(table.getByRole("status").filter({ hasText: "Added to the queue: The Abbess" })).toBeVisible();
+    await expect(table.getByRole("group", { name: "Undo" }).filter({ hasText: "Added to the queue: The Abbess" })).toBeVisible();
     await clickAway(page);
     await page.keyboard.press("Control+z");
     await expect(table.getByRole("list", { name: "Up next" })).not.toContainText("Added: The Abbess");
@@ -723,7 +724,7 @@ test.describe("round 6: see a scene before it starts, Add to queue, Repeat, and 
     await page.getByRole("button", { name: "Kick Lyre Table from Table" }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(room(page, "Table")).toHaveCount(0);
-    await page.getByRole("status").filter({ hasText: "Lyre Table left Table" }).getByRole("button", { name: "Undo" }).click();
+    await page.getByRole("group", { name: "Undo" }).filter({ hasText: "Lyre Table left Table" }).getByRole("button", { name: "Undo" }).click();
     await expect(room(page, "Table").getByText("Playing")).toBeVisible({ timeout: 5000 });
   });
 

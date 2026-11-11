@@ -65,7 +65,8 @@ export function AnnouncerProvider({ children }: { children: React.ReactNode }) {
   const beforeCard = useRef<HTMLElement | null>(null);
 
   const say = useCallback((text: string) => {
-    rules.current.said(Date.now());
+    // UX-R6: the pop-up just read out the same event; saying it again would be a second message.
+    if (!rules.current.said(Date.now())) return;
     setSpoken("");
     clearTimeout(timers.current.say);
     timers.current.say = setTimeout(() => setSpoken(text), SAY_DELAY_MS);

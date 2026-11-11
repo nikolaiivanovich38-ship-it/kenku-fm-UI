@@ -3555,8 +3555,9 @@ var L = (function () {
   /* ---------- announcements ---------- */
   // Could 14 of the round 6 review: one event is announced once. A toast that follows an announcement of the same
   // event (within half a second) is shown but not read out again.
-  var saidAt = 0;
-  L.say = function (msg) { saidAt = Date.now(); var r = document.getElementById('lyre-live'); if (r) { r.textContent = ''; setTimeout(function () { r.textContent = msg; }, 30); } };
+  var saidAt = 0, readAt = 0;
+  // UX-R6 (0.5.0 review): an announcement within half a second of a note read out is the same event: not spoken again.
+  L.say = function (msg) { if (Date.now() - readAt < 500) return; saidAt = Date.now(); var r = document.getElementById('lyre-live'); if (r) { r.textContent = ''; setTimeout(function () { r.textContent = msg; }, 30); } };
   /* Round 6, part 5: one pop-up for the whole app (ROUND6.md "Part 5: the Saved pop-up"). Nik, 6 Nov 16:14: "little
      pop ups somewhere unobtrusive but noticeable as a consistent design standard indicating something has been saved".
        L.saved(what, { key, detail })  "Saved: <what>" (" · <detail>" after it when given). key: what was saved (default
@@ -3594,7 +3595,7 @@ var L = (function () {
     // Could 14 of the round 6 review: a note that follows an announcement of the same event (within half a second) is
     // shown but not read out again; a refresh of the same save within 2 s is not read out again either.
     var quiet = same || now - saidAt < 500;
-    t.setAttribute('aria-live', quiet ? 'off' : 'polite');
+    t.setAttribute('aria-live', quiet ? 'off' : 'polite'); if (!quiet) readAt = now;
     if (!same || t.textContent !== text) {
       t.className = 'toast' + (o.saved ? ' t-saved' : '');
       t.innerHTML = (o.saved ? L.icon('check', 's') : '') + '<span>' + (o.saved ? '<b>Saved:</b> ' + esc(text.replace(/^Saved: /, '')) : esc(text)) + '</span>';
@@ -9250,7 +9251,7 @@ var L = (function () {
   function softUndo(text, restore, where, focus, items) { S.undo = null; S.undo2 = { text: text, restore: restore, where: where, focus: focus || '', at: Date.now(), until: Date.now() + UNDO_MS, items: items || null }; }
   function undoStrip(where) {
     var u = S.undo2; if (!u || u.where !== where) return '';
-    return '<div class="lv-undo lv-undo2" role="status"><span class="ellipsis grow">' + esc(u.text) + '</span>' +
+    return '<div class="lv-undo lv-undo2" role="group" aria-label="Undo"><span class="ellipsis grow">' + esc(u.text) + '</span>' +
       '<button class="btn s" data-act="lvundo2" data-k="lv-undo2" aria-keyshortcuts="Control+Z" title="Undo (Ctrl+Z)">' + L.icon('undo', 's') + '<span class="ellipsis">Undo</span></button>' +
       '<span class="lv-undo-bar" aria-hidden="true"><span data-undo2-left style="width:100%"></span></span></div>';
   }
@@ -9615,7 +9616,7 @@ var L = (function () {
     var short = compact && !S.allScenes && s.scenes.length > 2, u = S.undo;
     var body = '<div class="lv-sc-top"><button class="btn primary lv-nextsc" data-act="lvnext" data-k="lv-nextsc"' + (n ? '' : ' aria-disabled="true"') + (n && S.keys1 ? ' aria-keyshortcuts="Space"' : '') + ' title="' + (n ? 'Start ' + esc(n.name) + (S.keys1 ? ' (Space)' : '') + (rooms().length > 1 ? '. Scenes always play in ' + esc(rooms()[0].name) : '') : 'That was the last scene') + '">' +
       L.icon('next', 's') + '<span class="ellipsis">' + (n ? (S.notStarted ? 'Start: ' : 'Next scene: ') + esc(n.name) : 'No more scenes') + '</span>' + (n && S.keys1 ? '<span class="kbd" aria-hidden="true">Space</span>' : '') + '</button>' +
-      (u ? '<div class="lv-undo" role="status"><span class="ellipsis grow">Started <b>' + esc(u.started) + '</b></span>' +
+      (u ? '<div class="lv-undo" role="group" aria-label="Undo"><span class="ellipsis grow">Started <b>' + esc(u.started) + '</b></span>' +
         '<button class="btn s" data-act="lvundo" data-k="lv-undo" aria-keyshortcuts="Control+Z" title="Go back to ' + esc(u.label) + ', with its music and ambience (Ctrl+Z)">' + L.icon('undo', 's') + '<span class="ellipsis">Undo</span></button>' +
         '<span class="lv-undo-bar" aria-hidden="true"><span data-undo-left style="width:100%"></span></span></div>' : '') + '</div>' +
       '<ol class="lv-scenes">' + s.scenes.map(function (sc, i) {
