@@ -41,12 +41,12 @@ test("a Kenku FM user upgrading straight to 0.5.1 finds the playlists, the bot l
   const second = await launchApp({ env: FAKE_DISCORD_ENV });
   const lyre = await openLyreTab(await second.mainWindow());
   await expect.poll(async () => (await lyreCall<{ name: string }[]>(lyre, "playlists", "list")).map((p) => p.name), { timeout: 15_000 }).toContain("Old tavern");
-  // The moved token logs its bot in without anyone pressing Connect.
+  // The moved token logs its bot in without anyone pressing Connect ("ready" is a logged-in bot, src/common/outputs.ts).
   await expect
     .poll(async () => (await lyre.evaluate(() => (window as unknown as { lyre: { outputs: { get(): Promise<{ bots: { login: string }[] }> } } }).lyre.outputs.get())).bots.map((b) => b.login), {
       timeout: 15_000,
     })
-    .toContain("connected");
+    .toContain("ready");
   // Sound to Discord keeps the old window's choice.
   expect((await lyreCall<{ streamingMode: string }>(lyre, "settings", "get")).streamingMode).toBe("lowLatency");
 
