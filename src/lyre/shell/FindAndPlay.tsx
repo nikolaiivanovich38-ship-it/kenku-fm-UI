@@ -60,13 +60,27 @@ function Palette({ onClose }: { onClose: (refocus: boolean) => void }) {
   const tracks = useTracks().data;
   const titles = useMemo(() => new Map((tracks ?? []).map((t) => [t.id, { title: shownTitle(t), kind: t.kind }])), [tracks]);
   const [text, setText] = useState("");
-  const [items, setItems] = useState<FoundItem[]>([]);
+  const [items, setItemsNow] = useState<FoundItem[]>([]);
+  const [active, setActiveNow] = useState(0);
+  /**
+   * The results and the chosen one as they are now, for a key pressed before the screen has drawn them: a key
+   * handler of the drawing before would still hold the results of the text before.
+   */
+  const itemsNow = useRef<FoundItem[]>([]);
+  const activeNow = useRef(0);
+  const setItems = (list: FoundItem[]) => {
+    itemsNow.current = list;
+    setItemsNow(list);
+  };
+  const setActive = (at: number | ((was: number) => number)) => {
+    activeNow.current = typeof at === "function" ? at(activeNow.current) : at;
+    setActiveNow(activeNow.current);
+  };
   /** The text the listed items were found for; a key pressed before the answer to the newest text waits for it. */
   const answered = useRef("");
   const waiting = useRef<FindAction | null>(null);
   /** `run` as drawn last, for an answer that arrives after a key. */
   const runLater = useRef<(action: FindAction, at: number, list: FoundItem[]) => void>(() => undefined);
-  const [active, setActive] = useState(0);
   const field = useRef<HTMLInputElement>(null);
   const box = useRef<HTMLDivElement>(null);
   const id = useId();
@@ -104,7 +118,7 @@ function Palette({ onClose }: { onClose: (refocus: boolean) => void }) {
     };
   }, [api, text, titles, live]);
 
-  function run(action: FindAction, at = active, list = items) {
+  function run(action: FindAction, at = activeNow.current, list = itemsNow.current) {
     const item = list[at];
     if (!item || !canDo(item, action)) return;
     onClose(action !== "open");
@@ -158,8 +172,9 @@ function Palette({ onClose }: { onClose: (refocus: boolean) => void }) {
     const action = event.target === field.current ? actionOfKey(event) : null;
     if (action) {
       event.preventDefault();
-      // Typed fast and pressed at once: the answer for what is typed now is still on its way.
-      if (answered.current !== text.trim()) waiting.current = action;
+      // Typed fast and pressed at once: the answer for what is typed now is still on its way. The field itself says
+      // what is typed (the screen may not have drawn the newest text yet).
+      if (answered.current !== (field.current?.value ?? text).trim()) waiting.current = action;
       else run(action);
       return;
     }
