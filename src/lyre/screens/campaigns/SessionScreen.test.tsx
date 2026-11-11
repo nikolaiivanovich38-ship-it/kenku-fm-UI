@@ -300,6 +300,46 @@ describe("scenes", () => {
     await waitFor(async () => expect((await s14(api)).scenes[3].name).toBe("Bells at midnight"));
   });
 
+  it("0.5.1: with no scene open or focused, Add scene adds at the end", async () => {
+    const { api } = openAt("session/crown/s14");
+    await userEvent.click(await screen.findByRole("button", { name: "Add scene" }));
+    await waitFor(() => expect(sceneCards()).toHaveLength(7));
+    expect(sceneCards()[6]).toHaveAccessibleName("Scene 7: Scene 7");
+    expect(screen.getByDisplayValue("Scene 7")).toHaveFocus();
+    await waitFor(async () => expect((await s14(api)).scenes).toHaveLength(7));
+    expect((await s14(api)).scenes.slice(0, 6).map((x) => x.id)).toEqual(["sc1", "sc2", "sc3", "sc4", "sc5", "sc6"]);
+  });
+
+  it("0.5.1: with a scene focused (folded), Add scene adds right after it", async () => {
+    openAt("session/crown/s14");
+    (await screen.findByRole("button", { name: "Scene 2: Greyhollow inn" })).focus();
+    await userEvent.click(screen.getByRole("button", { name: "Add scene" }));
+    await waitFor(() => expect(sceneCards()).toHaveLength(7));
+    expect(sceneCards()[2]).toHaveAccessibleName("Scene 3: Scene 3");
+  });
+
+  it("0.5.1: with a scene open, Add scene adds right after it even once focus has moved on", async () => {
+    openAt("session/crown/s14");
+    await userEvent.click(await screen.findByRole("button", { name: "Scene 5: The Abbess" }));
+    await userEvent.click(main().getByRole("heading", { level: 1 }));
+    act(() => (document.activeElement as HTMLElement | null)?.blur());
+    await userEvent.click(screen.getByRole("button", { name: "Add scene" }));
+    await waitFor(() => expect(sceneCards()).toHaveLength(7));
+    expect(sceneCards()[5]).toHaveAccessibleName("Scene 6: Scene 6");
+  });
+
+  it("0.5.1: a scene worked on, then folded and left, is no longer selected: Add scene adds at the end", async () => {
+    openAt("session/crown/s14");
+    const abbess = await screen.findByRole("button", { name: "Scene 5: The Abbess" });
+    await userEvent.click(abbess);
+    await userEvent.click(abbess);
+    act(() => (document.activeElement as HTMLElement | null)?.blur());
+    await userEvent.click(main().getByRole("heading", { level: 1 }));
+    await userEvent.click(screen.getByRole("button", { name: "Add scene" }));
+    await waitFor(() => expect(sceneCards()).toHaveLength(7));
+    expect(sceneCards()[6]).toHaveAccessibleName("Scene 7: Scene 7");
+  });
+
   it("duplicates a scene after itself", async () => {
     openAt("session/crown/s14");
     await userEvent.click(await screen.findByRole("button", { name: "More for The Abbess" }));

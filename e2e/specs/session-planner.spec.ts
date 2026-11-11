@@ -4,7 +4,7 @@
  * has mixed music (track, playlist, track, playlist), an ambience playlist and two pad boards.
  */
 import type { Locator, Page } from "@playwright/test";
-import { expect, test, expectFailureUntilBuilt, expectFailureUntilScreenBuilt } from "./support/test";
+import { appOnly, expect, test, expectFailureUntilBuilt, expectFailureUntilScreenBuilt } from "./support/test";
 import { openRoute } from "./support/target";
 import { dropFiles } from "./support/drop";
 
@@ -328,7 +328,7 @@ test.describe("scenes", () => {
     await expect(rows.nth(2)).toHaveAccessibleName("Scene 3: Recap and the coast road");
   });
 
-  test("Add scene adds a scene after the current one and puts the cursor in its name", async ({ page }) => {
+  test("Add scene adds a scene and puts the cursor in its name", async ({ page }) => {
     await openRoute(page, "session/crown/s14");
     await page.getByRole("button", { name: "Add scene" }).click();
     await expect(page.getByRole("list", { name: "Scenes in order" }).getByRole("listitem")).toHaveCount(7);
@@ -628,5 +628,23 @@ test.describe("round 7: what a scene does when it starts", () => {
     await dialog(page).getByRole("button", { name: "Try in headphones" }).click();
     await dialog(page).getByRole("button", { name: "Done" }).click();
     await expect(page.getByRole("region", { name: "Now playing" }).getByRole("group", { name: /^Only you/ })).toBeVisible();
+  });
+});
+
+/* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round (support/test.ts appOnly). */
+test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
+  const scenes = (page: Page) => page.getByRole("list", { name: "Scenes in order" }).getByRole("listitem");
+
+  test("Add scene goes at the end with no scene selected, and right after the scene selected", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "session/crown/s14");
+    await page.getByRole("button", { name: "Add scene" }).click();
+    await expect(scenes(page)).toHaveCount(7);
+    await expect(scenes(page).nth(6)).toHaveAccessibleName("Scene 7: Scene 7");
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Scene 2: Greyhollow inn" }).click();
+    await page.getByRole("button", { name: "Add scene" }).click();
+    await expect(scenes(page)).toHaveCount(8);
+    await expect(scenes(page).nth(2)).toHaveAccessibleName("Scene 3: Scene 3");
   });
 });
