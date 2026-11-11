@@ -83,6 +83,21 @@ describe("Dialog: a modal sheet for prep screens", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("moves focus in and back without scrolling: the screen behind stays where it was (UX-18)", async () => {
+    const user = userEvent.setup();
+    const focus = vi.spyOn(HTMLElement.prototype, "focus");
+    try {
+      render(<WithDialog onClose={() => undefined} />);
+      await user.click(screen.getByRole("button", { name: "New campaign" }));
+      await user.keyboard("{Escape}");
+      const own = focus.mock.calls.filter((call) => call.length > 0);
+      expect(own.length).toBeGreaterThanOrEqual(2);
+      for (const [options] of own) expect(options).toEqual({ preventScroll: true });
+    } finally {
+      focus.mockRestore();
+    }
+  });
+
   it("UX-R1: with nothing to press in its body, focus goes to its first button (Close)", async () => {
     render(
       <Dialog open title="Nothing here" onClose={() => undefined}>

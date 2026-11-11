@@ -121,6 +121,8 @@ const SCREENS: Screen[] = [
     route: "relink",
     prepare: async (page) => {
       await page.getByRole("button", { name: "Look there" }).click();
+      // "After looking": what Lyre found is on the screen (under load the answer can come after the sweep has begun).
+      await expect(page.getByRole("button", { name: /^Relink \d+ files?$/ })).toBeVisible();
     },
   },
 ];

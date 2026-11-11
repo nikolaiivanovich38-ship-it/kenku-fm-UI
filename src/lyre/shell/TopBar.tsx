@@ -141,8 +141,13 @@ export function takeBackOpen(path: string): string | null {
 }
 
 /**
- * Puts a place back as it was: each scrolling box at its position once it is tall enough again, and focus on the
- * control used to leave once it is there. Gives up after a few seconds (the place may have changed since).
+ * Puts a place back as it was: each scrolling box at its position, and focus on the control used to leave once it is
+ * there. Gives up after a few seconds (the place may have changed since).
+ *
+ * A screen is drawn again in steps (its rows first, their tags a moment later), so a box may come back shorter than it
+ * was. It is put as far down as it reaches now, and further each time it grows, until it is where Nik left it: a box
+ * left at its very end stays at its end, never back at the top (0.5.0 release pass, campaigns.spec "the same scroll
+ * position").
  */
 function restorePlace(place: Place): () => void {
   const scrolls = Object.entries(place.scrolls);
@@ -154,7 +159,9 @@ function restorePlace(place: Place): () => void {
     if (!root || stopped) return;
     for (const [key, top] of scrolls) {
       const box = findScroller(key, root);
-      if (box && Math.abs(box.scrollTop - top) > 1 && box.scrollHeight - box.clientHeight >= top - 1) box.scrollTop = top;
+      if (!box) continue;
+      const reach = Math.min(top, Math.max(0, box.scrollHeight - box.clientHeight));
+      if (Math.abs(box.scrollTop - reach) > 1) box.scrollTop = reach;
     }
   };
   const putFocus = () => {

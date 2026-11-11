@@ -95,6 +95,26 @@ describe("the session page", () => {
     for (const box of ["Session playlists", "Session pads", "Campaign playlists"]) expect(screen.getByRole("region", { name: box }).querySelector("header")!.textContent).not.toMatch(/\d/);
   });
 
+  it("UX-18: comes back from Back drawn whole, its rows' tags too, so the scenes box is as tall as when it was left", async () => {
+    await openAbbey();
+    expect(await abbey().findByText(/^Tags: Dread/)).toBeInTheDocument();
+    go("playlists");
+    await screen.findByRole("heading", { level: 1, name: /Playlists/ });
+    // The first drawing of the scenes, as Back's scroll position is put back on it.
+    let first: string | null = null;
+    const watch = new MutationObserver(() => {
+      first ??= document.querySelector('#view [aria-label="Scenes in order"]')?.textContent ?? null;
+    });
+    watch.observe(document.body, { childList: true, subtree: true });
+    try {
+      await userEvent.click(main().getAllByRole("button", { name: /^Back to/ })[0]);
+      await screen.findByRole("list", { name: "Scenes in order" });
+    } finally {
+      watch.disconnect();
+    }
+    expect(first).toMatch(/Tags: Dread/);
+  });
+
   it("UX-R3 (round 6 cuts): the how-to lines under a scene's music and pad boards are the buttons' hover text", async () => {
     await openAbbey();
     const scene = screen.getByRole("listitem", { name: /^Scene \d+: The abbey ruins$/ });

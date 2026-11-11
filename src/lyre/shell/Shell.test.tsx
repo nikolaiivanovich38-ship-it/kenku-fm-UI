@@ -427,6 +427,51 @@ describe("Back and the trail (UX-18, round 6 parts 6 and 7)", () => {
     expect(reopened).toBe("sc3");
   });
 
+  it("a box left scrolled to its end comes back at its end, and at the very place once the rest of it is drawn", async () => {
+    // jsdom has no layout: each box here is as tall as its data-height, 400 px of it in view, scrolled where it was put.
+    const tops = new WeakMap<Element, number>();
+    const spies = [
+      vi.spyOn(HTMLElement.prototype, "scrollTop", "get").mockImplementation(function (this: HTMLElement) {
+        return tops.get(this) ?? 0;
+      }),
+      vi.spyOn(HTMLElement.prototype, "scrollTop", "set").mockImplementation(function (this: HTMLElement, top: number) {
+        const most = Math.max(0, Number(this.dataset.height ?? 0) - 400);
+        tops.set(this, Math.min(Math.max(0, top), most));
+      }),
+      vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(function (this: HTMLElement) {
+        return Number(this.dataset.height ?? 0);
+      }),
+      vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(function (this: HTMLElement) {
+        return this.dataset.height ? 400 : 0;
+      }),
+    ];
+    let height = 768;
+    function Planner() {
+      return (
+        <>
+          <PlaceholderScreen title="Campaigns" />
+          <div data-scroll="scenes" data-height={height} />
+        </>
+      );
+    }
+    try {
+      const user = userEvent.setup();
+      render(<Shell screens={{ ...SHELL_SCREENS, campaigns: Planner }} />);
+      const box = () => screen.getByRole("main").querySelector<HTMLElement>('[data-scroll="scenes"]')!;
+      box().scrollTop = 400;
+      expect(box().scrollTop).toBe(368);
+      await user.click(within(screen.getByRole("navigation", { name: "Lyre" })).getByRole("link", { name: "Playlists" }));
+      // The place comes back drawn without what arrives a moment later (the tags of its rows): a little shorter.
+      height = 750;
+      await user.click(back());
+      await vi.waitFor(() => expect(box().scrollTop).toBe(350));
+      act(() => box().setAttribute("data-height", "768"));
+      await vi.waitFor(() => expect(box().scrollTop).toBe(368));
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+    }
+  });
+
   it("shows the trail of a screen with parents right after Back, every part a link, the whole path on hover", () => {
     window.history.replaceState(null, "", "#/session/crown/s14");
     render(

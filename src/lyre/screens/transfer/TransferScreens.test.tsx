@@ -4,7 +4,7 @@
  * What came across from Kenku FM, and Find missing files (look, confirm, relink, Undo). Keyboard and axe as well.
  * The packaged app runs the same flows on real files in e2e/specs/library-files.spec.ts.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
@@ -168,6 +168,33 @@ describe("Find missing files", () => {
     await screen.findByRole("region", { name: "Look in a folder" });
     await user.click(screen.getByRole("button", { name: "Look there" }));
     await waitFor(() => expect(asked).toEqual(["folder"]));
+  });
+
+  it("while Lyre looks, Look there and Choose… keep their place in the Tab order and focus is not dropped to the page", async () => {
+    const { api } = openAt("relink", { folderFiles: { "E:\\Music\\Scores": ["07 The Storm.flac"] } });
+    const user = userEvent.setup();
+    const look = await screen.findByRole("region", { name: "Look in a folder" });
+    let answer: () => void = () => undefined;
+    const plan = api.import.planRelink.bind(api.import);
+    const asked = vi.spyOn(api.import, "planRelink").mockImplementation((source) => new Promise((done) => (answer = () => done(plan(source)))));
+    await user.type(within(look).getByRole("textbox", { name: "Look in this folder (and the folders inside it)" }), "E:\\Music\\Scores");
+    const lookThere = within(look).getByRole("button", { name: "Look there" });
+    await user.click(lookThere);
+    await waitFor(() => expect(asked).toHaveBeenCalledTimes(1));
+    // A disabled button that has focus drops it to the page in Chromium: these say they are busy instead.
+    for (const name of ["Look there", "Choose…"]) {
+      const button = within(look).getByRole("button", { name });
+      expect(button).toBeEnabled();
+      expect(button).toHaveAttribute("aria-disabled", "true");
+    }
+    expect(lookThere).toHaveFocus();
+    // Presses while busy do nothing; focus ends on Look there again, where the look started.
+    await user.click(within(look).getByRole("button", { name: "Choose…" }));
+    await user.click(lookThere);
+    expect(asked).toHaveBeenCalledTimes(1);
+    answer();
+    await waitFor(() => expect(within(look).getByRole("checkbox", { name: /^Relink Storm/ })).toHaveFocus());
+    expect(within(look).getByRole("button", { name: "Look there" })).not.toHaveAttribute("aria-disabled");
   });
 
   it("after Look there focus goes to Relink, unless the game master moved on meanwhile (the sweeps tab through)", async () => {
