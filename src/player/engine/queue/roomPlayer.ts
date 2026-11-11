@@ -289,6 +289,8 @@ export class RoomPlayer {
     if (direction === 1) {
       const { list, pick } = pickNext(this.list, this.planView(false), { ended: false, repeat: this.shownRepeat() });
       if (!pick) return false;
+      // CR-4: music that waited for this track's end, mix-out or loop end is called off.
+      this.cancelHandOver();
       this.list = list;
       this.startPick(pick, fadeSeconds);
       return true;
@@ -296,6 +298,7 @@ export class RoomPlayer {
     // From something added, Previous goes back to where the plan was.
     if (this.list.now.kind !== "plan" && this.list.ret !== null && this.plan) {
       const at = this.list.ret;
+      this.cancelHandOver();
       this.list = { ...this.list, now: { kind: "plan" }, ret: null, backToQueue: null };
       this.startPick({ from: "plan", at }, fadeSeconds);
       return true;
@@ -304,6 +307,7 @@ export class RoomPlayer {
     if (!play) {
       return false;
     }
+    this.cancelHandOver();
     this.music = lane;
     this.plan = play;
     this.startMusic(play, fadeSeconds);

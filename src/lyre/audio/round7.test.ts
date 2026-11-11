@@ -386,3 +386,28 @@ describe("CR-1 (review 0.5.0): Stop all and Fade all cancel everything waiting t
     expect(playing()).toBe("m5");
   });
 });
+
+describe("CR-4 (review 0.5.0): Next and Previous call off a scene's music that waits", () => {
+  for (const [direction, expected] of [["next", "m3"], ["previous", "m2"]] as const) {
+    it(`${direction} while the scene's music waits for the loop to end: the wait is cancelled`, async () => {
+      rig.data.tracks.push(testTrack("lp", 20, { profile: { after: "loop" } }));
+      rig.data.playlists.push({ id: "L", name: "Loop between", lane: "music", kind: "manual", trackIds: ["m2", "lp", "m3"] });
+      rig.audio.playPlaylist("L");
+      await rig.advance(1);
+      rig.audio.next("music");
+      await rig.advance(2);
+      expect(playing()).toBe("lp");
+      setSteps([{ do: "music", what: { kind: "track", id: "m6" }, how: "loopEnds", upNext: "replace", fromMs: null }]);
+      Object.assign(s3(), { music: [{ kind: "track", id: "m6" }] });
+      rig.audio.startScene(S3);
+      await rig.advance(1);
+      expect(playing()).toBe("lp");
+      expect(rig.audio[direction]("music")).toEqual({ ok: true });
+      await rig.advance(1);
+      expect(playing()).toBe(expected);
+      // lp's loop would have ended about 17 s after the scene started.
+      await rig.advance(17);
+      expect(playing()).toBe(expected);
+    });
+  }
+});
