@@ -126,6 +126,15 @@ type Methods = {
 
 type ComputerSettings = { display: DisplaySettings; devices: AudioDevices; globalKeys: boolean };
 
+const DISPLAY_KEYS = ["density", "textSize", "highContrast"] as const;
+const DEVICE_KEYS = ["airDevice", "previewDevice", "split", "previewEar"] as const;
+
+/** Copy the listed keys that `from` has into `into`, and nothing else. */
+function copyKnown<T extends object>(into: T, from: Partial<T> | undefined, keys: readonly (keyof T)[]): void {
+  if (!from) return;
+  for (const key of keys) if (Object.prototype.hasOwnProperty.call(from, key) && from[key] !== undefined) into[key] = from[key] as T[keyof T];
+}
+
 /** This computer's settings from its file, each value checked (a damaged or hand-edited file gives the defaults). */
 export function readComputerSettings(file: string | null): ComputerSettings {
   const out: ComputerSettings = { display: { ...DEFAULT_DISPLAY }, devices: { ...DEFAULT_DEVICES }, globalKeys: false };
@@ -140,8 +149,8 @@ export function readComputerSettings(file: string | null): ComputerSettings {
   const r = raw as Record<string, unknown>;
   const display = typeof r.display === "object" && r.display ? (r.display as Partial<DisplaySettings>) : {};
   const devices = typeof r.devices === "object" && r.devices ? (r.devices as Partial<AudioDevices>) : {};
-  for (const key of ["density", "textSize", "highContrast"] as const) if (display[key] !== undefined && !checkDisplay({ [key]: display[key] })) (out.display as unknown as Record<string, unknown>)[key] = display[key];
-  for (const key of ["airDevice", "previewDevice", "split", "previewEar"] as const) if (devices[key] !== undefined && !checkDevices({ [key]: devices[key] })) (out.devices as unknown as Record<string, unknown>)[key] = devices[key];
+  for (const key of DISPLAY_KEYS) if (display[key] !== undefined && !checkDisplay({ [key]: display[key] })) (out.display as unknown as Record<string, unknown>)[key] = display[key];
+  for (const key of DEVICE_KEYS) if (devices[key] !== undefined && !checkDevices({ [key]: devices[key] })) (out.devices as unknown as Record<string, unknown>)[key] = devices[key];
   if (typeof r.globalKeys === "boolean") out.globalKeys = r.globalKeys;
   return out;
 }
@@ -529,8 +538,9 @@ export function libraryApiRound7(cx: Round7Context): Methods {
         if (!patch || typeof patch !== "object") refuse("invalid", "Choose a setting.");
         const problem = checkDisplay(patch.display ?? {}) ?? checkDevices(patch.devices ?? {}) ?? (patch.globalKeys !== undefined && typeof patch.globalKeys !== "boolean" ? "Choose on or off." : null);
         if (problem) refuse("invalid", problem);
-        Object.assign(computer.display, patch.display ?? {});
-        Object.assign(computer.devices, patch.devices ?? {});
+        // Review 0.5.0 CR-9: only the known settings are copied (argChecks.ts also refuses any other).
+        copyKnown(computer.display, patch.display, DISPLAY_KEYS);
+        copyKnown(computer.devices, patch.devices, DEVICE_KEYS);
         if (patch.globalKeys !== undefined) computer.globalKeys = patch.globalKeys;
         await saveComputer().catch((error: unknown) => {
           cx.log?.("Could not save this computer's settings", error);

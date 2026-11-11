@@ -1071,3 +1071,11 @@ that drag the browser's own handling applied. The cancelled branch now does what
 and `dropEffect = "none"`. `DropTray.test.tsx` checks it with the real guard installed. The main process's
 `will-navigate` lock still stops any navigation behind it.
 
+### This computer's settings (CR-9)
+
+`settings.setComputer` used `Object.assign` to merge the page's `display` and `devices` into `this-computer.json`, and
+its argument shape let extra keys through, so a faulty page could save any key there (a `__proto__` key would even
+replace the object's prototype). Its shape in `src/main/lyreApi/argChecks.ts` now uses `exactObject`, which refuses
+any key it does not list, and `libraryApiRound7.ts` copies only `density`, `textSize`, `highContrast`, `airDevice`,
+`previewDevice`, `split` and `previewEar` (`copyKnown`). `argChecks.test.ts` checks both.
+
