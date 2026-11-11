@@ -16,9 +16,15 @@ interface RailProps {
 
 /** The rail: Lyre's sections, in the prototype's order, with Look and feel, Help and "Icons only" at the bottom. */
 export function Rail({ section, min, onToggleMin, helpOpen = false, onHelp }: RailProps) {
-  const { liveLabel, liveName, outputsLabel } = useShellData();
-  const link = (to: Section, icon: IconName, label: string, name?: string) => (
-    <a href={hashOf(to)} aria-current={section === to ? "page" : undefined} title={min ? label : undefined} aria-label={name}>
+  const { liveLabel, liveName, outputsLabel, outputsHint } = useShellData();
+  const link = (to: Section, icon: IconName, label: string, name?: string, hint?: string) => (
+    <a
+      href={hashOf(to)}
+      aria-current={section === to ? "page" : undefined}
+      title={hint ? (min ? `${label}: ${hint}` : hint) : min ? label : undefined}
+      // With hover text of its own, the link keeps its words as its name (the label is hidden when the rail is folded).
+      aria-label={name ?? (hint ? label : undefined)}
+    >
       <Icon name={icon} />
       <span className="lbl">{label}</span>
     </a>
@@ -37,7 +43,7 @@ export function Rail({ section, min, onToggleMin, helpOpen = false, onHelp }: Ra
           {link("boards", "grid", "Pad boards")}
           {link("live", "broadcast", liveLabel ?? "Live", liveLabel ? liveName : undefined)}
           {/* OUT-9 (round 6, Nik 6 Nov 13:55): the screen is Rooms; its address stays #/outputs. */}
-          {link("outputs", "users", outputsLabel ?? "Rooms")}
+          {link("outputs", "users", outputsLabel ?? "Rooms", undefined, outputsHint)}
         </div>
       </nav>
       <div className="bottom stack" style={{ gap: 2 }}>

@@ -414,7 +414,8 @@ test.describe("round 6, part 5: the Saved pop-up", () => {
     await notes(page).fill("Bring dice");
     await page.keyboard.press("Tab");
     await expect(savedNotes(page)).toBeVisible();
-    expect(await readOutIn(page, "Saved: The Sunken Crown notes")).toBe(1);
+    // UX-R6 (0.5.0 review): the pop-up's words are read out from the live region a moment after it shows.
+    await expect.poll(() => readOutIn(page, "Saved: The Sunken Crown notes")).toBe(1);
     await notes(page).fill("Bring dice and snacks");
     await page.keyboard.press("Tab");
     await expect(page.getByRole("status").filter({ hasText: /^Saved: / })).toHaveCount(1);
@@ -708,5 +709,21 @@ test.describe("round 7, part 2: focus through a redraw", () => {
     await page.setViewportSize({ width: 1000, height: 900 });
     await page.waitForTimeout(400);
     await expect(page.getByRole("heading", { level: 1 })).toBeFocused();
+  });
+});
+
+/* 0.5.0 usability review (UX-R3): round 6's cuts, as the prototype shows them. */
+test.describe("round 6 cuts on the campaign screens", () => {
+  test("UX-R3: Campaigns has no count and no theme names on the cards; an open campaign's boxes count nothing", async ({ page }) => {
+    await openRoute(page, "campaigns");
+    await expect(page.getByRole("article")).toHaveCount(3);
+    await expect(page.getByText("3 campaigns")).toHaveCount(0);
+    await expect(page.getByRole("article", { name: "The Sunken Crown" })).not.toContainText("Hearth and Iron");
+    await openRoute(page, "campaign/crown");
+    const head = (name: string) => region(page, name).locator("header");
+    await expect(head("Sessions")).not.toContainText("4 sessions");
+    await expect(head("Sessions")).not.toContainText("Next:");
+    await expect(head("Notes")).not.toContainText("Empty");
+    await expect(head("Campaign playlists")).not.toContainText(/\d/);
   });
 });

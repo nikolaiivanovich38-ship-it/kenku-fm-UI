@@ -89,6 +89,8 @@ export function pill(view: BotView, room: RoomNowPlaying | undefined): { text: s
   if (bot.room?.status === "joining") return { text: "Joining", tone: "warn" };
   if (bot.room?.status === "reconnecting") return { text: "Reconnecting", tone: "warn" };
   if (!view.inRoom) return { text: "Not in a room", tone: "idle" };
+  // UX-R9: as in Live, a room nobody is in says so, before Muted or Playing: nobody hears it.
+  if (nobodyThere(view)) return { text: "Nobody there", tone: "warn" };
   if (bot.muted) return { text: "Muted", tone: "idle" };
   if (isPlaying(room)) return { text: "Playing", tone: "live" };
   if (room?.music?.paused) return { text: "Paused", tone: "idle" };
@@ -150,7 +152,8 @@ export function moveMessage(view: OutputsView, of: BotView, channelId: string): 
   if (of.inRoom && of.bot.room!.channelId === channelId) return `${of.bot.name} is already in ${channel.name}`;
   const others = roomBots(view, server.id, channelId).filter((b) => b.bot.id !== of.bot.id);
   if (others.length) return `${of.bot.name} is joining ${channel.name}, where ${names(others)} already plays: players will hear it twice`;
-  if (!channel.members.length) return `${of.bot.name} is joining ${channel.name}. Nobody is there yet.`;
+  // UX-R9: the one wording for a room nobody is in, as its box says.
+  if (!channel.members.length) return `${of.bot.name} is joining ${channel.name}: nobody there.`;
   return `${of.bot.name} is joining ${channel.name}`;
 }
 

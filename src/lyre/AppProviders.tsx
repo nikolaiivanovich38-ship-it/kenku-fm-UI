@@ -10,7 +10,7 @@ import type { LyreApiBridge } from "./api/preloadApi";
 import { EMPTY_LIBRARY, LyreAudioProvider, startLyreAudio, type LyreAudio } from "./audio";
 import type { LyreAudioBridge } from "./audio/preloadAudio";
 import { useLiveSession } from "./kit/liveSession";
-import { OutputsProvider, outputsLabel, useOutputs, type OutputsClient } from "./outputs/OutputsProvider";
+import { OutputsProvider, outputsHint, outputsLabel, useOutputs, type OutputsClient } from "./outputs/OutputsProvider";
 import { SettingsAppliers } from "./settings/SettingsAppliers";
 import { NowPlayingBar } from "./shell/NowPlayingBar";
 import { FindAndPlay } from "./shell/FindAndPlay";
@@ -132,6 +132,7 @@ function ShellDataFromLibrary({ children }: { children: React.ReactNode }) {
   const api = useLyreApi();
   const { outputs } = useOutputs();
   const outputsText = outputs ? outputsLabel(outputs) : undefined;
+  const outputsWords = outputs ? outputsHint(outputs) : undefined;
   const value = useMemo<ShellData>(() => {
     const themes = new Map((campaigns ?? []).map((c) => [c.id, c.theme as ThemeId]));
     const session = live && campaigns?.find((c) => c.id === live.campaignId)?.sessions.find((s) => s.id === live.sessionId);
@@ -141,13 +142,14 @@ function ShellDataFromLibrary({ children }: { children: React.ReactNode }) {
       liveLabel: session ? `Live: S${session.number}` : undefined,
       liveName: session ? `Live: S${session.number}, session ${session.number}` : undefined,
       outputsLabel: outputsText,
+      outputsHint: outputsWords,
       // The bar follows the audio host itself, so ShellData stays the same while things play.
       NowPlayingBar,
       FindAndPlay,
       history: api.history,
       placeNames,
     };
-  }, [campaigns, live, api, outputsText, placeNames]);
+  }, [campaigns, live, api, outputsText, outputsWords, placeNames]);
   return <ShellDataProvider value={value}>{children}</ShellDataProvider>;
 }
 

@@ -72,6 +72,11 @@ const renderSaver = (retry?: () => void) =>
     </AnnouncerProvider>,
   );
 const press = (name: string) => act(() => screen.getByRole("button", { name }).click());
+/** What the page's live region says once the pop-up's moment has passed (UX-R6: the pop-up is read out from there). */
+const heard = () => {
+  act(() => vi.advanceTimersByTime(200));
+  return document.getElementById("lyre-live")!.textContent;
+};
 
 describe("the Saved pop-up (UX-19, round 6 part 5)", () => {
   it('says "Saved: " and what, with the detail after " · ", read out politely', () => {
@@ -79,17 +84,24 @@ describe("the Saved pop-up (UX-19, round 6 part 5)", () => {
     press("Drop");
     const pop = screen.getByRole("status");
     expect(pop).toHaveTextContent("Saved: The abbey ruins music · 2 tracks from position 3");
-    expect(pop).toHaveAttribute("aria-live", "polite");
+    // UX-R6: shown at once, read out a moment later through the page's live region (the pop-up itself is quiet).
+    expect(pop).toHaveAttribute("aria-live", "off");
+    expect(heard()).toBe("Saved: The abbey ruins music · 2 tracks from position 3");
   });
 
   it("the same save within 2 s refreshes the one pop-up: one pop-up, not read out again, its 3 s start again", () => {
     renderSaver();
     press("Save notes");
-    act(() => vi.advanceTimersByTime(1500));
+    expect(heard()).toBe("Saved: The Sunken Crown notes");
+    act(() => vi.advanceTimersByTime(1300));
+    const live = document.getElementById("lyre-live")!;
+    act(() => {
+      live.textContent = "";
+    });
     press("Save notes");
     expect(screen.getAllByRole("status")).toHaveLength(1);
-    expect(screen.getByRole("status")).toHaveAttribute("aria-live", "off");
-    act(() => vi.advanceTimersByTime(2500));
+    expect(heard()).toBe("");
+    act(() => vi.advanceTimersByTime(2300));
     expect(screen.getByRole("status")).toHaveTextContent("Saved: The Sunken Crown notes");
     act(() => vi.advanceTimersByTime(600));
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
@@ -98,16 +110,31 @@ describe("the Saved pop-up (UX-19, round 6 part 5)", () => {
   it("a different save replaces it, read out", () => {
     renderSaver();
     press("Save notes");
+    act(() => vi.advanceTimersByTime(300));
     press("Save name");
     expect(screen.getByRole("status")).toHaveTextContent("Saved: name “Ashes”");
-    expect(screen.getByRole("status")).toHaveAttribute("aria-live", "polite");
+    expect(heard()).toBe("Saved: name “Ashes”");
   });
 
   it("is not read out right after the same event was announced (Could 14)", () => {
     renderSaver();
     press("Say");
     press("Save notes");
-    expect(screen.getByRole("status")).toHaveAttribute("aria-live", "off");
+    expect(heard()).toBe("Repeat one on");
+  });
+
+  it("UX-R6: an announcement right after the pop-up takes its place: one event, one message, the fuller one", () => {
+    renderSaver();
+    const live = document.getElementById("lyre-live")!;
+    const said = new Set<string>();
+    press("Save notes");
+    press("Say");
+    for (let ms = 0; ms < 1000; ms += 10) {
+      act(() => vi.advanceTimersByTime(10));
+      if (live.textContent) said.add(live.textContent);
+    }
+    expect([...said]).toEqual(["Repeat one on"]);
+    expect(screen.getByRole("status")).toHaveTextContent("Saved: The Sunken Crown notes");
   });
 
   it("never takes focus", () => {

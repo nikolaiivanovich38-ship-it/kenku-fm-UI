@@ -131,6 +131,7 @@ function CampaignPage({ campaign: c, index }: { campaign: CampaignInfo; index: N
               kind="scenes"
               status={{ text: c.sessions.length ? plural(c.sessions.length, "session") : "Empty" }}
               summary={played && next ? `Next: ${sessionLabel(next)}` : undefined}
+              foldedSummary
               actions={
                 <Button size="s" icon="plus" onClick={newSession}>
                   New session

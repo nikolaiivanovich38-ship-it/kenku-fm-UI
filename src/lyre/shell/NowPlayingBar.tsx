@@ -138,7 +138,6 @@ function RoomRow({ audio, room, named, broadcasting, first }: { audio: LyreAudio
   const lane = (room.music ?? room.ambience) as LaneNowPlaying;
   const paused = lane.paused;
   const word = laneName === "music" ? "music" : "ambience";
-  const tagRoom = !broadcasting ? "no room" : named ? room.name : undefined;
   const where = broadcasting ? ` in ${room.name}` : "";
   const target = { room: room.roomId };
   const playlistName = lane.playlistId ? (playlists?.get(lane.playlistId)?.name ?? null) : null;
@@ -149,6 +148,10 @@ function RoomRow({ audio, room, named, broadcasting, first }: { audio: LyreAudio
   const { outputs, client } = useOutputs();
   const bot = outputs?.bots.find((b) => b.id === room.roomId) ?? null;
   const { volume, change: changeVolume } = roomVolumeControl({ roomId: room.roomId, level: room.volume }, bot, client, audio);
+  // UX-R9 (round 6 part 4 #10): a room nobody is in is tagged "On air · nobody there", in the warning colour.
+  const channel = bot?.room?.status === "connected" ? outputs?.servers.flatMap((s) => s.channels).find((c) => c.id === bot.room!.channelId) : undefined;
+  const nobody = !!channel && channel.members.length === 0;
+  const tagRoom = !broadcasting ? "no room" : nobody ? "nobody there" : named ? room.name : undefined;
   const extras = [
     room.music && room.ambience ? `Ambience: ${room.ambience.title}` : "",
     room.effects.length ? `${room.effects.length} effect${room.effects.length > 1 ? "s" : ""} sounding` : "",
@@ -157,9 +160,9 @@ function RoomRow({ audio, room, named, broadcasting, first }: { audio: LyreAudio
   ].filter(Boolean);
 
   return (
-    <div className={cx("oab-row", "air", paused && "paused")} role="group" aria-label={`${paused ? "Paused" : "On air"}${tagRoom ? `: ${tagRoom}` : ""}`}>
+    <div className={cx("oab-row", "air", paused && "paused")} role="group" aria-label={`${paused ? "Paused" : "On air"}${nobody ? `: ${room.name}, nobody there` : tagRoom ? `: ${tagRoom}` : ""}`}>
       <span className="oab-dest">
-        <DestTag to="air" room={tagRoom} paused={paused} />
+        <DestTag to="air" room={tagRoom} paused={paused} nobody={nobody ? `Nobody hears it: nobody is in ${room.name}` : undefined} />
         {paused && <span className="badge oab-paused">Paused</span>}
       </span>
       <div className="oab-now">
@@ -314,7 +317,7 @@ function WhatPlayed({ audio, room, named }: { audio: LyreAudio; room: RoomNowPla
   return (
     <>
       <button type="button" className="btn s icon r7-hov" aria-label="What played" title={`${title}, with Play again`} onClick={() => setOpen(true)}>
-        <Icon name="queue" size="s" />
+        <Icon name="history" size="s" />
       </button>
       <Dialog
         open={open}

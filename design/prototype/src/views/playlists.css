@@ -124,6 +124,8 @@ select.input.pl-num { width: 44px; }
 /* Rule chips: the 16 px remove button gets a 24 px clickable area without making the chip taller. */
 .pl-vals .chip .x { width: 24px; height: 24px; margin: -1px -7px -1px -3px; }
 .pl-tline .badge, .pl-tline .chip { flex: none; white-space: nowrap; }
+/* UX-R17: tag chips in a row shrink to an ellipsis instead of being clipped by the strip. */
+.pl-tline .tagstrip .chip:not(.ts-more) { flex: 0 1 auto; }
 
 /* ---------- Dropping files from the computer ---------- */
 #view[data-view="playlist"], #view[data-view="playlists"] { position: relative; }

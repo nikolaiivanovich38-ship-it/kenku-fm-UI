@@ -54,7 +54,7 @@ test.describe("moving a bot between rooms", () => {
     await menu.getByRole("menuitemradio", { name: /^Side room/ }).click();
     await expect(room(page, "Side room")).toBeVisible({ timeout: 5000 });
     await expect(room(page, "Side room")).toContainText("via Lyre Side");
-    await expect(room(page, "Side room")).toContainText("Nobody here yet");
+    await expect(room(page, "Side room")).toContainText("Nobody there"); // UX-R9: one wording, as in Live
     await expect(page.getByRole("link", { name: /^(Outputs|Rooms) \(2\/2\)$/ })).toBeVisible();
   });
 
@@ -219,5 +219,31 @@ test.describe("round 6, part 4: the screen is Rooms", () => {
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Rooms");
     await page.getByRole("link", { name: "Tokens and new bots" }).click();
     await expect(page.getByRole("button", { name: "Back to Rooms" })).toBeVisible();
+  });
+});
+
+/* 0.5.0 usability review (UX-R2): at 200 % text, Rooms is one column; each room's box takes its own height. */
+test.describe("Rooms at 200 % text", () => {
+  test("UX-R2: with two rooms, no box lies on another and a focused Kick is not covered", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 748 });
+    await openRoute(page, "look");
+    const size = page.getByRole("region", { name: "Display" }).getByRole("slider", { name: "Text size" });
+    await size.focus();
+    for (let i = 0; i < 4; i++) await page.keyboard.press("ArrowRight");
+    await expect(size).toHaveValue("200");
+    await joinRoom(page, "Lyre Side", "AFK");
+    await openRoute(page, "outputs");
+    for (const box of [room(page, "Table"), room(page, "AFK"), channels(page)]) await expect(box).toBeAttached();
+    const table = (await room(page, "Table").boundingBox())!;
+    const afk = (await room(page, "AFK").boundingBox())!;
+    // The rooms scroll as one column above All voice channels: the second room starts below the first, and the
+    // channel list below the column.
+    expect(afk.y).toBeGreaterThanOrEqual(table.y + table.height - 1);
+    const column = (await room(page, "Table").locator("xpath=..").boundingBox())!;
+    expect((await channels(page).boundingBox())!.y).toBeGreaterThanOrEqual(column.y + column.height - 1);
+    // The first room's Kick, reached with Tab, is the element on top where it is drawn.
+    const kick = room(page, "Table").getByRole("button", { name: /^Kick/ }).first();
+    await kick.focus();
+    expect(await kick.evaluate((el) => { el.scrollIntoView({ block: "nearest" }); const r = el.getBoundingClientRect(); const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return !!top && (top === el || el.contains(top)); })).toBe(true);
   });
 });

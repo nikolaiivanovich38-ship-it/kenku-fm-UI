@@ -32,7 +32,7 @@ import { libraryIndex } from "../campaigns/model";
 import { sessionLabel } from "../campaigns/model";
 import { CurrentScenePane } from "./CurrentScene";
 import { closeFind, openFind } from "./Find";
-import { focusBox, focusLive } from "./focus";
+import { focusBox, focusLiveSoon, focusLive } from "./focus";
 import { LiveDataProvider, sceneRefOf, type LiveData } from "./liveData";
 import { boxTarget, currentBoard, defaultLiveSession, LIVE_BOXES, LIVE_KEYS, liveKey, liveRooms, padForKey, padStepWords, UNDO_MS, type LiveKeys } from "./liveModel";
 import { getLiveState, standbyFor, touched, updateLive, useLiveState } from "./liveState";
@@ -149,7 +149,7 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
   const wanted = campaigns ? defaultLiveSession(campaigns, loaded, inHand) : null;
   const shortcuts = settings?.shortcuts;
   const keys: LiveKeys = useMemo(
-    () => (shortcuts ? { nextScene: shortcutKey(shortcuts, "nextScene"), fadeAll: shortcutKey(shortcuts, "fadeAll"), undo: shortcutKey(shortcuts, "undo"), find: shortcutKey(shortcuts, "find") } : LIVE_KEYS),
+    () => (shortcuts ? { nextScene: shortcutKey(shortcuts, "nextScene"), fadeAll: shortcutKey(shortcuts, "fadeAll"), undo: shortcutKey(shortcuts, "undo"), find: shortcutKey(shortcuts, "find"), palette: shortcutKey(shortcuts, "palette") } : LIVE_KEYS),
     [shortcuts],
   );
 
@@ -259,7 +259,8 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
       const offer = s.undo2;
       updateLive({ undo2: null });
       offer.restore();
-      focusLive(offer.focus || "nextsc");
+      // UX-R4: what comes back may be drawn a moment later (a room whose bot rejoins); focus waits for it.
+      focusLiveSoon([offer.focus || "nextsc", "nextsc"]);
       say(`Undone: ${offer.text}`);
       return true;
     }
@@ -420,8 +421,8 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
           updateLive((x) => ({ search: { ...x.search, q: "", tags: [] } }));
           return handled();
         case "leaveSearchBox":
+          // UX-R4: the results close and focus stays in the field (as in the prototype), not on the page.
           closeFind(false);
-          target?.blur();
           return handled();
         case "closeFind":
           closeFind(true);

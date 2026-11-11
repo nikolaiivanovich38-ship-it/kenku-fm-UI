@@ -14,7 +14,7 @@ import { LyreApiProvider } from "../../api";
 import { LyreAudioProvider } from "../../audio/LyreAudioProvider";
 import { FakeLyreAudio } from "../../audio/testing/fakeLyreAudio";
 import { OutputsProvider } from "../../outputs/OutputsProvider";
-import { FakeOutputs, SIDE_BOT } from "../../outputs/testing/fakeOutputs";
+import { FakeOutputs, PROTOTYPE_OUTPUTS, SIDE_BOT } from "../../outputs/testing/fakeOutputs";
 import { SettingsAppliers } from "../../settings/SettingsAppliers";
 import { AnnouncerProvider } from "../../shell/Announcer";
 import { ShellSettingsProvider } from "../../shell/ShellSettings";
@@ -23,6 +23,9 @@ import { expectNoAxeViolations } from "../../test/axe";
 import type { LyreWindowSettingsBridge } from "../../windowSettings/preloadWindowSettings";
 import { SettingsBridgesProvider } from "./common";
 import { SettingsScreen } from "./SettingsScreen";
+
+// UX-R16: the version webpack builds in (none in tests unless given).
+vi.mock("../../version", () => ({ LYRE_VERSION: "0.5.0" }));
 
 function fakeRemote(home: string | null = "192.168.1.20") {
   let state: RemoteState = { enabled: false, running: false, address: "127.0.0.1", port: 3333, code: "K7QD-92XF", codeRemembered: true, homeAddress: home };
@@ -57,9 +60,9 @@ function fakeWindow(start: WindowSettings = DEFAULT_WINDOW_SETTINGS) {
   return bridge;
 }
 
-function open() {
+function open(start?: ConstructorParameters<typeof FakeOutputs>[0]) {
   localStorage.clear();
-  const outputs = new FakeOutputs();
+  const outputs = new FakeOutputs(start);
   const api = createFakeLyreApi();
   const audio = new FakeLyreAudio();
   const remote = fakeRemote();
@@ -181,6 +184,55 @@ describe("Settings › Discord bots (OUT-8)", () => {
     expect(sheet.getByRole("link", { name: "Invite it" })).toHaveAttribute("href", expect.stringMatching(/client_id=123456789012345678&scope=bot&permissions=3146752$/));
   });
 
+  it("UX-R11: an Application ID that is not a long number says so under the field, and Open the invite stays off", async () => {
+    open();
+    await bot("Lyre Table");
+    await userEvent.click(screen.getByRole("button", { name: "Add a bot" }));
+    const sheet = within(screen.getByRole("dialog"));
+    await userEvent.click(sheet.getByRole("button", { name: "Next" }));
+    const field = sheet.getByLabelText("Application ID");
+    await userEvent.type(field, "abc123");
+    expect(field).toHaveValue("abc123");
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAccessibleDescription("An Application ID is a long number: copy it from General Information.");
+    expect(sheet.getByRole("link", { name: "Open the invite" })).toHaveAttribute("aria-disabled", "true");
+    await userEvent.clear(field);
+    await userEvent.type(field, " 123456789012345678 ");
+    expect(field).not.toHaveAttribute("aria-invalid");
+    expect(sheet.getByRole("link", { name: "Open the invite" })).toHaveAttribute("href", expect.stringContaining("client_id=123456789012345678&"));
+  });
+
+  it("UX-R11: Connect with no token says so under the Token field, not in a corner", async () => {
+    open();
+    await bot("Lyre Table");
+    await userEvent.click(screen.getByRole("button", { name: "Add a bot" }));
+    const sheet = within(screen.getByRole("dialog"));
+    await userEvent.click(sheet.getByRole("button", { name: "Next" }));
+    await userEvent.click(sheet.getByRole("button", { name: "Next" }));
+    await userEvent.click(sheet.getByRole("button", { name: "Connect" }));
+    expect(sheet.getByRole("alert")).toHaveTextContent("Paste the token first");
+    expect(sheet.getByLabelText("Token")).toHaveAttribute("aria-invalid", "true");
+    expect(sheet.getByLabelText("Token")).toHaveFocus();
+    expect(toast()).toBe("");
+  });
+
+  it("UX-R10: on a computer that cannot keep tokens encrypted, step 3 says what Settings says", async () => {
+    open({ ...PROTOTYPE_OUTPUTS, encryption: false });
+    await bot("Lyre Table");
+    await userEvent.click(screen.getByRole("button", { name: "Add a bot" }));
+    const sheet = within(screen.getByRole("dialog"));
+    await userEvent.click(sheet.getByRole("button", { name: "Next" }));
+    await userEvent.click(sheet.getByRole("button", { name: "Next" }));
+    expect(sheet.getByLabelText("Token")).toHaveAccessibleDescription("Kept only until Lyre closes: this computer cannot keep it encrypted.");
+    expect(screen.getByRole("dialog")).not.toHaveTextContent("Kept encrypted");
+  });
+
+  it("UX-R16: shows Lyre's version at the top right, as the prototype does", async () => {
+    open();
+    await bot("Lyre Table");
+    expect(screen.getByTitle("Lyre version")).toHaveTextContent("0.5.0");
+  });
+
   it("is accessible", async () => {
     open();
     await bot("Lyre Table");
@@ -283,7 +335,7 @@ describe("Settings › Keyboard shortcuts (UX-12)", () => {
     await userEvent.click(within(palette()).getByRole("button", { name: "Change the key for Find and play" }));
     expect(palette()).toHaveTextContent("Press the new key");
     await userEvent.keyboard("{Shift>}{Escape}{/Shift}");
-    expect(toast()).toBe("Shift+Esc is already Fade everything out. Press another key, or Esc to keep Ctrl+K");
+    expect(toast()).toBe("Shift+Esc is already Fade all. Press another key, or Esc to keep Ctrl+K");
     await userEvent.keyboard("{Control>}j{/Control}");
     await waitFor(() => expect(palette()).toHaveTextContent("Ctrl+J"));
     expect((await api.settings.get()).shortcuts.palette).toBe("Ctrl+J");
@@ -297,7 +349,7 @@ describe("Settings › Keyboard shortcuts (UX-12)", () => {
   it("refuses Space for other programs in plain words when keys in other programs is on", async () => {
     open();
     const box = await unfold("Keyboard shortcuts");
-    const sw = box.getByRole("switch", { name: "Next scene and Fade everything out work in other programs too" });
+    const sw = box.getByRole("switch", { name: "Next scene and Fade all work in other programs too" });
     await waitFor(() => expect(sw).toBeEnabled());
     await userEvent.click(sw);
     expect(await box.findByRole("alert")).toHaveTextContent("Space cannot work in other programs: you type with it there.");
@@ -308,7 +360,7 @@ describe("Settings › Keyboard shortcuts (UX-12)", () => {
     const box = await unfold("Keyboard shortcuts");
     await userEvent.click(box.getByRole("button", { name: "Printable sheet" }));
     const sheet = within(screen.getByRole("dialog", { name: "Lyre's keys" }));
-    expect(sheet.getByRole("table")).toHaveTextContent("Fade everything out");
+    expect(sheet.getByRole("table")).toHaveTextContent("Fade all");
     expect(sheet.getByRole("button", { name: "Print" })).toBeInTheDocument();
     await act(async () => undefined);
   });

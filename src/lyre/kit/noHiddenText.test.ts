@@ -55,4 +55,29 @@ describe("no hidden text (UX-6): a name cut short has its full text on hover and
     expect(document.querySelector('[role="tooltip"]')).toBeNull();
     stop();
   });
+
+  it("UX-R13: focus the app puts on a heading as a screen opens (tabindex -1) shows no tooltip; hover text stays", () => {
+    const root = document.createElement("main");
+    const h1 = cutShort(document.createElement("h1"), "Eerie dread, low cello and choir - something wrong in the dark");
+    h1.tabIndex = -1;
+    root.append(h1);
+    document.body.append(root);
+    const stop = showFullTextOnFocus(() => [root]);
+    h1.focus();
+    expect(document.querySelector('[role="tooltip"]')).toBeNull();
+    stop();
+  });
+
+  it("UX-R13: a grid row with tabindex -1, reached with the arrow keys, still shows its tooltip", () => {
+    const root = document.createElement("main");
+    const row = document.createElement("div");
+    row.tabIndex = -1;
+    row.append(cutShort(document.createElement("span"), "Very short heroic moment - Cool vibe!"));
+    root.append(row);
+    document.body.append(root);
+    const stop = showFullTextOnFocus(() => [root]);
+    row.focus();
+    expect(document.querySelector('[role="tooltip"]')).toHaveTextContent("Very short heroic moment");
+    stop();
+  });
 });

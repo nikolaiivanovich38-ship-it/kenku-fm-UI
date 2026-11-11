@@ -50,3 +50,12 @@ export function outputsLabel(outputs: LyreOutputs): string {
   const connected = outputs.bots.filter((bot) => bot.room?.status === "connected").length;
   return `Rooms (${connected}/${outputs.bots.length})`;
 }
+
+/** UX-R15: what the rail's count means, as the link's hover text. */
+export function outputsHint(outputs: LyreOutputs): string {
+  const connected = outputs.bots.filter((bot) => bot.room?.status === "connected").length;
+  return `${connected} of ${plural(outputs.bots.length)} ${outputs.bots.length === 1 ? "is" : "are"} in a room`;
+}
+function plural(n: number): string {
+  return n === 1 ? "1 bot" : `${n} bots`;
+}

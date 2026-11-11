@@ -39,7 +39,10 @@ export function TagStrip({ track, groups }: TagStripProps) {
       {all.slice(0, SHOWN).map((t, i) => (
         <span key={`${t.group.id}:${t.value}`} className={cx("chip", COLOURED.has(t.group.id) && t.group.id, i > 0 && "ts-later")} title={t.group.name} aria-hidden="true">
           <span className="dot" />
-          {t.value}
+          {/* UX-R17: the word ends in … when the chip is cut short, never mid-word; the whole of it on hover. */}
+          <span className="ellipsis" title={`${t.group.name}: ${t.value}`}>
+            {t.value}
+          </span>
         </span>
       ))}
       {rest.length > 0 && (

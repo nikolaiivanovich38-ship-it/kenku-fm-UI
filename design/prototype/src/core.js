@@ -66,7 +66,7 @@ var L = (function () {
     // Should 9 of the round 6 review: one icon, one meaning. Undo is a hooked arrow (restart stays the circle), a muted
     // room a speaker struck through, Kick a door with an arrow out, Play on air a play triangle sounding out.
     undo: 'M9 14 4 9l5-5M4 9h10.5a5.5 5.5 0 0 1 0 11H11', mute: 'M3 10v4h3l8 5V5L6 10zM17 9.5l5 5M22 9.5l-5 5',
-    leave: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9', playair: 'M4 5v14l10-7zM17 8.5a4 4 0 0 1 0 7M19.8 5.7a8 8 0 0 1 0 12.6',
+    leave: 'M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9', playair: 'M4 5v14l10-7zM17 8.5a4 4 0 0 1 0 7M19.8 5.7a8 8 0 0 1 0 12.6', history: 'M3 12a9 9 0 1 0 2.6-6.4L3 8M3 3v5h5M12 7v5l3 2',
     one: 'M5 5v14l10-7zM19 5v14',
     headphones: 'M3 18v-6a9 9 0 0 1 18 0v6M21 19a2 2 0 0 1-2 2h-1v-6h3zM3 19a2 2 0 0 0 2 2h1v-6H3z',
     play: 'M7 4v16l13-8z', stop: 'M6 6h12v12H6z', pause: 'M7 5h3v14H7zM14 5h3v14h-3z',
@@ -340,7 +340,7 @@ var L = (function () {
     var shown = all.slice(0, max), rest = all.slice(max);
     if (!all.length && !L.shapeOf(t)) return '';
     return '<span class="tagstrip"><span class="sr-only">Tags: ' + esc(all.map(function (x) { return x.v; }).join(', ') || 'none') + '. </span>' + L.shapeTag(t, true) +
-      shown.map(function (x) { return '<span class="chip ' + x.g.cls + '" data-tag="' + esc(x.g.id + ':' + x.v) + '" title="' + esc(x.g.name) + '" aria-hidden="true"><span class="dot"></span>' + esc(x.v) + '</span>'; }).join('') +
+      shown.map(function (x) { return '<span class="chip ' + x.g.cls + '" data-tag="' + esc(x.g.id + ':' + x.v) + '" title="' + esc(x.g.name) + '" aria-hidden="true"><span class="dot"></span><span class="ellipsis" title="' + esc(x.g.name + ': ' + x.v) + '">' + esc(x.v) + '</span></span>'; }).join('') +
       (rest.length ? '<span class="chip ts-more" title="' + esc(rest.map(function (x) { return x.g.name + ': ' + x.v; }).join(', ')) + '" aria-hidden="true">+' + rest.length + '</span>' : '') + '</span>';
   };
   /* DAT-14 a track's name in a scene: L.data.sceneNames[sceneKey][trackId]. L.nameIn(t, key) is the scene's name for it
@@ -595,7 +595,7 @@ var L = (function () {
     if (m[ln]) { m[ln].fadeOut = fade || .3; m[ln + 'Out'].push(m[ln]); }
     // o.place: the session or campaign list it was played from ('ss:…' / 'cp:…'), for its play order and audio settings.
     m[ln] = lane(trackId, o.playlistId, o.seq, o.place); m[ln].fadeIn = fade; m[ln].vol = fade ? 0 : 1; if (o.seq) m[ln].seq = o.seq;
-    L.say((ln === 'music' ? 'Music' : 'Ambience') + (m === pb ? '' : ' in ' + L.outputName(L.bot(o.target))) + ': ' + L.title(t)); L.changed();
+    L.say((ln === 'music' ? 'Music' : 'Ambience') + (m === pb ? (L.rooms().length > 1 ? ' in ' + L.outputName(L.bots()[0]) : '') : ' in ' + L.outputName(L.bot(o.target))) + ': ' + L.title(t)); /* UX-R21: with two rooms the first is named too */ L.changed();
   };
   function neighbour(ln, step, target) {
     var cur = mixOf(target)[ln]; if (!cur) return null;
@@ -772,8 +772,18 @@ var L = (function () {
   /* ---------- announcements ---------- */
   // Could 14 of the round 6 review: one event is announced once. A toast that follows an announcement of the same
   // event (within half a second) is shown but not read out again.
-  var saidAt = 0;
-  L.say = function (msg) { saidAt = Date.now(); var r = document.getElementById('lyre-live'); if (r) { r.textContent = ''; setTimeout(function () { r.textContent = msg; }, 30); } };
+  /* UX-R7 (0.5.0 review): a count that changes on every key press is read out once typing pauses (500 ms). */
+  var settleTimer = null, settledText = '';
+  L.sayWhenSettled = function (text) {
+    clearTimeout(settleTimer); if (!text) { settledText = ''; return; }
+    if (text === settledText) return;
+    settleTimer = setTimeout(function () { settledText = text; L.say(text); }, 500);
+  };
+  var saidAt = 0, readTimer = null;
+  function speak(msg) { var r = document.getElementById('lyre-live'); if (r) { r.textContent = ''; setTimeout(function () { r.textContent = msg; }, 30); } }
+  // UX-R6 (0.5.0 review): a note is read out from the live region 120 ms after it shows; an announcement in that
+  // moment is the same change told more fully, so it takes the note's place: one event, one message.
+  L.say = function (msg) { clearTimeout(readTimer); saidAt = Date.now(); var r = document.getElementById('lyre-live'); if (r) { r.textContent = ''; setTimeout(function () { r.textContent = msg; }, 30); } };
   /* Round 6, part 5: one pop-up for the whole app (ROUND6.md "Part 5: the Saved pop-up"). Nik, 6 Nov 16:14: "little
      pop ups somewhere unobtrusive but noticeable as a consistent design standard indicating something has been saved".
        L.saved(what, { key, detail })  "Saved: <what>" (" · <detail>" after it when given). key: what was saved (default
@@ -811,14 +821,13 @@ var L = (function () {
     // Could 14 of the round 6 review: a note that follows an announcement of the same event (within half a second) is
     // shown but not read out again; a refresh of the same save within 2 s is not read out again either.
     var quiet = same || now - saidAt < 500;
-    t.setAttribute('aria-live', quiet ? 'off' : 'polite');
+    t.setAttribute('aria-live', 'off'); clearTimeout(readTimer); if (!quiet) readTimer = setTimeout(function () { speak(text); }, 120);
     if (!same || t.textContent !== text) {
       t.className = 'toast' + (o.saved ? ' t-saved' : '');
       t.innerHTML = (o.saved ? L.icon('check', 's') : '') + '<span>' + (o.saved ? '<b>Saved:</b> ' + esc(text.replace(/^Saved: /, '')) : esc(text)) + '</span>';
     }
     // A refresh shows a short pulse instead of a second pop-up (no pulse with reduced motion: ui.css).
     if (same) { t.classList.remove('t-again'); void t.offsetWidth; t.classList.add('t-again'); }
-    if (quiet) setTimeout(function () { t.setAttribute('aria-live', 'polite'); }, 150);
     note.key = key; note.at = now; L.placeToasts();
     clearTimeout(note.timer); note.timer = setTimeout(hideNote, Math.min(6000, Math.max(NOTE_MS, text.length * 55)));
   }
@@ -930,7 +939,8 @@ var L = (function () {
     // o.describe (round 6): what the sheet is for, read out with its title, not shown.
     s.innerHTML = '<div class="panel" role="dialog" aria-modal="true" aria-labelledby="sheet-title"' + (o.describe ? ' aria-describedby="sheet-desc"' : '') + (o.wide ? ' style="width:min(900px,100%)"' : '') + '><header><h2 id="sheet-title">' + esc(o.title) + '</h2><button class="closer" data-act="closesheet" title="Close">' + L.icon('close') + '</button></header>' + (o.describe ? '<p class="sr-only" id="sheet-desc">' + o.describe + '</p>' : '') + '<div class="body">' + o.body + '</div>' + (o.footer ? '<footer>' + o.footer + '</footer>' : '') + '</div>';
     document.body.appendChild(s);
-    var f = s.querySelector('.body input, .body select, .body textarea, .body button') || s.querySelector('button'); if (f) f.focus();
+    // UX-R1 (0.5.0 review): a greyed control (the first step's Move up) cannot take focus, so it is skipped.
+    var f = s.querySelector('.body input:not([disabled]), .body select:not([disabled]), .body textarea:not([disabled]), .body button:not([disabled])') || s.querySelector('button:not([disabled])'); if (f) f.focus();
     s.addEventListener('pointerdown', function (e) { if (e.target === s) L.closeSheet(); });
   };
   L.closeSheet = function () { var s = document.getElementById('lyre-sheet'); if (s) { s.remove(); if (sheetReturn && document.contains(sheetReturn)) sheetReturn.focus(); sheetReturn = null; } };
@@ -1186,16 +1196,17 @@ var L = (function () {
   function roomRow(r, named, first, inLive) {
     var m = r.mix, c = m.music || m.amb, ln = m.music ? 'music' : 'amb', target = r.main ? 'table' : r.id, pk = ln + (r.main ? '' : '@' + r.id);
     var t = L.track(c.id), key = L.lanePlace(c), nm = L.nameIn(t, key), own = L.title(t), paused = !!c.paused, word = ln === 'music' ? 'music' : 'ambience';
-    var room = r.none ? 'no room' : named ? r.name : '', where = r.none ? '' : ' in ' + r.name, bot = r.bots && r.bots[0], fx = L.fxFor(target).length, k = 'oab-' + (r.main ? 't' : r.id);
+    var bot = r.bots && r.bots[0], nobody = !!bot && bot.status === 'connected' && !L.botListeners(bot).length;
+    // UX-R9 (round 6 part 4 #10): a room nobody is in is tagged On air · nobody there, in the warning colour.
+    var room = r.none ? 'no room' : nobody ? 'nobody there' : named ? r.name : '', where = r.none ? '' : ' in ' + r.name, fx = L.fxFor(target).length, k = 'oab-' + (r.main ? 't' : r.id);
     var canNext = !!(c.seq || c.playlistId);
-    return '<div class="oab-row air' + (paused ? ' paused' : '') + '" role="group" aria-label="' + (paused ? 'Paused' : 'On air') + (room ? ': ' + esc(room) : '') + '">' +
-      '<span class="oab-dest">' + L.destTag('air', room, paused, r.none ? 'Nobody hears it: no bot is in a voice channel' : '') + (paused ? '<span class="badge oab-paused">Paused</span>' : '') + '</span>' +
+    return '<div class="oab-row air' + (paused ? ' paused' : '') + '" role="group" aria-label="' + (paused ? 'Paused' : 'On air') + (nobody ? ': ' + esc(r.name) + ', nobody there' : room ? ': ' + esc(room) : '') + '">' +
+      '<span class="oab-dest">' + L.destTag('air', room, paused, r.none ? 'Nobody hears it: no bot is in a voice channel' : nobody ? 'Nobody hears it: nobody is in ' + esc(r.name) : '') + (paused ? '<span class="badge oab-paused">Paused</span>' : '') + '</span>' +
       '<div class="oab-now"><div class="oab-title ellipsis" title="' + esc((nm !== own ? 'Its own name: ' + own : own) + ' · ' + L.normHover(t, c.playlistId)) + '"><span class="lane-dot ' + ln + '" aria-hidden="true"></span><span class="ellipsis">' + esc(nm) + '</span>' +
         (nm !== own ? '<span class="sr-only"> (its own name: ' + esc(own) + ')</span>' : '') + '</div>' +
         '<div class="oab-from ellipsis" title="' + esc(originOf(c)) + '">' + esc(originOf(c)) + (m.music && m.amb ? ' · <span class="lane-dot amb" aria-hidden="true"></span>Ambience: ' + esc(L.title(L.track(m.amb.id))) : '') +
         (fx ? ' · ' + fx + ' effect' + (fx > 1 ? 's' : '') + ' sounding' : '') + (r.none ? ' · No bot is in a voice channel: nobody hears it' : '') +
-        // Must 2 of the round 6 review: a bot in a voice channel with nobody in it plays to no one.
-        (bot && bot.status === 'connected' && !L.botListeners(bot).length ? ' · Nobody is in ' + esc(r.name) + ': nobody hears it' : '') + '</div></div>' +
+        '</div></div>' +
       '<div class="oab-time"><div class="progress ' + ln + '"><span data-progress="' + pk + '"></span></div><span class="num" data-time="' + pk + '"></span></div>' +
       '<div class="oab-ctl" role="group" aria-label="Control what the players hear' + esc(where) + '">' +
         '<button class="btn s icon" data-act="oabpause" data-lane="' + ln + '" data-room="' + target + '" data-k="' + k + '-pause" aria-label="' + (paused ? 'Play' : 'Pause') + '" title="' + (paused ? 'Play the ' + word + ' again' : 'Pause the ' + word) + esc(where) + '">' + L.icon(paused ? 'play' : 'pause', 's') + '</button>' +
@@ -1271,11 +1282,12 @@ var L = (function () {
   });
   function outputsBadge() { var n = D.discord.bots.filter(function (b) { return b.status === 'connected'; }).length; return ' (' + n + '/' + D.discord.bots.length + ')'; }
   function railHTML(cur, min) {
-    function a(href, nav, icon, label) { return '<a href="' + href + '" data-k="rail-' + nav + '"' + (cur === nav ? ' aria-current="page"' : '') + (min ? ' title="' + label + '"' : '') + '>' + L.icon(icon) + '<span class="lbl">' + label + '</span></a>'; }
+    // UX-R15 (0.5.0 review): hint, the link's hover text (what Rooms (1/2) counts).
+    function a(href, nav, icon, label, hint) { return '<a href="' + href + '" data-k="rail-' + nav + '"' + (cur === nav ? ' aria-current="page"' : '') + (hint ? ' title="' + (min ? label + ': ' : '') + hint + '" aria-label="' + label + '"' : min ? ' title="' + label + '"' : '') + '>' + L.icon(icon) + '<span class="lbl">' + label + '</span></a>'; }
     var s = L.session(L.state.live.cid, L.state.live.sid);
     return '<div class="logo">' + L.logo + '<b>Lyre</b></div><nav aria-label="Lyre"><div class="stack" style="gap:2px">' +
       a('#/campaigns', 'campaigns', 'crown', 'Campaigns') + a('#/library', 'library', 'library', 'Library') + a('#/playlists', 'playlists', 'playlist', 'Playlists') + a('#/boards', 'boards', 'grid', 'Pad boards') +
-      a('#/live', 'live', 'broadcast', 'Live' + (s ? ': S' + s.n : '')) + a('#/outputs', 'outputs', 'users', 'Rooms' + outputsBadge()) + '</div></nav>' +
+      a('#/live', 'live', 'broadcast', 'Live' + (s ? ': S' + s.n : '')) + a('#/outputs', 'outputs', 'users', 'Rooms' + outputsBadge(), (function () { var n = D.discord.bots.filter(function (b) { return b.status === 'connected'; }).length, m = D.discord.bots.length; return n + ' of ' + m + (m === 1 ? ' bot is' : ' bots are') + ' in a room'; })()) + '</div></nav>' +
       '<div class="bottom stack" style="gap:2px">' + a('#/settings', 'settings', 'gear', 'Settings') + a('#/look', 'look', 'palette', 'Look and feel') +
       // FND-8: Help, beside Look and feel (views/help.js). It opens a side panel, not a screen, so it is a button.
       '<button class="nav" data-act="help" data-k="rail-help" aria-controls="lyre-help" aria-expanded="' + !!(L.helpOpen && L.helpOpen()) + '" aria-keyshortcuts="F1"' + (min ? ' title="Help"' : '') + '>' + L.icon('help') + '<span class="lbl">Help</span></button>' +
@@ -1351,7 +1363,8 @@ var L = (function () {
     var f = L.acts[el.dataset.act]; if (!f) return; e.preventDefault();
     if (menuEl && menuEl.contains(el) && !el.dataset.keepMenu) {
       // After a menu choice, focus goes back to the button that opened the menu (found again by data-k after a re-render).
-      var k = menuAnchor && menuAnchor.dataset ? menuAnchor.dataset.k : null; L.closeMenu(); f(el, e);
+      // UX-R1: refocus the button first, so a sheet the choice opens gives focus back to it when it closes.
+      var k = menuAnchor && menuAnchor.dataset ? menuAnchor.dataset.k : null; L.closeMenu(true); f(el, e);
       if (k && (!document.activeElement || document.activeElement === document.body)) { var n = document.querySelector('[data-k="' + k + '"]'); if (n) n.focus(); }
       return;
     }

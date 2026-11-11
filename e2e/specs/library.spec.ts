@@ -155,6 +155,8 @@ test.describe("a track's details", () => {
     await expect(options.first()).toHaveAttribute("aria-selected", "true");
     await page.keyboard.press("Enter");
     await expect(details(page).getByRole("button", { name: "Remove Melancholy from Mood" })).toBeVisible();
+    // UX-R5 (0.5.0 review): the Saved pop-up says the tags were saved.
+    await expect(page.getByRole("status").filter({ hasText: /^Saved: .+ tags$/ })).toBeVisible();
     await page.keyboard.type("Frostbitten");
     await expect(options.first()).toContainText("Frostbitten");
     await page.keyboard.press("Enter");
@@ -449,5 +451,30 @@ test.describe("round 7: dragging selected tracks to another list", () => {
     await page.mouse.move(t!.x + t!.width / 2, t!.y + t!.height / 2, { steps: 5 });
     await page.mouse.up();
     await expect(page.getByRole("status").filter({ hasText: /^Saved: The Abbess · 2 tracks added/ })).toBeVisible();
+  });
+});
+
+/* 0.5.0 usability review (UX-R3): round 6's cuts on the Library, as the prototype shows them. */
+test.describe("round 6 cuts on the Library", () => {
+  test("UX-R3: a track's details repeat neither its title in the header nor Manual on its playlists, and say nothing of names it has none of", async ({ page }) => {
+    await openRoute(page, "library/t21");
+    const d = page.getByRole("region", { name: "Details", exact: true });
+    await expect(d.getByRole("textbox", { name: "Your title" })).toBeVisible();
+    await expect(d.locator(".pane-summary")).toHaveText("");
+    await expect(d).not.toContainText("Names in scenes");
+    await expect(d.getByText("Manual", { exact: true })).toHaveCount(0);
+    await expect(d.getByText("Dynamic", { exact: true }).first()).toBeVisible();
+  });
+});
+
+/* 0.5.0 usability review (UX-R18): ROUND7, every control on the Library is at least 24 × 24 px. */
+test.describe("Library targets", () => {
+  test("UX-R18: a row's check box and Select all are at least 24 × 24 px", async ({ page }) => {
+    await openRoute(page, "library");
+    for (const box of [grid(page).getByRole("checkbox").first(), grid(page).getByRole("checkbox").nth(1)]) {
+      const r = (await box.boundingBox())!;
+      expect(Math.round(r.width)).toBeGreaterThanOrEqual(24);
+      expect(Math.round(r.height)).toBeGreaterThanOrEqual(24);
+    }
   });
 });

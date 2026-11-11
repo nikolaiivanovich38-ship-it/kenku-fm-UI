@@ -36,6 +36,9 @@ const CARDS: readonly ThemeCard[] = [
   { id: "elysium", name: "Elysium", games: "Vampire: the Masquerade, gothic and noir", line: "Soot black, bone and blood red for gothic and vampire chronicles." },
 ];
 
+/** What the page is for: the heading's hover text and description. */
+const INTRO = "Each campaign can have its own theme, and Lyre switches to it when you open that campaign. Choose one here to use it everywhere.";
+
 export function LookScreen() {
   const [choice, setChoice] = useThemeChoice();
   const { toast } = useAnnounce();
@@ -47,13 +50,17 @@ export function LookScreen() {
     <>
       <div className="viewhead">
         <TopLead />
-        <h1>Look and feel</h1>
-        <span className="muted">One Lyre, a theme per table</span>
+        {/* ROUND7 UX-11 (UX-R3): the intro is the heading's hover text and read out with it, not words on the page. */}
+        <h1 title={INTRO} aria-describedby="lk-intro">
+          Look and feel
+        </h1>
+        <p className="sr-only" id="lk-intro">
+          {INTRO}
+        </p>
       </div>
       <div className="viewbody" data-scroll="body">
         <Display />
         <div className="lk-intro">
-          <p>Each campaign can have its own theme, and Lyre switches to it when you open that campaign. Choose one here to use it everywhere.</p>
           <Select<ThemeChoice> className="lk-choice" label="Theme" value={choice} options={THEME_CHOICES} onChange={setChoice} />
         </div>
         <div className="lk-grid">

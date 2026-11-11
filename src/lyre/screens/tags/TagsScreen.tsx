@@ -67,7 +67,7 @@ export function TagsScreen(_props: ScreenProps) {
   };
 
   /** Rename, merge and delete: one undoable step for every track, said in the Undo note. */
-  const changeEveryTrack = async (write: () => Promise<Awaited<ReturnType<typeof api.tags.renameTag>>>, words: (n: number) => string, focus: string) => {
+  const changeEveryTrack = async (write: () => Promise<Awaited<ReturnType<typeof api.tags.renameTag>>>, words: (n: number) => string, focus: string, focusAfterUndo: string) => {
     const result = await write();
     if (isRefused(result)) {
       toast(result.refusal.message);
@@ -76,8 +76,9 @@ export function TagsScreen(_props: ScreenProps) {
     close();
     thenFocus(focus);
     const text = words(result.value.tracks);
-    offer(text, result.undoLabel);
-    say(`${text}. Undo is above the Now playing bar, or press Ctrl+Z.`);
+    // UX-R19: Undo puts focus back where the change was made from.
+    offer(text, result.undoLabel, `[data-k="${focusAfterUndo}"], [data-k-wrap="${focusAfterUndo}"] button`);
+    say(`${text}. Undo is at the bottom right, or press Ctrl+Z.`);
   };
 
   const ref = (group: TagGroup, tag: string): TagRef => ({ group: group.id, value: tag });
@@ -188,13 +189,13 @@ export function TagsScreen(_props: ScreenProps) {
           tracksInGroup={(g) => tracks.filter((t) => (t.tags[g.id] ?? []).length > 0).length}
           onClose={close}
           onRename={(g, tag, name) =>
-            void changeEveryTrack(() => api.tags.renameTag(ref(g, tag), name), (n) => `Renamed ${tag} to ${name} on ${tracksText(n)}`, tagKey(g.id, name))
+            void changeEveryTrack(() => api.tags.renameTag(ref(g, tag), name), (n) => `Renamed ${tag} to ${name} on ${tracksText(n)}`, tagKey(g.id, name), tagKey(g.id, tag))
           }
           onMerge={(g, tag, into) =>
-            void changeEveryTrack(() => api.tags.mergeTag(ref(g, tag), into), (n) => `Merged ${tag} into ${into} on ${tracksText(n)}`, tagKey(g.id, into))
+            void changeEveryTrack(() => api.tags.mergeTag(ref(g, tag), into), (n) => `Merged ${tag} into ${into} on ${tracksText(n)}`, tagKey(g.id, into), tagKey(g.id, tag))
           }
-          onDelete={(g, tag) => void changeEveryTrack(() => api.tags.deleteTag(ref(g, tag)), (n) => `Deleted ${tag} from ${tracksText(n)}`, `tg-add-${g.id}`)}
-          onDeleteGroup={(g) => void changeEveryTrack(() => api.tags.deleteGroup(g.id), (n) => `Deleted the ${g.name} group from ${tracksText(n)}`, "tg-newgroup")}
+          onDelete={(g, tag) => void changeEveryTrack(() => api.tags.deleteTag(ref(g, tag)), (n) => `Deleted ${tag} from ${tracksText(n)}`, `tg-add-${g.id}`, tagKey(g.id, tag))}
+          onDeleteGroup={(g) => void changeEveryTrack(() => api.tags.deleteGroup(g.id), (n) => `Deleted the ${g.name} group from ${tracksText(n)}`, "tg-newgroup", `tg-gmore-${g.id}`)}
           onWrite={async (what, write, focus) => {
             const done = await save(what, write);
             if (done) {
@@ -317,14 +318,14 @@ function TagSheet({ sheet, api, tracksWith, tracksInGroup, onClose, onRename, on
   switch (sheet.kind) {
     case "newGroup":
       return (
-        <Dialog open title="New group" onClose={onClose} footer={footer("Add group", named((n) => void onWrite(`tag group “${n}”`, () => api.tags.createGroup(n))))}>
+        <Dialog enterSubmits open title="New group" onClose={onClose} footer={footer("Add group", named((n) => void onWrite(`tag group “${n}”`, () => api.tags.createGroup(n))))}>
           {nameField("For example Faction")}
         </Dialog>
       );
     case "addTag": {
       const g = sheet.group;
       return (
-        <Dialog
+        <Dialog enterSubmits
           open
           title={`Add a tag to ${g.name}`}
           onClose={onClose}
@@ -343,7 +344,7 @@ function TagSheet({ sheet, api, tracksWith, tracksInGroup, onClose, onRename, on
     }
     case "rename":
       return (
-        <Dialog
+        <Dialog enterSubmits
           open
           title={`Rename ${tag}`}
           onClose={onClose}
@@ -435,7 +436,7 @@ function TagSheet({ sheet, api, tracksWith, tracksInGroup, onClose, onRename, on
       );
     case "groupRename":
       return (
-        <Dialog
+        <Dialog enterSubmits
           open
           title={`Rename the ${sheet.group.name} group`}
           onClose={onClose}

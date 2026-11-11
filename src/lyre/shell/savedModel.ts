@@ -2,7 +2,8 @@
  * UX-19 (round 6 part 5, design/prototype/ROUND6.md "The standard"): the rules of the one Saved pop-up, without the
  * page. The prototype's showNote (core.js): one pop-up at a time; the same save again within 2 s refreshes it (its
  * timer restarts, the tick pulses) and is not read out again; nor is a note that follows an announcement of the same
- * event within half a second (Could 14 of the round 6 review).
+ * event within half a second (Could 14 of the round 6 review). A note is read out a moment after it shows, so an
+ * announcement that follows it at once takes its place (UX-R6 of the 0.5.0 review; the provider does that part).
  */
 
 /** How long a note stays: 3 s, longer text up to 6 s. */

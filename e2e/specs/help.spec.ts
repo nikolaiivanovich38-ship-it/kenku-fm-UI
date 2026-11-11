@@ -77,7 +77,7 @@ test.describe("FND-8 the Help entry", () => {
       await expect(helpPanel(page).getByRole("list", { name: group })).toBeVisible();
     }
     const start = helpPanel(page).getByRole("list", { name: "Get started" });
-    await expect(start.getByRole("button", { name: "Connect Discord and bring a bot into a room" })).toBeVisible();
+    await expect(start.getByRole("button", { name: "Connect Discord and add a bot to a room" })).toBeVisible();
     await expect(helpPanel(page).getByRole("list", { name: "Run a session" }).getByRole("button", { name: "Run a session in Live" })).toBeVisible();
     await expect(helpPanel(page).getByRole("list", { name: "Your library" }).getByRole("button", { name: "Save diagnostics for a bug report" })).toBeVisible();
   });
@@ -128,7 +128,7 @@ test.describe("FND-8 the Help entry", () => {
     const panel = helpPanel(page);
     const search = panel.getByRole("searchbox", { name: "Search help" });
     await search.fill("token");
-    await expect(panel.getByRole("button", { name: "Connect Discord and bring a bot into a room" })).toBeVisible();
+    await expect(panel.getByRole("button", { name: "Connect Discord and add a bot to a room" })).toBeVisible();
     await expect(panel.getByRole("list", { name: "Get started" })).toHaveCount(0);
     await search.fill("shuffle repeat");
     await expect(panel.getByRole("listitem").first()).toHaveText("Shuffle and repeat per place");
@@ -169,9 +169,9 @@ test.describe("FND-8 the Help entry", () => {
       const panel = helpPanel(page);
       // Tab moves from the search box through the articles to the foot.
       await page.keyboard.press("Tab");
-      await expect(panel.getByRole("button", { name: "Connect Discord and bring a bot into a room" })).toBeFocused();
+      await expect(panel.getByRole("button", { name: "Connect Discord and add a bot to a room" })).toBeFocused();
       await page.keyboard.press("Enter");
-      await expect(panel.getByRole("heading", { level: 3, name: "Connect Discord and bring a bot into a room" })).toBeFocused();
+      await expect(panel.getByRole("heading", { level: 3, name: "Connect Discord and add a bot to a room" })).toBeFocused();
       expect(await axeProblems(page)).toEqual([]);
       const box = await panel.boundingBox();
       const size = page.viewportSize();

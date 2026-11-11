@@ -6,6 +6,7 @@ import { expectNoAxeViolations } from "../../test/axe";
 vi.mock("../../../preload/managers/PCMStream.worklet.js?asset", () => ({ default: "pcm.js" }));
 
 import { dropNames, go, openAt } from "./testHarness";
+import { expectPlayAirIcons } from "../../test/playAirIcon";
 
 const list = () => screen.getByRole("list", { name: "Playlists" });
 /** A playlist's row in the list, found by its expander. */
@@ -166,6 +167,12 @@ describe("Playlists: a manual playlist", () => {
     await waitFor(async () => expect((await api.playlists.list()).find((p) => p.id === "p-abbess")?.name).toBe("The Abbess, her theme"));
   });
 
+  it("UX-R8: Play on air shows the play triangle sounding out, in the header and on the rows", async () => {
+    openAt("playlist/p-abbess");
+    await waitFor(() => expect(trackNames()).toHaveLength(5));
+    expectPlayAirIcons();
+  });
+
   it("adds a track from the Add tracks box, which searches Music, Ambience or FX", async () => {
     openAt("playlist/p-abbess");
     await waitFor(() => expect(trackNames()).toHaveLength(5));
@@ -178,6 +185,58 @@ describe("Playlists: a manual playlist", () => {
     await user.click(add.getByRole("button", { name: /^Add Quiet grief/ }));
     await waitFor(() => expect(trackNames()).toHaveLength(6));
     expect(trackNames().slice(-1)[0]).toMatch(/^Quiet grief/);
+    // UX-R5: the Saved pop-up, as in the prototype ("Saved: <playlist> · added <track>").
+    await waitFor(() => expect(document.getElementById("lyre-toast")).toHaveTextContent(/^Saved: The Abbess · added Quiet grief/));
+  });
+
+  it("UX-R7: the Add tracks count is read out once typing pauses, not on every key", async () => {
+    openAt("playlist/p-abbess");
+    await waitFor(() => expect(trackNames()).toHaveLength(5));
+    const add = within(region("Add tracks"));
+    const live = document.getElementById("lyre-live")!;
+    const heard: string[] = [];
+    const watch = new MutationObserver(() => live.textContent && heard.push(live.textContent));
+    watch.observe(live, { childList: true, characterData: true, subtree: true });
+    await userEvent.setup().type(add.getByRole("searchbox", { name: "Search the library by any name or tag" }), "abbey");
+    expect(add.getByText(/\d+ match/).closest("[aria-live]")).toBeNull();
+    await waitFor(() => expect(heard.some((h) => /^\d+ match(es)?$/.test(h))).toBe(true), { timeout: 2000 });
+    await new Promise((r) => setTimeout(r, 700));
+    watch.disconnect();
+    expect(heard.filter((h) => /match/.test(h))).toHaveLength(1);
+  });
+
+  it("UX-R3 (round 6 cuts): a manual playlist's boxes say each fact once, and how-tos are hover text or read out", async () => {
+    openAt("playlist/p-abbess");
+    await waitFor(() => expect(trackNames()).toHaveLength(5));
+    const head = (name: string) => screen.getByRole("region", { name }).querySelector("header")!;
+    // Add tracks' search box says what to type.
+    expect(head("Add tracks")).not.toHaveTextContent("Search the library, or drop files here");
+    // The kind and lane are in the page header, not again in Details.
+    expect(screen.getByRole("region", { name: "Details" }).querySelector(".pl-facts")).toBeNull();
+    // Used in: the levels are its description and Use in…'s hover text.
+    const used = screen.getByRole("region", { name: "Used in" });
+    expect(used.querySelector(".pane-body")).not.toHaveTextContent("Campaign: every session");
+    expect(used).toHaveAccessibleDescription(/^Campaign: every session\. Session: that evening\./);
+    // The reorder how-to shows only while the keyboard is in the list.
+    expect(screen.getByText("Drag rows, or press Alt+Up / Alt+Down, to change the order.")).toHaveClass("keys-on-focus");
+  });
+
+  it("UX-R3 (round 6 cuts): a dynamic playlist's Rules say the rule once, with Any shape and Energy 0 as hover text", async () => {
+    openAt("playlist/p-abbey-eerie");
+    const rules = await screen.findByRole("region", { name: "Rules" });
+    expect(rules.querySelector(".pane-summary")).toBeEmptyDOMElement();
+    expect(rules).toHaveTextContent("In plain words:");
+    expect(rules).not.toHaveTextContent("Any shape");
+    expect(within(rules).getByRole("group", { name: "Shape: how the track moves" })).toHaveAttribute("title", "None pressed: any shape");
+    expect(within(rules).getByText("Energy 0 means a track with no energy set.")).toHaveClass("sr-only");
+    expect(within(rules).getByRole("combobox", { name: "Lowest energy" })).toHaveAccessibleDescription("Energy 0 means a track with no energy set.");
+  });
+
+  it("UX-R3 (round 6 cuts): the list of playlists says how to drop files in its hover text, not in its header", async () => {
+    openAt("playlists");
+    const list = await screen.findByRole("list", { name: "Playlists" });
+    expect(screen.getByRole("region", { name: "All playlists" }).querySelector("header")).not.toHaveTextContent("Drop audio files");
+    expect(list).toHaveAttribute("title", "Drop audio files on a row to add them");
   });
 
   it("moves a track down from its menu, and back up with Alt+Up", async () => {
@@ -388,7 +447,8 @@ describe("Playlists: round 5", () => {
     const { api } = openAt("playlist/p-gothic");
     const shapes = await screen.findByRole("group", { name: "Shape: how the track moves" });
     expect(within(shapes).getAllByRole("button").map((b) => b.textContent)).toEqual(["Steady", "Builds", "Falls away", "Peaks then falls", "Rises and falls"]);
-    expect(shapes).toHaveTextContent("Any shape");
+    // UX-R3: "Any shape" is the group's hover text, not a word on screen.
+    expect(shapes).toHaveAttribute("title", "None pressed: any shape");
     const matches = () => within(screen.getByRole("list", { name: "Matching tracks" })).getAllByRole("listitem").length;
     await waitFor(() => expect(matches()).toBeGreaterThan(0));
     const before = matches();
@@ -439,14 +499,15 @@ describe("Playlists: round 5", () => {
 });
 
 describe("Playlists: volume normalisation (PLY-15)", () => {
-  it("a playlist's Details choose Normalise volume after the kind line and before Notes; a track's own choice comes first", async () => {
+  it("a playlist's Details choose Normalise volume after the name and before Notes; a track's own choice comes first", async () => {
     const { api } = openAt("playlist/p-ashen");
     const details = await screen.findByRole("region", { name: "Details" });
     const norm = await within(details).findByRole("group", { name: "Normalise volume" });
     expect(within(norm).getByRole("button", { name: "On" })).toHaveAttribute("aria-pressed", "true");
     await waitFor(() => expect(norm).toHaveAccessibleDescription("Its tracks get -2.2 dB to +2.7 dB here; 1 plays as it is"));
     expect(within(details).getByTitle("A track's own choice still comes first.")).toBeInTheDocument();
-    const facts = details.querySelector(".pl-facts") as Element;
+    // UX-R3: no kind line in Details (the page header shows it), so Normalise follows the name.
+    const facts = within(details).getByRole("textbox", { name: "Name" });
     const notes = within(details).getByRole("textbox", { name: "Notes" });
     expect(facts.compareDocumentPosition(norm) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(norm.compareDocumentPosition(notes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

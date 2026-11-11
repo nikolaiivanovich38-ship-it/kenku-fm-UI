@@ -324,7 +324,9 @@ button .shape-g { color: inherit; }
 /* ORG-11 tags where music is chosen (kit/TagStrip.tsx): compact, each with its tag group's dot; "+n" for the rest.
    Below 820 px of the app only the first tag shows, with the count of the others. */
 .tagstrip { position: relative; display: inline-flex; align-items: center; gap: 3px; flex: 0 1 auto; min-width: 0; overflow: hidden; }
-.tagstrip .chip { height: 18px; padding: 0 6px; font-size: var(--fs-xs); flex: none; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* UX-R17: a chip may shrink to a few letters and an ellipsis (its word is an .ellipsis box), never clipped mid-word. */
+.tagstrip .chip { height: 18px; padding: 0 6px; font-size: var(--fs-xs); flex: 0 1 auto; min-width: 3.2em; max-width: 110px; overflow: hidden; white-space: nowrap; }
+.tagstrip .chip.ts-more { flex: none; min-width: 0; }
 .tagstrip .chip.ts-more { color: var(--ink-2); }
 .tagstrip .shape-tag { margin-right: 2px; }
 .tagstrip .ts-narrow { display: none; }
@@ -400,3 +402,6 @@ html[data-contrast="high"] .btn.ghost, html[data-contrast="high"] .closer { bord
 .tray.tray-session { background: color-mix(in srgb, var(--ink) 12%, var(--bg)); }
 .tray.tray-campaign { border: 2px dashed var(--line-strong); }
 .tray-h { margin: 0; padding: 0 2px; font-size: var(--fs-xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+
+/* Round 6 rule 5 (UX-R3): a key legend or reorder how-to shows only while the keyboard is in its box. */
+.pane:not(:focus-within) .keys-on-focus { display: none !important; }

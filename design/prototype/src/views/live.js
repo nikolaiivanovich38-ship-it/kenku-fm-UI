@@ -239,7 +239,7 @@
   function softUndo(text, restore, where, focus, items) { S.undo = null; S.undo2 = { text: text, restore: restore, where: where, focus: focus || '', at: Date.now(), until: Date.now() + UNDO_MS, items: items || null }; }
   function undoStrip(where) {
     var u = S.undo2; if (!u || u.where !== where) return '';
-    return '<div class="lv-undo lv-undo2" role="status"><span class="ellipsis grow">' + esc(u.text) + '</span>' +
+    return '<div class="lv-undo lv-undo2" role="group" aria-label="Undo"><span class="ellipsis grow">' + esc(u.text) + '</span>' +
       '<button class="btn s" data-act="lvundo2" data-k="lv-undo2" aria-keyshortcuts="Control+Z" title="Undo (Ctrl+Z)">' + L.icon('undo', 's') + '<span class="ellipsis">Undo</span></button>' +
       '<span class="lv-undo-bar" aria-hidden="true"><span data-undo2-left style="width:100%"></span></span></div>';
   }
@@ -321,7 +321,7 @@
       '<button class="lv-sess" data-act="lvsessmenu" data-k="lv-sess" data-f2="lvsessrename" aria-haspopup="menu" aria-expanded="false" aria-label="' + esc(c.name + ' Session ' + s.n + ': ' + s.name) + '" title="Loaded: ' + esc(c.name + ' › Session ' + s.n + ': ' + s.name) + '. Choose another session, or press F2 to rename it">' +
         L.icon('crown', 's') + '<span class="sr-only">' + esc(c.name) + ' </span><span class="lv-sess-s">Session ' + s.n + '<span class="lv-sess-nm sr-only">: ' + esc(s.name) + '</span></span>' + L.icon('chevdown', 's') + '</button>';
     return '<div class="lv-top"><h1 class="sr-only">Live</h1><!--lead-->' + sessBox + L.modeSwitch(c.id) + find() +
-      '<button class="btn s" data-act="lvfade" data-k="lv-fade" title="Fade everything out over 3 seconds (Shift+Esc)" aria-keyshortcuts="Shift+Escape" aria-label="Fade all">' + L.icon('fade', 's') + '<span class="lv-btxt">Fade all</span></button>' +
+      '<button class="btn s" data-act="lvfade" data-k="lv-fade" title="Fade all: everything fades out over 3 seconds (Shift+Esc)" aria-keyshortcuts="Shift+Escape" aria-label="Fade all">' + L.icon('fade', 's') + '<span class="lv-btxt">Fade all</span></button>' +
       '<button class="btn s danger" data-act="lvstop" data-k="lv-stop" title="Stop everything at once" aria-label="Stop all">' + L.icon('stop', 's') + '<span class="lv-btxt">Stop all</span></button>' +
       '<span class="lv-keyswrap"><button class="btn s" data-act="lvkeys" data-k="lv-keys" aria-expanded="' + S.keysOpen + '" aria-controls="lv-keys-pop" title="Keyboard keys for the live screen">Keys' + L.icon(S.keysOpen ? 'chevup' : 'chevdown', 's') + '</button>' +
       (S.keysOpen ? keysPop() : '') + '</span></div>';
@@ -335,7 +335,7 @@
       '<label class="lv-switch"><input type="checkbox" role="switch" data-input="lvkeys1" data-k="lv-keys1"' + (S.keys1 ? ' checked' : '') + '><span class="lv-switch-t"><b>Single-key shortcuts</b><span class="hint">Space, / and the pad keys. Turn off if they get in the way.</span></span></label>' +
       '<ul class="lv-keylist">' + k(kf('nextScene', 'Space'), 'Start the next scene', singleKey('nextScene')) + k(kf('find', '/'), 'Find a track or playlist', singleKey('find')) + k(esc(pk), b ? 'Pads on ' + esc(b.name) + ' (Current scene)' : 'Pads of the current scene', 1) +
       k('Alt+1…7', 'Go to a box: On air, Scenes, Current scene, Session playlists, Session pads, Campaign playlists, Campaign pads') + k('F6', 'Next box (Shift+F6: the one before)') +
-      k(kf('fadeAll', 'Shift+Esc'), 'Fade everything out (3 s)') + k(kf('undo', 'Ctrl+Z'), 'Undo the last change (for 8 s)') + k('Esc', 'Close a menu or clear the search') + '</ul>' +
+      k(kf('palette', 'Ctrl+K'), 'Find and play anything') + k(kf('fadeAll', 'Shift+Esc'), 'Fade all (3 s)') + k(kf('undo', 'Ctrl+Z'), 'Undo the last change (for 8 s)') + k('Esc', 'Close a menu or clear the search') + '</ul>' +
       '<p class="hint">' + (S.keys1 ? 'Keys do nothing while you type in a box.' : 'Single-key shortcuts are off. Shift+Esc and Ctrl+Z still work.') + '</p>' +
       // Should 12 of the round 6 review: what left the screen in round 6 is in Help (the rail's Help, or F1).
       '<button class="btn s ghost lv-keyshelp" data-act="lvhelp" data-k="lv-keyshelp" aria-keyshortcuts="F1">' + L.icon('help', 's') + 'Help</button></div>';
@@ -470,7 +470,7 @@
     if (nobodyThere(b)) {
       // The same one-click fix as "No room": move this bot to where the players are.
       var to = busiestChannel(b);
-      none = '<div class="lv-noroom" role="status">' + L.icon('warn', 's') + '<span class="grow">Nobody is in ' + esc(name) + ': players hear nothing</span>' +
+      none = '<div class="lv-noroom" role="status">' + L.icon('warn', 's') + '<span class="grow">Players hear nothing</span>' +
         (to ? '<button class="btn s lv-fix" data-act="lvbotjoin" data-id="' + b.id + '" data-g="' + to.g.id + '" data-c="' + to.c.id + '" data-k="lv-fix-' + b.id + '" title="' + esc(b.name + ' moves to ' + to.g.name + ' › ' + to.c.name + ' (' + people(to.c.members.length) + ')') + '">Move to ' + esc(to.c.name) + '</button>' : '') + '</div>';
     }
     if (!b) {
@@ -492,7 +492,7 @@
   function playedOf(tg) { return (D.played && D.played[tg]) || []; }
   function playedButton(tg, name) {
     var kx = tg === 'table' ? '' : '-' + tg, open = !!S.playedOpen[tg];
-    return '<button class="btn s icon lv-rm-played' + (open ? ' on' : '') + '" data-act="lvplayed" data-tg="' + tg + '" data-k="lv-played' + kx + '" aria-expanded="' + open + '" aria-label="What played" title="What played in ' + esc(name) + ', with Play again">' + L.icon('queue', 's') + '</button>';
+    return '<button class="btn s icon lv-rm-played' + (open ? ' on' : '') + '" data-act="lvplayed" data-tg="' + tg + '" data-k="lv-played' + kx + '" aria-expanded="' + open + '" aria-label="What played" title="What played in ' + esc(name) + ', with Play again">' + L.icon('history', 's') + '</button>';
   }
   function playedList(tg, name) {
     if (!S.playedOpen[tg]) return '';
@@ -604,7 +604,7 @@
     var short = compact && !S.allScenes && s.scenes.length > 2, u = S.undo;
     var body = '<div class="lv-sc-top"><button class="btn primary lv-nextsc" data-act="lvnext" data-k="lv-nextsc"' + (n ? '' : ' aria-disabled="true"') + (n && S.keys1 ? ' aria-keyshortcuts="Space"' : '') + ' title="' + (n ? 'Start ' + esc(n.name) + (S.keys1 ? ' (Space)' : '') + (rooms().length > 1 ? '. Scenes always play in ' + esc(rooms()[0].name) : '') : 'That was the last scene') + '">' +
       L.icon('next', 's') + '<span class="ellipsis">' + (n ? (S.notStarted ? 'Start: ' : 'Next scene: ') + esc(n.name) : 'No more scenes') + '</span>' + (n && S.keys1 ? '<span class="kbd" aria-hidden="true">Space</span>' : '') + '</button>' +
-      (u ? '<div class="lv-undo" role="status"><span class="ellipsis grow">Started <b>' + esc(u.started) + '</b></span>' +
+      (u ? '<div class="lv-undo" role="group" aria-label="Undo"><span class="ellipsis grow">Started <b>' + esc(u.started) + '</b></span>' +
         '<button class="btn s" data-act="lvundo" data-k="lv-undo" aria-keyshortcuts="Control+Z" title="Go back to ' + esc(u.label) + ', with its music and ambience (Ctrl+Z)">' + L.icon('undo', 's') + '<span class="ellipsis">Undo</span></button>' +
         '<span class="lv-undo-bar" aria-hidden="true"><span data-undo-left style="width:100%"></span></span></div>' : '') + '</div>' +
       '<ol class="lv-scenes">' + s.scenes.map(function (sc, i) {
@@ -819,7 +819,9 @@
     // Results: Playlists first (each unfolds to its tracks, as in the playlist boxes), then Tracks; each row has the
     // buttons it has everywhere in Live.
     var n = active ? r.list.length + r.pls.length : 0;
-    var res = !active ? '' : '<div class="lv-off-count" role="status"><span>' + (n ? n + ' found' : 'Nothing found') + (r.any ? ': none has all these tags, so tracks with some of them' : '') + '</span>' +
+    var countText = active ? (n ? n + ' found' : 'Nothing found') + (r.any ? ': none has all these tags, so tracks with some of them' : '') : '';
+    L.sayWhenSettled(active ? countText : '');
+    var res = !active ? '' : '<div class="lv-off-count"><span>' + countText + '</span>' +
         '<button class="lv-more" data-act="lvclear" data-k="lv-clear">Clear</button></div>' +
       (r.pls.length ? '<h3 class="lv-found-h" id="lv-found-p">Playlists</h3><ol class="lv-list" aria-labelledby="lv-found-p">' + r.pls.map(function (p) {
         var place = placeOfPl(p.id); return plRow(p, { src: 'offp', place: place, box: 'off', trackOpts: function () { return { pl: p.id, place: place, inner: true, box: 'off' }; } });
@@ -1048,7 +1050,8 @@
   L.acts.lvaddjoin = function (el) {
     var b = L.bot(el.dataset.id), c = L.channel(el.dataset.g, el.dataset.c); if (!b || !c) return;
     L.botJoin(b.id, el.dataset.g, el.dataset.c);
-    var msg = c.name + ' is joining. It starts silent: choose To: ' + c.name + ' in a box to play there.'; L.say(msg); L.toast(msg);
+    // UX-R9: a channel nobody is in says so in the room's own words.
+    var msg = c.members.length ? c.name + ' is joining. It starts silent: choose To: ' + c.name + ' in a box to play there.' : c.name + ' is joining: nobody there.'; L.say(msg); L.toast(msg);
   };
   L.acts.lvfxstop = function (el) { touched(); var tg = el && el.dataset.tg; if (!tg) { L.stopFx(); return; } L.fxFor(tg).forEach(function (f) { f.fadeOut = .8; }); L.changed(); L.say('Effects stopped in ' + roomName(tg)); };
   L.acts.lvpvstop = function () { L.stopPreview(); L.say('Preview stopped'); };
@@ -1129,7 +1132,7 @@
   L.acts.lvtag = function (el) {
     var g = el.dataset.g, v = el.dataset.v;
     if (tagOn(g, v)) S.tags = S.tags.filter(function (x) { return !(x.g === g && x.v === v); }); else S.tags.push({ g: g, v: v });
-    L.render(); var r = search(); L.say((r.list.length + r.pls.length) + ' found');
+    L.render(); // UX-R7: the count is read out by L.sayWhenSettled once the picking pauses
   };
   L.acts.lvmoretags = function () { S.moreTags = !S.moreTags; L.render(); };
   L.acts.lvlane = function (el) { S.lane = el.dataset.v; L.render(); };
@@ -1183,7 +1186,7 @@
     if (e.ctrlKey || e.metaKey) return false;
     if (typing) {
       // Esc in Find a track clears it; with nothing typed, it closes the results.
-      if (e.key === 'Escape' && t.dataset.k === 'lv-q') { if (t.value || S.tags.length) { S.q = ''; S.tags = []; L.render(); } else { closeFind(false); t.blur(); } return true; }
+      if (e.key === 'Escape' && t.dataset.k === 'lv-q') { if (t.value || S.tags.length) { S.q = ''; S.tags = []; L.render(); } else { closeFind(false); /* UX-R4: focus stays in the field */ } return true; }
       return false;
     }
     if (e.key === 'Escape') { if (S.findOpen) { closeFind(true); return true; } if (S.q || S.tags.length) { S.q = ''; S.tags = []; L.render(); L.say('Search cleared'); return true; } return false; }

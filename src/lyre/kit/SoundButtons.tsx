@@ -4,7 +4,7 @@
  *
  * - Preview (headphones): only the game master hears it. Pressed, with a stop icon, while it plays; pressing it
  *   again stops it. A board previews its first pad.
- * - Play on air (broadcast): the players hear it, in the first room. Tracks and playlists fade in over 3 s, as in the
+ * - Play on air (the play triangle sounding out; UX-R8): the players hear it, in the first room. Tracks and playlists fade in over 3 s, as in the
  *   prototype; a pad is pressed (a hold pad is let go after 1.5 s); a board presses its first pad.
  *
  * Both stop the click there, so a button inside a clickable row does not also open the row.
@@ -141,7 +141,7 @@ export function PlayOnAirButton({ target, name, tabIndex, className }: SoundButt
         play();
       }}
     >
-      <Icon name="broadcast" size="s" />
+      <Icon name="playair" size="s" />
     </button>
   );
 }

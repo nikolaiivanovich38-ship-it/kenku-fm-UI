@@ -89,7 +89,7 @@ export function PadEditor(props: PadEditorProps) {
           <Button className="pb-prev" icon={previewing ? "stop" : "headphones"} pressed={previewing} title="Only you hear it" onClick={() => sound.previewPad(board.id, pad.id)}>
             {previewing ? "Stop preview" : "Preview"}
           </Button>
-          <Button icon={on && pad.mode === "toggle" ? "stop" : "broadcast"} pressed={on} title="The players hear it" onClick={() => onFire(pad)}>
+          <Button icon={on && pad.mode === "toggle" ? "stop" : "playair"} pressed={on} title="The players hear it" onClick={() => onFire(pad)}>
             {on && pad.mode === "toggle" ? "Stop on air" : "Play on air"}
           </Button>
           {on && <span className="badge onair">On air</span>}

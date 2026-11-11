@@ -17,10 +17,12 @@ describe("all campaigns", () => {
     openAt("campaigns");
     const crown = await screen.findByRole("article", { name: "The Sunken Crown" });
     expect(main().getAllByRole("article")).toHaveLength(3);
-    expect(main().getByText("3 campaigns")).toBeInTheDocument();
+    // UX-R3 (round 6 cuts): no count beside the heading (the cards are the count); the theme's name is hover text.
+    expect(main().queryByText("3 campaigns")).toBeNull();
     expect(crown).toHaveAttribute("data-theme", "hearth");
     expect(crown).toHaveTextContent("D&D 5e");
-    expect(crown).toHaveTextContent("Hearth and Iron");
+    expect(crown).not.toHaveTextContent("Hearth and Iron");
+    expect(crown).toHaveAttribute("title", expect.stringMatching(/theme: Hearth and Iron$/));
     expect(crown).toHaveTextContent("Session 14: The Drowned Abbey");
     expect(crown).toHaveTextContent("Thu 5 Nov 2026");
     expect(within(crown).getByRole("button", { name: "Run next session of The Sunken Crown: Session 14" })).toBeInTheDocument();

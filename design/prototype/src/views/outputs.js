@@ -40,6 +40,8 @@
     if (b.status === 'error') return { text: 'Could not join', tone: 'warn' };
     if (b.status === 'connecting') return { text: 'Joining', tone: 'warn' };
     if (!inRoom(b)) return { text: 'Not in a room', tone: 'idle' };
+    // UX-R9 (0.5.0 review): as in Live, a room nobody is in says so, never Playing.
+    if (b.status === 'connected' && !L.botListeners(b).length) return { text: 'Nobody there', tone: 'warn' };
     if (b.muted) return { text: 'Muted', tone: 'idle' };
     if (playing(b)) return { text: 'Playing', tone: 'live' };
     var m = L.mix(b.id); if (m.music && m.music.paused) return { text: 'Paused', tone: 'idle' };
@@ -84,7 +86,7 @@
     var others = roomBots(sid, cid).filter(function (x) { return x !== b; });
     L.botJoin(b.id, sid, cid);
     if (others.length) L.toast(b.name + ' is joining ' + c.name + ', where ' + names(others) + ' already plays: players will hear it twice');
-    else if (!c.members.length) L.toast(b.name + ' is joining ' + c.name + '. Nobody is there yet.');
+    else if (!c.members.length) L.toast(b.name + ' is joining ' + c.name + ': nobody there.');
     else L.toast(b.name + ' is joining ' + c.name);
     refocus(b.id);
   };
@@ -174,7 +176,7 @@
         '<button class="btn s op-room' + (here ? '' : ' primary') + '" data-act="oproom" data-bot="' + b.id + '" data-k="op-room-' + b.id + '" aria-haspopup="menu" aria-expanded="false" aria-labelledby="op-rl-' + b.id + ' op-rv-' + b.id + '" title="Move ' + esc(b.name) + ' to another voice channel">' + room + L.icon('chevdown', 's') + '</button>' +
         (inRoom(b) ? kickBtn(b, 'op-leave-' + b.id) : '') + '</div>' +
       (here ? '<span class="op-l">Playing</span><div class="op-play">' + playingHTML(b) + '</div>' +
-        '<span class="op-l">Hears it</span><div class="op-who ellipsis" title="' + esc(who.join(', ')) + '">' + (who.length ? '<b>' + people(who.length) + '</b>' : '<span class="op-nobody">' + ic('alert', 's') + 'Nobody here yet</span>') + (who.length ? '<span class="muted">: ' + esc(who.join(', ')) + '</span>' : '') + '</div>' : '') +
+        '<span class="op-l">Hears it</span><div class="op-who ellipsis" title="' + esc(who.join(', ')) + '">' + (who.length ? '<b>' + people(who.length) + '</b>' : '<span class="op-nobody">' + ic('alert', 's') + 'Nobody</span>') + (who.length ? '<span class="muted">: ' + esc(who.join(', ')) + '</span>' : '') + '</div>' : '') +
       '<label class="op-l" for="op-vol-' + b.id + '">Volume</label><div class="op-volrow"><input type="range" id="op-vol-' + b.id + '" min="0" max="100" step="5" value="' + b.volume + '" data-input="opvol" data-bot="' + b.id + '" data-k="op-vol-' + b.id + '" data-save="' + esc(b.name) + ' volume" aria-valuetext="' + b.volume + '%"><output class="num" id="op-vo-' + b.id + '" for="op-vol-' + b.id + '">' + b.volume + '%</output><span class="op-lvl" title="Level: how loud the room is right now"><span class="op-lvl-l" aria-hidden="true">Level</span><span class="op-meter" aria-hidden="true"><span data-opmeter="' + b.id + '"></span></span></span></div>' +
       '</div>' + warnings(b);
     return L.pane({ id: 'op-r-' + b.id, title: here ? c.name : b.name, icon: 'broadcast', kind: 'onair', size: 'auto', noMax: true, cls: 'op-box-room' + (pill(b).text === 'Playing' ? '' : ' is-silent'), status: pill(b), actions: actions,

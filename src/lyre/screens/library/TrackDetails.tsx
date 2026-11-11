@@ -272,22 +272,21 @@ export function TrackDetails({
             </>
           )}
         </dd>
-        <dt>Names in scenes</dt>
-        <dd>
-          {names.length ? (
-            <ul className="lb-scnames">
-              {names.map((n) => (
-                <li key={n.key}>
-                  <b>{n.name}</b> <span className="hint">in {n.label}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <span className="lb-none">
-              None: it shows its own name everywhere
-            </span>
-          )}
-        </dd>
+        {/* Round 6 (UX-R3): shown only when it has names; its own name everywhere is the usual case. */}
+        {names.length > 0 && (
+          <>
+            <dt>Names in scenes</dt>
+            <dd>
+              <ul className="lb-scnames">
+                {names.map((n) => (
+                  <li key={n.key}>
+                    <b>{n.name}</b> <span className="hint">in {n.label}</span>
+                  </li>
+                ))}
+              </ul>
+            </dd>
+          </>
+        )}
       </dl>
       <div className="lb-acts">
         <button
@@ -307,7 +306,7 @@ export function TrackDetails({
             if (r.ok) toast(`On air: ${shown}`);
           }}
         >
-          <Icon name="broadcast" size="s" />
+          <Icon name="playair" size="s" />
           Play on air
         </button>
         <ProfileLink trackId={t.id} title={shown} hasOwn={!!t.profile} />
@@ -545,7 +544,7 @@ function TagRow({
   store: TrackStore;
 }) {
   const api = useLyreApi();
-  const { say } = useAnnounce();
+  const { say, saved } = useAnnounce();
   const accept = useWriteResult();
   const mine = useMemo(() => t.tags[group.id] ?? [], [t.tags, group.id]);
   const [q, setQ] = useState("");
@@ -618,6 +617,8 @@ function TagRow({
       };
     });
     say(`${made ? "Created and added" : "Added"} ${known} to ${group.name}`);
+    // UX-R5: the Saved pop-up too (shown, not read out again: the words above say it).
+    saved(`${shownTitle(t)} tags`, { key: `lb-tags-${t.id}` });
     if (stay) inputRef.current?.focus();
   };
   const remove = async (value: string) => {
@@ -636,6 +637,7 @@ function TagRow({
       },
     }));
     say(`Removed ${value} from ${group.name}`);
+    saved(`${shownTitle(t)} tags`, { key: `lb-tags-${t.id}` });
     inputRef.current?.focus();
   };
 
@@ -767,7 +769,7 @@ function InPlaylists({
   onNewPlaylist: (ids: string[]) => void;
 }) {
   const api = useLyreApi();
-  const { toast } = useAnnounce();
+  const { saved } = useAnnounce();
   const accept = useWriteResult();
   const ok = useWriteOk();
   const inLane = (p: PlaylistInfo) =>
@@ -804,7 +806,7 @@ function InPlaylists({
               ),
               onSelect: async () => {
                 if (accept(await api.playlists.addTracks(p.id, [t.id])))
-                  toast(`Added to ${p.name}`);
+                  saved(p.name, { detail: `added ${shownTitle(t)}`, key: `pl-${p.id}` });
               },
             }),
           )
@@ -845,7 +847,7 @@ function InPlaylists({
               <a href={`#/playlist/${p.id}`} className="ellipsis">
                 {p.name}
               </a>
-              <span className="hint lb-plk">Manual</span>
+              {/* Round 6 (UX-R3): only Dynamic is marked; Manual is the usual case. */}
               <button
                 type="button"
                 className="closer"
@@ -853,7 +855,7 @@ function InPlaylists({
                 aria-label={`Remove from ${p.name}`}
                 onClick={async () => {
                   if (ok(await api.playlists.removeTrack(p.id, t.id))) {
-                    toast(`Removed from ${p.name}`);
+                    saved(p.name, { detail: `removed ${shownTitle(t)}`, key: `pl-${p.id}` });
                     focusSoon("lb-pladd");
                   }
                 }}
@@ -868,8 +870,8 @@ function InPlaylists({
               <a href={`#/playlist/${p.id}`} className="ellipsis">
                 {p.name}
               </a>
-              <span className="hint lb-plk">
-                Dynamic: matches its tag rules
+              <span className="hint lb-plk" title="Matches its tag rules">
+                Dynamic
               </span>
             </li>
           ))}

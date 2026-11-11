@@ -497,7 +497,9 @@ export function LibraryScreen({ route }: ScreenProps) {
       kind="plain"
       open={dOpen}
       onOpenChange={setDOpen}
+      // Round 6 (UX-R3): the title is the first field; the header says it only while the box is folded.
       summary={open ? shownTitle(open) : ""}
+      foldedSummary
       status={open ? (onAir.has(open.id) ? { text: "Playing", tone: "live" } : undefined) : { text: "Empty" }}
       actions={
         open && mode !== "narrow" ? (

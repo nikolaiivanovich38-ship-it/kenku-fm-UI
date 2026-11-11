@@ -24,6 +24,7 @@ import { nameUses, usePlaylistData, usedText, type PlaylistData } from "./playli
 import { DropNotice, DropZone, dropFiles, useDropState, useFileDrops, type DropTarget } from "./playlistDrops";
 import { KindLane, matchesQuery, newlyMade, soundName, useDropActions } from "./playlistParts";
 import { focusSoon, onAirPlaylistIds, onAirTrackIds, useWriteOk, useWriteResult } from "./shared";
+import { useSayWhenSettled } from "../../kit/useSayWhenSettled";
 import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
 import { previewKeyOf } from "../../kit/SoundButtons";
 import { UseInDialog } from "./UseInDialog";
@@ -295,7 +296,7 @@ function OnePlaylist({ pl: saved, data }: { pl: PlaylistInfo; data: PlaylistData
             if (r.ok) toast(`On air: ${shownTitle(first)}`);
           }}
         >
-          <Icon name="broadcast" size="s" />
+          <Icon name="playair" size="s" />
           Play on air
         </button>
         <PlayOrderButton playlistId={pl.id} place={null} />
@@ -544,7 +545,7 @@ function TrackRow({
           aria-label={`Play on air: ${title}`}
           onClick={() => (t.kind === "fx" ? audio.playTrack(t.id) : audio.playTrack(t.id, inThis ? { from: { playlistId: pl.id } } : undefined))}
         >
-          <Icon name="broadcast" size="s" />
+          <Icon name="playair" size="s" />
         </button>
         {add ? (
           add.inList ? (
@@ -746,7 +747,8 @@ function TracksPane({
               })}
             </ol>
           </div>
-          <p className="hint pl-foot">Drag rows, or press Alt+Up / Alt+Down, to change the order.</p>
+          {/* Round 6 (UX-R3): the reorder how-to shows only while the keyboard is in the box. */}
+          <p className="hint pl-foot keys-on-focus">Drag rows, or press Alt+Up / Alt+Down, to change the order.</p>
           {/* ORG-5: dragging a track shows where it can go; Add to… does the same from the keyboard. */}
           <DropTray
             resolve={(el) => {
@@ -800,7 +802,7 @@ function AddPane({
   onOpenChange: (open: boolean) => void;
 }) {
   const api = useLyreApi();
-  const { say, toast } = useAnnounce();
+  const { say, toast, saved } = useAnnounce();
   const accept = useWriteResult();
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(ADD_FIRST);
@@ -810,17 +812,24 @@ function AddPane({
     const pool = data.tracks.filter(laneTest(lane));
     return q ? pool.filter((t) => matchesQuery(haystack(t), q)) : pool;
   }, [data.tracks, lane, q]);
+  const count = q ? `${hits.length} ${hits.length === 1 ? "match" : "matches"}` : plural(hits.length, "track");
+  // UX-R7: read out once typing pauses, not on every key.
+  useSayWhenSettled(q ? count : null);
   const add = async (t: LibraryTrack) => {
     if (pl.trackIds.includes(t.id)) {
       toast("Already in this playlist");
       return;
     }
     edit({ ...pl, trackIds: [...pl.trackIds, t.id] });
-    if (accept(await api.playlists.addTracks(pl.id, [t.id]))) say(`Added ${shownTitle(t)} at position ${pl.trackIds.length + 1}`);
-    else edit(null);
+    if (accept(await api.playlists.addTracks(pl.id, [t.id]))) {
+      say(`Added ${shownTitle(t)} at position ${pl.trackIds.length + 1}`);
+      // UX-R5: the Saved pop-up too, as for every other change to a playlist.
+      saved(pl.name, { detail: `added ${shownTitle(t)}`, key: `pl-${pl.id}` });
+    } else edit(null);
   };
   return (
-    <Pane id="pl-add" title="Add tracks" icon="search" kind="search" flush summary="Search the library, or drop files here" open={open} onOpenChange={onOpenChange}>
+    // Round 6 (UX-R3): the search box says what to type; dropping files is the list's hover text.
+    <Pane id="pl-add" title="Add tracks" icon="search" kind="search" flush open={open} onOpenChange={onOpenChange}>
       <div className="pl-addbar">
         <div className="search grow">
           <Icon name="search" />
@@ -854,9 +863,7 @@ function AddPane({
             </button>
           ))}
         </div>
-        <span className="muted pl-count" aria-live="polite">
-          {q ? `${hits.length} ${hits.length === 1 ? "match" : "matches"}` : plural(hits.length, "track")}
-        </span>
+        <span className="muted pl-count">{count}</span>
       </div>
       <div className="pl-scroll">
         {hits.length ? (
@@ -929,6 +936,8 @@ function RulesPane({ pl, edit, data, matches }: { pl: Extract<PlaylistInfo, { ki
       size="auto"
       status={matches ? undefined : { text: "Empty", tone: "warn" }}
       summary={words || `Every ${laneLower} track`}
+      // Round 6 (UX-R3): "In plain words" says the rule while the box is open.
+      foldedSummary
     >
       <div className="pl-conds">
         {rule.conds.length ? (
@@ -1020,7 +1029,7 @@ function RulesPane({ pl, edit, data, matches }: { pl: Extract<PlaylistInfo, { ki
           <Icon name="plus" size="s" />
           Add condition
         </button>
-        <span className="pl-energy">
+        <span className="pl-energy" title="Energy 0 means a track with no energy set">
           <span className="faint">Energy from</span>
           <select
             className="input pl-sel pl-num"
@@ -1064,7 +1073,7 @@ function RulesPane({ pl, edit, data, matches }: { pl: Extract<PlaylistInfo, { ki
         </label>
       </div>
       {/* DAT-13: only tracks of these shapes (the game master's choice, else Lyre's suggestion). None pressed: any. */}
-      <div className="pl-shapes" role="group" aria-label="Shape: how the track moves">
+      <div className="pl-shapes" role="group" aria-label="Shape: how the track moves" title="None pressed: any shape">
         <span className="faint">Shape</span>
         {SHAPES.map(([shape, word]) => {
           const on = !!rule.shapes?.includes(shape);
@@ -1084,14 +1093,13 @@ function RulesPane({ pl, edit, data, matches }: { pl: Extract<PlaylistInfo, { ki
             </button>
           );
         })}
-        {!rule.shapes?.length && <span className="hint">Any shape</span>}
       </div>
       <p className="pl-words">
         <span className="faint">In plain words:</span> {KIND_NAMES[pl.lane]} tracks{words ? ` with ${words}` : ", all of them"}.
         {waiting && <span className="pl-warn"> A condition still needs a value, so nothing matches yet.</span>}
       </p>
-      {/* w3-ux 18: the energy lists start at 0, which is a track whose energy is not set. */}
-      <p className="hint pl-enhint" id="pl-en-hint">
+      {/* w3-ux 18: the energy lists start at 0, which is a track whose energy is not set (read out; hover text on the lists). */}
+      <p className="sr-only" id="pl-en-hint">
         Energy 0 means a track with no energy set.
       </p>
     </Pane>
@@ -1152,8 +1160,10 @@ function UsesPane({ data, uses, onUseIn }: { data: PlaylistData; uses: ReturnTyp
       size="auto"
       flush
       status={uses.length ? undefined : { text: "Empty" }}
+      // Round 6 (UX-R3): what each level means is read out with the box and is Use in…'s hover text.
+      description={USE_LEVELS}
       actions={
-        <button type="button" className="btn s" onClick={onUseIn}>
+        <button type="button" className="btn s" title={USE_LEVELS} onClick={onUseIn}>
           Use in…
         </button>
       }
@@ -1187,10 +1197,12 @@ function UsesPane({ data, uses, onUseIn }: { data: PlaylistData; uses: ReturnTyp
       ) : (
         <div className="empty">Not used yet.</div>
       )}
-      <p className="hint pl-levels">Campaign: every session. Session: that evening. Scene: plays in that scene, in its place in the list.</p>
     </Pane>
   );
 }
+
+/** What Campaign, Session and Scene mean in Used in (round 6: read out and hover text, not a line on screen). */
+const USE_LEVELS = "Campaign: every session. Session: that evening. Scene: plays in that scene, in its place in the list.";
 
 function DetailsBody({
   pl,
@@ -1225,9 +1237,7 @@ function DetailsBody({
         <label htmlFor="pl-name">Name</label>
         <input id="pl-name" className="input" type="text" data-focus="plname" value={name} onChange={(e) => onName(e.target.value)} onBlur={onNameDone} />
       </div>
-      <p className="pl-facts" title={pl.kind === "manual" ? "Manual: you pick the tracks and their order." : "Dynamic: Lyre fills it with every track that matches the rules, including tracks you tag later."}>
-        <KindLane pl={pl} />
-      </p>
+      {/* Round 6 (UX-R3): the kind and lane are in the page header, not again here. */}
       <NormaliseChoice
         value={pl.normalise}
         library={normalise}

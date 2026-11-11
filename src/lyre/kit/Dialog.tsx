@@ -12,16 +12,19 @@ export interface DialogProps {
   wide?: boolean;
   /** Round 6: how-to words read out with the dialog (its description) instead of shown above its content. */
   description?: React.ReactNode;
+  /** UX-R20: Enter in a one-line text field presses the footer's main button (Rename, Add tag…). */
+  enterSubmits?: boolean;
   children: React.ReactNode;
 }
 
+const FIRST_IN_BODY = ".body input:not([disabled]), .body select:not([disabled]), .body textarea:not([disabled]), .body button:not([disabled])";
 const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
 
 /**
  * A modal sheet (ui.css .sheet) for prep screens only: the live view never covers its controls. Focus goes to its
  * first field (or first button), Tab stays inside, and focus returns to what opened it when it closes.
  */
-export function Dialog({ open, title, onClose, footer, wide, description, children }: DialogProps) {
+export function Dialog({ open, title, onClose, footer, wide, description, enterSubmits, children }: DialogProps) {
   const titleId = useId();
   const descId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -34,7 +37,8 @@ export function Dialog({ open, title, onClose, footer, wide, description, childr
     }
     const opener = document.activeElement as HTMLElement | null;
     const panel = panelRef.current;
-    const first = panel?.querySelector<HTMLElement>(".body input, .body select, .body textarea, .body button") ?? panel?.querySelector<HTMLElement>("button");
+    // UX-R1: the first control that can take focus; a greyed one (the first step's Move up) is skipped.
+    const first = panel?.querySelector<HTMLElement>(FIRST_IN_BODY) ?? panel?.querySelector<HTMLElement>("button:not([disabled])");
     first?.focus();
     return () => {
       if (opener && document.contains(opener)) {
@@ -52,6 +56,14 @@ export function Dialog({ open, title, onClose, footer, wide, description, childr
       event.preventDefault();
       event.stopPropagation();
       onCloseRef.current();
+      return;
+    }
+    if (enterSubmits && event.key === "Enter" && !event.shiftKey && event.target instanceof HTMLInputElement && /^(text|search|)$/.test(event.target.type)) {
+      const main = panelRef.current?.querySelector<HTMLButtonElement>("footer .btn.primary:not([disabled])");
+      if (main) {
+        event.preventDefault();
+        main.click();
+      }
       return;
     }
     if (event.key !== "Tab" || !panelRef.current) {

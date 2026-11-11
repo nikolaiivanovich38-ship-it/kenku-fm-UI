@@ -132,6 +132,23 @@ test.describe("Add a bot, in the order Discord needs", () => {
     await expect(bots(page).getByRole("group", { name: "Lyre Third" })).toContainText("••••••••abcd");
   });
 
+  test("UX-R11: a wrong Application ID and a missing token are said under their fields; Open the invite stays off", async ({ page }) => {
+    await openRoute(page, "settings");
+    await bots(page).getByRole("button", { name: "Add a bot" }).click();
+    await sheet(page).getByRole("button", { name: "Next" }).click();
+    const id = sheet(page).getByLabel("Application ID");
+    await id.fill("abc123");
+    await expect(id).toHaveValue("abc123");
+    await expect(id).toHaveAttribute("aria-invalid", "true");
+    await expect(sheet(page)).toContainText("An Application ID is a long number: copy it from General Information.");
+    await expect(sheet(page).getByRole("link", { name: "Open the invite" })).toHaveAttribute("aria-disabled", "true");
+    await id.fill("123456789012345678");
+    await sheet(page).getByRole("button", { name: "Next" }).click();
+    await sheet(page).getByRole("button", { name: "Connect", exact: true }).click();
+    await expect(sheet(page).getByRole("alert")).toContainText("Paste the token first");
+    await expect(sheet(page).getByLabel("Token", { exact: true })).toBeFocused();
+  });
+
   test("a bot connected before it was invited says it is in no server yet, with the invite again", async ({ page }) => {
     await openRoute(page, "settings");
     await bots(page).getByRole("button", { name: "Add a bot" }).click();
@@ -268,7 +285,7 @@ test.describe("round 7: crossfade and keyboard shortcuts", () => {
     const palette = box.getByRole("row", { name: /^Find and play/ });
     await palette.getByRole("button", { name: "Change the key for Find and play" }).click();
     await page.keyboard.press("Shift+Escape");
-    await expect(page.getByRole("status").filter({ hasText: /Shift\+Esc is already Fade everything out/ })).toBeVisible();
+    await expect(page.getByRole("status").filter({ hasText: /Shift\+Esc is already Fade all/ })).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(palette).toContainText("Ctrl+K");
   });
@@ -279,7 +296,15 @@ test.describe("round 7: crossfade and keyboard shortcuts", () => {
     const box = await unfold(page, "Keyboard shortcuts");
     await box.getByRole("button", { name: "Printable sheet" }).click();
     const sheetBox = page.getByRole("dialog", { name: "Lyre's keys" });
-    await expect(sheetBox.getByRole("table")).toContainText("Fade everything out");
+    await expect(sheetBox.getByRole("table")).toContainText("Fade all"); // UX-R15: one name
     await expect(sheetBox.getByRole("button", { name: "Print" })).toBeVisible();
+  });
+});
+
+/* 0.5.0 usability review (UX-R16): ROUND6 part 4 #18, the app shows its own version. */
+test.describe("Settings shows Lyre's version", () => {
+  test("UX-R16: the version is at the top right of Settings", async ({ page }) => {
+    await openRoute(page, "settings");
+    await expect(page.getByTitle("Lyre version")).toHaveText(/^\d+\.\d+\.\d+/);
   });
 });

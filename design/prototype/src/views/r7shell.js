@@ -48,9 +48,9 @@
   L.SHORTCUTS = [
     { id: 'palette', name: 'Find and play', key: 'Ctrl+K', where: 'Everywhere' },
     { id: 'nextScene', name: 'Next scene', key: 'Space', where: 'Live' },
-    { id: 'fadeAll', name: 'Fade everything out', key: 'Shift+Esc', where: 'Live' },
+    { id: 'fadeAll', name: 'Fade all', key: 'Shift+Esc', where: 'Live' },
     { id: 'undo', name: 'Undo', key: 'Ctrl+Z', where: 'Everywhere' },
-    { id: 'find', name: 'Find a track', key: '/', where: 'Live' },
+    { id: 'find', name: 'Find a track or playlist', key: '/', where: 'Live' },
     { id: 'boxes', name: 'Next box', key: 'F6', where: 'Everywhere' },
     { id: 'back', name: 'Back', key: 'Alt+Left', where: 'Everywhere' },
     { id: 'help', name: 'Help', key: 'F1', where: 'Everywhere' }
@@ -212,6 +212,8 @@
   function hideTip() { if (tip) { tip.remove(); tip = null; } }
   document.addEventListener('focusin', function (e) {
     hideTip(); var a = e.target; if (!a || !a.closest || !a.closest('#view, .onairbar')) return;
+    // UX-R13 (0.5.0 review): a heading with tabindex -1 has focus because the page put it there as a screen opened.
+    if (/^H[1-6]$/.test(a.tagName) && a.getAttribute('tabindex') === '-1') return;
     var cut = (isCut(a) ? [a] : []).concat([].slice.call(a.querySelectorAll('*')).filter(function (x) { return x.offsetParent && x.children.length < 6 && norm(x.textContent).length > 2 && isCut(x); }));
     if (!cut.length) return;
     var words = cut.slice(0, 2).map(function (x) { return norm(x.textContent); }).join(' · ');

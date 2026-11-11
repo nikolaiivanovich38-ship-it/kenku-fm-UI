@@ -54,7 +54,6 @@
 .view .lb-foot { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 4px 8px; border-top: 1px solid var(--line); flex: none; }
 .view .lb-foot .kbd { font-size: 10px; padding: 1px 4px; }
 /* Round 6: a key legend shows only while the keyboard is in its box (it is read out with the list all the same). */
-.pane:not(:focus-within) .keys-on-focus { display: none !important; }
 
 .view .lb-table { table-layout: fixed; }
 .lb-table th { padding: 4px 6px; }
@@ -162,6 +161,8 @@ body .lb-tsnew .input { height: var(--ctl-s); font-size: var(--fs-s); }
 .view .lb-fh, .view .lb-h { margin: 0; }
 .view .seg.lb-seg24 button { height: 24px; min-width: 24px; justify-content: center; }
 .view .lb-ckl { display: inline-grid; place-items: center; width: 24px; height: 24px; cursor: pointer; }
+/* UX-R18 (ROUND7): the check box itself is a 24 px target, as every control on the Library is. */
+.view .lb-ckl input[type="checkbox"] { width: 24px; height: 24px; }
 .view .lb-table .lb-c-ck { width: 34px; padding-left: 6px; }
 .lb-table td { padding-top: 4px; padding-bottom: 4px; }
 .view .lb-newb { margin-top: 1px; }

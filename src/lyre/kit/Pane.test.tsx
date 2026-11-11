@@ -29,6 +29,35 @@ describe("Pane: every box shows what it is for and what it is doing (UX-3)", () 
     await expectNoAxeViolations();
   });
 
+  it("UX-R3 (round 6 rule 4): a resting status (Empty, a count) and a folded-only summary show only while folded", async () => {
+    inShell(
+      <>
+        <Pane id="pl" title="Session playlists" status={{ text: "4" }} summary="Next: Session 14" foldedSummary>
+          <p>Four rows</p>
+        </Pane>
+        <Pane id="notes" title="Notes" status={{ text: "Empty" }}>
+          <p>Notes</p>
+        </Pane>
+        <Pane id="air" title="On air" status={{ text: "Playing", tone: "live" }}>
+          <p>Room</p>
+        </Pane>
+        <Pane id="sess" title="Sessions" status={{ text: "4 sessions" }}>
+          <p>Rows</p>
+        </Pane>
+      </>,
+    );
+    const region = (name: string) => within(screen.getByRole("region", { name }));
+    expect(region("Session playlists").queryByText("4")).toBeNull();
+    expect(region("Session playlists").queryByText("Next: Session 14")).toBeNull();
+    expect(region("Notes").queryByText("Empty")).toBeNull();
+    expect(region("Sessions").queryByText("4 sessions")).toBeNull();
+    // A status that says something is happening always shows.
+    expect(region("On air").getByText("Playing")).toBeInTheDocument();
+    await userEvent.click(region("Session playlists").getByRole("button", { name: "Session playlists" }));
+    expect(region("Session playlists").getByText("4")).toBeInTheDocument();
+    expect(region("Session playlists").getByText("Next: Session 14")).toBeInTheDocument();
+  });
+
   it("w6-live: a session's or campaign's box shows its label, its scope read out first; its key is on hover", () => {
     inShell(
       <>

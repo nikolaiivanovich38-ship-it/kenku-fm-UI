@@ -114,6 +114,8 @@ export interface ChannelChoice {
   taken: boolean;
   /** "5 people · players" (Must 2: where most players are), "1 person", "empty", or "a room already". */
   sub: string;
+  /** Nobody is in it (UX-R9: a bot joining says "nobody there"). */
+  empty: boolean;
 }
 
 const peopleWords = (n: number) => (n === 0 ? "empty" : `${n} ${n === 1 ? "person" : "people"}`);
@@ -133,7 +135,7 @@ export function channelChoices(outputs: LyreOutputs, bot: LyreBot): { server: st
         const here = view.bots.some((b) => b.bot.id === bot.id && b.inRoom && b.bot.room?.channelId === c.id);
         const taken = view.bots.some((b) => b.bot.id !== bot.id && b.inRoom && b.bot.room?.channelId === c.id);
         const most = !!players && players.people > 0 && players.channelId === c.id;
-        return { channelId: c.id, name: c.name, here, taken, sub: taken ? "a room already" : `${peopleWords(c.members.length)}${most ? " · players" : ""}` };
+        return { channelId: c.id, name: c.name, here, taken, empty: c.members.length === 0, sub: taken ? "a room already" : `${peopleWords(c.members.length)}${most ? " · players" : ""}` };
       }),
     }));
 }
@@ -340,11 +342,13 @@ export interface LiveKeys {
   fadeAll: string;
   undo: string;
   find: string;
+  /** Find and play (Ctrl+K), listed in Keys (UX-R15). */
+  palette: string;
 }
 
 const keyOf = (id: keyof LiveKeys) => SHORTCUT_ACTIONS.find((a) => a.id === id)!.key;
 /** Lyre's own keys: Space, Shift+Esc, Ctrl+Z and /. */
-export const LIVE_KEYS: LiveKeys = { nextScene: keyOf("nextScene"), fadeAll: keyOf("fadeAll"), undo: keyOf("undo"), find: keyOf("find") };
+export const LIVE_KEYS: LiveKeys = { nextScene: keyOf("nextScene"), fadeAll: keyOf("fadeAll"), undo: keyOf("undo"), find: keyOf("find"), palette: keyOf("palette") };
 
 /** A key pressed alone (no Ctrl or Alt, not F1 to F12): it obeys the single-key shortcuts switch (WCAG 2.1.4). */
 export function isSingleKey(key: string): boolean {

@@ -10,6 +10,7 @@ import { FakeLyreAudio } from "../audio/testing/fakeLyreAudio";
 import { expectNoAxeViolations } from "../test/axe";
 import { AnnouncerProvider } from "./Announcer";
 import { FindAndPlay } from "./FindAndPlay";
+import { expectPlayAirIcons } from "../test/playAirIcon";
 
 vi.mock("../../preload/managers/PCMStream.worklet.js?asset", () => ({ default: "pcm.js" }));
 
@@ -58,6 +59,15 @@ describe("Find and play (Ctrl+K, UX-12)", () => {
     await user.keyboard("{Enter}");
     expect(dialog()).toBeNull();
     expect(audio.calls.some(([name, id]) => name === "playPlaylist" && id === "p-abbess")).toBe(true);
+  });
+
+  it("UX-R8: its Play on air shows the play triangle sounding out", async () => {
+    page();
+    const user = userEvent.setup();
+    await user.keyboard("{Control>}k{/Control}");
+    await user.type(box(), "abbess");
+    await screen.findByRole("option", { name: /^The Abbess, playlist/ });
+    expectPlayAirIcons();
   });
 
   it("Alt+Enter previews, Shift+Enter adds to the queue, and a pad or a scene can be found too", async () => {

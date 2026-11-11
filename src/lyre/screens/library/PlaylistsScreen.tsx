@@ -211,7 +211,6 @@ export function PlaylistsScreen(_props: ScreenProps) {
             noMax
             flush
             status={playlists.some((p) => onAir.has(p.id)) ? { text: "Playing", tone: "live" } : undefined}
-            summary="Drop audio files on a row to add them"
           >
             {shown.length ? (
               <>
@@ -225,6 +224,8 @@ export function PlaylistsScreen(_props: ScreenProps) {
                 {folders.list({
                   label: "Playlists",
                   className: "pl-list",
+                  // Round 6 (UX-R3): the list's hover text, not a line in the box header.
+                  title: "Drop audio files on a row to add them",
                   all: playlists,
                   shown,
                   filtered: anyFilter,

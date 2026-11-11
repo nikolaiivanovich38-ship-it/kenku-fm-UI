@@ -126,6 +126,8 @@ test.describe("one manual playlist", () => {
     await add.getByRole("button", { name: /^Add Quiet grief/ }).click();
     expect((await trackNames(page)).at(-1)).toMatch(/^Quiet grief/);
     expect(await trackNames(page)).toHaveLength(6);
+    // UX-R5 (0.5.0 review): the Saved pop-up, as for every other change to a playlist.
+    await expect(page.getByRole("status").filter({ hasText: /^Saved: .+ · added Quiet grief/ })).toBeVisible();
   });
 
   test("tracks can be tried in the Add tracks box before adding them", async ({ page }) => {
@@ -490,5 +492,19 @@ test.describe("round 7: adding to other lists", () => {
     await d.getByRole("radio", { name: "Session 14 › The abbey ruins" }).check();
     await d.getByRole("button", { name: "Add" }).click();
     await expect(page.getByRole("status").filter({ hasText: /^Saved: The abbey ruins music · Alien, unknowable/ })).toBeVisible();
+  });
+});
+
+/* 0.5.0 usability review (UX-R3): round 6's cuts on a playlist, as the prototype shows them. */
+test.describe("round 6 cuts on a playlist", () => {
+  test("UX-R3: no repeated kind in Details, no header lines in Tracks or Add tracks, and the reorder how-to only while the keyboard is in the list", async ({ page }) => {
+    await openRoute(page, "playlist/p-abbess");
+    const box = (name: string) => page.getByRole("region", { name, exact: true });
+    await expect(box("Add tracks").locator("header")).not.toContainText("drop files");
+    await expect(box("Used in").locator(".pane-body")).not.toContainText("Campaign: every session");
+    const how = page.getByText("Drag rows, or press Alt+Up / Alt+Down, to change the order.");
+    await expect(how).toBeHidden();
+    await page.getByRole("list", { name: "Tracks in order" }).getByRole("button").first().focus();
+    await expect(how).toBeVisible();
   });
 });

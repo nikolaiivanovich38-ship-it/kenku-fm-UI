@@ -26,8 +26,11 @@ const AnnouncerContext = createContext<Announce>({ say: () => undefined, toast: 
 
 /** The live region is emptied first and filled a moment later, so the same words twice are read twice. */
 const SAY_DELAY_MS = 30;
-/** After a note that is not read out, the pop-up is read out again from this long on. */
-const QUIET_FOR_MS = 150;
+/**
+ * UX-R6: a note is read out this long after it shows, through the live region. An announcement within that moment
+ * (a screen saying more about the same change, such as a warning) takes its place: one event, one message.
+ */
+export const READ_NOTE_AFTER_MS = 120;
 /** The pop-up's distance from the work area's right edge and from its bottom (or from the Now playing bar). */
 const CORNER_PX = 12;
 
@@ -47,42 +50,53 @@ interface Note {
  *
  * The pop-up sits at the bottom right of the work area, 12 px in and 12 px up, or 12 px above the Now playing bar;
  * above a field in use that it would cover. The Undo note sits lowest in the same corner, then a failed save, then
- * the pop-up. It is a status that is always in the page and empty when nothing shows, so screen readers read it once
- * when it fills; the same save again within 2 s refreshes it without a second reading. A failed save is an alert
+ * the pop-up. It is a status that is always in the page and empty when nothing shows; its words are read out once,
+ * a moment after it shows, through the live region (UX-R6: an announcement in that moment is read instead); the
+ * same save again within 2 s refreshes it without a second reading. A failed save is an alert
  * that stays until Try again or Dismiss. Nothing here takes focus; Try again and Dismiss put it back where it was.
  */
 export function AnnouncerProvider({ children }: { children: React.ReactNode }) {
   const [spoken, setSpoken] = useState("");
   const [note, setNote] = useState<Note | null>(null);
-  const [readOut, setReadOut] = useState(true);
   const [fail, setFail] = useState<{ what: string; retry: () => void } | null>(null);
   const failRef = useRef(fail);
   failRef.current = fail;
   const rules = useRef(new NoteRules());
-  const timers = useRef<{ say?: ReturnType<typeof setTimeout>; note?: ReturnType<typeof setTimeout>; quiet?: ReturnType<typeof setTimeout> }>({});
+  const timers = useRef<{ say?: ReturnType<typeof setTimeout>; note?: ReturnType<typeof setTimeout>; read?: ReturnType<typeof setTimeout> }>({});
   const box = useRef<HTMLDivElement>(null);
   /** The control in use before Tab reached Try again or Dismiss. */
   const beforeCard = useRef<HTMLElement | null>(null);
 
-  const say = useCallback((text: string) => {
-    rules.current.said(Date.now());
+  const speak = useCallback((text: string) => {
     setSpoken("");
     clearTimeout(timers.current.say);
     timers.current.say = setTimeout(() => setSpoken(text), SAY_DELAY_MS);
   }, []);
 
-  const show = useCallback((text: string, key: string, saved: boolean) => {
-    const rule = rules.current.show(key, Date.now());
-    setNote((was) => ({ text, saved, pulse: rule.refresh && was ? was.pulse + 1 : 0 }));
-    setReadOut(rule.readOut);
-    clearTimeout(timers.current.quiet);
-    if (!rule.readOut) timers.current.quiet = setTimeout(() => setReadOut(true), QUIET_FOR_MS);
-    clearTimeout(timers.current.note);
-    timers.current.note = setTimeout(() => {
-      rules.current.hidden();
-      setNote(null);
-    }, noteDuration(text));
-  }, []);
+  const say = useCallback(
+    (text: string) => {
+      rules.current.said(Date.now());
+      // UX-R6: a note waiting to be read out is the same change: this announcement takes its place.
+      clearTimeout(timers.current.read);
+      speak(text);
+    },
+    [speak],
+  );
+
+  const show = useCallback(
+    (text: string, key: string, saved: boolean) => {
+      const rule = rules.current.show(key, Date.now());
+      setNote((was) => ({ text, saved, pulse: rule.refresh && was ? was.pulse + 1 : 0 }));
+      clearTimeout(timers.current.read);
+      if (rule.readOut) timers.current.read = setTimeout(() => speak(text), READ_NOTE_AFTER_MS);
+      clearTimeout(timers.current.note);
+      timers.current.note = setTimeout(() => {
+        rules.current.hidden();
+        setNote(null);
+      }, noteDuration(text));
+    },
+    [speak],
+  );
 
   const toast = useCallback((text: string, options?: { key?: string }) => show(text, options?.key ?? text, false), [show]);
   const saved = useCallback(
@@ -100,7 +114,7 @@ export function AnnouncerProvider({ children }: { children: React.ReactNode }) {
     return () => {
       clearTimeout(pending.say);
       clearTimeout(pending.note);
-      clearTimeout(pending.quiet);
+      clearTimeout(pending.read);
     };
   }, []);
 
@@ -134,7 +148,8 @@ export function AnnouncerProvider({ children }: { children: React.ReactNode }) {
         {spoken}
       </div>
       <div id="lyre-toasts" className="toasts" ref={box}>
-        <div id="lyre-toast" className={note?.saved ? "toast t-saved" : "toast"} role="status" aria-live={readOut ? "polite" : "off"} aria-atomic="true">
+        {/* UX-R6: shown here, read out from the live region above (aria-live off), so one change is one message. */}
+        <div id="lyre-toast" className={note?.saved ? "toast t-saved" : "toast"} role="status" aria-live="off" aria-atomic="true">
           {note && (
             <>
               {note.saved && (

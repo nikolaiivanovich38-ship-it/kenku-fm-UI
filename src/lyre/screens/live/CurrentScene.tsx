@@ -50,7 +50,7 @@ export function CurrentScenePane() {
             key: "top",
             content: (
               <>
-                <Icon name="broadcast" size="s" />
+                <Icon name="playair" size="s" />
                 <span className="grow">Play its music from the top{target.inWhere}</span>
               </>
             ),

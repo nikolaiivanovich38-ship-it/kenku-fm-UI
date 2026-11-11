@@ -40,6 +40,15 @@ beforeEach(() => {
 describe("Look and feel › Display (UX-11, round 7)", () => {
   const display = () => within(screen.getByRole("region", { name: "Display" }));
 
+  it("UX-R3 (ROUND7 UX-11): the intro is the heading's hover text and description, not words on the page", async () => {
+    open();
+    const h1 = await screen.findByRole("heading", { level: 1, name: "Look and feel" });
+    expect(screen.queryByText("One Lyre, a theme per table")).toBeNull();
+    expect(h1).toHaveAttribute("title", expect.stringMatching(/^Each campaign can have its own theme/));
+    expect(h1).toHaveAccessibleDescription(/^Each campaign can have its own theme/);
+    expect(screen.getByText(/^Each campaign can have its own theme/)).toHaveClass("sr-only");
+  });
+
   it("Compact is the default; Comfortable is kept on this computer, marks the page and shows the Saved pop-up", async () => {
     open();
     const user = userEvent.setup();
@@ -74,7 +83,7 @@ describe("Look and feel", () => {
   it("shows the five table themes in the prototype's order, each drawn in its own colours with one plain sentence (w3-ux 8)", () => {
     const main = open();
     expect(main.getByRole("heading", { level: 1 })).toHaveTextContent("Look and feel");
-    expect(main.getByText("One Lyre, a theme per table")).toBeInTheDocument();
+    expect(main.queryByText("One Lyre, a theme per table")).toBeNull();
     const names = main.getAllByRole("article").map((a) => a.getAttribute("aria-label"));
     expect(names).toEqual(["Candlelit Library", "Fern and Brass", "Hearth and Iron", "Parchment", "Elysium"]);
     const sample = screen.getByRole("article", { name: "Elysium" }).querySelector(".lk-sample");

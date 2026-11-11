@@ -2,6 +2,7 @@
  * Live's Undo strips (live.js lv-undo, undoStrip): about 8 seconds after a scene change in Scenes, and after the last
  * other change where it happened (Add to queue in its room, Kick in On air). Each shows a bar running down; its
  * countdown waits while the pointer or focus is on it, so it never goes from under a press. Ctrl+Z does the same.
+ * UX-R6: a strip is a group named Undo, not a live region; the page's live region reads the change out once.
  */
 import React, { useCallback, useEffect, useState } from "react";
 
@@ -44,7 +45,7 @@ export function SceneUndoStrip({ onUndo }: { onUndo: () => boolean }) {
   const left = useCountdown("undo", !!undo, held, "undo", noop);
   if (!undo) return null;
   return (
-    <div className="lv-undo" role="status" onPointerEnter={() => setHeld(true)} onPointerLeave={() => setHeld(false)}>
+    <div className="lv-undo" role="group" aria-label="Undo" onPointerEnter={() => setHeld(true)} onPointerLeave={() => setHeld(false)}>
       <span className="ellipsis grow" title={`Started ${undo.started}`}>
         Started <b>{undo.started}</b>
       </span>
@@ -69,7 +70,7 @@ export function SoftUndoStrip({ where, onUndo }: { where: string; onUndo: () => 
   const left = useCountdown("undo2", mine, held, "undo2", onEnd);
   if (!undo2 || !mine) return null;
   return (
-    <div className="lv-undo lv-undo2" role="status" onPointerEnter={() => setHeld(true)} onPointerLeave={() => setHeld(false)}>
+    <div className="lv-undo lv-undo2" role="group" aria-label="Undo" onPointerEnter={() => setHeld(true)} onPointerLeave={() => setHeld(false)}>
       <span className="ellipsis grow" title={undo2.text}>
         {undo2.text}
       </span>

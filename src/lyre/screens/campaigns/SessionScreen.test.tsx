@@ -89,6 +89,19 @@ describe("the session page", () => {
     expect(reminder.getByRole("link", { name: "The Company themes" })).toBeInTheDocument();
     expect(reminder.queryByRole("button", { name: /^More for/ })).not.toBeInTheDocument();
     expect(reminder.getByText("Campaign pads: Combat, Weather and places.")).toBeInTheDocument();
+    // UX-R3 (round 6 rule 8): Change sits where the other boxes have Add, as an icon link; no line, no open counts.
+    expect(reminder.queryByText(/From the campaign/)).toBeNull();
+    expect(reminder.getByRole("link", { name: "Change the campaign's playlists" })).toHaveAttribute("href", "#/campaign/crown");
+    for (const box of ["Session playlists", "Session pads", "Campaign playlists"]) expect(screen.getByRole("region", { name: box }).querySelector("header")!.textContent).not.toMatch(/\d/);
+  });
+
+  it("UX-R3 (round 6 cuts): the how-to lines under a scene's music and pad boards are the buttons' hover text", async () => {
+    await openAbbey();
+    const scene = screen.getByRole("listitem", { name: /^Scene \d+: The abbey ruins$/ });
+    expect(scene).not.toHaveTextContent("Plays in order, then loops");
+    expect(scene).not.toHaveTextContent("The first is shown when the scene starts");
+    expect(within(scene).getByRole("button", { name: "Add tracks or playlists…" })).toHaveAttribute("title", "Plays in order; drop audio files on the box to add them");
+    expect(within(scene).getByRole("button", { name: /^Add pad boards… to / })).toHaveAttribute("title", "The first board shows when the scene starts");
   });
 });
 
@@ -489,6 +502,23 @@ describe("round 7: what a scene does when it starts (PLY-8, r7play.js)", () => {
     await user.click(screen.getByRole("menuitem", { name: "What it does when it starts…" }));
     return screen.getByRole("dialog", { name: "When The abbey ruins starts" });
   }
+
+  it("UX-R1: focus moves into the dialog when it opens from the menu, Tab stays inside and Esc closes it", async () => {
+    const user = userEvent.setup();
+    openAt("session/crown/s14");
+    await user.click(await screen.findByRole("button", { name: "More for The abbey ruins" }));
+    screen.getByRole("menuitem", { name: "What it does when it starts…" }).focus();
+    await user.keyboard("{Enter}");
+    const dialog = screen.getByRole("dialog", { name: "When The abbey ruins starts" });
+    expect(dialog).toContainElement(document.activeElement as HTMLElement);
+    for (let i = 0; i < 40; i++) {
+      await user.tab();
+      expect(dialog).toContainElement(document.activeElement as HTMLElement);
+    }
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("button", { name: "More for The abbey ruins" })).toHaveFocus();
+  });
 
   it("the usual start is its music, its ambience and its first pad board, and nothing marks the scene", async () => {
     const user = userEvent.setup();

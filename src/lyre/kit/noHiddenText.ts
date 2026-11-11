@@ -92,6 +92,10 @@ export function showFullTextOnFocus(roots: () => HTMLElement[]): () => void {
     hide();
     const target = event.target;
     if (!(target instanceof HTMLElement) || !roots().some((root) => root.contains(target))) return;
+    // UX-R13: a heading with tabindex -1 has focus because the app put it there as a screen opened (Tab never
+    // reaches it): no tooltip over the page; its hover text stays. (Grid rows with tabindex -1 are reached with the
+    // arrow keys, so they keep the tooltip.)
+    if (/^H[1-6]$/.test(target.tagName) && target.getAttribute("tabindex") === "-1") return;
     const cut = [target, ...candidates(target)].filter((e) => norm(e.textContent).length >= 3 && isCut(e));
     if (cut.length === 0) return;
     tip = document.createElement("div");

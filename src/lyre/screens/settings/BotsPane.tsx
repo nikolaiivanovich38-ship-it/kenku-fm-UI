@@ -126,7 +126,7 @@ function BotRow({ bot, outputs, client }: { bot: LyreBot; outputs: LyreOutputs; 
         if (problem) toast(problem);
       });
     });
-    say(`Removed ${bot.name}. Undo is at the foot of the screen, or press Ctrl+Z.`);
+    say(`Removed ${bot.name}. Undo is at the bottom right, or press Ctrl+Z.`);
     focusLater("st-add");
   };
 
@@ -301,7 +301,7 @@ function RenameSheet({ bot, client, onClose }: { bot: LyreBot; client: OutputsCl
 /* ---------- Add a bot: three steps, in the order Discord needs ---------- */
 
 function AddBotSheet({ outputs, client, onClose }: { outputs: LyreOutputs; client: OutputsClient; onClose: () => void }) {
-  const { say, toast } = useAnnounce();
+  const { say } = useAnnounce();
   const [step, setStep] = useState(0);
   const [appId, setAppId] = useState("");
   const [byHand, setByHand] = useState(false);
@@ -310,7 +310,12 @@ function AddBotSheet({ outputs, client, onClose }: { outputs: LyreOutputs; clien
   const tokenRef = useRef<HTMLInputElement>(null);
   const appIdRef = useRef<HTMLInputElement>(null);
   const ids = useId();
-  const validId = isApplicationId(appId);
+  const typedId = appId.trim();
+  const validId = isApplicationId(typedId);
+  // UX-R11: what was typed is kept as typed; a wrong one is said under the field, never changed without a word.
+  const [idTried, setIdTried] = useState(false);
+  const idProblem = typedId && !validId ? "An Application ID is a long number: copy it from General Information." : idTried && !typedId ? "Paste the Application ID first (General Information)." : null;
+  const [tokenMissing, setTokenMissing] = useState(false);
   const added = botId ? outputs.bots.find((b) => b.id === botId) : undefined;
   const done = added?.login === "ready";
   const example = `Lyre ${["Side", "Third", "Fourth", "Fifth"][Math.min(3, Math.max(0, outputs.bots.length - 1))]}`;
@@ -323,13 +328,15 @@ function AddBotSheet({ outputs, client, onClose }: { outputs: LyreOutputs; clien
   const connect = async () => {
     const token = tokenRef.current?.value.trim() ?? "";
     if (!token) {
-      toast("Paste the token first");
+      // UX-R11: said under the field, like Discord's own refusal, not in a corner of the window.
+      setTokenMissing(true);
       tokenRef.current?.focus();
       return;
     }
+    setTokenMissing(false);
     setProblem(null);
     // A second try after Discord refused the token replaces the token of the bot the first try added.
-    const answer = botId ? await client.replaceToken(botId, token) : await client.addBot(token, validId ? appId : null);
+    const answer = botId ? await client.replaceToken(botId, token) : await client.addBot(token, validId ? typedId : null);
     const problem = problemOf(answer);
     if (problem) {
       setProblem(problem);
@@ -393,10 +400,12 @@ function AddBotSheet({ outputs, client, onClose }: { outputs: LyreOutputs; clien
               autoComplete="off"
               placeholder="Paste it here"
               value={appId}
-              onChange={(event) => setAppId(event.target.value.replace(/\D/g, ""))}
+              aria-invalid={idProblem ? true : undefined}
+              aria-describedby={idProblem ? `${ids}-appid-e` : undefined}
+              onChange={(event) => setAppId(event.target.value)}
             />
             {validId ? (
-              <InviteLink applicationId={appId} client={client} className="btn s primary" dataK="st-openinv">
+              <InviteLink applicationId={typedId} client={client} className="btn s primary" dataK="st-openinv">
                 Open the invite
               </InviteLink>
             ) : (
@@ -407,12 +416,12 @@ function AddBotSheet({ outputs, client, onClose }: { outputs: LyreOutputs; clien
                 tabIndex={0}
                 data-k="st-openinv"
                 onClick={() => {
-                  toast("Paste the Application ID first (General Information)");
+                  setIdTried(true);
                   appIdRef.current?.focus();
                 }}
                 onKeyDown={(event) => {
                   if (event.key !== "Enter") return;
-                  toast("Paste the Application ID first (General Information)");
+                  setIdTried(true);
                   appIdRef.current?.focus();
                 }}
               >
@@ -421,6 +430,12 @@ function AddBotSheet({ outputs, client, onClose }: { outputs: LyreOutputs; clien
               </a>
             )}
           </div>
+          {idProblem && (
+            <p className="st-err" id={`${ids}-appid-e`}>
+              <Icon name="warn" size="s" />
+              {idProblem}
+            </p>
+          )}
         </div>
         <ol className="st-do">
           <li>
@@ -468,13 +483,22 @@ function AddBotSheet({ outputs, client, onClose }: { outputs: LyreOutputs; clien
             spellCheck={false}
             placeholder="Paste it here"
             aria-describedby={`${ids}-token-d`}
+            aria-invalid={tokenMissing || problem ? true : undefined}
             disabled={done}
+            onInput={() => setTokenMissing(false)}
             onKeyDown={(event) => event.key === "Enter" && !done && void connect()}
           />
           <span className="hint" id={`${ids}-token-d`} title="Lost it? Reset Token again makes a new one">
-            Kept encrypted on this computer.
+            {/* UX-R10: the same as Settings says about this computer. */}
+            {outputs.encryption ? "Kept encrypted on this computer." : "Kept only until Lyre closes: this computer cannot keep it encrypted."}
           </span>
         </div>
+        {tokenMissing && !problem && (
+          <p className="st-err" role="alert">
+            <Icon name="warn" size="s" />
+            Paste the token first
+          </p>
+        )}
         {problem && (
           <p className="st-err" role="alert">
             <Icon name="warn" size="s" />

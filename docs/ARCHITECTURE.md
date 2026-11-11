@@ -755,7 +755,7 @@ room), Scenes, Current scene, and the trays This session (Session playlists, Ses
 | `OnAir.tsx` | On air: a part per room with its status, What played, Mute, volume, the bot's menu (move, another bot, copy a room, Rooms, Bots and tokens), Kick with Undo (`restoreRoom`), Nobody there with Move to, the lanes (markers as ticks, Repeat for what plays now), effects, Up next; No room with Join; one line per room under 480 px of height. |
 | `Scenes.tsx`, `CurrentScene.tsx`, `Trays.tsx`, `Find.tsx`, `UndoStrips.tsx`, `focus.ts` | The other boxes, the Undo strips, and where focus goes. |
 | `kit/Pane.tsx` | `scope`, `scopeHidden`, `label` (a tray's box: "Playlists" shown, "Session Playlists" read out) and `keys` (aria-keyshortcuts). |
-| `kit/DestTag.tsx` | `nobody`: "On air · no room" outlined in the warning colour, with why on hover (Should 10). |
+| `kit/DestTag.tsx` | `nobody`: "On air · no room" (or "On air · nobody there", UX-R9, also on the Now playing bar) outlined in the warning colour, with why on hover (Should 10). |
 
 Live takes F6 in the capture phase so it follows the boxes' order in every layout (the shell's F6 follows the page's
 order). Loading a session calls `audio.sessionLoaded()`; Live follows `scene-started` (by a step or moving on by
@@ -783,3 +783,23 @@ Round 6 and round 7 on Library, Tags, Playlists, Pad boards, Campaigns, the sess
 
 Also: Find missing files' Preview the file found calls `import.previewFound` first and `endRelinkPreview` when it
 closes (SEC-17); a duplicated scene copies its track orders and play orders (the lead's decision, contract suite).
+
+## 0.5.0 usability review fixes (w6-ux)
+
+The independent review (UX-R1 to UX-R21) left these kit rules for every screen:
+
+| Piece | Where | Use |
+| --- | --- | --- |
+| Dialog focus (UX-R1) | `kit/Dialog.tsx` | Focus goes to the first control that can take it (a greyed one is skipped), else the first enabled button. `enterSubmits`: Enter in a one-line text field presses the footer's main button (UX-R20). |
+| Resting statuses (UX-R3) | `kit/Pane.tsx` `isRestingStatus`, `foldedSummary` | Round 6 rule 4, as the prototype's `L.quietStatus`: an idle "Empty", "Copied" or count ("4", "12 pads") shows only while the box is folded; `foldedSummary` does the same for a summary that repeats the open box. A status that says something happens (Playing, Trying, n sounding, a warning) always shows. |
+| Key legends (UX-R3) | `styles/ui.css` `.keys-on-focus` | A key legend or reorder how-to shows only while the keyboard is in its box (round 6 rule 5); keep it the box's description too. |
+| Focus after a change (UX-R4) | `kit/focusSoon.ts`, `screens/live/focus.ts` `focusLiveSoon` | When the control in use goes, focus a neighbour once it is drawn (or, with `move`, a new control such as a new room's bot button); it stops when the person moves focus. |
+| One event, one message (UX-R6) | `shell/Announcer.tsx`, `shell/savedModel.ts` | The pop-up is shown at once and read out from the live region 120 ms later (`READ_NOTE_AFTER_MS`); a `say` in that moment is read instead. The pop-up itself is `aria-live="off"`. Live's Undo strips are groups named Undo, not statuses. |
+| Counts while typing (UX-R7) | `kit/useSayWhenSettled.ts` | A result count is read out once typing pauses (500 ms); the count on screen is not a live region. |
+| Undo's focus (UX-R19) | `shell/UndoNote.tsx` `offer(text, undoLabel, focusBack)` | Where focus goes once a library change is undone (a CSS selector); Tags gives the tag's ⋯. |
+| Version (UX-R16) | `src/lyre/version.ts`, `webpack.plugins.js` | `__LYRE_VERSION__` from package.json; Settings shows it at the top right. |
+
+Words that changed: a room nobody is in says **Nobody there** everywhere (Rooms' status too, never Playing; the bar's
+tag "On air · nobody there"; "Players hear nothing" under it); **Fade all** is the one name for Shift+Esc; Settings'
+shortcut list says **Find a track or playlist**; Undo is "at the bottom right"; Play on air's icon is `playair` on
+every screen and What played has `history`. With two rooms or more the audio host names the room in every message.

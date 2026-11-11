@@ -132,7 +132,7 @@ export function LiveTop({ keysOpen, setKeysOpen, setKeys1, loadSession }: TopPro
         className="btn s lv-fade"
         aria-label="Fade all"
         aria-keyshortcuts={ariaKey(live.keys.fadeAll)}
-        title={`Fade everything out over 3 seconds (${live.keys.fadeAll})`}
+        title={`Fade all: everything fades out over 3 seconds (${live.keys.fadeAll})`}
         onClick={() => {
           touched();
           audio.fadeAll();
@@ -206,10 +206,12 @@ function KeysPop({ setKeysOpen, setKeys1, keys1 }: { setKeysOpen: TopProps["setK
       <ul className="lv-keylist">
         {row(keys.nextScene, "Start the next scene", isSingleKey(keys.nextScene))}
         {row(keys.find, "Find a track or playlist", isSingleKey(keys.find))}
+        {/* UX-R15: Find and play works in Live too. */}
+        {row(keys.palette, "Find and play anything", false)}
         {row(padList, board ? `Pads on ${board.name} (Current scene)` : "Pads of the current scene", true)}
         {row("Alt+1…7", `Go to a box: ${LIVE_BOXES.map((b) => b.name).join(", ")}`, false)}
         {row("F6", "Next box (Shift+F6: the one before)", false)}
-        {row(keys.fadeAll, "Fade everything out (3 s)", false)}
+        {row(keys.fadeAll, "Fade all (3 s)", false)}
         {row(keys.undo, "Undo the last change (for 8 s)", false)}
         {row("Esc", "Close a menu or clear the search", false)}
       </ul>

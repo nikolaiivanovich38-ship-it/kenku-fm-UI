@@ -188,7 +188,8 @@ export function filterSummary(f: LibraryFilter, groups: readonly TagGroup[]): st
   for (const g of groups) if (f.tags[g.id]?.length) parts.push(f.tags[g.id].join(", "));
   if (!energyOff(f)) parts.push(`energy ${f.emin} to ${f.emax}`);
   if (f.folder) parts.push(shortPath(f.folder));
-  return parts.length ? parts.join(" · ") : "None: showing every track";
+  // Round 6 (UX-R3): no filter is the usual case, so nothing is said.
+  return parts.join(" · ");
 }
 
 export interface FolderRow {

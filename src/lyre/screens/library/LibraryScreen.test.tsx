@@ -7,6 +7,7 @@ vi.mock("../../../preload/managers/PCMStream.worklet.js?asset", () => ({ default
 
 import { dropNames, go, openAt } from "./testHarness";
 import { addedText } from "./model";
+import { expectPlayAirIcons } from "../../test/playAirIcon";
 
 const grid = () => screen.getByRole("grid", { name: "Tracks" });
 /** A row by its title, read from its selection box ("Select <title>"). */
@@ -55,7 +56,8 @@ describe("Library: finding tracks", () => {
     openAt("library");
     await loaded();
     const user = userEvent.setup();
-    expect(filters()).toHaveTextContent("None: showing every track");
+    // UX-R3 (round 6 cuts): the usual case (no filter) is not described.
+    expect(filters()).not.toHaveTextContent("None: showing every track");
     await user.click(within(within(filters()).getByRole("group", { name: "Mood" })).getByRole("button", { name: /^Grief/ }));
     expect(shownTitles()).toHaveLength(5);
     expect(filters()).not.toHaveTextContent("None: showing every track");
@@ -153,6 +155,12 @@ describe("Library: a track's details", () => {
     expect(d.getByRole("link", { name: "Audio profile" })).toHaveAttribute("href", "#/profile/t44");
   });
 
+  it("UX-R8: Play on air shows the play triangle sounding out, on the rows and in the details", async () => {
+    openAt("library/t44");
+    await within(details()).findByRole("combobox", { name: "Add a mood tag" });
+    expectPlayAirIcons();
+  });
+
   it("adds a mood by typing: arrows pick a match, Enter adds it or creates a new one, focus stays in the box", async () => {
     const { api } = openAt("library/t44");
     const box = await within(details()).findByRole("combobox", { name: "Add a mood tag" });
@@ -165,6 +173,8 @@ describe("Library: a track's details", () => {
     expect(options[0]).toHaveAttribute("aria-selected", "true");
     await user.keyboard("{Enter}");
     expect(await within(details()).findByRole("button", { name: "Remove Melancholy from Mood" })).toBeInTheDocument();
+    // UX-R5: the Saved pop-up says it was saved (the prototype's "Saved: <track> tags").
+    await waitFor(() => expect(document.getElementById("lyre-toast")).toHaveTextContent(/^Saved: .+ tags$/));
     await user.keyboard("Frostbitten");
     expect(within(screen.getByRole("listbox", { name: "Mood values" })).getAllByRole("option")[0]).toHaveTextContent("Create Frostbitten in Mood");
     await user.keyboard("{Enter}");
@@ -525,7 +535,21 @@ describe("Library: round 5", () => {
     await waitFor(() => expect(details()).toHaveTextContent(/Names in scenes\s*Dawn over the abbey\s*in Aftermath \(Session 14\)/));
     expect(details()).toHaveTextContent("17 Now We Are Free.flac");
     go("library/t44");
-    await waitFor(() => expect(details()).toHaveTextContent("None: it shows its own name everywhere"));
+    // UX-R3 (round 6 cuts): with no names in scenes the row is not shown (the usual case is not described).
+    await waitFor(() => expect(details()).toHaveTextContent("13 Ashes.flac"));
+    expect(details()).not.toHaveTextContent("Names in scenes");
+    expect(details()).not.toHaveTextContent("its own name everywhere");
+  });
+
+  it("UX-R3 (round 6 cuts): Details repeats neither the title in its header nor Manual on playlist rows; Dynamic is the one mark", async () => {
+    openAt("library/t21");
+    const d = within(details());
+    await d.findByRole("textbox", { name: "Your title" });
+    expect(screen.getByRole("region", { name: "Details" }).querySelector(".pane-summary")).toBeEmptyDOMElement();
+    const lists = within(d.getByRole("region", { name: "In playlists" }));
+    expect(lists.queryByText("Manual")).toBeNull();
+    expect(lists.getAllByText("Dynamic").length).toBeGreaterThan(0);
+    expect(lists.queryByText(/matches its tag rules/)).toBeNull();
   });
 
   it("ORG-12: Use in… keeps a track on hand in a campaign, ticks where it is used, and Used in says On hand in…", async () => {

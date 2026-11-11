@@ -20,6 +20,7 @@ import { FakeOutputs, SIDE_BOT, TABLE_BOT } from "../../outputs/testing/fakeOutp
 import { Shell } from "../../shell/Shell";
 import { expectNoAxeViolations } from "../../test/axe";
 import { SCREENS } from "..";
+import { ICONS } from "../../kit/icons";
 import { resetLiveState } from "./liveState";
 
 beforeEach(() => {
@@ -201,7 +202,9 @@ describe("scenes and undo", () => {
     await startAbbey();
     await userEvent.click(screen.getByRole("button", { name: "Next scene: Crypt ambush" }));
     await playOn(sound);
-    expect(region("Scenes").getByRole("status")).toHaveTextContent("Started Crypt ambush");
+    // UX-R6: the strip is a group named Undo, not a status: the live region alone reads the change out.
+    expect(region("Scenes").queryByRole("status")).toBeNull();
+    expect(region("Scenes").getByRole("group", { name: "Undo" })).toHaveTextContent("Started Crypt ambush");
     blur();
     press("z", { ctrlKey: true });
     await playOn(sound);
@@ -315,6 +318,9 @@ describe("single-key shortcuts and the keys", () => {
     await userEvent.click(screen.getByRole("button", { name: "Keys" }));
     expect(screen.getByRole("switch", { name: /Single-key shortcuts/ })).toHaveFocus();
     expect(screen.getByRole("group", { name: "Keys on the live screen" })).toHaveTextContent("On air, Scenes, Current scene, Session playlists");
+    // UX-R15: Find and play is listed too, and Fade all has one name.
+    expect(screen.getByRole("group", { name: "Keys on the live screen" })).toHaveTextContent(/Ctrl\+K\s*Find and play anything/);
+    expect(screen.getByRole("group", { name: "Keys on the live screen" })).toHaveTextContent("Fade all (3 s)");
     expect(screen.queryByRole("menu")).toBeNull();
     press("Escape");
     expect(screen.queryByRole("group", { name: "Keys on the live screen" })).toBeNull();
@@ -350,6 +356,8 @@ describe("single-key shortcuts and the keys", () => {
     expect(search).toHaveValue("");
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("region", { name: "Find a track or playlist" })).toBeNull();
+    // UX-R4: focus stays in the field, not on the page.
+    expect(search).toHaveFocus();
   });
 
   it("a pad key starts its pad, but not while typing in a box; a hold pad plays while its key is down", async () => {
@@ -596,11 +604,17 @@ describe("Current scene: choosing what plays", () => {
     await playOn(sound);
     const one = current().getByRole("button", { name: `Repeat one: ${eerie}` });
     expect(one).toHaveAttribute("aria-pressed", "false");
+    // A moment after the scene's own announcement, as a person would press it.
+    await new Promise((r) => setTimeout(r, 600));
     await userEvent.click(one);
     await waitFor(async () => expect((await api.campaigns.get("crown"))?.sessions.find((s) => s.id === "s14")?.scenes[2].repeatOnes).toContain("t13"));
     await waitFor(() => expect(current().getByRole("button", { name: `Repeat one: ${eerie}` })).toHaveAttribute("aria-pressed", "true"));
     await waitFor(() => expect(screen.getAllByRole("status").some((st) => st.textContent?.includes("Saved: Repeat one in The abbey ruins"))).toBe(true));
     await waitFor(() => expect(room("Table").getByRole("button", { name: /^Repeat: / })).toHaveAccessibleName("Repeat: one"));
+    // UX-R6: one event, one message: Live's fuller words are read out in place of the pop-up's.
+    await new Promise((r) => setTimeout(r, 300));
+    expect(document.getElementById("lyre-live")).toHaveTextContent(/^Repeat one on, saved with the scene: /);
+    expect(document.getElementById("lyre-toast")).toHaveAttribute("aria-live", "off");
   });
 });
 
@@ -628,7 +642,7 @@ describe("PLY-16: Play next, Add to queue and Up next", () => {
     await userEvent.click(within(added).getByRole("button", { name: `Remove ${shanty} from Up next` }));
     expect(upNext().queryAllByRole("listitem").filter((li) => li.textContent?.includes(`Added: ${shanty}`))).toHaveLength(0);
     await userEvent.click(current().getByRole("button", { name: "Add to queue: The Abbess" }));
-    expect(room("Table").getByRole("status")).toHaveTextContent("Added to the queue: The Abbess");
+    expect(room("Table").getByRole("group", { name: "Undo" })).toHaveTextContent("Added to the queue: The Abbess");
     blur();
     press("z", { ctrlKey: true });
     expect(upNext().queryByText("The Abbess")).toBeNull();
@@ -694,6 +708,8 @@ describe("PLY-16: Play next, Add to queue and Up next", () => {
     await playOn(sound);
     await userEvent.click(screen.getByRole("button", { name: "Next music track" }));
     await playOn(sound);
+    // UX-R14: its icon is a clock turning back, not Add to queue's lines.
+    expect(room("Table").getByRole("button", { name: "What played" }).querySelector("path")).toHaveAttribute("d", ICONS.history);
     await userEvent.click(room("Table").getByRole("button", { name: "What played" }));
     const played = within(room("Table").getByRole("list", { name: "What played in Table" })).getAllByRole("listitem");
     expect(played[1]).toHaveTextContent("Eerie dread");
@@ -716,6 +732,20 @@ describe("Find a track or playlist", () => {
     const pl = within(found.getByRole("list", { name: "Playlists" })).getAllByRole("listitem")[0];
     await userEvent.click(within(pl).getByRole("button", { name: "Show contents of The Abbess" }));
     expect(within(pl).getByRole("list", { name: "Tracks in The Abbess" })).toBeInTheDocument();
+  });
+
+  it("UX-R7: the count is read out once typing pauses, and Clear is not part of what is read", async () => {
+    await openLive();
+    const live = document.getElementById("lyre-live")!;
+    const heard: string[] = [];
+    const watch = new MutationObserver(() => live.textContent && heard.push(live.textContent));
+    watch.observe(live, { childList: true, characterData: true, subtree: true });
+    await userEvent.type(screen.getByRole("searchbox", { name: /^Find a track or playlist/ }), "abbess");
+    expect(region("Find a track or playlist").queryByRole("status")).toBeNull();
+    await waitFor(() => expect(heard.some((h) => /^\d+ found$/.test(h))).toBe(true), { timeout: 2000 });
+    await new Promise((r) => setTimeout(r, 700));
+    watch.disconnect();
+    expect(heard.filter((h) => /found/.test(h))).toHaveLength(1);
   });
 
   it("a tag you pick can be cleared with the X next to the tag list", async () => {
@@ -849,7 +879,7 @@ describe("rooms", () => {
     await playOn(sound);
     await userEvent.click(screen.getByRole("button", { name: "Kick Lyre Table from Table" }));
     await act(async () => outputs.settle());
-    const strip = within(screen.getByRole("region", { name: "On air" })).getAllByRole("status").find((st) => st.textContent?.includes("Lyre Table left Table"))!;
+    const strip = within(screen.getByRole("region", { name: "On air" })).getAllByRole("group", { name: "Undo" }).find((st) => st.textContent?.includes("Lyre Table left Table"))!;
     await userEvent.click(within(strip).getByRole("button", { name: "Undo" }));
     await act(async () => outputs.settle());
     await playOn(sound);
@@ -868,7 +898,11 @@ describe("rooms", () => {
     await act(async () => outputs.settle());
     const side = await findRoom("Side room");
     expect(side.getByText("Nobody there")).toBeInTheDocument();
+    // UX-R9: the status says the one wording; the line under it says what it means, without repeating it.
+    expect(side.getByText("Players hear nothing")).toBeInTheDocument();
     expect(side.getByRole("button", { name: "Move to Table" })).toBeInTheDocument();
+    // The Now playing bar tags the room's row the same way, outlined in the warning colour.
+    expect(screen.getByTitle("Nobody hears it: nobody is in Side room")).toHaveTextContent("On air · nobody there");
     await userEvent.click(side.getByRole("button", { name: "Undo" }));
     await act(async () => outputs.settle());
     expect(await findRoom("Table")).toBeTruthy();
@@ -910,5 +944,39 @@ describe("the Now playing bar in Live (UX-16)", () => {
     const bar = within(screen.getByRole("region", { name: "Now playing" }));
     expect(bar.getByRole("group", { name: "Only you" })).toHaveTextContent("Previewed from Live");
     expect(bar.queryByRole("group", { name: /^On air/ })).toBeNull();
+  });
+});
+
+/* 0.5.0 usability review (UX-R4): when the control in use goes, focus goes to a neighbour, never to the page. */
+describe("UX-R4: focus after the control in use goes", () => {
+  const focusName = () => (document.activeElement as HTMLElement | null)?.getAttribute("aria-label") ?? document.activeElement?.textContent;
+
+  it("× in Up next moves focus to the next ×", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    await userEvent.click(current().getByRole("button", { name: `Add to queue: ${shanty}` }));
+    await userEvent.click(current().getByRole("button", { name: "Add to queue: The Abbess" }));
+    const added = upNext().getAllByRole("listitem").find((li) => li.textContent?.includes(`Added: ${shanty}`))!;
+    await userEvent.click(within(added).getByRole("button", { name: `Remove ${shanty} from Up next` }));
+    await waitFor(() => expect(focusName()).toBe("Remove The Abbess from Up next"));
+  });
+
+  it("Add a room moves focus to the new room's bot button", async () => {
+    const { outputs } = await openLive();
+    await addSideRoom(outputs);
+    await waitFor(() => expect(focusName()).toBe("Lyre Side in Side room: change"));
+  });
+
+  it("Undo after Kick puts focus back on the room's bot button", async () => {
+    const { outputs, sound } = await openLive();
+    await userEvent.click(screen.getByRole("button", { name: "Start: Recap and the coast road" }));
+    await playOn(sound);
+    await userEvent.click(screen.getByRole("button", { name: "Kick Lyre Table from Table" }));
+    await act(async () => outputs.settle());
+    await userEvent.click(within(screen.getByRole("region", { name: "On air" })).getByRole("button", { name: "Undo" }));
+    await act(async () => outputs.settle());
+    await playOn(sound);
+    await waitFor(() => expect(focusName()).toBe("Lyre Table in Table: change"));
   });
 });

@@ -174,6 +174,11 @@ describe("rooms: each room's sound goes only to its own bot (roomsFor, sceneRoom
     expect(room("bot-b")?.music?.trackId).toBe("m1");
     expect(room("bot-a")?.music).toBeNull();
     expect(announced).toEqual(["Music in Dungeon: M1"]);
+    // UX-R21: with two rooms or more, the first room is named too (Find and play said only "Music: …").
+    announced.length = 0;
+    rig.audio.playTrack("m1", { target: { room: "bot-a" } });
+    await rig.advance(4);
+    expect(announced[0]).toMatch(/^Music in \S.*: M1$/);
 
     rig.audio.playTrack("amb1", { target: "all" });
     await rig.advance(4);

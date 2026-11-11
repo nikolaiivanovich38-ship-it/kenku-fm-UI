@@ -577,6 +577,24 @@ test.describe("round 7: what a scene does when it starts", () => {
     await expect(abbey(page)).not.toContainText("Moves on by itself");
   });
 
+  test("UX-R1: from the keyboard, focus moves into the steps dialog, Tab stays inside and Esc closes it", async ({ page }) => {
+    await openRoute(page, "session/crown/s14");
+    await page.getByRole("button", { name: "More for The abbey ruins" }).focus();
+    await page.keyboard.press("Enter");
+    await page.getByRole("menuitem", { name: "What it does when it starts…" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(dialog(page)).toHaveAccessibleName("When The abbey ruins starts");
+    const inDialog = () => dialog(page).evaluate((d) => d.contains(document.activeElement));
+    expect(await inDialog()).toBe(true);
+    for (let i = 0; i < 30; i++) {
+      await page.keyboard.press("Tab");
+      expect(await inDialog()).toBe(true);
+    }
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "More for The abbey ruins" })).toBeFocused();
+  });
+
   test("a step can be added, changed and moved; a play step has its transition and what it does to Up next", async ({ page }) => {
     await openRoute(page, "session/crown/s14");
     await page.getByRole("button", { name: "More for The abbey ruins" }).click();

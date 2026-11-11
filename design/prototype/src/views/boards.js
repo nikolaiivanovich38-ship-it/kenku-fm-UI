@@ -374,7 +374,7 @@
     var p = sel.pad, other = keyOwner(b, p.key, p.id), on = L.padActive(b.id, p.id);
     var body = '<div class="pb-ed-body" ' + swatch(p) + '>' +
       '<div class="pb-testrow"><button class="btn pb-prev" data-act="pbpreview" data-k="pb-prev" aria-pressed="' + previewing(b, p) + '" title="Only you hear it">' + L.icon(previewing(b, p) ? 'stop' : 'headphones', 's') + (previewing(b, p) ? 'Stop preview' : 'Preview') + '</button>' +
-      '<button class="btn" data-act="pbtest" data-k="pb-test" aria-pressed="' + on + '" title="The players hear it">' + L.icon(on && p.mode === 'toggle' ? 'stop' : 'broadcast', 's') + (on && p.mode === 'toggle' ? 'Stop on air' : 'Play on air') + '</button>' +
+      '<button class="btn" data-act="pbtest" data-k="pb-test" aria-pressed="' + on + '" title="The players hear it">' + L.icon(on && p.mode === 'toggle' ? 'stop' : 'playair', 's') + (on && p.mode === 'toggle' ? 'Stop on air' : 'Play on air') + '</button>' +
       (on ? L.destTag('air', '') : '') + '</div>' +
       '<div class="field"><label for="pb-label">Label</label><input id="pb-label" class="input" data-input="pblabel" data-k="pb-label" data-save="pad label {v}" value="' + esc(p.label) + '"></div>' +
       soundEditor(p) +
@@ -573,7 +573,7 @@
     L.menu(el, boardMenuHTML(b, true), 'Board');
   };
   function padMenu(b, p) {
-    return '<div class="group">' + esc(p.label) + '</div><button role="menuitem" data-act="pbpreview">' + L.icon('headphones', 's') + 'Preview</button><button role="menuitem" data-act="pbtest">' + L.icon('broadcast', 's') + 'Play on air</button>' +
+    return '<div class="group">' + esc(p.label) + '</div><button role="menuitem" data-act="pbpreview">' + L.icon('headphones', 's') + 'Preview</button><button role="menuitem" data-act="pbtest">' + L.icon('playair', 's') + 'Play on air</button>' +
       '<button role="menuitem" data-act="pbduppad">Duplicate pad</button><button role="menuitem" data-act="pbmovemenu2">Move to…</button>' +
       '<button role="menuitem" data-act="pbdelpad" data-pid="' + p.id + '">' + L.icon('trash', 's') + 'Delete pad…</button>';
   }
