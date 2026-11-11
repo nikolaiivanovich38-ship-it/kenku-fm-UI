@@ -86,7 +86,7 @@
 
   /* ---------- the profile being shown and edited ---------- */
   function prof(t) { return L.profileOf(t, S.key || null); }
-  function copyOf(p) { return { start: p.start, end: p.end, after: p.after, loopStart: p.loopStart, loopXfade: p.loopXfade, fadeIn: { dur: p.fadeIn.dur, shape: p.fadeIn.shape }, fadeOut: { dur: p.fadeOut.dur, shape: p.fadeOut.shape }, markers: p.markers.map(function (m) { return m.mix ? { at: m.at, label: m.label, mix: true } : { at: m.at, label: m.label }; }) }; }
+  function copyOf(p) { return { start: p.start, startAt: p.startAt, end: p.end, after: p.after, loopStart: p.loopStart, loopXfade: p.loopXfade, fadeIn: { dur: p.fadeIn.dur, shape: p.fadeIn.shape }, fadeOut: { dur: p.fadeOut.dur, shape: p.fadeOut.shape }, markers: p.markers.map(function (m) { return m.mix ? { at: m.at, label: m.label, mix: true } : { at: m.at, label: m.label }; }) }; }
   function write(t, patch) {
     if (!editable(t)) return false;
     var np = copyOf(prof(t));
@@ -194,13 +194,13 @@
     if (L.pb.preview) L.stopPreview(); // only one preview at a time
     S.mode = mode || 'play'; S.event = null; S.handover = null; S.since = 0;
     if (S.mode === 'last10') { S.pos = Math.max(p.start, p.end - 10); S.loops = 0; }
-    else if (S.pos >= t.dur - .05) { S.pos = p.start; S.loops = 0; }
+    else if (S.pos >= t.dur - .05) { S.pos = p.from; S.loops = 0; }
     S.playing = true; S.last = performance.now();
     L.say(S.mode === 'last10' ? 'Preview: the last 10 seconds before End, from ' + L.fmt(S.pos) : 'Preview from ' + L.fmt(S.pos));
     L.render(); requestAnimationFrame(frame);
   }
   function pause(msg) { S.playing = false; if (msg) L.say(msg); L.render(); }
-  function stop() { S.playing = false; S.handover = null; S.event = null; S.mode = 'play'; S.loops = 0; var t = track(); if (t) S.pos = prof(t).start; L.say('Preview stopped'); L.render(); }
+  function stop() { S.playing = false; S.handover = null; S.event = null; S.mode = 'play'; S.loops = 0; var t = track(); if (t) S.pos = prof(t).from; L.say('Preview stopped'); L.render(); }
   function seek(v, silent) { var t = track(); if (!t) return; S.pos = clamp(v, 0, t.dur); S.handover = null; S.event = null; if (!silent) L.say('Playhead ' + L.fmt(S.pos)); }
   function frame(now) {
     if (!S.playing) return;
@@ -343,7 +343,8 @@
       '<canvas class="ap-canvas" aria-hidden="true"></canvas>' +
       '<div class="ap-scrub" role="slider" tabindex="0" data-k="ap-scrub" aria-label="Playhead" aria-orientation="horizontal" aria-valuemin="0" aria-valuemax="' + t.dur + '" aria-valuenow="' + Math.floor(S.pos) + '" aria-valuetext="' + L.fmt(S.pos) + '" title="Click or drag to move the playhead; arrow keys move it 1 s (Shift: 10 s)"></div>' +
       '<div class="ap-ph' + (S.playing ? ' on' : '') + '" style="left:' + pct(t, S.pos) + '" aria-hidden="true"></div>' +
-      p.markers.map(function (m) { return '<span class="ap-flag" data-act="apgo" data-at="' + m.at + '" style="left:' + pct(t, m.at) + '" title="' + esc(m.label) + ' (' + L.fmt(m.at) + '): go there" aria-hidden="true"><span class="ap-flag-l">' + esc(m.label) + '</span></span>'; }).join('') +
+      // Round 8: the marker chosen as Start at is marked "Starts here" on the waveform.
+      p.markers.map(function (m) { var st = p.startAt === m.at; return '<span class="ap-flag' + (st ? ' ap-startat' : '') + '" data-act="apgo" data-at="' + m.at + '" style="left:' + pct(t, m.at) + '" title="' + esc(m.label) + ' (' + L.fmt(m.at) + ')' + (st ? ': the track starts here' : '') + ': go there" aria-hidden="true"><span class="ap-flag-l">' + (st ? L.icon('play', 's') + 'Starts here: ' : '') + esc(m.label) + '</span></span>'; }).join('') +
       handle(t, 'start', p.start, 'Start', 'ap-h-start') + handle(t, 'end', p.end, 'End', 'ap-h-end') + (p.after === 'loop' ? handle(t, 'loop', p.loopStart, 'Loop start', 'ap-h-loop') : '') +
       handle(t, 'fadein', p.fadeIn.dur, 'Fade in length', 'ap-fk ap-fk-in') + handle(t, 'fadeout', p.fadeOut.dur, 'Fade out length', 'ap-fk ap-fk-out') +
       '<div class="ap-ruler" aria-hidden="true"></div></div>';
@@ -361,7 +362,7 @@
       (p.after === 'loop' ? '<div class="ap-ro"><span class="ap-ro-l">Looped</span><span class="ap-loops num">' + (S.loops ? times(S.loops) : 'not yet') + '</span></div>' : '') +
       '<div class="ap-ro ap-meter" role="meter" aria-label="Volume after fades" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><span class="ap-ro-l">Volume <span class="ap-meter-s"></span></span>' +
       '<span class="ap-meter-row"><span class="ap-meter-track"><span class="ap-meter-bar"></span></span><span class="ap-meter-v num">100%</span></span></div></div>';
-    var air = '<div class="ap-air"><button class="btn s" data-act="apair" data-k="ap-air" title="Play on air: the players hear it, from Start, with ' + esc(placeName(S.key)) + '">' + L.icon('playair', 's') + 'Play on air</button>' +
+    var air = '<div class="ap-air"><button class="btn s" data-act="apair" data-k="ap-air" title="Play on air: the players hear it, from ' + (prof(t).startAt != null ? 'its Start at marker' : 'Start') + ', with ' + esc(placeName(S.key)) + '">' + L.icon('playair', 's') + 'Play on air</button>' +
       (onAir ? L.destTag('air', '') + '<span class="num muted" data-time="music"></span>' : '') + '</div>';
     var ev = '';
     if (S.handover) {
@@ -403,9 +404,22 @@
     }
     return h;
   }
+  /* Round 8: Start at, Beginning or one of the markers: where the track starts wherever it plays (Live, scenes, the
+     Now playing bar), in this place's settings or the track's own. */
+  function startAtHTML(t, p) {
+    return '<div class="field ap-startat-f"><label for="ap-startat">Start at</label><select id="ap-startat" class="input" data-input="apstartat" data-k="ap-startat"' + dis(t) + '>' +
+      '<option value=""' + (p.startAt == null ? ' selected' : '') + '>Beginning (' + L.fmt(p.start) + ')</option>' +
+      p.markers.filter(function (m) { return m.at >= p.start && m.at < p.end; }).map(function (m) { return '<option value="' + m.at + '"' + (p.startAt === m.at ? ' selected' : '') + '>' + esc(m.label) + ' (' + L.fmt(m.at) + ')</option>'; }).join('') + '</select></div>';
+  }
+  L.inputs.apstartat = function (el) {
+    var t = track(); if (!t) return; var v = el.value === '' ? null : +el.value;
+    if (!write(t, { startAt: v })) return; S.focusK = 'ap-startat'; L.render();
+    var m = v == null ? null : prof(t).markers.filter(function (x) { return x.at === v; })[0];
+    L.say(m ? 'Starts at ' + m.label + ', ' + L.fmt(m.at) : 'Starts at the beginning');
+  };
   function markersHTML(t, p) {
-    if (!p.markers.length) return '<p class="empty">No markers yet.</p>';
-    return '<ol class="list ap-mlist">' + p.markers.map(function (m, i) {
+    if (!p.markers.length) return '<p class="empty">No markers yet. Add one to start the track there.</p>';
+    return startAtHTML(t, p) + '<ol class="list ap-mlist">' + p.markers.map(function (m, i) {
       return '<li class="lrow ap-mrow"><span class="num faint ap-mt">' + L.fmt(m.at) + '</span>' +
         '<input class="input ap-ml" data-input="apmlabel" data-i="' + i + '" data-k="ap-ml-' + i + '" value="' + esc(m.label) + '" aria-label="Marker label at ' + L.fmt(m.at) + '"' + dis(t) + '>' +
         '<button class="btn s" data-act="apgo" data-at="' + m.at + '" data-k="ap-mgo-' + i + '" title="Move the playhead to ' + L.fmt(m.at) + '" aria-label="Go to ' + esc(m.label) + '">' + L.icon('right', 's') + 'Go to</button>' +
@@ -491,7 +505,7 @@
       var key = prm.ctx || '';
       if (S.tid !== t.id || S.key !== key) {
         if (S.tid !== t.id) S.undoClear = null;
-        S.tid = t.id; S.key = key; S.playing = false; S.handover = null; S.event = null; S.loops = 0; S.ctx = 0; S.saved = false; S.editing = null; S.invalid = {}; S.pos = prof(t).start;
+        S.tid = t.id; S.key = key; S.playing = false; S.handover = null; S.event = null; S.loops = 0; S.ctx = 0; S.saved = false; S.editing = null; S.invalid = {}; S.pos = prof(t).from;
       }
       var p = prof(t), ed = editable(t);
       // Round 6 part 6: Back, then the trail Library › (core.js), then the h1: the track › Audio profile. The track is
@@ -589,7 +603,7 @@
     var t = track(), o = { fade: 3 };
     if (S.key.indexOf('pl:') === 0) o.playlistId = S.key.slice(3);
     else if (S.key) { var sc = sceneOf(S.key), q = sc ? L.sceneSequence(sc.scene) : [], at = q.map(function (x) { return x.trackId; }).indexOf(t.id); if (at > -1) { o.playlistId = q[at].playlistId; o.seq = { cid: sc.cid, sid: sc.sid, scene: sc.index, at: at }; } }
-    L.play(t.id, o); L.toast('On air: ' + L.title(t) + ', from ' + L.fmt(prof(t).start));
+    L.play(t.id, o); L.toast('On air: ' + L.title(t) + ', from ' + L.fmt(prof(t).from));
   };
   L.acts.apgo = function (el) { seek(+el.dataset.at); L.render(); };
   L.acts.aphere = function (el) { setHere(el.dataset.f); };

@@ -1,0 +1,36 @@
+/* Round 8, part 2 (0.5.1): Nik's findings from testing 0.5.0 (ROUND8.md, part 2). */
+
+/* The session planner: an open scene has a quiet edge; the selected scene (Add scene goes after it) the accent. */
+.cp-scene.open { box-shadow: inset 3px 0 0 var(--line-strong); }
+.cp-scene.sel { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+
+/* Campaigns: the cards are an ordered list; each has a drag handle, and Move earlier and Move later while Reorder is on. */
+ol.cp-grid { list-style: none; margin: 0; padding: 0; }
+.cp-cardwrap { display: flex; min-width: 0; }
+.cp-cardwrap > .cp-card { flex: 1; }
+.cp-card-top .cp-handle { margin: -4px 0 -4px -4px; }
+.cp-card-top .cp-handle:not(:hover) { opacity: .6; }
+.cp-cmoves { display: flex; gap: 2px; flex: none; margin: -4px -4px -4px 0; }
+[data-drag][data-axis="x"].cp-drop-before { box-shadow: -3px 0 0 var(--accent); border-radius: var(--r-l); }
+[data-drag][data-axis="x"].cp-drop-after { box-shadow: 3px 0 0 var(--accent); border-radius: var(--r-l); }
+
+/* Look and feel: the base theme. */
+.lk-base { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 12px 0 8px; }
+.lk-base .input { width: auto; min-width: 200px; }
+
+/* Lyre's page fits the window exactly (ROUND8.md, section 14). Text for screen readers only (.sr-only) is placed
+   absolutely; in a scrolled box with no positioned parent it was placed against #app at its spot far down the list,
+   and made the whole page taller than the window (282 px with a scene open at 1280×680; the same rule is in the app's
+   ui.css). Clipping at #app, which is the window, keeps the page the window's size. overflow: clip makes no scroll
+   box, so sticky headers and focus still work. */
+#app { overflow: clip; }
+
+/* Undo after Kick is plain to see: the strip in On air has the accent edge. */
+.lv-dock .lv-undo2 { border-left: 3px solid var(--accent); }
+
+/* Audio profile: Start at, and the marker it names on the waveform. */
+.ap-startat-f { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 6px; }
+.ap-startat-f .input { width: auto; min-width: 180px; }
+.ap-flag.ap-startat { color: var(--accent-text); font-weight: 700; z-index: 4; }
+.ap-flag.ap-startat::before { background: var(--accent); width: 3px; }
+.ap-flag.ap-startat svg { width: 10px; height: 10px; }

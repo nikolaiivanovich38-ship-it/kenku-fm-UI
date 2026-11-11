@@ -30,8 +30,9 @@
   L.inviteURL = function (appId) { return 'https://discord.com/oauth2/authorize?client_id=' + encodeURIComponent(appId) + '&scope=bot&permissions=' + L.INVITE_PERMISSIONS; };
   // 0.5.1: Sound to Discord is kept by Lyre itself (the app: this-computer.json), so it is kept across starts here too.
   var SETTINGS_KEY = 'lyre-settings';
-  function readSettings() { try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; } catch (e) { return {}; } }
-  function keepSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ mode: S.mode })); } catch (e) { /* storage unavailable: lasts for this visit */ } }
+  // In both stores, as r8window.js keeps the Kenku FM note: local storage can read empty for a moment after a reload.
+  function readSettings() { try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || sessionStorage.getItem(SETTINGS_KEY) || '{}') || {}; } catch (e) { return {}; } }
+  function keepSettings() { try { var v = JSON.stringify({ mode: S.mode }); localStorage.setItem(SETTINGS_KEY, v); sessionStorage.setItem(SETTINGS_KEY, v); } catch (e) { /* storage unavailable: lasts for this visit */ } }
   // Remote control is hidden until Stream Deck support (WP6): its pane is not drawn; its design below is kept for then.
   var SHOW_REMOTE = false;
   var S = { mode: readSettings().mode || 'quality', remote: false, address: '127.0.0.1', port: '3333',
@@ -226,7 +227,10 @@
   function devicesBody() {
     // Lead decision (B6-NOTES, 7 Nov): no "On air, on this computer" device; rooms are heard only through Discord.
     return devSelect('pv', S.split ? 'Headset' : 'Preview (only you)', S.pvDevice, 'stpvdev') +
-      sw('split', 'Split one headset', S.split, 'stsplit', { title: 'The preview in one ear and On air in the other, on one headset' }) +
+      // Round 8 (Nik, 11 Nov 20:33: "Splitting headset should only apply if there is a live track playing simultaneously,
+      // it shouldn't apply if it would be the only track playing"): split only while On air plays as well.
+      sw('split', 'Split one headset', S.split, 'stsplit', { title: 'While On air plays too: the preview in one ear and On air in the other, on one headset' }) +
+      (S.split ? '<p class="hint st-splitnote">Only while something plays on air; a preview on its own plays in both ears.</p>' : '') +
       (S.split ? '<div class="st-ears" role="radiogroup" aria-label="Which ear has the preview">' + [['left', 'Preview in the left ear'], ['right', 'Preview in the right ear']].map(function (e) {
         return '<label class="lk-radio"><input type="radio" name="st-ear" value="' + e[0] + '" data-input="stear" data-k="st-ear-' + e[0] + '"' + (S.pvEar === e[0] ? ' checked' : '') + '><span>' + e[1] + '</span></label>';
       }).join('') + '</div>' : '');
@@ -269,6 +273,8 @@
       footer: '<button class="btn" data-act="closesheet">Close</button><button class="btn primary" data-act="stprint">' + L.icon('file', 's') + 'Print</button>' });
   };
   L.acts.stprint = function () { try { window.print(); } catch (e) { /* no printer in the prototype */ } };
+  // Storage can still be empty while a reloaded page first paints (as for r8window.js's Kenku FM note): look again.
+  [60, 400, 1500, 4000].forEach(function (ms) { setTimeout(function () { var m = readSettings().mode; if (m && m !== S.mode) { S.mode = m; L.render(); } }, ms); });
   L.acts.stmode = function (el) { S.mode = el.dataset.v; keepSettings(); L.say(el.textContent + '. Applies the next time a bot joins a voice channel.'); L.render(); L.saved('setting: ' + el.textContent, { key: 'st-mode' }); };
   /* Round 7 (SEC-4): remote control needs a secret code. Off by default. On: the code to type on the remote device
      (Stream Deck plugin, phone or tablet), Copy code, Make a new code (the old one stops working at once), and where

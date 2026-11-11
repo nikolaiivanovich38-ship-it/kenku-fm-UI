@@ -21,7 +21,17 @@
       '<div class="lk-sw" aria-hidden="true"><i style="background:var(--bg)"></i><i style="background:var(--surface)"></i><i style="background:var(--surface-3)"></i><i style="background:var(--ink)"></i><i style="background:var(--accent)"></i><i style="background:var(--second)"></i></div>' +
       '</div>';
   }
-  var INTRO = 'Each campaign can have its own theme, and Lyre switches to it when you open that campaign. Choose one here to use it everywhere.';
+  /* Round 8 (Nik, 11 Nov: "The campaign's visual theme should override the base / preference theme in settings"): the
+     theme chosen here is the base. A campaign's own theme always shows on its page, its sessions and in Live; the
+     "Each campaign's own" choice and the note that Look and feel overrides a campaign are gone. */
+  var INTRO = 'The base theme is for the Library, Playlists, Pad boards, Settings and any campaign without a theme of its own. A campaign\'s own theme always shows on its page, its sessions and in Live.';
+  function baseChoice() {
+    var cur = L.baseTheme();
+    return '<div class="lk-base"><label class="lk-dl" for="lk-base">Base theme</label><select class="input" id="lk-base" data-input="lkbase" data-k="lk-base" aria-describedby="lk-intro">' +
+      themes.map(function (t) { return '<option value="' + t.id + '"' + (cur === t.id ? ' selected' : '') + '>' + esc(t.name) + '</option>'; }).join('') + '</select>' +
+      '<span class="hint">A campaign with a theme of its own keeps it.</span></div>';
+  }
+  L.inputs.lkbase = function (el) { var t = themes.filter(function (x) { return x.id === el.value; })[0]; L.state.theme = el.value; L.save(); L.render(); L.saved('base theme ' + (t ? t.name : el.value), { key: 'lk-base' }); };
   /* Round 7, UX-11 and A11Y-6: Display, kept per computer (r7shell.js L.display, L.setDisplay). Density, Text size
      (100 to 200 %), High contrast, and a link to the tag colours, which are set with the tags themselves. */
   function displayHTML() {
@@ -43,24 +53,25 @@
     if (ev.type === 'change') { L.setDisplay('size', v); L.saved('text size ' + v + ' %', { key: 'lk-size' }); }
   };
   L.inputs.lkcontrast = function (el) { L.setDisplay('contrast', el.checked); L.saved('high contrast ' + (el.checked ? 'on' : 'off'), { key: 'lk-contrast' }); };
-  L.acts.usetheme = function (el) { L.state.theme = el.dataset.theme; L.save(); L.render(); L.toast('Prototype now uses ' + el.dataset.name); };
+  L.acts.usetheme = function (el) { L.state.theme = el.dataset.theme; L.save(); L.render(); L.saved('base theme ' + el.dataset.name, { key: 'lk-base' }); var b = document.querySelector('[data-k="' + el.dataset.k + '"]'); if (b) b.focus(); };
   L.view('look', {
     nav: 'look',
     notesTitle: 'Design language: what I propose',
     notes: [
       'All five table themes are in, with <b>Candlelit Library as the default</b> (your choice). Each campaign picks a theme, and Lyre switches to it when you open that campaign or run its session.',
-      'Prototype strip, Theme: leave it on <b>Each campaign\'s own</b> to see the switching (The Sunken Crown uses Hearth and Iron, The Sixth Year uses Candlelit Library, Ash and Masks uses Elysium). Pick a theme there to force one everywhere.',
+      '<b>Round 8:</b> the theme chosen here is the <b>base theme</b>: the Library, Playlists, Pad boards, Settings and campaigns without one. A campaign\'s own theme always shows on its page, its sessions and in Live (The Sunken Crown uses Hearth and Iron, The Sixth Year Candlelit Library, Ash and Masks Elysium).',
       'These stay the same in every theme: the colours for music, ambience, effects and preview, the red On air signal, the focus outline, Atkinson Hyperlegible for reading, and the layout. What you have learned to read does not move.',
       'Every text colour passes WCAG AA (4.5:1) on its background; a check runs over every theme.'
     ],
     render: function () {
       // Round 7: the intro sentence is the page's hover text and description (less to read); Display comes first.
       return '<div class="viewhead"><h1 title="' + esc(INTRO) + '" aria-describedby="lk-intro">Look and feel</h1><p class="sr-only" id="lk-intro">' + esc(INTRO) + '</p></div>' +
-        '<div class="viewbody">' + displayHTML() +
+        '<div class="viewbody">' + displayHTML() + baseChoice() +
         '<div class="lk-grid">' + themes.map(function (t) {
           return '<article class="lk-card"><header><h2 class="display">' + esc(t.name) + '</h2><span class="muted">' + esc(t.games) + '</span></header>' + sample(t) +
             '<p>' + esc(t.line) + '</p>' +
-            '<button class="btn' + (L.state.theme === t.id ? ' primary' : '') + '" data-act="usetheme" data-theme="' + t.id + '" data-name="' + esc(t.name) + '" data-k="use-' + t.id + '">' + (L.state.theme === t.id ? L.icon('check', 's') + 'In use in the prototype' : 'Try it in the prototype') + '</button></article>';
+            (L.baseTheme() === t.id ? '<button class="btn primary" data-act="usetheme" data-theme="' + t.id + '" data-name="' + esc(t.name) + '" data-k="use-' + t.id + '" aria-label="The base theme: ' + esc(t.name) + '">' + L.icon('check', 's') + 'The base theme</button>'
+              : '<button class="btn" data-act="usetheme" data-theme="' + t.id + '" data-name="' + esc(t.name) + '" data-k="use-' + t.id + '" aria-label="Use as the base theme: ' + esc(t.name) + '">Use as the base theme</button>') + '</article>';
         }).join('') + '</div>' +
         '<h2 class="display lk-h2">Same in every theme</h2><div class="lk-fixed">' +
         '<div><span class="lane-dot music"></span><b>Music</b> blue</div><div><span class="lane-dot amb"></span><b>Ambience</b> teal</div><div><span class="lane-dot fx"></span><b>Effects</b> amber</div><div><span class="lane-dot preview"></span><b>Preview</b> violet</div><div>' + L.destTag('air', '') + ' the players hear it (with the room when there are two or more)</div><div>' + L.destTag('you', '') + ' only you hear it, in your headphones</div><div><span class="kbd">Tab</span> gold focus outline</div></div>' +
