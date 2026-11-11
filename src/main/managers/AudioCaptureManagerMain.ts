@@ -291,8 +291,16 @@ export class AudioCaptureManagerMain extends TypedEmitter<AudioCaptureManagerEve
 
   /** Applies from the next broadcast; the encoder is set up when one starts. */
   _handleSetStreamingMode = (_: Electron.IpcMainEvent, streamingMode: StreamingMode) => {
-    this._streamingMode = streamingMode;
+    this.setStreamingMode(streamingMode);
   };
+
+  /**
+   * FND-16: Settings › Sound to Discord, from this computer's settings (src/main/soundToDiscord.ts). Applies from
+   * the next broadcast; the encoder is set up when one starts.
+   */
+  setStreamingMode(streamingMode: StreamingMode) {
+    this._streamingMode = streamingMode;
+  }
 
   /** "This Computer" on or off (OUT-1: chosen in the output list, via OutputManager). */
   setLocalMuted(muted: boolean) {

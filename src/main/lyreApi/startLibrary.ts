@@ -19,6 +19,7 @@ import { guardIpc } from "../security/ipcGuard";
 import { trustedContents } from "../security/trustedContents";
 import { LyreLibraryService, type LibraryChild } from "./libraryService";
 import { LYRE_API_EVENT } from "./lyreIpc";
+import type { LyreEvent } from "../../common/lyre/api";
 import { noConverter } from "./noConverter";
 import { SAMPLE_RELINK_FOLDER, SAMPLE_SHARED_FILE } from "./sampleComputer";
 import { standInForMissingFiles, writeStandInTone } from "./seedAudio";
@@ -41,6 +42,10 @@ function lyrePages(): Electron.WebContents[] {
 export interface StartedLibrary {
   service: LyreLibraryService;
   wired: WiredLibrary;
+  /** The library's folder (this computer's settings and the old main window's record are kept beside the database). */
+  folder: string;
+  /** FND-16: hears every event the library sends the Lyre page (Sound to Discord follows the settings); answers a stop. */
+  onEvent(listener: (event: LyreEvent) => void): () => void;
   /** The main window is showing: the daily backups start, and the audio cache is tidied a while later. */
   windowShown(): void;
   /** Settings > Clear cache: empties Lyre's audio cache too (security review 3). */
@@ -54,6 +59,8 @@ export function startLyreLibrary(): StartedLibrary {
   const log = (message: string, error?: unknown) => console.error(message, error ?? "");
   const parentWindow = () => BrowserWindow.getFocusedWindow() ?? BrowserWindow.getAllWindows()[0];
   let wired: WiredLibrary | null = null;
+  const listeners = new Set<(event: LyreEvent) => void>();
+  const folder = libraryFolder(app.getPath("userData"));
   let upkeep: MediaUpkeep | null = null;
   let current: Electron.UtilityProcess | null = null;
   // BUG-10: the ffmpeg shipped with Lyre converts WMA and AIFF for the player (here) and works out loudness peaks
@@ -89,7 +96,7 @@ export function startLyreLibrary(): StartedLibrary {
       });
       return current as unknown as LibraryChild;
     },
-    folder: libraryFolder(app.getPath("userData")),
+    folder,
     seed,
     ffmpegPath,
     transferFolder,
@@ -162,6 +169,7 @@ export function startLyreLibrary(): StartedLibrary {
     ipc: guardIpc(ipcMain),
     send: (event) => {
       for (const page of lyrePages()) page.send(LYRE_API_EVENT, event);
+      for (const listener of listeners) listener(event);
     },
     media: (libraryFolders) => {
       const cache = new MediaCache({
@@ -186,6 +194,11 @@ export function startLyreLibrary(): StartedLibrary {
   return {
     service,
     wired,
+    folder,
+    onEvent(listener) {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
     windowShown: () => {
       service.startBackups();
       upkeep?.windowShown();

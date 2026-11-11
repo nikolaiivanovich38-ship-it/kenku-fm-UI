@@ -29,6 +29,8 @@ import {
   usualSceneSteps,
   checkDisplay,
   checkDevices,
+  checkStreamingMode,
+  DEFAULT_STREAMING_MODE,
   type CueStep,
   type TagTree,
 } from "./round7";
@@ -261,6 +263,11 @@ describe("UX-11, PRV-2, PLY-8: settings", () => {
     expect(checkDevices({ previewEar: "right", split: true })).toBeNull();
     expect(checkDevices({ previewEar: "middle" as never })).toMatch(/ear/);
     expect(checkDevices({ airDevice: "x".repeat(600) })).toMatch(/device/);
+    // FND-16: Sound to Discord (the stored names are Kenku FM's: lowLatency is Best sound quality).
+    expect(DEFAULT_STREAMING_MODE).toBe("performance");
+    expect(checkStreamingMode("lowLatency")).toBeNull();
+    expect(checkStreamingMode("performance")).toBeNull();
+    expect(checkStreamingMode("fast")).toMatch(/Best sound quality or Lighter on the computer/);
     expect(DEFAULT_CROSSFADE).toEqual({ ms: 3000, curve: "even" });
   });
 });

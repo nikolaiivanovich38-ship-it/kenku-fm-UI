@@ -13,6 +13,7 @@
  */
 import type {
   AudioDevices,
+  StreamingMode,
   Crossfade,
   CueStep,
   DisplaySettings,
@@ -693,8 +694,8 @@ export interface PutResult {
 /**
  * Settings round 7 adds. With the library (in backups, not in .lyre files): the crossfade (Settings › Sound to
  * Discord › Between tracks), the keys the game master changed and Next scene's guard. Per computer (kept beside the
- * library, never in a backup or a .lyre file, and no undo step): Look and feel › Display, Headphones and speakers, and
- * whether Next scene and Fade all work in other programs too.
+ * library, never in a backup or a .lyre file, and no undo step): Look and feel › Display, Headphones and speakers,
+ * whether Next scene and Fade all work in other programs too, and Sound to Discord (FND-16).
  */
 export interface LyreSettings {
   crossfade: Crossfade;
@@ -704,11 +705,14 @@ export interface LyreSettings {
   display: DisplaySettings;
   devices: AudioDevices;
   globalKeys: boolean;
+  /** FND-16: Settings › Sound to Discord, per computer (until 0.5.0 the old main window kept it). */
+  streamingMode: StreamingMode;
 }
 export interface ComputerSettingsPatch {
   display?: Partial<DisplaySettings>;
   devices?: Partial<AudioDevices>;
   globalKeys?: boolean;
+  streamingMode?: StreamingMode;
 }
 
 /* ---------- history ---------- */

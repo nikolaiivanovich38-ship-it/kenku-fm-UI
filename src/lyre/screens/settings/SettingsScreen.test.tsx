@@ -241,16 +241,18 @@ describe("Settings › Discord bots (OUT-8)", () => {
 });
 
 describe("Settings: the folded boxes", () => {
-  it("starts with the rare boxes folded; Sound to Discord shows the main window's mode and changes it there", async () => {
-    const { win } = open();
+  it("starts with the rare boxes folded; Sound to Discord shows this computer's mode and saves a change with Lyre's settings (FND-16)", async () => {
+    const { win, api } = open();
     for (const name of ["Sound to Discord", "Headphones and speakers", "Remote control", "Keyboard shortcuts", "Website tabs", "Local files"]) {
       expect(region(name).getByRole("button", { name })).toHaveAttribute("aria-expanded", "false");
     }
     const sound = await unfold("Sound to Discord");
     await waitFor(() => expect(sound.getByRole("radio", { name: "Lighter on the computer" })).toHaveAttribute("aria-checked", "true"));
     await userEvent.click(sound.getByRole("radio", { name: "Best sound quality" }));
-    expect(win.set).toHaveBeenCalledWith({ streamingMode: "lowLatency" });
     await waitFor(() => expect(toast()).toBe("Saved: setting: Best sound quality"));
+    expect((await api.settings.get()).streamingMode).toBe("lowLatency");
+    expect(win.set).not.toHaveBeenCalled();
+    expect(sound.getByRole("radio", { name: "Best sound quality" })).toHaveAttribute("aria-checked", "true");
   });
 
   it("the crossfade between tracks has a default of 3 s and saves a change", async () => {

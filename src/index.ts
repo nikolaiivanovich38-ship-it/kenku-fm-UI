@@ -86,7 +86,7 @@ const createWindow = (): BrowserWindow => {
 
   // One set of managers for the window's whole life: reloading the page joins it again (SessionManager) without
   // closing the bots' voice connections.
-  const session = new SessionManager(mainWindow);
+  const session = new SessionManager(mainWindow, { library: lyreLibrary ?? undefined });
   mainWindow.loadURL(LYRE_WINDOW_WEBPACK_ENTRY);
 
   // Prevent app suspension for Kenku FM to avoid playback issues

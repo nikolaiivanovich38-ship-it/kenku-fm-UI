@@ -1336,6 +1336,7 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
           display: { density: "compact", textSize: 100, highContrast: false },
           devices: { airDevice: "", previewDevice: "", split: false, previewEar: "left" },
           globalKeys: false,
+          streamingMode: "performance",
         });
         expect(valueOf(await api.settings.setShortcut("palette", "ctrl+j")).shortcuts).toEqual({ palette: "Ctrl+J" });
         await changedEvent("settings", "history");
@@ -1355,6 +1356,9 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         expect(await api.history.state()).toEqual(before);
         expectRefused(await api.settings.setComputer({ display: { textSize: 300 } }), "invalid");
         expectRefused(await api.settings.setComputer({ devices: { previewEar: "middle" as never } }), "invalid");
+        // FND-16: Sound to Discord (Lighter on the computer until changed, above).
+        expect(valueOf(await api.settings.setComputer({ streamingMode: "lowLatency" })).streamingMode).toBe("lowLatency");
+        expectRefused(await api.settings.setComputer({ streamingMode: "fast" as never }), "invalid");
       });
     });
 

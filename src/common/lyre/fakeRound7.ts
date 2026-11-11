@@ -7,6 +7,7 @@
 import {
   checkCrossfade,
   checkDevices,
+  checkStreamingMode,
   checkDisplay,
   checkSteps,
   CUE_STEP_KINDS,
@@ -150,7 +151,10 @@ export function dropReferences(state: ReturnType<FakeContext["state"]>, gone: { 
   for (const t of state.tracks) if (t.follow && names(t.follow)) t.follow = null;
 }
 
-export function fakeRound7(cx: FakeContext, computer: { display: LyreSettings["display"]; devices: LyreSettings["devices"]; globalKeys: boolean }): Methods {
+export function fakeRound7(
+  cx: FakeContext,
+  computer: { display: LyreSettings["display"]; devices: LyreSettings["devices"]; globalKeys: boolean; streamingMode: LyreSettings["streamingMode"] },
+): Methods {
   const { write, refuse } = cx;
   const st = () => cx.state();
 
@@ -641,11 +645,18 @@ export function fakeRound7(cx: FakeContext, computer: { display: LyreSettings["d
       });
     },
     async setComputer(patch: ComputerSettingsPatch) {
-      const problem = !patch || typeof patch !== "object" ? "Choose a setting." : checkDisplay(patch.display ?? {}) ?? checkDevices(patch.devices ?? {}) ?? (patch.globalKeys !== undefined && typeof patch.globalKeys !== "boolean" ? "Choose on or off." : null);
+      const problem =
+        !patch || typeof patch !== "object"
+          ? "Choose a setting."
+          : (checkDisplay(patch.display ?? {}) ??
+            checkDevices(patch.devices ?? {}) ??
+            (patch.globalKeys !== undefined && typeof patch.globalKeys !== "boolean" ? "Choose on or off." : null) ??
+            (patch.streamingMode !== undefined ? checkStreamingMode(patch.streamingMode) : null));
       if (problem) return { ok: false, refusal: { code: "invalid", message: problem } };
       Object.assign(computer.display, { ...DEFAULT_DISPLAY, ...computer.display, ...(patch.display ?? {}) });
       Object.assign(computer.devices, { ...DEFAULT_DEVICES, ...computer.devices, ...(patch.devices ?? {}) });
       if (patch.globalKeys !== undefined) computer.globalKeys = patch.globalKeys;
+      if (patch.streamingMode !== undefined) computer.streamingMode = patch.streamingMode;
       cx.changedOutsideHistory(["settings"]);
       return { ok: true, value: settingsNow(), changed: ["settings"], undoLabel: cx.undoLabel() };
     },

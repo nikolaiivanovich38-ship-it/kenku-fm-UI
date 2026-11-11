@@ -314,6 +314,7 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
         "display?": exactObject({ "density?": text(MAX_ID), "textSize?": whole, "highContrast?": bool }),
         "devices?": exactObject({ "airDevice?": text(512), "previewDevice?": text(512), "split?": bool, "previewEar?": text(MAX_ID) }),
         "globalKeys?": bool,
+        "streamingMode?": text(MAX_ID),
       }),
     ),
   },

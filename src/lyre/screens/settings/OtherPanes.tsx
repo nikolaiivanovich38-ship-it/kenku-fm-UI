@@ -9,9 +9,9 @@
 import React, { useEffect, useId, useRef, useState } from "react";
 
 import type { LyreSettings, WriteResult } from "../../../common/lyre/api";
-import { DEFAULT_WINDOW_SETTINGS, type StreamingMode, type WindowSettings, type WindowSettingsChange } from "../../../common/windowSettings";
+import { DEFAULT_WINDOW_SETTINGS, type WindowSettings, type WindowSettingsChange } from "../../../common/windowSettings";
 import { globalKeyProblem } from "../../../common/globalKeys";
-import { shortcutKey, type AudioDevices, type ShortcutAction } from "../../../common/domain";
+import { shortcutKey, type AudioDevices, type ShortcutAction, type StreamingMode } from "../../../common/domain";
 import type { RemoteState } from "../../../common/remoteControl";
 import { useLyreApi, useLyreSettings } from "../../api";
 import { useLyreAudio } from "../../audio";
@@ -60,24 +60,24 @@ function useSettingsWrite() {
 /* ---------- Sound to Discord ---------- */
 
 export function SoundPane() {
-  const [win, setWin] = useWindowSettings();
   const settings = useLyreSettings().data;
   const api = useLyreApi();
   const write = useSettingsWrite();
-  const saved = useSaved();
   const { say } = useAnnounce();
   const ids = useId();
   const crossfade = settings?.crossfade ?? { ms: 3000, curve: "even" as const };
+  // FND-16: this computer's setting (until 0.5.0 the old main window kept it); Kenku FM's default until it is read.
+  const streamingMode: StreamingMode = settings?.streamingMode ?? "performance";
   return (
     <Pane id="st-sound" title="Sound to Discord" icon="broadcast" kind="plain" size="auto" noMax collapsed describe="Both send sound to Discord with the same short delay. A change applies the next time a bot joins a voice channel.">
       <RadioButtons<StreamingMode>
         label="Sound to Discord"
         options={STREAMING_MODES}
-        value={win.streamingMode}
+        value={streamingMode}
         onChange={(mode) => {
-          if (mode === win.streamingMode) return;
+          if (mode === streamingMode) return;
           const name = STREAMING_MODES.find((m) => m.value === mode)!.name;
-          void setWin({ streamingMode: mode }).then((went) => went && saved(`setting: ${name}`));
+          void write(() => api.settings.setComputer({ streamingMode: mode }), `setting: ${name}`);
           say(`${name}. Applies the next time a bot joins a voice channel.`);
         }}
       />

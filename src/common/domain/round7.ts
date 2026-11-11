@@ -399,6 +399,18 @@ export function checkDevices(patch: Partial<AudioDevices>): string | null {
   return null;
 }
 
+/**
+ * Settings › Sound to Discord, kept per computer (FND-16; until 0.5.0 the old main window kept it). The stored names
+ * are Kenku FM's: "lowLatency" is Best sound quality, "performance" Lighter on the computer. Applied by the capture
+ * window's encoder from the next time a bot joins a voice channel.
+ */
+export type StreamingMode = "lowLatency" | "performance";
+export const DEFAULT_STREAMING_MODE: StreamingMode = "performance";
+
+export function checkStreamingMode(value: unknown): string | null {
+  return value === "lowLatency" || value === "performance" ? null : "Choose Best sound quality or Lighter on the computer.";
+}
+
 /** Settings › Sound to Discord › Between tracks: the crossfade Next, a playlist moving on and play steps use. 0 cuts. */
 export interface Crossfade {
   ms: number;
