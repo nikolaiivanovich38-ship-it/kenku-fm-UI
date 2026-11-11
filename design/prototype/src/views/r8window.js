@@ -29,9 +29,9 @@
 
   /* ---------- what came across from Kenku FM ---------- */
   var LEGACY_KEY = 'lyre-legacy';
-  // Kept in both stores: right after a reload, the page's local storage can read empty for a moment (file:// pages in
-  // Chromium), while the tab's session storage is already there.
-  function readLegacy() { try { return JSON.parse(localStorage.getItem(LEGACY_KEY) || sessionStorage.getItem(LEGACY_KEY) || '{}') || {}; } catch (e) { return {}; } }
+  // Kept in both stores: right after a reload, the page's local storage can read empty or an older value for a moment (file:// pages in
+  // Chromium), while the tab's session storage is up to date, so it is read first.
+  function readLegacy() { try { return JSON.parse(sessionStorage.getItem(LEGACY_KEY) || localStorage.getItem(LEGACY_KEY) || '{}') || {}; } catch (e) { return {}; } }
   function writeLegacy(o) { try { var v = JSON.stringify(o); localStorage.setItem(LEGACY_KEY, v); sessionStorage.setItem(LEGACY_KEY, v); } catch (e) { /* storage unavailable: lasts for this visit */ } }
   var legacy = readLegacy();
   if (Array.isArray(legacy.bookmarks)) D.moved.bookmarks = legacy.bookmarks;

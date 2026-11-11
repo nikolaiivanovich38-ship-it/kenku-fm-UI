@@ -30,8 +30,8 @@
   L.inviteURL = function (appId) { return 'https://discord.com/oauth2/authorize?client_id=' + encodeURIComponent(appId) + '&scope=bot&permissions=' + L.INVITE_PERMISSIONS; };
   // 0.5.1: Sound to Discord is kept by Lyre itself (the app: this-computer.json), so it is kept across starts here too.
   var SETTINGS_KEY = 'lyre-settings';
-  // In both stores, as r8window.js keeps the Kenku FM note: local storage can read empty for a moment after a reload.
-  function readSettings() { try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || sessionStorage.getItem(SETTINGS_KEY) || '{}') || {}; } catch (e) { return {}; } }
+  // In both stores, as r8window.js keeps the Kenku FM note: local storage can read empty or an older value for a moment after a reload.
+  function readSettings() { try { return JSON.parse(sessionStorage.getItem(SETTINGS_KEY) || localStorage.getItem(SETTINGS_KEY) || '{}') || {}; } catch (e) { return {}; } }
   function keepSettings() { try { var v = JSON.stringify({ mode: S.mode }); localStorage.setItem(SETTINGS_KEY, v); sessionStorage.setItem(SETTINGS_KEY, v); } catch (e) { /* storage unavailable: lasts for this visit */ } }
   // Remote control is hidden until Stream Deck support (WP6): its pane is not drawn; its design below is kept for then.
   var SHOW_REMOTE = false;

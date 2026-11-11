@@ -6159,8 +6159,8 @@ var L = (function () {
   L.inviteURL = function (appId) { return 'https://discord.com/oauth2/authorize?client_id=' + encodeURIComponent(appId) + '&scope=bot&permissions=' + L.INVITE_PERMISSIONS; };
   // 0.5.1: Sound to Discord is kept by Lyre itself (the app: this-computer.json), so it is kept across starts here too.
   var SETTINGS_KEY = 'lyre-settings';
-  // In both stores, as r8window.js keeps the Kenku FM note: local storage can read empty for a moment after a reload.
-  function readSettings() { try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || sessionStorage.getItem(SETTINGS_KEY) || '{}') || {}; } catch (e) { return {}; } }
+  // In both stores, as r8window.js keeps the Kenku FM note: local storage can read empty or an older value for a moment after a reload.
+  function readSettings() { try { return JSON.parse(sessionStorage.getItem(SETTINGS_KEY) || localStorage.getItem(SETTINGS_KEY) || '{}') || {}; } catch (e) { return {}; } }
   function keepSettings() { try { var v = JSON.stringify({ mode: S.mode }); localStorage.setItem(SETTINGS_KEY, v); sessionStorage.setItem(SETTINGS_KEY, v); } catch (e) { /* storage unavailable: lasts for this visit */ } }
   // Remote control is hidden until Stream Deck support (WP6): its pane is not drawn; its design below is kept for then.
   var SHOW_REMOTE = false;
@@ -11726,9 +11726,9 @@ var L = (function () {
 
   /* ---------- what came across from Kenku FM ---------- */
   var LEGACY_KEY = 'lyre-legacy';
-  // Kept in both stores: right after a reload, the page's local storage can read empty for a moment (file:// pages in
-  // Chromium), while the tab's session storage is already there.
-  function readLegacy() { try { return JSON.parse(localStorage.getItem(LEGACY_KEY) || sessionStorage.getItem(LEGACY_KEY) || '{}') || {}; } catch (e) { return {}; } }
+  // Kept in both stores: right after a reload, the page's local storage can read empty or an older value for a moment (file:// pages in
+  // Chromium), while the tab's session storage is up to date, so it is read first.
+  function readLegacy() { try { return JSON.parse(sessionStorage.getItem(LEGACY_KEY) || localStorage.getItem(LEGACY_KEY) || '{}') || {}; } catch (e) { return {}; } }
   function writeLegacy(o) { try { var v = JSON.stringify(o); localStorage.setItem(LEGACY_KEY, v); sessionStorage.setItem(LEGACY_KEY, v); } catch (e) { /* storage unavailable: lasts for this visit */ } }
   var legacy = readLegacy();
   if (Array.isArray(legacy.bookmarks)) D.moved.bookmarks = legacy.bookmarks;
