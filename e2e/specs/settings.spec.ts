@@ -300,3 +300,11 @@ test.describe("round 7: crossfade and keyboard shortcuts", () => {
     await expect(sheetBox.getByRole("button", { name: "Print" })).toBeVisible();
   });
 });
+
+/* 0.5.0 usability review (UX-R16): ROUND6 part 4 #18, the app shows its own version. */
+test.describe("Settings shows Lyre's version", () => {
+  test("UX-R16: the version is at the top right of Settings", async ({ page }) => {
+    await openRoute(page, "settings");
+    await expect(page.getByTitle("Lyre version")).toHaveText(/^\d+\.\d+\.\d+/);
+  });
+});

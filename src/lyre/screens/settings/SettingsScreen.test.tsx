@@ -24,6 +24,9 @@ import type { LyreWindowSettingsBridge } from "../../windowSettings/preloadWindo
 import { SettingsBridgesProvider } from "./common";
 import { SettingsScreen } from "./SettingsScreen";
 
+// UX-R16: the version webpack builds in (none in tests unless given).
+vi.mock("../../version", () => ({ LYRE_VERSION: "0.5.0" }));
+
 function fakeRemote(home: string | null = "192.168.1.20") {
   let state: RemoteState = { enabled: false, running: false, address: "127.0.0.1", port: 3333, code: "K7QD-92XF", codeRemembered: true, homeAddress: home };
   const remote: RemoteBridge = {
@@ -222,6 +225,12 @@ describe("Settings › Discord bots (OUT-8)", () => {
     await userEvent.click(sheet.getByRole("button", { name: "Next" }));
     expect(sheet.getByLabelText("Token")).toHaveAccessibleDescription("Kept only until Lyre closes: this computer cannot keep it encrypted.");
     expect(screen.getByRole("dialog")).not.toHaveTextContent("Kept encrypted");
+  });
+
+  it("UX-R16: shows Lyre's version at the top right, as the prototype does", async () => {
+    open();
+    await bot("Lyre Table");
+    expect(screen.getByTitle("Lyre version")).toHaveTextContent("0.5.0");
   });
 
   it("is accessible", async () => {

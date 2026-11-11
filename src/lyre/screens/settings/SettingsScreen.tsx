@@ -13,6 +13,7 @@ import { TopLead } from "../../shell/TopBar";
 import { BotsPane } from "./BotsPane";
 import { DevicesPane, FilesPane, KeysPane, RemotePane, SoundPane, TabsPane } from "./OtherPanes";
 import "./settings.css";
+import { LYRE_VERSION } from "../../version";
 
 export function SettingsScreen() {
   return (
@@ -21,6 +22,12 @@ export function SettingsScreen() {
         <TopLead />
         <h1>Settings</h1>
         <span className="grow" />
+        {/* UX-R16 (ROUND6 part 4 #18): the app shows its own version. */}
+        {LYRE_VERSION && (
+          <span className="faint num" title="Lyre version">
+            {LYRE_VERSION}
+          </span>
+        )}
       </div>
       <div className="viewbody st-body">
         <div className="st-split">
