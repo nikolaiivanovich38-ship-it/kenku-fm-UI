@@ -345,6 +345,8 @@ function checkProfile(v: unknown, at: string): AudioProfileInput {
   const o = obj(v, at);
   const out: AudioProfileInput = {};
   for (const key of ["startMs", "endMs", "loopStartMs", "loopCrossfadeMs"] as const) if (o[key] !== undefined) out[key] = num(o[key], `${at}.${key}`, 0, 1e9);
+  // 0.5.1 Start at; files from 0.5.0 and before have none.
+  if (o.startAtMs !== undefined && o.startAtMs !== null) out.startAtMs = num(o.startAtMs, `${at}.startAtMs`, 0, 1e9);
   if (o.after !== undefined) out.after = oneOf(["loop", "next", "stop"] as const, o.after, `${at}.after`);
   for (const key of ["fadeIn", "fadeOut"] as const) {
     if (o[key] === undefined) continue;

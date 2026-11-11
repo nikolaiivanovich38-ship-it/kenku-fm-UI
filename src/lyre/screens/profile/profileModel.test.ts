@@ -24,6 +24,7 @@ import {
 
 /** t13's own profile in the sample data: loops from 1:04 to 5:18 with a 2 s crossfade; the file is 7:21 long. */
 const T13: Prof = {
+  startAt: null,
   start: 0,
   end: 318,
   after: "loop",
@@ -88,8 +89,11 @@ describe("the profile in seconds", () => {
       fadeIn: { ms: 0, shape: 50 },
       fadeOut: { ms: 1500, shape: 30 },
       markers: [{ atMs: 64000, label: "Choir enters" }],
+      // 0.5.1 Start at.
+      startAtMs: 64000,
     };
     const p = fromDomain(domain);
+    expect(p.startAt).toBe(64);
     expect(p).toMatchObject({ end: 318, loopStart: 64, loopXfade: 2, fadeOut: { dur: 1.5, shape: 30 }, markers: [{ at: 64, label: "Choir enters" }] });
     expect(toInput(p)).toEqual(domain);
   });

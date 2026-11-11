@@ -683,6 +683,15 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         await changedEvent("tracks", "profiles");
       });
 
+      it("0.5.1: keeps Start at with a profile, the track's own or a place's; null is the Beginning", async () => {
+        valueOf(await api.profiles.set("t05", null, { markers: [{ atMs: 30_000, label: "Bells" }], startAtMs: 30_000 }));
+        expect((await track("t05")).profile).toMatchObject({ startAtMs: 30_000 });
+        const place: ProfilePlace = { kind: "scene", campaignId: "crown", sessionId: "s14", sceneId: "sc3" };
+        valueOf(await api.profiles.set("t05", place, { startAtMs: null }));
+        expect((await api.profiles.overrides())[placeKey(place)].t05.startAtMs ?? null).toBeNull();
+        expectRefused(await api.profiles.set("t05", null, { startAtMs: -5 }), "invalid");
+      });
+
       it("refuses a profile that cannot play, an unknown track or place", async () => {
         expectRefused(await api.profiles.set("t05", null, { startMs: 50_000, endMs: 40_000 }), "invalid");
         expectRefused(await api.profiles.set("t05", null, { startMs: 10_000, endMs: 40_000, loopStartMs: 45_000 }), "invalid");

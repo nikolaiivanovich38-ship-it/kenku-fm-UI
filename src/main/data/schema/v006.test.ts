@@ -31,8 +31,8 @@ describe("schema version 6 (design round 7)", () => {
   });
   afterEach(() => db.close());
 
-  it("is the newest version and leaves no broken link", () => {
-    expect(schemaVersion(db)).toBe(6);
+  it("is in place and leaves no broken link", () => {
+    expect(schemaVersion(db)).toBeGreaterThanOrEqual(6);
     expect(all(db, "PRAGMA foreign_key_check")).toEqual([]);
   });
 
@@ -160,7 +160,7 @@ describe("upgrading a version 5 library to version 6", () => {
       INSERT INTO audio_profile_markers (profile_id, position, at_ms, label) VALUES ('ap', 0, 1000, 'Swell');
       INSERT INTO repeat_ones (scene_id, track_id) VALUES ('x', 't');`);
     const tags = all(db, "SELECT id, group_id, name, parent_id, position FROM tags ORDER BY position");
-    expect(migrate(db, MIGRATIONS)).toMatchObject({ from: 5, to: 6, applied: [6] });
+    expect(migrate(db, MIGRATIONS.slice(0, 6))).toMatchObject({ from: 5, to: 6, applied: [6] });
     expect(all(db, "SELECT id, group_id, name, parent_id, position FROM tags ORDER BY position")).toEqual(tags);
     expect(all(db, "SELECT name, color FROM tag_groups ORDER BY position")).toEqual([
       { name: "Mood", color: "ember" },

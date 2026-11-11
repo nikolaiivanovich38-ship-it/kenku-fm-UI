@@ -62,6 +62,17 @@ describe("audio profile overrides", () => {
     expect(getProfileOverride(t.store, s.inPlaylist, s.bed.id)).toBeNull();
   });
 
+  it("0.5.1: keeps Start at with the profile (a marker's time, or null for the Beginning) and checks it", async () => {
+    const s = sample();
+    const profile = { markers: [{ atMs: 30_000, label: "Bells" }], startAtMs: 30_000 };
+    setProfileOverride(t.store, s.inScene, s.bed.id, profile);
+    expect(getProfileOverride(t.store, s.inScene, s.bed.id)).toEqual(profile);
+    setProfileOverride(t.store, s.inScene, s.bed.id, { startAtMs: null });
+    expect(getProfileOverride(t.store, s.inScene, s.bed.id)).toEqual({});
+    expect(() => setProfileOverride(t.store, s.inScene, s.bed.id, { startAtMs: -1 })).toThrow(ValidationError);
+    expect(() => setProfileOverride(t.store, s.inScene, s.bed.id, { startMs: 5000, endMs: 9000, startAtMs: 9500 })).toThrow(/Start at/);
+  });
+
   it("checks the profile and the place", async () => {
     const s = sample();
     expect(() => setProfileOverride(t.store, s.inScene, s.bed.id, { loopCrossfadeMs: 1.5 })).toThrow(ValidationError);

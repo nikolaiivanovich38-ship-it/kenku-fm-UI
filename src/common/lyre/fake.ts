@@ -456,6 +456,9 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
     time(p.endMs, "endMs");
     time(p.loopStartMs, "loopStartMs");
     time(p.loopCrossfadeMs, "loopCrossfadeMs");
+    // 0.5.1 Start at: a time, or null for the Beginning (kept as no value).
+    if (p.startAtMs === null) delete p.startAtMs;
+    time(p.startAtMs, "startAtMs");
     const start = p.startMs ?? 0;
     const end = p.endMs ?? (durationMs > 0 ? durationMs : undefined);
     if (end !== undefined && start >= end) refuse("invalid", "End must come after Start.", "endMs");

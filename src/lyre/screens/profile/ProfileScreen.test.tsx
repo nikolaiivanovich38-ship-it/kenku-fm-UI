@@ -518,6 +518,30 @@ describe("markers and keys", () => {
     await waitFor(async () => expect((await api.library.listTracks()).find((t) => t.id === "t13")!.profile.markers.filter((m) => m.mix).map((m) => m.label)).toEqual(["Choir enters"]));
   });
 
+  it("0.5.1: Start at chooses the Beginning or one of the markers between Start and End, saved with the profile", async () => {
+    const { api, user } = await open();
+    const startAt = atEnd().getByRole("combobox", { name: "Start at" });
+    expect(startAt).toHaveValue("");
+    // "Loop back" is at End (5:18), so it cannot be a start.
+    expect(within(startAt).getAllByRole("option").map((o) => o.textContent)).toEqual(["Beginning (0:00)", "Choir enters (1:04)", "Low swell (3:10)"]);
+    await user.selectOptions(startAt, "Low swell (3:10)");
+    await waitFor(async () => expect((await savedProfile(api))?.startAtMs).toBe(190_000));
+    expect(document.getElementById("lyre-toast")).toHaveTextContent(/start at 3:10, Low swell/);
+    // Removing that marker takes the start back to the Beginning.
+    await user.click(within(region("Markers")).getByRole("button", { name: "Remove marker Low swell" }));
+    expect(startAt).toHaveValue("");
+    await waitFor(async () => expect((await savedProfile(api))?.startAtMs ?? null).toBeNull());
+  });
+
+  it("0.5.1: a scene's own settings have their own Start at", async () => {
+    const { api, user } = await open("profile/t13/sc:crown:s14:sc3");
+    const startAt = atEnd().getByRole("combobox", { name: "Start at" });
+    expect(within(startAt).getAllByRole("option").map((o) => o.textContent)).toEqual(["Beginning (0:00)", "Choir enters (1:04)"]);
+    await user.selectOptions(startAt, "Choir enters (1:04)");
+    await waitFor(async () => expect((await api.profiles.overrides())["sc:crown:s14:sc3"]?.t13?.startAtMs).toBe(64_000));
+    expect((await savedProfile(api))?.startAtMs ?? null).toBeNull();
+  });
+
   it("DAT-3: Play on air from a marker starts the track there", async () => {
     const { audio, user } = await open();
     await user.click(within(region("Markers")).getByRole("button", { name: "Play on air from Low swell" }));

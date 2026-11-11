@@ -141,6 +141,18 @@ describe("audio profiles (PLY-12)", () => {
     expect(resolveProfile(eerie, [inAbbess], overrides)).toMatchObject({ source: "playlist", profile: { startMs: 5_000 } });
     expect(resolveProfile(eerie, [], overrides)).toMatchObject({ source: "track", profile: { endMs: 318_000, loopStartMs: 64_000 } });
   });
+  it("0.5.1: Start at is a marker's time between Start and End (null or missing: the Beginning); a place's own profile has its own", () => {
+    const withMarkers = { ...eerie, profile: { ...eerie.profile, markers: [{ atMs: 120_000, label: "Builds" }], startAtMs: 120_000 } };
+    expect(resolveProfile(withMarkers, [], {}).profile.startAtMs).toBe(120_000);
+    expect(resolveProfile(eerie, [], {}).profile.startAtMs ?? null).toBeNull();
+    // Outside Start to End (here after End) it is the Beginning.
+    expect(resolveProfile({ ...withMarkers, profile: { ...withMarkers.profile, startAtMs: 400_000 } }, [], {}).profile.startAtMs ?? null).toBeNull();
+    // A place's own profile replaces the track's, Start at too.
+    expect(resolveProfile(withMarkers, [ruins], overrides).profile.startAtMs ?? null).toBeNull();
+    const own = { "sc:crown:s14:ruins": { eerie: { markers: [{ atMs: 30_000, label: "Bells" }], startAtMs: 30_000 } } };
+    expect(resolveProfile(withMarkers, [ruins], own).profile.startAtMs).toBe(30_000);
+  });
+
   it("keeps the points inside the track", () => {
     const p = resolveProfile({ ...eerie, profile: { startMs: -5, endMs: 900_000, loopStartMs: 999_000 } }, [], {}).profile;
     expect(p.startMs).toBe(0);

@@ -776,9 +776,11 @@ export class RoomPlayer {
     const overrides = this.deps.library.profileOverrides();
     // PLY-4: a sting never loops; Ending "Fades out" fades unless a profile has a fade out of its own.
     const profile = roleProfile(found.track, laneProfile(found.track, lane, places, overrides), { fadeOutChosen: profileInputFor(found.track, places, overrides).fadeOut !== undefined });
-    // Where it starts: as it was (Undo), from a marker (DAT-3), else where it stopped this evening (PLY-4 Pick up).
+    // Where it starts: as it was (Undo), from a marker (DAT-3), else where it stopped this evening (PLY-4 Pick up),
+    // else the profile's Start at (0.5.1), else its Start.
     const picked = !resume && fromSeconds === undefined && found.track.resume ? this.deps.resumeAt?.get(found.track.id) : undefined;
-    const startAt = resume ? positionAfter(profile, resume.at, resume.elapsed) : fromSeconds ?? picked;
+    const byDefault = profile.startAtMs != null ? profile.startAtMs / 1000 : undefined;
+    const startAt = resume ? positionAfter(profile, resume.at, resume.elapsed) : (fromSeconds ?? picked ?? byDefault);
     if (lane === "music") this.musicLevel = 1;
     const voice = this.play(lane, found, profile, {
       gainDb: this.gainOf(found.track, item.playlistId),

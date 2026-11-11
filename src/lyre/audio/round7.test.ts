@@ -230,6 +230,31 @@ describe("DAT-3, PLY-4: where a track starts", () => {
     expect(first().music?.position).toBeGreaterThanOrEqual(12);
   });
 
+  it("0.5.1: starts at the profile's Start at wherever it plays: Play on air, a scene, a playlist; a marker chosen to play from wins", async () => {
+    rig.data.tracks[0].profile = { markers: [{ atMs: 8000, label: "Low swell" }], startAtMs: 8000 };
+    rig.audio.playTrack("m1");
+    await rig.advance(1);
+    expect(first().music?.position).toBeGreaterThanOrEqual(8.5);
+    rig.audio.stopAll();
+    rig.audio.startScene(S3);
+    await rig.advance(1);
+    expect(playing()).toBe("m1");
+    expect(first().music?.position).toBeGreaterThanOrEqual(8.5);
+    rig.audio.stopAll();
+    rig.audio.playTrack("m1", { fromMs: 2000 });
+    await rig.advance(1);
+    expect(first().music?.position).toBeLessThan(4);
+  });
+
+  it("0.5.1: a scene's own profile has its own Start at (here the Beginning) over the track's", async () => {
+    rig.data.tracks[0].profile = { markers: [{ atMs: 8000, label: "Low swell" }], startAtMs: 8000 };
+    rig.data.profiles = { "sc:c:s:s3": { m1: { endMs: 15_000 } } };
+    rig.audio.startScene(S3);
+    await rig.advance(1);
+    expect(playing()).toBe("m1");
+    expect(first().music?.position).toBeLessThan(3);
+  });
+
   it("picks up where it stopped this evening", async () => {
     rig.audio.playTrack("long");
     await rig.advance(10);

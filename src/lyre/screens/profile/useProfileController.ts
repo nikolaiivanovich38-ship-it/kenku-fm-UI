@@ -513,9 +513,20 @@ export function useProfileController(editor: ProfileEditor, rootRef: React.RefOb
       const result = audio.playTrack(track.id, { fadeMs: 1000, fromMs: Math.round(at * 1000) });
       if (result.ok) say(`On air from ${fmt(at)}: ${title}`);
     },
+    /** 0.5.1 Start at: a marker's time, or null for the Beginning. */
+    setStartAt(at: number | null) {
+      if (!editable) {
+        readOnlyNote();
+        return;
+      }
+      const m = at === null ? undefined : p.markers.find((x) => x.at === at);
+      editor.write({ ...p, startAt: m ? m.at : null }, "now", { text: m ? `start at ${fmt(m.at)}, ${m.label}` : "start at the beginning", key: `ap-startat-${track.id}` });
+    },
     removeMarker(i: number) {
       const gone = p.markers[i];
-      if (!editor.write({ ...p, markers: p.markers.filter((_m, j) => j !== i) })) return;
+      // Start at that marker: back to the Beginning.
+      const startAt = gone && p.startAt === gone.at && !p.markers.some((m, j) => j !== i && m.at === gone.at) ? null : p.startAt;
+      if (!editor.write({ ...p, startAt, markers: p.markers.filter((_m, j) => j !== i) })) return;
       setFocusK("ap-madd");
       say(`Marker removed: ${gone ? gone.label : ""}`);
     },
