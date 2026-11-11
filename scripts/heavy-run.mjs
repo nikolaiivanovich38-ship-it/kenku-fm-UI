@@ -240,7 +240,8 @@ function attempt(args, log, { out, graceMs }) {
     child.on("close", async (code, signal) => {
       clearInterval(check);
       if (stalled) return;
-      sink.end();
+      // The log is complete before the run counts as ended: whoever reads it next sees all of it.
+      await new Promise((done) => sink.end(done));
       // Whatever the command left running in its group (an Xvfb, a browser) goes with it.
       await stopGroup(pgid, graceMs);
       resolve({ code: code ?? (signal ? 128 : 1), pgid });
