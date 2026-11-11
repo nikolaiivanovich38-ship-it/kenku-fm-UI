@@ -63,7 +63,7 @@ Found during WP2: holding a bookmark or tab by its site icon started the browser
 
 The tests for the wave 1 security review (findings 1 to 12) are listed in `docs/security.md` > WP1 security fixes > Tests. Each was seen to fail before its fix (the end-to-end ones against a package built from the code before the fix). `e2e/localFiles.spec.ts` gained three tests (a file reads only its own folder and cannot reach the web; a captured file tab cannot record the screen; a web page's links, popups and redirects to files and to an open file's own address), `e2e/outputs.spec.ts`'s migration test now checks the reset notice and records where the old token is left on disk.
 
-`e2e/fixtures/problems.ts` has a new list, `errors.expectedRefusals` (`{ page, text }` patterns): a security refusal a test provokes on purpose in a page that is not the app's own (a local file probing its limits) is let through only when both its page address and its text match. Refusals in the app's own pages are always reported. `e2e/fixtures/localSite.ts` pages can be `{ redirect: address }` (a 302).
+`e2e/fixtures/problems.ts` has a new list, `errors.expectedRefusals` (`{ page, text }` patterns): a security refusal a test provokes on purpose in a page that is not the app's own (a local file probing its limits) is let through only when both its page address and its text match. Refusals in the app's own pages are always reported. `errors.expectedMainRefusals` (0.5.1) does the same for main-process lines a test provokes on purpose (lyre.spec's file: and http: links): each pattern lets one line through. `e2e/fixtures/localSite.ts` pages can be `{ redirect: address }` (a 302).
 
 ## Demo kit
 
