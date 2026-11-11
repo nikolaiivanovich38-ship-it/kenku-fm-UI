@@ -493,6 +493,41 @@ describe("0.5.1: On air's position bar is a seek bar (Nik, 11 Nov)", () => {
   });
 });
 
+describe("0.5.1: rooms from Live, without going to Rooms (Nik, 11 Nov)", () => {
+  it("a room's bot menu chooses its channel, adds a room with the free bot, and kicks it with Undo", async () => {
+    const { outputs, sound } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    const bot = screen.getByRole("button", { name: "Lyre Table in Table: change" });
+    expect(bot).toHaveAttribute("title", expect.stringMatching(/^Choose a channel/));
+    await userEvent.click(bot);
+    let menu = within(screen.getByRole("menu", { name: "Room Table" }));
+    expect(menu.getByText("Lyre Table plays in")).toBeInTheDocument();
+    // Add a room: the free bot (Lyre Side) joins a channel from here too.
+    expect(menu.getByText("Add a room: Lyre Side joins…")).toBeInTheDocument();
+    await userEvent.click(menu.getByRole("menuitem", { name: /^Side room.*Lyre Side joins$/ }));
+    await act(async () => outputs.settle());
+    await findRoom("Side room");
+    // Kick from the menu, with Undo.
+    await userEvent.click(screen.getByRole("button", { name: "Lyre Table in Table: change" }));
+    menu = within(screen.getByRole("menu", { name: "Room Table" }));
+    await userEvent.click(menu.getByRole("menuitem", { name: "Kick Lyre Table from Table" }));
+    await act(async () => outputs.settle());
+    const strip = within(screen.getByRole("region", { name: "On air" })).getAllByRole("group", { name: "Undo" }).find((st) => st.textContent?.includes("Lyre Table left Table"))!;
+    expect(strip).toBeTruthy();
+  });
+
+  it("Add a room is there with every bot in a room: it offers Add a bot…, which opens Settings", async () => {
+    const { outputs } = await openLive();
+    await addSideRoom(outputs);
+    await userEvent.click(screen.getByRole("button", { name: "Add a room" }));
+    const menu = within(screen.getByRole("menu", { name: "Add a room" }));
+    expect(menu.getByText("Every bot is in a room")).toBeInTheDocument();
+    await userEvent.click(menu.getByRole("menuitem", { name: "Add a bot…" }));
+    expect(window.location.hash).toBe("#/settings");
+  });
+});
+
 describe("BUG-21: renaming the session in Live's top strip", () => {
   const session = (name: string) => screen.getByRole("button", { name: `The Sunken Crown Session 14: ${name}` });
 

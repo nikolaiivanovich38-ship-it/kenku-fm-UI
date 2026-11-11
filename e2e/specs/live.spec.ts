@@ -1373,6 +1373,23 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
     await expect.poll(async () => Number(await seek.getAttribute("aria-valuenow"))).toBeGreaterThanOrEqual(10);
   });
 
+  test("rooms from Live: a bot's menu chooses its channel, adds a room and kicks; Add a room offers Add a bot… (\"I don't want to have to tab to the rooms tab\")", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "live");
+    await page.getByRole("button", { name: "Lyre Table in Table: change" }).click();
+    const menu = page.getByRole("menu", { name: "Room Table" });
+    await expect(menu).toContainText("Lyre Table plays in");
+    await expect(menu).toContainText("Add a room: Lyre Side joins…");
+    await expect(menu.getByRole("menuitem", { name: "Kick Lyre Table from Table" })).toBeVisible();
+    await menu.getByRole("menuitem", { name: /^Side room.*Lyre Side joins$/ }).click();
+    await expect(room(page, "Side room")).toBeVisible();
+    await page.getByRole("button", { name: "Add a room" }).click();
+    const add = page.getByRole("menu", { name: "Add a room" });
+    await expect(add).toContainText("Every bot is in a room");
+    await add.getByRole("menuitem", { name: "Add a bot…" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
+  });
+
   test("On air: Stop beside Pause on the playing track, and Shuffle next to Repeat (\"I need both\")", async ({ page }) => {
     appOnly();
     await openRoute(page, "live");

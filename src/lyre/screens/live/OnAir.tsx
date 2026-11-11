@@ -25,7 +25,7 @@ import { roomVolumeControl } from "../../outputs/roomVolume";
 import { useAnnounce } from "../../shell/Announcer";
 import { clockTime, STOP_FADE_MS } from "../../shell/NowPlayingBar";
 import { formatLength } from "../campaigns/model";
-import { busiestChannel as moveToChannel, kickLosesSound, moveLosesSound, roomToRestore, viewOf } from "../outputs/outputsModel";
+import { busiestChannel as moveToChannel, moveLosesSound, roomToRestore, viewOf } from "../outputs/outputsModel";
 import { clearAdded, FADE_BUTTON_MS, LIVE_FADE_MS, nextInRoom, takeOut } from "./liveActions";
 import { laneProfile, sceneSteps, showLibraryOf, useLive, type LiveData } from "./liveData";
 import { addRoomChoices, busiestChannel, channelChoices, endWords, noRoomStatus, roomStatus, TABLE, UNDO_MS, upNextRows, type LiveRoom } from "./liveModel";
@@ -54,10 +54,11 @@ const lk = (roomId: string) => roomId.replace(/[^\w-]/g, "-");
 
 export function OnAirPane({ undo }: { undo: () => boolean }) {
   const d = useLive();
-  const { rooms, now, outputs } = d;
+  const { rooms, now, outputs, client } = d;
   const short = useShortWindow();
   const table = now.rooms.find((r) => r.roomId === TABLE) ?? now.rooms[0] ?? null;
-  const canAdd = addRoomChoices(outputs).length > 0;
+  // 0.5.1 (Nik, 11 Nov): Add a room is there whenever Lyre knows the bots; with none free it offers Add a bot….
+  const canAdd = !!outputs && !!client;
   const words = (rooms.length ? rooms.map((r) => ({ name: r.name, music: r.room?.music })) : [{ name: "No room", music: table?.music }]).map((r) => `${r.name}: ${r.music ? r.music.title : "silent"}`).join(" · ");
   const summary = useFoldedSummary("lv-onair", true, <span className="ellipsis" title={words}>{words}</span>);
   return (
@@ -252,14 +253,14 @@ function useMoveBot(): (r: LiveRoom, channelId: string) => void {
   };
 }
 
-/** Mute, the volume, the room's bot (a button with its menu) and Kick, in the room's header. */
-function RoomControls({ r }: { r: LiveRoom }) {
-  const d = useLive();
-  const { client, audio } = d;
+/**
+ * OUT-7 Kick, from the room's Kick button or its bot menu (0.5.1): the bot leaves at once, asking nothing; w51-fix2
+ * (Nik's 0.5.0 test): it always offers Undo, which puts the bot back with what it played, from where it was.
+ */
+function useKick(): (r: LiveRoom) => void {
+  const { client, audio } = useLive();
   const { say, toast } = useAnnounce();
-  const bot = r.bot;
-  const volume = roomVolumeControl({ roomId: r.roomId, level: r.room?.volume ?? 1 }, bot, client, audio);
-  const kick = () => {
+  return (r) => {
     const view = r.view;
     if (!client || !view?.channel) return;
     touched();
@@ -289,6 +290,16 @@ function RoomControls({ r }: { r: LiveRoom }) {
       focusLiveSoon(["addroom", "nextsc"]);
     }
   };
+}
+
+/** Mute, the volume, the room's bot (a button with its menu) and Kick, in the room's header. */
+function RoomControls({ r }: { r: LiveRoom }) {
+  const d = useLive();
+  const { client, audio } = d;
+  const { say } = useAnnounce();
+  const bot = r.bot;
+  const volume = roomVolumeControl({ roomId: r.roomId, level: r.room?.volume ?? 1 }, bot, client, audio);
+  const kick = useKick();
   return (
     <>
       {bot && client && (
@@ -310,7 +321,7 @@ function RoomControls({ r }: { r: LiveRoom }) {
       <RoomVolume name={r.name} saved={volume.volume} onChange={volume.change} />
       {bot && client && <BotButton r={r} />}
       {bot && client && r.view?.channel && (
-        <button type="button" className="btn s lv-kick" data-lv={`kick-${lk(r.roomId)}`} aria-label={`Kick ${bot.name} from ${r.name}`} title={`Kick ${bot.name} from ${r.name}`} onClick={kick}>
+        <button type="button" className="btn s lv-kick" data-lv={`kick-${lk(r.roomId)}`} aria-label={`Kick ${bot.name} from ${r.name}`} title={`Kick ${bot.name} from ${r.name}`} onClick={() => kick(r)}>
           <Icon name="leave" size="s" />
           <span className="lv-kick-t">Kick</span>
         </button>
@@ -357,6 +368,8 @@ function BotButton({ r }: { r: LiveRoom }) {
   const { rooms, outputs, client, audio } = d;
   const { say } = useAnnounce();
   const move = useMoveBot();
+  const add = useAddRoom();
+  const kick = useKick();
   const bot = r.bot!;
   const items = (): PopMenuEntry[] => {
     const entries: PopMenuEntry[] = [];
@@ -405,6 +418,20 @@ function BotButton({ r }: { r: LiveRoom }) {
           });
         }
       }
+      // 0.5.1 (Nik, 11 Nov): Add a room and Kick from here too, so Rooms is not needed during play.
+      entries.push({ separator: true }, ...addRoomEntries(outputs, add, true));
+      if (r.view?.channel) {
+        entries.push({
+          key: "kick",
+          content: (
+            <>
+              <Icon name="leave" size="s" />
+              Kick {bot.name} from {r.name}
+            </>
+          ),
+          onSelect: () => kick(r),
+        });
+      }
       entries.push({ separator: true });
     }
     for (const other of rooms.filter((x) => x.roomId !== r.roomId && (x.room?.music || x.room?.ambience))) {
@@ -434,16 +461,6 @@ function BotButton({ r }: { r: LiveRoom }) {
         ),
         onSelect: () => (window.location.hash = "#/outputs"),
       },
-      {
-        key: "settings",
-        content: (
-          <>
-            <Icon name="gear" size="s" />
-            Bots and tokens
-          </>
-        ),
-        onSelect: () => (window.location.hash = "#/settings"),
-      },
     );
     return entries;
   };
@@ -452,7 +469,7 @@ function BotButton({ r }: { r: LiveRoom }) {
       label={`Room ${r.name}`}
       className="btn s lv-botpick"
       ariaLabel={`${bot.name} in ${r.name}: change`}
-      title={`${bot.name} plays in ${r.name}: change the channel or the bot`}
+      title={`Choose a channel for ${bot.name} (in ${r.name} now), add a room, another bot, or Kick`}
       dataK={`room-${lk(r.roomId)}`}
       items={items}
     >
@@ -961,52 +978,75 @@ function PlayedList({ r }: { r: LiveRoom }) {
 }
 
 /** Add a room: another bot joins a voice channel; the new room starts silent. */
-function AddRoom() {
-  const { outputs, client } = useLive();
+/**
+ * Add a room's choices, shared by the Add a room button and a room's bot menu (0.5.1): each free bot with the channels
+ * it could join, as on the Rooms screen; with no free bot, says so. Then Add a bot…, which opens Settings.
+ */
+function addRoomEntries(outputs: LiveData["outputs"], pick: (bot: { id: string; name: string }, c: { channelId: string; name: string; empty: boolean }) => void, inBotMenu: boolean): PopMenuEntry[] {
+  const free = addRoomChoices(outputs);
+  const entries: PopMenuEntry[] = free.length
+    ? free.flatMap(({ bot, servers }): PopMenuEntry[] => [
+        { group: inBotMenu ? `Add a room: ${bot.name} joins…` : `${bot.name} joins…` },
+        ...servers.flatMap(({ server, items: channels }): PopMenuEntry[] => [
+          { group: server },
+          ...channels.map(
+            (c): PopMenuEntry => ({
+              key: `add-${bot.id}-${c.channelId}`,
+              // In a room's bot menu these add a room: plain items, so the channel choice above stays the one set of radios.
+              ...(inBotMenu ? {} : { role: "menuitemradio" as const, checked: c.here }),
+              disabled: c.here || c.taken,
+              content: (
+                <>
+                  <span className="grow ellipsis">{c.name}</span> <span className="faint">{c.sub}</span>
+                  {inBotMenu && <span className="sr-only">, {bot.name} joins</span>}
+                </>
+              ),
+              onSelect: () => pick(bot, c),
+            }),
+          ),
+        ]),
+      ])
+    : [{ group: inBotMenu ? "Add a room: every bot is in a room" : "Every bot is in a room" }];
+  entries.push({
+    key: "addbot",
+    content: (
+      <>
+        <Icon name="plus" size="s" />
+        Add a bot…
+      </>
+    ),
+    onSelect: () => (window.location.hash = "#/settings"),
+  });
+  return entries;
+}
+
+/** A free bot joins a channel: a new room (the Rooms screen's Add, from Live). */
+function useAddRoom(): (bot: { id: string; name: string }, c: { channelId: string; name: string; empty: boolean }) => void {
+  const { client } = useLive();
   const { toast, say } = useAnnounce();
-  const items = (): PopMenuEntry[] => [
-    ...addRoomChoices(outputs).flatMap(({ bot, servers }): PopMenuEntry[] => [
-      { group: `${bot.name} joins…` },
-      ...servers.flatMap(({ server, items: channels }): PopMenuEntry[] => [
-        { group: server },
-        ...channels.map(
-          (c): PopMenuEntry => ({
-            key: `${bot.id}-${c.channelId}`,
-            role: "menuitemradio",
-            checked: c.here,
-            disabled: c.here || c.taken,
-            content: (
-              <>
-                <span className="grow ellipsis">{c.name}</span> <span className="faint">{c.sub}</span>
-              </>
-            ),
-            onSelect: () => {
-              client?.move(bot.id, c.channelId);
-              // UX-R4: focus goes to the new room's bot button once it is drawn.
-              focusLiveSoon([`room-${lk(bot.id)}`], { move: true });
-              // UX-R9: a channel nobody is in says so in the room's own words.
-              const words = c.empty ? `${c.name} is joining: nobody there.` : `${c.name} is joining. It starts silent: choose To: ${c.name} in a box to play there.`;
-              say(words);
-              toast(words);
-            },
-          }),
-        ),
-      ]),
-    ]),
-    { separator: true },
-    {
-      key: "newbot",
-      content: (
-        <>
-          <Icon name="plus" size="s" />
-          New bot…
-        </>
-      ),
-      onSelect: () => (window.location.hash = "#/settings"),
-    },
-  ];
+  return (bot, c) => {
+    client?.move(bot.id, c.channelId);
+    // UX-R4: focus goes to the new room's bot button once it is drawn.
+    focusLiveSoon([`room-${lk(bot.id)}`], { move: true });
+    // UX-R9: a channel nobody is in says so in the room's own words.
+    const words = c.empty ? `${c.name} is joining: nobody there.` : `${c.name} is joining. It starts silent: choose To: ${c.name} in a box to play there.`;
+    say(words);
+    toast(words);
+  };
+}
+
+function AddRoom() {
+  const { outputs } = useLive();
+  const add = useAddRoom();
   return (
-    <PopMenuButton label="Add a room" className="btn s icon" ariaLabel="Add a room" title="Add a room: put another bot in a voice channel" dataK="addroom" items={items}>
+    <PopMenuButton
+      label="Add a room"
+      className="btn s icon"
+      ariaLabel="Add a room"
+      title="Add a room: put another bot in a voice channel, or add a bot"
+      dataK="addroom"
+      items={() => addRoomEntries(outputs, add, false)}
+    >
       <Icon name="plus" size="s" />
     </PopMenuButton>
   );

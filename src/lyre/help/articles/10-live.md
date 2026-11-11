@@ -8,11 +8,11 @@ Live is where you run the evening. **Run this session** on a campaign or session
 - **On air**, at the top: a part for each room, with what it plays, **Up next**, its volume and its bot.
 - **Scenes**: press `Space`, or **Next scene**, to start the next scene. Click a scene's name to check it first; anything in it can be played on its own without starting the scene. Changed your mind? **Undo**, or `Ctrl+Z`, within 8 seconds.
 - **Current scene**: the running scene's music in play order, its ambience and its pads, which answer to their keys.
-- **This session** and **Whole campaign**: their playlists and pads, to play a whole playlist, one of its tracks or a pad at any time.
+- **This session** and **Whole campaign**: their playlists and pads, to play a whole playlist, one of its tracks or a pad.
 - **Find a track or playlist** (`/`): search the whole library for anything not in the plan.
-- **Fade all** (`Shift+Esc`) fades everything out over 5 seconds, as a room's **Fade music out** does; **Stop all** stops at once.
+- **Fade all** (`Shift+Esc`) fades everything out over 5 seconds; **Stop all** stops at once.
 
-A room is a voice channel with one of your bots in it. Scenes always start in the first room. With two rooms or more, **To:** on a box chooses where it plays. **No room** or **Nobody there** means the players hear nothing: the button beside it puts the bot where the players are.
+A room is a voice channel with one of your bots in it. Its bot button changes the channel, adds a room or kicks the bot. Scenes always start in the first room. With two rooms or more, **To:** on a box chooses where it plays. **No room** or **Nobody there** means the players hear nothing: the button beside it puts the bot where the players are.
 
 `Ctrl+Z` takes back only the last thing you did, while its **Undo** shows.
 
