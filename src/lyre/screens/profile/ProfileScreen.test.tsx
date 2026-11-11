@@ -542,6 +542,18 @@ describe("markers and keys", () => {
     expect((await savedProfile(api))?.startAtMs ?? null).toBeNull();
   });
 
+  it("0.5.1: Pick up where it stopped is here for a music track, kept with the track; an effect has none", async () => {
+    const { api, user } = await open();
+    const pickUp = atEnd().getByRole("switch", { name: "Pick up where it stopped" });
+    expect(pickUp).not.toBeChecked();
+    await user.click(pickUp);
+    expect(pickUp).toBeChecked();
+    await waitFor(async () => expect((await api.library.listTracks()).find((t) => t.id === "t13")?.resume).toBe(true));
+    go("profile/f04");
+    await screen.findByRole("heading", { level: 1, name: /Audio profile/ });
+    expect(screen.queryByRole("switch", { name: "Pick up where it stopped" })).toBeNull();
+  });
+
   it("DAT-3: Play on air from a marker starts the track there", async () => {
     const { audio, user } = await open();
     await user.click(within(region("Markers")).getByRole("button", { name: "Play on air from Low swell" }));

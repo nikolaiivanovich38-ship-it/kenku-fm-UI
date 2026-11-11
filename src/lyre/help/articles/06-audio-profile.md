@@ -10,6 +10,7 @@ The Audio profile says where a track starts and ends, what happens at its end, a
 - **Fades**: a fade in and a fade out, each with its length.
 - **Markers**: notes on the waveform, such as where it peaks.
 - **Start at**: where the track starts wherever it plays (a scene, Live, Play on air): the Beginning, or one of its markers.
+- **Pick up where it stopped**: the track starts again where it was last stopped, wherever it plays. It is the same switch as in the Library's How it plays.
 - `Space` plays from the playhead in your headphones only, as the profile says.
 
 **Settings for** chooses whose settings you change: the track everywhere, or only in one playlist or scene. A place uses the track's settings until you press **Give this place its own settings**; **Back to the track's settings** undoes that.

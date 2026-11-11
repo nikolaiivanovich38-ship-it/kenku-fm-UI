@@ -13,6 +13,7 @@ import { useLyreApi, useTracks } from "../../api";
 import { Button } from "../../kit/Button";
 import { Dialog } from "../../kit/Dialog";
 import { Icon } from "../../kit/Icon";
+import { PickUpSwitch, pickUpWords } from "./PickUpSwitch";
 import { useSave } from "../../shell/useSave";
 import type { TrackStore } from "./trackStore";
 
@@ -79,22 +80,13 @@ export function TrackBehaviour({ t, playlists, store }: { t: LibraryTrack; playl
         </div>
       )}
       {choices.includes("resume") && (
-        <div className="lb-tg">
-          <label className="lv-switch lb-resume" title="A long underscore or bed starts again where it was last stopped">
-            <input
-              type="checkbox"
-              role="switch"
-              checked={resumeOn}
-              onChange={(e) => {
-                setResume(e.target.checked);
-                void write({ resume: e.target.checked }, `${title} ${e.target.checked ? "picks up where it stopped" : "starts from the top"}`);
-              }}
-            />
-            <span className="lv-switch-t">
-              <b>Pick up where it stopped</b>
-            </span>
-          </label>
-        </div>
+        <PickUpSwitch
+          checked={resumeOn}
+          onChange={(next) => {
+            setResume(next);
+            void write({ resume: next }, pickUpWords(t, next));
+          }}
+        />
       )}
       {choices.includes("follow") && (
         <div className="lb-tg">

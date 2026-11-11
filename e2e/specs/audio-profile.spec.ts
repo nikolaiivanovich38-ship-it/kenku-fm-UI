@@ -5,7 +5,7 @@
  */
 import type { Page } from "@playwright/test";
 import { appOnly, expect, expectFailureUntilBuilt, test } from "./support/test";
-import { openRoute } from "./support/target";
+import { openRoute, reopen } from "./support/target";
 
 const wave = (page: Page) => page.getByRole("region", { name: "Waveform and listening", exact: true });
 const handle = (page: Page, name: string) => wave(page).getByRole("slider", { name, exact: true });
@@ -337,5 +337,16 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
     await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Library" }).click();
     await page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Eerie dread/ }).getByRole("button", { name: /^Play on air: / }).click();
     await expect(page.getByRole("region", { name: "Now playing" }).getByRole("group", { name: "On air", exact: true })).toContainText(/3:1\d \//);
+  });
+
+  test("Pick up where it stopped is in the Audio profile too, the track's own choice (\"I don't see pickup where it stops in details or audio profile views\")", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "profile/t13");
+    const pickUp = page.getByRole("region", { name: "At the end" }).getByRole("switch", { name: "Pick up where it stopped" });
+    await expect(pickUp).not.toBeChecked();
+    await pickUp.check();
+    await expect(page.getByRole("status").filter({ hasText: /picks up where it stopped/ })).toBeVisible();
+    await reopen(page);
+    await expect(page.getByRole("region", { name: "At the end" }).getByRole("switch", { name: "Pick up where it stopped" })).toBeChecked();
   });
 });

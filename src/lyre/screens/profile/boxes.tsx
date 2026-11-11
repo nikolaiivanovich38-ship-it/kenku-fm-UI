@@ -14,6 +14,7 @@ import { cx } from "../../kit/cx";
 import { hasOwn, ownPlaceKeys, placeName, placesOf } from "./places";
 import { envAt, fmt, fmt1, POINT, sketchPath, startAtChoices, times, type Which } from "./profileModel";
 import { ProfileLink } from "../../kit/ProfileLink";
+import { TrackPickUp } from "../library/PickUpSwitch";
 import type { ProfileController } from "./useProfileController";
 import { levelAt } from "./waveDrawing";
 import { Waveform } from "./Waveform";
@@ -278,6 +279,8 @@ export function EndBox({ c }: C) {
         {field("end", p.end, "End at playhead", "O")}
         {p.after === "loop" && field("loop", p.loopStart, "Loop from playhead", "L")}
       </div>
+      {/* 0.5.1 (Nik, 11 Nov): Pick up where it stopped, the track's own choice wherever it plays, here too. */}
+      <TrackPickUp track={c.editor.track} />
     </>
   );
 }
