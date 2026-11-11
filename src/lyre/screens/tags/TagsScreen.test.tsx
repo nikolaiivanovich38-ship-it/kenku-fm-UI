@@ -75,6 +75,20 @@ describe("the Tags screen (r7tags.js)", () => {
     await waitFor(() => expect(tagRow("Mood", "Wistful")).toBeDefined());
   });
 
+  it("UX-R20: Enter in Rename's name field renames; UX-R19: Ctrl+Z then puts focus back on the tag's ⋯", async () => {
+    const user = userEvent.setup();
+    renderTags();
+    await screen.findByRole("list", { name: "Mood tags" });
+    await tagMenu(user, "Mood", "Wistful", "Rename…");
+    const d = screen.getByRole("dialog", { name: "Rename Wistful" });
+    await user.clear(within(d).getByRole("textbox", { name: "Name" }));
+    await user.type(within(d).getByRole("textbox", { name: "Name" }), "Longing{Enter}");
+    expect(await screen.findByRole("group", { name: "Undo" })).toHaveTextContent(/Renamed Wistful to Longing/);
+    await waitFor(() => expect(within(group("Mood")).getByRole("button", { name: "More for Longing" })).toHaveFocus());
+    await user.keyboard("{Control>}z{/Control}");
+    await waitFor(() => expect(within(group("Mood")).getByRole("button", { name: "More for Wistful" })).toHaveFocus());
+  });
+
   it("Merge into… gives the tracks the other tag, whose other words then include the old name", async () => {
     const user = userEvent.setup();
     renderTags();

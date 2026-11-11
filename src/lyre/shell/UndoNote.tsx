@@ -14,13 +14,17 @@ import { isRefused } from "../../common/lyre/api";
 import { Icon } from "../kit/Icon";
 import { UNDO_SLOT_ID, useAnnounce } from "./Announcer";
 import { useShellData } from "./ShellData";
+import { focusSoon } from "../kit/focusSoon";
 
 /** A library change (undone by the library's history), or w6-rooms: something outside it the screen undoes itself. */
-type Note = { text: string; undoLabel: string; restore?: undefined } | { text: string; undoLabel?: undefined; restore: () => void };
+type Note = ({ text: string; undoLabel: string; restore?: undefined } | { text: string; undoLabel?: undefined; restore: () => void }) & {
+  /** UX-R19: where focus goes once it is undone (a CSS selector), else the page heading. */
+  focusBack?: string;
+};
 
 interface UndoNoteApi {
   /** Show what happened with Undo; `undoLabel` is the write's (no message when it made no undo step). */
-  offer: (text: string, undoLabel: string | null) => void;
+  offer: (text: string, undoLabel: string | null, focusBack?: string) => void;
   /**
    * w6-rooms (OUT-7 Kick and a move that leaves the players in silence, OUT-8 Remove a bot): a change outside the
    * library, which `restore` undoes. Undo (or Ctrl+Z while it shows) runs it once; closing the message runs nothing.
@@ -60,8 +64,8 @@ export function UndoNoteProvider({ live, children }: { live: boolean; children: 
   noteRef.current = note;
 
   const offer = useCallback(
-    (text: string, undoLabel: string | null) => {
-      if (history && undoLabel) setNote({ text, undoLabel });
+    (text: string, undoLabel: string | null, focusBack?: string) => {
+      if (history && undoLabel) setNote({ text, undoLabel, focusBack });
     },
     [history],
   );
@@ -83,6 +87,7 @@ export function UndoNoteProvider({ live, children }: { live: boolean; children: 
       const result = await history.undo();
       if (isRefused(result)) toast(result.refusal.message);
       else toast(`Undone: ${result.value.undone}`);
+      return !isRefused(result);
     },
     [history, toast],
   );
@@ -93,7 +98,11 @@ export function UndoNoteProvider({ live, children }: { live: boolean; children: 
     setNote(null);
     focusHeading();
     if (current.restore) current.restore();
-    else void undoLast(current.undoLabel);
+    else
+      void undoLast(current.undoLabel).then((done) => {
+        // UX-R19: back to the control the change was made from (a tag's ⋯), once it is drawn again.
+        if (done && current.focusBack) focusSoon([current.focusBack], { move: true });
+      });
   }, [undoLast]);
   const close = useCallback(() => {
     setNote(null);
