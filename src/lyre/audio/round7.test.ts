@@ -7,7 +7,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { CueStep, DomainScene, Room } from "../../common/domain";
-import type { NowPlaying } from "./lyreAudio";
+import { FIRST_ROOM, type NowPlaying } from "./lyreAudio";
 import { storedResumePositions } from "../../player/engine/queue/resumePositions";
 import { lyreAudioOnFakes, testTrack, type AudioTestData } from "./testing/onFakes";
 
@@ -385,6 +385,33 @@ describe("0.5.1: a room's Shuffle (Nik, 11 Nov)", () => {
       heard.add(playing()!);
     }
     expect([...heard].sort()).toEqual(["m1", "m2", "m3", "m4", "m5"]);
+  });
+});
+
+describe("0.5.1: the seek bars jump to a time (Nik, 11 Nov)", () => {
+  it("seek moves a room's music or ambience to that time in the file; the position follows; nothing playing says so", async () => {
+    expect(rig.audio.seek("music", 5).ok).toBe(false);
+    rig.audio.playTrack("m1");
+    rig.audio.playTrack("a1");
+    await rig.advance(1);
+    expect(rig.audio.seek("music", 12)).toEqual({ ok: true });
+    expect(rig.audio.seek("ambience", 20, FIRST_ROOM)).toEqual({ ok: true });
+    await rig.advance(1);
+    expect(rig.audio.getPositions().rooms[first().roomId]?.music).toBeCloseTo(13, 0);
+    expect(rig.audio.getPositions().rooms[first().roomId]?.ambience).toBeCloseTo(21, 0);
+    // Past the end of the file is the end, before it is the start.
+    expect(rig.audio.seek("music", -3)).toEqual({ ok: true });
+    await rig.advance(0.5);
+    expect(rig.audio.getPositions().rooms[first().roomId]?.music).toBeLessThan(1);
+  });
+
+  it("seekPreview moves the preview", async () => {
+    expect(rig.audio.seekPreview(3).ok).toBe(false);
+    rig.audio.previewTrack("m2");
+    await rig.advance(1);
+    expect(rig.audio.seekPreview(15)).toEqual({ ok: true });
+    await rig.advance(1);
+    expect(rig.audio.getPositions().preview).toBeCloseTo(16, 0);
   });
 });
 

@@ -324,6 +324,8 @@ export interface LyreAudio {
   previous(lane: MusicOrAmbience, target?: RoomTarget): CueOutcome;
   /** Pause the lane, or carry on if it is paused (the prototype's pause button). */
   togglePause(lane: MusicOrAmbience, target?: RoomTarget): CueOutcome;
+  /** 0.5.1 (the seek bars): jump the lane to `seconds` in its file (kept inside the file) in the room or rooms. */
+  seek(lane: MusicOrAmbience, seconds: number, target?: RoomTarget): CueOutcome;
   /** Fade one lane out (default 5 s; effects 0.8 s). */
   stopLane(lane: RoomLane, options?: { target?: RoomTarget; fadeMs?: number }): CueOutcome;
   /** Fade everything out in every room (default 5 s). */
@@ -372,6 +374,8 @@ export interface LyreAudio {
    * profile screen) or another file (Find missing files) it always starts, from that point and with that profile.
    */
   previewTrack(trackId: string, options?: PreviewTrackOptions): CueOutcome;
+  /** 0.5.1 (the seek bars): jump the preview to `seconds` in its file. */
+  seekPreview(seconds: number): CueOutcome;
   previewPlaylist(playlistId: string, options?: PreviewFrom): CueOutcome;
   previewPad(boardId: string, padId: string, options?: PreviewFrom): CueOutcome;
   /**
@@ -660,6 +664,30 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     }
     this.changed();
     return OK;
+  }
+
+  seek(lane: MusicOrAmbience, seconds: number, target: RoomTarget = FIRST_ROOM): CueOutcome {
+    const voices = this.targetRooms(target).flatMap((roomId) => {
+      const voice = this.laneVoice(roomId, lane);
+      return voice ? [voice] : [];
+    });
+    if (voices.length === 0) return this.fail(lane === "music" ? "No music is playing." : "No ambience is playing.");
+    for (const voice of voices) voice.seek(this.insideFile(seconds, voice.duration));
+    this.changed();
+    return OK;
+  }
+
+  seekPreview(seconds: number): CueOutcome {
+    const length = this.parts.preview.length();
+    if (!this.parts.preview.seek(this.insideFile(seconds, length ?? Infinity))) return this.fail("Nothing is previewing.");
+    this.changed();
+    return OK;
+  }
+
+  /** A time to jump to, inside the file: from its start to just before its end. */
+  private insideFile(seconds: number, length: number): number {
+    const at = Number.isFinite(seconds) ? Math.max(0, seconds) : 0;
+    return Number.isFinite(length) && length > 0 ? Math.min(at, Math.max(0, length - 0.05)) : at;
   }
 
   stopLane(lane: RoomLane, options: { target?: RoomTarget; fadeMs?: number } = {}): CueOutcome {

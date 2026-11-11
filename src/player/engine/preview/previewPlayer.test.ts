@@ -160,6 +160,18 @@ describe("PreviewPlayer (PRV-1): only the game master hears it", () => {
     expect(player.position()).toBeNull();
   });
 
+  it("0.5.1: seek jumps the preview to a time in its file and plays on from there; false when nothing previews", async () => {
+    const tavern = track("tavern", "Tavern");
+    expect(player.seek(10)).toBe(false);
+    player.play(trackPreview(tavern, media(tavern)));
+    await headphones.flush();
+    await headphones.advance(1);
+    expect(player.seek(60)).toBe(true);
+    await headphones.advance(1);
+    expect(player.position()?.seconds).toBeCloseTo(61, 0);
+    expect(headphones.signalAt(output.input as FakeNode)).toBeGreaterThan(0);
+  });
+
   it("a quiet preview (the Audio profile says its own words) is not announced", async () => {
     const tavern = track("tavern", "Tavern");
     player.play({ ...trackPreview(tavern, media(tavern)), quiet: true });

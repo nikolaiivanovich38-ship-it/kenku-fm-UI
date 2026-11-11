@@ -25,6 +25,7 @@ import { DEFAULT_LIBRARY_NORMALISE, normaliseHover, originWords } from "../../co
 import { isRefused } from "../../common/lyre/api";
 import { useLyreApi, useLyreQuery, usePlaylists, useTracks } from "../api";
 import { useNowPlaying, useOptionalLyreAudio, usePlayPosition, type LaneNowPlaying, type LyreAudio, type MusicOrAmbience, type PlayPositions, type PreviewNowPlaying, type RoomNowPlaying } from "../audio";
+import { SeekBar } from "../kit/SeekBar";
 import { DestTag } from "../kit/DestTag";
 import { Icon } from "../kit/Icon";
 import { Dialog } from "../kit/Dialog";
@@ -99,17 +100,17 @@ function Bar({ audio, previewOnly }: { audio: LyreAudio; previewOnly: boolean })
 
 /**
  * The time line and the time. It reads its own position (usePlayPosition: every 250 ms while it plays), so only it
- * redraws as the sound moves on, not the row or the screen (Nik, 0.5.0: it stayed at 0:00 until Pause).
+ * redraws as the sound moves on, not the row or the screen (Nik, 0.5.0: it stayed at 0:00 until Pause). Since 0.5.1
+ * the line is a seek bar: click, drag or the arrow keys jump the track (kit/SeekBar.tsx).
  */
-function Time({ lane, at: pick, length }: { lane: string; at: (positions: PlayPositions) => number | null; length: number | null }) {
+function Time({ lane, at: pick, length, name, onSeek }: { lane: "music" | "amb" | "preview"; at: (positions: PlayPositions) => number | null; length: number | null; name: string; onSeek: (seconds: number) => void }) {
   const at = usePlayPosition(pick) ?? 0;
-  const share = length && length > 0 ? Math.min(100, (at / length) * 100) : 0;
   return (
     <div className="oab-time">
-      <div className={cx("progress", lane)} aria-hidden="true">
-        <span style={{ width: `${share}%` }} />
-      </div>
-      <span className="num">{length ? `${clockTime(at)} / ${clockTime(length)}` : clockTime(at)}</span>
+      <SeekBar name={name} position={at} length={length} lane={lane} onSeek={onSeek} />
+      <span className="num" aria-hidden="true">
+        {length ? `${clockTime(at)} / ${clockTime(length)}` : clockTime(at)}
+      </span>
     </div>
   );
 }
@@ -185,7 +186,13 @@ function RoomRow({ audio, room, named, broadcasting, first }: { audio: LyreAudio
           ))}
         </div>
       </div>
-      <Time lane={laneName === "music" ? "music" : "amb"} at={(p) => p.rooms[room.roomId]?.[laneName] ?? null} length={lane.length} />
+      <Time
+        lane={laneName === "music" ? "music" : "amb"}
+        at={(p) => p.rooms[room.roomId]?.[laneName] ?? null}
+        length={lane.length}
+        name={lane.title}
+        onSeek={(seconds) => audio.seek(laneName, seconds, target)}
+      />
       <div className="oab-ctl" role="group" aria-label={`Control what the players hear${where}`}>
         <button
           type="button"
@@ -401,7 +408,7 @@ function PreviewRow({ audio, preview }: { audio: LyreAudio; preview: PreviewNowP
           {from}
         </div>
       </div>
-      <Time lane="preview" at={(p) => p.preview} length={preview.length} />
+      <Time lane="preview" at={(p) => p.preview} length={preview.length} name={preview.label} onSeek={(seconds) => audio.seekPreview(seconds)} />
       <div className="oab-ctl" role="group" aria-label="Control your preview">
         <button
           type="button"

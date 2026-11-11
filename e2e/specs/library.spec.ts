@@ -541,6 +541,22 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
     await expect(resume).toBeChecked();
   });
 
+  test("the Now playing bar's time line is a seek bar: a click jumps the track there (\"choose to skip to a certain point\")", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    await page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Ashes/ }).getByRole("button", { name: /^Play on air: / }).click();
+    const air = page.getByRole("region", { name: "Now playing" }).getByRole("group", { name: /^On air/ });
+    const seek = air.getByRole("slider", { name: /^Position in / });
+    await expect(seek).toHaveAttribute("aria-valuetext", /^\d+:\d\d of \d+:\d\d$/);
+    const box = (await seek.boundingBox())!;
+    expect(box.height).toBeGreaterThanOrEqual(24);
+    const max = Number(await seek.getAttribute("aria-valuemax"));
+    await seek.click({ position: { x: box.width * 0.75, y: box.height / 2 } });
+    await expect.poll(async () => Number(await seek.getAttribute("aria-valuenow"))).toBeGreaterThan(max * 0.75 - 10);
+    await seek.press("Home");
+    await expect.poll(async () => Number(await seek.getAttribute("aria-valuenow"))).toBeLessThan(5);
+  });
+
   test("the Library's top bar has the Prep | Live switch (\"In library view I still need the Prep and Live toggle\")", async ({ page }) => {
     appOnly();
     await openRoute(page, "library");

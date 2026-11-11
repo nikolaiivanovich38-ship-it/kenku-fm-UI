@@ -357,3 +357,27 @@ describe("round 6 and 7: Shuffle, Repeat and What played on a room's row", () =>
   });
 });
 
+
+describe("0.5.1: the time line is a seek bar (Nik, 11 Nov)", () => {
+  it("the On air row's bar is a slider named for the track; the arrow keys, Home and End jump in that room", async () => {
+    const audio = show({ rooms: [room("table", "Table", lane())] });
+    const air = within(bar()).getByRole("group", { name: "On air" });
+    const seek = within(air).getByRole("slider", { name: "Position in Epic choir hero anthem - the Company's big moment" });
+    expect(seek).toHaveAttribute("aria-valuetext", "0:12 of 3:57");
+    seek.focus();
+    await userEvent.keyboard("{ArrowRight}{End}");
+    expect(audio.calls.filter(([m]) => m === "seek")).toEqual([
+      ["seek", "music", 17, { room: "table" }],
+      ["seek", "music", 237, { room: "table" }],
+    ]);
+  });
+
+  it("the preview's bar jumps the preview", async () => {
+    const preview = { key: "pl:p-ashen", label: "Ashen King", from: "the campaign page", position: 5, length: 180, volume: 0.8 };
+    const audio = show({ rooms: [], preview });
+    const you = within(bar()).getByRole("group", { name: "Only you" });
+    within(you).getByRole("slider", { name: /^Position in / }).focus();
+    await userEvent.keyboard("{Home}");
+    expect(audio.calls.filter(([m]) => m === "seekPreview")).toEqual([["seekPreview", 0]]);
+  });
+});

@@ -141,6 +141,14 @@ export class PreviewPlayer extends TypedEmitter<PreviewEvents> {
     return true;
   }
 
+  /** 0.5.1 (the seek bars): jump the preview to `seconds` in its file. False when nothing previews. */
+  seek(seconds: number): boolean {
+    if (!this.voice || !this.state) return false;
+    this.voice.seek(Math.max(0, seconds));
+    this.emit("position", this.state.key, this.voice.position());
+    return true;
+  }
+
   /** PLY-15: the normalising gain changed where the preview plays from (the library's setting or a choice). */
   setGainDb(db: number): void {
     if (!this.voice || !this.state) return;

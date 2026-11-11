@@ -391,6 +391,7 @@ Step 4 moved what several screens did each on their own into the shell and the k
 | `shell/SoundMessages.tsx` | The audio host's `announce` and `error` events, heard once for the page: sentences to the live region, failures to a toast. Screens no longer subscribe. `useOptionalLyreAudio()` lets the shell work without sound. |
 | `shell/CampaignInHand.tsx` | The campaign last opened (the prototype's `L.state.ctx.cid`), provided by the shell around each screen; "Use in…" opens its group first. |
 | `kit/SoundButtons.tsx` | `PreviewButton` and `PlayOnAirButton` for a track, a playlist, a pad or a board (its first pad), with `previewKeyOf`. Play on air fades tracks and playlists in over 3 s, presses a pad (a hold pad is let go after 1.5 s). |
+| `kit/SeekBar.tsx` | 0.5.1: a playing track's position bar that jumps: role slider "Position in <track>", value in seconds with "1:23 of 4:05", Left/Right 5 s, Page Up/Down 30 s, Home/End; a click jumps, a drag shows where and jumps when let go; 24 px hit area; greyed while the length is unknown. The Now playing bar (`audio.seek(lane, s, target)`, `audio.seekPreview(s)`) and Live's On air (with its markers as children) use it. |
 | `kit/PopMenu.tsx` | The menu whose items hold two lines (`PopMenu`, `PopMenuButton`, `TwoLines`). |
 | `kit/ProfileLink.tsx` | The "Audio profile" link-button, its hover text naming the place ("the playlist …", "the scene …"). |
 | `kit/Picker.tsx` | `fold` and `openGroups`: group headings that show or hide their items and count the ticked ones; searching shows every match. |
@@ -691,6 +692,7 @@ first), fades the music to a step's level, and keeps What played (`played`, newe
 - `RoomNowPlaying.played` (`trackId`, `title`, `at`, `from` for Play again); `LaneNowPlaying.level`;
   `NowPlaying.previewEar`.
 - Events `show-board` (a step shows a board) and `scene-started` (`by`: press, step, moved-on: Live follows it).
+- `seek(lane, seconds, target?)` and `seekPreview(seconds)` (0.5.1, the seek bars): jump a room's music or ambience, or the preview, to a time in the file (kept from 0 to just before the file's end; `Voice.seek`, `PreviewPlayer.seek`).
 - `setAudioDevices(devices)`: the preview's device, and the preview in one ear of a split headset
   (`BridgedPreviewOutput.setEar`, a stereo panner before the bridge, only while split). Since 0.5.1 the split applies
   only while something plays on air (music or ambience not paused, or an effect, in any room): a preview on its own

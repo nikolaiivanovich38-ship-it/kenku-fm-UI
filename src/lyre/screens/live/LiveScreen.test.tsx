@@ -473,6 +473,26 @@ describe("0.5.1: Stop and Shuffle on air (Nik, 11 Nov)", () => {
   });
 });
 
+describe("0.5.1: On air's position bar is a seek bar (Nik, 11 Nov)", () => {
+  it("the playing music's bar is a slider named for the track; Right jumps 5 s on in that room, Home to the start", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound, 2);
+    // Music first, then the ambience.
+    const seek = room("Table").getAllByRole("slider", { name: /^Position in / })[0];
+    expect(seek.getAttribute("aria-label")).toBe(`Position in ${sound.audio.getNowPlaying().rooms[0].music!.title}`);
+    expect(seek).toHaveAttribute("aria-valuetext", expect.stringMatching(/^0:0\d of \d+:\d\d$/));
+    const before = sound.audio.getPositions().rooms[sound.audio.getNowPlaying().rooms[0].roomId]!.music!;
+    seek.focus();
+    await userEvent.keyboard("{ArrowRight}");
+    await playOn(sound, 0.25);
+    expect(sound.audio.getPositions().rooms[sound.audio.getNowPlaying().rooms[0].roomId]!.music!).toBeGreaterThan(before + 4.5);
+    await userEvent.keyboard("{Home}");
+    await playOn(sound, 0.25);
+    expect(sound.audio.getPositions().rooms[sound.audio.getNowPlaying().rooms[0].roomId]!.music!).toBeLessThan(1);
+  });
+});
+
 describe("BUG-21: renaming the session in Live's top strip", () => {
   const session = (name: string) => screen.getByRole("button", { name: `The Sunken Crown Session 14: ${name}` });
 

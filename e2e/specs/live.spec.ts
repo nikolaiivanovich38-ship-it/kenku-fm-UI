@@ -1353,6 +1353,26 @@ test.describe("round 7, part 2: Live", () => {
 
 /* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round (support/test.ts appOnly). */
 test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
+  test("On air: the playing track's bar is a seek bar: a click jumps there, the arrow keys 5 s (\"click in the tracking bar … and skip\")", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "live");
+    await startAbbey(page);
+    const seek = room(page, "Table").getByRole("slider", { name: /^Position in / }).first();
+    await expect(seek).toHaveAttribute("aria-valuetext", /^\d+:\d\d of \d+:\d\d$/);
+    const box = (await seek.boundingBox())!;
+    expect(box.height).toBeGreaterThanOrEqual(24);
+    const max = Number(await seek.getAttribute("aria-valuemax"));
+    expect(max).toBeGreaterThan(20);
+    await seek.click({ position: { x: box.width / 2, y: box.height / 2 } });
+    await expect.poll(async () => Number(await seek.getAttribute("aria-valuenow"))).toBeGreaterThan(max / 2 - 10);
+    const now = Number(await seek.getAttribute("aria-valuenow"));
+    await seek.press("Home");
+    await expect.poll(async () => Number(await seek.getAttribute("aria-valuenow"))).toBeLessThan(Math.min(now, 5));
+    await seek.press("ArrowRight");
+    await seek.press("ArrowRight");
+    await expect.poll(async () => Number(await seek.getAttribute("aria-valuenow"))).toBeGreaterThanOrEqual(10);
+  });
+
   test("On air: Stop beside Pause on the playing track, and Shuffle next to Repeat (\"I need both\")", async ({ page }) => {
     appOnly();
     await openRoute(page, "live");

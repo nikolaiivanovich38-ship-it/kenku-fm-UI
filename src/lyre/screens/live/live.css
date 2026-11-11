@@ -54,7 +54,7 @@
 .lv-lane-n { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-xs); font-weight: 700; color: var(--ink-2); }
 .lv-lane-t { font-weight: 700; line-height: 20px; }
 .lv-lane-pr { display: flex; align-items: center; gap: 8px; }
-.lv-lane-pr .progress { flex: 1; }
+.lv-lane-pr .seek { flex: 1; }
 .lv-time { font-size: var(--fs-xs); color: var(--ink-2); min-width: 62px; text-align: right; }
 .lv-lane-sub { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: var(--fs-xs); color: var(--ink-2); }
 .lv-lane-sub .chip { flex: 0 1 auto; min-width: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; }

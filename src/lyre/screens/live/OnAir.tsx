@@ -15,6 +15,7 @@ import { usePlayPosition } from "../../audio";
 import type { LaneNowPlaying, MusicOrAmbience, RoomNowPlaying, UpNextEntryNow } from "../../audio/lyreAudio";
 import { Icon } from "../../kit/Icon";
 import { Pane } from "../../kit/Pane";
+import { SeekBar } from "../../kit/SeekBar";
 import { StatusPill } from "../../kit/Pills";
 import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
 import { trackNameAt } from "../../kit/trackName";
@@ -494,17 +495,30 @@ function laneName(d: LiveData, roomId: string, playing: LaneNowPlaying): { name:
  * A lane's progress line with its markers, and the time. It reads its own position (usePlayPosition: every 250 ms
  * while it plays), so only it redraws as the sound moves on, not the On air box (Nik, 0.5.0: the time stood still).
  */
-function LaneTime({ roomId, lane, length, markers }: { roomId: string; lane: MusicOrAmbience; length: number | null; markers: readonly { atMs: number; label: string; mix?: boolean }[] }) {
+function LaneTime({ roomId, lane, length, markers, name }: { roomId: string; lane: MusicOrAmbience; length: number | null; markers: readonly { atMs: number; label: string; mix?: boolean }[]; name: string }) {
+  const { audio } = useLive();
   const position = usePlayPosition((at) => at.rooms[roomId]?.[lane] ?? null);
   const isMusic = lane === "music";
+  // 0.5.1 (Nik, 11 Nov): the bar is a seek bar (kit/SeekBar.tsx): click, drag or the arrow keys jump in this room.
   return (
     <div className="lv-lane-pr">
-      <div className={cx("progress lv-mkbar", isMusic ? "music" : "amb")} aria-hidden="true">
-        <span style={{ width: `${length && position !== null ? Math.min(100, (position / length) * 100) : 0}%` }} />
+      <SeekBar
+        name={name}
+        position={position}
+        length={length}
+        lane={isMusic ? "music" : "amb"}
+        barClassName="lv-mkbar"
+        onSeek={(seconds) => {
+          touched();
+          audio.seek(lane, seconds, { room: roomId });
+        }}
+      >
         {length &&
           markers.map((m) => <i key={`${m.atMs}-${m.label}`} className={cx("lv-mk", m.mix && "mix")} style={{ left: `${(m.atMs / 1000 / length) * 100}%` }} title={`${m.label} ${formatLength(m.atMs)}`} />)}
-      </div>
-      <span className="num lv-time">{position !== null ? `${clockTime(position)}${length ? ` / ${clockTime(length)}` : ""}` : "…"}</span>
+      </SeekBar>
+      <span className="num lv-time" aria-hidden="true">
+        {position !== null ? `${clockTime(position)}${length ? ` / ${clockTime(length)}` : ""}` : "…"}
+      </span>
     </div>
   );
 }
@@ -559,7 +573,7 @@ function Lane({ lane, room, roomName }: { lane: MusicOrAmbience; room: RoomNowPl
           {shown.name !== shown.own && <span className="sr-only"> (its own name: {shown.own})</span>}
           {pos && <span className="sr-only">, {pos}</span>}
         </div>
-        <LaneTime roomId={room.roomId} lane={lane} length={length} markers={markers} />
+        <LaneTime roomId={room.roomId} lane={lane} length={length} markers={markers} name={shown.name} />
         {sub && (
           <div className="lv-lane-sub ellipsis" title={sub}>
             {sub}
