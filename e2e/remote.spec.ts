@@ -59,6 +59,7 @@ test("Stream Deck / Kenku Remote API controls playlists and soundboards", async 
   const code = before.code;
   // Lead decision (7 Nov): 8 characters from an alphabet with nothing that looks alike, two groups of four.
   expect(code).toMatch(/^[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$/);
+  await mainWindow.getByRole("list", { name: "Tabs" }).getByRole("button", { name: "Lyre Player" }).click();
 
   // The main window's Settings only says where the remote control is now (review 0.5.0 CR-3).
   await mainWindow.getByRole("button", { name: "Settings" }).click();
@@ -67,7 +68,6 @@ test("Stream Deck / Kenku Remote API controls playlists and soundboards", async 
   await expect(settings.getByLabel("Address", { exact: true })).toHaveCount(0);
   await expect(settings.getByRole("button", { name: "Start Remote" })).toHaveCount(0);
   await settings.getByRole("button", { name: "Done" }).click();
-  await mainWindow.getByRole("list", { name: "Tabs" }).getByRole("button", { name: "Lyre Player" }).click();
 
   // Switch the remote on, on a free port, as Lyre's Settings does.
   const port = await freePort();

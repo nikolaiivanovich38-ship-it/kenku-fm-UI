@@ -1063,7 +1063,7 @@ Ctrl+Alt with a letter or digit (that is AltGr on a Belgian keyboard, which type
 | `src/main/remote/remoteControl.test.ts` | A saved home-network address the computer no longer has is not listened on, with the reason |
 | `src/main/managers/PlayerManager.test.ts` | `REMOTE_SET` refuses 0.0.0.0, :: and an internet address; the old Start Remote message does nothing; the old setting moves once, from the main window only, address checked |
 | `src/renderer/features/settings/remoteMigration.test.ts`, `Settings.test.tsx` | Version 7 hands the old values over once and drops them; the old panel has no Address, Port or Start Remote and calls nothing remote |
-| `e2e/remote.spec.ts`, `e2e/settings.spec.ts` | The packaged app: the old panel points to Lyre's Settings; the remote is turned on and off through Lyre's bridge |
+| `e2e/remote.spec.ts`, `e2e/settings.spec.ts`, `e2e/persistence.spec.ts` | The packaged app: the old panel points to Lyre's Settings; the remote is turned on and off through Lyre's bridge; a main-window setting other than the old port survives a restart |
 
 ### Manual checks (Windows)
 
