@@ -7,7 +7,7 @@
 import type { Page } from "@playwright/test";
 import fs from "fs";
 import { expect, expectFailureUntilBuilt, test } from "./support/test";
-import { knownLongHelpArticle, openFirstStart, openRoute, reopen, type Theme } from "./support/target";
+import { knownLongHelpArticle, openFirstStart, openRoute, reopen, reportUpdate, type Theme } from "./support/target";
 
 const helpPanel = (page: Page) => page.getByRole("complementary", { name: "Help", exact: true });
 const helpButton = (page: Page) => page.getByRole("button", { name: "Help", exact: true });
@@ -246,5 +246,102 @@ test.describe("FND-8 the first-run tour", () => {
     await expect(page.getByRole("dialog", { name: "Lyre's places 1 of 5" })).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(helpButton(page)).toBeFocused();
+  });
+});
+
+/* ---------- 0.5.1 (design/prototype/ROUND8.md): update news, the version, and help for one window ----------
+   The old main window showed "update ready" and the first update failure (src/autoUpdate.ts); with it gone, Lyre shows
+   them in the Saved pop-up's place, bottom right. The ready note stays until dismissed; a failure shows once, as a
+   warning card that says what to do. Help shows Lyre's version at its foot. */
+const OFFLINE = "net::ERR_INTERNET_DISCONNECTED";
+
+test.describe("0.5.1: update news and the version", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("retire"));
+
+  test("an update that has downloaded says so at the bottom right with Restart now, and stays until dismissed", async ({ page }) => {
+    await openRoute(page, "library");
+    await reportUpdate(page, { kind: "downloaded" });
+    const note = page.getByRole("status").filter({ hasText: "Lyre has an update. Restart Lyre to use it." });
+    await expect(note).toBeVisible();
+    await expect(note.getByRole("button", { name: "Restart now" })).toBeVisible();
+    // In the Saved pop-up's place: the bottom right of the work area.
+    const box = (await note.boundingBox())!;
+    const work = (await page.locator("#view").boundingBox())!;
+    expect(work.x + work.width - (box.x + box.width)).toBeLessThan(40);
+    expect(work.y + work.height - (box.y + box.height)).toBeLessThan(120);
+    // A Saved pop-up comes and goes; the update note stays (pop-ups go after 3 to 6 s).
+    await page.waitForTimeout(6500);
+    await expect(note).toBeVisible();
+    await note.getByRole("button", { name: "Dismiss: Lyre has an update" }).click();
+    await expect(note).toHaveCount(0);
+  });
+
+  test("an update check that fails shows the plain message once, as a warning card that says what to do", async ({ page }) => {
+    await openRoute(page, "campaigns");
+    await reportUpdate(page, { kind: "error", error: OFFLINE });
+    const card = page.getByRole("alert").filter({ hasText: "Lyre could not check for updates: this computer seems to be offline." });
+    await expect(card).toBeVisible();
+    await expect(card).toContainText("It tries again every 15 minutes; this version keeps working.");
+    await card.getByRole("button", { name: /^Dismiss: Lyre could not check for updates/ }).click();
+    await expect(card).toHaveCount(0);
+    // The checks repeat every 15 minutes: the same failure again is not shown again ...
+    await reportUpdate(page, { kind: "error", error: OFFLINE });
+    await page.waitForTimeout(500);
+    await expect(page.getByRole("alert").filter({ hasText: "could not check for updates" })).toHaveCount(0);
+    // ... until a check has worked in between.
+    await reportUpdate(page, { kind: "up-to-date" });
+    await reportUpdate(page, { kind: "error", error: OFFLINE });
+    await expect(card).toBeVisible();
+  });
+
+  test("an update that Windows cannot install says what to do", async ({ page }) => {
+    await openRoute(page, "campaigns");
+    await reportUpdate(page, { kind: "error", error: "Command failed: Update.exe --update" });
+    await expect(page.getByRole("alert").filter({ hasText: "Windows could not run Lyre's updater." })).toContainText("Restart the computer");
+  });
+
+  test("Help shows Lyre's version at its foot", async ({ page }) => {
+    await openRoute(page, "campaigns");
+    await page.keyboard.press("F1");
+    const panel = helpPanel(page);
+    const version = panel.getByTitle("Lyre version");
+    await expect(version).toHaveText(/^\d+\.\d+\.\d+/);
+    await expect(panel.getByText(/^Lyre \d+\.\d+\.\d+/)).toBeVisible();
+    // At the foot: under Save diagnostics….
+    expect((await version.boundingBox())!.y).toBeGreaterThan((await panel.getByRole("button", { name: "Save diagnostics…" }).boundingBox())!.y);
+  });
+});
+
+test.describe("0.5.1: help for Lyre as one window", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("retire"));
+
+  test("no article mentions the Lyre Player tab, website tabs or remote control", async ({ page }) => {
+    await openRoute(page, "campaigns");
+    await page.keyboard.press("F1");
+    const panel = helpPanel(page);
+    for (const title of await panel.getByRole("listitem").getByRole("button").allTextContents()) {
+      await panel.getByRole("button", { name: title, exact: true }).click();
+      await expect(panel.getByRole("article"), title).not.toContainText(/Lyre Player|Player tab|website tab|remote control/i);
+      await panel.getByRole("button", { name: "Back", exact: true }).click();
+    }
+  });
+
+  test("What came across from Kenku FM says the bookmarks are listed to copy and websites can't be opened in Lyre for now", async ({ page }) => {
+    await openRoute(page, "campaigns");
+    await page.keyboard.press("F1");
+    await helpPanel(page).getByRole("button", { name: "What came across from Kenku FM", exact: true }).click();
+    const article = helpPanel(page).getByRole("article");
+    await expect(article).toContainText("Copy");
+    await expect(article).toContainText("Websites can't be opened in Lyre for now");
+    await expect(article).toContainText("encrypted");
+    await expect(article).toContainText("Lyre is one window");
+  });
+
+  test("Connect Discord says a token from Kenku FM comes across encrypted", async ({ page }) => {
+    await openRoute(page, "campaigns");
+    await page.keyboard.press("F1");
+    await helpPanel(page).getByRole("button", { name: "Connect Discord and add a bot to a room", exact: true }).click();
+    await expect(helpPanel(page).getByRole("article")).toContainText("Kenku FM");
+    await expect(helpPanel(page).getByRole("article")).toContainText("encrypted");
   });
 });

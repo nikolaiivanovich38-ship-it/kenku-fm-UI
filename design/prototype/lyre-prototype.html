@@ -782,6 +782,9 @@ button .shape-g { color: inherit; }
 
 /* ---------- One playlist: layout ---------- */
 .pl-head { flex-wrap: nowrap; }
+/* 0.5.1: in a narrow app (half a 1920 screen at 150 % text and more), the head wraps instead of running out of the
+   window under its buttons. */
+@container app (max-width: 659px) { .pl-head { flex-wrap: wrap; } .pl-h1 { max-width: none; } }
 .pl-head .crumbs { flex: none; }
 .pl-h1 { flex: 0 1 auto; max-width: 42%; min-width: 60px; padding-right: 2px; }
 .pl-headchips { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 0 1000 auto; flex-wrap: wrap; height: 20px; overflow: hidden; }
@@ -2497,6 +2500,77 @@ html[data-contrast="high"] .btn.ghost, html[data-contrast="high"] .closer { bord
 .r7-played .lrow { gap: 8px; }
 .lb-resume { border: 0; padding: 4px 0; }
 
+/* Round 8 (0.5.1): Lyre is the whole window (views/r8window.js, ROUND8.md). */
+
+/* The window's own buttons take 138 × 36 px of the screen at the top right, whatever the text size; the page is
+   zoomed for text size, so in CSS pixels they are 138 / zoom by 36 / zoom. The app takes both from the window itself:
+   navigator.windowControlsOverlay.getTitlebarAreaRect() (on its geometrychange event) gives the free part of the
+   title bar; --wco-w is the window's width less that part's right edge, --wco-h its height. */
+#app { --wco-w: calc(138px / var(--zoom, 1)); --wco-h: calc(36px / var(--zoom, 1)); }
+
+/* The stand-in for Windows' buttons: not focusable, hidden from screen readers, on top of everything as theirs are. */
+.winbtns { position: absolute; top: 0; right: 0; z-index: 90; display: flex; width: var(--wco-w); height: var(--wco-h);
+  background: var(--wb-bg, var(--bg)); color: var(--wb-ink, var(--ink)); }
+.winbtns .wb { flex: 1; display: grid; place-items: center; cursor: default; }
+.winbtns .wb svg { width: calc(10px / var(--zoom, 1)); height: calc(10px / var(--zoom, 1)); fill: none; stroke: currentColor; stroke-width: 1; }
+.winbtns .wb:hover { background: color-mix(in srgb, currentColor 14%, transparent); }
+.winbtns .wb-close:hover { background: #c42b1c; color: #fff; }
+
+/* Nothing of Lyre's under the buttons: the strip at the top of the window keeps their width free at its right end. */
+.viewhead { padding-right: calc(12px + var(--wco-w)); }
+.lv-top { padding-right: calc(8px + var(--wco-w)); }
+.help-head { padding-right: calc(8px + var(--wco-w)); }
+/* Help open beside the screen (a wide window): Help's header is under the buttons, so the screen's strip need not. */
+@container app (min-width: 900px) {
+  #app:has(> #lyre-help:not([hidden])) .viewhead { padding-right: 12px; }
+  #app:has(> #lyre-help:not([hidden])) .lv-top { padding-right: 8px; }
+}
+/* A sheet as tall as the window starts below the buttons. In the prototype the stage is the window, so a sheet and
+   Find and play cover the stage only (--app-top is 0 in the app). */
+.sheet, .pal-wrap { top: var(--app-top, 0px); }
+.sheet { padding-top: calc(var(--wco-h) + 8px); }
+
+/* The empty parts of the top strip, Live's strip, Help's header and the logo drag the window; double-clicking them
+   maximises it (Windows does both). Every control, field and text with hover text in them stays itself: a drag area
+   takes the mouse, so it would neither click nor show hover text. */
+:is(.viewhead, .lv-top, .help-head, .rail .logo) { -webkit-app-region: drag; app-region: drag; }
+:is(.viewhead, .lv-top, .help-head) :is(a, button, input, select, textarea, label, summary, [role=button], [role=link], [role=switch], [role=radio], [role=combobox], [tabindex]:not([tabindex="-1"]), [title], [contenteditable]) {
+  -webkit-app-region: no-drag; app-region: no-drag; }
+
+/* Update news: a standing note in the Saved pop-up's place (it stays until dismissed, so it is not the dark pop-up). */
+.toast.t-stand { pointer-events: auto; background: var(--surface-2); color: var(--ink); border: 1px solid var(--line-strong); border-left: 3px solid var(--accent); padding: 4px 4px 4px 10px; font-weight: 600; }
+.toast.t-stand > svg { color: var(--accent-text); }
+.toast.t-stand .grow, .toast.t-fail .grow { min-width: 0; }
+
+/* Settings › Discord bots: the one-time note about a token moved from Kenku FM. */
+.st-legacy { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 8px; padding: 6px 6px 6px 8px; border: 1px solid var(--line-strong); border-left: 3px solid var(--accent); border-radius: var(--r-m); background: var(--surface-2); font-size: var(--fs-s); line-height: 1.4; }
+.st-legacy > svg { color: var(--accent-text); flex: none; margin-top: 2px; }
+.st-legacy p { margin: 0 0 4px; }
+.st-legacy p:last-child { margin: 0; }
+.st-legacy .btn { flex: none; }
+.st-cache { margin-top: 8px; }
+
+/* What came across: the old bookmarks, each with Copy. */
+.tf-bm .lrow { padding: 4px 2px; gap: 8px; }
+.tf-bm .tf-url { font-family: inherit; }
+
+/* Help's foot: Lyre's version. */
+.help-ver { margin: 0; font-size: var(--fs-xs); color: var(--ink-2); }
+
+/* Live's strip wraps earlier than in 0.5.0 (below 640 px of app), as the window's buttons now take 138 px of it: below
+   780 px of app (a 720 px window) it takes two lines: Back, Prep | Live and the buttons, then the trail, the session and
+   Find; so the trail keeps its campaign's name and every button its 24 px (one line squeezed the campaign link to 6 px).
+   Below 640 px of app Find takes a line of its own, as in 0.5.0. */
+@container app (max-width: 779px) {
+  .lv-top { flex-wrap: wrap; row-gap: 6px; }
+  .lv-top::before { content: ""; order: 4; flex: 1 0 100%; height: 0; }
+  .lv-top .crumbs { order: 5; }
+  .lv-top .lv-sess { order: 6; flex: 0 1 auto; min-width: 0; }
+  .lv-top .lv-find { order: 7; flex: 1 1 120px; max-width: none; min-width: 0; }
+  .lv-top > .lv-find + .btn { margin-left: 0; }
+}
+@container app (max-width: 639px) { .lv-top .lv-sess { flex: 1 1 0; } .lv-top .lv-find { order: 10; flex: 1 1 100%; } }
+
 </style>
 </head>
 <body>
@@ -2514,7 +2588,7 @@ html[data-contrast="high"] .btn.ghost, html[data-contrast="high"] .closer { bord
 <!-- Round 6, part 5: the one place for the Saved pop-up and every other note (core.js L.saved, L.toast, L.saveFailed). -->
 <div id="lyre-toasts" class="toasts"><div id="lyre-fail" class="toast" role="alert"></div><div id="lyre-toast" class="toast" role="status" aria-live="off" aria-atomic="true"></div></div>
 <script>
-var LYRE_HELP_FILES = [{"file":"01-connect-discord.md","text":"---\ntitle: Connect Discord and add a bot to a room\ngroup: Get started\nwords: discord bot token server voice channel room rooms settings connect invite\n---\nLyre plays to your players through a Discord bot. You make the bot once; Lyre logs it in.\n\n1. Choose the **Lyre Player** tab at the top of the window, then **Settings** (the gear at the top of its sidebar).\n2. Under **Discord bots**, follow **Where do I get my token?**: make a bot in Discord's Developer Portal and invite it to your server with the Connect and Speak permissions.\n3. Paste the bot's token in **Token** and press **Connect**. Lyre keeps the token on this computer, encrypted.\n4. Back in the **Lyre** tab, open **Rooms**. Your bot's box says **Not in a room**.\n5. Press its **Room** button and choose a voice channel. The box takes the room's name and lists who hears it.\n\nTo move the bot during a game, choose another room in the same menu; the sound goes on. **Kick**, beside it, takes the bot out. **Test** plays a short chime in that room only.\n\nFor a second room (a side scene, a split party), press **Add a second bot** in Settings and give it its own token.\n"},{"file":"02-kenku-fm.md","text":"---\ntitle: What came across from Kenku FM\ngroup: Get started\nwords: kenku fm import copy moved first start soundboards bookmarks old\n---\nOn its first start, Lyre copies your Kenku FM library. Kenku FM's own files stay as they were, so you can go back to it.\n\nLibrary › **⋯** beside **Add tracks** › **What came across from Kenku FM** shows:\n\n- what Lyre copied and where it is now: playlists and their tracks, soundboards (now pad boards, their sounds now pads) and bookmarks (website tabs);\n- **Files Lyre cannot find**, with **Find them…**;\n- **Not brought across**: what Lyre left behind.\n\nThe old player is still there as the **Lyre Player** tab, with your Kenku FM playlists and soundboards.\n"},{"file":"03-add-music.md","text":"---\ntitle: Add your music and tag it\ngroup: Prepare\nwords: library add tracks files folder watch import drop tag tags mood leitmotif scene type title details search filters find\n---\nLyre never copies or changes your audio files. It remembers where they are.\n\n1. Open **Library** and press **Add tracks**: **Add files…**, **Add a folder…** (with its subfolders) or **Watch a folder…** (new files there appear by themselves). You can also drop files and folders anywhere on the page.\n2. Open a track (its row, or `Enter`) for its **Details**: **Your title**, the title in the file, the file name and the folder.\n3. To tag it, type in a tag group's box (**+ Add mood**, and the same for each group) and press `Enter` or `Tab`. A new word makes a new tag.\n4. To tag many tracks at once, select them (their boxes, or `Space` on a row), then press **Tag…**.\n\nThe search box finds titles, file names, artists and tags. **Filters** narrows the list by kind (Music, Ambience, FX), tag, energy, shape, folder and missing files.\n\nTags are what dynamic playlists and Live's **Find a track or playlist** use, so a few good tags save time at the table.\n"},{"file":"04-dynamic-playlist.md","text":"---\ntitle: Make a playlist from tags\ngroup: Prepare\nwords: playlist dynamic manual rules tags shape matching copy new\n---\nA dynamic playlist holds every track that matches its rules, and grows as you tag more tracks.\n\n1. Open **Playlists** and press **New playlist**.\n2. Choose **Dynamic**, then **Music**, **Ambience** or **FX**.\n3. Under **Rules**, add the tags a track must have. **Shape** narrows it to tracks that build, fall away and so on; none pressed means any shape.\n4. **Matching tracks** shows what it holds now.\n\nTo put the tracks in an order of your own, press **Make a manual copy**: it makes a Manual playlist of the tracks that match today.\n\nA **Manual** playlist holds the tracks you pick, in the order you drag them to. Add tracks from its page, or drop audio files on it.\n"},{"file":"05-plan-campaign.md","text":"---\ntitle: Plan a campaign, session and scenes\ngroup: Prepare\nwords: campaign session scene planner new prepare plan music ambience pad boards order run\n---\nA campaign holds your sessions; a session holds its scenes, in the order you will play them.\n\n1. **Campaigns** › **New campaign**: give it a name, a game system and a theme.\n2. In the campaign, press **New session**. The session planner opens.\n3. Press **Add scene** for each moment of the story. Name it, and note when it starts (**Starts when**).\n4. In a scene, **Add tracks or playlists…** gives it music: it plays in order, and the first item starts the scene. Under **Ambience**, **Choose…** one ambience track or ambience playlist. Under **Pad boards**, add the boards you want there.\n5. Playlists, pad boards and single tracks for the whole evening go in the session's own lists; for every session, in the campaign's. Use **Use in…** on a track in the Library to put it there.\n\nA track's ⋯ in a scene › **Name in this scene…** gives it a name for that scene only. Its wave button opens the Audio profile for that scene.\n\nDrag scenes, or use their ⋯ menu, to change the order.\n\nWhen you are ready, press **Run this session**: Live opens with the first scene ready.\n"},{"file":"06-audio-profile.md","text":"---\ntitle: How a track plays (Audio profile)\ngroup: Prepare\nwords: audio profile waveform start end loop fade fades markers settings place scene playlist track\n---\nThe Audio profile says where a track starts and ends, what happens at its end, and how it fades. Open it from a track's **Audio profile** link in the Library's Details, or from the wave button by a track in a scene. From a scene it opens on that scene's settings, and **Back to** the scene takes you there again.\n\n- **Start** and **End**: drag them on the waveform, move them with the arrow keys, or type a time.\n- **At the end**: loop back to the loop start, move to the next track, or stop.\n- **Fades**: a fade in and a fade out, each with its length.\n- **Markers**: notes on the waveform, such as where it peaks.\n- `Space` plays from the playhead in your headphones only, as the profile says.\n\n**Settings for** chooses whose settings you change: the track everywhere, or only in one playlist or scene. A place uses the track's settings until you press **Give this place its own settings**; **Back to the track's settings** undoes that.\n"},{"file":"07-pad-boards.md","text":"---\ntitle: Pad boards\ngroup: Prepare\nwords: pad board pads sound effects keys hotkey play mode one-shot loop hold spare preview grid\n---\nA pad board is a grid of sound effects, each on a pad you press or play with a key.\n\n1. **Pad boards** › **New board**.\n2. Click an empty slot, then **Add pad**. Give the pad a **Label** and its **Sound**: one file, several variants, or any effect with a tag.\n3. Choose a **Play mode**: One-shot, Toggle loop, Hold to play or Restart on press.\n4. To give it a key, click its key box and press a letter, a number or `F1` to `F12`.\n\n**Preview** on a pad plays it in your headphones only; **Play on air** plays it for the players.\n\n**Try pads** in the Pads header: while it is on, pressing a pad or its key plays it as it will in Live, in your headphones only. Hold a Hold to play pad. Press **Try pads** again to stop.\n\n**Columns** and **Rows** change the grid. Pads that no longer fit go to **Spare pads**; nothing is deleted.\n\nAdd the board to a scene, a session or a campaign, and it shows in Live's **Pads**.\n"},{"file":"08-play-order.md","text":"---\ntitle: Shuffle and repeat per place\ngroup: Prepare\nwords: shuffle repeat order play order random loop playlist place scene\n---\nThe play order button, two small icons by a playlist, chooses how it plays: **Shuffle**, then **No repeat**, **Repeat all** or **Repeat one**.\n\nIt is on each playlist in Playlists and on its page, in a scene's music and the session and campaign lists, in Live's scene music, and in the Now playing bar.\n\n- On the Playlists page, it is the playlist's own order.\n- In a scene, a session's list or a campaign's list, the choice is for that place only. The button shows an accent edge and dot there. **Use the playlist's own order here** takes the choice away.\n\nWith no choice made, a playlist on its own plays in order and repeats all; in a scene it plays in order, then the scene moves on.\n\n- **Repeat one** plays the same track until you press Next.\n- **Repeat all** starts the playlist again after its last track.\n- **No repeat**: in a scene, the scene moves on; on its own, the playlist stops.\n"},{"file":"09-normalise.md","text":"---\ntitle: Normalise volume\ngroup: Prepare\nwords: normalise normalize volume loudness level lufs even quiet loud target gain\n---\nLyre can even out how loud your tracks are as it plays them. It never changes your files: it measures each track once and keeps the measurement in its library.\n\n1. Library › **⋯** beside **Add tracks** › **Normalise volume…**.\n2. Turn on **Normalise volume for the whole library** and choose a **Target level**: Quiet, Standard or Loud.\n\nA playlist (in its Details) and a track (Details › How it plays) have **Normalise volume** too: **Library setting**, **On** or **Off**. The track's own choice wins, then its playlist's, then the library's.\n\nA track not measured yet plays as it is. Hover a track's name in the Now playing bar to see how much it is turned up or down.\n"},{"file":"10-live.md","text":"---\ntitle: Run a session in Live\ngroup: Run a session\nwords: live run session scene next space undo keys shortcuts find track playlist search on air room rooms pads fade stop kick nobody there back\n---\nLive is where you run the evening. **Run this session** on a campaign or session page loads it here.\n\n- **On air**, at the top: a part for each room, with what it plays, **Up next**, its volume and its bot.\n- **Scenes**: press `Space`, or **Next scene**, to start the next scene. Click a scene's name to check it first; anything in it can be played on its own without starting the scene. Changed your mind? **Undo**, or `Ctrl+Z`, within 8 seconds.\n- **Current scene**: the running scene's music in play order, its ambience and its pads, which answer to their keys.\n- **This session** and **Whole campaign**: their playlists and pads, to play a whole playlist, one of its tracks or a pad at any time.\n- **Find a track or playlist** (`/`): search the whole library for anything not in the plan.\n- **Fade all** (`Shift+Esc`) fades everything out; **Stop all** stops at once.\n\nA room is a voice channel with one of your bots in it. Scenes always start in the first room. With two rooms or more, **To:** on a box chooses where it plays. **No room** or **Nobody there** means the players hear nothing: the button beside it puts the bot where the players are.\n\n`Ctrl+Z` takes back only the last thing you did, while its **Undo** shows.\n\n**‹** (Back), top left on every screen, goes back one step through everywhere you have been, up to 50 places, each as you left it. `Alt+Left` does the same. `Alt+1` to `Alt+7` jump to the boxes, from On air down.\n\n**Keys** lists every key. If single keys get in your way, turn **Single-key shortcuts** off there; `Shift+Esc` and `Ctrl+Z` still work.\n"},{"file":"11-preview-on-air.md","text":"---\ntitle: Preview or play on air\ngroup: Run a session\nwords: preview headphones only you on air players hear now playing bar stop volume paused room\n---\nEvery sound in Lyre says where it goes.\n\n- **Preview** plays in your headphones only. Its tag reads **Only you**.\n- **Play on air** plays for the players. Its tag reads **On air**, with the room's name when you have two or more rooms. **On air · no room** means no bot is in a voice channel, and **On air · nobody there** that nobody is in the room's channel: either way nobody hears it.\n\nThe **Now playing** bar, at the foot of the screen, shows what plays: a row per room and a row for your preview, each with its own Stop and volume. A paused row turns grey. The bar goes when everything stops.\n\nIn Live, the On air boxes show what each room hears, so the bar there shows only your preview.\n"},{"file":"12-backup.md","text":"---\ntitle: Back up, move or share\ngroup: Your library\nwords: backup back up save file open share move computer lyre file export import bring in duplicate merge\n---\nLibrary › **⋯** beside **Add tracks** › **Back up, move or share…**.\n\n**Save to a file** makes one .lyre file of the whole library, one campaign, session, scene, playlist or pad board, or the tags only. Tick **Include the audio files** to take the music with it, for another computer or another game master.\n\n**Open a file**: drop a .lyre file on the page, or choose one. Lyre shows what is in it and what you have already. For each of those, choose **Skip**, **Merge** or **Keep both**, then press **Bring in**.\n\nA file that is not a Lyre file, or is damaged, is refused, and nothing in your library changes.\n\nLyre also backs up its library by itself every day.\n"},{"file":"13-missing-files.md","text":"---\ntitle: Find missing files\ngroup: Your library\nwords: missing files moved relink find folder drive lost not found\n---\nWhen you move or rename audio files, Lyre can no longer find them. Their rows in the Library say **Missing**, and **Filters** › **Missing** lists them.\n\n1. Library › **⋯** beside **Add tracks** › **Find missing files…**.\n2. **Look in a folder**: type a folder, choose one, or drop it on the page.\n3. Lyre matches files by name and size. A match with the same name and size is ticked. The same name with another size is not ticked: Preview it first.\n4. Press **Relink** (it says how many files). **Undo** puts them back if a match was wrong.\n"},{"file":"14-diagnostics.md","text":"---\ntitle: Save diagnostics for a bug report\ngroup: Your library\nwords: diagnostics bug report problem error log crash support zip\n---\nWhen something goes wrong, a diagnostics file helps us find out why.\n\n1. Press **Help** (or `F1`), then **Save diagnostics…** at the foot.\n2. Choose a folder. Lyre saves one zip file there and names it.\n3. Attach the zip to your bug report.\n\nThe zip holds Lyre's version, your Windows version, the last lines of Lyre's log, its settings, and any warnings about blocked content.\n\nYour bot tokens and other secrets are taken out, and so is your user name in folder paths. Your music and your library are not in it.\n\nNothing is sent anywhere: the file stays where you saved it until you send it yourself.\n"},{"file":"15-up-next.md","text":"---\ntitle: Play next, Add to queue and Repeat\ngroup: Run a session\nwords: queue add to queue play next up next list order repeat repeat one loop room skip clear saved\n---\nEach room plays a list for the evening: the scene's music (or a playlist) in its order, and what you add to it.\n\n- **Play next**, on any track or playlist in Live, plays it right after the track playing now.\n- **Add to queue** puts it at the bottom of the room's list, after everything already there.\n- **Up next**, in the room's part of On air, shows the list from the next track to the bottom. **×** takes one out for this evening; **Clear added** takes out everything you added.\n- An ambience has **Play next** and **Add to queue** too: it waits at the bottom of Up next as **Ambience next** and plays when you press **Next** on the room's ambience (an ambience loops until you change it).\n- Starting another scene clears what you added. That scene's **Undo** brings it back.\n\nThere are two repeats.\n\n- **Repeat** in On air, and on the Now playing bar, is for what plays in that room now: off, all, then one. It is never saved and ends when that room's music stops.\n- **Repeat one** on a track of a scene is saved with the scene: the track plays again when it ends, every time the scene plays. A pressed one has a small dot.\n\nWith **Repeat all**, what you added comes round again with the rest. A scene's music always starts again from its top.\n"}];
+var LYRE_HELP_FILES = [{"file":"01-connect-discord.md","text":"---\ntitle: Connect Discord and add a bot to a room\ngroup: Get started\nwords: discord bot token server voice channel room rooms settings connect invite add a bot application id kenku fm encrypted\n---\nLyre plays to your players through a Discord bot. You make the bot once; Lyre logs it in.\n\n1. Open **Settings** in the menu. Under Discord bots, press **Add a bot**. Three steps follow.\n2. **Create it**: press **Open the Discord Developer Portal**. In Discord, choose **New Application**, name it and press **Create**. Back in Lyre, press **Next**.\n3. **Invite it**: in Discord, open **General Information** and copy the Application ID. Paste it into Lyre and press **Open the invite**. Pick your server and press **Authorize**. The invite asks only for View Channels, Connect and Speak.\n4. **Connect it**: in Discord, open **Bot**, press **Reset Token**, then **Copy**. Paste the token into Lyre and press **Connect**, then **Done**. Lyre keeps the token on this computer, encrypted, and shows only its last four characters.\n5. Open **Rooms**. Your bot says Not in a room. Press **Choose a room…** and pick a voice channel, or press **Add** beside the channel.\n\nTo move the bot during a game, choose another room; the sound goes on. **Kick** takes the bot out, and **Undo** puts it back with the music.\n\nFor a second room (a side scene, a split party), press **Add a bot** again and make a second bot.\n\nComing from Kenku FM? Lyre brings your bot across on its first start and keeps its token encrypted. If Kenku FM kept the token unprotected, Settings › Discord bots says so once and how to make a new one.\n"},{"file":"02-kenku-fm.md","text":"---\ntitle: What came across from Kenku FM\ngroup: Get started\nwords: kenku fm import copy moved first start soundboards bookmarks websites token old player window\n---\nOn its first start, Lyre copies your Kenku FM library. Kenku FM's own files stay as they were, so you can go back to it.\n\nLibrary › **⋯** beside **Add tracks** › **What came across from Kenku FM** shows:\n\n- what Lyre copied and where it is now: playlists and their tracks, soundboards (now pad boards, their sounds now pads);\n- **Bookmarks**: your Kenku FM bookmarks, each with **Copy**. Websites can't be opened in Lyre for now; paste the address into your browser;\n- **Files Lyre cannot find**, with **Find them…**;\n- **Not brought across**: what Lyre left behind.\n\nYour Discord bot comes across too. Lyre keeps its token encrypted; Settings › Discord bots tells you once if it moved it.\n\nLyre is one window. What Kenku FM's player did is in Lyre's menu: playlists in **Playlists**, soundboards in **Pad boards**, playing to your players in **Live**. Sending a microphone to Discord and Stream Deck buttons are not in Lyre for now.\n"},{"file":"03-add-music.md","text":"---\ntitle: Add your music and tag it\ngroup: Prepare\nwords: library add tracks files folder watch import drop tag tags mood leitmotif scene type title details search filters find\n---\nLyre never copies or changes your audio files. It remembers where they are.\n\n1. Open **Library** and press **Add tracks**: **Add files…**, **Add a folder…** (with its subfolders) or **Watch a folder…** (new files there appear by themselves). You can also drop files and folders anywhere on the page.\n2. Open a track (its row, or `Enter`) for its **Details**: **Your title**, the title in the file, the file name and the folder.\n3. To tag it, type in a tag group's box (**+ Add mood**, and the same for each group) and press `Enter` or `Tab`. A new word makes a new tag.\n4. To tag many tracks at once, select them (their boxes, or `Space` on a row), then press **Tag…**.\n\nThe search box finds titles, file names, artists and tags. **Filters** narrows the list by kind (Music, Ambience, FX), tag, energy, shape, folder and missing files.\n\nTags are what dynamic playlists and Live's **Find a track or playlist** use, so a few good tags save time at the table.\n"},{"file":"04-dynamic-playlist.md","text":"---\ntitle: Make a playlist from tags\ngroup: Prepare\nwords: playlist dynamic manual rules tags shape matching copy new\n---\nA dynamic playlist holds every track that matches its rules, and grows as you tag more tracks.\n\n1. Open **Playlists** and press **New playlist**.\n2. Choose **Dynamic**, then **Music**, **Ambience** or **FX**.\n3. Under **Rules**, add the tags a track must have. **Shape** narrows it to tracks that build, fall away and so on; none pressed means any shape.\n4. **Matching tracks** shows what it holds now.\n\nTo put the tracks in an order of your own, press **Make a manual copy**: it makes a Manual playlist of the tracks that match today.\n\nA **Manual** playlist holds the tracks you pick, in the order you drag them to. Add tracks from its page, or drop audio files on it.\n"},{"file":"05-plan-campaign.md","text":"---\ntitle: Plan a campaign, session and scenes\ngroup: Prepare\nwords: campaign session scene planner new prepare plan music ambience pad boards order run\n---\nA campaign holds your sessions; a session holds its scenes, in the order you will play them.\n\n1. **Campaigns** › **New campaign**: give it a name, a game system and a theme.\n2. In the campaign, press **New session**. The session planner opens.\n3. Press **Add scene** for each moment of the story. Name it, and note when it starts (**Starts when**).\n4. In a scene, **Add tracks or playlists…** gives it music: it plays in order, and the first item starts the scene. Under **Ambience**, **Choose…** one ambience track or ambience playlist. Under **Pad boards**, add the boards you want there.\n5. Playlists, pad boards and single tracks for the whole evening go in the session's own lists; for every session, in the campaign's. Use **Use in…** on a track in the Library to put it there.\n\nA track's ⋯ in a scene › **Name in this scene…** gives it a name for that scene only. Its wave button opens the Audio profile for that scene.\n\nDrag scenes, or use their ⋯ menu, to change the order.\n\nWhen you are ready, press **Run this session**: Live opens with the first scene ready.\n"},{"file":"06-audio-profile.md","text":"---\ntitle: How a track plays (Audio profile)\ngroup: Prepare\nwords: audio profile waveform start end loop fade fades markers settings place scene playlist track\n---\nThe Audio profile says where a track starts and ends, what happens at its end, and how it fades. Open it from a track's **Audio profile** link in the Library's Details, or from the wave button by a track in a scene. From a scene it opens on that scene's settings, and **Back to** the scene takes you there again.\n\n- **Start** and **End**: drag them on the waveform, move them with the arrow keys, or type a time.\n- **At the end**: loop back to the loop start, move to the next track, or stop.\n- **Fades**: a fade in and a fade out, each with its length.\n- **Markers**: notes on the waveform, such as where it peaks.\n- `Space` plays from the playhead in your headphones only, as the profile says.\n\n**Settings for** chooses whose settings you change: the track everywhere, or only in one playlist or scene. A place uses the track's settings until you press **Give this place its own settings**; **Back to the track's settings** undoes that.\n"},{"file":"07-pad-boards.md","text":"---\ntitle: Pad boards\ngroup: Prepare\nwords: pad board pads sound effects keys hotkey play mode one-shot loop hold spare preview grid\n---\nA pad board is a grid of sound effects, each on a pad you press or play with a key.\n\n1. **Pad boards** › **New board**.\n2. Click an empty slot, then **Add pad**. Give the pad a **Label** and its **Sound**: one file, several variants, or any effect with a tag.\n3. Choose a **Play mode**: One-shot, Toggle loop, Hold to play or Restart on press.\n4. To give it a key, click its key box and press a letter, a number or `F1` to `F12`.\n\n**Preview** on a pad plays it in your headphones only; **Play on air** plays it for the players.\n\n**Try pads** in the Pads header: while it is on, pressing a pad or its key plays it as it will in Live, in your headphones only. Hold a Hold to play pad. Press **Try pads** again to stop.\n\n**Columns** and **Rows** change the grid. Pads that no longer fit go to **Spare pads**; nothing is deleted.\n\nAdd the board to a scene, a session or a campaign, and it shows in Live's **Pads**.\n"},{"file":"08-play-order.md","text":"---\ntitle: Shuffle and repeat per place\ngroup: Prepare\nwords: shuffle repeat order play order random loop playlist place scene\n---\nThe play order button, two small icons by a playlist, chooses how it plays: **Shuffle**, then **No repeat**, **Repeat all** or **Repeat one**.\n\nIt is on each playlist in Playlists and on its page, in a scene's music and the session and campaign lists, in Live's scene music, and in the Now playing bar.\n\n- On the Playlists page, it is the playlist's own order.\n- In a scene, a session's list or a campaign's list, the choice is for that place only. The button shows an accent edge and dot there. **Use the playlist's own order here** takes the choice away.\n\nWith no choice made, a playlist on its own plays in order and repeats all; in a scene it plays in order, then the scene moves on.\n\n- **Repeat one** plays the same track until you press Next.\n- **Repeat all** starts the playlist again after its last track.\n- **No repeat**: in a scene, the scene moves on; on its own, the playlist stops.\n"},{"file":"09-normalise.md","text":"---\ntitle: Normalise volume\ngroup: Prepare\nwords: normalise normalize volume loudness level lufs even quiet loud target gain\n---\nLyre can even out how loud your tracks are as it plays them. It never changes your files: it measures each track once and keeps the measurement in its library.\n\n1. Library › **⋯** beside **Add tracks** › **Normalise volume…**.\n2. Turn on **Normalise volume for the whole library** and choose a **Target level**: Quiet, Standard or Loud.\n\nA playlist (in its Details) and a track (Details › How it plays) have **Normalise volume** too: **Library setting**, **On** or **Off**. The track's own choice wins, then its playlist's, then the library's.\n\nA track not measured yet plays as it is. Hover a track's name in the Now playing bar to see how much it is turned up or down.\n"},{"file":"10-live.md","text":"---\ntitle: Run a session in Live\ngroup: Run a session\nwords: live run session scene next space undo keys shortcuts find track playlist search on air room rooms pads fade stop kick nobody there back\n---\nLive is where you run the evening. **Run this session** on a campaign or session page loads it here.\n\n- **On air**, at the top: a part for each room, with what it plays, **Up next**, its volume and its bot.\n- **Scenes**: press `Space`, or **Next scene**, to start the next scene. Click a scene's name to check it first; anything in it can be played on its own without starting the scene. Changed your mind? **Undo**, or `Ctrl+Z`, within 8 seconds.\n- **Current scene**: the running scene's music in play order, its ambience and its pads, which answer to their keys.\n- **This session** and **Whole campaign**: their playlists and pads, to play a whole playlist, one of its tracks or a pad at any time.\n- **Find a track or playlist** (`/`): search the whole library for anything not in the plan.\n- **Fade all** (`Shift+Esc`) fades everything out; **Stop all** stops at once.\n\nA room is a voice channel with one of your bots in it. Scenes always start in the first room. With two rooms or more, **To:** on a box chooses where it plays. **No room** or **Nobody there** means the players hear nothing: the button beside it puts the bot where the players are.\n\n`Ctrl+Z` takes back only the last thing you did, while its **Undo** shows.\n\n**‹** (Back), top left on every screen, goes back one step through everywhere you have been, up to 50 places, each as you left it. `Alt+Left` does the same. `Alt+1` to `Alt+7` jump to the boxes, from On air down.\n\n**Keys** lists every key. If single keys get in your way, turn **Single-key shortcuts** off there; `Shift+Esc` and `Ctrl+Z` still work.\n"},{"file":"11-preview-on-air.md","text":"---\ntitle: Preview or play on air\ngroup: Run a session\nwords: preview headphones only you on air players hear now playing bar stop volume paused room\n---\nEvery sound in Lyre says where it goes.\n\n- **Preview** plays in your headphones only. Its tag reads **Only you**.\n- **Play on air** plays for the players. Its tag reads **On air**, with the room's name when you have two or more rooms. **On air · no room** means no bot is in a voice channel, and **On air · nobody there** that nobody is in the room's channel: either way nobody hears it.\n\nThe **Now playing** bar, at the foot of the screen, shows what plays: a row per room and a row for your preview, each with its own Stop and volume. A paused row turns grey. The bar goes when everything stops.\n\nIn Live, the On air boxes show what each room hears, so the bar there shows only your preview.\n"},{"file":"12-backup.md","text":"---\ntitle: Back up, move or share\ngroup: Your library\nwords: backup back up save file open share move computer lyre file export import bring in duplicate merge\n---\nLibrary › **⋯** beside **Add tracks** › **Back up, move or share…**.\n\n**Save to a file** makes one .lyre file of the whole library, one campaign, session, scene, playlist or pad board, or the tags only. Tick **Include the audio files** to take the music with it, for another computer or another game master.\n\n**Open a file**: drop a .lyre file on the page, or choose one. Lyre shows what is in it and what you have already. For each of those, choose **Skip**, **Merge** or **Keep both**, then press **Bring in**.\n\nA file that is not a Lyre file, or is damaged, is refused, and nothing in your library changes.\n\nLyre also backs up its library by itself every day.\n"},{"file":"13-missing-files.md","text":"---\ntitle: Find missing files\ngroup: Your library\nwords: missing files moved relink find folder drive lost not found\n---\nWhen you move or rename audio files, Lyre can no longer find them. Their rows in the Library say **Missing**, and **Filters** › **Missing** lists them.\n\n1. Library › **⋯** beside **Add tracks** › **Find missing files…**.\n2. **Look in a folder**: type a folder, choose one, or drop it on the page.\n3. Lyre matches files by name and size. A match with the same name and size is ticked. The same name with another size is not ticked: Preview it first.\n4. Press **Relink** (it says how many files). **Undo** puts them back if a match was wrong.\n"},{"file":"14-diagnostics.md","text":"---\ntitle: Save diagnostics for a bug report\ngroup: Your library\nwords: diagnostics bug report problem error log crash support zip\n---\nWhen something goes wrong, a diagnostics file helps us find out why.\n\n1. Press **Help** (or `F1`), then **Save diagnostics…** at the foot.\n2. Choose a folder. Lyre saves one zip file there and names it.\n3. Attach the zip to your bug report.\n\nThe zip holds Lyre's version, your Windows version, the last lines of Lyre's log, its settings, and any warnings about blocked content.\n\nYour bot tokens and other secrets are taken out, and so is your user name in folder paths. Your music and your library are not in it.\n\nNothing is sent anywhere: the file stays where you saved it until you send it yourself.\n"},{"file":"15-up-next.md","text":"---\ntitle: Play next, Add to queue and Repeat\ngroup: Run a session\nwords: queue add to queue play next up next list order repeat repeat one loop room skip clear saved\n---\nEach room plays a list for the evening: the scene's music (or a playlist) in its order, and what you add to it.\n\n- **Play next**, on any track or playlist in Live, plays it right after the track playing now.\n- **Add to queue** puts it at the bottom of the room's list, after everything already there.\n- **Up next**, in the room's part of On air, shows the list from the next track to the bottom. **×** takes one out for this evening; **Clear added** takes out everything you added.\n- An ambience has **Play next** and **Add to queue** too: it waits at the bottom of Up next as **Ambience next** and plays when you press **Next** on the room's ambience (an ambience loops until you change it).\n- Starting another scene clears what you added. That scene's **Undo** brings it back.\n\nThere are two repeats.\n\n- **Repeat** in On air, and on the Now playing bar, is for what plays in that room now: off, all, then one. It is never saved and ends when that room's music stops.\n- **Repeat one** on a track of a scene is saved with the scene: the track plays again when it ends, every time the scene plays. A pressed one has a small dot.\n\nWith **Repeat all**, what you added comes round again with the rest. A scene's music always starts again from its top.\n"}];
 ;
 /* Lyre design round 2: sample data.
    Model: Campaign > Session > Scene. Playlists and pad boards live on their own (Library) and are assigned
@@ -2760,7 +2834,16 @@ var LYRE_DATA = (function () {
   campaigns.forEach(function (c) { c.tracks = []; c.sessions.forEach(function (s) { s.tracks = []; }); });
   campaigns[0].tracks.push('t26');
   // Round 5 (DAT-7): what came across from the Player (Kenku FM) on first start, for the move report.
-  var moved = { from: 'Kenku FM 1.5.5', when: '5 Nov 2026, 18:42', playlists: 9, tracks: 212, boards: 4, pads: 37, bookmarks: 6,
+  // 0.5.1: the bookmarks themselves (title and address), listed once to copy, since Lyre has no website tabs.
+  var moved = { from: 'Kenku FM 1.5.5', when: '5 Nov 2026, 18:42', playlists: 9, tracks: 212, boards: 4, pads: 37,
+    bookmarks: [
+      { title: 'YouTube', url: 'https://www.youtube.com/' },
+      { title: 'Spotify', url: 'https://open.spotify.com/' },
+      { title: 'Tabletop Audio', url: 'https://tabletopaudio.com/' },
+      { title: 'Ambient Mixer', url: 'https://www.ambient-mixer.com/' },
+      { title: 'Freesound', url: 'https://freesound.org/' },
+      { title: 'Kenku FM', url: 'https://www.kenku.fm/' }
+    ],
     notMoved: [['The play queue and what was playing', 'Lyre starts with nothing playing'], ['Kenku FM\'s window size and position', 'Lyre opens at its own size']] };
   // Round 5 (DAT-15): each track's measured loudness, as Lyre's background job reads it with ffmpeg: "id loudness peak",
   // loudness in LUFS (EBU R128 integrated; for a sound under 3 s its loudest moment) and true peak in dBTP. t02 is the
@@ -2815,7 +2898,7 @@ var L = (function () {
   var D = LYRE_DATA;
   var L = { data: D, views: {}, acts: {}, inputs: {}, keys: [] };
   // Could 18 of the round 6 review: the version shown is the one running (in Lyre, the app's own; here, the design's).
-  L.version = '0.5.0';
+  L.version = '0.5.1';
 
   /* ---------- icons (24 px stroke paths) ---------- */
   var I = {
@@ -4204,8 +4287,8 @@ var L = (function () {
 
    Nik, 6 Nov 2026: less text and clutter on screen; help costs the screens nothing until asked for.
    - One Help entry at the foot of the rail (core.js railHTML), and F1, open a side panel: a search box, the articles
-     grouped by task, an article with Back, and at its foot Take the tour and Save diagnostics…. The panel sits beside
-     the screen (over it in a narrow window), so the steps of an article can be followed while it is open.
+     grouped by task, an article with Back, and at its foot Take the tour, Save diagnostics… and Lyre's version (0.5.1).
+     The panel sits beside the screen (over it in a narrow window), so the steps of an article can be followed while it is open.
    - The tour: five short steps pointing at the rail, the Library, Campaigns (where scenes are), Live and the Now
      playing bar. Shown once, on the first start; Skip on every step; Esc skips; replayed from Help.
    - No help text is added to any screen.
@@ -4293,7 +4376,9 @@ var L = (function () {
       '<button class="btn s" data-act="helptour" data-k="help-tour">' + L.icon('play', 's') + 'Take the tour</button>' +
       '<button class="btn s" data-act="helpdiag" data-k="help-diag"' + (H.saving ? ' disabled aria-busy="true"' : '') + '>' + L.icon('download', 's') + (H.saving ? 'Saving…' : 'Save diagnostics…') + '</button></div>' +
       (r ? '<div class="help-result">' + L.icon(r.ok ? 'check' : 'warn', 's') + '<span class="grow">' + esc(r.text) + '</span>' +
-        (r.ok ? '<button class="btn ghost s" data-act="helpshow" data-k="help-show">Show in folder</button>' : '') + '</div>' : '') + '</footer>';
+        (r.ok ? '<button class="btn ghost s" data-act="helpshow" data-k="help-show">Show in folder</button>' : '') + '</div>' : '') +
+      // 0.5.1: Lyre's version at the foot of Help, as at the top right of Settings (the old window showed it nowhere).
+      '<p class="help-ver">Lyre <span class="num" title="Lyre version">' + esc(L.version) + '</span></p></footer>';
   }
   function paintPanel() {
     var el = panel();
@@ -5929,11 +6014,14 @@ var L = (function () {
      Discord bots      each bot: status, the servers it is in, Connect or Disconnect, its token (only the last four
                        characters show; Replace… takes a new one) and, behind ⋯, Rename and Remove. Add a bot opens the
                        stepper below. Tokens are kept encrypted on this computer (SEC-5).
-     Sound to Discord  the streaming mode (Best sound quality or Lighter on the computer).
-     Remote control    the Stream Deck remote: on or off, address and port (folded: rare).
-     Website tabs      the address bar, microphones and other inputs, several inputs at once, Clear website data (folded).
-     Local files       folders whose files open without asking, each with Ask again (folded).
+     Sound to Discord  the streaming mode (Best sound quality or Lighter on the computer), kept by Lyre itself since
+                       0.5.1, and Empty the audio cache.
+     Remote control    the Stream Deck remote: on or off, address and port (folded: rare). Hidden in 0.5.1 until
+                       Stream Deck support (WP6; Nik, 11 Nov: "Hide until Stream Deck"); its design stays here.
    Look and feel stays its own screen in the menu.
+   0.5.1 (ROUND8.md): Website tabs and Local files went with the old window (Nik, 11 Nov: websites and microphones
+   "Keep the code, remove them from the interface"); a bot token moved from Kenku FM has a one-time note under
+   Discord bots.
 
    Add a bot, in the order Discord needs (checked against Discord's documentation, see ROUND6.md):
      1 Create an application in the Discord Developer Portal (New Application, a name, Create).
@@ -5948,7 +6036,13 @@ var L = (function () {
   var esc = L.esc, D = L.data;
   L.INVITE_PERMISSIONS = 1024 + 1048576 + 2097152;   // View Channels, Connect, Speak
   L.inviteURL = function (appId) { return 'https://discord.com/oauth2/authorize?client_id=' + encodeURIComponent(appId) + '&scope=bot&permissions=' + L.INVITE_PERMISSIONS; };
-  var S = { mode: 'quality', remote: false, address: '127.0.0.1', port: '3333', urlBar: true, inputs: false, several: false, folders: ['H:\\Audio\\Incoming'],
+  // 0.5.1: Sound to Discord is kept by Lyre itself (the app: this-computer.json), so it is kept across starts here too.
+  var SETTINGS_KEY = 'lyre-settings';
+  function readSettings() { try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; } catch (e) { return {}; } }
+  function keepSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ mode: S.mode })); } catch (e) { /* storage unavailable: lasts for this visit */ } }
+  // Remote control is hidden until Stream Deck support (WP6): its pane is not drawn; its design below is kept for then.
+  var SHOW_REMOTE = false;
+  var S = { mode: readSettings().mode || 'quality', remote: false, address: '127.0.0.1', port: '3333',
     add: null, replacing: '', opened: [],
     // Round 7 (SEC-4): the secret code (made on first run; the app keeps it encrypted, SEC-5) and where it listens.
     code: newCode(), listen: 'local',
@@ -6113,7 +6207,8 @@ var L = (function () {
   function soundBody() {
     return '<div class="seg" role="radiogroup" aria-label="Sound to Discord">' + MODES.map(function (m) {
       return '<button role="radio" aria-checked="' + (S.mode === m[0]) + '" data-act="stmode" data-v="' + m[0] + '" data-k="st-mode-' + m[0] + '" title="' + esc(m[2]) + '">' + m[1] + '</button>';
-    }).join('') + '</div>' + xfadeHTML();
+    }).join('') + '</div>' + xfadeHTML() +
+      '<div class="st-cache"><button class="btn s" type="button" data-act="stcache" data-k="st-cache" title="Deletes the copies Lyre made of your music so tracks start at once. Lyre makes them again when it needs them. Your music files, library and settings are kept.">Empty the audio cache</button></div>';
   }
   // Round 7 (PLY-8): the default crossfade, used by Next, a playlist moving on and a scene's play steps.
   var XFADES = [['0', 'Cut'], ['1', '1 s'], ['2', '2 s'], ['3', '3 s'], ['5', '5 s'], ['8', '8 s']];
@@ -6182,7 +6277,7 @@ var L = (function () {
       footer: '<button class="btn" data-act="closesheet">Close</button><button class="btn primary" data-act="stprint">' + L.icon('file', 's') + 'Print</button>' });
   };
   L.acts.stprint = function () { try { window.print(); } catch (e) { /* no printer in the prototype */ } };
-  L.acts.stmode = function (el) { S.mode = el.dataset.v; L.say(el.textContent + '. Applies the next time a bot joins a voice channel.'); L.render(); L.saved('setting: ' + el.textContent, { key: 'st-mode' }); };
+  L.acts.stmode = function (el) { S.mode = el.dataset.v; keepSettings(); L.say(el.textContent + '. Applies the next time a bot joins a voice channel.'); L.render(); L.saved('setting: ' + el.textContent, { key: 'st-mode' }); };
   /* Round 7 (SEC-4): remote control needs a secret code. Off by default. On: the code to type on the remote device
      (Stream Deck plugin, phone or tablet), Copy code, Make a new code (the old one stops working at once), and where
      Lyre listens: this computer only (127.0.0.1, the default) or your home network (for a phone on the same Wi-Fi). Every
@@ -6203,22 +6298,20 @@ var L = (function () {
   L.acts.stcodecopy = function () { try { navigator.clipboard.writeText(S.code).catch(function () {}); } catch (e) { /* clipboard unavailable in the prototype */ } L.toast('Code copied'); };
   L.acts.stcodenew = function () { S.code = newCode(); L.render(); L.saved('new remote control code', { detail: 'the old one stops working' }); };
   L.inputs.stlisten = function (el) { if (!el.checked) return; S.listen = el.value; L.render(); L.saved('remote control listens on ' + (S.listen === 'home' ? 'your home network' : 'this computer only'), { key: 'st-listen' }); };
-  function tabsBody() {
-    return sw('urlbar', 'Show the address bar on tabs', S.urlBar, 'sturl') + sw('inputs', 'Microphones and other inputs', S.inputs, 'stinputs') +
-      sw('several', 'Use several inputs at once', S.several, 'stseveral', { disabled: !S.inputs, why: 'Turn on Microphones and other inputs first.', title: S.inputs ? '' : 'Turn on Microphones and other inputs first' }) +
-      '<button class="btn s" data-act="stclear" data-k="st-clear" title="Logs you out of websites in tabs and deletes their saved files. Your library, playlists and settings are kept.">Clear website data</button>';
+  /* 0.5.1: the one-time note about a token moved from Kenku FM (the old window's LegacyTokenNotice, now in Lyre).
+     Kenku FM kept the token in plain text, and its own copy stays in Kenku FM's storage, so a new token is the only
+     certain fix: the note says how, once, until Got it. */
+  var PORTAL = 'https://discord.com/developers/applications';
+  function legacyNote() {
+    if (!L.legacyTokenNote || !L.legacyTokenNote()) return '';
+    return '<div class="st-legacy" role="note">' + L.icon('check', 's') + '<div class="grow"><p><b>Lyre moved your Discord bot token from Kenku FM.</b> Kenku FM kept it unprotected on this computer; Lyre keeps it encrypted now.</p>' +
+      '<p>To be safe, make a new token: in the <a href="' + PORTAL + '" target="_blank" rel="noopener" data-act="stportal" data-k="st-legacy-portal">Discord Developer Portal</a>, open your bot\'s Bot page, press Reset Token, then paste it here with Replace….</p></div>' +
+      '<button class="btn s" type="button" data-act="stlegacyok" data-k="st-legacy-ok">Got it</button></div>';
   }
-  L.inputs.sturl = function (el) { S.urlBar = el.checked; L.render(); };
-  L.inputs.stinputs = function (el) { S.inputs = el.checked; if (!S.inputs) S.several = false; L.render(); };
-  L.inputs.stseveral = function (el) { S.several = el.checked; L.render(); };
-  L.acts.stclear = function () { L.toast('Website data cleared: tabs are logged out'); L.say('Website data cleared'); };
-  function filesBody() {
-    if (!S.folders.length) return '<p class="faint">None</p>';
-    return '<ul class="list st-folders" aria-label="Folders opened without asking">' + S.folders.map(function (f, i) {
-      return '<li class="lrow"><span class="grow ellipsis num" title="' + esc(f) + '">' + esc(f) + '</span><button class="btn s ghost" data-act="stforget" data-i="' + i + '" data-k="st-forget-' + i + '" aria-label="Ask again before opening files in ' + esc(f) + '">Ask again</button></li>';
-    }).join('') + '</ul>';
-  }
-  L.acts.stforget = function (el) { var f = S.folders.splice(+el.dataset.i, 1)[0]; L.say('Lyre asks again before opening files in ' + f); L.render(); L.saved('setting: ask before opening files in ' + f); var h = document.querySelector('[data-k="pane-st-files"]'); if (h) h.focus(); };
+  L.acts.stlegacyok = function () { L.legacyTokenSeen(); L.render(); var h = document.querySelector('[data-k="pane-st-bots"]'); if (h) h.focus(); };
+  // Empty the audio cache (it was part of the old window's Clear website data). Nothing to confirm: Lyre makes the
+  // copies again when a track needs one.
+  L.acts.stcache = function () { L.toast('Audio cache emptied'); };
 
   L.view('settings', {
     nav: 'settings',
@@ -6227,7 +6320,7 @@ var L = (function () {
     notes: [
       'Everything Lyre still needs from the old main window\'s Settings. <b>Discord bots</b> first: status, servers, Connect or Disconnect, the token (last four characters; <b>Replace…</b>), and Rename or Remove behind ⋯.',
       '<b>Add a bot</b> walks through Discord in its order: create the application, <b>invite it first</b> (paste the Application ID and Lyre opens the invite, or make it by hand with OAuth2 › URL Generator), then paste the token and Connect.',
-      'The rare settings are folded: remote control, website tabs, local files.'
+      'The rare settings are folded. <b>0.5.1:</b> Website tabs and Local files went with the old window; Remote control is hidden until Stream Deck support. <b>Empty the audio cache</b> is in Sound to Discord. Someone coming straight from Kenku FM sees, once, that Lyre moved the bot token (prototype strip: Came from Kenku FM).'
     ],
     render: function () {
       var bots = L.bots();
@@ -6235,21 +6328,18 @@ var L = (function () {
       var botPane = L.pane({ id: 'st-bots', title: 'Discord bots', icon: 'users', kind: 'onair', size: 'auto', noMax: true, cls: 'is-silent',
         actions: '<button class="btn s" data-act="stadd" data-k="st-add">' + L.icon('plus', 's') + 'Add a bot</button>',
         describe: 'Each bot is one voice in Discord: one room at a time.',
-        body: '<div class="st-bots">' + bots.map(botRow).join('') + '</div>' });
+        body: legacyNote() + '<div class="st-bots">' + bots.map(botRow).join('') + '</div>' });
       // Round 7: set once, so folded like the other rare settings (and less to read on the screen).
       var sound = L.pane({ id: 'st-sound', title: 'Sound to Discord', icon: 'broadcast', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: soundBody(),
         describe: 'Both send sound to Discord with the same short delay. A change applies the next time a bot joins a voice channel.' });
       var devices = L.pane({ id: 'st-devices', title: 'Headphones and speakers', icon: 'headphones', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: devicesBody(),
         describe: 'If a device is unplugged, Lyre uses the computer\'s default until it is back.' });
       // Round 6 rule 4 and Nik's 16:14 answer: no resting status; "On" says something is open to other devices.
-      var remote = L.pane({ id: 'st-remote', title: 'Remote control', icon: 'link', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: remoteBody(), status: S.remote ? { text: 'On', tone: 'on' } : null,
+      var remote = !SHOW_REMOTE ? '' : L.pane({ id: 'st-remote', title: 'Remote control', icon: 'link', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: remoteBody(), status: S.remote ? { text: 'On', tone: 'on' } : null,
         describe: 'Off until you turn it on. Each device needs the secret code.' });
       var keys = L.pane({ id: 'st-keys', title: 'Keyboard shortcuts', icon: 'grid', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: keysBody(),
         describe: 'Ctrl+K finds and plays anything. Change any key here.' });
-      var tabs = L.pane({ id: 'st-tabs', title: 'Website tabs', icon: 'grid', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: tabsBody() });
-      var files = L.pane({ id: 'st-files', title: 'Local files', icon: 'folder', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: filesBody(),
-        describe: 'Lyre asks before opening a file from your computer. Folders you choose not to be asked about again are listed here.' });
-      return head + '<div class="viewbody st-body"><div class="st-split"><div class="col">' + botPane + '</div><div class="col">' + sound + devices + remote + keys + tabs + files + '</div></div></div>';
+      return head + '<div class="viewbody st-body"><div class="st-split"><div class="col">' + botPane + '</div><div class="col">' + sound + devices + remote + keys + '</div></div></div>';
     }
   });
 })();
@@ -6412,13 +6502,16 @@ var L = (function () {
     title: function () { return 'What came across from Kenku FM'; },
     notesTitle: 'The move report (new)',
     notes: [
-      'What Lyre copied from Kenku FM on its first start, in Lyre\'s words: playlists, tracks, soundboards (now pad boards), sounds (now pads) and bookmarks (website tabs). Kenku FM\'s own copy is untouched.',
+      'What Lyre copied from Kenku FM on its first start, in Lyre\'s words: playlists, tracks, soundboards (now pad boards) and sounds (now pads). Kenku FM\'s own copy is untouched.',
+      '<b>0.5.1:</b> Lyre has no website tabs, so the <b>Bookmarks</b> box lists the old bookmarks once, each with <b>Copy</b>. With no bookmarks, the box and its row are not shown.',
       '<b>Files Lyre cannot find</b> lists the tracks whose files are not where Kenku FM kept them, with <b>Find them…</b>.',
       '<b>Not brought across</b> says plainly what Lyre does not take over, and why that is fine.'
     ],
     render: function () {
       var m = D.moved, miss = missing();
-      var rows = [['Playlists', m.playlists, 'Playlists (Manual)', '#/playlists'], ['Tracks', m.tracks, 'Library', '#/library'], ['Soundboards', m.boards, 'Pad boards', '#/boards'], ['Sounds', m.pads, 'Pads on those boards', '#/boards'], ['Bookmarks', m.bookmarks, 'Website tabs', '']];
+      var bm = m.bookmarks || [];
+      var rows = [['Playlists', m.playlists, 'Playlists (Manual)', '#/playlists'], ['Tracks', m.tracks, 'Library', '#/library'], ['Soundboards', m.boards, 'Pad boards', '#/boards'], ['Sounds', m.pads, 'Pads on those boards', '#/boards']]
+        .concat(bm.length ? [['Bookmarks', bm.length, 'Listed to copy', '']] : []);
       var what = '<p class="tf-lead">On ' + esc(m.when) + ' Lyre copied your ' + esc(m.from) + ' library. Kenku FM\'s own copy is untouched, so you can still open it.</p>' +
         '<table class="grid tf-table"><caption class="sr-only">What came across</caption><thead><tr><th scope="col">In Kenku FM</th><th scope="col" class="num">How many</th><th scope="col">Now in Lyre</th></tr></thead><tbody>' +
         rows.map(function (r) { return '<tr><td>' + r[0] + '</td><td class="num">' + r[1] + '</td><td>' + (r[3] ? '<a href="' + r[3] + '" data-k="tf-mv-' + r[0] + '">' + r[2] + '</a>' : r[2]) + '</td></tr>'; }).join('') + '</tbody></table>';
@@ -6426,13 +6519,27 @@ var L = (function () {
         return '<li class="lrow"><span class="grow tf-iname"><b class="ellipsis">' + esc(L.title(t)) + '</b><span class="hint ellipsis" title="' + esc(t.folder + '\\' + t.file) + '">' + esc(t.file) + ' · was in ' + esc(t.folder) + '</span></span></li>';
       }).join('') + '</ul><div class="tf-actrow"><a class="btn primary" href="#/relink" data-k="tf-findthem">' + L.icon('folder', 's') + 'Find them…</a></div>' : '<p class="tf-done" role="status">' + L.icon('check', 's') + 'Every file is where Lyre expects it.</p>';
       var notBody = '<ul class="list tf-not">' + m.notMoved.map(function (x) { return '<li class="lrow"><span class="grow tf-iname"><b>' + esc(x[0]) + '</b><span class="hint">' + esc(x[1]) + '</span></span></li>'; }).join('') + '</ul>';
+      // 0.5.1: website tabs are gone (Nik, 11 Nov: "Keep the code, remove them from the interface"); the bookmarks
+      // are listed once, to copy into a browser. No bookmarks: no box.
+      var bmBody = '<p class="tf-lead">Websites can\'t be opened in Lyre for now. Copy an address to open it in your browser.</p>' +
+        '<ul class="list tf-bm" aria-label="Bookmarks from Kenku FM">' + bm.map(function (b, i) {
+          return '<li class="lrow"><span class="grow tf-iname"><b class="ellipsis" title="' + esc(b.title) + '">' + esc(b.title) + '</b><span class="hint ellipsis tf-url" title="' + esc(b.url) + '">' + esc(b.url) + '</span></span>' +
+            '<button class="btn s ghost" type="button" data-act="tfbmcopy" data-i="' + i + '" data-k="tf-bm-' + i + '" aria-label="Copy the address of ' + esc(b.title) + '">Copy</button></li>';
+        }).join('') + '</ul>';
       return '<div class="viewhead"><h1>What came across from Kenku FM</h1></div>' +
         '<div class="viewbody tf-body"><div class="tf-cols"><div class="col">' +
-        L.pane({ id: 'tf-what', title: 'What came across', icon: 'check', kind: 'plain', noMax: true, size: 'auto', status: { text: 'Copied', tone: 'idle' }, body: what }) + '</div><div class="col">' +
+        L.pane({ id: 'tf-what', title: 'What came across', icon: 'check', kind: 'plain', noMax: true, size: 'auto', status: { text: 'Copied', tone: 'idle' }, body: what }) +
+        (bm.length ? L.pane({ id: 'tf-bm', title: 'Bookmarks', icon: 'link', kind: 'plain', noMax: true, size: 'auto', body: bmBody }) : '') + '</div><div class="col">' +
         L.pane({ id: 'tf-miss', title: 'Files Lyre cannot find', icon: 'warn', kind: 'plain', noMax: true, size: 'auto', status: miss.length ? { text: plural(miss.length, 'file'), tone: 'warn' } : { text: 'None', tone: 'idle' }, body: missBody }) +
         L.pane({ id: 'tf-not', title: 'Not brought across', icon: 'close', kind: 'plain', noMax: true, size: 'auto', status: { text: String(m.notMoved.length), tone: 'idle' }, body: notBody }) + '</div></div></div>';
     }
   });
+
+  L.acts.tfbmcopy = function (el) {
+    var b = (D.moved.bookmarks || [])[+el.dataset.i]; if (!b) return;
+    try { navigator.clipboard.writeText(b.url).catch(function () {}); } catch (e) { /* clipboard unavailable in the prototype */ }
+    L.toast('Copied: ' + b.url);
+  };
 
   /* ======================================================================
      DAT-8 Find missing files
@@ -11361,6 +11468,172 @@ var L = (function () {
       p.markers.forEach(function (m) { if (m.at <= 0 || m.at >= c.dur) return; var i = document.createElement('i'); i.className = 'r7-mk' + (m.mix ? ' mix' : ''); i.style.left = (m.at / c.dur * 100) + '%'; i.title = m.label + ' ' + L.fmt(m.at); i.setAttribute('aria-hidden', 'true'); bar.appendChild(i); });
     });
   };
+})();
+
+;
+/* Round 8 (0.5.1, ROUND8.md): Lyre is the whole window. Added beside core.js and the screens, as round 7's files are.
+
+   The window (FND-16)
+     Lyre's page is the whole window: no Kenku FM tab bar, no Lyre Player tab. On Windows the window's own buttons
+     (minimise, maximise, close) are drawn by Windows at the top right, over Lyre's top strip (Electron's
+     titleBarOverlay). The prototype draws a stand-in of the same size: 138 × 36 px of the screen, whatever the text
+     size (so at 200 % it is 69 × 18 CSS px), marked data-window-buttons, hidden from screen readers and never
+     focusable (Windows' own buttons handle their own focus and names). It takes the colour of whatever is under it.
+     The space it needs is kept free by --wco-w and --wco-h (r8window.css): the top strip, Live's strip, Help's header
+     and every sheet keep clear of it, so nothing of Lyre's is ever under the buttons.
+     The empty parts of the top strip, Live's strip, Help's header and the logo drag the window (app-region: drag);
+     every control, field and text with hover text in them does not (no-drag), so each stays clickable and keeps its
+     hover text. Double-clicking an empty part maximises the window, and again puts it back (Windows does this for a
+     drag area; the prototype shows it on its stand-in).
+
+   Updates (SEC-14; the old main window used to show them)
+     L.updateEvent({ kind: 'downloaded' | 'up-to-date' | 'error', error })  what Electron's updater reported
+     downloaded  a standing note in the Saved pop-up's place: "Lyre has an update. Restart Lyre to use it." with
+                 Restart now; it stays until dismissed
+     error       the plain message (the same words as src/main/updateStatus.ts) once, as a warning card that says what
+                 to do; not again until a check has worked in between (the checks repeat every 15 minutes)
+
+   What a Kenku FM user brings (one-time move on the first start)
+     L.arriveFromKenkuFM({ plainToken, bookmarks })  the prototype's stand-in for that move (kept in its storage until
+     the page opens again): a token Kenku FM kept in plain text shows Settings › Discord bots' note once; the bookmarks
+     replace the sample's on What came across. */
+(function () {
+  var esc = L.esc, D = L.data;
+
+  /* ---------- what came across from Kenku FM ---------- */
+  var LEGACY_KEY = 'lyre-legacy';
+  function readLegacy() { try { return JSON.parse(localStorage.getItem(LEGACY_KEY) || '{}') || {}; } catch (e) { return {}; } }
+  function writeLegacy(o) { try { localStorage.setItem(LEGACY_KEY, JSON.stringify(o)); } catch (e) { /* storage unavailable: lasts for this visit */ } }
+  var legacy = readLegacy();
+  if (Array.isArray(legacy.bookmarks)) D.moved.bookmarks = legacy.bookmarks;
+  L.arriveFromKenkuFM = function (f) {
+    legacy = { token: !!f.plainToken, bookmarks: Array.isArray(f.bookmarks) ? f.bookmarks : undefined };
+    writeLegacy(legacy);
+  };
+  /* Settings › Discord bots shows the note while this is true; Got it ends it for good. */
+  // Read again each time: on a reload, storage read while the page's scripts first run can come back empty.
+  L.legacyTokenNote = function () { var now = readLegacy(); if (now.token) legacy = now; return !!legacy.token; };
+  L.legacyTokenSeen = function () { legacy.token = false; writeLegacy(legacy); };
+
+  /* ---------- the window's own buttons (the stand-in) ---------- */
+  var maxed = false;
+  var GLYPHS = {
+    min: '<path d="M1 5.5h9"/>',
+    max: '<rect x="1" y="1" width="9" height="9" rx="1"/>',
+    restore: '<rect x="1" y="3" width="7" height="7" rx="1"/><path d="M3 3V2a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H8"/>',
+    close: '<path d="M1 1l9 9M10 1l-9 9"/>'
+  };
+  function glyph(n) { return '<svg viewBox="0 0 11 11" aria-hidden="true" focusable="false">' + GLYPHS[n] + '</svg>'; }
+  function zoom() { return parseFloat(document.documentElement.style.zoom || '1') || 1; }
+  function buttons() {
+    var app = document.getElementById('app'), w = document.getElementById('lyre-winbtns');
+    if (!w && app) {
+      w = document.createElement('div');
+      w.id = 'lyre-winbtns'; w.className = 'winbtns'; w.setAttribute('aria-hidden', 'true'); w.setAttribute('data-window-buttons', '');
+      w.title = "The window's own buttons: Windows draws them in Lyre";
+      app.appendChild(w);
+      w.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-wb]'); if (!b) return;
+        if (b.dataset.wb === 'max') toggleMax();
+        else L.toast(b.dataset.wb === 'min' ? 'Windows puts Lyre on the taskbar' : 'Windows closes Lyre');
+      });
+    }
+    return w;
+  }
+  function paintButtons() {
+    var w = buttons(); if (!w) return;
+    w.dataset.maximised = String(maxed);
+    w.innerHTML = '<span class="wb" data-wb="min">' + glyph('min') + '</span><span class="wb" data-wb="max">' + glyph(maxed ? 'restore' : 'max') + '</span><span class="wb wb-close" data-wb="close">' + glyph('close') + '</span>';
+    // Its colours are those of what is under it (in the app: titleBarOverlay's color and symbolColor, sent again when
+    // the theme changes or Help opens beside the screen).
+    var r = w.getBoundingClientRect(), under = document.elementsFromPoint(r.left + 2, r.top + 2).filter(function (e) { return !w.contains(e); })[0];
+    var bg = '', ink = '';
+    for (var n = under; n && !bg; n = n.parentElement) {
+      var cs = getComputedStyle(n), c = (cs.backgroundColor.match(/[\d.]+/g) || []).map(Number);
+      if (c.length === 3 || (c.length === 4 && c[3] > 0.9)) { bg = cs.backgroundColor; ink = getComputedStyle(under).color; }
+    }
+    w.style.setProperty('--wb-bg', bg || getComputedStyle(document.body).backgroundColor);
+    w.style.setProperty('--wb-ink', ink || getComputedStyle(document.body).color);
+  }
+  function toggleMax() { maxed = !maxed; paintButtons(); L.say(maxed ? 'Lyre fills the screen' : 'Lyre is back to its size'); }
+  L.windowMaximised = function () { return maxed; };
+
+  // Where the strips are and what in them is not a drag area (the same list as r8window.css).
+  var DRAG = '.viewhead, .lv-top, .help-head, .rail .logo';
+  var NO_DRAG = 'a, button, input, select, textarea, label, summary, [role=button], [role=link], [role=switch], [role=radio], [role=combobox], [tabindex]:not([tabindex="-1"]), [title], [contenteditable]';
+  document.addEventListener('dblclick', function (e) {
+    var t = e.target; if (!t.closest || !t.closest(DRAG) || t.closest(NO_DRAG) || t.closest('[data-window-buttons]')) return;
+    e.preventDefault(); toggleMax();
+  });
+
+  // The prototype is the window: the stage's top is where a window's top would be, for sheets (r8window.css).
+  function placeStage() {
+    var h = document.documentElement, sw = document.getElementById('stagewrap');
+    h.style.setProperty('--zoom', String(zoom()));
+    if (sw) h.style.setProperty('--app-top', sw.offsetTop + 'px');
+  }
+  var render0 = L.render;
+  L.render = function () { render0.apply(L, arguments); placeStage(); paintButtons(); paintProto8(); };
+  window.addEventListener('resize', function () { placeStage(); paintButtons(); });
+
+  /* ---------- updates ---------- */
+  // The same words as src/main/updateStatus.ts (plainUpdateError and AGAIN).
+  var PREFIX = 'Lyre could not check for updates', AGAIN = 'It tries again every 15 minutes; this version keeps working.';
+  function plainUpdateError(raw) {
+    raw = String(raw || '');
+    if (/ERR_INTERNET_DISCONNECTED|ENOTFOUND|ERR_NAME_NOT_RESOLVED|EAI_AGAIN|ERR_NETWORK_CHANGED/i.test(raw)) return PREFIX + ': this computer seems to be offline.';
+    if (/TIMED_OUT|ETIMEDOUT|ECONNRESET|ECONNREFUSED|HTTP Status 5\d\d|ERR_CONNECTION/i.test(raw)) return PREFIX + ': the update service did not answer.';
+    if (/Update\.exe/i.test(raw) && /not found|ENOENT|cannot find/i.test(raw)) return PREFIX + ': the installer\'s updater is missing. Install Lyre again from the latest installer to get updates.';
+    if (/Update\.exe|Squirrel|Command failed/i.test(raw)) return PREFIX + ': Windows could not run Lyre\'s updater. Restart the computer; if it keeps happening, install Lyre again from the latest installer.';
+    var detail = (raw.split(/\r?\n/)[0] || '').trim().slice(0, 160);
+    return detail ? PREFIX + ' (' + detail + ').' : PREFIX + '.';
+  }
+  var told = false;
+  function slot(id, role) {
+    var box = document.getElementById('lyre-toasts'), el = document.getElementById(id);
+    if (!el && box) { el = document.createElement('div'); el.id = id; el.className = 'toast'; el.setAttribute('role', role); box.appendChild(el); }
+    return el;
+  }
+  function clearSlot(id) { var el = document.getElementById(id); if (el) { el.innerHTML = ''; el.className = 'toast'; } }
+  L.updateEvent = function (e) {
+    e = e || {};
+    if (e.kind === 'downloaded') {
+      told = false; clearSlot('lyre-upd-fail');
+      var r = slot('lyre-upd-ready', 'status');
+      r.innerHTML = L.icon('restart', 's') + '<span class="grow">Lyre has an update. Restart Lyre to use it.</span>' +
+        '<button class="btn s primary" type="button" data-act="updrestart" data-k="upd-restart">Restart now</button>' +
+        '<button class="closer" type="button" data-act="updx" data-v="ready" aria-label="Dismiss: Lyre has an update" title="Dismiss">' + L.icon('close') + '</button>';
+      r.className = 'toast t-stand';
+    } else if (e.kind === 'up-to-date') {
+      told = false;
+    } else if (e.kind === 'error') {
+      if (told) return;
+      told = true;
+      var plain = plainUpdateError(e.error), f = slot('lyre-upd-fail', 'alert');
+      f.innerHTML = L.icon('warn', 's') + '<div class="grow"><b>' + esc(plain) + '</b> <span>' + esc(AGAIN) + '</span></div>' +
+        '<button class="closer" type="button" data-act="updx" data-v="fail" aria-label="Dismiss: ' + esc(plain) + '" title="Dismiss">' + L.icon('close') + '</button>';
+      f.className = 'toast t-fail';
+    }
+    L.placeToasts();
+  };
+  L.acts.updx = function (el) { clearSlot(el.dataset.v === 'fail' ? 'lyre-upd-fail' : 'lyre-upd-ready'); L.placeToasts(); };
+  // The app: autoUpdater.quitAndInstall(); Lyre closes and opens again on the new version.
+  L.acts.updrestart = function () { clearSlot('lyre-upd-ready'); L.toast('Lyre closes and opens again on the new version (not in the prototype)'); };
+
+  /* ---------- the prototype's strip: show what cannot happen here ---------- */
+  function paintProto8() {
+    var p = document.getElementById('proto'); if (!p || p.dataset.r8) return;
+    p.dataset.r8 = '1';
+    var add = function (id, label, title, fn) {
+      var b = document.createElement('button'); b.type = 'button'; b.id = id; b.textContent = label; b.title = title;
+      b.addEventListener('click', fn); p.appendChild(b);
+    };
+    add('pUpdReady', 'Update downloaded', 'Lyre\'s updater has downloaded a new version', function () { L.updateEvent({ kind: 'downloaded' }); });
+    add('pUpdFail', 'Update check fails', 'The next update check fails because the computer is offline', function () { told = false; L.updateEvent({ kind: 'error', error: 'net::ERR_INTERNET_DISCONNECTED' }); });
+    add('pLegacy', 'Came from Kenku FM', 'Start as someone coming straight from Kenku FM, whose bot token was kept in plain text', function () {
+      L.arriveFromKenkuFM({ plainToken: true, bookmarks: D.moved.bookmarks }); L.route('#/settings');
+    });
+  }
 })();
 
 </script>

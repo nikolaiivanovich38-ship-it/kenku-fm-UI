@@ -6,7 +6,7 @@
  */
 import type { Page } from "@playwright/test";
 import { expect, expectFailureUntilBuilt, test } from "./support/test";
-import { openRoute } from "./support/target";
+import { arriveFromKenkuFM, openRoute, reopen } from "./support/target";
 
 const region = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
 const bots = (page: Page) => region(page, "Discord bots");
@@ -62,17 +62,14 @@ test.describe("Settings", () => {
   test("the other settings Lyre still needs are here; the rare ones are folded", async ({ page }) => {
     expectFailureUntilBuilt("rooms-settings");
     await openRoute(page, "settings");
-    // Round 7: Sound to Discord is set once, so it is folded with the other rare settings.
-    for (const name of ["Sound to Discord", "Headphones and speakers", "Remote control", "Keyboard shortcuts", "Website tabs", "Local files"]) {
+    // Round 7: Sound to Discord is set once, so it is folded with the other rare settings. 0.5.1: Website tabs and
+    // Local files went with the old window, and Remote control is hidden until Stream Deck support (checked below).
+    for (const name of ["Sound to Discord", "Headphones and speakers", "Keyboard shortcuts"]) {
       await expect(region(page, name).getByRole("button", { name, exact: true })).toHaveAttribute("aria-expanded", "false");
     }
     await region(page, "Sound to Discord").getByRole("button", { name: "Sound to Discord", exact: true }).click();
     // One of the two modes is chosen (the app keeps Kenku FM's default, Lighter on the computer; the prototype's is Best).
     await expect(region(page, "Sound to Discord").getByRole("radio", { checked: true })).toHaveCount(1);
-    await region(page, "Website tabs").getByRole("button", { name: "Website tabs", exact: true }).click();
-    await expect(region(page, "Website tabs").getByRole("switch", { name: "Use several inputs at once" })).toBeDisabled();
-    await region(page, "Website tabs").getByRole("switch", { name: "Microphones and other inputs" }).check();
-    await expect(region(page, "Website tabs").getByRole("switch", { name: "Use several inputs at once" })).toBeEnabled();
   });
 });
 
@@ -181,49 +178,14 @@ test.describe("round 6, part 4: Add a bot in the order it is done", () => {
   });
 });
 
-/* Round 7 (design/prototype/ROUND7.md): the remote control's secret code (SEC-4), headphones and speakers (PRV-2),
-   the default crossfade (PLY-8) and keyboard shortcuts (UX-12). */
+/* Round 7 (design/prototype/ROUND7.md): headphones and speakers (PRV-2), the default crossfade (PLY-8) and keyboard
+   shortcuts (UX-12). The remote control's secret code (SEC-4) is hidden in 0.5.1 with Remote control (Nik, 11 Nov:
+   "Hide until Stream Deck"); its checks come back with Stream Deck support (WP6). */
 const unfold = async (page: Page, name: string) => {
   const b = region(page, name).getByRole("button", { name, exact: true });
   if ((await b.getAttribute("aria-expanded")) !== "true") await b.click();
   return region(page, name);
 };
-
-test.describe("round 7: remote control needs a secret code", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("rooms-settings"));
-
-  test("is off by default; on, it shows the code to type on the other device and listens on this computer only", async ({ page }) => {
-    await openRoute(page, "settings");
-    const box = await unfold(page, "Remote control");
-    const on = box.getByRole("switch", { name: "Let other devices control Lyre" });
-    await expect(on).not.toBeChecked();
-    await expect(box.getByRole("group", { name: "Secret code" })).toHaveCount(0);
-    await on.check();
-    await expect(box.getByRole("group", { name: "Secret code" })).toContainText(/^.*[A-Z0-9]{4}-[A-Z0-9]{4}/);
-    await expect(box.getByRole("radio", { name: "This computer only" })).toBeChecked();
-    await expect(page.getByRole("status").filter({ hasText: "Saved: remote control on" })).toBeVisible();
-  });
-
-  test("Make a new code replaces the code, so the old one stops working", async ({ page }) => {
-    await openRoute(page, "settings");
-    const box = await unfold(page, "Remote control");
-    await box.getByRole("switch", { name: "Let other devices control Lyre" }).check();
-    const code = box.getByRole("group", { name: "Secret code" }).locator("output");
-    const before = await code.textContent();
-    await box.getByRole("button", { name: "Make a new code" }).click();
-    await expect(code).not.toHaveText(before ?? "");
-    await expect(page.getByRole("status").filter({ hasText: /new remote control code/ })).toBeVisible();
-  });
-
-  test("it can listen on the home network instead, for a phone or tablet", async ({ page }) => {
-    await openRoute(page, "settings");
-    const box = await unfold(page, "Remote control");
-    await box.getByRole("switch", { name: "Let other devices control Lyre" }).check();
-    await box.getByRole("radio", { name: "Your home network" }).check();
-    await expect(box.getByRole("radio", { name: "Your home network" })).toBeChecked();
-    await expect(box).toContainText(/192\.168\./);
-  });
-});
 
 test.describe("round 7: headphones and speakers", () => {
   test("the preview has its own device, remembered; no On air device (lead decision, 7 Nov: heard only through Discord)", async ({ page }) => {
@@ -306,5 +268,67 @@ test.describe("Settings shows Lyre's version", () => {
   test("UX-R16: the version is at the top right of Settings", async ({ page }) => {
     await openRoute(page, "settings");
     await expect(page.getByTitle("Lyre version")).toHaveText(/^\d+\.\d+\.\d+/);
+  });
+});
+
+/* 0.5.1 (design/prototype/ROUND8.md, FND-16): the old main window's Settings are gone, so Lyre's Settings is the only
+   one. Nik, 11 Nov: websites and microphones "Keep the code, remove them from the interface"; remote control "Hide
+   until Stream Deck". Sound to Discord stays, now kept by Lyre itself, with Empty the audio cache (it was part of the
+   old Clear website data). */
+test.describe("0.5.1: Settings without the old window", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("retire"));
+
+  test("Website tabs, Local files and Remote control are not in Settings", async ({ page }) => {
+    await openRoute(page, "settings");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Settings");
+    for (const name of ["Website tabs", "Local files", "Remote control"]) await expect(region(page, name)).toHaveCount(0);
+    await expect(page.getByRole("main")).not.toContainText(/Website|Microphones|Local files|Remote control|Stream Deck/);
+  });
+
+  test("Sound to Discord keeps its choice when Lyre opens again", async ({ page }) => {
+    await openRoute(page, "settings");
+    const box = await unfold(page, "Sound to Discord");
+    // The mode not chosen now (the app starts on Kenku FM's Lighter on the computer, the prototype on Best).
+    const other = box.getByRole("radio", { checked: false });
+    const name = ((await other.textContent()) ?? "").trim();
+    await other.click();
+    await expect(page.getByRole("status").filter({ hasText: `Saved: setting: ${name}` })).toBeVisible();
+    await reopen(page);
+    await openRoute(page, "settings");
+    await expect((await unfold(page, "Sound to Discord")).getByRole("radio", { name, exact: true })).toHaveAttribute("aria-checked", "true");
+  });
+
+  test("Empty the audio cache is a button in Sound to Discord", async ({ page }) => {
+    await openRoute(page, "settings");
+    const box = await unfold(page, "Sound to Discord");
+    const empty = box.getByRole("button", { name: "Empty the audio cache" });
+    await expect(empty).toHaveAttribute("title", /Your music files, library and settings are kept/);
+    await empty.click();
+    await expect(page.getByRole("status").filter({ hasText: "Audio cache emptied" })).toBeVisible();
+  });
+});
+
+/* 0.5.1: the one-time move of a Kenku FM bot token out of the old window's storage now happens in Lyre (it used to be
+   the old window's migration 6, with its LegacyTokenNotice). Someone coming straight from Kenku FM sees, once, under
+   Settings › Discord bots, that Lyre moved the token and keeps it encrypted now. */
+test.describe("0.5.1: a bot token from Kenku FM", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("retire"));
+
+  test("a token Kenku FM kept in plain text: Settings says once that Lyre moved it and keeps it encrypted", async ({ page }) => {
+    await arriveFromKenkuFM(page, { plainToken: true }, "settings");
+    const note = bots(page).getByRole("note");
+    await expect(note).toContainText("Lyre moved your Discord bot token from Kenku FM.");
+    await expect(note).toContainText("Lyre keeps it encrypted now");
+    await expect(note.getByRole("link", { name: "Discord Developer Portal" })).toHaveAttribute("href", "https://discord.com/developers/applications");
+    await note.getByRole("button", { name: "Got it" }).click();
+    await expect(bots(page).getByRole("note")).toHaveCount(0);
+    await reopen(page);
+    await openRoute(page, "settings");
+    await expect(bots(page).getByRole("note")).toHaveCount(0);
+  });
+
+  test("no note for someone whose token Lyre already kept", async ({ page }) => {
+    await openRoute(page, "settings");
+    await expect(bots(page).getByRole("note")).toHaveCount(0);
   });
 });

@@ -6,11 +6,14 @@
      Discord bots      each bot: status, the servers it is in, Connect or Disconnect, its token (only the last four
                        characters show; Replace… takes a new one) and, behind ⋯, Rename and Remove. Add a bot opens the
                        stepper below. Tokens are kept encrypted on this computer (SEC-5).
-     Sound to Discord  the streaming mode (Best sound quality or Lighter on the computer).
-     Remote control    the Stream Deck remote: on or off, address and port (folded: rare).
-     Website tabs      the address bar, microphones and other inputs, several inputs at once, Clear website data (folded).
-     Local files       folders whose files open without asking, each with Ask again (folded).
+     Sound to Discord  the streaming mode (Best sound quality or Lighter on the computer), kept by Lyre itself since
+                       0.5.1, and Empty the audio cache.
+     Remote control    the Stream Deck remote: on or off, address and port (folded: rare). Hidden in 0.5.1 until
+                       Stream Deck support (WP6; Nik, 11 Nov: "Hide until Stream Deck"); its design stays here.
    Look and feel stays its own screen in the menu.
+   0.5.1 (ROUND8.md): Website tabs and Local files went with the old window (Nik, 11 Nov: websites and microphones
+   "Keep the code, remove them from the interface"); a bot token moved from Kenku FM has a one-time note under
+   Discord bots.
 
    Add a bot, in the order Discord needs (checked against Discord's documentation, see ROUND6.md):
      1 Create an application in the Discord Developer Portal (New Application, a name, Create).
@@ -25,7 +28,13 @@
   var esc = L.esc, D = L.data;
   L.INVITE_PERMISSIONS = 1024 + 1048576 + 2097152;   // View Channels, Connect, Speak
   L.inviteURL = function (appId) { return 'https://discord.com/oauth2/authorize?client_id=' + encodeURIComponent(appId) + '&scope=bot&permissions=' + L.INVITE_PERMISSIONS; };
-  var S = { mode: 'quality', remote: false, address: '127.0.0.1', port: '3333', urlBar: true, inputs: false, several: false, folders: ['H:\\Audio\\Incoming'],
+  // 0.5.1: Sound to Discord is kept by Lyre itself (the app: this-computer.json), so it is kept across starts here too.
+  var SETTINGS_KEY = 'lyre-settings';
+  function readSettings() { try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') || {}; } catch (e) { return {}; } }
+  function keepSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ mode: S.mode })); } catch (e) { /* storage unavailable: lasts for this visit */ } }
+  // Remote control is hidden until Stream Deck support (WP6): its pane is not drawn; its design below is kept for then.
+  var SHOW_REMOTE = false;
+  var S = { mode: readSettings().mode || 'quality', remote: false, address: '127.0.0.1', port: '3333',
     add: null, replacing: '', opened: [],
     // Round 7 (SEC-4): the secret code (made on first run; the app keeps it encrypted, SEC-5) and where it listens.
     code: newCode(), listen: 'local',
@@ -190,7 +199,8 @@
   function soundBody() {
     return '<div class="seg" role="radiogroup" aria-label="Sound to Discord">' + MODES.map(function (m) {
       return '<button role="radio" aria-checked="' + (S.mode === m[0]) + '" data-act="stmode" data-v="' + m[0] + '" data-k="st-mode-' + m[0] + '" title="' + esc(m[2]) + '">' + m[1] + '</button>';
-    }).join('') + '</div>' + xfadeHTML();
+    }).join('') + '</div>' + xfadeHTML() +
+      '<div class="st-cache"><button class="btn s" type="button" data-act="stcache" data-k="st-cache" title="Deletes the copies Lyre made of your music so tracks start at once. Lyre makes them again when it needs them. Your music files, library and settings are kept.">Empty the audio cache</button></div>';
   }
   // Round 7 (PLY-8): the default crossfade, used by Next, a playlist moving on and a scene's play steps.
   var XFADES = [['0', 'Cut'], ['1', '1 s'], ['2', '2 s'], ['3', '3 s'], ['5', '5 s'], ['8', '8 s']];
@@ -259,7 +269,7 @@
       footer: '<button class="btn" data-act="closesheet">Close</button><button class="btn primary" data-act="stprint">' + L.icon('file', 's') + 'Print</button>' });
   };
   L.acts.stprint = function () { try { window.print(); } catch (e) { /* no printer in the prototype */ } };
-  L.acts.stmode = function (el) { S.mode = el.dataset.v; L.say(el.textContent + '. Applies the next time a bot joins a voice channel.'); L.render(); L.saved('setting: ' + el.textContent, { key: 'st-mode' }); };
+  L.acts.stmode = function (el) { S.mode = el.dataset.v; keepSettings(); L.say(el.textContent + '. Applies the next time a bot joins a voice channel.'); L.render(); L.saved('setting: ' + el.textContent, { key: 'st-mode' }); };
   /* Round 7 (SEC-4): remote control needs a secret code. Off by default. On: the code to type on the remote device
      (Stream Deck plugin, phone or tablet), Copy code, Make a new code (the old one stops working at once), and where
      Lyre listens: this computer only (127.0.0.1, the default) or your home network (for a phone on the same Wi-Fi). Every
@@ -280,22 +290,20 @@
   L.acts.stcodecopy = function () { try { navigator.clipboard.writeText(S.code).catch(function () {}); } catch (e) { /* clipboard unavailable in the prototype */ } L.toast('Code copied'); };
   L.acts.stcodenew = function () { S.code = newCode(); L.render(); L.saved('new remote control code', { detail: 'the old one stops working' }); };
   L.inputs.stlisten = function (el) { if (!el.checked) return; S.listen = el.value; L.render(); L.saved('remote control listens on ' + (S.listen === 'home' ? 'your home network' : 'this computer only'), { key: 'st-listen' }); };
-  function tabsBody() {
-    return sw('urlbar', 'Show the address bar on tabs', S.urlBar, 'sturl') + sw('inputs', 'Microphones and other inputs', S.inputs, 'stinputs') +
-      sw('several', 'Use several inputs at once', S.several, 'stseveral', { disabled: !S.inputs, why: 'Turn on Microphones and other inputs first.', title: S.inputs ? '' : 'Turn on Microphones and other inputs first' }) +
-      '<button class="btn s" data-act="stclear" data-k="st-clear" title="Logs you out of websites in tabs and deletes their saved files. Your library, playlists and settings are kept.">Clear website data</button>';
+  /* 0.5.1: the one-time note about a token moved from Kenku FM (the old window's LegacyTokenNotice, now in Lyre).
+     Kenku FM kept the token in plain text, and its own copy stays in Kenku FM's storage, so a new token is the only
+     certain fix: the note says how, once, until Got it. */
+  var PORTAL = 'https://discord.com/developers/applications';
+  function legacyNote() {
+    if (!L.legacyTokenNote || !L.legacyTokenNote()) return '';
+    return '<div class="st-legacy" role="note">' + L.icon('check', 's') + '<div class="grow"><p><b>Lyre moved your Discord bot token from Kenku FM.</b> Kenku FM kept it unprotected on this computer; Lyre keeps it encrypted now.</p>' +
+      '<p>To be safe, make a new token: in the <a href="' + PORTAL + '" target="_blank" rel="noopener" data-act="stportal" data-k="st-legacy-portal">Discord Developer Portal</a>, open your bot\'s Bot page, press Reset Token, then paste it here with Replace….</p></div>' +
+      '<button class="btn s" type="button" data-act="stlegacyok" data-k="st-legacy-ok">Got it</button></div>';
   }
-  L.inputs.sturl = function (el) { S.urlBar = el.checked; L.render(); };
-  L.inputs.stinputs = function (el) { S.inputs = el.checked; if (!S.inputs) S.several = false; L.render(); };
-  L.inputs.stseveral = function (el) { S.several = el.checked; L.render(); };
-  L.acts.stclear = function () { L.toast('Website data cleared: tabs are logged out'); L.say('Website data cleared'); };
-  function filesBody() {
-    if (!S.folders.length) return '<p class="faint">None</p>';
-    return '<ul class="list st-folders" aria-label="Folders opened without asking">' + S.folders.map(function (f, i) {
-      return '<li class="lrow"><span class="grow ellipsis num" title="' + esc(f) + '">' + esc(f) + '</span><button class="btn s ghost" data-act="stforget" data-i="' + i + '" data-k="st-forget-' + i + '" aria-label="Ask again before opening files in ' + esc(f) + '">Ask again</button></li>';
-    }).join('') + '</ul>';
-  }
-  L.acts.stforget = function (el) { var f = S.folders.splice(+el.dataset.i, 1)[0]; L.say('Lyre asks again before opening files in ' + f); L.render(); L.saved('setting: ask before opening files in ' + f); var h = document.querySelector('[data-k="pane-st-files"]'); if (h) h.focus(); };
+  L.acts.stlegacyok = function () { L.legacyTokenSeen(); L.render(); var h = document.querySelector('[data-k="pane-st-bots"]'); if (h) h.focus(); };
+  // Empty the audio cache (it was part of the old window's Clear website data). Nothing to confirm: Lyre makes the
+  // copies again when a track needs one.
+  L.acts.stcache = function () { L.toast('Audio cache emptied'); };
 
   L.view('settings', {
     nav: 'settings',
@@ -304,7 +312,7 @@
     notes: [
       'Everything Lyre still needs from the old main window\'s Settings. <b>Discord bots</b> first: status, servers, Connect or Disconnect, the token (last four characters; <b>Replace…</b>), and Rename or Remove behind ⋯.',
       '<b>Add a bot</b> walks through Discord in its order: create the application, <b>invite it first</b> (paste the Application ID and Lyre opens the invite, or make it by hand with OAuth2 › URL Generator), then paste the token and Connect.',
-      'The rare settings are folded: remote control, website tabs, local files.'
+      'The rare settings are folded. <b>0.5.1:</b> Website tabs and Local files went with the old window; Remote control is hidden until Stream Deck support. <b>Empty the audio cache</b> is in Sound to Discord. Someone coming straight from Kenku FM sees, once, that Lyre moved the bot token (prototype strip: Came from Kenku FM).'
     ],
     render: function () {
       var bots = L.bots();
@@ -312,21 +320,18 @@
       var botPane = L.pane({ id: 'st-bots', title: 'Discord bots', icon: 'users', kind: 'onair', size: 'auto', noMax: true, cls: 'is-silent',
         actions: '<button class="btn s" data-act="stadd" data-k="st-add">' + L.icon('plus', 's') + 'Add a bot</button>',
         describe: 'Each bot is one voice in Discord: one room at a time.',
-        body: '<div class="st-bots">' + bots.map(botRow).join('') + '</div>' });
+        body: legacyNote() + '<div class="st-bots">' + bots.map(botRow).join('') + '</div>' });
       // Round 7: set once, so folded like the other rare settings (and less to read on the screen).
       var sound = L.pane({ id: 'st-sound', title: 'Sound to Discord', icon: 'broadcast', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: soundBody(),
         describe: 'Both send sound to Discord with the same short delay. A change applies the next time a bot joins a voice channel.' });
       var devices = L.pane({ id: 'st-devices', title: 'Headphones and speakers', icon: 'headphones', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: devicesBody(),
         describe: 'If a device is unplugged, Lyre uses the computer\'s default until it is back.' });
       // Round 6 rule 4 and Nik's 16:14 answer: no resting status; "On" says something is open to other devices.
-      var remote = L.pane({ id: 'st-remote', title: 'Remote control', icon: 'link', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: remoteBody(), status: S.remote ? { text: 'On', tone: 'on' } : null,
+      var remote = !SHOW_REMOTE ? '' : L.pane({ id: 'st-remote', title: 'Remote control', icon: 'link', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: remoteBody(), status: S.remote ? { text: 'On', tone: 'on' } : null,
         describe: 'Off until you turn it on. Each device needs the secret code.' });
       var keys = L.pane({ id: 'st-keys', title: 'Keyboard shortcuts', icon: 'grid', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: keysBody(),
         describe: 'Ctrl+K finds and plays anything. Change any key here.' });
-      var tabs = L.pane({ id: 'st-tabs', title: 'Website tabs', icon: 'grid', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: tabsBody() });
-      var files = L.pane({ id: 'st-files', title: 'Local files', icon: 'folder', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: filesBody(),
-        describe: 'Lyre asks before opening a file from your computer. Folders you choose not to be asked about again are listed here.' });
-      return head + '<div class="viewbody st-body"><div class="st-split"><div class="col">' + botPane + '</div><div class="col">' + sound + devices + remote + keys + tabs + files + '</div></div></div>';
+      return head + '<div class="viewbody st-body"><div class="st-split"><div class="col">' + botPane + '</div><div class="col">' + sound + devices + remote + keys + '</div></div></div>';
     }
   });
 })();
