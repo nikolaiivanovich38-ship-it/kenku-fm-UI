@@ -302,3 +302,87 @@ describe("PRV-2: the preview's device and ear", () => {
     expect(state().previewEar).toBe("both");
   });
 });
+
+describe("CR-1 (review 0.5.0): Stop all and Fade all cancel everything waiting to start", () => {
+  const s1 = () => rig.data.campaigns[0].sessions[0].scenes[0];
+  const addDelayedPad = () =>
+    rig.data.pads?.push({
+      boardId: "b",
+      padId: "delayed",
+      label: "Delayed",
+      trackIds: ["fx1"],
+      order: "random",
+      mode: "oneshot",
+      fadeMs: 500,
+      volume: 1,
+      steps: [{ do: "sound" }, { do: "wait", ms: 3000 }, { do: "play", what: { kind: "track", id: "m5" }, how: "cut", upNext: "replace", fromMs: null }],
+    });
+
+  for (const how of ["stopAll", "fadeAll"] as const) {
+    it(`${how}: a scene set to move on after a time stays stopped`, async () => {
+      Object.assign(s1(), { movesOn: { when: "after", ms: 5000 } });
+      rig.audio.startScene(S1);
+      await rig.advance(1);
+      expect(playing()).toBe("m1");
+      rig.audio[how]();
+      await rig.advance(10);
+      expect(playing()).toBeNull();
+    });
+
+    it(`${how}: a scene's steps after a wait do not run`, async () => {
+      setSteps([{ do: "music", what: { kind: "track", id: "m1" }, how: "cut", upNext: "replace", fromMs: null }, { do: "wait", ms: 3000 }, { do: "play", what: { kind: "track", id: "m4" }, how: "cut", upNext: "replace", fromMs: null }, { do: "pad", boardId: "b", padId: "bell" }]);
+      rig.audio.startScene(S3);
+      await rig.advance(1);
+      rig.audio[how]();
+      await rig.advance(5);
+      expect(playing()).toBeNull();
+      expect(first().effects).toEqual([]);
+    });
+
+    it(`${how}: a pad's steps after a wait do not run`, async () => {
+      addDelayedPad();
+      rig.audio.startScene(S1);
+      await rig.advance(1);
+      rig.audio.firePad("b", "delayed");
+      await rig.advance(0.5);
+      rig.audio[how]();
+      await rig.advance(5);
+      expect(playing()).toBeNull();
+    });
+
+    it(`${how}: a scene's music waiting for the loop to end does not come in`, async () => {
+      rig.data.tracks.push(testTrack("lp", 20, { profile: { after: "loop" } }));
+      rig.audio.playTrack("lp");
+      await rig.advance(2);
+      setSteps([{ do: "music", what: { kind: "track", id: "m1" }, how: "loopEnds", upNext: "replace", fromMs: null }]);
+      rig.audio.startScene(S3);
+      await rig.advance(1);
+      rig.audio[how]();
+      await rig.advance(25);
+      expect(playing()).toBeNull();
+    });
+
+    it(`${how}: ends the scene's Undo, so nothing waiting comes back with it`, async () => {
+      Object.assign(s1(), { movesOn: { when: "after", ms: 5000 } });
+      rig.audio.startScene(S2);
+      await rig.advance(1);
+      rig.audio.startScene(S1);
+      await rig.advance(1);
+      rig.audio[how]();
+      expect(state().canUndo).toBe(false);
+      expect(rig.audio.undoSceneStart().ok).toBe(false);
+      await rig.advance(10);
+      expect(playing()).toBeNull();
+    });
+  }
+
+  it("what the game master starts afterwards runs as usual, its own waits included", async () => {
+    addDelayedPad();
+    rig.audio.firePad("b", "delayed");
+    await rig.advance(0.5);
+    rig.audio.stopAll();
+    rig.audio.firePad("b", "delayed");
+    await rig.advance(3.5);
+    expect(playing()).toBe("m5");
+  });
+});

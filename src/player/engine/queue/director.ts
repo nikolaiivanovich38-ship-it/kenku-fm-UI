@@ -62,6 +62,8 @@ export class Director extends TypedEmitter<DirectorEvents> {
   /** PLY-8: the scene start whose steps may still run (a new start or Undo stops the old one's), and its timer. */
   private sceneRun = 0;
   private movesOnTimer: unknown = null;
+  /** CR-1: pad step runs still allowed to go on; Stop all and Fade all move it on, which ends every one. */
+  private padRunGeneration = 0;
   private lastScene: SceneRef | null = null;
   /**
    * PLY-4: where each "Pick up where it stopped" track was stopped (every room shares it); the host may hand in one
@@ -219,8 +221,10 @@ export class Director extends TypedEmitter<DirectorEvents> {
         return this.eachRoom(action.target, (player) => (player.fadeLane(action.lane, fade), OK));
       }
       case "fadeAll":
+        this.cancelEverythingWaiting();
         return this.eachRoom(action.target ?? "all", (player) => (player.stopAll(seconds(action.fadeMs, DEFAULT_FADES.fadeAll)), OK));
       case "stopAll":
+        this.cancelEverythingWaiting();
         return this.eachRoom(action.target ?? "all", (player) => (player.stopAll(0), OK));
       case "firePad":
         return this.firePadNow(action.boardId, action.padId, action.phase ?? "down", action.target, 0);
@@ -299,6 +303,18 @@ export class Director extends TypedEmitter<DirectorEvents> {
     this.emit("change");
   }
 
+  /**
+   * CR-1: Stop all and Fade all leave nothing to start by itself later: the scene's moving on, its steps after a wait,
+   * every pad's steps, and the scene's Undo (the prototype ends the Undo strips here too). Each room's waiting
+   * hand-over ends with its music (RoomPlayer.stopAll).
+   */
+  private cancelEverythingWaiting(): void {
+    this.stopSceneRun();
+    this.padRunGeneration++;
+    this.lastScene = null;
+    this.undo = null;
+  }
+
   private stopSceneRun(): void {
     this.sceneRun++;
     if (this.movesOnTimer !== null) this.engine.scheduler.clearTimeout(this.movesOnTimer);
@@ -314,7 +330,8 @@ export class Director extends TypedEmitter<DirectorEvents> {
     const steps = pad?.steps ?? null;
     // A let-go, or a press that stops a sounding pad (BUG-20), is only about its sound.
     if (pad && steps && phase === "down" && !sounding) {
-      this.runSteps(steps, 0, { target, alive: () => true, depth, sound: () => this.padSound(boardId, padId, "down", target) });
+      const generation = this.padRunGeneration;
+      this.runSteps(steps, 0, { target, alive: () => this.padRunGeneration === generation, depth, sound: () => this.padSound(boardId, padId, "down", target) });
       return OK;
     }
     return this.padSound(boardId, padId, phase, target);
