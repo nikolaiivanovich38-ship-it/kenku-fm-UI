@@ -1,0 +1,178 @@
+/* Pad boards: list (#/boards) and editor (#/board/<id>). Prefix pb-.
+   Pad colours (--pc, from L.colors) are identities: a left stripe and an icon tile. Text keeps the theme's ink. */
+.pb-sub { font-size: var(--fs-s); }
+
+/* ---------- list of boards ---------- */
+.pb-cards { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: var(--gap); }
+.pb-card { display: flex; flex-direction: column; gap: 6px; padding: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-l); min-width: 0; }
+.pb-card:hover { border-color: var(--line-strong); }
+.pb-card-main { display: flex; align-items: center; gap: 10px; min-width: 0; color: var(--ink); text-decoration: none; border-radius: var(--r-s); }
+.pb-card-main:hover .pb-card-name { text-decoration: underline; }
+.pb-card-text { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
+.pb-card-name { font-family: var(--display); font-weight: var(--display-weight); text-transform: var(--display-case); letter-spacing: var(--display-track); font-size: calc(var(--fs-l) * var(--display-scale)); }
+.pb-card-size { font-size: var(--fs-xs); color: var(--ink-2); }
+.pb-card-used { font-size: var(--fs-xs); color: var(--ink-2); display: flex; gap: 6px; min-width: 0; }
+.pb-card-used .pb-used-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.pb-card-acts { display: flex; align-items: center; gap: 4px; margin-top: auto; }
+.pb-card-acts a.btn { text-decoration: none; }
+.pb-mini { display: grid; gap: 2px; flex: none; padding: 4px; border-radius: var(--r-s); background: var(--bg); border: 1px solid var(--line); }
+.pb-cell { display: block; width: 10px; height: 8px; border-radius: 2px; border: 1px solid var(--line-strong); }
+.pb-cell.on { background: var(--pc); border-color: var(--pc); }
+.pb-uselist { padding-left: 18px; }
+
+/* New board sheet */
+.pb-fs { border: 0; padding: 0; margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.pb-fs > legend { padding: 0; margin-bottom: 4px; font-size: var(--fs-xs); color: var(--ink-2); font-weight: 700; letter-spacing: .02em; }
+.pb-cur { font-weight: 400; color: var(--ink-3); margin-left: 4px; }
+.pb-qs { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 4px; }
+.pb-qs-opt { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-height: var(--ctl); padding: 3px 8px; border: 1px solid var(--line); border-radius: var(--r-m); cursor: pointer; font-weight: 700; font-size: var(--fs-s); }
+.pb-qs-opt:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.pb-qs-opt .hint { flex-basis: 100%; padding-left: 22px; font-weight: 400; }
+.pb-nb-custom { align-items: flex-end; }
+.pb-nb-custom .field { width: 90px; }
+.pb-x { padding-bottom: 6px; color: var(--ink-3); }
+
+/* ---------- editor layout ---------- */
+.pb-body { flex: 1; min-height: 0; padding: 8px; display: flex; flex-direction: column; overflow: hidden; }
+.pb-ed { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(290px, 36%); gap: var(--gap); }
+.pb-left { overflow: auto; }
+.pb-left > .pane, .pb-left > .pane[data-size] { flex: none; }
+.pb-left.has-max > .pane.maxed { flex: 1 1 auto; }
+.viewhead a.btn { text-decoration: none; }
+
+/* Toolbar: name, size steppers, quick sizes, count */
+.pb-tools { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.pb-name { max-width: 360px; }
+.pb-sizes { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; min-width: 0; }
+.pb-step { display: inline-flex; align-items: center; gap: 4px; flex: none; }
+.pb-step-l { font-size: var(--fs-xs); font-weight: 700; color: var(--ink-2); margin-right: 2px; }
+.pb-step-v { min-width: 16px; text-align: center; font-size: var(--fs-l); }
+.pb-count { font-size: var(--fs-s); color: var(--ink-2); white-space: nowrap; }
+.pb-count b { color: var(--ink); font-size: var(--fs); }
+.pb-msg { display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 8px; margin-bottom: 8px; border: 1px solid var(--line-strong); border-left: 3px solid var(--accent); border-radius: var(--r-m); background: var(--surface-2); font-size: var(--fs-s); }
+.pb-msg > svg { color: var(--accent-text); }
+
+/* The grid */
+.pb-grid { display: grid; gap: 6px; }
+.pb-slot { min-width: 0; container-type: inline-size; container-name: pbslot; border-radius: var(--r-m); }
+.pb-slot.pb-over { outline: 2px dashed var(--accent); outline-offset: 2px; }
+.pb-pad, .pb-empty { width: 100%; height: 62px; border-radius: var(--r-m); cursor: pointer; text-align: left; min-width: 0; }
+/* A pad tile: the slot draws the frame and stripe; inside sit the pad button (select, drag) and a Preview button. */
+.pb-has { position: relative; display: flex; height: 62px; overflow: hidden; border: 1px solid var(--line-strong); background: var(--surface-2); --stripe: var(--pc); }
+.pb-has::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--stripe); pointer-events: none; }
+.pb-has:hover { background: var(--surface-3); }
+.pb-has.sel { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--surface-2)); }
+.pb-pad { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: space-between; gap: 2px; padding: 5px 2px 5px 10px; border: 0; background: transparent; color: var(--ink); border-radius: var(--r-m); }
+.pb-tile-pv { display: flex; align-items: flex-end; padding: 0 3px 3px 0; flex: none; }
+.pb-tile-pv .pv { border-color: transparent; background: transparent; color: var(--ink-3); }
+.pb-tile-pv .pv:hover { color: var(--preview); background: var(--surface-3); }
+.pb-tile-pv .pv[aria-pressed="true"] { color: var(--preview); border-color: var(--preview); background: color-mix(in srgb, var(--preview) 18%, transparent); }
+.pb-has.on::after, .pb-has.pv::after { content: ''; position: absolute; left: 4px; right: 0; bottom: 0; height: 3px; background: var(--fx); animation: pb-pulse 1s ease-in-out infinite alternate; pointer-events: none; }
+.pb-has.pv:not(.on)::after { background: var(--preview); animation: none; }
+.pb-slot:has(.dragging) { opacity: .5; }
+@keyframes pb-pulse { from { opacity: .45; } to { opacity: 1; } }
+.pb-pad-label { font-size: var(--fs-s); font-weight: 700; line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere; min-width: 0; }
+.pb-pad-meta { display: flex; align-items: center; gap: 5px; color: var(--ink-3); font-size: var(--fs-xs); min-width: 0; }
+.pb-pad-meta .kbd { padding: 1px 4px; }
+.pb-mode { display: inline-flex; color: var(--ink-3); opacity: .8; }
+.pb-mode svg.i { width: 12px; height: 12px; }
+.pb-lvl { flex: none; width: 52px; font-size: var(--fs-xs); color: var(--ink-3); }
+.pb-playing { margin-left: auto; color: var(--ink); font-weight: 700; }
+.pb-empty { display: flex; align-items: center; justify-content: center; gap: 4px; border: 1px dashed var(--line); background: transparent; color: var(--ink-3); font-size: var(--fs-xs); font-weight: 700; }
+.pb-empty:hover, .pb-slot.pb-over .pb-empty { border-color: var(--line-strong); color: var(--ink); background: var(--surface-2); }
+@container pbslot (max-width: 84px) {
+  .pb-pad { padding-left: 8px; }
+  .pb-tile-pv { padding-right: 1px; }
+  .pb-mode, .pb-playing { display: none; }
+  .pb-empty-t { display: none; }
+}
+.pb-help { margin-top: 6px; }
+/* Parchment: deepen the stripe so it shows on paper; the tile keeps its light colour with a dark icon. */
+[data-theme="parchment"] .pb-has { --stripe: color-mix(in srgb, var(--pc) 55%, #2a1d0c); }
+
+/* Spare pads */
+.pb-spare { min-height: 40px; border-radius: var(--r-m); }
+.pb-spare.pb-over { outline: 2px dashed var(--accent); outline-offset: -2px; }
+.pb-spare .lrow { gap: 4px; padding-left: 0; position: relative; }
+.pb-spare .lrow::before { content: ''; align-self: stretch; width: 4px; flex: none; margin-right: 4px; background: var(--pc); border-radius: 0 2px 2px 0; }
+[data-theme="parchment"] .pb-spare .lrow::before { background: color-mix(in srgb, var(--pc) 55%, #2a1d0c); }
+.pb-sp-pick { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; height: var(--ctl-s); padding: 0 4px; border: 0; background: transparent; color: var(--ink); font-weight: 700; font-size: var(--fs-s); cursor: pointer; border-radius: var(--r-s); text-align: left; }
+.pb-sp-pick .pb-spare-empty { padding: 8px; font-size: var(--fs-s); color: var(--ink-2); }
+/* "Not used yet." in the Used in box sits off the box edge, as in Spare pads. */
+[data-pane="pb-used"] .pb-spare-empty { padding: 8px; font-size: var(--fs-s); color: var(--ink-2); }
+
+/* Pad editor */
+.pb-ed-body { display: flex; flex-direction: column; gap: 10px; }
+.pb-testrow { display: flex; flex-wrap: wrap; gap: 6px; }
+.pb-prev { color: var(--ink); border-color: var(--preview); background: color-mix(in srgb, var(--preview) 18%, var(--surface-2)); }
+.pb-prev:hover { background: color-mix(in srgb, var(--preview) 28%, var(--surface-2)); }
+.pb-prev svg.i { color: var(--preview); }
+.pb-prev[aria-pressed="true"] { background: color-mix(in srgb, var(--preview) 30%, var(--surface-2)); border-color: var(--preview); }
+.pb-testrow { align-items: center; }
+.pb-seg-wide { display: flex; width: 100%; }
+.pb-seg-wide button { flex: 1; justify-content: center; min-width: 0; padding: 0 4px; }
+.pb-files { list-style: none; display: flex; flex-direction: column; border: 1px solid var(--line); border-radius: var(--r-m); }
+.pb-files li { display: flex; align-items: center; gap: 6px; min-height: 26px; padding: 0 2px 0 8px; font-size: var(--fs-s); border-bottom: 1px solid var(--line); min-width: 0; }
+.pb-files li:last-child { border-bottom: 0; }
+.pb-files svg.i { color: var(--ink-3); }
+.pb-filerow { flex-wrap: wrap; gap: 6px; }
+.pb-order { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; }
+.pb-order-l { font-size: var(--fs-xs); font-weight: 700; color: var(--ink-2); }
+.pb-none { font-size: var(--fs-s); color: var(--ink-2); padding: 2px 0; }
+.pb-modes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; }
+.pb-modes .btn { justify-content: flex-start; }
+.pb-modehelp { font-size: var(--fs-s); color: var(--ink-2); }
+.pb-keycap { display: inline-flex; align-items: center; gap: 6px; height: var(--ctl); padding: 0 10px; border: 1px dashed var(--line-strong); border-radius: var(--r-m); background: var(--bg); color: var(--ink); cursor: pointer; font-size: var(--fs-s); min-width: 0; }
+.pb-keycap.capturing { border-style: solid; border-color: var(--accent); background: var(--accent-soft); }
+.pb-warn { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 4px 4px 4px 8px; border: 1px solid var(--warn); border-radius: var(--r-m); font-size: var(--fs-s); color: var(--ink); }
+.pb-warn > svg { color: var(--warn); }
+.pb-swatches { display: flex; flex-wrap: wrap; gap: 4px; }
+.pb-sw, .pb-ic { position: relative; display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: var(--r-m); border: 1px solid transparent; cursor: pointer; }
+.pb-vh { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.pb-sw-dot { width: 20px; height: 20px; border-radius: 50%; background: var(--pc); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pc) 55%, #000); }
+.pb-sw:hover, .pb-ic:hover { background: var(--surface-2); }
+.pb-sw:has(input:checked), .pb-ic:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.pb-sw:has(input:checked) .pb-sw-dot::after { content: ''; }
+.pb-sw:has(input:checked) .pb-sw-dot { box-shadow: inset 0 0 0 2px var(--surface), 0 0 0 1px var(--ink); }
+.pb-sw:has(input:focus-visible), .pb-ic:has(input:focus-visible) { outline: 2px solid var(--focus); outline-offset: 1px; }
+.pb-icons { display: grid; grid-template-columns: repeat(auto-fill, 28px); gap: 2px; }
+.pb-ic { color: var(--ink-2); }
+.pb-ic:has(input:checked) { color: var(--ink); }
+.pb-levels { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.pb-levels .field.grow { min-width: 140px; }
+.pb-levels input[type="range"] { width: 100%; height: var(--ctl); margin: 0; }
+.pb-levels output { color: var(--ink); margin-left: 4px; }
+.pb-fade { width: 120px; }
+
+/* Used in */
+.pb-uselink { color: var(--ink); text-decoration: none; font-size: var(--fs-s); }
+.pb-uselink:hover { text-decoration: underline; }
+
+/* Narrow: one column, grid then spare pads then the pad editor then Used in; the page scrolls. */
+@container app (max-width: 900px) {
+  .pb-body { overflow: auto; }
+  .pb-ed { display: flex; flex-direction: column; flex: none; }
+  .pb-ed > .col { display: contents; }
+  .pb-ed .pane { flex: none !important; }
+  .pb-ed .pane-body { overflow: visible; }
+  .pb-ed [data-pane="pb-pad"] { order: 3; }
+  .pb-ed [data-pane="pb-used"] { order: 4; }
+  .pb-ed .col.has-max > .pane:not(.maxed) { display: none; }
+}
+
+/* Round 3: list search and filters; spare pads explained; library sounds */
+.pb-ltools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-bottom: 8px; }
+.pb-lsearch { flex: 1 1 200px; max-width: 340px; }
+.pb-camp { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); font-weight: 700; color: var(--ink-2); }
+.pb-camp select.input { width: auto; max-width: 200px; height: var(--ctl-s); font-size: var(--fs-s); font-weight: 400; }
+.pb-card-acts .pv { flex: none; }
+.pb-kbd-off { text-decoration: line-through; color: var(--ink-3); }
+.pb-files .pv { margin-left: 2px; }
+.pb-has .pb-pad:focus-visible, .pb-tile-pv .pv:focus-visible { outline-offset: -2px; }
+/* Round 5: the pad's own Preview is a clear button on every tile (SFX-12), and Try pads plays pads as in Live, privately. */
+.pb-tile-pv .pv { color: var(--preview); border-color: color-mix(in srgb, var(--preview) 45%, transparent); }
+.pb-slot.trying { box-shadow: 0 0 0 2px var(--preview); }
+.pb-trying { font-size: var(--fs-xs); font-weight: 700; color: var(--preview); }
+.pb-tryhint { display: flex; align-items: center; gap: 6px; padding: 5px 8px; margin: 0 0 6px; border: 1px solid var(--preview); border-radius: var(--r-m); font-size: var(--fs-s); }
+.pb-tryhint > svg.i { color: var(--preview); flex: none; }
+.btn.s.pb-trybtn[aria-pressed="true"] { border-color: var(--preview); background: color-mix(in srgb, var(--preview) 18%, transparent); }

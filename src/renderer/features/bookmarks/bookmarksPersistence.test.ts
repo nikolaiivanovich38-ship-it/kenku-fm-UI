@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.hoisted(() => {
-  Object.assign(window, { kenku: { platform: "win32", playerGetURL: () => "player.html" } });
+  Object.assign(window, { kenku: { platform: "win32", playerGetURL: () => "player.html", lyreGetURL: () => "lyre.html" } });
   // Bookmarks as Kenku FM 1.5.5 / Cue Desk 0.1.0 saved them (persist:root, version 4).
   // redux-persist stores each top-level key as its own JSON string.
   window.localStorage.setItem(

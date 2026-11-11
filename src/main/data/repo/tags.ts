@@ -5,11 +5,12 @@
  * track in one undoable step, and the search index follows by itself.
  */
 import { ValidationError } from "../errors";
-import { positionFor, type OrderedList } from "../ordering";
-import type { Store } from "../store";
-import type { Placement, Tag, TagGroup } from "../types";
+import { positionFor, positionsFor, type OrderedList } from "../ordering";
+import { BATCH_SIZE, type Store } from "../store";
+import type { Placement, Tag, TagGroup, TagUsage } from "../types";
 import * as v from "../validate";
 import { newId, patchOf, placeholders, plural, requireRow, unique } from "./common";
+import { dropRuleTags, mergeRuleTag } from "./ruleRows";
 
 type GroupRow = { id: string; name: string; color: string | null; position: number };
 type TagRow = {
@@ -61,7 +62,7 @@ export function createTagGroup(
 ): TagGroup {
   const id = newId(input.id);
   const name = v.requiredName("name", input.name);
-  const color = v.nullableColor("color", input.color);
+  const color = v.nullablePaletteColor("color", input.color);
   store.change(`Add tag group "${name}"`, () =>
     unique("name", `A tag group called "${name}"`, () =>
       store.run(
@@ -89,7 +90,7 @@ export function updateTagGroup(store: Store, id: string, changes: { name?: strin
   const patch = patchOf(changes, ["name", "color"]);
   const groupId = requireRow(store, "tag_groups", "tag group", id);
   const name = patch.name === undefined ? undefined : v.requiredName("name", patch.name);
-  const color = "color" in patch ? v.nullableColor("color", patch.color) : undefined;
+  const color = "color" in patch ? v.nullablePaletteColor("color", patch.color) : undefined;
   store.change("Change tag group", () =>
     unique("name", `A tag group called "${name}"`, () => {
       if (name !== undefined) store.run("UPDATE tag_groups SET name = ? WHERE id = ?", name, groupId);
@@ -106,10 +107,35 @@ export function moveTagGroup(store: Store, id: string, placement: Placement): vo
   );
 }
 
-/** Deletes a group and its tags; every track loses those tags (one undoable step). */
-export function deleteTagGroup(store: Store, id: string): void {
+/**
+ * Deletes a group and its tags in one undoable step: every track loses those
+ * tags and dynamic rules their conditions on the group (ON DELETE CASCADE).
+ * The tags come off the tracks in batches (DB review 1); await the result.
+ */
+export function deleteTagGroup(store: Store, id: string): Promise<void> {
   const group = getTagGroup(store, requireRow(store, "tag_groups", "tag group", id)) as TagGroup;
-  store.change(`Delete tag group "${group.name}"`, () => store.run("DELETE FROM tag_groups WHERE id = ?", group.id));
+  const tagIds = store.all<{ id: string }>("SELECT id FROM tags WHERE group_id = ?", group.id).map((row) => row.id);
+  return untagInBatches(store, `Delete tag group "${group.name}"`, tagIds, () =>
+    store.run("DELETE FROM tag_groups WHERE id = ?", group.id),
+  );
+}
+
+/**
+ * Takes `tagIds` off every track that carries them, about BATCH_SIZE tracks per
+ * transaction, then runs `finish` in the last one: one undo step that never
+ * holds the main process for long, however many tracks carry the tags.
+ */
+function untagInBatches(store: Store, label: string, tagIds: string[], finish: () => void): Promise<void> {
+  const list = JSON.stringify(tagIds);
+  const tracks = store
+    .all<{ track_id: string }>("SELECT DISTINCT track_id FROM track_tags WHERE tag_id IN (SELECT value FROM json_each(?))", list)
+    .map((row) => row.track_id);
+  // One key look-up per row (track_tags' primary key), never a scan of every tagging.
+  const untag = `DELETE FROM track_tags WHERE track_id = ? AND tag_id IN (${placeholders(tagIds.length)})`;
+  return store.changeInBatches(label, tracks, (batch, last) => {
+    for (const trackId of batch) store.run(untag, trackId, ...tagIds);
+    if (last) finish();
+  });
 }
 
 // --- Tags ---
@@ -170,7 +196,7 @@ export function createTag(
   const id = newId(input.id);
   const groupId = requireRow(store, "tag_groups", "tag group", input.groupId);
   const name = v.requiredName("name", input.name);
-  const color = v.nullableColor("color", input.color);
+  const color = v.nullablePaletteColor("color", input.color);
   const parentId = checkParent(store, input.parentId, groupId, null);
   const synonyms = cleanSynonyms(input.synonyms);
   store.change(`Add tag "${name}"`, () =>
@@ -221,19 +247,23 @@ export function updateTag(
   const patch = patchOf(changes, ["name", "color", "parentId", "groupId"]);
   const tag = getTag(store, requireRow(store, "tags", "tag", id)) as Tag;
   const name = patch.name === undefined ? undefined : v.requiredName("name", patch.name);
-  const color = "color" in patch ? v.nullableColor("color", patch.color) : undefined;
+  const color = "color" in patch ? v.nullablePaletteColor("color", patch.color) : undefined;
   const groupId = patch.groupId === undefined ? tag.groupId : requireRow(store, "tag_groups", "tag group", patch.groupId);
   const groupChanges = groupId !== tag.groupId;
   const parentId =
     "parentId" in patch ? checkParent(store, patch.parentId, groupId, tag.id) : groupChanges ? null : tag.parentId;
   store.change(`Change tag "${tag.name}"`, () =>
     unique("name", `A tag called "${name ?? tag.name}" in this group`, () => {
+      // Rules name tags by key, so a rename needs nothing; a tag moving to another group
+      // leaves its old group's conditions (rule_condition_tags' key ties a value to the group).
+      if (groupChanges) dropRuleTags(store, subtreeIds(store, tag.id));
       if (name !== undefined) store.run("UPDATE tags SET name = ? WHERE id = ?", name, tag.id);
       if (color !== undefined) store.run("UPDATE tags SET color = ? WHERE id = ?", color, tag.id);
       if (groupChanges) {
-        const position = positionFor(store, tagsIn(groupId), "end");
-        for (const subId of subtreeIds(store, tag.id)) store.run("UPDATE tags SET group_id = ? WHERE id = ?", groupId, subId);
-        store.run("UPDATE tags SET position = ? WHERE id = ?", position, tag.id);
+        // The tag and the tags below it go to the end of the new group, in their order (positions are unique per group).
+        const moving = subtreeIds(store, tag.id);
+        const positions = positionsFor(store, tagsIn(groupId), "end", moving.length);
+        moving.forEach((subId, index) => store.run("UPDATE tags SET group_id = ?, position = ? WHERE id = ?", groupId, positions[index], subId));
       }
       if (parentId !== tag.parentId) store.run("UPDATE tags SET parent_id = ? WHERE id = ?", parentId, tag.id);
     }),
@@ -248,10 +278,40 @@ export function moveTag(store: Store, id: string, placement: Placement): void {
   );
 }
 
-/** Deletes a tag; tracks lose it and tags below it move to the top of the group. */
-export function deleteTag(store: Store, id: string): void {
+/**
+ * SQL for where a tag is used, each starting from the tag's own index
+ * (track_tags_tag, rule_condition_tags_tag, pads_tag). Exported for the query-plan tests.
+ */
+export const TAG_USAGE_SQL = {
+  tracks: "SELECT count(*) AS n FROM track_tags WHERE tag_id = ?",
+  playlists: `SELECT DISTINCT p.id, p.title FROM rule_condition_tags v
+    JOIN rule_conditions c ON c.id = v.condition_id JOIN playlists p ON p.id = c.playlist_id
+    WHERE v.tag_id = ? ORDER BY p.title COLLATE NOCASE, p.id`,
+  pads: `SELECT p.id, p.label, b.id AS boardId, b.title AS boardTitle FROM pads p JOIN boards b ON b.id = p.board_id
+    WHERE p.sound_tag_id = ? ORDER BY b.title COLLATE NOCASE, b.id, p.label COLLATE NOCASE, p.id`,
+} as const;
+
+/** Where a tag is used: the "Used in" question asked before deleting it (DB review 2). */
+export function tagUsage(store: Store, id: string): TagUsage {
+  const tagId = requireRow(store, "tags", "tag", id);
+  return {
+    tracks: (store.get<{ n: number }>(TAG_USAGE_SQL.tracks, tagId) as { n: number }).n,
+    playlists: store.all<{ id: string; title: string }>(TAG_USAGE_SQL.playlists, tagId),
+    pads: store.all<TagUsage["pads"][number]>(TAG_USAGE_SQL.pads, tagId),
+  };
+}
+
+/**
+ * Deletes a tag; tracks and dynamic rules lose it (ON DELETE CASCADE), and tags
+ * below it move up a level, under its own parent. The tracks lose it in batches (DB review 1).
+ */
+export function deleteTag(store: Store, id: string): Promise<void> {
   const tag = getTag(store, requireRow(store, "tags", "tag", id)) as Tag;
-  store.change(`Delete tag "${tag.name}"`, () => store.run("DELETE FROM tags WHERE id = ?", tag.id));
+  return untagInBatches(store, `Delete tag "${tag.name}"`, [tag.id], () => {
+    // DAT-10 (r7tags.js tgdelok): the tags that were inside it move up a level, to where it was.
+    store.run("UPDATE tags SET parent_id = ? WHERE parent_id = ?", tag.parentId, tag.id);
+    store.run("DELETE FROM tags WHERE id = ?", tag.id);
+  });
 }
 
 export function setTagSynonyms(store: Store, id: string, synonyms: string[]): Tag {
@@ -265,8 +325,9 @@ export function setTagSynonyms(store: Store, id: string, synonyms: string[]): Ta
  * Merges tags into `targetId` as one undoable step: their tracks get the target
  * tag, their names and synonyms become synonyms of the target, tags below them
  * move under the target (or to the top of their group), and they are deleted.
+ * The tracks move over in batches (DB review 1); await the result.
  */
-export function mergeTags(store: Store, sourceIds: string[], targetId: string): Tag {
+export function mergeTags(store: Store, sourceIds: string[], targetId: string): Promise<Tag> {
   const target = getTag(store, requireRow(store, "tags", "tag", targetId)) as Tag;
   const sources = [...new Set(v.ids("sourceIds", sourceIds))].map(
     (id) => getTag(store, requireRow(store, "tags", "tag", id)) as Tag,
@@ -274,62 +335,98 @@ export function mergeTags(store: Store, sourceIds: string[], targetId: string): 
   if (sources.length === 0 || sources.some((source) => source.id === target.id)) {
     throw new ValidationError("sourceIds", "Choose one or more other tags to merge into this one.");
   }
-  store.change(`Merge ${plural(sources.length, "tag")} into "${target.name}"`, () => {
-    for (const source of sources) {
-      store.run(
-        "INSERT OR IGNORE INTO track_tags (track_id, tag_id) SELECT track_id, ? FROM track_tags WHERE tag_id = ?",
-        target.id,
-        source.id,
-      );
-      for (const synonym of [source.name, ...source.synonyms]) {
-        if (synonym.toLowerCase() !== target.name.toLowerCase()) {
-          store.run("INSERT OR IGNORE INTO tag_synonyms (tag_id, synonym) VALUES (?, ?)", target.id, synonym);
-        }
+  const list = JSON.stringify(sources.map((source) => source.id));
+  const tracks = store
+    .all<{ track_id: string }>("SELECT DISTINCT track_id FROM track_tags WHERE tag_id IN (SELECT value FROM json_each(?))", list)
+    .map((row) => row.track_id);
+  return store
+    .changeInBatches(`Merge ${plural(sources.length, "tag")} into "${target.name}"`, tracks, (batch, last) => {
+      // Every track listed carries a source tag: it gets the target and loses the sources.
+      const untag = `DELETE FROM track_tags WHERE track_id = ? AND tag_id IN (${placeholders(sources.length)})`;
+      // DAT-10: the target keeps the earlier place of the two (its own, or the first source's on that track).
+      const earliest = `SELECT min(added) AS added FROM track_tags WHERE track_id = ? AND tag_id IN (${placeholders(sources.length + 1)})`;
+      for (const trackId of batch) {
+        const ids = sources.map((source) => source.id);
+        const added = (store.get<{ added: number }>(earliest, trackId, target.id, ...ids) as { added: number }).added;
+        store.run("INSERT OR IGNORE INTO track_tags (track_id, tag_id, added) VALUES (?, ?, ?)", trackId, target.id, added);
+        store.run("UPDATE track_tags SET added = ? WHERE track_id = ? AND tag_id = ?", added, trackId, target.id);
+        store.run(untag, trackId, ...ids);
       }
-      store.run(
-        "UPDATE tags SET parent_id = CASE WHEN group_id = ? THEN ? ELSE NULL END WHERE parent_id = ?",
-        target.groupId,
-        target.id,
-        source.id,
-      );
-      store.run("DELETE FROM tags WHERE id = ?", source.id);
-    }
-  });
-  return getTag(store, target.id) as Tag;
+      if (!last) return;
+      for (const source of sources) {
+        // Rules naming the source name the target (same group); in another group the source's values just go.
+        if (source.groupId === target.groupId) mergeRuleTag(store, source.id, target.id);
+        for (const synonym of [source.name, ...source.synonyms]) {
+          if (synonym.toLowerCase() !== target.name.toLowerCase()) {
+            store.run("INSERT OR IGNORE INTO tag_synonyms (tag_id, synonym) VALUES (?, ?)", target.id, synonym);
+          }
+        }
+        store.run(
+          "UPDATE tags SET parent_id = CASE WHEN group_id = ? THEN ? ELSE NULL END WHERE parent_id = ?",
+          target.groupId,
+          target.id,
+          source.id,
+        );
+        store.run("DELETE FROM tags WHERE id = ?", source.id);
+      }
+    })
+    .then(() => getTag(store, target.id) as Tag);
 }
 
 // --- Tagging tracks ---
 
-/** Gives every listed track every listed tag (one step; tags already there are kept). */
-export function tagTracks(store: Store, trackIds: string[], tagIds: string[]): void {
+/** Tracks per batch when tagging: about BATCH_SIZE rows, whatever the number of tags. */
+const tracksPerBatch = (tagCount: number) => Math.max(1, Math.floor(BATCH_SIZE / Math.max(1, tagCount)));
+
+/**
+ * Gives every listed track every listed tag (one step; tags already there are
+ * kept), in batches when there are many (DB review 1); await the result.
+ */
+export function tagTracks(store: Store, trackIds: string[], tagIds: string[]): Promise<void> {
   const tracks = v.ids("trackIds", trackIds).map((id) => requireRow(store, "tracks", "track", id));
   const tags = v.ids("tagIds", tagIds).map((id) => requireRow(store, "tags", "tag", id));
-  store.change(`Tag ${plural(tracks.length, "track")}`, () => {
-    for (const trackId of tracks) {
-      for (const tagId of tags) {
-        store.run("INSERT OR IGNORE INTO track_tags (track_id, tag_id) VALUES (?, ?)", trackId, tagId);
+  return store.changeInBatches(
+    `Tag ${plural(tracks.length, "track")}`,
+    tracks,
+    (batch) => {
+      for (const trackId of batch) {
+        // DAT-10: tags added together share the track's next number (they then follow the vocabulary).
+        const next = nextAdded(store, trackId);
+        for (const tagId of tags) store.run("INSERT OR IGNORE INTO track_tags (track_id, tag_id, added) VALUES (?, ?, ?)", trackId, tagId, next);
       }
-    }
-  });
+    },
+    { batchSize: tracksPerBatch(tags.length) },
+  );
 }
 
-export function untagTracks(store: Store, trackIds: string[], tagIds: string[]): void {
+/** Takes every listed tag off every listed track, like tagTracks. */
+export function untagTracks(store: Store, trackIds: string[], tagIds: string[]): Promise<void> {
   const tracks = v.ids("trackIds", trackIds);
   const tags = v.ids("tagIds", tagIds);
-  store.change(`Remove tags from ${plural(tracks.length, "track")}`, () => {
-    for (const trackId of tracks) {
-      for (const tagId of tags) store.run("DELETE FROM track_tags WHERE track_id = ? AND tag_id = ?", trackId, tagId);
-    }
-  });
+  return store.changeInBatches(
+    `Remove tags from ${plural(tracks.length, "track")}`,
+    tracks,
+    (batch) => {
+      for (const trackId of batch) {
+        for (const tagId of tags) store.run("DELETE FROM track_tags WHERE track_id = ? AND tag_id = ?", trackId, tagId);
+      }
+    },
+    { batchSize: tracksPerBatch(tags.length) },
+  );
 }
 
-/** A track's tags in group order, then tag order. */
+/** DAT-10: the number the next tags added to a track get (one more than its last). */
+function nextAdded(store: Store, trackId: string): number {
+  return (store.get<{ n: number }>("SELECT coalesce(max(added), 0) + 1 AS n FROM track_tags WHERE track_id = ?", trackId) as { n: number }).n;
+}
+
+/** A track's tags in the order they were added (DAT-10), tags added together in vocabulary order. */
 export function tagsOfTrack(store: Store, trackId: string): Tag[] {
   return toTags(
     store,
     store.all<TagRow>(
       `SELECT t.* FROM track_tags tt JOIN tags t ON t.id = tt.tag_id JOIN tag_groups g ON g.id = t.group_id
-       WHERE tt.track_id = ? ORDER BY g.position, t.position, t.rowid`,
+       WHERE tt.track_id = ? ORDER BY tt.added, g.position, t.position, t.rowid`,
       trackId,
     ),
   );

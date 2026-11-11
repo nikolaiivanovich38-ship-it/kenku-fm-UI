@@ -1,12 +1,16 @@
 import { ipcMain, type BrowserWindow } from "electron";
 import { TypedEmitter } from "tiny-typed-emitter";
 import type { ErrorCause } from "../../common/errorCause";
-import { LOCAL_OUTPUT_ID, type OutputsState } from "../../common/outputs";
+import type { Room } from "../../common/domain/types";
+import { LOCAL_OUTPUT_ID, roomsOf, type OutputsState } from "../../common/outputs";
 import { guardIpc } from "../security/ipcGuard";
-import type { BotTokenStore } from "./botTokenStore";
+import { applicationIdProblem, isApplicationId, tokenProblem, type LyreBotResult } from "../../common/lyreOutputs";
+import type { BotTokenStore, RemovedBot } from "./botTokenStore";
 import { defaultDiscordDriver, type DiscordDriver } from "./discordDriver";
 import { DiscordBot, isTokenProblem } from "./DiscordBot";
 import { RetryClock } from "./retryClock";
+
+const GONE: LyreBotResult = { ok: false, message: "That bot is no longer in Lyre." };
 
 /** UX finding 5: what Discord refusing a token means, and what to do, in plain words. */
 export const TOKEN_REFUSED =
@@ -25,6 +29,12 @@ interface OutputManagerEvents {
   activeChange: (active: boolean) => void;
   /** "This Computer" switched off (true) or on. */
   localMutedChange: (muted: boolean) => void;
+  /** OUT-5: a bot joined, left or moved: the rooms, first room (the table) first. */
+  roomsChange: (rooms: Room[]) => void;
+  /** OUT-5: a room's volume, 0 to 1, changed in the window. */
+  roomVolumeChange: (roomId: string, volume: number) => void;
+  /** w4-outputs: the state the main window was just sent (once per tick of changes), for the Lyre page too. */
+  stateChange: (state: OutputsState) => void;
 }
 
 /** The parts of the main window the manager uses. */
@@ -33,7 +43,13 @@ type WindowLike = Pick<BrowserWindow, "webContents">;
 /**
  * OUT-1: every output the broadcast goes to: this computer's speakers and
  * any number of Discord bots, each with its own token (SEC-5), client and
- * voice connections. All outputs hear the same mix; each can be muted.
+ * voice connections. Each can be muted.
+ *
+ * OUT-5: every bot in a voice channel is a room, named after its channel
+ * (`rooms()`), and hears its own mix: the capture window encodes one stream
+ * per room and `sendPacket(packet, roomId)` gives it to that room's bot only.
+ * OUT-6: `moveBot` moves a bot to another voice channel during play; its
+ * room (and what it plays) stays.
  *
  * The main window learns the state through "OUTPUTS_STATE" (never a token)
  * and changes it through the BOT_* and OUTPUT_* channels.
@@ -50,6 +66,12 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
   private ipc = guardIpc(ipcMain);
   /** UX finding 6: when each waiting bot or voice connection tries again. */
   private retries = new RetryClock();
+  /** OUT-5: the rooms last announced, to tell when they change. */
+  private lastRooms: Room[] = [];
+  /** OUT-5: room volumes by bot id; a bot not listed is at full volume. */
+  private volumes = new Map<string, number>();
+  /** OUT-8: bots taken out by Remove, kept in memory (never written) until the app closes, for Remove's Undo. */
+  private removed = new Map<string, { record: RemovedBot; channelId: string | null; volume: number | undefined; muted: boolean }>();
 
   constructor(
     private readonly window: WindowLike,
@@ -77,6 +99,9 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
     this.ipc.on("BOT_JOIN_CHANNEL", (_event, id: string, channelId: string) => void this.bots.get(id)?.join(channelId));
     this.ipc.on("BOT_LEAVE_CHANNEL", (_event, id: string, channelId: string) => this.bots.get(id)?.leave(channelId));
     this.ipc.on("OUTPUT_SET_MUTED", (_event, outputId: string, muted: boolean) => this.setMuted(outputId, muted));
+    // --- Rooms and buses ---
+    this.ipc.on("BOT_MOVE_TO_CHANNEL", (_event, id: string, channelId: string) => void this.moveBot(id, channelId));
+    this.ipc.on("ROOM_SET_VOLUME", (_event, id: string, volume: number) => this.setRoomVolume(id, volume));
   }
 
   destroy(): void {
@@ -85,6 +110,7 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
       bot.destroy();
     }
     this.bots.clear();
+    this.updateRooms();
     this.updateActive();
   }
 
@@ -100,8 +126,11 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
           id: bot.id,
           name: summary?.name ?? "Bot",
           ...(bot.discordName ? { discordName: bot.discordName } : {}),
+          ...(bot.lastDiscordName ? { lastDiscordName: bot.lastDiscordName } : {}),
           hasToken: summary?.hasToken ?? false,
           tokenRemembered: summary?.tokenRemembered ?? false,
+          ...(summary?.tokenEnd ? { tokenEnd: summary.tokenEnd } : {}),
+          ...(summary?.applicationId ? { applicationId: summary.applicationId } : {}),
           status: bot.status,
           ...(bot.error ? { error: plainBotError(bot.error) } : {}),
           ...(bot.notice ? { notice: bot.notice } : {}),
@@ -112,15 +141,84 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
             return retryAt ? { ...session, retryAt } : session;
           }),
           muted: bot.muted,
+          volume: this.roomVolume(bot.id),
         };
       }),
+      rooms: this.rooms(),
     };
   }
 
-  /** One encoded packet of the mix, for every bot in a voice channel. */
-  sendPacket(packet: Buffer): void {
-    for (const bot of this.bots.values()) {
-      bot.sendPacket(packet);
+  /** OUT-5: every bot in a voice channel, in the bots' order; the first is the table. */
+  rooms(): Room[] {
+    return roomsOf([...this.bots.values()].map((bot) => ({ id: bot.id, voice: bot.voice() })));
+  }
+
+  /**
+   * One encoded packet of a room's mix, for that room's bot only (OUT-5).
+   * A packet without a room is the table's: it goes to the first room. A
+   * packet for a room that has gone is dropped, not played somewhere else.
+   */
+  sendPacket(packet: Buffer, roomId?: string): void {
+    const rooms = this.rooms();
+    const target = roomId === undefined ? rooms[0]?.botId : rooms.find((room) => room.botId === roomId)?.botId;
+    if (target) {
+      this.bots.get(target)?.sendPacket(packet);
+    }
+  }
+
+  /** OUT-5: a room's volume, 0 to 1. */
+  roomVolume(id: string): number {
+    return this.volumes.get(id) ?? 1;
+  }
+
+  /** OUT-5: the window's volume slider for a room (a bot); applied by the capture window. */
+  setRoomVolume(id: string, volume: number): void {
+    if (!this.bots.has(id) || !Number.isFinite(volume)) {
+      return;
+    }
+    const clamped = Math.max(0, Math.min(1, volume));
+    this.volumes.set(id, clamped);
+    this.emit("roomVolumeChange", id, clamped);
+    this.publish();
+  }
+
+  /**
+   * OUT-6: move a bot to another voice channel during play. Within a server
+   * Discord moves it; in another server it joins there first and leaves its
+   * other channels once the new one is joining, so its room (and the
+   * broadcast) never goes away in between. If the new channel cannot be
+   * joined the bot stays where it was, and the failure is shown as for a join.
+   */
+  async moveBot(id: string, channelId: string): Promise<void> {
+    const bot = this.bots.get(id);
+    if (!bot) {
+      return;
+    }
+    if (bot.voice().some((session) => session.channelId === channelId && session.status !== "error")) {
+      return;
+    }
+    const before = bot.voice().filter((session) => session.channelId !== channelId);
+    await bot.join(channelId);
+    const moved = bot.voice().find((session) => session.channelId === channelId);
+    if (!moved || moved.status === "error") {
+      if (moved && before.length > 0) {
+        // A failed join in another server would show as a broken second room; the bot stays put.
+        bot.leave(channelId);
+      }
+      return;
+    }
+    for (const session of before) {
+      if (session.guildId !== moved.guildId) {
+        bot.leave(session.channelId);
+      }
+    }
+  }
+
+  /** w4-outputs: take a bot out of every voice channel it is in (the Outputs screen's Leave). */
+  leaveAll(id: string): void {
+    const bot = this.bots.get(id);
+    for (const session of bot?.voice() ?? []) {
+      bot?.leave(session.channelId);
     }
   }
 
@@ -151,8 +249,10 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
     }
     bot.destroy();
     this.bots.delete(id);
+    this.volumes.delete(id);
     this.retries.forget(id);
     this.tokens.removeBot(id);
+    this.updateRooms();
     this.updateActive();
     this.publish();
   }
@@ -165,6 +265,118 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
     const remembered = this.tokens.setToken(id, token.trim());
     this.publish();
     return remembered;
+  }
+
+  // ---------- OUT-8: Settings in Lyre (the Lyre page, through lyreOutputsBridge.ts) ----------
+
+  /**
+   * Add a bot: its token (stored encrypted, SEC-5) and, when given, its Application ID; it logs in at once. The
+   * shapes are checked first, so Discord only ever sees a token that could be one.
+   */
+  addBotWithToken(token: string, applicationId: string | null): LyreBotResult {
+    const problem = tokenProblem(String(token)) ?? (applicationId === null ? null : applicationIdProblem(String(applicationId)));
+    if (problem) return { ok: false, message: problem };
+    const id = this.addBot();
+    this.tokens.setToken(id, token.trim());
+    if (applicationId !== null) this.tokens.setApplicationId(id, applicationId.trim());
+    this.publish();
+    void this.connect(id);
+    return { ok: true, botId: id };
+  }
+
+  /** Replace…: a new token for the bot; it logs in again with it. */
+  replaceToken(id: string, token: string): LyreBotResult {
+    const bot = this.bots.get(id);
+    if (!bot) return GONE;
+    const problem = tokenProblem(String(token));
+    if (problem) return { ok: false, message: problem };
+    bot.disconnect();
+    this.tokens.setToken(id, token.trim());
+    this.publish();
+    void this.connect(id);
+    return { ok: true, botId: id };
+  }
+
+  renameBot(id: string, name: string): LyreBotResult {
+    if (!this.bots.has(id)) return GONE;
+    if (!this.tokens.rename(id, name)) return { ok: false, message: "Give the bot a name." };
+    this.publish();
+    return { ok: true, botId: id };
+  }
+
+  /** The bot's Application ID (null: none), for its invite link. */
+  setApplicationId(id: string, applicationId: string | null): LyreBotResult {
+    if (!this.bots.has(id)) return GONE;
+    const problem = applicationId === null ? null : applicationIdProblem(String(applicationId));
+    if (problem) return { ok: false, message: problem };
+    this.tokens.setApplicationId(id, applicationId === null ? null : applicationId.trim());
+    this.publish();
+    return { ok: true, botId: id };
+  }
+
+  /** Remove (with Undo): the bot leaves its voice channel and logs out; restoreBot puts it back. The last bot stays. */
+  removeBotForUndo(id: string): LyreBotResult {
+    const bot = this.bots.get(id);
+    if (!bot) return GONE;
+    if (this.bots.size <= 1) return { ok: false, message: "Lyre needs one bot at least: replace its token instead." };
+    const channelId = bot.voice().find((session) => session.status !== "error")?.channelId ?? null;
+    const volume = this.volumes.get(id);
+    const record = this.tokens.takeOut(id);
+    if (!record) return GONE;
+    this.removed.set(id, { record, channelId, volume, muted: bot.muted });
+    bot.destroy();
+    this.bots.delete(id);
+    this.volumes.delete(id);
+    this.retries.forget(id);
+    this.updateRooms();
+    this.updateActive();
+    this.publish();
+    return { ok: true, botId: id };
+  }
+
+  /** Remove's Undo: the bot back in its place, logged in again and back in the voice channel it was in. */
+  restoreBot(id: string): LyreBotResult {
+    const kept = this.removed.get(id);
+    if (!kept || this.bots.has(id)) return { ok: false, message: "There is nothing to put back." };
+    this.removed.delete(id);
+    this.tokens.putBack(kept.record);
+    // The bots' order is the store's: rebuild the map in that order with the bot in its old place.
+    const order = this.tokens.list().map((b) => b.id);
+    const bot = this.createBot(id);
+    bot.muted = kept.muted;
+    const entries = order.map((botId) => [botId, this.bots.get(botId) ?? bot] as const);
+    this.bots.clear();
+    for (const [botId, b] of entries) this.bots.set(botId, b);
+    if (kept.volume !== undefined) this.volumes.set(id, kept.volume);
+    this.publish();
+    if (this.tokens.token(id)) {
+      void this.connect(id).then(() => {
+        if (!kept.channelId) return;
+        const join = () => {
+          if (bot.status !== "ready") return;
+          bot.off("change", join);
+          void this.moveBot(id, kept.channelId!);
+        };
+        bot.on("change", join);
+        join();
+      });
+    }
+    return { ok: true, botId: id };
+  }
+
+  /** Disconnect in Settings: the bot logs out (and leaves its voice channel); Connect logs it in again. */
+  disconnect(id: string): void {
+    this.bots.get(id)?.disconnect();
+  }
+
+  /**
+   * OUT-8, test builds: the fake Discord admits a bot whose invite Lyre opened. False with the real driver: the caller
+   * opens the invite in the browser.
+   */
+  inviteOpenedByDriver(applicationId: string): boolean {
+    if (!isApplicationId(applicationId) || !this.driver.inviteOpened) return false;
+    this.driver.inviteOpened(applicationId);
+    return true;
   }
 
   removeToken(id: string): void {
@@ -243,6 +455,8 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
     const bot = new DiscordBot(id, this.driver);
     bot.on("change", () => {
       this.noteRetries(id, bot);
+      // Rooms first, so the capture window knows them when the broadcast starts.
+      this.updateRooms();
       this.updateActive();
       this.publish();
     });
@@ -271,6 +485,18 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
       this.setLocalMuted(false);
     }
     this.emit("activeChange", active);
+  }
+
+  /** OUT-5: announce the rooms when a bot joined, left or moved. */
+  private updateRooms() {
+    const rooms = this.rooms();
+    const same =
+      rooms.length === this.lastRooms.length &&
+      rooms.every((room, i) => room.botId === this.lastRooms[i].botId && room.name === this.lastRooms[i].name);
+    if (!same) {
+      this.lastRooms = rooms;
+      this.emit("roomsChange", rooms);
+    }
   }
 
   /** UX finding 6: note when each wait of this bot started, as soon as it starts. */
@@ -312,9 +538,11 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
     this.publishQueued = true;
     setImmediate(() => {
       this.publishQueued = false;
+      const state = this.state();
       if (!this.window.webContents.isDestroyed()) {
-        this.window.webContents.send("OUTPUTS_STATE", this.state());
+        this.window.webContents.send("OUTPUTS_STATE", state);
       }
+      this.emit("stateChange", state);
     });
   }
 }

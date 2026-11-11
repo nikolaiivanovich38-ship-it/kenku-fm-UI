@@ -172,6 +172,71 @@ export function encodeWav(channels, rate) {
 }
 
 /**
+ * Add a RIFF INFO list (title INAM, artist IART, album IPRD) after the data chunk of a WAV file from encodeWav, the
+ * tags Windows Explorer and Lyre's tag reader show. ASCII text only.
+ */
+export function withInfoTags(wav, { title, artist, album }) {
+  const fields = [
+    ["INAM", title],
+    ["IART", artist],
+    ["IPRD", album],
+  ].map(([id, text]) => {
+    const body = Buffer.from(`${text}\0`, "ascii");
+    const padded = Buffer.alloc(body.length + (body.length % 2));
+    body.copy(padded);
+    const head = Buffer.alloc(8);
+    head.write(id, 0, "ascii");
+    head.writeUInt32LE(body.length, 4);
+    return Buffer.concat([head, padded]);
+  });
+  const info = Buffer.concat([Buffer.from("INFO", "ascii"), ...fields]);
+  const list = Buffer.alloc(8);
+  list.write("LIST", 0, "ascii");
+  list.writeUInt32LE(info.length, 4);
+  const out = Buffer.concat([wav, list, info]);
+  out.writeUInt32LE(out.length - 8, 4);
+  return out;
+}
+
+/** A sample rate as the 80-bit extended number AIFF's COMM chunk holds (whole numbers only). */
+function extended80(rate) {
+  const out = Buffer.alloc(10);
+  const exponent = Math.floor(Math.log2(rate));
+  out.writeUInt16BE(16383 + exponent, 0);
+  out.writeBigUInt64BE(BigInt(rate) << BigInt(63 - exponent), 2);
+  return out;
+}
+
+/** Encode channels (Float64Array per channel, -1..1) as a 16-bit AIFF file (big-endian PCM). */
+export function encodeAiff(channels, rate) {
+  const channelCount = channels.length;
+  const frames = channels[0].length;
+  const dataSize = frames * channelCount * 2;
+  const buffer = Buffer.alloc(12 + 26 + 16 + dataSize);
+  buffer.write("FORM", 0, "ascii");
+  buffer.writeUInt32BE(buffer.length - 8, 4);
+  buffer.write("AIFF", 8, "ascii");
+  buffer.write("COMM", 12, "ascii");
+  buffer.writeUInt32BE(18, 16);
+  buffer.writeUInt16BE(channelCount, 20);
+  buffer.writeUInt32BE(frames, 22);
+  buffer.writeUInt16BE(16, 26);
+  extended80(rate).copy(buffer, 28);
+  buffer.write("SSND", 38, "ascii");
+  buffer.writeUInt32BE(8 + dataSize, 42);
+  buffer.writeUInt32BE(0, 46); // offset
+  buffer.writeUInt32BE(0, 50); // block size
+  let offset = 54;
+  for (let i = 0; i < frames; i++) {
+    for (let c = 0; c < channelCount; c++) {
+      buffer.writeInt16BE(Math.round(Math.max(-1, Math.min(1, channels[c][i])) * 32767), offset);
+      offset += 2;
+    }
+  }
+  return buffer;
+}
+
+/**
  * Read a 16-bit PCM WAV file. Throws with a plain message if the header is
  * not the simple form encodeWav writes.
  */
@@ -195,7 +260,11 @@ export function decodeWav(buffer) {
   if (blockAlign !== channelCount * 2 || byteRate !== rate * blockAlign) fail("inconsistent block size or byte rate");
   if (buffer.toString("ascii", 36, 40) !== "data") fail("no data chunk");
   const dataSize = buffer.readUInt32LE(40);
-  if (dataSize !== buffer.length - 44 || dataSize % blockAlign !== 0) fail("data size does not match");
+  if (44 + dataSize > buffer.length || dataSize % blockAlign !== 0) fail("data size does not match");
+  const rest = buffer.length - 44 - dataSize;
+  if (rest > 0 && (buffer.toString("ascii", 44 + dataSize, 48 + dataSize) !== "LIST" || buffer.readUInt32LE(48 + dataSize) !== rest - 8)) {
+    fail("unexpected bytes after the data chunk");
+  }
   const frames = dataSize / blockAlign;
   const channels = Array.from({ length: channelCount }, () => new Float64Array(frames));
   let offset = 44;

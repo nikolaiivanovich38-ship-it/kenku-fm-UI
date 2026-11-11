@@ -4,6 +4,7 @@
  * preload scripts:
  * - main-window: src/preload.ts and src/preload/managers/BrowserViewManagerPreload.ts
  * - player-view: src/player/preload.ts
+ * - lyre-view: src/lyre/preload.ts
  * - audio-capture: src/audioCapture/preload.ts and src/preload/managers/AudioCaptureManagerPreload.ts
  * Website tabs have no preload and never appear here. docs/security.md has the
  * same table in plain language; keep the two in step.
@@ -23,6 +24,10 @@ import {
   noArgs,
   optional,
 } from "./ipcArgs";
+import { isLyreMethod } from "../../common/lyre/rpc";
+import { isApplicationId } from "../../common/lyreOutputs";
+import { isGlobalKeysRequest as isGlobalKeysRequestShape } from "../../common/globalKeys";
+import { isWindowSettings as isWindowSettingsShape, isWindowSettingsChange as isWindowSettingsChangeShape } from "../../common/windowSettings";
 import type { AppPageRole } from "./permissions";
 
 export interface IpcChannelRule {
@@ -47,8 +52,11 @@ export const REFUSED_VIEW_ID = -1;
  */
 export const MAX_SHORT_TEXT = 4096;
 
-/** The only view kind the main window may request besides a plain website tab. */
+/** The view kind of the old player page; besides it and LYRE_VIEW_KIND, only plain website tabs. */
 export const PLAYER_VIEW_KIND = "player";
+
+/** w3-shell: the view kind of the new interface page (the "Lyre" tab). */
+export const LYRE_VIEW_KIND = "lyre";
 
 /** Correlates a remote API request with the player's reply (PERF-9). */
 const isRequestId = isIntegerIn(1, Number.MAX_SAFE_INTEGER);
@@ -69,6 +77,71 @@ const isOutputId: ArgCheck = (value) => value === "local" || isBotId(value);
 const isDiscordId: ArgCheck = (value) => typeof value === "string" && /^\d{1,25}$/.test(value);
 /** A bot token: non-empty text, at most MAX_SHORT_TEXT (real ones are ~70 characters). */
 const isBotToken: ArgCheck = (value) => isShortText(value) && (value as string).trim() !== "";
+// --- w6-contracts ---
+/** OUT-8: an Application ID (a Discord id, digits only: isApplicationId), the only part of an invite the page sends. */
+const isApplicationIdArg: ArgCheck = (value) => isApplicationId(value);
+/** OUT-8: an Application ID as typed (trimmed by the main process, which answers a wrong one in words), or null. */
+const isApplicationIdOrNull: ArgCheck = (value) => value === null || (typeof value === "string" && value.length <= 40 && /^\s*\d*\s*$/.test(value));
+
+// --- Rooms and buses ---
+/** A volume: a finite number from 0 to 1. */
+const isUnitInterval: ArgCheck = (value) => isFiniteNumber(value) && (value as number) >= 0 && (value as number) <= 1;
+// --- Files and preview ---
+/** MEDIA_PREPARE's options: exactly `{ keepLocal: boolean }`. */
+const isPrepareOptions: ArgCheck = (value) =>
+  isPlainObject(value) &&
+  Object.keys(value as object).length === 1 &&
+  isBoolean((value as { keepLocal?: unknown }).keepLocal);
+
+// --- w3-api ---
+/**
+ * Plain data only (security review 10): null, booleans, finite numbers, text, arrays and plain objects, at most
+ * 64 levels deep. Structured clone lets a page send a Map, a Set, a Date or an ArrayBuffer, which JSON measures as {}.
+ */
+function isPlainData(value: unknown, depth = 0): boolean {
+  if (value === null || value === undefined || typeof value === "boolean" || typeof value === "string") return true;
+  if (typeof value === "number") return Number.isFinite(value);
+  if (typeof value !== "object" || depth > 64) return false;
+  if (Array.isArray(value)) return value.every((item) => isPlainData(item, depth + 1));
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) return false;
+  return Object.values(value as Record<string, unknown>).every((item) => isPlainData(item, depth + 1));
+}
+/** Largest LyreApi call, as JSON: a change to 5,000 tracks is about 0.2 MB, so 8 MB leaves room and stops a flood. */
+export const MAX_CALL_BYTES = 8 * 1024 * 1024;
+/** LYRE_API_CALL's arguments: area, method (a LyreApi method), and a short list of plain arguments. */
+const isLyreCall: ArgsCheck = (args) => {
+  if (args.length !== 3 || !isLyreMethod(args[0], args[1]) || !Array.isArray(args[2]) || args[2].length > 4) return false;
+  // Security review 10: JSON counts an ArrayBuffer, Map or Date as {}, so only plain data passes.
+  if (!isPlainData(args[2])) return false;
+  try {
+    return JSON.stringify(args[2]).length <= MAX_CALL_BYTES;
+  } catch {
+    return false;
+  }
+};
+
+// --- w6-found ---
+/**
+ * SEC-4 (src/main/remote/remoteSettings.ts): a change to the remote control's settings, a plain object with any of
+ * `enabled` (boolean), `address` (text, at most 64 characters) and `port` (a whole number 1 to 65535), and nothing
+ * else. The main process then checks the address is an IP address or localhost and the port 1024 to 65535.
+ */
+const REMOTE_SETTING_CHECKS: Record<string, ArgCheck> = {
+  enabled: isBoolean,
+  address: isStringUpTo(64),
+  port: isIntegerIn(1, 65535),
+};
+const isOldRemoteSetting: ArgCheck = (value) => {
+  if (!isPlainObject(value)) return false;
+  const old = value as Record<string, unknown>;
+  return Object.keys(old).length === 3 && isBoolean(old.enabled) && isStringUpTo(64)(old.address) && isStringUpTo(5)(old.port);
+};
+const isRemoteChange: ArgCheck = (value) =>
+  isPlainObject(value) &&
+  Object.entries(value as Record<string, unknown>).every(
+    ([key, item]) => Object.prototype.hasOwnProperty.call(REMOTE_SETTING_CHECKS, key) && REMOTE_SETTING_CHECKS[key](item),
+  );
 
 export const IPC_CHANNELS = {
   // src/index.ts
@@ -86,7 +159,8 @@ export const IPC_CHANNELS = {
     from: MAIN,
     // The address may be missing for a bookmark saved without one; that has
     // always opened a blank tab, so it still does.
-    args: argsMatch(optional(isUrl), ...bounds, optional(isOneOf(PLAYER_VIEW_KIND))),
+    // w3-shell: the kind may also be "lyre" for the new interface page.
+    args: argsMatch(optional(isUrl), ...bounds, optional(isOneOf(PLAYER_VIEW_KIND, LYRE_VIEW_KIND))),
     refusedReturnValue: REFUSED_VIEW_ID,
   },
   BROWSER_VIEW_REMOVE_BROWSER_VIEW: { from: MAIN, args: viewIdOnly },
@@ -105,8 +179,9 @@ export const IPC_CHANNELS = {
   // PlayerManager
   PLAYER_GET_URL: { from: MAIN, args: noArgs, refusedReturnValue: "" },
   PLAYER_REGISTER_VIEW: { from: MAIN, args: viewIdOnly },
-  PLAYER_START_REMOTE: { from: MAIN, args: argsMatch(isShortText, isShortText) },
-  PLAYER_STOP_REMOTE: { from: MAIN, args: noArgs },
+  // Review 0.5.0 CR-3: the old Settings' remote control choice, handed over once (PLAYER_START_REMOTE and
+  // PLAYER_STOP_REMOTE are gone). One object exactly { enabled: boolean, address: text ≤ 64, port: text ≤ 5 }.
+  REMOTE_MOVE_OLD_SETTING: { from: MAIN, args: argsMatch(isOldRemoteSetting) },
 
   // AudioCaptureManagerMain, sent by the main window
   AUDIO_CAPTURE_SET_MUTED: { from: MAIN, args: argsMatch(isWebContentsId, isBoolean) },
@@ -160,6 +235,97 @@ export const IPC_CHANNELS = {
   // PERF-6 (review 7): the player's answer to PLAYER_SAVE_NOW (sent by
   // PlayerManager before the window closes): its waiting changes are saved.
   PLAYER_SAVED: { from: PLAYER, args: noArgs },
+
+  // --- Rooms and buses ---
+  // OUT-6 (OutputManager.moveBot): move a bot to another voice channel during
+  // play; its room keeps playing.
+  BOT_MOVE_TO_CHANNEL: { from: MAIN, args: argsMatch(isBotId, isDiscordId) },
+  // OUT-5: a room's volume (the room is its bot), 0 to 1. A room is muted
+  // with OUTPUT_SET_MUTED, as before.
+  ROOM_SET_VOLUME: { from: MAIN, args: argsMatch(isBotId, isUnitInterval) },
+  // --- Files and preview ---
+  // BUG-10 / PLY-11 (src/main/media/mediaIpc.ts): prepare a library file
+  // before it plays (invoke; answers { url } or { error }). Arguments: the
+  // file address, and { keepLocal: boolean } and nothing else. The address is
+  // checked against the library folders by MediaAccess before anything is read.
+  // w3-api: the new interface page hosts the engine too, so it prepares files the same way.
+  MEDIA_PREPARE: { from: [...PLAYER, "lyre-view"], args: argsMatch(isUrl, isPrepareOptions) },
+
+  // --- w3-shell ---
+  // LyreManager: the address of the new interface page, for the main window's
+  // "Lyre" tab (sync; answers "" when refused, like PLAYER_GET_URL).
+  LYRE_GET_URL: { from: MAIN, args: noArgs, refusedReturnValue: "" },
+
+  // --- w3-api ---
+  // src/main/lyreApi/lyreIpc.ts: a LyreApi call from the new interface page (invoke; answers what the library
+  // answered, a refusal included). Arguments: the area and method of a LyreApi method (nothing else reaches the
+  // library), and the method's arguments as a list of at most 4, at most MAX_CALL_BYTES as JSON.
+  LYRE_API_CALL: { from: ["lyre-view"], args: isLyreCall },
+
+  // --- w4-outputs ---
+  // src/main/broadcast/lyreOutputsBridge.ts: the Lyre page's Outputs screen. GET answers the bots and the voice
+  // channels they can join (src/common/lyreOutputs.ts; never a token); the rest change one bot, named by its id.
+  // A channel id is a Discord id; a volume is 0 to 1. No channel connects a bot or touches a token: that stays in
+  // the main window's Settings.
+  LYRE_OUTPUTS_GET: { from: ["lyre-view"], args: noArgs },
+  LYRE_OUTPUT_MOVE: { from: ["lyre-view"], args: argsMatch(isBotId, isDiscordId) },
+  LYRE_OUTPUT_LEAVE: { from: ["lyre-view"], args: argsMatch(isBotId) },
+  LYRE_OUTPUT_SET_MUTED: { from: ["lyre-view"], args: argsMatch(isBotId, isBoolean) },
+  LYRE_OUTPUT_SET_VOLUME: { from: ["lyre-view"], args: argsMatch(isBotId, isUnitInterval) },
+  LYRE_OUTPUT_RETRY: { from: ["lyre-view"], args: argsMatch(isBotId) },
+
+  // --- w4-guide ---
+  // FND-9 (src/main/diagnostics/diagnosticsBridge.ts): Help › Save diagnostics. SAVE (invoke) asks the game master
+  // for a folder in the main process, writes the zip there and answers names only ({ ok, folder, file }); SHOW
+  // shows the last saved file in its folder. Neither takes an argument: the page never names a path.
+  LYRE_DIAGNOSTICS_SAVE: { from: ["lyre-view"], args: noArgs },
+  LYRE_DIAGNOSTICS_SHOW: { from: ["lyre-view"], args: noArgs },
+
+  // --- w6-contracts ---
+  // OUT-8 (src/main/broadcast/lyreOutputsBridge.ts): Settings in Lyre. ADD (invoke): a token and an Application ID or
+  // null; SET_TOKEN, RENAME, SET_APP_ID, REMOVE, RESTORE (invoke): one bot by its id, then a token, a name or an
+  // Application ID (or null); each answers { ok, botId } or { ok: false, message } (the main process checks a token's
+  // and an Application ID's shape in plain words). CONNECT, DISCONNECT (send): one bot. OPEN_INVITE (send): an
+  // Application ID; the main process makes the invite address itself. No channel sends a token back (SEC-5).
+  LYRE_BOT_ADD: { from: ["lyre-view"], args: argsMatch(isBotToken, isApplicationIdOrNull) },
+  LYRE_BOT_SET_TOKEN: { from: ["lyre-view"], args: argsMatch(isBotId, isBotToken) },
+  LYRE_BOT_RENAME: { from: ["lyre-view"], args: argsMatch(isBotId, isStringUpTo(200)) },
+  LYRE_BOT_SET_APP_ID: { from: ["lyre-view"], args: argsMatch(isBotId, isApplicationIdOrNull) },
+  LYRE_BOT_REMOVE: { from: ["lyre-view"], args: argsMatch(isBotId) },
+  LYRE_BOT_RESTORE: { from: ["lyre-view"], args: argsMatch(isBotId) },
+  LYRE_BOT_CONNECT: { from: ["lyre-view"], args: argsMatch(isBotId) },
+  LYRE_BOT_DISCONNECT: { from: ["lyre-view"], args: argsMatch(isBotId) },
+  LYRE_BOT_OPEN_INVITE: { from: ["lyre-view"], args: argsMatch(isApplicationIdArg) },
+  // --- w6-found ---
+  // SEC-4 (PlayerManager, src/main/remote/remoteControl.ts): the remote control's settings for Settings (round 7
+  // designs the screen). All invoke. GET answers a RemoteState (on, running, address, port, the secret code, whether
+  // the code survives a restart, and a plain problem); SET changes some settings and answers the new state or
+  // { error }; NEW_CODE replaces the code. Only the Lyre page: the old Settings keeps PLAYER_START/STOP_REMOTE.
+  REMOTE_GET: { from: ["lyre-view"], args: noArgs },
+  REMOTE_SET: { from: ["lyre-view"], args: argsMatch(isRemoteChange) },
+  REMOTE_NEW_CODE: { from: ["lyre-view"], args: noArgs },
+  // SEC-14 (LyreManager, src/main/updateStatus.ts): what automatic updates are doing, for Settings (invoke, no
+  // arguments; answers an UpdateState from src/common/appUpdates.ts, with any problem in plain words).
+  UPDATE_GET: { from: ["lyre-view"], args: noArgs },
+  // --- w6-rooms ---
+  // UX-12 (LyreManager, src/main/globalKeys.ts): Settings › Keyboard shortcuts › "in other programs too" (invoke). One
+  // plain object { on, keys } with keys only for nextScene and fadeAll, each text of at most 40 characters
+  // (isGlobalKeysRequest); the main process then refuses keys used for typing (globalKeyProblem) and answers
+  // { refused: [{ action, key, message }] }. Each press comes back to the Lyre page as LYRE_GLOBAL_KEY.
+  LYRE_GLOBAL_KEYS_SET: { from: ["lyre-view"], args: argsMatch(isGlobalKeysRequestShape) },
+  // OUT-8 (src/main/windowSettings/windowSettingsBridge.ts, src/common/windowSettings.ts): the main window's Sound to
+  // Discord and Website tabs settings in Settings in Lyre. STATE (send): the main window's four settings, exactly
+  // (isWindowSettings), after each change. GET (invoke): the latest, or null. SET (invoke): one or more of the four,
+  // each of its kind (isWindowSettingsChange), passed to the main window, which keeps them; answers whether it went.
+  WINDOW_SETTINGS_STATE: { from: MAIN, args: argsMatch(isWindowSettingsShape) },
+  LYRE_WINDOW_SETTINGS_GET: { from: ["lyre-view"], args: noArgs },
+  LYRE_WINDOW_SETTINGS_SET: { from: ["lyre-view"], args: argsMatch(isWindowSettingsChangeShape) },
+  // SEC-15 (BrowserViewManagerMain): Settings › Local files in Lyre, as LOCAL_FILES_LIST_FOLDERS / _FORGET_FOLDER
+  // for the main window (invoke; answers the list). A folder path is at most 32767 characters.
+  LYRE_LOCAL_FOLDERS_LIST: { from: ["lyre-view"], args: noArgs },
+  LYRE_LOCAL_FOLDERS_FORGET: { from: ["lyre-view"], args: argsMatch(isStringUpTo(32_767)) },
+  // Website tabs › Clear website data in Lyre: the old Settings' Clear cache (src/index.ts, appInfoIpc.ts; invoke).
+  LYRE_CLEAR_WEBSITE_DATA: { from: ["lyre-view"], args: noArgs },
 } satisfies Record<string, IpcChannelRule>;
 
 export type IpcChannel = keyof typeof IPC_CHANNELS;

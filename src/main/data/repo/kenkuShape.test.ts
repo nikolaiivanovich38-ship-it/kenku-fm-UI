@@ -1,5 +1,5 @@
 /**
- * Shows the version-1 schema can hold everything the current player stores
+ * Shows the schema can hold everything the current player stores
  * (DAT-9 does the real move in the next stream): playlists with ordered
  * tracks {id, url, title}, soundboards with sounds {loop, volume, fadeIn,
  * fadeOut}, and backgrounds by name. Ids are kept; nothing is reinterpreted.
@@ -10,7 +10,7 @@ import type { SoundboardsState } from "../../../player/features/soundboards/soun
 import { makeTestStore } from "../test/testStore";
 import { createTracks, getTrack, resolveTrackLocation } from "./tracks";
 import { addTracksToPlaylist, createPlaylist, listPlaylistItems, listPlaylists } from "./playlists";
-import { addSoundsToBoard, createBoard, listBoardItems, listBoards } from "./boards";
+import { addPad, createBoard, listBoards, listPads } from "./boards";
 
 let t: ReturnType<typeof makeTestStore>;
 beforeEach(() => {
@@ -58,14 +58,19 @@ it("holds the current playlists and soundboards with ids, order, settings and ba
     for (const id of soundboards.soundboards.allIds) {
       const b = soundboards.soundboards.byId[id];
       createBoard(t.store, { id: b.id, title: b.title, background: b.background });
-      addSoundsToBoard(
-        t.store,
-        b.id,
-        b.sounds.map((soundId) => {
-          const s = soundboards.sounds[soundId];
-          return { trackId: s.id, loop: s.loop, volume: s.volume, fadeInMs: s.fadeIn, fadeOutMs: s.fadeOut };
-        }),
-      );
+      // Version 2: each sound becomes a pad; a looping sound is a toggle pad.
+      for (const soundId of b.sounds) {
+        const s = soundboards.sounds[soundId];
+        addPad(t.store, b.id, {
+          id: s.id,
+          label: s.title,
+          mode: s.loop ? "toggle" : "oneshot",
+          sound: { kind: "single", trackIds: [s.id] },
+          volume: s.volume,
+          fadeInMs: s.fadeIn,
+          fadeMs: s.fadeOut,
+        });
+      }
     }
   });
 
@@ -79,8 +84,8 @@ it("holds the current playlists and soundboards with ids, order, settings and ba
   ]);
   expect(resolveTrackLocation(t.store, getTrack(t.store, "t3")!)).toBe("https://example.com/c.mp3");
   expect(listBoards(t.store).map((b) => [b.id, b.background])).toEqual([["b1", "forest"]]);
-  expect(listBoardItems(t.store, "b1")).toEqual([
-    expect.objectContaining({ trackId: "s1", title: "Door", loop: false, volume: 0.5, fadeInMs: 0, fadeOutMs: 250 }),
-    expect.objectContaining({ trackId: "s2", title: "Rain", loop: true, volume: 1, fadeInMs: 1000, fadeOutMs: 3000 }),
+  expect(listPads(t.store, "b1")).toEqual([
+    expect.objectContaining({ id: "s1", label: "Door", mode: "oneshot", volume: 0.5, fadeInMs: 0, fadeMs: 250, cell: { row: 0, col: 0 } }),
+    expect.objectContaining({ id: "s2", label: "Rain", mode: "toggle", volume: 1, fadeInMs: 1000, fadeMs: 3000, cell: { row: 0, col: 1 } }),
   ]);
 });

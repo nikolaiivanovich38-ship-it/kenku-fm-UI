@@ -10,7 +10,7 @@
  */
 import { TypedEmitter } from "tiny-typed-emitter";
 
-import { browserScheduler, EngineContext, GainLike, Scheduler } from "./audio/types";
+import { browserScheduler, EngineContext, GainLike, NodeLike, Scheduler } from "./audio/types";
 import { BusId, Mixer, OutputId } from "./graph/mixer";
 import { PlayableSource } from "./sources/layers";
 import { MediaRequest, SourceLoader } from "./sources/sourceLoader";
@@ -25,6 +25,11 @@ export interface PlayRequest extends VoiceOptions {
   media: MediaRequest | PlayableSource | Promise<PlayableSource>;
   /** Optional id, e.g. to match a voice to a queue entry or a pad. */
   id?: string;
+  /**
+   * PLY-8: play in a room instead of the engine's own bus: the room's id and
+   * its input for this bus (from the Rooms stream's `getRoomBus`).
+   */
+  room?: { id: string; input: NodeLike };
 }
 
 export interface VoiceProgress {
@@ -48,7 +53,8 @@ const PROGRESS_INTERVAL_MS = 1000;
 export class PlaybackEngine extends TypedEmitter<EngineEvents> {
   readonly mixer: Mixer;
   private readonly context: EngineContext;
-  private readonly scheduler: Scheduler;
+  /** The engine's clock for timers (round 7: the Director's waits and hand-overs run on it, as voices do). */
+  readonly scheduler: Scheduler;
   private readonly loader: SourceLoader | null;
   private readonly live: Voice[] = [];
   private readonly progressListeners = new Set<(report: VoiceProgress[]) => void>();
@@ -76,12 +82,12 @@ export class PlaybackEngine extends TypedEmitter<EngineEvents> {
   }
 
   play(request: PlayRequest): Voice {
-    const { bus, media, id, ...options } = request;
+    const { bus, media, id, room, ...options } = request;
     const voice = new Voice(
-      { context: this.context, scheduler: this.scheduler, destination: this.mixer.input(bus) },
+      { context: this.context, scheduler: this.scheduler, destination: room?.input ?? this.mixer.input(bus) },
       this.sourceFor(media, options),
       options,
-      { id, bus },
+      { id, bus, room: room?.id },
     );
     this.live.push(voice);
     voice.on("state", (state) => {
@@ -98,6 +104,11 @@ export class PlaybackEngine extends TypedEmitter<EngineEvents> {
   /** Decode a pad's sound ahead of time so it starts instantly. */
   preload(media: MediaRequest): Promise<void> {
     return this.loader ? this.loader.preload(media) : Promise.resolve();
+  }
+
+  /** The audio clock, in seconds. */
+  get currentTime(): number {
+    return this.context.currentTime;
   }
 
   /** Voices not yet stopped, ended or failed, oldest first; only those on `bus` if given. */
@@ -163,7 +174,9 @@ export class PlaybackEngine extends TypedEmitter<EngineEvents> {
       return Promise.reject(new Error(`Cannot play ${media.url}: the engine has no source loader`));
     }
     // A loop without a cross-fade must be gapless, which needs a decoded buffer.
-    const gapless = Boolean(options.loop) && !(options.fadeOutSeconds && options.fadeOutSeconds > 0);
+    const gapless = options.profile
+      ? options.profile.after === "loop" && options.profile.loopCrossfadeMs <= 0
+      : Boolean(options.loop) && !(options.fadeOutSeconds && options.fadeOutSeconds > 0);
     return this.loader.load({ ...media, preferBuffer: media.preferBuffer ?? gapless });
   }
 

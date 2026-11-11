@@ -1,10 +1,13 @@
 // FND-1: must stay the first import; it moves the data folder before anything uses it.
 import { getDataCarryOverResult, runDataCarryOver } from "./main/migration";
+// FND-9: Lyre's recent log (in memory only, for Help › Save diagnostics) starts before anything else logs.
+import { startDiagnosticsLog } from "./main/diagnostics/diagnosticsLog";
 import os from "os";
 import {
   app,
   BrowserWindow,
   dialog,
+  globalShortcut,
   shell,
   powerSaveBlocker,
 } from "electron";
@@ -21,6 +24,7 @@ import { clearBrowsingData, registerLocalFileScheme, secureSessions } from "./ma
 import { registerAppInfoIpc } from "./main/security/appInfoIpc";
 import { confirmStartAfterCarryOver, startApp } from "./main/startup";
 import { holdCloseUntilSaved, type SaveBeforeClose } from "./main/saveBeforeClose";
+import { startLyreLibrary, type StartedLibrary } from "./main/lyreApi/startLibrary";
 
 declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
 declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
@@ -28,6 +32,11 @@ declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 let window: BrowserWindow | null = null;
 /** PERF-6: holds quitting or closing until the player has saved (saveBeforeClose.ts). */
 let saveFirst: SaveBeforeClose | null = null;
+/** WP5: Lyre's library, in its own process; started when the app is ready, closed before quitting. */
+let lyreLibrary: StartedLibrary | null = null;
+let lyreLibraryClosed = false;
+
+startDiagnosticsLog();
 
 // WP1 review 1: files from the user's computer get a scheme of their own,
 // which Electron accepts only before the app is ready.
@@ -115,6 +124,10 @@ const createWindow = (): BrowserWindow => {
 
   saveWindowBounds(mainWindow);
 
+  // WP5: the daily backups start once the window shows, so they never slow the start; the audio cache is tidied
+  // a while later (security review 3).
+  mainWindow.once("ready-to-show", () => lyreLibrary?.windowShown());
+
   if (app.isPackaged) {
     runAutoUpdate(mainWindow);
   }
@@ -141,12 +154,28 @@ if (startupOutcome === "run") {
     // and the website-tab session, before any page loads.
     secureSessions();
 
+    // WP5: Lyre's library opens in its own process before any page asks for it.
+    lyreLibrary = startLyreLibrary();
+
     window = createWindow();
   });
 
   app.on("before-quit", (event) => {
-    saveFirst?.holdQuit(event);
+    if (saveFirst?.holdQuit(event) || !lyreLibrary || lyreLibraryClosed) {
+      return;
+    }
+    // WP5: close the library cleanly (backups stop, the database is closed), then quit.
+    event.preventDefault();
+    const closing = lyreLibrary;
+    lyreLibraryClosed = true;
+    closing
+      .stop()
+      .catch((error) => console.error("Could not close Lyre's library", error))
+      .finally(() => app.quit());
   });
+
+  // UX-12 (w6-rooms): keys Lyre took from every program for Next scene and Fade all go back on quit.
+  app.on("will-quit", () => globalShortcut.unregisterAll());
 
   app.on("second-instance", () => {
     // Someone tried to run a second instance, we should focus our window.
@@ -179,6 +208,10 @@ if (startupOutcome === "run") {
   registerAppInfoIpc({
     getVersion: () => app.getVersion(),
     getPlatform: () => os.platform(),
-    clearCache: clearBrowsingData,
+    // Security review 3: "Clear cache" empties Lyre's audio cache (converted and local copies) as well.
+    clearCache: async () => {
+      await clearBrowsingData();
+      await lyreLibrary?.clearAudioCache();
+    },
   });
 }

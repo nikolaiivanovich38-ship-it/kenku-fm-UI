@@ -24,14 +24,18 @@ import {
   fromSubframe,
 } from "../security/testing/fakeIpc";
 
-const { PLAYER_URL, PLAYER_PRELOAD } = vi.hoisted(() => {
+const { PLAYER_URL, PLAYER_PRELOAD, LYRE_URL, LYRE_PRELOAD } = vi.hoisted(() => {
   const entries = {
     PLAYER_URL: "file:///app/.webpack/renderer/player_window/index.html",
     PLAYER_PRELOAD: "/app/.webpack/renderer/player_window/preload.js",
+    LYRE_URL: "file:///app/.webpack/renderer/lyre_window/index.html",
+    LYRE_PRELOAD: "/app/.webpack/renderer/lyre_window/preload.js",
   };
   Object.assign(globalThis, {
     PLAYER_WINDOW_WEBPACK_ENTRY: entries.PLAYER_URL,
     PLAYER_WINDOW_PRELOAD_WEBPACK_ENTRY: entries.PLAYER_PRELOAD,
+    LYRE_WINDOW_WEBPACK_ENTRY: entries.LYRE_URL,
+    LYRE_WINDOW_PRELOAD_WEBPACK_ENTRY: entries.LYRE_PRELOAD,
   });
   return entries;
 });
@@ -60,6 +64,8 @@ class FakeWebContents extends EventEmitter {
   setWindowOpenHandler = (handler: WindowOpenHandler) => {
     this.windowOpenHandler = handler;
   };
+  destroyed = false;
+  isDestroyed = () => this.destroyed;
   close = vi.fn();
   destroy = vi.fn();
   reload = vi.fn();
@@ -502,5 +508,111 @@ describe("BrowserViewManagerMain: files from the user's computer (SEC-15)", () =
     await expect(fakeIpcMain.invoke("LOCAL_FILES_FORGET_FOLDER", event, "/home/gm/maps")).resolves.toEqual([
       "/home/gm/music",
     ]);
+  });
+
+  // --- w6-rooms ---
+  it("lists and forgets remembered folders for Settings in Lyre (OUT-8), from the Lyre page only", async () => {
+    setup({ remembered: ["/home/gm/maps", "/home/gm/music"] });
+    const lyre = fromMainFrame(fakePage("lyre-view"));
+    await expect(fakeIpcMain.invoke("LYRE_LOCAL_FOLDERS_LIST", lyre)).resolves.toEqual(["/home/gm/maps", "/home/gm/music"]);
+    await expect(fakeIpcMain.invoke("LYRE_LOCAL_FOLDERS_FORGET", lyre, "/home/gm/maps")).resolves.toEqual(["/home/gm/music"]);
+    for (const event of [fromMainFrame(fakePage(null)), fromMainFrame(fakePage("player-view")), fromSubframe(fakePage("lyre-view"))]) {
+      await expect(fakeIpcMain.invoke("LYRE_LOCAL_FOLDERS_LIST", event)).rejects.toThrow();
+      await expect(fakeIpcMain.invoke("LYRE_LOCAL_FOLDERS_FORGET", event, "/home/gm/music")).rejects.toThrow();
+    }
+  });
+});
+
+// --- w3-shell ---
+describe("BrowserViewManagerMain: the new interface page, Lyre (WP5)", () => {
+  it("opens the Lyre page with its own preload in the app session, registered as trusted", () => {
+    const { create } = setup();
+    const { view, id } = create(LYRE_URL, "lyre");
+    expect(id).toBe(view.webContents.id);
+    expect(view.options.webPreferences?.preload).toBe(LYRE_PRELOAD);
+    expect(view.options.webPreferences?.partition).toBeUndefined();
+    expect(trustedContents.roleOf(view.webContents)).toBe("lyre-view");
+    expect(view.webContents.loadURL).toHaveBeenCalledWith(LYRE_URL);
+  });
+
+  it("tells its owner about the Lyre page once it is created and trusted (the audio host's hook)", () => {
+    const onLyreView = vi.fn();
+    const manager = new BrowserViewManagerMain(fakeWindow() as never, {
+      localFiles: new LocalFileFolders({ get: () => [], set: () => undefined }, path.posix, fakeRealpath),
+      onLyreView,
+    });
+    const main = fakePage("main-window");
+    fakeIpcMain.deliver("BROWSER_VIEW_CREATE_BROWSER_VIEW", fromMainFrame(main), PLAYER_URL, 0, 0, 100, 100, "player");
+    expect(onLyreView).not.toHaveBeenCalled();
+    fakeIpcMain.deliver("BROWSER_VIEW_CREATE_BROWSER_VIEW", fromMainFrame(main), LYRE_URL, 0, 0, 100, 100, "lyre");
+    const lyre = created[created.length - 1].webContents;
+    expect(onLyreView).toHaveBeenCalledWith(lyre);
+    expect(trustedContents.roleOf(lyre)).toBe("lyre-view");
+    manager.destroy();
+  });
+
+  it("refuses the lyre kind for any other page, and the Lyre preload as a kind", () => {
+    const { create } = setup();
+    expect(create("https://evil.example/", "lyre").id).toBe(-1);
+    expect(create(PLAYER_URL, "lyre").id).toBe(-1);
+    expect(create(LYRE_URL, LYRE_PRELOAD).id).toBe(-1);
+    expect(created).toHaveLength(0);
+  });
+
+  it("keeps the Lyre page on its own document, allowing only #route changes", () => {
+    const { create } = setup();
+    const { view } = create(LYRE_URL, "lyre");
+    const away = { url: "https://evil.example/", isMainFrame: true, preventDefault: vi.fn() };
+    view.webContents.emit("will-navigate", away);
+    expect(away.preventDefault).toHaveBeenCalled();
+    const route = { url: `${LYRE_URL}#/library`, isMainFrame: true, preventDefault: vi.fn() };
+    view.webContents.emit("will-navigate", route);
+    expect(route.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it("never opens a window from the Lyre page; an allowed web link becomes an ordinary tab", () => {
+    const { create, window } = setup();
+    const { view, event } = create(LYRE_URL, "lyre");
+    expect(view.webContents.windowOpenHandler?.({ url: "file:///etc/passwd" })).toEqual({ action: "deny" });
+    expect(view.webContents.windowOpenHandler?.({ url: "https://example.com/help" })).toEqual({ action: "deny" });
+    const requests = [...window.webContents.send.mock.calls, ...event.reply.mock.calls].filter(
+      ([channel]) => channel === "BROWSER_VIEW_NEW_TAB",
+    );
+    expect(requests).toEqual([["BROWSER_VIEW_NEW_TAB", "https://example.com/help"]]);
+  });
+
+  it("removes a view whose page has already closed without touching the closed page (quitting no longer hangs)", () => {
+    const { create, send, window } = setup();
+    const { view, id } = create(LYRE_URL, "lyre");
+    view.webContents.destroyed = true;
+    expect(() => send("BROWSER_VIEW_REMOVE_BROWSER_VIEW", id)).not.toThrow();
+    expect(view.webContents.close).not.toHaveBeenCalled();
+    expect(view.webContents.destroy).not.toHaveBeenCalled();
+    expect(window.contentView.removeChildView).toHaveBeenCalled();
+    view.webContents.close.mockClear();
+    const other = create(PLAYER_URL, "player");
+    other.view.webContents.destroyed = true;
+    expect(() => send("BROWSER_VIEW_REMOVE_ALL_BROWSER_VIEWS")).not.toThrow();
+    expect(other.view.webContents.close).not.toHaveBeenCalled();
+  });
+
+  it("never loads another address in the Lyre page", () => {
+    const { create, send } = setup();
+    const { view, id } = create(LYRE_URL, "lyre");
+    view.webContents.loadURL.mockClear();
+    send("BROWSER_VIEW_LOAD_URL", id, "https://example.com/");
+    expect(view.webContents.loadURL).not.toHaveBeenCalled();
+  });
+
+  it("never offers the Lyre page for tab capture: its sound reaches Discord only through the private channel", () => {
+    const { create, window } = setup();
+    const { view, event } = create(LYRE_URL, "lyre");
+    view.webContents.emit("did-finish-load");
+    const player = create(PLAYER_URL, "player");
+    player.view.webContents.emit("did-finish-load");
+    const loaded = [...window.webContents.send.mock.calls, ...event.reply.mock.calls, ...player.event.reply.mock.calls].filter(
+      ([channel]) => channel === "BROWSER_VIEW_LOADED",
+    );
+    expect(loaded).toEqual([["BROWSER_VIEW_LOADED", player.id]]);
   });
 });

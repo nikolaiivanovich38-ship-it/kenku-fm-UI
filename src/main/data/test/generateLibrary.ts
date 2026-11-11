@@ -64,7 +64,8 @@ export function generateLibrary(library: Library, options: { tracks: number; pla
       });
       for (const track of createTracks(store, inputs)) {
         trackIds.push(track.id);
-        tagTracks(store, [track.id], [pick(tagIds), pick(tagIds), pick(tagIds)].filter((id, i, all) => all.indexOf(id) === i));
+        // Inside changeWithoutHistory, so it is done at once.
+        void tagTracks(store, [track.id], [pick(tagIds), pick(tagIds), pick(tagIds)].filter((id, i, all) => all.indexOf(id) === i));
         if (rnd() < 0.2) addMarker(store, track.id, { timeMs: Math.floor(rnd() * 200_000), label: `${words(1)} swell` });
       }
     }

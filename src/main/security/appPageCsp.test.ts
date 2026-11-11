@@ -76,6 +76,21 @@ const PRODUCTION: Record<string, Policy> = {
     "connect-src": ["'self'", "data:", "blob:", "file:", "https:", "http:"],
     "worker-src": ["'none'"],
   },
+  // --- w3-shell --- The new interface page hosts the playback engine and preview (wave 3, w3-host): audio files
+  // and worklets from the app, prepared library files and read-ahead (blob:), nothing from the web. Its fonts and
+  // pictures are bundled files. Security review 6 (w3-secfix): library files come only through the lyre-media:
+  // addresses MEDIA_PREPARE grants this page, never file:, so the page cannot read any other file on the disk.
+  "lyre/index.html": {
+    ...COMMON,
+    "script-src": ["'self'"],
+    "style-src": ["'self'", "'unsafe-inline'"],
+    "img-src": ["'self'", "data:"],
+    "font-src": ["'self'", "data:"],
+    // No 'self' here: on a file: page Chromium lets 'self' match every file: address (found by e2e/mediaProtocol.spec.ts).
+    "media-src": ["blob:", "lyre-media:"],
+    "connect-src": ["blob:", "lyre-media:"],
+    "worker-src": ["'none'"],
+  },
   "audioCapture/index.html": {
     ...COMMON,
     "script-src": ["'self'", "blob:"],
@@ -108,10 +123,12 @@ describe("app page Content-Security-Policy (SEC-11)", () => {
     (file) => {
       const production = PRODUCTION[file];
       const development = pagePolicy(file, "development");
+      // The Lyre page leaves 'self' out of connect-src in production (security review 6); the dev server needs it.
+      const devConnect = file === "lyre/index.html" ? ["'self'", "ws://localhost:*"] : ["ws://localhost:*"];
       expect(development).toEqual({
         ...production,
         "script-src": [...production["script-src"], "'unsafe-eval'"],
-        "connect-src": [...production["connect-src"], "ws://localhost:*"],
+        "connect-src": [...production["connect-src"], ...devConnect],
       });
     },
   );

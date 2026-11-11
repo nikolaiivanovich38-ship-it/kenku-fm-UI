@@ -2,14 +2,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FakeHowl } from "../../test/fakeHowler";
 import { Sound } from "./Sound";
+import { SoundLengths } from "./soundLengths";
 
 vi.mock("howler", () => import("../../test/fakeHowler"));
 
 /** Test file length in seconds; the fake Howl reports it as duration(). */
 const DURATION_S = 10;
 
+/**
+ * Sound lengths the player has learned (PERF-7). Most tests play a sound that has played before and is known to be
+ * short, which is decoded whole as in Kenku FM; the PERF-7 tests start from nothing.
+ */
+let lengths: SoundLengths;
+
 function createSound(
   overrides: Partial<{
+    src: string;
     loop: boolean;
     fadeIn: number;
     fadeOut: number;
@@ -22,6 +30,7 @@ function createSound(
     loop: false,
     fadeIn: 0,
     fadeOut: 0,
+    lengths,
     ...overrides,
   });
 }
@@ -38,10 +47,52 @@ beforeEach(() => {
   vi.useFakeTimers();
   FakeHowl.reset();
   FakeHowl.defaultDuration = DURATION_S;
+  lengths = new SoundLengths();
+  lengths.remember("file:///sound.ogg", DURATION_S);
 });
 
 afterEach(() => {
   vi.useRealTimers();
+});
+
+describe("Sound streams long sounds and decodes only short ones (PERF-7)", () => {
+  it("streams a sound without fades the first time, because its length is not known yet", () => {
+    createSound({ src: "file:///new.ogg" });
+
+    expect(FakeHowl.latest.options.html5).toBe(true);
+  });
+
+  it("decodes a sound without fades once it is known to be short", () => {
+    createSound({ src: "file:///new.ogg" });
+    FakeHowl.latest.load(4);
+
+    createSound({ src: "file:///new.ogg" });
+    expect(FakeHowl.latest.options.html5).toBe(false);
+  });
+
+  it("keeps streaming a sound known to be longer than 30 seconds", () => {
+    createSound({ src: "file:///rain.ogg" });
+    FakeHowl.latest.load(600);
+
+    createSound({ src: "file:///rain.ogg" });
+    expect(FakeHowl.latest.options.html5).toBe(true);
+  });
+
+  it("loops a streamed sound without fades with Howler's own loop", () => {
+    createSound({ src: "file:///rain.ogg", loop: true });
+    const howl = startLatest();
+
+    expect(howl.options.loop).toBe(true);
+    vi.advanceTimersByTime(DURATION_S * 1000 * 3);
+    expect(FakeHowl.instances).toHaveLength(1);
+  });
+
+  it("learns the length of a sound with fades too", () => {
+    createSound({ src: "file:///door.ogg", fadeIn: 100, fadeOut: 100 });
+    FakeHowl.latest.load(3);
+
+    expect(lengths.isShort("file:///door.ogg")).toBe(true);
+  });
 });
 
 describe("Sound fade and loop behaviour (BUG-3)", () => {

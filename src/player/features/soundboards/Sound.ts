@@ -1,5 +1,6 @@
 import { Howl } from "howler";
 import { TypedEmitter } from "tiny-typed-emitter";
+import { soundLengths, SoundLengths } from "./soundLengths";
 
 export interface SoundEvents {
   error: () => void;
@@ -15,6 +16,8 @@ type SoundOptions = {
   fadeIn: number;
   /** Fade-out length in ms before the end, on stop, and the cross-fade length for loops. 0 = none. */
   fadeOut: number;
+  /** What the player knows about sound lengths (PERF-7); the page's shared record unless a test gives its own. */
+  lengths?: SoundLengths;
 };
 
 /** Extra time after a stop fade-out before the sound is unloaded regardless. */
@@ -27,8 +30,11 @@ const STOP_FADE_GRACE_MS = 1000;
  * - `fadeOut > 0`: the sound fades out `fadeOut` ms before its end. When looping,
  *   a new Howl is started at that point and the two cross-fade. This needs HTML5
  *   audio, so separate Howl instances can overlap.
- * - `fadeOut = 0`: Web Audio is used and Howler loops natively, so loops are gapless;
- *   `fadeIn` then applies only to the first start.
+ * - `fadeOut = 0`: Howler loops natively. A sound known to be 30 s or shorter
+ *   uses Web Audio, which decodes the whole file, so it starts at once and loops
+ *   without a gap; `fadeIn` then applies only to the first start. A longer
+ *   sound, or one whose length is not known yet (its first play), streams with
+ *   HTML5 audio so it is never decoded whole (PERF-7).
  *
  * At most two Howl instances exist per sound: the current one and, during a
  * loop cross-fade, the outgoing one, which is unloaded when its fade ends (BUG-4).
@@ -129,15 +135,17 @@ export class Sound extends TypedEmitter<SoundEvents> {
   /** Create and autoplay a Howl for one play-through (or a whole native loop). */
   private createHowl(): Howl {
     const { fadeIn, fadeOut, loop, volume, src } = this.options;
+    const lengths = this.options.lengths ?? soundLengths;
     const crossFadeLoops = fadeOut > 0;
     const howl = new Howl({
       src,
       volume: fadeIn > 0 ? 0 : volume,
       loop: crossFadeLoops ? false : loop,
       autoplay: true,
-      // HTML5 audio lets two instances overlap for the cross-fade. Without a
-      // fade-out, Web Audio is used, which loops without a gap.
-      html5: crossFadeLoops,
+      // HTML5 audio lets two instances overlap for the cross-fade, and streams
+      // a long file. Web Audio decodes the whole file, so it is kept for short
+      // sounds without a fade-out, which then loop without a gap (PERF-7).
+      html5: crossFadeLoops || !lengths.isShort(src),
     });
 
     // "once": a Web Audio loop emits "play" again on every loop.
@@ -151,6 +159,7 @@ export class Sound extends TypedEmitter<SoundEvents> {
       this.scheduleFadeOut(howl, howl.seek());
     });
     howl.on("load", () => {
+      lengths.remember(src, howl.duration());
       this.emit("load", howl.duration());
     });
     howl.on("end", () => {

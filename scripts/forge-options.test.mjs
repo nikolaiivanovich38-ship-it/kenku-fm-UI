@@ -73,7 +73,22 @@ describe("ASAR_UNPACK_GLOB (SEC-13)", () => {
     assert.ok(unpacked("/app/.webpack/main/native_modules/thing.node"));
   });
 
+  it("keeps the bundled ffmpeg program outside app.asar, so it can be run (BUG-10)", () => {
+    assert.ok(unpacked("/app/node_modules/ffmpeg-static/ffmpeg"));
+    assert.ok(unpacked("C:/build/app/node_modules/ffmpeg-static/ffmpeg.exe"));
+  });
+
+  it("keeps ffmpeg's licence and README beside the program, and the bundles' licence lists readable (security review 2, 13)", () => {
+    assert.ok(unpacked("/app/node_modules/ffmpeg-static/ffmpeg.LICENSE"));
+    assert.ok(unpacked("C:/build/app/node_modules/ffmpeg-static/ffmpeg.README"));
+    assert.ok(unpacked("/app/.webpack/main/THIRD_PARTY_LICENSES.txt"));
+    assert.ok(unpacked("/app/.webpack/renderer/lyre_window/THIRD_PARTY_LICENSES.txt"));
+  });
+
   it("packs everything else", () => {
+    assert.ok(!unpacked("/app/node_modules/ffmpeg-static/index.js"));
+    assert.ok(!unpacked("/app/node_modules/ffmpeg-static/package.json"));
+    assert.ok(!unpacked("/app/.webpack/main/ffmpeg"));
     assert.ok(!unpacked("/app/.webpack/main/index.js"));
     assert.ok(!unpacked("/app/node_modules/opusscript/index.js"));
     assert.ok(!unpacked("/app/package.json"));

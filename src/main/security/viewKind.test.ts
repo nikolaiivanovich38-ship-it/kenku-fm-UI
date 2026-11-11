@@ -28,4 +28,27 @@ describe("classifyViewRequest (SEC-3, SEC-8)", () => {
   it("refuses the player kind when the player page is unknown", () => {
     expect(classifyViewRequest(playerUrl, "player", undefined)).toBe("refused");
   });
+
+  // --- w3-shell ---
+  describe("the new interface page (Lyre tab)", () => {
+    const lyreUrl = "file:///app/.webpack/renderer/lyre_window/index.html";
+
+    it("recognises the Lyre page by the lyre kind and its exact page", () => {
+      expect(classifyViewRequest(lyreUrl, "lyre", playerUrl, lyreUrl)).toBe("lyre");
+    });
+
+    it("refuses the lyre kind on any other page, the player's included", () => {
+      expect(classifyViewRequest("https://evil.example", "lyre", playerUrl, lyreUrl)).toBe("refused");
+      expect(classifyViewRequest(playerUrl, "lyre", playerUrl, lyreUrl)).toBe("refused");
+      expect(classifyViewRequest(lyreUrl, "player", playerUrl, lyreUrl)).toBe("refused");
+    });
+
+    it("refuses the lyre kind when the Lyre page is unknown", () => {
+      expect(classifyViewRequest(lyreUrl, "lyre", playerUrl, undefined)).toBe("refused");
+    });
+
+    it("still recognises the old player beside it", () => {
+      expect(classifyViewRequest(playerUrl, "player", playerUrl, lyreUrl)).toBe("player");
+    });
+  });
 });

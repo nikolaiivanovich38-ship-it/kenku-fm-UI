@@ -18,6 +18,7 @@ vi.mock("electron", () => electron);
 
 import path from "path";
 import { isSquirrelInstall, runAutoUpdate } from "./autoUpdate";
+import { UpdateStatus } from "./main/updateStatus";
 
 const squirrelInstalled = () => true;
 
@@ -76,6 +77,79 @@ describe("runAutoUpdate (SEC-14)", () => {
       expect.any(Error),
     );
     consoleError.mockRestore();
+  });
+});
+
+describe("update errors are shown, not only logged (SEC-14)", () => {
+  const realPlatform = process.platform;
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setPlatform("win32");
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    setPlatform(realPlatform);
+    vi.restoreAllMocks();
+  });
+
+  const handlerFor = (event: string) =>
+    electron.autoUpdater.on.mock.calls.find(([name]) => name === event)?.[1] as (...args: unknown[]) => void;
+
+  it("tells the main window the first failure in plain words, once, until a check works again", () => {
+    const window = fakeWindow();
+    const status = new UpdateStatus();
+    runAutoUpdate(window, squirrelInstalled, status);
+    handlerFor("error")(new Error("net::ERR_INTERNET_DISCONNECTED"));
+    handlerFor("error")(new Error("net::ERR_INTERNET_DISCONNECTED"));
+    const errors = vi.mocked(window.webContents.send).mock.calls.filter(([channel]) => channel === "ERROR");
+    expect(errors).toEqual([
+      [
+        "ERROR",
+        "Lyre could not check for updates: this computer seems to be offline. It tries again every 15 minutes; this version keeps working.",
+      ],
+    ]);
+    expect(status.state().kind).toBe("error");
+
+    handlerFor("update-not-available")();
+    expect(status.state().kind).toBe("up-to-date");
+    handlerFor("error")(new Error("HTTP Status 503"));
+    expect(vi.mocked(window.webContents.send).mock.calls.filter(([channel]) => channel === "ERROR")).toHaveLength(2);
+  });
+
+  it("records checking, downloading and a downloaded update, and says to restart in plain words", () => {
+    const window = fakeWindow();
+    const status = new UpdateStatus();
+    runAutoUpdate(window, squirrelInstalled, status);
+    handlerFor("checking-for-update")();
+    expect(status.state().kind).toBe("checking");
+    handlerFor("update-available")();
+    expect(status.state().kind).toBe("downloading");
+    handlerFor("update-downloaded")();
+    expect(status.state()).toEqual({ kind: "ready", message: "A new version of Lyre is ready. Restart Lyre to use it." });
+    expect(window.webContents.send).toHaveBeenCalledWith("MESSAGE", "A new version of Lyre is ready. Restart Lyre to use it.");
+  });
+
+  it("says why updates are off for the zip build and on systems without them", () => {
+    const status = new UpdateStatus();
+    vi.spyOn(console, "info").mockImplementation(() => {});
+    runAutoUpdate(fakeWindow(), () => false, status);
+    expect(status.state()).toEqual({
+      kind: "off",
+      message: "Automatic updates are off: this copy was not set up by the installer. Install Lyre with its installer to get them.",
+    });
+    setPlatform("linux");
+    runAutoUpdate(fakeWindow(), squirrelInstalled, status);
+    expect(status.state()).toEqual({ kind: "off", message: "Automatic updates are not available for this system yet." });
+  });
+
+  it("removes every updater listener when the window closes", () => {
+    const window = fakeWindow();
+    runAutoUpdate(window, squirrelInstalled, new UpdateStatus());
+    const close = vi.mocked(window.on).mock.calls.find(([event]) => (event as string) === "close")?.[1] as () => void;
+    close();
+    const added = electron.autoUpdater.on.mock.calls.map(([event]) => event).sort();
+    const removed = electron.autoUpdater.off.mock.calls.map(([event]) => event).sort();
+    expect(removed).toEqual(added);
   });
 });
 

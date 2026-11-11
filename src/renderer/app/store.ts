@@ -6,6 +6,7 @@ import bookmarksReducer from "../features/bookmarks/bookmarksSlice";
 import { bookmarkMigrations } from "../features/bookmarks/bookmarksMigration";
 import tabsReducer from "../features/tabs/tabsSlice";
 import playerReducer from "../features/player/playerSlice";
+import lyreReducer from "../features/lyre/lyreSlice";
 import inputReducer from "../features/input/inputSlice";
 import errorsReducer from "../features/errors/errorsSlice";
 
@@ -22,6 +23,7 @@ import {
 } from "redux-persist";
 import storage from "redux-persist/lib/storage";
 import { moveTokenOutOfSettings } from "../features/settings/tokenMigration";
+import { moveRemoteOutOfSettings } from "../features/settings/remoteMigration";
 
 const rootReducer = combineReducers({
   connection: connectionReducer,
@@ -30,10 +32,15 @@ const rootReducer = combineReducers({
   bookmarks: bookmarksReducer,
   tabs: tabsReducer,
   player: playerReducer,
+  // WP5: the built-in "Lyre" tab (new interface); not saved, like the player tab.
+  lyre: lyreReducer,
   input: inputReducer,
   // Error messages on screen (UX finding 4); not saved.
   errors: errorsReducer,
 });
+
+/** The remote control's settings as Kenku FM kept them here; version 7 moves them to Lyre's Settings. */
+const OLD_REMOTE_DEFAULTS = { remoteEnabled: false, remoteAddress: "127.0.0.1", remotePort: "3333" };
 
 const migrations: any = {
   2: (state: RootState): RootState => {
@@ -42,9 +49,7 @@ const migrations: any = {
       settings: {
         ...state.settings,
         urlBarEnabled: true,
-        remoteEnabled: false,
-        remoteAddress: "127.0.0.1",
-        remotePort: "3333",
+        ...OLD_REMOTE_DEFAULTS,
         externalInputsEnabled: false,
         multipleInputsEnabled: false,
       },
@@ -67,11 +72,14 @@ const migrations: any = {
   // (encrypted) and is removed from this storage; OUT-1: "Multiple Outputs" is gone.
   6: (state: RootState): RootState =>
     moveTokenOutOfSettings(state, (token) => window.kenku.outputs.importLegacyToken(token)),
+
+  // Review 0.5.0 CR-3 (version 7): the remote control's on/off, address and port move to Lyre's Settings, once.
+  7: (state: RootState): RootState => moveRemoteOutOfSettings(state, (old) => window.kenku.remoteMoveOldSetting(old)),
 };
 
 const persistConfig = {
   key: "root",
-  version: 6,
+  version: 7,
   storage,
   whitelist: ["bookmarks", "settings"],
   migrate: createMigrate(migrations, { debug: false }),

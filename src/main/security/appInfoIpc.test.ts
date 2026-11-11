@@ -42,6 +42,17 @@ describe("registerAppInfoIpc (SEC-8)", () => {
     expect(app.clearCache).not.toHaveBeenCalled();
   });
 
+  // --- w6-rooms ---
+  it("lets the Lyre page's Settings clear website data too (OUT-8), and no other page", async () => {
+    registerAppInfoIpc(app);
+    await fakeIpcMain.invoke("LYRE_CLEAR_WEBSITE_DATA", fromMainFrame(fakePage("lyre-view")));
+    expect(app.clearCache).toHaveBeenCalledTimes(1);
+    for (const event of [fromMainFrame(fakePage(null)), fromMainFrame(fakePage("player-view")), fromSubframe(fakePage("lyre-view")), fromMainFrame(fakePage("main-window"))]) {
+      await expect(fakeIpcMain.invoke("LYRE_CLEAR_WEBSITE_DATA", event)).rejects.toThrow();
+    }
+    expect(app.clearCache).toHaveBeenCalledTimes(1);
+  });
+
   it("can be removed again", () => {
     const dispose = registerAppInfoIpc(app);
     dispose();

@@ -1,0 +1,217 @@
+/* Lyre design round 2: design tokens.
+   One structure, five table themes. A campaign picks its theme; Lyre switches when that campaign is open.
+   Lane colours (music, ambience, effects, preview) and status colours keep their meaning in every theme,
+   tuned per theme for contrast. Every text token is checked at 4.5:1 or better on --surface and --surface-2
+   by check-contrast.js. Status and lane colours are not used as text on --surface-3 (selected rows use --ink). */
+
+:root {
+  /* Density: compact. Controls 28 px, small controls (closers, row actions) 24 px: WCAG 2.2 target minimum. */
+  --ctl: 28px;
+  --ctl-s: 24px;
+  --row: 30px;
+  --pane-head: 32px;
+  --gap: 8px;
+  --gap-s: 4px;
+  --gap-l: 12px;
+  --r-s: 4px;
+  --r-m: 6px;
+  --r-l: 10px;
+  --fs: 13.5px;
+  --fs-s: 12px;
+  --fs-xs: 11px;
+  --fs-l: 15px;
+  --fs-h: 18px;
+  --body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --num: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --display: "Lora", Georgia, serif;
+  --display-weight: 600;
+  --display-case: none;
+  --display-track: 0;
+  --display-scale: 1;
+  --shadow: 0 6px 20px rgb(0 0 0 / .35);
+  --onair-ink: #1a0402;
+  color-scheme: dark;
+}
+
+/* 1. Fern and Brass: Lyre's own colours. Old-world fantasy that suits any table. Default. */
+:root, [data-theme="fern"] {
+  --bg: #0d1d18;
+  --surface: #13281f;
+  --surface-2: #1a3329;
+  --surface-3: #234236;
+  --line: #2c4c40;
+  --line-strong: #557566;
+  --ink: #f1e4c8;
+  --ink-2: #d0c6ad;
+  --ink-3: #a9b29f;
+  --accent: #d9a441;
+  --accent-hover: #e6b55a;
+  --accent-ink: #1a1306;
+  --accent-text: #e3b45c;
+  --accent-soft: rgb(217 164 65 / .16);
+  --second: #c0582f;
+  --focus: #f6d27a;
+  --onair: #ff6b57;
+  --onair-ink: #1a0402;
+  --ok: #6fd39a;
+  --warn: #f0b64f;
+  --danger: #ff7a6b;
+  --music: #8fbcf0;
+  --amb: #6fd4b8;
+  --fx: #bcd56a;
+  --preview: #bfa8f5;
+  --mood: #f0c46a;
+  --motif: #f29bbd;
+  --scenetype: #8fbcf0;
+  --display: "Lora", Georgia, serif;
+  --theme-name: "Fern and Brass";
+  color-scheme: dark;
+}
+
+/* 2. Hearth and Iron: dungeon stone and forge light, for D&D and sword-and-sorcery tables. */
+[data-theme="hearth"] {
+  --bg: #120f0c;
+  --surface: #1b1612;
+  --surface-2: #261f19;
+  --surface-3: #332920;
+  --line: #43372b;
+  --line-strong: #74634f;
+  --ink: #f2e3c6;
+  --ink-2: #d3c1a0;
+  --ink-3: #b29f80;
+  --accent: #e2803a;
+  --accent-hover: #ee934f;
+  --accent-ink: #1e0d02;
+  --accent-text: #f09a58;
+  --accent-soft: rgb(226 128 58 / .16);
+  --second: #5fae9a;
+  --focus: #ffd27a;
+  --onair: #ff6b57;
+  --onair-ink: #1a0402;
+  --ok: #7fd18f;
+  --warn: #f2bd55;
+  --danger: #ff7a6b;
+  --music: #93b9ea;
+  --amb: #79cdb4;
+  --fx: #bcd56a;
+  --preview: #c2abf2;
+  --mood: #f2c46b;
+  --motif: #f0a0b8;
+  --scenetype: #93b9ea;
+  --display: "Cinzel", "Trajan Pro", Georgia, serif;
+  --display-track: .03em;
+  --display-scale: .92;
+  --theme-name: "Hearth and Iron";
+  color-scheme: dark;
+}
+
+/* 3. Candlelit Library: ink-blue night and candle gold, for wizarding-school and academy games. */
+[data-theme="candle"] {
+  --bg: #0d1222;
+  --surface: #141a2f;
+  --surface-2: #1c2440;
+  --surface-3: #263052;
+  --line: #333e64;
+  --line-strong: #5c688f;
+  --ink: #efe6d2;
+  --ink-2: #cbc4b2;
+  --ink-3: #a7a8bb;
+  --accent: #e2b65c;
+  --accent-hover: #ecc574;
+  --accent-ink: #1b1405;
+  --accent-text: #e8c373;
+  --accent-soft: rgb(226 182 92 / .15);
+  --second: #a8384a;
+  --focus: #ffe08a;
+  --onair: #ff6b6b;
+  --onair-ink: #1a0402;
+  --ok: #6fd39a;
+  --warn: #f0b64f;
+  --danger: #ff7a7a;
+  --music: #8fbcf0;
+  --amb: #6fd4c0;
+  --fx: #bcd56a;
+  --preview: #c4aef7;
+  --mood: #f0c46a;
+  --motif: #f29bbd;
+  --scenetype: #8fbcf0;
+  --display: "Cormorant Garamond", Garamond, Georgia, serif;
+  --display-scale: 1.12;
+  --theme-name: "Candlelit Library";
+  color-scheme: dark;
+}
+
+/* 4. Parchment: the light version of Candlelit Library, for daytime prep by a window. */
+[data-theme="parchment"] {
+  --bg: #e6dbc5;
+  --surface: #f5eddd;
+  --surface-2: #ece2cd;
+  --surface-3: #ddcdae;
+  --line: #cdbb98;
+  --line-strong: #968466;
+  --ink: #241d2c;
+  --ink-2: #463c4f;
+  --ink-3: #5f5466;
+  --accent: #7b2232;
+  --accent-hover: #922a3d;
+  --accent-ink: #fff7ec;
+  --accent-text: #7b2232;
+  --accent-soft: rgb(123 34 50 / .1);
+  --second: #8a6a1e;
+  --focus: #1f4e8c;
+  --onair: #b3261e;
+  --onair-ink: #fff7ec;
+  --ok: #1d6b3d;
+  --warn: #7a5300;
+  --danger: #a3221b;
+  --music: #2a5a98;
+  --amb: #17695a;
+  --fx: #4d6a12;
+  --preview: #5e42a6;
+  --mood: #7a5300;
+  --motif: #8f2d58;
+  --scenetype: #2a5a98;
+  --display: "Cormorant Garamond", Garamond, Georgia, serif;
+  --display-scale: 1.12;
+  --shadow: 0 6px 20px rgb(60 40 10 / .18);
+  --theme-name: "Parchment";
+  color-scheme: light;
+}
+
+/* 5. Elysium: soot black, bone and blood, for Vampire and other gothic-noir games. */
+[data-theme="elysium"] {
+  --bg: #0a0809;
+  --surface: #131012;
+  --surface-2: #1c171a;
+  --surface-3: #282024;
+  --line: #3a2f34;
+  --line-strong: #6e5f63;
+  --ink: #ece3d6;
+  --ink-2: #cbbfb1;
+  --ink-3: #a99d9b;
+  --accent: #c9a666;
+  --accent-hover: #d8b778;
+  --accent-ink: #1a1206;
+  --accent-text: #d6b676;
+  --accent-soft: rgb(201 166 102 / .16);
+  --second: #b3203a;
+  --focus: #f3d38a;
+  --onair: #ff5a4f;
+  --onair-ink: #1a0402;
+  --ok: #7fcf9a;
+  --warn: #e9b65a;
+  --danger: #ff7a6b;
+  --music: #96b6e6;
+  --amb: #7ccab6;
+  --fx: #bcd56a;
+  --preview: #c3aef0;
+  --mood: #e9c27a;
+  --motif: #ef93ad;
+  --scenetype: #96b6e6;
+  --display: "Cormorant Garamond", Garamond, Georgia, serif;
+  --display-case: uppercase;
+  --display-track: .08em;
+  --display-scale: .95;
+  --theme-name: "Elysium";
+  color-scheme: dark;
+}

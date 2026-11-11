@@ -7,7 +7,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { decodeWav, encodeWav, integratedLoudness, limit, peakDb } from "./demo-kit/audio.mjs";
-import { KIT_FOLDER, SOUNDBOARD_COPIES, SOUNDS, TARGET_LUFS, buildDemoKit } from "./demo-kit/build.mjs";
+import { EXTRA_FORMATS, KIT_FOLDER, SOUNDBOARD_COPIES, SOUNDS, TARGET_LUFS, buildDemoKit } from "./demo-kit/build.mjs";
+import { parseFile } from "music-metadata";
 import { createZip, readZip } from "./demo-kit/zip.mjs";
 
 const MAX_ZIP_BYTES = 25_000_000;
@@ -49,6 +50,7 @@ describe("demo kit build", () => {
       "Local soundboard/notes.txt",
       ...SOUNDS.map((sound) => sound.file),
       ...Object.keys(SOUNDBOARD_COPIES),
+      ...Object.keys(EXTRA_FORMATS),
     ].sort();
     assert.deepEqual(listFiles(first.kitDir), expected);
     for (const name of expected) {
@@ -129,6 +131,33 @@ describe("demo kit build", () => {
     assert.match(html, /"notes\.txt"/);
   });
 
+  // 0.3.0: Lyre reads title, artist and album from a file's tags (DAT-5), plays AIFF through a converted copy
+  // (BUG-10) and refuses a file that is not audio whatever its name (UX review 3). The kit lets Nik see all three.
+  test("every sound carries title, artist and album tags that Lyre's tag reader finds", async () => {
+    for (const { file } of SOUNDS) {
+      const { common } = await parseFile(path.join(first.kitDir, ...file.split("/")));
+      assert.equal(common.title, path.basename(file, ".wav").split(" - ")[0], file);
+      assert.equal(common.artist, "Lyre demo kit", file);
+      assert.equal(common.album, `Lyre demo kit: ${file.split("/")[0]}`, file);
+    }
+  });
+
+  test("Extra formats holds an AIFF copy of an effect, of the same length", async () => {
+    const aiff = Object.keys(EXTRA_FORMATS).find((name) => name.endsWith(".aiff"));
+    const { format } = await parseFile(path.join(first.kitDir, ...aiff.split("/")));
+    assert.equal(format.container, "AIFF");
+    const original = decodeWav(fs.readFileSync(path.join(first.kitDir, ...EXTRA_FORMATS[aiff].split("/"))));
+    assert.ok(Math.abs(format.duration - original.seconds) < 0.01, `${format.duration} s against ${original.seconds} s`);
+  });
+
+  test("Extra formats holds a text file named like an MP3, which is not audio", async () => {
+    const fake = Object.keys(EXTRA_FORMATS).find((name) => name.endsWith(".mp3"));
+    const text = fs.readFileSync(path.join(first.kitDir, ...fake.split("/")), "utf8");
+    assert.match(text, /not a sound/);
+    const parsed = await parseFile(path.join(first.kitDir, ...fake.split("/"))).catch(() => null);
+    assert.ok(!parsed?.format.duration, "no audio length");
+  });
+
   test("the README names the version and says how to use the kit, for Notepad", () => {
     const readme = fs.readFileSync(path.join(first.kitDir, "README.txt"), "utf8");
     assert.match(readme, new RegExp(`Lyre ${VERSION.replace(/\./g, "\\.")} demo kit`));
@@ -136,6 +165,7 @@ describe("demo kit build", () => {
     assert.match(readme, /Effects folder/);
     assert.match(readme, /Local soundboard\\soundboard\.html/);
     assert.match(readme, /test script/);
+    assert.match(readme, /Extra formats folder/);
     assert.doesNotMatch(readme, /\{\{/);
     assert.doesNotMatch(readme, /[^\r]\n/, "Windows line endings");
   });

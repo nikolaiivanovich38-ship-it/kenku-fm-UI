@@ -1,0 +1,31 @@
+/* Look and feel view */
+.lk-intro { max-width: 860px; display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.lk-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.lk-card { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: var(--r-l); background: var(--surface); }
+.lk-card > header { display: flex; flex-direction: column; gap: 1px; }
+.lk-card > header h2 { font-size: calc(17px * var(--display-scale)); }
+.lk-card > p { font-size: var(--fs-s); }
+.lk-card > .btn { align-self: flex-start; }
+.lk-sample { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: var(--r-m); background: var(--bg); color: var(--ink); border: 1px solid var(--line); font: var(--fs)/1.38 var(--body); }
+.lk-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.lk-head .pane-title { font-size: calc(17px * var(--display-scale)); white-space: normal; overflow: visible; }
+.lk-head { flex-wrap: wrap; }
+.lk-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: var(--r-m); background: var(--surface); border: 1px solid var(--line); }
+.lk-row .progress { margin-top: 4px; }
+.lk-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+.lk-sw { display: flex; height: 14px; border-radius: 3px; overflow: hidden; border: 1px solid var(--line); }
+.lk-sw i { flex: 1; }
+.lk-h2 { font-size: calc(17px * var(--display-scale)); margin: 18px 0 8px; }
+.lk-fixed { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.lk-fixed > div { display: flex; align-items: center; gap: 6px; font-size: var(--fs-s); }
+/* Round 7: Display (UX-11) */
+.lk-display { margin-bottom: 14px; }
+.lk-display .lk-h2 { margin-top: 0; }
+.lk-drow { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; }
+.lk-dgrp { display: inline-flex; align-items: center; gap: 8px; min-height: var(--ctl); }
+.lk-dl { font-size: var(--fs-s); font-weight: 700; color: var(--ink-2); }
+.lk-radio { display: inline-flex; align-items: center; gap: 5px; min-height: 24px; cursor: pointer; }
+.lk-radio input { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
+.lk-size input[type=range] { width: 160px; accent-color: var(--accent); }
+.lk-sizev { min-width: 42px; }
+.lk-pic::after { content: attr(data-label); }

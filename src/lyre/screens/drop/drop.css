@@ -1,0 +1,13 @@
+/* ORG-5: the Drop on tray, shown only while tracks are dragged (design/prototype/src/views/r7org.css). */
+.droptray { position: fixed; z-index: 55; top: 64px; right: 12px; bottom: 64px; width: min(280px, 40vw); overflow: auto; display: flex; flex-direction: column; gap: 8px; padding: 10px;
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r-l); box-shadow: 0 8px 24px rgb(0 0 0 / 0.35); }
+.dt-head { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.dt-how { font-size: var(--fs-xs); }
+.dt-g { display: flex; flex-direction: column; gap: 4px; }
+.dt-gh { font-size: var(--fs-xs); color: var(--ink-2); margin: 4px 0 0; }
+.dt-t { min-height: var(--ctl); padding: 0 8px; text-align: left; border: 1px dashed var(--line-strong); border-radius: var(--r-s); background: var(--surface-2); color: var(--ink); font: inherit; cursor: copy; }
+.dt-over { outline: 2px solid var(--accent) !important; outline-offset: -2px; background: var(--accent-soft) !important; }
+.addto { display: flex; flex-direction: column; gap: 10px; }
+.addto-g { border: 0; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; }
+.addto-g legend { font-size: var(--fs-s); color: var(--ink-2); margin-bottom: 4px; }
+.addto-move { margin-top: 10px; }

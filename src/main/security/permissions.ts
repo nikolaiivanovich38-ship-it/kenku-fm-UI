@@ -8,8 +8,11 @@
  * the rules can be unit-tested.
  */
 
-/** Lyre's own pages. A `null` role means "not one of ours" (a website tab). */
-export type AppPageRole = "main-window" | "audio-capture" | "player-view";
+/**
+ * Lyre's own pages. A `null` role means "not one of ours" (a website tab).
+ * "lyre-view" is the new interface's page (wave 3, src/lyre).
+ */
+export type AppPageRole = "main-window" | "audio-capture" | "player-view" | "lyre-view";
 
 /** Media types as reported by Electron's request ("audio"/"video") and check ("unknown") handlers. */
 export type MediaType = "audio" | "video" | "unknown";
@@ -25,6 +28,11 @@ export interface PermissionQuery {
   isMainFrame?: boolean;
   /** Whether the app has chosen to capture this page's audio (see captureTargets.ts). */
   isCaptureTarget?: boolean;
+  /**
+   * A permission check (Chromium asking whether the page already has it, from
+   * Electron's check handler) rather than a request (the page asking for it).
+   */
+  isCheck?: boolean;
 }
 
 /**
@@ -33,12 +41,42 @@ export interface PermissionQuery {
  * - main-window: lists input devices (with names) for the external-input feature.
  * - audio-capture: captures tab audio and external input devices for Discord.
  * - player-view: copies playlist / sound ids to the clipboard.
+ * - lyre-view: nothing it can ask for (see APP_PAGE_CHECKS for its device choice).
  */
 const APP_PAGE_PERMISSIONS: Record<AppPageRole, ReadonlySet<string>> = {
   "main-window": new Set(["media"]),
   "audio-capture": new Set(["media"]),
   "player-view": new Set(["clipboard-sanitized-write"]),
+  "lyre-view": new Set(),
 };
+
+/**
+ * --- Rooms and buses --- PRV-2: permissions an app page gets only as a check,
+ * never as a request.
+ * - player-view: "speaker-selection" lets it see the sound output devices'
+ *   names (enumerateDevices) and play on one with setSinkId. Probed on
+ *   Electron 44 (WP2 wave 2): both ask only this check; without it setSinkId
+ *   on a chosen device fails with "No permission to use requested device".
+ *   The page still gets no microphone or camera ("media" stays refused), and
+ *   no `selectAudioOutput` picker (that is a request).
+ */
+const APP_PAGE_CHECKS: Record<AppPageRole, ReadonlySet<string>> = {
+  "main-window": new Set(),
+  "audio-capture": new Set(),
+  "player-view": new Set(["speaker-selection"]),
+  // --- w3-host --- The new interface's page chooses the preview device
+  // (PRV-2) exactly as the player page does: device names and setSinkId only.
+  "lyre-view": new Set(["speaker-selection"]),
+};
+
+/**
+ * --- w3-host --- Pages whose sound must never be recorded by tab capture.
+ * The new interface's page sends each room's mix to Discord over the private
+ * player channel (RoomStreams); recording the page as well would play every
+ * room into every room and twice. AudioCaptureManagerMain already refuses to
+ * capture it; this refuses Chromium's capture request too.
+ */
+const NEVER_CAPTURED: ReadonlySet<AppPageRole> = new Set(["lyre-view"]);
 
 /**
  * Permissions granted to website tabs:
@@ -91,6 +129,9 @@ function isAudioOnly(mediaTypes: readonly string[] | undefined): boolean {
  */
 export function isPermissionAllowed(query: PermissionQuery): boolean {
   const { role, permission, mediaTypes, isMainFrame = true } = query;
+  if (role !== null && NEVER_CAPTURED.has(role) && permission === "media") {
+    return false;
+  }
   if (isTabCaptureOfChosenPage(query)) {
     return true;
   }
@@ -99,6 +140,9 @@ export function isPermissionAllowed(query: PermissionQuery): boolean {
   }
   if (!isMainFrame) {
     return false;
+  }
+  if (query.isCheck && APP_PAGE_CHECKS[role].has(permission)) {
+    return true;
   }
   if (!APP_PAGE_PERMISSIONS[role].has(permission)) {
     return false;

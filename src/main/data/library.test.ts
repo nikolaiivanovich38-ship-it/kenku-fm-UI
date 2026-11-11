@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LibraryDatabaseError } from "./errors";
 import {
   FIRST_DAILY_BACKUP_DELAY_MS,
+  JOURNAL_SIZE_LIMIT,
+  isNetworkPath,
   libraryFolder,
   openLibrary,
   restoreBackup,
@@ -14,6 +16,8 @@ import { BACKUPS_TO_KEEP, findLatestGoodBackup, listBackups } from "./backups";
 import { loadSqlite } from "./sqlite";
 import { MIGRATIONS, type Migration } from "./schema";
 import { createCampaign, listCampaigns } from "./repo/campaigns";
+import { createTracks } from "./repo/tracks";
+import { listTags, tagTracks } from "./repo/tags";
 import { makeClock, makeTempFolder } from "./test/helpers";
 import { generateLibrary } from "./test/generateLibrary";
 
@@ -58,7 +62,7 @@ function damage(file: string, offset: number, length: number) {
 }
 
 describe("opening the library (DAT-6)", () => {
-  it("creates the folder and an up-to-date database on first use", () => {
+  it("creates the folder and an up-to-date database on first use", async () => {
     const library = openTracked();
     expect(fs.existsSync(path.join(folder, "library.sqlite"))).toBe(true);
     expect(library.schemaVersion).toBe(MIGRATIONS.length);
@@ -69,34 +73,48 @@ describe("opening the library (DAT-6)", () => {
     expect(listCampaigns(again.store).map((c) => c.name)).toEqual(["Strahd"]);
   });
 
-  it("keeps the library in a 'library' folder inside the app data folder", () => {
-    expect(libraryFolder(path.join("C:", "Users", "gm", "AppData", "Roaming", "lyre"))).toBe(
-      path.join("C:", "Users", "gm", "AppData", "Roaming", "lyre", "library"),
-    );
+  it("keeps the library in a 'library' folder inside the app data folder", async () => {
+    expect(libraryFolder("/home/gm/.config/lyre", {}, "linux")).toBe(path.join("/home/gm/.config/lyre", "library"));
   });
 
-  it("comes with undo/redo wired to every change", () => {
+  it("on Windows keeps the library under Local app data, outside the installer's own folder, which uninstalling deletes", () => {
+    const env = { LOCALAPPDATA: "C:\\Users\\gm\\AppData\\Local" };
+    const folder = libraryFolder("C:\\Users\\gm\\AppData\\Roaming\\Lyre", env, "win32");
+    expect(folder).toBe("C:\\Users\\gm\\AppData\\Local\\Lyre Library");
+    // The installer (Squirrel, package "lyre") installs into %LOCALAPPDATA%\lyre and removes that whole folder on
+    // uninstall; Windows paths ignore letter case, so "Lyre\library" there would go with it, backups included.
+    const installRoot = path.win32.join(env.LOCALAPPDATA, "lyre").toLowerCase() + "\\";
+    expect(folder.toLowerCase().startsWith(installRoot)).toBe(false);
+  });
+
+  it("refreshes the query planner's statistics when it opens, not only when it closes (review nice-to-have)", async () => {
+    const exec = vi.spyOn(loadSqlite().DatabaseSync.prototype, "exec");
+    openTracked();
+    expect(exec.mock.calls.map(([sql]) => String(sql))).toContain("PRAGMA optimize = 0x10002");
+  });
+
+  it("comes with undo/redo wired to every change", async () => {
     const library = openTracked();
     createCampaign(library.store, { name: "Strahd" });
-    expect(library.history.undo()).toBe('Add campaign "Strahd"');
+    expect(await library.history.undo()).toBe('Add campaign "Strahd"');
     expect(listCampaigns(library.store)).toEqual([]);
   });
 
-  it("backs the library up before upgrading it to a new version", () => {
+  it("backs the library up before upgrading it to a new version", async () => {
     openTracked().close();
     open = [];
-    const later: Migration = { version: MIGRATIONS.length + 1, name: "later", up: (db) => db.exec("CREATE TABLE pads (id TEXT PRIMARY KEY)") };
+    const later: Migration = { version: MIGRATIONS.length + 1, name: "later", up: (db) => db.exec("CREATE TABLE pad_actions (id TEXT PRIMARY KEY)") };
     const library = openTracked({ migrations: [...MIGRATIONS, later] });
     expect(library.schemaVersion).toBe(MIGRATIONS.length + 1);
     const backups = listBackups(library.backupFolder);
     expect(backups.map((b) => b.kind)).toEqual(["upgrade"]);
-    expect(path.basename(backups[0].path)).toMatch(/^library-upgrade-v1-/);
+    expect(path.basename(backups[0].path)).toMatch(new RegExp(`^library-upgrade-v${MIGRATIONS.length}-`));
   });
 
-  it("reports a damaged file clearly and offers the newest backup (check before opening)", () => {
+  it("reports a damaged file clearly and offers the newest backup (check before opening)", async () => {
     const library = openTracked();
     createCampaign(library.store, { name: "Strahd" });
-    const backup = library.backupNow();
+    const backup = await library.backupNow();
     library.close();
     open = [];
     const file = path.join(folder, "library.sqlite");
@@ -123,10 +141,10 @@ describe("opening the library (DAT-6)", () => {
     expect(listCampaigns(restored.store).map((c) => c.name)).toEqual(["Strahd"]);
   });
 
-  it("leaves the damaged library where it was when the backup cannot be copied (review 3)", () => {
+  it("leaves the damaged library where it was when the backup cannot be copied (review 3)", async () => {
     const library = openTracked();
     createCampaign(library.store, { name: "Strahd" });
-    const backup = library.backupNow();
+    const backup = await library.backupNow();
     library.close();
     open = [];
     const file = path.join(folder, "library.sqlite");
@@ -148,9 +166,9 @@ describe("opening the library (DAT-6)", () => {
     );
   });
 
-  it("writes the backup copy to disk before it moves the damaged file aside", () => {
+  it("writes the backup copy to disk before it moves the damaged file aside", async () => {
     const library = openTracked();
-    const backup = library.backupNow();
+    const backup = await library.backupNow();
     library.close();
     open = [];
     const steps: string[] = [];
@@ -182,11 +200,11 @@ describe("opening the library (DAT-6)", () => {
     let library = openTracked();
     generateLibrary(library, { tracks: 2000, playlists: 20 });
     expect(await library.checkIntegrity()).toEqual({ status: "ok" });
-    const backup = library.backupNow();
+    const backup = await library.backupNow();
     // Newer backups that are themselves damaged are skipped.
     for (let i = 0; i < 3; i++) {
       clock.advance(1000);
-      damage(library.backupNow().path, 0, 100);
+      damage((await library.backupNow()).path, 0, 100);
     }
     const page = library.store.get<{ pageno: number }>(
       "SELECT pageno FROM dbstat WHERE name = 'tracks' AND pagetype = 'leaf' ORDER BY pageno LIMIT 1 OFFSET 20",
@@ -205,7 +223,7 @@ describe("opening the library (DAT-6)", () => {
     // Review 9: the library and every backup were checked on the worker thread,
     // so damaged backups cannot hold up the main process.
     expect(checksHere()).toBe(0);
-  });
+  }, 30_000); // builds a 2,000-track library: more than the default 5 s when the whole suite runs at once
 
   it("stops the background check when the library is closed", async () => {
     const library = openTracked();
@@ -216,20 +234,75 @@ describe("opening the library (DAT-6)", () => {
     reopened.close();
     expect(await reopened.checkIntegrity()).toEqual({ status: "not-checked" });
     expect(await openTracked({ integrityCheck: "blocking" }).checkIntegrity()).toEqual({ status: "ok" });
-  });
+  }, 30_000);
 
-  it("reports a file that is not a library at all", () => {
+  it("reports a file that is not a library at all", async () => {
     fs.mkdirSync(folder, { recursive: true });
     fs.writeFileSync(path.join(folder, "library.sqlite"), "this is not a database".repeat(100));
     expect(() => openTracked()).toThrow(expect.objectContaining({ code: "corrupt", latestBackup: null }));
   });
 });
 
+describe("where the library lives, and its working file (DB review 6)", () => {
+  it("keeps the library under Local app data on Windows, which is never redirected to a network share", () => {
+    const roaming = "C:\\Users\\gm\\AppData\\Roaming\\lyre";
+    expect(libraryFolder(roaming, { LOCALAPPDATA: "C:\\Users\\gm\\AppData\\Local" }, "win32")).toBe(
+      "C:\\Users\\gm\\AppData\\Local\\lyre Library",
+    );
+    // Without LOCALAPPDATA (never on a normal Windows), it stays next to the other app data.
+    expect(libraryFolder(roaming, {}, "win32")).toBe("C:\\Users\\gm\\AppData\\Roaming\\lyre\\library");
+  });
+
+  it("recognises network folders, where the write-ahead log cannot work, and keeps a plain journal there", () => {
+    for (const p of ["\\\\server\\share\\lyre", "//server/share/lyre", "\\\\?\\UNC\\server\\share\\lyre"]) expect(isNetworkPath(p), p).toBe(true);
+    for (const p of ["C:\\Users\\gm\\AppData\\Local\\lyre", "\\\\?\\C:\\lyre", "/home/gm/lyre"]) expect(isNetworkPath(p), p).toBe(false);
+    const library = openTracked({ journal: "delete" });
+    expect(library.journalMode).toBe("delete");
+    expect(library.store.get("PRAGMA journal_mode")).toEqual({ journal_mode: "delete" });
+    createCampaign(library.store, { name: "Strahd" });
+    expect(fs.existsSync(path.join(folder, "library.sqlite-wal"))).toBe(false);
+  });
+
+  it("cuts the write-ahead log back after bulk work, and to journal_size_limit after any checkpoint", async () => {
+    const plain = openTracked();
+    expect(plain.store.get("PRAGMA journal_size_limit")).toEqual({ journal_size_limit: JOURNAL_SIZE_LIMIT });
+    plain.close();
+    const limit = 64 * 1024;
+    const library = openTracked({ journalSizeLimit: limit });
+    expect(library.journalMode).toBe("wal");
+    const wal = () => fs.statSync(path.join(folder, "library.sqlite-wal")).size;
+    const tracks = createTracks(
+      library.store,
+      Array.from({ length: 1500 }, (_, i) => ({ title: `T${i}`, notes: "x".repeat(400), file: { path: `/m/${i}.flac` } })),
+    );
+    expect(wal()).toBeGreaterThan(limit * 4);
+    // Bulk work (three batches) ends with the log emptied into the library file.
+    await tagTracks(library.store, tracks.map((x) => x.id), [listTags(library.store)[0].id]);
+    expect(wal()).toBe(0);
+    // A checkpoint that cannot finish (a worker is reading) never makes the app wait.
+    const reader = loadSqlite();
+    const other = new reader.DatabaseSync(path.join(folder, "library.sqlite"), { readOnly: true });
+    other.exec("BEGIN");
+    other.prepare("SELECT count(*) FROM tracks").get();
+    createCampaign(library.store, { name: "During a read" });
+    const start = performance.now();
+    library.checkpoint();
+    expect(performance.now() - start).toBeLessThan(1000);
+    other.exec("COMMIT");
+    other.close();
+    library.checkpoint();
+    expect(wal()).toBe(0);
+  });
+});
+
 describe("backups (DAT-6)", () => {
-  it("makes a manual backup that opens as a complete library", () => {
+  it("makes a manual backup on a worker thread, which opens as a complete library (DB review 1)", async () => {
     const library = openTracked();
     createCampaign(library.store, { name: "Strahd" });
-    const backup = library.backupNow();
+    const prepare = vi.spyOn(loadSqlite().DatabaseSync.prototype, "prepare");
+    const backup = await library.backupNow();
+    // Neither the copy nor its check ran on this thread (a worker has its own node:sqlite).
+    expect(prepare.mock.calls.filter(([sql]) => /VACUUM|quick_check/.test(String(sql)))).toEqual([]);
     expect(backup.kind).toBe("manual");
     expect(path.dirname(backup.path)).toBe(path.join(folder, "backups"));
     const copy = openLibrary({ folder: path.join(temp.folder, "copy"), now: clock.now });
@@ -242,11 +315,11 @@ describe("backups (DAT-6)", () => {
     expect(fs.readdirSync(path.join(folder, "backups")).filter((name) => name.endsWith(".part"))).toEqual([]);
   });
 
-  it("makes one daily backup per day and keeps the newest 14", () => {
+  it("makes one daily backup per day and keeps the newest 14", async () => {
     const library = openTracked();
     for (let day = 0; day < 20; day++) {
-      expect(library.runDailyBackup()).not.toBeNull();
-      expect(library.runDailyBackup()).toBeNull(); // already done today
+      expect(await library.runDailyBackup()).not.toBeNull();
+      expect(await library.runDailyBackup()).toBeNull(); // already done today
       clock.advance(24 * 60 * 60 * 1000);
     }
     const daily = listBackups(library.backupFolder).filter((b) => b.kind === "daily");
@@ -257,11 +330,11 @@ describe("backups (DAT-6)", () => {
     expect(path.basename(daily[13].path)).toBe("library-daily-2026-11-10T12-00-00-000.sqlite");
   });
 
-  it("keeps manual backups apart from the daily ones, also the newest 14", () => {
+  it("keeps manual backups apart from the daily ones, also the newest 14", async () => {
     const library = openTracked();
-    library.runDailyBackup();
+    await library.runDailyBackup();
     for (let i = 0; i < 16; i++) {
-      library.backupNow();
+      await library.backupNow();
       clock.advance(1000);
     }
     const backups = listBackups(library.backupFolder);
@@ -272,9 +345,9 @@ describe("backups (DAT-6)", () => {
 
   it("ignores unrelated files in the backups folder and skips a damaged backup when offering one", async () => {
     const library = openTracked();
-    const good = library.backupNow();
+    const good = await library.backupNow();
     clock.advance(1000);
-    const bad = library.backupNow();
+    const bad = await library.backupNow();
     damage(bad.path, 0, 100);
     fs.writeFileSync(path.join(library.backupFolder, "notes.txt"), "mine");
     const backupFolder = library.backupFolder;
@@ -303,7 +376,7 @@ describe("backups (DAT-6)", () => {
     expect(await findLatestGoodBackup(path.join(temp.folder, "nowhere"))).toBeNull();
   });
 
-  it("checks every day on a timer and reports failures without stopping", () => {
+  it("checks every day on a timer and reports failures without stopping", async () => {
     vi.useFakeTimers();
     try {
       const library = openTracked();
@@ -313,15 +386,16 @@ describe("backups (DAT-6)", () => {
       // the main process for about half a second on a large library.
       expect(listBackups(library.backupFolder)).toHaveLength(0);
       vi.advanceTimersByTime(FIRST_DAILY_BACKUP_DELAY_MS);
-      expect(listBackups(library.backupFolder)).toHaveLength(1);
+      // The copy is made on a worker thread; the timer only starts it.
+      await vi.waitFor(() => expect(listBackups(library.backupFolder)).toHaveLength(1));
       clock.advance(24 * 60 * 60 * 1000);
       vi.advanceTimersByTime(60_000);
-      expect(listBackups(library.backupFolder)).toHaveLength(2);
+      await vi.waitFor(() => expect(listBackups(library.backupFolder)).toHaveLength(2));
       fs.rmSync(library.backupFolder, { recursive: true });
       fs.writeFileSync(library.backupFolder, "a file where the folder should be");
       clock.advance(24 * 60 * 60 * 1000);
       vi.advanceTimersByTime(60_000);
-      expect(errors).toHaveLength(1);
+      await vi.waitFor(() => expect(errors).toHaveLength(1));
       expect(errors[0]).toMatchObject({ code: "backup-failed" });
       stop();
     } finally {
@@ -329,7 +403,7 @@ describe("backups (DAT-6)", () => {
     }
   });
 
-  it("stopping before the first daily backup cancels it", () => {
+  it("stopping before the first daily backup cancels it", async () => {
     vi.useFakeTimers();
     try {
       const library = openTracked();
@@ -342,8 +416,11 @@ describe("backups (DAT-6)", () => {
     }
   });
 
-  it("refuses to back up in the middle of a change", () => {
+  it("refuses to back up in the middle of a change or while bulk work is being saved", async () => {
     const library = openTracked();
     expect(() => library.store.change("x", () => library.backupNow())).toThrow(/while a change/);
+    const bulk = library.store.changeInBatches("Bulk", [1, 2, 3], (): void => undefined, { batchSize: 1 });
+    expect(() => library.backupNow()).toThrow(/still saving "Bulk"/);
+    await bulk;
   });
 });

@@ -1,0 +1,190 @@
+/* Audio profile screen (#/profile/<trackId>[/<place>]), ported unchanged from design/prototype/src/views/profile.css. Prefix ap-. */
+
+/* ---------- header ---------- */
+.ap-head { align-items: flex-start; gap: 6px 12px; padding-top: 6px; padding-bottom: 8px; }
+.ap-id { flex: 1 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.ap-head .crumbs { flex-wrap: nowrap; }
+.ap-cr-t { max-width: 36ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ap-head h1 { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.15; }
+.ap-meta { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: var(--fs-s); color: var(--ink-2); min-width: 0; }
+.ap-meta > span { min-width: 0; overflow-wrap: anywhere; }
+.ap-headacts { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; flex: 0 1 auto; padding-top: 2px; }
+.ap-saved { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs); color: var(--ink-2); }
+.ap-saved svg { color: var(--ok); }
+
+/* "Settings for": which place is being edited */
+.ap-place { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 8px; border: 1px solid var(--line-strong); border-radius: var(--r-m); background: var(--surface-2); min-width: 0; }
+.ap-place.is-own { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.ap-place.is-ro { border-style: dashed; }
+.ap-place-l { font-size: var(--fs-xs); font-weight: 700; color: var(--ink-2); }
+.ap-place-sel { flex: 1 1 340px; max-width: 470px; width: auto; min-width: 180px; }
+.ap-place-st { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; flex: 1 1 260px; min-width: 0; }
+.ap-place-h { flex: 1 1 220px; min-width: 0; color: var(--ink-2); }
+.ap-badge { display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-s); font-weight: 700; color: var(--ink); min-width: 0; }
+.ap-badge svg { color: var(--ink-3); }
+.ap-choice { flex: 0 1 auto; flex-wrap: wrap; max-width: 100%; }
+.ap-choice button { white-space: normal; text-align: left; }
+.ap-place.is-ro .ap-place-st { flex-basis: 100%; }
+
+/* ---------- layout ---------- */
+.ap-body { padding: 10px 12px 16px; }
+.ap-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; align-items: start; }
+.ap-grid > .pane { min-width: 0; }
+@container app (min-width: 900px) {
+  .ap-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .ap-wavepane, .ap-mpane { grid-column: 1 / -1; }
+}
+.ap-wavepane .pane-h, .ap-endpane .pane-h, .ap-fadepane .pane-h, .ap-mpane .pane-h { max-width: 70%; }
+
+/* ---------- waveform ---------- */
+.ap-wave { position: relative; height: 202px; margin: 2px 8px 0; user-select: none; touch-action: none; }
+.ap-canvas { position: absolute; left: 0; top: 52px; width: 100%; height: 112px; display: block; }
+.ap-scrub { position: absolute; left: 0; right: 0; top: 0; height: 186px; z-index: 2; cursor: pointer; border-radius: var(--r-s); }
+.ap-scrub:focus-visible { outline-offset: 1px; }
+.ap-out { position: absolute; top: 0; height: 186px; z-index: 1; pointer-events: none;
+  background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--bg) 55%, transparent) 0 5px, color-mix(in srgb, var(--bg) 25%, transparent) 5px 10px); border-radius: var(--r-s); }
+.ap-out span { position: absolute; top: 96px; left: 50%; transform: translate(-50%, -50%); font-size: var(--fs-xs); color: var(--ink-2); background: var(--surface); padding: 1px 6px; border-radius: 3px; white-space: nowrap; }
+.ap-loop { position: absolute; top: 24px; height: 140px; z-index: 1; pointer-events: none; background: color-mix(in srgb, var(--ink) 6%, transparent); border-top: 2px dashed var(--ink-3); }
+.ap-ph { position: absolute; top: 44px; height: 122px; width: 2px; margin-left: -1px; background: var(--ink-2); z-index: 3; pointer-events: none; }
+.ap-ph::before { content: ""; position: absolute; top: 0; left: -5px; border: 6px solid transparent; border-top-color: inherit; border-top: 7px solid var(--ink-2); border-bottom: 0; }
+.ap-ph.on { background: var(--preview); }
+.ap-ph.on::before { border-top-color: var(--preview); }
+
+/* Start, End and Loop handles: a tab to grab and a line through the waveform, both draggable. */
+.ap-h { position: absolute; top: 0; height: 164px; width: 14px; margin-left: -7px; z-index: 4; cursor: ew-resize; touch-action: none; }
+.ap-h::before { content: ""; position: absolute; left: 6px; top: 0; bottom: 0; width: 2px; background: var(--ink); }
+.ap-h:hover::before { width: 3px; left: 5.5px; }
+.ap-htab { position: absolute; top: 0; left: 6px; display: inline-flex; align-items: center; gap: 2px; height: 24px; padding: 0 7px 0 3px; border-radius: 0 var(--r-s) var(--r-s) 0;
+  background: var(--ink); color: var(--bg); font-size: var(--fs-xs); font-weight: 700; white-space: nowrap; }
+.ap-htab svg { opacity: .75; }
+.ap-h-end .ap-htab { left: auto; right: 6px; border-radius: var(--r-s) 0 0 var(--r-s); padding: 0 3px 0 7px; flex-direction: row-reverse; }
+.ap-h-loop { top: 24px; height: 140px; }
+.ap-h-loop::before { background: repeating-linear-gradient(to bottom, var(--ink-2) 0 5px, transparent 5px 8px); }
+.ap-h-loop .ap-htab { background: var(--surface-3); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-strong); }
+.ap-h:focus-visible { outline: none; }
+.ap-h:focus-visible .ap-htab, .ap-fk:focus-visible .ap-knob { outline: 2px solid var(--focus); outline-offset: 2px; }
+.ap-wave.ro .ap-h, .ap-wave.ro .ap-fk { cursor: not-allowed; }
+.ap-wave.ro .ap-htab { opacity: .75; }
+/* Fade length handles: round knobs on the volume line. */
+.ap-fk { top: 50px; height: 24px; width: 24px; margin-left: -12px; z-index: 5; }
+.ap-fk::before { display: none; }
+.ap-knob { position: absolute; left: 5px; top: 5px; width: 14px; height: 14px; border-radius: 50%; background: var(--ink); border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--ink-2); }
+.ap-fk:hover .ap-knob { transform: scale(1.15); }
+
+.ap-flag { position: absolute; top: 166px; height: 20px; display: flex; align-items: center; gap: 3px; z-index: 3; cursor: pointer; font-size: var(--fs-xs); color: var(--ink-2); white-space: nowrap; }
+.ap-flag::before { content: ""; width: 2px; height: 16px; background: var(--ink-3); flex: none; margin-left: -1px; }
+/* Crowded markers show their label only on hover (the Markers box lists them all). */
+.ap-flag.crowd .ap-flag-l { display: none; }
+.ap-flag.crowd:hover { z-index: 6; }
+.ap-flag.crowd:hover .ap-flag-l { display: inline; background: var(--surface); padding: 0 3px; border-radius: 3px; }
+.ap-flag-l { overflow: hidden; text-overflow: ellipsis; }
+.ap-flag:hover { color: var(--ink); }
+.ap-flag.flip { flex-direction: row-reverse; transform: translateX(-100%); }
+.ap-flag.flip::before { margin-left: 0; margin-right: -1px; }
+.ap-ruler { position: absolute; left: 0; right: 0; top: 186px; height: 16px; border-top: 1px solid var(--line); }
+.ap-tick { position: absolute; top: 1px; transform: translateX(-50%); font: 600 var(--fs-xs)/14px var(--num); color: var(--ink-3); white-space: nowrap; }
+.ap-tick.first { transform: none; }
+.ap-tick.last { transform: translateX(-100%); }
+
+/* ---------- listening ---------- */
+.ap-listen { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+.ap-transport { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ap-pvbtn { border-color: var(--preview); background: color-mix(in srgb, var(--preview) 13%, var(--surface-2)); }
+.ap-pvbtn svg { color: var(--preview); }
+.ap-pvbtn:hover { background: color-mix(in srgb, var(--preview) 22%, var(--surface-2)); }
+.ap-pvbtn[aria-pressed="true"] { background: color-mix(in srgb, var(--preview) 26%, var(--surface-2)); border-color: var(--preview); }
+.ap-readouts { display: flex; align-items: flex-end; gap: 6px 18px; flex-wrap: wrap; flex: 1 1 auto; min-width: 0; }
+.ap-ro { display: flex; flex-direction: column; gap: 0; min-width: 0; }
+.ap-ro-l { font-size: var(--fs-xs); color: var(--ink-2); font-weight: 700; white-space: nowrap; }
+.ap-pos { font-size: 30px; line-height: 1; color: var(--ink); min-width: 4.6ch; }
+.ap-toend { font-size: 20px; line-height: 1.2; color: var(--ink); }
+.ap-loops { font-size: 16px; line-height: 1.4; color: var(--ink); }
+.ap-meter { min-width: 128px; }
+.ap-meter-s { font-weight: 400; color: var(--preview); }
+.ap-meter-row { display: flex; align-items: center; gap: 6px; height: 24px; }
+.ap-meter-track { width: 96px; height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; border: 1px solid var(--line-strong); }
+.ap-meter-bar { display: block; height: 100%; width: 0; background: linear-gradient(to right, var(--preview), color-mix(in srgb, var(--preview) 60%, var(--ink))); transition: width .08s linear; }
+.ap-meter-v { font-size: 15px; color: var(--ink); min-width: 4ch; }
+.ap-air { display: flex; align-items: center; gap: 6px; margin-left: auto; }
+.ap-event { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 6px 8px; border-radius: var(--r-m); border-left: 3px solid var(--preview);
+  background: color-mix(in srgb, var(--preview) 11%, var(--surface)); font-size: var(--fs-s); min-width: 0; }
+.ap-event > svg { color: var(--preview); }
+.ap-ho-p { display: flex; align-items: center; gap: 8px; margin-top: 3px; }
+.ap-ho-time { font-size: var(--fs-s); min-width: 5ch; text-align: right; }
+.ap-keys { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 8px; padding-top: 6px; border-top: 1px dashed var(--line); }
+.ap-keys .hint { flex: 1 1 300px; line-height: 1.8; }
+.ap-switch { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); font-weight: 700; color: var(--ink-2); cursor: pointer; min-height: 24px; }
+
+/* ---------- at the end ---------- */
+.ap-opts { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ap-opt { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 1px 8px; align-items: center; padding: 5px 8px; border: 1px solid var(--line); border-radius: var(--r-m); cursor: pointer; }
+.ap-opt input { grid-row: 1 / span 2; }
+.ap-opt:hover { background: var(--surface-2); }
+.ap-opt.on { border-color: var(--accent); background: var(--accent-soft); }
+.ap-opt-t { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-s); }
+.ap-opt-s { font-size: var(--fs-xs); color: var(--ink-2); grid-column: 2; }
+.ap-opts[disabled] .ap-opt { cursor: default; opacity: .8; }
+.ap-next { display: flex; flex-direction: column; gap: 3px; margin-top: 8px; padding: 6px 8px; border-radius: var(--r-m); background: var(--surface-2); min-width: 0; }
+.ap-next select { width: 100%; }
+.ap-fields { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.ap-frow { display: grid; grid-template-columns: 84px 66px minmax(0, auto); justify-content: start; gap: 4px 8px; align-items: center; }
+.ap-frow > label { font-size: var(--fs-s); font-weight: 700; color: var(--ink-2); }
+.ap-time { text-align: center; font-size: 15px; }
+.ap-time[aria-invalid="true"] { border-color: var(--danger); }
+.ap-err { grid-column: 1 / -1; font-size: var(--fs-xs); color: var(--danger); }
+
+/* ---------- fades ---------- */
+.ap-fadeblock { display: flex; flex-direction: column; gap: 5px; padding: 6px 0 8px; border-bottom: 1px solid var(--line); }
+.ap-fadeblock:last-child { border-bottom: 0; padding-bottom: 0; }
+.ap-fadeblock:first-child { padding-top: 0; }
+.ap-fb-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.ap-fb-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; min-width: 0; }
+.ap-fb-l { width: 62px; flex: none; font-size: var(--fs-xs); font-weight: 700; color: var(--ink-2); }
+.ap-step { display: inline-flex; align-items: center; gap: 4px; }
+.ap-secs { width: 52px; height: var(--ctl-s); }
+.ap-int { display: inline-flex; align-items: center; gap: 6px; flex: 1 1 150px; min-width: 0; }
+.ap-int input[type="range"] { flex: 1 1 80px; min-width: 70px; height: 24px; margin: 0; }
+.ap-sketch { width: 64px; height: 28px; flex: none; }
+.ap-sk { fill: none; stroke: var(--ink-2); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ap-sk-base { stroke: var(--line-strong); stroke-width: 1; }
+.ap-shname { font-size: var(--fs-xs); font-weight: 700; color: var(--ink-2); min-width: 44px; }
+.ap-fb-row .ap-err { flex-basis: 100%; }
+
+/* ---------- markers ---------- */
+.ap-mpane .pane-body { padding: 0; }
+.ap-mpane .empty { text-align: left; }
+.ap-mrow { gap: 8px; }
+.ap-mt { width: 38px; flex: none; text-align: right; }
+.ap-ml { flex: 1 1 auto; height: var(--ctl-s); }
+.ap-mrow .ap-ml:disabled { border-style: dashed; background: transparent; }
+
+/* ---------- link-button for other views ---------- */
+.ap-link { text-decoration: none; position: relative; }
+.ap-link-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-2); flex: none; }
+
+@container app (max-width: 760px) {
+  .ap-headacts { justify-content: flex-start; flex: 1 1 100%; }
+  .ap-air { margin-left: 0; }
+  .ap-pos { font-size: 26px; }
+}
+
+/* Round 5: the track's name in this scene (DAT-14), in the header when opened from a scene. */
+.ap-scname { max-width: 360px; margin-top: 6px; }
+/* Round 5: the track's normalising choice (PLY-15). */
+.ap-norm { margin-top: 6px; }
+
+/* ---------- app only ---------- */
+/* The screen's root holds the head, the body and the on-air bar for focus look-ups; it adds no box of its own, so
+   #view's column layout (viewhead, scrolling viewbody, on-air bar) is unchanged. */
+.ap-root { display: contents; }
+
+/* Round 6 part 6: Back and the trail lead the title row, as in every other top bar; the h1 is the track, then
+   "› Audio profile" (the screen's kind, smaller). */
+.ap-titlerow { display: flex; align-items: flex-start; gap: 6px 8px; min-width: 0; }
+.ap-titlerow .crumbs { flex: none; }
+.ap-titlerow h1 { flex: 1 1 auto; min-width: 0; padding-top: 6px; }
+.ap-h1-k { font-family: var(--ui, inherit); font-size: var(--fs-s); font-weight: 700; color: var(--ink-2); text-transform: none; letter-spacing: 0; margin-left: 6px; white-space: nowrap; }
+/* Round 7 (DAT-3): a marker's Mix out and Play on air from show on hover and focus in its row; the chosen Mix out stays. */
+.ap-mrow .r7-hov:not([aria-pressed="true"]) { opacity: 0; }
+.ap-mrow:is(:hover, :focus-within) .r7-hov, .ap-mrow .r7-hov:focus-visible { opacity: 1; }
+@media (hover: none) { .ap-mrow .r7-hov { opacity: 1; } }

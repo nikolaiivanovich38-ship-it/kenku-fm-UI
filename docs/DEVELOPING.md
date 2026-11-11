@@ -61,6 +61,19 @@ CUE_DESK_SKIP_NATIVE_REBUILD=1 yarn package
 
 Prefer libraries without C++ code (WebAssembly, prebuilt binaries for Electron, or Node built-ins such as `node:sqlite`): a module compiled from source needs a C++ toolchain on every build machine.
 
+## Help articles (FND-8)
+
+Help's articles live in `src/lyre/help/articles/`, one Markdown file each, named `<number>-<id>.md`; the number
+gives the order in the panel. To add one:
+
+1. Write the file. It starts with its head between two `---` lines: `title:`, `group:` (Get started, Prepare, Run a
+   session or Your library) and `words:` (more words a search should find it by). Then plain paragraphs, `- ` lists
+   and `1. ` steps, each item on one line; `**Label**` for a name on screen, `` `Key` `` for a key. Nothing else
+   is read: no links, pictures or HTML. Keep it under 300 words, in plain words, and check it against the app.
+2. Import it in `src/lyre/help/articles.ts` (`FILES`). `articles.test.ts` fails until every file is imported, and
+   checks the head, the group and the length.
+3. Rebuild the prototype (`node design/prototype/src/build.js`): it shows the same files.
+
 ## End-to-end tests (FND-4)
 
 `e2e/` holds Playwright tests that start the packaged app. Playwright drives Electron through `--inspect`, which release builds switch off, so build a test package first:
@@ -80,7 +93,7 @@ Rebuild the package after any change under `src/`; changes to `e2e/` need no reb
 - On Linux as root (containers, CI) the Chromium sandbox is switched off for the test run only.
 - Failures leave a trace, screenshots and the main-process log in `test-results/`.
 
-CI runs the e2e job on Windows (`.github/workflows/ci.yml`).
+CI runs the e2e job on Windows (`.github/workflows/ci.yml`). To run every spec and end-to-end test on GitHub instead of here (about 20 minutes, split across machines), push a branch named `ci/<name>`: `git push <remote> HEAD:ci/<name>` (docs/testing.md > Specs > On GitHub).
 
 ## Background pictures
 
@@ -105,7 +118,10 @@ The demo kit lets the product owner try every feature of a release, and run its 
 | `Ambience/` | Two 30 s loops, mono 22.05 kHz, about -22 LUFS: rain and wind, hearth fire |
 | `Effects/` | Five one-shots, mono 44.1 kHz, about -18 LUFS: sword clash, door knock, magic chime, thunder, coin pouch |
 | `Local soundboard/` | `soundboard.html`, `notes.txt` and three of the effects in `sounds/`: a page to open from the address bar (SEC-15). Its buttons play the sounds next to it, read `notes.txt` (allowed), and try `../README.txt` and `https://example.com` (both should show "Blocked" in Lyre) |
+| `Extra formats/` | From 0.3.0: an AIFF copy of the magic chime (the Lyre tab plays it through a converted copy) and a text file named `….mp3` (the Lyre tab refuses it as not audio) |
 | `README.txt` | What the kit is and how to use it, in plain words |
+
+Every WAV carries RIFF INFO tags (title: the part of its name before " - "; artist "Lyre demo kit"; album "Lyre demo kit: <folder>"), so the Lyre tab's Library shows file tags; the test reads them back with music-metadata, Lyre's own tag reader.
 
 Everything is made by `scripts/demo-kit/build.mjs` with Node.js only (no libraries, no network): the music is composed and synthesised in code (plucked strings, additive pads and brass, a Freeverb-style reverb), the ambience and effects come from filtered noise and resonators, and each sound is brought to its loudness (ITU-R BS.1770, the "LUFS" measure) with peaks held under -1.5 dBFS by a limiter. Random numbers come from fixed seeds, so the same Node.js version always builds byte-identical files and zip.
 
@@ -133,13 +149,29 @@ To listen-check a change without speakers, draw each sound with ffmpeg (a check 
 
 `scripts/audit-check.mjs` runs `yarn audit` on shipped libraries and fails on any high or critical advisory not in `scripts/audit-allowlist.json`. To accept one temporarily, add an entry with `id` (GHSA), `package`, `reason` and the `backlog` item that removes it, and update `reviewed`. Electron is listed as a devDependency (Electron Forge expects that) but ships inside the app, so the gate audits it as well; the other devtools are not audited. Electron supports its three newest major versions; check https://releases.electronjs.org before each release and upgrade when the current major nears end of life. When upgrading, update `FALLBACK_CHROME_VERSION` in `src/main/userAgent.ts`.
 
+New libraries are added only at versions published at least two weeks earlier, their dependencies included: after `yarn add <name>@<version> --exact`, check every new `yarn.lock` entry with `npm view <name> time` and pin any newer one under `resolutions` in `package.json` to the newest release old enough. Wave 3 pins `strtok3` 10.6.2, `token-types` 6.1.2 and `@borewit/text-codec` 0.2.2 for `music-metadata` 11.16.1 (MIT, reads track tags and lengths). `ffmpeg-static` 5.3.0 bundles an ffmpeg binary (GPL-3.0-or-later, compatible with the app's GPL-3.0); its postinstall downloads the binary for the building machine's platform, so the Windows installer is built on Windows.
+
+### Outdated libraries (FND-7, checked 6 November 2026)
+
+Upgraded in 0.5.0: fastify 4 to 5.12.7, uuid 10 to 11.1.1 (SEC-9); discord.js 14.27.0, @discordjs/voice 0.19.2, libsodium-wrappers 0.8.4, TypeScript 5.9.3. Left, and why:
+
+- The old player's interface libraries (MUI 6, @dnd-kit/core 3 and /sortable 4, react-router 6, redux-persist, electron-store 8, @reduxjs/toolkit and react-redux): only the old player and the main window's shell use them; they leave with the old player (FND-16) rather than be rewritten for it. react-router 6 has two moderate advisories that do not reach the player (no server rendering, no links to outside addresses).
+- React 19: the new interface and the old player share React 18; moving both at once is a change of its own, best after FND-16.
+- Electron 45, Electron Forge 8, @electron/fuses 2, @electron/asar 4: majors that change packaging; Electron 44 is supported until Electron 47 (about March 2027). Electron 44.9.3 and later patches are reviewed in the monthly step (docs/RELEASE_CHECKLIST.md).
+- vitest 5, jsdom 31, TypeScript 7, css-loader 7, style-loader 4: test and build tools, majors with breaking changes; they ship nothing.
+- music-metadata 12: the library process belongs to the data stream; 11.16.1 has no advisory.
+- Newer than 14 days, so not yet: discord.js 14.28, eslint 10.14, typescript-eslint 8.72.1, @playwright/test 1.65, fastify 5.12.8.
+
 ## CI
 
 `.github/workflows/`:
 
-- `ci.yml`: every push and pull request. Type check, lint, tests with coverage (artifact `coverage-report`), script tests, audit gate, gitleaks secret scan, and end-to-end tests of the packaged app on Windows (artifact `e2e-report` on failure).
-- `codeql.yml`: CodeQL security analysis, also weekly.
-- `release.yml`: on `v*` tags or by hand. Runs `ci.yml`, then builds the unsigned Windows x64 installer and zip and the demo kit, and attaches them to a draft release.
+- `ci.yml` (FND-5): every push and pull request. Type check, lint, tests with coverage (artifact `coverage-report`), script tests, audit gate, gitleaks secret scan, and on Windows the packaged app's smoke test with the axe accessibility checks (`yarn e2e smoke.spec lyre.spec`); pull requests, "Run workflow" and releases (input `full-e2e`) run every end-to-end test instead (artifact `e2e-report` on failure). About 10 minutes for a push (the jobs run side by side; the Windows job is the longest), about 30 with every end-to-end test. Each job ends, when it fails, with a step that says in plain words what failed and what to do (`::error` annotations, shown on the pull request, and the run summary).
+- `specs.yml` (FND-15): on a push to a `ci/<name>` branch, or by hand. Packages the Linux test build once, then runs the app's acceptance specs in eight parts side by side, the prototype's specs and `yarn e2e` against it, and merges the results into the `test-report` artifact with a plain-words summary (how many passed or failed, and which) on the run page. About 20 minutes; see docs/testing.md > Specs > On GitHub.
+- `codeql.yml`: CodeQL security analysis on every push, weekly, and when the release calls it.
+- `release.yml`: on `v*` tags or by hand. Runs `ci.yml` with every end-to-end test and `codeql.yml`; only when both pass does it build the unsigned Windows x64 installer and zip and the demo kit, and attach them to a draft release.
+
+`scripts/ci-gate.test.mjs` checks these rules in the workflow files (`yarn test:scripts`), and `scripts/electron-support.test.mjs` that Electron stays a pinned, supported, standard release (SEC-1).
 
 Third-party actions are pinned by full commit SHA with the version in a comment. To update one, look up the tag's commit (`git ls-remote https://github.com/OWNER/ACTION refs/tags/vX.Y.Z`; for annotated tags use the `^{}` line) and change both.
 

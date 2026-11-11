@@ -3,14 +3,14 @@
 # Start it by pushing a version tag (for example v0.1.0, matching
 # package.json), or by pushing the commit to release to the `release` branch
 # (for tools that may push branches but not tags). The quality gate in ci.yml
-# runs first; the build only starts if it passes. "Run workflow" from the
-# Actions tab on another branch builds the files as a downloadable workflow
-# artifact but publishes nothing. A tag or `release` run creates the draft
+# (with every end-to-end test) and CodeQL run first; the build only starts if
+# both pass. "Run workflow" from the Actions tab on another branch builds the
+# files as a downloadable workflow artifact but publishes nothing. A tag or `release` run creates the draft
 # release for the version in package.json, tied to the exact commit that was
 # built (target_commitish): from a `release` push, GitHub creates the tag on
 # that commit when the draft is published.
 #
-# Two jobs: "build" has read-only access to the repository; "publish" holds
+# After the checks, two jobs: "build" has read-only access to the repository; "publish" holds
 # the only write permission and does nothing but attach the built files.
 #
 # Builds are UNSIGNED: no Windows code-signing certificate. Windows SmartScreen will warn on first install.
@@ -37,10 +37,19 @@ jobs:
   gate:
     name: Quality gate
     uses: ./.github/workflows/ci.yml
+    with:
+      full-e2e: true
+
+  codeql:
+    name: Code security analysis
+    uses: ./.github/workflows/codeql.yml
+    permissions:
+      contents: read
+      security-events: write
 
   build:
     name: Build Windows x64 installer
-    needs: gate
+    needs: [gate, codeql]
     # FND-10: the app has no modules compiled from C++ (zlib-sync was
     # dropped), so no Visual Studio is needed and the current image works.
     runs-on: windows-latest

@@ -1,40 +1,97 @@
-import { ipcMain, BrowserWindow, webContents } from "electron";
-import Fastify, { FastifyInstance } from "fastify";
-import { registerRemote } from "../remote";
+import { app, ipcMain, BrowserWindow, safeStorage, webContents } from "electron";
+import os from "os";
+import { homeNetworkAddress, ownNetworkAddresses } from "../remote/homeNetwork";
 import { PlayerRequests } from "../remote/playerRequests";
+import { RemoteControl, type RemoteState } from "../remote/remoteControl";
+import { RemoteSettingsStore, type OldRemoteSetting, type RemoteSettings } from "../remote/remoteSettings";
 import { guardIpc } from "../security/ipcGuard";
 import { trustedContents } from "../security/trustedContents";
 
 declare const PLAYER_WINDOW_WEBPACK_ENTRY: string;
+declare const __CUE_DESK_TEST_BUILD__: boolean;
 
 /** How long closing waits for the player to save its changes (PERF-6). */
 export const SAVE_BEFORE_CLOSE_TIMEOUT_MS = 1000;
 
+/**
+ * SEC-4: the remote control's settings and secret code, shared by every PlayerManager (one per main-window load), so
+ * a code that cannot be saved encrypted stays the same until Lyre quits.
+ */
+let sharedRemoteStore: RemoteSettingsStore | undefined;
+function remoteSettingsStore(): RemoteSettingsStore {
+  sharedRemoteStore ??= new RemoteSettingsStore(RemoteSettingsStore.fileIn(app.getPath("userData")), safeStorage, { ownAddresses: thisComputersAddresses });
+  return sharedRemoteStore;
+}
+
+/**
+ * The last PlayerManager's remote server, still closing. When the main window reloads, the next PlayerManager is
+ * made at once; it waits for this so its server does not find the port still taken.
+ */
+let previousRemoteClosed: Promise<void> = Promise.resolve();
+
+export interface PlayerManagerOptions {
+  /** Tests give their own store; the app uses the shared one in the data folder. */
+  remoteStore?: RemoteSettingsStore;
+  /** Tests give their own; the app reads this computer's network cards each time Settings asks. */
+  homeAddress?: () => string | null;
+}
+
+/**
+ * Round 7 (Settings › Remote control › Your home network): this computer's private network address. Test builds may
+ * be given one with CUE_DESK_FAKE_HOME_ADDRESS (the e2e machine has no home network); a release build never reads it.
+ */
+function thisComputersHomeAddress(): string | null {
+  return fakeHomeAddress() || homeNetworkAddress(os.networkInterfaces());
+}
+
+/** CR-2: the addresses the remote control may listen on besides 127.0.0.1 must be among these (the test build's too). */
+function thisComputersAddresses(): string[] {
+  const fake = fakeHomeAddress();
+  return [...ownNetworkAddresses(os.networkInterfaces()), ...(fake ? [fake] : [])];
+}
+
+function fakeHomeAddress(): string | undefined {
+  return typeof __CUE_DESK_TEST_BUILD__ !== "undefined" && __CUE_DESK_TEST_BUILD__ ? process.env.CUE_DESK_FAKE_HOME_ADDRESS : undefined;
+}
+
 export class PlayerManager {
   registeredViewId?: number;
-  fastify: FastifyInstance | null = null;
-  address = "127.0.0.1";
-  port = "3333";
   /** PERF-9: remote API questions to the player, matched to its answers. */
   requests = new PlayerRequests();
+  /** SEC-4: the remote-control server, on only when its settings say so, and only with the secret code. */
+  readonly remote: RemoteControl;
   /** SEC-8: message listeners; each channel accepts only the pages IPC_CHANNELS names. */
   private ipc = guardIpc(ipcMain);
+  /** OUT-5, PRV-1: told when a player page is registered (SessionManager joins it to the capture window). */
+  onRegisterView?: (view: Electron.WebContents) => void;
   /** Callers of saveBeforeClose waiting for the player's PLAYER_SAVED. */
   private savedWaiters = new Set<() => void>();
 
-  constructor() {
+  constructor(options: PlayerManagerOptions = {}) {
+    this.remote = new RemoteControl({
+      store: options.remoteStore ?? remoteSettingsStore(),
+      host: this,
+      onChange: (state) => this._tellPagesAboutRemote(state),
+      homeAddress: options.homeAddress ?? thisComputersHomeAddress,
+    });
     this.ipc.on("PLAYER_GET_URL", this._handleGetURL);
     this.ipc.on("PLAYER_REGISTER_VIEW", this._handleRegisterView);
-    this.ipc.on("PLAYER_START_REMOTE", this._handleStartRemote);
-    this.ipc.on("PLAYER_STOP_REMOTE", this._handleStopRemote);
+    this.ipc.on("REMOTE_MOVE_OLD_SETTING", this._handleMoveOldRemoteSetting);
     this.ipc.on("PLAYER_SAVED", this._handleSaved);
+    this.ipc.handle("REMOTE_GET", () => this.remote.state());
+    this.ipc.handle("REMOTE_SET", (_event, change) => this.remote.set(change as Partial<RemoteSettings>));
+    this.ipc.handle("REMOTE_NEW_CODE", () => this.remote.newCode());
+    // Left on last time: on again, without waiting for a page to ask.
+    void previousRemoteClosed.then(() => this.remote.start());
   }
 
-  destroy() {
+  /** Resolves once the remote-control server has stopped listening. */
+  destroy(): Promise<void> {
     this._finishSaving();
     this.ipc.dispose();
     this.requests.destroy();
-    this.stopRemote();
+    previousRemoteClosed = this.remote.close();
+    return previousRemoteClosed;
   }
 
   /** The player view, or undefined when none is registered or it has been closed. */
@@ -86,54 +143,23 @@ export class PlayerManager {
     }
   };
 
-  startRemote(address: string, port: string) {
-    this.address = address;
-    this.port = port;
 
-    this.fastify = Fastify();
-
-    registerRemote(this);
-
-    this.fastify.listen(this.port, this.address, (err) => {
-      const windows = BrowserWindow.getAllWindows();
-      if (err) {
-        for (const window of windows) {
-          window.webContents.send("ERROR", err.message);
-        }
-        this.stopRemote();
-      } else {
-        for (const window of windows) {
-          window.webContents.send("PLAYER_REMOTE_ENABLED", true);
-        }
-      }
-    });
-  }
-
-  stopRemote() {
-    if (this.fastify) {
-      this.fastify.close();
-      this.fastify = null;
-
-      const windows = BrowserWindow.getAllWindows();
-      for (const window of windows) {
-        window.webContents.send("PLAYER_REMOTE_ENABLED", false);
+  /** The main window's player tab shows whether the remote runs; the Lyre page gets the whole state. */
+  private _tellPagesAboutRemote(state: RemoteState) {
+    for (const window of BrowserWindow.getAllWindows()) {
+      window.webContents.send("PLAYER_REMOTE_ENABLED", state.running);
+    }
+    for (const contents of webContents.getAllWebContents()) {
+      if (!contents.isDestroyed() && trustedContents.roleOf(contents) === "lyre-view") {
+        contents.send("REMOTE_STATE", state);
       }
     }
   }
 
-  getRemoteInfo() {
-    return `Running: ${this.fastify !== null}\nAddress: ${
-      this.address
-    }\nPort: ${this.port}`;
-  }
-
-  _handleStartRemote = (
-    _: Electron.IpcMainEvent,
-    address: string,
-    port: string
-  ) => this.startRemote(address, port);
-
-  _handleStopRemote = () => this.stopRemote();
+  /** Review 0.5.0 CR-3: the main window's old remote control choice, taken once (RemoteSettingsStore.moveOldSetting). */
+  _handleMoveOldRemoteSetting = (_: Electron.IpcMainEvent, old: OldRemoteSetting): void => {
+    void this.remote.moveOldSetting(old);
+  };
 
   _handleGetURL = (event: Electron.IpcMainEvent) => {
     event.returnValue = PLAYER_WINDOW_WEBPACK_ENTRY;
@@ -151,5 +177,6 @@ export class PlayerManager {
       return;
     }
     this.registeredViewId = viewId;
+    this.onRegisterView?.(view);
   };
 }

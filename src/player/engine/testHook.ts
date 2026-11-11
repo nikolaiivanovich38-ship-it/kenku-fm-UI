@@ -7,9 +7,21 @@
  * Analysers listen to the music bus, the table mix, the whisper mix and the
  * preview output. They feed the context's speakers through a silent gain only
  * so the browser keeps processing them; nothing here is audible or broadcast.
+ *
+ * Wave 2 (PLY-8): `loadShow`, `run` and `rooms` drive the show engine
+ * (queue/director.ts) with a library given as plain data, and report what
+ * each room plays. Rooms come from `options.rooms` when the host wires the
+ * Rooms stream's implementation; otherwise there is one room, the table,
+ * playing into the engine's own buses.
  */
 import { createBrowserEngine, BrowserEngine } from "./browser";
+import type { PlaybackEngine } from "./engine";
 import type { BusId, OutputId } from "./graph/mixer";
+import type { CueAction, CueOutcome } from "./queue/actions";
+import { Director } from "./queue/director";
+import { ShowData, staticLibrary } from "./queue/library";
+import type { RoomReport } from "./queue/roomPlayer";
+import { RoomsAudio, tableOnlyRooms } from "./rooms.contract";
 import type { VoiceOptions, VoiceState } from "./voice/voice";
 
 type Probe = "musicBus" | OutputId;
@@ -24,7 +36,20 @@ export interface EngineTestApi {
   /** Loudest RMS level seen on each probe over `ms` milliseconds. */
   listen(ms: number): Promise<Record<Probe, number>>;
   stopAll(): void;
+  /** Start the show engine on the started engine with this library (track `url`s are the files to play). */
+  loadShow(data: ShowData): void;
+  /** Run a cue action, as a button, hotkey or the remote API would. */
+  run(action: CueAction): CueOutcome;
+  /** What each room plays now, in the rooms' order. */
+  rooms(): RoomReport[];
+  /** Messages the show engine would show as toasts, oldest first. */
+  errors(): string[];
   close(): Promise<void>;
+}
+
+export interface EngineTestHookOptions {
+  /** The rooms the show plays in; default: one room, the table. */
+  rooms?: (engine: PlaybackEngine) => RoomsAudio;
 }
 
 declare global {
@@ -33,8 +58,9 @@ declare global {
   }
 }
 
-export function installEngineTestHook(target: Window): void {
+export function installEngineTestHook(target: Window, options: EngineTestHookOptions = {}): void {
   let current: (BrowserEngine & { probes: Record<Probe, AnalyserNode> }) | null = null;
+  let show: { director: Director; errors: string[] } | null = null;
 
   const api: EngineTestApi = {
     async start() {
@@ -107,12 +133,42 @@ export function installEngineTestHook(target: Window): void {
       requireEngine().engine.stopAll();
     },
 
+    loadShow(data) {
+      const { engine } = requireEngine();
+      show?.director.dispose();
+      const director = new Director({ engine, rooms: (options.rooms ?? ((e) => tableOnlyRooms(e.mixer)))(engine), library: staticLibrary(data) });
+      const errors: string[] = [];
+      director.on("error", (message) => errors.push(message));
+      show = { director, errors };
+    },
+
+    run(action) {
+      return requireShow().director.run(action);
+    },
+
+    rooms() {
+      return requireShow().director.report();
+    },
+
+    errors() {
+      return [...requireShow().errors];
+    },
+
     async close() {
+      show?.director.dispose();
+      show = null;
       const engine = current;
       current = null;
       await engine?.close();
     },
   };
+
+  function requireShow() {
+    if (!show) {
+      throw new Error("Call loadShow() first");
+    }
+    return show;
+  }
 
   function requireEngine() {
     if (!current) {

@@ -28,6 +28,12 @@ export type Migration = {
 export type MigrationContext = {
   /** Current time in milliseconds, for rows a step creates. */
   now: number;
+  /**
+   * The version the database had before this upgrade began: 0 for a new,
+   * empty library. Lets a step tell a new library (where it may tidy up what
+   * earlier steps offered) from one the game master has been using.
+   */
+  startVersion: number;
 };
 
 export type MigrationResult = {
@@ -76,8 +82,9 @@ function checkNumbering(migrations: readonly Migration[]) {
  *
  * @param columnDefinitions everything between the brackets of CREATE TABLE
  * @param copiedColumns columns that exist in both the old and the new table
+ * @param options.withoutRowid make the new table WITHOUT ROWID (as a link table or track_peaks is)
  */
-export function rebuildTable(db: DatabaseSync, table: string, columnDefinitions: string, copiedColumns: string[]) {
+export function rebuildTable(db: DatabaseSync, table: string, columnDefinitions: string, copiedColumns: string[], options: { withoutRowid?: boolean } = {}) {
   const schemaSql = (type: string, tableFilter: string | null) =>
     (
       db
@@ -94,7 +101,7 @@ export function rebuildTable(db: DatabaseSync, table: string, columnDefinitions:
 
   for (const name of triggerNames) db.exec(`DROP TRIGGER "${name}"`);
   const columns = copiedColumns.map((column) => `"${column}"`).join(", ");
-  db.exec(`CREATE TABLE "${table}__rebuild" (${columnDefinitions})`);
+  db.exec(`CREATE TABLE "${table}__rebuild" (${columnDefinitions})${options.withoutRowid ? " WITHOUT ROWID" : ""}`);
   db.exec(`INSERT INTO "${table}__rebuild" (${columns}) SELECT ${columns} FROM "${table}"`);
   db.exec(`DROP TABLE "${table}"`);
   db.exec(`ALTER TABLE "${table}__rebuild" RENAME TO "${table}"`);
@@ -127,7 +134,7 @@ export function migrate(
     for (const migration of migrations.slice(from)) {
       db.exec("BEGIN IMMEDIATE");
       try {
-        migration.up(db, { now: clock() });
+        migration.up(db, { now: clock(), startVersion: from });
         const broken = db.prepare("PRAGMA foreign_key_check").all();
         if (broken.length > 0) {
           throw new Error(`${broken.length} row(s) would point at rows that do not exist.`);

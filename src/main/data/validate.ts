@@ -94,6 +94,19 @@ export function nullableOneOf<T extends string>(field: string, value: unknown, c
   return oneOf(field, value, choices);
 }
 
+/** Design round 7 (DAT-10, ORG-4): the pad palette's colour names, which tag groups, tags and folders take too. */
+export const PALETTE_COLORS = ["steel", "ember", "gold", "moss", "violet", "plum", "sea", "bone"] as const;
+
+/** A colour of the pad palette by name (any letter case), or null. */
+export function nullablePaletteColor(field: string, value: unknown): string | null {
+  if (value === undefined || value === null || value === "") return null;
+  const name = typeof value === "string" ? value.toLowerCase() : "";
+  if (!(PALETTE_COLORS as readonly string[]).includes(name)) {
+    throw new ValidationError(field, `Choose one of the colours: ${PALETTE_COLORS.join(", ")}.`);
+  }
+  return name;
+}
+
 /** A colour as #rrggbb, or null. */
 export function nullableColor(field: string, value: unknown): string | null {
   if (value === undefined || value === null) return null;

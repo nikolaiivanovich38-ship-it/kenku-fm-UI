@@ -21,24 +21,71 @@ import fs from "fs";
 import path from "path";
 import { LibraryDatabaseError } from "./errors";
 import {
+  backUpInBackground,
+  dailyBackupDone,
+  isHealthyDatabase,
   latestGoodBackup,
   listBackups,
   writeBackup,
-  writeDailyBackupIfDue,
   type BackupInfo,
 } from "./backups";
 import { checkInBackground, quickCheck } from "./integrity";
 import { MIGRATIONS, migrate, schemaVersion, type Migration } from "./schema";
-import { openConnection, type DatabaseSync } from "./sqlite";
+import { BUSY_TIMEOUT_MS, openConnection, type DatabaseSync } from "./sqlite";
 import { Store } from "./store";
 import { UndoHistory } from "./undo";
+import { isNetworkPath } from "./paths";
 
 export const DATABASE_FILE_NAME = "library.sqlite";
 export const BACKUP_FOLDER_NAME = "backups";
 
-/** Where the library lives inside the app's data folder. */
-export function libraryFolder(userDataPath: string): string {
+/**
+ * Where the library lives (DB review 6). On Windows: under Local app data, not Roaming, which managed Windows may
+ * redirect to a network share, where SQLite's write-ahead log cannot work and a large file would be copied at every
+ * sign-in. Its own folder, "%LOCALAPPDATA%\\<app> Library" ("Lyre Library"): the installer (Squirrel) installs the
+ * program into %LOCALAPPDATA%\\lyre and deletes that whole folder when Lyre is uninstalled, so a library inside it
+ * (the first design, never released) would be lost with its backups on an uninstall or reinstall. Elsewhere: inside
+ * the app's data folder. `userDataPath` is Electron's app.getPath("userData"); the app's folder name is taken from it.
+ */
+export function libraryFolder(userDataPath: string, env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform): string {
+  if (platform === "win32") {
+    const local = env.LOCALAPPDATA;
+    return local ? path.win32.join(local, `${path.win32.basename(userDataPath)} Library`) : path.win32.join(userDataPath, "library");
+  }
   return path.join(userDataPath, "library");
+}
+
+/**
+ * True for a folder on a network share by its path (\\server\share, //server/share,
+ * \\?\UNC\…). A mapped drive letter cannot be told from its path; there SQLite
+ * itself refuses write-ahead logging and openConnection falls back to a journal.
+ * (Kept in paths.ts, where the library folders' checks use it too.)
+ */
+export { isNetworkPath };
+
+/**
+ * Largest size the write-ahead log is cut back to once checkpointed (DB review
+ * 6): after bulk work it reached 44 MB and stayed there.
+ */
+export const JOURNAL_SIZE_LIMIT = 8 * 1024 * 1024;
+
+/**
+ * Empties the write-ahead log into the library file after bulk work (DB review
+ * 6). Commits already checkpoint every 1,000 pages (SQLite's default), and bulk
+ * work commits about 500 rows at a time, so the log never grows far and this
+ * copies little: tens of milliseconds at most. It does not wait for anyone: if
+ * another connection is reading (a backup or the integrity check on a worker),
+ * it copies what it can and leaves the rest to the next checkpoint.
+ */
+function truncateLog(db: DatabaseSync): void {
+  db.exec("PRAGMA busy_timeout = 0");
+  try {
+    db.prepare("PRAGMA wal_checkpoint(TRUNCATE)").get();
+  } catch {
+    // Busy: tried again after the next bulk work; commits keep checkpointing meanwhile.
+  } finally {
+    db.exec(`PRAGMA busy_timeout = ${BUSY_TIMEOUT_MS}`);
+  }
 }
 
 export type LibraryOptions = {
@@ -60,6 +107,10 @@ export type LibraryOptions = {
    * after restoring a backup, or in tools).
    */
   integrityCheck?: "background" | "blocking";
+  /** "wal" or "delete" (a rollback journal); by default "delete" in a network folder (isNetworkPath), else "wal". */
+  journal?: "wal" | "delete";
+  /** Bytes the write-ahead log is cut back to (default JOURNAL_SIZE_LIMIT); tests use a small one. */
+  journalSizeLimit?: number;
 };
 
 /** Result of the integrity check started when the library was opened. */
@@ -74,14 +125,20 @@ export type Library = {
   readonly databasePath: string;
   readonly backupFolder: string;
   readonly schemaVersion: number;
+  /** "wal", or "delete" when the folder is on a network share (DB review 6). */
+  readonly journalMode: "wal" | "delete";
   readonly store: Store;
   readonly history: UndoHistory;
-  /** "Back up now". */
-  backupNow(): BackupInfo;
-  /** Makes today's backup unless one exists; returns it or null. */
-  runDailyBackup(): BackupInfo | null;
+  /** "Back up now", made on a worker thread (DB review 1). Throws at once during a change or bulk work. */
+  backupNow(): Promise<BackupInfo>;
+  /** Makes today's backup on a worker thread unless one exists; resolves to it or null. */
+  runDailyBackup(): Promise<BackupInfo | null>;
+  /** The copy made before the old player's library moves in (DAT-9), on a worker thread. */
+  backupBeforeImport(): Promise<BackupInfo>;
   /** The integrity check started at open; never rejects. */
   checkIntegrity(): Promise<IntegrityReport>;
+  /** Empties the write-ahead log into the library file when nothing else is reading; runs by itself after bulk work. */
+  checkpoint(): void;
   close(): void;
 };
 
@@ -126,9 +183,10 @@ export function openLibrary(options: LibraryOptions): Library {
   // thread only when the caller asked to block.
   const corruptAtOpen = (cause: unknown) => corrupt(cause, blocking ? latestGoodBackup(backupFolder) : undefined);
 
+  const journal = options.journal ?? (isNetworkPath(options.folder) ? "delete" : "wal");
   let db: DatabaseSync;
   try {
-    db = openConnection(databasePath);
+    db = openConnection(databasePath, { journal });
   } catch (error) {
     if (isCorruptionError(error)) throw corruptAtOpen(error);
     throw error;
@@ -155,9 +213,26 @@ export function openLibrary(options: LibraryOptions): Library {
     throw error;
   }
 
+  // The planner's statistics, refreshed at open as SQLite advises (cheap; usually does nothing):
+  // the one at close may never run when Windows shuts down with Lyre open.
+  try {
+    db.exec("PRAGMA optimize = 0x10002");
+  } catch {
+    // Opening matters more than the statistics.
+  }
   const store = new Store(db, { now });
   const history = new UndoHistory(store, { limit: options.undoLimit });
   let closed = false;
+
+  // DB review 6: a log cut back to journal_size_limit, and emptied after bulk work.
+  const journalMode = (db.prepare("PRAGMA journal_mode").get() as { journal_mode: string }).journal_mode === "wal" ? "wal" : "delete";
+  const checkpoint = () => {
+    if (journalMode === "wal" && !closed && !store.inChange) truncateLog(db);
+  };
+  if (journalMode === "wal") {
+    db.exec(`PRAGMA journal_size_limit = ${Math.max(0, Math.floor(options.journalSizeLimit ?? JOURNAL_SIZE_LIMIT))}`);
+    store.setAfterBulkWork(checkpoint);
+  }
 
   // The backups are listed now (a folder listing) but checked on the worker,
   // and only if the library turns out to be damaged.
@@ -174,29 +249,38 @@ export function openLibrary(options: LibraryOptions): Library {
       })
     : Promise.resolve({ status: "ok" });
 
+  // A copy taken mid-change or between the batches of bulk work would hold half of it.
   const ensureIdle = () => {
     if (store.inChange) throw new Error("Cannot back up while a change is running.");
+    store.refuseWhileBusy();
+  };
+  const backUp = (label: string) => {
+    ensureIdle();
+    return backUpInBackground(databasePath, backupFolder, label, now());
   };
 
   return {
     databasePath,
     backupFolder,
     schemaVersion: schemaVersion(db),
+    journalMode,
     store,
     history,
-    backupNow() {
-      ensureIdle();
-      return writeBackup(db, backupFolder, "manual", now());
-    },
-    runDailyBackup() {
-      ensureIdle();
-      return writeDailyBackupIfDue(db, backupFolder, now());
-    },
+    backupNow: () => backUp("manual"),
+    runDailyBackup: () => (dailyBackupDone(backupFolder, now()) ? Promise.resolve(null) : backUp("daily")),
+    backupBeforeImport: () => backUp("before-import"),
     checkIntegrity: () => integrity,
+    checkpoint,
     close() {
       if (closed) return;
       closed = true;
       background?.cancel();
+      try {
+        // SQLite's advice: refresh the query planner's statistics when they would help (cheap; usually does nothing).
+        db.exec("PRAGMA optimize");
+      } catch {
+        // Closing matters more than the statistics.
+      }
       db.close();
     },
   };
@@ -235,6 +319,10 @@ export function restoreBackup(options: { folder: string; backupPath: string; now
     (backup) => path.resolve(backup.path) === path.resolve(options.backupPath),
   );
   if (!known) throw new Error("Only a backup from this library's backups folder can be restored.");
+  // DAT-6: putting back a damaged copy would replace one damaged library with another.
+  if (!isHealthyDatabase(options.backupPath)) {
+    throw new Error("That backup is damaged and cannot be put back. Choose an older backup.");
+  }
   const partPath = `${databasePath}.part`;
   try {
     copyToDisk(options.backupPath, partPath);
@@ -259,10 +347,11 @@ export const FIRST_DAILY_BACKUP_DELAY_MS = 2 * 60 * 1000;
  * started. Failures go to `onError` (the app logs them); the timer keeps
  * running. Returns a function that stops it (call it before `library.close()`).
  *
- * The backup itself (VACUUM INTO) runs on the main process and holds it for
- * about half a second on a 43 MB library, once a day. Waiting keeps that out
- * of start-up, when the window and the player are loading. When this is wired
- * up (WP5), call it once the main window has been shown, never before.
+ * The copy is made on a worker thread (DB review 1), so it does not hold up
+ * the main process; waiting still keeps its disk reads out of start-up, when
+ * the window and the player are loading. Call it once the main window has
+ * been shown. A backup that would fall in a bulk change or a change is
+ * reported to `onError` (LibraryBusyError) and made at the next hourly check.
  */
 export function startDailyBackups(
   library: Library,
@@ -270,7 +359,7 @@ export function startDailyBackups(
 ): () => void {
   const run = () => {
     try {
-      library.runDailyBackup();
+      library.runDailyBackup().catch((error: unknown) => options.onError?.(error));
     } catch (error) {
       options.onError?.(error);
     }

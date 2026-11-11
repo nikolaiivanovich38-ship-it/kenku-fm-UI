@@ -12,6 +12,11 @@ declare const __CUE_DESK_TEST_BUILD__: boolean;
 export interface DiscordDriver {
   createClient(): Client;
   joinVoiceChannel(options: Parameters<typeof joinVoiceChannel>[0]): VoiceConnection;
+  /**
+   * OUT-8, test builds only: Lyre opened a bot's invite. The fake Discord admits the bot to its servers instead of a
+   * browser opening; the real driver has none, so the invite opens in the browser.
+   */
+  inviteOpened?(applicationId: string): void;
 }
 
 export const realDiscordDriver: DiscordDriver = {
@@ -22,9 +27,17 @@ export const realDiscordDriver: DiscordDriver = {
   joinVoiceChannel,
 };
 
-/** Whether this start may use the fake Discord (test builds only). */
+/**
+ * Whether this start may use the fake Discord (test builds only). "prototype" (w4-outputs) is the fake with the
+ * design prototype's servers and bots, for the acceptance specs (testing/prototypeWorld.ts).
+ */
 export function wantsFakeDiscord(env: NodeJS.ProcessEnv, testBuild: boolean): boolean {
-  return testBuild && env.CUE_DESK_FAKE_DISCORD === "1";
+  return testBuild && (env.CUE_DESK_FAKE_DISCORD === "1" || env.CUE_DESK_FAKE_DISCORD === "prototype");
+}
+
+/** w4-outputs: the acceptance specs' Discord (test builds only). */
+export function wantsPrototypeDiscord(env: NodeJS.ProcessEnv, testBuild: boolean): boolean {
+  return testBuild && env.CUE_DESK_FAKE_DISCORD === "prototype";
 }
 
 /** The driver for this app start. Release builds compile the fake out. */

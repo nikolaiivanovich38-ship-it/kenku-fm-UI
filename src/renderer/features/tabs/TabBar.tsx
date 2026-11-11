@@ -29,6 +29,7 @@ import { listKeyboardCoordinates } from "../../common/listKeyboardCoordinates";
 import { WindowControls } from "../../common/WindowControls";
 import { showWindowControls } from "../../common/showWindowControls";
 import { PlayerTab } from "../player/PlayerTab";
+import { LyreTab } from "../lyre/LyreTab";
 import { AddTabButton } from "./AddTabButton";
 import { TabItem } from "./TabItem";
 
@@ -179,6 +180,10 @@ export function TabBar() {
       >
         <Box sx={{ width: "100%", minWidth: "120px" }}>
           <PlayerTab />
+        </Box>
+        {/* WP5: the new interface, beside the old player. */}
+        <Box sx={{ width: "100%", minWidth: "120px" }}>
+          <LyreTab />
         </Box>
         <DndContext
           sensors={sensors}

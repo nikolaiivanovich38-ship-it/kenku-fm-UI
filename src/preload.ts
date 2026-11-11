@@ -5,6 +5,8 @@ import {
   BrowserViewManagerPreload,
 } from "./preload/managers/BrowserViewManagerPreload";
 import type { OutputsState } from "./common/outputs";
+import type { WindowSettings } from "./common/windowSettings";
+import type { OldRemoteSetting } from "./common/remoteControl";
 
 const viewManager = new BrowserViewManagerPreload();
 
@@ -148,11 +150,13 @@ const api = {
   playerRegisterView: (viewId: number) => {
     ipcRenderer.send("PLAYER_REGISTER_VIEW", viewId);
   },
-  playerStartRemote: (address: string, port: string) => {
-    ipcRenderer.send("PLAYER_START_REMOTE", address, port);
+  /** WP5: the address of the new interface page, shown in the built-in "Lyre" tab. */
+  lyreGetURL: (): string => {
+    return ipcRenderer.sendSync("LYRE_GET_URL");
   },
-  playerStopRemote: () => {
-    ipcRenderer.send("PLAYER_STOP_REMOTE");
+  /** Review 0.5.0 CR-3: hand the old Settings' remote control choice to Lyre's Settings, once (remoteMigration.ts). */
+  remoteMoveOldSetting: (old: OldRemoteSetting) => {
+    ipcRenderer.send("REMOTE_MOVE_OLD_SETTING", old);
   },
   setMuted: (id: number, muted: boolean) => {
     ipcRenderer.send("AUDIO_CAPTURE_SET_MUTED", id, muted);
@@ -178,6 +182,20 @@ const api = {
   },
   clearCache: () => {
     return ipcRenderer.invoke("CLEAR_CACHE");
+  },
+  /**
+   * OUT-8 (w6-rooms): Sound to Discord and Website tabs, shared with Settings in Lyre
+   * (src/renderer/features/settings/windowSettingsSync.ts). This page keeps them.
+   */
+  windowSettings: {
+    report: (settings: WindowSettings) => ipcRenderer.send("WINDOW_SETTINGS_STATE", settings),
+    onSet: (listener: (change: unknown) => void) => {
+      const heard = (_event: unknown, change: unknown) => listener(change);
+      ipcRenderer.on("WINDOW_SETTINGS_SET", heard);
+      return () => {
+        ipcRenderer.removeListener("WINDOW_SETTINGS_SET", heard);
+      };
+    },
   },
   platform: ipcRenderer.sendSync("GET_PLATFORM") as string,
   version: ipcRenderer.sendSync("GET_VERSION") as string,

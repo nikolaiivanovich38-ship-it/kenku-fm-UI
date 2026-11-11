@@ -8,6 +8,7 @@ const {
   fusesConfig,
   rebuildConfig,
 } = require("./scripts/forge-options.cjs");
+const { checkBundledFfmpeg } = require("./scripts/ffmpeg-builds.cjs");
 
 const productName = packageJson.productName;
 const homepage = packageJson.homepage;
@@ -30,6 +31,9 @@ const config = {
     // SEC-13: app code ships in app.asar (checked at start-up by the fuses
     // below); native addons and WebAssembly stay unpacked beside it.
     asar: { unpack: ASAR_UNPACK_GLOB },
+    // Security review 2: Lyre's licence and notices (ffmpeg's GPL notice and source among them) in the installed
+    // app's resources folder, outside app.asar, where anyone can read them.
+    extraResource: ["./NOTICE", "./LICENSE"],
   },
   // FND-3: CUE_DESK_SKIP_NATIVE_REBUILD=1 skips the native-module rebuild on
   // machines that cannot download Electron headers (see docs/DEVELOPING.md).
@@ -87,6 +91,12 @@ const config = {
       },
     },
   ],
+  hooks: {
+    // Security review 7: never package an ffmpeg program other than the pinned build for the target platform.
+    prePackage: async (_forgeConfig, platform, arch) => {
+      checkBundledFfmpeg(__dirname, platform, arch);
+    },
+  },
   plugins: [
     {
       name: "@electron-forge/plugin-webpack",
@@ -112,6 +122,15 @@ const config = {
               },
             },
             {
+              // WP5 (w3-shell): the new interface, opened as the "Lyre" tab.
+              html: "./src/lyre/index.html",
+              js: "./src/lyre/renderer.ts",
+              name: "lyre_window",
+              preload: {
+                js: "./src/lyre/preload.ts",
+              },
+            },
+            {
               html: "./src/audioCapture/index.html",
               js: "./src/audioCapture/renderer.ts",
               name: "audio_capture_window",
@@ -134,6 +153,16 @@ const config = {
       config: {
         externals: ["opusscript", "prism-media", "@snazzah/davey"],
         includeDeps: true,
+      },
+    },
+    {
+      // BUG-10 (w3-media): ship node_modules/ffmpeg-static (the ffmpeg program and its licence; the program is kept
+      // out of app.asar by ASAR_UNPACK_GLOB). Its dependencies only download the program at install time, so they
+      // are left out. The app finds the program itself (src/main/media/bundledFfmpeg.ts); nothing requires the module.
+      name: "@timfish/forge-externals-plugin",
+      config: {
+        externals: ["ffmpeg-static"],
+        includeDeps: false,
       },
     },
   ],

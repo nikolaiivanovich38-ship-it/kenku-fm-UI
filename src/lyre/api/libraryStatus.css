@@ -1,0 +1,12 @@
+/* The library's status line (LibraryStatus.tsx): above everything, in the theme's own colours. */
+.lyre-library-status {
+  margin: 0;
+  padding: 8px 16px;
+  font: inherit;
+  border-bottom: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+}
+.lyre-library-status.down {
+  border-left: 4px solid var(--danger, var(--live));
+}

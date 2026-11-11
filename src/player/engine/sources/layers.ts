@@ -303,16 +303,26 @@ export function bufferSource(context: EngineContext, buffer: BufferLike, onRelea
   };
 }
 
-/** A URL streamed through media elements as a source of layers. */
+/**
+ * A URL streamed through media elements as a source of layers.
+ * @param onRelease gives back what the resolver holds for `url` (PLY-11: a buffered copy)
+ */
 export function streamSource(
   context: EngineContext,
   url: string,
   createElement: () => MediaElementLike,
+  onRelease: () => void = () => undefined,
 ): PlayableSource {
+  let released = false;
   return {
     kind: "stream",
     openLayer: (destination, events) => StreamLayer.open(context, createElement(), url, destination, events),
-    release: () => undefined,
+    release: () => {
+      if (!released) {
+        released = true;
+        onRelease();
+      }
+    },
   };
 }
 

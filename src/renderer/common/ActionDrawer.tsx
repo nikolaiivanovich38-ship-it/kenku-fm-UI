@@ -37,8 +37,11 @@ export function ActionDrawer() {
   const collapsed = useSelector((state: RootState) => state.bookmarks.sidebarCollapsed);
   const width = sidebarWidth(collapsed);
   const showingErrors = useSelector((state: RootState) => state.errors.list.length > 0);
+  // w3-ux 4: the sidebar steps aside while the Lyre tab is open (it has its own rail), unless errors are shown.
+  const lyreOpen = useSelector((state: RootState) => state.lyre.tab.id !== -1 && state.tabs.selectedTab === state.lyre.tab.id);
   // The space the sidebar takes, read by getBounds to place website views.
-  const space = sidebarSpace(collapsed, showingErrors);
+  const space = sidebarSpace(collapsed, showingErrors, lyreOpen);
+  const away = space === 0;
   const dispatch = useDispatch();
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -58,6 +61,7 @@ export function ActionDrawer() {
       id="sidebar"
       aria-label="Sidebar"
       data-width={space}
+      hidden={away}
       sx={{ width: space, flexShrink: 0 }}
     >
       <Drawer

@@ -17,6 +17,7 @@ import {
   type VoiceConnection,
 } from "@discordjs/voice";
 import type { DiscordDriver } from "../discordDriver";
+import { PROTOTYPE_WORLD } from "./prototypeWorld";
 
 export const FAKE_GUILD_ID = "900";
 
@@ -31,13 +32,45 @@ export const FAKE_CHANNELS = {
   silent: { id: "905", name: "Silent Room", type: ChannelType.GuildVoice, neverReady: true },
 } as const;
 
+/**
+ * OUT-6: a second server, for unit tests that move a bot between servers
+ * (`new FakeDiscord({ otherServer: true })`). It is not listed among the
+ * bot's servers, so end-to-end tests see the one server as before.
+ */
+export const FAKE_OTHER_GUILD_ID = "910";
+export const FAKE_OTHER_SERVER = {
+  hall: { id: "911", name: "Hall", type: ChannelType.GuildVoice, guildId: FAKE_OTHER_GUILD_ID },
+} as const;
+
 type ChannelSpec = {
   id: string;
   name: string;
   type: ChannelType;
   joinable?: boolean;
   neverReady?: boolean;
+  /** The server the channel is in; the main fake server when missing. */
+  guildId?: string;
+  /** w4-outputs: the people in the channel (bots are added while they are connected there). */
+  members?: string[];
 };
+
+/**
+ * w4-outputs: the servers, voice channels and people a fake Discord shows, and the Discord name of the bot
+ * that logs in with each token. Without one, the fake has its one "Test Server" (FAKE_CHANNELS) and names
+ * bots "Fake Bot <n>". The acceptance specs use the prototype's world (testing/prototypeWorld.ts).
+ */
+export interface FakeWorld {
+  guilds: { id: string; name: string; channels: (Omit<ChannelSpec, "type" | "guildId"> & { type?: ChannelType })[] }[];
+  /** Bot names by token. A token named here logs in even if it does not start with "fake-" (the specs paste tokens). */
+  usernames?: Record<string, string>;
+  /**
+   * OUT-8: tokens of bots not invited to any server yet: they see no server until Lyre opens an invite (the
+   * driver's inviteOpened), as a bot does before someone with Manage Server authorises it.
+   */
+  notInvited?: string[];
+}
+
+const TEST_WORLD: FakeWorld = { guilds: [{ id: FAKE_GUILD_ID, name: "Test Server", channels: Object.values(FAKE_CHANNELS) }] };
 
 /**
  * The parts of a discord.js Collection the app uses. Not a Map subclass: the
@@ -53,6 +86,9 @@ class FakeCollection<V> {
   }
   forEach(fn: (value: V) => void): void {
     this.items.forEach((value) => fn(value));
+  }
+  get(key: string): V | undefined {
+    return this.items.get(key);
   }
 }
 
@@ -202,11 +238,11 @@ export class FakeClient extends EventEmitter {
     if (this.discord.networkDown) {
       throw new Error("getaddrinfo ENOTFOUND discord.com");
     }
-    if (!token.startsWith("fake-")) {
+    if (!token.startsWith("fake-") && !this.discord.usernameFor(token)) {
       throw new Error("An invalid token was provided.");
     }
     const number = this.discord.clients.indexOf(this) + 1;
-    this.user = { id: `bot-${number}`, username: `Fake Bot ${number}` };
+    this.user = { id: `bot-${number}`, username: this.discord.usernameFor(token) ?? `Fake Bot ${number}` };
     setTimeout(() => {
       if (!this.destroyed) {
         this.emit(Events.ClientReady, this);
@@ -224,7 +260,7 @@ export class FakeClient extends EventEmitter {
     const discord = this.discord;
     return {
       fetch: async () =>
-        new FakeCollection([[FAKE_GUILD_ID, { id: FAKE_GUILD_ID, fetch: async () => discord.guild() }]]),
+        new FakeCollection(discord.guildsFor(this.token.value).map((g): [string, { id: string; fetch: () => Promise<ReturnType<FakeDiscord["guild"]>> }] => [g.id, { id: g.id, fetch: async () => discord.guild(g.id) }])),
     };
   }
 
@@ -238,6 +274,13 @@ export class FakeClient extends EventEmitter {
         }
         return discord.channelObject(spec);
       },
+      /** As discord.js keeps the channels it has seen: what a voice state update reads from. */
+      cache: {
+        get: (id: string) => {
+          const spec = discord.channel(id);
+          return spec ? discord.channelObject(spec) : undefined;
+        },
+      },
     };
   }
 }
@@ -250,8 +293,60 @@ export class FakeDiscord {
   /** While true, the bot's gateway connection cannot send a voice join (rejoin fails at once). */
   gatewayDown = false;
 
+  readonly world: FakeWorld;
+
+  constructor(private readonly options: { otherServer?: boolean; world?: FakeWorld } = {}) {
+    // A copy, so setMembers changes this fake only.
+    const world = options.world ?? TEST_WORLD;
+    this.world = {
+      usernames: world.usernames,
+      notInvited: world.notInvited,
+      guilds: world.guilds.map((g) => ({ ...g, channels: g.channels.map((c) => ({ ...c, members: [...(c.members ?? [])] })) })),
+    };
+  }
+
+  /** OUT-8: an invite was opened: bots not invited so far are now in the servers (the fake cannot tell which). */
+  private admitted = false;
+  invited(token: string | null | undefined): boolean {
+    return this.admitted || !token || !(this.world.notInvited ?? []).includes(token);
+  }
+
+  /**
+   * The servers a bot with this token is in: all of them, except that a bot the world says was not invited is in
+   * none until an invite is opened, and then in the first only (an invite adds a bot to the one server chosen).
+   */
+  guildsFor(token: string | null | undefined): FakeWorld["guilds"] {
+    if (!this.invited(token)) return [];
+    return token && (this.world.notInvited ?? []).includes(token) ? this.world.guilds.slice(0, 1) : this.world.guilds;
+  }
+
+  /** The Discord name of the bot that logs in with this token, if the world names it. */
+  usernameFor(token: string): string | undefined {
+    return this.world.usernames?.[token];
+  }
+
+  /** w4-outputs: people join or leave a voice channel; every client hears a voice state update, as from Discord. */
+  setMembers(channelId: string, members: string[]) {
+    for (const guild of this.world.guilds) {
+      const channel = guild.channels.find((c) => c.id === channelId);
+      if (channel) {
+        channel.members = [...members];
+      }
+    }
+    setTimeout(() => {
+      for (const client of this.clients) {
+        if (!client.destroyed) {
+          client.emit(Events.VoiceStateUpdate, {}, {});
+        }
+      }
+    }, TICK_MS);
+  }
+
   readonly driver: DiscordDriver = {
     createClient: () => new FakeClient(this) as unknown as Client,
+    inviteOpened: () => {
+      this.admitted = true;
+    },
     joinVoiceChannel: (options) => {
       const group = options.group ?? "default";
       const existing = this.connections.find(
@@ -276,7 +371,11 @@ export class FakeDiscord {
   };
 
   channel(id: string): ChannelSpec | undefined {
-    return Object.values(FAKE_CHANNELS).find((channel) => channel.id === id);
+    const specs: ChannelSpec[] = [
+      ...this.world.guilds.flatMap((g) => g.channels.map((c) => ({ type: ChannelType.GuildVoice, ...c, guildId: g.id }))),
+      ...(this.options.otherServer ? Object.values(FAKE_OTHER_SERVER) : []),
+    ];
+    return specs.find((channel) => channel.id === id);
   }
 
   /** Live connections in a channel. */
@@ -295,29 +394,34 @@ export class FakeDiscord {
     }
   }
 
-  guild() {
+  guild(id: string = this.world.guilds[0].id) {
+    const world = this.world.guilds.find((g) => g.id === id) ?? this.world.guilds[0];
     const channels = new FakeCollection(
-      Object.values(FAKE_CHANNELS).map((spec, position): [string, ReturnType<FakeDiscord["channelObject"]> & { rawPosition: number }] => [
-        spec.id,
-        { ...this.channelObject(spec), rawPosition: position },
+      world.channels.map((c, position): [string, ReturnType<FakeDiscord["channelObject"]> & { rawPosition: number }] => [
+        c.id,
+        { ...this.channelObject(this.channel(c.id)!), rawPosition: position },
       ]),
     );
     return {
-      id: FAKE_GUILD_ID,
-      name: "Test Server",
+      id: world.id,
+      name: world.name,
       iconURL: (): null => null,
       channels: { fetch: async () => channels },
     };
   }
 
   channelObject(spec: ChannelSpec) {
+    // As discord.js counts members: the people there, and the bots connected there now.
+    const bots = this.connectionsIn(spec.id).map((connection) => ({ displayName: `Bot ${connection.joinConfig.group}`, user: { bot: true } }));
+    const people = (spec.members ?? []).map((name) => ({ displayName: name, user: { bot: false } }));
     return {
       id: spec.id,
       name: spec.name,
       type: spec.type,
       joinable: spec.joinable ?? true,
       isVoiceBased: () => true,
-      guild: { id: FAKE_GUILD_ID, voiceAdapterCreator: () => ({ sendPayload: () => true, destroy: (): void => undefined }) },
+      members: new FakeCollection([...people, ...bots].map((member, i): [string, typeof member] => [String(i), member])),
+      guild: { id: spec.guildId ?? FAKE_GUILD_ID, voiceAdapterCreator: () => ({ sendPayload: () => true, destroy: (): void => undefined }) },
     };
   }
 
@@ -368,10 +472,10 @@ export function packetPeaks(discord: FakeDiscord, channelId: string, from = 0): 
 
 let shared: FakeDiscord | undefined;
 
-/** The one fake Discord of a test-build app start. */
+/** The one fake Discord of a test-build app start; with CUE_DESK_FAKE_DISCORD=prototype, the prototype's world. */
 export function sharedFakeDiscord(): FakeDiscord {
   if (!shared) {
-    shared = new FakeDiscord();
+    shared = new FakeDiscord(process.env.CUE_DESK_FAKE_DISCORD === "prototype" ? { world: PROTOTYPE_WORLD } : {});
     (globalThis as unknown as { __cueDeskFakeDiscord: FakeDiscord }).__cueDeskFakeDiscord = shared;
   }
   return shared;

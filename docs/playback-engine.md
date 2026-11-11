@@ -184,3 +184,70 @@ Unit tests are listed in `docs/testing.md` > Playback engine tests; the real-bro
 - PLY-4: loop markers (DAT-3) and per-track "remember position".
 - PLY-11, BUG-10: resolvers for the local file cache and format conversion; one memory budget shared with `BufferCache`.
 - PERF-1's idle CPU figures: the old animation loops were removed from the current player in wave 1 (WPL), but the before/after effect is recorded only as timer wake-up counts (`docs/testing.md`, Current player fixes), not as CPU. Measuring CPU idle before and after is still to do, by hand on Windows.
+
+## Wave 2: the show engine
+
+### For the product owner
+
+The engine now plays a game the way the design prototype does. Nothing on screen uses it yet; the new interface (wave 3) will.
+
+- **Scenes play their music in order.** Starting a scene plays its first music item, then each track and each playlist's tracks in turn, and starts again at the end. A track never plays twice in a row. Next and Previous move through the same order. The scene's ambience (a track, or the first track of an ambience playlist) loops on the ambience channel; Next on the ambience moves through its playlist.
+- **Audio profiles are heard.** Each track plays from its Start to its End, with its fade in and fade out shaped as set (gentle, even or sharp), and at End it loops back to Loop start (with the loop crossfade), moves on, or stops. A scene's own settings for a track win over a playlist's, which win over the track's own. The volume changes are written ahead on the audio clock, so a fade or an End lands on the exact moment, not "about then".
+- **Now Playing.** Play now crossfades (3 s). Play next waits for the current track to end, before the scene moves on; queued tracks can be removed. A track played off script returns to the scene at the next step once it ends. Undo after starting a scene brings back the previous music and ambience where they would be now, with the queue (the screen offers it for 8 seconds).
+- **One set of actions for everything.** Play a track or playlist, start a scene, next or previous, fade a channel, fade everything, stop everything, fire a pad: the buttons, the keys and later the Stream Deck all send the same action, which names the room it plays in (or all rooms). Scenes always start in the first room.
+- **Track roles.** With no profile saying otherwise, a loop bed loops, a sting or a transition plays once and hands over to what comes next, an effect plays once, and anything else follows its loop advice. Ambience always loops; effects play over the music.
+- **Pads**: one-shot, toggle (on, then off; per room), hold (while held), retrigger, with variants at random or in turn. Since 0.4.1 (BUG-20) a press on a pad that sounds in a room stops it there, whatever its mode (toggle and hold with the pad's fade, others in 0.3 s), and takes no turn of its variants; `stopPads` stops every pad sound and leaves music, ambience and other effects.
+- **BUG-11** stays fixed here too: removing tracks from a scene or playlist while it plays never changes the track that is playing, and Next and Previous go to its neighbours.
+
+What it does differently from the prototype, on purpose: when a track reaches End the next one starts without an extra 3 s fade (the prototype faded every change in), because the track's own fade out and the next one's fade in shape the join. Undo restores only the room the scene started in.
+
+### Technical design
+
+| Path | Contents |
+| --- | --- |
+| `queue/actions.ts` | `CueAction` (plain data), `CueOutcome`, default fades, `isCueAction` for actions from outside. |
+| `queue/director.ts` | `Director`: `run(action)`, `report()` (what each room plays), `canUndo()`; one `RoomPlayer` per room; drops rooms that leave. Events `change` and `error`. |
+| `queue/roomPlayer.ts` | Music lane, ambience lane, effects and pads of one room; snapshot and restore for Undo. |
+| `queue/nowPlaying.ts` | Pure rules: `playNow`, `queueNext`, `removeQueued`, `advance`, `previous`, `upNext`, `stepFrom`, `locate`. |
+| `queue/library.ts` | `ShowLibrary` (domain lookups, a track's media, a pad's sound) and `staticLibrary(data)`. |
+| `profile/trackProfile.ts` | `trackProfile` (resolveProfile plus role defaults), `laneProfile` (ambience loops, effects once). |
+| `profile/position.ts` | Where a track would be after some time, for Undo. |
+| `voice/passPlan.ts` | A pass's start, End, loop point, overlap and gain: `plainPlan` (the WP4 options) or `profilePlan` (an audio profile via `envelopeAt`). |
+| `rooms.contract.ts` | `RoomsAudio`, the interface to the Rooms stream; `tableOnlyRooms`. |
+
+A voice given `profile` plays passes from Start (or `startAt`) to End. When a pass starts, its gain is written on the timeline: `envelopeAt` sampled into straight ramps (24 per curved stretch, two points for a straight one), a straight loop crossfade, and 0 at End when End is inside the file. A timer at End ends the voice (after "next" or "stop") or, for a loop, a timer shortly before End minus the crossfade opens the next pass from Loop start, started on the exact sample for decoded audio. Seek, pause and resume re-write the gain from the new position. `crossfadeInSeconds` fades the whole voice in on its envelope gain, separately from the profile. Without a profile a voice behaves exactly as in WP4.
+
+`engine.play` takes `room: { id, input }` to play into a room's bus instead of its own; the director gets the input from `RoomsAudio.getRoomBus(roomId, lane)`. Lanes are `music`, `ambience` and `effects`.
+
+The current track is an item (`Playing`: track id, origin with its step number, the playlist it came through), never a bare position. `locate` finds it again after the scene or playlist changed: its own step if it still holds the track, else the nearest step with the same track, else (it was removed) the place it was.
+
+### Tests
+
+| Test file | What it covers |
+| --- | --- |
+| `voice/voiceProfile.test.ts` | Start and End inside the file, shaped fade in and fade out against `fadeInGain`/`fadeOutGain`, loop back to Loop start with and without a crossfade (no second fade in, never quieter, at most two passes), the next pass started on the exact sample, crossfade in, start elsewhere, seek and pause keeping End right, 200 loop passes leaving nothing behind. Streams and buffers. |
+| `profile/*.test.ts` | Role defaults, scene before playlist before track, lane rules; Undo positions. |
+| `queue/nowPlaying.test.ts` | Scene order without repeats, wrap, previous; queue before the sequence; off-script return point; "stop" still plays the queue; BUG-11 deletions before, at and around the current track. |
+| `queue/director.test.ts` | On the fake graph with fake rooms: scenes, profiles heard per room, ambience looping, Next/Previous, Play now and Play next, Undo, rooms and targets, fade lane, fade all, stop all, pads, stings and loop beds, failing files, BUG-11 while playing, `isCueAction`. |
+
+The test hook (`window.__cueDeskEngineTest`, test builds only) gained `loadShow(data)`, `run(action)`, `rooms()` and `errors()`, so end-to-end tests can drive the show and see what each room plays.
+
+### Manual checks
+
+None until the new interface uses the show engine; the wave 3 screens will list them.
+
+### Left for later
+
+- Pause and resume of a lane as an action (the prototype's pause button), and shuffle within a scene.
+- Starting the next track a little before End to hide the time a streamed file takes to open (a short gap is possible today).
+- Undo for other rooms, and an Undo for actions other than a scene start.
+
+## Wave 4: volume normalisation (PLY-15)
+
+Lyre never changes your files: the level is evened out as Lyre plays them, and the measurement is kept in Lyre's library (docs/data-model.md "Version 4").
+
+- Each voice has a **level** stage of its own between its envelope and its volume (`voice.ts`, `VoiceOptions.gainDb`, `setGainDb`), so the track's own volume, its fades, the bus and the room's volume all apply on top of it. Gains multiply in a floating-point graph, so its place in the chain does not change the sound.
+- The gain is `normalisedGainDb(track, playlist, library)` (src/common/domain/normalise.ts): the track's choice, then the playlist it plays from, then the library's setting; 0 when off there or not measured yet. `RoomPlayer` gives it to every music, ambience and effect voice (an effect or pad sound has no playlist); a crossfade moves from one voice's gain to the next one's.
+- `LaneNowPlaying.gainDb` and `PreviewNowPlaying.gainDb` say the gain applied (normaliseHover words it). The preview hears the gain the players would: a track alone, a playlist's first track with the playlist's choice, a track previewed from a playlist (`PreviewTrackOptions.playlistId`), a pad's sound as on air.
+- When the library changes (the setting, a choice, a new measurement), `EngineLyreAudio.setLibrary` calls `Director.libraryChanged()` and moves what plays, and the preview, to its new gain over 50 ms. `LibrarySnapshot` loads `library.normaliseSettings()` with "tracks" and reloads tracks on "peaks" (new loudness).
+- Tests: `voice.test.ts` (the level, a change while playing, nothing left behind), `director.test.ts` "volume normalisation" (off by default, the library's target, playlist and track precedence, crossfade, pads, a change while playing), `lyreAudio.test.ts` (now-playing gains, previews, a library change).

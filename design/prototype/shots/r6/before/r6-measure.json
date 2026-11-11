@@ -1,0 +1,179 @@
+{
+ "planner-two-scenes@1920": {
+  "words": 269,
+  "controls": 131,
+  "hints": 8,
+  "twice": 7,
+  "colours": 18,
+  "badges": 6,
+  "hintLines": [
+   "In play: this scene's music first, then this session's, then the campaign's, then the whole library.",
+   "Plays in order, then loops. Drop files here to add them.",
+   "The first is shown when the scene starts.",
+   "In every scene tonight. New ones: Playlists.",
+   "In every scene tonight. New ones: Pad boards.",
+   "From the campaign. Change.",
+   "Single track",
+   "Campaign pad boards: Combat, Weather and places."
+  ],
+  "repeated": [
+   "2× +1 more",
+   "2× music",
+   "2× starts the scene",
+   "2× the abbess",
+   "2× pad boards",
+   "2× drowned abbey",
+   "2× in every scene tonight. new ones"
+  ],
+  "badgeKinds": [
+   "pane-status.s-idle",
+   "chip.cp-chip",
+   "shape-tag",
+   "chip.mood",
+   "chip.motif",
+   "chip.ts-more"
+  ]
+ },
+ "picker-inside@1920": {
+  "words": 479,
+  "controls": 171,
+  "hints": 12,
+  "twice": 7,
+  "colours": 18,
+  "badges": 6,
+  "hintLines": [
+   "In play: this scene's music first, then this session's, then the campaign's, then the whole library.",
+   "Plays in order, then loops. Drop files here to add them.",
+   "The first is shown when the scene starts.",
+   "In every scene tonight. New ones: Playlists.",
+   "In every scene tonight. New ones: Pad boards.",
+   "From the campaign. Change.",
+   "Single track",
+   "Campaign pad boards: Combat, Weather and places.",
+   "Tick playlists, single tracks or both; open a playlist to tick only some of its tracks. They play in the scene in the order you tick them; y",
+   "Tick single tracks to add only those, or tick the playlist above to add all of it.",
+   "Preview plays in your headphones only. The arrow beside a name shows what is inside.",
+   "4 chosen"
+  ],
+  "repeated": [
+   "3× +1 more",
+   "2× the abbess",
+   "2× pad boards",
+   "2× drowned abbey",
+   "2× in every scene tonight. new ones",
+   "2× playlists"
+  ],
+  "badgeKinds": [
+   "pane-status.s-idle",
+   "chip.cp-chip",
+   "shape-tag",
+   "chip.mood",
+   "chip.motif",
+   "chip.ts-more"
+  ]
+ },
+ "library-track@1920": {
+  "words": 686,
+  "controls": 214,
+  "hints": 7,
+  "twice": 16,
+  "colours": 18,
+  "badges": 9,
+  "hintLines": [
+   "69 tracks",
+   "Keys: ↑ ↓ move · Enter open · Space select · P preview · A play on air",
+   "Lyre cannot find this file where it was. Point Lyre at the folder it moved to.",
+   "Whole track, then the next one.",
+   "Suggested by Lyre from the track's loudness. Choose another to change it.",
+   "Dynamic: matches its tag rules",
+   "Dynamic: matches its tag rules"
+  ],
+  "repeated": [
+   "3× energy",
+   "3× amb",
+   "3× fx sting",
+   "2× shape",
+   "2× mood",
+   "2× leitmotif",
+   "2× scene type",
+   "2× length",
+   "2× storm and dark romance swells - villain's tragic backstory",
+   "2× the storm",
+   "2× play on air",
+   "2× manual",
+   "2× dynamic matches its tag rules"
+  ],
+  "badgeKinds": [
+   "badge.accent",
+   "badge.warn",
+   "chip.lb-fchip",
+   "pane-status.s-idle",
+   "shape-tag",
+   "chip.lb-chip",
+   "badge.lb-newb",
+   "kbd",
+   "chip.lb-pick"
+  ]
+ },
+ "playlist-manual@1920": {
+  "words": 382,
+  "controls": 134,
+  "hints": 5,
+  "twice": 9,
+  "colours": 13,
+  "badges": 2,
+  "hintLines": [
+   "Drag rows, or press Alt+Up / Alt+Down, to change the order.",
+   "45 tracks",
+   "4 of 4",
+   "1 of 2",
+   "Campaign: every session. Session: that evening. Scene: plays in that scene, in its place in the list."
+  ],
+  "repeated": [
+   "3× ready",
+   "2× the abbess",
+   "2× manual",
+   "2× music",
+   "2× alien unknowable voices - ancient magic a ghost speaks",
+   "2× fragile melancholy strings slow swell - loss memory flashbac",
+   "2× scene",
+   "2× add tracks"
+  ],
+  "badgeKinds": [
+   "pane-status.s-idle",
+   "chip"
+  ]
+ },
+ "backup-open@1920": {
+  "words": 297,
+  "controls": 34,
+  "hints": 11,
+  "twice": 9,
+  "colours": 12,
+  "badges": 3,
+  "hintLines": [
+   "Saves Lyre library 2026-11-05.lyre",
+   "Made with Lyre 0.4, 2 Nov 2026 · audio files not included",
+   "2 sessions, 9 scenes",
+   "6 tracks",
+   "Dynamic · yours has the same name",
+   "4 tracks · yours has the same name and 4 tracks",
+   "9 pads",
+   "8 are already in your library (same file name and length)",
+   "Mood: Gothic · Leitmotif: Strahd, Ireena",
+   "For every item you have already:",
+   "The 38 tracks come without their audio files: Lyre lists them under Find missing files until you point it at a folder that has them."
+  ],
+  "repeated": [
+   "4× new",
+   "4× keep both",
+   "3× playlist",
+   "2× save to a file"
+  ],
+  "badgeKinds": [
+   "pane-status.s-idle",
+   "pane-status.s-on",
+   "badge"
+  ]
+ }
+}

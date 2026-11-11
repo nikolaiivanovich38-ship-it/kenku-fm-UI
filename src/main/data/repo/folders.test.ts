@@ -14,7 +14,7 @@ afterEach(() => t.close());
 
 describe("folders (ORG-4)", () => {
   it("nests folders with a colour and a collapsed state", () => {
-    const strahd = createFolder(t.store, { scope: "playlists", name: "Curse of Strahd", color: "#7A1F2B" });
+    const strahd = createFolder(t.store, { scope: "playlists", name: "Curse of Strahd", color: "Ember" });
     const vallaki = createFolder(t.store, { scope: "playlists", name: "Vallaki", parentId: strahd.id });
     const barovia = createFolder(t.store, {
       scope: "playlists",
@@ -23,7 +23,7 @@ describe("folders (ORG-4)", () => {
       placement: { before: vallaki.id },
     });
     updateFolder(t.store, strahd.id, { collapsed: true });
-    expect(getFolder(t.store, strahd.id)).toMatchObject({ color: "#7a1f2b", collapsed: true, parentId: null });
+    expect(getFolder(t.store, strahd.id)).toMatchObject({ color: "ember", collapsed: true, parentId: null });
     expect(listFolders(t.store, "playlists").map((f) => [f.name, f.parentId])).toEqual([
       ["Curse of Strahd", null],
       ["Barovia", strahd.id],

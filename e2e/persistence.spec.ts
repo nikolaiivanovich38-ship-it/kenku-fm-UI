@@ -54,7 +54,8 @@ test("playlists, soundboards, bookmarks, volume and settings survive a restart",
 
     await main.getByRole("button", { name: "Settings" }).click();
     let settings = main.getByRole("dialog", { name: "Settings" });
-    await settings.getByLabel("Port").fill("4321");
+    // Review 0.5.0 CR-3: the remote control's port moved to Lyre's Settings, so another main-window setting is used.
+    await settings.getByRole("checkbox", { name: "Microphones and other inputs" }).check();
     await settings.getByRole("button", { name: "Done" }).click();
 
     await first.close();
@@ -83,7 +84,7 @@ test("playlists, soundboards, bookmarks, volume and settings survive a restart",
 
     await main.getByRole("button", { name: "Settings" }).click();
     settings = main.getByRole("dialog", { name: "Settings" });
-    await expect(settings.getByLabel("Port")).toHaveValue("4321");
+    await expect(settings.getByRole("checkbox", { name: "Microphones and other inputs" })).toBeChecked();
   } finally {
     await site.close();
   }

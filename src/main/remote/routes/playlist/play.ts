@@ -1,7 +1,7 @@
 import { Static, Type } from "@sinclair/typebox";
 import { FastifyPluginCallback } from "fastify";
 
-import { PlayerManager } from "../../../managers/PlayerManager";
+import type { RemoteHost } from "../..";
 import { ReplyError, VIEW_ERROR } from "../..";
 
 const PlayIDRequest = Type.Object({
@@ -9,7 +9,7 @@ const PlayIDRequest = Type.Object({
 });
 type PlayIDRequestType = Static<typeof PlayIDRequest>;
 
-export const play: (manager: PlayerManager) => FastifyPluginCallback =
+export const play: (manager: RemoteHost) => FastifyPluginCallback =
   (manager) => (fastify, _, done) => {
     fastify.put<{
       Body: PlayIDRequestType;

@@ -1,0 +1,187 @@
+/**
+ * w4-outputs: what the new interface's Outputs screen (and the rail's "Outputs (n/m)") learns about the Discord bots.
+ * The main process turns its OutputsState into this shape (`lyreOutputsOf`) and sends it to the Lyre page on
+ * LYRE_OUTPUTS_STATE; the page changes it with the LYRE_OUTPUT_* channels (src/main/broadcast/lyreOutputsBridge.ts).
+ * Never holds a token (SEC-5).
+ */
+import type { BotState, BotStatus, OutputsState, VoiceSessionState, VoiceStatus } from "./outputs";
+
+/** Main → Lyre page: the outputs, now and on every change. */
+export const LYRE_OUTPUTS_STATE = "LYRE_OUTPUTS_STATE";
+
+/** The channel a bot is in (its room), or tried to join and could not. */
+export interface LyreBotRoom {
+  serverId: string;
+  channelId: string;
+  status: VoiceStatus;
+  /** Plain words when `status` is "error" or "reconnecting". */
+  error?: string;
+}
+
+export interface LyreBot {
+  id: string;
+  /** Its Discord name once logged in ("Lyre Table"), else its own ("Bot 2"). */
+  name: string;
+  /** OUT-8: the name Lyre keeps for it (Rename), shown until Discord gives its own. */
+  savedName: string;
+  /** OUT-8: the last four characters of its token ("••••••••Kq7w"), or null when it has none. Never the token (SEC-5). */
+  tokenEnd: string | null;
+  /** False: the token is kept only until Lyre closes (no secure storage on this computer). */
+  tokenRemembered: boolean;
+  /** OUT-8: its Application ID, or null; only for the invite link. */
+  applicationId: string | null;
+  /** OUT-8: the invite (botInviteUrl) when its Application ID is known. */
+  inviteUrl: string | null;
+  /** OUT-8: false for the last bot, which cannot be removed. */
+  canRemove: boolean;
+  /** Logged in to Discord ("ready"), on the way, out, or refused. */
+  login: BotStatus;
+  /** Plain words for a login problem. */
+  error?: string;
+  room: LyreBotRoom | null;
+  muted: boolean;
+  /** The room's volume, 0 to 1. */
+  volume: number;
+  /** The servers this bot can join channels in. */
+  serverIds: string[];
+}
+
+export interface LyreVoiceChannel {
+  id: string;
+  name: string;
+  /** People in it now (not bots). */
+  members: string[];
+}
+
+export interface LyreServer {
+  id: string;
+  name: string;
+  channels: LyreVoiceChannel[];
+}
+
+export interface LyreOutputs {
+  /** Whether tokens can be kept encrypted on this computer (SEC-5); false: only until Lyre closes. */
+  encryption: boolean;
+  /** In the bots' order; the first bot in a room plays the table. */
+  bots: LyreBot[];
+  /** Every server a logged-in bot sees, in the order first seen. */
+  servers: LyreServer[];
+}
+
+export const NO_OUTPUTS: LyreOutputs = { encryption: true, bots: [], servers: [] };
+
+/* ---------- OUT-8: adding a bot, its token and its invite ---------- */
+
+/**
+ * The permissions Lyre's invite asks for: View Channels (1 << 10), Connect (1 << 20) and Speak (1 << 21), nothing
+ * more (docs.discord.com, Permissions; design/prototype/ROUND6.md OUT-8).
+ */
+export const BOT_INVITE_PERMISSIONS = (1 << 10) + (1 << 20) + (1 << 21);
+
+/** An Application ID is a Discord id: a number of 15 to 22 digits (snowflakes are 17 to 20 today). */
+const APPLICATION_ID = /^\d{15,22}$/;
+/** A bot token: three parts of letters, digits, - and _, joined by dots (Discord's format), at most 200 characters. */
+const BOT_TOKEN = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/;
+
+export function isApplicationId(value: unknown): value is string {
+  return typeof value === "string" && APPLICATION_ID.test(value);
+}
+
+export function isBotToken(value: unknown): value is string {
+  return typeof value === "string" && value.length <= 200 && BOT_TOKEN.test(value);
+}
+
+/** Plain words for an Application ID Lyre cannot use, or null when it can. */
+export function applicationIdProblem(value: string): string | null {
+  return isApplicationId(value.trim()) ? null : "An Application ID is a long number: copy it from General Information › Application ID › Copy.";
+}
+
+/** Plain words for a token Lyre cannot use (before Discord sees it), or null when it looks right. */
+export function tokenProblem(value: string): string | null {
+  return isBotToken(value.trim()) ? null : "That is not a bot token. In the Discord Developer Portal: Bot › Reset Token › Copy, then paste it here.";
+}
+
+/** The invite for a bot: scope bot, with View Channels, Connect and Speak (docs.discord.com, OAuth2). */
+export function botInviteUrl(applicationId: string): string {
+  if (!isApplicationId(applicationId)) throw new Error("Not an Application ID");
+  return `https://discord.com/oauth2/authorize?client_id=${applicationId}&scope=bot&permissions=${BOT_INVITE_PERMISSIONS}`;
+}
+
+/** What a bot call from the Lyre page answers: done, or why not in plain words. */
+export type LyreBotResult = { ok: true; botId: string } | { ok: false; message: string };
+
+/**
+ * OUT-7: what undoes a move or a Kick of a bot, from the outputs before it: send it back to the channel it was in,
+ * or take it out again when it was in none. Null for a bot that was not there.
+ */
+export function undoOfMove(before: LyreOutputs, botId: string): { kind: "move"; botId: string; channelId: string } | { kind: "leave"; botId: string } | null {
+  const bot = before.bots.find((b) => b.id === botId);
+  if (!bot) return null;
+  return bot.room && bot.room.status !== "error" ? { kind: "move", botId, channelId: bot.room.channelId } : { kind: "leave", botId };
+}
+
+/** Voice statuses in which the bot is (about to be) heard in its channel. Matches roomsOf in outputs.ts. */
+const IN_ROOM: ReadonlySet<VoiceStatus> = new Set(["joining", "connected", "reconnecting"]);
+
+function roomOf(voice: readonly VoiceSessionState[]): LyreBotRoom | null {
+  const session = voice.find((candidate) => IN_ROOM.has(candidate.status)) ?? voice.find((candidate) => candidate.status === "error");
+  if (!session) return null;
+  return {
+    serverId: session.guildId,
+    channelId: session.channelId,
+    status: session.status,
+    ...(session.error ? { error: session.error } : {}),
+  };
+}
+
+function botOf(bot: BotState, canRemove: boolean): LyreBot {
+  const applicationId = bot.applicationId && isApplicationId(bot.applicationId) ? bot.applicationId : null;
+  return {
+    id: bot.id,
+    // w6-rooms: a bot that disconnects keeps the Discord name it had, so Settings and Rooms still call it by it.
+    name: bot.discordName ?? bot.lastDiscordName ?? bot.name,
+    savedName: bot.name,
+    tokenEnd: bot.hasToken && bot.tokenEnd ? bot.tokenEnd.slice(-4) : null,
+    tokenRemembered: bot.tokenRemembered,
+    applicationId,
+    inviteUrl: applicationId ? botInviteUrl(applicationId) : null,
+    canRemove,
+    login: bot.status,
+    ...(bot.error ? { error: bot.error } : {}),
+    room: roomOf(bot.voice),
+    muted: bot.muted,
+    volume: bot.volume ?? 1,
+    serverIds: bot.guilds.map((guild) => guild.id),
+  };
+}
+
+export function lyreOutputsOf(state: OutputsState): LyreOutputs {
+  const servers = new Map<string, LyreServer>();
+  for (const bot of state.bots) {
+    for (const guild of bot.guilds) {
+      if (!servers.has(guild.id)) {
+        servers.set(guild.id, {
+          id: guild.id,
+          name: guild.name,
+          channels: guild.voiceChannels.map((channel) => ({ id: channel.id, name: channel.name, members: [...(channel.members ?? [])] })),
+        });
+      }
+    }
+  }
+  return { encryption: state.encryption, bots: state.bots.map((bot) => botOf(bot, state.bots.length > 1)), servers: [...servers.values()] };
+}
+
+const isText = (value: unknown): value is string => typeof value === "string";
+const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null;
+
+/** The page's preload accepts only this shape from the main process. */
+export function isLyreOutputs(value: unknown): value is LyreOutputs {
+  if (!isObject(value) || typeof value.encryption !== "boolean" || !Array.isArray(value.bots) || !Array.isArray(value.servers)) return false;
+  const textOrNull = (v: unknown) => v === null || isText(v);
+  const botOk = (bot: unknown) =>
+    isObject(bot) && isText(bot.id) && isText(bot.name) && isText(bot.login) && typeof bot.muted === "boolean" && typeof bot.volume === "number" && Array.isArray(bot.serverIds) && (bot.room === null || isObject(bot.room)) &&
+    isText(bot.savedName) && textOrNull(bot.tokenEnd) && typeof bot.tokenRemembered === "boolean" && textOrNull(bot.applicationId) && textOrNull(bot.inviteUrl) && typeof bot.canRemove === "boolean";
+  const serverOk = (server: unknown) =>
+    isObject(server) && isText(server.id) && isText(server.name) && Array.isArray(server.channels) && server.channels.every((c) => isObject(c) && isText(c.id) && isText(c.name) && Array.isArray(c.members));
+  return value.bots.every(botOk) && value.servers.every(serverOk);
+}

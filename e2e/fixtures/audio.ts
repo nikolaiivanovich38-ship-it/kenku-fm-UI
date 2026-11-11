@@ -2,7 +2,9 @@
  * Small audio files for end-to-end tests, written on the fly so the tests
  * need no downloads and no binary files in the repository.
  */
+import { execFileSync } from "child_process";
 import fs from "fs";
+import os from "os";
 import path from "path";
 
 const SAMPLE_RATE = 22_050;
@@ -50,4 +52,38 @@ export function writeSineWav(
   const filePath = path.join(folder, fileName);
   fs.writeFileSync(filePath, buffer);
   return filePath;
+}
+
+/**
+ * Write a short, real audio file in the format its name says (.wav, .mp3, .flac, .ogg, …) and return its path.
+ * Lyre refuses a file that is not audio whatever its name (UX review 3), and its converter reads each file as the
+ * format its extension names (security review 7), so tests that add files need real ones. Formats other than WAV
+ * are encoded once per extension with the ffmpeg the app ships (ffmpeg-static) and copied after that.
+ */
+export function writeAudioFile(filePath: string): string {
+  const extension = path.extname(filePath).toLowerCase();
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  if (extension === ".wav") return writeSineWav(path.dirname(filePath), path.basename(filePath), { seconds: 0.5 });
+  const cached = path.join(audioCache(), `tone${extension}`);
+  if (!fs.existsSync(cached)) {
+    const source = writeSineWav(audioCache(), "tone-source.wav", { seconds: 0.5 });
+    const part = `${cached}.part${extension}`;
+    execFileSync(ffmpegPath(), ["-v", "error", "-y", "-i", source, part]);
+    fs.renameSync(part, cached);
+  }
+  fs.copyFileSync(cached, filePath);
+  return filePath;
+}
+
+let cacheFolder: string | null = null;
+function audioCache(): string {
+  cacheFolder ??= fs.mkdtempSync(path.join(os.tmpdir(), "lyre-test-audio-"));
+  return cacheFolder;
+}
+
+function ffmpegPath(): string {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const found = require("ffmpeg-static") as string | null;
+  if (!found) throw new Error("ffmpeg-static has no ffmpeg for this platform; run yarn install");
+  return found;
 }

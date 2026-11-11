@@ -4,6 +4,112 @@ All notable changes to Lyre (called Cue Desk in versions 0.1.x). Versions follow
 
 ## [Unreleased]
 
+**Security**
+- The remote control (Stream Deck, phone) now needs Lyre's secret code with every request, made the first time Lyre starts and kept encrypted on your computer. It stays off until you turn it on and listens only on this computer unless you choose otherwise. Web pages cannot use it, a device that tries ten wrong codes is locked out for ten minutes, and its answers no longer show where your files are. The Kenku FM Stream Deck plugin does not send the code yet, so it cannot control Lyre for now; Settings will show the code. [SEC-4]
+- When Lyre cannot check for or install an update, it now tells you once, in plain words, instead of only writing it to its log. [SEC-14]
+- The remote control's web server library moved to its current version, which fixes its known security problems. No library Lyre ships has a known serious security problem. [SEC-9]
+- Every change is now checked automatically for its tests, a start of the app, accessibility, library security problems, secrets and code security; a release is built only after all of them pass, and a failing check says in plain words what to do. [FND-5, SEC-1]
+
+**Preparing your games**
+- A Tags screen keeps your tags tidy: groups in your order, each with a colour, tags inside tags (filtering by Melancholy finds the grieving tracks too), other words that find a tag ("sad" offers Melancholy), and Rename, Merge into… and Delete… that change every track at once, with Undo. Open it from the Library's ⋯ or Look and feel's Tag colours…. [DAT-10]
+- Playlists and pad boards go into folders (Move to folder…, or drag one onto a folder); folders nest and fold. A manual playlist can have dividers that name its sections, and a pad board dividers that name its rows. [ORG-4]
+- Drag tracks onto another playlist, a scene, a pad board or Up next: a Drop on panel shows where they can go. Dropping copies, Shift moves, Esc cancels; ticked Library rows go together. Add to… in a row's ⋯ does the same from the keyboard. [ORG-5]
+- A scene's ⋯ › What it does when it starts… and a pad's ⋯ › What it does… list their steps: add, change and reorder them (fade the music first, fire a pad, play from a marker), try them in your headphones, and let a scene move on by itself. [PLY-8, SHW-3]
+- A track's details show only the choices its role fits: a sting never loops, an underscore can fade out at its end and pick up where it stopped (also after a restart), and a track can be followed by a playlist or track. [PLY-4, SHW-3]
+- In the Audio profile a marker can be the mix-out point, and Play on air from a marker starts the track there. [DAT-3]
+- A playlist's tracks can be put in another order for one scene, session or campaign (drag, Alt+Up/Down, or Reorder's Move up and Move down), and back to the playlist's order; Repeat one on a scene's track shows in the planner. A duplicated scene keeps its orders. [ORG-13, PLY-17]
+- Less to read: the Library's keys show only while you are in the list, the planner has no scene count or sentence about Live, and how-to lines are read out to screen readers instead of shown. New scenes are named Scene 7, Scene 8. [UX-17]
+- Find missing files can preview the file it found again. [SEC-17]
+
+**Fixes**
+- Deleting a track from the playing playlist with shuffle off no longer makes a different track the current one. [BUG-11]
+- Long sounds on a soundboard (ambience over 30 seconds) are streamed instead of being loaded whole into memory. The first time you play a sound without fades, it streams while Lyre learns its length. [PERF-7]
+
+## [0.4.1] - 2026-11-06: fixes from your test of 0.4.0
+
+- What goes to your players never plays on your computer's speakers. You hear it only through Discord, in the voice channel. When no bot is in a voice channel, Live's On air box and the Now playing bar say nobody hears it. Preview and Try pads still play in your headphones only. [BUG-19]
+- Press a playing pad to stop it, whatever its play mode. Stop pads in Live's Pads box stops every pad and leaves the music and ambience playing. A playing pad shows that it plays. [BUG-20]
+- Rename a session from its own page and from Live's top strip: click the name or press F2, Enter saves, Esc cancels. [BUG-21]
+
+## [0.4.0] - 2026-11-06: run your games in Lyre
+
+**Live**
+- Live is here: start scenes with Space, undo with Ctrl+Z within 8 seconds, play music off script by name or mood, and use pads, rooms and volumes from one screen. [UX-2, UX-8, SHW-1, SHW-2]
+- One On air box per room, with what plays, what is up next, transport, volume, Mute, and a menu to move, copy or leave. Add a room, then choose which room each box plays to. [UX-14, OUT-6]
+- Pad keys work in Live, also with the Pads box folded. Running another session fades out what was playing from the last one. [SFX-2]
+- The Keys button lists every key; single-key shortcuts can be switched off. [UX-12]
+
+**Outputs**
+- See your bots, who is in each voice channel, and move a bot to another channel during play. Mute a room, change its volume, or play a test chime in that room only. The menu shows how many bots are connected, e.g. "Outputs (1/2)". [OUT-5, OUT-6]
+
+**What you hear, and where**
+- The Now playing bar, on every screen while anything plays or is paused: a row for each room the players hear (On air) and one for your headphone preview (Only you), each with Pause, Stop and its own volume. In Live it shows only your preview. [UX-16]
+- Normalise volume evens out loudness between tracks. Off at first; turn it on for the library (Library › ⋯ › Normalise volume…), or on or off for a playlist or a track. Lyre measures each track's loudness in the background and never changes your files. [PLY-15, DAT-15]
+
+**Preparing**
+- Shuffle, repeat all and repeat one, chosen separately for a playlist itself and for each scene, session or campaign that uses it. [PLY-13]
+- Tracks show their tags and their shape (steady, builds, falls away, peaks then falls, rises and falls), suggested from their loudness; change it in a track's details, filter by it, and use it in dynamic playlist rules. [ORG-11, DAT-13]
+- A track can have its own name in a scene (⋯ › Name in this scene…). [DAT-14]
+- Use in… works on single tracks; keep single tracks on hand for a session or a campaign. [ORG-12]
+- Add tracks or playlists…: open a playlist and tick just the tracks you want. [ORG-10]
+- From a scene, the wave button opens a track's waveform, end and fades for that scene, and Back returns to it. [PLY-14]
+- A dynamic playlist's details sit at the top, with its rules. [EDT-8]
+- Pad boards: changing the grid size fills pads left to right, top to bottom, and pads you put in Spare pads yourself stay there; Try pads plays each pad as it will in Live, in your headphones only. [SFX-11, SFX-12]
+
+**Your library**
+- Back up, move or share: save the whole library, a campaign, session, scene, playlist, pad board or your tags to one .lyre file, with or without the audio. Open a .lyre file to see what is in it, choose Skip, Merge or Keep both for anything you already have, then bring it in; Undo takes it all back. [DAT-7]
+- What came across from Kenku FM: what Lyre copied on its first start, and the files it cannot find. [DAT-9]
+- Find missing files: point Lyre at a folder, check each match, then Relink, with Undo. Missing files are marked in the Library and have a filter. [DAT-8]
+
+**Help**
+- Press F1, or Help at the foot of the menu, for short how-to articles you can search. A short tour on the first start; take it again from Help. [FND-8]
+- Help › Save diagnostics… saves a zip for bug reports. Tokens and your user name are taken out, and nothing is sent anywhere. [FND-9]
+
+**Safety and fixes**
+- A .lyre file from someone else can only put audio files on your computer; anything else in it is left out, and Lyre says so. It cannot fill your drive, and is refused if there is no room for its audio.
+- Undoing a bring-in also clears the audio files it unpacked.
+- A shuffled playlist in a scene no longer plays the scene's previous track again straight away.
+- A room's volume slider always matches what the players hear.
+
+## [0.3.1] - 2026-11-05: fixes from your first test of 0.3.0
+
+- Music keeps playing while you prepare: adding, moving or removing a track in a scene no longer stops it, and closing the Add tracks window stops only a preview you started in it. [BUG-12]
+- The On air bar stays on every screen while music plays, the Live page included, until you press Stop. [BUG-13]
+- Box headers with many buttons (such as the Library with a filter on, at full screen) wrap onto a second line instead of pushing a button out of the box. The automatic layout checks now catch a control cut off at the side. [BUG-14]
+- Tab adds the tag you typed (creating it if it is new), or the suggestion you picked, and moves on. [BUG-15]
+- A pad's colour and icon show as soon as you click them, and a second click is kept. [BUG-16]
+- Play in the Audio profile goes round, Start to End or the loop, until you stop it, with the playhead and time on every pass. [BUG-17]
+- Rename a session or a scene where it is listed: double-click its name, press F2, or choose Rename in its ⋯ menu. Enter saves, Esc cancels. [BUG-18]
+
+## [0.3.0] - 2026-11-05: the new interface, for preparing games
+
+**A new Lyre tab beside the Player**
+- The new interface opens in its own tab, Lyre, next to the old Player. Use it to build your library and prepare campaigns; run games from the Player tab until Live arrives in 0.4. The old sidebar folds away while the Lyre tab is open. [WP5]
+- The first time the Lyre tab opens, your playlists and soundboards from the Player are brought into the new library, with their names, order, pictures and sound settings. A file used in several places becomes one track. The Player's own library is not changed, and a copy of the new library is made first. [DAT-9]
+- The new library keeps daily backups. If its file is ever damaged, Lyre says so and offers "Restore the latest backup". [DAT-6]
+
+**Library**
+- Search, filter by tag and tag many tracks at once. Adding a file reads its title, artist, album and length from its tags. [DAT-5]
+- WMA and AIFF files play: Lyre makes a playable copy in its cache. Files that are not audio are refused with a plain message, and a file that is already in the library is selected instead of added twice. [BUG-10]
+- Preview (only you hear it) and Play on air (the players hear it) wherever tracks, playlists, pads and boards are listed or chosen.
+
+**Playlists, pads and campaigns**
+- Playlists of your own choosing, and playlists made from tags that keep themselves up to date.
+- Audio profile for each track: where it starts and ends, fades, and whether it loops or moves on. The preview follows your settings, and the waveform shows how loud the track is along its length.
+- Pad boards you can resize and rearrange, with keys F1 to F12 and four play modes. A new pad takes its sound's name.
+- Campaigns, sessions and scenes, with scenes that mix tracks and playlists in any order. Run and Live say they come in 0.4.
+- Undo after a reset, deleting a board or scene, and bulk tagging, also with Ctrl+Z.
+
+**Look and feel**
+- Five colour themes, Candlelit Library first, each with its contrast shown. Empty screens say what to do first.
+- The On air bar shows what the players hear on every screen, and says when only this computer hears it.
+
+**Safety and upkeep**
+- The library runs in its own background process: big changes do not interrupt the sound in Discord, and if it stops it restarts by itself and says so.
+- The new interface plays only audio from your library's folders; it cannot read other files on your computer.
+- Lyre ships ffmpeg (used for WMA and AIFF) with its licence and a check that the copy is the expected one.
+- The media cache tidies itself, empties with Clear cache, and is closed properly when Lyre quits.
+
 ## [0.2.0] - 2026-11-04: Lyre
 
 **New name and look**

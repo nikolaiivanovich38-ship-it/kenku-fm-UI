@@ -1,7 +1,7 @@
 import { Static, Type } from "@sinclair/typebox";
 import { FastifyPluginCallback } from "fastify";
 
-import { PlayerManager } from "../../../managers/PlayerManager";
+import type { RemoteHost } from "../..";
 import { ReplyError, VIEW_ERROR } from "../../";
 import { PlaylistPlaybackReply } from "../../../../types/player";
 
@@ -34,7 +34,7 @@ const SeekRequest = Type.Object({
 });
 type SeekRequestType = Static<typeof SeekRequest>;
 
-export const playback: (manager: PlayerManager) => FastifyPluginCallback =
+export const playback: (manager: RemoteHost) => FastifyPluginCallback =
   (manager) => (fastify, _, done) => {
     fastify.get("/", async (_, reply) => {
       const view = manager.getView();

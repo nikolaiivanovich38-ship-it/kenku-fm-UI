@@ -26,9 +26,9 @@ function playOrder(queue: Queue, shuffle: boolean): string[] {
  * BUG-8: where the queue should carry on after the playing track `deletedId`
  * was deleted: the position, in today's queue, of the first entry that
  * followed it (one past the end if none did), or null when it was not queued.
- * Worked out from the queue as it was before the deletion, because the
- * current player's removeTrackFromQueue can point "current" at the wrong
- * entry with shuffle off (QUEUE-1, BUG-11, still open here).
+ * Worked out from the queue as it was before the deletion, so it does not
+ * depend on how removeTrackFromQueue moved "current" (it pointed at the
+ * wrong entry with shuffle off until BUG-11 was fixed in 0.5.0).
  */
 function placeOfDeleted(
   before: Queue | undefined,

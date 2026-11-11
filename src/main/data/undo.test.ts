@@ -12,14 +12,22 @@ import * as boards from "./repo/boards";
 import * as folders from "./repo/folders";
 import * as tags from "./repo/tags";
 import * as campaigns from "./repo/campaigns";
+import * as profiles from "./repo/profiles";
+import * as cueActions from "./repo/cueActions";
+import * as playOrders from "./repo/playOrders";
+import * as sceneNames from "./repo/sceneNames";
+import * as round6 from "./repo/round6";
+import * as round7 from "./repo/round7";
+import * as normalise from "./repo/normalise";
 import { search } from "./repo/search";
+import { getDomainLookup } from "./repo/domain";
 
-function setup(limit?: number) {
+function setup(limit?: number, memoryLimitBytes?: number) {
   const clock = makeClock();
   const db = openConnection(":memory:");
   migrate(db, MIGRATIONS, clock.now);
   const store = new Store(db, { now: clock.now });
-  const history = new UndoHistory(store, { limit });
+  const history = new UndoHistory(store, { limit, memoryLimitBytes });
   return { db, store, history, clock };
 }
 
@@ -53,15 +61,15 @@ function snapshot(store: Store) {
     result[table.name] = store.all(`SELECT * FROM ${table.name} ORDER BY ${table.primaryKey.join(", ")}`);
   }
   result.search = store.all(
-    `SELECT d.kind, d.ref_id, f.title, f.file_name, f.tags, f.markers, f.notes, f.source
+    `SELECT d.kind, d.ref_id, f.title, f.meta_title, f.file_name, f.artist, f.album, f.tags, f.markers, f.notes, f.cue, f.scene_names
      FROM search_docs d JOIN search_fts f ON f.rowid = d.doc_id ORDER BY d.kind, d.ref_id`,
   );
   return result;
 }
 
 /** A small library with something of everything. */
-function fixture(store: Store) {
-  const root = roots.addRoot(store, { name: "Music", path: "/music" });
+async function fixture(store: Store) {
+  const root = await roots.addRoot(store, { name: "Music", path: "/music" });
   const [a, b, c] = tracks.createTracks(store, [
     { title: "Alpha", file: { path: "/music/a.mp3" }, notes: "first" },
     { title: "Beta", file: { path: "/music/b.mp3" } },
@@ -73,48 +81,88 @@ function fixture(store: Store) {
   const playlist = playlists.createPlaylist(store, { title: "Tavern", folderId: sub.id });
   const items = playlists.addTracksToPlaylist(store, playlist.id, [a.id, b.id, c.id]);
   const divider = playlists.addPlaylistDivider(store, playlist.id, "Night");
-  const board = boards.createBoard(store, { title: "Fx" });
-  const sounds = boards.addSoundsToBoard(store, board.id, [{ trackId: a.id, loop: true }, { trackId: b.id }]);
-  const boardDivider = boards.addBoardDivider(store, board.id, "Doors");
-  boards.createBoard(store, { title: "Ambience" });
+  const board = boards.createBoard(store, { title: "Fx", cols: 3, rows: 2 });
+  const pads = ["Door", "Bell", "Wind", "Owl"].map((label, i) =>
+    boards.addPad(store, board.id, { label, sound: { kind: "variants", trackIds: i === 0 ? [a.id, b.id] : [c.id] } }),
+  );
+  const sparePad = boards.addPad(store, board.id, { label: "Thunder", at: "spare" });
+  boards.updatePad(store, pads[1].id, { hotkey: "1" });
+  const board2 = boards.createBoard(store, { title: "Ambience" });
   const mood = tags.listTagGroups(store)[0];
   const tense = tags.listTags(store, { groupId: mood.id })[2];
   const villain = tags.createTag(store, { groupId: mood.id, name: "Villain", synonyms: ["baddie"] });
   const strahd = tags.createTag(store, { groupId: mood.id, name: "Strahd", parentId: villain.id });
-  tags.tagTracks(store, [a.id, b.id], [tense.id, villain.id]);
+  await tags.tagTracks(store, [a.id, b.id], [tense.id, villain.id]);
+  // Its rule names tags, so renaming, merging or deleting them changes it too (in the same step).
+  const dynamic = playlists.createPlaylist(store, {
+    title: "Eerie",
+    kind: "dynamic",
+    lane: "amb",
+    rule: { conds: [{ group: mood.id, match: "any", values: [tense.name, "Villain"] }], energy: [1, 3] },
+  });
   tracks.setFollowWith(store, a.id, [b.id]);
   const campaign = campaigns.createCampaign(store, { name: "Strahd" });
   const otherCampaign = campaigns.createCampaign(store, { name: "Witcher" });
-  campaigns.addToCampaign(store, campaign.id, { playlistIds: [playlist.id], boardIds: [board.id] });
+  campaigns.addToCampaign(store, campaign.id, { playlistIds: [playlist.id, dynamic.id], boardIds: [board.id] });
   const session = campaigns.createSession(store, { campaignId: campaign.id, name: "S1" });
-  campaigns.createSession(store, { campaignId: campaign.id, name: "S2" });
+  const session2 = campaigns.createSession(store, { campaignId: campaign.id, name: "S2" });
+  campaigns.addToSession(store, session.id, { playlistIds: [playlist.id, dynamic.id], boardIds: [board.id] });
   const scene = campaigns.createScene(store, { sessionId: session.id, name: "Gates" });
   campaigns.createScene(store, { sessionId: session.id, name: "Village" });
-  const sceneItems = campaigns.addSceneItems(store, scene.id, [{ playlistId: playlist.id }, { trackId: c.id }]);
+  const music = campaigns.addSceneMusic(store, scene.id, [{ kind: "playlist", id: playlist.id }, { kind: "track", id: c.id }]);
+  campaigns.setSceneAmbience(store, scene.id, { kind: "playlist", id: dynamic.id });
+  campaigns.addSceneBoards(store, scene.id, [board.id, board2.id]);
+  tracks.updateTrack(store, b.id, { profile: { endMs: 5000 } });
+  const inScene = { kind: "scene" as const, campaignId: campaign.id, sessionId: session.id, sceneId: scene.id };
+  profiles.setProfileOverride(store, inScene, a.id, { endMs: 1000, after: "stop" });
+  // Design round 5: a play order in the scene, a name in the scene, a track on hand.
+  playOrders.setPlayOrder(store, playlist.id, inScene, { shuffle: true, repeat: "off" });
+  sceneNames.setSceneTrackName(store, scene.id, c.id, "The wight rises");
+  campaigns.addToCampaign(store, campaign.id, { trackIds: [b.id, c.id] });
+  // Design round 6: Repeat one on a scene's track, a playlist's own order in the session's list.
+  round6.setRepeatOne(store, scene.id, c.id, true);
+  round6.setTrackOrder(store, playlist.id, { kind: "session", campaignId: campaign.id, sessionId: session.id }, [b.id, a.id]);
+  // Design round 7: a board's divider, a scene's own start and a pad's steps, a scene moving on, how a track plays, a key.
+  round7.setBoardDivider(store, board.id, 1, "Spells");
+  round7.setSteps(store, { sceneId: scene.id }, [{ do: "fade", level: 0.3, ms: 2000 }, { do: "pad", boardId: board.id, padId: pads[1].id }]);
+  round7.setSteps(store, { padId: pads[0].id }, [{ do: "sound" }, { do: "wait", ms: 500 }]);
+  round7.setMovesOn(store, scene.id, { when: "musicEnds" });
+  round7.setTrackPlay(store, c.id, { fadesOut: true, follow: { kind: "playlist", id: playlist.id } });
+  round7.setShortcut(store, "palette", "Ctrl+J");
   return {
-    root, a, b, c, marker, folder, sub, playlist, items, divider, board, sounds, boardDivider,
-    mood, tense, villain, strahd, campaign, otherCampaign, session, scene, sceneItems,
+    root, a, b, c, marker, folder, sub, playlist, dynamic, items, divider, board, board2, pads, sparePad,
+    mood, tense, villain, strahd, campaign, otherCampaign, session, session2, scene, music, inScene,
   };
 }
 
-type Fixture = ReturnType<typeof fixture>;
+type Fixture = Awaited<ReturnType<typeof fixture>>;
 
 /** Every write command of the repository, run against the fixture. */
 const COMMANDS: [string, (s: Store, f: Fixture) => unknown][] = [
   ["addRoot", (s) => roots.addRoot(s, { name: "Fx", path: "/fx" })],
-  ["updateRoot", (s, f) => roots.updateRoot(s, f.root.id, { name: "Songs", path: "/songs" })],
+  ["updateRoot", (s, f) => roots.updateRoot(s, f.root.id, { name: "Songs", path: "/songs", watched: true })],
+  ["setHotkeyActions", (s, f) => cueActions.setHotkeyActions(s, "f1", [{ type: "playTrack", trackId: f.a.id, target: "all", from: { scene: f.inScene, at: 0 } }, { type: "firePad", boardId: f.board.id, padId: f.pads[0].id, target: "all" }])],
+  [
+    "setHotkeyActions (then the track is deleted)",
+    (s, f) =>
+      s.change("Key, then delete", () => {
+        cueActions.setHotkeyActions(s, "f2", [{ type: "playTrack", trackId: f.c.id, target: "all" }]);
+        void tracks.deleteTracks(s, [f.c.id]);
+      }),
+  ],
   ["removeRoot", (s, f) => roots.removeRoot(s, f.root.id)],
   ["createTrack", (s) => tracks.createTrack(s, { title: "Delta", url: "https://example.com/d.mp3" })],
   ["createTracks", (s) => tracks.createTracks(s, [{ title: "D", file: { path: "/d.mp3" } }, { title: "E", file: { path: "/e.mp3" } }])],
-  ["updateTrack", (s, f) => tracks.updateTrack(s, f.a.id, { title: "Alpha 2", energy: 3, transitionIn: { kind: "cut" } })],
+  ["updateTrack", (s, f) => tracks.updateTrack(s, f.a.id, { title: "Alpha 2", energy: 3 })],
   ["updateTrack (relocate)", (s, f) => tracks.updateTrack(s, f.c.id, { file: { path: "/music/sub/c.mp3", size: 5 } })],
   ["deleteTracks", (s, f) => tracks.deleteTracks(s, [f.a.id, f.c.id])],
+  ["relocateTracks", (s, f) => tracks.relocateTracks(s, "Relink 2 files", [{ trackId: f.a.id, file: { path: "/elsewhere/a.mp3", size: 3 } }, { trackId: f.c.id, file: { path: "/music/c.mp3" } }])],
   ["setFollowWith", (s, f) => tracks.setFollowWith(s, f.a.id, [f.c.id, f.b.id])],
-  ["addMarker", (s, f) => markers.addMarker(s, f.b.id, { timeMs: 5, kind: "loop_in" })],
+  ["addMarker", (s, f) => markers.addMarker(s, f.b.id, { timeMs: 5, kind: "mix_out" })],
   ["updateMarker", (s, f) => markers.updateMarker(s, f.marker.id, { label: "big swell", timeMs: 2 })],
   ["deleteMarker", (s, f) => markers.deleteMarker(s, f.marker.id)],
   ["createFolder", (s, f) => folders.createFolder(s, { scope: "playlists", name: "New", parentId: f.folder.id })],
-  ["updateFolder", (s, f) => folders.updateFolder(s, f.folder.id, { name: "City", color: "#123456", collapsed: true })],
+  ["updateFolder", (s, f) => folders.updateFolder(s, f.folder.id, { name: "City", color: "sea", collapsed: true })],
   ["moveFolder", (s, f) => folders.moveFolder(s, f.sub.id, { parentId: null, placement: "start" })],
   ["deleteFolder", (s, f) => folders.deleteFolder(s, f.sub.id)],
   ["createPlaylist", (s) => playlists.createPlaylist(s, { title: "Battle", placement: "start" })],
@@ -126,18 +174,23 @@ const COMMANDS: [string, (s: Store, f: Fixture) => unknown][] = [
   ["renamePlaylistDivider", (s, f) => playlists.renamePlaylistDivider(s, f.divider.id, "Midnight")],
   ["movePlaylistItems", (s, f) => playlists.movePlaylistItems(s, [f.items[2].id, f.divider.id], "start")],
   ["removePlaylistItems", (s, f) => playlists.removePlaylistItems(s, [f.items[0].id, f.items[1].id])],
+  ["copyPlaylist", (s, f) => playlists.copyPlaylist(s, f.dynamic.id, { title: "Eerie now", kind: "manual" })],
+  ["updatePlaylist (rule)", (s, f) => playlists.updatePlaylist(s, f.dynamic.id, { rule: { conds: [], leaveOutStings: true }, notes: "n", lane: "music" })],
   ["createBoard", (s) => boards.createBoard(s, { title: "Weather" })],
   ["updateBoard", (s, f) => boards.updateBoard(s, f.board.id, { title: "Effects" })],
   ["moveBoard", (s, f) => boards.moveBoard(s, f.board.id, { placement: "end" })],
   ["deleteBoard", (s, f) => boards.deleteBoard(s, f.board.id)],
-  ["addSoundsToBoard", (s, f) => boards.addSoundsToBoard(s, f.board.id, [{ trackId: f.c.id, volume: 0.5 }])],
-  ["addBoardDivider", (s, f) => boards.addBoardDivider(s, f.board.id, "Doors")],
-  ["renameBoardDivider", (s, f) => boards.renameBoardDivider(s, f.boardDivider.id, "Windows")],
-  ["updateBoardSound", (s, f) => boards.updateBoardSound(s, f.sounds[0].id, { volume: 0.2, fadeOutMs: 900 })],
-  ["moveBoardItems", (s, f) => boards.moveBoardItems(s, [f.sounds[0].id], "end")],
-  ["removeBoardItems", (s, f) => boards.removeBoardItems(s, [f.sounds[1].id])],
+  ["resizeBoard", (s, f) => boards.resizeBoard(s, f.board.id, { cols: 1, rows: 1 })],
+  ["addPad", (s, f) => boards.addPad(s, f.board.id, { label: "Roar", hotkey: "r", sound: { kind: "single", trackIds: [f.c.id] } })],
+  ["updatePad", (s, f) => boards.updatePad(s, f.pads[0].id, { label: "Doors", sound: { kind: "variants", trackIds: [f.c.id, f.a.id], order: "in_turn" }, volume: 0.3 })],
+  ["takePadHotkey", (s, f) => boards.takePadHotkey(s, f.pads[0].id, "1")],
+  ["movePad", (s, f) => boards.movePad(s, f.pads[0].id, { row: 0, col: 1 })],
+  ["movePad (from spare onto a pad)", (s, f) => boards.movePad(s, f.sparePad.id, { row: 0, col: 0 })],
+  ["putPadBack", (s, f) => boards.putPadBack(s, f.sparePad.id)],
+  ["duplicatePad", (s, f) => boards.duplicatePad(s, f.pads[0].id)],
+  ["deletePads", (s, f) => boards.deletePads(s, [f.pads[0].id, f.sparePad.id])],
   ["createTagGroup", (s) => tags.createTagGroup(s, { name: "Weather" })],
-  ["updateTagGroup", (s, f) => tags.updateTagGroup(s, f.mood.id, { name: "Feeling", color: "#abcdef" })],
+  ["updateTagGroup", (s, f) => tags.updateTagGroup(s, f.mood.id, { name: "Feeling", color: "plum" })],
   ["moveTagGroup", (s, f) => tags.moveTagGroup(s, f.mood.id, "end")],
   ["deleteTagGroup", (s, f) => tags.deleteTagGroup(s, f.mood.id)],
   ["createTag", (s, f) => tags.createTag(s, { groupId: f.mood.id, name: "Spooky", synonyms: ["creepy"] })],
@@ -153,45 +206,95 @@ const COMMANDS: [string, (s: Store, f: Fixture) => unknown][] = [
   ["updateCampaign", (s, f) => campaigns.updateCampaign(s, f.campaign.id, { name: "Barovia", notes: "x" })],
   ["moveCampaign", (s, f) => campaigns.moveCampaign(s, f.campaign.id, "end")],
   ["deleteCampaign", (s, f) => campaigns.deleteCampaign(s, f.campaign.id)],
+  ["updateCampaign (design fields)", (s, f) => campaigns.updateCampaign(s, f.campaign.id, { theme: "hearth", system: "5e", obsidian: { vault: "V" } })],
   ["addToCampaign", (s, f) => campaigns.addToCampaign(s, f.otherCampaign.id, { playlistIds: [f.playlist.id] })],
   ["removeFromCampaign", (s, f) => campaigns.removeFromCampaign(s, f.campaign.id, { playlistIds: [f.playlist.id], boardIds: [f.board.id] })],
-  ["createSession", (s, f) => campaigns.createSession(s, { campaignId: f.campaign.id, name: "S2", playedOn: "2026-11-07" })],
-  ["updateSession", (s, f) => campaigns.updateSession(s, f.session.id, { name: "Session 1", playedOn: "2026-11-01" })],
+  ["moveInCampaign", (s, f) => campaigns.moveInCampaign(s, f.campaign.id, { playlistId: f.dynamic.id }, "start")],
+  ["addToSession", (s, f) => campaigns.addToSession(s, f.session2.id, { playlistIds: [f.playlist.id], boardIds: [f.board.id] })],
+  ["removeFromSession", (s, f) => campaigns.removeFromSession(s, f.session.id, { playlistIds: [f.playlist.id], boardIds: [f.board.id] })],
+  ["moveInSession", (s, f) => campaigns.moveInSession(s, f.session.id, { playlistId: f.dynamic.id }, "start")],
+  ["createSession", (s, f) => campaigns.createSession(s, { campaignId: f.campaign.id, name: "S2", date: "2026-11-07" })],
+  ["updateSession", (s, f) => campaigns.updateSession(s, f.session.id, { name: "Session 1", date: "2026-11-01" })],
+  ["updateSession (next)", (s, f) => campaigns.updateSession(s, f.session2.id, { status: "next" })],
   ["moveSession", (s, f) => campaigns.moveSession(s, f.session.id, { placement: "end" })],
   ["deleteSession", (s, f) => campaigns.deleteSession(s, f.session.id)],
   ["createScene", (s, f) => campaigns.createScene(s, { sessionId: f.session.id, name: "Castle" })],
   ["updateScene", (s, f) => campaigns.updateScene(s, f.scene.id, { notes: "fog" })],
   ["moveScene", (s, f) => campaigns.moveScene(s, f.scene.id, { placement: "end" })],
   ["deleteScene", (s, f) => campaigns.deleteScene(s, f.scene.id)],
-  ["addSceneItems", (s, f) => campaigns.addSceneItems(s, f.scene.id, [{ boardId: f.board.id }], "start")],
-  ["moveSceneItem", (s, f) => campaigns.moveSceneItem(s, f.sceneItems[1].id, "start")],
-  ["removeSceneItems", (s, f) => campaigns.removeSceneItems(s, [f.sceneItems[0].id])],
+  ["updateScene (design fields)", (s, f) => campaigns.updateScene(s, f.scene.id, { startsWhen: "Gates open", noteLink: "Gates.md" })],
+  ["addSceneMusic", (s, f) => campaigns.addSceneMusic(s, f.scene.id, [{ kind: "track", id: f.a.id }, { kind: "playlist", id: f.dynamic.id }], "start")],
+  ["moveSceneMusic", (s, f) => campaigns.moveSceneMusic(s, [f.music[1].id], "start")],
+  ["removeSceneMusic", (s, f) => campaigns.removeSceneMusic(s, [f.music[0].id])],
+  ["setSceneAmbience", (s, f) => campaigns.setSceneAmbience(s, f.scene.id, { kind: "track", id: f.b.id })],
+  ["setSceneAmbience (none)", (s, f) => campaigns.setSceneAmbience(s, f.scene.id, null)],
+  ["addSceneBoards", (s, f) => campaigns.addSceneBoards(s, campaigns.listScenes(s, f.session.id)[1].id, [f.board2.id, f.board.id], "start")],
+  ["moveSceneBoard", (s, f) => campaigns.moveSceneBoard(s, f.scene.id, f.board.id, "end")],
+  ["removeSceneBoards", (s, f) => campaigns.removeSceneBoards(s, f.scene.id, [f.board.id])],
+  ["setPlaylistUses", (s, f) => campaigns.setPlaylistUses(s, f.playlist.id, [{ sessionId: f.session2.id }, { sceneId: f.scene.id }])],
+  ["setBoardUses", (s, f) => campaigns.setBoardUses(s, f.board.id, [{ campaignId: f.otherCampaign.id }])],
+  ["setProfileOverride", (s, f) => profiles.setProfileOverride(s, { kind: "playlist", playlistId: f.playlist.id }, f.c.id, { startMs: 10 })],
+  ["setProfileOverride (replace)", (s, f) => profiles.setProfileOverride(s, f.inScene, f.a.id, { startMs: 10 })],
+  ["clearProfileOverride", (s, f) => profiles.clearProfileOverride(s, f.inScene, f.a.id)],
+  ["setPlayOrder", (s, f) => playOrders.setPlayOrder(s, f.playlist.id, null, { shuffle: true, repeat: "one" })],
+  ["setPlayOrder (replace in a place)", (s, f) => playOrders.setPlayOrder(s, f.playlist.id, f.inScene, { shuffle: false, repeat: "all" })],
+  ["clearPlayOrder", (s, f) => playOrders.clearPlayOrder(s, f.playlist.id, f.inScene)],
+  ["setSceneTrackName", (s, f) => sceneNames.setSceneTrackName(s, f.scene.id, f.a.id, "Strahd's entrance")],
+  ["setSceneTrackName (clear)", (s, f) => sceneNames.setSceneTrackName(s, f.scene.id, f.c.id, "")],
+  ["setRepeatOne", (s, f) => round6.setRepeatOne(s, f.scene.id, f.a.id, true)],
+  ["setRepeatOne (off)", (s, f) => round6.setRepeatOne(s, f.scene.id, f.c.id, false)],
+  ["setTrackOrder", (s, f) => round6.setTrackOrder(s, f.playlist.id, f.inScene, [f.b.id, f.a.id])],
+  ["setTrackOrder (replace)", (s, f) => round6.setTrackOrder(s, f.playlist.id, { kind: "session", campaignId: f.campaign.id, sessionId: f.session.id }, [f.a.id, f.b.id])],
+  ["clearTrackOrder", (s, f) => round6.clearTrackOrder(s, f.playlist.id, { kind: "session", campaignId: f.campaign.id, sessionId: f.session.id })],
+  ["setTrackUses", (s, f) => campaigns.setTrackUses(s, f.c.id, [{ campaignId: f.otherCampaign.id }, { sessionId: f.session2.id }])],
+  ["addToSession (a track)", (s, f) => campaigns.addToSession(s, f.session.id, { trackIds: [f.a.id, f.c.id] })],
+  ["moveInCampaign (a track)", (s, f) => campaigns.moveInCampaign(s, f.campaign.id, { trackId: f.c.id }, "start")],
+  ["setProfileOverride (session list)", (s, f) => profiles.setProfileOverride(s, { kind: "session", campaignId: f.campaign.id, sessionId: f.session.id }, f.a.id, { endMs: 7 })],
+  ["updateTrack (shape)", (s, f) => tracks.updateTrack(s, f.a.id, { shape: "risesAndFalls" })],
+  ["movePad (to spare, put aside)", (s, f) => boards.movePad(s, f.pads[1].id, "spare")],
+  ["resizeBoard (packs the pads)", (s, f) => boards.resizeBoard(s, f.board.id, { cols: 2, rows: 3 })],
+  ["setLibraryNormalise", (s) => normalise.setLibraryNormalise(s, { on: true, target: "quiet" })],
+  ["setTrackNormalise", (s, f) => normalise.setTrackNormalise(s, f.a.id, "off")],
+  ["setPlaylistNormalise", (s, f) => normalise.setPlaylistNormalise(s, f.playlist.id, "on")],
+  ["setBoardDivider", (s, f) => round7.setBoardDivider(s, f.board.id, 0, "Weather")],
+  ["setBoardDivider (rename, remove)", (s, f) => s.change("Dividers", () => (round7.setBoardDivider(s, f.board.id, 1, "Charms"), round7.setBoardDivider(s, f.board.id, 1, null)))],
+  ["setSteps", (s, f) => round7.setSteps(s, { sceneId: f.scene.id }, [{ do: "play", what: { kind: "track", id: f.a.id }, how: "mixOut", upNext: "playNext", fromMs: 1200 }, { do: "stop", what: "ambience" }])],
+  ["setSteps (back to the usual)", (s, f) => round7.setSteps(s, { padId: f.pads[0].id }, null)],
+  ["setSteps (then the pad it fires is deleted)", (s, f) => boards.deletePads(s, [f.pads[1].id])],
+  ["setMovesOn", (s, f) => round7.setMovesOn(s, f.scene.id, { when: "after", ms: 300_000 })],
+  ["setTrackPlay", (s, f) => round7.setTrackPlay(s, f.a.id, { fadesOut: true, resume: true, follow: { kind: "track", id: f.b.id } })],
+  ["setTrackPlay (clear)", (s, f) => round7.setTrackPlay(s, f.c.id, { fadesOut: false, follow: null })],
+  ["setShortcut", (s) => round7.setShortcut(s, "nextScene", "N")],
+  ["resetShortcuts", (s) => round7.resetShortcuts(s)],
+  ["setCrossfade", (s) => round7.setCrossfade(s, { ms: 5000, curve: "power" })],
+  ["setNextSceneGuard", (s) => round7.setNextSceneGuard(s, false)],
+  ["updateTrack (design fields)", (s, f) => tracks.updateTrack(s, f.c.id, { kind: "fx", title: "", metaTitle: "Gamma tag", role: "effect", loopable: "crossfade", profile: { endMs: 9 } })],
 ];
 
 describe("undo and redo of every command (EDT-2)", () => {
-  it.each(COMMANDS)("%s is one step that undoes and redoes exactly", (_name, command) => {
-    const f = fixture(t.store);
+  it.each(COMMANDS)("%s is one step that undoes and redoes exactly", async (_name, command) => {
+    const f = await fixture(t.store);
     t.history.clear();
     const before = snapshot(t.store);
     t.clock.advance(60_000);
-    command(t.store, f);
+    await command(t.store, f);
     const after = snapshot(t.store);
     expect(after).not.toEqual(before);
     expect(t.history.state()).toMatchObject({ canUndo: true, canRedo: false });
 
-    expect(t.history.undo()).toEqual(expect.any(String));
+    expect(await t.history.undo()).toEqual(expect.any(String));
     expect(snapshot(t.store)).toEqual(before);
     expect(t.history.state()).toMatchObject({ canUndo: false, canRedo: true });
 
-    t.history.redo();
+    await t.history.redo();
     expect(snapshot(t.store)).toEqual(after);
-    t.history.undo();
+    await t.history.undo();
     expect(snapshot(t.store)).toEqual(before);
   });
 
-  it("covers every exported write function", () => {
-    const modules = { tracks, roots, markers, playlists, boards, folders, tags, campaigns };
-    const readers = /^(get|list|track|campaignsOf|resolve|suggest|tagsOf|requireFolderFor|getFollowWith|ITEM_TABLES)/;
+  it("covers every exported write function", async () => {
+    const modules = { tracks, roots, markers, playlists, boards, folders, tags, campaigns, profiles, cueActions, playOrders, sceneNames, normalise, round6, round7 };
+    const readers = /^(get|list|find|track|own|scene|tagUsage|campaignsOf|resolve|suggest|tagsOf|requireFolderFor|getFollowWith|boardDividers|all[A-Z]|tagsWithInside|ITEM_TABLES|[A-Z_]+$)/;
     const writers = Object.values(modules)
       .flatMap((m) => Object.keys(m))
       .filter((name) => !readers.test(name) && name !== "markTracksUsed");
@@ -201,51 +304,104 @@ describe("undo and redo of every command (EDT-2)", () => {
 });
 
 describe("undo history", () => {
-  it("names each step so the interface can say what Undo will do", () => {
+  it("is cleared through the store after writes made outside it (imports; DB review item 10)", async () => {
+    const [track] = tracks.createTracks(t.store, [{ title: "A", file: { path: "/a.mp3" } }]);
+    await tracks.deleteTracks(t.store, [track.id]);
+    await t.history.undo();
+    expect(t.history.state()).toMatchObject({ canUndo: true, canRedo: true });
+    t.store.clearHistory();
+    expect(t.history.state()).toEqual({ canUndo: false, canRedo: false, undoLabel: null, redoLabel: null });
+    expect(() => t.store.change("x", () => t.store.clearHistory())).toThrow(/while a change/);
+  });
+
+  it("keeps library order (the order tracks were added) through delete and undo, and through VACUUM (DB review 3)", async () => {
+    const [a, b, c, d] = tracks.createTracks(
+      t.store,
+      ["a", "b", "c", "d"].map((title) => ({ title, file: { path: `/m/${title}.mp3` } })),
+    );
+    const everything = playlists.createPlaylist(t.store, { title: "All music", kind: "dynamic", rule: { conds: [] } });
+    const order = () => ({
+      lookup: [...getDomainLookup(t.store).tracks()].map((x) => x.title).join(""),
+      playlist: playlists.listPlaylistTrackIds(t.store, everything.id).map((id) => tracks.getTrack(t.store, id)!.title).join(""),
+    });
+    await tracks.deleteTracks(t.store, [a.id, c.id]);
+    await t.history.undo();
+    expect(order()).toEqual({ lookup: "abcd", playlist: "abcd" });
+    await t.history.redo();
+    await t.history.undo();
+    t.db.exec("VACUUM");
+    expect(order()).toEqual({ lookup: "abcd", playlist: "abcd" });
+    expect([b, d].map((x) => tracks.getTrack(t.store, x.id)!.title)).toEqual(["b", "d"]);
+  });
+
+  it("is cleared by a write made outside it, but not by bookkeeping such as 'last used' (DB review 10)", async () => {
+    const [track] = tracks.createTracks(t.store, [{ title: "A", file: { path: "/a.mp3" } }]);
+    tracks.markTracksUsed(t.store, [track.id]);
+    expect(t.history.state().canUndo).toBe(true);
+    t.store.changeWithoutHistory(() => t.store.run("UPDATE tracks SET title = 'Imported' WHERE id = ?", track.id));
+    expect(t.history.state()).toMatchObject({ canUndo: false, canRedo: false });
+  });
+
+  it("keeps steps up to a memory limit as well as a number of steps, always the newest (DB review 10)", async () => {
+    const small = setup(100, 40_000);
+    let made = 0;
+    const big = (n: number) =>
+      tracks.createTracks(small.store, Array.from({ length: n }, (_, i) => ({ title: `T${i}`, notes: "x".repeat(200), file: { path: `/m/${made++}.mp3` } })));
+    big(20);
+    big(20);
+    expect(small.history.state().canUndo).toBe(true);
+    // Too big for the limit on its own: kept (the newest step always is), and every older one goes.
+    big(400);
+    expect(await small.history.undo()).toBe("Add 400 tracks");
+    expect(await small.history.undo()).toBeNull();
+    small.db.close();
+  });
+
+  it("names each step so the interface can say what Undo will do", async () => {
     const [track] = tracks.createTracks(t.store, [{ title: "A", file: { path: "/a.mp3" } }, { title: "B", file: { path: "/b.mp3" } }]);
-    tracks.deleteTracks(t.store, [track.id]);
+    await tracks.deleteTracks(t.store, [track.id]);
     expect(t.history.state()).toEqual({ canUndo: true, canRedo: false, undoLabel: "Delete 1 track", redoLabel: null });
-    expect(t.history.undo()).toBe("Delete 1 track");
+    expect(await t.history.undo()).toBe("Delete 1 track");
     expect(t.history.state()).toEqual({ canUndo: true, canRedo: true, undoLabel: "Add 2 tracks", redoLabel: "Delete 1 track" });
   });
 
-  it("restores a deleted track with its playlists, boards, tags, markers, links and scenes", () => {
-    const f = fixture(t.store);
+  it("restores a deleted track with its playlists, boards, tags, markers, links and scenes", async () => {
+    const f = await fixture(t.store);
     const before = snapshot(t.store);
-    tracks.deleteTracks(t.store, [f.a.id]);
+    await tracks.deleteTracks(t.store, [f.a.id]);
     expect(tracks.getTrack(t.store, f.a.id)).toBeNull();
-    t.history.undo();
+    await t.history.undo();
     expect(snapshot(t.store)).toEqual(before);
     expect(search(t.store, "swell").map((hit) => hit.title)).toEqual(["Alpha"]);
     expect(search(t.store, "baddie").map((hit) => hit.title).sort()).toEqual(["Alpha", "Beta"]);
   });
 
-  it("keeps at least 50 steps (default 100) and drops the oldest beyond the limit", () => {
+  it("keeps at least 50 steps (default 100) and drops the oldest beyond the limit", async () => {
     const small = setup(3);
     const ids = Array.from({ length: 5 }, (_, i) => campaigns.createCampaign(small.store, { name: `C${i}` }).id);
-    expect(small.history.undo()).toBe('Add campaign "C4"');
-    small.history.undo();
-    small.history.undo();
-    expect(small.history.undo()).toBeNull();
+    expect(await small.history.undo()).toBe('Add campaign "C4"');
+    await small.history.undo();
+    await small.history.undo();
+    expect(await small.history.undo()).toBeNull();
     expect(campaigns.listCampaigns(small.store).map((c) => c.id)).toEqual(ids.slice(0, 2));
     small.db.close();
 
     for (let i = 0; i < 100; i++) campaigns.createCampaign(t.store, { name: `C${i}` });
     let undone = 0;
-    while (t.history.undo() !== null) undone++;
+    while ((await t.history.undo()) !== null) undone++;
     expect(undone).toBe(100);
     expect(campaigns.listCampaigns(t.store)).toEqual([]);
   });
 
-  it("clears redo when a new change is made", () => {
+  it("clears redo when a new change is made", async () => {
     campaigns.createCampaign(t.store, { name: "A" });
-    t.history.undo();
+    await t.history.undo();
     campaigns.createCampaign(t.store, { name: "B" });
     expect(t.history.state().canRedo).toBe(false);
-    expect(t.history.redo()).toBeNull();
+    expect(await t.history.redo()).toBeNull();
   });
 
-  it("records nothing for a change that fails, and nothing for a change that changes nothing", () => {
+  it("records nothing for a change that fails, and nothing for a change that changes nothing", async () => {
     campaigns.createCampaign(t.store, { name: "A" });
     expect(() =>
       t.store.change("Broken", () => {
@@ -255,57 +411,62 @@ describe("undo history", () => {
     ).toThrow("stop");
     expect(campaigns.listCampaigns(t.store).map((c) => c.name)).toEqual(["A"]);
     expect(t.history.state().undoLabel).toBe('Add campaign "A"');
+    const recorded = t.history.recorded;
     t.store.change("Nothing", (): void => undefined);
     expect(t.history.state().undoLabel).toBe('Add campaign "A"');
+    // The count of recorded steps tells a caller whether its write made one (LyreApi's "changed nothing").
+    expect(t.history.recorded).toBe(recorded);
+    campaigns.createCampaign(t.store, { name: "C" });
+    expect(t.history.recorded).toBe(recorded + 1);
+    await t.history.undo();
+    expect(t.history.recorded).toBe(recorded + 1);
   });
 
-  it("keeps a change made of several commands as one step", () => {
+  it("keeps a change made of several commands as one step", async () => {
     t.store.change("Prepare session", () => {
       const c = campaigns.createCampaign(t.store, { name: "A" });
       const s = campaigns.createSession(t.store, { campaignId: c.id, name: "S" });
       campaigns.createScene(t.store, { sessionId: s.id, name: "Sc" });
     });
-    expect(t.history.undo()).toBe("Prepare session");
+    expect(await t.history.undo()).toBe("Prepare session");
     expect(campaigns.listCampaigns(t.store)).toEqual([]);
     expect(t.history.state().canUndo).toBe(false);
   });
 
-  it("does not record 'last used', and undoing an edit leaves 'last used' alone", () => {
+  it("does not record 'last used', and undoing an edit leaves 'last used' alone", async () => {
     const track = tracks.createTrack(t.store, { title: "A", file: { path: "/a.mp3" } });
     tracks.updateTrack(t.store, track.id, { title: "B" });
     tracks.markTracksUsed(t.store, [track.id], 777);
     expect(t.history.state().undoLabel).toBe("Edit track");
-    t.history.undo();
+    await t.history.undo();
     expect(tracks.getTrack(t.store, track.id)).toMatchObject({ title: "A", lastUsedAt: 777 });
   });
 
-  it("refuses to undo in the middle of a change and keeps the step for later", () => {
+  it("refuses to undo in the middle of a change and keeps the step for later", async () => {
     campaigns.createCampaign(t.store, { name: "A" });
     expect(() => t.store.change("x", () => t.history.undo())).toThrow(/while a change/);
     expect(t.history.state().undoLabel).toBe('Add campaign "A"');
-    expect(t.history.undo()).toBe('Add campaign "A"');
+    expect(await t.history.undo()).toBe('Add campaign "A"');
   });
 
-  it("drops a step that cannot be undone, so the steps before it still can", () => {
+  it("drops a step that cannot be undone, so the steps before it still can", async () => {
     campaigns.createCampaign(t.store, { name: "First" });
     const c = campaigns.createCampaign(t.store, { name: "A" });
-    // Something outside the history took the id of the row undo would bring back.
+    // Something outside the history (and outside the Store, which would clear it) took the id of the row undo would bring back.
     campaigns.deleteCampaign(t.store, c.id);
-    t.store.changeWithoutHistory(() =>
-      t.store.run("INSERT INTO campaigns (id, name, position, created_at, updated_at) VALUES (?, 'X', 1, 1, 1)", c.id),
-    );
-    expect(() => t.history.undo()).toThrow();
+    t.db.prepare("INSERT INTO campaigns (id, name, position, created_at, updated_at) VALUES (?, 'X', 1, 1, 1)").run(c.id);
+    await expect(t.history.undo()).rejects.toThrow();
     expect(campaigns.getCampaign(t.store, c.id)!.name).toBe("X");
     // Before: the failed step went back on top and every later undo failed the same way.
     expect(t.history.state()).toMatchObject({ undoLabel: 'Add campaign "A"', canRedo: false });
-    expect(t.history.undo()).toBe('Add campaign "A"');
+    expect(await t.history.undo()).toBe('Add campaign "A"');
     expect(campaigns.getCampaign(t.store, c.id)).toBeNull();
   });
 
-  it("records no step when the commit itself fails, and keeps redo (review 4)", () => {
+  it("records no step when the commit itself fails, and keeps redo (review 4)", async () => {
     campaigns.createCampaign(t.store, { name: "A" });
     campaigns.createCampaign(t.store, { name: "C" });
-    t.history.undo();
+    await t.history.undo();
     failNextExec(t.db, "COMMIT", "database or disk is full");
 
     expect(() => campaigns.createCampaign(t.store, { name: "B" })).toThrow("database or disk is full");
@@ -317,22 +478,22 @@ describe("undo history", () => {
       undoLabel: 'Add campaign "A"',
       redoLabel: 'Add campaign "C"',
     });
-    expect(t.history.undo()).toBe('Add campaign "A"');
+    expect(await t.history.undo()).toBe('Add campaign "A"');
     expect(campaigns.listCampaigns(t.store)).toEqual([]);
   });
 
-  it("drops an undo step whose commit fails instead of putting it back", () => {
+  it("drops an undo step whose commit fails instead of putting it back", async () => {
     campaigns.createCampaign(t.store, { name: "A" });
     campaigns.createCampaign(t.store, { name: "B" });
     failNextExec(t.db, "COMMIT", "disk I/O error");
 
-    expect(() => t.history.undo()).toThrow("disk I/O error");
+    await expect(t.history.undo()).rejects.toThrow("disk I/O error");
 
     expect(campaigns.listCampaigns(t.store).map((c) => c.name)).toEqual(["A", "B"]);
     expect(t.history.state()).toMatchObject({ undoLabel: 'Add campaign "A"', canRedo: false });
   });
 
-  it("passes on the real error when SQLite has already rolled the change back (review 5)", () => {
+  it("passes on the real error when SQLite has already rolled the change back (review 5)", async () => {
     campaigns.createCampaign(t.store, { name: "A" });
     // SQLite ends the transaction by itself on some errors (full disk, I/O
     // error, out of memory); an explicit ROLLBACK then fails with "no
@@ -354,11 +515,11 @@ describe("undo history", () => {
     // The store and the history still work afterwards.
     expect(t.store.inChange).toBe(false);
     campaigns.createCampaign(t.store, { name: "C" });
-    expect(t.history.undo()).toBe('Add campaign "C"');
+    expect(await t.history.undo()).toBe('Add campaign "C"');
     expect(campaigns.listCampaigns(t.store).map((c) => c.name)).toEqual(["A"]);
   });
 
-  it("passes on the real error when SQLite has already rolled an undo back", () => {
+  it("passes on the real error when SQLite has already rolled an undo back", async () => {
     campaigns.createCampaign(t.store, { name: "A" });
     const run = t.store.run.bind(t.store);
     let failed = false;
@@ -370,32 +531,32 @@ describe("undo history", () => {
       }
       return run(sql, ...params);
     };
-    expect(() => t.history.undo()).toThrow("disk I/O error");
+    await expect(t.history.undo()).rejects.toThrow("disk I/O error");
     expect(t.db.isTransaction).toBe(false);
     expect(campaigns.listCampaigns(t.store).map((c) => c.name)).toEqual(["A"]);
   });
 
-  it("follows tables added by a later schema version", () => {
+  it("follows tables added by a later schema version", async () => {
     const later: Migration = {
       version: MIGRATIONS.length + 1,
       name: "cue lists (test stand-in)",
       up(db) {
-        db.exec("CREATE TABLE cue_lists (id TEXT PRIMARY KEY, name TEXT NOT NULL)");
+        db.exec("CREATE TABLE standin_cue_sheets (id TEXT PRIMARY KEY, name TEXT NOT NULL)");
       },
     };
     const db = openConnection(":memory:");
     migrate(db, [...MIGRATIONS, later]);
     const store = new Store(db);
     const history = new UndoHistory(store);
-    store.change("Add cue list", () => store.run("INSERT INTO cue_lists VALUES ('q1', 'Main')"));
-    history.undo();
-    expect(store.all("SELECT * FROM cue_lists")).toEqual([]);
-    history.redo();
-    expect(store.all("SELECT * FROM cue_lists")).toEqual([{ id: "q1", name: "Main" }]);
+    store.change("Add cue list", () => store.run("INSERT INTO standin_cue_sheets VALUES ('q1', 'Main')"));
+    await history.undo();
+    expect(store.all("SELECT * FROM standin_cue_sheets")).toEqual([]);
+    await history.redo();
+    expect(store.all("SELECT * FROM standin_cue_sheets")).toEqual([{ id: "q1", name: "Main" }]);
     db.close();
   });
 
-  it("leaves derived and bookkeeping tables out of the history", () => {
+  it("leaves derived and bookkeeping tables out of the history", async () => {
     const names = undoableTables(t.db).map((table) => table.name);
     expect(names).toContain("tracks");
     expect(names).not.toContain("search_docs");

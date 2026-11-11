@@ -3,6 +3,7 @@ import { getMalformedUserAgent, getUserAgent } from "../userAgent";
 import { LOCAL_FILE_PARTITION, TAB_PARTITION } from "./partitions";
 import { isPermissionAllowed } from "./permissions";
 import { trustedContents } from "./trustedContents";
+import { MEDIA_SCHEME, mediaResponse, sharedMediaGrants } from "../media/mediaProtocol";
 import { captureTargets } from "./captureTargets";
 import {
   LOCAL_FILE_SCHEME,
@@ -63,6 +64,7 @@ function installPermissionHandlers(target: Session): void {
       permission,
       mediaTypes: details.mediaType ? [details.mediaType] : undefined,
       isMainFrame: details.isMainFrame,
+      isCheck: true,
     }),
   );
 }
@@ -79,6 +81,13 @@ export function registerLocalFileScheme(): void {
     {
       scheme: LOCAL_FILE_SCHEME,
       privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
+    },
+    // Security review 6: the Lyre page's library audio, granted per page by MEDIA_PREPARE (media/mediaProtocol.ts).
+    // corsEnabled: the page (a file: origin) reads it with fetch and plays it through Web Audio. Electron keeps
+    // only the last list it is given, so every privileged scheme is registered here, in one call.
+    {
+      scheme: MEDIA_SCHEME,
+      privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true },
     },
   ]);
 }
@@ -109,6 +118,8 @@ export function secureSessions(): void {
     installUserAgentRewrite(target);
   }
   serveLocalFiles(session.fromPartition(LOCAL_FILE_PARTITION), sharedLocalFileServer());
+  // Security review 6: only the app's own session (Lyre's pages) answers lyre-media:, and only granted addresses.
+  session.defaultSession.protocol.handle(MEDIA_SCHEME, (request) => mediaResponse(sharedMediaGrants(), request));
 }
 
 /** "Clear cache" in Settings: wipe caches and cookies for the app, website tabs and local-file tabs. */
