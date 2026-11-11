@@ -7,12 +7,15 @@
 import type { RoomTarget, UsePlace } from "../../../common/domain";
 import type { LibraryTrack, PlaylistInfo } from "../../../common/lyre/api";
 import type { ListWhat, TrackFrom } from "../../audio/lyreAudio";
+import { DEFAULT_FADES_MS } from "../../audio/lyreAudio";
 import type { LiveData } from "./liveData";
 import { UNDO_MS } from "./liveModel";
 import { getLiveState, offerSoftUndo, touched, updateLive, type WaitingAmbience } from "./liveState";
 
 /** Play on air and Next crossfade over this long (the prototype's fade: 3). */
 export const LIVE_FADE_MS = 3000;
+/** A room's Fade music out / Fade ambience out button (0.5.1: the fade buttons take 5 s). */
+export const FADE_BUTTON_MS = DEFAULT_FADES_MS.fadeLane;
 
 /** A row's track or playlist, as the row names it (DAT-14: the scene's name for a track) and where it plays from. */
 export type PlayWhat =

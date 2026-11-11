@@ -299,9 +299,9 @@ export interface LyreAudio {
   previous(lane: MusicOrAmbience, target?: RoomTarget): CueOutcome;
   /** Pause the lane, or carry on if it is paused (the prototype's pause button). */
   togglePause(lane: MusicOrAmbience, target?: RoomTarget): CueOutcome;
-  /** Fade one lane out (default 3 s; effects 0.8 s). */
+  /** Fade one lane out (default 5 s; effects 0.8 s). */
   stopLane(lane: RoomLane, options?: { target?: RoomTarget; fadeMs?: number }): CueOutcome;
-  /** Fade everything out in every room (default 3 s). */
+  /** Fade everything out in every room (default 5 s). */
   fadeAll(fadeMs?: number): CueOutcome;
   /** Silence every room at once. */
   stopAll(): CueOutcome;

@@ -7,7 +7,7 @@
 import React from "react";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { normaliseHover } from "../../../common/domain";
 import { GLOBAL_KEY_EVENT } from "../../../common/globalKeys";
@@ -320,7 +320,7 @@ describe("single-key shortcuts and the keys", () => {
     expect(screen.getByRole("group", { name: "Keys on the live screen" })).toHaveTextContent("On air, Scenes, Current scene, Session playlists");
     // UX-R15: Find and play is listed too, and Fade all has one name.
     expect(screen.getByRole("group", { name: "Keys on the live screen" })).toHaveTextContent(/Ctrl\+K\s*Find and play anything/);
-    expect(screen.getByRole("group", { name: "Keys on the live screen" })).toHaveTextContent("Fade all (3 s)");
+    expect(screen.getByRole("group", { name: "Keys on the live screen" })).toHaveTextContent("Fade all (5 s)");
     expect(screen.queryByRole("menu")).toBeNull();
     press("Escape");
     expect(screen.queryByRole("group", { name: "Keys on the live screen" })).toBeNull();
@@ -426,6 +426,20 @@ describe("UX-12: keys that work in other programs too", () => {
     expect(globalKey("fadeAll").defaultPrevented).toBe(true);
     await playOn(sound, 5);
     expect(room("Table").getByText("Silent")).toBeInTheDocument();
+  });
+});
+
+describe("0.5.1: the fade buttons take 5 s", () => {
+  it("Fade all says 5 seconds; a room's Fade music out fades over 5 s", async () => {
+    const { sound } = await openLive();
+    expect(screen.getByRole("button", { name: "Fade all" })).toHaveAttribute("title", expect.stringContaining("over 5 seconds"));
+    await userEvent.click(screen.getByRole("button", { name: "Start: Recap and the coast road" }));
+    await playOn(sound, 5);
+    const fade = room("Table").getByRole("button", { name: "Fade music out" });
+    expect(fade).toHaveAttribute("title", "Fade music out over 5 seconds");
+    const stopLane = vi.spyOn(sound.audio, "stopLane");
+    await userEvent.click(fade);
+    expect(stopLane).toHaveBeenCalledWith("music", expect.objectContaining({ fadeMs: 5000 }));
   });
 });
 

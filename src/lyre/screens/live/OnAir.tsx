@@ -24,7 +24,7 @@ import { useAnnounce } from "../../shell/Announcer";
 import { clockTime } from "../../shell/NowPlayingBar";
 import { formatLength } from "../campaigns/model";
 import { busiestChannel as moveToChannel, kickLosesSound, moveLosesSound, roomToRestore, viewOf } from "../outputs/outputsModel";
-import { clearAdded, LIVE_FADE_MS, nextInRoom, takeOut } from "./liveActions";
+import { clearAdded, FADE_BUTTON_MS, LIVE_FADE_MS, nextInRoom, takeOut } from "./liveActions";
 import { laneProfile, sceneSteps, showLibraryOf, useLive, type LiveData } from "./liveData";
 import { addRoomChoices, busiestChannel, channelChoices, endWords, noRoomStatus, roomStatus, TABLE, UNDO_MS, upNextRows, type LiveRoom } from "./liveModel";
 import { offerSoftUndo, touched, updateLive } from "./liveState";
@@ -599,10 +599,10 @@ function Lane({ lane, room, roomName }: { lane: MusicOrAmbience; room: RoomNowPl
           type="button"
           className="btn s icon"
           aria-label={`Fade ${word.toLowerCase()} out`}
-          title={`Fade ${word.toLowerCase()} out over 3 seconds`}
+          title={`Fade ${word.toLowerCase()} out over ${FADE_BUTTON_MS / 1000} seconds`}
           onClick={() => {
             touched();
-            audio.stopLane(lane, { target, fadeMs: LIVE_FADE_MS });
+            audio.stopLane(lane, { target, fadeMs: FADE_BUTTON_MS });
           }}
         >
           <Icon name="fade" size="s" />

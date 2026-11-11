@@ -10,7 +10,7 @@ Live is where you run the evening. **Run this session** on a campaign or session
 - **Current scene**: the running scene's music in play order, its ambience and its pads, which answer to their keys.
 - **This session** and **Whole campaign**: their playlists and pads, to play a whole playlist, one of its tracks or a pad at any time.
 - **Find a track or playlist** (`/`): search the whole library for anything not in the plan.
-- **Fade all** (`Shift+Esc`) fades everything out; **Stop all** stops at once.
+- **Fade all** (`Shift+Esc`) fades everything out over 5 seconds, as a room's **Fade music out** does; **Stop all** stops at once.
 
 A room is a voice channel with one of your bots in it. Scenes always start in the first room. With two rooms or more, **To:** on a box chooses where it plays. **No room** or **Nobody there** means the players hear nothing: the button beside it puts the bot where the players are.
 
