@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import type { CueStep, DomainScene } from "../../common/domain";
 import type { NowPlaying } from "./lyreAudio";
+import { storedResumePositions } from "../../player/engine/queue/resumePositions";
 import { lyreAudioOnFakes, testTrack, type AudioTestData } from "./testing/onFakes";
 
 const S1 = { campaignId: "c", sessionId: "s", sceneId: "s1" };
@@ -410,4 +411,39 @@ describe("CR-4 (review 0.5.0): Next and Previous call off a scene's music that w
       expect(playing()).toBe(expected);
     });
   }
+});
+
+describe("CR-5 (review 0.5.0): Pick up where it stopped forgets a track that played to its end", () => {
+  it("starts from the top after playing to the end", async () => {
+    rig.audio.playTrack("long");
+    await rig.advance(10);
+    rig.audio.playTrack("m1");
+    await rig.advance(1);
+    rig.audio.playTrack("long");
+    await rig.advance(1);
+    expect(first().music?.position).toBeGreaterThanOrEqual(10);
+    await rig.advance(55);
+    expect(playing()).not.toBe("long");
+    rig.audio.playTrack("long");
+    await rig.advance(1);
+    expect(first().music?.position).toBeLessThan(2);
+  });
+
+  it("is forgotten across restarts too", async () => {
+    const saved = new Map<string, string>();
+    const storage = { getItem: (k: string) => saved.get(k) ?? null, setItem: (k: string, v: string) => void saved.set(k, v) };
+    rig = lyreAudioOnFakes(makeData(), { resumePositions: storedResumePositions(storage) });
+    rig.audio.playTrack("long");
+    await rig.advance(10);
+    rig.audio.playTrack("m1");
+    await rig.advance(1);
+    expect(Object.keys(JSON.parse(saved.get("lyre-resume-positions") ?? "{}"))).toEqual(["long"]);
+    rig.audio.playTrack("long");
+    await rig.advance(56);
+    // The next evening: a new audio host reads what was kept.
+    rig = lyreAudioOnFakes(makeData(), { resumePositions: storedResumePositions(storage) });
+    rig.audio.playTrack("long");
+    await rig.advance(1);
+    expect(first().music?.position).toBeLessThan(2);
+  });
 });

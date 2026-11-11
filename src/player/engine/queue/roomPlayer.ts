@@ -492,6 +492,7 @@ export class RoomPlayer {
     voice.on("ended", () => {
       if (this.musicVoice === started) {
         this.musicVoice = null;
+        this.forgetWhere(started);
         // PLY-8: a play step waiting for this track to end comes in now.
         const waiting = this.handOver;
         if (waiting) {
@@ -795,6 +796,11 @@ export class RoomPlayer {
     const at = lane.voice.position();
     if (at > 0 && at < lane.profile.endMs / 1000 - 2) resumeAt.set(track.id, at);
     else resumeAt.delete(track.id);
+  }
+
+  /** CR-5: a "Pick up where it stopped" track that played to its end starts from the top next time. */
+  private forgetWhere(lane: LaneVoice): void {
+    this.deps.resumeAt?.delete(lane.item.trackId);
   }
 
   private play(lane: RoomLane, found: { track: DomainTrack; media: MediaRequest }, profile: AudioProfile, options: VoiceOptions): Voice {
