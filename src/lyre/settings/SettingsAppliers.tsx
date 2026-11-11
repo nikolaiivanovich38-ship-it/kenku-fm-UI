@@ -4,7 +4,8 @@
  *     (ARCHITECTURE.md "What the screen streams must know"); left at the defaults, nothing is sent, since the preview
  *     already plays on the default device in both ears (asking again makes Chromium switch devices for nothing).
  *   - UX-12: with "Next scene and Fade all work in other programs too" on, their keys are registered in
- *     the main process (window.lyre.keys, src/main/globalKeys.ts); what it refused is kept for Settings to show.
+ *     the main process (window.lyre.keys, src/main/globalKeys.ts); what it refused is kept for Settings to show,
+ *     and when the main process could not be asked at all, each key is refused in words (w51-fix2: never silently).
  *     Each press reaches the page as a cancelable window event, GLOBAL_KEY_EVENT ({ action }): Live takes Next scene
  *     and Fade all there (and calls preventDefault); a Fade all nobody took fades every room
  *     here, so it works on any screen, and a Next scene nobody took opens Live, which starts the next scene
@@ -13,14 +14,24 @@
  */
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 
-import { DEFAULT_DEVICES, shortcutKey, type AudioDevices } from "../../common/domain";
-import { GLOBAL_KEY_EVENT, type GlobalKeyRefusal } from "../../common/globalKeys";
+import { DEFAULT_DEVICES, SHORTCUT_ACTIONS, shortcutKey, type AudioDevices } from "../../common/domain";
+import { GLOBAL_KEY_EVENT, type GlobalKeyAction, type GlobalKeyRefusal } from "../../common/globalKeys";
 import { nextSceneInLive } from "../kit/liveSession";
 import { useLyreSettings } from "../api";
 import { useLyreAudio } from "../audio";
 import type { LyreKeysBridge } from "../keys/preloadKeys";
 
 const RefusalsContext = createContext<GlobalKeyRefusal[]>([]);
+
+/** w51-fix2: the main process could not be asked (no answer): each key is refused in words, never silently. */
+function unanswered(keys: Record<GlobalKeyAction, string>): GlobalKeyRefusal[] {
+  return (Object.entries(keys) as [GlobalKeyAction, string][])
+    .filter(([, key]) => key)
+    .map(([action, key]) => {
+      const name = SHORTCUT_ACTIONS.find((a) => a.id === action)?.name ?? action;
+      return { action, key, message: `Lyre could not take ${key} from other programs, so ${name} works only in Lyre for now. Turn this off and on again to try once more.` };
+    });
+}
 
 /** What the main process refused of the global keys, in plain words (Settings › Keyboard shortcuts shows it). */
 export function useGlobalKeyRefusals(): GlobalKeyRefusal[] {
@@ -61,9 +72,13 @@ export function SettingsAppliers({ keys, children }: { keys?: LyreKeysBridge | n
   useEffect(() => {
     if (!bridge || !settings) return;
     let current = true;
-    bridge.setGlobal({ on, keys: { nextScene, fadeAll } }).then(
+    const keys = { nextScene, fadeAll };
+    bridge.setGlobal({ on, keys }).then(
       (answer) => current && setRefused(answer.refused),
-      (): void => undefined,
+      (error: unknown) => {
+        console.error("Lyre could not register its keys in other programs:", error);
+        if (current) setRefused(on ? unanswered(keys) : []);
+      },
     );
     return () => {
       current = false;

@@ -76,6 +76,25 @@ describe("SettingsAppliers", () => {
     await waitFor(() => expect(view.getByTestId("refused")).toHaveTextContent("Another program already uses Shift+Esc everywhere."));
   });
 
+  it("says so when the main process could not be asked to register the keys, instead of failing silently (w51-fix2)", async () => {
+    const { keys } = fakeKeys();
+    keys.setGlobal = vi.fn(async (request: GlobalKeysRequest) => {
+      if (request.on) throw new Error("Lyre did not answer. Try again.");
+      return { refused: [] };
+    });
+    const { api, view } = setup(keys);
+    await act(async () => void (await api.settings.setShortcut("nextScene", "F9")));
+    await act(async () => void (await api.settings.setComputer({ globalKeys: true })));
+    await waitFor(() =>
+      expect(view.getByTestId("refused")).toHaveTextContent(
+        "Lyre could not take F9 from other programs, so Next scene works only in Lyre for now. Turn this off and on again to try once more.",
+      ),
+    );
+    expect(view.getByTestId("refused")).toHaveTextContent("Lyre could not take Shift+Esc from other programs");
+    await act(async () => void (await api.settings.setComputer({ globalKeys: false })));
+    await waitFor(() => expect(view.getByTestId("refused")).toHaveTextContent(/^$/));
+  });
+
   it("a press passes to the page as an event Live can take; Fade everything out fades on any screen when nobody took it", async () => {
     const { keys, press } = fakeKeys();
     const { audio } = setup(keys);
