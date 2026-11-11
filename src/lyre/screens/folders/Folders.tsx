@@ -114,6 +114,8 @@ export function useFolders(kind: FolderKind) {
     filtered: boolean;
     renderItem: (item: T) => React.ReactNode;
     nameOf: (id: string) => string;
+    /** Hover text of the whole list (round 6: a how-to that left the screen, such as dropping files on a row). */
+    title?: string;
   }) {
     const tree = folderTree(folders, props.all, props.shown, props.filtered);
     const drop = (folder: FolderInfo): React.HTMLAttributes<HTMLDivElement> => ({
@@ -171,7 +173,7 @@ export function useFolders(kind: FolderKind) {
       );
     };
     return (
-      <ul className={props.className} aria-label={props.label}>
+      <ul className={props.className} aria-label={props.label} title={props.title}>
         {tree.folders.map(node)}
         {tree.items.map(props.renderItem)}
       </ul>

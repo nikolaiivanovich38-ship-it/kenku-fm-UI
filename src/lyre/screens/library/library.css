@@ -54,7 +54,6 @@
 .view .lb-foot { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 4px 8px; border-top: 1px solid var(--line); flex: none; }
 .view .lb-foot .kbd { font-size: 10px; padding: 1px 4px; }
 /* Round 6: a key legend shows only while the keyboard is in its box (it is read out with the list all the same). */
-.pane:not(:focus-within) .keys-on-focus { display: none !important; }
 
 .view .lb-table { table-layout: fixed; }
 .lb-table th { padding: 4px 6px; }

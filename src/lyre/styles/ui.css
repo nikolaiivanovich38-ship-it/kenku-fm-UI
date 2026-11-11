@@ -400,3 +400,6 @@ html[data-contrast="high"] .btn.ghost, html[data-contrast="high"] .closer { bord
 .tray.tray-session { background: color-mix(in srgb, var(--ink) 12%, var(--bg)); }
 .tray.tray-campaign { border: 2px dashed var(--line-strong); }
 .tray-h { margin: 0; padding: 0 2px; font-size: var(--fs-xs); font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-2); }
+
+/* Round 6 rule 5 (UX-R3): a key legend or reorder how-to shows only while the keyboard is in its box. */
+.pane:not(:focus-within) .keys-on-focus { display: none !important; }

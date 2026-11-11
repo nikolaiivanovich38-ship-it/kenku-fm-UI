@@ -56,7 +56,8 @@ describe("Library: finding tracks", () => {
     openAt("library");
     await loaded();
     const user = userEvent.setup();
-    expect(filters()).toHaveTextContent("None: showing every track");
+    // UX-R3 (round 6 cuts): the usual case (no filter) is not described.
+    expect(filters()).not.toHaveTextContent("None: showing every track");
     await user.click(within(within(filters()).getByRole("group", { name: "Mood" })).getByRole("button", { name: /^Grief/ }));
     expect(shownTitles()).toHaveLength(5);
     expect(filters()).not.toHaveTextContent("None: showing every track");
@@ -534,7 +535,21 @@ describe("Library: round 5", () => {
     await waitFor(() => expect(details()).toHaveTextContent(/Names in scenes\s*Dawn over the abbey\s*in Aftermath \(Session 14\)/));
     expect(details()).toHaveTextContent("17 Now We Are Free.flac");
     go("library/t44");
-    await waitFor(() => expect(details()).toHaveTextContent("None: it shows its own name everywhere"));
+    // UX-R3 (round 6 cuts): with no names in scenes the row is not shown (the usual case is not described).
+    await waitFor(() => expect(details()).toHaveTextContent("13 Ashes.flac"));
+    expect(details()).not.toHaveTextContent("Names in scenes");
+    expect(details()).not.toHaveTextContent("its own name everywhere");
+  });
+
+  it("UX-R3 (round 6 cuts): Details repeats neither the title in its header nor Manual on playlist rows; Dynamic is the one mark", async () => {
+    openAt("library/t21");
+    const d = within(details());
+    await d.findByRole("textbox", { name: "Your title" });
+    expect(screen.getByRole("region", { name: "Details" }).querySelector(".pane-summary")).toBeEmptyDOMElement();
+    const lists = within(d.getByRole("region", { name: "In playlists" }));
+    expect(lists.queryByText("Manual")).toBeNull();
+    expect(lists.getAllByText("Dynamic").length).toBeGreaterThan(0);
+    expect(lists.queryByText(/matches its tag rules/)).toBeNull();
   });
 
   it("ORG-12: Use in… keeps a track on hand in a campaign, ticks where it is used, and Used in says On hand in…", async () => {

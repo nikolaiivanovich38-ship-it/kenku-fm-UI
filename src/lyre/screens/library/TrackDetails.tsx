@@ -272,22 +272,21 @@ export function TrackDetails({
             </>
           )}
         </dd>
-        <dt>Names in scenes</dt>
-        <dd>
-          {names.length ? (
-            <ul className="lb-scnames">
-              {names.map((n) => (
-                <li key={n.key}>
-                  <b>{n.name}</b> <span className="hint">in {n.label}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <span className="lb-none">
-              None: it shows its own name everywhere
-            </span>
-          )}
-        </dd>
+        {/* Round 6 (UX-R3): shown only when it has names; its own name everywhere is the usual case. */}
+        {names.length > 0 && (
+          <>
+            <dt>Names in scenes</dt>
+            <dd>
+              <ul className="lb-scnames">
+                {names.map((n) => (
+                  <li key={n.key}>
+                    <b>{n.name}</b> <span className="hint">in {n.label}</span>
+                  </li>
+                ))}
+              </ul>
+            </dd>
+          </>
+        )}
       </dl>
       <div className="lb-acts">
         <button
@@ -848,7 +847,7 @@ function InPlaylists({
               <a href={`#/playlist/${p.id}`} className="ellipsis">
                 {p.name}
               </a>
-              <span className="hint lb-plk">Manual</span>
+              {/* Round 6 (UX-R3): only Dynamic is marked; Manual is the usual case. */}
               <button
                 type="button"
                 className="closer"
@@ -871,8 +870,8 @@ function InPlaylists({
               <a href={`#/playlist/${p.id}`} className="ellipsis">
                 {p.name}
               </a>
-              <span className="hint lb-plk">
-                Dynamic: matches its tag rules
+              <span className="hint lb-plk" title="Matches its tag rules">
+                Dynamic
               </span>
             </li>
           ))}

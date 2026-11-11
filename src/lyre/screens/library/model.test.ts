@@ -105,7 +105,8 @@ describe("the Library's filters (library.js matches and visible)", () => {
 
   it("counts and describes the filters in use", () => {
     expect(filterCount(DEFAULT_FILTER)).toBe(0);
-    expect(filterSummary(DEFAULT_FILTER, groups)).toBe("None: showing every track");
+    // UX-R3 (round 6 cuts): no filter is the usual case, so nothing is said.
+    expect(filterSummary(DEFAULT_FILTER, groups)).toBe("");
     const f = { ...DEFAULT_FILTER, kind: "fx" as const, newOnly: true, tags: { mood: ["Grief", "Eerie"] }, emin: 2, folder: "H:\\Audio\\Effects" };
     expect(filterCount(f)).toBe(6);
     expect(filterSummary(f, groups)).toBe("FX · New, not tagged yet · Grief, Eerie · energy 2 to 5 · Effects");
