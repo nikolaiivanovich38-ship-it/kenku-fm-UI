@@ -88,3 +88,10 @@ export function keyPressed(map: ShortcutMap, action: ShortcutAction, press: KeyP
   if (other) return { kind: "refused", message: `${name} is already ${nameOf(other)}. Press another key, or Esc to keep ${now}` };
   return { kind: "set", key: name };
 }
+
+/**
+ * Settings › Remote control is hidden in 0.5.1 until Lyre has its own Stream Deck and phone support (WP6; Nik, 11 Nov:
+ * "Hide until Stream Deck"). The box (RemotePane) and the main process's settings and code stay for then; the server
+ * never starts meanwhile (RemoteManager).
+ */
+export const SHOW_REMOTE_CONTROL = false;

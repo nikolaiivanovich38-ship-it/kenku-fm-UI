@@ -9,7 +9,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createFakeLyreApi } from "../../../common/lyre/fake";
 import type { RemoteBridge, RemoteState } from "../../../common/remoteControl";
-import { DEFAULT_WINDOW_SETTINGS, type WindowSettings } from "../../../common/windowSettings";
 import { LyreApiProvider } from "../../api";
 import { LyreAudioProvider } from "../../audio/LyreAudioProvider";
 import { FakeLyreAudio } from "../../audio/testing/fakeLyreAudio";
@@ -20,9 +19,9 @@ import { AnnouncerProvider } from "../../shell/Announcer";
 import { ShellSettingsProvider } from "../../shell/ShellSettings";
 import { UndoNoteBar, UndoNoteProvider } from "../../shell/UndoNote";
 import { expectNoAxeViolations } from "../../test/axe";
-import type { LyreWindowSettingsBridge } from "../../windowSettings/preloadWindowSettings";
 import { SettingsBridgesProvider } from "./common";
 import { SettingsScreen } from "./SettingsScreen";
+import { RemotePane } from "./OtherPanes";
 
 // UX-R16: the version webpack builds in (none in tests unless given).
 vi.mock("../../version", () => ({ LYRE_VERSION: "0.5.0" }));
@@ -38,35 +37,17 @@ function fakeRemote(home: string | null = "192.168.1.20") {
   return remote;
 }
 
-function fakeWindow(start: WindowSettings = DEFAULT_WINDOW_SETTINGS) {
-  let state = start;
-  const listeners = new Set<(s: WindowSettings) => void>();
-  const bridge: LyreWindowSettingsBridge & { folders: string[] } = {
-    folders: ["H:\\Audio\\Incoming"],
-    get: async () => state,
-    set: vi.fn(async (change) => {
-      state = { ...state, ...change };
-      listeners.forEach((l) => l(state));
-      return true;
-    }),
-    onChange: (l) => {
-      listeners.add(l);
-      return () => listeners.delete(l);
-    },
-    localFolders: async () => bridge.folders,
-    forgetLocalFolder: vi.fn(async (f) => (bridge.folders = bridge.folders.filter((x) => x !== f))),
-    clearWebsiteData: vi.fn(async () => undefined),
-  };
-  return bridge;
+function fakeCache() {
+  return { emptyAudioCache: vi.fn(async () => undefined) };
 }
 
-function open(start?: ConstructorParameters<typeof FakeOutputs>[0]) {
+function open(start?: ConstructorParameters<typeof FakeOutputs>[0], content: React.ReactNode = <SettingsScreen />) {
   localStorage.clear();
   const outputs = new FakeOutputs(start);
   const api = createFakeLyreApi();
   const audio = new FakeLyreAudio();
   const remote = fakeRemote();
-  const win = fakeWindow();
+  const cache = fakeCache();
   render(
     <LyreApiProvider api={api}>
       <LyreAudioProvider audio={audio}>
@@ -74,10 +55,10 @@ function open(start?: ConstructorParameters<typeof FakeOutputs>[0]) {
           <SettingsAppliers keys={null}>
             <ShellSettingsProvider>
               <AnnouncerProvider>
-                <SettingsBridgesProvider value={{ remote, windowSettings: win }}>
+                <SettingsBridgesProvider value={{ remote, cache }}>
                   <main>
                     <UndoNoteProvider live={false}>
-                      <SettingsScreen />
+                      {content}
                       <UndoNoteBar />
                     </UndoNoteProvider>
                   </main>
@@ -89,7 +70,7 @@ function open(start?: ConstructorParameters<typeof FakeOutputs>[0]) {
       </LyreAudioProvider>
     </LyreApiProvider>,
   );
-  return { outputs, api, audio, remote, win };
+  return { outputs, api, audio, remote, cache };
 }
 
 const region = (name: string) => within(screen.getByRole("region", { name }));
@@ -227,6 +208,32 @@ describe("Settings › Discord bots (OUT-8)", () => {
     expect(screen.getByRole("dialog")).not.toHaveTextContent("Kept encrypted");
   });
 
+  it("0.5.1: a token moved from Kenku FM is said once at the top, with Got it, which ends it and goes to the bots' heading", async () => {
+    const { outputs } = open({ ...PROTOTYPE_OUTPUTS, legacyTokenNote: true });
+    const note = await region("Discord bots").findByRole("note");
+    expect(note).toHaveTextContent("Lyre moved your Discord bot token from Kenku FM.");
+    expect(note).toHaveTextContent("Kenku FM kept it unprotected on this computer; Lyre keeps it encrypted now.");
+    expect(note).toHaveTextContent("To be safe, make a new token: in the Discord Developer Portal, open your bot's Bot page, press Reset Token, then paste it here with Replace….");
+    expect(within(note).getByRole("link", { name: "Discord Developer Portal" })).toHaveAttribute("href", "https://discord.com/developers/applications");
+    await userEvent.click(within(note).getByRole("button", { name: "Got it" }));
+    expect(outputs.calls).toContainEqual(["legacyTokenNoteSeen"]);
+    await waitFor(() => expect(region("Discord bots").queryByRole("note")).toBeNull());
+    expect(region("Discord bots").getByRole("button", { name: "Discord bots" })).toHaveFocus();
+  });
+
+  it("0.5.1: on a computer that cannot encrypt, the note says the token is kept only until Lyre closes", async () => {
+    open({ ...PROTOTYPE_OUTPUTS, encryption: false, legacyTokenNote: true });
+    expect(await region("Discord bots").findByRole("note")).toHaveTextContent(
+      "Your Discord bot token from Kenku FM is kept only until Lyre closes, because this computer has no safe place to keep it. Next time, paste it again in Settings › Discord bots.",
+    );
+  });
+
+  it("0.5.1: no note otherwise", async () => {
+    open();
+    await bot("Lyre Table");
+    expect(region("Discord bots").queryByRole("note")).toBeNull();
+  });
+
   it("UX-R16: shows Lyre's version at the top right, as the prototype does", async () => {
     open();
     await bot("Lyre Table");
@@ -242,8 +249,8 @@ describe("Settings › Discord bots (OUT-8)", () => {
 
 describe("Settings: the folded boxes", () => {
   it("starts with the rare boxes folded; Sound to Discord shows this computer's mode and saves a change with Lyre's settings (FND-16)", async () => {
-    const { win, api } = open();
-    for (const name of ["Sound to Discord", "Headphones and speakers", "Remote control", "Keyboard shortcuts", "Website tabs", "Local files"]) {
+    const { api } = open();
+    for (const name of ["Sound to Discord", "Headphones and speakers", "Keyboard shortcuts"]) {
       expect(region(name).getByRole("button", { name })).toHaveAttribute("aria-expanded", "false");
     }
     const sound = await unfold("Sound to Discord");
@@ -251,8 +258,22 @@ describe("Settings: the folded boxes", () => {
     await userEvent.click(sound.getByRole("radio", { name: "Best sound quality" }));
     await waitFor(() => expect(toast()).toBe("Saved: setting: Best sound quality"));
     expect((await api.settings.get()).streamingMode).toBe("lowLatency");
-    expect(win.set).not.toHaveBeenCalled();
     expect(sound.getByRole("radio", { name: "Best sound quality" })).toHaveAttribute("aria-checked", "true");
+  });
+
+  it("0.5.1: no Website tabs, Local files or Remote control (FND-16: they went with the old window; remote waits for Stream Deck)", () => {
+    open();
+    for (const name of ["Website tabs", "Local files", "Remote control"]) expect(screen.queryByRole("region", { name })).toBeNull();
+  });
+
+  it("0.5.1: Empty the audio cache, under Sound to Discord, nothing to confirm", async () => {
+    const { cache } = open();
+    const sound = await unfold("Sound to Discord");
+    const button = sound.getByRole("button", { name: "Empty the audio cache" });
+    expect(button).toHaveAttribute("title", "Deletes the copies Lyre made of your music so tracks start at once. Lyre makes them again when it needs them. Your music files, library and settings are kept.");
+    await userEvent.click(button);
+    expect(cache.emptyAudioCache).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(toast()).toBe("Audio cache emptied"));
   });
 
   it("the crossfade between tracks has a default of 3 s and saves a change", async () => {
@@ -263,23 +284,6 @@ describe("Settings: the folded boxes", () => {
     await userEvent.selectOptions(x, "5");
     await waitFor(() => expect(toast()).toBe("Saved: crossfade between tracks 5 s"));
     expect((await api.settings.get()).crossfade.ms).toBe(5000);
-  });
-
-  it("Website tabs: Several inputs needs inputs first", async () => {
-    const { win } = open();
-    const tabs = await unfold("Website tabs");
-    expect(tabs.getByRole("switch", { name: "Use several inputs at once" })).toBeDisabled();
-    await userEvent.click(tabs.getByRole("switch", { name: "Microphones and other inputs" }));
-    expect(win.set).toHaveBeenCalledWith({ externalInputsEnabled: true });
-    expect(tabs.getByRole("switch", { name: "Use several inputs at once" })).toBeEnabled();
-  });
-
-  it("Local files: Ask again forgets a folder", async () => {
-    const { win } = open();
-    const files = await unfold("Local files");
-    await userEvent.click(await files.findByRole("button", { name: "Ask again before opening files in H:\\Audio\\Incoming" }));
-    expect(win.forgetLocalFolder).toHaveBeenCalledWith("H:\\Audio\\Incoming");
-    expect(await files.findByText("None")).toBeInTheDocument();
   });
 
   it("Headphones and speakers: no On air row (lead decision); one headset can be split, the preview in one ear", async () => {
@@ -296,9 +300,9 @@ describe("Settings: the folded boxes", () => {
   });
 });
 
-describe("Settings › Remote control (SEC-4)", () => {
+describe("Settings › Remote control (SEC-4; hidden in 0.5.1 until Stream Deck support, its box kept for then)", () => {
   it("is off; on, it shows the 8-character code and listens on this computer only; a new code replaces it", async () => {
-    const { remote } = open();
+    const { remote } = open(undefined, <RemotePane />);
     const box = await unfold("Remote control");
     const on = box.getByRole("switch", { name: "Let other devices control Lyre" });
     await waitFor(() => expect(on).toBeEnabled());
@@ -315,7 +319,7 @@ describe("Settings › Remote control (SEC-4)", () => {
   });
 
   it("can listen on the home network instead, at this computer's address", async () => {
-    const { remote } = open();
+    const { remote } = open(undefined, <RemotePane />);
     const box = await unfold("Remote control");
     await waitFor(() => expect(box.getByRole("switch", { name: "Let other devices control Lyre" })).toBeEnabled());
     await userEvent.click(box.getByRole("switch", { name: "Let other devices control Lyre" }));
@@ -326,7 +330,7 @@ describe("Settings › Remote control (SEC-4)", () => {
   });
 
   it("UX-R10: when Lyre cannot listen there, it says why in plain words and shows no Saved pop-up", async () => {
-    const { remote } = open();
+    const { remote } = open(undefined, <RemotePane />);
     const problem = "Lyre could not find the address 192.168.1.20 on this computer. Choose This computer only, or check your network.";
     const box = await unfold("Remote control");
     await waitFor(() => expect(box.getByRole("switch", { name: "Let other devices control Lyre" })).toBeEnabled());

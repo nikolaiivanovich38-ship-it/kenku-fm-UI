@@ -6,13 +6,13 @@ import { PlaybackManager } from "./PlaybackManager";
 import { PlayerManager } from "./PlayerManager";
 import { WindowManager } from "./WindowManager";
 import { DiagnosticsBridge } from "../diagnostics/diagnosticsBridge";
-import { WindowSettingsBridge } from "../windowSettings/windowSettingsBridge";
 import type { LyreEvent } from "../../common/lyre/api";
 import type { LyreInvoke } from "../../common/lyre/rpc";
 import { computerSettingsFile, hasStreamingMode } from "../lyreApi/computerSettings";
 import { SoundToDiscord } from "../soundToDiscord";
 import { markTokenNoteSeen, moveOldWindowDataOnce, oldWindowRecordFile, type OldWindowRecord } from "../legacy/oldWindowMove";
 import { readPageStorage } from "../legacy/pageStorage";
+import { WindowFrame } from "../window/windowFrame";
 
 /** True only in packages built with CUE_DESK_E2E_BUILD=1 (webpack.main.config.js). */
 declare const __CUE_DESK_TEST_BUILD__: boolean;
@@ -47,12 +47,12 @@ export class SessionManager {
   private lyreManager: LyreManager;
   /** FND-9: Help › Save diagnostics. */
   private diagnostics: DiagnosticsBridge;
-  /** OUT-8 (w6-rooms): the main window's Sound to Discord and Website tabs settings in Settings in Lyre. */
-  private windowSettings: WindowSettingsBridge;
   /** FND-16: Settings › Sound to Discord, from this computer's settings to the capture window. */
   private soundToDiscord?: SoundToDiscord;
   private stopLibraryEvents?: () => void;
   private oldWindowMoveStarted = false;
+  /** FND-16 step 2: the window's own buttons' colours, and maximise on a double-click of the strip. */
+  private frame: WindowFrame;
   private readonly page: Electron.WebContents;
   private readonly joinPage = () => this.lyreManager.attachView(this.page);
   private readonly onPageLoaded = () => {
@@ -62,6 +62,7 @@ export class SessionManager {
 
   constructor(window: BrowserWindow, private readonly options: SessionOptions = {}) {
     this.page = window.webContents;
+    this.frame = new WindowFrame(window);
     this.playbackManager = new PlaybackManager(window);
     this.lyreManager = new LyreManager();
     this.viewManager = new BrowserViewManagerMain(window);
@@ -77,8 +78,6 @@ export class SessionManager {
       lyreView: () => this.lyreManager.getView(),
       outputs: () => this.playbackManager.outputs.state(),
     });
-    // --- w6-rooms wiring ---
-    this.windowSettings = new WindowSettingsBridge({ mainWindow: () => (window.isDestroyed() ? undefined : window.webContents), lyreView: () => this.lyreManager.getView() });
     const library = options.library;
     if (library) {
       this.soundToDiscord = new SoundToDiscord({
@@ -168,12 +167,12 @@ export class SessionManager {
   destroy() {
     this.page.off("did-finish-load", this.onPageLoaded);
     this.stopLibraryEvents?.();
+    this.frame.destroy();
     this.playbackManager.destroy();
     this.viewManager.destroy();
     this.windowManager.destroy();
     this.playerManager.destroy();
     this.lyreManager.destroy();
     this.diagnostics.destroy();
-    this.windowSettings.destroy();
   }
 }

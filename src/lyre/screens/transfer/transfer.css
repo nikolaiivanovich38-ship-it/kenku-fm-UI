@@ -49,3 +49,7 @@
 .view .tf-cell a { overflow: hidden; text-overflow: ellipsis; }
 .view .tf-drop .btn { flex: none; }
 .view .tf-pick select, .view select.tf-pick { max-width: 100%; }
+
+/* 0.5.1 (ROUND8.md §5): the old bookmarks, and the tracks that are only a web address, each with Copy. */
+.tf-bm .lrow { padding: 4px 2px; gap: 8px; }
+.tf-bm .tf-url { font-family: inherit; }

@@ -27,8 +27,9 @@ import {
 import { isLyreMethod } from "../../common/lyre/rpc";
 import { isApplicationId } from "../../common/lyreOutputs";
 import { isGlobalKeysRequest as isGlobalKeysRequestShape } from "../../common/globalKeys";
-import { isWindowSettings as isWindowSettingsShape, isWindowSettingsChange as isWindowSettingsChangeShape } from "../../common/windowSettings";
+import { isWindowSettings as isWindowSettingsShape } from "../../common/windowSettings";
 import type { AppPageRole } from "./permissions";
+import { isTitleBarColours } from "../../common/windowFrame";
 
 export interface IpcChannelRule {
   /** Pages allowed to send on this channel. */
@@ -313,19 +314,8 @@ export const IPC_CHANNELS = {
   // (isGlobalKeysRequest); the main process then refuses keys used for typing (globalKeyProblem) and answers
   // { refused: [{ action, key, message }] }. Each press comes back to the Lyre page as LYRE_GLOBAL_KEY.
   LYRE_GLOBAL_KEYS_SET: { from: ["lyre-view"], args: argsMatch(isGlobalKeysRequestShape) },
-  // OUT-8 (src/main/windowSettings/windowSettingsBridge.ts, src/common/windowSettings.ts): the main window's Sound to
-  // Discord and Website tabs settings in Settings in Lyre. STATE (send): the main window's four settings, exactly
-  // (isWindowSettings), after each change. GET (invoke): the latest, or null. SET (invoke): one or more of the four,
-  // each of its kind (isWindowSettingsChange), passed to the main window, which keeps them; answers whether it went.
+  // OUT-8: the old main window reports its settings (src/preload.ts); goes with that window (FND-16 step 8).
   WINDOW_SETTINGS_STATE: { from: MAIN, args: argsMatch(isWindowSettingsShape) },
-  LYRE_WINDOW_SETTINGS_GET: { from: ["lyre-view"], args: noArgs },
-  LYRE_WINDOW_SETTINGS_SET: { from: ["lyre-view"], args: argsMatch(isWindowSettingsChangeShape) },
-  // SEC-15 (BrowserViewManagerMain): Settings › Local files in Lyre, as LOCAL_FILES_LIST_FOLDERS / _FORGET_FOLDER
-  // for the main window (invoke; answers the list). A folder path is at most 32767 characters.
-  LYRE_LOCAL_FOLDERS_LIST: { from: ["lyre-view"], args: noArgs },
-  LYRE_LOCAL_FOLDERS_FORGET: { from: ["lyre-view"], args: argsMatch(isStringUpTo(32_767)) },
-  // Website tabs › Clear website data in Lyre: the old Settings' Clear cache (src/index.ts, appInfoIpc.ts; invoke).
-  LYRE_CLEAR_WEBSITE_DATA: { from: ["lyre-view"], args: noArgs },
   // --- w51-main ---
   // FND-16 (src/main/broadcast/lyreOutputsBridge.ts): Got it on the note in Settings › Discord bots that says Lyre moved
   // the bot token Kenku FM kept in plain text (send, no arguments). The main process remembers it (old-window.json).
@@ -333,6 +323,15 @@ export const IPC_CHANNELS = {
   // FND-16 (src/main/managers/LyreManager.ts): Restart now on Lyre's update note (send, no arguments); acted on only
   // once an update is ready (autoUpdater.quitAndInstall).
   UPDATE_RESTART: { from: ["lyre-view"], args: noArgs },
+  // FND-16 step 2 (src/main/window/windowFrame.ts): the colours of the window's own buttons, those of what is under
+  // them (send; exactly { color, symbolColor }, each "#rrggbb"), and maximise or put back on a double-click of a drag
+  // area that reached the page (send, no arguments).
+  LYRE_TITLE_BAR: { from: ["lyre-view"], args: argsMatch(isTitleBarColours) },
+  LYRE_WINDOW_MAXIMISE: { from: ["lyre-view"], args: noArgs },
+  // FND-16 (src/main/security/appInfoIpc.ts): Settings › Sound to Discord › Empty the audio cache (invoke, no
+  // arguments). Replaces LYRE_CLEAR_WEBSITE_DATA; the Website tabs and Local files channels (LYRE_WINDOW_SETTINGS_*,
+  // LYRE_LOCAL_FOLDERS_*) went with their boxes.
+  LYRE_EMPTY_AUDIO_CACHE: { from: ["lyre-view"], args: noArgs },
 } satisfies Record<string, IpcChannelRule>;
 
 export type IpcChannel = keyof typeof IPC_CHANNELS;

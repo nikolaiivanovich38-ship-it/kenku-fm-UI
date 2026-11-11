@@ -10,6 +10,8 @@ export interface AppInfo {
   getVersion(): string;
   getPlatform(): string;
   clearCache(): Promise<unknown>;
+  /** FND-16: Lyre's audio cache only (Settings › Sound to Discord › Empty the audio cache). */
+  emptyAudioCache(): Promise<unknown>;
 }
 
 /** Register the handlers; returns a function that removes them. */
@@ -22,7 +24,10 @@ export function registerAppInfoIpc(info: AppInfo): () => void {
     event.returnValue = info.getPlatform();
   });
   ipc.handle("CLEAR_CACHE", () => info.clearCache());
-  // w6-rooms (OUT-8): Settings in Lyre › Website tabs › Clear website data does the same.
-  ipc.handle("LYRE_CLEAR_WEBSITE_DATA", () => info.clearCache());
+  // FND-16 (0.5.1): Settings in Lyre › Sound to Discord › Empty the audio cache. Website data is no longer cleared from
+  // the Lyre page: website tabs are gone from the interface (their code is kept for OUT-12).
+  ipc.handle("LYRE_EMPTY_AUDIO_CACHE", async () => {
+    await info.emptyAudioCache();
+  });
   return () => ipc.dispose();
 }

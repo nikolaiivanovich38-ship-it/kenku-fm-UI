@@ -6,13 +6,13 @@ import React, { createContext, useCallback, useContext, useEffect, useId, useRef
 
 import type { RemoteBridge } from "../../../common/remoteControl";
 import { useAnnounce } from "../../shell/Announcer";
-import type { LyreWindowSettingsBridge } from "../../windowSettings/preloadWindowSettings";
+import type { AudioCacheBridge } from "../../../common/audioCache";
 
 export interface SettingsBridges {
   /** SEC-4: window.lyre.remote. */
   remote: RemoteBridge | null;
-  /** OUT-8: window.lyre.windowSettings (Sound to Discord, Website tabs, Local files). */
-  windowSettings: LyreWindowSettingsBridge | null;
+  /** FND-16: window.lyre.cache (Settings › Sound to Discord › Empty the audio cache). */
+  cache: AudioCacheBridge | null;
 }
 
 const BridgesContext = createContext<SettingsBridges | null>(null);
@@ -26,12 +26,12 @@ export function useSettingsBridges(): SettingsBridges {
   const given = useContext(BridgesContext);
   if (given) return given;
   const lyre = (window as unknown as { lyre?: Partial<SettingsBridges> }).lyre;
-  return { remote: lyre?.remote ?? null, windowSettings: lyre?.windowSettings ?? null };
+  return { remote: lyre?.remote ?? null, cache: lyre?.cache ?? null };
 }
 
 /**
  * "Saved: <what>" in the shell's one Saved pop-up (UX-19), for a change saved outside the library (a bot's token or
- * name, the main window's settings, the remote control). Library writes go through the shell's useSave.
+ * name, the remote control). Library writes go through the shell's useSave.
  */
 export function useSaved(): (what: string, detail?: string) => void {
   const { saved } = useAnnounce();

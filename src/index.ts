@@ -15,6 +15,7 @@ import "./menu";
 import icon from "./assets/icon.png";
 import { bundledAssetPath } from "./main/bundledAsset";
 import { SessionManager } from "./main/managers/SessionManager";
+import { windowFrameOptions } from "./main/window/windowFrame";
 import { runAutoUpdate } from "./autoUpdate";
 import { getSavedBounds, saveWindowBounds } from "./bounds";
 import { openExternalIfAllowed } from "./main/security/externalLinks";
@@ -67,6 +68,8 @@ const createWindow = (): BrowserWindow => {
     webPreferences: {
       preload: LYRE_WINDOW_PRELOAD_WEBPACK_ENTRY,
     },
+    // FND-16 step 2: Lyre's top strip is the title bar; the system draws its own buttons over its right end.
+    ...windowFrameOptions(),
     icon: bundledAssetPath(icon, __dirname),
     minWidth,
     minHeight,
@@ -205,6 +208,9 @@ if (startupOutcome === "run") {
     // Security review 3: "Clear cache" empties Lyre's audio cache (converted and local copies) as well.
     clearCache: async () => {
       await clearBrowsingData();
+      await lyreLibrary?.clearAudioCache();
+    },
+    emptyAudioCache: async () => {
       await lyreLibrary?.clearAudioCache();
     },
   });

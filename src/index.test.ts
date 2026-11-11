@@ -181,6 +181,10 @@ describe("main window (SEC-10, SEC-7, SEC-3)", () => {
     expect((window.options.webPreferences as { preload?: string }).preload).toBe("/app/lyre_window/preload.js");
   });
 
+  it("has no frame of its own: Lyre's top strip is the title bar, with the system's buttons drawn over it (FND-16 step 2)", () => {
+    expect(mainWindow().options).toMatchObject({ titleBarStyle: "hidden", titleBarOverlay: { height: 36 } });
+  });
+
   it("keeps the browser's own user agent: only website tabs needed the spoofed one", () => {
     expect(mainWindow().webContents.setUserAgent).not.toHaveBeenCalled();
   });

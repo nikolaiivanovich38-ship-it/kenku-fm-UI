@@ -48,7 +48,7 @@ vi.mock("./PlayerManager", () => ({ PlayerManager: class { destroy = vi.fn(); sa
 vi.mock("./BrowserViewManagerMain", () => ({ BrowserViewManagerMain: class { destroy = vi.fn(); } }));
 vi.mock("./WindowManager", () => ({ WindowManager: class { destroy = vi.fn(); } }));
 vi.mock("../diagnostics/diagnosticsBridge", () => ({ DiagnosticsBridge: class { destroy = vi.fn(); } }));
-vi.mock("../windowSettings/windowSettingsBridge", () => ({ WindowSettingsBridge: class { destroy = vi.fn(); } }));
+vi.mock("../window/windowFrame", () => ({ WindowFrame: class { destroy = vi.fn(); } }));
 vi.mock("../soundToDiscord", () => ({
   SoundToDiscord: class {
     onLibraryEvent = vi.fn();

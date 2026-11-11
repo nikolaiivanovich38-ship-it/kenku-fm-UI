@@ -13,6 +13,7 @@ import { ARTICLES, HELP_GROUPS, searchArticles, type HelpArticle } from "./artic
 import { HelpText } from "./HelpText";
 import { keepKeysHere } from "./keys";
 import { diagnosticsResultWords, type DiagnosticsBridge, type DiagnosticsResult } from "../../common/lyreDiagnostics";
+import { LYRE_VERSION } from "../version";
 import "./help.css";
 
 /** Count announced this long after the last key, so a screen reader is not interrupted at every letter. */
@@ -188,6 +189,15 @@ function HelpFoot({ onTour, diagnostics }: Pick<HelpPanelProps, "onTour" | "diag
             </Button>
           )}
         </div>
+      )}
+      {/* 0.5.1 (ROUND8.md §2): Lyre's version at Help's foot, as at the top right of Settings. */}
+      {LYRE_VERSION && (
+        <p className="help-ver">
+          Lyre{" "}
+          <span className="num" title="Lyre version">
+            {LYRE_VERSION}
+          </span>
+        </p>
       )}
     </footer>
   );

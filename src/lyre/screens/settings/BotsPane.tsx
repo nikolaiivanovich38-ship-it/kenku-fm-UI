@@ -53,6 +53,7 @@ export function BotsPane() {
         </button>
       }
     >
+      {outputs?.legacyTokenNote && client && <LegacyTokenNote encrypted={outputs.encryption} client={client} />}
       {!outputs || !client ? (
         <p className="hint">Looking for your Discord bots…</p>
       ) : (
@@ -66,6 +67,48 @@ export function BotsPane() {
       )}
       {adding && client && outputs && <AddBotSheet outputs={outputs} client={client} onClose={() => setAdding(false)} />}
     </Pane>
+  );
+}
+
+/**
+ * FND-16 (ROUND8.md §4): once, for someone coming straight from Kenku FM whose token Kenku FM kept in plain text. Lyre
+ * moved it on the first start and keeps it encrypted; Kenku FM's own copy stays in its storage, so a new token is the
+ * only certain fix. Got it ends the note for good (the main process remembers) and focus goes to the box's heading.
+ * The old window's LegacyTokenNotice said the same.
+ */
+function LegacyTokenNote({ encrypted, client }: { encrypted: boolean; client: OutputsClient }) {
+  const gotIt = () => {
+    client.legacyTokenNoteSeen();
+    document.querySelector<HTMLElement>('[data-pane="st-bots"] .pane-toggle')?.focus();
+  };
+  return (
+    <div className="st-legacy" role="note">
+      <Icon name="check" size="s" />
+      <div className="grow">
+        {encrypted ? (
+          <>
+            <p>
+              <b>Lyre moved your Discord bot token from Kenku FM.</b> Kenku FM kept it unprotected on this computer; Lyre keeps it encrypted now.
+            </p>
+            <p>
+              To be safe, make a new token: in the{" "}
+              <a href={DEVELOPER_PORTAL} target="_blank" rel="noopener noreferrer">
+                Discord Developer Portal
+              </a>
+              , open your bot&apos;s Bot page, press Reset Token, then paste it here with Replace….
+            </p>
+          </>
+        ) : (
+          <p>
+            Your Discord bot token from Kenku FM is kept only until Lyre closes, because this computer has no safe place to keep it. Next time, paste it
+            again in Settings › Discord bots.
+          </p>
+        )}
+      </div>
+      <button type="button" className="btn s" onClick={gotIt}>
+        Got it
+      </button>
+    </div>
   );
 }
 

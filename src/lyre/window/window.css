@@ -1,0 +1,37 @@
+/* FND-16 step 2 (0.5.1, design/prototype/ROUND8.md §1; the prototype's r8window.css): Lyre is the whole window.
+   Windows draws the window's own buttons at the top right, over the right end of the top strip (titleBarOverlay).
+   --wco-w and --wco-h are the space they take, in CSS pixels (windowFrame.tsx sets them from
+   navigator.windowControlsOverlay; 0px where the window draws none). */
+#app { --wco-w: 0px; --wco-h: 0px; }
+
+/* Nothing of Lyre's under the buttons: the strips at the top of the window keep their width free at their right end. */
+.viewhead { padding-right: calc(12px + var(--wco-w)); }
+.lv-top { padding-right: calc(8px + var(--wco-w)); }
+.help-head { padding-right: calc(8px + var(--wco-w)); }
+/* Help open beside the screen (a wide window): Help's header is under the buttons, so the screen's strip need not. */
+@container app (min-width: 900px) {
+  #app:has(> #lyre-help) .viewhead { padding-right: 12px; }
+  #app:has(> #lyre-help) .lv-top { padding-right: 8px; }
+}
+/* A sheet as tall as the window starts below the buttons. */
+.sheet { padding-top: calc(var(--wco-h) + 8px); }
+
+/* The empty parts of the top strip, Live's strip, Help's header and the logo drag the window; double-clicking them
+   maximises it (Windows does both). Every control, field and text with hover text in them stays itself: a drag area
+   takes the mouse, so it would neither click nor show hover text (UX-6). */
+:is(.viewhead, .lv-top, .help-head, .rail .logo) { -webkit-app-region: drag; app-region: drag; }
+:is(.viewhead, .lv-top, .help-head) :is(a, button, input, select, textarea, label, summary, [role=button], [role=link], [role=switch], [role=radio], [role=combobox], [tabindex]:not([tabindex="-1"]), [title], [contenteditable]) {
+  -webkit-app-region: no-drag; app-region: no-drag; }
+
+/* Update news (UpdateNews.tsx): a standing note in the Saved pop-up's place; it stays until dismissed, so it is not
+   the dark pop-up. */
+.toast.t-stand { pointer-events: auto; background: var(--surface-2); color: var(--ink); border: 1px solid var(--line-strong); border-left: 3px solid var(--accent); padding: 4px 4px 4px 10px; font-weight: 600; }
+.toast.t-stand > svg { color: var(--accent-text); }
+.toast.t-stand .grow, .toast.t-fail .grow { min-width: 0; }
+
+/* Help's foot: Lyre's version. */
+.help-ver { margin: 0; font-size: var(--fs-xs); color: var(--ink-2); }
+
+/* A playlist's head wraps in a narrow app (half a 1920 screen at 150 % text and more), instead of running under the
+   buttons. */
+@container app (max-width: 659px) { .view .pl-head { flex-wrap: wrap; } .view .pl-h1 { max-width: none; } }

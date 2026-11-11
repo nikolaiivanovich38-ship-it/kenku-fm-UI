@@ -34,8 +34,10 @@ export const READ_NOTE_AFTER_MS = 120;
 /** The pop-up's distance from the work area's right edge and from its bottom (or from the Now playing bar). */
 const CORNER_PX = 12;
 
-/** Where the Undo note goes: the lowest place in the pop-up's corner (shell/UndoNote.tsx). */
+/** Where the Undo note goes: low in the pop-up's corner (shell/UndoNote.tsx). */
 export const UNDO_SLOT_ID = "lyre-undo-slot";
+/** FND-16: where update news goes, lowest in the corner (src/lyre/window/UpdateNews.tsx). */
+export const UPDATE_SLOT_ID = "lyre-update-slot";
 
 interface Note {
   text: string;
@@ -204,6 +206,7 @@ export function AnnouncerProvider({ children }: { children: React.ReactNode }) {
           )}
         </div>
         <div id={UNDO_SLOT_ID} className="undo-slot" />
+        <div id={UPDATE_SLOT_ID} className="undo-slot" />
       </div>
     </AnnouncerContext.Provider>
   );
