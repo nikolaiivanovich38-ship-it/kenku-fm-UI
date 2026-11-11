@@ -38,7 +38,7 @@ export default defineConfig({
           name: "ui",
           environment: "jsdom",
           include: [
-            "src/player/**/*.test.{ts,tsx}",
+            "src/engine/**/*.test.{ts,tsx}",
             "src/lyre/**/*.test.{ts,tsx}",
           ],
           setupFiles: ["src/test/setupUi.ts"],

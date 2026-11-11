@@ -8,7 +8,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import type { CueStep, DomainScene, Room } from "../../common/domain";
 import type { NowPlaying } from "./lyreAudio";
-import { storedResumePositions } from "../../player/engine/queue/resumePositions";
+import { storedResumePositions } from "../../engine/queue/resumePositions";
 import { lyreAudioOnFakes, testTrack, type AudioTestData } from "./testing/onFakes";
 
 const S1 = { campaignId: "c", sessionId: "s", sceneId: "s1" };

@@ -1,11 +1,11 @@
 /**
  * Cue actions stored on a hotkey (PLY-8; DB review 9): what a key press runs,
- * as the same CueAction shapes the buttons build (src/player/engine/queue/actions.ts).
+ * as the same CueAction shapes the buttons build (src/engine/queue/actions.ts).
  * Each action is a cue_actions row whose track, playlist, scene or pad is a
  * foreign key, so deleting one of those deletes the actions that play it and
  * nothing is left pointing at a row that has gone. Undoable like every edit.
  */
-import { isCueAction, type CueAction } from "../../../player/engine/queue/actions";
+import { isCueAction, type CueAction } from "../../../engine/queue/actions";
 import { NotFoundError, ValidationError } from "../errors";
 import { GAP } from "../ordering";
 import type { SQLInputValue } from "../sqlite";

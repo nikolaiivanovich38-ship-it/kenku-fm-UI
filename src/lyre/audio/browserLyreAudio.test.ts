@@ -7,10 +7,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Room } from "../../common/domain";
-import { PlaybackEngine } from "../../player/engine/engine";
-import { createBridgedPreviewOutput, PlayerAudioLink, type FrameTap } from "../../player/engine/rooms";
-import { SourceLoader } from "../../player/engine/sources/sourceLoader";
-import { FakeAudioContext } from "../../player/engine/testing/fakeAudio";
+import { PlaybackEngine } from "../../engine/engine";
+import { createBridgedPreviewOutput, PlayerAudioLink, type FrameTap } from "../../engine/rooms";
+import { SourceLoader } from "../../engine/sources/sourceLoader";
+import { FakeAudioContext } from "../../engine/testing/fakeAudio";
 import { assembleLyreAudio, playChime } from "./browserLyreAudio";
 import type { LyreAudioBridge } from "./preloadAudio";
 import { FakeAudioPort, staticAudioLibrary, testTrack } from "./testing/onFakes";

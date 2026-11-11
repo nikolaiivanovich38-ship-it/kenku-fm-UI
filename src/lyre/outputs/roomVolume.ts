@@ -9,7 +9,7 @@
  * While the bridge has not yet said what a bot's volume is, its slider shows the room as it plays and changes
  * nothing, so no path can leave a bot's room quieter than its slider shows.
  */
-import { TABLE_ROOM } from "../../player/engine/rooms/roomMixer";
+import { TABLE_ROOM } from "../../engine/rooms/roomMixer";
 import type { OutputsClient } from "./OutputsProvider";
 
 export interface RoomVolumeControl {

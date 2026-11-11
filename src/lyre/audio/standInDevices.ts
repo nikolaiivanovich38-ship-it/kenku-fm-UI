@@ -4,7 +4,7 @@
  * "Headset (Arctis 7)". Choosing a stand-in saves the choice like any device; playing on it falls back to the default
  * device, and the preview's device status says so (OutputDeviceChooser).
  */
-import type { DeviceSource, OutputDeviceInfo } from "../../player/engine/preview/outputDevices";
+import type { DeviceSource, OutputDeviceInfo } from "../../engine/preview/outputDevices";
 
 /** design/prototype/src/views/settings.js DEVICES, after its "System default" (the screen's own first choice). */
 export const STAND_IN_DEVICES: readonly OutputDeviceInfo[] = Object.freeze([

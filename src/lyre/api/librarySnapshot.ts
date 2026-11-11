@@ -7,8 +7,8 @@
 import { DEFAULT_CROSSFADE, DEFAULT_LIBRARY_NORMALISE, isFx, type Crossfade, type TagTree, type DomainPlaylist, type DomainScene, type DomainTrack, type LibraryNormalise, type PlayOrderOverrides, type ProfileOverrides, type RepeatOnes, type TrackOrders } from "../../common/domain";
 import { repeatOnesOf, tagTreeOf } from "../../common/lyre/lookup";
 import type { CampaignInfo, LibraryTrack, LyreApi, LyreArea, LyreSettings, PadBoard, PlaylistInfo, Pad, TagGroup } from "../../common/lyre/api";
-import { nextSceneIn } from "../../player/engine/queue/library";
-import type { MediaRequest } from "../../player/engine/sources/sourceLoader";
+import { nextSceneIn } from "../../engine/queue/library";
+import type { MediaRequest } from "../../engine/sources/sourceLoader";
 import type { LyreAudioLibrary, LyrePad, SceneRef } from "../audio/lyreAudio";
 
 type Part = "tracks" | "playlists" | "campaigns" | "boards" | "overrides" | "playOrders" | "trackOrders" | "normalise" | "tagTree" | "settings";

@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { browserDeviceSource } from "../../player/engine/preview/outputDevices";
+import { browserDeviceSource } from "../../engine/preview/outputDevices";
 import { outputDeviceSource } from "./deviceSource";
 import { STAND_IN_DEVICES, withStandInDevices } from "./standInDevices";
 

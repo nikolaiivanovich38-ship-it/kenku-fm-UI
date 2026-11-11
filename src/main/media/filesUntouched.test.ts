@@ -1,6 +1,6 @@
 /**
  * Nik's rule for normalisation (6 Nov 2026): Lyre never changes your files. The level is evened out as Lyre plays
- * them (a gain in the engine, src/player/engine/voice/voice.ts), and the measurement is kept in Lyre's library
+ * them (a gain in the engine, src/engine/voice/voice.ts), and the measurement is kept in Lyre's library
  * (track_loudness). Here a real file is imported, measured by the background job with the bundled ffmpeg (loudness
  * and peaks), and read the way the player plays it (mediaResponse, the lyre-media: scheme): its bytes, size and
  * modified time stay as they were, and nothing new appears beside it (no sidecar, no ReplayGain tags).

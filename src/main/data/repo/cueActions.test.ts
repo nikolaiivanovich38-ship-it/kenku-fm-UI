@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import type { CueAction } from "../../../player/engine/queue/actions";
+import type { CueAction } from "../../../engine/queue/actions";
 import { ValidationError } from "../errors";
 import { makeTestStore } from "../test/testStore";
 import { addPad, createBoard, deletePads } from "./boards";

@@ -1,7 +1,7 @@
 import { EventEmitter } from "events";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { PLAYER_AUDIO_PORT_MESSAGE } from "../../player/engine/rooms/browserBridge";
+import { PLAYER_AUDIO_PORT_MESSAGE } from "../../engine/rooms/browserBridge";
 import { createLyreAudioBridge, LYRE_AUDIO_PORT_CHANNEL, LYRE_ROOMS_CHANNEL, PORT_MESSAGE } from "./preloadAudio";
 
 vi.mock("../../preload/managers/PCMStream.worklet.js?asset", () => ({ default: "pcm.js" }));

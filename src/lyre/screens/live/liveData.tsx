@@ -25,8 +25,8 @@ import type { LaneNowPlaying, LyreAudio, NowPlaying } from "../../audio/lyreAudi
 import type { PlayOrderData } from "../../kit/playOrders";
 import { playOrderIn } from "../../kit/playOrders";
 import type { OutputsClient } from "../../outputs/OutputsProvider";
-import { sequenceOf } from "../../../player/engine/queue/nowPlaying";
-import type { SceneRef, ShowLibrary } from "../../../player/engine/queue/library";
+import { sequenceOf } from "../../../engine/queue/nowPlaying";
+import type { SceneRef, ShowLibrary } from "../../../engine/queue/library";
 import type { LibraryIndex } from "../campaigns/model";
 import { boxTarget, type LiveBox, type LiveKeys, type LiveRoom } from "./liveModel";
 import type { LiveState } from "./liveState";
