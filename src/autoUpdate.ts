@@ -3,7 +3,7 @@ import path from "path";
 import { app, autoUpdater, BrowserWindow } from "electron";
 import { GITHUB_REPO } from "./main/appIdentity";
 import { buildUpdateFeedUrl } from "./main/updateFeed";
-import { updateStatus, type UpdateStatus } from "./main/updateStatus";
+import { isNoPublishedUpdate, updateStatus, type UpdateStatus } from "./main/updateStatus";
 
 const CHECK_INTERVAL_MS = 15 * 60 * 1000;
 
@@ -68,6 +68,12 @@ export function runAutoUpdate(
 
   const handlers: Record<string, (...args: unknown[]) => void> = {
     error: (error) => {
+      // A Releases page with only drafts gives the feed's 404: nothing newer is published, so this copy is up to date.
+      if (isNoPublishedUpdate(error)) {
+        console.info("No update published yet:", error);
+        status.upToDate();
+        return;
+      }
       console.error("Automatic update check failed:", error);
       if (status.failed(error)) {
         const state = status.state();
