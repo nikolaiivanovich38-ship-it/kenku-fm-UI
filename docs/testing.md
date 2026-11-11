@@ -264,3 +264,17 @@ boxes), campaigns, pad-boards and audio-profile (UX-R3 round 6 cuts, with the ke
 keyboard is in their box), settings (UX-R11 Add a bot's errors under their fields, UX-R16 the version) and help
 (UX-R15 the article's title). The pop-up's words are read from the live region a moment after it shows, so a spec
 that counts what is read out polls (`expect.poll`, campaigns.spec).
+
+## 0.5.1 fixes (w51-fix)
+
+Each fault Nik found in 0.5.0 (R6-NIK-DECISIONS.md, 11 Nov 19:42) has a test that failed before its fix.
+`src/lyre/previewOnThePage.test.tsx` renders the whole page (every screen's own audio host with its name, as in the
+app) over the in-memory LyreApi and the real audio host on the fake audio graph, whose clocks are the fake timers.
+
+| Fault | Tests |
+| --- | --- |
+| The Now playing bar's time stayed at 0:00 while it played | `lyreAudio.test.ts` (positions every 250 ms while music, ambience or the preview plays; no timer while paused or unheard; the preview's length), `previewPlayer.test.ts`, `NowPlayingBar.test.tsx`, `previewOnThePage.test.tsx` (the preview row, the bar's On air row and Live's On air box move in each of three 0.3 s spans), `library.spec.ts` (the time moves by itself, in the bar and in Live). |
+| A scene or session could not be dragged into the last place | `reorder.test.tsx` (below the last row, in a gap between rows), `SessionScreen.test.tsx`, `CampaignScreen.test.tsx` (dragged below the last; Move down into the last place), `e2e/reorder.spec.ts` (the packaged app, with the mouse). |
+| Copy path copied nothing | `permissions.test.ts` (the Lyre page may write text to the clipboard, never read it), `LibraryScreen.test.tsx`, `SettingsScreen.test.tsx` (Copy code), `e2e/clipboard.spec.ts` (the main process's clipboard holds the path). |
+| A track's Preview ignored its audio profile | `lyreAudio.test.ts` (Start, fades, End; a scene's and a playlist's own settings), `SoundButtons.test.tsx`, `previewOnThePage.test.tsx`, `library.spec.ts` (t02's preview starts at 0:08). |
+| Stop preview started the track again | `lyreAudio.test.ts`, `previewOnThePage.test.tsx`, `library.spec.ts` (the Only you row goes). |
