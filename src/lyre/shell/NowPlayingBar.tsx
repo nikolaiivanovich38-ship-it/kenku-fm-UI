@@ -160,7 +160,7 @@ function RoomRow({ audio, room, named, broadcasting, first }: { audio: LyreAudio
   ].filter(Boolean);
 
   return (
-    <div className={cx("oab-row", "air", paused && "paused")} role="group" aria-label={`${paused ? "Paused" : "On air"}${tagRoom ? `: ${tagRoom}` : ""}${nobody ? ` in ${room.name}` : ""}`}>
+    <div className={cx("oab-row", "air", paused && "paused")} role="group" aria-label={`${paused ? "Paused" : "On air"}${nobody ? `: ${room.name}, nobody there` : tagRoom ? `: ${tagRoom}` : ""}`}>
       <span className="oab-dest">
         <DestTag to="air" room={tagRoom} paused={paused} nobody={nobody ? `Nobody hears it: nobody is in ${room.name}` : undefined} />
         {paused && <span className="badge oab-paused">Paused</span>}

@@ -1200,7 +1200,7 @@ var L = (function () {
     // UX-R9 (round 6 part 4 #10): a room nobody is in is tagged On air · nobody there, in the warning colour.
     var room = r.none ? 'no room' : nobody ? 'nobody there' : named ? r.name : '', where = r.none ? '' : ' in ' + r.name, fx = L.fxFor(target).length, k = 'oab-' + (r.main ? 't' : r.id);
     var canNext = !!(c.seq || c.playlistId);
-    return '<div class="oab-row air' + (paused ? ' paused' : '') + '" role="group" aria-label="' + (paused ? 'Paused' : 'On air') + (room ? ': ' + esc(room) : '') + (nobody ? ' in ' + esc(r.name) : '') + '">' +
+    return '<div class="oab-row air' + (paused ? ' paused' : '') + '" role="group" aria-label="' + (paused ? 'Paused' : 'On air') + (nobody ? ': ' + esc(r.name) + ', nobody there' : room ? ': ' + esc(room) : '') + '">' +
       '<span class="oab-dest">' + L.destTag('air', room, paused, r.none ? 'Nobody hears it: no bot is in a voice channel' : nobody ? 'Nobody hears it: nobody is in ' + esc(r.name) : '') + (paused ? '<span class="badge oab-paused">Paused</span>' : '') + '</span>' +
       '<div class="oab-now"><div class="oab-title ellipsis" title="' + esc((nm !== own ? 'Its own name: ' + own : own) + ' · ' + L.normHover(t, c.playlistId)) + '"><span class="lane-dot ' + ln + '" aria-hidden="true"></span><span class="ellipsis">' + esc(nm) + '</span>' +
         (nm !== own ? '<span class="sr-only"> (its own name: ' + esc(own) + ')</span>' : '') + '</div>' +
