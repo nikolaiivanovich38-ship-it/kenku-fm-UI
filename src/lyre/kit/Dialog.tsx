@@ -39,10 +39,12 @@ export function Dialog({ open, title, onClose, footer, wide, description, enterS
     const panel = panelRef.current;
     // UX-R1: the first control that can take focus; a greyed one (the first step's Move up) is skipped.
     const first = panel?.querySelector<HTMLElement>(FIRST_IN_BODY) ?? panel?.querySelector<HTMLElement>("button:not([disabled])");
-    first?.focus();
+    // Without scrolling: the sheet is fixed over the screen, and the opener is where Nik left it (UX-18: a scroll
+    // position Back put back stays as it was).
+    first?.focus({ preventScroll: true });
     return () => {
       if (opener && document.contains(opener)) {
-        opener.focus();
+        opener.focus({ preventScroll: true });
       }
     };
   }, [open]);

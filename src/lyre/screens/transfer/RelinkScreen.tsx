@@ -202,10 +202,13 @@ export function RelinkScreen() {
                       }}
                     />
                   </div>
-                  <Button icon="folder" onClick={() => void look({ from: "choose-folder" })} disabled={busy}>
+                  {/* While Lyre looks these say they are busy (aria-disabled) and stay in the Tab order: a disabled
+                      button that has focus drops it to the page, and a keyboard user would lose their place. look()
+                      ignores a press while busy. */}
+                  <Button icon="folder" onClick={() => void look({ from: "choose-folder" })} aria-disabled={busy || undefined}>
                     Choose…
                   </Button>
-                  <Button variant={plan ? undefined : "primary"} icon="search" onClick={lookThere} disabled={busy || !list.length}>
+                  <Button variant={plan ? undefined : "primary"} icon="search" onClick={lookThere} disabled={!list.length} aria-disabled={busy || undefined}>
                     Look there
                   </Button>
                 </div>

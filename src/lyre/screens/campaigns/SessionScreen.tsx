@@ -68,11 +68,14 @@ export function forgetOpenScenes(): void {
 export function SessionScreen({ route }: ScreenProps) {
   const query = useCampaign(route.params.cid ?? "");
   const index = useLibraryIndex();
+  // UX-18: the page is drawn whole, its rows' tags too, so nothing moves under the game master as they arrive, and
+  // Back puts the scenes box at its scroll position in the first drawing (a tag strip can make a row taller).
+  const groups = useTagGroups().data;
   const campaign = query.data;
   const session = campaign?.sessions.find((s) => s.id === route.params.sid);
   if (campaign === null || (campaign && !session)) return <NotFound what="Session" />;
-  if (!campaign || !session || !index) return <Opening />;
-  return <SessionPage key={session.id} campaign={campaign} session={session} index={index} />;
+  if (!campaign || !session || !index || !groups) return <Opening />;
+  return <SessionPage key={session.id} campaign={campaign} session={session} index={index} groups={groups} />;
 }
 
 type Picking = { kind: "music" | "ambience" | "boards"; sceneId: string } | null;
@@ -99,7 +102,7 @@ interface SceneContext {
   useIn: (trackId: string) => void;
 }
 
-function SessionPage({ campaign: c, session: saved, index }: { campaign: CampaignInfo; session: SessionInfo; index: LibraryIndex }) {
+function SessionPage({ campaign: c, session: saved, index, groups }: { campaign: CampaignInfo; session: SessionInfo; index: LibraryIndex; groups: readonly TagGroup[] }) {
   const api = useLyreApi();
   const write = useWrite();
   const { session: s, saveScene: showAndSave } = useOptimisticScenes(saved);
@@ -125,7 +128,6 @@ function SessionPage({ campaign: c, session: saved, index }: { campaign: Campaig
   // BUG-21: the title renames the session in place (click or F2); only the name, never the number.
   const renameTitle = useRenameInPlace();
   useEffect(() => setNameDraft((d) => (d !== null && d.trim() === s.name ? null : d)), [s.name]);
-  const groups = useTagGroups().data ?? [];
   const names = useTrackNames();
   const [naming, setNaming] = useState<{ sceneId: string; trackId: string } | null>(null);
   const [usingIn, setUsingIn] = useState<string | null>(null);

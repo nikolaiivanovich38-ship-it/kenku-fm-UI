@@ -7,12 +7,16 @@
  * - with `move`, it focuses the first one as soon as it is drawn, even while the control in use is still there (a new
  *   room's bot button after Add a room).
  *
- * It stops as soon as focus is somewhere else the person chose, and after `ms`.
+ * It stops as soon as focus is somewhere else the person chose, when the screen changes (Back or a link: the place
+ * opened may have a control of the same name, which is not the neighbour meant), and after `ms`. The neighbour is
+ * focused where it is, without scrolling: it takes the place of the control in use, so it is in view already, and a
+ * scroll position Back has put back stays as it was (UX-18).
  */
 export function focusSoon(selectors: readonly string[], options: { move?: boolean; ms?: number } = {}): void {
   const { move = false, ms = 3000 } = options;
   const from = document.activeElement as HTMLElement | null;
   const until = Date.now() + ms;
+  const screen = window.location.hash;
   const lost = (el: Element | null) => !el || el === document.body || !el.isConnected;
   const find = () => {
     for (const selector of selectors) {
@@ -22,6 +26,7 @@ export function focusSoon(selectors: readonly string[], options: { move?: boolea
     return null;
   };
   const tick = () => {
+    if (window.location.hash !== screen) return;
     const active = document.activeElement;
     const stillThere = active === from && !lost(from);
     // Focus moved somewhere else on purpose: leave it there.
@@ -29,7 +34,7 @@ export function focusSoon(selectors: readonly string[], options: { move?: boolea
     if (move || !stillThere) {
       const target = find();
       if (target) {
-        target.focus({ preventScroll: false });
+        target.focus({ preventScroll: true });
         return;
       }
     }

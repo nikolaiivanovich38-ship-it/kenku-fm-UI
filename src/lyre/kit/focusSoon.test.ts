@@ -3,7 +3,9 @@ import { focusSoon } from "./focusSoon";
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
   document.body.innerHTML = "";
+  window.history.replaceState(null, "", "#/");
 });
 
 function button(k: string): HTMLButtonElement {
@@ -49,5 +51,30 @@ describe("focusSoon (UX-R4): focus to a neighbour when the control in use goes",
     button("late");
     vi.advanceTimersByTime(1000);
     expect(other).toHaveFocus();
+  });
+
+  it("never scrolls: the neighbour is focused where it is (a view Back has put back stays as it was)", () => {
+    vi.useFakeTimers();
+    const used = button("x1");
+    const next = button("x2");
+    const focus = vi.spyOn(next, "focus");
+    used.focus();
+    focusSoon(['[data-k="x2"]']);
+    used.remove();
+    vi.advanceTimersByTime(100);
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+  });
+
+  it("stops when the screen changes: a control of the same name on the place Back opens is left alone", () => {
+    vi.useFakeTimers();
+    window.history.replaceState(null, "", "#/library");
+    const used = button("x1");
+    used.focus();
+    focusSoon(['[data-k="x2"]'], { move: true });
+    window.history.replaceState(null, "", "#/session/crown/s14");
+    used.remove();
+    const there = button("x2");
+    vi.advanceTimersByTime(1000);
+    expect(there).not.toHaveFocus();
   });
 });
