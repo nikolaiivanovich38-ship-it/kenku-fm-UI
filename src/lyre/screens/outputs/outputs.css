@@ -5,7 +5,9 @@
 /* Narrow and half screen: the On air boxes on top (two across when they fit), all voice channels below.
    Wide: the On air boxes in a column on the left, the channels on the right. */
 .view .op-split { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
-.view .op-roomcol { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); align-items: start; gap: 10px; flex: none; max-height: 62%; overflow: auto; }
+/* UX-R2: each row is as tall as its box; without max-content the rows shrink to fit the column and the boxes overlap
+   (seen at 200 % text). */
+.view .op-roomcol { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); grid-auto-rows: max-content; align-items: start; gap: 10px; flex: none; max-height: 62%; overflow: auto; }
 .view .op-roomcol > .pane { flex: none; }
 .view .op-chcol { flex: 1; min-height: 0; }
 @container app (min-width: 1180px) {

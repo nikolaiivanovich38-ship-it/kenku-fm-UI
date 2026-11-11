@@ -221,3 +221,26 @@ test.describe("round 6, part 4: the screen is Rooms", () => {
     await expect(page.getByRole("button", { name: "Back to Rooms" })).toBeVisible();
   });
 });
+
+/* 0.5.0 usability review (UX-R2): at 200 % text, Rooms is one column; each room's box takes its own height. */
+test.describe("Rooms at 200 % text", () => {
+  test("UX-R2: with two rooms, no box lies on another and a focused Kick is not covered", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 748 });
+    await openRoute(page, "look");
+    const size = page.getByRole("region", { name: "Display" }).getByRole("slider", { name: "Text size" });
+    await size.focus();
+    for (let i = 0; i < 4; i++) await page.keyboard.press("ArrowRight");
+    await expect(size).toHaveValue("200");
+    await joinRoom(page, "Lyre Side", "AFK");
+    await openRoute(page, "outputs");
+    const boxes = [room(page, "Table"), room(page, "AFK"), channels(page)];
+    for (const box of boxes) await expect(box).toBeVisible();
+    const rects = [];
+    for (const box of boxes) rects.push((await box.boundingBox())!);
+    for (let i = 1; i < rects.length; i++) expect(rects[i].y).toBeGreaterThanOrEqual(rects[i - 1].y + rects[i - 1].height - 1);
+    // The first room's Kick, reached with Tab, is the element on top where it is drawn.
+    const kick = room(page, "Table").getByRole("button", { name: /^Kick/ }).first();
+    await kick.focus();
+    expect(await kick.evaluate((el) => { el.scrollIntoView({ block: "nearest" }); const r = el.getBoundingClientRect(); const top = document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2); return !!top && (top === el || el.contains(top)); })).toBe(true);
+  });
+});
