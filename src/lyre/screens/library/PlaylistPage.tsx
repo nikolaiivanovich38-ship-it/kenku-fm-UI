@@ -24,6 +24,7 @@ import { nameUses, usePlaylistData, usedText, type PlaylistData } from "./playli
 import { DropNotice, DropZone, dropFiles, useDropState, useFileDrops, type DropTarget } from "./playlistDrops";
 import { KindLane, matchesQuery, newlyMade, soundName, useDropActions } from "./playlistParts";
 import { focusSoon, onAirPlaylistIds, onAirTrackIds, useWriteOk, useWriteResult } from "./shared";
+import { useSayWhenSettled } from "../../kit/useSayWhenSettled";
 import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
 import { previewKeyOf } from "../../kit/SoundButtons";
 import { UseInDialog } from "./UseInDialog";
@@ -810,6 +811,9 @@ function AddPane({
     const pool = data.tracks.filter(laneTest(lane));
     return q ? pool.filter((t) => matchesQuery(haystack(t), q)) : pool;
   }, [data.tracks, lane, q]);
+  const count = q ? `${hits.length} ${hits.length === 1 ? "match" : "matches"}` : plural(hits.length, "track");
+  // UX-R7: read out once typing pauses, not on every key.
+  useSayWhenSettled(q ? count : null);
   const add = async (t: LibraryTrack) => {
     if (pl.trackIds.includes(t.id)) {
       toast("Already in this playlist");
@@ -857,9 +861,7 @@ function AddPane({
             </button>
           ))}
         </div>
-        <span className="muted pl-count" aria-live="polite">
-          {q ? `${hits.length} ${hits.length === 1 ? "match" : "matches"}` : plural(hits.length, "track")}
-        </span>
+        <span className="muted pl-count">{count}</span>
       </div>
       <div className="pl-scroll">
         {hits.length ? (

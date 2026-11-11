@@ -10,6 +10,7 @@ import React, { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 
 import type { UsePlace } from "../../../common/domain";
 import { Icon } from "../../kit/Icon";
+import { useSayWhenSettled } from "../../kit/useSayWhenSettled";
 import { useAnnounce } from "../../shell/Announcer";
 import { useLive } from "./liveData";
 import { findSearch, moodsByUse, type OffScriptQuery, type TagPick } from "./liveModel";
@@ -99,6 +100,8 @@ function Results({ anchor }: { anchor: React.RefObject<HTMLDivElement> }) {
   const box = useRef<HTMLElement>(null);
   const { tags, lane } = state.search;
   const result = useMemo(() => findSearch(index, state.search), [index, state.search]);
+  // UX-R7: the count is read out once typing (or picking tags) pauses, without the Clear button's name.
+  useSayWhenSettled(result ? (result.count ? `${result.count} found` : "Nothing found") + (result.any ? ": none has all these tags, so tracks with some of them" : "") : null);
   const moodValues = tagGroups.find((g) => g.id === "mood")?.values;
   const moods = useMemo(() => moodsByUse(index.tracks, moodValues ?? []), [index.tracks, moodValues]);
   const shown = state.moreTags ? moods : moods.slice(0, FIRST_MOODS);
@@ -108,7 +111,6 @@ function Results({ anchor }: { anchor: React.RefObject<HTMLDivElement> }) {
   const toggle = (t: TagPick) => {
     const next = isOn(t) ? tags.filter((x) => !(x.group === t.group && x.value === t.value)) : [...tags, t];
     setSearch({ tags: next });
-    say(`${findSearch(index, { ...state.search, tags: next })?.count ?? 0} found`);
   };
   const chip = (t: TagPick) => (
     <button key={`${t.group}:${t.value}`} type="button" className="chip lv-mood" aria-pressed={isOn(t)} title={tagGroups.find((g) => g.id === t.group)?.name} onClick={() => toggle(t)}>
@@ -187,7 +189,7 @@ function Results({ anchor }: { anchor: React.RefObject<HTMLDivElement> }) {
           ))}
       {result && (
         <>
-          <div className="lv-off-count" role="status">
+          <div className="lv-off-count">
             <span>
               {result.count ? `${result.count} found` : "Nothing found"}
               {result.any ? ": none has all these tags, so tracks with some of them" : ""}

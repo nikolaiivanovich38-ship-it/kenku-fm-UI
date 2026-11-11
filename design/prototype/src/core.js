@@ -772,6 +772,13 @@ var L = (function () {
   /* ---------- announcements ---------- */
   // Could 14 of the round 6 review: one event is announced once. A toast that follows an announcement of the same
   // event (within half a second) is shown but not read out again.
+  /* UX-R7 (0.5.0 review): a count that changes on every key press is read out once typing pauses (500 ms). */
+  var settleTimer = null, settledText = '';
+  L.sayWhenSettled = function (text) {
+    clearTimeout(settleTimer); if (!text) { settledText = ''; return; }
+    if (text === settledText) return;
+    settleTimer = setTimeout(function () { settledText = text; L.say(text); }, 500);
+  };
   var saidAt = 0, readAt = 0;
   // UX-R6 (0.5.0 review): an announcement within half a second of a note read out is the same event: not spoken again.
   L.say = function (msg) { if (Date.now() - readAt < 500) return; saidAt = Date.now(); var r = document.getElementById('lyre-live'); if (r) { r.textContent = ''; setTimeout(function () { r.textContent = msg; }, 30); } };

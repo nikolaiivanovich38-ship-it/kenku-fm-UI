@@ -182,6 +182,22 @@ describe("Playlists: a manual playlist", () => {
     await waitFor(() => expect(document.getElementById("lyre-toast")).toHaveTextContent(/^Saved: The Abbess · added Quiet grief/));
   });
 
+  it("UX-R7: the Add tracks count is read out once typing pauses, not on every key", async () => {
+    openAt("playlist/p-abbess");
+    await waitFor(() => expect(trackNames()).toHaveLength(5));
+    const add = within(region("Add tracks"));
+    const live = document.getElementById("lyre-live")!;
+    const heard: string[] = [];
+    const watch = new MutationObserver(() => live.textContent && heard.push(live.textContent));
+    watch.observe(live, { childList: true, characterData: true, subtree: true });
+    await userEvent.setup().type(add.getByRole("searchbox", { name: "Search the library by any name or tag" }), "abbey");
+    expect(add.getByText(/\d+ match/).closest("[aria-live]")).toBeNull();
+    await waitFor(() => expect(heard.some((h) => /^\d+ match(es)?$/.test(h))).toBe(true), { timeout: 2000 });
+    await new Promise((r) => setTimeout(r, 700));
+    watch.disconnect();
+    expect(heard.filter((h) => /match/.test(h))).toHaveLength(1);
+  });
+
   it("moves a track down from its menu, and back up with Alt+Up", async () => {
     openAt("playlist/p-abbess");
     await waitFor(() => expect(trackNames()).toHaveLength(5));

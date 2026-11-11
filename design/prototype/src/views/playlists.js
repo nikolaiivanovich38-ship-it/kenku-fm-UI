@@ -197,11 +197,12 @@
     var list = hits.length ? '<ul class="pl-tracks">' + hits.slice(0, addLimit).map(function (t) { return trackRow(t, { prefix: 'a-', add: true, inList: pl.items.indexOf(t.id) > -1 }); }).join('') + '</ul>' +
         (hits.length > addLimit ? '<div class="pl-more"><button class="btn s" data-act="plmore" data-k="plmore">Show ' + Math.min(25, hits.length - addLimit) + ' more of ' + hits.length + '</button></div>' : '')
       : '<div class="empty">Nothing in the library matches "' + esc(q) + '".</div>';
+    L.sayWhenSettled(q ? hits.length + (hits.length === 1 ? ' match' : ' matches') : '');
     // Round 6: the search box's own words say what to type; dropping files is the list's hover text.
     return L.pane({ id: 'pl-add', title: 'Add tracks', icon: 'search', kind: 'search', flush: true, scroll: 'pl-add',
       body: '<div class="pl-addbar"><div class="search grow">' + L.icon('search') + '<input class="input" type="search" data-input="plq" data-k="plq" value="' + esc(addQuery) + '" placeholder="Any name or tag: Abbess, Eerie, Conan, Lothlorien…" aria-label="Search the library by any name or tag"></div>' +
         '<div class="seg s" role="group" aria-label="Search in">' + ['music', 'amb', 'fx'].map(function (l) { return '<button type="button" data-act="pladdlane" data-v="' + l + '" data-k="al-' + l + '" aria-pressed="' + (lane === l) + '">' + laneName(l) + '</button>'; }).join('') + '</div>' +
-        '<span class="muted pl-count" aria-live="polite">' + (q ? hits.length + (hits.length === 1 ? ' match' : ' matches') : plural(hits.length, 'track')) + '</span></div>' +
+        '<span class="muted pl-count">' + (q ? hits.length + (hits.length === 1 ? ' match' : ' matches') : plural(hits.length, 'track')) + '</span></div>' +
         '<div class="pl-scroll" data-scroll="pl-add-n" title="Or drop audio files here">' + list + '</div>' });
   }
   function condRow(c, i) {

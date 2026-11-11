@@ -819,7 +819,9 @@
     // Results: Playlists first (each unfolds to its tracks, as in the playlist boxes), then Tracks; each row has the
     // buttons it has everywhere in Live.
     var n = active ? r.list.length + r.pls.length : 0;
-    var res = !active ? '' : '<div class="lv-off-count" role="status"><span>' + (n ? n + ' found' : 'Nothing found') + (r.any ? ': none has all these tags, so tracks with some of them' : '') + '</span>' +
+    var countText = (n ? n + ' found' : 'Nothing found') + (r.any ? ': none has all these tags, so tracks with some of them' : '');
+    L.sayWhenSettled(active ? countText : '');
+    var res = !active ? '' : '<div class="lv-off-count"><span>' + countText + '</span>' +
         '<button class="lv-more" data-act="lvclear" data-k="lv-clear">Clear</button></div>' +
       (r.pls.length ? '<h3 class="lv-found-h" id="lv-found-p">Playlists</h3><ol class="lv-list" aria-labelledby="lv-found-p">' + r.pls.map(function (p) {
         var place = placeOfPl(p.id); return plRow(p, { src: 'offp', place: place, box: 'off', trackOpts: function () { return { pl: p.id, place: place, inner: true, box: 'off' }; } });
@@ -1129,7 +1131,7 @@
   L.acts.lvtag = function (el) {
     var g = el.dataset.g, v = el.dataset.v;
     if (tagOn(g, v)) S.tags = S.tags.filter(function (x) { return !(x.g === g && x.v === v); }); else S.tags.push({ g: g, v: v });
-    L.render(); var r = search(); L.say((r.list.length + r.pls.length) + ' found');
+    L.render(); // UX-R7: the count is read out by L.sayWhenSettled once the picking pauses
   };
   L.acts.lvmoretags = function () { S.moreTags = !S.moreTags; L.render(); };
   L.acts.lvlane = function (el) { S.lane = el.dataset.v; L.render(); };

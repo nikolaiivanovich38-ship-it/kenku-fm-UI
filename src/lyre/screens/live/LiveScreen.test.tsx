@@ -727,6 +727,20 @@ describe("Find a track or playlist", () => {
     expect(within(pl).getByRole("list", { name: "Tracks in The Abbess" })).toBeInTheDocument();
   });
 
+  it("UX-R7: the count is read out once typing pauses, and Clear is not part of what is read", async () => {
+    await openLive();
+    const live = document.getElementById("lyre-live")!;
+    const heard: string[] = [];
+    const watch = new MutationObserver(() => live.textContent && heard.push(live.textContent));
+    watch.observe(live, { childList: true, characterData: true, subtree: true });
+    await userEvent.type(screen.getByRole("searchbox", { name: /^Find a track or playlist/ }), "abbess");
+    expect(region("Find a track or playlist").queryByRole("status")).toBeNull();
+    await waitFor(() => expect(heard.some((h) => /^\d+ found$/.test(h))).toBe(true), { timeout: 2000 });
+    await new Promise((r) => setTimeout(r, 700));
+    watch.disconnect();
+    expect(heard.filter((h) => /found/.test(h))).toHaveLength(1);
+  });
+
   it("a tag you pick can be cleared with the X next to the tag list", async () => {
     await openLive();
     await userEvent.click(screen.getByRole("searchbox", { name: /^Find a track/ }));
