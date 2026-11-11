@@ -12,7 +12,8 @@
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { test, expect } from "./fixtures/app";
+import { test, expect, pageWithTitle, type LaunchedApp } from "./fixtures/app";
+import { LYRE_PAGE_TITLE } from "./fixtures/lyre";
 import { card, createPlaylist } from "./fixtures/player";
 
 test.skip(process.platform !== "linux", "XDG_CONFIG_HOME sets Electron's appData folder on Linux only");
@@ -24,6 +25,27 @@ test.beforeEach(() => {
 test.afterEach(() => {
   fs.rmSync(appData, { recursive: true, force: true });
 });
+
+/** The playlists in Lyre's own library, asked through the Lyre page as its screens ask. */
+async function lyrePlaylists(launched: LaunchedApp): Promise<string[]> {
+  const lyre = await pageWithTitle(launched.app, LYRE_PAGE_TITLE);
+  const playlists = await lyre.evaluate(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    () => (window as any).lyre.api.call("playlists", "list", []) as Promise<{ name: string }[]>,
+  );
+  return playlists.map((p) => p.name);
+}
+
+/**
+ * On its first start Lyre brings the copied library's playlists into its own library, then the Lyre page reads every
+ * list again (src/main/lyreApi/wiring.ts, libraryService.ts). Quitting before that is done leaves the page's last calls
+ * with no library to answer them ("No handler registered for 'LYRE_API_CALL'", once on GitHub's slower runners for
+ * 0.5.0), so a test waits for the playlist to arrive before it quits.
+ */
+async function broughtIntoLyre(launched: LaunchedApp, playlist: string): Promise<string[]> {
+  await expect.poll(() => lyrePlaylists(launched), { message: `Lyre's library has "${playlist}"`, timeout: 15_000 }).toContain(playlist);
+  return lyrePlaylists(launched);
+}
 
 test("a Kenku FM library is carried over on the first start", async ({ launchApp }) => {
   const kenkuFolder = path.join(appData, "Kenku FM");
@@ -45,6 +67,7 @@ test("a Kenku FM library is carried over on the first start", async ({ launchApp
   const marker = JSON.parse(fs.readFileSync(path.join(lyreFolder, "data-carry-over.json"), "utf8"));
   expect(marker).toMatchObject({ status: "copied", sourceFolder: "Kenku FM", destFolder: "lyre" });
   expect(marker.copiedItems).toContain("Local Storage");
+  await broughtIntoLyre(lyre, "From Kenku FM");
 
   // A change in Lyre does not touch the Kenku FM library.
   await createPlaylist(player, "Only in Lyre");
@@ -75,6 +98,7 @@ test("a Cue Desk library is preferred to an older Kenku FM one", async ({ launch
   const player = await lyre.playerView();
   await expect(card(player, "From Cue Desk")).toBeVisible();
   await expect(card(player, "From Kenku FM")).toHaveCount(0);
+  expect(await broughtIntoLyre(lyre, "From Cue Desk")).not.toContain("From Kenku FM");
   await lyre.close();
 
   const marker = JSON.parse(fs.readFileSync(path.join(lyreFolder, "data-carry-over.json"), "utf8"));

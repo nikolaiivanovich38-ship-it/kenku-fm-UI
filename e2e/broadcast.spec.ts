@@ -35,11 +35,21 @@ test.afterEach(async () => {
   await site.close();
 });
 
+/**
+ * Chromium's warning on a machine with no sound device (GitHub's runners, now and then): the capture window's
+ * AudioContext falls back to the default output. It says nothing about recording, so the log leaves out exactly this
+ * warning; any other line, this text as an error or log line, or another AudioContext warning still counts.
+ */
+const NO_SOUND_DEVICE_WARNING = /^\[AudioContext\] Fallback to the default device due to an invalid audio device change\. \([^)]*\)$/;
+
 /** Collect what the hidden capture window logs. */
 async function captureLog(app: Parameters<typeof pageWithTitle>[0]) {
   const capture = await pageWithTitle(app, "Audio Capture");
   const lines: string[] = [];
-  capture.on("console", (message: ConsoleMessage) => lines.push(message.text()));
+  capture.on("console", (message: ConsoleMessage) => {
+    if (message.type() === "warning" && NO_SOUND_DEVICE_WARNING.test(message.text())) return;
+    lines.push(message.text());
+  });
   return lines;
 }
 
