@@ -1,7 +1,9 @@
 /**
  * Loudness peaks with ffmpeg (w3-media): the levels worked out from decoded samples, the ffmpeg arguments (plain
  * files only, nothing written), and the real bundled program on real files, while a 20 ms timer in this process
- * keeps its beat (the library's process must never be held for more than 200 ms).
+ * keeps its beat (the library's process must never be held for more than 200 ms). The beat is clock time, so on
+ * GitHub's shared runners, with coverage, the 200 ms is multiplied by CUE_DESK_PERF_SLACK as the other timing budgets
+ * are (src/main/data/testing/perfBudget.ts); the local run before each release holds it at 200 ms.
  */
 import { EventEmitter } from "events";
 import fs from "fs";
@@ -10,6 +12,7 @@ import path from "path";
 import { afterAll, describe, expect, it, vi } from "vitest";
 
 import { importAudio, openLibrary, PeakJobs, trackPeaks } from "../data";
+import { budget } from "../data/testing/perfBudget";
 import { findBundledFfmpeg } from "./bundledFfmpeg";
 import { FfmpegPeakReader, PEAK_SAMPLE_RATE, peakArgs, type PeakSpawn } from "./ffmpegPeaks";
 import { PeakLevels, levelByte } from "./peakLevels";
@@ -163,7 +166,7 @@ describe("loudness peaks with the bundled ffmpeg", () => {
       levels = await new FfmpegPeakReader({ ffmpegPath }).read(file, new AbortController().signal);
     });
     expect(levels).toHaveLength(1000);
-    expect(gap, "longest gap between 20 ms beats, in ms").toBeLessThanOrEqual(200);
+    expect(gap, "longest gap between 20 ms beats, in ms").toBeLessThanOrEqual(budget(200));
   }, 60_000);
 
   it("are worked out for a whole import in the background, without holding the library's process for more than 200 ms", async () => {
@@ -179,7 +182,7 @@ describe("loudness peaks with the bundled ffmpeg", () => {
       });
       jobs.close();
       expect(trackIds.map((id) => trackPeaks(library.store, id).state)).toEqual(trackIds.map(() => "ready"));
-      expect(gap, "longest gap between 20 ms beats, in ms").toBeLessThanOrEqual(200);
+      expect(gap, "longest gap between 20 ms beats, in ms").toBeLessThanOrEqual(budget(200));
     } finally {
       library.close();
     }
