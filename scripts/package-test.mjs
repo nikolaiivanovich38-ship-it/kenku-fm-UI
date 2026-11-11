@@ -14,8 +14,8 @@
 //   - it is a test build (CUE_DESK_E2E_BUILD=1);
 //   - app.asar is the one it made (a plain `yarn package` since then made a new one).
 // Otherwise it packages, through `yarn heavy` (one heavy run at a time per machine) unless it already runs inside
-// one. --check only says whether it would package (exit 0: the package is reused; 1: it would package). --force
-// packages whatever the stamp says. The release workflow packages by itself and never reads the stamp.
+// one; a run that exits 0 without writing a new app.asar gets no stamp and exits 1. --check only says whether it
+// would package (exit 0: the package is reused; 1: it would package). --force packages whatever the stamp says. The release workflow packages by itself and never reads the stamp.
 import { execFileSync, spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -90,6 +90,17 @@ export function dirtyAfterPackaging(root, before) {
   return changed === null || changed.length > 0;
 }
 
+/** Some file systems keep modification times only to the second or two. */
+const MTIME_SLACK_MS = 2_000;
+
+/**
+ * Whether `asar` (a fingerprint) was written by the packaging that started at `startedMs`. A run that exits 0 without
+ * packaging (yarn package ended early) leaves the old app.asar, or none, and must not be stamped as a new package.
+ */
+export function freshlyMade(asar, startedMs) {
+  return Boolean(asar) && asar.mtimeMs >= startedMs - MTIME_SLACK_MS;
+}
+
 export function readStamp(root) {
   try {
     return JSON.parse(fs.readFileSync(path.join(root, STAMP), "utf8"));
@@ -160,13 +171,19 @@ async function main(argv) {
   // A package that fails half-way leaves no stamp claiming it is good.
   fs.rmSync(path.join(root, STAMP), { force: true });
   const env = { ...process.env, CUE_DESK_E2E_BUILD: E2E_BUILD };
+  const startedMs = Date.now();
   const code = process.env.LYRE_HEAVY_RUN
     ? await run("yarn", ["package"], env)
     : await run(process.execPath, [path.join(root, "scripts", "heavy-run.mjs"), "--log", path.join(os.tmpdir(), `package-test-${Date.now()}.log`), "--", "yarn", "package"], env);
   if (code !== 0) return code;
+  const asar = fingerprint(asarPath(folder));
+  if (!freshlyMade(asar, startedMs)) {
+    console.error(`package:test: yarn package ended without making ${path.relative(root, asarPath(folder))}; no stamp written. See its output above.`);
+    return 1;
+  }
 
   const dirty = dirtyAfterPackaging(root, before);
-  writeStamp(root, { commit: before.commit, dirty, e2eBuild: E2E_BUILD, asar: fingerprint(asarPath(folder)), builtAt: new Date().toISOString() });
+  writeStamp(root, { commit: before.commit, dirty, e2eBuild: E2E_BUILD, asar, builtAt: new Date().toISOString() });
   console.log(`package:test: test package made from ${short(before.commit)}${dirty ? ", but the app's code had uncommitted changes or changed while it packaged, so it will be made again next time" : ""}.`);
   return 0;
 }

@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 
-import { asarPath, decide, dirtyAfterPackaging, packageFolder, packageInputsChangedSince, readStamp, STAMP, treeState, writeStamp } from "./package-test.mjs";
+import { asarPath, decide, dirtyAfterPackaging, freshlyMade, packageFolder, packageInputsChangedSince, readStamp, STAMP, treeState, writeStamp } from "./package-test.mjs";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "package-test-"));
 const git = (cwd, ...args) => execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
@@ -136,6 +136,15 @@ describe("the dirty flag after packaging", () => {
     git(dir, "commit", "-q", "-am", "the app");
     assert.equal(dirtyAfterPackaging(dir, before), true);
     assert.equal(dirtyAfterPackaging(repository(), { commit: "x", dirty: true, dirtyFiles: ["src/a.ts"] }), true);
+  });
+});
+
+describe("a package that was really made", () => {
+  it("has an app.asar written since packaging started; a run that ended early (exit 0, nothing written) has not", () => {
+    const started = 1_000_000;
+    assert.equal(freshlyMade({ size: 10, mtimeMs: started + 5_000 }, started), true);
+    assert.equal(freshlyMade({ size: 10, mtimeMs: started - 60_000 }, started), false);
+    assert.equal(freshlyMade(null, started), false);
   });
 });
 

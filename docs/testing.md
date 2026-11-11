@@ -186,7 +186,7 @@ yarn package:test --force      # packages whatever
 
 - After each package it writes `out/lyre-test-build.json`: the commit, the dirty flag (uncommitted changes to what goes into the package, as `isPackageInput` in `affected-specs.mjs` lists it: the app's code, help articles, `package.json`, `yarn.lock`, the forge and webpack configs), `CUE_DESK_E2E_BUILD`, and `app.asar`'s size and time.
 - The package is used again only when it was made from this commit (or from an earlier one, and nothing committed since goes into the package), neither it nor the tree now has uncommitted changes to the app's code, it is a test build, and `app.asar` is still the one it made (a plain `yarn package` since then means packaging again). A changed or committed test, document or script does not count, so editing a spec and running it again does not package again.
-- A package that fails half-way leaves no stamp. Packaging goes through `yarn heavy` unless `yarn heavy` started it already.
+- A package that fails half-way leaves no stamp, and so does a `yarn package` that ends without writing a new `app.asar` (it then exits 1 and says so). Packaging goes through `yarn heavy` unless `yarn heavy` started it already.
 - The release workflow and `specs.yml` package by themselves and never read the stamp.
 
 ## Specs
