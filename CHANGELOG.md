@@ -4,11 +4,28 @@ All notable changes to Lyre (called Cue Desk in versions 0.1.x). Versions follow
 
 ## [Unreleased]
 
-**Security**
-- The remote control (Stream Deck, phone) now needs Lyre's secret code with every request, made the first time Lyre starts and kept encrypted on your computer. It stays off until you turn it on and listens only on this computer unless you choose otherwise. Web pages cannot use it, a device that tries ten wrong codes is locked out for ten minutes, and its answers no longer show where your files are. The Kenku FM Stream Deck plugin does not send the code yet, so it cannot control Lyre for now; Settings will show the code. [SEC-4]
-- When Lyre cannot check for or install an update, it now tells you once, in plain words, instead of only writing it to its log. [SEC-14]
-- The remote control's web server library moved to its current version, which fixes its known security problems. No library Lyre ships has a known serious security problem. [SEC-9]
-- Every change is now checked automatically for its tests, a start of the app, accessibility, library security problems, secrets and code security; a release is built only after all of them pass, and a failing check says in plain words what to do. [FND-5, SEC-1]
+## [0.5.0] - DATE: Live in seven boxes, Back everywhere, Rooms and Settings in Lyre
+
+**Live**
+- Live has seven boxes, each with one job: On air across the top, then Scenes and Current scene, then This session and Whole campaign, each with its playlists and pads. Boxes grow with what is in them and the page scrolls; session playlists and the campaign boxes start folded. Alt+1 to Alt+7 jump between them. [SHW-8]
+- On air shows each room: its bot and channel, what plays, Up next, volume, Mute, Repeat and Next. A room nobody is in says "Nobody there", with a button that moves the bot to where your players are, and Undo. [OUT-7, SHW-8]
+- Every track and playlist in Live has Play now, Play next, Add to queue and Preview: in Current scene, in any scene you unfold in Scenes, in the session and campaign boxes, and in Find. Play now from a scene that is not running plays that item without starting the scene. What you add belongs to that room for the evening; Undo takes it back. [PLY-16, SHW-7]
+- Find a track or playlist (/) searches your whole library from Live, for anything not in the plan. [ORG-14]
+- Repeat on the Now playing bar and in On air is per room, for what plays now; Repeat one on a scene's track is saved with the scene. The bar also has Shuffle and What played. [PLY-17, PLY-13, PLY-1]
+- A room's time runs to the track's End for that place, not to the end of the file. [DAT-3, SHW-3]
+- Keys you give "Work in other programs too" in Settings (for example F9 for Next scene) work while Discord is in front. [UX-12]
+
+**Getting around**
+- Back (‹) sits top left on every screen, Live included. It goes back through everywhere you have been, across the menu, up to 50 places, each as you left it: same scroll, same open box. Alt+Left does the same. [UX-18]
+- Every screen shows where it sits (Campaigns › The Sunken Crown › Session 14); each part is a link. [UX-20]
+- One small "Saved" note in the bottom-right corner for every change, everywhere. If a save fails it stays, says what to do, and has Try again. Ready, Saved and scene counts are gone from the boxes. [UX-19, UX-17]
+- Ctrl+K finds and plays any track, playlist, pad or scene. [UX-12]
+- Look and feel › Display: Comfortable spacing, text up to 200 % and high contrast. A name cut short shows in full on hover or focus. [UX-6]
+- Outputs is now called Rooms. [OUT-9]
+
+**Rooms and Settings**
+- Settings is now inside Lyre, in the menu: Discord bots (Connect, Replace…, Rename, Remove with Undo, Add a bot in three steps; only a token's last four characters are ever shown), Sound to Discord with the crossfade between tracks, Headphones and speakers (preview on its own device, or split one headset), Remote control, Keyboard shortcuts (change a key, Put back, a printable sheet) and Local files. Settings shows Lyre's version. [OUT-8, PRV-2, UX-12]
+- Rooms: each bot in a voice channel is a chip with Kick; a channel with no bot has Add. Kick never asks: if the players were hearing something, Undo puts the bot back and the music carries on. Each room has a level meter. [OUT-7, OUT-10]
 
 **Preparing your games**
 - A Tags screen keeps your tags tidy: groups in your order, each with a colour, tags inside tags (filtering by Melancholy finds the grieving tracks too), other words that find a tag ("sad" offers Melancholy), and Rename, Merge into… and Delete… that change every track at once, with Undo. Open it from the Library's ⋯ or Look and feel's Tag colours…. [DAT-10]
@@ -20,10 +37,29 @@ All notable changes to Lyre (called Cue Desk in versions 0.1.x). Versions follow
 - A playlist's tracks can be put in another order for one scene, session or campaign (drag, Alt+Up/Down, or Reorder's Move up and Move down), and back to the playlist's order; Repeat one on a scene's track shows in the planner. A duplicated scene keeps its orders. [ORG-13, PLY-17]
 - Less to read: the Library's keys show only while you are in the list, the planner has no scene count or sentence about Live, and how-to lines are read out to screen readers instead of shown. New scenes are named Scene 7, Scene 8. [UX-17]
 - Find missing files can preview the file it found again. [SEC-17]
+- Prep screens show less: open boxes no longer say Empty or count their rows, and how-tos are hover text or show only while the keyboard is in their box. Adding a tag, or a track to a playlist, shows the Saved note. [UX-17, UX-19]
+
+**Accessibility**
+- Dialogs put focus inside when they open, so Tab stays inside and Esc closes them. When the button you pressed goes away, focus moves to the one beside it.
+- One change is read out once; search counts are read out when you stop typing; with two rooms, every message says which room.
+- Rooms at 200 % text no longer overlap. Library check boxes are bigger. Play on air has one icon everywhere, and What played has its own.
+
+**Security**
+- The remote control (Stream Deck, phone) now needs Lyre's secret code with every request, made the first time Lyre starts and kept encrypted on your computer. It stays off until you turn it on and listens only on this computer unless you choose otherwise. Web pages cannot use it, a device that tries ten wrong codes is locked out for ten minutes, and its answers no longer show where your files are. The Kenku FM Stream Deck plugin does not send the code yet, so it cannot control Lyre for now; Settings will show the code. [SEC-4]
+- When Lyre cannot check for or install an update, it now tells you once, in plain words, instead of only writing it to its log. [SEC-14]
+- The remote control's web server library moved to its current version, which fixes its known security problems. No library Lyre ships has a known serious security problem. [SEC-9]
+- Every change is now checked automatically for its tests, a start of the app, accessibility, library security problems, secrets and code security; a release is built only after all of them pass, and a failing check says in plain words what to do. [FND-5, SEC-1]
+- The remote control listens only on this computer, or on this computer's own address on your home network. Every address (0.0.0.0), internet addresses and addresses this computer does not have are refused, whatever asks for them. [SEC-4]
+- Only Lyre's Settings turns the remote control on. The old main window's Settings no longer turns it back on at every start; if you had it on in 0.4.1, your choice is moved over once. [SEC-4]
+- Keys that work in other programs refuse Ctrl+Alt with a letter or digit (AltGr on a Belgian keyboard, which types @, € and #), and Alt+F4 or Ctrl+F4. [UX-12]
+- A drag cancelled with Esc cannot drop a file or link onto the page; drag and drop to reorder playlists, scenes and campaigns works again in the app. Lyre saves only the display and device settings it knows. [SEC-7]
 
 **Fixes**
 - Deleting a track from the playing playlist with shuffle off no longer makes a different track the current one. [BUG-11]
 - Long sounds on a soundboard (ambience over 30 seconds) are streamed instead of being loaded whole into memory. The first time you play a sound without fades, it streams while Lyre learns its length. [PERF-7]
+- Stop all and Fade all also cancel what was waiting to start: a scene set to move on by itself, steps after a wait, and music waiting for a loop to end. A saved cue that stops one room cancels only what waited in that room. [PLY-8]
+- Next or Previous while a scene's music waits for the current track to end cancels that wait. [PLY-8]
+- A "Pick up where it stopped" track that plays to its end starts from the beginning next time, also after a restart. [PLY-4]
 
 ## [0.4.1] - 2026-11-06: fixes from your test of 0.4.0
 
