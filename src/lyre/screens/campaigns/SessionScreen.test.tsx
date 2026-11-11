@@ -178,6 +178,21 @@ describe("a scene's music", () => {
     expect(within(list.getByRole("list", { name: /^Tracks in The Abbess(,|$)/ })).getAllByRole("listitem")).toHaveLength(5);
   });
 
+  it("0.5.1: each track of a playlist in the scene has Play on air beside its Preview, as the playlist has", async () => {
+    const { audio } = await openAbbey();
+    const list = within(abbey().getByRole("list", { name: "Music in order" }));
+    expect(list.getByRole("button", { name: "Play on air: The Abbess" })).toBeInTheDocument();
+    await userEvent.click(list.getByRole("button", { name: "Show contents of The Abbess" }));
+    const rows = within(list.getByRole("list", { name: /^Tracks in The Abbess(,|$)/ })).getAllByRole("listitem");
+    for (const row of rows) expect(within(row).getByRole("button", { name: /^Play on air: / })).toBeInTheDocument();
+    const first = within(rows[0]).getByRole("button", { name: /^Play on air: / });
+    const preview = within(rows[0]).getByRole("button", { name: /^Preview / });
+    expect(preview.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(first.querySelector("svg")?.outerHTML).toBe(list.getByRole("button", { name: "Play on air: The Abbess" }).querySelector("svg")?.outerHTML);
+    await userEvent.click(first);
+    expect(audio.calls.filter(([m]) => m === "playTrack")).toHaveLength(1);
+  });
+
   it("Add tracks or playlists… adds ticked items in the order ticked; the picker filters and searches", async () => {
     const { api } = await openAbbey();
     await userEvent.click(abbey().getByRole("button", { name: "Add tracks or playlists…" }));

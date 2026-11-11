@@ -635,6 +635,22 @@ test.describe("round 7: what a scene does when it starts", () => {
 test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   const scenes = (page: Page) => page.getByRole("list", { name: "Scenes in order" }).getByRole("listitem");
 
+  test("each track of a scene's playlist has Play on air, as the playlist has (\"I need that at track level\")", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "session/crown/s14");
+    await page.getByRole("button", { name: "Scene 3: The abbey ruins" }).click();
+    const music = page.getByRole("list", { name: "Music in order" });
+    await expect(music.getByRole("button", { name: "Play on air: The Abbess" })).toBeVisible();
+    await music.getByRole("button", { name: "Show contents of The Abbess" }).click();
+    const tracks = music.getByRole("list", { name: /^Tracks in The Abbess/ }).getByRole("listitem");
+    await expect(tracks.first().getByRole("button", { name: /^Play on air: / })).toBeVisible();
+    const box = await tracks.first().getByRole("button", { name: /^Play on air: / }).boundingBox();
+    expect(box!.width).toBeGreaterThanOrEqual(24);
+    expect(box!.height).toBeGreaterThanOrEqual(24);
+    await tracks.first().getByRole("button", { name: /^Play on air: / }).click();
+    await expect(page.getByRole("region", { name: "Now playing", exact: true }).getByRole("group", { name: "On air", exact: true })).toBeVisible();
+  });
+
   test("Add scene goes at the end with no scene selected, and right after the scene selected", async ({ page }) => {
     appOnly();
     await openRoute(page, "session/crown/s14");
