@@ -466,3 +466,15 @@ test.describe("round 6 cuts on the Library", () => {
     await expect(d.getByText("Dynamic", { exact: true }).first()).toBeVisible();
   });
 });
+
+/* 0.5.0 usability review (UX-R18): ROUND7, every control on the Library is at least 24 × 24 px. */
+test.describe("Library targets", () => {
+  test("UX-R18: a row's check box and Select all are at least 24 × 24 px", async ({ page }) => {
+    await openRoute(page, "library");
+    for (const box of [grid(page).getByRole("checkbox").first(), grid(page).getByRole("checkbox").nth(1)]) {
+      const r = (await box.boundingBox())!;
+      expect(Math.round(r.width)).toBeGreaterThanOrEqual(24);
+      expect(Math.round(r.height)).toBeGreaterThanOrEqual(24);
+    }
+  });
+});

@@ -157,6 +157,8 @@ button.chip[aria-pressed="true"] .lb-n { color: var(--ink-2); }
 .lb-fh, .lb-h { margin: 0; }
 .seg.lb-seg24 button { height: 24px; min-width: 24px; justify-content: center; }
 .lb-ckl { display: inline-grid; place-items: center; width: 24px; height: 24px; cursor: pointer; }
+/* UX-R18 (ROUND7): the check box itself is a 24 px target, as every control on the Library is. */
+.lb-ckl input[type="checkbox"] { width: 24px; height: 24px; }
 .lb-table .lb-c-ck { width: 34px; padding-left: 6px; }
 .lb-table td { padding-top: 4px; padding-bottom: 4px; }
 .lb-newb { margin-top: 1px; }
