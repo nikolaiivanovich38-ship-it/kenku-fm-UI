@@ -819,7 +819,7 @@
     // Results: Playlists first (each unfolds to its tracks, as in the playlist boxes), then Tracks; each row has the
     // buttons it has everywhere in Live.
     var n = active ? r.list.length + r.pls.length : 0;
-    var countText = (n ? n + ' found' : 'Nothing found') + (r.any ? ': none has all these tags, so tracks with some of them' : '');
+    var countText = active ? (n ? n + ' found' : 'Nothing found') + (r.any ? ': none has all these tags, so tracks with some of them' : '') : '';
     L.sayWhenSettled(active ? countText : '');
     var res = !active ? '' : '<div class="lv-off-count"><span>' + countText + '</span>' +
         '<button class="lv-more" data-act="lvclear" data-k="lv-clear">Clear</button></div>' +

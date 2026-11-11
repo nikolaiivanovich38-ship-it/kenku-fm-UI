@@ -233,11 +233,14 @@ test.describe("Rooms at 200 % text", () => {
     await expect(size).toHaveValue("200");
     await joinRoom(page, "Lyre Side", "AFK");
     await openRoute(page, "outputs");
-    const boxes = [room(page, "Table"), room(page, "AFK"), channels(page)];
-    for (const box of boxes) await expect(box).toBeVisible();
-    const rects = [];
-    for (const box of boxes) rects.push((await box.boundingBox())!);
-    for (let i = 1; i < rects.length; i++) expect(rects[i].y).toBeGreaterThanOrEqual(rects[i - 1].y + rects[i - 1].height - 1);
+    for (const box of [room(page, "Table"), room(page, "AFK"), channels(page)]) await expect(box).toBeAttached();
+    const table = (await room(page, "Table").boundingBox())!;
+    const afk = (await room(page, "AFK").boundingBox())!;
+    // The rooms scroll as one column above All voice channels: the second room starts below the first, and the
+    // channel list below the column.
+    expect(afk.y).toBeGreaterThanOrEqual(table.y + table.height - 1);
+    const column = (await room(page, "Table").locator("xpath=..").boundingBox())!;
+    expect((await channels(page).boundingBox())!.y).toBeGreaterThanOrEqual(column.y + column.height - 1);
     // The first room's Kick, reached with Tab, is the element on top where it is drawn.
     const kick = room(page, "Table").getByRole("button", { name: /^Kick/ }).first();
     await kick.focus();

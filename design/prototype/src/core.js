@@ -1283,7 +1283,7 @@ var L = (function () {
   function outputsBadge() { var n = D.discord.bots.filter(function (b) { return b.status === 'connected'; }).length; return ' (' + n + '/' + D.discord.bots.length + ')'; }
   function railHTML(cur, min) {
     // UX-R15 (0.5.0 review): hint, the link's hover text (what Rooms (1/2) counts).
-    function a(href, nav, icon, label, hint) { return '<a href="' + href + '" data-k="rail-' + nav + '"' + (cur === nav ? ' aria-current="page"' : '') + (hint || min ? ' title="' + (hint || label) + '"' : '') + '>' + L.icon(icon) + '<span class="lbl">' + label + '</span></a>'; }
+    function a(href, nav, icon, label, hint) { return '<a href="' + href + '" data-k="rail-' + nav + '"' + (cur === nav ? ' aria-current="page"' : '') + (hint ? ' title="' + (min ? label + ': ' : '') + hint + '" aria-label="' + label + '"' : min ? ' title="' + label + '"' : '') + '>' + L.icon(icon) + '<span class="lbl">' + label + '</span></a>'; }
     var s = L.session(L.state.live.cid, L.state.live.sid);
     return '<div class="logo">' + L.logo + '<b>Lyre</b></div><nav aria-label="Lyre"><div class="stack" style="gap:2px">' +
       a('#/campaigns', 'campaigns', 'crown', 'Campaigns') + a('#/library', 'library', 'library', 'Library') + a('#/playlists', 'playlists', 'playlist', 'Playlists') + a('#/boards', 'boards', 'grid', 'Pad boards') +
@@ -1363,7 +1363,8 @@ var L = (function () {
     var f = L.acts[el.dataset.act]; if (!f) return; e.preventDefault();
     if (menuEl && menuEl.contains(el) && !el.dataset.keepMenu) {
       // After a menu choice, focus goes back to the button that opened the menu (found again by data-k after a re-render).
-      var k = menuAnchor && menuAnchor.dataset ? menuAnchor.dataset.k : null; L.closeMenu(); f(el, e);
+      // UX-R1: refocus the button first, so a sheet the choice opens gives focus back to it when it closes.
+      var k = menuAnchor && menuAnchor.dataset ? menuAnchor.dataset.k : null; L.closeMenu(true); f(el, e);
       if (k && (!document.activeElement || document.activeElement === document.body)) { var n = document.querySelector('[data-k="' + k + '"]'); if (n) n.focus(); }
       return;
     }

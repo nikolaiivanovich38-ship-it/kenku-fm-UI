@@ -660,7 +660,7 @@ function TracksPane({
       flush
       size="auto"
       status={air ? { text: "Playing", tone: "live" } : tracks.length ? undefined : { text: "Empty" }}
-      // Round 6 (UX-R3): the count and length are read out with the box (its description), not shown.
+      summary={<span aria-hidden="true">{summary}</span>}
       actions={
         <button type="button" className="btn s" data-focus="pladdopen" onClick={onAdd}>
           <Icon name="plus" size="s" />

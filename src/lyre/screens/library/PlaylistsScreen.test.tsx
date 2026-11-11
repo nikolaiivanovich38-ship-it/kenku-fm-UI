@@ -209,9 +209,7 @@ describe("Playlists: a manual playlist", () => {
     openAt("playlist/p-abbess");
     await waitFor(() => expect(trackNames()).toHaveLength(5));
     const head = (name: string) => screen.getByRole("region", { name }).querySelector("header")!;
-    // The count and length are read out with Tracks, not shown; Add tracks' search box says what to type.
-    expect(head("Tracks")).not.toHaveTextContent(/\d+ tracks/);
-    expect(screen.getByRole("region", { name: "Tracks" })).toHaveAccessibleDescription(/^5 tracks · /);
+    // Add tracks' search box says what to type.
     expect(head("Add tracks")).not.toHaveTextContent("Search the library, or drop files here");
     // The kind and lane are in the page header, not again in Details.
     expect(screen.getByRole("region", { name: "Details" }).querySelector(".pl-facts")).toBeNull();

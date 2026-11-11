@@ -285,7 +285,7 @@ test.describe("round 7: crossfade and keyboard shortcuts", () => {
     const palette = box.getByRole("row", { name: /^Find and play/ });
     await palette.getByRole("button", { name: "Change the key for Find and play" }).click();
     await page.keyboard.press("Shift+Escape");
-    await expect(page.getByRole("status").filter({ hasText: /Shift\+Esc is already Fade everything out/ })).toBeVisible();
+    await expect(page.getByRole("status").filter({ hasText: /Shift\+Esc is already Fade all/ })).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(palette).toContainText("Ctrl+K");
   });
@@ -296,7 +296,7 @@ test.describe("round 7: crossfade and keyboard shortcuts", () => {
     const box = await unfold(page, "Keyboard shortcuts");
     await box.getByRole("button", { name: "Printable sheet" }).click();
     const sheetBox = page.getByRole("dialog", { name: "Lyre's keys" });
-    await expect(sheetBox.getByRole("table")).toContainText("Fade everything out");
+    await expect(sheetBox.getByRole("table")).toContainText("Fade all"); // UX-R15: one name
     await expect(sheetBox.getByRole("button", { name: "Print" })).toBeVisible();
   });
 });

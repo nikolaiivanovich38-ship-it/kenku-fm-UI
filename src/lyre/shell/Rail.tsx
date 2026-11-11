@@ -18,7 +18,13 @@ interface RailProps {
 export function Rail({ section, min, onToggleMin, helpOpen = false, onHelp }: RailProps) {
   const { liveLabel, liveName, outputsLabel, outputsHint } = useShellData();
   const link = (to: Section, icon: IconName, label: string, name?: string, hint?: string) => (
-    <a href={hashOf(to)} aria-current={section === to ? "page" : undefined} title={hint ?? (min ? label : undefined)} aria-label={name}>
+    <a
+      href={hashOf(to)}
+      aria-current={section === to ? "page" : undefined}
+      title={hint ? (min ? `${label}: ${hint}` : hint) : min ? label : undefined}
+      // With hover text of its own, the link keeps its words as its name (the label is hidden when the rail is folded).
+      aria-label={name ?? (hint ? label : undefined)}
+    >
       <Icon name={icon} />
       <span className="lbl">{label}</span>
     </a>
