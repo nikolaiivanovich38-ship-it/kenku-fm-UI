@@ -30,6 +30,14 @@ describe("TagStrip", () => {
     expect(container.querySelector(".ts-more.ts-narrow")).toHaveTextContent("+1");
   });
 
+  it("UX-R17: a tag's word sits in its own ellipsis box, so a chip cut short ends in … with its word on hover", () => {
+    render(<TagStrip track={track({ mood: ["Wistful"] })} groups={groups} />);
+    const word = screen.getByText("Wistful");
+    expect(word).toHaveClass("ellipsis");
+    expect(word).toHaveAttribute("title", "Mood: Wistful");
+    expect(word.closest(".chip")).toHaveAttribute("title", "Mood");
+  });
+
   it("shows three tags and +n, naming the rest with their groups on hover", () => {
     const { container } = render(<TagStrip track={track({ mood: ["Eerie", "Dread", "Tense"], motif: ["The Abbess"], scene: ["Ritual"] })} groups={groups} />);
     expect(visibleChips(container)).toEqual(["Eerie", "Dread", "Tense"]);

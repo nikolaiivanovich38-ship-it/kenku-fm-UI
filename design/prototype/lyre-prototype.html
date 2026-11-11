@@ -520,7 +520,9 @@ button .shape-g { color: inherit; }
 
 /* ORG-11 tags where music is chosen: compact, each with its tag group's dot; "+n" for the rest. */
 .tagstrip { position: relative; display: inline-flex; align-items: center; gap: 3px; flex: 0 1 auto; min-width: 0; overflow: hidden; }
-.tagstrip .chip { height: 18px; padding: 0 6px; font-size: var(--fs-xs); flex: none; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* UX-R17 (0.5.0 review): a chip shrinks to a few letters and an ellipsis, never clipped mid-word. */
+.tagstrip .chip { height: 18px; padding: 0 6px; font-size: var(--fs-xs); flex: 0 1 auto; min-width: 3.2em; max-width: 110px; overflow: hidden; white-space: nowrap; }
+.tagstrip .chip.ts-more { flex: none; min-width: 0; }
 .tagstrip .chip.ts-more { color: var(--ink-2); }
 .tagstrip .shape-tag { margin-right: 2px; }
 @container app (max-width: 820px) { .tagstrip .chip:nth-of-type(n+2):not(.ts-more) { display: none; } }
@@ -869,6 +871,8 @@ select.input.pl-num { width: 44px; }
 /* Rule chips: the 16 px remove button gets a 24 px clickable area without making the chip taller. */
 .pl-vals .chip .x { width: 24px; height: 24px; margin: -1px -7px -1px -3px; }
 .pl-tline .badge, .pl-tline .chip { flex: none; white-space: nowrap; }
+/* UX-R17: tag chips in a row shrink to an ellipsis instead of being clipped by the strip. */
+.pl-tline .tagstrip .chip:not(.ts-more) { flex: 0 1 auto; }
 
 /* ---------- Dropping files from the computer ---------- */
 #view[data-view="playlist"], #view[data-view="playlists"] { position: relative; }
@@ -3123,7 +3127,7 @@ var L = (function () {
     var shown = all.slice(0, max), rest = all.slice(max);
     if (!all.length && !L.shapeOf(t)) return '';
     return '<span class="tagstrip"><span class="sr-only">Tags: ' + esc(all.map(function (x) { return x.v; }).join(', ') || 'none') + '. </span>' + L.shapeTag(t, true) +
-      shown.map(function (x) { return '<span class="chip ' + x.g.cls + '" data-tag="' + esc(x.g.id + ':' + x.v) + '" title="' + esc(x.g.name) + '" aria-hidden="true"><span class="dot"></span>' + esc(x.v) + '</span>'; }).join('') +
+      shown.map(function (x) { return '<span class="chip ' + x.g.cls + '" data-tag="' + esc(x.g.id + ':' + x.v) + '" title="' + esc(x.g.name) + '" aria-hidden="true"><span class="dot"></span><span class="ellipsis" title="' + esc(x.g.name + ': ' + x.v) + '">' + esc(x.v) + '</span></span>'; }).join('') +
       (rest.length ? '<span class="chip ts-more" title="' + esc(rest.map(function (x) { return x.g.name + ': ' + x.v; }).join(', ')) + '" aria-hidden="true">+' + rest.length + '</span>' : '') + '</span>';
   };
   /* DAT-14 a track's name in a scene: L.data.sceneNames[sceneKey][trackId]. L.nameIn(t, key) is the scene's name for it

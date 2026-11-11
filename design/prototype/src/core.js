@@ -340,7 +340,7 @@ var L = (function () {
     var shown = all.slice(0, max), rest = all.slice(max);
     if (!all.length && !L.shapeOf(t)) return '';
     return '<span class="tagstrip"><span class="sr-only">Tags: ' + esc(all.map(function (x) { return x.v; }).join(', ') || 'none') + '. </span>' + L.shapeTag(t, true) +
-      shown.map(function (x) { return '<span class="chip ' + x.g.cls + '" data-tag="' + esc(x.g.id + ':' + x.v) + '" title="' + esc(x.g.name) + '" aria-hidden="true"><span class="dot"></span>' + esc(x.v) + '</span>'; }).join('') +
+      shown.map(function (x) { return '<span class="chip ' + x.g.cls + '" data-tag="' + esc(x.g.id + ':' + x.v) + '" title="' + esc(x.g.name) + '" aria-hidden="true"><span class="dot"></span><span class="ellipsis" title="' + esc(x.g.name + ': ' + x.v) + '">' + esc(x.v) + '</span></span>'; }).join('') +
       (rest.length ? '<span class="chip ts-more" title="' + esc(rest.map(function (x) { return x.g.name + ': ' + x.v; }).join(', ')) + '" aria-hidden="true">+' + rest.length + '</span>' : '') + '</span>';
   };
   /* DAT-14 a track's name in a scene: L.data.sceneNames[sceneKey][trackId]. L.nameIn(t, key) is the scene's name for it

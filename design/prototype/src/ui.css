@@ -287,7 +287,9 @@ button .shape-g { color: inherit; }
 
 /* ORG-11 tags where music is chosen: compact, each with its tag group's dot; "+n" for the rest. */
 .tagstrip { position: relative; display: inline-flex; align-items: center; gap: 3px; flex: 0 1 auto; min-width: 0; overflow: hidden; }
-.tagstrip .chip { height: 18px; padding: 0 6px; font-size: var(--fs-xs); flex: none; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* UX-R17 (0.5.0 review): a chip shrinks to a few letters and an ellipsis, never clipped mid-word. */
+.tagstrip .chip { height: 18px; padding: 0 6px; font-size: var(--fs-xs); flex: 0 1 auto; min-width: 3.2em; max-width: 110px; overflow: hidden; white-space: nowrap; }
+.tagstrip .chip.ts-more { flex: none; min-width: 0; }
 .tagstrip .chip.ts-more { color: var(--ink-2); }
 .tagstrip .shape-tag { margin-right: 2px; }
 @container app (max-width: 820px) { .tagstrip .chip:nth-of-type(n+2):not(.ts-more) { display: none; } }
