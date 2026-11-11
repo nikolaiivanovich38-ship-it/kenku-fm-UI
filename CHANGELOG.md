@@ -4,7 +4,7 @@ All notable changes to Lyre (called Cue Desk in versions 0.1.x). Versions follow
 
 ## [Unreleased]
 
-## [0.5.0] - DATE: Live in seven boxes, Back everywhere, Rooms and Settings in Lyre
+## [0.5.0] - 2026-11-11: Live in seven boxes, Back everywhere, Rooms and Settings in Lyre
 
 **Live**
 - Live has seven boxes, each with one job: On air across the top, then Scenes and Current scene, then This session and Whole campaign, each with its playlists and pads. Boxes grow with what is in them and the page scrolls; session playlists and the campaign boxes start folded. Alt+1 to Alt+7 jump between them. [SHW-8]
@@ -12,7 +12,6 @@ All notable changes to Lyre (called Cue Desk in versions 0.1.x). Versions follow
 - Every track and playlist in Live has Play now, Play next, Add to queue and Preview: in Current scene, in any scene you unfold in Scenes, in the session and campaign boxes, and in Find. Play now from a scene that is not running plays that item without starting the scene. What you add belongs to that room for the evening; Undo takes it back. [PLY-16, SHW-7]
 - Find a track or playlist (/) searches your whole library from Live, for anything not in the plan. [ORG-14]
 - Repeat on the Now playing bar and in On air is per room, for what plays now; Repeat one on a scene's track is saved with the scene. The bar also has Shuffle and What played. [PLY-17, PLY-13, PLY-1]
-- A room's time runs to the track's End for that place, not to the end of the file. [DAT-3, SHW-3]
 - Keys you give "Work in other programs too" in Settings (for example F9 for Next scene) work while Discord is in front. [UX-12]
 
 **Getting around**
@@ -60,6 +59,9 @@ All notable changes to Lyre (called Cue Desk in versions 0.1.x). Versions follow
 - Stop all and Fade all also cancel what was waiting to start: a scene set to move on by itself, steps after a wait, and music waiting for a loop to end. A saved cue that stops one room cancels only what waited in that room. [PLY-8]
 - Next or Previous while a scene's music waits for the current track to end cancels that wait. [PLY-8]
 - A "Pick up where it stopped" track that plays to its end starts from the beginning next time, also after a restart. [PLY-4]
+- Back returns the session planner to where you left it, even at the very bottom of the scenes. [UX-18]
+- Find missing files keeps your place for the keyboard while Lyre looks in a folder.
+- A room's time in Live runs to the track's End for that place, not to the end of the file. [DAT-3]
 
 ## [0.4.1] - 2026-11-06: fixes from your test of 0.4.0
 
