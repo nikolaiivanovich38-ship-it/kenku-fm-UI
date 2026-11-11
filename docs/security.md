@@ -1055,10 +1055,11 @@ listening somewhere else.
 2. Lyre › Settings › Remote control › Your home network: the address shown is this computer's 192.168.x.x. Then
    `netstat -ano | findstr :3333` lists that address only, never 0.0.0.0.
 
-### Global keys (CR-6)
+### Global keys (CR-6, CR-7)
 
 `globalKeyProblem` (`src/common/globalKeys.ts`) refuses Ctrl+Alt with a letter, digit, sign or Space, with or without
 Shift: Windows reports AltGr as Ctrl+Alt, so a registered Ctrl+Alt+2 would take every @ typed on a Belgian AZERTY
 keyboard (AltGr+é) from Discord and other programs. Ctrl+Alt with an F key, an arrow or Page Up/Down is still allowed,
-and the suggestion in every refusal is now "F9 or Ctrl+Shift+N".
+and the suggestion in every refusal is now "F9 or Ctrl+Shift+N". CR-7: an F4 with Ctrl or Alt (Alt+F4, Ctrl+F4) is
+refused too, because it closes windows and tabs in every program.
 
