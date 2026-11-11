@@ -242,3 +242,14 @@ Each fault Nik found in 0.4.0 has a test that failed before its fix.
 ## w6-found (0.5.0 foundations and security)
 
 The tests for SEC-4 (remote control), SEC-14 (update problems) and SEC-9 are listed in `docs/security.md` > w6-found > Tests. BUG-11 and PERF-7 are in the tables above (`playlistPlaybackSlice.test.ts`, `Sound.test.ts`, `soundLengths.test.ts`). Script tests: `scripts/ci-gate.test.mjs` (FND-5: what the workflows check, when every end-to-end test runs, plain-words failure steps, the release waiting for the gate and CodeQL) and `scripts/electron-support.test.mjs` (SEC-1). `e2e/settings.spec.ts` checks the old Settings no longer says the Kenku FM Stream Deck plugin works as it is. Each test was seen to fail before its change.
+
+## w6-ux (0.5.0 usability review fixes)
+
+Each finding of the review (scratchpad/reviews/usability-0.5.0.md) has its check named `UX-R<n>` in the unit test of
+the screen it changes, and, where it shows on screen, in the spec of that screen: session-planner (UX-R1 steps
+dialog from the keyboard), outputs (UX-R2 Rooms at 200 % text; UX-R9 Nobody there), live (UX-R4 Esc in Find,
+UX-R6 Undo strips as groups), library and playlists (UX-R5 the Saved pop-up, UX-R3 round 6 cuts, UX-R18 24 px check
+boxes), campaigns, pad-boards and audio-profile (UX-R3 round 6 cuts, with the key how-tos that show only while the
+keyboard is in their box), settings (UX-R11 Add a bot's errors under their fields, UX-R16 the version) and help
+(UX-R15 the article's title). The pop-up's words are read from the live region a moment after it shows, so a spec
+that counts what is read out polls (`expect.poll`, campaigns.spec).
