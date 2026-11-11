@@ -829,7 +829,7 @@ function PlayedButton({ r }: { r: LiveRoom }) {
       title={`What played in ${r.name}, with Play again`}
       onClick={() => updateLive((s) => ({ playedOpen: { ...s.playedOpen, [r.roomId]: !open } }))}
     >
-      <Icon name="queue" size="s" />
+      <Icon name="history" size="s" />
     </button>
   );
 }

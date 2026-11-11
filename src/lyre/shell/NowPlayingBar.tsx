@@ -317,7 +317,7 @@ function WhatPlayed({ audio, room, named }: { audio: LyreAudio; room: RoomNowPla
   return (
     <>
       <button type="button" className="btn s icon r7-hov" aria-label="What played" title={`${title}, with Play again`} onClick={() => setOpen(true)}>
-        <Icon name="queue" size="s" />
+        <Icon name="history" size="s" />
       </button>
       <Dialog
         open={open}

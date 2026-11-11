@@ -20,6 +20,7 @@ import { FakeOutputs, SIDE_BOT, TABLE_BOT } from "../../outputs/testing/fakeOutp
 import { Shell } from "../../shell/Shell";
 import { expectNoAxeViolations } from "../../test/axe";
 import { SCREENS } from "..";
+import { ICONS } from "../../kit/icons";
 import { resetLiveState } from "./liveState";
 
 beforeEach(() => {
@@ -704,6 +705,8 @@ describe("PLY-16: Play next, Add to queue and Up next", () => {
     await playOn(sound);
     await userEvent.click(screen.getByRole("button", { name: "Next music track" }));
     await playOn(sound);
+    // UX-R14: its icon is a clock turning back, not Add to queue's lines.
+    expect(room("Table").getByRole("button", { name: "What played" }).querySelector("path")).toHaveAttribute("d", ICONS.history);
     await userEvent.click(room("Table").getByRole("button", { name: "What played" }));
     const played = within(room("Table").getByRole("list", { name: "What played in Table" })).getAllByRole("listitem");
     expect(played[1]).toHaveTextContent("Eerie dread");

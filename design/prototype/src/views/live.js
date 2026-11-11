@@ -492,7 +492,7 @@
   function playedOf(tg) { return (D.played && D.played[tg]) || []; }
   function playedButton(tg, name) {
     var kx = tg === 'table' ? '' : '-' + tg, open = !!S.playedOpen[tg];
-    return '<button class="btn s icon lv-rm-played' + (open ? ' on' : '') + '" data-act="lvplayed" data-tg="' + tg + '" data-k="lv-played' + kx + '" aria-expanded="' + open + '" aria-label="What played" title="What played in ' + esc(name) + ', with Play again">' + L.icon('queue', 's') + '</button>';
+    return '<button class="btn s icon lv-rm-played' + (open ? ' on' : '') + '" data-act="lvplayed" data-tg="' + tg + '" data-k="lv-played' + kx + '" aria-expanded="' + open + '" aria-label="What played" title="What played in ' + esc(name) + ', with Play again">' + L.icon('history', 's') + '</button>';
   }
   function playedList(tg, name) {
     if (!S.playedOpen[tg]) return '';

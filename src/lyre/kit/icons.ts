@@ -95,6 +95,8 @@ export const ICONS = {
   mute: "M3 10v4h3l8 5V5L6 10zM17 9.5l5 5M22 9.5l-5 5",
   leave: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
   playair: "M4 5v14l10-7zM17 8.5a4 4 0 0 1 0 7M19.8 5.7a8 8 0 0 1 0 12.6",
+  // UX-R14: What played, a clock turning back (Add to queue keeps the lines with a plus).
+  history: "M3 12a9 9 0 1 0 2.6-6.4L3 8M3 3v5h5M12 7v5l3 2",
 } as const;
 
 export type IconName = keyof typeof ICONS;

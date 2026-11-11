@@ -283,7 +283,7 @@
   /* ---------- PLY-1 what played ---------- */
   L.historyButton = function (target, name, k) {
     // Shown on pointer hover or keyboard focus in the row (round 6 rule 5: hide the rare, show the frequent).
-    return '<button class="btn s icon r7-hov" data-act="r7played" data-room="' + esc(target) + '" data-name="' + esc(name || '') + '" data-k="' + k + '-played" aria-label="What played" title="What played' + (name ? ' in ' + esc(name) : '') + ', with Play again">' + L.icon('queue', 's') + '</button>';
+    return '<button class="btn s icon r7-hov" data-act="r7played" data-room="' + esc(target) + '" data-name="' + esc(name || '') + '" data-k="' + k + '-played" aria-label="What played" title="What played' + (name ? ' in ' + esc(name) : '') + ', with Play again">' + L.icon('history', 's') + '</button>';
   };
   function ago(at) { var m = Math.round((Date.now() - at) / 60000); return m < 1 ? 'Now' : m + ' min ago'; }
   L.acts.r7played = function (el) {
