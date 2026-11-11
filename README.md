@@ -39,8 +39,8 @@ The first time Lyre starts, it copies your library from an app you used before: 
 - The other app's files are only read, never changed or deleted. It keeps working as before.
 - Your audio files are not copied. Playlists point to the files where they already are, so leave them in place.
 - Nothing is copied if Lyre already has a library of its own.
-- The first time you open the Lyre tab, your playlists and soundboards are brought into Lyre's own library. Soundboards become pad boards, and their sounds become pads. To see what came across, open **Library**, choose **⋯** beside **Add tracks**, then **What came across from Kenku FM**. It also lists files Lyre cannot find, with **Find them…**.
-- Background pictures: Lyre comes with its own 23 pictures, under the same names Kenku FM used (tavern, castle, stars …), so playlists and soundboards from Kenku FM show a picture straight away. They look different from Kenku FM's. Pictures you chose yourself from a file or web address are kept as they are.
+- The first time Lyre starts, your playlists and soundboards are brought into Lyre's own library. Soundboards become pad boards, and their sounds become pads. Your Discord bot comes across too; if Kenku FM kept its token unprotected, Lyre keeps it encrypted now and Settings says so once. To see what came across, open **Library**, choose **⋯** beside **Add tracks**, then **What came across from Kenku FM**. It lists files Lyre cannot find, with **Find them…**, and your bookmarks, each with **Copy**: websites can't be opened in Lyre for now.
+- Background pictures are not brought across: Lyre's screens have none.
 
 Where the libraries are kept on Windows:
 
@@ -58,9 +58,9 @@ If your library did not appear, and you have not added anything in Lyre yet: clo
 
 ## Find your way around
 
-Choose the **Lyre** tab at the top of the window. That is where you prepare and run your games. The Lyre Player tab beside it is the old Kenku-style player (see [Known limitations](#known-limitations)).
+Lyre opens in one window, where you prepare and run your games. Drag it by the bar at the top; its minimise, maximise and close buttons are at the top right.
 
-The menu on the left of the Lyre tab:
+The menu on the left:
 
 | In the menu | What it is for |
 | --- | --- |
@@ -70,7 +70,7 @@ The menu on the left of the Lyre tab:
 | Pad boards | Grids of sound effects, each on a pad you press or play with a key. |
 | Live | Where you run the evening: On air, the scenes, the current scene, and the session's and campaign's playlists and pads. |
 | Rooms | Your bots and the Discord voice channels they are in. Rooms was called Outputs before 0.5.0. |
-| Settings | Discord bots, Sound to Discord, Headphones and speakers, Remote control, Keyboard shortcuts and more. |
+| Settings | Discord bots, Sound to Discord, Headphones and speakers and Keyboard shortcuts. |
 | Look and feel | Colour themes, spacing, text size and high contrast. |
 | Help | Short how-to articles you can search. Press `F1` to open it from anywhere. |
 
@@ -80,7 +80,7 @@ The menu on the left of the Lyre tab:
 
 Lyre joins your voice channel as a Discord bot that you create once, for free. Lyre walks you through it.
 
-1. In the Lyre tab, open **Settings** in the menu. Under Discord bots, choose **Add a bot**. A window with three steps opens.
+1. Open **Settings** in the menu. Under Discord bots, choose **Add a bot**. A window with three steps opens.
 2. Step 1, Create it: choose **Open the Discord Developer Portal** and sign in. In Discord, choose **New Application**, give it a name, and choose **Create**. Back in Lyre, choose **Next**.
 3. Step 2, Invite it: in Discord, open **General Information** and choose **Copy** beside Application ID. Paste it into Lyre, then choose **Open the invite**. Pick your server and choose **Authorize**. You need the Manage Server permission on that server. The invite asks for three permissions: View Channels, Connect and Speak. Back in Lyre, choose **Next**.
 4. Step 3, Connect it: in Discord, open **Bot**, choose **Reset Token**, then **Copy**. Discord shows the token only once. Paste it into the Token box in Lyre and choose **Connect**. When Lyre says the bot is connected, choose **Done**.
@@ -94,21 +94,19 @@ Treat the token like a password. Anyone who has it can control your bot. Lyre ke
 
 ## Updates
 
-On Windows, Lyre checks this project's [Releases](https://github.com/nikolaiivanovich38-ship-it/kenku-fm-UI/releases) every 15 minutes. When an update has downloaded, a message says "A new version of Lyre is ready. Restart Lyre to use it." If Lyre cannot check for an update or install it, it tells you once, in plain words. The version you have keeps working.
+On Windows, Lyre checks this project's [Releases](https://github.com/nikolaiivanovich38-ship-it/kenku-fm-UI/releases) every 15 minutes. When an update has downloaded, a note at the bottom right says "Lyre has an update. Restart Lyre to use it.", with **Restart now**. If Lyre cannot check for an update or install it, it tells you once, in plain words. The version you have keeps working.
 
-Lyre never installs updates from Kenku FM. Cue Desk test versions do not update to Lyre: install Lyre once, and it brings their library across. Your version number is shown at the top right of Lyre's Settings.
+Lyre never installs updates from Kenku FM. Cue Desk test versions do not update to Lyre: install Lyre once, and it brings their library across. Your version number is shown at the top right of Settings and at the foot of Help.
 
 ## Known limitations
 
-- The old Lyre Player tab and the old main window around it are still there in 0.5.0. They go away in 0.5.1. Prepare and run your games in the Lyre tab, and use Settings in the Lyre tab: only that Settings turns the remote control on.
-- The Stream Deck does not work with Lyre for now. Lyre's remote control now needs a secret code with every request, and the Kenku FM Stream Deck plugin cannot send it yet. Stream Deck support comes in a later release.
-- Sites that use copy protection (DRM), such as Spotify, do not play in website tabs. Upstream Kenku FM is built on a special version of Electron that supports it; Lyre uses the standard version, which receives security updates for longer.
+- Since 0.5.1 there is no old Player tab and no website tabs. Playing YouTube, Spotify and other websites into Discord, and sending a microphone to Discord, may come back in a later release. Keep a portable copy of Lyre 0.4.1 (its zip) if you still need them.
+- Remote control and the Stream Deck do not work with Lyre for now. They come back with Lyre's own Stream Deck support in a later release.
 
 ## Help
 
 - Something wrong? [Open an issue](https://github.com/nikolaiivanovich38-ship-it/kenku-fm-UI/issues). Please do not contact Owlbear Rodeo about this fork.
 - In Lyre, press `F1` for short how-to articles, and a tour you can take again. If you report a problem, Help › **Save diagnostics…** saves a zip file to attach. Your tokens and user name are taken out, and nothing is sent anywhere.
-- Remote control: in the Lyre tab, open **Settings**, then Remote control, and turn on Let other devices control Lyre. It is off until you do. Each device needs the secret code shown there (**Copy code**). The Kenku FM Stream Deck plugin cannot send the code yet, so it cannot control Lyre for now.
 - What changed in each version: [CHANGELOG.md](CHANGELOG.md).
 
 ## For the project owner

@@ -1,97 +1,32 @@
 # Testing
 
-## Playback characterisation tests
-
-These tests record how playlist and soundboard playback behave today. The playback engine is due to be rewritten in WP4, and these tests are the specification for that rewrite: a rewrite that keeps them green behaves the same for the user. Where a test pins a known bug, its name says so and it is marked `it.fails`. When that bug is fixed, change the test to a normal `it`.
-
-Design round 7 (`design/prototype/ROUND7.md`) added a `round 7` block to the settings, playlists, pad boards, session planner, library, audio profile and campaigns spec files, two new files, and two sweeps. `tags.spec.ts` covers the Tags screen (`#/tags`, the `tags` screen: groups in order, rename, merge and delete with Undo, tags inside tags, other words, colours, a new group on every track) and is marked by its screen; `look.spec.ts` covers Look and feel's Display (density, text size to 200 % without sideways scroll, high contrast at 7:1) and A11Y-6 (reduced motion, targets of 24 px or with 24 px of space). The sweeps add the Tags screen and, per screen at 960 and 1920, UX-6: every name cut short has its full text on hover, and focus shows it. Every other round 7 check calls `expectFailureUntilBuilt("round 7")`: Settings' remote control code, headphones and speakers, crossfade and keys; folders, dividers, the drop tray and Add to…; a scene's and a pad's steps and a scene that moves on by itself; a track's behaviour and follow-with; mix out and playing from a marker; What played and Find and play (Ctrl+K). Settings' Sound to Discord is now folded, so the check that reads it unfolds it first; two exact-menu checks of built screens ignore the round 7 menu items (Tags and groups…, Move to folder…). The prototype keeps its data in the page, so a check that needs a change to survive goes to the next screen by the menu, not `openRoute`.
-
-### Running them
-
-From the project folder:
+## Running the unit tests
 
 ```
 yarn test                                        # every test
-yarn test src/player/features/playlists          # playlist tests only
-yarn test src/player/features/soundboards        # soundboard tests only
+yarn test src/engine                             # the playback engine only
 yarn test:coverage                               # with a coverage report in coverage/index.html
 ```
 
-No audio is played. `howler` is replaced by a fake (`src/player/test/fakeHowler.ts`) that records every call and lets a test fire Howler's events ("load", "play", "end", "fade", "loaderror") by hand. Timers are faked, so a 10-second sound with a 100 ms fade-out is tested in milliseconds.
+FND-16 (0.5.1): the old player's characterisation tests (Howler playback, its Redux slices) went with the old player; the engine in `src/engine` has its own (below).
 
-### What each file pins
+Design round 7 (`design/prototype/ROUND7.md`) added a `round 7` block to the settings, playlists, pad boards, session planner, library, audio profile and campaigns spec files, two new files, and two sweeps. `tags.spec.ts` covers the Tags screen (`#/tags`, the `tags` screen: groups in order, rename, merge and delete with Undo, tags inside tags, other words, colours, a new group on every track) and is marked by its screen; `look.spec.ts` covers Look and feel's Display (density, text size to 200 % without sideways scroll, high contrast at 7:1) and A11Y-6 (reduced motion, targets of 24 px or with 24 px of space). The sweeps add the Tags screen and, per screen at 960 and 1920, UX-6: every name cut short has its full text on hover, and focus shows it. Every other round 7 check calls `expectFailureUntilBuilt("round 7")`: Settings' remote control code, headphones and speakers, crossfade and keys; folders, dividers, the drop tray and Add to…; a scene's and a pad's steps and a scene that moves on by itself; a track's behaviour and follow-with; mix out and playing from a marker; What played and Find and play (Ctrl+K). Settings' Sound to Discord is now folded, so the check that reads it unfolds it first; two exact-menu checks of built screens ignore the round 7 menu items (Tags and groups…, Move to folder…). The prototype keeps its data in the page, so a check that needs a change to survive goes to the next screen by the menu, not `openRoute`.
 
-| Test file | What it covers |
-| --- | --- |
-| `playlists/playlistsSlice.test.ts` | Playlist library: add/remove/edit playlists and tracks, new tracks added at the top, drag-to-reorder, edits without an id throw. |
-| `playlists/playlistPlaybackSlice.test.ts` | Queue logic: starting a queue (shuffled and not), turning shuffle on/off keeps the current track, reordering, removing a track before/at/after the current one, adding tracks keeps the current track, and the transport state (play, stop, volume, mute, repeat). Shuffle is replaced by "reverse the list", so orders are exact. |
-| `playlists/usePlaylistPlayback.test.tsx` | Next, previous and "track ended" for every combination of repeat (off/track/playlist) and shuffle, including wrap-around at both ends; "previous" restarts the track when more than 5 s in; the fixed 1000 ms cross-fade on a track change and unloading of the old track; errors show "Unable to play track: &lt;title&gt;". |
-| `soundboards/soundboardsSlice.test.ts`, `soundboardPlaybackSlice.test.ts` | Soundboard library and the list of sounds currently playing. |
-| `soundboards/Sound.test.ts` | One sound's fades and loops for every fade-in/fade-out/loop combination, the cross-faded loop releasing its audio (500 loops), stop with and without fade, and seek moving the fade-out point. PERF-7: a sound without fades streams until it is known to be 30 s or shorter, and only then is decoded whole. |
-| `soundboards/soundLengths.test.ts` | PERF-7: the remembered sound lengths (30 s limit, kept across restarts in localStorage, oldest forgotten beyond 2,000, storage that refuses or holds rubbish). |
-| `soundboards/useSoundboardPlayback.test.tsx` | Playing, stopping, seeking; a non-looping sound is removed when it ends; errors show "Unable to play sound: &lt;title&gt;". |
+## End-to-end checks
 
-The navigation logic in `usePlaylistPlayback.ts` exists three times (in `next`, `previous` and the track-end handler). The navigation table in its test file runs the same cases through all three, so WP4 can merge them into one function and check nothing changed. They differ in one place: with repeat "track", the end handler restarts the track by calling `play()`, while next/previous only seek to 0.
-
-### Known bugs these tests document
-
-- **QUEUE-1** (`playlistPlaybackSlice.test.ts`): with shuffle off, removing a track from the playing playlist could make a different track "current", because `removeTrackFromQueue` always walked the shuffled order. Fixed in 0.5.0 (BUG-11); the test is a normal test now, with three more for removing the current and a later track and for the shuffled order that remains.
-- Characterisation only, not marked as bugs: `startQueue` with a track id that is not in the list gives `current: -1`; removing the current track when it is last in the shuffled order also gives `current: -1`.
-
-### Helpers for new tests
-
-- `src/player/test/fakeHowler.ts`: use it with `vi.mock("howler", () => import("../../test/fakeHowler"))`. `FakeHowl.instances` lists every Howl created; `FakeHowl.reset()` belongs in `beforeEach`.
-- `src/player/test/createPlayerStore.ts`: a Redux store with the real reducers and no saving to disk, for hook and component tests.
-
-## End-to-end checks of Kenku FM's features
-
-These Playwright tests start the packaged app and use it the way a person would, to show it still does everything Kenku FM did. How to build and run them: `docs/DEVELOPING.md` > End-to-end tests.
+These Playwright tests start the packaged app and use it the way a person would. How to build and run them: `docs/DEVELOPING.md` > End-to-end tests. Since 0.5.1 (FND-16) the window's own page is the Lyre page; the specs of the old main window and Player (tabs, bookmarks, local files, the old Settings and sidebar, playlists, soundboards, backgrounds, capture of the player and tabs, the old keyboard and on-screen checks, the remote API, the engine and rooms test hooks) went with them.
 
 | Spec file | What it covers |
 | --- | --- |
-| `e2e/smoke.spec.ts` | The app starts with its main window and player; nothing fails at start-up; the problem check itself notices a Content-Security-Policy refusal. |
-| `e2e/playlists.spec.ts` | Create, rename and delete a playlist; add two tracks from disk; play one and see the time move; pause and resume; next and previous with wrap-around (repeat starts as "playlist"); repeat track keeps a short track going and repeat off lets it end; shuffle on/off; volume slider, mute and unmute; edit and delete a track (deleting the playing track stops playback); play a playlist from its card on the home page; a picture from disk as a custom background. |
-| `e2e/soundboards.spec.ts` | Create a soundboard; add a sound without fades (Web Audio) and one with fades (audio element); play once and see it end by itself; stop early; loop with cross-fades and with Howler's own loop; stop from the player bar; sound volume; edit name and fade; delete a sound and the soundboard. |
-| `e2e/persistence.spec.ts` | Playlists, tracks, soundboards, sound loop setting, bookmarks, player volume and repeat, and the remote port survive quitting and restarting with the same data folder; the restored track still plays. |
-| `e2e/tabs.spec.ts` | Open a local web page from the address bar, follow a link, Back, Forward, Reload, close the tab; bookmark a page, open the bookmark, edit it (a refused address keeps the dialog open), delete it; `file:///etc/passwd` in the address bar shows a message and opens nothing. |
-| `e2e/settings.spec.ts` | Token field and "Where do I get my token?" link (opens in the system browser); a bad token ends in "Error connecting to bot: …" and the form is usable again; Clear Cache removes website cookies; the version number is shown. One test is marked as an expected failure (see below). |
-| `e2e/remote.spec.ts` | Remote switched on in Settings on a free port; `GET /v1/playlist`, `PUT /v1/playlist/play` (track and playlist), `GET /v1/playlist/playback`, `PUT /v1/playlist/playback/pause` and `/play`, `GET /v1/soundboard`, `PUT /v1/soundboard/play`, `GET /v1/soundboard/playback`, `PUT /v1/soundboard/stop`, each checked against the player, all with the secret code read through the Lyre page (SEC-4); without it 401, from a web page or a web name 403, text/plain 415, and no `file:` address in answers; switching it off closes the port. |
-| `e2e/carryOver.spec.ts` | FND-1: a library made in `<appData>/Kenku FM` appears in Lyre on its first normal start, the carry-over record says "copied", and later changes in Lyre leave the Kenku FM library alone; with libraries in both `<appData>/cue-desk` and `<appData>/Kenku FM`, Lyre takes Cue Desk's (Linux only, where `XDG_CONFIG_HOME` moves appData). |
-| `e2e/capture.spec.ts` | Tab audio capture for Discord (SEC-3). |
-| `e2e/backgrounds.spec.ts` | Built-in background pictures: the Add Playlist dialog offers the 23 pictures under Kenku FM's names plus "blank", and they load from the app itself (1600 px wide JPEGs, not files in the data folder, which gets no `backgrounds` folder); a library saved with a playlist on "tavern" and a soundboard on "butterflys" shows the bundled pictures on both cards after a restart, and the open playlist shows the same picture behind its page. |
-| `e2e/engine.spec.ts` | WP4 playback engine in real Chromium, through the test-build hook `window.__cueDeskEngineTest`: a streamed WAV on the music bus is heard on the music bus and the table mix and nowhere else; a short sound is read from `file://` and decoded to a buffer; a preview is heard on the preview output only (PRV-1); a whisper on the whisper output only (OUT-5); stop all silences every output; a missing file fails with a message. Levels are measured with AnalyserNodes. |
-
-| `e2e/capture.spec.ts` | Tab audio capture for Discord (SEC-3): the player cannot be captured outside a broadcast and is captured when it plays during one; a website tab is captured when it plays during a broadcast, and the captured site still cannot record the screen or desktop audio. |
-| `e2e/onScreen.spec.ts` | Wave 1 UX findings 1, 4, 7, 8, 10: the "Add a second bot" guide, the Settings panel, the Mode list and the bookmark folder menu are on screen at 800 × 600 and 1920 × 1080, checked against where the main process draws the website and player views (`fixtures/screen.ts`), not only in the page; Settings is 320 px at 800 px and 440 px at 1920 px, with the player beside it and no text cut off; a missing file is explained in the sidebar (and beside the collapsed sidebar), opens no tab, and the message closes once a page opens. |
-| `e2e/keyboard.spec.ts` | Wave 1 UX findings 2, 3, 12: a gold focus outline is drawn around focused controls (counted in a screenshot) and not after a click; Enter and Space press a tab's Bookmark and Close buttons; a tab (Left/Right) and a bookmark (Up/Down) move with the keyboard from their handle, and screen readers hear their names and new positions; Move to folder… and Delete folder from the keyboard, with focus moving to the next bookmark. |
-| `e2e/outputs.spec.ts` | WP2 SEC-5/OUT-1 (fake Discord): a typed bot token never appears in `persist:root` or anywhere in the data folder (UTF-8 or UTF-16), and survives a restart only where it can be encrypted (otherwise Settings says it is kept for the session); a token saved by an older version is moved out of browser storage and the bot connects with no action; the "Add a second bot" guide and its Developer Portal link; two bots in two channels of one server both receive audio, and muting one stops only its audio; OUT-2: the status chip reads Ready, Connected, Reconnecting… (fake network drop, then back by itself) and Error with a plain reason that stays after the message box is closed, with a Reconnect button; BUG-6/BUG-7: a refused channel is explained, and leaving a Stage channel closes its connection. Wave 1 UX: a refused token is explained in plain words, not kept, Enter connects, and the message closes once a good token connects; the reconnect wait counts down and "Try now" reconnects at once; the collapsed sidebar shows each output's status and mutes it; why This Computer switched off. |
-| `e2e/broadcast.spec.ts` | WP2 (fake Discord, `e2e/fixtures/discord.ts`): nothing is recorded before an output joins a voice channel, joining starts recording and leaving stops it; the start of a sound (Web Audio and an audio element, a tone whose volume rises evenly) is missed by about 100 ms at most (median of three; typical 15-40 ms); the delay from a tab's sound to Discord is under 250 ms in both streaming modes (PERF-8; measured ~120-140 ms, "performance" mode used to add half a second). |
+| `e2e/smoke.spec.ts` | The window opens on the Lyre page ("Lyre"); the Lyre page and the capture window are the app's only pages; nothing fails at start-up; the problem check itself notices a Content-Security-Policy refusal. |
+| `e2e/lyre.spec.ts` | One window with the Lyre page alone (no tab bar, nothing laid over it); its protections (sandbox, context isolation, only `window.lyre`, its policy, pinned to its document); routes, focus and themes; axe; links it opens go to the system browser, https only, and open no window. |
+| `e2e/broadcast.spec.ts` | The path every Discord packet takes (prototype library and Discord): music on air reaches its room's bot as sound and no other room, and stops after Stop; a preview reaches no room (OUT-5, PRV-1). |
+| `e2e/onAir.spec.ts` | BUG-12, BUG-13, BUG-19: what plays belongs to the Lyre page, keeps playing across screens and is heard only through Discord. |
+| `e2e/upgrade.spec.ts` | FND-16: a Kenku FM user upgrading straight to 0.5.1: playlists come in, the moved token logs its bot in, Settings says so once, Sound to Discord is kept, the bookmarks are listed, the old storage is left as it was. |
+| `e2e/carryOver.spec.ts` | FND-1: a library made in `<appData>/Kenku FM` appears in Lyre on its first normal start; Cue Desk's is preferred to an older Kenku FM one (Linux only, where `XDG_CONFIG_HOME` moves appData). |
+| `e2e/lyreLibrary.spec.ts`, `lyreMedia.spec.ts`, `mediaProtocol.spec.ts`, `padIcons.spec.ts`, `screenCapture.spec.ts` | The library's process, media addresses, pad icons, and that the app's pages cannot record the screen. |
 
 Every test also fails if any page logged a console error, threw an uncaught error, broke a Content-Security-Policy rule or was refused by the IPC guard, or if the main process crashed (`e2e/fixtures/problems.ts`).
-
-### Known issues these tests document
-
-- Fixed during WP1: error messages used to sit at the bottom left, over the Settings panel's Done button, and were hidden from screen readers while Settings was open. Wave 1 UX fixes moved them into the sidebar's layout (or the Settings panel while it is open), where website views cannot cover them and they cover nothing; `settings.spec.ts` and `onScreen.spec.ts` check this.
-- The shuffle button does not say whether shuffle is on (no `aria-pressed`); the test reads the icon colour. The custom-background address field's label is on its wrapper, not on the input.
-- Closing a website tab while its capture is still starting no longer logs "Unable to start stream for web view" (fixed in WP1); `tabs.spec.ts` still waits briefly before closing tabs.
-
-## Current player fixes (WPL)
-
-Fixes to the current player (`src/player`), which the new interface replaces later.
-
-| Test file | What it covers |
-| --- | --- |
-| `features/idleWakeUps.test.tsx` | PERF-1: counts every timer and animation-frame callback (`test/countWakeUps.ts`) over a minute of fake time with both playback hooks mounted. Before: 3,750 a minute with nothing played, 7,500 with a track paused or playing. Now: none when idle (at most one last tick after a pause or stop), one a second while a track plays. These are wake-up counts, not CPU: PERF-1's "idle CPU measured before/after" has not been done yet (a manual check on Windows: Task Manager's CPU column for Cue Desk with nothing playing, before and after this change). |
-| `features/remoteListeners.test.tsx` | PERF-1: the remote API listeners are registered once (before: 311 re-registrations in one minute of playback) and still answer with the current state and call the current callbacks. |
-| `app/throttledStorage.test.ts`, `app/store.test.ts`, `app/saveErrors.test.tsx` | PERF-6: while the mouse button or a key is held (a slider drag), the library and player settings are saved at most once every 500 ms, and the final value as soon as the user lets go (or the page loses focus, is hidden or reloads, or the main process asks before closing the window). Other changes are saved at once, as before. Before: 100 saves for a 3-second, 100-step drag; now at most 7. A save that fails shows "Your changes could not be saved: &lt;reason&gt;. They will be retried." once per run of failures, and is tried again with the next change. |
-| `src/main/saveBeforeClose.test.ts`, `src/main/managers/PlayerManager.test.ts` ("saving the player's changes") | PERF-6: the first quit (held at `before-quit`, before any window closes) or the main window's first close is held until the player answers `PLAYER_SAVE_NOW` with `PLAYER_SAVED` (only the registered player view's answer counts), or 1 second has passed; then the quit or close is repeated. |
-| `playlists/usePlaylistPlayback.test.tsx` ("deleting the playing track"), `playlists/TrackItem.test.tsx` | BUG-8: deleting the playing track, or its playlist, stops and unloads it and clears the player bar; the play key cannot resume it. The queue keeps the deleted track's place (`queue.removedCurrent`): Next and Previous (player bar, media keys, remote) play the entry after or before it, in shuffled order when shuffle is on, wrapping round with repeat "playlist" and doing nothing at the ends with repeat "off". A track still loading after a skip carries on; a track deleted while it is still loading never plays, and the track it was about to replace keeps playing. |
-
-End-to-end: `playlists.spec.ts` also checks that the player bar shows no title, time or media-key metadata after the playing track is deleted and that Next then plays the remaining track; `persistence.spec.ts` checks that a volume change and a rename made just before quitting are kept, and that a volume change made while the key is still held down when the app quits is kept.
-
-Saving is not delayed outside a held button or key because Electron destroys the player view without running its `pagehide` or `beforeunload` handlers when the app quits (`BrowserViewManagerMain.removeAllBrowserViews` closes and destroys at once), so a held-back save would be lost. For a change held back at the moment of closing, `src/index.ts` holds the first quit, or the main window's first close (`src/main/saveBeforeClose.ts`), and `PlayerManager.saveBeforeClose` asks the player to save first. The quit is held at `before-quit` because holding a window's `close` during a quit cancels the quit, and Electron then does not close that window again when the quit is repeated (the app never exited). A crash of the main process can still lose up to 500 ms of slider movement.
-
-BUG-11 (QUEUE-1) was fixed in 0.5.0: `removeTrackFromQueue` reads "current" in the playlist's order when shuffle is off. The BUG-8 fix never relied on it: after the playing track is deleted, `usePlaylistPlayback` works out the queue position itself from the queue as it was before the deletion.
 
 ## Library database tests
 
@@ -99,7 +34,7 @@ BUG-11 (QUEUE-1) was fixed in 0.5.0: `removeTrackFromQueue` reads "current" in t
 
 ## Playback engine tests (WP4)
 
-The new engine in `src/player/engine` is tested without a browser: `testing/fakeAudio.ts` is a fake Web Audio context with media elements and one clock for audio time and timers. It records every node and connection, follows gain automation, and `signalAt(node)` multiplies gains along every path from the sources that are sounding, so a test can "listen" to a bus or an output. `advance(seconds)` plays a session forward in milliseconds; `testing/seededRandom.ts` makes shuffles repeatable.
+The engine in `src/engine` is tested without a browser: `testing/fakeAudio.ts` is a fake Web Audio context with media elements and one clock for audio time and timers. It records every node and connection, follows gain automation, and `signalAt(node)` multiplies gains along every path from the sources that are sounding, so a test can "listen" to a bus or an output. `advance(seconds)` plays a session forward in milliseconds; `testing/seededRandom.ts` makes shuffles repeatable.
 
 | Test file | What it covers |
 | --- | --- |
@@ -109,7 +44,7 @@ The new engine in `src/player/engine` is tested without a browser: `testing/fake
 | `engine.test.ts` | Routing by bus, fade all and stop all, events, the progress ticker running only while something plays (PERF-1), playing addresses through the loader. |
 | `sources/*.test.ts` | Stream or decode (PERF-7), the LRU buffer cache with its memory cap, the resolver hook for PLY-11 and BUG-10, reading small files with early give-up. |
 
-The old player's characterisation tests stay as they are until WP5 moves the player onto the engine. The QUEUE-1 test in `playlistPlaybackSlice.test.ts` passes since 0.5.0 (BUG-11 fixed in the old player too); the engine's queue has its own fix (`queue.test.ts`, "remove (BUG-11)").
+The engine's queue has its own fix for the old player's QUEUE-1 (`queue.test.ts`, "remove (BUG-11)").
 
 ## WP2 Tabs
 
