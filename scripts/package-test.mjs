@@ -167,7 +167,7 @@ async function main(argv) {
 
   const dirty = dirtyAfterPackaging(root, before);
   writeStamp(root, { commit: before.commit, dirty, e2eBuild: E2E_BUILD, asar: fingerprint(asarPath(folder)), builtAt: new Date().toISOString() });
-  console.log(`package:test: test package made from ${short(before.commit)}${dirty ? " with uncommitted changes (it will be made again next time)" : ""}.`);
+  console.log(`package:test: test package made from ${short(before.commit)}${dirty ? ", but the app's code had uncommitted changes or changed while it packaged, so it will be made again next time" : ""}.`);
   return 0;
 }
 
