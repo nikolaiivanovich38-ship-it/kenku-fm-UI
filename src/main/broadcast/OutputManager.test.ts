@@ -219,6 +219,30 @@ describe("OutputManager: any number of outputs (OUT-1)", () => {
     expect(m.state().bots[1].muted).toBe(true);
   });
 
+  it("w51-audio: says in the log once a minute when a bot's player had holes or dropped packets, and nothing otherwise", async () => {
+    const m = newManager();
+    const id = await connectedBot(m);
+    await m.bots.get(id)?.join(FAKE_CHANNELS.tavern.id);
+    await settle();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    vi.useFakeTimers();
+    try {
+      const timing = vi.spyOn(m.bots.get(id)!.feed, "timing");
+      timing.mockReturnValue({ packets: 0, holes: 0, dropped: 0 });
+      m.sendPacket(Buffer.from([1, 2, 3]));
+      timing.mockReturnValue({ packets: 3000, holes: 4, dropped: 1 });
+      vi.advanceTimersByTime(60_000);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0][0])).toMatch(/^Audio timing, last minute: bot .+: 3000 packets, 4 holes \(20 ms of silence each\), 1 dropped to keep the delay short$/);
+      expect(m.audioTiming()).toEqual({ [id]: { packets: 3000, holes: 4, dropped: 1 } });
+      vi.advanceTimersByTime(60_000);
+      expect(warn).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+      warn.mockRestore();
+    }
+  });
+
   it("switches This Computer off on the first join and back on after the last leave", async () => {
     const m = newManager();
     const local: boolean[] = [];

@@ -65,6 +65,9 @@ const UNNAMED_ROOM = "";
 
 /** OUT-5: a room's inlet is freed after this long without frames from the player page. */
 export const PLAYER_INLET_IDLE_MS = 5_000;
+/** w51-audio: the preview's key in the audio timing counts. */
+const PREVIEW_TIMING = "preview";
+
 /** PRV-1: the preview's audio context is closed after this long without frames. */
 export const PREVIEW_IDLE_MS = 10_000;
 /** PRV-2: what the player page is told when a device cannot be used. */
@@ -88,6 +91,12 @@ interface PreviewPlayback {
   ready: Promise<AudioWorkletNode | undefined>;
   timer?: ReturnType<typeof setTimeout>;
 }
+
+/** w51-audio: how Lyre's frames for one room (or the preview) have fared here. */
+export type InletTiming = { frames: number; holes: number; dropped: number; wait: number };
+
+/** w51-audio: how often the log says whether Lyre's sound arrived late. */
+export const AUDIO_TIMING_LOG_MS = 60_000;
 
 /** One frame from the PCM worklet (see PCMStream.worklet.js). */
 type WorkletFrame = { index: number; samples: Float32Array<ArrayBuffer>; last?: boolean };
@@ -155,6 +164,11 @@ export class AudioCaptureManagerPreload {
   _playerPort?: AudioPortLike;
   /** Engine rooms' frames, one inlet per room that is sending. */
   _playerInlets = new Map<string, PlayerInlet>();
+  /** w51-audio: frames, holes and drops per room id (and "preview"), since this window loaded. */
+  _audioTiming = new Map<string, InletTiming>();
+  /** w51-audio: the counts at the last log line, and its timer (running only while frames come). */
+  _audioTimingLogged = new Map<string, InletTiming>();
+  _audioTimingTimer?: ReturnType<typeof setInterval>;
   _preview?: PreviewPlayback;
   /** PRV-2: the preview's device ("" is the default), kept while its context comes and goes. */
   _previewSinkId = "";
@@ -413,6 +427,7 @@ export class AudioCaptureManagerPreload {
         outputChannelCount: [2],
       });
       node.connect(mix.volume);
+      node.port.onmessage = (event: MessageEvent) => this._noteInlet(room, event.data);
       inlet = { node };
       this._playerInlets.set(room, inlet);
       this._updateRunning();
@@ -426,6 +441,7 @@ export class AudioCaptureManagerPreload {
       this._updateRunning();
     }, PLAYER_INLET_IDLE_MS);
     inlet.node.port.postMessage({ index, samples }, [samples.buffer]);
+    this._timingOf(room).frames++;
   }
 
   _releasePlayerInlet(room: string): void {
@@ -466,6 +482,7 @@ export class AudioCaptureManagerPreload {
             outputChannelCount: [2],
           });
           node.connect(context.destination);
+          node.port.onmessage = (event: MessageEvent) => this._noteInlet(PREVIEW_TIMING, event.data);
           return node;
         } catch (error) {
           console.error("Unable to play the preview", error);
@@ -496,6 +513,60 @@ export class AudioCaptureManagerPreload {
     this._armPreviewTimer(preview);
     const node = await preview.ready;
     node?.port.postMessage({ index, samples }, [samples.buffer]);
+    if (node) this._timingOf(PREVIEW_TIMING).frames++;
+  }
+
+  /** w51-audio: frames, holes and drops so far, per room id and "preview" (Save diagnostics, tests). */
+  audioTiming(): Record<string, InletTiming> {
+    return Object.fromEntries([...this._audioTiming].map(([key, timing]) => [key, { ...timing }]));
+  }
+
+  _timingOf(key: string): InletTiming {
+    let timing = this._audioTiming.get(key);
+    if (!timing) {
+      timing = { frames: 0, holes: 0, dropped: 0, wait: 2 };
+      this._audioTiming.set(key, timing);
+    }
+    if (!this._audioTimingTimer) {
+      this._audioTimingTimer = setInterval(() => this._logAudioTiming(), AUDIO_TIMING_LOG_MS);
+    }
+    return timing;
+  }
+
+  /** What an inlet worklet says as it happens: a frame came late (a hole), or one was dropped. */
+  _noteInlet(key: string, data: unknown): void {
+    const message = data as { kind?: unknown; wait?: unknown } | null;
+    if (message?.kind === "hole") {
+      const timing = this._timingOf(key);
+      timing.holes++;
+      if (typeof message.wait === "number") timing.wait = message.wait;
+    } else if (message?.kind === "dropped") {
+      this._timingOf(key).dropped++;
+    }
+  }
+
+  /**
+   * Once a minute while Lyre's frames come: a warning in the log (so in Help › Save diagnostics) when any arrived
+   * late or were dropped; nothing when all was well. The timer stops after a minute without frames.
+   */
+  _logAudioTiming(): void {
+    const parts: string[] = [];
+    let frames = 0;
+    for (const [key, now] of this._audioTiming) {
+      const before = this._audioTimingLogged.get(key) ?? { frames: 0, holes: 0, dropped: 0, wait: 2 };
+      const minute = { frames: now.frames - before.frames, holes: now.holes - before.holes, dropped: now.dropped - before.dropped };
+      frames += minute.frames;
+      if (minute.holes > 0 || minute.dropped > 0) {
+        const name = key === PREVIEW_TIMING ? "preview" : `room ${key}`;
+        parts.push(`${name}: ${minute.frames} frames, ${minute.holes} late (holes), ${minute.dropped} dropped, waits for ${now.wait}`);
+      }
+      this._audioTimingLogged.set(key, { ...now });
+    }
+    if (parts.length > 0) console.warn(`Audio timing, last minute: ${parts.join("; ")}`);
+    if (frames === 0 && this._audioTimingTimer) {
+      clearInterval(this._audioTimingTimer);
+      this._audioTimingTimer = undefined;
+    }
   }
 
   /** PRV-2: play the preview on another device; the player page is told whether it worked. */

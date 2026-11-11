@@ -731,6 +731,41 @@ describe("AudioCaptureManagerPreload: engine rooms and preview from the player p
     }
   });
 
+  it("w51-audio: counts each room's and the preview's frames, holes and drops, for Save diagnostics and the tests", async () => {
+    const { manager, port } = await withPlayer();
+    port.deliver(roomFrame(A, 0));
+    port.deliver(roomFrame(A, 1));
+    port.deliver(previewFrame(0));
+    await settle();
+    const roomInlet = inlets()[0];
+    roomInlet.port.onmessage?.({ data: { kind: "hole", wait: 3 } });
+    roomInlet.port.onmessage?.({ data: { kind: "dropped" } });
+    roomInlet.port.onmessage?.({ data: { kind: "odd" } });
+    expect(manager.audioTiming()).toEqual({
+      [A]: { frames: 2, holes: 1, dropped: 1, wait: 3 },
+      preview: { frames: 1, holes: 0, dropped: 0, wait: 2 },
+    });
+  });
+
+  it("w51-audio: says in the log once a minute, in plain words, when Lyre's sound arrived late or was dropped", async () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const { port } = await withPlayer();
+      port.deliver(roomFrame(A, 0));
+      inlets()[0].port.onmessage?.({ data: { kind: "hole", wait: 3 } });
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0][0])).toMatch(/^Audio timing, last minute: room bot-a: 1 frames, 1 late \(holes\), 0 dropped/);
+      // A quiet minute says nothing.
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(warn).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
   it("plays the preview on the chosen device and says when it cannot (PRV-2)", async () => {
     const manager = newManager();
     const port = new FakePort();

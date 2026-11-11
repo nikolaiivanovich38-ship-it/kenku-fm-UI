@@ -8,7 +8,11 @@ import { applicationIdProblem, isApplicationId, tokenProblem, type LyreBotResult
 import type { BotTokenStore, RemovedBot } from "./botTokenStore";
 import { defaultDiscordDriver, type DiscordDriver } from "./discordDriver";
 import { DiscordBot, isTokenProblem } from "./DiscordBot";
+import type { FeedTiming } from "./opusFeed";
 import { RetryClock } from "./retryClock";
+
+/** w51-audio: how often the log says whether the bots' players had holes. */
+export const AUDIO_TIMING_LOG_MS = 60_000;
 
 const GONE: LyreBotResult = { ok: false, message: "That bot is no longer in Lyre." };
 
@@ -70,6 +74,9 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
   private lastRooms: Room[] = [];
   /** OUT-5: room volumes by bot id; a bot not listed is at full volume. */
   private volumes = new Map<string, number>();
+  /** w51-audio: each bot's counts at the last log line, and the minute timer (running only while packets flow). */
+  private timingLogged = new Map<string, FeedTiming>();
+  private timingTimer?: ReturnType<typeof setInterval>;
   /** OUT-8: bots taken out by Remove, kept in memory (never written) until the app closes, for Remove's Undo. */
   private removed = new Map<string, { record: RemovedBot; channelId: string | null; volume: number | undefined; muted: boolean }>();
 
@@ -106,6 +113,8 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
 
   destroy(): void {
     this.ipc.dispose();
+    if (this.timingTimer) clearInterval(this.timingTimer);
+    this.timingTimer = undefined;
     for (const bot of this.bots.values()) {
       bot.destroy();
     }
@@ -163,6 +172,38 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
     const target = roomId === undefined ? rooms[0]?.botId : rooms.find((room) => room.botId === roomId)?.botId;
     if (target) {
       this.bots.get(target)?.sendPacket(packet);
+      this.timingTimer ??= setInterval(() => this.logAudioTiming(), AUDIO_TIMING_LOG_MS);
+    }
+  }
+
+  /** w51-audio: per bot, the packets its player was given, its holes and its drops (Save diagnostics, tests). */
+  audioTiming(): Record<string, FeedTiming> {
+    return Object.fromEntries([...this.bots].map(([id, bot]) => [id, bot.feed.timing()]));
+  }
+
+  /**
+   * w51-audio: once a minute while packets flow, a warning in the log (so in Help › Save diagnostics) for each bot
+   * whose player found no packet ready (a hole the players heard) or dropped some; nothing when all was well. The
+   * timer stops after a minute without packets.
+   */
+  private logAudioTiming(): void {
+    const parts: string[] = [];
+    let packets = 0;
+    for (const [id, now] of Object.entries(this.audioTiming())) {
+      const before = this.timingLogged.get(id) ?? { packets: 0, holes: 0, dropped: 0 };
+      const minute = { packets: now.packets - before.packets, holes: now.holes - before.holes, dropped: now.dropped - before.dropped };
+      packets += minute.packets;
+      if (minute.holes > 0 || minute.dropped > 0) {
+        const bot = this.bots.get(id);
+        const name = bot?.discordName ?? bot?.lastDiscordName ?? id;
+        parts.push(`bot ${name}: ${minute.packets} packets, ${minute.holes} holes (20 ms of silence each), ${minute.dropped} dropped to keep the delay short`);
+      }
+      this.timingLogged.set(id, now);
+    }
+    if (parts.length > 0) console.warn(`Audio timing, last minute: ${parts.join("; ")}`);
+    if (packets === 0 && this.timingTimer) {
+      clearInterval(this.timingTimer);
+      this.timingTimer = undefined;
     }
   }
 
