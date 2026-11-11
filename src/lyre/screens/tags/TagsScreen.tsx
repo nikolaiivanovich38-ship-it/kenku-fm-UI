@@ -436,7 +436,7 @@ function TagSheet({ sheet, api, tracksWith, tracksInGroup, onClose, onRename, on
       );
     case "groupRename":
       return (
-        <Dialog
+        <Dialog enterSubmits
           open
           title={`Rename the ${sheet.group.name} group`}
           onClose={onClose}

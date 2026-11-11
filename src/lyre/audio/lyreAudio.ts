@@ -1007,14 +1007,17 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     return roomsFor(this.rooms.target(target), [...this.rooms.rooms()]);
   }
 
-  /** " in Dungeon" for a room other than the first, " in every room" for all; "" for the first room. */
+  /**
+   * " in Dungeon" when there are two rooms or more (UX-R21: the first room is named too), " in every room" for all;
+   * "" with one room or none.
+   */
   private inRoom(target: RoomTarget): string {
     const rooms = this.rooms.rooms();
-    if (target === "all") {
-      return rooms.length > 1 ? " in every room" : "";
-    }
+    if (rooms.length < 2) return "";
+    if (target === "all") return " in every room";
     const id = this.targetRooms(target)[0];
-    return id === rooms[0]?.botId ? "" : ` in ${rooms.find((room) => room.botId === id)?.name ?? ""}`;
+    const name = rooms.find((room) => room.botId === id)?.name;
+    return name ? ` in ${name}` : "";
   }
 
   /** The voice a lane plays now in a room (not one fading out). */

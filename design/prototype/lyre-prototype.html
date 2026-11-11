@@ -3384,7 +3384,7 @@ var L = (function () {
     if (m[ln]) { m[ln].fadeOut = fade || .3; m[ln + 'Out'].push(m[ln]); }
     // o.place: the session or campaign list it was played from ('ss:…' / 'cp:…'), for its play order and audio settings.
     m[ln] = lane(trackId, o.playlistId, o.seq, o.place); m[ln].fadeIn = fade; m[ln].vol = fade ? 0 : 1; if (o.seq) m[ln].seq = o.seq;
-    L.say((ln === 'music' ? 'Music' : 'Ambience') + (m === pb ? '' : ' in ' + L.outputName(L.bot(o.target))) + ': ' + L.title(t)); L.changed();
+    L.say((ln === 'music' ? 'Music' : 'Ambience') + (m === pb ? (L.rooms().length > 1 ? ' in ' + L.outputName(L.bots()[0]) : '') : ' in ' + L.outputName(L.bot(o.target))) + ': ' + L.title(t)); /* UX-R21: with two rooms the first is named too */ L.changed();
   };
   function neighbour(ln, step, target) {
     var cur = mixOf(target)[ln]; if (!cur) return null;
