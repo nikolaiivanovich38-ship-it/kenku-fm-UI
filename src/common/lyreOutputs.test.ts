@@ -123,6 +123,7 @@ describe("OUT-8: Settings in Lyre (design/prototype/src/views/settings.js)", () 
     expect(isApplicationId("123456789012345678")).toBe(true);
     expect(["", "1234", "12345678901234567890123", "1234567890123456a", " 123456789012345678"].map(isApplicationId)).toEqual([false, false, false, false, false]);
     expect(isBotToken("MTAx.new-bot.abcd")).toBe(true);
+    // A made-up token of a real token's shape, in pieces so GitHub's push protection does not take it for a real one.
     expect(isBotToken(["MTIzNDU2Nzg5MDEyMzQ1Njc4", "GhIjKl", "abcdefghijklmnopqrstuvwxyz_-0123456789AB"].join("."))).toBe(true);
     expect(["", "no dots here", "a.b", "a.b.c.d", "a b.c.d", "a.b.c\n", "x".repeat(300)].map(isBotToken)).toEqual([false, false, false, false, false, false, false]);
     expect(applicationIdProblem("12")).toBe("An Application ID is a long number: copy it from General Information › Application ID › Copy.");
