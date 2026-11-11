@@ -346,6 +346,9 @@
       var head = '<div class="viewhead lb-head">' +
         (mode === 'narrow' && t ? '<button class="btn s" data-act="lbback" data-k="lb-back">' + L.icon('chevleft', 's') + 'Tracks</button>' : '') +
         '<h1>Library</h1><span class="muted lb-count">' + plural(nAll, 'track') + '</span><span class="grow"></span>' +
+        // Round 8 (Nik, 11 Nov: "In library view I still need the Prep and Live toggle we have elsewhere"): Live goes to
+        // the session loaded in Live, as from Rooms.
+        (L.campaign(L.state.live.cid) ? L.modeSwitch(L.state.live.cid) : '') +
         '<button class="btn primary" data-act="lbaddmenu" data-k="lb-add" aria-haspopup="menu" aria-expanded="false">' + L.icon('plus', 's') + 'Add tracks' + L.icon('chevdown', 's') + '</button>' +
         '<button class="btn icon" data-act="lbmore" data-k="lb-more" aria-haspopup="menu" aria-expanded="false" title="Back up, move and find files" aria-label="More for the library">' + L.icon('more') + '</button></div>';
 

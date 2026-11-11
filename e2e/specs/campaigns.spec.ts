@@ -727,3 +727,109 @@ test.describe("round 6 cuts on the campaign screens", () => {
     await expect(head("Campaign playlists")).not.toContainText(/\d/);
   });
 });
+
+/* 0.5.1 (design/prototype/ROUND8.md, part 2): Nik's findings from testing 0.5.0, 11 Nov. */
+test.describe("0.5.1: the Now playing bar's position, campaign order and the campaign's theme", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("retire"));
+  const bar = (page: Page) => page.getByRole("region", { name: "Now playing" });
+
+  /* "The now playing bar track position tracker doesn't work. It just displays 0:00 and no position indicator, until I
+     press pause on it" and "I can't click and interact with the tracking bar in the now playing bar, and choose to
+     skip to a certain point in the track - definitely need that." */
+  test("the Now playing bar's position moves while the track plays, and is a slider to jump with: click, Left and Right, Home", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    await region(page, "Campaign playlists").getByRole("button", { name: "Play on air: The Company themes" }).click();
+    const position = bar(page).getByRole("slider", { name: /^Position in / });
+    await expect(position).toHaveAttribute("aria-valuetext", /^\d+:\d\d of \d+:\d\d$/);
+    expect((await position.boundingBox())!.height).toBeGreaterThanOrEqual(24);
+    const now = async () => Number(await position.getAttribute("aria-valuenow"));
+    const first = await now();
+    await expect.poll(now, { timeout: 5_000 }).toBeGreaterThan(first);
+    await bar(page).getByRole("button", { name: "Pause" }).click();
+    const box = (await position.boundingBox())!;
+    const max = Number(await position.getAttribute("aria-valuemax"));
+    await position.click({ position: { x: box.width / 2, y: box.height / 2 } });
+    expect(Math.abs((await now()) - max / 2)).toBeLessThanOrEqual(max * 0.05 + 1);
+    const mid = await now();
+    await page.keyboard.press("ArrowRight");
+    expect(await now()).toBe(mid + 5);
+    await page.keyboard.press("ArrowLeft");
+    expect(await now()).toBe(mid);
+    await page.keyboard.press("Home");
+    expect(await now()).toBeLessThan(5);
+  });
+
+  /* "Dragging and dropping a session into last position in the session list doesn't work." */
+  test("a session can be dragged into the last place of the list", async ({ page }) => {
+    await openRoute(page, "campaign/crown");
+    const rows = page.getByRole("list", { name: "Sessions in order" }).getByRole("listitem");
+    const n = await rows.count();
+    const firstName = ((await rows.first().getByRole("link").first().textContent()) ?? "").replace(/^Session \d+: /, "").trim();
+    const last = rows.nth(n - 1);
+    const box = (await last.boundingBox())!;
+    await rows.first().getByTitle("Drag to reorder").dragTo(last, { targetPosition: { x: 40, y: box.height - 4 } });
+    await expect(rows.nth(n - 1)).toContainText(firstName);
+  });
+
+  /* "I need to be able to drag and drop to rearrange the order campaigns are displayed in in the campaigns view." */
+  const cardNames = (page: Page) => page.getByRole("list", { name: "Campaigns in order" }).getByRole("article").evaluateAll((as) => as.map((a) => a.querySelector("h2")?.textContent?.trim() ?? ""));
+
+  test("a campaign's card can be dragged by its handle before or after another card, into the last place too", async ({ page }) => {
+    await openRoute(page, "campaigns");
+    expect(await cardNames(page)).toEqual(["The Sunken Crown", "The Sixth Year", "Ash and Masks"]);
+    const cards = page.getByRole("list", { name: "Campaigns in order" }).getByRole("listitem");
+    const last = cards.nth(2);
+    const box = (await last.boundingBox())!;
+    await cards.first().getByTitle("Drag to change the order").dragTo(last, { targetPosition: { x: box.width - 10, y: box.height / 2 } });
+    expect(await cardNames(page)).toEqual(["The Sixth Year", "Ash and Masks", "The Sunken Crown"]);
+    await cards.nth(2).getByTitle("Drag to change the order").dragTo(cards.first(), { targetPosition: { x: 10, y: 20 } });
+    expect(await cardNames(page)).toEqual(["The Sunken Crown", "The Sixth Year", "Ash and Masks"]);
+  });
+
+  test("without dragging (WCAG 2.5.7): Reorder shows Move earlier and Move later on each card; Alt+arrow keys move the card in focus", async ({ page }) => {
+    await openRoute(page, "campaigns");
+    await expect(page.getByRole("button", { name: "Move later: The Sunken Crown" })).toHaveCount(0);
+    const reorder = page.getByRole("button", { name: "Reorder" });
+    await reorder.click();
+    await expect(reorder).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("button", { name: "Move earlier: The Sunken Crown" })).toBeDisabled();
+    await page.getByRole("button", { name: "Move later: The Sunken Crown" }).click();
+    expect(await cardNames(page)).toEqual(["The Sixth Year", "The Sunken Crown", "Ash and Masks"]);
+    await expect(page.getByRole("button", { name: "Move later: The Sunken Crown" })).toBeFocused();
+    await reorder.click();
+    await expect(page.getByRole("button", { name: "Move later: The Sunken Crown" })).toHaveCount(0);
+    await page.getByRole("link", { name: "Open Ash and Masks" }).focus();
+    await page.keyboard.press("Alt+ArrowLeft");
+    expect(await cardNames(page)).toEqual(["The Sixth Year", "Ash and Masks", "The Sunken Crown"]);
+    await expect(page.getByRole("link", { name: "Open Ash and Masks" })).toBeFocused();
+  });
+
+  /* "The campaign's visual theme should override the base / preference theme in settings. It currently does not." */
+  test("a campaign's theme always shows on its page, its sessions and its Live; Look and feel's theme is the base for the rest", async ({ page }) => {
+    const colours = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor + " " + getComputedStyle(document.getElementById("view") ?? document.querySelector("main") ?? document.body).backgroundColor);
+    const go = async (link: string) => {
+      await page.getByRole("complementary").getByRole("link", { name: link, exact: true }).first().click();
+      await expect(page.getByRole("main").getByRole("heading", { level: 1 })).toBeAttached();
+    };
+    await openRoute(page, "campaign/crown");
+    const crown = await colours();
+    await go("Look and feel");
+    await expect(page.getByRole("main").getByRole("option", { name: "Each campaign's own" })).toHaveCount(0);
+    await page.getByRole("main").getByRole("combobox", { name: "Base theme" }).selectOption({ label: "Parchment" });
+    const base = await colours();
+    expect(base).not.toBe(crown);
+    await go("Library");
+    expect(await colours()).toBe(base);
+    await go("Campaigns");
+    await page.getByRole("link", { name: "Open The Sunken Crown" }).click();
+    await expect(page.getByRole("heading", { name: "The Sunken Crown", level: 1 })).toBeVisible();
+    expect(await colours()).toBe(crown);
+    await expect(page.getByText(/showing every page in/i)).toHaveCount(0);
+    await page.getByRole("link", { name: /Session 14/ }).first().click();
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("Session 14");
+    expect(await colours()).toBe(crown);
+    await page.getByRole("group", { name: "Prep or live" }).getByRole("button", { name: "Live" }).click();
+    await expect(page.getByRole("heading", { name: "Live", level: 1 })).toBeAttached();
+    expect(await colours()).toBe(crown);
+  });
+});

@@ -1350,3 +1350,152 @@ test.describe("round 7, part 2: Live", () => {
     await expect(region(page, "On air")).toBeInViewport();
   });
 });
+
+/* 0.5.1 (design/prototype/ROUND8.md, part 2): Nik's findings from testing 0.5.0, 11 Nov.
+   "In live I also need to be able to click in the tracking bar for the currently playing tracking and skip to a certain
+   point in the track"; "I need a stop button in the on air view in live on the currently playing track, not just a
+   pause button - I need both"; "I also need a shuffle button in the on air live view". */
+test.describe("0.5.1: On air has Stop, Shuffle and a position bar to jump in", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("retire"));
+  const music = (page: Page, name = "Table") => room(page, name).getByRole("group", { name: `Music in ${name}`, exact: true });
+  const names = async (group: ReturnType<typeof music>) => group.getByRole("button").evaluateAll((bs) => bs.map((b) => b.getAttribute("aria-label") || (b.textContent ?? "").trim()));
+
+  test("the playing track has Stop beside Pause, both kept; Stop ends that room's music and the ambience goes on", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    const order = await names(music(page));
+    expect(order).toContain("Pause music");
+    expect(order.indexOf("Stop music")).toBe(order.indexOf("Pause music") + 1);
+    await expect(room(page, "Table").getByRole("group", { name: "Ambience in Table", exact: true }).getByRole("button", { name: "Stop ambience" })).toBeVisible();
+    await music(page).getByRole("button", { name: "Stop music" }).click();
+    await expect(music(page)).toHaveCount(0);
+    await expect(room(page, "Table").getByRole("group", { name: "Ambience in Table", exact: true })).toBeVisible();
+  });
+
+  test("each room has Shuffle beside Repeat; it shuffles the playlist the music comes from, and is greyed for music from no playlist", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    // The abbey ruins starts with a track of its own, not a playlist: nothing to shuffle.
+    await expect(music(page).getByRole("button", { name: "Shuffle" })).toBeDisabled();
+    await unfold(sessionPlaylists(page));
+    await sessionPlaylists(page).getByRole("button", { name: "Play on air: Wistful with some warmth" }).click();
+    await expect(music(page).locator("xpath=..")).toContainText("Wistful with some warmth");
+    const order = await names(music(page));
+    const shuffle = order.indexOf("Shuffle");
+    expect(order[shuffle + 1]).toMatch(/^Repeat/);
+    const button = music(page).getByRole("button", { name: "Shuffle" });
+    await expect(button).toBeEnabled();
+    const was = await button.getAttribute("aria-pressed");
+    await button.click();
+    await expect(button).toHaveAttribute("aria-pressed", was === "true" ? "false" : "true");
+  });
+
+  test("with two rooms, each room's music has its own Stop and Shuffle", async ({ page }) => {
+    await openRoute(page, "live");
+    await addSideRoom(page);
+    await startAbbey(page);
+    await toSideRoom(page, sessionPlaylists(page));
+    await sessionPlaylists(page).getByRole("button", { name: /^Play on air in Side room: Wistful/ }).click();
+    for (const name of ["Table", "Side room"]) {
+      await expect(music(page, name).getByRole("button", { name: "Stop music" })).toBeVisible();
+      await expect(music(page, name).getByRole("button", { name: "Shuffle" })).toBeVisible();
+    }
+  });
+
+  test("the playing track's position bar is a slider: click or drag to jump, Left and Right move 5 seconds, Home and End", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    await music(page).getByRole("button", { name: "Pause music" }).click();
+    const bar = room(page, "Table").getByRole("slider", { name: /^Position in Eerie dread/ });
+    await expect(bar).toHaveAttribute("aria-valuetext", /^\d+:\d\d of 3:10$/);
+    expect((await bar.boundingBox())!.height).toBeGreaterThanOrEqual(24);
+    const now = async () => Number(await bar.getAttribute("aria-valuenow"));
+    await bar.focus();
+    await page.keyboard.press("Home");
+    const start = await now();
+    expect(start).toBeLessThan(5);
+    await page.keyboard.press("ArrowRight");
+    expect(await now()).toBe(start + 5);
+    await page.keyboard.press("ArrowLeft");
+    expect(await now()).toBe(start);
+    await page.keyboard.press("End");
+    await expect(bar).toHaveAttribute("aria-valuetext", "3:09 of 3:10");
+    const box = (await bar.boundingBox())!;
+    await bar.click({ position: { x: box.width / 2, y: box.height / 2 } });
+    expect(Math.abs((await now()) - 95)).toBeLessThanOrEqual(6);
+    // Dragging moves it as it goes.
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 4, box.y + box.height / 2, { steps: 4 });
+    await page.mouse.up();
+    expect(Math.abs((await now()) - 48)).toBeLessThanOrEqual(6);
+  });
+
+  test("the ambience's position bar is a slider too, named after its track", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    await expect(room(page, "Table").getByRole("slider", { name: /^Position in Rain on stone/ })).toHaveAttribute("aria-valuetext", /^\d+:\d\d of 4:00$/);
+  });
+});
+
+/* 0.5.1 (ROUND8.md, part 3): more from Nik's test of 0.5.0, 11 Nov 20:33.
+   "Let's make the standard for our fade buttons 5 rather than 3 seconds." "I can't choose what channel my bots join
+   from the live view - I need to be able to do that, and to add a second bot to the live view, and a channel on the
+   table from that view, or more, I don't want to have to tab to the rooms tab." "I don't see an undo button for
+   kicking a bot in the live view". */
+test.describe("0.5.1: fades of 5 seconds, and Rooms' actions in On air", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("retire"));
+
+  test("Fade all and a lane's Fade out take 5 seconds, and say so", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    await expect(page.getByRole("button", { name: "Fade all" })).toHaveAttribute("title", /over 5 seconds/);
+    await expect(room(page, "Table").getByRole("button", { name: "Fade music out" })).toHaveAttribute("title", /over 5 seconds/);
+    await page.getByRole("button", { name: "Keys" }).click();
+    await expect(page.getByText("Fade all (5 s)")).toBeVisible();
+  });
+
+  test("a room's bot chip chooses its channel in place: the room moves there, without the Rooms screen", async ({ page }) => {
+    await openRoute(page, "live");
+    await room(page, "Table").getByRole("button", { name: /^Lyre Table in Table: change/ }).click();
+    const menu = page.getByRole("menu");
+    await expect(menu).toContainText("Lyre Table plays in");
+    await menu.getByRole("menuitemradio", { name: /^Side room/ }).click();
+    await expect(room(page, "Side room")).toBeVisible();
+    await expect(room(page, "Table")).toHaveCount(0);
+    await expect(page.getByRole("heading", { name: "Live", level: 1 })).toBeAttached();
+  });
+
+  test("Kick is beside the bot's button and in its menu; Undo shows after every Kick, even with nothing playing, and puts the bot back", async ({ page }) => {
+    await openRoute(page, "live");
+    const onAir = region(page, "On air");
+    await room(page, "Table").getByRole("button", { name: "Kick Lyre Table from Table" }).click();
+    const undo = onAir.getByRole("group", { name: "Undo" });
+    await expect(undo).toContainText("Lyre Table left Table");
+    await expect(undo.getByRole("button", { name: "Undo" })).toBeFocused();
+    await undo.getByRole("button", { name: "Undo" }).click();
+    await expect(room(page, "Table")).toBeVisible();
+    await room(page, "Table").getByRole("button", { name: /^Lyre Table in Table: change/ }).click();
+    await page.getByRole("menu").getByRole("menuitem", { name: "Kick Lyre Table from Table" }).click();
+    await expect(onAir.getByRole("group", { name: "Undo" })).toContainText("Lyre Table left Table");
+  });
+
+  test("Kick with music playing, then Undo: the music comes back where it was", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    await room(page, "Table").getByRole("button", { name: "Kick Lyre Table from Table" }).click();
+    await region(page, "On air").getByRole("group", { name: "Undo" }).getByRole("button", { name: "Undo" }).click();
+    await expect(room(page, "Table").getByRole("group", { name: "Music in Table", exact: true }).locator("xpath=..")).toContainText("Eerie dread");
+  });
+
+  test("Add a room is always in On air; it brings in a free bot, or offers Add a bot… in place", async ({ page }) => {
+    await openRoute(page, "live");
+    await page.getByRole("button", { name: "Add a room" }).click();
+    await page.getByRole("menuitemradio", { name: /Side room/ }).click();
+    await expect(room(page, "Side room")).toBeVisible();
+    // Every bot is in a room now: Add a room stays, and offers a new bot.
+    await page.getByRole("button", { name: "Add a room" }).click();
+    await page.getByRole("menu").getByRole("menuitem", { name: "Add a bot…" }).click();
+    await expect(page.getByRole("dialog")).toContainText("Add a bot");
+  });
+});

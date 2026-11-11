@@ -29,8 +29,10 @@
 
   /* ---------- what came across from Kenku FM ---------- */
   var LEGACY_KEY = 'lyre-legacy';
-  function readLegacy() { try { return JSON.parse(localStorage.getItem(LEGACY_KEY) || '{}') || {}; } catch (e) { return {}; } }
-  function writeLegacy(o) { try { localStorage.setItem(LEGACY_KEY, JSON.stringify(o)); } catch (e) { /* storage unavailable: lasts for this visit */ } }
+  // Kept in both stores: right after a reload, the page's local storage can read empty or an older value for a moment (file:// pages in
+  // Chromium), while the tab's session storage is up to date, so it is read first.
+  function readLegacy() { try { return JSON.parse(sessionStorage.getItem(LEGACY_KEY) || localStorage.getItem(LEGACY_KEY) || '{}') || {}; } catch (e) { return {}; } }
+  function writeLegacy(o) { try { var v = JSON.stringify(o); localStorage.setItem(LEGACY_KEY, v); sessionStorage.setItem(LEGACY_KEY, v); } catch (e) { /* storage unavailable: lasts for this visit */ } }
   var legacy = readLegacy();
   if (Array.isArray(legacy.bookmarks)) D.moved.bookmarks = legacy.bookmarks;
   L.arriveFromKenkuFM = function (f) {
@@ -100,7 +102,11 @@
     if (sw) h.style.setProperty('--app-top', sw.offsetTop + 'px');
   }
   var render0 = L.render;
-  L.render = function () { render0.apply(L, arguments); placeStage(); paintButtons(); paintProto8(); };
+  L.render = function () { syncLegacy(); render0.apply(L, arguments); placeStage(); paintButtons(); paintProto8(); };
+  // The bookmarks read again before each paint, for the same reason as the token note above.
+  function syncLegacy() { var now = readLegacy(); if (Array.isArray(now.bookmarks)) { legacy = now; D.moved.bookmarks = now.bookmarks; } }
+  // Storage can still be empty while a reloaded page first paints: look again shortly after, and paint if it differs.
+  [60, 400, 1500, 4000].forEach(function (ms) { setTimeout(function () { var was = JSON.stringify([D.moved.bookmarks, legacy.token]); syncLegacy(); var now = readLegacy(); if (now.token) legacy = now; if (JSON.stringify([D.moved.bookmarks, legacy.token]) !== was) L.render(); }, ms); });
   window.addEventListener('resize', function () { placeStage(); paintButtons(); });
 
   /* ---------- updates ---------- */

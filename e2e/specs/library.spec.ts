@@ -478,3 +478,33 @@ test.describe("Library targets", () => {
     }
   });
 });
+
+/* 0.5.1 (design/prototype/ROUND8.md, part 2). Nik, 11 Nov: "In library view I still need the Prep and Live toggle we have
+   elsewhere." */
+test.describe("0.5.1: Prep and Live in the Library", () => {
+  test("the Library's top bar has Prep | Live; Prep is on, and Live opens the session loaded in Live", async ({ page }) => {
+    expectFailureUntilBuilt("retire");
+    await openRoute(page, "library");
+    const modes = page.getByRole("main").getByRole("group", { name: "Prep or live" });
+    await expect(modes.getByRole("button", { name: "Prep" })).toHaveAttribute("aria-pressed", "true");
+    await modes.getByRole("button", { name: "Live" }).click();
+    await expect(page.getByRole("heading", { name: "Live", level: 1 })).toBeAttached();
+    await expect(page.getByRole("button", { name: /The Sunken Crown Session 14/ })).toBeVisible();
+  });
+});
+
+/* 0.5.1 (ROUND8.md, part 3). Nik, 11 Nov 20:33: "I don't see pickup where it stops in details or audio profile views for
+   a track". It showed only for underscores and loop beds. */
+test.describe("0.5.1: Pick up where it stopped for every music track", () => {
+  test("a track of any role but a sting, or with no role yet, has Pick up where it stopped in its details; a sting has not", async ({ page }) => {
+    expectFailureUntilBuilt("retire");
+    await openRoute(page, "library");
+    for (const title of ["Ashes", "Haunted sea shanty"]) {
+      await openTrack(page, title);
+      await expect(details(page).getByRole("switch", { name: "Pick up where it stopped" })).toBeVisible();
+    }
+    await openTrack(page, "Very short heroic moment");
+    await expect(details(page).getByRole("textbox", { name: "Your title" })).toBeVisible();
+    await expect(details(page).getByRole("switch", { name: "Pick up where it stopped" })).toHaveCount(0);
+  });
+});

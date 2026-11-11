@@ -10,7 +10,13 @@
   var STATUS = { played: 'Played', next: 'Next', draft: 'Draft' };
   var SYSTEMS = ['D&D 5e', 'D&D 2024', 'Pathfinder 2e', 'Fate Core', 'Fate Accelerated', 'Vampire: the Masquerade V5', 'Call of Cthulhu 7e', 'Blades in the Dark', 'Warhammer Fantasy Roleplay', 'Mothership', 'Daggerheart'];
   var open = {};          // scene id -> true when its card is expanded
-  var current = null;     // scene id last worked on: "Add scene" goes after it
+  /* Round 8 (Nik, 11 Nov: "When I click add scene it should add at the end of the list, if no other scene is selected.
+     If another scene is selected, it should add after that scene."). The selected scene is the one Nik last opened,
+     added, duplicated or worked in (typed in, added to, moved); its card has the accent edge, and its name button is
+     described as "Selected: Add scene puts the new scene after it". Folding it, deleting it or opening another session leaves no scene selected. Add scene puts the new
+     scene right after the selected one, or at the end when none is selected; its hover text says which. */
+  var current = null;     // the selected scene's id
+  var currentSid = null;  // the session it belongs to
   var focusK = null;      // data-k to focus after the next render
   var nc = null;          // new-campaign draft
 
@@ -23,7 +29,8 @@
   }
   function themeName(id) { var t = L.THEMES.filter(function (x) { return x[0] === id; })[0]; return t ? t[1].replace(/\s*\(.*\)$/, '') : id; }
   function defTheme() { return D.defaultTheme || 'candle'; }
-  function themeFor(id) { return L.state.theme === 'campaign' ? (id || defTheme()) : L.state.theme; }
+  // Round 8: a campaign's own theme always shows on its card and pages; one without a theme has the base theme.
+  function themeFor(id) { return id || L.baseTheme(); }
   function nextSession(c) { return c.sessions.filter(function (s) { return s.status === 'next'; })[0] || c.sessions.filter(function (s) { return s.status === 'draft'; })[0] || null; }
   function sLabel(s) { return 'Session ' + s.n + (s.name ? ': ' + s.name : ''); }
   function plural(n, one, many) { return n + ' ' + (n === 1 ? one : (many || one + 's')); }
@@ -92,7 +99,7 @@
       // ORG-13: the session's and the campaign's playlists can be dragged (or moved with Alt+Up / Alt+Down) into order.
       return '<li class="cp-arow-wrap"' + (ro ? ' data-ro="apl|' + scope + '" data-ri="' + ids.indexOf(id) + '"' : '') + '><div class="cp-arow">' + (ro ? '<span class="ro-handle" title="Drag to change the order (or Alt+Up / Alt+Down)" aria-hidden="true">' + L.icon('drag', 's') + '</span>' : '') + xpBtn(it, xk) + '<span class="lane-dot ' + it.cls + '" aria-hidden="true"></span>' +
         '<a class="ellipsis grow cp-aname" href="' + it.href + '" data-k="open-' + scope + kind + id + '" title="' + esc(o.name + ' · ' + sub) + '">' + nm + '</a>' +
-        L.previewButton(it.kind, id) + (kind === 'pl' ? L.playOnAirButton('playlist', id, key) + L.orderButton(id, key) : '') +
+        (kind === 'pl' ? L.orderButton(id, key) : '') + L.previewButton(it.kind, id) + (kind === 'pl' ? L.playOnAirButton('playlist', id, key) : '') +
         (readonly ? '' : moreBtn('more-' + scope + kind + id, nm, 'data-menu="assigned" data-scope="' + scope + '" data-kind="' + kind + '" data-id="' + id + '"')) + '</div>' + xpBody(it, xk, scope === 's' ? key : '', scope === 'r' ? '' : key) + '</li>';
     }).join('') + tracks.map(function (id) {
       var it = info(id), t = it.obj, nm = esc(it.name);
@@ -149,7 +156,7 @@
     if (to < 0 || to >= arr.length || from === to) return false;
     var item = arr.splice(from, 1)[0]; arr.splice(to, 0, item);
     if (list === 'sessions') { renumber(x.c); L.say((item.name || 'That session') + ' is now Session ' + item.n + ', ' + (to + 1) + ' of ' + arr.length); }
-    else L.say('Scene ' + item.name + ' moved to position ' + (to + 1) + ' of ' + arr.length);
+    else { current = item.id; L.say('Scene ' + item.name + ' moved to position ' + (to + 1) + ' of ' + arr.length); }
     L.saved(list === 'sessions' ? 'order of ' + x.c.name + ' sessions' : 'order of Session ' + x.s.n + ' scenes', { key: 'mv-' + list });
     return true;
   }
@@ -158,6 +165,8 @@
     var i = +el.dataset.idx; if (el.dataset.fk) focusK = el.dataset.fk; if (moveItem(el.dataset.list, i, i + +el.dataset.dir)) L.render();
   };
   var drag = null;
+  // Rows: after when below the middle; campaign cards (data-axis="x"): after when right of the middle.
+  function dropAfter(it, e) { var r = it.getBoundingClientRect(); return it.dataset.axis === 'x' ? e.clientX > r.left + r.width / 2 : e.clientY > r.top + r.height / 2; }
   function clearMarks() { document.querySelectorAll('.cp-drop-before, .cp-drop-after, .cp-dragging').forEach(function (n) { n.classList.remove('cp-drop-before', 'cp-drop-after', 'cp-dragging'); }); }
   document.addEventListener('pointerdown', function (e) { var h = e.target.closest && e.target.closest('.cp-handle'); if (h) { var it = h.closest('[data-drag]'); if (it) it.setAttribute('draggable', 'true'); } });
   document.addEventListener('pointerup', function () { if (!drag) document.querySelectorAll('[data-drag][draggable="true"]').forEach(function (n) { n.removeAttribute('draggable'); }); });
@@ -169,15 +178,15 @@
   });
   document.addEventListener('dragover', function (e) {
     if (!drag) return; var it = e.target.closest && e.target.closest('[data-drag="' + drag.list + '"]'); if (!it) return;
-    e.preventDefault(); var r = it.getBoundingClientRect(), after = e.clientY > r.top + r.height / 2;
+    e.preventDefault(); var after = dropAfter(it, e);
     document.querySelectorAll('.cp-drop-before, .cp-drop-after').forEach(function (n) { n.classList.remove('cp-drop-before', 'cp-drop-after'); });
     if (+it.dataset.idx !== drag.idx) it.classList.add(after ? 'cp-drop-after' : 'cp-drop-before');
   });
   document.addEventListener('drop', function (e) {
     if (!drag) return; var it = e.target.closest && e.target.closest('[data-drag="' + drag.list + '"]'); if (!it) return;
-    e.preventDefault(); var r = it.getBoundingClientRect(), after = e.clientY > r.top + r.height / 2, to = +it.dataset.idx + (after ? 1 : 0);
+    e.preventDefault(); var to = +it.dataset.idx + (dropAfter(it, e) ? 1 : 0);
     if (to > drag.idx) to--;
-    var d = drag; drag = null; clearMarks(); if (moveItem(d.list, d.idx, to)) L.render();
+    var d = drag; drag = null; clearMarks(); if (d.list === 'campaigns' ? moveCampaign(d.idx, to) : moveItem(d.list, d.idx, to)) L.render();
   });
   document.addEventListener('dragend', function () { drag = null; clearMarks(); document.querySelectorAll('[data-drag][draggable="true"]').forEach(function (n) { n.removeAttribute('draggable'); }); });
 
@@ -224,11 +233,23 @@
   /* ======================================================================
      1. Campaigns: the top level
      ====================================================================== */
-  function card(c) {
-    var nx = nextSession(c), th = themeFor(c.theme);
+  /* Round 8 (Nik, 11 Nov: "I need to be able to drag and drop to rearrange the order campaigns are displayed in in the
+     campaigns view"): each card has a handle (greyed at rest) to drag it before or after another card; dropping on a
+     card's left half puts it before, on its right half after (the cards run left to right, then down). The keyboard's
+     way, and one click's (WCAG 2.5.7): the Reorder switch in the top bar shows Move earlier and Move later on each card
+     while it is on; Alt+Left or Alt+Up and Alt+Right or Alt+Down move the card that has focus. The order is saved. */
+  var reorderingCards = false;
+  function card(c, i, all) {
+    var nx = nextSession(c), th = themeFor(c.theme), n = all.length, nm = esc(c.name);
+    var moves = reorderingCards && n > 1 ? '<span class="cp-cmoves">' +
+      '<button class="btn s icon" data-act="cpcmove" data-idx="' + i + '" data-dir="-1" data-k="cpcup-' + c.id + '" aria-label="Move earlier: ' + nm + '" title="Move earlier (Alt+Left)"' + (i === 0 ? ' disabled' : '') + '>' + L.icon('chevleft', 's') + '</button>' +
+      '<button class="btn s icon" data-act="cpcmove" data-idx="' + i + '" data-dir="1" data-k="cpcdn-' + c.id + '" aria-label="Move later: ' + nm + '" title="Move later (Alt+Right)"' + (i === n - 1 ? ' disabled' : '') + '>' + L.icon('chevright', 's') + '</button></span>' : '';
+    return '<li class="cp-cardwrap" data-drag="campaigns" data-axis="x" data-idx="' + i + '" data-cid="' + c.id + '">' + cardBody(c, nx, th, moves, n > 1) + '</li>';
+  }
+  function cardBody(c, nx, th, moves, handle) {
     // Round 6: the card is drawn in its theme, so the theme's name is hover text.
     return '<article class="cp-card" data-theme="' + th + '" aria-labelledby="cph-' + c.id + '" title="' + esc(plural(c.sessions.length, 'session') + ' · ' + plural(usedPlaylists(c), 'playlist') + ' · ' + plural(usedBoards(c), 'pad board') + ' · theme: ' + themeName(c.theme || defTheme())) + '">' +
-      '<div class="cp-card-top"><span class="cp-sys">' + esc(c.system || 'No game system') + '</span></div>' +
+      '<div class="cp-card-top">' + (handle ? '<span class="cp-handle" title="Drag to change the order" aria-hidden="true">' + L.icon('drag', 's') + '</span>' : '') + '<span class="cp-sys grow">' + esc(c.system || 'No game system') + '</span>' + moves + '</div>' +
       '<h2 class="display cp-card-name" id="cph-' + c.id + '">' + esc(c.name) + '</h2>' +
       '<p class="cp-blurb ellipsis" title="' + esc(c.blurb) + '">' + (c.blurb ? esc(c.blurb) : '<span class="faint">No description</span>') + '</p>' +
       '<p class="cp-next">' + (nx ? '<span class="cp-next-lbl">Next</span><span class="cp-next-name ellipsis">' + esc(sLabel(nx)) + '</span><span class="cp-next-date">' + esc(fmtDate(nx.date)) + '</span>'
@@ -237,6 +258,27 @@
       (nx ? '<button class="btn primary" data-act="cprun" data-cid="' + c.id + '" data-sid="' + nx.id + '" data-k="crun-' + c.id + '" aria-label="Run next session of ' + esc(c.name) + ': Session ' + nx.n + '">' + L.icon('broadcast', 's') + 'Run next session</button>'
         : '<button class="btn primary" aria-disabled="true" title="No session planned yet" data-k="crun-' + c.id + '">' + L.icon('broadcast', 's') + 'Run next session</button>') + '</div></article>';
   }
+  function moveCampaign(from, to) {
+    var arr = D.campaigns; if (to < 0 || to >= arr.length || from === to) return false;
+    var c = arr.splice(from, 1)[0]; arr.splice(to, 0, c);
+    L.say(c.name + ' is now ' + (to + 1) + ' of ' + arr.length); L.saved('order of campaigns', { key: 'mv-campaigns' });
+    return true;
+  }
+  L.acts.cpcmove = function (el) {
+    var i = +el.dataset.idx, d = +el.dataset.dir, c = D.campaigns[i]; if (!c || !moveCampaign(i, i + d)) return;
+    L.render();
+    var b = document.querySelector('[data-k="' + (d < 0 ? 'cpcup-' : 'cpcdn-') + c.id + '"]');
+    if (!b || b.disabled) b = document.querySelector('[data-k="' + (d < 0 ? 'cpcdn-' : 'cpcup-') + c.id + '"]');
+    if (b) b.focus();
+  };
+  L.acts.cpreorder = function (el) { reorderingCards = !reorderingCards; L.render(); var b = document.querySelector('[data-k="cpreorder"]'); if (b) b.focus(); L.say(reorderingCards ? 'Move earlier and Move later shown on each campaign' : 'Done reordering'); };
+  document.addEventListener('keydown', function (e) {
+    if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || ['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown'].indexOf(e.key) < 0) return;
+    var w = e.target && e.target.closest && e.target.closest('[data-drag="campaigns"]'); if (!w || L.typing(e.target)) return;
+    var i = +w.dataset.idx, to = i + (e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 1), k = e.target.dataset && e.target.dataset.k, cid = w.dataset.cid;
+    e.preventDefault(); e.stopPropagation(); if (!moveCampaign(i, to)) return;
+    L.render(); var nw = document.querySelector('[data-drag="campaigns"][data-cid="' + cid + '"]'), f = nw && k ? nw.querySelector('[data-k="' + k + '"]') : null; if (f) f.focus();
+  }, true);
   L.acts.cprun = function (el) { if (el.getAttribute('aria-disabled') === 'true') return; run(el.dataset.cid, el.dataset.sid); };
 
   L.view('campaigns', {
@@ -251,8 +293,9 @@
     ],
     render: function () {
       return '<div class="viewhead"><h1>Campaigns</h1><span class="grow"></span>' +
+        (D.campaigns.length > 1 ? '<button type="button" class="btn s ghost ro-tog" data-act="cpreorder" data-k="cpreorder" aria-pressed="' + reorderingCards + '" title="' + (reorderingCards ? 'Done reordering' : 'Show Move earlier and Move later on each campaign (or drag a card by its handle)') + '">' + L.icon('drag', 's') + 'Reorder</button>' : '') +
         '<button class="btn primary" data-act="cpnew" data-k="cpnew">' + L.icon('plus', 's') + 'New campaign</button></div>' +
-        '<div class="viewbody" data-scroll="cp-grid">' + (D.campaigns.length ? '<div class="cp-grid">' + D.campaigns.map(card).join('') + '</div>'
+        '<div class="viewbody" data-scroll="cp-grid">' + (D.campaigns.length ? '<ol class="cp-grid" aria-label="Campaigns in order">' + D.campaigns.map(card).join('') + '</ol>'
           // A first-time user: what a campaign is and what to do first (w3-ux 9).
           : '<div class="empty"><b>No campaigns yet.</b> A campaign holds your sessions, the scenes in each, and the music, ambience and pad boards you use in them. Start with <b>New campaign</b>.</div>') + '</div>';
     },
@@ -283,7 +326,7 @@
         '<datalist id="cp-systems">' + SYSTEMS.map(function (s) { return '<option value="' + esc(s) + '">'; }).join('') + '</datalist></div>' +
         '<div class="field cp-wide"><label for="cp-n-blurb">Description <span class="faint">(one line)</span></label><input class="input" id="cp-n-blurb" data-input="cpnew" data-f="blurb" autocomplete="off" placeholder="One line about the story"></div>' +
         '<fieldset class="cp-themes cp-wide"><legend>Theme</legend><p class="hint">How Lyre looks while this campaign is open. You can change it later.</p>' +
-        '<div class="cp-th-grid" role="radiogroup" aria-label="Theme">' + L.THEMES.slice(1).map(function (t) { return themeOption(t[0], t[0] === nc.theme); }).join('') + '</div></fieldset>' +
+        '<div class="cp-th-grid" role="radiogroup" aria-label="Theme">' + L.THEMES.map(function (t) { return themeOption(t[0], t[0] === nc.theme); }).join('') + '</div></fieldset>' +
         '<details class="cp-obs cp-wide"><summary>' + L.icon('chevdown', 's') + 'Obsidian <span class="cp-later">coming later</span></summary>' +
         '<p class="hint">Where this campaign\'s notes live in Obsidian. Lyre keeps these for a later version; nothing connects yet.</p>' + obsFields('cp-n-o-', nc.obsidian, 'cpnewobs') + '</details></div>',
       footer: '<button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="cpcreate">' + L.icon('plus', 's') + 'Create campaign</button>' });
@@ -358,7 +401,7 @@
     render: function (p) {
       var c = L.campaign(p.cid);
       if (!c) return '<div class="viewhead"><h1>Campaign not found</h1></div><div class="empty"><a href="#/campaigns">Back to Campaigns</a></div>';
-      var nx = nextSession(c), forced = L.state.theme !== 'campaign';
+      var nx = nextSession(c);
       var head = '<div class="viewhead">' +
         '<h1>' + esc(c.name || 'Untitled campaign') + '</h1><span class="grow"></span>' +
         L.modeSwitch(c.id) + (nx ? '<button class="btn primary" data-act="cprun" data-cid="' + c.id + '" data-sid="' + nx.id + '" data-k="hrun">' + L.icon('broadcast', 's') + 'Run next session <span class="cp-btnsub">S' + nx.n + '</span></button>' : '') + '</div>';
@@ -366,10 +409,11 @@
         '<div class="field cp-f-name"><label for="cp-c-name">Name</label><input class="input" id="cp-c-name" data-input="cpcamp" data-f="name" data-k="c-name" data-save="campaign name {v}" value="' + esc(c.name) + '" autocomplete="off"></div>' +
         '<div class="field cp-f-sys"><label for="cp-c-sys">Game system</label><input class="input" id="cp-c-sys" list="cp-systems-c" data-input="cpcamp" data-f="system" data-k="c-sys" data-save="' + esc(c.name) + ' game system" value="' + esc(c.system) + '" autocomplete="off">' +
         '<datalist id="cp-systems-c">' + SYSTEMS.map(function (s) { return '<option value="' + esc(s) + '">'; }).join('') + '</datalist></div>' +
-        '<div class="field cp-f-theme"><label for="cp-c-theme">Theme</label><select class="input" id="cp-c-theme" data-input="cpcamp" data-f="theme" data-k="c-theme" data-save="' + esc(c.name) + ' theme"' + (forced ? ' aria-describedby="cp-forced"' : '') + '>' +
-        L.THEMES.slice(1).map(function (t) { return '<option value="' + t[0] + '"' + (c.theme === t[0] ? ' selected' : '') + '>' + esc(themeName(t[0])) + '</option>'; }).join('') + '</select></div>' +
+        '<div class="field cp-f-theme"><label for="cp-c-theme">Theme</label><select class="input" id="cp-c-theme" data-input="cpcamp" data-f="theme" data-k="c-theme" data-save="' + esc(c.name) + ' theme">' +
+        L.THEMES.map(function (t) { return '<option value="' + t[0] + '"' + (c.theme === t[0] ? ' selected' : '') + '>' + esc(themeName(t[0])) + '</option>'; }).join('') + '</select></div>' +
         '<div class="field cp-f-blurb"><label for="cp-c-blurb">Description</label><input class="input" id="cp-c-blurb" data-input="cpcamp" data-f="blurb" data-k="c-blurb" data-save="' + esc(c.name) + ' description" value="' + esc(c.blurb) + '" autocomplete="off"></div>' +
-        (forced ? '<p class="hint cp-forced" id="cp-forced">The prototype strip is showing every page in ' + esc(themeName(L.state.theme)) + '. Choose "Each campaign\'s own" there to see this campaign\'s theme.</p>' : '') + '</div>';
+        // Round 8: no note that Look and feel overrides this; the campaign's theme always shows on its pages.
+        '</div>';
 
       var played = c.sessions.filter(function (s) { return s.status === 'played'; }).length;
       var sessions = L.pane({ id: 'cp-sessions', title: 'Sessions', icon: 'scroll', kind: 'scenes',
@@ -428,10 +472,12 @@
       '<a class="ellipsis grow cp-it-name" href="' + it.href + '" data-k="in-' + k + '" title="' + esc((shown !== own ? shown + ' (in this scene) · its own name: ' + own : shown) + ' · ' + it.label + ' · ' + it.sub) + '">' + nm + '<span class="sr-only"> (' + esc(it.label) + ')</span></a>' +
       (isTrack ? '<span class="cp-it-sub">' + (shown !== own ? '<span class="cp-scname-mark" title="Named for this scene">' + L.icon('tag', 's') + '<span class="ellipsis">' + esc(own) + '</span><span class="sr-only">: its own name</span></span>' : '') + L.tagStrip(it.obj, 3) + '</span></span>' : '') +
       (i === 0 ? '<span class="cp-firsttag">' + firstTag + '</span>' : '') + ownMark(sc, list, it) +
-      L.previewButton(it.kind, it.id) + (it.kind !== 'board' ? L.playOnAirButton(it.kind, it.id) : '') +
+      // Round 8: the buttons in Live's order: (a playlist's play order,) Preview, (Repeat one,) Play on air.
+      (it.kind === 'playlist' && list === 'music' ? L.orderButton(it.id, key) : '') +
+      L.previewButton(it.kind, it.id) +
       // Round 6 part 3 (decision 4): Repeat one, saved with the scene; the same button as on the track in Live.
       (isTrack ? L.repeatOneButton(key, it.id, 'r1-' + k, shown) : '') +
-      (it.kind === 'playlist' && list === 'music' ? L.orderButton(it.id, key) : '') +
+      (it.kind !== 'board' ? L.playOnAirButton(it.kind, it.id, list === 'music' ? key : '', '', shown) : '') +
       (isTrack && L.profileLink ? '<a class="btn s icon cp-prof" href="#/profile/' + it.id + '/' + key + '" data-k="prof-' + k + '" title="Waveform, end and fades of ' + esc(shown) + ' in this scene" aria-label="Waveform, end and fades in this scene: ' + nm + '">' + L.icon('wave', 's') + '</a>' : '') +
       moreBtn('im-' + k, nm, 'data-menu="item" data-list="' + list + '" data-sc="' + sc.id + '" data-idx="' + i + '"') +
       '</div>' + xpBody(it, xk, list === 'music' ? sceneKey(sc) : '', list === 'music' ? sceneKey(sc) : '') + '</li>';
@@ -469,11 +515,11 @@
     var isOpen = !!open[sc.id], nm = esc(sc.name || 'Untitled scene');
     var head = '<div class="cp-scene-head">' +
       '<span class="cp-handle" title="Drag to reorder" aria-hidden="true">' + L.icon('drag', 's') + '</span>' +
-      '<button class="cp-scene-toggle" data-act="cpscene" data-id="' + sc.id + '" data-k="sct-' + sc.id + '" aria-expanded="' + isOpen + '" aria-controls="scb-' + sc.id + '"' + (isOpen ? '' : ' title="' + esc(sceneTip(sc)) + '"') + '>' +
+      '<button class="cp-scene-toggle" data-act="cpscene" data-id="' + sc.id + '" data-k="sct-' + sc.id + '"' + (sc.id === current ? ' aria-describedby="cp-selnote"' : '') + ' aria-expanded="' + isOpen + '" aria-controls="scb-' + sc.id + '"' + (isOpen ? '' : ' title="' + esc(sceneTip(sc)) + '"') + '>' +
       L.icon('chevdown', 's chev') + '<span class="num cp-scn" aria-hidden="true">' + (i + 1) + '</span><span class="ellipsis cp-scname"><span class="sr-only">Scene ' + (i + 1) + ': </span>' + nm + '</span></button>' +
       (isOpen ? '' : '<span class="cp-scchip">' + sceneChip(sc) + '</span>') +
       L.sceneMarks(sc) + '<button class="closer" data-act="cpscmenu" data-id="' + sc.id + '" data-idx="' + i + '" data-k="scm-' + sc.id + '" title="More for this scene" aria-label="More for ' + nm + '" aria-haspopup="menu" aria-expanded="false">' + L.icon('more') + '</button></div>';
-    if (!isOpen) return '<li class="cp-scene" data-drag="scenes" data-filedrop="music" data-sc="' + sc.id + '" data-idx="' + i + '" aria-label="Scene ' + (i + 1) + ': ' + nm + '">' + head + '</li>';
+    if (!isOpen) return '<li class="cp-scene' + (sc.id === current ? ' sel' : '') + '" data-drag="scenes" data-filedrop="music" data-sc="' + sc.id + '" data-idx="' + i + '" aria-label="Scene ' + (i + 1) + ': ' + nm + '">' + head + '</li>';
     var f = 'sc' + sc.id;
     var body = '<div class="cp-scene-body" id="scb-' + sc.id + '">' +
       '<div class="field"><label for="' + f + 'n">Name</label><input class="input" id="' + f + 'n" data-input="cpscf" data-f="name" data-sc="' + sc.id + '" data-k="scname-' + sc.id + '" data-save="scene name {v}" value="' + esc(sc.name) + '" autocomplete="off"></div>' +
@@ -484,7 +530,7 @@
       '<div class="field"><label for="' + f + 'x">Notes</label><textarea class="input" id="' + f + 'x" rows="2" data-input="cpscf" data-f="notes" data-sc="' + sc.id + '" data-k="scnotes-' + sc.id + '" data-save="' + esc(sc.name || 'scene') + ' notes" placeholder="Reminders for this scene">' + esc(sc.notes) + '</textarea></div>' +
       '<div class="field cp-obsfield"><label for="' + f + 'o">Note link <span class="cp-later">Coming later</span></label><input class="input" id="' + f + 'o" data-input="cpscf" data-f="noteLink" data-sc="' + sc.id + '" data-k="scnote-' + sc.id + '" data-save="' + esc(sc.name || 'scene') + ' note link" value="' + esc(sc.noteLink || '') + '" placeholder="Optional: an Obsidian note" title="Kept for later; Lyre does not open Obsidian notes yet" autocomplete="off"></div></div>';
     // UX-18: a screen opened from inside this scene goes Back to it, with the scene open.
-    return '<li class="cp-scene open" data-drag="scenes" data-idx="' + i + '" data-back-label="' + nm + '" data-back-open="' + sc.id + '" aria-label="Scene ' + (i + 1) + ': ' + nm + '">' + head + body + '</li>';
+    return '<li class="cp-scene open' + (sc.id === current ? ' sel' : '') + '" data-drag="scenes" data-idx="' + i + '" data-back-label="' + nm + '" data-back-open="' + sc.id + '" aria-label="Scene ' + (i + 1) + ': ' + nm + '">' + head + body + '</li>';
   }
   /* ⋯ menus for rows: assigned playlists and boards, scene music and board items, the ambience slot. */
   L.acts.cprowmenu = function (el) {
@@ -532,8 +578,8 @@
   document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target && e.target.id === 'cp-nmin') { e.preventDefault(); var b = document.querySelector('[data-act="cpnamesave"]'); if (b) b.click(); } });
   function findScene(id) { var s = ctx().s; for (var i = 0; i < s.scenes.length; i++) if (s.scenes[i].id === id) return { s: s, sc: s.scenes[i], i: i }; return null; }
 
-  L.acts.cpscene = function (el) { var id = el.dataset.id; open[id] = !open[id]; current = id; L.render(); };
-  L.acts.cpallscenes = function () { var s = ctx().s, any = s.scenes.some(function (sc) { return !open[sc.id]; }); s.scenes.forEach(function (sc) { open[sc.id] = any; }); L.render(); L.say(any ? 'All scenes open' : 'All scenes folded'); };
+  L.acts.cpscene = function (el) { var id = el.dataset.id; open[id] = !open[id]; if (open[id]) current = id; else if (current === id) current = null; L.render(); };
+  L.acts.cpallscenes = function () { var s = ctx().s, any = s.scenes.some(function (sc) { return !open[sc.id]; }); s.scenes.forEach(function (sc) { open[sc.id] = any; }); if (!any) current = null; L.render(); L.say(any ? 'All scenes open' : 'All scenes folded'); };
   L.inputs.cpscf = function (el) { var x = findScene(el.dataset.sc); if (!x) return; x.sc[el.dataset.f] = el.value; current = x.sc.id; if (el.dataset.f === 'name') L.render(); };
   function itemName(id, list) { var it = info(id, list === 'boards'); return it ? it.name : 'item'; }
   L.acts.cpitem = function (el) {
@@ -653,6 +699,8 @@
       // Back from a track's audio settings in a scene opens that scene again, with focus on the track.
       if (L.state.openScene && s) { var back = L.state.openScene; L.state.openScene = null; if (s.scenes.some(function (x) { return x.id === back.sc; })) { open[back.sc] = true; current = back.sc; focusK = back.k || 'sct-' + back.sc; } }
       if (!s) return '<div class="viewhead"><h1>Session not found</h1></div><div class="empty"><a href="#/campaigns">Back to Campaigns</a></div>';
+      if (currentSid !== c.id + '/' + s.id) { if (currentSid) current = null; currentSid = c.id + '/' + s.id; }
+      var sel = current && findScene(current), selIx = sel ? s.scenes.indexOf(sel.sc) : -1;
       var head = '<div class="viewhead">' +
         // BUG-21: the title renames the session in place (click or F2); only the name, not the number.
         '<h1>' + (L.renaming('sess-' + s.id) ? 'Session ' + s.n + ': ' + L.renameBox('sess-' + s.id, s.name, 'Name of Session ' + s.n, 'cp-h1-rename') :
@@ -668,8 +716,8 @@
       var scenes = L.pane({ id: 'ss-scenes', title: 'Scenes', icon: 'map', kind: 'scenes',
         status: s.scenes.length ? null : { text: 'Empty', tone: 'idle' },
         actions: (s.scenes.length ? '<button class="closer" data-act="cpallscenes" data-k="allscenes" title="' + (allOpen ? 'Fold all scenes' : 'Open all scenes') + '" aria-label="' + (allOpen ? 'Fold all scenes' : 'Open all scenes') + '">' + L.icon(allOpen ? 'chevup' : 'chevdown') + '</button>' : '') +
-          '<button class="btn s" data-act="cpaddscene" data-k="addscene">' + L.icon('plus', 's') + 'Add scene</button>',
-        body: s.scenes.length ? '<ol class="cp-scenes" aria-label="Scenes in order">' + s.scenes.map(function (sc, i) { return sceneCard(s, sc, i); }).join('') + '</ol>' : '<p class="cp-none">No scenes yet. Use Add scene.</p>',
+          '<button class="btn s" data-act="cpaddscene" data-k="addscene" title="' + (selIx > -1 ? 'Adds a scene after Scene ' + (selIx + 1) + ': ' + esc(sel.sc.name || 'Untitled scene') : 'Adds a scene at the end (no scene is selected)') + '">' + L.icon('plus', 's') + 'Add scene</button>',
+        body: s.scenes.length ? '<p class="sr-only" id="cp-selnote">Selected: Add scene puts the new scene after it.</p><ol class="cp-scenes" aria-label="Scenes in order">' + s.scenes.map(function (sc, i) { return sceneCard(s, sc, i); }).join('') + '</ol>' : '<p class="cp-none">No scenes yet. Use Add scene.</p>',
         scroll: 'ss-scenes' });
       var spl = assignedPane({ id: 'ss-spl', title: 'Session playlists', kind: 'pl', scope: 's', ids: s.playlists, tracks: s.tracks, why: 'In every scene tonight.' });
       var sbd = assignedPane({ id: 'ss-sbd', title: 'Session pads', kind: 'bd', scope: 's', ids: s.boards, why: 'In every scene tonight.' });

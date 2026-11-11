@@ -332,3 +332,16 @@ test.describe("0.5.1: a bot token from Kenku FM", () => {
     await expect(bots(page).getByRole("note")).toHaveCount(0);
   });
 });
+
+/* 0.5.1 (ROUND8.md, part 3). Nik, 11 Nov 20:33: "Splitting headset should only apply if there is a live track playing
+   simultaneously, it shouldn't apply if it would be the only track playing". */
+test.describe("0.5.1: a split headset only while On air plays too", () => {
+  test("Split one headset says it splits only while something plays on air; a preview alone plays in both ears", async ({ page }) => {
+    expectFailureUntilBuilt("retire");
+    await openRoute(page, "settings");
+    const box = await unfold(page, "Headphones and speakers");
+    const split = box.getByRole("switch", { name: "Split one headset" });
+    await split.check();
+    await expect(box).toContainText("Only while something plays on air; a preview on its own plays in both ears.");
+  });
+});

@@ -345,3 +345,15 @@ test.describe("0.5.1: help for Lyre as one window", () => {
     await expect(helpPanel(page).getByRole("article")).toContainText("encrypted");
   });
 });
+
+/* 0.5.1 (ROUND8.md, part 3): Nik, 11 Nov 20:33, on fades and the split headset. */
+test("0.5.1: Run a session in Live says Fade all takes 5 seconds; Preview or play on air says when one headset is split", async ({ page }) => {
+  expectFailureUntilBuilt("retire");
+  await openRoute(page, "campaigns");
+  await page.keyboard.press("F1");
+  await helpPanel(page).getByRole("button", { name: "Run a session in Live", exact: true }).click();
+  await expect(helpPanel(page).getByRole("article")).toContainText("fades everything out over 5 seconds");
+  await helpPanel(page).getByRole("button", { name: "Back", exact: true }).click();
+  await helpPanel(page).getByRole("button", { name: "Preview or play on air", exact: true }).click();
+  await expect(helpPanel(page).getByRole("article")).toContainText("a preview on its own plays in both ears");
+});

@@ -41,13 +41,18 @@
     var c = document.getElementById('pk-count'); if (c && pk) c.textContent = count();
   };
   // place (optional): the session or campaign list it is played from ('ss:…' / 'cp:…'), for its play order and audio settings.
-  L.playOnAirButton = function (kind, id, place) {
-    var name = kind === 'track' ? L.title(L.track(id)) : (L.playlist(id) || {}).name;
-    return '<button type="button" class="btn s icon" data-act="onair" data-kind="' + kind + '" data-id="' + esc(id) + '"' + (place ? ' data-place="' + esc(place) + '"' : '') + ' data-k="air-' + kind + '-' + esc(id) + '" title="Play on air (the players hear it)" aria-label="Play on air: ' + esc(name) + '">' + L.icon('playair', 's') + '</button>';
+  // Round 8 (Nik, 11 Nov: "there are no 'play on air' buttons against individual tracks in playlists within a scene"):
+  // playlistId plays a track inside that playlist, so Next and the play order carry on from it there; name is the
+  // name shown (a scene's name for the track, DAT-14); k a data-k of its own when the track shows twice on the page.
+  L.playOnAirButton = function (kind, id, place, playlistId, name, k) {
+    name = name || (kind === 'track' ? L.title(L.track(id)) : (L.playlist(id) || {}).name);
+    return '<button type="button" class="btn s icon" data-act="onair" data-kind="' + kind + '" data-id="' + esc(id) + '"' + (place ? ' data-place="' + esc(place) + '"' : '') + (playlistId ? ' data-pl="' + esc(playlistId) + '"' : '') +
+      ' data-k="' + esc(k || 'air-' + kind + '-' + id) + '" title="Play on air (the players hear it)' + (playlistId ? ', then the rest of ' + esc((L.playlist(playlistId) || {}).name) : '') + '" aria-label="Play on air: ' + esc(name) + '">' + L.icon('playair', 's') + '</button>';
   };
   L.acts.onair = function (el) {
-    var k = el.dataset.kind, id = el.dataset.id, place = el.dataset.place || '';
-    if (k === 'track') { var t = L.track(id); L.play(id, { fade: 3, place: place }); if (t && t.kind === 'fx') L.toast('Effect on air: ' + L.title(t)); }
+    var k = el.dataset.kind, id = el.dataset.id, place = el.dataset.place || '', pl = el.dataset.pl && L.playlist(el.dataset.pl);
+    if (k === 'track' && pl) { L.play(id, { lane: pl.lane, playlistId: pl.id, place: place, fade: 3 }); var tf = L.track(id); if (tf && tf.kind === 'fx') L.toast('Effect on air: ' + L.title(tf)); }
+    else if (k === 'track') { var t = L.track(id); L.play(id, { fade: 3, place: place }); if (t && t.kind === 'fx') L.toast('Effect on air: ' + L.title(t)); }
     else { var p = L.playlist(id), t0 = L.orderedTracks(id, place)[0]; if (t0) L.play(t0.id, { lane: p.lane, playlistId: id, place: place, fade: 3 }); else L.toast('This playlist has no tracks yet'); }
   };
 
@@ -118,6 +123,9 @@
           '<span class="faint num">' + (i + 1) + '</span><span class="grow ellipsis" title="' + esc(nm !== L.title(t) ? 'Its own name: ' + L.title(t) : L.title(t)) + '">' + esc(nm) + '</span>' + L.tagStrip(t, 2) + '<span class="num faint">' + L.fmt(t.dur) + '</span>' + (L.profileLink && profileKey !== false ? L.profileLink(t.id, profileKey || 'pl:' + id, true) : '') + L.previewButton('track', t.id) +
           // Round 6 part 3 (decision 4): a scene's Repeat one, saved with the scene, shows and changes here as in Live.
           (inScene && p.lane === 'music' ? L.repeatOneButton(inScene, t.id, 'r1-' + (did || id) + '-' + t.id, nm) : '') +
+          // Round 8: Play on air for each track of a playlist in a scene, session or campaign, after its other buttons,
+          // as on Live's rows (Preview, Repeat one, Play on air); the playlist's own is on its row above.
+          (orderKey ? L.playOnAirButton('track', t.id, orderKey, id, nm, 'air-' + (did || id) + '-' + t.id) : '') +
           (ron ? '<span class="ro-btns"><button type="button" class="closer" data-act="romove" data-d="-1" data-k="roup-' + did + '-' + t.id + '" aria-label="Move up: ' + esc(nm) + '" title="Move up (Alt+Up)"' + (i === 0 ? ' disabled' : '') + '>' + L.icon('chevup', 's') + '</button>' +
             '<button type="button" class="closer" data-act="romove" data-d="1" data-k="rodn-' + did + '-' + t.id + '" aria-label="Move down: ' + esc(nm) + '" title="Move down (Alt+Down)"' + (i === ts.length - 1 ? ' disabled' : '') + '>' + L.icon('chevdown', 's') + '</button></span>' : '') + '</li>';
       }).join('') + '</ol>';
