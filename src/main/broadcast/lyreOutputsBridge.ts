@@ -44,6 +44,8 @@ export class LyreOutputsBridge {
     this.ipc.on("LYRE_BOT_CONNECT", (_event, id: string) => void this.outputs.connect(id));
     this.ipc.on("LYRE_BOT_DISCONNECT", (_event, id: string) => this.outputs.disconnect(id));
     this.ipc.on("LYRE_BOT_OPEN_INVITE", (_event, applicationId: string) => this.openInvite(applicationId));
+    // --- w51-main (FND-16) --- Got it on the note about a token moved from Kenku FM.
+    this.ipc.on("LYRE_BOT_LEGACY_NOTE_SEEN", () => this.outputs.legacyTokenNoteSeen());
     outputs.on("stateChange", this.onState);
   }
 

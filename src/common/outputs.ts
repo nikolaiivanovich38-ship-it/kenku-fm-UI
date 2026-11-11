@@ -82,6 +82,11 @@ export interface OutputsState {
    * session but can only be kept until Lyre closes (no encryption).
    */
   legacyTokenSessionOnly?: boolean;
+  /**
+   * FND-16: a bot token Kenku FM kept in plain text was moved on this computer's first start of 0.5.1, and the game
+   * master has not yet closed the note in Settings › Discord bots that says so. Missing when there is no note.
+   */
+  legacyTokenNote?: true;
   local: { muted: boolean };
   bots: BotState[];
   /** OUT-5: every bot in a voice channel, first room (the table) first (`roomsOf(bots)`). */

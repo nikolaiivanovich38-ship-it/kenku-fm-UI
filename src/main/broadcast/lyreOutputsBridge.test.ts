@@ -213,3 +213,27 @@ describe("LyreOutputsBridge: Settings in Lyre (OUT-8)", () => {
     expect(opened).toEqual([]);
   });
 });
+
+describe("LyreOutputsBridge: the note about a token moved from Kenku FM (FND-16)", () => {
+  it("shows the note in the Lyre page's outputs until the page says it was read; the manager is told", async () => {
+    const seen = vi.fn();
+    manager.on("legacyTokenNoteSeen", seen);
+    bridge.setView(lyre as never);
+    manager.setLegacyTokenNote(true);
+    await settle();
+    expect(last()?.legacyTokenNote).toBe(true);
+    expect(await fakeIpcMain.invoke("LYRE_OUTPUTS_GET", fromLyre())).toMatchObject({ legacyTokenNote: true });
+    fakeIpcMain.deliver("LYRE_BOT_LEGACY_NOTE_SEEN", fromLyre());
+    await settle();
+    expect(last()?.legacyTokenNote).toBeUndefined();
+    expect(seen).toHaveBeenCalledTimes(1);
+  });
+
+  it("takes the note's Got it from the Lyre page only, with no arguments", async () => {
+    manager.setLegacyTokenNote(true);
+    fakeIpcMain.deliver("LYRE_BOT_LEGACY_NOTE_SEEN", fromMainFrame(fakePage("player-view")));
+    fakeIpcMain.deliver("LYRE_BOT_LEGACY_NOTE_SEEN", fromLyre(), "extra");
+    await settle();
+    expect(manager.state().legacyTokenNote).toBe(true);
+  });
+});

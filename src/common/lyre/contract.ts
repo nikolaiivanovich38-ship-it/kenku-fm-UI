@@ -951,6 +951,14 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         for (const row of report.copied) expect(typeof row.what === "string" && typeof row.count === "number" && typeof row.nowIn === "string").toBe(true);
         expect(report.notBrought.length).toBeGreaterThan(0);
         expect(report.missing.every((m) => typeof m.fileName === "string")).toBe(true);
+        // FND-16: the old window's bookmarks to copy (a Bookmarks row only when there are some), what came across
+        // later from the old player, and the tracks that are only a web address.
+        expect(report.bookmarks.every((b) => typeof b.title === "string" && typeof b.url === "string")).toBe(true);
+        const row = report.copied.find((r) => r.what === "Bookmarks");
+        if (report.bookmarks.length > 0) expect(row).toEqual({ what: "Bookmarks", count: report.bookmarks.length, nowIn: "Listed to copy", route: null });
+        else expect(row).toBeUndefined();
+        expect(report.later === null || (typeof report.later.at === "number" && report.later.lines.every((l) => typeof l === "string"))).toBe(true);
+        expect(report.webOnly.every((t) => typeof t.id === "string" && /^https?:/.test(t.url))).toBe(true);
       });
 
       it("DAT-7: saves a file, opens it with each duplicate marked, and brings it in as chosen in one undo step", async () => {

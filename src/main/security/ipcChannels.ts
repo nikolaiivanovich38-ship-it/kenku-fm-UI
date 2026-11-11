@@ -326,6 +326,10 @@ export const IPC_CHANNELS = {
   LYRE_LOCAL_FOLDERS_FORGET: { from: ["lyre-view"], args: argsMatch(isStringUpTo(32_767)) },
   // Website tabs › Clear website data in Lyre: the old Settings' Clear cache (src/index.ts, appInfoIpc.ts; invoke).
   LYRE_CLEAR_WEBSITE_DATA: { from: ["lyre-view"], args: noArgs },
+  // --- w51-main ---
+  // FND-16 (src/main/broadcast/lyreOutputsBridge.ts): Got it on the note in Settings › Discord bots that says Lyre moved
+  // the bot token Kenku FM kept in plain text (send, no arguments). The main process remembers it (old-window.json).
+  LYRE_BOT_LEGACY_NOTE_SEEN: { from: ["lyre-view"], args: noArgs },
 } satisfies Record<string, IpcChannelRule>;
 
 export type IpcChannel = keyof typeof IPC_CHANNELS;

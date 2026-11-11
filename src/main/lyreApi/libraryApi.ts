@@ -58,6 +58,7 @@ import { estimateTransfer, NOT_BROUGHT_ACROSS, transferContents, type TransferLi
 import { fileAddress } from "../../common/lyre/media";
 import { plural, quoted, shownTitle, tagValue, trimmed } from "../../common/lyre/text";
 import {
+  readCatchUp,
   LibraryBusyError,
   NotFoundError,
   ValidationError,
@@ -170,6 +171,7 @@ import { joinRoot, unsafeFolderReason } from "../data/paths";
 import { saveLyreFile, openLyreFile, bringInLyreFile, type OpenTransfer, type TransferFiles } from "./transferApi";
 import { withCheckedArguments } from "./argChecks";
 import { libraryApiRound7 } from "./libraryApiRound7";
+import { OLD_WINDOW_RECORD, readOldWindowRecord } from "../legacy/oldWindowMove";
 import { Refused } from "./refused";
 
 /** What the library's API asks of the app around it: a person to choose files, the desktop to show a folder. */
@@ -209,6 +211,11 @@ export interface LibraryApiOptions {
    * default is "this-computer.json" beside a library file (an in-memory library keeps them in memory).
    */
   computerSettingsFile?: string | null;
+  /**
+   * FND-16: what the main process took over from the old main window (src/main/legacy/oldWindowMove.ts), read for
+   * What came across (its bookmarks). The default is "old-window.json" beside a library file; null for none.
+   */
+  oldWindowFile?: string | null;
   /**
    * DAT-15: how long after start every track not measured yet (a library from before version 4, or files changed
    * while Lyre was closed) is queued in the background (default 20 s, so starting up is not slowed).
@@ -743,6 +750,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           : path.join(path.dirname(library.databasePath), "this-computer.json"),
     log: options.log,
   });
+  const inMemory = library.databasePath === ":memory:" || library.databasePath === "";
+  const oldWindowFile = options.oldWindowFile !== undefined ? options.oldWindowFile : inMemory ? null : path.join(path.dirname(library.databasePath), OLD_WINDOW_RECORD);
 
   const api: LibraryApi = {
     library: {
@@ -1578,27 +1587,45 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
         });
       },
       async movedReport() {
-        // What the first start's move from the old player recorded (import/legacy.ts, library_jobs).
+        // What the first start's move from the old player recorded (import/legacy.ts, library_jobs), what it gained
+        // since that came across on the first start of 0.5.1 (the catch-up), and the old window's bookmarks
+        // (src/main/legacy/oldWindowMove.ts).
         const job = store.get<{ detail: string; finished_at: number | null }>("SELECT detail, finished_at FROM library_jobs WHERE name = 'legacy-player' AND state = 'done'");
         const report = job
-          ? (JSON.parse(job.detail).report as { status?: string; from?: string; bookmarks?: number; counts?: { playlists: number; tracks: number; boards: number; pads: number }; missingTrackIds?: string[] } | undefined)
+          ? (JSON.parse(job.detail).report as { status?: string; from?: string; counts?: { playlists: number; tracks: number; boards: number; pads: number }; missingTrackIds?: string[] } | undefined)
           : undefined;
-        if (!job || !report?.counts || report.status === "nothing-to-move") return null;
-        const gone = new Set(report.missingTrackIds ?? []);
+        const moved = job && report?.counts && report.status !== "nothing-to-move" ? report : null;
+        const oldWindow = oldWindowFile ? readOldWindowRecord(oldWindowFile) : null;
+        const bookmarks = oldWindow?.bookmarks ?? [];
+        if (!moved && bookmarks.length === 0) return null;
+        const catchUp = readCatchUp(store);
+        const later = catchUp && (catchUp.status === "brought-in" || catchUp.notBroughtBack?.length) ? { at: catchUp.at, lines: [...catchUp.lines] } : null;
+        const gone = new Set([...(moved?.missingTrackIds ?? []), ...(catchUp?.missingTrackIds ?? [])]);
         const missing = gone.size ? (await api.import.findMissing()).filter((m) => gone.has(m.id)) : [];
+        // FND-16: a track that is only a web address cannot play in Lyre (its pages play library files only).
+        const webOnly = store
+          .all<{ id: string; title: string; meta_title: string; url: string }>("SELECT id, title, meta_title, url FROM tracks WHERE url IS NOT NULL AND path IS NULL ORDER BY added_seq")
+          .map((t) => ({ id: t.id, title: t.title || t.meta_title || t.url, url: t.url }));
         return {
           // The record names the app and its version when it knows them ("Kenku FM 1.5.5").
-          from: typeof report.from === "string" && /^Kenku FM\b/.test(report.from) ? report.from : "Kenku FM",
-          at: job.finished_at ?? 0,
+          from: typeof moved?.from === "string" && /^Kenku FM\b/.test(moved.from) ? moved.from : "Kenku FM",
+          at: moved ? (job?.finished_at ?? 0) : (oldWindow?.movedAt ?? 0),
           copied: [
-            { what: "Playlists", count: report.counts.playlists, nowIn: "Playlists (Manual)", route: "#/playlists" },
-            { what: "Tracks", count: report.counts.tracks, nowIn: "Library", route: "#/library" },
-            { what: "Soundboards", count: report.counts.boards, nowIn: "Pad boards", route: "#/boards" },
-            { what: "Sounds", count: report.counts.pads, nowIn: "Pads on those boards", route: "#/boards" },
-            ...(typeof report.bookmarks === "number" ? [{ what: "Bookmarks", count: report.bookmarks, nowIn: "Website tabs", route: null }] : []),
+            ...(moved?.counts
+              ? [
+                  { what: "Playlists", count: moved.counts.playlists, nowIn: "Playlists (Manual)", route: "#/playlists" },
+                  { what: "Tracks", count: moved.counts.tracks, nowIn: "Library", route: "#/library" },
+                  { what: "Soundboards", count: moved.counts.boards, nowIn: "Pad boards", route: "#/boards" },
+                  { what: "Sounds", count: moved.counts.pads, nowIn: "Pads on those boards", route: "#/boards" },
+                ]
+              : []),
+            ...(bookmarks.length > 0 ? [{ what: "Bookmarks", count: bookmarks.length, nowIn: "Listed to copy", route: null }] : []),
           ],
           missing,
           notBrought: NOT_BROUGHT_ACROSS.map((x) => ({ ...x })),
+          bookmarks: bookmarks.map((b) => ({ ...b })),
+          later,
+          webOnly,
         };
       },
     },

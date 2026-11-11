@@ -35,6 +35,8 @@ interface OutputManagerEvents {
   roomVolumeChange: (roomId: string, volume: number) => void;
   /** w4-outputs: the state the main window was just sent (once per tick of changes), for the Lyre page too. */
   stateChange: (state: OutputsState) => void;
+  /** FND-16: the game master closed the note about the token moved from Kenku FM (SessionManager remembers it). */
+  legacyTokenNoteSeen: () => void;
 }
 
 /** The parts of the main window the manager uses. */
@@ -63,6 +65,8 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
   private publishQueued = false;
   /** An older version's token was taken over this session, for this session only. */
   private legacyTokenSessionOnly = false;
+  /** FND-16: Settings shows the note about the token moved from Kenku FM. */
+  private legacyTokenNote = false;
   private ipc = guardIpc(ipcMain);
   /** UX finding 6: when each waiting bot or voice connection tries again. */
   private retries = new RetryClock();
@@ -119,6 +123,7 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
     return {
       encryption: this.tokens.encryption,
       ...(this.legacyTokenSessionOnly ? { legacyTokenSessionOnly: true } : {}),
+      ...(this.legacyTokenNote ? { legacyTokenNote: true as const } : {}),
       local: { muted: this.localMuted },
       bots: [...this.bots.values()].map((bot) => {
         const summary = summaries.get(bot.id);
@@ -402,6 +407,20 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
       this.legacyTokenSessionOnly = !remembered;
       this.publish();
     }
+  }
+
+  /** FND-16: show (or stop showing) the note in Settings › Discord bots about the token moved from Kenku FM. */
+  setLegacyTokenNote(show: boolean): void {
+    if (this.legacyTokenNote === show) return;
+    this.legacyTokenNote = show;
+    this.publish();
+  }
+
+  /** FND-16: Got it on that note: it goes, and the listener remembers it for the next start. */
+  legacyTokenNoteSeen(): void {
+    const wasShown = this.legacyTokenNote;
+    this.setLegacyTokenNote(false);
+    if (wasShown) this.emit("legacyTokenNoteSeen");
   }
 
   async connect(id: string): Promise<void> {

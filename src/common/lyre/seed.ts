@@ -431,6 +431,16 @@ const TAG_META: Record<string, Record<string, { parent?: string; also?: string[]
 
 /* ---------- DAT-13: the prototype's loudness (prototypeLevels.ts, FND-17: one copy) ---------- */
 
+/** FND-16: the sample's Kenku FM bookmarks (What came across lists them to copy), as data.js has them. */
+const SAMPLE_BOOKMARKS: readonly { title: string; url: string; folder?: string }[] = [
+  { title: "YouTube", url: "https://www.youtube.com/" },
+  { title: "Spotify", url: "https://open.spotify.com/" },
+  { title: "Tabletop Audio", url: "https://tabletopaudio.com/" },
+  { title: "Ambient Mixer", url: "https://www.ambient-mixer.com/" },
+  { title: "Freesound", url: "https://freesound.org/" },
+  { title: "Kenku FM", url: "https://www.kenku.fm/" },
+];
+
 /** A fresh copy of the prototype's sample data. `now` dates the three tracks data.js added "Today". */
 export function prototypeSeed(now: number = Date.UTC(2026, 10, 5, 12)): SeedData {
   const allTracks = tracks(now);
@@ -472,9 +482,13 @@ export function prototypeSeed(now: number = Date.UTC(2026, 10, 5, 12)): SeedData
         { what: "Tracks", count: 212, nowIn: "Library", route: "#/library" },
         { what: "Soundboards", count: 4, nowIn: "Pad boards", route: "#/boards" },
         { what: "Sounds", count: 37, nowIn: "Pads on those boards", route: "#/boards" },
-        { what: "Bookmarks", count: 6, nowIn: "Website tabs", route: null },
+        { what: "Bookmarks", count: 6, nowIn: "Listed to copy", route: null },
       ],
       notBrought: NOT_BROUGHT_ACROSS.map((x) => ({ ...x })),
+      // FND-16 (0.5.1): the old window's bookmarks, listed to copy (websites can't be opened in Lyre for now).
+      bookmarks: SAMPLE_BOOKMARKS.map((b) => ({ ...b })),
+      later: null,
+      webOnly: [],
     },
     peaks,
   };

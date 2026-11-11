@@ -44,6 +44,8 @@ export interface StartedLibrary {
   wired: WiredLibrary;
   /** The library's folder (this computer's settings and the old main window's record are kept beside the database). */
   folder: string;
+  /** A test build's sample library (CUE_DESK_LYRE_SEED=prototype): there is no old player or old window behind it. */
+  seeded: boolean;
   /** FND-16: hears every event the library sends the Lyre page (Sound to Discord follows the settings); answers a stop. */
   onEvent(listener: (event: LyreEvent) => void): () => void;
   /** The main window is showing: the daily backups start, and the audio cache is tidied a while later. */
@@ -195,6 +197,7 @@ export function startLyreLibrary(): StartedLibrary {
     service,
     wired,
     folder,
+    seeded: seed,
     onEvent(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);

@@ -193,9 +193,10 @@ type Unit = {
   sources: number;
 };
 
-type PlannedPlaylist = { id: string; title: string; background: string; lane: TrackKind; trackKeys: string[] };
+/** `keptId`: the old id is the container's id in the library too, so a later start can find it (FND-16 catch-up). */
+type PlannedPlaylist = { id: string; keptId: boolean; title: string; background: string; lane: TrackKind; trackKeys: string[] };
 type PlannedPad = { id: string; label: string; mode: "toggle" | "oneshot"; volume: number; fadeInMs: number; fadeMs: number; trackKey: string };
-type PlannedBoard = { id: string; title: string; background: string; pads: PlannedPad[] };
+type PlannedBoard = { id: string; keptId: boolean; title: string; background: string; pads: PlannedPad[] };
 
 type Plan = {
   units: Map<string, Unit>;
@@ -276,7 +277,7 @@ function plan(state: LegacyPlayerState): Plan {
       const key = unitFor({ id: trackId, url: track.url, title: track.title }, "music", false);
       if (key) trackKeys.push(key);
     }
-    playlists.push({ id: usableId(id) ? id : randomUUID(), title, background: background(old.background), lane: "music", trackKeys });
+    playlists.push({ id: usableId(id) ? id : randomUUID(), keptId: usableId(id), title, background: background(old.background), lane: "music", trackKeys });
   }
 
   const boards: PlannedBoard[] = [];
@@ -305,7 +306,7 @@ function plan(state: LegacyPlayerState): Plan {
         trackKey: key,
       });
     }
-    boards.push({ id: usableId(id) ? id : randomUUID(), title, background: background(old.background), pads });
+    boards.push({ id: usableId(id) ? id : randomUUID(), keptId: usableId(id), title, background: background(old.background), pads });
   }
 
   // A playlist plays into the lane most of its tracks belong to; music when tied or empty.
@@ -319,6 +320,43 @@ function plan(state: LegacyPlayerState): Plan {
 
 // --- Writing ---
 
+const exists = (store: Store, table: "playlists" | "boards" | "pads", id: string) => store.get(`SELECT 1 AS found FROM ${table} WHERE id = ?`, id) !== undefined;
+
+/** A planned playlist as a manual playlist with its tracks (the tracks are in `trackIdOf`). One transaction. */
+function savePlaylist(store: Store, playlist: PlannedPlaylist, trackIdOf: Map<string, string>): void {
+  createPlaylist(store, { id: playlist.id, title: playlist.title, background: playlist.background, lane: playlist.lane });
+  const trackIds = playlist.trackKeys.map((key) => trackIdOf.get(key) as string);
+  if (trackIds.length > 0) addTracksToPlaylist(store, playlist.id, trackIds);
+}
+
+/** A planned soundboard as a pad board, 4 columns, what does not fit the 8 rows among its spare pads. One transaction. */
+function saveBoard(store: Store, board: PlannedBoard, trackIdOf: Map<string, string>): void {
+  const onGrid = Math.min(board.pads.length, GRID_COLUMNS * GRID_ROWS);
+  createBoard(store, {
+    id: board.id,
+    title: board.title,
+    background: board.background,
+    cols: GRID_COLUMNS,
+    rows: Math.min(GRID_ROWS, Math.max(1, Math.ceil(board.pads.length / GRID_COLUMNS))),
+  });
+  board.pads.forEach((pad, index) => savePad(store, board.id, pad, trackIdOf, index < onGrid ? { row: Math.floor(index / GRID_COLUMNS), col: index % GRID_COLUMNS } : "spare"));
+}
+
+/** One old sound as a pad; it keeps its old id when that is free. */
+function savePad(store: Store, boardId: string, pad: PlannedPad, trackIdOf: Map<string, string>, at: { row: number; col: number } | "spare"): void {
+  const padTaken = exists(store, "pads", pad.id) || !usableId(pad.id);
+  addPad(store, boardId, {
+    ...(padTaken ? {} : { id: pad.id }),
+    label: pad.label,
+    mode: pad.mode,
+    volume: pad.volume,
+    fadeInMs: pad.fadeInMs,
+    fadeMs: pad.fadeMs,
+    sound: { kind: "single", trackIds: [trackIdOf.get(pad.trackKey) as string] },
+    at,
+  });
+}
+
 type JobRow = { state: "running" | "done"; detail: string };
 
 function readJob(store: Store): JobRow | undefined {
@@ -330,6 +368,59 @@ const GRID_ROWS = 8;
 
 const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const names = (list: string[]) => (list.length <= 5 ? list.join(", ") : `${list.slice(0, 5).join(", ")} and ${list.length - 5} more`);
+
+/**
+ * Creates a track for each unit not yet in `trackIdOf` (reading the file's facts and tags; a file that is not there
+ * still becomes a track, reported missing) and notes its id there. Saved in batches, letting the event loop run.
+ * Answers the units whose files could not be found, already in the library or not.
+ */
+async function createUnitTracks(
+  store: Store,
+  units: Unit[],
+  trackIdOf: Map<string, string>,
+  takenIds: Set<string>,
+  options: LegacyImportOptions,
+): Promise<{ missing: Unit[] }> {
+  const report = (progress: ImportProgress) => options.onProgress?.(progress);
+  const missing: Unit[] = [];
+  let done = 0;
+  const total = units.length;
+  const inputs = await mapLimit(units, 8, async (unit) => {
+    let input: TrackInput | null = null;
+    const notInLibrary = !trackIdOf.has(unit.key);
+    if ("file" in unit.location && !(await fileExists(unit.location.file))) {
+      missing.push(unit);
+      if (notInLibrary) input = { file: { path: unit.location.file } };
+    } else if ("file" in unit.location && notInLibrary) {
+      const facts = await readFileFacts(unit.location.file).catch((): null => null);
+      const tags = options.tagReader ? await options.tagReader.read(unit.location.file).then(cleanTags, (): null => null) : null;
+      input = {
+        file: facts ?? { path: unit.location.file },
+        ...(tags ? { metaTitle: tags.title ?? "", sourceComposer: tags.artist, sourceAlbum: tags.album, durationMs: tags.durationMs } : {}),
+      };
+    } else if ("url" in unit.location && notInLibrary) {
+      input = { url: unit.location.url };
+    }
+    report({ phase: "reading", done: ++done, total, message: `Reading ${unit.title || baseName("file" in unit.location ? unit.location.file : unit.location.url)}` });
+    if (!input) return null;
+    const notes = [
+      unit.fullTitle ? `Full title in the old player: ${unit.fullTitle}` : "",
+      unit.otherTitles.length > 0 ? `Also called in the old player: ${unit.otherTitles.join("; ")}` : "",
+    ].filter(Boolean).join("\n").slice(0, MAX_TEXT_LENGTH);
+    const id = takenIds.has(unit.id) ? randomUUID() : unit.id;
+    return { unit, input: { ...input, id, title: unit.title, notes, kind: unit.kind, ...(unit.kind === "fx" ? { role: "effect" as const } : {}) } };
+  });
+  const fresh = inputs.filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+  for (let start = 0; start < fresh.length; start += BATCH) {
+    const batch = fresh.slice(start, start + BATCH);
+    const ids = store.changeWithoutHistory(() => createTracks(store, batch.map((entry) => entry.input)).map((track) => track.id));
+    batch.forEach((entry, index) => trackIdOf.set(entry.unit.key, ids[index]));
+    report({ phase: "saving", done: Math.min(start + BATCH, fresh.length), total: fresh.length, message: "Saving tracks" });
+    options.onStepSaved?.("tracks");
+    await nextTurn();
+  }
+  return { missing };
+}
 
 export async function importLegacyLibrary(library: Library, raw: unknown, options: LegacyImportOptions = {}): Promise<LegacyImportReport> {
   const store = library.store;
@@ -368,59 +459,17 @@ export async function importLegacyLibrary(library: Library, raw: unknown, option
   const known = locationsInLibrary(store);
   const takenIds = new Set(store.all<{ id: string }>("SELECT id FROM tracks").map((row) => row.id));
   const trackIdOf = new Map<string, string>();
-  const missing: Unit[] = [];
-  const toCreate: Unit[] = [];
   for (const unit of units) {
     const existing = known.get(unit.key);
     if (existing) trackIdOf.set(unit.key, existing);
-    else toCreate.push(unit);
   }
-  let done = 0;
+  const { missing } = await createUnitTracks(store, units, trackIdOf, takenIds, options);
   const total = units.length;
-  const inputs = await mapLimit(units, 8, async (unit) => {
-    let input: TrackInput | null = null;
-    const notInLibrary = !trackIdOf.has(unit.key);
-    if ("file" in unit.location && !(await fileExists(unit.location.file))) {
-      missing.push(unit);
-      if (notInLibrary) input = { file: { path: unit.location.file } };
-    } else if ("file" in unit.location && notInLibrary) {
-      const facts = await readFileFacts(unit.location.file).catch((): null => null);
-      const tags = options.tagReader ? await options.tagReader.read(unit.location.file).then(cleanTags, (): null => null) : null;
-      input = {
-        file: facts ?? { path: unit.location.file },
-        ...(tags ? { metaTitle: tags.title ?? "", sourceComposer: tags.artist, sourceAlbum: tags.album, durationMs: tags.durationMs } : {}),
-      };
-    } else if ("url" in unit.location && notInLibrary) {
-      input = { url: unit.location.url };
-    }
-    report({ phase: "reading", done: ++done, total, message: `Reading ${unit.title || baseName("file" in unit.location ? unit.location.file : unit.location.url)}` });
-    if (!input) return null;
-    const notes = [
-      unit.fullTitle ? `Full title in the old player: ${unit.fullTitle}` : "",
-      unit.otherTitles.length > 0 ? `Also called in the old player: ${unit.otherTitles.join("; ")}` : "",
-    ].filter(Boolean).join("\n").slice(0, MAX_TEXT_LENGTH);
-    const id = takenIds.has(unit.id) ? randomUUID() : unit.id;
-    return { unit, input: { ...input, id, title: unit.title, notes, kind: unit.kind, ...(unit.kind === "fx" ? { role: "effect" as const } : {}) } };
-  });
-  const fresh = inputs.filter((entry): entry is NonNullable<typeof entry> => entry !== null);
-  for (let start = 0; start < fresh.length; start += BATCH) {
-    const batch = fresh.slice(start, start + BATCH);
-    const ids = store.changeWithoutHistory(() => createTracks(store, batch.map((entry) => entry.input)).map((track) => track.id));
-    batch.forEach((entry, index) => trackIdOf.set(entry.unit.key, ids[index]));
-    report({ phase: "saving", done: Math.min(start + BATCH, fresh.length), total: fresh.length, message: "Saving tracks" });
-    step("tracks");
-    await nextTurn();
-  }
 
   // 3. Playlists and boards, each in one transaction; one already there was saved by an earlier run.
-  const exists = (table: "playlists" | "boards", id: string) => store.get(`SELECT 1 AS found FROM ${table} WHERE id = ?`, id) !== undefined;
   for (const playlist of moving.playlists) {
-    if (!exists("playlists", playlist.id)) {
-      store.changeWithoutHistory(() => {
-        createPlaylist(store, { id: playlist.id, title: playlist.title, background: playlist.background, lane: playlist.lane });
-        const trackIds = playlist.trackKeys.map((key) => trackIdOf.get(key) as string);
-        if (trackIds.length > 0) addTracksToPlaylist(store, playlist.id, trackIds);
-      });
+    if (!exists(store, "playlists", playlist.id)) {
+      store.changeWithoutHistory(() => savePlaylist(store, playlist, trackIdOf));
       step(`playlist ${playlist.id}`);
       await nextTurn();
     }
@@ -429,29 +478,8 @@ export async function importLegacyLibrary(library: Library, raw: unknown, option
   for (const board of moving.boards) {
     const onGrid = Math.min(board.pads.length, GRID_COLUMNS * GRID_ROWS);
     if (board.pads.length > onGrid) spareByBoard.push({ title: board.title, count: board.pads.length - onGrid });
-    if (exists("boards", board.id)) continue;
-    store.changeWithoutHistory(() => {
-      createBoard(store, {
-        id: board.id,
-        title: board.title,
-        background: board.background,
-        cols: GRID_COLUMNS,
-        rows: Math.min(GRID_ROWS, Math.max(1, Math.ceil(board.pads.length / GRID_COLUMNS))),
-      });
-      board.pads.forEach((pad, index) => {
-        const padTaken = store.get("SELECT 1 AS found FROM pads WHERE id = ?", pad.id) !== undefined || !usableId(pad.id);
-        addPad(store, board.id, {
-          ...(padTaken ? {} : { id: pad.id }),
-          label: pad.label,
-          mode: pad.mode,
-          volume: pad.volume,
-          fadeInMs: pad.fadeInMs,
-          fadeMs: pad.fadeMs,
-          sound: { kind: "single", trackIds: [trackIdOf.get(pad.trackKey) as string] },
-          at: index < onGrid ? { row: Math.floor(index / GRID_COLUMNS), col: index % GRID_COLUMNS } : "spare",
-        });
-      });
-    });
+    if (exists(store, "boards", board.id)) continue;
+    store.changeWithoutHistory(() => saveBoard(store, board, trackIdOf));
     step(`board ${board.id}`);
     await nextTurn();
   }
@@ -510,14 +538,16 @@ export async function importLegacyLibrary(library: Library, raw: unknown, option
     missingTrackIds: missingInOrder.map((unit) => trackIdOf.get(unit.key) as string),
     counts,
   });
-  store.changeWithoutHistory(() =>
+  store.changeWithoutHistory(() => {
     store.run(
       "UPDATE library_jobs SET state = 'done', detail = ?, finished_at = ? WHERE name = ?",
       JSON.stringify({ backupPath, report: result }),
       store.now(),
       LEGACY_JOB,
-    ),
-  );
+    );
+    // FND-16: this move took everything the old player holds now, so there is nothing for a later start to catch up.
+    recordCatchUp(store, catchUpReport("nothing-new", ["The first move took everything the old player held."], emptyCatchUpParts()));
+  });
   store.clearHistory();
   report({ phase: "done", done: total, total, message: result.summary });
   return result;
@@ -529,4 +559,198 @@ function emptyCounts(): LegacyImportReport["counts"] {
 
 function finish(report: Omit<LegacyImportReport, "summary">): LegacyImportReport {
   return { ...report, summary: report.lines.join(" ") };
+}
+
+// --- FND-16 (0.5.1): what the old player gained after the first move ---
+
+/** The catch-up's name in library_jobs. */
+export const LEGACY_CATCH_UP_JOB = "legacy-player-catch-up";
+
+export type LegacyCatchUpReport = {
+  /**
+   * brought-in: done now; nothing-new: the old player had nothing the library lacks (recorded, never runs again);
+   * already-done: an earlier start did it (this is that report); no-first-import: the first move has not happened
+   * (importLegacyLibrary does everything then); unreadable: tried again next time.
+   */
+  status: "brought-in" | "nothing-new" | "already-done" | "no-first-import" | "unreadable";
+  /** New playlists and soundboards, by title. */
+  playlists: string[];
+  boards: string[];
+  /** Playlists and pad boards already in the library that new files were added to, by title. */
+  addedTo: string[];
+  /**
+   * Playlists and soundboards the old player has and the library does not, made only of files the library has: most
+   * likely ones Nik took out of Lyre, so they are not brought back, only named.
+   */
+  notBroughtBack: string[];
+  lines: string[];
+  summary: string;
+  backupPath: string | null;
+  missingTrackIds: string[];
+  /** New playlists and boards; new tracks; entries and pads added to playlists and boards the library had. */
+  counts: { playlists: number; boards: number; tracks: number; playlistEntries: number; pads: number };
+  /** When it ran (ms since 1970); 0 when it has not. */
+  at: number;
+};
+
+type CatchUpParts = Pick<LegacyCatchUpReport, "playlists" | "boards" | "addedTo" | "notBroughtBack" | "backupPath" | "missingTrackIds" | "counts" | "at">;
+
+function emptyCatchUpParts(): CatchUpParts {
+  return { playlists: [], boards: [], addedTo: [], notBroughtBack: [], backupPath: null, missingTrackIds: [], counts: { playlists: 0, boards: 0, tracks: 0, playlistEntries: 0, pads: 0 }, at: 0 };
+}
+
+function catchUpReport(status: LegacyCatchUpReport["status"], lines: string[], parts: CatchUpParts): LegacyCatchUpReport {
+  return { status, lines, summary: lines.join(" "), ...parts };
+}
+
+function recordCatchUp(store: Store, report: LegacyCatchUpReport): void {
+  store.run(
+    "INSERT OR REPLACE INTO library_jobs (name, state, detail, started_at, finished_at) VALUES (?, 'done', ?, ?, ?)",
+    LEGACY_CATCH_UP_JOB,
+    JSON.stringify({ report }),
+    store.now(),
+    store.now(),
+  );
+}
+
+/** What the catch-up recorded, or null when it has not run. */
+export function readCatchUp(store: Store): LegacyCatchUpReport | null {
+  const job = store.get<{ detail: string }>("SELECT detail FROM library_jobs WHERE name = ? AND state = 'done'", LEGACY_CATCH_UP_JOB);
+  return job ? (JSON.parse(job.detail).report as LegacyCatchUpReport) : null;
+}
+
+/**
+ * Brings in, once, what the old player gained after the first move (Nik, 11 Nov: "bring in only what is new"):
+ * - a playlist or soundboard whose old id is not in the library comes in whole, as the first move would bring it,
+ *   when it has at least one file the library lacks; one made only of files the library has is most likely one Nik
+ *   took out of Lyre (the library cannot tell), so it is named in the report and not brought back;
+ * - a playlist or soundboard the library has gets the files that are new to the library, at its end (pads among the
+ *   board's spare pads, so the grid Nik laid out stays as it is).
+ * A file is in the library when a track has its old id (the first move kept old ids; Find missing files keeps a
+ * track's id) or its file or address. Nothing the library has is added again, so nothing is doubled. A container whose
+ * old id could not be kept cannot be matched and is left alone. A backup is taken before anything is written.
+ */
+export async function catchUpLegacyLibrary(library: Library, raw: unknown, options: LegacyImportOptions = {}): Promise<LegacyCatchUpReport> {
+  const store = library.store;
+  if (readJob(store)?.state !== "done") return catchUpReport("no-first-import", [], emptyCatchUpParts());
+  const recorded = readCatchUp(store);
+  if (recorded) return { ...recorded, status: "already-done" };
+
+  let state: LegacyPlayerState;
+  try {
+    state = parseLegacyPlayerState(raw);
+  } catch {
+    return catchUpReport("unreadable", [UNREADABLE], emptyCatchUpParts());
+  }
+  const moving = plan(state);
+
+  // Which old files the library has: by the old id the first move kept, else by file or address.
+  const trackIds = new Set(store.all<{ id: string }>("SELECT id FROM tracks").map((row) => row.id));
+  const known = locationsInLibrary(store);
+  const trackIdOf = new Map<string, string>();
+  for (const unit of moving.units.values()) {
+    const existing = trackIds.has(unit.id) ? unit.id : known.get(unit.key);
+    if (existing) trackIdOf.set(unit.key, existing);
+  }
+  const isNew = (key: string) => !trackIdOf.has(key);
+
+  const absentPlaylists = moving.playlists.filter((p) => p.keptId && !exists(store, "playlists", p.id));
+  const absentBoards = moving.boards.filter((b) => b.keptId && !exists(store, "boards", b.id));
+  const newPlaylists = absentPlaylists.filter((p) => p.trackKeys.some(isNew));
+  const newBoards = absentBoards.filter((b) => b.pads.some((pad) => isNew(pad.trackKey)));
+  const notBroughtBack = [...absentPlaylists.filter((p) => !newPlaylists.includes(p)).map((p) => p.title), ...absentBoards.filter((b) => !newBoards.includes(b)).map((b) => b.title)];
+  const notBackLine = notBroughtBack.length > 0
+    ? [`Not brought back: ${names(notBroughtBack)}. The old player still has ${notBroughtBack.length === 1 ? "it" : "them"}, made only of tracks already in your library, so Lyre took ${notBroughtBack.length === 1 ? "it" : "them"} as removed on purpose.`]
+    : [];
+  const growing = moving.playlists
+    .filter((p) => p.keptId && exists(store, "playlists", p.id) && isManual(store, p.id))
+    .map((p) => ({ playlist: p, keys: [...new Set(p.trackKeys.filter(isNew))] }))
+    .filter((g) => g.keys.length > 0);
+  const growingBoards = moving.boards
+    .filter((b) => b.keptId && exists(store, "boards", b.id))
+    .map((b) => ({ board: b, pads: b.pads.filter((pad) => isNew(pad.trackKey) && !exists(store, "pads", pad.id)) }))
+    .filter((g) => g.pads.length > 0);
+
+  const wanted = new Set<string>([
+    ...newPlaylists.flatMap((p) => p.trackKeys),
+    ...newBoards.flatMap((b) => b.pads.map((pad) => pad.trackKey)),
+    ...growing.flatMap((g) => g.keys),
+    ...growingBoards.flatMap((g) => g.pads.map((pad) => pad.trackKey)),
+  ]);
+  const units = [...moving.units.values()].filter((unit) => wanted.has(unit.key));
+  const toCreate = units.filter((unit) => isNew(unit.key));
+  if (newPlaylists.length === 0 && newBoards.length === 0 && growing.length === 0 && growingBoards.length === 0) {
+    const report = catchUpReport("nothing-new", ["The old player had nothing new since the first move.", ...notBackLine], { ...emptyCatchUpParts(), notBroughtBack, at: store.now() });
+    store.changeWithoutHistory(() => recordCatchUp(store, report));
+    return report;
+  }
+
+  const backupPath = (await library.backupBeforeImport()).path;
+  const { missing } = await createUnitTracks(store, units, trackIdOf, trackIds, options);
+  const missingNew = missing.filter((unit) => toCreate.includes(unit));
+  for (const playlist of newPlaylists) {
+    store.changeWithoutHistory(() => savePlaylist(store, playlist, trackIdOf));
+    await nextTurn();
+  }
+  for (const board of newBoards) {
+    store.changeWithoutHistory(() => saveBoard(store, board, trackIdOf));
+    await nextTurn();
+  }
+  for (const { playlist, keys } of growing) {
+    store.changeWithoutHistory(() => addTracksToPlaylist(store, playlist.id, keys.map((key) => trackIdOf.get(key) as string)));
+  }
+  for (const { board, pads } of growingBoards) {
+    store.changeWithoutHistory(() => pads.forEach((pad) => savePad(store, board.id, pad, trackIdOf, "spare")));
+  }
+
+  const parts: CatchUpParts = {
+    playlists: newPlaylists.map((p) => p.title),
+    boards: newBoards.map((b) => b.title),
+    addedTo: [...growing.map((g) => g.playlist.title), ...growingBoards.map((g) => g.board.title)],
+    notBroughtBack,
+    backupPath,
+    missingTrackIds: missingNew.map((unit) => trackIdOf.get(unit.key) as string),
+    counts: {
+      playlists: newPlaylists.length,
+      boards: newBoards.length,
+      tracks: toCreate.length,
+      playlistEntries: growing.reduce((sum, g) => sum + g.keys.length, 0),
+      pads: growingBoards.reduce((sum, g) => sum + g.pads.length, 0),
+    },
+    at: store.now(),
+  };
+  const lines: string[] = [];
+  if (parts.playlists.length > 0) lines.push(`Brought in ${count(parts.playlists.length, "playlist")} added in the old player since your first start: ${names(parts.playlists)}.`);
+  if (parts.boards.length > 0) lines.push(`Brought in ${count(parts.boards.length, "soundboard")} added in the old player since your first start: ${names(parts.boards)}.`);
+  if (parts.addedTo.length > 0) {
+    lines.push(`Added the new files to ${names(parts.addedTo)}; new sounds wait among the board's spare pads.`);
+  }
+  if (missingNew.length > 0) {
+    lines.push(`${count(missingNew.length, "file")} could not be found: ${names(missingNew.map((unit) => baseName((unit.location as { file: string }).file)))}. Use Find missing files to show Lyre where.`);
+  }
+  lines.push(...notBackLine);
+  lines.push(`A copy of your library was saved first: ${path.basename(backupPath)}.`);
+  const report = catchUpReport("brought-in", lines, parts);
+  store.changeWithoutHistory(() => recordCatchUp(store, report));
+  store.clearHistory();
+  return report;
+}
+
+function isManual(store: Store, playlistId: string): boolean {
+  return store.get<{ kind: string }>("SELECT kind FROM playlists WHERE id = ?", playlistId)?.kind === "manual";
+}
+
+/**
+ * What each start does with the old player's library (the library's process, on the Lyre page's first call): the first
+ * move when it has not happened (importLegacyLibrary), else the catch-up once (FND-16). The first move's report,
+ * with the catch-up's when it ran or had run.
+ */
+export async function bringInOldPlayer(
+  library: Library,
+  raw: unknown,
+  options: LegacyImportOptions = {},
+): Promise<LegacyImportReport & { catchUp?: LegacyCatchUpReport }> {
+  const report = await importLegacyLibrary(library, raw, options);
+  if (report.status !== "already-done" && report.status !== "moved") return report;
+  return { ...report, catchUp: await catchUpLegacyLibrary(library, raw, options) };
 }

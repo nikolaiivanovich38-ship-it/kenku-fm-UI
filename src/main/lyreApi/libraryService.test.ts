@@ -12,7 +12,7 @@ import { MessageChannel } from "worker_threads";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { LyreEvent } from "../../common/lyre/api";
-import { LibraryDatabaseError, openLibrary } from "../data";
+import { LEGACY_CATCH_UP_JOB, LibraryDatabaseError, openLibrary } from "../data";
 import { findBundledFfmpeg } from "../media/bundledFfmpeg";
 import { wavBytes, writeFile } from "../media/testing/wavFiles";
 import { runLibraryProcess } from "./libraryProcessCore";
@@ -270,6 +270,30 @@ describe("LyreLibraryService", () => {
     await s.stop();
     expect(children[0].exited).toBe(true);
     await expect(call(s, "boards", "list")).rejects.toThrow();
+  });
+
+  it("FND-16: tells the page when a later start brings in what the old player gained since the first move", async () => {
+    const { s, events, folder } = service({ seed: false });
+    s.start();
+    const oldPlayer = (playlists: Record<string, { title: string; tracks: string[] }>, tracks: Record<string, string>) =>
+      JSON.stringify({
+        playlists: JSON.stringify({
+          playlists: { byId: Object.fromEntries(Object.entries(playlists).map(([id, p]) => [id, { id, background: "", ...p }])), allIds: Object.keys(playlists) },
+          tracks: Object.fromEntries(Object.entries(tracks).map(([id, title]) => [id, { id, url: `https://example.com/${id}.mp3`, title }])),
+        }),
+        soundboards: JSON.stringify({ soundboards: { byId: {}, allIds: [] }, sounds: {} }),
+      });
+    expect((await s.bringInOldLibrary(oldPlayer({ p1: { title: "Tavern", tracks: ["x1"] } }, { x1: "Lute" }))).status).toBe("moved");
+    // An older Lyre (0.3.0 to 0.5.0) made the first move: it left no record of a catch-up.
+    const beside = openLibrary({ folder });
+    beside.store.run("DELETE FROM library_jobs WHERE name = ?", LEGACY_CATCH_UP_JOB);
+    beside.close();
+    events.length = 0;
+    const later = oldPlayer({ p1: { title: "Tavern", tracks: ["x1"] }, p2: { title: "Road", tracks: ["x2"] } }, { x1: "Lute", x2: "Cart" });
+    expect(await s.bringInOldLibrary(later)).toMatchObject({ status: "already-done", catchUp: { status: "brought-in", playlists: ["Road"] } });
+    expect(events).toContainEqual(expect.objectContaining({ type: "changed" }));
+    expect(((await call(s, "playlists", "list")) as { name: string }[]).map((p) => p.name).sort()).toEqual(["Road", "Tavern"]);
+    await s.stop();
   });
 });
 

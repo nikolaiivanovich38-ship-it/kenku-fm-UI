@@ -4,7 +4,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const made = vi.hoisted(() => ({
   playback: [] as {
     setLyreView: ReturnType<typeof vi.fn>;
-    outputs: { connectSaved: ReturnType<typeof vi.fn>; state: () => unknown };
+    outputs: EventEmitter & {
+      connectSaved: ReturnType<typeof vi.fn>;
+      state: () => unknown;
+      importLegacyToken: ReturnType<typeof vi.fn>;
+      setLegacyTokenNote: ReturnType<typeof vi.fn>;
+    };
     audioCaptureManager: { setStreamingMode: ReturnType<typeof vi.fn> };
     destroy: ReturnType<typeof vi.fn>;
   }[],
@@ -14,17 +19,20 @@ const made = vi.hoisted(() => ({
 }));
 
 vi.mock("electron", () => ({ ipcMain: { on: vi.fn(), handle: vi.fn() } }));
-vi.mock("./PlaybackManager", () => ({
+vi.mock("./PlaybackManager", async () => {
+  const { EventEmitter } = await import("events");
+  return {
   PlaybackManager: class {
     setLyreView = vi.fn();
-    outputs = { connectSaved: vi.fn(), state: () => ({}) };
+    outputs = Object.assign(new EventEmitter(), { connectSaved: vi.fn(), state: () => ({}), importLegacyToken: vi.fn(), setLegacyTokenNote: vi.fn() });
     audioCaptureManager = { setStreamingMode: vi.fn() };
     destroy = vi.fn();
     constructor() {
       made.playback.push(this);
     }
   },
-}));
+  };
+});
 vi.mock("./LyreManager", () => ({
   LyreManager: class {
     onAttachView?: (view: unknown) => void;
@@ -49,12 +57,14 @@ vi.mock("../soundToDiscord", () => ({
     }
   },
 }));
+const record = vi.hoisted(() => ({ next: null as unknown, seen: [] as string[] }));
 vi.mock("../legacy/oldWindowMove", () => ({
   oldWindowRecordFile: (folder: string) => `${folder}/old-window.json`,
   moveOldWindowDataOnce: vi.fn(async (deps: Record<string, (...args: never[]) => unknown>) => {
     made.moves.push(deps);
-    return null;
+    return record.next;
   }),
+  markTokenNoteSeen: vi.fn(async (file: string) => void record.seen.push(file)),
 }));
 
 import { SessionManager } from "./SessionManager";
@@ -87,6 +97,8 @@ describe("SessionManager (FND-16: the window's own page is the Lyre page)", () =
     made.lyre.length = 0;
     made.sound.length = 0;
     made.moves.length = 0;
+    record.next = null;
+    record.seen.length = 0;
   });
 
   it("joins the window's page to the audio channel and the outputs at once", () => {
@@ -154,5 +166,49 @@ describe("SessionManager (FND-16: the window's own page is the Lyre page)", () =
     session.destroy();
     library.emit({ type: "changed", areas: ["settings"] });
     expect(made.sound[0].onLibraryEvent).not.toHaveBeenCalled();
+  });
+
+  it("hands a plain Kenku FM token to the bots and logs them in, then shows the note until it is read", async () => {
+    const library = fakeLibrary();
+    const window = fakeWindow();
+    record.next = { movedAt: 1, bookmarks: [], tokenMoved: true, tokenNoteSeen: false };
+    new SessionManager(window, { library: library as never });
+    window.webContents.emit("did-finish-load");
+    const move = made.moves[0] as unknown as { importToken(token: string): void };
+    const outputs = made.playback[0].outputs;
+    move.importToken("MTIz.abc.def");
+    expect(outputs.importLegacyToken).toHaveBeenCalledWith("MTIz.abc.def");
+    expect(outputs.connectSaved).toHaveBeenCalled();
+    await vi.waitFor(() => expect(outputs.setLegacyTokenNote).toHaveBeenCalledWith(true));
+    outputs.emit("legacyTokenNoteSeen");
+    expect(record.seen).toEqual(["/data/library/old-window.json"]);
+  });
+
+  it("shows no note when the token note was read before, or no token came across", async () => {
+    const window = fakeWindow();
+    record.next = { movedAt: 1, bookmarks: [], tokenMoved: true, tokenNoteSeen: true };
+    new SessionManager(window, { library: fakeLibrary() as never });
+    window.webContents.emit("did-finish-load");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(made.playback[0].outputs.setLegacyTokenNote).not.toHaveBeenCalledWith(true);
+  });
+
+  it("does not take over the old window's data in a test build's sample library (it has none)", () => {
+    const window = fakeWindow();
+    new SessionManager(window, { library: fakeLibrary() as never, moveOldWindowData: false });
+    window.webContents.emit("did-finish-load");
+    expect(made.moves).toHaveLength(0);
+  });
+
+  it("test builds: arriving from Kenku FM runs the move again with a plain token and the given bookmarks", async () => {
+    const library = fakeLibrary();
+    const session = new SessionManager(fakeWindow(), { library: library as never, moveOldWindowData: false });
+    record.next = { movedAt: 2, bookmarks: [{ title: "Tabletop Audio", url: "https://tabletopaudio.com/" }], tokenMoved: true, tokenNoteSeen: false };
+    await session.arriveFromKenkuFM({ plainToken: true, bookmarks: [{ title: "Tabletop Audio", url: "https://tabletopaudio.com/" }] });
+    const move = made.moves[0] as unknown as { read(): Promise<string> };
+    const raw = JSON.parse(await move.read());
+    expect(JSON.parse(raw.settings).discordToken).toEqual(expect.any(String));
+    expect(Object.values(JSON.parse(raw.bookmarks).bookmarks.byId)).toEqual([{ id: "b0", title: "Tabletop Audio", url: "https://tabletopaudio.com/" }]);
+    expect(made.playback[0].outputs.setLegacyTokenNote).toHaveBeenCalledWith(true);
   });
 });

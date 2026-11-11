@@ -190,6 +190,14 @@ export class FakeOutputs implements OutputsClient {
     this.invited = true;
   }
 
+  /** FND-16: Got it on the note about a token moved from Kenku FM. */
+  legacyTokenNoteSeen(): void {
+    this.calls.push(["legacyTokenNoteSeen"]);
+    const rest = { ...this.state };
+    delete rest.legacyTokenNote;
+    this.push(rest);
+  }
+
   private withRemovable(bots: LyreBot[]): LyreOutputs {
     return { ...this.state, bots: bots.map((b) => ({ ...b, canRemove: bots.length > 1 })) };
   }

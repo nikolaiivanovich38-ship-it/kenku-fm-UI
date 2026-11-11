@@ -13,7 +13,7 @@ import { MessageChannel, type MessagePort } from "worker_threads";
 import { lyreApiContract, valueOf, type ContractFixture } from "../../common/lyre/contract";
 import { lyreApiOverPort, serveLyreApi, type PortLike } from "../../common/lyre/rpc";
 import { prototypeSeed } from "../../common/lyre/seed";
-import { LibraryBusyError, NotFoundError, ValidationError, openLibrary, type PeakReader } from "../data";
+import { LEGACY_CATCH_UP_JOB, LibraryBusyError, NotFoundError, ValidationError, catchUpLegacyLibrary, importLegacyLibrary, openLibrary, type PeakReader } from "../data";
 import { createLibraryApi, refusalFor, type LibraryHost } from "./libraryApi";
 import { seedLibrary } from "./seedLibrary";
 
@@ -212,5 +212,67 @@ describe("main-process LyreApi only", () => {
       expect(await restarted.import.applyRelink([{ trackId: match.trackId, to: match.to }])).toMatchObject({ ok: false, refusal: { code: "invalid" } });
       done();
     });
+  });
+});
+
+describe("FND-16 (0.5.1): What came across, as the old window and player go", () => {
+  const oldPlayer = (playlists: Record<string, { title: string; tracks: string[] }>, tracks: Record<string, { url: string; title: string }>) =>
+    JSON.stringify({
+      playlists: JSON.stringify({
+        playlists: { byId: Object.fromEntries(Object.entries(playlists).map(([id, p]) => [id, { id, background: "", ...p }])), allIds: Object.keys(playlists) },
+        tracks: Object.fromEntries(Object.entries(tracks).map(([id, t]) => [id, { id, ...t }])),
+      }),
+      soundboards: JSON.stringify({ soundboards: { byId: {}, allIds: [] }, sounds: {} }),
+    });
+
+  it("lists the old bookmarks, what came across later, and the tracks that are only a web address", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lyre-moved-"));
+    const library = openLibrary({ folder: path.join(dir, "library") });
+    const api = createLibraryApi(library, testHost());
+    try {
+      expect(await api.transfer.movedReport()).toBeNull();
+      const lute = { url: "https://example.com/lute.mp3", title: "Lute" };
+      await importLegacyLibrary(library, oldPlayer({ p1: { title: "Tavern", tracks: ["x1"] } }, { x1: lute }));
+      // An older Lyre made the first move (no catch-up record); the old player has gained a playlist since.
+      library.store.run("DELETE FROM library_jobs WHERE name = ?", LEGACY_CATCH_UP_JOB);
+      await catchUpLegacyLibrary(library, oldPlayer({ p1: { title: "Tavern", tracks: ["x1"] }, p2: { title: "Road", tracks: ["x2"] } }, { x1: lute, x2: { url: "https://example.com/cart.mp3", title: "Cart" } }));
+      fs.writeFileSync(
+        path.join(dir, "library", "old-window.json"),
+        JSON.stringify({ movedAt: 5, bookmarks: [{ title: "Tabletop Audio", url: "https://tabletopaudio.com/", folder: "Ambience" }], tokenMoved: false, tokenNoteSeen: false }),
+      );
+      const report = await api.transfer.movedReport();
+      expect(report?.copied.map((r) => [r.what, r.count, r.nowIn])).toEqual([
+        ["Playlists", 1, "Playlists (Manual)"],
+        ["Tracks", 1, "Library"],
+        ["Soundboards", 0, "Pad boards"],
+        ["Sounds", 0, "Pads on those boards"],
+        ["Bookmarks", 1, "Listed to copy"],
+      ]);
+      expect(report?.bookmarks).toEqual([{ title: "Tabletop Audio", url: "https://tabletopaudio.com/", folder: "Ambience" }]);
+      expect(report?.later?.lines[0]).toMatch(/Brought in 1 playlist added in the old player since your first start: Road\./);
+      expect(report?.webOnly).toEqual([
+        { id: "x1", title: "Lute", url: "https://example.com/lute.mp3" },
+        { id: "x2", title: "Cart", url: "https://example.com/cart.mp3" },
+      ]);
+    } finally {
+      api.stopBackgroundWork();
+      library.close();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("lists the bookmarks alone for someone whose old player was empty", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lyre-moved-"));
+    const library = openLibrary({ folder: path.join(dir, "library") });
+    const api = createLibraryApi(library, testHost());
+    try {
+      fs.writeFileSync(path.join(dir, "library", "old-window.json"), JSON.stringify({ movedAt: 7, bookmarks: [{ title: "YouTube", url: "https://www.youtube.com/" }], tokenMoved: false, tokenNoteSeen: false }));
+      const report = await api.transfer.movedReport();
+      expect(report).toMatchObject({ at: 7, copied: [{ what: "Bookmarks", count: 1 }], later: null, webOnly: [] });
+    } finally {
+      api.stopBackgroundWork();
+      library.close();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
