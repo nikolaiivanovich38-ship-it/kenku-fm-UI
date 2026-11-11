@@ -23,9 +23,11 @@ export async function dropFiles(target: Locator, names: string[], options: { typ
       const init = { bubbles: true, cancelable: true, dataTransfer: data, clientX: box.left + 40, clientY: box.top + box.height / 2 };
       const over = document.elementFromPoint(init.clientX, init.clientY) ?? el;
       over.dispatchEvent(new DragEvent("dragenter", init));
-      // As the browser: a drop happens only where the dragover was taken and its drop effect is not "none" (a handler
-      // may change it, which TypeScript cannot see, hence the cast below).
-      data.dropEffect = "copy";
+      // As the browser: a drop happens only where the dragover was taken and its drop effect is not "none". A
+      // DataTransfer made by script ignores writes to dropEffect (Chromium keeps it for a real drag), so this one keeps
+      // what the handlers write, as a real drag does. A handler may change it, hence the cast below.
+      let effect = "copy";
+      Object.defineProperty(data, "dropEffect", { configurable: true, get: () => effect, set: (value: string) => (effect = value) });
       const taken = !over.dispatchEvent(new DragEvent("dragover", init));
       if (taken && (data.dropEffect as string) !== "none") over.dispatchEvent(new DragEvent("drop", init));
     },
@@ -67,7 +69,9 @@ async function dropFilesFromDisk(target: Locator, names: string[]): Promise<void
     const init = { bubbles: true, cancelable: true, dataTransfer: data, clientX: box.left + 40, clientY: box.top + box.height / 2 };
     const over = document.elementFromPoint(init.clientX, init.clientY) ?? el;
     over.dispatchEvent(new DragEvent("dragenter", init));
-    data.dropEffect = "copy";
+    // dropEffect as a real drag keeps it (see dropFiles).
+    let effect = "copy";
+    Object.defineProperty(data, "dropEffect", { configurable: true, get: () => effect, set: (value: string) => (effect = value) });
     const taken = !over.dispatchEvent(new DragEvent("dragover", init));
     if (taken && (data.dropEffect as string) !== "none") over.dispatchEvent(new DragEvent("drop", init));
   });
