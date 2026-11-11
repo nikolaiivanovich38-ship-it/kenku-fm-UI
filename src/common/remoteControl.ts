@@ -21,6 +21,16 @@ export interface RemoteSettings {
 
 export type RemoteChange = Partial<RemoteSettings>;
 
+/**
+ * Review 0.5.0 CR-3: the remote control choice the main window's Settings kept until 0.4.1, handed to the main
+ * process once (REMOTE_MOVE_OLD_SETTING, src/renderer/features/settings/remoteMigration.ts).
+ */
+export interface OldRemoteSetting {
+  enabled: boolean;
+  address: string;
+  port: string;
+}
+
 export interface RemoteState extends RemoteSettings {
   /** True while the server is listening. */
   running: boolean;

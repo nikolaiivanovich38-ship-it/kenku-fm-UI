@@ -7,8 +7,9 @@
  * A key registered with globalShortcut is taken from every other program for as long as Lyre runs. So the game master
  * could not type a space in Discord's chat if Next scene kept Space, and could not copy or undo anywhere if it were
  * Ctrl+C or Ctrl+Z. Lyre therefore only offers keys that are not used for typing or by other programs' own commands:
- * an F key (with or without modifiers), Shift+Esc (Lyre's Fade everything out), or a key with two modifiers of which
- * one is Ctrl or Alt (Ctrl+Alt+N, Ctrl+Shift+N, Alt+Shift+N).
+ * an F key (with or without modifiers, but not Alt+F4 or Ctrl+F4: CR-7), Shift+Esc (Lyre's Fade everything out), or a key with two modifiers of which
+ * one is Ctrl or Alt (Ctrl+Shift+N, Alt+Shift+N, Ctrl+Alt+PageDown). Review 0.5.0 CR-6: not Ctrl+Alt with a key that
+ * types (Ctrl+Alt+E), because Windows reports AltGr as Ctrl+Alt, and AltGr types @, € and # on Belgian AZERTY.
  */
 import { SHORTCUT_ACTIONS, type ShortcutAction } from "./domain/round7";
 
@@ -69,11 +70,16 @@ function split(key: string): { mods: string[]; main: string } | null {
   return { mods: parts, main };
 }
 
+/** A letter, digit, sign or Space: what AltGr (Ctrl+Alt on Windows) can type with. */
+function typesACharacter(main: string): boolean {
+  return main.length === 1 || main === "Space";
+}
+
 function isFKey(main: string): boolean {
   return /^F([1-9]|1[0-2])$/.test(main);
 }
 
-/** Lyre's key name ("Ctrl+Alt+N", "Shift+Esc") as an Electron accelerator, or null when it is not one. */
+/** Lyre's key name ("Ctrl+Shift+N", "Shift+Esc") as an Electron accelerator, or null when it is not one. */
 export function acceleratorOf(key: string): string | null {
   const parts = split(key);
   if (!parts) return null;
@@ -84,18 +90,25 @@ export function acceleratorOf(key: string): string | null {
 }
 
 const actionName = (action: ShortcutAction | GlobalKeyAction) => SHORTCUT_ACTIONS.find((a) => a.id === action)?.name ?? action;
-const SUGGEST = "a key such as F9 or Ctrl+Alt+N (Change… above), then turn this on.";
+const SUGGEST = "a key such as F9 or Ctrl+Shift+N (Change… above), then turn this on.";
 
 /** Why a key cannot work in other programs, in plain words, or null when it can. */
 export function globalKeyProblem(action: GlobalKeyAction, key: string): string | null {
   const parts = split(key);
   if (!parts || !acceleratorOf(key)) return `Lyre cannot listen to ${key} in other programs. Give ${actionName(action)} ${SUGGEST}`;
   const { mods, main } = parts;
+  // Review 0.5.0 CR-7: Alt+F4 and Ctrl+F4 close windows and tabs in every program.
+  if (main === "F4" && mods.some((m) => m === "Ctrl" || m === "Alt")) {
+    return `${key} is a key other programs use for themselves (closing a window or a tab). Give ${actionName(action)} ${SUGGEST}`;
+  }
   if (isFKey(main)) return null;
   if (key === "Shift+Esc") return null;
   const strong = mods.filter((m) => m === "Ctrl" || m === "Alt");
   if (strong.length === 0) return `${key} cannot work in other programs: you type with it there. Give ${actionName(action)} ${SUGGEST}`;
   if (mods.length < 2) return `${key} is a key other programs use for themselves (copy, paste, undo, their menus). Give ${actionName(action)} ${SUGGEST}`;
+  if (strong.length === 2 && typesACharacter(main)) {
+    return `${key} cannot work in other programs: on many keyboards, the Belgian one among them, Ctrl+Alt is AltGr, which types @, € or # there. Give ${actionName(action)} ${SUGGEST}`;
+  }
   return null;
 }
 

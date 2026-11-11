@@ -13,8 +13,6 @@ const kenku = vi.hoisted(() => {
     on: vi.fn(),
     removeAllListeners: vi.fn(),
     setStreamingMode: vi.fn(),
-    playerStartRemote: vi.fn(),
-    playerStopRemote: vi.fn(),
     clearCache: vi.fn(),
     outputs: {
       getState: vi.fn(),
@@ -34,7 +32,7 @@ const kenku = vi.hoisted(() => {
 
 import outputReducer from "../output/outputSlice";
 import connectionReducer from "../connection/connectionSlice";
-import settingsReducer from "./settingsSlice";
+import settingsReducer, { type SettingsState } from "./settingsSlice";
 import errorsReducer, { errorShown } from "../errors/errorsSlice";
 import { Settings } from "./Settings";
 
@@ -46,9 +44,16 @@ const noKeyring: OutputsState = {
   ],
 };
 
-function setup() {
+function setup(oldSettings: Record<string, unknown> = {}) {
   const store = configureStore({
-    reducer: { output: outputReducer, connection: connectionReducer, settings: settingsReducer, errors: errorsReducer },
+    reducer: {
+      output: outputReducer,
+      connection: connectionReducer,
+      // Settings as saved, with any fields an older version kept.
+      settings: (state: SettingsState | undefined, action: { type: string }) =>
+        settingsReducer(state ?? { ...settingsReducer(undefined, { type: "init" }), ...oldSettings }, action),
+      errors: errorsReducer,
+    },
   });
   render(
     <Provider store={store}>
@@ -102,9 +107,15 @@ describe("Settings (UX finding 8 and wording)", () => {
     );
   });
 
-  it("explains the remote's address and port in plain words", () => {
-    setup();
-    expect(screen.getByText(/only programs on this computer can connect/)).toBeInTheDocument();
+  it("CR-3 (review 0.5.0): says the remote control is in Lyre's Settings, and neither turns it on nor chooses its address", () => {
+    // A main window's state from 0.4.1 with Remote on, as if the move to Lyre's Settings had not run.
+    setup({ remoteEnabled: true, remoteAddress: "0.0.0.0", remotePort: "4000" });
+    expect(screen.getByText(/Lyre tab's Settings, under Remote control/)).toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Address" })).toBeNull();
+    expect(screen.queryByRole("textbox", { name: "Port" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Start Remote|Stop Remote/ })).toBeNull();
+    const remoteCalls = Object.keys(kenku).filter((name) => /remote/i.test(name));
+    expect(remoteCalls).toEqual([]);
   });
 
   it("shows error messages inside the panel while it is open (UX finding 1)", async () => {

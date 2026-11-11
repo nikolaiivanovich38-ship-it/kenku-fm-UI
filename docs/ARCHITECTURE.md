@@ -53,7 +53,7 @@ Background pictures: a playlist or soundboard stores its background as a name (`
 
 ## Remote API
 
-`src/main/remote` registers fastify routes on the server that `PlayerManager` starts when Remote is enabled in Settings: `/v1/playlist`, `/v1/playlist/play`, `/v1/playlist/playback`, `/v1/soundboard`, `/v1/soundboard/play`, `/v1/soundboard/stop`, `/v1/soundboard/playback`. Routes forward commands to the player view over IPC. SEC-4 (0.5.0): the settings live in the main process (`remoteSettings.ts`, `remote-control.json`; off until turned on, 127.0.0.1 by default), `remoteControl.ts` starts and stops the server to match, and `remoteServer.ts` locks it: every request needs the secret code (`Authorization: Bearer <code>`), web pages and web names are refused, bodies are JSON only, requests and wrong codes are rate-limited, and answers carry no file addresses. The Lyre page reads and changes the settings through `window.lyre.remote` (REMOTE_GET, REMOTE_SET, REMOTE_NEW_CODE). See `docs/security.md` > w6-found.
+`src/main/remote` registers fastify routes on the server that `PlayerManager` starts when Remote is enabled in Settings: `/v1/playlist`, `/v1/playlist/play`, `/v1/playlist/playback`, `/v1/soundboard`, `/v1/soundboard/play`, `/v1/soundboard/stop`, `/v1/soundboard/playback`. Routes forward commands to the player view over IPC. SEC-4 (0.5.0): the settings live in the main process (`remoteSettings.ts`, `remote-control.json`; off until turned on, 127.0.0.1 by default), `remoteControl.ts` starts and stops the server to match, and `remoteServer.ts` locks it: every request needs the secret code (`Authorization: Bearer <code>`), web pages and web names are refused, bodies are JSON only, requests and wrong codes are rate-limited, and answers carry no file addresses. The Lyre page reads and changes the settings through `window.lyre.remote` (REMOTE_GET, REMOTE_SET, REMOTE_NEW_CODE); it is the only place that turns the remote control on (review 0.5.0 CR-3: the main window's old Settings only points there, and its 0.4.1 choice is moved in once through REMOTE_MOVE_OLD_SETTING). The main process listens only on 127.0.0.1 or a private address this computer has (CR-2). See `docs/security.md` > w6-found and review-0.5.0 fixes.
 
 ## Data storage
 
@@ -676,10 +676,15 @@ prototype's other words (Melancholy: sad, sorrowful; Dread: fear, horror; Tense:
 **Audio host** (`src/lyre/audio`, engine `src/player/engine/queue`): the Director runs a scene's own start and a pad's
 steps (`runSteps`; waits on the engine's clock, `PlaybackEngine.scheduler`; a scene step starting scenes stops after
 four rounds; a new scene start or Undo stops what waits), and a scene moving on after a time or when its music ends
-(its list then plays once, `playsOnce`). The RoomPlayer applies `roleProfile`, starts a track from a marker
-(`fromMs` on `playTrack` and on Play next / Add to queue's track), picks a "Pick up" track up where it stopped this
-evening (shared by the rooms), hands a play step over at the mix-out marker, at the end of a loop or when the track
-ends (`handOverAt`), plays Follow with when nothing else waits (Play next, the queue and a scene's own next item come
+(its list then plays once, `playsOnce`). Fade all and Stop all cancel everything waiting (review 0.5.0 CR-1,
+`cancelWaitingIn`): the scene's moving on, its steps after a wait, every pad's steps (`padRunGeneration`) and the
+scene's Undo, so nothing starts by itself until the game master starts something. Aimed at one room (a saved cue), they
+cancel only what waits there (lead decision, 11 Nov): pad steps aimed at that room (`roomStops`), and the scene and its
+Undo only when the scene plays in that room. The RoomPlayer applies
+`roleProfile`, starts a track from a marker (`fromMs` on `playTrack` and on Play next / Add to queue's track), picks a
+"Pick up" track up where it stopped (shared by the rooms, kept across restarts; forgotten when it plays to its end,
+CR-5), hands a play step over at the mix-out marker, at the end of a loop or when the track ends (`handOverAt`; Next,
+Previous, a new track, a stop or Undo call a waiting one off, CR-4), plays Follow with when nothing else waits (Play next, the queue and a scene's own next item come
 first), fades the music to a step's level, and keeps What played (`played`, newest first, 100 at most).
 
 - `RoomNowPlaying.played` (`trackId`, `title`, `at`, `from` for Play again); `LaneNowPlaying.level`;

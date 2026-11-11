@@ -289,6 +289,8 @@ export class RoomPlayer {
     if (direction === 1) {
       const { list, pick } = pickNext(this.list, this.planView(false), { ended: false, repeat: this.shownRepeat() });
       if (!pick) return false;
+      // CR-4: music that waited for this track's end, mix-out or loop end is called off.
+      this.cancelHandOver();
       this.list = list;
       this.startPick(pick, fadeSeconds);
       return true;
@@ -296,6 +298,7 @@ export class RoomPlayer {
     // From something added, Previous goes back to where the plan was.
     if (this.list.now.kind !== "plan" && this.list.ret !== null && this.plan) {
       const at = this.list.ret;
+      this.cancelHandOver();
       this.list = { ...this.list, now: { kind: "plan" }, ret: null, backToQueue: null };
       this.startPick({ from: "plan", at }, fadeSeconds);
       return true;
@@ -304,6 +307,7 @@ export class RoomPlayer {
     if (!play) {
       return false;
     }
+    this.cancelHandOver();
     this.music = lane;
     this.plan = play;
     this.startMusic(play, fadeSeconds);
@@ -488,6 +492,7 @@ export class RoomPlayer {
     voice.on("ended", () => {
       if (this.musicVoice === started) {
         this.musicVoice = null;
+        this.forgetWhere(started);
         // PLY-8: a play step waiting for this track to end comes in now.
         const waiting = this.handOver;
         if (waiting) {
@@ -791,6 +796,11 @@ export class RoomPlayer {
     const at = lane.voice.position();
     if (at > 0 && at < lane.profile.endMs / 1000 - 2) resumeAt.set(track.id, at);
     else resumeAt.delete(track.id);
+  }
+
+  /** CR-5: a "Pick up where it stopped" track that played to its end starts from the top next time. */
+  private forgetWhere(lane: LaneVoice): void {
+    this.deps.resumeAt?.delete(lane.item.trackId);
   }
 
   private play(lane: RoomLane, found: { track: DomainTrack; media: MediaRequest }, profile: AudioProfile, options: VoiceOptions): Voice {

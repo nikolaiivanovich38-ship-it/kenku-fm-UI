@@ -102,4 +102,20 @@ describe("LyreApi argument shapes (security review 5)", () => {
     expect(argumentProblem("transfer", "open", [{ from: "the-internet" }])).toBe("args[0].from");
     expect(argumentProblem("transfer", "bringIn", ["f", { all: "everything" }])).toBe("args[1].all");
   });
+
+  it("CR-9 (review 0.5.0): setComputer takes only the settings it knows, so nothing else reaches this computer's file", async () => {
+    expect(argumentProblem("settings", "setComputer", [{ display: { textSize: 150 }, devices: { split: true }, globalKeys: true }])).toBeNull();
+    expect(argumentProblem("settings", "setComputer", [{ display: { junk: "x" } }])).toBe("args[0].display.junk");
+    expect(argumentProblem("settings", "setComputer", [{ devices: { airDevice: "", extra: 1 } }])).toBe("args[0].devices.extra");
+    expect(argumentProblem("settings", "setComputer", [{ theme: "dark" }])).toBe("args[0].theme");
+    expect(argumentProblem("settings", "setComputer", [JSON.parse('{"display":{"__proto__":{"polluted":true}}}')])).toBe("args[0].display.__proto__");
+
+    const { lyre, dir } = await api();
+    const refused = await lyre.settings.setComputer({ display: { textSize: 150, junk: "x".repeat(1000) } } as never);
+    expect(refused).toMatchObject({ ok: false, refusal: { code: "invalid" } });
+    await lyre.settings.setComputer({ display: { textSize: 125 } });
+    const saved = JSON.parse(fs.readFileSync(path.join(dir, "library", "this-computer.json"), "utf8"));
+    expect(Object.keys(saved.display).sort()).toEqual(["density", "highContrast", "textSize"]);
+    expect(saved.display.textSize).toBe(125);
+  });
 });

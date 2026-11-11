@@ -125,7 +125,7 @@ Handlers also cope with ids that no longer exist: starting tab audio capture for
 | `BROWSER_VIEW_LOAD_URL` | Main window | view id: integer; url: text ≤ 2 MB | `BrowserViewManagerMain` |
 | `PLAYER_GET_URL` (sync) | Main window | none | `PlayerManager` |
 | `PLAYER_REGISTER_VIEW` | Main window | view id: integer (must be the trusted player view) | `PlayerManager` |
-| `PLAYER_START_REMOTE` | Main window | address, port: text ≤ 4096 | `PlayerManager` |
+| `PLAYER_START_REMOTE` | Main window | address, port: text ≤ 4096 | `PlayerManager` (removed in review 0.5.0 CR-3; see `REMOTE_MOVE_OLD_SETTING`) |
 | `PLAYER_STOP_REMOTE` | Main window | none | `PlayerManager` |
 | `AUDIO_CAPTURE_SET_MUTED` | Main window | view id: integer; muted: boolean | `AudioCaptureManagerMain` |
 | `AUDIO_CAPTURE_START_EXTERNAL_AUDIO_CAPTURE`, `_STOP_EXTERNAL_AUDIO_CAPTURE` | Main window | device id: text ≤ 4096 | `AudioCaptureManagerMain` |
@@ -847,9 +847,9 @@ you leave the screen.
 
 ### Technical details
 
-- **Settings and code.** `src/main/remote/remoteSettings.ts` keeps `{ enabled, address, port }` and the code in `remote-control.json` (mode 0600, written through a fresh temporary file like `discord-bots.json`). Defaults: off, `127.0.0.1`, 3333. The address must be `localhost` or an IP address (at most 64 characters), the port 1024 to 65535; a damaged or edited file falls back to the defaults. The code (`remoteCode.ts`) is 20 Crockford base32 symbols from 13 random bytes (100 bits), shown as five groups of four; it is encrypted with `safeStorage` (`encryptedCode`), or kept in memory only where `canEncrypt` says no (then a new code each start; `codeRemembered: false`). One store is shared by every `PlayerManager`, so a reload keeps the code.
+- **Settings and code.** `src/main/remote/remoteSettings.ts` keeps `{ enabled, address, port }` and the code in `remote-control.json` (mode 0600, written through a fresh temporary file like `discord-bots.json`). Defaults: off, `127.0.0.1`, 3333. The address must be `127.0.0.1` or a private address this computer has (since review 0.5.0 CR-2; see that section), the port 1024 to 65535; a damaged or edited file falls back to the defaults. The code (`remoteCode.ts`) is 20 Crockford base32 symbols from 13 random bytes (100 bits), shown as five groups of four; it is encrypted with `safeStorage` (`encryptedCode`), or kept in memory only where `canEncrypt` says no (then a new code each start; `codeRemembered: false`). One store is shared by every `PlayerManager`, so a reload keeps the code.
 - **Server.** `remoteServer.ts` `createRemoteServer` (fastify 5, `bodyLimit` 16 KB) runs one `onRequest` hook before every route, in this order: at most 600 requests a minute per address (429 with `Retry-After`); any `Origin` header refused (403); `Host` must be `localhost`, an IPv4 address or a bracketed IPv6 address with the server's port (403; DNS rebinding needs a name); an address with 10 wrong codes in 10 minutes refused (429); `Authorization: Bearer <code>` compared with `codesMatch` (SHA-256 of both, `timingSafeEqual`), else 401 with `WWW-Authenticate: Bearer realm="Lyre"`. The `text/plain` body reader is removed, so only JSON bodies are read (415 otherwise). A `preSerialization` hook drops `url` keys and `file:` text from every answer. Unknown routes answer 401 before 404, so they reveal nothing without the code.
-- **Lifecycle.** `remoteControl.ts` `RemoteControl` starts, moves or stops the server to match the settings, one change at a time, and turns listen errors into plain words (port taken, address not on this computer, port not allowed). `PlayerManager` makes one per main-window load, starts it if it was left on (after the previous window's server has closed), and closes it in `destroy()` without changing the setting. The old Settings' `PLAYER_START_REMOTE` / `PLAYER_STOP_REMOTE` now set the settings (a refused address or a listen problem goes to the main window's `ERROR`).
+- **Lifecycle.** `remoteControl.ts` `RemoteControl` starts, moves or stops the server to match the settings, one change at a time, and turns listen errors into plain words (port taken, address not on this computer, port not allowed). `PlayerManager` makes one per main-window load, starts it if it was left on (after the previous window's server has closed), and closes it in `destroy()` without changing the setting. The old Settings' `PLAYER_START_REMOTE` / `PLAYER_STOP_REMOTE` set the settings until review 0.5.0, which removed them (CR-3).
 - **Updates.** `src/main/updateStatus.ts` records each step of Electron's `autoUpdater` (`src/autoUpdate.ts`: checking, downloading, up to date, ready, error, or off with the reason) and turns errors into plain words without the user's folder names (`plainUpdateError`). The first error after a working check goes to the main window's `ERROR`; later ones only to the log and the state, as checks repeat every 15 minutes.
 
 ### Channels
@@ -863,7 +863,7 @@ you leave the screen.
 | `UPDATE_GET` (invoke) | Lyre page | none; answers an `UpdateState` (`src/common/appUpdates.ts`) | `LyreManager` |
 | `UPDATE_STATE` (main to page) | main process | one `UpdateState`, after each change, to the Lyre page | `src/lyre/updates/preloadUpdates.ts` |
 
-The Lyre page reaches them as `window.lyre.remote` (`get`, `set`, `newCode`, `onChange`) and `window.lyre.updates` (`get`, `onChange`). The main window, the old player, the capture window and website tabs cannot use them. `PLAYER_START_REMOTE` and `PLAYER_STOP_REMOTE` keep their senders and argument checks.
+The Lyre page reaches them as `window.lyre.remote` (`get`, `set`, `newCode`, `onChange`) and `window.lyre.updates` (`get`, `onChange`). The main window, the old player, the capture window and website tabs cannot use them. (Until review 0.5.0, `PLAYER_START_REMOTE` and `PLAYER_STOP_REMOTE` from the main window could also turn it on; CR-3 removed them.)
 
 ### Tests
 
@@ -880,7 +880,7 @@ The Lyre page reaches them as `window.lyre.remote` (`get`, `set`, `newCode`, `on
 
 ### Manual checks (Windows)
 
-1. Settings > Remote > Start Remote, then in PowerShell: `Invoke-WebRequest http://127.0.0.1:3333/v1/playlist`. The answer is 401 and says to copy the secret code from Lyre's Settings.
+1. Lyre › Settings › Remote control, turn it on (before review 0.5.0: the main window's Settings > Remote > Start Remote), then in PowerShell: `Invoke-WebRequest http://127.0.0.1:3333/v1/playlist`. The answer is 401 and says to copy the secret code from Lyre's Settings.
 2. Once round 7's Settings shows the code: `Invoke-WebRequest http://127.0.0.1:3333/v1/playlist -Headers @{ Authorization = "Bearer <code>" }` lists your playlists, with no file paths.
 3. Quit and start Lyre: the remote is on again with the same code (Windows encrypts it).
 4. Turn the network off and wait up to 15 minutes in an installed copy: one message says Lyre could not check for updates because the computer seems to be offline.
@@ -956,11 +956,13 @@ other program would lose them. The keys go back when you turn it off, change a k
 - **Home network** (`homeNetwork.ts`): `RemoteState.homeAddress` is this computer's private IPv4 address (RFC 1918;
   192.168 first, then 10, then 172.16–31), or null. `RemoteControl` passes on only an address `isHomeNetworkAddress`
   accepts, so neither a public address nor 0.0.0.0 is ever offered; the page sets it through `REMOTE_SET` as before.
+  Until review 0.5.0 this was true only of the address offered: the address listened on was any IP address, 0.0.0.0
+  included. The main process now refuses those too (CR-2, below).
   Test builds may be given one with `CUE_DESK_FAKE_HOME_ADDRESS` (`PlayerManager`, gated on `__CUE_DESK_TEST_BUILD__`).
 - **Global keys** (`src/main/globalKeys.ts`, `src/common/globalKeys.ts`): `LyreManager` registers at most two
   accelerators with `globalShortcut`, for nextScene and fadeAll, only while the page asks with `on: true`;
   `globalKeyProblem` refuses keys used for typing or other programs' commands before Electron is asked (allowed: F1–F12,
-  Shift+Esc, two modifiers including Ctrl or Alt). A key another program holds (`register` answers false) is refused in
+  Shift+Esc, two modifiers including Ctrl or Alt; since review 0.5.0 not Ctrl+Alt with a key that types, CR-6). A key another program holds (`register` answers false) is refused in
   plain words. Every key is unregistered on each change, in `LyreManager.destroy()` and on `will-quit`
   (`globalShortcut.unregisterAll()`, src/index.ts).
 - **The main window's settings** (`src/common/windowSettings.ts`, `src/main/windowSettings/windowSettingsBridge.ts`,
@@ -997,3 +999,79 @@ other program would lose them. The keys go back when you turn it off, change a k
 
 1. Settings › Remote control: turn it on; the code is two groups of four; `Invoke-WebRequest http://127.0.0.1:3333/v1/playlist -Headers @{ Authorization = "Bearer <code>" }` lists playlists. Choose Your home network: the address shown is 192.168.x.x (or 10.x.x.x); from a phone on the same Wi-Fi, the same request with that address works; Make a new code, and the old one is refused.
 2. Settings › Keyboard shortcuts: turn on "in other programs too" with Next scene on Space: it says Space cannot work there. Give Next scene F9, turn it on, click into Discord and press F9: Live moves to the next scene; type a space in Discord's chat: it types. Turn it off: F9 does nothing outside Lyre. Quit Lyre: F9 works for other programs again.
+
+## review-0.5.0 fixes
+
+### In plain language
+
+The remote control now listens only where Settings says it can, whatever asks it: on this computer only (127.0.0.1),
+or on this computer's own address on your home network. "Every address" (0.0.0.0 or ::), an internet address, and an
+address this computer does not have are refused in plain words, even if an old setting or a faulty page asks for one.
+If your computer is not on the home network it was set up on, the remote control waits and says why, instead of
+listening somewhere else. Only Lyre's own Settings turns the remote control on now; the main window's old Settings
+says where to find it, and a choice made there before is moved over once. Keys that work in other programs refuse
+Ctrl+Alt with a letter or digit (that is AltGr on a Belgian keyboard, which types @, € and #) and Alt+F4 or Ctrl+F4.
+
+### Technical details
+
+- **Listen address (CR-2).** `remoteAddressProblem` (`src/main/remote/remoteSettings.ts`) allows `127.0.0.1`, or an
+  address `isPrivateListenAddress` (`homeNetwork.ts`) accepts (RFC 1918, 169.254/16, fe80::/10, fc00::/7) that is one
+  of this computer's addresses (`ownNetworkAddresses(os.networkInterfaces())`, zone dropped, lower case; a test build
+  adds `CUE_DESK_FAKE_HOME_ADDRESS`). 0.0.0.0, `::`, loopback other than 127.0.0.1 (`localhost`, `::1`), IPv4-mapped
+  and internet addresses are refused. It runs in three places: `RemoteSettingsStore.update` (so `REMOTE_SET` and the
+  one-time move of the old setting are checked), `load` (an address of a kind never allowed goes back to 127.0.0.1;
+  on and the port are kept), and `RemoteControl.apply` just before `listen`, against the addresses the computer has at
+  that moment, so a saved home-network address the computer no longer has is not listened on and Settings shows why.
+- **One owner (CR-3).** Until 0.4.1 the main window's Settings kept Remote on/off, address and port in its own saved
+  state and called `PLAYER_START_REMOTE` at every start and reload, overriding Lyre's Settings. That panel now only
+  says where the remote control is; its Address and Port fields, Start/Stop Remote and the start-up call are gone, and
+  so are `PLAYER_START_REMOTE`, `PLAYER_STOP_REMOTE` and `window.kenku.playerStartRemote` / `playerStopRemote`.
+  redux-persist version 7 (`src/renderer/features/settings/remoteMigration.ts`) hands the old values to the main
+  process once through `REMOTE_MOVE_OLD_SETTING` and drops them from the saved state. `RemoteSettingsStore.moveOldSetting`
+  takes them only once (`oldSettingMoved: true` in `remote-control.json`): an old "on" is kept, with 127.0.0.1 for an
+  address CR-2 does not allow and the current port for an odd one; an old "off" changes nothing. Later messages are
+  ignored, so the old setting has no effect after that.
+- **Global keys (CR-6, CR-7).** `globalKeyProblem` (`src/common/globalKeys.ts`) refuses Ctrl+Alt with a letter, digit,
+  sign or Space, with or without Shift: Windows reports AltGr as Ctrl+Alt, so a registered Ctrl+Alt+2 would take every
+  @ typed on a Belgian AZERTY keyboard (AltGr+é) from Discord and other programs. Ctrl+Alt with an F key, an arrow or
+  Page Up/Down is still allowed, and the suggestion in every refusal is now "F9 or Ctrl+Shift+N". CR-7: an F4 with
+  Ctrl or Alt (Alt+F4, Ctrl+F4) is refused too, because it closes windows and tabs in every program.
+- **Drop tray (CR-8).** A drag cancelled with Esc is stopped on the document in the capture phase, so no drop place
+  takes it (`src/lyre/screens/drop/DropTray.tsx`). That also kept it from the document's drop guard (SEC-7), so for
+  the rest of that drag the browser's own handling applied. The cancelled branch now does what the guard does:
+  `preventDefault()` and `dropEffect = "none"`. `DropTray.test.tsx` checks it with the real guard installed. The main
+  process's `will-navigate` lock still stops any navigation behind it.
+- **This computer's settings (CR-9).** `settings.setComputer` used `Object.assign` to merge the page's `display` and
+  `devices` into `this-computer.json`, and its argument shape let extra keys through, so a faulty page could save any
+  key there (a `__proto__` key would even replace the object's prototype). Its shape in
+  `src/main/lyreApi/argChecks.ts` now uses `exactObject`, which refuses any key it does not list, and
+  `libraryApiRound7.ts` copies only `density`, `textSize`, `highContrast`, `airDevice`, `previewDevice`, `split` and
+  `previewEar` (`copyKnown`). `argChecks.test.ts` checks both.
+
+### Channels
+
+| Channel | Sent by | Arguments | Handled in |
+|---|---|---|---|
+| `REMOTE_MOVE_OLD_SETTING` (send) | Main window | one object exactly `{ enabled: boolean, address: text ≤ 64, port: text ≤ 5 }` (`isOldRemoteSetting`); taken once | `PlayerManager` → `RemoteControl.moveOldSetting` |
+| `PLAYER_START_REMOTE`, `PLAYER_STOP_REMOTE` | removed | | |
+
+### Tests
+
+| Test | Covers |
+|---|---|
+| `src/main/remote/remoteSettings.test.ts`, `homeNetwork.test.ts` | 0.0.0.0, ::, internet, loopback other than 127.0.0.1 and not-this-computer addresses refused; saved ones put back; the one-time move of the old setting |
+| `src/main/remote/remoteControl.test.ts` | A saved home-network address the computer no longer has is not listened on, with the reason |
+| `src/main/managers/PlayerManager.test.ts` | `REMOTE_SET` refuses 0.0.0.0, :: and an internet address; the old Start Remote message does nothing; the old setting moves once, from the main window only, address checked |
+| `src/renderer/features/settings/remoteMigration.test.ts`, `Settings.test.tsx` | Version 7 hands the old values over once and drops them; the old panel has no Address, Port or Start Remote and calls nothing remote |
+| `e2e/remote.spec.ts`, `e2e/settings.spec.ts`, `e2e/persistence.spec.ts` | The packaged app: the old panel points to Lyre's Settings; the remote is turned on and off through Lyre's bridge; a main-window setting other than the old port survives a restart |
+
+### Manual checks (Windows)
+
+1. Upgrade from 0.4.1 with Remote on in the main window's Settings (127.0.0.1, port 3333): after the first start of
+   the new version, Lyre › Settings › Remote control shows it on, This computer only, port 3333. Turn it off there and
+   restart Lyre twice: it stays off.
+2. Lyre › Settings › Remote control › Your home network: the address shown is this computer's 192.168.x.x. Then
+   `netstat -ano | findstr :3333` lists that address only, never 0.0.0.0.
+3. Settings › Keyboard shortcuts: give Next scene Ctrl+Alt+2 and turn on "in other programs too": it is refused,
+   naming AltGr. Give Fade everything out Alt+F4: refused. Give Next scene Ctrl+Shift+N: accepted; in Discord, AltGr+é
+   still types @.

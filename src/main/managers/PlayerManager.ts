@@ -1,9 +1,9 @@
 import { app, ipcMain, BrowserWindow, safeStorage, webContents } from "electron";
 import os from "os";
-import { homeNetworkAddress } from "../remote/homeNetwork";
+import { homeNetworkAddress, ownNetworkAddresses } from "../remote/homeNetwork";
 import { PlayerRequests } from "../remote/playerRequests";
 import { RemoteControl, type RemoteState } from "../remote/remoteControl";
-import { RemoteSettingsStore, type RemoteSettings } from "../remote/remoteSettings";
+import { RemoteSettingsStore, type OldRemoteSetting, type RemoteSettings } from "../remote/remoteSettings";
 import { guardIpc } from "../security/ipcGuard";
 import { trustedContents } from "../security/trustedContents";
 
@@ -19,7 +19,7 @@ export const SAVE_BEFORE_CLOSE_TIMEOUT_MS = 1000;
  */
 let sharedRemoteStore: RemoteSettingsStore | undefined;
 function remoteSettingsStore(): RemoteSettingsStore {
-  sharedRemoteStore ??= new RemoteSettingsStore(RemoteSettingsStore.fileIn(app.getPath("userData")), safeStorage);
+  sharedRemoteStore ??= new RemoteSettingsStore(RemoteSettingsStore.fileIn(app.getPath("userData")), safeStorage, { ownAddresses: thisComputersAddresses });
   return sharedRemoteStore;
 }
 
@@ -41,8 +41,17 @@ export interface PlayerManagerOptions {
  * be given one with CUE_DESK_FAKE_HOME_ADDRESS (the e2e machine has no home network); a release build never reads it.
  */
 function thisComputersHomeAddress(): string | null {
-  const fake = typeof __CUE_DESK_TEST_BUILD__ !== "undefined" && __CUE_DESK_TEST_BUILD__ ? process.env.CUE_DESK_FAKE_HOME_ADDRESS : undefined;
-  return fake || homeNetworkAddress(os.networkInterfaces());
+  return fakeHomeAddress() || homeNetworkAddress(os.networkInterfaces());
+}
+
+/** CR-2: the addresses the remote control may listen on besides 127.0.0.1 must be among these (the test build's too). */
+function thisComputersAddresses(): string[] {
+  const fake = fakeHomeAddress();
+  return [...ownNetworkAddresses(os.networkInterfaces()), ...(fake ? [fake] : [])];
+}
+
+function fakeHomeAddress(): string | undefined {
+  return typeof __CUE_DESK_TEST_BUILD__ !== "undefined" && __CUE_DESK_TEST_BUILD__ ? process.env.CUE_DESK_FAKE_HOME_ADDRESS : undefined;
 }
 
 export class PlayerManager {
@@ -67,8 +76,7 @@ export class PlayerManager {
     });
     this.ipc.on("PLAYER_GET_URL", this._handleGetURL);
     this.ipc.on("PLAYER_REGISTER_VIEW", this._handleRegisterView);
-    this.ipc.on("PLAYER_START_REMOTE", this._handleStartRemote);
-    this.ipc.on("PLAYER_STOP_REMOTE", this._handleStopRemote);
+    this.ipc.on("REMOTE_MOVE_OLD_SETTING", this._handleMoveOldRemoteSetting);
     this.ipc.on("PLAYER_SAVED", this._handleSaved);
     this.ipc.handle("REMOTE_GET", () => this.remote.state());
     this.ipc.handle("REMOTE_SET", (_event, change) => this.remote.set(change as Partial<RemoteSettings>));
@@ -135,22 +143,6 @@ export class PlayerManager {
     }
   };
 
-  /** The old Settings' Start Remote: turn the remote on at this address and port. */
-  startRemote(address: string, port: string) {
-    void this.remote.set({ enabled: true, address, port: port as unknown as number }).then((answer) => {
-      const problem = "error" in answer ? answer.error : answer.problem;
-      if (problem) {
-        for (const window of BrowserWindow.getAllWindows()) {
-          window.webContents.send("ERROR", problem);
-        }
-      }
-    });
-  }
-
-  /** The old Settings' Stop Remote. */
-  stopRemote() {
-    void this.remote.set({ enabled: false });
-  }
 
   /** The main window's player tab shows whether the remote runs; the Lyre page gets the whole state. */
   private _tellPagesAboutRemote(state: RemoteState) {
@@ -164,13 +156,10 @@ export class PlayerManager {
     }
   }
 
-  _handleStartRemote = (
-    _: Electron.IpcMainEvent,
-    address: string,
-    port: string
-  ) => this.startRemote(address, port);
-
-  _handleStopRemote = () => this.stopRemote();
+  /** Review 0.5.0 CR-3: the main window's old remote control choice, taken once (RemoteSettingsStore.moveOldSetting). */
+  _handleMoveOldRemoteSetting = (_: Electron.IpcMainEvent, old: OldRemoteSetting): void => {
+    void this.remote.moveOldSetting(old);
+  };
 
   _handleGetURL = (event: Electron.IpcMainEvent) => {
     event.returnValue = PLAYER_WINDOW_WEBPACK_ENTRY;

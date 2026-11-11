@@ -1,6 +1,7 @@
 /**
  * The remote-control API used by Kenku Remote and the Stream Deck plugin
- * (src/main/remote): switched on in Settings, then driven over HTTP the way
+ * (src/main/remote): switched on through Lyre's Settings bridge (review 0.5.0 CR-3: the main window's
+ * Settings no longer has Start Remote), then driven over HTTP the way
  * those tools do (https://www.kenku.fm/docs/using-kenku-remote), with the
  * secret code (SEC-4) read through the Lyre page's bridge, as round 7's
  * Settings will show it.
@@ -33,7 +34,7 @@ type SoundboardsReply = {
 type SoundboardPlaybackReply = { sounds: { id: string; title: string }[] };
 /** The Lyre page's remote settings bridge (src/common/remoteControl.ts RemoteBridge), as far as this test uses it. */
 type RemoteState = { enabled: boolean; running: boolean; address: string; port: number; code: string };
-type LyreWindow = { lyre: { remote: { get(): Promise<RemoteState> } } };
+type LyreWindow = { lyre: { remote: { get(): Promise<RemoteState>; set(change: Partial<RemoteState>): Promise<RemoteState | { error: string }> } } };
 
 test("Stream Deck / Kenku Remote API controls playlists and soundboards", async ({
   mainWindow,
@@ -60,15 +61,19 @@ test("Stream Deck / Kenku Remote API controls playlists and soundboards", async 
   expect(code).toMatch(/^[A-HJKMNP-Z2-9]{4}-[A-HJKMNP-Z2-9]{4}$/);
   await mainWindow.getByRole("list", { name: "Tabs" }).getByRole("button", { name: "Lyre Player" }).click();
 
-  // Switch the remote on, on a free port.
-  const port = await freePort();
-  const base = `http://127.0.0.1:${port}/v1`;
+  // The main window's Settings only says where the remote control is now (review 0.5.0 CR-3).
   await mainWindow.getByRole("button", { name: "Settings" }).click();
   const settings = mainWindow.getByRole("dialog", { name: "Settings" });
-  await expect(settings.getByLabel("Address", { exact: true })).toHaveValue("127.0.0.1");
-  await settings.getByLabel("Port", { exact: true }).fill(String(port));
-  await settings.getByRole("button", { name: "Start Remote" }).click();
-  await expect(settings.getByRole("button", { name: "Stop Remote" })).toBeVisible();
+  await expect(settings).toContainText("the Lyre tab's Settings, under Remote control");
+  await expect(settings.getByLabel("Address", { exact: true })).toHaveCount(0);
+  await expect(settings.getByRole("button", { name: "Start Remote" })).toHaveCount(0);
+  await settings.getByRole("button", { name: "Done" }).click();
+
+  // Switch the remote on, on a free port, as Lyre's Settings does.
+  const port = await freePort();
+  const base = `http://127.0.0.1:${port}/v1`;
+  const on = await lyre.evaluate((p) => (window as unknown as LyreWindow).lyre.remote.set({ enabled: true, port: p }), port);
+  expect(on).toMatchObject({ enabled: true, running: true, address: "127.0.0.1", port });
 
   const authorization = `Bearer ${code}`;
   const get = async <T>(path: string): Promise<T> => {
@@ -149,8 +154,7 @@ test("Stream Deck / Kenku Remote API controls playlists and soundboards", async 
   await expect(card(page, "Thunder").getByRole("button", { name: "play", exact: true })).toBeVisible();
 
   // Switching the remote off closes the port.
-  await settings.getByRole("button", { name: "Stop Remote" }).click();
-  await expect(settings.getByRole("button", { name: "Start Remote" })).toBeVisible();
+  await lyre.evaluate(() => (window as unknown as LyreWindow).lyre.remote.set({ enabled: false }));
   await expect.poll(() => fetch(`${base}/playlist`).then(() => "open", () => "closed")).toBe("closed");
   await expect.poll(() => lyre.evaluate(() => (window as unknown as LyreWindow).lyre.remote.get().then((state) => state.enabled))).toBe(false);
 });

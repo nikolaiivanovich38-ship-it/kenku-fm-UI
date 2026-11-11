@@ -6,6 +6,7 @@ import {
 } from "./preload/managers/BrowserViewManagerPreload";
 import type { OutputsState } from "./common/outputs";
 import type { WindowSettings } from "./common/windowSettings";
+import type { OldRemoteSetting } from "./common/remoteControl";
 
 const viewManager = new BrowserViewManagerPreload();
 
@@ -153,11 +154,9 @@ const api = {
   lyreGetURL: (): string => {
     return ipcRenderer.sendSync("LYRE_GET_URL");
   },
-  playerStartRemote: (address: string, port: string) => {
-    ipcRenderer.send("PLAYER_START_REMOTE", address, port);
-  },
-  playerStopRemote: () => {
-    ipcRenderer.send("PLAYER_STOP_REMOTE");
+  /** Review 0.5.0 CR-3: hand the old Settings' remote control choice to Lyre's Settings, once (remoteMigration.ts). */
+  remoteMoveOldSetting: (old: OldRemoteSetting) => {
+    ipcRenderer.send("REMOTE_MOVE_OLD_SETTING", old);
   },
   setMuted: (id: number, muted: boolean) => {
     ipcRenderer.send("AUDIO_CAPTURE_SET_MUTED", id, muted);

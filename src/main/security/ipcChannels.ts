@@ -132,6 +132,11 @@ const REMOTE_SETTING_CHECKS: Record<string, ArgCheck> = {
   address: isStringUpTo(64),
   port: isIntegerIn(1, 65535),
 };
+const isOldRemoteSetting: ArgCheck = (value) => {
+  if (!isPlainObject(value)) return false;
+  const old = value as Record<string, unknown>;
+  return Object.keys(old).length === 3 && isBoolean(old.enabled) && isStringUpTo(64)(old.address) && isStringUpTo(5)(old.port);
+};
 const isRemoteChange: ArgCheck = (value) =>
   isPlainObject(value) &&
   Object.entries(value as Record<string, unknown>).every(
@@ -174,8 +179,9 @@ export const IPC_CHANNELS = {
   // PlayerManager
   PLAYER_GET_URL: { from: MAIN, args: noArgs, refusedReturnValue: "" },
   PLAYER_REGISTER_VIEW: { from: MAIN, args: viewIdOnly },
-  PLAYER_START_REMOTE: { from: MAIN, args: argsMatch(isShortText, isShortText) },
-  PLAYER_STOP_REMOTE: { from: MAIN, args: noArgs },
+  // Review 0.5.0 CR-3: the old Settings' remote control choice, handed over once (PLAYER_START_REMOTE and
+  // PLAYER_STOP_REMOTE are gone). One object exactly { enabled: boolean, address: text ≤ 64, port: text ≤ 5 }.
+  REMOTE_MOVE_OLD_SETTING: { from: MAIN, args: argsMatch(isOldRemoteSetting) },
 
   // AudioCaptureManagerMain, sent by the main window
   AUDIO_CAPTURE_SET_MUTED: { from: MAIN, args: argsMatch(isWebContentsId, isBoolean) },

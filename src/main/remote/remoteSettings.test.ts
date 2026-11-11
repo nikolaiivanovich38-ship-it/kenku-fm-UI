@@ -85,17 +85,40 @@ describe("remote-control settings (SEC-4)", () => {
   });
 
   it("saves on, off, address and port, and keeps them after a restart", () => {
-    const store = new RemoteSettingsStore(file, fakeSafeStorage());
+    const store = new RemoteSettingsStore(file, fakeSafeStorage(), { ownAddresses: () => ["192.168.1.20"] });
     expect(store.update({ enabled: true, address: "192.168.1.20", port: 4000 })).toEqual({
       enabled: true,
       address: "192.168.1.20",
       port: 4000,
     });
-    expect(new RemoteSettingsStore(file, fakeSafeStorage()).settings()).toEqual({
+    expect(new RemoteSettingsStore(file, fakeSafeStorage(), { ownAddresses: () => ["192.168.1.20"] }).settings()).toEqual({
       enabled: true,
       address: "192.168.1.20",
       port: 4000,
     });
+  });
+
+  it("CR-2: refuses every address (0.0.0.0, ::), an internet address and one this computer does not have, whoever asks", () => {
+    const store = new RemoteSettingsStore(file, fakeSafeStorage(), { ownAddresses: () => ["192.168.1.20", "81.82.83.84"] });
+    for (const address of ["0.0.0.0", "::", "8.8.8.8", "81.82.83.84", "192.168.1.99", "localhost"]) {
+      expect(store.update({ enabled: true, address }), address).toEqual({ error: expect.any(String) });
+    }
+    expect(store.update({ address: "0.0.0.0" })).toEqual({ error: expect.stringMatching(/every address/) });
+    expect(store.update({ address: "8.8.8.8" })).toEqual({ error: expect.stringMatching(/internet/) });
+    expect(store.update({ address: "192.168.1.99" })).toEqual({ error: expect.stringMatching(/does not have the address 192\.168\.1\.99/) });
+    expect(store.settings()).toEqual(DEFAULT_REMOTE_SETTINGS);
+  });
+
+  it("CR-2: a saved address that is not allowed is put back to 127.0.0.1; on and the port are kept", () => {
+    for (const address of ["0.0.0.0", "::", "8.8.8.8", "localhost"]) {
+      fs.writeFileSync(file, JSON.stringify({ version: 1, enabled: true, address, port: 4000 }));
+      expect(new RemoteSettingsStore(file, fakeSafeStorage()).settings(), address).toEqual({ enabled: true, address: "127.0.0.1", port: 4000 });
+    }
+  });
+
+  it("CR-2: a saved home-network address is kept while the computer is off that network (the server checks it before listening)", () => {
+    fs.writeFileSync(file, JSON.stringify({ version: 1, enabled: true, address: "192.168.1.20", port: 4000 }));
+    expect(new RemoteSettingsStore(file, fakeSafeStorage(), { ownAddresses: () => [] }).settings().address).toBe("192.168.1.20");
   });
 
   it("refuses an address or port that cannot work, in plain words, and changes nothing", () => {
@@ -112,6 +135,32 @@ describe("remote-control settings (SEC-4)", () => {
     expect(new RemoteSettingsStore(file, fakeSafeStorage()).settings()).toEqual(DEFAULT_REMOTE_SETTINGS);
   });
 
+  it("CR-3: moves the old main window's Remote choice in once: kept when allowed, else at 127.0.0.1", () => {
+    const own = { ownAddresses: () => ["192.168.1.20"] };
+    const store = new RemoteSettingsStore(file, fakeSafeStorage(), own);
+    expect(store.moveOldSetting({ enabled: true, address: "192.168.1.20", port: "4000" })).toEqual({ enabled: true, address: "192.168.1.20", port: 4000 });
+    // After that the old setting has no effect, across restarts too.
+    expect(store.moveOldSetting({ enabled: false, address: "127.0.0.1", port: "3333" })).toBeNull();
+    expect(new RemoteSettingsStore(file, fakeSafeStorage(), own).moveOldSetting({ enabled: false, address: "127.0.0.1", port: "3333" })).toBeNull();
+    expect(new RemoteSettingsStore(file, fakeSafeStorage(), own).settings()).toEqual({ enabled: true, address: "192.168.1.20", port: 4000 });
+  });
+
+  it("CR-3: an old address that is not allowed (0.0.0.0, an internet address) comes in as 127.0.0.1; an odd port as 3333", () => {
+    for (const address of ["0.0.0.0", "8.8.8.8", "localhost", "my-computer"]) {
+      fs.rmSync(file, { force: true });
+      const store = new RemoteSettingsStore(file, fakeSafeStorage());
+      expect(store.moveOldSetting({ enabled: true, address, port: "99999" }), address).toEqual({ enabled: true, address: "127.0.0.1", port: 3333 });
+    }
+  });
+
+  it("CR-3: an old setting that was off changes nothing, and is not moved again", () => {
+    const store = new RemoteSettingsStore(file, fakeSafeStorage());
+    store.update({ enabled: true, port: 5000 });
+    expect(store.moveOldSetting({ enabled: false, address: "127.0.0.1", port: "3333" })).toBeNull();
+    expect(store.settings()).toEqual({ enabled: true, address: "127.0.0.1", port: 5000 });
+    expect(store.moveOldSetting({ enabled: true, address: "127.0.0.1", port: "3333" })).toBeNull();
+  });
+
   it("writes the file readable by this user only", () => {
     new RemoteSettingsStore(file, fakeSafeStorage()).update({ enabled: true });
     if (process.platform !== "win32") {
@@ -121,16 +170,32 @@ describe("remote-control settings (SEC-4)", () => {
 });
 
 describe("remote address and port checks (SEC-4)", () => {
-  it.each(["127.0.0.1", "localhost", "::1", "0.0.0.0", "192.168.1.20", "fe80::1", " 127.0.0.1 "])("accepts %s", (address) => {
-    expect(checkRemoteAddress(address)).toEqual({ address: address.trim() });
-  });
+  const own = ["192.168.1.20", "10.0.0.7", "172.16.0.1", "169.254.10.1", "fd00::5", "fe80::1", "81.82.83.84", "2001:db8::1"];
+
+  it.each(["127.0.0.1", " 127.0.0.1 ", "192.168.1.20", "10.0.0.7", "172.16.0.1", "169.254.10.1", "fd00::5", "FE80::1"])(
+    "accepts %s (this computer only, or this computer's own private address)",
+    (address) => {
+      expect(checkRemoteAddress(address, own)).toEqual({ address: address.trim().toLowerCase() });
+    },
+  );
+
+  it.each(["0.0.0.0", "::", "0:0:0:0:0:0:0:0", "8.8.8.8", "81.82.83.84", "2001:db8::1", "::ffff:192.168.1.20", "192.168.1.99", "fd00::6", "localhost", "::1"])(
+    "CR-2: refuses %s",
+    (address) => {
+      expect(checkRemoteAddress(address, own)).toHaveProperty("error");
+    },
+  );
 
   it.each(["", "my-computer", "attacker.example", "127.0.0.1:3333", "http://127.0.0.1", "999.1.1.1", "x".repeat(100)])(
     "refuses %s",
     (address) => {
-      expect(checkRemoteAddress(address)).toHaveProperty("error");
+      expect(checkRemoteAddress(address, own)).toHaveProperty("error");
     },
   );
+
+  it("refuses a private address when it is not told this computer's addresses", () => {
+    expect(checkRemoteAddress("192.168.1.20")).toHaveProperty("error");
+  });
 
   it("accepts ports 1024 to 65535 as numbers or digits", () => {
     expect(checkRemotePort(3333)).toEqual({ port: 3333 });

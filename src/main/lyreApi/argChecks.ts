@@ -77,6 +77,15 @@ const object =
     }
     return null;
   };
+/** Review 0.5.0 CR-9: as `object`, and any field it does not list is refused (for what is saved as it comes). */
+const exactObject =
+  (fields: Record<string, Check>): Check =>
+  (value, at) => {
+    if (!isPlainObject(value)) return at;
+    const known = new Set(Object.keys(fields).map((key) => (key.endsWith("?") ? key.slice(0, -1) : key)));
+    const unknown = Object.keys(value).find((key) => !known.has(key));
+    return unknown !== undefined ? `${at}.${unknown}` : object(fields)(value, at);
+  };
 /** One of several object shapes, chosen by the text in `key`. */
 const branch =
   (key: string, shapes: Record<string, Check>): Check =>
@@ -300,7 +309,13 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
     setShortcut: write(text(MAX_ID), nullable(text(40))),
     resetShortcuts: write(),
     setNextSceneGuard: write(bool),
-    setComputer: write(object({ "display?": object({ "density?": text(MAX_ID), "textSize?": whole, "highContrast?": bool }), "devices?": object({ "airDevice?": text(512), "previewDevice?": text(512), "split?": bool, "previewEar?": text(MAX_ID) }), "globalKeys?": bool })),
+    setComputer: write(
+      exactObject({
+        "display?": exactObject({ "density?": text(MAX_ID), "textSize?": whole, "highContrast?": bool }),
+        "devices?": exactObject({ "airDevice?": text(512), "previewDevice?": text(512), "split?": bool, "previewEar?": text(MAX_ID) }),
+        "globalKeys?": bool,
+      }),
+    ),
   },
   history: {
     state: read(),

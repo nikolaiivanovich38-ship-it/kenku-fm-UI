@@ -6,8 +6,9 @@
  */
 import { beforeEach, describe, expect, it } from "vitest";
 
-import type { CueStep, DomainScene } from "../../common/domain";
+import type { CueStep, DomainScene, Room } from "../../common/domain";
 import type { NowPlaying } from "./lyreAudio";
+import { storedResumePositions } from "../../player/engine/queue/resumePositions";
 import { lyreAudioOnFakes, testTrack, type AudioTestData } from "./testing/onFakes";
 
 const S1 = { campaignId: "c", sessionId: "s", sceneId: "s1" };
@@ -300,5 +301,195 @@ describe("PRV-2: the preview's device and ear", () => {
     expect(state().previewEar).toBe("right");
     await rig.audio.setAudioDevices({ airDevice: "", previewDevice: "", split: false, previewEar: "right" });
     expect(state().previewEar).toBe("both");
+  });
+});
+
+describe("CR-1 (review 0.5.0): Stop all and Fade all cancel everything waiting to start", () => {
+  const s1 = () => rig.data.campaigns[0].sessions[0].scenes[0];
+  const addDelayedPad = () =>
+    rig.data.pads?.push({
+      boardId: "b",
+      padId: "delayed",
+      label: "Delayed",
+      trackIds: ["fx1"],
+      order: "random",
+      mode: "oneshot",
+      fadeMs: 500,
+      volume: 1,
+      steps: [{ do: "sound" }, { do: "wait", ms: 3000 }, { do: "play", what: { kind: "track", id: "m5" }, how: "cut", upNext: "replace", fromMs: null }],
+    });
+
+  for (const how of ["stopAll", "fadeAll"] as const) {
+    it(`${how}: a scene set to move on after a time stays stopped`, async () => {
+      Object.assign(s1(), { movesOn: { when: "after", ms: 5000 } });
+      rig.audio.startScene(S1);
+      await rig.advance(1);
+      expect(playing()).toBe("m1");
+      rig.audio[how]();
+      await rig.advance(10);
+      expect(playing()).toBeNull();
+    });
+
+    it(`${how}: a scene's steps after a wait do not run`, async () => {
+      setSteps([{ do: "music", what: { kind: "track", id: "m1" }, how: "cut", upNext: "replace", fromMs: null }, { do: "wait", ms: 3000 }, { do: "play", what: { kind: "track", id: "m4" }, how: "cut", upNext: "replace", fromMs: null }, { do: "pad", boardId: "b", padId: "bell" }]);
+      rig.audio.startScene(S3);
+      await rig.advance(1);
+      rig.audio[how]();
+      await rig.advance(5);
+      expect(playing()).toBeNull();
+      expect(first().effects).toEqual([]);
+    });
+
+    it(`${how}: a pad's steps after a wait do not run`, async () => {
+      addDelayedPad();
+      rig.audio.startScene(S1);
+      await rig.advance(1);
+      rig.audio.firePad("b", "delayed");
+      await rig.advance(0.5);
+      rig.audio[how]();
+      await rig.advance(5);
+      expect(playing()).toBeNull();
+    });
+
+    it(`${how}: a scene's music waiting for the loop to end does not come in`, async () => {
+      rig.data.tracks.push(testTrack("lp", 20, { profile: { after: "loop" } }));
+      rig.audio.playTrack("lp");
+      await rig.advance(2);
+      setSteps([{ do: "music", what: { kind: "track", id: "m1" }, how: "loopEnds", upNext: "replace", fromMs: null }]);
+      rig.audio.startScene(S3);
+      await rig.advance(1);
+      rig.audio[how]();
+      await rig.advance(25);
+      expect(playing()).toBeNull();
+    });
+
+    it(`${how}: ends the scene's Undo, so nothing waiting comes back with it`, async () => {
+      Object.assign(s1(), { movesOn: { when: "after", ms: 5000 } });
+      rig.audio.startScene(S2);
+      await rig.advance(1);
+      rig.audio.startScene(S1);
+      await rig.advance(1);
+      rig.audio[how]();
+      expect(state().canUndo).toBe(false);
+      expect(rig.audio.undoSceneStart().ok).toBe(false);
+      await rig.advance(10);
+      expect(playing()).toBeNull();
+    });
+  }
+
+  // Lead decision (11 Nov): a Stop or Fade aimed at one room (a saved cue) cancels only what waits in that room.
+  const TAVERN: Room = { botId: "bot-a", name: "Tavern" };
+  const DUNGEON: Room = { botId: "bot-b", name: "Dungeon" };
+  const inRoom = (name: string) => state().rooms.find((r) => r.name === name)?.music?.trackId ?? null;
+
+  for (const type of ["stopAll", "fadeAll"] as const) {
+    it(`${type} aimed at one room leaves a scene running in another room moving on by itself, with its Undo`, async () => {
+      rig.setRooms([TAVERN, DUNGEON]);
+      Object.assign(s1(), { movesOn: { when: "after", ms: 5000 } });
+      rig.audio.startScene(S1); // scenes play in the first room, the Tavern
+      rig.audio.playTrack("m4", { target: { room: DUNGEON.botId } });
+      await rig.advance(1);
+      expect(rig.audio.run({ type, target: { room: DUNGEON.botId } })).toEqual({ ok: true });
+      expect(state().canUndo).toBe(true);
+      await rig.advance(5);
+      expect(inRoom("Tavern")).toBe("m6");
+      expect(inRoom("Dungeon")).toBeNull();
+    });
+
+    it(`${type} aimed at the scene's room cancels its moving on and its Undo`, async () => {
+      rig.setRooms([TAVERN, DUNGEON]);
+      Object.assign(s1(), { movesOn: { when: "after", ms: 5000 } });
+      rig.audio.startScene(S1);
+      await rig.advance(1);
+      rig.audio.run({ type, target: { room: TAVERN.botId } });
+      expect(state().canUndo).toBe(false);
+      await rig.advance(6);
+      expect(inRoom("Tavern")).toBeNull();
+    });
+
+    it(`${type} aimed at one room ends the pad steps waiting there only`, async () => {
+      rig.setRooms([TAVERN, DUNGEON]);
+      addDelayedPad();
+      rig.audio.firePad("b", "delayed", "down", { room: TAVERN.botId });
+      rig.audio.firePad("b", "delayed", "down", { room: DUNGEON.botId });
+      await rig.advance(0.5);
+      rig.audio.run({ type, target: { room: DUNGEON.botId } });
+      await rig.advance(4);
+      expect(inRoom("Tavern")).toBe("m5");
+      expect(inRoom("Dungeon")).toBeNull();
+    });
+  }
+
+  it("what the game master starts afterwards runs as usual, its own waits included", async () => {
+    addDelayedPad();
+    rig.audio.firePad("b", "delayed");
+    await rig.advance(0.5);
+    rig.audio.stopAll();
+    rig.audio.firePad("b", "delayed");
+    await rig.advance(3.5);
+    expect(playing()).toBe("m5");
+  });
+});
+
+describe("CR-4 (review 0.5.0): Next and Previous call off a scene's music that waits", () => {
+  for (const [direction, expected] of [["next", "m3"], ["previous", "m2"]] as const) {
+    it(`${direction} while the scene's music waits for the loop to end: the wait is cancelled`, async () => {
+      rig.data.tracks.push(testTrack("lp", 20, { profile: { after: "loop" } }));
+      rig.data.playlists.push({ id: "L", name: "Loop between", lane: "music", kind: "manual", trackIds: ["m2", "lp", "m3"] });
+      rig.audio.playPlaylist("L");
+      await rig.advance(1);
+      rig.audio.next("music");
+      await rig.advance(2);
+      expect(playing()).toBe("lp");
+      setSteps([{ do: "music", what: { kind: "track", id: "m6" }, how: "loopEnds", upNext: "replace", fromMs: null }]);
+      Object.assign(s3(), { music: [{ kind: "track", id: "m6" }] });
+      rig.audio.startScene(S3);
+      await rig.advance(1);
+      expect(playing()).toBe("lp");
+      expect(rig.audio[direction]("music")).toEqual({ ok: true });
+      await rig.advance(1);
+      expect(playing()).toBe(expected);
+      // lp's loop would have ended about 17 s after the scene started.
+      await rig.advance(17);
+      expect(playing()).toBe(expected);
+    });
+  }
+});
+
+describe("CR-5 (review 0.5.0): Pick up where it stopped forgets a track that played to its end", () => {
+  it("starts from the top after playing to the end", async () => {
+    rig.audio.playTrack("long");
+    await rig.advance(10);
+    rig.audio.playTrack("m1");
+    await rig.advance(1);
+    rig.audio.playTrack("long");
+    await rig.advance(1);
+    expect(first().music?.position).toBeGreaterThanOrEqual(10);
+    await rig.advance(55);
+    expect(playing()).not.toBe("long");
+    rig.audio.playTrack("long");
+    await rig.advance(1);
+    expect(first().music?.position).toBeLessThan(2);
+  });
+
+  it("is forgotten across restarts too", async () => {
+    const saved = new Map<string, string>();
+    const storage = { getItem: (k: string) => saved.get(k) ?? null, setItem: (k: string, v: string) => {
+        saved.set(k, v);
+      },
+    };
+    rig = lyreAudioOnFakes(makeData(), { resumePositions: storedResumePositions(storage) });
+    rig.audio.playTrack("long");
+    await rig.advance(10);
+    rig.audio.playTrack("m1");
+    await rig.advance(1);
+    expect(Object.keys(JSON.parse(saved.get("lyre-resume-positions") ?? "{}"))).toEqual(["long"]);
+    rig.audio.playTrack("long");
+    await rig.advance(56);
+    // The next evening: a new audio host reads what was kept.
+    rig = lyreAudioOnFakes(makeData(), { resumePositions: storedResumePositions(storage) });
+    rig.audio.playTrack("long");
+    await rig.advance(1);
+    expect(first().music?.position).toBeLessThan(2);
   });
 });

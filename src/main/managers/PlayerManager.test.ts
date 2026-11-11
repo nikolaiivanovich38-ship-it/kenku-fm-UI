@@ -119,14 +119,12 @@ describe("PlayerManager: main window requests (SEC-8)", () => {
     expect(manager.getView()).toBeUndefined();
   });
 
-  it("does not start the remote API for a website tab or with bad arguments", () => {
+  it("CR-3: the old Start Remote message no longer reaches the remote control", async () => {
     manager = newManager();
-    const start = vi.spyOn(manager, "startRemote").mockImplementation(() => undefined);
-    fakeIpcMain.deliver("PLAYER_START_REMOTE", fromMainFrame(fakePage(null)), "0.0.0.0", "3333");
-    fakeIpcMain.deliver("PLAYER_START_REMOTE", fromMainFrame(main), "0.0.0.0", 3333);
-    expect(start).not.toHaveBeenCalled();
-    fakeIpcMain.deliver("PLAYER_START_REMOTE", fromMainFrame(main), "127.0.0.1", "3333");
-    expect(start).toHaveBeenCalledWith("127.0.0.1", "3333");
+    const port = await freePort();
+    fakeIpcMain.deliver("PLAYER_START_REMOTE", fromMainFrame(main), "127.0.0.1", String(port));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(manager.remote.state()).toMatchObject({ enabled: false, running: false });
   });
 
   it("stops listening when destroyed", async () => {
@@ -194,6 +192,14 @@ describe("PlayerManager: remote-control settings over IPC (SEC-4)", () => {
     });
   });
 
+  it("CR-2: refuses 0.0.0.0, :: and an internet address from the page, and stays on this computer only", async () => {
+    manager = newManager();
+    for (const address of ["0.0.0.0", "::", "8.8.8.8"]) {
+      expect(await fakeIpcMain.invoke("REMOTE_SET", fromMainFrame(lyre()), { enabled: true, address }), address).toEqual({ error: expect.any(String) });
+    }
+    expect(manager.remote.state()).toMatchObject({ enabled: false, running: false, address: "127.0.0.1" });
+  });
+
   it("refuses settings of the wrong shape", async () => {
     manager = newManager();
     const sender = fromMainFrame(lyre());
@@ -221,13 +227,21 @@ describe("PlayerManager: remote-control settings over IPC (SEC-4)", () => {
     expect(remoteStore.code()).toBe(state.code);
   });
 
-  it("keeps Start Remote in the old Settings working, and Stop Remote turns it off", async () => {
+  it("CR-3: takes the old main window's Remote choice once, from the main window only, with the address checked", async () => {
     manager = newManager();
     const port = await freePort();
-    fakeIpcMain.deliver("PLAYER_START_REMOTE", fromMainFrame(main), "127.0.0.1", String(port));
-    await vi.waitFor(() => expect(manager!.remote.state()).toMatchObject({ enabled: true, running: true, port }));
-    fakeIpcMain.deliver("PLAYER_STOP_REMOTE", fromMainFrame(main));
-    await vi.waitFor(() => expect(manager!.remote.state()).toMatchObject({ enabled: false, running: false }));
+    fakeIpcMain.deliver("REMOTE_MOVE_OLD_SETTING", fromMainFrame(fakePage(null)), { enabled: true, address: "127.0.0.1", port: String(port) });
+    fakeIpcMain.deliver("REMOTE_MOVE_OLD_SETTING", fromMainFrame(main), { enabled: true, address: "127.0.0.1", port: String(port), extra: 1 });
+    fakeIpcMain.deliver("REMOTE_MOVE_OLD_SETTING", fromMainFrame(main), { enabled: "yes", address: "127.0.0.1", port: String(port) });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(manager.remote.state()).toMatchObject({ enabled: false, running: false });
+    fakeIpcMain.deliver("REMOTE_MOVE_OLD_SETTING", fromMainFrame(main), { enabled: true, address: "0.0.0.0", port: String(port) });
+    await vi.waitFor(() => expect(manager!.remote.state()).toMatchObject({ enabled: true, running: true, address: "127.0.0.1", port }));
+    expect(manager.remote.listeningAddresses()).toEqual([`127.0.0.1:${port}`]);
+    // Only once: a later message from the main window changes nothing.
+    fakeIpcMain.deliver("REMOTE_MOVE_OLD_SETTING", fromMainFrame(main), { enabled: false, address: "127.0.0.1", port: "3333" });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(manager.remote.state()).toMatchObject({ enabled: true, running: true, port });
   });
 
   it("after a reload, the next window's remote waits for the last one to close and takes the same port", async () => {

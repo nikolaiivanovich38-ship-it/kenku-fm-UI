@@ -62,7 +62,7 @@ export class GlobalKeys {
       try {
         registered = this.shortcuts.register(accelerator, () => this.onPress(action));
       } catch {
-        refused.push({ action, key, message: `Lyre cannot listen to ${key} in other programs. Give ${nameOf(action)} a key such as F9 or Ctrl+Alt+N.` });
+        refused.push({ action, key, message: `Lyre cannot listen to ${key} in other programs. Give ${nameOf(action)} a key such as F9 or Ctrl+Shift+N.` });
         continue;
       }
       if (registered) this.held.set(accelerator, action);
