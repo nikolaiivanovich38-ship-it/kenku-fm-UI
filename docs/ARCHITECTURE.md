@@ -676,10 +676,13 @@ prototype's other words (Melancholy: sad, sorrowful; Dread: fear, horror; Tense:
 **Audio host** (`src/lyre/audio`, engine `src/player/engine/queue`): the Director runs a scene's own start and a pad's
 steps (`runSteps`; waits on the engine's clock, `PlaybackEngine.scheduler`; a scene step starting scenes stops after
 four rounds; a new scene start or Undo stops what waits), and a scene moving on after a time or when its music ends
-(its list then plays once, `playsOnce`). The RoomPlayer applies `roleProfile`, starts a track from a marker
-(`fromMs` on `playTrack` and on Play next / Add to queue's track), picks a "Pick up" track up where it stopped this
-evening (shared by the rooms), hands a play step over at the mix-out marker, at the end of a loop or when the track
-ends (`handOverAt`), plays Follow with when nothing else waits (Play next, the queue and a scene's own next item come
+(its list then plays once, `playsOnce`). Fade all and Stop all cancel everything waiting (review 0.5.0 CR-1,
+`cancelEverythingWaiting`): the scene's moving on, its steps after a wait, every pad's steps (`padRunGeneration`) and the
+scene's Undo, so nothing starts by itself until the game master starts something. The RoomPlayer applies
+`roleProfile`, starts a track from a marker (`fromMs` on `playTrack` and on Play next / Add to queue's track), picks a
+"Pick up" track up where it stopped (shared by the rooms, kept across restarts; forgotten when it plays to its end,
+CR-5), hands a play step over at the mix-out marker, at the end of a loop or when the track ends (`handOverAt`; Next,
+Previous, a new track, a stop or Undo call a waiting one off, CR-4), plays Follow with when nothing else waits (Play next, the queue and a scene's own next item come
 first), fades the music to a step's level, and keeps What played (`played`, newest first, 100 at most).
 
 - `RoomNowPlaying.played` (`trackId`, `title`, `at`, `from` for Play again); `LaneNowPlaying.level`;

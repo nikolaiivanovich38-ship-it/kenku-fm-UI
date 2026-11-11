@@ -1008,7 +1008,9 @@ The remote control now listens only where Settings says it can, whatever asks it
 or on this computer's own address on your home network. "Every address" (0.0.0.0 or ::), an internet address, and an
 address this computer does not have are refused in plain words, even if an old setting or a faulty page asks for one.
 If your computer is not on the home network it was set up on, the remote control waits and says why, instead of
-listening somewhere else.
+listening somewhere else. Only Lyre's own Settings turns the remote control on now; the main window's old Settings
+says where to find it, and a choice made there before is moved over once. Keys that work in other programs refuse
+Ctrl+Alt with a letter or digit (that is AltGr on a Belgian keyboard, which types @, € and #) and Alt+F4 or Ctrl+F4.
 
 ### Technical details
 
@@ -1029,6 +1031,22 @@ listening somewhere else.
   takes them only once (`oldSettingMoved: true` in `remote-control.json`): an old "on" is kept, with 127.0.0.1 for an
   address CR-2 does not allow and the current port for an odd one; an old "off" changes nothing. Later messages are
   ignored, so the old setting has no effect after that.
+- **Global keys (CR-6, CR-7).** `globalKeyProblem` (`src/common/globalKeys.ts`) refuses Ctrl+Alt with a letter, digit,
+  sign or Space, with or without Shift: Windows reports AltGr as Ctrl+Alt, so a registered Ctrl+Alt+2 would take every
+  @ typed on a Belgian AZERTY keyboard (AltGr+é) from Discord and other programs. Ctrl+Alt with an F key, an arrow or
+  Page Up/Down is still allowed, and the suggestion in every refusal is now "F9 or Ctrl+Shift+N". CR-7: an F4 with
+  Ctrl or Alt (Alt+F4, Ctrl+F4) is refused too, because it closes windows and tabs in every program.
+- **Drop tray (CR-8).** A drag cancelled with Esc is stopped on the document in the capture phase, so no drop place
+  takes it (`src/lyre/screens/drop/DropTray.tsx`). That also kept it from the document's drop guard (SEC-7), so for
+  the rest of that drag the browser's own handling applied. The cancelled branch now does what the guard does:
+  `preventDefault()` and `dropEffect = "none"`. `DropTray.test.tsx` checks it with the real guard installed. The main
+  process's `will-navigate` lock still stops any navigation behind it.
+- **This computer's settings (CR-9).** `settings.setComputer` used `Object.assign` to merge the page's `display` and
+  `devices` into `this-computer.json`, and its argument shape let extra keys through, so a faulty page could save any
+  key there (a `__proto__` key would even replace the object's prototype). Its shape in
+  `src/main/lyreApi/argChecks.ts` now uses `exactObject`, which refuses any key it does not list, and
+  `libraryApiRound7.ts` copies only `density`, `textSize`, `highContrast`, `airDevice`, `previewDevice`, `split` and
+  `previewEar` (`copyKnown`). `argChecks.test.ts` checks both.
 
 ### Channels
 
@@ -1054,28 +1072,6 @@ listening somewhere else.
    restart Lyre twice: it stays off.
 2. Lyre › Settings › Remote control › Your home network: the address shown is this computer's 192.168.x.x. Then
    `netstat -ano | findstr :3333` lists that address only, never 0.0.0.0.
-
-### Global keys (CR-6, CR-7)
-
-`globalKeyProblem` (`src/common/globalKeys.ts`) refuses Ctrl+Alt with a letter, digit, sign or Space, with or without
-Shift: Windows reports AltGr as Ctrl+Alt, so a registered Ctrl+Alt+2 would take every @ typed on a Belgian AZERTY
-keyboard (AltGr+é) from Discord and other programs. Ctrl+Alt with an F key, an arrow or Page Up/Down is still allowed,
-and the suggestion in every refusal is now "F9 or Ctrl+Shift+N". CR-7: an F4 with Ctrl or Alt (Alt+F4, Ctrl+F4) is
-refused too, because it closes windows and tabs in every program.
-
-### Drop tray (CR-8)
-
-A drag cancelled with Esc is stopped on the document in the capture phase, so no drop place takes it
-(`src/lyre/screens/drop/DropTray.tsx`). That also kept it from the document's drop guard (SEC-7), so for the rest of
-that drag the browser's own handling applied. The cancelled branch now does what the guard does: `preventDefault()`
-and `dropEffect = "none"`. `DropTray.test.tsx` checks it with the real guard installed. The main process's
-`will-navigate` lock still stops any navigation behind it.
-
-### This computer's settings (CR-9)
-
-`settings.setComputer` used `Object.assign` to merge the page's `display` and `devices` into `this-computer.json`, and
-its argument shape let extra keys through, so a faulty page could save any key there (a `__proto__` key would even
-replace the object's prototype). Its shape in `src/main/lyreApi/argChecks.ts` now uses `exactObject`, which refuses
-any key it does not list, and `libraryApiRound7.ts` copies only `density`, `textSize`, `highContrast`, `airDevice`,
-`previewDevice`, `split` and `previewEar` (`copyKnown`). `argChecks.test.ts` checks both.
-
+3. Settings › Keyboard shortcuts: give Next scene Ctrl+Alt+2 and turn on "in other programs too": it is refused,
+   naming AltGr. Give Fade everything out Alt+F4: refused. Give Next scene Ctrl+Shift+N: accepted; in Discord, AltGr+é
+   still types @.
