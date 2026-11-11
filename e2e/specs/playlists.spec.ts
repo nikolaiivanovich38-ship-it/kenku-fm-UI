@@ -126,6 +126,8 @@ test.describe("one manual playlist", () => {
     await add.getByRole("button", { name: /^Add Quiet grief/ }).click();
     expect((await trackNames(page)).at(-1)).toMatch(/^Quiet grief/);
     expect(await trackNames(page)).toHaveLength(6);
+    // UX-R5 (0.5.0 review): the Saved pop-up, as for every other change to a playlist.
+    await expect(page.getByRole("status").filter({ hasText: /^Saved: .+ · added Quiet grief/ })).toBeVisible();
   });
 
   test("tracks can be tried in the Add tracks box before adding them", async ({ page }) => {

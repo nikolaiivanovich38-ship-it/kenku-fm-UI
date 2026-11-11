@@ -178,6 +178,8 @@ describe("Playlists: a manual playlist", () => {
     await user.click(add.getByRole("button", { name: /^Add Quiet grief/ }));
     await waitFor(() => expect(trackNames()).toHaveLength(6));
     expect(trackNames().slice(-1)[0]).toMatch(/^Quiet grief/);
+    // UX-R5: the Saved pop-up, as in the prototype ("Saved: <playlist> · added <track>").
+    await waitFor(() => expect(document.getElementById("lyre-toast")).toHaveTextContent(/^Saved: The Abbess · added Quiet grief/));
   });
 
   it("moves a track down from its menu, and back up with Alt+Up", async () => {

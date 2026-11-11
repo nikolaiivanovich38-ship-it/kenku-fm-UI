@@ -155,6 +155,8 @@ test.describe("a track's details", () => {
     await expect(options.first()).toHaveAttribute("aria-selected", "true");
     await page.keyboard.press("Enter");
     await expect(details(page).getByRole("button", { name: "Remove Melancholy from Mood" })).toBeVisible();
+    // UX-R5 (0.5.0 review): the Saved pop-up says the tags were saved.
+    await expect(page.getByRole("status").filter({ hasText: /^Saved: .+ tags$/ })).toBeVisible();
     await page.keyboard.type("Frostbitten");
     await expect(options.first()).toContainText("Frostbitten");
     await page.keyboard.press("Enter");

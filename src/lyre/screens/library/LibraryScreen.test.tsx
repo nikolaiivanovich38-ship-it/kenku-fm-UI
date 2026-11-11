@@ -165,6 +165,8 @@ describe("Library: a track's details", () => {
     expect(options[0]).toHaveAttribute("aria-selected", "true");
     await user.keyboard("{Enter}");
     expect(await within(details()).findByRole("button", { name: "Remove Melancholy from Mood" })).toBeInTheDocument();
+    // UX-R5: the Saved pop-up says it was saved (the prototype's "Saved: <track> tags").
+    await waitFor(() => expect(document.getElementById("lyre-toast")).toHaveTextContent(/^Saved: .+ tags$/));
     await user.keyboard("Frostbitten");
     expect(within(screen.getByRole("listbox", { name: "Mood values" })).getAllByRole("option")[0]).toHaveTextContent("Create Frostbitten in Mood");
     await user.keyboard("{Enter}");

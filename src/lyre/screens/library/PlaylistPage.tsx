@@ -800,7 +800,7 @@ function AddPane({
   onOpenChange: (open: boolean) => void;
 }) {
   const api = useLyreApi();
-  const { say, toast } = useAnnounce();
+  const { say, toast, saved } = useAnnounce();
   const accept = useWriteResult();
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(ADD_FIRST);
@@ -816,8 +816,11 @@ function AddPane({
       return;
     }
     edit({ ...pl, trackIds: [...pl.trackIds, t.id] });
-    if (accept(await api.playlists.addTracks(pl.id, [t.id]))) say(`Added ${shownTitle(t)} at position ${pl.trackIds.length + 1}`);
-    else edit(null);
+    if (accept(await api.playlists.addTracks(pl.id, [t.id]))) {
+      say(`Added ${shownTitle(t)} at position ${pl.trackIds.length + 1}`);
+      // UX-R5: the Saved pop-up too, as for every other change to a playlist.
+      saved(pl.name, { detail: `added ${shownTitle(t)}`, key: `pl-${pl.id}` });
+    } else edit(null);
   };
   return (
     <Pane id="pl-add" title="Add tracks" icon="search" kind="search" flush summary="Search the library, or drop files here" open={open} onOpenChange={onOpenChange}>

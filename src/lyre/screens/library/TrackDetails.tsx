@@ -545,7 +545,7 @@ function TagRow({
   store: TrackStore;
 }) {
   const api = useLyreApi();
-  const { say } = useAnnounce();
+  const { say, saved } = useAnnounce();
   const accept = useWriteResult();
   const mine = useMemo(() => t.tags[group.id] ?? [], [t.tags, group.id]);
   const [q, setQ] = useState("");
@@ -618,6 +618,8 @@ function TagRow({
       };
     });
     say(`${made ? "Created and added" : "Added"} ${known} to ${group.name}`);
+    // UX-R5: the Saved pop-up too (shown, not read out again: the words above say it).
+    saved(`${shownTitle(t)} tags`, { key: `lb-tags-${t.id}` });
     if (stay) inputRef.current?.focus();
   };
   const remove = async (value: string) => {
@@ -636,6 +638,7 @@ function TagRow({
       },
     }));
     say(`Removed ${value} from ${group.name}`);
+    saved(`${shownTitle(t)} tags`, { key: `lb-tags-${t.id}` });
     inputRef.current?.focus();
   };
 
@@ -767,7 +770,7 @@ function InPlaylists({
   onNewPlaylist: (ids: string[]) => void;
 }) {
   const api = useLyreApi();
-  const { toast } = useAnnounce();
+  const { saved } = useAnnounce();
   const accept = useWriteResult();
   const ok = useWriteOk();
   const inLane = (p: PlaylistInfo) =>
@@ -804,7 +807,7 @@ function InPlaylists({
               ),
               onSelect: async () => {
                 if (accept(await api.playlists.addTracks(p.id, [t.id])))
-                  toast(`Added to ${p.name}`);
+                  saved(p.name, { detail: `added ${shownTitle(t)}`, key: `pl-${p.id}` });
               },
             }),
           )
@@ -853,7 +856,7 @@ function InPlaylists({
                 aria-label={`Remove from ${p.name}`}
                 onClick={async () => {
                   if (ok(await api.playlists.removeTrack(p.id, t.id))) {
-                    toast(`Removed from ${p.name}`);
+                    saved(p.name, { detail: `removed ${shownTitle(t)}`, key: `pl-${p.id}` });
                     focusSoon("lb-pladd");
                   }
                 }}
