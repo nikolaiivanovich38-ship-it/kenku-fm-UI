@@ -11,6 +11,7 @@ import {
   type CaptureAudioMessage,
   type PlayerAudioMessage,
 } from "../../common/playerAudio";
+import { keepDeviceClock } from "../../common/deviceClock";
 import {
   DEFAULT_CAPTURE_ROUTE,
   MAX_ROOM_ID_LENGTH,
@@ -229,6 +230,9 @@ export class AudioCaptureManagerPreload {
     });
     this._audioContext = context;
     this._streamingMode = streamingMode;
+    // w51-audio: nothing plays on this context's own speakers, so Chromium would move it onto a timer after 30 s of
+    // silence, and on Windows those timers skip (common/deviceClock.ts). It closes with the broadcast.
+    keepDeviceClock(context).hold();
     this._setupLoopback();
 
     await context.audioWorklet.addModule(PCMStream);

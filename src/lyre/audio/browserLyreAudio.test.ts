@@ -34,6 +34,13 @@ function deliverPort(port: FakeAudioPort, source: unknown = win) {
   win.dispatchEvent(event);
 }
 
+/** Holds and releases of the two contexts' sound-card clocks (w51-audio). */
+let clocks: { engine: number; preview: number };
+const countingClock = (which: "engine" | "preview") => ({
+  hold: (): void => void clocks[which]++,
+  release: (): void => void clocks[which]--,
+});
+
 function assemble(setEar?: (ear: "both" | "left" | "right") => void, { direct = false } = {}) {
   const tap = (ctx: FakeAudioContext) => (): FrameTap => {
     const input = ctx.createGain();
@@ -58,7 +65,9 @@ function assemble(setEar?: (ear: "both" | "left" | "right") => void, { direct = 
         closeContext: async () => void closed.push("preview context"),
       }),
       ...(setEar ? { setEar } : {}),
+      clock: countingClock("preview"),
     },
+    clock: countingClock("engine"),
     previewLoad: (media) => new SourceLoader({ context: previewContext, createElement: () => previewContext.createMediaElement(), fetchBytes: async () => null }).load(media),
     previewScheduler: previewContext.clock,
     devices: { list: async () => [{ deviceId: "hp", label: "Headphones" }], onChange: () => () => undefined },
@@ -74,6 +83,7 @@ beforeEach(() => {
   win = new EventTarget();
   roomsListener = null;
   closed = [];
+  clocks = { engine: 0, preview: 0 };
   saved = { preview: { deviceId: "hp", label: "Headphones" } };
   bridge = {
     connect: vi.fn<() => void>(),
@@ -109,6 +119,27 @@ describe("assembleLyreAudio: LyreAudio wired into the new page as docs/ARCHITECT
     expect(port.posted.map((message) => (message as { kind: string; room?: string }).room)).toContain("bot-a");
     expect(port.posted.some((message) => (message as { kind: string }).kind === "room-frames")).toBe(true);
     await audio.dispose();
+  });
+
+  it("w51-audio: keeps the engine on the sound card's clock while a bot is in a voice channel, and the preview while it plays", async () => {
+    context.mediaDurations.set("file:///m1.ogg", 20);
+    previewContext.mediaDurations.set("file:///m1.ogg", 20);
+    const audio = assemble();
+    const port = new FakeAudioPort();
+    deliverPort(port);
+    expect(clocks).toEqual({ engine: 0, preview: 0 });
+    port.deliver({ kind: "broadcast", active: true });
+    expect(clocks.engine).toBe(1);
+    port.deliver({ kind: "broadcast", active: false });
+    expect(clocks.engine).toBe(0);
+
+    audio.previewTrack("m1");
+    await vi.waitFor(() => expect(clocks.preview).toBe(1));
+    audio.stopPreview();
+    await vi.waitFor(() => expect(clocks.preview).toBe(0));
+    port.deliver({ kind: "broadcast", active: true });
+    await audio.dispose();
+    expect(clocks).toEqual({ engine: 0, preview: 0 });
   });
 
   it("follows the rooms the main process sends", async () => {

@@ -64,6 +64,9 @@ class FakeAudioContext {
   createMediaStreamDestination() {
     return this.track(Object.assign(new FakeNode(), { stream: new FakeStream() }));
   }
+  createConstantSource() {
+    return this.track(Object.assign(new FakeNode(), { offset: { value: 1 }, started: false, start() { this.started = true; }, stop() {} }));
+  }
   async resume() {
     this.state = "running";
   }
@@ -216,6 +219,14 @@ describe("AudioCaptureManagerPreload: nothing runs until a broadcast starts (PER
     expect(workletNodes).toHaveLength(1);
     expect(encoders[0].state).toBe("configured");
     expect(contexts[0].state).toBe("suspended");
+  });
+
+  it("w51-audio: keeps the broadcast's audio context on the sound card's clock, with a constant far below hearing", async () => {
+    await broadcastingManager();
+    const into = contexts[0].nodes.filter((node) => node.connections.has(contexts[0].destination));
+    expect(into).toHaveLength(1);
+    expect((into[0] as unknown as { offset: { value: number }; started: boolean }).offset.value).toBe(2 ** -24);
+    expect((into[0] as unknown as { started: boolean }).started).toBe(true);
   });
 
   it("resumes the audio thread when a tab is captured and suspends it again when the tab stops", async () => {

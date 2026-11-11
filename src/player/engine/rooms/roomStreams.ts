@@ -19,6 +19,7 @@ import {
   type CaptureAudioMessage,
   type PlayerAudioMessage,
 } from "../../../common/playerAudio";
+import type { DeviceClock } from "../../../common/deviceClock";
 import type { EngineContext, GainLike, NodeLike } from "../audio/types";
 import type { PreviewOutput } from "../preview/previewOutput";
 import type { RoomMixer } from "./roomMixer";
@@ -210,6 +211,8 @@ export interface BridgedPreviewOutput extends PreviewOutput {
   close(): Promise<void>;
   /** PRV-2: the preview in one ear of a split headset (or both), on its way to the capture window. */
   setEar?(ear: "both" | "left" | "right"): void;
+  /** w51-audio: keeps the preview's context on the sound card's clock while a preview plays (common/deviceClock.ts). */
+  clock?: DeviceClock;
 }
 
 /**

@@ -8,6 +8,7 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import pcmStreamUrl from "../../../preload/managers/PCMStream.worklet.js?asset";
+import { keepDeviceClock } from "../../../common/deviceClock";
 import type { AudioPortLike } from "../../../common/playerAudio";
 import { fromAudioContext, type NodeLike } from "../audio/types";
 import {
@@ -82,17 +83,19 @@ export async function createBrowserFrameTaps(audioContext: BaseAudioContext): Pr
 }
 
 /**
- * PRV-1: the preview's output for the player page. Its audio context has no
- * sound device at all (`sinkId: { type: "none" }`), so the page never plays
- * it and tab capture cannot record it; its frames go to the capture window,
- * which plays them on the game master's chosen device (PRV-2).
+ * PRV-1: the preview's output for the player page. Nothing of the preview
+ * plays on this page: its nodes lead only to a tap, whose frames go to the
+ * capture window, which plays them on the game master's chosen device (PRV-2).
+ *
+ * w51-audio: the context used to have no sound device at all (`sinkId: { type:
+ * "none" }`). Chromium runs such a context on a timer that skips when it wakes
+ * late, which on Windows is often, so the preview reached the headphones in
+ * pieces. It now opens the default device like the engine's context and, while
+ * a preview plays, `clock` keeps it on that device's pace with a constant far
+ * below hearing (common/deviceClock.ts). The Lyre page is never tab-captured.
  */
 export async function createBrowserBridgedPreview(link: PlayerAudioLink): Promise<BridgedPreviewOutput> {
-  const audioContext = new AudioContext({
-    latencyHint: "interactive",
-    sampleRate: BRIDGE_SAMPLE_RATE,
-    sinkId: { type: "none" },
-  } as AudioContextOptions);
+  const audioContext = new AudioContext({ latencyHint: "interactive", sampleRate: BRIDGE_SAMPLE_RATE });
   const createTap = await createBrowserFrameTaps(audioContext);
   const bridged = createBridgedPreviewOutput({
     context: fromAudioContext(audioContext),
@@ -111,6 +114,7 @@ export async function createBrowserBridgedPreview(link: PlayerAudioLink): Promis
   entry.connect(target);
   return {
     ...bridged,
+    clock: keepDeviceClock(audioContext),
     input: entry as unknown as typeof bridged.input,
     setEar: (ear) => {
       entry.disconnect();

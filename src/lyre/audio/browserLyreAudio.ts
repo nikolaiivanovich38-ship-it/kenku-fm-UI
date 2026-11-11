@@ -14,6 +14,7 @@
  * `startLyreAudio` makes the real browser parts; `assembleLyreAudio` joins
  * them and is what the unit tests check with fakes.
  */
+import { keepDeviceClock, type DeviceClock } from "../../common/deviceClock";
 import { DEFAULT_LIBRARY_NORMALISE, type DomainLookup } from "../../common/domain";
 import { fromAudioContext, type EngineContext, type GainLike, type NodeLike, type Scheduler } from "../../player/engine/audio/types";
 import { createBrowserEngine } from "../../player/engine/browser";
@@ -64,6 +65,8 @@ export interface LyreAudioPieces {
   createTap: FrameTapFactory;
   /** w51-audio: each room's frames go to the capture window over a channel of their own, past this page's main thread. */
   createChannel?: FrameChannelFactory;
+  /** w51-audio: keeps the engine's context on the sound card's clock while a bot is in a voice channel. */
+  clock?: DeviceClock;
   previewOutput: BridgedPreviewOutput;
   /** Makes sources in the preview's own context. */
   previewLoad: (media: MediaRequest) => Promise<PlayableSource>;
@@ -95,6 +98,24 @@ export function assembleLyreAudio(pieces: LyreAudioPieces): EngineLyreAudio {
   };
   link.on("reset", onReset);
   const stopRooms = bridge.onRooms((rooms) => mixer.setRooms(rooms));
+  // w51-audio: while frames go to Discord or the headphones, their context must keep the sound card's pace, not a
+  // timer's (common/deviceClock.ts).
+  let engineHeld = false;
+  const holdEngine = (active: boolean): void => {
+    if (active === engineHeld) return;
+    engineHeld = active;
+    if (active) pieces.clock?.hold();
+    else pieces.clock?.release();
+  };
+  streams.on("broadcast", holdEngine);
+  let previewHeld = false;
+  const holdPreview = (playing: boolean): void => {
+    if (playing === previewHeld) return;
+    previewHeld = playing;
+    if (playing) previewOutput.clock?.hold();
+    else previewOutput.clock?.release();
+  };
+  preview.on("change", (current) => holdPreview(current !== null));
 
   const audio = new EngineLyreAudio({
     engine: pieces.engine,
@@ -113,6 +134,8 @@ export function assembleLyreAudio(pieces: LyreAudioPieces): EngineLyreAudio {
     onDispose: async () => {
       stopPort();
       stopRooms();
+      holdEngine(false);
+      holdPreview(false);
       link.off("reset", onReset);
       streams.dispose();
       pieces.engine.dispose();
@@ -165,6 +188,7 @@ export async function startLyreAudio(options: { window: Window; bridge: LyreAudi
     link,
     createTap,
     createChannel: browserFrameChannel,
+    clock: keepDeviceClock(audioContext),
     previewOutput,
     previewLoad: (media) => previewLoader.load(media),
     // Test builds add the prototype's stand-in devices (standInDevices.ts); a release build lists real ones only.
