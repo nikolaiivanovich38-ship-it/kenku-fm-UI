@@ -10,8 +10,13 @@ import { pathToFileURL } from "url";
 
 import type { MediaPreparer } from "../media/mediaIpc";
 
-const SAMPLE_RATE = 22050;
-const SECONDS = 20;
+/**
+ * Six minutes: longer than every start and marker the specs use (Low swell at 3:10, End at 5:18 on t13), with a
+ * margin, so a play from a marker starts there (a start past the file's end is moved back: BUG-22). Mono at 8 kHz
+ * keeps it about 5.5 MB.
+ */
+const SAMPLE_RATE = 8000;
+const SECONDS = 6 * 60;
 const TONE_HZ = 440;
 /** About -12 dBFS: clearly heard in a room's mix, nowhere near clipping. */
 const AMPLITUDE = 0.25;

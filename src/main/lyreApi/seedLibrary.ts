@@ -96,8 +96,10 @@ export async function seedLibrary(library: Library, seed: SeedData, options: See
       if (t.shape) updateTrack(store, t.id, { shape: t.shape });
       // PLY-15: the sample choices (their loudness is saved below, as bookkeeping of its own).
       if (t.normalise) setTrackNormalise(store, t.id, t.normalise);
+      // DAT-10: in the sample's own order, as if added one by one.
+      let added = 0;
       for (const [group, values] of Object.entries(t.tags)) {
-        for (const value of values) store.run("INSERT INTO track_tags (track_id, tag_id) VALUES (?, ?)", t.id, tagIds.get(`${group}\u0000${value}`));
+        for (const value of values) store.run("INSERT INTO track_tags (track_id, tag_id, added) VALUES (?, ?, ?)", t.id, tagIds.get(`${group}\u0000${value}`), ++added);
       }
     }
     for (const p of seed.playlists) {

@@ -130,6 +130,15 @@ describe("schema version 6 (design round 7)", () => {
     expect(() => db.exec("UPDATE library_settings SET crossfade_curve = 'steep'")).toThrow(/CHECK/);
   });
 
+  it("DAT-10: a track's tags remember the order they were added in (added), 0 when not said", () => {
+    db.exec(`INSERT INTO track_tags (track_id, tag_id, added) SELECT 't', id, 2 FROM tags WHERE name = 'Tense';
+      INSERT INTO track_tags (track_id, tag_id) SELECT 'u', id FROM tags WHERE name = 'Tense';`);
+    expect(all(db, "SELECT track_id, added FROM track_tags ORDER BY track_id")).toEqual([
+      { track_id: "t", added: 2 },
+      { track_id: "u", added: 0 },
+    ]);
+  });
+
   it("UX-12: pads are found by search with their label", () => {
     const docs = () => all(db, "SELECT d.ref_id AS id, f.title FROM search_docs d JOIN search_fts f ON f.rowid = d.doc_id WHERE d.kind = 'pad' ORDER BY d.ref_id");
     expect(docs()).toEqual([
@@ -172,6 +181,24 @@ describe("upgrading a version 5 library to version 6", () => {
     // The tag rebuild keeps rules' composite keys and the track tagging working.
     db.exec("INSERT INTO track_tags (track_id, tag_id) SELECT 't', id FROM tags WHERE name = 'Tense'");
     expect(all(db, "PRAGMA foreign_key_check")).toEqual([]);
+    db.close();
+  });
+});
+
+describe("upgrading a version 5 library to version 6: the order of a track's tags", () => {
+  it("numbers each track's tags in vocabulary order, so a library looks as it did before", () => {
+    const db = openConnection(":memory:");
+    migrate(db, MIGRATIONS.slice(0, 5));
+    db.exec(BASE);
+    // Tagged out of vocabulary order (Melancholy, Heroic, Tense, … Eerie): Eerie first, Heroic last.
+    const id = (name: string) => (all(db, `SELECT id FROM tags WHERE name = '${name}'`)[0] as { id: string }).id;
+    const [eerie, tense, heroic] = ["Eerie", "Tense", "Heroic"].map(id);
+    db.exec(`INSERT INTO track_tags (track_id, tag_id) VALUES ('t', '${eerie}'), ('t', '${tense}'), ('t', '${heroic}'), ('u', '${eerie}')`);
+    const vocabulary = all(db, `SELECT tt.track_id, t.name FROM track_tags tt JOIN tags t ON t.id = tt.tag_id JOIN tag_groups g ON g.id = t.group_id
+      ORDER BY tt.track_id, g.position, t.position, t.rowid`);
+    migrate(db, MIGRATIONS);
+    expect(all(db, `SELECT tt.track_id, t.name FROM track_tags tt JOIN tags t ON t.id = tt.tag_id ORDER BY tt.track_id, tt.added`)).toEqual(vocabulary);
+    expect(all(db, "SELECT added FROM track_tags WHERE track_id = 'u'")).toEqual([{ added: 1 }]);
     db.close();
   });
 });

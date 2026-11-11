@@ -412,6 +412,7 @@ already had was checked first: tag groups and tags in order with a parent tag an
 `tag_synonyms`), folders for playlists, boards and sessions (`folders`), a manual playlist's dividers
 (`playlist_items.kind = 'divider'`), a track's Ending (`tracks.ending = 'fades'`), markers in a profile.
 
+- **The order of a track's tags** (DAT-10): `track_tags.added`, a number per track: each new tag gets one more than the track's last (tags added together share it and follow the vocabulary), a merge keeps the earlier of the two, and a track lists its tags by it, then in vocabulary order. The upgrade numbers tags already on tracks in vocabulary order, so an existing library looks as before. Added to version 6 itself, which had not shipped.
 - **Colours by name.** Tag groups, tags and folders take a pad colour (steel, ember, gold, moss, violet, plum, sea,
   bone), as the prototype's `L.colors`; a version 5 colour that is not one is dropped in the upgrade (no screen wrote
   one). `validate.nullablePaletteColor`.
