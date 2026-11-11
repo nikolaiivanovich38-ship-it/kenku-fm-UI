@@ -191,7 +191,8 @@ test.describe("a track's details", () => {
     await openRoute(page, "library/t02");
     await details(page).getByRole("button", { name: "Preview", exact: true }).click();
     const you = page.getByRole("region", { name: "Now playing" }).getByRole("group", { name: /^Only you/ });
-    await expect(you).toContainText(/\b0:(0[89]|[1-5]\d) \//);
+    // The time follows "Previewed from the Library" with no space between them in the text, so no \b before it.
+    await expect(you).toContainText(/(^|\D)0:(0[89]|[1-5]\d) \//);
   });
 
   test("a mood tag is added by typing in the box: choose from the matches with the arrow keys, or create a new one", async ({ page }) => {

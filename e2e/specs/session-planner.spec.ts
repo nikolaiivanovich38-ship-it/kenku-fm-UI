@@ -633,7 +633,8 @@ test.describe("round 7: what a scene does when it starts", () => {
 
 /* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round (support/test.ts appOnly). */
 test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
-  const scenes = (page: Page) => page.getByRole("list", { name: "Scenes in order" }).getByRole("listitem");
+  // Scene cards only: an open scene lists its music inside its card, as list items too.
+  const scenes = (page: Page) => page.getByRole("list", { name: "Scenes in order" }).getByRole("listitem", { name: /^Scene \d+: / });
 
   test("each track of a scene's playlist has Play on air, as the playlist has (\"I need that at track level\")", async ({ page }) => {
     appOnly();
