@@ -759,15 +759,12 @@ describe("AudioCaptureManagerPreload: engine rooms and preview from the player p
     expect(inlets()[0].port.postMessage).toHaveBeenCalledTimes(1);
   });
 
-  it("w51-audio: closes a room's frames channel when the room goes, a new one comes, the broadcast stops or the player channel is replaced", async () => {
+  it("w51-audio: closes a room's frames channel when a new one comes, the broadcast stops or the player channel is replaced", async () => {
     const { manager, port } = await withPlayer();
-    const [a1, a2, b] = [new FakePort(), new FakePort(), new FakePort()];
+    const [a1, a2] = [new FakePort(), new FakePort()];
     port.deliver({ kind: "room-frames", room: A, port: a1 });
-    port.deliver({ kind: "room-frames", room: B, port: b });
     port.deliver({ kind: "room-frames", room: A, port: a2 });
     expect(a1.closed).toBe(true);
-    manager.setRooms([A]);
-    expect(b.closed).toBe(true);
     await manager.stopBroadcast();
     expect(a2.closed).toBe(true);
 
@@ -776,6 +773,22 @@ describe("AudioCaptureManagerPreload: engine rooms and preview from the player p
     port.deliver({ kind: "room-frames", room: A, port: a3 });
     manager.setPlayerPort(new FakePort());
     expect(a3.closed).toBe(true);
+  });
+
+  it("w51-audio: keeps a room's frames channel while the room is briefly missing from the rooms list, as frames on the player channel were", async () => {
+    // The rooms list reaches this window and the Lyre page separately: the page may already have sent the room's
+    // new channel when this window hears the room went. Frames for a missing room are dropped, then play again.
+    const { manager, port } = await withPlayer();
+    const b = new FakePort();
+    port.deliver({ kind: "room-frames", room: B, port: b });
+    manager.setRooms([A]);
+    expect(b.closed).toBe(false);
+    b.deliver([{ index: 0, samples: new Float32Array(1920), last: false }]);
+    expect(inlets()).toHaveLength(0);
+    manager.setRooms([A, B]);
+    b.deliver([{ index: 1, samples: new Float32Array(1920), last: false }]);
+    expect(inlets()).toHaveLength(1);
+    expect(inlets()[0].connections).toEqual(new Set([manager._mixes.get(B)!.volume]));
   });
 
   it("w51-audio: plays the preview's frames that come over its own channel, and closes the old one for a new one", async () => {

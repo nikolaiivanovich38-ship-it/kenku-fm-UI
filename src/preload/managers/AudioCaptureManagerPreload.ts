@@ -658,9 +658,8 @@ export class AudioCaptureManagerPreload {
       return;
     }
     this._rooms = [...rooms];
-    for (const room of [...this._roomFramePorts.keys()]) {
-      if (!this._rooms.includes(room)) this._closeRoomFramePort(room);
-    }
+    // A room's frames channel stays open when the room leaves this list: the Lyre page hears of rooms separately
+    // and replaces the channel when it taps the room again. Frames for a room that is not here are dropped.
     this._syncRooms();
   }
 
