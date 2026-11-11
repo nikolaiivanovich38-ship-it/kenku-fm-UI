@@ -28,7 +28,13 @@ export const BUILT_SCREENS: readonly string[] = ["library", "playlists", "audio-
  *   rooms-settings  Rooms (Add bot, Kick), Settings, remote control, headphones and speakers, keyboard shortcuts
  *   prep            Library, Tags, Playlists, folders, Pad boards, Campaigns, the planner, Audio profile, steps
  *
+ * 0.5.1 (design/prototype/ROUND8.md, FND-16): one more stream.
+ *
+ *   retire          Lyre is the whole window (the window's own buttons, dragging, no Kenku tab bar or Player tab),
+ *                   update news and the version in Help, Settings without Website tabs, Local files and Remote
+ *                   control, the moved Kenku FM token's note, and the old bookmarks on What came across
+ *
  * They are a list of their own because "live" is a screen as well as a stream.
  */
-export type Stream = "shell" | "live" | "rooms-settings" | "prep";
+export type Stream = "shell" | "live" | "rooms-settings" | "prep" | "retire";
 export const BUILT_STREAMS: readonly Stream[] = ["shell", "rooms-settings", "prep", "live"];

@@ -243,3 +243,89 @@ export function knownLayoutIssue(screen: string, width: number, kind: "sideways"
   if (isApp() || kind !== "cut") return false;
   return screen === "Library with a filter on" || (screen === "A pad board" && width > 900 && width < 1000);
 }
+
+/* ---------- 0.5.1: Lyre is the whole window (design/prototype/ROUND8.md) ---------- */
+
+export type Box = { x: number; y: number; width: number; height: number };
+
+/**
+ * Where the window's own buttons (minimise, maximise, close) are, in the page's CSS pixels (so at 200 % text the box
+ * is half as many CSS pixels). The app: Electron draws them (titleBarOverlay); the page learns their place from
+ * navigator.windowControlsOverlay, as Lyre's own layout does. The prototype: its stand-in of the same size, marked
+ * data-window-buttons.
+ */
+export async function windowButtonsBox(page: Page): Promise<Box> {
+  if (isApp()) {
+    const box = await page.evaluate(() => {
+      const wco = (navigator as unknown as { windowControlsOverlay?: { visible: boolean; getTitlebarAreaRect(): DOMRect } }).windowControlsOverlay;
+      if (!wco || !wco.visible) return null;
+      const free = wco.getTitlebarAreaRect();
+      const x = free.x + free.width;
+      return { x, y: 0, width: window.innerWidth - x, height: free.height };
+    });
+    if (!box) throw new Error("target.windowButtonsBox: the window shows no buttons of its own (titleBarOverlay is off)");
+    return box;
+  }
+  const box = await page.locator("[data-window-buttons]").boundingBox();
+  if (!box) throw new Error("target.windowButtonsBox: the prototype's window buttons are not shown");
+  return box;
+}
+
+/** Whether the window is maximised. The app asks Electron; the prototype's stand-in shows it (data-maximised). */
+export async function isWindowMaximised(page: Page): Promise<boolean> {
+  if (isApp()) return runningApp("isWindowMaximised").evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().some((w) => w.isVisible() && w.isMaximized()));
+  return (await page.locator("[data-window-buttons]").getAttribute("data-maximised")) === "true";
+}
+
+/**
+ * Whether Lyre's page is the whole window: one window shows, its own page is the Lyre page, and nothing is laid over
+ * it (no Kenku FM tab bar, no Lyre Player tab, no website tab). The prototype is always the whole window.
+ */
+export async function lyreIsTheWholeWindow(page: Page): Promise<boolean> {
+  if (!isApp()) return true;
+  const href = await page.evaluate(() => location.href);
+  return runningApp("lyreIsTheWholeWindow").evaluate(({ BrowserWindow }, lyre) => {
+    const shown = BrowserWindow.getAllWindows().filter((w) => w.isVisible());
+    return shown.length === 1 && shown[0].webContents.getURL() === lyre && shown[0].contentView.children.length === 0;
+  }, href);
+}
+
+/** What the updater can report (src/autoUpdate.ts): an update downloaded, a check that worked, or a failure. */
+export type UpdateEvent = { kind: "downloaded" } | { kind: "up-to-date" } | { kind: "error"; error: string };
+
+/**
+ * Make the updater report something, as Electron's autoUpdater would. The app: the test build's hook in the main
+ * process (`__lyreUpdatesTest.report`, fed to the same handlers as autoUpdater's events). The prototype: its hook.
+ */
+export async function reportUpdate(page: Page, event: UpdateEvent): Promise<void> {
+  if (isApp()) {
+    await runningApp("reportUpdate").evaluate(
+      (_electron, e) => (globalThis as unknown as { __lyreUpdatesTest: { report(e: unknown): void } }).__lyreUpdatesTest.report(e),
+      event,
+    );
+    return;
+  }
+  await page.evaluate((e) => (window as any).L.updateEvent(e), event);
+}
+
+/** What a Kenku FM user brings on Lyre's first start: a bot token Kenku FM kept in plain text, and bookmarks. */
+export type FromKenkuFM = { plainToken?: boolean; bookmarks?: { title: string; url: string }[] };
+
+/**
+ * Start Lyre as someone coming straight from Kenku FM, then show `route`. The app: the test build's hook in the main
+ * process (`__lyreLegacyTest.arrive`) gives the one-time move this Kenku FM data, as if read from its storage, and the
+ * page opens again. The prototype: its hook, kept in its storage, and the page opens again.
+ */
+export async function arriveFromKenkuFM(page: Page, from: FromKenkuFM, route: Route): Promise<void> {
+  if (isApp()) {
+    await runningApp("arriveFromKenkuFM").evaluate(
+      (_electron, f) => (globalThis as unknown as { __lyreLegacyTest: { arrive(f: unknown): Promise<void> } }).__lyreLegacyTest.arrive(f),
+      from,
+    );
+  } else {
+    await openRoute(page, route);
+    await page.evaluate((f) => (window as any).L.arriveFromKenkuFM(f), from);
+  }
+  await reopen(page);
+  await openRoute(page, route);
+}

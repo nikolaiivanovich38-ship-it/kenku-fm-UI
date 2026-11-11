@@ -332,3 +332,27 @@ Sweeps (`sweeps.spec.ts`, 17 checks; one line per screen and kind, sizes and the
 Each stream adds its own name to `BUILT_STREAMS` when its checks pass; a check that two streams need stays expected
 to fail until the second of them is in.
 
+
+## Retire (0.5.1)
+
+Lyre 0.5.1 retires the old Kenku FM window and the Lyre Player tab (FND-16, `R51-RETIRE.md`). Its design is
+`design/prototype/ROUND8.md`; its checks are marked `expectFailureUntilBuilt("retire")` (a sweep also by its screen and
+streams), and w51-main adds `"retire"` to `BUILT_STREAMS` once they pass. The app needs three test-build hooks for
+them (support/target.ts): `__lyreUpdatesTest.report(event)` (fed to the same handlers as autoUpdater's events),
+`__lyreLegacyTest.arrive({ plainToken, bookmarks })` (the one-time Kenku FM move, as if read from its storage), and the
+prototype seed's six bookmarks (titles and addresses, as `design/prototype/src/data.js` has them).
+
+| Check | Backlog | What it checks |
+| --- | --- | --- |
+| `sweeps.spec.ts`, one per sweep screen (22) | FND-16 | nothing under the window's buttons at 960×1000 and at 960×1040 with text at 200 %; the top strip drags, its controls do not |
+| `sweeps.spec.ts` "0.5.1: Lyre is the whole window" (7) | FND-16 | one window with Lyre's page alone; the buttons' place and size (about 138×36) and focus never under them; double-click maximises (top strip and Live's strip); the trail at 200 %; Help open; a tall sheet at 200 % |
+| `help.spec.ts` "0.5.1: update news and the version" (4) | SEC-14, UX-R16 | the update note (Restart now, stays until dismissed); a failed check shown once; an install failure says what to do; the version at Help's foot |
+| `help.spec.ts` "0.5.1: help for Lyre as one window" (3) | FND-8 | no article mentions the Player tab, website tabs or remote control; article 02 on bookmarks and the token; article 01 on a token from Kenku FM |
+| `settings.spec.ts` "0.5.1: Settings without the old window" (3) | FND-16 | no Website tabs, Local files or Remote control; Sound to Discord keeps its choice; Empty the audio cache |
+| `settings.spec.ts` "0.5.1: a bot token from Kenku FM" (2) | WP1 review 4 | the one-time note under Discord bots, Got it ends it for good; no note otherwise |
+| `library-files.spec.ts` "0.5.1: the old bookmarks, to copy" (3) | FND-16 | the Bookmarks box (title, address, Copy); none: no box and no row; the bookmarks brought are the ones listed |
+
+Removed in 0.5.1: `settings.spec.ts` "round 7: remote control needs a secret code" (3 checks: off by default with the
+code, Make a new code, home network) and the Website tabs and Local files parts of "the other settings Lyre still
+needs are here" (the folded Website tabs, Local files and Remote control boxes, and the Website tabs switches). The
+Bookmarks row of "says what was copied and where it is now" moved to the Bookmarks check.
