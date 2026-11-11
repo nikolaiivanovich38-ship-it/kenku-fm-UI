@@ -27,6 +27,8 @@ import {
   repeatsOneIn,
   sceneStarted,
   setRoomRepeat,
+  setRoomShuffle,
+  shuffledOrder,
   shownRepeat,
   undoLast,
   addPlayed,
@@ -126,6 +128,8 @@ export interface RoomReport {
   list: UpNextEntry[];
   /** PLY-17: the room's Repeat: the one chosen for what plays now (null: none) and the one that applies. */
   repeat: { chosen: RoomRepeat; shown: Repeat };
+  /** 0.5.1: the room's Shuffle is on (for what plays now). */
+  shuffle: boolean;
   /** The last add, removal or Clear added can be undone. */
   canUndoList: boolean;
   ambience: PlayingReport | null;
@@ -263,6 +267,24 @@ export class RoomPlayer {
   setRepeat(repeat: RoomRepeat): void {
     this.list = setRoomRepeat(this.list, repeat);
     this.deps.changed();
+  }
+
+  /**
+   * 0.5.1: the room's Shuffle pressed: on, the plan's steps are dealt in a random order, the one that plays first (so
+   * the rest come after it); off, the plan's own order again. True when it is now on.
+   */
+  toggleShuffle(): boolean {
+    if (this.list.shuffle) {
+      this.list = setRoomShuffle(this.list, null);
+    } else {
+      const view = this.planView(false);
+      const keys = view.steps.map((s) => s.key);
+      const current = view.at !== null ? view.steps[view.at]?.key : undefined;
+      const rest = shuffledOrder(keys.filter((k) => k !== current), this.deps.newSeed?.() ?? Date.now());
+      this.list = setRoomShuffle(this.list, current ? [current, ...rest] : rest);
+    }
+    this.deps.changed();
+    return this.list.shuffle !== null;
   }
 
   /** PLY-17: Repeat pressed: off, all, one in turn from what it shows. */
@@ -735,6 +757,7 @@ export class RoomPlayer {
       queued: [...this.list.pn, ...this.list.q].map((item) => ({ entryId: item.id, trackId: item.trackIds[0] })),
       list,
       repeat: { chosen: this.list.repeat, shown: this.shownRepeat() },
+      shuffle: this.list.shuffle !== null,
       canUndoList: this.list.undo !== null,
       ambience: this.ambienceItem ? this.playingReport(this.ambienceItem, this.ambienceVoice) : null,
       effects: this.effects.filter((e) => e.voice.state !== "stopping").map(({ trackId, padKey }) => ({ trackId, padKey })),

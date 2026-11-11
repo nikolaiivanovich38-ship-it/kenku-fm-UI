@@ -3,7 +3,7 @@
  * Elements are found by role, accessible name and visible text only.
  */
 import type { Page } from "@playwright/test";
-import { expect, expectFailureUntilBuilt, metByTheAppAlready, test } from "./support/test";
+import { appOnly, expect, expectFailureUntilBuilt, metByTheAppAlready, test } from "./support/test";
 import { joinRoom, leaveAllRooms, openRoute } from "./support/target";
 
 /* The app's Live is still 0.4.1's (an On air box per room, Off script, the Pads box). A check written for round 6
@@ -1348,5 +1348,30 @@ test.describe("round 7, part 2: Live", () => {
     await startAbbey(page);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
     await expect(region(page, "On air")).toBeInViewport();
+  });
+});
+
+/* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round (support/test.ts appOnly). */
+test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
+  test("On air: Stop beside Pause on the playing track, and Shuffle next to Repeat (\"I need both\")", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "live");
+    await startAbbey(page);
+    const table = room(page, "Table");
+    const pause = table.getByRole("button", { name: "Pause music" });
+    const stop = table.getByRole("button", { name: "Stop music" });
+    await expect(pause).toBeVisible();
+    await expect(stop).toBeVisible();
+    for (const b of [stop, table.getByRole("button", { name: "Shuffle" })]) {
+      const box = (await b.boundingBox())!;
+      expect(box.width).toBeGreaterThanOrEqual(24);
+      expect(box.height).toBeGreaterThanOrEqual(24);
+    }
+    const shuffle = table.getByRole("button", { name: "Shuffle" });
+    await expect(shuffle).toHaveAttribute("aria-pressed", "false");
+    await shuffle.click();
+    await expect(shuffle).toHaveAttribute("aria-pressed", "true");
+    await stop.click();
+    await expect(table.getByRole("button", { name: "Pause music" })).toHaveCount(0);
   });
 });

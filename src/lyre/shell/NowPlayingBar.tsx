@@ -37,7 +37,7 @@ import { roomVolumeControl } from "../outputs/roomVolume";
 import { useAnnounce } from "./Announcer";
 
 /** Stop on a room's row fades that room out this fast (the prototype's L.stopLane(…, 1)). */
-const STOP_FADE_MS = 1000;
+export const STOP_FADE_MS = 1000;
 /** The volume sliders move in steps of 5, as in the prototype. */
 const VOLUME_STEP = 5;
 

@@ -15,6 +15,9 @@
  *
  * Nik, 6 Nov 12:24: the room's Repeat (`repeat`) is for what plays now only: null until pressed (the music then does
  * what it does by itself: shownRepeat), never saved, back to null when the music stops or a new plan starts.
+ * Nik, 11 Nov (0.5.1): the room's Shuffle (`shuffle`) works like its Repeat: for what plays now, never saved, off again
+ * when the music stops or a new plan starts. On, it is a deal of the plan's steps (their keys in a random order, the
+ * host deals it): the plan plays, and Up next lists, in that order instead of its own.
  * Nik, 6 Nov 13:55: a new scene clears what was added (sceneStarted); the scene's Undo brings it back (the host keeps
  * the list in the scene's undo snapshot).
  *
@@ -83,6 +86,8 @@ export interface RoomList {
   backToQueue: { id: string; at: number } | null;
   skips: readonly string[];
   repeat: RoomRepeat;
+  /** 0.5.1: the room's Shuffle: the plan's step keys in the dealt order; null while it is off. */
+  shuffle: readonly string[] | null;
   undo: ListUndo | null;
 }
 
@@ -112,15 +117,27 @@ export type UpNextEntry =
 const PLAN: ListNow = { kind: "plan" };
 
 export function emptyRoomList(): RoomList {
-  return { pn: [], q: [], now: PLAN, ret: null, backToQueue: null, skips: [], repeat: null, undo: null };
+  return { pn: [], q: [], now: PLAN, ret: null, backToQueue: null, skips: [], repeat: null, shuffle: null, undo: null };
 }
 
 /* ---------- the plan ---------- */
 
+/** The plan's steps in the order they play: their own, or the room's Shuffle deal (steps it does not name last). */
+function playOrder(list: RoomList, plan: PlanView): number[] {
+  const own = plan.steps.map((_, i) => i);
+  if (!list.shuffle) return own;
+  const byKey = new Map<string, number>();
+  plan.steps.forEach((s, i) => byKey.has(s.key) || byKey.set(s.key, i));
+  const dealt = list.shuffle.flatMap((key) => (byKey.has(key) ? [byKey.get(key)!] : []));
+  return [...new Set([...dealt, ...own])];
+}
+
 /** The first step after `from` that is not skipped and is not the same track again; null at the bottom. */
 function after(list: RoomList, plan: PlanView, from: number | null): number | null {
   const last = from === null ? undefined : plan.steps[from]?.trackId;
-  for (let i = (from ?? -1) + 1; i < plan.steps.length; i++) {
+  const order = playOrder(list, plan);
+  for (let o = from === null ? 0 : order.indexOf(from) + 1; o < order.length; o++) {
+    const i = order[o];
     if (list.skips.includes(plan.steps[i].key) || plan.steps[i].trackId === last) continue;
     return i;
   }
@@ -128,8 +145,8 @@ function after(list: RoomList, plan: PlanView, from: number | null): number | nu
 }
 
 function top(list: RoomList, plan: PlanView): number | null {
-  const i = plan.steps.findIndex((s) => !list.skips.includes(s.key));
-  return i < 0 ? null : i;
+  const i = playOrder(list, plan).find((at) => !list.skips.includes(plan.steps[at].key));
+  return i === undefined ? null : i;
 }
 
 /** Where the plan is: the step playing, or the one the list left it at. */
@@ -330,7 +347,7 @@ export function undoLast(list: RoomList): RoomList {
 
 /** A new plan starts (Play on air of a playlist or a scene's track): what was added stays; skips and Repeat go. */
 export function newPlan(list: RoomList): RoomList {
-  return { ...list, now: PLAN, ret: null, backToQueue: null, skips: [], repeat: null, undo: null };
+  return { ...list, now: PLAN, ret: null, backToQueue: null, skips: [], repeat: null, shuffle: null, undo: null };
 }
 
 /** A new scene starts (Nik, 6 Nov 13:55): a new plan, and what was added to the room's list is cleared. */
@@ -338,9 +355,14 @@ export function sceneStarted(list: RoomList): RoomList {
   return { ...newPlan(list), pn: [], q: [] };
 }
 
-/** The room's music stopped: its Repeat goes back to not chosen; the lists stay for the evening. */
+/** The room's music stopped: its Repeat and Shuffle go back to not chosen; the lists stay for the evening. */
 export function musicStopped(list: RoomList): RoomList {
-  return { ...list, now: PLAN, ret: null, backToQueue: null, repeat: null };
+  return { ...list, now: PLAN, ret: null, backToQueue: null, repeat: null, shuffle: null };
+}
+
+/** 0.5.1: the room's Shuffle on (a deal of the plan's step keys) or off (null). */
+export function setRoomShuffle(list: RoomList, deal: readonly string[] | null): RoomList {
+  return { ...list, shuffle: deal };
 }
 
 export function setRoomRepeat(list: RoomList, repeat: RoomRepeat): RoomList {

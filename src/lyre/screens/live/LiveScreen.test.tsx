@@ -443,6 +443,36 @@ describe("0.5.1: the fade buttons take 5 s", () => {
   });
 });
 
+describe("0.5.1: Stop and Shuffle on air (Nik, 11 Nov)", () => {
+  it("the playing music has Stop beside Pause (both kept); Stop ends the music in that room", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    const controls = within(room("Table").getByRole("group", { name: "Music in Table" }));
+    const names = controls.getAllByRole("button").map((b) => b.getAttribute("aria-label"));
+    expect(names.indexOf("Stop music")).toBe(names.indexOf("Pause music") + 1);
+    await userEvent.click(controls.getByRole("button", { name: "Stop music" }));
+    await playOn(sound, 2);
+    expect(sound.audio.getNowPlaying().rooms[0].music).toBeNull();
+    expect(sound.audio.getNowPlaying().rooms[0].ambience).not.toBeNull();
+  });
+
+  it("each room has Shuffle next to Repeat, pressed while on, for what plays now", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    const shuffle = () => room("Table").getByRole("button", { name: "Shuffle" });
+    const repeat = room("Table").getByRole("button", { name: /^Repeat: / });
+    expect(shuffle().nextElementSibling ?? shuffle().previousElementSibling).toBe(repeat);
+    expect(shuffle()).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(shuffle());
+    await waitFor(() => expect(shuffle()).toHaveAttribute("aria-pressed", "true"));
+    expect(sound.audio.getNowPlaying().rooms[0].shuffle).toBe(true);
+    await userEvent.click(shuffle());
+    await waitFor(() => expect(shuffle()).toHaveAttribute("aria-pressed", "false"));
+  });
+});
+
 describe("BUG-21: renaming the session in Live's top strip", () => {
   const session = (name: string) => screen.getByRole("button", { name: `The Sunken Crown Session 14: ${name}` });
 

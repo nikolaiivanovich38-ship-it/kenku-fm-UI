@@ -354,6 +354,40 @@ describe("0.5.1: Split one headset only while something plays on air (Nik, 11 No
   });
 });
 
+describe("0.5.1: a room's Shuffle (Nik, 11 Nov)", () => {
+  it("toggles per room for what plays now: on, the rest of the plan is dealt again (Up next shows it); off when the music stops", async () => {
+    rig.audio.playPlaylist("P");
+    await rig.advance(1);
+    expect(first().shuffle).toBe(false);
+    expect(rig.audio.toggleShuffle()).toEqual({ ok: true });
+    await rig.advance(0.1);
+    expect(first().shuffle).toBe(true);
+    // Every planned track is still to come, in some order.
+    expect(first().upNextList.filter((e) => e.kind === "planned").flatMap((e) => e.trackIds).sort()).toEqual(["m3"]);
+    rig.audio.toggleShuffle();
+    await rig.advance(0.1);
+    expect(first().shuffle).toBe(false);
+    rig.audio.toggleShuffle();
+    rig.audio.stopAll();
+    await rig.advance(1);
+    expect(first().shuffle).toBe(false);
+  });
+
+  it("plays a scene's music in the dealt order, one track each, then round again", async () => {
+    rig.data.campaigns[0].sessions[0].scenes.push(scene("s4", ["m1", "m2", "m3", "m4", "m5"].map((id) => ({ kind: "track" as const, id }))));
+    rig.audio.startScene({ campaignId: "c", sessionId: "s", sceneId: "s4" });
+    await rig.advance(1);
+    rig.audio.toggleShuffle();
+    const heard = new Set<string>([playing()!]);
+    for (let i = 0; i < 4; i++) {
+      rig.audio.next("music");
+      await rig.advance(1);
+      heard.add(playing()!);
+    }
+    expect([...heard].sort()).toEqual(["m1", "m2", "m3", "m4", "m5"]);
+  });
+});
+
 describe("CR-1 (review 0.5.0): Stop all and Fade all cancel everything waiting to start", () => {
   const s1 = () => rig.data.campaigns[0].sessions[0].scenes[0];
   const addDelayedPad = () =>

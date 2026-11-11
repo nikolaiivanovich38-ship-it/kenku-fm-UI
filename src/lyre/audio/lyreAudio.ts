@@ -179,6 +179,8 @@ export interface RoomNowPlaying {
    * track's saved Repeat one, else its playlist's play order there, else off).
    */
   repeat: { chosen: RoomRepeat; shown: Repeat };
+  /** 0.5.1: the room's Shuffle is on, for what plays now (toggleShuffle). */
+  shuffle: boolean;
   /** The last add, removal or Clear added in this room can be undone (undoUpNext). */
   canUndoUpNext: boolean;
   /** Effects and pads sounding. `padKey` is "<board id>/<pad id>" for a pad. */
@@ -352,6 +354,8 @@ export interface LyreAudio {
   setRepeat(repeat: RoomRepeat, target?: RoomTarget): CueOutcome;
   /** Repeat pressed: off, all, one in turn from what it shows. */
   cycleRepeat(target?: RoomTarget): CueOutcome;
+  /** 0.5.1: the room's Shuffle on or off, for what plays now (never saved; off again when its music stops). */
+  toggleShuffle(target?: RoomTarget): CueOutcome;
   /**
    * PLY-17: the screen saved Repeat one on (or off) for that scene's track (LyreApi sessions.setRepeatOne): a Repeat
    * chosen in a room playing it gives way, so the saved one shows at once. Call setLibrary with the reloaded data too.
@@ -734,6 +738,15 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     if (outcome.ok) {
       const shown = this.director.shownRepeat(this.targetRooms(target)[0]);
       this.emit("announce", `Repeat: ${shown}, for what plays now${this.inRoom(target)}`);
+    }
+    return outcome;
+  }
+
+  toggleShuffle(target: RoomTarget = FIRST_ROOM): CueOutcome {
+    const outcome = this.listCall(() => this.director.toggleShuffle(this.rooms.target(target)));
+    if (outcome.ok) {
+      const on = this.director.report().find((room) => room.roomId === this.targetRooms(target)[0])?.shuffle;
+      this.emit("announce", `Shuffle ${on ? "on" : "off"}, for what plays now${this.inRoom(target)}`);
     }
     return outcome;
   }
@@ -1287,6 +1300,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
           : { ref: entry.ref, kind: entry.source === "pn" ? ("playNext" as const) : ("added" as const), trackIds: [...entry.trackIds], title: entry.name, playlistId: entry.playlistId, rest: entry.rest },
       ),
       repeat: { ...room.repeat },
+      shuffle: room.shuffle,
       canUndoUpNext: room.canUndoList,
       effects: room.effects.map((effect) => ({ ...effect, title: title(effect.trackId) })),
       played: room.played.map((p) => ({ ...p, title: title(p.trackId) })),

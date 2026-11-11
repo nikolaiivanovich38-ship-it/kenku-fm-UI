@@ -22,7 +22,7 @@ import { cx } from "../../kit/cx";
 import { restoreRoom } from "../../outputs/roomRestore";
 import { roomVolumeControl } from "../../outputs/roomVolume";
 import { useAnnounce } from "../../shell/Announcer";
-import { clockTime } from "../../shell/NowPlayingBar";
+import { clockTime, STOP_FADE_MS } from "../../shell/NowPlayingBar";
 import { formatLength } from "../campaigns/model";
 import { busiestChannel as moveToChannel, kickLosesSound, moveLosesSound, roomToRestore, viewOf } from "../outputs/outputsModel";
 import { clearAdded, FADE_BUTTON_MS, LIVE_FADE_MS, nextInRoom, takeOut } from "./liveActions";
@@ -596,6 +596,20 @@ function Lane({ lane, room, roomName }: { lane: MusicOrAmbience; room: RoomNowPl
         >
           <Icon name={playing.paused ? "play" : "pause"} size="s" />
         </button>
+        {/* 0.5.1 (Nik, 11 Nov): Stop beside Pause, as in the Now playing bar (a quick fade; Fade out is the slow one). */}
+        <button
+          type="button"
+          className="btn s icon"
+          data-lv={`stop-${lane}-${lv}`}
+          aria-label={`Stop ${word.toLowerCase()}`}
+          title={`Stop ${word.toLowerCase()} (fades out in a second)`}
+          onClick={() => {
+            touched();
+            audio.stopLane(lane, { target, fadeMs: STOP_FADE_MS });
+          }}
+        >
+          <Icon name="stop" size="s" />
+        </button>
         <button
           type="button"
           className="btn s icon"
@@ -607,6 +621,7 @@ function Lane({ lane, room, roomName }: { lane: MusicOrAmbience; room: RoomNowPl
         >
           <Icon name="next" size="s" />
         </button>
+        {isMusic && <ShuffleButton room={room} roomName={roomName} />}
         {isMusic && <RepeatButton room={room} roomName={roomName} />}
         <button
           type="button"
@@ -649,6 +664,27 @@ function RepeatButton({ room, roomName }: { room: RoomNowPlaying; roomName: stri
       }}
     >
       <Icon name={shown === "one" ? "repeat1" : "loop"} size="s" />
+    </button>
+  );
+}
+
+/** 0.5.1 (Nik, 11 Nov): the room's Shuffle, beside its Repeat and like it: for what plays now, never saved. */
+function ShuffleButton({ room, roomName }: { room: RoomNowPlaying; roomName: string }) {
+  const { audio, rooms } = useLive();
+  const where = rooms.length > 1 ? ` in ${roomName}` : "";
+  return (
+    <button
+      type="button"
+      className={cx("btn s icon rep", room.shuffle && "on")}
+      aria-pressed={room.shuffle}
+      aria-label="Shuffle"
+      title={`Shuffle ${room.shuffle ? "on" : "off"}, for what plays now${where} (not saved)`}
+      onClick={() => {
+        touched();
+        audio.toggleShuffle({ room: room.roomId });
+      }}
+    >
+      <Icon name={room.shuffle ? "shuffle" : "inorder"} size="s" />
     </button>
   );
 }
