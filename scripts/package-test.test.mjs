@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 
-import { asarPath, decide, packageFolder, readStamp, STAMP, treeState, writeStamp } from "./package-test.mjs";
+import { asarPath, decide, packageFolder, packageInputsChangedSince, readStamp, STAMP, treeState, writeStamp } from "./package-test.mjs";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "package-test-"));
 const git = (cwd, ...args) => execFileSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
@@ -78,8 +78,16 @@ describe("whether the package in out/ can be used again", () => {
     assert.match(decide({ stamp: stampFor("abc"), state, asar: null }).why, /no package/);
   });
 
-  it("is made again for another commit", () => {
+  it("is made again for another commit when what changed since is unknown or goes into the package", () => {
     assert.match(decide({ stamp: stampFor("old"), state, asar: built }).why, /another commit \(old\)/);
+    assert.match(decide({ stamp: stampFor("old"), state, asar: built, changedSince: ["src/app.ts"] }).why, /changed since old: src\/app\.ts/);
+  });
+
+  it("is reused for a later commit whose changes leave the package's inputs alone (tests, documents, tooling)", () => {
+    assert.deepEqual(decide({ stamp: stampFor("old"), state, asar: built, changedSince: [] }), {
+      reuse: true,
+      why: "made from old; the commits since change nothing that goes into the package",
+    });
   });
 
   it("is made again when it or the tree had uncommitted changes to the app's code", () => {
@@ -93,6 +101,20 @@ describe("whether the package in out/ can be used again", () => {
 
   it("is made again when something else packaged over it since (a plain yarn package)", () => {
     assert.match(decide({ stamp: stampFor("abc"), state, asar: { size: 10, mtimeMs: 2000 } }).why, /packaged again/);
+  });
+});
+
+describe("what changed since the package's commit", () => {
+  it("lists the files that go into the package, and is null for a commit git does not know", () => {
+    const dir = repository();
+    const first = git(dir, "rev-parse", "HEAD").trim();
+    fs.appendFileSync(path.join(dir, "e2e", "a.spec.ts"), "// more\n");
+    git(dir, "commit", "-q", "-am", "a test");
+    assert.deepEqual(packageInputsChangedSince(dir, first), []);
+    fs.appendFileSync(path.join(dir, "src", "app.ts"), "export const b = 2;\n");
+    git(dir, "commit", "-q", "-am", "the app");
+    assert.deepEqual(packageInputsChangedSince(dir, first), ["src/app.ts"]);
+    assert.equal(packageInputsChangedSince(dir, "0".repeat(40)), null);
   });
 });
 

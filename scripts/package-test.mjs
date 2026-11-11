@@ -7,7 +7,8 @@
 // After each package it writes out/lyre-test-build.json: the commit, whether the app's code had uncommitted changes
 // (the dirty flag), CUE_DESK_E2E_BUILD, and app.asar's size and time. The next run uses the package again when all of
 // these hold:
-//   - it was made from the commit checked out now;
+//   - it was made from the commit checked out now, or from an earlier one and nothing committed since goes into the
+//     package (a commit of tests, documents or tooling does not need a new package);
 //   - neither then nor now were there uncommitted changes to what goes into the package (the app's code and the build's
 //     configuration, scripts/affected-specs.mjs isPackageInput: a changed test or document does not count);
 //   - it is a test build (CUE_DESK_E2E_BUILD=1);
@@ -66,6 +67,15 @@ export function treeState(root) {
   return { commit, dirty: dirtyFiles.length > 0, dirtyFiles };
 }
 
+/** The files that go into the package and changed between `commit` and HEAD; null when git does not know `commit`. */
+export function packageInputsChangedSince(root, commit) {
+  try {
+    return git(["diff", "--name-only", "--no-renames", String(commit), "HEAD"], root).split("\n").filter(Boolean).filter(isPackageInput);
+  } catch {
+    return null;
+  }
+}
+
 export function readStamp(root) {
   try {
     return JSON.parse(fs.readFileSync(path.join(root, STAMP), "utf8"));
@@ -81,15 +91,22 @@ export function writeStamp(root, stamp) {
 
 const short = (commit) => String(commit).slice(0, 7);
 
-/** Whether the package in out/ can be used again, and why, in plain words. */
-export function decide({ stamp, state, asar }) {
+/**
+ * Whether the package in out/ can be used again, and why, in plain words. `changedSince`: the files that go into the
+ * package and changed between the stamp's commit and HEAD (null: not known).
+ */
+export function decide({ stamp, state, asar, changedSince = null }) {
   if (!stamp) return { reuse: false, why: "no record of the last test package (out/lyre-test-build.json)" };
   if (!asar) return { reuse: false, why: "no package in out/" };
   if (stamp.e2eBuild !== E2E_BUILD) return { reuse: false, why: "the package in out/ is not a test build" };
   if (stamp.asar?.size !== asar.size || stamp.asar?.mtimeMs !== asar.mtimeMs) return { reuse: false, why: "the app was packaged again since the last test package (a plain yarn package?)" };
   if (stamp.dirty) return { reuse: false, why: "the last test package was made with uncommitted changes to the app's code" };
   if (state.dirty) return { reuse: false, why: `uncommitted changes to the app's code: ${state.dirtyFiles.slice(0, 5).join(", ")}${state.dirtyFiles.length > 5 ? ", …" : ""}` };
-  if (stamp.commit !== state.commit) return { reuse: false, why: `the package in out/ was made from another commit (${short(stamp.commit)})` };
+  if (stamp.commit !== state.commit) {
+    if (changedSince === null) return { reuse: false, why: `the package in out/ was made from another commit (${short(stamp.commit)})` };
+    if (changedSince.length) return { reuse: false, why: `the app's code changed since ${short(stamp.commit)}: ${changedSince.slice(0, 5).join(", ")}${changedSince.length > 5 ? ", …" : ""}` };
+    return { reuse: true, why: `made from ${short(stamp.commit)}; the commits since change nothing that goes into the package` };
+  }
   return { reuse: true, why: `made from this commit (${short(state.commit)}) with nothing changed since` };
 }
 
@@ -116,7 +133,9 @@ async function main(argv) {
   }
   const folder = packageFolder(root);
   const before = treeState(root);
-  const decision = force ? { reuse: false, why: "--force" } : decide({ stamp: readStamp(root), state: before, asar: fingerprint(asarPath(folder)) });
+  const stamp = readStamp(root);
+  const changedSince = stamp?.commit && stamp.commit !== before.commit ? packageInputsChangedSince(root, stamp.commit) : null;
+  const decision = force ? { reuse: false, why: "--force" } : decide({ stamp, state: before, asar: fingerprint(asarPath(folder)), changedSince });
   if (decision.reuse) {
     console.log(`package:test: using the test package in ${path.relative(root, folder)}: ${decision.why}.`);
     return 0;

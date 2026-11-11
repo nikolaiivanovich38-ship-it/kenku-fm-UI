@@ -176,7 +176,7 @@ yarn affected --why                    # also what each file chose; --json for s
 - Documents outside `src`, unit tests, workflows and the scripts run nothing. Help articles (`src/lyre/help/articles/*.md`) are part of the app.
 - A file the rules name that is renamed or deleted fails a test in `scripts/affected-specs.test.mjs`, which says which; update `SCREEN_E2E` or `MAIN_AREAS` to match.
 
-**One test package per commit: `yarn package:test`** (`scripts/package-test.mjs`). It runs `CUE_DESK_E2E_BUILD=1 yarn package` only when the package in `out/` was not made from the commit checked out now with nothing uncommitted in the app's code; otherwise it says so and uses it.
+**One test package per commit: `yarn package:test`** (`scripts/package-test.mjs`). It runs `CUE_DESK_E2E_BUILD=1 yarn package` only when the package in `out/` was not made from the app's code as it is now; otherwise it says so and uses it.
 
 ```
 yarn package:test              # packages only when needed, through yarn heavy
@@ -185,7 +185,7 @@ yarn package:test --force      # packages whatever
 ```
 
 - After each package it writes `out/lyre-test-build.json`: the commit, the dirty flag (uncommitted changes to what goes into the package, as `isPackageInput` in `affected-specs.mjs` lists it: the app's code, help articles, `package.json`, `yarn.lock`, the forge and webpack configs), `CUE_DESK_E2E_BUILD`, and `app.asar`'s size and time.
-- The package is used again only when it was made from this commit, neither it nor the tree now has uncommitted changes to the app's code, it is a test build, and `app.asar` is still the one it made (a plain `yarn package` since then means packaging again). A changed test or document does not count, so editing a spec and running it again does not package again.
+- The package is used again only when it was made from this commit (or from an earlier one, and nothing committed since goes into the package), neither it nor the tree now has uncommitted changes to the app's code, it is a test build, and `app.asar` is still the one it made (a plain `yarn package` since then means packaging again). A changed or committed test, document or script does not count, so editing a spec and running it again does not package again.
 - A package that fails half-way leaves no stamp. Packaging goes through `yarn heavy` unless `yarn heavy` started it already.
 - The release workflow and `specs.yml` package by themselves and never read the stamp.
 
