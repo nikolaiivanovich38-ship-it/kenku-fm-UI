@@ -131,13 +131,13 @@ export class RemoteControl {
 function plainListenError(error: unknown, { address, port }: RemoteSettings): string {
   const code = (error as { code?: string } | null)?.code;
   if (code === "EADDRINUSE") {
-    return `Another program is already using port ${port}. Choose another port in Settings, or close that program.`;
+    return `Another program is already using port ${port}. Close that program, then turn the remote control off and on again.`;
   }
   if (code === "EADDRNOTAVAIL") {
-    return `This computer does not have the address ${address}. Use 127.0.0.1, or the address your network gave this computer.`;
+    return `Lyre could not find the address ${address} on this computer. Choose This computer only, or Your home network again.`;
   }
   if (code === "EACCES") {
-    return `Lyre may not use port ${port} on this computer. Choose another port in Settings, for example 3333.`;
+    return `This computer does not let Lyre use port ${port}, so the remote control is off.`;
   }
   const detail = error instanceof Error ? error.message : String(error);
   return `The remote control could not start: ${detail}`;

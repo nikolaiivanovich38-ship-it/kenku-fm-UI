@@ -218,7 +218,8 @@ export function RemotePane() {
       return;
     }
     setState(answer);
-    saved(what);
+    // UX-R10: a change Lyre could not make work shows only its problem (the alert below), never Saved as well.
+    if (!answer.problem) saved(what);
   };
   const on = state?.enabled ?? false;
   const listen = state ? remoteListen(state) : "local";

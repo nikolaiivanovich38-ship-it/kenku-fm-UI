@@ -104,8 +104,8 @@ describe("remote-control settings (SEC-4)", () => {
       expect(store.update({ enabled: true, address }), address).toEqual({ error: expect.any(String) });
     }
     expect(store.update({ address: "0.0.0.0" })).toEqual({ error: expect.stringMatching(/every address/) });
-    expect(store.update({ address: "8.8.8.8" })).toEqual({ error: expect.stringMatching(/internet/) });
-    expect(store.update({ address: "192.168.1.99" })).toEqual({ error: expect.stringMatching(/does not have the address 192\.168\.1\.99/) });
+    expect(store.update({ address: "8.8.8.8" })).toEqual({ error: expect.stringMatching(/does not listen on 8\.8\.8\.8, so nobody outside your home/) });
+    expect(store.update({ address: "192.168.1.99" })).toEqual({ error: expect.stringMatching(/no longer has the address 192\.168\.1\.99/) });
     expect(store.settings()).toEqual(DEFAULT_REMOTE_SETTINGS);
   });
 

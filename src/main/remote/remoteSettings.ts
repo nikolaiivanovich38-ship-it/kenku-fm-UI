@@ -52,16 +52,16 @@ export function remoteAddressProblem(address: string, ownAddresses: readonly str
   if (plain === THIS_COMPUTER_ONLY) return null;
   if (plain.length > 64 || net.isIP(plain) === 0) return NOT_AN_ADDRESS;
   if (/^0\.0\.0\.0$/.test(plain) || /^[0:]+$/.test(plain)) {
-    return "Lyre never listens on every address (0.0.0.0 or ::): choose This computer only, or Your home network.";
+    return "Lyre never listens on every address: choose This computer only, or Your home network.";
   }
   if (!isPrivateListenAddress(plain)) {
     return (
-      `Lyre does not listen on ${plain}: that is this computer's own loopback or an internet address. Use 127.0.0.1 for ` +
-      "this computer only, or Your home network, so nobody outside your home can reach it."
+      `Lyre does not listen on ${plain}, so nobody outside your home can reach it. ` +
+      "Choose This computer only, or Your home network."
     );
   }
   if (ownAddresses && !ownAddresses.map(sameForm).includes(plain)) {
-    return `This computer does not have the address ${plain} now. Choose Your home network again in Settings to use the one it has.`;
+    return `This computer no longer has the address ${plain}. Choose Your home network again to use the one it has now.`;
   }
   return null;
 }

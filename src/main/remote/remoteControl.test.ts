@@ -118,7 +118,7 @@ describe("RemoteControl (SEC-4)", () => {
       const state = (await remote.set({ enabled: true, port })) as RemoteState;
       expect(state).toMatchObject({ enabled: true, running: false });
       expect(state.problem).toBe(
-        `Another program is already using port ${port}. Choose another port in Settings, or close that program.`,
+        `Another program is already using port ${port}. Close that program, then turn the remote control off and on again.`,
       );
     } finally {
       await new Promise<void>((resolve) => blocker.close(() => resolve()));
@@ -160,7 +160,8 @@ describe("RemoteControl (SEC-4)", () => {
     const control = new RemoteControl({ store: away, host: { getView: () => view as never, requests } });
     const state = await control.start();
     expect(state).toMatchObject({ enabled: true, running: false, address: "192.168.77.5" });
-    expect(state.problem).toMatch(/does not have the address 192\.168\.77\.5/);
+    expect(state.problem).toMatch(/no longer has the address 192\.168\.77\.5/);
+    expect(state.problem).not.toMatch(/127\.0\.0\.1|loopback/);
     expect(control.listeningAddresses()).toEqual([]);
     await control.close();
   });

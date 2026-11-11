@@ -322,6 +322,19 @@ describe("Settings › Remote control (SEC-4)", () => {
     await waitFor(() => expect(box.getByRole("radio", { name: "Your home network" })).toBeChecked());
     expect(screen.getByRole("region", { name: "Remote control" })).toHaveTextContent("192.168.1.20:3333");
   });
+
+  it("UX-R10: when Lyre cannot listen there, it says why in plain words and shows no Saved pop-up", async () => {
+    const { remote } = open();
+    const problem = "Lyre could not find the address 192.168.1.20 on this computer. Choose This computer only, or check your network.";
+    const box = await unfold("Remote control");
+    await waitFor(() => expect(box.getByRole("switch", { name: "Let other devices control Lyre" })).toBeEnabled());
+    await userEvent.click(box.getByRole("switch", { name: "Let other devices control Lyre" }));
+    await waitFor(() => expect(toast()).toBe("Saved: remote control on"));
+    vi.mocked(remote.set).mockImplementationOnce(async (change) => ({ ...(await remote.get()), ...change, running: false, problem }));
+    await userEvent.click(await box.findByRole("radio", { name: "Your home network" }));
+    expect(await box.findByRole("alert")).toHaveTextContent(problem);
+    expect(toast()).not.toMatch(/^Saved: remote control listens on your home network/);
+  });
 });
 
 describe("Settings › Keyboard shortcuts (UX-12)", () => {
