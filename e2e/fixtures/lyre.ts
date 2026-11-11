@@ -49,8 +49,8 @@ export async function openLyreTab(page: Page, options: { keepTour?: boolean } = 
 const TOUR_NAME = /\d of \d$/;
 
 /**
- * Open the Lyre tab at a route ("campaign/crown", "profile/t13/sc:crown:s14:sc3"), in a theme: "default" follows
- * each campaign's own, "parchment" uses Parchment everywhere (as chosen in Look and feel). The page reloads with the
+ * Open the Lyre tab at a route ("campaign/crown", "profile/t13/sc:crown:s14:sc3"), with a base theme from Look and
+ * feel: "default" is Candlelit Library, "parchment" Parchment. A campaign's own theme still shows on its pages (0.5.1). The page reloads with the
  * remembered theme, so it opens at the route as a person would find it.
  */
 export async function openLyreRoute(page: Page, route: string, theme: "default" | "parchment" = "default"): Promise<Page> {
@@ -68,7 +68,7 @@ export async function openLyreRoute(page: Page, route: string, theme: "default" 
       window.location.hash = `#/${path}`;
       window.location.reload();
     },
-    [SHELL_SETTINGS_KEY, route, theme === "parchment" ? "parchment" : "campaign"] as const,
+    [SHELL_SETTINGS_KEY, route, theme === "parchment" ? "parchment" : "candle"] as const,
   );
   await lyre.waitForLoadState("domcontentloaded");
   await lyre.getByRole("main").getByRole("heading", { level: 1 }).waitFor();

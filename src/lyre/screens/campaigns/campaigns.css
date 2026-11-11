@@ -55,7 +55,6 @@
 .cp-details .cp-f-theme { flex: 0 1 170px; }
 .cp-details .cp-f-date { flex: 0 1 150px; }
 .cp-details .cp-f-status { flex: 0 1 110px; }
-.cp-forced { flex: 1 1 100%; }
 .cp-order { flex: 1 1 100%; display: flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--ink-3); }
 .cp-order svg { flex: none; }
 .cp-split { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 34%); gap: var(--gap); }

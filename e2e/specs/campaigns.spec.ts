@@ -730,6 +730,18 @@ test.describe("round 6 cuts on the campaign screens", () => {
 
 /* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round (support/test.ts appOnly). */
 test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
+  test("a campaign's theme shows on its pages whatever Look and feel chose; Look and feel is the base elsewhere", async ({ page }) => {
+    appOnly();
+    const theme = () => page.evaluate(() => document.documentElement.dataset.theme);
+    await openRoute(page, "campaign/crown", { theme: "parchment" });
+    await expect.poll(theme).toBe("hearth");
+    await expect(page.getByText(/Look and feel is showing every page/)).toHaveCount(0);
+    await page.getByRole("link", { name: /^Session 14/ }).first().click();
+    await expect.poll(theme).toBe("hearth");
+    await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Library" }).click();
+    await expect.poll(theme).toBe("parchment");
+  });
+
   test("Live is first in the menu (\"move the live tab to the top of the left side bar\")", async ({ page }) => {
     appOnly();
     await openRoute(page, "campaigns");

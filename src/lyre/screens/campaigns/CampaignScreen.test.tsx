@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { getLiveSession, loadInLive } from "../../kit/liveSession";
 import { expectNoAxeViolations } from "../../test/axe";
+import { saveShellSettings } from "../../shell/settings";
 import { main, openAt, region } from "./testing";
 
 beforeEach(() => {
@@ -40,6 +41,15 @@ describe("one campaign", () => {
     openAt("campaign/crown");
     await userEvent.click(await screen.findByRole("button", { name: "Live" }));
     expect(getLiveSession()).toEqual({ campaignId: "crown", sessionId: "s12" });
+  });
+
+  it("0.5.1: the campaign's theme shows whatever base Look and feel chose, with no note about Look and feel", async () => {
+    saveShellSettings({ theme: "parchment", rail: "auto", panes: {} });
+    openAt("campaign/crown");
+    const theme = (await screen.findByRole("combobox", { name: "Theme" })) as HTMLSelectElement;
+    await waitFor(() => expect(document.documentElement.dataset.theme).toBe("hearth"));
+    expect(theme).not.toHaveAttribute("aria-describedby");
+    expect(screen.queryByText(/Look and feel is showing every page/)).toBeNull();
   });
 
   it("name, game system, theme and description are edited on the page; the theme changes the page", async () => {

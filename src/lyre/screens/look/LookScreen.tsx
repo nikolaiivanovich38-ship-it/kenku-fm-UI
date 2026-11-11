@@ -1,7 +1,7 @@
 /**
  * Look and feel (route `look`, UX-11): the five table themes, each card drawn in its own colours (its sample has its
- * own data-theme, so it shows the real tokens) with one plain sentence, "Use this theme" to use it everywhere, and
- * Theme to go back to each campaign's own. Ported from the prototype's views/look.js and look.css;
+ * own data-theme, so it shows the real tokens) with one plain sentence, and "Use this theme" (or Theme) to make it the
+ * base theme; a campaign's own theme still shows on its pages (0.5.1). Ported from the prototype's views/look.js and look.css;
  * the prototype's "Try it in the prototype" is "Use this theme" here.
  */
 import React, { useEffect, useRef, useState } from "react";
@@ -37,7 +37,7 @@ const CARDS: readonly ThemeCard[] = [
 ];
 
 /** What the page is for: the heading's hover text and description. */
-const INTRO = "Each campaign can have its own theme, and Lyre switches to it when you open that campaign. Choose one here to use it everywhere.";
+const INTRO = "Choose the theme Lyre uses everywhere. A campaign with a theme of its own shows it on its pages, its sessions and in Live.";
 
 export function LookScreen() {
   const [choice, setChoice] = useThemeChoice();

@@ -2,13 +2,18 @@ import type { Route } from "./routes";
 
 /**
  * UX-11: the five table themes from the design prototype (tokens.css). One structure, five palettes: only colour and
- * heading type change, so nothing moves between campaigns. A campaign picks its theme and Lyre switches to it while
- * that campaign is open; Look and feel can instead choose one theme for everything.
+ * heading type change, so nothing moves between campaigns. Since 0.5.1 (Nik, 11 Nov: "The campaign's visual theme
+ * should override the base / preference theme"), Look and feel chooses the base theme, and a campaign's own theme
+ * always shows on its pages, its sessions and planner, and its Live.
  */
+import { parseKeyOfPlace } from "../../common/domain";
 export type ThemeId = "candle" | "fern" | "hearth" | "parchment" | "elysium";
 
-/** "campaign" follows each campaign's own theme; a theme id uses that theme everywhere. */
-export type ThemeChoice = "campaign" | ThemeId;
+/**
+ * The base theme chosen in Look and feel. Before 0.5.1 it could also be "campaign" (each campaign's own, with a chosen
+ * theme winning over every campaign's); loadShellSettings brings that over as DEFAULT_THEME.
+ */
+export type ThemeChoice = ThemeId;
 
 export interface ThemeInfo {
   id: ThemeId;
@@ -30,7 +35,6 @@ export const THEMES: readonly ThemeInfo[] = [
 
 /** The choices, worded as in the prototype's theme menu. */
 export const THEME_CHOICES: readonly { value: ThemeChoice; label: string }[] = [
-  { value: "campaign", label: "Each campaign's own" },
   { value: "candle", label: "Candlelit Library (default)" },
   { value: "fern", label: "Fern and Brass (logo)" },
   { value: "hearth", label: "Hearth and Iron (D&D)" },
@@ -47,9 +51,10 @@ export function isThemeId(value: unknown): value is ThemeId {
 }
 
 export interface ThemeQuery {
+  /** The base theme (Look and feel). */
   choice: ThemeChoice;
   route: Route;
-  /** The last campaign opened (shared screens such as the Library keep its theme). */
+  /** The last campaign opened: Live's campaign while no session is loaded there. */
   campaignInHand?: string;
   /** The campaign of the session loaded in Live. */
   liveCampaign?: string;
@@ -57,15 +62,20 @@ export interface ThemeQuery {
   campaignTheme: (campaignId: string) => ThemeId | undefined;
 }
 
-/** The theme to show for a screen (the prototype's L.themeFor). */
-export function themeFor({ choice, route, campaignInHand, liveCampaign, campaignTheme }: ThemeQuery): ThemeId {
-  if (choice !== "campaign") {
-    return choice;
+/** The campaign whose theme a screen shows: a campaign or session page, Live's, or the place a track's profile is opened in. */
+function campaignOfScreen({ route, campaignInHand, liveCampaign }: ThemeQuery): string | undefined {
+  if (route.params.cid) return route.params.cid;
+  if (route.name === "live") return liveCampaign ?? campaignInHand;
+  if (route.name === "profile" && route.params.ctx) {
+    return parseKeyOfPlace(route.params.ctx)?.campaignId;
   }
-  if (route.name === "campaigns" || route.name === "look") {
-    return DEFAULT_THEME;
-  }
-  const campaignId = route.params.cid ?? (route.name === "live" ? (liveCampaign ?? campaignInHand) : campaignInHand);
-  const own = campaignId === undefined ? undefined : campaignTheme(campaignId);
-  return isThemeId(own) ? own : DEFAULT_THEME;
+  return undefined;
+}
+
+/** The theme to show for a screen: the campaign's own on its screens (0.5.1), else the base from Look and feel. */
+export function themeFor(query: ThemeQuery): ThemeId {
+  const campaignId = campaignOfScreen(query);
+  const own = campaignId === undefined ? undefined : query.campaignTheme(campaignId);
+  if (isThemeId(own)) return own;
+  return isThemeId(query.choice) ? query.choice : DEFAULT_THEME;
 }

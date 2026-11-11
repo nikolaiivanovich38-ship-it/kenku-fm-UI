@@ -5,7 +5,7 @@ import { DEFAULT_THEME, THEME_CHOICES, THEMES, themeFor } from "./themes";
 const campaignThemes: Record<string, string> = { crown: "hearth", sixth: "candle", ash: "elysium" };
 const lookup = (cid: string) => campaignThemes[cid] as never;
 
-function theme(path: string, choice = "campaign", campaignInHand?: string, liveCampaign?: string) {
+function theme(path: string, choice = "candle", campaignInHand?: string, liveCampaign?: string) {
   return themeFor({ choice: choice as never, route: parseRoute(path), campaignInHand, liveCampaign, campaignTheme: lookup });
 }
 
@@ -15,9 +15,8 @@ describe("themes (UX-11): five table themes, Candlelit Library the default", () 
     expect(DEFAULT_THEME).toBe("candle");
   });
 
-  it("names the choices as the prototype does", () => {
+  it("0.5.1: Look and feel chooses the base theme only; there is no \"Each campaign's own\" any more", () => {
     expect(THEME_CHOICES.map((c) => c.label)).toEqual([
-      "Each campaign's own",
       "Candlelit Library (default)",
       "Fern and Brass (logo)",
       "Hearth and Iron (D&D)",
@@ -26,29 +25,30 @@ describe("themes (UX-11): five table themes, Candlelit Library the default", () 
     ]);
   });
 
-  it("switches to a campaign's own theme while that campaign is open", () => {
-    expect(theme("campaign/crown")).toBe("hearth");
-    expect(theme("session/ash/s2")).toBe("elysium");
+  it("0.5.1: a campaign's theme always shows on its pages, its sessions, the planner and its Live, whatever the base", () => {
+    for (const base of ["candle", "parchment", "elysium"]) {
+      expect(theme("campaign/crown", base)).toBe("hearth");
+      expect(theme("session/ash/s2", base)).toBe("elysium");
+      expect(theme("live", base, "crown", "ash")).toBe("elysium");
+      // A track's Audio profile opened from a scene or a session of that campaign.
+      expect(theme("profile/t13/sc:crown:s14:sc3", base)).toBe("hearth");
+      expect(theme("profile/t13/ss:ash:s2", base)).toBe("elysium");
+    }
   });
 
-  it("keeps the campaign in hand's theme on the shared screens (Library, Playlists, Pad boards, Outputs)", () => {
-    expect(theme("library", "campaign", "crown")).toBe("hearth");
-    expect(theme("boards", "campaign", "ash")).toBe("elysium");
-  });
-
-  it("uses the loaded session's campaign on Live", () => {
-    expect(theme("live", "campaign", "crown", "ash")).toBe("elysium");
-  });
-
-  it("uses the default on Campaigns and Look and feel, and for a campaign without a theme", () => {
-    expect(theme("campaigns", "campaign", "crown")).toBe("candle");
-    expect(theme("look", "campaign", "crown")).toBe("candle");
-    expect(theme("campaign/unknown")).toBe("candle");
+  it("0.5.1: the base theme shows everywhere else, the Library and Campaigns too, and for a campaign without a theme", () => {
+    expect(theme("library", "parchment", "crown")).toBe("parchment");
+    expect(theme("boards", "elysium", "crown")).toBe("elysium");
+    expect(theme("campaigns", "fern", "crown")).toBe("fern");
+    expect(theme("look", "parchment", "crown")).toBe("parchment");
+    expect(theme("profile/t13", "parchment", "crown")).toBe("parchment");
+    expect(theme("profile/t13/pl:p-abbess", "parchment", "crown")).toBe("parchment");
+    expect(theme("campaign/unknown", "parchment")).toBe("parchment");
     expect(theme("library")).toBe("candle");
   });
 
-  it("uses a theme chosen in Look and feel everywhere", () => {
-    expect(theme("campaign/crown", "parchment")).toBe("parchment");
-    expect(theme("campaigns", "elysium")).toBe("elysium");
+  it("0.5.1: Live with no session loaded uses the campaign in hand's theme", () => {
+    expect(theme("live", "parchment", "crown")).toBe("hearth");
+    expect(theme("live", "parchment")).toBe("parchment");
   });
 });
