@@ -8,7 +8,8 @@ import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 
 
 import { parseKeyOfPlace, placeKey, type PadMode, type ProfilePlace } from "../../../common/domain";
 import { isRefused, type CampaignInfo, type Done, type PadBoard, type PlaylistInfo, type WriteResult } from "../../../common/lyre/api";
-import { useBoards, usePlaylists, useProfileOverrides, useTracks } from "../../api";
+import { useBoards, useCampaigns, usePlaylists, useProfileOverrides, useTracks } from "../../api";
+import { useCampaignInHand } from "../../shell/CampaignInHand";
 import { SavedField } from "../../kit/SavedField";
 import { Icon, ICON_NAMES, type IconName } from "../../kit/Icon";
 import { useLiveSession, runInLive } from "../../kit/liveSession";
@@ -222,6 +223,18 @@ export function ModeSwitch({ campaign, sessionId }: { campaign: CampaignInfo; se
       </button>
     </div>
   );
+}
+
+/**
+ * The Prep | Live switch on a screen of no one campaign (Rooms, Library): for the session loaded in Live, else the
+ * campaign last opened, else the first.
+ */
+export function PrepOrLive() {
+  const campaigns = useCampaigns().data;
+  const live = useLiveSession();
+  const inHand = useCampaignInHand();
+  const campaign = campaigns?.find((c) => c.id === live?.campaignId) ?? campaigns?.find((c) => c.id === inHand) ?? campaigns?.[0];
+  return campaign ? <ModeSwitch campaign={campaign} /> : null;
 }
 
 /** Played, Next or Draft: always in words; the colour only adds to them. */

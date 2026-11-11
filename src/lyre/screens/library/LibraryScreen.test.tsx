@@ -26,6 +26,17 @@ async function loaded() {
   await screen.findByRole("checkbox", { name: "Select Ashes" });
 }
 
+describe("0.5.1: the Library's top bar", () => {
+  it("has the Prep | Live switch the other screens have, with Prep pressed; Live opens Live", async () => {
+    openAt("library");
+    await loaded();
+    const modes = within(await screen.findByRole("group", { name: "Prep or live" }));
+    expect(modes.getByRole("button", { name: "Prep" })).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(modes.getByRole("button", { name: "Live" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/live"));
+  });
+});
+
 describe("Library: finding tracks", () => {
   it("shows how many tracks there are, each row with Preview, Play on air and More", async () => {
     openAt("library");

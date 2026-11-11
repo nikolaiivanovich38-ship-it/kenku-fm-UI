@@ -3,7 +3,7 @@
  * (design/prototype/tools/lb-flow.js, lb-size.js and src/views/library.js).
  */
 import type { Page } from "@playwright/test";
-import { expect, expectFailureUntilBuilt, test } from "./support/test";
+import { appOnly, expect, expectFailureUntilBuilt, test } from "./support/test";
 import { openRoute } from "./support/target";
 import { dropFiles } from "./support/drop";
 
@@ -476,5 +476,17 @@ test.describe("Library targets", () => {
       expect(Math.round(r.width)).toBeGreaterThanOrEqual(24);
       expect(Math.round(r.height)).toBeGreaterThanOrEqual(24);
     }
+  });
+});
+
+/* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round (support/test.ts appOnly). */
+test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
+  test("the Library's top bar has the Prep | Live switch (\"In library view I still need the Prep and Live toggle\")", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    const modes = page.getByRole("group", { name: "Prep or live" });
+    await expect(modes.getByRole("button", { name: "Prep" })).toHaveAttribute("aria-pressed", "true");
+    await modes.getByRole("button", { name: "Live" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Live" })).toBeAttached();
   });
 });

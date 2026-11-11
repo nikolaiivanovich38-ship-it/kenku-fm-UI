@@ -38,6 +38,7 @@ import { SearchField } from "../../kit/Fields";
 import { LibraryMoreMenu } from "../transfer/LibraryMoreMenu";
 import "./library.css";
 import { TopLead } from "../../shell/TopBar";
+import { PrepOrLive } from "../campaigns/parts";
 import { tagTreeOf } from "../../../common/lyre/lookup";
 import { AddToDialog, DropTray } from "../drop/DropTray";
 
@@ -598,6 +599,8 @@ export function LibraryScreen({ route }: ScreenProps) {
           <Icon name="chevdown" size="s" />
         </PopMenuButton>
         <LibraryMoreMenu onNormalise={() => setNormaliseOpen(true)} />
+        {/* 0.5.1 (Nik, 11 Nov): the Prep | Live switch, as on Rooms and a campaign's pages. */}
+        <PrepOrLive />
       </div>
       <div className="viewbody fill lb-body" data-scroll="body">{body}</div>
       {tagging && (
