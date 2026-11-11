@@ -59,6 +59,39 @@ describe("Dialog: a modal sheet for prep screens", () => {
     expect(within(dialog).getByRole("button", { name: "Create" })).toHaveFocus();
   });
 
+  it("UX-R1: focus skips a control that is off, so a list whose first Move up is greyed still gets focus", async () => {
+    const user = userEvent.setup();
+    function WithSteps() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <Button onClick={() => setOpen(true)}>Steps</Button>
+          <Dialog open={open} title="When The abbey ruins starts" onClose={() => setOpen(false)}>
+            <button type="button" disabled>
+              Move up
+            </button>
+            <button type="button">Move down</button>
+          </Dialog>
+        </>
+      );
+    }
+    render(<WithSteps />);
+    await user.click(screen.getByRole("button", { name: "Steps" }));
+    const dialog = screen.getByRole("dialog", { name: "When The abbey ruins starts" });
+    expect(within(dialog).getByRole("button", { name: "Move down" })).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("UX-R1: with nothing to press in its body, focus goes to its first button (Close)", async () => {
+    render(
+      <Dialog open title="Nothing here" onClose={() => undefined}>
+        <p>Just words</p>
+      </Dialog>,
+    );
+    expect(screen.getByRole("button", { name: "Close" })).toHaveFocus();
+  });
+
   it("closes with Escape or Close and gives focus back to what opened it", async () => {
     const onClose = vi.fn();
     render(<WithDialog onClose={onClose} />);

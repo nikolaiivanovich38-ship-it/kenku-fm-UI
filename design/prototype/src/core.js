@@ -930,7 +930,8 @@ var L = (function () {
     // o.describe (round 6): what the sheet is for, read out with its title, not shown.
     s.innerHTML = '<div class="panel" role="dialog" aria-modal="true" aria-labelledby="sheet-title"' + (o.describe ? ' aria-describedby="sheet-desc"' : '') + (o.wide ? ' style="width:min(900px,100%)"' : '') + '><header><h2 id="sheet-title">' + esc(o.title) + '</h2><button class="closer" data-act="closesheet" title="Close">' + L.icon('close') + '</button></header>' + (o.describe ? '<p class="sr-only" id="sheet-desc">' + o.describe + '</p>' : '') + '<div class="body">' + o.body + '</div>' + (o.footer ? '<footer>' + o.footer + '</footer>' : '') + '</div>';
     document.body.appendChild(s);
-    var f = s.querySelector('.body input, .body select, .body textarea, .body button') || s.querySelector('button'); if (f) f.focus();
+    // UX-R1 (0.5.0 review): a greyed control (the first step's Move up) cannot take focus, so it is skipped.
+    var f = s.querySelector('.body input:not([disabled]), .body select:not([disabled]), .body textarea:not([disabled]), .body button:not([disabled])') || s.querySelector('button:not([disabled])'); if (f) f.focus();
     s.addEventListener('pointerdown', function (e) { if (e.target === s) L.closeSheet(); });
   };
   L.closeSheet = function () { var s = document.getElementById('lyre-sheet'); if (s) { s.remove(); if (sheetReturn && document.contains(sheetReturn)) sheetReturn.focus(); sheetReturn = null; } };

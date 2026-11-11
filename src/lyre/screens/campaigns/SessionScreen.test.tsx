@@ -490,6 +490,23 @@ describe("round 7: what a scene does when it starts (PLY-8, r7play.js)", () => {
     return screen.getByRole("dialog", { name: "When The abbey ruins starts" });
   }
 
+  it("UX-R1: focus moves into the dialog when it opens from the menu, Tab stays inside and Esc closes it", async () => {
+    const user = userEvent.setup();
+    openAt("session/crown/s14");
+    await user.click(await screen.findByRole("button", { name: "More for The abbey ruins" }));
+    screen.getByRole("menuitem", { name: "What it does when it starts…" }).focus();
+    await user.keyboard("{Enter}");
+    const dialog = screen.getByRole("dialog", { name: "When The abbey ruins starts" });
+    expect(dialog).toContainElement(document.activeElement as HTMLElement);
+    for (let i = 0; i < 40; i++) {
+      await user.tab();
+      expect(dialog).toContainElement(document.activeElement as HTMLElement);
+    }
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("button", { name: "More for The abbey ruins" })).toHaveFocus();
+  });
+
   it("the usual start is its music, its ambience and its first pad board, and nothing marks the scene", async () => {
     const user = userEvent.setup();
     openAt("session/crown/s14");

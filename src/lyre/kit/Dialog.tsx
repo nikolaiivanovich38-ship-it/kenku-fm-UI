@@ -15,6 +15,7 @@ export interface DialogProps {
   children: React.ReactNode;
 }
 
+const FIRST_IN_BODY = ".body input:not([disabled]), .body select:not([disabled]), .body textarea:not([disabled]), .body button:not([disabled])";
 const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
 
 /**
@@ -34,7 +35,8 @@ export function Dialog({ open, title, onClose, footer, wide, description, childr
     }
     const opener = document.activeElement as HTMLElement | null;
     const panel = panelRef.current;
-    const first = panel?.querySelector<HTMLElement>(".body input, .body select, .body textarea, .body button") ?? panel?.querySelector<HTMLElement>("button");
+    // UX-R1: the first control that can take focus; a greyed one (the first step's Move up) is skipped.
+    const first = panel?.querySelector<HTMLElement>(FIRST_IN_BODY) ?? panel?.querySelector<HTMLElement>("button:not([disabled])");
     first?.focus();
     return () => {
       if (opener && document.contains(opener)) {
