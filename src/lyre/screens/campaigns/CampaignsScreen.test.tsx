@@ -78,3 +78,37 @@ describe("all campaigns", () => {
     expect(within(masks).getByRole("button", { name: "Run next session" })).toHaveAttribute("aria-disabled", "true");
   });
 });
+
+describe("0.5.1: the campaigns' order (Nik, 11 Nov: \"drag and drop to rearrange the order campaigns are displayed in\")", () => {
+  const names = () => main().getAllByRole("article").map((a) => a.getAttribute("aria-label") ?? within(a).getByRole("heading").textContent);
+
+  it("each card has a drag handle; Reorder shows Move up and Move down on each card, which move it and save the order", async () => {
+    const { api } = openAt("campaigns");
+    await screen.findByRole("article", { name: "The Sunken Crown" });
+    const before = names();
+    for (const card of main().getAllByRole("article")) expect(card.querySelector("[title^='Drag to change the order']")).not.toBeNull();
+    expect(main().queryAllByRole("button", { name: /^Move (up|down): / })).toHaveLength(0);
+    const reorder = screen.getByRole("button", { name: "Reorder" });
+    await userEvent.click(reorder);
+    expect(reorder).toHaveAttribute("aria-pressed", "true");
+    const first = before[0]!;
+    expect(screen.getByRole("button", { name: `Move up: ${first}` })).toBeDisabled();
+    await userEvent.click(screen.getByRole("button", { name: `Move down: ${first}` }));
+    await waitFor(() => expect(names()).toEqual([before[1], first, before[2]]));
+    expect(screen.getByRole("button", { name: `Move down: ${first}` })).toHaveFocus();
+    await waitFor(async () => expect((await api.campaigns.list()).map((c) => c.name)).toEqual([before[1], first, before[2]]));
+    await userEvent.click(reorder);
+    expect(main().queryAllByRole("button", { name: /^Move (up|down): / })).toHaveLength(0);
+  });
+
+  it("Alt+Up on a card's link or button moves the card, as in other lists", async () => {
+    const { api } = openAt("campaigns");
+    await screen.findByRole("article", { name: "The Sunken Crown" });
+    const before = names();
+    const second = before[1]!;
+    within(screen.getByRole("article", { name: second })).getByRole("link", { name: `Open ${second}` }).focus();
+    await userEvent.keyboard("{Alt>}{ArrowUp}{/Alt}");
+    await waitFor(async () => expect((await api.campaigns.list()).map((c) => c.name)).toEqual([second, before[0], before[2]]));
+    await waitFor(() => expect(within(screen.getByRole("article", { name: second })).getByRole("link", { name: `Open ${second}` })).toHaveFocus());
+  });
+});

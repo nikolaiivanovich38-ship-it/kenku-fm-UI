@@ -545,6 +545,16 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         expectRefused(await api.campaigns.setOnHand({ campaignId: "crown", sessionId: "nope" }, "boards", []), "not-found");
       });
 
+      it("0.5.1: moves a campaign in the Campaigns screen's order, which is kept", async () => {
+        const before = (await api.campaigns.list()).map((c) => c.id);
+        const last = before[before.length - 1];
+        valueOf(await api.campaigns.move(last, 0));
+        expect((await api.campaigns.list()).map((c) => c.id)).toEqual([last, ...before.slice(0, -1)]);
+        valueOf(await api.campaigns.move(last, before.length - 1));
+        expect((await api.campaigns.list()).map((c) => c.id)).toEqual(before);
+        expectRefused(await api.campaigns.move("nope", 0), "not-found");
+      });
+
       it("says where every playlist, board and track is used, as the shared rules do", async () => {
         const campaigns = await api.campaigns.list();
         for (const p of await api.playlists.list()) expect(await api.campaigns.usesOf({ kind: "playlist", id: p.id }), p.id).toEqual(usesOfPlaylist(p.id, campaigns));

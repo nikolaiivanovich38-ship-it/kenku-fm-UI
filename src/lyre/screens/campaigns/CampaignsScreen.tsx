@@ -1,8 +1,12 @@
 /**
  * Campaigns, the top level (UX-1, round 4): one card per campaign in its own table theme, with its next session,
  * Run next session (straight to Live) and Open; New campaign. (views/campaigns.js part 1.)
+ *
+ * 0.5.1 (Nik, 11 Nov): the cards are in the game master's order, kept in the library. Drag a card by its handle, press
+ * Alt+Up or Alt+Down on any of its links or buttons, or switch Reorder on for Move up and Move down on each card (WCAG
+ * 2.5.7, as in a playlist's tracks in a scene).
  */
-import React, { useLayoutEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { isRefused, type CampaignInfo } from "../../../common/lyre/api";
 import { useCampaigns, useLyreApi } from "../../api";
@@ -14,7 +18,8 @@ import { useAnnounce } from "../../shell/Announcer";
 import { useThemeChoice } from "../../shell/useThemeChoice";
 import type { ScreenProps } from "..";
 import { CAMPAIGN_THEME_IDS, DEFAULT_CAMPAIGN_THEME, formatDate, nextSession, plural, sessionLabel, shownTheme, SYSTEMS, themeName, themeNote } from "./model";
-import { ObsidianFields, Opening, useHeadingFocusWhenReady, type ObsidianValues } from "./parts";
+import { ObsidianFields, Opening, useHeadingFocusWhenReady, useWrite, type ObsidianValues } from "./parts";
+import { useDragReorder, type DragReorder } from "./reorder";
 
 import "./campaigns.css";
 import { TopLead } from "../../shell/TopBar";
@@ -26,8 +31,50 @@ export function CampaignsScreen(_props: ScreenProps) {
   return <CampaignsList campaigns={campaigns} creating={creating} setCreating={setCreating} />;
 }
 
+/** The Reorder switch, kept while Lyre is open (it shows the buttons; it changes nothing). */
+let reorderingCampaigns = false;
+
 function CampaignsList({ campaigns, creating, setCreating }: { campaigns: CampaignInfo[]; creating: boolean; setCreating: (on: boolean) => void }) {
   useHeadingFocusWhenReady();
+  const api = useLyreApi();
+  const write = useWrite();
+  const { say } = useAnnounce();
+  const [reordering, setReorderingNow] = useState(reorderingCampaigns);
+  const setReordering = (on: boolean) => setReorderingNow((reorderingCampaigns = on));
+  // A new order shows at once while it is saved; the library's answer then takes over (a refusal puts it back).
+  const [shown, setShown] = useState<string[] | null>(null);
+  useEffect(() => setShown(null), [campaigns]);
+  const ordered = shown ? shown.flatMap((id) => campaigns.filter((c) => c.id === id)) : campaigns;
+  const gridRef = useRef<HTMLDivElement>(null);
+  const focusAfter = useRef<{ id: string; control: string } | null>(null);
+  useEffect(() => {
+    const want = focusAfter.current;
+    const el = want && gridRef.current?.querySelector<HTMLElement>(`[data-cid="${CSS.escape(want.id)}"] [data-ctl="${want.control}"]`);
+    if (el && !el.hasAttribute("disabled")) {
+      focusAfter.current = null;
+      el.focus();
+    }
+  });
+
+  const move = async (from: number, to: number, control?: string) => {
+    const c = ordered[from];
+    if (!c || to < 0 || to >= ordered.length || from === to) return;
+    const ids = ordered.map((x) => x.id);
+    ids.splice(from, 1);
+    ids.splice(to, 0, c.id);
+    setShown(ids);
+    if (control) focusAfter.current = { id: c.id, control };
+    if ((await write(api.campaigns.move(c.id, to))) === undefined) return setShown(null);
+    say(`${c.name} is now ${to + 1} of ${ids.length}`);
+  };
+  const drag = useDragReorder("campaigns", (from, to) => void move(from, to), { grid: true });
+  const onKeyDown = (event: React.KeyboardEvent, index: number) => {
+    if (!event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return;
+    event.preventDefault();
+    const control = (event.target as HTMLElement).closest<HTMLElement>("[data-ctl]")?.dataset.ctl ?? "open";
+    void move(index, index + (event.key === "ArrowUp" ? -1 : 1), control);
+  };
+
   return (
     <>
       <div className="viewhead">
@@ -35,15 +82,36 @@ function CampaignsList({ campaigns, creating, setCreating }: { campaigns: Campai
         {/* Round 6 (UX-R3): no count beside the heading; every card is on screen, so the cards are the count. */}
         <h1>Campaigns</h1>
         <span className="grow" />
+        {campaigns.length > 1 && (
+          <Button
+            size="s"
+            icon="drag"
+            className="ghost ro-tog"
+            pressed={reordering}
+            title={reordering ? "Done reordering" : "Show Move up and Move down on each campaign (or drag a card)"}
+            onClick={() => setReordering(!reordering)}
+          >
+            Reorder
+          </Button>
+        )}
         <Button variant="primary" icon="plus" onClick={() => setCreating(true)}>
           New campaign
         </Button>
       </div>
       <div className="viewbody" data-scroll="body">
         {campaigns.length ? (
-          <div className="cp-grid">
-            {campaigns.map((c) => (
-              <CampaignCard key={c.id} campaign={c} />
+          <div className="cp-grid" ref={gridRef}>
+            {ordered.map((c, i) => (
+              <CampaignCard
+                key={c.id}
+                campaign={c}
+                index={i}
+                count={ordered.length}
+                drag={drag}
+                reordering={reordering}
+                move={(to, control) => void move(i, to, control)}
+                onKeyDown={(event) => onKeyDown(event, i)}
+              />
             ))}
           </div>
         ) : (
@@ -74,15 +142,49 @@ function counts(c: CampaignInfo): string {
   return `${plural(c.sessions.length, "session")} · ${plural(playlists.size, "playlist")} · ${plural(boards.size, "pad board")}`;
 }
 
-function CampaignCard({ campaign: c }: { campaign: CampaignInfo }) {
+interface CardProps {
+  campaign: CampaignInfo;
+  index: number;
+  count: number;
+  drag: DragReorder;
+  reordering: boolean;
+  /** Move this card to another place; `control` (data-ctl) keeps the focus on that button. */
+  move: (to: number, control: string) => void;
+  onKeyDown: (event: React.KeyboardEvent) => void;
+}
+
+function CampaignCard({ campaign: c, index: i, count, drag, reordering, move, onKeyDown }: CardProps) {
   const [choice] = useThemeChoice();
   const next = nextSession(c);
   const headingId = `cph-${c.id}`;
   return (
     // Round 6 (UX-R3): the card is drawn in its theme; the theme's name is in its hover text, not on the card.
-    <article className="cp-card" data-theme={shownTheme(choice, c.theme)} aria-labelledby={headingId} title={`${counts(c)} · theme: ${themeName(c.theme || DEFAULT_CAMPAIGN_THEME)}`}>
+    <article
+      className={`cp-card ${drag.rowClass(i)}`}
+      data-theme={shownTheme(choice, c.theme)}
+      data-cid={c.id}
+      aria-labelledby={headingId}
+      title={`${counts(c)} · theme: ${themeName(c.theme || DEFAULT_CAMPAIGN_THEME)}`}
+      onKeyDown={onKeyDown}
+      {...drag.rowProps(i)}
+    >
       <div className="cp-card-top">
-        <span className="cp-sys">{c.system || "No game system"}</span>
+        {count > 1 && (
+          <span className="cp-handle" title="Drag to change the order (or Alt+Up / Alt+Down)" aria-hidden="true" {...drag.handleProps}>
+            <Icon name="drag" size="s" />
+          </span>
+        )}
+        <span className="cp-sys grow">{c.system || "No game system"}</span>
+        {reordering && (
+          <span className="ro-btns">
+            <button type="button" className="closer" data-ctl="up" aria-label={`Move up: ${c.name}`} title="Move up (Alt+Up)" disabled={i === 0} onClick={() => move(i - 1, "up")}>
+              <Icon name="chevup" size="s" />
+            </button>
+            <button type="button" className="closer" data-ctl="down" aria-label={`Move down: ${c.name}`} title="Move down (Alt+Down)" disabled={i === count - 1} onClick={() => move(i + 1, "down")}>
+              <Icon name="chevdown" size="s" />
+            </button>
+          </span>
+        )}
       </div>
       <h2 className="display cp-card-name" id={headingId}>
         {c.name}
@@ -102,7 +204,7 @@ function CampaignCard({ campaign: c }: { campaign: CampaignInfo }) {
         )}
       </p>
       <div className="cp-card-btns">
-        <a className="btn cp-btnlink" href={`#/campaign/${c.id}`} aria-label={`Open ${c.name}`}>
+        <a className="btn cp-btnlink" href={`#/campaign/${c.id}`} aria-label={`Open ${c.name}`} data-ctl="open">
           Open
         </a>
         {next ? (
@@ -110,6 +212,7 @@ function CampaignCard({ campaign: c }: { campaign: CampaignInfo }) {
             variant="primary"
             icon="broadcast"
             aria-label={`Run next session of ${c.name}: Session ${next.number}`}
+            data-ctl="run"
             onClick={() => runInLive({ campaignId: c.id, sessionId: next.id })}
           >
             Run next session

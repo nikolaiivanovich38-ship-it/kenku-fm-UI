@@ -6,6 +6,9 @@
  * Between rows and below the last one (the rest of the box the list is in, its pane), the line shows at the nearest
  * place and a drop lands there: below the last row is the last place (Nik, 0.5.0: a scene or session could not be
  * dropped last, because only the rows took a drop).
+ *
+ * `grid: true` (0.5.1, the Campaigns screen's cards): the items are laid out in rows of cards, so a card's left half is
+ * the place before it and its right half the place after it.
  */
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
@@ -28,19 +31,23 @@ export interface DragReorder {
   isDragging: () => boolean;
 }
 
-const after = (event: React.DragEvent<HTMLElement>) => {
+const after = (event: React.DragEvent<HTMLElement>, grid: boolean) => {
   const box = event.currentTarget.getBoundingClientRect();
-  return event.clientY > box.top + box.height / 2;
+  return grid ? event.clientX > box.left + box.width / 2 : event.clientY > box.top + box.height / 2;
 };
 
 function undraggable() {
   document.querySelectorAll("[data-drag][draggable='true']").forEach((row) => row.removeAttribute("draggable"));
 }
 
-/** Where in the list a drop at `clientY` lands: before the first row whose middle is below it, else after the last. */
-function slotAt(rows: readonly Element[], clientY: number): number {
+/**
+ * Where in the list a drop at a point lands: before the first row whose middle is below it, else after the last. In a
+ * grid: before the first card the point is above, or level with and left of its middle.
+ */
+function slotAt(rows: readonly Element[], clientX: number, clientY: number, grid: boolean): number {
   const i = rows.findIndex((row) => {
     const box = row.getBoundingClientRect();
+    if (grid) return clientY < box.top || (clientY <= box.bottom && clientX < box.left + box.width / 2);
     return clientY < box.top + box.height / 2;
   });
   return i < 0 ? rows.length : i;
@@ -49,7 +56,7 @@ function slotAt(rows: readonly Element[], clientY: number): number {
 /** The row's new index once it leaves `start` for the place before `slot` (0 to the number of rows). */
 const indexFor = (start: number, slot: number) => (slot > start ? slot - 1 : slot);
 
-export function useDragReorder(list: string, onMove: (from: number, to: number) => void): DragReorder {
+export function useDragReorder(list: string, onMove: (from: number, to: number) => void, { grid = false }: { grid?: boolean } = {}): DragReorder {
   const from = useRef<number | null>(null);
   const [dragging, setDragging] = useState<number | null>(null);
   const [mark, setMark] = useState<{ index: number; after: boolean } | null>(null);
@@ -90,7 +97,7 @@ export function useDragReorder(list: string, onMove: (from: number, to: number) 
       event.preventDefault();
       if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
       const all = rows();
-      const slot = slotAt(all, event.clientY);
+      const slot = slotAt(all, event.clientX, event.clientY, grid);
       if (indexFor(from.current, slot) === from.current) setMark(null);
       else setMark(slot < all.length ? { index: slot, after: false } : { index: all.length - 1, after: true });
     };
@@ -98,7 +105,7 @@ export function useDragReorder(list: string, onMove: (from: number, to: number) 
       if (from.current === null || onRow(event)) return;
       event.preventDefault();
       const start = from.current;
-      const to = indexFor(start, slotAt(rows(), event.clientY));
+      const to = indexFor(start, slotAt(rows(), event.clientX, event.clientY, grid));
       reset();
       if (to !== start) move.current(start, to);
     };
@@ -137,14 +144,14 @@ export function useDragReorder(list: string, onMove: (from: number, to: number) 
         event.preventDefault();
         event.stopPropagation();
         event.dataTransfer.dropEffect = "move";
-        setMark(index === from.current ? null : { index, after: after(event) });
+        setMark(index === from.current ? null : { index, after: after(event, grid) });
       },
       onDrop: (event) => {
         if (from.current === null) return;
         event.preventDefault();
         event.stopPropagation();
         const start = from.current;
-        const to = indexFor(start, index + (after(event) ? 1 : 0));
+        const to = indexFor(start, index + (after(event, grid) ? 1 : 0));
         reset();
         if (to !== start) move.current(start, to);
       },

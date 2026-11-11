@@ -742,6 +742,45 @@ test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
     await expect.poll(theme).toBe("parchment");
   });
 
+  test("campaigns can be put in order: Reorder's Move down, and dragging a card; the order is kept", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "campaigns");
+    const cards = page.getByRole("main").getByRole("article");
+    const names = async () => (await cards.allInnerTexts()).map((t) => t.split("\n").find((line) => /Crown|Masks|Sixth/.test(line)) ?? t);
+    await expect(cards).toHaveCount(3);
+    const before = await names();
+    const reorder = page.getByRole("button", { name: "Reorder" });
+    await reorder.click();
+    await expect(reorder).toHaveAttribute("aria-pressed", "true");
+    const firstName = (await cards.first().getByRole("heading").textContent())!;
+    const down = page.getByRole("button", { name: `Move down: ${firstName}` });
+    const box = await down.boundingBox();
+    expect(box!.width).toBeGreaterThanOrEqual(24);
+    expect(box!.height).toBeGreaterThanOrEqual(24);
+    await down.click();
+    await expect(cards.nth(1).getByRole("heading")).toHaveText(firstName);
+    await expect(down).toBeFocused();
+    await reorder.click();
+
+    // Drag the first card by its handle onto the right half of the last card: it goes last.
+    const moving = (await cards.first().getByRole("heading").textContent())!;
+    const handle = (await cards.first().locator("[title^='Drag to change the order']").boundingBox())!;
+    const last = (await cards.nth(2).boundingBox())!;
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(handle.x + 20, handle.y + 20, { steps: 5 });
+    await page.mouse.move(last.x + last.width - 20, last.y + last.height / 2, { steps: 15 });
+    await page.mouse.up();
+    await expect(cards.nth(2).getByRole("heading")).toHaveText(moving);
+
+    // Kept in the library: another screen and back shows the same order.
+    const order = await names();
+    expect(order).not.toEqual(before);
+    await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Library" }).click();
+    await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Campaigns" }).click();
+    await expect.poll(names).toEqual(order);
+  });
+
   test("Live is first in the menu (\"move the live tab to the top of the left side bar\")", async ({ page }) => {
     appOnly();
     await openRoute(page, "campaigns");

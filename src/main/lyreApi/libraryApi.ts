@@ -116,6 +116,7 @@ import {
   movePad,
   movePlaylistItems,
   moveScene,
+  moveCampaign,
   moveSession,
   planRelink,
   removeFromCampaign,
@@ -1189,6 +1190,13 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
           for (const key of ["system", "theme", "description", "notes", "obsidian"] as const) if (patch[key] !== undefined) changes[key] = patch[key];
           store.change(`Change the campaign ${quoted((changes.name as string) ?? c.name)}`, () => updateCampaign(store, id, changes));
           return requireCampaign(id);
+        });
+      },
+      async move(id, toIndex) {
+        return write(["campaigns"], () => {
+          const c = requireCampaign(id);
+          const placement = placementAt(listDomainCampaigns(store).map((x) => x.id), id, toIndex);
+          store.change(`Move the campaign ${quoted(c.name)}`, () => moveCampaign(store, id, placement));
         });
       },
       async setOnHand(owner, kind, ids) {

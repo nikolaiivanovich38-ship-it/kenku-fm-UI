@@ -260,6 +260,7 @@ export const ARGUMENT_SHAPES: Record<string, Record<string, Shape>> = {
     get: read(id),
     create: write(object({ name: text(500), "system?": text(500), "theme?": text(MAX_ID), "description?": text(), "obsidian?": object({ "vault?": text(MAX_PATH), "note?": text(MAX_PATH), "sessionsFolder?": text(MAX_PATH) }) })),
     update: write(id, object({ "name?": text(500), "system?": text(500), "theme?": text(MAX_ID), "description?": text(), "notes?": text(), "obsidian?": object({ "vault?": text(MAX_PATH), "note?": text(MAX_PATH), "sessionsFolder?": text(MAX_PATH) }) })),
+    move: write(id, whole),
     setOnHand: write(owner, literal("playlists", "boards", "tracks"), list(id, 10_000)),
     usesOf: read(object({ kind: literal("playlist", "board", "track"), id })),
     setUses: write(object({ kind: literal("playlist", "board", "track"), id }), list(usePlace, 10_000)),

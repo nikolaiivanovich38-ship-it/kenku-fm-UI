@@ -1191,6 +1191,15 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           return c;
         });
       },
+      async move(id, toIndex) {
+        let label = "";
+        return write(() => label, ["campaigns"], () => {
+          const c = campaign(id);
+          state.campaigns.splice(state.campaigns.indexOf(c), 1);
+          state.campaigns.splice(clampIndex(toIndex, state.campaigns.length), 0, c);
+          label = `Move the campaign ${quoted(c.name)}`;
+        });
+      },
       async update(id, patch) {
         return write((c: CampaignInfo) => `Change the campaign ${quoted(c.name)}`, ["campaigns"], () => {
           const c = campaign(id);

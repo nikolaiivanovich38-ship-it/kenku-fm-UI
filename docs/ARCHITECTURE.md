@@ -366,6 +366,7 @@ Campaigns (`#/campaigns`), one campaign (`#/campaign/<cid>`) and the session pla
 
 - **Run and Live.** Run, Run next session and the Live side of the switch call `runInLive` (`src/lyre/kit/liveSession.ts`): the session is loaded in Live, ready to start, and `#/live` opens. The Live screen reads `useLiveSession()`; the shell can show it through `ShellData.liveCampaign` and `liveLabel`.
 - **Themes.** A theme change is a `campaigns.update`; the shell follows through `ShellData.campaignTheme`, fed from `useCampaigns()` in `AppProviders`.
+- **Campaign order** (0.5.1). `campaigns.move(id, toIndex)` keeps the Campaigns screen's order in `campaigns.position` (there since schema 1, so no migration; `repo/campaigns.ts` `moveCampaign`), one undo step. The cards drag by their handle (`useDragReorder(..., { grid: true })`: a card's left half is before it, its right half after it), Alt+Up and Alt+Down on any of a card's controls move it, and the Reorder switch shows Move up and Move down on each card.
 - **Session numbers** come from order: moving a session renumbers them from the lowest number, as the library does.
 - **Dropped files** are imported with `import.start({ from: "paths" })`. The page learns a file's place on the computer from `window.lyre.files.pathOf(file)` (Electron's `webUtils.getPathForFile`); without it (tests), the file's name is sent.
 
