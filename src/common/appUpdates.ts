@@ -7,6 +7,8 @@
 export const UPDATE_GET = "UPDATE_GET";
 /** Main process to the Lyre page after every change: one UpdateState. */
 export const UPDATE_STATE = "UPDATE_STATE";
+/** FND-16: Restart now on Lyre's update note (send, no arguments); acted on only once an update is ready. */
+export const UPDATE_RESTART = "UPDATE_RESTART";
 
 export type UpdateState =
   /** No automatic updates in this copy; `message` says why. */
@@ -17,8 +19,11 @@ export type UpdateState =
   /** A newer version is downloading. */
   | { kind: "downloading" }
   | { kind: "ready"; message: string }
-  /** The last check or download failed; `message` in plain words. */
-  | { kind: "error"; message: string; failedAt: number };
+  /**
+   * The last check or download failed; `message` in plain words. `tell`: the first failure since a check worked, which
+   * Lyre shows once (FND-16; a failure while one is already known is not shown again).
+   */
+  | { kind: "error"; message: string; failedAt: number; tell?: boolean };
 
 export function isUpdateState(value: unknown): value is UpdateState {
   if (!value || typeof value !== "object") return false;
@@ -34,7 +39,7 @@ export function isUpdateState(value: unknown): value is UpdateState {
     case "up-to-date":
       return typeof v.checkedAt === "number";
     case "error":
-      return text(v.message) && typeof v.failedAt === "number";
+      return text(v.message) && typeof v.failedAt === "number" && (v.tell === undefined || typeof v.tell === "boolean");
     default:
       return false;
   }
@@ -45,4 +50,6 @@ export interface UpdatesBridge {
   get(): Promise<UpdateState>;
   /** Called with each new state; returns a function that stops listening. */
   onChange(listener: (state: UpdateState) => void): () => void;
+  /** FND-16: restart Lyre into the update that is ready (nothing happens when none is). */
+  restart(): void;
 }

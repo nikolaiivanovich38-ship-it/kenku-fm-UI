@@ -1,4 +1,4 @@
-import { globalShortcut, ipcMain, webContents } from "electron";
+import { autoUpdater, globalShortcut, ipcMain, webContents } from "electron";
 import { LYRE_GLOBAL_KEY, type GlobalKeysRequest } from "../../common/globalKeys";
 import { GlobalKeys, type GlobalShortcutLike } from "../globalKeys";
 import { guardIpc } from "../security/ipcGuard";
@@ -35,13 +35,18 @@ export class LyreManager {
   private globalKeys: GlobalKeys | null = null;
   private readonly shortcuts?: GlobalShortcutLike;
 
-  constructor(options: { updates?: UpdateStatus; shortcuts?: GlobalShortcutLike } = {}) {
+  constructor(options: { updates?: UpdateStatus; shortcuts?: GlobalShortcutLike; restartIntoUpdate?: () => void } = {}) {
     const updates = options.updates ?? updateStatus;
     this.shortcuts = options.shortcuts;
     this.ipc.on("LYRE_GET_URL", this._handleGetURL);
     // SEC-14: Settings (round 7) shows what automatic updates are doing, and the last problem in plain words.
     this.ipc.handle("UPDATE_GET", () => updates.state());
     this.stopUpdateNews = updates.onChange((state) => this.getView()?.send("UPDATE_STATE", state));
+    // FND-16: Restart now on Lyre's update note (until 0.5.1 the old main window said to restart).
+    const restart = options.restartIntoUpdate ?? (() => autoUpdater.quitAndInstall());
+    this.ipc.on("UPDATE_RESTART", () => {
+      if (updates.state().kind === "ready") restart();
+    });
     // --- w6-rooms ---
     this.ipc.handle("LYRE_GLOBAL_KEYS_SET", (_event, request) => this.keys().set(request as GlobalKeysRequest));
   }

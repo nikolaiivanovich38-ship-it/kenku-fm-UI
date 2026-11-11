@@ -330,6 +330,9 @@ export const IPC_CHANNELS = {
   // FND-16 (src/main/broadcast/lyreOutputsBridge.ts): Got it on the note in Settings › Discord bots that says Lyre moved
   // the bot token Kenku FM kept in plain text (send, no arguments). The main process remembers it (old-window.json).
   LYRE_BOT_LEGACY_NOTE_SEEN: { from: ["lyre-view"], args: noArgs },
+  // FND-16 (src/main/managers/LyreManager.ts): Restart now on Lyre's update note (send, no arguments); acted on only
+  // once an update is ready (autoUpdater.quitAndInstall).
+  UPDATE_RESTART: { from: ["lyre-view"], args: noArgs },
 } satisfies Record<string, IpcChannelRule>;
 
 export type IpcChannel = keyof typeof IPC_CHANNELS;

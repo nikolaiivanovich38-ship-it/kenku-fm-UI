@@ -95,25 +95,26 @@ describe("update errors are shown, not only logged (SEC-14)", () => {
   const handlerFor = (event: string) =>
     electron.autoUpdater.on.mock.calls.find(([name]) => name === event)?.[1] as (...args: unknown[]) => void;
 
-  it("tells the main window the first failure in plain words, once, until a check works again", () => {
+  it("marks the first failure for the Lyre page to show, once, until a check works again (FND-16: no old window to tell)", () => {
     const window = fakeWindow();
     const status = new UpdateStatus();
     runAutoUpdate(window, squirrelInstalled, status);
     handlerFor("error")(new Error("net::ERR_INTERNET_DISCONNECTED"));
+    expect(status.state()).toMatchObject({
+      kind: "error",
+      message: "Lyre could not check for updates: this computer seems to be offline. It tries again every 15 minutes; this version keeps working.",
+      tell: true,
+    });
+    handlerFor("checking-for-update")();
     handlerFor("error")(new Error("net::ERR_INTERNET_DISCONNECTED"));
-    const errors = vi.mocked(window.webContents.send).mock.calls.filter(([channel]) => channel === "ERROR");
-    expect(errors).toEqual([
-      [
-        "ERROR",
-        "Lyre could not check for updates: this computer seems to be offline. It tries again every 15 minutes; this version keeps working.",
-      ],
-    ]);
-    expect(status.state().kind).toBe("error");
+    expect(status.state()).toMatchObject({ kind: "error", tell: false });
 
     handlerFor("update-not-available")();
     expect(status.state().kind).toBe("up-to-date");
     handlerFor("error")(new Error("HTTP Status 503"));
-    expect(vi.mocked(window.webContents.send).mock.calls.filter(([channel]) => channel === "ERROR")).toHaveLength(2);
+    expect(status.state()).toMatchObject({ kind: "error", tell: true });
+    // The old main window's channels are gone.
+    expect(window.webContents.send).not.toHaveBeenCalled();
   });
 
   it("records checking, downloading and a downloaded update, and says to restart in plain words", () => {
@@ -125,8 +126,33 @@ describe("update errors are shown, not only logged (SEC-14)", () => {
     handlerFor("update-available")();
     expect(status.state().kind).toBe("downloading");
     handlerFor("update-downloaded")();
-    expect(status.state()).toEqual({ kind: "ready", message: "A new version of Lyre is ready. Restart Lyre to use it." });
-    expect(window.webContents.send).toHaveBeenCalledWith("MESSAGE", "A new version of Lyre is ready. Restart Lyre to use it.");
+    expect(status.state()).toEqual({ kind: "ready", message: "Lyre has an update. Restart Lyre to use it." });
+    expect(window.webContents.send).not.toHaveBeenCalled();
+  });
+
+  it("test builds: the specs can make the updater report an event, through the same handlers, even where updates are off", () => {
+    vi.stubGlobal("__CUE_DESK_TEST_BUILD__", true);
+    try {
+      setPlatform("linux");
+      const status = new UpdateStatus();
+      runAutoUpdate(fakeWindow(), squirrelInstalled, status);
+      const hook = (globalThis as unknown as { __lyreUpdatesTest: { report(event: unknown): void } }).__lyreUpdatesTest;
+      hook.report({ kind: "downloaded" });
+      expect(status.state().kind).toBe("ready");
+      hook.report({ kind: "error", error: "net::ERR_INTERNET_DISCONNECTED" });
+      expect(status.state()).toMatchObject({ kind: "error", tell: true });
+      hook.report({ kind: "up-to-date" });
+      expect(status.state().kind).toBe("up-to-date");
+    } finally {
+      vi.unstubAllGlobals();
+      delete (globalThis as { __lyreUpdatesTest?: unknown }).__lyreUpdatesTest;
+    }
+  });
+
+  it("release builds have no such hook", () => {
+    setPlatform("linux");
+    runAutoUpdate(fakeWindow(), squirrelInstalled, new UpdateStatus());
+    expect((globalThis as { __lyreUpdatesTest?: unknown }).__lyreUpdatesTest).toBeUndefined();
   });
 
   it("says why updates are off for the zip build and on systems without them", () => {

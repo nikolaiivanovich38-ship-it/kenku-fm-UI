@@ -3,11 +3,12 @@
  * `window.lyre.updates`); the main process side is LyreManager with src/main/updateStatus.ts. Kept free of Electron
  * imports.
  */
-import { UPDATE_GET, UPDATE_STATE, isUpdateState, type UpdatesBridge } from "../../common/appUpdates";
+import { UPDATE_GET, UPDATE_RESTART, UPDATE_STATE, isUpdateState, type UpdatesBridge } from "../../common/appUpdates";
 
 /** The parts of Electron's ipcRenderer this needs. */
 export interface IpcRendererLike {
   invoke(channel: string, ...args: unknown[]): Promise<unknown>;
+  send(channel: string, ...args: unknown[]): void;
   on(channel: string, listener: (event: unknown, ...args: unknown[]) => void): unknown;
   removeListener(channel: string, listener: (event: unknown, ...args: unknown[]) => void): unknown;
 }
@@ -28,5 +29,6 @@ export function createLyreUpdatesBridge(ipc: IpcRendererLike): UpdatesBridge {
         ipc.removeListener(UPDATE_STATE, heard);
       };
     },
+    restart: () => ipc.send(UPDATE_RESTART),
   };
 }

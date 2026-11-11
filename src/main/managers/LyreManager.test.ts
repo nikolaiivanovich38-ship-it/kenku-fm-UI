@@ -112,6 +112,21 @@ describe("LyreManager: automatic updates for the Lyre page's Settings (SEC-14)",
     status.upToDate();
     expect(lyre.send).toHaveBeenCalledTimes(1);
   });
+
+  it("FND-16: Restart now on Lyre's update note restarts into the update, only once one is ready, only from the Lyre page", () => {
+    const status = new UpdateStatus();
+    const restart = vi.fn();
+    manager = new LyreManager({ updates: status, restartIntoUpdate: restart });
+    const lyre = fakePage("lyre-view");
+    fakeIpcMain.deliver("UPDATE_RESTART", fromMainFrame(lyre));
+    expect(restart).not.toHaveBeenCalled();
+    status.downloaded();
+    fakeIpcMain.deliver("UPDATE_RESTART", fromMainFrame(fakePage(null)));
+    fakeIpcMain.deliver("UPDATE_RESTART", fromMainFrame(lyre), "extra");
+    expect(restart).not.toHaveBeenCalled();
+    fakeIpcMain.deliver("UPDATE_RESTART", fromMainFrame(lyre));
+    expect(restart).toHaveBeenCalledTimes(1);
+  });
 });
 
 // --- w6-rooms ---

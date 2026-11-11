@@ -38,7 +38,7 @@ describe("UpdateStatus (SEC-14)", () => {
     status.upToDate();
     expect(status.state()).toEqual({ kind: "up-to-date", checkedAt: 1000 });
     status.downloaded();
-    expect(status.state()).toEqual({ kind: "ready", message: "A new version of Lyre is ready. Restart Lyre to use it." });
+    expect(status.state()).toEqual({ kind: "ready", message: "Lyre has an update. Restart Lyre to use it." });
     expect(heard).toHaveBeenCalledTimes(3);
   });
 
@@ -50,8 +50,11 @@ describe("UpdateStatus (SEC-14)", () => {
       message:
         "Lyre could not check for updates: this computer seems to be offline. It tries again every 15 minutes; this version keeps working.",
       failedAt: 5,
+      tell: true,
     });
     expect(status.failed(new Error("net::ERR_INTERNET_DISCONNECTED"))).toBe(false);
+    // FND-16: the Lyre page reads `tell` to show the failure once.
+    expect(status.state()).toMatchObject({ kind: "error", tell: false });
     status.upToDate();
     expect(status.failed(new Error("HTTP Status 500"))).toBe(true);
   });
