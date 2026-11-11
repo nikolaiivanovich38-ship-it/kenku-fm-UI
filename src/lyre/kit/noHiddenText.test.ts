@@ -67,4 +67,17 @@ describe("no hidden text (UX-6): a name cut short has its full text on hover and
     expect(document.querySelector('[role="tooltip"]')).toBeNull();
     stop();
   });
+
+  it("UX-R13: a grid row with tabindex -1, reached with the arrow keys, still shows its tooltip", () => {
+    const root = document.createElement("main");
+    const row = document.createElement("div");
+    row.tabIndex = -1;
+    row.append(cutShort(document.createElement("span"), "Very short heroic moment - Cool vibe!"));
+    root.append(row);
+    document.body.append(root);
+    const stop = showFullTextOnFocus(() => [root]);
+    row.focus();
+    expect(document.querySelector('[role="tooltip"]')).toHaveTextContent("Very short heroic moment");
+    stop();
+  });
 });

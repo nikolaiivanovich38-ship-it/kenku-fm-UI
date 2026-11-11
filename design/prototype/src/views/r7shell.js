@@ -212,8 +212,8 @@
   function hideTip() { if (tip) { tip.remove(); tip = null; } }
   document.addEventListener('focusin', function (e) {
     hideTip(); var a = e.target; if (!a || !a.closest || !a.closest('#view, .onairbar')) return;
-    // UX-R13 (0.5.0 review): focus on tabindex -1 was put by the page (a heading as a screen opens), not by Tab.
-    if (a.getAttribute('tabindex') === '-1') return;
+    // UX-R13 (0.5.0 review): a heading with tabindex -1 has focus because the page put it there as a screen opened.
+    if (/^H[1-6]$/.test(a.tagName) && a.getAttribute('tabindex') === '-1') return;
     var cut = (isCut(a) ? [a] : []).concat([].slice.call(a.querySelectorAll('*')).filter(function (x) { return x.offsetParent && x.children.length < 6 && norm(x.textContent).length > 2 && isCut(x); }));
     if (!cut.length) return;
     var words = cut.slice(0, 2).map(function (x) { return norm(x.textContent); }).join(' · ');
