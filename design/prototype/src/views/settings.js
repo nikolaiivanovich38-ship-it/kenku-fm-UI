@@ -98,7 +98,7 @@
     if (b.status !== 'idle') L.botLeave(b.id);
     list.splice(i, 1); L.state.sendTo = L.state.sendTo.filter(function (x) { return x !== b.id; });
     L.undoNote('Removed ' + b.name + ' and its token.', function () { list.splice(i, 0, was); });
-    L.render(); L.say('Removed ' + b.name + '. Undo is above the Now playing bar, or press Ctrl+Z.');
+    L.render(); L.say('Removed ' + b.name + '. Undo is at the bottom right, or press Ctrl+Z.');
     var n = document.querySelector('[data-k="st-add"]'); if (n) n.focus();
   };
 
@@ -237,7 +237,7 @@
     }).join('');
     return '<table class="grid st-keys" aria-label="Keyboard shortcuts"><tbody>' + rows + '</tbody></table>' +
       sw('guard', 'Ignore a second Next scene within a second', L.keyGuard, 'stguard', { title: 'So a double press never skips a scene' }) +
-      sw('global', 'Next scene and Fade everything out work in other programs too', L.keyGlobal, 'stglobal', { title: 'While Discord or your VTT is in front. Off: the keys work only in Lyre.' }) +
+      sw('global', 'Next scene and Fade all work in other programs too', L.keyGlobal, 'stglobal', { title: 'While Discord or your VTT is in front. Off: the keys work only in Lyre.' }) +
       '<p class="hint">Pad keys are set on each pad board.</p><div class="row-flex"><button class="btn s" data-act="stkeyreset" data-k="st-keyreset">' + L.icon('restart', 's') + 'Put back Lyre\'s keys</button>' +
       '<button class="btn s" data-act="stkeysheet" data-k="st-keysheet">' + L.icon('file', 's') + 'Printable sheet</button></div>';
   }

@@ -119,7 +119,7 @@ function useActions(view: OutputsView | null, client: OutputsClient | null): Act
             if (!back) toast(`${of.bot.name} could not go back to ${of.channel!.name}. Add it there again from the list.`);
           });
         });
-        say(`${of.bot.name} left ${of.channel.name}. Undo is at the foot of the screen, or press Ctrl+Z.`);
+        say(`${of.bot.name} left ${of.channel.name}. Undo is at the bottom right, or press Ctrl+Z.`);
       } else toast(`${of.bot.name} left ${of.channel.name}`);
     },
   };

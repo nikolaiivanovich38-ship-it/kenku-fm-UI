@@ -326,7 +326,7 @@ describe("Settings › Keyboard shortcuts (UX-12)", () => {
     await userEvent.click(within(palette()).getByRole("button", { name: "Change the key for Find and play" }));
     expect(palette()).toHaveTextContent("Press the new key");
     await userEvent.keyboard("{Shift>}{Escape}{/Shift}");
-    expect(toast()).toBe("Shift+Esc is already Fade everything out. Press another key, or Esc to keep Ctrl+K");
+    expect(toast()).toBe("Shift+Esc is already Fade all. Press another key, or Esc to keep Ctrl+K");
     await userEvent.keyboard("{Control>}j{/Control}");
     await waitFor(() => expect(palette()).toHaveTextContent("Ctrl+J"));
     expect((await api.settings.get()).shortcuts.palette).toBe("Ctrl+J");
@@ -340,7 +340,7 @@ describe("Settings › Keyboard shortcuts (UX-12)", () => {
   it("refuses Space for other programs in plain words when keys in other programs is on", async () => {
     open();
     const box = await unfold("Keyboard shortcuts");
-    const sw = box.getByRole("switch", { name: "Next scene and Fade everything out work in other programs too" });
+    const sw = box.getByRole("switch", { name: "Next scene and Fade all work in other programs too" });
     await waitFor(() => expect(sw).toBeEnabled());
     await userEvent.click(sw);
     expect(await box.findByRole("alert")).toHaveTextContent("Space cannot work in other programs: you type with it there.");
@@ -351,7 +351,7 @@ describe("Settings › Keyboard shortcuts (UX-12)", () => {
     const box = await unfold("Keyboard shortcuts");
     await userEvent.click(box.getByRole("button", { name: "Printable sheet" }));
     const sheet = within(screen.getByRole("dialog", { name: "Lyre's keys" }));
-    expect(sheet.getByRole("table")).toHaveTextContent("Fade everything out");
+    expect(sheet.getByRole("table")).toHaveTextContent("Fade all");
     expect(sheet.getByRole("button", { name: "Print" })).toBeInTheDocument();
     await act(async () => undefined);
   });

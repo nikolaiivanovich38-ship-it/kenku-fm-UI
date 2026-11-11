@@ -342,11 +342,13 @@ export interface LiveKeys {
   fadeAll: string;
   undo: string;
   find: string;
+  /** Find and play (Ctrl+K), listed in Keys (UX-R15). */
+  palette: string;
 }
 
 const keyOf = (id: keyof LiveKeys) => SHORTCUT_ACTIONS.find((a) => a.id === id)!.key;
 /** Lyre's own keys: Space, Shift+Esc, Ctrl+Z and /. */
-export const LIVE_KEYS: LiveKeys = { nextScene: keyOf("nextScene"), fadeAll: keyOf("fadeAll"), undo: keyOf("undo"), find: keyOf("find") };
+export const LIVE_KEYS: LiveKeys = { nextScene: keyOf("nextScene"), fadeAll: keyOf("fadeAll"), undo: keyOf("undo"), find: keyOf("find"), palette: keyOf("palette") };
 
 /** A key pressed alone (no Ctrl or Alt, not F1 to F12): it obeys the single-key shortcuts switch (WCAG 2.1.4). */
 export function isSingleKey(key: string): boolean {

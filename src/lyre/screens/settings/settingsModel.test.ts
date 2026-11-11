@@ -63,7 +63,7 @@ describe("Settings › Keyboard shortcuts (UX-12)", () => {
   it("lists every action with its key and where it works, a changed key in its place", () => {
     const rows = shortcutRows({ palette: "Ctrl+J" });
     expect(rows[0]).toEqual({ id: "palette", name: "Find and play", key: "Ctrl+J", where: "Everywhere" });
-    expect(rows.map((r) => r.name)).toEqual(["Find and play", "Next scene", "Fade everything out", "Undo", "Find a track", "Next box", "Back", "Help"]);
+    expect(rows.map((r) => r.name)).toEqual(["Find and play", "Next scene", "Fade all", "Undo", "Find a track or playlist", "Next box", "Back", "Help"]);
     expect(rows[1].key).toBe("Space");
   });
 
@@ -71,7 +71,7 @@ describe("Settings › Keyboard shortcuts (UX-12)", () => {
     const press = (key: string, mods: Partial<{ ctrlKey: boolean; shiftKey: boolean; altKey: boolean }> = {}) => ({ key, ctrlKey: false, shiftKey: false, altKey: false, metaKey: false, ...mods });
     expect(keyPressed({}, "palette", press("Escape"))).toEqual({ kind: "keep", message: "Kept Ctrl+K for Find and play" });
     expect(keyPressed({}, "palette", press("Control", { ctrlKey: true }))).toEqual({ kind: "wait" });
-    expect(keyPressed({}, "palette", press("Escape", { shiftKey: true }))).toEqual({ kind: "refused", message: "Shift+Esc is already Fade everything out. Press another key, or Esc to keep Ctrl+K" });
+    expect(keyPressed({}, "palette", press("Escape", { shiftKey: true }))).toEqual({ kind: "refused", message: "Shift+Esc is already Fade all. Press another key, or Esc to keep Ctrl+K" });
     expect(keyPressed({}, "palette", press("j", { ctrlKey: true }))).toEqual({ kind: "set", key: "Ctrl+J" });
     expect(keyPressed({}, "nextScene", press("n"))).toEqual({ kind: "set", key: "N" });
     // Its own key again is fine (nothing changes).

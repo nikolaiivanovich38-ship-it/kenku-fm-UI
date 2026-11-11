@@ -149,7 +149,7 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
   const wanted = campaigns ? defaultLiveSession(campaigns, loaded, inHand) : null;
   const shortcuts = settings?.shortcuts;
   const keys: LiveKeys = useMemo(
-    () => (shortcuts ? { nextScene: shortcutKey(shortcuts, "nextScene"), fadeAll: shortcutKey(shortcuts, "fadeAll"), undo: shortcutKey(shortcuts, "undo"), find: shortcutKey(shortcuts, "find") } : LIVE_KEYS),
+    () => (shortcuts ? { nextScene: shortcutKey(shortcuts, "nextScene"), fadeAll: shortcutKey(shortcuts, "fadeAll"), undo: shortcutKey(shortcuts, "undo"), find: shortcutKey(shortcuts, "find"), palette: shortcutKey(shortcuts, "palette") } : LIVE_KEYS),
     [shortcuts],
   );
 

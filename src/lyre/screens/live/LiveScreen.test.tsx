@@ -318,6 +318,9 @@ describe("single-key shortcuts and the keys", () => {
     await userEvent.click(screen.getByRole("button", { name: "Keys" }));
     expect(screen.getByRole("switch", { name: /Single-key shortcuts/ })).toHaveFocus();
     expect(screen.getByRole("group", { name: "Keys on the live screen" })).toHaveTextContent("On air, Scenes, Current scene, Session playlists");
+    // UX-R15: Find and play is listed too, and Fade all has one name.
+    expect(screen.getByRole("group", { name: "Keys on the live screen" })).toHaveTextContent(/Ctrl\+K\s*Find and play anything/);
+    expect(screen.getByRole("group", { name: "Keys on the live screen" })).toHaveTextContent("Fade all (3 s)");
     expect(screen.queryByRole("menu")).toBeNull();
     press("Escape");
     expect(screen.queryByRole("group", { name: "Keys on the live screen" })).toBeNull();

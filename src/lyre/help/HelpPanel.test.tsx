@@ -42,7 +42,7 @@ describe("Help's panel", () => {
     const { help } = panel();
     await user.type(within(help).getByRole("searchbox"), "token");
     expect(within(help).queryByRole("list", { name: "Get started" })).toBeNull();
-    expect(within(help).getByRole("button", { name: "Connect Discord and bring a bot into a room" })).toBeInTheDocument();
+    expect(within(help).getByRole("button", { name: "Connect Discord and add a bot to a room" })).toBeInTheDocument();
     await user.clear(within(help).getByRole("searchbox"));
     await user.type(within(help).getByRole("searchbox"), "zzzz");
     expect(within(help).getByText("Nothing found. Try other words.")).toBeInTheDocument();

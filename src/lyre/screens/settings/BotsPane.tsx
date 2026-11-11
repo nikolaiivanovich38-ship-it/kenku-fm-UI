@@ -126,7 +126,7 @@ function BotRow({ bot, outputs, client }: { bot: LyreBot; outputs: LyreOutputs; 
         if (problem) toast(problem);
       });
     });
-    say(`Removed ${bot.name}. Undo is at the foot of the screen, or press Ctrl+Z.`);
+    say(`Removed ${bot.name}. Undo is at the bottom right, or press Ctrl+Z.`);
     focusLater("st-add");
   };
 

@@ -80,7 +80,7 @@
     return n;
   }
   function tracks(n) { return n + ' track' + (n === 1 ? '' : 's'); }
-  function done(text, undo, focusK) { L.undoNote(text, undo); L.closeSheet(); L.render(); L.say(text + '. Undo is above the Now playing bar, or press Ctrl+Z.'); var f = focusK && document.querySelector('[data-k="' + focusK + '"]'); if (f) f.focus(); }
+  function done(text, undo, focusK) { L.undoNote(text, undo); L.closeSheet(); L.render(); L.say(text + '. Undo is at the bottom right, or press Ctrl+Z.'); var f = focusK && document.querySelector('[data-k="' + focusK + '"]'); if (f) f.focus(); }
   function field(id, label, value, extra) { return '<div class="field"><label for="' + id + '">' + label + '</label><input class="input" id="' + id + '" value="' + esc(value || '') + '" autocomplete="off"' + (extra || '') + '></div>'; }
   function val(id) { var e = document.getElementById(id); return e ? e.value.trim() : ''; }
   function sheet(title, body, okLabel, act, data) {

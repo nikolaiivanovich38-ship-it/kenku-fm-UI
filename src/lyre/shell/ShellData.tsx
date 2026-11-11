@@ -19,6 +19,8 @@ export interface ShellData {
   liveName?: string;
   /** The rail's Rooms link, e.g. "Rooms (1/2)": bots connected of all bots. */
   outputsLabel?: string;
+  /** UX-R15: what the link's count means, as its hover text: "1 of 2 bots are in a room". */
+  outputsHint?: string;
   /** UX-18: the names of campaigns, sessions, playlists, boards and tracks, for Back's label and the trail. */
   placeNames?: PlaceNames;
   /** The library's history, for the undo message and Ctrl+Z (shell/UndoNote.tsx). */

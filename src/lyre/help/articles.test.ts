@@ -28,7 +28,7 @@ describe("the help articles (FND-8)", () => {
 
   it("covers the tasks in the backlog", () => {
     expect(ARTICLES.map((a) => a.title)).toEqual([
-      "Connect Discord and bring a bot into a room",
+      "Connect Discord and add a bot to a room",
       "What came across from Kenku FM",
       "Add your music and tag it",
       "Make a playlist from tags",

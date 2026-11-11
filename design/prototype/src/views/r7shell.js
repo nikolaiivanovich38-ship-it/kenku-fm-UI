@@ -48,9 +48,9 @@
   L.SHORTCUTS = [
     { id: 'palette', name: 'Find and play', key: 'Ctrl+K', where: 'Everywhere' },
     { id: 'nextScene', name: 'Next scene', key: 'Space', where: 'Live' },
-    { id: 'fadeAll', name: 'Fade everything out', key: 'Shift+Esc', where: 'Live' },
+    { id: 'fadeAll', name: 'Fade all', key: 'Shift+Esc', where: 'Live' },
     { id: 'undo', name: 'Undo', key: 'Ctrl+Z', where: 'Everywhere' },
-    { id: 'find', name: 'Find a track', key: '/', where: 'Live' },
+    { id: 'find', name: 'Find a track or playlist', key: '/', where: 'Live' },
     { id: 'boxes', name: 'Next box', key: 'F6', where: 'Everywhere' },
     { id: 'back', name: 'Back', key: 'Alt+Left', where: 'Everywhere' },
     { id: 'help', name: 'Help', key: 'F1', where: 'Everywhere' }

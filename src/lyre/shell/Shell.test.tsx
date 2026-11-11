@@ -155,12 +155,14 @@ describe("the shell: rail, routes and screens (UX-9)", () => {
 
   it("shows what the library knows in the rail (the loaded session, the outputs)", () => {
     render(
-      <ShellDataProvider value={{ liveLabel: "Live: S14", outputsLabel: "Outputs (1/2)" }}>
+      <ShellDataProvider value={{ liveLabel: "Live: S14", outputsLabel: "Outputs (1/2)", outputsHint: "1 of 2 bots are in a room" }}>
         <Shell screens={SHELL_SCREENS} />
       </ShellDataProvider>,
     );
     expect(screen.getByRole("link", { name: "Live: S14" })).toHaveAttribute("href", "#/live");
     expect(screen.getByRole("link", { name: "Outputs (1/2)" })).toHaveAttribute("href", "#/outputs");
+    // UX-R15: the hover text says what 1/2 counts.
+    expect(screen.getByRole("link", { name: "Outputs (1/2)" })).toHaveAttribute("title", "1 of 2 bots are in a room");
   });
 
   it("passes axe on every placeholder screen", async () => {

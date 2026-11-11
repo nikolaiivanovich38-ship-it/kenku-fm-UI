@@ -1,5 +1,5 @@
 ---
-title: Connect Discord and bring a bot into a room
+title: Connect Discord and add a bot to a room
 group: Get started
 words: discord bot token server voice channel room rooms settings connect invite
 ---

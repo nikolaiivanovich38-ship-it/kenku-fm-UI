@@ -77,7 +77,7 @@ export function TagsScreen(_props: ScreenProps) {
     thenFocus(focus);
     const text = words(result.value.tracks);
     offer(text, result.undoLabel);
-    say(`${text}. Undo is above the Now playing bar, or press Ctrl+Z.`);
+    say(`${text}. Undo is at the bottom right, or press Ctrl+Z.`);
   };
 
   const ref = (group: TagGroup, tag: string): TagRef => ({ group: group.id, value: tag });

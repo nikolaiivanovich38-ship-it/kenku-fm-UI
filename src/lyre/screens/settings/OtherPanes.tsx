@@ -414,7 +414,7 @@ export function KeysPane() {
         }}
       />
       <Switch
-        label="Next scene and Fade everything out work in other programs too"
+        label="Next scene and Fade all work in other programs too"
         title="While Discord or your VTT is in front. Off: the keys work only in Lyre."
         checked={globalKeys}
         disabled={!settings}
