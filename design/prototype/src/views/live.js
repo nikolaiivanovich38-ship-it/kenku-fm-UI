@@ -195,7 +195,7 @@
   function ambName(id) { var p = L.playlist(id), t = !p && L.track(id); return p ? p.name : t ? L.title(t) : ''; }
   function sounding() { return pb.fx.filter(function (f) { return !f.fadeOut; }); }
   function moodChips(t, prefer) {
-    var m = (t.tags.mood || []).slice();
+    var m = L.tagsOn(t, 'mood');
     if (prefer && prefer.length) m.sort(function (a, b) { return (prefer.indexOf(b) > -1) - (prefer.indexOf(a) > -1); });
     return m.slice(0, 1).map(function (v) { return '<span class="chip lv-mood" title="Mood">' + esc(v) + '</span>'; }).join('');
   }
@@ -560,7 +560,7 @@
       '<dl>' + (nm !== ownNm ? '<dt>Name in this scene</dt><dd>' + esc(nm) + '</dd>' : '') + '<dt>Your title</dt><dd>' + (t.title ? esc(t.title) : '<span class="faint">none yet</span>') + '</dd><dt>Title in the file</dt><dd>' + esc(t.metaTitle || '–') + '</dd>' +
       '<dt>File name</dt><dd>' + esc(t.file) + '</dd><dt>From</dt><dd>' + esc(t.artist + ', ' + t.album) + '</dd></dl>' +
       (L.profileLink ? '<div class="lv-trk-ap">' + L.profileLink(t.id, pk, true) + '<span class="hint">Audio profile' + (pk ? (o.seq ? ' in this scene' : ' here') : '') + '</span></div>' : '') +
-      '<div class="chips">' + D.tagGroups.map(function (g) { return (t.tags[g.id] || []).map(function (v) { return '<span class="chip lv-mood" title="' + esc(g.name) + '">' + esc(v) + '</span>'; }).join(''); }).join('') + (t.role ? '<span class="chip">' + esc(t.role) + '</span>' : '') + '</div></div>' : '';
+      '<div class="chips">' + D.tagGroups.map(function (g) { return L.tagsOn(t, g.id).map(function (v) { return '<span class="chip lv-mood" title="' + esc(g.name) + '">' + esc(v) + '</span>'; }).join(''); }).join('') + (t.role ? '<span class="chip">' + esc(t.role) + '</span>' : '') + '</div></div>' : '';
     return '<li class="lv-trk' + (onAirNow ? ' on' : '') + (isAmb ? ' amb' : '') + (open ? ' open' : '') + (o.inner ? ' inner' : '') + '"><div class="lv-trk-r">' +
       (o.num ? '<span class="num lv-num" aria-hidden="true">' + o.num + '</span>' : '') +
       (onAirNow ? airBadge(t) : queued ? '<span class="badge lv-qb">Queued</span>' : '') +

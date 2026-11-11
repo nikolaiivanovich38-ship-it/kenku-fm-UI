@@ -1146,15 +1146,18 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         expectRefused(await api.tags.deleteTag({ group: "mood", value: "Nope" }), "not-found");
       });
 
-      it("DAT-10: a track's tags are in the order they were added (the sample's own order); a merge keeps the earlier place", async () => {
+      it("DAT-10: a track lists its tags in vocabulary order, as the Tags screen lists them; a merge leaves the merged tag in its place", async () => {
         const moods = async (id: string) => (await api.library.listTracks()).find((t) => t.id === id)?.tags.mood;
-        // t13 was tagged Dread, then Eerie (the vocabulary has Eerie first).
-        expect(await moods("t13")).toEqual(["Dread", "Eerie"]);
+        // The sample tags t13 Dread, then Eerie; the vocabulary has Eerie first.
+        expect(await moods("t13")).toEqual(["Eerie", "Dread"]);
         valueOf(await api.tags.tagTracks({ trackIds: ["t13"], add: [{ group: "mood", value: "Heroic" }] }));
-        expect(await moods("t13")).toEqual(["Dread", "Eerie", "Heroic"]);
-        // Dread merged into Heroic: Heroic takes Dread's earlier place.
-        valueOf(await api.tags.mergeTag({ group: "mood", value: "Dread" }, "Heroic"));
-        expect(await moods("t13")).toEqual(["Heroic", "Eerie"]);
+        expect(await moods("t13")).toEqual(["Heroic", "Eerie", "Dread"]);
+        // Moved up in the vocabulary, Dread moves up on every track.
+        valueOf(await api.tags.moveTag({ group: "mood", value: "Dread" }, -1));
+        expect(await moods("t13")).toEqual(["Heroic", "Dread", "Eerie"]);
+        // Eerie merged into Heroic: Heroic stays where the vocabulary has it.
+        valueOf(await api.tags.mergeTag({ group: "mood", value: "Eerie" }, "Heroic"));
+        expect(await moods("t13")).toEqual(["Heroic", "Dread"]);
       });
 
       it("DAT-10: groups and tags are made, coloured, nested, given other words and moved", async () => {

@@ -82,7 +82,7 @@ import {
   type TagRef,
   type WriteResult,
 } from "./api";
-import { lookupFrom, tagTreeOf } from "./lookup";
+import { inVocabularyOrder, lookupFrom, tagTreeOf } from "./lookup";
 import { prototypeLevels } from "./prototypeLevels";
 import { fileAddress } from "./media";
 import { plural, quoted, shownTitle, tagValue, trimmed } from "./text";
@@ -417,6 +417,18 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
     if (t.isNew && t.title && Object.values(t.tags).some((v) => v.length > 0)) t.isNew = false;
   }
 
+  /**
+   * A copy of the track as the library hands it out. DAT-10: its tags in vocabulary order, the groups' and tags' order
+   * on the Tags screen, so a tag sits in the same place on every row (the library reads them in that order too).
+   */
+  function asListed(t: LibraryTrack): LibraryTrack {
+    const out = copy(t);
+    const tags: Record<string, string[]> = {};
+    for (const g of state.tagGroups) tags[g.id] = inVocabularyOrder(g, out.tags[g.id] ?? []);
+    out.tags = tags;
+    return out;
+  }
+
   /* ---------- checks ---------- */
 
   function checkRule(rule: PlaylistRule) {
@@ -667,7 +679,7 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
   const api: FakeLyreApi = {
     library: {
       async listTracks() {
-        return copy(state.tracks);
+        return state.tracks.map(asListed);
       },
       async search({ text, lane, limit = 50, shapes }) {
         const want = words(text ?? "");
@@ -720,7 +732,7 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           name = shownTitle(t);
           for (const key of ["title", "notes", "energy", "role", "loop", "kind", "fadesOut", "resume", "follow"] as const) if (patch[key] !== undefined) (t as unknown as Record<string, unknown>)[key] = copy(patch[key]);
           settle(t);
-          return t;
+          return asListed(t);
         });
       },
       async listFolders() {
@@ -738,7 +750,7 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           if (shape !== null && !(TRACK_SHAPES as readonly string[]).includes(shape)) refuse("invalid", "Choose from Steady, Builds, Falls away, Peaks then falls and Rises and falls.", "shape");
           name = shownTitle(t);
           t.shape = shape;
-          return t;
+          return asListed(t);
         });
       },
       async normaliseSettings() {
@@ -759,7 +771,7 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
           checkNormalise(choice);
           name = shownTitle(t);
           t.normalise = choice;
-          return t;
+          return asListed(t);
         });
       },
       async showInFolder(trackId) {

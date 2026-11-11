@@ -419,7 +419,7 @@ describe("round 5 in the session planner", () => {
   it("ORG-11, DAT-14, PLY-14: a scene's tracks show their tags, the scene's name with their own, and a wave button to this scene's settings", async () => {
     await openAbbey();
     const first = music().getAllByRole("listitem")[0];
-    expect(first).toHaveTextContent("Tags: Dread, Eerie, Drowned Abbess, Exploration");
+    expect(first).toHaveTextContent("Tags: Eerie, Dread, Drowned Abbess, Exploration");
     expect(first).toHaveTextContent("+1");
     expect(within(first).getByRole("link", { name: /^Waveform, end and fades in this scene: Eerie dread/ })).toHaveAttribute("href", "#/profile/t13/sc:crown:s14:sc3");
     await userEvent.click(screen.getByRole("button", { name: "Scene 6: Aftermath" }));
@@ -475,7 +475,7 @@ describe("round 5 in the session planner", () => {
     await openAbbey();
     await user.click(abbey().getByRole("button", { name: "Add tracks or playlists…" }));
     await user.type(dialog().getByRole("searchbox", { name: "Search the list" }), "Bridge of Death");
-    expect(screen.getByRole("dialog")).toHaveTextContent("Tags: Dread, Eerie, Drowned Abbess, Exploration");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Tags: Eerie, Dread, Drowned Abbess, Exploration");
   });
 
   it("PLY-14: coming back from the Audio profile opens the scene and focuses the track's wave button", async () => {

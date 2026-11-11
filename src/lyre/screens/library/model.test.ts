@@ -10,6 +10,7 @@ import {
   fmt,
   fmtLong,
   folderRows,
+  inVocabularyOrder,
   isNewish,
   kindMark,
   profileSummary,
@@ -121,6 +122,14 @@ describe("the Library's filters (library.js matches and visible)", () => {
     expect(rows.map((r) => r.path)).toContain("H:\\Audio\\Scores");
     const open = folderRows(tracks, seed.folders, "H:\\Audio\\Scores", "all");
     expect(open.some((r) => r.sub && r.label === "Bear McCreary")).toBe(true);
+  });
+});
+
+describe("a track's tags in vocabulary order (DAT-10)", () => {
+  it("lists a group's tags in the Tags screen's order, a tag not in the vocabulary last", () => {
+    const mood = prototypeSeed(0).tagGroups.find((g) => g.id === "mood")!;
+    expect(inVocabularyOrder(mood, ["Dread", "Eerie", "Heroic"])).toEqual(["Heroic", "Eerie", "Dread"]);
+    expect(inVocabularyOrder(mood, ["Just made", "Dread", "Eerie"])).toEqual(["Eerie", "Dread", "Just made"]);
   });
 });
 

@@ -409,15 +409,15 @@ test.describe("round 5: play order, single tracks, tags, names in scenes and aud
   });
 
   test("ORG-11: tracks in a scene's music show their tags, and so does the music picker", async ({ page }) => {
-    // Built; the real library lists a track's tags in tag order (Eerie, Dread), the design in the track's own order.
-    expectFailureUntilBuilt("prep"); // tag order: the vocabulary's (app) or the track's own (design); a round 6 question
+    expectFailureUntilBuilt("prep");
+    // DAT-10 (Nik, 11 Nov): a track's tags in vocabulary order, as the Tags screen lists them; t13 was tagged Dread, Eerie.
     await openAbbey(page);
     const first = musicOf(abbey(page)).getByRole("listitem").first();
-    await expect(first).toContainText("Tags: Dread, Eerie, Drowned Abbess, Exploration");
+    await expect(first).toContainText("Tags: Eerie, Dread, Drowned Abbess, Exploration");
     await expect(first).toContainText("+1");
     await abbey(page).getByRole("button", { name: "Add tracks or playlists…" }).click();
     await dialog(page).getByRole("searchbox", { name: "Search the list" }).fill("Bridge of Death");
-    await expect(dialog(page)).toContainText("Tags: Dread, Eerie, Drowned Abbess, Exploration");
+    await expect(dialog(page)).toContainText("Tags: Eerie, Dread, Drowned Abbess, Exploration");
   });
 
   test("DAT-14: a track shows its name in this scene, with its own name kept beside it", async ({ page }) => {

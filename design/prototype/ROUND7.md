@@ -20,6 +20,10 @@ group (Mood, Leitmotif, Scene type and any new one), in the order chosen. Each t
 tracks have it; its ⋯: Rename…, Merge into…, Put inside…, Other words…, Colour…, Move up, Move down, Delete…. Each
 group's ⋯: Rename group…, Colour…, Move up, Move down, Delete group…. **New group** at the top, **Add tag** in each box.
 **Where it shows.** Tags show on tracks as before, with their group's (or their own) colour dot and always their name.
+A track lists its tags in vocabulary order (Nik's decision, 11 Nov): group by group, each group's tags in their order
+on this screen, never in the order they were added, so the same tag sits in the same place on every row (the sample's
+"Eerie dread" was tagged Dread, Eerie and shows Eerie, Dread). Moving a tag here moves it on every track; after a merge
+the merged tag is in its own place. `L.tagsOn(track, group)` gives a group's tags in that order.
 In the Library filters, a tag that holds others (the sample has Mood › Melancholy › Grief) finds their tracks too, and so do
 dynamic playlist rules. Typing another word for a tag while tagging ("sad") offers the tag (Melancholy (sad)), never
 a new one. A new group appears at once on every track's details and in the filters.

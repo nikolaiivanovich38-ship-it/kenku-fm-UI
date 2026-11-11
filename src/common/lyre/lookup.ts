@@ -24,6 +24,16 @@ export function tagTreeOf(groups: readonly TagGroup[]): TagTree {
   return out;
 }
 
+/**
+ * DAT-10: a group's tags on a track in vocabulary order, the order the Tags screen lists the group's tags in, so a tag
+ * is in the same place on every row (the library reads a track's tags in this order). A tag the group does not list
+ * yet (one just made) goes last.
+ */
+export function inVocabularyOrder(group: Pick<TagGroup, "values">, tags: readonly string[]): string[] {
+  const rank = (tag: string) => (group.values.includes(tag) ? group.values.indexOf(tag) : group.values.length);
+  return [...tags].sort((a, b) => rank(a) - rank(b));
+}
+
 /** ORG-4: a manual playlist's list as shown: its tracks with its dividers where they are (PlaylistInfo.dividers). */
 export type PlaylistEntry = { kind: "track"; trackId: string } | { kind: "divider"; id: string; name: string };
 export function withDividers(trackIds: readonly string[], dividers: readonly PlaylistDivider[]): PlaylistEntry[] {
