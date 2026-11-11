@@ -7,13 +7,15 @@
  *     the main process (window.lyre.keys, src/main/globalKeys.ts); what it refused is kept for Settings to show.
  *     Each press reaches the page as a cancelable window event, GLOBAL_KEY_EVENT ({ action }): Live takes Next scene
  *     and Fade all there (and calls preventDefault); a Fade all nobody took fades every room
- *     here, so it works on any screen. A key registered for other programs is not seen by Lyre's own key handlers
+ *     here, so it works on any screen, and a Next scene nobody took opens Live, which starts the next scene
+ *     (w51-fix2: Nik pressed F9 with Settings showing, and nothing happened). A key registered for other programs is not seen by Lyre's own key handlers
  *     (Windows gives it to the registration), so Live must listen for this event too.
  */
 import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 
 import { DEFAULT_DEVICES, shortcutKey, type AudioDevices } from "../../common/domain";
 import { GLOBAL_KEY_EVENT, type GlobalKeyRefusal } from "../../common/globalKeys";
+import { nextSceneInLive } from "../kit/liveSession";
 import { useLyreSettings } from "../api";
 import { useLyreAudio } from "../audio";
 import type { LyreKeysBridge } from "../keys/preloadKeys";
@@ -76,6 +78,8 @@ export function SettingsAppliers({ keys, children }: { keys?: LyreKeysBridge | n
       const event = new CustomEvent(GLOBAL_KEY_EVENT, { detail: { action }, cancelable: true });
       const taken = !window.dispatchEvent(event);
       if (!taken && action === "fadeAll") audio.fadeAll();
+      // w51-fix2: only Live takes Next scene; on any other screen the press opens Live, which then moves on.
+      if (!taken && action === "nextScene") nextSceneInLive();
     });
   }, [bridge, audio]);
 

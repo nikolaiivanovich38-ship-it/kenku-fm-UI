@@ -419,6 +419,22 @@ describe("UX-12: keys that work in other programs too", () => {
     expect(screen.queryByRole("button", { name: "Restart scene 2: Greyhollow inn" })).toBeNull();
   });
 
+  it("w51-fix2: Next scene from another program while Lyre shows another screen (Settings) opens Live and starts the next scene", async () => {
+    let press: ((action: "nextScene" | "fadeAll") => void) | null = null;
+    const keys = { setGlobal: async () => ({ refused: [] }), onGlobal: (listener: (action: "nextScene" | "fadeAll") => void) => ((press = listener), () => void (press = null)) };
+    (window as unknown as { lyre?: unknown }).lyre = { keys };
+    try {
+      await openLive("settings");
+      await screen.findByRole("heading", { level: 1, name: "Settings" });
+      await waitFor(() => expect(press).not.toBeNull());
+      act(() => press!("nextScene"));
+      expect(await screen.findByRole("button", { name: "Restart scene 1: Recap and the coast road" }, { timeout: 4000 })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { level: 1, name: "Live" })).toBeInTheDocument();
+    } finally {
+      delete (window as unknown as { lyre?: unknown }).lyre;
+    }
+  });
+
   it("Fade all from another program fades every room", async () => {
     const { sound } = await openLive();
     await userEvent.click(screen.getByRole("button", { name: "Start: Recap and the coast road" }));
