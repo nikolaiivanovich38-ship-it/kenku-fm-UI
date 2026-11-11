@@ -421,7 +421,7 @@ describe("UX-12: keys that work in other programs too", () => {
 
   it("w51-fix2: Next scene from another program while Lyre shows another screen (Settings) opens Live and starts the next scene", async () => {
     let press: ((action: "nextScene" | "fadeAll") => void) | null = null;
-    const keys = { setGlobal: async () => ({ refused: [] }), onGlobal: (listener: (action: "nextScene" | "fadeAll") => void) => ((press = listener), () => void (press = null)) };
+    const keys = { setGlobal: async () => ({ refused: [] as unknown[] }), onGlobal: (listener: (action: "nextScene" | "fadeAll") => void) => ((press = listener), (): void => void (press = null)) };
     (window as unknown as { lyre?: unknown }).lyre = { keys };
     try {
       await openLive("settings");
