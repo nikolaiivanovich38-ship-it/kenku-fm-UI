@@ -193,6 +193,10 @@ export class PreviewPlayer extends TypedEmitter<PreviewEvents> {
       gainDb: voice.gainDb,
     };
     this.quiet = !!item.quiet;
+    // Its length is part of what previews (the Now playing bar's time), known once the file is.
+    voice.on("loaded", () => {
+      if (this.voice === voice) this.emit("change", this.current(), "");
+    });
     voice.on("state", () => {
       if (this.voice !== voice || !voice.isFinal()) {
         return;

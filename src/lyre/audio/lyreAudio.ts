@@ -204,6 +204,19 @@ export interface UpNextEntryNow {
   rest: boolean;
 }
 
+/**
+ * UX-16: where each room's music and ambience and the preview are in their files, in seconds; null while one loads or
+ * nothing plays there. Rooms by the ids NowPlaying uses. Read by the Now playing bar's and Live's time lines, which
+ * redraw on their own (LyreAudioProvider's usePlayPosition), not the whole screen.
+ */
+export interface PlayPositions {
+  rooms: Readonly<Record<string, { music: number | null; ambience: number | null }>>;
+  preview: number | null;
+}
+
+/** How often positions move on while something plays (Nik, 0.5.0: the bar's time must follow the sound). */
+export const POSITION_TICK_MS = 250;
+
 export interface NowPlaying {
   /** One entry per room, the first room (where scenes play) first. */
   rooms: RoomNowPlaying[];
@@ -397,6 +410,13 @@ export interface LyreAudio {
   getNowPlaying(): NowPlaying;
   /** Called after each change, and about once a second while anything plays. Returns an unsubscribe. */
   subscribe(listener: () => void): () => void;
+  /** The positions now: the same object until they move (fit for useSyncExternalStore). */
+  getPositions(): PlayPositions;
+  /**
+   * Called every POSITION_TICK_MS while music, ambience or the preview plays (not paused, not stopped), and after each
+   * change. Returns an unsubscribe.
+   */
+  subscribePositions(listener: () => void): () => void;
   on<E extends keyof LyreAudioEvents>(event: E, listener: LyreAudioEvents[E]): unknown;
   off<E extends keyof LyreAudioEvents>(event: E, listener: LyreAudioEvents[E]): unknown;
 
@@ -481,6 +501,9 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
   private snapshot: NowPlaying | null = null;
   private notifyQueued = false;
   private stopProgress: (() => void) | null = null;
+  private positions: PlayPositions | null = null;
+  private readonly positionSubscribers = new Set<() => void>();
+  private positionTimer: unknown = null;
   /** The room outputs joined to the keep-alive node now. */
   private readonly kept = new Set<GainLike>();
   /** OUT-10: a meter per room output, made when a screen first asks for that room's level. */
@@ -955,6 +978,22 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     };
   }
 
+  getPositions(): PlayPositions {
+    if (!this.positions) {
+      this.positions = this.readPositions();
+    }
+    return this.positions;
+  }
+
+  subscribePositions(listener: () => void): () => void {
+    this.positionSubscribers.add(listener);
+    this.updatePositionTicker();
+    return () => {
+      this.positionSubscribers.delete(listener);
+      this.updatePositionTicker();
+    };
+  }
+
   async dispose(): Promise<void> {
     if (this.disposed) {
       return;
@@ -963,6 +1002,8 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     this.stopProgress?.();
     this.stopProgress = null;
     this.subscribers.clear();
+    this.positionSubscribers.clear();
+    this.updatePositionTicker();
     for (const cleanup of this.cleanups) {
       cleanup();
     }
@@ -1102,7 +1143,9 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
 
   private changed() {
     this.snapshot = null;
+    this.positions = null;
     this.wantAhead();
+    this.updatePositionTicker();
     if (this.notifyQueued || this.disposed) {
       return;
     }
@@ -1110,10 +1153,50 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     this.notifyQueued = true;
     queueMicrotask(() => {
       this.notifyQueued = false;
-      for (const listener of [...this.subscribers]) {
+      for (const listener of [...this.subscribers, ...this.positionSubscribers]) {
         listener();
       }
     });
+  }
+
+  /** Where every room's lanes and the preview are now. */
+  private readPositions(): PlayPositions {
+    const rooms: Record<string, { music: number | null; ambience: number | null }> = {};
+    if (!this.disposed) {
+      for (const room of this.director.report()) {
+        rooms[this.rooms.toReal(room.roomId)] = { music: room.music?.positionSeconds ?? null, ambience: room.ambience?.positionSeconds ?? null };
+      }
+    }
+    const current = this.parts.preview.current();
+    const at = this.parts.preview.position();
+    return { rooms, preview: current && at && at.key === current.key ? at.seconds : null };
+  }
+
+  /** A room's music or ambience, or the preview, is playing (or loading to play): its position moves on. */
+  private somethingMovesOn(): boolean {
+    if (this.disposed) return false;
+    const plays = (lane: MusicOrAmbience) => this.parts.engine.voices(lane).some((voice) => voice.state === "playing");
+    const preview = this.parts.preview.current();
+    return plays("music") || plays("ambience") || (!!preview && !preview.paused);
+  }
+
+  /** One timer, and only while someone shows a position and something moves on (PERF-1: nothing polls at rest). */
+  private updatePositionTicker(): void {
+    const scheduler = this.parts.engine.scheduler;
+    const wanted = this.positionSubscribers.size > 0 && this.somethingMovesOn();
+    if (wanted && this.positionTimer === null) {
+      this.positionTimer = scheduler.setTimeout(() => {
+        this.positionTimer = null;
+        this.positions = null;
+        for (const listener of [...this.positionSubscribers]) {
+          listener();
+        }
+        this.updatePositionTicker();
+      }, POSITION_TICK_MS);
+    } else if (!wanted && this.positionTimer !== null) {
+      scheduler.clearTimeout(this.positionTimer);
+      this.positionTimer = null;
+    }
   }
 
   /** Keep the playing tracks and the next music track in memory (PLY-11). */

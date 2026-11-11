@@ -24,7 +24,7 @@ import React, { useCallback, useLayoutEffect, useMemo, useRef, useState } from "
 import { DEFAULT_LIBRARY_NORMALISE, normaliseHover, originWords } from "../../common/domain";
 import { isRefused } from "../../common/lyre/api";
 import { useLyreApi, useLyreQuery, usePlaylists, useTracks } from "../api";
-import { useNowPlaying, useOptionalLyreAudio, type LaneNowPlaying, type LyreAudio, type MusicOrAmbience, type PreviewNowPlaying, type RoomNowPlaying } from "../audio";
+import { useNowPlaying, useOptionalLyreAudio, usePlayPosition, type LaneNowPlaying, type LyreAudio, type MusicOrAmbience, type PlayPositions, type PreviewNowPlaying, type RoomNowPlaying } from "../audio";
 import { DestTag } from "../kit/DestTag";
 import { Icon } from "../kit/Icon";
 import { Dialog } from "../kit/Dialog";
@@ -97,8 +97,12 @@ function Bar({ audio, previewOnly }: { audio: LyreAudio; previewOnly: boolean })
   );
 }
 
-function Time({ lane, position, length }: { lane: string; position: number | null; length: number | null }) {
-  const at = position ?? 0;
+/**
+ * The time line and the time. It reads its own position (usePlayPosition: every 250 ms while it plays), so only it
+ * redraws as the sound moves on, not the row or the screen (Nik, 0.5.0: it stayed at 0:00 until Pause).
+ */
+function Time({ lane, at: pick, length }: { lane: string; at: (positions: PlayPositions) => number | null; length: number | null }) {
+  const at = usePlayPosition(pick) ?? 0;
   const share = length && length > 0 ? Math.min(100, (at / length) * 100) : 0;
   return (
     <div className="oab-time">
@@ -181,7 +185,7 @@ function RoomRow({ audio, room, named, broadcasting, first }: { audio: LyreAudio
           ))}
         </div>
       </div>
-      <Time lane={laneName === "music" ? "music" : "amb"} position={lane.position} length={lane.length} />
+      <Time lane={laneName === "music" ? "music" : "amb"} at={(p) => p.rooms[room.roomId]?.[laneName] ?? null} length={lane.length} />
       <div className="oab-ctl" role="group" aria-label={`Control what the players hear${where}`}>
         <button
           type="button"
@@ -397,7 +401,7 @@ function PreviewRow({ audio, preview }: { audio: LyreAudio; preview: PreviewNowP
           {from}
         </div>
       </div>
-      <Time lane="preview" position={preview.position} length={preview.length} />
+      <Time lane="preview" at={(p) => p.preview} length={preview.length} />
       <div className="oab-ctl" role="group" aria-label="Control your preview">
         <button
           type="button"

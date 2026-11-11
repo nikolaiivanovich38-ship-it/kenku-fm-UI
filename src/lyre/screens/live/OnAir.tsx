@@ -11,6 +11,7 @@
 import React, { useEffect, useRef, useState } from "react";
 
 import { normaliseHover, type UsePlace } from "../../../common/domain";
+import { usePlayPosition } from "../../audio";
 import type { LaneNowPlaying, MusicOrAmbience, RoomNowPlaying, UpNextEntryNow } from "../../audio/lyreAudio";
 import { Icon } from "../../kit/Icon";
 import { Pane } from "../../kit/Pane";
@@ -489,6 +490,25 @@ function laneName(d: LiveData, roomId: string, playing: LaneNowPlaying): { name:
   return trackNameAt(track, place, d.names);
 }
 
+/**
+ * A lane's progress line with its markers, and the time. It reads its own position (usePlayPosition: every 250 ms
+ * while it plays), so only it redraws as the sound moves on, not the On air box (Nik, 0.5.0: the time stood still).
+ */
+function LaneTime({ roomId, lane, length, markers }: { roomId: string; lane: MusicOrAmbience; length: number | null; markers: readonly { atMs: number; label: string; mix?: boolean }[] }) {
+  const position = usePlayPosition((at) => at.rooms[roomId]?.[lane] ?? null);
+  const isMusic = lane === "music";
+  return (
+    <div className="lv-lane-pr">
+      <div className={cx("progress lv-mkbar", isMusic ? "music" : "amb")} aria-hidden="true">
+        <span style={{ width: `${length && position !== null ? Math.min(100, (position / length) * 100) : 0}%` }} />
+        {length &&
+          markers.map((m) => <i key={`${m.atMs}-${m.label}`} className={cx("lv-mk", m.mix && "mix")} style={{ left: `${(m.atMs / 1000 / length) * 100}%` }} title={`${m.label} ${formatLength(m.atMs)}`} />)}
+      </div>
+      <span className="num lv-time">{position !== null ? `${clockTime(position)}${length ? ` / ${clockTime(length)}` : ""}` : "…"}</span>
+    </div>
+  );
+}
+
 /** One lane: its name, the track, its progress with markers, the time and its controls; the music adds its playlist. */
 function Lane({ lane, room, roomName }: { lane: MusicOrAmbience; room: RoomNowPlaying | null; roomName: string }) {
   const d = useLive();
@@ -539,14 +559,7 @@ function Lane({ lane, room, roomName }: { lane: MusicOrAmbience; room: RoomNowPl
           {shown.name !== shown.own && <span className="sr-only"> (its own name: {shown.own})</span>}
           {pos && <span className="sr-only">, {pos}</span>}
         </div>
-        <div className="lv-lane-pr">
-          <div className={cx("progress lv-mkbar", isMusic ? "music" : "amb")} aria-hidden="true">
-            <span style={{ width: `${length && playing.position !== null ? Math.min(100, (playing.position / length) * 100) : 0}%` }} />
-            {length &&
-              markers.map((m) => <i key={`${m.atMs}-${m.label}`} className={cx("lv-mk", m.mix && "mix")} style={{ left: `${(m.atMs / 1000 / length) * 100}%` }} title={`${m.label} ${formatLength(m.atMs)}`} />)}
-          </div>
-          <span className="num lv-time">{playing.position !== null ? `${clockTime(playing.position)}${length ? ` / ${clockTime(length)}` : ""}` : "…"}</span>
-        </div>
+        <LaneTime roomId={room.roomId} lane={lane} length={length} markers={markers} />
         {sub && (
           <div className="lv-lane-sub ellipsis" title={sub}>
             {sub}

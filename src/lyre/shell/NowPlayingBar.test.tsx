@@ -232,6 +232,17 @@ describe("the preview's row: only you hear it", () => {
     expect(within(bar()).getByRole("group", { name: "On air" })).toBeInTheDocument();
   });
 
+  it("each row's time follows the positions the audio host sends while it plays, with no other change (Nik, 0.5.0)", () => {
+    const audio = show({ rooms: [room("table", "Table", lane())], preview });
+    const air = within(bar()).getByRole("group", { name: "On air" });
+    const you = within(bar()).getByRole("group", { name: "Only you" });
+    expect(air).toHaveTextContent("0:12 / 3:57");
+    act(() => audio.setPositions({ rooms: { table: { music: 73, ambience: null } }, preview: 64 }));
+    expect(air).toHaveTextContent("1:13 / 3:57");
+    expect(you).toHaveTextContent("1:04 / 3:00");
+    expect(air.querySelector<HTMLElement>(".progress > span")!.style.width).toBe(`${(73 / 237) * 100}%`);
+  });
+
   it("paused: grey tag, Paused badge, Play the preview", () => {
     show({ preview: { ...preview, paused: true } });
     const you = within(bar()).getByRole("group", { name: "Only you: paused" });

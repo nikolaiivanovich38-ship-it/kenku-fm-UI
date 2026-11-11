@@ -621,6 +621,46 @@ describe("now-playing state and its events", () => {
     expect(calls).toBe(stopped);
   });
 
+  it("UX-16: positions move every 250 ms while music, ambience or the preview plays, for whoever listens (Nik, 0.5.0: the bar stayed at 0:00)", async () => {
+    let calls = 0;
+    const stop = rig.audio.subscribePositions(() => calls++);
+    rig.audio.previewTrack("m2");
+    rig.audio.playTrack("amb1");
+    await rig.advance(0.5);
+    const first = rig.audio.getPositions();
+    // The same object until they move, as useSyncExternalStore needs.
+    expect(rig.audio.getPositions()).toBe(first);
+    await rig.advance(0.25);
+    const next = rig.audio.getPositions();
+    expect(next).not.toBe(first);
+    expect(next.preview!).toBeCloseTo(first.preview! + 0.25, 2);
+    expect(next.rooms.table.ambience!).toBeCloseTo(first.rooms.table.ambience! + 0.25, 2);
+    expect(next.rooms.table.music).toBeNull();
+    const before = calls;
+    await rig.advance(1);
+    expect(calls - before).toBeGreaterThanOrEqual(4);
+    // Paused, nothing moves on: no more calls, so the page is not kept busy.
+    rig.audio.togglePreviewPause();
+    rig.audio.togglePause("ambience");
+    await rig.advance(0.25);
+    const paused = calls;
+    await rig.advance(2);
+    expect(calls).toBe(paused);
+    // Nobody listening: no calls either.
+    rig.audio.togglePreviewPause();
+    stop();
+    const stopped = calls;
+    await rig.advance(1);
+    expect(calls).toBe(stopped);
+  });
+
+  it("says the preview's length once its file is known, without anything else changing (UX-16)", async () => {
+    rig.audio.previewTrack("m2");
+    expect(state().preview?.length).toBeNull();
+    await rig.advance(0.5);
+    expect(state().preview?.length).toBe(20);
+  });
+
   it("keeps the playing track and the next one read ahead", async () => {
     rig.audio.playPlaylist("P");
     await rig.advance(0.5);

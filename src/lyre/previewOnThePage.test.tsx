@@ -73,3 +73,51 @@ describe("Preview in a track's details", () => {
     expect(sound.hearPreview()).toBeLessThan(0.5);
   });
 });
+
+describe("the time on the Now playing bar and in Live's On air (Nik, 0.5.0: it stayed at 0:00 until Pause)", () => {
+  const bar = () => within(screen.getByRole("region", { name: "Now playing" }));
+  const progressOf = (box: HTMLElement) => box.querySelector<HTMLElement>(".progress > span")!.style.width;
+  const timeOf = (box: HTMLElement, selector = ".num") => box.querySelector(selector)!.textContent;
+
+  /**
+   * The progress line moves in each of three 0.3 s spans in a row: a redraw every 250 ms lands in each, a redraw once a
+   * second in one at most.
+   */
+  async function movesEveryQuarterSecond(sound: Awaited<ReturnType<typeof openPage>>["sound"], box: () => HTMLElement) {
+    for (let i = 0; i < 3; i++) {
+      const before = progressOf(box());
+      await playOn(sound, 0.3);
+      expect(progressOf(box()), `span ${i + 1}`).not.toBe(before);
+    }
+  }
+
+  it("the preview's row moves on while it plays, with nothing else happening", async () => {
+    const { sound } = await openPage("library/t13");
+    await userEvent.click(details().getByRole("button", { name: "Preview" }));
+    await playOn(sound, 1);
+    const row = () => bar().getByRole("group", { name: /^Only you/ });
+    expect(timeOf(row())).toMatch(/ \/ 5:00$/);
+    await movesEveryQuarterSecond(sound, row);
+    const before = timeOf(row());
+    await playOn(sound, 1);
+    expect(timeOf(row())).not.toBe(before);
+  });
+
+  it("music on air moves on in the bar's room row, and in Live's On air box", async () => {
+    const { sound } = await openPage("library/t13");
+    await userEvent.click(details().getByRole("button", { name: "Play on air" }));
+    await playOn(sound, 4);
+    const row = () => bar().getByRole("group", { name: /^On air/ });
+    await movesEveryQuarterSecond(sound, row);
+    act(() => {
+      window.location.hash = "#/live";
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    });
+    await screen.findByRole("heading", { level: 1, name: /Live/ });
+    const box = () => screen.getAllByRole("region", { name: /^On air/ })[0];
+    await movesEveryQuarterSecond(sound, box);
+    const before = timeOf(box(), ".lv-time");
+    await playOn(sound, 1);
+    expect(timeOf(box(), ".lv-time")).not.toBe(before);
+  });
+});
