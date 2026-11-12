@@ -1075,3 +1075,30 @@ Ctrl+Alt with a letter or digit (that is AltGr on a Belgian keyboard, which type
 3. Settings › Keyboard shortcuts: give Next scene Ctrl+Alt+2 and turn on "in other programs too": it is refused,
    naming AltGr. Give Fade everything out Alt+F4: refused. Give Next scene Ctrl+Shift+N: accepted; in Discord, AltGr+é
    still types @.
+
+## 0.5.1: audio stutter fixes (w51-audio)
+
+### In plain language
+
+Nothing new can reach Lyre from outside. The sound for each room, and the preview, now travels between two of Lyre's
+own windows over a private line of its own instead of sharing the existing private line with other messages. Lyre's
+page plays a level far below hearing (about -144 dB) into the speakers while it broadcasts or previews, so Windows
+keeps it on the sound card's clock; nothing can be heard.
+
+### Technical details
+
+- Two new messages on the private player channel (OUT-5, PRV-1), player page to capture window only:
+  `{ kind: "room-frames", room, port }` and `{ kind: "preview-frames", port }` (`src/common/playerAudio.ts`). `room`
+  passes the same check as before (1 to 64 characters); `port` must be a MessagePort (anything else drops the
+  message). The port is one end of a `MessageChannel` the Lyre page made; its other end is in the page's own
+  AudioWorklet. Every message on it must be what `framesFrom` accepts (an array of 1 to 10 frames, each a whole
+  frame index and a Float32Array of 1,920 samples); anything else is ignored. Frames from a room's port go only to
+  that room, through the same `_playRoomFrame` checks as before (only while broadcasting, only a room the capture
+  window has, never "This Computer"). A port is closed when a newer one comes for the same room, the broadcast
+  stops or the player channel is replaced; the Lyre page closes its end when it lets a room go.
+- `AUDIO_CAPTURE_TIMING`: main process to capture window (`webContents.send`, no arguments, not in `IPC_CHANNELS`);
+  the capture window writes its frame counts to its console. Nothing is sent back over IPC.
+- The Lyre page's preview context no longer has `sinkId: { type: "none" }`; it opens the default output device like
+  the engine's context. No preview node is connected to it except through the tap; the Lyre page is never
+  tab-captured (role `lyre-view`).
+- No new permission, no Content-Security-Policy change.

@@ -264,3 +264,41 @@ boxes), campaigns, pad-boards and audio-profile (UX-R3 round 6 cuts, with the ke
 keyboard is in their box), settings (UX-R11 Add a bot's errors under their fields, UX-R16 the version) and help
 (UX-R15 the article's title). The pop-up's words are read from the live region a moment after it shows, so a spec
 that counts what is read out polls (`expect.poll`, campaigns.spec).
+
+## 0.5.1 audio stutter (w51-audio)
+
+Nik heard 0.5.0 "very stuttery in playback". What was measured, and the causes and fixes, are in
+docs/ARCHITECTURE.md › 0.5.1: w51-audio.
+
+| Test | What it measures or pins |
+| --- | --- |
+| `e2e/audioTiming.spec.ts` | Packaged app, fake Discord, the seeded library's steady 440 Hz tone. Counts, in what each voice channel receives, the 20 ms holes (silence frames between packets with sound) and the places where audio was lost or doubled (the tone's phase jumps between two packets), plus the Lyre page's long tasks. Steady sound in two rooms on Live and on Rooms with its meters; the same with the Lyre page's main thread kept busy (60, 120 and 250 ms of work in turn); a preview while the page is busy (the capture window's counts); Windows-like coarse timers after 30 s of play; Lyre's window hidden while two busy programs use the processor. Also how late the main process's 10 ms timer came (it sends to Discord). Each test prints its numbers and adds them as annotations; the before and after figures are in docs/ARCHITECTURE.md › 0.5.1: w51-audio › Measured. To measure another build: `CUE_DESK_EXECUTABLE=<its lyre> xvfb-run -a npx playwright test --config e2e/playwright.config.ts e2e/audioTiming.spec.ts` through `yarn heavy`. |
+| `e2e/fixtures/audioTiming.ts` | The analysis, run in the test, so it measures any test build, 0.5.0 included (`analyseStream`, `rawPackets`, `busyMainThread`, `captureCounts`, `feedCounts`, `coarseTimers`, `hideWindows`, `busyProcessor`, `watchMainLoop`). |
+| `PCMStream.worklet.test.ts` | `send-to`: frames go to the given port from the audio thread; back to its own port on `null`. |
+| `roomStreams.test.ts` › Direct frame channels | Each room's tap gets one end of a new channel and the capture window the other; nothing is relayed by the page; channels end with the room, the broadcast or the player channel; the preview's channel is sent again on every new player channel. |
+| `AudioCaptureManagerPreload.test.ts` › w51-audio | Frames on a room's or the preview's own channel are played as before; channels are closed when replaced, and a room's stays open while the room is briefly missing from the rooms list; the broadcast's context is kept on the sound card's clock; counts of frames, holes and drops, and the once-a-minute warning. |
+| `PlayerFrameInlet.worklet.test.ts` › w51-audio | A frame that comes after the inlet ran dry and follows on from the last is a hole; a new sound after a silence is not; drops are counted. |
+| `deviceClock.test.ts` | A constant of 2^-24 (under -144 dB) into the speakers while held; held twice, let go twice. A model of Chromium's timer-driven audio (FakeAudioWorker) with Windows' 15.6 ms timer steps: before, a 10 ms context renders 68 % of real time and a 20 ms one keeps pace but late; after, on the sound card, nothing is skipped. The build machine has no sound card, so this is the only before and after figure for that fix. |
+| `browserLyreAudio.test.ts` › w51-audio | The engine's clock is held while a bot is in a voice channel, the preview's while a preview plays; both let go when disposed. |
+| `opusFeed.test.ts` › w51-audio | The Discord end's counts, and a two-minute simulation with uneven arrival, 15.6 ms timers and 60 ms stalls: at most 2 holes, nothing dropped. |
+| `OutputManager.test.ts` › w51-audio | The once-a-minute warning per bot, silent when all is well. |
+
+### Manual checks (Windows, real Discord)
+
+You need: Lyre with its bot in a voice channel, and a second way to listen in that channel (Discord on your phone
+with another account, or a friend). Headphones on the device Lyre previews on.
+
+1. Start a scene with music and listen in Discord for two minutes. Wait at least one minute before judging: the old
+   stutter began about 30 seconds after Lyre started playing. Listen for short gaps (a fraction of a second of
+   silence), clicks or a warbling, robot-like sound. Expected: smooth.
+2. While it plays, move around Lyre: Library (scroll the whole list), Live, Rooms (the meters move), Settings, back to
+   Live. Expected: no gap in Discord while you click.
+3. Preview a track in your headphones for a minute, with the scene still on air. Expected: smooth, no chopping.
+   Before the fix the preview could come in pieces.
+4. Repeat 1 and 3 on battery power if this is a laptop (Windows makes timers coarser then).
+5. If any of it still stutters: right after you hear it, Help › Save diagnostics, and send the file. Its log has
+   lines starting "Audio timing, last minute:". "room … late (holes)" or "preview … late (holes)" means the sound was
+   held up between Lyre's page and the part of Lyre that sends to Discord or to your headphones; "bot … holes (20 ms of
+   silence each)" means Discord's sender found nothing ready. No such lines means Lyre sent everything on time, and
+   the stutter happens after Lyre (Discord or the network). Say also which step stuttered, whether in Discord, in
+   the headphones or both, what else was running, and the output device (Bluetooth, USB headset, speakers).
