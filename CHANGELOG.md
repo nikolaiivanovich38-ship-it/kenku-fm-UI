@@ -4,6 +4,49 @@ All notable changes to Lyre (called Cue Desk in versions 0.1.x). Versions follow
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-12: Lyre is the whole window; fixes and requests from your test of 0.5.0
+
+**Lyre is the whole window**
+- The old Kenku FM window and the Lyre Player tab are gone. Lyre opens as its own window, with its own minimise, maximise and close buttons; drag the top strip to move it, double-click it to maximise. [FND-16]
+- Saved bots log in when Lyre starts, without pressing Connect.
+- Update news appears in Lyre, with Restart now, which keeps working until you use it; the version shows at the foot of Help. While no update is published, Lyre says it is up to date instead of showing an error.
+- Website tabs, bookmarks and microphone input are no longer in the interface; their code is kept for a later release. Old bookmarks are listed once on What came across, with Copy. Remote control is hidden until Stream Deck support comes.
+- On first start Lyre brings in whatever you added to the old Player since your first Lyre start, once, with nothing doubled; if Lyre is closed partway, the next start finishes it.
+- A Discord bot token that Kenku FM kept unprotected is saved encrypted and then deleted from Lyre's storage; a one-time note says so.
+- A maximised window stays above the taskbar and inside the screen's right edge, and the page never grows larger than the window.
+
+**Playback**
+- Smoother sound in Discord and in the headphones: a busy Lyre screen no longer interrupts it, and Lyre keeps its sound on the sound card's timing. If it still stutters, Help › Save diagnostics now records where sound went missing.
+- The Now playing bar's position moves while a track plays. Click or drag the position bar, in the Now playing bar and in Live's On air, to jump to a point in the track; the arrow keys move it 5 seconds.
+- On air in Live has Stop beside Pause, and Shuffle for each room.
+- The fade buttons and Shift+Esc fade over 5 seconds.
+- Start at in the Audio profile: a track can start at one of its markers wherever it plays, and a place can choose its own.
+- Pick up where it stopped is offered for every music track, in the Library and in the Audio profile.
+- Every track inside a scene's playlists has Play on air, as the playlist does.
+- One headset is split only while something plays on air; a preview on its own plays in both ears. Settings says so under the switch.
+- The preview in a track's details plays from Start to End with the fades, and Stop preview stops it.
+
+**Live and Rooms**
+- Change a bot's channel, add a room or a bot, and Kick from Live, with Undo after a kick; Ctrl+Z undoes it too. Kicking a bot keeps the music; it plays on when a bot joins again, also for a bot that was in a room when Lyre started.
+- F9 and other keys for Next scene work whatever screen Lyre shows, from other programs and inside Lyre. Settings says when Lyre could not take a key from other programs.
+- A problem in one part of Lyre no longer blanks the window: a short message offers Back and Show this screen again, and the Now playing bar keeps working.
+
+**Preparing your games**
+- Live is first in the menu, and the Library has the Prep | Live switch.
+- Add scene puts the new scene after the one you have selected, or at the end.
+- Scenes and sessions can be dragged into the last place: drop on the lower half of the last one; the drop line always shows.
+- Campaigns can be put in your own order: drag them, or use Reorder.
+- A campaign's theme shows on all its screens; Look and feel chooses the theme for everything else.
+- Files dragged from Windows Explorer onto the Library are added again.
+- Copy path, and every other Copy, puts the text on your clipboard, or says plainly that it could not.
+
+**Security**
+- The kept website code registers nothing at start; links open in your browser at most 5 every 10 seconds; the window's security settings are written out in full.
+- Unused libraries from the old interface were removed (Electron stays on 44.10.0: no newer 44 patch is 14 days old yet).
+
+**For testing**
+- `yarn affected` lists the checks a change needs; `yarn package:test` packages once per commit; the whole check suite runs on GitHub in about 15 minutes on a push to a `ci/` branch.
+
 ## [0.5.0] - 2026-11-11: Live in seven boxes, Back everywhere, Rooms and Settings in Lyre
 
 **Live**
