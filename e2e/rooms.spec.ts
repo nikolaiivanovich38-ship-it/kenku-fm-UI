@@ -7,7 +7,8 @@
  * exist yet.
  */
 import type { ElectronApplication, Page } from "@playwright/test";
-import { test, expect } from "./fixtures/app";
+import { test, expect, pageWithTitle } from "./fixtures/app";
+import { captureCounts } from "./fixtures/audioTiming";
 import {
   FAKE_DISCORD_ENV,
   botSettings,
@@ -152,8 +153,10 @@ test("a preview produces nothing in any room while a room is playing (PRV-1)", a
   await api.tone(playerView, tavern.botId, 440);
   await api.preview(playerView, 2500);
   await expect.poll(() => packetCount(app, "Tavern"), { timeout: 10_000 }).toBeGreaterThan(80);
-  // The preview did play: its frames went to the capture window.
-  await expect.poll(async () => (await api.sent(playerView)).preview ?? 0).toBeGreaterThan(50);
+  // The preview did play: its frames reached the capture window (since 0.5.1 over a channel of their own, straight
+  // from the page's audio thread, so the capture window counts them, not the page).
+  const capturePage = await pageWithTitle(app, "Audio Capture");
+  await expect.poll(async () => (await captureCounts(app, capturePage))?.preview?.frames ?? 0).toBeGreaterThan(50);
   await mainWindow.waitForTimeout(1_000);
 
   const tavernTone = await strength(app, "Tavern", 440);
