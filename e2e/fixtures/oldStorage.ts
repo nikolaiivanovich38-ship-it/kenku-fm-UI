@@ -56,5 +56,18 @@ export async function writeOldStorage(lyre: Page, old: OldStorage): Promise<void
 
 /** What a library starting in 0.5.1 for the first time has not got yet: its database and the old window's record. */
 export function forgetLyreLibrary(userDataDir: string): void {
-  fs.rmSync(path.join(userDataDir, "library"), { recursive: true, force: true });
+  fs.rmSync(lyreLibraryFolder(userDataDir), { recursive: true, force: true });
+}
+
+/**
+ * Where the packaged app keeps the library for this data folder, as src/main/data/library.ts libraryFolder does: on
+ * Windows "%LOCALAPPDATA%\<data folder's name> Library", outside the data folder; elsewhere inside it. (The 0.5.1
+ * release run on Windows found the old copy of this helper cleared only the Linux place, so the one-time move's record
+ * survived and the move never ran again.)
+ */
+export function lyreLibraryFolder(userDataDir: string): string {
+  if (process.platform === "win32" && process.env.LOCALAPPDATA) {
+    return path.win32.join(process.env.LOCALAPPDATA, `${path.win32.basename(userDataDir)} Library`);
+  }
+  return path.join(userDataDir, "library");
 }

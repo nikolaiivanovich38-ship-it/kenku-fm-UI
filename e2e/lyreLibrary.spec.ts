@@ -9,7 +9,7 @@ import type { Page } from "@playwright/test";
 import { test, expect } from "./fixtures/app";
 import { openLyreTab } from "./fixtures/lyre";
 import { writeAudioFile, writeSineWav } from "./fixtures/audio";
-import { oldFileAddress, writeOldStorage } from "./fixtures/oldStorage";
+import { forgetLyreLibrary, oldFileAddress, writeOldStorage } from "./fixtures/oldStorage";
 
 /** A LyreApi call from the Lyre page, exactly as its screens make them. */
 function lyreCall<T = unknown>(lyre: Page, area: string, method: string, ...args: unknown[]): Promise<T> {
@@ -114,7 +114,7 @@ test("the old player's playlists move into Lyre's library on the first start", a
   });
   await first.close();
   // Lyre's library starts again from nothing, as on its first start.
-  fs.rmSync(path.join(userDataDir, "library"), { recursive: true, force: true });
+  forgetLyreLibrary(userDataDir);
 
   const second = await launchApp();
   const lyre = await openLyreTab(await second.mainWindow());
