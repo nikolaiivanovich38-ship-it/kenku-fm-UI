@@ -319,7 +319,7 @@ describe("Settings › Remote control (SEC-4; hidden in 0.5.1 until Stream Deck 
   });
 
   it("Copy code copies the code; when Lyre cannot copy, it says so in plain words (Nik, 0.5.0: Copy path copied nothing)", async () => {
-    open();
+    open(undefined, <RemotePane />);
     const box = await unfold("Remote control");
     await waitFor(() => expect(box.getByRole("switch", { name: "Let other devices control Lyre" })).toBeEnabled());
     await userEvent.click(box.getByRole("switch", { name: "Let other devices control Lyre" }));
