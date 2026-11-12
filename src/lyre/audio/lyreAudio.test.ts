@@ -495,6 +495,57 @@ describe("preview: the game master's headphones only, never on air (PRV-1)", () 
     expect(announced).toContain("Preview stopped");
   });
 
+  it("Stop preview stops it when the screen says where it was started from or the playlist it is in (Nik, 0.5.0)", async () => {
+    // Every screen's audio host names the screen (ScreenSound), so a Preview button always passes `from`.
+    rig.audio.previewTrack("m2", { from: "the Library" });
+    await rig.advance(1);
+    rig.audio.previewTrack("m2", { from: "the Library" });
+    expect(state().preview).toBeNull();
+    rig.audio.previewTrack("m2", { from: "the playlist", playlistId: "P" });
+    rig.audio.previewTrack("m2", { from: "the playlist", playlistId: "P" });
+    expect(state().preview).toBeNull();
+    await rig.advance(1);
+    expect(rig.hearPreview()).toBe(0);
+  });
+
+  it("a Preview button plays the track as its audio profile says: from Start, fading in, to End with its fade out (Nik, 0.5.0)", async () => {
+    rig.data.tracks.find((t) => t.id === "m2")!.profile = { startMs: 2000, endMs: 6000, after: "next", fadeIn: { ms: 1000, shape: 50 }, fadeOut: { ms: 1000, shape: 50 } };
+    rig.audio.previewTrack("m2", { from: "the Library" });
+    await rig.advance(0.25);
+    expect(state().preview!.position!).toBeGreaterThanOrEqual(2);
+    expect(rig.hearPreview()).toBeGreaterThan(0);
+    expect(rig.hearPreview()).toBeLessThan(0.6);
+    await rig.advance(1.75);
+    expect(rig.hearPreview()).toBeCloseTo(1);
+    // A quarter of a second before End: well into the fade out.
+    await rig.advance(1.75);
+    expect(rig.hearPreview()).toBeLessThan(0.6);
+    await rig.advance(1);
+    expect(state().preview).toBeNull();
+    expect(rig.hearPreview()).toBe(0);
+  });
+
+  it("previewed in a scene or from a playlist, a track plays as its own settings there say; on its own, as the track's", async () => {
+    // makeData: in scene S1, m1 ends at 5 s (the file is 20 s).
+    rig.audio.previewTrack("m1", { place: { kind: "scene", ...S1 } });
+    await rig.advance(4.5);
+    expect(rig.hearPreview()).toBeCloseTo(1);
+    await rig.advance(1);
+    expect(state().preview).toBeNull();
+    rig.audio.previewTrack("m1");
+    await rig.advance(6);
+    expect(state().preview?.key).toBe("m1");
+    rig.audio.stopPreview();
+    // The playlist's own settings for its first track, in the playlist's preview and in a track row on its page.
+    rig.data.profiles = { ...rig.data.profiles, [placeKey({ kind: "playlist", playlistId: "P" })]: { m2: { endMs: 3000, after: "next" } } };
+    rig.audio.previewPlaylist("P");
+    await rig.advance(3.5);
+    expect(state().preview).toBeNull();
+    rig.audio.previewTrack("m2", { playlistId: "P" });
+    await rig.advance(3.5);
+    expect(state().preview).toBeNull();
+  });
+
   it("previews a track from a point with its audio profile, quietly, and says where it is (the Audio profile screen)", async () => {
     const positions: { key: string; positionMs: number }[] = [];
     rig.audio.on("preview-position", (at) => positions.push(at));
@@ -594,6 +645,46 @@ describe("now-playing state and its events", () => {
     const stopped = calls;
     await rig.advance(3);
     expect(calls).toBe(stopped);
+  });
+
+  it("UX-16: positions move every 250 ms while music, ambience or the preview plays, for whoever listens (Nik, 0.5.0: the bar stayed at 0:00)", async () => {
+    let calls = 0;
+    const stop = rig.audio.subscribePositions(() => calls++);
+    rig.audio.previewTrack("m2");
+    rig.audio.playTrack("amb1");
+    await rig.advance(0.5);
+    const first = rig.audio.getPositions();
+    // The same object until they move, as useSyncExternalStore needs.
+    expect(rig.audio.getPositions()).toBe(first);
+    await rig.advance(0.25);
+    const next = rig.audio.getPositions();
+    expect(next).not.toBe(first);
+    expect(next.preview!).toBeCloseTo(first.preview! + 0.25, 2);
+    expect(next.rooms.table.ambience!).toBeCloseTo(first.rooms.table.ambience! + 0.25, 2);
+    expect(next.rooms.table.music).toBeNull();
+    const before = calls;
+    await rig.advance(1);
+    expect(calls - before).toBeGreaterThanOrEqual(4);
+    // Paused, nothing moves on: no more calls, so the page is not kept busy.
+    rig.audio.togglePreviewPause();
+    rig.audio.togglePause("ambience");
+    await rig.advance(0.25);
+    const paused = calls;
+    await rig.advance(2);
+    expect(calls).toBe(paused);
+    // Nobody listening: no calls either.
+    rig.audio.togglePreviewPause();
+    stop();
+    const stopped = calls;
+    await rig.advance(1);
+    expect(calls).toBe(stopped);
+  });
+
+  it("says the preview's length once its file is known, without anything else changing (UX-16)", async () => {
+    rig.audio.previewTrack("m2");
+    expect(state().preview?.length).toBeNull();
+    await rig.advance(0.5);
+    expect(state().preview?.length).toBe(20);
   });
 
   it("keeps the playing track and the next one read ahead", async () => {
@@ -782,7 +873,9 @@ describe("volume normalisation: what the players hear and what the game master c
     await rig.advance(1);
     expect(state().preview).toMatchObject({ key: "m2", gainDb: 6 });
     expect(rig.hearPreview()).toBeCloseTo(1.995, 2);
-    // Previewed from the playlist (its row, or a track on its page): the playlist's Off applies, as on air.
+    // Previewed from the playlist (its row, or a track on its page): the playlist's Off applies, as on air. (Pressed
+    // while m2 previews, that button is Stop preview, so the preview is stopped first.)
+    rig.audio.stopPreview();
     rig.audio.previewTrack("m2", { playlistId: "P" });
     await rig.advance(1);
     expect(state().preview).toMatchObject({ gainDb: 0 });

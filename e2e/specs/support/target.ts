@@ -172,7 +172,10 @@ export function screenOfRoute(route: Route): string {
   return screens[first] ?? first;
 }
 
-/** Open a screen. `theme: "default"` keeps each campaign's own table theme; "parchment" forces that theme. */
+/**
+ * Open a screen. `theme: "default"` keeps the default base theme; "parchment" makes Parchment the base. In the app a
+ * campaign's own theme still shows on its pages (0.5.1); the prototype's "parchment" still forces it everywhere.
+ */
 export async function openRoute(page: Page, route: Route, options: { theme?: Theme } = {}): Promise<void> {
   if (isApp()) {
     // The app: open the route in the Lyre page (the window's own page) with the theme remembered as Look and feel

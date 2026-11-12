@@ -4,7 +4,7 @@
  * has mixed music (track, playlist, track, playlist), an ambience playlist and two pad boards.
  */
 import type { Locator, Page } from "@playwright/test";
-import { expect, test, expectFailureUntilBuilt, expectFailureUntilScreenBuilt, metByTheAppAlready } from "./support/test";
+import { appOnly, expect, test, expectFailureUntilBuilt, expectFailureUntilScreenBuilt, metByTheAppAlready } from "./support/test";
 import { openRoute } from "./support/target";
 import { dropFiles } from "./support/drop";
 
@@ -328,7 +328,7 @@ test.describe("scenes", () => {
     await expect(rows.nth(2)).toHaveAccessibleName("Scene 3: Recap and the coast road");
   });
 
-  test("Add scene adds a scene after the current one and puts the cursor in its name", async ({ page }) => {
+  test("Add scene adds a scene and puts the cursor in its name", async ({ page }) => {
     await openRoute(page, "session/crown/s14");
     await page.getByRole("button", { name: "Add scene" }).click();
     await expect(page.getByRole("list", { name: "Scenes in order" }).getByRole("listitem")).toHaveCount(7);
@@ -698,5 +698,40 @@ test.describe("0.5.1: Play on air for each track, where Add scene puts a scene, 
     const box = (await last.boundingBox())!;
     await rows.first().getByTitle("Drag to reorder").dragTo(last, { targetPosition: { x: 40, y: box.height - 4 } });
     await expect(rows.nth(5)).toHaveAccessibleName("Scene 6: Recap and the coast road");
+  });
+});
+
+/* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round (support/test.ts appOnly). */
+test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
+  // Scene cards only: an open scene lists its music inside its card, as list items too.
+  const scenes = (page: Page) => page.getByRole("list", { name: "Scenes in order" }).getByRole("listitem", { name: /^Scene \d+: / });
+
+  test("each track of a scene's playlist has Play on air, as the playlist has (\"I need that at track level\")", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "session/crown/s14");
+    await page.getByRole("button", { name: "Scene 3: The abbey ruins" }).click();
+    const music = page.getByRole("list", { name: "Music in order" });
+    await expect(music.getByRole("button", { name: "Play on air: The Abbess" })).toBeVisible();
+    await music.getByRole("button", { name: "Show contents of The Abbess" }).click();
+    const tracks = music.getByRole("list", { name: /^Tracks in The Abbess/ }).getByRole("listitem");
+    await expect(tracks.first().getByRole("button", { name: /^Play on air: / })).toBeVisible();
+    const box = await tracks.first().getByRole("button", { name: /^Play on air: / }).boundingBox();
+    expect(box!.width).toBeGreaterThanOrEqual(24);
+    expect(box!.height).toBeGreaterThanOrEqual(24);
+    await tracks.first().getByRole("button", { name: /^Play on air: / }).click();
+    await expect(page.getByRole("region", { name: "Now playing", exact: true }).getByRole("group", { name: "On air", exact: true })).toBeVisible();
+  });
+
+  test("Add scene goes at the end with no scene selected, and right after the scene selected", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "session/crown/s14");
+    await page.getByRole("button", { name: "Add scene" }).click();
+    await expect(scenes(page)).toHaveCount(7);
+    await expect(scenes(page).nth(6)).toHaveAccessibleName("Scene 7: Scene 7");
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Scene 2: Greyhollow inn" }).click();
+    await page.getByRole("button", { name: "Add scene" }).click();
+    await expect(scenes(page)).toHaveCount(8);
+    await expect(scenes(page).nth(2)).toHaveAccessibleName("Scene 3: Scene 3");
   });
 });

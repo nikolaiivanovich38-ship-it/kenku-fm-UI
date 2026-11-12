@@ -1,4 +1,4 @@
-import { isThemeChoice, type ThemeChoice } from "./themes";
+import { DEFAULT_THEME, isThemeChoice, type ThemeChoice } from "./themes";
 
 /**
  * What the new interface remembers between starts, in this page's own storage: the theme chosen in Look and feel,
@@ -17,7 +17,7 @@ export interface ShellSettings {
 
 export const SHELL_SETTINGS_KEY = "lyre-shell";
 
-const DEFAULTS: ShellSettings = { theme: "campaign", rail: "auto", panes: {} };
+const DEFAULTS: ShellSettings = { theme: DEFAULT_THEME, rail: "auto", panes: {} };
 
 /** The remembered settings, with defaults for anything missing or damaged. */
 export function loadShellSettings(): ShellSettings {
@@ -39,6 +39,7 @@ export function loadShellSettings(): ShellSettings {
     }
   }
   return {
+    // 0.5.1: the old "campaign" choice (each campaign's own) is not a theme, so it becomes the default base theme.
     theme: isThemeChoice(stored.theme) ? stored.theme : DEFAULTS.theme,
     rail: stored.rail === "full" || stored.rail === "min" ? stored.rail : DEFAULTS.rail,
     panes,

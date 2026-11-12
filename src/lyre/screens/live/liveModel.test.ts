@@ -53,6 +53,7 @@ const room = (roomId: string, name: string, over: Partial<RoomNowPlaying> = {}):
   queued: [],
   upNextList: [],
   repeat: { chosen: null, shown: "off" },
+  shuffle: false,
   canUndoUpNext: false,
   effects: [],
   played: [],

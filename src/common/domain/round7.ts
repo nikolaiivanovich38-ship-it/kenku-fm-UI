@@ -253,10 +253,15 @@ const CHOICES_BY_ROLE: Partial<Record<NonNullable<DomainTrack["role"]>, RoleChoi
   transition: ["ending", "follow"],
 };
 
-/** The How it plays choices a track's role shows (r7play.js ROWS): none for a track with no role, or an effect. */
+/**
+ * The How it plays choices a track shows (r7play.js ROWS): its role's, in the order Ending, Pick up, Then. Since 0.5.1
+ * every music track but a sting has Pick up where it stopped, with or without a role (Nik, 11 Nov); an effect or an
+ * ambience with no role has none.
+ */
 export function roleChoices(track: Pick<DomainTrack, "role" | "kind">): RoleChoice[] {
-  if (!track.role || (track.kind === "fx" && track.role !== "sting")) return [];
-  return [...(CHOICES_BY_ROLE[track.role] ?? [])];
+  const byRole = track.role && !(track.kind === "fx" && track.role !== "sting") ? (CHOICES_BY_ROLE[track.role] ?? []) : [];
+  const resume = byRole.includes("resume") || (track.kind === "music" && track.role !== "sting");
+  return (["ending", "resume", "follow"] as const).filter((choice) => (choice === "resume" ? resume : byRole.includes(choice)));
 }
 
 /**

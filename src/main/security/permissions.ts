@@ -2,7 +2,7 @@
  * SEC-3: which browser permissions each kind of page may use.
  *
  * Electron grants every permission request unless the app installs a
- * handler. Lyre's own pages need very little (audio capture, copying ids
+ * handler. Lyre's own pages need very little (audio capture, copying text
  * to the clipboard) and website tabs need even less, so everything is denied
  * unless it appears in the allow-list below. Kept free of Electron imports so
  * the rules can be unit-tested.
@@ -40,12 +40,13 @@ export interface PermissionQuery {
  * never granted (see `isAudioOnly`).
  * - main-window: lists input devices (with names) for the external-input feature.
  * - audio-capture: captures tab audio and external input devices for Discord.
- * - lyre-view: nothing it can ask for (see APP_PAGE_CHECKS for its device choice).
+ * - lyre-view: writes text to the clipboard (Copy path, Copy code; never reads it). Without this Chromium refused
+ *   navigator.clipboard.writeText and nothing was copied (Nik, 0.5.0). See APP_PAGE_CHECKS for its device choice.
  */
 const APP_PAGE_PERMISSIONS: Record<AppPageRole, ReadonlySet<string>> = {
   "main-window": new Set(["media"]),
   "audio-capture": new Set(["media"]),
-  "lyre-view": new Set(),
+  "lyre-view": new Set(["clipboard-sanitized-write"]),
 };
 
 /**

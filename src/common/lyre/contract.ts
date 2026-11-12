@@ -545,6 +545,16 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         expectRefused(await api.campaigns.setOnHand({ campaignId: "crown", sessionId: "nope" }, "boards", []), "not-found");
       });
 
+      it("0.5.1: moves a campaign in the Campaigns screen's order, which is kept", async () => {
+        const before = (await api.campaigns.list()).map((c) => c.id);
+        const last = before[before.length - 1];
+        valueOf(await api.campaigns.move(last, 0));
+        expect((await api.campaigns.list()).map((c) => c.id)).toEqual([last, ...before.slice(0, -1)]);
+        valueOf(await api.campaigns.move(last, before.length - 1));
+        expect((await api.campaigns.list()).map((c) => c.id)).toEqual(before);
+        expectRefused(await api.campaigns.move("nope", 0), "not-found");
+      });
+
       it("says where every playlist, board and track is used, as the shared rules do", async () => {
         const campaigns = await api.campaigns.list();
         for (const p of await api.playlists.list()) expect(await api.campaigns.usesOf({ kind: "playlist", id: p.id }), p.id).toEqual(usesOfPlaylist(p.id, campaigns));
@@ -671,6 +681,15 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         valueOf(await api.profiles.set("t05", null, { startMs: 2_000, endMs: 150_000, fadeOut: { ms: 3_000, shape: 20 } }));
         expect((await track("t05")).profile).toMatchObject({ startMs: 2_000, endMs: 150_000, fadeOut: { ms: 3_000, shape: 20 } });
         await changedEvent("tracks", "profiles");
+      });
+
+      it("0.5.1: keeps Start at with a profile, the track's own or a place's; null is the Beginning", async () => {
+        valueOf(await api.profiles.set("t05", null, { markers: [{ atMs: 30_000, label: "Bells" }], startAtMs: 30_000 }));
+        expect((await track("t05")).profile).toMatchObject({ startAtMs: 30_000 });
+        const place: ProfilePlace = { kind: "scene", campaignId: "crown", sessionId: "s14", sceneId: "sc3" };
+        valueOf(await api.profiles.set("t05", place, { startAtMs: null }));
+        expect((await api.profiles.overrides())[placeKey(place)].t05.startAtMs ?? null).toBeNull();
+        expectRefused(await api.profiles.set("t05", null, { startAtMs: -5 }), "invalid");
       });
 
       it("refuses a profile that cannot play, an unknown track or place", async () => {

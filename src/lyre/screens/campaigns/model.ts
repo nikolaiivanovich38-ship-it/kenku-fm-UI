@@ -67,12 +67,11 @@ export function themeNote(id: string): string {
 export const DEFAULT_CAMPAIGN_THEME: ThemeId = DEFAULT_THEME;
 
 /** The themes a campaign can have, in the prototype's order (Candlelit Library first). */
-export const CAMPAIGN_THEME_IDS = THEME_CHOICES.filter((t) => t.value !== "campaign").map((t) => t.value as ThemeId);
+export const CAMPAIGN_THEME_IDS: readonly ThemeId[] = THEME_CHOICES.map((t) => t.value);
 
-/** The theme a campaign is shown in: its own, unless Look and feel shows every page in one theme. */
-export function shownTheme(choice: ThemeChoice, own: string | undefined): ThemeId {
-  if (choice !== "campaign") return choice;
-  return (CAMPAIGN_THEME_IDS as string[]).includes(own ?? "") ? (own as ThemeId) : DEFAULT_THEME;
+/** The theme a campaign is shown in: always its own (0.5.1), else the base theme from Look and feel. */
+export function shownTheme(base: ThemeChoice, own: string | undefined): ThemeId {
+  return (CAMPAIGN_THEME_IDS as readonly string[]).includes(own ?? "") ? (own as ThemeId) : base;
 }
 
 const ROLE_WORDS: Record<TrackRole, string> = {

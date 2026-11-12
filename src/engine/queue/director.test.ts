@@ -13,7 +13,7 @@ import { PlaybackEngine } from "../engine";
 import { RoomLane, RoomsAudio } from "../rooms.contract";
 import { SourceLoader } from "../sources/sourceLoader";
 import { FakeAudioContext, FakeGain } from "../testing/fakeAudio";
-import { CueAction, isCueAction } from "./actions";
+import { CueAction, DEFAULT_FADES, isCueAction } from "./actions";
 import { Director } from "./director";
 import { SceneRef, ShowData, staticLibrary } from "./library";
 
@@ -433,7 +433,10 @@ describe("cue actions go to rooms (PLY-8)", () => {
     await run({ type: "playTrack", trackId: "m2", target: whisper });
     await context.advance(4);
     await run({ type: "fadeAll" });
+    // 0.5.1: the fade buttons' standard is 5 s (Nik, 11 Nov): still heard after 3.5 s, silent after 5.
     await context.advance(3.5);
+    expect(rooms.hear("table")).toBeGreaterThan(0);
+    await context.advance(2);
     expect(rooms.hear("table")).toBe(0);
     expect(rooms.hear("whisper")).toBe(0);
     expect([music(), ambience(), music("whisper")]).toEqual([null, null, null]);
@@ -444,6 +447,18 @@ describe("cue actions go to rooms (PLY-8)", () => {
     await run({ type: "stopAll" });
     expect(rooms.hear("table")).toBe(0);
     expect(rooms.hear("whisper")).toBe(0);
+  });
+
+  it("a fade lane with no length of its own takes the 5 s standard (0.5.1)", async () => {
+    expect(DEFAULT_FADES.fadeLane).toBe(5);
+    expect(DEFAULT_FADES.fadeAll).toBe(5);
+    await run({ type: "playTrack", trackId: "m2", target: table });
+    await context.advance(4);
+    await run({ type: "fadeLane", lane: "music", target: table });
+    await context.advance(2.5);
+    expect(rooms.hear("table", "music")).toBeCloseTo(0.5, 1);
+    await context.advance(3);
+    expect(rooms.hear("table", "music")).toBe(0);
   });
 
   it("checks actions that come from outside", () => {

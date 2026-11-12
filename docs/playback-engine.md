@@ -33,7 +33,7 @@ Long tracks are played straight from the file, a little at a time, so an hour of
 - Deleting a track from a playing playlist no longer changes which track is current (BUG-11). The old player still has this bug until WP5 switches it over.
 - Looping sounds release everything when they stop or loop, checked over 1,000 start/stop cycles and 500 loop passes (BUG-4).
 - Jumping to another point in a sound moves its fade-out and its next loop with it (BUG-5).
-- Nothing checks the time 60 times a second. The engine reports changes as they happen, and the progress bar is updated once a second only while something plays (PERF-1).
+- Nothing checks the time 60 times a second. The engine reports changes as they happen, and the progress bar is updated once a second only while something plays (PERF-1). The new interface's time lines (the Now playing bar, Live's On air) move every 250 ms while something plays: they read the audio host's positions (`subscribePositions`), so only they redraw, and the timer stops when everything is paused or stopped.
 - A track missing from the library is skipped instead of stopping "next" from working.
 
 ### Manual checks
@@ -193,6 +193,7 @@ The engine now plays a game the way the design prototype does. Nothing on screen
 
 - **Scenes play their music in order.** Starting a scene plays its first music item, then each track and each playlist's tracks in turn, and starts again at the end. A track never plays twice in a row. Next and Previous move through the same order. The scene's ambience (a track, or the first track of an ambience playlist) loops on the ambience channel; Next on the ambience moves through its playlist.
 - **Audio profiles are heard.** Each track plays from its Start to its End, with its fade in and fade out shaped as set (gentle, even or sharp), and at End it loops back to Loop start (with the loop crossfade), moves on, or stops. A scene's own settings for a track win over a playlist's, which win over the track's own. The volume changes are written ahead on the audio clock, so a fade or an End lands on the exact moment, not "about then".
+- **Fades.** The fade buttons (a room's Fade music out, Fade all, Shift+Esc, a cue action with no length) take 5 s since 0.5.1 (`DEFAULT_FADES.fadeLane`, `fadeAll`); Play on air and Play now still fade in over 3 s, and Settings › Between tracks keeps its own crossfade.
 - **Now Playing.** Play now crossfades (3 s). Play next waits for the current track to end, before the scene moves on; queued tracks can be removed. A track played off script returns to the scene at the next step once it ends. Undo after starting a scene brings back the previous music and ambience where they would be now, with the queue (the screen offers it for 8 seconds).
 - **One set of actions for everything.** Play a track or playlist, start a scene, next or previous, fade a channel, fade everything, stop everything, fire a pad: the buttons, the keys and later the Stream Deck all send the same action, which names the room it plays in (or all rooms). Scenes always start in the first room.
 - **Track roles.** With no profile saying otherwise, a loop bed loops, a sting or a transition plays once and hands over to what comes next, an effect plays once, and anything else follows its loop advice. Ambience always loops; effects play over the music.

@@ -51,8 +51,9 @@ export const DEFAULT_FADES = {
   crossfade: 3,
   sceneMusic: 4,
   sceneAmbience: 3,
-  fadeLane: 3,
-  fadeAll: 3,
+  /** The fade buttons (Fade music out, Fade all, a fade step): 5 s since 0.5.1 (Nik, 11 Nov). */
+  fadeLane: 5,
+  fadeAll: 5,
   /** Effects stopped by a fade lane. */
   effects: 0.8,
   undo: 1.5,

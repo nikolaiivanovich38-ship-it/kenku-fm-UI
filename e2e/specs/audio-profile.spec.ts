@@ -4,8 +4,8 @@
  * (t13), which loops from 1:04 to 5:18 and has its own settings in the scene "The abbey ruins".
  */
 import type { Page } from "@playwright/test";
-import { expect, expectFailureUntilBuilt, test } from "./support/test";
-import { openRoute } from "./support/target";
+import { appOnly, expect, expectFailureUntilBuilt, test } from "./support/test";
+import { openRoute, reopen } from "./support/target";
 
 const wave = (page: Page) => page.getByRole("region", { name: "Waveform and listening", exact: true });
 const handle = (page: Page, name: string) => wave(page).getByRole("slider", { name, exact: true });
@@ -350,5 +350,31 @@ test.describe("0.5.1: Start at a marker", () => {
     const now = Number(await position.getAttribute("aria-valuenow"));
     expect(now).toBeGreaterThanOrEqual(190);
     expect(now).toBeLessThan(196);
+  });
+});
+
+/* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round (support/test.ts appOnly). */
+test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
+  test("Start at a marker: the track then starts there when played on air from the Library (\"Start at [select marker]\")", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "profile/t13");
+    const startAt = page.getByRole("region", { name: "At the end" }).getByRole("combobox", { name: "Start at" });
+    await expect(startAt).toHaveValue("");
+    await startAt.selectOption({ label: "Low swell (3:10)" });
+    await expect(page.getByRole("status").filter({ hasText: /start at 3:10, Low swell/ })).toBeVisible();
+    await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Library" }).click();
+    await page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Eerie dread/ }).getByRole("button", { name: /^Play on air: / }).click();
+    await expect(page.getByRole("region", { name: "Now playing" }).getByRole("group", { name: "On air", exact: true })).toContainText(/3:1\d \//);
+  });
+
+  test("Pick up where it stopped is in the Audio profile too, the track's own choice (\"I don't see pickup where it stops in details or audio profile views\")", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "profile/t13");
+    const pickUp = page.getByRole("region", { name: "At the end" }).getByRole("switch", { name: "Pick up where it stopped" });
+    await expect(pickUp).not.toBeChecked();
+    await pickUp.check();
+    await expect(page.getByRole("status").filter({ hasText: /picks up where it stopped/ })).toBeVisible();
+    await reopen(page);
+    await expect(page.getByRole("region", { name: "At the end" }).getByRole("switch", { name: "Pick up where it stopped" })).toBeChecked();
   });
 });

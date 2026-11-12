@@ -11,7 +11,7 @@ import { TRACK_SHAPES, type AudioProfileInput, type Fade, type PlaylistRule, typ
 import { ValidationError } from "./errors";
 import * as v from "./validate";
 
-const PROFILE_KEYS = ["startMs", "endMs", "after", "loopStartMs", "loopCrossfadeMs", "fadeIn", "fadeOut", "markers"] as const;
+const PROFILE_KEYS = ["startMs", "endMs", "after", "loopStartMs", "loopCrossfadeMs", "fadeIn", "fadeOut", "markers", "startAtMs"] as const;
 const AFTER_END = ["loop", "next", "stop"] as const;
 const MATCHES = ["any", "all", "none"] as const;
 /** Generous limits that keep one profile or rule small. */
@@ -60,7 +60,12 @@ export function cleanProfile(field: string, value: unknown): AudioProfileInput {
     });
     if (clean.markers.filter((m) => m.mix).length > 1) throw new ValidationError(`${field}.markers`, "A track has one mix-out marker: choose one.");
   }
+  // 0.5.1 Start at: a time in the file (a marker's), or null for the Beginning (stored as no value).
+  if (input.startAtMs !== undefined && input.startAtMs !== null) clean.startAtMs = v.milliseconds(`${field}.startAtMs`, input.startAtMs);
   const { startMs, endMs, loopStartMs } = clean;
+  if (clean.startAtMs != null && ((startMs !== undefined && clean.startAtMs < startMs) || (endMs !== undefined && clean.startAtMs >= endMs))) {
+    throw new ValidationError(`${field}.startAtMs`, "Start at must be between the start and the end.");
+  }
   if (startMs !== undefined && endMs !== undefined && startMs >= endMs) {
     throw new ValidationError(`${field}.endMs`, "The end must come after the start.");
   }

@@ -11,10 +11,10 @@
 import type { AudioDevices } from "../../../common/domain";
 import { TypedEmitter } from "tiny-typed-emitter";
 
-import type { CueOutcome, DeviceStatus, LaneNowPlaying, LyreAudio, LyreAudioEvents, NowPlaying, OutputDeviceInfo, PreviewNowPlaying, RoomNowPlaying } from "../lyreAudio";
+import type { CueOutcome, DeviceStatus, LaneNowPlaying, LyreAudio, LyreAudioEvents, NowPlaying, OutputDeviceInfo, PlayPositions, PreviewNowPlaying, RoomNowPlaying } from "../lyreAudio";
 
 export const EMPTY_NOW_PLAYING: NowPlaying = {
-  rooms: [{ roomId: "table", name: "Table", volume: 0.85, music: null, ambience: null, upNext: null, queued: [], upNextList: [], repeat: { chosen: null, shown: "off" }, canUndoUpNext: false, effects: [], played: [] }],
+  rooms: [{ roomId: "table", name: "Table", volume: 0.85, music: null, ambience: null, upNext: null, queued: [], upNextList: [], repeat: { chosen: null, shown: "off" }, shuffle: false, canUndoUpNext: false, effects: [], played: [] }],
   broadcasting: false,
   preview: null,
   previewDevice: null,
@@ -29,7 +29,7 @@ export type FakeLane = Omit<LaneNowPlaying, "place" | "playOrder" | "gainDb" | "
 /** A preview as a test gives it: its key and label, the rest filled in (a track, playing, full volume). */
 export type FakePreview = Pick<PreviewNowPlaying, "key" | "label"> & Partial<PreviewNowPlaying>;
 /** A room's round 6 and 7 fields may be left out: nothing in Up next, no Repeat chosen (off), nothing to undo, nothing played. */
-type RoundSixRoom = "upNextList" | "repeat" | "canUndoUpNext" | "played";
+type RoundSixRoom = "upNextList" | "repeat" | "canUndoUpNext" | "played" | "shuffle";
 /** Now-playing state as a test gives it to setNowPlaying. */
 export type FakeNowPlaying = Partial<Omit<NowPlaying, "rooms" | "preview">> & {
   /** A room's volume may be left out: 0.85, as rooms start in the app. */
@@ -56,7 +56,7 @@ export class FakeLyreAudio extends TypedEmitter<LyreAudioEvents> implements Lyre
       ...this.state,
       ...rest,
       ...(rooms
-        ? { rooms: rooms.map((r): RoomNowPlaying => ({ volume: 0.85, upNextList: [], repeat: { chosen: null, shown: "off" as const }, canUndoUpNext: false, played: [], ...r, music: lane(r.music), ambience: lane(r.ambience) })) }
+        ? { rooms: rooms.map((r): RoomNowPlaying => ({ volume: 0.85, upNextList: [], repeat: { chosen: null, shown: "off" as const }, shuffle: false, canUndoUpNext: false, played: [], ...r, music: lane(r.music), ambience: lane(r.ambience) })) }
         : {}),
       ...(shown !== undefined ? { preview: preview(shown) } : {}),
     };
@@ -84,6 +84,9 @@ export class FakeLyreAudio extends TypedEmitter<LyreAudioEvents> implements Lyre
   undoUpNext = this.record("undoUpNext");
   setRepeat = this.record("setRepeat");
   cycleRepeat = this.record("cycleRepeat");
+  toggleShuffle = this.record("toggleShuffle");
+  seek = this.record("seek");
+  seekPreview = this.record("seekPreview");
 
   savedRepeatOneChanged(scene: unknown, trackId: string): void {
     this.calls.push(["savedRepeatOneChanged", scene, trackId]);
@@ -153,6 +156,27 @@ export class FakeLyreAudio extends TypedEmitter<LyreAudioEvents> implements Lyre
     return () => {
       this.subscribers.delete(listener);
     };
+  }
+
+  /** The positions of the now-playing state a test gave, until it gives others with setPositions. */
+  private positions: { from: NowPlaying; at: PlayPositions } | null = null;
+
+  getPositions(): PlayPositions {
+    if (this.positions?.from !== this.state) {
+      const rooms = Object.fromEntries(this.state.rooms.map((r) => [r.roomId, { music: r.music?.position ?? null, ambience: r.ambience?.position ?? null }]));
+      this.positions = { from: this.state, at: { rooms, preview: this.state.preview?.position ?? null } };
+    }
+    return this.positions.at;
+  }
+
+  /** Move positions on without any other change, as the audio host does every 250 ms while something plays. */
+  setPositions(at: PlayPositions): void {
+    this.positions = { from: this.state, at };
+    this.subscribers.forEach((listener) => listener());
+  }
+
+  subscribePositions(listener: () => void): () => void {
+    return this.subscribe(listener);
   }
 
   async dispose(): Promise<void> {

@@ -141,6 +141,11 @@ export class Director extends TypedEmitter<DirectorEvents> {
     return this.listChange(target, (player) => (player.cycleRepeat(), true), "");
   }
 
+  /** 0.5.1: the room's Shuffle on or off, for what plays now. */
+  toggleShuffle(target: RoomTarget): CueOutcome {
+    return this.listChange(target, (player) => (player.toggleShuffle(), true), "");
+  }
+
   savedRepeatOneChanged(scene: { campaignId: string; sessionId: string; sceneId: string }, trackId: string): void {
     const key = keyOfPlace({ kind: "scene", ...scene });
     for (const player of this.players.values()) player.savedRepeatOneChanged(key, trackId);

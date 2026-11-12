@@ -220,7 +220,7 @@ export function TrackRow({ track, rowKey, num, from, place, playlistId, box, on,
             aria-pressed={previewing}
             aria-label={`Preview: ${n.name}`}
             title={previewing ? "Stop the preview" : "Preview in your headphones (players do not hear it)"}
-            onClick={() => (previewing ? audio.stopPreview() : audio.previewTrack(track.id, playlistId ? { playlistId } : undefined))}
+            onClick={() => (previewing ? audio.stopPreview() : audio.previewTrack(track.id, playlistId || place ? { ...(playlistId ? { playlistId } : {}), ...(place ? { place } : {}) } : undefined))}
           >
             <Icon name="headphones" />
           </button>
@@ -322,7 +322,7 @@ export function PlaylistRow({ playlist: p, rowKey, num, place, box, on, playingA
             aria-pressed={previewing}
             aria-label={`Preview: ${p.name}`}
             title={previewing ? "Stop the preview" : "Preview in your headphones"}
-            onClick={() => (previewing ? d.audio.stopPreview() : d.audio.previewPlaylist(p.id))}
+            onClick={() => (previewing ? d.audio.stopPreview() : d.audio.previewPlaylist(p.id, place ? { place } : undefined))}
           >
             <Icon name="headphones" />
           </button>
@@ -380,7 +380,7 @@ export function AmbienceRow({ scene, place, dataLv }: { scene: SceneInfo; place:
           aria-pressed={previewing}
           aria-label={`Preview: ${name}`}
           title={previewing ? "Stop the preview" : "Preview in your headphones (players do not hear it)"}
-          onClick={() => (previewing ? d.audio.stopPreview() : p ? d.audio.previewPlaylist(p.id) : d.audio.previewTrack(t!.id))}
+          onClick={() => (previewing ? d.audio.stopPreview() : p ? d.audio.previewPlaylist(p.id, { place }) : d.audio.previewTrack(t!.id, { place }))}
         >
           <Icon name="headphones" />
         </button>

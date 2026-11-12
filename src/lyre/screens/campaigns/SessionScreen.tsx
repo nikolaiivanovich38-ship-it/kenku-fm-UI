@@ -65,6 +65,24 @@ export function forgetOpenScenes(): void {
   OPEN_SCENES.clear();
 }
 
+/**
+ * 0.5.1: the scene card the focus is in (its data-scene-id), or null once the focus is anywhere else on the page. The
+ * Add scene button (data-k="addscene") leaves it as it was, so a click on it still knows the scene.
+ */
+function useFocusedScene(): React.MutableRefObject<string | null> {
+  const focused = useRef<string | null>(null);
+  useEffect(() => {
+    const onFocus = (event: FocusEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest('[data-k="addscene"]')) return;
+      focused.current = target?.closest<HTMLElement>("[data-scene-id]")?.dataset.sceneId ?? null;
+    };
+    document.addEventListener("focusin", onFocus);
+    return () => document.removeEventListener("focusin", onFocus);
+  }, []);
+  return focused;
+}
+
 export function SessionScreen({ route }: ScreenProps) {
   const query = useCampaign(route.params.cid ?? "");
   const index = useLibraryIndex();
@@ -120,6 +138,7 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
       return next;
     });
   const [current, setCurrent] = useState<string | null>(null);
+  const focusedScene = useFocusedScene();
   const [picking, setPicking] = useState<Picking>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
   /** PLY-8: the scene whose steps are open (What it does when it starts…). */
@@ -185,6 +204,15 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
     saveWith(what, () => api.sessions.update(c.id, s.id, patch), { key: `cp-s-${Object.keys(patch)[0]}` });
 
   /* ----- scenes ----- */
+  /**
+   * 0.5.1 (Nik, 11 Nov): Add scene goes right after the scene selected in the planner, else at the end. Selected: the
+   * scene the focus is in (kept while the focus moves to Add scene itself), else the scene worked on last if it is open.
+   */
+  const selectedScene = (): string | undefined => {
+    const focused = focusedScene.current;
+    if (focused && s.scenes.some((x) => x.id === focused)) return focused;
+    return current && open[current] ? sceneAt(current)?.id : undefined;
+  };
   const addScene = async (after?: string) => {
     const at = after ? s.scenes.findIndex((x) => x.id === after) + 1 : s.scenes.length;
     const made = (await write(api.sessions.createScene(c.id, s.id, after)))?.value;
@@ -378,7 +406,7 @@ function SessionPage({ campaign: c, session: saved, index, groups }: { campaign:
                       }}
                     />
                   )}
-                  <Button size="s" icon="plus" data-k="addscene" onClick={() => void addScene(sceneAt(current)?.id)}>
+                  <Button size="s" icon="plus" data-k="addscene" onClick={() => void addScene(selectedScene())}>
                     Add scene
                   </Button>
                 </>
@@ -617,6 +645,7 @@ function SceneCard({ scene, position, ctx, open, onToggle, drag, menu }: SceneCa
     .filter((x): x is ItemInfo => !!x);
   return (
     <li
+      data-scene-id={scene.id}
       className={`cp-scene${open ? " open" : ""}${fileOver ? " cp-fdrop" : ""} ${drag.rowClass(position)}`}
       aria-label={`Scene ${number}: ${name}`}
       // UX-18: a link in this scene names it for Back ("Back to The abbey ruins"), and Back opens it again.
@@ -862,7 +891,7 @@ function ItemRow({
         {board ? (
           <PreviewButton target={{ kind: "board", board }} name={info.name} />
         ) : (
-          <PreviewButton target={info.kind === "playlist" ? { kind: "playlist", id: info.id } : { kind: "track", id: info.id }} name={shown} />
+          <PreviewButton target={info.kind === "playlist" ? { kind: "playlist", id: info.id, place } : { kind: "track", id: info.id, place }} name={shown} />
         )}
         {info.kind !== "board" && <PlayOnAirButton target={info.kind === "playlist" ? { kind: "playlist", id: info.id } : { kind: "track", id: info.id }} name={shown} />}
         {playlist && list === "music" && <PlayOrderButton playlistId={playlist.id} place={place} />}
@@ -1081,7 +1110,7 @@ function AmbienceSlot({ scene, ctx }: { scene: SceneInfo; ctx: SceneContext }) {
         <Button size="s" data-k={`pa-${scene.id}`} onClick={choose}>
           Change…
         </Button>
-        <PreviewButton target={info.kind === "playlist" ? { kind: "playlist", id: info.id } : { kind: "track", id: info.id }} name={info.name} />
+        <PreviewButton target={info.kind === "playlist" ? { kind: "playlist", id: info.id, place: { kind: "scene", ...ctx.address(scene) } } : { kind: "track", id: info.id, place: { kind: "scene", ...ctx.address(scene) } }} name={info.name} />
         <PlayOnAirButton target={info.kind === "playlist" ? { kind: "playlist", id: info.id } : { kind: "track", id: info.id }} name={info.name} />
         <RowMenu
           label={`More for ${info.name}`}

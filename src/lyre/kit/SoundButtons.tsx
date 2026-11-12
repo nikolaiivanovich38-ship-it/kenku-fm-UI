@@ -21,13 +21,15 @@ import { HOLD_MS, useHeldPads } from "./heldPads";
 
 export type SoundTarget =
   /**
-   * playlistId: the playlist it is shown in, so its normalising choice applies to the preview (PLY-15). file: another
-   * file's address to preview as this track (Find missing files: the file found, security review w4 Should 5).
+   * playlistId: the playlist it is shown in, so its normalising choice applies to the preview (PLY-15). place: the
+   * scene it is shown in, so its own audio settings there apply to the preview. file: another file's address to
+   * preview as this track (Find missing files: the file found, security review w4 Should 5).
    */
-  | { kind: "track"; id: string; playlistId?: string; file?: string }
+  | { kind: "track"; id: string; playlistId?: string; place?: UsePlace; file?: string }
   /**
    * empty: the playlist has no tracks, so Play on air says so instead. place: the session or campaign list it is shown
-   * in, so that list's play order applies and the Now playing bar says where it comes from (PLY-13, UX-16).
+   * in, so that list's play order applies and the Now playing bar says where it comes from (PLY-13, UX-16); for a
+   * preview, the scene or list whose audio settings apply.
    */
   | { kind: "playlist"; id: string; empty?: boolean; place?: UsePlace }
   /** hold: a "hold to play" pad, let go after HOLD_MS when played from a button. */
@@ -80,9 +82,10 @@ export function PreviewButton({ target, name, tabIndex, className, icon = "headp
     switch (target.kind) {
       case "track":
         if (target.file) return audio.previewTrack(target.id, { file: target.file });
-        return target.playlistId ? audio.previewTrack(target.id, { playlistId: target.playlistId }) : audio.previewTrack(target.id);
+        if (!target.playlistId && !target.place) return audio.previewTrack(target.id);
+        return audio.previewTrack(target.id, { ...(target.playlistId ? { playlistId: target.playlistId } : {}), ...(target.place ? { place: target.place } : {}) });
       case "playlist":
-        return audio.previewPlaylist(target.id);
+        return target.place ? audio.previewPlaylist(target.id, { place: target.place }) : audio.previewPlaylist(target.id);
       case "pad":
         return audio.previewPad(target.boardId, target.padId);
       case "board":

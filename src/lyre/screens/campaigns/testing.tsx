@@ -3,7 +3,7 @@
  * LyreApi seeded from the prototype and a FakeLyreAudio, opened at a route as the app opens it ("#/campaign/crown").
  */
 import React from "react";
-import { act, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 
 import { createFakeLyreApi, type FakeLyreApi } from "../../../common/lyre/fake";
 import { AppProviders } from "../../AppProviders";
@@ -45,3 +45,37 @@ export function go(path: string): void {
 
 export const main = () => within(screen.getByRole("main"));
 export const region = (name: string) => within(screen.getByRole("region", { name }));
+
+/**
+ * Drag the first of `rows` by its handle onto the lower half of the last one, laid out by hand (jsdom has no layout):
+ * rows 40 px high, 6 px apart, in a box (the pane's body) that ends right under the last row, as a full list does
+ * (GitHub's window, and Nik's long lists). `between` runs after the dragover, before the drop (to look at the line).
+ */
+export function dragFirstOntoLowerHalfOfLast(rows: HTMLElement[], between: () => void = () => undefined): void {
+  const top = (i: number) => 100 + i * 46;
+  const last = rows.length - 1;
+  const original = Element.prototype.getBoundingClientRect;
+  Element.prototype.getBoundingClientRect = function (this: Element) {
+    const i = rows.indexOf(this as HTMLElement);
+    const box = (y: number, height: number) => ({ top: y, bottom: y + height, height, left: 0, right: 600, width: 600, x: 0, y, toJSON: () => ({}) }) as DOMRect;
+    if (i >= 0) return box(top(i), 40);
+    if (this.classList.contains("pane-body")) return box(90, top(last) + 40 - 90);
+    return original.call(this);
+  };
+  try {
+    const data = { effectAllowed: "", dropEffect: "", types: ["text/plain"], files: [] as File[], setData: (): void => undefined };
+    fireEvent.pointerDown(rows[0].querySelector("[title='Drag to reorder']")!);
+    fireEvent.dragStart(rows[0], { dataTransfer: data });
+    const at = (type: string) => {
+      const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientY: top(last) + 30 });
+      Object.defineProperty(event, "dataTransfer", { value: data });
+      // The pointer is over something inside the row, as in the app.
+      fireEvent(rows[last].firstElementChild ?? rows[last], event);
+    };
+    at("dragover");
+    between();
+    at("drop");
+  } finally {
+    Element.prototype.getBoundingClientRect = original;
+  }
+}

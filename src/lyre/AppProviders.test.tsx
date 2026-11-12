@@ -202,7 +202,8 @@ describe("AppProviders", () => {
         </AppProviders>,
       );
       const nav = await screen.findByRole("navigation", { name: "Lyre" });
-      expect(nav).toHaveTextContent(/Live$|LiveRooms/);
+      // 0.5.1: Live is first in the menu.
+      expect(nav).toHaveTextContent(/^LiveCampaigns/);
       act(() => loadInLive({ campaignId: "crown", sessionId: "s14" }));
       // Seen as "Live: S14"; its name holds what is seen (WCAG 2.5.3, for speech control) and says "session 14" in words
       // (review w3-polish 11).

@@ -12,8 +12,9 @@ import { Icon, type IconName } from "../../kit/Icon";
 import { Kbd } from "../../kit/Pills";
 import { cx } from "../../kit/cx";
 import { hasOwn, ownPlaceKeys, placeName, placesOf } from "./places";
-import { envAt, fmt, fmt1, POINT, sketchPath, times, type Which } from "./profileModel";
+import { envAt, fmt, fmt1, POINT, sketchPath, startAtChoices, times, type Which } from "./profileModel";
 import { ProfileLink } from "../../kit/ProfileLink";
+import { TrackPickUp } from "../library/PickUpSwitch";
 import type { ProfileController } from "./useProfileController";
 import { levelAt } from "./waveDrawing";
 import { Waveform } from "./Waveform";
@@ -255,9 +256,31 @@ export function EndBox({ c }: C) {
       )}
       <div className="ap-fields">
         {field("start", p.start, "Start at playhead", "I")}
+        {/* 0.5.1 (Nik, 11 Nov): where the track starts by default wherever it plays: the Beginning or a marker. */}
+        <div className="ap-frow">
+          <label htmlFor="ap-startat">Start at</label>
+          <select
+            id="ap-startat"
+            className="input"
+            data-k="ap-startat"
+            value={p.startAt === null ? "" : String(p.startAt)}
+            disabled={!editable}
+            title="Where it starts wherever it plays (a scene, Live, Play on air). Add a marker to start there."
+            onChange={(e) => actions.setStartAt(e.target.value === "" ? null : Number(e.target.value))}
+          >
+            <option value="">{`Beginning (${fmt(p.start)})`}</option>
+            {startAtChoices(p).map((m, i) => (
+              <option key={`${m.at}-${i}`} value={String(m.at)}>
+                {`${m.label || "Marker"} (${fmt(m.at)})`}
+              </option>
+            ))}
+          </select>
+        </div>
         {field("end", p.end, "End at playhead", "O")}
         {p.after === "loop" && field("loop", p.loopStart, "Loop from playhead", "L")}
       </div>
+      {/* 0.5.1 (Nik, 11 Nov): Pick up where it stopped, the track's own choice wherever it plays, here too. */}
+      <TrackPickUp track={c.editor.track} />
     </>
   );
 }

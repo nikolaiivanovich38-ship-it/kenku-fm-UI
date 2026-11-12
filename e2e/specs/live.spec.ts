@@ -3,7 +3,7 @@
  * Elements are found by role, accessible name and visible text only.
  */
 import type { Page } from "@playwright/test";
-import { expect, expectFailureUntilBuilt, metByTheAppAlready, test } from "./support/test";
+import { appOnly, expect, expectFailureUntilBuilt, metByTheAppAlready, test } from "./support/test";
 import { joinRoom, leaveAllRooms, openRoute } from "./support/target";
 
 /* The app's Live is still 0.4.1's (an On air box per room, Off script, the Pads box). A check written for round 6
@@ -1519,5 +1519,67 @@ test.describe("0.5.1: fades of 5 seconds, and Rooms' actions in On air", () => {
     await page.getByRole("button", { name: "Add a room" }).click();
     await page.getByRole("menu").getByRole("menuitem", { name: "Add a bot…" }).click();
     await expect(page.getByRole("dialog")).toContainText("Add a bot");
+  });
+});
+
+/* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round (support/test.ts appOnly). */
+test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
+  test("On air: the playing track's bar is a seek bar: a click jumps there, the arrow keys 5 s (\"click in the tracking bar … and skip\")", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "live");
+    await startAbbey(page);
+    const seek = room(page, "Table").getByRole("slider", { name: /^Position in / }).first();
+    await expect(seek).toHaveAttribute("aria-valuetext", /^\d+:\d\d of \d+:\d\d$/);
+    const box = (await seek.boundingBox())!;
+    expect(box.height).toBeGreaterThanOrEqual(24);
+    const max = Number(await seek.getAttribute("aria-valuemax"));
+    expect(max).toBeGreaterThan(20);
+    await seek.click({ position: { x: box.width / 2, y: box.height / 2 } });
+    await expect.poll(async () => Number(await seek.getAttribute("aria-valuenow"))).toBeGreaterThan(max / 2 - 10);
+    const now = Number(await seek.getAttribute("aria-valuenow"));
+    await seek.press("Home");
+    await expect.poll(async () => Number(await seek.getAttribute("aria-valuenow"))).toBeLessThan(Math.min(now, 5));
+    await seek.press("ArrowRight");
+    await seek.press("ArrowRight");
+    await expect.poll(async () => Number(await seek.getAttribute("aria-valuenow"))).toBeGreaterThanOrEqual(10);
+  });
+
+  test("rooms from Live: a bot's menu chooses its channel, adds a room and kicks; Add a room offers Add a bot… (\"I don't want to have to tab to the rooms tab\")", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "live");
+    await page.getByRole("button", { name: "Lyre Table in Table: change" }).click();
+    const menu = page.getByRole("menu", { name: "Room Table" });
+    await expect(menu).toContainText("Lyre Table plays in");
+    await expect(menu).toContainText("Add a room: Lyre Side joins…");
+    await expect(menu.getByRole("menuitem", { name: "Kick Lyre Table from Table" })).toBeVisible();
+    await menu.getByRole("menuitem", { name: /^Side room.*Lyre Side joins$/ }).click();
+    await expect(room(page, "Side room")).toBeVisible();
+    await page.getByRole("button", { name: "Add a room" }).click();
+    const add = page.getByRole("menu", { name: "Add a room" });
+    await expect(add).toContainText("Every bot is in a room");
+    await add.getByRole("menuitem", { name: "Add a bot…" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
+  });
+
+  test("On air: Stop beside Pause on the playing track, and Shuffle next to Repeat (\"I need both\")", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "live");
+    await startAbbey(page);
+    const table = room(page, "Table");
+    const pause = table.getByRole("button", { name: "Pause music" });
+    const stop = table.getByRole("button", { name: "Stop music" });
+    await expect(pause).toBeVisible();
+    await expect(stop).toBeVisible();
+    for (const b of [stop, table.getByRole("button", { name: "Shuffle" })]) {
+      const box = (await b.boundingBox())!;
+      expect(box.width).toBeGreaterThanOrEqual(24);
+      expect(box.height).toBeGreaterThanOrEqual(24);
+    }
+    const shuffle = table.getByRole("button", { name: "Shuffle" });
+    await expect(shuffle).toHaveAttribute("aria-pressed", "false");
+    await shuffle.click();
+    await expect(shuffle).toHaveAttribute("aria-pressed", "true");
+    await stop.click();
+    await expect(table.getByRole("button", { name: "Pause music" })).toHaveCount(0);
   });
 });

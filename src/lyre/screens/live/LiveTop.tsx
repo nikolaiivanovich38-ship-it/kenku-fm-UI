@@ -7,6 +7,7 @@
 import React, { useEffect, useRef } from "react";
 
 import { useLyreApi } from "../../api";
+import { DEFAULT_FADES_MS } from "../../audio/lyreAudio";
 import { Icon } from "../../kit/Icon";
 import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
 import { RenameField, renameKeys, useRenameInPlace } from "../../kit/RenameInPlace";
@@ -132,7 +133,7 @@ export function LiveTop({ keysOpen, setKeysOpen, setKeys1, loadSession }: TopPro
         className="btn s lv-fade"
         aria-label="Fade all"
         aria-keyshortcuts={ariaKey(live.keys.fadeAll)}
-        title={`Fade all: everything fades out over 3 seconds (${live.keys.fadeAll})`}
+        title={`Fade all: everything fades out over ${DEFAULT_FADES_MS.fadeAll / 1000} seconds (${live.keys.fadeAll})`}
         onClick={() => {
           touched();
           audio.fadeAll();
@@ -211,7 +212,7 @@ function KeysPop({ setKeysOpen, setKeys1, keys1 }: { setKeysOpen: TopProps["setK
         {row(padList, board ? `Pads on ${board.name} (Current scene)` : "Pads of the current scene", true)}
         {row("Alt+1…7", `Go to a box: ${LIVE_BOXES.map((b) => b.name).join(", ")}`, false)}
         {row("F6", "Next box (Shift+F6: the one before)", false)}
-        {row(keys.fadeAll, "Fade all (3 s)", false)}
+        {row(keys.fadeAll, `Fade all (${DEFAULT_FADES_MS.fadeAll / 1000} s)`, false)}
         {row(keys.undo, "Undo the last change (for 8 s)", false)}
         {row("Esc", "Close a menu or clear the search", false)}
       </ul>

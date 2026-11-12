@@ -41,4 +41,4 @@ export const BUILT_SCREENS: readonly string[] = ["library", "playlists", "audio-
  * They are a list of their own because "live" is a screen as well as a stream.
  */
 export type Stream = "shell" | "live" | "rooms-settings" | "prep" | "retire" | "feat";
-export const BUILT_STREAMS: readonly Stream[] = ["shell", "rooms-settings", "prep", "live", "retire"];
+export const BUILT_STREAMS: readonly Stream[] = ["shell", "rooms-settings", "prep", "live", "retire", "feat"];

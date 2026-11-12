@@ -165,6 +165,11 @@ export interface AudioProfile {
   fadeOut: Fade;
   /** DAT-3: named points; `mix` marks the one mix-out point (where the next track crossfades in), at most one. */
   markers: { atMs: number; label: string; mix?: boolean }[];
+  /**
+   * 0.5.1 Start at: where the track starts by default wherever it plays with this profile, the time of one of its
+   * markers; null or missing: the Beginning (startMs). A marker chosen to play from, or Pick up where it stopped, wins.
+   */
+  startAtMs?: number | null;
 }
 
 export type AudioProfileInput = Partial<AudioProfile>;

@@ -7,7 +7,7 @@
 import React from "react";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { normaliseHover } from "../../../common/domain";
 import { GLOBAL_KEY_EVENT } from "../../../common/globalKeys";
@@ -320,7 +320,7 @@ describe("single-key shortcuts and the keys", () => {
     expect(screen.getByRole("group", { name: "Keys on the live screen" })).toHaveTextContent("On air, Scenes, Current scene, Session playlists");
     // UX-R15: Find and play is listed too, and Fade all has one name.
     expect(screen.getByRole("group", { name: "Keys on the live screen" })).toHaveTextContent(/Ctrl\+K\s*Find and play anything/);
-    expect(screen.getByRole("group", { name: "Keys on the live screen" })).toHaveTextContent("Fade all (3 s)");
+    expect(screen.getByRole("group", { name: "Keys on the live screen" })).toHaveTextContent("Fade all (5 s)");
     expect(screen.queryByRole("menu")).toBeNull();
     press("Escape");
     expect(screen.queryByRole("group", { name: "Keys on the live screen" })).toBeNull();
@@ -442,6 +442,105 @@ describe("UX-12: keys that work in other programs too", () => {
     expect(globalKey("fadeAll").defaultPrevented).toBe(true);
     await playOn(sound, 5);
     expect(room("Table").getByText("Silent")).toBeInTheDocument();
+  });
+});
+
+describe("0.5.1: the fade buttons take 5 s", () => {
+  it("Fade all says 5 seconds; a room's Fade music out fades over 5 s", async () => {
+    const { sound } = await openLive();
+    expect(screen.getByRole("button", { name: "Fade all" })).toHaveAttribute("title", expect.stringContaining("over 5 seconds"));
+    await userEvent.click(screen.getByRole("button", { name: "Start: Recap and the coast road" }));
+    await playOn(sound, 5);
+    const fade = room("Table").getByRole("button", { name: "Fade music out" });
+    expect(fade).toHaveAttribute("title", "Fade music out over 5 seconds");
+    const stopLane = vi.spyOn(sound.audio, "stopLane");
+    await userEvent.click(fade);
+    expect(stopLane).toHaveBeenCalledWith("music", expect.objectContaining({ fadeMs: 5000 }));
+  });
+});
+
+describe("0.5.1: Stop and Shuffle on air (Nik, 11 Nov)", () => {
+  it("the playing music has Stop beside Pause (both kept); Stop ends the music in that room", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    const controls = within(room("Table").getByRole("group", { name: "Music in Table" }));
+    const names = controls.getAllByRole("button").map((b) => b.getAttribute("aria-label"));
+    expect(names.indexOf("Stop music")).toBe(names.indexOf("Pause music") + 1);
+    await userEvent.click(controls.getByRole("button", { name: "Stop music" }));
+    await playOn(sound, 2);
+    expect(sound.audio.getNowPlaying().rooms[0].music).toBeNull();
+    expect(sound.audio.getNowPlaying().rooms[0].ambience).not.toBeNull();
+  });
+
+  it("each room has Shuffle next to Repeat, pressed while on, for what plays now", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    const shuffle = () => room("Table").getByRole("button", { name: "Shuffle" });
+    const repeat = room("Table").getByRole("button", { name: /^Repeat: / });
+    expect(shuffle().nextElementSibling ?? shuffle().previousElementSibling).toBe(repeat);
+    expect(shuffle()).toHaveAttribute("aria-pressed", "false");
+    await userEvent.click(shuffle());
+    await waitFor(() => expect(shuffle()).toHaveAttribute("aria-pressed", "true"));
+    expect(sound.audio.getNowPlaying().rooms[0].shuffle).toBe(true);
+    await userEvent.click(shuffle());
+    await waitFor(() => expect(shuffle()).toHaveAttribute("aria-pressed", "false"));
+  });
+});
+
+describe("0.5.1: On air's position bar is a seek bar (Nik, 11 Nov)", () => {
+  it("the playing music's bar is a slider named for the track; Right jumps 5 s on in that room, Home to the start", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound, 2);
+    // Music first, then the ambience.
+    const seek = room("Table").getAllByRole("slider", { name: /^Position in / })[0];
+    expect(seek.getAttribute("aria-label")).toBe(`Position in ${sound.audio.getNowPlaying().rooms[0].music!.title}`);
+    expect(seek).toHaveAttribute("aria-valuetext", expect.stringMatching(/^0:0\d of \d+:\d\d$/));
+    const before = sound.audio.getPositions().rooms[sound.audio.getNowPlaying().rooms[0].roomId]!.music!;
+    seek.focus();
+    await userEvent.keyboard("{ArrowRight}");
+    await playOn(sound, 0.25);
+    expect(sound.audio.getPositions().rooms[sound.audio.getNowPlaying().rooms[0].roomId]!.music!).toBeGreaterThan(before + 4.5);
+    await userEvent.keyboard("{Home}");
+    await playOn(sound, 0.25);
+    expect(sound.audio.getPositions().rooms[sound.audio.getNowPlaying().rooms[0].roomId]!.music!).toBeLessThan(1);
+  });
+});
+
+describe("0.5.1: rooms from Live, without going to Rooms (Nik, 11 Nov)", () => {
+  it("a room's bot menu chooses its channel, adds a room with the free bot, and kicks it with Undo", async () => {
+    const { outputs, sound } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    const bot = screen.getByRole("button", { name: "Lyre Table in Table: change" });
+    expect(bot).toHaveAttribute("title", expect.stringMatching(/^Choose a channel/));
+    await userEvent.click(bot);
+    let menu = within(screen.getByRole("menu", { name: "Room Table" }));
+    expect(menu.getByText("Lyre Table plays in")).toBeInTheDocument();
+    // Add a room: the free bot (Lyre Side) joins a channel from here too.
+    expect(menu.getByText("Add a room: Lyre Side joins…")).toBeInTheDocument();
+    await userEvent.click(menu.getByRole("menuitem", { name: /^Side room.*Lyre Side joins$/ }));
+    await act(async () => outputs.settle());
+    await findRoom("Side room");
+    // Kick from the menu, with Undo.
+    await userEvent.click(screen.getByRole("button", { name: "Lyre Table in Table: change" }));
+    menu = within(screen.getByRole("menu", { name: "Room Table" }));
+    await userEvent.click(menu.getByRole("menuitem", { name: "Kick Lyre Table from Table" }));
+    await act(async () => outputs.settle());
+    const strip = within(screen.getByRole("region", { name: "On air" })).getAllByRole("group", { name: "Undo" }).find((st) => st.textContent?.includes("Lyre Table left Table"))!;
+    expect(strip).toBeTruthy();
+  });
+
+  it("Add a room is there with every bot in a room: it offers Add a bot…, which opens Settings", async () => {
+    const { outputs } = await openLive();
+    await addSideRoom(outputs);
+    await userEvent.click(screen.getByRole("button", { name: "Add a room" }));
+    const menu = within(screen.getByRole("menu", { name: "Add a room" }));
+    expect(menu.getByText("Every bot is in a room")).toBeInTheDocument();
+    await userEvent.click(menu.getByRole("menuitem", { name: "Add a bot…" }));
+    expect(window.location.hash).toBe("#/settings");
   });
 });
 

@@ -914,6 +914,8 @@ export interface LyreApi {
     create(campaign: NewCampaign): Promise<WriteResult<CampaignInfo>>;
     /** campaigns.js L.inputs.cpcamp, cpcampnotes, cpobs. */
     update(id: string, patch: CampaignPatch): Promise<WriteResult<CampaignInfo>>;
+    /** 0.5.1: the campaign's place in the Campaigns screen's order (drag, or Move up and Move down). */
+    move(id: string, toIndex: number): Promise<WriteResult>;
     /** The playlists, boards or (ORG-12) single tracks a campaign or session keeps on hand, in order. campaigns.js L.acts.cpadd, cprm. */
     setOnHand(owner: Owner, kind: "playlists" | "boards" | "tracks", ids: string[]): Promise<WriteResult>;
     /** Where something is used. playlists.js usesPane, pldel; boards.js usedPane, card, pbdelboard; library.js "Used in". */
@@ -1031,7 +1033,7 @@ export const LYRE_API_METHODS = {
   folders: ["list", "create", "update", "delete", "moveInto"],
   playlists: ["list", "tracks", "containing", "create", "update", "copyAsManual", "delete", "addTracks", "removeTrack", "moveTrack", "playOrders", "setPlayOrder", "clearPlayOrder", "setNormalise", "trackOrders", "setTrackOrder", "clearTrackOrder", "addDivider", "renameDivider", "removeDivider", "moveItem"],
   boards: ["list", "create", "rename", "resize", "duplicate", "delete", "addPad", "updatePad", "duplicatePad", "movePad", "putAllBack", "deletePad", "setDivider", "setPadSteps"],
-  campaigns: ["list", "get", "create", "update", "setOnHand", "usesOf", "setUses"],
+  campaigns: ["list", "get", "create", "update", "move", "setOnHand", "usesOf", "setUses"],
   sessions: ["create", "update", "move", "createScene", "updateScene", "moveScene", "duplicateScene", "deleteScene", "setSceneMusic", "setSceneAmbience", "setSceneBoards", "setTrackName", "setRepeatOne", "setSceneSteps"],
   profiles: ["overrides", "set", "clear"],
   import: ["start", "watchFolder", "findMissing", "planRelink", "applyRelink", "previewFound", "endRelinkPreview"],

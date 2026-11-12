@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { getLiveSession, loadInLive } from "../../kit/liveSession";
 import { expectNoAxeViolations } from "../../test/axe";
-import { main, openAt, region } from "./testing";
+import { saveShellSettings } from "../../shell/settings";
+import { dragFirstOntoLowerHalfOfLast, main, openAt, region } from "./testing";
 
 beforeEach(() => {
   localStorage.clear();
@@ -40,6 +41,15 @@ describe("one campaign", () => {
     openAt("campaign/crown");
     await userEvent.click(await screen.findByRole("button", { name: "Live" }));
     expect(getLiveSession()).toEqual({ campaignId: "crown", sessionId: "s12" });
+  });
+
+  it("0.5.1: the campaign's theme shows whatever base Look and feel chose, with no note about Look and feel", async () => {
+    saveShellSettings({ theme: "parchment", rail: "auto", panes: {} });
+    openAt("campaign/crown");
+    const theme = (await screen.findByRole("combobox", { name: "Theme" })) as HTMLSelectElement;
+    await waitFor(() => expect(document.documentElement.dataset.theme).toBe("hearth"));
+    expect(theme).not.toHaveAttribute("aria-describedby");
+    expect(screen.queryByText(/Look and feel is showing every page/)).toBeNull();
   });
 
   it("name, game system, theme and description are edited on the page; the theme changes the page", async () => {
@@ -124,6 +134,24 @@ describe("sessions of a campaign", () => {
     await waitFor(async () => expect((await api.campaigns.get("crown"))?.sessions.map((s) => s.id)).toEqual(["s12", "s14", "s13", "s15"]));
     expect(await screen.findByRole("button", { name: "More for Session 14: The coast road" })).toHaveFocus();
     expect(await screen.findByText("The coast road is now Session 14, 3 of 4")).toBeInTheDocument();
+  });
+
+  it("a session moves down into the last place from its menu (Nik, 0.5.0)", async () => {
+    const { api } = openAt("campaign/crown");
+    await userEvent.click(await screen.findByRole("button", { name: /^More for Session 14/ }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Move down" }));
+    await waitFor(async () => expect((await api.campaigns.get("crown"))?.sessions.map((s) => s.id)).toEqual(["s12", "s13", "s15", "s14"]));
+    await userEvent.click(await screen.findByRole("button", { name: /^More for Session 15/ }));
+    expect(screen.queryByRole("menuitem", { name: "Move down" })).toBeNull();
+  });
+
+  it("a session dropped on the lower half of the last session goes last, with the line after it, when the box ends right under it", async () => {
+    const { api } = openAt("campaign/crown");
+    const list = await screen.findByRole("list", { name: "Sessions in order" });
+    const rows = within(list).getAllByRole("listitem");
+    expect(rows).toHaveLength(4);
+    dragFirstOntoLowerHalfOfLast(rows, () => expect(rows[3]).toHaveClass("cp-drop-after"));
+    await waitFor(async () => expect((await api.campaigns.get("crown"))?.sessions.map((s) => s.id)).toEqual(["s13", "s14", "s15", "s12"]));
   });
 });
 

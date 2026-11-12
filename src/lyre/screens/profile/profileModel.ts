@@ -25,6 +25,8 @@ export interface Prof {
   fadeOut: FadeSec;
   /** `mix`: the one mix-out point (DAT-3), where the next track crossfades in. */
   markers: { at: number; label: string; mix?: boolean }[];
+  /** 0.5.1 Start at: one marker's time, where the track starts by default; null: the Beginning (Start). */
+  startAt: number | null;
 }
 
 /** The points and lengths the handles, fields and steppers change. */
@@ -104,6 +106,7 @@ export function fromDomain(p: AudioProfile): Prof {
     fadeIn: { dur: p.fadeIn.ms / 1000, shape: p.fadeIn.shape },
     fadeOut: { dur: p.fadeOut.ms / 1000, shape: p.fadeOut.shape },
     markers: p.markers.map((m) => ({ at: m.atMs / 1000, label: m.label, ...(m.mix ? { mix: true } : {}) })),
+    startAt: p.startAtMs != null ? p.startAtMs / 1000 : null,
   };
 }
 
@@ -120,7 +123,13 @@ export function toInput(p: Prof): Required<AudioProfileInput> {
     fadeIn: { ms: ms(p.fadeIn.dur), shape: p.fadeIn.shape },
     fadeOut: { ms: ms(p.fadeOut.dur), shape: p.fadeOut.shape },
     markers: p.markers.map((m) => ({ atMs: ms(m.at), label: m.label, ...(m.mix ? { mix: true } : {}) })),
+    startAtMs: p.startAt === null ? null : ms(p.startAt),
   };
+}
+
+/** 0.5.1: the markers Start at can name: those from Start up to (not at) End. */
+export function startAtChoices(p: Pick<Prof, "start" | "end" | "markers">): { at: number; label: string }[] {
+  return p.markers.filter((m) => m.at >= p.start && m.at < p.end);
 }
 
 /* ---------- limits ---------- */
@@ -136,7 +145,9 @@ export function normalise(p: Prof): Prof {
   const loopStart = clamp(p.loopStart, p.start, p.end - 1);
   const fadeOutDur = clamp(p.fadeOut.dur, 0, span);
   const fadeInDur = clamp(p.fadeIn.dur, 0, span - fadeOutDur);
-  const next = { ...p, loopStart, fadeIn: { ...p.fadeIn, dur: fadeInDur }, fadeOut: { ...p.fadeOut, dur: fadeOutDur } };
+  // 0.5.1: Start at names a marker between Start and End, else it is the Beginning again.
+  const startAt = p.startAt !== null && startAtChoices(p).some((m) => m.at === p.startAt) ? p.startAt : null;
+  const next = { ...p, loopStart, startAt, fadeIn: { ...p.fadeIn, dur: fadeInDur }, fadeOut: { ...p.fadeOut, dur: fadeOutDur } };
   return { ...next, loopXfade: clamp(p.loopXfade, 0, maxXfade(next)) };
 }
 

@@ -318,6 +318,23 @@ describe("Settings › Remote control (SEC-4; hidden in 0.5.1 until Stream Deck 
     expect(toast()).toBe("Saved: new remote control code · the old one stops working");
   });
 
+  it("Copy code copies the code; when Lyre cannot copy, it says so in plain words (Nik, 0.5.0: Copy path copied nothing)", async () => {
+    open();
+    const box = await unfold("Remote control");
+    await waitFor(() => expect(box.getByRole("switch", { name: "Let other devices control Lyre" })).toBeEnabled());
+    await userEvent.click(box.getByRole("switch", { name: "Let other devices control Lyre" }));
+    await box.findByRole("group", { name: "Secret code" });
+    const writeText = vi.fn(async (_text: string) => undefined);
+    // After userEvent's last use: its setup puts a clipboard of its own on the page.
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    act(() => box.getByRole("button", { name: "Copy code" }).click());
+    await waitFor(() => expect(toast()).toBe("Code copied"));
+    expect(writeText).toHaveBeenCalledWith("K7QD-92XF");
+    Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
+    act(() => box.getByRole("button", { name: "Copy code" }).click());
+    await waitFor(() => expect(toast()).toBe("Lyre could not copy the code: type it on the other device."));
+  });
+
   it("can listen on the home network instead, at this computer's address", async () => {
     const { remote } = open(undefined, <RemotePane />);
     const box = await unfold("Remote control");

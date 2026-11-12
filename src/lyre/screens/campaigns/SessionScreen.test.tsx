@@ -7,7 +7,7 @@ import type { CampaignInfo, SessionInfo } from "../../../common/lyre/api";
 import { createFakeLyreApi, type FakeLyreApi } from "../../../common/lyre/fake";
 import { getLiveSession, loadInLive } from "../../kit/liveSession";
 import { expectNoAxeViolations } from "../../test/axe";
-import { go, main, openAt, region } from "./testing";
+import { dragFirstOntoLowerHalfOfLast, go, main, openAt, region } from "./testing";
 
 beforeEach(() => {
   localStorage.clear();
@@ -178,6 +178,21 @@ describe("a scene's music", () => {
     expect(within(list.getByRole("list", { name: /^Tracks in The Abbess(,|$)/ })).getAllByRole("listitem")).toHaveLength(5);
   });
 
+  it("0.5.1: each track of a playlist in the scene has Play on air beside its Preview, as the playlist has", async () => {
+    const { audio } = await openAbbey();
+    const list = within(abbey().getByRole("list", { name: "Music in order" }));
+    expect(list.getByRole("button", { name: "Play on air: The Abbess" })).toBeInTheDocument();
+    await userEvent.click(list.getByRole("button", { name: "Show contents of The Abbess" }));
+    const rows = within(list.getByRole("list", { name: /^Tracks in The Abbess(,|$)/ })).getAllByRole("listitem");
+    for (const row of rows) expect(within(row).getByRole("button", { name: /^Play on air: / })).toBeInTheDocument();
+    const first = within(rows[0]).getByRole("button", { name: /^Play on air: / });
+    const preview = within(rows[0]).getByRole("button", { name: /^Preview / });
+    expect(preview.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(first.querySelector("svg")?.outerHTML).toBe(list.getByRole("button", { name: "Play on air: The Abbess" }).querySelector("svg")?.outerHTML);
+    await userEvent.click(first);
+    expect(audio.calls.filter(([m]) => m === "playTrack")).toHaveLength(1);
+  });
+
   it("Add tracks or playlists… adds ticked items in the order ticked; the picker filters and searches", async () => {
     const { api } = await openAbbey();
     await userEvent.click(abbey().getByRole("button", { name: "Add tracks or playlists…" }));
@@ -289,6 +304,56 @@ describe("scenes", () => {
     expect((await s14(api)).scenes.map((s) => s.id)).toEqual(["sc1", "sc2", "sc4", "sc3", "sc5", "sc6"]);
   });
 
+  it("moves down into the last place from its menu, and the last scene has no Move down (Nik, 0.5.0)", async () => {
+    const { api } = openAt("session/crown/s14");
+    await userEvent.click(await screen.findByRole("button", { name: "More for The Abbess" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Move down" }));
+    await waitFor(async () => expect((await s14(api)).scenes.map((s) => s.id)).toEqual(["sc1", "sc2", "sc3", "sc4", "sc6", "sc5"]));
+    await waitFor(() => expect(sceneCards()[5]).toHaveAccessibleName("Scene 6: The Abbess"));
+    await userEvent.click(screen.getByRole("button", { name: "More for The Abbess" }));
+    expect(screen.getByRole("menuitem", { name: "Move up" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Move down" })).toBeNull();
+  });
+
+  it("a scene dragged by its handle below the last one, in the rest of the box, goes last (Nik, 0.5.0)", async () => {
+    const { api } = openAt("session/crown/s14");
+    await waitFor(() => expect(sceneCards()).toHaveLength(6));
+    // jsdom has no layout: each scene card 40 px high from the top of its box, the box 600 px high.
+    const cards = sceneCards();
+    const original = Element.prototype.getBoundingClientRect;
+    Element.prototype.getBoundingClientRect = function (this: Element) {
+      const i = cards.indexOf(this as HTMLElement);
+      const box = (top: number, height: number) => ({ top, bottom: top + height, height, left: 0, right: 600, width: 600, x: 0, y: top, toJSON: () => ({}) }) as DOMRect;
+      if (i >= 0) return box(100 + i * 46, 40);
+      if (this.classList.contains("pane-body")) return box(90, 600);
+      return original.call(this);
+    };
+    try {
+      const first = cards[0];
+      fireEvent.pointerDown(first.querySelector("[title='Drag to reorder']")!);
+      fireEvent.dragStart(first, { dataTransfer: { effectAllowed: "", types: ["text/plain"], setData: (): void => undefined } });
+      const paneBody = first.closest(".pane-body")!;
+      const at = (type: string) => {
+        const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientY: 500 });
+        Object.defineProperty(event, "dataTransfer", { value: { types: ["text/plain"], files: [], dropEffect: "" } });
+        fireEvent(paneBody, event);
+      };
+      at("dragover");
+      at("drop");
+      await waitFor(async () => expect((await s14(api)).scenes.map((s) => s.id)).toEqual(["sc2", "sc3", "sc4", "sc5", "sc6", "sc1"]));
+    } finally {
+      Element.prototype.getBoundingClientRect = original;
+    }
+  });
+
+  it("a scene dropped on the lower half of the last scene goes last, with the line after it, when the box ends right under it", async () => {
+    const { api } = openAt("session/crown/s14");
+    await waitFor(() => expect(sceneCards()).toHaveLength(6));
+    const cards = sceneCards();
+    dragFirstOntoLowerHalfOfLast(cards, () => expect(cards[5]).toHaveClass("cp-drop-after"));
+    await waitFor(async () => expect((await s14(api)).scenes.map((s) => s.id)).toEqual(["sc2", "sc3", "sc4", "sc5", "sc6", "sc1"]));
+  });
+
   it("Add scene adds a scene after the one last worked on and puts the cursor in its name", async () => {
     const { api } = await openAbbey();
     await userEvent.click(screen.getByRole("button", { name: "Add scene" }));
@@ -298,6 +363,46 @@ describe("scenes", () => {
     await userEvent.keyboard("Bells at midnight");
     expect(await screen.findByRole("listitem", { name: "Scene 4: Bells at midnight" })).toBeInTheDocument();
     await waitFor(async () => expect((await s14(api)).scenes[3].name).toBe("Bells at midnight"));
+  });
+
+  it("0.5.1: with no scene open or focused, Add scene adds at the end", async () => {
+    const { api } = openAt("session/crown/s14");
+    await userEvent.click(await screen.findByRole("button", { name: "Add scene" }));
+    await waitFor(() => expect(sceneCards()).toHaveLength(7));
+    expect(sceneCards()[6]).toHaveAccessibleName("Scene 7: Scene 7");
+    expect(screen.getByDisplayValue("Scene 7")).toHaveFocus();
+    await waitFor(async () => expect((await s14(api)).scenes).toHaveLength(7));
+    expect((await s14(api)).scenes.slice(0, 6).map((x) => x.id)).toEqual(["sc1", "sc2", "sc3", "sc4", "sc5", "sc6"]);
+  });
+
+  it("0.5.1: with a scene focused (folded), Add scene adds right after it", async () => {
+    openAt("session/crown/s14");
+    (await screen.findByRole("button", { name: "Scene 2: Greyhollow inn" })).focus();
+    await userEvent.click(screen.getByRole("button", { name: "Add scene" }));
+    await waitFor(() => expect(sceneCards()).toHaveLength(7));
+    expect(sceneCards()[2]).toHaveAccessibleName("Scene 3: Scene 3");
+  });
+
+  it("0.5.1: with a scene open, Add scene adds right after it even once focus has moved on", async () => {
+    openAt("session/crown/s14");
+    await userEvent.click(await screen.findByRole("button", { name: "Scene 5: The Abbess" }));
+    await userEvent.click(main().getByRole("heading", { level: 1 }));
+    act(() => (document.activeElement as HTMLElement | null)?.blur());
+    await userEvent.click(screen.getByRole("button", { name: "Add scene" }));
+    await waitFor(() => expect(sceneCards()).toHaveLength(7));
+    expect(sceneCards()[5]).toHaveAccessibleName("Scene 6: Scene 6");
+  });
+
+  it("0.5.1: a scene worked on, then folded and left, is no longer selected: Add scene adds at the end", async () => {
+    openAt("session/crown/s14");
+    const abbess = await screen.findByRole("button", { name: "Scene 5: The Abbess" });
+    await userEvent.click(abbess);
+    await userEvent.click(abbess);
+    act(() => (document.activeElement as HTMLElement | null)?.blur());
+    await userEvent.click(main().getByRole("heading", { level: 1 }));
+    await userEvent.click(screen.getByRole("button", { name: "Add scene" }));
+    await waitFor(() => expect(sceneCards()).toHaveLength(7));
+    expect(sceneCards()[6]).toHaveAccessibleName("Scene 7: Scene 7");
   });
 
   it("duplicates a scene after itself", async () => {

@@ -16,7 +16,7 @@ describe("the library schema (DAT-11)", () => {
   it("makes a new library in one upgrade, with the Mood, Leitmotif and Scene type tag groups", () => {
     const db = openConnection(":memory:");
     // Step 1 is the whole library; step 2 (w3-media) adds loudness peaks per track; step 3 design round 5; step 4 normalisation; 5 and 6 design rounds 6 and 7.
-    expect(migrate(db, MIGRATIONS)).toEqual({ from: 0, to: 6, applied: [1, 2, 3, 4, 5, 6] });
+    expect(migrate(db, MIGRATIONS)).toEqual({ from: 0, to: 7, applied: [1, 2, 3, 4, 5, 6, 7] });
     expect(schemaVersion(db)).toBe(MIGRATIONS.length);
     expect((all(db, "SELECT name FROM tag_groups ORDER BY position") as { name: string }[]).map((g) => g.name)).toEqual([
       "Mood",

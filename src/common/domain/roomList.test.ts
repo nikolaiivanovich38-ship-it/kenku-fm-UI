@@ -17,6 +17,7 @@ import {
   removeFromUpNext,
   sceneStarted,
   setRoomRepeat,
+  setRoomShuffle,
   shownRepeat,
   undoLast,
   upNext,
@@ -238,5 +239,36 @@ describe("Repeat per room (Nik, 6 Nov 12:24: not saved, ends when the music stop
 
   it("pressing goes off, all, one in turn", () => {
     expect(["off", "all", "one"].map((r) => nextRepeat(r as "off"))).toEqual(["all", "one", "off"]);
+  });
+});
+
+describe("0.5.1: the room's Shuffle (Nik, 11 Nov: \"I also need a shuffle button in the on air live view\")", () => {
+  // A deal that puts the plan's steps in the order d, b, a, c (by key).
+  const deal = ["s:3", "s:1", "s:0", "s:2"];
+
+  it("is off at first; on, the plan plays in the dealt order from the track that plays, and Up next shows that order", () => {
+    expect(emptyRoomList().shuffle).toBeNull();
+    const list = setRoomShuffle(emptyRoomList(), deal);
+    expect(upNextTracks(list, scene(1))).toEqual(["a", "c"]);
+    expect(playThrough(list, scene, 1, 4).played).toEqual(["a", "c", "d", "b"]);
+  });
+
+  it("a playlist on its own with no Repeat stops after the last track of the deal", () => {
+    const list = setRoomShuffle(emptyRoomList(), deal);
+    expect(playThrough(list, playlistAlone, 3, 4).played).toEqual(["b", "a", "c", "(stop)"]);
+  });
+
+  it("Next follows the deal; skipped tracks are left out", () => {
+    let list = setRoomShuffle(emptyRoomList(), deal);
+    list = removeFromUpNext(list, { kind: "plan", key: "s:0" });
+    const r = pickNext(list, scene(1), { ended: false, repeat: "off" });
+    expect(r.pick && trackOf(r.pick)).toBe("c");
+  });
+
+  it("goes off again, like Repeat, when the music stops or a new plan starts", () => {
+    const list = setRoomShuffle(emptyRoomList(), deal);
+    expect(musicStopped(list).shuffle).toBeNull();
+    expect(newPlan(list).shuffle).toBeNull();
+    expect(setRoomShuffle(list, null).shuffle).toBeNull();
   });
 });

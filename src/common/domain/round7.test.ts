@@ -191,9 +191,17 @@ describe("PLY-4, SHW-3: tracks behave as tagged", () => {
     expect(roleChoices(track("u", [], { role: "underscore" }))).toEqual(["ending", "resume", "follow"]);
     expect(roleChoices(track("l", [], { role: "loop_bed" }))).toEqual(["resume"]);
     expect(roleChoices(track("s", [], { role: "sting" }))).toEqual(["follow"]);
-    expect(roleChoices(track("x", [], { role: "transition" }))).toEqual(["ending", "follow"]);
-    expect(roleChoices(track("n", []))).toEqual([]);
+    expect(roleChoices(track("x", [], { role: "transition" }))).toEqual(["ending", "resume", "follow"]);
+    expect(roleChoices(track("n", []))).toEqual(["resume"]);
     expect(roleChoices(track("e", [], { kind: "fx", role: "effect" }))).toEqual([]);
+  });
+
+  it("0.5.1: every music track but a sting offers Pick up where it stopped (Nik, 11 Nov); ambience and effects do not", () => {
+    expect(roleChoices(track("n", [], { kind: "music", role: null }))).toContain("resume");
+    expect(roleChoices(track("t", [], { kind: "music", role: "transition" }))).toContain("resume");
+    expect(roleChoices(track("s", [], { kind: "music", role: "sting" }))).not.toContain("resume");
+    expect(roleChoices(track("a", [], { kind: "amb", role: null }))).toEqual([]);
+    expect(roleChoices(track("f", [], { kind: "fx", role: null }))).toEqual([]);
   });
 
   it("a sting never loops, whatever its profile says", () => {

@@ -3,7 +3,7 @@
  * orderKey). ORG-13 (round 6): the order can be changed for this place only: drag a track, or press Alt+Up or
  * Alt+Down on any of its buttons; the Reorder switch (round 6 review Must 3, WCAG 2.5.7; Nik 6 Nov 13:51) shows Move
  * up and Move down on each row while it is on, so a single click does what a drag does. "Back to the playlist's
- * order" shows once the order differs. In a scene or session each track shows its name there (DAT-14), its tags
+ * order" shows once the order differs. Each track has Preview and Play on air (0.5.1). In a scene or session each track shows its name there (DAT-14), its tags
  * (ORG-11) and its waveform, end and fades there (PLY-14); in a scene a music track has Repeat one (PLY-17).
  */
 import React, { useEffect, useRef, useState } from "react";
@@ -15,7 +15,7 @@ import { Button } from "../../kit/Button";
 import { Icon } from "../../kit/Icon";
 import { ProfileLink } from "../../kit/ProfileLink";
 import { RepeatOneButton } from "../../kit/RepeatOneButton";
-import { PreviewButton } from "../../kit/SoundButtons";
+import { PlayOnAirButton, PreviewButton } from "../../kit/SoundButtons";
 import { TagStrip } from "../../kit/TagStrip";
 import { ownNameTitle, trackNameAt, useTrackNames } from "../../kit/trackName";
 import { useAnnounce } from "../../shell/Announcer";
@@ -178,7 +178,11 @@ export function PlaceTracks({ name, playlistId, lane, tracks, place }: { name: s
                 </a>
               )}
               <span data-ctl="preview">
-                <PreviewButton target={{ kind: "track", id: t.id, playlistId }} name={n.name} />
+                <PreviewButton target={{ kind: "track", id: t.id, playlistId, place }} name={n.name} />
+              </span>
+              {/* 0.5.1 (Nik, 11 Nov): Play on air for each track, as the playlist's row has. */}
+              <span data-ctl="air">
+                <PlayOnAirButton target={{ kind: "track", id: t.id, playlistId }} name={n.name} />
               </span>
               {place.kind === "scene" && lane === "music" && (
                 <span data-ctl="rep1">

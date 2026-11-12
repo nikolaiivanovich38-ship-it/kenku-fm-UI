@@ -44,9 +44,9 @@ describe("Look and feel › Display (UX-11, round 7)", () => {
     open();
     const h1 = await screen.findByRole("heading", { level: 1, name: "Look and feel" });
     expect(screen.queryByText("One Lyre, a theme per table")).toBeNull();
-    expect(h1).toHaveAttribute("title", expect.stringMatching(/^Each campaign can have its own theme/));
-    expect(h1).toHaveAccessibleDescription(/^Each campaign can have its own theme/);
-    expect(screen.getByText(/^Each campaign can have its own theme/)).toHaveClass("sr-only");
+    expect(h1).toHaveAttribute("title", expect.stringMatching(/^Choose the theme Lyre uses everywhere/));
+    expect(h1).toHaveAccessibleDescription(/^Choose the theme Lyre uses everywhere/);
+    expect(screen.getByText(/^Choose the theme Lyre uses everywhere/)).toHaveClass("sr-only");
   });
 
   it("Compact is the default; Comfortable is kept on this computer, marks the page and shows the Saved pop-up", async () => {
@@ -107,16 +107,16 @@ describe("Look and feel", () => {
     expect(document.getElementById("lyre-toast")).toHaveTextContent("Lyre now uses Parchment");
   });
 
-  it("Theme goes back to each campaign's own theme", async () => {
+  it("0.5.1: Theme chooses the base theme; there is no \"Each campaign's own\"", async () => {
     const main = open();
     const user = userEvent.setup();
-    await user.click(card("Elysium").getByRole("button", { name: "Use this theme: Elysium" }));
     const choice = main.getByRole("combobox", { name: "Theme" });
-    expect(choice).toHaveValue("elysium");
-    await user.selectOptions(choice, "Each campaign's own");
-    expect(loadShellSettings().theme).toBe("campaign");
-    expect(document.documentElement.dataset.theme).toBe("candle");
-    expect(screen.queryByRole("button", { name: /^In use/ })).toBeNull();
+    expect(choice).toHaveValue("candle");
+    expect(within(choice).queryByRole("option", { name: "Each campaign's own" })).toBeNull();
+    await user.selectOptions(choice, "Elysium (Vampire)");
+    expect(loadShellSettings().theme).toBe("elysium");
+    expect(document.documentElement.dataset.theme).toBe("elysium");
+    expect(card("Elysium").getByRole("button", { name: "In use: Elysium" })).toBeInTheDocument();
   });
 
   it("each card's sample is a picture: screen readers find only Use this theme (review 6)", () => {

@@ -52,11 +52,11 @@ Enforced in the main process (`BrowserViewManagerMain`) on every path into a tab
 
 | Caller | Allowed |
 |---|---|
-| Main window (`main-window`) | `media`, audio only (input device names for external inputs) |
+| Main window (`main-window`; no page has it since 0.5.1, see w51-main) | `media`, audio only (input device names for external inputs) |
 | Audio capture window (`audio-capture`) | `media`, audio only (tab capture and external inputs) |
-| Player view (`player-view`) | `clipboard-sanitized-write` (copy ids for Kenku Remote) |
+| The new interface (`lyre-view`) | `clipboard-sanitized-write` (Copy path, Copy code: it writes text, never reads it; 0.5.1, after Nik found that Copy path copied nothing), and `speaker-selection` as a check only (see w3-host) |
 | Any website tab | `fullscreen` |
-| A page the app is capturing for Discord (the player view, website tabs) | `media` with no media types, from its top-level frame only (tab capture; see below) |
+| A page the app is capturing for Discord (website tabs) | `media` with no media types, from its top-level frame only (tab capture; see below) |
 | Any embedded frame inside an app page (not its top-level frame) | nothing |
 
 App pages are identified by web-contents id in `trustedContents`, registered by `lockAppPage` (main window in `src/index.ts`, capture window in `AudioCaptureManagerMain`) and by `BrowserViewManagerMain` for the player view. The main window asks for the player view by kind (`"player"`), and the main process chooses the player preload itself; any other preload is refused (`REFUSED_VIEW_ID`, -1).
@@ -521,7 +521,7 @@ The new interface opens in a tab of its own, "Lyre", beside the old player. It i
 
 - **View kind.** The main window asks for the page with the kind `"lyre"` (`LYRE_VIEW_KIND`, `BROWSER_VIEW_CREATE_BROWSER_VIEW` now accepts `"player"` or `"lyre"`). `classifyViewRequest` accepts it only together with the page's own address (`LYRE_WINDOW_WEBPACK_ENTRY`); the main process picks `LYRE_WINDOW_PRELOAD_WEBPACK_ENTRY` itself (`APP_PAGES` in `BrowserViewManagerMain.ts`). Any other pairing, or a script path, is refused (`REFUSED_VIEW_ID`).
 - **Trusted role** `lyre-view`, registered by `lockAppPage`: `will-navigate` cancelled unless only the `#route` changes, every `window.open` denied (allowed web links become ordinary tabs, as for the player), `BROWSER_VIEW_LOAD_URL` refused for it. Default session, sandboxed, context isolation on (Electron defaults, as for the player; `e2e/lyre.spec.ts` checks them in the packaged app).
-- **Permissions.** `lyre-view` can ask for nothing; its `speaker-selection` check and the never-captured rule are w3-host's (`permissions.ts`, identical in both branches). It is never offered for tab capture: `BrowserViewManagerMain` does not send `BROWSER_VIEW_LOADED` for it (the main window offers every loaded view), and `AudioCaptureManagerMain` refuses any app page other than the player.
+- **Permissions.** `lyre-view` could ask for nothing (0.5.1: it may write text to the clipboard, see Permissions above); its `speaker-selection` check and the never-captured rule are w3-host's (`permissions.ts`, identical in both branches). It is never offered for tab capture: `BrowserViewManagerMain` does not send `BROWSER_VIEW_LOADED` for it (the main window offers every loaded view), and `AudioCaptureManagerMain` refuses any app page other than the player.
 - **Audio host hook.** `BrowserViewManagerMain` calls `onLyreView` once the page is created and trusted; `SessionManager` passes it to `LyreManager.attachView`, whose `onAttachView` is where `playbackManager.setLyreView(view)` goes (marked `--- w3-host wiring ---`).
 - **Content-Security-Policy** (`src/lyre/index.html`, pinned in `appPageCsp.test.ts`): `script-src 'self'` (bundles and audio worklets), `media-src 'self' blob: file:` and `connect-src 'self' blob: file:` (the playback engine and preview host: prepared library files and read-ahead, nothing from the web), `img-src 'self' data:`, `font-src 'self' data:` for the bundled fonts, `style-src 'unsafe-inline'` for style-loader's `<style>` tags, `worker-src 'none'`; no inline or eval script in production. Narrower than the player page, which still allows web addresses.
 - **Drop guard**: `installDocumentDropGuard(document)` in `src/lyre/index.tsx`.
@@ -1086,7 +1086,7 @@ Ctrl+Alt with a letter or digit (that is AltGr on a Belgian keyboard, which type
   document (`lockAppPage`). Links it opens go to the system browser, https only (`openExternalIfAllowed`); no other
   window is ever opened.
 - `player-view` is gone (its clipboard permission and speaker-selection check with it; `lyre-view` keeps
-  speaker-selection as a check only). `main-window` stays in `AppPageRole` but no page has it: the website-tab,
+  speaker-selection as a check only, and its own `clipboard-sanitized-write` from w51-fix for Copy path and Copy code). `main-window` stays in `AppPageRole` but no page has it: the website-tab,
   local-file and device-capture code kept for OUT-12 listens only on channels from it, so nothing can reach that
   code. `src/main/security/keptForLater.test.ts` checks this (no such channel from `lyre-view`, nothing makes
   `BrowserViewManagerMain`, `src/index.ts` trusts its window as `lyre-view`).

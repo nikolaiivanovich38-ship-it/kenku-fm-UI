@@ -31,7 +31,7 @@ export async function dropFiles(target: Locator, names: string[], options: { typ
       // As the browser: a drop happens only where the dragover was taken and its drop effect is not "none".
       effect = "copy";
       const taken = !over.dispatchEvent(new DragEvent("dragover", init));
-      if (taken && data.dropEffect !== "none") over.dispatchEvent(new DragEvent("drop", init));
+      if (taken && (data.dropEffect as string) !== "none") over.dispatchEvent(new DragEvent("drop", init));
     },
     { names, type: options.type ?? "audio/flac" },
   );
@@ -75,6 +75,6 @@ async function dropFilesFromDisk(target: Locator, names: string[]): Promise<void
     over.dispatchEvent(new DragEvent("dragenter", init));
     effect = "copy";
     const taken = !over.dispatchEvent(new DragEvent("dragover", init));
-    if (taken && data.dropEffect !== "none") over.dispatchEvent(new DragEvent("drop", init));
+    if (taken && (data.dropEffect as string) !== "none") over.dispatchEvent(new DragEvent("drop", init));
   });
 }

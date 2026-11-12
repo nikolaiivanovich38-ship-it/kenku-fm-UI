@@ -22,20 +22,17 @@ import React, { useEffect, useId, useRef, useState } from "react";
 import { restoreRoom } from "../../outputs/roomRestore";
 import { useUndoNote } from "../../shell/UndoNote";
 
-import { useCampaigns } from "../../api";
 import { useLyreAudio, useNowPlaying } from "../../audio";
 import type { LaneNowPlaying, RoomNowPlaying } from "../../audio/lyreAudio";
 import { DestTag } from "../../kit/DestTag";
 import { Icon } from "../../kit/Icon";
-import { useLiveSession } from "../../kit/liveSession";
 import { Pane } from "../../kit/Pane";
 import { PopMenu, type PopMenuEntry } from "../../kit/PopMenu";
 import { focusSoon } from "../../kit/focusSoon";
 import { cx } from "../../kit/cx";
 import { useOutputs, type OutputsClient } from "../../outputs/OutputsProvider";
 import { useAnnounce } from "../../shell/Announcer";
-import { useCampaignInHand } from "../../shell/CampaignInHand";
-import { ModeSwitch } from "../campaigns/parts";
+import { PrepOrLive } from "../campaigns/parts";
 import {
   addBotChoice,
   busiestChannel,
@@ -164,15 +161,6 @@ export function OutputsScreen() {
       </div>
     </>
   );
-}
-
-/** The Prep | Live switch, for the session loaded in Live, else the campaign last opened, else the first. */
-function PrepOrLive() {
-  const campaigns = useCampaigns().data;
-  const live = useLiveSession();
-  const inHand = useCampaignInHand();
-  const campaign = campaigns?.find((c) => c.id === live?.campaignId) ?? campaigns?.find((c) => c.id === inHand) ?? campaigns?.[0];
-  return campaign ? <ModeSwitch campaign={campaign} /> : null;
 }
 
 /* ---------- one On air box per bot ---------- */

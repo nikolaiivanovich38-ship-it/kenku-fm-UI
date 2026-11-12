@@ -17,6 +17,7 @@ import type { RemoteState } from "../../../common/remoteControl";
 import { useLyreApi, useLyreSettings } from "../../api";
 import { useLyreAudio } from "../../audio";
 import type { OutputDeviceInfo } from "../../audio/lyreAudio";
+import { copyText } from "../../kit/copyText";
 import { Dialog } from "../../kit/Dialog";
 import { Icon } from "../../kit/Icon";
 import { Pane } from "../../kit/Pane";
@@ -174,7 +175,7 @@ export function DevicesPane() {
       </div>
       <Switch
         label="Split one headset"
-        title="The preview in one ear and what you hear of Discord in the other, on one headset"
+        title="While something plays on air, the preview is in one ear and what you hear of Discord in the other, on one headset; a preview on its own plays in both ears"
         checked={split}
         disabled={!devices}
         onChange={(on) => set({ split: on }, on ? `one headset split: preview in the ${ear} ear` : "headset not split")}
@@ -258,10 +259,7 @@ export function RemotePane() {
               type="button"
               className="btn s"
               onClick={() => {
-                void navigator.clipboard?.writeText(state.code).then(
-                  () => toast("Code copied"),
-                  () => toast("Lyre could not copy the code: type it on the other device."),
-                );
+                void copyText(state.code).then((copied) => toast(copied ? "Code copied" : "Lyre could not copy the code: type it on the other device."));
               }}
             >
               <Icon name="file" size="s" />

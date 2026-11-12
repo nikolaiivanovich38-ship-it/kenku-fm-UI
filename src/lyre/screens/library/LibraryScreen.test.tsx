@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { act, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { expectNoAxeViolations } from "../../test/axe";
 // The page can start the real audio host, whose worklet file is a webpack asset; these tests use a fake host.
@@ -26,6 +26,17 @@ const tracksBox = () => within(screen.getByRole("region", { name: "Tracks" }));
 async function loaded() {
   await screen.findByRole("checkbox", { name: "Select Ashes" });
 }
+
+describe("0.5.1: the Library's top bar", () => {
+  it("has the Prep | Live switch the other screens have, with Prep pressed; Live opens Live", async () => {
+    openAt("library");
+    await loaded();
+    const modes = within(await screen.findByRole("group", { name: "Prep or live" }));
+    expect(modes.getByRole("button", { name: "Prep" })).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(modes.getByRole("button", { name: "Live" }));
+    await waitFor(() => expect(window.location.hash).toBe("#/live"));
+  });
+});
 
 describe("Library: finding tracks", () => {
   it("shows how many tracks there are, each row with Preview, Play on air and More", async () => {
@@ -132,6 +143,20 @@ describe("Library: a track's details", () => {
     expect(d.getByText(addedText(Date.UTC(2026, 10, 5, 12), Date.now()))).toBeInTheDocument();
   });
 
+  it("Copy path copies the file's whole path and says so; when Lyre cannot copy, it says that in plain words (Nik, 0.5.0)", async () => {
+    openAt("library/t44");
+    await within(details()).findByRole("textbox", { name: "Your title" });
+    const writeText = vi.fn(async (_text: string) => undefined);
+    // Not userEvent: its setup puts a clipboard of its own on the page.
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    fireEvent.click(within(details()).getByRole("button", { name: "Copy path" }));
+    expect(writeText).toHaveBeenCalledWith("H:\\Audio\\Scores\\Bear McCreary\\God of War\\13 Ashes.flac");
+    expect(await screen.findByText("Path copied: H:\\Audio\\Scores\\Bear McCreary\\God of War\\13 Ashes.flac")).toBeInTheDocument();
+    writeText.mockRejectedValueOnce(new DOMException("Write permission denied.", "NotAllowedError"));
+    fireEvent.click(within(details()).getByRole("button", { name: "Copy path" }));
+    expect(await screen.findByText("Lyre could not copy the path: select it and press Ctrl+C.")).toBeInTheDocument();
+  });
+
   it("Use the title in the file fills Your title; typing changes the list at once", async () => {
     openAt("library/t44");
     const title = await within(details()).findByRole("textbox", { name: "Your title" });
@@ -217,6 +242,18 @@ describe("Library: a track's details", () => {
     await waitFor(() => expect(document.getElementById("lyre-toast")).toHaveTextContent(/picks up where it stopped$/));
     const t19 = (await api.library.listTracks()).find((t) => t.id === "t19");
     expect([t19?.fadesOut, t19?.resume]).toEqual([true, true]);
+  });
+
+  it("0.5.1: Pick up where it stopped is offered for a music track with no role and a transition, not for a sting", async () => {
+    const { api } = openAt("library/t44");
+    const user = userEvent.setup();
+    await user.click(await within(details()).findByRole("switch", { name: "Pick up where it stopped" }));
+    await waitFor(async () => expect((await api.library.listTracks()).find((t) => t.id === "t44")?.resume).toBe(true));
+    go("library/t42");
+    expect(await within(details()).findByRole("switch", { name: "Pick up where it stopped" })).toBeInTheDocument();
+    go("library/t39");
+    await within(details()).findByRole("group", { name: "Role" });
+    expect(within(details()).queryByRole("switch", { name: "Pick up where it stopped" })).toBeNull();
   });
 
   it("round 6: the list's keys are read out with it", async () => {

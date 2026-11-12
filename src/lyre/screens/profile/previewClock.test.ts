@@ -8,6 +8,7 @@ import type { Prof } from "./profileModel";
 import { advance, finishClock, follow, heardProfile, initialClock, pauseClock, playClock, seekClock, stopClock, type ClockWorld } from "./previewClock";
 
 const LOOP: Prof = {
+  startAt: null,
   start: 0,
   end: 318,
   after: "loop",

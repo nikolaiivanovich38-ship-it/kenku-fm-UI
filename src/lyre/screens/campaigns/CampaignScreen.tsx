@@ -13,7 +13,6 @@ import { Column, Pane } from "../../kit/Pane";
 import { DOUBLE_CLICK_MS, RenameField, renameKeys, useRenameInPlace } from "../../kit/RenameInPlace";
 import { useAnnounce } from "../../shell/Announcer";
 import { useSave } from "../../shell/useSave";
-import { useThemeChoice } from "../../shell/useThemeChoice";
 import type { ScreenProps } from "..";
 import { SystemList } from "./CampaignsScreen";
 import { CAMPAIGN_THEME_IDS, formatDate, nextSession, plural, sessionLabel, themeName } from "./model";
@@ -38,7 +37,6 @@ function CampaignPage({ campaign: c, index }: { campaign: CampaignInfo; index: N
   const api = useLyreApi();
   const write = useWrite();
   const { say, toast } = useAnnounce();
-  const [choice] = useThemeChoice();
   useHeadingFocusWhenReady();
   // The heading follows the name field as it is typed.
   const [nameDraft, setNameDraft] = useState<string | null>(null);
@@ -47,7 +45,6 @@ function CampaignPage({ campaign: c, index }: { campaign: CampaignInfo; index: N
   useEffect(() => setNameDraft((d) => (d !== null && d.trim() === c.name ? null : d)), [c.name]);
   useEffect(() => setNotesDraft((d) => (d !== null && d === c.notes ? null : d)), [c.notes]);
   const next = nextSession(c);
-  const forced = choice !== "campaign";
 
   const save = useSave();
   const update = (patch: CampaignPatch) => write(api.campaigns.update(c.id, patch));
@@ -99,7 +96,6 @@ function CampaignPage({ campaign: c, index }: { campaign: CampaignInfo; index: N
               className="input"
               id="cp-c-theme"
               value={c.theme}
-              aria-describedby={forced ? "cp-forced" : undefined}
               onChange={async (event) => {
                 const theme = event.target.value as CampaignInfo["theme"];
                 if ((await saveField({ theme }, `${c.name} theme`)) !== undefined) say(`Theme: ${themeName(theme)}`);
@@ -116,11 +112,6 @@ function CampaignPage({ campaign: c, index }: { campaign: CampaignInfo; index: N
             <label htmlFor="cp-c-blurb">Description</label>
             <DraftField className="input" id="cp-c-blurb" autoComplete="off" value={c.description} onSave={(description) => void saveField({ description }, `${c.name} description`)} />
           </div>
-          {forced && (
-            <p className="hint cp-forced" id="cp-forced">
-              Look and feel is showing every page in {themeName(choice)}. Choose &quot;Each campaign&apos;s own&quot; there to see this campaign&apos;s theme.
-            </p>
-          )}
         </div>
         <div className="cp-split">
           <Column>

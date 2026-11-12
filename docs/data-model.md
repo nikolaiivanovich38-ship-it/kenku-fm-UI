@@ -87,7 +87,7 @@ Measured with 20,000 tracks, 500 playlists and 3 campaigns of 50 sessions with 8
 | File | Purpose |
 | --- | --- |
 | `sqlite.ts` | Loads `node:sqlite` (decision D3) without its experimental warning; `openConnection()` turns on foreign keys, recursive triggers, `temp_store = MEMORY` and, for files, WAL with `synchronous = NORMAL` (or a rollback journal with `FULL` where WAL cannot work). |
-| `schema/migrate.ts`, `schema/index.ts`, `schema/v001-library.ts`, `schema/v002-peaks.ts`, `schema/v003-round5.ts`, `schema/v004-loudness.ts`, `schema/v005-round6.ts`, `schema/v006-round7.ts` | Numbered schema versions (six so far: the library, loudness peaks, design round 5, volume normalisation, design rounds 6 and 7), the upgrade runner (`MigrationContext.startVersion` tells a step whether the library is new) and `rebuildTable()` (with `withoutRowid` for link tables). |
+| `schema/migrate.ts`, `schema/index.ts`, `schema/v001-library.ts`, `schema/v002-peaks.ts`, `schema/v003-round5.ts`, `schema/v004-loudness.ts`, `schema/v005-round6.ts`, `schema/v006-round7.ts`, `schema/v007-start-at.ts` | Numbered schema versions (seven so far: the library, loudness peaks, design round 5, volume normalisation, design rounds 6 and 7, Start at), the upgrade runner (`MigrationContext.startVersion` tells a step whether the library is new) and `rebuildTable()` (with `withoutRowid` for link tables). |
 | `store.ts` | `Store`: prepared statements (the 200 most recently used), injected clock, `change(label, fn)` (one transaction, one undo step), `changeInBatches(label, items, fn)` (bulk work, one undo step), `exclusive()`, `changeWithoutHistory(fn)` (clears the history), `busyWith`, `searchCaughtUp()`. |
 | `searchIndex.ts` | Temporary triggers that mark changed tracks, and `flushSearchIndex` (each marked track's search entry rebuilt once, before COMMIT). |
 | `ordering.ts` | Gap ordering (`positionFor`, `positionsFor`, `assignPositions`). |
@@ -458,6 +458,25 @@ already had was checked first: tag groups and tags in order with a parent tag an
 | --- | --- |
 | `schema/v006.test.ts` | Every new CHECK and key, what goes with what, pads in search, the upgrade from version 5 with data |
 | `repo/round7.test.ts` | Board dividers, steps (refusals, undo, what a delete takes), moving on, how a track plays, mix out, tags inside tags in a rule, shortcuts and play settings, pads found by search |
+
+### Version 7: Start at (0.5.1, w51-feat)
+
+`schema/v007-start-at.ts` adds `audio_profiles.start_at_ms` (Nik, 11 Nov: "a 'Start at [select marker]' option in
+the detailed audio profile view"). It is where the track starts by default wherever it plays with that profile (a
+scene, Live, Play on air): the time of one of the profile's markers, NULL for the Beginning (the profile's Start).
+`AudioProfile.startAtMs` (null or missing: the Beginning). A place's own profile replaces the track's whole, so it
+has its own Start at like every other setting. The marker is not a key: `resolveProfile` reads a time outside Start
+to End as the Beginning, and the Audio profile screen offers only markers from Start up to End (`startAtChoices`) and
+goes back to the Beginning when that marker is removed. Where a track starts, in order: as it was (Undo), a marker
+chosen to play from (DAT-3), where it stopped this evening (Pick up where it stopped), Start at, its Start
+(`RoomPlayer.startLane`). A .lyre file's profiles gain `startAtMs`; files from 0.5.0 and before have none.
+
+The order of the Campaigns screen (0.5.1) is version 1's `campaigns.position` (`campaigns.move`): no change.
+
+| Test | Covers |
+| --- | --- |
+| `schema/v007.test.ts` | The column and its CHECK; the upgrade from version 6 keeps profiles, with no Start at |
+| `repo/profiles.test.ts` | Start at saved and read with a place's profile, null as the Beginning, refusals |
 | `../lyreApi/transferApi.test.ts` (round 7) | Tag places, dividers, a scene's and a pad's steps, Then, Follow with, Ending, Pick up and mix out through a .lyre file |
 
 ### Import (EDT-6, DAT-5, DAT-8, DAT-4)

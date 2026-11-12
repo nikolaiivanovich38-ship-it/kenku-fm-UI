@@ -28,6 +28,8 @@ export type ProfileRow = {
   fade_in_shape: number | null;
   fade_out_ms: number | null;
   fade_out_shape: number | null;
+  /** Version 7 (0.5.1): Start at; NULL is the Beginning. */
+  start_at_ms: number | null;
 };
 
 type Marker = { atMs: number; label: string; mix?: boolean };
@@ -43,6 +45,7 @@ function settingsOf(profile: AudioProfileInput): Record<string, SQLInputValue> {
     fade_in_shape: profile.fadeIn?.shape ?? null,
     fade_out_ms: profile.fadeOut?.ms ?? null,
     fade_out_shape: profile.fadeOut?.shape ?? null,
+    start_at_ms: profile.startAtMs ?? null,
   };
 }
 
@@ -57,6 +60,7 @@ export function toProfile(row: ProfileRow, markers: Marker[] | undefined): Audio
   if (row.fade_in_ms !== null) p.fadeIn = { ms: row.fade_in_ms, shape: row.fade_in_shape as number };
   if (row.fade_out_ms !== null) p.fadeOut = { ms: row.fade_out_ms, shape: row.fade_out_shape as number };
   if (markers && markers.length > 0) p.markers = markers;
+  if (row.start_at_ms != null) p.startAtMs = row.start_at_ms;
   return p;
 }
 

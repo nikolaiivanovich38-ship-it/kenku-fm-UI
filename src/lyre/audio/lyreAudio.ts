@@ -29,6 +29,8 @@ import {
   DEFAULT_LIBRARY_NORMALISE,
   normalisedGainDb,
   playlistTracks,
+  profilePlacesFor,
+  roleProfile,
   roomsFor,
   type AudioDevices,
   type AudioProfile,
@@ -68,6 +70,7 @@ import type { Random } from "../../engine/queue/queue";
 import type { PlayingReport, RoomReport } from "../../engine/queue/roomPlayer";
 import type { RoomLane } from "../../engine/rooms.contract";
 import { TABLE_ROOM, type RoomMixer } from "../../engine/rooms";
+import { laneProfile, profileInputFor } from "../../engine/profile/trackProfile";
 import type { MediaRequest } from "../../engine/sources/sourceLoader";
 import type { Voice } from "../../engine/voice/voice";
 import { StableRooms } from "./stableRooms";
@@ -176,6 +179,8 @@ export interface RoomNowPlaying {
    * track's saved Repeat one, else its playlist's play order there, else off).
    */
   repeat: { chosen: RoomRepeat; shown: Repeat };
+  /** 0.5.1: the room's Shuffle is on, for what plays now (toggleShuffle). */
+  shuffle: boolean;
   /** The last add, removal or Clear added in this room can be undone (undoUpNext). */
   canUndoUpNext: boolean;
   /** Effects and pads sounding. `padKey` is "<board id>/<pad id>" for a pad. */
@@ -200,6 +205,19 @@ export interface UpNextEntryNow {
   /** The rest of an added playlist that plays now. */
   rest: boolean;
 }
+
+/**
+ * UX-16: where each room's music and ambience and the preview are in their files, in seconds; null while one loads or
+ * nothing plays there. Rooms by the ids NowPlaying uses. Read by the Now playing bar's and Live's time lines, which
+ * redraw on their own (LyreAudioProvider's usePlayPosition), not the whole screen.
+ */
+export interface PlayPositions {
+  rooms: Readonly<Record<string, { music: number | null; ambience: number | null }>>;
+  preview: number | null;
+}
+
+/** How often positions move on while something plays (Nik, 0.5.0: the bar's time must follow the sound). */
+export const POSITION_TICK_MS = 250;
 
 export interface NowPlaying {
   /** One entry per room, the first room (where scenes play) first. */
@@ -241,8 +259,13 @@ export interface PreviewPosition {
 export interface PreviewTrackOptions {
   /** Start this far into the file (default: the profile's Start, or 0). */
   startAtMs?: number;
-  /** Play as this profile says (Start to End, fades, loop); none plays the whole file. */
+  /**
+   * Play as this profile says (Start to End, fades, loop). None: as the track's audio profile where it is previewed
+   * (`place`, then `playlistId`, then the track's own), as the players would hear it from there.
+   */
   profile?: AudioProfile;
+  /** The scene (or session's list) it is previewed in, whose own audio settings for it apply. */
+  place?: UsePlace;
   /** Announce nothing: the screen says what happens. */
   quiet?: boolean;
   /** UX-16: where the game master started it, in words for the Now playing bar ("the session planner"). */
@@ -262,6 +285,8 @@ export interface PreviewTrackOptions {
 /** Where a preview was started from (the Now playing bar's "Previewed from …"). */
 export interface PreviewFrom {
   from?: string;
+  /** previewPlaylist: the scene (or session's list) it is previewed in, whose audio settings for its first track apply. */
+  place?: UsePlace;
 }
 
 /** The first room: where sound goes when a screen names no room, and where scenes always play. */
@@ -299,9 +324,11 @@ export interface LyreAudio {
   previous(lane: MusicOrAmbience, target?: RoomTarget): CueOutcome;
   /** Pause the lane, or carry on if it is paused (the prototype's pause button). */
   togglePause(lane: MusicOrAmbience, target?: RoomTarget): CueOutcome;
-  /** Fade one lane out (default 3 s; effects 0.8 s). */
+  /** 0.5.1 (the seek bars): jump the lane to `seconds` in its file (kept inside the file) in the room or rooms. */
+  seek(lane: MusicOrAmbience, seconds: number, target?: RoomTarget): CueOutcome;
+  /** Fade one lane out (default 5 s; effects 0.8 s). */
   stopLane(lane: RoomLane, options?: { target?: RoomTarget; fadeMs?: number }): CueOutcome;
-  /** Fade everything out in every room (default 3 s). */
+  /** Fade everything out in every room (default 5 s). */
   fadeAll(fadeMs?: number): CueOutcome;
   /** Silence every room at once. */
   stopAll(): CueOutcome;
@@ -329,6 +356,8 @@ export interface LyreAudio {
   setRepeat(repeat: RoomRepeat, target?: RoomTarget): CueOutcome;
   /** Repeat pressed: off, all, one in turn from what it shows. */
   cycleRepeat(target?: RoomTarget): CueOutcome;
+  /** 0.5.1: the room's Shuffle on or off, for what plays now (never saved; off again when its music stops). */
+  toggleShuffle(target?: RoomTarget): CueOutcome;
   /**
    * PLY-17: the screen saved Repeat one on (or off) for that scene's track (LyreApi sessions.setRepeatOne): a Repeat
    * chosen in a room playing it gives way, so the saved one shows at once. Call setLibrary with the reloaded data too.
@@ -341,10 +370,12 @@ export interface LyreAudio {
 
   // ----- preview: the game master's headphones only, never on air -----
   /**
-   * Start previewing, or stop if this one is previewing (the Preview button). With options (the Audio profile
-   * screen) it always starts, from that point and with that profile.
+   * Start previewing, or stop if this one is previewing (the Preview button). Given a point, a profile (the Audio
+   * profile screen) or another file (Find missing files) it always starts, from that point and with that profile.
    */
   previewTrack(trackId: string, options?: PreviewTrackOptions): CueOutcome;
+  /** 0.5.1 (the seek bars): jump the preview to `seconds` in its file. */
+  seekPreview(seconds: number): CueOutcome;
   previewPlaylist(playlistId: string, options?: PreviewFrom): CueOutcome;
   previewPad(boardId: string, padId: string, options?: PreviewFrom): CueOutcome;
   /**
@@ -387,6 +418,13 @@ export interface LyreAudio {
   getNowPlaying(): NowPlaying;
   /** Called after each change, and about once a second while anything plays. Returns an unsubscribe. */
   subscribe(listener: () => void): () => void;
+  /** The positions now: the same object until they move (fit for useSyncExternalStore). */
+  getPositions(): PlayPositions;
+  /**
+   * Called every POSITION_TICK_MS while music, ambience or the preview plays (not paused, not stopped), and after each
+   * change. Returns an unsubscribe.
+   */
+  subscribePositions(listener: () => void): () => void;
   on<E extends keyof LyreAudioEvents>(event: E, listener: LyreAudioEvents[E]): unknown;
   off<E extends keyof LyreAudioEvents>(event: E, listener: LyreAudioEvents[E]): unknown;
 
@@ -471,12 +509,18 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
   private snapshot: NowPlaying | null = null;
   private notifyQueued = false;
   private stopProgress: (() => void) | null = null;
+  private positions: PlayPositions | null = null;
+  private readonly positionSubscribers = new Set<() => void>();
+  private positionTimer: unknown = null;
   /** The room outputs joined to the keep-alive node now. */
   private readonly kept = new Set<GainLike>();
   /** OUT-10: a meter per room output, made when a screen first asks for that room's level. */
   private readonly meters = new Map<GainLike, RoomMeter>();
   private wantedKey = "";
   /** PRV-2: the ear the preview plays in. */
+  /** PRV-2: the ear chosen for the preview when one headset is split; null when it is not split. */
+  private splitEar: "left" | "right" | null = null;
+  /** The ear the preview plays in now (sent to the preview's output when it changes). */
   private previewEar: "both" | "left" | "right" = "both";
   private disposed = false;
   /** Each room's volume by its real id (a bot id, or "table"), kept while the app runs. */
@@ -622,6 +666,30 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     return OK;
   }
 
+  seek(lane: MusicOrAmbience, seconds: number, target: RoomTarget = FIRST_ROOM): CueOutcome {
+    const voices = this.targetRooms(target).flatMap((roomId) => {
+      const voice = this.laneVoice(roomId, lane);
+      return voice ? [voice] : [];
+    });
+    if (voices.length === 0) return this.fail(lane === "music" ? "No music is playing." : "No ambience is playing.");
+    for (const voice of voices) voice.seek(this.insideFile(seconds, voice.duration));
+    this.changed();
+    return OK;
+  }
+
+  seekPreview(seconds: number): CueOutcome {
+    const length = this.parts.preview.length();
+    if (!this.parts.preview.seek(this.insideFile(seconds, length ?? Infinity))) return this.fail("Nothing is previewing.");
+    this.changed();
+    return OK;
+  }
+
+  /** A time to jump to, inside the file: from its start to just before its end. */
+  private insideFile(seconds: number, length: number): number {
+    const at = Number.isFinite(seconds) ? Math.max(0, seconds) : 0;
+    return Number.isFinite(length) && length > 0 ? Math.min(at, Math.max(0, length - 0.05)) : at;
+  }
+
   stopLane(lane: RoomLane, options: { target?: RoomTarget; fadeMs?: number } = {}): CueOutcome {
     return this.perform({ type: "fadeLane", lane, target: options.target ?? FIRST_ROOM, fadeMs: options.fadeMs });
   }
@@ -702,6 +770,15 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     return outcome;
   }
 
+  toggleShuffle(target: RoomTarget = FIRST_ROOM): CueOutcome {
+    const outcome = this.listCall(() => this.director.toggleShuffle(this.rooms.target(target)));
+    if (outcome.ok) {
+      const on = this.director.report().find((room) => room.roomId === this.targetRooms(target)[0])?.shuffle;
+      this.emit("announce", `Shuffle ${on ? "on" : "off"}, for what plays now${this.inRoom(target)}`);
+    }
+    return outcome;
+  }
+
   savedRepeatOneChanged(scene: SceneRef, trackId: string): void {
     if (!this.disposed) this.director.savedRepeatOneChanged(scene, trackId);
   }
@@ -742,7 +819,10 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
 
   previewTrack(trackId: string, options?: PreviewTrackOptions): CueOutcome {
     const preview = this.parts.preview;
-    if (!options && preview.isPreviewing(trackId)) {
+    // Where it was started from or the playlist it is in (every screen passes `from`) is no reason to start again:
+    // only a point, a profile or another file is (Nik, 0.5.0: Stop preview started the track again).
+    const startsAnew = options?.startAtMs !== undefined || options?.profile !== undefined || options?.file !== undefined;
+    if (!startsAnew && preview.isPreviewing(trackId)) {
       preview.stop();
       return OK;
     }
@@ -756,7 +836,8 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       return this.fail(`Unable to preview: ${trackTitle(track)}`);
     }
     const gainDb = this.previewGain(track.id, options?.playlistId ?? null);
-    const voice = { startAt: options?.startAtMs === undefined ? undefined : options.startAtMs / 1000, profile: options?.profile, gainDb };
+    const profile = options?.profile ?? this.previewProfile(track, options?.place ?? null, options?.playlistId ?? null);
+    const voice = { startAt: options?.startAtMs === undefined ? undefined : options.startAtMs / 1000, profile, gainDb };
     preview.play({ ...trackPreview(track, media), playlistId: options?.playlistId ?? null, options: voice, quiet: options?.quiet, from: options?.from ?? null });
     return OK;
   }
@@ -780,7 +861,8 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     if ("message" in item) {
       return this.fail(item.message);
     }
-    preview.play({ ...item, options: { gainDb: this.previewGain(item.trackId ?? null, playlistId) }, from: options.from ?? null });
+    const profile = this.previewProfile(first!, options.place ?? null, playlistId);
+    preview.play({ ...item, options: { gainDb: this.previewGain(item.trackId ?? null, playlistId), profile }, from: options.from ?? null });
     return OK;
   }
 
@@ -892,10 +974,9 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
   }
 
   async setAudioDevices(devices: AudioDevices): Promise<DeviceStatus | null> {
-    const ear = devices.split ? devices.previewEar : "both";
-    if (ear !== this.previewEar) {
-      this.previewEar = ear;
-      this.parts.setPreviewEar?.(ear);
+    const split = devices.split ? devices.previewEar : null;
+    if (split !== this.splitEar) {
+      this.splitEar = split;
       this.changed();
     }
     if (!this.parts.previewDevices) return null;
@@ -940,6 +1021,22 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     };
   }
 
+  getPositions(): PlayPositions {
+    if (!this.positions) {
+      this.positions = this.readPositions();
+    }
+    return this.positions;
+  }
+
+  subscribePositions(listener: () => void): () => void {
+    this.positionSubscribers.add(listener);
+    this.updatePositionTicker();
+    return () => {
+      this.positionSubscribers.delete(listener);
+      this.updatePositionTicker();
+    };
+  }
+
   async dispose(): Promise<void> {
     if (this.disposed) {
       return;
@@ -948,6 +1045,8 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     this.stopProgress?.();
     this.stopProgress = null;
     this.subscribers.clear();
+    this.positionSubscribers.clear();
+    this.updatePositionTicker();
     for (const cleanup of this.cleanups) {
       cleanup();
     }
@@ -961,6 +1060,18 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
   }
 
   // ---------- inside ----------
+
+  /**
+   * The audio profile a track plays with on air from that place and playlist (the scene's own settings, the
+   * playlist's, then the track's), which its preview plays with too (Nik, 0.5.0: Preview ignored Start, End and fades).
+   * The same as RoomPlayer.startLane: its lane's ending, and a role's (a sting never loops; Ending "Fades out").
+   */
+  private previewProfile(track: DomainTrack, place: UsePlace | null, playlistId: string | null): AudioProfile {
+    const places = profilePlacesFor(place, playlistId);
+    const overrides = this.library.profileOverrides();
+    const lane = track.kind === "amb" ? "ambience" : track.kind === "fx" ? "effects" : "music";
+    return roleProfile(track, laneProfile(track, lane, places, overrides), { fadeOutChosen: profileInputFor(track, places, overrides).fadeOut !== undefined });
+  }
 
   /** PLY-15: the gain a track gets on air from that playlist (or on its own), which its preview hears too. */
   private previewGain(trackId: string | null, playlistId: string | null): number {
@@ -1075,7 +1186,9 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
 
   private changed() {
     this.snapshot = null;
+    this.positions = null;
     this.wantAhead();
+    this.updatePositionTicker();
     if (this.notifyQueued || this.disposed) {
       return;
     }
@@ -1083,10 +1196,52 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
     this.notifyQueued = true;
     queueMicrotask(() => {
       this.notifyQueued = false;
-      for (const listener of [...this.subscribers]) {
+      // With a split headset the preview's ear follows what plays on air, even with no screen reading the state.
+      if ((this.splitEar || this.previewEar !== "both") && !this.disposed) this.getNowPlaying();
+      for (const listener of [...this.subscribers, ...this.positionSubscribers]) {
         listener();
       }
     });
+  }
+
+  /** Where every room's lanes and the preview are now. */
+  private readPositions(): PlayPositions {
+    const rooms: Record<string, { music: number | null; ambience: number | null }> = {};
+    if (!this.disposed) {
+      for (const room of this.director.report()) {
+        rooms[this.rooms.toReal(room.roomId)] = { music: room.music?.positionSeconds ?? null, ambience: room.ambience?.positionSeconds ?? null };
+      }
+    }
+    const current = this.parts.preview.current();
+    const at = this.parts.preview.position();
+    return { rooms, preview: current && at && at.key === current.key ? at.seconds : null };
+  }
+
+  /** A room's music or ambience, or the preview, is playing (or loading to play): its position moves on. */
+  private somethingMovesOn(): boolean {
+    if (this.disposed) return false;
+    const plays = (lane: MusicOrAmbience) => this.parts.engine.voices(lane).some((voice) => voice.state === "playing");
+    const preview = this.parts.preview.current();
+    return plays("music") || plays("ambience") || (!!preview && !preview.paused);
+  }
+
+  /** One timer, and only while someone shows a position and something moves on (PERF-1: nothing polls at rest). */
+  private updatePositionTicker(): void {
+    const scheduler = this.parts.engine.scheduler;
+    const wanted = this.positionSubscribers.size > 0 && this.somethingMovesOn();
+    if (wanted && this.positionTimer === null) {
+      this.positionTimer = scheduler.setTimeout(() => {
+        this.positionTimer = null;
+        this.positions = null;
+        for (const listener of [...this.positionSubscribers]) {
+          listener();
+        }
+        this.updatePositionTicker();
+      }, POSITION_TICK_MS);
+    } else if (!wanted && this.positionTimer !== null) {
+      scheduler.clearTimeout(this.positionTimer);
+      this.positionTimer = null;
+    }
   }
 
   /** Keep the playing tracks and the next music track in memory (PLY-11). */
@@ -1129,14 +1284,32 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
       length: this.parts.preview.length(),
       volume: this.parts.preview.volume(),
     };
+    const rooms = this.disposed ? [] : this.director.report().map((room) => this.roomState(room));
+    this.applyPreviewEar(this.earFor(rooms));
     return {
-      rooms: this.disposed ? [] : this.director.report().map((room) => this.roomState(room)),
+      rooms,
       broadcasting: this.parts.streams.broadcasting,
       preview,
       previewDevice: this.parts.previewDevices?.status("preview") ?? null,
       canUndo: this.director.canUndo(),
       previewEar: this.previewEar,
     };
+  }
+
+  /**
+   * 0.5.1 (Nik, 11 Nov): a split headset puts the preview in its ear only while something plays on air with it (music
+   * or ambience not paused, or an effect); when the preview is the only sound it plays in both ears.
+   */
+  private earFor(rooms: readonly RoomNowPlaying[]): "both" | "left" | "right" {
+    if (!this.splitEar) return "both";
+    const onAir = rooms.some((room) => (room.music && !room.music.paused) || (room.ambience && !room.ambience.paused) || room.effects.length > 0);
+    return onAir ? this.splitEar : "both";
+  }
+
+  private applyPreviewEar(ear: "both" | "left" | "right") {
+    if (ear === this.previewEar) return;
+    this.previewEar = ear;
+    this.parts.setPreviewEar?.(ear);
   }
 
   private roomState(room: RoomReport): RoomNowPlaying {
@@ -1155,6 +1328,7 @@ export class EngineLyreAudio extends TypedEmitter<LyreAudioEvents> implements Ly
           : { ref: entry.ref, kind: entry.source === "pn" ? ("playNext" as const) : ("added" as const), trackIds: [...entry.trackIds], title: entry.name, playlistId: entry.playlistId, rest: entry.rest },
       ),
       repeat: { ...room.repeat },
+      shuffle: room.shuffle,
       canUndoUpNext: room.canUndoList,
       effects: room.effects.map((effect) => ({ ...effect, title: title(effect.trackId) })),
       played: room.played.map((p) => ({ ...p, title: title(p.trackId) })),

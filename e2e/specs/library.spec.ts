@@ -2,8 +2,8 @@
  * Library: every track, with filters, details, tags and bulk actions
  * (design/prototype/tools/lb-flow.js, lb-size.js and src/views/library.js).
  */
-import type { Page } from "@playwright/test";
-import { expect, expectFailureUntilBuilt, test } from "./support/test";
+import type { Locator, Page } from "@playwright/test";
+import { appOnly, expect, expectFailureUntilBuilt, test } from "./support/test";
 import { openRoute } from "./support/target";
 import { dropFiles } from "./support/drop";
 
@@ -19,6 +19,16 @@ async function shownTitles(page: Page): Promise<string[]> {
   const names = await grid(page).getByRole("row").getByRole("checkbox").evaluateAll((boxes) => boxes.map((b) => b.getAttribute("aria-label") ?? ""));
   return names.filter((n) => n.startsWith("Select ") && !n.startsWith("Select all")).map((n) => n.slice(7));
 }
+/** The time ("0:07 / 3:42") shown in a Now playing row or an On air box changes twice by itself, with no click. */
+async function expectTimeToMoveOn(where: Locator) {
+  const time = async () => (await where.textContent())?.match(/\d+:\d\d \/ \d+:\d\d/)?.[0] ?? "";
+  await expect.poll(time).not.toBe("");
+  for (let i = 0; i < 2; i++) {
+    const before = await time();
+    await expect.poll(time, { message: `the time after ${before}`, timeout: 3_000 }).not.toBe(before);
+  }
+}
+
 async function openFilters(page: Page) {
   const toggle = page.getByRole("button", { name: "Filters", exact: true });
   if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
@@ -142,6 +152,47 @@ test.describe("a track's details", () => {
     await expect(d.getByRole("button", { name: /^Stop preview/ })).toBeVisible();
     await expect(d.getByRole("button", { name: "Play on air", exact: true })).toBeVisible();
     await expect(d.getByRole("link", { name: "Audio profile" })).toHaveAttribute("href", "#/profile/t44");
+  });
+
+  test("Stop preview stops the preview: the Only you row goes and the button is Preview again (Nik, 0.5.0)", async ({ page }) => {
+    await openRoute(page, "library");
+    await openTrack(page, "Ashes");
+    const d = details(page);
+    const you = page.getByRole("region", { name: "Now playing" }).getByRole("group", { name: /^Only you/ });
+    await d.getByRole("button", { name: "Preview", exact: true }).click();
+    await expect(you).toBeVisible();
+    await d.getByRole("button", { name: "Stop preview", exact: true }).click();
+    await expect(you).toHaveCount(0);
+    await expect(d.getByRole("button", { name: "Preview", exact: true })).toHaveAttribute("aria-pressed", "false");
+    // It does not start again a moment later.
+    await page.waitForTimeout(1000);
+    await expect(you).toHaveCount(0);
+  });
+
+  test("while a preview plays, its time in the Now playing bar moves on by itself (Nik, 0.5.0: it stayed at 0:00 until Pause)", async ({ page }) => {
+    await openRoute(page, "library");
+    await openTrack(page, "Ashes");
+    await details(page).getByRole("button", { name: "Preview", exact: true }).click();
+    const you = page.getByRole("region", { name: "Now playing" }).getByRole("group", { name: /^Only you/ });
+    await expectTimeToMoveOn(you);
+  });
+
+  test("while music plays on air, its time moves on by itself in the Now playing bar and in Live's On air (Nik, 0.5.0)", async ({ page }) => {
+    await openRoute(page, "library");
+    await openTrack(page, "Ashes");
+    await details(page).getByRole("button", { name: "Play on air", exact: true }).click();
+    const air = page.getByRole("region", { name: "Now playing" }).getByRole("group", { name: /^On air/ });
+    await expectTimeToMoveOn(air);
+    await air.getByRole("link", { name: "Go to Live" }).click();
+    await expectTimeToMoveOn(page.getByRole("region", { name: /^On air/ }).first());
+  });
+
+  test("Preview plays the track as its audio profile says: from its Start, 0:08 for this one (Nik, 0.5.0)", async ({ page }) => {
+    await openRoute(page, "library/t02");
+    await details(page).getByRole("button", { name: "Preview", exact: true }).click();
+    const you = page.getByRole("region", { name: "Now playing" }).getByRole("group", { name: /^Only you/ });
+    // The time follows "Previewed from the Library" with no space between them in the text, so no \b before it.
+    await expect(you).toContainText(/(^|\D)0:(0[89]|[1-5]\d) \//);
   });
 
   test("a mood tag is added by typing in the box: choose from the matches with the arrow keys, or create a new one", async ({ page }) => {
@@ -514,5 +565,43 @@ test.describe("0.5.1: Pick up where it stopped for every music track", () => {
     await openTrack(page, "Very short heroic moment");
     await expect(details(page).getByRole("textbox", { name: "Your title" })).toBeVisible();
     await expect(details(page).getByRole("switch", { name: "Pick up where it stopped" })).toHaveCount(0);
+  });
+});
+
+/* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round (support/test.ts appOnly). */
+test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
+  test("a music track with no role offers Pick up where it stopped in its details (\"I don't see pickup where it stops\")", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    await page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Ashes/ }).getByRole("gridcell").nth(1).click();
+    const details = page.getByRole("region", { name: "Details", exact: true });
+    const resume = details.getByRole("switch", { name: "Pick up where it stopped" });
+    await resume.check();
+    await expect(resume).toBeChecked();
+  });
+
+  test("the Now playing bar's time line is a seek bar: a click jumps the track there (\"choose to skip to a certain point\")", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    await page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Ashes/ }).getByRole("button", { name: /^Play on air: / }).click();
+    const air = page.getByRole("region", { name: "Now playing" }).getByRole("group", { name: /^On air/ });
+    const seek = air.getByRole("slider", { name: /^Position in / });
+    await expect(seek).toHaveAttribute("aria-valuetext", /^\d+:\d\d of \d+:\d\d$/);
+    const box = (await seek.boundingBox())!;
+    expect(box.height).toBeGreaterThanOrEqual(24);
+    const max = Number(await seek.getAttribute("aria-valuemax"));
+    await seek.click({ position: { x: box.width * 0.75, y: box.height / 2 } });
+    await expect.poll(async () => Number(await seek.getAttribute("aria-valuenow"))).toBeGreaterThan(max * 0.75 - 10);
+    await seek.press("Home");
+    await expect.poll(async () => Number(await seek.getAttribute("aria-valuenow"))).toBeLessThan(5);
+  });
+
+  test("the Library's top bar has the Prep | Live switch (\"In library view I still need the Prep and Live toggle\")", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    const modes = page.getByRole("group", { name: "Prep or live" });
+    await expect(modes.getByRole("button", { name: "Prep" })).toHaveAttribute("aria-pressed", "true");
+    await modes.getByRole("button", { name: "Live" }).click();
+    await expect(page.getByRole("heading", { level: 1, name: "Live" })).toBeAttached();
   });
 });

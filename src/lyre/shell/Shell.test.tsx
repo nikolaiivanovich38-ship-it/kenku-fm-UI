@@ -43,15 +43,15 @@ beforeEach(() => {
 });
 
 describe("the shell: rail, routes and screens (UX-9)", () => {
-  it("shows the rail's sections in the prototype's order, the current one marked", () => {
+  it("shows the rail's sections with Live first (0.5.1, Nik 11 Nov), the current one marked", () => {
     render(<Shell screens={SHELL_SCREENS} />);
     const nav = screen.getByRole("navigation", { name: "Lyre" });
     expect(within(nav).getAllByRole("link").map((a) => a.textContent)).toEqual([
+      "Live",
       "Campaigns",
       "Library",
       "Playlists",
       "Pad boards",
-      "Live",
       "Rooms",
     ]);
     expect(screen.getByRole("link", { name: "Look and feel" })).toHaveAttribute("href", "#/look");
@@ -182,7 +182,7 @@ describe("themes (UX-11): Candlelit Library by default, each campaign's own, or 
     expect(document.documentElement.dataset.theme).toBe("candle");
   });
 
-  it("switches to a campaign's theme while it is open, and keeps it on the Library", () => {
+  it("switches to a campaign's theme while it is open; the Library has the base theme (0.5.1)", () => {
     render(
       <ShellDataProvider value={data}>
         <Shell screens={SHELL_SCREENS} />
@@ -191,12 +191,12 @@ describe("themes (UX-11): Candlelit Library by default, each campaign's own, or 
     go("campaign/crown");
     expect(document.documentElement.dataset.theme).toBe("hearth");
     go("library");
-    expect(document.documentElement.dataset.theme).toBe("hearth");
+    expect(document.documentElement.dataset.theme).toBe("candle");
     go("campaigns");
     expect(document.documentElement.dataset.theme).toBe("candle");
   });
 
-  it("uses the theme chosen in Look and feel everywhere, and remembers it", async () => {
+  it("0.5.1: the theme chosen in Look and feel is the base; a campaign's own theme still shows on its pages", async () => {
     render(
       <LyreApiProvider api={createFakeLyreApi()}>
         <ShellDataProvider value={data}>
@@ -207,8 +207,10 @@ describe("themes (UX-11): Candlelit Library by default, each campaign's own, or 
     go("look");
     await userEvent.setup().selectOptions(screen.getByRole("combobox", { name: "Theme" }), "Parchment (light)");
     expect(document.documentElement.dataset.theme).toBe("parchment");
-    go("campaign/crown");
+    go("library");
     expect(document.documentElement.dataset.theme).toBe("parchment");
+    go("campaign/crown");
+    expect(document.documentElement.dataset.theme).toBe("hearth");
     expect(loadShellSettings().theme).toBe("parchment");
   });
 });

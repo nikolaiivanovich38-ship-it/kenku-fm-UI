@@ -162,6 +162,8 @@ export function resolveProfile(t: DomainTrack, places: ProfilePlace[], overrides
       fadeIn: fade(input.fadeIn),
       fadeOut: fade(input.fadeOut),
       markers: (input.markers ?? []).filter((m) => m.atMs >= 0 && m.atMs <= dur),
+      // 0.5.1 Start at: kept only between Start and End; anything else is the Beginning.
+      ...(input.startAtMs != null && input.startAtMs >= startMs && input.startAtMs < endMs ? { startAtMs: input.startAtMs } : {}),
     },
     source,
   };

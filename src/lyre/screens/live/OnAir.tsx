@@ -11,9 +11,11 @@
 import React, { useEffect, useRef, useState } from "react";
 
 import { normaliseHover, type UsePlace } from "../../../common/domain";
+import { usePlayPosition } from "../../audio";
 import type { LaneNowPlaying, MusicOrAmbience, RoomNowPlaying, UpNextEntryNow } from "../../audio/lyreAudio";
 import { Icon } from "../../kit/Icon";
 import { Pane } from "../../kit/Pane";
+import { SeekBar } from "../../kit/SeekBar";
 import { StatusPill } from "../../kit/Pills";
 import { PopMenuButton, type PopMenuEntry } from "../../kit/PopMenu";
 import { trackNameAt } from "../../kit/trackName";
@@ -21,10 +23,10 @@ import { cx } from "../../kit/cx";
 import { restoreRoom } from "../../outputs/roomRestore";
 import { roomVolumeControl } from "../../outputs/roomVolume";
 import { useAnnounce } from "../../shell/Announcer";
-import { clockTime } from "../../shell/NowPlayingBar";
+import { clockTime, STOP_FADE_MS } from "../../shell/NowPlayingBar";
 import { formatLength } from "../campaigns/model";
-import { busiestChannel as moveToChannel, kickLosesSound, moveLosesSound, roomToRestore, viewOf } from "../outputs/outputsModel";
-import { clearAdded, LIVE_FADE_MS, nextInRoom, takeOut } from "./liveActions";
+import { busiestChannel as moveToChannel, moveLosesSound, roomToRestore, viewOf } from "../outputs/outputsModel";
+import { clearAdded, FADE_BUTTON_MS, LIVE_FADE_MS, nextInRoom, takeOut } from "./liveActions";
 import { laneProfile, sceneSteps, showLibraryOf, useLive, type LiveData } from "./liveData";
 import { addRoomChoices, busiestChannel, channelChoices, endWords, noRoomStatus, roomStatus, TABLE, UNDO_MS, upNextRows, type LiveRoom } from "./liveModel";
 import { offerSoftUndo, touched, updateLive } from "./liveState";
@@ -52,10 +54,11 @@ const lk = (roomId: string) => roomId.replace(/[^\w-]/g, "-");
 
 export function OnAirPane({ undo }: { undo: () => boolean }) {
   const d = useLive();
-  const { rooms, now, outputs } = d;
+  const { rooms, now, outputs, client } = d;
   const short = useShortWindow();
   const table = now.rooms.find((r) => r.roomId === TABLE) ?? now.rooms[0] ?? null;
-  const canAdd = addRoomChoices(outputs).length > 0;
+  // 0.5.1 (Nik, 11 Nov): Add a room is there whenever Lyre knows the bots; with none free it offers Add a bot….
+  const canAdd = !!outputs && !!client;
   const words = (rooms.length ? rooms.map((r) => ({ name: r.name, music: r.room?.music })) : [{ name: "No room", music: table?.music }]).map((r) => `${r.name}: ${r.music ? r.music.title : "silent"}`).join(" · ");
   const summary = useFoldedSummary("lv-onair", true, <span className="ellipsis" title={words}>{words}</span>);
   return (
@@ -250,14 +253,14 @@ function useMoveBot(): (r: LiveRoom, channelId: string) => void {
   };
 }
 
-/** Mute, the volume, the room's bot (a button with its menu) and Kick, in the room's header. */
-function RoomControls({ r }: { r: LiveRoom }) {
-  const d = useLive();
-  const { client, audio } = d;
+/**
+ * OUT-7 Kick, from the room's Kick button or its bot menu (0.5.1): the bot leaves at once, asking nothing; w51-fix2
+ * (Nik's 0.5.0 test): it always offers Undo, which puts the bot back with what it played, from where it was.
+ */
+function useKick(): (r: LiveRoom) => void {
+  const { client, audio } = useLive();
   const { say, toast } = useAnnounce();
-  const bot = r.bot;
-  const volume = roomVolumeControl({ roomId: r.roomId, level: r.room?.volume ?? 1 }, bot, client, audio);
-  const kick = () => {
+  return (r) => {
     const view = r.view;
     if (!client || !view?.channel) return;
     touched();
@@ -287,6 +290,16 @@ function RoomControls({ r }: { r: LiveRoom }) {
       focusLiveSoon(["addroom", "nextsc"]);
     }
   };
+}
+
+/** Mute, the volume, the room's bot (a button with its menu) and Kick, in the room's header. */
+function RoomControls({ r }: { r: LiveRoom }) {
+  const d = useLive();
+  const { client, audio } = d;
+  const { say } = useAnnounce();
+  const bot = r.bot;
+  const volume = roomVolumeControl({ roomId: r.roomId, level: r.room?.volume ?? 1 }, bot, client, audio);
+  const kick = useKick();
   return (
     <>
       {bot && client && (
@@ -308,7 +321,7 @@ function RoomControls({ r }: { r: LiveRoom }) {
       <RoomVolume name={r.name} saved={volume.volume} onChange={volume.change} />
       {bot && client && <BotButton r={r} />}
       {bot && client && r.view?.channel && (
-        <button type="button" className="btn s lv-kick" data-lv={`kick-${lk(r.roomId)}`} aria-label={`Kick ${bot.name} from ${r.name}`} title={`Kick ${bot.name} from ${r.name}`} onClick={kick}>
+        <button type="button" className="btn s lv-kick" data-lv={`kick-${lk(r.roomId)}`} aria-label={`Kick ${bot.name} from ${r.name}`} title={`Kick ${bot.name} from ${r.name}`} onClick={() => kick(r)}>
           <Icon name="leave" size="s" />
           <span className="lv-kick-t">Kick</span>
         </button>
@@ -355,6 +368,8 @@ function BotButton({ r }: { r: LiveRoom }) {
   const { rooms, outputs, client, audio } = d;
   const { say } = useAnnounce();
   const move = useMoveBot();
+  const add = useAddRoom();
+  const kick = useKick();
   const bot = r.bot!;
   const items = (): PopMenuEntry[] => {
     const entries: PopMenuEntry[] = [];
@@ -403,6 +418,20 @@ function BotButton({ r }: { r: LiveRoom }) {
           });
         }
       }
+      // 0.5.1 (Nik, 11 Nov): Add a room and Kick from here too, so Rooms is not needed during play.
+      entries.push({ separator: true }, ...addRoomEntries(outputs, add, true));
+      if (r.view?.channel) {
+        entries.push({
+          key: "kick",
+          content: (
+            <>
+              <Icon name="leave" size="s" />
+              Kick {bot.name} from {r.name}
+            </>
+          ),
+          onSelect: () => kick(r),
+        });
+      }
       entries.push({ separator: true });
     }
     for (const other of rooms.filter((x) => x.roomId !== r.roomId && (x.room?.music || x.room?.ambience))) {
@@ -432,16 +461,6 @@ function BotButton({ r }: { r: LiveRoom }) {
         ),
         onSelect: () => (window.location.hash = "#/outputs"),
       },
-      {
-        key: "settings",
-        content: (
-          <>
-            <Icon name="gear" size="s" />
-            Bots and tokens
-          </>
-        ),
-        onSelect: () => (window.location.hash = "#/settings"),
-      },
     );
     return entries;
   };
@@ -450,7 +469,7 @@ function BotButton({ r }: { r: LiveRoom }) {
       label={`Room ${r.name}`}
       className="btn s lv-botpick"
       ariaLabel={`${bot.name} in ${r.name}: change`}
-      title={`${bot.name} plays in ${r.name}: change the channel or the bot`}
+      title={`Choose a channel for ${bot.name} (in ${r.name} now), add a room, another bot, or Kick`}
       dataK={`room-${lk(r.roomId)}`}
       items={items}
     >
@@ -488,6 +507,38 @@ function laneName(d: LiveData, roomId: string, playing: LaneNowPlaying): { name:
   const remembered = d.state.airNames[roomId];
   const place: UsePlace | null = playing.place ?? (remembered && remembered.trackId === playing.trackId && playing.origin.kind === "single" ? remembered.place : null);
   return trackNameAt(track, place, d.names);
+}
+
+/**
+ * A lane's progress line with its markers, and the time. It reads its own position (usePlayPosition: every 250 ms
+ * while it plays), so only it redraws as the sound moves on, not the On air box (Nik, 0.5.0: the time stood still).
+ */
+function LaneTime({ roomId, lane, length, markers, name }: { roomId: string; lane: MusicOrAmbience; length: number | null; markers: readonly { atMs: number; label: string; mix?: boolean }[]; name: string }) {
+  const { audio } = useLive();
+  const position = usePlayPosition((at) => at.rooms[roomId]?.[lane] ?? null);
+  const isMusic = lane === "music";
+  // 0.5.1 (Nik, 11 Nov): the bar is a seek bar (kit/SeekBar.tsx): click, drag or the arrow keys jump in this room.
+  return (
+    <div className="lv-lane-pr">
+      <SeekBar
+        name={name}
+        position={position}
+        length={length}
+        lane={isMusic ? "music" : "amb"}
+        barClassName="lv-mkbar"
+        onSeek={(seconds) => {
+          touched();
+          audio.seek(lane, seconds, { room: roomId });
+        }}
+      >
+        {length &&
+          markers.map((m) => <i key={`${m.atMs}-${m.label}`} className={cx("lv-mk", m.mix && "mix")} style={{ left: `${(m.atMs / 1000 / length) * 100}%` }} title={`${m.label} ${formatLength(m.atMs)}`} />)}
+      </SeekBar>
+      <span className="num lv-time" aria-hidden="true">
+        {position !== null ? `${clockTime(position)}${length ? ` / ${clockTime(length)}` : ""}` : "…"}
+      </span>
+    </div>
+  );
 }
 
 /** One lane: its name, the track, its progress with markers, the time and its controls; the music adds its playlist. */
@@ -540,14 +591,7 @@ function Lane({ lane, room, roomName }: { lane: MusicOrAmbience; room: RoomNowPl
           {shown.name !== shown.own && <span className="sr-only"> (its own name: {shown.own})</span>}
           {pos && <span className="sr-only">, {pos}</span>}
         </div>
-        <div className="lv-lane-pr">
-          <div className={cx("progress lv-mkbar", isMusic ? "music" : "amb")} aria-hidden="true">
-            <span style={{ width: `${length && playing.position !== null ? Math.min(100, (playing.position / length) * 100) : 0}%` }} />
-            {length &&
-              markers.map((m) => <i key={`${m.atMs}-${m.label}`} className={cx("lv-mk", m.mix && "mix")} style={{ left: `${(m.atMs / 1000 / length) * 100}%` }} title={`${m.label} ${formatLength(m.atMs)}`} />)}
-          </div>
-          <span className="num lv-time">{playing.position !== null ? `${clockTime(playing.position)}${length ? ` / ${clockTime(length)}` : ""}` : "…"}</span>
-        </div>
+        <LaneTime roomId={room.roomId} lane={lane} length={length} markers={markers} name={shown.name} />
         {sub && (
           <div className="lv-lane-sub ellipsis" title={sub}>
             {sub}
@@ -584,6 +628,20 @@ function Lane({ lane, room, roomName }: { lane: MusicOrAmbience; room: RoomNowPl
         >
           <Icon name={playing.paused ? "play" : "pause"} size="s" />
         </button>
+        {/* 0.5.1 (Nik, 11 Nov): Stop beside Pause, as in the Now playing bar (a quick fade; Fade out is the slow one). */}
+        <button
+          type="button"
+          className="btn s icon"
+          data-lv={`stop-${lane}-${lv}`}
+          aria-label={`Stop ${word.toLowerCase()}`}
+          title={`Stop ${word.toLowerCase()} (fades out in a second)`}
+          onClick={() => {
+            touched();
+            audio.stopLane(lane, { target, fadeMs: STOP_FADE_MS });
+          }}
+        >
+          <Icon name="stop" size="s" />
+        </button>
         <button
           type="button"
           className="btn s icon"
@@ -595,15 +653,16 @@ function Lane({ lane, room, roomName }: { lane: MusicOrAmbience; room: RoomNowPl
         >
           <Icon name="next" size="s" />
         </button>
+        {isMusic && <ShuffleButton room={room} roomName={roomName} />}
         {isMusic && <RepeatButton room={room} roomName={roomName} />}
         <button
           type="button"
           className="btn s icon"
           aria-label={`Fade ${word.toLowerCase()} out`}
-          title={`Fade ${word.toLowerCase()} out over 3 seconds`}
+          title={`Fade ${word.toLowerCase()} out over ${FADE_BUTTON_MS / 1000} seconds`}
           onClick={() => {
             touched();
-            audio.stopLane(lane, { target, fadeMs: LIVE_FADE_MS });
+            audio.stopLane(lane, { target, fadeMs: FADE_BUTTON_MS });
           }}
         >
           <Icon name="fade" size="s" />
@@ -637,6 +696,27 @@ function RepeatButton({ room, roomName }: { room: RoomNowPlaying; roomName: stri
       }}
     >
       <Icon name={shown === "one" ? "repeat1" : "loop"} size="s" />
+    </button>
+  );
+}
+
+/** 0.5.1 (Nik, 11 Nov): the room's Shuffle, beside its Repeat and like it: for what plays now, never saved. */
+function ShuffleButton({ room, roomName }: { room: RoomNowPlaying; roomName: string }) {
+  const { audio, rooms } = useLive();
+  const where = rooms.length > 1 ? ` in ${roomName}` : "";
+  return (
+    <button
+      type="button"
+      className={cx("btn s icon rep", room.shuffle && "on")}
+      aria-pressed={room.shuffle}
+      aria-label="Shuffle"
+      title={`Shuffle ${room.shuffle ? "on" : "off"}, for what plays now${where} (not saved)`}
+      onClick={() => {
+        touched();
+        audio.toggleShuffle({ room: room.roomId });
+      }}
+    >
+      <Icon name={room.shuffle ? "shuffle" : "inorder"} size="s" />
     </button>
   );
 }
@@ -898,52 +978,75 @@ function PlayedList({ r }: { r: LiveRoom }) {
 }
 
 /** Add a room: another bot joins a voice channel; the new room starts silent. */
-function AddRoom() {
-  const { outputs, client } = useLive();
+/**
+ * Add a room's choices, shared by the Add a room button and a room's bot menu (0.5.1): each free bot with the channels
+ * it could join, as on the Rooms screen; with no free bot, says so. Then Add a bot…, which opens Settings.
+ */
+function addRoomEntries(outputs: LiveData["outputs"], pick: (bot: { id: string; name: string }, c: { channelId: string; name: string; empty: boolean }) => void, inBotMenu: boolean): PopMenuEntry[] {
+  const free = addRoomChoices(outputs);
+  const entries: PopMenuEntry[] = free.length
+    ? free.flatMap(({ bot, servers }): PopMenuEntry[] => [
+        { group: inBotMenu ? `Add a room: ${bot.name} joins…` : `${bot.name} joins…` },
+        ...servers.flatMap(({ server, items: channels }): PopMenuEntry[] => [
+          { group: server },
+          ...channels.map(
+            (c): PopMenuEntry => ({
+              key: `add-${bot.id}-${c.channelId}`,
+              // In a room's bot menu these add a room: plain items, so the channel choice above stays the one set of radios.
+              ...(inBotMenu ? {} : { role: "menuitemradio" as const, checked: c.here }),
+              disabled: c.here || c.taken,
+              content: (
+                <>
+                  <span className="grow ellipsis">{c.name}</span> <span className="faint">{c.sub}</span>
+                  {inBotMenu && <span className="sr-only">, {bot.name} joins</span>}
+                </>
+              ),
+              onSelect: () => pick(bot, c),
+            }),
+          ),
+        ]),
+      ])
+    : [{ group: inBotMenu ? "Add a room: every bot is in a room" : "Every bot is in a room" }];
+  entries.push({
+    key: "addbot",
+    content: (
+      <>
+        <Icon name="plus" size="s" />
+        Add a bot…
+      </>
+    ),
+    onSelect: () => (window.location.hash = "#/settings"),
+  });
+  return entries;
+}
+
+/** A free bot joins a channel: a new room (the Rooms screen's Add, from Live). */
+function useAddRoom(): (bot: { id: string; name: string }, c: { channelId: string; name: string; empty: boolean }) => void {
+  const { client } = useLive();
   const { toast, say } = useAnnounce();
-  const items = (): PopMenuEntry[] => [
-    ...addRoomChoices(outputs).flatMap(({ bot, servers }): PopMenuEntry[] => [
-      { group: `${bot.name} joins…` },
-      ...servers.flatMap(({ server, items: channels }): PopMenuEntry[] => [
-        { group: server },
-        ...channels.map(
-          (c): PopMenuEntry => ({
-            key: `${bot.id}-${c.channelId}`,
-            role: "menuitemradio",
-            checked: c.here,
-            disabled: c.here || c.taken,
-            content: (
-              <>
-                <span className="grow ellipsis">{c.name}</span> <span className="faint">{c.sub}</span>
-              </>
-            ),
-            onSelect: () => {
-              client?.move(bot.id, c.channelId);
-              // UX-R4: focus goes to the new room's bot button once it is drawn.
-              focusLiveSoon([`room-${lk(bot.id)}`], { move: true });
-              // UX-R9: a channel nobody is in says so in the room's own words.
-              const words = c.empty ? `${c.name} is joining: nobody there.` : `${c.name} is joining. It starts silent: choose To: ${c.name} in a box to play there.`;
-              say(words);
-              toast(words);
-            },
-          }),
-        ),
-      ]),
-    ]),
-    { separator: true },
-    {
-      key: "newbot",
-      content: (
-        <>
-          <Icon name="plus" size="s" />
-          New bot…
-        </>
-      ),
-      onSelect: () => (window.location.hash = "#/settings"),
-    },
-  ];
+  return (bot, c) => {
+    client?.move(bot.id, c.channelId);
+    // UX-R4: focus goes to the new room's bot button once it is drawn.
+    focusLiveSoon([`room-${lk(bot.id)}`], { move: true });
+    // UX-R9: a channel nobody is in says so in the room's own words.
+    const words = c.empty ? `${c.name} is joining: nobody there.` : `${c.name} is joining. It starts silent: choose To: ${c.name} in a box to play there.`;
+    say(words);
+    toast(words);
+  };
+}
+
+function AddRoom() {
+  const { outputs } = useLive();
+  const add = useAddRoom();
   return (
-    <PopMenuButton label="Add a room" className="btn s icon" ariaLabel="Add a room" title="Add a room: put another bot in a voice channel" dataK="addroom" items={items}>
+    <PopMenuButton
+      label="Add a room"
+      className="btn s icon"
+      ariaLabel="Add a room"
+      title="Add a room: put another bot in a voice channel, or add a bot"
+      dataK="addroom"
+      items={() => addRoomEntries(outputs, add, false)}
+    >
       <Icon name="plus" size="s" />
     </PopMenuButton>
   );

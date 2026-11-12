@@ -178,12 +178,19 @@ describe("assembleLyreAudio: LyreAudio wired into the new page as docs/ARCHITECT
     await audio.dispose();
   });
 
-  it("PRV-2: puts the preview in one ear of a split headset, and back in both", async () => {
+  it("PRV-2: puts the preview in one ear of a split headset while something plays on air (0.5.1), and back in both", async () => {
     const ears: string[] = [];
     const audio = assemble((ear) => ears.push(ear));
     await audio.setAudioDevices({ airDevice: "", previewDevice: "hp", split: true, previewEar: "left" });
+    audio.getNowPlaying();
+    expect(ears).toEqual([]);
+    context.mediaDurations.set("file:///m1.ogg", 20);
+    audio.playTrack("m1");
+    await context.advance(1);
+    audio.getNowPlaying();
+    expect(ears).toEqual(["left"]);
     await audio.setAudioDevices({ airDevice: "", previewDevice: "hp", split: false, previewEar: "left" });
-    expect(ears).toEqual(["left", "both"]);
+    await vi.waitFor(() => expect(ears).toEqual(["left", "both"]));
     await audio.dispose();
   });
 

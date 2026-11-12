@@ -14,7 +14,7 @@ interface RailProps {
   onHelp?: () => void;
 }
 
-/** The rail: Lyre's sections, in the prototype's order, with Look and feel, Help and "Icons only" at the bottom. */
+/** The rail: Lyre's sections (Live first since 0.5.1; then the prototype's order), with Look and feel, Help and "Icons only" at the bottom. */
 export function Rail({ section, min, onToggleMin, helpOpen = false, onHelp }: RailProps) {
   const { liveLabel, liveName, outputsLabel, outputsHint } = useShellData();
   const link = (to: Section, icon: IconName, label: string, name?: string, hint?: string) => (
@@ -37,11 +37,12 @@ export function Rail({ section, min, onToggleMin, helpOpen = false, onHelp }: Ra
       </div>
       <nav aria-label="Lyre">
         <div className="stack" style={{ gap: 2 }}>
+          {/* 0.5.1 (Nik, 11 Nov): Live first. */}
+          {link("live", "broadcast", liveLabel ?? "Live", liveLabel ? liveName : undefined)}
           {link("campaigns", "crown", "Campaigns")}
           {link("library", "library", "Library")}
           {link("playlists", "playlist", "Playlists")}
           {link("boards", "grid", "Pad boards")}
-          {link("live", "broadcast", liveLabel ?? "Live", liveLabel ? liveName : undefined)}
           {/* OUT-9 (round 6, Nik 6 Nov 13:55): the screen is Rooms; its address stays #/outputs. */}
           {link("outputs", "users", outputsLabel ?? "Rooms", undefined, outputsHint)}
         </div>

@@ -158,6 +158,8 @@ The 0.5.0 build list (w6-specs, after round 6 parts 6 and 7 and round 7 with its
 
 One mark per stream (w6-shell, step 0): the `round 6` and `round 7` marks are replaced by the 0.5.0 streams that build each check, `expectFailureUntilBuilt("shell" | "live" | "rooms-settings" | "prep", ...)`, with every stream a check needs (BUILD-LIST.md's stream and its "Also"). A check is expected to fail in the app until all the streams it names are in `BUILT_STREAMS` (`support/built.ts`); a stream adds its name when its checks pass. Streams have their own list because `live` is also a screen: screens are still marked by `expectFailureUntilScreenBuilt(screen)` against `BUILT_SCREENS` (each spec file by its name automatically, a sweep by its screen's `owner`, a stream-built screen such as `settings` or `tags` by its stream as well, through the sweep screen's `streams`). The UX-6 hover-text sweeps the app does not meet yet name the shell and the screen's stream (`UX6_NOT_MET_YET`). A check that passes before all its streams are built shows as "expected to fail, but passed": it needs fewer streams than it names, and the stream that sees it takes the others off.
 
+0.5.1 (w51-feat): the features from Nik's test of 0.5.0 were built straight in the app, with no prototype round (Nik, 11 Nov 20:41: "They don't need to be designed or reviewed"). Their checks sit in a `0.5.1: Nik's changes from his test of 0.5.0` block at the end of the screen's spec file and call `appOnly()` (`support/test.ts`) first: the prototype project skips them, the app project runs them like any other check.
+
 ### Running them
 
 ```
@@ -287,3 +289,17 @@ own presses go straight to the page and cannot show that. Without an X server wi
 Unit checks: `Shell.test.tsx` (a fault never leaves a blank page), `SettingsAppliers.test.tsx` (keys in other programs
 that could not be asked for; Next scene's key on another screen), `LiveScreen.test.tsx` (Ctrl+Z after a Kick; the
 Audio profile from a scene), `updateFeed.test.ts` and `autoUpdate.test.ts` (a Releases page with only drafts).
+
+## 0.5.1 fixes (w51-fix)
+
+Each fault Nik found in 0.5.0 (R6-NIK-DECISIONS.md, 11 Nov 19:42) has a test that failed before its fix.
+`src/lyre/previewOnThePage.test.tsx` renders the whole page (every screen's own audio host with its name, as in the
+app) over the in-memory LyreApi and the real audio host on the fake audio graph, whose clocks are the fake timers.
+
+| Fault | Tests |
+| --- | --- |
+| The Now playing bar's time stayed at 0:00 while it played | `lyreAudio.test.ts` (positions every 250 ms while music, ambience or the preview plays; no timer while paused or unheard; the preview's length), `previewPlayer.test.ts`, `NowPlayingBar.test.tsx`, `previewOnThePage.test.tsx` (the preview row, the bar's On air row and Live's On air box move in each of three 0.3 s spans), `library.spec.ts` (the time moves by itself, in the bar and in Live). |
+| A scene or session could not be dragged into the last place | `reorder.test.tsx` (below the last row, in a gap between rows), `SessionScreen.test.tsx`, `CampaignScreen.test.tsx` (dragged below the last; Move down into the last place), `e2e/reorder.spec.ts` (the packaged app, with the mouse). |
+| Copy path copied nothing | `permissions.test.ts` (the Lyre page may write text to the clipboard, never read it), `LibraryScreen.test.tsx`, `SettingsScreen.test.tsx` (Copy code), `e2e/clipboard.spec.ts` (the main process's clipboard holds the path). |
+| A track's Preview ignored its audio profile | `lyreAudio.test.ts` (Start, fades, End; a scene's and a playlist's own settings), `SoundButtons.test.tsx`, `previewOnThePage.test.tsx`, `library.spec.ts` (t02's preview starts at 0:08). |
+| Stop preview started the track again | `lyreAudio.test.ts`, `previewOnThePage.test.tsx`, `library.spec.ts` (the Only you row goes). |
