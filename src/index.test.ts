@@ -185,6 +185,19 @@ describe("main window (SEC-10, SEC-7, SEC-3)", () => {
     expect((window.options.webPreferences as { preload?: string }).preload).toBe("/app/lyre_window/preload.js");
   });
 
+  it("states its page's protections instead of relying on Electron's defaults (CR51-8)", () => {
+    expect(mainWindow().options.webPreferences).toEqual({
+      preload: "/app/lyre_window/preload.js",
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+      nodeIntegrationInSubFrames: false,
+      webviewTag: false,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+    });
+  });
+
   it("has no frame of its own: Lyre's top strip is the title bar, with the system's buttons drawn over it (FND-16 step 2)", () => {
     expect(mainWindow().options).toMatchObject({ titleBarStyle: "hidden", titleBarOverlay: { height: 36 } });
   });
@@ -218,6 +231,14 @@ describe("main window (SEC-10, SEC-7, SEC-3)", () => {
       expect(state.openExternal).not.toHaveBeenCalled();
     },
   );
+
+  it("opens only a few links a second in the system browser, however many the page asks for (CR51-9)", () => {
+    state.openExternal.mockClear();
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    for (let i = 0; i < 50; i++) mainWindow().webContents.windowOpenHandler?.({ url: `https://example.com/flood/${i}` });
+    expect(state.openExternal.mock.calls.length).toBeLessThanOrEqual(5);
+    vi.mocked(console.warn).mockRestore();
+  });
 
   it("cannot navigate away from its own page", () => {
     const event = { url: "https://evil.example/", isMainFrame: true, preventDefault: vi.fn() };

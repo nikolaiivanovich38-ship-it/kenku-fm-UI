@@ -1200,6 +1200,12 @@ Fixes for the independent code and security review of 0.5.1 (CR51-1 to CR51-11).
   the old window's choice); saving another setting no longer writes the default. So `hasStreamingMode` stays the
   move's test of "already chosen", and a move retried at a later start still brings the old choice across. (A
   separate done-flag for that step would have let a retry overwrite a choice made in between.)
+- CR51-8: the window's `webPreferences` are written out (`sandbox`, `contextIsolation`, `webSecurity` on;
+  `nodeIntegration`, `nodeIntegrationInSubFrames`, `webviewTag`, `allowRunningInsecureContent` off) and
+  `src/index.test.ts` pins them, as the capture window already did.
+- CR51-9: links the Lyre page opens go to the system browser through `rateLimitedExternalOpener`: 5 every 10
+  seconds (`EXTERNAL_LINK_LIMIT`, the tab code's `createRateLimiter`); refused addresses do not count, links past the
+  limit are dropped and logged.
 - Test builds only: `CUE_DESK_FAKE_KEYRING=1` saves tokens with a reversible, marked stand-in
   (`src/main/broadcast/testing/fakeKeyring.ts`), so end-to-end tests on a machine without a keyring can restart with
   a saved bot. Release builds compile it out (`__CUE_DESK_TEST_BUILD__`).
@@ -1213,6 +1219,7 @@ Fixes for the independent code and security review of 0.5.1 (CR51-1 to CR51-11).
 | `src/main/security/sessions.test.ts`, `keptForLater.test.ts`, `src/index.test.ts` | At start: one privileged scheme (`lyre-media`), no partition opened; the kept sessions' handlers only through `secureKeptSessions` |
 | `src/main/updateStatus.test.ts`, `src/autoUpdate.test.ts`, `src/main/managers/LyreManager.test.ts` | A ready update stays ready after later checks and failures; checks stop; Restart now still restarts |
 | `src/main/lyreApi/argChecks.test.ts` | Another computer setting writes no Sound to Discord; a chosen one stays |
+| `src/index.test.ts`, `src/main/security/externalLinks.test.ts`, `e2e/lyre.spec.ts` | The window's web preferences; at most 5 links in 10 seconds reach the system browser, in unit tests and the packaged app |
 | `src/main/broadcast/OutputManager.test.ts`, `botTokenStore.test.ts` | What `importLegacyToken` answers; a token whose file could not be written is not "remembered" |
 | `src/main/managers/SessionManager.test.ts` | The compare-and-write script in the isolated world |
 | `e2e/upgrade.spec.ts` | In the packaged app: the plain token leaves the old storage and the rest stays; a saved bot logs in at the next start without Connect |
