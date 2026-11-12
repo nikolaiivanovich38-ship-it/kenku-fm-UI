@@ -1206,6 +1206,11 @@ Fixes for the independent code and security review of 0.5.1 (CR51-1 to CR51-11).
 - CR51-9: links the Lyre page opens go to the system browser through `rateLimitedExternalOpener`: 5 every 10
   seconds (`EXTERNAL_LINK_LIMIT`, the tab code's `createRateLimiter`); refused addresses do not count, links past the
   limit are dropped and logged.
+- CR51-10: fastify, whose only user (the remote-control server) went in 0.5.1, is no longer a dependency; its
+  resolutions (`fast-json-stringify`, `light-my-request/cookie`, `light-my-request/set-cookie-parser`,
+  `pino/thread-stream`) went with it, and `yarn.lock` lost only the 39 entries nothing else reaches, and four ranges only fastify asked for (no version
+  changed). NOTICE's example of libraries built into Lyre no longer names MUI (`scripts/licences.test.mjs` checks
+  each example is in `yarn.lock`).
 - Test builds only: `CUE_DESK_FAKE_KEYRING=1` saves tokens with a reversible, marked stand-in
   (`src/main/broadcast/testing/fakeKeyring.ts`), so end-to-end tests on a machine without a keyring can restart with
   a saved bot. Release builds compile it out (`__CUE_DESK_TEST_BUILD__`).

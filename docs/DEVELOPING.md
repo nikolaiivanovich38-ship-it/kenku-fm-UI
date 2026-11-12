@@ -142,12 +142,12 @@ New libraries are added only at versions published at least two weeks earlier, t
 
 Upgraded in 0.5.0: fastify 4 to 5.12.7, uuid 10 to 11.1.1 (SEC-9); discord.js 14.27.0, @discordjs/voice 0.19.2, libsodium-wrappers 0.8.4, TypeScript 5.9.3. Left, and why:
 
-- The old player's interface libraries (MUI 6, @emotion, @dnd-kit, react-router 6, redux-persist, @reduxjs/toolkit, react-redux, howler, uuid, and the unused case, @braintree/sanitize-url and @sinclair/typebox) were removed in 0.5.1 with the old window (FND-16). electron-store 8 stays while `src/bounds.ts` uses it.
+- The old player's interface libraries (MUI 6, @emotion, @dnd-kit, react-router 6, redux-persist, @reduxjs/toolkit, react-redux, howler, uuid, and the unused case, @braintree/sanitize-url and @sinclair/typebox) were removed in 0.5.1 with the old window (FND-16), and fastify with the remote-control server (CR51-10; Stream Deck support, WP6, adds a current version back), with its five resolutions. electron-store 8 stays while `src/bounds.ts` uses it.
 - React 19: Lyre uses React 18; moving is a change of its own.
 - Electron 45, Electron Forge 8, @electron/fuses 2, @electron/asar 4: majors that change packaging; Electron 44 is supported until Electron 47 (about March 2027). Electron 44.9.3 and later patches are reviewed in the monthly step (docs/RELEASE_CHECKLIST.md).
 - vitest 5, jsdom 31, TypeScript 7, css-loader 7, style-loader 4: test and build tools, majors with breaking changes; they ship nothing.
 - music-metadata 12: the library process belongs to the data stream; 11.16.1 has no advisory.
-- Newer than 14 days, so not yet: discord.js 14.28, eslint 10.14, typescript-eslint 8.72.1, @playwright/test 1.65, fastify 5.12.8.
+- Newer than 14 days, so not yet: discord.js 14.28, eslint 10.14, typescript-eslint 8.72.1, @playwright/test 1.65.
 
 ## CI
 

@@ -46,7 +46,7 @@ Nik, 11 Nov 2026: "Keep the code, remove them from the interface. Let's put play
 
 ## Remote control (hidden until Stream Deck support)
 
-Nik, 11 Nov 2026: "Hide until Stream Deck". Until 0.5.0 the remote API controlled only the old player, and the Kenku FM Stream Deck plugin cannot send Lyre's secret code. In 0.5.1 no server starts: `src/main/remote/remoteOff.ts` answers the Lyre page's REMOTE_GET and REMOTE_NEW_CODE with an "off" state and REMOTE_SET with "Remote control returns with Stream Deck support." Settings hides the box (`SHOW_REMOTE_CONTROL`). Kept for WP6, tested and unused: `remoteSettings.ts` (`remote-control.json`, the code encrypted, SEC-4), `remoteCode.ts`, `homeNetwork.ts`, `rateLimit.ts`. The routes, the player's request channel and the fastify server went with the old player.
+Nik, 11 Nov 2026: "Hide until Stream Deck". Until 0.5.0 the remote API controlled only the old player, and the Kenku FM Stream Deck plugin cannot send Lyre's secret code. In 0.5.1 no server starts: `src/main/remote/remoteOff.ts` answers the Lyre page's REMOTE_GET and REMOTE_NEW_CODE with an "off" state and REMOTE_SET with "Remote control returns with Stream Deck support." Settings hides the box (`SHOW_REMOTE_CONTROL`). Kept for WP6, tested and unused: `remoteSettings.ts` (`remote-control.json`, the code encrypted, SEC-4), `remoteCode.ts`, `homeNetwork.ts`, `rateLimit.ts`. The routes, the player's request channel and the fastify server went with the old player, and fastify itself left `package.json` (CR51-10); WP6 adds a current version back.
 
 ## Data storage
 
