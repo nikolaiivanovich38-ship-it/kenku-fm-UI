@@ -117,6 +117,49 @@ describe("update errors are shown, not only logged (SEC-14)", () => {
     expect(window.webContents.send).not.toHaveBeenCalled();
   });
 
+  it("takes the feed's 404 (a Releases page with only drafts) as no update, not an error (w51-fix2)", () => {
+    const window = fakeWindow();
+    const status = new UpdateStatus();
+    runAutoUpdate(window, squirrelInstalled, status);
+    handlerFor("checking-for-update")();
+    handlerFor("error")(
+      new Error("Command failed: 4294967295\nSystem.AggregateException: One or more errors occurred. ---> System.Net.WebException: The remote server returned an error: (404) Not Found."),
+    );
+    expect(status.state().kind).toBe("up-to-date");
+    expect(vi.mocked(window.webContents.send).mock.calls.filter(([channel]) => channel === "ERROR")).toEqual([]);
+  });
+
+  it("does not run the updater while the feed has nothing published (only drafts): up to date, no error (w51-fix2)", async () => {
+    vi.useFakeTimers();
+    try {
+      const window = fakeWindow();
+      const status = new UpdateStatus();
+      const hasRelease = vi.fn(async () => false);
+      runAutoUpdate(window, squirrelInstalled, status, hasRelease);
+      await vi.advanceTimersByTimeAsync(15 * 60 * 1000);
+      expect(hasRelease).toHaveBeenCalledWith(expect.stringMatching(/^https:\/\/update\.electronjs\.org\//));
+      expect(electron.autoUpdater.checkForUpdates).not.toHaveBeenCalled();
+      expect(status.state().kind).toBe("up-to-date");
+      expect(vi.mocked(window.webContents.send).mock.calls.filter(([channel]) => channel === "ERROR")).toEqual([]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it.each([
+    ["a release is published", true],
+    ["the feed could not be asked", null],
+  ])("runs the updater when %s (w51-fix2)", async (_label, published) => {
+    vi.useFakeTimers();
+    try {
+      runAutoUpdate(fakeWindow(), squirrelInstalled, new UpdateStatus(), async () => published);
+      await vi.advanceTimersByTimeAsync(15 * 60 * 1000);
+      expect(electron.autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("records checking, downloading and a downloaded update, and says to restart in plain words", () => {
     const window = fakeWindow();
     const status = new UpdateStatus();

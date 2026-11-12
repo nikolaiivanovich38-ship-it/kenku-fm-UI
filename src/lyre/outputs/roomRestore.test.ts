@@ -48,4 +48,11 @@ describe("Undo of a Kick (OUT-7): the bot goes back to its channel, then its roo
     expect(await restoreRoom({ ...KICKED, lanes: [KICKED.lanes[0]] }, { client: new FakeOutputs(), audio, waitMs: 1000 })).toBe(true);
     expect(audio.calls.filter(([m]) => m === "playTrack")).toHaveLength(1);
   });
+
+  it("w51-fix2: leaves a lane alone that still plays the same track in the room (the music went on at the table)", async () => {
+    const audio = new FakeLyreAudio();
+    audio.setNowPlaying({ rooms: [{ ...roomOf(TABLE_BOT), music: { trackId: "t-anthem", paused: false } as never }] });
+    expect(await restoreRoom(KICKED, { client: new FakeOutputs(), audio, waitMs: 1000 })).toBe(true);
+    expect(audio.calls.filter(([m]) => m === "playTrack")).toEqual([["playTrack", "a-rain", { target: { room: TABLE_BOT }, fromMs: 3000, fadeMs: 1000 }]]);
+  });
 });

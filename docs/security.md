@@ -67,7 +67,7 @@ Website tabs use the `persist:tabs` partition (`TAB_PARTITION`) with no preload.
 
 ### Navigation guards
 
-`lockAppPage` cancels `will-navigate` on the main window, capture window and player view unless only the `#fragment` changes, and denies every `window.open`. The main window passes `https` links to `shell.openExternal` through `openExternalIfAllowed`; the player view turns allowed links into new tabs. The renderer and player also install `installDocumentDropGuard(document)` so drops outside drop zones are cancelled and show the "no drop" cursor (`dropEffect = "none"`). Text and links dropped into a text field are left to the browser, which inserts them as text.
+`lockAppPage` cancels `will-navigate` on the main window, capture window and player view unless only the `#fragment` changes, and denies every `window.open`. The main window passes `https` links to `shell.openExternal` through `openExternalIfAllowed`; the player view turns allowed links into new tabs. The renderer and player also install `installDocumentDropGuard(document)` so drops outside drop zones are cancelled and show the "no drop" cursor (`dropEffect = "none"`). A drop zone that cancelled the `dragover` itself keeps the drop effect it chose (w51-fix2: the guard ran after the Library's own handler and set `none`, so Chromium never fired `drop` there); the guard still cancels the event, so the browser never opens the file. Text and links dropped into a text field are left to the browser, which inserts them as text.
 
 ### How to change a rule
 

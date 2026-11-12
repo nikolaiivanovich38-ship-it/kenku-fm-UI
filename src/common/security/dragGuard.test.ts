@@ -28,6 +28,19 @@ describe("installDocumentDropGuard (SEC-7)", () => {
     expect(fire(document.body, "dragover", ["Files"]).dropEffect()).toBe("none");
   });
 
+  it("leaves the drop effect a drop zone chose, so the browser drops there (w51-fix2: Library drops did nothing)", () => {
+    remove = installDocumentDropGuard(document);
+    const zone = document.createElement("div");
+    document.body.append(zone);
+    zone.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      (event as DragEvent).dataTransfer!.dropEffect = "copy";
+    });
+    const over = fire(zone, "dragover", ["Files"]);
+    expect(over.defaultPrevented).toBe(true);
+    expect(over.dropEffect()).toBe("copy");
+  });
+
   it("lets a link be dropped into a text field as text", () => {
     remove = installDocumentDropGuard(document);
     const input = document.createElement("input");

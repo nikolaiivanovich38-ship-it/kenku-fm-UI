@@ -338,6 +338,26 @@ test.describe("choosing what plays", () => {
     await expect(sceneMusic(page).getByRole("link", { name: /profile/i })).toHaveAttribute("href", "#/profile/t13/sc:crown:s14:sc3");
   });
 
+  test("a track's Audio profile in Current scene and in Scenes opens the Audio profile, the music still on air, and Back comes back to Live (Nik, 0.5.0 crash)", async ({ page }) => {
+    await openRoute(page, "live");
+    await startAbbey(page);
+    await expect(room(page, "Table").getByText("Playing")).toBeVisible();
+    for (const box of ["Current scene", "Scenes"]) {
+      const where = box === "Scenes" ? region(page, "Scenes") : sceneMusic(page);
+      if (box === "Scenes") {
+        const scene = where.getByRole("button", { name: "Scene 3: The abbey ruins", exact: true });
+        if ((await scene.getAttribute("aria-expanded")) !== "true") await scene.click();
+      }
+      await where.getByRole("button", { name: /^Eerie dread, low cello/, includeHidden: false }).first().click();
+      await where.getByRole("link", { name: /Audio profile/ }).first().click();
+      await expect(page.getByRole("heading", { level: 1 })).toContainText("Audio profile");
+      await expect(page.getByText(/Something went wrong/)).toHaveCount(0);
+      await expect(page.getByRole("region", { name: "Now playing" }).getByText(/^Eerie dread/).first()).toBeVisible();
+      await page.getByRole("button", { name: /^Back/ }).first().click();
+      await expect(page.getByRole("heading", { level: 1, name: "Live" })).toBeVisible();
+    }
+  });
+
   test("row actions read Preview, Play next, Add to queue (round 6), Play on air, in that order", async ({ page }) => {
     expectFailureUntilBuilt("live"); // round 6 part 3: each row has Add to queue
     await openRoute(page, "live");

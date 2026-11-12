@@ -20,7 +20,7 @@ import { DEFAULT_LIBRARY_NORMALISE, guardAllows, keyName, shortcutKey } from "..
 import { GLOBAL_KEY_EVENT } from "../../../common/globalKeys";
 import { useBoards, useCampaigns, useLyreQuery, useProfileOverrides, useSettings, useTagGroups, usePlaylists, useTracks } from "../../api";
 import { useLyreAudio, useLyreAudioEvent, useNowPlaying, type LyreAudio } from "../../audio";
-import { loadInLive, useLiveSession } from "../../kit/liveSession";
+import { loadInLive, takeNextScene, useLiveSession } from "../../kit/liveSession";
 import { usePlayOrders } from "../../kit/playOrders";
 import { useTrackNames } from "../../kit/trackName";
 import { useOutputs } from "../../outputs/OutputsProvider";
@@ -490,6 +490,13 @@ export const LiveScreen: ScreenComponent = function LiveScreen() {
       onBlur();
     };
   }, []);
+  // w51-fix2: Next scene pressed in another program while another screen showed opened Live: move on once drawn.
+  const ready = !!data;
+  useEffect(() => {
+    if (!ready || !takeNextScene()) return;
+    updateLive({ lastNextKey: Date.now() });
+    calls.current.nextScene();
+  }, [ready]);
   if (!data) return null;
   // One column shows only Now and Next in Scenes, in a narrow window; a wide window in one column because its text is
   // large (Look and feel › Display, UX-11) has room to list every scene.

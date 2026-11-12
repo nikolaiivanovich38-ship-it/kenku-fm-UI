@@ -1,9 +1,9 @@
 import fs from "fs";
 import path from "path";
-import { app, autoUpdater, BrowserWindow } from "electron";
+import { app, autoUpdater, BrowserWindow, net } from "electron";
 import { GITHUB_REPO } from "./main/appIdentity";
-import { buildUpdateFeedUrl } from "./main/updateFeed";
-import { updateStatus, type UpdateStatus } from "./main/updateStatus";
+import { buildUpdateFeedUrl, hasPublishedRelease } from "./main/updateFeed";
+import { isNoPublishedUpdate, updateStatus, type UpdateStatus } from "./main/updateStatus";
 
 declare const __CUE_DESK_TEST_BUILD__: boolean;
 
@@ -16,6 +16,12 @@ type TestUpdateEvent = { kind: "downloaded" } | { kind: "up-to-date" } | { kind:
 function updateHandlers(status: UpdateStatus): Record<string, (...args: unknown[]) => void> {
   return {
     error: (error) => {
+      // A Releases page with only drafts gives the feed's 404: nothing newer is published, so this copy is up to date.
+      if (isNoPublishedUpdate(error)) {
+        console.info("No update published yet:", error);
+        status.upToDate();
+        return;
+      }
       console.error("Automatic update check failed:", error);
       status.failed(error);
     },
@@ -41,17 +47,25 @@ function installTestHook(handlers: Record<string, (...args: unknown[]) => void>)
   };
 }
 
-function checkForAppUpdates() {
+/** Whether the feed has a release at all (w51-fix2): false when every release is a draft, null when unknown. */
+type HasRelease = (feedUrl: string) => Promise<boolean | null>;
+
+const askFeed: HasRelease = (feedUrl) => hasPublishedRelease(feedUrl, (address) => net.fetch(address));
+
+async function checkForAppUpdates(feedUrl: string, status: UpdateStatus, hasRelease: HasRelease) {
   if (process.platform === "win32") {
     const squirrelCommand = process.argv[1];
     if (squirrelCommand === "--squirrel-firstrun") {
       return;
     }
   }
-
-  if (app.isReady()) {
-    autoUpdater.checkForUpdates();
+  if (!app.isReady()) return;
+  // Nothing published (a Releases page with only drafts): no update, and Update.exe is not run to fail on it.
+  if ((await hasRelease(feedUrl)) === false) {
+    status.upToDate();
+    return;
   }
+  autoUpdater.checkForUpdates();
 }
 
 /**
@@ -70,7 +84,9 @@ export function isSquirrelInstall(
  * SEC-14: check the fork's GitHub releases for updates every 15 minutes.
  * Does nothing when the feed cannot be built (repository not configured or
  * platform without update support) and, on Windows, for copies not set up by
- * the installer (the zip build). Every step is recorded in `status`; the Lyre
+ * the installer (the zip build). Before each check the feed is asked whether
+ * anything is published (w51-fix2): with only drafts it is up to date, and
+ * Squirrel's Update.exe is not run. Every step is recorded in `status`; the Lyre
  * page shows a ready update and the first failure of a run in plain words
  * (FND-16: until 0.5.1 the old main window did); errors are also logged.
  */
@@ -78,6 +94,7 @@ export function runAutoUpdate(
   window: BrowserWindow,
   isInstalled: () => boolean = () => isSquirrelInstall(),
   status: UpdateStatus = updateStatus,
+  hasRelease: HasRelease = askFeed,
 ) {
   const handlers = updateHandlers(status);
   installTestHook(handlers);
@@ -107,7 +124,7 @@ export function runAutoUpdate(
   }
 
   const interval = setInterval(() => {
-    checkForAppUpdates();
+    void checkForAppUpdates(url, status, hasRelease);
   }, CHECK_INTERVAL_MS);
 
   window.on("close", () => {

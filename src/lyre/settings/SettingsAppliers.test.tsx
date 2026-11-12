@@ -1,6 +1,6 @@
 /** What Settings keeps must work from the start, wherever Lyre is: the preview's device and the global keys. */
 import React from "react";
-import { act, render, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { createFakeLyreApi } from "../../common/lyre/fake";
@@ -76,6 +76,25 @@ describe("SettingsAppliers", () => {
     await waitFor(() => expect(view.getByTestId("refused")).toHaveTextContent("Another program already uses Shift+Esc everywhere."));
   });
 
+  it("says so when the main process could not be asked to register the keys, instead of failing silently (w51-fix2)", async () => {
+    const { keys } = fakeKeys();
+    keys.setGlobal = vi.fn(async (request: GlobalKeysRequest) => {
+      if (request.on) throw new Error("Lyre did not answer. Try again.");
+      return { refused: [] };
+    });
+    const { api, view } = setup(keys);
+    await act(async () => void (await api.settings.setShortcut("nextScene", "F9")));
+    await act(async () => void (await api.settings.setComputer({ globalKeys: true })));
+    await waitFor(() =>
+      expect(view.getByTestId("refused")).toHaveTextContent(
+        "Lyre could not take F9 from other programs, so Next scene works only in Lyre for now. Turn this off and on again to try once more.",
+      ),
+    );
+    expect(view.getByTestId("refused")).toHaveTextContent("Lyre could not take Shift+Esc from other programs");
+    await act(async () => void (await api.settings.setComputer({ globalKeys: false })));
+    await waitFor(() => expect(view.getByTestId("refused")).toHaveTextContent(/^$/));
+  });
+
   it("a press passes to the page as an event Live can take; Fade everything out fades on any screen when nobody took it", async () => {
     const { keys, press } = fakeKeys();
     const { audio } = setup(keys);
@@ -93,5 +112,26 @@ describe("SettingsAppliers", () => {
     expect(audio.calls.some(([m]) => m === "fadeAll")).toBe(false);
     act(() => press("fadeAll"));
     expect(audio.calls.filter(([m]) => m === "fadeAll")).toHaveLength(1);
+  });
+
+  it("Next scene's key pressed in Lyre on another screen, with the switch off, opens Live to start the next scene, if it is not a typing key (w51-fix2)", async () => {
+    const { keys } = fakeKeys();
+    const { api } = setup(keys);
+    await act(async () => void (await api.settings.setShortcut("nextScene", "F9")));
+    await waitFor(() => expect(keys.asked[keys.asked.length - 1]).toEqual({ on: false, keys: { nextScene: "F9", fadeAll: "Shift+Esc" } }));
+    window.history.replaceState(null, "", "#/settings");
+    fireEvent.keyDown(document.body, { key: "F9" });
+    expect(window.location.hash).toBe("#/live");
+
+    // Live's own keys take it there; a key typed in a box, and a single key such as Space, open nothing.
+    window.history.replaceState(null, "", "#/settings");
+    const box = document.body.appendChild(document.createElement("input"));
+    fireEvent.keyDown(box, { key: "F9" });
+    box.remove();
+    expect(window.location.hash).toBe("#/settings");
+    await act(async () => void (await api.settings.setShortcut("nextScene", "Space")));
+    await waitFor(() => expect(keys.asked[keys.asked.length - 1]?.keys.nextScene).toBe("Space"));
+    fireEvent.keyDown(document.body, { key: " " });
+    expect(window.location.hash).toBe("#/settings");
   });
 });

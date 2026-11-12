@@ -40,7 +40,10 @@ export function Shell({ screens = SCREENS, firstRunTour = false }: ShellProps) {
     <ShellSettingsProvider>
       <AnnouncerProvider>
         <SoundMessages />
-        <ShellFrame screens={screens} firstRunTour={firstRunTour} />
+        {/* w51-fix2: a fault in the frame itself (the rail, Help, Find and play) shows a message, not a blank page. */}
+        <ErrorBoundary where="this window">
+          <ShellFrame screens={screens} firstRunTour={firstRunTour} />
+        </ErrorBoundary>
       </AnnouncerProvider>
     </ShellSettingsProvider>
   );
@@ -54,6 +57,10 @@ function ShellFrame({ screens, firstRunTour }: { screens: Record<RouteName, Scre
   const navigation = useNavigationState(route.path, data.placeNames);
   before.current = navigation.beforeRouteChange;
   useBackKeys(() => navigation.goBack(fallbackNow.current));
+  // w51-fix2: Back on a screen's fault message: the Back button's place, else Campaigns (the first screen).
+  const goBackFromFault = () => {
+    if (!navigation.goBack()) window.location.hash = "#/campaigns";
+  };
   const { settings, update } = useShellSettings();
   const { say } = useAnnounce();
   const appRef = useRef<HTMLDivElement>(null);
@@ -163,8 +170,10 @@ function ShellFrame({ screens, firstRunTour }: { screens: Record<RouteName, Scre
         <OpenHelpContext.Provider value={help.openHelp}>
         <NavigationProvider value={navigation}>
           <UndoNoteProvider live={route.name === "live"}>
-            <ErrorBoundary key={route.path} where="this screen">
-              <CampaignInHandContext.Provider value={campaignInHand.current}>
+            {/* w51-fix2: the boundary stays while screens change (the screen is keyed inside it), so a screen that
+                fails as it is left is caught here instead of blanking the page; a new address clears its message. */}
+            <ErrorBoundary where="this screen" resetKey={route.path} onBack={goBackFromFault}>
+              <CampaignInHandContext.Provider key={route.path} value={campaignInHand.current}>
                 <ScreenSound route={route.name}>
                   <Screen route={route} />
                 </ScreenSound>
@@ -174,7 +183,12 @@ function ShellFrame({ screens, firstRunTour }: { screens: Record<RouteName, Scre
           </UndoNoteProvider>
         </NavigationProvider>
         </OpenHelpContext.Provider>
-        {data.NowPlayingBar && <data.NowPlayingBar previewOnly={!!Screen.showsOnAir} />}
+        {data.NowPlayingBar && (
+          // w51-fix2: outside the screen's own, so a fault in the bar must not take the whole page with it.
+          <ErrorBoundary where="the Now playing bar">
+            <data.NowPlayingBar previewOnly={!!Screen.showsOnAir} />
+          </ErrorBoundary>
+        )}
       </main>
       {help.panel}
       {help.tour}

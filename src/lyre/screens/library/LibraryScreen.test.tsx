@@ -5,6 +5,7 @@ import { expectNoAxeViolations } from "../../test/axe";
 // The page can start the real audio host, whose worklet file is a webpack asset; these tests use a fake host.
 vi.mock("../../../preload/managers/PCMStream.worklet.js?asset", () => ({ default: "pcm.js" }));
 
+import { installDocumentDropGuard } from "../../../common/security/dragGuard";
 import { dropNames, go, openAt } from "./testHarness";
 import { addedText } from "./model";
 import { expectPlayAirIcons } from "../../test/playAirIcon";
@@ -378,10 +379,23 @@ describe("Library: adding tracks", () => {
   it("dropped files join the Library, selected; other files are ignored", async () => {
     openAt("library");
     await loaded();
-    dropNames(screen.getByRole("main"), ["01 Wolf Moon.flac", "02 Ember.mp3", "notes.txt"]);
+    expect(dropNames(screen.getByRole("main"), ["01 Wolf Moon.flac", "02 Ember.mp3", "notes.txt"])).toBe(true);
     expect(await screen.findByText("71 tracks")).toBeInTheDocument();
     expect(shownTitles()).toEqual(expect.arrayContaining(["Wolf Moon", "Ember"]));
     expect(screen.getByRole("toolbar", { name: "Selected tracks" })).toHaveTextContent("2 selected");
+  });
+
+  it("w51-fix2: files dragged from the computer onto the track list are dropped there and join the Library, with the page's drop guard (SEC-7) on", async () => {
+    const removeGuard = installDocumentDropGuard(document);
+    try {
+      openAt("library");
+      await loaded();
+      expect(dropNames(tracksBox().getAllByRole("row")[1], ["01 Wolf Moon.flac"])).toBe(true);
+      expect(await screen.findByText("70 tracks")).toBeInTheDocument();
+      expect(shownTitles()).toContain("Wolf Moon");
+    } finally {
+      removeGuard();
+    }
   });
 
   it("Watch a folder… says it is watching, and files arriving there are offered as new tracks", async () => {

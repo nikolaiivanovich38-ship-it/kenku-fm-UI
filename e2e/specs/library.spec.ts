@@ -209,6 +209,14 @@ test.describe("adding tracks", () => {
     await expect(page.getByText(/2 selected/).first()).toBeVisible();
     await expect(page.getByText(/Wolf Moon/).first()).toBeVisible();
   });
+
+  test("w51-fix2: files dragged from the computer onto the track list itself join the Library (Nik, 0.5.0: \"I drop them, it doesn't\")", async ({ page }) => {
+    await openRoute(page, "library");
+    // As the browser does, the drop happens only if the list took the dragover and kept a drop effect (support/drop.ts).
+    await dropFiles(page.getByRole("region", { name: "Tracks" }).getByRole("row").nth(2), ["01 Wolf Moon.flac"]);
+    await expect(page.getByText("70 tracks")).toBeVisible();
+    expect(await shownTitles(page)).toContain("Wolf Moon");
+  });
 });
 
 test.describe("tagging many tracks at once", () => {

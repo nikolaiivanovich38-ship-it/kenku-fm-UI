@@ -2,7 +2,7 @@ import React from "react";
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getLiveSession, loadInLive, subscribeLiveSession, useLiveSession } from "./liveSession";
+import { getLiveSession, loadInLive, nextSceneInLive, subscribeLiveSession, takeNextScene, useLiveSession } from "./liveSession";
 
 afterEach(() => loadInLive(null));
 
@@ -29,5 +29,17 @@ describe("the session loaded in Live", () => {
     expect(screen.getByText("nothing")).toBeInTheDocument();
     act(() => loadInLive({ campaignId: "sixth", sessionId: "w4" }));
     expect(screen.getByText("sixth/w4")).toBeInTheDocument();
+  });
+});
+
+describe("Next scene pressed on another screen (w51-fix2)", () => {
+  it("opens Live and is taken once, only within a few seconds", () => {
+    window.location.hash = "#/settings";
+    nextSceneInLive(1000);
+    expect(window.location.hash).toBe("#/live");
+    expect(takeNextScene(5000)).toBe(true);
+    expect(takeNextScene(5000)).toBe(false);
+    nextSceneInLive(1000);
+    expect(takeNextScene(20_000)).toBe(false);
   });
 });

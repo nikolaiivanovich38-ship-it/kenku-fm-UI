@@ -9,20 +9,37 @@ import type { UpdateState } from "../common/appUpdates";
 const AGAIN = "It tries again every 15 minutes; this version keeps working.";
 const PREFIX = "Lyre could not check for updates";
 
-/** One plain sentence for an updater error, without the user's folder names. */
+/**
+ * True when the update feed has nothing published: update.electronjs.org answers 404 for a repository whose releases
+ * are all drafts (it skips drafts and pre-releases), and Squirrel's Update.exe then exits with "(404) Not Found".
+ * That is "no update", not a fault (w51-fix2).
+ */
+export function isNoPublishedUpdate(error: unknown): boolean {
+  return /\(404\) Not Found|HTTP Status 404/i.test(messageOf(error));
+}
+
+/**
+ * One plain sentence for an updater error, without the user's folder names. On Windows Electron runs Squirrel's
+ * Update.exe: "spawn … <code>" means Windows could not start it; "Command failed: <exit code>" means it ran and
+ * stopped, followed by its own (.NET) error, which is read for the network cases.
+ */
 export function plainUpdateError(error: unknown): string {
-  const raw = error instanceof Error ? error.message : String(error);
-  if (/ERR_INTERNET_DISCONNECTED|ENOTFOUND|ERR_NAME_NOT_RESOLVED|EAI_AGAIN|ERR_NETWORK_CHANGED/i.test(raw)) {
+  const raw = messageOf(error);
+  if (/ERR_INTERNET_DISCONNECTED|ENOTFOUND|ERR_NAME_NOT_RESOLVED|EAI_AGAIN|ERR_NETWORK_CHANGED|remote name could not be resolved/i.test(raw)) {
     return `${PREFIX}: this computer seems to be offline.`;
   }
-  if (/TIMED_OUT|ETIMEDOUT|ECONNRESET|ECONNREFUSED|HTTP Status 5\d\d|ERR_CONNECTION/i.test(raw)) {
+  if (/TIMED_OUT|ETIMEDOUT|ECONNRESET|ECONNREFUSED|HTTP Status 5\d\d|ERR_CONNECTION|Unable to connect to the remote server|operation has timed out|\(5\d\d\)/i.test(raw)) {
     return `${PREFIX}: the update service did not answer.`;
   }
   if (/Update\.exe/i.test(raw) && /not found|ENOENT|cannot find/i.test(raw)) {
     return `${PREFIX}: the installer's updater is missing. Install Lyre again from the latest installer to get updates.`;
   }
-  if (/Update\.exe|Squirrel|Command failed/i.test(raw)) {
+  if (/^spawn\b/i.test(raw)) {
     return `${PREFIX}: Windows could not run Lyre's updater. Restart the computer; if it keeps happening, install Lyre again from the latest installer.`;
+  }
+  const failed = /^Command failed: (\S+)/i.exec(raw);
+  if (failed) {
+    return `${PREFIX}: Lyre's updater stopped with an error (code ${failed[1]}).`;
   }
   const detail = (raw.split(/\r?\n/)[0] ?? "")
     .replace(/[A-Za-z]:\\Users\\[^\\\s]+/g, "…")
@@ -30,6 +47,10 @@ export function plainUpdateError(error: unknown): string {
     .trim()
     .slice(0, 160);
   return detail ? `${PREFIX} (${detail}).` : `${PREFIX}.`;
+}
+
+function messageOf(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export class UpdateStatus {

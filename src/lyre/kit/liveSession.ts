@@ -42,3 +42,23 @@ export function runInLive(session: LiveSession): void {
   loadInLive(session);
   window.location.hash = "#/live";
 }
+
+/** How long a Next scene pressed on another screen waits for Live to open and take it. */
+const NEXT_SCENE_WAITS_MS = 10_000;
+let nextSceneAsked: number | null = null;
+
+/**
+ * w51-fix2 (Nik, 0.5.0: "F9 does nothing"): Next scene pressed in another program while Lyre shows another screen.
+ * Only Live listens for it, so the press opens Live, which starts the next scene once it is drawn (takeNextScene).
+ */
+export function nextSceneInLive(now: number = Date.now()): void {
+  nextSceneAsked = now;
+  window.location.hash = "#/live";
+}
+
+/** True once for a Next scene asked for on another screen within the last few seconds. */
+export function takeNextScene(now: number = Date.now()): boolean {
+  const asked = nextSceneAsked;
+  nextSceneAsked = null;
+  return asked !== null && now - asked <= NEXT_SCENE_WAITS_MS;
+}

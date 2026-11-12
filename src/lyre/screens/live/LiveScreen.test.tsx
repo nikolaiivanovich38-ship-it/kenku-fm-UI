@@ -419,6 +419,22 @@ describe("UX-12: keys that work in other programs too", () => {
     expect(screen.queryByRole("button", { name: "Restart scene 2: Greyhollow inn" })).toBeNull();
   });
 
+  it("w51-fix2: Next scene from another program while Lyre shows another screen (Settings) opens Live and starts the next scene", async () => {
+    let press: ((action: "nextScene" | "fadeAll") => void) | null = null;
+    const keys = { setGlobal: async () => ({ refused: [] as unknown[] }), onGlobal: (listener: (action: "nextScene" | "fadeAll") => void) => ((press = listener), (): void => void (press = null)) };
+    (window as unknown as { lyre?: unknown }).lyre = { keys };
+    try {
+      await openLive("settings");
+      await screen.findByRole("heading", { level: 1, name: "Settings" });
+      await waitFor(() => expect(press).not.toBeNull());
+      act(() => press!("nextScene"));
+      expect(await screen.findByRole("button", { name: "Restart scene 1: Recap and the coast road" }, { timeout: 4000 })).toBeInTheDocument();
+      expect(screen.getByRole("heading", { level: 1, name: "Live" })).toBeInTheDocument();
+    } finally {
+      delete (window as unknown as { lyre?: unknown }).lyre;
+    }
+  });
+
   it("Fade all from another program fades every room", async () => {
     const { sound } = await openLive();
     await userEvent.click(screen.getByRole("button", { name: "Start: Recap and the coast road" }));
@@ -567,6 +583,44 @@ describe("Current scene: choosing what plays", () => {
     expect(sound.audio.getNowPlaying().rooms[0].music?.trackId).toBe("t13");
     await userEvent.click(current().getAllByRole("button", { name: /^Eerie dread, low cello/ })[0]);
     expect(current().getByRole("link", { name: /profile/i })).toHaveAttribute("href", "#/profile/t13/sc:crown:s14:sc3");
+  });
+
+  it.each([
+    ["the running scene, its track on air", "Scene 3: The abbey ruins", "The abbey ruins"],
+    ["another scene", "Scene 4: Crypt ambush", "Crypt ambush"],
+  ])("w51-fix2: a track's Audio profile in an unfolded scene (%s) opens the Audio profile, the music still on air (Nik's 0.5.0 crash)", async (_, scene, name) => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    const sceneButton = region("Scenes").getByRole("button", { name: scene });
+    if (sceneButton.getAttribute("aria-expanded") !== "true") await userEvent.click(sceneButton);
+    const row = within(region("Scenes").getByRole("list", { name: `${name}: music in play order` })).getAllByRole("listitem")[0];
+    await userEvent.click(within(row).getByRole("button", { name: /\(click for details\)|^Eerie|^[A-Z]/, expanded: false }));
+    await userEvent.click(within(row).getByRole("link", { name: /Audio profile/i }));
+    await playOn(sound);
+    expect(screen.queryByText(/Something went wrong/)).toBeNull();
+    expect(await screen.findByRole("heading", { level: 1, name: /Audio profile/i })).toBeInTheDocument();
+    expect(sound.audio.getNowPlaying().rooms[0].music).not.toBeNull();
+  });
+
+  it("w51-fix2: the Audio profile of a track inside a scene's playlist opens, in the unfolded scene and in Current scene", async () => {
+    const { sound } = await openLive();
+    await startAbbey();
+    await playOn(sound);
+    for (const box of ["Scenes", "Current scene"]) {
+      if (box === "Scenes" && region("Scenes").getByRole("button", { name: "Scene 3: The abbey ruins" }).getAttribute("aria-expanded") !== "true") {
+        await userEvent.click(region("Scenes").getByRole("button", { name: "Scene 3: The abbey ruins" }));
+      }
+      await userEvent.click(region(box).getAllByRole("button", { name: "Show contents of The Abbess" })[0]);
+      const inner = within(region(box).getAllByRole("list", { name: "Tracks in The Abbess" })[0]).getAllByRole("listitem")[0];
+      await userEvent.click(within(inner).getAllByRole("button", { expanded: false })[0]);
+      await userEvent.click(within(inner).getByRole("link", { name: /Audio profile/i }));
+      await playOn(sound);
+      expect(screen.queryByText(/Something went wrong/)).toBeNull();
+      expect(await screen.findByRole("heading", { level: 1, name: /Audio profile/i })).toBeInTheDocument();
+      act(() => window.history.back());
+      await screen.findByRole("heading", { level: 1, name: "Live" });
+    }
   });
 
   it("a playlist opens to show its tracks; it has its play order for this scene (PLY-13)", async () => {
@@ -865,12 +919,48 @@ describe("rooms", () => {
     expect(menu.getByText("Lyre Table plays in")).toBeInTheDocument();
     expect(menu.getByRole("menuitem", { name: /Copy what Side room is playing/ })).toBeInTheDocument();
     await userEvent.keyboard("{Escape}");
-    // Nobody is in Side room: Kick takes it out at once, with nothing to undo.
+    // Nobody is in Side room: Kick takes it out at once, asking nothing, and still offers Undo (w51-fix2: Nik's 0.5.0 test).
     await userEvent.click(screen.getByRole("button", { name: "Kick Lyre Side from Side room" }));
     await act(async () => outputs.settle());
     expect(screen.queryByRole("dialog")).toBeNull();
     await waitFor(() => expect(within(screen.getByRole("region", { name: "On air" })).queryByRole("group", { name: "Side room" })).toBeNull());
     expect(screen.queryByRole("button", { name: /choose a room/i })).toBeNull();
+    const strip = within(screen.getByRole("region", { name: "On air" })).getAllByRole("group", { name: "Undo" }).find((st) => st.textContent?.includes("Lyre Side left Side room"))!;
+    await userEvent.click(within(strip).getByRole("button", { name: "Undo" }));
+    await act(async () => outputs.settle());
+    await findRoom("Side room");
+  });
+
+  it("w51-fix2: Ctrl+Z undoes a Kick of a room nobody is in, as its Undo does (Nik's 0.5.0: \"Ctrl+z does not work\")", async () => {
+    const { outputs } = await openLive();
+    await addSideRoom(outputs);
+    await userEvent.click(screen.getByRole("button", { name: "Kick Lyre Side from Side room" }));
+    await act(async () => outputs.settle());
+    await waitFor(() => expect(within(screen.getByRole("region", { name: "On air" })).queryByRole("group", { name: "Side room" })).toBeNull());
+    blur();
+    press("z", { ctrlKey: true });
+    await act(async () => outputs.settle());
+    await findRoom("Side room");
+  });
+
+  it("w51-fix2: kicking the only bot keeps the music in On air; adding the bot again by hand plays it on in the room", async () => {
+    const { outputs, sound } = await openLive();
+    await startAbbey();
+    await playOn(sound, 3);
+    const title = sound.audio.getNowPlaying().rooms[0].music!.title;
+    await userEvent.click(screen.getByRole("button", { name: "Kick Lyre Table from Table" }));
+    await act(async () => outputs.settle());
+    await playOn(sound);
+    // No room still shows what plays (unheard), instead of clearing.
+    const noRoom = within(within(screen.getByRole("region", { name: "On air" })).getByRole("group", { name: "No room" }));
+    expect(noRoom.getByText("No bot is in a voice channel: players hear nothing")).toBeInTheDocument();
+    expect(noRoom.getAllByText(title).length).toBeGreaterThan(0);
+    await userEvent.click(noRoom.getByRole("button", { name: "Join Table" }));
+    await act(async () => outputs.settle());
+    await playOn(sound);
+    await waitFor(() => expect(room("Table").getByText("Playing")).toBeInTheDocument());
+    expect(room("Table").getAllByText(title).length).toBeGreaterThan(0);
+    expect(sound.audio.getNowPlaying().rooms[0].music!.position).toBeGreaterThan(3);
   });
 
   it("OUT-7: Kick of a room the players were hearing offers Undo, which puts the bot back with its music", async () => {
