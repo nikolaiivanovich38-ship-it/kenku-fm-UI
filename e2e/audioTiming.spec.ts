@@ -13,14 +13,18 @@ import { openLyreRoute } from "./fixtures/lyre";
 import {
   analyseStream,
   busyMainThread,
+  busyProcessor,
   captureCounts,
   coarseTimers,
   countsSince,
   feedCounts,
+  hideWindows,
   mainNow,
   rawPackets,
   takeLongTasks,
+  takeMainLoop,
   watchLongTasks,
+  watchMainLoop,
   type FeedCounts,
   type InletCounts,
   type StreamTiming,
@@ -78,6 +82,8 @@ async function playInTwoRooms(app: ElectronApplication, mainWindow: Page): Promi
 type Heard = {
   channels: Record<Channel, StreamTiming>;
   longTasks: { count: number; totalMs: number; maxMs: number };
+  /** How late the main process's event loop ran (it sends to Discord on a 20 ms timer). */
+  mainLoop: { p99Ms: number; maxMs: number } | null;
   /** w51-audio builds only: the capture window's and the Discord players' own counts for the window. */
   capture: InletCounts | null;
   players: FeedCounts | null;
@@ -88,16 +94,18 @@ async function listen(app: ElectronApplication, lyre: Page, seconds: number): Pr
   const capturePage = await pageWithTitle(app, "Audio Capture");
   await takeLongTasks(lyre);
   const before = { capture: await captureCounts(app, capturePage), players: await feedCounts(app) };
+  await watchMainLoop(app);
   const from = await mainNow(app);
   await lyre.waitForTimeout(seconds * 1000);
   const to = await mainNow(app);
+  const mainLoop = await takeMainLoop(app);
   const longTasks = await takeLongTasks(lyre);
   const after = { capture: await captureCounts(app, capturePage), players: await feedCounts(app) };
   const channels = {} as Record<Channel, StreamTiming>;
   for (const channel of Object.keys(CHANNELS) as Channel[]) {
     channels[channel] = analyseStream(await rawPackets(app, CHANNELS[channel], from - 2_000), from, to);
   }
-  return { channels, longTasks, capture: countsSince(before.capture, after.capture), players: countsSince(before.players, after.players) };
+  return { channels, longTasks, mainLoop, capture: countsSince(before.capture, after.capture), players: countsSince(before.players, after.players) };
 }
 
 function report(name: string, heard: Heard): void {
@@ -223,5 +231,29 @@ test("with Windows-like coarse timers in Lyre's pages, two rooms and a preview k
     }
   } finally {
     restore?.();
+  }
+});
+
+/**
+ * Discord or a game in front of Lyre, using the processor: Lyre's window is hidden, so Chromium treats its page as in
+ * the background, and two busy loops (one per core of the build machine) compete for the processor.
+ */
+test("with Lyre's window hidden behind other programs that keep the processor busy, two rooms keep their sound", async ({ launchApp }) => {
+  test.setTimeout(150_000);
+  const launched = await launchApp({ env: SEEDED });
+  const lyre = await playInTwoRooms(launched.app, await launched.mainWindow());
+  const show = await hideWindows(launched.app);
+  const stopBusy = busyProcessor(2);
+  try {
+    await lyre.waitForTimeout(2_000);
+    const hidden = await listen(launched.app, lyre, 10);
+    report("Hidden behind busy programs, two rooms", hidden);
+    for (const channel of Object.keys(CHANNELS) as Channel[]) {
+      expect(hidden.channels[channel].sound, `${channel} heard the music all along`).toBeGreaterThan(400);
+      expect(stutter(hidden.channels[channel]), `${channel} holes and lost audio`).toBeLessThanOrEqual(ALLOWED);
+    }
+  } finally {
+    stopBusy();
+    await show();
   }
 });

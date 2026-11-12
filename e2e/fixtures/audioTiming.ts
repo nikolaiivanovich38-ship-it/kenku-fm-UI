@@ -141,6 +141,38 @@ export function analyseStream(packets: RawPacket[], from: number, to: number): S
   };
 }
 
+/**
+ * Start measuring how late the main process's event loop runs: a 10 ms timer notes how late each tick comes. The main
+ * process sends the packets to Discord on its own 20 ms timer, so its delays reach the players directly.
+ */
+export async function watchMainLoop(app: ElectronApplication): Promise<void> {
+  await app.evaluate(() => {
+    const target = globalThis as unknown as { __w51Loop?: { late: number[] } };
+    if (!target.__w51Loop) {
+      const loop = { late: [] as number[] };
+      target.__w51Loop = loop;
+      let expected = Date.now() + 10;
+      setInterval(() => {
+        const now = Date.now();
+        loop.late.push(Math.max(0, now - expected));
+        expected = now + 10;
+      }, 10);
+    }
+    target.__w51Loop.late = [];
+  });
+}
+
+/** How late the main process's 10 ms timer came since watchMainLoop: 99th percentile and longest, in ms. */
+export function takeMainLoop(app: ElectronApplication): Promise<{ p99Ms: number; maxMs: number } | null> {
+  return app.evaluate(() => {
+    const loop = (globalThis as unknown as { __w51Loop?: { late: number[] } }).__w51Loop;
+    if (!loop || loop.late.length === 0) return null;
+    const sorted = [...loop.late].sort((a, b) => a - b);
+    loop.late = [];
+    return { p99Ms: sorted[Math.min(sorted.length - 1, Math.floor(0.99 * sorted.length))], maxMs: sorted[sorted.length - 1] };
+  });
+}
+
 /** Start noting the page's long tasks (over 50 ms on its main thread). */
 export async function watchLongTasks(page: Page): Promise<void> {
   await page.evaluate(() => {
@@ -265,7 +297,7 @@ export async function coarseTimers(app: ElectronApplication, titles: readonly st
   if (pids.length !== titles.length) return null;
   const write = (nanoseconds: number) => {
     for (const pid of pids) {
-      let threads: string[] = [];
+      let threads: string[];
       try {
         threads = fs.readdirSync(`/proc/${pid}/task`);
       } catch {
@@ -286,5 +318,38 @@ export async function coarseTimers(app: ElectronApplication, titles: readonly st
   return () => {
     clearInterval(timer);
     write(0); // 0: back to the thread's default
+  };
+}
+
+/**
+ * Hide every visible window of the app, as when Discord or a game is in front of Lyre: Chromium then treats Lyre's
+ * page as in the background (its timers are throttled and its process may get a lower priority). Returns a function
+ * that shows them again.
+ */
+export async function hideWindows(app: ElectronApplication): Promise<() => Promise<void>> {
+  const ids = await app.evaluate(({ BrowserWindow }) => {
+    const shown = BrowserWindow.getAllWindows().filter((window) => !window.isDestroyed() && window.isVisible());
+    for (const window of shown) window.hide();
+    return shown.map((window) => window.id);
+  });
+  return async () => {
+    await app.evaluate(({ BrowserWindow }, list) => {
+      for (const id of list) BrowserWindow.fromId(id)?.showInactive();
+    }, ids);
+  };
+}
+
+/**
+ * Keep `count` processor cores busy from other programs (plain busy loops at normal priority), as Discord, a browser
+ * or a game do on the game master's computer. Returns a function that stops them; they stop by themselves after
+ * `seconds` in any case.
+ */
+export function busyProcessor(count: number, seconds = 60): () => void {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { spawn } = require("child_process") as typeof import("child_process");
+  const loop = `const end = Date.now() + ${seconds * 1000}; while (Date.now() < end) {}`;
+  const children = Array.from({ length: count }, () => spawn(process.execPath, ["-e", loop], { stdio: "ignore" }));
+  return () => {
+    for (const child of children) child.kill();
   };
 }
