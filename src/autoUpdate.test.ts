@@ -173,15 +173,18 @@ describe("update errors are shown, not only logged (SEC-14)", () => {
     expect(window.webContents.send).not.toHaveBeenCalled();
   });
 
-  it("keeps a downloaded update ready, and stops checking, so Restart now keeps working (CR51-4)", () => {
+  it("keeps a downloaded update ready, and stops checking, so Restart now keeps working (CR51-4)", async () => {
     vi.useFakeTimers();
     try {
       const status = new UpdateStatus();
-      runAutoUpdate(fakeWindow(), squirrelInstalled, status);
-      vi.advanceTimersByTime(15 * 60 * 1000);
+      // A release is published (w51-fix2 asks the feed first, so each check waits for that answer).
+      const hasRelease = vi.fn(async () => true);
+      runAutoUpdate(fakeWindow(), squirrelInstalled, status, hasRelease);
+      await vi.advanceTimersByTimeAsync(15 * 60 * 1000);
       expect(electron.autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1);
       handlerFor("update-downloaded")();
-      vi.advanceTimersByTime(60 * 60 * 1000);
+      await vi.advanceTimersByTimeAsync(60 * 60 * 1000);
+      expect(hasRelease).toHaveBeenCalledTimes(1);
       expect(electron.autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1);
       // A check already under way when it finished changes nothing.
       handlerFor("checking-for-update")();
