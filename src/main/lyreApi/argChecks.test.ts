@@ -12,6 +12,7 @@ import { LYRE_API_METHODS } from "../../common/lyre/api";
 import { prototypeSeed } from "../../common/lyre/seed";
 import { openLibrary } from "../data";
 import { ARGUMENT_SHAPES, NOT_UNDERSTOOD, argumentProblem } from "./argChecks";
+import { hasStreamingMode } from "./computerSettings";
 import { createLibraryApi } from "./libraryApi";
 import { seedLibrary } from "./seedLibrary";
 
@@ -128,5 +129,17 @@ describe("LyreApi argument shapes (security review 5)", () => {
     await lyre.settings.setComputer({ streamingMode: "lowLatency" });
     const saved = JSON.parse(fs.readFileSync(path.join(dir, "library", "this-computer.json"), "utf8"));
     expect(saved.streamingMode).toBe("lowLatency");
+  });
+
+  it("CR51-7: another computer setting does not write a Sound to Discord nobody chose, so the old window's choice can still come across", async () => {
+    const { lyre, dir } = await api();
+    const file = path.join(dir, "library", "this-computer.json");
+    await lyre.settings.setComputer({ display: { textSize: 125 } });
+    expect(JSON.parse(fs.readFileSync(file, "utf8"))).not.toHaveProperty("streamingMode");
+    expect(hasStreamingMode(file)).toBe(false);
+    expect((await lyre.settings.get()).streamingMode).toBe("performance");
+    await lyre.settings.setComputer({ streamingMode: "lowLatency" });
+    await lyre.settings.setComputer({ globalKeys: true });
+    expect(JSON.parse(fs.readFileSync(file, "utf8")).streamingMode).toBe("lowLatency");
   });
 });

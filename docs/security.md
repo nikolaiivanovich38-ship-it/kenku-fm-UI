@@ -1196,6 +1196,10 @@ Fixes for the independent code and security review of 0.5.1 (CR51-1 to CR51-11).
 - CR51-4: once `update-downloaded` arrives, `UpdateStatus` stays `ready` for the rest of the run (`isReady()`; later
   `checking`, `error`, `up-to-date` or `downloading` change nothing) and the 15-minute checks stop. `UPDATE_RESTART`
   is acted on whenever `isReady()`, so the toast's Restart now never does nothing. The channel's guard is unchanged.
+- CR51-7: `this-computer.json` holds `streamingMode` only once it was chosen (in Settings, or by the one-time move of
+  the old window's choice); saving another setting no longer writes the default. So `hasStreamingMode` stays the
+  move's test of "already chosen", and a move retried at a later start still brings the old choice across. (A
+  separate done-flag for that step would have let a retry overwrite a choice made in between.)
 - Test builds only: `CUE_DESK_FAKE_KEYRING=1` saves tokens with a reversible, marked stand-in
   (`src/main/broadcast/testing/fakeKeyring.ts`), so end-to-end tests on a machine without a keyring can restart with
   a saved bot. Release builds compile it out (`__CUE_DESK_TEST_BUILD__`).
@@ -1208,6 +1212,7 @@ Fixes for the independent code and security review of 0.5.1 (CR51-1 to CR51-11).
 | `src/main/data/import/legacyCatchUp.test.ts` | A catch-up stopped at any write finishes at the next start, nothing doubled, recorded once; a file outside the library's folders is left out and named; one under a library folder or a known folder comes in |
 | `src/main/security/sessions.test.ts`, `keptForLater.test.ts`, `src/index.test.ts` | At start: one privileged scheme (`lyre-media`), no partition opened; the kept sessions' handlers only through `secureKeptSessions` |
 | `src/main/updateStatus.test.ts`, `src/autoUpdate.test.ts`, `src/main/managers/LyreManager.test.ts` | A ready update stays ready after later checks and failures; checks stop; Restart now still restarts |
+| `src/main/lyreApi/argChecks.test.ts` | Another computer setting writes no Sound to Discord; a chosen one stays |
 | `src/main/broadcast/OutputManager.test.ts`, `botTokenStore.test.ts` | What `importLegacyToken` answers; a token whose file could not be written is not "remembered" |
 | `src/main/managers/SessionManager.test.ts` | The compare-and-write script in the isolated world |
 | `e2e/upgrade.spec.ts` | In the packaged app: the plain token leaves the old storage and the rest stays; a saved bot logs in at the next start without Connect |
