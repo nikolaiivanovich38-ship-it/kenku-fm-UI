@@ -19,13 +19,15 @@ import {
  * cookies or storage with Kenku FM itself. SEC-15: files from the user's
  * computer use `LOCAL_FILE_PARTITION`, apart from both, with the same
  * deny-by-default permission handler as websites.
+ *
+ * CR51-3 (0.5.1): website tabs and local files are kept for OUT-12 and off, so
+ * nothing at start opens their sessions or registers their scheme. To turn them
+ * back on, OUT-12 calls `registerAppSchemes({ websiteTabs: true })` instead of
+ * `registerAppSchemes()` before the app is ready, and `secureKeptSessions()`
+ * after `secureSessions()`, before it makes `BrowserViewManagerMain`.
  */
-function allSessions(): Session[] {
-  return [
-    session.defaultSession,
-    session.fromPartition(TAB_PARTITION),
-    session.fromPartition(LOCAL_FILE_PARTITION),
-  ];
+function keptSessions(): Session[] {
+  return [session.fromPartition(TAB_PARTITION), session.fromPartition(LOCAL_FILE_PARTITION)];
 }
 
 /** Google blocks sign-in from embedded browsers, so it gets a user agent without the Chrome token. */
@@ -70,21 +72,21 @@ function installPermissionHandlers(target: Session): void {
 }
 
 /**
- * WP1 review 1 and 2: files from the user's computer are served under their
- * own scheme (localFileServer.ts). It must be declared before the app is
- * ready: standard (relative links and one origin per folder work), secure
- * (the page is a secure context, as file: was), fetch and media streaming.
- * It does not bypass the Content-Security-Policy.
+ * The app's privileged schemes, declared once before the app is ready (Electron keeps only the last list it is given,
+ * so every privileged scheme goes in this one call).
+ * - Security review 6: `lyre-media:`, the Lyre page's library audio, granted per page by MEDIA_PREPARE
+ *   (media/mediaProtocol.ts). corsEnabled: the page (a file: origin) reads it with fetch and plays it through Web
+ *   Audio.
+ * - WP1 review 1 and 2, kept for OUT-12 (CR51-3: only with `websiteTabs`): files from the user's computer in a tab
+ *   of their own are served under `cue-local-file:` (localFileServer.ts): standard (relative links and one origin
+ *   per folder work), secure (the page is a secure context, as file: was), fetch and media streaming. It does not
+ *   bypass the Content-Security-Policy.
  */
-export function registerLocalFileScheme(): void {
+export function registerAppSchemes(options: { websiteTabs?: boolean } = {}): void {
   protocol.registerSchemesAsPrivileged([
-    {
-      scheme: LOCAL_FILE_SCHEME,
-      privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true },
-    },
-    // Security review 6: the Lyre page's library audio, granted per page by MEDIA_PREPARE (media/mediaProtocol.ts).
-    // corsEnabled: the page (a file: origin) reads it with fetch and plays it through Web Audio. Electron keeps
-    // only the last list it is given, so every privileged scheme is registered here, in one call.
+    ...(options.websiteTabs
+      ? [{ scheme: LOCAL_FILE_SCHEME, privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } }]
+      : []),
     {
       scheme: MEDIA_SCHEME,
       privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true },
@@ -108,23 +110,31 @@ function serveLocalFiles(target: Session, server: LocalFileServer): void {
 }
 
 /**
- * Apply permission handlers and the user-agent rewrite to every session the
- * app uses, and serve local files on their own session. Call once, after
- * `app.whenReady()` and before any window loads.
+ * Apply permission handlers and the user-agent rewrite to the app's own session (Lyre's pages and the capture
+ * window), and answer lyre-media: there. Call once, after `app.whenReady()` and before any window loads.
  */
 export function secureSessions(): void {
-  for (const target of allSessions()) {
-    installPermissionHandlers(target);
-    installUserAgentRewrite(target);
-  }
-  serveLocalFiles(session.fromPartition(LOCAL_FILE_PARTITION), sharedLocalFileServer());
+  installPermissionHandlers(session.defaultSession);
+  installUserAgentRewrite(session.defaultSession);
   // Security review 6: only the app's own session (Lyre's pages) answers lyre-media:, and only granted addresses.
   session.defaultSession.protocol.handle(MEDIA_SCHEME, (request) => mediaResponse(sharedMediaGrants(), request));
 }
 
-/** "Clear cache" in Settings: wipe caches and cookies for the app, website tabs and local-file tabs. */
+/**
+ * Kept for OUT-12 (CR51-3): the same handlers on the website-tab and local-file sessions, and local files served on
+ * their own session. Nothing calls it in 0.5.1; OUT-12 calls it once, after `secureSessions()`, before any tab opens.
+ */
+export function secureKeptSessions(): void {
+  for (const target of keptSessions()) {
+    installPermissionHandlers(target);
+    installUserAgentRewrite(target);
+  }
+  serveLocalFiles(session.fromPartition(LOCAL_FILE_PARTITION), sharedLocalFileServer());
+}
+
+/** Kept for OUT-12: wipe caches and cookies for the app, website tabs and local-file tabs. Nothing calls it in 0.5.1. */
 export async function clearBrowsingData(): Promise<void> {
-  for (const target of allSessions()) {
+  for (const target of [session.defaultSession, ...keptSessions()]) {
     await target.clearCache();
     await target.clearStorageData({
       storages: ["cookies", "shadercache", "cachestorage"],

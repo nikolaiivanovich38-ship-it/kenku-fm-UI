@@ -19,7 +19,7 @@ import { runAutoUpdate } from "./autoUpdate";
 import { getSavedBounds, saveWindowBounds } from "./bounds";
 import { openExternalIfAllowed } from "./main/security/externalLinks";
 import { lockAppPage } from "./main/security/navigationGuards";
-import { registerLocalFileScheme, secureSessions } from "./main/security/sessions";
+import { registerAppSchemes, secureSessions } from "./main/security/sessions";
 import { registerAppInfoIpc } from "./main/security/appInfoIpc";
 import { confirmStartAfterCarryOver, startApp } from "./main/startup";
 import { startLyreLibrary, type StartedLibrary } from "./main/lyreApi/startLibrary";
@@ -35,9 +35,9 @@ let lyreLibraryClosed = false;
 
 startDiagnosticsLog();
 
-// WP1 review 1: files from the user's computer get a scheme of their own,
-// which Electron accepts only before the app is ready.
-registerLocalFileScheme();
+// Security review 6: library audio gets a scheme of its own, which Electron accepts only before the app is ready.
+// CR51-3: the kept website tabs' cue-local-file: scheme is not registered (OUT-12 turns it on: sessions.ts).
+registerAppSchemes();
 
 // FND-1: the Windows installer check and the single-instance lock come first,
 // so the Kenku FM library is copied only by the one real copy of the app,
@@ -132,8 +132,8 @@ if (startupOutcome === "run") {
       return;
     }
 
-    // SEC-3: permission handlers and user-agent rewrite for the app session
-    // and the website-tab session, before any page loads.
+    // SEC-3: permission handlers and user-agent rewrite for the app's session, before any page loads. CR51-3: the
+    // kept website-tab and local-file sessions are not opened.
     secureSessions();
 
     // WP5: Lyre's library opens in its own process before any page asks for it.

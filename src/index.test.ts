@@ -128,9 +128,10 @@ vi.mock("./main/security/sessions", () => {
   return {
     secureSessions: state.secureSessions,
     clearBrowsingData: state.clearBrowsingData,
-    // Records how many start-up steps had run when the scheme was declared.
-    registerLocalFileScheme: vi.fn(() => {
+    // Records how many start-up steps had run when the schemes were declared, and with what.
+    registerAppSchemes: vi.fn((options?: unknown) => {
       (state as { stepsBeforeScheme?: number }).stepsBeforeScheme = state.startupCalls.length;
+      (state as { schemeOptions?: unknown[] }).schemeOptions = [...((state as { schemeOptions?: unknown[] }).schemeOptions ?? []), options];
     }),
   };
 });
@@ -167,9 +168,13 @@ describe("start-up order (FND-1)", () => {
   });
 });
 
-describe("local-file scheme (WP1 security review 1)", () => {
-  it("is declared before anything else, as Electron requires it before the app is ready", () => {
+describe("privileged schemes (security review 6, CR51-3)", () => {
+  it("are declared before anything else, as Electron requires it before the app is ready", () => {
     expect((state as { stepsBeforeScheme?: number }).stepsBeforeScheme).toBe(0);
+  });
+
+  it("are declared once, without the kept website tabs' scheme (OUT-12 turns it on)", () => {
+    expect((state as { schemeOptions?: unknown[] }).schemeOptions).toEqual([undefined]);
   });
 });
 

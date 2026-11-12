@@ -25,6 +25,12 @@ describe("website tabs, local files and device capture: kept, unreachable (FND-1
     expect(index).toMatch(/lockAppPage\(mainWindow\.webContents, "lyre-view"/);
   });
 
+  it("nothing is registered for them at start: no cue-local-file scheme, no website-tab or local-file session (CR51-3)", () => {
+    const index = fs.readFileSync(path.resolve(__dirname, "../../index.ts"), "utf8");
+    expect(index).toMatch(/registerAppSchemes\(\);/);
+    expect(index).not.toMatch(/websiteTabs|secureKeptSessions|fromPartition|LOCAL_FILE|TAB_PARTITION/);
+  });
+
   it("nothing makes the website-tab manager", () => {
     const session = fs.readFileSync(path.resolve(__dirname, "../managers/SessionManager.ts"), "utf8");
     expect(session).not.toMatch(/BrowserViewManagerMain/);
