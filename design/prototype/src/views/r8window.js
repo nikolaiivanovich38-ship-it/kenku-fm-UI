@@ -117,7 +117,9 @@
     if (/ERR_INTERNET_DISCONNECTED|ENOTFOUND|ERR_NAME_NOT_RESOLVED|EAI_AGAIN|ERR_NETWORK_CHANGED/i.test(raw)) return PREFIX + ': this computer seems to be offline.';
     if (/TIMED_OUT|ETIMEDOUT|ECONNRESET|ECONNREFUSED|HTTP Status 5\d\d|ERR_CONNECTION/i.test(raw)) return PREFIX + ': the update service did not answer.';
     if (/Update\.exe/i.test(raw) && /not found|ENOENT|cannot find/i.test(raw)) return PREFIX + ': the installer\'s updater is missing. Install Lyre again from the latest installer to get updates.';
-    if (/Update\.exe|Squirrel|Command failed/i.test(raw)) return PREFIX + ': Windows could not run Lyre\'s updater. Restart the computer; if it keeps happening, install Lyre again from the latest installer.';
+    if (/^spawn\b/i.test(raw)) return PREFIX + ': Windows could not run Lyre\'s updater. Restart the computer; if it keeps happening, install Lyre again from the latest installer.';
+    var failed = /^Command failed: (\S+)/i.exec(raw);
+    if (failed) return PREFIX + ': Lyre\'s updater stopped with an error (code ' + failed[1] + ').';
     var detail = (raw.split(/\r?\n/)[0] || '').trim().slice(0, 160);
     return detail ? PREFIX + ' (' + detail + ').' : PREFIX + '.';
   }

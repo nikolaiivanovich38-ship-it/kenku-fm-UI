@@ -296,7 +296,8 @@ test.describe("0.5.1: update news and the version", () => {
 
   test("an update that Windows cannot install says what to do", async ({ page }) => {
     await openRoute(page, "campaigns");
-    await reportUpdate(page, { kind: "error", error: "Command failed: Update.exe --update" });
+    // Windows could not start Update.exe at all (since w51-fix2, "Command failed" means it ran and stopped with a code).
+    await reportUpdate(page, { kind: "error", error: "spawn UNKNOWN" });
     await expect(page.getByRole("alert").filter({ hasText: "Windows could not run Lyre's updater." })).toContainText("Restart the computer");
   });
 
