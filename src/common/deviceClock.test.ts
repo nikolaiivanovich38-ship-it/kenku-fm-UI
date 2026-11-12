@@ -76,3 +76,46 @@ describe("keepDeviceClock (w51-audio): an audio context stays on the sound card'
     expect(() => clock.release()).not.toThrow();
   });
 });
+
+/**
+ * The reason for the keeper, with numbers. This build machine has no sound card, so the difference cannot be heard or
+ * measured here (e2e/audioTiming.spec.ts "coarse timers" passes with and without the keeper); this models what
+ * Chromium does on Windows. FakeAudioWorker (media/base/fake_audio_worker.cc), which drives a context on a timer:
+ * one buffer per wake-up, and when the wake-up comes later than one buffer, the missed buffers are skipped. Windows
+ * wakes timers on 15.625 ms steps unless a program asks for finer ones.
+ */
+function timerDrivenShare(bufferMs: number, timerStepMs: number, seconds = 10): number {
+  let now = 0;
+  let nextRead = 0;
+  let rendered = 0;
+  while (now < seconds * 1000) {
+    rendered++;
+    let delay = nextRead + bufferMs - now;
+    if (delay < 0) delay += bufferMs * (Math.floor(-delay / bufferMs) + 1);
+    nextRead = now + delay;
+    now = Math.ceil((now + delay) / timerStepMs) * timerStepMs;
+  }
+  return (rendered * bufferMs) / (seconds * 1000);
+}
+
+describe("why Lyre's contexts are kept on the sound card (a model of Chromium's timer, w51-audio)", () => {
+  it("before: a 10 ms context on a Windows timer renders about two thirds of real time, so the preview comes in pieces", () => {
+    expect(timerDrivenShare(10, 15.625)).toBeCloseTo(0.68, 2);
+  });
+
+  it("before: with finer timers (a program asked for 1 ms) nothing is lost, which is why it comes and goes", () => {
+    expect(timerDrivenShare(10, 1)).toBe(1);
+  });
+
+  it("before: a 20 ms context keeps pace on a Windows timer, but each buffer can come up to 15.6 ms late", () => {
+    expect(timerDrivenShare(20, 15.625)).toBe(1);
+  });
+
+  it("after: on the sound card every buffer is rendered at the card's pace (no timer, nothing skipped)", () => {
+    const { context, destination, sources } = fakeContext();
+    keepDeviceClock(context).hold();
+    // Not silence, so Chromium's SilentSinkSuspender never moves the context onto the timer.
+    expect(sources[0].connectedTo).toEqual([destination]);
+    expect(sources[0].offset.value).toBeGreaterThan(0);
+  });
+});
