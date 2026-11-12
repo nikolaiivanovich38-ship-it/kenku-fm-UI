@@ -26,7 +26,9 @@
     "check": "yarn typecheck && yarn lint && yarn test && yarn test:scripts",
     "audit:check": "node scripts/audit-check.mjs",
     "test:scripts": "node --test \"scripts/*.test.mjs\"",
-    "heavy": "node scripts/heavy-run.mjs"
+    "heavy": "node scripts/heavy-run.mjs",
+    "affected": "node scripts/affected-specs.mjs",
+    "package:test": "node scripts/package-test.mjs"
   },
   "keywords": [],
   "author": {

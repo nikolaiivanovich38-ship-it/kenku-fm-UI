@@ -106,11 +106,38 @@ describe("Specs on GitHub, split across machines (FND-15)", () => {
     assert.match(specsJobs.package, /run: yarn package\n {8}env:\n {10}CUE_DESK_E2E_BUILD: "1"/);
     assert.match(specsJobs.app, /needs: package/);
     assert.match(specsJobs.app, /shard: \[1, 2, 3, 4, 5, 6, 7, 8\]/);
-    assert.match(specsJobs.app, /--project=app --shard=\$\{\{ matrix\.shard \}\}\/8 --reporter=list,blob/);
+    assert.match(specsJobs.app, /--project=app --shard=\$\{\{ matrix\.shard \}\}\/8 --reporter=list,blob,json/);
     assert.doesNotMatch(specsJobs.app, /--workers/);
-    assert.match(specsJobs.prototype, /--project=prototype --reporter=list,blob/);
+    assert.match(specsJobs.prototype, /--project=prototype --reporter=list,blob,json/);
     assert.match(specsJobs.e2e, /needs: package/);
-    assert.match(specsJobs.e2e, /yarn e2e --reporter=list,blob/);
+    assert.match(specsJobs.e2e, /yarn e2e --reporter=list,blob,json/);
+  });
+
+  it("keeps node_modules between runs, saved right after the install and before anything changes them", () => {
+    for (const [name, block] of Object.entries(specsJobs)) {
+      if (!block.includes("yarn install")) continue;
+      assert.match(block, /uses: actions\/cache\/restore@[0-9a-f]{40} # v\d[\s\S]*?path: node_modules\n\s+key: node-modules-\$\{\{ runner\.os \}\}-\$\{\{ runner\.arch \}\}-node22-\$\{\{ hashFiles\('yarn\.lock', 'package\.json'\) \}\}/, name);
+      assert.match(block, /run: yarn install --frozen-lockfile --non-interactive\n {6}- name: Keep node_modules for the next run\n {8}if: steps\.modules\.outputs\.cache-hit != 'true'\n {8}uses: actions\/cache\/save@/, name);
+      assert.match(block, /cache: \$\{\{ steps\.modules\.outputs\.cache-hit != 'true' && 'yarn' \|\| '' \}\}/, `${name}: yarn's download cache only when node_modules missed`);
+    }
+  });
+
+  it("keeps Playwright's Chromium between runs, per Playwright version, in every job that installs it", () => {
+    for (const name of ["app", "prototype", "e2e"]) {
+      assert.match(specsJobs[name], /uses: actions\/cache@[0-9a-f]{40} # v\d[\s\S]*?path: ~\/\.cache\/ms-playwright\n\s+key: playwright-chromium-[^\n]*steps\.playwright\.outputs\.version[\s\S]*?run: npx playwright install chromium/, name);
+    }
+  });
+
+  it("links each failed test in the summary to its job's failures artifact (artifact-url), from the job's own JSON report", () => {
+    for (const name of ["app", "prototype", "e2e"]) {
+      const block = specsJobs[name];
+      assert.match(block, /PLAYWRIGHT_JSON_OUTPUT_FILE: reports\//, name);
+      assert.match(block, /id: failures\n {8}if: failure\(\)/, name);
+      assert.match(block, /URL: \$\{\{ steps\.failures\.outputs\.artifact-url \}\}\n {8}run: printf '%s\\n' "\$URL" > reports\/[\w${}. -]+\.failures-url/, name);
+      // The address is written before the reports are kept, so it goes with them.
+      assert.ok(block.indexOf(".failures-url") < block.indexOf("name: Keep the reports for the summary"), name);
+    }
+    assert.match(specsJobs.summary, /--artifact "\$1=\$2\.failures-url"/);
   });
 
   it("keeps Chromium's sandbox on: user namespaces allowed where the app starts, never --no-sandbox", () => {

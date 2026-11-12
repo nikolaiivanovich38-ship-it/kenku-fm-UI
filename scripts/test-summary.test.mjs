@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { describe, it } from "node:test";
 
-import { countTests, parseArgs, readReport, summarise } from "./test-summary.mjs";
+import { countTests, failureScreenshots, parseArgs, readReport, readUrl, summarise } from "./test-summary.mjs";
 
 /** A Playwright JSON report (reporter "json") with the given tests, as merge-reports writes it. */
 function report(tests, duration = 61_000) {
@@ -124,12 +124,67 @@ describe("the summary", () => {
   });
 });
 
+/** A failed test's last try with its screenshot, as a job's own JSON reporter writes it (absolute paths). */
+function withScreenshots(rep, file = "/home/runner/work/kenku/kenku/test-results/specs/campaigns-going-back-app-retry1/test-failed-1.png") {
+  const test = rep.suites[0].suites[0].specs[0].tests[0];
+  test.results = [
+    { retry: 0, attachments: [{ name: "screenshot", contentType: "image/png", path: file.replace("-retry1", "") }] },
+    { retry: 1, attachments: [{ name: "trace", contentType: "application/zip", path: "/x/trace.zip" }, { name: "screenshot", contentType: "image/png", path: file }] },
+  ];
+  return rep;
+}
+
+describe("links to each failure's screenshot", () => {
+  const failing = () => report([["going back", "unexpected", "passed", "app", 632]]);
+  const url = "https://github.com/o/r/actions/runs/1/artifacts/99";
+
+  it("finds the last try's screenshot of each failed test, as a path inside the failures artifact (test-results/)", () => {
+    const shots = failureScreenshots(withScreenshots(failing()));
+    assert.deepEqual([...shots], [["[app] campaigns.spec.ts:632 › round 6, part 7: Back is one history › going back", "specs/campaigns-going-back-app-retry1/test-failed-1.png"]]);
+  });
+
+  it("reads Windows paths too, and leaves out tests that passed", () => {
+    const shots = failureScreenshots(withScreenshots(failing(), "D:\\a\\r\\r\\test-results\\carryOver-a-Cue-retry1\\test-failed-1.png"));
+    assert.deepEqual([...shots.values()], ["carryOver-a-Cue-retry1/test-failed-1.png"]);
+    assert.equal(failureScreenshots(withScreenshots(report([["fine", "expected"]]))).size, 0);
+  });
+
+  it("links each failure in the summary straight to the failures artifact of the part it ran in, naming the screenshot in it", () => {
+    const { markdown } = summarise({
+      runs: [{ label: "Acceptance specs", report: failing() }],
+      parts: [
+        { label: "App specs, part 2 of 8", report: report([["other", "expected"]]), artifactUrl: null },
+        { label: "App specs, part 3 of 8", report: withScreenshots(failing()), artifactUrl: url },
+      ],
+    });
+    assert.match(markdown, new RegExp(`going back · \\[screenshot\\]\\(${url.replace(/[/.]/g, "\\$&")}\\) \\(in it: \`specs/campaigns-going-back-app-retry1/test-failed-1\\.png\`\\)`));
+    assert.match(markdown, /\| \[App specs, part 3 of 8\]\(https:\/\/github\.com\/o\/r\/actions\/runs\/1\/artifacts\/99\) \|/, "the part's row links its failures too");
+  });
+
+  it("links the artifact without a file name when the failure left no screenshot, and nothing when there is no artifact", () => {
+    const linked = summarise({ runs: [{ label: "End-to-end tests", report: failing() }], parts: [{ label: "End-to-end tests", report: failing(), artifactUrl: url }] });
+    assert.match(linked.markdown, /going back · \[screenshots and trace\]\(https:/);
+    const bare = summarise({ runs: [{ label: "End-to-end tests", report: failing() }], parts: [] });
+    assert.match(bare.markdown, /going back\n/);
+  });
+});
+
 describe("arguments and files", () => {
-  it("reads --run and --part as label=file", () => {
-    assert.deepEqual(parseArgs(["--run", "Acceptance specs=r/specs.json", "--part", "app 1 of 8=r/app-1.json"]), {
+  it("reads --run and --part as label=file, and --artifact as a part's label=the file holding its failures artifact's address", () => {
+    assert.deepEqual(parseArgs(["--run", "Acceptance specs=r/specs.json", "--part", "app 1 of 8=r/app-1.json", "--artifact", "app 1 of 8=r/app-1.failures-url"]), {
       runs: [{ label: "Acceptance specs", file: "r/specs.json" }],
       parts: [{ label: "app 1 of 8", file: "r/app-1.json" }],
+      artifacts: [{ label: "app 1 of 8", file: "r/app-1.failures-url" }],
     });
+  });
+
+  it("reads an artifact's address from its file, and gives null for a missing file or anything but a GitHub address", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "test-summary-"));
+    fs.writeFileSync(path.join(dir, "ok"), "https://github.com/o/r/actions/runs/1/artifacts/99\n");
+    fs.writeFileSync(path.join(dir, "odd"), "javascript:alert(1)\n");
+    assert.equal(readUrl(path.join(dir, "ok")), "https://github.com/o/r/actions/runs/1/artifacts/99");
+    assert.equal(readUrl(path.join(dir, "odd")), null);
+    assert.equal(readUrl(path.join(dir, "missing")), null);
   });
 
   it("refuses anything else, in plain words", () => {

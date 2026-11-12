@@ -2,9 +2,12 @@
 // The plain-words summary at the end of the specs workflow (.github/workflows/specs.yml).
 //
 //   node scripts/test-summary.mjs --run "<label>=<report.json>" … [--part "<label>=<report.json>" …]
+//                                 [--artifact "<part label>=<file holding the address of its failures artifact>" …]
 //
-// Each file is a Playwright JSON report (merge-reports --reporter=json). A --run is a whole suite (the acceptance
-// specs, the end-to-end tests); a --part is one job of it (one shard), shown as a row of a table. The summary goes to
+// Each file is a Playwright JSON report (merge-reports --reporter=json, or a job's own json reporter). A --run is a
+// whole suite (the acceptance specs, the end-to-end tests); a --part is one job of it (one shard), shown as a row of a
+// table. An --artifact gives a part's failures-<job> artifact (screenshots, traces): each failed test that ran in that
+// part links straight to it, with its screenshot's path inside it (from the part's report). The summary goes to
 // the run's summary page ($GITHUB_STEP_SUMMARY, or the screen when that is not set), and every failed test becomes an
 // error on the run (GitHub shows ten per step). A missing or unreadable report means the job stopped before its tests
 // finished, and is said as such. Exit code 0: the test jobs themselves fail when a test fails.
@@ -19,10 +22,10 @@ const escapeData = (text) => text.replace(/%/g, "%25").replace(/\r/g, "%0D").rep
 const escapeTitle = (text) => escapeData(text).replace(/:/g, "%3A").replace(/,/g, "%2C");
 
 export function parseArgs(argv) {
-  const args = { runs: [], parts: [] };
+  const args = { runs: [], parts: [], artifacts: [] };
   for (let i = 0; i < argv.length; i++) {
     const option = argv[i];
-    const list = option === "--run" ? args.runs : option === "--part" ? args.parts : null;
+    const list = { "--run": args.runs, "--part": args.parts, "--artifact": args.artifacts }[option] ?? null;
     if (!list) throw new Error(`Unknown option ${option}. See the top of scripts/test-summary.mjs.`);
     const value = argv[++i] ?? "";
     const at = value.lastIndexOf("=");
@@ -42,6 +45,16 @@ export function readReport(file) {
   }
 }
 
+/** An artifact's address from the file a job wrote it to; null when there is none, or it is not a GitHub address. */
+export function readUrl(file) {
+  try {
+    const url = fs.readFileSync(file, "utf8").trim();
+    return /^https:\/\/github\.com\/[^\s()]+$/.test(url) ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Every test of a report with the titles of the describe blocks around it (the file's own block left out). */
 function* testsOf(suites, titles = [], depth = 0) {
   for (const suite of suites ?? []) {
@@ -56,6 +69,35 @@ function* testsOf(suites, titles = [], depth = 0) {
 function testName({ spec, test, titles }) {
   const project = test.projectName ? `[${test.projectName}] ` : "";
   return `${project}${spec.file}:${spec.line} › ${titles.join(" › ")}`;
+}
+
+/**
+ * Each failed test's screenshot from its last try, as a path inside its job's failures artifact: the artifact holds
+ * test-results/, so the path is what follows test-results/ in the attachment's path (a job's own report keeps them).
+ */
+export function failureScreenshots(report) {
+  const shots = new Map();
+  for (const entry of testsOf(report.suites)) {
+    if (entry.test.status !== "unexpected") continue;
+    const tries = [...(entry.test.results ?? [])].reverse();
+    const shot = tries.map((r) => (r.attachments ?? []).find((a) => a.name === "screenshot" && a.path)).find(Boolean);
+    if (!shot) continue;
+    const file = shot.path.replace(/\\/g, "/");
+    const at = file.lastIndexOf("/test-results/");
+    shots.set(testName(entry), at >= 0 ? file.slice(at + "/test-results/".length) : file.split("/").pop());
+  }
+  return shots;
+}
+
+/** Where each failed test's screenshot is: its part's failures artifact, and the file in it (or null). */
+function screenshotLinks(parts) {
+  const links = new Map();
+  for (const { report, artifactUrl } of parts) {
+    if (!report || !artifactUrl) continue;
+    const shots = failureScreenshots(report);
+    for (const failed of countTests(report).failed) links.set(failed.name, { url: artifactUrl, file: shots.get(failed.name) ?? null });
+  }
+  return links;
 }
 
 /**
@@ -111,13 +153,20 @@ export function summarise({ runs, parts }) {
 
   out.push("");
   if (failures.length) {
+    const links = screenshotLinks(parts);
     out.push("### What failed", "");
     for (const f of failures) {
       const why = f.passedAlthoughExpectedToFail ? " (passed although expected to fail: its screen or stream works now, so take it off the not-built list)" : "";
-      out.push(`- ${f.name}${why}`);
+      const link = links.get(f.name);
+      const shot = !link ? "" : link.file ? ` · [screenshot](${link.url}) (in it: \`${link.file}\`)` : ` · [screenshots and trace](${link.url})`;
+      out.push(`- ${f.name}${why}${shot}`);
       say(f.passedAlthoughExpectedToFail ? "A test passed that was expected to fail" : "A test failed", f.name);
     }
-    out.push("", "Download the **test-report** artifact and open `specs/index.html` or `e2e/index.html`: each failure has its screen, its steps and a trace.", "");
+    out.push(
+      "",
+      "Each link downloads the failures of the part the test ran in (a zip; the screenshot is the file named). The **test-report** artifact has every failure's screen, steps and trace in `specs/index.html` or `e2e/index.html`.",
+      "",
+    );
   } else if (!anyFailed && runs.length) {
     out.push("Everything passed.", "");
   }
@@ -127,13 +176,14 @@ export function summarise({ runs, parts }) {
 
   if (parts.length) {
     out.push("### Each part", "", "| Part | Passed | Failed | Flaky | Expected to fail | Skipped | Time |", "| --- | --- | --- | --- | --- | --- | --- |");
-    for (const { label, report } of parts) {
+    for (const { label, report, artifactUrl } of parts) {
       if (!report) {
         out.push(`| ${label} | no results | | | | | |`);
         continue;
       }
       const c = countTests(report);
-      out.push(`| ${label} | ${c.passed} | ${c.failed.length} | ${c.flaky.length} | ${c.expectedToFail} | ${c.skipped} | ${(c.durationMs / 60_000).toFixed(1)} min |`);
+      const name = artifactUrl ? `[${label}](${artifactUrl})` : label;
+      out.push(`| ${name} | ${c.passed} | ${c.failed.length} | ${c.flaky.length} | ${c.expectedToFail} | ${c.skipped} | ${(c.durationMs / 60_000).toFixed(1)} min |`);
     }
     out.push("");
   }
@@ -143,7 +193,12 @@ export function summarise({ runs, parts }) {
 function main() {
   const args = parseArgs(process.argv.slice(2));
   const load = (list) => list.map(({ label, file }) => ({ label, report: readReport(file) }));
-  const { markdown, annotations } = summarise({ runs: load(args.runs), parts: load(args.parts) });
+  const artifactOf = (label) => {
+    const given = args.artifacts.find((a) => a.label === label);
+    return given ? readUrl(given.file) : null;
+  };
+  const parts = load(args.parts).map((part) => ({ ...part, artifactUrl: artifactOf(part.label) }));
+  const { markdown, annotations } = summarise({ runs: load(args.runs), parts });
   for (const annotation of annotations) console.log(annotation);
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${markdown}\n`);
   else console.log(markdown);

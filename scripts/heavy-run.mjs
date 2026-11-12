@@ -22,7 +22,9 @@
 //     together, whether the run ends, stalls or is interrupted;
 //   - stops a run that prints nothing for --idle minutes, or runs longer than --limit, after writing a report beside
 //     the log (<log>.stall-<n>.txt: why, the Playwright tests that never finished, the process tree, the last lines);
-//   - runs it again once after an idle stall (a stall under load is often a one-off), and exits 124 if it stalls again.
+//   - runs it again once after an idle stall (a stall under load is often a one-off), and exits 124 if it stalls again;
+//   - gives the command LYRE_HEAVY_RUN (the lock's path), so a script it starts that would take the lock itself
+//     (scripts/package-test.mjs) runs straight away instead of waiting for its own parent.
 // Exit code: the command's own, or 124 after a stall.
 import { spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -204,7 +206,9 @@ function writeReport(file, { why, args, log, pgid }) {
 /** One attempt: runs the command in its own process group; resolves its exit code, or STALLED with the reason. */
 function attempt(args, log, { out, graceMs }) {
   return new Promise((resolve) => {
-    const child = spawn(args.command[0], args.command.slice(1), { detached: true, stdio: ["ignore", "pipe", "pipe"] });
+    // LYRE_HEAVY_RUN: a script the command starts (yarn package:test) knows the lock is held already, and does not queue for it.
+    const env = { ...process.env, LYRE_HEAVY_RUN: args.lock };
+    const child = spawn(args.command[0], args.command.slice(1), { detached: true, stdio: ["ignore", "pipe", "pipe"], env });
     const pgid = child.pid;
     const started = Date.now();
     let lastOutput = started;
@@ -236,7 +240,8 @@ function attempt(args, log, { out, graceMs }) {
     child.on("close", async (code, signal) => {
       clearInterval(check);
       if (stalled) return;
-      sink.end();
+      // The log is complete before the run counts as ended: whoever reads it next sees all of it.
+      await new Promise((done) => sink.end(done));
       // Whatever the command left running in its group (an Xvfb, a browser) goes with it.
       await stopGroup(pgid, graceMs);
       resolve({ code: code ?? (signal ? 128 : 1), pgid });

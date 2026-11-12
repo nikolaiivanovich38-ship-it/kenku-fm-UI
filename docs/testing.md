@@ -86,7 +86,43 @@ yarn heavy --status            # who holds the lock, since when, when it last pr
 - **Nothing left behind.** Each run is a process group of its own (Electron, browsers, Xvfb), stopped together when the run ends, stalls or is interrupted. Before this, an Xvfb left over from `xvfb-run` under `flock` kept the old lock for hours.
 - **Stalls stopped and explained.** A run that prints nothing for `--idle` minutes (default 10), or runs longer than `--limit` (default 120), is stopped. Beside the log goes `<log>.stall-<n>.txt`: why, the Playwright tests that started and never finished, the run's processes with their CPU use, and the last 60 lines. An idle stall is run once more (`--retries`, default 1), since a stall under load is often a one-off; a second stall, or the overall limit, exits with 124 for a person to look at the report.
 - **In CI** (`ci.yml`, and `specs.yml` for the specs: see Specs > On GitHub) each GitHub job has its own `timeout-minutes`; Playwright's per-test timeouts (60 s) catch a single hung test in both places.
+- **A script that takes the lock itself** (`yarn package:test`) runs straight away when `yarn heavy` started it: heavy-run tells its command it holds the lock (`LYRE_HEAVY_RUN`), so nothing waits for its own parent.
 - **Timing budgets in CI.** GitHub's runners run the unit tests with coverage on shared processors, two to three times slower than the build machine. CI sets `CUE_DESK_PERF_SLACK=3`, which multiplies the data layer's performance budgets (`src/main/data/testing/perfBudget.ts`); UI tests have 15 s instead of 5 s (an axe check of a whole screen). The budgets as stated are checked by the local run before each release (docs/RELEASE_CHECKLIST.md). Checks that the main process is never held past 200 ms measure the processor time of its longest turn (`src/main/data/testing/longestHold.ts`), not the clock, so other test files running alongside in `yarn test` cannot fail them.
+
+## Only what a change needs
+
+Two scripts keep local runs short (0.5.1, w51-infra). Both are tested in `scripts/*.test.mjs`.
+
+**Which tests a change needs: `yarn affected`** (`scripts/affected-specs.mjs`). It lists the acceptance specs for each Playwright project, the end-to-end files, whether a test package is needed, and the commands that run them.
+
+```
+yarn affected                          # everything since the merge base with b7, uncommitted and new files included
+yarn affected --base release           # since another branch
+yarn affected --range b7..w51-main     # any range git diff takes
+yarn affected src/lyre/screens/live/Rows.tsx e2e/broadcast.spec.ts   # these files
+yarn affected --why                    # also what each file chose; --json for scripts
+```
+
+- A file in one screen's folder (`src/lyre/screens/<folder>/`) runs that screen's spec files in the app project, its sweeps only (`sweeps.spec.ts` with `--grep` on the sweep screens it owns) and the end-to-end files that open it. The spec files come from the routes `screens/index.tsx` gives the folder's screens, named as `screenOfRoute` in `support/target.ts` names them (`boards` is `pad-boards`, `transfer` is `library-files`).
+- Imports are followed: a file another screen's folder imports runs that screen too (`steps/` runs Pad boards, Campaigns, the planner and Live). A file the shell, the kit, the api or any other shared part of the Lyre page imports runs every app spec. So does the playback engine (`src/player/engine`), which the Lyre page's audio imports, beside the engine's own end-to-end files.
+- The main-process areas in `MAIN_AREAS` run their specs and end-to-end files (`src/main/remote` runs `settings.spec.ts`, `remote.spec.ts` and `e2e/settings.spec.ts`; the library and `lyreApi` run every app spec). Any other file under `src/main`, `src/common` and the old window runs everything.
+- A spec file runs in both projects; an end-to-end file runs by itself; `design/prototype` runs the prototype project; an end-to-end fixture runs the files that import it (and every app spec when the specs' support imports it).
+- When in doubt it runs everything: the specs' support (`e2e/specs/support`), the Playwright, webpack, forge and TypeScript configs, `package.json`, `yarn.lock`, and any file no rule names.
+- Documents outside `src`, unit tests, workflows and the scripts run nothing. Help articles (`src/lyre/help/articles/*.md`) are part of the app.
+- A file the rules name that is renamed or deleted fails a test in `scripts/affected-specs.test.mjs`, which says which; update `SCREEN_E2E` or `MAIN_AREAS` to match.
+
+**One test package per commit: `yarn package:test`** (`scripts/package-test.mjs`). It runs `CUE_DESK_E2E_BUILD=1 yarn package` only when the package in `out/` was not made from the app's code as it is now; otherwise it says so and uses it.
+
+```
+yarn package:test              # packages only when needed, through yarn heavy
+yarn package:test --check      # says whether it would package (exit 1) or not (exit 0)
+yarn package:test --force      # packages whatever
+```
+
+- After each package it writes `out/lyre-test-build.json`: the commit, the dirty flag (uncommitted changes to what goes into the package, as `isPackageInput` in `affected-specs.mjs` lists it: the app's code, help articles, `package.json`, `yarn.lock`, the forge and webpack configs), `CUE_DESK_E2E_BUILD`, and `app.asar`'s size and time.
+- The package is used again only when it was made from this commit (or from an earlier one, and nothing committed since goes into the package), neither it nor the tree now has uncommitted changes to the app's code, it is a test build, and `app.asar` is still the one it made (a plain `yarn package` since then means packaging again). A changed or committed test, document or script does not count, so editing a spec and running it again does not package again.
+- A package that fails half-way leaves no stamp, and so does a `yarn package` that ends without writing a new `app.asar` (it then exits 1 and says so). Packaging goes through `yarn heavy` unless `yarn heavy` started it already.
+- The release workflow and `specs.yml` package by themselves and never read the stamp.
 
 ## Specs
 
@@ -127,7 +163,7 @@ One mark per stream (w6-shell, step 0): the `round 6` and `round 7` marks are re
 ```
 npx playwright test -c playwright.spec.config.ts --project=prototype
 npx playwright test -c playwright.spec.config.ts --project=prototype live.spec     # one screen
-CUE_DESK_E2E_BUILD=1 yarn package                                                   # once, for the app project
+yarn package:test                                                                   # once per commit, for the app project
 npx playwright test -c playwright.spec.config.ts --project=app                    # the app (see below; xvfb-run -a on Linux)
 ```
 
@@ -139,8 +175,9 @@ Push a branch whose name starts with `ci/` (`git push <remote> HEAD:ci/<name>`),
 
 - **Package** builds the test package once (`CUE_DESK_E2E_BUILD=1 yarn package`) and passes it to the other jobs as a tar, so the programs stay executable.
 - **App specs, part 1 to 8 of 8** each run `--project=app --shard=N/8` under `xvfb-run`, one copy of the app at a time (the app project's `workers: 1`), against that one package. **Prototype specs** runs `--project=prototype` with Playwright's Chromium (`npx playwright install chromium`: the runner image already has the libraries it and Electron need, and Xvfb) (two at a time on CI) and **End-to-end tests** runs `yarn e2e`; all of them start together once the package is ready (the prototype at once).
-- **Summary** merges the jobs' blob reports into one artifact, `test-report`: `specs/index.html` (app and prototype together, one config) and `e2e/index.html` (the end-to-end suite has its own config and files with the same names, so it has its own page). It writes on the run's summary page how many tests passed, failed, were flaky (failed once, passed on the second try) or were expected to fail (not built yet), which ones failed, and a row per job (`scripts/test-summary.mjs`, tested in `scripts/test-summary.test.mjs`). Each failed test is also an error on the run.
-- A failing job keeps its `test-results/` (screenshots, traces, and for `yarn e2e` the app's log) as `failures-<job>`, and ends with a step that says what failed in plain words, as in `ci.yml`.
+- **Summary** merges the jobs' blob reports into one artifact, `test-report`: `specs/index.html` (app and prototype together, one config) and `e2e/index.html` (the end-to-end suite has its own config and files with the same names, so it has its own page). It writes on the run's summary page how many tests passed, failed, were flaky (failed once, passed on the second try) or were expected to fail (not built yet), which ones failed with a link to each one's screenshot, and a row per job (`scripts/test-summary.mjs`, tested in `scripts/test-summary.test.mjs`; a row per job comes from that job's own JSON report). Each failed test is also an error on the run.
+- A failing job keeps its `test-results/` (screenshots, traces, and for `yarn e2e` the app's log) as `failures-<job>`, and ends with a step that says what failed in plain words, as in `ci.yml`. Each job also writes its own JSON report and, after a failure, the address of its `failures-<job>` artifact (`artifact-url`), so the summary links each failed test straight to the artifact of the job it ran in and names its screenshot inside the zip (from the last try); each part's row in the table links its artifact too.
+- `node_modules` is kept between runs (`actions/cache`, keyed on `yarn.lock`, `package.json`, the system and Node 22), saved right after `yarn install` and before packaging rebuilds anything in it; on a hit `yarn install` only checks it, and yarn's download cache is used only on a miss. Playwright's Chromium is kept per Playwright version. Each saves about 10 to 20 seconds of a job's set-up; the app parts' time is the tests themselves (about 11 to 12 minutes each on 0.5.0).
 
 Differences from a local run: CI sets `CI=true`, so a failed test is run once more (`retries: 1`) and one that then passes is reported as flaky; the runners are not root, so Chromium's sandbox stays on. Ubuntu 24.04 and later (`ubuntu-latest`) restrict the user namespaces the sandbox needs (AppArmor), so the jobs that start the app allow them first with `sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0`; nothing in the workflow or the app switches the sandbox off (`launchArgs` in `e2e/fixtures/packagedApp.ts` does so only as root). Every job stops after at most 30 minutes. The repository is public, so GitHub's standard runners cost nothing.
 

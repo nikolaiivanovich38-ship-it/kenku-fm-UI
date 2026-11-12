@@ -157,6 +157,15 @@ describe("running under the watchdog", { skip: !posix }, () => {
     assert.ok(owner.heartbeatAt >= firstEnded - 100, `checked in ${firstEnded - owner.heartbeatAt} ms before taking the lock`);
   });
 
+  it("tells the command it already holds the lock (LYRE_HEAVY_RUN), so a script it starts does not wait for itself", async () => {
+    const dir = tmp();
+    const lock = path.join(dir, ".heavy.lock");
+    const log = path.join(dir, "run.log");
+    const code = await runHeavy({ ...parseArgs(["--lock", lock, "--log", log, "--", "sh", "-c", 'echo "held: $LYRE_HEAVY_RUN"']) }, { out: quiet });
+    assert.equal(code, 0);
+    assert.ok(fs.readFileSync(log, "utf8").includes(`held: ${lock}`));
+  });
+
   it("the command line prints the lock's owner with --status", () => {
     const dir = tmp();
     const result = spawnSync(process.execPath, [path.join(here, "heavy-run.mjs"), "--status", "--lock", path.join(dir, ".lock")], { encoding: "utf8" });
