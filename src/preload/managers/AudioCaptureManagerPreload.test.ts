@@ -64,6 +64,9 @@ class FakeAudioContext {
   createMediaStreamDestination() {
     return this.track(Object.assign(new FakeNode(), { stream: new FakeStream() }));
   }
+  createConstantSource() {
+    return this.track(Object.assign(new FakeNode(), { offset: { value: 1 }, started: false, start() { this.started = true; }, stop() {} }));
+  }
   async resume() {
     this.state = "running";
   }
@@ -216,6 +219,14 @@ describe("AudioCaptureManagerPreload: nothing runs until a broadcast starts (PER
     expect(workletNodes).toHaveLength(1);
     expect(encoders[0].state).toBe("configured");
     expect(contexts[0].state).toBe("suspended");
+  });
+
+  it("w51-audio: keeps the broadcast's audio context on the sound card's clock, with a constant far below hearing", async () => {
+    await broadcastingManager();
+    const into = contexts[0].nodes.filter((node) => node.connections.has(contexts[0].destination));
+    expect(into).toHaveLength(1);
+    expect((into[0] as unknown as { offset: { value: number }; started: boolean }).offset.value).toBe(2 ** -24);
+    expect((into[0] as unknown as { started: boolean }).started).toBe(true);
   });
 
   it("resumes the audio thread when a tab is captured and suspends it again when the tab stops", async () => {
@@ -727,6 +738,107 @@ describe("AudioCaptureManagerPreload: engine rooms and preview from the player p
       expect(contexts[0].closed).toBe(true);
       expect(manager._preview).toBeUndefined();
     } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("w51-audio: plays a room's frames that come over the room's own channel, as if they came on the player channel", async () => {
+    const { manager, port } = await withPlayer();
+    const frames = new FakePort();
+    port.deliver({ kind: "room-frames", room: B, port: frames });
+    expect(inlets()).toHaveLength(0);
+    frames.deliver([{ index: 4, samples: new Float32Array(1920), last: false }]);
+    expect(inlets()).toHaveLength(1);
+    expect(inlets()[0].connections).toEqual(new Set([manager._mixes.get(B)!.volume]));
+    expect(inlets()[0].port.postMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ index: 4, samples: expect.any(Float32Array) }),
+      [expect.any(ArrayBuffer)],
+    );
+    frames.deliver([{ index: 5, samples: new Float32Array(3) }]);
+    frames.deliver({ index: 6, samples: new Float32Array(1920) });
+    expect(inlets()[0].port.postMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("w51-audio: closes a room's frames channel when a new one comes, the broadcast stops or the player channel is replaced", async () => {
+    const { manager, port } = await withPlayer();
+    const [a1, a2] = [new FakePort(), new FakePort()];
+    port.deliver({ kind: "room-frames", room: A, port: a1 });
+    port.deliver({ kind: "room-frames", room: A, port: a2 });
+    expect(a1.closed).toBe(true);
+    await manager.stopBroadcast();
+    expect(a2.closed).toBe(true);
+
+    await manager.startBroadcast("lowLatency");
+    const a3 = new FakePort();
+    port.deliver({ kind: "room-frames", room: A, port: a3 });
+    manager.setPlayerPort(new FakePort());
+    expect(a3.closed).toBe(true);
+  });
+
+  it("w51-audio: keeps a room's frames channel while the room is briefly missing from the rooms list, as frames on the player channel were", async () => {
+    // The rooms list reaches this window and the Lyre page separately: the page may already have sent the room's
+    // new channel when this window hears the room went. Frames for a missing room are dropped, then play again.
+    const { manager, port } = await withPlayer();
+    const b = new FakePort();
+    port.deliver({ kind: "room-frames", room: B, port: b });
+    manager.setRooms([A]);
+    expect(b.closed).toBe(false);
+    b.deliver([{ index: 0, samples: new Float32Array(1920), last: false }]);
+    expect(inlets()).toHaveLength(0);
+    manager.setRooms([A, B]);
+    b.deliver([{ index: 1, samples: new Float32Array(1920), last: false }]);
+    expect(inlets()).toHaveLength(1);
+    expect(inlets()[0].connections).toEqual(new Set([manager._mixes.get(B)!.volume]));
+  });
+
+  it("w51-audio: plays the preview's frames that come over its own channel, and closes the old one for a new one", async () => {
+    const manager = newManager();
+    const port = new FakePort();
+    manager.setPlayerPort(port);
+    const first = new FakePort();
+    port.deliver({ kind: "preview-frames", port: first });
+    first.deliver([{ index: 0, samples: new Float32Array(1920), last: false }]);
+    await settle();
+    const previewInlet = workletNodes.find((node) => node.name === "player-frame-inlet")!;
+    expect(previewInlet.port.postMessage).toHaveBeenCalledTimes(1);
+    const second = new FakePort();
+    port.deliver({ kind: "preview-frames", port: second });
+    expect(first.closed).toBe(true);
+    manager.setPlayerPort(new FakePort());
+    expect(second.closed).toBe(true);
+  });
+
+  it("w51-audio: counts each room's and the preview's frames, holes and drops, for Save diagnostics and the tests", async () => {
+    const { manager, port } = await withPlayer();
+    port.deliver(roomFrame(A, 0));
+    port.deliver(roomFrame(A, 1));
+    port.deliver(previewFrame(0));
+    await settle();
+    const roomInlet = inlets()[0];
+    roomInlet.port.onmessage?.({ data: { kind: "hole", wait: 3 } });
+    roomInlet.port.onmessage?.({ data: { kind: "dropped" } });
+    roomInlet.port.onmessage?.({ data: { kind: "odd" } });
+    expect(manager.audioTiming()).toEqual({
+      [A]: { frames: 2, holes: 1, dropped: 1, wait: 3 },
+      preview: { frames: 1, holes: 0, dropped: 0, wait: 2 },
+    });
+  });
+
+  it("w51-audio: says in the log once a minute, in plain words, when Lyre's sound arrived late or was dropped", async () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const { port } = await withPlayer();
+      port.deliver(roomFrame(A, 0));
+      inlets()[0].port.onmessage?.({ data: { kind: "hole", wait: 3 } });
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0][0])).toMatch(/^Audio timing, last minute: room bot-a: 1 frames, 1 late \(holes\), 0 dropped/);
+      // A quiet minute says nothing.
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(warn).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
       vi.useRealTimers();
     }
   });

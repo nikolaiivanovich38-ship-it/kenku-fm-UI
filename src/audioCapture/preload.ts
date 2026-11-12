@@ -28,6 +28,11 @@ ipcRenderer.on("AUDIO_CAPTURE_BROADCAST_START", (_, streamingMode: StreamingMode
   void audioCaptureManager.startBroadcast(streamingMode);
 });
 
+// w51-audio: the main process (Save diagnostics, test builds) asks how Lyre's frames have fared here.
+ipcRenderer.on("AUDIO_CAPTURE_TIMING", () => {
+  console.info(`Audio timing: ${JSON.stringify(audioCaptureManager.audioTiming())}`);
+});
+
 ipcRenderer.on("AUDIO_CAPTURE_BROADCAST_STOP", () => {
   void audioCaptureManager.stopBroadcast();
 });

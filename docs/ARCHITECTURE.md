@@ -191,8 +191,8 @@ DAT-11 (with DAT-1, DAT-2, DAT-10, ORG-4, ORG-7, EDT-2) brings the library datab
 - **Checks**: `schema/v002.test.ts` (upgrade from version 1 with data, every constraint), `queryPlan.test.ts` (EXPLAIN QUERY PLAN of every hot read path: index searches only), `undo.test.ts` (every write undone and redone exactly), `performance.test.ts` (20,000 tracks, 500 playlists, 3 campaigns × 50 sessions × 8 scenes: campaign tree about 5 ms, dynamic playlist up to 7 ms, uses under 1 ms, search up to 14 ms).
 - `library.close()` runs `PRAGMA optimize` to keep the query planner's statistics current.
 
-- **Player audio channel** (OUT-5, PRV-1). `PlayerAudioBridge` (main process) hands each of the player page and the capture window one end of a private MessageChannel, again whenever either loads; rooms go to the player page as `PLAYER_ROOMS` (`window.player.onRooms`). In the player page, `RoomStreams` (`src/player/engine/rooms/roomStreams.ts`) taps each room's `output(roomId)` with the PCM worklet while a broadcast runs and sends 20 ms frames labelled with the room; the capture window plays them through a `player-frame-inlet` worklet (`src/preload/managers/PlayerFrameInlet.worklet.js`, 40 ms start buffer, at most 200 ms) into that room's mix, beside the tabs routed there. Tab capture is unchanged, so the old player still reaches Discord as a captured tab. The engine's audio context must run at 48 kHz.
-- **Preview** (PRV-1, PRV-2). `createBrowserBridgedPreview(link)` gives the `PreviewPlayer` an output in a sink-less audio context; the frames are played by the capture window in a separate preview context (made on first use, closed after 10 s of quiet) on the chosen device (`setSinkId` over the channel). See security.md, "Rooms and buses".
+- **Player audio channel** (OUT-5, PRV-1). `PlayerAudioBridge` (main process) hands each of the player page and the capture window one end of a private MessageChannel, again whenever either loads; rooms go to the player page as `PLAYER_ROOMS` (`window.player.onRooms`). In the player page, `RoomStreams` (`src/player/engine/rooms/roomStreams.ts`) taps each room's `output(roomId)` with the PCM worklet while a broadcast runs and sends 20 ms frames labelled with the room (since 0.5.1 over a channel of their own per tap, straight from the audio thread: see "0.5.1: w51-audio"); the capture window plays them through a `player-frame-inlet` worklet (`src/preload/managers/PlayerFrameInlet.worklet.js`, 40 ms start buffer, at most 200 ms) into that room's mix, beside the tabs routed there. Tab capture is unchanged, so the old player still reaches Discord as a captured tab. The engine's audio context must run at 48 kHz.
+- **Preview** (PRV-1, PRV-2; 0.5.1: the context opens the default device and is kept on its clock while a preview plays, see "0.5.1: w51-audio"). `createBrowserBridgedPreview(link)` gives the `PreviewPlayer` an output in an audio context of its own (sink-less until 0.5.0; nothing of the preview is connected to its speakers); the frames are played by the capture window in a separate preview context (made on first use, closed after 10 s of quiet) on the chosen device (`setSinkId` over the channel). See security.md, "Rooms and buses".
 - Host wiring for wave 3 (player page): `const link = new PlayerAudioLink(); listenForPlayerAudioPort(window, link);` `const context = new AudioContext({ latencyHint: "playback", sampleRate: 48000 });` `createBrowserEngine({ audioContext: context, … })`, `const mixer = new RoomMixer(fromAudioContext(context)); window.player.onRooms((rooms) => mixer.setRooms(rooms));` `new RoomStreams({ mixer, link, createTap: await createBrowserFrameTaps(context) })`; the preview: `new PreviewPlayer({ output: await createBrowserBridgedPreview(link), … })`. Never connect a room output to this page's speakers (BUG-19, 0.4.1: what goes to the players is heard only through Discord; before it, the table played on them outside a broadcast).
 
 ## Wave 2: Import
@@ -213,7 +213,7 @@ The new interface's page hosts the playback engine behind one interface, `LyreAu
 | --- | --- |
 | `lyreAudio.ts` | `LyreAudio` (the screens' calls: play a track, playlist or scene on air to a room or every room, Next/Previous, pause, stop a lane with a fade, fade all, stop all, pads, Play next queue, Undo, preview a track/playlist/pad, preview device; `getNowPlaying`/`subscribe`; `announce` and `error` events) and `EngineLyreAudio`, its implementation over the Director, `RoomMixer`, `RoomStreams` and `PreviewPlayer`. Every failed call returns its plain message and sends it once as `error`. The library comes in as `LyreAudioLibrary`: domain lookups, the `ProfileOverrides` provider, each track's file (`media`) and each pad; it must answer synchronously, so the data layer answers from what it has loaded. |
 | `stableRooms.ts` | The rooms as the Director sees them. When the first bot joins, the mixer hands the table's mix to that room; the Director would see "table" vanish and stop it. Here that room keeps the table's id for the Director, so music started before joining goes on into Discord. A fresh table after the last bot leaves gets a new id, so the old one's voices stop. |
-| `browserLyreAudio.ts` | `startLyreAudio`: engine context at 48 kHz, read-ahead with `MEDIA_PREPARE`, worklet taps, the bridged preview in a sink-less context; `assembleLyreAudio` joins the parts (unit-tested with fakes). The preview device is attached again on every new channel. |
+| `browserLyreAudio.ts` | `startLyreAudio`: engine context at 48 kHz, read-ahead with `MEDIA_PREPARE`, worklet taps, the bridged preview in a context of its own (0.5.1: on the default device, held on its clock while previewing); `assembleLyreAudio` joins the parts (unit-tested with fakes). The preview device is attached again on every new channel. |
 | `preloadAudio.ts` | `createLyreAudioBridge(ipcRenderer, window)`: the new page's preload half (`window.lyre.audio`): holds and posts the channel's end, rooms, `MEDIA_PREPARE`. |
 | `LyreAudioProvider.tsx` | `LyreAudioProvider`, `useLyreAudio`, `useNowPlaying` (useSyncExternalStore), `useLyreAudioEvent`. |
 | `testing/` | `FakeLyreAudio` for screen tests; `lyreAudioOnFakes` (the real parts on the fake audio graph). |
@@ -789,3 +789,75 @@ every screen and What played has `history`. With two rooms or more the audio hos
 ## 0.5.1: w51-main (FND-16, the old window and Player retired)
 
 See the top of this file: the window is the Lyre page (its frame, `src/main/window`, `src/lyre/window`), update news in the Lyre page, Settings without Website tabs and Local files, Remote control hidden (`remoteOff.ts`), the one-time moves from the old storage (`src/main/legacy`, `legacyCatchUp`), and website tabs, local files and device capture kept for OUT-12, unreachable. The sections above from WP2 to 0.5.0 describe how the code was built and still name the old main window and player where they mattered then.
+
+## 0.5.1: w51-audio (stutter in playback)
+
+Nik heard 0.5.0 "very stuttery in playback" with a real Discord server on Windows. The path from the engine to the
+players and to his headphones, and what was found at each step:
+
+| Step | What could stutter | Found |
+| --- | --- | --- |
+| Engine (`src/player/engine`), Lyre page | Its audio context sends everything to taps, so its own output is silent. Chromium moves a context silent for 30 s off the sound card onto a timer (SilentSinkSuspender) that skips buffers when it wakes late. | Likely cause on Windows (15.6 ms timers); cannot be measured on the build machine (no sound card). Fixed: `common/deviceClock.ts` while a bot is in a voice channel. |
+| Preview context, Lyre page | Had no sound device (`sinkId: none`), so it always ran on that timer, with 10 ms buffers. | Likely cause on Windows: a model of the timer (`deviceClock.test.ts`) gives 68 % of real time, so the headphones hear pieces. Fixed: default device plus `deviceClock` while previewing. |
+| Taps to the capture window | Frames went through the Lyre page's main thread, so any long task (a screen redrawing) held them up. | Cause, measured: with the page busy, 0.5.0 lost 5 to 9 frames per room in 10 s. Fixed: a MessageChannel per tap, from the audio thread (0 after). |
+| Capture window inlet and mix | 40 ms start buffer; its context's output is silent too (same timer problem). | Fixed with `deviceClock` while broadcasting. The inlet itself was left as it is (a simulation showed little gain from a deeper buffer). |
+| Opus encoder (WebCodecs, capture window) | Runs off the Lyre page entirely; "performance" mode only lowers Opus complexity (PERF-8 removed its old half-second buffer). | Not a cause. |
+| Packets to the main process, Discord player | `PacketStream` and @discordjs/voice's 20 ms cycle. | Not a cause: a simulation with uneven arrival, 15.6 ms timers and 60 ms stalls left at most 2 holes in 6,000 packets, all at the start. |
+| Library jobs, loudness (ffmpeg) | Run in the library's utility process and ffmpeg's own; nothing of them is on the sound path. | Not measured as a cause; they compete only for processor time. |
+| Reading the files (PLY-11) | Tracks stream from disk through the main process's `lyre-media:` handler. `ReadAhead` is wired but holds nothing on the Lyre page: it reads only `file:` addresses, and since security review 6 the main process answers `lyre-media:` ones. | Not a cause in the measurements (no holes in steady play on 0.5.0). PLY-11 not built for this release; making `ReadAhead` take `lyre-media:` addresses is a separate backlog item (slow or network drives). |
+
+### What changed
+
+- **Frames channels** (`roomStreams.ts`, `browserBridge.ts`, `PCMStream.worklet.js`, `AudioCaptureManagerPreload.ts`,
+  `common/playerAudio.ts`). For each room tap, and for the preview, the Lyre page makes a `MessageChannel`, hands
+  port1 to the tap worklet (`{ kind: "send-to", port }`) and port2 to the capture window over the player channel
+  (`room-frames` with the room, or `preview-frames`). The worklet posts its frames to that port from the audio
+  thread; the capture window plays them exactly as before (`_playRoomFrame`, `_playPreviewFrame`). A tap that cannot
+  send elsewhere (the old player's test hook) is still relayed. Channels end when the Lyre page lets the room go (or
+  taps it again), with the broadcast or with the player channel; the capture window does not close one when the room
+  drops out of its own rooms list, since the page hears of rooms separately. The preview's is made again on every new
+  player channel.
+- **Sound-card clock** (`common/deviceClock.ts`). While held, a ConstantSourceNode of 2^-24 (-144 dB) plays into the
+  context's speakers, so the output is never exact silence and Chromium keeps the context on the sound card. Held for
+  the engine's context while a bot is in a voice channel (`assembleLyreAudio`, RoomStreams' `broadcast`), for the
+  preview's while a preview plays (PreviewPlayer's `change`), and for the capture window's broadcast context for as
+  long as it exists. The preview's context now opens the default device; nothing of the preview is connected to it
+  but the tap.
+- **Counts for diagnosis.** The capture window counts, per room and for the preview, frames, holes (a frame that came
+  after the inlet ran dry and follows on from the last) and drops (`audioTiming()`, `AUDIO_CAPTURE_TIMING` logs them).
+  Each bot's feed counts the player's empty reads that were followed by more sound (holes) and drops
+  (`OutputManager.audioTiming()`; test builds: `__lyreOutputsTest.timing()`). Both write a warning once a minute while
+  sound flows if there were any ("Audio timing, last minute: …"), so Help › Save diagnostics shows where sound was lost.
+
+### Measured
+
+`e2e/audioTiming.spec.ts` on the 2-core build machine (no sound card, other jobs running), per 10 s and room;
+"gaps + jumps" is holes and lost or doubled audio in what the fake Discord received:
+
+| Scenario (10 s, two rooms) | Build | Gaps + jumps at Discord, per room | Packet interval p99 / max | Inlet holes (capture window) | Lyre page long tasks | Main process timer late, max |
+| --- | --- | --- | --- | --- | --- | --- |
+| Live, scene playing, position updating | 0.5.0 | 0, 0 (both runs) | 22 / 23-25 ms | not counted | 0 | 6-9 ms |
+| | 0.5.1 | 0, 0 | 22 / 22-24 ms | 0 | 0 | 2-4 ms |
+| Rooms with meters | 0.5.0 | 1, 0 (both runs) | 22-23 / 25-26 ms | not counted | 0 | 4-5 ms |
+| | 0.5.1 | 0, 0 | 22 / 22 ms | 0 | 0 | 2 ms |
+| Busy Lyre page (60, 120, 250 ms of work in turn) | 0.5.0 | 9 and 6; 5 and 8 (fails) | 22 / 24-25 ms | not counted | 23, 3.2 s in all, longest 250 ms | 3-8 ms |
+| | 0.5.1 | 0, 0 (both runs) | 22 / 23-25 ms | 0 | 22, 3.1 s, longest 250 ms | 4-5 ms |
+| Preview while the page is busy | 0.5.1 | (headphones) 505 frames, 0 holes | | 0 | 22 | |
+| Coarse (15.6 ms) timers, after 30 s of play, with a preview | 0.5.0 | 0, 0 | 22 / 22-24 ms | not counted | 0 | 2 ms |
+| | 0.5.1 without the sound-card clock | 0, 0; preview 500 frames, 1 hole | 22-23 / 24 ms | 0, 0 | 0 | 6 ms |
+| | 0.5.1 | 2 and 3 (one run), 0 and 0 (the other) | 22 / 22-23 ms | 1-2, then 0 | 0 | 3-7 ms |
+| Lyre hidden, two busy programs | 0.5.0 | 0, 0 | 22 / 22 ms | not counted | 0 | 2 ms |
+| | 0.5.1 | 0, 0; then 0, 2 | 22 / 25-26 ms | 0-1 | 0 | 8 ms |
+
+The coarse-timer check does not reproduce the timer problem on this machine, with or without the sound-card clock:
+every context runs on Chromium's stand-in for a sound card here, so the clock fix rests on the model and on the
+manual check on Windows. The odd 1 to 3 in the 0.5.1 rows came with other streams' test runs on the same 2 cores
+and did not repeat.
+
+### Left for later
+
+- The capture window's main thread still passes frames from the channel to the inlet. It does nothing else heavy;
+  if Nik's diagnostics show "room … late (holes)" with 0.5.1, the next step is to hand the channel to the inlet worklet
+  itself.
+- The Live, Library and other screens redraw on every Now playing tick (`useNowPlaying`). No long task was seen on Live
+  or Rooms on the build machine, and redraws no longer touch the sound; worth a look for battery and processor use.

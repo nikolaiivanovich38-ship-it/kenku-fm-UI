@@ -24,6 +24,16 @@ export const MAX_QUEUED_PACKETS = 10;
 export const TARGET_QUEUED_PACKETS = 2;
 export const TRIM_AFTER_PACKETS = 50;
 
+/** w51-audio: how the packets for one output have fared (Save diagnostics, tests). */
+export type FeedTiming = {
+  /** Packets that came from the capture window. */
+  packets: number;
+  /** Reads by Discord's player that found no packet while more of the sound was still coming: 20 ms of silence each. */
+  holes: number;
+  /** Packets dropped to keep the delay short. */
+  dropped: number;
+};
+
 /**
  * A pull-based stream of Opus packets: hands Discord's audio player one packet
  * per read and keeps at most `MAX_QUEUED_PACKETS` waiting.
@@ -33,6 +43,23 @@ export class PacketStream extends Readable {
   private wanted = false;
   /** Packets pushed in a row while more than the target were waiting. */
   private backlogged = 0;
+  private counts: FeedTiming = { packets: 0, holes: 0, dropped: 0 };
+  /** The player's empty reads since the last packet: holes if another packet comes, the sound's end if not. */
+  private emptyReads = 0;
+
+  /** w51-audio: packets, holes and drops so far. */
+  timing(): FeedTiming {
+    return { ...this.counts };
+  }
+
+  /** Discord's player reads with no size, once per 20 ms; the stream's own reads ask for 0. */
+  override read(size?: number): unknown {
+    const chunk: unknown = super.read(size);
+    if (size === undefined && chunk === null) {
+      this.emptyReads++;
+    }
+    return chunk;
+  }
 
   constructor() {
     super({ objectMode: true, highWaterMark: 1 });
@@ -44,6 +71,9 @@ export class PacketStream extends Readable {
   }
 
   pushPacket(packet: Buffer): void {
+    this.counts.packets++;
+    this.counts.holes += this.emptyReads;
+    this.emptyReads = 0;
     this.queue.push(packet);
     if (this.queue.length > TARGET_QUEUED_PACKETS) {
       this.backlogged++;
@@ -53,6 +83,7 @@ export class PacketStream extends Readable {
     if (this.queue.length > MAX_QUEUED_PACKETS || this.backlogged >= TRIM_AFTER_PACKETS) {
       this.queue.shift();
       this.backlogged = 0;
+      this.counts.dropped++;
     }
     this.drain();
   }
@@ -84,6 +115,8 @@ export type FeedPlayer = Pick<AudioPlayer, "play" | "stop" | "state" | "on" | "o
 export class OpusPacketFeed {
   private stream?: PacketStream;
   private _muted = false;
+  /** w51-audio: the counts of the streams that have ended. */
+  private ended: FeedTiming = { packets: 0, holes: 0, dropped: 0 };
 
   constructor(
     private readonly player: FeedPlayer,
@@ -95,6 +128,26 @@ export class OpusPacketFeed {
 
   get muted(): boolean {
     return this._muted;
+  }
+
+  /** w51-audio: packets, holes and drops since this output started. */
+  timing(): FeedTiming {
+    const now = this.stream?.timing() ?? { packets: 0, holes: 0, dropped: 0 };
+    return {
+      packets: this.ended.packets + now.packets,
+      holes: this.ended.holes + now.holes,
+      dropped: this.ended.dropped + now.dropped,
+    };
+  }
+
+  /** Keep a stream's counts when it ends. */
+  private retire(stream: PacketStream): void {
+    const counts = stream.timing();
+    this.ended = {
+      packets: this.ended.packets + counts.packets,
+      holes: this.ended.holes + counts.holes,
+      dropped: this.ended.dropped + counts.dropped,
+    };
   }
 
   set muted(muted: boolean) {
@@ -123,6 +176,7 @@ export class OpusPacketFeed {
     const stream = this.stream;
     this.stream = undefined;
     if (stream) {
+      this.retire(stream);
       this.player.stop(true);
       stream.destroy();
     }
@@ -136,6 +190,7 @@ export class OpusPacketFeed {
   private handlePlayerState = (_old: unknown, state: { status: AudioPlayerStatus }) => {
     if (state.status === AudioPlayerStatus.Idle && this.stream) {
       // The player gave up after a silence; start afresh with the next packet.
+      this.retire(this.stream);
       this.stream.destroy();
       this.stream = undefined;
     }

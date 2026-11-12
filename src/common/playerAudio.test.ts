@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { FRAME_SAMPLES, isCaptureAudioMessage, isPlayerAudioMessage } from "./playerAudio";
+import { FRAME_SAMPLES, framesFrom, isCaptureAudioMessage, isPlayerAudioMessage } from "./playerAudio";
 
 const samples = () => new Float32Array(FRAME_SAMPLES);
 
@@ -22,6 +22,10 @@ describe("player audio channel messages (OUT-5, PRV-1)", () => {
     { kind: "preview", index: 1.5, samples: samples() },
     { kind: "preview-sink", id: 1, deviceId: "x".repeat(257) },
     { kind: "broadcast", active: true },
+    { kind: "room-frames", room: "bot-a" },
+    { kind: "room-frames", room: "", port: { postMessage() {}, close() {} } },
+    { kind: "room-frames", room: "bot-a", port: {} },
+    { kind: "preview-frames", port: "port" },
   ])("drops %j", (message) => {
     expect(isPlayerAudioMessage(message)).toBe(false);
   });
@@ -31,5 +35,20 @@ describe("player audio channel messages (OUT-5, PRV-1)", () => {
     expect(isCaptureAudioMessage({ kind: "preview-sink-done", id: 2, error: "Gone" })).toBe(true);
     expect(isCaptureAudioMessage({ kind: "broadcast", active: "yes" })).toBe(false);
     expect(isCaptureAudioMessage({ kind: "room" })).toBe(false);
+  });
+
+  it("accepts a room's or the preview's own frames channel (w51-audio)", () => {
+    const port = { postMessage() {}, close() {}, onmessage: null as unknown };
+    expect(isPlayerAudioMessage({ kind: "room-frames", room: "bot-a", port })).toBe(true);
+    expect(isPlayerAudioMessage({ kind: "preview-frames", port })).toBe(true);
+  });
+
+  it("reads frames as the PCM worklet posts them on a frames channel, and nothing odd (w51-audio)", () => {
+    const frame = { index: 4, samples: samples(), last: true };
+    expect(framesFrom([frame])).toEqual([frame]);
+    expect(framesFrom([{ index: 5, samples: samples() }])).toEqual([{ index: 5, samples: expect.any(Float32Array), last: false }]);
+    for (const odd of [null, frame, [], [{ index: -1, samples: samples() }], [{ index: 1, samples: new Float32Array(3) }], new Array(11).fill(frame)]) {
+      expect(framesFrom(odd)).toEqual([]);
+    }
   });
 });

@@ -17,6 +17,11 @@
  * `samples` is a Float32Array of 1920 values whose buffer is transferred, and
  * `last` marks the silent frame that ends a sound (the encoder flushes then,
  * so the end of one sound is not heard at the start of the next).
+ *
+ * w51-audio: in the Lyre page, `{ kind: "send-to", port }` on the node's port
+ * makes the frames go to that MessagePort (whose other end is in the capture
+ * window) straight from the audio thread, so a busy page cannot hold them up;
+ * `{ kind: "send-to", port: null }` closes it and posts here again.
  */
 
 /** Samples per channel in one 20 ms frame at 48 kHz. */
@@ -33,6 +38,23 @@ class PCMStream extends AudioWorkletProcessor {
     this.frameIndex = 0;
     this.frameHasSound = false;
     this.previousFrameHadSound = false;
+    /** w51-audio: where the frames go instead of this node's own port, if anywhere. */
+    this.target = null;
+    this.port.onmessage = (event) => this.receive(event.data);
+  }
+
+  receive(data) {
+    if (!data || data.kind !== "send-to") {
+      return;
+    }
+    const port = data.port;
+    if (port !== null && (typeof port !== "object" || typeof port.postMessage !== "function")) {
+      return;
+    }
+    if (this.target && this.target !== port && typeof this.target.close === "function") {
+      this.target.close();
+    }
+    this.target = port;
   }
 
   process(inputs) {
@@ -82,7 +104,7 @@ class PCMStream extends AudioWorkletProcessor {
   finishFrame() {
     if (this.frameHasSound || this.previousFrameHadSound) {
       const frame = { index: this.frameIndex, samples: this.frame, last: !this.frameHasSound };
-      this.port.postMessage([frame], [frame.samples.buffer]);
+      (this.target || this.port).postMessage([frame], [frame.samples.buffer]);
       this.frame = new Float32Array(FRAME_LENGTH * CHANNELS);
     }
     this.previousFrameHadSound = this.frameHasSound;

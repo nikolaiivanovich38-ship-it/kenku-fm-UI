@@ -100,4 +100,52 @@ describe("PlayerFrameInlet worklet (OUT-5): plays a room's frames from the playe
     send(node, frame(0, 0.5));
     expect(render(node, 15).left.every((s) => s === 0)).toBe(true);
   });
+
+  /** Ask for the inlet's counts (w51-audio) and return its answer. */
+  function stats(node: Processor) {
+    const answers: unknown[] = [];
+    node.port.postMessage = (message: unknown) => void answers.push(message);
+    send(node, { kind: "stats" });
+    return answers[0];
+  }
+
+  it("w51-audio: counts a frame that came late (it ran dry in the middle of a sound) as a hole, and a sound's end as none", () => {
+    const node = new Inlet();
+    send(node, frame(0, 0.5));
+    send(node, frame(1, 0.5));
+    render(node, 17); // both frames played, then dry
+    send(node, frame(2, 0.5)); // the next frame of the same sound: it was late
+    expect(stats(node)).toEqual({ kind: "stats", frames: 3, holes: 1, dropped: 0, wait: 2 });
+    const quiet = new Inlet();
+    send(quiet, frame(0, 0.5));
+    send(quiet, frame(1, 0.5));
+    render(quiet, 17);
+    send(quiet, frame(40, 0.5)); // a new sound after a silence (silence is not sent)
+    expect(stats(quiet)).toEqual({ kind: "stats", frames: 3, holes: 0, dropped: 0, wait: 2 });
+  });
+
+  it("w51-audio: counts the frames it drops for want of room", () => {
+    const node = new Inlet();
+    for (let i = 0; i < 13; i++) send(node, frame(i, 0.5));
+    expect(stats(node)).toMatchObject({ frames: 13, dropped: 3 });
+  });
+
+  it("w51-audio: takes the frames of a channel of their own as the PCM worklet posts them (arrays)", () => {
+    const node = new Inlet();
+    send(node, [frame(0, 0.5), frame(1, 0.5)]);
+    expect(render(node, 1).left[0]).toBe(0.5);
+  });
+
+  it("w51-audio: tells the capture window at once about each hole and each drop", () => {
+    const node = new Inlet();
+    const told: unknown[] = [];
+    node.port.postMessage = (message: unknown) => void told.push(message);
+    send(node, frame(0, 0.5));
+    send(node, frame(1, 0.5));
+    render(node, 17);
+    send(node, frame(2, 0.5));
+    expect(told).toEqual([{ kind: "hole", wait: 2 }]);
+    for (let i = 3; i < 15; i++) send(node, frame(i, 0.5));
+    expect(told.slice(1)).toEqual([{ kind: "dropped" }, { kind: "dropped" }, { kind: "dropped" }]);
+  });
 });

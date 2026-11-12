@@ -8,10 +8,13 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import pcmStreamUrl from "../../preload/managers/PCMStream.worklet.js?asset";
+import { keepDeviceClock } from "../../common/deviceClock";
+import type { AudioPortLike } from "../../common/playerAudio";
 import { fromAudioContext, type NodeLike } from "../audio/types";
 import {
   createBridgedPreviewOutput,
   type BridgedPreviewOutput,
+  type FrameChannelFactory,
   type FrameTapFactory,
   type PlayerAudioLink,
   type TapFrame,
@@ -41,6 +44,12 @@ export function listenForPlayerAudioPort(
   return () => target.removeEventListener("message", onMessage);
 }
 
+/** w51-audio: a channel for one tap's frames, from this page's audio thread to the capture window. */
+export const browserFrameChannel: FrameChannelFactory = () => {
+  const channel = new MessageChannel();
+  return { port1: channel.port1 as unknown as AudioPortLike, port2: channel.port2 as unknown as AudioPortLike };
+};
+
 /** Frames are 960 samples = 20 ms only at this rate, the rate Discord's Opus uses. */
 export const BRIDGE_SAMPLE_RATE = 48_000;
 
@@ -62,6 +71,9 @@ export async function createBrowserFrameTaps(audioContext: BaseAudioContext): Pr
     };
     return {
       input: node as unknown as NodeLike,
+      // w51-audio: the frames go from the audio thread straight to `port`, never through this page's main thread.
+      sendTo: (port) =>
+        node.port.postMessage({ kind: "send-to", port }, port ? [port as unknown as Transferable] : []),
       dispose: () => {
         node.port.onmessage = null;
         node.disconnect();
@@ -71,22 +83,25 @@ export async function createBrowserFrameTaps(audioContext: BaseAudioContext): Pr
 }
 
 /**
- * PRV-1: the preview's output for the player page. Its audio context has no
- * sound device at all (`sinkId: { type: "none" }`), so the page never plays
- * it and tab capture cannot record it; its frames go to the capture window,
- * which plays them on the game master's chosen device (PRV-2).
+ * PRV-1: the preview's output for the player page. Nothing of the preview
+ * plays on this page: its nodes lead only to a tap, whose frames go to the
+ * capture window, which plays them on the game master's chosen device (PRV-2).
+ *
+ * w51-audio: the context used to have no sound device at all (`sinkId: { type:
+ * "none" }`). Chromium runs such a context on a timer that skips when it wakes
+ * late, which on Windows is often, so the preview reached the headphones in
+ * pieces. It now opens the default device like the engine's context and, while
+ * a preview plays, `clock` keeps it on that device's pace with a constant far
+ * below hearing (common/deviceClock.ts). The Lyre page is never tab-captured.
  */
 export async function createBrowserBridgedPreview(link: PlayerAudioLink): Promise<BridgedPreviewOutput> {
-  const audioContext = new AudioContext({
-    latencyHint: "interactive",
-    sampleRate: BRIDGE_SAMPLE_RATE,
-    sinkId: { type: "none" },
-  } as AudioContextOptions);
+  const audioContext = new AudioContext({ latencyHint: "interactive", sampleRate: BRIDGE_SAMPLE_RATE });
   const createTap = await createBrowserFrameTaps(audioContext);
   const bridged = createBridgedPreviewOutput({
     context: fromAudioContext(audioContext),
     link,
     createTap,
+    createChannel: browserFrameChannel,
     closeContext: () => audioContext.close(),
   });
   // PRV-2: with one headset split, a panner before the bridge puts the preview in one ear (the frames stay stereo);
@@ -99,6 +114,7 @@ export async function createBrowserBridgedPreview(link: PlayerAudioLink): Promis
   entry.connect(target);
   return {
     ...bridged,
+    clock: keepDeviceClock(audioContext),
     input: entry as unknown as typeof bridged.input,
     setEar: (ear) => {
       entry.disconnect();

@@ -108,6 +108,13 @@ export function outputsTestHook(outputs: OutputManager) {
     leaveAll(): void {
       for (const id of outputs.bots.keys()) outputs.leaveAll(id);
     },
+    /** w51-audio: per bot (by name), the packets its player was given, its holes and its drops. */
+    timing(): Record<string, ReturnType<OutputManager["audioTiming"]>[string]> {
+      const timing = outputs.audioTiming();
+      return Object.fromEntries(
+        [...outputs.bots].map(([id, bot]) => [bot.discordName ?? bot.lastDiscordName ?? id, timing[id]]),
+      );
+    },
   };
 }
 
