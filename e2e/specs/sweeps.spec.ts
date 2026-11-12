@@ -507,8 +507,13 @@ test("UX-6: keyboard focus on a name cut short shows its full text", async ({ pa
 async function textAt200(page: Page): Promise<void> {
   await openRoute(page, "look");
   const size = page.getByRole("region", { name: "Display", exact: true }).getByRole("slider", { name: "Text size" });
-  await size.focus();
-  for (let i = 0; i < 4; i++) await page.keyboard.press("ArrowRight");
+  // One step at a time, each seen before the next: a key pressed while the page takes the last size can be lost.
+  for (let i = 0; i < 4; i++) {
+    const before = (await size.getAttribute("aria-valuetext")) ?? "";
+    if (before === "200 percent") break;
+    await size.press("ArrowRight");
+    await expect(size).not.toHaveAttribute("aria-valuetext", before);
+  }
   await expect(size).toHaveAttribute("aria-valuetext", "200 percent");
 }
 
