@@ -261,6 +261,25 @@ describe("FND-16 (0.5.1): What came across, as the old window and player go", ()
     }
   });
 
+  it("shows what came across later when its only news is a file it left out (CR51-11)", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lyre-moved-"));
+    const library = openLibrary({ folder: path.join(dir, "library") });
+    const api = createLibraryApi(library, testHost());
+    try {
+      const lute = { url: "https://example.com/lute.mp3", title: "Lute" };
+      await importLegacyLibrary(library, oldPlayer({ p1: { title: "Tavern", tracks: ["x1"] } }, { x1: lute }));
+      library.store.run("DELETE FROM library_jobs WHERE name = ?", LEGACY_CATCH_UP_JOB);
+      const planted = { url: `file://${path.join(dir, "elsewhere", "planted.flac")}`, title: "Planted" };
+      await catchUpLegacyLibrary(library, oldPlayer({ p1: { title: "Tavern", tracks: ["x1", "x9"] } }, { x1: lute, x9: planted }));
+      const report = await api.transfer.movedReport();
+      expect(report?.later?.lines.join(" ")).toMatch(/1 file was left out because it is in a folder your library does not use: planted\.flac\./);
+    } finally {
+      api.stopBackgroundWork();
+      library.close();
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("lists the bookmarks alone for someone whose old player was empty", async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "lyre-moved-"));
     const library = openLibrary({ folder: path.join(dir, "library") });

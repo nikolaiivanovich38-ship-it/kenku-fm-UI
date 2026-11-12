@@ -128,9 +128,10 @@ vi.mock("./main/security/sessions", () => {
   return {
     secureSessions: state.secureSessions,
     clearBrowsingData: state.clearBrowsingData,
-    // Records how many start-up steps had run when the scheme was declared.
-    registerLocalFileScheme: vi.fn(() => {
+    // Records how many start-up steps had run when the schemes were declared, and with what.
+    registerAppSchemes: vi.fn((options?: unknown) => {
       (state as { stepsBeforeScheme?: number }).stepsBeforeScheme = state.startupCalls.length;
+      (state as { schemeOptions?: unknown[] }).schemeOptions = [...((state as { schemeOptions?: unknown[] }).schemeOptions ?? []), options];
     }),
   };
 });
@@ -167,9 +168,13 @@ describe("start-up order (FND-1)", () => {
   });
 });
 
-describe("local-file scheme (WP1 security review 1)", () => {
-  it("is declared before anything else, as Electron requires it before the app is ready", () => {
+describe("privileged schemes (security review 6, CR51-3)", () => {
+  it("are declared before anything else, as Electron requires it before the app is ready", () => {
     expect((state as { stepsBeforeScheme?: number }).stepsBeforeScheme).toBe(0);
+  });
+
+  it("are declared once, without the kept website tabs' scheme (OUT-12 turns it on)", () => {
+    expect((state as { schemeOptions?: unknown[] }).schemeOptions).toEqual([undefined]);
   });
 });
 
@@ -178,6 +183,19 @@ describe("main window (SEC-10, SEC-7, SEC-3)", () => {
     const window = mainWindow();
     expect(window.loadURL).toHaveBeenCalledWith("file:///app/lyre_window/index.html");
     expect((window.options.webPreferences as { preload?: string }).preload).toBe("/app/lyre_window/preload.js");
+  });
+
+  it("states its page's protections instead of relying on Electron's defaults (CR51-8)", () => {
+    expect(mainWindow().options.webPreferences).toEqual({
+      preload: "/app/lyre_window/preload.js",
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+      nodeIntegrationInSubFrames: false,
+      webviewTag: false,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+    });
   });
 
   it("has no frame of its own: Lyre's top strip is the title bar, with the system's buttons drawn over it (FND-16 step 2)", () => {
@@ -213,6 +231,14 @@ describe("main window (SEC-10, SEC-7, SEC-3)", () => {
       expect(state.openExternal).not.toHaveBeenCalled();
     },
   );
+
+  it("opens only a few links a second in the system browser, however many the page asks for (CR51-9)", () => {
+    state.openExternal.mockClear();
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    for (let i = 0; i < 50; i++) mainWindow().webContents.windowOpenHandler?.({ url: `https://example.com/flood/${i}` });
+    expect(state.openExternal.mock.calls.length).toBeLessThanOrEqual(5);
+    vi.mocked(console.warn).mockRestore();
+  });
 
   it("cannot navigate away from its own page", () => {
     const event = { url: "https://evil.example/", isMainFrame: true, preventDefault: vi.fn() };

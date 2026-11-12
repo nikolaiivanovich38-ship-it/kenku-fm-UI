@@ -8,7 +8,8 @@ import type { LyreInvoke } from "../../common/lyre/rpc";
 import { computerSettingsFile, hasStreamingMode } from "../lyreApi/computerSettings";
 import { SoundToDiscord } from "../soundToDiscord";
 import { markTokenNoteSeen, moveOldWindowDataOnce, oldWindowRecordFile, type OldWindowRecord } from "../legacy/oldWindowMove";
-import { readPageStorage } from "../legacy/pageStorage";
+import { readPageStorage, replacePageStorage } from "../legacy/pageStorage";
+import type { LegacyTokenOutcome } from "../broadcast/OutputManager";
 import { WindowFrame } from "../window/windowFrame";
 import { RemoteOff } from "../remote/remoteOff";
 
@@ -102,25 +103,37 @@ export class SessionManager {
     const library = this.options.library;
     if (!library || this.oldWindowMoveStarted || this.options.moveOldWindowData === false) return;
     this.oldWindowMoveStarted = true;
-    void this.runOldWindowMove(library, () => readPageStorage(this.page, "persist:root"));
+    void this.runOldWindowMove(library, {
+      read: () => readPageStorage(this.page, "persist:root"),
+      forgetPlainToken: (before, after) => replacePageStorage(this.page, "persist:root", before, after),
+    });
   }
 
-  /** The move itself (legacy/oldWindowMove.ts), reading `read()`; then the note about a moved token, if it is due. */
-  private async runOldWindowMove(library: SessionLibrary, read: () => Promise<unknown>): Promise<OldWindowRecord | null> {
+  /**
+   * The move itself (legacy/oldWindowMove.ts), reading and changing the old storage through `storage`; then the note
+   * about a moved token, if it is due. `takeOver` stands in for the bots' own take-over in the test builds' hook.
+   */
+  private async runOldWindowMove(
+    library: SessionLibrary,
+    storage: { read(): Promise<unknown>; forgetPlainToken(before: string, after: string): Promise<boolean> },
+    takeOver: (token: string) => LegacyTokenOutcome = (token) => this.playbackManager.outputs.importLegacyToken(token),
+  ): Promise<OldWindowRecord | null> {
     const computerFile = computerSettingsFile(library.folder);
     const outputs = this.playbackManager.outputs;
     const record = await moveOldWindowDataOnce({
       recordFile: oldWindowRecordFile(library.folder),
-      read,
+      read: storage.read,
+      forgetPlainToken: storage.forgetPlainToken,
       hasStreamingMode: () => hasStreamingMode(computerFile),
       setStreamingMode: async (streamingMode) => {
         const result = (await library.service.call("settings", "setComputer", [{ streamingMode }]).catch((): null => null)) as { ok?: boolean } | null;
         return result?.ok === true;
       },
       importToken: (token) => {
-        outputs.importLegacyToken(token);
+        const outcome = takeOver(token);
         // The window may have shown already: the bot with the moved token logs in now.
         outputs.connectSaved();
+        return outcome;
       },
     });
     if (record?.tokenMoved && !record.tokenNoteSeen) outputs.setLegacyTokenNote(true);
@@ -138,13 +151,24 @@ export class SessionManager {
     await fs.promises.rm(oldWindowRecordFile(library.folder), { force: true });
     const bookmarks = from.bookmarks ?? [];
     const raw = JSON.stringify({
-      // Not shaped like a real token, so nothing mistakes the test's value for one.
-      settings: JSON.stringify(from.plainToken ? { discordToken: "kenku-fm-plain-token-for-tests" } : {}),
+      // Shaped like a token (three parts, CR51-6) but plainly not a real one.
+      settings: JSON.stringify(from.plainToken ? { discordToken: "kenku-fm.plain-token.for-tests" } : {}),
       bookmarks: JSON.stringify({
         bookmarks: { byId: Object.fromEntries(bookmarks.map((b, i) => [`b${i}`, { id: `b${i}`, title: b.title, url: b.url }])), allIds: bookmarks.map((_, i) => `b${i}`) },
       }),
     });
-    await this.runOldWindowMove(library, async () => raw);
+    const outputs = this.playbackManager.outputs;
+    await this.runOldWindowMove(
+      library,
+      // The value was never in the page's storage, so there is nothing there to take out.
+      { read: async () => raw, forgetPlainToken: async () => true },
+      // The prototype's bots hold tokens already: answer as Lyre would for someone arriving with none.
+      (token) => {
+        const outcome = outputs.importLegacyToken(token);
+        if (outcome !== "kept-own") return outcome;
+        return outputs.state().encryption ? "saved" : "session-only";
+      },
+    );
   }
 
   /** FND-16: logs in every saved bot that has a token (src/index.ts calls this once the window shows). */

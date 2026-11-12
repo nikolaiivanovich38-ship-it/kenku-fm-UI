@@ -139,4 +139,13 @@ test("a link the Lyre page opens goes to the system browser, https only, and ope
     .poll(() => app.evaluate(() => (globalThis as unknown as { openedLinks: string[] }).openedLinks))
     .toEqual(["https://discord.com/developers/applications"]);
   expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().filter((w) => w.isVisible()).length)).toBe(1);
+
+  // CR51-9: a page gone wrong cannot flood the browser: 5 links every 10 seconds, the rest dropped (and logged).
+  for (let i = 0; i < 16; i++) errors.expectedMainRefusals.push(/Refused to open external link: too many links at once/);
+  await lyre.evaluate(() => {
+    for (let i = 0; i < 20; i++) window.open(`https://example.com/flood/${i}`, "_blank");
+  });
+  await expect.poll(() => app.evaluate(() => (globalThis as unknown as { openedLinks: string[] }).openedLinks.length)).toBe(5);
+  await lyre.waitForTimeout(500);
+  expect(await app.evaluate(() => (globalThis as unknown as { openedLinks: string[] }).openedLinks.length)).toBe(5);
 });

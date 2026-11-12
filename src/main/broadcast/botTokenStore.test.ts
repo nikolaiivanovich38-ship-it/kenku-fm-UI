@@ -2,7 +2,8 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { BotTokenStore, canEncrypt, type SafeStorageLike } from "./botTokenStore";
+import { BotTokenStore, canEncrypt, wantsFakeKeyring, type SafeStorageLike } from "./botTokenStore";
+import { fakeKeyring } from "./testing/fakeKeyring";
 
 const TOKEN = "fake-token-ABCDEF.0123456789";
 
@@ -47,6 +48,18 @@ describe("BotTokenStore (SEC-5)", () => {
     const reopened = new BotTokenStore(file, fakeSafeStorage());
     expect(reopened.list()).toEqual([{ id, name: "Bot 1", hasToken: true, tokenRemembered: true, tokenEnd: "6789", applicationId: null }]);
     expect(reopened.token(id)).toBe(TOKEN);
+  });
+
+  it("answers false when the encrypted token could not be written to disk (CR51-1)", () => {
+    // The data folder's place is taken by a file, so nothing can be saved there.
+    const blocked = path.join(folder, "not-a-folder");
+    fs.writeFileSync(blocked, "");
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const store = new BotTokenStore(BotTokenStore.fileIn(blocked), fakeSafeStorage());
+    const id = store.addBot();
+    expect(store.setToken(id, TOKEN)).toBe(false);
+    // It still works until Lyre closes.
+    expect(store.token(id)).toBe(TOKEN);
   });
 
   it("keeps one token per bot", () => {
@@ -195,5 +208,21 @@ describe("BotTokenStore: Settings in Lyre (OUT-8)", () => {
     const removed = store.takeOut(id)!;
     store.putBack(removed);
     expect(store.token(id)).toBe(TOKEN);
+  });
+});
+
+describe("the test builds' fake keyring (CUE_DESK_FAKE_KEYRING)", () => {
+  it("is used only in a test build that asks for it", () => {
+    expect(wantsFakeKeyring({ CUE_DESK_FAKE_KEYRING: "1" }, true)).toBe(true);
+    expect(wantsFakeKeyring({ CUE_DESK_FAKE_KEYRING: "1" }, false)).toBe(false);
+    expect(wantsFakeKeyring({}, true)).toBe(false);
+  });
+
+  it("saves a token that comes back after a restart, never in plain text", () => {
+    const store = new BotTokenStore(file, fakeKeyring);
+    const id = store.addBot();
+    expect(store.setToken(id, TOKEN)).toBe(true);
+    expect(allWritten()).not.toContain(TOKEN);
+    expect(new BotTokenStore(file, fakeKeyring).token(id)).toBe(TOKEN);
   });
 });

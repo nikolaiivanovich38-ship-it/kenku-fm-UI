@@ -1607,7 +1607,8 @@ export function createLibraryApi(library: Library, host: LibraryHost, options: L
         const bookmarks = oldWindow?.bookmarks ?? [];
         if (!moved && bookmarks.length === 0) return null;
         const catchUp = readCatchUp(store);
-        const later = catchUp && (catchUp.status === "brought-in" || catchUp.notBroughtBack?.length) ? { at: catchUp.at, lines: [...catchUp.lines] } : null;
+        const later =
+          catchUp && (catchUp.status === "brought-in" || catchUp.notBroughtBack?.length || catchUp.leftOut?.length) ? { at: catchUp.at, lines: [...catchUp.lines] } : null;
         const gone = new Set([...(moved?.missingTrackIds ?? []), ...(catchUp?.missingTrackIds ?? [])]);
         const missing = gone.size ? (await api.import.findMissing()).filter((m) => gone.has(m.id)) : [];
         // FND-16: a track that is only a web address cannot play in Lyre (its pages play library files only).

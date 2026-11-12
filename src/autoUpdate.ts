@@ -119,16 +119,24 @@ export function runAutoUpdate(
 
   autoUpdater.setFeedURL({ url });
 
-  for (const [event, handler] of Object.entries(handlers)) {
-    autoUpdater.on(event as "error", handler);
-  }
-
   const interval = setInterval(() => {
     void checkForAppUpdates(url, status, hasRelease);
   }, CHECK_INTERVAL_MS);
+  // CR51-4: once an update has downloaded there is nothing more to look for until Lyre restarts into it.
+  const listeners: typeof handlers = {
+    ...handlers,
+    "update-downloaded": (...args) => {
+      clearInterval(interval);
+      handlers["update-downloaded"](...args);
+    },
+  };
+
+  for (const [event, handler] of Object.entries(listeners)) {
+    autoUpdater.on(event as "error", handler);
+  }
 
   window.on("close", () => {
-    for (const [event, handler] of Object.entries(handlers)) {
+    for (const [event, handler] of Object.entries(listeners)) {
       autoUpdater.off(event as "error", handler);
     }
     clearInterval(interval);

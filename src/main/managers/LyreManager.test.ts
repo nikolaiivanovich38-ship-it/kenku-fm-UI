@@ -102,6 +102,17 @@ describe("LyreManager: automatic updates for the Lyre page's Settings (SEC-14)",
     fakeIpcMain.deliver("UPDATE_RESTART", fromMainFrame(lyre));
     expect(restart).toHaveBeenCalledTimes(1);
   });
+
+  it("Restart now still works after the next update check, even one that fails (CR51-4)", () => {
+    const status = new UpdateStatus();
+    const restart = vi.fn();
+    manager = new LyreManager({ updates: status, restartIntoUpdate: restart });
+    status.downloaded();
+    status.checking();
+    status.failed(new Error("net::ERR_INTERNET_DISCONNECTED"));
+    fakeIpcMain.deliver("UPDATE_RESTART", fromMainFrame(fakePage("lyre-view")));
+    expect(restart).toHaveBeenCalledTimes(1);
+  });
 });
 
 // --- w6-rooms ---

@@ -349,7 +349,7 @@ Fixes for the independent security review of wave 1 (findings 1 to 12).
 
 | Finding | Fix | Where |
 |---|---|---|
-| 1, 2 | Files load from `cue-local-file://<host>/<path>`. `registerLocalFileScheme` (called at the top of `src/index.ts`) declares it standard, secure, fetch and stream; it does not bypass CSP. Only `persist:local-files` handles it (`serveLocalFiles` in `sessions.ts`); that session also answers `file:` with 403 and cancels, in `webRequest.onBeforeRequest`, every request that is not `cue-local-file:`, `data:` or `blob:`. `LocalFileServer` gives each approved file's folder a host (first 32 hex digits of SHA-256 of the folder path, lower-cased on Windows, so a page's own storage survives a restart) and answers a request only for a regular file whose real path (`fs.realpathSync.native`, so symlinks and junctions are resolved) is inside the folder's real path, checked on every request; encoded separators, `.`/`..`, NUL and (Windows) `:` in a name are refused with 403. Range requests are answered (206) so media can seek. Every answer carries `Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'` and `X-Content-Type-Options: nosniff`. `guardLocalFileTab` also cancels `will-frame-navigate` of a subframe to anything but the same host (or `about:blank`/`about:srcdoc`). `BrowserViewManagerMain` translates the page's address back to its `file:` address for `BROWSER_VIEW_DID_NAVIGATE` and passes no favicons of file tabs to the main window. A file page's permission requests now carry `cue-local-file://<host>/` as `securityOrigin`, which never equals the capture window's `file:///`, so `captureTargets.isCaptureRequest` cannot match it. | `localFileServer.ts`, `sessions.ts`, `navigationGuards.ts`, `BrowserViewManagerMain.ts`, `localFiles.ts` |
+| 1, 2 | Files load from `cue-local-file://<host>/<path>`. `registerLocalFileScheme` (called at the top of `src/index.ts`; since 0.5.1 `registerAppSchemes({ websiteTabs: true })`, which nothing calls until OUT-12, CR51-3) declares it standard, secure, fetch and stream; it does not bypass CSP. Only `persist:local-files` handles it (`serveLocalFiles` in `sessions.ts`); that session also answers `file:` with 403 and cancels, in `webRequest.onBeforeRequest`, every request that is not `cue-local-file:`, `data:` or `blob:`. `LocalFileServer` gives each approved file's folder a host (first 32 hex digits of SHA-256 of the folder path, lower-cased on Windows, so a page's own storage survives a restart) and answers a request only for a regular file whose real path (`fs.realpathSync.native`, so symlinks and junctions are resolved) is inside the folder's real path, checked on every request; encoded separators, `.`/`..`, NUL and (Windows) `:` in a name are refused with 403. Range requests are answered (206) so media can seek. Every answer carries `Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'` and `X-Content-Type-Options: nosniff`. `guardLocalFileTab` also cancels `will-frame-navigate` of a subframe to anything but the same host (or `about:blank`/`about:srcdoc`). `BrowserViewManagerMain` translates the page's address back to its `file:` address for `BROWSER_VIEW_DID_NAVIGATE` and passes no favicons of file tabs to the main window. A file page's permission requests now carry `cue-local-file://<host>/` as `securityOrigin`, which never equals the capture window's `file:///`, so `captureTargets.isCaptureRequest` cannot match it. | `localFileServer.ts`, `sessions.ts`, `navigationGuards.ts`, `BrowserViewManagerMain.ts`, `localFiles.ts` |
 | 1 (fuse) | `GrantFileProtocolExtraPrivileges`: see "Fuse decision" below. | `scripts/forge-options.cjs` |
 | 3 | A join that drops before it is ready is retried from a timer (the waits of `RECONNECT_DELAYS_MS`: 1, 2, 4, 6 s, …), never inside the `stateChange` handler, and not at all when the reason is `AdapterUnavailable` (the join timer gives up after 15 s). A failed `rejoin()` during reconnecting is counted once. | `DiscordBot.ts` (`retryJoin`) |
 | 4 | Redux-persist migration 6 sets `settings.legacyTokenNotice`; Settings shows `LegacyTokenNotice` (role `note`, link through the existing https-only window-open guard) until "Got it". Compacting LevelDB ourselves was judged unsafe. | `tokenMigration.ts`, `LegacyTokenNotice.tsx`, `Settings.tsx`, `settingsSlice.ts` |
@@ -591,7 +591,7 @@ Fixes from the wave 3 security review. The new interface now reads your audio fi
 
 ### Technical details
 
-- **lyre-media: (review 6).** `MEDIA_PREPARE` from the Lyre page (role `lyre-view`) answers `lyre-media://<page token>/<file token>/<name>` for the prepared file (`MediaGrants`, `src/main/media/mediaProtocol.ts`; 128-bit random tokens, one page token per page, grants dropped on `destroyed`, at most 20,000 per page). `secureSessions` handles the scheme on the default session only (website and local-file tabs have their own sessions and cannot reach it); unknown or altered addresses and methods other than GET/HEAD get 403. Answers carry `nosniff`, `no-store` and `Access-Control-Allow-Origin: *` (the page's origin is `file:`, and Web Audio silences a cross-origin `<audio>` without CORS; the address is the capability). The scheme is registered with `registerLocalFileScheme` in one `registerSchemesAsPrivileged` call (Electron keeps only the last list): standard, secure, fetch, stream, `corsEnabled`. The engine's and the preview's `<audio>` elements in the Lyre page are `crossOrigin="anonymous"`; `MainMediaResolver` accepts `file:` and `lyre-media:` answers only.
+- **lyre-media: (review 6).** `MEDIA_PREPARE` from the Lyre page (role `lyre-view`) answers `lyre-media://<page token>/<file token>/<name>` for the prepared file (`MediaGrants`, `src/main/media/mediaProtocol.ts`; 128-bit random tokens, one page token per page, grants dropped on `destroyed`, at most 20,000 per page). `secureSessions` handles the scheme on the default session only (website and local-file tabs have their own sessions and cannot reach it); unknown or altered addresses and methods other than GET/HEAD get 403. Answers carry `nosniff`, `no-store` and `Access-Control-Allow-Origin: *` (the page's origin is `file:`, and Web Audio silences a cross-origin `<audio>` without CORS; the address is the capability). The scheme is registered with `registerLocalFileScheme` (`registerAppSchemes` since 0.5.1) in one `registerSchemesAsPrivileged` call (Electron keeps only the last list): standard, secure, fetch, stream, `corsEnabled`. The engine's and the preview's `<audio>` elements in the Lyre page are `crossOrigin="anonymous"`; `MainMediaResolver` accepts `file:` and `lyre-media:` answers only.
 - **Lyre page CSP:** `media-src blob: lyre-media:`, `connect-src blob: lyre-media:`, without `'self'`: on a `file:` page Chromium lets `'self'` match every `file:` address, so dropping `file:` alone changed nothing (found by `e2e/mediaProtocol.spec.ts`). Development builds add `'self'` to `connect-src` for the dev server.
 - **The old player is unchanged:** it still receives `file:` answers and its CSP keeps `file:` (and `'self'`, which matches `file:` anyway). Its playlists, soundboards (Howler) and backgrounds read `file:` addresses directly, including files the new library does not know, so routing it through `lyre-media:` would stop files the game master adds to it from playing. It retires in 0.5.
 - **Fuse `GrantFileProtocolExtraPrivileges`: still on, the narrowest setting that works.** Re-tested on 5 Nov 2026: a test package with the fuse off shows blank pages (`e2e/smoke.spec.ts`: "No page titled Lyre", 4 of 4 failed), because the app's own pages load from `file:` inside `app.asar`. Turning it off needs the app pages served from a custom scheme first, which changes their origin (the old player's `localStorage` library and the capture window's `securityOrigin` check would need moving): a backlog item.
@@ -1093,9 +1093,9 @@ Ctrl+Alt with a letter or digit (that is AltGr on a Belgian keyboard, which type
 - The app pages are the Lyre page and the capture window; `appPageCsp.test.ts` pins both policies.
 - Remote control: no server listens (RemoteOff). `remote-control.json` from an older version is never read.
 - The one-time moves read the old storage (`persist:root`, `persist:player`) in an isolated world of the Lyre page
-  (`legacy/pageStorage.ts`, world 1999), so the page's scripts cannot change what is read, and never write it. A plain
-  token found there goes straight to `OutputManager.importLegacyToken` (kept encrypted, SEC-5); `old-window.json`
-  never holds it.
+  (`legacy/pageStorage.ts`, world 1999), so the page's scripts cannot change what is read. A plain token found there
+  goes straight to `OutputManager.importLegacyToken` (kept encrypted, SEC-5); `old-window.json` never holds it. Once
+  it is saved encrypted, its plain copy is taken out of `persist:root` in the same world (w51-rev, CR51-1).
 
 ### Channels
 
@@ -1122,7 +1122,7 @@ Ctrl+Alt with a letter or digit (that is AltGr on a Belgian keyboard, which type
 | `src/main/remote/remoteOff.test.ts` | Off state, refusal in plain words, Lyre page only |
 | `src/main/legacy/oldWindowMove.test.ts`, `src/main/data/import/legacyCatchUp.test.ts` | One-time move: token never written, bookmarks bounded and one line each, damaged storage tolerated; catch-up doubles nothing |
 | `src/main/security/keptForLater.test.ts` | The kept code stays unreachable |
-| `e2e/lyre.spec.ts`, `e2e/upgrade.spec.ts` | Protections of the Lyre page as the window; links leave for the browser; a Kenku FM user's token moves and logs in, the old storage untouched |
+| `e2e/lyre.spec.ts`, `e2e/upgrade.spec.ts` | Protections of the Lyre page as the window; links leave for the browser; a Kenku FM user's token moves and logs in, its plain copy leaves the old storage (w51-rev) |
 
 ### Manual checks (Windows)
 
@@ -1155,3 +1155,76 @@ keeps it on the sound card's clock; nothing can be heard.
   the engine's context. No preview node is connected to it except through the tap; the Lyre page is never
   tab-captured (role `lyre-view`).
 - No new permission, no Content-Security-Policy change.
+
+## 0.5.1: review fixes (w51-rev)
+
+Fixes for the independent code and security review of 0.5.1 (CR51-1 to CR51-11).
+
+### In plain language
+
+- If Lyre is closed while it brings in what the old Player gained since your first start, nothing is half done: the
+  next start brings it all in, once. Files from folders your library does not use are left out and named, so you can
+  add their folder.
+- When an update has downloaded, Restart now keeps working until you use it, even if the internet drops meanwhile.
+- A bot token Kenku FM kept unprotected is deleted from Lyre's own storage as soon as Lyre has saved it encrypted, as
+  0.5.0 did. If saving fails, the unprotected copy stays and Lyre tries again at the next start. On a computer that
+  cannot encrypt (some Linux set-ups) it stays, and Settings says so.
+
+### Technical details
+
+- CR51-1, CR51-6: `moveOldWindowDataOnce` hands over only a value that passes `isBotToken`. `importLegacyToken`
+  answers `saved` (encrypted and written; `BotTokenStore.setToken` now answers false when the file could not be
+  written), `session-only` (no keyring), `not-saved` (the write failed) or `kept-own` (the first bot had a token). On
+  `saved` and `kept-own` the move puts `withoutPlainToken(raw)` in place of `persist:root` (no `discordToken`, no
+  `multipleOutputsEnabled`, the rest as stored) with `replacePageStorage`, which writes in world 1999 only while the
+  stored text is still what was read. On `not-saved`, or when the write did not happen, nothing is recorded and the
+  move runs again at the next start. `tokenMoved` (the Settings note) is true only for `saved` and `session-only`.
+  Chromium's LevelDB may keep the old value in its log until it compacts it, so the note still recommends a new token.
+- CR51-2: the catch-up (`catchUpLegacyLibrary`) reads every new file first, then saves the new tracks, the new
+  playlists and boards, the additions and its `done` record in one transaction. A stop part-way commits nothing; the
+  next start makes the same plan and does it all once.
+- CR51-11: the catch-up takes a new file only when it lies under a library folder or the folder of a track already in
+  the library (`foldersInUse`, the same folders the player may read, `mediaFolders`). Any other file named in
+  `persist:player` is left out and named in the report (`leftOut`), so a path planted there cannot open another
+  folder to `MEDIA_PREPARE` and `lyre-media:`. A playlist made only of files the library has is still named, not
+  brought back (the library cannot tell it from one removed in Lyre).
+- CR51-3: at start only `lyre-media:` is declared privileged (`registerAppSchemes()`) and only the default session
+  gets handlers (`secureSessions()`). The kept website-tab and local-file code registers nothing: no
+  `cue-local-file:` scheme, and the `persist:tabs` and `persist:local-files` sessions are not opened. OUT-12 turns
+  them on with `registerAppSchemes({ websiteTabs: true })` and `secureKeptSessions()` (docs/ARCHITECTURE.md › Kept
+  for later).
+- CR51-4: once `update-downloaded` arrives, `UpdateStatus` stays `ready` for the rest of the run (`isReady()`; later
+  `checking`, `error`, `up-to-date` or `downloading` change nothing) and the 15-minute checks stop. `UPDATE_RESTART`
+  is acted on whenever `isReady()`, so the toast's Restart now never does nothing. The channel's guard is unchanged.
+- CR51-7: `this-computer.json` holds `streamingMode` only once it was chosen (in Settings, or by the one-time move of
+  the old window's choice); saving another setting no longer writes the default. So `hasStreamingMode` stays the
+  move's test of "already chosen", and a move retried at a later start still brings the old choice across. (A
+  separate done-flag for that step would have let a retry overwrite a choice made in between.)
+- CR51-8: the window's `webPreferences` are written out (`sandbox`, `contextIsolation`, `webSecurity` on;
+  `nodeIntegration`, `nodeIntegrationInSubFrames`, `webviewTag`, `allowRunningInsecureContent` off) and
+  `src/index.test.ts` pins them, as the capture window already did.
+- CR51-9: links the Lyre page opens go to the system browser through `rateLimitedExternalOpener`: 5 every 10
+  seconds (`EXTERNAL_LINK_LIMIT`, the tab code's `createRateLimiter`); refused addresses do not count, links past the
+  limit are dropped and logged.
+- CR51-10: fastify, whose only user (the remote-control server) went in 0.5.1, is no longer a dependency; its
+  resolutions (`fast-json-stringify`, `light-my-request/cookie`, `light-my-request/set-cookie-parser`,
+  `pino/thread-stream`) went with it, and `yarn.lock` lost only the 39 entries nothing else reaches, and four ranges only fastify asked for (no version
+  changed). NOTICE's example of libraries built into Lyre no longer names MUI (`scripts/licences.test.mjs` checks
+  each example is in `yarn.lock`).
+- Test builds only: `CUE_DESK_FAKE_KEYRING=1` saves tokens with a reversible, marked stand-in
+  (`src/main/broadcast/testing/fakeKeyring.ts`), so end-to-end tests on a machine without a keyring can restart with
+  a saved bot. Release builds compile it out (`__CUE_DESK_TEST_BUILD__`).
+
+### Tests
+
+| Test | Covers |
+|---|---|
+| `src/main/legacy/oldWindowMove.test.ts` | The plain token leaves `persist:root` only after it is saved encrypted; a failed save, a failed delete and a page that has gone leave it and record nothing; no keyring leaves it; a value not shaped like a token is not handed over |
+| `src/main/data/import/legacyCatchUp.test.ts` | A catch-up stopped at any write finishes at the next start, nothing doubled, recorded once; a file outside the library's folders is left out and named; one under a library folder or a known folder comes in |
+| `src/main/security/sessions.test.ts`, `keptForLater.test.ts`, `src/index.test.ts` | At start: one privileged scheme (`lyre-media`), no partition opened; the kept sessions' handlers only through `secureKeptSessions` |
+| `src/main/updateStatus.test.ts`, `src/autoUpdate.test.ts`, `src/main/managers/LyreManager.test.ts` | A ready update stays ready after later checks and failures; checks stop; Restart now still restarts |
+| `src/main/lyreApi/argChecks.test.ts` | Another computer setting writes no Sound to Discord; a chosen one stays |
+| `src/index.test.ts`, `src/main/security/externalLinks.test.ts`, `e2e/lyre.spec.ts` | The window's web preferences; at most 5 links in 10 seconds reach the system browser, in unit tests and the packaged app |
+| `src/main/broadcast/OutputManager.test.ts`, `botTokenStore.test.ts` | What `importLegacyToken` answers; a token whose file could not be written is not "remembered" |
+| `src/main/managers/SessionManager.test.ts` | The compare-and-write script in the isolated world |
+| `e2e/upgrade.spec.ts` | In the packaged app: the plain token leaves the old storage and the rest stays; a saved bot logs in at the next start without Connect |

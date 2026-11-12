@@ -41,8 +41,9 @@ export class LyreManager {
     this.stopUpdateNews = updates.onChange((state) => this.getView()?.send("UPDATE_STATE", state));
     // FND-16: Restart now on Lyre's update note (until 0.5.1 the old main window said to restart).
     const restart = options.restartIntoUpdate ?? (() => autoUpdater.quitAndInstall());
+    // CR51-4: acted on whenever an update has downloaded in this run, even after later checks.
     this.ipc.on("UPDATE_RESTART", () => {
-      if (updates.state().kind === "ready") restart();
+      if (updates.isReady()) restart();
     });
     // --- w6-rooms ---
     this.ipc.handle("LYRE_GLOBAL_KEYS_SET", (_event, request) => this.keys().set(request as GlobalKeysRequest));

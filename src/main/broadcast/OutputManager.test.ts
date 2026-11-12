@@ -132,6 +132,30 @@ describe("OutputManager: bot tokens (SEC-5)", () => {
     expect(m.state().bots).toHaveLength(1);
   });
 
+  it("answers what became of a token taken over from Kenku FM (CR51-1, CR51-6)", () => {
+    expect(newManager().importLegacyToken(TOKEN)).toBe("saved");
+    manager?.destroy();
+    fs.rmSync(BotTokenStore.fileIn(folder));
+    expect(newManager({ ...safeStorage, isEncryptionAvailable: () => false }).importLegacyToken(TOKEN)).toBe("session-only");
+  });
+
+  it("answers not-saved when the encrypted token could not be written, so the plain copy stays (CR51-1)", () => {
+    const blocked = path.join(folder, "not-a-folder");
+    fs.writeFileSync(blocked, "");
+    manager = new OutputManager(new BotTokenStore(BotTokenStore.fileIn(blocked), safeStorage), discord.driver);
+    expect(manager.importLegacyToken(TOKEN)).toBe("not-saved");
+    expect(manager.state().bots[0].hasToken).toBe(true);
+  });
+
+  it("keeps the first bot's own saved token and says the old one was not used (CR51-6)", () => {
+    const m = newManager();
+    const id = m.state().bots[0].id;
+    m.setToken(id, TOKEN);
+    expect(m.importLegacyToken("fake-from.kenku.fm")).toBe("kept-own");
+    expect(m.state().bots).toHaveLength(1);
+    expect(m.state().bots[0].tokenEnd).toBe(TOKEN.slice(-4));
+  });
+
   it("logs in the bots that have a token when asked at start", async () => {
     const m = newManager();
     m.setToken(m.state().bots[0].id, TOKEN);

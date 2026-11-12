@@ -18,7 +18,7 @@ import {
   usualSceneSteps,
   type SoundRef,
 } from "../../common/domain";
-import { DEVICE_KEYS, DISPLAY_KEYS, readComputerSettings } from "./computerSettings";
+import { DEVICE_KEYS, DISPLAY_KEYS, hasStreamingMode, readComputerSettings } from "./computerSettings";
 import type {
   CampaignInfo,
   FindRequest,
@@ -133,6 +133,9 @@ export { readComputerSettings };
 export function libraryApiRound7(cx: Round7Context): Methods {
   const { store, write, refuse } = cx;
   const computer = readComputerSettings(cx.computerFile);
+  // CR51-7: Sound to Discord is written only once chosen (here, or by the one-time move of the old window's choice),
+  // so the file's having one keeps meaning someone chose it (hasStreamingMode).
+  let streamingModeChosen = hasStreamingMode(cx.computerFile);
 
   /* ---------- tags ---------- */
   const groupOf = (id: string) => listTagGroups(store).find((g) => g.id === id) ?? refuse("not-found", "That tag group no longer exists.");
@@ -497,7 +500,8 @@ export function libraryApiRound7(cx: Round7Context): Methods {
     // Written beside and moved into place, so a crash never leaves half a file.
     const part = `${cx.computerFile}.part`;
     await fs.promises.mkdir(path.dirname(cx.computerFile), { recursive: true });
-    await fs.promises.writeFile(part, JSON.stringify(computer, null, 2), "utf8");
+    const { streamingMode, ...rest } = computer;
+    await fs.promises.writeFile(part, JSON.stringify(streamingModeChosen ? { ...rest, streamingMode } : rest, null, 2), "utf8");
     await fs.promises.rename(part, cx.computerFile);
   }
   const settings: Methods["settings"] = {
@@ -529,7 +533,10 @@ export function libraryApiRound7(cx: Round7Context): Methods {
         copyKnown(computer.display, patch.display, DISPLAY_KEYS);
         copyKnown(computer.devices, patch.devices, DEVICE_KEYS);
         if (patch.globalKeys !== undefined) computer.globalKeys = patch.globalKeys;
-        if (patch.streamingMode !== undefined) computer.streamingMode = patch.streamingMode;
+        if (patch.streamingMode !== undefined) {
+          computer.streamingMode = patch.streamingMode;
+          streamingModeChosen = true;
+        }
         await saveComputer().catch((error: unknown) => {
           cx.log?.("Could not save this computer's settings", error);
           refuse("not-saved", "Lyre could not write it to your computer. Try again; if it fails again, check that the drive has space.");

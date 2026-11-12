@@ -88,3 +88,15 @@ describe("licences of bundled libraries (security review 13)", () => {
     assert.match(licenceText([entry]), /bare@1\.0\.0 \(ISC\)/);
   });
 });
+
+describe("the libraries NOTICE gives as examples (CR51-10)", () => {
+  it("are all still in Lyre (yarn.lock), so the notice names none that went with the old interface", () => {
+    const examples = notice.match(/\(for example ([^)]+)\)/)?.[1];
+    assert.ok(examples, "NOTICE gives examples of libraries built into Lyre");
+    const lock = fs.readFileSync(path.join(root, "yarn.lock"), "utf8");
+    for (const name of examples.replace(/\s+/g, " ").split(/, | and /)) {
+      const pkg = name.trim().toLowerCase();
+      assert.ok(new RegExp(`^"?${pkg.replace(/[.]/g, "\\.")}@`, "m").test(lock), `${name} is in yarn.lock`);
+    }
+  });
+});

@@ -3,7 +3,7 @@ import os from "os";
 import path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { markTokenNoteSeen, moveOldWindowDataOnce, parseOldWindowData, readOldWindowRecord, type OldWindowMoveDeps } from "./oldWindowMove";
+import { markTokenNoteSeen, moveOldWindowDataOnce, parseOldWindowData, readOldWindowRecord, withoutPlainToken, type OldWindowMoveDeps } from "./oldWindowMove";
 
 /** persist:root as redux-persist wrote it: every part is itself a JSON string. */
 function persistRoot(settings: Record<string, unknown>, version = 7, bookmarks?: unknown): string {
@@ -47,6 +47,12 @@ describe("parseOldWindowData (FND-16)", () => {
     expect(parseOldWindowData(persistRoot({ legacyTokenNotice: true }, 7)).token).toBeNull();
   });
 
+  it("takes only a value shaped like a bot token, as the old channel did (CR51-6)", () => {
+    expect(parseOldWindowData(persistRoot({ discordToken: "not a token" }, 4)).token).toBeNull();
+    expect(parseOldWindowData(persistRoot({ discordToken: `${"a".repeat(5_000_000)}.b.c` }, 4)).token).toBeNull();
+    expect(parseOldWindowData(persistRoot({ discordToken: 42 }, 4)).token).toBeNull();
+  });
+
   it("lists the bookmarks in the old window's order, with their folder, leaving out any without an address", () => {
     expect(parseOldWindowData(persistRoot({}, 7, BOOKMARKS_V5)).bookmarks).toEqual([
       { title: "YouTube", url: "https://www.youtube.com/" },
@@ -66,9 +72,32 @@ describe("parseOldWindowData (FND-16)", () => {
   });
 });
 
+describe("withoutPlainToken (CR51-1)", () => {
+  it("takes the token, and the old Multiple Outputs switch, out of the stored settings and leaves the rest", () => {
+    const raw = persistRoot({ discordToken: "MTIz.abc.def", multipleOutputsEnabled: true, streamingMode: "lowLatency" }, 4, BOOKMARKS_V5);
+    const next = withoutPlainToken(raw) as string;
+    expect(next).not.toContain("MTIz");
+    const root = JSON.parse(next);
+    expect(JSON.parse(root.settings)).toEqual({ streamingMode: "lowLatency" });
+    expect(JSON.parse(root.bookmarks)).toEqual(BOOKMARKS_V5);
+    expect(JSON.parse(root._persist)).toEqual({ version: 4, rehydrated: true });
+  });
+
+  it("answers null when there is nothing to take out", () => {
+    for (const raw of [null, "", "{not json", JSON.stringify({ settings: "{not json" }), persistRoot({ streamingMode: "performance" })]) {
+      expect(withoutPlainToken(raw)).toBeNull();
+    }
+  });
+});
+
 describe("moveOldWindowDataOnce (FND-16)", () => {
   let dir: string;
-  let deps: OldWindowMoveDeps & { setStreamingMode: ReturnType<typeof vi.fn>; read: ReturnType<typeof vi.fn>; importToken: ReturnType<typeof vi.fn> };
+  let deps: OldWindowMoveDeps & {
+    setStreamingMode: ReturnType<typeof vi.fn>;
+    read: ReturnType<typeof vi.fn>;
+    importToken: ReturnType<typeof vi.fn>;
+    forgetPlainToken: ReturnType<typeof vi.fn>;
+  };
   let hasMode: boolean;
   beforeEach(() => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), "lyre-old-window-"));
@@ -78,7 +107,9 @@ describe("moveOldWindowDataOnce (FND-16)", () => {
       read: vi.fn(async () => persistRoot({ streamingMode: "lowLatency" })),
       hasStreamingMode: () => hasMode,
       setStreamingMode: vi.fn(async () => true),
-      importToken: vi.fn((_token: string) => undefined),
+      importToken: vi.fn((_token: string) => "saved" as const),
+      forgetPlainToken: vi.fn(async (_before: string, _after: string) => true),
+      log: () => undefined,
       now: () => 1234,
     };
   });
@@ -129,6 +160,56 @@ describe("moveOldWindowDataOnce (FND-16)", () => {
     // The record never holds the token itself.
     expect(fs.readFileSync(deps.recordFile, "utf8")).not.toContain("MTIz");
     expect(readOldWindowRecord(deps.recordFile)).toEqual(record);
+  });
+
+  it("takes the plain token out of the old storage once it is saved encrypted, keeping the rest (CR51-1)", async () => {
+    const raw = persistRoot({ discordToken: "MTIz.abc.def", streamingMode: "performance" }, 4, BOOKMARKS_V5);
+    deps.read.mockResolvedValue(raw);
+    expect(await moveOldWindowDataOnce(deps)).toMatchObject({ tokenMoved: true });
+    expect(deps.forgetPlainToken).toHaveBeenCalledWith(raw, withoutPlainToken(raw));
+    expect(deps.importToken.mock.invocationCallOrder[0]).toBeLessThan(deps.forgetPlainToken.mock.invocationCallOrder[0]);
+  });
+
+  it("keeps the plain token, records nothing and tries again when the encrypted copy could not be written (CR51-1)", async () => {
+    deps.read.mockResolvedValue(persistRoot({ discordToken: "MTIz.abc.def" }, 4));
+    deps.importToken.mockReturnValueOnce("not-saved");
+    expect(await moveOldWindowDataOnce(deps)).toBeNull();
+    expect(deps.forgetPlainToken).not.toHaveBeenCalled();
+    expect(fs.existsSync(deps.recordFile)).toBe(false);
+    // Next start: saved this time, so the plain copy goes.
+    expect(await moveOldWindowDataOnce(deps)).toMatchObject({ tokenMoved: true });
+    expect(deps.forgetPlainToken).toHaveBeenCalledTimes(1);
+  });
+
+  it("tries again next start when the plain token could not be taken out (CR51-1)", async () => {
+    deps.read.mockResolvedValue(persistRoot({ discordToken: "MTIz.abc.def" }, 4));
+    deps.forgetPlainToken.mockResolvedValueOnce(false);
+    expect(await moveOldWindowDataOnce(deps)).toBeNull();
+    expect(fs.existsSync(deps.recordFile)).toBe(false);
+    deps.forgetPlainToken.mockRejectedValueOnce(new Error("page gone"));
+    expect(await moveOldWindowDataOnce(deps)).toBeNull();
+    expect(fs.existsSync(deps.recordFile)).toBe(false);
+  });
+
+  it("leaves the plain token where this computer cannot keep tokens encrypted, and records the move (CR51-1)", async () => {
+    deps.read.mockResolvedValue(persistRoot({ discordToken: "MTIz.abc.def" }, 4));
+    deps.importToken.mockReturnValueOnce("session-only");
+    expect(await moveOldWindowDataOnce(deps)).toMatchObject({ tokenMoved: true });
+    expect(deps.forgetPlainToken).not.toHaveBeenCalled();
+  });
+
+  it("records no moved token when the first bot kept its own, and still takes the plain one out (CR51-6)", async () => {
+    deps.read.mockResolvedValue(persistRoot({ discordToken: "MTIz.abc.def" }, 4));
+    deps.importToken.mockReturnValueOnce("kept-own");
+    expect(await moveOldWindowDataOnce(deps)).toMatchObject({ tokenMoved: false });
+    expect(deps.forgetPlainToken).toHaveBeenCalledTimes(1);
+  });
+
+  it("hands over nothing that is not shaped like a token, and leaves it where it is (CR51-6)", async () => {
+    deps.read.mockResolvedValue(persistRoot({ discordToken: "damaged value" }, 4));
+    expect(await moveOldWindowDataOnce(deps)).toMatchObject({ tokenMoved: false });
+    expect(deps.importToken).not.toHaveBeenCalled();
+    expect(deps.forgetPlainToken).not.toHaveBeenCalled();
   });
 
   it("remembers that the note about the moved token was read", async () => {

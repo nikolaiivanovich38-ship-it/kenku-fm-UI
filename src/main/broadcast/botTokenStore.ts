@@ -68,6 +68,11 @@ export function canEncrypt(safeStorage: SafeStorageLike): boolean {
   return backend === undefined || (backend !== "basic_text" && backend !== "unknown");
 }
 
+/** Test builds only: CUE_DESK_FAKE_KEYRING=1 saves tokens with testing/fakeKeyring.ts (a test machine has no keyring). */
+export function wantsFakeKeyring(env: NodeJS.ProcessEnv, testBuild: boolean): boolean {
+  return testBuild && env.CUE_DESK_FAKE_KEYRING === "1";
+}
+
 /**
  * SEC-5: Discord bot tokens, one per bot, kept in the main process.
  *
@@ -174,7 +179,8 @@ export class BotTokenStore {
 
   /**
    * Store a bot's token, replacing any earlier one. Returns whether it is
-   * remembered after a restart (false: kept for this session only).
+   * remembered after a restart: encrypted and written to disk (false: kept
+   * for this session only, or the file could not be written).
    */
   setToken(id: string, token: string): boolean {
     const bot = this.bots.find((candidate) => candidate.id === id);
@@ -189,8 +195,8 @@ export class BotTokenStore {
       delete bot.encryptedToken;
       this.sessionTokens.set(id, token);
     }
-    this.save();
-    return Boolean(bot.encryptedToken);
+    const written = this.save();
+    return Boolean(bot.encryptedToken) && written;
   }
 
   removeToken(id: string): void {
@@ -253,7 +259,8 @@ export class BotTokenStore {
     }
   }
 
-  private save(): void {
+  /** Writes the list; false when it could not be written. */
+  private save(): boolean {
     const data: StoredFile = { version: 1, bots: this.bots };
     try {
       fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
@@ -264,8 +271,10 @@ export class BotTokenStore {
       fs.rmSync(temporary, { force: true });
       fs.writeFileSync(temporary, JSON.stringify(data, null, 2), { mode: 0o600, flag: "wx" });
       fs.renameSync(temporary, this.filePath);
+      return true;
     } catch (error) {
       console.error("Unable to save the Discord bot list", error);
+      return false;
     }
   }
 }

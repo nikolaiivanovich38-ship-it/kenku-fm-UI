@@ -17,9 +17,9 @@ import { SessionManager } from "./main/managers/SessionManager";
 import { windowFrameOptions } from "./main/window/windowFrame";
 import { runAutoUpdate } from "./autoUpdate";
 import { getSavedBounds, saveWindowBounds } from "./bounds";
-import { openExternalIfAllowed } from "./main/security/externalLinks";
+import { rateLimitedExternalOpener } from "./main/security/externalLinks";
 import { lockAppPage } from "./main/security/navigationGuards";
-import { registerLocalFileScheme, secureSessions } from "./main/security/sessions";
+import { registerAppSchemes, secureSessions } from "./main/security/sessions";
 import { registerAppInfoIpc } from "./main/security/appInfoIpc";
 import { confirmStartAfterCarryOver, startApp } from "./main/startup";
 import { startLyreLibrary, type StartedLibrary } from "./main/lyreApi/startLibrary";
@@ -35,9 +35,9 @@ let lyreLibraryClosed = false;
 
 startDiagnosticsLog();
 
-// WP1 review 1: files from the user's computer get a scheme of their own,
-// which Electron accepts only before the app is ready.
-registerLocalFileScheme();
+// Security review 6: library audio gets a scheme of its own, which Electron accepts only before the app is ready.
+// CR51-3: the kept website tabs' cue-local-file: scheme is not registered (OUT-12 turns it on: sessions.ts).
+registerAppSchemes();
 
 // FND-1: the Windows installer check and the single-instance lock come first,
 // so the Kenku FM library is copied only by the one real copy of the app,
@@ -62,8 +62,17 @@ const createWindow = (): BrowserWindow => {
   const mainWindow = new BrowserWindow({
     width: minimum.width,
     height: minimum.height,
+    // CR51-8: the page's protections, stated rather than left to Electron's defaults (e2e/lyre.spec.ts checks them
+    // in the running page).
     webPreferences: {
       preload: LYRE_WINDOW_PRELOAD_WEBPACK_ENTRY,
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+      nodeIntegrationInSubFrames: false,
+      webviewTag: false,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
     },
     // FND-16 step 2: Lyre's top strip is the title bar; the system draws its own buttons over its right end.
     ...windowFrameOptions(),
@@ -79,9 +88,9 @@ const createWindow = (): BrowserWindow => {
 
   // SEC-3/SEC-7/SEC-10: the window's page is trusted as the Lyre page and stays on its own document; links it
   // opens (the Discord Developer Portal in Add a bot, help links) go to the system browser, and only when they are
-  // https web addresses.
+  // https web addresses; CR51-9: a few at a time.
   lockAppPage(mainWindow.webContents, "lyre-view", {
-    onWindowOpen: (url) => openExternalIfAllowed(url, shell.openExternal),
+    onWindowOpen: rateLimitedExternalOpener((url) => shell.openExternal(url)),
   });
 
   // One set of managers for the window's whole life: reloading the page joins it again (SessionManager) without
@@ -132,8 +141,8 @@ if (startupOutcome === "run") {
       return;
     }
 
-    // SEC-3: permission handlers and user-agent rewrite for the app session
-    // and the website-tab session, before any page loads.
+    // SEC-3: permission handlers and user-agent rewrite for the app's session, before any page loads. CR51-3: the
+    // kept website-tab and local-file sessions are not opened.
     secureSessions();
 
     // WP5: Lyre's library opens in its own process before any page asks for it.

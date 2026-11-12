@@ -54,7 +54,7 @@ source code of the ffmpeg it ships; ask in the repository above.
 Other third-party components keep their own licences. Libraries kept as
 packages are listed, with their licence files, under node_modules inside the
 installed app's resources folder (app.asar). Libraries built into Lyre's own
-code (for example music-metadata, strtok3, React and MUI) are listed with
+code (for example music-metadata, strtok3, React and discord.js) are listed with
 their licence texts in THIRD_PARTY_LICENSES.txt beside each part of the app
 (resources/app.asar.unpacked/.webpack/…). This NOTICE and Lyre's LICENSE are
 in the installed app's resources folder.

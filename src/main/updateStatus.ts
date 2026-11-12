@@ -58,6 +58,11 @@ export class UpdateStatus {
   private listeners = new Set<(state: UpdateState) => void>();
   /** True from a failure until a check works again: the game master has been told already. */
   private told = false;
+  /**
+   * CR51-4: an update has downloaded. Squirrel keeps it ready to install for the rest of this run, so the state stays
+   * "ready" (and Restart now keeps working) whatever a check under way at the time reports later.
+   */
+  private ready = false;
 
   constructor(private readonly now: () => number = Date.now) {}
 
@@ -74,27 +79,40 @@ export class UpdateStatus {
     this.set({ kind: "off", message });
   }
 
+  /** An update has downloaded and waits for Restart now (CR51-4). */
+  isReady(): boolean {
+    return this.ready;
+  }
+
   checking() {
+    if (this.ready) return;
     this.set({ kind: "checking" });
   }
 
   downloading() {
+    if (this.ready) return;
     this.told = false;
     this.set({ kind: "downloading" });
   }
 
   upToDate() {
+    if (this.ready) return;
     this.told = false;
     this.set({ kind: "up-to-date", checkedAt: this.now() });
   }
 
   downloaded() {
     this.told = false;
+    this.ready = true;
     this.set({ kind: "ready", message: "Lyre has an update. Restart Lyre to use it." });
   }
 
-  /** Record a failure. True when the game master should be told now (the first failure since a check worked). */
+  /**
+   * Record a failure. True when the game master should be told now (the first failure since a check worked); never
+   * once an update is ready (the failure changes nothing for it).
+   */
   failed(error: unknown): boolean {
+    if (this.ready) return false;
     const tell = !this.told;
     this.told = true;
     this.set({ kind: "error", message: `${plainUpdateError(error)} ${AGAIN}`, failedAt: this.now(), tell });

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { clearBrowsingData, registerLocalFileScheme, secureSessions } from "./sessions";
+import { clearBrowsingData, registerAppSchemes, secureKeptSessions, secureSessions as secureAppSession } from "./sessions";
 import { trustedContents } from "./trustedContents";
 import { captureTargets } from "./captureTargets";
 import { LOCAL_FILE_PARTITION, TAB_PARTITION } from "./partitions";
@@ -68,6 +68,7 @@ const sessions = vi.hoisted(() => ({
 }));
 
 const registerSchemesAsPrivileged = vi.hoisted(() => vi.fn());
+const partitionsOpened = vi.hoisted(() => [] as string[]);
 
 vi.mock("electron", () => ({
   protocol: { registerSchemesAsPrivileged },
@@ -76,6 +77,7 @@ vi.mock("electron", () => ({
       return sessions.default;
     },
     fromPartition: (partition: string) => {
+      partitionsOpened.push(partition);
       if (partition === "persist:tabs") {
         return sessions.tabs;
       }
@@ -87,7 +89,15 @@ vi.mock("electron", () => ({
   },
 }));
 
+/** The app's session and, as OUT-12 would turn them on, the kept website-tab and local-file sessions. */
+function secureSessions() {
+  secureAppSession();
+  secureKeptSessions();
+}
+
 beforeEach(() => {
+  partitionsOpened.length = 0;
+  registerSchemesAsPrivileged.mockClear();
   sessions.default = fakeSession("default");
   sessions.tabs = fakeSession("tabs");
   sessions.localFiles = fakeSession("localFiles");
@@ -268,9 +278,31 @@ describe("clearBrowsingData", () => {
   });
 });
 
+describe("at start, nothing for the kept website tabs and local files (CR51-3, OUT-12)", () => {
+  it("registers only lyre-media as a privileged scheme", () => {
+    registerAppSchemes();
+    expect(registerSchemesAsPrivileged).toHaveBeenCalledTimes(1);
+    expect(registerSchemesAsPrivileged).toHaveBeenCalledWith([
+      {
+        scheme: "lyre-media",
+        privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true },
+      },
+    ]);
+  });
+
+  it("secures the app's own session and opens neither the website-tab nor the local-file session", () => {
+    secureAppSession();
+    expect(partitionsOpened).toEqual([]);
+    expect(sessions.default.requestHandler).toBeTypeOf("function");
+    expect([...sessions.default.protocols.keys()]).toEqual(["lyre-media"]);
+    expect(sessions.tabs.requestHandler).toBeUndefined();
+    expect(sessions.localFiles.protocols.size).toBe(0);
+  });
+});
+
 describe("local-file tabs are served under their own scheme (WP1 review 1 and 2)", () => {
-  it("registers the scheme as a standard, secure scheme that can stream media", () => {
-    registerLocalFileScheme();
+  it("registers the scheme as a standard, secure scheme that can stream media, once OUT-12 turns website tabs on", () => {
+    registerAppSchemes({ websiteTabs: true });
     expect(registerSchemesAsPrivileged).toHaveBeenCalledWith([
       {
         scheme: "cue-local-file",

@@ -60,7 +60,8 @@ export function readComputerSettings(file: string | null): ComputerSettings {
 
 /**
  * Whether the file holds a Sound to Discord choice of its own. False until the game master (or the one-time copy of
- * the old main window's choice, src/main/legacy/oldWindowMove.ts) has chosen one.
+ * the old main window's choice, src/main/legacy/oldWindowMove.ts) has chosen one: saving another setting does not
+ * write the default (libraryApiRound7.ts saveComputer, CR51-7).
  */
 export function hasStreamingMode(file: string | null): boolean {
   return !checkStreamingMode(readRaw(file)?.streamingMode);

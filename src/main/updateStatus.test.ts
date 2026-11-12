@@ -84,6 +84,21 @@ describe("UpdateStatus (SEC-14)", () => {
     expect(status.failed(new Error("HTTP Status 500"))).toBe(true);
   });
 
+  it("stays ready once an update has downloaded, whatever later checks report (CR51-4)", () => {
+    const status = new UpdateStatus(() => 5);
+    expect(status.isReady()).toBe(false);
+    status.downloaded();
+    const heard = vi.fn();
+    status.onChange(heard);
+    status.checking();
+    expect(status.failed(new Error("net::ERR_INTERNET_DISCONNECTED"))).toBe(false);
+    status.upToDate();
+    status.downloading();
+    expect(status.state()).toEqual({ kind: "ready", message: "Lyre has an update. Restart Lyre to use it." });
+    expect(status.isReady()).toBe(true);
+    expect(heard).not.toHaveBeenCalled();
+  });
+
   it("stops telling a listener that has gone", () => {
     const status = new UpdateStatus();
     const heard = vi.fn();

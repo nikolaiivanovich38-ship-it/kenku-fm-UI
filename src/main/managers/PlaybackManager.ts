@@ -1,5 +1,5 @@
 import { app, safeStorage, type WebContents } from "electron";
-import { BotTokenStore } from "../broadcast/botTokenStore";
+import { BotTokenStore, wantsFakeKeyring, type SafeStorageLike } from "../broadcast/botTokenStore";
 import { OutputManager } from "../broadcast/OutputManager";
 import { LyreOutputsBridge } from "../broadcast/lyreOutputsBridge";
 import { PlayerAudioBridge } from "../broadcast/playerAudioBridge";
@@ -8,6 +8,15 @@ import { wantsPrototypeDiscord } from "../broadcast/discordDriver";
 
 /** True only in packages built with CUE_DESK_E2E_BUILD=1 (webpack.main.config.js). */
 declare const __CUE_DESK_TEST_BUILD__: boolean;
+
+/** Electron's safeStorage; in test builds asked for it, a fake one (a test machine has no keyring). */
+function keyring(): SafeStorageLike {
+  if (typeof __CUE_DESK_TEST_BUILD__ !== "undefined" && __CUE_DESK_TEST_BUILD__ && wantsFakeKeyring(process.env, __CUE_DESK_TEST_BUILD__)) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return (require("../broadcast/testing/fakeKeyring") as typeof import("../broadcast/testing/fakeKeyring")).fakeKeyring;
+  }
+  return safeStorage;
+}
 
 /**
  * Connects tab capture to the outputs. PERF-4: capture runs only while an
@@ -26,7 +35,7 @@ export class PlaybackManager {
 
   constructor() {
     // SEC-5: bot tokens live here, encrypted, not in the main window's storage.
-    const tokens = new BotTokenStore(BotTokenStore.fileIn(app.getPath("userData")), safeStorage);
+    const tokens = new BotTokenStore(BotTokenStore.fileIn(app.getPath("userData")), keyring());
     this.outputs = new OutputManager(tokens);
     this.lyreOutputs = new LyreOutputsBridge(this.outputs);
     if (typeof __CUE_DESK_TEST_BUILD__ !== "undefined" && __CUE_DESK_TEST_BUILD__ && wantsPrototypeDiscord(process.env, __CUE_DESK_TEST_BUILD__)) {

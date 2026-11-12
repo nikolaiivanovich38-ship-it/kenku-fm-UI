@@ -172,14 +172,38 @@ describe("SessionManager (FND-16: the window's own page is the Lyre page)", () =
     record.next = { movedAt: 1, bookmarks: [], tokenMoved: true, tokenNoteSeen: false };
     new SessionManager(window, { library: library as never });
     window.webContents.emit("did-finish-load");
-    const move = made.moves[0] as unknown as { importToken(token: string): void };
+    const move = made.moves[0] as unknown as { importToken(token: string): string };
     const outputs = made.playback[0].outputs;
-    move.importToken("MTIz.abc.def");
+    outputs.importLegacyToken.mockReturnValueOnce("saved");
+    expect(move.importToken("MTIz.abc.def")).toBe("saved");
     expect(outputs.importLegacyToken).toHaveBeenCalledWith("MTIz.abc.def");
     expect(outputs.connectSaved).toHaveBeenCalled();
     await vi.waitFor(() => expect(outputs.setLegacyTokenNote).toHaveBeenCalledWith(true));
     outputs.emit("legacyTokenNoteSeen");
     expect(record.seen).toEqual(["/data/library/old-window.json"]);
+  });
+
+  it("takes the plain token out of the page's storage in a world of its own, only while it is as read (CR51-1)", async () => {
+    const window = fakeWindow();
+    new SessionManager(window, { library: fakeLibrary() as never });
+    window.webContents.emit("did-finish-load");
+    const move = made.moves[0] as unknown as { forgetPlainToken(before: string, after: string): Promise<boolean> };
+    const run = (window.webContents as unknown as { executeJavaScriptInIsolatedWorld: ReturnType<typeof vi.fn> }).executeJavaScriptInIsolatedWorld;
+    run.mockResolvedValueOnce(true);
+    expect(await move.forgetPlainToken('{"settings":"{\\"discordToken\\":\\"x\\"}"}', '{"settings":"{}"}')).toBe(true);
+    const [world, [{ code }]] = run.mock.calls[run.mock.calls.length - 1] as unknown as [number, { code: string }[]];
+    expect(world).toBe(1999);
+    // The script compares the stored value with what was read before it writes; run it against a fake storage.
+    const stored = new Map([["persist:root", '{"settings":"{\\"discordToken\\":\\"x\\"}"}']]);
+    const localStorage = { getItem: (k: string) => stored.get(k) ?? null, setItem: (k: string, v: string): void => void stored.set(k, v) };
+    const runScript = (): unknown => new Function("localStorage", `return ${code}`)(localStorage);
+    expect(runScript()).toBe(true);
+    expect(stored.get("persist:root")).toBe('{"settings":"{}"}');
+    stored.set("persist:root", "changed meanwhile");
+    expect(runScript()).toBe(false);
+    expect(stored.get("persist:root")).toBe("changed meanwhile");
+    run.mockResolvedValueOnce("not a yes");
+    expect(await move.forgetPlainToken("a", "b")).toBe(false);
   });
 
   it("shows no note when the token note was read before, or no token came across", async () => {
@@ -203,9 +227,14 @@ describe("SessionManager (FND-16: the window's own page is the Lyre page)", () =
     const session = new SessionManager(fakeWindow(), { library: library as never, moveOldWindowData: false });
     record.next = { movedAt: 2, bookmarks: [{ title: "Tabletop Audio", url: "https://tabletopaudio.com/" }], tokenMoved: true, tokenNoteSeen: false };
     await session.arriveFromKenkuFM({ plainToken: true, bookmarks: [{ title: "Tabletop Audio", url: "https://tabletopaudio.com/" }] });
-    const move = made.moves[0] as unknown as { read(): Promise<string> };
+    const move = made.moves[0] as unknown as { read(): Promise<string>; importToken(token: string): string; forgetPlainToken(a: string, b: string): Promise<boolean> };
     const raw = JSON.parse(await move.read());
     expect(JSON.parse(raw.settings).discordToken).toEqual(expect.any(String));
+    // The prototype's bots hold tokens already: the hook answers as Lyre would for someone arriving with none, and
+    // the plain token it "takes out" was never in the page's storage.
+    made.playback[0].outputs.importLegacyToken.mockReturnValueOnce("kept-own");
+    expect(move.importToken(JSON.parse(raw.settings).discordToken)).toMatch(/^(saved|session-only)$/);
+    expect(await move.forgetPlainToken("a", "b")).toBe(true);
     expect(Object.values(JSON.parse(raw.bookmarks).bookmarks.byId)).toEqual([{ id: "b0", title: "Tabletop Audio", url: "https://tabletopaudio.com/" }]);
     expect(made.playback[0].outputs.setLegacyTokenNote).toHaveBeenCalledWith(true);
   });
