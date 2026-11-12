@@ -14,7 +14,7 @@
 //   - the specs' support, the Playwright, webpack, forge and TypeScript configs, package.json, yarn.lock: everything;
 //   - a spec file: that file in both projects; an end-to-end file: that file; design/prototype: the prototype project;
 //   - an end-to-end fixture: the end-to-end files that import it, and every app spec when the specs' support does;
-//   - src/lyre (and whatever it imports from src/player/engine): the screens whose folders import the file, through
+//   - src/lyre (and whatever it imports from src/engine): the screens whose folders import the file, through
 //     any chain of imports, run their specs (screens/index.tsx's routes, named by target.ts's screenOfRoute) and their
 //     sweeps; a file the shell, kit, api or any other shared part imports runs every app spec;
 //   - the main-process areas in MAIN_AREAS: their specs and end-to-end files;
@@ -41,7 +41,7 @@ export const SCREEN_E2E = {
   "pad-boards": ["padIcons"],
   "audio-profile": ["lyre"],
   look: ["lyre"],
-  settings: ["remote"],
+  settings: ["upgrade"],
 };
 
 /**
@@ -50,17 +50,17 @@ export const SCREEN_E2E = {
  * opens the Lyre page. Any other file under src/main is "when in doubt".
  */
 export const MAIN_AREAS = [
-  { prefix: "src/main/broadcast/", app: ["outputs", "live", "settings"], e2e: ["broadcast", "outputs", "rooms", "capture", "onAir"] },
-  { prefix: "src/audioCapture/", app: ["outputs", "live"], e2e: ["broadcast", "outputs", "rooms", "capture", "onAir"] },
-  { prefix: "src/main/remote/", app: ["settings"], e2e: ["remote", "settings"] },
-  { prefix: "src/main/migration/", app: [], e2e: ["carryOver", "lyreLibrary", "persistence"] },
+  { prefix: "src/main/broadcast/", app: ["outputs", "live", "settings"], e2e: ["broadcast", "onAir", "upgrade"] },
+  { prefix: "src/audioCapture/", app: ["outputs", "live"], e2e: ["broadcast", "onAir", "screenCapture"] },
+  { prefix: "src/main/remote/", app: ["settings"], e2e: [] },
+  { prefix: "src/main/migration/", app: [], e2e: ["carryOver", "lyreLibrary", "upgrade"] },
   { prefix: "src/main/transfer/", app: ["library-files"], e2e: ["lyreLibrary"] },
   { prefix: "src/main/diagnostics/", app: ["help"], e2e: [] },
   { prefix: "src/main/globalKeys.ts", app: ["live", "settings"], e2e: [] },
   { prefix: "src/main/media/", app: "all", e2e: ["lyreMedia", "mediaProtocol", "onAir", "lyreLibrary"] },
   { prefix: "src/main/data/", app: "all", e2e: ["carryOver"], lyreE2e: true },
   { prefix: "src/main/lyreApi/", app: "all", e2e: ["carryOver"], lyreE2e: true },
-  { prefix: "src/player/engine/", app: "graph", e2e: ["engine", "rooms", "onAir"] },
+  { prefix: "src/engine/", app: "graph", e2e: ["broadcast", "onAir"] },
 ];
 
 /** Changes that need every spec and every end-to-end test. */
@@ -301,14 +301,6 @@ function addFile(file, repo, sel) {
     if (side.all) allApp();
     else appScreens(side.screens);
     return side.why;
-  }
-  if (file.startsWith("src/player/")) {
-    // The old player: its end-to-end tests, and the app specs only if the Lyre page imports the file.
-    sel.e2e.all = true;
-    const side = lyreSide(file, repo);
-    if (side?.all) allApp();
-    else if (side) appScreens(side.screens);
-    return `every end-to-end test (the old player)${side ? `, and ${side.why}` : ""}`;
   }
   return everything("not covered by a narrower rule");
 }

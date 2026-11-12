@@ -68,17 +68,17 @@ describe("picking specs for changed files", () => {
   });
 
   it("the playback engine runs the app specs whose screens use it, and the engine's own end-to-end tests", () => {
-    const picked = pick(["src/player/engine/engine.ts"], repo);
+    const picked = pick(["src/engine/engine.ts"], repo);
     assert.equal(picked.everything, null);
     assert.equal(picked.app.all, true, "the Lyre page's audio (src/lyre/audio) imports the engine");
-    for (const name of ["engine", "rooms", "onAir"]) assert.ok(picked.e2e.files.includes(e2e(name)), name);
+    for (const name of ["broadcast", "onAir"]) assert.ok(picked.e2e.files.includes(e2e(name)), name);
   });
 
   it("a main-process area runs the specs and end-to-end tests that use it", () => {
     const picked = pick(["src/main/remote/remoteServer.ts"], repo);
     assert.equal(picked.everything, null);
     assert.deepEqual(picked.app.files, [spec("settings")]);
-    assert.deepEqual(picked.e2e.files, [e2e("remote"), e2e("settings")]);
+    assert.deepEqual(picked.e2e.files, [e2e("upgrade")], "the Settings screen's end-to-end file");
   });
 
   it("runs everything when in doubt: an unknown file, a main-process file outside the known areas, the specs' support, configs", () => {
@@ -119,10 +119,10 @@ describe("picking specs for changed files", () => {
   });
 
   it("an end-to-end fixture runs the files that import it, and every app spec when the specs' support imports it", () => {
-    const player = pick(["e2e/fixtures/player.ts"], repo);
-    assert.equal(player.app.all, false);
-    assert.ok(player.e2e.files.includes(e2e("playlists")));
-    assert.ok(!player.e2e.files.includes(e2e("tabs")));
+    const discord = pick(["e2e/fixtures/discord.ts"], repo);
+    assert.equal(discord.app.all, false);
+    assert.ok(discord.e2e.files.includes(e2e("broadcast")));
+    assert.ok(!discord.e2e.files.includes(e2e("padIcons")));
     const lyre = pick(["e2e/fixtures/lyre.ts"], repo);
     assert.equal(lyre.app.all, true, "e2e/specs/support/target.ts imports fixtures/lyre.ts");
   });
