@@ -79,6 +79,7 @@ export async function withAppPage(use: (page: Page) => Promise<void>): Promise<v
     // The page the specs see is as big as in the prototype project (the config's viewport), not the window's default.
     const { viewport } = test.info().project.use;
     if (viewport) await lyre.setViewportSize(viewport);
+    await standInForAWindowManager(app);
     await use(lyre);
   } finally {
     currentApp = null;
@@ -95,7 +96,12 @@ export async function withAppPage(use: (page: Page) => Promise<void>): Promise<v
  */
 function sizeTheWindow(app: ElectronApplication, lyre: Page): void {
   const emulate = lyre.setViewportSize.bind(lyre);
+  const emulated = lyre.viewportSize.bind(lyre);
+  // The size last asked for, as Playwright reports an emulated one (a resized window is no emulated viewport).
+  let asked: { width: number; height: number } | null = null;
+  lyre.viewportSize = () => emulated() ?? asked;
   lyre.setViewportSize = async (size: { width: number; height: number }) => {
+    asked = { width: size.width, height: size.height };
     if (size.width < 800 || size.height < 600) return emulate(size);
     await app.evaluate(({ BrowserWindow }, s) => {
       const window = BrowserWindow.getAllWindows().find((w) => w.isVisible());
@@ -109,6 +115,35 @@ function sizeTheWindow(app: ElectronApplication, lyre: Page): void {
       })
       .toEqual([size.width, size.height]);
   };
+}
+
+/**
+ * FND-16: on Linux the specs run under Xvfb with no window manager, and only a window manager maximises a window (on
+ * Windows, Windows does). So there the window's maximise, put back and "is it maximised" are played by a stand-in: the
+ * window takes the work area of its screen and back, and says so with the same events. What the specs check is the
+ * page's part: that a double-click on the strip asks the main process (LYRE_WINDOW_MAXIMISE) to maximise or put back.
+ */
+async function standInForAWindowManager(app: ElectronApplication): Promise<void> {
+  await app.evaluate(({ BrowserWindow, screen }) => {
+    if (process.platform !== "linux") return;
+    const window = BrowserWindow.getAllWindows().find((w) => w.isVisible());
+    if (!window) return;
+    let normal: Electron.Rectangle | null = null;
+    window.isMaximized = () => normal !== null;
+    window.maximize = () => {
+      if (normal) return;
+      normal = window.getBounds();
+      window.setBounds(screen.getDisplayMatching(normal).workArea);
+      window.emit("maximize");
+    };
+    window.unmaximize = () => {
+      if (!normal) return;
+      const back = normal;
+      normal = null;
+      window.setBounds(back);
+      window.emit("unmaximize");
+    };
+  });
 }
 
 /** The screen (spec file name, as in built.ts) a route opens: "campaign/crown" is "campaigns", "board/abbey" "pad-boards". */

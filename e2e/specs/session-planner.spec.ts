@@ -4,7 +4,7 @@
  * has mixed music (track, playlist, track, playlist), an ambience playlist and two pad boards.
  */
 import type { Locator, Page } from "@playwright/test";
-import { expect, test, expectFailureUntilBuilt, expectFailureUntilScreenBuilt } from "./support/test";
+import { expect, test, expectFailureUntilBuilt, expectFailureUntilScreenBuilt, metByTheAppAlready } from "./support/test";
 import { openRoute } from "./support/target";
 import { dropFiles } from "./support/drop";
 
@@ -691,6 +691,7 @@ test.describe("0.5.1: Play on air for each track, where Add scene puts a scene, 
 
   /* "Dragging and dropping a scene into last position in the scene list doesn't work." */
   test("a scene can be dragged into the last place of the list", async ({ page }) => {
+    metByTheAppAlready("the app drops a scene dragged below the last one in the last place already");
     await openRoute(page, "session/crown/s14");
     const rows = scenes(page);
     const last = rows.nth(5);

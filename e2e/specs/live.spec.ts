@@ -1456,6 +1456,7 @@ test.describe("0.5.1: fades of 5 seconds, and Rooms' actions in On air", () => {
   });
 
   test("a room's bot chip chooses its channel in place: the room moves there, without the Rooms screen", async ({ page }) => {
+    metByTheAppAlready("0.5.0's bot button in On air already moves the room to the chosen channel in place");
     await openRoute(page, "live");
     await room(page, "Table").getByRole("button", { name: /^Lyre Table in Table: change/ }).click();
     const menu = page.getByRole("menu");
@@ -1481,6 +1482,7 @@ test.describe("0.5.1: fades of 5 seconds, and Rooms' actions in On air", () => {
   });
 
   test("Kick with music playing, then Undo: the music comes back where it was", async ({ page }) => {
+    metByTheAppAlready("0.5.0's Kick with Undo already brings the music back when the players were hearing it");
     await openRoute(page, "live");
     await startAbbey(page);
     await room(page, "Table").getByRole("button", { name: "Kick Lyre Table from Table" }).click();

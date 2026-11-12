@@ -594,7 +594,8 @@ test.describe("0.5.1: Lyre is the whole window", () => {
     expect(Math.abs(box.x + box.width - width)).toBeLessThanOrEqual(1);
     expect(box.y).toBeLessThanOrEqual(strip.y + 1);
     expect(box.y + box.height).toBeLessThanOrEqual(strip.y + strip.height + 1);
-    expect(box.width).toBeGreaterThanOrEqual(120);
+    // Windows draws three 46 px buttons (138); Electron draws narrower ones on Linux, where the specs run (113).
+    expect(box.width).toBeGreaterThanOrEqual(test.info().project.name === "app" && process.platform === "linux" ? 96 : 120);
     expect(box.width).toBeLessThanOrEqual(160);
     expect(box.height).toBeGreaterThanOrEqual(28);
     expect(box.height).toBeLessThanOrEqual(44);

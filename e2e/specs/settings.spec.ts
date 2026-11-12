@@ -317,9 +317,14 @@ test.describe("0.5.1: a bot token from Kenku FM", () => {
   test("a token Kenku FM kept in plain text: Settings says once that Lyre moved it and keeps it encrypted", async ({ page }) => {
     await arriveFromKenkuFM(page, { plainToken: true }, "settings");
     const note = bots(page).getByRole("note");
-    await expect(note).toContainText("Lyre moved your Discord bot token from Kenku FM.");
-    await expect(note).toContainText("Lyre keeps it encrypted now");
-    await expect(note.getByRole("link", { name: "Discord Developer Portal" })).toHaveAttribute("href", "https://discord.com/developers/applications");
+    // A computer with nothing to encrypt with (a Linux test machine without a keyring) gets ROUND8.md §4's other words.
+    await expect(note).toContainText(/Lyre moved your Discord bot token from Kenku FM\.|Your Discord bot token from Kenku FM is kept only until Lyre closes/);
+    if (/kept only until Lyre closes/.test((await note.textContent()) ?? "")) {
+      await expect(note).toContainText("Next time, paste it again in Settings › Discord bots.");
+    } else {
+      await expect(note).toContainText("Lyre keeps it encrypted now");
+      await expect(note.getByRole("link", { name: "Discord Developer Portal" })).toHaveAttribute("href", "https://discord.com/developers/applications");
+    }
     await note.getByRole("button", { name: "Got it" }).click();
     await expect(bots(page).getByRole("note")).toHaveCount(0);
     await reopen(page);

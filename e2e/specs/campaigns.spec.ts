@@ -3,7 +3,7 @@
  * Source: design/prototype/tools/cp-tab.js and src/views/campaigns.js.
  */
 import type { Page } from "@playwright/test";
-import { expect, test, expectFailureUntilBuilt, expectFailureUntilScreenBuilt } from "./support/test";
+import { expect, test, expectFailureUntilBuilt, expectFailureUntilScreenBuilt, metByTheAppAlready } from "./support/test";
 import { failNextSave, openRoute } from "./support/target";
 
 const region = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
@@ -761,6 +761,7 @@ test.describe("0.5.1: the Now playing bar's position, campaign order and the cam
 
   /* "Dragging and dropping a session into last position in the session list doesn't work." */
   test("a session can be dragged into the last place of the list", async ({ page }) => {
+    metByTheAppAlready("the app drops a session dragged below the last one in the last place already");
     await openRoute(page, "campaign/crown");
     const rows = page.getByRole("list", { name: "Sessions in order" }).getByRole("listitem");
     const n = await rows.count();

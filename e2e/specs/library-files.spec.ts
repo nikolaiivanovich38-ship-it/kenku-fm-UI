@@ -94,6 +94,15 @@ test.describe("0.5.1: the old bookmarks, to copy", () => {
     await expect(items).toHaveCount(6);
     await expect(items.first()).toContainText("YouTube");
     await expect(items.first()).toContainText("https://www.youtube.com/");
+    await expect(items.first().getByRole("button", { name: "Copy the address of YouTube" })).toBeVisible();
+  });
+
+  test("Copy puts a bookmark's address on the clipboard and says so", async ({ page }) => {
+    // The app's Lyre page may write to the clipboard only with w51-fix's permission (Copy path), which comes with the
+    // w51-feat stream's merge.
+    expectFailureUntilBuilt("retire", "feat");
+    await openRoute(page, "moved");
+    const items = region(page, "Bookmarks").getByRole("list", { name: "Bookmarks from Kenku FM" }).getByRole("listitem");
     await items.first().getByRole("button", { name: "Copy the address of YouTube" }).click();
     await expect(page.getByRole("status").filter({ hasText: "Copied: https://www.youtube.com/" })).toBeVisible();
   });
