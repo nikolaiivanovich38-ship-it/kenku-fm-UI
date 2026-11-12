@@ -50,7 +50,12 @@ test("Ctrl+Z on the keyboard undoes Live's scene change while its Undo shows", a
 test("Ctrl+Z on the keyboard after a click into Live (as Nik does) undoes Live's scene change", async ({ launchApp }) => {
   const launched = await launchApp({ env: SEEDED });
   const lyre = await openLyreRoute(await launched.mainWindow(), "live");
-  await launched.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.focus());
+  // The keyboard starts in the window's own page (the old main window's tab bar), not in the Lyre page.
+  await launched.app.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows().find((w) => w.getTitle() === "Lyre");
+    window?.focus();
+    window?.webContents.focus();
+  });
   // The first scene (Recap and the coast road), then the next one, which offers Undo.
   await lyre.getByRole("button", { name: /^Start: / }).first().click();
   await lyre.getByRole("button", { name: /^Next scene: / }).first().click();
@@ -73,7 +78,8 @@ test("Ctrl+Z after another program had the keyboard (Discord, as in the F9 check
   await blur(lyre);
   // Another program takes the keyboard, then Lyre's window comes back to the front (a click on it in the taskbar).
   pressOnKeyboard([], { elsewhere: true });
-  await launched.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]?.focus());
+  // Lyre's own window (the hidden capture window is a window too).
+  await launched.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((w) => w.getTitle() === "Lyre")?.focus());
   await expect.poll(() => keyboardPage(launched.app), { message: "the keyboard is back in the Lyre page", timeout: 3000 }).toBe("Lyre Interface");
   pressOnKeyboard(["Control_L+z"]);
   await expect(lyre.getByRole("button", { name: "Restart scene 3: The abbey ruins" })).toBeVisible();
@@ -135,8 +141,9 @@ test("a track's Audio profile in a scene unfolded in Live opens the Audio profil
   ]) {
     const name = scenes.getByRole("button", { name: scene, exact: true });
     if ((await name.getAttribute("aria-expanded")) !== "true") await name.click();
-    const row = scenes.getByRole("list", { name: list }).getByRole("listitem").first();
-    await row.getByRole("button", { name: /\(click for details\)$/ }).first().click();
+    // The first track of the scene (a playlist's row has no Audio profile of its own); its title opens its details.
+    const row = scenes.getByRole("list", { name: list }).locator("li.lv-trk").first();
+    await row.getByRole("button", { expanded: false }).first().click();
     await row.getByRole("link", { name: /Audio profile/ }).click();
     await expect(lyre.getByRole("heading", { level: 1 })).toContainText("Audio profile");
     await expect(lyre.getByText(/Something went wrong/)).toHaveCount(0);

@@ -2,6 +2,8 @@
  * Drop files onto an element the way the browser does (a real DataTransfer holding File objects). Works on any target.
  * w51-fix2: like the browser, it drops only when the dragover was taken and its drop effect is not "none" (the page's
  * drop guard used to turn a drop zone's "copy" to "none", and the Library took no drop from Windows Explorer).
+ * Chromium keeps no dropEffect on a DataTransfer made by the page, so the drop effect handlers choose is kept on the
+ * DataTransfer itself (a property of its own), as a drag's would be.
  */
 import { test, type Locator } from "@playwright/test";
 import fs from "fs";
@@ -22,9 +24,12 @@ export async function dropFiles(target: Locator, names: string[], options: { typ
       const box = el.getBoundingClientRect();
       const init = { bubbles: true, cancelable: true, dataTransfer: data, clientX: box.left + 40, clientY: box.top + box.height / 2 };
       const over = document.elementFromPoint(init.clientX, init.clientY) ?? el;
+      // Chromium ignores dropEffect on a DataTransfer the page made (it is not a drag's): keep what handlers choose.
+      let effect = "copy";
+      Object.defineProperty(data, "dropEffect", { configurable: true, get: () => effect, set: (value: string) => void (effect = value) });
       over.dispatchEvent(new DragEvent("dragenter", init));
       // As the browser: a drop happens only where the dragover was taken and its drop effect is not "none".
-      data.dropEffect = "copy";
+      effect = "copy";
       const taken = !over.dispatchEvent(new DragEvent("dragover", init));
       if (taken && data.dropEffect !== "none") over.dispatchEvent(new DragEvent("drop", init));
     },
@@ -65,8 +70,10 @@ async function dropFilesFromDisk(target: Locator, names: string[]): Promise<void
     const box = el.getBoundingClientRect();
     const init = { bubbles: true, cancelable: true, dataTransfer: data, clientX: box.left + 40, clientY: box.top + box.height / 2 };
     const over = document.elementFromPoint(init.clientX, init.clientY) ?? el;
+    let effect = "copy";
+    Object.defineProperty(data, "dropEffect", { configurable: true, get: () => effect, set: (value: string) => void (effect = value) });
     over.dispatchEvent(new DragEvent("dragenter", init));
-    data.dropEffect = "copy";
+    effect = "copy";
     const taken = !over.dispatchEvent(new DragEvent("dragover", init));
     if (taken && data.dropEffect !== "none") over.dispatchEvent(new DragEvent("drop", init));
   });
