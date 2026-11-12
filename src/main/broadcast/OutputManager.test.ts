@@ -171,6 +171,24 @@ describe("OutputManager: bot tokens (SEC-5)", () => {
     ]);
   });
 
+  it("logs in the bot whose token came over from Kenku FM, even after the start-up logins ran (0.5.1 release run on Windows)", async () => {
+    const m = newManager();
+    oldWindowCall(manager!, "OUTPUTS_CONNECT_SAVED");
+    await settle();
+    expect(m.importLegacyToken(TOKEN)).toBe("saved");
+    await settle();
+    expect(m.state().bots[0]).toMatchObject({ status: "ready" });
+  });
+
+  it("does not log in again when the first bot kept its own token", async () => {
+    const m = newManager();
+    const id = await connectedBot(m);
+    const before = m.state().bots[0].status;
+    expect(m.importLegacyToken("fake-from.kenku.fm")).toBe("kept-own");
+    await settle();
+    expect(m.state().bots[0]).toMatchObject({ id, status: before });
+  });
+
   it("reports a refused token in plain words, says which bot it is about, and does not keep it (UX finding 5)", async () => {
     const m = newManager();
     const id = await connectedBot(m, "not-a-real-token");

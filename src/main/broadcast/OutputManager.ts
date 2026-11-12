@@ -436,6 +436,9 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
     // WP1 review 11: the user never typed this token, so say it will be gone after a restart.
     this.legacyTokenSessionOnly = !remembered;
     this.publish();
+    // The one-time move reads the old storage once the page has loaded, which can be after the start-up logins
+    // (connectSaved, at ready-to-show) have run: log this bot in now, as Kenku FM did.
+    void this.connect(first);
     if (remembered) return "saved";
     return this.tokens.encryption ? "not-saved" : "session-only";
   }
