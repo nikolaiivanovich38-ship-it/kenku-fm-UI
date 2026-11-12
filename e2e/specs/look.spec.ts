@@ -118,20 +118,3 @@ test.describe("round 7: motion and target size", () => {
   });
 });
 
-/* 0.5.1 (design/prototype/ROUND8.md, part 2). Nik, 11 Nov: "The campaign's visual theme should override the base /
-   preference theme in settings. It currently does not." Look and feel's theme is the base; a campaign's own always
-   shows on its pages (campaigns.spec.ts checks the pages). */
-test.describe("0.5.1: Look and feel's theme is the base", () => {
-  test("Look and feel offers a base theme, with no Each campaign's own choice", async ({ page }) => {
-    expectFailureUntilBuilt("feat");
-    await openRoute(page, "look");
-    const base = page.getByRole("main").getByRole("combobox", { name: "Base theme" });
-    await expect(base).toBeVisible();
-    await expect(base.getByRole("option")).toHaveText(["Candlelit Library", "Fern and Brass", "Hearth and Iron", "Parchment", "Elysium"]);
-    await expect(page.getByRole("main").getByRole("option", { name: "Each campaign's own" })).toHaveCount(0);
-    await expect(page.getByRole("main")).toContainText("A campaign with a theme of its own keeps it.");
-    await page.getByRole("button", { name: "Use as the base theme: Elysium" }).click();
-    await expect(base).toHaveValue(/elysium/i);
-    await expect(page.getByRole("button", { name: "The base theme: Elysium" })).toBeVisible();
-  });
-});

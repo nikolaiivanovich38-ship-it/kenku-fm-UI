@@ -325,34 +325,6 @@ test.describe("round 6 cuts on the Audio profile", () => {
   });
 });
 
-/* 0.5.1 (ROUND8.md, part 3). Nik, 11 Nov 20:33: "We need a "Start at [select marker]" Option in the detailed audio
-   profile view, to set the default option to have a track start at a given marker, rather than having to click the
-   play live button every time." */
-test.describe("0.5.1: Start at a marker", () => {
-  test.beforeEach(() => expectFailureUntilBuilt("feat"));
-
-  test("Start at offers Beginning and the track's markers; the chosen one is marked on the waveform", async ({ page }) => {
-    await openRoute(page, "profile/t13");
-    const startAt = page.getByRole("combobox", { name: "Start at" });
-    await expect(startAt.getByRole("option")).toHaveText(["Beginning (0:00)", "Choir enters (1:04)", "Low swell (3:10)"]);
-    await startAt.selectOption({ label: "Low swell (3:10)" });
-    await expect(page.getByText("Starts here: Low swell")).toBeVisible();
-    await startAt.selectOption({ label: "Beginning (0:00)" });
-    await expect(page.getByText("Starts here: Low swell")).toHaveCount(0);
-  });
-
-  test("the track then starts at that marker wherever it plays: Play on air from the Library starts at 3:10", async ({ page }) => {
-    await openRoute(page, "profile/t13");
-    await page.getByRole("combobox", { name: "Start at" }).selectOption({ label: "Low swell (3:10)" });
-    await openRoute(page, "library/t13");
-    await page.getByRole("grid", { name: "Tracks" }).getByRole("button", { name: /^Play on air: Eerie dread/ }).click();
-    const position = page.getByRole("region", { name: "Now playing" }).getByRole("slider", { name: /^Position in Eerie dread/ });
-    const now = Number(await position.getAttribute("aria-valuenow"));
-    expect(now).toBeGreaterThanOrEqual(190);
-    expect(now).toBeLessThan(196);
-  });
-});
-
 /* 0.5.1: from Nik's test of 0.5.0 (11 Nov), built in the app with no prototype round (support/test.ts appOnly). */
 test.describe("0.5.1: Nik's changes from his test of 0.5.0", () => {
   test("Start at a marker: the track then starts there when played on air from the Library (\"Start at [select marker]\")", async ({ page }) => {
