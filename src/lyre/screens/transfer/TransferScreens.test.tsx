@@ -132,6 +132,21 @@ describe("What came across from Kenku FM", () => {
     await waitFor(() => expect(document.getElementById("lyre-toast")).toHaveTextContent("Copied: https://www.youtube.com/"));
   });
 
+  it("CR51-5: a bookmark's Copy goes through kit/copyText, so a clipboard that throws still gets the plain words", async () => {
+    openAt("moved");
+    const box = await screen.findByRole("region", { name: "Bookmarks" });
+    const copy = within(box).getByRole("button", { name: "Copy the address of YouTube" });
+    // After userEvent's last use: its setup puts a clipboard of its own on the page.
+    const writeText = vi.fn((): Promise<void> => {
+      throw new Error("Write permission denied.");
+    });
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    copy.click();
+    await waitFor(() => expect(document.getElementById("lyre-toast")).toHaveTextContent("Lyre could not copy it. Select the address and copy it yourself."));
+    expect(writeText).toHaveBeenCalledWith("https://www.youtube.com/");
+    Object.defineProperty(navigator, "clipboard", { value: undefined, configurable: true });
+  });
+
   it("0.5.1: no bookmarks, no box and no row; what came across later and the tracks that are only a web address show when there are some", async () => {
     openAt("moved", {
       moved: {

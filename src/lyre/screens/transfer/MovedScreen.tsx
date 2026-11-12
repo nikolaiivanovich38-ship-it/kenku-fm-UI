@@ -14,6 +14,7 @@ import type { MoveReport } from "../../../common/lyre/api";
 import { useAnnounce } from "../../shell/Announcer";
 
 import { useLyreQuery } from "../../api";
+import { copyText } from "../../kit/copyText";
 import { Icon } from "../../kit/Icon";
 import { Column, Pane } from "../../kit/Pane";
 import { hashOf } from "../../shell/routes";
@@ -171,11 +172,7 @@ function CopyAddress({ url, name }: { url: string; name: string }) {
       className="btn s ghost"
       aria-label={`Copy the address of ${name}`}
       onClick={() => {
-        const write = navigator.clipboard?.writeText(url) ?? Promise.reject(new Error("no clipboard"));
-        write.then(
-          () => toast(`Copied: ${url}`),
-          () => toast("Lyre could not copy it. Select the address and copy it yourself."),
-        );
+        void copyText(url).then((copied) => toast(copied ? `Copied: ${url}` : "Lyre could not copy it. Select the address and copy it yourself."));
       }}
     >
       Copy

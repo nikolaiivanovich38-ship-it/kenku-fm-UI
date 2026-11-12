@@ -18,3 +18,13 @@ test("Copy path in a track's details puts the file's whole path on the clipboard
   await expect(lyre.getByText(`Path copied: ${path}`)).toBeVisible();
   await expect.poll(() => launched.app.evaluate(({ clipboard }) => clipboard.readText())).toBe(path);
 });
+
+test("Copy beside an old bookmark on What came across puts its address on the clipboard (CR51-5)", async ({ launchApp }) => {
+  const launched = await launchApp({ env: SEEDED });
+  await launched.app.evaluate(({ clipboard }) => clipboard.writeText("something else"));
+  const lyre = await openLyreRoute(await launched.mainWindow(), "moved");
+  const bookmarks = lyre.getByRole("region", { name: "Bookmarks", exact: true });
+  await bookmarks.getByRole("button", { name: "Copy the address of YouTube" }).click();
+  await expect(lyre.getByText("Copied: https://www.youtube.com/")).toBeVisible();
+  await expect.poll(() => launched.app.evaluate(({ clipboard }) => clipboard.readText())).toBe("https://www.youtube.com/");
+});
