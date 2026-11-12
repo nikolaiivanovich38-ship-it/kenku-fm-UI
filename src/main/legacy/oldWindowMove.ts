@@ -6,18 +6,25 @@
  *   computer already has one.
  * - A bot token Kenku FM (or Cue Desk 0.1) kept in plain text (`settings.discordToken`, which the old window's
  *   migration 6 moved for anyone who ran it) goes to the main process, which keeps it encrypted (SEC-5); Settings ›
- *   Discord bots says so once (`tokenMoved`, until `tokenNoteSeen`). The token itself is never written here.
+ *   Discord bots says so once (`tokenMoved`, until `tokenNoteSeen`). The token itself is never written here. Only a
+ *   value shaped like a bot token is handed over (CR51-6), as the old window's channel required.
+ * - Once the token is saved encrypted on disk, the plain copy is taken out of `persist:root` (CR51-1), with the old
+ *   Multiple Outputs switch, as the old window's migration 6 did in 0.5.0. Nothing else there changes. The plain copy
+ *   stays only where this computer cannot keep tokens encrypted (the token lasts until Lyre closes; Settings says
+ *   so). The fallback, a portable 0.4.1 copy, keeps its own data folder, so nothing needs the plain copy.
  * - The bookmarks (website tabs are gone from Lyre; the code stays for OUT-12) are listed, titles and addresses only,
  *   for What came across, where each can be copied.
  *
- * The old storage is only read, never changed, so a portable 0.4.1 copy still finds it as it was. The move is
- * recorded in `old-window.json` beside the library; with the record there it never runs again. When the page cannot
- * be read or a setting cannot be saved, nothing is recorded and the move is tried again at the next start.
+ * The move is recorded in `old-window.json` beside the library; with the record there it never runs again. When the
+ * page cannot be read, a setting or the encrypted token cannot be saved, or the plain token cannot be taken out,
+ * nothing is recorded and the move is tried again at the next start.
  */
 import fs from "fs";
 import path from "path";
 
 import { checkStreamingMode, type StreamingMode } from "../../common/domain";
+import { isBotToken } from "../../common/lyreOutputs";
+import type { LegacyTokenOutcome } from "../broadcast/OutputManager";
 
 /** The record's name, in the library's folder. */
 export const OLD_WINDOW_RECORD = "old-window.json";
@@ -61,8 +68,13 @@ export interface OldWindowMoveDeps {
   hasStreamingMode(): boolean;
   /** Saves Sound to Discord as this computer's setting; false when it could not be saved. */
   setStreamingMode(mode: StreamingMode): Promise<boolean>;
-  /** Hands a plain token to the bots (OutputManager.importLegacyToken), which keep it encrypted. */
-  importToken(token: string): void;
+  /** Hands a plain token to the bots (OutputManager.importLegacyToken), which keep it encrypted; answers what became of it. */
+  importToken(token: string): LegacyTokenOutcome;
+  /**
+   * Replaces the stored `persist:root` with `after` (withoutPlainToken), only while it still holds `before`; false
+   * when it did not. CR51-1.
+   */
+  forgetPlainToken(before: string, after: string): Promise<boolean>;
   now?: () => number;
   log?: (message: string, error?: unknown) => void;
 }
@@ -120,9 +132,23 @@ export function parseOldWindowData(raw: unknown): OldWindowData {
   const token = typeof settings.discordToken === "string" ? settings.discordToken.trim() : "";
   return {
     streamingMode: checkStreamingMode(settings.streamingMode) ? null : (settings.streamingMode as StreamingMode),
-    token: token === "" ? null : token,
+    token: isBotToken(token) ? token : null,
     bookmarks: bookmarksOf(root?.bookmarks),
   };
+}
+
+/**
+ * The stored `persist:root` without the plain token and the old Multiple Outputs switch (CR51-1, as the old window's
+ * migration 6 did), everything else as it was; null when there is nothing to take out.
+ */
+export function withoutPlainToken(raw: unknown): string | null {
+  const root = parsed(raw);
+  const settings = parsed(root?.settings);
+  if (!root || !settings || !("discordToken" in settings || "multipleOutputsEnabled" in settings)) return null;
+  const kept = { ...settings };
+  delete kept.discordToken;
+  delete kept.multipleOutputsEnabled;
+  return JSON.stringify({ ...root, settings: JSON.stringify(kept) });
 }
 
 /** The record, or null when the move has not run. A damaged record counts as done, with nothing listed. */
@@ -166,9 +192,11 @@ export async function markTokenNoteSeen(file: string): Promise<void> {
 export async function moveOldWindowDataOnce(deps: OldWindowMoveDeps): Promise<OldWindowRecord | null> {
   if (fs.existsSync(deps.recordFile)) return readOldWindowRecord(deps.recordFile);
   const log = deps.log ?? ((message, error) => console.error(message, error ?? ""));
+  let raw: unknown;
   let data: OldWindowData;
   try {
-    data = parseOldWindowData(await deps.read());
+    raw = await deps.read();
+    data = parseOldWindowData(raw);
   } catch (error) {
     log("Could not read the old main window's settings; Lyre tries again next time it starts", error);
     return null;
@@ -177,8 +205,23 @@ export async function moveOldWindowDataOnce(deps: OldWindowMoveDeps): Promise<Ol
     log("Could not keep the old Sound to Discord setting; Lyre tries again next time it starts");
     return null;
   }
-  if (data.token) deps.importToken(data.token);
-  const record: OldWindowRecord = { movedAt: (deps.now ?? Date.now)(), bookmarks: data.bookmarks, tokenMoved: data.token !== null, tokenNoteSeen: false };
+  const outcome = data.token ? deps.importToken(data.token) : null;
+  if (outcome === "not-saved") {
+    log("Could not save the bot token from Kenku FM encrypted; its plain copy stays and Lyre tries again next time it starts");
+    return null;
+  }
+  // CR51-1: the plain copy goes once Lyre's encrypted copy (or the bot's own) is on disk.
+  if (outcome === "saved" || outcome === "kept-own") {
+    const after = withoutPlainToken(raw);
+    const forgotten = after === null || (await deps.forgetPlainToken(raw as string, after).catch((error: unknown) => (log("Could not remove Kenku FM's plain bot token", error), false)));
+    if (!forgotten) {
+      log("Kenku FM's plain bot token is still in Lyre's storage; Lyre tries again next time it starts");
+      return null;
+    }
+  }
+  // CR51-6: moved only when Lyre now uses it; a first bot with its own token kept that one.
+  const tokenMoved = outcome === "saved" || outcome === "session-only";
+  const record: OldWindowRecord = { movedAt: (deps.now ?? Date.now)(), bookmarks: data.bookmarks, tokenMoved, tokenNoteSeen: false };
   try {
     await writeRecord(deps.recordFile, record);
   } catch (error) {

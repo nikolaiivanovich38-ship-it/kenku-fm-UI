@@ -72,8 +72,10 @@ export function BotsPane() {
 
 /**
  * FND-16 (ROUND8.md §4): once, for someone coming straight from Kenku FM whose token Kenku FM kept in plain text. Lyre
- * moved it on the first start and keeps it encrypted; Kenku FM's own copy stays in its storage, so a new token is the
- * only certain fix. Got it ends the note for good (the main process remembers) and focus goes to the box's heading.
+ * moved it on the first start, keeps it encrypted and took the plain copy out of its own storage (CR51-1); Kenku FM's
+ * own folder, and old storage files until they are tidied, may still hold it, so a new token is the only certain fix.
+ * Where nothing can encrypt, the plain copy stays (the token lasts only until Lyre closes) and the note says so.
+ * Got it ends the note for good (the main process remembers) and focus goes to the box's heading.
  * The old window's LegacyTokenNotice said the same.
  */
 function LegacyTokenNote({ encrypted, client }: { encrypted: boolean; client: OutputsClient }) {
@@ -101,7 +103,7 @@ function LegacyTokenNote({ encrypted, client }: { encrypted: boolean; client: Ou
         ) : (
           <p>
             Your Discord bot token from Kenku FM is kept only until Lyre closes, because this computer has no safe place to keep it. Next time, paste it
-            again in Settings › Discord bots.
+            again in Settings › Discord bots. Kenku FM&apos;s unprotected copy stays on this computer.
           </p>
         )}
       </div>

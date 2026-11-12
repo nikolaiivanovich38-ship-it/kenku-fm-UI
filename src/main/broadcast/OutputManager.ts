@@ -26,6 +26,9 @@ export function plainBotError(error: string | undefined): string | undefined {
   return error;
 }
 
+/** What became of a token taken over from Kenku FM (importLegacyToken). */
+export type LegacyTokenOutcome = "saved" | "session-only" | "not-saved" | "kept-own";
+
 interface OutputManagerEvents {
   /** True when the first output joins a voice channel, false when the last leaves (PERF-4). */
   activeChange: (active: boolean) => void;
@@ -418,18 +421,23 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
   }
 
   /**
-   * SEC-5: the token Kenku FM / Cue Desk 0.1 kept in the main window's
-   * storage, handed over once by the storage migration. It becomes the first
-   * bot's token unless that bot already has one.
+   * SEC-5, FND-16: the token Kenku FM / Cue Desk 0.1 kept in plain text in the old main window's storage, handed over
+   * once by the one-time move (legacy/oldWindowMove.ts). It becomes the first bot's token unless that bot already has
+   * one. The answer tells the move whether the plain copy may go (CR51-1):
+   * - "saved": encrypted and written to disk;
+   * - "session-only": this computer cannot encrypt, so it is kept until Lyre closes;
+   * - "not-saved": encrypted, but the file could not be written (kept until Lyre closes; the move tries again);
+   * - "kept-own": the first bot already had a token, so this one was not used (nothing needs its plain copy).
    */
-  importLegacyToken(token: string): void {
+  importLegacyToken(token: string): LegacyTokenOutcome {
     const first = [...this.bots.keys()][0] ?? this.addBot();
-    if (!this.tokens.token(first)) {
-      const remembered = this.tokens.setToken(first, token.trim());
-      // WP1 review 11: the user never typed this token, so say it will be gone after a restart.
-      this.legacyTokenSessionOnly = !remembered;
-      this.publish();
-    }
+    if (this.tokens.token(first)) return "kept-own";
+    const remembered = this.tokens.setToken(first, token.trim());
+    // WP1 review 11: the user never typed this token, so say it will be gone after a restart.
+    this.legacyTokenSessionOnly = !remembered;
+    this.publish();
+    if (remembered) return "saved";
+    return this.tokens.encryption ? "not-saved" : "session-only";
   }
 
   /** FND-16: show (or stop showing) the note in Settings › Discord bots about the token moved from Kenku FM. */

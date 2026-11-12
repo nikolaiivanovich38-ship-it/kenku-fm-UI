@@ -1093,9 +1093,9 @@ Ctrl+Alt with a letter or digit (that is AltGr on a Belgian keyboard, which type
 - The app pages are the Lyre page and the capture window; `appPageCsp.test.ts` pins both policies.
 - Remote control: no server listens (RemoteOff). `remote-control.json` from an older version is never read.
 - The one-time moves read the old storage (`persist:root`, `persist:player`) in an isolated world of the Lyre page
-  (`legacy/pageStorage.ts`, world 1999), so the page's scripts cannot change what is read, and never write it. A plain
-  token found there goes straight to `OutputManager.importLegacyToken` (kept encrypted, SEC-5); `old-window.json`
-  never holds it.
+  (`legacy/pageStorage.ts`, world 1999), so the page's scripts cannot change what is read. A plain token found there
+  goes straight to `OutputManager.importLegacyToken` (kept encrypted, SEC-5); `old-window.json` never holds it. Once
+  it is saved encrypted, its plain copy is taken out of `persist:root` in the same world (w51-rev, CR51-1).
 
 ### Channels
 
@@ -1122,7 +1122,7 @@ Ctrl+Alt with a letter or digit (that is AltGr on a Belgian keyboard, which type
 | `src/main/remote/remoteOff.test.ts` | Off state, refusal in plain words, Lyre page only |
 | `src/main/legacy/oldWindowMove.test.ts`, `src/main/data/import/legacyCatchUp.test.ts` | One-time move: token never written, bookmarks bounded and one line each, damaged storage tolerated; catch-up doubles nothing |
 | `src/main/security/keptForLater.test.ts` | The kept code stays unreachable |
-| `e2e/lyre.spec.ts`, `e2e/upgrade.spec.ts` | Protections of the Lyre page as the window; links leave for the browser; a Kenku FM user's token moves and logs in, the old storage untouched |
+| `e2e/lyre.spec.ts`, `e2e/upgrade.spec.ts` | Protections of the Lyre page as the window; links leave for the browser; a Kenku FM user's token moves and logs in, its plain copy leaves the old storage (w51-rev) |
 
 ### Manual checks (Windows)
 
@@ -1155,3 +1155,36 @@ keeps it on the sound card's clock; nothing can be heard.
   the engine's context. No preview node is connected to it except through the tap; the Lyre page is never
   tab-captured (role `lyre-view`).
 - No new permission, no Content-Security-Policy change.
+
+## 0.5.1: review fixes (w51-rev)
+
+Fixes for the independent code and security review of 0.5.1 (CR51-1 to CR51-11).
+
+### In plain language
+
+- A bot token Kenku FM kept unprotected is deleted from Lyre's own storage as soon as Lyre has saved it encrypted, as
+  0.5.0 did. If saving fails, the unprotected copy stays and Lyre tries again at the next start. On a computer that
+  cannot encrypt (some Linux set-ups) it stays, and Settings says so.
+
+### Technical details
+
+- CR51-1, CR51-6: `moveOldWindowDataOnce` hands over only a value that passes `isBotToken`. `importLegacyToken`
+  answers `saved` (encrypted and written; `BotTokenStore.setToken` now answers false when the file could not be
+  written), `session-only` (no keyring), `not-saved` (the write failed) or `kept-own` (the first bot had a token). On
+  `saved` and `kept-own` the move puts `withoutPlainToken(raw)` in place of `persist:root` (no `discordToken`, no
+  `multipleOutputsEnabled`, the rest as stored) with `replacePageStorage`, which writes in world 1999 only while the
+  stored text is still what was read. On `not-saved`, or when the write did not happen, nothing is recorded and the
+  move runs again at the next start. `tokenMoved` (the Settings note) is true only for `saved` and `session-only`.
+  Chromium's LevelDB may keep the old value in its log until it compacts it, so the note still recommends a new token.
+- Test builds only: `CUE_DESK_FAKE_KEYRING=1` saves tokens with a reversible, marked stand-in
+  (`src/main/broadcast/testing/fakeKeyring.ts`), so end-to-end tests on a machine without a keyring can restart with
+  a saved bot. Release builds compile it out (`__CUE_DESK_TEST_BUILD__`).
+
+### Tests
+
+| Test | Covers |
+|---|---|
+| `src/main/legacy/oldWindowMove.test.ts` | The plain token leaves `persist:root` only after it is saved encrypted; a failed save, a failed delete and a page that has gone leave it and record nothing; no keyring leaves it; a value not shaped like a token is not handed over |
+| `src/main/broadcast/OutputManager.test.ts`, `botTokenStore.test.ts` | What `importLegacyToken` answers; a token whose file could not be written is not "remembered" |
+| `src/main/managers/SessionManager.test.ts` | The compare-and-write script in the isolated world |
+| `e2e/upgrade.spec.ts` | In the packaged app: the plain token leaves the old storage and the rest stays; a saved bot logs in at the next start without Connect |

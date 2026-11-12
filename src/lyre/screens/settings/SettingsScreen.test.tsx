@@ -221,10 +221,10 @@ describe("Settings › Discord bots (OUT-8)", () => {
     expect(region("Discord bots").getByRole("button", { name: "Discord bots" })).toHaveFocus();
   });
 
-  it("0.5.1: on a computer that cannot encrypt, the note says the token is kept only until Lyre closes", async () => {
+  it("0.5.1: on a computer that cannot encrypt, the note says the token is kept only until Lyre closes, and the plain copy stays (CR51-1)", async () => {
     open({ ...PROTOTYPE_OUTPUTS, encryption: false, legacyTokenNote: true });
     expect(await region("Discord bots").findByRole("note")).toHaveTextContent(
-      "Your Discord bot token from Kenku FM is kept only until Lyre closes, because this computer has no safe place to keep it. Next time, paste it again in Settings › Discord bots.",
+      "Your Discord bot token from Kenku FM is kept only until Lyre closes, because this computer has no safe place to keep it. Next time, paste it again in Settings › Discord bots. Kenku FM's unprotected copy stays on this computer.",
     );
   });
 
