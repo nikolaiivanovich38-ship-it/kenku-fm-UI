@@ -7,7 +7,8 @@ import { createLyreDiagnosticsBridge, type IpcRendererLike as DiagnosticsIpc } f
 import { createLyreRemoteBridge, type IpcRendererLike as RemoteIpc } from "./remote/preloadRemote";
 import { createLyreUpdatesBridge, type IpcRendererLike as UpdatesIpc } from "./updates/preloadUpdates";
 import { createLyreKeysBridge, type IpcRendererLike as KeysIpc } from "./keys/preloadKeys";
-import { createLyreWindowSettingsBridge, type IpcRendererLike as WindowSettingsIpc } from "./windowSettings/preloadWindowSettings";
+import { createAudioCacheBridge, type IpcInvokeLike as CacheIpc } from "../common/audioCache";
+import { createLyreWindowBridge, type IpcSendLike as WindowIpc } from "./window/preloadWindow";
 import { createLyreDisplayBridge } from "./shell/display";
 
 /**
@@ -25,12 +26,13 @@ import { createLyreDisplayBridge } from "./shell/display";
  *   - remote (w6-found, SEC-4): the remote control's settings and secret code for Settings (REMOTE_GET, _SET,
  *     _NEW_CODE; REMOTE_STATE after each change); src/lyre/remote/preloadRemote.ts.
  *   - updates (w6-found, SEC-14): what automatic updates are doing and the last problem in plain words
- *     (UPDATE_GET; UPDATE_STATE after each change); src/lyre/updates/preloadUpdates.ts.
+ *     (UPDATE_GET; UPDATE_STATE after each change; UPDATE_RESTART); src/lyre/updates/preloadUpdates.ts.
  *   - keys (w6-rooms, UX-12): Next scene and Fade all in other programs too (LYRE_GLOBAL_KEYS_SET; each
  *     press as LYRE_GLOBAL_KEY); src/lyre/keys/preloadKeys.ts.
- *   - windowSettings (w6-rooms, OUT-8): the main window's Sound to Discord and Website tabs settings, Local files and
- *     Clear website data, for Settings (LYRE_WINDOW_SETTINGS_*, LYRE_LOCAL_FOLDERS_*, LYRE_CLEAR_WEBSITE_DATA);
- *     src/lyre/windowSettings/preloadWindowSettings.ts.
+ *   - cache (FND-16): Settings › Sound to Discord › Empty the audio cache (LYRE_EMPTY_AUDIO_CACHE);
+ *     src/common/audioCache.ts.
+ *   - window (FND-16 step 2): the colours of the window's own buttons and maximise on a double-click of the top strip
+ *     (LYRE_TITLE_BAR, LYRE_WINDOW_MAXIMISE); src/lyre/window/preloadWindow.ts.
  *   - display (w6-shell, UX-11): Look and feel › Display's text size zooms this page (webFrame.setZoomFactor, 1 to 2;
  *     no IPC); src/lyre/shell/display.ts.
  * The page runs sandboxed with context isolation; nothing from Node or Electron reaches it except this object.
@@ -47,7 +49,8 @@ const api = {
   remote: createLyreRemoteBridge(ipcRenderer as unknown as RemoteIpc),
   updates: createLyreUpdatesBridge(ipcRenderer as unknown as UpdatesIpc),
   keys: createLyreKeysBridge(ipcRenderer as unknown as KeysIpc),
-  windowSettings: createLyreWindowSettingsBridge(ipcRenderer as unknown as WindowSettingsIpc),
+  cache: createAudioCacheBridge(ipcRenderer as unknown as CacheIpc),
+  window: createLyreWindowBridge(ipcRenderer as unknown as WindowIpc),
   display: createLyreDisplayBridge(webFrame),
 };
 

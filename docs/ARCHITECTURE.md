@@ -1,59 +1,51 @@
 # Architecture
 
-Lyre is an Electron app (Electron 44) built with Electron Forge and webpack. Every page is TypeScript; the interface uses React 18, Redux Toolkit and MUI.
+Lyre is an Electron app (Electron 44) built with Electron Forge and webpack. Every page is TypeScript; the interface uses React 18. Since 0.5.1 (FND-16) the window's own page is the Lyre page: the old Kenku FM main window (tab bar, website tabs, bookmarks, its Settings) and the old Player are gone.
 
 ```
- Main window (renderer)          Tabs (WebContentsView)              Hidden capture window
- src/renderer, preload.ts  --->  websites, or the player page   ---> src/audioCapture, preload/managers
-          |  IPC                 src/player                          getUserMedia(tab audio) -> mix
-          v                             ^                            -> 20 ms frames -> Opus (WebCodecs)
- Main process  src/index.ts, src/main   |  IPC (remote commands)           |  MessagePort (private)
-   SessionManager -> PlaybackManager -> AudioCaptureManagerMain ------------+-> OutputManager -> DiscordBot (one per bot) -> Discord
-                  -> BrowserViewManagerMain, WindowManager
-                  -> PlayerManager -> fastify remote API (127.0.0.1:3333 by default)
+ The window = the Lyre page                                   Hidden capture window
+ src/lyre (preload src/lyre/preload.ts, window.lyre)          src/audioCapture, src/preload/managers
+   engine (src/engine): rooms' mixes, preview  ---- MessagePort (private, PlayerAudioBridge) ---->  mix -> 20 ms frames -> Opus
+          |  IPC (guarded, "lyre-view" only)                                                         |  MessagePort (private)
+          v                                                                                          v
+ Main process  src/index.ts, src/main
+   SessionManager -> LyreManager, PlaybackManager -> AudioCaptureManagerMain, OutputManager -> DiscordBot (one per bot) -> Discord
+                  -> WindowFrame (the window's buttons), RemoteOff, DiagnosticsBridge, SoundToDiscord
+   Lyre's library in its own utility process (src/main/lyreApi, src/main/data, SQLite)
 ```
 
 ## Main process
 
-- `src/index.ts`: start-up. Its first import, `src/main/migration`, points the data folder at `<appData>/lyre` (and sets the Windows app ID). `src/main/startup.ts` then runs the Windows installer check (`electron-squirrel-startup`), the single-instance lock and, in the one primary instance only, the library carry-over from the newest earlier app that has one (Cue Desk, then Kenku FM; `src/main/migration/carryOver.ts`), before any window or settings file is created. If that app was still running or the library failed to copy, a prompt offers to quit so the copy is retried on the next start. After that: session hardening, the main window (with the `window.navigator` user agent), auto-update and a few IPC handlers (`GET_VERSION`, `GET_PLATFORM`, `CLEAR_CACHE`).
-- `src/main/security`: `sessions.ts` applies deny-by-default permission handlers and the request-header user-agent spoofing (a Chrome user agent, without the Chrome token for google.com sign-in) to the app's session and to the website-tab session (`persist:tabs`, `partitions.ts`), and clears both on "Clear cache". `navigationGuards.ts` keeps app pages on their own page, `externalLinks.ts` sends only https links to the system browser, `trustedContents.ts` records which web contents are the app's own pages.
-- `src/main/managers/SessionManager.ts`: one per main-window load; creates and destroys the managers below.
-- `BrowserViewManagerMain.ts`: the tabs. Each tab is a `WebContentsView` laid over the main window. Website tabs use the separate `persist:tabs` session; the player view uses the app's own session and preload.
-- `PlaybackManager.ts`, `AudioCaptureManagerMain.ts`: start the capture window's broadcast when an output joins a voice channel and stop it when the last one leaves (PERF-4); while broadcasting, ask the capture window for a view's audio when Chromium reports the view audible (or an audio/video element starts) and release it after 30 seconds of silence. Encoded Opus packets come back over a private `MessageChannelMain` port (SEC-2: no network socket) and go to `src/main/broadcast/OutputManager.ts` (OUT-1): this computer's speakers plus any number of `DiscordBot`s, each with its own discord.js client, `@discordjs/voice` audio player and voice connections, playing the packets as an `Opus` stream (`opusFeed.ts`, no encoding on the main process). Bot tokens are kept by `botTokenStore.ts`, encrypted with `safeStorage` (SEC-5). OUT-2: a dropped voice connection, or a lost login that had worked, is retried after 1, 2, 4, 6, 8 and 10 s; then the output shows an error until Reconnect is pressed. While it waits, the state carries the attempt's due time (`retryAt`, noted by `retryClock.ts`), so the sidebar counts down and offers "Try now". A token Discord refuses is forgotten and explained in plain words (`OutputManager.plainBotError`). The interface shows a status chip per output (`src/renderer/features/output/OutputStatusChip.tsx`). `discordDriver.ts` lets tests swap in a fake Discord (`testing/fakeDiscord.ts`, also used by test builds started with `CUE_DESK_FAKE_DISCORD=1`).
-- `WindowManager.ts`: minimise, maximise and close for the frameless window.
-- `src/menu.ts`: application menu. `src/bounds.ts`: window position, stored with electron-store in `config.json` (opened on first use, so it never touches the file before the carry-over).
-- `src/autoUpdate.ts` with `src/main/updateFeed.ts`: Windows updates from the fork's GitHub releases through update.electronjs.org, only for copies set up by the installer (the zip build has no `Update.exe` and gets no updates). `src/main/updateStatus.ts` (SEC-14) keeps what the updater is doing; the first failure of a run is shown in the main window in plain words, and the Lyre page reads the state through `window.lyre.updates` (UPDATE_GET, UPDATE_STATE).
+- `src/index.ts`: start-up. Its first import, `src/main/migration`, points the data folder at `<appData>/lyre` (and sets the Windows app ID). `src/main/startup.ts` then runs the Windows installer check (`electron-squirrel-startup`), the single-instance lock and, in the one primary instance only, the library carry-over from the newest earlier app that has one (Cue Desk, then Kenku FM; `src/main/migration/carryOver.ts`), before any window or settings file is created. After that: session hardening, Lyre's library (its own process), the window, auto-update, and `LYRE_EMPTY_AUDIO_CACHE` (`appInfoIpc.ts`).
+- The window (FND-16): it loads the Lyre page with Lyre's preload, trusted as `lyre-view` and pinned to its own document (`lockAppPage`); links the page opens go to the system browser, https only (`externalLinks.ts`). It has no frame of its own: `titleBarStyle: "hidden"` with `titleBarOverlay` (36 px), so Windows draws its minimise, maximise and close buttons over the right end of Lyre's top strip (`src/main/window/windowFrame.ts`, `windowFrameOptions`). The page keeps that space free and drags the window by its strips' empty parts (`src/lyre/window/windowFrame.tsx`, `window.css`); it sends the buttons' colours (`LYRE_TITLE_BAR`) and asks to maximise on a double-click that reached it (`LYRE_WINDOW_MAXIMISE`). `src/bounds.ts` keeps the window's place and size in `config.json`, clamped to the display's work area when restored (Nik's 0.5.0 window ran past a bottom taskbar: the old view over the window was sized from the window's outer bounds). The window's smallest size (800×600) is cut down to that work area on a smaller screen (`smallestSizeFor`), since Windows keeps a maximised window at least its minimum size.
+- `src/main/managers/SessionManager.ts`: the window's managers, made once for the window's whole life; the page is joined to the audio channel and the outputs when they are made and again after each reload, so a reload keeps the bots in their rooms. When the window first shows, the saved bots log in (`connectSavedBots`; until 0.5.1 the old Settings panel did that when it opened). On the page's first load it takes over, once, what the old main window kept (`src/main/legacy/oldWindowMove.ts`, see Data storage).
+- `src/main/security`: `sessions.ts` applies deny-by-default permission handlers to the app's session (and to the kept website-tab sessions), `navigationGuards.ts` keeps the Lyre page on its own document, `externalLinks.ts` sends only https links to the system browser, `trustedContents.ts` records which web contents are the app's own pages (`lyre-view`, `audio-capture`), `ipcGuard.ts` with `ipcChannels.ts` accepts each IPC channel only from the pages it names, with its argument checks (SEC-8).
+- `PlaybackManager.ts`, `AudioCaptureManagerMain.ts`: start the capture window's broadcast when a bot joins a voice channel and stop it when the last one leaves (PERF-4). The Lyre page sends each room's mix and the preview to the capture window over a private `MessageChannelMain` (`src/main/broadcast/playerAudioBridge.ts`; "player" is historical); the capture window encodes one Opus stream per room and the packets come back over another private port (SEC-2) to `src/main/broadcast/OutputManager.ts` (OUT-1, OUT-5): any number of `DiscordBot`s, each with its own discord.js client and voice connections, each room's packets to that room's bot only. Bot tokens are kept by `botTokenStore.ts`, encrypted with `safeStorage` (SEC-5). The Lyre page reads and changes the bots through `LyreOutputsBridge` (`LYRE_OUTPUTS_*`, `LYRE_BOT_*`). Settings › Sound to Discord is this computer's setting (`this-computer.json`), applied to the capture window by `src/main/soundToDiscord.ts` from the next broadcast. `discordDriver.ts` lets tests swap in a fake Discord (`testing/fakeDiscord.ts`, test builds with `CUE_DESK_FAKE_DISCORD`).
+- `src/menu.ts`: application menu (File, Edit, View, Window, Help; the Tab menu went with website tabs).
+- `src/autoUpdate.ts` with `src/main/updateFeed.ts`: Windows updates from the fork's GitHub releases through update.electronjs.org, only for copies set up by the installer. `src/main/updateStatus.ts` (SEC-14) keeps what the updater is doing; the Lyre page reads it through `window.lyre.updates` (UPDATE_GET, UPDATE_STATE) and shows a ready update with Restart now (UPDATE_RESTART, acted on only when an update is ready) and the first failure of a run (`tell`), lowest in the Saved pop-up's corner (`src/lyre/window/UpdateNews.tsx`). Help shows Lyre's version at its foot.
 - `src/main/appIdentity.json` and `appIdentity.ts`: data-folder name, the earlier apps whose library the first start may copy, app ID and GitHub repository, shared with `forge.config.js`.
-- `src/common/domain`: the rules of the agreed design (DAT-12), pure and unit-tested: scene music order (tracks and playlists mixed, no track twice in a row), audio profiles resolved scene, then playlist, then track (PLY-12) with fade curves, dynamic playlist rules, FX (effects and stings), where playlists, boards and tracks are used, and which room an action plays in. The database, the engine and the new interface all use it. Its source of truth is the design prototype in `design/prototype` (see its README).
-- `src/common/helpLinks.ts`: the help pages the interface links to (Lyre's README; Kenku FM's site only for its Stream Deck plugin).
+- `src/common/domain`: the rules of the agreed design (DAT-12), pure and unit-tested; source of truth is the design prototype in `design/prototype` (see its README).
 - `src/assets/brand`: logo and wordmark sources; `scripts/brand` makes the icons and installer images from them (see `docs/brand.md`).
 
-## Main window (renderer)
+## The Lyre page
 
-`src/renderer` (entry `src/renderer.ts`, preload `src/preload.ts`). The shell around everything: tab bar and URL bar, bookmarks, Discord connection and output channel, inputs, settings. The preload exposes a fixed list of IPC channels as `window.kenku`.
-
-Website and player views are drawn by Electron above this page, so nothing of the page may sit under them:
-
-- `src/renderer/common/viewOverlay.ts` watches `<body>` for MUI's modal portals (every Dialog, Menu, Popover and Select list). While one is open, `Tabs` hides the current view; a Dialog marked with `sidePanelProps` (Settings, the bookmark and folder editors) moves the view to its right edge instead (`getBounds`). New dialogs and menus need nothing extra.
-- Error messages (`src/renderer/features/errors`) are part of the sidebar's layout, or of Settings while it is open; with the sidebar collapsed they get a column beside it and the view moves right. The main process may send a cause with an error (`ERROR`, message, `{ kind: "output", id }` or `{ kind: "address" }`, `src/common/errorCause.ts`); such a message closes by itself once the bot has no problem left, or once an address opens. Others stay until closed (WCAG 2.2.1).
-- The keyboard focus outline is defined once in `src/renderer/app/theme.ts` (`FOCUS_RING_COLOR`), shared with the player.
-- Rows that can be dragged (`common/SortableItem.tsx`) are picked up by the keyboard only from their `DragHandle` (the site icon); screen readers hear `dragAnnouncements.ts`.
-
-## Player view
-
-`src/player` (entry `src/player/renderer.ts`, preload `src/player/preload.ts`). The built-in music player, loaded into a tab like a website. Playlists and soundboards live in Redux slices under `src/player/features`; audio plays with Howler (`soundboards/Sound.ts`, `playlists/usePlaylistPlayback.ts`). A soundboard sound is decoded whole (Web Audio) only when it has no fade-out and is known to be 30 s or shorter; others stream (PERF-7, `soundboards/soundLengths.ts` remembers each sound's length in the player page's localStorage, key `lyre.soundLengths`). Folder and file import: `src/player/common/useFolderDrop.ts`, `useFileDrop.ts`. Its preload exposes `window.player`.
-
-The new playback engine (WP4) is in `src/player/engine`: a Web Audio graph with music, ambience, effects, whisper and preview buses, a master and separate table, whisper and preview outputs, plus the queue rules. The screens do not use it yet (WP5). See `docs/playback-engine.md`.
-
-Background pictures: a playlist or soundboard stores its background as a name (`"tavern"`) or as an address of its own. The names are Kenku FM's 23; the pictures are Cue Desk's own, painted by `scripts/backgrounds` (see `docs/DEVELOPING.md` > Background pictures) and kept as JPEG files in `src/player/backgrounds`. `src/player/backgrounds/index.ts` bundles every picture in that folder at build time with webpack's `require.context` (`backgroundList.ts` turns the files into `{ name: address }`, always with `blank`, which Cue Desk 0.1.0 saved on new playlists). Nothing is read from an installed Kenku FM at run time; the only thing taken from Kenku FM is the user's own library, once, on first start (`src/main/migration`).
+`src/lyre` (entry `src/lyre/renderer.ts`, preload `src/lyre/preload.ts` exposing `window.lyre`): the whole interface, described screen by screen in the sections below. It hosts the playback engine (`src/engine`, moved from `src/player/engine` in 0.5.1; see `docs/playback-engine.md`). Its library calls go to Lyre's library process over IPC (`window.lyre.api`).
 
 ## Capture window
 
-`src/audioCapture` with `src/preload/managers/AudioCaptureManagerPreload.ts` and `PCMStream.worklet.js`. A hidden window that, during a broadcast only, captures the audio of tabs that play sound (and the input devices switched on) with `getUserMedia`, mixes it in a Web Audio context, cuts it into 20 ms frames on the audio thread (silent frames are skipped) and encodes them to Opus with WebCodecs `AudioEncoder`. The audio context exists only during a broadcast and is suspended while nothing is connected. Sandboxed (SEC-12), with background throttling off so the hidden window keeps real-time pace.
+`src/audioCapture` with `src/preload/managers/AudioCaptureManagerPreload.ts`, `PCMStream.worklet.js` and `PlayerFrameInlet.worklet.js`. A hidden window that, during a broadcast only, takes each room's mix from the Lyre page, cuts it into 20 ms frames and encodes them to Opus with WebCodecs `AudioEncoder`, and plays the preview in the game master's headphones. Sandboxed (SEC-12), with background throttling off so the hidden window keeps real-time pace.
 
-## Remote API
+## Kept for later: website tabs, local files, microphones and other inputs (OUT-12)
 
-`src/main/remote` registers fastify routes on the server that `PlayerManager` starts when Remote is enabled in Settings: `/v1/playlist`, `/v1/playlist/play`, `/v1/playlist/playback`, `/v1/soundboard`, `/v1/soundboard/play`, `/v1/soundboard/stop`, `/v1/soundboard/playback`. Routes forward commands to the player view over IPC. SEC-4 (0.5.0): the settings live in the main process (`remoteSettings.ts`, `remote-control.json`; off until turned on, 127.0.0.1 by default), `remoteControl.ts` starts and stops the server to match, and `remoteServer.ts` locks it: every request needs the secret code (`Authorization: Bearer <code>`), web pages and web names are refused, bodies are JSON only, requests and wrong codes are rate-limited, and answers carry no file addresses. The Lyre page reads and changes the settings through `window.lyre.remote` (REMOTE_GET, REMOTE_SET, REMOTE_NEW_CODE); it is the only place that turns the remote control on (review 0.5.0 CR-3: the main window's old Settings only points there, and its 0.4.1 choice is moved in once through REMOTE_MOVE_OLD_SETTING). The main process listens only on 127.0.0.1 or a private address this computer has (CR-2). See `docs/security.md` > w6-found and review-0.5.0 fixes.
+Nik, 11 Nov 2026: "Keep the code, remove them from the interface. Let's put playing from YouTube, Spotify, and other online sources into the backlog as a could have item for a later release." The code that played websites in tabs into Discord, opened local HTML files in tabs (SEC-15) and captured microphones and other inputs is kept, compiled and unit-tested, and unreachable:
+
+- `src/main/managers/BrowserViewManagerMain.ts` (website tabs only since 0.5.1), `src/main/security/localFiles.ts`, `localFileServer.ts`, `localFileStore.ts`, the `cue-local-file:` scheme and the `persist:tabs` and `persist:local-files` partitions (`sessions.ts`, `partitions.ts`), `popupRateLimiter.ts`, `src/common/security/urlPolicy.ts`, `captureTargets.ts`, and the tab and device capture in `AudioCaptureManagerMain.ts` and `AudioCaptureManagerPreload.ts`.
+- Nothing makes `BrowserViewManagerMain` (SessionManager does not), and every channel that reaches this code (`BROWSER_VIEW_*`, `LOCAL_FILES_*`, `AUDIO_CAPTURE_*`) comes only from `main-window`, a role no page has since 0.5.1; the Lyre page can reach none of it. `src/main/security/keptForLater.test.ts` keeps it so.
+- To bring websites back (OUT-12) a page needs a design round first, then a role and channels of its own.
+
+## Remote control (hidden until Stream Deck support)
+
+Nik, 11 Nov 2026: "Hide until Stream Deck". Until 0.5.0 the remote API controlled only the old player, and the Kenku FM Stream Deck plugin cannot send Lyre's secret code. In 0.5.1 no server starts: `src/main/remote/remoteOff.ts` answers the Lyre page's REMOTE_GET and REMOTE_NEW_CODE with an "off" state and REMOTE_SET with "Remote control returns with Stream Deck support." Settings hides the box (`SHOW_REMOTE_CONTROL`). Kept for WP6, tested and unused: `remoteSettings.ts` (`remote-control.json`, the code encrypted, SEC-4), `remoteCode.ts`, `homeNetwork.ts`, `rateLimit.ts`. The routes, the player's request channel and the fastify server went with the old player.
 
 ## Data storage
 
@@ -61,27 +53,17 @@ Everything lives in one folder, `<appData>/lyre` (`%APPDATA%\lyre` on Windows), 
 
 | What | Where | Written by |
 | --- | --- | --- |
-| Bookmarks, settings (`persist:root`) | `Local Storage/leveldb` | `src/renderer/app/store.ts` (redux-persist) |
+| Lyre's library (tracks, playlists, boards, campaigns, settings), with daily backups | `library/library.sqlite`, `library/backups/` | Lyre's library process (`src/main/data`, see `docs/data-model.md`) |
+| This computer's settings: display, headphones and speakers, keys in other programs, Sound to Discord | `library/this-computer.json` | `src/main/lyreApi/computerSettings.ts` (library process) |
+| What was taken over from the old main window on the first start of 0.5.1 (its bookmarks' titles and addresses, whether a token was moved and its note read; never the token) | `library/old-window.json` | `src/main/legacy/oldWindowMove.ts` |
 | Discord bots and their tokens, encrypted with the OS keyring (SEC-5; tokens kept in memory only where there is none) | `discord-bots.json` | `src/main/broadcast/botTokenStore.ts` |
-| Playlists and soundboards (`persist:player`), playback state (`persist:playback`) | `Local Storage/leveldb` | `src/player/app/store.ts` |
 | Window position | `config.json` | `src/bounds.ts` |
-| Remote control on or off, address, port, and its secret code encrypted with the OS keyring (SEC-4; the code is kept in memory only where there is none) | `remote-control.json` | `src/main/remote/remoteSettings.ts` |
-| Website tab cookies and storage | `Partitions/tabs` | Chromium (`persist:tabs` session) |
-| No longer used: background pictures Cue Desk 0.1.1 copied from an installed Kenku FM (only in the old `cue-desk` folder; Lyre neither reads nor copies it). | `backgrounds/` (in `cue-desk`) | nothing (see README > First start) |
-| Carry-over record from Cue Desk or Kenku FM (folder and item names only; written once the copy succeeded or was not needed) | `data-carry-over.json` | `src/main/migration` |
+| The Lyre page's own preferences (theme, tour, folders closed, resume positions) | `Local Storage/leveldb` (file:// origin) | the Lyre page |
+| Read only since 0.5.1: the old main window's settings and bookmarks (`persist:root`) and the old player's playlists and soundboards (`persist:player`) | `Local Storage/leveldb` (the same origin) | Kenku FM, Lyre up to 0.5.0 |
+| Kept, unused: remote control settings and code (`remote-control.json`), local-file folders (`local-files.json`), website data (`Partitions/tabs`, `Partitions/local-files`) | data folder | Lyre up to 0.5.0 |
+| Carry-over record from Cue Desk or Kenku FM | `data-carry-over.json` | `src/main/migration` |
 
-The app's own pages load from `file://` (packaged) so they share one localStorage origin; websites in tabs keep their data apart in `persist:tabs`. Audio files are not copied; tracks store their file paths. The bot token is stored in plain text for now (backlog SEC-5).
-
-A new library database (`<appData>/lyre/library/library.sqlite`, with daily backups in `library/backups/`) is built in `src/main/data` (WP3) for the new interface. Nothing uses it yet: the player keeps the storage above until DAT-9 moves the library across. See `docs/data-model.md`.
-
-## WP2 Tabs
-
-- Files from the user's computer (SEC-15) open only after the main process has asked (`src/main/security/localFiles.ts`), in tabs of their own in the `persist:local-files` partition (`Partitions/local-files` in the data folder). Folders the user chose not to be asked about again are saved by the main process in `local-files.json` in the data folder and listed in Settings > Local files (`src/renderer/features/settings/LocalFilesSettings.tsx`).
-- Files open from their own scheme, `cue-local-file://<folder id>/<file>`, served by the main process on the `persist:local-files` session only (`src/main/security/localFileServer.ts`, installed by `sessions.ts`): a page reads files from its own folder and subfolders and nothing else, under a strict Content-Security-Policy. The address bar and bookmarks still show the file's `file:///…` address (WP1 security review).
-- Hidden tabs: Lyre adds no throttling of its own. Chromium already slows hidden, silent tabs, and since PERF-4 a tab is captured only while it plays (released after 30 s of silence), so a silent hidden tab is no longer kept "visible" by the capture. The PERF-5 debugger throttling was removed after the WP1 security review measured it adding almost nothing (`e2e/hiddenTabs.spec.ts` checks that a hidden playing tab keeps playing).
-- Bookmarks can be grouped in folders, and the sidebar collapses to a column of icons (UX-10). Both are saved with the bookmarks in `persist:root` (version 5; `src/renderer/features/bookmarks/bookmarksMigration.ts` adds the empty folder list to bookmarks saved before). The sidebar's width is `src/renderer/features/bookmarks/sidebar.ts`; website views are placed from the sidebar's current width (`getBounds`).
-
-The app's own pages load from `file://` (packaged) so they share one localStorage origin; websites in tabs keep their data apart in `persist:tabs`. Audio files are not copied; tracks store their file paths. Bot tokens are never stored in plain text (SEC-5); an older version's token is moved out of `persist:root` once (redux-persist migration 5).
+On the first start of 0.5.1 (FND-16), with the old storage only read so a portable 0.4.1 copy still finds it: Sound to Discord, a bot token Kenku FM kept in plain text (handed to the bots, encrypted; Settings › Discord bots says so once) and the bookmarks (listed on What came across) come from `persist:root` (`oldWindowMove.ts`); the old player's playlists and soundboards come in on a library's first start (`importLegacyLibrary`), and what the old player gained after Lyre's first import comes in once more (`catchUpLegacyLibrary`, matched by the old ids the first import kept, so nothing is doubled). The old player's storage shapes are frozen in `src/main/data/import/legacyShapes.ts`. What came across also lists the tracks that are only a web address, which Lyre cannot play.
 
 ## Wave 2: Engine
 
@@ -803,3 +785,7 @@ Words that changed: a room nobody is in says **Nobody there** everywhere (Rooms'
 tag "On air · nobody there"; "Players hear nothing" under it); **Fade all** is the one name for Shift+Esc; Settings'
 shortcut list says **Find a track or playlist**; Undo is "at the bottom right"; Play on air's icon is `playair` on
 every screen and What played has `history`. With two rooms or more the audio host names the room in every message.
+
+## 0.5.1: w51-main (FND-16, the old window and Player retired)
+
+See the top of this file: the window is the Lyre page (its frame, `src/main/window`, `src/lyre/window`), update news in the Lyre page, Settings without Website tabs and Local files, Remote control hidden (`remoteOff.ts`), the one-time moves from the old storage (`src/main/legacy`, `legacyCatchUp`), and website tabs, local files and device capture kept for OUT-12, unreachable. The sections above from WP2 to 0.5.0 describe how the code was built and still name the old main window and player where they mattered then.

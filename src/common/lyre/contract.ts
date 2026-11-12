@@ -951,6 +951,14 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         for (const row of report.copied) expect(typeof row.what === "string" && typeof row.count === "number" && typeof row.nowIn === "string").toBe(true);
         expect(report.notBrought.length).toBeGreaterThan(0);
         expect(report.missing.every((m) => typeof m.fileName === "string")).toBe(true);
+        // FND-16: the old window's bookmarks to copy (a Bookmarks row only when there are some), what came across
+        // later from the old player, and the tracks that are only a web address.
+        expect(report.bookmarks.every((b) => typeof b.title === "string" && typeof b.url === "string")).toBe(true);
+        const row = report.copied.find((r) => r.what === "Bookmarks");
+        if (report.bookmarks.length > 0) expect(row).toEqual({ what: "Bookmarks", count: report.bookmarks.length, nowIn: "Listed to copy", route: null });
+        else expect(row).toBeUndefined();
+        expect(report.later === null || (typeof report.later.at === "number" && report.later.lines.every((l) => typeof l === "string"))).toBe(true);
+        expect(report.webOnly.every((t) => typeof t.id === "string" && /^https?:/.test(t.url))).toBe(true);
       });
 
       it("DAT-7: saves a file, opens it with each duplicate marked, and brings it in as chosen in one undo step", async () => {
@@ -1336,6 +1344,7 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
           display: { density: "compact", textSize: 100, highContrast: false },
           devices: { airDevice: "", previewDevice: "", split: false, previewEar: "left" },
           globalKeys: false,
+          streamingMode: "performance",
         });
         expect(valueOf(await api.settings.setShortcut("palette", "ctrl+j")).shortcuts).toEqual({ palette: "Ctrl+J" });
         await changedEvent("settings", "history");
@@ -1355,6 +1364,9 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         expect(await api.history.state()).toEqual(before);
         expectRefused(await api.settings.setComputer({ display: { textSize: 300 } }), "invalid");
         expectRefused(await api.settings.setComputer({ devices: { previewEar: "middle" as never } }), "invalid");
+        // FND-16: Sound to Discord (Lighter on the computer until changed, above).
+        expect(valueOf(await api.settings.setComputer({ streamingMode: "lowLatency" })).streamingMode).toBe("lowLatency");
+        expectRefused(await api.settings.setComputer({ streamingMode: "fast" as never }), "invalid");
       });
     });
 

@@ -5,8 +5,7 @@
  * fadeOut}, and backgrounds by name. Ids are kept; nothing is reinterpreted.
  */
 import { afterEach, beforeEach, expect, it } from "vitest";
-import type { PlaylistsState } from "../../../player/features/playlists/playlistsSlice";
-import type { SoundboardsState } from "../../../player/features/soundboards/soundboardsSlice";
+import type { PlaylistsState, SoundboardsState } from "../import/legacyShapes";
 import { makeTestStore } from "../test/testStore";
 import { createTracks, getTrack, resolveTrackLocation } from "./tracks";
 import { addTracksToPlaylist, createPlaylist, listPlaylistItems, listPlaylists } from "./playlists";

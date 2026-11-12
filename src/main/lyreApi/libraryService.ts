@@ -10,7 +10,7 @@
 import type { LyreEvent } from "../../common/lyre/api";
 import { LYRE_AREAS } from "../../common/lyre/api";
 import { lyreApiOverPort, type LyreInvoke, type PortClient } from "../../common/lyre/rpc";
-import type { LegacyImportReport } from "../data";
+import type { LegacyCatchUpReport, LegacyImportReport } from "../data";
 
 /** The parts of Electron's UtilityProcess used here. */
 export interface LibraryChild {
@@ -102,13 +102,16 @@ export class LyreLibraryService {
     this.ready.then(() => this.child?.postMessage({ t: "start-backups" })).catch((): void => undefined);
   }
 
-  /** Brings the old player's library in (once ever: the database remembers). Null when the library is not there. */
-  async bringInOldLibrary(raw: unknown): Promise<LegacyImportReport | null> {
+  /**
+   * Brings the old player's library in (once ever: the database remembers), and once after that what it gained since
+   * (FND-16 catch-up). Null when the library is not there.
+   */
+  async bringInOldLibrary(raw: unknown): Promise<(LegacyImportReport & { catchUp?: LegacyCatchUpReport }) | null> {
     await this.ready;
     const child = this.child;
     if (!child) return null;
-    const report = ((await this.request(child, { t: "legacy", raw })) as { report: LegacyImportReport }).report;
-    if (report.status === "moved") this.options.onEvent({ type: "changed", areas: [...LYRE_AREAS] });
+    const report = ((await this.request(child, { t: "legacy", raw })) as { report: LegacyImportReport & { catchUp?: LegacyCatchUpReport } }).report;
+    if (report.status === "moved" || report.catchUp?.status === "brought-in") this.options.onEvent({ type: "changed", areas: [...LYRE_AREAS] });
     return report;
   }
 

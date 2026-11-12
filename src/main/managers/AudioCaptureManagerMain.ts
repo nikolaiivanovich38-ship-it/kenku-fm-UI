@@ -160,7 +160,6 @@ export class AudioCaptureManagerMain extends TypedEmitter<AudioCaptureManagerEve
     this._browserWindow.webContents.loadURL(AUDIO_CAPTURE_WINDOW_WEBPACK_ENTRY);
 
     // SEC-8: commands from the main window.
-    this._ipc.on("AUDIO_CAPTURE_SET_STREAMING_MODE", this._handleSetStreamingMode);
     this._ipc.on("AUDIO_CAPTURE_SET_MUTED", this._handleSetMuted);
     this._ipc.on("AUDIO_CAPTURE_START_EXTERNAL_AUDIO_CAPTURE", this._handleStartExternalAudioCapture);
     this._ipc.on("AUDIO_CAPTURE_STOP_EXTERNAL_AUDIO_CAPTURE", this._handleStopExternalAudioCapture);
@@ -289,10 +288,13 @@ export class AudioCaptureManagerMain extends TypedEmitter<AudioCaptureManagerEve
     }
   }
 
-  /** Applies from the next broadcast; the encoder is set up when one starts. */
-  _handleSetStreamingMode = (_: Electron.IpcMainEvent, streamingMode: StreamingMode) => {
+  /**
+   * FND-16: Settings › Sound to Discord, from this computer's settings (src/main/soundToDiscord.ts). Applies from
+   * the next broadcast; the encoder is set up when one starts.
+   */
+  setStreamingMode(streamingMode: StreamingMode) {
     this._streamingMode = streamingMode;
-  };
+  }
 
   /** "This Computer" on or off (OUT-1: chosen in the output list, via OutputManager). */
   setLocalMuted(muted: boolean) {
@@ -383,10 +385,10 @@ export class AudioCaptureManagerMain extends TypedEmitter<AudioCaptureManagerEve
     if (!contents || contents.isDestroyed()) {
       return;
     }
-    // Only website tabs and the player are sent to Discord; the main window
-    // and the capture window itself are never captured.
+    // Only website tabs are sent to Discord this way; the app's own pages and
+    // the capture window itself are never captured.
     const role = trustedContents.roleOf(contents);
-    if (role !== null && role !== "player-view") {
+    if (role !== null) {
       console.error(`Refused to capture audio from app page ${viewId}`);
       return;
     }

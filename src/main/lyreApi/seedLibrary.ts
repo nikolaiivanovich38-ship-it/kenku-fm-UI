@@ -4,10 +4,14 @@
  * the app never seeds a game master's library (index.ts gates it on __CUE_DESK_TEST_BUILD__).
  * Written without undo history: the seeded library starts with nothing to undo.
  */
+import fs from "fs";
+import path from "path";
+
 import { parseKeyOfPlace, parsePlaceKey } from "../../common/domain";
 import { prototypeLevels } from "../../common/lyre/prototypeLevels";
 import type { SeedData } from "../../common/lyre/seed";
 import { SAMPLE_FILE_BYTES } from "./sampleComputer";
+import { oldWindowRecordFile, type OldWindowRecord } from "../legacy/oldWindowMove";
 import {
   addPad,
   addRoot,
@@ -173,6 +177,7 @@ export async function seedLibrary(library: Library, seed: SeedData, options: See
       store.run("INSERT INTO library_jobs (name, state, detail, started_at, finished_at) VALUES ('legacy-player', 'done', ?, ?, ?)", JSON.stringify({ backupPath: null, report }), seed.moved.at, seed.moved.at);
     }
   });
+  if (options.sample) writeSampleOldWindowRecord(library, seed);
   // DAT-13: the sample tracks' peaks, as if their files had been read (the files are not on a test machine).
   for (const t of seed.tracks) {
     const levels = seed.peaks[t.id];
@@ -186,6 +191,16 @@ export async function seedLibrary(library: Library, seed: SeedData, options: See
     if (t.loudness && measuring.state === "needed") saveLoudness(store, measuring.source, t.loudness);
   }
   store.clearHistory();
+}
+
+/**
+ * FND-16: what the one-time move from the old main window records beside the library (src/main/legacy/
+ * oldWindowMove.ts), as the prototype shows it: its six bookmarks, listed on What came across, and no token.
+ */
+function writeSampleOldWindowRecord(library: Library, seed: SeedData): void {
+  if (library.databasePath === ":memory:" || library.databasePath === "") return;
+  const record: OldWindowRecord = { movedAt: seed.moved.at, bookmarks: seed.moved.bookmarks.map((b) => ({ ...b })), tokenMoved: false, tokenNoteSeen: false };
+  fs.writeFileSync(oldWindowRecordFile(path.dirname(library.databasePath)), JSON.stringify(record, null, 2), "utf8");
 }
 
 /**

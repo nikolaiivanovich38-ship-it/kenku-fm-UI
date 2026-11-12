@@ -9,7 +9,7 @@ import type { Page } from "@playwright/test";
 import { test, expect } from "./fixtures/app";
 import { openLyreTab } from "./fixtures/lyre";
 import { writeAudioFile, writeSineWav } from "./fixtures/audio";
-import { addTrack, createPlaylist, openCard } from "./fixtures/player";
+import { oldFileAddress, writeOldStorage } from "./fixtures/oldStorage";
 
 /** A LyreApi call from the Lyre page, exactly as its screens make them. */
 function lyreCall<T = unknown>(lyre: Page, area: string, method: string, ...args: unknown[]): Promise<T> {
@@ -105,16 +105,15 @@ test("the Lyre page hears about changes made through it, and the library tells i
   expect(boards.map((b) => b.name)).toContain("Storm");
 });
 
-test("the old player's playlists move into Lyre's library on the new interface's first start", async ({ launchApp, userDataDir }) => {
+test("the old player's playlists move into Lyre's library on the first start", async ({ launchApp, userDataDir }) => {
   const lute = writeSineWav(path.join(userDataDir, "audio"), "lute.wav", { seconds: 2 });
-  // A library made in the old player (as Kenku FM left it).
+  // A library made in the old player (as Kenku FM left it), in the storage the Lyre page shares with it.
   const first = await launchApp();
-  const player = await first.playerView();
-  await createPlaylist(player, "Old tavern");
-  await openCard(player, "Old tavern");
-  await addTrack(player, lute, "Lute");
+  await writeOldStorage(await openLyreTab(await first.mainWindow()), {
+    playlists: [{ id: "pl-old", title: "Old tavern", tracks: [{ id: "t-lute", url: oldFileAddress(lute), title: "Lute" }] }],
+  });
   await first.close();
-  // Lyre's library starts again from nothing, as on the first start of the new interface.
+  // Lyre's library starts again from nothing, as on its first start.
   fs.rmSync(path.join(userDataDir, "library"), { recursive: true, force: true });
 
   const second = await launchApp();

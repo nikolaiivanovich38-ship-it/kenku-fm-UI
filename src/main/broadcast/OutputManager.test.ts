@@ -4,10 +4,11 @@ import path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { VoiceConnectionDisconnectReason, VoiceConnectionStatus } from "@discordjs/voice";
 import { OutputManager } from "./OutputManager";
+import { oldWindowCall } from "./testing/oldWindowCalls";
 import { BotTokenStore, type SafeStorageLike } from "./botTokenStore";
 import { JOIN_TIMEOUT_MS, RECONNECT_DELAYS_MS } from "./DiscordBot";
 import { FAKE_CHANNELS, FakeDiscord } from "./testing/fakeDiscord";
-import { fakeIpcMain, fakePage, fromMainFrame } from "../security/testing/fakeIpc";
+import { fakeIpcMain } from "../security/testing/fakeIpc";
 import type { OutputsState } from "../../common/outputs";
 
 vi.mock("electron", async () => {
@@ -26,6 +27,8 @@ const safeStorage: SafeStorageLike = {
 let folder: string;
 let discord: FakeDiscord;
 let manager: OutputManager | undefined;
+/** The one-time problems the manager reported ("problem"; until 0.5.1 the old main window showed them). */
+let problems: [string, unknown][] = [];
 const window = { webContents: { send: vi.fn(), isDestroyed: () => false } };
 
 beforeEach(() => {
@@ -46,22 +49,23 @@ afterEach(() => {
 
 function newManager(storage: SafeStorageLike = safeStorage) {
   const store = new BotTokenStore(BotTokenStore.fileIn(folder), storage);
-  manager = new OutputManager(window as never, store, discord.driver);
+  manager = new OutputManager(store, discord.driver);
+  problems = [];
+  manager.on("problem", (message, cause) => problems.push([message, cause]));
   return manager;
 }
 
-const main = () => fromMainFrame(fakePage("main-window"));
 
 /** Let fake Discord's timers and promises run. */
 const settle = (ms = 40) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function errorsShown(): string[] {
-  return window.webContents.send.mock.calls.filter(([channel]) => channel === "ERROR").map(([, message]) => message);
+  return problems.map(([message]) => message);
 }
 
 /** What each error message was about (UX finding 4). */
 function errorCauses(): unknown[] {
-  return window.webContents.send.mock.calls.filter(([channel]) => channel === "ERROR").map(([, , cause]) => cause);
+  return problems.map(([, cause]) => cause);
 }
 
 async function connectedBot(m: OutputManager, token = TOKEN) {
@@ -83,7 +87,7 @@ describe("OutputManager: bot tokens (SEC-5)", () => {
   it("stores a token through IPC and never puts it in the state", async () => {
     const m = newManager();
     const id = m.state().bots[0].id;
-    const remembered = await fakeIpcMain.invoke("BOT_SET_TOKEN", main(), id, TOKEN);
+    const remembered = await oldWindowCall(manager!, "BOT_SET_TOKEN", id, TOKEN);
     expect(remembered).toBe(true);
     expect(m.state().bots[0]).toMatchObject({ hasToken: true, tokenRemembered: true });
     expect(JSON.stringify(m.state())).not.toContain(TOKEN);
@@ -93,55 +97,45 @@ describe("OutputManager: bot tokens (SEC-5)", () => {
   it("says when a token is kept for this session only", async () => {
     const m = newManager({ ...safeStorage, isEncryptionAvailable: () => false });
     const id = m.state().bots[0].id;
-    expect(await fakeIpcMain.invoke("BOT_SET_TOKEN", main(), id, TOKEN)).toBe(false);
+    expect(await oldWindowCall(manager!, "BOT_SET_TOKEN", id, TOKEN)).toBe(false);
     expect(m.state()).toMatchObject({ encryption: false, bots: [{ hasToken: true, tokenRemembered: false }] });
   });
 
   it("removes a token and logs the bot out", async () => {
     const m = newManager();
     const id = await connectedBot(m);
-    fakeIpcMain.deliver("BOT_REMOVE_TOKEN", main(), id);
+    oldWindowCall(manager!, "BOT_REMOVE_TOKEN", id);
     expect(m.state().bots[0]).toMatchObject({ hasToken: false, status: "offline" });
   });
 
   it("says when a token taken over from an older version can only be kept for this session (WP1 review 11)", () => {
     const m = newManager({ ...safeStorage, isEncryptionAvailable: () => false });
     expect(m.state().legacyTokenSessionOnly).toBeFalsy();
-    fakeIpcMain.deliver("BOT_IMPORT_LEGACY_TOKEN", main(), TOKEN);
+    oldWindowCall(manager!, "BOT_IMPORT_LEGACY_TOKEN", TOKEN);
     expect(m.state().legacyTokenSessionOnly).toBe(true);
     expect(JSON.stringify(m.state())).not.toContain(TOKEN);
   });
 
   it("does not warn about the session when the older version's token is saved encrypted", () => {
     const m = newManager();
-    fakeIpcMain.deliver("BOT_IMPORT_LEGACY_TOKEN", main(), TOKEN);
+    oldWindowCall(manager!, "BOT_IMPORT_LEGACY_TOKEN", TOKEN);
     expect(m.state().legacyTokenSessionOnly).toBeFalsy();
   });
 
   it("takes over the token an older version saved, once, for the first bot", () => {
     const m = newManager();
-    fakeIpcMain.deliver("BOT_IMPORT_LEGACY_TOKEN", main(), TOKEN);
+    oldWindowCall(manager!, "BOT_IMPORT_LEGACY_TOKEN", TOKEN);
     expect(m.state().bots[0].hasToken).toBe(true);
     const id = m.state().bots[0].id;
-    fakeIpcMain.deliver("BOT_IMPORT_LEGACY_TOKEN", main(), "fake-other");
+    oldWindowCall(manager!, "BOT_IMPORT_LEGACY_TOKEN", "fake-other");
     m.setToken(id, TOKEN);
     expect(m.state().bots).toHaveLength(1);
-  });
-
-  it("ignores token messages from other pages or with odd values", async () => {
-    const m = newManager();
-    const id = m.state().bots[0].id;
-    fakeIpcMain.deliver("BOT_IMPORT_LEGACY_TOKEN", fromMainFrame(fakePage(null)), TOKEN);
-    fakeIpcMain.deliver("BOT_IMPORT_LEGACY_TOKEN", main(), "   ");
-    await expect(fakeIpcMain.invoke("BOT_SET_TOKEN", fromMainFrame(fakePage("player-view")), id, TOKEN)).rejects.toThrow();
-    await expect(fakeIpcMain.invoke("BOT_SET_TOKEN", main(), "../bot", TOKEN)).rejects.toThrow();
-    expect(m.state().bots[0].hasToken).toBe(false);
   });
 
   it("logs in the bots that have a token when asked at start", async () => {
     const m = newManager();
     m.setToken(m.state().bots[0].id, TOKEN);
-    fakeIpcMain.deliver("OUTPUTS_CONNECT_SAVED", main());
+    oldWindowCall(manager!, "OUTPUTS_CONNECT_SAVED");
     await settle();
     expect(m.state().bots[0]).toMatchObject({ status: "ready", discordName: "Fake Bot 1" });
     expect(m.state().bots[0].guilds[0].voiceChannels.map((channel) => channel.name)).toEqual([
@@ -179,8 +173,8 @@ describe("OutputManager: any number of outputs (OUT-1)", () => {
     m.on("activeChange", (active) => changes.push(active));
     const first = await connectedBot(m);
     const second = await connectedBot(m, "fake-token-2");
-    fakeIpcMain.deliver("BOT_JOIN_CHANNEL", main(), first, FAKE_CHANNELS.tavern.id);
-    fakeIpcMain.deliver("BOT_JOIN_CHANNEL", main(), second, FAKE_CHANNELS.dungeon.id);
+    oldWindowCall(manager!, "BOT_JOIN_CHANNEL", first, FAKE_CHANNELS.tavern.id);
+    oldWindowCall(manager!, "BOT_JOIN_CHANNEL", second, FAKE_CHANNELS.dungeon.id);
     await settle();
 
     expect(discord.connectionsIn(FAKE_CHANNELS.tavern.id)).toHaveLength(1);
@@ -212,7 +206,7 @@ describe("OutputManager: any number of outputs (OUT-1)", () => {
     await m.bots.get(second)?.join(FAKE_CHANNELS.dungeon.id);
     await settle();
     const pushed = { first: vi.spyOn(m.bots.get(first)!.feed, "push"), second: vi.spyOn(m.bots.get(second)!.feed, "push") };
-    fakeIpcMain.deliver("OUTPUT_SET_MUTED", main(), second, true);
+    oldWindowCall(manager!, "OUTPUT_SET_MUTED", second, true);
     m.sendPacket(Buffer.from([1, 2, 3]));
     expect(pushed.first).toHaveBeenCalledTimes(1);
     expect(m.bots.get(second)!.feed.muted).toBe(true);
@@ -226,7 +220,7 @@ describe("OutputManager: any number of outputs (OUT-1)", () => {
     const id = await connectedBot(m);
     await m.bots.get(id)?.join(FAKE_CHANNELS.tavern.id);
     expect(m.state().local.muted).toBe(true);
-    fakeIpcMain.deliver("BOT_LEAVE_CHANNEL", main(), id, FAKE_CHANNELS.tavern.id);
+    oldWindowCall(manager!, "BOT_LEAVE_CHANNEL", id, FAKE_CHANNELS.tavern.id);
     expect(m.state().local.muted).toBe(false);
     expect(local).toEqual([true, false]);
   });
@@ -235,7 +229,7 @@ describe("OutputManager: any number of outputs (OUT-1)", () => {
     const m = newManager();
     const id = await connectedBot(m);
     await m.bots.get(id)?.join(FAKE_CHANNELS.tavern.id);
-    fakeIpcMain.deliver("OUTPUT_SET_MUTED", main(), "local", false);
+    oldWindowCall(manager!, "OUTPUT_SET_MUTED", "local", false);
     expect(m.state().local.muted).toBe(false);
     m.bots.get(id)?.leave(FAKE_CHANNELS.tavern.id);
     expect(m.state().local.muted).toBe(false);
@@ -247,18 +241,20 @@ describe("OutputManager: any number of outputs (OUT-1)", () => {
     const second = await connectedBot(m, "fake-token-2");
     await m.bots.get(second)?.join(FAKE_CHANNELS.dungeon.id);
     await settle();
-    fakeIpcMain.deliver("BOT_REMOVE", main(), second);
+    oldWindowCall(manager!, "BOT_REMOVE", second);
     expect(m.state().bots).toHaveLength(1);
     expect(discord.connectionsIn(FAKE_CHANNELS.dungeon.id)).toHaveLength(0);
     expect(m.active).toBe(false);
   });
 
-  it("publishes the state to the main window", async () => {
+  it("publishes the state once per tick for the Lyre page (FND-16: no old main window to send it to)", async () => {
     const m = newManager();
+    const published: OutputsState[] = [];
+    m.on("stateChange", (state) => published.push(state));
     m.addBot();
     await settle(5);
-    const published = window.webContents.send.mock.calls.filter(([channel]) => channel === "OUTPUTS_STATE");
-    expect((published[published.length - 1][1] as OutputsState).bots).toHaveLength(2);
+    expect(published[published.length - 1].bots).toHaveLength(2);
+    expect(window.webContents.send).not.toHaveBeenCalled();
   });
 });
 
@@ -331,7 +327,7 @@ describe("DiscordBot: leaving a Stage channel (BUG-7)", () => {
     await settle();
     const [connection] = discord.connectionsIn(FAKE_CHANNELS.stage.id);
     expect(connection.state.status).toBe(VoiceConnectionStatus.Ready);
-    fakeIpcMain.deliver("BOT_LEAVE_CHANNEL", main(), id, FAKE_CHANNELS.stage.id);
+    oldWindowCall(manager!, "BOT_LEAVE_CHANNEL", id, FAKE_CHANNELS.stage.id);
     expect(connection.state.status).toBe(VoiceConnectionStatus.Destroyed);
     expect(m.state().bots[0].voice).toEqual([]);
     expect(m.active).toBe(false);
@@ -419,7 +415,7 @@ describe("Reconnecting (OUT-2)", () => {
     expect(m.active).toBe(false);
 
     discord.setNetworkDown(false);
-    fakeIpcMain.deliver("BOT_RECONNECT", main(), id);
+    oldWindowCall(manager!, "BOT_RECONNECT", id);
     await vi.advanceTimersByTimeAsync(100);
     expect(m.state().bots[0].voice).toEqual([expect.objectContaining({ channelName: "Tavern", status: "connected" })]);
     expect(m.active).toBe(true);
@@ -434,7 +430,7 @@ describe("Reconnecting (OUT-2)", () => {
     expect(m.state().bots[0]).toMatchObject({ status: "error", error: expect.stringMatching(/^Error connecting to bot: /) });
     expect(errorsShown()).toEqual([expect.stringMatching(/ENOTFOUND/)]);
     discord.setNetworkDown(false);
-    fakeIpcMain.deliver("BOT_RECONNECT", main(), id);
+    oldWindowCall(manager!, "BOT_RECONNECT", id);
     await settle();
     expect(m.state().bots[0].status).toBe("ready");
   });
@@ -706,7 +702,7 @@ describe("OutputManager: Settings in Lyre (OUT-8)", () => {
     // The real Discord driver has no such hook: the invite opens in the browser instead (lyreOutputsBridge).
     m.destroy();
     fakeIpcMain.reset();
-    manager = new OutputManager(window as never, new BotTokenStore(BotTokenStore.fileIn(folder), safeStorage), { createClient: discord.driver.createClient, joinVoiceChannel: discord.driver.joinVoiceChannel });
+    manager = new OutputManager(new BotTokenStore(BotTokenStore.fileIn(folder), safeStorage), { createClient: discord.driver.createClient, joinVoiceChannel: discord.driver.joinVoiceChannel });
     expect(manager.inviteOpenedByDriver("123456789012345678")).toBe(false);
   });
 });

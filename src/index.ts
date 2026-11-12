@@ -2,7 +2,6 @@
 import { getDataCarryOverResult, runDataCarryOver } from "./main/migration";
 // FND-9: Lyre's recent log (in memory only, for Help › Save diagnostics) starts before anything else logs.
 import { startDiagnosticsLog } from "./main/diagnostics/diagnosticsLog";
-import os from "os";
 import {
   app,
   BrowserWindow,
@@ -13,25 +12,23 @@ import {
 } from "electron";
 import "./menu";
 import icon from "./assets/icon.png";
-import { getUserAgent } from "./main/userAgent";
 import { bundledAssetPath } from "./main/bundledAsset";
 import { SessionManager } from "./main/managers/SessionManager";
+import { windowFrameOptions } from "./main/window/windowFrame";
 import { runAutoUpdate } from "./autoUpdate";
 import { getSavedBounds, saveWindowBounds } from "./bounds";
 import { openExternalIfAllowed } from "./main/security/externalLinks";
 import { lockAppPage } from "./main/security/navigationGuards";
-import { clearBrowsingData, registerLocalFileScheme, secureSessions } from "./main/security/sessions";
+import { registerLocalFileScheme, secureSessions } from "./main/security/sessions";
 import { registerAppInfoIpc } from "./main/security/appInfoIpc";
 import { confirmStartAfterCarryOver, startApp } from "./main/startup";
-import { holdCloseUntilSaved, type SaveBeforeClose } from "./main/saveBeforeClose";
 import { startLyreLibrary, type StartedLibrary } from "./main/lyreApi/startLibrary";
 
-declare const MAIN_WINDOW_WEBPACK_ENTRY: string;
-declare const MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
+// FND-16 (0.5.1): the window is Lyre's own page; the old main window with its tabs and the old player are gone.
+declare const LYRE_WINDOW_WEBPACK_ENTRY: string;
+declare const LYRE_WINDOW_PRELOAD_WEBPACK_ENTRY: string;
 
 let window: BrowserWindow | null = null;
-/** PERF-6: holds quitting or closing until the player has saved (saveBeforeClose.ts). */
-let saveFirst: SaveBeforeClose | null = null;
 /** WP5: Lyre's library, in its own process; started when the app is ready, closed before quitting. */
 let lyreLibrary: StartedLibrary | null = null;
 let lyreLibraryClosed = false;
@@ -58,20 +55,21 @@ const createWindow = (): BrowserWindow => {
   const minWidth = 800;
   const minHeight = 600;
 
-  // Create the browser window.
-  const { bounds, maximized } = getSavedBounds(minWidth, minHeight);
+  // Create the browser window. FND-16: its place, size and smallest size all fit the screen's work area, so a
+  // maximised window stops at the taskbar and the screen's edge.
+  const { bounds, maximized, minimum } = getSavedBounds(minWidth, minHeight);
 
   const mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
+    width: minimum.width,
+    height: minimum.height,
     webPreferences: {
-      preload: MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY,
+      preload: LYRE_WINDOW_PRELOAD_WEBPACK_ENTRY,
     },
-    titleBarStyle: "hidden",
-    trafficLightPosition: { x: 16, y: 18 },
+    // FND-16 step 2: Lyre's top strip is the title bar; the system draws its own buttons over its right end.
+    ...windowFrameOptions(),
     icon: bundledAssetPath(icon, __dirname),
-    minWidth,
-    minHeight,
+    minWidth: minimum.width,
+    minHeight: minimum.height,
     ...bounds,
   });
 
@@ -79,44 +77,24 @@ const createWindow = (): BrowserWindow => {
     mainWindow.maximize();
   }
 
-  // SEC-7/SEC-10: the main window stays on its own page; links it opens go to
-  // the system browser, and only when they are https web addresses.
-  lockAppPage(mainWindow.webContents, "main-window", {
+  // SEC-3/SEC-7/SEC-10: the window's page is trusted as the Lyre page and stays on its own document; links it
+  // opens (the Discord Developer Portal in Add a bot, help links) go to the system browser, and only when they are
+  // https web addresses.
+  lockAppPage(mainWindow.webContents, "lyre-view", {
     onWindowOpen: (url) => openExternalIfAllowed(url, shell.openExternal),
   });
 
-  // Spoof user agent for window.navigator. Set before loading: changing it
-  // during a load restarts the load.
-  mainWindow.webContents.setUserAgent(getUserAgent());
-  // and load the index.html of the app.
-  mainWindow.loadURL(MAIN_WINDOW_WEBPACK_ENTRY);
-
-  let session = new SessionManager(mainWindow);
-
-  mainWindow.webContents.on("did-start-loading", () => {
-    // Restart the session on refresh
-    session.destroy();
-    session = new SessionManager(mainWindow);
-  });
+  // One set of managers for the window's whole life: reloading the page joins it again (SessionManager) without
+  // closing the bots' voice connections.
+  const session = new SessionManager(mainWindow, { library: lyreLibrary ?? undefined, moveOldWindowData: !lyreLibrary?.seeded });
+  mainWindow.loadURL(LYRE_WINDOW_WEBPACK_ENTRY);
 
   // Prevent app suspension for Kenku FM to avoid playback issues
   const powerSaveBlockerId = powerSaveBlocker.start("prevent-app-suspension");
 
-  // PERF-6: the player saves changes it is still holding back before its
-  // view is destroyed with the session.
-  const windowSaveFirst = holdCloseUntilSaved({
-    save: () => session.saveBeforeClose(),
-    close: () => {
-      if (!mainWindow.isDestroyed()) mainWindow.close();
-    },
-    quit: () => app.quit(),
-  });
-  saveFirst = windowSaveFirst;
-
-  mainWindow.on("close", (event) => {
-    if (windowSaveFirst.holdClose(event)) {
-      return;
-    }
+  // FND-16: nothing to wait for on close: the old player saved with a delay (PERF-6, gone with it); Lyre's library
+  // writes go straight to the database in its own process, which is closed cleanly before quitting (below).
+  mainWindow.on("close", () => {
     session.destroy();
     window = null;
     powerSaveBlocker.stop(powerSaveBlockerId);
@@ -125,8 +103,12 @@ const createWindow = (): BrowserWindow => {
   saveWindowBounds(mainWindow);
 
   // WP5: the daily backups start once the window shows, so they never slow the start; the audio cache is tidied
-  // a while later (security review 3).
-  mainWindow.once("ready-to-show", () => lyreLibrary?.windowShown());
+  // a while later (security review 3). FND-16: the saved Discord bots log in then too (the old Settings panel did
+  // this when it opened).
+  mainWindow.once("ready-to-show", () => {
+    lyreLibrary?.windowShown();
+    session.connectSavedBots();
+  });
 
   if (app.isPackaged) {
     runAutoUpdate(mainWindow);
@@ -161,7 +143,7 @@ if (startupOutcome === "run") {
   });
 
   app.on("before-quit", (event) => {
-    if (saveFirst?.holdQuit(event) || !lyreLibrary || lyreLibraryClosed) {
+    if (!lyreLibrary || lyreLibraryClosed) {
       return;
     }
     // WP5: close the library cleanly (backups stop, the database is closed), then quit.
@@ -204,13 +186,9 @@ if (startupOutcome === "run") {
     }
   });
 
-  // SEC-8: only the main window may ask for these.
+  // SEC-8: only the Lyre page may ask for this (Settings › Sound to Discord › Empty the audio cache).
   registerAppInfoIpc({
-    getVersion: () => app.getVersion(),
-    getPlatform: () => os.platform(),
-    // Security review 3: "Clear cache" empties Lyre's audio cache (converted and local copies) as well.
-    clearCache: async () => {
-      await clearBrowsingData();
+    emptyAudioCache: async () => {
       await lyreLibrary?.clearAudioCache();
     },
   });

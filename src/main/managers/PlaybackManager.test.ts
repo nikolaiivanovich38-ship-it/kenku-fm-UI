@@ -34,7 +34,6 @@ vi.mock("../broadcast/OutputManager", async () => {
 vi.mock("../broadcast/playerAudioBridge", () => ({
   PlayerAudioBridge: class {
     setCapture = vi.fn();
-    setPlayer = vi.fn();
     setLyre = vi.fn();
     setRooms = vi.fn();
     destroy = vi.fn();
@@ -85,7 +84,7 @@ beforeEach(() => {
   made.capture.length = 0;
   made.bridges.length = 0;
   made.lyreOutputs.length = 0;
-  playback = new PlaybackManager({} as never);
+  playback = new PlaybackManager();
   outputs = made.outputs[0] as Mocked;
   capture = made.capture[0] as Mocked;
   bridge = made.bridges[0] as typeof bridge;
@@ -126,12 +125,6 @@ describe("PlaybackManager rooms (OUT-5)", () => {
 describe("PlaybackManager player channel (OUT-5, PRV-1)", () => {
   it("joins the capture window to the player channel", () => {
     expect(bridge.setCapture).toHaveBeenCalledWith({ id: 42 });
-  });
-
-  it("gives the registered player page the other end", () => {
-    const view = { id: 7 };
-    playback.setPlayerView(view as never);
-    expect(bridge.setPlayer).toHaveBeenCalledWith(view);
   });
 
   it("tells the player page the rooms", () => {

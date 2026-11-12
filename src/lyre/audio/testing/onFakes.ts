@@ -1,6 +1,6 @@
 /**
  * LyreAudio built from its real parts on the engine's fake audio graph
- * (src/player/engine/testing/fakeAudio.ts): the engine, Director, room
+ * (src/engine/testing/fakeAudio.ts): the engine, Director, room
  * mixer, RoomStreams with fake frame taps on a fake channel to the capture
  * window, and the PreviewPlayer in an audio context of its own. Tests listen
  * to each room, this page's speakers (which no room may reach, BUG-19) and the preview, and play the capture
@@ -8,14 +8,14 @@
  */
 import { DEFAULT_LIBRARY_NORMALISE, type DomainTrack, type Room } from "../../../common/domain";
 import type { AudioPortLike } from "../../../common/playerAudio";
-import { PlaybackEngine } from "../../../player/engine/engine";
-import { OutputDeviceChooser, type OutputDeviceInfo } from "../../../player/engine/preview/outputDevices";
-import { PreviewPlayer } from "../../../player/engine/preview/previewPlayer";
-import { fakePreviewOutput } from "../../../player/engine/preview/testing/fakePreviewOutput";
-import { nextSceneIn, type PadSound, type ShowData } from "../../../player/engine/queue/library";
-import { PlayerAudioLink, RoomMixer, RoomStreams, type FrameTap, type TapFrame } from "../../../player/engine/rooms";
-import { SourceLoader, type MediaRequest } from "../../../player/engine/sources/sourceLoader";
-import { FakeAudioContext, FakeBuffer, type FakeGain } from "../../../player/engine/testing/fakeAudio";
+import { PlaybackEngine } from "../../../engine/engine";
+import { OutputDeviceChooser, type OutputDeviceInfo } from "../../../engine/preview/outputDevices";
+import { PreviewPlayer } from "../../../engine/preview/previewPlayer";
+import { fakePreviewOutput } from "../../../engine/preview/testing/fakePreviewOutput";
+import { nextSceneIn, type PadSound, type ShowData } from "../../../engine/queue/library";
+import { PlayerAudioLink, RoomMixer, RoomStreams, type FrameTap, type TapFrame } from "../../../engine/rooms";
+import { SourceLoader, type MediaRequest } from "../../../engine/sources/sourceLoader";
+import { FakeAudioContext, FakeBuffer, type FakeGain } from "../../../engine/testing/fakeAudio";
 import { EngineLyreAudio, type LyreAudioLibrary, type LyrePad } from "../lyreAudio";
 
 /** Library data for tests: the show engine's ShowData, pads with a name. */

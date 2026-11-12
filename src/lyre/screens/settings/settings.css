@@ -61,3 +61,12 @@ body .sheet a.btn[aria-disabled="true"] { opacity: .5; cursor: default; }
   body .sheet .st-print, body .sheet .st-print * { visibility: visible; color: #000; }
   body .sheet .st-print { position: absolute; left: 0; top: 0; width: 100%; }
 }
+
+/* 0.5.1 (design/prototype/ROUND8.md §3 and §4, r8window.css): the one-time note about a token moved from Kenku FM,
+   and Empty the audio cache under Sound to Discord. */
+.st-legacy { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 8px; padding: 6px 6px 6px 8px; border: 1px solid var(--line-strong); border-left: 3px solid var(--accent); border-radius: var(--r-m); background: var(--surface-2); font-size: var(--fs-s); line-height: 1.4; }
+.st-legacy > svg { color: var(--accent-text); flex: none; margin-top: 2px; }
+.st-legacy p { margin: 0 0 4px; }
+.st-legacy p:last-child { margin: 0; }
+.st-legacy .btn { flex: none; }
+.st-cache { margin-top: 8px; }

@@ -14,6 +14,9 @@ import { themeFor } from "./themes";
 import { OpenHelpContext, useHelp } from "../help/useHelp";
 import { fallbackNow, NavigationProvider, useBackKeys, useNavigationState } from "./TopBar";
 import { keepTitles, showFullTextOnFocus } from "../kit/noHiddenText";
+import { WindowFrame } from "../window/windowFrame";
+import { UpdateNews } from "../window/UpdateNews";
+import "../window/window.css";
 
 /** How long the shell waits for a new screen's heading (it appears once the screen's data has loaded). */
 const HEADING_WAIT_MS = 5000;
@@ -176,6 +179,9 @@ function ShellFrame({ screens, firstRunTour }: { screens: Record<RouteName, Scre
       {help.panel}
       {help.tour}
       {data.FindAndPlay && <data.FindAndPlay />}
+      {/* FND-16 (0.5.1): Lyre is the whole window: the window's own buttons, and update news in the pop-up's corner. */}
+      <WindowFrame paintKey={`${theme} ${route.path} ${help.helpOpen ? "help" : ""}`} />
+      <UpdateNews />
     </div>
   );
 }

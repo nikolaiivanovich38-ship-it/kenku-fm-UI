@@ -4,8 +4,8 @@
  * The sample library has three files that moved (t19, t26, t37); the sample file to open is "Curse of Strahd from Sam.lyre".
  */
 import type { Page } from "@playwright/test";
-import { expect, test } from "./support/test";
-import { openRoute } from "./support/target";
+import { expect, expectFailureUntilBuilt, test } from "./support/test";
+import { arriveFromKenkuFM, openRoute } from "./support/target";
 import { dropFiles } from "./support/drop";
 
 const region = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
@@ -68,11 +68,58 @@ test.describe("what came across from Kenku FM", () => {
     await openRoute(page, "moved");
     const what = region(page, "What came across");
     await expect(what).toContainText("Kenku FM 1.5.5");
-    await expect(what.getByRole("row")).toHaveText([/In Kenku FM\s*How many\s*Now in Lyre/, /Playlists\s*9\s*Playlists \(Manual\)/, /Tracks\s*212\s*Library/, /Soundboards\s*4\s*Pad boards/, /Sounds\s*37\s*Pads on those boards/, /Bookmarks\s*6\s*Website tabs/]);
+    // The Bookmarks row changed in 0.5.1 (checked below with the Bookmarks box).
+    const rows = what.getByRole("row");
+    for (const [i, text] of [/In Kenku FM\s*How many\s*Now in Lyre/, /Playlists\s*9\s*Playlists \(Manual\)/, /Tracks\s*212\s*Library/, /Soundboards\s*4\s*Pad boards/, /Sounds\s*37\s*Pads on those boards/].entries()) {
+      await expect(rows.nth(i)).toHaveText(text);
+    }
     await expect(region(page, "Files Lyre cannot find").getByRole("listitem")).toHaveCount(3);
     await expect(region(page, "Not brought across")).toContainText("The play queue and what was playing");
     await region(page, "Files Lyre cannot find").getByRole("link", { name: "Find them…" }).click();
     await expect(page.getByRole("heading", { name: "Find missing files", level: 1 })).toBeVisible();
+  });
+});
+
+/* 0.5.1 (design/prototype/ROUND8.md): website tabs are gone from Lyre (Nik, 11 Nov: "Keep the code, remove them from
+   the interface"), so the old bookmarks are listed once on What came across, each with Copy. */
+test.describe("0.5.1: the old bookmarks, to copy", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("retire"));
+
+  test("a Bookmarks box lists each bookmark's title and address with Copy, and says websites can't be opened in Lyre for now", async ({ page }) => {
+    await openRoute(page, "moved");
+    await expect(region(page, "What came across").getByRole("row", { name: /^Bookmarks/ })).toHaveText(/Bookmarks\s*6\s*Listed to copy/);
+    const box = region(page, "Bookmarks");
+    await expect(box).toContainText("Websites can't be opened in Lyre for now.");
+    const items = box.getByRole("list", { name: "Bookmarks from Kenku FM" }).getByRole("listitem");
+    await expect(items).toHaveCount(6);
+    await expect(items.first()).toContainText("YouTube");
+    await expect(items.first()).toContainText("https://www.youtube.com/");
+    await expect(items.first().getByRole("button", { name: "Copy the address of YouTube" })).toBeVisible();
+  });
+
+  test("Copy puts a bookmark's address on the clipboard and says so", async ({ page }) => {
+    // The app's Lyre page may write to the clipboard only with w51-fix's permission (Copy path), which comes with the
+    // w51-feat stream's merge.
+    expectFailureUntilBuilt("retire", "feat");
+    await openRoute(page, "moved");
+    const items = region(page, "Bookmarks").getByRole("list", { name: "Bookmarks from Kenku FM" }).getByRole("listitem");
+    await items.first().getByRole("button", { name: "Copy the address of YouTube" }).click();
+    await expect(page.getByRole("status").filter({ hasText: "Copied: https://www.youtube.com/" })).toBeVisible();
+  });
+
+  test("with no bookmarks, there is no Bookmarks box and no Bookmarks row", async ({ page }) => {
+    await arriveFromKenkuFM(page, { bookmarks: [] }, "moved");
+    await expect(region(page, "What came across")).toBeVisible();
+    await expect(region(page, "Bookmarks")).toHaveCount(0);
+    await expect(region(page, "What came across").getByRole("row", { name: /^Bookmarks/ })).toHaveCount(0);
+  });
+
+  test("bookmarks brought from Kenku FM are the ones listed", async ({ page }) => {
+    await arriveFromKenkuFM(page, { bookmarks: [{ title: "Tabletop Audio", url: "https://tabletopaudio.com/" }] }, "moved");
+    const items = region(page, "Bookmarks").getByRole("listitem");
+    await expect(items).toHaveCount(1);
+    await expect(items.first()).toContainText("Tabletop Audio");
+    await expect(items.first()).toContainText("https://tabletopaudio.com/");
   });
 });
 

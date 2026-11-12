@@ -13,44 +13,32 @@ vi.mock("electron", async () => {
 });
 
 const app = {
-  getVersion: () => "0.1.0",
-  getPlatform: () => "linux",
-  clearCache: vi.fn(async () => undefined),
+  emptyAudioCache: vi.fn(async () => undefined),
 };
 
 beforeEach(() => {
   fakeIpcMain.reset();
-  app.clearCache.mockClear();
+  app.emptyAudioCache.mockClear();
 });
 
 describe("registerAppInfoIpc (SEC-8)", () => {
-  it("answers the main window as before", async () => {
+  it("FND-16: the old main window's version, platform and Clear cache are gone", async () => {
     registerAppInfoIpc(app);
-    const main = fakePage("main-window");
-    expect(fakeIpcMain.deliver("GET_VERSION", fromMainFrame(main)).returnValue).toBe("0.1.0");
-    expect(fakeIpcMain.deliver("GET_PLATFORM", fromMainFrame(main)).returnValue).toBe("linux");
-    await fakeIpcMain.invoke("CLEAR_CACHE", fromMainFrame(main));
-    expect(app.clearCache).toHaveBeenCalledTimes(1);
-  });
-
-  it("refuses website tabs and embedded frames without leaving them waiting", async () => {
-    registerAppInfoIpc(app);
-    const tab = fromMainFrame(fakePage(null));
-    expect(fakeIpcMain.deliver("GET_VERSION", tab).returnValue).toBe("");
-    expect(fakeIpcMain.deliver("GET_PLATFORM", fromSubframe(fakePage("main-window"))).returnValue).toBe("");
-    await expect(fakeIpcMain.invoke("CLEAR_CACHE", tab)).rejects.toThrow();
-    expect(app.clearCache).not.toHaveBeenCalled();
+    const main = fromMainFrame(fakePage("main-window"));
+    expect(fakeIpcMain.deliver("GET_VERSION", main).returnValue).toBeUndefined();
+    await expect(fakeIpcMain.invoke("CLEAR_CACHE", main)).rejects.toThrow();
   });
 
   // --- w6-rooms ---
-  it("lets the Lyre page's Settings clear website data too (OUT-8), and no other page", async () => {
+  it("FND-16: lets the Lyre page's Settings empty the audio cache, and no other page; website data is not touched from there", async () => {
     registerAppInfoIpc(app);
-    await fakeIpcMain.invoke("LYRE_CLEAR_WEBSITE_DATA", fromMainFrame(fakePage("lyre-view")));
-    expect(app.clearCache).toHaveBeenCalledTimes(1);
-    for (const event of [fromMainFrame(fakePage(null)), fromMainFrame(fakePage("player-view")), fromSubframe(fakePage("lyre-view")), fromMainFrame(fakePage("main-window"))]) {
-      await expect(fakeIpcMain.invoke("LYRE_CLEAR_WEBSITE_DATA", event)).rejects.toThrow();
+    await fakeIpcMain.invoke("LYRE_EMPTY_AUDIO_CACHE", fromMainFrame(fakePage("lyre-view")));
+    expect(app.emptyAudioCache).toHaveBeenCalledTimes(1);
+    for (const event of [fromMainFrame(fakePage(null)), fromMainFrame(fakePage(null)), fromSubframe(fakePage("lyre-view")), fromMainFrame(fakePage("main-window"))]) {
+      await expect(fakeIpcMain.invoke("LYRE_EMPTY_AUDIO_CACHE", event)).rejects.toThrow();
     }
-    expect(app.clearCache).toHaveBeenCalledTimes(1);
+    await expect(fakeIpcMain.invoke("LYRE_CLEAR_WEBSITE_DATA", fromMainFrame(fakePage("lyre-view")))).rejects.toThrow();
+    expect(app.emptyAudioCache).toHaveBeenCalledTimes(1);
   });
 
   it("can be removed again", () => {

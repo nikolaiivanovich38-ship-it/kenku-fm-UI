@@ -14,7 +14,7 @@ import fs from "fs";
 import path from "path";
 import type { Stream } from "./support/built";
 import { expect, expectFailureUntilBuilt, expectFailureUntilScreenBuilt, test } from "./support/test";
-import { knownAxeIssues, knownLayoutIssue, notLyre, openRoute, type Theme } from "./support/target";
+import { isWindowMaximised, knownAxeIssues, knownLayoutIssue, lyreIsTheWholeWindow, notLyre, openRoute, pageFillsTheWindow, windowButtonsBox, type Box, type Theme } from "./support/target";
 
 // Injected with page.evaluate: the app's Lyre page has a content policy that refuses added script tags.
 const AXE_PATH = require.resolve("axe-core/axe.min.js");
@@ -245,12 +245,22 @@ async function axeProblems(page: Page): Promise<string[]> {
         );
 }
 
+/* 0.5.1 (ROUND8.md, part 2): a campaign's own theme always shows on its page, its sessions and its Live, so Parchment as
+   the base theme no longer reaches them. For the Parchment sweep of those screens The Sunken Crown takes Parchment as
+   its own theme first, on its page, so the light theme is still checked there. */
+const OWN_THEME = /^(campaign\/crown|session\/crown\/|live)/;
+async function crownInParchment(page: Page): Promise<void> {
+  await openRoute(page, "campaign/crown", { theme: "parchment" });
+  await page.getByRole("main").getByRole("combobox", { name: "Theme" }).selectOption({ label: "Parchment" });
+}
+
 for (const screen of SCREENS) {
   for (const size of SIZES) {
     for (const { label, theme } of THEMES.filter((t) => size.themes.includes(t.theme))) {
       test(`${screen.name} at ${size.width}×${size.height} in the ${label}: no sideways scroll, no overlapping or cut-off controls, no accessibility failures`, async ({ page }) => {
         expectFailureUntilSweptScreenBuilt(screen);
         await page.setViewportSize(size);
+        if (theme === "parchment" && OWN_THEME.test(screen.route)) await crownInParchment(page);
         await openRoute(page, screen.route, { theme });
         await screen.prepare?.(page, { playing: true });
         await page.waitForTimeout(300);
@@ -484,4 +494,270 @@ test("UX-6: keyboard focus on a name cut short shows its full text", async ({ pa
   const rowEl = page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: /^Select Very short heroic moment/ });
   await rowEl.focus();
   await expect(page.getByRole("tooltip")).toContainText("Cool vibe! (Don't loop, use as a sting, cue something up after)");
+});
+
+/* ---------- 0.5.1: Lyre is the whole window (design/prototype/ROUND8.md, FND-16) ----------
+   No Kenku FM tab bar and no Lyre Player tab: the window's own buttons (minimise, maximise, close) sit at the top right
+   of Lyre's top strip, drawn by Windows through Electron's titleBarOverlay (the prototype shows a stand-in of the same
+   size, about 138×36 px). Nothing of Lyre's is under them. The empty parts of the top strip and of Live's strip drag the
+   window, and double-clicking them maximises it; every control in the strips stays a control. Checked at half a 1920
+   screen (960 px) and at half a 1920 screen with text at 200 % (960×1040, the window buttons stay their size). */
+
+/** Look and feel › Display › Text size at 200 % (it stays for the rest of the test). */
+async function textAt200(page: Page): Promise<void> {
+  await openRoute(page, "look");
+  const size = page.getByRole("region", { name: "Display", exact: true }).getByRole("slider", { name: "Text size" });
+  // One step at a time, each seen before the next: a key pressed while the page takes the last size can be lost.
+  for (let i = 0; i < 4; i++) {
+    const before = (await size.getAttribute("aria-valuetext")) ?? "";
+    if (before === "200 percent") break;
+    await size.press("ArrowRight");
+    await expect(size).not.toHaveAttribute("aria-valuetext", before);
+  }
+  await expect(size).toHaveAttribute("aria-valuetext", "200 percent");
+}
+
+/** What of Lyre is under the window's buttons: any control, or anything with text of its own, that shows there. */
+async function underWindowButtons(page: Page, box: Box): Promise<string[]> {
+  return page.evaluate(
+    ({ box, ignore }) => {
+      const hits = (r: DOMRect) => r.width > 0 && r.height > 0 && r.left < box.x + box.width - 0.5 && r.right > box.x + 0.5 && r.top < box.y + box.height - 0.5 && r.bottom > box.y + 0.5;
+      const control = "button, a[href], input, select, textarea, [role=button], [role=link], [role=switch], [role=radio], [role=combobox], [tabindex]:not([tabindex='-1'])";
+      const out: string[] = [];
+      for (const e of Array.from(document.querySelectorAll<HTMLElement>("body *"))) {
+        if (e.closest("[data-window-buttons]") || ignore.some((s) => e.closest(s)) || e.closest(".sr-only")) continue;
+        const cs = getComputedStyle(e);
+        if (cs.visibility === "hidden" || cs.display === "none" || Number(cs.opacity) === 0) continue;
+        const ownText = Array.from(e.childNodes).some((n) => n.nodeType === Node.TEXT_NODE && (n.textContent ?? "").trim() !== "");
+        if (!e.matches(control) && !ownText) continue;
+        // Only what shows: a box scrolled out of sight inside a scrolling box does not count.
+        let r = e.getBoundingClientRect();
+        for (let p = e.parentElement; p; p = p.parentElement) {
+          if (!/(auto|scroll|hidden|clip)/.test(getComputedStyle(p).overflow)) continue;
+          const q = p.getBoundingClientRect();
+          r = new DOMRect(Math.max(r.left, q.left), Math.max(r.top, q.top), Math.max(0, Math.min(r.right, q.right) - Math.max(r.left, q.left)), Math.max(0, Math.min(r.bottom, q.bottom) - Math.max(r.top, q.top)));
+        }
+        if (hits(r)) out.push(`${e.tagName.toLowerCase()} "${(e.getAttribute("aria-label") || e.textContent || "").trim().slice(0, 40)}"`);
+      }
+      return out.slice(0, 8);
+    },
+    { box, ignore: notLyre() },
+  );
+}
+
+/** The top strip of the screen: the bar Back sits in (both the prototype and the app call it .viewhead, Live's .lv-top). */
+const topStrip = (page: Page) => page.getByRole("main").locator(".viewhead, .lv-top").first();
+
+/** How the strip drags: the strip itself, and every control or text with hover text inside it that would not. */
+async function dragProblems(page: Page): Promise<{ strip: string; dragging: string[] }> {
+  return topStrip(page).evaluate((strip) => {
+    const region = (e: Element) => getComputedStyle(e).getPropertyValue("app-region") || getComputedStyle(e).getPropertyValue("-webkit-app-region");
+    const control = "button, a[href], input, select, textarea, label, [role=button], [role=link], [role=switch], [role=radio], [role=combobox], [tabindex]:not([tabindex='-1']), [title]";
+    const dragging = Array.from(strip.querySelectorAll<HTMLElement>(control))
+      .filter((e) => e.offsetParent !== null && region(e) !== "no-drag")
+      .map((e) => `${e.tagName.toLowerCase()} "${(e.getAttribute("aria-label") || e.textContent || e.getAttribute("title") || "").trim().slice(0, 40)}"`);
+    return { strip: region(strip), dragging: dragging.slice(0, 8) };
+  });
+}
+
+for (const screen of SCREENS) {
+  for (const size of [{ width: 960, height: 1000, at200: false }, { width: 960, height: 1040, at200: true }]) {
+    const label = size.at200 ? "at 960×1040 with text at 200 %" : "at 960×1000";
+    test(`${screen.name} ${label}: nothing is under the window's buttons; the strip's empty parts drag the window, its controls do not`, async ({ page }) => {
+      expectFailureUntilSweptScreenBuilt(screen);
+      expectFailureUntilBuilt("retire");
+      await page.setViewportSize({ width: size.width, height: size.height });
+      if (size.at200) await textAt200(page);
+      await openRoute(page, screen.route);
+      await screen.prepare?.(page, { playing: true });
+      await page.waitForTimeout(300);
+      expect.soft(await underWindowButtons(page, await windowButtonsBox(page)), "under the window's buttons").toEqual([]);
+      const drag = await dragProblems(page);
+      expect.soft(drag.strip, "the top strip drags the window").toBe("drag");
+      expect.soft(drag.dragging, "controls in the top strip that would drag the window").toEqual([]);
+    });
+  }
+}
+
+test.describe("0.5.1: Lyre is the whole window", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("retire"));
+
+  test("one window, Lyre's page alone: no Kenku FM tab bar, no Lyre Player tab, no website tabs", async ({ page }) => {
+    expectFailureUntilScreenBuilt("campaigns");
+    await openRoute(page, "campaigns");
+    expect(await lyreIsTheWholeWindow(page)).toBe(true);
+    await expect(page.getByRole("tab", { name: /Lyre Player|Kenku/ })).toHaveCount(0);
+    await expect(page.getByRole("tablist")).toHaveCount(0);
+  });
+
+  test("the window's buttons sit at the top right of the top strip, about 138×36 px, and cannot be reached with Tab", async ({ page }) => {
+    expectFailureUntilScreenBuilt("campaigns");
+    await openRoute(page, "campaign/crown");
+    const box = await windowButtonsBox(page);
+    const strip = (await topStrip(page).boundingBox())!;
+    const width = await page.evaluate(() => document.documentElement.clientWidth);
+    expect(Math.abs(box.x + box.width - width)).toBeLessThanOrEqual(1);
+    expect(box.y).toBeLessThanOrEqual(strip.y + 1);
+    expect(box.y + box.height).toBeLessThanOrEqual(strip.y + strip.height + 1);
+    // Windows draws three 46 px buttons (138); Electron draws narrower ones on Linux, where the specs run (113).
+    expect(box.width).toBeGreaterThanOrEqual(test.info().project.name === "app" && process.platform === "linux" ? 96 : 120);
+    expect(box.width).toBeLessThanOrEqual(160);
+    expect(box.height).toBeGreaterThanOrEqual(28);
+    expect(box.height).toBeLessThanOrEqual(44);
+    // Tab from the strip's first control to its last never stops under the buttons.
+    await page.getByRole("button", { name: /^Back/ }).focus();
+    for (let i = 0; i < 12; i++) {
+      const r = await page.evaluate(() => document.activeElement?.getBoundingClientRect().toJSON() as DOMRect);
+      expect(r.left < box.x + box.width && r.right > box.x && r.top < box.y + box.height && r.bottom > box.y, "focus under the window's buttons").toBe(false);
+      await page.keyboard.press("Tab");
+    }
+  });
+
+  test("double-clicking an empty part of the top strip maximises the window; again puts it back", async ({ page }) => {
+    expectFailureUntilScreenBuilt("library");
+    await openRoute(page, "library");
+    const box = await windowButtonsBox(page);
+    expect(await isWindowMaximised(page)).toBe(false);
+    // Just left of the window's buttons: the space the strip keeps free for them.
+    await page.mouse.dblclick(box.x - 6, box.y + 8);
+    await expect.poll(() => isWindowMaximised(page)).toBe(true);
+    await page.mouse.dblclick(box.x - 6, box.y + 8);
+    await expect.poll(() => isWindowMaximised(page)).toBe(false);
+  });
+
+  test("Live's strip drags the window too, and double-clicking its empty part maximises it", async ({ page }) => {
+    expectFailureUntilScreenBuilt("live");
+    await openRoute(page, "live");
+    const drag = await dragProblems(page);
+    expect(drag.strip).toBe("drag");
+    expect(drag.dragging).toEqual([]);
+    const box = await windowButtonsBox(page);
+    await page.mouse.dblclick(box.x - 6, box.y + 8);
+    await expect.poll(() => isWindowMaximised(page)).toBe(true);
+  });
+
+  test("at half a 1920 screen with text at 200 %, the trail is still cut in the middle, clear of the window's buttons", async ({ page }) => {
+    expectFailureUntilScreenBuilt("session-planner");
+    await page.setViewportSize({ width: 960, height: 1040 });
+    await textAt200(page);
+    await openRoute(page, "session/crown/s14");
+    const nav = page.getByRole("navigation", { name: "Breadcrumb" });
+    await expect(nav).toHaveAttribute("title", "Campaigns › The Sunken Crown › Session 14: The Drowned Abbey");
+    await expect(nav.getByText("…")).toBeVisible();
+    await expect(nav.getByRole("link", { name: "The Sunken Crown" })).toBeVisible();
+    await expect(nav.getByRole("link", { name: "Campaigns" })).toBeHidden();
+    expect(await underWindowButtons(page, await windowButtonsBox(page))).toEqual([]);
+    await page.getByRole("link", { name: "The Sunken Crown" }).click();
+    await expect(page.getByRole("heading", { level: 1 })).toContainText("The Sunken Crown");
+  });
+
+  test("with Help open, Close help is clear of the window's buttons, at 960 px and with text at 200 %", async ({ page }) => {
+    expectFailureUntilScreenBuilt("help");
+    for (const at200 of [false, true]) {
+      await page.setViewportSize({ width: 960, height: at200 ? 1040 : 1000 });
+      if (at200) await textAt200(page);
+      await openRoute(page, "library");
+      await page.keyboard.press("F1");
+      const help = page.getByRole("complementary", { name: "Help", exact: true });
+      await expect(help).toBeVisible();
+      expect(await underWindowButtons(page, await windowButtonsBox(page))).toEqual([]);
+      await help.getByRole("button", { name: "Close help" }).click();
+      await expect(help).toHaveCount(0);
+    }
+  });
+
+  // Nik's 0.5.0 test: "When fully maximised the bottom of the app pushes past the top of my bottom aligned taskbar" and
+  // "The right hand side of the window goes beyond the edge of the screen". The page now fills exactly the window's
+  // content area, at a 1920 screen's work area with a bottom taskbar and at a small laptop's.
+  for (const size of [{ width: 1920, height: 1040 }, { width: 1280, height: 680 }]) {
+    test(`at ${size.width}×${size.height} the page fills exactly the window: nothing runs past its right or bottom edge`, async ({ page }) => {
+      expectFailureUntilScreenBuilt("campaigns");
+      await page.setViewportSize(size);
+      await openRoute(page, "campaign/crown");
+      const fill = await pageFillsTheWindow(page);
+      expect(fill.page, "the page's size is the window's content size").toEqual(fill.content);
+      expect(fill.content).toEqual([size.width, size.height]);
+      const overflow = await page.evaluate(() => {
+        const root = document.documentElement;
+        const app = document.getElementById("app")?.getBoundingClientRect();
+        const bar = document.querySelector(".onairbar")?.getBoundingClientRect();
+        return {
+          sideways: root.scrollWidth - root.clientWidth,
+          down: root.scrollHeight - root.clientHeight,
+          appRight: Math.round((app?.right ?? 0) - window.innerWidth),
+          appBottom: Math.round((app?.bottom ?? 0) - window.innerHeight),
+          barBottom: bar ? Math.round(bar.bottom - window.innerHeight) : 0,
+        };
+      });
+      expect({ sideways: overflow.sideways, down: overflow.down }).toEqual({ sideways: 0, down: 0 });
+      for (const edge of ["appRight", "appBottom", "barBottom"] as const) expect(overflow[edge], edge).toBeLessThanOrEqual(0);
+    });
+  }
+
+  test("a sheet as tall as the window (Add a bot, text at 200 %) keeps its controls clear of the window's buttons", async ({ page }) => {
+    expectFailureUntilScreenBuilt("settings");
+    await page.setViewportSize({ width: 960, height: 1040 });
+    await textAt200(page);
+    await openRoute(page, "settings");
+    await page.getByRole("region", { name: "Discord bots", exact: true }).getByRole("button", { name: "Add a bot" }).click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    expect(await underWindowButtons(page, await windowButtonsBox(page))).toEqual([]);
+  });
+});
+
+/* ---------- 0.5.1: Lyre's page fits the window's content area (design/prototype/ROUND8.md, part 2) ----------
+   Nik, 11 Nov: "When fully maximised the bottom of the app pushes past the top of my bottom aligned taskbar." and "The
+   right hand side of the window goes beyond the edge of the screen, rather than stopping at it." Nothing of Lyre's page
+   is wider or taller than the window's content area: the page does not scroll, and the menu, the screen and the Now
+   playing bar end inside it. Checked on every sweep screen, with a campaign playlist on air (so the Now playing bar
+   shows), at a maximised 1920 window above a taskbar (1920×1040) and at a small laptop's (1280×680). */
+async function overflow(page: Page): Promise<string[]> {
+  return page.evaluate((ignore) => {
+    const out: string[] = [];
+    const w = document.documentElement.clientWidth, h = document.documentElement.clientHeight;
+    for (const [what, e] of [["the page", document.documentElement], ["the body", document.body]] as const) {
+      if (e.scrollWidth > w + 1) out.push(`${what} is ${e.scrollWidth - w} px wider than the window`);
+      if (e.scrollHeight > h + 1) out.push(`${what} is ${e.scrollHeight - h} px taller than the window`);
+    }
+    const parts = Array.from(document.querySelectorAll<HTMLElement>("main, nav, [role=region][aria-label='Now playing'], body > *")).filter((e) => !ignore.some((s) => e.closest(s)));
+    for (const e of parts) {
+      const cs = getComputedStyle(e);
+      if (cs.display === "none" || cs.position === "fixed" && cs.visibility === "hidden") continue;
+      const r = e.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) continue;
+      const name = e.getAttribute("aria-label") || e.id || e.tagName.toLowerCase();
+      if (r.right > w + 1) out.push(`${name} ends ${Math.round(r.right - w)} px past the right edge`);
+      if (r.bottom > h + 1) out.push(`${name} ends ${Math.round(r.bottom - h)} px below the bottom edge`);
+    }
+    return out;
+  }, notLyre());
+}
+
+test.describe("0.5.1: Lyre's page fits the window", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("retire"));
+  for (const size of [{ width: 1920, height: 1040 }, { width: 1280, height: 680 }]) {
+    test(`every screen fits a ${size.width}×${size.height} window exactly: nothing wider or taller than it`, async ({ page }) => {
+      test.setTimeout(180_000);
+      await page.setViewportSize(size);
+      await openRoute(page, "campaign/crown");
+      await page.getByRole("region", { name: "Campaign playlists", exact: true }).getByRole("button", { name: "Play on air: The Company themes" }).click();
+      await expect(page.getByRole("region", { name: "Now playing" })).toBeVisible();
+      for (const screen of SCREENS) {
+        await openRoute(page, screen.route);
+        // The campaign playlist plays on, so no scene is started (a screen's "Start" is then not offered).
+        await screen.prepare?.(page, { playing: false });
+        await page.waitForTimeout(150);
+        expect.soft(await overflow(page), `${screen.name} at ${size.width}×${size.height}`).toEqual([]);
+      }
+    });
+  }
+});
+
+/* 0.5.1 (ROUND8.md, part 3). Nik, 11 Nov 20:33: "Let's move the live tab to the top of the left side bar". */
+test("0.5.1: Live is the first entry of the menu", async ({ page }) => {
+  expectFailureUntilBuilt("feat");
+  await openRoute(page, "campaigns");
+  const names = await page.getByRole("navigation", { name: "Lyre" }).getByRole("link").allTextContents();
+  expect(names[0]).toMatch(/^\s*Live/);
+  expect(names[1]).toMatch(/^\s*Campaigns/);
 });

@@ -1,5 +1,5 @@
 /**
- * Where a track's audio is, as the player loads it (MediaRequest.url in src/player/engine/sources): a file path
+ * Where a track's audio is, as the player loads it (MediaRequest.url in src/engine/sources): a file path
  * becomes a file:// address. The fake and the main-process LyreApi both use this, so they hand out the same address.
  */
 

@@ -242,7 +242,16 @@ var LYRE_DATA = (function () {
   campaigns.forEach(function (c) { c.tracks = []; c.sessions.forEach(function (s) { s.tracks = []; }); });
   campaigns[0].tracks.push('t26');
   // Round 5 (DAT-7): what came across from the Player (Kenku FM) on first start, for the move report.
-  var moved = { from: 'Kenku FM 1.5.5', when: '5 Nov 2026, 18:42', playlists: 9, tracks: 212, boards: 4, pads: 37, bookmarks: 6,
+  // 0.5.1: the bookmarks themselves (title and address), listed once to copy, since Lyre has no website tabs.
+  var moved = { from: 'Kenku FM 1.5.5', when: '5 Nov 2026, 18:42', playlists: 9, tracks: 212, boards: 4, pads: 37,
+    bookmarks: [
+      { title: 'YouTube', url: 'https://www.youtube.com/' },
+      { title: 'Spotify', url: 'https://open.spotify.com/' },
+      { title: 'Tabletop Audio', url: 'https://tabletopaudio.com/' },
+      { title: 'Ambient Mixer', url: 'https://www.ambient-mixer.com/' },
+      { title: 'Freesound', url: 'https://freesound.org/' },
+      { title: 'Kenku FM', url: 'https://www.kenku.fm/' }
+    ],
     notMoved: [['The play queue and what was playing', 'Lyre starts with nothing playing'], ['Kenku FM\'s window size and position', 'Lyre opens at its own size']] };
   // Round 5 (DAT-15): each track's measured loudness, as Lyre's background job reads it with ffmpeg: "id loudness peak",
   // loudness in LUFS (EBU R128 integrated; for a sound under 3 s its loudest moment) and true peak in dBTP. t02 is the

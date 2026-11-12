@@ -4,14 +4,16 @@
  * design/prototype/src/views/settings.js and settings.css.
  *
  * Everything the old main window's Settings had that Lyre still needs: Discord bots first, then, folded because they
- * are set once, Sound to Discord, Headphones and speakers, Remote control, Keyboard shortcuts, Website tabs and Local
- * files. Look and feel stays its own screen in the menu.
+ * are set once, Sound to Discord, Headphones and speakers and Keyboard shortcuts. Look and feel stays its own screen in
+ * the menu. 0.5.1 (FND-16, design/prototype/ROUND8.md §3): Website tabs and Local files went with the old window;
+ * Remote control is hidden until Stream Deck support (WP6; Nik, 11 Nov: "Hide until Stream Deck").
  */
 import React from "react";
 
 import { TopLead } from "../../shell/TopBar";
 import { BotsPane } from "./BotsPane";
-import { DevicesPane, FilesPane, KeysPane, RemotePane, SoundPane, TabsPane } from "./OtherPanes";
+import { DevicesPane, KeysPane, RemotePane, SoundPane } from "./OtherPanes";
+import { SHOW_REMOTE_CONTROL } from "./settingsModel";
 import "./settings.css";
 import { LYRE_VERSION } from "../../version";
 
@@ -37,10 +39,8 @@ export function SettingsScreen() {
           <div className="col">
             <SoundPane />
             <DevicesPane />
-            <RemotePane />
+            {SHOW_REMOTE_CONTROL && <RemotePane />}
             <KeysPane />
-            <TabsPane />
-            <FilesPane />
           </div>
         </div>
       </div>

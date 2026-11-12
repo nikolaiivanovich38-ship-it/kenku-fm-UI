@@ -17,9 +17,9 @@
  * Ids facing the screens are always the real ones: a bot id, or "table".
  */
 import type { Lane, Room, RoomTarget } from "../../common/domain";
-import type { NodeLike } from "../../player/engine/audio/types";
-import { TABLE_ROOM, type RoomMixer } from "../../player/engine/rooms";
-import type { RoomLane, RoomsAudio } from "../../player/engine/rooms.contract";
+import type { NodeLike } from "../../engine/audio/types";
+import { TABLE_ROOM, type RoomMixer } from "../../engine/rooms";
+import type { RoomLane, RoomsAudio } from "../../engine/rooms.contract";
 
 const LANE: Record<RoomLane, Lane> = { music: "music", ambience: "amb", effects: "fx" };
 

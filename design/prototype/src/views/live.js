@@ -321,7 +321,7 @@
       '<button class="lv-sess" data-act="lvsessmenu" data-k="lv-sess" data-f2="lvsessrename" aria-haspopup="menu" aria-expanded="false" aria-label="' + esc(c.name + ' Session ' + s.n + ': ' + s.name) + '" title="Loaded: ' + esc(c.name + ' › Session ' + s.n + ': ' + s.name) + '. Choose another session, or press F2 to rename it">' +
         L.icon('crown', 's') + '<span class="sr-only">' + esc(c.name) + ' </span><span class="lv-sess-s">Session ' + s.n + '<span class="lv-sess-nm sr-only">: ' + esc(s.name) + '</span></span>' + L.icon('chevdown', 's') + '</button>';
     return '<div class="lv-top"><h1 class="sr-only">Live</h1><!--lead-->' + sessBox + L.modeSwitch(c.id) + find() +
-      '<button class="btn s" data-act="lvfade" data-k="lv-fade" title="Fade all: everything fades out over 3 seconds (Shift+Esc)" aria-keyshortcuts="Shift+Escape" aria-label="Fade all">' + L.icon('fade', 's') + '<span class="lv-btxt">Fade all</span></button>' +
+      '<button class="btn s" data-act="lvfade" data-k="lv-fade" title="Fade all: everything fades out over ' + L.FADE + ' seconds (Shift+Esc)" aria-keyshortcuts="Shift+Escape" aria-label="Fade all">' + L.icon('fade', 's') + '<span class="lv-btxt">Fade all</span></button>' +
       '<button class="btn s danger" data-act="lvstop" data-k="lv-stop" title="Stop everything at once" aria-label="Stop all">' + L.icon('stop', 's') + '<span class="lv-btxt">Stop all</span></button>' +
       '<span class="lv-keyswrap"><button class="btn s" data-act="lvkeys" data-k="lv-keys" aria-expanded="' + S.keysOpen + '" aria-controls="lv-keys-pop" title="Keyboard keys for the live screen">Keys' + L.icon(S.keysOpen ? 'chevup' : 'chevdown', 's') + '</button>' +
       (S.keysOpen ? keysPop() : '') + '</span></div>';
@@ -335,7 +335,7 @@
       '<label class="lv-switch"><input type="checkbox" role="switch" data-input="lvkeys1" data-k="lv-keys1"' + (S.keys1 ? ' checked' : '') + '><span class="lv-switch-t"><b>Single-key shortcuts</b><span class="hint">Space, / and the pad keys. Turn off if they get in the way.</span></span></label>' +
       '<ul class="lv-keylist">' + k(kf('nextScene', 'Space'), 'Start the next scene', singleKey('nextScene')) + k(kf('find', '/'), 'Find a track or playlist', singleKey('find')) + k(esc(pk), b ? 'Pads on ' + esc(b.name) + ' (Current scene)' : 'Pads of the current scene', 1) +
       k('Alt+1…7', 'Go to a box: On air, Scenes, Current scene, Session playlists, Session pads, Campaign playlists, Campaign pads') + k('F6', 'Next box (Shift+F6: the one before)') +
-      k(kf('palette', 'Ctrl+K'), 'Find and play anything') + k(kf('fadeAll', 'Shift+Esc'), 'Fade all (3 s)') + k(kf('undo', 'Ctrl+Z'), 'Undo the last change (for 8 s)') + k('Esc', 'Close a menu or clear the search') + '</ul>' +
+      k(kf('palette', 'Ctrl+K'), 'Find and play anything') + k(kf('fadeAll', 'Shift+Esc'), 'Fade all (' + L.FADE + ' s)') + k(kf('undo', 'Ctrl+Z'), 'Undo the last change (for 8 s)') + k('Esc', 'Close a menu or clear the search') + '</ul>' +
       '<p class="hint">' + (S.keys1 ? 'Keys do nothing while you type in a box.' : 'Single-key shortcuts are off. Shift+Esc and Ctrl+Z still work.') + '</p>' +
       // Should 12 of the round 6 review: what left the screen in round 6 is in Help (the rail's Help, or F1).
       '<button class="btn s ghost lv-keyshelp" data-act="lvhelp" data-k="lv-keyshelp" aria-keyshortcuts="F1">' + L.icon('help', 's') + 'Help</button></div>';
@@ -398,7 +398,9 @@
       '<div class="lv-lane-l"><span class="lv-lane-n"><span class="lane-dot ' + ln + '"></span>' + word + '</span>' + (c.paused ? '<span class="badge">Paused</span>' : '') + '</div>' +
       // The scene position and the end rule are hover text (and read out); the track list shows where it is.
       '<div class="lv-lane-m"><div class="lv-lane-t ellipsis" title="' + esc([shown !== L.title(t) ? 'Its own name: ' + L.title(t) : L.title(t), pos, isM ? endText(t, tg) : '', L.normHover(t, c.playlistId)].filter(Boolean).join(' · ')) + '">' + esc(shown) + (shown !== L.title(t) ? '<span class="sr-only"> (its own name: ' + esc(L.title(t)) + ')</span>' : '') + (pos ? '<span class="sr-only">, ' + pos + '</span>' : '') + '</div>' +
-        '<div class="lv-lane-pr"><div class="progress lv-mkbar ' + ln + '"><span data-progress="' + ln + at + '"></span>' + markTicks(t, c, ln, tg) + '</div><span class="num lv-time" data-time="' + ln + at + '"></span></div>';
+        // Round 8 (Nik, 11 Nov: "click in the tracking bar for the currently playing track and skip to a certain point"):
+        // the bar is a slider (core's L.seekBar), with the markers on it as before.
+        '<div class="lv-lane-pr">' + L.seekBar(ln + at, shown, 'lv-mkbar ' + ln, markTicks(t, c, ln, tg)) + '<span class="num lv-time" data-time="' + ln + at + '"></span></div>';
     if (isM) {
       // Where the music comes from, when it is a playlist or something added. What comes next is Up next, beside it.
       var vis = c.added ? 'Added: ' + c.added : c.playlistId ? plName(c.playlistId) : '';
@@ -407,10 +409,17 @@
     h += '</div><div class="lv-lane-c" role="group" aria-label="' + word + ' in ' + esc(name) + '">';
     if (isM) h += '<button class="btn s icon" data-act="lvprevt" data-lane="music"' + tga + ' data-k="lv-prev-m' + kx + '" title="Previous track" aria-label="Previous music track"' + (c.playlistId || c.seq || c.added || (RM(tg).now !== 'plan' && RM(tg).ret) ? '' : ' disabled') + '>' + L.icon('prev', 's') + '</button>';
     h += '<button class="btn s icon" data-act="lvpause" data-lane="' + ln + '"' + tga + ' data-k="lv-pause-' + ln + kx + '" title="' + (c.paused ? 'Resume' : 'Pause') + ' ' + word.toLowerCase() + '" aria-label="' + (c.paused ? 'Resume' : 'Pause') + ' ' + word.toLowerCase() + '">' + L.icon(c.paused ? 'play' : 'pause', 's') + '</button>' +
+      // Round 8 (Nik, 11 Nov: "I need a stop button in the on air view in live on the currently playing track, not just
+      // a pause button - I need both"): Stop beside Pause; it fades this room's music (or ambience) out in a second.
+      '<button class="btn s icon" data-act="lvstoplane" data-lane="' + ln + '"' + tga + ' data-k="lv-stopl-' + ln + kx + '" title="Stop the ' + word.toLowerCase() + esc(inRoom(tg)) + ' (fades out in a second)" aria-label="Stop ' + word.toLowerCase() + '">' + L.icon('stop', 's') + '</button>' +
       '<button class="btn s icon" data-act="lvnextt" data-lane="' + ln + '"' + tga + ' data-k="lv-next-' + ln + kx + '" title="Next ' + (isM ? 'track' : 'ambience') + ' (crossfade)" aria-label="Next ' + word.toLowerCase() + ' track"' + (c.playlistId || c.seq || (isM && upcoming(tg).length) || (!isM && aqOf(tg).length) ? '' : ' disabled') + '>' + L.icon('next', 's') + '</button>' +
+      // Round 8 (Nik: "I also need a shuffle button in the on air live view"): the Now playing bar's Shuffle, per room,
+      // beside Repeat. It is the play order of the playlist the music comes from, where it plays from (PLY-13), so
+      // Up next follows it; music that is not from a playlist has nothing to shuffle, and the button is greyed.
+      (isM ? shuffleIn(tg, kx) : '') +
       // Round 6 part 3: Repeat here is the room's, for what plays now; never saved (core's L.repeatButton).
       (isM ? L.repeatButton('music', tg, 'lv-rep' + kx) : '') +
-      '<button class="btn s icon" data-act="lvfadeout" data-lane="' + ln + '"' + tga + ' data-k="lv-fo-' + ln + kx + '" title="Fade ' + word.toLowerCase() + ' out over 3 seconds" aria-label="Fade ' + word.toLowerCase() + ' out">' + L.icon('fade', 's') + '</button></div></div>';
+      '<button class="btn s icon" data-act="lvfadeout" data-lane="' + ln + '"' + tga + ' data-k="lv-fo-' + ln + kx + '" title="Fade ' + word.toLowerCase() + ' out over ' + L.FADE + ' seconds" aria-label="Fade ' + word.toLowerCase() + ' out">' + L.icon('fade', 's') + '</button></div></div>';
     return h;
   }
   /* Up next: the room's running list from the next track to the bottom, then the ambience waiting (aq). Folded, the
@@ -463,8 +472,10 @@
     var ctl = b ? '<button class="btn s icon lv-mute" data-act="lvbotmute" data-id="' + b.id + '" data-k="lv-mute-' + b.id + '" aria-pressed="' + !!b.muted + '" title="' + (b.muted ? 'Unmute ' : 'Mute ') + esc(name) + '" aria-label="Mute ' + esc(name) + '">' + L.icon(b.muted ? 'mute' : 'horn', 's') + '</button>' +
       '<input type="range" class="lv-vol" min="0" max="100" step="5" value="' + b.volume + '" data-input="lvvol" data-id="' + b.id + '" data-k="lv-vol-' + b.id + '" aria-label="Volume in ' + esc(name) + '" aria-valuetext="' + b.volume + ' percent" title="Volume ' + b.volume + '%">' +
       // OUT-7: the bot that plays here, as a button that changes its channel (or the bot) on the page, and Kick.
+      // Round 8 (Nik, 11 Nov 20:33: "I can't choose what channel my bots join from the live view"): the bot's button
+      // chooses its channel (as since round 6), and its menu now has Kick too.
       '<button class="btn s lv-botpick" data-act="lvroommenu" data-id="' + b.id + '" data-k="lv-room-' + b.id + '" aria-haspopup="menu" aria-expanded="false" title="' + esc(b.name) + ' plays in ' + esc(name) + ': change the channel or the bot" aria-label="' + esc(b.name) + ' in ' + esc(name) + ': change">' + L.icon('users', 's') + '<span class="ellipsis">' + esc(b.name) + '</span>' + L.icon('chevdown', 's') + '</button>' +
-      '<button class="btn s lv-kick" data-act="lvkick" data-id="' + b.id + '" data-k="lv-kick-' + b.id + '" title="Kick ' + esc(b.name) + ' from ' + esc(name) + '" aria-label="Kick ' + esc(b.name) + ' from ' + esc(name) + '">' + L.icon('leave', 's') + '<span class="lv-kick-t">Kick</span></button>' : '';
+      '<button class="btn s lv-kick" data-act="lvkick" data-id="' + b.id + '" data-k="lv-kick-' + b.id + '" title="Kick ' + esc(b.name) + ' from ' + esc(name) + ' (Undo for 8 seconds)" aria-label="Kick ' + esc(b.name) + ' from ' + esc(name) + '">' + L.icon('leave', 's') + '<span class="lv-kick-t">Kick</span></button>' : '';
     // BUG-19: with no bot in a voice channel what plays goes nowhere; the one-click fix is right here.
     var none = '';
     if (nobodyThere(b)) {
@@ -518,7 +529,8 @@
   function onAir() {
     var rs = rooms(), idle = L.freeBots ? L.freeBots() : L.bots().filter(function (b) { return b.status === 'idle'; });
     var parts = rs.length ? rs.map(function (r) { return roomPart(roomTg(r.bots[0]), r.bots[0], r.name); }) : [roomPart('table', null, 'No room')];
-    var add = idle.length ? '<button class="btn s icon" data-act="lvaddroom" data-k="lv-addroom" aria-haspopup="menu" aria-expanded="false" aria-label="Add a room" title="Add a room: put another bot in a voice channel">' + L.icon('plus', 's') + '</button>' : '';
+    // Round 8: always there; with no free bot its menu offers Add a bot… (the Settings sheet, opened in place).
+    var add = '<button class="btn s icon" data-act="lvaddroom" data-k="lv-addroom" aria-haspopup="menu" aria-expanded="false" aria-label="Add a room" title="Add a room: put ' + (idle.length ? 'another bot' : 'a new bot') + ' in a voice channel">' + L.icon('plus', 's') + '</button>';
     var sum = collapsed('lv-onair') ? (rs.length ? rs : [{ name: 'No room', mix: pb }]).map(function (r) { var c = r.mix.music; return esc(r.name) + ': ' + (c ? esc(L.title(L.track(c.id))) : 'silent'); }).join(' · ') : '';
     return '<div class="lv-dock">' + L.pane({ id: 'lv-onair', title: 'On air', icon: 'broadcast', kind: 'onair', size: 'auto', flush: true, noMax: true, keys: 'Alt+1', actions: add, summary: sum,
       body: undoStrip('onair') + '<div class="lv-rooms' + (parts.length > 1 ? ' many' : '') + '">' + parts.join('') + '</div>' }) + '</div>';
@@ -951,13 +963,18 @@
   L.acts.lvallsc = function () { S.allScenes = !S.allScenes; L.render(); };
   L.acts.lvsel = function (el) { S.sel = S.sel === el.dataset.sel ? null : el.dataset.sel; L.render(); };
   L.acts.lvnotes = function () { S.notesOpen = !S.notesOpen; L.render(); };
-  L.acts.lvfade = function () { touched(); L.fadeAll(3); };
+  L.acts.lvfade = function () { touched(); L.fadeAll(L.FADE); };
   L.acts.lvstop = function () { touched(); L.stopAll(); };
   function tgArg(el) { return tgOf(el.dataset.tg); }
   L.acts.lvprevt = function (el) { touched(); L.prev(el.dataset.lane, tgArg(el)); };
   L.acts.lvnextt = function (el) { touched(); L.next(el.dataset.lane, tgArg(el)); };
   L.acts.lvpause = function (el) { touched(); var ln = el.dataset.lane, tg = tgArg(el), c = M(tg)[ln]; L.pauseLane(ln, tg); L.say((ln === 'music' ? 'Music ' : 'Ambience ') + (c && c.paused ? 'paused' : 'playing')); };
-  L.acts.lvfadeout = function (el) { touched(); L.stopLane(el.dataset.lane, 3, tgArg(el)); L.say((el.dataset.lane === 'music' ? 'Music' : 'Ambience') + ' fading out'); };
+  function inRoom(tg) { return rooms().length > 1 ? ' in ' + roomName(tg) : ''; }
+  function shuffleIn(tg, kx) {
+    return L.shuffleButton('music', tg, 'lv-shuf' + kx) || '<button class="btn s icon rep" data-k="lv-shuf' + kx + '" aria-pressed="false" aria-label="Shuffle" title="Only music from a playlist can be shuffled" disabled>' + L.icon('inorder', 's') + '</button>';
+  }
+  L.acts.lvstoplane = function (el) { touched(); var ln = el.dataset.lane, tg = tgArg(el); L.stopLane(ln, 1, tg); L.say((ln === 'music' ? 'Music' : 'Ambience') + ' stopped' + inRoom(tg)); };
+  L.acts.lvfadeout = function (el) { touched(); L.stopLane(el.dataset.lane, L.FADE, tgArg(el)); L.say((el.dataset.lane === 'music' ? 'Music' : 'Ambience') + ' fading out'); };
   // Up next: × takes one entry out for this evening (a planned track is skipped, an added one goes), with Undo.
   L.acts.lvupx = function (el) {
     var tg = tgArg(el), rm = RM(tg), snap = clone(rm), kind = el.dataset.kind, i = +el.dataset.i, label = el.getAttribute('aria-label').replace(/^Remove /, '').replace(/ from Up next$/, '');
@@ -1009,7 +1026,8 @@
     L.menu(el, '<div class="group">' + esc(b.name) + ' plays in</div>' + channelItems(b, 'lvbotjoin') +
       (free.length ? '<div class="sep"></div><div class="group">Another bot for ' + esc(name) + '</div>' + free.map(function (f) { return '<button role="menuitem" data-act="lvbotswap" data-from="' + b.id + '" data-to="' + f.id + '">' + L.icon('users', 's') + esc(f.name) + '</button>'; }).join('') : '') +
       '<div class="sep"></div>' + others.map(function (r) { return '<button role="menuitem" data-act="lvcopyroom" data-from="' + r.bots[0].id + '" data-to="' + b.id + '">' + L.icon('loop', 's') + 'Copy what ' + esc(r.name) + ' is playing</button>'; }).join('') +
-      '<a role="menuitem" class="item" href="#/outputs">' + L.icon('users', 's') + 'Rooms</a><a role="menuitem" class="item" href="#/settings">' + L.icon('gear', 's') + 'Bots and tokens</a>', 'Room ' + name);
+      '<button role="menuitem" data-act="lvkick" data-id="' + b.id + '">' + L.icon('leave', 's') + 'Kick ' + esc(b.name) + ' from ' + esc(name) + '</button>' +
+      '<div class="sep"></div><a role="menuitem" class="item" href="#/outputs">' + L.icon('users', 's') + 'Rooms</a><a role="menuitem" class="item" href="#/settings">' + L.icon('gear', 's') + 'Bots and tokens</a>', 'Room ' + name);
   };
   /* Must 2 (b): moving a bot from the room menu takes one click and asks nothing, so it gets the same 8-second Undo
      as Kick when the players there were hearing something. */
@@ -1023,12 +1041,14 @@
       L.render(); L.say(b.name + ' is joining ' + c.name + '. Undo is available for 8 seconds, or press Ctrl+Z.');
     }
   }
-  // Kick at once; if the players there were hearing something, Undo (8 s, or Ctrl+Z) puts the bot back with it.
+  /* Kick at once; Undo (8 s, or Ctrl+Z) puts the bot back in its channel with what it played, where it was. Round 8
+     (Nik, 11 Nov 20:33: "I don't see an undo button for kicking a bot in the live view"): Undo now shows after every
+     Kick, not only when the players were hearing something, at the top of On air, with focus on it. */
   L.acts.lvkick = function (el) {
     var b = L.bot(el.dataset.id); if (!b) return; touched(); var room = L.outputName(b), k = L.botKick(b.id); if (!k) return;
-    if (k.lost) softUndo(b.name + ' left ' + room, function () { k.restore(); }, 'onair', 'lv-room-' + b.id);
-    L.render(); L.say(b.name + ' left ' + room + (k.lost ? '. Undo is available for 8 seconds, or press Ctrl+Z.' : ''));
-    focusK(k.lost ? 'lv-undo2' : rooms().length ? 'lv-room-' + rooms()[0].bots[0].id : 'lv-addroom');
+    softUndo(b.name + ' left ' + room, function () { k.restore(); }, 'onair', 'lv-room-' + b.id);
+    L.render(); L.say(b.name + ' left ' + room + '. Undo is available for 8 seconds, or press Ctrl+Z.');
+    focusK('lv-undo2');
   };
   // Another bot takes over this channel: the new one joins, the old one leaves, and what played here goes on.
   L.acts.lvbotswap = function (el) {
@@ -1045,8 +1065,10 @@
     var idle = L.bots().filter(function (b) { return b.status === 'idle'; });
     // OUT-8: a new bot is made in Settings (the menu's last item).
     L.menu(el, (idle.map(function (b) { return '<div class="group">' + esc(b.name) + ' joins…</div>' + channelItems(b, 'lvaddjoin'); }).join('') || '<div class="item muted">Every bot is in a room.</div>') +
-      '<div class="sep"></div><a role="menuitem" class="item" href="#/settings">' + L.icon('plus', 's') + 'New bot…</a>', 'Add a room');
+      '<div class="sep"></div><button role="menuitem" data-act="lvaddbot">' + L.icon('plus', 's') + 'Add a bot…</button>', 'Add a room');
   };
+  // Add a bot… opens Settings' three steps over Live; once connected, the new bot joins from Add a room.
+  L.acts.lvaddbot = function () { if (L.acts.stadd) L.acts.stadd(); else L.route('#/settings'); };
   L.acts.lvaddjoin = function (el) {
     var b = L.bot(el.dataset.id), c = L.channel(el.dataset.g, el.dataset.c); if (!b || !c) return;
     L.botJoin(b.id, el.dataset.g, el.dataset.c);
@@ -1179,7 +1201,7 @@
     if (e.altKey && !e.ctrlKey && !e.metaKey && /^Digit[1-7]$/.test(e.code)) return goBox(+e.code.slice(5) - 1);
     if (e.altKey) return false;
     // Shift+Esc fades everything, even from a text box: two keys, so it is never pressed by accident.
-    if (isKey(e, 'fadeAll')) { closeKeys(false); L.fadeAll(3); return true; }
+    if (isKey(e, 'fadeAll')) { closeKeys(false); L.fadeAll(L.FADE); return true; }
     if (e.key === 'Escape' && S.keysOpen) { closeKeys(true); return true; }
     if (isKey(e, 'undo') && !typing) return undo();
     if (isKey(e, 'nextScene') && !singleKey('nextScene')) { if (!e.repeat) nextSceneKey(); return true; }

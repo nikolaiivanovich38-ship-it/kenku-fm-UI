@@ -1,5 +1,6 @@
 /**
- * SEC-11: the Content-Security-Policy of the three app pages is pinned here,
+ * SEC-11: the Content-Security-Policy of the two app pages (FND-16: the Lyre page and the capture window; the old
+ * main window and player pages are gone) is pinned here,
  * directive by directive, so an edit to an HTML file cannot silently loosen
  * it. The pages are webpack templates: `<%= ... %>` is evaluated at build time
  * with `webpackConfig.mode`, so each page is checked as built for production
@@ -56,30 +57,6 @@ const COMMON: Policy = {
 };
 
 const PRODUCTION: Record<string, Policy> = {
-  "index.html": {
-    ...COMMON,
-    "script-src": ["'self'"],
-    "style-src": ["'self'", "'unsafe-inline'"],
-    "img-src": ["'self'", "data:", "blob:", "file:", "https:", "http:"],
-    "font-src": ["'self'", "data:"],
-    "media-src": ["'none'"],
-    "connect-src": ["'self'"],
-    "worker-src": ["'none'"],
-  },
-  "player/index.html": {
-    ...COMMON,
-    "script-src": ["'self'"],
-    "style-src": ["'self'", "'unsafe-inline'"],
-    "img-src": ["'self'", "data:", "blob:", "file:", "https:", "http:"],
-    "font-src": ["'self'", "data:"],
-    "media-src": ["'self'", "data:", "blob:", "file:", "https:", "http:"],
-    "connect-src": ["'self'", "data:", "blob:", "file:", "https:", "http:"],
-    "worker-src": ["'none'"],
-  },
-  // --- w3-shell --- The new interface page hosts the playback engine and preview (wave 3, w3-host): audio files
-  // and worklets from the app, prepared library files and read-ahead (blob:), nothing from the web. Its fonts and
-  // pictures are bundled files. Security review 6 (w3-secfix): library files come only through the lyre-media:
-  // addresses MEDIA_PREPARE grants this page, never file:, so the page cannot read any other file on the disk.
   "lyre/index.html": {
     ...COMMON,
     "script-src": ["'self'"],
@@ -105,6 +82,11 @@ const PRODUCTION: Record<string, Policy> = {
 };
 
 const PAGES = Object.keys(PRODUCTION);
+
+it("FND-16: only the Lyre page and the capture window are app pages now", () => {
+  expect(PAGES).toEqual(["lyre/index.html", "audioCapture/index.html"]);
+  for (const gone of ["index.html", "player/index.html"]) expect(fs.existsSync(path.join(SRC, gone))).toBe(false);
+});
 
 describe("app page Content-Security-Policy (SEC-11)", () => {
   it.each(PAGES)("%s has exactly the expected production policy", (file) => {

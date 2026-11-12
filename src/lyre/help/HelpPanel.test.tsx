@@ -8,6 +8,9 @@ import { AnnouncerProvider } from "../shell/Announcer";
 import { expectNoAxeViolations } from "../test/axe";
 import type { DiagnosticsBridge, DiagnosticsResult } from "../../common/lyreDiagnostics";
 
+// UX-R16: the version webpack builds in (none in tests unless given).
+vi.mock("../version", () => ({ LYRE_VERSION: "0.5.1" }));
+
 function bridge(answer: Promise<DiagnosticsResult> | DiagnosticsResult) {
   const save = vi.fn((): Promise<DiagnosticsResult> => Promise.resolve(answer));
   const show = vi.fn((): void => undefined);
@@ -27,6 +30,14 @@ function panel(props: Partial<React.ComponentProps<typeof HelpPanel>> = {}) {
 }
 
 describe("Help's panel", () => {
+  it("0.5.1: shows Lyre's version at its foot, under Save diagnostics… (ROUND8.md §2)", () => {
+    const { help } = panel();
+    const version = within(help).getByTitle("Lyre version");
+    expect(version).toHaveTextContent("0.5.1");
+    expect(version.closest("p")).toHaveTextContent("Lyre 0.5.1");
+    expect(version.closest("footer")).toBe(within(help).getByRole("button", { name: "Save diagnostics…" }).closest("footer"));
+  });
+
   it("lists the articles by task, one list per group, with the search box focused", () => {
     const { help } = panel();
     expect(within(help).getByRole("heading", { level: 2, name: "Help" })).toBeInTheDocument();

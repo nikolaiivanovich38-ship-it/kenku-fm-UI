@@ -29,7 +29,7 @@
 Vitest has two projects (`vitest.config.mts`):
 
 - `main` (Node): `src/main/**/*.test.ts`, `src/*.test.ts`, `src/common/**/*.test.ts`.
-- `ui` (jsdom with Testing Library and jest-dom): `src/player/**` and `src/renderer/**`.
+- `ui` (jsdom with Testing Library and jest-dom): `src/lyre/**` and `src/engine/**`.
 
 Put a test next to the code (`foo.ts` → `foo.test.ts`). Write the failing test first. Keep logic in small modules without an `electron` import so it can be tested; where Electron is needed, mock it with `vi.mock("electron", ...)` (see `src/autoUpdate.test.ts`).
 
@@ -86,27 +86,14 @@ yarn e2e playlists                       # one spec file (file names are listed 
 
 Rebuild the package after any change under `src/`; changes to `e2e/` need no rebuild.
 
-- `e2e/fixtures/app.ts` starts the app with a new empty data folder (`CUE_DESK_USER_DATA_DIR`, which also skips the Kenku FM carry-over; only test builds read it, release builds ignore it) and finds pages by title (`Lyre`, `Lyre Player`, `Audio Capture`). New specs import `test` and `expect` from it. `launchApp` starts further copies, for tests that restart the app (same data folder by default, or `{ userDataDir: null, env: { XDG_CONFIG_HOME } }` for the normal folder under a private appData).
+- `e2e/fixtures/app.ts` starts the app with a new empty data folder (`CUE_DESK_USER_DATA_DIR`, which also skips the Kenku FM carry-over; only test builds read it, release builds ignore it) and finds pages by title (`Lyre`, the window's own page, and `Audio Capture`; FND-16: the old player is gone). New specs import `test` and `expect` from it. `launchApp` starts further copies, for tests that restart the app (same data folder by default, or `{ userDataDir: null, env: { XDG_CONFIG_HOME } }` for the normal folder under a private appData).
 - After every test the fixture fails the test if anything went wrong while the app ran (`e2e/fixtures/problems.ts`): an uncaught page error, a console error in any page, a main-process crash, a Content-Security-Policy refusal or an "Ignored a … message" from the IPC guard. A test that causes a console error on purpose lists it in `errors.ignoredConsole`.
-- Helpers: `fixtures/audio.ts` writes sine-tone WAV files, `fixtures/localSite.ts` serves test pages on 127.0.0.1 (tests cannot reach the internet), `fixtures/player.ts` holds the playlist and soundboard steps. Audio files are added through the app's own file chooser (Playwright's `filechooser` event), so the real import code runs.
+- Helpers: `fixtures/audio.ts` writes sine-tone WAV files, `fixtures/lyre.ts` opens the Lyre page at a route, `fixtures/discord.ts` reads what the fake Discord's channels received, `fixtures/oldStorage.ts` writes what Kenku FM (or Lyre up to 0.5.0) kept in the old window's and old player's storage, for the upgrade checks.
 - `CUE_DESK_EXECUTABLE` runs the tests against another build.
 - On Linux as root (containers, CI) the Chromium sandbox is switched off for the test run only.
 - Failures leave a trace, screenshots and the main-process log in `test-results/`.
 
 CI runs the e2e job on Windows (`.github/workflows/ci.yml`). To run every spec and end-to-end test on GitHub instead of here (about 20 minutes, split across machines), push a branch named `ci/<name>`: `git push <remote> HEAD:ci/<name>` (docs/testing.md > Specs > On GitHub).
-
-## Background pictures
-
-The player's 23 built-in background pictures (`src/player/backgrounds/*.jpg`) are painted by code: `scripts/backgrounds/paint.mjs` draws each scene on a canvas from a fixed random seed, and `scripts/backgrounds/render.mjs` runs it in Playwright's Chromium and saves 1600×1000 JPEGs (quality 0.82). The file names are the background names Kenku FM stored, so do not rename them ("butterflys" is Kenku FM's spelling).
-
-```
-node scripts/backgrounds/render.mjs                    # repaint all 23 into src/player/backgrounds
-node scripts/backgrounds/render.mjs tavern stars       # only these
-node scripts/backgrounds/render.mjs --sheet sheet.png  # also save a contact sheet, shown as the player's cards show them
-node scripts/backgrounds/render.mjs --check            # repaint in memory and compare with the saved files
-```
-
-The script fails if a picture is over 250 KB or if white text on it would be hard to read: it applies the playlist page's own overlay and requires 4.5:1 contrast (WCAG AA) against the brightest 5% of the picture, separately for the title and the track list. With the same Chromium build the files come out byte for byte the same; another Chromium version may change a few pixels (`--check` says which). If Playwright's own Chromium is missing, the script uses the newest `chromium-*` build in the Playwright browser folder. `yarn test:scripts` checks the names and the seeded randomness; `src/player/backgrounds/index.test.ts` checks the files. The pictures are original to this project and GPL-3.0 (`src/player/backgrounds/LICENSE.md`). Any image file put in that folder is bundled, so keep only the 23 there.
 
 ## Demo kit
 
@@ -155,8 +142,8 @@ New libraries are added only at versions published at least two weeks earlier, t
 
 Upgraded in 0.5.0: fastify 4 to 5.12.7, uuid 10 to 11.1.1 (SEC-9); discord.js 14.27.0, @discordjs/voice 0.19.2, libsodium-wrappers 0.8.4, TypeScript 5.9.3. Left, and why:
 
-- The old player's interface libraries (MUI 6, @dnd-kit/core 3 and /sortable 4, react-router 6, redux-persist, electron-store 8, @reduxjs/toolkit and react-redux): only the old player and the main window's shell use them; they leave with the old player (FND-16) rather than be rewritten for it. react-router 6 has two moderate advisories that do not reach the player (no server rendering, no links to outside addresses).
-- React 19: the new interface and the old player share React 18; moving both at once is a change of its own, best after FND-16.
+- The old player's interface libraries (MUI 6, @emotion, @dnd-kit, react-router 6, redux-persist, @reduxjs/toolkit, react-redux, howler, uuid): nothing imports them since 0.5.1 (FND-16); they come out of package.json in a step of their own (they need a fresh `yarn install`). electron-store 8 stays while `src/bounds.ts` uses it.
+- React 19: Lyre uses React 18; moving is a change of its own.
 - Electron 45, Electron Forge 8, @electron/fuses 2, @electron/asar 4: majors that change packaging; Electron 44 is supported until Electron 47 (about March 2027). Electron 44.9.3 and later patches are reviewed in the monthly step (docs/RELEASE_CHECKLIST.md).
 - vitest 5, jsdom 31, TypeScript 7, css-loader 7, style-loader 4: test and build tools, majors with breaking changes; they ship nothing.
 - music-metadata 12: the library process belongs to the data stream; 11.16.1 has no advisory.
@@ -188,7 +175,7 @@ Builds are unsigned. Upstream's signed flow (DigiCert KSP Windows signing, Apple
 
 The app was renamed from Cue Desk (working name) to Lyre before its first public release; `docs/brand.md` has the logo and how to rebuild the icons.
 
-- Display name: `productName` in `package.json`. Also update the page titles in `src/index.html` and `src/player/index.html` (the e2e fixture finds pages by these titles), the player tab title in `src/renderer/features/player/playerSlice.ts`, and the text in `README.md`, `NOTICE` and `CHANGELOG.md`.
+- Display name: `productName` in `package.json`. Also update the page title in `src/lyre/index.html` (the window's title; the e2e fixture finds the page by it, `e2e/fixtures/lyre.ts` LYRE_PAGE_TITLE), and the text in `README.md`, `NOTICE` and `CHANGELOG.md`.
 - Package and executable name: `name` in `package.json`. This changes the installer name and the Windows app ID; a new name installs as a separate app, so plan it before the first public release.
 - Do **not** change `dataFolderName` in `src/main/appIdentity.json` after a public release: it keeps users' libraries where they are. If it must change, add the old folder to the front of `earlierApps` so the first start copies the library across (with its own `kind` if it keeps files Kenku FM did not; see `CUE_DESK_ITEMS` in `src/main/migration/carryOver.ts`).
 - `.github/workflows/release.yml` checks the fuses of `out/<productName>-win32-x64/<name>.exe`; update that path with the names.

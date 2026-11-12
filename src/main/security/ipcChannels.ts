@@ -3,7 +3,6 @@
  * which page may send it and what arguments it carries. Worked out from the
  * preload scripts:
  * - main-window: src/preload.ts and src/preload/managers/BrowserViewManagerPreload.ts
- * - player-view: src/player/preload.ts
  * - lyre-view: src/lyre/preload.ts
  * - audio-capture: src/audioCapture/preload.ts and src/preload/managers/AudioCaptureManagerPreload.ts
  * Website tabs have no preload and never appear here. docs/security.md has the
@@ -17,7 +16,6 @@ import {
   isBoolean,
   isFiniteNumber,
   isIntegerIn,
-  isOneOf,
   isPlainObject,
   isStringUpTo,
   isWebContentsId,
@@ -27,8 +25,8 @@ import {
 import { isLyreMethod } from "../../common/lyre/rpc";
 import { isApplicationId } from "../../common/lyreOutputs";
 import { isGlobalKeysRequest as isGlobalKeysRequestShape } from "../../common/globalKeys";
-import { isWindowSettings as isWindowSettingsShape, isWindowSettingsChange as isWindowSettingsChangeShape } from "../../common/windowSettings";
 import type { AppPageRole } from "./permissions";
+import { isTitleBarColours } from "../../common/windowFrame";
 
 export interface IpcChannelRule {
   /** Pages allowed to send on this channel. */
@@ -52,18 +50,12 @@ export const REFUSED_VIEW_ID = -1;
  */
 export const MAX_SHORT_TEXT = 4096;
 
-/** The view kind of the old player page; besides it and LYRE_VIEW_KIND, only plain website tabs. */
-export const PLAYER_VIEW_KIND = "player";
-
 /** w3-shell: the view kind of the new interface page (the "Lyre" tab). */
 export const LYRE_VIEW_KIND = "lyre";
 
-/** Correlates a remote API request with the player's reply (PERF-9). */
-const isRequestId = isIntegerIn(1, Number.MAX_SAFE_INTEGER);
 const isShortText = isStringUpTo(MAX_SHORT_TEXT);
 const isUrl = isStringUpTo(MAX_URL_LENGTH);
 const MAIN: readonly AppPageRole[] = ["main-window"];
-const PLAYER: readonly AppPageRole[] = ["player-view"];
 const bounds = [isFiniteNumber, isFiniteNumber, isFiniteNumber, isFiniteNumber] as const;
 const viewIdOnly = argsMatch(isWebContentsId);
 
@@ -71,8 +63,6 @@ const viewIdOnly = argsMatch(isWebContentsId);
 /** Bot ids are made by the main process (botTokenStore.ts BOT_ID_PATTERN). */
 const BOT_ID = /^bot-[0-9a-f-]{36}$/;
 const isBotId: ArgCheck = (value) => typeof value === "string" && BOT_ID.test(value);
-/** "local" (this computer's speakers) or a bot id. */
-const isOutputId: ArgCheck = (value) => value === "local" || isBotId(value);
 /** A Discord snowflake id (server, channel). */
 const isDiscordId: ArgCheck = (value) => typeof value === "string" && /^\d{1,25}$/.test(value);
 /** A bot token: non-empty text, at most MAX_SHORT_TEXT (real ones are ~70 characters). */
@@ -132,11 +122,6 @@ const REMOTE_SETTING_CHECKS: Record<string, ArgCheck> = {
   address: isStringUpTo(64),
   port: isIntegerIn(1, 65535),
 };
-const isOldRemoteSetting: ArgCheck = (value) => {
-  if (!isPlainObject(value)) return false;
-  const old = value as Record<string, unknown>;
-  return Object.keys(old).length === 3 && isBoolean(old.enabled) && isStringUpTo(64)(old.address) && isStringUpTo(5)(old.port);
-};
 const isRemoteChange: ArgCheck = (value) =>
   isPlainObject(value) &&
   Object.entries(value as Record<string, unknown>).every(
@@ -144,23 +129,15 @@ const isRemoteChange: ArgCheck = (value) =>
   );
 
 export const IPC_CHANNELS = {
-  // src/index.ts
-  GET_VERSION: { from: MAIN, args: noArgs, refusedReturnValue: "" },
-  GET_PLATFORM: { from: MAIN, args: noArgs, refusedReturnValue: "" },
-  CLEAR_CACHE: { from: MAIN, args: noArgs },
-
-  // WindowManager
-  WINDOW_TOGGLE_MAXIMIZE: { from: MAIN, args: noArgs },
-  WINDOW_MINIMIZE: { from: MAIN, args: noArgs },
-  WINDOW_CLOSE: { from: MAIN, args: noArgs },
-
+  // FND-16 (0.5.1): website tabs, local files and device capture are kept for OUT-12 (online sources, later) and
+  // unreachable. Their channels come only from "main-window", which no page is any more, and nothing makes
+  // BrowserViewManagerMain; AudioCaptureManagerMain listens on its channels below, which nothing can send.
   // BrowserViewManagerMain
   BROWSER_VIEW_CREATE_BROWSER_VIEW: {
     from: MAIN,
     // The address may be missing for a bookmark saved without one; that has
-    // always opened a blank tab, so it still does.
-    // w3-shell: the kind may also be "lyre" for the new interface page.
-    args: argsMatch(optional(isUrl), ...bounds, optional(isOneOf(PLAYER_VIEW_KIND, LYRE_VIEW_KIND))),
+    // always opened a blank tab, so it still does. No kind: only website tabs (FND-16).
+    args: argsMatch(optional(isUrl), ...bounds),
     refusedReturnValue: REFUSED_VIEW_ID,
   },
   BROWSER_VIEW_REMOVE_BROWSER_VIEW: { from: MAIN, args: viewIdOnly },
@@ -176,13 +153,6 @@ export const IPC_CHANNELS = {
   BROWSER_VIEW_GO_BACK: { from: MAIN, args: viewIdOnly },
   BROWSER_VIEW_RELOAD: { from: MAIN, args: viewIdOnly },
 
-  // PlayerManager
-  PLAYER_GET_URL: { from: MAIN, args: noArgs, refusedReturnValue: "" },
-  PLAYER_REGISTER_VIEW: { from: MAIN, args: viewIdOnly },
-  // Review 0.5.0 CR-3: the old Settings' remote control choice, handed over once (PLAYER_START_REMOTE and
-  // PLAYER_STOP_REMOTE are gone). One object exactly { enabled: boolean, address: text ≤ 64, port: text ≤ 5 }.
-  REMOTE_MOVE_OLD_SETTING: { from: MAIN, args: argsMatch(isOldRemoteSetting) },
-
   // AudioCaptureManagerMain, sent by the main window
   AUDIO_CAPTURE_SET_MUTED: { from: MAIN, args: argsMatch(isWebContentsId, isBoolean) },
   AUDIO_CAPTURE_START_EXTERNAL_AUDIO_CAPTURE: { from: MAIN, args: argsMatch(isShortText) },
@@ -194,11 +164,6 @@ export const IPC_CHANNELS = {
   // The hidden capture window sends nothing over IPC: its audio goes over a
   // private MessageChannelMain port (SEC-2, WP2).
 
-  // Remote API replies from the player view (src/main/remote)
-  PLAYER_REMOTE_PLAYLIST_GET_ALL_REPLY: { from: PLAYER, args: argsMatch(isPlainObject, isRequestId) },
-  PLAYER_REMOTE_PLAYLIST_PLAYBACK_REPLY: { from: PLAYER, args: argsMatch(isPlainObject, isRequestId) },
-  PLAYER_REMOTE_SOUNDBOARD_GET_ALL_REPLY: { from: PLAYER, args: argsMatch(isPlainObject, isRequestId) },
-  PLAYER_REMOTE_SOUNDBOARD_PLAYBACK_REPLY: { from: PLAYER, args: argsMatch(isPlainObject, isRequestId) },
 
   // --- WP2 Tabs ---
   // SEC-15 (BrowserViewManagerMain): open a file from the user's computer in a
@@ -210,51 +175,13 @@ export const IPC_CHANNELS = {
   LOCAL_FILES_LIST_FOLDERS: { from: MAIN, args: noArgs },
   LOCAL_FILES_FORGET_FOLDER: { from: MAIN, args: argsMatch(isStringUpTo(32_767)) },
 
-  // --- WP2 Pipeline / Outputs and bots ---
-  // PERF-4: the streaming mode is applied when a broadcast starts (capture
-  // no longer starts at launch, so AUDIO_CAPTURE_START is gone).
-  AUDIO_CAPTURE_SET_STREAMING_MODE: { from: MAIN, args: argsMatch(isOneOf("lowLatency", "performance")) },
-  // SEC-5 / OUT-1: outputs and Discord bots (OutputManager). Replace the old
-  // DISCORD_* channels and AUDIO_CAPTURE_SET_LOOPBACK. No channel returns a token.
-  OUTPUTS_GET_STATE: { from: MAIN, args: noArgs },
-  OUTPUTS_CONNECT_SAVED: { from: MAIN, args: noArgs },
-  BOT_ADD: { from: MAIN, args: noArgs },
-  BOT_REMOVE: { from: MAIN, args: argsMatch(isBotId) },
-  BOT_SET_TOKEN: { from: MAIN, args: argsMatch(isBotId, isBotToken) },
-  BOT_REMOVE_TOKEN: { from: MAIN, args: argsMatch(isBotId) },
-  BOT_IMPORT_LEGACY_TOKEN: { from: MAIN, args: argsMatch(isBotToken) },
-  BOT_CONNECT: { from: MAIN, args: argsMatch(isBotId) },
-  BOT_DISCONNECT: { from: MAIN, args: argsMatch(isBotId) },
-  BOT_JOIN_CHANNEL: { from: MAIN, args: argsMatch(isBotId, isDiscordId) },
-  BOT_LEAVE_CHANNEL: { from: MAIN, args: argsMatch(isBotId, isDiscordId) },
-  OUTPUT_SET_MUTED: { from: MAIN, args: argsMatch(isOutputId, isBoolean) },
-  // OUT-2: try a failed bot or voice connection again.
-  BOT_RECONNECT: { from: MAIN, args: argsMatch(isBotId) },
-
-  // --- Wave 1 core fixes (wave1-corefix) ---
-  // PERF-6 (review 7): the player's answer to PLAYER_SAVE_NOW (sent by
-  // PlayerManager before the window closes): its waiting changes are saved.
-  PLAYER_SAVED: { from: PLAYER, args: noArgs },
-
-  // --- Rooms and buses ---
-  // OUT-6 (OutputManager.moveBot): move a bot to another voice channel during
-  // play; its room keeps playing.
-  BOT_MOVE_TO_CHANNEL: { from: MAIN, args: argsMatch(isBotId, isDiscordId) },
-  // OUT-5: a room's volume (the room is its bot), 0 to 1. A room is muted
-  // with OUTPUT_SET_MUTED, as before.
-  ROOM_SET_VOLUME: { from: MAIN, args: argsMatch(isBotId, isUnitInterval) },
   // --- Files and preview ---
   // BUG-10 / PLY-11 (src/main/media/mediaIpc.ts): prepare a library file
   // before it plays (invoke; answers { url } or { error }). Arguments: the
   // file address, and { keepLocal: boolean } and nothing else. The address is
   // checked against the library folders by MediaAccess before anything is read.
-  // w3-api: the new interface page hosts the engine too, so it prepares files the same way.
-  MEDIA_PREPARE: { from: [...PLAYER, "lyre-view"], args: argsMatch(isUrl, isPrepareOptions) },
-
-  // --- w3-shell ---
-  // LyreManager: the address of the new interface page, for the main window's
-  // "Lyre" tab (sync; answers "" when refused, like PLAYER_GET_URL).
-  LYRE_GET_URL: { from: MAIN, args: noArgs, refusedReturnValue: "" },
+  // The Lyre page hosts the engine (FND-16: the old player that used it too is gone).
+  MEDIA_PREPARE: { from: ["lyre-view"], args: argsMatch(isUrl, isPrepareOptions) },
 
   // --- w3-api ---
   // src/main/lyreApi/lyreIpc.ts: a LyreApi call from the new interface page (invoke; answers what the library
@@ -313,19 +240,22 @@ export const IPC_CHANNELS = {
   // (isGlobalKeysRequest); the main process then refuses keys used for typing (globalKeyProblem) and answers
   // { refused: [{ action, key, message }] }. Each press comes back to the Lyre page as LYRE_GLOBAL_KEY.
   LYRE_GLOBAL_KEYS_SET: { from: ["lyre-view"], args: argsMatch(isGlobalKeysRequestShape) },
-  // OUT-8 (src/main/windowSettings/windowSettingsBridge.ts, src/common/windowSettings.ts): the main window's Sound to
-  // Discord and Website tabs settings in Settings in Lyre. STATE (send): the main window's four settings, exactly
-  // (isWindowSettings), after each change. GET (invoke): the latest, or null. SET (invoke): one or more of the four,
-  // each of its kind (isWindowSettingsChange), passed to the main window, which keeps them; answers whether it went.
-  WINDOW_SETTINGS_STATE: { from: MAIN, args: argsMatch(isWindowSettingsShape) },
-  LYRE_WINDOW_SETTINGS_GET: { from: ["lyre-view"], args: noArgs },
-  LYRE_WINDOW_SETTINGS_SET: { from: ["lyre-view"], args: argsMatch(isWindowSettingsChangeShape) },
-  // SEC-15 (BrowserViewManagerMain): Settings › Local files in Lyre, as LOCAL_FILES_LIST_FOLDERS / _FORGET_FOLDER
-  // for the main window (invoke; answers the list). A folder path is at most 32767 characters.
-  LYRE_LOCAL_FOLDERS_LIST: { from: ["lyre-view"], args: noArgs },
-  LYRE_LOCAL_FOLDERS_FORGET: { from: ["lyre-view"], args: argsMatch(isStringUpTo(32_767)) },
-  // Website tabs › Clear website data in Lyre: the old Settings' Clear cache (src/index.ts, appInfoIpc.ts; invoke).
-  LYRE_CLEAR_WEBSITE_DATA: { from: ["lyre-view"], args: noArgs },
+  // --- w51-main ---
+  // FND-16 (src/main/broadcast/lyreOutputsBridge.ts): Got it on the note in Settings › Discord bots that says Lyre moved
+  // the bot token Kenku FM kept in plain text (send, no arguments). The main process remembers it (old-window.json).
+  LYRE_BOT_LEGACY_NOTE_SEEN: { from: ["lyre-view"], args: noArgs },
+  // FND-16 (src/main/managers/LyreManager.ts): Restart now on Lyre's update note (send, no arguments); acted on only
+  // once an update is ready (autoUpdater.quitAndInstall).
+  UPDATE_RESTART: { from: ["lyre-view"], args: noArgs },
+  // FND-16 step 2 (src/main/window/windowFrame.ts): the colours of the window's own buttons, those of what is under
+  // them (send; exactly { color, symbolColor }, each "#rrggbb"), and maximise or put back on a double-click of a drag
+  // area that reached the page (send, no arguments).
+  LYRE_TITLE_BAR: { from: ["lyre-view"], args: argsMatch(isTitleBarColours) },
+  LYRE_WINDOW_MAXIMISE: { from: ["lyre-view"], args: noArgs },
+  // FND-16 (src/main/security/appInfoIpc.ts): Settings › Sound to Discord › Empty the audio cache (invoke, no
+  // arguments). Replaces LYRE_CLEAR_WEBSITE_DATA; the Website tabs and Local files channels (LYRE_WINDOW_SETTINGS_*,
+  // LYRE_LOCAL_FOLDERS_*) went with their boxes.
+  LYRE_EMPTY_AUDIO_CACHE: { from: ["lyre-view"], args: noArgs },
 } satisfies Record<string, IpcChannelRule>;
 
 export type IpcChannel = keyof typeof IPC_CHANNELS;

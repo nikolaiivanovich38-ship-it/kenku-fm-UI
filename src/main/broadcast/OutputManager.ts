@@ -1,9 +1,7 @@
-import { ipcMain, type BrowserWindow } from "electron";
 import { TypedEmitter } from "tiny-typed-emitter";
 import type { ErrorCause } from "../../common/errorCause";
 import type { Room } from "../../common/domain/types";
 import { LOCAL_OUTPUT_ID, roomsOf, type OutputsState } from "../../common/outputs";
-import { guardIpc } from "../security/ipcGuard";
 import { applicationIdProblem, isApplicationId, tokenProblem, type LyreBotResult } from "../../common/lyreOutputs";
 import type { BotTokenStore, RemovedBot } from "./botTokenStore";
 import { defaultDiscordDriver, type DiscordDriver } from "./discordDriver";
@@ -33,12 +31,16 @@ interface OutputManagerEvents {
   roomsChange: (rooms: Room[]) => void;
   /** OUT-5: a room's volume, 0 to 1, changed in the window. */
   roomVolumeChange: (roomId: string, volume: number) => void;
-  /** w4-outputs: the state the main window was just sent (once per tick of changes), for the Lyre page too. */
+  /** w4-outputs: the state, once per tick of changes, for the Lyre page (LyreOutputsBridge). */
   stateChange: (state: OutputsState) => void;
+  /** FND-16: the game master closed the note about the token moved from Kenku FM (SessionManager remembers it). */
+  legacyTokenNoteSeen: () => void;
+  /**
+   * A one-time problem in plain words (no token, a join refused), and which bot it is about. Until 0.5.1 the old main
+   * window showed it; the Lyre page shows each bot's lasting problem from its state on Rooms and in Settings.
+   */
+  problem: (message: string, cause?: ErrorCause) => void;
 }
-
-/** The parts of the main window the manager uses. */
-type WindowLike = Pick<BrowserWindow, "webContents">;
 
 /**
  * OUT-1: every output the broadcast goes to: this computer's speakers and
@@ -51,8 +53,9 @@ type WindowLike = Pick<BrowserWindow, "webContents">;
  * OUT-6: `moveBot` moves a bot to another voice channel during play; its
  * room (and what it plays) stays.
  *
- * The main window learns the state through "OUTPUTS_STATE" (never a token)
- * and changes it through the BOT_* and OUTPUT_* channels.
+ * The Lyre page learns the state through LyreOutputsBridge (never a token)
+ * and changes it there (LYRE_BOT_*, LYRE_OUTPUT_*). FND-16: the old main
+ * window's channels (OUTPUTS_*, BOT_*, OUTPUT_*) went with it.
  */
 export class OutputManager extends TypedEmitter<OutputManagerEvents> {
   readonly bots = new Map<string, DiscordBot>();
@@ -63,7 +66,8 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
   private publishQueued = false;
   /** An older version's token was taken over this session, for this session only. */
   private legacyTokenSessionOnly = false;
-  private ipc = guardIpc(ipcMain);
+  /** FND-16: Settings shows the note about the token moved from Kenku FM. */
+  private legacyTokenNote = false;
   /** UX finding 6: when each waiting bot or voice connection tries again. */
   private retries = new RetryClock();
   /** OUT-5: the rooms last announced, to tell when they change. */
@@ -74,7 +78,6 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
   private removed = new Map<string, { record: RemovedBot; channelId: string | null; volume: number | undefined; muted: boolean }>();
 
   constructor(
-    private readonly window: WindowLike,
     private readonly tokens: BotTokenStore,
     private readonly driver: DiscordDriver = defaultDiscordDriver(),
   ) {
@@ -86,26 +89,9 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
     for (const bot of tokens.list()) {
       this.createBot(bot.id);
     }
-    this.ipc.handle("OUTPUTS_GET_STATE", () => this.state());
-    this.ipc.on("OUTPUTS_CONNECT_SAVED", () => this.connectSaved());
-    this.ipc.handle("BOT_ADD", () => this.addBot());
-    this.ipc.on("BOT_REMOVE", (_event, id: string) => this.removeBot(id));
-    this.ipc.handle("BOT_SET_TOKEN", (_event, id: string, token: string) => this.setToken(id, token));
-    this.ipc.on("BOT_REMOVE_TOKEN", (_event, id: string) => this.removeToken(id));
-    this.ipc.on("BOT_IMPORT_LEGACY_TOKEN", (_event, token: string) => this.importLegacyToken(token));
-    this.ipc.on("BOT_CONNECT", (_event, id: string) => void this.connect(id));
-    this.ipc.on("BOT_DISCONNECT", (_event, id: string) => this.bots.get(id)?.disconnect());
-    this.ipc.on("BOT_RECONNECT", (_event, id: string) => void this.reconnect(id));
-    this.ipc.on("BOT_JOIN_CHANNEL", (_event, id: string, channelId: string) => void this.bots.get(id)?.join(channelId));
-    this.ipc.on("BOT_LEAVE_CHANNEL", (_event, id: string, channelId: string) => this.bots.get(id)?.leave(channelId));
-    this.ipc.on("OUTPUT_SET_MUTED", (_event, outputId: string, muted: boolean) => this.setMuted(outputId, muted));
-    // --- Rooms and buses ---
-    this.ipc.on("BOT_MOVE_TO_CHANNEL", (_event, id: string, channelId: string) => void this.moveBot(id, channelId));
-    this.ipc.on("ROOM_SET_VOLUME", (_event, id: string, volume: number) => this.setRoomVolume(id, volume));
   }
 
   destroy(): void {
-    this.ipc.dispose();
     for (const bot of this.bots.values()) {
       bot.destroy();
     }
@@ -119,6 +105,7 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
     return {
       encryption: this.tokens.encryption,
       ...(this.legacyTokenSessionOnly ? { legacyTokenSessionOnly: true } : {}),
+      ...(this.legacyTokenNote ? { legacyTokenNote: true as const } : {}),
       local: { muted: this.localMuted },
       bots: [...this.bots.values()].map((bot) => {
         const summary = summaries.get(bot.id);
@@ -404,6 +391,20 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
     }
   }
 
+  /** FND-16: show (or stop showing) the note in Settings › Discord bots about the token moved from Kenku FM. */
+  setLegacyTokenNote(show: boolean): void {
+    if (this.legacyTokenNote === show) return;
+    this.legacyTokenNote = show;
+    this.publish();
+  }
+
+  /** FND-16: Got it on that note: it goes, and the listener remembers it for the next start. */
+  legacyTokenNoteSeen(): void {
+    const wasShown = this.legacyTokenNote;
+    this.setLegacyTokenNote(false);
+    if (wasShown) this.emit("legacyTokenNoteSeen");
+  }
+
   async connect(id: string): Promise<void> {
     const bot = this.bots.get(id);
     if (!bot) {
@@ -525,9 +526,7 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
   }
 
   private showError(message: string, cause?: ErrorCause) {
-    if (!this.window.webContents.isDestroyed()) {
-      this.window.webContents.send("ERROR", message, ...(cause ? [cause] : []));
-    }
+    this.emit("problem", message, cause);
   }
 
   /** Send the state once per tick, however many changes happened. */
@@ -538,11 +537,7 @@ export class OutputManager extends TypedEmitter<OutputManagerEvents> {
     this.publishQueued = true;
     setImmediate(() => {
       this.publishQueued = false;
-      const state = this.state();
-      if (!this.window.webContents.isDestroyed()) {
-        this.window.webContents.send("OUTPUTS_STATE", state);
-      }
-      this.emit("stateChange", state);
+      this.emit("stateChange", this.state());
     });
   }
 }

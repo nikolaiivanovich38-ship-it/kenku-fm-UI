@@ -45,7 +45,7 @@ describe("the seed is the prototype's sample data", () => {
     tagValues: Record<string, string[]>;
     orders: Record<string, Record<string, { shuffle: boolean; repeat: string }>>;
     sceneNames: Record<string, Record<string, string>>;
-    moved: { from: string; playlists: number; tracks: number; boards: number; pads: number; bookmarks: number; notMoved: [string, string][] };
+    moved: { from: string; playlists: number; tracks: number; boards: number; pads: number; bookmarks: { title: string; url: string }[]; notMoved: [string, string][] };
   };
   const seed = prototypeSeed();
 
@@ -84,7 +84,9 @@ describe("the seed is the prototype's sample data", () => {
     expect(seed.campaigns.map((c) => [c.trackIds, c.sessions.map((s) => s.trackIds)])).toEqual(p.campaigns.map((c) => [c.tracks, c.sessions.map((s) => s.tracks)]));
     const m = proto.moved;
     expect(seed.moved.from).toBe(m.from);
-    expect(seed.moved.copied.map((r) => r.count)).toEqual([m.playlists, m.tracks, m.boards, m.pads, m.bookmarks]);
+    // 0.5.1 (ROUND8.md §5): data.js keeps the bookmarks themselves; the table counts them.
+    expect(seed.moved.copied.map((r) => r.count)).toEqual([m.playlists, m.tracks, m.boards, m.pads, m.bookmarks.length]);
+    expect(seed.moved.bookmarks).toEqual(m.bookmarks);
     expect(seed.moved.notBrought.map((r) => [r.what, r.why])).toEqual(m.notMoved);
   });
 

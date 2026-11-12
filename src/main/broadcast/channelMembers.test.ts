@@ -40,7 +40,6 @@ const WORLD: FakeWorld = {
 
 let folder: string;
 let manager: OutputManager | undefined;
-const window = { webContents: { send: vi.fn(), isDestroyed: () => false } };
 const settle = (ms = 40) => new Promise((resolve) => setTimeout(resolve, ms));
 
 beforeEach(() => {
@@ -55,7 +54,7 @@ afterEach(() => {
 });
 
 async function connected(discord: FakeDiscord, token: string) {
-  manager = new OutputManager(window as never, new BotTokenStore(BotTokenStore.fileIn(folder), safeStorage), discord.driver);
+  manager = new OutputManager(new BotTokenStore(BotTokenStore.fileIn(folder), safeStorage), discord.driver);
   const id = manager.state().bots[0].id;
   manager.setToken(id, token);
   await manager.connect(id);

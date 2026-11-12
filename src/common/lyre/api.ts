@@ -13,6 +13,7 @@
  */
 import type {
   AudioDevices,
+  StreamingMode,
   Crossfade,
   CueStep,
   DisplaySettings,
@@ -661,6 +662,18 @@ export interface MoveReport {
   missing: MissingTrack[];
   /** What Lyre did not bring across, and why that is fine. */
   notBrought: { what: string; why: string }[];
+  /**
+   * FND-16: the old window's bookmarks, in its order, to copy (websites can't be opened in Lyre for now; OUT-12).
+   * Empty when there were none.
+   */
+  bookmarks: { title: string; url: string; folder?: string }[];
+  /**
+   * FND-16: what the old player gained after the first start and came across on the first start of 0.5.1, in plain
+   * sentences; null when nothing did.
+   */
+  later: { at: number; lines: string[] } | null;
+  /** Tracks that are only a web address, with no file: Lyre cannot play them until they have a downloaded file. */
+  webOnly: { id: string; title: string; url: string }[];
 }
 
 /* ---------- ORG-5 drag between lists ---------- */
@@ -693,8 +706,8 @@ export interface PutResult {
 /**
  * Settings round 7 adds. With the library (in backups, not in .lyre files): the crossfade (Settings › Sound to
  * Discord › Between tracks), the keys the game master changed and Next scene's guard. Per computer (kept beside the
- * library, never in a backup or a .lyre file, and no undo step): Look and feel › Display, Headphones and speakers, and
- * whether Next scene and Fade all work in other programs too.
+ * library, never in a backup or a .lyre file, and no undo step): Look and feel › Display, Headphones and speakers,
+ * whether Next scene and Fade all work in other programs too, and Sound to Discord (FND-16).
  */
 export interface LyreSettings {
   crossfade: Crossfade;
@@ -704,11 +717,14 @@ export interface LyreSettings {
   display: DisplaySettings;
   devices: AudioDevices;
   globalKeys: boolean;
+  /** FND-16: Settings › Sound to Discord, per computer (until 0.5.0 the old main window kept it). */
+  streamingMode: StreamingMode;
 }
 export interface ComputerSettingsPatch {
   display?: Partial<DisplaySettings>;
   devices?: Partial<AudioDevices>;
   globalKeys?: boolean;
+  streamingMode?: StreamingMode;
 }
 
 /* ---------- history ---------- */

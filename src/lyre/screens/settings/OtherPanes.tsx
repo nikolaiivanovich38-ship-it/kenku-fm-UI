@@ -1,7 +1,9 @@
 /**
- * Settings' folded boxes (design/prototype/src/views/settings.js): Sound to Discord with the crossfade (OUT-8, PLY-8),
- * Headphones and speakers (PRV-2), Remote control (SEC-4), Keyboard shortcuts (UX-12), Website tabs and Local files
- * (OUT-8). Each change saves at once and says so ("Saved: …").
+ * Settings' folded boxes (design/prototype/src/views/settings.js): Sound to Discord with the crossfade and Empty the
+ * audio cache (OUT-8, PLY-8, FND-16), Headphones and speakers (PRV-2), Remote control (SEC-4; hidden in 0.5.1 until
+ * Stream Deck support, SHOW_REMOTE_CONTROL) and Keyboard shortcuts (UX-12). Each change saves at once and says so
+ * ("Saved: …"). 0.5.1: Website tabs and Local files went with the old window (Nik, 11 Nov: "Keep the code, remove them
+ * from the interface"; design/prototype/ROUND8.md §3).
  *
  * PRV-2, lead decision (B6-NOTES, 7 Nov): there is no "On air, on this computer" device: what the players hear is
  * heard only through Discord (BUG-19); the split puts the preview in one ear of the headset.
@@ -9,9 +11,8 @@
 import React, { useEffect, useId, useRef, useState } from "react";
 
 import type { LyreSettings, WriteResult } from "../../../common/lyre/api";
-import { DEFAULT_WINDOW_SETTINGS, type StreamingMode, type WindowSettings, type WindowSettingsChange } from "../../../common/windowSettings";
 import { globalKeyProblem } from "../../../common/globalKeys";
-import { shortcutKey, type AudioDevices, type ShortcutAction } from "../../../common/domain";
+import { shortcutKey, type AudioDevices, type ShortcutAction, type StreamingMode } from "../../../common/domain";
 import type { RemoteState } from "../../../common/remoteControl";
 import { useLyreApi, useLyreSettings } from "../../api";
 import { useLyreAudio } from "../../audio";
@@ -25,32 +26,6 @@ import { useSave } from "../../shell/useSave";
 import { Radio, RadioButtons, Switch, useSaved, useSettingsBridges, useShownAtOnce } from "./common";
 import { CROSSFADE_CHOICES, STREAMING_MODES, crossfadeSaved, keyPressed, remoteListen, shortcutRows } from "./settingsModel";
 
-/** The main window's settings, kept current; Kenku FM's defaults until the main window has told them. */
-function useWindowSettings(): [WindowSettings, (change: WindowSettingsChange) => Promise<boolean>] {
-  const { windowSettings } = useSettingsBridges();
-  const [state, setState] = useState<WindowSettings>(DEFAULT_WINDOW_SETTINGS);
-  useEffect(() => {
-    if (!windowSettings) return;
-    let current = true;
-    const stop = windowSettings.onChange((next) => current && setState(next));
-    windowSettings.get().then(
-      (next) => current && next && setState(next),
-      (): void => undefined,
-    );
-    return () => {
-      current = false;
-      stop();
-    };
-  }, [windowSettings]);
-  const set = async (change: WindowSettingsChange) => {
-    if (!windowSettings) return false;
-    // Shown at once; the main window's answer follows (onChange).
-    setState((s) => ({ ...s, ...change }));
-    return windowSettings.set(change);
-  };
-  return [state, set];
-}
-
 /** A LyreApi settings write through the shell's useSave: Saved, the failure card with Try again, or the refusal. */
 function useSettingsWrite() {
   const save = useSave();
@@ -60,24 +35,24 @@ function useSettingsWrite() {
 /* ---------- Sound to Discord ---------- */
 
 export function SoundPane() {
-  const [win, setWin] = useWindowSettings();
   const settings = useLyreSettings().data;
   const api = useLyreApi();
   const write = useSettingsWrite();
-  const saved = useSaved();
   const { say } = useAnnounce();
   const ids = useId();
   const crossfade = settings?.crossfade ?? { ms: 3000, curve: "even" as const };
+  // FND-16: this computer's setting (until 0.5.0 the old main window kept it); Kenku FM's default until it is read.
+  const streamingMode: StreamingMode = settings?.streamingMode ?? "performance";
   return (
     <Pane id="st-sound" title="Sound to Discord" icon="broadcast" kind="plain" size="auto" noMax collapsed describe="Both send sound to Discord with the same short delay. A change applies the next time a bot joins a voice channel.">
       <RadioButtons<StreamingMode>
         label="Sound to Discord"
         options={STREAMING_MODES}
-        value={win.streamingMode}
+        value={streamingMode}
         onChange={(mode) => {
-          if (mode === win.streamingMode) return;
+          if (mode === streamingMode) return;
           const name = STREAMING_MODES.find((m) => m.value === mode)!.name;
-          void setWin({ streamingMode: mode }).then((went) => went && saved(`setting: ${name}`));
+          void write(() => api.settings.setComputer({ streamingMode: mode }), `setting: ${name}`);
           say(`${name}. Applies the next time a bot joins a voice channel.`);
         }}
       />
@@ -120,7 +95,35 @@ export function SoundPane() {
           </select>
         </div>
       </div>
+      <EmptyAudioCache />
     </Pane>
+  );
+}
+
+/**
+ * FND-16 (ROUND8.md §3): Empty the audio cache. It was part of the old window's Clear website data; with website tabs
+ * gone from the interface only the audio cache part stays. Nothing to confirm: Lyre makes the copies again.
+ */
+function EmptyAudioCache() {
+  const { cache } = useSettingsBridges();
+  const { toast } = useAnnounce();
+  return (
+    <div className="st-cache">
+      <button
+        type="button"
+        className="btn s"
+        disabled={!cache}
+        title="Deletes the copies Lyre made of your music so tracks start at once. Lyre makes them again when it needs them. Your music files, library and settings are kept."
+        onClick={() => {
+          void cache?.emptyAudioCache().then(
+            () => toast("Audio cache emptied"),
+            () => toast("Lyre could not empty the audio cache. Try again."),
+          );
+        }}
+      >
+        Empty the audio cache
+      </button>
+    </div>
   );
 }
 
@@ -500,103 +503,5 @@ function KeysSheet({ settings, onClose }: { settings: LyreSettings | undefined; 
         <p className="hint">Pad keys are on each pad board.</p>
       </div>
     </Dialog>
-  );
-}
-
-/* ---------- Website tabs ---------- */
-
-export function TabsPane() {
-  const [win, setWin] = useWindowSettings();
-  const { windowSettings } = useSettingsBridges();
-  const { toast, say } = useAnnounce();
-  const saved = useSaved();
-  const set = (change: WindowSettingsChange, what: string): void => void setWin(change).then((went) => went && saved(`setting: ${what}`));
-  return (
-    <Pane id="st-tabs" title="Website tabs" icon="grid" kind="plain" size="auto" noMax collapsed>
-      <Switch label="Show the address bar on tabs" checked={win.urlBarEnabled} onChange={(on) => set({ urlBarEnabled: on }, `address bar ${on ? "shown" : "hidden"}`)} />
-      <Switch label="Microphones and other inputs" checked={win.externalInputsEnabled} onChange={(on) => set(on ? { externalInputsEnabled: true } : { externalInputsEnabled: false, multipleInputsEnabled: false }, `inputs ${on ? "on" : "off"}`)} />
-      <Switch
-        label="Use several inputs at once"
-        checked={win.multipleInputsEnabled}
-        disabled={!win.externalInputsEnabled}
-        why="Turn on Microphones and other inputs first."
-        onChange={(on) => set({ multipleInputsEnabled: on }, `several inputs at once ${on ? "on" : "off"}`)}
-      />
-      <button
-        type="button"
-        className="btn s"
-        disabled={!windowSettings}
-        title="Logs you out of websites in tabs and deletes their saved files. Your library, playlists and settings are kept."
-        onClick={() => {
-          void windowSettings?.clearWebsiteData().then(
-            () => {
-              toast("Website data cleared: tabs are logged out");
-              say("Website data cleared");
-            },
-            () => toast("Lyre could not clear the website data. Try again."),
-          );
-        }}
-      >
-        Clear website data
-      </button>
-    </Pane>
-  );
-}
-
-/* ---------- Local files ---------- */
-
-export function FilesPane() {
-  const { windowSettings } = useSettingsBridges();
-  const saved = useSaved();
-  const { say } = useAnnounce();
-  const [folders, setFolders] = useState<string[] | null>(null);
-  const listRef = useRef<HTMLUListElement>(null);
-  useEffect(() => {
-    if (!windowSettings) return;
-    let current = true;
-    windowSettings.localFolders().then(
-      (list) => current && setFolders(list),
-      (): void => undefined,
-    );
-    return () => {
-      current = false;
-    };
-  }, [windowSettings]);
-  return (
-    <Pane id="st-files" title="Local files" icon="folder" kind="plain" size="auto" noMax collapsed describe="Lyre asks before opening a file from your computer. Folders you choose not to be asked about again are listed here.">
-      {!folders || folders.length === 0 ? (
-        <p className="faint">None</p>
-      ) : (
-        <ul className="list st-folders" aria-label="Folders opened without asking" ref={listRef}>
-          {folders.map((folder, i) => (
-            <li className="lrow" key={folder}>
-              <span className="grow ellipsis num" title={folder}>
-                {folder}
-              </span>
-              <button
-                type="button"
-                className="btn s ghost"
-                aria-label={`Ask again before opening files in ${folder}`}
-                onClick={() => {
-                  void windowSettings?.forgetLocalFolder(folder).then((left) => {
-                    setFolders(left);
-                    say(`Lyre asks again before opening files in ${folder}`);
-                    saved(`setting: ask before opening files in ${folder}`);
-                    // Focus goes to the folder that took its place, or the box's header.
-                    setTimeout(() => {
-                      const buttons = listRef.current?.querySelectorAll<HTMLButtonElement>("button");
-                      const next = buttons?.[Math.min(i, buttons.length - 1)];
-                      (next ?? document.querySelector<HTMLElement>('[data-pane="st-files"] .pane-toggle'))?.focus();
-                    }, 0);
-                  });
-                }}
-              >
-                Ask again
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Pane>
   );
 }

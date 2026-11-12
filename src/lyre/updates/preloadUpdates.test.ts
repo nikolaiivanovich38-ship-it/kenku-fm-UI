@@ -6,6 +6,7 @@ function fakeIpc(answer: unknown) {
   const listeners = new Map<string, (event: unknown, ...args: unknown[]) => void>();
   return {
     invoke: vi.fn(async () => answer),
+    send: vi.fn(),
     on: vi.fn((channel: string, listener: (event: unknown, ...args: unknown[]) => void) => listeners.set(channel, listener)),
     removeListener: vi.fn((channel: string) => listeners.delete(channel)),
     emit: (channel: string, ...args: unknown[]) => listeners.get(channel)?.({}, ...args),
@@ -36,5 +37,17 @@ describe("the Lyre page's automatic-updates bridge (SEC-14)", () => {
     expect(heard).toHaveBeenCalledWith({ kind: "checking" });
     stop();
     expect(ipc.listeners.has("UPDATE_STATE")).toBe(false);
+  });
+
+  it("FND-16: passes on whether a failure is the first to show, and asks to restart into a ready update", () => {
+    const ipc = fakeIpc(ERROR_STATE);
+    const heard = vi.fn();
+    const bridge = createLyreUpdatesBridge(ipc);
+    bridge.onChange(heard);
+    ipc.emit("UPDATE_STATE", { ...ERROR_STATE, tell: true });
+    ipc.emit("UPDATE_STATE", { ...ERROR_STATE, tell: "yes" });
+    expect(heard.mock.calls).toEqual([[{ ...ERROR_STATE, tell: true }]]);
+    bridge.restart();
+    expect(ipc.send).toHaveBeenCalledWith("UPDATE_RESTART");
   });
 });

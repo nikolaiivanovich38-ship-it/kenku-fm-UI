@@ -33,7 +33,7 @@ function setup(options: { bringInOld?: boolean; folders?: string[][] } = {}) {
   const lyre = page(1);
   const player = page(2);
   registry.trust(lyre, "lyre-view");
-  registry.trust(player, "player-view");
+  registry.trust(player, "audio-capture");
   const answers = [...(options.folders ?? [["/music"]])];
   const service: WiredService = {
     call: vi.fn(async (area: string, method: string) => ({ ok: true, value: `${area}.${method}` })),
@@ -69,9 +69,10 @@ describe("wireLyreLibrary (WP5)", () => {
     expect(sent).toContainEqual({ type: "changed", areas: ["boards"] });
   });
 
-  it("lets the player and the Lyre page prepare files from the library's folders, refreshed when tracks or folders change", async () => {
+  it("lets the Lyre page prepare files from the library's folders, refreshed when tracks or folders change; no other page", async () => {
     const { wired, invoke, lyre, player, service } = setup({ folders: [["/music"], ["/music", "/elsewhere"]] });
-    expect(await invoke("MEDIA_PREPARE", player, "file:///music/a.mp3", { keepLocal: false })).toEqual({ url: "file:///music/a.mp3 in /music" });
+    expect(await invoke("MEDIA_PREPARE", lyre, "file:///music/a.mp3", { keepLocal: false })).toEqual({ url: "file:///music/a.mp3 in /music" });
+    await expect(invoke("MEDIA_PREPARE", player, "file:///music/a.mp3", { keepLocal: false })).rejects.toThrow();
     wired.onEvent({ type: "changed", areas: ["playlists"] });
     expect(service.mediaFolders).toHaveBeenCalledTimes(1);
     wired.onEvent({ type: "changed", areas: ["tracks"] });
@@ -158,7 +159,7 @@ describe("MEDIA_PREPARE never waits for ever (security review 1)", () => {
     const ipc: IpcMainLike = { on: vi.fn(), removeListener: vi.fn(), handle: (c, l) => void handlers.set(c, l), removeHandler: (c) => void handlers.delete(c) };
     const registry = new TrustedContentsRegistry();
     const player = { id: 2, isDestroyed: () => false, mainFrame: { frameTreeNodeId: 20 }, once: (): void => undefined };
-    registry.trust(player, "player-view");
+    registry.trust(player, "lyre-view");
     const wired = wireLyreLibrary({
       service,
       ipc: guardIpc(ipc, { registry, warn: () => undefined }),
@@ -210,7 +211,7 @@ describe("MEDIA_PREPARE never waits for ever (security review 1)", () => {
     const ipc: IpcMainLike = { on: vi.fn(), removeListener: vi.fn(), handle: (c, l) => void handlers.set(c, l), removeHandler: (c) => void handlers.delete(c) };
     const registry = new TrustedContentsRegistry();
     const player = { id: 2, isDestroyed: () => false, mainFrame: { frameTreeNodeId: 20 }, once: (): void => undefined };
-    registry.trust(player, "player-view");
+    registry.trust(player, "lyre-view");
     const prepare = vi.fn(async () => ({ url: "x" }));
     wireLyreLibrary({
       service: { call: vi.fn(), mediaFolders: () => new Promise<string[]>(() => undefined), bringInOldLibrary: vi.fn() },
@@ -245,7 +246,7 @@ describe("MEDIA_PREPARE answers the Lyre page with lyre-media: addresses (securi
     const lyre = page(1);
     const player = page(2);
     registry.trust(lyre, "lyre-view");
-    registry.trust(player, "player-view");
+    registry.trust(player, "audio-capture");
     const answers = [...folders];
     const library = wireLyreLibrary({
       service: { call: vi.fn(), mediaFolders: async () => (answers.length > 1 ? (answers.shift() as string[]) : answers[0]), bringInOldLibrary: vi.fn() },
@@ -263,12 +264,12 @@ describe("MEDIA_PREPARE answers the Lyre page with lyre-media: addresses (securi
     return { grants, prepare, lyre, player, destroyed, library };
   }
 
-  it("gives the Lyre page an address for the prepared file only, and the old player its file: address as before", async () => {
+  it("gives the Lyre page an address for the prepared file only; no other page prepares files (FND-16)", async () => {
     const { grants, prepare, lyre, player } = await wired();
     const answer = await prepare(lyre, "file:///music/a%20b.flac");
     expect(answer.url).toMatch(/^lyre-media:\/\//);
     expect(grants.resolve(answer.url as string)).toBe(path.normalize("/music/a b.flac"));
-    expect(await prepare(player, "file:///music/a.flac")).toEqual({ url: "file:///music/a.flac" });
+    expect(() => prepare(player, "file:///music/a.flac")).toThrow("MEDIA_PREPARE refused");
     expect(await prepare(lyre, "file:///music/bad.flac")).toEqual({ error: "Lyre only plays files from your library folders." });
   });
 

@@ -26,7 +26,7 @@ var L = (function () {
   var D = LYRE_DATA;
   var L = { data: D, views: {}, acts: {}, inputs: {}, keys: [] };
   // Could 18 of the round 6 review: the version shown is the one running (in Lyre, the app's own; here, the design's).
-  L.version = '0.5.0';
+  L.version = '0.5.1';
 
   /* ---------- icons (24 px stroke paths) ---------- */
   var I = {
@@ -527,7 +527,8 @@ var L = (function () {
   /* ---------- state ---------- */
   var saved = {};
   try { saved = JSON.parse(localStorage.getItem('lyre-r2') || '{}'); } catch (e) { saved = {}; }
-  L.state = { theme: saved.theme || 'campaign', frame: saved.frame || 'half', rail: saved.rail || 'auto', panes: saved.panes || {}, notes: saved.notes !== false, tour: saved.tour === 'done' ? 'done' : '',
+  // Round 8: L.state.theme is the base theme (Look and feel); 'campaign', the old "Each campaign's own", reads as the default.
+  L.state = { theme: saved.theme && saved.theme !== 'campaign' ? saved.theme : (D.defaultTheme || 'candle'), frame: saved.frame || 'half', rail: saved.rail || 'auto', panes: saved.panes || {}, notes: saved.notes !== false, tour: saved.tour === 'done' ? 'done' : '',
     live: { cid: 'crown', sid: 's14', scene: 1, standby: 2 }, ctx: { cid: 'crown' }, shuffleRound: 0 };
   L.save = function () { try { localStorage.setItem('lyre-r2', JSON.stringify({ theme: L.state.theme, frame: L.state.frame, rail: L.state.rail, panes: L.state.panes, notes: L.state.notes, tour: L.state.tour })); } catch (e) { /* storage unavailable: settings last for this visit */ } };
 
@@ -583,7 +584,7 @@ var L = (function () {
     if (!ctx) return [];
     if (typeof ctx === 'string') return [ctx];
     // Scene first, else the session list it was played from (PLY-14), then the playlist; the track's own comes last.
-    var out = []; if (ctx.sceneId) out.push('sc:' + ctx.cid + ':' + ctx.sid + ':' + ctx.sceneId); else if (ctx.place && ctx.place.indexOf('ss:') === 0) out.push(ctx.place); if (ctx.playlistId) out.push('pl:' + ctx.playlistId); return out;
+    var out = []; if (ctx.sceneId) out.push('sc:' + ctx.cid + ':' + ctx.sid + ':' + ctx.sceneId); else if (ctx.place && (ctx.place.indexOf('ss:') === 0 || ctx.place.indexOf('sc:') === 0)) out.push(ctx.place); /* round 8: played from a scene's row in the planner */ if (ctx.playlistId) out.push('pl:' + ctx.playlistId); return out;
   }
   function override(t, ctx) { var ks = ctxKeys(ctx); for (var i = 0; i < ks.length; i++) { var o = D.profiles[ks[i]] && D.profiles[ks[i]][t.id]; if (o) return { p: o, key: ks[i] }; } return null; }
   L.profileWhere = function (t, ctx) { var o = t && override(t, ctx); return o ? (o.key.indexOf('sc:') === 0 ? 'scene' : o.key.indexOf('ss:') === 0 ? 'session' : 'playlist') : 'track'; };
@@ -599,10 +600,15 @@ var L = (function () {
     var ov = t && override(t, ctx), p = ov ? ov.p : (t && t.profile) || {}, dur = t ? t.dur : 60;
     var after = p.after || (t && (t.loop === 'yes' || t.loop === 'crossfade') ? 'loop' : 'next');
     function fade(f) { return f == null ? { dur: 0, shape: 50 } : typeof f === 'number' ? { dur: f, shape: 50 } : { dur: f.dur || 0, shape: f.shape != null ? f.shape : 50 }; }
-    return { start: p.start || 0, end: p.end || dur, after: after, loopStart: p.loopStart != null ? p.loopStart : (p.start || 0), loopXfade: p.loopXfade || 0,
-      fadeIn: fade(p.fadeIn), fadeOut: fade(p.fadeOut), markers: p.markers || [] };
+    /* Round 8 (Nik, 11 Nov 20:33: "We need a "Start at [select marker]" Option in the detailed audio profile view"):
+       startAt is a marker's time; the track then starts there wherever it plays (from = where playing begins), unless
+       a place's own profile says otherwise. A marker removed, or outside Start and End, falls back to Start. */
+    var start = p.start || 0, end = p.end || dur, markers = p.markers || [];
+    var at = p.startAt != null && markers.some(function (m) { return m.at === p.startAt; }) && p.startAt >= start && p.startAt < end ? p.startAt : null;
+    return { start: start, end: end, after: after, loopStart: p.loopStart != null ? p.loopStart : start, loopXfade: p.loopXfade || 0,
+      fadeIn: fade(p.fadeIn), fadeOut: fade(p.fadeOut), markers: markers, startAt: at, from: at != null ? at : start };
   };
-  function lane(trackId, playlistId, seq, place) { var t = L.track(trackId), pf = L.profileOf(t, laneCtx(playlistId, seq, place)); return { id: trackId, label: L.title(t), playlistId: playlistId || '', place: place || '', pos: pf.start, dur: pf.end, vol: 0, target: 1, fadeIn: 0 }; }
+  function lane(trackId, playlistId, seq, place) { var t = L.track(trackId), pf = L.profileOf(t, laneCtx(playlistId, seq, place)); return { id: trackId, label: L.title(t), playlistId: playlistId || '', place: place || '', start: pf.start, from: pf.from, pos: pf.from, dur: pf.end, vol: 0, target: 1, fadeIn: 0 }; }
   function laneCtx(playlistId, seq, place) { var s = seq && L.session(seq.cid, seq.sid), sc = s && s.scenes[seq.scene]; return { playlistId: playlistId, cid: seq && seq.cid, sid: seq && seq.sid, sceneId: sc && sc.id, place: place || '' }; }
   L.laneContext = function (ln, target) { var c = mixOf(target)[ln]; return c ? laneCtx(c.playlistId, c.seq, c.place) : null; };
   L.play = function (trackId, o) {
@@ -634,6 +640,9 @@ var L = (function () {
   L.prev = function (ln, target) { step(ln, -1, target); };
   L.pauseLane = function (ln, target) { var m = mixOf(target); if (m[ln]) { m[ln].paused = !m[ln].paused; L.changed(); } };
   L.stopLane = function (ln, fade, target) { var m = mixOf(target); if (m[ln]) { m[ln].fadeOut = fade == null ? 2 : fade; m[ln + 'Out'].push(m[ln]); m[ln] = null; L.changed(); } };
+  /* Round 8 (Nik, 11 Nov 20:33: "Let's make the standard for our fade buttons 5 rather than 3 seconds."): Fade all
+     (Shift+Esc) and a lane's Fade out take L.FADE seconds. The crossfade between tracks is Settings' own (L.defaultCrossfade). */
+  L.FADE = 5;
   L.fadeAll = function (s) { L.stopLane('music', s); L.stopLane('amb', s); Object.keys(pb.own).forEach(function (id) { L.stopLane('music', s, id); L.stopLane('amb', s, id); }); pb.fx.forEach(function (f) { f.fadeOut = s || 2; }); L.say('Fading everything out'); L.changed(); };
   L.stopAll = function () { pb.music = pb.amb = null; pb.musicOut = []; pb.ambOut = []; pb.fx = []; Object.keys(pb.own).forEach(function (id) { pb.own[id] = newMix(); }); L.say('Everything stopped'); L.changed(); };
   // target: a bot id with its own sound, 'table' (default) or 'all' (every output at once).
@@ -779,11 +788,60 @@ var L = (function () {
     }
     if (c.seq) L.next(ln, target); else { m[ln + 'Out'].push(c); c.fadeOut = .5; m[ln] = null; L.say('End of ' + (L.playlist(c.playlistId) || {}).name); }
   }
+  function lanePb(key) { var a = key.split('@'); return a[1] ? (pb.own[a[1]] || {})[a[0]] : pb[a[0]]; }
+  /* Round 8 (0.5.1, Nik 11 Nov: "I can't click and interact with the tracking bar in the now playing bar, and choose
+     to skip to a certain point in the track - definitely need that"): the position bar of what plays is a slider, in the
+     Now playing bar and in Live's On air. L.seekBar(key, name, cls, inner) draws it around the usual thin bar: a hit
+     area 24 px tall (WCAG 2.5.8), its name "Position in <track>", its value read as "1:23 of 4:05". Click or drag to
+     jump; with the keyboard Left and Right move 5 s, Page Up and Page Down 30 s, Home goes to where the track starts
+     and End to its last second, so its end (fade, loop or next) still plays out. Each tick moves the value; while
+     it has focus the value changes only when Nik moves it, so a screen reader does not read it four times a second.
+     key: 'music', 'amb', 'preview', or 'music@<botId>' / 'amb@<botId>' for rooms other than the first. */
+  var SEEK_STEP = 5, SEEK_PAGE = 30;
+  function seekText(c) { return L.fmt(c.pos) + ' of ' + L.fmt(c.dur); }
+  L.seekBar = function (key, name, cls, inner) {
+    var c = lanePb(key), pos = c ? c.pos : 0, dur = c ? c.dur : 0;
+    return '<div class="seek" role="slider" tabindex="0" data-seek="' + esc(key) + '" data-k="seek-' + esc(key) + '" aria-label="Position in ' + esc(name) + '" aria-valuemin="0" aria-valuemax="' + Math.round(dur) + '" aria-valuenow="' + Math.round(pos) + '" aria-valuetext="' + (c ? seekText(c) : '') + '" title="Click or drag to jump; Left and Right move 5 seconds">' +
+      '<div class="progress ' + (cls || '') + '"><span data-progress="' + esc(key) + '"' + (c ? ' style="width:' + Math.min(100, pos / dur * 100) + '%"' : '') + '></span>' + (inner || '') + '</div></div>';
+  };
+  // Move what plays at `key` to `pos` seconds: never before its start, and up to a quarter second short of its end.
+  L.seek = function (key, pos) {
+    var c = lanePb(key); if (!c) return null;
+    c.pos = Math.max(c.start || 0, Math.min(c.dur - .25, pos));
+    paintSeek(key, true); return c;
+  };
+  function paintSeek(key, now) {
+    document.querySelectorAll('[data-seek]').forEach(function (el) {
+      if (key && el.dataset.seek !== key) return;
+      var c = lanePb(el.dataset.seek); if (!c || (!now && el === document.activeElement)) return;
+      el.setAttribute('aria-valuemax', String(Math.round(c.dur))); el.setAttribute('aria-valuenow', String(Math.round(c.pos))); el.setAttribute('aria-valuetext', seekText(c));
+    });
+    L.tickBars();
+  }
+  document.addEventListener('keydown', function (e) {
+    var el = e.target && e.target.closest && e.target.closest('[data-seek]'); if (!el || e.ctrlKey || e.metaKey || e.altKey) return;
+    var c = lanePb(el.dataset.seek); if (!c) return;
+    var to = { ArrowLeft: c.pos - SEEK_STEP, ArrowDown: c.pos - SEEK_STEP, ArrowRight: c.pos + SEEK_STEP, ArrowUp: c.pos + SEEK_STEP,
+      PageDown: c.pos - SEEK_PAGE, PageUp: c.pos + SEEK_PAGE, Home: c.from != null ? c.from : (c.start || 0), End: c.dur - 1 }[e.key];
+    if (to == null) return;
+    e.preventDefault(); e.stopPropagation(); L.seek(el.dataset.seek, to);
+  }, true);
+  var seeking = null;
+  function seekAt(el, x) { var bar = el.querySelector('.progress') || el, r = bar.getBoundingClientRect(), c = lanePb(el.dataset.seek); if (c && r.width) L.seek(el.dataset.seek, Math.max(0, Math.min(1, (x - r.left) / r.width)) * c.dur); }
+  document.addEventListener('pointerdown', function (e) {
+    var el = e.target && e.target.closest && e.target.closest('[data-seek]'); if (!el || e.button !== 0) return;
+    seeking = el; try { el.setPointerCapture(e.pointerId); } catch (err) { /* capture unavailable: the drag ends at the bar's edge */ }
+    el.focus(); seekAt(el, e.clientX); e.preventDefault();
+  });
+  document.addEventListener('pointermove', function (e) { if (seeking) seekAt(seeking, e.clientX); });
+  document.addEventListener('pointerup', function () { if (!seeking) return; var k = seeking.dataset.seek, c = lanePb(k); seeking = null; if (c) L.say('At ' + seekText(c)); });
   // Elements with data-progress="music|amb|preview" and data-time="music|amb|preview" update every tick without a re-render.
-  L.tick = function () {
-    function lanePb(key) { var a = key.split('@'); return a[1] ? (pb.own[a[1]] || {})[a[0]] : pb[a[0]]; }
+  L.tickBars = function () {
     document.querySelectorAll('[data-progress]').forEach(function (el) { var c = lanePb(el.dataset.progress); el.style.width = c ? Math.min(100, c.pos / c.dur * 100) + '%' : '0'; });
     document.querySelectorAll('[data-time]').forEach(function (el) { var c = lanePb(el.dataset.time); el.textContent = c ? L.fmt(c.pos) + ' / ' + L.fmt(c.dur) : ''; });
+  };
+  L.tick = function () {
+    paintSeek(null, false);
     var fxCount = pb.fx.length; if (fxCount !== L._fx) { L._fx = fxCount; L.render(); }
   };
   L.changed = function () { L.render(); L.tick(); };
@@ -1116,10 +1174,14 @@ var L = (function () {
   }
   L.current = function () { return resolve(); };
   L.paint = paint;
+  /* Round 8 (Nik, 11 Nov: "The campaign's visual theme should override the base / preference theme in settings. It
+     currently does not."): a campaign's own theme always shows on its page, its sessions (the planner) and in Live
+     while one of its sessions is loaded, whatever Look and feel says. Look and feel's theme is the base: every other
+     page, and a campaign with no theme of its own. */
+  L.baseTheme = function () { return L.state.theme && L.state.theme !== 'campaign' ? L.state.theme : (D.defaultTheme || 'candle'); };
   L.themeFor = function (r) {
-    if (L.state.theme !== 'campaign') return L.state.theme;
-    var cid = r.p.cid || (r.name === 'live' ? L.state.live.cid : L.state.ctx.cid);
-    var c = L.campaign(cid), d = D.defaultTheme || 'candle'; return (r.name === 'campaigns' || r.name === 'look') ? d : (c ? c.theme || d : d);
+    var base = L.baseTheme(), cid = r.name === 'live' ? L.state.live.cid : (r.name === 'campaign' || r.name === 'session') ? r.p.cid : '';
+    var c = cid && L.campaign(cid); return c && c.theme ? c.theme : base;
   };
 
   /* ---------- rename in place (EDT-1, BUG-21) ----------
@@ -1226,7 +1288,7 @@ var L = (function () {
         '<div class="oab-from ellipsis" title="' + esc(originOf(c)) + '">' + esc(originOf(c)) + (m.music && m.amb ? ' · <span class="lane-dot amb" aria-hidden="true"></span>Ambience: ' + esc(L.title(L.track(m.amb.id))) : '') +
         (fx ? ' · ' + fx + ' effect' + (fx > 1 ? 's' : '') + ' sounding' : '') + (r.none ? ' · No bot is in a voice channel: nobody hears it' : '') +
         '</div></div>' +
-      '<div class="oab-time"><div class="progress ' + ln + '"><span data-progress="' + pk + '"></span></div><span class="num" data-time="' + pk + '"></span></div>' +
+      '<div class="oab-time">' + L.seekBar(pk, nm, ln) + '<span class="num" data-time="' + pk + '"></span></div>' +
       '<div class="oab-ctl" role="group" aria-label="Control what the players hear' + esc(where) + '">' +
         '<button class="btn s icon" data-act="oabpause" data-lane="' + ln + '" data-room="' + target + '" data-k="' + k + '-pause" aria-label="' + (paused ? 'Play' : 'Pause') + '" title="' + (paused ? 'Play the ' + word + ' again' : 'Pause the ' + word) + esc(where) + '">' + L.icon(paused ? 'play' : 'pause', 's') + '</button>' +
         '<button class="btn s" data-act="oabstop" data-room="' + target + '" data-k="' + k + '-stop" title="Stop what the players hear' + esc(where) + ' (fades out in a second)">' + L.icon('stop', 's') + 'Stop</button>' +
@@ -1243,7 +1305,7 @@ var L = (function () {
       '<span class="oab-dest">' + L.destTag('you', '', paused) + (paused ? '<span class="badge oab-paused">Paused</span>' : '') + '</span>' +
       '<div class="oab-now"><div class="oab-title ellipsis" title="' + esc(p.label + (L.track(p.id) ? ' · ' + L.normHover(L.track(p.id), p.playlistId) : '')) + '"><span class="lane-dot preview" aria-hidden="true"></span><span class="ellipsis">' + esc(p.label) + '</span></div>' +
         '<div class="oab-from ellipsis" title="' + esc(from) + '">' + esc(from) + '</div></div>' +
-      '<div class="oab-time"><div class="progress preview"><span data-progress="preview"></span></div><span class="num" data-time="preview"></span></div>' +
+      '<div class="oab-time">' + L.seekBar('preview', p.label, 'preview') + '<span class="num" data-time="preview"></span></div>' +
       '<div class="oab-ctl" role="group" aria-label="Control your preview">' +
         '<button class="btn s icon" data-act="pvpause" data-k="oab-pv-pause" aria-label="' + (paused ? 'Play the preview' : 'Pause the preview') + '" title="' + (paused ? 'Play the preview again' : 'Pause the preview') + '">' + L.icon(paused ? 'play' : 'pause', 's') + '</button>' +
         '<button class="btn s" data-act="pvstop" data-k="oab-pv-stop" aria-label="Stop the preview" title="Stop the preview">' + L.icon('stop', 's') + 'Stop</button></div>' +
@@ -1305,8 +1367,10 @@ var L = (function () {
     function a(href, nav, icon, label, hint) { return '<a href="' + href + '" data-k="rail-' + nav + '"' + (cur === nav ? ' aria-current="page"' : '') + (hint ? ' title="' + (min ? label + ': ' : '') + hint + '" aria-label="' + label + '"' : min ? ' title="' + label + '"' : '') + '>' + L.icon(icon) + '<span class="lbl">' + label + '</span></a>'; }
     var s = L.session(L.state.live.cid, L.state.live.sid);
     return '<div class="logo">' + L.logo + '<b>Lyre</b></div><nav aria-label="Lyre"><div class="stack" style="gap:2px">' +
+      // Round 8 (Nik, 11 Nov 20:33: "Let's move the live tab to the top of the left side bar"): Live comes first.
+      a('#/live', 'live', 'broadcast', 'Live' + (s ? ': S' + s.n : '')) +
       a('#/campaigns', 'campaigns', 'crown', 'Campaigns') + a('#/library', 'library', 'library', 'Library') + a('#/playlists', 'playlists', 'playlist', 'Playlists') + a('#/boards', 'boards', 'grid', 'Pad boards') +
-      a('#/live', 'live', 'broadcast', 'Live' + (s ? ': S' + s.n : '')) + a('#/outputs', 'outputs', 'users', 'Rooms' + outputsBadge(), (function () { var n = D.discord.bots.filter(function (b) { return b.status === 'connected'; }).length, m = D.discord.bots.length; return n + ' of ' + m + (m === 1 ? ' bot is' : ' bots are') + ' in a room'; })()) + '</div></nav>' +
+      a('#/outputs', 'outputs', 'users', 'Rooms' + outputsBadge(), (function () { var n = D.discord.bots.filter(function (b) { return b.status === 'connected'; }).length, m = D.discord.bots.length; return n + ' of ' + m + (m === 1 ? ' bot is' : ' bots are') + ' in a room'; })()) + '</div></nav>' +
       '<div class="bottom stack" style="gap:2px">' + a('#/settings', 'settings', 'gear', 'Settings') + a('#/look', 'look', 'palette', 'Look and feel') +
       // FND-8: Help, beside Look and feel (views/help.js). It opens a side panel, not a screen, so it is a button.
       '<button class="nav" data-act="help" data-k="rail-help" aria-controls="lyre-help" aria-expanded="' + !!(L.helpOpen && L.helpOpen()) + '" aria-keyshortcuts="F1"' + (min ? ' title="Help"' : '') + '>' + L.icon('help') + '<span class="lbl">Help</span></button>' +
@@ -1335,7 +1399,7 @@ var L = (function () {
   L.acts.rail = function () { var min = document.getElementById('rail').classList.contains('min'); L.state.rail = min ? 'full' : 'min'; L.save(); L.render(); };
 
   /* ---------- prototype strip and notes (not part of Lyre) ---------- */
-  var THEMES = [['campaign', "Each campaign's own"], ['candle', 'Candlelit Library (default)'], ['fern', 'Fern and Brass (logo)'], ['hearth', 'Hearth and Iron (D&D)'], ['parchment', 'Parchment (light)'], ['elysium', 'Elysium (Vampire)']];
+  var THEMES = [['candle', 'Candlelit Library (default)'], ['fern', 'Fern and Brass (logo)'], ['hearth', 'Hearth and Iron (D&D)'], ['parchment', 'Parchment (light)'], ['elysium', 'Elysium (Vampire)']];
   var FRAMES = [['half', 'Half of a 1920 screen (960 px)'], ['half1280', 'Half of a 2560 screen (1280 px)'], ['third', 'Narrow (720 px)'], ['full', 'Whole window']];
   L.THEMES = THEMES;
   function paintProto(r, v, theme) {
@@ -1343,7 +1407,7 @@ var L = (function () {
     if (!p.dataset.built) {
       p.dataset.built = 1;
       p.innerHTML = '<b>Lyre · design round 6</b><span>Clickable prototype, no real sound.</span>' +
-        '<label>Theme <select id="pTheme">' + THEMES.map(function (t) { return '<option value="' + t[0] + '">' + t[1] + '</option>'; }).join('') + '</select></label>' +
+        '<label>Base theme <select id="pTheme">' + THEMES.map(function (t) { return '<option value="' + t[0] + '">' + t[1] + '</option>'; }).join('') + '</select></label>' +
         '<label>Screen <select id="pFrame">' + FRAMES.map(function (t) { return '<option value="' + t[0] + '">' + t[1] + '</option>'; }).join('') + '</select></label>' +
         '<button id="pNotes" type="button">Design notes</button>' +
         // Round 6, part 5: a failed save cannot happen in the prototype, so this makes the next save fail, to show it.

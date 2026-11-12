@@ -332,3 +332,56 @@ Sweeps (`sweeps.spec.ts`, 17 checks; one line per screen and kind, sizes and the
 Each stream adds its own name to `BUILT_STREAMS` when its checks pass; a check that two streams need stays expected
 to fail until the second of them is in.
 
+
+## Retire (0.5.1)
+
+Lyre 0.5.1 retires the old Kenku FM window and the Lyre Player tab (FND-16, `R51-RETIRE.md`). Its design is
+`design/prototype/ROUND8.md`; its checks are marked `expectFailureUntilBuilt("retire")` (a sweep also by its screen and
+streams), and w51-main adds `"retire"` to `BUILT_STREAMS` once they pass. The app needs three test-build hooks for
+them (support/target.ts): `__lyreUpdatesTest.report(event)` (fed to the same handlers as autoUpdater's events),
+`__lyreLegacyTest.arrive({ plainToken, bookmarks })` (the one-time Kenku FM move, as if read from its storage), and the
+prototype seed's six bookmarks (titles and addresses, as `design/prototype/src/data.js` has them).
+
+| Check | Backlog | What it checks |
+| --- | --- | --- |
+| `sweeps.spec.ts`, two per sweep screen (44) | FND-16 | nothing under the window's buttons, at 960×1000 and at 960×1040 with text at 200 %; the top strip drags, its controls do not |
+| `sweeps.spec.ts` "0.5.1: Lyre is the whole window" (7) | FND-16 | one window with Lyre's page alone; the buttons' place and size (about 138×36) and focus never under them; double-click maximises (top strip and Live's strip); the trail at 200 %; Help open; a tall sheet at 200 % |
+| `help.spec.ts` "0.5.1: update news and the version" (4) | SEC-14, UX-R16 | the update note (Restart now, stays until dismissed); a failed check shown once; an install failure says what to do; the version at Help's foot |
+| `help.spec.ts` "0.5.1: help for Lyre as one window" (3) | FND-8 | no article mentions the Player tab, website tabs or remote control; article 02 on bookmarks and the token; article 01 on a token from Kenku FM |
+| `settings.spec.ts` "0.5.1: Settings without the old window" (3) | FND-16 | no Website tabs, Local files or Remote control; Sound to Discord keeps its choice; Empty the audio cache |
+| `settings.spec.ts` "0.5.1: a bot token from Kenku FM" (2) | WP1 review 4 | the one-time note under Discord bots, Got it ends it for good; no note otherwise |
+| `library-files.spec.ts` "0.5.1: the old bookmarks, to copy" (3) | FND-16 | the Bookmarks box (title, address, Copy); none: no box and no row; the bookmarks brought are the ones listed |
+
+Part 2: Nik's findings from testing 0.5.0 (ROUND8.md, part 2; R6-NIK-DECISIONS.md, 11 Nov 19:42). The design marked
+them "retire"; w51-main marked the features `expectFailureUntilBuilt("feat")`, since the w51-feat stream builds them
+(with w51-fix's two drag fixes) and adds `"feat"` to `BUILT_STREAMS` when it merges. "Lyre's page fits the window" is
+the retirement's and stays "retire".
+
+| Check | Backlog | What it checks |
+| --- | --- | --- |
+| `live.spec.ts` "0.5.1: On air has Stop, Shuffle and a position bar to jump in" (5) | PLY-17 | Stop beside Pause on the playing track (music and ambience), Stop ends the room's music only; Shuffle beside Repeat per room, greyed for music from no playlist; each room with two rooms; the position bar as a slider (24 px tall, "Position in …", "1:23 of 4:05", click, drag, Left/Right 5 s, Home, End); the ambience's too |
+| `campaigns.spec.ts` "0.5.1: the Now playing bar's position, campaign order and the campaign's theme" (5) | PLY-17, ORG-13, UX-11 | the Now playing bar's position moves while playing and is a slider (click, Left/Right, Home); a session dragged into the last place; campaign cards dragged before and after, into the last place; Reorder's Move earlier and Move later, Alt+arrows; a campaign's theme on its page, planner and Live whatever the base, the base everywhere else |
+| `session-planner.spec.ts` "0.5.1: Play on air for each track, where Add scene puts a scene, dragging into the last place" (4) | SHW-2 | Play on air on each track of a scene's playlist, after Preview, playing it from that playlist; Add scene at the end with no scene selected; right after the selected one, none selected once it is folded; a scene dragged into the last place |
+| `library.spec.ts` "0.5.1: Prep and Live in the Library" (1) | UX-18 | Prep \| Live in the Library's top bar; Live opens the loaded session |
+| `look.spec.ts` "0.5.1: Look and feel's theme is the base" (1) | UX-11 | a Base theme choice of the five themes, no Each campaign's own, the line that a campaign keeps its own; Use as the base theme |
+| `sweeps.spec.ts` "0.5.1: Lyre's page fits the window" (2) | FND-16 | every sweep screen, with the Now playing bar showing, fits 1920×1040 and 1280×680: nothing wider or taller than the window |
+
+Changed: the Parchment sweeps of The Sunken Crown's page, planner and Live give the campaign Parchment as its own theme
+first (a base theme no longer reaches a campaign's pages).
+
+Part 3: more of Nik's findings (ROUND8.md, part 3; R6-NIK-DECISIONS.md, 11 Nov 20:33), marked "feat", except the help
+check, which reads articles 10 and 11 as merged with the design and stays "retire".
+
+| Check | Backlog | What it checks |
+| --- | --- | --- |
+| `live.spec.ts` "0.5.1: fades of 5 seconds, and Rooms' actions in On air" (5) | OUT-7 | Fade all and Fade out say 5 seconds, Keys "Fade all (5 s)"; the bot button chooses a channel in place; Kick beside it and in its menu, Undo after every Kick, focused; Undo brings the music back; Add a room always there, with Add a bot… |
+| `settings.spec.ts` "0.5.1: a split headset only while On air plays too" (1) | PRV-2 | the switch's hover text and the line under it |
+| `help.spec.ts` "0.5.1: Run a session in Live says Fade all takes 5 seconds…" (1) | FND-8 | articles 10 and 11 |
+| `audio-profile.spec.ts` "0.5.1: Start at a marker" (2) | DAT-3 | Start at's choices, the "Starts here" flag; Play on air from the Library starts at the marker |
+| `library.spec.ts` "0.5.1: Pick up where it stopped for every music track" (1) | PLY-4 | any role but a sting, or none |
+| `sweeps.spec.ts` "0.5.1: Live is the first entry of the menu" (1) | UX-R15 | Live, then Campaigns |
+
+Removed in 0.5.1: `settings.spec.ts` "round 7: remote control needs a secret code" (3 checks: off by default with the
+code, Make a new code, home network) and the Website tabs and Local files parts of "the other settings Lyre still
+needs are here" (the folded Website tabs, Local files and Remote control boxes, and the Website tabs switches). The
+Bookmarks row of "says what was copied and where it is now" moved to the Bookmarks check.

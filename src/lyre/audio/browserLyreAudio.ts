@@ -15,35 +15,35 @@
  * them and is what the unit tests check with fakes.
  */
 import { DEFAULT_LIBRARY_NORMALISE, type DomainLookup } from "../../common/domain";
-import { fromAudioContext, type EngineContext, type GainLike, type NodeLike, type Scheduler } from "../../player/engine/audio/types";
-import { createBrowserEngine } from "../../player/engine/browser";
-import type { PlaybackEngine } from "../../player/engine/engine";
+import { fromAudioContext, type EngineContext, type GainLike, type NodeLike, type Scheduler } from "../../engine/audio/types";
+import { createBrowserEngine } from "../../engine/browser";
+import type { PlaybackEngine } from "../../engine/engine";
 import {
   OutputDeviceChooser,
   storageChoiceStore,
   type ChoiceStore,
   type DeviceSource,
-} from "../../player/engine/preview/outputDevices";
-import { PreviewPlayer } from "../../player/engine/preview/previewPlayer";
+} from "../../engine/preview/outputDevices";
+import { PreviewPlayer } from "../../engine/preview/previewPlayer";
 import {
   PlayerAudioLink,
   RoomMixer,
   RoomStreams,
   type BridgedPreviewOutput,
   type FrameTapFactory,
-} from "../../player/engine/rooms";
+} from "../../engine/rooms";
 import {
   BRIDGE_SAMPLE_RATE,
   createBrowserBridgedPreview,
   createBrowserFrameTaps,
   listenForPlayerAudioPort,
-} from "../../player/engine/rooms/browserBridge";
-import type { PlayableSource } from "../../player/engine/sources/layers";
-import { MainMediaResolver } from "../../player/engine/sources/mainMediaResolver";
-import { browserObjectUrls, ReadAhead } from "../../player/engine/sources/readAhead";
-import { readBytes } from "../../player/engine/sources/readBytes";
-import { SourceLoader, type MediaRequest } from "../../player/engine/sources/sourceLoader";
-import { storedResumePositions } from "../../player/engine/queue/resumePositions";
+} from "../../engine/rooms/browserBridge";
+import type { PlayableSource } from "../../engine/sources/layers";
+import { MainMediaResolver } from "../../engine/sources/mainMediaResolver";
+import { browserObjectUrls, ReadAhead } from "../../engine/sources/readAhead";
+import { readBytes } from "../../engine/sources/readBytes";
+import { SourceLoader, type MediaRequest } from "../../engine/sources/sourceLoader";
+import { storedResumePositions } from "../../engine/queue/resumePositions";
 import { outputDeviceSource } from "./deviceSource";
 import { EngineLyreAudio, type LyreAudioLibrary, type RoomMeter } from "./lyreAudio";
 import type { LyreAudioBridge } from "./preloadAudio";

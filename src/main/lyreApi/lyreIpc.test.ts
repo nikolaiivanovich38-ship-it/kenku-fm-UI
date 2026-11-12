@@ -24,7 +24,7 @@ function setup() {
   const lyre = page(1);
   const player = page(2);
   registry.trust(lyre, "lyre-view");
-  registry.trust(player, "player-view");
+  registry.trust(player, "audio-capture");
   const call = vi.fn(async (area: string, method: string, args: unknown[]) => ({ ok: true, value: [area, method, args], changed: [], undoLabel: null }));
   const unregister = registerLyreApiIpc(guardIpc(ipc, { registry, warn: () => undefined }), call);
   const send = (sender: ReturnType<typeof page>, ...args: unknown[]) =>

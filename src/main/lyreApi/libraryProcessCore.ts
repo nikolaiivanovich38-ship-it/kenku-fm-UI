@@ -9,7 +9,8 @@
  *                                 ffmpegPath is the bundled ffmpeg for loudness peaks (null: none are worked out);
  *                                 transferFolder is "Documents\Lyre", where brought-in files go (DAT-7)
  *   { t: "start-backups" }        the window is showing: start the daily backups
- *   { t: "legacy", raw }          bring in the old player's library (once; the database remembers it did)
+ *   { t: "legacy", raw }          bring in the old player's library (once; the database remembers it did), and once
+ *                                 after that what it gained since (FND-16 catch-up)
  *   { t: "media-folders" }        the folders the player may read library files from (MediaAccess, MEDIA_PREPARE)
  *   { t: "restore", id }          put the latest good backup in place of a damaged library (one this process found
  *                                 itself in the library's backups folder), then open it again
@@ -27,7 +28,7 @@ import { prototypeSeed } from "../../common/lyre/seed";
 import {
   LibraryDatabaseError,
   findLatestGoodBackup,
-  importLegacyLibrary,
+  bringInOldPlayer,
   openLibrary,
   restoreBackup,
   startDailyBackups,
@@ -209,7 +210,8 @@ export function runLibraryProcess(port: PortLike, options: LibraryProcessOptions
         backupsWanted = true;
         if (library && !stopBackups) stopBackups = startDailyBackups(library, { onError: (error) => log("The daily backup failed", error) });
       } else if (message?.t === "legacy" && library) {
-        const report = await importLegacyLibrary(library, message.raw, { tagReader });
+        // FND-16: the first move, or once after it, whatever the old player gained since (catch-up).
+        const report = await bringInOldPlayer(library, message.raw, { tagReader });
         port.postMessage({ t: "legacy-report", id: message.id, report });
       } else if (message?.t === "media-folders" && library) {
         // Security review w4, Should 5: with the folders, the single files Find missing files offers to preview.

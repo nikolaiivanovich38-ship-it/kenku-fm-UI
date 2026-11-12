@@ -26,6 +26,12 @@ export type CollectedErrors = {
    * text match; refusals in the app's own pages are always reported.
    */
   expectedRefusals: { page: RegExp; text: RegExp }[];
+  /**
+   * Main-process refusals a test provokes on purpose (for example a file:
+   * link the Lyre page tries to open). Each pattern lets through one line
+   * only, so a refusal the test did not ask for is still reported.
+   */
+  expectedMainRefusals: RegExp[];
 };
 
 /** Main-process lines that mean something went badly wrong. */
@@ -48,7 +54,13 @@ export function findProblems(errors: CollectedErrors): string[] {
   for (const error of errors.pageErrors) {
     problems.push(`uncaught error in ${error.page}: ${error.message}`);
   }
+  const mainRefusals = [...errors.expectedMainRefusals];
   for (const line of errors.mainLog) {
+    const expected = mainRefusals.findIndex((pattern) => pattern.test(line));
+    if (expected >= 0 && !MAIN_PROCESS_FAILURE.test(line)) {
+      mainRefusals.splice(expected, 1);
+      continue;
+    }
     if (MAIN_PROCESS_FAILURE.test(line) || SECURITY_REFUSAL.test(line)) {
       problems.push(`main process: ${line}`);
     }

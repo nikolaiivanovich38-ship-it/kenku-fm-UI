@@ -36,6 +36,8 @@ export interface LyreOutputsBridge {
   disconnect(botId: string): void;
   /** Open the bot's invite in the browser (the main process makes it from the Application ID). */
   openInvite(applicationId: string): void;
+  /** FND-16: Got it on the note about a token moved from Kenku FM; it does not show again. */
+  legacyTokenNoteSeen(): void;
 }
 
 /** What a bot call answers when the main process answered something else (it never should). */
@@ -89,5 +91,6 @@ export function createLyreOutputsBridge(ipc: IpcRendererLike): LyreOutputsBridge
     connect: (botId) => ipc.send("LYRE_BOT_CONNECT", botId),
     disconnect: (botId) => ipc.send("LYRE_BOT_DISCONNECT", botId),
     openInvite: (applicationId) => ipc.send("LYRE_BOT_OPEN_INVITE", applicationId),
+    legacyTokenNoteSeen: () => ipc.send("LYRE_BOT_LEGACY_NOTE_SEEN"),
   };
 }

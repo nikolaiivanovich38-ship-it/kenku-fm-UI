@@ -49,8 +49,8 @@ import {
   type UpNextRef,
   type UsePlace,
 } from "../../common/domain";
-import type { GainLike, NodeLike } from "../../player/engine/audio/types";
-import type { PlaybackEngine } from "../../player/engine/engine";
+import type { GainLike, NodeLike } from "../../engine/audio/types";
+import type { PlaybackEngine } from "../../engine/engine";
 import {
   padPreview,
   playlistPreview,
@@ -58,18 +58,18 @@ import {
   type PreviewKind,
   type PreviewPlayer,
   type PreviewState,
-} from "../../player/engine/preview/previewPlayer";
-import type { DeviceStatus, OutputDeviceChooser, OutputDeviceInfo } from "../../player/engine/preview/outputDevices";
-import { DEFAULT_FADES, type CueAction, type CueOutcome, type TrackFrom } from "../../player/engine/queue/actions";
-import { Director, padWithoutSound, type ListWhat } from "../../player/engine/queue/director";
-import type { PadSound, SceneRef, ShowLibrary } from "../../player/engine/queue/library";
-import { playOrderOf, type Origin } from "../../player/engine/queue/nowPlaying";
-import type { Random } from "../../player/engine/queue/queue";
-import type { PlayingReport, RoomReport } from "../../player/engine/queue/roomPlayer";
-import type { RoomLane } from "../../player/engine/rooms.contract";
-import { TABLE_ROOM, type RoomMixer } from "../../player/engine/rooms";
-import type { MediaRequest } from "../../player/engine/sources/sourceLoader";
-import type { Voice } from "../../player/engine/voice/voice";
+} from "../../engine/preview/previewPlayer";
+import type { DeviceStatus, OutputDeviceChooser, OutputDeviceInfo } from "../../engine/preview/outputDevices";
+import { DEFAULT_FADES, type CueAction, type CueOutcome, type TrackFrom } from "../../engine/queue/actions";
+import { Director, padWithoutSound, type ListWhat } from "../../engine/queue/director";
+import type { PadSound, SceneRef, ShowLibrary } from "../../engine/queue/library";
+import { playOrderOf, type Origin } from "../../engine/queue/nowPlaying";
+import type { Random } from "../../engine/queue/queue";
+import type { PlayingReport, RoomReport } from "../../engine/queue/roomPlayer";
+import type { RoomLane } from "../../engine/rooms.contract";
+import { TABLE_ROOM, type RoomMixer } from "../../engine/rooms";
+import type { MediaRequest } from "../../engine/sources/sourceLoader";
+import type { Voice } from "../../engine/voice/voice";
 import { StableRooms } from "./stableRooms";
 
 export type { CueAction, CueOutcome, TrackFrom, SceneRef, Origin, RoomLane, OutputDeviceInfo, DeviceStatus, PreviewKind, ListWhat, UpNextRef };

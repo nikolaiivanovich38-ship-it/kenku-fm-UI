@@ -28,13 +28,12 @@ const safeStorage: SafeStorageLike = {
 
 let folder: string;
 let manager: OutputManager;
-const window = { webContents: { send: vi.fn(), isDestroyed: () => false } };
 const settle = (ms = 80) => new Promise((resolve) => setTimeout(resolve, ms));
 
 beforeEach(() => {
   folder = fs.mkdtempSync(path.join(os.tmpdir(), "proto-world-"));
   fakeIpcMain.reset();
-  manager = new OutputManager(window as never, new BotTokenStore(BotTokenStore.fileIn(folder), safeStorage), new FakeDiscord({ world: PROTOTYPE_WORLD }).driver);
+  manager = new OutputManager(new BotTokenStore(BotTokenStore.fileIn(folder), safeStorage), new FakeDiscord({ world: PROTOTYPE_WORLD }).driver);
 });
 
 afterEach(() => {

@@ -4,7 +4,7 @@
  * has mixed music (track, playlist, track, playlist), an ambience playlist and two pad boards.
  */
 import type { Locator, Page } from "@playwright/test";
-import { expect, test, expectFailureUntilBuilt, expectFailureUntilScreenBuilt } from "./support/test";
+import { expect, test, expectFailureUntilBuilt, expectFailureUntilScreenBuilt, metByTheAppAlready } from "./support/test";
 import { openRoute } from "./support/target";
 import { dropFiles } from "./support/drop";
 
@@ -628,5 +628,75 @@ test.describe("round 7: what a scene does when it starts", () => {
     await dialog(page).getByRole("button", { name: "Try in headphones" }).click();
     await dialog(page).getByRole("button", { name: "Done" }).click();
     await expect(page.getByRole("region", { name: "Now playing" }).getByRole("group", { name: /^Only you/ })).toBeVisible();
+  });
+});
+
+/* 0.5.1 (design/prototype/ROUND8.md, part 2): Nik's findings from testing 0.5.0, 11 Nov. */
+test.describe("0.5.1: Play on air for each track, where Add scene puts a scene, dragging into the last place", () => {
+  test.beforeEach(() => expectFailureUntilBuilt("feat"));
+  const scenes = (page: Page) => page.getByRole("list", { name: "Scenes in order" }).getByRole("listitem", { name: /^Scene \d+: / });
+
+  /* "In the prep view, there are no 'play on air' buttons against individual tracks in playlists within a scene - I
+     need that at track level, as well as at whole of playlist level." */
+  test("each track of a playlist in a scene has Play on air, after Preview, as on Live's rows; it plays that track from the playlist", async ({ page }) => {
+    await openAbbey(page);
+    const music = musicOf(abbey(page));
+    await expect(music.getByRole("button", { name: "Play on air: Abbey: eerie, low energy" })).toBeVisible();
+    await music.getByRole("button", { name: "Show contents of Abbey: eerie, low energy" }).click();
+    const tracks = music.getByRole("list", { name: /^Tracks in Abbey: eerie, low energy/ }).getByRole("listitem");
+    const n = await tracks.count();
+    expect(n).toBeGreaterThan(1);
+    for (let i = 0; i < n; i++) {
+      const labels = await tracks.nth(i).getByRole("button").evaluateAll((bs) => bs.map((b) => b.getAttribute("aria-label") ?? ""));
+      const air = labels.findIndex((l) => l.startsWith("Play on air: "));
+      expect(air, `Play on air on track ${i + 1}`).toBeGreaterThan(-1);
+      expect(labels.findIndex((l) => l.startsWith("Preview ")), `Preview before Play on air on track ${i + 1}`).toBeLessThan(air);
+      expect(labels.slice(air + 1).filter((l) => /^(Preview|Repeat|Play next|Add to queue)/.test(l)), `nothing of Live's row after Play on air on track ${i + 1}`).toEqual([]);
+    }
+    const second = tracks.nth(1);
+    const name = ((await second.getByRole("button", { name: /^Play on air: / }).getAttribute("aria-label")) ?? "").replace(/^Play on air: /, "");
+    await second.getByRole("button", { name: /^Play on air: / }).click();
+    const bar = page.getByRole("region", { name: "Now playing" });
+    await expect(bar).toContainText(name.slice(0, 20));
+    await expect(bar).toContainText("Abbey: eerie, low energy");
+  });
+
+  /* "When I click add scene it should add at the end of the list, if no other scene is selected. If another scene is
+     selected, it should add after that scene." */
+  test("with no scene selected, Add scene adds the new scene at the end", async ({ page }) => {
+    await openRoute(page, "session/crown/s14");
+    await expect(page.getByRole("button", { name: "Add scene" })).toHaveAttribute("title", /at the end/);
+    await page.getByRole("button", { name: "Add scene" }).click();
+    await expect(scenes(page)).toHaveCount(7);
+    await expect(scenes(page).nth(6)).toHaveAccessibleName(/^Scene 7: /);
+    await expect(page.getByRole("textbox", { name: "Name", exact: true })).toBeFocused();
+  });
+
+  test("with a scene selected (opened, or worked in), Add scene adds the new scene right after it; folding it selects none", async ({ page }) => {
+    await openAbbey(page);
+    await expect(page.getByRole("button", { name: "Scene 3: The abbey ruins" })).toHaveAccessibleDescription(/^Selected/);
+    await expect(page.getByRole("button", { name: "Add scene" })).toHaveAttribute("title", /after Scene 3: The abbey ruins/);
+    await page.getByRole("button", { name: "Add scene" }).click();
+    await expect(scenes(page)).toHaveCount(7);
+    await expect(scenes(page).nth(2)).toHaveAccessibleName("Scene 3: The abbey ruins");
+    await page.keyboard.type("Bells at midnight");
+    await expect(scenes(page).nth(3)).toHaveAccessibleName("Scene 4: Bells at midnight");
+    // Folding the selected scene leaves none selected: the next one goes at the end.
+    await page.getByRole("button", { name: /^Scene 4: Bells at midnight/ }).click();
+    for (const name of ["Scene 3: The abbey ruins", "Scene 4: Bells at midnight"]) await expect(page.getByRole("button", { name })).not.toHaveAccessibleDescription(/^Selected/);
+    await page.getByRole("button", { name: "Add scene" }).click();
+    await expect(scenes(page)).toHaveCount(8);
+    await expect(scenes(page).nth(7)).toHaveAccessibleName(/^Scene 8: /);
+  });
+
+  /* "Dragging and dropping a scene into last position in the scene list doesn't work." */
+  test("a scene can be dragged into the last place of the list", async ({ page }) => {
+    metByTheAppAlready("the app drops a scene dragged below the last one in the last place already");
+    await openRoute(page, "session/crown/s14");
+    const rows = scenes(page);
+    const last = rows.nth(5);
+    const box = (await last.boundingBox())!;
+    await rows.first().getByTitle("Drag to reorder").dragTo(last, { targetPosition: { x: 40, y: box.height - 4 } });
+    await expect(rows.nth(5)).toHaveAccessibleName("Scene 6: Recap and the coast road");
   });
 });

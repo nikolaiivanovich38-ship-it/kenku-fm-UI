@@ -1,8 +1,8 @@
 /**
  * SEC-14: what automatic updates are doing, in words a game master understands. src/autoUpdate.ts reports each
- * step of Electron's updater here; the main window shows the first failure of a run (and nothing more until a check
- * works again, since checks repeat every 15 minutes), and the Lyre page can ask for the state (UPDATE_GET) and
- * hears each change (UPDATE_STATE), for Settings.
+ * step of Electron's updater here. The Lyre page asks for the state (UPDATE_GET) and hears each change
+ * (UPDATE_STATE); it shows a ready update, and the first failure of a run (`tell`; nothing more until a check works
+ * again, since checks repeat every 15 minutes). FND-16: until 0.5.1 the old main window showed them.
  */
 import type { UpdateState } from "../common/appUpdates";
 
@@ -69,14 +69,14 @@ export class UpdateStatus {
 
   downloaded() {
     this.told = false;
-    this.set({ kind: "ready", message: "A new version of Lyre is ready. Restart Lyre to use it." });
+    this.set({ kind: "ready", message: "Lyre has an update. Restart Lyre to use it." });
   }
 
   /** Record a failure. True when the game master should be told now (the first failure since a check worked). */
   failed(error: unknown): boolean {
-    this.set({ kind: "error", message: `${plainUpdateError(error)} ${AGAIN}`, failedAt: this.now() });
     const tell = !this.told;
     this.told = true;
+    this.set({ kind: "error", message: `${plainUpdateError(error)} ${AGAIN}`, failedAt: this.now(), tell });
     return tell;
   }
 

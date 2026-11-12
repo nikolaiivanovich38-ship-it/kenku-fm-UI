@@ -10,6 +10,7 @@ import userEvent from "@testing-library/user-event";
 
 import { expectNoAxeViolations } from "../../test/axe";
 import { dropNames, openAt } from "../library/testHarness";
+import { prototypeSeed } from "../../../common/lyre/seed";
 
 const region = (name: string) => screen.getByRole("region", { name });
 
@@ -110,11 +111,44 @@ describe("What came across from Kenku FM", () => {
     openAt("moved");
     const what = await screen.findByRole("region", { name: "What came across" });
     expect(what).toHaveTextContent("Kenku FM 1.5.5");
-    expect(within(what).getAllByRole("row").map((r) => r.textContent)).toEqual(["In KenkuFMHow manyNow in Lyre".replace("KenkuFM", "Kenku FM"), "Playlists9Playlists (Manual)", "Tracks212Library", "Soundboards4Pad boards", "Sounds37Pads on those boards", "Bookmarks6Website tabs"]);
+    expect(within(what).getAllByRole("row").map((r) => r.textContent)).toEqual(["In KenkuFMHow manyNow in Lyre".replace("KenkuFM", "Kenku FM"), "Playlists9Playlists (Manual)", "Tracks212Library", "Soundboards4Pad boards", "Sounds37Pads on those boards", "Bookmarks6Listed to copy"]);
     expect(within(what).getByRole("link", { name: "Pad boards" })).toHaveAttribute("href", "#/boards");
     expect(within(region("Files Lyre cannot find")).getAllByRole("listitem")).toHaveLength(3);
     expect(region("Not brought across")).toHaveTextContent("The play queue and what was playing");
     expect(within(region("Files Lyre cannot find")).getByRole("link", { name: "Find them…" })).toHaveAttribute("href", "#/relink");
+  });
+
+  it("0.5.1: lists the old bookmarks once, each with Copy, and says websites can't be opened in Lyre for now", async () => {
+    openAt("moved");
+    const user = userEvent.setup();
+    const box = await screen.findByRole("region", { name: "Bookmarks" });
+    expect(box).toHaveTextContent("Websites can't be opened in Lyre for now. Copy an address to open it in your browser.");
+    const items = within(within(box).getByRole("list", { name: "Bookmarks from Kenku FM" })).getAllByRole("listitem");
+    expect(items).toHaveLength(6);
+    expect(items[0]).toHaveTextContent("YouTube");
+    expect(items[0]).toHaveTextContent("https://www.youtube.com/");
+    await user.click(within(items[0]).getByRole("button", { name: "Copy the address of YouTube" }));
+    expect(await navigator.clipboard.readText()).toBe("https://www.youtube.com/");
+    await waitFor(() => expect(document.getElementById("lyre-toast")).toHaveTextContent("Copied: https://www.youtube.com/"));
+  });
+
+  it("0.5.1: no bookmarks, no box and no row; what came across later and the tracks that are only a web address show when there are some", async () => {
+    openAt("moved", {
+      moved: {
+        ...prototypeSeed().moved,
+        copied: prototypeSeed().moved.copied.filter((r) => r.what !== "Bookmarks"),
+        bookmarks: [],
+        later: { at: Date.UTC(2026, 10, 12, 9), lines: ["Brought in 1 playlist added in the old player since your first start: Road."] },
+        webOnly: [{ id: "x1", title: "Lute", url: "https://example.com/lute.mp3" }],
+      },
+    });
+    const what = await screen.findByRole("region", { name: "What came across" });
+    expect(within(what).queryByRole("row", { name: /^Bookmarks/ })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Bookmarks" })).toBeNull();
+    expect(region("Brought in since")).toHaveTextContent("Brought in 1 playlist added in the old player since your first start: Road.");
+    const web = region("Tracks Lyre cannot play");
+    expect(web).toHaveTextContent("Lute");
+    expect(web).toHaveTextContent("https://example.com/lute.mp3");
   });
 
   it("a library that started in Lyre says nothing came across", async () => {

@@ -82,8 +82,13 @@ describe("the sample computer of a test build", () => {
     const { api } = await sampleApi();
     const report = await api.transfer.movedReport();
     expect(report).toMatchObject({ from: "Kenku FM 1.5.5", at: Date.UTC(2026, 10, 5, 18, 42) });
-    expect(report?.copied.map((r) => [r.what, r.count, r.nowIn])).toEqual([["Playlists", 9, "Playlists (Manual)"], ["Tracks", 212, "Library"], ["Soundboards", 4, "Pad boards"], ["Sounds", 37, "Pads on those boards"], ["Bookmarks", 6, "Website tabs"]]);
+    expect(report?.copied.map((r) => [r.what, r.count, r.nowIn])).toEqual([["Playlists", 9, "Playlists (Manual)"], ["Tracks", 212, "Library"], ["Soundboards", 4, "Pad boards"], ["Sounds", 37, "Pads on those boards"], ["Bookmarks", 6, "Listed to copy"]]);
     expect(report?.missing.map((m) => m.id).sort()).toEqual(["t19", "t26", "t37"]);
+    // FND-16 (0.5.1): the old window's bookmarks are listed to copy, as the old-window record beside the library has them.
+    expect(report?.bookmarks.map((b) => b.title)).toEqual(prototypeSeed().moved.bookmarks.map((b) => b.title));
+    expect(report?.bookmarks[0]).toEqual({ title: "YouTube", url: "https://www.youtube.com/" });
+    expect(report?.later).toBeNull();
+    expect(report?.webOnly).toEqual([]);
   });
 
   it("saves The Abbess with its audio files as a 45 MB file, and the whole library on 5 Nov 2026", async () => {

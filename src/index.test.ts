@@ -5,8 +5,8 @@ import { trustedContents } from "./main/security/trustedContents";
 
 const state = vi.hoisted(() => {
   Object.assign(globalThis, {
-    MAIN_WINDOW_WEBPACK_ENTRY: "file:///app/main_window/index.html",
-    MAIN_WINDOW_PRELOAD_WEBPACK_ENTRY: "/app/main_window/preload.js",
+    LYRE_WINDOW_WEBPACK_ENTRY: "file:///app/lyre_window/index.html",
+    LYRE_WINDOW_PRELOAD_WEBPACK_ENTRY: "/app/lyre_window/preload.js",
   });
   return {
     windows: [] as unknown[],
@@ -35,7 +35,7 @@ vi.mock("electron", async () => {
   class FakeWebContents extends EventEmitter {
     id = 1;
     windowOpenHandler?: Handler;
-    getURL = () => "file:///app/main_window/index.html";
+    getURL = () => "file:///app/lyre_window/index.html";
     setWindowOpenHandler = (h: Handler) => {
       this.windowOpenHandler = h;
     };
@@ -47,7 +47,7 @@ vi.mock("electron", async () => {
     webContents = new FakeWebContents();
     loadURL = vi.fn();
     maximize = vi.fn();
-    constructor() {
+    constructor(public options: Record<string, unknown>) {
       super();
       state.windows.push(this);
     }
@@ -98,7 +98,7 @@ vi.mock("./main/security/appInfoIpc", () => ({
 }));
 vi.mock("./assets/icon.png", () => ({ default: "icon.png" }));
 vi.mock("./bounds", () => ({
-  getSavedBounds: () => ({ bounds: {}, maximized: false }),
+  getSavedBounds: () => ({ bounds: {}, maximized: false, minimum: { width: 800, height: 485 } }),
   saveWindowBounds: vi.fn(),
 }));
 vi.mock("./autoUpdate", () => ({ runAutoUpdate: vi.fn() }));
@@ -116,7 +116,10 @@ vi.mock("./main/lyreApi/startLibrary", () => {
 vi.mock("./main/managers/SessionManager", () => ({
   SessionManager: class {
     destroy = vi.fn();
-    saveBeforeClose = vi.fn().mockResolvedValue(undefined);
+    connectSavedBots = vi.fn();
+    constructor() {
+      (state as { sessions?: unknown[] }).sessions = [...((state as { sessions?: unknown[] }).sessions ?? []), this];
+    }
   },
 }));
 vi.mock("./main/security/sessions", () => {
@@ -138,6 +141,7 @@ beforeAll(async () => {
 });
 
 type FakeWindow = {
+  options: Record<string, unknown>;
   webContents: {
     id: number;
     windowOpenHandler?: (d: { url: string }) => { action: string };
@@ -170,11 +174,23 @@ describe("local-file scheme (WP1 security review 1)", () => {
 });
 
 describe("main window (SEC-10, SEC-7, SEC-3)", () => {
-  it("sets its user agent before loading, so the page loads once", () => {
+  it("is Lyre's own page, with Lyre's preload (FND-16: the old main window and its tabs are gone)", () => {
     const window = mainWindow();
-    const setAgent = window.webContents.setUserAgent.mock.invocationCallOrder[0];
-    const load = window.loadURL.mock.invocationCallOrder[0];
-    expect(setAgent).toBeLessThan(load);
+    expect(window.loadURL).toHaveBeenCalledWith("file:///app/lyre_window/index.html");
+    expect((window.options.webPreferences as { preload?: string }).preload).toBe("/app/lyre_window/preload.js");
+  });
+
+  it("has no frame of its own: Lyre's top strip is the title bar, with the system's buttons drawn over it (FND-16 step 2)", () => {
+    expect(mainWindow().options).toMatchObject({ titleBarStyle: "hidden", titleBarOverlay: { height: 36 } });
+  });
+
+  it("takes its smallest size from the screen's work area, so a maximised window stops at the taskbar (FND-16)", () => {
+    // The mocked saved bounds report a small screen, 485 points high above its taskbar.
+    expect(mainWindow().options).toMatchObject({ minWidth: 800, minHeight: 485, width: 800, height: 485 });
+  });
+
+  it("keeps the browser's own user agent: only website tabs needed the spoofed one", () => {
+    expect(mainWindow().webContents.setUserAgent).not.toHaveBeenCalled();
   });
 
   it("opens https links from the main window in the system browser", () => {
@@ -204,22 +220,25 @@ describe("main window (SEC-10, SEC-7, SEC-3)", () => {
     expect(event.preventDefault).toHaveBeenCalled();
   });
 
-  it("is registered as a trusted app page", () => {
-    expect(trustedContents.roleOf(mainWindow().webContents)).toBe("main-window");
+  it("is registered as the trusted Lyre page", () => {
+    expect(trustedContents.roleOf(mainWindow().webContents)).toBe("lyre-view");
+  });
+
+  it("has one set of managers for its whole life, so reloading the page keeps the bots in their rooms", () => {
+    const sessions = () => (state as { sessions?: unknown[] }).sessions ?? [];
+    expect(sessions()).toHaveLength(1);
+    mainWindow().webContents.emit("did-start-loading");
+    expect(sessions()).toHaveLength(1);
   });
 
   it("hardens sessions on start-up", () => {
     expect(state.secureSessions).toHaveBeenCalledTimes(1);
   });
 
-  it("clears website tab data as well when the user clears the cache", async () => {
-    await appInfo.registered?.clearCache();
-    expect(state.clearBrowsingData).toHaveBeenCalled();
-  });
-
-  it("answers version and platform only through the IPC sender guard (SEC-8)", () => {
-    expect(appInfo.registered?.getVersion()).toBe("0.0.0");
-    expect(state.ipcHandlers.has("CLEAR_CACHE")).toBe(false);
+  it("FND-16: Empty the audio cache leaves website data alone, and goes only through the IPC sender guard (SEC-8)", async () => {
+    await appInfo.registered?.emptyAudioCache();
+    expect(state.clearBrowsingData).not.toHaveBeenCalled();
+    expect(state.ipcHandlers.has("LYRE_EMPTY_AUDIO_CACHE")).toBe(false);
   });
 });
 
@@ -242,22 +261,26 @@ describe("Lyre's library (WP5)", () => {
     expect(library().windowShown).toHaveBeenCalledTimes(1);
   });
 
-  it("empties Lyre's audio cache too when the user clears the cache (security review 3)", async () => {
-    await appInfo.registered?.clearCache();
+  it("logs the saved Discord bots in once the window shows, with nobody pressing Connect (FND-16)", () => {
+    const session = ((state as { sessions?: { connectSavedBots: Mock }[] }).sessions ?? [])[0];
+    // The ready-to-show above was the window's first showing.
+    expect(session.connectSavedBots).toHaveBeenCalledTimes(1);
+    (mainWindow() as unknown as { emit(event: string): void }).emit("ready-to-show");
+    expect(session.connectSavedBots).toHaveBeenCalledTimes(1);
+  });
+
+  it("empties Lyre's audio cache when Settings asks (security review 3, FND-16)", async () => {
+    await appInfo.registered?.emptyAudioCache();
     expect(library().clearAudioCache).toHaveBeenCalled();
   });
 
-  it("is closed before the app quits (after the player has saved), then the quit goes ahead", async () => {
+  it("is closed before the app quits, then the quit goes ahead", async () => {
     const { app, handler } = beforeQuit();
-    // PERF-6 first: the player saves, then the quit is repeated.
-    handler({ preventDefault: vi.fn() });
-    expect(library().stop).not.toHaveBeenCalled();
-    await vi.waitFor(() => expect(app.quit).toHaveBeenCalledTimes(1));
     const event = { preventDefault: vi.fn() };
     handler(event);
     expect(event.preventDefault).toHaveBeenCalled();
     expect(library().stop).toHaveBeenCalledTimes(1);
-    await vi.waitFor(() => expect(app.quit).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(app.quit).toHaveBeenCalledTimes(1));
     const again = { preventDefault: vi.fn() };
     handler(again);
     expect(again.preventDefault).not.toHaveBeenCalled();

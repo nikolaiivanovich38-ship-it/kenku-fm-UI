@@ -135,6 +135,12 @@ table.grid tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 v
 .progress { height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
 .progress > span { display: block; height: 100%; background: var(--accent); width: 0; }
 .progress.music > span { background: var(--music); } .progress.amb > span { background: var(--amb); } .progress.fx > span { background: var(--fx); } .progress.preview > span { background: var(--preview); }
+/* Round 8: the position bar of what plays is a slider (core.js L.seekBar): a 24 px tall hit area around the thin bar,
+   which grows on hover and focus so Nik can see where he is about to jump. */
+.seek { flex: 1 1 auto; min-width: 30px; height: 24px; display: flex; align-items: center; cursor: pointer; touch-action: none; }
+.seek > .progress { flex: 1; min-width: 0; transition: height .12s; }
+.seek:is(:hover, :focus-visible) > .progress { height: 6px; }
+.seek:focus-visible { outline-offset: 0; }
 
 /* ---------- Menus and sheets (inline, never covering the live controls) ---------- */
 .menu { position: absolute; z-index: 30; min-width: 200px; max-width: 320px; max-height: 60vh; overflow: auto; background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: var(--r-m); box-shadow: var(--shadow); padding: 4px; }

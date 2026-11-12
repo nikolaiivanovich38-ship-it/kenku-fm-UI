@@ -1,7 +1,7 @@
 ---
 title: Connect Discord and add a bot to a room
 group: Get started
-words: discord bot token server voice channel room rooms settings connect invite add a bot application id
+words: discord bot token server voice channel room rooms settings connect invite add a bot application id kenku fm encrypted
 ---
 Lyre plays to your players through a Discord bot. You make the bot once; Lyre logs it in.
 
@@ -14,3 +14,5 @@ Lyre plays to your players through a Discord bot. You make the bot once; Lyre lo
 To move the bot during a game, choose another room; the sound goes on. **Kick** takes the bot out, and **Undo** puts it back with the music.
 
 For a second room (a side scene, a split party), press **Add a bot** again and make a second bot.
+
+Coming from Kenku FM? Lyre brings your bot across on its first start and keeps its token encrypted. If Kenku FM kept the token unprotected, Settings › Discord bots says so once and how to make a new one.

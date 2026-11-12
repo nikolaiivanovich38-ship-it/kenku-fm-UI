@@ -66,6 +66,11 @@ export interface LyreOutputs {
   bots: LyreBot[];
   /** Every server a logged-in bot sees, in the order first seen. */
   servers: LyreServer[];
+  /**
+   * FND-16: Settings › Discord bots says once that Lyre moved the bot token Kenku FM kept in plain text and keeps it
+   * encrypted now (until Got it, LYRE_BOT_LEGACY_NOTE_SEEN). Missing when there is no note.
+   */
+  legacyTokenNote?: true;
 }
 
 export const NO_OUTPUTS: LyreOutputs = { encryption: true, bots: [], servers: [] };
@@ -168,7 +173,12 @@ export function lyreOutputsOf(state: OutputsState): LyreOutputs {
       }
     }
   }
-  return { encryption: state.encryption, bots: state.bots.map((bot) => botOf(bot, state.bots.length > 1)), servers: [...servers.values()] };
+  return {
+    encryption: state.encryption,
+    bots: state.bots.map((bot) => botOf(bot, state.bots.length > 1)),
+    servers: [...servers.values()],
+    ...(state.legacyTokenNote ? { legacyTokenNote: true as const } : {}),
+  };
 }
 
 const isText = (value: unknown): value is string => typeof value === "string";
@@ -177,6 +187,7 @@ const isObject = (value: unknown): value is Record<string, unknown> => typeof va
 /** The page's preload accepts only this shape from the main process. */
 export function isLyreOutputs(value: unknown): value is LyreOutputs {
   if (!isObject(value) || typeof value.encryption !== "boolean" || !Array.isArray(value.bots) || !Array.isArray(value.servers)) return false;
+  if (value.legacyTokenNote !== undefined && value.legacyTokenNote !== true) return false;
   const textOrNull = (v: unknown) => v === null || isText(v);
   const botOk = (bot: unknown) =>
     isObject(bot) && isText(bot.id) && isText(bot.name) && isText(bot.login) && typeof bot.muted === "boolean" && typeof bot.volume === "number" && Array.isArray(bot.serverIds) && (bot.room === null || isObject(bot.room)) &&

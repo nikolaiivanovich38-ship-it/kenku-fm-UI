@@ -65,6 +65,27 @@ describe("the outputs bridge (preload)", () => {
   });
 });
 
+describe("the note about a token moved from Kenku FM (FND-16)", () => {
+  it("passes the note on with the outputs and sends Got it on its own channel", async () => {
+    const ipc = fakeIpc();
+    const bridge = createLyreOutputsBridge(ipc);
+    const seen: LyreOutputs[] = [];
+    bridge.onState((state) => seen.push(state));
+    ipc.emit(LYRE_OUTPUTS_STATE, { ...NO_OUTPUTS, legacyTokenNote: true });
+    ipc.emit(LYRE_OUTPUTS_STATE, { ...NO_OUTPUTS, legacyTokenNote: "yes" });
+    expect(seen).toEqual([{ ...NO_OUTPUTS, legacyTokenNote: true }]);
+    bridge.legacyTokenNoteSeen();
+    expect(ipc.sent).toEqual([["LYRE_BOT_LEGACY_NOTE_SEEN"]]);
+  });
+
+  it("the fake for screen tests shows the note until Got it", () => {
+    const fake = new FakeOutputs({ ...PROTOTYPE_OUTPUTS, legacyTokenNote: true });
+    expect(fake.state.legacyTokenNote).toBe(true);
+    fake.legacyTokenNoteSeen();
+    expect(fake.state.legacyTokenNote).toBeUndefined();
+  });
+});
+
 describe("Settings in Lyre (OUT-8) through the page's bridge", () => {
   it("adds, replaces, renames, removes and puts back bots, answering what the main process said; connects and opens the invite", async () => {
     const ipc = fakeIpc();

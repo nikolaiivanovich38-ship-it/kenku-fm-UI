@@ -28,6 +28,11 @@ export {
 } from "./pipeline";
 export {
   importLegacyLibrary,
+  bringInOldPlayer,
+  catchUpLegacyLibrary,
+  readCatchUp,
+  LEGACY_CATCH_UP_JOB,
+  type LegacyCatchUpReport,
   parseLegacyPlayerState,
   legacyLocation,
   LEGACY_JOB,

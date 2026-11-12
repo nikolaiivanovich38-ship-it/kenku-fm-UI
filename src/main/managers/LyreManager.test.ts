@@ -3,12 +3,6 @@ import { LyreManager } from "./LyreManager";
 import { fakeIpcMain, fakePage, fromMainFrame, fromSubframe } from "../security/testing/fakeIpc";
 import { UpdateStatus } from "../updateStatus";
 
-const { LYRE_URL } = vi.hoisted(() => {
-  const entries = { LYRE_URL: "file:///app/.webpack/renderer/lyre_window/index.html" };
-  Object.assign(globalThis, { LYRE_WINDOW_WEBPACK_ENTRY: entries.LYRE_URL });
-  return entries;
-});
-
 const allContents = vi.hoisted(() => [] as unknown[]);
 
 vi.mock("electron", async () => {
@@ -31,28 +25,9 @@ afterEach(() => {
   manager = undefined;
 });
 
-describe("LyreManager: where the new interface page is (WP5, SEC-8)", () => {
-  it("tells the main window the Lyre page's address", () => {
+describe("LyreManager (FND-16: the Lyre page is the window's own page)", () => {
+  it("no longer tells anyone the page's address: the old main window that asked is gone", () => {
     manager = new LyreManager();
-    const main = fakePage("main-window");
-    expect(fakeIpcMain.deliver("LYRE_GET_URL", fromMainFrame(main)).returnValue).toBe(LYRE_URL);
-  });
-
-  it("does not reveal app paths to a website tab, the player or an embedded frame", () => {
-    manager = new LyreManager();
-    for (const event of [
-      fromMainFrame(fakePage(null)),
-      fromMainFrame(fakePage("player-view")),
-      fromSubframe(fakePage("main-window")),
-    ]) {
-      expect(fakeIpcMain.deliver("LYRE_GET_URL", event).returnValue).toBe("");
-    }
-  });
-
-  it("stops answering once destroyed", () => {
-    manager = new LyreManager();
-    manager.destroy();
-    manager = undefined;
     expect(fakeIpcMain.listenerCount("LYRE_GET_URL")).toBe(0);
   });
 });
@@ -61,7 +36,7 @@ describe("LyreManager.getView: the page other managers talk to", () => {
   it("finds the live page registered as the Lyre page and nothing else", () => {
     manager = new LyreManager();
     const tab = fakePage(null);
-    const player = fakePage("player-view");
+    const player = fakePage(null);
     const lyre = fakePage("lyre-view");
     allContents.push(tab, player, lyre);
     expect(manager.getView()).toBe(lyre);
@@ -92,7 +67,7 @@ describe("LyreManager: automatic updates for the Lyre page's Settings (SEC-14)",
     manager = new LyreManager({ updates: status });
     const lyre = fakePage("lyre-view");
     expect(await fakeIpcMain.invoke("UPDATE_GET", fromMainFrame(lyre))).toEqual(status.state());
-    for (const event of [fromMainFrame(fakePage(null)), fromMainFrame(fakePage("player-view")), fromSubframe(lyre)]) {
+    for (const event of [fromMainFrame(fakePage(null)), fromMainFrame(fakePage(null)), fromSubframe(lyre)]) {
       await expect(fakeIpcMain.invoke("UPDATE_GET", event)).rejects.toThrow();
     }
     await expect(fakeIpcMain.invoke("UPDATE_GET", fromMainFrame(lyre), "extra")).rejects.toThrow();
@@ -111,6 +86,21 @@ describe("LyreManager: automatic updates for the Lyre page's Settings (SEC-14)",
     manager = undefined;
     status.upToDate();
     expect(lyre.send).toHaveBeenCalledTimes(1);
+  });
+
+  it("FND-16: Restart now on Lyre's update note restarts into the update, only once one is ready, only from the Lyre page", () => {
+    const status = new UpdateStatus();
+    const restart = vi.fn();
+    manager = new LyreManager({ updates: status, restartIntoUpdate: restart });
+    const lyre = fakePage("lyre-view");
+    fakeIpcMain.deliver("UPDATE_RESTART", fromMainFrame(lyre));
+    expect(restart).not.toHaveBeenCalled();
+    status.downloaded();
+    fakeIpcMain.deliver("UPDATE_RESTART", fromMainFrame(fakePage(null)));
+    fakeIpcMain.deliver("UPDATE_RESTART", fromMainFrame(lyre), "extra");
+    expect(restart).not.toHaveBeenCalled();
+    fakeIpcMain.deliver("UPDATE_RESTART", fromMainFrame(lyre));
+    expect(restart).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -137,7 +127,7 @@ describe("LyreManager: keys that work in other programs too (UX-12, globalShortc
     expect(await fakeIpcMain.invoke("LYRE_GLOBAL_KEYS_SET", fromMainFrame(lyre), { on: true, keys: { nextScene: "F9", fadeAll: "Shift+Esc" } })).toEqual({ refused: [] });
     shortcuts.ours.get("F9")!();
     expect(lyre.send).toHaveBeenCalledWith("LYRE_GLOBAL_KEY", "nextScene");
-    for (const event of [fromMainFrame(fakePage("main-window")), fromMainFrame(fakePage(null)), fromMainFrame(fakePage("player-view")), fromSubframe(lyre)]) {
+    for (const event of [fromMainFrame(fakePage("main-window")), fromMainFrame(fakePage(null)), fromMainFrame(fakePage(null)), fromSubframe(lyre)]) {
       await expect(fakeIpcMain.invoke("LYRE_GLOBAL_KEYS_SET", event, { on: true, keys: { nextScene: "F10" } })).rejects.toThrow();
     }
   });

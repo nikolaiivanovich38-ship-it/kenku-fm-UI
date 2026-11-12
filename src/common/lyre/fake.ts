@@ -28,6 +28,7 @@ import {
   NORMALISE_TARGETS,
   DEFAULT_LIBRARY_NORMALISE,
   DEFAULT_DEVICES,
+  DEFAULT_STREAMING_MODE,
   DEFAULT_DISPLAY,
   type AudioProfileInput,
   type LibraryNormalise,
@@ -235,7 +236,7 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
     ...defaultRound7State(),
   };
   /** Round 7: this computer's settings (no undo step; LyreSettings). */
-  const computer = { display: { ...DEFAULT_DISPLAY }, devices: { ...DEFAULT_DEVICES }, globalKeys: false };
+  const computer = { display: { ...DEFAULT_DISPLAY }, devices: { ...DEFAULT_DEVICES }, globalKeys: false, streamingMode: DEFAULT_STREAMING_MODE };
   /** DAT-7: .lyre files saved so far, by path (lower case), as a real file would hold them. */
   const lyreFiles = new Map<string, { contents: TransferContents; includesAudio: boolean; savedAt: number }>();
   let opened: { id: string; file: string; items: (IncomingItem & { take: () => void; merge: () => void; copy: () => void; ids: () => { id: string; name: string } })[] } | null = null;

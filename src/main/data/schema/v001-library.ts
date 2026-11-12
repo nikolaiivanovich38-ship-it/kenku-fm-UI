@@ -399,7 +399,7 @@ CREATE TABLE audio_profile_markers (
   PRIMARY KEY (profile_id, position)
 ) WITHOUT ROWID;
 
--- Cue actions (PLY-8, src/player/engine/queue/actions.ts) stored on a hotkey, in order (DB review 9):
+-- Cue actions (PLY-8, src/engine/queue/actions.ts) stored on a hotkey, in order (DB review 9):
 -- what a key press runs, made of the same CueAction shapes the buttons build. One row per action;
 -- what it acts on is a foreign key, so deleting a track, playlist, scene or pad deletes the actions
 -- that play it (they could do nothing), and a "picked from" place that goes is forgotten (SET NULL).

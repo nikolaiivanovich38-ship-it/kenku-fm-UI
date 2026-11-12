@@ -368,6 +368,12 @@ table.grid tr[aria-selected="true"] td:first-child { box-shadow: inset 3px 0 0 v
 .progress { height: 4px; border-radius: 2px; background: var(--line); overflow: hidden; }
 .progress > span { display: block; height: 100%; background: var(--accent); width: 0; }
 .progress.music > span { background: var(--music); } .progress.amb > span { background: var(--amb); } .progress.fx > span { background: var(--fx); } .progress.preview > span { background: var(--preview); }
+/* Round 8: the position bar of what plays is a slider (core.js L.seekBar): a 24 px tall hit area around the thin bar,
+   which grows on hover and focus so Nik can see where he is about to jump. */
+.seek { flex: 1 1 auto; min-width: 30px; height: 24px; display: flex; align-items: center; cursor: pointer; touch-action: none; }
+.seek > .progress { flex: 1; min-width: 0; transition: height .12s; }
+.seek:is(:hover, :focus-visible) > .progress { height: 6px; }
+.seek:focus-visible { outline-offset: 0; }
 
 /* ---------- Menus and sheets (inline, never covering the live controls) ---------- */
 .menu { position: absolute; z-index: 30; min-width: 200px; max-width: 320px; max-height: 60vh; overflow: auto; background: var(--surface-2); border: 1px solid var(--line-strong); border-radius: var(--r-m); box-shadow: var(--shadow); padding: 4px; }
@@ -782,6 +788,9 @@ button .shape-g { color: inherit; }
 
 /* ---------- One playlist: layout ---------- */
 .pl-head { flex-wrap: nowrap; }
+/* 0.5.1: in a narrow app (half a 1920 screen at 150 % text and more), the head wraps instead of running out of the
+   window under its buttons. */
+@container app (max-width: 659px) { .pl-head { flex-wrap: wrap; } .pl-h1 { max-width: none; } }
 .pl-head .crumbs { flex: none; }
 .pl-h1 { flex: 0 1 auto; max-width: 42%; min-width: 60px; padding-right: 2px; }
 .pl-headchips { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 0 1000 auto; flex-wrap: wrap; height: 20px; overflow: hidden; }
@@ -2497,6 +2506,114 @@ html[data-contrast="high"] .btn.ghost, html[data-contrast="high"] .closer { bord
 .r7-played .lrow { gap: 8px; }
 .lb-resume { border: 0; padding: 4px 0; }
 
+/* Round 8 (0.5.1): Lyre is the whole window (views/r8window.js, ROUND8.md). */
+
+/* The window's own buttons take 138 × 36 px of the screen at the top right, whatever the text size; the page is
+   zoomed for text size, so in CSS pixels they are 138 / zoom by 36 / zoom. The app takes both from the window itself:
+   navigator.windowControlsOverlay.getTitlebarAreaRect() (on its geometrychange event) gives the free part of the
+   title bar; --wco-w is the window's width less that part's right edge, --wco-h its height. */
+#app { --wco-w: calc(138px / var(--zoom, 1)); --wco-h: calc(36px / var(--zoom, 1)); }
+
+/* The stand-in for Windows' buttons: not focusable, hidden from screen readers, on top of everything as theirs are. */
+.winbtns { position: absolute; top: 0; right: 0; z-index: 90; display: flex; width: var(--wco-w); height: var(--wco-h);
+  background: var(--wb-bg, var(--bg)); color: var(--wb-ink, var(--ink)); }
+.winbtns .wb { flex: 1; display: grid; place-items: center; cursor: default; }
+.winbtns .wb svg { width: calc(10px / var(--zoom, 1)); height: calc(10px / var(--zoom, 1)); fill: none; stroke: currentColor; stroke-width: 1; }
+.winbtns .wb:hover { background: color-mix(in srgb, currentColor 14%, transparent); }
+.winbtns .wb-close:hover { background: #c42b1c; color: #fff; }
+
+/* Nothing of Lyre's under the buttons: the strip at the top of the window keeps their width free at its right end. */
+.viewhead { padding-right: calc(12px + var(--wco-w)); }
+.lv-top { padding-right: calc(8px + var(--wco-w)); }
+.help-head { padding-right: calc(8px + var(--wco-w)); }
+/* Help open beside the screen (a wide window): Help's header is under the buttons, so the screen's strip need not. */
+@container app (min-width: 900px) {
+  #app:has(> #lyre-help:not([hidden])) .viewhead { padding-right: 12px; }
+  #app:has(> #lyre-help:not([hidden])) .lv-top { padding-right: 8px; }
+}
+/* A sheet as tall as the window starts below the buttons. In the prototype the stage is the window, so a sheet and
+   Find and play cover the stage only (--app-top is 0 in the app). */
+.sheet, .pal-wrap { top: var(--app-top, 0px); }
+.sheet { padding-top: calc(var(--wco-h) + 8px); }
+
+/* The empty parts of the top strip, Live's strip, Help's header and the logo drag the window; double-clicking them
+   maximises it (Windows does both). Every control, field and text with hover text in them stays itself: a drag area
+   takes the mouse, so it would neither click nor show hover text. */
+:is(.viewhead, .lv-top, .help-head, .rail .logo) { -webkit-app-region: drag; app-region: drag; }
+:is(.viewhead, .lv-top, .help-head) :is(a, button, input, select, textarea, label, summary, [role=button], [role=link], [role=switch], [role=radio], [role=combobox], [tabindex]:not([tabindex="-1"]), [title], [contenteditable]) {
+  -webkit-app-region: no-drag; app-region: no-drag; }
+
+/* Update news: a standing note in the Saved pop-up's place (it stays until dismissed, so it is not the dark pop-up). */
+.toast.t-stand { pointer-events: auto; background: var(--surface-2); color: var(--ink); border: 1px solid var(--line-strong); border-left: 3px solid var(--accent); padding: 4px 4px 4px 10px; font-weight: 600; }
+.toast.t-stand > svg { color: var(--accent-text); }
+.toast.t-stand .grow, .toast.t-fail .grow { min-width: 0; }
+
+/* Settings › Discord bots: the one-time note about a token moved from Kenku FM. */
+.st-legacy { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 8px; padding: 6px 6px 6px 8px; border: 1px solid var(--line-strong); border-left: 3px solid var(--accent); border-radius: var(--r-m); background: var(--surface-2); font-size: var(--fs-s); line-height: 1.4; }
+.st-legacy > svg { color: var(--accent-text); flex: none; margin-top: 2px; }
+.st-legacy p { margin: 0 0 4px; }
+.st-legacy p:last-child { margin: 0; }
+.st-legacy .btn { flex: none; }
+.st-cache { margin-top: 8px; }
+
+/* What came across: the old bookmarks, each with Copy. */
+.tf-bm .lrow { padding: 4px 2px; gap: 8px; }
+.tf-bm .tf-url { font-family: inherit; }
+
+/* Help's foot: Lyre's version. */
+.help-ver { margin: 0; font-size: var(--fs-xs); color: var(--ink-2); }
+
+/* Live's strip wraps earlier than in 0.5.0 (below 640 px of app), as the window's buttons now take 138 px of it: below
+   780 px of app (a 720 px window) it takes two lines: Back, Prep | Live and the buttons, then the trail, the session and
+   Find; so the trail keeps its campaign's name and every button its 24 px (one line squeezed the campaign link to 6 px).
+   Below 640 px of app Find takes a line of its own, as in 0.5.0. */
+@container app (max-width: 779px) {
+  .lv-top { flex-wrap: wrap; row-gap: 6px; }
+  .lv-top::before { content: ""; order: 4; flex: 1 0 100%; height: 0; }
+  .lv-top .crumbs { order: 5; }
+  .lv-top .lv-sess { order: 6; flex: 0 1 auto; min-width: 0; }
+  .lv-top .lv-find { order: 7; flex: 1 1 120px; max-width: none; min-width: 0; }
+  .lv-top > .lv-find + .btn { margin-left: 0; }
+}
+@container app (max-width: 639px) { .lv-top .lv-sess { flex: 1 1 0; } .lv-top .lv-find { order: 10; flex: 1 1 100%; } }
+
+/* Round 8, part 2 (0.5.1): Nik's findings from testing 0.5.0 (ROUND8.md, part 2). */
+
+/* The session planner: an open scene has a quiet edge; the selected scene (Add scene goes after it) the accent. */
+.cp-scene.open { box-shadow: inset 3px 0 0 var(--line-strong); }
+.cp-scene.sel { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+
+/* Campaigns: the cards are an ordered list; each has a drag handle, and Move earlier and Move later while Reorder is on. */
+ol.cp-grid { list-style: none; margin: 0; padding: 0; }
+.cp-cardwrap { display: flex; min-width: 0; }
+.cp-cardwrap > .cp-card { flex: 1; }
+.cp-card-top .cp-handle { margin: -4px 0 -4px -4px; }
+.cp-card-top .cp-handle:not(:hover) { opacity: .6; }
+.cp-cmoves { display: flex; gap: 2px; flex: none; margin: -4px -4px -4px 0; }
+[data-drag][data-axis="x"].cp-drop-before { box-shadow: -3px 0 0 var(--accent); border-radius: var(--r-l); }
+[data-drag][data-axis="x"].cp-drop-after { box-shadow: 3px 0 0 var(--accent); border-radius: var(--r-l); }
+
+/* Look and feel: the base theme. */
+.lk-base { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 12px 0 8px; }
+.lk-base .input { width: auto; min-width: 200px; }
+
+/* Lyre's page fits the window exactly (ROUND8.md, section 14). Text for screen readers only (.sr-only) is placed
+   absolutely; in a scrolled box with no positioned parent it was placed against #app at its spot far down the list,
+   and made the whole page taller than the window (282 px with a scene open at 1280×680; the same rule is in the app's
+   ui.css). Clipping at #app, which is the window, keeps the page the window's size. overflow: clip makes no scroll
+   box, so sticky headers and focus still work. */
+#app { overflow: clip; }
+
+/* Undo after Kick is plain to see: the strip in On air has the accent edge. */
+.lv-dock .lv-undo2 { border-left: 3px solid var(--accent); }
+
+/* Audio profile: Start at, and the marker it names on the waveform. */
+.ap-startat-f { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 6px; }
+.ap-startat-f .input { width: auto; min-width: 180px; }
+.ap-flag.ap-startat { color: var(--accent-text); font-weight: 700; z-index: 4; }
+.ap-flag.ap-startat::before { background: var(--accent); width: 3px; }
+.ap-flag.ap-startat svg { width: 10px; height: 10px; }
+
 </style>
 </head>
 <body>
@@ -2514,7 +2631,7 @@ html[data-contrast="high"] .btn.ghost, html[data-contrast="high"] .closer { bord
 <!-- Round 6, part 5: the one place for the Saved pop-up and every other note (core.js L.saved, L.toast, L.saveFailed). -->
 <div id="lyre-toasts" class="toasts"><div id="lyre-fail" class="toast" role="alert"></div><div id="lyre-toast" class="toast" role="status" aria-live="off" aria-atomic="true"></div></div>
 <script>
-var LYRE_HELP_FILES = [{"file":"01-connect-discord.md","text":"---\ntitle: Connect Discord and add a bot to a room\ngroup: Get started\nwords: discord bot token server voice channel room rooms settings connect invite\n---\nLyre plays to your players through a Discord bot. You make the bot once; Lyre logs it in.\n\n1. Choose the **Lyre Player** tab at the top of the window, then **Settings** (the gear at the top of its sidebar).\n2. Under **Discord bots**, follow **Where do I get my token?**: make a bot in Discord's Developer Portal and invite it to your server with the Connect and Speak permissions.\n3. Paste the bot's token in **Token** and press **Connect**. Lyre keeps the token on this computer, encrypted.\n4. Back in the **Lyre** tab, open **Rooms**. Your bot's box says **Not in a room**.\n5. Press its **Room** button and choose a voice channel. The box takes the room's name and lists who hears it.\n\nTo move the bot during a game, choose another room in the same menu; the sound goes on. **Kick**, beside it, takes the bot out. **Test** plays a short chime in that room only.\n\nFor a second room (a side scene, a split party), press **Add a second bot** in Settings and give it its own token.\n"},{"file":"02-kenku-fm.md","text":"---\ntitle: What came across from Kenku FM\ngroup: Get started\nwords: kenku fm import copy moved first start soundboards bookmarks old\n---\nOn its first start, Lyre copies your Kenku FM library. Kenku FM's own files stay as they were, so you can go back to it.\n\nLibrary › **⋯** beside **Add tracks** › **What came across from Kenku FM** shows:\n\n- what Lyre copied and where it is now: playlists and their tracks, soundboards (now pad boards, their sounds now pads) and bookmarks (website tabs);\n- **Files Lyre cannot find**, with **Find them…**;\n- **Not brought across**: what Lyre left behind.\n\nThe old player is still there as the **Lyre Player** tab, with your Kenku FM playlists and soundboards.\n"},{"file":"03-add-music.md","text":"---\ntitle: Add your music and tag it\ngroup: Prepare\nwords: library add tracks files folder watch import drop tag tags mood leitmotif scene type title details search filters find\n---\nLyre never copies or changes your audio files. It remembers where they are.\n\n1. Open **Library** and press **Add tracks**: **Add files…**, **Add a folder…** (with its subfolders) or **Watch a folder…** (new files there appear by themselves). You can also drop files and folders anywhere on the page.\n2. Open a track (its row, or `Enter`) for its **Details**: **Your title**, the title in the file, the file name and the folder.\n3. To tag it, type in a tag group's box (**+ Add mood**, and the same for each group) and press `Enter` or `Tab`. A new word makes a new tag.\n4. To tag many tracks at once, select them (their boxes, or `Space` on a row), then press **Tag…**.\n\nThe search box finds titles, file names, artists and tags. **Filters** narrows the list by kind (Music, Ambience, FX), tag, energy, shape, folder and missing files.\n\nTags are what dynamic playlists and Live's **Find a track or playlist** use, so a few good tags save time at the table.\n"},{"file":"04-dynamic-playlist.md","text":"---\ntitle: Make a playlist from tags\ngroup: Prepare\nwords: playlist dynamic manual rules tags shape matching copy new\n---\nA dynamic playlist holds every track that matches its rules, and grows as you tag more tracks.\n\n1. Open **Playlists** and press **New playlist**.\n2. Choose **Dynamic**, then **Music**, **Ambience** or **FX**.\n3. Under **Rules**, add the tags a track must have. **Shape** narrows it to tracks that build, fall away and so on; none pressed means any shape.\n4. **Matching tracks** shows what it holds now.\n\nTo put the tracks in an order of your own, press **Make a manual copy**: it makes a Manual playlist of the tracks that match today.\n\nA **Manual** playlist holds the tracks you pick, in the order you drag them to. Add tracks from its page, or drop audio files on it.\n"},{"file":"05-plan-campaign.md","text":"---\ntitle: Plan a campaign, session and scenes\ngroup: Prepare\nwords: campaign session scene planner new prepare plan music ambience pad boards order run\n---\nA campaign holds your sessions; a session holds its scenes, in the order you will play them.\n\n1. **Campaigns** › **New campaign**: give it a name, a game system and a theme.\n2. In the campaign, press **New session**. The session planner opens.\n3. Press **Add scene** for each moment of the story. Name it, and note when it starts (**Starts when**).\n4. In a scene, **Add tracks or playlists…** gives it music: it plays in order, and the first item starts the scene. Under **Ambience**, **Choose…** one ambience track or ambience playlist. Under **Pad boards**, add the boards you want there.\n5. Playlists, pad boards and single tracks for the whole evening go in the session's own lists; for every session, in the campaign's. Use **Use in…** on a track in the Library to put it there.\n\nA track's ⋯ in a scene › **Name in this scene…** gives it a name for that scene only. Its wave button opens the Audio profile for that scene.\n\nDrag scenes, or use their ⋯ menu, to change the order.\n\nWhen you are ready, press **Run this session**: Live opens with the first scene ready.\n"},{"file":"06-audio-profile.md","text":"---\ntitle: How a track plays (Audio profile)\ngroup: Prepare\nwords: audio profile waveform start end loop fade fades markers settings place scene playlist track\n---\nThe Audio profile says where a track starts and ends, what happens at its end, and how it fades. Open it from a track's **Audio profile** link in the Library's Details, or from the wave button by a track in a scene. From a scene it opens on that scene's settings, and **Back to** the scene takes you there again.\n\n- **Start** and **End**: drag them on the waveform, move them with the arrow keys, or type a time.\n- **At the end**: loop back to the loop start, move to the next track, or stop.\n- **Fades**: a fade in and a fade out, each with its length.\n- **Markers**: notes on the waveform, such as where it peaks.\n- `Space` plays from the playhead in your headphones only, as the profile says.\n\n**Settings for** chooses whose settings you change: the track everywhere, or only in one playlist or scene. A place uses the track's settings until you press **Give this place its own settings**; **Back to the track's settings** undoes that.\n"},{"file":"07-pad-boards.md","text":"---\ntitle: Pad boards\ngroup: Prepare\nwords: pad board pads sound effects keys hotkey play mode one-shot loop hold spare preview grid\n---\nA pad board is a grid of sound effects, each on a pad you press or play with a key.\n\n1. **Pad boards** › **New board**.\n2. Click an empty slot, then **Add pad**. Give the pad a **Label** and its **Sound**: one file, several variants, or any effect with a tag.\n3. Choose a **Play mode**: One-shot, Toggle loop, Hold to play or Restart on press.\n4. To give it a key, click its key box and press a letter, a number or `F1` to `F12`.\n\n**Preview** on a pad plays it in your headphones only; **Play on air** plays it for the players.\n\n**Try pads** in the Pads header: while it is on, pressing a pad or its key plays it as it will in Live, in your headphones only. Hold a Hold to play pad. Press **Try pads** again to stop.\n\n**Columns** and **Rows** change the grid. Pads that no longer fit go to **Spare pads**; nothing is deleted.\n\nAdd the board to a scene, a session or a campaign, and it shows in Live's **Pads**.\n"},{"file":"08-play-order.md","text":"---\ntitle: Shuffle and repeat per place\ngroup: Prepare\nwords: shuffle repeat order play order random loop playlist place scene\n---\nThe play order button, two small icons by a playlist, chooses how it plays: **Shuffle**, then **No repeat**, **Repeat all** or **Repeat one**.\n\nIt is on each playlist in Playlists and on its page, in a scene's music and the session and campaign lists, in Live's scene music, and in the Now playing bar.\n\n- On the Playlists page, it is the playlist's own order.\n- In a scene, a session's list or a campaign's list, the choice is for that place only. The button shows an accent edge and dot there. **Use the playlist's own order here** takes the choice away.\n\nWith no choice made, a playlist on its own plays in order and repeats all; in a scene it plays in order, then the scene moves on.\n\n- **Repeat one** plays the same track until you press Next.\n- **Repeat all** starts the playlist again after its last track.\n- **No repeat**: in a scene, the scene moves on; on its own, the playlist stops.\n"},{"file":"09-normalise.md","text":"---\ntitle: Normalise volume\ngroup: Prepare\nwords: normalise normalize volume loudness level lufs even quiet loud target gain\n---\nLyre can even out how loud your tracks are as it plays them. It never changes your files: it measures each track once and keeps the measurement in its library.\n\n1. Library › **⋯** beside **Add tracks** › **Normalise volume…**.\n2. Turn on **Normalise volume for the whole library** and choose a **Target level**: Quiet, Standard or Loud.\n\nA playlist (in its Details) and a track (Details › How it plays) have **Normalise volume** too: **Library setting**, **On** or **Off**. The track's own choice wins, then its playlist's, then the library's.\n\nA track not measured yet plays as it is. Hover a track's name in the Now playing bar to see how much it is turned up or down.\n"},{"file":"10-live.md","text":"---\ntitle: Run a session in Live\ngroup: Run a session\nwords: live run session scene next space undo keys shortcuts find track playlist search on air room rooms pads fade stop kick nobody there back\n---\nLive is where you run the evening. **Run this session** on a campaign or session page loads it here.\n\n- **On air**, at the top: a part for each room, with what it plays, **Up next**, its volume and its bot.\n- **Scenes**: press `Space`, or **Next scene**, to start the next scene. Click a scene's name to check it first; anything in it can be played on its own without starting the scene. Changed your mind? **Undo**, or `Ctrl+Z`, within 8 seconds.\n- **Current scene**: the running scene's music in play order, its ambience and its pads, which answer to their keys.\n- **This session** and **Whole campaign**: their playlists and pads, to play a whole playlist, one of its tracks or a pad at any time.\n- **Find a track or playlist** (`/`): search the whole library for anything not in the plan.\n- **Fade all** (`Shift+Esc`) fades everything out; **Stop all** stops at once.\n\nA room is a voice channel with one of your bots in it. Scenes always start in the first room. With two rooms or more, **To:** on a box chooses where it plays. **No room** or **Nobody there** means the players hear nothing: the button beside it puts the bot where the players are.\n\n`Ctrl+Z` takes back only the last thing you did, while its **Undo** shows.\n\n**‹** (Back), top left on every screen, goes back one step through everywhere you have been, up to 50 places, each as you left it. `Alt+Left` does the same. `Alt+1` to `Alt+7` jump to the boxes, from On air down.\n\n**Keys** lists every key. If single keys get in your way, turn **Single-key shortcuts** off there; `Shift+Esc` and `Ctrl+Z` still work.\n"},{"file":"11-preview-on-air.md","text":"---\ntitle: Preview or play on air\ngroup: Run a session\nwords: preview headphones only you on air players hear now playing bar stop volume paused room\n---\nEvery sound in Lyre says where it goes.\n\n- **Preview** plays in your headphones only. Its tag reads **Only you**.\n- **Play on air** plays for the players. Its tag reads **On air**, with the room's name when you have two or more rooms. **On air · no room** means no bot is in a voice channel, and **On air · nobody there** that nobody is in the room's channel: either way nobody hears it.\n\nThe **Now playing** bar, at the foot of the screen, shows what plays: a row per room and a row for your preview, each with its own Stop and volume. A paused row turns grey. The bar goes when everything stops.\n\nIn Live, the On air boxes show what each room hears, so the bar there shows only your preview.\n"},{"file":"12-backup.md","text":"---\ntitle: Back up, move or share\ngroup: Your library\nwords: backup back up save file open share move computer lyre file export import bring in duplicate merge\n---\nLibrary › **⋯** beside **Add tracks** › **Back up, move or share…**.\n\n**Save to a file** makes one .lyre file of the whole library, one campaign, session, scene, playlist or pad board, or the tags only. Tick **Include the audio files** to take the music with it, for another computer or another game master.\n\n**Open a file**: drop a .lyre file on the page, or choose one. Lyre shows what is in it and what you have already. For each of those, choose **Skip**, **Merge** or **Keep both**, then press **Bring in**.\n\nA file that is not a Lyre file, or is damaged, is refused, and nothing in your library changes.\n\nLyre also backs up its library by itself every day.\n"},{"file":"13-missing-files.md","text":"---\ntitle: Find missing files\ngroup: Your library\nwords: missing files moved relink find folder drive lost not found\n---\nWhen you move or rename audio files, Lyre can no longer find them. Their rows in the Library say **Missing**, and **Filters** › **Missing** lists them.\n\n1. Library › **⋯** beside **Add tracks** › **Find missing files…**.\n2. **Look in a folder**: type a folder, choose one, or drop it on the page.\n3. Lyre matches files by name and size. A match with the same name and size is ticked. The same name with another size is not ticked: Preview it first.\n4. Press **Relink** (it says how many files). **Undo** puts them back if a match was wrong.\n"},{"file":"14-diagnostics.md","text":"---\ntitle: Save diagnostics for a bug report\ngroup: Your library\nwords: diagnostics bug report problem error log crash support zip\n---\nWhen something goes wrong, a diagnostics file helps us find out why.\n\n1. Press **Help** (or `F1`), then **Save diagnostics…** at the foot.\n2. Choose a folder. Lyre saves one zip file there and names it.\n3. Attach the zip to your bug report.\n\nThe zip holds Lyre's version, your Windows version, the last lines of Lyre's log, its settings, and any warnings about blocked content.\n\nYour bot tokens and other secrets are taken out, and so is your user name in folder paths. Your music and your library are not in it.\n\nNothing is sent anywhere: the file stays where you saved it until you send it yourself.\n"},{"file":"15-up-next.md","text":"---\ntitle: Play next, Add to queue and Repeat\ngroup: Run a session\nwords: queue add to queue play next up next list order repeat repeat one loop room skip clear saved\n---\nEach room plays a list for the evening: the scene's music (or a playlist) in its order, and what you add to it.\n\n- **Play next**, on any track or playlist in Live, plays it right after the track playing now.\n- **Add to queue** puts it at the bottom of the room's list, after everything already there.\n- **Up next**, in the room's part of On air, shows the list from the next track to the bottom. **×** takes one out for this evening; **Clear added** takes out everything you added.\n- An ambience has **Play next** and **Add to queue** too: it waits at the bottom of Up next as **Ambience next** and plays when you press **Next** on the room's ambience (an ambience loops until you change it).\n- Starting another scene clears what you added. That scene's **Undo** brings it back.\n\nThere are two repeats.\n\n- **Repeat** in On air, and on the Now playing bar, is for what plays in that room now: off, all, then one. It is never saved and ends when that room's music stops.\n- **Repeat one** on a track of a scene is saved with the scene: the track plays again when it ends, every time the scene plays. A pressed one has a small dot.\n\nWith **Repeat all**, what you added comes round again with the rest. A scene's music always starts again from its top.\n"}];
+var LYRE_HELP_FILES = [{"file":"01-connect-discord.md","text":"---\ntitle: Connect Discord and add a bot to a room\ngroup: Get started\nwords: discord bot token server voice channel room rooms settings connect invite add a bot application id kenku fm encrypted\n---\nLyre plays to your players through a Discord bot. You make the bot once; Lyre logs it in.\n\n1. Open **Settings** in the menu. Under Discord bots, press **Add a bot**. Three steps follow.\n2. **Create it**: press **Open the Discord Developer Portal**. In Discord, choose **New Application**, name it and press **Create**. Back in Lyre, press **Next**.\n3. **Invite it**: in Discord, open **General Information** and copy the Application ID. Paste it into Lyre and press **Open the invite**. Pick your server and press **Authorize**. The invite asks only for View Channels, Connect and Speak.\n4. **Connect it**: in Discord, open **Bot**, press **Reset Token**, then **Copy**. Paste the token into Lyre and press **Connect**, then **Done**. Lyre keeps the token on this computer, encrypted, and shows only its last four characters.\n5. Open **Rooms**. Your bot says Not in a room. Press **Choose a room…** and pick a voice channel, or press **Add** beside the channel.\n\nTo move the bot during a game, choose another room; the sound goes on. **Kick** takes the bot out, and **Undo** puts it back with the music.\n\nFor a second room (a side scene, a split party), press **Add a bot** again and make a second bot.\n\nComing from Kenku FM? Lyre brings your bot across on its first start and keeps its token encrypted. If Kenku FM kept the token unprotected, Settings › Discord bots says so once and how to make a new one.\n"},{"file":"02-kenku-fm.md","text":"---\ntitle: What came across from Kenku FM\ngroup: Get started\nwords: kenku fm import copy moved first start soundboards bookmarks websites token old player window\n---\nOn its first start, Lyre copies your Kenku FM library. Kenku FM's own files stay as they were, so you can go back to it.\n\nLibrary › **⋯** beside **Add tracks** › **What came across from Kenku FM** shows:\n\n- what Lyre copied and where it is now: playlists and their tracks, soundboards (now pad boards, their sounds now pads);\n- **Bookmarks**: your Kenku FM bookmarks, each with **Copy**. Websites can't be opened in Lyre for now; paste the address into your browser;\n- **Files Lyre cannot find**, with **Find them…**;\n- **Not brought across**: what Lyre left behind.\n\nYour Discord bot comes across too. Lyre keeps its token encrypted; Settings › Discord bots tells you once if it moved it.\n\nLyre is one window. What Kenku FM's player did is in Lyre's menu: playlists in **Playlists**, soundboards in **Pad boards**, playing to your players in **Live**. Sending a microphone to Discord and Stream Deck buttons are not in Lyre for now.\n"},{"file":"03-add-music.md","text":"---\ntitle: Add your music and tag it\ngroup: Prepare\nwords: library add tracks files folder watch import drop tag tags mood leitmotif scene type title details search filters find\n---\nLyre never copies or changes your audio files. It remembers where they are.\n\n1. Open **Library** and press **Add tracks**: **Add files…**, **Add a folder…** (with its subfolders) or **Watch a folder…** (new files there appear by themselves). You can also drop files and folders anywhere on the page.\n2. Open a track (its row, or `Enter`) for its **Details**: **Your title**, the title in the file, the file name and the folder.\n3. To tag it, type in a tag group's box (**+ Add mood**, and the same for each group) and press `Enter` or `Tab`. A new word makes a new tag.\n4. To tag many tracks at once, select them (their boxes, or `Space` on a row), then press **Tag…**.\n\nThe search box finds titles, file names, artists and tags. **Filters** narrows the list by kind (Music, Ambience, FX), tag, energy, shape, folder and missing files.\n\nTags are what dynamic playlists and Live's **Find a track or playlist** use, so a few good tags save time at the table.\n"},{"file":"04-dynamic-playlist.md","text":"---\ntitle: Make a playlist from tags\ngroup: Prepare\nwords: playlist dynamic manual rules tags shape matching copy new\n---\nA dynamic playlist holds every track that matches its rules, and grows as you tag more tracks.\n\n1. Open **Playlists** and press **New playlist**.\n2. Choose **Dynamic**, then **Music**, **Ambience** or **FX**.\n3. Under **Rules**, add the tags a track must have. **Shape** narrows it to tracks that build, fall away and so on; none pressed means any shape.\n4. **Matching tracks** shows what it holds now.\n\nTo put the tracks in an order of your own, press **Make a manual copy**: it makes a Manual playlist of the tracks that match today.\n\nA **Manual** playlist holds the tracks you pick, in the order you drag them to. Add tracks from its page, or drop audio files on it.\n"},{"file":"05-plan-campaign.md","text":"---\ntitle: Plan a campaign, session and scenes\ngroup: Prepare\nwords: campaign session scene planner new prepare plan music ambience pad boards order run\n---\nA campaign holds your sessions; a session holds its scenes, in the order you will play them.\n\n1. **Campaigns** › **New campaign**: give it a name, a game system and a theme. Its pages, its sessions and Live show its theme; Look and feel's base theme is for the rest.\n2. In the campaign, press **New session**. The session planner opens.\n3. Press **Add scene** for each moment of the story. It goes after the selected scene (the one you last opened, with the coloured edge), or at the end. Name it, and note when it starts (**Starts when**).\n4. In a scene, **Add tracks or playlists…** gives it music: it plays in order, and the first item starts the scene. Under **Ambience**, **Choose…** one ambience track or ambience playlist. Under **Pad boards**, add the boards you want there.\n5. Playlists, pad boards and single tracks for the whole evening go in the session's own lists; for every session, in the campaign's. Use **Use in…** on a track in the Library to put it there.\n\nA track's ⋯ in a scene › **Name in this scene…** gives it a name for that scene only. Its wave button opens the Audio profile for that scene.\n\nEvery track and playlist in a scene has **Preview** and **Play on air**, and so does each track of a playlist you unfold.\n\nDrag scenes, or use their ⋯ menu, to change the order. On **Campaigns**, drag a card by its handle, or press **Reorder**, to change the campaigns' order.\n\nWhen you are ready, press **Run this session**: Live opens with the first scene ready.\n"},{"file":"06-audio-profile.md","text":"---\ntitle: How a track plays (Audio profile)\ngroup: Prepare\nwords: audio profile waveform start end loop fade fades markers settings place scene playlist track\n---\nThe Audio profile says where a track starts and ends, what happens at its end, and how it fades. Open it from a track's **Audio profile** link in the Library's Details, or from the wave button by a track in a scene. From a scene it opens on that scene's settings, and **Back to** the scene takes you there again.\n\n- **Start** and **End**: drag them on the waveform, move them with the arrow keys, or type a time.\n- **At the end**: loop back to the loop start, move to the next track, or stop.\n- **Fades**: a fade in and a fade out, each with its length.\n- **Markers**: notes on the waveform, such as where it peaks.\n- `Space` plays from the playhead in your headphones only, as the profile says.\n\n**Settings for** chooses whose settings you change: the track everywhere, or only in one playlist or scene. A place uses the track's settings until you press **Give this place its own settings**; **Back to the track's settings** undoes that.\n"},{"file":"07-pad-boards.md","text":"---\ntitle: Pad boards\ngroup: Prepare\nwords: pad board pads sound effects keys hotkey play mode one-shot loop hold spare preview grid\n---\nA pad board is a grid of sound effects, each on a pad you press or play with a key.\n\n1. **Pad boards** › **New board**.\n2. Click an empty slot, then **Add pad**. Give the pad a **Label** and its **Sound**: one file, several variants, or any effect with a tag.\n3. Choose a **Play mode**: One-shot, Toggle loop, Hold to play or Restart on press.\n4. To give it a key, click its key box and press a letter, a number or `F1` to `F12`.\n\n**Preview** on a pad plays it in your headphones only; **Play on air** plays it for the players.\n\n**Try pads** in the Pads header: while it is on, pressing a pad or its key plays it as it will in Live, in your headphones only. Hold a Hold to play pad. Press **Try pads** again to stop.\n\n**Columns** and **Rows** change the grid. Pads that no longer fit go to **Spare pads**; nothing is deleted.\n\nAdd the board to a scene, a session or a campaign, and it shows in Live's **Pads**.\n"},{"file":"08-play-order.md","text":"---\ntitle: Shuffle and repeat per place\ngroup: Prepare\nwords: shuffle repeat order play order random loop playlist place scene\n---\nThe play order button, two small icons by a playlist, chooses how it plays: **Shuffle**, then **No repeat**, **Repeat all** or **Repeat one**.\n\nIt is on each playlist in Playlists and on its page, in a scene's music and the session and campaign lists, in Live's scene music, and in the Now playing bar.\n\n- On the Playlists page, it is the playlist's own order.\n- In a scene, a session's list or a campaign's list, the choice is for that place only. The button shows an accent edge and dot there. **Use the playlist's own order here** takes the choice away.\n\nWith no choice made, a playlist on its own plays in order and repeats all; in a scene it plays in order, then the scene moves on.\n\n- **Repeat one** plays the same track until you press Next.\n- **Repeat all** starts the playlist again after its last track.\n- **No repeat**: in a scene, the scene moves on; on its own, the playlist stops.\n"},{"file":"09-normalise.md","text":"---\ntitle: Normalise volume\ngroup: Prepare\nwords: normalise normalize volume loudness level lufs even quiet loud target gain\n---\nLyre can even out how loud your tracks are as it plays them. It never changes your files: it measures each track once and keeps the measurement in its library.\n\n1. Library › **⋯** beside **Add tracks** › **Normalise volume…**.\n2. Turn on **Normalise volume for the whole library** and choose a **Target level**: Quiet, Standard or Loud.\n\nA playlist (in its Details) and a track (Details › How it plays) have **Normalise volume** too: **Library setting**, **On** or **Off**. The track's own choice wins, then its playlist's, then the library's.\n\nA track not measured yet plays as it is. Hover a track's name in the Now playing bar to see how much it is turned up or down.\n"},{"file":"10-live.md","text":"---\ntitle: Run a session in Live\ngroup: Run a session\nwords: live run session scene next space undo keys shortcuts find track playlist search on air room rooms pads fade stop kick nobody there back shuffle seek jump position\n---\nLive is where you run the evening. **Run this session** on a campaign or session page loads it here.\n\n- **On air**, at the top: a part for each room, with what it plays, **Up next**, its volume and its bot. Click a track's position line to jump in it. Its bot's button changes the channel; **+** adds a room.\n- **Scenes**: press `Space`, or **Next scene**, to start the next scene. Click a scene's name to check it; anything in it plays alone without starting the scene. **Undo**, or `Ctrl+Z`, takes back the last thing you did within 8 seconds.\n- **Current scene**: the running scene's music in play order, its ambience and its pads, which answer to their keys.\n- **This session** and **Whole campaign**: their playlists and pads, to play a whole playlist, one of its tracks or a pad at any time.\n- **Find a track or playlist** (`/`): search the whole library for anything not in the plan.\n- **Fade all** (`Shift+Esc`) fades everything out over 5 seconds; **Stop all** stops at once.\n\nA room is a voice channel with one of your bots in it. Scenes always start in the first room. With two rooms or more, **To:** on a box chooses where it plays. **No room** or **Nobody there** means the players hear nothing: the button beside it puts the bot where the players are.\n\n**‹** (Back), top left on every screen, goes back one step through everywhere you have been, each as you left it. `Alt+Left` does the same. `Alt+1` to `Alt+7` jump to the boxes, from On air down.\n\n**Keys** lists every key. If single keys get in your way, turn **Single-key shortcuts** off there.\n"},{"file":"11-preview-on-air.md","text":"---\ntitle: Preview or play on air\ngroup: Run a session\nwords: preview headphones only you on air players hear now playing bar stop volume paused room seek jump position split headset ear\n---\nEvery sound in Lyre says where it goes.\n\n- **Preview** plays in your headphones only. Its tag reads **Only you**.\n- **Play on air** plays for the players. Its tag reads **On air**, with the room's name when you have two or more rooms. **On air · no room** means no bot is in a voice channel, and **On air · nobody there** that nobody is in the room's channel: either way nobody hears it.\n\nThe **Now playing** bar, at the foot of the screen, shows what plays: a row per room and a row for your preview, each with its own Stop and volume. Click or drag a row's position line to jump in the track; with the keyboard, Left and Right move 5 seconds. A paused row turns grey. The bar goes when everything stops.\n\nIn Live, the On air boxes show what each room hears, so the bar there shows only your preview.\n\nWith **Split one headset** on (Settings › Headphones and speakers), the preview plays in one ear and On air in the other, but only while something plays on air; a preview on its own plays in both ears.\n"},{"file":"12-backup.md","text":"---\ntitle: Back up, move or share\ngroup: Your library\nwords: backup back up save file open share move computer lyre file export import bring in duplicate merge\n---\nLibrary › **⋯** beside **Add tracks** › **Back up, move or share…**.\n\n**Save to a file** makes one .lyre file of the whole library, one campaign, session, scene, playlist or pad board, or the tags only. Tick **Include the audio files** to take the music with it, for another computer or another game master.\n\n**Open a file**: drop a .lyre file on the page, or choose one. Lyre shows what is in it and what you have already. For each of those, choose **Skip**, **Merge** or **Keep both**, then press **Bring in**.\n\nA file that is not a Lyre file, or is damaged, is refused, and nothing in your library changes.\n\nLyre also backs up its library by itself every day.\n"},{"file":"13-missing-files.md","text":"---\ntitle: Find missing files\ngroup: Your library\nwords: missing files moved relink find folder drive lost not found\n---\nWhen you move or rename audio files, Lyre can no longer find them. Their rows in the Library say **Missing**, and **Filters** › **Missing** lists them.\n\n1. Library › **⋯** beside **Add tracks** › **Find missing files…**.\n2. **Look in a folder**: type a folder, choose one, or drop it on the page.\n3. Lyre matches files by name and size. A match with the same name and size is ticked. The same name with another size is not ticked: Preview it first.\n4. Press **Relink** (it says how many files). **Undo** puts them back if a match was wrong.\n"},{"file":"14-diagnostics.md","text":"---\ntitle: Save diagnostics for a bug report\ngroup: Your library\nwords: diagnostics bug report problem error log crash support zip\n---\nWhen something goes wrong, a diagnostics file helps us find out why.\n\n1. Press **Help** (or `F1`), then **Save diagnostics…** at the foot.\n2. Choose a folder. Lyre saves one zip file there and names it.\n3. Attach the zip to your bug report.\n\nThe zip holds Lyre's version, your Windows version, the last lines of Lyre's log, its settings, and any warnings about blocked content.\n\nYour bot tokens and other secrets are taken out, and so is your user name in folder paths. Your music and your library are not in it.\n\nNothing is sent anywhere: the file stays where you saved it until you send it yourself.\n"},{"file":"15-up-next.md","text":"---\ntitle: Play next, Add to queue and Repeat\ngroup: Run a session\nwords: queue add to queue play next up next list order repeat repeat one loop room skip clear saved\n---\nEach room plays a list for the evening: the scene's music (or a playlist) in its order, and what you add to it.\n\n- **Play next**, on any track or playlist in Live, plays it right after the track playing now.\n- **Add to queue** puts it at the bottom of the room's list, after everything already there.\n- **Up next**, in the room's part of On air, shows the list from the next track to the bottom. **×** takes one out for this evening; **Clear added** takes out everything you added.\n- An ambience has **Play next** and **Add to queue** too: it waits at the bottom of Up next as **Ambience next** and plays when you press **Next** on the room's ambience (an ambience loops until you change it).\n- Starting another scene clears what you added. That scene's **Undo** brings it back.\n\nThere are two repeats.\n\n- **Repeat** in On air, and on the Now playing bar, is for what plays in that room now: off, all, then one. It is never saved and ends when that room's music stops.\n- **Repeat one** on a track of a scene is saved with the scene: the track plays again when it ends, every time the scene plays. A pressed one has a small dot.\n\nWith **Repeat all**, what you added comes round again with the rest. A scene's music always starts again from its top.\n"}];
 ;
 /* Lyre design round 2: sample data.
    Model: Campaign > Session > Scene. Playlists and pad boards live on their own (Library) and are assigned
@@ -2760,7 +2877,16 @@ var LYRE_DATA = (function () {
   campaigns.forEach(function (c) { c.tracks = []; c.sessions.forEach(function (s) { s.tracks = []; }); });
   campaigns[0].tracks.push('t26');
   // Round 5 (DAT-7): what came across from the Player (Kenku FM) on first start, for the move report.
-  var moved = { from: 'Kenku FM 1.5.5', when: '5 Nov 2026, 18:42', playlists: 9, tracks: 212, boards: 4, pads: 37, bookmarks: 6,
+  // 0.5.1: the bookmarks themselves (title and address), listed once to copy, since Lyre has no website tabs.
+  var moved = { from: 'Kenku FM 1.5.5', when: '5 Nov 2026, 18:42', playlists: 9, tracks: 212, boards: 4, pads: 37,
+    bookmarks: [
+      { title: 'YouTube', url: 'https://www.youtube.com/' },
+      { title: 'Spotify', url: 'https://open.spotify.com/' },
+      { title: 'Tabletop Audio', url: 'https://tabletopaudio.com/' },
+      { title: 'Ambient Mixer', url: 'https://www.ambient-mixer.com/' },
+      { title: 'Freesound', url: 'https://freesound.org/' },
+      { title: 'Kenku FM', url: 'https://www.kenku.fm/' }
+    ],
     notMoved: [['The play queue and what was playing', 'Lyre starts with nothing playing'], ['Kenku FM\'s window size and position', 'Lyre opens at its own size']] };
   // Round 5 (DAT-15): each track's measured loudness, as Lyre's background job reads it with ffmpeg: "id loudness peak",
   // loudness in LUFS (EBU R128 integrated; for a sound under 3 s its loudest moment) and true peak in dBTP. t02 is the
@@ -2815,7 +2941,7 @@ var L = (function () {
   var D = LYRE_DATA;
   var L = { data: D, views: {}, acts: {}, inputs: {}, keys: [] };
   // Could 18 of the round 6 review: the version shown is the one running (in Lyre, the app's own; here, the design's).
-  L.version = '0.5.0';
+  L.version = '0.5.1';
 
   /* ---------- icons (24 px stroke paths) ---------- */
   var I = {
@@ -3316,7 +3442,8 @@ var L = (function () {
   /* ---------- state ---------- */
   var saved = {};
   try { saved = JSON.parse(localStorage.getItem('lyre-r2') || '{}'); } catch (e) { saved = {}; }
-  L.state = { theme: saved.theme || 'campaign', frame: saved.frame || 'half', rail: saved.rail || 'auto', panes: saved.panes || {}, notes: saved.notes !== false, tour: saved.tour === 'done' ? 'done' : '',
+  // Round 8: L.state.theme is the base theme (Look and feel); 'campaign', the old "Each campaign's own", reads as the default.
+  L.state = { theme: saved.theme && saved.theme !== 'campaign' ? saved.theme : (D.defaultTheme || 'candle'), frame: saved.frame || 'half', rail: saved.rail || 'auto', panes: saved.panes || {}, notes: saved.notes !== false, tour: saved.tour === 'done' ? 'done' : '',
     live: { cid: 'crown', sid: 's14', scene: 1, standby: 2 }, ctx: { cid: 'crown' }, shuffleRound: 0 };
   L.save = function () { try { localStorage.setItem('lyre-r2', JSON.stringify({ theme: L.state.theme, frame: L.state.frame, rail: L.state.rail, panes: L.state.panes, notes: L.state.notes, tour: L.state.tour })); } catch (e) { /* storage unavailable: settings last for this visit */ } };
 
@@ -3372,7 +3499,7 @@ var L = (function () {
     if (!ctx) return [];
     if (typeof ctx === 'string') return [ctx];
     // Scene first, else the session list it was played from (PLY-14), then the playlist; the track's own comes last.
-    var out = []; if (ctx.sceneId) out.push('sc:' + ctx.cid + ':' + ctx.sid + ':' + ctx.sceneId); else if (ctx.place && ctx.place.indexOf('ss:') === 0) out.push(ctx.place); if (ctx.playlistId) out.push('pl:' + ctx.playlistId); return out;
+    var out = []; if (ctx.sceneId) out.push('sc:' + ctx.cid + ':' + ctx.sid + ':' + ctx.sceneId); else if (ctx.place && (ctx.place.indexOf('ss:') === 0 || ctx.place.indexOf('sc:') === 0)) out.push(ctx.place); /* round 8: played from a scene's row in the planner */ if (ctx.playlistId) out.push('pl:' + ctx.playlistId); return out;
   }
   function override(t, ctx) { var ks = ctxKeys(ctx); for (var i = 0; i < ks.length; i++) { var o = D.profiles[ks[i]] && D.profiles[ks[i]][t.id]; if (o) return { p: o, key: ks[i] }; } return null; }
   L.profileWhere = function (t, ctx) { var o = t && override(t, ctx); return o ? (o.key.indexOf('sc:') === 0 ? 'scene' : o.key.indexOf('ss:') === 0 ? 'session' : 'playlist') : 'track'; };
@@ -3388,10 +3515,15 @@ var L = (function () {
     var ov = t && override(t, ctx), p = ov ? ov.p : (t && t.profile) || {}, dur = t ? t.dur : 60;
     var after = p.after || (t && (t.loop === 'yes' || t.loop === 'crossfade') ? 'loop' : 'next');
     function fade(f) { return f == null ? { dur: 0, shape: 50 } : typeof f === 'number' ? { dur: f, shape: 50 } : { dur: f.dur || 0, shape: f.shape != null ? f.shape : 50 }; }
-    return { start: p.start || 0, end: p.end || dur, after: after, loopStart: p.loopStart != null ? p.loopStart : (p.start || 0), loopXfade: p.loopXfade || 0,
-      fadeIn: fade(p.fadeIn), fadeOut: fade(p.fadeOut), markers: p.markers || [] };
+    /* Round 8 (Nik, 11 Nov 20:33: "We need a "Start at [select marker]" Option in the detailed audio profile view"):
+       startAt is a marker's time; the track then starts there wherever it plays (from = where playing begins), unless
+       a place's own profile says otherwise. A marker removed, or outside Start and End, falls back to Start. */
+    var start = p.start || 0, end = p.end || dur, markers = p.markers || [];
+    var at = p.startAt != null && markers.some(function (m) { return m.at === p.startAt; }) && p.startAt >= start && p.startAt < end ? p.startAt : null;
+    return { start: start, end: end, after: after, loopStart: p.loopStart != null ? p.loopStart : start, loopXfade: p.loopXfade || 0,
+      fadeIn: fade(p.fadeIn), fadeOut: fade(p.fadeOut), markers: markers, startAt: at, from: at != null ? at : start };
   };
-  function lane(trackId, playlistId, seq, place) { var t = L.track(trackId), pf = L.profileOf(t, laneCtx(playlistId, seq, place)); return { id: trackId, label: L.title(t), playlistId: playlistId || '', place: place || '', pos: pf.start, dur: pf.end, vol: 0, target: 1, fadeIn: 0 }; }
+  function lane(trackId, playlistId, seq, place) { var t = L.track(trackId), pf = L.profileOf(t, laneCtx(playlistId, seq, place)); return { id: trackId, label: L.title(t), playlistId: playlistId || '', place: place || '', start: pf.start, from: pf.from, pos: pf.from, dur: pf.end, vol: 0, target: 1, fadeIn: 0 }; }
   function laneCtx(playlistId, seq, place) { var s = seq && L.session(seq.cid, seq.sid), sc = s && s.scenes[seq.scene]; return { playlistId: playlistId, cid: seq && seq.cid, sid: seq && seq.sid, sceneId: sc && sc.id, place: place || '' }; }
   L.laneContext = function (ln, target) { var c = mixOf(target)[ln]; return c ? laneCtx(c.playlistId, c.seq, c.place) : null; };
   L.play = function (trackId, o) {
@@ -3423,6 +3555,9 @@ var L = (function () {
   L.prev = function (ln, target) { step(ln, -1, target); };
   L.pauseLane = function (ln, target) { var m = mixOf(target); if (m[ln]) { m[ln].paused = !m[ln].paused; L.changed(); } };
   L.stopLane = function (ln, fade, target) { var m = mixOf(target); if (m[ln]) { m[ln].fadeOut = fade == null ? 2 : fade; m[ln + 'Out'].push(m[ln]); m[ln] = null; L.changed(); } };
+  /* Round 8 (Nik, 11 Nov 20:33: "Let's make the standard for our fade buttons 5 rather than 3 seconds."): Fade all
+     (Shift+Esc) and a lane's Fade out take L.FADE seconds. The crossfade between tracks is Settings' own (L.defaultCrossfade). */
+  L.FADE = 5;
   L.fadeAll = function (s) { L.stopLane('music', s); L.stopLane('amb', s); Object.keys(pb.own).forEach(function (id) { L.stopLane('music', s, id); L.stopLane('amb', s, id); }); pb.fx.forEach(function (f) { f.fadeOut = s || 2; }); L.say('Fading everything out'); L.changed(); };
   L.stopAll = function () { pb.music = pb.amb = null; pb.musicOut = []; pb.ambOut = []; pb.fx = []; Object.keys(pb.own).forEach(function (id) { pb.own[id] = newMix(); }); L.say('Everything stopped'); L.changed(); };
   // target: a bot id with its own sound, 'table' (default) or 'all' (every output at once).
@@ -3568,11 +3703,60 @@ var L = (function () {
     }
     if (c.seq) L.next(ln, target); else { m[ln + 'Out'].push(c); c.fadeOut = .5; m[ln] = null; L.say('End of ' + (L.playlist(c.playlistId) || {}).name); }
   }
+  function lanePb(key) { var a = key.split('@'); return a[1] ? (pb.own[a[1]] || {})[a[0]] : pb[a[0]]; }
+  /* Round 8 (0.5.1, Nik 11 Nov: "I can't click and interact with the tracking bar in the now playing bar, and choose
+     to skip to a certain point in the track - definitely need that"): the position bar of what plays is a slider, in the
+     Now playing bar and in Live's On air. L.seekBar(key, name, cls, inner) draws it around the usual thin bar: a hit
+     area 24 px tall (WCAG 2.5.8), its name "Position in <track>", its value read as "1:23 of 4:05". Click or drag to
+     jump; with the keyboard Left and Right move 5 s, Page Up and Page Down 30 s, Home goes to where the track starts
+     and End to its last second, so its end (fade, loop or next) still plays out. Each tick moves the value; while
+     it has focus the value changes only when Nik moves it, so a screen reader does not read it four times a second.
+     key: 'music', 'amb', 'preview', or 'music@<botId>' / 'amb@<botId>' for rooms other than the first. */
+  var SEEK_STEP = 5, SEEK_PAGE = 30;
+  function seekText(c) { return L.fmt(c.pos) + ' of ' + L.fmt(c.dur); }
+  L.seekBar = function (key, name, cls, inner) {
+    var c = lanePb(key), pos = c ? c.pos : 0, dur = c ? c.dur : 0;
+    return '<div class="seek" role="slider" tabindex="0" data-seek="' + esc(key) + '" data-k="seek-' + esc(key) + '" aria-label="Position in ' + esc(name) + '" aria-valuemin="0" aria-valuemax="' + Math.round(dur) + '" aria-valuenow="' + Math.round(pos) + '" aria-valuetext="' + (c ? seekText(c) : '') + '" title="Click or drag to jump; Left and Right move 5 seconds">' +
+      '<div class="progress ' + (cls || '') + '"><span data-progress="' + esc(key) + '"' + (c ? ' style="width:' + Math.min(100, pos / dur * 100) + '%"' : '') + '></span>' + (inner || '') + '</div></div>';
+  };
+  // Move what plays at `key` to `pos` seconds: never before its start, and up to a quarter second short of its end.
+  L.seek = function (key, pos) {
+    var c = lanePb(key); if (!c) return null;
+    c.pos = Math.max(c.start || 0, Math.min(c.dur - .25, pos));
+    paintSeek(key, true); return c;
+  };
+  function paintSeek(key, now) {
+    document.querySelectorAll('[data-seek]').forEach(function (el) {
+      if (key && el.dataset.seek !== key) return;
+      var c = lanePb(el.dataset.seek); if (!c || (!now && el === document.activeElement)) return;
+      el.setAttribute('aria-valuemax', String(Math.round(c.dur))); el.setAttribute('aria-valuenow', String(Math.round(c.pos))); el.setAttribute('aria-valuetext', seekText(c));
+    });
+    L.tickBars();
+  }
+  document.addEventListener('keydown', function (e) {
+    var el = e.target && e.target.closest && e.target.closest('[data-seek]'); if (!el || e.ctrlKey || e.metaKey || e.altKey) return;
+    var c = lanePb(el.dataset.seek); if (!c) return;
+    var to = { ArrowLeft: c.pos - SEEK_STEP, ArrowDown: c.pos - SEEK_STEP, ArrowRight: c.pos + SEEK_STEP, ArrowUp: c.pos + SEEK_STEP,
+      PageDown: c.pos - SEEK_PAGE, PageUp: c.pos + SEEK_PAGE, Home: c.from != null ? c.from : (c.start || 0), End: c.dur - 1 }[e.key];
+    if (to == null) return;
+    e.preventDefault(); e.stopPropagation(); L.seek(el.dataset.seek, to);
+  }, true);
+  var seeking = null;
+  function seekAt(el, x) { var bar = el.querySelector('.progress') || el, r = bar.getBoundingClientRect(), c = lanePb(el.dataset.seek); if (c && r.width) L.seek(el.dataset.seek, Math.max(0, Math.min(1, (x - r.left) / r.width)) * c.dur); }
+  document.addEventListener('pointerdown', function (e) {
+    var el = e.target && e.target.closest && e.target.closest('[data-seek]'); if (!el || e.button !== 0) return;
+    seeking = el; try { el.setPointerCapture(e.pointerId); } catch (err) { /* capture unavailable: the drag ends at the bar's edge */ }
+    el.focus(); seekAt(el, e.clientX); e.preventDefault();
+  });
+  document.addEventListener('pointermove', function (e) { if (seeking) seekAt(seeking, e.clientX); });
+  document.addEventListener('pointerup', function () { if (!seeking) return; var k = seeking.dataset.seek, c = lanePb(k); seeking = null; if (c) L.say('At ' + seekText(c)); });
   // Elements with data-progress="music|amb|preview" and data-time="music|amb|preview" update every tick without a re-render.
-  L.tick = function () {
-    function lanePb(key) { var a = key.split('@'); return a[1] ? (pb.own[a[1]] || {})[a[0]] : pb[a[0]]; }
+  L.tickBars = function () {
     document.querySelectorAll('[data-progress]').forEach(function (el) { var c = lanePb(el.dataset.progress); el.style.width = c ? Math.min(100, c.pos / c.dur * 100) + '%' : '0'; });
     document.querySelectorAll('[data-time]').forEach(function (el) { var c = lanePb(el.dataset.time); el.textContent = c ? L.fmt(c.pos) + ' / ' + L.fmt(c.dur) : ''; });
+  };
+  L.tick = function () {
+    paintSeek(null, false);
     var fxCount = pb.fx.length; if (fxCount !== L._fx) { L._fx = fxCount; L.render(); }
   };
   L.changed = function () { L.render(); L.tick(); };
@@ -3905,10 +4089,14 @@ var L = (function () {
   }
   L.current = function () { return resolve(); };
   L.paint = paint;
+  /* Round 8 (Nik, 11 Nov: "The campaign's visual theme should override the base / preference theme in settings. It
+     currently does not."): a campaign's own theme always shows on its page, its sessions (the planner) and in Live
+     while one of its sessions is loaded, whatever Look and feel says. Look and feel's theme is the base: every other
+     page, and a campaign with no theme of its own. */
+  L.baseTheme = function () { return L.state.theme && L.state.theme !== 'campaign' ? L.state.theme : (D.defaultTheme || 'candle'); };
   L.themeFor = function (r) {
-    if (L.state.theme !== 'campaign') return L.state.theme;
-    var cid = r.p.cid || (r.name === 'live' ? L.state.live.cid : L.state.ctx.cid);
-    var c = L.campaign(cid), d = D.defaultTheme || 'candle'; return (r.name === 'campaigns' || r.name === 'look') ? d : (c ? c.theme || d : d);
+    var base = L.baseTheme(), cid = r.name === 'live' ? L.state.live.cid : (r.name === 'campaign' || r.name === 'session') ? r.p.cid : '';
+    var c = cid && L.campaign(cid); return c && c.theme ? c.theme : base;
   };
 
   /* ---------- rename in place (EDT-1, BUG-21) ----------
@@ -4015,7 +4203,7 @@ var L = (function () {
         '<div class="oab-from ellipsis" title="' + esc(originOf(c)) + '">' + esc(originOf(c)) + (m.music && m.amb ? ' · <span class="lane-dot amb" aria-hidden="true"></span>Ambience: ' + esc(L.title(L.track(m.amb.id))) : '') +
         (fx ? ' · ' + fx + ' effect' + (fx > 1 ? 's' : '') + ' sounding' : '') + (r.none ? ' · No bot is in a voice channel: nobody hears it' : '') +
         '</div></div>' +
-      '<div class="oab-time"><div class="progress ' + ln + '"><span data-progress="' + pk + '"></span></div><span class="num" data-time="' + pk + '"></span></div>' +
+      '<div class="oab-time">' + L.seekBar(pk, nm, ln) + '<span class="num" data-time="' + pk + '"></span></div>' +
       '<div class="oab-ctl" role="group" aria-label="Control what the players hear' + esc(where) + '">' +
         '<button class="btn s icon" data-act="oabpause" data-lane="' + ln + '" data-room="' + target + '" data-k="' + k + '-pause" aria-label="' + (paused ? 'Play' : 'Pause') + '" title="' + (paused ? 'Play the ' + word + ' again' : 'Pause the ' + word) + esc(where) + '">' + L.icon(paused ? 'play' : 'pause', 's') + '</button>' +
         '<button class="btn s" data-act="oabstop" data-room="' + target + '" data-k="' + k + '-stop" title="Stop what the players hear' + esc(where) + ' (fades out in a second)">' + L.icon('stop', 's') + 'Stop</button>' +
@@ -4032,7 +4220,7 @@ var L = (function () {
       '<span class="oab-dest">' + L.destTag('you', '', paused) + (paused ? '<span class="badge oab-paused">Paused</span>' : '') + '</span>' +
       '<div class="oab-now"><div class="oab-title ellipsis" title="' + esc(p.label + (L.track(p.id) ? ' · ' + L.normHover(L.track(p.id), p.playlistId) : '')) + '"><span class="lane-dot preview" aria-hidden="true"></span><span class="ellipsis">' + esc(p.label) + '</span></div>' +
         '<div class="oab-from ellipsis" title="' + esc(from) + '">' + esc(from) + '</div></div>' +
-      '<div class="oab-time"><div class="progress preview"><span data-progress="preview"></span></div><span class="num" data-time="preview"></span></div>' +
+      '<div class="oab-time">' + L.seekBar('preview', p.label, 'preview') + '<span class="num" data-time="preview"></span></div>' +
       '<div class="oab-ctl" role="group" aria-label="Control your preview">' +
         '<button class="btn s icon" data-act="pvpause" data-k="oab-pv-pause" aria-label="' + (paused ? 'Play the preview' : 'Pause the preview') + '" title="' + (paused ? 'Play the preview again' : 'Pause the preview') + '">' + L.icon(paused ? 'play' : 'pause', 's') + '</button>' +
         '<button class="btn s" data-act="pvstop" data-k="oab-pv-stop" aria-label="Stop the preview" title="Stop the preview">' + L.icon('stop', 's') + 'Stop</button></div>' +
@@ -4094,8 +4282,10 @@ var L = (function () {
     function a(href, nav, icon, label, hint) { return '<a href="' + href + '" data-k="rail-' + nav + '"' + (cur === nav ? ' aria-current="page"' : '') + (hint ? ' title="' + (min ? label + ': ' : '') + hint + '" aria-label="' + label + '"' : min ? ' title="' + label + '"' : '') + '>' + L.icon(icon) + '<span class="lbl">' + label + '</span></a>'; }
     var s = L.session(L.state.live.cid, L.state.live.sid);
     return '<div class="logo">' + L.logo + '<b>Lyre</b></div><nav aria-label="Lyre"><div class="stack" style="gap:2px">' +
+      // Round 8 (Nik, 11 Nov 20:33: "Let's move the live tab to the top of the left side bar"): Live comes first.
+      a('#/live', 'live', 'broadcast', 'Live' + (s ? ': S' + s.n : '')) +
       a('#/campaigns', 'campaigns', 'crown', 'Campaigns') + a('#/library', 'library', 'library', 'Library') + a('#/playlists', 'playlists', 'playlist', 'Playlists') + a('#/boards', 'boards', 'grid', 'Pad boards') +
-      a('#/live', 'live', 'broadcast', 'Live' + (s ? ': S' + s.n : '')) + a('#/outputs', 'outputs', 'users', 'Rooms' + outputsBadge(), (function () { var n = D.discord.bots.filter(function (b) { return b.status === 'connected'; }).length, m = D.discord.bots.length; return n + ' of ' + m + (m === 1 ? ' bot is' : ' bots are') + ' in a room'; })()) + '</div></nav>' +
+      a('#/outputs', 'outputs', 'users', 'Rooms' + outputsBadge(), (function () { var n = D.discord.bots.filter(function (b) { return b.status === 'connected'; }).length, m = D.discord.bots.length; return n + ' of ' + m + (m === 1 ? ' bot is' : ' bots are') + ' in a room'; })()) + '</div></nav>' +
       '<div class="bottom stack" style="gap:2px">' + a('#/settings', 'settings', 'gear', 'Settings') + a('#/look', 'look', 'palette', 'Look and feel') +
       // FND-8: Help, beside Look and feel (views/help.js). It opens a side panel, not a screen, so it is a button.
       '<button class="nav" data-act="help" data-k="rail-help" aria-controls="lyre-help" aria-expanded="' + !!(L.helpOpen && L.helpOpen()) + '" aria-keyshortcuts="F1"' + (min ? ' title="Help"' : '') + '>' + L.icon('help') + '<span class="lbl">Help</span></button>' +
@@ -4124,7 +4314,7 @@ var L = (function () {
   L.acts.rail = function () { var min = document.getElementById('rail').classList.contains('min'); L.state.rail = min ? 'full' : 'min'; L.save(); L.render(); };
 
   /* ---------- prototype strip and notes (not part of Lyre) ---------- */
-  var THEMES = [['campaign', "Each campaign's own"], ['candle', 'Candlelit Library (default)'], ['fern', 'Fern and Brass (logo)'], ['hearth', 'Hearth and Iron (D&D)'], ['parchment', 'Parchment (light)'], ['elysium', 'Elysium (Vampire)']];
+  var THEMES = [['candle', 'Candlelit Library (default)'], ['fern', 'Fern and Brass (logo)'], ['hearth', 'Hearth and Iron (D&D)'], ['parchment', 'Parchment (light)'], ['elysium', 'Elysium (Vampire)']];
   var FRAMES = [['half', 'Half of a 1920 screen (960 px)'], ['half1280', 'Half of a 2560 screen (1280 px)'], ['third', 'Narrow (720 px)'], ['full', 'Whole window']];
   L.THEMES = THEMES;
   function paintProto(r, v, theme) {
@@ -4132,7 +4322,7 @@ var L = (function () {
     if (!p.dataset.built) {
       p.dataset.built = 1;
       p.innerHTML = '<b>Lyre · design round 6</b><span>Clickable prototype, no real sound.</span>' +
-        '<label>Theme <select id="pTheme">' + THEMES.map(function (t) { return '<option value="' + t[0] + '">' + t[1] + '</option>'; }).join('') + '</select></label>' +
+        '<label>Base theme <select id="pTheme">' + THEMES.map(function (t) { return '<option value="' + t[0] + '">' + t[1] + '</option>'; }).join('') + '</select></label>' +
         '<label>Screen <select id="pFrame">' + FRAMES.map(function (t) { return '<option value="' + t[0] + '">' + t[1] + '</option>'; }).join('') + '</select></label>' +
         '<button id="pNotes" type="button">Design notes</button>' +
         // Round 6, part 5: a failed save cannot happen in the prototype, so this makes the next save fail, to show it.
@@ -4204,8 +4394,8 @@ var L = (function () {
 
    Nik, 6 Nov 2026: less text and clutter on screen; help costs the screens nothing until asked for.
    - One Help entry at the foot of the rail (core.js railHTML), and F1, open a side panel: a search box, the articles
-     grouped by task, an article with Back, and at its foot Take the tour and Save diagnostics…. The panel sits beside
-     the screen (over it in a narrow window), so the steps of an article can be followed while it is open.
+     grouped by task, an article with Back, and at its foot Take the tour, Save diagnostics… and Lyre's version (0.5.1).
+     The panel sits beside the screen (over it in a narrow window), so the steps of an article can be followed while it is open.
    - The tour: five short steps pointing at the rail, the Library, Campaigns (where scenes are), Live and the Now
      playing bar. Shown once, on the first start; Skip on every step; Esc skips; replayed from Help.
    - No help text is added to any screen.
@@ -4293,7 +4483,9 @@ var L = (function () {
       '<button class="btn s" data-act="helptour" data-k="help-tour">' + L.icon('play', 's') + 'Take the tour</button>' +
       '<button class="btn s" data-act="helpdiag" data-k="help-diag"' + (H.saving ? ' disabled aria-busy="true"' : '') + '>' + L.icon('download', 's') + (H.saving ? 'Saving…' : 'Save diagnostics…') + '</button></div>' +
       (r ? '<div class="help-result">' + L.icon(r.ok ? 'check' : 'warn', 's') + '<span class="grow">' + esc(r.text) + '</span>' +
-        (r.ok ? '<button class="btn ghost s" data-act="helpshow" data-k="help-show">Show in folder</button>' : '') + '</div>' : '') + '</footer>';
+        (r.ok ? '<button class="btn ghost s" data-act="helpshow" data-k="help-show">Show in folder</button>' : '') + '</div>' : '') +
+      // 0.5.1: Lyre's version at the foot of Help, as at the top right of Settings (the old window showed it nowhere).
+      '<p class="help-ver">Lyre <span class="num" title="Lyre version">' + esc(L.version) + '</span></p></footer>';
   }
   function paintPanel() {
     var el = panel();
@@ -5326,7 +5518,7 @@ var L = (function () {
 
   /* ---------- the profile being shown and edited ---------- */
   function prof(t) { return L.profileOf(t, S.key || null); }
-  function copyOf(p) { return { start: p.start, end: p.end, after: p.after, loopStart: p.loopStart, loopXfade: p.loopXfade, fadeIn: { dur: p.fadeIn.dur, shape: p.fadeIn.shape }, fadeOut: { dur: p.fadeOut.dur, shape: p.fadeOut.shape }, markers: p.markers.map(function (m) { return m.mix ? { at: m.at, label: m.label, mix: true } : { at: m.at, label: m.label }; }) }; }
+  function copyOf(p) { return { start: p.start, startAt: p.startAt, end: p.end, after: p.after, loopStart: p.loopStart, loopXfade: p.loopXfade, fadeIn: { dur: p.fadeIn.dur, shape: p.fadeIn.shape }, fadeOut: { dur: p.fadeOut.dur, shape: p.fadeOut.shape }, markers: p.markers.map(function (m) { return m.mix ? { at: m.at, label: m.label, mix: true } : { at: m.at, label: m.label }; }) }; }
   function write(t, patch) {
     if (!editable(t)) return false;
     var np = copyOf(prof(t));
@@ -5434,13 +5626,13 @@ var L = (function () {
     if (L.pb.preview) L.stopPreview(); // only one preview at a time
     S.mode = mode || 'play'; S.event = null; S.handover = null; S.since = 0;
     if (S.mode === 'last10') { S.pos = Math.max(p.start, p.end - 10); S.loops = 0; }
-    else if (S.pos >= t.dur - .05) { S.pos = p.start; S.loops = 0; }
+    else if (S.pos >= t.dur - .05) { S.pos = p.from; S.loops = 0; }
     S.playing = true; S.last = performance.now();
     L.say(S.mode === 'last10' ? 'Preview: the last 10 seconds before End, from ' + L.fmt(S.pos) : 'Preview from ' + L.fmt(S.pos));
     L.render(); requestAnimationFrame(frame);
   }
   function pause(msg) { S.playing = false; if (msg) L.say(msg); L.render(); }
-  function stop() { S.playing = false; S.handover = null; S.event = null; S.mode = 'play'; S.loops = 0; var t = track(); if (t) S.pos = prof(t).start; L.say('Preview stopped'); L.render(); }
+  function stop() { S.playing = false; S.handover = null; S.event = null; S.mode = 'play'; S.loops = 0; var t = track(); if (t) S.pos = prof(t).from; L.say('Preview stopped'); L.render(); }
   function seek(v, silent) { var t = track(); if (!t) return; S.pos = clamp(v, 0, t.dur); S.handover = null; S.event = null; if (!silent) L.say('Playhead ' + L.fmt(S.pos)); }
   function frame(now) {
     if (!S.playing) return;
@@ -5583,7 +5775,8 @@ var L = (function () {
       '<canvas class="ap-canvas" aria-hidden="true"></canvas>' +
       '<div class="ap-scrub" role="slider" tabindex="0" data-k="ap-scrub" aria-label="Playhead" aria-orientation="horizontal" aria-valuemin="0" aria-valuemax="' + t.dur + '" aria-valuenow="' + Math.floor(S.pos) + '" aria-valuetext="' + L.fmt(S.pos) + '" title="Click or drag to move the playhead; arrow keys move it 1 s (Shift: 10 s)"></div>' +
       '<div class="ap-ph' + (S.playing ? ' on' : '') + '" style="left:' + pct(t, S.pos) + '" aria-hidden="true"></div>' +
-      p.markers.map(function (m) { return '<span class="ap-flag" data-act="apgo" data-at="' + m.at + '" style="left:' + pct(t, m.at) + '" title="' + esc(m.label) + ' (' + L.fmt(m.at) + '): go there" aria-hidden="true"><span class="ap-flag-l">' + esc(m.label) + '</span></span>'; }).join('') +
+      // Round 8: the marker chosen as Start at is marked "Starts here" on the waveform.
+      p.markers.map(function (m) { var st = p.startAt === m.at; return '<span class="ap-flag' + (st ? ' ap-startat' : '') + '" data-act="apgo" data-at="' + m.at + '" style="left:' + pct(t, m.at) + '" title="' + esc(m.label) + ' (' + L.fmt(m.at) + ')' + (st ? ': the track starts here' : '') + ': go there" aria-hidden="true"><span class="ap-flag-l">' + (st ? L.icon('play', 's') + 'Starts here: ' : '') + esc(m.label) + '</span></span>'; }).join('') +
       handle(t, 'start', p.start, 'Start', 'ap-h-start') + handle(t, 'end', p.end, 'End', 'ap-h-end') + (p.after === 'loop' ? handle(t, 'loop', p.loopStart, 'Loop start', 'ap-h-loop') : '') +
       handle(t, 'fadein', p.fadeIn.dur, 'Fade in length', 'ap-fk ap-fk-in') + handle(t, 'fadeout', p.fadeOut.dur, 'Fade out length', 'ap-fk ap-fk-out') +
       '<div class="ap-ruler" aria-hidden="true"></div></div>';
@@ -5601,7 +5794,7 @@ var L = (function () {
       (p.after === 'loop' ? '<div class="ap-ro"><span class="ap-ro-l">Looped</span><span class="ap-loops num">' + (S.loops ? times(S.loops) : 'not yet') + '</span></div>' : '') +
       '<div class="ap-ro ap-meter" role="meter" aria-label="Volume after fades" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><span class="ap-ro-l">Volume <span class="ap-meter-s"></span></span>' +
       '<span class="ap-meter-row"><span class="ap-meter-track"><span class="ap-meter-bar"></span></span><span class="ap-meter-v num">100%</span></span></div></div>';
-    var air = '<div class="ap-air"><button class="btn s" data-act="apair" data-k="ap-air" title="Play on air: the players hear it, from Start, with ' + esc(placeName(S.key)) + '">' + L.icon('playair', 's') + 'Play on air</button>' +
+    var air = '<div class="ap-air"><button class="btn s" data-act="apair" data-k="ap-air" title="Play on air: the players hear it, from ' + (prof(t).startAt != null ? 'its Start at marker' : 'Start') + ', with ' + esc(placeName(S.key)) + '">' + L.icon('playair', 's') + 'Play on air</button>' +
       (onAir ? L.destTag('air', '') + '<span class="num muted" data-time="music"></span>' : '') + '</div>';
     var ev = '';
     if (S.handover) {
@@ -5643,9 +5836,22 @@ var L = (function () {
     }
     return h;
   }
+  /* Round 8: Start at, Beginning or one of the markers: where the track starts wherever it plays (Live, scenes, the
+     Now playing bar), in this place's settings or the track's own. */
+  function startAtHTML(t, p) {
+    return '<div class="field ap-startat-f"><label for="ap-startat">Start at</label><select id="ap-startat" class="input" data-input="apstartat" data-k="ap-startat"' + dis(t) + '>' +
+      '<option value=""' + (p.startAt == null ? ' selected' : '') + '>Beginning (' + L.fmt(p.start) + ')</option>' +
+      p.markers.filter(function (m) { return m.at >= p.start && m.at < p.end; }).map(function (m) { return '<option value="' + m.at + '"' + (p.startAt === m.at ? ' selected' : '') + '>' + esc(m.label) + ' (' + L.fmt(m.at) + ')</option>'; }).join('') + '</select></div>';
+  }
+  L.inputs.apstartat = function (el) {
+    var t = track(); if (!t) return; var v = el.value === '' ? null : +el.value;
+    if (!write(t, { startAt: v })) return; S.focusK = 'ap-startat'; L.render();
+    var m = v == null ? null : prof(t).markers.filter(function (x) { return x.at === v; })[0];
+    L.say(m ? 'Starts at ' + m.label + ', ' + L.fmt(m.at) : 'Starts at the beginning');
+  };
   function markersHTML(t, p) {
-    if (!p.markers.length) return '<p class="empty">No markers yet.</p>';
-    return '<ol class="list ap-mlist">' + p.markers.map(function (m, i) {
+    if (!p.markers.length) return '<p class="empty">No markers yet. Add one to start the track there.</p>';
+    return startAtHTML(t, p) + '<ol class="list ap-mlist">' + p.markers.map(function (m, i) {
       return '<li class="lrow ap-mrow"><span class="num faint ap-mt">' + L.fmt(m.at) + '</span>' +
         '<input class="input ap-ml" data-input="apmlabel" data-i="' + i + '" data-k="ap-ml-' + i + '" value="' + esc(m.label) + '" aria-label="Marker label at ' + L.fmt(m.at) + '"' + dis(t) + '>' +
         '<button class="btn s" data-act="apgo" data-at="' + m.at + '" data-k="ap-mgo-' + i + '" title="Move the playhead to ' + L.fmt(m.at) + '" aria-label="Go to ' + esc(m.label) + '">' + L.icon('right', 's') + 'Go to</button>' +
@@ -5731,7 +5937,7 @@ var L = (function () {
       var key = prm.ctx || '';
       if (S.tid !== t.id || S.key !== key) {
         if (S.tid !== t.id) S.undoClear = null;
-        S.tid = t.id; S.key = key; S.playing = false; S.handover = null; S.event = null; S.loops = 0; S.ctx = 0; S.saved = false; S.editing = null; S.invalid = {}; S.pos = prof(t).start;
+        S.tid = t.id; S.key = key; S.playing = false; S.handover = null; S.event = null; S.loops = 0; S.ctx = 0; S.saved = false; S.editing = null; S.invalid = {}; S.pos = prof(t).from;
       }
       var p = prof(t), ed = editable(t);
       // Round 6 part 6: Back, then the trail Library › (core.js), then the h1: the track › Audio profile. The track is
@@ -5829,7 +6035,7 @@ var L = (function () {
     var t = track(), o = { fade: 3 };
     if (S.key.indexOf('pl:') === 0) o.playlistId = S.key.slice(3);
     else if (S.key) { var sc = sceneOf(S.key), q = sc ? L.sceneSequence(sc.scene) : [], at = q.map(function (x) { return x.trackId; }).indexOf(t.id); if (at > -1) { o.playlistId = q[at].playlistId; o.seq = { cid: sc.cid, sid: sc.sid, scene: sc.index, at: at }; } }
-    L.play(t.id, o); L.toast('On air: ' + L.title(t) + ', from ' + L.fmt(prof(t).start));
+    L.play(t.id, o); L.toast('On air: ' + L.title(t) + ', from ' + L.fmt(prof(t).from));
   };
   L.acts.apgo = function (el) { seek(+el.dataset.at); L.render(); };
   L.acts.aphere = function (el) { setHere(el.dataset.f); };
@@ -5929,11 +6135,14 @@ var L = (function () {
      Discord bots      each bot: status, the servers it is in, Connect or Disconnect, its token (only the last four
                        characters show; Replace… takes a new one) and, behind ⋯, Rename and Remove. Add a bot opens the
                        stepper below. Tokens are kept encrypted on this computer (SEC-5).
-     Sound to Discord  the streaming mode (Best sound quality or Lighter on the computer).
-     Remote control    the Stream Deck remote: on or off, address and port (folded: rare).
-     Website tabs      the address bar, microphones and other inputs, several inputs at once, Clear website data (folded).
-     Local files       folders whose files open without asking, each with Ask again (folded).
+     Sound to Discord  the streaming mode (Best sound quality or Lighter on the computer), kept by Lyre itself since
+                       0.5.1, and Empty the audio cache.
+     Remote control    the Stream Deck remote: on or off, address and port (folded: rare). Hidden in 0.5.1 until
+                       Stream Deck support (WP6; Nik, 11 Nov: "Hide until Stream Deck"); its design stays here.
    Look and feel stays its own screen in the menu.
+   0.5.1 (ROUND8.md): Website tabs and Local files went with the old window (Nik, 11 Nov: websites and microphones
+   "Keep the code, remove them from the interface"); a bot token moved from Kenku FM has a one-time note under
+   Discord bots.
 
    Add a bot, in the order Discord needs (checked against Discord's documentation, see ROUND6.md):
      1 Create an application in the Discord Developer Portal (New Application, a name, Create).
@@ -5948,7 +6157,14 @@ var L = (function () {
   var esc = L.esc, D = L.data;
   L.INVITE_PERMISSIONS = 1024 + 1048576 + 2097152;   // View Channels, Connect, Speak
   L.inviteURL = function (appId) { return 'https://discord.com/oauth2/authorize?client_id=' + encodeURIComponent(appId) + '&scope=bot&permissions=' + L.INVITE_PERMISSIONS; };
-  var S = { mode: 'quality', remote: false, address: '127.0.0.1', port: '3333', urlBar: true, inputs: false, several: false, folders: ['H:\\Audio\\Incoming'],
+  // 0.5.1: Sound to Discord is kept by Lyre itself (the app: this-computer.json), so it is kept across starts here too.
+  var SETTINGS_KEY = 'lyre-settings';
+  // In both stores, as r8window.js keeps the Kenku FM note: local storage can read empty or an older value for a moment after a reload.
+  function readSettings() { try { return JSON.parse(sessionStorage.getItem(SETTINGS_KEY) || localStorage.getItem(SETTINGS_KEY) || '{}') || {}; } catch (e) { return {}; } }
+  function keepSettings() { try { var v = JSON.stringify({ mode: S.mode }); localStorage.setItem(SETTINGS_KEY, v); sessionStorage.setItem(SETTINGS_KEY, v); } catch (e) { /* storage unavailable: lasts for this visit */ } }
+  // Remote control is hidden until Stream Deck support (WP6): its pane is not drawn; its design below is kept for then.
+  var SHOW_REMOTE = false;
+  var S = { mode: readSettings().mode || 'quality', remote: false, address: '127.0.0.1', port: '3333',
     add: null, replacing: '', opened: [],
     // Round 7 (SEC-4): the secret code (made on first run; the app keeps it encrypted, SEC-5) and where it listens.
     code: newCode(), listen: 'local',
@@ -6113,7 +6329,8 @@ var L = (function () {
   function soundBody() {
     return '<div class="seg" role="radiogroup" aria-label="Sound to Discord">' + MODES.map(function (m) {
       return '<button role="radio" aria-checked="' + (S.mode === m[0]) + '" data-act="stmode" data-v="' + m[0] + '" data-k="st-mode-' + m[0] + '" title="' + esc(m[2]) + '">' + m[1] + '</button>';
-    }).join('') + '</div>' + xfadeHTML();
+    }).join('') + '</div>' + xfadeHTML() +
+      '<div class="st-cache"><button class="btn s" type="button" data-act="stcache" data-k="st-cache" title="Deletes the copies Lyre made of your music so tracks start at once. Lyre makes them again when it needs them. Your music files, library and settings are kept.">Empty the audio cache</button></div>';
   }
   // Round 7 (PLY-8): the default crossfade, used by Next, a playlist moving on and a scene's play steps.
   var XFADES = [['0', 'Cut'], ['1', '1 s'], ['2', '2 s'], ['3', '3 s'], ['5', '5 s'], ['8', '8 s']];
@@ -6139,7 +6356,10 @@ var L = (function () {
   function devicesBody() {
     // Lead decision (B6-NOTES, 7 Nov): no "On air, on this computer" device; rooms are heard only through Discord.
     return devSelect('pv', S.split ? 'Headset' : 'Preview (only you)', S.pvDevice, 'stpvdev') +
-      sw('split', 'Split one headset', S.split, 'stsplit', { title: 'The preview in one ear and On air in the other, on one headset' }) +
+      // Round 8 (Nik, 11 Nov 20:33: "Splitting headset should only apply if there is a live track playing simultaneously,
+      // it shouldn't apply if it would be the only track playing"): split only while On air plays as well.
+      sw('split', 'Split one headset', S.split, 'stsplit', { title: 'While On air plays too: the preview in one ear and On air in the other, on one headset' }) +
+      (S.split ? '<p class="hint st-splitnote">Only while something plays on air; a preview on its own plays in both ears.</p>' : '') +
       (S.split ? '<div class="st-ears" role="radiogroup" aria-label="Which ear has the preview">' + [['left', 'Preview in the left ear'], ['right', 'Preview in the right ear']].map(function (e) {
         return '<label class="lk-radio"><input type="radio" name="st-ear" value="' + e[0] + '" data-input="stear" data-k="st-ear-' + e[0] + '"' + (S.pvEar === e[0] ? ' checked' : '') + '><span>' + e[1] + '</span></label>';
       }).join('') + '</div>' : '');
@@ -6182,7 +6402,9 @@ var L = (function () {
       footer: '<button class="btn" data-act="closesheet">Close</button><button class="btn primary" data-act="stprint">' + L.icon('file', 's') + 'Print</button>' });
   };
   L.acts.stprint = function () { try { window.print(); } catch (e) { /* no printer in the prototype */ } };
-  L.acts.stmode = function (el) { S.mode = el.dataset.v; L.say(el.textContent + '. Applies the next time a bot joins a voice channel.'); L.render(); L.saved('setting: ' + el.textContent, { key: 'st-mode' }); };
+  // Storage can still be empty while a reloaded page first paints (as for r8window.js's Kenku FM note): look again.
+  [60, 400, 1500, 4000].forEach(function (ms) { setTimeout(function () { var m = readSettings().mode; if (m && m !== S.mode) { S.mode = m; L.render(); } }, ms); });
+  L.acts.stmode = function (el) { S.mode = el.dataset.v; keepSettings(); L.say(el.textContent + '. Applies the next time a bot joins a voice channel.'); L.render(); L.saved('setting: ' + el.textContent, { key: 'st-mode' }); };
   /* Round 7 (SEC-4): remote control needs a secret code. Off by default. On: the code to type on the remote device
      (Stream Deck plugin, phone or tablet), Copy code, Make a new code (the old one stops working at once), and where
      Lyre listens: this computer only (127.0.0.1, the default) or your home network (for a phone on the same Wi-Fi). Every
@@ -6203,22 +6425,20 @@ var L = (function () {
   L.acts.stcodecopy = function () { try { navigator.clipboard.writeText(S.code).catch(function () {}); } catch (e) { /* clipboard unavailable in the prototype */ } L.toast('Code copied'); };
   L.acts.stcodenew = function () { S.code = newCode(); L.render(); L.saved('new remote control code', { detail: 'the old one stops working' }); };
   L.inputs.stlisten = function (el) { if (!el.checked) return; S.listen = el.value; L.render(); L.saved('remote control listens on ' + (S.listen === 'home' ? 'your home network' : 'this computer only'), { key: 'st-listen' }); };
-  function tabsBody() {
-    return sw('urlbar', 'Show the address bar on tabs', S.urlBar, 'sturl') + sw('inputs', 'Microphones and other inputs', S.inputs, 'stinputs') +
-      sw('several', 'Use several inputs at once', S.several, 'stseveral', { disabled: !S.inputs, why: 'Turn on Microphones and other inputs first.', title: S.inputs ? '' : 'Turn on Microphones and other inputs first' }) +
-      '<button class="btn s" data-act="stclear" data-k="st-clear" title="Logs you out of websites in tabs and deletes their saved files. Your library, playlists and settings are kept.">Clear website data</button>';
+  /* 0.5.1: the one-time note about a token moved from Kenku FM (the old window's LegacyTokenNotice, now in Lyre).
+     Kenku FM kept the token in plain text, and its own copy stays in Kenku FM's storage, so a new token is the only
+     certain fix: the note says how, once, until Got it. */
+  var PORTAL = 'https://discord.com/developers/applications';
+  function legacyNote() {
+    if (!L.legacyTokenNote || !L.legacyTokenNote()) return '';
+    return '<div class="st-legacy" role="note">' + L.icon('check', 's') + '<div class="grow"><p><b>Lyre moved your Discord bot token from Kenku FM.</b> Kenku FM kept it unprotected on this computer; Lyre keeps it encrypted now.</p>' +
+      '<p>To be safe, make a new token: in the <a href="' + PORTAL + '" target="_blank" rel="noopener" data-act="stportal" data-k="st-legacy-portal">Discord Developer Portal</a>, open your bot\'s Bot page, press Reset Token, then paste it here with Replace….</p></div>' +
+      '<button class="btn s" type="button" data-act="stlegacyok" data-k="st-legacy-ok">Got it</button></div>';
   }
-  L.inputs.sturl = function (el) { S.urlBar = el.checked; L.render(); };
-  L.inputs.stinputs = function (el) { S.inputs = el.checked; if (!S.inputs) S.several = false; L.render(); };
-  L.inputs.stseveral = function (el) { S.several = el.checked; L.render(); };
-  L.acts.stclear = function () { L.toast('Website data cleared: tabs are logged out'); L.say('Website data cleared'); };
-  function filesBody() {
-    if (!S.folders.length) return '<p class="faint">None</p>';
-    return '<ul class="list st-folders" aria-label="Folders opened without asking">' + S.folders.map(function (f, i) {
-      return '<li class="lrow"><span class="grow ellipsis num" title="' + esc(f) + '">' + esc(f) + '</span><button class="btn s ghost" data-act="stforget" data-i="' + i + '" data-k="st-forget-' + i + '" aria-label="Ask again before opening files in ' + esc(f) + '">Ask again</button></li>';
-    }).join('') + '</ul>';
-  }
-  L.acts.stforget = function (el) { var f = S.folders.splice(+el.dataset.i, 1)[0]; L.say('Lyre asks again before opening files in ' + f); L.render(); L.saved('setting: ask before opening files in ' + f); var h = document.querySelector('[data-k="pane-st-files"]'); if (h) h.focus(); };
+  L.acts.stlegacyok = function () { L.legacyTokenSeen(); L.render(); var h = document.querySelector('[data-k="pane-st-bots"]'); if (h) h.focus(); };
+  // Empty the audio cache (it was part of the old window's Clear website data). Nothing to confirm: Lyre makes the
+  // copies again when a track needs one.
+  L.acts.stcache = function () { L.toast('Audio cache emptied'); };
 
   L.view('settings', {
     nav: 'settings',
@@ -6227,7 +6447,7 @@ var L = (function () {
     notes: [
       'Everything Lyre still needs from the old main window\'s Settings. <b>Discord bots</b> first: status, servers, Connect or Disconnect, the token (last four characters; <b>Replace…</b>), and Rename or Remove behind ⋯.',
       '<b>Add a bot</b> walks through Discord in its order: create the application, <b>invite it first</b> (paste the Application ID and Lyre opens the invite, or make it by hand with OAuth2 › URL Generator), then paste the token and Connect.',
-      'The rare settings are folded: remote control, website tabs, local files.'
+      'The rare settings are folded. <b>0.5.1:</b> Website tabs and Local files went with the old window; Remote control is hidden until Stream Deck support. <b>Empty the audio cache</b> is in Sound to Discord. Someone coming straight from Kenku FM sees, once, that Lyre moved the bot token (prototype strip: Came from Kenku FM).'
     ],
     render: function () {
       var bots = L.bots();
@@ -6235,21 +6455,18 @@ var L = (function () {
       var botPane = L.pane({ id: 'st-bots', title: 'Discord bots', icon: 'users', kind: 'onair', size: 'auto', noMax: true, cls: 'is-silent',
         actions: '<button class="btn s" data-act="stadd" data-k="st-add">' + L.icon('plus', 's') + 'Add a bot</button>',
         describe: 'Each bot is one voice in Discord: one room at a time.',
-        body: '<div class="st-bots">' + bots.map(botRow).join('') + '</div>' });
+        body: legacyNote() + '<div class="st-bots">' + bots.map(botRow).join('') + '</div>' });
       // Round 7: set once, so folded like the other rare settings (and less to read on the screen).
       var sound = L.pane({ id: 'st-sound', title: 'Sound to Discord', icon: 'broadcast', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: soundBody(),
         describe: 'Both send sound to Discord with the same short delay. A change applies the next time a bot joins a voice channel.' });
       var devices = L.pane({ id: 'st-devices', title: 'Headphones and speakers', icon: 'headphones', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: devicesBody(),
         describe: 'If a device is unplugged, Lyre uses the computer\'s default until it is back.' });
       // Round 6 rule 4 and Nik's 16:14 answer: no resting status; "On" says something is open to other devices.
-      var remote = L.pane({ id: 'st-remote', title: 'Remote control', icon: 'link', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: remoteBody(), status: S.remote ? { text: 'On', tone: 'on' } : null,
+      var remote = !SHOW_REMOTE ? '' : L.pane({ id: 'st-remote', title: 'Remote control', icon: 'link', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: remoteBody(), status: S.remote ? { text: 'On', tone: 'on' } : null,
         describe: 'Off until you turn it on. Each device needs the secret code.' });
       var keys = L.pane({ id: 'st-keys', title: 'Keyboard shortcuts', icon: 'grid', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: keysBody(),
         describe: 'Ctrl+K finds and plays anything. Change any key here.' });
-      var tabs = L.pane({ id: 'st-tabs', title: 'Website tabs', icon: 'grid', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: tabsBody() });
-      var files = L.pane({ id: 'st-files', title: 'Local files', icon: 'folder', kind: 'plain', size: 'auto', noMax: true, collapsed: true, body: filesBody(),
-        describe: 'Lyre asks before opening a file from your computer. Folders you choose not to be asked about again are listed here.' });
-      return head + '<div class="viewbody st-body"><div class="st-split"><div class="col">' + botPane + '</div><div class="col">' + sound + devices + remote + keys + tabs + files + '</div></div></div>';
+      return head + '<div class="viewbody st-body"><div class="st-split"><div class="col">' + botPane + '</div><div class="col">' + sound + devices + remote + keys + '</div></div></div>';
     }
   });
 })();
@@ -6412,13 +6629,16 @@ var L = (function () {
     title: function () { return 'What came across from Kenku FM'; },
     notesTitle: 'The move report (new)',
     notes: [
-      'What Lyre copied from Kenku FM on its first start, in Lyre\'s words: playlists, tracks, soundboards (now pad boards), sounds (now pads) and bookmarks (website tabs). Kenku FM\'s own copy is untouched.',
+      'What Lyre copied from Kenku FM on its first start, in Lyre\'s words: playlists, tracks, soundboards (now pad boards) and sounds (now pads). Kenku FM\'s own copy is untouched.',
+      '<b>0.5.1:</b> Lyre has no website tabs, so the <b>Bookmarks</b> box lists the old bookmarks once, each with <b>Copy</b>. With no bookmarks, the box and its row are not shown.',
       '<b>Files Lyre cannot find</b> lists the tracks whose files are not where Kenku FM kept them, with <b>Find them…</b>.',
       '<b>Not brought across</b> says plainly what Lyre does not take over, and why that is fine.'
     ],
     render: function () {
       var m = D.moved, miss = missing();
-      var rows = [['Playlists', m.playlists, 'Playlists (Manual)', '#/playlists'], ['Tracks', m.tracks, 'Library', '#/library'], ['Soundboards', m.boards, 'Pad boards', '#/boards'], ['Sounds', m.pads, 'Pads on those boards', '#/boards'], ['Bookmarks', m.bookmarks, 'Website tabs', '']];
+      var bm = m.bookmarks || [];
+      var rows = [['Playlists', m.playlists, 'Playlists (Manual)', '#/playlists'], ['Tracks', m.tracks, 'Library', '#/library'], ['Soundboards', m.boards, 'Pad boards', '#/boards'], ['Sounds', m.pads, 'Pads on those boards', '#/boards']]
+        .concat(bm.length ? [['Bookmarks', bm.length, 'Listed to copy', '']] : []);
       var what = '<p class="tf-lead">On ' + esc(m.when) + ' Lyre copied your ' + esc(m.from) + ' library. Kenku FM\'s own copy is untouched, so you can still open it.</p>' +
         '<table class="grid tf-table"><caption class="sr-only">What came across</caption><thead><tr><th scope="col">In Kenku FM</th><th scope="col" class="num">How many</th><th scope="col">Now in Lyre</th></tr></thead><tbody>' +
         rows.map(function (r) { return '<tr><td>' + r[0] + '</td><td class="num">' + r[1] + '</td><td>' + (r[3] ? '<a href="' + r[3] + '" data-k="tf-mv-' + r[0] + '">' + r[2] + '</a>' : r[2]) + '</td></tr>'; }).join('') + '</tbody></table>';
@@ -6426,13 +6646,27 @@ var L = (function () {
         return '<li class="lrow"><span class="grow tf-iname"><b class="ellipsis">' + esc(L.title(t)) + '</b><span class="hint ellipsis" title="' + esc(t.folder + '\\' + t.file) + '">' + esc(t.file) + ' · was in ' + esc(t.folder) + '</span></span></li>';
       }).join('') + '</ul><div class="tf-actrow"><a class="btn primary" href="#/relink" data-k="tf-findthem">' + L.icon('folder', 's') + 'Find them…</a></div>' : '<p class="tf-done" role="status">' + L.icon('check', 's') + 'Every file is where Lyre expects it.</p>';
       var notBody = '<ul class="list tf-not">' + m.notMoved.map(function (x) { return '<li class="lrow"><span class="grow tf-iname"><b>' + esc(x[0]) + '</b><span class="hint">' + esc(x[1]) + '</span></span></li>'; }).join('') + '</ul>';
+      // 0.5.1: website tabs are gone (Nik, 11 Nov: "Keep the code, remove them from the interface"); the bookmarks
+      // are listed once, to copy into a browser. No bookmarks: no box.
+      var bmBody = '<p class="tf-lead">Websites can\'t be opened in Lyre for now. Copy an address to open it in your browser.</p>' +
+        '<ul class="list tf-bm" aria-label="Bookmarks from Kenku FM">' + bm.map(function (b, i) {
+          return '<li class="lrow"><span class="grow tf-iname"><b class="ellipsis" title="' + esc(b.title) + '">' + esc(b.title) + '</b><span class="hint ellipsis tf-url" title="' + esc(b.url) + '">' + esc(b.url) + '</span></span>' +
+            '<button class="btn s ghost" type="button" data-act="tfbmcopy" data-i="' + i + '" data-k="tf-bm-' + i + '" aria-label="Copy the address of ' + esc(b.title) + '">Copy</button></li>';
+        }).join('') + '</ul>';
       return '<div class="viewhead"><h1>What came across from Kenku FM</h1></div>' +
         '<div class="viewbody tf-body"><div class="tf-cols"><div class="col">' +
-        L.pane({ id: 'tf-what', title: 'What came across', icon: 'check', kind: 'plain', noMax: true, size: 'auto', status: { text: 'Copied', tone: 'idle' }, body: what }) + '</div><div class="col">' +
+        L.pane({ id: 'tf-what', title: 'What came across', icon: 'check', kind: 'plain', noMax: true, size: 'auto', status: { text: 'Copied', tone: 'idle' }, body: what }) +
+        (bm.length ? L.pane({ id: 'tf-bm', title: 'Bookmarks', icon: 'link', kind: 'plain', noMax: true, size: 'auto', body: bmBody }) : '') + '</div><div class="col">' +
         L.pane({ id: 'tf-miss', title: 'Files Lyre cannot find', icon: 'warn', kind: 'plain', noMax: true, size: 'auto', status: miss.length ? { text: plural(miss.length, 'file'), tone: 'warn' } : { text: 'None', tone: 'idle' }, body: missBody }) +
         L.pane({ id: 'tf-not', title: 'Not brought across', icon: 'close', kind: 'plain', noMax: true, size: 'auto', status: { text: String(m.notMoved.length), tone: 'idle' }, body: notBody }) + '</div></div></div>';
     }
   });
+
+  L.acts.tfbmcopy = function (el) {
+    var b = (D.moved.bookmarks || [])[+el.dataset.i]; if (!b) return;
+    try { navigator.clipboard.writeText(b.url).catch(function () {}); } catch (e) { /* clipboard unavailable in the prototype */ }
+    L.toast('Copied: ' + b.url);
+  };
 
   /* ======================================================================
      DAT-8 Find missing files
@@ -6555,13 +6789,18 @@ var L = (function () {
     var c = document.getElementById('pk-count'); if (c && pk) c.textContent = count();
   };
   // place (optional): the session or campaign list it is played from ('ss:…' / 'cp:…'), for its play order and audio settings.
-  L.playOnAirButton = function (kind, id, place) {
-    var name = kind === 'track' ? L.title(L.track(id)) : (L.playlist(id) || {}).name;
-    return '<button type="button" class="btn s icon" data-act="onair" data-kind="' + kind + '" data-id="' + esc(id) + '"' + (place ? ' data-place="' + esc(place) + '"' : '') + ' data-k="air-' + kind + '-' + esc(id) + '" title="Play on air (the players hear it)" aria-label="Play on air: ' + esc(name) + '">' + L.icon('playair', 's') + '</button>';
+  // Round 8 (Nik, 11 Nov: "there are no 'play on air' buttons against individual tracks in playlists within a scene"):
+  // playlistId plays a track inside that playlist, so Next and the play order carry on from it there; name is the
+  // name shown (a scene's name for the track, DAT-14); k a data-k of its own when the track shows twice on the page.
+  L.playOnAirButton = function (kind, id, place, playlistId, name, k) {
+    name = name || (kind === 'track' ? L.title(L.track(id)) : (L.playlist(id) || {}).name);
+    return '<button type="button" class="btn s icon" data-act="onair" data-kind="' + kind + '" data-id="' + esc(id) + '"' + (place ? ' data-place="' + esc(place) + '"' : '') + (playlistId ? ' data-pl="' + esc(playlistId) + '"' : '') +
+      ' data-k="' + esc(k || 'air-' + kind + '-' + id) + '" title="Play on air (the players hear it)' + (playlistId ? ', then the rest of ' + esc((L.playlist(playlistId) || {}).name) : '') + '" aria-label="Play on air: ' + esc(name) + '">' + L.icon('playair', 's') + '</button>';
   };
   L.acts.onair = function (el) {
-    var k = el.dataset.kind, id = el.dataset.id, place = el.dataset.place || '';
-    if (k === 'track') { var t = L.track(id); L.play(id, { fade: 3, place: place }); if (t && t.kind === 'fx') L.toast('Effect on air: ' + L.title(t)); }
+    var k = el.dataset.kind, id = el.dataset.id, place = el.dataset.place || '', pl = el.dataset.pl && L.playlist(el.dataset.pl);
+    if (k === 'track' && pl) { L.play(id, { lane: pl.lane, playlistId: pl.id, place: place, fade: 3 }); var tf = L.track(id); if (tf && tf.kind === 'fx') L.toast('Effect on air: ' + L.title(tf)); }
+    else if (k === 'track') { var t = L.track(id); L.play(id, { fade: 3, place: place }); if (t && t.kind === 'fx') L.toast('Effect on air: ' + L.title(t)); }
     else { var p = L.playlist(id), t0 = L.orderedTracks(id, place)[0]; if (t0) L.play(t0.id, { lane: p.lane, playlistId: id, place: place, fade: 3 }); else L.toast('This playlist has no tracks yet'); }
   };
 
@@ -6632,6 +6871,9 @@ var L = (function () {
           '<span class="faint num">' + (i + 1) + '</span><span class="grow ellipsis" title="' + esc(nm !== L.title(t) ? 'Its own name: ' + L.title(t) : L.title(t)) + '">' + esc(nm) + '</span>' + L.tagStrip(t, 2) + '<span class="num faint">' + L.fmt(t.dur) + '</span>' + (L.profileLink && profileKey !== false ? L.profileLink(t.id, profileKey || 'pl:' + id, true) : '') + L.previewButton('track', t.id) +
           // Round 6 part 3 (decision 4): a scene's Repeat one, saved with the scene, shows and changes here as in Live.
           (inScene && p.lane === 'music' ? L.repeatOneButton(inScene, t.id, 'r1-' + (did || id) + '-' + t.id, nm) : '') +
+          // Round 8: Play on air for each track of a playlist in a scene, session or campaign, after its other buttons,
+          // as on Live's rows (Preview, Repeat one, Play on air); the playlist's own is on its row above.
+          (orderKey ? L.playOnAirButton('track', t.id, orderKey, id, nm, 'air-' + (did || id) + '-' + t.id) : '') +
           (ron ? '<span class="ro-btns"><button type="button" class="closer" data-act="romove" data-d="-1" data-k="roup-' + did + '-' + t.id + '" aria-label="Move up: ' + esc(nm) + '" title="Move up (Alt+Up)"' + (i === 0 ? ' disabled' : '') + '>' + L.icon('chevup', 's') + '</button>' +
             '<button type="button" class="closer" data-act="romove" data-d="1" data-k="rodn-' + did + '-' + t.id + '" aria-label="Move down: ' + esc(nm) + '" title="Move down (Alt+Down)"' + (i === ts.length - 1 ? ' disabled' : '') + '>' + L.icon('chevdown', 's') + '</button></span>' : '') + '</li>';
       }).join('') + '</ol>';
@@ -6908,7 +7150,17 @@ var L = (function () {
       '<div class="lk-sw" aria-hidden="true"><i style="background:var(--bg)"></i><i style="background:var(--surface)"></i><i style="background:var(--surface-3)"></i><i style="background:var(--ink)"></i><i style="background:var(--accent)"></i><i style="background:var(--second)"></i></div>' +
       '</div>';
   }
-  var INTRO = 'Each campaign can have its own theme, and Lyre switches to it when you open that campaign. Choose one here to use it everywhere.';
+  /* Round 8 (Nik, 11 Nov: "The campaign's visual theme should override the base / preference theme in settings"): the
+     theme chosen here is the base. A campaign's own theme always shows on its page, its sessions and in Live; the
+     "Each campaign's own" choice and the note that Look and feel overrides a campaign are gone. */
+  var INTRO = 'The base theme is for the Library, Playlists, Pad boards, Settings and any campaign without a theme of its own. A campaign\'s own theme always shows on its page, its sessions and in Live.';
+  function baseChoice() {
+    var cur = L.baseTheme();
+    return '<div class="lk-base"><label class="lk-dl" for="lk-base">Base theme</label><select class="input" id="lk-base" data-input="lkbase" data-k="lk-base" aria-describedby="lk-intro">' +
+      themes.map(function (t) { return '<option value="' + t.id + '"' + (cur === t.id ? ' selected' : '') + '>' + esc(t.name) + '</option>'; }).join('') + '</select>' +
+      '<span class="hint">A campaign with a theme of its own keeps it.</span></div>';
+  }
+  L.inputs.lkbase = function (el) { var t = themes.filter(function (x) { return x.id === el.value; })[0]; L.state.theme = el.value; L.save(); L.render(); L.saved('base theme ' + (t ? t.name : el.value), { key: 'lk-base' }); };
   /* Round 7, UX-11 and A11Y-6: Display, kept per computer (r7shell.js L.display, L.setDisplay). Density, Text size
      (100 to 200 %), High contrast, and a link to the tag colours, which are set with the tags themselves. */
   function displayHTML() {
@@ -6930,24 +7182,25 @@ var L = (function () {
     if (ev.type === 'change') { L.setDisplay('size', v); L.saved('text size ' + v + ' %', { key: 'lk-size' }); }
   };
   L.inputs.lkcontrast = function (el) { L.setDisplay('contrast', el.checked); L.saved('high contrast ' + (el.checked ? 'on' : 'off'), { key: 'lk-contrast' }); };
-  L.acts.usetheme = function (el) { L.state.theme = el.dataset.theme; L.save(); L.render(); L.toast('Prototype now uses ' + el.dataset.name); };
+  L.acts.usetheme = function (el) { L.state.theme = el.dataset.theme; L.save(); L.render(); L.saved('base theme ' + el.dataset.name, { key: 'lk-base' }); var b = document.querySelector('[data-k="' + el.dataset.k + '"]'); if (b) b.focus(); };
   L.view('look', {
     nav: 'look',
     notesTitle: 'Design language: what I propose',
     notes: [
       'All five table themes are in, with <b>Candlelit Library as the default</b> (your choice). Each campaign picks a theme, and Lyre switches to it when you open that campaign or run its session.',
-      'Prototype strip, Theme: leave it on <b>Each campaign\'s own</b> to see the switching (The Sunken Crown uses Hearth and Iron, The Sixth Year uses Candlelit Library, Ash and Masks uses Elysium). Pick a theme there to force one everywhere.',
+      '<b>Round 8:</b> the theme chosen here is the <b>base theme</b>: the Library, Playlists, Pad boards, Settings and campaigns without one. A campaign\'s own theme always shows on its page, its sessions and in Live (The Sunken Crown uses Hearth and Iron, The Sixth Year Candlelit Library, Ash and Masks Elysium).',
       'These stay the same in every theme: the colours for music, ambience, effects and preview, the red On air signal, the focus outline, Atkinson Hyperlegible for reading, and the layout. What you have learned to read does not move.',
       'Every text colour passes WCAG AA (4.5:1) on its background; a check runs over every theme.'
     ],
     render: function () {
       // Round 7: the intro sentence is the page's hover text and description (less to read); Display comes first.
       return '<div class="viewhead"><h1 title="' + esc(INTRO) + '" aria-describedby="lk-intro">Look and feel</h1><p class="sr-only" id="lk-intro">' + esc(INTRO) + '</p></div>' +
-        '<div class="viewbody">' + displayHTML() +
+        '<div class="viewbody">' + displayHTML() + baseChoice() +
         '<div class="lk-grid">' + themes.map(function (t) {
           return '<article class="lk-card"><header><h2 class="display">' + esc(t.name) + '</h2><span class="muted">' + esc(t.games) + '</span></header>' + sample(t) +
             '<p>' + esc(t.line) + '</p>' +
-            '<button class="btn' + (L.state.theme === t.id ? ' primary' : '') + '" data-act="usetheme" data-theme="' + t.id + '" data-name="' + esc(t.name) + '" data-k="use-' + t.id + '">' + (L.state.theme === t.id ? L.icon('check', 's') + 'In use in the prototype' : 'Try it in the prototype') + '</button></article>';
+            (L.baseTheme() === t.id ? '<button class="btn primary" data-act="usetheme" data-theme="' + t.id + '" data-name="' + esc(t.name) + '" data-k="use-' + t.id + '" aria-label="The base theme: ' + esc(t.name) + '">' + L.icon('check', 's') + 'The base theme</button>'
+              : '<button class="btn" data-act="usetheme" data-theme="' + t.id + '" data-name="' + esc(t.name) + '" data-k="use-' + t.id + '" aria-label="Use as the base theme: ' + esc(t.name) + '">Use as the base theme</button>') + '</article>';
         }).join('') + '</div>' +
         '<h2 class="display lk-h2">Same in every theme</h2><div class="lk-fixed">' +
         '<div><span class="lane-dot music"></span><b>Music</b> blue</div><div><span class="lane-dot amb"></span><b>Ambience</b> teal</div><div><span class="lane-dot fx"></span><b>Effects</b> amber</div><div><span class="lane-dot preview"></span><b>Preview</b> violet</div><div>' + L.destTag('air', '') + ' the players hear it (with the room when there are two or more)</div><div>' + L.destTag('you', '') + ' only you hear it, in your headphones</div><div><span class="kbd">Tab</span> gold focus outline</div></div>' +
@@ -6969,7 +7222,13 @@ var L = (function () {
   var STATUS = { played: 'Played', next: 'Next', draft: 'Draft' };
   var SYSTEMS = ['D&D 5e', 'D&D 2024', 'Pathfinder 2e', 'Fate Core', 'Fate Accelerated', 'Vampire: the Masquerade V5', 'Call of Cthulhu 7e', 'Blades in the Dark', 'Warhammer Fantasy Roleplay', 'Mothership', 'Daggerheart'];
   var open = {};          // scene id -> true when its card is expanded
-  var current = null;     // scene id last worked on: "Add scene" goes after it
+  /* Round 8 (Nik, 11 Nov: "When I click add scene it should add at the end of the list, if no other scene is selected.
+     If another scene is selected, it should add after that scene."). The selected scene is the one Nik last opened,
+     added, duplicated or worked in (typed in, added to, moved); its card has the accent edge, and its name button is
+     described as "Selected: Add scene puts the new scene after it". Folding it, deleting it or opening another session leaves no scene selected. Add scene puts the new
+     scene right after the selected one, or at the end when none is selected; its hover text says which. */
+  var current = null;     // the selected scene's id
+  var currentSid = null;  // the session it belongs to
   var focusK = null;      // data-k to focus after the next render
   var nc = null;          // new-campaign draft
 
@@ -6982,7 +7241,8 @@ var L = (function () {
   }
   function themeName(id) { var t = L.THEMES.filter(function (x) { return x[0] === id; })[0]; return t ? t[1].replace(/\s*\(.*\)$/, '') : id; }
   function defTheme() { return D.defaultTheme || 'candle'; }
-  function themeFor(id) { return L.state.theme === 'campaign' ? (id || defTheme()) : L.state.theme; }
+  // Round 8: a campaign's own theme always shows on its card and pages; one without a theme has the base theme.
+  function themeFor(id) { return id || L.baseTheme(); }
   function nextSession(c) { return c.sessions.filter(function (s) { return s.status === 'next'; })[0] || c.sessions.filter(function (s) { return s.status === 'draft'; })[0] || null; }
   function sLabel(s) { return 'Session ' + s.n + (s.name ? ': ' + s.name : ''); }
   function plural(n, one, many) { return n + ' ' + (n === 1 ? one : (many || one + 's')); }
@@ -7051,7 +7311,7 @@ var L = (function () {
       // ORG-13: the session's and the campaign's playlists can be dragged (or moved with Alt+Up / Alt+Down) into order.
       return '<li class="cp-arow-wrap"' + (ro ? ' data-ro="apl|' + scope + '" data-ri="' + ids.indexOf(id) + '"' : '') + '><div class="cp-arow">' + (ro ? '<span class="ro-handle" title="Drag to change the order (or Alt+Up / Alt+Down)" aria-hidden="true">' + L.icon('drag', 's') + '</span>' : '') + xpBtn(it, xk) + '<span class="lane-dot ' + it.cls + '" aria-hidden="true"></span>' +
         '<a class="ellipsis grow cp-aname" href="' + it.href + '" data-k="open-' + scope + kind + id + '" title="' + esc(o.name + ' · ' + sub) + '">' + nm + '</a>' +
-        L.previewButton(it.kind, id) + (kind === 'pl' ? L.playOnAirButton('playlist', id, key) + L.orderButton(id, key) : '') +
+        (kind === 'pl' ? L.orderButton(id, key) : '') + L.previewButton(it.kind, id) + (kind === 'pl' ? L.playOnAirButton('playlist', id, key) : '') +
         (readonly ? '' : moreBtn('more-' + scope + kind + id, nm, 'data-menu="assigned" data-scope="' + scope + '" data-kind="' + kind + '" data-id="' + id + '"')) + '</div>' + xpBody(it, xk, scope === 's' ? key : '', scope === 'r' ? '' : key) + '</li>';
     }).join('') + tracks.map(function (id) {
       var it = info(id), t = it.obj, nm = esc(it.name);
@@ -7108,7 +7368,7 @@ var L = (function () {
     if (to < 0 || to >= arr.length || from === to) return false;
     var item = arr.splice(from, 1)[0]; arr.splice(to, 0, item);
     if (list === 'sessions') { renumber(x.c); L.say((item.name || 'That session') + ' is now Session ' + item.n + ', ' + (to + 1) + ' of ' + arr.length); }
-    else L.say('Scene ' + item.name + ' moved to position ' + (to + 1) + ' of ' + arr.length);
+    else { current = item.id; L.say('Scene ' + item.name + ' moved to position ' + (to + 1) + ' of ' + arr.length); }
     L.saved(list === 'sessions' ? 'order of ' + x.c.name + ' sessions' : 'order of Session ' + x.s.n + ' scenes', { key: 'mv-' + list });
     return true;
   }
@@ -7117,6 +7377,8 @@ var L = (function () {
     var i = +el.dataset.idx; if (el.dataset.fk) focusK = el.dataset.fk; if (moveItem(el.dataset.list, i, i + +el.dataset.dir)) L.render();
   };
   var drag = null;
+  // Rows: after when below the middle; campaign cards (data-axis="x"): after when right of the middle.
+  function dropAfter(it, e) { var r = it.getBoundingClientRect(); return it.dataset.axis === 'x' ? e.clientX > r.left + r.width / 2 : e.clientY > r.top + r.height / 2; }
   function clearMarks() { document.querySelectorAll('.cp-drop-before, .cp-drop-after, .cp-dragging').forEach(function (n) { n.classList.remove('cp-drop-before', 'cp-drop-after', 'cp-dragging'); }); }
   document.addEventListener('pointerdown', function (e) { var h = e.target.closest && e.target.closest('.cp-handle'); if (h) { var it = h.closest('[data-drag]'); if (it) it.setAttribute('draggable', 'true'); } });
   document.addEventListener('pointerup', function () { if (!drag) document.querySelectorAll('[data-drag][draggable="true"]').forEach(function (n) { n.removeAttribute('draggable'); }); });
@@ -7128,15 +7390,15 @@ var L = (function () {
   });
   document.addEventListener('dragover', function (e) {
     if (!drag) return; var it = e.target.closest && e.target.closest('[data-drag="' + drag.list + '"]'); if (!it) return;
-    e.preventDefault(); var r = it.getBoundingClientRect(), after = e.clientY > r.top + r.height / 2;
+    e.preventDefault(); var after = dropAfter(it, e);
     document.querySelectorAll('.cp-drop-before, .cp-drop-after').forEach(function (n) { n.classList.remove('cp-drop-before', 'cp-drop-after'); });
     if (+it.dataset.idx !== drag.idx) it.classList.add(after ? 'cp-drop-after' : 'cp-drop-before');
   });
   document.addEventListener('drop', function (e) {
     if (!drag) return; var it = e.target.closest && e.target.closest('[data-drag="' + drag.list + '"]'); if (!it) return;
-    e.preventDefault(); var r = it.getBoundingClientRect(), after = e.clientY > r.top + r.height / 2, to = +it.dataset.idx + (after ? 1 : 0);
+    e.preventDefault(); var to = +it.dataset.idx + (dropAfter(it, e) ? 1 : 0);
     if (to > drag.idx) to--;
-    var d = drag; drag = null; clearMarks(); if (moveItem(d.list, d.idx, to)) L.render();
+    var d = drag; drag = null; clearMarks(); if (d.list === 'campaigns' ? moveCampaign(d.idx, to) : moveItem(d.list, d.idx, to)) L.render();
   });
   document.addEventListener('dragend', function () { drag = null; clearMarks(); document.querySelectorAll('[data-drag][draggable="true"]').forEach(function (n) { n.removeAttribute('draggable'); }); });
 
@@ -7183,11 +7445,23 @@ var L = (function () {
   /* ======================================================================
      1. Campaigns: the top level
      ====================================================================== */
-  function card(c) {
-    var nx = nextSession(c), th = themeFor(c.theme);
+  /* Round 8 (Nik, 11 Nov: "I need to be able to drag and drop to rearrange the order campaigns are displayed in in the
+     campaigns view"): each card has a handle (greyed at rest) to drag it before or after another card; dropping on a
+     card's left half puts it before, on its right half after (the cards run left to right, then down). The keyboard's
+     way, and one click's (WCAG 2.5.7): the Reorder switch in the top bar shows Move earlier and Move later on each card
+     while it is on; Alt+Left or Alt+Up and Alt+Right or Alt+Down move the card that has focus. The order is saved. */
+  var reorderingCards = false;
+  function card(c, i, all) {
+    var nx = nextSession(c), th = themeFor(c.theme), n = all.length, nm = esc(c.name);
+    var moves = reorderingCards && n > 1 ? '<span class="cp-cmoves">' +
+      '<button class="btn s icon" data-act="cpcmove" data-idx="' + i + '" data-dir="-1" data-k="cpcup-' + c.id + '" aria-label="Move earlier: ' + nm + '" title="Move earlier (Alt+Left)"' + (i === 0 ? ' disabled' : '') + '>' + L.icon('chevleft', 's') + '</button>' +
+      '<button class="btn s icon" data-act="cpcmove" data-idx="' + i + '" data-dir="1" data-k="cpcdn-' + c.id + '" aria-label="Move later: ' + nm + '" title="Move later (Alt+Right)"' + (i === n - 1 ? ' disabled' : '') + '>' + L.icon('chevright', 's') + '</button></span>' : '';
+    return '<li class="cp-cardwrap" data-drag="campaigns" data-axis="x" data-idx="' + i + '" data-cid="' + c.id + '">' + cardBody(c, nx, th, moves, n > 1) + '</li>';
+  }
+  function cardBody(c, nx, th, moves, handle) {
     // Round 6: the card is drawn in its theme, so the theme's name is hover text.
     return '<article class="cp-card" data-theme="' + th + '" aria-labelledby="cph-' + c.id + '" title="' + esc(plural(c.sessions.length, 'session') + ' · ' + plural(usedPlaylists(c), 'playlist') + ' · ' + plural(usedBoards(c), 'pad board') + ' · theme: ' + themeName(c.theme || defTheme())) + '">' +
-      '<div class="cp-card-top"><span class="cp-sys">' + esc(c.system || 'No game system') + '</span></div>' +
+      '<div class="cp-card-top">' + (handle ? '<span class="cp-handle" title="Drag to change the order" aria-hidden="true">' + L.icon('drag', 's') + '</span>' : '') + '<span class="cp-sys grow">' + esc(c.system || 'No game system') + '</span>' + moves + '</div>' +
       '<h2 class="display cp-card-name" id="cph-' + c.id + '">' + esc(c.name) + '</h2>' +
       '<p class="cp-blurb ellipsis" title="' + esc(c.blurb) + '">' + (c.blurb ? esc(c.blurb) : '<span class="faint">No description</span>') + '</p>' +
       '<p class="cp-next">' + (nx ? '<span class="cp-next-lbl">Next</span><span class="cp-next-name ellipsis">' + esc(sLabel(nx)) + '</span><span class="cp-next-date">' + esc(fmtDate(nx.date)) + '</span>'
@@ -7196,6 +7470,27 @@ var L = (function () {
       (nx ? '<button class="btn primary" data-act="cprun" data-cid="' + c.id + '" data-sid="' + nx.id + '" data-k="crun-' + c.id + '" aria-label="Run next session of ' + esc(c.name) + ': Session ' + nx.n + '">' + L.icon('broadcast', 's') + 'Run next session</button>'
         : '<button class="btn primary" aria-disabled="true" title="No session planned yet" data-k="crun-' + c.id + '">' + L.icon('broadcast', 's') + 'Run next session</button>') + '</div></article>';
   }
+  function moveCampaign(from, to) {
+    var arr = D.campaigns; if (to < 0 || to >= arr.length || from === to) return false;
+    var c = arr.splice(from, 1)[0]; arr.splice(to, 0, c);
+    L.say(c.name + ' is now ' + (to + 1) + ' of ' + arr.length); L.saved('order of campaigns', { key: 'mv-campaigns' });
+    return true;
+  }
+  L.acts.cpcmove = function (el) {
+    var i = +el.dataset.idx, d = +el.dataset.dir, c = D.campaigns[i]; if (!c || !moveCampaign(i, i + d)) return;
+    L.render();
+    var b = document.querySelector('[data-k="' + (d < 0 ? 'cpcup-' : 'cpcdn-') + c.id + '"]');
+    if (!b || b.disabled) b = document.querySelector('[data-k="' + (d < 0 ? 'cpcdn-' : 'cpcup-') + c.id + '"]');
+    if (b) b.focus();
+  };
+  L.acts.cpreorder = function (el) { reorderingCards = !reorderingCards; L.render(); var b = document.querySelector('[data-k="cpreorder"]'); if (b) b.focus(); L.say(reorderingCards ? 'Move earlier and Move later shown on each campaign' : 'Done reordering'); };
+  document.addEventListener('keydown', function (e) {
+    if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || ['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown'].indexOf(e.key) < 0) return;
+    var w = e.target && e.target.closest && e.target.closest('[data-drag="campaigns"]'); if (!w || L.typing(e.target)) return;
+    var i = +w.dataset.idx, to = i + (e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : 1), k = e.target.dataset && e.target.dataset.k, cid = w.dataset.cid;
+    e.preventDefault(); e.stopPropagation(); if (!moveCampaign(i, to)) return;
+    L.render(); var nw = document.querySelector('[data-drag="campaigns"][data-cid="' + cid + '"]'), f = nw && k ? nw.querySelector('[data-k="' + k + '"]') : null; if (f) f.focus();
+  }, true);
   L.acts.cprun = function (el) { if (el.getAttribute('aria-disabled') === 'true') return; run(el.dataset.cid, el.dataset.sid); };
 
   L.view('campaigns', {
@@ -7210,8 +7505,9 @@ var L = (function () {
     ],
     render: function () {
       return '<div class="viewhead"><h1>Campaigns</h1><span class="grow"></span>' +
+        (D.campaigns.length > 1 ? '<button type="button" class="btn s ghost ro-tog" data-act="cpreorder" data-k="cpreorder" aria-pressed="' + reorderingCards + '" title="' + (reorderingCards ? 'Done reordering' : 'Show Move earlier and Move later on each campaign (or drag a card by its handle)') + '">' + L.icon('drag', 's') + 'Reorder</button>' : '') +
         '<button class="btn primary" data-act="cpnew" data-k="cpnew">' + L.icon('plus', 's') + 'New campaign</button></div>' +
-        '<div class="viewbody" data-scroll="cp-grid">' + (D.campaigns.length ? '<div class="cp-grid">' + D.campaigns.map(card).join('') + '</div>'
+        '<div class="viewbody" data-scroll="cp-grid">' + (D.campaigns.length ? '<ol class="cp-grid" aria-label="Campaigns in order">' + D.campaigns.map(card).join('') + '</ol>'
           // A first-time user: what a campaign is and what to do first (w3-ux 9).
           : '<div class="empty"><b>No campaigns yet.</b> A campaign holds your sessions, the scenes in each, and the music, ambience and pad boards you use in them. Start with <b>New campaign</b>.</div>') + '</div>';
     },
@@ -7242,7 +7538,7 @@ var L = (function () {
         '<datalist id="cp-systems">' + SYSTEMS.map(function (s) { return '<option value="' + esc(s) + '">'; }).join('') + '</datalist></div>' +
         '<div class="field cp-wide"><label for="cp-n-blurb">Description <span class="faint">(one line)</span></label><input class="input" id="cp-n-blurb" data-input="cpnew" data-f="blurb" autocomplete="off" placeholder="One line about the story"></div>' +
         '<fieldset class="cp-themes cp-wide"><legend>Theme</legend><p class="hint">How Lyre looks while this campaign is open. You can change it later.</p>' +
-        '<div class="cp-th-grid" role="radiogroup" aria-label="Theme">' + L.THEMES.slice(1).map(function (t) { return themeOption(t[0], t[0] === nc.theme); }).join('') + '</div></fieldset>' +
+        '<div class="cp-th-grid" role="radiogroup" aria-label="Theme">' + L.THEMES.map(function (t) { return themeOption(t[0], t[0] === nc.theme); }).join('') + '</div></fieldset>' +
         '<details class="cp-obs cp-wide"><summary>' + L.icon('chevdown', 's') + 'Obsidian <span class="cp-later">coming later</span></summary>' +
         '<p class="hint">Where this campaign\'s notes live in Obsidian. Lyre keeps these for a later version; nothing connects yet.</p>' + obsFields('cp-n-o-', nc.obsidian, 'cpnewobs') + '</details></div>',
       footer: '<button class="btn" data-act="closesheet">Cancel</button><button class="btn primary" data-act="cpcreate">' + L.icon('plus', 's') + 'Create campaign</button>' });
@@ -7317,7 +7613,7 @@ var L = (function () {
     render: function (p) {
       var c = L.campaign(p.cid);
       if (!c) return '<div class="viewhead"><h1>Campaign not found</h1></div><div class="empty"><a href="#/campaigns">Back to Campaigns</a></div>';
-      var nx = nextSession(c), forced = L.state.theme !== 'campaign';
+      var nx = nextSession(c);
       var head = '<div class="viewhead">' +
         '<h1>' + esc(c.name || 'Untitled campaign') + '</h1><span class="grow"></span>' +
         L.modeSwitch(c.id) + (nx ? '<button class="btn primary" data-act="cprun" data-cid="' + c.id + '" data-sid="' + nx.id + '" data-k="hrun">' + L.icon('broadcast', 's') + 'Run next session <span class="cp-btnsub">S' + nx.n + '</span></button>' : '') + '</div>';
@@ -7325,10 +7621,11 @@ var L = (function () {
         '<div class="field cp-f-name"><label for="cp-c-name">Name</label><input class="input" id="cp-c-name" data-input="cpcamp" data-f="name" data-k="c-name" data-save="campaign name {v}" value="' + esc(c.name) + '" autocomplete="off"></div>' +
         '<div class="field cp-f-sys"><label for="cp-c-sys">Game system</label><input class="input" id="cp-c-sys" list="cp-systems-c" data-input="cpcamp" data-f="system" data-k="c-sys" data-save="' + esc(c.name) + ' game system" value="' + esc(c.system) + '" autocomplete="off">' +
         '<datalist id="cp-systems-c">' + SYSTEMS.map(function (s) { return '<option value="' + esc(s) + '">'; }).join('') + '</datalist></div>' +
-        '<div class="field cp-f-theme"><label for="cp-c-theme">Theme</label><select class="input" id="cp-c-theme" data-input="cpcamp" data-f="theme" data-k="c-theme" data-save="' + esc(c.name) + ' theme"' + (forced ? ' aria-describedby="cp-forced"' : '') + '>' +
-        L.THEMES.slice(1).map(function (t) { return '<option value="' + t[0] + '"' + (c.theme === t[0] ? ' selected' : '') + '>' + esc(themeName(t[0])) + '</option>'; }).join('') + '</select></div>' +
+        '<div class="field cp-f-theme"><label for="cp-c-theme">Theme</label><select class="input" id="cp-c-theme" data-input="cpcamp" data-f="theme" data-k="c-theme" data-save="' + esc(c.name) + ' theme">' +
+        L.THEMES.map(function (t) { return '<option value="' + t[0] + '"' + (c.theme === t[0] ? ' selected' : '') + '>' + esc(themeName(t[0])) + '</option>'; }).join('') + '</select></div>' +
         '<div class="field cp-f-blurb"><label for="cp-c-blurb">Description</label><input class="input" id="cp-c-blurb" data-input="cpcamp" data-f="blurb" data-k="c-blurb" data-save="' + esc(c.name) + ' description" value="' + esc(c.blurb) + '" autocomplete="off"></div>' +
-        (forced ? '<p class="hint cp-forced" id="cp-forced">The prototype strip is showing every page in ' + esc(themeName(L.state.theme)) + '. Choose "Each campaign\'s own" there to see this campaign\'s theme.</p>' : '') + '</div>';
+        // Round 8: no note that Look and feel overrides this; the campaign's theme always shows on its pages.
+        '</div>';
 
       var played = c.sessions.filter(function (s) { return s.status === 'played'; }).length;
       var sessions = L.pane({ id: 'cp-sessions', title: 'Sessions', icon: 'scroll', kind: 'scenes',
@@ -7387,10 +7684,12 @@ var L = (function () {
       '<a class="ellipsis grow cp-it-name" href="' + it.href + '" data-k="in-' + k + '" title="' + esc((shown !== own ? shown + ' (in this scene) · its own name: ' + own : shown) + ' · ' + it.label + ' · ' + it.sub) + '">' + nm + '<span class="sr-only"> (' + esc(it.label) + ')</span></a>' +
       (isTrack ? '<span class="cp-it-sub">' + (shown !== own ? '<span class="cp-scname-mark" title="Named for this scene">' + L.icon('tag', 's') + '<span class="ellipsis">' + esc(own) + '</span><span class="sr-only">: its own name</span></span>' : '') + L.tagStrip(it.obj, 3) + '</span></span>' : '') +
       (i === 0 ? '<span class="cp-firsttag">' + firstTag + '</span>' : '') + ownMark(sc, list, it) +
-      L.previewButton(it.kind, it.id) + (it.kind !== 'board' ? L.playOnAirButton(it.kind, it.id) : '') +
+      // Round 8: the buttons in Live's order: (a playlist's play order,) Preview, (Repeat one,) Play on air.
+      (it.kind === 'playlist' && list === 'music' ? L.orderButton(it.id, key) : '') +
+      L.previewButton(it.kind, it.id) +
       // Round 6 part 3 (decision 4): Repeat one, saved with the scene; the same button as on the track in Live.
       (isTrack ? L.repeatOneButton(key, it.id, 'r1-' + k, shown) : '') +
-      (it.kind === 'playlist' && list === 'music' ? L.orderButton(it.id, key) : '') +
+      (it.kind !== 'board' ? L.playOnAirButton(it.kind, it.id, list === 'music' ? key : '', '', shown) : '') +
       (isTrack && L.profileLink ? '<a class="btn s icon cp-prof" href="#/profile/' + it.id + '/' + key + '" data-k="prof-' + k + '" title="Waveform, end and fades of ' + esc(shown) + ' in this scene" aria-label="Waveform, end and fades in this scene: ' + nm + '">' + L.icon('wave', 's') + '</a>' : '') +
       moreBtn('im-' + k, nm, 'data-menu="item" data-list="' + list + '" data-sc="' + sc.id + '" data-idx="' + i + '"') +
       '</div>' + xpBody(it, xk, list === 'music' ? sceneKey(sc) : '', list === 'music' ? sceneKey(sc) : '') + '</li>';
@@ -7428,11 +7727,11 @@ var L = (function () {
     var isOpen = !!open[sc.id], nm = esc(sc.name || 'Untitled scene');
     var head = '<div class="cp-scene-head">' +
       '<span class="cp-handle" title="Drag to reorder" aria-hidden="true">' + L.icon('drag', 's') + '</span>' +
-      '<button class="cp-scene-toggle" data-act="cpscene" data-id="' + sc.id + '" data-k="sct-' + sc.id + '" aria-expanded="' + isOpen + '" aria-controls="scb-' + sc.id + '"' + (isOpen ? '' : ' title="' + esc(sceneTip(sc)) + '"') + '>' +
+      '<button class="cp-scene-toggle" data-act="cpscene" data-id="' + sc.id + '" data-k="sct-' + sc.id + '"' + (sc.id === current ? ' aria-describedby="cp-selnote"' : '') + ' aria-expanded="' + isOpen + '" aria-controls="scb-' + sc.id + '"' + (isOpen ? '' : ' title="' + esc(sceneTip(sc)) + '"') + '>' +
       L.icon('chevdown', 's chev') + '<span class="num cp-scn" aria-hidden="true">' + (i + 1) + '</span><span class="ellipsis cp-scname"><span class="sr-only">Scene ' + (i + 1) + ': </span>' + nm + '</span></button>' +
       (isOpen ? '' : '<span class="cp-scchip">' + sceneChip(sc) + '</span>') +
       L.sceneMarks(sc) + '<button class="closer" data-act="cpscmenu" data-id="' + sc.id + '" data-idx="' + i + '" data-k="scm-' + sc.id + '" title="More for this scene" aria-label="More for ' + nm + '" aria-haspopup="menu" aria-expanded="false">' + L.icon('more') + '</button></div>';
-    if (!isOpen) return '<li class="cp-scene" data-drag="scenes" data-filedrop="music" data-sc="' + sc.id + '" data-idx="' + i + '" aria-label="Scene ' + (i + 1) + ': ' + nm + '">' + head + '</li>';
+    if (!isOpen) return '<li class="cp-scene' + (sc.id === current ? ' sel' : '') + '" data-drag="scenes" data-filedrop="music" data-sc="' + sc.id + '" data-idx="' + i + '" aria-label="Scene ' + (i + 1) + ': ' + nm + '">' + head + '</li>';
     var f = 'sc' + sc.id;
     var body = '<div class="cp-scene-body" id="scb-' + sc.id + '">' +
       '<div class="field"><label for="' + f + 'n">Name</label><input class="input" id="' + f + 'n" data-input="cpscf" data-f="name" data-sc="' + sc.id + '" data-k="scname-' + sc.id + '" data-save="scene name {v}" value="' + esc(sc.name) + '" autocomplete="off"></div>' +
@@ -7443,7 +7742,7 @@ var L = (function () {
       '<div class="field"><label for="' + f + 'x">Notes</label><textarea class="input" id="' + f + 'x" rows="2" data-input="cpscf" data-f="notes" data-sc="' + sc.id + '" data-k="scnotes-' + sc.id + '" data-save="' + esc(sc.name || 'scene') + ' notes" placeholder="Reminders for this scene">' + esc(sc.notes) + '</textarea></div>' +
       '<div class="field cp-obsfield"><label for="' + f + 'o">Note link <span class="cp-later">Coming later</span></label><input class="input" id="' + f + 'o" data-input="cpscf" data-f="noteLink" data-sc="' + sc.id + '" data-k="scnote-' + sc.id + '" data-save="' + esc(sc.name || 'scene') + ' note link" value="' + esc(sc.noteLink || '') + '" placeholder="Optional: an Obsidian note" title="Kept for later; Lyre does not open Obsidian notes yet" autocomplete="off"></div></div>';
     // UX-18: a screen opened from inside this scene goes Back to it, with the scene open.
-    return '<li class="cp-scene open" data-drag="scenes" data-idx="' + i + '" data-back-label="' + nm + '" data-back-open="' + sc.id + '" aria-label="Scene ' + (i + 1) + ': ' + nm + '">' + head + body + '</li>';
+    return '<li class="cp-scene open' + (sc.id === current ? ' sel' : '') + '" data-drag="scenes" data-idx="' + i + '" data-back-label="' + nm + '" data-back-open="' + sc.id + '" aria-label="Scene ' + (i + 1) + ': ' + nm + '">' + head + body + '</li>';
   }
   /* ⋯ menus for rows: assigned playlists and boards, scene music and board items, the ambience slot. */
   L.acts.cprowmenu = function (el) {
@@ -7491,8 +7790,8 @@ var L = (function () {
   document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target && e.target.id === 'cp-nmin') { e.preventDefault(); var b = document.querySelector('[data-act="cpnamesave"]'); if (b) b.click(); } });
   function findScene(id) { var s = ctx().s; for (var i = 0; i < s.scenes.length; i++) if (s.scenes[i].id === id) return { s: s, sc: s.scenes[i], i: i }; return null; }
 
-  L.acts.cpscene = function (el) { var id = el.dataset.id; open[id] = !open[id]; current = id; L.render(); };
-  L.acts.cpallscenes = function () { var s = ctx().s, any = s.scenes.some(function (sc) { return !open[sc.id]; }); s.scenes.forEach(function (sc) { open[sc.id] = any; }); L.render(); L.say(any ? 'All scenes open' : 'All scenes folded'); };
+  L.acts.cpscene = function (el) { var id = el.dataset.id; open[id] = !open[id]; if (open[id]) current = id; else if (current === id) current = null; L.render(); };
+  L.acts.cpallscenes = function () { var s = ctx().s, any = s.scenes.some(function (sc) { return !open[sc.id]; }); s.scenes.forEach(function (sc) { open[sc.id] = any; }); if (!any) current = null; L.render(); L.say(any ? 'All scenes open' : 'All scenes folded'); };
   L.inputs.cpscf = function (el) { var x = findScene(el.dataset.sc); if (!x) return; x.sc[el.dataset.f] = el.value; current = x.sc.id; if (el.dataset.f === 'name') L.render(); };
   function itemName(id, list) { var it = info(id, list === 'boards'); return it ? it.name : 'item'; }
   L.acts.cpitem = function (el) {
@@ -7612,6 +7911,8 @@ var L = (function () {
       // Back from a track's audio settings in a scene opens that scene again, with focus on the track.
       if (L.state.openScene && s) { var back = L.state.openScene; L.state.openScene = null; if (s.scenes.some(function (x) { return x.id === back.sc; })) { open[back.sc] = true; current = back.sc; focusK = back.k || 'sct-' + back.sc; } }
       if (!s) return '<div class="viewhead"><h1>Session not found</h1></div><div class="empty"><a href="#/campaigns">Back to Campaigns</a></div>';
+      if (currentSid !== c.id + '/' + s.id) { if (currentSid) current = null; currentSid = c.id + '/' + s.id; }
+      var sel = current && findScene(current), selIx = sel ? s.scenes.indexOf(sel.sc) : -1;
       var head = '<div class="viewhead">' +
         // BUG-21: the title renames the session in place (click or F2); only the name, not the number.
         '<h1>' + (L.renaming('sess-' + s.id) ? 'Session ' + s.n + ': ' + L.renameBox('sess-' + s.id, s.name, 'Name of Session ' + s.n, 'cp-h1-rename') :
@@ -7627,8 +7928,8 @@ var L = (function () {
       var scenes = L.pane({ id: 'ss-scenes', title: 'Scenes', icon: 'map', kind: 'scenes',
         status: s.scenes.length ? null : { text: 'Empty', tone: 'idle' },
         actions: (s.scenes.length ? '<button class="closer" data-act="cpallscenes" data-k="allscenes" title="' + (allOpen ? 'Fold all scenes' : 'Open all scenes') + '" aria-label="' + (allOpen ? 'Fold all scenes' : 'Open all scenes') + '">' + L.icon(allOpen ? 'chevup' : 'chevdown') + '</button>' : '') +
-          '<button class="btn s" data-act="cpaddscene" data-k="addscene">' + L.icon('plus', 's') + 'Add scene</button>',
-        body: s.scenes.length ? '<ol class="cp-scenes" aria-label="Scenes in order">' + s.scenes.map(function (sc, i) { return sceneCard(s, sc, i); }).join('') + '</ol>' : '<p class="cp-none">No scenes yet. Use Add scene.</p>',
+          '<button class="btn s" data-act="cpaddscene" data-k="addscene" title="' + (selIx > -1 ? 'Adds a scene after Scene ' + (selIx + 1) + ': ' + esc(sel.sc.name || 'Untitled scene') : 'Adds a scene at the end (no scene is selected)') + '">' + L.icon('plus', 's') + 'Add scene</button>',
+        body: s.scenes.length ? '<p class="sr-only" id="cp-selnote">Selected: Add scene puts the new scene after it.</p><ol class="cp-scenes" aria-label="Scenes in order">' + s.scenes.map(function (sc, i) { return sceneCard(s, sc, i); }).join('') + '</ol>' : '<p class="cp-none">No scenes yet. Use Add scene.</p>',
         scroll: 'ss-scenes' });
       var spl = assignedPane({ id: 'ss-spl', title: 'Session playlists', kind: 'pl', scope: 's', ids: s.playlists, tracks: s.tracks, why: 'In every scene tonight.' });
       var sbd = assignedPane({ id: 'ss-sbd', title: 'Session pads', kind: 'bd', scope: 's', ids: s.boards, why: 'In every scene tonight.' });
@@ -8003,6 +8304,9 @@ var L = (function () {
       var head = '<div class="viewhead lb-head">' +
         (mode === 'narrow' && t ? '<button class="btn s" data-act="lbback" data-k="lb-back">' + L.icon('chevleft', 's') + 'Tracks</button>' : '') +
         '<h1>Library</h1><span class="muted lb-count">' + plural(nAll, 'track') + '</span><span class="grow"></span>' +
+        // Round 8 (Nik, 11 Nov: "In library view I still need the Prep and Live toggle we have elsewhere"): Live goes to
+        // the session loaded in Live, as from Rooms.
+        (L.campaign(L.state.live.cid) ? L.modeSwitch(L.state.live.cid) : '') +
         '<button class="btn primary" data-act="lbaddmenu" data-k="lb-add" aria-haspopup="menu" aria-expanded="false">' + L.icon('plus', 's') + 'Add tracks' + L.icon('chevdown', 's') + '</button>' +
         '<button class="btn icon" data-act="lbmore" data-k="lb-more" aria-haspopup="menu" aria-expanded="false" title="Back up, move and find files" aria-label="More for the library">' + L.icon('more') + '</button></div>';
 
@@ -9381,7 +9685,7 @@ var L = (function () {
       '<button class="lv-sess" data-act="lvsessmenu" data-k="lv-sess" data-f2="lvsessrename" aria-haspopup="menu" aria-expanded="false" aria-label="' + esc(c.name + ' Session ' + s.n + ': ' + s.name) + '" title="Loaded: ' + esc(c.name + ' › Session ' + s.n + ': ' + s.name) + '. Choose another session, or press F2 to rename it">' +
         L.icon('crown', 's') + '<span class="sr-only">' + esc(c.name) + ' </span><span class="lv-sess-s">Session ' + s.n + '<span class="lv-sess-nm sr-only">: ' + esc(s.name) + '</span></span>' + L.icon('chevdown', 's') + '</button>';
     return '<div class="lv-top"><h1 class="sr-only">Live</h1><!--lead-->' + sessBox + L.modeSwitch(c.id) + find() +
-      '<button class="btn s" data-act="lvfade" data-k="lv-fade" title="Fade all: everything fades out over 3 seconds (Shift+Esc)" aria-keyshortcuts="Shift+Escape" aria-label="Fade all">' + L.icon('fade', 's') + '<span class="lv-btxt">Fade all</span></button>' +
+      '<button class="btn s" data-act="lvfade" data-k="lv-fade" title="Fade all: everything fades out over ' + L.FADE + ' seconds (Shift+Esc)" aria-keyshortcuts="Shift+Escape" aria-label="Fade all">' + L.icon('fade', 's') + '<span class="lv-btxt">Fade all</span></button>' +
       '<button class="btn s danger" data-act="lvstop" data-k="lv-stop" title="Stop everything at once" aria-label="Stop all">' + L.icon('stop', 's') + '<span class="lv-btxt">Stop all</span></button>' +
       '<span class="lv-keyswrap"><button class="btn s" data-act="lvkeys" data-k="lv-keys" aria-expanded="' + S.keysOpen + '" aria-controls="lv-keys-pop" title="Keyboard keys for the live screen">Keys' + L.icon(S.keysOpen ? 'chevup' : 'chevdown', 's') + '</button>' +
       (S.keysOpen ? keysPop() : '') + '</span></div>';
@@ -9395,7 +9699,7 @@ var L = (function () {
       '<label class="lv-switch"><input type="checkbox" role="switch" data-input="lvkeys1" data-k="lv-keys1"' + (S.keys1 ? ' checked' : '') + '><span class="lv-switch-t"><b>Single-key shortcuts</b><span class="hint">Space, / and the pad keys. Turn off if they get in the way.</span></span></label>' +
       '<ul class="lv-keylist">' + k(kf('nextScene', 'Space'), 'Start the next scene', singleKey('nextScene')) + k(kf('find', '/'), 'Find a track or playlist', singleKey('find')) + k(esc(pk), b ? 'Pads on ' + esc(b.name) + ' (Current scene)' : 'Pads of the current scene', 1) +
       k('Alt+1…7', 'Go to a box: On air, Scenes, Current scene, Session playlists, Session pads, Campaign playlists, Campaign pads') + k('F6', 'Next box (Shift+F6: the one before)') +
-      k(kf('palette', 'Ctrl+K'), 'Find and play anything') + k(kf('fadeAll', 'Shift+Esc'), 'Fade all (3 s)') + k(kf('undo', 'Ctrl+Z'), 'Undo the last change (for 8 s)') + k('Esc', 'Close a menu or clear the search') + '</ul>' +
+      k(kf('palette', 'Ctrl+K'), 'Find and play anything') + k(kf('fadeAll', 'Shift+Esc'), 'Fade all (' + L.FADE + ' s)') + k(kf('undo', 'Ctrl+Z'), 'Undo the last change (for 8 s)') + k('Esc', 'Close a menu or clear the search') + '</ul>' +
       '<p class="hint">' + (S.keys1 ? 'Keys do nothing while you type in a box.' : 'Single-key shortcuts are off. Shift+Esc and Ctrl+Z still work.') + '</p>' +
       // Should 12 of the round 6 review: what left the screen in round 6 is in Help (the rail's Help, or F1).
       '<button class="btn s ghost lv-keyshelp" data-act="lvhelp" data-k="lv-keyshelp" aria-keyshortcuts="F1">' + L.icon('help', 's') + 'Help</button></div>';
@@ -9458,7 +9762,9 @@ var L = (function () {
       '<div class="lv-lane-l"><span class="lv-lane-n"><span class="lane-dot ' + ln + '"></span>' + word + '</span>' + (c.paused ? '<span class="badge">Paused</span>' : '') + '</div>' +
       // The scene position and the end rule are hover text (and read out); the track list shows where it is.
       '<div class="lv-lane-m"><div class="lv-lane-t ellipsis" title="' + esc([shown !== L.title(t) ? 'Its own name: ' + L.title(t) : L.title(t), pos, isM ? endText(t, tg) : '', L.normHover(t, c.playlistId)].filter(Boolean).join(' · ')) + '">' + esc(shown) + (shown !== L.title(t) ? '<span class="sr-only"> (its own name: ' + esc(L.title(t)) + ')</span>' : '') + (pos ? '<span class="sr-only">, ' + pos + '</span>' : '') + '</div>' +
-        '<div class="lv-lane-pr"><div class="progress lv-mkbar ' + ln + '"><span data-progress="' + ln + at + '"></span>' + markTicks(t, c, ln, tg) + '</div><span class="num lv-time" data-time="' + ln + at + '"></span></div>';
+        // Round 8 (Nik, 11 Nov: "click in the tracking bar for the currently playing track and skip to a certain point"):
+        // the bar is a slider (core's L.seekBar), with the markers on it as before.
+        '<div class="lv-lane-pr">' + L.seekBar(ln + at, shown, 'lv-mkbar ' + ln, markTicks(t, c, ln, tg)) + '<span class="num lv-time" data-time="' + ln + at + '"></span></div>';
     if (isM) {
       // Where the music comes from, when it is a playlist or something added. What comes next is Up next, beside it.
       var vis = c.added ? 'Added: ' + c.added : c.playlistId ? plName(c.playlistId) : '';
@@ -9467,10 +9773,17 @@ var L = (function () {
     h += '</div><div class="lv-lane-c" role="group" aria-label="' + word + ' in ' + esc(name) + '">';
     if (isM) h += '<button class="btn s icon" data-act="lvprevt" data-lane="music"' + tga + ' data-k="lv-prev-m' + kx + '" title="Previous track" aria-label="Previous music track"' + (c.playlistId || c.seq || c.added || (RM(tg).now !== 'plan' && RM(tg).ret) ? '' : ' disabled') + '>' + L.icon('prev', 's') + '</button>';
     h += '<button class="btn s icon" data-act="lvpause" data-lane="' + ln + '"' + tga + ' data-k="lv-pause-' + ln + kx + '" title="' + (c.paused ? 'Resume' : 'Pause') + ' ' + word.toLowerCase() + '" aria-label="' + (c.paused ? 'Resume' : 'Pause') + ' ' + word.toLowerCase() + '">' + L.icon(c.paused ? 'play' : 'pause', 's') + '</button>' +
+      // Round 8 (Nik, 11 Nov: "I need a stop button in the on air view in live on the currently playing track, not just
+      // a pause button - I need both"): Stop beside Pause; it fades this room's music (or ambience) out in a second.
+      '<button class="btn s icon" data-act="lvstoplane" data-lane="' + ln + '"' + tga + ' data-k="lv-stopl-' + ln + kx + '" title="Stop the ' + word.toLowerCase() + esc(inRoom(tg)) + ' (fades out in a second)" aria-label="Stop ' + word.toLowerCase() + '">' + L.icon('stop', 's') + '</button>' +
       '<button class="btn s icon" data-act="lvnextt" data-lane="' + ln + '"' + tga + ' data-k="lv-next-' + ln + kx + '" title="Next ' + (isM ? 'track' : 'ambience') + ' (crossfade)" aria-label="Next ' + word.toLowerCase() + ' track"' + (c.playlistId || c.seq || (isM && upcoming(tg).length) || (!isM && aqOf(tg).length) ? '' : ' disabled') + '>' + L.icon('next', 's') + '</button>' +
+      // Round 8 (Nik: "I also need a shuffle button in the on air live view"): the Now playing bar's Shuffle, per room,
+      // beside Repeat. It is the play order of the playlist the music comes from, where it plays from (PLY-13), so
+      // Up next follows it; music that is not from a playlist has nothing to shuffle, and the button is greyed.
+      (isM ? shuffleIn(tg, kx) : '') +
       // Round 6 part 3: Repeat here is the room's, for what plays now; never saved (core's L.repeatButton).
       (isM ? L.repeatButton('music', tg, 'lv-rep' + kx) : '') +
-      '<button class="btn s icon" data-act="lvfadeout" data-lane="' + ln + '"' + tga + ' data-k="lv-fo-' + ln + kx + '" title="Fade ' + word.toLowerCase() + ' out over 3 seconds" aria-label="Fade ' + word.toLowerCase() + ' out">' + L.icon('fade', 's') + '</button></div></div>';
+      '<button class="btn s icon" data-act="lvfadeout" data-lane="' + ln + '"' + tga + ' data-k="lv-fo-' + ln + kx + '" title="Fade ' + word.toLowerCase() + ' out over ' + L.FADE + ' seconds" aria-label="Fade ' + word.toLowerCase() + ' out">' + L.icon('fade', 's') + '</button></div></div>';
     return h;
   }
   /* Up next: the room's running list from the next track to the bottom, then the ambience waiting (aq). Folded, the
@@ -9523,8 +9836,10 @@ var L = (function () {
     var ctl = b ? '<button class="btn s icon lv-mute" data-act="lvbotmute" data-id="' + b.id + '" data-k="lv-mute-' + b.id + '" aria-pressed="' + !!b.muted + '" title="' + (b.muted ? 'Unmute ' : 'Mute ') + esc(name) + '" aria-label="Mute ' + esc(name) + '">' + L.icon(b.muted ? 'mute' : 'horn', 's') + '</button>' +
       '<input type="range" class="lv-vol" min="0" max="100" step="5" value="' + b.volume + '" data-input="lvvol" data-id="' + b.id + '" data-k="lv-vol-' + b.id + '" aria-label="Volume in ' + esc(name) + '" aria-valuetext="' + b.volume + ' percent" title="Volume ' + b.volume + '%">' +
       // OUT-7: the bot that plays here, as a button that changes its channel (or the bot) on the page, and Kick.
+      // Round 8 (Nik, 11 Nov 20:33: "I can't choose what channel my bots join from the live view"): the bot's button
+      // chooses its channel (as since round 6), and its menu now has Kick too.
       '<button class="btn s lv-botpick" data-act="lvroommenu" data-id="' + b.id + '" data-k="lv-room-' + b.id + '" aria-haspopup="menu" aria-expanded="false" title="' + esc(b.name) + ' plays in ' + esc(name) + ': change the channel or the bot" aria-label="' + esc(b.name) + ' in ' + esc(name) + ': change">' + L.icon('users', 's') + '<span class="ellipsis">' + esc(b.name) + '</span>' + L.icon('chevdown', 's') + '</button>' +
-      '<button class="btn s lv-kick" data-act="lvkick" data-id="' + b.id + '" data-k="lv-kick-' + b.id + '" title="Kick ' + esc(b.name) + ' from ' + esc(name) + '" aria-label="Kick ' + esc(b.name) + ' from ' + esc(name) + '">' + L.icon('leave', 's') + '<span class="lv-kick-t">Kick</span></button>' : '';
+      '<button class="btn s lv-kick" data-act="lvkick" data-id="' + b.id + '" data-k="lv-kick-' + b.id + '" title="Kick ' + esc(b.name) + ' from ' + esc(name) + ' (Undo for 8 seconds)" aria-label="Kick ' + esc(b.name) + ' from ' + esc(name) + '">' + L.icon('leave', 's') + '<span class="lv-kick-t">Kick</span></button>' : '';
     // BUG-19: with no bot in a voice channel what plays goes nowhere; the one-click fix is right here.
     var none = '';
     if (nobodyThere(b)) {
@@ -9578,7 +9893,8 @@ var L = (function () {
   function onAir() {
     var rs = rooms(), idle = L.freeBots ? L.freeBots() : L.bots().filter(function (b) { return b.status === 'idle'; });
     var parts = rs.length ? rs.map(function (r) { return roomPart(roomTg(r.bots[0]), r.bots[0], r.name); }) : [roomPart('table', null, 'No room')];
-    var add = idle.length ? '<button class="btn s icon" data-act="lvaddroom" data-k="lv-addroom" aria-haspopup="menu" aria-expanded="false" aria-label="Add a room" title="Add a room: put another bot in a voice channel">' + L.icon('plus', 's') + '</button>' : '';
+    // Round 8: always there; with no free bot its menu offers Add a bot… (the Settings sheet, opened in place).
+    var add = '<button class="btn s icon" data-act="lvaddroom" data-k="lv-addroom" aria-haspopup="menu" aria-expanded="false" aria-label="Add a room" title="Add a room: put ' + (idle.length ? 'another bot' : 'a new bot') + ' in a voice channel">' + L.icon('plus', 's') + '</button>';
     var sum = collapsed('lv-onair') ? (rs.length ? rs : [{ name: 'No room', mix: pb }]).map(function (r) { var c = r.mix.music; return esc(r.name) + ': ' + (c ? esc(L.title(L.track(c.id))) : 'silent'); }).join(' · ') : '';
     return '<div class="lv-dock">' + L.pane({ id: 'lv-onair', title: 'On air', icon: 'broadcast', kind: 'onair', size: 'auto', flush: true, noMax: true, keys: 'Alt+1', actions: add, summary: sum,
       body: undoStrip('onair') + '<div class="lv-rooms' + (parts.length > 1 ? ' many' : '') + '">' + parts.join('') + '</div>' }) + '</div>';
@@ -10011,13 +10327,18 @@ var L = (function () {
   L.acts.lvallsc = function () { S.allScenes = !S.allScenes; L.render(); };
   L.acts.lvsel = function (el) { S.sel = S.sel === el.dataset.sel ? null : el.dataset.sel; L.render(); };
   L.acts.lvnotes = function () { S.notesOpen = !S.notesOpen; L.render(); };
-  L.acts.lvfade = function () { touched(); L.fadeAll(3); };
+  L.acts.lvfade = function () { touched(); L.fadeAll(L.FADE); };
   L.acts.lvstop = function () { touched(); L.stopAll(); };
   function tgArg(el) { return tgOf(el.dataset.tg); }
   L.acts.lvprevt = function (el) { touched(); L.prev(el.dataset.lane, tgArg(el)); };
   L.acts.lvnextt = function (el) { touched(); L.next(el.dataset.lane, tgArg(el)); };
   L.acts.lvpause = function (el) { touched(); var ln = el.dataset.lane, tg = tgArg(el), c = M(tg)[ln]; L.pauseLane(ln, tg); L.say((ln === 'music' ? 'Music ' : 'Ambience ') + (c && c.paused ? 'paused' : 'playing')); };
-  L.acts.lvfadeout = function (el) { touched(); L.stopLane(el.dataset.lane, 3, tgArg(el)); L.say((el.dataset.lane === 'music' ? 'Music' : 'Ambience') + ' fading out'); };
+  function inRoom(tg) { return rooms().length > 1 ? ' in ' + roomName(tg) : ''; }
+  function shuffleIn(tg, kx) {
+    return L.shuffleButton('music', tg, 'lv-shuf' + kx) || '<button class="btn s icon rep" data-k="lv-shuf' + kx + '" aria-pressed="false" aria-label="Shuffle" title="Only music from a playlist can be shuffled" disabled>' + L.icon('inorder', 's') + '</button>';
+  }
+  L.acts.lvstoplane = function (el) { touched(); var ln = el.dataset.lane, tg = tgArg(el); L.stopLane(ln, 1, tg); L.say((ln === 'music' ? 'Music' : 'Ambience') + ' stopped' + inRoom(tg)); };
+  L.acts.lvfadeout = function (el) { touched(); L.stopLane(el.dataset.lane, L.FADE, tgArg(el)); L.say((el.dataset.lane === 'music' ? 'Music' : 'Ambience') + ' fading out'); };
   // Up next: × takes one entry out for this evening (a planned track is skipped, an added one goes), with Undo.
   L.acts.lvupx = function (el) {
     var tg = tgArg(el), rm = RM(tg), snap = clone(rm), kind = el.dataset.kind, i = +el.dataset.i, label = el.getAttribute('aria-label').replace(/^Remove /, '').replace(/ from Up next$/, '');
@@ -10069,7 +10390,8 @@ var L = (function () {
     L.menu(el, '<div class="group">' + esc(b.name) + ' plays in</div>' + channelItems(b, 'lvbotjoin') +
       (free.length ? '<div class="sep"></div><div class="group">Another bot for ' + esc(name) + '</div>' + free.map(function (f) { return '<button role="menuitem" data-act="lvbotswap" data-from="' + b.id + '" data-to="' + f.id + '">' + L.icon('users', 's') + esc(f.name) + '</button>'; }).join('') : '') +
       '<div class="sep"></div>' + others.map(function (r) { return '<button role="menuitem" data-act="lvcopyroom" data-from="' + r.bots[0].id + '" data-to="' + b.id + '">' + L.icon('loop', 's') + 'Copy what ' + esc(r.name) + ' is playing</button>'; }).join('') +
-      '<a role="menuitem" class="item" href="#/outputs">' + L.icon('users', 's') + 'Rooms</a><a role="menuitem" class="item" href="#/settings">' + L.icon('gear', 's') + 'Bots and tokens</a>', 'Room ' + name);
+      '<button role="menuitem" data-act="lvkick" data-id="' + b.id + '">' + L.icon('leave', 's') + 'Kick ' + esc(b.name) + ' from ' + esc(name) + '</button>' +
+      '<div class="sep"></div><a role="menuitem" class="item" href="#/outputs">' + L.icon('users', 's') + 'Rooms</a><a role="menuitem" class="item" href="#/settings">' + L.icon('gear', 's') + 'Bots and tokens</a>', 'Room ' + name);
   };
   /* Must 2 (b): moving a bot from the room menu takes one click and asks nothing, so it gets the same 8-second Undo
      as Kick when the players there were hearing something. */
@@ -10083,12 +10405,14 @@ var L = (function () {
       L.render(); L.say(b.name + ' is joining ' + c.name + '. Undo is available for 8 seconds, or press Ctrl+Z.');
     }
   }
-  // Kick at once; if the players there were hearing something, Undo (8 s, or Ctrl+Z) puts the bot back with it.
+  /* Kick at once; Undo (8 s, or Ctrl+Z) puts the bot back in its channel with what it played, where it was. Round 8
+     (Nik, 11 Nov 20:33: "I don't see an undo button for kicking a bot in the live view"): Undo now shows after every
+     Kick, not only when the players were hearing something, at the top of On air, with focus on it. */
   L.acts.lvkick = function (el) {
     var b = L.bot(el.dataset.id); if (!b) return; touched(); var room = L.outputName(b), k = L.botKick(b.id); if (!k) return;
-    if (k.lost) softUndo(b.name + ' left ' + room, function () { k.restore(); }, 'onair', 'lv-room-' + b.id);
-    L.render(); L.say(b.name + ' left ' + room + (k.lost ? '. Undo is available for 8 seconds, or press Ctrl+Z.' : ''));
-    focusK(k.lost ? 'lv-undo2' : rooms().length ? 'lv-room-' + rooms()[0].bots[0].id : 'lv-addroom');
+    softUndo(b.name + ' left ' + room, function () { k.restore(); }, 'onair', 'lv-room-' + b.id);
+    L.render(); L.say(b.name + ' left ' + room + '. Undo is available for 8 seconds, or press Ctrl+Z.');
+    focusK('lv-undo2');
   };
   // Another bot takes over this channel: the new one joins, the old one leaves, and what played here goes on.
   L.acts.lvbotswap = function (el) {
@@ -10105,8 +10429,10 @@ var L = (function () {
     var idle = L.bots().filter(function (b) { return b.status === 'idle'; });
     // OUT-8: a new bot is made in Settings (the menu's last item).
     L.menu(el, (idle.map(function (b) { return '<div class="group">' + esc(b.name) + ' joins…</div>' + channelItems(b, 'lvaddjoin'); }).join('') || '<div class="item muted">Every bot is in a room.</div>') +
-      '<div class="sep"></div><a role="menuitem" class="item" href="#/settings">' + L.icon('plus', 's') + 'New bot…</a>', 'Add a room');
+      '<div class="sep"></div><button role="menuitem" data-act="lvaddbot">' + L.icon('plus', 's') + 'Add a bot…</button>', 'Add a room');
   };
+  // Add a bot… opens Settings' three steps over Live; once connected, the new bot joins from Add a room.
+  L.acts.lvaddbot = function () { if (L.acts.stadd) L.acts.stadd(); else L.route('#/settings'); };
   L.acts.lvaddjoin = function (el) {
     var b = L.bot(el.dataset.id), c = L.channel(el.dataset.g, el.dataset.c); if (!b || !c) return;
     L.botJoin(b.id, el.dataset.g, el.dataset.c);
@@ -10239,7 +10565,7 @@ var L = (function () {
     if (e.altKey && !e.ctrlKey && !e.metaKey && /^Digit[1-7]$/.test(e.code)) return goBox(+e.code.slice(5) - 1);
     if (e.altKey) return false;
     // Shift+Esc fades everything, even from a text box: two keys, so it is never pressed by accident.
-    if (isKey(e, 'fadeAll')) { closeKeys(false); L.fadeAll(3); return true; }
+    if (isKey(e, 'fadeAll')) { closeKeys(false); L.fadeAll(L.FADE); return true; }
     if (e.key === 'Escape' && S.keysOpen) { closeKeys(true); return true; }
     if (isKey(e, 'undo') && !typing) return undo();
     if (isKey(e, 'nextScene') && !singleKey('nextScene')) { if (!e.repeat) nextSceneKey(); return true; }
@@ -11301,14 +11627,19 @@ var L = (function () {
   // Only the choices that fit the track's role show (less to read): an underscore can fade out at its end, pick up
   // where it stopped and hand over; a loop bed picks up; a sting or a transition hands over (and a transition can
   // fade). A track with no role yet shows none of them.
-  var ROWS = { Underscore: ['ending', 'resume', 'then'], 'Loop bed': ['resume'], Sting: ['then'], Transition: ['ending', 'then'] };
+  /* Round 8 (Nik, 11 Nov 20:33: "I don't see pickup where it stops in details or audio profile views for a track"):
+     Pick up where it stopped shows for every music or ambience track that is not a sting, whatever its role, with the
+     same words; the other rows still follow the role. */
+  var ROWS = { Underscore: ['ending', 'then'], 'Loop bed': [], Sting: ['then'], Transition: ['ending', 'then'] };
   L.playRows = function (t) {
-    var rows = (t.kind !== 'fx' || t.role === 'Sting') && ROWS[t.role] || []; if (!rows.length) return '';
+    var rows = ((t.kind !== 'fx' || t.role === 'Sting') && ROWS[t.role] || []).slice();
+    if (t.kind !== 'fx' && t.role !== 'Sting') rows.splice(rows.indexOf('then') > -1 ? rows.indexOf('then') : rows.length, 0, 'resume');
+    if (!rows.length) return '';
     var fades = t.ending === 'fades', f = t.follow, has = function (x) { return rows.indexOf(x) > -1; };
     return (has('ending') ? '<div class="lb-tg"><div class="lb-tgl">Ending</div><div class="chips" role="group" aria-label="Ending">' +
       // One chip: pressed, it fades out before its end; not pressed (the usual), it plays to its last second.
       '<button class="chip lb-pick" data-act="r7ending" data-v="' + (fades ? 'hard' : 'fades') + '" data-k="lb-end-fades" aria-pressed="' + fades + '" title="Lyre fades it out before its end (the length is in the Audio profile); not pressed, it plays to its last second">' + (fades ? L.icon('check', 's') : '') + 'Fades out</button></div></div>' : '') +
-      (has('resume') ? '<label class="lv-switch lb-resume" title="A long underscore or bed starts again where it was last stopped"><input type="checkbox" role="switch" data-input="r7resume" data-k="lb-resume"' + (t.resume ? ' checked' : '') + '><span class="lv-switch-t"><b>Pick up where it stopped</b></span></label>' : '') +
+      (has('resume') ? '<label class="lv-switch lb-resume" title="Starts again where it was last stopped, the next time it plays"><input type="checkbox" role="switch" data-input="r7resume" data-k="lb-resume"' + (t.resume ? ' checked' : '') + '><span class="lv-switch-t"><b>Pick up where it stopped</b></span></label>' : '') +
       (!has('then') ? '' : '<div class="lb-tg"><div class="lb-tgl" id="lb-then-l">Then</div><div class="chips" role="group" aria-labelledby="lb-then-l">' +
       (f ? '<span class="chip"><span class="lane-dot music" aria-hidden="true"></span>' + esc(itemName(f)) + '<button class="x" data-act="r7follownone" data-k="lb-follow-x" title="Remove" aria-label="Stop following with ' + esc(itemName(f)) + '">' + L.icon('close') + '</button></span><button class="btn s ghost" data-act="r7follow" data-k="lb-follow">Change…</button>'
         : '<button class="btn s ghost" data-act="r7follow" data-k="lb-follow" title="When it ends, play a playlist or a track">' + L.icon('next', 's') + 'Follow with…</button>') + '</div></div>');
@@ -11361,6 +11692,178 @@ var L = (function () {
       p.markers.forEach(function (m) { if (m.at <= 0 || m.at >= c.dur) return; var i = document.createElement('i'); i.className = 'r7-mk' + (m.mix ? ' mix' : ''); i.style.left = (m.at / c.dur * 100) + '%'; i.title = m.label + ' ' + L.fmt(m.at); i.setAttribute('aria-hidden', 'true'); bar.appendChild(i); });
     });
   };
+})();
+
+;
+/* Round 8 (0.5.1, ROUND8.md): Lyre is the whole window. Added beside core.js and the screens, as round 7's files are.
+
+   The window (FND-16)
+     Lyre's page is the whole window: no Kenku FM tab bar, no Lyre Player tab. On Windows the window's own buttons
+     (minimise, maximise, close) are drawn by Windows at the top right, over Lyre's top strip (Electron's
+     titleBarOverlay). The prototype draws a stand-in of the same size: 138 × 36 px of the screen, whatever the text
+     size (so at 200 % it is 69 × 18 CSS px), marked data-window-buttons, hidden from screen readers and never
+     focusable (Windows' own buttons handle their own focus and names). It takes the colour of whatever is under it.
+     The space it needs is kept free by --wco-w and --wco-h (r8window.css): the top strip, Live's strip, Help's header
+     and every sheet keep clear of it, so nothing of Lyre's is ever under the buttons.
+     The empty parts of the top strip, Live's strip, Help's header and the logo drag the window (app-region: drag);
+     every control, field and text with hover text in them does not (no-drag), so each stays clickable and keeps its
+     hover text. Double-clicking an empty part maximises the window, and again puts it back (Windows does this for a
+     drag area; the prototype shows it on its stand-in).
+
+   Updates (SEC-14; the old main window used to show them)
+     L.updateEvent({ kind: 'downloaded' | 'up-to-date' | 'error', error })  what Electron's updater reported
+     downloaded  a standing note in the Saved pop-up's place: "Lyre has an update. Restart Lyre to use it." with
+                 Restart now; it stays until dismissed
+     error       the plain message (the same words as src/main/updateStatus.ts) once, as a warning card that says what
+                 to do; not again until a check has worked in between (the checks repeat every 15 minutes)
+
+   What a Kenku FM user brings (one-time move on the first start)
+     L.arriveFromKenkuFM({ plainToken, bookmarks })  the prototype's stand-in for that move (kept in its storage until
+     the page opens again): a token Kenku FM kept in plain text shows Settings › Discord bots' note once; the bookmarks
+     replace the sample's on What came across. */
+(function () {
+  var esc = L.esc, D = L.data;
+
+  /* ---------- what came across from Kenku FM ---------- */
+  var LEGACY_KEY = 'lyre-legacy';
+  // Kept in both stores: right after a reload, the page's local storage can read empty or an older value for a moment (file:// pages in
+  // Chromium), while the tab's session storage is up to date, so it is read first.
+  function readLegacy() { try { return JSON.parse(sessionStorage.getItem(LEGACY_KEY) || localStorage.getItem(LEGACY_KEY) || '{}') || {}; } catch (e) { return {}; } }
+  function writeLegacy(o) { try { var v = JSON.stringify(o); localStorage.setItem(LEGACY_KEY, v); sessionStorage.setItem(LEGACY_KEY, v); } catch (e) { /* storage unavailable: lasts for this visit */ } }
+  var legacy = readLegacy();
+  if (Array.isArray(legacy.bookmarks)) D.moved.bookmarks = legacy.bookmarks;
+  L.arriveFromKenkuFM = function (f) {
+    legacy = { token: !!f.plainToken, bookmarks: Array.isArray(f.bookmarks) ? f.bookmarks : undefined };
+    writeLegacy(legacy);
+  };
+  /* Settings › Discord bots shows the note while this is true; Got it ends it for good. */
+  // Read again each time: on a reload, storage read while the page's scripts first run can come back empty.
+  L.legacyTokenNote = function () { var now = readLegacy(); if (now.token) legacy = now; return !!legacy.token; };
+  L.legacyTokenSeen = function () { legacy.token = false; writeLegacy(legacy); };
+
+  /* ---------- the window's own buttons (the stand-in) ---------- */
+  var maxed = false;
+  var GLYPHS = {
+    min: '<path d="M1 5.5h9"/>',
+    max: '<rect x="1" y="1" width="9" height="9" rx="1"/>',
+    restore: '<rect x="1" y="3" width="7" height="7" rx="1"/><path d="M3 3V2a1 1 0 0 1 1-1h5a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H8"/>',
+    close: '<path d="M1 1l9 9M10 1l-9 9"/>'
+  };
+  function glyph(n) { return '<svg viewBox="0 0 11 11" aria-hidden="true" focusable="false">' + GLYPHS[n] + '</svg>'; }
+  function zoom() { return parseFloat(document.documentElement.style.zoom || '1') || 1; }
+  function buttons() {
+    var app = document.getElementById('app'), w = document.getElementById('lyre-winbtns');
+    if (!w && app) {
+      w = document.createElement('div');
+      w.id = 'lyre-winbtns'; w.className = 'winbtns'; w.setAttribute('aria-hidden', 'true'); w.setAttribute('data-window-buttons', '');
+      w.title = "The window's own buttons: Windows draws them in Lyre";
+      app.appendChild(w);
+      w.addEventListener('click', function (e) {
+        var b = e.target.closest('[data-wb]'); if (!b) return;
+        if (b.dataset.wb === 'max') toggleMax();
+        else L.toast(b.dataset.wb === 'min' ? 'Windows puts Lyre on the taskbar' : 'Windows closes Lyre');
+      });
+    }
+    return w;
+  }
+  function paintButtons() {
+    var w = buttons(); if (!w) return;
+    w.dataset.maximised = String(maxed);
+    w.innerHTML = '<span class="wb" data-wb="min">' + glyph('min') + '</span><span class="wb" data-wb="max">' + glyph(maxed ? 'restore' : 'max') + '</span><span class="wb wb-close" data-wb="close">' + glyph('close') + '</span>';
+    // Its colours are those of what is under it (in the app: titleBarOverlay's color and symbolColor, sent again when
+    // the theme changes or Help opens beside the screen).
+    var r = w.getBoundingClientRect(), under = document.elementsFromPoint(r.left + 2, r.top + 2).filter(function (e) { return !w.contains(e); })[0];
+    var bg = '', ink = '';
+    for (var n = under; n && !bg; n = n.parentElement) {
+      var cs = getComputedStyle(n), c = (cs.backgroundColor.match(/[\d.]+/g) || []).map(Number);
+      if (c.length === 3 || (c.length === 4 && c[3] > 0.9)) { bg = cs.backgroundColor; ink = getComputedStyle(under).color; }
+    }
+    w.style.setProperty('--wb-bg', bg || getComputedStyle(document.body).backgroundColor);
+    w.style.setProperty('--wb-ink', ink || getComputedStyle(document.body).color);
+  }
+  function toggleMax() { maxed = !maxed; paintButtons(); L.say(maxed ? 'Lyre fills the screen' : 'Lyre is back to its size'); }
+  L.windowMaximised = function () { return maxed; };
+
+  // Where the strips are and what in them is not a drag area (the same list as r8window.css).
+  var DRAG = '.viewhead, .lv-top, .help-head, .rail .logo';
+  var NO_DRAG = 'a, button, input, select, textarea, label, summary, [role=button], [role=link], [role=switch], [role=radio], [role=combobox], [tabindex]:not([tabindex="-1"]), [title], [contenteditable]';
+  document.addEventListener('dblclick', function (e) {
+    var t = e.target; if (!t.closest || !t.closest(DRAG) || t.closest(NO_DRAG) || t.closest('[data-window-buttons]')) return;
+    e.preventDefault(); toggleMax();
+  });
+
+  // The prototype is the window: the stage's top is where a window's top would be, for sheets (r8window.css).
+  function placeStage() {
+    var h = document.documentElement, sw = document.getElementById('stagewrap');
+    h.style.setProperty('--zoom', String(zoom()));
+    if (sw) h.style.setProperty('--app-top', sw.offsetTop + 'px');
+  }
+  var render0 = L.render;
+  L.render = function () { syncLegacy(); render0.apply(L, arguments); placeStage(); paintButtons(); paintProto8(); };
+  // The bookmarks read again before each paint, for the same reason as the token note above.
+  function syncLegacy() { var now = readLegacy(); if (Array.isArray(now.bookmarks)) { legacy = now; D.moved.bookmarks = now.bookmarks; } }
+  // Storage can still be empty while a reloaded page first paints: look again shortly after, and paint if it differs.
+  [60, 400, 1500, 4000].forEach(function (ms) { setTimeout(function () { var was = JSON.stringify([D.moved.bookmarks, legacy.token]); syncLegacy(); var now = readLegacy(); if (now.token) legacy = now; if (JSON.stringify([D.moved.bookmarks, legacy.token]) !== was) L.render(); }, ms); });
+  window.addEventListener('resize', function () { placeStage(); paintButtons(); });
+
+  /* ---------- updates ---------- */
+  // The same words as src/main/updateStatus.ts (plainUpdateError and AGAIN).
+  var PREFIX = 'Lyre could not check for updates', AGAIN = 'It tries again every 15 minutes; this version keeps working.';
+  function plainUpdateError(raw) {
+    raw = String(raw || '');
+    if (/ERR_INTERNET_DISCONNECTED|ENOTFOUND|ERR_NAME_NOT_RESOLVED|EAI_AGAIN|ERR_NETWORK_CHANGED/i.test(raw)) return PREFIX + ': this computer seems to be offline.';
+    if (/TIMED_OUT|ETIMEDOUT|ECONNRESET|ECONNREFUSED|HTTP Status 5\d\d|ERR_CONNECTION/i.test(raw)) return PREFIX + ': the update service did not answer.';
+    if (/Update\.exe/i.test(raw) && /not found|ENOENT|cannot find/i.test(raw)) return PREFIX + ': the installer\'s updater is missing. Install Lyre again from the latest installer to get updates.';
+    if (/Update\.exe|Squirrel|Command failed/i.test(raw)) return PREFIX + ': Windows could not run Lyre\'s updater. Restart the computer; if it keeps happening, install Lyre again from the latest installer.';
+    var detail = (raw.split(/\r?\n/)[0] || '').trim().slice(0, 160);
+    return detail ? PREFIX + ' (' + detail + ').' : PREFIX + '.';
+  }
+  var told = false;
+  function slot(id, role) {
+    var box = document.getElementById('lyre-toasts'), el = document.getElementById(id);
+    if (!el && box) { el = document.createElement('div'); el.id = id; el.className = 'toast'; el.setAttribute('role', role); box.appendChild(el); }
+    return el;
+  }
+  function clearSlot(id) { var el = document.getElementById(id); if (el) { el.innerHTML = ''; el.className = 'toast'; } }
+  L.updateEvent = function (e) {
+    e = e || {};
+    if (e.kind === 'downloaded') {
+      told = false; clearSlot('lyre-upd-fail');
+      var r = slot('lyre-upd-ready', 'status');
+      r.innerHTML = L.icon('restart', 's') + '<span class="grow">Lyre has an update. Restart Lyre to use it.</span>' +
+        '<button class="btn s primary" type="button" data-act="updrestart" data-k="upd-restart">Restart now</button>' +
+        '<button class="closer" type="button" data-act="updx" data-v="ready" aria-label="Dismiss: Lyre has an update" title="Dismiss">' + L.icon('close') + '</button>';
+      r.className = 'toast t-stand';
+    } else if (e.kind === 'up-to-date') {
+      told = false;
+    } else if (e.kind === 'error') {
+      if (told) return;
+      told = true;
+      var plain = plainUpdateError(e.error), f = slot('lyre-upd-fail', 'alert');
+      f.innerHTML = L.icon('warn', 's') + '<div class="grow"><b>' + esc(plain) + '</b> <span>' + esc(AGAIN) + '</span></div>' +
+        '<button class="closer" type="button" data-act="updx" data-v="fail" aria-label="Dismiss: ' + esc(plain) + '" title="Dismiss">' + L.icon('close') + '</button>';
+      f.className = 'toast t-fail';
+    }
+    L.placeToasts();
+  };
+  L.acts.updx = function (el) { clearSlot(el.dataset.v === 'fail' ? 'lyre-upd-fail' : 'lyre-upd-ready'); L.placeToasts(); };
+  // The app: autoUpdater.quitAndInstall(); Lyre closes and opens again on the new version.
+  L.acts.updrestart = function () { clearSlot('lyre-upd-ready'); L.toast('Lyre closes and opens again on the new version (not in the prototype)'); };
+
+  /* ---------- the prototype's strip: show what cannot happen here ---------- */
+  function paintProto8() {
+    var p = document.getElementById('proto'); if (!p || p.dataset.r8) return;
+    p.dataset.r8 = '1';
+    var add = function (id, label, title, fn) {
+      var b = document.createElement('button'); b.type = 'button'; b.id = id; b.textContent = label; b.title = title;
+      b.addEventListener('click', fn); p.appendChild(b);
+    };
+    add('pUpdReady', 'Update downloaded', 'Lyre\'s updater has downloaded a new version', function () { L.updateEvent({ kind: 'downloaded' }); });
+    add('pUpdFail', 'Update check fails', 'The next update check fails because the computer is offline', function () { told = false; L.updateEvent({ kind: 'error', error: 'net::ERR_INTERNET_DISCONNECTED' }); });
+    add('pLegacy', 'Came from Kenku FM', 'Start as someone coming straight from Kenku FM, whose bot token was kept in plain text', function () {
+      L.arriveFromKenkuFM({ plainToken: true, bookmarks: D.moved.bookmarks }); L.route('#/settings');
+    });
+  }
 })();
 
 </script>

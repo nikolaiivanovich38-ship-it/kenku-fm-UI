@@ -14,13 +14,13 @@
  * be unit-tested.
  */
 import type { Room } from "../../common/domain/types";
-import type { MediaBridge, PrepareAnswer } from "../../player/engine/sources/mainMediaResolver";
+import type { MediaBridge, PrepareAnswer } from "../../engine/sources/mainMediaResolver";
 
 /** Main → page: the channel's end. Must match PLAYER_AUDIO_PORT in src/main/broadcast/playerAudioBridge.ts. */
 export const LYRE_AUDIO_PORT_CHANNEL = "PLAYER_AUDIO_PORT";
 /** Main → page: the rooms. Must match PLAYER_ROOMS there. */
 export const LYRE_ROOMS_CHANNEL = "PLAYER_ROOMS";
-/** Preload → page. Must match PLAYER_AUDIO_PORT_MESSAGE in src/player/engine/rooms/browserBridge.ts. */
+/** Preload → page. Must match PLAYER_AUDIO_PORT_MESSAGE in src/engine/rooms/browserBridge.ts. */
 export const PORT_MESSAGE = "lyre-player-audio-port";
 
 /** What the new page's `window.lyre.audio` offers. */

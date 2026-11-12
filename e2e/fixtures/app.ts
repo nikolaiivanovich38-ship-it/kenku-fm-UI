@@ -6,7 +6,9 @@
  *
  * Usage in a spec:
  *   import { test, expect } from "./fixtures/app";
- *   test("…", async ({ app, mainWindow, playerView, errors }) => { … });
+ *   test("…", async ({ app, mainWindow, errors }) => { … });
+ *
+ * FND-16 (0.5.1): the main window's own page is the Lyre page (title "Lyre"); the old player view is gone.
  *
  * A test that needs to restart the app (persistence, data carry-over) uses
  * `launchApp` instead of `app`: each call starts another copy, which is
@@ -34,10 +36,8 @@ export type LaunchOptions = {
 
 export type LaunchedApp = {
   app: ElectronApplication;
-  /** The main window (title "Lyre"). */
+  /** The main window: the Lyre page (title "Lyre"). */
   mainWindow(): Promise<Page>;
-  /** The player view: playlists and soundboards (title "Lyre Player"). */
-  playerView(): Promise<Page>;
   /** Quit the app the way a user would, so it saves its data, and wait for it to exit. */
   close(): Promise<void>;
 };
@@ -50,10 +50,8 @@ type AppFixtures = {
   /** Start a copy of the app. */
   launchApp: (options?: LaunchOptions) => Promise<LaunchedApp>;
   app: ElectronApplication;
-  /** The main window (title "Lyre"). */
+  /** The main window: the Lyre page (title "Lyre"). */
   mainWindow: Page;
-  /** The player view: playlists and soundboards (title "Lyre Player"). */
-  playerView: Page;
   /** Fails the test when `errors` holds anything (runs after the app has closed). */
   problemCheck: void;
 };
@@ -101,7 +99,7 @@ export const test = base.extend<AppFixtures>({
 
   // eslint-disable-next-line no-empty-pattern
   errors: async ({}, use) => {
-    await use({ pageErrors: [], console: [], mainLog: [], ignoredConsole: [], expectedRefusals: [] });
+    await use({ pageErrors: [], console: [], mainLog: [], ignoredConsole: [], expectedRefusals: [], expectedMainRefusals: [] });
   },
 
   problemCheck: [
@@ -179,12 +177,6 @@ export const test = base.extend<AppFixtures>({
           await page.waitForLoadState("domcontentloaded");
           return page;
         },
-        playerView: async () => {
-          // The player view is created by the main window once it has rendered.
-          const page = await pageWithTitle(app, "Lyre Player");
-          await page.waitForLoadState("domcontentloaded");
-          return page;
-        },
         close: () => {
           closing ??= quitApp(app);
           return closing;
@@ -208,13 +200,6 @@ export const test = base.extend<AppFixtures>({
 
   mainWindow: async ({ app }, use) => {
     const page = await pageWithTitle(app, "Lyre");
-    await page.waitForLoadState("domcontentloaded");
-    await use(page);
-  },
-
-  playerView: async ({ app, mainWindow }, use) => {
-    void mainWindow;
-    const page = await pageWithTitle(app, "Lyre Player");
     await page.waitForLoadState("domcontentloaded");
     await use(page);
   },

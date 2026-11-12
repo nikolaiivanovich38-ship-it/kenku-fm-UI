@@ -42,3 +42,11 @@ describe("Help > About (rebrand)", () => {
     expect(options.copyright).toMatch(/GPL-3\.0/);
   });
 });
+
+describe("FND-16: no Tab menu (website tabs are gone from Lyre)", () => {
+  it("has no New Tab or Close Tab, so Ctrl+T and Ctrl+W are free", async () => {
+    const template = JSON.stringify(electron.Menu.buildFromTemplate.mock.calls[0][0]);
+    expect(template).not.toContain("New Tab");
+    expect(template).not.toContain("Close Tab");
+  });
+});

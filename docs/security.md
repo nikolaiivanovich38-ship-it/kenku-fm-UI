@@ -1075,3 +1075,56 @@ Ctrl+Alt with a letter or digit (that is AltGr on a Belgian keyboard, which type
 3. Settings › Keyboard shortcuts: give Next scene Ctrl+Alt+2 and turn on "in other programs too": it is refused,
    naming AltGr. Give Fade everything out Alt+F4: refused. Give Next scene Ctrl+Shift+N: accepted; in Discord, AltGr+é
    still types @.
+
+## w51-main
+
+0.5.1 (FND-16): the old main window and the old Player are gone; the window's own page is the Lyre page.
+
+### Roles and pages
+
+- The window loads the Lyre page with Lyre's preload; `src/index.ts` registers it as `lyre-view` and pins it to its own
+  document (`lockAppPage`). Links it opens go to the system browser, https only (`openExternalIfAllowed`); no other
+  window is ever opened.
+- `player-view` is gone (its clipboard permission and speaker-selection check with it; `lyre-view` keeps
+  speaker-selection as a check only). `main-window` stays in `AppPageRole` but no page has it: the website-tab,
+  local-file and device-capture code kept for OUT-12 listens only on channels from it, so nothing can reach that
+  code. `src/main/security/keptForLater.test.ts` checks this (no such channel from `lyre-view`, nothing makes
+  `BrowserViewManagerMain`, `src/index.ts` trusts its window as `lyre-view`).
+- The app pages are the Lyre page and the capture window; `appPageCsp.test.ts` pins both policies.
+- Remote control: no server listens (RemoteOff). `remote-control.json` from an older version is never read.
+- The one-time moves read the old storage (`persist:root`, `persist:player`) in an isolated world of the Lyre page
+  (`legacy/pageStorage.ts`, world 1999), so the page's scripts cannot change what is read, and never write it. A plain
+  token found there goes straight to `OutputManager.importLegacyToken` (kept encrypted, SEC-5); `old-window.json`
+  never holds it.
+
+### Channels
+
+| Channel | Sent by | Arguments | Handled in |
+|---|---|---|---|
+| `LYRE_BOT_LEGACY_NOTE_SEEN` (send) | Lyre page | none | `LyreOutputsBridge` → `OutputManager.legacyTokenNoteSeen` (remembered in `old-window.json`) |
+| `UPDATE_RESTART` (send) | Lyre page | none; acted on only while an update is ready | `LyreManager` → `autoUpdater.quitAndInstall` |
+| `LYRE_TITLE_BAR` (send) | Lyre page | one object exactly `{ color, symbolColor }`, each `#rrggbb` (`isTitleBarColours`) | `WindowFrame` → `setTitleBarOverlay` (height fixed at 36) |
+| `LYRE_WINDOW_MAXIMISE` (send) | Lyre page | none | `WindowFrame` (maximise or put back) |
+| `LYRE_EMPTY_AUDIO_CACHE` (invoke) | Lyre page | none | `appInfoIpc.ts` → the library's audio cache only (website data is no longer cleared from the page) |
+| `REMOTE_GET`, `REMOTE_NEW_CODE` (invoke) | Lyre page | none | `RemoteOff`: an "off" state, no code |
+| `REMOTE_SET` (invoke) | Lyre page | as before (`isRemoteChange`) | `RemoteOff`: refused, "Remote control returns with Stream Deck support." |
+| removed: `GET_VERSION`, `GET_PLATFORM`, `CLEAR_CACHE`, `WINDOW_*`, `LYRE_GET_URL`, `WINDOW_SETTINGS_STATE`, `LYRE_WINDOW_SETTINGS_*`, `LYRE_LOCAL_FOLDERS_*`, `LYRE_CLEAR_WEBSITE_DATA`, `REMOTE_MOVE_OLD_SETTING`, `AUDIO_CAPTURE_SET_STREAMING_MODE`, `OUTPUTS_*`, `BOT_*`, `OUTPUT_SET_MUTED`, `ROOM_SET_VOLUME`, `PLAYER_*` | | | |
+| kept, unreachable (from `main-window` only): `BROWSER_VIEW_*`, `LOCAL_FILES_*`, `AUDIO_CAPTURE_*` | | | |
+
+`MEDIA_PREPARE` is from `lyre-view` only. `BROWSER_VIEW_CREATE_BROWSER_VIEW` takes no kind: website tabs only.
+
+### Tests
+
+| Test | Covers |
+|---|---|
+| `src/index.test.ts` | The window is the Lyre page with Lyre's preload, trusted as `lyre-view`; https links to the system browser; no frame of its own (titleBarOverlay 36 px); bots log in once when it shows |
+| `src/main/window/windowFrame.test.ts`, `src/lyre/window/*.test.tsx` | Colours exactly `#rrggbb`; maximise only from the Lyre page; double-click only on a strip's empty part |
+| `src/main/remote/remoteOff.test.ts` | Off state, refusal in plain words, Lyre page only |
+| `src/main/legacy/oldWindowMove.test.ts`, `src/main/data/import/legacyCatchUp.test.ts` | One-time move: token never written, bookmarks bounded and one line each, damaged storage tolerated; catch-up doubles nothing |
+| `src/main/security/keptForLater.test.ts` | The kept code stays unreachable |
+| `e2e/lyre.spec.ts`, `e2e/upgrade.spec.ts` | Protections of the Lyre page as the window; links leave for the browser; a Kenku FM user's token moves and logs in, the old storage untouched |
+
+### Manual checks (Windows)
+
+1. Settings: no Remote control box. `netstat -ano | findstr :3333` lists nothing.
+2. Add a bot › Open the Discord Developer Portal opens the default browser, not a Lyre window.

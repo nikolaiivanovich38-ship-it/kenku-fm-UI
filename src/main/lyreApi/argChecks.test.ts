@@ -118,4 +118,15 @@ describe("LyreApi argument shapes (security review 5)", () => {
     expect(Object.keys(saved.display).sort()).toEqual(["density", "highContrast", "textSize"]);
     expect(saved.display.textSize).toBe(125);
   });
+
+  it("FND-16: Sound to Discord is one of this computer's settings, kept in its file", async () => {
+    expect(argumentProblem("settings", "setComputer", [{ streamingMode: "lowLatency" }])).toBeNull();
+    expect(argumentProblem("settings", "setComputer", [{ streamingMode: 3 }])).toBe("args[0].streamingMode");
+    const { lyre, dir } = await api();
+    expect((await lyre.settings.get()).streamingMode).toBe("performance");
+    expect(await lyre.settings.setComputer({ streamingMode: "fast" as never })).toMatchObject({ ok: false, refusal: { code: "invalid" } });
+    await lyre.settings.setComputer({ streamingMode: "lowLatency" });
+    const saved = JSON.parse(fs.readFileSync(path.join(dir, "library", "this-computer.json"), "utf8"));
+    expect(saved.streamingMode).toBe("lowLatency");
+  });
 });

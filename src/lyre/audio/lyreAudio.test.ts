@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { keyOfPlace, placeKey, shuffledOrder, type Room } from "../../common/domain";
 import { padIsOn, type NowPlaying } from "./lyreAudio";
-import type { FakeGain } from "../../player/engine/testing/fakeAudio";
+import type { FakeGain } from "../../engine/testing/fakeAudio";
 import { lyreAudioOnFakes, staticAudioLibrary, testTrack, type AudioTestData } from "./testing/onFakes";
 
 const TAVERN: Room = { botId: "bot-a", name: "Tavern" };

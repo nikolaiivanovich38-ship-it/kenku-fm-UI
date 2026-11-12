@@ -1,27 +1,24 @@
-import { globalShortcut, ipcMain, webContents } from "electron";
+import { autoUpdater, globalShortcut, ipcMain, webContents } from "electron";
 import { LYRE_GLOBAL_KEY, type GlobalKeysRequest } from "../../common/globalKeys";
 import { GlobalKeys, type GlobalShortcutLike } from "../globalKeys";
 import { guardIpc } from "../security/ipcGuard";
 import { trustedContents } from "../security/trustedContents";
 import { updateStatus, type UpdateStatus } from "../updateStatus";
 
-declare const LYRE_WINDOW_WEBPACK_ENTRY: string;
-
 /**
- * WP5 (w3-shell): the main process's side of the new interface page, shown in
- * the main window's built-in "Lyre" tab beside the old player.
+ * WP5 (w3-shell): the main process's side of the Lyre page.
  *
- * The page itself is created by BrowserViewManagerMain (kind "lyre"), which
- * gives it its preload, registers it as trusted ("lyre-view") and pins it to
- * its own document. This manager tells the main window where the page is and
- * finds the page for other managers (wave 3: the audio host and the library
- * API wire themselves to it).
+ * FND-16 (0.5.1): the page is the window's own page. src/index.ts gives the
+ * window Lyre's preload, registers the page as trusted ("lyre-view") and pins
+ * it to its own document; SessionManager attaches it here when it is made and
+ * after every reload. This manager finds the page for other managers (wave 3:
+ * the audio host and the library API wire themselves to it).
  */
 export class LyreManager {
   /** SEC-8: message listeners; each channel accepts only the pages IPC_CHANNELS names. */
   private ipc = guardIpc(ipcMain);
   /**
-   * Told when the Lyre page has been created (already trusted as "lyre-view" by BrowserViewManagerMain).
+   * Told when the Lyre page is there (the window's own page, trusted as "lyre-view" by src/index.ts).
    * --- w3-host wiring --- SessionManager sets this to
    *   (view) => this.playbackManager.setLyreView(view)
    */
@@ -36,13 +33,17 @@ export class LyreManager {
   private globalKeys: GlobalKeys | null = null;
   private readonly shortcuts?: GlobalShortcutLike;
 
-  constructor(options: { updates?: UpdateStatus; shortcuts?: GlobalShortcutLike } = {}) {
+  constructor(options: { updates?: UpdateStatus; shortcuts?: GlobalShortcutLike; restartIntoUpdate?: () => void } = {}) {
     const updates = options.updates ?? updateStatus;
     this.shortcuts = options.shortcuts;
-    this.ipc.on("LYRE_GET_URL", this._handleGetURL);
     // SEC-14: Settings (round 7) shows what automatic updates are doing, and the last problem in plain words.
     this.ipc.handle("UPDATE_GET", () => updates.state());
     this.stopUpdateNews = updates.onChange((state) => this.getView()?.send("UPDATE_STATE", state));
+    // FND-16: Restart now on Lyre's update note (until 0.5.1 the old main window said to restart).
+    const restart = options.restartIntoUpdate ?? (() => autoUpdater.quitAndInstall());
+    this.ipc.on("UPDATE_RESTART", () => {
+      if (updates.state().kind === "ready") restart();
+    });
     // --- w6-rooms ---
     this.ipc.handle("LYRE_GLOBAL_KEYS_SET", (_event, request) => this.keys().set(request as GlobalKeysRequest));
   }
@@ -66,15 +67,11 @@ export class LyreManager {
       .find((contents) => !contents.isDestroyed() && trustedContents.roleOf(contents) === "lyre-view");
   }
 
-  /** BrowserViewManagerMain made a view of kind "lyre"; anything not trusted as the Lyre page is ignored. */
+  /** The Lyre page is there (made or loaded again); anything not trusted as the Lyre page is ignored. */
   attachView(view: Electron.WebContents) {
     if (trustedContents.roleOf(view) !== "lyre-view") {
       return;
     }
     this.onAttachView?.(view);
   }
-
-  _handleGetURL = (event: Electron.IpcMainEvent) => {
-    event.returnValue = LYRE_WINDOW_WEBPACK_ENTRY;
-  };
 }

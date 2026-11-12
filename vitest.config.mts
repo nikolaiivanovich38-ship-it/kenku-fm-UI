@@ -14,7 +14,7 @@ const webpackAssets: Plugin = {
 /**
  * Test configuration.
  * - "main": main-process and pure logic tests, run in Node.
- * - "ui": React components and hooks for the player, the main window and the new interface (src/lyre), run in jsdom.
+ * - "ui": the Lyre page's React components and hooks (src/lyre) and the engine it hosts, run in jsdom.
  */
 export default defineConfig({
   test: {
@@ -38,8 +38,7 @@ export default defineConfig({
           name: "ui",
           environment: "jsdom",
           include: [
-            "src/player/**/*.test.{ts,tsx}",
-            "src/renderer/**/*.test.{ts,tsx}",
+            "src/engine/**/*.test.{ts,tsx}",
             "src/lyre/**/*.test.{ts,tsx}",
           ],
           setupFiles: ["src/test/setupUi.ts"],

@@ -252,14 +252,19 @@
   // Only the choices that fit the track's role show (less to read): an underscore can fade out at its end, pick up
   // where it stopped and hand over; a loop bed picks up; a sting or a transition hands over (and a transition can
   // fade). A track with no role yet shows none of them.
-  var ROWS = { Underscore: ['ending', 'resume', 'then'], 'Loop bed': ['resume'], Sting: ['then'], Transition: ['ending', 'then'] };
+  /* Round 8 (Nik, 11 Nov 20:33: "I don't see pickup where it stops in details or audio profile views for a track"):
+     Pick up where it stopped shows for every music or ambience track that is not a sting, whatever its role, with the
+     same words; the other rows still follow the role. */
+  var ROWS = { Underscore: ['ending', 'then'], 'Loop bed': [], Sting: ['then'], Transition: ['ending', 'then'] };
   L.playRows = function (t) {
-    var rows = (t.kind !== 'fx' || t.role === 'Sting') && ROWS[t.role] || []; if (!rows.length) return '';
+    var rows = ((t.kind !== 'fx' || t.role === 'Sting') && ROWS[t.role] || []).slice();
+    if (t.kind !== 'fx' && t.role !== 'Sting') rows.splice(rows.indexOf('then') > -1 ? rows.indexOf('then') : rows.length, 0, 'resume');
+    if (!rows.length) return '';
     var fades = t.ending === 'fades', f = t.follow, has = function (x) { return rows.indexOf(x) > -1; };
     return (has('ending') ? '<div class="lb-tg"><div class="lb-tgl">Ending</div><div class="chips" role="group" aria-label="Ending">' +
       // One chip: pressed, it fades out before its end; not pressed (the usual), it plays to its last second.
       '<button class="chip lb-pick" data-act="r7ending" data-v="' + (fades ? 'hard' : 'fades') + '" data-k="lb-end-fades" aria-pressed="' + fades + '" title="Lyre fades it out before its end (the length is in the Audio profile); not pressed, it plays to its last second">' + (fades ? L.icon('check', 's') : '') + 'Fades out</button></div></div>' : '') +
-      (has('resume') ? '<label class="lv-switch lb-resume" title="A long underscore or bed starts again where it was last stopped"><input type="checkbox" role="switch" data-input="r7resume" data-k="lb-resume"' + (t.resume ? ' checked' : '') + '><span class="lv-switch-t"><b>Pick up where it stopped</b></span></label>' : '') +
+      (has('resume') ? '<label class="lv-switch lb-resume" title="Starts again where it was last stopped, the next time it plays"><input type="checkbox" role="switch" data-input="r7resume" data-k="lb-resume"' + (t.resume ? ' checked' : '') + '><span class="lv-switch-t"><b>Pick up where it stopped</b></span></label>' : '') +
       (!has('then') ? '' : '<div class="lb-tg"><div class="lb-tgl" id="lb-then-l">Then</div><div class="chips" role="group" aria-labelledby="lb-then-l">' +
       (f ? '<span class="chip"><span class="lane-dot music" aria-hidden="true"></span>' + esc(itemName(f)) + '<button class="x" data-act="r7follownone" data-k="lb-follow-x" title="Remove" aria-label="Stop following with ' + esc(itemName(f)) + '">' + L.icon('close') + '</button></span><button class="btn s ghost" data-act="r7follow" data-k="lb-follow">Change…</button>'
         : '<button class="btn s ghost" data-act="r7follow" data-k="lb-follow" title="When it ends, play a playlist or a track">' + L.icon('next', 's') + 'Follow with…</button>') + '</div></div>');
