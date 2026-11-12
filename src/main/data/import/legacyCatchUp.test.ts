@@ -13,6 +13,7 @@ import { makeClock, makeTempFolder } from "../test/helpers";
 import { listTracks, resolveTrackLocation, updateTrack } from "../repo/tracks";
 import { deletePlaylist, listPlaylistItems, listPlaylists } from "../repo/playlists";
 import { getBoardLayout, listBoards } from "../repo/boards";
+import { addRoot } from "../repo/roots";
 import { bringInOldPlayer, catchUpLegacyLibrary, importLegacyLibrary, LEGACY_CATCH_UP_JOB } from "./legacy";
 import { writeAudio } from "./testing/fixtures";
 
@@ -67,11 +68,11 @@ function laterState(): OldState {
   state.playlists.tracks["t-harbour-2"] = { id: "t-harbour-2", url: file("Scores/harbour.flac"), title: "Harbour at dusk" };
   state.playlists.tracks["t-road"] = { id: "t-road", url: file("Scores/road.flac"), title: "The road" };
   // A new sound on a board Lyre has, and a new board.
-  state.soundboards.sounds["s-thunder"] = { id: "s-thunder", url: file("Effects/thunder.wav"), title: "Thunder", loop: false, volume: 1, fadeIn: 0, fadeOut: 0 };
+  state.soundboards.sounds["s-thunder"] = { id: "s-thunder", url: file("Ambience/thunder.wav"), title: "Thunder", loop: false, volume: 1, fadeIn: 0, fadeOut: 0 };
   state.soundboards.soundboards.byId["sb-weather"].sounds.push("s-thunder");
   state.soundboards.soundboards.byId["sb-doors"] = { id: "sb-doors", title: "Doors", background: "", sounds: ["s-creak"] };
   state.soundboards.soundboards.allIds.push("sb-doors");
-  state.soundboards.sounds["s-creak"] = { id: "s-creak", url: file("Effects/creak.wav"), title: "Creak", loop: false, volume: 1, fadeIn: 0, fadeOut: 0 };
+  state.soundboards.sounds["s-creak"] = { id: "s-creak", url: file("Ambience/creak.wav"), title: "Creak", loop: false, volume: 1, fadeIn: 0, fadeOut: 0 };
   return state;
 }
 
@@ -157,6 +158,84 @@ describe("catchUpLegacyLibrary (FND-16)", () => {
     const job = library.store.get<{ state: string; detail: string }>("SELECT state, detail FROM library_jobs WHERE name = ?", LEGACY_CATCH_UP_JOB);
     expect(job?.state).toBe("done");
     expect(JSON.parse(job!.detail).report).toMatchObject({ status: "brought-in", playlists: ["Travel"], boards: ["Doors"] });
+  });
+
+  it("stopped at any of its writes, finishes at the next start with everything new there once (CR51-2)", async () => {
+    // The whole catch-up without a stop, for comparison.
+    await firstImportByAnOlderLyre(firstState());
+    const later = persisted(laterState());
+    await catchUpLegacyLibrary(library, later);
+    const whole = { tracks: listTracks(library.store).length, combat: titlesIn("pl-combat"), travel: titlesIn("pl-travel"), boards: listBoards(library.store).length };
+    library.close();
+
+    for (let stopAt = 1; stopAt <= 6; stopAt++) {
+      temp.cleanup();
+      temp = makeTempFolder("lyre-catch-up-");
+      music = path.join(temp.folder, "Music");
+      library = openLibrary({ folder: path.join(temp.folder, "library"), now: clock.now });
+      await firstImportByAnOlderLyre(firstState());
+      const state = persisted(laterState());
+      // The power goes at write number `stopAt`: its rows were written but never committed.
+      const store = library.store;
+      const real = store.changeWithoutHistory.bind(store);
+      let writes = 0;
+      store.changeWithoutHistory = ((fn: () => unknown) =>
+        real(() => {
+          const result = fn();
+          if (++writes === stopAt) throw new Error("power cut");
+          return result;
+        })) as typeof store.changeWithoutHistory;
+      const first = await catchUpLegacyLibrary(library, state).catch((error: Error) => error);
+      store.changeWithoutHistory = real;
+
+      // The next start.
+      const report = await catchUpLegacyLibrary(library, state);
+      const label = `stopped at write ${stopAt}`;
+      expect(report.status, label).toBe(first instanceof Error ? "brought-in" : "already-done");
+      expect(report.playlists, label).toEqual(["Travel"]);
+      expect(report.boards, label).toEqual(["Doors"]);
+      expect(report.addedTo, label).toEqual(["Combat", "Weather"]);
+      expect(report.notBroughtBack, label).toEqual([]);
+      expect(listTracks(library.store).length, label).toBe(whole.tracks);
+      expect(titlesIn("pl-combat"), label).toEqual(whole.combat);
+      expect(titlesIn("pl-travel"), label).toEqual(whole.travel);
+      expect(listBoards(library.store).length, label).toBe(whole.boards);
+      expect(getBoardLayout(library.store, "sb-weather").spare.map((pad) => pad.label), label).toEqual(["Thunder"]);
+      expect((await catchUpLegacyLibrary(library, state)).status, label).toBe("already-done");
+      library.close();
+    }
+    library = openLibrary({ folder: path.join(temp.folder, "library"), now: clock.now });
+  });
+
+  it("brings in no file from a folder the library does not use, and names it (CR51-11)", async () => {
+    await firstImportByAnOlderLyre(firstState());
+    const state = laterState();
+    // A path planted outside every folder the library knows (Lyre's own data folder, say).
+    const planted = writeAudio(temp.folder, "library/secret.flac");
+    state.playlists.tracks["t-planted"] = { id: "t-planted", url: encodeFilePath(planted), title: "Planted" };
+    state.playlists.playlists.byId["pl-travel"].tracks.push("t-planted");
+    state.playlists.playlists.byId["pl-combat"].tracks.push("t-planted");
+    const report = await catchUpLegacyLibrary(library, persisted(state));
+    expect(report.status).toBe("brought-in");
+    expect(listTracks(library.store).some((t) => t.title === "Planted")).toBe(false);
+    expect(titlesIn("pl-travel")).toEqual(["Harbour", "The road"]);
+    expect(titlesIn("pl-combat")).toEqual(["Boss", "Harbour", "New boss"]);
+    expect(report.leftOut).toEqual(["secret.flac"]);
+    expect(report.summary).toMatch(/secret\.flac/);
+  });
+
+  it("brings in a file from a library folder (Library › folders) or from a folder the first import's files are in", async () => {
+    await firstImportByAnOlderLyre(firstState());
+    const state = laterState();
+    // Under the folder the first import's Combat files are in, one level down: still that folder.
+    state.playlists.tracks["t-deeper"] = { id: "t-deeper", url: file("Scores/Act 2/deeper.flac"), title: "Deeper" };
+    // A new folder that is one of the library's folders.
+    await addRoot(library.store, { name: "Sound effects", path: path.join(music, "Effects") });
+    state.playlists.tracks["t-door"] = { id: "t-door", url: file("Effects/Doors/door.wav"), title: "Door" };
+    state.playlists.playlists.byId["pl-travel"].tracks.push("t-deeper", "t-door");
+    const report = await catchUpLegacyLibrary(library, persisted(state));
+    expect(report.leftOut).toEqual([]);
+    expect(titlesIn("pl-travel")).toEqual(["Harbour", "The road", "Deeper", "Door"]);
   });
 
   it("runs at each start as part of bringing the old player in: the first move, or else the catch-up", async () => {

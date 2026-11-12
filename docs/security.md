@@ -1162,6 +1162,9 @@ Fixes for the independent code and security review of 0.5.1 (CR51-1 to CR51-11).
 
 ### In plain language
 
+- If Lyre is closed while it brings in what the old Player gained since your first start, nothing is half done: the
+  next start brings it all in, once. Files from folders your library does not use are left out and named, so you can
+  add their folder.
 - A bot token Kenku FM kept unprotected is deleted from Lyre's own storage as soon as Lyre has saved it encrypted, as
   0.5.0 did. If saving fails, the unprotected copy stays and Lyre tries again at the next start. On a computer that
   cannot encrypt (some Linux set-ups) it stays, and Settings says so.
@@ -1176,6 +1179,14 @@ Fixes for the independent code and security review of 0.5.1 (CR51-1 to CR51-11).
   stored text is still what was read. On `not-saved`, or when the write did not happen, nothing is recorded and the
   move runs again at the next start. `tokenMoved` (the Settings note) is true only for `saved` and `session-only`.
   Chromium's LevelDB may keep the old value in its log until it compacts it, so the note still recommends a new token.
+- CR51-2: the catch-up (`catchUpLegacyLibrary`) reads every new file first, then saves the new tracks, the new
+  playlists and boards, the additions and its `done` record in one transaction. A stop part-way commits nothing; the
+  next start makes the same plan and does it all once.
+- CR51-11: the catch-up takes a new file only when it lies under a library folder or the folder of a track already in
+  the library (`foldersInUse`, the same folders the player may read, `mediaFolders`). Any other file named in
+  `persist:player` is left out and named in the report (`leftOut`), so a path planted there cannot open another
+  folder to `MEDIA_PREPARE` and `lyre-media:`. A playlist made only of files the library has is still named, not
+  brought back (the library cannot tell it from one removed in Lyre).
 - Test builds only: `CUE_DESK_FAKE_KEYRING=1` saves tokens with a reversible, marked stand-in
   (`src/main/broadcast/testing/fakeKeyring.ts`), so end-to-end tests on a machine without a keyring can restart with
   a saved bot. Release builds compile it out (`__CUE_DESK_TEST_BUILD__`).
@@ -1185,6 +1196,7 @@ Fixes for the independent code and security review of 0.5.1 (CR51-1 to CR51-11).
 | Test | Covers |
 |---|---|
 | `src/main/legacy/oldWindowMove.test.ts` | The plain token leaves `persist:root` only after it is saved encrypted; a failed save, a failed delete and a page that has gone leave it and record nothing; no keyring leaves it; a value not shaped like a token is not handed over |
+| `src/main/data/import/legacyCatchUp.test.ts` | A catch-up stopped at any write finishes at the next start, nothing doubled, recorded once; a file outside the library's folders is left out and named; one under a library folder or a known folder comes in |
 | `src/main/broadcast/OutputManager.test.ts`, `botTokenStore.test.ts` | What `importLegacyToken` answers; a token whose file could not be written is not "remembered" |
 | `src/main/managers/SessionManager.test.ts` | The compare-and-write script in the isolated world |
 | `e2e/upgrade.spec.ts` | In the packaged app: the plain token leaves the old storage and the rest stays; a saved bot logs in at the next start without Connect |
