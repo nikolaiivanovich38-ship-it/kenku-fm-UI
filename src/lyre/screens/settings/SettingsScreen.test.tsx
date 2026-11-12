@@ -295,6 +295,8 @@ describe("Settings: the folded boxes", () => {
     await waitFor(() => expect(box.getByRole("switch", { name: "Split one headset" })).toBeEnabled());
     await userEvent.click(box.getByRole("switch", { name: "Split one headset" }));
     expect(await box.findByRole("radio", { name: "Preview in the left ear" })).toBeChecked();
+    // 0.5.1 (Nik, 11 Nov): split only while something plays on air, said where it shows.
+    expect(box.getByText("Only while something plays on air; a preview on its own plays in both ears.")).toBeVisible();
     await userEvent.click(box.getByRole("radio", { name: "Preview in the right ear" }));
     await waitFor(() => expect(audio.calls).toContainEqual(["setAudioDevices", expect.objectContaining({ split: true, previewEar: "right" })]));
   });

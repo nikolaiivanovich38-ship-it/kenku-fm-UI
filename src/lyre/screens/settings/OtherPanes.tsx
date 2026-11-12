@@ -180,6 +180,7 @@ export function DevicesPane() {
         disabled={!devices}
         onChange={(on) => set({ split: on }, on ? `one headset split: preview in the ${ear} ear` : "headset not split")}
       />
+      {split && <p className="hint st-splitnote">Only while something plays on air; a preview on its own plays in both ears.</p>}
       {split && (
         <div className="st-ears" role="radiogroup" aria-label="Which ear has the preview">
           {(["left", "right"] as const).map((side) => (
