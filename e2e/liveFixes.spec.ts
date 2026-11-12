@@ -8,7 +8,7 @@
  */
 import type { Page } from "@playwright/test";
 import { test, expect, type LaunchedApp } from "./fixtures/app";
-import { openLyreRoute } from "./fixtures/lyre";
+import { LYRE_PAGE_TITLE, openLyreRoute } from "./fixtures/lyre";
 import { focusLyrePage, pressOnKeyboard, screenPointOf } from "./osKeys";
 
 const SEEDED = { CUE_DESK_LYRE_SEED: "prototype", CUE_DESK_FAKE_DISCORD: "prototype" };
@@ -65,13 +65,13 @@ test("Ctrl+Z on the keyboard after a click into Live (as Nik does) undoes Live's
   await expect(lyre.getByRole("button", { name: "Restart scene 1: Recap and the coast road" })).toBeVisible();
 });
 
-/** The page that has the keyboard in Lyre's window: its title ("Lyre Interface" for the Lyre page). */
+/** The page that has the keyboard in Lyre's window: its title (LYRE_PAGE_TITLE for the Lyre page). */
 const keyboardPage = (app: LaunchedApp["app"]) => app.evaluate(({ webContents }) => webContents.getFocusedWebContents()?.getTitle() ?? null);
 
 test("Ctrl+Z after another program had the keyboard (Discord, as in the F9 check) undoes Live's scene change", async ({ launchApp }) => {
   const { launched, lyre } = await openLive(launchApp);
   await focusLyrePage(launched.app);
-  await expect.poll(() => keyboardPage(launched.app)).toBe("Lyre Interface");
+  await expect.poll(() => keyboardPage(launched.app)).toBe(LYRE_PAGE_TITLE);
   await lyre.getByRole("button", { name: "Start scene 3: The abbey ruins" }).click();
   await lyre.getByRole("button", { name: "Next scene: Crypt ambush" }).click();
   await expect(lyre.getByRole("group", { name: "Undo" }).filter({ hasText: "Started Crypt ambush" })).toBeVisible();
@@ -80,7 +80,7 @@ test("Ctrl+Z after another program had the keyboard (Discord, as in the F9 check
   pressOnKeyboard([], { elsewhere: true });
   // Lyre's own window (the hidden capture window is a window too).
   await launched.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().find((w) => w.getTitle() === "Lyre")?.focus());
-  await expect.poll(() => keyboardPage(launched.app), { message: "the keyboard is back in the Lyre page", timeout: 3000 }).toBe("Lyre Interface");
+  await expect.poll(() => keyboardPage(launched.app), { message: "the keyboard is back in the Lyre page", timeout: 3000 }).toBe(LYRE_PAGE_TITLE);
   pressOnKeyboard(["Control_L+z"]);
   await expect(lyre.getByRole("button", { name: "Restart scene 3: The abbey ruins" })).toBeVisible();
 });

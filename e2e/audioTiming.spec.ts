@@ -9,7 +9,7 @@
  */
 import type { ElectronApplication, Page } from "@playwright/test";
 import { test, expect, pageWithTitle } from "./fixtures/app";
-import { openLyreRoute } from "./fixtures/lyre";
+import { LYRE_PAGE_TITLE, openLyreRoute } from "./fixtures/lyre";
 import {
   analyseStream,
   busyMainThread,
@@ -214,7 +214,7 @@ test("with Windows-like coarse timers in Lyre's pages, two rooms and a preview k
   const lyre = await playInTwoRooms(launched.app, await launched.mainWindow());
   const sceneMusic = lyre.getByRole("region", { name: /^(Current scene|Current scene music|Scene music)$/ });
   await sceneMusic.getByRole("button", { name: /^Preview: / }).first().click();
-  const restore = await coarseTimers(launched.app, ["Lyre Interface", "Audio Capture"]);
+  const restore = await coarseTimers(launched.app, [LYRE_PAGE_TITLE, "Audio Capture"]);
   test.skip(restore === null, "timer slack needs Linux and root");
   try {
     // Past Chromium's 30 s of silence, so a context that goes onto a timer has done so.
