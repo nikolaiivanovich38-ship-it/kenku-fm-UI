@@ -1165,6 +1165,7 @@ Fixes for the independent code and security review of 0.5.1 (CR51-1 to CR51-11).
 - If Lyre is closed while it brings in what the old Player gained since your first start, nothing is half done: the
   next start brings it all in, once. Files from folders your library does not use are left out and named, so you can
   add their folder.
+- When an update has downloaded, Restart now keeps working until you use it, even if the internet drops meanwhile.
 - A bot token Kenku FM kept unprotected is deleted from Lyre's own storage as soon as Lyre has saved it encrypted, as
   0.5.0 did. If saving fails, the unprotected copy stays and Lyre tries again at the next start. On a computer that
   cannot encrypt (some Linux set-ups) it stays, and Settings says so.
@@ -1192,6 +1193,9 @@ Fixes for the independent code and security review of 0.5.1 (CR51-1 to CR51-11).
   `cue-local-file:` scheme, and the `persist:tabs` and `persist:local-files` sessions are not opened. OUT-12 turns
   them on with `registerAppSchemes({ websiteTabs: true })` and `secureKeptSessions()` (docs/ARCHITECTURE.md › Kept
   for later).
+- CR51-4: once `update-downloaded` arrives, `UpdateStatus` stays `ready` for the rest of the run (`isReady()`; later
+  `checking`, `error`, `up-to-date` or `downloading` change nothing) and the 15-minute checks stop. `UPDATE_RESTART`
+  is acted on whenever `isReady()`, so the toast's Restart now never does nothing. The channel's guard is unchanged.
 - Test builds only: `CUE_DESK_FAKE_KEYRING=1` saves tokens with a reversible, marked stand-in
   (`src/main/broadcast/testing/fakeKeyring.ts`), so end-to-end tests on a machine without a keyring can restart with
   a saved bot. Release builds compile it out (`__CUE_DESK_TEST_BUILD__`).
@@ -1203,6 +1207,7 @@ Fixes for the independent code and security review of 0.5.1 (CR51-1 to CR51-11).
 | `src/main/legacy/oldWindowMove.test.ts` | The plain token leaves `persist:root` only after it is saved encrypted; a failed save, a failed delete and a page that has gone leave it and record nothing; no keyring leaves it; a value not shaped like a token is not handed over |
 | `src/main/data/import/legacyCatchUp.test.ts` | A catch-up stopped at any write finishes at the next start, nothing doubled, recorded once; a file outside the library's folders is left out and named; one under a library folder or a known folder comes in |
 | `src/main/security/sessions.test.ts`, `keptForLater.test.ts`, `src/index.test.ts` | At start: one privileged scheme (`lyre-media`), no partition opened; the kept sessions' handlers only through `secureKeptSessions` |
+| `src/main/updateStatus.test.ts`, `src/autoUpdate.test.ts`, `src/main/managers/LyreManager.test.ts` | A ready update stays ready after later checks and failures; checks stop; Restart now still restarts |
 | `src/main/broadcast/OutputManager.test.ts`, `botTokenStore.test.ts` | What `importLegacyToken` answers; a token whose file could not be written is not "remembered" |
 | `src/main/managers/SessionManager.test.ts` | The compare-and-write script in the isolated world |
 | `e2e/upgrade.spec.ts` | In the packaged app: the plain token leaves the old storage and the rest stays; a saved bot logs in at the next start without Connect |

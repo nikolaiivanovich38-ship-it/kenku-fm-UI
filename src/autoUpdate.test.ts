@@ -130,6 +130,26 @@ describe("update errors are shown, not only logged (SEC-14)", () => {
     expect(window.webContents.send).not.toHaveBeenCalled();
   });
 
+  it("keeps a downloaded update ready, and stops checking, so Restart now keeps working (CR51-4)", () => {
+    vi.useFakeTimers();
+    try {
+      const status = new UpdateStatus();
+      runAutoUpdate(fakeWindow(), squirrelInstalled, status);
+      vi.advanceTimersByTime(15 * 60 * 1000);
+      expect(electron.autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1);
+      handlerFor("update-downloaded")();
+      vi.advanceTimersByTime(60 * 60 * 1000);
+      expect(electron.autoUpdater.checkForUpdates).toHaveBeenCalledTimes(1);
+      // A check already under way when it finished changes nothing.
+      handlerFor("checking-for-update")();
+      handlerFor("error")(new Error("net::ERR_INTERNET_DISCONNECTED"));
+      handlerFor("update-not-available")();
+      expect(status.state().kind).toBe("ready");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("test builds: the specs can make the updater report an event, through the same handlers, even where updates are off", () => {
     vi.stubGlobal("__CUE_DESK_TEST_BUILD__", true);
     try {
@@ -137,12 +157,12 @@ describe("update errors are shown, not only logged (SEC-14)", () => {
       const status = new UpdateStatus();
       runAutoUpdate(fakeWindow(), squirrelInstalled, status);
       const hook = (globalThis as unknown as { __lyreUpdatesTest: { report(event: unknown): void } }).__lyreUpdatesTest;
-      hook.report({ kind: "downloaded" });
-      expect(status.state().kind).toBe("ready");
       hook.report({ kind: "error", error: "net::ERR_INTERNET_DISCONNECTED" });
       expect(status.state()).toMatchObject({ kind: "error", tell: true });
       hook.report({ kind: "up-to-date" });
       expect(status.state().kind).toBe("up-to-date");
+      hook.report({ kind: "downloaded" });
+      expect(status.state().kind).toBe("ready");
     } finally {
       vi.unstubAllGlobals();
       delete (globalThis as { __lyreUpdatesTest?: unknown }).__lyreUpdatesTest;
