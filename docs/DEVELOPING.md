@@ -142,7 +142,7 @@ New libraries are added only at versions published at least two weeks earlier, t
 
 Upgraded in 0.5.0: fastify 4 to 5.12.7, uuid 10 to 11.1.1 (SEC-9); discord.js 14.27.0, @discordjs/voice 0.19.2, libsodium-wrappers 0.8.4, TypeScript 5.9.3. Left, and why:
 
-- The old player's interface libraries (MUI 6, @emotion, @dnd-kit, react-router 6, redux-persist, @reduxjs/toolkit, react-redux, howler, uuid): nothing imports them since 0.5.1 (FND-16); they come out of package.json in a step of their own (they need a fresh `yarn install`). electron-store 8 stays while `src/bounds.ts` uses it.
+- The old player's interface libraries (MUI 6, @emotion, @dnd-kit, react-router 6, redux-persist, @reduxjs/toolkit, react-redux, howler, uuid, and the unused case, @braintree/sanitize-url and @sinclair/typebox) were removed in 0.5.1 with the old window (FND-16). electron-store 8 stays while `src/bounds.ts` uses it.
 - React 19: Lyre uses React 18; moving is a change of its own.
 - Electron 45, Electron Forge 8, @electron/fuses 2, @electron/asar 4: majors that change packaging; Electron 44 is supported until Electron 47 (about March 2027). Electron 44.9.3 and later patches are reviewed in the monthly step (docs/RELEASE_CHECKLIST.md).
 - vitest 5, jsdom 31, TypeScript 7, css-loader 7, style-loader 4: test and build tools, majors with breaking changes; they ship nothing.
