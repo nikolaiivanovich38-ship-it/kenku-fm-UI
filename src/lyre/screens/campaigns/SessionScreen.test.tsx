@@ -7,7 +7,7 @@ import type { CampaignInfo, SessionInfo } from "../../../common/lyre/api";
 import { createFakeLyreApi, type FakeLyreApi } from "../../../common/lyre/fake";
 import { getLiveSession, loadInLive } from "../../kit/liveSession";
 import { expectNoAxeViolations } from "../../test/axe";
-import { go, main, openAt, region } from "./testing";
+import { dragFirstOntoLowerHalfOfLast, go, main, openAt, region } from "./testing";
 
 beforeEach(() => {
   localStorage.clear();
@@ -344,6 +344,14 @@ describe("scenes", () => {
     } finally {
       Element.prototype.getBoundingClientRect = original;
     }
+  });
+
+  it("a scene dropped on the lower half of the last scene goes last, with the line after it, when the box ends right under it", async () => {
+    const { api } = openAt("session/crown/s14");
+    await waitFor(() => expect(sceneCards()).toHaveLength(6));
+    const cards = sceneCards();
+    dragFirstOntoLowerHalfOfLast(cards, () => expect(cards[5]).toHaveClass("cp-drop-after"));
+    await waitFor(async () => expect((await s14(api)).scenes.map((s) => s.id)).toEqual(["sc2", "sc3", "sc4", "sc5", "sc6", "sc1"]));
   });
 
   it("Add scene adds a scene after the one last worked on and puts the cursor in its name", async () => {

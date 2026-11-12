@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { getLiveSession, loadInLive } from "../../kit/liveSession";
 import { expectNoAxeViolations } from "../../test/axe";
 import { saveShellSettings } from "../../shell/settings";
-import { main, openAt, region } from "./testing";
+import { dragFirstOntoLowerHalfOfLast, main, openAt, region } from "./testing";
 
 beforeEach(() => {
   localStorage.clear();
@@ -143,6 +143,15 @@ describe("sessions of a campaign", () => {
     await waitFor(async () => expect((await api.campaigns.get("crown"))?.sessions.map((s) => s.id)).toEqual(["s12", "s13", "s15", "s14"]));
     await userEvent.click(await screen.findByRole("button", { name: /^More for Session 15/ }));
     expect(screen.queryByRole("menuitem", { name: "Move down" })).toBeNull();
+  });
+
+  it("a session dropped on the lower half of the last session goes last, with the line after it, when the box ends right under it", async () => {
+    const { api } = openAt("campaign/crown");
+    const list = await screen.findByRole("list", { name: "Sessions in order" });
+    const rows = within(list).getAllByRole("listitem");
+    expect(rows).toHaveLength(4);
+    dragFirstOntoLowerHalfOfLast(rows, () => expect(rows[3]).toHaveClass("cp-drop-after"));
+    await waitFor(async () => expect((await api.campaigns.get("crown"))?.sessions.map((s) => s.id)).toEqual(["s13", "s14", "s15", "s12"]));
   });
 });
 

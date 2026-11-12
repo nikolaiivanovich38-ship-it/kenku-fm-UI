@@ -74,10 +74,12 @@ function show() {
 }
 
 describe("dragging a row into the last place", () => {
-  it("dropped on the lower half of the last row, it goes last", () => {
+  it("dropped on the lower half of the last row, it goes last, and the line shows after it first", () => {
     const onMove = show();
     pickUp("Arrival");
     dragAt(row("Aftermath"), "dragover", ROW_TOP + 3 * ROW_STEP + 30);
+    // The line shows after it (a full list has no room below the last row: this is where it goes last).
+    expect(row("Aftermath")).toHaveClass("cp-drop-after");
     dragAt(row("Aftermath"), "drop", ROW_TOP + 3 * ROW_STEP + 30);
     expect(onMove).toHaveBeenCalledWith(0, 3);
   });

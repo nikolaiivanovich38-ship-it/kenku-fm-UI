@@ -5,7 +5,8 @@
  *
  * Between rows and below the last one (the rest of the box the list is in, its pane), the line shows at the nearest
  * place and a drop lands there: below the last row is the last place (Nik, 0.5.0: a scene or session could not be
- * dropped last, because only the rows took a drop).
+ * dropped last, because only the rows took a drop). A full list leaves no room below its last row (its box ends right
+ * under it), so the last row's lower half is the last place too, with the line after it.
  *
  * `grid: true` (0.5.1, the Campaigns screen's cards): the items are laid out in rows of cards, so a card's left half is
  * the place before it and its right half the place after it.

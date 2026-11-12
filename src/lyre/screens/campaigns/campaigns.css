@@ -111,11 +111,11 @@
 .cp-handle { display: grid; place-items: center; width: 14px; height: 24px; color: var(--ink-3); cursor: grab; flex: none; }
 .cp-handle:hover { color: var(--ink); }
 [data-drag].cp-dragging { opacity: .45; }
-[data-drag].cp-drop-before { box-shadow: 0 -2px 0 var(--accent); }
+[data-drag].cp-drop-before { box-shadow: inset 0 2px 0 var(--accent); }
 /* 0.5.1: a campaign card's drop mark is at its side (the cards are in rows). */
 .cp-card[data-drag].cp-drop-before { box-shadow: -4px 0 0 var(--accent); }
 .cp-card[data-drag].cp-drop-after { box-shadow: 4px 0 0 var(--accent); }
-[data-drag].cp-drop-after { box-shadow: 0 2px 0 var(--accent); }
+[data-drag].cp-drop-after { box-shadow: inset 0 -2px 0 var(--accent); }
 
 /* ---------- Session planner: scene cards ---------- */
 .cp-scenes { list-style: none; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
