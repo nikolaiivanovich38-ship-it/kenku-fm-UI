@@ -62,8 +62,10 @@ describe("item 35: opening a track keeps the list scrolled where it was", () => 
       box().scrollTop = 900;
       box().dispatchEvent(new Event("scroll"));
       const user = userEvent.setup();
-      await user.click(rowOf("t40").querySelector("td.lb-c-title") as HTMLElement);
-      await waitFor(() => expect(window.location.hash).toBe("#/library/t40"));
+      // A row in sight at that place: rows are 30 px high here, so the 36th is at 1050 px.
+      const id = (grid().querySelectorAll("tbody tr[data-tid]")[35] as HTMLElement).dataset.tid as string;
+      await user.click(rowOf(id).querySelector("td.lb-c-title") as HTMLElement);
+      await waitFor(() => expect(window.location.hash).toBe(`#/library/${id}`));
       await waitFor(() => expect(box().scrollTop).toBe(900));
     } finally {
       for (const spy of spies) spy.mockRestore();
@@ -361,4 +363,48 @@ describe("0.5.2: the new confirmations have no accessibility failures", () => {
     await expectNoAxeViolations(screen.getByRole("dialog"));
     // Three axe runs: more time than one screen's check on a busy machine.
   }, 60_000);
+});
+
+describe("round 8 click-through findings for the Library (lead, 18 Nov)", () => {
+  it("#2: Pick up where it stopped has the whole row, not the narrow label column", async () => {
+    openAt("library/t02");
+    await loaded();
+    const sw = await within(screen.getByRole("region", { name: "Details" })).findByRole("switch", { name: "Pick up where it stopped" });
+    expect(sw.closest(".lb-tg")).toHaveClass("lb-tg-wide");
+  });
+
+  it("#4: Follow with's line under the list is the list's description, spaced clear of its focus ring", async () => {
+    openAt("library/t02");
+    await loaded();
+    const user = userEvent.setup();
+    await user.click(await within(screen.getByRole("region", { name: "Details" })).findByRole("button", { name: "Follow with…" }));
+    const select = within(screen.getByRole("dialog")).getByRole("combobox", { name: "When it ends, play" });
+    expect(select).toHaveAccessibleDescription("Unless something is waiting in Play next.");
+    expect(screen.getByText("Unless something is waiting in Play next.")).toHaveClass("lb-follow-hint");
+  });
+
+  it("#5: opened at a track from elsewhere (a playlist's track title), the list scrolls the open row into view", async () => {
+    const tops = new WeakMap<Element, number>();
+    const spies = [
+      vi.spyOn(HTMLElement.prototype, "scrollTop", "get").mockImplementation(function (this: HTMLElement) {
+        return tops.get(this) ?? 0;
+      }),
+      vi.spyOn(HTMLElement.prototype, "scrollTop", "set").mockImplementation(function (this: HTMLElement, top: number) {
+        tops.set(this, Math.max(0, top));
+      }),
+    ];
+    try {
+      // The last track by title is far below the first screenful.
+      const { api } = openAt("playlists");
+      const titles = (await api.library.listTracks()).map((t) => ({ id: t.id, title: t.title || t.metaTitle || t.fileName }));
+      const last = titles.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base", numeric: true })).slice(-1)[0];
+      window.location.hash = `#/library/${last.id}`;
+      await loaded();
+      const box = () => grid().closest(".lb-scroll") as HTMLElement;
+      await waitFor(() => expect(box().scrollTop).toBeGreaterThan(0));
+      expect(rowOf(last.id)).toHaveAttribute("aria-current", "true");
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+    }
+  });
 });

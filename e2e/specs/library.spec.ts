@@ -789,4 +789,32 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
     await expect(row(page, "Ashes").getByText("Amb", { exact: true })).toBeVisible();
     await expect(row(page, /^Select Eerie dread/).getByText("Amb", { exact: true })).toBeVisible();
   });
+
+  test("round 8 #2 and #4: Pick up where it stopped fits on one line; Follow with's line is clear of the list's focus ring", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    await row(page, "Ashes").locator("td.lb-c-title").click();
+    const pickUp = details(page).locator("label.lb-resume");
+    await expect(pickUp).toBeVisible();
+    expect((await pickUp.boundingBox())!.height).toBeLessThan(30);
+    await details(page).getByRole("button", { name: "Follow with…" }).click();
+    const select = page.getByRole("dialog").getByRole("combobox", { name: "When it ends, play" });
+    await select.focus();
+    const s = (await select.boundingBox())!;
+    const hint = (await page.getByRole("dialog").getByText("Unless something is waiting in Play next.").boundingBox())!;
+    // The focus ring is drawn up to 4 px outside the list.
+    expect(hint.y).toBeGreaterThanOrEqual(s.y + s.height + 4);
+  });
+
+  test("round 8 #5: a track title on a playlist page opens the Track library with that row in view", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "playlist/p-abbess");
+    const links = page.locator('a[href^="#/library/"]');
+    await expect(links.first()).toBeVisible();
+    const href = (await links.last().getAttribute("href"))!;
+    await links.last().click();
+    const open = grid(page).locator(`tr[data-tid="${href.split("/").pop()}"]`);
+    await expect(open).toHaveAttribute("aria-current", "true");
+    await expect(open).toBeInViewport();
+  });
 });

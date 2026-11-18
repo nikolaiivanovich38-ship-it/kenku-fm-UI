@@ -938,3 +938,8 @@ Built straight in the app, as 0.5.1's changes were. Each item's unit or componen
   the folders), and each match and choice says why (`RelinkMatch.reasons`; the Find missing files table and its
   "Which file" list). Tests: `relink.test.ts` (moved, renamed, both, re-encoded, ranking, loudness measured only when
   the length fits), `transfer/model.test.ts`, `TransferScreens.test.tsx`.
+- **Round 8 click-through findings (lead, 18 Nov).** #2: Pick up where it stopped takes the whole row in the
+  Library's details and the Audio profile (`lb-tg-wide`), so its words no longer wrap to three lines in the 74 px label
+  column. #4: Follow with's line under its list is the list's description and stands 8 px below it, clear of the focus
+  ring (WCAG 2.4.11). #5: the Library opened at a track from elsewhere (a playlist's track title) scrolls the open row
+  into the middle of the list once, when the list is first drawn; a row already in sight (item 35) is left where it is.

@@ -14,7 +14,8 @@ import { useSave } from "../../shell/useSave";
 /** The switch itself; the caller keeps the choice. */
 export function PickUpSwitch({ checked, onChange }: { checked: boolean; onChange: (next: boolean) => void }) {
   return (
-    <div className="lb-tg">
+    // Round 8 click-through #2: the whole row, so its words are not squeezed into the label column.
+    <div className="lb-tg lb-tg-wide">
       <label className="lv-switch lb-resume" title="A long underscore or bed starts again where it was last stopped">
         <input type="checkbox" role="switch" checked={checked} onChange={(e) => onChange(e.target.checked)} />
         <span className="lv-switch-t">

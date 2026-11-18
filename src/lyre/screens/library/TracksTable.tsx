@@ -76,12 +76,28 @@ export function TracksTable(props: TracksTableProps) {
   const [headHeight, setHeadHeight] = useState(26);
   const focusAfter = useRef<string | null>(null);
 
-  // Item 35: back where it was before the screen was drawn afresh (opening a track is a new address).
+  // Item 35: back where it was before the screen was drawn afresh (opening a track is a new address). Round 8
+  // click-through #5: an open track reached from elsewhere (a playlist's track title) is then scrolled into view.
+  const revealed = useRef(false);
   useLayoutEffect(() => {
     const box = boxRef.current;
     if (box && props.initialScroll) box.scrollTop = props.initialScroll;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the list is first drawn
   }, []);
+  useLayoutEffect(() => {
+    const box = boxRef.current;
+    if (revealed.current || !box || !props.openId || list.length === 0) return;
+    revealed.current = true;
+    const index = list.findIndex((t) => t.id === props.openId);
+    if (index < 0) return;
+    const top = index * rowHeight;
+    const visible = (box.clientHeight || UNMEASURED_HEIGHT) - headHeight;
+    if (top >= box.scrollTop && top + rowHeight <= box.scrollTop + visible) return;
+    // In the middle of the list's height, so the rows around it show too.
+    const next = Math.max(0, top - Math.max(0, (visible - rowHeight) / 2));
+    box.scrollTop = next;
+    setScrollTop(next);
+  }, [props.openId, list, rowHeight, headHeight]);
 
   useLayoutEffect(() => {
     const box = boxRef.current;
