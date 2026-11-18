@@ -3,7 +3,7 @@ title: Back up, move or share
 group: Your library
 words: backup back up save file open share move computer lyre file export import bring in duplicate merge
 ---
-Library › **⋯** beside **Add tracks** › **Back up, move or share…**.
+Track library › **⋯** beside **Add tracks** › **Back up, move or share…**.
 
 **Save to a file** makes one .lyre file of the whole library, one campaign, session, scene, playlist or pad board, or the tags only. Tick **Include the audio files** to take the music with it, for another computer or another game master.
 

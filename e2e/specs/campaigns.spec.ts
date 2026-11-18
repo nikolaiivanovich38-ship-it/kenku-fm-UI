@@ -512,13 +512,14 @@ test.describe("round 6, part 6: the Saved pop-up at the bottom right, Back alway
 
   test("each screen with a parent has its trail right after Back: every part a link, the screen's title last", async ({ page }) => {
     expectFailureUntilBuilt("shell", "rooms-settings"); // it opens Settings
-    const cases: [string, string[], RegExp][] = [
+    // 0.5.2 item 23: the app calls the Library the Track library; the prototype "Library".
+    const cases: [string, (string | RegExp)[], RegExp][] = [
       ["session/crown/s14", ["Campaigns", "The Sunken Crown"], /Session 14/],
       ["campaign/crown", ["Campaigns"], /The Sunken Crown/],
       ["board/abbey", ["Pad boards"], /Drowned Abbey/],
       ["playlist/p-abbess", ["Playlists"], /The Abbess/],
-      ["profile/t13", ["Library"], /Audio profile/],
-      ["backup", ["Library"], /Back up, move or share/],
+      ["profile/t13", [/^(Track l|L)ibrary$/], /Audio profile/],
+      ["backup", [/^(Track l|L)ibrary$/], /Back up, move or share/],
     ];
     for (const [route, links, title] of cases) {
       await openRoute(page, route);
@@ -606,7 +607,7 @@ test.describe("round 6, part 7: Back is one history across the whole app", () =>
     await expect(h1(page)).toContainText("Ashes");
     await expect(h1(page)).toContainText("Audio profile");
     await back(page).click();
-    await expect(h1(page)).toHaveText("Library");
+    await expect(h1(page)).toHaveText(/^(Track l|L)ibrary$/);
     await expect(details(page)).toContainText("13 Ashes.flac");
     await back(page).click();
     await expect(details(page).getByRole("textbox", { name: "Your title" })).toHaveCount(0);

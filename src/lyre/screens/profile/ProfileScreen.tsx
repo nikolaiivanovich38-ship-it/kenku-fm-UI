@@ -66,7 +66,7 @@ function backFallback(editor: ProfileEditor): BackFallback {
   const { key, view, track } = editor;
   const scene = sceneOf(key, view);
   const session = scene ?? sessionOf(key, view);
-  if (!session) return { label: `Library: ${shownTitle(track)}`, go: () => void (window.location.hash = `#/library/${track.id}`) };
+  if (!session) return { label: `Track library: ${shownTitle(track)}`, go: () => void (window.location.hash = `#/library/${track.id}`) };
   return {
     label: scene ? scene.scene.name || "the scene" : `Session ${session.session.number}`,
     go: () => returnToSession({ campaignId: session.campaign.id, sessionId: session.session.id, sceneId: scene?.scene.id ?? null, trackId: track.id }),

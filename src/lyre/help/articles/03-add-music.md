@@ -5,7 +5,7 @@ words: library add tracks files folder watch import drop tag tags mood leitmotif
 ---
 Lyre never copies or changes your audio files. It remembers where they are.
 
-1. Open **Library** and press **Add tracks**: **Add files…**, **Add a folder…** (with its subfolders) or **Watch a folder…** (new files there appear by themselves). You can also drop files and folders anywhere on the page.
+1. Open **Track library** and press **Add tracks**: **Add files…**, **Add a folder…** (with its subfolders) or **Watch a folder…** (new files there appear by themselves). You can also drop files and folders anywhere on the page.
 2. Open a track (its row, or `Enter`) for its **Details**: **Your title**, the title in the file, the file name and the folder.
 3. To tag it, type in a tag group's box (**+ Add mood**, and the same for each group) and press `Enter` or `Tab`. A new word makes a new tag.
 4. To tag many tracks at once, select them (their boxes, or `Space` on a row), then press **Tag…**.

@@ -638,4 +638,15 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
     await expect.poll(() => box.evaluate((el) => el.scrollTop)).toBeGreaterThan(390);
     expect(await box.evaluate((el) => el.scrollTop)).toBeLessThan(410);
   });
+
+  test("item 23: the menu, the heading and Back call it the Track library; the address stays #/library", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "settings");
+    await page.getByRole("navigation", { name: "Lyre" }).getByRole("link", { name: "Track library", exact: true }).click();
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Track library");
+    await expect(page).toHaveURL(/#\/library$/);
+    await page.getByRole("button", { name: "More for the library" }).click();
+    await page.getByRole("menuitem", { name: "Tags and groups…" }).click();
+    await expect(page.getByRole("button", { name: "Back to Track library" })).toBeVisible();
+  });
 });

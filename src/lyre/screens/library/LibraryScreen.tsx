@@ -601,7 +601,8 @@ export function LibraryScreen({ route }: ScreenProps) {
             Tracks
           </button>
         )}
-        <h1>Library</h1>
+        {/* Item 23: the Track library, wherever its name shows (menu, heading, Back, help); the route stays "library". */}
+        <h1>Track library</h1>
         <span className="muted lb-count">{plural(nAll, "track")}</span>
         <span className="grow" />
         <PopMenuButton label="Add tracks" className="btn primary" items={addMenu}>

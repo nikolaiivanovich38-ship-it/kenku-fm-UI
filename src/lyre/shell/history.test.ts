@@ -78,10 +78,10 @@ describe("what Back calls a place, and whether it is still there", () => {
     ["session/crown/s14", "Session 14"],
     ["playlist/p-abbess", "The Abbess"],
     ["board/abbey", "Drowned Abbey"],
-    ["library/t13", "Library: Ashes"],
+    ["library/t13", "Track library: Ashes"],
     ["profile/t13", "Audio profile: Ashes"],
     ["profile/t13/sc:crown:s14:sc3", "Audio profile: Ashes"],
-    ["library", "Library"],
+    ["library", "Track library"],
     ["boards", "Pad boards"],
     ["outputs", "Rooms"],
     ["live", "Live"],
@@ -116,8 +116,8 @@ describe("the trail (round 6 part 6)", () => {
     expect(trailOf("campaign/crown", NAMES)).toEqual([{ href: "#/campaigns", label: "Campaigns" }]);
     expect(trailOf("board/abbey", NAMES)).toEqual([{ href: "#/boards", label: "Pad boards" }]);
     expect(trailOf("playlist/p-abbess", NAMES)).toEqual([{ href: "#/playlists", label: "Playlists" }]);
-    expect(trailOf("profile/t13", NAMES)).toEqual([{ href: "#/library/t13", label: "Library" }]);
-    expect(trailOf("backup", NAMES)).toEqual([{ href: "#/library", label: "Library" }]);
+    expect(trailOf("profile/t13", NAMES)).toEqual([{ href: "#/library/t13", label: "Track library" }]);
+    expect(trailOf("backup", NAMES)).toEqual([{ href: "#/library", label: "Track library" }]);
   });
 
   it.each(["campaigns", "library", "library/t13", "playlists", "boards", "outputs", "settings", "look", "live"])("%s has none", (path) => {

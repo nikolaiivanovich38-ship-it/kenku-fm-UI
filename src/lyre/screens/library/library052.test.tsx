@@ -69,3 +69,12 @@ describe("item 35: opening a track keeps the list scrolled where it was", () => 
     }
   });
 });
+
+describe("item 23: the Library is the Track library where its name shows", () => {
+  it("in the menu and the heading, at the same address", async () => {
+    openAt("library");
+    await loaded();
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Track library");
+    expect(within(screen.getByRole("navigation", { name: "Lyre" })).getByRole("link", { name: "Track library" })).toHaveAttribute("href", "#/library");
+  });
+});

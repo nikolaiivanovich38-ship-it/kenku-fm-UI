@@ -8,6 +8,8 @@
 import type { Page } from "@playwright/test";
 import { expect, expectFailureUntilBuilt, test } from "./support/test";
 import { openRoute } from "./support/target";
+/** 0.5.2 item 23: the app calls the Library the Track library in its menu, heading and Back; the prototype "Library". */
+const LIBRARY = /^(Track l|L)ibrary$/;
 
 const group = (page: Page, name: string) => page.getByRole("region", { name, exact: true });
 const tagsOf = (page: Page, name: string) => group(page, name).getByRole("list", { name: `${name} tags` }).getByRole("listitem");
@@ -22,7 +24,7 @@ async function tagMenu(page: Page, groupName: string, name: string, item: string
 // The prototype keeps its data in the page, so after a change the Library is reached from the menu, not reloaded.
 async function libraryTrack(page: Page, title: string, reload = true) {
   if (reload) await openRoute(page, "library");
-  else await page.getByRole("link", { name: "Library", exact: true }).click();
+  else await page.getByRole("link", { name: LIBRARY }).click();
   await page.getByRole("grid", { name: "Tracks" }).getByRole("row", { name: new RegExp(`^Select ${title}`) }).getByRole("gridcell").nth(1).click();
 }
 
@@ -35,7 +37,7 @@ test.describe("the Tags screen", () => {
     await page.getByRole("button", { name: "More for the library" }).click();
     await page.getByRole("menuitem", { name: "Tags and groups…" }).click();
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Tags");
-    await expect(page.getByRole("button", { name: "Back to Library" })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Back to (Track l|L)ibrary$/ })).toBeVisible();
     const names = await page.getByRole("main").getByRole("region").evaluateAll((r) => r.map((x) => x.getAttribute("aria-label")));
     expect(names.slice(0, 3)).toEqual(["Mood", "Leitmotif", "Scene type"]);
     await expect(tag(page, "Mood", "Melancholy")).toBeVisible();
@@ -67,7 +69,7 @@ test.describe("the Tags screen", () => {
     await tagMenu(page, "Mood", "Wistful", "Rename…");
     await dialog(page).getByRole("textbox", { name: "Name" }).fill("Longing");
     await dialog(page).getByRole("button", { name: "Rename" }).click();
-    await page.getByRole("link", { name: "Library", exact: true }).click();
+    await page.getByRole("link", { name: LIBRARY }).click();
     const toggle = page.getByRole("button", { name: "Filters", exact: true });
     if ((await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
     const mood = page.getByRole("region", { name: "Filters", exact: true }).getByRole("group", { name: "Mood" });

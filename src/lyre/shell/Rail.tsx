@@ -40,7 +40,7 @@ export function Rail({ section, min, onToggleMin, helpOpen = false, onHelp }: Ra
           {/* 0.5.1 (Nik, 11 Nov): Live first. */}
           {link("live", "broadcast", liveLabel ?? "Live", liveLabel ? liveName : undefined)}
           {link("campaigns", "crown", "Campaigns")}
-          {link("library", "library", "Library")}
+          {link("library", "library", "Track library")}
           {link("playlists", "playlist", "Playlists")}
           {link("boards", "grid", "Pad boards")}
           {/* OUT-9 (round 6, Nik 6 Nov 13:55): the screen is Rooms; its address stays #/outputs. */}
