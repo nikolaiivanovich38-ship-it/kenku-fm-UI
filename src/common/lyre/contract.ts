@@ -192,11 +192,14 @@ export function lyreApiContract(name: string, makeFixture: () => Promise<Contrac
         expectRefused(await api.library.updateTrack("nope", { title: "x" }), "not-found");
       });
 
-      it("clears the New mark once a new track has a title of its own and a tag", async () => {
+      it("clears the New mark once a new track has a tag the game master gave it, with or without a title (item 10)", async () => {
         valueOf(await api.library.updateTrack("t43", { title: "Memories of Mother" }));
         expect((await track("t43")).isNew).toBe(true);
         valueOf(await api.tags.tagTracks({ trackIds: ["t43"], add: [{ group: "mood", value: "Grief" }] }));
         expect((await track("t43")).isNew).toBe(false);
+        expect((await track("t44")).title).toBe("");
+        valueOf(await api.tags.tagTracks({ trackIds: ["t44"], add: [{ group: "mood", value: "Grief" }] }));
+        expect((await track("t44")).isNew).toBe(false);
       });
 
       it("lists the library folders", async () => {

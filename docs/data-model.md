@@ -67,7 +67,7 @@ Discord's sound is fed from the same part of Lyre as the library, from a queue t
 
 ### Adding tracks, and your old library (import stream)
 
-- **Add files or a folder.** Every audio file in it (subfolders too) becomes a track marked **New**; hidden and Windows system folders are skipped, and a file already in your library is never added twice (letter case ignored). Its kind comes from its folder: Ambience, Atmospheres or Beds give ambience; Effects, SFX or Foley give a sound effect; anything else music. Its title in the file, artist, album and length come from the file's tags (read by music-metadata); your own title is never touched. Afterwards Lyre works out each new track's wave in the background, one track at a time, without slowing anything you play. The New mark goes once the track has a title of your own and a tag. A progress bar follows the work, Stop keeps what was saved, and the result says in plain words what was added and what was not.
+- **Add files or a folder.** Every audio file in it (subfolders too) becomes a track marked **New**; hidden and Windows system folders are skipped, and a file already in your library is never added twice (letter case ignored). Its kind comes from its folder: Ambience, Atmospheres or Beds give ambience; Effects, SFX or Foley give a sound effect; anything else music. Its title in the file, artist, album and length come from the file's tags (read by music-metadata); your own title is never touched. Afterwards Lyre works out each new track's wave in the background, one track at a time, without slowing anything you play. The New mark goes once you give the track a tag (0.5.2; before, it also needed a title of your own). A progress bar follows the work, Stop keeps what was saved, and the result says in plain words what was added and what was not.
 - **Your old library moves in once.** Playlists and soundboards from the old player keep their names, order, pictures and sound settings; a file used in several places becomes one track, everywhere it was. Files that cannot be found still move (so playlists stay whole) and are listed. A copy of the library is made first, the old player's own library is never changed, and if Lyre stops halfway it carries on next time.
 - **Find missing files.** Lyre lists tracks whose files have gone and looks for them in a folder you choose, by name, size and content; you confirm, and one Undo puts everything back.
 - **Suggestions from your titles.** "Melancholy tense - harbour at night (loops well)" suggests Melancholy and Tense, and "loops well". Nothing is applied until you accept.
@@ -87,7 +87,7 @@ Measured with 20,000 tracks, 500 playlists and 3 campaigns of 50 sessions with 8
 | File | Purpose |
 | --- | --- |
 | `sqlite.ts` | Loads `node:sqlite` (decision D3) without its experimental warning; `openConnection()` turns on foreign keys, recursive triggers, `temp_store = MEMORY` and, for files, WAL with `synchronous = NORMAL` (or a rollback journal with `FULL` where WAL cannot work). |
-| `schema/migrate.ts`, `schema/index.ts`, `schema/v001-library.ts`, `schema/v002-peaks.ts`, `schema/v003-round5.ts`, `schema/v004-loudness.ts`, `schema/v005-round6.ts`, `schema/v006-round7.ts`, `schema/v007-start-at.ts` | Numbered schema versions (seven so far: the library, loudness peaks, design round 5, volume normalisation, design rounds 6 and 7, Start at), the upgrade runner (`MigrationContext.startVersion` tells a step whether the library is new) and `rebuildTable()` (with `withoutRowid` for link tables). |
+| `schema/migrate.ts`, `schema/index.ts`, `schema/v001-library.ts`, `schema/v002-peaks.ts`, `schema/v003-round5.ts`, `schema/v004-loudness.ts`, `schema/v005-round6.ts`, `schema/v006-round7.ts`, `schema/v007-start-at.ts`, `schema/v008-new-and-folder-kind.ts` | Numbered schema versions (eight so far: the library, loudness peaks, design round 5, volume normalisation, design rounds 6 and 7, Start at, New until tagged and a folder's kind of new tracks), the upgrade runner (`MigrationContext.startVersion` tells a step whether the library is new) and `rebuildTable()` (with `withoutRowid` for link tables). |
 | `store.ts` | `Store`: prepared statements (the 200 most recently used), injected clock, `change(label, fn)` (one transaction, one undo step), `changeInBatches(label, items, fn)` (bulk work, one undo step), `exclusive()`, `changeWithoutHistory(fn)` (clears the history), `busyWith`, `searchCaughtUp()`. |
 | `searchIndex.ts` | Temporary triggers that mark changed tracks, and `flushSearchIndex` (each marked track's search entry rebuilt once, before COMMIT). |
 | `ordering.ts` | Gap ordering (`positionFor`, `positionsFor`, `assignPositions`). |
@@ -302,7 +302,7 @@ Foreign keys without an index of their own, on purpose: `playlists.folder_id`, `
 
 ### Integrity triggers
 
-Rules a CHECK cannot express because they span two tables (`schema/v001-library.ts`): a manual playlist has no rule conditions, a dynamic one no entries (on insert and on a move to another playlist), and a playlist keeps its kind (to change it, copy it: `copyPlaylist`). A missing playlist is left to the foreign key, so undo can replay rows child first. A new track settles (loses its New mark) once it has a title of its own and a tag.
+Rules a CHECK cannot express because they span two tables (`schema/v001-library.ts`): a manual playlist has no rule conditions, a dynamic one no entries (on insert and on a move to another playlist), and a playlist keeps its kind (to change it, copy it: `copyPlaylist`). A missing playlist is left to the foreign key, so undo can replay rows child first. A new track settles (loses its New mark) once it has a tag (version 8; version 1 also asked for a title of its own).
 
 ### Domain shapes (src/common/domain)
 
@@ -478,6 +478,23 @@ The order of the Campaigns screen (0.5.1) is version 1's `campaigns.position` (`
 | `schema/v007.test.ts` | The column and its CHECK; the upgrade from version 6 keeps profiles, with no Start at |
 | `repo/profiles.test.ts` | Start at saved and read with a place's profile, null as the Beginning, refusals |
 | `../lyreApi/transferApi.test.ts` (round 7) | Tag places, dividers, a scene's and a pad's steps, Then, Follow with, Ending, Pick up and mix out through a .lyre file |
+
+### Version 8: New until tagged, a folder's kind of new tracks (0.5.2, w52-lib)
+
+`schema/v008-new-and-folder-kind.ts`, from Nik's play test of 14 November:
+
+- **Item 10** ("Anything with a manually assigned tag should no longer be 'new'"): the trigger `tracks_settle_on_tag`
+  now settles a New track on its first tag, title or not, and version 1's `tracks_settle_on_title` goes (the tag is
+  the whole rule). A tag comes on a track only by the game master's hand: typing one, Tag…, accepting a suggestion
+  from titles, or a .lyre file brought in (whose tracks are not New). An import never tags. The upgrade settles the
+  tagged tracks version 7 kept New.
+- **Item 40** ("Make it possible to choose what kind of tracks will be in watched folders"): `library_roots.new_kind`,
+  the kind a new file under that folder gets: NULL guesses from its folder names as before (`import/kindGuess.ts`),
+  `music`, `amb` or `fx` always (a CHECK). The deepest folder holding the file decides (`kindForNewFile`).
+
+| Test | Covers |
+| --- | --- |
+| `schema/v008.test.ts` | The trigger (a tag settles, a title alone does not), the column and its CHECK, the upgrade from version 7 with a tagged New track and a folder |
 
 ### Import (EDT-6, DAT-5, DAT-8, DAT-4)
 

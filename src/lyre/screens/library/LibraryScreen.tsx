@@ -335,8 +335,8 @@ export function LibraryScreen({ route }: ScreenProps) {
     await store.reload();
     const names = tags.map((x) => x.value);
     const msg = `${how === "add" ? "Added" : "Removed"} ${names.join(", ")} ${how === "add" ? "to" : "from"} ${plural(ids.length, "track")}.`;
-    const stillNew = ids.filter((id) => store.get().byId.get(id)?.isNew).length;
-    setLibraryState({ guide: { kind: "tagged", text: msg, stillNew } });
+    // Item 10: a tag settles a New track, so none is left New after this.
+    setLibraryState({ guide: { kind: "tagged", text: msg } });
     say(msg);
     // w3-ux 10: tagging many tracks at once can be undone from a message (and Ctrl+Z).
     if (result.ok) offer(msg, result.undoLabel);
@@ -724,13 +724,7 @@ function GuideLine({ guide, onShowNew }: { guide: Guide; onShowNew: () => void }
       break;
     }
     case "tagged":
-      text = (
-        <>
-          {guide.text}
-          {guide.stillNew > 0 &&
-            ` ${plural(guide.stillNew, "track")} ${guide.stillNew === 1 ? "still needs" : "still need"} a title of your own: open ${guide.stillNew === 1 ? "it" : "each one"} to type it.`}
-        </>
-      );
+      text = guide.text;
       break;
     case "playlist-made":
       text = (

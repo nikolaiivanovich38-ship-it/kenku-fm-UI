@@ -684,4 +684,15 @@ test.describe("0.5.2: Nik's changes from his play test of 14 November", () => {
     await expect(length).toHaveAttribute("aria-sort", "descending");
     await expect(page.getByRole("combobox", { name: "Sort tracks" })).toHaveValue("long");
   });
+
+  test("item 10: a New track the game master tags is no longer New, with no title of its own", async ({ page }) => {
+    appOnly();
+    await openRoute(page, "library");
+    const ashes = row(page, "Ashes");
+    await expect(ashes.getByText("New", { exact: true })).toBeVisible();
+    await ashes.locator("td.lb-c-title").click();
+    await details(page).getByRole("combobox", { name: "Add a mood tag" }).fill("Grief");
+    await details(page).getByRole("combobox", { name: "Add a mood tag" }).press("Enter");
+    await expect(ashes.getByText("New", { exact: true })).toHaveCount(0);
+  });
 });

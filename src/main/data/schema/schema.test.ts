@@ -15,8 +15,8 @@ const tableNames = (db: DatabaseSync) =>
 describe("the library schema (DAT-11)", () => {
   it("makes a new library in one upgrade, with the Mood, Leitmotif and Scene type tag groups", () => {
     const db = openConnection(":memory:");
-    // Step 1 is the whole library; step 2 (w3-media) adds loudness peaks per track; step 3 design round 5; step 4 normalisation; 5 and 6 design rounds 6 and 7.
-    expect(migrate(db, MIGRATIONS)).toEqual({ from: 0, to: 7, applied: [1, 2, 3, 4, 5, 6, 7] });
+    // Step 1 is the whole library; step 2 (w3-media) adds loudness peaks per track; step 3 design round 5; step 4 normalisation; 5 and 6 design rounds 6 and 7; 7 Start at; 8 New until tagged and a folder's kind (0.5.2).
+    expect(migrate(db, MIGRATIONS)).toEqual({ from: 0, to: 8, applied: [1, 2, 3, 4, 5, 6, 7, 8] });
     expect(schemaVersion(db)).toBe(MIGRATIONS.length);
     expect((all(db, "SELECT name FROM tag_groups ORDER BY position") as { name: string }[]).map((g) => g.name)).toEqual([
       "Mood",
@@ -273,7 +273,7 @@ describe("new tracks and library jobs (import stream: EDT-6, DAT-9)", () => {
     );
   });
 
-  it("settles a new track once it has a title of its own and a tag, in either order (the prototype's settle)", () => {
+  it("settles a new track once it has a tag (version 8, item 10: a title of its own is not needed too)", () => {
     migrate(db, MIGRATIONS, () => 1);
     const tag = (get("SELECT id FROM tags WHERE name = 'Tense'") as { id: string }).id;
     run(`INSERT INTO tracks (id, path, is_new, created_at, updated_at) VALUES
@@ -281,9 +281,7 @@ describe("new tracks and library jobs (import stream: EDT-6, DAT-9)", () => {
     const isNew = (id: string) => (get(`SELECT is_new FROM tracks WHERE id = '${id}'`) as { is_new: number }).is_new;
 
     run(`INSERT INTO track_tags (track_id, tag_id) VALUES ('a', '${tag}')`);
-    expect(isNew("a")).toBe(1); // tagged, but no title of its own yet
-    run(`UPDATE tracks SET title = 'Ambush' WHERE id = 'a'`);
-    expect(isNew("a")).toBe(0);
+    expect(isNew("a")).toBe(0); // tagged, with no title of its own
 
     run(`UPDATE tracks SET title = 'Rain' WHERE id = 'b'`);
     expect(isNew("b")).toBe(1); // titled, not tagged yet

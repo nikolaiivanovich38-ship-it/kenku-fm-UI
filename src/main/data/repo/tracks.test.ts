@@ -382,7 +382,7 @@ describe("markers (DAT-3 data)", () => {
 });
 
 describe("new tracks (EDT-6: the Library's New mark)", () => {
-  it("marks a track New when asked, lists new tracks, and settles it once titled and tagged", async () => {
+  it("marks a track New when asked, lists new tracks, and settles it once tagged (version 8, item 10)", async () => {
     const fresh = createTrack(t.store, { file: { path: "/m/new.flac" }, isNew: true });
     const old = createTrack(t.store, { title: "Old", file: { path: "/m/old.flac" } });
     expect(fresh.isNew).toBe(true);
@@ -390,9 +390,9 @@ describe("new tracks (EDT-6: the Library's New mark)", () => {
     expect(listNewTrackIds(t.store)).toEqual([fresh.id]);
     const tense = listTagGroups(t.store)[0];
     const tag = createTag(t.store, { groupId: tense.id, name: "Brooding" });
-    await tagTracks(t.store, [fresh.id], [tag.id]);
-    expect(getTrack(t.store, fresh.id)?.isNew).toBe(true);
     updateTrack(t.store, fresh.id, { title: "Brooding storm" });
+    expect(getTrack(t.store, fresh.id)?.isNew).toBe(true);
+    await tagTracks(t.store, [fresh.id], [tag.id]);
     expect(getTrack(t.store, fresh.id)?.isNew).toBe(false);
     expect(listNewTrackIds(t.store)).toEqual([]);
     expect(updateTrack(t.store, old.id, { isNew: true }).isNew).toBe(true);

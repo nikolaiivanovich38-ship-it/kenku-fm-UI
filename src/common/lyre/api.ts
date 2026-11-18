@@ -154,7 +154,7 @@ export interface LibraryTrack extends DomainTrack {
   notes: string;
   /** When it was added to the library (ms since 1970). */
   addedAt: number;
-  /** Marked New until it has a title of your own and at least one tag. */
+  /** Marked New until the game master gives it a tag (0.5.2 item 10: a title of its own is not needed too). */
   isNew: boolean;
   /** The address the player loads the audio from (file:// for a file, see media.ts fileAddress); null when unknown. */
   url: string | null;

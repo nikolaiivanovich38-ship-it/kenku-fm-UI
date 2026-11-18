@@ -150,3 +150,16 @@ describe("item 25: a click on a column header sorts by it, ascending then descen
     expect(down).toEqual([...down].sort((x, y) => y - x));
   });
 });
+
+describe("item 10: a track with a tag the game master added is no longer New", () => {
+  it("tagging a New track with no title of its own takes its New mark away", async () => {
+    openAt("library/t44");
+    await loaded();
+    const user = userEvent.setup();
+    expect(within(rowOf("t44")).getByText("New")).toBeInTheDocument();
+    const details = screen.getByRole("region", { name: "Details" });
+    await user.type(within(details).getByRole("combobox", { name: "Add a mood tag" }), "Grief{Enter}");
+    await waitFor(() => expect(within(rowOf("t44")).queryByText("New")).toBeNull());
+    expect(within(details).queryByText("New")).toBeNull();
+  });
+});

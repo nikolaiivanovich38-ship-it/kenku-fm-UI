@@ -413,9 +413,9 @@ export function createFakeLyreApi(options: FakeLyreOptions = {}): FakeLyreApi {
     else if (place.kind === "session") session(place.campaignId, place.sessionId);
     else scene(place);
   }
-  /** Leaves a new track New until it has a title of its own and a tag (the prototype's settle()). */
+  /** Leaves a new track New until the game master gives it a tag (0.5.2 item 10; schema version 8's trigger). */
   function settle(t: LibraryTrack) {
-    if (t.isNew && t.title && Object.values(t.tags).some((v) => v.length > 0)) t.isNew = false;
+    if (t.isNew && Object.values(t.tags).some((v) => v.length > 0)) t.isNew = false;
   }
 
   /**
