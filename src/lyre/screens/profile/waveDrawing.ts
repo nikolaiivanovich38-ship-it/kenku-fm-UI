@@ -37,7 +37,8 @@ export function drawWave(cv: HTMLCanvasElement, d: WaveDrawing): void {
   const cs = getComputedStyle(cv);
   const colour = (name: string) => cs.getPropertyValue(name).trim();
   const c = { music: colour("--music"), ink: colour("--ink"), out: colour("--line-strong"), preview: colour("--preview"), env: colour("--ink-2") };
-  const dpr = window.devicePixelRatio || 1;
+  // 2: a zoomed-in strip is very wide; a canvas wider than 32,000 pixels draws nothing, so its detail is capped there.
+  const dpr = Math.min(window.devicePixelRatio || 1, 32_000 / W);
   if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) {
     cv.width = Math.round(W * dpr);
     cv.height = Math.round(H * dpr);

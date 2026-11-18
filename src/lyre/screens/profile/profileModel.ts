@@ -62,6 +62,17 @@ export function fmt(s: number): string {
   return `${Math.floor(r / 60)}:${String(r % 60).padStart(2, "0")}`;
 }
 
+/** "5:18", or "5:18.4" when it is not a whole second (2: points move in tenths of a second). */
+export function fmtPoint(s: number): string {
+  const t = Math.round(Math.max(0, s) * 10);
+  if (t % 10 === 0) return fmt(t / 10);
+  const m = Math.floor(t / 600);
+  return `${m}:${((t - m * 600) / 10).toFixed(1).padStart(4, "0")}`;
+}
+
+/** 2: how far a handle moves: an arrow key a tenth of a second, Shift and an arrow a second, Page Up or Down ten. */
+export const HANDLE_STEP = { arrow: 0.1, shift: 1, page: 10 } as const;
+
 /** "5:18.0": with tenths, for the position readouts. */
 export function fmt1(s: number): string {
   const tenths = Math.floor(Math.max(0, s) * 10 + 1e-6);
@@ -70,14 +81,18 @@ export function fmt1(s: number): string {
   return `${m}:${sec < 10 ? "0" : ""}${sec}.${tenths % 10}`;
 }
 
-/** A typed time: "4:30", or a bare number of seconds. Lengths (secsOnly) are seconds with at most one decimal. */
+/**
+ * A typed time: "4:30" or "4:30.5", or a number of seconds ("270", "270.5"); 2: a tenth of a second at most. Lengths
+ * (secsOnly) are seconds with at most one decimal.
+ */
 export function parseTime(text: string, secsOnly: boolean): number | null {
   const s = String(text).trim();
   if (secsOnly) return /^\d{1,3}(\.\d)?$/.test(s) ? Number(s) : null;
-  const m = s.match(/^(\d{1,3})(?::(\d{1,2}))?$/);
+  const m = s.match(/^(\d{1,4})(?::(\d{1,2}))?(?:\.(\d))?$/);
   if (!m) return null;
-  if (m[2] === undefined) return Number(m[1]);
-  return Number(m[2]) > 59 ? null : Number(m[1]) * 60 + Number(m[2]);
+  const tenth = m[3] === undefined ? 0 : Number(m[3]) / 10;
+  if (m[2] === undefined) return Number(m[1]) + tenth;
+  return Number(m[2]) > 59 ? null : Number(m[1]) * 60 + Number(m[2]) + tenth;
 }
 
 export function times(n: number): string {
@@ -89,9 +104,9 @@ export function secs(n: number): string {
   return `${Math.round(n * 10) / 10} s`;
 }
 
-/** A point as words: a time for points, seconds for lengths. */
+/** A point as words: a time for points (with tenths when not whole), seconds for lengths. */
 export function pointText(which: Which, v: number): string {
-  return isLength(which) ? secs(v) : fmt(v);
+  return isLength(which) ? secs(v) : fmtPoint(v);
 }
 
 /* ---------- conversion ---------- */
@@ -187,11 +202,10 @@ export function rangeOf(p: Prof, dur: number, which: Which): [number, number] {
   }
 }
 
-/** Move one point or length (whole seconds; lengths in half seconds), keeping everything else in order. */
+/** Move one point or length (2: in tenths of a second), keeping everything else in order. */
 export function movePoint(p: Prof, dur: number, which: Which, v: number): Prof {
-  const step = isLength(which) ? 2 : 1;
   const [lo, hi] = rangeOf(p, dur, which);
-  const value = clamp(Math.round(v * step) / step, lo, hi);
+  const value = clamp(Math.round(v * 10) / 10, lo, hi);
   switch (which) {
     case "start":
       return normalise({ ...p, start: value });

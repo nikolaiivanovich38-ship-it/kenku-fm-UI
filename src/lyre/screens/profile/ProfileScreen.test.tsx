@@ -117,25 +117,84 @@ describe("the handles", () => {
     expect(slider("Fade out length")).toHaveAttribute("aria-valuetext", "0 s");
   });
 
-  it("move 1 s with the arrow keys and 10 s with Shift, announce it, and keep it", async () => {
+  it("2: move 0.1 s with the arrow keys, 1 s with Shift and 10 s with Page Up and Down, announce it, and keep it", async () => {
     const { api, user } = await open();
     slider("End").focus();
     await user.keyboard("{ArrowLeft}");
-    expect(value("End")).toBe(317);
+    expect(value("End")).toBe(317.9);
+    expect(slider("End")).toHaveAttribute("aria-valuetext", "5:17.9");
     await user.keyboard("{Shift>}{ArrowLeft}{/Shift}");
-    expect(value("End")).toBe(307);
-    expect(atEnd().getByRole("textbox", { name: "End" })).toHaveValue("5:07");
-    await waitFor(() => expect(document.getElementById("lyre-live")).toHaveTextContent("End 5:07"));
-    await waitFor(async () => expect((await savedProfile(api))?.endMs).toBe(307000));
+    expect(value("End")).toBe(316.9);
+    await user.keyboard("{PageDown}");
+    expect(value("End")).toBe(306.9);
+    expect(atEnd().getByRole("textbox", { name: "End" })).toHaveValue("5:06.9");
+    await waitFor(() => expect(document.getElementById("lyre-live")).toHaveTextContent("End 5:06.9"));
+    await waitFor(async () => expect((await savedProfile(api))?.endMs).toBe(306_900));
   });
 
-  it("change a fade length by a second per arrow key", async () => {
+  it("2: Start moves in tenths of a second too, and whole seconds read as before", async () => {
+    const { user } = await open();
+    slider("Start").focus();
+    for (let i = 0; i < 3; i++) await user.keyboard("{ArrowRight}");
+    expect(value("Start")).toBe(0.3);
+    expect(atEnd().getByRole("textbox", { name: /^Start$/ })).toHaveValue("0:00.3");
+    await user.keyboard("{Shift>}{ArrowRight}{/Shift}");
+    expect(value("Start")).toBe(1.3);
+    for (let i = 0; i < 3; i++) await user.keyboard("{ArrowLeft}");
+    expect(atEnd().getByRole("textbox", { name: /^Start$/ })).toHaveValue("0:01");
+  });
+
+  it("2: a time typed with tenths (5:12.4, or 312.4 seconds) is taken as it is", async () => {
+    const { api, user } = await open();
+    const end = atEnd().getByRole("textbox", { name: "End" });
+    await user.clear(end);
+    await user.type(end, "5:12.4{Enter}");
+    expect(value("End")).toBe(312.4);
+    await waitFor(async () => expect((await savedProfile(api))?.endMs).toBe(312_400));
+    await user.clear(end);
+    await user.type(end, "300.5{Enter}");
+    expect(value("End")).toBe(300.5);
+    expect(end).toHaveValue("5:00.5");
+  });
+
+  it("change a fade length by a second per Shift+arrow key, and a tenth per arrow key", async () => {
     const { user } = await open();
     slider("Fade out length").focus();
-    for (let i = 0; i < 4; i++) await user.keyboard("{ArrowRight}");
+    for (let i = 0; i < 4; i++) await user.keyboard("{Shift>}{ArrowRight}{/Shift}");
     expect(fades().getByRole("textbox", { name: "fade out length in seconds" })).toHaveValue("4");
+    await user.keyboard("{ArrowRight}");
+    expect(fades().getByRole("textbox", { name: "fade out length in seconds" })).toHaveValue("4.1");
   });
 });
+
+describe("2: zooming in on the waveform", () => {
+  const wave = () => within(region("Waveform and listening"));
+  const strip = () => document.querySelector<HTMLElement>(".ap-wave")!;
+
+  it("Zoom in and Zoom out widen and narrow the strip, saying how far in it is; at 1× Zoom out is off", async () => {
+    const { user } = await open();
+    expect(wave().getByRole("button", { name: "Zoom out" })).toBeDisabled();
+    expect(wave().getByText("1×")).toBeInTheDocument();
+    await user.click(wave().getByRole("button", { name: "Zoom in" }));
+    expect(wave().getByText("2×")).toBeInTheDocument();
+    expect(strip().style.width).toBe("200%");
+    for (let i = 0; i < 5; i++) await user.click(wave().getByRole("button", { name: "Zoom in" }));
+    expect(strip().style.width).toBe("1600%");
+    expect(wave().getByRole("button", { name: "Zoom in" })).toBeDisabled();
+    await user.click(wave().getByRole("button", { name: "Zoom out" }));
+    expect(strip().style.width).toBe("800%");
+    await waitFor(() => expect(document.getElementById("lyre-live")).toHaveTextContent("Zoom 8×"));
+  });
+
+  it("zoomed in, the handles still say and move their times (the strip scrolls, nothing else changes)", async () => {
+    const { user } = await open();
+    await user.click(wave().getByRole("button", { name: "Zoom in" }));
+    slider("End").focus();
+    await user.keyboard("{ArrowLeft}");
+    expect(value("End")).toBe(317.9);
+  });
+});
+
 
 describe("what happens at the end", () => {
   it("offers loop, next track and stop, with the loop chosen for t13", async () => {
@@ -270,12 +329,19 @@ describe("listening while you set it", () => {
     expect(audio.calls).toContainEqual(["playTrack", "t13", { fadeMs: 3000, from: { scene: { campaignId: "crown", sessionId: "s14", sceneId: "sc3" }, at: 0 } }]);
   });
 
-  it("leaving the screen stops its preview", async () => {
+  it("24: leaving the screen (Back) keeps its preview playing, as the players would hear it from there", async () => {
     const { audio, user } = await open();
     await user.click(screen.getByRole("button", { name: "Play the last 10 s before End" }));
     audio.setNowPlaying({ preview: { key: "t13", label: "Eerie dread" } });
     go("library");
-    expect(audio.calls[audio.calls.length - 1]).toEqual(["stopPreview"]);
+    expect(audio.calls[audio.calls.length - 1]).toEqual(["changePreview", "t13"]);
+    expect(audio.calls.filter(([m]) => m === "stopPreview")).toHaveLength(0);
+  });
+
+  it("24: leaving while nothing previews stops nothing and changes nothing", async () => {
+    const { audio } = await open();
+    go("library");
+    expect(audio.calls.filter(([m]) => m === "stopPreview" || m === "changePreview")).toHaveLength(0);
   });
 });
 
@@ -396,17 +462,37 @@ describe("the preview's sound follows the profile shown", () => {
     expect((previews(audio)[1][2] as { startAtMs: number }).startAtMs).toBeGreaterThanOrEqual(5000);
   });
 
-  it("a profile change while it plays starts the sound again from the playhead, with the change (review 7)", async () => {
+  const changes = (audio: FakeLyreAudio) => audio.calls.filter(([m]) => m === "changePreview") as [string, string, { endMs: number; after: string; fadeOut: { ms: number } }?][];
+
+  it("28: a profile change while it plays reaches the playing sound at once, without starting it again", async () => {
     const { audio, user } = await open();
     await user.click(screen.getByRole("button", { name: "Play the last 10 s before End" }));
     position(audio, 310);
     slider("End").focus();
-    await user.keyboard("{ArrowRight}{ArrowRight}");
-    await waitFor(() => expect(previews(audio)).toHaveLength(2));
-    const [, id, options] = previews(audio)[1] as [string, string, { startAtMs: number; profile: { endMs: number } }];
+    await user.keyboard("{Shift>}{ArrowRight}{ArrowRight}{/Shift}");
+    expect(previews(audio)).toHaveLength(1);
+    const [, id, profile] = changes(audio)[changes(audio).length - 1];
     expect(id).toBe("t13");
-    expect(options.profile.endMs).toBe(320_000);
-    expect(options.startAtMs).toBeGreaterThanOrEqual(310_000);
+    expect(profile!.endMs).toBeGreaterThan(318_000);
+    await act(() => new Promise((r) => setTimeout(r, 300)));
+    expect(previews(audio)).toHaveLength(1);
+  });
+
+  it("28: a fade or the loop changed while it plays reaches it at once too", async () => {
+    const { audio, user } = await open();
+    await user.click(screen.getByRole("button", { name: "Play the last 10 s before End" }));
+    position(audio, 310);
+    await user.click(atEnd().getByRole("radio", { name: /Stop/ }));
+    expect(changes(audio)[changes(audio).length - 1][2]).toMatchObject({ after: "stop" });
+    expect(previews(audio)).toHaveLength(1);
+  });
+
+  it("28: a preview of this track started elsewhere (a Preview button) takes the change too, as the players would hear it", async () => {
+    const { audio, user } = await open();
+    act(() => audio.setNowPlaying({ preview: { key: "t13", label: "Eerie dread" } }));
+    await user.click(atEnd().getByRole("radio", { name: /Stop/ }));
+    expect(changes(audio)[changes(audio).length - 1]).toEqual(["changePreview", "t13", expect.objectContaining({ after: "stop", endMs: 318_000 })]);
+    expect(previews(audio)).toHaveLength(0);
   });
 
   it("a jump of the playhead (Home) while it plays starts the sound again from there (review 7)", async () => {
@@ -639,7 +725,7 @@ describe("keeping the changes", () => {
     const { api, user } = await open();
     const set = vi.spyOn(api.profiles, "set");
     slider("End").focus();
-    await user.keyboard("{ArrowLeft}{ArrowLeft}{ArrowLeft}");
+    await user.keyboard("{Shift>}{ArrowLeft}{ArrowLeft}{ArrowLeft}{/Shift}");
     await waitFor(() => expect(set).toHaveBeenCalledTimes(1));
     expect(set.mock.calls[0][2]).toMatchObject({ endMs: 315000, loopStartMs: 64000 });
   });
